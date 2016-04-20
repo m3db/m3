@@ -1,0 +1,25 @@
+{
+  "linters": {
+    "golint": {
+      "type": "golint",
+      "include": "(\\.go$)",
+      "exclude": [
+         "(^Godeps/)"
+       ]
+    },
+    "gofmt": {
+      "type": "gofmt",
+      "include": "(\\.go$)",
+      "exclude": [
+         "(^Godeps/)"
+       ]
+    },
+    "govet": {
+      "type": "govet",
+      "include": "(\\.go$)",
+      "exclude": [
+         "(^Godeps/)"
+       ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+*.out
+*.test
+*.xml
+*.swp
+.idea/
+*.iml
+*.ipr
+*.iws
+*.cov
+*.html
+test.log
