@@ -63,6 +63,8 @@ func TestWriteValue(t *testing.T) {
 
 func TestEncode(t *testing.T) {
 	encoder := getTestEncoder(testStartTime, time.Second)
+	require.Nil(t, encoder.Bytes())
+
 	startTime := time.Unix(1427162462, 0)
 	inputs := []encoding.Datapoint{
 		{startTime, 12},

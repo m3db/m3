@@ -35,16 +35,16 @@ func TestReadNonFirstTimestamp(t *testing.T) {
 		it := getTestIterator(input.rawBytes, time.Second)
 		it.nt = input.previousTime
 		it.dt = input.previousTimeDelta
-		it.readNonFirstTimestamp()
+		it.readNextTimestamp()
 		require.Equal(t, input.expectedTimeDelta, it.dt)
 		require.Equal(t, input.expectedTime, it.nt)
 		require.NoError(t, it.Err())
 	}
 
 	it := getTestIterator([]byte{0x1}, time.Second)
-	it.readNonFirstTimestamp()
+	it.readNextTimestamp()
 	require.Error(t, it.Err())
-	it.readNonFirstTimestamp()
+	it.readNextTimestamp()
 	require.Error(t, it.Err())
 }
 
@@ -64,14 +64,14 @@ func TestReadNonFirstValue(t *testing.T) {
 		it := getTestIterator(input.rawBytes, time.Second)
 		it.vb = input.previousValue
 		it.xor = input.previousValueXOR
-		it.readNonFirstValue()
+		it.readNextValue()
 		require.Equal(t, input.expectedValueXOR, it.xor)
 		require.Equal(t, input.expectedValue, it.vb)
 		require.NoError(t, it.Err())
 	}
 
 	it := getTestIterator([]byte{0x3}, time.Second)
-	it.readNonFirstValue()
+	it.readNextValue()
 	require.Error(t, it.Err())
 }
 
@@ -104,7 +104,7 @@ func TestNext(t *testing.T) {
 	}
 
 	it = getTestIterator([]byte{0x3}, time.Second)
-	it.readNonFirstValue()
+	it.readNextValue()
 	require.False(t, it.Next())
 	require.False(t, it.isDone())
 	require.True(t, it.hasError())

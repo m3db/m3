@@ -4,7 +4,8 @@
       "type": "golint",
       "include": "(\\.go$)",
       "exclude": [
-         "(^Godeps/)"
+         "(^Godeps/)",
+         "(/proto/)"
        ]
     },
     "gofmt": {

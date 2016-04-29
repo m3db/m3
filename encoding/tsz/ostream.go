@@ -22,6 +22,10 @@ func (os *ostream) len() int {
 	return len(os.rawBuffer)
 }
 
+func (os *ostream) empty() bool {
+	return os.len() == 0 && os.pos == 0
+}
+
 func (os *ostream) lastIndex() int {
 	return os.len() - 1
 }

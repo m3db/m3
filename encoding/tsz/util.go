@@ -1,17 +1,5 @@
 package tsz
 
-import (
-	"time"
-)
-
-func toNormalizedTime(t time.Time, u time.Duration) int64 {
-	return t.UnixNano() / u.Nanoseconds()
-}
-
-func fromNormalizedTime(nt int64, u time.Duration) time.Time {
-	return time.Unix(0, int64(u/time.Nanosecond)*nt)
-}
-
 func leadingAndTrailingZeros(v uint64) (int, int) {
 	if v == 0 {
 		return 64, 0

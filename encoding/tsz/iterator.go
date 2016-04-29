@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
 )
 
@@ -39,15 +40,15 @@ func (it *iterator) Next() bool {
 		it.readFirstTimestamp()
 		it.readFirstValue()
 	} else {
-		it.readNonFirstTimestamp()
-		it.readNonFirstValue()
+		it.readNextTimestamp()
+		it.readNextValue()
 	}
 	return it.hasNext()
 }
 
 func (it *iterator) readFirstTimestamp() {
 	it.nt = int64(it.readBits(64))
-	it.readNonFirstTimestamp()
+	it.readNextTimestamp()
 }
 
 func (it *iterator) readFirstValue() {
@@ -55,7 +56,7 @@ func (it *iterator) readFirstValue() {
 	it.xor = it.vb
 }
 
-func (it *iterator) readNonFirstTimestamp() {
+func (it *iterator) readNextTimestamp() {
 	dod := it.readDeltaOfDelta()
 	it.dt += dod
 	it.nt += it.dt
@@ -79,7 +80,7 @@ func (it *iterator) readDeltaOfDelta() int64 {
 	return dod
 }
 
-func (it *iterator) readNonFirstValue() {
+func (it *iterator) readNextValue() {
 	it.xor = it.readXOR()
 	it.vb ^= it.xor
 }
@@ -116,7 +117,7 @@ func (it *iterator) readBits(numBits int) uint64 {
 // Value returns the value of the current datapoint
 func (it *iterator) Value() encoding.Datapoint {
 	return encoding.Datapoint{
-		Timestamp: fromNormalizedTime(it.nt, it.tu),
+		Timestamp: memtsdb.FromNormalizedTime(it.nt, it.tu),
 		Value:     math.Float64frombits(it.vb),
 	}
 }

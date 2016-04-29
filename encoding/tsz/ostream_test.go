@@ -25,17 +25,20 @@ func TestWriteBits(t *testing.T) {
 	}
 
 	os := newOStream()
+	require.True(t, os.empty())
 	for _, input := range inputs {
 		os.writeBits(input.value, input.numBits)
 		require.Equal(t, input.expectedBytes, os.rawBuffer)
 		require.Equal(t, input.expectedPos, os.pos)
 	}
+	require.False(t, os.empty())
 }
 
 func TestResetOStream(t *testing.T) {
 	os := newOStream()
 	os.writeByte(0xfe)
 	os.reset()
+	require.True(t, os.empty())
 	require.Equal(t, 0, os.len())
 	require.Equal(t, 0, os.pos)
 }

@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
 )
 
@@ -24,7 +25,7 @@ type encoder struct {
 func NewEncoder(start time.Time, timeUnit time.Duration) encoding.Encoder {
 	return &encoder{
 		os: newOStream(),
-		nt: toNormalizedTime(start, timeUnit),
+		nt: memtsdb.ToNormalizedTime(start, timeUnit),
 		tu: timeUnit,
 	}
 }
@@ -46,7 +47,7 @@ func (enc *encoder) writeFirstTime(t time.Time) {
 }
 
 func (enc *encoder) writeNextTime(t time.Time) {
-	nt := toNormalizedTime(t, enc.tu)
+	nt := memtsdb.ToNormalizedTime(t, enc.tu)
 	dt := nt - enc.nt
 	enc.writeDeltaOfDelta(enc.dt, dt)
 	enc.nt = nt
@@ -109,13 +110,16 @@ func (enc *encoder) writeXOR(prevXOR, curXOR uint64) {
 // Reset clears the encoded byte stream and resets the start time of the encoder.
 func (enc *encoder) Reset(start time.Time) {
 	enc.os.reset()
-	enc.nt = toNormalizedTime(start, enc.tu)
+	enc.nt = memtsdb.ToNormalizedTime(start, enc.tu)
 	enc.dt = 0
 }
 
-// Bytes returns the encoded byte stream, with a marker at the end.
+// Bytes returns nil if there are no encoded bytes, or the encoded byte stream with the eos marker appended.
 // This doesn't change the current byte stream being encoded.
 func (enc *encoder) Bytes() []byte {
+	if enc.os.empty() {
+		return nil
+	}
 	bc := enc.os.clone()
 	bc.writeBits(defaultDoDRange.opcode, defaultDoDRange.numOpcodeBits)
 	bc.writeBits(eosMarker, defaultDoDRange.numDoDBits)
