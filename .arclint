@@ -14,13 +14,6 @@
       "exclude": [
          "(^Godeps/)"
        ]
-    },
-    "govet": {
-      "type": "govet",
-      "include": "(\\.go$)",
-      "exclude": [
-         "(^Godeps/)"
-       ]
     }
   }
 }

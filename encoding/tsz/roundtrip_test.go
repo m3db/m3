@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"code.uber.internal/infra/memtsdb/encoding"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,14 +36,32 @@ func TestRoundTrip(t *testing.T) {
 	for i := 0; i < numIterations; i++ {
 		input := generateDatapoints(numPoints, timeUnit)
 		encoder := NewEncoder(testStartTime, timeUnit)
-		for _, v := range input {
-			encoder.Encode(v)
+		for j, v := range input {
+			if j == 0 {
+				encoder.Encode(v, proto.EncodeVarint(10))
+			} else if j == 10 {
+				encoder.Encode(v, proto.EncodeVarint(60))
+			} else {
+				encoder.Encode(v, nil)
+			}
 		}
 		decoder := NewDecoder(timeUnit)
 		it := decoder.Decode(bytes.NewReader(encoder.Bytes()))
 		var decompressed []encoding.Datapoint
+		j := 0
 		for it.Next() {
-			decompressed = append(decompressed, it.Value())
+			v, a := it.Current()
+			if j == 0 {
+				s, _ := proto.DecodeVarint(a)
+				require.Equal(t, uint64(10), s)
+			} else if j == 10 {
+				s, _ := proto.DecodeVarint(a)
+				require.Equal(t, uint64(60), s)
+			} else {
+				require.Nil(t, a)
+			}
+			decompressed = append(decompressed, v)
+			j++
 		}
 		require.NoError(t, it.Err())
 		require.Equal(t, input, decompressed)

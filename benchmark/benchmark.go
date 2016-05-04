@@ -81,7 +81,7 @@ func (th *benchmark) Run() {
 
 func (th *benchmark) encode(dp encoding.Datapoint) {
 	start := time.Now()
-	th.encoder.Encode(dp)
+	th.encoder.Encode(dp, nil)
 	end := time.Now()
 	th.encodingTime += end.Sub(start)
 	th.numDatapoints++
@@ -99,7 +99,7 @@ func (th *benchmark) decode() {
 	it := th.decoder.Decode(byteStream)
 	// NB(xichen): consolidate these
 	for it.Next() {
-		it.Value()
+		it.Current()
 	}
 	end := time.Now()
 

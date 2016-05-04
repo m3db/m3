@@ -17,7 +17,7 @@ func newIStream(reader io.Reader) *istream {
 	return &istream{r: bufio.NewReader(reader)}
 }
 
-func (is *istream) readBit() (bit, error) {
+func (is *istream) ReadBit() (bit, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
@@ -29,7 +29,7 @@ func (is *istream) readBit() (bit, error) {
 	return bit(is.consumeBuffer(1)), nil
 }
 
-func (is *istream) readByte() (byte, error) {
+func (is *istream) ReadByte() (byte, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
@@ -45,14 +45,14 @@ func (is *istream) readByte() (byte, error) {
 	return res, nil
 }
 
-func (is *istream) readBits(numBits int) (uint64, error) {
+func (is *istream) ReadBits(numBits int) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
 	var res uint64
 	var shift uint
 	for numBits >= 8 {
-		byteRead, err := is.readByte()
+		byteRead, err := is.ReadByte()
 		if err != nil {
 			return 0, err
 		}
@@ -61,7 +61,7 @@ func (is *istream) readBits(numBits int) (uint64, error) {
 		numBits -= 8
 	}
 	for numBits > 0 {
-		bitRead, err := is.readBit()
+		bitRead, err := is.ReadBit()
 		if err != nil {
 			return 0, err
 		}
@@ -87,7 +87,7 @@ func (is *istream) readByteFromStream() error {
 	return is.err
 }
 
-func (is *istream) reset(r io.Reader) {
+func (is *istream) Reset(r io.Reader) {
 	is.r = bufio.NewReader(r)
 	is.err = nil
 	is.current = 0

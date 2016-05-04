@@ -13,7 +13,7 @@ func getTestIterator(rawBytes []byte, timeUnit time.Duration) *iterator {
 	return newIterator(bytes.NewReader(rawBytes), timeUnit).(*iterator)
 }
 
-func TestReadNonFirstTimestamp(t *testing.T) {
+func TestReadNextTimestamp(t *testing.T) {
 	inputs := []struct {
 		previousTime      int64
 		previousTimeDelta int64
@@ -48,7 +48,7 @@ func TestReadNonFirstTimestamp(t *testing.T) {
 	require.Error(t, it.Err())
 }
 
-func TestReadNonFirstValue(t *testing.T) {
+func TestReadNextValue(t *testing.T) {
 	inputs := []struct {
 		previousValue    uint64
 		previousValueXOR uint64
@@ -75,7 +75,36 @@ func TestReadNonFirstValue(t *testing.T) {
 	require.Error(t, it.Err())
 }
 
-func TestNext(t *testing.T) {
+func TestReadAnnotation(t *testing.T) {
+	inputs := []struct {
+		rawBytes           []byte
+		expectedAnnotation encoding.Annotation
+	}{
+		{
+			[]byte{0x0, 0xff},
+			[]byte{0xff},
+		},
+		{
+			[]byte{0x2, 0x2, 0x3},
+			[]byte{0x2, 0x3},
+		},
+		{
+			[]byte{0xe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			[]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+		},
+		{
+			[]byte{0x10, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			[]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+		},
+	}
+	for _, input := range inputs {
+		it := getTestIterator(input.rawBytes, time.Second)
+		it.readAnnotation()
+		require.Equal(t, input.expectedAnnotation, it.ant)
+	}
+}
+
+func TestNextNoAnnotation(t *testing.T) {
 	rawBytes := []byte{
 		0x20, 0xc5, 0x10, 0x55, 0x0, 0x0, 0x0, 0x0, 0xf9, 0x0, 0x0, 0x0,
 		0x0, 0x0, 0x0, 0x50, 0x80, 0xf2, 0xf3, 0x2, 0x7c, 0x0, 0x0, 0x0, 0x0,
@@ -89,8 +118,10 @@ func TestNext(t *testing.T) {
 	it := getTestIterator(rawBytes, time.Second)
 	for i := 0; i < 3; i++ {
 		require.True(t, it.Next())
-		require.Equal(t, inputs[i].Timestamp, it.Value().Timestamp)
-		require.Equal(t, inputs[i].Value, it.Value().Value)
+		v, a := it.Current()
+		require.Nil(t, a)
+		require.Equal(t, inputs[i].Timestamp, v.Timestamp)
+		require.Equal(t, inputs[i].Value, v.Value)
 		require.NoError(t, it.Err())
 		require.False(t, it.hasError())
 		require.False(t, it.isDone())
@@ -105,6 +136,55 @@ func TestNext(t *testing.T) {
 
 	it = getTestIterator([]byte{0x3}, time.Second)
 	it.readNextValue()
+	require.False(t, it.Next())
+	require.False(t, it.isDone())
+	require.True(t, it.hasError())
+}
+
+func TestNextWithAnnotation(t *testing.T) {
+	rawBytes := []byte{
+		0x20, 0xc5, 0x10, 0x55, 0x0, 0x0, 0x0, 0x0, 0x1f, 0x0, 0x0, 0x0, 0x0,
+		0xa0, 0x90, 0xf, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x28, 0x3f, 0x2f,
+		0xc0, 0x1, 0xf4, 0x1, 0x0, 0x0, 0x0, 0x2, 0x1, 0x2, 0x7, 0x10, 0x1e,
+		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
+	}
+	startTime := time.Unix(1427162462, 0)
+	inputs := []struct {
+		dp  encoding.Datapoint
+		ant encoding.Annotation
+	}{
+		{encoding.Datapoint{startTime, 12}, []byte{0xa}},
+		{encoding.Datapoint{startTime.Add(time.Second * 60), 12}, nil},
+		{encoding.Datapoint{startTime.Add(time.Second * 120), 24}, nil},
+		{encoding.Datapoint{startTime.Add(-time.Second * 76), 24}, nil},
+		{encoding.Datapoint{startTime.Add(-time.Second * 16), 24}, []byte{0x1, 0x2}},
+		{encoding.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
+		{encoding.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
+	}
+	it := getTestIterator(rawBytes, time.Second)
+	for i := 0; i < 7; i++ {
+		require.True(t, it.Next())
+		v, a := it.Current()
+		require.Equal(t, inputs[i].ant, a)
+		require.Equal(t, inputs[i].dp.Timestamp, v.Timestamp)
+		require.Equal(t, inputs[i].dp.Value, v.Value)
+
+		require.NoError(t, it.Err())
+		require.False(t, it.hasError())
+		require.False(t, it.isDone())
+	}
+
+	for i := 0; i < 2; i++ {
+		require.False(t, it.Next())
+		require.NoError(t, it.Err())
+		require.False(t, it.hasError())
+		require.True(t, it.isDone())
+	}
+
+	it = getTestIterator(
+		[]byte{0x20, 0xc5, 0x10, 0x55, 0x0, 0x0, 0x0, 0x0, 0x1f, 0x0, 0x0, 0x0, 0x80, 0x1},
+		time.Second,
+	)
 	require.False(t, it.Next())
 	require.False(t, it.isDone())
 	require.True(t, it.hasError())

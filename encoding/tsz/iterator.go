@@ -1,12 +1,18 @@
 package tsz
 
 import (
+	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 	"time"
 
 	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
+)
+
+const (
+	maxBufferSize = 8
 )
 
 // iterator provides an interface for clients to incrementally
@@ -16,12 +22,14 @@ type iterator struct {
 	tu time.Duration // time unit
 
 	// internal bookkeeping
-	nt   int64  // current time
-	dt   int64  // current time delta
-	vb   uint64 // current value
-	xor  uint64 // current xor
-	done bool   // has reached the end
-	err  error  // current error
+	nt   int64               // current time
+	dt   int64               // current time delta
+	vb   uint64              // current value
+	xor  uint64              // current xor
+	done bool                // has reached the end
+	err  error               // current error
+	ant  encoding.Annotation // current annotation
+	buf  [maxBufferSize]byte // a small buffer to avoid repeated allocation
 }
 
 func newIterator(reader io.Reader, timeUnit time.Duration) encoding.Iterator {
@@ -36,6 +44,7 @@ func (it *iterator) Next() bool {
 	if !it.hasNext() {
 		return false
 	}
+	it.ant = nil
 	if it.nt == 0 {
 		it.readFirstTimestamp()
 		it.readFirstValue()
@@ -74,8 +83,14 @@ func (it *iterator) readDeltaOfDelta() int64 {
 		}
 	}
 	dod := signExtend(it.readBits(defaultDoDRange.numDoDBits), defaultDoDRange.numDoDBits)
-	if !it.hasError() && dod == int64(eosMarker) {
-		it.done = true
+	if !it.hasError() {
+		if dod == int64(annotationMarker) {
+			it.readAnnotation()
+			return it.readDeltaOfDelta()
+		}
+		if dod == int64(eosMarker) {
+			it.done = true
+		}
 	}
 	return dod
 }
@@ -83,6 +98,23 @@ func (it *iterator) readDeltaOfDelta() int64 {
 func (it *iterator) readNextValue() {
 	it.xor = it.readXOR()
 	it.vb ^= it.xor
+}
+
+func (it *iterator) readAnnotation() {
+	// NB: we add 1 here to offset the 1 we subtracted during encoding
+	antLen := it.readVarint() + 1
+	if antLen <= 0 {
+		it.err = fmt.Errorf("unexpected annotation length %d", antLen)
+		return
+	}
+	buf := it.buf[:]
+	if antLen > maxBufferSize {
+		buf = make([]byte, antLen)
+	}
+	for i := 0; i < antLen; i++ {
+		buf[i] = byte(it.readBits(8))
+	}
+	it.ant = buf[:antLen]
 }
 
 func (it *iterator) readXOR() uint64 {
@@ -110,16 +142,27 @@ func (it *iterator) readBits(numBits int) uint64 {
 		return 0
 	}
 	var res uint64
-	res, it.err = it.is.readBits(numBits)
+	res, it.err = it.is.ReadBits(numBits)
 	return res
 }
 
-// Value returns the value of the current datapoint
-func (it *iterator) Value() encoding.Datapoint {
+func (it *iterator) readVarint() int {
+	if !it.hasNext() {
+		return 0
+	}
+	var res int64
+	res, it.err = binary.ReadVarint(it.is)
+	return int(res)
+}
+
+// Current returns the value as well as the annotation associated with the current datapoint.
+// Users should not hold on to the returned Annotation object as it may get invalidated when
+// the iterator calls Next().
+func (it *iterator) Current() (encoding.Datapoint, encoding.Annotation) {
 	return encoding.Datapoint{
 		Timestamp: memtsdb.FromNormalizedTime(it.nt, it.tu),
 		Value:     math.Float64frombits(it.vb),
-	}
+	}, it.ant
 }
 
 // Err returns the error encountered

@@ -61,7 +61,39 @@ func TestWriteValue(t *testing.T) {
 	}
 }
 
-func TestEncode(t *testing.T) {
+func TestWriteAnnotation(t *testing.T) {
+	encoder := getTestEncoder(testStartTime, time.Second)
+	inputs := []struct {
+		annotation    encoding.Annotation
+		expectedBytes []byte
+		expectedPos   int
+	}{
+		{
+			nil,
+			[]byte{},
+			0,
+		},
+		{
+			[]byte{0x1, 0x2},
+			[]byte{0x1f, 0x0, 0x0, 0x0, 0x20, 0x10, 0x20, 0x0},
+			4,
+		},
+		{
+			[]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			[]byte{0x1f, 0x0, 0x0, 0x0, 0xe0, 0xf0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xf},
+			4,
+		},
+	}
+	for _, input := range inputs {
+		encoder.Reset(testStartTime)
+		err := encoder.writeAnnotation(input.annotation)
+		require.Nil(t, err)
+		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
+		require.Equal(t, input.expectedPos, encoder.os.pos)
+	}
+}
+
+func TestEncodeNoAnnotation(t *testing.T) {
 	encoder := getTestEncoder(testStartTime, time.Second)
 	require.Nil(t, encoder.Bytes())
 
@@ -76,7 +108,7 @@ func TestEncode(t *testing.T) {
 		{startTime.Add(time.Second * 4200), 12},
 	}
 	for _, input := range inputs {
-		encoder.Encode(input)
+		encoder.Encode(input, nil)
 	}
 
 	expectedBytes := []byte{
@@ -93,5 +125,44 @@ func TestEncode(t *testing.T) {
 	}
 	require.Equal(t, expectedBuffer, encoder.os.rawBuffer)
 	require.Equal(t, 6, encoder.os.pos)
+}
 
+func TestEncodeWithAnnotation(t *testing.T) {
+	encoder := getTestEncoder(testStartTime, time.Second)
+	require.Nil(t, encoder.Bytes())
+
+	startTime := time.Unix(1427162462, 0)
+	inputs := []struct {
+		dp  encoding.Datapoint
+		ant encoding.Annotation
+	}{
+		{encoding.Datapoint{startTime, 12}, []byte{0xa}},
+		{encoding.Datapoint{startTime.Add(time.Second * 60), 12}, nil},
+		{encoding.Datapoint{startTime.Add(time.Second * 120), 24}, nil},
+		{encoding.Datapoint{startTime.Add(-time.Second * 76), 24}, nil},
+		{encoding.Datapoint{startTime.Add(-time.Second * 16), 24}, []byte{0x1, 0x2}},
+		{encoding.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
+		{encoding.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
+	}
+
+	for _, input := range inputs {
+		encoder.Encode(input.dp, input.ant)
+	}
+
+	expectedBuffer := []byte{
+		0x20, 0xc5, 0x10, 0x55, 0x0, 0x0, 0x0, 0x0, 0x1f, 0x0, 0x0, 0x0, 0x0,
+		0xa0, 0x90, 0xf, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x28, 0x3f, 0x2f,
+		0xc0, 0x1, 0xf4, 0x1, 0x0, 0x0, 0x0, 0x2, 0x1, 0x2, 0x7, 0x10, 0x1e,
+		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xd,
+	}
+	require.Equal(t, expectedBuffer, encoder.os.rawBuffer)
+	require.Equal(t, 6, encoder.os.pos)
+
+	expectedBytes := []byte{
+		0x20, 0xc5, 0x10, 0x55, 0x0, 0x0, 0x0, 0x0, 0x1f, 0x0, 0x0, 0x0, 0x0,
+		0xa0, 0x90, 0xf, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x28, 0x3f, 0x2f,
+		0xc0, 0x1, 0xf4, 0x1, 0x0, 0x0, 0x0, 0x2, 0x1, 0x2, 0x7, 0x10, 0x1e,
+		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
+	}
+	require.Equal(t, expectedBytes, encoder.Bytes())
 }

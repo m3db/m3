@@ -1,14 +1,13 @@
 package tsz
 
-import (
-	"math"
-)
+import "math"
 
 const (
 	opcodeZeroValueXOR         = 0x0 // xor is zero
 	opcodeContainedValueXOR    = 0x1 // meaningful bits in the current xor is contained
 	opcodeNotContainedValueXOR = 0x3 // meaningful bits in the current xor is not contained
 	eosMarker                  = 0x0 // marks the end of stream
+	annotationMarker           = 0x1 // marks the annotations
 )
 
 var (

@@ -5,12 +5,21 @@ import (
 	"time"
 )
 
+// A Datapoint is a single data value reported at a given time
+type Datapoint struct {
+	Timestamp time.Time
+	Value     float64
+}
+
+// Annotation represents information used to annotate datapoints.
+type Annotation []byte
+
 // Encoder is the generic interface for different types of encoders.
 type Encoder interface {
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time)
-	// Encode encodes datapoints into raw bytes
-	Encode(dp Datapoint)
+	// Encode encodes a datapoint and optionally an annotation.
+	Encode(dp Datapoint, annotation Annotation) error
 	// Bytes returns the bytes encoded so far.
 	Bytes() []byte
 }
@@ -19,8 +28,10 @@ type Encoder interface {
 type Iterator interface {
 	// Next moves to the next item
 	Next() bool
-	// Value returns the value of the current datapoint
-	Value() Datapoint
+	// Current returns the value as well as the annotation associated with the current datapoint.
+	// Users should not hold on to the returned Annotation object as it may get invalidated when
+	// the iterator calls Next().
+	Current() (Datapoint, Annotation)
 	// Err returns the error encountered
 	Err() error
 }

@@ -44,8 +44,8 @@ func (os *ostream) fillUnused(v byte) {
 	os.rawBuffer[os.lastIndex()] |= v << uint(os.pos)
 }
 
-// writeBit writes the last bit of v.
-func (os *ostream) writeBit(v bit) {
+// WriteBit writes the last bit of v.
+func (os *ostream) WriteBit(v bit) {
 	if !os.hasUnusedBits() {
 		os.grow(byte(v), 1)
 		return
@@ -54,8 +54,8 @@ func (os *ostream) writeBit(v bit) {
 	os.pos++
 }
 
-// writeByte writes the last byte of v.
-func (os *ostream) writeByte(v byte) {
+// WriteByte writes the last byte of v.
+func (os *ostream) WriteByte(v byte) {
 	if !os.hasUnusedBits() {
 		os.grow(v, 8)
 		return
@@ -64,7 +64,14 @@ func (os *ostream) writeByte(v byte) {
 	os.grow(v>>uint(8-os.pos), os.pos)
 }
 
-func (os *ostream) writeBits(v uint64, numBits int) {
+// WriteBytes writes a byte slice.
+func (os *ostream) WriteBytes(bytes []byte) {
+	for i := 0; i < len(bytes); i++ {
+		os.WriteByte(bytes[i])
+	}
+}
+
+func (os *ostream) WriteBits(v uint64, numBits int) {
 	if numBits == 0 {
 		return
 	}
@@ -75,19 +82,19 @@ func (os *ostream) writeBits(v uint64, numBits int) {
 	}
 
 	for numBits >= 8 {
-		os.writeByte(byte(v))
+		os.WriteByte(byte(v))
 		v >>= 8
 		numBits -= 8
 	}
 
 	for numBits > 0 {
-		os.writeBit(bit(v & 1))
+		os.WriteBit(bit(v & 1))
 		v >>= 1
 		numBits--
 	}
 }
 
-func (os *ostream) reset() {
+func (os *ostream) Reset() {
 	os.rawBuffer = os.rawBuffer[:0]
 	os.pos = 0
 }

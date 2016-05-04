@@ -16,7 +16,7 @@ func TestReadBits(t *testing.T) {
 	numBits := []int{1, 3, 4, 8, 7, 2, 64, 64}
 	var res []uint64
 	for _, v := range numBits {
-		read, err := is.readBits(v)
+		read, err := is.ReadBits(v)
 		require.NoError(t, err)
 		res = append(res, read)
 	}
@@ -24,16 +24,16 @@ func TestReadBits(t *testing.T) {
 	require.Equal(t, expected, res)
 	require.NoError(t, is.err)
 
-	_, err := is.readBits(8)
+	_, err := is.ReadBits(8)
 	require.Error(t, err)
 	require.Error(t, is.err)
 }
 
 func TestResetIStream(t *testing.T) {
 	is := newIStream(bytes.NewReader(nil))
-	is.readBits(1)
+	is.ReadBits(1)
 	require.Error(t, is.err)
-	is.reset(bytes.NewReader(nil))
+	is.Reset(bytes.NewReader(nil))
 	require.NoError(t, is.err)
 	require.Equal(t, byte(0), is.current)
 	require.Equal(t, 0, is.remaining)
