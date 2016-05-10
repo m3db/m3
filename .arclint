@@ -5,14 +5,29 @@
       "include": "(\\.go$)",
       "exclude": [
          "(^Godeps/)",
-         "(/proto/)"
+         "(/proto/)",
+         "(/gen-go/)",
+         "(.pb.go)"
        ]
     },
     "gofmt": {
       "type": "gofmt",
       "include": "(\\.go$)",
       "exclude": [
-         "(^Godeps/)"
+         "(^Godeps/)",
+         "(/proto/)",
+         "(/gen-go/)",
+         "(.pb.go)"
+       ]
+    },
+    "govet": {
+      "type": "govet",
+      "include": "(\\.go$)",
+      "exclude": [
+         "(^Godeps/)",
+         "(/proto/)",
+         "(/gen-go/)",
+         "(.pb.go)"
        ]
     }
   }

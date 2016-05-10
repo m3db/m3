@@ -1,0 +1,15 @@
+language: go
+cache:
+  directories:
+    - Godeps/_workspace/src
+go:
+  - 1.4
+  - 1.5
+  - 1.6
+  - tip
+install: make install_ci
+script:
+ - make test_ci
+ - make cover_ci
+ - make lint
+

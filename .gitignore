@@ -3,6 +3,7 @@
 *.xml
 *.swp
 .idea/
+.vscode/
 *.iml
 *.ipr
 *.iws

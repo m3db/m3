@@ -75,7 +75,8 @@ if [ -n "$LINT_ERRORS" ]; then
   exit 1
 fi
 
-VET_ERRORS=$(go tool vet -methods=false ./src/$PACKAGE/ 2>&1)
+GOVET_EXCLUDE=$(excludes govet)
+VET_ERRORS=$(go vet ./src/$PACKAGE/... 2>&1 | eval egrep -q -v $GOVET_EXCLUDE)
 if [ -n "$VET_ERRORS" ]; then
   comment "Vet failures on:"
   comment "$VET_ERRORS"

@@ -1,0 +1,26 @@
+syntax = "proto3";
+package benchtchannelgogoprotobuf;
+
+message FetchRequest {
+    int64 startUnixMs = 1;
+    int64 endUnixMs = 2;
+    string id = 3;
+}
+
+message FetchResult {
+    message Segment {
+        bytes value = 1;
+    }
+
+    repeated Segment segments = 1;
+}
+
+message FetchBatchRequest {
+    int64 startUnixMs = 1;
+    int64 endUnixMs = 2;
+    repeated string ids = 3;
+}
+
+message FetchBatchResult {
+    repeated FetchResult results = 1;
+}

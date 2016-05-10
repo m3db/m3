@@ -6,6 +6,10 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "github.com/apache/thrift",
+			"Rev": "6ee1a0bd263b0dc3b863285763342fb3ddc3ede4"
+		},
+		{
 			"ImportPath": "github.com/Sirupsen/logrus",
 			"Comment": "v0.8.7-35-gfe6f2b0",
 			"Rev": "fe6f2b03125e4fcafb21406381010e363a072c80"
@@ -31,6 +35,19 @@
 			"ImportPath": "github.com/stretchr/testify/require",
 			"Comment": "v1.1.3-6-g6fe211e",
 			"Rev": "6fe211e493929a8aac0469b93f28b1d0688a9a3a"
+		},
+		{
+			"ImportPath": "github.com/uber/tchannel-go",
+			"Comment": "v1.0.5",
+			"Rev": "521248db9bf9eb98e86f0d5334e56a890b6a559b"
+		},
+		{
+			"ImportPath": "golang.org/x/net",
+			"Rev": "1aafd77e1e7f6849ad16a7bdeb65e3589a10b2bb"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc",
+			"Rev": "b062a3c003c22bfef58fa99d689e6a892b408f9d"
 		}
 	]
 }
