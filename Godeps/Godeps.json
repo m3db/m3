@@ -6,13 +6,13 @@
 	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/apache/thrift",
-			"Rev": "6ee1a0bd263b0dc3b863285763342fb3ddc3ede4"
-		},
-		{
 			"ImportPath": "github.com/Sirupsen/logrus",
 			"Comment": "v0.8.7-35-gfe6f2b0",
 			"Rev": "fe6f2b03125e4fcafb21406381010e363a072c80"
+		},
+		{
+			"ImportPath": "github.com/apache/thrift/lib/go/thrift",
+			"Rev": "6ee1a0bd263b0dc3b863285763342fb3ddc3ede4"
 		},
 		{
 			"ImportPath": "github.com/davecgh/go-spew/spew",
@@ -42,7 +42,19 @@
 			"Rev": "521248db9bf9eb98e86f0d5334e56a890b6a559b"
 		},
 		{
-			"ImportPath": "golang.org/x/net",
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "1aafd77e1e7f6849ad16a7bdeb65e3589a10b2bb"
+		},
+		{
+			"ImportPath": "golang.org/x/net/http2",
+			"Rev": "1aafd77e1e7f6849ad16a7bdeb65e3589a10b2bb"
+		},
+		{
+			"ImportPath": "golang.org/x/net/internal/timeseries",
+			"Rev": "1aafd77e1e7f6849ad16a7bdeb65e3589a10b2bb"
+		},
+		{
+			"ImportPath": "golang.org/x/net/trace",
 			"Rev": "1aafd77e1e7f6849ad16a7bdeb65e3589a10b2bb"
 		},
 		{

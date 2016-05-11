@@ -19,16 +19,6 @@
          "(/gen-go/)",
          "(.pb.go)"
        ]
-    },
-    "govet": {
-      "type": "govet",
-      "include": "(\\.go$)",
-      "exclude": [
-         "(^Godeps/)",
-         "(/proto/)",
-         "(/gen-go/)",
-         "(.pb.go)"
-       ]
     }
   }
 }

@@ -1,0 +1,13 @@
+syntax = "proto3";
+package memtsdb.persistfs;
+
+message IndexInfo {
+	int64 entries = 1;
+}
+
+message IndexEntry {
+	int64 idx = 1;
+	string key = 2;
+	int64 size = 3;
+	int64 offset = 4;
+}
