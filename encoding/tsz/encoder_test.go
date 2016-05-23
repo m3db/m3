@@ -86,8 +86,7 @@ func TestWriteAnnotation(t *testing.T) {
 	}
 	for _, input := range inputs {
 		encoder.Reset(testStartTime)
-		err := encoder.writeAnnotation(input.annotation)
-		require.Nil(t, err)
+		encoder.writeAnnotation(input.annotation)
 		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
 		require.Equal(t, input.expectedPos, encoder.os.pos)
 	}

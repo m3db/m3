@@ -10,3 +10,10 @@
 *.cov
 *.html
 test.log
+
+# Build binaries
+bin/
+
+# Debug binaries
+debug
+

@@ -34,29 +34,24 @@ func NewEncoder(start time.Time, timeUnit time.Duration) encoding.Encoder {
 }
 
 // Encode encodes the timestamp and the value of a datapoint.
-func (enc *encoder) Encode(dp encoding.Datapoint, ant encoding.Annotation) error {
+func (enc *encoder) Encode(dp encoding.Datapoint, ant encoding.Annotation) {
 	if enc.os.len() == 0 {
-		return enc.writeFirst(dp, ant)
+		enc.writeFirst(dp, ant)
+		return
 	}
-	return enc.writeNext(dp, ant)
+	enc.writeNext(dp, ant)
 }
 
 // writeFirst writes the first datapoint with annotation.
-func (enc *encoder) writeFirst(dp encoding.Datapoint, ant encoding.Annotation) error {
-	if err := enc.writeFirstTimeWithAnnotation(dp.Timestamp, ant); err != nil {
-		return err
-	}
+func (enc *encoder) writeFirst(dp encoding.Datapoint, ant encoding.Annotation) {
+	enc.writeFirstTimeWithAnnotation(dp.Timestamp, ant)
 	enc.writeFirstValue(dp.Value)
-	return nil
 }
 
 // writeNext writes the next datapoint with annotation.
-func (enc *encoder) writeNext(dp encoding.Datapoint, ant encoding.Annotation) error {
-	if err := enc.writeNextTimeWithAnnotation(dp.Timestamp, ant); err != nil {
-		return err
-	}
+func (enc *encoder) writeNext(dp encoding.Datapoint, ant encoding.Annotation) {
+	enc.writeNextTimeWithAnnotation(dp.Timestamp, ant)
 	enc.writeNextValue(dp.Value)
-	return nil
 }
 
 // writeSpecialMarker writes the marker that marks the start of a special symbol,
@@ -66,34 +61,30 @@ func writeSpecialMarker(os *ostream, marker uint64) {
 	os.WriteBits(marker, defaultDoDRange.numDoDBits)
 }
 
-func (enc *encoder) writeAnnotation(ant encoding.Annotation) error {
+func (enc *encoder) writeAnnotation(ant encoding.Annotation) {
 	numAnnotationBytes := len(ant)
 	if numAnnotationBytes == 0 {
-		return nil
+		return
 	}
 	writeSpecialMarker(enc.os, annotationMarker)
 	// NB: we subtract 1 for possible varint encoding savings
 	annotationLength := binary.PutVarint(enc.buf[:], int64(numAnnotationBytes-1))
 	enc.os.WriteBytes(enc.buf[:annotationLength])
 	enc.os.WriteBytes(ant)
-	return nil
 }
 
-func (enc *encoder) writeFirstTimeWithAnnotation(t time.Time, ant encoding.Annotation) error {
+func (enc *encoder) writeFirstTimeWithAnnotation(t time.Time, ant encoding.Annotation) {
 	enc.os.WriteBits(uint64(enc.nt), 64)
-	return enc.writeNextTimeWithAnnotation(t, ant)
+	enc.writeNextTimeWithAnnotation(t, ant)
 }
 
-func (enc *encoder) writeNextTimeWithAnnotation(t time.Time, ant encoding.Annotation) error {
-	if err := enc.writeAnnotation(ant); err != nil {
-		return err
-	}
+func (enc *encoder) writeNextTimeWithAnnotation(t time.Time, ant encoding.Annotation) {
+	enc.writeAnnotation(ant)
 	nt := memtsdb.ToNormalizedTime(t, enc.tu)
 	dt := nt - enc.nt
 	enc.writeDeltaOfDelta(enc.dt, dt)
 	enc.nt = nt
 	enc.dt = dt
-	return nil
 }
 
 func (enc *encoder) writeDeltaOfDelta(prevDoD, curDoD int64) {

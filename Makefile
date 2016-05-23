@@ -9,6 +9,24 @@ junit_xml := junit.xml
 test_log := test.log
 test_target := .
 
+BUILD := $(abspath ./bin)
+
+SERVICES ?= \
+	mdbnode
+
+setup:
+	mkdir -p $(BUILD)
+
+define SERVICE_RULES
+
+$(SERVICE): setup
+	@echo Building $(SERVICE)
+	go build -o $$(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
+
+endef
+
+$(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
+
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
 	@$(test) $(test_target) $(coverfile) | tee $(test_log)
