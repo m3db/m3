@@ -26,6 +26,10 @@ const (
 
 // Database is a time series database
 type Database interface {
+
+	// GetOptions returns the database options
+	GetOptions() DatabaseOptions
+
 	// Open will open the database for writing and reading
 	Open() error
 

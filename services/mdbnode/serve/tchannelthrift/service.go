@@ -1,15 +1,13 @@
 package tchannelthrift
 
 import (
-	"bytes"
 	"fmt"
-	"time"
 
 	"code.uber.internal/infra/memtsdb"
-	"code.uber.internal/infra/memtsdb/encoding/tsz"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/storage"
 
+	"code.uber.internal/infra/memtsdb/encoding"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -39,28 +37,27 @@ func (s *service) Fetch(ctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchRe
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
-	// TODO(r): in future decoder will be able to take an array of byte arrays
-	for i := range encoded {
-		// TODO(r): in future decoder will not require setting the timeUnit
-		timeUnit := time.Second
-		it := tsz.NewDecoder(timeUnit).Decode(bytes.NewBuffer(encoded[i]))
-		for it.Next() {
-			dp, annotation := it.Current()
-			ts, tsErr := timeToValue(dp.Timestamp, req.ResultTimeType)
-			if tsErr != nil {
-				return nil, newNodeBadRequestError(tsErr)
-			}
-
-			afterOrAtStart := !dp.Timestamp.Before(start)
-			beforeOrAtEnd := !dp.Timestamp.After(end)
-			if afterOrAtStart && beforeOrAtEnd {
-				datapoint := rpc.NewDatapoint()
-				datapoint.Timestamp = ts
-				datapoint.Value = dp.Value
-				datapoint.Annotation = annotation
-				result.Datapoints = append(result.Datapoints, datapoint)
-			}
+	it := s.db.GetOptions().GetNewDecoderFn()().Decode(encoding.NewSliceOfSliceReader(encoded))
+	for it.Next() {
+		dp, annotation := it.Current()
+		ts, tsErr := timeToValue(dp.Timestamp, req.ResultTimeType)
+		if tsErr != nil {
+			return nil, newNodeBadRequestError(tsErr)
 		}
+
+		afterOrAtStart := !dp.Timestamp.Before(start)
+		beforeOrAtEnd := !dp.Timestamp.After(end)
+		if afterOrAtStart && beforeOrAtEnd {
+			datapoint := rpc.NewDatapoint()
+			datapoint.Timestamp = ts
+			datapoint.Value = dp.Value
+			datapoint.Annotation = annotation
+			result.Datapoints = append(result.Datapoints, datapoint)
+		}
+	}
+
+	if err := it.Err(); err != nil {
+		return nil, newNodeInternalError(err)
 	}
 
 	return result, nil

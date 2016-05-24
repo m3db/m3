@@ -52,6 +52,10 @@ func NewDatabase(shardSet sharding.ShardSet, opts DatabaseOptions) Database {
 	}
 }
 
+func (d *db) GetOptions() DatabaseOptions {
+	return d.opts
+}
+
 func (d *db) Open() error {
 	select {
 	case d.openCh <- struct{}{}:
