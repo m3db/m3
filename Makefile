@@ -10,9 +10,12 @@ test_log := test.log
 test_target := .
 
 BUILD := $(abspath ./bin)
+LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
-SERVICES ?= \
+SERVICES := \
 	mdbnode
+	
+TOOLS :=  
 
 setup:
 	mkdir -p $(BUILD)
@@ -21,11 +24,34 @@ define SERVICE_RULES
 
 $(SERVICE): setup
 	@echo Building $(SERVICE)
-	go build -o $$(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
+	godep go build -o $$(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
+
+$(SERVICE)-linux-amd64:
+	$$(LINUX_AMD64_ENV) make $(SERVICE)
 
 endef
 
+define TOOL_RULES
+
+$(TOOL): setup
+	@echo Building $(TOOL)
+	godep go build -o $$(BUILD)/$(TOOL) ./tools/$(TOOL)/main/.
+
+$(TOOL)-linux-amd64:
+	$$(LINUX_AMD64_ENV) make $(TOOL)
+
+endef
+
+services: $(SERVICES)
+services-linux-amd64:
+	$(LINUX_AMD64_ENV) make services
+
+tools: $(TOOLS)
+tools-linux-amd64:
+	$(LINUX_AMD64_ENV) make tools
+
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
+$(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report

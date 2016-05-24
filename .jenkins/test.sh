@@ -44,9 +44,6 @@ cat $ERROR_LOG
 
 set -e
 
-# Make sure we don't lint / vet godeps or weird git stuff
-rm -rf Godeps .git
-
 echo "Looking for possible data races"
 RACES=$(grep -A 10 -e "^WARNING: DATA RACE" $ERROR_LOG || true)
 if [ -n "$RACES" ]; then
@@ -56,28 +53,33 @@ if [ -n "$RACES" ]; then
   exit 4
 fi
 
-echo "Ensuring code is properly formatted with gofmt"
-FMT_ERRORS=$(gofmt -s -e -d ./src/$PACKAGE/)
-if [ -n "$FMT_ERRORS" ]; then
-  comment "Fmt failures on:"
-  comment "$FMT_ERRORS"
-  echo "Great sadness."
-  exit 1
-fi
+# Make sure we don't lint / vet godeps or weird git stuff
+if [[ "$(hostname)" =~ "jenkins" ]]; then
+  rm -rf Godeps .git
 
-echo "Ensuring code is properly linted with golint"
-LINT_EXCLUDE=$(excludes golint)
-LINT_ERRORS=$(golint ./src/$PACKAGE/... | eval egrep -q -v $LINT_EXCLUDE)
-if [ -n "$LINT_ERRORS" ]; then
-  comment "Lint failures on:"
-  comment "$LINT_ERRORS"
-  echo "Great sadness."
-  exit 1
-fi
+  echo "Ensuring code is properly formatted with gofmt"
+  FMT_ERRORS=$(gofmt -s -e -d ./src/$PACKAGE/)
+  if [ -n "$FMT_ERRORS" ]; then
+    comment "Fmt failures on:"
+    comment "$FMT_ERRORS"
+    echo "Great sadness."
+    exit 1
+  fi
 
-VET_ERRORS=$(go tool vet -methods=false ./src/$PACKAGE/ 2>&1)
-if [ -n "$VET_ERRORS" ]; then
-  comment "Vet failures on:"
-  comment "$VET_ERRORS"
-  exit 1
+  echo "Ensuring code is properly linted with golint"
+  LINT_EXCLUDE=$(excludes golint)
+  LINT_ERRORS=$(golint ./src/$PACKAGE/... | eval egrep -q -v $LINT_EXCLUDE)
+  if [ -n "$LINT_ERRORS" ]; then
+    comment "Lint failures on:"
+    comment "$LINT_ERRORS"
+    echo "Great sadness."
+    exit 1
+  fi
+  
+  VET_ERRORS=$(go tool vet -methods=false ./src/$PACKAGE/ 2>&1)
+  if [ -n "$VET_ERRORS" ]; then
+    comment "Vet failures on:"
+    comment "$VET_ERRORS"
+    exit 1
+  fi
 fi
