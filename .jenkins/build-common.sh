@@ -7,14 +7,10 @@ fi
 
 export PATH="$PATH:$GOPATH/bin:/usr/local/go/bin"
 
+git submodule update --recursive
+
 rm -rf src/$PACKAGE
 mkdir -p $(dirname src/$PACKAGE)
 ln -s $PWD src/$PACKAGE
 
 export GOPATH="$GOPATH:$PWD"
-
-which godep > /dev/null || go get github.com/tools/godep
-
-export PATH="$PATH:$(godep path)/bin"
-
-GOPATH=$(godep path):$GOPATH

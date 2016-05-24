@@ -5,6 +5,7 @@
       "include": "(\\.go$)",
       "exclude": [
          "(^Godeps/)",
+         "(/vendor/)",
          "(/proto/)",
          "(/gen-go/)",
          "(.pb.go)"
@@ -15,6 +16,7 @@
       "include": "(\\.go$)",
       "exclude": [
          "(^Godeps/)",
+         "(/vendor/)",
          "(/proto/)",
          "(/gen-go/)",
          "(.pb.go)"
