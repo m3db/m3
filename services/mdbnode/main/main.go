@@ -29,7 +29,7 @@ func main() {
 	flag.Parse()
 
 	if *tchannelAddrArg == "" || *httpAddrArg == "" {
-		flag.PrintDefaults()
+		flag.Usage()
 		os.Exit(1)
 	}
 

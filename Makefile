@@ -15,7 +15,11 @@ LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 SERVICES := \
 	mdbnode
 	
-TOOLS :=  
+TOOLS := \
+	benchmarkencoding \
+	benchmarkoverhead \
+	benchmarkfsconvertfstofs2 \
+	benchmarkfsreadfs2
 
 setup:
 	mkdir -p $(BUILD)

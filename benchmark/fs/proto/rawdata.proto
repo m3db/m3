@@ -1,5 +1,5 @@
 syntax = "proto3";
-package memtsdb.rawdatadump;
+package proto;
 
 message DataEntry {
     string id = 1;
