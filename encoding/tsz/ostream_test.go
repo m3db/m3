@@ -24,7 +24,7 @@ func TestWriteBits(t *testing.T) {
 		{0x1, 65, []byte{0xa9, 0xfe, 0xfe, 0xdf, 0x9b, 0x57, 0x21, 0xf1, 0xac, 0x68, 0x24, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, 1},
 	}
 
-	os := newOStream()
+	os := newOStream(nil)
 	require.True(t, os.empty())
 	for _, input := range inputs {
 		os.WriteBits(input.value, input.numBits)
@@ -35,7 +35,7 @@ func TestWriteBits(t *testing.T) {
 }
 
 func TestResetOStream(t *testing.T) {
-	os := newOStream()
+	os := newOStream(nil)
 	os.WriteByte(0xfe)
 	os.Reset()
 	require.True(t, os.empty())

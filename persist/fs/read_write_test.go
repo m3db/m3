@@ -28,7 +28,8 @@ func TestSimpleReadWrite(t *testing.T) {
 		{"bar", []byte{4, 5, 6}},
 	}
 
-	w, err := NewWriter(filePathPrefix, DefaultWriterOptions())
+	w := NewWriter(testWriterStart, testWindow, filePathPrefix, nil)
+	err = w.Open(0)
 	assert.NoError(t, err)
 
 	for i := range entries {
@@ -36,7 +37,8 @@ func TestSimpleReadWrite(t *testing.T) {
 	}
 	assert.NoError(t, w.Close())
 
-	r, err := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix)
+	err = r.Open(0, 0)
 	assert.NoError(t, err)
 
 	assert.Equal(t, len(entries), r.Entries())

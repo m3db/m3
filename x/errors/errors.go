@@ -1,4 +1,4 @@
-package memtsdb
+package errors
 
 // FirstError will return the first non nil error
 func FirstError(errs ...error) error {

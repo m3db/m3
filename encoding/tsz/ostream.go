@@ -6,12 +6,20 @@ const (
 
 // ostream encapsulates a writable stream.
 type ostream struct {
-	rawBuffer []byte
-	pos       int
+	rawBuffer []byte // raw bytes
+	pos       int    // how many bits have been used in the last byte
 }
 
-func newOStream() *ostream {
-	return &ostream{rawBuffer: make([]byte, 0, initAllocSize)}
+func newOStream(bytes []byte) *ostream {
+	// If the byte array passed in is not empty, we set
+	// pos to 8 indicating the last byte is fully used.
+	rawBuffer := bytes
+	pos := 8
+	if cap(bytes) == 0 {
+		rawBuffer = make([]byte, 0, initAllocSize)
+		pos = 0
+	}
+	return &ostream{rawBuffer: rawBuffer, pos: pos}
 }
 
 func (os *ostream) clone() *ostream {
@@ -99,6 +107,6 @@ func (os *ostream) Reset() {
 	os.pos = 0
 }
 
-func (os *ostream) rawbytes() []byte {
-	return os.rawBuffer
+func (os *ostream) rawbytes() ([]byte, int) {
+	return os.rawBuffer, os.pos
 }

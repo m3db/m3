@@ -3,12 +3,19 @@ package fs
 import (
 	"encoding/binary"
 	"io"
+
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
+
+// TODO(xichen): move interfaces to top-level
 
 const (
 	infoFileSuffix  = "info.db"
 	indexFileSuffix = "index.db"
 	dataFileSuffix  = "data.db"
+
+	separator       = "-"
+	infoFilePattern = "[0-9]*" + separator + infoFileSuffix
 
 	// Index ID is int64
 	idxLen = 8
@@ -27,6 +34,9 @@ var (
 type Writer interface {
 	io.Closer
 
+	// Open opens the files for writing data to the given shard.
+	Open(shard uint32) error
+
 	// Write will write the key and data pair and returns an error on a write error
 	Write(key string, data []byte) error
 }
@@ -35,8 +45,14 @@ type Writer interface {
 type Reader interface {
 	io.Closer
 
+	// Open opens the files for the given shard and version for reading.
+	Open(shard uint32, version int) error
+
 	// Read returns the next key and data pair or error, will return io.EOF at end of volume
 	Read() (key string, data []byte, err error)
+
+	// Range returns the time range associated with data in the volume.
+	Range() xtime.Range
 
 	// Entries returns the count of entries in the volume
 	Entries() int

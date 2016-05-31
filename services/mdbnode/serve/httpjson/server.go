@@ -13,7 +13,7 @@ import (
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/storage"
+	"code.uber.internal/infra/memtsdb/storage"
 
 	"github.com/uber/tchannel-go/thrift"
 )

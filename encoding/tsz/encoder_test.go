@@ -1,6 +1,7 @@
 package tsz
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ var (
 )
 
 func getTestEncoder(startTime time.Time, timeUnit time.Duration) *encoder {
-	return NewEncoder(startTime, timeUnit).(*encoder)
+	return NewEncoder(startTime, timeUnit, nil).(*encoder)
 }
 
 func TestWriteDeltaOfDelta(t *testing.T) {
@@ -92,9 +93,19 @@ func TestWriteAnnotation(t *testing.T) {
 	}
 }
 
+func getBytes(t *testing.T, r io.Reader) []byte {
+	if r == nil {
+		return nil
+	}
+	var b [1000]byte
+	n, err := r.Read(b[:])
+	require.NoError(t, err)
+	return b[:n]
+}
+
 func TestEncodeNoAnnotation(t *testing.T) {
 	encoder := getTestEncoder(testStartTime, time.Second)
-	require.Nil(t, encoder.Bytes())
+	require.Nil(t, encoder.Stream())
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []encoding.Datapoint{
@@ -115,12 +126,12 @@ func TestEncodeNoAnnotation(t *testing.T) {
 		0x0, 0x0, 0x0, 0x50, 0x80, 0xf2, 0xf3, 0x2, 0x1c, 0x40, 0x7, 0x10,
 		0x1e, 0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
 	}
-	require.Equal(t, expectedBytes, encoder.Bytes())
+	require.Equal(t, expectedBytes, getBytes(t, encoder.Stream()))
 
 	expectedBuffer := []byte{
 		0x20, 0xc5, 0x10, 0x55, 0x0, 0x0, 0x0, 0x0, 0xf9, 0x0, 0x0, 0x0,
 		0x0, 0x0, 0x0, 0x50, 0x80, 0xf2, 0xf3, 0x2, 0x1c, 0x40, 0x7, 0x10,
-		0x1e, 0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd,
+		0x1e, 0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xd,
 	}
 	require.Equal(t, expectedBuffer, encoder.os.rawBuffer)
 	require.Equal(t, 6, encoder.os.pos)
@@ -128,7 +139,7 @@ func TestEncodeNoAnnotation(t *testing.T) {
 
 func TestEncodeWithAnnotation(t *testing.T) {
 	encoder := getTestEncoder(testStartTime, time.Second)
-	require.Nil(t, encoder.Bytes())
+	require.Nil(t, encoder.Stream())
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
@@ -163,5 +174,5 @@ func TestEncodeWithAnnotation(t *testing.T) {
 		0xc0, 0x1, 0xf4, 0x1, 0x0, 0x0, 0x0, 0x2, 0x1, 0x2, 0x7, 0x10, 0x1e,
 		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
 	}
-	require.Equal(t, expectedBytes, encoder.Bytes())
+	require.Equal(t, expectedBytes, getBytes(t, encoder.Stream()))
 }

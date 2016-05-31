@@ -7,8 +7,6 @@ import (
 	"code.uber.internal/infra/memtsdb/encoding"
 )
 
-// decoder implements the decoding scheme in the facebook paper
-// "Gorilla: A Fast, Scalable, In-Memory Time Series Database".
 type decoder struct {
 	tu time.Duration // time unit
 }

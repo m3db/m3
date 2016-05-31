@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"time"
 
-	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/benchmark/fs"
 	"code.uber.internal/infra/memtsdb/encoding"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -49,8 +49,8 @@ func newBenchmark(
 }
 
 func (th *benchmark) Run() {
-	ns := memtsdb.ToNormalizedTime(th.startTime, th.timeUnit)
-	nw := memtsdb.ToNormalizedDuration(th.windowSize, th.timeUnit)
+	ns := xtime.ToNormalizedTime(th.startTime, th.timeUnit)
+	nw := xtime.ToNormalizedDuration(th.windowSize, th.timeUnit)
 
 	iter := th.inputReader.Iter()
 	for iter.Next() {
@@ -67,7 +67,7 @@ func (th *benchmark) Run() {
 				currentStart, currentEnd = th.rotate(datapoints[i].Timestamp, nw)
 			}
 			th.encode(encoding.Datapoint{
-				Timestamp: memtsdb.FromNormalizedTime(datapoints[i].Timestamp, th.timeUnit),
+				Timestamp: xtime.FromNormalizedTime(datapoints[i].Timestamp, th.timeUnit),
 				Value:     datapoints[i].Value,
 			})
 		}
@@ -87,13 +87,30 @@ func (th *benchmark) encode(dp encoding.Datapoint) {
 	th.numDatapoints++
 }
 
+func getNumBytes(r io.Reader) int64 {
+	if r == nil {
+		return 0
+	}
+	numBytes := 0
+	var b [1]byte
+	for {
+		n, err := r.Read(b[:])
+		if err == io.EOF {
+			break
+		}
+		numBytes += n
+	}
+
+	return int64(numBytes)
+}
+
 func (th *benchmark) decode() {
-	encodedBytes := th.encoder.Bytes()
-	if encodedBytes == nil {
+	stream := th.encoder.Stream()
+	if stream == nil {
 		return
 	}
-	th.numEncodedBytes += int64(len(encodedBytes))
-	byteStream := bytes.NewReader(encodedBytes)
+	th.numEncodedBytes += getNumBytes(stream)
+	byteStream := th.encoder.Stream()
 
 	start := time.Now()
 	it := th.decoder.Decode(byteStream)
@@ -110,7 +127,7 @@ func (th *benchmark) rotate(nt int64, nw int64) (int64, int64) {
 	currentStart := nt - nt%nw
 	currentEnd := currentStart + nw
 	th.decode()
-	th.encoder.Reset(memtsdb.FromNormalizedTime(currentStart, th.timeUnit))
+	th.encoder.Reset(xtime.FromNormalizedTime(currentStart, th.timeUnit))
 	return currentStart, currentEnd
 }
 

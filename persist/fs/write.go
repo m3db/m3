@@ -2,17 +2,26 @@ package fs
 
 import (
 	"os"
+	"time"
 
 	schema "code.uber.internal/infra/memtsdb/persist/fs/proto"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 
 	"github.com/golang/protobuf/proto"
 )
 
 var (
-	defaultNewFileMode = os.FileMode(0666)
+	defaultNewFileMode      = os.FileMode(0666)
+	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
 )
 
 type writer struct {
+	start            time.Time
+	window           time.Duration
+	filePathPrefix   string
+	newFileMode      os.FileMode
+	newDirectoryMode os.FileMode
+
 	infoFd  *os.File
 	indexFd *os.File
 	dataFd  *os.File
@@ -20,42 +29,103 @@ type writer struct {
 	currEntry    schema.IndexEntry
 	currIdx      int64
 	currOffset   int64
+	infoBuffer   *proto.Buffer
 	indexBuffer  *proto.Buffer
 	varintBuffer *proto.Buffer
 	idxData      []byte
 }
 
 // WriterOptions provides options for a Writer
-type WriterOptions struct {
-	NewFileMode os.FileMode
+type WriterOptions interface {
+	// NewFileMode sets the new file mode.
+	NewFileMode(value os.FileMode) WriterOptions
+
+	// GetNewFileMode returns the new file mode.
+	GetNewFileMode() os.FileMode
+
+	// NewDirectoryMode sets the new directory mode.
+	NewDirectoryMode(value os.FileMode) WriterOptions
+
+	// GetNewDirectoryMode returns the new directory mode.
+	GetNewDirectoryMode() os.FileMode
 }
 
-// DefaultWriterOptions describes options for a Writer
-func DefaultWriterOptions() WriterOptions {
-	return WriterOptions{NewFileMode: defaultNewFileMode}
+type writerOptions struct {
+	newFileMode      os.FileMode
+	newDirectoryMode os.FileMode
 }
 
-// NewWriter returns a new writer for a filePathPrefix, will truncate files
-// if they exist.
-func NewWriter(filePathPrefix string, options WriterOptions) (Writer, error) {
-	newFileMode := options.NewFileMode
-	if uint32(newFileMode) == 0 {
-		newFileMode = defaultNewFileMode
+// NewWriterOptions creates a writer options.
+func NewWriterOptions() WriterOptions {
+	return &writerOptions{
+		newFileMode:      defaultNewFileMode,
+		newDirectoryMode: defaultNewDirectoryMode,
 	}
-	w := &writer{
-		indexBuffer:  proto.NewBuffer(nil),
-		varintBuffer: proto.NewBuffer(nil),
-		idxData:      make([]byte, idxLen),
+}
+
+func (o *writerOptions) NewFileMode(value os.FileMode) WriterOptions {
+	opts := *o
+	opts.newFileMode = value
+	return &opts
+}
+
+func (o *writerOptions) GetNewFileMode() os.FileMode {
+	return o.newFileMode
+}
+
+func (o *writerOptions) NewDirectoryMode(value os.FileMode) WriterOptions {
+	opts := *o
+	opts.newDirectoryMode = value
+	return &opts
+}
+
+func (o *writerOptions) GetNewDirectoryMode() os.FileMode {
+	return o.newDirectoryMode
+}
+
+// NewWriter returns a new writer for a filePathPrefix
+func NewWriter(
+	start time.Time,
+	window time.Duration,
+	filePathPrefix string,
+	options WriterOptions,
+) Writer {
+	if options == nil {
+		options = NewWriterOptions()
 	}
-	err := openFilesWithFilePathPrefix(writeableFileOpener(newFileMode), map[string]**os.File{
-		filenameFromPrefix(filePathPrefix, infoFileSuffix):  &w.infoFd,
-		filenameFromPrefix(filePathPrefix, indexFileSuffix): &w.indexFd,
-		filenameFromPrefix(filePathPrefix, dataFileSuffix):  &w.dataFd,
-	})
+	return &writer{
+		start:            start,
+		window:           window,
+		filePathPrefix:   filePathPrefix,
+		newFileMode:      options.GetNewFileMode(),
+		newDirectoryMode: options.GetNewDirectoryMode(),
+		infoBuffer:       proto.NewBuffer(nil),
+		indexBuffer:      proto.NewBuffer(nil),
+		varintBuffer:     proto.NewBuffer(nil),
+		idxData:          make([]byte, idxLen),
+	}
+}
+
+// Open initializes the internal state for writing to the given shard,
+// specifically creating the shard directory if it doesn't exist, and
+// opening / truncating files associated with that shard for writing.
+func (w *writer) Open(shard uint32) error {
+	shardDir := ShardDirPath(w.filePathPrefix, shard)
+	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
+		return err
+	}
+	nextVersion, err := nextVersion(shardDir)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return w, nil
+	return openFiles(
+		writeableFileOpener(w.newFileMode),
+		map[string]**os.File{
+			filepathFromVersion(shardDir, nextVersion, infoFileSuffix):  &w.infoFd,
+			filepathFromVersion(shardDir, nextVersion, indexFileSuffix): &w.indexFd,
+			filepathFromVersion(shardDir, nextVersion, dataFileSuffix):  &w.dataFd,
+		},
+	)
 }
 
 func (w *writer) writeData(data []byte) error {
@@ -116,13 +186,16 @@ func (w *writer) Close() error {
 		return err
 	}
 
-	info := &schema.IndexInfo{Entries: w.currIdx}
-	data, err := proto.Marshal(info)
-	if err != nil {
+	info := &schema.IndexInfo{
+		Start:   xtime.ToNanoseconds(w.start),
+		Window:  int64(w.window),
+		Entries: w.currIdx,
+	}
+	if err := w.infoBuffer.Marshal(info); err != nil {
 		return err
 	}
 
-	if _, err := w.infoFd.Write(data); err != nil {
+	if _, err := w.infoFd.Write(w.infoBuffer.Bytes()); err != nil {
 		return err
 	}
 

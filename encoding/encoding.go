@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// TODO(xichen): move interfaces to top-level
+
 // A Datapoint is a single data value reported at a given time
 type Datapoint struct {
 	Timestamp time.Time
@@ -20,12 +22,12 @@ type Encoder interface {
 	Reset(t time.Time)
 	// Encode encodes a datapoint and optionally an annotation.
 	Encode(dp Datapoint, annotation Annotation)
-	// Bytes returns the bytes encoded so far.
-	Bytes() []byte
+	// Stream is the streaming interface for reading encoded bytes in the encoder.
+	Stream() io.Reader
 }
 
 // NewEncoderFn creates a new encoder
-type NewEncoderFn func(start time.Time) Encoder
+type NewEncoderFn func(start time.Time, bytes []byte) Encoder
 
 // Iterator is the generic interface for iterating over encoded data.
 type Iterator interface {

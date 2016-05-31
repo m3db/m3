@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/node/benchmark/bench"
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchgrpc"
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchtchannel"
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchtchannelgogoprotobuf"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -141,18 +141,18 @@ func main() {
 
 		requests := []bench.RequestDescription{
 			{
-				StartUnixMs: memtsdb.ToNormalizedTime(time.Now(), time.Millisecond),
-				EndUnixMs:   memtsdb.ToNormalizedTime(time.Now().Add(3*time.Hour), time.Millisecond),
+				StartUnixMs: xtime.ToNormalizedTime(time.Now(), time.Millisecond),
+				EndUnixMs:   xtime.ToNormalizedTime(time.Now().Add(3*time.Hour), time.Millisecond),
 				IDs:         benchIDs,
 			},
 			{
-				StartUnixMs: memtsdb.ToNormalizedTime(time.Now(), time.Millisecond),
-				EndUnixMs:   memtsdb.ToNormalizedTime(time.Now().Add(6*time.Hour), time.Millisecond),
+				StartUnixMs: xtime.ToNormalizedTime(time.Now(), time.Millisecond),
+				EndUnixMs:   xtime.ToNormalizedTime(time.Now().Add(6*time.Hour), time.Millisecond),
 				IDs:         benchIDs,
 			},
 			{
-				StartUnixMs: memtsdb.ToNormalizedTime(time.Now(), time.Millisecond),
-				EndUnixMs:   memtsdb.ToNormalizedTime(time.Now().Add(12*time.Hour), time.Millisecond),
+				StartUnixMs: xtime.ToNormalizedTime(time.Now(), time.Millisecond),
+				EndUnixMs:   xtime.ToNormalizedTime(time.Now().Add(12*time.Hour), time.Millisecond),
 				IDs:         benchIDs,
 			},
 		}

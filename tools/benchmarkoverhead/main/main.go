@@ -12,15 +12,15 @@ import (
 	"sync"
 	"time"
 
-	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/benchmark/fs2"
 	"code.uber.internal/infra/memtsdb/encoding"
 	"code.uber.internal/infra/memtsdb/encoding/tsz"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/httpjson"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/sharding"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/storage"
+	"code.uber.internal/infra/memtsdb/sharding"
+	"code.uber.internal/infra/memtsdb/storage"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/spaolacci/murmur3"
@@ -178,9 +178,9 @@ func newDatabase() storage.Database {
 		log.Fatalf("could not create sharding scheme: %v", err)
 	}
 
-	newEncoderFn := func(start time.Time) encoding.Encoder {
+	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
 		// TODO(r): encoder/decoder will not need unit
-		return tsz.NewEncoder(start, time.Second)
+		return tsz.NewEncoder(start, time.Second, bytes)
 	}
 	newDecoderFn := func() encoding.Decoder {
 		// TODO(r): encoder/decoder will not need unit
@@ -244,7 +244,7 @@ func ingestAll(
 		first = true
 		for iter.Next() {
 			id, ts, value = iter.Value()
-			t = memtsdb.FromNormalizedTime(ts, time.Millisecond).Add(repeatOffset)
+			t = xtime.FromNormalizedTime(ts, time.Millisecond).Add(repeatOffset)
 			setTimeFn(t)
 
 			if first {

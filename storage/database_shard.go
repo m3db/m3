@@ -2,9 +2,12 @@ package storage
 
 import (
 	"container/list"
+	"io"
 	"math"
 	"sync"
 	"time"
+
+	"code.uber.internal/infra/memtsdb"
 )
 
 const (
@@ -23,15 +26,19 @@ type databaseShard interface {
 		annotation []byte,
 	) error
 
-	fetchEncodedSegments(id string, start, end time.Time) ([][]byte, error)
+	fetchEncodedSegments(id string, start, end time.Time) (io.Reader, error)
+
+	bootstrap(writeStart time.Time) error
 }
 
 type dbShard struct {
 	sync.RWMutex
-	opts   DatabaseOptions
-	shard  uint32
-	lookup map[string]*dbShardEntry
-	list   *list.List
+	opts                  memtsdb.DatabaseOptions
+	shard                 uint32
+	lookup                map[string]*dbShardEntry
+	list                  *list.List
+	bs                    bootstrapState
+	newSeriesBootstrapped bool
 }
 
 type dbShardEntry struct {
@@ -39,7 +46,7 @@ type dbShardEntry struct {
 	elem   *list.Element
 }
 
-func newDatabaseShard(shard uint32, opts DatabaseOptions) databaseShard {
+func newDatabaseShard(shard uint32, opts memtsdb.DatabaseOptions) databaseShard {
 	return &dbShard{
 		opts:   opts,
 		shard:  shard,
@@ -109,28 +116,11 @@ func (s *dbShard) write(
 	unit time.Duration,
 	annotation []byte,
 ) error {
-	s.RLock()
-	entry, exists := s.lookup[id]
-	s.RUnlock()
-	if exists {
-		return entry.series.write(timestamp, value, unit, annotation)
-	}
-
-	s.Lock()
-	entry, exists = s.lookup[id]
-	if exists {
-		s.Unlock()
-		// During Rlock -> Wlock promotion the entry was inserted
-		return entry.series.write(timestamp, value, unit, annotation)
-	}
-	series := newDatabaseSeries(id, s.opts)
-	elem := s.list.PushBack(series)
-	s.lookup[id] = &dbShardEntry{series, elem}
-	s.Unlock()
+	series := s.getSeries(id)
 	return series.write(timestamp, value, unit, annotation)
 }
 
-func (s *dbShard) fetchEncodedSegments(id string, start, end time.Time) ([][]byte, error) {
+func (s *dbShard) fetchEncodedSegments(id string, start, end time.Time) (io.Reader, error) {
 	s.RLock()
 	entry, exists := s.lookup[id]
 	s.RUnlock()
@@ -138,4 +128,85 @@ func (s *dbShard) fetchEncodedSegments(id string, start, end time.Time) ([][]byt
 		return nil, nil
 	}
 	return entry.series.fetchEncodedSegments(id, start, end)
+}
+
+func (s *dbShard) getSeries(id string) databaseSeries {
+	s.RLock()
+	newSeriesBootstrapped := s.newSeriesBootstrapped
+	entry, exists := s.lookup[id]
+	s.RUnlock()
+	if exists {
+		return entry.series
+	}
+
+	s.Lock()
+	entry, exists = s.lookup[id]
+	if exists {
+		s.Unlock()
+		// During Rlock -> Wlock promotion the entry was inserted
+		return entry.series
+	}
+	series := newDatabaseSeries(id, newSeriesBootstrapped, s.opts)
+	elem := s.list.PushBack(series)
+	s.lookup[id] = &dbShardEntry{series, elem}
+	s.Unlock()
+
+	return series
+}
+
+func (s *dbShard) bootstrap(writeStart time.Time) error {
+	if success, err := tryBootstrap(&s.RWMutex, &s.bs, "shard"); !success {
+		return err
+	}
+
+	s.Lock()
+	s.bs = bootstrapping
+	s.Unlock()
+
+	bootstrapFn := s.opts.GetBootstrapFn()
+	bs := bootstrapFn()
+	sr, err := bs.Run(writeStart, s.shard)
+	if err != nil {
+		return err
+	}
+
+	bootstrappedSeries := sr.GetAllSeries()
+	for id, dbBlocks := range bootstrappedSeries {
+		series := s.getSeries(id)
+		if err := series.bootstrap(dbBlocks); err != nil {
+			return err
+		}
+	}
+
+	// from this point onwards, all newly created series that aren't in
+	// the existing map should be considered bootstrapped because they
+	// have no data within the retention period.
+	s.Lock()
+	s.newSeriesBootstrapped = true
+	s.Unlock()
+
+	// find the series with no data within the retention period but has
+	// buffered data points since server start. Any new series added
+	// after this will be marked as bootstrapped.
+	var bufferedSeries []databaseSeries
+	s.RLock()
+	for id, entry := range s.lookup {
+		if _, exists := bootstrappedSeries[id]; !exists {
+			bufferedSeries = append(bufferedSeries, entry.series)
+		}
+	}
+	s.RUnlock()
+
+	// finally bootstrapping series with no recent data.
+	for _, series := range bufferedSeries {
+		if err := series.bootstrap(nil); err != nil {
+			return err
+		}
+	}
+
+	s.Lock()
+	s.bs = bootstrapped
+	s.Unlock()
+
+	return nil
 }

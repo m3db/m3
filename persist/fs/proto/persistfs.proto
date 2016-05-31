@@ -2,7 +2,9 @@ syntax = "proto3";
 package memtsdb.persistfs;
 
 message IndexInfo {
-	int64 entries = 1;
+	int64 start = 1;
+	int64 window = 2;
+	int64 entries = 3;
 }
 
 message IndexEntry {

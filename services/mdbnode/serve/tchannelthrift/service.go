@@ -3,11 +3,12 @@ package tchannelthrift
 import (
 	"fmt"
 
-	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/storage"
+	"code.uber.internal/infra/memtsdb/storage"
+	xerrors "code.uber.internal/infra/memtsdb/x/errors"
+	xio "code.uber.internal/infra/memtsdb/x/io"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 
-	"code.uber.internal/infra/memtsdb/encoding"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -24,7 +25,7 @@ func (s *service) Fetch(ctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchRe
 	start, rangeStartErr := valueToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := valueToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
-		return nil, newNodeBadRequestError(memtsdb.FirstError(rangeStartErr, rangeEndErr))
+		return nil, newNodeBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
 	encoded, err := s.db.FetchEncodedSegments(req.ID, start, end)
@@ -37,7 +38,7 @@ func (s *service) Fetch(ctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchRe
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
-	it := s.db.GetOptions().GetNewDecoderFn()().Decode(encoding.NewSliceOfSliceReader(encoded))
+	it := s.db.GetOptions().GetNewDecoderFn()().Decode(encoded)
 	for it.Next() {
 		dp, annotation := it.Current()
 		ts, tsErr := timeToValue(dp.Timestamp, req.ResultTimeType)
@@ -67,7 +68,7 @@ func (s *service) FetchRawBatch(ctx thrift.Context, req *rpc.FetchRawBatchReques
 	start, rangeStartErr := valueToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := valueToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
-		return nil, newNodeBadRequestError(memtsdb.FirstError(rangeStartErr, rangeEndErr))
+		return nil, newNodeBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
 	result := rpc.NewFetchRawBatchResult_()
@@ -77,7 +78,19 @@ func (s *service) FetchRawBatch(ctx thrift.Context, req *rpc.FetchRawBatchReques
 			return nil, newNodeInternalError(err)
 		}
 		rawResult := rpc.NewFetchRawResult_()
-		rawResult.Segments = encoded
+		sgrs, err := xio.GetSegmentReaders(encoded)
+		if err != nil {
+			return nil, newNodeInternalError(err)
+		}
+		segments := make([]*rpc.Segment, 0, len(sgrs))
+		for _, sgr := range sgrs {
+			seg := sgr.Segment()
+			if seg == nil {
+				continue
+			}
+			segments = append(segments, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
+		}
+		rawResult.Segments = segments
 		result.Elements = append(result.Elements, rawResult)
 	}
 
@@ -92,7 +105,7 @@ func (s *service) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
 	if unitErr != nil {
 		return newNodeBadRequestError(unitErr)
 	}
-	ts := memtsdb.FromNormalizedTime(req.Datapoint.Timestamp, unit)
+	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, unit)
 	err := s.db.Write(req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
 	if err != nil {
 		return newWriteError(err)
@@ -109,7 +122,7 @@ func (s *service) WriteBatch(ctx thrift.Context, req *rpc.WriteBatchRequest) err
 			continue
 		}
 
-		ts := memtsdb.FromNormalizedTime(elem.Datapoint.Timestamp, unit)
+		ts := xtime.FromNormalizedTime(elem.Datapoint.Timestamp, unit)
 		err := s.db.Write(elem.ID, ts, elem.Datapoint.Value, unit, elem.Datapoint.Annotation)
 		if err != nil {
 			errs = append(errs, newWriteBatchError(i, err))

@@ -4,6 +4,8 @@ import (
 	"errors"
 )
 
+// TODO(xichen): move interfaces to top-level
+
 var (
 	// ErrToLessThanFrom returned when to is less than from
 	ErrToLessThanFrom = errors.New("to is less than from")

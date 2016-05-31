@@ -2,10 +2,12 @@ package storage
 
 import (
 	"errors"
+	"io"
 	"math"
 	"sync"
 	"time"
 
+	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
 )
 
@@ -26,7 +28,7 @@ type databaseBuffer interface {
 
 	// fetchEncodedSegment will return the full buffer's data as an encoded
 	// segment if start and end intersects the buffer at all, nil otherwise
-	fetchEncodedSegment(start, end time.Time) []byte
+	fetchEncodedSegment(start, end time.Time) io.Reader
 
 	isEmpty() bool
 
@@ -43,9 +45,9 @@ type databaseBufferFlushFn func(f databaseBufferFlush)
 
 type dbBuffer struct {
 	sync.RWMutex
-	opts             DatabaseOptions
+	opts             memtsdb.DatabaseOptions
 	flushFn          databaseBufferFlushFn
-	nowFn            NowFn
+	nowFn            memtsdb.NowFn
 	tooFuture        time.Duration
 	tooPast          time.Duration
 	buckets          []dbBufferBucket
@@ -77,7 +79,25 @@ type databaseBufferValue struct {
 	annotation []byte
 }
 
-func newDatabaseBuffer(flushFn databaseBufferFlushFn, opts DatabaseOptions) databaseBuffer {
+type datapoint struct {
+	t time.Time
+	v databaseBufferValue
+}
+
+type dataPointFn func(t time.Time, v databaseBufferValue)
+
+func foreachBucketValue(flush databaseBufferFlush, fn dataPointFn) {
+	bucketValuesLen := len(flush.bucketValues)
+	for i := 0; i < bucketValuesLen; i++ {
+		v := flush.bucketValues[i]
+		if !math.IsNaN(v.value) {
+			ts := flush.bucketStart.Add(time.Duration(i) * flush.bucketStepSize)
+			fn(ts, v)
+		}
+	}
+}
+
+func newDatabaseBuffer(flushFn databaseBufferFlushFn, opts memtsdb.DatabaseOptions) databaseBuffer {
 	nowFn := opts.GetNowFn()
 	bucketSize := opts.GetBufferFlush()
 	resolution := opts.GetBufferResolution()
@@ -251,7 +271,7 @@ func (s *dbBuffer) forEachBucketAsc(now time.Time, fn func(idx int, current time
 	}
 }
 
-func (s *dbBuffer) fetchEncodedSegment(start, end time.Time) []byte {
+func (s *dbBuffer) fetchEncodedSegment(start, end time.Time) io.Reader {
 	// TODO(r): cache and invalidate on write the result of this method
 	now := s.nowFn()
 	futureLimit := now.Add(s.tooFuture)
@@ -273,7 +293,7 @@ func (s *dbBuffer) fetchEncodedSegment(start, end time.Time) []byte {
 		}
 
 		if encoder == nil {
-			encoder = s.newEncoderFn(current)
+			encoder = s.newEncoderFn(current, nil)
 		}
 
 		values := s.buckets[idx].values
@@ -289,7 +309,7 @@ func (s *dbBuffer) fetchEncodedSegment(start, end time.Time) []byte {
 	s.RUnlock()
 
 	if encoder != nil {
-		return encoder.Bytes()
+		return encoder.Stream()
 	}
 	return nil
 }

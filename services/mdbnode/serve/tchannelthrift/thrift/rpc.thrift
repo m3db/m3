@@ -76,6 +76,11 @@ struct FetchRawBatchResult {
 	1: required list<FetchRawResult> elements
 }
 
+struct Segment {
+    1: required binary head
+    2: required binary tail
+}
+
 struct FetchRawResult {
-	1: required list<binary> segments
+	1: required list<Segment> segments
 }

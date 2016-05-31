@@ -1,15 +1,18 @@
 package fs
 
 import (
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/golang/protobuf/proto"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+)
+
+var (
+	testWriterStart = time.Now()
+	testWindow      = 2 * time.Hour
 )
 
 func TestReadEmptyIndexUnreadData(t *testing.T) {
@@ -20,11 +23,13 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w, err := NewWriter(filePathPrefix, DefaultWriterOptions())
+	w := NewWriter(testWriterStart, testWindow, filePathPrefix, nil)
+	err = w.Open(0)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
-	r, err := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix)
+	err = r.Open(0, 0)
 	assert.NoError(t, err)
 
 	_, _, err = r.Read()
@@ -42,24 +47,21 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w, err := NewWriter(filePathPrefix, DefaultWriterOptions())
+	w := NewWriter(testWriterStart, testWindow, filePathPrefix, nil)
+	err = w.Open(0)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
-	r, err := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix)
+	err = r.Open(0, 0)
 	assert.NoError(t, err)
 
-	expectedErr := errors.New("synthetic error")
 	reader := r.(*reader)
-	reader.unmarshal = func(buf []byte, pb proto.Message) error {
-		return expectedErr
-	}
+	reader.indexUnread = nil
 
 	_, _, err = r.Read()
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
-
 	assert.NoError(t, r.Close())
 }
 
@@ -71,14 +73,15 @@ func TestReadDataError(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w, err := NewWriter(filePathPrefix, DefaultWriterOptions())
+	w := NewWriter(testWriterStart, testWindow, filePathPrefix, nil)
+	err = w.Open(0)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFd.Name()
 	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
-	r, err := NewReader(filePathPrefix)
-	assert.NoError(t, err)
+	r := NewReader(filePathPrefix)
+	err = r.Open(0, 0)
 
 	// Close out the dataFd and expect an error on next read
 	reader := r.(*reader)
@@ -102,7 +105,8 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w, err := NewWriter(filePathPrefix, DefaultWriterOptions())
+	w := NewWriter(testWriterStart, testWindow, filePathPrefix, nil)
+	err = w.Open(0)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
 
@@ -112,7 +116,8 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 
 	assert.NoError(t, w.Close())
 
-	r, err := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix)
+	err = r.Open(0, 0)
 	assert.NoError(t, err)
 
 	_, _, err = r.Read()
@@ -130,7 +135,8 @@ func TestReadBadMarker(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w, err := NewWriter(filePathPrefix, DefaultWriterOptions())
+	w := NewWriter(testWriterStart, testWindow, filePathPrefix, nil)
+	err = w.Open(0)
 	assert.NoError(t, err)
 
 	// Copy the marker out
@@ -147,7 +153,8 @@ func TestReadBadMarker(t *testing.T) {
 
 	assert.NoError(t, w.Close())
 
-	r, err := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix)
+	err = r.Open(0, 0)
 	assert.NoError(t, err)
 
 	_, _, err = r.Read()
@@ -165,12 +172,14 @@ func TestReadWrongIdx(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w, err := NewWriter(filePathPrefix, DefaultWriterOptions())
+	w := NewWriter(testWriterStart, testWindow, filePathPrefix, nil)
+	err = w.Open(0)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
-	r, err := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix)
+	err = r.Open(0, 0)
 	assert.NoError(t, err)
 
 	// Replace the idx with 123 on the way out of the read method

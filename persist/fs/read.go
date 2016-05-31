@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"time"
 
 	schema "code.uber.internal/infra/memtsdb/persist/fs/proto"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 
 	"github.com/golang/protobuf/proto"
 )
-
-type unmarshaller func(buf []byte, pb proto.Message) error
 
 type fileReader func(fd *os.File, buf []byte) (int, error)
 
@@ -38,11 +38,14 @@ func (e ErrReadWrongIdx) Error() string {
 }
 
 type reader struct {
+	filePathPrefix string
+	start          time.Time
+	window         time.Duration
+
 	infoFd  *os.File
 	indexFd *os.File
 	dataFd  *os.File
 
-	unmarshal   unmarshaller
 	read        fileReader
 	entries     int
 	entriesRead int
@@ -52,44 +55,45 @@ type reader struct {
 
 // NewReader returns a new reader for a filePathPrefix, expects all files to exist.  Will
 // read the index info.
-func NewReader(filePathPrefix string) (Reader, error) {
-	r := &reader{unmarshal: proto.Unmarshal, read: readFile}
-	err := openFilesWithFilePathPrefix(os.Open, map[string]**os.File{
-		filenameFromPrefix(filePathPrefix, infoFileSuffix):  &r.infoFd,
-		filenameFromPrefix(filePathPrefix, indexFileSuffix): &r.indexFd,
-		filenameFromPrefix(filePathPrefix, dataFileSuffix):  &r.dataFd,
-	})
-	if err != nil {
-		return nil, err
+func NewReader(filePathPrefix string) Reader {
+	return &reader{
+		filePathPrefix: filePathPrefix,
+		read:           readFile,
 	}
-	err = r.readInfo()
-	if err != nil {
+}
+
+func (r *reader) Open(shard uint32, version int) error {
+	shardDir := ShardDirPath(r.filePathPrefix, shard)
+	if err := openFiles(os.Open, map[string]**os.File{
+		filepathFromVersion(shardDir, version, infoFileSuffix):  &r.infoFd,
+		filepathFromVersion(shardDir, version, indexFileSuffix): &r.indexFd,
+		filepathFromVersion(shardDir, version, dataFileSuffix):  &r.dataFd,
+	}); err != nil {
+		return err
+	}
+	if err := r.readInfo(); err != nil {
 		// Try to close if failed to read info
 		r.Close()
-		return nil, err
+		return err
 	}
-	err = r.readIndex()
-	if err != nil {
+	if err := r.readIndex(); err != nil {
 		// Try to close if failed to read index
 		r.Close()
-		return nil, err
+		return err
 	}
-	return r, nil
+	return nil
 }
 
 func (r *reader) readInfo() error {
-	data, err := ioutil.ReadAll(r.infoFd)
+	info, err := ReadInfo(r.infoFd)
 	if err != nil {
 		return err
 	}
 
-	info := &schema.IndexInfo{}
-	if err := r.unmarshal(data, info); err != nil {
-		return err
-	}
-
+	r.start = xtime.FromNanoseconds(info.Start)
+	r.window = time.Duration(info.Window)
 	r.entries = int(info.Entries)
-
+	r.entriesRead = 0
 	return nil
 }
 
@@ -116,7 +120,7 @@ func (r *reader) Read() (string, []byte, error) {
 		return none, nil, ErrReadIndexEntryZeroSize
 	}
 	indexEntryData := r.indexUnread[:size]
-	if err := r.unmarshal(indexEntryData, entry); err != nil {
+	if err := proto.Unmarshal(indexEntryData, entry); err != nil {
 		return none, nil, err
 	}
 	r.indexUnread = r.indexUnread[size:]
@@ -143,6 +147,10 @@ func (r *reader) Read() (string, []byte, error) {
 	r.entriesRead++
 
 	return entry.Key, data[markerLen+idxLen:], nil
+}
+
+func (r *reader) Range() xtime.Range {
+	return xtime.Range{Start: r.start, End: r.start.Add(r.window)}
 }
 
 func (r *reader) Entries() int {

@@ -7,8 +7,8 @@ import (
 	"math"
 	"time"
 
-	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 const (
@@ -160,7 +160,7 @@ func (it *iterator) readVarint() int {
 // the iterator calls Next().
 func (it *iterator) Current() (encoding.Datapoint, encoding.Annotation) {
 	return encoding.Datapoint{
-		Timestamp: memtsdb.FromNormalizedTime(it.nt, it.tu),
+		Timestamp: xtime.FromNormalizedTime(it.nt, it.tu),
 		Value:     math.Float64frombits(it.vb),
 	}, it.ant
 }

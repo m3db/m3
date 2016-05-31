@@ -1,10 +1,10 @@
 package storage
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
+	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
 	"code.uber.internal/infra/memtsdb/encoding/tsz"
 
@@ -19,10 +19,10 @@ func (f testFlusher) onFlush(flush databaseBufferFlush) {
 	f.fn(flush)
 }
 
-func testBufferDatabaseOptions() DatabaseOptions {
-	newEncoderFn := func(start time.Time) encoding.Encoder {
+func testBufferDatabaseOptions() memtsdb.DatabaseOptions {
+	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
 		// TODO(r): encoder/decoder will not need unit
-		return tsz.NewEncoder(start, time.Second)
+		return tsz.NewEncoder(start, time.Second, bytes)
 	}
 	newDecoderFn := func() encoding.Decoder {
 		// TODO(r): encoder/decoder will not need unit
@@ -85,7 +85,7 @@ func TestBufferWriteRead(t *testing.T) {
 	assert.NotNil(t, result)
 
 	newDecoderFn := opts.GetNewDecoderFn()
-	values, err := decodedValues(newDecoderFn().Decode(bytes.NewBuffer(result)))
+	values, err := decodedValues(newDecoderFn().Decode(result))
 	assert.NoError(t, err)
 	assert.Len(t, values, 3)
 	for i := 0; i < len(values); i++ {

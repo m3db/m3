@@ -2,15 +2,15 @@ package tsz
 
 import (
 	"encoding/binary"
+	"io"
 	"math"
 	"time"
 
-	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
+	xio "code.uber.internal/infra/memtsdb/x/io"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
-// encoder implements the encoding scheme in the facebook paper
-// "Gorilla: A Fast, Scalable, In-Memory Time Series Database".
 type encoder struct {
 	os *ostream
 	tu time.Duration // time unit
@@ -25,10 +25,11 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(start time.Time, timeUnit time.Duration) encoding.Encoder {
+// TODO(xichen): add a closed flag as well as Open() / Close() to indicate whether the encoder is already closed.
+func NewEncoder(start time.Time, timeUnit time.Duration, bytes []byte) encoding.Encoder {
 	return &encoder{
-		os: newOStream(),
-		nt: memtsdb.ToNormalizedTime(start, timeUnit),
+		os: newOStream(bytes),
+		nt: xtime.ToNormalizedTime(start, timeUnit),
 		tu: timeUnit,
 	}
 }
@@ -80,7 +81,7 @@ func (enc *encoder) writeFirstTimeWithAnnotation(t time.Time, ant encoding.Annot
 
 func (enc *encoder) writeNextTimeWithAnnotation(t time.Time, ant encoding.Annotation) {
 	enc.writeAnnotation(ant)
-	nt := memtsdb.ToNormalizedTime(t, enc.tu)
+	nt := xtime.ToNormalizedTime(t, enc.tu)
 	dt := nt - enc.nt
 	enc.writeDeltaOfDelta(enc.dt, dt)
 	enc.nt = nt
@@ -143,17 +144,20 @@ func (enc *encoder) writeXOR(prevXOR, curXOR uint64) {
 // Reset clears the encoded byte stream and resets the start time of the encoder.
 func (enc *encoder) Reset(start time.Time) {
 	enc.os.Reset()
-	enc.nt = memtsdb.ToNormalizedTime(start, enc.tu)
+	enc.nt = xtime.ToNormalizedTime(start, enc.tu)
 	enc.dt = 0
 }
 
-// Bytes returns nil if there are no encoded bytes, or the encoded byte stream with the eos marker appended.
-// This doesn't change the current byte stream being encoded.
-func (enc *encoder) Bytes() []byte {
+func (enc *encoder) Stream() io.Reader {
 	if enc.os.empty() {
 		return nil
 	}
-	bc := enc.os.clone()
-	writeSpecialMarker(bc, eosMarker)
-	return bc.rawbytes()
+	b, pos := enc.os.rawbytes()
+	blen := len(b)
+	head := b[:blen-1]
+	tmp := newOStream(nil)
+	tmp.WriteBits(uint64(b[blen-1]), pos)
+	writeSpecialMarker(tmp, eosMarker)
+	tail, _ := tmp.rawbytes()
+	return xio.NewSegmentReader(&xio.Segment{Head: head, Tail: tail})
 }

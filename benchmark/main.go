@@ -47,7 +47,7 @@ func main() {
 
 	log.Infof("input=%s, start=%v, windowSize=%v, inputTimeUnit=%v, encodingTimeUnit=%v", *inputFile, start, ws, itu, etu)
 
-	enc := tsz.NewEncoder(start, etu)
+	enc := tsz.NewEncoder(start, etu, nil)
 	dec := tsz.NewDecoder(etu)
 	bench, err := newBenchmark(*inputFile, start, ws, itu, enc, dec)
 	if err != nil {

@@ -1,7 +1,6 @@
 package tsz
 
 import (
-	"bytes"
 	"math/rand"
 	"testing"
 	"time"
@@ -35,7 +34,7 @@ func TestRoundTrip(t *testing.T) {
 	numIterations := 100
 	for i := 0; i < numIterations; i++ {
 		input := generateDatapoints(numPoints, timeUnit)
-		encoder := NewEncoder(testStartTime, timeUnit)
+		encoder := NewEncoder(testStartTime, timeUnit, nil)
 		for j, v := range input {
 			if j == 0 {
 				encoder.Encode(v, proto.EncodeVarint(10))
@@ -46,7 +45,7 @@ func TestRoundTrip(t *testing.T) {
 			}
 		}
 		decoder := NewDecoder(timeUnit)
-		it := decoder.Decode(bytes.NewReader(encoder.Bytes()))
+		it := decoder.Decode(encoder.Stream())
 		var decompressed []encoding.Datapoint
 		j := 0
 		for it.Next() {

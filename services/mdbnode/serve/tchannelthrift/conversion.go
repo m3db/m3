@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 func valueToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
@@ -13,7 +13,7 @@ func valueToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	return memtsdb.FromNormalizedTime(value, unit), nil
+	return xtime.FromNormalizedTime(value, unit), nil
 }
 
 func timeToValue(t time.Time, timeType rpc.TimeType) (int64, error) {
@@ -21,7 +21,7 @@ func timeToValue(t time.Time, timeType rpc.TimeType) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return memtsdb.ToNormalizedTime(t, unit), nil
+	return xtime.ToNormalizedTime(t, unit), nil
 }
 
 func timeTypeToUnit(timeType rpc.TimeType) (time.Duration, error) {
