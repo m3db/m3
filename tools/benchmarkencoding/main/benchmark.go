@@ -8,14 +8,16 @@ import (
 	"code.uber.internal/infra/memtsdb/benchmark/fs"
 	"code.uber.internal/infra/memtsdb/encoding"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
+
 	log "github.com/Sirupsen/logrus"
 )
 
 type benchmark struct {
-	startTime   time.Time
-	windowSize  time.Duration
-	timeUnit    time.Duration
-	inputReader *fs.Reader
+	startTime      time.Time
+	windowSize     time.Duration
+	inputTimeUnit  time.Duration
+	encodeTimeUnit xtime.Unit
+	inputReader    *fs.Reader
 
 	encoder encoding.Encoder
 	decoder encoding.Decoder
@@ -29,7 +31,9 @@ type benchmark struct {
 func newBenchmark(
 	input string,
 	startTime time.Time,
-	windowSize, timeUnit time.Duration,
+	windowSize time.Duration,
+	inputTimeUnit time.Duration,
+	encodeTimeUnit xtime.Unit,
 	encoder encoding.Encoder,
 	decoder encoding.Decoder,
 ) (*benchmark, error) {
@@ -39,18 +43,19 @@ func newBenchmark(
 	}
 
 	return &benchmark{
-		startTime:   startTime,
-		windowSize:  windowSize,
-		timeUnit:    timeUnit,
-		inputReader: reader,
-		encoder:     encoder,
-		decoder:     decoder,
+		startTime:      startTime,
+		windowSize:     windowSize,
+		inputTimeUnit:  inputTimeUnit,
+		encodeTimeUnit: encodeTimeUnit,
+		inputReader:    reader,
+		encoder:        encoder,
+		decoder:        decoder,
 	}, nil
 }
 
 func (th *benchmark) Run() {
-	ns := xtime.ToNormalizedTime(th.startTime, th.timeUnit)
-	nw := xtime.ToNormalizedDuration(th.windowSize, th.timeUnit)
+	ns := xtime.ToNormalizedTime(th.startTime, th.inputTimeUnit)
+	nw := xtime.ToNormalizedDuration(th.windowSize, th.inputTimeUnit)
 
 	iter := th.inputReader.Iter()
 	for iter.Next() {
@@ -66,25 +71,30 @@ func (th *benchmark) Run() {
 				// start a new encoding block
 				currentStart, currentEnd = th.rotate(datapoints[i].Timestamp, nw)
 			}
-			th.encode(encoding.Datapoint{
-				Timestamp: xtime.FromNormalizedTime(datapoints[i].Timestamp, th.timeUnit),
+			if err := th.encode(encoding.Datapoint{
+				Timestamp: xtime.FromNormalizedTime(datapoints[i].Timestamp, th.inputTimeUnit),
 				Value:     datapoints[i].Value,
-			})
+			}); err != nil {
+				log.Fatalf("error occurred when encoding datapoint: %v", err)
+			}
 		}
 		th.decode()
 	}
 
 	if err := iter.Err(); err != nil {
-		log.Errorf("error occurred when iterating over input stream: %v", err)
+		log.Fatalf("error occurred when iterating over input stream: %v", err)
 	}
 }
 
-func (th *benchmark) encode(dp encoding.Datapoint) {
+func (th *benchmark) encode(dp encoding.Datapoint) error {
 	start := time.Now()
-	th.encoder.Encode(dp, nil)
+	if err := th.encoder.Encode(dp, nil, th.encodeTimeUnit); err != nil {
+		return err
+	}
 	end := time.Now()
 	th.encodingTime += end.Sub(start)
 	th.numDatapoints++
+	return nil
 }
 
 func getNumBytes(r io.Reader) int64 {
@@ -127,7 +137,7 @@ func (th *benchmark) rotate(nt int64, nw int64) (int64, int64) {
 	currentStart := nt - nt%nw
 	currentEnd := currentStart + nw
 	th.decode()
-	th.encoder.Reset(xtime.FromNormalizedTime(currentStart, th.timeUnit))
+	th.encoder.Reset(xtime.FromNormalizedTime(currentStart, th.inputTimeUnit))
 	return currentStart, currentEnd
 }
 

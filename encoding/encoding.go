@@ -3,6 +3,8 @@ package encoding
 import (
 	"io"
 	"time"
+
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 // TODO(xichen): move interfaces to top-level
@@ -21,7 +23,7 @@ type Encoder interface {
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time)
 	// Encode encodes a datapoint and optionally an annotation.
-	Encode(dp Datapoint, annotation Annotation)
+	Encode(dp Datapoint, annotation Annotation, timeUnit xtime.Unit) error
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
 	Stream() io.Reader
 }

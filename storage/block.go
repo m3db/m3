@@ -6,6 +6,7 @@ import (
 
 	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 type dbBlock struct {
@@ -28,9 +29,8 @@ func (b *dbBlock) StartTime() time.Time {
 	return b.start
 }
 
-func (b *dbBlock) Write(timestamp time.Time, value float64, unit time.Duration, annotation []byte) {
-	// TODO(r): encoder will take unit
-	b.encoder.Encode(encoding.Datapoint{Timestamp: timestamp, Value: value}, annotation)
+func (b *dbBlock) Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+	return b.encoder.Encode(encoding.Datapoint{Timestamp: timestamp, Value: value}, annotation, unit)
 }
 
 func (b *dbBlock) Stream() io.Reader {

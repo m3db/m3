@@ -17,6 +17,11 @@ func ToNormalizedDuration(d time.Duration, u time.Duration) int64 {
 	return int64(d / u)
 }
 
+// FromNormalizedDuration returns the duration given the normalized time duration and a time unit.
+func FromNormalizedDuration(nd int64, u time.Duration) time.Duration {
+	return time.Duration(nd) * u
+}
+
 // ToNanoseconds converts a time to nanoseconds.
 func ToNanoseconds(t time.Time) int64 {
 	return t.UnixNano()

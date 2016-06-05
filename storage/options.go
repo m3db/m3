@@ -43,16 +43,15 @@ type dbOptions struct {
 
 // NewDatabaseOptions creates a new set of database options with defaults
 func NewDatabaseOptions() memtsdb.DatabaseOptions {
+	opts := tsz.NewOptions()
 	return &dbOptions{
 		blockSize:        defaultBlockSize,
 		bufferResolution: defaultBufferResolution,
 		newEncoderFn: func(start time.Time, bytes []byte) encoding.Encoder {
-			// TODO(r): encoder will not require unit
-			return tsz.NewEncoder(start, time.Second, bytes)
+			return tsz.NewEncoder(start, bytes, opts)
 		},
 		newDecoderFn: func() encoding.Decoder {
-			// TODO(r): decoder will not require unit
-			return tsz.NewDecoder(time.Second)
+			return tsz.NewDecoder(opts)
 		},
 		// NB(r): potentially temporarily memoize calls to time.Now
 		nowFn:           time.Now,

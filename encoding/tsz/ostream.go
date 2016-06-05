@@ -49,11 +49,12 @@ func (os *ostream) grow(v byte, np int) {
 }
 
 func (os *ostream) fillUnused(v byte) {
-	os.rawBuffer[os.lastIndex()] |= v << uint(os.pos)
+	os.rawBuffer[os.lastIndex()] |= v >> uint(os.pos)
 }
 
 // WriteBit writes the last bit of v.
 func (os *ostream) WriteBit(v bit) {
+	v <<= 7
 	if !os.hasUnusedBits() {
 		os.grow(byte(v), 1)
 		return
@@ -69,7 +70,7 @@ func (os *ostream) WriteByte(v byte) {
 		return
 	}
 	os.fillUnused(v)
-	os.grow(v>>uint(8-os.pos), os.pos)
+	os.grow(v<<uint(8-os.pos), os.pos)
 }
 
 // WriteBytes writes a byte slice.
@@ -79,6 +80,8 @@ func (os *ostream) WriteBytes(bytes []byte) {
 	}
 }
 
+// WritBits writes the lowest numBits of v to the stream, starting
+// from the most significant bit to the least significant bit.
 func (os *ostream) WriteBits(v uint64, numBits int) {
 	if numBits == 0 {
 		return
@@ -89,15 +92,16 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 		numBits = 64
 	}
 
+	v <<= uint(64 - numBits)
 	for numBits >= 8 {
-		os.WriteByte(byte(v))
-		v >>= 8
+		os.WriteByte(byte(v >> 56))
+		v <<= 8
 		numBits -= 8
 	}
 
 	for numBits > 0 {
-		os.WriteBit(bit(v & 1))
-		v >>= 1
+		os.WriteBit(bit((v >> 63) & 1))
+		v <<= 1
 		numBits--
 	}
 }

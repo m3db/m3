@@ -3,6 +3,7 @@ package tsz
 import (
 	"bufio"
 	"io"
+	"math"
 )
 
 // istream encapsulates a readable stream.
@@ -41,7 +42,7 @@ func (is *istream) ReadByte() (byte, error) {
 	if err := is.readByteFromStream(); err != nil {
 		return 0, err
 	}
-	res = (is.consumeBuffer(8-remaining) << uint(remaining)) | res
+	res = (res << uint(8-remaining)) | is.consumeBuffer(8-remaining)
 	return res, nil
 }
 
@@ -50,14 +51,12 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		return 0, is.err
 	}
 	var res uint64
-	var shift uint
 	for numBits >= 8 {
 		byteRead, err := is.ReadByte()
 		if err != nil {
 			return 0, err
 		}
-		res = (uint64(byteRead) << shift) | res
-		shift += 8
+		res = (res << 8) | uint64(byteRead)
 		numBits -= 8
 	}
 	for numBits > 0 {
@@ -65,18 +64,46 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
-		res = (uint64(bitRead) << shift) | res
-		shift++
+		res = (res << 1) | uint64(bitRead)
 		numBits--
 	}
 	return res, nil
 }
 
+func (is *istream) PeekBits(numBits int) (uint64, error) {
+	if is.err != nil {
+		return 0, is.err
+	}
+	// check the last byte first
+	if numBits <= is.remaining {
+		return uint64(readBitsInByte(is.current, numBits)), nil
+	}
+	// now check the bytes buffered and read more if necessary.
+	numBitsRead := is.remaining
+	res := uint64(readBitsInByte(is.current, is.remaining))
+	numBytesToRead := int(math.Ceil(float64(numBits-numBitsRead) / 8))
+	bytesRead, err := is.r.Peek(numBytesToRead)
+	if err != nil {
+		return 0, err
+	}
+	for i := 0; i < numBytesToRead-1; i++ {
+		res = (res << 8) | uint64(bytesRead[i])
+		numBitsRead += 8
+	}
+	remainder := readBitsInByte(bytesRead[numBytesToRead-1], numBits-numBitsRead)
+	res = (res << uint(numBits-numBitsRead)) | uint64(remainder)
+	return res, nil
+}
+
+// readBitsInByte reads numBits in byte b.
+func readBitsInByte(b byte, numBits int) byte {
+	return b >> uint(8-numBits)
+}
+
 // consumeBuffer consumes numBits in is.current.
 func (is *istream) consumeBuffer(numBits int) byte {
-	mask := (1 << uint(numBits)) - 1
-	res := is.current & byte(mask)
-	is.current >>= uint(numBits)
+	res := readBitsInByte(is.current, numBits)
+	is.current <<= uint(numBits)
 	is.remaining -= numBits
 	return res
 }

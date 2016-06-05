@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"code.uber.internal/infra/memtsdb/encoding/tsz"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
+
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -40,16 +42,22 @@ func main() {
 		log.Fatalf("invalid input time unit %s: %v", *inputTimeUnit, err)
 	}
 
-	etu, err := time.ParseDuration(*encodingTimeUnit)
+	d, err := time.ParseDuration(*encodingTimeUnit)
 	if err != nil {
 		log.Fatalf("invalid encoding time unit %s: %v", *encodingTimeUnit, err)
 	}
 
+	etu, err := xtime.UnitFromDuration(d)
+	if err != nil {
+		log.Fatalf("unable to convert duration %v to time unit: %v", d, err)
+	}
+
 	log.Infof("input=%s, start=%v, windowSize=%v, inputTimeUnit=%v, encodingTimeUnit=%v", *inputFile, start, ws, itu, etu)
 
-	enc := tsz.NewEncoder(start, etu, nil)
-	dec := tsz.NewDecoder(etu)
-	bench, err := newBenchmark(*inputFile, start, ws, itu, enc, dec)
+	opts := tsz.NewOptions()
+	enc := tsz.NewEncoder(start, nil, opts)
+	dec := tsz.NewDecoder(opts)
+	bench, err := newBenchmark(*inputFile, start, ws, itu, etu, enc, dec)
 	if err != nil {
 		log.Fatalf("unable to create benchmark: %v", err)
 	}

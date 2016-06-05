@@ -9,6 +9,7 @@ import (
 
 	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/sharding"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 var (
@@ -43,7 +44,7 @@ type Database interface {
 		id string,
 		timestamp time.Time,
 		value float64,
-		unit time.Duration,
+		unit xtime.Unit,
 		annotation []byte,
 	) error
 
@@ -172,7 +173,7 @@ func (d *db) Write(
 	id string,
 	timestamp time.Time,
 	value float64,
-	unit time.Duration,
+	unit xtime.Unit,
 	annotation []byte,
 ) error {
 	d.RLock()

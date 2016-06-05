@@ -8,6 +8,7 @@ import (
 
 	"code.uber.internal/infra/memtsdb"
 	xio "code.uber.internal/infra/memtsdb/x/io"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 const (
@@ -27,7 +28,7 @@ type databaseSeries interface {
 	// tick performs any updates to ensure buffer flushes, blocks are written to disk, etc
 	tick() error
 
-	write(timestamp time.Time, value float64, unit time.Duration, annotation []byte) error
+	write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	fetchEncodedSegments(id string, start, end time.Time) (io.Reader, error)
 
@@ -88,7 +89,7 @@ func (s *dbSeries) isEmpty() bool {
 	return false
 }
 
-func (s *dbSeries) write(timestamp time.Time, value float64, unit time.Duration, annotation []byte) error {
+func (s *dbSeries) write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	return s.buffer.write(timestamp, value, unit, annotation)
 }
 
@@ -122,7 +123,11 @@ func (s *dbSeries) fetchEncodedSegments(id string, start, end time.Time) (io.Rea
 	}
 	s.RUnlock()
 
-	bufferResult := s.buffer.fetchEncodedSegment(start, end)
+	bufferResult, err := s.buffer.fetchEncodedSegment(start, end)
+	if err != nil {
+		return nil, err
+	}
+
 	if bufferResult != nil {
 		results = append(results, bufferResult)
 	}
@@ -130,39 +135,50 @@ func (s *dbSeries) fetchEncodedSegments(id string, start, end time.Time) (io.Rea
 	return xio.NewReaderSliceReader(results), nil
 }
 
-func (s *dbSeries) bufferFlushed(flush databaseBufferFlush) {
+func (s *dbSeries) bufferFlushed(flush databaseBufferFlush) error {
 	blockStart := flush.bucketStart.Truncate(s.blockSize)
+
+	var err error
 
 	s.Lock()
 
 	if s.bs != bootstrapped {
-		foreachBucketValue(flush, func(t time.Time, v databaseBufferValue) {
+		err = foreachBucketValue(flush, func(t time.Time, v databaseBufferValue) error {
 			s.bufferDatapoints = append(s.bufferDatapoints, datapoint{t: t, v: v})
+			return nil
 		})
 	} else {
 		var block memtsdb.DatabaseBlock
-		foreachBucketValue(flush, func(t time.Time, v databaseBufferValue) {
+		err = foreachBucketValue(flush, func(t time.Time, v databaseBufferValue) error {
 			bs := t.Truncate(s.blockSize)
 			if block == nil || bs != blockStart {
 				block = s.blocks.GetBlockOrAdd(bs)
 				blockStart = bs
 			}
-			block.Write(t, v.value, v.unit, v.annotation)
+			if err := block.Write(t, v.value, v.unit, v.annotation); err != nil {
+				return err
+			}
+			return nil
 		})
 	}
 
 	s.Unlock()
+
+	return err
 }
 
 // TODO(xichen): skip datapoints that fall within the bootstrap time range.
-func (s *dbSeries) flushDatapoints(rs memtsdb.DatabaseSeriesBlocks, datapoints []datapoint) {
+func (s *dbSeries) flushDatapoints(rs memtsdb.DatabaseSeriesBlocks, datapoints []datapoint) error {
 	numDatapoints := len(datapoints)
 	for i := 0; i < numDatapoints; i++ {
 		blockStart := datapoints[i].t.Truncate(s.blockSize)
 		block := rs.GetBlockOrAdd(blockStart)
 		v := datapoints[i].v
-		block.Write(datapoints[i].t, v.value, v.unit, v.annotation)
+		if err := block.Write(datapoints[i].t, v.value, v.unit, v.annotation); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (s *dbSeries) bootstrap(rs memtsdb.DatabaseSeriesBlocks) error {
@@ -196,13 +212,18 @@ func (s *dbSeries) bootstrap(rs memtsdb.DatabaseSeriesBlocks) error {
 		s.bufferDatapoints = nil
 		s.Unlock()
 
-		s.flushDatapoints(rs, datapoints)
+		if err := s.flushDatapoints(rs, datapoints); err != nil {
+			return err
+		}
 	}
 
 	// now we only have a few datatpoints queued up, acquire the lock
 	// and finish bootstrapping
 	s.Lock()
-	s.flushDatapoints(rs, s.bufferDatapoints)
+	if err := s.flushDatapoints(rs, s.bufferDatapoints); err != nil {
+		s.Unlock()
+		return err
+	}
 	s.bufferDatapoints = nil
 	s.blocks = rs
 	s.bs = bootstrapped

@@ -9,6 +9,7 @@ import (
 
 	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 var (
@@ -24,15 +25,15 @@ const (
 )
 
 type databaseBuffer interface {
-	write(timestamp time.Time, value float64, unit time.Duration, annotation []byte) error
+	write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// fetchEncodedSegment will return the full buffer's data as an encoded
 	// segment if start and end intersects the buffer at all, nil otherwise
-	fetchEncodedSegment(start, end time.Time) io.Reader
+	fetchEncodedSegment(start, end time.Time) (io.Reader, error)
 
 	isEmpty() bool
 
-	flushStale() int
+	flushStale() (int, error)
 }
 
 type databaseBufferFlush struct {
@@ -41,7 +42,7 @@ type databaseBufferFlush struct {
 	bucketStepSize time.Duration
 }
 
-type databaseBufferFlushFn func(f databaseBufferFlush)
+type databaseBufferFlushFn func(f databaseBufferFlush) error
 
 type dbBuffer struct {
 	sync.RWMutex
@@ -75,7 +76,7 @@ func (b *dbBufferBucket) resetTo(startTime time.Time) {
 
 type databaseBufferValue struct {
 	value      float64
-	unit       time.Duration
+	unit       xtime.Unit
 	annotation []byte
 }
 
@@ -84,17 +85,20 @@ type datapoint struct {
 	v databaseBufferValue
 }
 
-type dataPointFn func(t time.Time, v databaseBufferValue)
+type dataPointFn func(t time.Time, v databaseBufferValue) error
 
-func foreachBucketValue(flush databaseBufferFlush, fn dataPointFn) {
+func foreachBucketValue(flush databaseBufferFlush, fn dataPointFn) error {
 	bucketValuesLen := len(flush.bucketValues)
 	for i := 0; i < bucketValuesLen; i++ {
 		v := flush.bucketValues[i]
 		if !math.IsNaN(v.value) {
 			ts := flush.bucketStart.Add(time.Duration(i) * flush.bucketStepSize)
-			fn(ts, v)
+			if err := fn(ts, v); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func newDatabaseBuffer(flushFn databaseBufferFlushFn, opts memtsdb.DatabaseOptions) databaseBuffer {
@@ -147,7 +151,7 @@ func newDatabaseBuffer(flushFn databaseBufferFlushFn, opts memtsdb.DatabaseOptio
 	return buffer
 }
 
-func (s *dbBuffer) write(timestamp time.Time, value float64, unit time.Duration, annotation []byte) error {
+func (s *dbBuffer) write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	now := s.nowFn()
 	futureLimit := now.Add(s.tooFuture)
 	pastLimit := now.Add(-1 * s.tooPast)
@@ -178,8 +182,7 @@ func (s *dbBuffer) write(timestamp time.Time, value float64, unit time.Duration,
 	s.Unlock()
 
 	// Flush after releasing lock
-	s.callFlushFn(flushed)
-	return nil
+	return s.callFlushFn(flushed)
 }
 
 func (s *dbBuffer) isEmpty() bool {
@@ -195,7 +198,7 @@ func (s *dbBuffer) isEmpty() bool {
 	return allWritesToValues == 0
 }
 
-func (s *dbBuffer) flushStale() int {
+func (s *dbBuffer) flushStale() (int, error) {
 	// In best case when explicitly asked to flush may have no
 	// stale buckets, cheaply check this case first with a Rlock
 	now := s.nowFn()
@@ -209,7 +212,7 @@ func (s *dbBuffer) flushStale() int {
 	s.RUnlock()
 
 	if !staleAny {
-		return 0
+		return 0, nil
 	}
 
 	s.Lock()
@@ -217,18 +220,24 @@ func (s *dbBuffer) flushStale() int {
 	s.Unlock()
 
 	// Flush after releasing lock
-	s.callFlushFn(flushed)
-	return len(flushed)
+	if err := s.callFlushFn(flushed); err != nil {
+		return 0, err
+	}
+
+	return len(flushed), nil
 }
 
-func (s *dbBuffer) callFlushFn(flushed []databaseBufferFlush) {
+func (s *dbBuffer) callFlushFn(flushed []databaseBufferFlush) error {
 	for i := range flushed {
-		s.flushFn(flushed[i])
+		if err := s.flushFn(flushed[i]); err != nil {
+			return err
+		}
 		select {
 		case s.bucketsFlushPool <- flushed[i].bucketValues:
 		default:
 		}
 	}
+	return nil
 }
 
 func (s *dbBuffer) withLockFlushStale(now time.Time) []databaseBufferFlush {
@@ -271,21 +280,22 @@ func (s *dbBuffer) forEachBucketAsc(now time.Time, fn func(idx int, current time
 	}
 }
 
-func (s *dbBuffer) fetchEncodedSegment(start, end time.Time) io.Reader {
+func (s *dbBuffer) fetchEncodedSegment(start, end time.Time) (io.Reader, error) {
 	// TODO(r): cache and invalidate on write the result of this method
 	now := s.nowFn()
 	futureLimit := now.Add(s.tooFuture)
 	pastLimit := now.Add(-1 * s.tooPast)
 	if start.After(futureLimit) {
-		return nil
+		return nil, nil
 	}
 	if end.Before(pastLimit) {
-		return nil
+		return nil, nil
 	}
 
 	s.RLock()
 
 	var encoder encoding.Encoder
+	var encodeErr error
 	s.forEachBucketAsc(now, func(idx int, current time.Time) {
 		if !s.buckets[idx].startTime.Equal(current) {
 			// Stale
@@ -300,16 +310,27 @@ func (s *dbBuffer) fetchEncodedSegment(start, end time.Time) io.Reader {
 		for i := 0; i < s.bucketValuesLen; i++ {
 			if !math.IsNaN(values[i].value) {
 				ts := current.Add(time.Duration(i) * s.resolution)
-				// TODO(r): encoder will take unit per datapoint
-				encoder.Encode(encoding.Datapoint{Timestamp: ts, Value: values[i].value}, values[i].annotation)
+				if err := encoder.Encode(
+					encoding.Datapoint{Timestamp: ts, Value: values[i].value},
+					values[i].annotation,
+					values[i].unit,
+				); err != nil {
+					encodeErr = err
+					return
+				}
 			}
 		}
 	})
 
 	s.RUnlock()
 
-	if encoder != nil {
-		return encoder.Stream()
+	if encodeErr != nil {
+		return nil, encodeErr
 	}
-	return nil
+
+	if encoder != nil {
+		return encoder.Stream(), nil
+	}
+
+	return nil, nil
 }

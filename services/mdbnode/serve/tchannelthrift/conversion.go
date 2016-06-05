@@ -1,39 +1,52 @@
 package tchannelthrift
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
+var (
+	errUnknownTimeType = errors.New("unknown time type")
+	timeZero           time.Time
+)
+
 func valueToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
-	unit, err := timeTypeToUnit(timeType)
+	unit, err := timeTypeToDuration(timeType)
 	if err != nil {
-		return time.Time{}, err
+		return timeZero, err
 	}
 	return xtime.FromNormalizedTime(value, unit), nil
 }
 
 func timeToValue(t time.Time, timeType rpc.TimeType) (int64, error) {
-	unit, err := timeTypeToUnit(timeType)
+	unit, err := timeTypeToDuration(timeType)
 	if err != nil {
 		return 0, err
 	}
 	return xtime.ToNormalizedTime(t, unit), nil
 }
 
-func timeTypeToUnit(timeType rpc.TimeType) (time.Duration, error) {
+func timeTypeToDuration(timeType rpc.TimeType) (time.Duration, error) {
+	unit, err := timeTypeToUnit(timeType)
+	if err != nil {
+		return 0, err
+	}
+	return unit.Value()
+}
+
+func timeTypeToUnit(timeType rpc.TimeType) (xtime.Unit, error) {
 	switch timeType {
 	case rpc.TimeType_UNIX_SECONDS:
-		return time.Second, nil
-	case rpc.TimeType_UNIX_MICROSECONDS:
-		return time.Microsecond, nil
+		return xtime.Second, nil
 	case rpc.TimeType_UNIX_MILLISECONDS:
-		return time.Millisecond, nil
+		return xtime.Millisecond, nil
+	case rpc.TimeType_UNIX_MICROSECONDS:
+		return xtime.Microsecond, nil
 	case rpc.TimeType_UNIX_NANOSECONDS:
-		return time.Nanosecond, nil
+		return xtime.Nanosecond, nil
 	}
-	return 0, fmt.Errorf("unknown time type")
+	return 0, errUnknownTimeType
 }

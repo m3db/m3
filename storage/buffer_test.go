@@ -7,6 +7,7 @@ import (
 	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding"
 	"code.uber.internal/infra/memtsdb/encoding/tsz"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -20,13 +21,12 @@ func (f testFlusher) onFlush(flush databaseBufferFlush) {
 }
 
 func testBufferDatabaseOptions() memtsdb.DatabaseOptions {
+	options := tsz.NewOptions()
 	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
-		// TODO(r): encoder/decoder will not need unit
-		return tsz.NewEncoder(start, time.Second, bytes)
+		return tsz.NewEncoder(start, bytes, options)
 	}
 	newDecoderFn := func() encoding.Decoder {
-		// TODO(r): encoder/decoder will not need unit
-		return tsz.NewDecoder(time.Second)
+		return tsz.NewDecoder(options)
 	}
 	return NewDatabaseOptions().
 		BlockSize(2 * time.Minute).
@@ -78,10 +78,11 @@ func TestBufferWriteRead(t *testing.T) {
 	}
 
 	for _, v := range data {
-		assert.NoError(t, buffer.write(v.timestamp, v.value, time.Second, v.annotation))
+		assert.NoError(t, buffer.write(v.timestamp, v.value, xtime.Second, v.annotation))
 	}
 
-	result := buffer.fetchEncodedSegment(curr.Add(-1*opts.GetBufferPast()), curr.Add(opts.GetBufferFuture()))
+	result, err := buffer.fetchEncodedSegment(curr.Add(-1*opts.GetBufferPast()), curr.Add(opts.GetBufferFuture()))
+	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
 	newDecoderFn := opts.GetNewDecoderFn()

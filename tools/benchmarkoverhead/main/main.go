@@ -178,13 +178,12 @@ func newDatabase() storage.Database {
 		log.Fatalf("could not create sharding scheme: %v", err)
 	}
 
+	options := tsz.NewOptions()
 	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
-		// TODO(r): encoder/decoder will not need unit
-		return tsz.NewEncoder(start, time.Second, bytes)
+		return tsz.NewEncoder(start, bytes, options)
 	}
 	newDecoderFn := func() encoding.Decoder {
-		// TODO(r): encoder/decoder will not need unit
-		return tsz.NewDecoder(time.Second)
+		return tsz.NewDecoder(options)
 	}
 	opts := storage.NewDatabaseOptions().
 		BlockSize(2 * time.Hour).
@@ -256,7 +255,7 @@ func ingestAll(
 				series[id] = struct{}{}
 			}
 
-			if err := db.Write(id, t, value, time.Second, nil); err != nil {
+			if err := db.Write(id, t, value, xtime.Second, nil); err != nil {
 				log.Fatalf("failed to write entry: %v", err)
 			} else {
 				datapoints++

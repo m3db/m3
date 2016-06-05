@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"code.uber.internal/infra/memtsdb"
+	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 const (
@@ -22,7 +23,7 @@ type databaseShard interface {
 		id string,
 		timestamp time.Time,
 		value float64,
-		unit time.Duration,
+		unit xtime.Unit,
 		annotation []byte,
 	) error
 
@@ -113,7 +114,7 @@ func (s *dbShard) write(
 	id string,
 	timestamp time.Time,
 	value float64,
-	unit time.Duration,
+	unit xtime.Unit,
 	annotation []byte,
 ) error {
 	series := s.getSeries(id)

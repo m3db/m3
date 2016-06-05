@@ -11,31 +11,32 @@ import (
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
-const (
-	maxBufferSize = 8
-)
-
 // iterator provides an interface for clients to incrementally
 // read datapoints off of an encoded stream.
 type iterator struct {
-	is *istream
-	tu time.Duration // time unit
+	is   *istream
+	opts Options
+	tess TimeEncodingSchemes
+	mes  MarkerEncodingScheme
 
 	// internal bookkeeping
-	nt   int64               // current time
-	dt   int64               // current time delta
-	vb   uint64              // current value
-	xor  uint64              // current xor
-	done bool                // has reached the end
-	err  error               // current error
-	ant  encoding.Annotation // current annotation
-	buf  [maxBufferSize]byte // a small buffer to avoid repeated allocation
+	t    time.Time     // current time
+	dt   time.Duration // current time delta
+	vb   uint64        // current value
+	xor  uint64        // current xor
+	done bool          // has reached the end
+	err  error         // current error
+
+	ant encoding.Annotation // current annotation
+	tu  xtime.Unit          // current time unit
 }
 
-func newIterator(reader io.Reader, timeUnit time.Duration) encoding.Iterator {
+func newIterator(reader io.Reader, opts Options) encoding.Iterator {
 	return &iterator{
-		is: newIStream(reader),
-		tu: timeUnit,
+		is:   newIStream(reader),
+		opts: opts,
+		tess: opts.GetTimeEncodingSchemes(),
+		mes:  opts.GetMarkerEncodingScheme(),
 	}
 }
 
@@ -45,7 +46,7 @@ func (it *iterator) Next() bool {
 		return false
 	}
 	it.ant = nil
-	if it.nt == 0 {
+	if it.t.IsZero() {
 		it.readFirstTimestamp()
 		it.readFirstValue()
 	} else {
@@ -56,8 +57,10 @@ func (it *iterator) Next() bool {
 }
 
 func (it *iterator) readFirstTimestamp() {
-	it.nt = int64(it.readBits(64))
+	nt := int64(it.readBits(64))
 	it.readNextTimestamp()
+	st := xtime.FromNormalizedTime(nt, it.timeUnit())
+	it.t = st.Add(it.dt)
 }
 
 func (it *iterator) readFirstValue() {
@@ -66,33 +69,67 @@ func (it *iterator) readFirstValue() {
 }
 
 func (it *iterator) readNextTimestamp() {
-	dod := it.readDeltaOfDelta()
-	it.dt += dod
-	it.nt += it.dt
+	dod := it.readMarkerOrDeltaOfDelta()
+	it.dt += xtime.FromNormalizedDuration(dod, it.timeUnit())
+	it.t = it.t.Add(it.dt)
 }
 
-func (it *iterator) readDeltaOfDelta() int64 {
-	cb := it.readBits(zeroDoDRange.numOpcodeBits)
-	if cb == zeroDoDRange.opcode {
+func (it *iterator) tryReadMarker() (int64, bool) {
+	numBits := it.mes.NumOpcodeBits() + it.mes.NumValueBits()
+	opcodeAndValue, success := it.tryPeekBits(numBits)
+	if !success {
+		return 0, false
+	}
+	opcode := opcodeAndValue >> uint(it.mes.NumValueBits())
+	if opcode != it.mes.Opcode() {
+		return 0, false
+	}
+	valueMask := (1 << uint(it.mes.NumValueBits())) - 1
+	value := int64(opcodeAndValue & uint64(valueMask))
+	switch Marker(value) {
+	case it.mes.EndOfStream():
+		it.readBits(numBits)
+		it.done = true
+	case it.mes.Annotation():
+		it.readBits(numBits)
+		it.readAnnotation()
+		value = it.readMarkerOrDeltaOfDelta()
+	case it.mes.TimeUnit():
+		it.readBits(numBits)
+		it.readTimeUnit()
+		value = it.readMarkerOrDeltaOfDelta()
+	default:
+		return 0, false
+	}
+	return value, true
+}
+
+func (it *iterator) readMarkerOrDeltaOfDelta() int64 {
+	if dod, success := it.tryReadMarker(); success {
+		return dod
+	}
+	tes, exists := it.tess[it.tu]
+	if !exists {
+		it.err = fmt.Errorf("time encoding scheme for time unit %v doesn't exist", it.tu)
 		return 0
 	}
-	for i := 0; i < len(dodRanges); i++ {
-		cb = (it.readBits(1) << uint(i+1)) | cb
-		if cb == dodRanges[i].opcode {
-			return signExtend(it.readBits(dodRanges[i].numDoDBits), dodRanges[i].numDoDBits)
+	return it.readDeltaOfDelta(tes)
+}
+
+func (it *iterator) readDeltaOfDelta(tes TimeEncodingScheme) int64 {
+	cb := it.readBits(1)
+	if cb == tes.ZeroBucket().Opcode() {
+		return 0
+	}
+	buckets := tes.Buckets()
+	for i := 0; i < len(buckets); i++ {
+		cb = (cb << 1) | it.readBits(1)
+		if cb == buckets[i].Opcode() {
+			return signExtend(it.readBits(buckets[i].NumValueBits()), buckets[i].NumValueBits())
 		}
 	}
-	dod := signExtend(it.readBits(defaultDoDRange.numDoDBits), defaultDoDRange.numDoDBits)
-	if !it.hasError() {
-		if dod == int64(annotationMarker) {
-			it.readAnnotation()
-			return it.readDeltaOfDelta()
-		}
-		if dod == int64(eosMarker) {
-			it.done = true
-		}
-	}
-	return dod
+	numValueBits := tes.DefaultBucket().NumValueBits()
+	return signExtend(it.readBits(numValueBits), numValueBits)
 }
 
 func (it *iterator) readNextValue() {
@@ -103,18 +140,23 @@ func (it *iterator) readNextValue() {
 func (it *iterator) readAnnotation() {
 	// NB: we add 1 here to offset the 1 we subtracted during encoding
 	antLen := it.readVarint() + 1
+	if it.hasError() {
+		return
+	}
 	if antLen <= 0 {
 		it.err = fmt.Errorf("unexpected annotation length %d", antLen)
 		return
 	}
-	buf := it.buf[:]
-	if antLen > maxBufferSize {
-		buf = make([]byte, antLen)
-	}
+	// TODO(xichen): use pool to allocate the buffer once the pool diff lands.
+	buf := make([]byte, antLen)
 	for i := 0; i < antLen; i++ {
 		buf[i] = byte(it.readBits(8))
 	}
-	it.ant = buf[:antLen]
+	it.ant = buf
+}
+
+func (it *iterator) readTimeUnit() {
+	it.tu = xtime.Unit(it.readBits(8))
 }
 
 func (it *iterator) readXOR() uint64 {
@@ -123,7 +165,7 @@ func (it *iterator) readXOR() uint64 {
 		return 0
 	}
 
-	cb = (it.readBits(1) << 1) | cb
+	cb = (cb << 1) | it.readBits(1)
 	if cb == opcodeContainedValueXOR {
 		previousLeading, previousTrailing := leadingAndTrailingZeros(it.xor)
 		numMeaningfulBits := 64 - previousLeading - previousTrailing
@@ -155,12 +197,32 @@ func (it *iterator) readVarint() int {
 	return int(res)
 }
 
+func (it *iterator) tryPeekBits(numBits int) (uint64, bool) {
+	if !it.hasNext() {
+		return 0, false
+	}
+	res, err := it.is.PeekBits(numBits)
+	if err != nil {
+		return 0, false
+	}
+	return res, true
+}
+
+func (it *iterator) timeUnit() time.Duration {
+	if it.hasError() {
+		return 0
+	}
+	var tu time.Duration
+	tu, it.err = it.tu.Value()
+	return tu
+}
+
 // Current returns the value as well as the annotation associated with the current datapoint.
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
 func (it *iterator) Current() (encoding.Datapoint, encoding.Annotation) {
 	return encoding.Datapoint{
-		Timestamp: xtime.FromNormalizedTime(it.nt, it.tu),
+		Timestamp: it.t,
 		Value:     math.Float64frombits(it.vb),
 	}, it.ant
 }

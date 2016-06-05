@@ -105,8 +105,12 @@ func (s *service) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
 	if unitErr != nil {
 		return newNodeBadRequestError(unitErr)
 	}
-	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, unit)
-	err := s.db.Write(req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
+	d, err := unit.Value()
+	if err != nil {
+		return newNodeBadRequestError(err)
+	}
+	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
+	err = s.db.Write(req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
 	if err != nil {
 		return newWriteError(err)
 	}
@@ -121,9 +125,13 @@ func (s *service) WriteBatch(ctx thrift.Context, req *rpc.WriteBatchRequest) err
 			errs = append(errs, newWriteBatchError(i, unitErr))
 			continue
 		}
-
-		ts := xtime.FromNormalizedTime(elem.Datapoint.Timestamp, unit)
-		err := s.db.Write(elem.ID, ts, elem.Datapoint.Value, unit, elem.Datapoint.Annotation)
+		d, err := unit.Value()
+		if err != nil {
+			errs = append(errs, newWriteBatchError(i, err))
+			continue
+		}
+		ts := xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d)
+		err = s.db.Write(elem.ID, ts, elem.Datapoint.Value, unit, elem.Datapoint.Annotation)
 		if err != nil {
 			errs = append(errs, newWriteBatchError(i, err))
 		}
