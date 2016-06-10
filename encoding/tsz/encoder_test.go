@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"code.uber.internal/infra/memtsdb/encoding"
+	"code.uber.internal/infra/memtsdb"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -40,7 +40,7 @@ func TestWriteDeltaOfDelta(t *testing.T) {
 		{-4096 * time.Second, xtime.Nanosecond, []byte{0xff, 0xff, 0xff, 0xc4, 0x65, 0x36, 0x0, 0x0, 0x0}, 4},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime)
+		encoder.Reset(testStartTime, 0)
 		encoder.writeDeltaOfDelta(0, input.delta, input.timeUnit)
 		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
 		require.Equal(t, input.expectedPos, encoder.os.pos)
@@ -60,7 +60,7 @@ func TestWriteValue(t *testing.T) {
 		{0x0120000000000000, 0x4028000000000000, []byte{0xc1, 0x2e, 0x1, 0x40}, 2},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime)
+		encoder.Reset(testStartTime, 0)
 		encoder.writeXOR(input.previousXOR, input.currentXOR)
 		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
 		require.Equal(t, input.expectedPos, encoder.os.pos)
@@ -70,7 +70,7 @@ func TestWriteValue(t *testing.T) {
 func TestWriteAnnotation(t *testing.T) {
 	encoder := getTestEncoder(testStartTime)
 	inputs := []struct {
-		annotation    encoding.Annotation
+		annotation    memtsdb.Annotation
 		expectedBytes []byte
 		expectedPos   int
 	}{
@@ -92,7 +92,7 @@ func TestWriteAnnotation(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime)
+		encoder.Reset(testStartTime, 0)
 		encoder.writeAnnotation(input.annotation)
 		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
 		require.Equal(t, input.expectedPos, encoder.os.pos)
@@ -133,7 +133,7 @@ func TestWriteTimeUnit(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		encoder.Reset(testStartTime)
+		encoder.Reset(testStartTime, 0)
 		encoder.writeTimeUnit(input.timeUnit)
 		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
 		require.Equal(t, input.expectedPos, encoder.os.pos)
@@ -145,7 +145,7 @@ func TestEncodeNoAnnotation(t *testing.T) {
 	require.Nil(t, encoder.Stream())
 
 	startTime := time.Unix(1427162462, 0)
-	inputs := []encoding.Datapoint{
+	inputs := []memtsdb.Datapoint{
 		{startTime, 12},
 		{startTime.Add(time.Second * 60), 12},
 		{startTime.Add(time.Second * 120), 24},
@@ -155,7 +155,7 @@ func TestEncodeNoAnnotation(t *testing.T) {
 		{startTime.Add(time.Second * 4200), 12},
 	}
 	for _, input := range inputs {
-		encoder.Encode(input, nil, xtime.Second)
+		encoder.Encode(input, xtime.Second, nil)
 	}
 
 	expectedBytes := []byte{
@@ -180,20 +180,20 @@ func TestEncodeWithAnnotation(t *testing.T) {
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
-		dp  encoding.Datapoint
-		ant encoding.Annotation
+		dp  memtsdb.Datapoint
+		ant memtsdb.Annotation
 	}{
-		{encoding.Datapoint{startTime, 12}, []byte{0xa}},
-		{encoding.Datapoint{startTime.Add(time.Second * 60), 12}, []byte{0xa}},
-		{encoding.Datapoint{startTime.Add(time.Second * 120), 24}, nil},
-		{encoding.Datapoint{startTime.Add(-time.Second * 76), 24}, nil},
-		{encoding.Datapoint{startTime.Add(-time.Second * 16), 24}, []byte{0x1, 0x2}},
-		{encoding.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
-		{encoding.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
+		{memtsdb.Datapoint{startTime, 12}, []byte{0xa}},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 60), 12}, []byte{0xa}},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 120), 24}, nil},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 76), 24}, nil},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 16), 24}, []byte{0x1, 0x2}},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
 	}
 
 	for _, input := range inputs {
-		encoder.Encode(input.dp, input.ant, xtime.Second)
+		encoder.Encode(input.dp, xtime.Second, input.ant)
 	}
 
 	expectedBuffer := []byte{
@@ -220,20 +220,20 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
-		dp encoding.Datapoint
+		dp memtsdb.Datapoint
 		tu xtime.Unit
 	}{
-		{encoding.Datapoint{startTime, 12}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(time.Second * 60), 12}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(time.Second * 120), 24}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Second * 76), 24}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Second * 16), 24}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Nanosecond * 15500000000), 15}, xtime.Nanosecond},
-		{encoding.Datapoint{startTime.Add(-time.Nanosecond * 14000000000), 12}, xtime.Second},
+		{memtsdb.Datapoint{startTime, 12}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 60), 12}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 120), 24}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 76), 24}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 16), 24}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Nanosecond * 15500000000), 15}, xtime.Nanosecond},
+		{memtsdb.Datapoint{startTime.Add(-time.Nanosecond * 14000000000), 12}, xtime.Second},
 	}
 
 	for _, input := range inputs {
-		encoder.Encode(input.dp, nil, input.tu)
+		encoder.Encode(input.dp, input.tu, nil)
 	}
 
 	expectedBytes := []byte{
@@ -252,21 +252,21 @@ func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
-		dp  encoding.Datapoint
-		ant encoding.Annotation
+		dp  memtsdb.Datapoint
+		ant memtsdb.Annotation
 		tu  xtime.Unit
 	}{
-		{encoding.Datapoint{startTime, 12}, []byte{0xa}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(time.Second * 60), 12}, nil, xtime.Second},
-		{encoding.Datapoint{startTime.Add(time.Second * 120), 24}, nil, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Second * 76), 24}, []byte{0x1, 0x2}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Second * 16), 24}, nil, xtime.Millisecond},
-		{encoding.Datapoint{startTime.Add(-time.Millisecond * 15500), 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
-		{encoding.Datapoint{startTime.Add(-time.Millisecond * 14000), 12}, nil, xtime.Second},
+		{memtsdb.Datapoint{startTime, 12}, []byte{0xa}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 60), 12}, nil, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 120), 24}, nil, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 76), 24}, []byte{0x1, 0x2}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 16), 24}, nil, xtime.Millisecond},
+		{memtsdb.Datapoint{startTime.Add(-time.Millisecond * 15500), 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
+		{memtsdb.Datapoint{startTime.Add(-time.Millisecond * 14000), 12}, nil, xtime.Second},
 	}
 
 	for _, input := range inputs {
-		encoder.Encode(input.dp, input.ant, input.tu)
+		encoder.Encode(input.dp, input.tu, input.ant)
 	}
 
 	expectedBytes := []byte{

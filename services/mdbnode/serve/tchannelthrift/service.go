@@ -21,15 +21,21 @@ func NewService(db storage.Database) rpc.TChanNode {
 	return &service{db: db}
 }
 
-func (s *service) Fetch(ctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
+func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
+	ctx := s.db.Options().GetContextPool().Get()
+	defer ctx.Close()
+
 	start, rangeStartErr := valueToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := valueToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
 		return nil, newNodeBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	encoded, err := s.db.FetchEncodedSegments(req.ID, start, end)
+	encoded, err := s.db.ReadEncoded(ctx, req.ID, start, end)
 	if err != nil {
+		if xerrors.IsInvalidParams(err) {
+			return nil, newNodeBadRequestError(err)
+		}
 		return nil, newNodeInternalError(err)
 	}
 
@@ -38,33 +44,42 @@ func (s *service) Fetch(ctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchRe
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
-	it := s.db.GetOptions().GetNewDecoderFn()().Decode(encoded)
-	for it.Next() {
-		dp, annotation := it.Current()
-		ts, tsErr := timeToValue(dp.Timestamp, req.ResultTimeType)
-		if tsErr != nil {
-			return nil, newNodeBadRequestError(tsErr)
-		}
-
-		afterOrAtStart := !dp.Timestamp.Before(start)
-		beforeOrAtEnd := !dp.Timestamp.After(end)
-		if afterOrAtStart && beforeOrAtEnd {
-			datapoint := rpc.NewDatapoint()
-			datapoint.Timestamp = ts
-			datapoint.Value = dp.Value
-			datapoint.Annotation = annotation
-			result.Datapoints = append(result.Datapoints, datapoint)
-		}
+	if encoded == nil || len(encoded.Readers()) == 0 {
+		return result, nil
 	}
 
-	if err := it.Err(); err != nil {
-		return nil, newNodeInternalError(err)
+	for _, reader := range encoded.Readers() {
+		newDecoderFn := s.db.Options().GetNewDecoderFn()
+		it := newDecoderFn().Decode(reader)
+		for it.Next() {
+			dp, _, annotation := it.Current()
+			ts, tsErr := timeToValue(dp.Timestamp, req.ResultTimeType)
+			if tsErr != nil {
+				return nil, newNodeBadRequestError(tsErr)
+			}
+
+			afterOrAtStart := !dp.Timestamp.Before(start)
+			beforeOrAtEnd := !dp.Timestamp.After(end)
+			if afterOrAtStart && beforeOrAtEnd {
+				datapoint := rpc.NewDatapoint()
+				datapoint.Timestamp = ts
+				datapoint.Value = dp.Value
+				datapoint.Annotation = annotation
+				result.Datapoints = append(result.Datapoints, datapoint)
+			}
+		}
+		if err := it.Err(); err != nil {
+			return nil, newNodeInternalError(err)
+		}
 	}
 
 	return result, nil
 }
 
-func (s *service) FetchRawBatch(ctx thrift.Context, req *rpc.FetchRawBatchRequest) (*rpc.FetchRawBatchResult_, error) {
+func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchRequest) (*rpc.FetchRawBatchResult_, error) {
+	ctx := s.db.Options().GetContextPool().Get()
+	defer ctx.Close()
+
 	start, rangeStartErr := valueToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := valueToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
@@ -73,8 +88,11 @@ func (s *service) FetchRawBatch(ctx thrift.Context, req *rpc.FetchRawBatchReques
 
 	result := rpc.NewFetchRawBatchResult_()
 	for i := range req.Ids {
-		encoded, err := s.db.FetchEncodedSegments(req.Ids[i], start, end)
+		encoded, err := s.db.ReadEncoded(ctx, req.Ids[i], start, end)
 		if err != nil {
+			if xerrors.IsInvalidParams(err) {
+				return nil, newNodeBadRequestError(err)
+			}
 			return nil, newNodeInternalError(err)
 		}
 		rawResult := rpc.NewFetchRawResult_()
@@ -85,9 +103,6 @@ func (s *service) FetchRawBatch(ctx thrift.Context, req *rpc.FetchRawBatchReques
 		segments := make([]*rpc.Segment, 0, len(sgrs))
 		for _, sgr := range sgrs {
 			seg := sgr.Segment()
-			if seg == nil {
-				continue
-			}
 			segments = append(segments, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
 		}
 		rawResult.Segments = segments
@@ -97,43 +112,56 @@ func (s *service) FetchRawBatch(ctx thrift.Context, req *rpc.FetchRawBatchReques
 	return result, nil
 }
 
-func (s *service) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
+func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
+	ctx := s.db.Options().GetContextPool().Get()
+	defer ctx.Close()
+
 	if req.Datapoint == nil {
-		return newNodeBadRequestError(fmt.Errorf("requires datapoint"))
+		return newBadRequestWriteError(fmt.Errorf("requires datapoint"))
 	}
 	unit, unitErr := timeTypeToUnit(req.Datapoint.TimestampType)
 	if unitErr != nil {
-		return newNodeBadRequestError(unitErr)
+		return newBadRequestWriteError(unitErr)
 	}
 	d, err := unit.Value()
 	if err != nil {
-		return newNodeBadRequestError(err)
+		return newBadRequestWriteError(err)
 	}
 	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
-	err = s.db.Write(req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
+	err = s.db.Write(ctx, req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
 	if err != nil {
+		if xerrors.IsInvalidParams(err) {
+			return newBadRequestWriteError(err)
+		}
 		return newWriteError(err)
 	}
 	return nil
 }
 
-func (s *service) WriteBatch(ctx thrift.Context, req *rpc.WriteBatchRequest) error {
+func (s *service) WriteBatch(tctx thrift.Context, req *rpc.WriteBatchRequest) error {
+	ctx := s.db.Options().GetContextPool().Get()
+	defer ctx.Close()
+
 	var errs []*rpc.WriteBatchError
 	for i, elem := range req.Elements {
 		unit, unitErr := timeTypeToUnit(elem.Datapoint.TimestampType)
 		if unitErr != nil {
-			errs = append(errs, newWriteBatchError(i, unitErr))
+			errs = append(errs, newBadRequestWriteBatchError(i, unitErr))
 			continue
 		}
 		d, err := unit.Value()
 		if err != nil {
-			errs = append(errs, newWriteBatchError(i, err))
+			errs = append(errs, newBadRequestWriteBatchError(i, err))
 			continue
 		}
 		ts := xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d)
-		err = s.db.Write(elem.ID, ts, elem.Datapoint.Value, unit, elem.Datapoint.Annotation)
+		err = s.db.Write(ctx, elem.ID, ts, elem.Datapoint.Value, unit, elem.Datapoint.Annotation)
 		if err != nil {
-			errs = append(errs, newWriteBatchError(i, err))
+			if xerrors.IsInvalidParams(err) {
+				errs = append(errs, newBadRequestWriteBatchError(i, err))
+			} else {
+				errs = append(errs, newWriteBatchError(i, err))
+			}
 		}
 	}
 

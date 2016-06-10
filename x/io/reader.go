@@ -3,6 +3,8 @@ package io
 import (
 	"errors"
 	"io"
+
+	"code.uber.internal/infra/memtsdb"
 )
 
 var (
@@ -40,20 +42,13 @@ func (r *sliceOfSliceReader) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-// ReaderSliceReader implements the io reader interface backed by a slice of readers.
-type ReaderSliceReader interface {
-	io.Reader
-
-	Readers() []io.Reader
-}
-
 type readerSliceReader struct {
 	s  []io.Reader // reader list
 	si int         // slice index
 }
 
 // NewReaderSliceReader creates a new ReaderSliceReader instance.
-func NewReaderSliceReader(r []io.Reader) ReaderSliceReader {
+func NewReaderSliceReader(r []io.Reader) memtsdb.ReaderSliceReader {
 	return &readerSliceReader{s: r}
 }
 
@@ -86,27 +81,20 @@ func (r *readerSliceReader) Readers() []io.Reader {
 	return r.s
 }
 
-// Segment represents a binary blob consisting of two byte slices.
-type Segment struct {
-	Head []byte
-	Tail []byte
-}
-
-// SegmentReader implements the io reader interface backed by a segment.
-type SegmentReader interface {
-	io.Reader
-
-	Segment() *Segment
-}
-
 type segmentReader struct {
-	segment *Segment
+	segment memtsdb.Segment
 	si      int
+	pool    memtsdb.SegmentReaderPool
 }
 
 // NewSegmentReader creates a new segment reader.
-func NewSegmentReader(segment *Segment) SegmentReader {
+func NewSegmentReader(segment memtsdb.Segment) memtsdb.SegmentReader {
 	return &segmentReader{segment: segment}
+}
+
+// NewPooledSegmentReader creates a new pooled segment reader.
+func NewPooledSegmentReader(segment memtsdb.Segment, pool memtsdb.SegmentReaderPool) memtsdb.SegmentReader {
+	return &segmentReader{segment: segment, pool: pool}
 }
 
 func (sr *segmentReader) Read(b []byte) (int, error) {
@@ -138,26 +126,37 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-func (sr *segmentReader) Segment() *Segment {
+func (sr *segmentReader) Segment() memtsdb.Segment {
 	return sr.segment
 }
 
+func (sr *segmentReader) Reset(segment memtsdb.Segment) {
+	sr.segment = segment
+	sr.si = 0
+}
+
+func (sr *segmentReader) Close() {
+	if sr.pool != nil {
+		sr.pool.Put(sr)
+	}
+}
+
 // GetSegmentReaders returns the segment readers contained in an io reader.
-func GetSegmentReaders(r io.Reader) ([]SegmentReader, error) {
+func GetSegmentReaders(r io.Reader) ([]memtsdb.SegmentReader, error) {
 	if r == nil {
 		return nil, nil
 	}
-	sr, ok := r.(ReaderSliceReader)
+	sr, ok := r.(memtsdb.ReaderSliceReader)
 	if !ok {
 		return nil, errUnexpectedReaderType
 	}
 	readers := sr.Readers()
-	s := make([]SegmentReader, 0, len(readers))
+	s := make([]memtsdb.SegmentReader, 0, len(readers))
 	for i := 0; i < len(readers); i++ {
 		if readers[i] == nil {
 			continue
 		}
-		sgr, ok := readers[i].(SegmentReader)
+		sgr, ok := readers[i].(memtsdb.SegmentReader)
 		if !ok {
 			return nil, errUnexpectedReaderType
 		}

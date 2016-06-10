@@ -3,7 +3,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -30,8 +29,8 @@ const (
 // Database is a time series database
 type Database interface {
 
-	// GetOptions returns the database options
-	GetOptions() memtsdb.DatabaseOptions
+	// Options returns the database options
+	Options() memtsdb.DatabaseOptions
 
 	// Open will open the database for writing and reading
 	Open() error
@@ -41,6 +40,7 @@ type Database interface {
 
 	// Write value to the database for an ID
 	Write(
+		ctx memtsdb.Context,
 		id string,
 		timestamp time.Time,
 		value float64,
@@ -48,8 +48,12 @@ type Database interface {
 		annotation []byte,
 	) error
 
-	// Fetch retrieves encoded segments for an ID
-	FetchEncodedSegments(id string, start, end time.Time) (io.Reader, error)
+	// ReadEncoded retrieves encoded segments for an ID
+	ReadEncoded(
+		ctx memtsdb.Context,
+		id string,
+		start, end time.Time,
+	) (memtsdb.ReaderSliceReader, error)
 
 	// Bootstrap bootstraps the database.
 	Bootstrap(writeStart time.Time) error
@@ -87,7 +91,7 @@ func NewDatabase(shardSet sharding.ShardSet, opts memtsdb.DatabaseOptions) Datab
 	}
 }
 
-func (d *db) GetOptions() memtsdb.DatabaseOptions {
+func (d *db) Options() memtsdb.DatabaseOptions {
 	return d.opts
 }
 
@@ -170,6 +174,7 @@ func (d *db) Close() error {
 }
 
 func (d *db) Write(
+	ctx memtsdb.Context,
 	id string,
 	timestamp time.Time,
 	value float64,
@@ -183,10 +188,14 @@ func (d *db) Write(
 	if shard == nil {
 		return fmt.Errorf("not responsible for shard %d", shardID)
 	}
-	return shard.write(id, timestamp, value, unit, annotation)
+	return shard.write(ctx, id, timestamp, value, unit, annotation)
 }
 
-func (d *db) FetchEncodedSegments(id string, start, end time.Time) (io.Reader, error) {
+func (d *db) ReadEncoded(
+	ctx memtsdb.Context,
+	id string,
+	start, end time.Time,
+) (memtsdb.ReaderSliceReader, error) {
 	d.RLock()
 	if d.bs != bootstrapped {
 		d.RUnlock()
@@ -198,7 +207,7 @@ func (d *db) FetchEncodedSegments(id string, start, end time.Time) (io.Reader, e
 	if shard == nil {
 		return nil, fmt.Errorf("not responsible for shard %d", shardID)
 	}
-	return shard.fetchEncodedSegments(id, start, end)
+	return shard.readEncoded(ctx, id, start, end)
 }
 
 func (d *db) ongoingTick() {
@@ -223,12 +232,11 @@ func (d *db) splayedTick() {
 	for i, shard := range shards {
 		i := i
 		shard := shard
-		splayWaitDuration := time.Duration(i) * splayApart
+		if i > 0 {
+			time.Sleep(splayApart)
+		}
 		wg.Add(1)
 		go func() {
-			if splayWaitDuration > 0 {
-				<-time.After(splayWaitDuration)
-			}
 			// TODO(r): instrument timing of this tick
 			shard.tick()
 			wg.Done()

@@ -5,23 +5,21 @@ import (
 	"time"
 
 	"code.uber.internal/infra/memtsdb"
-	"code.uber.internal/infra/memtsdb/encoding"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 type dbBlock struct {
-	start   time.Time
 	opts    memtsdb.DatabaseOptions
-	encoder encoding.Encoder
+	start   time.Time
+	encoder memtsdb.Encoder
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
-func NewDatabaseBlock(start time.Time, data []byte, opts memtsdb.DatabaseOptions) memtsdb.DatabaseBlock {
-	newEncoderFn := opts.GetNewEncoderFn()
+func NewDatabaseBlock(start time.Time, encoder memtsdb.Encoder, opts memtsdb.DatabaseOptions) memtsdb.DatabaseBlock {
 	return &dbBlock{
-		start:   start,
 		opts:    opts,
-		encoder: newEncoderFn(start, data),
+		start:   start,
+		encoder: encoder,
 	}
 }
 
@@ -30,11 +28,16 @@ func (b *dbBlock) StartTime() time.Time {
 }
 
 func (b *dbBlock) Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
-	return b.encoder.Encode(encoding.Datapoint{Timestamp: timestamp, Value: value}, annotation, unit)
+	return b.encoder.Encode(memtsdb.Datapoint{Timestamp: timestamp, Value: value}, unit, annotation)
 }
 
 func (b *dbBlock) Stream() io.Reader {
 	return b.encoder.Stream()
+}
+
+func (b *dbBlock) Close() {
+	// This will return the encoder to the pool
+	b.encoder.Close()
 }
 
 type databaseSeriesBlocks struct {
@@ -54,10 +57,10 @@ func NewDatabaseSeriesBlocks(dbOpts memtsdb.DatabaseOptions) memtsdb.DatabaseSer
 
 func (dbb *databaseSeriesBlocks) AddBlock(block memtsdb.DatabaseBlock) {
 	start := block.StartTime()
-	if dbb.min.Equal(timeNone) || start.Before(dbb.min) {
+	if dbb.min.Equal(timeZero) || start.Before(dbb.min) {
 		dbb.min = start
 	}
-	if dbb.max.Equal(timeNone) || start.After(dbb.max) {
+	if dbb.max.Equal(timeZero) || start.After(dbb.max) {
 		dbb.max = start
 	}
 	dbb.elems[start] = block

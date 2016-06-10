@@ -15,15 +15,15 @@ import (
 
 // fileSystemSource provides information about TSDB data stored on disk.
 type fileSystemSource struct {
+	opts           memtsdb.DatabaseOptions
 	filePathPrefix string
-	dbOpts         memtsdb.DatabaseOptions
 }
 
 // newFileSystemSource creates a new filesystem based database.
 func newFileSystemSource(prefix string, opts memtsdb.DatabaseOptions) memtsdb.Source {
 	return &fileSystemSource{
+		opts:           opts,
 		filePathPrefix: prefix,
-		dbOpts:         opts,
 	}
 }
 
@@ -76,7 +76,7 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (memtsdb.Sh
 		log.Errorf("unable to get info files for shard %d: %v", shard, err)
 		return nil, tr
 	}
-	seriesMap := bootstrap.NewShardResult(fss.dbOpts)
+	seriesMap := bootstrap.NewShardResult(fss.opts)
 	r := fs.NewReader(fss.filePathPrefix)
 	for i := 0; i < len(files); i++ {
 		v, err := fs.VersionFromName(files[i])
@@ -94,7 +94,7 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (memtsdb.Sh
 			continue
 		}
 		hasError := false
-		curMap := bootstrap.NewShardResult(fss.dbOpts)
+		curMap := bootstrap.NewShardResult(fss.opts)
 		for i := 0; i < r.Entries(); i++ {
 			id, data, err := r.Read()
 			if err != nil {
@@ -102,7 +102,9 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (memtsdb.Sh
 				hasError = true
 				break
 			}
-			block := storage.NewDatabaseBlock(timeRange.Start, data, fss.dbOpts)
+			encoder := fss.opts.GetEncoderPool().Get()
+			encoder.ResetSetData(timeRange.Start, data, false)
+			block := storage.NewDatabaseBlock(timeRange.Start, encoder, fss.opts)
 			curMap.AddBlock(id, block)
 		}
 		r.Close()

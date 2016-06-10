@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"code.uber.internal/infra/memtsdb/encoding"
-	"code.uber.internal/infra/memtsdb/encoding/tsz"
+	"code.uber.internal/infra/memtsdb"
+	"code.uber.internal/infra/memtsdb/bootstrap"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/httpjson"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift"
 	"code.uber.internal/infra/memtsdb/sharding"
@@ -44,23 +44,10 @@ func main() {
 		log.Fatalf("could not create sharding scheme: %v", err)
 	}
 
-	options := tsz.NewOptions()
-	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
-		return tsz.NewEncoder(start, bytes, options)
-	}
-	newDecoderFn := func() encoding.Decoder {
-		return tsz.NewDecoder(options)
-	}
-	opts := storage.NewDatabaseOptions().
-		BlockSize(2 * time.Hour).
-		BufferResolution(1 * time.Second).
-		NewEncoderFn(newEncoderFn).
-		NewDecoderFn(newDecoderFn).
-		NowFn(time.Now).
-		BufferFuture(1 * time.Minute).
-		BufferPast(10 * time.Minute).
-		BufferFlush(1 * time.Minute)
-
+	var opts memtsdb.DatabaseOptions
+	opts = storage.NewDatabaseOptions().NewBootstrapFn(func() memtsdb.Bootstrap {
+		return bootstrap.NewNoOpBootstrapProcess(opts)
+	})
 	db := storage.NewDatabase(shardingScheme.All(), opts)
 	if err := db.Open(); err != nil {
 		log.Fatalf("could not open database: %v", err)
@@ -80,6 +67,11 @@ func main() {
 	}
 	defer httpjsonClose()
 	log.Infof("httpjson: listening on %v", httpAddr)
+
+	if err := db.Bootstrap(time.Now()); err != nil {
+		log.Fatalf("could not bootstrap database: %v", err)
+	}
+	log.Infof("bootstrapped")
 
 	log.Fatalf("interrupt: %v", interrupt())
 }

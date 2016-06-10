@@ -46,19 +46,11 @@ func TestRoundTrip(t *testing.T) {
 	}
 	require.NoError(t, writer.Close())
 
-	indexFileFd, err := os.Open(indexFilePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	dataFileFd, err := os.Open(dataFilePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	reader, err := NewReader(indexFileFd, dataFileFd)
+	reader, err := NewReader(indexFilePath, dataFilePath)
 	require.NoError(t, err)
-	iter := reader.Iter()
+	iter, err := reader.Iter()
+	require.NoError(t, err)
+
 	index := 0
 	for iter.Next() {
 		id, timestamp, value := iter.Value()
@@ -70,6 +62,5 @@ func TestRoundTrip(t *testing.T) {
 	require.NoError(t, iter.Err())
 	require.Equal(t, len(entries), index)
 
-	indexFileFd.Close()
-	dataFileFd.Close()
+	require.NoError(t, reader.Close())
 }

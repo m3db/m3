@@ -7,7 +7,7 @@ import (
 	"math"
 	"time"
 
-	"code.uber.internal/infra/memtsdb/encoding"
+	"code.uber.internal/infra/memtsdb"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
@@ -27,11 +27,14 @@ type iterator struct {
 	done bool          // has reached the end
 	err  error         // current error
 
-	ant encoding.Annotation // current annotation
-	tu  xtime.Unit          // current time unit
+	ant memtsdb.Annotation // current annotation
+	tu  xtime.Unit         // current time unit
+
+	closed bool
 }
 
-func newIterator(reader io.Reader, opts Options) encoding.Iterator {
+// NewIterator returns a new iterator for a given reader
+func NewIterator(reader io.Reader, opts Options) memtsdb.Iterator {
 	return &iterator{
 		is:   newIStream(reader),
 		opts: opts,
@@ -220,11 +223,11 @@ func (it *iterator) timeUnit() time.Duration {
 // Current returns the value as well as the annotation associated with the current datapoint.
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
-func (it *iterator) Current() (encoding.Datapoint, encoding.Annotation) {
-	return encoding.Datapoint{
+func (it *iterator) Current() (memtsdb.Datapoint, xtime.Unit, memtsdb.Annotation) {
+	return memtsdb.Datapoint{
 		Timestamp: it.t,
 		Value:     math.Float64frombits(it.vb),
-	}, it.ant
+	}, it.tu, it.ant
 }
 
 // Err returns the error encountered
@@ -240,6 +243,33 @@ func (it *iterator) isDone() bool {
 	return it.done
 }
 
+func (it *iterator) isClosed() bool {
+	return it.closed
+}
+
 func (it *iterator) hasNext() bool {
-	return !it.hasError() && !it.isDone()
+	return !it.hasError() && !it.isDone() && !it.isClosed()
+}
+
+func (it *iterator) Reset(reader io.Reader) {
+	it.is.Reset(reader)
+	it.t = time.Time{}
+	it.dt = 0
+	it.vb = 0
+	it.xor = 0
+	it.done = false
+	it.err = nil
+	it.ant = nil
+	it.closed = false
+}
+
+func (it *iterator) Close() {
+	if it.closed {
+		return
+	}
+	it.closed = true
+	pool := it.opts.GetIteratorPool()
+	if pool != nil {
+		pool.Put(it)
+	}
 }

@@ -1,4 +1,4 @@
-package encoding
+package memtsdb
 
 import (
 	"io"
@@ -6,8 +6,6 @@ import (
 
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
-
-// TODO(xichen): move interfaces to top-level
 
 // A Datapoint is a single data value reported at a given time
 type Datapoint struct {
@@ -20,12 +18,18 @@ type Annotation []byte
 
 // Encoder is the generic interface for different types of encoders.
 type Encoder interface {
-	// Reset resets the start time of the encoder and the internal state.
-	Reset(t time.Time)
 	// Encode encodes a datapoint and optionally an annotation.
-	Encode(dp Datapoint, annotation Annotation, timeUnit xtime.Unit) error
+	Encode(dp Datapoint, timeUnit xtime.Unit, annotation Annotation) error
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
-	Stream() io.Reader
+	Stream() SegmentReader
+	// Done will append any end of stream marker and ensure the encoder cannot be written to anymore.
+	Done()
+	// Reset resets the start time of the encoder and the internal state.
+	Reset(t time.Time, capacity int)
+	// Reset resets the start time of the encoder and the internal state with some preset data.
+	ResetSetData(t time.Time, data []byte, writable bool)
+	// Close closes the encoder and if pooled will return to the pool.
+	Close()
 }
 
 // NewEncoderFn creates a new encoder
@@ -38,9 +42,13 @@ type Iterator interface {
 	// Current returns the value as well as the annotation associated with the current datapoint.
 	// Users should not hold on to the returned Annotation object as it may get invalidated when
 	// the iterator calls Next().
-	Current() (Datapoint, Annotation)
+	Current() (Datapoint, xtime.Unit, Annotation)
 	// Err returns the error encountered
 	Err() error
+	// Reset resets the iterator to read from a new reader.
+	Reset(reader io.Reader)
+	// Close closes the iterator and if pooled will return to the pool.
+	Close()
 }
 
 // Decoder is the generic interface for different types of decoders.

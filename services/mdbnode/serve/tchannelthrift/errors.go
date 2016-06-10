@@ -27,9 +27,23 @@ func newWriteError(err error) *rpc.WriteError {
 	return writeErr
 }
 
+func newBadRequestWriteError(err error) *rpc.WriteError {
+	writeErr := rpc.NewWriteError()
+	writeErr.Type = rpc.NodeErrorType_BAD_REQUEST
+	writeErr.Message = fmt.Sprintf("%v", err)
+	return writeErr
+}
+
 func newWriteBatchError(index int, err error) *rpc.WriteBatchError {
 	batchErr := rpc.NewWriteBatchError()
 	batchErr.ElementErrorIndex = int64(index)
 	batchErr.Error = newWriteError(err)
+	return batchErr
+}
+
+func newBadRequestWriteBatchError(index int, err error) *rpc.WriteBatchError {
+	batchErr := rpc.NewWriteBatchError()
+	batchErr.ElementErrorIndex = int64(index)
+	batchErr.Error = newBadRequestWriteError(err)
 	return batchErr
 }

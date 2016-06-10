@@ -5,8 +5,8 @@ import (
 	"io"
 	"time"
 
+	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/benchmark/fs"
-	"code.uber.internal/infra/memtsdb/encoding"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 
 	log "github.com/Sirupsen/logrus"
@@ -19,8 +19,8 @@ type benchmark struct {
 	encodeTimeUnit xtime.Unit
 	inputReader    *fs.Reader
 
-	encoder encoding.Encoder
-	decoder encoding.Decoder
+	encoder memtsdb.Encoder
+	decoder memtsdb.Decoder
 
 	numDatapoints   int64
 	numEncodedBytes int64
@@ -34,8 +34,8 @@ func newBenchmark(
 	windowSize time.Duration,
 	inputTimeUnit time.Duration,
 	encodeTimeUnit xtime.Unit,
-	encoder encoding.Encoder,
-	decoder encoding.Decoder,
+	encoder memtsdb.Encoder,
+	decoder memtsdb.Decoder,
 ) (*benchmark, error) {
 	reader, err := fs.NewReader(input)
 	if err != nil {
@@ -63,7 +63,7 @@ func (th *benchmark) Run() {
 		if len(datapoints) == 0 {
 			continue
 		}
-		th.encoder.Reset(th.startTime)
+		th.encoder.Reset(th.startTime, 0)
 		currentStart := ns
 		currentEnd := currentStart + nw
 		for i := 0; i < len(datapoints); i++ {
@@ -71,7 +71,7 @@ func (th *benchmark) Run() {
 				// start a new encoding block
 				currentStart, currentEnd = th.rotate(datapoints[i].Timestamp, nw)
 			}
-			if err := th.encode(encoding.Datapoint{
+			if err := th.encode(memtsdb.Datapoint{
 				Timestamp: xtime.FromNormalizedTime(datapoints[i].Timestamp, th.inputTimeUnit),
 				Value:     datapoints[i].Value,
 			}); err != nil {
@@ -86,9 +86,9 @@ func (th *benchmark) Run() {
 	}
 }
 
-func (th *benchmark) encode(dp encoding.Datapoint) error {
+func (th *benchmark) encode(dp memtsdb.Datapoint) error {
 	start := time.Now()
-	if err := th.encoder.Encode(dp, nil, th.encodeTimeUnit); err != nil {
+	if err := th.encoder.Encode(dp, th.encodeTimeUnit, nil); err != nil {
 		return err
 	}
 	end := time.Now()
@@ -137,7 +137,7 @@ func (th *benchmark) rotate(nt int64, nw int64) (int64, int64) {
 	currentStart := nt - nt%nw
 	currentEnd := currentStart + nw
 	th.decode()
-	th.encoder.Reset(xtime.FromNormalizedTime(currentStart, th.inputTimeUnit))
+	th.encoder.Reset(xtime.FromNormalizedTime(currentStart, th.inputTimeUnit), 0)
 	return currentStart, currentEnd
 }
 

@@ -263,15 +263,17 @@ func validateReadResults(t *testing.T, dir string, version int) {
 
 	ids := []string{"foo", "bar"}
 	data := [][]byte{
-		{0x1, 0x2, 0x3, 0x80, 0x0},
-		{0x4, 0x5, 0x6, 0x80, 0x0},
+		{1, 2, 3},
+		{4, 5, 6},
 	}
 	times := []time.Time{testStart, testStart.Add(10 * time.Hour)}
 	for i, id := range ids {
 		allBlocks := allSeries[id].GetAllBlocks()
 		require.Equal(t, 1, len(allBlocks))
+		block := allBlocks[times[i]]
+		stream := block.Stream()
 		var b [100]byte
-		n, err := allBlocks[times[i]].Stream().Read(b[:])
+		n, err := stream.Read(b[:])
 		require.NoError(t, err)
 		require.Equal(t, data[i], b[:n])
 	}

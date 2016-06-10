@@ -2,7 +2,6 @@ package storage
 
 import (
 	"container/list"
-	"io"
 	"math"
 	"sync"
 	"time"
@@ -20,6 +19,7 @@ type databaseShard interface {
 	tick()
 
 	write(
+		ctx memtsdb.Context,
 		id string,
 		timestamp time.Time,
 		value float64,
@@ -27,7 +27,11 @@ type databaseShard interface {
 		annotation []byte,
 	) error
 
-	fetchEncodedSegments(id string, start, end time.Time) (io.Reader, error)
+	readEncoded(
+		ctx memtsdb.Context,
+		id string,
+		start, end time.Time,
+	) (memtsdb.ReaderSliceReader, error)
 
 	bootstrap(writeStart time.Time) error
 }
@@ -111,29 +115,33 @@ func (s *dbShard) tickBatchWithLock(elem *list.Element, batch int) (*list.Elemen
 }
 
 func (s *dbShard) write(
+	ctx memtsdb.Context,
 	id string,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	series := s.getSeries(id)
-	return series.write(timestamp, value, unit, annotation)
+	series := s.series(id)
+	return series.write(ctx, timestamp, value, unit, annotation)
 }
 
-func (s *dbShard) fetchEncodedSegments(id string, start, end time.Time) (io.Reader, error) {
+func (s *dbShard) readEncoded(
+	ctx memtsdb.Context,
+	id string,
+	start, end time.Time,
+) (memtsdb.ReaderSliceReader, error) {
 	s.RLock()
 	entry, exists := s.lookup[id]
 	s.RUnlock()
 	if !exists {
 		return nil, nil
 	}
-	return entry.series.fetchEncodedSegments(id, start, end)
+	return entry.series.readEncoded(ctx, start, end)
 }
 
-func (s *dbShard) getSeries(id string) databaseSeries {
+func (s *dbShard) series(id string) databaseSeries {
 	s.RLock()
-	newSeriesBootstrapped := s.newSeriesBootstrapped
 	entry, exists := s.lookup[id]
 	s.RUnlock()
 	if exists {
@@ -147,7 +155,11 @@ func (s *dbShard) getSeries(id string) databaseSeries {
 		// During Rlock -> Wlock promotion the entry was inserted
 		return entry.series
 	}
-	series := newDatabaseSeries(id, newSeriesBootstrapped, s.opts)
+	bs := bootstrapNotStarted
+	if s.newSeriesBootstrapped {
+		bs = bootstrapped
+	}
+	series := newDatabaseSeries(id, bs, s.opts)
 	elem := s.list.PushBack(series)
 	s.lookup[id] = &dbShardEntry{series, elem}
 	s.Unlock()
@@ -173,7 +185,7 @@ func (s *dbShard) bootstrap(writeStart time.Time) error {
 
 	bootstrappedSeries := sr.GetAllSeries()
 	for id, dbBlocks := range bootstrappedSeries {
-		series := s.getSeries(id)
+		series := s.series(id)
 		if err := series.bootstrap(dbBlocks); err != nil {
 			return err
 		}

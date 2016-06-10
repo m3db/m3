@@ -11,6 +11,7 @@ test_target := .
 
 BUILD := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+VENDOR_ENV := GO15VENDOREXPERIMENT=1
 
 SERVICES := \
 	mdbnode
@@ -28,10 +29,10 @@ define SERVICE_RULES
 
 $(SERVICE): setup
 	@echo Building $(SERVICE)
-	godep go build -o $$(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
+	$(VENDOR_ENV) go build -o $(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
 
 $(SERVICE)-linux-amd64:
-	$$(LINUX_AMD64_ENV) make $(SERVICE)
+	$(LINUX_AMD64_ENV) make $(SERVICE)
 
 endef
 
@@ -39,10 +40,10 @@ define TOOL_RULES
 
 $(TOOL): setup
 	@echo Building $(TOOL)
-	godep go build -o $$(BUILD)/$(TOOL) ./tools/$(TOOL)/main/.
+	$(VENDOR_ENV) go build -o $(BUILD)/$(TOOL) ./tools/$(TOOL)/main/.
 
 $(TOOL)-linux-amd64:
-	$$(LINUX_AMD64_ENV) make $(TOOL)
+	$(LINUX_AMD64_ENV) make $(TOOL)
 
 endef
 
@@ -59,7 +60,7 @@ $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
-	@$(test) $(test_target) $(coverfile) | tee $(test_log)
+	@$(VENDOR_ENV) $(test) $(test_target) $(coverfile) | tee $(test_log)
 
 test-xml: test-internal
 	go-junit-report < $(test_log) > $(junit_xml)

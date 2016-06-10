@@ -7,19 +7,14 @@ import (
 	"time"
 
 	"code.uber.internal/infra/memtsdb"
+	xerrors "code.uber.internal/infra/memtsdb/x/errors"
 	xio "code.uber.internal/infra/memtsdb/x/io"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
-const (
-	// maxDatapointQueueLen is the maximum number of datapoints that's tolerable
-	// for us to encode while holding the lock.
-	maxDatapointQueueLen = 1000
-)
-
 var (
+	errInvalidRange               = errors.New("invalid time range specified")
 	errSeriesAllDatapointsExpired = errors.New("all series datapoints expired")
-	timeNone                      = time.Time{}
 )
 
 type databaseSeries interface {
@@ -28,11 +23,20 @@ type databaseSeries interface {
 	// tick performs any updates to ensure buffer flushes, blocks are written to disk, etc
 	tick() error
 
-	write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	write(
+		ctx memtsdb.Context,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
 
-	fetchEncodedSegments(id string, start, end time.Time) (io.Reader, error)
+	readEncoded(
+		ctx memtsdb.Context,
+		start, end time.Time,
+	) (memtsdb.ReaderSliceReader, error)
 
-	isEmpty() bool
+	empty() bool
 
 	// bootstrap merges the raw series bootstrapped along with the buffered data
 	bootstrap(rs memtsdb.DatabaseSeriesBlocks) error
@@ -41,22 +45,25 @@ type databaseSeries interface {
 type dbSeries struct {
 	sync.RWMutex
 	opts             memtsdb.DatabaseOptions
-	nowFn            memtsdb.NowFn
 	seriesID         string
 	buffer           databaseBuffer
 	blocks           memtsdb.DatabaseSeriesBlocks
-	bufferDatapoints []datapoint
 	blockSize        time.Duration
+	pendingBootstrap []pendingBootstrapFlush
 	bs               bootstrapState
 }
 
-func newDatabaseSeries(id string, bootstrapped bool, opts memtsdb.DatabaseOptions) databaseSeries {
+type pendingBootstrapFlush struct {
+	encoder memtsdb.Encoder
+}
+
+func newDatabaseSeries(id string, bs bootstrapState, opts memtsdb.DatabaseOptions) databaseSeries {
 	series := &dbSeries{
 		opts:      opts,
-		nowFn:     opts.GetNowFn(),
 		seriesID:  id,
 		blocks:    NewDatabaseSeriesBlocks(opts),
 		blockSize: opts.GetBlockSize(),
+		bs:        bs,
 	}
 	series.buffer = newDatabaseBuffer(series.bufferFlushed, opts)
 	return series
@@ -67,40 +74,71 @@ func (s *dbSeries) id() string {
 }
 
 func (s *dbSeries) tick() error {
-	s.buffer.flushStale()
+	if s.empty() {
+		return errSeriesAllDatapointsExpired
+	}
+
+	// In best case when explicitly asked to flush may have no
+	// stale buckets, cheaply check this case first with a Rlock
+	s.RLock()
+	needsFlush := s.buffer.needsFlush()
+	s.RUnlock()
+
+	if needsFlush {
+		s.Lock()
+		s.buffer.flushAndReset()
+		s.Unlock()
+	}
 
 	// TODO(r): expire and write blocks to disk, when done ensure this is async
 	// as ticking through series in a shard is done synchronously
-
-	if s.isEmpty() {
-		return errSeriesAllDatapointsExpired
-	}
 	return nil
 }
 
-func (s *dbSeries) isEmpty() bool {
+func (s *dbSeries) empty() bool {
 	s.RLock()
 	blocksLen := len(s.blocks.GetAllBlocks())
+	bufferEmpty := s.buffer.empty()
 	s.RUnlock()
-
-	if blocksLen == 0 && s.buffer.isEmpty() {
+	if blocksLen == 0 && bufferEmpty {
 		return true
 	}
 	return false
 }
 
-func (s *dbSeries) write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
-	return s.buffer.write(timestamp, value, unit, annotation)
+func (s *dbSeries) write(
+	ctx memtsdb.Context,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	// TODO(r): as discussed we need to revisit locking to provide a finer grained lock to
+	// avoiding block writes while reads from blocks (not the buffer) go through.  There is
+	// a few different ways we can accomplish this.  Will revisit soon once we have benchmarks
+	// for mixed write/read workload.
+	s.Lock()
+	err := s.buffer.write(ctx, timestamp, value, unit, annotation)
+	s.Unlock()
+	return err
 }
 
-func (s *dbSeries) fetchEncodedSegments(id string, start, end time.Time) (io.Reader, error) {
+func (s *dbSeries) readEncoded(
+	ctx memtsdb.Context,
+	start, end time.Time,
+) (memtsdb.ReaderSliceReader, error) {
+	if end.Before(start) {
+		return nil, xerrors.NewInvalidParamsError(errInvalidRange)
+	}
+
+	// TODO(r): pool these results arrays
 	var results []io.Reader
 
 	alignedStart := start.Truncate(s.blockSize)
 	alignedEnd := end.Truncate(s.blockSize)
-	if alignedEnd.Before(end) {
-		// If we did shift back we need to include this block for all data
-		alignedEnd = alignedEnd.Add(s.blockSize)
+	if alignedEnd.Equal(end) {
+		// Move back to make range [start, end)
+		alignedEnd = alignedEnd.Add(-1 * s.blockSize)
 	}
 
 	s.RLock()
@@ -113,7 +151,7 @@ func (s *dbSeries) fetchEncodedSegments(id string, start, end time.Time) (io.Rea
 		if s.blocks.GetMaxTime().Before(alignedEnd) {
 			alignedEnd = s.blocks.GetMaxTime()
 		}
-		for blockAt := alignedStart; blockAt.Before(alignedEnd); blockAt = blockAt.Add(s.blockSize) {
+		for blockAt := alignedStart; !blockAt.After(alignedEnd); blockAt = blockAt.Add(s.blockSize) {
 			if block, ok := s.blocks.GetBlockAt(blockAt); ok {
 				if s := block.Stream(); s != nil {
 					results = append(results, s)
@@ -121,68 +159,64 @@ func (s *dbSeries) fetchEncodedSegments(id string, start, end time.Time) (io.Rea
 			}
 		}
 	}
+
+	bufferResults := s.buffer.readEncoded(ctx, start, end)
+	if len(bufferResults) > 0 {
+		results = append(results, bufferResults...)
+	}
+
 	s.RUnlock()
-
-	bufferResult, err := s.buffer.fetchEncodedSegment(start, end)
-	if err != nil {
-		return nil, err
-	}
-
-	if bufferResult != nil {
-		results = append(results, bufferResult)
-	}
 
 	return xio.NewReaderSliceReader(results), nil
 }
 
-func (s *dbSeries) bufferFlushed(flush databaseBufferFlush) error {
-	blockStart := flush.bucketStart.Truncate(s.blockSize)
-
-	var err error
-
-	s.Lock()
-
+func (s *dbSeries) bufferFlushed(start time.Time, encoder memtsdb.Encoder) {
+	// NB(r): by the very nature of this method executing we have the
+	// lock already. Executing the flush method occurs during a write if the
+	// buffer needs to flush or if tick is called and series explicitly asks
+	// the buffer to flush ready buckets.
 	if s.bs != bootstrapped {
-		err = foreachBucketValue(flush, func(t time.Time, v databaseBufferValue) error {
-			s.bufferDatapoints = append(s.bufferDatapoints, datapoint{t: t, v: v})
-			return nil
-		})
-	} else {
-		var block memtsdb.DatabaseBlock
-		err = foreachBucketValue(flush, func(t time.Time, v databaseBufferValue) error {
-			bs := t.Truncate(s.blockSize)
-			if block == nil || bs != blockStart {
-				block = s.blocks.GetBlockOrAdd(bs)
-				blockStart = bs
-			}
-			if err := block.Write(t, v.value, v.unit, v.annotation); err != nil {
-				return err
-			}
-			return nil
-		})
+		s.pendingBootstrap = append(s.pendingBootstrap, pendingBootstrapFlush{encoder})
+		return
 	}
 
-	s.Unlock()
+	if _, ok := s.blocks.GetBlockAt(start); !ok {
+		// New completed block
+		s.blocks.AddBlock(NewDatabaseBlock(start, encoder, s.opts))
+		return
+	}
 
-	return err
+	// NB(r): this will occur if after bootstrap we have a partial
+	// block and now the buffer is passing the rest of that block
+	stream := encoder.Stream()
+	s.flushStream(s.blocks, stream)
+	stream.Close()
 }
 
 // TODO(xichen): skip datapoints that fall within the bootstrap time range.
-func (s *dbSeries) flushDatapoints(rs memtsdb.DatabaseSeriesBlocks, datapoints []datapoint) error {
-	numDatapoints := len(datapoints)
-	for i := 0; i < numDatapoints; i++ {
-		blockStart := datapoints[i].t.Truncate(s.blockSize)
-		block := rs.GetBlockOrAdd(blockStart)
-		v := datapoints[i].v
-		if err := block.Write(datapoints[i].t, v.value, v.unit, v.annotation); err != nil {
+func (s *dbSeries) flushStream(blocks memtsdb.DatabaseSeriesBlocks, stream io.Reader) error {
+	iter := s.opts.GetIteratorPool().Get()
+	iter.Reset(stream)
+
+	// Close the iterator and return to pool when done
+	defer iter.Close()
+
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		blockStart := dp.Timestamp.Truncate(s.blockSize)
+		block := blocks.GetBlockOrAdd(blockStart)
+
+		if err := block.Write(dp.Timestamp, dp.Value, unit, annotation); err != nil {
 			return err
 		}
+	}
+	if err := iter.Err(); err != nil {
+		return err
 	}
 	return nil
 }
 
 func (s *dbSeries) bootstrap(rs memtsdb.DatabaseSeriesBlocks) error {
-
 	if success, err := tryBootstrap(&s.RWMutex, &s.bs, "series"); !success {
 		return err
 	}
@@ -196,38 +230,24 @@ func (s *dbSeries) bootstrap(rs memtsdb.DatabaseSeriesBlocks) error {
 	}
 
 	for {
-		s.RLock()
-		numDatapoints := len(s.bufferDatapoints)
-		s.RUnlock()
-
-		// NB(xichen): it could take a while to flush the datapoints, so
-		// we use maxDatapointQueueLen to make sure we don't hold the lock
-		// for too long.
-		if numDatapoints < maxDatapointQueueLen {
+		s.Lock()
+		if len(s.pendingBootstrap) == 0 {
+			s.blocks = rs
+			s.bs = bootstrapped
+			s.Unlock()
 			break
 		}
-
-		s.Lock()
-		datapoints := s.bufferDatapoints
-		s.bufferDatapoints = nil
+		flush := s.pendingBootstrap[0]
+		s.pendingBootstrap = s.pendingBootstrap[1:]
 		s.Unlock()
 
-		if err := s.flushDatapoints(rs, datapoints); err != nil {
+		stream := flush.encoder.Stream()
+		if err := s.flushStream(rs, stream); err != nil {
+			stream.Close()
 			return err
 		}
+		stream.Close()
 	}
-
-	// now we only have a few datatpoints queued up, acquire the lock
-	// and finish bootstrapping
-	s.Lock()
-	if err := s.flushDatapoints(rs, s.bufferDatapoints); err != nil {
-		s.Unlock()
-		return err
-	}
-	s.bufferDatapoints = nil
-	s.blocks = rs
-	s.bs = bootstrapped
-	s.Unlock()
 
 	return nil
 }

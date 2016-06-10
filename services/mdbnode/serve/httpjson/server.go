@@ -3,6 +3,7 @@ package httpjson
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,19 +15,21 @@ import (
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift"
 	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
 	"code.uber.internal/infra/memtsdb/storage"
+	xerrors "code.uber.internal/infra/memtsdb/x/errors"
 
 	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
-	// DefaultReadTimeout is the default HTTP read timeout
-	DefaultReadTimeout = 10 * time.Second
+	defaultReadTimeout    = 10 * time.Second
+	defaultWriteTimeout   = 10 * time.Second
+	defaultRequestTimeout = 60 * time.Second
+)
 
-	// DefaultWriteTimeout is the default HTTP write timeout
-	DefaultWriteTimeout = 10 * time.Second
-
-	// DefaultRequestTimeout is the default HTTP request timeout
-	DefaultRequestTimeout = 60 * time.Second
+var (
+	errRequestMustBePost  = xerrors.NewInvalidParamsError(errors.New("request must be POST"))
+	errInvalidRequestBody = xerrors.NewInvalidParamsError(errors.New("request contains an invalid request body"))
+	errEncodeResponseBody = errors.New("failed to encode response body")
 )
 
 type server struct {
@@ -65,9 +68,9 @@ type serverOptions struct {
 // NewServerOptions creates a new set of server options with defaults
 func NewServerOptions() ServerOptions {
 	return &serverOptions{
-		readTimeout:    DefaultReadTimeout,
-		writeTimeout:   DefaultWriteTimeout,
-		requestTimeout: DefaultRequestTimeout,
+		readTimeout:    defaultReadTimeout,
+		writeTimeout:   defaultWriteTimeout,
+		requestTimeout: defaultRequestTimeout,
 	}
 }
 
@@ -156,7 +159,8 @@ type respErrorResult struct {
 	Error respError `json:"error"`
 }
 type respError struct {
-	Message string `json:"message"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data"`
 }
 
 func registerHandlers(mux *http.ServeMux, service rpc.TChanNode, opts ServerOptions) error {
@@ -211,16 +215,14 @@ func registerHandlers(mux *http.ServeMux, service rpc.TChanNode, opts ServerOpti
 		mux.HandleFunc(fmt.Sprintf("/%s", name), func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			if strings.ToLower(r.Method) != "post" {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(&respErrorResult{respError{"request must be POST"}})
+				writeError(w, errRequestMustBePost)
 				return
 			}
 
 			in := reflect.New(reqIn.Elem()).Interface()
 			defer r.Body.Close()
 			if err := json.NewDecoder(r.Body).Decode(in); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(&respErrorResult{respError{"invalid request body"}})
+				writeError(w, errInvalidRequestBody)
 				return
 			}
 
@@ -231,7 +233,7 @@ func registerHandlers(mux *http.ServeMux, service rpc.TChanNode, opts ServerOpti
 			if method.Type.NumOut() == 1 {
 				// Deal with error case
 				if !ret[0].IsNil() {
-					writeError(w, http.StatusInternalServerError, ret[0].Interface())
+					writeError(w, ret[0].Interface())
 					return
 				}
 				json.NewEncoder(w).Encode(&respSuccess{})
@@ -240,13 +242,13 @@ func registerHandlers(mux *http.ServeMux, service rpc.TChanNode, opts ServerOpti
 
 			// Deal with error case
 			if !ret[1].IsNil() {
-				writeError(w, http.StatusInternalServerError, ret[1].Interface())
+				writeError(w, ret[1].Interface())
 				return
 			}
 
 			buff := bytes.NewBuffer(nil)
 			if err := json.NewEncoder(buff).Encode(ret[0].Interface()); err != nil {
-				writeError(w, http.StatusInternalServerError, fmt.Errorf("failed to encode response"))
+				writeError(w, errEncodeResponseBody)
 				return
 			}
 
@@ -256,13 +258,29 @@ func registerHandlers(mux *http.ServeMux, service rpc.TChanNode, opts ServerOpti
 	return nil
 }
 
-func writeError(w http.ResponseWriter, statusCode int, errValue interface{}) {
-	w.WriteHeader(statusCode)
+func writeError(w http.ResponseWriter, errValue interface{}) {
+	result := respErrorResult{respError{}}
+	if value, ok := errValue.(error); ok {
+		result.Error.Message = value.Error()
+	} else if value, ok := errValue.(fmt.Stringer); ok {
+		result.Error.Message = value.String()
+	}
+	result.Error.Data = errValue
+
 	buff := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(buff).Encode(errValue); err != nil {
+	if err := json.NewEncoder(buff).Encode(&result); err != nil {
 		// Not a JSON returnable error
-		json.NewEncoder(w).Encode(&respErrorResult{respError{fmt.Sprintf("%v", errValue)}})
+		w.WriteHeader(http.StatusInternalServerError)
+		result.Error.Message = fmt.Sprintf("%v", errValue)
+		result.Error.Data = nil
+		json.NewEncoder(w).Encode(&result)
 		return
+	}
+
+	if value, ok := errValue.(error); ok && xerrors.IsInvalidParams(value) {
+		w.WriteHeader(http.StatusBadRequest)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 	w.Write(buff.Bytes())
 }

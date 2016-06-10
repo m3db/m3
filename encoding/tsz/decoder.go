@@ -3,7 +3,7 @@ package tsz
 import (
 	"io"
 
-	"code.uber.internal/infra/memtsdb/encoding"
+	"code.uber.internal/infra/memtsdb"
 )
 
 type decoder struct {
@@ -11,7 +11,7 @@ type decoder struct {
 }
 
 // NewDecoder creates a decoder.
-func NewDecoder(opts Options) encoding.Decoder {
+func NewDecoder(opts Options) memtsdb.Decoder {
 	if opts == nil {
 		opts = NewOptions()
 	}
@@ -19,6 +19,6 @@ func NewDecoder(opts Options) encoding.Decoder {
 }
 
 // Decode decodes the encoded data captured by the reader.
-func (dec *decoder) Decode(r io.Reader) encoding.Iterator {
-	return newIterator(r, dec.opts)
+func (dec *decoder) Decode(r io.Reader) memtsdb.Iterator {
+	return NewIterator(r, dec.opts)
 }

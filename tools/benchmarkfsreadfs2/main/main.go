@@ -21,27 +21,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	indexFd, err := os.Open(*indexFile)
-	if err != nil {
-		log.Fatalf("could not open index file: %v", *indexFile)
-	}
-
-	defer indexFd.Close()
-
-	dataFd, err := os.Open(*dataFile)
-	if err != nil {
-		log.Fatalf("could not open data file: %v", *dataFile)
-	}
-
-	defer dataFd.Close()
-
 	log.Infof("creating input reader")
-	reader, err := fs2.NewReader(indexFd, dataFd)
+	reader, err := fs2.NewReader(*indexFile, *dataFile)
 	if err != nil {
 		log.Fatalf("unable to create a new input reader: %v", err)
 	}
 
-	iter := reader.Iter()
+	defer reader.Close()
+
+	iter, err := reader.Iter()
+	if err != nil {
+		log.Fatalf("unable to create iterator: %v", err)
+	}
 
 	log.Infof("reading input")
 	for iter.Next() {

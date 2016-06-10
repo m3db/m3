@@ -15,6 +15,7 @@ type DatabaseBlock interface {
 	StartTime() time.Time
 	Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
 	Stream() io.Reader
+	Close()
 }
 
 // DatabaseSeriesBlocks represents a collection of data blocks.

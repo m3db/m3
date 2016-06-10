@@ -156,6 +156,10 @@ type MarkerEncodingScheme interface {
 
 	// TimeUnit returns the time unit marker.
 	TimeUnit() Marker
+
+	// Tail will return the tail portion of a stream including the relevant bits
+	// in the last byte along with the end of stream marker.
+	Tail(streamLastByte byte, streamCurrentPosition int) []byte
 }
 
 type markerEncodingScheme struct {
@@ -165,6 +169,7 @@ type markerEncodingScheme struct {
 	endOfStream   Marker
 	annotation    Marker
 	timeUnit      Marker
+	tails         [256][8][]byte
 }
 
 func newMarkerEncodingScheme(
@@ -175,7 +180,7 @@ func newMarkerEncodingScheme(
 	annotation Marker,
 	timeUnit Marker,
 ) MarkerEncodingScheme {
-	return &markerEncodingScheme{
+	scheme := &markerEncodingScheme{
 		opcode:        opcode,
 		numOpcodeBits: numOpcodeBits,
 		numValueBits:  numValueBits,
@@ -183,11 +188,26 @@ func newMarkerEncodingScheme(
 		annotation:    annotation,
 		timeUnit:      timeUnit,
 	}
+	// NB(r): we precompute all possible tail streams dependent on last byte
+	// so we never have to pool or allocate tails for each stream when we
+	// want to take a snapshot of the current stream returned by the `Stream` method.
+	for i := range scheme.tails {
+		for j := range scheme.tails[i] {
+			pos := j + 1
+			tmp := newOStream(nil, false)
+			tmp.WriteBits(uint64(i)>>uint(8-pos), pos)
+			writeSpecialMarker(tmp, scheme, endOfStream)
+			tail, _ := tmp.rawbytes()
+			scheme.tails[i][j] = tail
+		}
+	}
+	return scheme
 }
 
-func (mes *markerEncodingScheme) Opcode() uint64      { return mes.opcode }
-func (mes *markerEncodingScheme) NumOpcodeBits() int  { return mes.numOpcodeBits }
-func (mes *markerEncodingScheme) NumValueBits() int   { return mes.numValueBits }
-func (mes *markerEncodingScheme) EndOfStream() Marker { return mes.endOfStream }
-func (mes *markerEncodingScheme) Annotation() Marker  { return mes.annotation }
-func (mes *markerEncodingScheme) TimeUnit() Marker    { return mes.timeUnit }
+func (mes *markerEncodingScheme) Opcode() uint64              { return mes.opcode }
+func (mes *markerEncodingScheme) NumOpcodeBits() int          { return mes.numOpcodeBits }
+func (mes *markerEncodingScheme) NumValueBits() int           { return mes.numValueBits }
+func (mes *markerEncodingScheme) EndOfStream() Marker         { return mes.endOfStream }
+func (mes *markerEncodingScheme) Annotation() Marker          { return mes.annotation }
+func (mes *markerEncodingScheme) TimeUnit() Marker            { return mes.timeUnit }
+func (mes *markerEncodingScheme) Tail(b byte, pos int) []byte { return mes.tails[int(b)][pos-1] }

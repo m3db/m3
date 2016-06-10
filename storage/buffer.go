@@ -3,334 +3,349 @@ package storage
 import (
 	"errors"
 	"io"
-	"math"
-	"sync"
+	"sort"
 	"time"
 
 	"code.uber.internal/infra/memtsdb"
-	"code.uber.internal/infra/memtsdb/encoding"
+	xerrors "code.uber.internal/infra/memtsdb/x/errors"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
 var (
-	// ErrTooFuture is raised when datapoint being written is too far in the future
-	ErrTooFuture = errors.New("datapoint is too far in the future")
-
-	// ErrTooPast is raised when datapoint being written is too far in the past
-	ErrTooPast = errors.New("datapoint is too far in the past")
+	errTooFuture = errors.New("datapoint is too far in the future")
+	errTooPast   = errors.New("datapoint is too far in the past")
 )
 
 const (
-	bucketFlushPoolPercent = 0.2
+	// bucketsLen is three to contain the following buckets:
+	// 1. Bucket before current window, can be flushed or not-yet-flushed
+	// 2. Bucket currently taking writes
+	// 3. Bucket for the future that can be taking writes that is head of
+	// the current block if write is for the future within bounds
+	bucketsLen = 3
 )
 
 type databaseBuffer interface {
-	write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	write(
+		ctx memtsdb.Context,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
 
-	// fetchEncodedSegment will return the full buffer's data as an encoded
-	// segment if start and end intersects the buffer at all, nil otherwise
-	fetchEncodedSegment(start, end time.Time) (io.Reader, error)
+	// readEncoded will return the full buffer's data as encoded segments
+	// if start and end intersects the buffer at all, nil otherwise
+	readEncoded(
+		ctx memtsdb.Context,
+		start, end time.Time,
+	) []io.Reader
 
-	isEmpty() bool
+	empty() bool
 
-	flushStale() (int, error)
+	needsFlush() bool
+
+	flushAndReset()
 }
-
-type databaseBufferFlush struct {
-	bucketStart    time.Time
-	bucketValues   []databaseBufferValue
-	bucketStepSize time.Duration
-}
-
-type databaseBufferFlushFn func(f databaseBufferFlush) error
 
 type dbBuffer struct {
-	sync.RWMutex
-	opts             memtsdb.DatabaseOptions
-	flushFn          databaseBufferFlushFn
-	nowFn            memtsdb.NowFn
-	tooFuture        time.Duration
-	tooPast          time.Duration
-	buckets          []dbBufferBucket
-	bucketSize       time.Duration
-	bucketsLen       int
-	bucketValuesLen  int
-	resolution       time.Duration
-	newEncoderFn     encoding.NewEncoderFn
-	bucketsFlushPool chan []databaseBufferValue
+	opts      memtsdb.DatabaseOptions
+	nowFn     memtsdb.NowFn
+	flushFn   databaseBufferFlushFn
+	buckets   [bucketsLen]dbBufferBucket
+	blockSize time.Duration
 }
 
-type dbBufferBucket struct {
-	startTime      time.Time
-	values         []databaseBufferValue
-	writesToValues int
-}
-
-func (b *dbBufferBucket) resetTo(startTime time.Time) {
-	b.startTime = startTime
-	for i := 0; i < len(b.values); i++ {
-		b.values[i].value = math.NaN()
-	}
-	b.writesToValues = 0
-}
-
-type databaseBufferValue struct {
-	value      float64
-	unit       xtime.Unit
-	annotation []byte
-}
-
-type datapoint struct {
-	t time.Time
-	v databaseBufferValue
-}
-
-type dataPointFn func(t time.Time, v databaseBufferValue) error
-
-func foreachBucketValue(flush databaseBufferFlush, fn dataPointFn) error {
-	bucketValuesLen := len(flush.bucketValues)
-	for i := 0; i < bucketValuesLen; i++ {
-		v := flush.bucketValues[i]
-		if !math.IsNaN(v.value) {
-			ts := flush.bucketStart.Add(time.Duration(i) * flush.bucketStepSize)
-			if err := fn(ts, v); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
+type databaseBufferFlushFn func(start time.Time, encoder memtsdb.Encoder)
 
 func newDatabaseBuffer(flushFn databaseBufferFlushFn, opts memtsdb.DatabaseOptions) databaseBuffer {
 	nowFn := opts.GetNowFn()
-	bucketSize := opts.GetBufferFlush()
-	resolution := opts.GetBufferResolution()
-	tooFuture := opts.GetBufferFuture()
-	tooPast := opts.GetBufferPast()
-	bucketRange := tooFuture + tooPast
-	bucketsLen := int(math.Ceil(float64(bucketRange) / float64(bucketSize)))
-
-	bucketValuesLen := int(math.Ceil(float64(bucketSize) / float64(resolution)))
-	bucketsFlushPoolLen := int(math.Ceil(float64(bucketFlushPoolPercent) * float64(bucketsLen)))
-
-	// Slab allocate all values required by buffer
-	bufferValues := make([]databaseBufferValue, bucketValuesLen*(bucketsLen+bucketsFlushPoolLen))
-
-	buckets := make([]dbBufferBucket, bucketsLen)
-	for i := 0; i < bucketsLen; i++ {
-		begin, end := i*bucketValuesLen, (i+1)*bucketValuesLen
-		buckets[i].values = bufferValues[begin:end]
-	}
-
-	bucketsFlushPool := make(chan []databaseBufferValue, bucketsFlushPoolLen)
-	for i := 0; i < bucketsFlushPoolLen; i++ {
-		begin, end := (i+bucketsLen)*bucketValuesLen, (i+bucketsLen+1)*bucketValuesLen
-		// No need to reset values for these buckets as they will be copied into
-		bucketsFlushPool <- bufferValues[begin:end]
-	}
 
 	buffer := &dbBuffer{
-		opts:             opts,
-		flushFn:          flushFn,
-		nowFn:            nowFn,
-		tooFuture:        tooFuture,
-		tooPast:          tooPast,
-		buckets:          buckets,
-		bucketSize:       bucketSize,
-		bucketsLen:       bucketsLen,
-		bucketValuesLen:  bucketValuesLen,
-		resolution:       resolution,
-		newEncoderFn:     opts.GetNewEncoderFn(),
-		bucketsFlushPool: bucketsFlushPool,
+		opts:      opts,
+		nowFn:     nowFn,
+		flushFn:   flushFn,
+		blockSize: opts.GetBlockSize(),
 	}
-	buffer.forEachBucketAsc(nowFn(), func(idx int, start time.Time) {
-		b := &buckets[idx]
+	buffer.forEachBucketAsc(nowFn(), func(b *dbBufferBucket, start time.Time) {
+		b.opts = opts
 		b.resetTo(start)
 	})
 
 	return buffer
 }
 
-func (s *dbBuffer) write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+func (s *dbBuffer) write(
+	ctx memtsdb.Context,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
 	now := s.nowFn()
-	futureLimit := now.Add(s.tooFuture)
-	pastLimit := now.Add(-1 * s.tooPast)
-	if futureLimit.Before(timestamp) {
-		return ErrTooFuture
+	futureLimit := now.Add(s.opts.GetBufferFuture())
+	pastLimit := now.Add(-1 * s.opts.GetBufferPast())
+	if !futureLimit.After(timestamp) {
+		return xerrors.NewInvalidParamsError(errTooFuture)
 	}
-	if pastLimit.After(timestamp) {
-		return ErrTooPast
-	}
-
-	bucketStart := timestamp.Truncate(s.bucketSize)
-	bucketIdx := (timestamp.UnixNano() / int64(s.bucketSize)) % int64(s.bucketsLen)
-
-	s.Lock()
-
-	var flushed []databaseBufferFlush
-	if !s.buckets[bucketIdx].startTime.Equal(bucketStart) {
-		// Need to flush this bucket
-		flushed = s.withLockFlushStale(now)
+	if !pastLimit.Before(timestamp) {
+		return xerrors.NewInvalidParamsError(errTooPast)
 	}
 
-	valueIdx := timestamp.Sub(bucketStart) / s.resolution
-	s.buckets[bucketIdx].values[valueIdx].value = value
-	s.buckets[bucketIdx].values[valueIdx].unit = unit
-	s.buckets[bucketIdx].values[valueIdx].annotation = annotation
-	s.buckets[bucketIdx].writesToValues++
+	bucketStart := timestamp.Truncate(s.blockSize)
+	bucketIdx := (timestamp.UnixNano() / int64(s.blockSize)) % bucketsLen
 
-	s.Unlock()
+	bucket := &s.buckets[bucketIdx]
+	_, _, needsReset := s.bucketState(now, bucket, bucketStart)
+	if needsReset {
+		// Needs reset
+		s.flushAndReset()
+	}
 
-	// Flush after releasing lock
-	return s.callFlushFn(flushed)
+	return bucket.write(timestamp, value, unit, annotation)
 }
 
-func (s *dbBuffer) isEmpty() bool {
-	allWritesToValues := 0
-	s.RLock()
-	s.forEachBucketAsc(s.nowFn(), func(idx int, current time.Time) {
-		if s.buckets[idx].startTime.Equal(current) {
-			// Not stale
-			allWritesToValues += s.buckets[idx].writesToValues
+func (s *dbBuffer) empty() bool {
+	now := s.nowFn()
+	canReadAny := false
+	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
+		if !canReadAny {
+			canReadAny, _, _ = s.bucketState(now, b, current)
 		}
 	})
-	s.RUnlock()
-	return allWritesToValues == 0
+	return !canReadAny
 }
 
-func (s *dbBuffer) flushStale() (int, error) {
-	// In best case when explicitly asked to flush may have no
-	// stale buckets, cheaply check this case first with a Rlock
+func (s *dbBuffer) needsFlush() bool {
 	now := s.nowFn()
-	staleAny := false
-	s.RLock()
-	s.forEachBucketAsc(now, func(idx int, current time.Time) {
-		if !s.buckets[idx].startTime.Equal(current) {
-			staleAny = true
+	needsFlushAny := false
+	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
+		if !needsFlushAny {
+			_, needsFlushAny, _ = s.bucketState(now, b, current)
 		}
 	})
-	s.RUnlock()
-
-	if !staleAny {
-		return 0, nil
-	}
-
-	s.Lock()
-	flushed := s.withLockFlushStale(now)
-	s.Unlock()
-
-	// Flush after releasing lock
-	if err := s.callFlushFn(flushed); err != nil {
-		return 0, err
-	}
-
-	return len(flushed), nil
+	return needsFlushAny
 }
 
-func (s *dbBuffer) callFlushFn(flushed []databaseBufferFlush) error {
-	for i := range flushed {
-		if err := s.flushFn(flushed[i]); err != nil {
-			return err
+func (s *dbBuffer) bucketState(
+	now time.Time,
+	b *dbBufferBucket,
+	bucketStart time.Time,
+) (bool, bool, bool) {
+	notFlushedHasValues := !b.flushed && !b.lastWriteAt.IsZero()
+
+	shouldRead := notFlushedHasValues
+	needsReset := !b.start.Equal(bucketStart)
+	needsFlush := (notFlushedHasValues && needsReset) ||
+		(notFlushedHasValues && bucketStart.Add(s.blockSize).Before(now.Add(-1*b.opts.GetBufferPast())))
+
+	return shouldRead, needsFlush, needsReset
+}
+
+func (s *dbBuffer) flushAndReset() {
+	now := s.nowFn()
+	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
+		_, needsFlush, needsReset := s.bucketState(now, b, current)
+		if !needsFlush && !needsReset {
+			// No action necessary
+			return
 		}
-		select {
-		case s.bucketsFlushPool <- flushed[i].bucketValues:
-		default:
+
+		if needsFlush {
+			b.sort()
+
+			// After we sort there is always only a single encoder
+			encoder := b.encoders[0].encoder
+			encoder.Done()
+			s.flushFn(b.start, encoder)
+			b.flushed = true
+		}
+
+		if needsReset {
+			// Reset bucket
+			b.resetTo(current)
+		}
+	})
+}
+
+func (s *dbBuffer) forEachBucketAsc(now time.Time, fn func(b *dbBufferBucket, current time.Time)) {
+	pastMostBucketStart := now.Truncate(s.blockSize).Add(-1 * s.blockSize)
+	bucketNum := (pastMostBucketStart.UnixNano() / int64(s.blockSize)) % bucketsLen
+	for i := int64(0); i < bucketsLen; i++ {
+		idx := int((bucketNum + i) % bucketsLen)
+		fn(&s.buckets[idx], pastMostBucketStart.Add(time.Duration(i)*s.blockSize))
+	}
+}
+
+func (s *dbBuffer) readEncoded(ctx memtsdb.Context, start, end time.Time) []io.Reader {
+	now := s.nowFn()
+	// TODO(r): pool these results arrays
+	var results []io.Reader
+	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
+		shouldRead, _, _ := s.bucketState(now, b, current)
+		if !shouldRead {
+			// Requires reset and flushed already or not written to
+			return
+		}
+
+		if !start.Before(b.start.Add(s.blockSize)) {
+			return
+		}
+		if !b.start.Before(end) {
+			return
+		}
+
+		// TODO(r): instead of flushing potentially out of order streams, wrap them
+		// in one big multi-stream reader so client's can read them in order easily
+		for i := range b.encoders {
+			stream := b.encoders[i].encoder.Stream()
+			if stream == nil {
+				// TODO(r): log an error and emit a metric, this is pretty bad as this
+				// encoder should have values if "shouldRead" returned true
+				continue
+			}
+
+			ctx.RegisterCloser(func() {
+				// Close the stream and return to pool when read done
+				stream.Close()
+			})
+
+			results = append(results, stream)
+		}
+	})
+
+	return results
+}
+
+type dbBufferBucket struct {
+	opts        memtsdb.DatabaseOptions
+	start       time.Time
+	encoders    []inOrderEncoder
+	lastWriteAt time.Time
+	outOfOrder  bool
+	flushed     bool
+}
+
+type inOrderEncoder struct {
+	lastWriteAt time.Time
+	encoder     memtsdb.Encoder
+}
+
+func (b *dbBufferBucket) resetTo(start time.Time) {
+	encoder := b.opts.GetEncoderPool().Get()
+	encoder.Reset(start, b.opts.GetBufferBucketAllocSize())
+	first := inOrderEncoder{
+		lastWriteAt: timeZero,
+		encoder:     encoder,
+	}
+
+	b.start = start
+	b.encoders = append(b.encoders[:0], first)
+	b.lastWriteAt = timeZero
+	b.outOfOrder = false
+	b.flushed = false
+}
+
+func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+	if !b.outOfOrder && timestamp.Before(b.lastWriteAt) {
+		// Can never revert from out of order until reset or sorted
+		b.outOfOrder = true
+	}
+	if timestamp.After(b.lastWriteAt) {
+		b.lastWriteAt = timestamp
+	}
+
+	var target *inOrderEncoder
+	for i := range b.encoders {
+		if !timestamp.Before(b.encoders[i].lastWriteAt) {
+			target = &b.encoders[i]
+			break
 		}
 	}
+	if target == nil {
+		encoder := b.opts.GetEncoderPool().Get()
+		encoder.Reset(timestamp.Truncate(b.opts.GetBlockSize()), b.opts.GetBufferBucketAllocSize())
+		next := inOrderEncoder{encoder: encoder}
+		b.encoders = append(b.encoders, next)
+		target = &next
+	}
+
+	datapoint := memtsdb.Datapoint{
+		Timestamp: timestamp,
+		Value:     value,
+	}
+	if err := target.encoder.Encode(datapoint, unit, annotation); err != nil {
+		return err
+	}
+	target.lastWriteAt = timestamp
 	return nil
 }
 
-func (s *dbBuffer) withLockFlushStale(now time.Time) []databaseBufferFlush {
-	var flushed []databaseBufferFlush
-	s.forEachBucketAsc(now, func(idx int, current time.Time) {
-		if s.buckets[idx].startTime.Equal(current) {
-			// Not stale
-			return
+func (b *dbBufferBucket) sort() {
+	if !b.outOfOrder {
+		// Already sorted
+		return
+	}
+
+	// TODO(r): instead of old sorting technique below, simply take the next datapoint
+	// that's available from all the iterators and proceed in step
+	encoder := b.opts.GetEncoderPool().Get()
+	encoder.Reset(b.start, b.opts.GetBufferBucketAllocSize())
+
+	// NB(r): consider pooling these for reordering use
+	var datapoints []*datapoint
+	for i := range b.encoders {
+		iter := b.opts.GetIteratorPool().Get()
+		iter.Reset(b.encoders[i].encoder.Stream())
+		for iter.Next() {
+			dp, unit, annotation := iter.Current()
+			datapoints = append(datapoints, &datapoint{
+				t:          dp.Timestamp,
+				value:      dp.Value,
+				unit:       unit,
+				annotation: annotation,
+			})
 		}
+		iter.Close()
+		b.encoders[i].encoder.Close()
+	}
 
-		values := s.buckets[idx].values
-		staleStart := s.buckets[idx].startTime
+	sort.Sort(byTimeAsc(datapoints))
 
-		// Copy for flusher to asynchronously read out
-		var staleValues []databaseBufferValue
-		select {
-		case staleValues = <-s.bucketsFlushPool:
-		default:
-			staleValues = make([]databaseBufferValue, s.bucketValuesLen)
-		}
-		copy(staleValues, values)
+	var dp memtsdb.Datapoint
+	for i := range datapoints {
+		dp.Timestamp = datapoints[i].t
+		dp.Value = datapoints[i].value
+		encoder.Encode(dp, datapoints[i].unit, datapoints[i].annotation)
+	}
 
-		// Reset buffer
-		b := &s.buckets[idx]
-		b.resetTo(current)
-
-		// Flush
-		flushed = append(flushed, databaseBufferFlush{staleStart, staleValues, s.resolution})
+	b.lastWriteAt = dp.Timestamp
+	b.encoders = append(b.encoders[:0], inOrderEncoder{
+		lastWriteAt: b.lastWriteAt,
+		encoder:     encoder,
 	})
-	return flushed
+	b.outOfOrder = false
 }
 
-func (s *dbBuffer) forEachBucketAsc(now time.Time, fn func(idx int, current time.Time)) {
-	pastMostBucketStart := now.Add(-1 * s.tooPast).Truncate(s.bucketSize)
-	bucketsLen := int64(s.bucketsLen)
-	bucketNum := (pastMostBucketStart.UnixNano() / int64(s.bucketSize)) % bucketsLen
-	for i := int64(0); i < bucketsLen; i++ {
-		idx := int((bucketNum + i) % bucketsLen)
-		fn(idx, pastMostBucketStart.Add(time.Duration(i)*s.bucketSize))
-	}
+// NB(r): only used for intermediate storage while sorting out of order buffers
+type datapoint struct {
+	t          time.Time
+	value      float64
+	unit       xtime.Unit
+	annotation []byte
 }
 
-func (s *dbBuffer) fetchEncodedSegment(start, end time.Time) (io.Reader, error) {
-	// TODO(r): cache and invalidate on write the result of this method
-	now := s.nowFn()
-	futureLimit := now.Add(s.tooFuture)
-	pastLimit := now.Add(-1 * s.tooPast)
-	if start.After(futureLimit) {
-		return nil, nil
-	}
-	if end.Before(pastLimit) {
-		return nil, nil
-	}
+// Implements sort.Interface
+type byTimeAsc []*datapoint
 
-	s.RLock()
+func (v byTimeAsc) Len() int {
+	return len(v)
+}
 
-	var encoder encoding.Encoder
-	var encodeErr error
-	s.forEachBucketAsc(now, func(idx int, current time.Time) {
-		if !s.buckets[idx].startTime.Equal(current) {
-			// Stale
-			return
-		}
+func (v byTimeAsc) Less(lhs, rhs int) bool {
+	return v[lhs].t.Before(v[rhs].t)
+}
 
-		if encoder == nil {
-			encoder = s.newEncoderFn(current, nil)
-		}
-
-		values := s.buckets[idx].values
-		for i := 0; i < s.bucketValuesLen; i++ {
-			if !math.IsNaN(values[i].value) {
-				ts := current.Add(time.Duration(i) * s.resolution)
-				if err := encoder.Encode(
-					encoding.Datapoint{Timestamp: ts, Value: values[i].value},
-					values[i].annotation,
-					values[i].unit,
-				); err != nil {
-					encodeErr = err
-					return
-				}
-			}
-		}
-	})
-
-	s.RUnlock()
-
-	if encodeErr != nil {
-		return nil, encodeErr
-	}
-
-	if encoder != nil {
-		return encoder.Stream(), nil
-	}
-
-	return nil, nil
+func (v byTimeAsc) Swap(lhs, rhs int) {
+	v[lhs], v[rhs] = v[rhs], v[lhs]
 }

@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"code.uber.internal/infra/memtsdb/encoding"
+	"code.uber.internal/infra/memtsdb"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func getTestIterator(rawBytes []byte) *iterator {
-	return newIterator(bytes.NewReader(rawBytes), NewOptions()).(*iterator)
+	return NewIterator(bytes.NewReader(rawBytes), NewOptions()).(*iterator)
 }
 
 func TestReadNextTimestamp(t *testing.T) {
@@ -81,7 +81,7 @@ func TestReadNextValue(t *testing.T) {
 func TestReadAnnotation(t *testing.T) {
 	inputs := []struct {
 		rawBytes           []byte
-		expectedAnnotation encoding.Annotation
+		expectedAnnotation memtsdb.Annotation
 	}{
 		{
 			[]byte{0x0, 0xff},
@@ -136,7 +136,7 @@ func TestNextNoAnnotation(t *testing.T) {
 		0x20, 0xf, 0x0, 0x0, 0x8, 0x0, 0xcb, 0xe, 0xd1, 0xc0, 0x0,
 	}
 	startTime := time.Unix(1427162462, 0)
-	inputs := []encoding.Datapoint{
+	inputs := []memtsdb.Datapoint{
 		{startTime, 12},
 		{startTime.Add(time.Second * 60), 12},
 		{startTime.Add(time.Second * 120), 24},
@@ -148,10 +148,11 @@ func TestNextNoAnnotation(t *testing.T) {
 	it := getTestIterator(rawBytes)
 	for i := 0; i < 7; i++ {
 		require.True(t, it.Next())
-		v, a := it.Current()
+		v, u, a := it.Current()
 		require.Nil(t, a)
 		require.Equal(t, inputs[i].Timestamp, v.Timestamp)
 		require.Equal(t, inputs[i].Value, v.Value)
+		require.Equal(t, xtime.Second, u)
 		require.NoError(t, it.Err())
 		require.False(t, it.hasError())
 		require.False(t, it.isDone())
@@ -180,25 +181,25 @@ func TestNextWithAnnotation(t *testing.T) {
 	}
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
-		dp  encoding.Datapoint
-		ant encoding.Annotation
+		dp  memtsdb.Datapoint
+		ant memtsdb.Annotation
 	}{
-		{encoding.Datapoint{startTime, 12}, []byte{0xa}},
-		{encoding.Datapoint{startTime.Add(time.Second * 60), 12}, nil},
-		{encoding.Datapoint{startTime.Add(time.Second * 120), 24}, nil},
-		{encoding.Datapoint{startTime.Add(-time.Second * 76), 24}, nil},
-		{encoding.Datapoint{startTime.Add(-time.Second * 16), 24}, []byte{0x1, 0x2}},
-		{encoding.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
-		{encoding.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
+		{memtsdb.Datapoint{startTime, 12}, []byte{0xa}},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 60), 12}, nil},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 120), 24}, nil},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 76), 24}, nil},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 16), 24}, []byte{0x1, 0x2}},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
 	}
 	it := getTestIterator(rawBytes)
 	for i := 0; i < 7; i++ {
 		require.True(t, it.Next())
-		v, a := it.Current()
+		v, u, a := it.Current()
 		require.Equal(t, inputs[i].ant, a)
 		require.Equal(t, inputs[i].dp.Timestamp, v.Timestamp)
 		require.Equal(t, inputs[i].dp.Value, v.Value)
-
+		require.Equal(t, xtime.Second, u)
 		require.NoError(t, it.Err())
 		require.False(t, it.hasError())
 		require.False(t, it.isDone())
@@ -228,24 +229,24 @@ func TestNextWithTimeUnit(t *testing.T) {
 	}
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
-		dp encoding.Datapoint
+		dp memtsdb.Datapoint
 		tu xtime.Unit
 	}{
-		{encoding.Datapoint{startTime, 12}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(time.Second * 60), 12}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(time.Second * 120), 24}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Second * 76), 24}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Second * 16), 24}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Nanosecond * 15500000000), 15}, xtime.Nanosecond},
-		{encoding.Datapoint{startTime.Add(-time.Nanosecond * 14000000000), 12}, xtime.Second},
+		{memtsdb.Datapoint{startTime, 12}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 60), 12}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 120), 24}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 76), 24}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 16), 24}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Nanosecond * 15500000000), 15}, xtime.Nanosecond},
+		{memtsdb.Datapoint{startTime.Add(-time.Nanosecond * 14000000000), 12}, xtime.Second},
 	}
 	it := getTestIterator(rawBytes)
 	for i := 0; i < 7; i++ {
 		require.True(t, it.Next())
-		v, _ := it.Current()
+		v, u, _ := it.Current()
 		require.Equal(t, inputs[i].dp.Timestamp, v.Timestamp)
 		require.Equal(t, inputs[i].dp.Value, v.Value)
-		require.Equal(t, inputs[i].tu, it.tu)
+		require.Equal(t, inputs[i].tu, u)
 
 		require.NoError(t, it.Err())
 		require.False(t, it.hasError())
@@ -270,26 +271,26 @@ func TestNextWithAnnotationAndTimeUnit(t *testing.T) {
 	}
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
-		dp  encoding.Datapoint
-		ant encoding.Annotation
+		dp  memtsdb.Datapoint
+		ant memtsdb.Annotation
 		tu  xtime.Unit
 	}{
-		{encoding.Datapoint{startTime, 12}, []byte{0xa}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(time.Second * 60), 12}, nil, xtime.Second},
-		{encoding.Datapoint{startTime.Add(time.Second * 120), 24}, nil, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Second * 76), 24}, []byte{0x1, 0x2}, xtime.Second},
-		{encoding.Datapoint{startTime.Add(-time.Second * 16), 24}, nil, xtime.Millisecond},
-		{encoding.Datapoint{startTime.Add(-time.Millisecond * 15500), 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
-		{encoding.Datapoint{startTime.Add(-time.Millisecond * 14000), 12}, nil, xtime.Second},
+		{memtsdb.Datapoint{startTime, 12}, []byte{0xa}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 60), 12}, nil, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(time.Second * 120), 24}, nil, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 76), 24}, []byte{0x1, 0x2}, xtime.Second},
+		{memtsdb.Datapoint{startTime.Add(-time.Second * 16), 24}, nil, xtime.Millisecond},
+		{memtsdb.Datapoint{startTime.Add(-time.Millisecond * 15500), 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
+		{memtsdb.Datapoint{startTime.Add(-time.Millisecond * 14000), 12}, nil, xtime.Second},
 	}
 	it := getTestIterator(rawBytes)
 	for i := 0; i < 7; i++ {
 		require.True(t, it.Next())
-		v, a := it.Current()
+		v, u, a := it.Current()
 		require.Equal(t, inputs[i].ant, a)
 		require.Equal(t, inputs[i].dp.Timestamp, v.Timestamp)
 		require.Equal(t, inputs[i].dp.Value, v.Value)
-		require.Equal(t, inputs[i].tu, it.tu)
+		require.Equal(t, inputs[i].tu, u)
 
 		require.NoError(t, it.Err())
 		require.False(t, it.hasError())

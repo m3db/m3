@@ -115,7 +115,7 @@ func (is *istream) readByteFromStream() error {
 }
 
 func (is *istream) Reset(r io.Reader) {
-	is.r = bufio.NewReader(r)
+	is.r.Reset(r)
 	is.err = nil
 	is.current = 0
 	is.remaining = 0

@@ -10,16 +10,13 @@ type ostream struct {
 	pos       int    // how many bits have been used in the last byte
 }
 
-func newOStream(bytes []byte) *ostream {
-	// If the byte array passed in is not empty, we set
-	// pos to 8 indicating the last byte is fully used.
-	rawBuffer := bytes
-	pos := 8
-	if cap(bytes) == 0 {
-		rawBuffer = make([]byte, 0, initAllocSize)
-		pos = 0
+func newOStream(bytes []byte, initAllocIfEmpty bool) *ostream {
+	if cap(bytes) == 0 && initAllocIfEmpty {
+		bytes = make([]byte, 0, initAllocSize)
 	}
-	return &ostream{rawBuffer: rawBuffer, pos: pos}
+	stream := &ostream{}
+	stream.Reset(bytes)
+	return stream
 }
 
 func (os *ostream) clone() *ostream {
@@ -106,9 +103,14 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 	}
 }
 
-func (os *ostream) Reset() {
-	os.rawBuffer = os.rawBuffer[:0]
+func (os *ostream) Reset(buffer []byte) {
+	os.rawBuffer = buffer
 	os.pos = 0
+	if len(buffer) > 0 {
+		// If the byte array passed in is not empty, we set
+		// pos to 8 indicating the last byte is fully used.
+		os.pos = 8
+	}
 }
 
 func (os *ostream) rawbytes() ([]byte, int) {
