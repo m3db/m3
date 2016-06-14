@@ -43,8 +43,9 @@ func TestLoggingConfiguration(t *testing.T) {
 			"my-field1": "my-val1",
 			"my-field2": "my-val2",
 		},
-		Level: "error",
-		File:  tmpfile.Name(),
+		Level:         "error",
+		File:          tmpfile.Name(),
+		DisableColors: true,
 	}
 
 	log, err := cfg.BuildLogger()
