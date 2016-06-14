@@ -17,14 +17,17 @@ import (
 type fileReader func(fd *os.File, buf []byte) (int, error)
 
 var (
-	// ErrReadIndexEntryZeroSize returned when size of next index entry is zero
-	ErrReadIndexEntryZeroSize = errors.New("next index entry is encoded as zero size")
+	// errCheckpointFileNotFound returned when the checkpoint file doesn't exist
+	errCheckpointFileNotFound = errors.New("checkpoint file does not exist")
 
-	// ErrReadNotExpectedSize returned when the size of the next read does not match size specified by the index
-	ErrReadNotExpectedSize = errors.New("next read not expected size")
+	// errReadIndexEntryZeroSize returned when size of next index entry is zero
+	errReadIndexEntryZeroSize = errors.New("next index entry is encoded as zero size")
 
-	// ErrReadMarkerNotFound returned when the marker is not found at the beginning of a data record
-	ErrReadMarkerNotFound = errors.New("expected marker not found")
+	// errReadNotExpectedSize returned when the size of the next read does not match size specified by the index
+	errReadNotExpectedSize = errors.New("next read not expected size")
+
+	// errReadMarkerNotFound returned when the marker is not found at the beginning of a data record
+	errReadMarkerNotFound = errors.New("expected marker not found")
 )
 
 // ErrReadWrongIdx returned when the wrong idx is read in the data file
@@ -40,7 +43,7 @@ func (e ErrReadWrongIdx) Error() string {
 type reader struct {
 	filePathPrefix string
 	start          time.Time
-	window         time.Duration
+	blockSize      time.Duration
 
 	infoFd  *os.File
 	indexFd *os.File
@@ -62,12 +65,18 @@ func NewReader(filePathPrefix string) Reader {
 	}
 }
 
-func (r *reader) Open(shard uint32, version int) error {
+func (r *reader) Open(shard uint32, blockStart time.Time) error {
+	// If there is no checkpoint file, don't read the data files.
 	shardDir := ShardDirPath(r.filePathPrefix, shard)
+	checkpointFilePath := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	if !fileExists(checkpointFilePath) {
+		return errCheckpointFileNotFound
+	}
+
 	if err := openFiles(os.Open, map[string]**os.File{
-		filepathFromVersion(shardDir, version, infoFileSuffix):  &r.infoFd,
-		filepathFromVersion(shardDir, version, indexFileSuffix): &r.indexFd,
-		filepathFromVersion(shardDir, version, dataFileSuffix):  &r.dataFd,
+		filepathFromTime(shardDir, blockStart, infoFileSuffix):  &r.infoFd,
+		filepathFromTime(shardDir, blockStart, indexFileSuffix): &r.indexFd,
+		filepathFromTime(shardDir, blockStart, dataFileSuffix):  &r.dataFd,
 	}); err != nil {
 		return err
 	}
@@ -91,7 +100,7 @@ func (r *reader) readInfo() error {
 	}
 
 	r.start = xtime.FromNanoseconds(info.Start)
-	r.window = time.Duration(info.Window)
+	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
 	r.entriesRead = 0
 	return nil
@@ -117,7 +126,7 @@ func (r *reader) Read() (string, []byte, error) {
 	size, consumed := proto.DecodeVarint(r.indexUnread)
 	r.indexUnread = r.indexUnread[consumed:]
 	if consumed < 1 {
-		return none, nil, ErrReadIndexEntryZeroSize
+		return none, nil, errReadIndexEntryZeroSize
 	}
 	indexEntryData := r.indexUnread[:size]
 	if err := proto.Unmarshal(indexEntryData, entry); err != nil {
@@ -132,11 +141,11 @@ func (r *reader) Read() (string, []byte, error) {
 		return none, nil, err
 	}
 	if n != expectedSize {
-		return none, nil, ErrReadNotExpectedSize
+		return none, nil, errReadNotExpectedSize
 	}
 
 	if !bytes.Equal(data[:markerLen], marker) {
-		return none, nil, ErrReadMarkerNotFound
+		return none, nil, errReadMarkerNotFound
 	}
 
 	idx := int64(endianness.Uint64(data[markerLen : markerLen+idxLen]))
@@ -150,7 +159,7 @@ func (r *reader) Read() (string, []byte, error) {
 }
 
 func (r *reader) Range() xtime.Range {
-	return xtime.Range{Start: r.start, End: r.start.Add(r.window)}
+	return xtime.Range{Start: r.start, End: r.start.Add(r.blockSize)}
 }
 
 func (r *reader) Entries() int {

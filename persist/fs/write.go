@@ -16,16 +16,17 @@ var (
 )
 
 type writer struct {
-	start            time.Time
-	window           time.Duration
+	blockSize        time.Duration
 	filePathPrefix   string
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
 
-	infoFd  *os.File
-	indexFd *os.File
-	dataFd  *os.File
+	infoFd             *os.File
+	indexFd            *os.File
+	dataFd             *os.File
+	checkpointFilePath string
 
+	start        time.Time
 	currEntry    schema.IndexEntry
 	currIdx      int64
 	currOffset   int64
@@ -85,8 +86,7 @@ func (o *writerOptions) GetNewDirectoryMode() os.FileMode {
 
 // NewWriter returns a new writer for a filePathPrefix
 func NewWriter(
-	start time.Time,
-	window time.Duration,
+	blockSize time.Duration,
 	filePathPrefix string,
 	options WriterOptions,
 ) Writer {
@@ -94,8 +94,7 @@ func NewWriter(
 		options = NewWriterOptions()
 	}
 	return &writer{
-		start:            start,
-		window:           window,
+		blockSize:        blockSize,
 		filePathPrefix:   filePathPrefix,
 		newFileMode:      options.GetNewFileMode(),
 		newDirectoryMode: options.GetNewDirectoryMode(),
@@ -109,26 +108,27 @@ func NewWriter(
 // Open initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
-func (w *writer) Open(shard uint32) error {
+func (w *writer) Open(shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(w.filePathPrefix, shard)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
 	}
-	nextVersion, err := nextVersion(shardDir)
-	if err != nil {
-		return err
-	}
+	w.start = blockStart
+	w.checkpointFilePath = filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	return openFiles(
-		writeableFileOpener(w.newFileMode),
+		w.openWritable,
 		map[string]**os.File{
-			filepathFromVersion(shardDir, nextVersion, infoFileSuffix):  &w.infoFd,
-			filepathFromVersion(shardDir, nextVersion, indexFileSuffix): &w.indexFd,
-			filepathFromVersion(shardDir, nextVersion, dataFileSuffix):  &w.dataFd,
+			filepathFromTime(shardDir, blockStart, infoFileSuffix):  &w.infoFd,
+			filepathFromTime(shardDir, blockStart, indexFileSuffix): &w.indexFd,
+			filepathFromTime(shardDir, blockStart, dataFileSuffix):  &w.dataFd,
 		},
 	)
 }
 
 func (w *writer) writeData(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
 	written, err := w.dataFd.Write(data)
 	if err != nil {
 		return err
@@ -138,13 +138,23 @@ func (w *writer) writeData(data []byte) error {
 }
 
 func (w *writer) Write(key string, data []byte) error {
-	idx := w.currIdx
+	return w.WriteAll(key, [][]byte{data})
+}
+
+func (w *writer) WriteAll(key string, data [][]byte) error {
+	var size int64
+	for _, d := range data {
+		size += int64(len(d))
+	}
+	if size == 0 {
+		return nil
+	}
 
 	entry := &w.currEntry
 	entry.Reset()
-	entry.Idx = idx
+	entry.Idx = w.currIdx
+	entry.Size = size
 	entry.Key = key
-	entry.Size = int64(len(data))
 	entry.Offset = w.currOffset
 
 	w.indexBuffer.Reset()
@@ -161,12 +171,14 @@ func (w *writer) Write(key string, data []byte) error {
 	if err := w.writeData(marker); err != nil {
 		return err
 	}
-	endianness.PutUint64(w.idxData, uint64(idx))
+	endianness.PutUint64(w.idxData, uint64(w.currIdx))
 	if err := w.writeData(w.idxData); err != nil {
 		return err
 	}
-	if err := w.writeData(data); err != nil {
-		return err
+	for _, d := range data {
+		if err := w.writeData(d); err != nil {
+			return err
+		}
 	}
 
 	if _, err := w.indexFd.Write(w.varintBuffer.Bytes()); err != nil {
@@ -187,9 +199,9 @@ func (w *writer) Close() error {
 	}
 
 	info := &schema.IndexInfo{
-		Start:   xtime.ToNanoseconds(w.start),
-		Window:  int64(w.window),
-		Entries: w.currIdx,
+		Start:     xtime.ToNanoseconds(w.start),
+		BlockSize: int64(w.blockSize),
+		Entries:   w.currIdx,
 	}
 	if err := w.infoBuffer.Marshal(info); err != nil {
 		return err
@@ -199,15 +211,26 @@ func (w *writer) Close() error {
 		return err
 	}
 
-	return closeFiles(w.infoFd, w.indexFd, w.dataFd)
+	if err := closeFiles(w.infoFd, w.indexFd, w.dataFd); err != nil {
+		return err
+	}
+
+	return w.writeCheckpointFile()
 }
 
-func writeableFileOpener(fileMode os.FileMode) fileOpener {
-	return func(filePath string) (*os.File, error) {
-		fd, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fileMode)
-		if err != nil {
-			return nil, err
-		}
-		return fd, nil
+func (w *writer) writeCheckpointFile() error {
+	fd, err := w.openWritable(w.checkpointFilePath)
+	if err != nil {
+		return err
 	}
+	fd.Close()
+	return nil
+}
+
+func (w *writer) openWritable(filePath string) (*os.File, error) {
+	fd, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, w.newFileMode)
+	if err != nil {
+		return nil, err
+	}
+	return fd, nil
 }

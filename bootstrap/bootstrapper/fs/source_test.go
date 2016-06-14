@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	testStart  = time.Now()
-	testWindow = 2 * time.Hour
+	testStart      = time.Now()
+	testBlockSize  = 2 * time.Hour
+	testBlockTimes = []time.Time{testStart, testStart.Add(10 * time.Hour), testStart.Add(20 * time.Hour)}
 )
 
 func createTempDir(t *testing.T) string {
@@ -48,11 +49,36 @@ func createTimeRanges() xtime.Ranges {
 	return xtime.NewRanges().AddRange(xtime.Range{Start: testStart, End: testStart.Add(15 * time.Hour)})
 }
 
+func createBadInfoFile(t *testing.T, shardDirPath string, blockStartTime time.Time) {
+	f := createInfoFileWithCheckpoint(t, shardDirPath, blockStartTime)
+	_, err := f.Write([]byte{0x1, 0x2})
+	require.NoError(t, err)
+	f.Close()
+}
+
+func createInfoFileWithCheckpoint(t *testing.T, shardDirPath string, blockStartTime time.Time) *os.File {
+	checkpointPath := path.Join(shardDirPath, fmt.Sprintf("%d-checkpoint.db", xtime.ToNanoseconds(blockStartTime)))
+	checkpointFile := createFile(t, checkpointPath)
+	checkpointFile.Close()
+
+	infoPath := path.Join(shardDirPath, fmt.Sprintf("%d-info.db", xtime.ToNanoseconds(blockStartTime)))
+	infoFile := createFile(t, infoPath)
+	return infoFile
+}
+
+func writeGoodInfoFiles(t *testing.T, shardDirPath string, blockStartTimes []time.Time) {
+	for _, blockStartTime := range blockStartTimes {
+		infoFile := createInfoFileWithCheckpoint(t, shardDirPath, blockStartTime)
+		writeInfoFile(t, infoFile, blockStartTime)
+		infoFile.Close()
+	}
+}
+
 func writeInfoFile(t *testing.T, f *os.File, start time.Time) {
 	info := &schema.IndexInfo{
-		Start:   xtime.ToNanoseconds(start),
-		Window:  int64(testWindow),
-		Entries: 10,
+		Start:     xtime.ToNanoseconds(start),
+		BlockSize: int64(testBlockSize),
+		Entries:   10,
 	}
 	data, err := proto.Marshal(info)
 	require.NoError(t, err)
@@ -61,45 +87,33 @@ func writeInfoFile(t *testing.T, f *os.File, start time.Time) {
 	require.NoError(t, err)
 }
 
-func writeBadInfoFile(t *testing.T, shardDirPath string, version int) {
-	fpath := path.Join(shardDirPath, fmt.Sprintf("%d-info.db", version))
-	f := createFile(t, fpath)
-	_, err := f.Write([]byte{0x1, 0x2})
-	require.NoError(t, err)
-	f.Close()
-}
+func writeFilesForTimeRaw(t *testing.T, shardDirPath string, start time.Time, data []byte) {
+	timeInNano := xtime.ToNanoseconds(start)
 
-func writeGoodInfoFiles(t *testing.T, shardDirPath string, versions []int) {
-	for _, version := range versions {
-		fpath := path.Join(shardDirPath, fmt.Sprintf("%d-info.db", version))
-		f := createFile(t, fpath)
-		writeInfoFile(t, f, testStart.Add(time.Hour*time.Duration(version)))
-		f.Close()
-	}
-}
-
-func writeFilesForVersionRaw(t *testing.T, shardDirPath string, version int, start time.Time, data []byte) {
-	f := createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-info.db", version)))
+	f := createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-info.db", timeInNano)))
 	writeInfoFile(t, f, start)
 	f.Close()
 
-	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-index.db", version)))
+	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-index.db", timeInNano)))
 	f.Write(data)
 	f.Close()
 
-	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-data.db", version)))
+	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-data.db", timeInNano)))
+	f.Close()
+
+	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-checkpoint.db", timeInNano)))
 	f.Close()
 }
 
-func writeFilesForVersionUsingWriter(t *testing.T, dir string, start time.Time, id string, data []byte) {
-	w := fs.NewWriter(start, testWindow, dir, nil)
-	err := w.Open(0)
+func writeFilesForTimeUsingWriter(t *testing.T, dir string, start time.Time, id string, data []byte) {
+	w := fs.NewWriter(testBlockSize, dir, nil)
+	err := w.Open(0, start)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(id, data))
 	require.NoError(t, w.Close())
 }
 
-func writeGoodVersionedFiles(t *testing.T, dir string) {
+func writeGoodFiles(t *testing.T, dir string) {
 	inputs := []struct {
 		start time.Time
 		id    string
@@ -111,11 +125,12 @@ func writeGoodVersionedFiles(t *testing.T, dir string) {
 	}
 
 	for _, input := range inputs {
-		writeFilesForVersionUsingWriter(t, dir, input.start, input.id, input.data)
+		writeFilesForTimeUsingWriter(t, dir, input.start, input.id, input.data)
 	}
 }
 
 func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected []xtime.Range) {
+	require.Equal(t, len(expected), tr.Len())
 	it := tr.Iter()
 	idx := 0
 	for it.Next() {
@@ -132,7 +147,7 @@ func TestGetAvailabilityEmptyRangeError(t *testing.T) {
 
 func TestGetAvailabilityPatternError(t *testing.T) {
 	fss := newFileSystemSource("[[", storage.NewDatabaseOptions())
-	res := fss.GetAvailability(0, xtime.NewRanges())
+	res := fss.GetAvailability(0, createTimeRanges())
 	require.Nil(t, res)
 }
 
@@ -141,14 +156,14 @@ func TestGetAvailabilityOpenFileError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shardDirPath := createShardDir(t, dir, 0)
-	fpath := path.Join(shardDirPath, "0-info.db")
+	fpath := path.Join(shardDirPath, "1000-info.db")
 	f := createFile(t, fpath)
 	f.Close()
 
 	os.Chmod(fpath, os.FileMode(0333))
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
-	res := fss.GetAvailability(0, xtime.NewRanges())
+	res := fss.GetAvailability(0, createTimeRanges())
 	require.True(t, res.IsEmpty())
 }
 
@@ -157,10 +172,10 @@ func TestGetAvailabilityReadInfoError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shardDirPath := createShardDir(t, dir, 0)
-	writeBadInfoFile(t, shardDirPath, 0)
+	createBadInfoFile(t, shardDirPath, testStart.Add(4*time.Hour))
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
-	res := fss.GetAvailability(0, xtime.NewRanges())
+	res := fss.GetAvailability(0, createTimeRanges())
 	require.True(t, res.IsEmpty())
 }
 
@@ -169,8 +184,7 @@ func TestGetAvailabilityTimeRangeFilter(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shardDirPath := createShardDir(t, dir, 0)
-	versions := []int{0, 10, 20}
-	writeGoodInfoFiles(t, shardDirPath, versions)
+	writeGoodInfoFiles(t, shardDirPath, testBlockTimes)
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
 	res := fss.GetAvailability(0, createTimeRanges())
@@ -187,9 +201,8 @@ func TestGetAvailabilityTimeRangePartialError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shardDirPath := createShardDir(t, dir, 0)
-	versions := []int{0, 10, 20}
-	writeGoodInfoFiles(t, shardDirPath, versions)
-	writeBadInfoFile(t, shardDirPath, 30)
+	writeGoodInfoFiles(t, shardDirPath, testBlockTimes)
+	createBadInfoFile(t, shardDirPath, testStart.Add(4*time.Hour))
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
 	res := fss.GetAvailability(0, createTimeRanges())
@@ -220,9 +233,7 @@ func TestReadDataOpenFileError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shardDirPath := createShardDir(t, dir, 0)
-	fpath := path.Join(shardDirPath, "0-info.db")
-	f := createFile(t, fpath)
-	f.Close()
+	createInfoFileWithCheckpoint(t, shardDirPath, testStart).Close()
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
 	res, unfulfilled := fss.ReadData(0, createTimeRanges())
@@ -238,7 +249,7 @@ func TestReadDataDataCorruptionError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shardDirPath := createShardDir(t, dir, 0)
-	writeFilesForVersionRaw(t, shardDirPath, 0, testStart, []byte{0x1})
+	writeFilesForTimeRaw(t, shardDirPath, testStart, []byte{0x1})
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
 	tr := createTimeRanges()
@@ -247,7 +258,7 @@ func TestReadDataDataCorruptionError(t *testing.T) {
 	require.Equal(t, tr, unfulfilled)
 }
 
-func validateReadResults(t *testing.T, dir string, version int) {
+func validateReadResults(t *testing.T, dir string, timeInNano int) {
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
 	tr := createTimeRanges()
 	expected := []xtime.Range{
@@ -283,7 +294,7 @@ func TestReadDataTimeFilter(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	writeGoodVersionedFiles(t, dir)
+	writeGoodFiles(t, dir)
 	validateReadResults(t, dir, 0)
 }
 
@@ -292,8 +303,8 @@ func TestReadDataPartialError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shardDirPath := createShardDir(t, dir, 0)
-	writeGoodVersionedFiles(t, dir)
-	writeFilesForVersionRaw(t, shardDirPath, 10, testStart, []byte{0x1})
+	writeGoodFiles(t, dir)
+	writeFilesForTimeRaw(t, shardDirPath, testStart.Add(4*time.Hour), []byte{0x1})
 
 	validateReadResults(t, dir, 0)
 }

@@ -4,10 +4,11 @@
       "type": "golint",
       "include": "(\\.go$)",
       "exclude": [
-         "(^Godeps/)",
+         "(^mocks/)",
          "(/vendor/)",
          "(/proto/)",
          "(/gen-go/)",
+         "(/mocks/)",
          "(.pb.go)"
        ]
     },
@@ -15,10 +16,11 @@
       "type": "gofmt",
       "include": "(\\.go$)",
       "exclude": [
-         "(^Godeps/)",
+         "(^mocks/)",
          "(/vendor/)",
          "(/proto/)",
          "(/gen-go/)",
+         "(/mocks/)",
          "(.pb.go)"
        ]
     }

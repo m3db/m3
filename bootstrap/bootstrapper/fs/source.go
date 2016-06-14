@@ -42,6 +42,7 @@ func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard 
 		log.Errorf("unable to get info files for shard %d: %v", shard, err)
 		return nil
 	}
+
 	numFiles := len(files)
 	tr := xtime.NewRanges()
 	for i := 0; i < numFiles; i++ {
@@ -57,10 +58,10 @@ func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard 
 			continue
 		}
 		t := xtime.FromNanoseconds(info.Start)
-		w := time.Duration(info.Window)
+		w := time.Duration(info.BlockSize)
 		curRange := xtime.Range{t, t.Add(w)}
 		if targetRangesForShard.Contains(curRange) {
-			tr.AddRange(curRange)
+			tr = tr.AddRange(curRange)
 		}
 	}
 	return tr
@@ -81,13 +82,13 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (memtsdb.Sh
 	seriesMap := bootstrap.NewShardResult(fss.opts)
 	r := fs.NewReader(fss.filePathPrefix)
 	for i := 0; i < len(files); i++ {
-		v, err := fs.VersionFromName(files[i])
+		t, err := fs.TimeFromFileName(files[i])
 		if err != nil {
-			log.Errorf("unable to get version from info file name %s: %v", files[i], err)
+			log.Errorf("unable to get time from info file name %s: %v", files[i], err)
 			continue
 		}
-		if err := r.Open(shard, v); err != nil {
-			log.Errorf("unable to open info file for shard %d version %d: %v", shard, v, err)
+		if err := r.Open(shard, t); err != nil {
+			log.Errorf("unable to open info file for shard %d time %v: %v", shard, t, err)
 			continue
 		}
 		timeRange := r.Range()
@@ -100,7 +101,7 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (memtsdb.Sh
 		for i := 0; i < r.Entries(); i++ {
 			id, data, err := r.Read()
 			if err != nil {
-				log.Errorf("error reading data file for shard %d version %d: %v", shard, v, err)
+				log.Errorf("error reading data file for shard %d time %v: %v", shard, t, err)
 				hasError = true
 				break
 			}

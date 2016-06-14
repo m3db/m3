@@ -3,7 +3,7 @@ package memtsdb.persistfs;
 
 message IndexInfo {
 	int64 start = 1;
-	int64 window = 2;
+	int64 blockSize = 2;
 	int64 entries = 3;
 }
 

@@ -110,7 +110,7 @@ func main() {
 		NowFn(nowFn).
 		BufferFuture(10*time.Minute).
 		BufferPast(10*time.Minute).
-		BufferFlush(10*time.Minute).
+		BufferDrain(10*time.Minute).
 		EncodingTszPooled(poolingBufferBucketAllocSize, poolingSeries).
 		NewBootstrapFn(func() memtsdb.Bootstrap {
 		return bootstrap.NewNoOpBootstrapProcess(opts)

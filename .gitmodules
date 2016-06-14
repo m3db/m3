@@ -40,3 +40,6 @@
 [submodule "vendor/github.com/cactus/go-statsd-client"]
 	path = vendor/github.com/cactus/go-statsd-client
 	url = https://github.com/cactus/go-statsd-client
+[submodule "vendor/github.com/golang/mock"]
+	path = vendor/github.com/golang/mock
+	url = https://github.com/golang/mock

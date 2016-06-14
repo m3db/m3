@@ -5,6 +5,7 @@ import (
 
 	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding/tsz"
+	"code.uber.internal/infra/memtsdb/persist/fs"
 	"code.uber.internal/infra/memtsdb/pool"
 	"code.uber.internal/infra/memtsdb/x/logging"
 	"code.uber.internal/infra/memtsdb/x/metrics"
@@ -22,19 +23,25 @@ const (
 	// defaultBufferPast is the default buffer past limit
 	defaultBufferPast = 10 * time.Minute
 
-	// defaultBufferFlush is the default buffer flush
-	defaultBufferFlush = 1 * time.Minute
+	// defaultBufferDrain is the default buffer drain
+	defaultBufferDrain = 1 * time.Minute
 
 	// defaultRetentionPeriod is how long we keep data in memory by default.
 	defaultRetentionPeriod = 2 * 24 * time.Hour
 
 	// defaultBufferBucketAllocSize is the size to allocate for values for each
 	// bucket in the buffer, this should match the size of expected encoded values
-	// per buffer flush duration
+	// per buffer drain duration
 	defaultBufferBucketAllocSize = 256
 
 	// defaultSeriesPooling is the default series expected to base pooling on
 	defaultSeriesPooling = 1000
+
+	// defaultMaxFlushRetries is the default number of retries when flush fails.
+	defaultMaxFlushRetries = 3
+
+	// defaultFilePathPrefix is the default path prefix for local TSDB files.
+	defaultFilePathPrefix = "/var/log/memtsdb"
 )
 
 var (
@@ -50,7 +57,7 @@ type dbOptions struct {
 	nowFn                 memtsdb.NowFn
 	bufferFuture          time.Duration
 	bufferPast            time.Duration
-	bufferFlush           time.Duration
+	bufferDrain           time.Duration
 	bufferBucketAllocSize int
 	retentionPeriod       time.Duration
 	newBootstrapFn        memtsdb.NewBootstrapFn
@@ -58,6 +65,9 @@ type dbOptions struct {
 	contextPool           memtsdb.ContextPool
 	encoderPool           memtsdb.EncoderPool
 	iteratorPool          memtsdb.IteratorPool
+	maxFlushRetries       int
+	filePathPrefix        string
+	newWriterFn           fs.NewWriterFn
 }
 
 // NewDatabaseOptions creates a new set of database options with defaults
@@ -72,7 +82,12 @@ func NewDatabaseOptions() memtsdb.DatabaseOptions {
 		retentionPeriod: defaultRetentionPeriod,
 		bufferFuture:    defaultBufferFuture,
 		bufferPast:      defaultBufferPast,
-		bufferFlush:     defaultBufferFlush,
+		bufferDrain:     defaultBufferDrain,
+		maxFlushRetries: defaultMaxFlushRetries,
+		filePathPrefix:  defaultFilePathPrefix,
+		newWriterFn: func(blockSize time.Duration, filePathPrefix string) fs.Writer {
+			return fs.NewWriter(blockSize, filePathPrefix, fs.NewWriterOptions())
+		},
 	}
 	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultSeriesPooling)
 }
@@ -203,14 +218,14 @@ func (o *dbOptions) GetBufferPast() time.Duration {
 	return o.bufferPast
 }
 
-func (o *dbOptions) BufferFlush(value time.Duration) memtsdb.DatabaseOptions {
+func (o *dbOptions) BufferDrain(value time.Duration) memtsdb.DatabaseOptions {
 	opts := *o
-	opts.bufferFlush = value
+	opts.bufferDrain = value
 	return &opts
 }
 
-func (o *dbOptions) GetBufferFlush() time.Duration {
-	return o.bufferFlush
+func (o *dbOptions) GetBufferDrain() time.Duration {
+	return o.bufferDrain
 }
 
 func (o *dbOptions) BufferBucketAllocSize(value int) memtsdb.DatabaseOptions {
@@ -283,4 +298,34 @@ func (o *dbOptions) IteratorPool(value memtsdb.IteratorPool) memtsdb.DatabaseOpt
 
 func (o *dbOptions) GetIteratorPool() memtsdb.IteratorPool {
 	return o.iteratorPool
+}
+
+func (o *dbOptions) MaxFlushRetries(value int) memtsdb.DatabaseOptions {
+	opts := *o
+	opts.maxFlushRetries = value
+	return &opts
+}
+
+func (o *dbOptions) GetMaxFlushRetries() int {
+	return o.maxFlushRetries
+}
+
+func (o *dbOptions) FilePathPrefix(value string) memtsdb.DatabaseOptions {
+	opts := *o
+	opts.filePathPrefix = value
+	return &opts
+}
+
+func (o *dbOptions) GetFilePathPrefix() string {
+	return o.filePathPrefix
+}
+
+func (o *dbOptions) NewWriterFn(value fs.NewWriterFn) memtsdb.DatabaseOptions {
+	opts := *o
+	opts.newWriterFn = value
+	return &opts
+}
+
+func (o *dbOptions) GetNewWriterFn() fs.NewWriterFn {
+	return o.newWriterFn
 }

@@ -3,6 +3,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -59,12 +60,31 @@ type Database interface {
 	Bootstrap(writeStart time.Time) error
 }
 
+type flushStatus byte
+
+const (
+	flushNotStarted flushStatus = iota
+	flushInProgress
+	flushSuccess
+	flushFailed
+)
+
+type flushState struct {
+	status      flushStatus
+	numFailures int
+}
+
 type db struct {
 	sync.RWMutex
 	opts        memtsdb.DatabaseOptions
 	shardScheme sharding.ShardScheme
 	shardSet    sharding.ShardSet
 	bs          bootstrapState
+
+	fm             sync.RWMutex
+	fs             flushStatus
+	flushAttempted map[time.Time]flushState
+	flushTimes     []time.Time
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -80,14 +100,17 @@ type db struct {
 func NewDatabase(shardSet sharding.ShardSet, opts memtsdb.DatabaseOptions) Database {
 	shardScheme := shardSet.Scheme()
 	return &db{
-		opts:         opts,
-		shardScheme:  shardScheme,
-		shardSet:     shardSet,
-		shards:       make([]databaseShard, len(shardScheme.All().Shards())),
-		nowFn:        opts.GetNowFn(),
-		tickDeadline: opts.GetBufferFlush(),
-		openCh:       make(chan struct{}, 1),
-		doneCh:       make(chan struct{}, dbOngoingTasks),
+		opts:           opts,
+		shardScheme:    shardScheme,
+		shardSet:       shardSet,
+		shards:         make([]databaseShard, len(shardScheme.All().Shards())),
+		nowFn:          opts.GetNowFn(),
+		tickDeadline:   opts.GetBufferDrain(),
+		openCh:         make(chan struct{}, 1),
+		doneCh:         make(chan struct{}, dbOngoingTasks),
+		fs:             flushNotStarted,
+		flushAttempted: make(map[time.Time]flushState),
+		flushTimes:     make([]time.Time, 0, int(math.Ceil(float64(opts.GetRetentionPeriod())/float64(opts.GetBlockSize())))),
 	}
 }
 
@@ -142,10 +165,12 @@ func (d *db) Bootstrap(writeStart time.Time) error {
 	// In particular, the filesystem bootstrapper bootstraps each shard sequentially
 	// due to disk seek overhead.
 	for _, s := range shards {
-		if err := s.bootstrap(writeStart); err != nil {
+		if err := s.Bootstrap(writeStart); err != nil {
 			return err
 		}
 	}
+
+	d.flushToDisk(time.Now(), false)
 
 	d.Lock()
 	d.bs = bootstrapped
@@ -188,7 +213,7 @@ func (d *db) Write(
 	if shard == nil {
 		return fmt.Errorf("not responsible for shard %d", shardID)
 	}
-	return shard.write(ctx, id, timestamp, value, unit, annotation)
+	return shard.Write(ctx, id, timestamp, value, unit, annotation)
 }
 
 func (d *db) ReadEncoded(
@@ -207,7 +232,7 @@ func (d *db) ReadEncoded(
 	if shard == nil {
 		return nil, fmt.Errorf("not responsible for shard %d", shardID)
 	}
-	return shard.readEncoded(ctx, id, start, end)
+	return shard.ReadEncoded(ctx, id, start, end)
 }
 
 func (d *db) ongoingTick() {
@@ -238,7 +263,7 @@ func (d *db) splayedTick() {
 		wg.Add(1)
 		go func() {
 			// TODO(r): instrument timing of this tick
-			shard.tick()
+			shard.Tick()
 			wg.Done()
 		}()
 	}
@@ -252,4 +277,113 @@ func (d *db) splayedTick() {
 		// TODO(r): log an error and/or increment counter
 		_ = "todo"
 	}
+
+	if d.needDiskFlush(start) {
+		d.flushToDisk(start, true)
+	}
+}
+
+func (d *db) needDiskFlush(tickStart time.Time) bool {
+	d.RLock()
+	bs := d.bs
+	d.RUnlock()
+	// If we haven't bootstrapped yet, don't flush.
+	if bs != bootstrapped {
+		return false
+	}
+
+	firstBlockStart := d.getFirstBlockStart(tickStart)
+	d.fm.RLock()
+	defer d.fm.RUnlock()
+	// If we are in the middle of flushing data, don't flush.
+	if d.fs == flushInProgress {
+		return false
+	}
+	// If we have already tried flushing for this block start time, don't try again.
+	if _, exists := d.flushAttempted[firstBlockStart]; exists {
+		return false
+	}
+	return true
+}
+
+func (d *db) getFirstBlockStart(tickStart time.Time) time.Time {
+	bufferPast := d.opts.GetBufferPast()
+	blockSize := d.opts.GetBlockSize()
+	return tickStart.Add(-bufferPast).Add(-blockSize).Truncate(blockSize)
+}
+
+func (d *db) flushToDisk(tickStart time.Time, asyncFlush bool) {
+	timesToFlush := d.getTimesToFlush(tickStart)
+	if len(timesToFlush) == 0 {
+		return
+	}
+
+	d.fm.Lock()
+	if d.fs == flushInProgress {
+		d.fm.Unlock()
+		return
+	}
+	d.fs = flushInProgress
+	d.fm.Unlock()
+
+	flushFn := func() {
+		for _, t := range timesToFlush {
+			success := d.flushToDiskWithTime(t)
+			d.fm.Lock()
+			flushState := d.flushAttempted[t]
+			if success {
+				flushState.status = flushSuccess
+			} else {
+				flushState.status = flushFailed
+				flushState.numFailures++
+			}
+			d.flushAttempted[t] = flushState
+			d.fm.Unlock()
+		}
+
+		d.fm.Lock()
+		d.fs = flushNotStarted
+		d.fm.Unlock()
+	}
+
+	if !asyncFlush {
+		flushFn()
+	} else {
+		go flushFn()
+	}
+}
+
+func (d *db) getTimesToFlush(tickStart time.Time) []time.Time {
+	blockSize := d.opts.GetBlockSize()
+	maxFlushRetries := d.opts.GetMaxFlushRetries()
+	firstBlockStart := d.getFirstBlockStart(tickStart)
+	earliestTime := tickStart.Add(-d.opts.GetRetentionPeriod())
+
+	d.fm.Lock()
+	defer d.fm.Unlock()
+	d.flushTimes = d.flushTimes[:0]
+	for t := firstBlockStart; !t.Before(earliestTime); t = t.Add(-blockSize) {
+		if flushState, exists := d.flushAttempted[t]; !exists || (flushState.status == flushFailed && flushState.numFailures < maxFlushRetries) {
+			flushState.status = flushInProgress
+			d.flushTimes = append(d.flushTimes, t)
+			d.flushAttempted[t] = flushState
+		}
+	}
+	return d.flushTimes
+}
+
+// flushToDiskWithTime flushes data blocks for owned shards to local disk.
+func (d *db) flushToDiskWithTime(t time.Time) bool {
+	allShardsSucceeded := true
+	log := d.opts.GetLogger()
+	shards := d.getOwnedShards()
+	for _, shard := range shards {
+		// NB(xichen): we still want to proceed if a shard fails to flush its data to disk.
+		// Probably want to emit a counter here, but for now just log it.
+		if err := shard.FlushToDisk(t); err != nil {
+			log.Errorf("shard %d failed to flush data to disk: %v", shard.ShardNum(), err)
+			allShardsSucceeded = false
+		}
+	}
+	return allShardsSucceeded
 }

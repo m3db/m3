@@ -7,7 +7,9 @@ import (
 	"os"
 	"path"
 	"sort"
+	"strconv"
 	"testing"
+	"time"
 
 	schema "code.uber.internal/infra/memtsdb/persist/fs/proto"
 
@@ -15,6 +17,39 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func createTempFile(t *testing.T) *os.File {
+	file, err := ioutil.TempFile("", "testfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return file
+}
+
+func createTempDir(t *testing.T) string {
+	dir, err := ioutil.TempDir("", "foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func createFile(t *testing.T, filePath string) {
+	f, err := os.Create(filePath)
+	require.NoError(t, err)
+	f.Close()
+}
+
+func createInfoFiles(t *testing.T, iter int) string {
+	dir := createTempDir(t)
+	for i := 0; i < iter; i++ {
+		infoFilePath := path.Join(dir, fmt.Sprintf("%d%s%s", i, separator, infoFileSuffix))
+		createFile(t, infoFilePath)
+		checkpointFilePath := path.Join(dir, fmt.Sprintf("%d%s%s", i, separator, checkpointFileSuffix))
+		createFile(t, checkpointFilePath)
+	}
+	return dir
+}
 
 func TestOpenFilesFails(t *testing.T) {
 	testFilePath := "/not/a/real/path"
@@ -34,40 +69,18 @@ func TestOpenFilesFails(t *testing.T) {
 }
 
 func TestCloseFilesFails(t *testing.T) {
-	file, err := ioutil.TempFile("", "testfile")
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	file := createTempFile(t)
 	defer os.Remove(file.Name())
 
 	assert.NoError(t, file.Close())
 	assert.Error(t, closeFiles(file))
 }
 
-func TestByVersion(t *testing.T) {
+func TestByTimeAscending(t *testing.T) {
 	files := []string{"foo/1-info.db", "foo/12-info.db", "foo/2-info.db"}
 	expected := []string{"foo/1-info.db", "foo/2-info.db", "foo/12-info.db"}
-	sort.Sort(byVersionAscending(files))
+	sort.Sort(byTimeAscending(files))
 	require.Equal(t, expected, files)
-}
-
-func createFile(t *testing.T, filePath string) {
-	f, err := os.Create(filePath)
-	require.NoError(t, err)
-	f.Close()
-}
-
-func createInfoFiles(t *testing.T, iter int) string {
-	dir, err := ioutil.TempDir("", "foo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < iter; i++ {
-		filePath := path.Join(dir, fmt.Sprintf("%d%s%s", i, separator, infoFileSuffix))
-		createFile(t, filePath)
-	}
-	return dir
 }
 
 func TestInfoFiles(t *testing.T) {
@@ -77,6 +90,7 @@ func TestInfoFiles(t *testing.T) {
 
 	createFile(t, path.Join(dir, "abcd"))
 	createFile(t, path.Join(dir, separator+infoFileSuffix))
+	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+infoFileSuffix))
 
 	files, err := InfoFiles(dir)
 	require.NoError(t, err)
@@ -101,7 +115,7 @@ func TestReadInfo(t *testing.T) {
 	_, err = ReadInfo(tmpfile)
 	require.Error(t, err)
 
-	data, err := proto.Marshal(&schema.IndexInfo{Start: 100, Window: 10, Entries: 20})
+	data, err := proto.Marshal(&schema.IndexInfo{Start: 100, BlockSize: 10, Entries: 20})
 	require.NoError(t, err)
 
 	tmpfile.Truncate(0)
@@ -113,36 +127,27 @@ func TestReadInfo(t *testing.T) {
 	entry, err := ReadInfo(tmpfile)
 	require.NoError(t, err)
 	require.Equal(t, int64(100), entry.Start)
-	require.Equal(t, int64(10), entry.Window)
+	require.Equal(t, int64(10), entry.BlockSize)
 	require.Equal(t, int64(20), entry.Entries)
 }
 
-func TestVersionFromName(t *testing.T) {
-	_, err := VersionFromName("foo/bar")
+func TestTimeFromName(t *testing.T) {
+	_, err := TimeFromFileName("foo/bar")
+	require.Error(t, err)
+	require.Equal(t, "unexpected file name foo/bar", err.Error())
+
+	_, err = TimeFromFileName("foo/bar-baz")
 	require.Error(t, err)
 
-	_, err = VersionFromName("foo/bar-baz")
-	require.Error(t, err)
-
-	v, err := VersionFromName("1-test.db")
-	require.Equal(t, 1, v)
+	v, err := TimeFromFileName("1-test.db")
+	expected := time.Unix(0, 1)
+	require.Equal(t, expected, v)
 	require.NoError(t, err)
 
-	v, err = VersionFromName("foo/bar/20-test.db")
-	require.Equal(t, 20, v)
+	v, err = TimeFromFileName("foo/bar/21234567890-test.db")
+	expected = time.Unix(0, 21234567890)
+	require.Equal(t, expected, v)
 	require.NoError(t, err)
-}
-
-func TestNextVersion(t *testing.T) {
-	v, err := nextVersion("nonexistent")
-	require.NoError(t, err)
-	require.Equal(t, 0, v)
-
-	dir := createInfoFiles(t, 20)
-	defer os.RemoveAll(dir)
-	v, err = nextVersion(dir)
-	require.NoError(t, err)
-	require.Equal(t, 20, v)
 }
 
 func TestShardDirPath(t *testing.T) {
@@ -150,7 +155,43 @@ func TestShardDirPath(t *testing.T) {
 	require.Equal(t, "foo/bar/12", ShardDirPath("foo/bar/", 12))
 }
 
-func TestFilePathFromVersion(t *testing.T) {
-	require.Equal(t, "foo/bar/1-info.db", filepathFromVersion("foo/bar", 1, "info.db"))
-	require.Equal(t, "foo/bar/20-info.db", filepathFromVersion("foo/bar/", 20, "info.db"))
+func TestFilePathFromTime(t *testing.T) {
+	start := time.Unix(1465501321, 123456789)
+	inputs := []struct {
+		prefix   string
+		suffix   string
+		expected string
+	}{
+		{"foo/bar", infoFileSuffix, "foo/bar/1465501321123456789-info.db"},
+		{"foo/bar", indexFileSuffix, "foo/bar/1465501321123456789-index.db"},
+		{"foo/bar", dataFileSuffix, "foo/bar/1465501321123456789-data.db"},
+		{"foo/bar", checkpointFileSuffix, "foo/bar/1465501321123456789-checkpoint.db"},
+		{"foo/bar/", infoFileSuffix, "foo/bar/1465501321123456789-info.db"},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, filepathFromTime(input.prefix, start, input.suffix))
+	}
+}
+
+func TestFileExists(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	shard := 10
+	start := time.Now()
+	shardDir := path.Join(dir, strconv.Itoa(shard))
+	err := os.Mkdir(shardDir, defaultNewDirectoryMode)
+	require.NoError(t, err)
+	infoFilePath := path.Join(shardDir, fmt.Sprintf("%d%s%s", start, separator, infoFileSuffix))
+	createFile(t, infoFilePath)
+	require.True(t, fileExists(infoFilePath))
+	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
+
+	checkpointFilePath := path.Join(shardDir, fmt.Sprintf("%d%s%s", start, separator, checkpointFileSuffix))
+	createFile(t, checkpointFilePath)
+	require.True(t, fileExists(checkpointFilePath))
+	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
+
+	os.Remove(infoFilePath)
+	require.False(t, fileExists(infoFilePath))
 }

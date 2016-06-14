@@ -19,7 +19,7 @@ func bufferTestOptions() memtsdb.DatabaseOptions {
 		BlockSize(2 * time.Minute).
 		BufferFuture(10 * time.Second).
 		BufferPast(10 * time.Second).
-		BufferFlush(30 * time.Second)
+		BufferDrain(30 * time.Second)
 }
 
 func TestBufferWriteTooFuture(t *testing.T) {
@@ -33,7 +33,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err := buffer.write(ctx, curr.Add(opts.GetBufferFuture()), 1, xtime.Second, nil)
+	err := buffer.Write(ctx, curr.Add(opts.GetBufferFuture()), 1, xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
@@ -49,7 +49,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err := buffer.write(ctx, curr.Add(-1*opts.GetBufferPast()), 1, xtime.Second, nil)
+	err := buffer.Write(ctx, curr.Add(-1*opts.GetBufferPast()), 1, xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
@@ -70,14 +70,14 @@ func TestBufferWriteRead(t *testing.T) {
 
 	for _, v := range data {
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
 		ctx.Close()
 	}
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	results := buffer.readEncoded(ctx, timeZero, timeDistantFuture)
+	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, data, results, opts)
@@ -100,7 +100,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	for _, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
 		ctx.Close()
 	}
 
@@ -109,23 +109,23 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 
 	firstBucketStart := start.Truncate(time.Second)
 	firstBucketEnd := start.Add(mins(2)).Truncate(time.Second)
-	results := buffer.readEncoded(ctx, firstBucketStart, firstBucketEnd)
+	results := buffer.ReadEncoded(ctx, firstBucketStart, firstBucketEnd)
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, []value{data[0]}, results, opts)
 
 	secondBucketStart := start.Add(mins(2)).Truncate(time.Second)
 	secondBucketEnd := start.Add(mins(4)).Truncate(time.Second)
-	results = buffer.readEncoded(ctx, secondBucketStart, secondBucketEnd)
+	results = buffer.ReadEncoded(ctx, secondBucketStart, secondBucketEnd)
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, []value{data[1]}, results, opts)
 }
 
-func TestBufferFlush(t *testing.T) {
-	var flushed []flush
-	flushFn := func(start time.Time, encoder memtsdb.Encoder) {
-		flushed = append(flushed, flush{start, encoder})
+func TestBufferDrain(t *testing.T) {
+	var drained []drain
+	drainFn := func(start time.Time, encoder memtsdb.Encoder) {
+		drained = append(drained, drain{start, encoder})
 	}
 
 	opts := bufferTestOptions()
@@ -133,7 +133,7 @@ func TestBufferFlush(t *testing.T) {
 	opts = opts.NowFn(func() time.Time {
 		return curr
 	})
-	buffer := newDatabaseBuffer(flushFn, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(drainFn, opts).(*dbBuffer)
 
 	data := []value{
 		{curr, 1, xtime.Second, nil},
@@ -147,32 +147,32 @@ func TestBufferFlush(t *testing.T) {
 	for _, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
 		ctx.Close()
 	}
 
-	assert.Equal(t, true, buffer.needsFlush())
-	assert.Len(t, flushed, 0)
+	assert.Equal(t, true, buffer.NeedsDrain())
+	assert.Len(t, drained, 0)
 
-	buffer.flushAndReset()
+	buffer.DrainAndReset()
 
-	assert.Equal(t, false, buffer.needsFlush())
-	assert.Len(t, flushed, 1)
+	assert.Equal(t, false, buffer.NeedsDrain())
+	assert.Len(t, drained, 1)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	results := buffer.readEncoded(ctx, timeZero, timeDistantFuture)
+	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
-	assertValuesEqual(t, data[:4], []io.Reader{flushed[0].encoder.Stream()}, opts)
+	assertValuesEqual(t, data[:4], []io.Reader{drained[0].encoder.Stream()}, opts)
 	assertValuesEqual(t, data[4:], results, opts)
 }
 
-func TestBufferResetUnflushedBucketFlushesBucket(t *testing.T) {
-	var flushed []flush
-	flushFn := func(start time.Time, encoder memtsdb.Encoder) {
-		flushed = append(flushed, flush{start, encoder})
+func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
+	var drained []drain
+	drainFn := func(start time.Time, encoder memtsdb.Encoder) {
+		drained = append(drained, drain{start, encoder})
 	}
 
 	opts := bufferTestOptions()
@@ -180,7 +180,7 @@ func TestBufferResetUnflushedBucketFlushesBucket(t *testing.T) {
 	opts = opts.NowFn(func() time.Time {
 		return curr
 	})
-	buffer := newDatabaseBuffer(flushFn, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(drainFn, opts).(*dbBuffer)
 
 	data := []value{
 		{curr.Add(mins(1)), 1, xtime.Second, nil},
@@ -192,22 +192,22 @@ func TestBufferResetUnflushedBucketFlushesBucket(t *testing.T) {
 	for _, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
 		ctx.Close()
 	}
 
-	assert.Equal(t, true, buffer.needsFlush())
-	assert.Len(t, flushed, 2)
+	assert.Equal(t, true, buffer.NeedsDrain())
+	assert.Len(t, drained, 2)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	results := buffer.readEncoded(ctx, timeZero, timeDistantFuture)
+	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, data[:2], []io.Reader{
-		flushed[0].encoder.Stream(),
-		flushed[1].encoder.Stream(),
+		drained[0].encoder.Stream(),
+		drained[1].encoder.Stream(),
 	}, opts)
 	assertValuesEqual(t, data[2:], results, opts)
 }
@@ -231,7 +231,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 			curr = v.timestamp
 		}
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
 		ctx.Close()
 	}
 
@@ -241,7 +241,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	results := buffer.readEncoded(ctx, timeZero, timeDistantFuture)
+	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, data, results, opts)
@@ -257,7 +257,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	}
 
 	// Assert equal again
-	results = buffer.readEncoded(ctx, timeZero, timeDistantFuture)
+	results = buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, data, results, opts)

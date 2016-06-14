@@ -18,7 +18,7 @@ var (
 
 const (
 	// bucketsLen is three to contain the following buckets:
-	// 1. Bucket before current window, can be flushed or not-yet-flushed
+	// 1. Bucket before current window, can be drained or not-yet-drained
 	// 2. Bucket currently taking writes
 	// 3. Bucket for the future that can be taking writes that is head of
 	// the current block if write is for the future within bounds
@@ -26,7 +26,7 @@ const (
 )
 
 type databaseBuffer interface {
-	write(
+	Write(
 		ctx memtsdb.Context,
 		timestamp time.Time,
 		value float64,
@@ -34,37 +34,37 @@ type databaseBuffer interface {
 		annotation []byte,
 	) error
 
-	// readEncoded will return the full buffer's data as encoded segments
+	// ReadEncoded will return the full buffer's data as encoded segments
 	// if start and end intersects the buffer at all, nil otherwise
-	readEncoded(
+	ReadEncoded(
 		ctx memtsdb.Context,
 		start, end time.Time,
 	) []io.Reader
 
-	empty() bool
+	Empty() bool
 
-	needsFlush() bool
+	NeedsDrain() bool
 
-	flushAndReset()
+	DrainAndReset()
 }
 
 type dbBuffer struct {
 	opts      memtsdb.DatabaseOptions
 	nowFn     memtsdb.NowFn
-	flushFn   databaseBufferFlushFn
+	drainFn   databaseBufferDrainFn
 	buckets   [bucketsLen]dbBufferBucket
 	blockSize time.Duration
 }
 
-type databaseBufferFlushFn func(start time.Time, encoder memtsdb.Encoder)
+type databaseBufferDrainFn func(start time.Time, encoder memtsdb.Encoder)
 
-func newDatabaseBuffer(flushFn databaseBufferFlushFn, opts memtsdb.DatabaseOptions) databaseBuffer {
+func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts memtsdb.DatabaseOptions) databaseBuffer {
 	nowFn := opts.GetNowFn()
 
 	buffer := &dbBuffer{
 		opts:      opts,
 		nowFn:     nowFn,
-		flushFn:   flushFn,
+		drainFn:   drainFn,
 		blockSize: opts.GetBlockSize(),
 	}
 	buffer.forEachBucketAsc(nowFn(), func(b *dbBufferBucket, start time.Time) {
@@ -75,7 +75,7 @@ func newDatabaseBuffer(flushFn databaseBufferFlushFn, opts memtsdb.DatabaseOptio
 	return buffer
 }
 
-func (s *dbBuffer) write(
+func (s *dbBuffer) Write(
 	ctx memtsdb.Context,
 	timestamp time.Time,
 	value float64,
@@ -99,13 +99,13 @@ func (s *dbBuffer) write(
 	_, _, needsReset := s.bucketState(now, bucket, bucketStart)
 	if needsReset {
 		// Needs reset
-		s.flushAndReset()
+		s.DrainAndReset()
 	}
 
 	return bucket.write(timestamp, value, unit, annotation)
 }
 
-func (s *dbBuffer) empty() bool {
+func (s *dbBuffer) Empty() bool {
 	now := s.nowFn()
 	canReadAny := false
 	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
@@ -116,15 +116,15 @@ func (s *dbBuffer) empty() bool {
 	return !canReadAny
 }
 
-func (s *dbBuffer) needsFlush() bool {
+func (s *dbBuffer) NeedsDrain() bool {
 	now := s.nowFn()
-	needsFlushAny := false
+	needsDrainAny := false
 	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
-		if !needsFlushAny {
-			_, needsFlushAny, _ = s.bucketState(now, b, current)
+		if !needsDrainAny {
+			_, needsDrainAny, _ = s.bucketState(now, b, current)
 		}
 	})
-	return needsFlushAny
+	return needsDrainAny
 }
 
 func (s *dbBuffer) bucketState(
@@ -132,33 +132,33 @@ func (s *dbBuffer) bucketState(
 	b *dbBufferBucket,
 	bucketStart time.Time,
 ) (bool, bool, bool) {
-	notFlushedHasValues := !b.flushed && !b.lastWriteAt.IsZero()
+	notDrainedHasValues := !b.drained && !b.lastWriteAt.IsZero()
 
-	shouldRead := notFlushedHasValues
+	shouldRead := notDrainedHasValues
 	needsReset := !b.start.Equal(bucketStart)
-	needsFlush := (notFlushedHasValues && needsReset) ||
-		(notFlushedHasValues && bucketStart.Add(s.blockSize).Before(now.Add(-1*b.opts.GetBufferPast())))
+	needsDrain := (notDrainedHasValues && needsReset) ||
+		(notDrainedHasValues && bucketStart.Add(s.blockSize).Before(now.Add(-1*b.opts.GetBufferPast())))
 
-	return shouldRead, needsFlush, needsReset
+	return shouldRead, needsDrain, needsReset
 }
 
-func (s *dbBuffer) flushAndReset() {
+func (s *dbBuffer) DrainAndReset() {
 	now := s.nowFn()
 	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
-		_, needsFlush, needsReset := s.bucketState(now, b, current)
-		if !needsFlush && !needsReset {
+		_, needsDrain, needsReset := s.bucketState(now, b, current)
+		if !needsDrain && !needsReset {
 			// No action necessary
 			return
 		}
 
-		if needsFlush {
+		if needsDrain {
 			b.sort()
 
 			// After we sort there is always only a single encoder
 			encoder := b.encoders[0].encoder
 			encoder.Done()
-			s.flushFn(b.start, encoder)
-			b.flushed = true
+			s.drainFn(b.start, encoder)
+			b.drained = true
 		}
 
 		if needsReset {
@@ -177,14 +177,14 @@ func (s *dbBuffer) forEachBucketAsc(now time.Time, fn func(b *dbBufferBucket, cu
 	}
 }
 
-func (s *dbBuffer) readEncoded(ctx memtsdb.Context, start, end time.Time) []io.Reader {
+func (s *dbBuffer) ReadEncoded(ctx memtsdb.Context, start, end time.Time) []io.Reader {
 	now := s.nowFn()
 	// TODO(r): pool these results arrays
 	var results []io.Reader
 	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
 		shouldRead, _, _ := s.bucketState(now, b, current)
 		if !shouldRead {
-			// Requires reset and flushed already or not written to
+			// Requires reset and drained already or not written to
 			return
 		}
 
@@ -195,7 +195,7 @@ func (s *dbBuffer) readEncoded(ctx memtsdb.Context, start, end time.Time) []io.R
 			return
 		}
 
-		// TODO(r): instead of flushing potentially out of order streams, wrap them
+		// TODO(r): instead of draining potentially out of order streams, wrap them
 		// in one big multi-stream reader so client's can read them in order easily
 		for i := range b.encoders {
 			stream := b.encoders[i].encoder.Stream()
@@ -223,7 +223,7 @@ type dbBufferBucket struct {
 	encoders    []inOrderEncoder
 	lastWriteAt time.Time
 	outOfOrder  bool
-	flushed     bool
+	drained     bool
 }
 
 type inOrderEncoder struct {
@@ -243,7 +243,7 @@ func (b *dbBufferBucket) resetTo(start time.Time) {
 	b.encoders = append(b.encoders[:0], first)
 	b.lastWriteAt = timeZero
 	b.outOfOrder = false
-	b.flushed = false
+	b.drained = false
 }
 
 func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {

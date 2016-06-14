@@ -1,7 +1,6 @@
 package memtsdb
 
 import (
-	"io"
 	"time"
 
 	xtime "code.uber.internal/infra/memtsdb/x/time"
@@ -14,7 +13,7 @@ type NewDatabaseBlockFn func() DatabaseBlock
 type DatabaseBlock interface {
 	StartTime() time.Time
 	Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
-	Stream() io.Reader
+	Stream() SegmentReader
 	Close()
 }
 

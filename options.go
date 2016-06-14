@@ -3,6 +3,7 @@ package memtsdb
 import (
 	"time"
 
+	"code.uber.internal/infra/memtsdb/persist/fs"
 	"code.uber.internal/infra/memtsdb/x/metrics"
 
 	"github.com/uber-common/bark"
@@ -65,11 +66,11 @@ type DatabaseOptions interface {
 	// GetBufferPast returns the bufferPast
 	GetBufferPast() time.Duration
 
-	// BufferFlush sets the bufferFlush and returns a new DatabaseOptions
-	BufferFlush(value time.Duration) DatabaseOptions
+	// BufferDrain sets the bufferDrain and returns a new DatabaseOptions
+	BufferDrain(value time.Duration) DatabaseOptions
 
-	// GetBufferFlush returns the bufferFlush
-	GetBufferFlush() time.Duration
+	// GetBufferDrain returns the bufferDrain
+	GetBufferDrain() time.Duration
 
 	// BufferBucketAllocSize sets the bufferBucketAllocSize and returns a new DatabaseOptions
 	BufferBucketAllocSize(value int) DatabaseOptions
@@ -112,4 +113,22 @@ type DatabaseOptions interface {
 
 	// GetIteratorPool returns the iteratorPool
 	GetIteratorPool() IteratorPool
+
+	// MaxFlushRetries sets the maximum number of retries when data flushing fails.
+	MaxFlushRetries(value int) DatabaseOptions
+
+	// GetMaxFlushRetries returns the maximum number of retries when data flushing fails.
+	GetMaxFlushRetries() int
+
+	// FilePathPrefix sets the file path prefix for sharded TSDB files.
+	FilePathPrefix(value string) DatabaseOptions
+
+	// GetFilePathPrefix returns the file path prefix for sharded TSDB files.
+	GetFilePathPrefix() string
+
+	// NewWriter sets the function for creating a new writer.
+	NewWriterFn(value fs.NewWriterFn) DatabaseOptions
+
+	// GetNewWriterFn returns the function for creating a new writer.
+	GetNewWriterFn() fs.NewWriterFn
 }

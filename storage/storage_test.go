@@ -26,7 +26,7 @@ func hrs(x float64) time.Duration {
 	return time.Duration(x * float64(time.Hour))
 }
 
-type flush struct {
+type drain struct {
 	start   time.Time
 	encoder memtsdb.Encoder
 }

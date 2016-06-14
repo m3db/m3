@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"io"
 	"time"
 
 	"code.uber.internal/infra/memtsdb"
@@ -31,7 +30,7 @@ func (b *dbBlock) Write(timestamp time.Time, value float64, unit xtime.Unit, ann
 	return b.encoder.Encode(memtsdb.Datapoint{Timestamp: timestamp, Value: value}, unit, annotation)
 }
 
-func (b *dbBlock) Stream() io.Reader {
+func (b *dbBlock) Stream() memtsdb.SegmentReader {
 	return b.encoder.Stream()
 }
 
