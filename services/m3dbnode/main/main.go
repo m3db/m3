@@ -11,12 +11,11 @@ import (
 
 	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/bootstrap"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/httpjson"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/httpjson"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/tchannelthrift"
 	"code.uber.internal/infra/memtsdb/sharding"
 	"code.uber.internal/infra/memtsdb/storage"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/spaolacci/murmur3"
 )
 
@@ -36,6 +35,13 @@ func main() {
 	tchannelAddr := *tchannelAddrArg
 	httpAddr := *httpAddrArg
 
+	var opts memtsdb.DatabaseOptions
+	opts = storage.NewDatabaseOptions().NewBootstrapFn(func() memtsdb.Bootstrap {
+		return bootstrap.NewNoOpBootstrapProcess(opts)
+	})
+
+	log := opts.GetLogger()
+
 	shards := uint32(1024)
 	shardingScheme, err := sharding.NewShardScheme(0, shards-1, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % shards
@@ -44,10 +50,6 @@ func main() {
 		log.Fatalf("could not create sharding scheme: %v", err)
 	}
 
-	var opts memtsdb.DatabaseOptions
-	opts = storage.NewDatabaseOptions().NewBootstrapFn(func() memtsdb.Bootstrap {
-		return bootstrap.NewNoOpBootstrapProcess(opts)
-	})
 	db := storage.NewDatabase(shardingScheme.All(), opts)
 	if err := db.Open(); err != nil {
 		log.Fatalf("could not open database: %v", err)

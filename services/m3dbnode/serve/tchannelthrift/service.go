@@ -3,7 +3,7 @@ package tchannelthrift
 import (
 	"fmt"
 
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
 	"code.uber.internal/infra/memtsdb/storage"
 	xerrors "code.uber.internal/infra/memtsdb/x/errors"
 	xio "code.uber.internal/infra/memtsdb/x/io"

@@ -1,9 +1,10 @@
 package tchannelthrift
 
 import (
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
 	"code.uber.internal/infra/memtsdb/storage"
+
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )

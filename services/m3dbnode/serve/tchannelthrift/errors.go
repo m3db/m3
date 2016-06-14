@@ -3,7 +3,7 @@ package tchannelthrift
 import (
 	"fmt"
 
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
 )
 
 func newNodeError(errType rpc.NodeErrorType, err error) *rpc.NodeError {

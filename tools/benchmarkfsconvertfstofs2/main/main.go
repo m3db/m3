@@ -7,7 +7,7 @@ import (
 
 	"code.uber.internal/infra/memtsdb/benchmark/fs"
 	"code.uber.internal/infra/memtsdb/benchmark/fs2"
-	log "github.com/Sirupsen/logrus"
+	"code.uber.internal/infra/memtsdb/x/logging"
 )
 
 var (
@@ -23,6 +23,8 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	log := logging.NewLogger()
 
 	log.Infof("creating input reader")
 	reader, err := fs.NewReader(*inputFile)

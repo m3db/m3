@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"code.uber.internal/infra/memtsdb/encoding/tsz"
+	"code.uber.internal/infra/memtsdb/x/logging"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 var (
@@ -26,6 +25,8 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
+
+	log := logging.NewLogger()
 
 	start, err := time.Parse(time.RFC3339, *inputStart)
 	if err != nil {
@@ -57,7 +58,7 @@ func main() {
 	opts := tsz.NewOptions()
 	enc := tsz.NewEncoder(start, nil, opts)
 	dec := tsz.NewDecoder(opts)
-	bench, err := newBenchmark(*inputFile, start, ws, itu, etu, enc, dec)
+	bench, err := newBenchmark(log, *inputFile, start, ws, itu, etu, enc, dec)
 	if err != nil {
 		log.Fatalf("unable to create benchmark: %v", err)
 	}

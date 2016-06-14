@@ -6,6 +6,10 @@ import (
 	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/encoding/tsz"
 	"code.uber.internal/infra/memtsdb/pool"
+	"code.uber.internal/infra/memtsdb/x/logging"
+	"code.uber.internal/infra/memtsdb/x/metrics"
+
+	"github.com/uber-common/bark"
 )
 
 const (
@@ -38,6 +42,8 @@ var (
 )
 
 type dbOptions struct {
+	logger                bark.Logger
+	scope                 metrics.Scope
 	blockSize             time.Duration
 	newEncoderFn          memtsdb.NewEncoderFn
 	newDecoderFn          memtsdb.NewDecoderFn
@@ -59,6 +65,8 @@ type dbOptions struct {
 // less than blocksize and check when opening database
 func NewDatabaseOptions() memtsdb.DatabaseOptions {
 	opts := &dbOptions{
+		logger:          logging.NewLogger(),
+		scope:           metrics.NoopScope,
 		blockSize:       defaultBlockSize,
 		nowFn:           time.Now,
 		retentionPeriod: defaultRetentionPeriod,
@@ -113,6 +121,26 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) memtsdb
 	opts.encoderPool = encoderPool
 	opts.iteratorPool = iteratorPool
 	return &opts
+}
+
+func (o *dbOptions) Logger(value bark.Logger) memtsdb.DatabaseOptions {
+	opts := *o
+	opts.logger = value
+	return &opts
+}
+
+func (o *dbOptions) GetLogger() bark.Logger {
+	return o.logger
+}
+
+func (o *dbOptions) MetricsScope(value metrics.Scope) memtsdb.DatabaseOptions {
+	opts := *o
+	opts.scope = value
+	return &opts
+}
+
+func (o *dbOptions) GetMetricsScope() metrics.Scope {
+	return o.scope
 }
 
 func (o *dbOptions) BlockSize(value time.Duration) memtsdb.DatabaseOptions {

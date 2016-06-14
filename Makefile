@@ -14,10 +14,11 @@ LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 VENDOR_ENV := GO15VENDOREXPERIMENT=1
 
 SERVICES := \
-	mdbnode
+	m3dbnode
 	
 TOOLS := \
 	benchmarkencoding \
+	benchmarkbootstrap \
 	benchmarkoverhead \
 	benchmarkfsconvertfstofs2 \
 	benchmarkfsreadfs2

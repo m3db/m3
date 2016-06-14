@@ -11,10 +11,8 @@ import (
 	"code.uber.internal/infra/memtsdb/bootstrap"
 	"code.uber.internal/infra/memtsdb/bootstrap/bootstrapper/fs"
 	"code.uber.internal/infra/memtsdb/storage"
-	log "github.com/Sirupsen/logrus"
 )
 
-// TODO(xichen): move this to tools/ and build as a tool
 var (
 	bootstrapShards  = flag.String("bootstrapShards", "", "shards that need to be bootstrapped, separated by comma")
 	bootstrapperList = flag.String("bootstrapperList", "filesystem", "data sources used for bootstrapping")
@@ -29,6 +27,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	dbOptions := storage.NewDatabaseOptions()
+
+	log := dbOptions.GetLogger()
+
 	shardStrings := strings.Split(*bootstrapShards, ",")
 	shards := make([]uint32, len(shardStrings))
 	for i, ss := range shardStrings {
@@ -39,7 +41,6 @@ func main() {
 		shards[i] = uint32(sn)
 	}
 
-	dbOptions := storage.NewDatabaseOptions()
 	bootstrapperNames := strings.Split(*bootstrapperList, ",")
 	var bs memtsdb.Bootstrapper
 	for i := len(bootstrapperNames) - 1; i >= 0; i-- {

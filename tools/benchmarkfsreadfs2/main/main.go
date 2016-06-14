@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"code.uber.internal/infra/memtsdb/benchmark/fs2"
-	log "github.com/Sirupsen/logrus"
+	"code.uber.internal/infra/memtsdb/x/logging"
 )
 
 var (
@@ -20,6 +20,8 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	log := logging.NewLogger()
 
 	log.Infof("creating input reader")
 	reader, err := fs2.NewReader(*indexFile, *dataFile)
@@ -37,7 +39,7 @@ func main() {
 	log.Infof("reading input")
 	for iter.Next() {
 		id, ts, value := iter.Value()
-		log.Printf("timestamp: %16d, value: %.10f, id: %s", ts, value, id)
+		log.Infof("timestamp: %16d, value: %.10f, id: %s", ts, value, id)
 	}
 	if err := iter.Err(); err != nil {
 		log.Fatalf("error reading: %v", err)

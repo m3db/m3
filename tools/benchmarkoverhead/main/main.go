@@ -19,15 +19,15 @@ import (
 	"code.uber.internal/infra/memtsdb/benchmark/fs2"
 	"code.uber.internal/infra/memtsdb/bootstrap"
 	"code.uber.internal/infra/memtsdb/context"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/httpjson"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/httpjson"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/tchannelthrift"
 	"code.uber.internal/infra/memtsdb/sharding"
 	"code.uber.internal/infra/memtsdb/storage"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/spaolacci/murmur3"
+	"github.com/uber-common/bark"
 )
 
 var (
@@ -102,7 +102,23 @@ func main() {
 	// is pooled (no allocs) this is just a large wasted memory overhead.
 	debug.SetGCPercent(30)
 
-	db := newDatabase(amplify)
+	poolingBufferBucketAllocSize := 256
+	poolingSeries := 550000 * amplify // 550k * amplify
+
+	var opts memtsdb.DatabaseOptions
+	opts = storage.NewDatabaseOptions().
+		NowFn(nowFn).
+		BufferFuture(10*time.Minute).
+		BufferPast(10*time.Minute).
+		BufferFlush(10*time.Minute).
+		EncodingTszPooled(poolingBufferBucketAllocSize, poolingSeries).
+		NewBootstrapFn(func() memtsdb.Bootstrap {
+		return bootstrap.NewNoOpBootstrapProcess(opts)
+	})
+
+	log := opts.GetLogger()
+
+	db := newDatabase(log, opts)
 	defer db.Close()
 
 	tchannelthriftClose, err := tchannelthrift.NewServer(db, tchannelAddr, nil).ListenAndServe()
@@ -151,7 +167,7 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		ingestFrom, ingestTo, series, datapoints = ingestAll(db, indexFile, dataFile, repeat, amplify, ingestCh)
+		ingestFrom, ingestTo, series, datapoints = ingestAll(log, db, indexFile, dataFile, repeat, amplify, ingestCh)
 		l.Lock()
 		defer l.Unlock()
 		ingested = true
@@ -223,7 +239,7 @@ func main() {
 	}
 }
 
-func newDatabase(amplify int) storage.Database {
+func newDatabase(log bark.Logger, opts memtsdb.DatabaseOptions) storage.Database {
 	shards := uint32(1024)
 	shardingScheme, err := sharding.NewShardScheme(0, shards-1, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % shards
@@ -232,19 +248,6 @@ func newDatabase(amplify int) storage.Database {
 		log.Fatalf("could not create sharding scheme: %v", err)
 	}
 
-	bufferBucketAllocSize := 256
-	series := 550000 * amplify // 550k * amplify
-
-	var opts memtsdb.DatabaseOptions
-	opts = storage.NewDatabaseOptions().
-		NowFn(nowFn).
-		BufferFuture(10*time.Minute).
-		BufferPast(10*time.Minute).
-		BufferFlush(10*time.Minute).
-		EncodingTszPooled(bufferBucketAllocSize, series).
-		NewBootstrapFn(func() memtsdb.Bootstrap {
-		return bootstrap.NewNoOpBootstrapProcess(opts)
-	})
 	db := storage.NewDatabase(shardingScheme.All(), opts)
 	if err := db.Open(); err != nil {
 		log.Fatalf("could not open database: %v", err)
@@ -258,6 +261,7 @@ func newDatabase(amplify int) storage.Database {
 }
 
 func ingestAll(
+	log bark.Logger,
 	db storage.Database,
 	indexFile, dataFile string,
 	repeat int, amplify int,

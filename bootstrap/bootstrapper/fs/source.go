@@ -9,8 +9,6 @@ import (
 	"code.uber.internal/infra/memtsdb/persist/fs"
 	"code.uber.internal/infra/memtsdb/storage"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 // fileSystemSource provides information about TSDB data stored on disk.
@@ -34,6 +32,8 @@ func (fss *fileSystemSource) getInfoFiles(shard uint32) ([]string, error) {
 
 // GetAvailability returns what time ranges are available for a given shard.
 func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard xtime.Ranges) xtime.Ranges {
+	log := fss.opts.GetLogger()
+
 	if targetRangesForShard == nil {
 		return nil
 	}
@@ -68,6 +68,8 @@ func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard 
 
 // ReadData returns raw series for a given shard within certain time ranges.
 func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (memtsdb.ShardResult, xtime.Ranges) {
+	log := fss.opts.GetLogger()
+
 	if xtime.IsEmpty(tr) {
 		return nil, tr
 	}

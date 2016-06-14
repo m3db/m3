@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 

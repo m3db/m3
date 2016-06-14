@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift"
-	"code.uber.internal/infra/memtsdb/services/mdbnode/serve/tchannelthrift/thrift/gen-go/rpc"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/tchannelthrift"
+	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
 	"code.uber.internal/infra/memtsdb/storage"
 	xerrors "code.uber.internal/infra/memtsdb/x/errors"
 

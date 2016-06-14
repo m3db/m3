@@ -1,30 +1,42 @@
 [submodule "vendor/github.com/Sirupsen/logrus"]
 	path = vendor/github.com/Sirupsen/logrus
-	url = http://github.com/Sirupsen/logrus
+	url = https://github.com/Sirupsen/logrus
 [submodule "vendor/github.com/apache/thrift"]
 	path = vendor/github.com/apache/thrift
-	url = http://github.com/apache/thrift
+	url = https://github.com/apache/thrift
 [submodule "vendor/github.com/davecgh/go-spew"]
 	path = vendor/github.com/davecgh/go-spew
-	url = http://github.com/davecgh/go-spew
+	url = https://github.com/davecgh/go-spew
 [submodule "vendor/github.com/golang/protobuf"]
 	path = vendor/github.com/golang/protobuf
-	url = http://github.com/golang/protobuf
+	url = https://github.com/golang/protobuf
 [submodule "vendor/github.com/pmezard/go-difflib"]
 	path = vendor/github.com/pmezard/go-difflib
-	url = http://github.com/pmezard/go-difflib
+	url = https://github.com/pmezard/go-difflib
 [submodule "vendor/github.com/spaolacci/murmur3"]
 	path = vendor/github.com/spaolacci/murmur3
-	url = http://github.com/spaolacci/murmur3
+	url = https://github.com/spaolacci/murmur3
 [submodule "vendor/github.com/stretchr/testify"]
 	path = vendor/github.com/stretchr/testify
-	url = http://github.com/stretchr/testify
+	url = https://github.com/stretchr/testify
 [submodule "vendor/github.com/uber/tchannel-go"]
 	path = vendor/github.com/uber/tchannel-go
-	url = http://github.com/uber/tchannel-go
+	url = https://github.com/uber/tchannel-go
 [submodule "vendor/golang.org/x/net"]
 	path = vendor/golang.org/x/net
-	url = http://github.com/golang/net
+	url = https://github.com/golang/net
 [submodule "vendor/google.golang.org/grpc"]
 	path = vendor/google.golang.org/grpc
 	url = https://github.com/grpc/grpc-go
+[submodule "vendor/github.com/uber-common/bark"]
+	path = vendor/github.com/uber-common/bark
+	url = https://github.com/uber-common/bark
+[submodule "vendor/github.com/caio/go-tdigest"]
+	path = vendor/github.com/caio/go-tdigest
+	url = https://github.com/caio/go-tdigest
+[submodule "vendor/github.com/facebookgo/clock"]
+	path = vendor/github.com/facebookgo/clock
+	url = https://github.com/facebookgo/clock
+[submodule "vendor/github.com/cactus/go-statsd-client"]
+	path = vendor/github.com/cactus/go-statsd-client
+	url = https://github.com/cactus/go-statsd-client

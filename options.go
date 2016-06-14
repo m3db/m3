@@ -2,6 +2,10 @@ package memtsdb
 
 import (
 	"time"
+
+	"code.uber.internal/infra/memtsdb/x/metrics"
+
+	"github.com/uber-common/bark"
 )
 
 // NowFn is the function supplied to determine "now"
@@ -11,6 +15,18 @@ type NowFn func() time.Time
 type DatabaseOptions interface {
 	// EncodingTszPooled sets tsz encoding with pooling and returns a new DatabaseOptions
 	EncodingTszPooled(bufferBucketAllocSize, series int) DatabaseOptions
+
+	// Logger sets the logger and returns a new DatabaseOptions
+	Logger(value bark.Logger) DatabaseOptions
+
+	// GetLogger returns the logger
+	GetLogger() bark.Logger
+
+	// MetricsScope sets the metricsScope and returns a new DatabaseOptions
+	MetricsScope(value metrics.Scope) DatabaseOptions
+
+	// GetMetricsScope returns the metricsScope
+	GetMetricsScope() metrics.Scope
 
 	// BlockSize sets the blockSize and returns a new DatabaseOptions
 	BlockSize(value time.Duration) DatabaseOptions

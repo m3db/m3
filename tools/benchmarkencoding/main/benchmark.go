@@ -9,10 +9,12 @@ import (
 	"code.uber.internal/infra/memtsdb/benchmark/fs"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/uber-common/bark"
 )
 
 type benchmark struct {
+	logger bark.Logger
+
 	startTime      time.Time
 	windowSize     time.Duration
 	inputTimeUnit  time.Duration
@@ -29,6 +31,7 @@ type benchmark struct {
 }
 
 func newBenchmark(
+	logger bark.Logger,
 	input string,
 	startTime time.Time,
 	windowSize time.Duration,
@@ -43,6 +46,7 @@ func newBenchmark(
 	}
 
 	return &benchmark{
+		logger:         logger,
 		startTime:      startTime,
 		windowSize:     windowSize,
 		inputTimeUnit:  inputTimeUnit,
@@ -54,6 +58,8 @@ func newBenchmark(
 }
 
 func (th *benchmark) Run() {
+	log := th.logger
+
 	ns := xtime.ToNormalizedTime(th.startTime, th.inputTimeUnit)
 	nw := xtime.ToNormalizedDuration(th.windowSize, th.inputTimeUnit)
 
@@ -142,6 +148,8 @@ func (th *benchmark) rotate(nt int64, nw int64) (int64, int64) {
 }
 
 func (th *benchmark) Report() {
+	log := th.logger
+
 	log.Infof(
 		"Total datapoints encoded=%d, total number of encoded bytes=%d, total encoding time=%v, total decoding time=%v",
 		th.numDatapoints,
