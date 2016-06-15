@@ -25,3 +25,6 @@
 [submodule "vendor/github.com/golang/mock"]
 	path = vendor/github.com/golang/mock
 	url = https://github.com/golang/mock
+[submodule "vendor/golang.org/x/net"]
+	path = vendor/golang.org/x/net
+	url = https://github.com/golang/net
