@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package memtsdb
+package m3db
 
 // PoolAllocator allocates an object for a pool.
 type PoolAllocator func() interface{}

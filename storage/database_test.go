@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/mocks"
 	"github.com/m3db/m3db/sharding"
 
@@ -42,8 +42,8 @@ func testShardingScheme(t *testing.T) sharding.ShardScheme {
 	return shardScheme
 }
 
-func testDatabaseOptions() memtsdb.DatabaseOptions {
-	var opts memtsdb.DatabaseOptions
+func testDatabaseOptions() m3db.DatabaseOptions {
+	var opts m3db.DatabaseOptions
 	opts = NewDatabaseOptions().
 		NowFn(time.Now).
 		BufferFuture(10 * time.Minute).

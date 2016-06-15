@@ -20,28 +20,28 @@
 
 package pool
 
-import "github.com/m3db/m3db"
+import "github.com/m3db/m3db/interfaces/m3db"
 
 // TODO(r): instrument this to tune pooling
 type encoderPool struct {
-	pool memtsdb.ObjectPool
+	pool m3db.ObjectPool
 }
 
 // NewEncoderPool creates a new pool
-func NewEncoderPool(size int) memtsdb.EncoderPool {
+func NewEncoderPool(size int) m3db.EncoderPool {
 	return &encoderPool{pool: NewObjectPool(size)}
 }
 
-func (p *encoderPool) Init(alloc memtsdb.EncoderAllocate) {
+func (p *encoderPool) Init(alloc m3db.EncoderAllocate) {
 	p.pool.Init(func() interface{} {
 		return alloc()
 	})
 }
 
-func (p *encoderPool) Get() memtsdb.Encoder {
-	return p.pool.Get().(memtsdb.Encoder)
+func (p *encoderPool) Get() m3db.Encoder {
+	return p.pool.Get().(m3db.Encoder)
 }
 
-func (p *encoderPool) Put(encoder memtsdb.Encoder) {
+func (p *encoderPool) Put(encoder m3db.Encoder) {
 	p.pool.Put(encoder)
 }

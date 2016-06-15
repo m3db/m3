@@ -26,7 +26,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
 )
@@ -47,7 +47,7 @@ const (
 
 type databaseBuffer interface {
 	Write(
-		ctx memtsdb.Context,
+		ctx m3db.Context,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -57,7 +57,7 @@ type databaseBuffer interface {
 	// ReadEncoded will return the full buffer's data as encoded segments
 	// if start and end intersects the buffer at all, nil otherwise
 	ReadEncoded(
-		ctx memtsdb.Context,
+		ctx m3db.Context,
 		start, end time.Time,
 	) []io.Reader
 
@@ -69,16 +69,16 @@ type databaseBuffer interface {
 }
 
 type dbBuffer struct {
-	opts      memtsdb.DatabaseOptions
-	nowFn     memtsdb.NowFn
+	opts      m3db.DatabaseOptions
+	nowFn     m3db.NowFn
 	drainFn   databaseBufferDrainFn
 	buckets   [bucketsLen]dbBufferBucket
 	blockSize time.Duration
 }
 
-type databaseBufferDrainFn func(start time.Time, encoder memtsdb.Encoder)
+type databaseBufferDrainFn func(start time.Time, encoder m3db.Encoder)
 
-func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts memtsdb.DatabaseOptions) databaseBuffer {
+func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts m3db.DatabaseOptions) databaseBuffer {
 	nowFn := opts.GetNowFn()
 
 	buffer := &dbBuffer{
@@ -96,7 +96,7 @@ func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts memtsdb.DatabaseOptio
 }
 
 func (s *dbBuffer) Write(
-	ctx memtsdb.Context,
+	ctx m3db.Context,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -197,7 +197,7 @@ func (s *dbBuffer) forEachBucketAsc(now time.Time, fn func(b *dbBufferBucket, cu
 	}
 }
 
-func (s *dbBuffer) ReadEncoded(ctx memtsdb.Context, start, end time.Time) []io.Reader {
+func (s *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) []io.Reader {
 	now := s.nowFn()
 	// TODO(r): pool these results arrays
 	var results []io.Reader
@@ -238,7 +238,7 @@ func (s *dbBuffer) ReadEncoded(ctx memtsdb.Context, start, end time.Time) []io.R
 }
 
 type dbBufferBucket struct {
-	opts        memtsdb.DatabaseOptions
+	opts        m3db.DatabaseOptions
 	start       time.Time
 	encoders    []inOrderEncoder
 	lastWriteAt time.Time
@@ -248,7 +248,7 @@ type dbBufferBucket struct {
 
 type inOrderEncoder struct {
 	lastWriteAt time.Time
-	encoder     memtsdb.Encoder
+	encoder     m3db.Encoder
 }
 
 func (b *dbBufferBucket) resetTo(start time.Time) {
@@ -290,7 +290,7 @@ func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Un
 		target = &next
 	}
 
-	datapoint := memtsdb.Datapoint{
+	datapoint := m3db.Datapoint{
 		Timestamp: timestamp,
 		Value:     value,
 	}
@@ -332,7 +332,7 @@ func (b *dbBufferBucket) sort() {
 
 	sort.Sort(byTimeAsc(datapoints))
 
-	var dp memtsdb.Datapoint
+	var dp m3db.Datapoint
 	for i := range datapoints {
 		dp.Timestamp = datapoints[i].t
 		dp.Value = datapoints[i].value

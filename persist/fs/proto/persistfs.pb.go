@@ -3,7 +3,7 @@
 // DO NOT EDIT!
 
 /*
-Package memtsdb_persistfs is a generated protocol buffer package.
+Package m3db_persistfs is a generated protocol buffer package.
 
 It is generated from these files:
 	persistfs.proto
@@ -32,7 +32,7 @@ It has these top-level messages:
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package memtsdb_persistfs
+package m3db_persistfs
 
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
@@ -71,8 +71,8 @@ func (*IndexEntry) ProtoMessage()               {}
 func (*IndexEntry) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 func init() {
-	proto.RegisterType((*IndexInfo)(nil), "memtsdb.persistfs.IndexInfo")
-	proto.RegisterType((*IndexEntry)(nil), "memtsdb.persistfs.IndexEntry")
+	proto.RegisterType((*IndexInfo)(nil), "m3db.persistfs.IndexInfo")
+	proto.RegisterType((*IndexEntry)(nil), "m3db.persistfs.IndexEntry")
 }
 
 var fileDescriptor0 = []byte{

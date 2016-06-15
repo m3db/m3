@@ -23,12 +23,12 @@ package pool
 import (
 	"sort"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 // TODO(r): instrument this to tune pooling
 type bytesPool struct {
-	sizesAsc          []memtsdb.PoolBucket
+	sizesAsc          []m3db.PoolBucket
 	buckets           []bytesPoolBucket
 	maxBucketCapacity int
 }
@@ -39,10 +39,10 @@ type bytesPoolBucket struct {
 }
 
 // NewBytesPool creates a new pool
-func NewBytesPool(sizes []memtsdb.PoolBucket) memtsdb.BytesPool {
-	sizesAsc := make([]memtsdb.PoolBucket, len(sizes))
+func NewBytesPool(sizes []m3db.PoolBucket) m3db.BytesPool {
+	sizesAsc := make([]m3db.PoolBucket, len(sizes))
 	copy(sizesAsc, sizes)
-	sort.Sort(memtsdb.PoolBucketByCapacity(sizesAsc))
+	sort.Sort(m3db.PoolBucketByCapacity(sizesAsc))
 	var maxBucketCapacity int
 	if len(sizesAsc) != 0 {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity

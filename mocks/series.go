@@ -27,7 +27,7 @@ import (
 	time0 "time"
 
 	gomock "github.com/golang/mock/gomock"
-	memtsdb "github.com/m3db/m3db"
+	m3db "github.com/m3db/m3db/interfaces/m3db"
 	fs "github.com/m3db/m3db/persist/fs"
 	time "github.com/m3db/m3db/x/time"
 )
@@ -73,7 +73,7 @@ func (_mr *_MockdatabaseSeriesRecorder) Tick() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick")
 }
 
-func (_m *MockdatabaseSeries) Write(ctx memtsdb.Context, timestamp time0.Time, value float64, unit time.Unit, annotation []byte) error {
+func (_m *MockdatabaseSeries) Write(ctx m3db.Context, timestamp time0.Time, value float64, unit time.Unit, annotation []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", ctx, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -83,9 +83,9 @@ func (_mr *_MockdatabaseSeriesRecorder) Write(arg0, arg1, arg2, arg3, arg4 inter
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockdatabaseSeries) ReadEncoded(ctx memtsdb.Context, start time0.Time, end time0.Time) (memtsdb.ReaderSliceReader, error) {
+func (_m *MockdatabaseSeries) ReadEncoded(ctx m3db.Context, start time0.Time, end time0.Time) (m3db.ReaderSliceReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, start, end)
-	ret0, _ := ret[0].(memtsdb.ReaderSliceReader)
+	ret0, _ := ret[0].(m3db.ReaderSliceReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -104,7 +104,7 @@ func (_mr *_MockdatabaseSeriesRecorder) Empty() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Empty")
 }
 
-func (_m *MockdatabaseSeries) Bootstrap(rs memtsdb.DatabaseSeriesBlocks) error {
+func (_m *MockdatabaseSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks) error {
 	ret := _m.ctrl.Call(_m, "Bootstrap", rs)
 	ret0, _ := ret[0].(error)
 	return ret0

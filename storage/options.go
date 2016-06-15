@@ -23,8 +23,8 @@ package storage
 import (
 	"time"
 
-	"github.com/m3db/m3db"
 	"github.com/m3db/m3db/encoding/tsz"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/x/logging"
@@ -59,7 +59,7 @@ const (
 	defaultMaxFlushRetries = 3
 
 	// defaultFilePathPrefix is the default path prefix for local TSDB files.
-	defaultFilePathPrefix = "/var/log/memtsdb"
+	defaultFilePathPrefix = "/var/log/m3db"
 )
 
 var (
@@ -70,19 +70,19 @@ type dbOptions struct {
 	logger                logging.Logger
 	scope                 metrics.Scope
 	blockSize             time.Duration
-	newEncoderFn          memtsdb.NewEncoderFn
-	newDecoderFn          memtsdb.NewDecoderFn
-	nowFn                 memtsdb.NowFn
+	newEncoderFn          m3db.NewEncoderFn
+	newDecoderFn          m3db.NewDecoderFn
+	nowFn                 m3db.NowFn
 	bufferFuture          time.Duration
 	bufferPast            time.Duration
 	bufferDrain           time.Duration
 	bufferBucketAllocSize int
 	retentionPeriod       time.Duration
-	newBootstrapFn        memtsdb.NewBootstrapFn
-	bytesPool             memtsdb.BytesPool
-	contextPool           memtsdb.ContextPool
-	encoderPool           memtsdb.EncoderPool
-	iteratorPool          memtsdb.IteratorPool
+	newBootstrapFn        m3db.NewBootstrapFn
+	bytesPool             m3db.BytesPool
+	contextPool           m3db.ContextPool
+	encoderPool           m3db.EncoderPool
+	iteratorPool          m3db.IteratorPool
 	maxFlushRetries       int
 	filePathPrefix        string
 	newWriterFn           fs.NewWriterFn
@@ -91,7 +91,7 @@ type dbOptions struct {
 // NewDatabaseOptions creates a new set of database options with defaults
 // TODO(r): add an "IsValid()" method and ensure buffer future and buffer past are
 // less than blocksize and check when opening database
-func NewDatabaseOptions() memtsdb.DatabaseOptions {
+func NewDatabaseOptions() m3db.DatabaseOptions {
 	opts := &dbOptions{
 		logger:          logging.SimpleLogger,
 		scope:           metrics.NoopScope,
@@ -110,9 +110,9 @@ func NewDatabaseOptions() memtsdb.DatabaseOptions {
 	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultSeriesPooling)
 }
 
-func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) memtsdb.DatabaseOptions {
+func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) m3db.DatabaseOptions {
 	// NB(r): don't enable byte pooling just yet
-	buckets := []memtsdb.PoolBucket{}
+	buckets := []m3db.PoolBucket{}
 
 	segmentReaderPool := pool.NewSegmentReaderPool(0)
 	encoderPool := pool.NewEncoderPool(0)
@@ -130,18 +130,18 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) memtsdb
 		BytesPool(bytesPool).
 		SegmentReaderPool(segmentReaderPool)
 
-	encoderPool.Init(func() memtsdb.Encoder {
+	encoderPool.Init(func() m3db.Encoder {
 		return tsz.NewEncoder(timeZero, nil, encodingOpts)
 	})
 
-	iteratorPool.Init(func() memtsdb.Iterator {
+	iteratorPool.Init(func() m3db.Iterator {
 		return tsz.NewIterator(nil, encodingOpts)
 	})
 
-	newEncoderFn := func(start time.Time, bytes []byte) memtsdb.Encoder {
+	newEncoderFn := func(start time.Time, bytes []byte) m3db.Encoder {
 		return tsz.NewEncoder(start, bytes, encodingOpts)
 	}
-	newDecoderFn := func() memtsdb.Decoder {
+	newDecoderFn := func() m3db.Decoder {
 		return tsz.NewDecoder(encodingOpts)
 	}
 
@@ -156,7 +156,7 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) memtsdb
 	return &opts
 }
 
-func (o *dbOptions) Logger(value logging.Logger) memtsdb.DatabaseOptions {
+func (o *dbOptions) Logger(value logging.Logger) m3db.DatabaseOptions {
 	opts := *o
 	opts.logger = value
 	return &opts
@@ -166,7 +166,7 @@ func (o *dbOptions) GetLogger() logging.Logger {
 	return o.logger
 }
 
-func (o *dbOptions) MetricsScope(value metrics.Scope) memtsdb.DatabaseOptions {
+func (o *dbOptions) MetricsScope(value metrics.Scope) m3db.DatabaseOptions {
 	opts := *o
 	opts.scope = value
 	return &opts
@@ -176,7 +176,7 @@ func (o *dbOptions) GetMetricsScope() metrics.Scope {
 	return o.scope
 }
 
-func (o *dbOptions) BlockSize(value time.Duration) memtsdb.DatabaseOptions {
+func (o *dbOptions) BlockSize(value time.Duration) m3db.DatabaseOptions {
 	opts := *o
 	opts.blockSize = value
 	return &opts
@@ -186,37 +186,37 @@ func (o *dbOptions) GetBlockSize() time.Duration {
 	return o.blockSize
 }
 
-func (o *dbOptions) NewEncoderFn(value memtsdb.NewEncoderFn) memtsdb.DatabaseOptions {
+func (o *dbOptions) NewEncoderFn(value m3db.NewEncoderFn) m3db.DatabaseOptions {
 	opts := *o
 	opts.newEncoderFn = value
 	return &opts
 }
 
-func (o *dbOptions) GetNewEncoderFn() memtsdb.NewEncoderFn {
+func (o *dbOptions) GetNewEncoderFn() m3db.NewEncoderFn {
 	return o.newEncoderFn
 }
 
-func (o *dbOptions) NewDecoderFn(value memtsdb.NewDecoderFn) memtsdb.DatabaseOptions {
+func (o *dbOptions) NewDecoderFn(value m3db.NewDecoderFn) m3db.DatabaseOptions {
 	opts := *o
 	opts.newDecoderFn = value
 	return &opts
 }
 
-func (o *dbOptions) GetNewDecoderFn() memtsdb.NewDecoderFn {
+func (o *dbOptions) GetNewDecoderFn() m3db.NewDecoderFn {
 	return o.newDecoderFn
 }
 
-func (o *dbOptions) NowFn(value memtsdb.NowFn) memtsdb.DatabaseOptions {
+func (o *dbOptions) NowFn(value m3db.NowFn) m3db.DatabaseOptions {
 	opts := *o
 	opts.nowFn = value
 	return &opts
 }
 
-func (o *dbOptions) GetNowFn() memtsdb.NowFn {
+func (o *dbOptions) GetNowFn() m3db.NowFn {
 	return o.nowFn
 }
 
-func (o *dbOptions) BufferFuture(value time.Duration) memtsdb.DatabaseOptions {
+func (o *dbOptions) BufferFuture(value time.Duration) m3db.DatabaseOptions {
 	opts := *o
 	opts.bufferFuture = value
 	return &opts
@@ -226,7 +226,7 @@ func (o *dbOptions) GetBufferFuture() time.Duration {
 	return o.bufferFuture
 }
 
-func (o *dbOptions) BufferPast(value time.Duration) memtsdb.DatabaseOptions {
+func (o *dbOptions) BufferPast(value time.Duration) m3db.DatabaseOptions {
 	opts := *o
 	opts.bufferPast = value
 	return &opts
@@ -236,7 +236,7 @@ func (o *dbOptions) GetBufferPast() time.Duration {
 	return o.bufferPast
 }
 
-func (o *dbOptions) BufferDrain(value time.Duration) memtsdb.DatabaseOptions {
+func (o *dbOptions) BufferDrain(value time.Duration) m3db.DatabaseOptions {
 	opts := *o
 	opts.bufferDrain = value
 	return &opts
@@ -246,7 +246,7 @@ func (o *dbOptions) GetBufferDrain() time.Duration {
 	return o.bufferDrain
 }
 
-func (o *dbOptions) BufferBucketAllocSize(value int) memtsdb.DatabaseOptions {
+func (o *dbOptions) BufferBucketAllocSize(value int) m3db.DatabaseOptions {
 	opts := *o
 	opts.bufferBucketAllocSize = value
 	return &opts
@@ -257,7 +257,7 @@ func (o *dbOptions) GetBufferBucketAllocSize() int {
 }
 
 // RetentionPeriod sets how long we intend to keep data in memory.
-func (o *dbOptions) RetentionPeriod(value time.Duration) memtsdb.DatabaseOptions {
+func (o *dbOptions) RetentionPeriod(value time.Duration) m3db.DatabaseOptions {
 	opts := *o
 	opts.retentionPeriod = value
 	return &opts
@@ -268,57 +268,57 @@ func (o *dbOptions) GetRetentionPeriod() time.Duration {
 	return o.retentionPeriod
 }
 
-func (o *dbOptions) NewBootstrapFn(value memtsdb.NewBootstrapFn) memtsdb.DatabaseOptions {
+func (o *dbOptions) NewBootstrapFn(value m3db.NewBootstrapFn) m3db.DatabaseOptions {
 	opts := *o
 	opts.newBootstrapFn = value
 	return &opts
 }
 
-func (o *dbOptions) GetBootstrapFn() memtsdb.NewBootstrapFn {
+func (o *dbOptions) GetBootstrapFn() m3db.NewBootstrapFn {
 	return o.newBootstrapFn
 }
 
-func (o *dbOptions) BytesPool(value memtsdb.BytesPool) memtsdb.DatabaseOptions {
+func (o *dbOptions) BytesPool(value m3db.BytesPool) m3db.DatabaseOptions {
 	opts := *o
 	opts.bytesPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetBytesPool() memtsdb.BytesPool {
+func (o *dbOptions) GetBytesPool() m3db.BytesPool {
 	return o.bytesPool
 }
 
-func (o *dbOptions) ContextPool(value memtsdb.ContextPool) memtsdb.DatabaseOptions {
+func (o *dbOptions) ContextPool(value m3db.ContextPool) m3db.DatabaseOptions {
 	opts := *o
 	opts.contextPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetContextPool() memtsdb.ContextPool {
+func (o *dbOptions) GetContextPool() m3db.ContextPool {
 	return o.contextPool
 }
 
-func (o *dbOptions) EncoderPool(value memtsdb.EncoderPool) memtsdb.DatabaseOptions {
+func (o *dbOptions) EncoderPool(value m3db.EncoderPool) m3db.DatabaseOptions {
 	opts := *o
 	opts.encoderPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetEncoderPool() memtsdb.EncoderPool {
+func (o *dbOptions) GetEncoderPool() m3db.EncoderPool {
 	return o.encoderPool
 }
 
-func (o *dbOptions) IteratorPool(value memtsdb.IteratorPool) memtsdb.DatabaseOptions {
+func (o *dbOptions) IteratorPool(value m3db.IteratorPool) m3db.DatabaseOptions {
 	opts := *o
 	opts.iteratorPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetIteratorPool() memtsdb.IteratorPool {
+func (o *dbOptions) GetIteratorPool() m3db.IteratorPool {
 	return o.iteratorPool
 }
 
-func (o *dbOptions) MaxFlushRetries(value int) memtsdb.DatabaseOptions {
+func (o *dbOptions) MaxFlushRetries(value int) m3db.DatabaseOptions {
 	opts := *o
 	opts.maxFlushRetries = value
 	return &opts
@@ -328,7 +328,7 @@ func (o *dbOptions) GetMaxFlushRetries() int {
 	return o.maxFlushRetries
 }
 
-func (o *dbOptions) FilePathPrefix(value string) memtsdb.DatabaseOptions {
+func (o *dbOptions) FilePathPrefix(value string) m3db.DatabaseOptions {
 	opts := *o
 	opts.filePathPrefix = value
 	return &opts
@@ -338,7 +338,7 @@ func (o *dbOptions) GetFilePathPrefix() string {
 	return o.filePathPrefix
 }
 
-func (o *dbOptions) NewWriterFn(value fs.NewWriterFn) memtsdb.DatabaseOptions {
+func (o *dbOptions) NewWriterFn(value fs.NewWriterFn) m3db.DatabaseOptions {
 	opts := *o
 	opts.newWriterFn = value
 	return &opts

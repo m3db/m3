@@ -21,30 +21,30 @@
 package pool
 
 import (
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	xio "github.com/m3db/m3db/x/io"
 )
 
 // TODO(r): instrument this to tune pooling
 type segmentReaderPool struct {
-	pool memtsdb.ObjectPool
+	pool m3db.ObjectPool
 }
 
 // NewSegmentReaderPool creates a new pool
-func NewSegmentReaderPool(size int) memtsdb.SegmentReaderPool {
+func NewSegmentReaderPool(size int) m3db.SegmentReaderPool {
 	return &segmentReaderPool{pool: NewObjectPool(size)}
 }
 
 func (p *segmentReaderPool) Init() {
 	p.pool.Init(func() interface{} {
-		return xio.NewPooledSegmentReader(memtsdb.Segment{}, p)
+		return xio.NewPooledSegmentReader(m3db.Segment{}, p)
 	})
 }
 
-func (p *segmentReaderPool) Get() memtsdb.SegmentReader {
-	return p.pool.Get().(memtsdb.SegmentReader)
+func (p *segmentReaderPool) Get() m3db.SegmentReader {
+	return p.pool.Get().(m3db.SegmentReader)
 }
 
-func (p *segmentReaderPool) Put(reader memtsdb.SegmentReader) {
+func (p *segmentReaderPool) Put(reader m3db.SegmentReader) {
 	p.pool.Put(reader)
 }

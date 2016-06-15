@@ -26,7 +26,7 @@ package mocks
 import (
 	io "io"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 
 	gomock "github.com/golang/mock/gomock"
 )
@@ -105,9 +105,9 @@ func (_mr *_MockSegmentReaderRecorder) Read(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read", arg0)
 }
 
-func (_m *MockSegmentReader) Segment() memtsdb.Segment {
+func (_m *MockSegmentReader) Segment() m3db.Segment {
 	ret := _m.ctrl.Call(_m, "Segment")
-	ret0, _ := ret[0].(memtsdb.Segment)
+	ret0, _ := ret[0].(m3db.Segment)
 	return ret0
 }
 
@@ -115,7 +115,7 @@ func (_mr *_MockSegmentReaderRecorder) Segment() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Segment")
 }
 
-func (_m *MockSegmentReader) Reset(segment memtsdb.Segment) {
+func (_m *MockSegmentReader) Reset(segment m3db.Segment) {
 	_m.ctrl.Call(_m, "Reset", segment)
 }
 

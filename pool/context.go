@@ -21,17 +21,17 @@
 package pool
 
 import (
-	"github.com/m3db/m3db"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 // TODO(r): instrument this to tune pooling
 type contextPool struct {
-	pool memtsdb.ObjectPool
+	pool m3db.ObjectPool
 }
 
 // NewContextPool creates a new pool
-func NewContextPool(size int) memtsdb.ContextPool {
+func NewContextPool(size int) m3db.ContextPool {
 	return &contextPool{pool: NewObjectPool(size)}
 }
 
@@ -41,10 +41,10 @@ func (p *contextPool) Init() {
 	})
 }
 
-func (p *contextPool) Get() memtsdb.Context {
-	return p.pool.Get().(memtsdb.Context)
+func (p *contextPool) Get() m3db.Context {
+	return p.pool.Get().(m3db.Context)
 }
 
-func (p *contextPool) Put(context memtsdb.Context) {
+func (p *contextPool) Put(context m3db.Context) {
 	p.pool.Put(context)
 }

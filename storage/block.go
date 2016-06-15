@@ -23,18 +23,18 @@ package storage
 import (
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
 type dbBlock struct {
-	opts    memtsdb.DatabaseOptions
+	opts    m3db.DatabaseOptions
 	start   time.Time
-	encoder memtsdb.Encoder
+	encoder m3db.Encoder
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
-func NewDatabaseBlock(start time.Time, encoder memtsdb.Encoder, opts memtsdb.DatabaseOptions) memtsdb.DatabaseBlock {
+func NewDatabaseBlock(start time.Time, encoder m3db.Encoder, opts m3db.DatabaseOptions) m3db.DatabaseBlock {
 	return &dbBlock{
 		opts:    opts,
 		start:   start,
@@ -47,10 +47,10 @@ func (b *dbBlock) StartTime() time.Time {
 }
 
 func (b *dbBlock) Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
-	return b.encoder.Encode(memtsdb.Datapoint{Timestamp: timestamp, Value: value}, unit, annotation)
+	return b.encoder.Encode(m3db.Datapoint{Timestamp: timestamp, Value: value}, unit, annotation)
 }
 
-func (b *dbBlock) Stream() memtsdb.SegmentReader {
+func (b *dbBlock) Stream() m3db.SegmentReader {
 	return b.encoder.Stream()
 }
 
@@ -60,21 +60,21 @@ func (b *dbBlock) Close() {
 }
 
 type databaseSeriesBlocks struct {
-	elems  map[time.Time]memtsdb.DatabaseBlock
+	elems  map[time.Time]m3db.DatabaseBlock
 	min    time.Time
 	max    time.Time
-	dbOpts memtsdb.DatabaseOptions
+	dbOpts m3db.DatabaseOptions
 }
 
 // NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
-func NewDatabaseSeriesBlocks(dbOpts memtsdb.DatabaseOptions) memtsdb.DatabaseSeriesBlocks {
+func NewDatabaseSeriesBlocks(dbOpts m3db.DatabaseOptions) m3db.DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
-		elems:  make(map[time.Time]memtsdb.DatabaseBlock),
+		elems:  make(map[time.Time]m3db.DatabaseBlock),
 		dbOpts: dbOpts,
 	}
 }
 
-func (dbb *databaseSeriesBlocks) AddBlock(block memtsdb.DatabaseBlock) {
+func (dbb *databaseSeriesBlocks) AddBlock(block m3db.DatabaseBlock) {
 	start := block.StartTime()
 	if dbb.min.Equal(timeZero) || start.Before(dbb.min) {
 		dbb.min = start
@@ -85,7 +85,7 @@ func (dbb *databaseSeriesBlocks) AddBlock(block memtsdb.DatabaseBlock) {
 	dbb.elems[start] = block
 }
 
-func (dbb *databaseSeriesBlocks) AddSeries(other memtsdb.DatabaseSeriesBlocks) {
+func (dbb *databaseSeriesBlocks) AddSeries(other m3db.DatabaseSeriesBlocks) {
 	if other == nil {
 		return
 	}
@@ -105,12 +105,12 @@ func (dbb *databaseSeriesBlocks) GetMaxTime() time.Time {
 	return dbb.max
 }
 
-func (dbb *databaseSeriesBlocks) GetBlockAt(t time.Time) (memtsdb.DatabaseBlock, bool) {
+func (dbb *databaseSeriesBlocks) GetBlockAt(t time.Time) (m3db.DatabaseBlock, bool) {
 	b, ok := dbb.elems[t]
 	return b, ok
 }
 
-func (dbb *databaseSeriesBlocks) GetBlockOrAdd(t time.Time) memtsdb.DatabaseBlock {
+func (dbb *databaseSeriesBlocks) GetBlockOrAdd(t time.Time) m3db.DatabaseBlock {
 	b, ok := dbb.elems[t]
 	if ok {
 		return b
@@ -120,6 +120,6 @@ func (dbb *databaseSeriesBlocks) GetBlockOrAdd(t time.Time) memtsdb.DatabaseBloc
 	return newBlock
 }
 
-func (dbb *databaseSeriesBlocks) GetAllBlocks() map[time.Time]memtsdb.DatabaseBlock {
+func (dbb *databaseSeriesBlocks) GetAllBlocks() map[time.Time]m3db.DatabaseBlock {
 	return dbb.elems
 }

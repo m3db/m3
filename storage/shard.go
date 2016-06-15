@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
 	xtime "github.com/m3db/m3db/x/time"
 )
@@ -47,7 +47,7 @@ type databaseShard interface {
 	Tick()
 
 	Write(
-		ctx memtsdb.Context,
+		ctx m3db.Context,
 		id string,
 		timestamp time.Time,
 		value float64,
@@ -56,10 +56,10 @@ type databaseShard interface {
 	) error
 
 	ReadEncoded(
-		ctx memtsdb.Context,
+		ctx m3db.Context,
 		id string,
 		start, end time.Time,
-	) (memtsdb.ReaderSliceReader, error)
+	) (m3db.ReaderSliceReader, error)
 
 	Bootstrap(writeStart time.Time) error
 
@@ -68,7 +68,7 @@ type databaseShard interface {
 
 type dbShard struct {
 	sync.RWMutex
-	opts                  memtsdb.DatabaseOptions
+	opts                  m3db.DatabaseOptions
 	shard                 uint32
 	lookup                map[string]*dbShardEntry
 	list                  *list.List
@@ -82,7 +82,7 @@ type dbShardEntry struct {
 	elem   *list.Element
 }
 
-func newDatabaseShard(shard uint32, opts memtsdb.DatabaseOptions) databaseShard {
+func newDatabaseShard(shard uint32, opts m3db.DatabaseOptions) databaseShard {
 	return &dbShard{
 		opts:        opts,
 		shard:       shard,
@@ -168,7 +168,7 @@ func (s *dbShard) Tick() {
 }
 
 func (s *dbShard) Write(
-	ctx memtsdb.Context,
+	ctx m3db.Context,
 	id string,
 	timestamp time.Time,
 	value float64,
@@ -180,10 +180,10 @@ func (s *dbShard) Write(
 }
 
 func (s *dbShard) ReadEncoded(
-	ctx memtsdb.Context,
+	ctx m3db.Context,
 	id string,
 	start, end time.Time,
-) (memtsdb.ReaderSliceReader, error) {
+) (m3db.ReaderSliceReader, error) {
 	s.RLock()
 	entry, exists := s.lookup[id]
 	s.RUnlock()

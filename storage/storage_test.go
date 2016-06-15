@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	xtime "github.com/m3db/m3db/x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -48,7 +48,7 @@ func hrs(x float64) time.Duration {
 
 type drain struct {
 	start   time.Time
-	encoder memtsdb.Encoder
+	encoder m3db.Encoder
 }
 
 type value struct {
@@ -94,7 +94,7 @@ func (v decodedValuesByTime) Swap(lhs, rhs int) {
 	v[lhs], v[rhs] = v[rhs], v[lhs]
 }
 
-func decodedValues(results []io.Reader, opts memtsdb.DatabaseOptions) ([]decodedValue, error) {
+func decodedValues(results []io.Reader, opts m3db.DatabaseOptions) ([]decodedValue, error) {
 	var all []decodedValue
 	for i := range results {
 		newDecoderFn := opts.GetNewDecoderFn()
@@ -114,7 +114,7 @@ func decodedValues(results []io.Reader, opts memtsdb.DatabaseOptions) ([]decoded
 	return all, nil
 }
 
-func assertValuesEqual(t *testing.T, values []value, results []io.Reader, opts memtsdb.DatabaseOptions) {
+func assertValuesEqual(t *testing.T, values []value, results []io.Reader, opts m3db.DatabaseOptions) {
 	decodedValues, err := decodedValues(results, opts)
 
 	// TODO(r): avoid sorting results after once reader created that can read back out of order in order

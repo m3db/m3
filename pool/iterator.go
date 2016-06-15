@@ -20,28 +20,28 @@
 
 package pool
 
-import "github.com/m3db/m3db"
+import "github.com/m3db/m3db/interfaces/m3db"
 
 // TODO(r): instrument this to tune pooling
 type iteratorPool struct {
-	pool memtsdb.ObjectPool
+	pool m3db.ObjectPool
 }
 
 // NewIteratorPool creates a new pool
-func NewIteratorPool(size int) memtsdb.IteratorPool {
+func NewIteratorPool(size int) m3db.IteratorPool {
 	return &iteratorPool{pool: NewObjectPool(size)}
 }
 
-func (p *iteratorPool) Init(alloc memtsdb.IteratorAllocate) {
+func (p *iteratorPool) Init(alloc m3db.IteratorAllocate) {
 	p.pool.Init(func() interface{} {
 		return alloc()
 	})
 }
 
-func (p *iteratorPool) Get() memtsdb.Iterator {
-	return p.pool.Get().(memtsdb.Iterator)
+func (p *iteratorPool) Get() m3db.Iterator {
+	return p.pool.Get().(m3db.Iterator)
 }
 
-func (p *iteratorPool) Put(iter memtsdb.Iterator) {
+func (p *iteratorPool) Put(iter m3db.Iterator) {
 	p.pool.Put(iter)
 }
