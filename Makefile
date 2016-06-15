@@ -76,6 +76,13 @@ testhtml: test-internal
 	gocov convert $(coverfile) | gocov-html > $(html_report) && open $(html_report)
 	@rm -f $(test_log) &> /dev/null
 
+install-ci: 
+	git submodule update --init --recursive
+	go get -u github.com/mattn/goveralls
+
+test-ci: test-internal
+	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
+
 clean:
 	@rm -f *.html *.xml *.out *.test
 
