@@ -16,4 +16,5 @@ bin/
 
 # Debug binaries
 debug
+debug.test
 

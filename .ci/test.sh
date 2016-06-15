@@ -6,13 +6,11 @@ set -ex
 . $(dirname $0)/build-common.sh
 
 ERROR_LOG="error.log"
-PHABRICATOR_COMMENT=".phabricator-comment"
-rm $PHABRICATOR_COMMENT &>/dev/null || true
 
 readonly COMMIT_MESSAGE=$(git show -s --format=%B HEAD)
 
 comment() {
-  echo "$1" | tee -a $PHABRICATOR_COMMENT
+  echo "$1"
 }
 
 set +e
@@ -21,9 +19,9 @@ RACE=-race make test-xml test_target="./src/$PACKAGE/" junit_xml=junit.xml 2> $E
 
 TEST_EXIT=$?
 
-# excludes returns arguments for egrep -v for excludes from .arclint
+# excludes returns arguments for egrep -v for excludes from .excludelint
 excludes() {
-    jq ".linters.$1.exclude[]" .arclint | sed -e 's/^/ -e /'  | tr -d '\n'
+    cat .excludelint | sed -e 's/^/ -e /'  | tr -d '\n'
     # grep returns non-zero status when nothing matches, which we want to ignore.
     echo -n " || true"
 }
@@ -31,11 +29,11 @@ excludes() {
 if [ $TEST_EXIT -ne 0 ] ; then
   comment "Testing failed with error code ${TEST_EXIT}"
   comment ""
-  awk '/--- FAIL/,/===/' test.log | tee -a $PHABRICATOR_COMMENT
+  awk '/--- FAIL/,/===/' test.log
   comment ""
   comment "Stderr contains:"
   comment ""
-  cat $ERROR_LOG | tee -a $PHABRICATOR_COMMENT
+  cat $ERROR_LOG
   exit $TEST_EXIT
 fi
 

@@ -1,13 +1,14 @@
 SHELL=/bin/bash -o pipefail
 
 html_report := coverage.html
-test := .jenkins/test-cover.sh
-convert-test-data := .jenkins/convert-test-data.sh
+test := .ci/test-cover.sh
+convert-test-data := .ci/convert-test-data.sh
 coverfile := cover.out
 coverage_xml := coverage.xml
 junit_xml := junit.xml
 test_log := test.log
 test_target := .
+lint_check := .ci/lint.sh
 
 BUILD := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -16,12 +17,7 @@ VENDOR_ENV := GO15VENDOREXPERIMENT=1
 SERVICES := \
 	m3dbnode
 	
-TOOLS := \
-	benchmarkencoding \
-	benchmarkbootstrap \
-	benchmarkoverhead \
-	benchmarkfsconvertfstofs2 \
-	benchmarkfsreadfs2
+TOOLS := 
 
 setup:
 	mkdir -p $(BUILD)
@@ -58,6 +54,9 @@ tools-linux-amd64:
 
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
+
+lint:
+	$(VENDOR_ENV) $(lint_check)
 
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report

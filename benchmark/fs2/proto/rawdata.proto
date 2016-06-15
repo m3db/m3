@@ -1,7 +1,0 @@
-syntax = "proto3";
-package proto;
-
-message IndexEntry {
-    string id = 1;
-    int32 idx = 2;
-}
