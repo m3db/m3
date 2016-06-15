@@ -21,57 +21,48 @@
 package logging
 
 import (
+	"io"
 	"os"
-
-	"github.com/Sirupsen/logrus"
-	"github.com/uber-common/bark"
 )
-
-// NewLogger creates a very simple bark.Logger
-func NewLogger() bark.Logger {
-	return bark.NewLoggerFromLogrus(logrus.New())
-}
 
 // Configuration defines configuration for logging 'natch
 type Configuration struct {
-	Level         string      `json:"level",yaml:"level"`
-	File          string      `json:"file",yaml:"file"`
-	Fields        bark.Fields `json:"fields",yaml:"fields"`
-	DisableColors bool        `json:"disableColors",yaml:"disableColors"`
+	File   string                 `json:"file",yaml:"file"`
+	Level  string                 `json:"level",yaml:"level"`
+	Fields map[string]interface{} `json:"fields",yaml:"fields"`
 }
 
-// BuildLogger builds a new bark.Logger based on the configuration
-func (cfg Configuration) BuildLogger() (bark.Logger, error) {
-	formatter := new(logrus.TextFormatter)
-	formatter.DisableColors = cfg.DisableColors
+// BuildLogger builds a new Logger based on the configuration
+func (cfg Configuration) BuildLogger() (Logger, error) {
+	writer := io.Writer(os.Stdout)
 
-	logrusLogger := logrus.New()
-	logrusLogger.Formatter = formatter
-
-	logger := bark.NewLoggerFromLogrus(logrusLogger)
-
-	if len(cfg.Fields) != 0 {
-		logger = logger.WithFields(cfg.Fields)
-	}
-
-	if len(cfg.Level) != 0 {
-		lvl, err := logrus.ParseLevel(cfg.Level)
+	if cfg.File != "" {
+		fd, err := os.OpenFile(cfg.File, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
-			return logger, err
+			return nil, err
 		}
 
-		logrusLogger.Level = lvl
+		writer = io.MultiWriter(writer, fd)
 	}
 
-	if cfg.File == "" {
-		return logger, nil
+	logger := NewLogger(writer)
+
+	if len(cfg.Level) != 0 {
+		level, err := ParseLogLevel(cfg.Level)
+		if err != nil {
+			return nil, err
+		}
+
+		logger = NewLevelLogger(logger, level)
 	}
 
-	logfile, err := os.OpenFile(cfg.File, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		return logger, err
+	if len(cfg.Fields) != 0 {
+		var fields []LogField
+		for k, v := range cfg.Fields {
+			fields = append(fields, NewLogField(k, v))
+		}
+		logger = logger.WithFields(fields...)
 	}
 
-	logrusLogger.Out = logfile
 	return logger, nil
 }

@@ -13,10 +13,11 @@ import (
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchgrpc"
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchtchannel"
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchtchannelgogoprotobuf"
+	"code.uber.internal/infra/memtsdb/x/logging"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
-
-	log "github.com/Sirupsen/logrus"
 )
+
+var log = logging.SimpleLogger
 
 type benchmarkFn func(ready chan<- struct{}, start <-chan struct{}, done chan<- []error)
 

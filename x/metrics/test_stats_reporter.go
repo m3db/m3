@@ -28,28 +28,27 @@ import (
 	"time"
 
 	"github.com/caio/go-tdigest"
-	"github.com/uber-common/bark"
 )
 
 // TestStatsReporter captures metrics updates in-memory for testing purposes
 type TestStatsReporter interface {
 	// Counter returns the value of the given counter
-	Counter(name string, tags bark.Tags) int64
+	Counter(name string, tags map[string]string) int64
 
 	// Gauge returns the value of the given gauge
-	Gauge(name string, tags bark.Tags) int64
+	Gauge(name string, tags map[string]string) int64
 
 	// Timer returns the digest of the given timer
-	Timer(name string, tags bark.Tags) *tdigest.TDigest
+	Timer(name string, tags map[string]string) *tdigest.TDigest
 
 	// IncCounter increments the given counter
-	IncCounter(name string, tags bark.Tags, n int64)
+	IncCounter(name string, tags map[string]string, n int64)
 
 	// UpdateGauge updates the given gauge value
-	UpdateGauge(name string, tags bark.Tags, value int64)
+	UpdateGauge(name string, tags map[string]string, value int64)
 
 	// RecordTimer records the given timer value
-	RecordTimer(name string, tags bark.Tags, d time.Duration)
+	RecordTimer(name string, tags map[string]string, d time.Duration)
 }
 
 type testStatsReporter struct {
@@ -69,42 +68,42 @@ func NewTestStatsReporter() TestStatsReporter {
 	}
 }
 
-func (sr *testStatsReporter) Counter(name string, tags bark.Tags) int64 {
+func (sr *testStatsReporter) Counter(name string, tags map[string]string) int64 {
 	id := toID(name, tags)
 	sr.RLock()
 	defer sr.RUnlock()
 	return sr.counters[id]
 }
 
-func (sr *testStatsReporter) Gauge(name string, tags bark.Tags) int64 {
+func (sr *testStatsReporter) Gauge(name string, tags map[string]string) int64 {
 	id := toID(name, tags)
 	sr.RLock()
 	defer sr.RUnlock()
 	return sr.gauges[id]
 }
 
-func (sr *testStatsReporter) Timer(name string, tags bark.Tags) *tdigest.TDigest {
+func (sr *testStatsReporter) Timer(name string, tags map[string]string) *tdigest.TDigest {
 	id := toID(name, tags)
 	sr.RLock()
 	defer sr.RUnlock()
 	return sr.timers[id]
 }
 
-func (sr *testStatsReporter) IncCounter(name string, tags bark.Tags, n int64) {
+func (sr *testStatsReporter) IncCounter(name string, tags map[string]string, n int64) {
 	id := toID(name, tags)
 	sr.Lock()
 	sr.counters[id] += n
 	sr.Unlock()
 }
 
-func (sr *testStatsReporter) UpdateGauge(name string, tags bark.Tags, value int64) {
+func (sr *testStatsReporter) UpdateGauge(name string, tags map[string]string, value int64) {
 	id := toID(name, tags)
 	sr.Lock()
 	sr.gauges[id] = value
 	sr.Unlock()
 }
 
-func (sr *testStatsReporter) RecordTimer(name string, tags bark.Tags, d time.Duration) {
+func (sr *testStatsReporter) RecordTimer(name string, tags map[string]string, d time.Duration) {
 	id := toID(name, tags)
 	sr.Lock()
 	t := sr.timers[id]
@@ -118,7 +117,7 @@ func (sr *testStatsReporter) RecordTimer(name string, tags bark.Tags, d time.Dur
 }
 
 // toID converts the given name + tags to an internal ID
-func toID(name string, tags bark.Tags) string {
+func toID(name string, tags map[string]string) string {
 	if len(tags) == 0 {
 		return name
 	}

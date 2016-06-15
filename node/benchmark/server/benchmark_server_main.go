@@ -13,10 +13,12 @@ import (
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchgrpc"
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchtchannel"
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchtchannelgogoprotobuf"
+	"code.uber.internal/infra/memtsdb/x/logging"
 
-	log "github.com/Sirupsen/logrus"
 	"google.golang.org/grpc"
 )
+
+var log = logging.SimpleLogger
 
 type keyValue struct {
 	key   string

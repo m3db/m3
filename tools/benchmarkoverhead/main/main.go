@@ -24,10 +24,10 @@ import (
 	"code.uber.internal/infra/memtsdb/services/m3dbnode/serve/tchannelthrift"
 	"code.uber.internal/infra/memtsdb/sharding"
 	"code.uber.internal/infra/memtsdb/storage"
+	"code.uber.internal/infra/memtsdb/x/logging"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 
 	"github.com/spaolacci/murmur3"
-	"github.com/uber-common/bark"
 )
 
 var (
@@ -239,7 +239,7 @@ func main() {
 	}
 }
 
-func newDatabase(log bark.Logger, opts memtsdb.DatabaseOptions) storage.Database {
+func newDatabase(log logging.Logger, opts memtsdb.DatabaseOptions) storage.Database {
 	shards := uint32(1024)
 	shardingScheme, err := sharding.NewShardScheme(0, shards-1, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % shards
@@ -261,7 +261,7 @@ func newDatabase(log bark.Logger, opts memtsdb.DatabaseOptions) storage.Database
 }
 
 func ingestAll(
-	log bark.Logger,
+	log logging.Logger,
 	db storage.Database,
 	indexFile, dataFile string,
 	repeat int, amplify int,

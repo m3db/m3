@@ -10,6 +10,8 @@ import (
 	xtime "code.uber.internal/infra/memtsdb/x/time"
 )
 
+var log = logging.SimpleLogger
+
 var (
 	inputFile        = flag.String("inputFile", "", "test input file")
 	inputTimeUnit    = flag.String("inputTimeUnit", "", "time unit of the benchmark input, e.g., 1ms")
@@ -25,8 +27,6 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
-
-	log := logging.NewLogger()
 
 	start, err := time.Parse(time.RFC3339, *inputStart)
 	if err != nil {

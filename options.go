@@ -4,9 +4,8 @@ import (
 	"time"
 
 	"code.uber.internal/infra/memtsdb/persist/fs"
+	"code.uber.internal/infra/memtsdb/x/logging"
 	"code.uber.internal/infra/memtsdb/x/metrics"
-
-	"github.com/uber-common/bark"
 )
 
 // NowFn is the function supplied to determine "now"
@@ -18,10 +17,10 @@ type DatabaseOptions interface {
 	EncodingTszPooled(bufferBucketAllocSize, series int) DatabaseOptions
 
 	// Logger sets the logger and returns a new DatabaseOptions
-	Logger(value bark.Logger) DatabaseOptions
+	Logger(value logging.Logger) DatabaseOptions
 
 	// GetLogger returns the logger
-	GetLogger() bark.Logger
+	GetLogger() logging.Logger
 
 	// MetricsScope sets the metricsScope and returns a new DatabaseOptions
 	MetricsScope(value metrics.Scope) DatabaseOptions

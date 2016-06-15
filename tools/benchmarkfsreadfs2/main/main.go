@@ -8,6 +8,8 @@ import (
 	"code.uber.internal/infra/memtsdb/x/logging"
 )
 
+var log = logging.SimpleLogger
+
 var (
 	indexFile = flag.String("indexFile", "", "input index file")
 	dataFile  = flag.String("dataFile", "", "input data file")
@@ -20,8 +22,6 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-
-	log := logging.NewLogger()
 
 	log.Infof("creating input reader")
 	reader, err := fs2.NewReader(*indexFile, *dataFile)

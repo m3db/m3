@@ -25,11 +25,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-common/bark"
 )
 
 func TestTestStatsReporter(t *testing.T) {
-	tags := bark.Tags{"my-key": "my-val"}
+	tags := map[string]string{"my-key": "my-val"}
 	s := NewTestStatsReporter()
 	s.IncCounter("foo", nil, 100)
 	s.IncCounter("foo", nil, 25)

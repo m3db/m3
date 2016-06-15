@@ -7,13 +7,12 @@ import (
 
 	"code.uber.internal/infra/memtsdb"
 	"code.uber.internal/infra/memtsdb/benchmark/fs"
+	"code.uber.internal/infra/memtsdb/x/logging"
 	xtime "code.uber.internal/infra/memtsdb/x/time"
-
-	"github.com/uber-common/bark"
 )
 
 type benchmark struct {
-	logger bark.Logger
+	logger logging.Logger
 
 	startTime      time.Time
 	windowSize     time.Duration
@@ -31,7 +30,7 @@ type benchmark struct {
 }
 
 func newBenchmark(
-	logger bark.Logger,
+	logger logging.Logger,
 	input string,
 	startTime time.Time,
 	windowSize time.Duration,

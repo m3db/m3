@@ -28,7 +28,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-common/bark"
 )
 
 func TestLoggingConfiguration(t *testing.T) {
@@ -39,13 +38,11 @@ func TestLoggingConfiguration(t *testing.T) {
 	defer os.Remove(tmpfile.Name())
 
 	cfg := Configuration{
-		Fields: bark.Fields{
-			"my-field1": "my-val1",
-			"my-field2": "my-val2",
+		Fields: map[string]interface{}{
+			"my-field": "my-val",
 		},
-		Level:         "error",
-		File:          tmpfile.Name(),
-		DisableColors: true,
+		Level: "error",
+		File:  tmpfile.Name(),
 	}
 
 	log, err := cfg.BuildLogger()
@@ -59,9 +56,9 @@ func TestLoggingConfiguration(t *testing.T) {
 	require.NoError(t, err)
 
 	str := string(b)
-	pieces := strings.Split(str, "\"")
-	assert.True(t, len(pieces) >= 3)
+	pieces := strings.Split(str, " ")
+	assert.True(t, len(pieces) >= 2)
 
-	ts := pieces[1]
-	assert.EqualValues(t, "time=\""+ts+"\" level=error msg=\"this should be appear\" my-field1=my-val1 my-field2=my-val2 \n", str)
+	ts := pieces[0]
+	assert.EqualValues(t, ts+" [E] this should be appear [{my-field my-val}]\n", str)
 }

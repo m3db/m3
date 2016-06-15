@@ -26,7 +26,6 @@ import (
 
 	"github.com/facebookgo/clock"
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-common/bark"
 )
 
 func TestRootScopeWithoutPrefix(t *testing.T) {
@@ -69,16 +68,16 @@ func TestSubScope(t *testing.T) {
 }
 
 func TestTaggedScope(t *testing.T) {
-	l1Tags := bark.Tags{
+	l1Tags := map[string]string{
 		"my-key":    "my-val",
 		"other-key": "to-replace",
 	}
 
-	l2Tags := bark.Tags{
+	l2Tags := map[string]string{
 		"other-key": "override",
 	}
 
-	tags := bark.Tags{
+	tags := map[string]string{
 		"my-key":    "my-val",
 		"other-key": "override",
 	}

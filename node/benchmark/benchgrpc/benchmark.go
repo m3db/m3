@@ -8,11 +8,13 @@ import (
 	"sync/atomic"
 
 	"code.uber.internal/infra/memtsdb/node/benchmark/bench"
+	"code.uber.internal/infra/memtsdb/x/logging"
 
-	log "github.com/Sirupsen/logrus"
 	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
+
+var log = logging.SimpleLogger
 
 // Close is a method to call to close a resource or procedure
 type Close func()
@@ -152,7 +154,7 @@ func newClientRoundRobinLB(address string, n int) *clientRoundRobinLB {
 	for i := 0; i < n; i++ {
 		conn, err := grpc.Dial(address, grpc.WithInsecure())
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("GRPC dial %s error: %v", address, err)
 		}
 
 		client := NewMemTSDBClient(conn)

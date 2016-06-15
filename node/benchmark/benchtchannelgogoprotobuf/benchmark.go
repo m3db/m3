@@ -7,14 +7,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/net/context"
-
 	"code.uber.internal/infra/memtsdb/node/benchmark/bench"
+	"code.uber.internal/infra/memtsdb/x/logging"
+
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/raw"
-
-	log "github.com/Sirupsen/logrus"
+	"golang.org/x/net/context"
 )
+
+var log = logging.SimpleLogger
 
 // Close is a method to call to close a resource or procedure
 type Close func()
@@ -205,7 +206,7 @@ func newClientRoundRobinLB(address string, n int) *clientRoundRobinLB {
 	for i := 0; i < n; i++ {
 		channel, err := tchannel.NewChannel("benchtchannel-client", nil)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("TChannel construct channel to %s error: %v", address, err)
 		}
 
 		// Add peer and connect

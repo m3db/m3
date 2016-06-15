@@ -10,6 +10,8 @@ import (
 	"code.uber.internal/infra/memtsdb/x/logging"
 )
 
+var log = logging.SimpleLogger
+
 var (
 	inputFile       = flag.String("inputFile", "", "test input file")
 	outputIndexFile = flag.String("outputIndexFile", "tsdb-index.db", "output index file")
@@ -23,8 +25,6 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-
-	log := logging.NewLogger()
 
 	log.Infof("creating input reader")
 	reader, err := fs.NewReader(*inputFile)

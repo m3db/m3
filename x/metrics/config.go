@@ -22,7 +22,6 @@ package metrics
 
 import (
 	"github.com/cactus/go-statsd-client/statsd"
-	"github.com/uber-common/bark"
 )
 
 // Configuration defines configuration for sending to statsd
@@ -31,10 +30,10 @@ type Configuration struct {
 	Prefix        string `json:"prefix",yaml:"prefix"`
 }
 
-// BuildStatsReporter builds a new bark.StatsReporter from the configuration
-func (cfg Configuration) BuildStatsReporter() (bark.StatsReporter, error) {
+// BuildStatsReporter builds a new StatsReporter from the configuration
+func (cfg Configuration) BuildStatsReporter() (StatsReporter, error) {
 	if len(cfg.ServerAddress) == 0 {
-		return NoopStatsReporter, nil
+		return NullStatsReporter, nil
 	}
 
 	statsd, err := statsd.New(cfg.ServerAddress, cfg.Prefix)
@@ -42,5 +41,5 @@ func (cfg Configuration) BuildStatsReporter() (bark.StatsReporter, error) {
 		return nil, err
 	}
 
-	return bark.NewStatsReporterFromCactus(statsd), nil
+	return NewCactusStatsReporter(statsd), nil
 }

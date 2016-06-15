@@ -8,11 +8,13 @@ import (
 
 	"code.uber.internal/infra/memtsdb/node/benchmark/bench"
 	"code.uber.internal/infra/memtsdb/node/benchmark/benchtchannel/gen-go/node"
+	"code.uber.internal/infra/memtsdb/x/logging"
+
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
-
-	log "github.com/Sirupsen/logrus"
 )
+
+var log = logging.SimpleLogger
 
 // Close is a method to call to close a resource or procedure
 type Close func()
@@ -119,7 +121,7 @@ func newClientRoundRobinLB(address string, n int) *clientRoundRobinLB {
 	for i := 0; i < n; i++ {
 		channel, err := tchannel.NewChannel("benchtchannel-client", nil)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("TChannel construct channel to %s error: %v", address, err)
 		}
 
 		endpoint := &thrift.ClientOptions{HostPort: address}

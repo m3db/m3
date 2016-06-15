@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/facebookgo/clock"
-	"github.com/uber-common/bark"
 )
 
 // A Scope is a namespace wrapper around a stats reporter, ensuring that
@@ -51,14 +50,14 @@ type Scope interface {
 	SubScope(name string) Scope
 
 	// Tagged returns a new scope with the given tags
-	Tagged(tags bark.Tags) Scope
+	Tagged(tags map[string]string) Scope
 }
 
 // NoopScope is a scope that does nothing
-var NoopScope = NewScope("", NoopStatsReporter)
+var NoopScope = NewScope("", NullStatsReporter)
 
 // NewScope creates a new Scope around a given stats reporter with the given prefix
-func NewScope(prefix string, stats bark.StatsReporter) Scope {
+func NewScope(prefix string, stats StatsReporter) Scope {
 	return &scope{
 		prefix: prefix,
 		stats:  stats,
@@ -68,8 +67,8 @@ func NewScope(prefix string, stats bark.StatsReporter) Scope {
 
 type scope struct {
 	prefix string
-	stats  bark.StatsReporter
-	tags   bark.Tags
+	stats  StatsReporter
+	tags   map[string]string
 }
 
 func (s *scope) UpdateGauge(name string, v int64) {
@@ -92,8 +91,8 @@ func (s *scope) SubScope(prefix string) Scope {
 	}
 }
 
-func (s *scope) Tagged(tags bark.Tags) Scope {
-	mergedTags := make(bark.Tags, len(s.tags)+len(tags))
+func (s *scope) Tagged(tags map[string]string) Scope {
+	mergedTags := make(map[string]string, len(s.tags)+len(tags))
 	for k, v := range s.tags {
 		mergedTags[k] = v
 	}
