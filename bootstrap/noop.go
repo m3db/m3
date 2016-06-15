@@ -23,18 +23,18 @@ package bootstrap
 import (
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 type noOpBootstrapProcess struct {
-	opts memtsdb.DatabaseOptions
+	opts m3db.DatabaseOptions
 }
 
 // NewNoOpBootstrapProcess creates a no-op bootstrap process.
-func NewNoOpBootstrapProcess(opts memtsdb.DatabaseOptions) memtsdb.Bootstrap {
+func NewNoOpBootstrapProcess(opts m3db.DatabaseOptions) m3db.Bootstrap {
 	return &noOpBootstrapProcess{opts: opts}
 }
 
-func (b *noOpBootstrapProcess) Run(writeStart time.Time, shard uint32) (memtsdb.ShardResult, error) {
+func (b *noOpBootstrapProcess) Run(writeStart time.Time, shard uint32) (m3db.ShardResult, error) {
 	return NewShardResult(b.opts), nil
 }

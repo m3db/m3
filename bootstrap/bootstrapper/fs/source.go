@@ -24,8 +24,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db"
 	"github.com/m3db/m3db/bootstrap"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage"
 	xtime "github.com/m3db/m3db/x/time"
@@ -33,12 +33,12 @@ import (
 
 // fileSystemSource provides information about TSDB data stored on disk.
 type fileSystemSource struct {
-	opts           memtsdb.DatabaseOptions
+	opts           m3db.DatabaseOptions
 	filePathPrefix string
 }
 
 // newFileSystemSource creates a new filesystem based database.
-func newFileSystemSource(prefix string, opts memtsdb.DatabaseOptions) memtsdb.Source {
+func newFileSystemSource(prefix string, opts m3db.DatabaseOptions) m3db.Source {
 	return &fileSystemSource{
 		opts:           opts,
 		filePathPrefix: prefix,
@@ -88,7 +88,7 @@ func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard 
 }
 
 // ReadData returns raw series for a given shard within certain time ranges.
-func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (memtsdb.ShardResult, xtime.Ranges) {
+func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.ShardResult, xtime.Ranges) {
 	log := fss.opts.GetLogger()
 
 	if xtime.IsEmpty(tr) {

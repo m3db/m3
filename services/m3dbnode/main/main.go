@@ -29,8 +29,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m3db/m3db"
 	"github.com/m3db/m3db/bootstrap"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/services/m3dbnode/serve/httpjson"
 	"github.com/m3db/m3db/services/m3dbnode/serve/tchannelthrift"
 	"github.com/m3db/m3db/sharding"
@@ -55,8 +55,8 @@ func main() {
 	tchannelAddr := *tchannelAddrArg
 	httpAddr := *httpAddrArg
 
-	var opts memtsdb.DatabaseOptions
-	opts = storage.NewDatabaseOptions().NewBootstrapFn(func() memtsdb.Bootstrap {
+	var opts m3db.DatabaseOptions
+	opts = storage.NewDatabaseOptions().NewBootstrapFn(func() m3db.Bootstrap {
 		return bootstrap.NewNoOpBootstrapProcess(opts)
 	})
 

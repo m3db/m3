@@ -24,7 +24,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 var (
@@ -68,7 +68,7 @@ type readerSliceReader struct {
 }
 
 // NewReaderSliceReader creates a new ReaderSliceReader instance.
-func NewReaderSliceReader(r []io.Reader) memtsdb.ReaderSliceReader {
+func NewReaderSliceReader(r []io.Reader) m3db.ReaderSliceReader {
 	return &readerSliceReader{s: r}
 }
 
@@ -102,18 +102,18 @@ func (r *readerSliceReader) Readers() []io.Reader {
 }
 
 type segmentReader struct {
-	segment memtsdb.Segment
+	segment m3db.Segment
 	si      int
-	pool    memtsdb.SegmentReaderPool
+	pool    m3db.SegmentReaderPool
 }
 
 // NewSegmentReader creates a new segment reader.
-func NewSegmentReader(segment memtsdb.Segment) memtsdb.SegmentReader {
+func NewSegmentReader(segment m3db.Segment) m3db.SegmentReader {
 	return &segmentReader{segment: segment}
 }
 
 // NewPooledSegmentReader creates a new pooled segment reader.
-func NewPooledSegmentReader(segment memtsdb.Segment, pool memtsdb.SegmentReaderPool) memtsdb.SegmentReader {
+func NewPooledSegmentReader(segment m3db.Segment, pool m3db.SegmentReaderPool) m3db.SegmentReader {
 	return &segmentReader{segment: segment, pool: pool}
 }
 
@@ -146,11 +146,11 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-func (sr *segmentReader) Segment() memtsdb.Segment {
+func (sr *segmentReader) Segment() m3db.Segment {
 	return sr.segment
 }
 
-func (sr *segmentReader) Reset(segment memtsdb.Segment) {
+func (sr *segmentReader) Reset(segment m3db.Segment) {
 	sr.segment = segment
 	sr.si = 0
 }
@@ -162,21 +162,21 @@ func (sr *segmentReader) Close() {
 }
 
 // GetSegmentReaders returns the segment readers contained in an io reader.
-func GetSegmentReaders(r io.Reader) ([]memtsdb.SegmentReader, error) {
+func GetSegmentReaders(r io.Reader) ([]m3db.SegmentReader, error) {
 	if r == nil {
 		return nil, nil
 	}
-	sr, ok := r.(memtsdb.ReaderSliceReader)
+	sr, ok := r.(m3db.ReaderSliceReader)
 	if !ok {
 		return nil, errUnexpectedReaderType
 	}
 	readers := sr.Readers()
-	s := make([]memtsdb.SegmentReader, 0, len(readers))
+	s := make([]m3db.SegmentReader, 0, len(readers))
 	for i := 0; i < len(readers); i++ {
 		if readers[i] == nil {
 			continue
 		}
-		sgr, ok := readers[i].(memtsdb.SegmentReader)
+		sgr, ok := readers[i].(m3db.SegmentReader)
 		if !ok {
 			return nil, errUnexpectedReaderType
 		}

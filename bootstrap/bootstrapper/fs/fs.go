@@ -21,8 +21,8 @@
 package fs
 
 import (
-	"github.com/m3db/m3db"
 	"github.com/m3db/m3db/bootstrap/bootstrapper"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 const (
@@ -31,15 +31,15 @@ const (
 )
 
 type fileSystemBootstrapper struct {
-	memtsdb.Bootstrapper
+	m3db.Bootstrapper
 }
 
 // NewFileSystemBootstrapper creates a new bootstrapper to bootstrap from on-disk files.
 func NewFileSystemBootstrapper(
 	prefix string,
-	dbOpts memtsdb.DatabaseOptions,
-	next memtsdb.Bootstrapper,
-) memtsdb.Bootstrapper {
+	dbOpts m3db.DatabaseOptions,
+	next m3db.Bootstrapper,
+) m3db.Bootstrapper {
 	fss := newFileSystemSource(prefix, dbOpts)
 	return &fileSystemBootstrapper{
 		Bootstrapper: bootstrapper.NewBaseBootstrapper(fss, dbOpts, next),

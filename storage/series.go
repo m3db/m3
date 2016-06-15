@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
 	xerrors "github.com/m3db/m3db/x/errors"
 	xio "github.com/m3db/m3db/x/io"
@@ -45,7 +45,7 @@ type databaseSeries interface {
 	Tick() error
 
 	Write(
-		ctx memtsdb.Context,
+		ctx m3db.Context,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -53,14 +53,14 @@ type databaseSeries interface {
 	) error
 
 	ReadEncoded(
-		ctx memtsdb.Context,
+		ctx m3db.Context,
 		start, end time.Time,
-	) (memtsdb.ReaderSliceReader, error)
+	) (m3db.ReaderSliceReader, error)
 
 	Empty() bool
 
 	// Bootstrap merges the raw series bootstrapped along with the buffered data
-	Bootstrap(rs memtsdb.DatabaseSeriesBlocks) error
+	Bootstrap(rs m3db.DatabaseSeriesBlocks) error
 
 	// FlushToDisk flushes the blocks to disk for a given start time.
 	FlushToDisk(writer fs.Writer, blockStart time.Time, segmentHolder [][]byte) error
@@ -68,20 +68,20 @@ type databaseSeries interface {
 
 type dbSeries struct {
 	sync.RWMutex
-	opts             memtsdb.DatabaseOptions
+	opts             m3db.DatabaseOptions
 	seriesID         string
 	buffer           databaseBuffer
-	blocks           memtsdb.DatabaseSeriesBlocks
+	blocks           m3db.DatabaseSeriesBlocks
 	blockSize        time.Duration
 	pendingBootstrap []pendingBootstrapDrain
 	bs               bootstrapState
 }
 
 type pendingBootstrapDrain struct {
-	encoder memtsdb.Encoder
+	encoder m3db.Encoder
 }
 
-func newDatabaseSeries(id string, bs bootstrapState, opts memtsdb.DatabaseOptions) databaseSeries {
+func newDatabaseSeries(id string, bs bootstrapState, opts m3db.DatabaseOptions) databaseSeries {
 	series := &dbSeries{
 		opts:      opts,
 		seriesID:  id,
@@ -131,7 +131,7 @@ func (s *dbSeries) Empty() bool {
 }
 
 func (s *dbSeries) Write(
-	ctx memtsdb.Context,
+	ctx m3db.Context,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -148,9 +148,9 @@ func (s *dbSeries) Write(
 }
 
 func (s *dbSeries) ReadEncoded(
-	ctx memtsdb.Context,
+	ctx m3db.Context,
 	start, end time.Time,
-) (memtsdb.ReaderSliceReader, error) {
+) (m3db.ReaderSliceReader, error) {
 	if end.Before(start) {
 		return nil, xerrors.NewInvalidParamsError(errInvalidRange)
 	}
@@ -194,7 +194,7 @@ func (s *dbSeries) ReadEncoded(
 	return xio.NewReaderSliceReader(results), nil
 }
 
-func (s *dbSeries) bufferDrained(start time.Time, encoder memtsdb.Encoder) {
+func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
 	// NB(r): by the very nature of this method executing we have the
 	// lock already. Executing the drain method occurs during a write if the
 	// buffer needs to drain or if tick is called and series explicitly asks
@@ -218,7 +218,7 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder memtsdb.Encoder) {
 }
 
 // TODO(xichen): skip datapoints that fall within the bootstrap time range.
-func (s *dbSeries) drainStream(blocks memtsdb.DatabaseSeriesBlocks, stream io.Reader) error {
+func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reader) error {
 	iter := s.opts.GetIteratorPool().Get()
 	iter.Reset(stream)
 
@@ -240,7 +240,7 @@ func (s *dbSeries) drainStream(blocks memtsdb.DatabaseSeriesBlocks, stream io.Re
 	return nil
 }
 
-func (s *dbSeries) Bootstrap(rs memtsdb.DatabaseSeriesBlocks) error {
+func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks) error {
 	if success, err := tryBootstrap(&s.RWMutex, &s.bs, "series"); !success {
 		return err
 	}

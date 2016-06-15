@@ -21,19 +21,19 @@
 package bootstrap
 
 import (
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/storage"
 )
 
 type shardResult struct {
-	blocks map[string]memtsdb.DatabaseSeriesBlocks
-	dbOpts memtsdb.DatabaseOptions
+	blocks map[string]m3db.DatabaseSeriesBlocks
+	dbOpts m3db.DatabaseOptions
 }
 
 // NewShardResult creates a new TSMap instance.
-func NewShardResult(dbOpts memtsdb.DatabaseOptions) memtsdb.ShardResult {
+func NewShardResult(dbOpts m3db.DatabaseOptions) m3db.ShardResult {
 	return &shardResult{
-		blocks: make(map[string]memtsdb.DatabaseSeriesBlocks),
+		blocks: make(map[string]m3db.DatabaseSeriesBlocks),
 		dbOpts: dbOpts,
 	}
 }
@@ -44,7 +44,7 @@ func (sr *shardResult) IsEmpty() bool {
 }
 
 // AddBlock adds a data block.
-func (sr *shardResult) AddBlock(id string, block memtsdb.DatabaseBlock) {
+func (sr *shardResult) AddBlock(id string, block m3db.DatabaseBlock) {
 	curSeries, exists := sr.blocks[id]
 	if !exists {
 		curSeries = storage.NewDatabaseSeriesBlocks(sr.dbOpts)
@@ -54,7 +54,7 @@ func (sr *shardResult) AddBlock(id string, block memtsdb.DatabaseBlock) {
 }
 
 // AddSeries adds a single series.
-func (sr *shardResult) AddSeries(id string, rawSeries memtsdb.DatabaseSeriesBlocks) {
+func (sr *shardResult) AddSeries(id string, rawSeries m3db.DatabaseSeriesBlocks) {
 	curSeries, exists := sr.blocks[id]
 	if !exists {
 		curSeries = storage.NewDatabaseSeriesBlocks(sr.dbOpts)
@@ -64,7 +64,7 @@ func (sr *shardResult) AddSeries(id string, rawSeries memtsdb.DatabaseSeriesBloc
 }
 
 // AddResult adds a shard result.
-func (sr *shardResult) AddResult(other memtsdb.ShardResult) {
+func (sr *shardResult) AddResult(other m3db.ShardResult) {
 	otherSeries := other.GetAllSeries()
 	for id, rawSeries := range otherSeries {
 		sr.AddSeries(id, rawSeries)
@@ -72,6 +72,6 @@ func (sr *shardResult) AddResult(other memtsdb.ShardResult) {
 }
 
 // GetAllSeries returns all series in the map.
-func (sr *shardResult) GetAllSeries() map[string]memtsdb.DatabaseSeriesBlocks {
+func (sr *shardResult) GetAllSeries() map[string]m3db.DatabaseSeriesBlocks {
 	return sr.blocks
 }

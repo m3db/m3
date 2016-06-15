@@ -23,7 +23,7 @@ package context
 import (
 	"sync"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 const (
@@ -31,25 +31,25 @@ const (
 )
 
 type dependency struct {
-	closers      []memtsdb.Closer
+	closers      []m3db.Closer
 	dependencies sync.WaitGroup
 }
 
 // NB(r): using golang.org/x/net/context is too GC expensive
 type ctx struct {
 	sync.RWMutex
-	pool   memtsdb.ContextPool
+	pool   m3db.ContextPool
 	closed bool
 	dep    *dependency
 }
 
 // NewContext creates a new context
-func NewContext() memtsdb.Context {
+func NewContext() m3db.Context {
 	return NewPooledContext(nil)
 }
 
 // NewPooledContext returns a new context that is returned to a pool when closed
-func NewPooledContext(pool memtsdb.ContextPool) memtsdb.Context {
+func NewPooledContext(pool m3db.ContextPool) m3db.Context {
 	return &ctx{pool: pool}
 }
 
@@ -60,11 +60,11 @@ func (c *ctx) ensureDependencies() {
 	// TODO(r): return these to a pool on reset, otherwise over time
 	// all contexts in a shared pool will acquire a dependency object
 	c.dep = &dependency{
-		closers: make([]memtsdb.Closer, 0, defaultClosersCapacity),
+		closers: make([]m3db.Closer, 0, defaultClosersCapacity),
 	}
 }
 
-func (c *ctx) RegisterCloser(closer memtsdb.Closer) {
+func (c *ctx) RegisterCloser(closer m3db.Closer) {
 	c.Lock()
 	if c.closed {
 		c.Unlock()
@@ -75,7 +75,7 @@ func (c *ctx) RegisterCloser(closer memtsdb.Closer) {
 	c.Unlock()
 }
 
-func (c *ctx) DependsOn(blocker memtsdb.Context) {
+func (c *ctx) DependsOn(blocker m3db.Context) {
 	c.Lock()
 	closed := c.closed
 	if !closed {
@@ -92,7 +92,7 @@ func (c *ctx) DependsOn(blocker memtsdb.Context) {
 }
 
 func (c *ctx) Close() {
-	var closers []memtsdb.Closer
+	var closers []m3db.Closer
 
 	c.Lock()
 	if c.closed {

@@ -21,21 +21,21 @@
 package pool
 
 import (
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 // TODO(r): instrument this to tune pooling
 type objectPool struct {
 	values chan interface{}
-	alloc  memtsdb.PoolAllocator
+	alloc  m3db.PoolAllocator
 }
 
 // NewObjectPool creates a new pool
-func NewObjectPool(size int) memtsdb.ObjectPool {
+func NewObjectPool(size int) m3db.ObjectPool {
 	return &objectPool{values: make(chan interface{}, size)}
 }
 
-func (p *objectPool) Init(alloc memtsdb.PoolAllocator) {
+func (p *objectPool) Init(alloc m3db.PoolAllocator) {
 	capacity := cap(p.values)
 	for i := 0; i < capacity; i++ {
 		p.values <- alloc()

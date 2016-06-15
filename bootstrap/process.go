@@ -24,7 +24,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/storage"
 	xtime "github.com/m3db/m3db/x/time"
 )
@@ -97,16 +97,16 @@ func (o *options) GetMaxRetries() int {
 // bootstrapProcess represents the bootstrapping process.
 type bootstrapProcess struct {
 	bsOpts       Options
-	dbOpts       memtsdb.DatabaseOptions
-	bootstrapper memtsdb.Bootstrapper
+	dbOpts       m3db.DatabaseOptions
+	bootstrapper m3db.Bootstrapper
 }
 
 // NewBootstrapProcess creates a new bootstrap process.
 func NewBootstrapProcess(
 	bsOpts Options,
-	dbOpts memtsdb.DatabaseOptions,
-	bootstrapper memtsdb.Bootstrapper,
-) memtsdb.Bootstrap {
+	dbOpts m3db.DatabaseOptions,
+	bootstrapper m3db.Bootstrapper,
+) m3db.Bootstrap {
 	if bsOpts == nil {
 		bsOpts = NewOptions()
 	}
@@ -141,7 +141,7 @@ func (b *bootstrapProcess) initTimeRanges(writeStart time.Time) []xtime.Ranges {
 }
 
 // bootstrap returns the bootstrapped results for a given shard time ranges.
-func (b *bootstrapProcess) bootstrap(shard uint32, timeRanges xtime.Ranges) (memtsdb.ShardResult, error) {
+func (b *bootstrapProcess) bootstrap(shard uint32, timeRanges xtime.Ranges) (m3db.ShardResult, error) {
 	results := NewShardResult(b.dbOpts)
 	for i := 0; i < b.bsOpts.GetMaxRetries(); i++ {
 		res, unfulfilled := b.bootstrapper.Bootstrap(shard, timeRanges)
@@ -157,7 +157,7 @@ func (b *bootstrapProcess) bootstrap(shard uint32, timeRanges xtime.Ranges) (mem
 
 // Run initiates the bootstrap process, where writeStart is when we start
 // accepting incoming writes.
-func (b *bootstrapProcess) Run(writeStart time.Time, shard uint32) (memtsdb.ShardResult, error) {
+func (b *bootstrapProcess) Run(writeStart time.Time, shard uint32) (m3db.ShardResult, error) {
 
 	// initializes the target range we'd like to bootstrap
 	unfulfilledRanges := b.initTimeRanges(writeStart)

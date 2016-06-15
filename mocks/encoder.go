@@ -28,7 +28,7 @@ import (
 	time0 "time"
 
 	gomock "github.com/golang/mock/gomock"
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	time "github.com/m3db/m3db/x/time"
 )
 
@@ -53,7 +53,7 @@ func (_m *MockEncoder) EXPECT() *_MockEncoderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockEncoder) Encode(dp memtsdb.Datapoint, timeUnit time.Unit, annotation memtsdb.Annotation) error {
+func (_m *MockEncoder) Encode(dp m3db.Datapoint, timeUnit time.Unit, annotation m3db.Annotation) error {
 	ret := _m.ctrl.Call(_m, "Encode", dp, timeUnit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -63,9 +63,9 @@ func (_mr *_MockEncoderRecorder) Encode(arg0, arg1, arg2 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Encode", arg0, arg1, arg2)
 }
 
-func (_m *MockEncoder) Stream() memtsdb.SegmentReader {
+func (_m *MockEncoder) Stream() m3db.SegmentReader {
 	ret := _m.ctrl.Call(_m, "Stream")
-	ret0, _ := ret[0].(memtsdb.SegmentReader)
+	ret0, _ := ret[0].(m3db.SegmentReader)
 	return ret0
 }
 
@@ -136,11 +136,11 @@ func (_mr *_MockIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockIterator) Current() (memtsdb.Datapoint, time.Unit, memtsdb.Annotation) {
+func (_m *MockIterator) Current() (m3db.Datapoint, time.Unit, m3db.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
-	ret0, _ := ret[0].(memtsdb.Datapoint)
+	ret0, _ := ret[0].(m3db.Datapoint)
 	ret1, _ := ret[1].(time.Unit)
-	ret2, _ := ret[2].(memtsdb.Annotation)
+	ret2, _ := ret[2].(m3db.Annotation)
 	return ret0, ret1, ret2
 }
 
@@ -195,9 +195,9 @@ func (_m *MockDecoder) EXPECT() *_MockDecoderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDecoder) Decode(r io.Reader) memtsdb.Iterator {
+func (_m *MockDecoder) Decode(r io.Reader) m3db.Iterator {
 	ret := _m.ctrl.Call(_m, "Decode", r)
-	ret0, _ := ret[0].(memtsdb.Iterator)
+	ret0, _ := ret[0].(m3db.Iterator)
 	return ret0
 }
 

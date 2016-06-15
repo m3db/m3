@@ -23,7 +23,7 @@ package tsz
 import (
 	"io"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 type decoder struct {
@@ -31,7 +31,7 @@ type decoder struct {
 }
 
 // NewDecoder creates a decoder.
-func NewDecoder(opts Options) memtsdb.Decoder {
+func NewDecoder(opts Options) m3db.Decoder {
 	if opts == nil {
 		opts = NewOptions()
 	}
@@ -39,6 +39,6 @@ func NewDecoder(opts Options) memtsdb.Decoder {
 }
 
 // Decode decodes the encoded data captured by the reader.
-func (dec *decoder) Decode(r io.Reader) memtsdb.Iterator {
+func (dec *decoder) Decode(r io.Reader) m3db.Iterator {
 	return NewIterator(r, dec.opts)
 }

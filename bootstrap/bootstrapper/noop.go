@@ -21,7 +21,7 @@
 package bootstrapper
 
 import (
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 
 	xtime "github.com/m3db/m3db/x/time"
 )
@@ -38,7 +38,7 @@ var (
 type noOpBootstrapper struct{}
 
 // Bootstrap performs bootstrapping for the given shards and the associated time ranges.
-func (noop *noOpBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (memtsdb.ShardResult, xtime.Ranges) {
+func (noop *noOpBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (m3db.ShardResult, xtime.Ranges) {
 	return nil, targetRanges
 }
 

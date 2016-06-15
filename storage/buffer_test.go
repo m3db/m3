@@ -26,15 +26,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/interfaces/m3db"
 	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func bufferTestOptions() memtsdb.DatabaseOptions {
+func bufferTestOptions() m3db.DatabaseOptions {
 	return NewDatabaseOptions().
 		BlockSize(2 * time.Minute).
 		BufferFuture(10 * time.Second).
@@ -144,7 +144,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 
 func TestBufferDrain(t *testing.T) {
 	var drained []drain
-	drainFn := func(start time.Time, encoder memtsdb.Encoder) {
+	drainFn := func(start time.Time, encoder m3db.Encoder) {
 		drained = append(drained, drain{start, encoder})
 	}
 
@@ -191,7 +191,7 @@ func TestBufferDrain(t *testing.T) {
 
 func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	var drained []drain
-	drainFn := func(start time.Time, encoder memtsdb.Encoder) {
+	drainFn := func(start time.Time, encoder m3db.Encoder) {
 		drained = append(drained, drain{start, encoder})
 	}
 

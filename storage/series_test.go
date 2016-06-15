@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/mocks"
 	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
@@ -36,7 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func seriesTestOptions() memtsdb.DatabaseOptions {
+func seriesTestOptions() m3db.DatabaseOptions {
 	return NewDatabaseOptions().
 		BlockSize(2 * time.Minute).
 		BufferFuture(10 * time.Second).
@@ -161,11 +161,11 @@ func TestSeriesFlushToDisk(t *testing.T) {
 	tail := []byte{0x3, 0x4}
 	segmentHolder := [][]byte{head, tail}
 
-	var res memtsdb.Segment
+	var res m3db.Segment
 	encoder := mocks.NewMockEncoder(ctrl)
 	reader := mocks.NewMockSegmentReader(ctrl)
 	encoder.EXPECT().Stream().Return(reader)
-	reader.EXPECT().Segment().Return(memtsdb.Segment{Head: head, Tail: tail})
+	reader.EXPECT().Segment().Return(m3db.Segment{Head: head, Tail: tail})
 	writer := mocks.NewMockWriter(ctrl)
 	writer.EXPECT().WriteAll("foo", segmentHolder).Do(func(_ string, holder [][]byte) {
 		res.Head = holder[0]

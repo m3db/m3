@@ -23,8 +23,8 @@ package bootstrapper
 import (
 	"sync"
 
-	"github.com/m3db/m3db"
 	"github.com/m3db/m3db/bootstrap"
+	"github.com/m3db/m3db/interfaces/m3db"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -34,17 +34,17 @@ const (
 
 // baseBootstrapper provides a skeleton for the interface methods.
 type baseBootstrapper struct {
-	s      memtsdb.Source
-	dbOpts memtsdb.DatabaseOptions
-	next   memtsdb.Bootstrapper
+	s      m3db.Source
+	dbOpts m3db.DatabaseOptions
+	next   m3db.Bootstrapper
 }
 
 // NewBaseBootstrapper creates a new base bootstrapper.
 func NewBaseBootstrapper(
-	s memtsdb.Source,
-	dbOpts memtsdb.DatabaseOptions,
-	next memtsdb.Bootstrapper,
-) memtsdb.Bootstrapper {
+	s m3db.Source,
+	dbOpts m3db.DatabaseOptions,
+	next m3db.Bootstrapper,
+) m3db.Bootstrapper {
 	bs := next
 	if next == nil {
 		bs = defaultNoOpBootstrapper
@@ -53,7 +53,7 @@ func NewBaseBootstrapper(
 }
 
 // Bootstrap performs bootstrapping for the given shards and the associated time ranges.
-func (bsb *baseBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (memtsdb.ShardResult, xtime.Ranges) {
+func (bsb *baseBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (m3db.ShardResult, xtime.Ranges) {
 	if xtime.IsEmpty(targetRanges) {
 		return nil, nil
 	}
@@ -63,7 +63,7 @@ func (bsb *baseBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) 
 
 	var (
 		wg                              sync.WaitGroup
-		curResult, nextResult           memtsdb.ShardResult
+		curResult, nextResult           m3db.ShardResult
 		curUnfulfilled, nextUnfulfilled xtime.Ranges
 	)
 
@@ -88,7 +88,7 @@ func (bsb *baseBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) 
 	return mergedResults, mergedUnfulfilled
 }
 
-func (bsb *baseBootstrapper) mergeResults(results ...memtsdb.ShardResult) memtsdb.ShardResult {
+func (bsb *baseBootstrapper) mergeResults(results ...m3db.ShardResult) m3db.ShardResult {
 	final := bootstrap.NewShardResult(bsb.dbOpts)
 	for _, result := range results {
 		final.AddResult(result)

@@ -18,38 +18,46 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package memtsdb
+package m3db
 
 import (
-	"io"
+	"time"
+
+	xtime "github.com/m3db/m3db/x/time"
 )
 
-// ReaderSliceReader implements the io reader interface backed by a slice of readers.
-type ReaderSliceReader interface {
-	io.Reader
+// NewDatabaseBlockFn creates a new database block.
+type NewDatabaseBlockFn func() DatabaseBlock
 
-	Readers() []io.Reader
-}
-
-// SegmentReader implements the io reader interface backed by a segment.
-type SegmentReader interface {
-	io.Reader
-
-	// Segment gets the segment read by this reader.
-	Segment() Segment
-
-	// Reset resets the reader to read a new segment.
-	Reset(segment Segment)
-
-	// Close closes the reader and if pooled will return to the pool.
+// DatabaseBlock represents a data block.
+type DatabaseBlock interface {
+	StartTime() time.Time
+	Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	Stream() SegmentReader
 	Close()
 }
 
-// Segment represents a binary blob consisting of two byte slices.
-type Segment struct {
-	// Head is the head of the segment.
-	Head []byte
+// DatabaseSeriesBlocks represents a collection of data blocks.
+type DatabaseSeriesBlocks interface {
 
-	// Tail is the tail of the segment.
-	Tail []byte
+	// AddBlock adds a data block.
+	AddBlock(block DatabaseBlock)
+
+	// AddSeries adds a raw series.
+	AddSeries(other DatabaseSeriesBlocks)
+
+	// GetMinTime returns the min time of the blocks contained.
+	GetMinTime() time.Time
+
+	// GetMaxTime returns the max time of the blocks contained.
+	GetMaxTime() time.Time
+
+	// GetBlockAt returns the block at a given time if any.
+	GetBlockAt(t time.Time) (DatabaseBlock, bool)
+
+	// GetBlockAt returns the block at a given time, add it if it doesn't exist.
+	GetBlockOrAdd(t time.Time) DatabaseBlock
+
+	// GetAllBlocks returns all the blocks in the series.
+	GetAllBlocks() map[time.Time]DatabaseBlock
 }

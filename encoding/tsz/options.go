@@ -21,7 +21,7 @@
 package tsz
 
 import (
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 var (
@@ -44,37 +44,37 @@ type Options interface {
 	GetMarkerEncodingScheme() MarkerEncodingScheme
 
 	// Pool sets the encoder pool.
-	Pool(value memtsdb.EncoderPool) Options
+	Pool(value m3db.EncoderPool) Options
 
 	// GetPool returns the encoder pool.
-	GetPool() memtsdb.EncoderPool
+	GetPool() m3db.EncoderPool
 
 	// IteratorPool sets the iterator pool.
-	IteratorPool(value memtsdb.IteratorPool) Options
+	IteratorPool(value m3db.IteratorPool) Options
 
 	// GetIteratorPool returns the iterator pool.
-	GetIteratorPool() memtsdb.IteratorPool
+	GetIteratorPool() m3db.IteratorPool
 
 	// BytesPool sets the bytes pool.
-	BytesPool(value memtsdb.BytesPool) Options
+	BytesPool(value m3db.BytesPool) Options
 
 	// GetBytesPool returns the bytes pool.
-	GetBytesPool() memtsdb.BytesPool
+	GetBytesPool() m3db.BytesPool
 
 	// SegmentReaderPool sets the segment reader pool.
-	SegmentReaderPool(value memtsdb.SegmentReaderPool) Options
+	SegmentReaderPool(value m3db.SegmentReaderPool) Options
 
 	// GetSegmentReaderPool returns the segment reader pool.
-	GetSegmentReaderPool() memtsdb.SegmentReaderPool
+	GetSegmentReaderPool() m3db.SegmentReaderPool
 }
 
 type options struct {
 	timeEncodingSchemes  TimeEncodingSchemes
 	markerEncodingScheme MarkerEncodingScheme
-	pool                 memtsdb.EncoderPool
-	iteratorPool         memtsdb.IteratorPool
-	bytesPool            memtsdb.BytesPool
-	segmentReaderPool    memtsdb.SegmentReaderPool
+	pool                 m3db.EncoderPool
+	iteratorPool         m3db.IteratorPool
+	bytesPool            m3db.BytesPool
+	segmentReaderPool    m3db.SegmentReaderPool
 }
 
 func newOptions() Options {
@@ -109,42 +109,42 @@ func (o *options) GetMarkerEncodingScheme() MarkerEncodingScheme {
 	return o.markerEncodingScheme
 }
 
-func (o *options) Pool(value memtsdb.EncoderPool) Options {
+func (o *options) Pool(value m3db.EncoderPool) Options {
 	opts := *o
 	opts.pool = value
 	return &opts
 }
 
-func (o *options) GetPool() memtsdb.EncoderPool {
+func (o *options) GetPool() m3db.EncoderPool {
 	return o.pool
 }
 
-func (o *options) IteratorPool(value memtsdb.IteratorPool) Options {
+func (o *options) IteratorPool(value m3db.IteratorPool) Options {
 	opts := *o
 	opts.iteratorPool = value
 	return &opts
 }
 
-func (o *options) GetIteratorPool() memtsdb.IteratorPool {
+func (o *options) GetIteratorPool() m3db.IteratorPool {
 	return o.iteratorPool
 }
 
-func (o *options) BytesPool(value memtsdb.BytesPool) Options {
+func (o *options) BytesPool(value m3db.BytesPool) Options {
 	opts := *o
 	opts.bytesPool = value
 	return &opts
 }
 
-func (o *options) GetBytesPool() memtsdb.BytesPool {
+func (o *options) GetBytesPool() m3db.BytesPool {
 	return o.bytesPool
 }
 
-func (o *options) SegmentReaderPool(value memtsdb.SegmentReaderPool) Options {
+func (o *options) SegmentReaderPool(value m3db.SegmentReaderPool) Options {
 	opts := *o
 	opts.segmentReaderPool = value
 	return &opts
 }
 
-func (o *options) GetSegmentReaderPool() memtsdb.SegmentReaderPool {
+func (o *options) GetSegmentReaderPool() m3db.SegmentReaderPool {
 	return o.segmentReaderPool
 }

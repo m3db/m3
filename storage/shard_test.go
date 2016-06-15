@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/mocks"
 
 	"github.com/golang/mock/gomock"
@@ -50,7 +50,7 @@ func openFile(t *testing.T, filePath string) *os.File {
 	return fd
 }
 
-func testDatabaseShard(opts memtsdb.DatabaseOptions) *dbShard {
+func testDatabaseShard(opts m3db.DatabaseOptions) *dbShard {
 	return newDatabaseShard(0, opts).(*dbShard)
 }
 

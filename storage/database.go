@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/sharding"
 	xtime "github.com/m3db/m3db/x/time"
 )
@@ -51,7 +51,7 @@ const (
 type Database interface {
 
 	// Options returns the database options
-	Options() memtsdb.DatabaseOptions
+	Options() m3db.DatabaseOptions
 
 	// Open will open the database for writing and reading
 	Open() error
@@ -61,7 +61,7 @@ type Database interface {
 
 	// Write value to the database for an ID
 	Write(
-		ctx memtsdb.Context,
+		ctx m3db.Context,
 		id string,
 		timestamp time.Time,
 		value float64,
@@ -71,10 +71,10 @@ type Database interface {
 
 	// ReadEncoded retrieves encoded segments for an ID
 	ReadEncoded(
-		ctx memtsdb.Context,
+		ctx m3db.Context,
 		id string,
 		start, end time.Time,
-	) (memtsdb.ReaderSliceReader, error)
+	) (m3db.ReaderSliceReader, error)
 
 	// Bootstrap bootstraps the database.
 	Bootstrap(writeStart time.Time) error
@@ -96,7 +96,7 @@ type flushState struct {
 
 type db struct {
 	sync.RWMutex
-	opts        memtsdb.DatabaseOptions
+	opts        m3db.DatabaseOptions
 	shardScheme sharding.ShardScheme
 	shardSet    sharding.ShardSet
 	bs          bootstrapState
@@ -110,14 +110,14 @@ type db struct {
 	// entry will be nil when this shard does not belong to current database
 	shards []databaseShard
 
-	nowFn        memtsdb.NowFn
+	nowFn        m3db.NowFn
 	tickDeadline time.Duration
 	openCh       chan struct{}
 	doneCh       chan struct{}
 }
 
 // NewDatabase creates a new database
-func NewDatabase(shardSet sharding.ShardSet, opts memtsdb.DatabaseOptions) Database {
+func NewDatabase(shardSet sharding.ShardSet, opts m3db.DatabaseOptions) Database {
 	shardScheme := shardSet.Scheme()
 	return &db{
 		opts:           opts,
@@ -134,7 +134,7 @@ func NewDatabase(shardSet sharding.ShardSet, opts memtsdb.DatabaseOptions) Datab
 	}
 }
 
-func (d *db) Options() memtsdb.DatabaseOptions {
+func (d *db) Options() m3db.DatabaseOptions {
 	return d.opts
 }
 
@@ -219,7 +219,7 @@ func (d *db) Close() error {
 }
 
 func (d *db) Write(
-	ctx memtsdb.Context,
+	ctx m3db.Context,
 	id string,
 	timestamp time.Time,
 	value float64,
@@ -237,10 +237,10 @@ func (d *db) Write(
 }
 
 func (d *db) ReadEncoded(
-	ctx memtsdb.Context,
+	ctx m3db.Context,
 	id string,
 	start, end time.Time,
-) (memtsdb.ReaderSliceReader, error) {
+) (m3db.ReaderSliceReader, error) {
 	d.RLock()
 	if d.bs != bootstrapped {
 		d.RUnlock()
