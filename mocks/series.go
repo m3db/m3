@@ -24,12 +24,11 @@
 package mocks
 
 import (
-	time0 "time"
+	time "time"
 
 	gomock "github.com/golang/mock/gomock"
 	m3db "github.com/m3db/m3db/interfaces/m3db"
-	fs "github.com/m3db/m3db/persist/fs"
-	time "github.com/m3db/m3db/x/time"
+	time0 "github.com/m3db/m3db/x/time"
 )
 
 // Mock of databaseSeries interface
@@ -73,7 +72,7 @@ func (_mr *_MockdatabaseSeriesRecorder) Tick() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick")
 }
 
-func (_m *MockdatabaseSeries) Write(ctx m3db.Context, timestamp time0.Time, value float64, unit time.Unit, annotation []byte) error {
+func (_m *MockdatabaseSeries) Write(ctx m3db.Context, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", ctx, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -83,7 +82,7 @@ func (_mr *_MockdatabaseSeriesRecorder) Write(arg0, arg1, arg2, arg3, arg4 inter
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockdatabaseSeries) ReadEncoded(ctx m3db.Context, start time0.Time, end time0.Time) (m3db.ReaderSliceReader, error) {
+func (_m *MockdatabaseSeries) ReadEncoded(ctx m3db.Context, start time.Time, end time.Time) (m3db.ReaderSliceReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, start, end)
 	ret0, _ := ret[0].(m3db.ReaderSliceReader)
 	ret1, _ := ret[1].(error)
@@ -104,17 +103,17 @@ func (_mr *_MockdatabaseSeriesRecorder) Empty() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Empty")
 }
 
-func (_m *MockdatabaseSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks) error {
-	ret := _m.ctrl.Call(_m, "Bootstrap", rs)
+func (_m *MockdatabaseSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", rs, cutover)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseSeriesRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
+func (_mr *_MockdatabaseSeriesRecorder) Bootstrap(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1)
 }
 
-func (_m *MockdatabaseSeries) FlushToDisk(writer fs.Writer, blockStart time0.Time, segmentHolder [][]byte) error {
+func (_m *MockdatabaseSeries) FlushToDisk(writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error {
 	ret := _m.ctrl.Call(_m, "FlushToDisk", writer, blockStart, segmentHolder)
 	ret0, _ := ret[0].(error)
 	return ret0

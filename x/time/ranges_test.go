@@ -213,14 +213,16 @@ func TestRemoveRanges(t *testing.T) {
 	validateResult(t, saved, expectedResults)
 }
 
-func TestContains(t *testing.T) {
+func TestOverlaps(t *testing.T) {
 	tr := getPopulatedRanges(getRangesToAdd(), 0, 4)
-	require.True(t, tr.Contains(Range{Start: testStart, End: testStart}))
-	require.True(t, tr.Contains(Range{Start: testStart, End: testStart.Add(time.Second)}))
-	require.True(t, tr.Contains(Range{Start: testStart.Add(-7 * time.Second), End: testStart.Add(-5 * time.Second)}))
-	require.False(t, tr.Contains(Range{Start: testStart.Add(-7 * time.Second), End: testStart.Add(-4 * time.Second)}))
-	require.False(t, tr.Contains(Range{Start: testStart.Add(-3 * time.Second), End: testStart.Add(1 * time.Second)}))
-	require.False(t, tr.Contains(Range{Start: testStart.Add(9 * time.Second), End: testStart.Add(15 * time.Second)}))
+	require.True(t, tr.Overlaps(Range{Start: testStart, End: testStart.Add(time.Second)}))
+	require.True(t, tr.Overlaps(Range{Start: testStart.Add(-7 * time.Second), End: testStart.Add(-5 * time.Second)}))
+	require.True(t, tr.Overlaps(Range{Start: testStart.Add(-7 * time.Second), End: testStart.Add(-4 * time.Second)}))
+	require.True(t, tr.Overlaps(Range{Start: testStart.Add(-3 * time.Second), End: testStart.Add(1 * time.Second)}))
+	require.True(t, tr.Overlaps(Range{Start: testStart.Add(9 * time.Second), End: testStart.Add(15 * time.Second)}))
+	require.True(t, tr.Overlaps(Range{Start: testStart.Add(12 * time.Second), End: testStart.Add(13 * time.Second)}))
+	require.False(t, tr.Overlaps(Range{Start: testStart, End: testStart}))
+	require.False(t, tr.Overlaps(Range{Start: testStart.Add(time.Second), End: testStart.Add(2 * time.Second)}))
 }
 
 func TestIter(t *testing.T) {

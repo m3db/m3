@@ -130,7 +130,7 @@ func NewBootstrapProcess(
 // cannot be trusted and therefore need to be bootstrapped as well, which means in the worst
 // case we need to wait till writeStart + bufferPast + bufferFuture before bootstrap can complete.
 func (b *bootstrapProcess) initTimeRanges(writeStart time.Time) []xtime.Ranges {
-	start := writeStart.Add(-b.dbOpts.GetRetentionPeriod()).Truncate(b.dbOpts.GetBlockSize())
+	start := writeStart.Add(-b.dbOpts.GetRetentionPeriod())
 	midPoint := writeStart.Add(-b.dbOpts.GetBufferPast())
 	end := writeStart.Add(b.dbOpts.GetBufferFuture())
 

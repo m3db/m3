@@ -23,7 +23,6 @@ package m3db
 import (
 	"time"
 
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/x/logging"
 	"github.com/m3db/m3db/x/metrics"
 )
@@ -145,9 +144,9 @@ type DatabaseOptions interface {
 	// GetFilePathPrefix returns the file path prefix for sharded TSDB files.
 	GetFilePathPrefix() string
 
-	// NewWriter sets the function for creating a new writer.
-	NewWriterFn(value fs.NewWriterFn) DatabaseOptions
+	// NewFileSetWriterFn sets the function for creating a new fileset writer.
+	NewFileSetWriterFn(value NewFileSetWriterFn) DatabaseOptions
 
-	// GetNewWriterFn returns the function for creating a new writer.
-	GetNewWriterFn() fs.NewWriterFn
+	// GetNewFileSetWriterFn returns the function for creating a new fileset writer.
+	GetNewFileSetWriterFn() NewFileSetWriterFn
 }

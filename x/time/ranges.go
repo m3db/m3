@@ -33,8 +33,8 @@ type Ranges interface {
 	// IsEmpty returns true if the list of time ranges is empty.
 	IsEmpty() bool
 
-	// Contains checks if the range is fully contained.
-	Contains(r Range) bool
+	// Overlaps checks if the range overlaps with any of the ranges in the collection.
+	Overlaps(r Range) bool
 
 	// AddRange adds the time range
 	AddRange(r Range) Ranges
@@ -71,17 +71,17 @@ func (tr *ranges) IsEmpty() bool {
 	return tr == nil || tr.Len() == 0
 }
 
-// Contains checks if the range is fully contained.
-func (tr *ranges) Contains(r Range) bool {
+// Overlaps checks if the range overlaps with any of the ranges in the collection.
+func (tr *ranges) Overlaps(r Range) bool {
 	if r.IsEmpty() {
-		return true
+		return false
 	}
 	_, e := tr.findFirstNotBefore(r)
 	if e == nil {
 		return false
 	}
 	lr := e.Value.(Range)
-	return lr.Contains(r)
+	return lr.Overlaps(r)
 }
 
 // AddRange adds the time range to the collection of ranges.

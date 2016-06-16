@@ -66,7 +66,7 @@ func createFile(t *testing.T, filePath string) *os.File {
 }
 
 func createTimeRanges() xtime.Ranges {
-	return xtime.NewRanges().AddRange(xtime.Range{Start: testStart, End: testStart.Add(15 * time.Hour)})
+	return xtime.NewRanges().AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 }
 
 func createBadInfoFile(t *testing.T, shardDirPath string, blockStartTime time.Time) {
@@ -259,7 +259,7 @@ func TestReadDataOpenFileError(t *testing.T) {
 	res, unfulfilled := fss.ReadData(0, createTimeRanges())
 	require.True(t, res.IsEmpty())
 	expected := []xtime.Range{
-		{Start: testStart, End: testStart.Add(15 * time.Hour)},
+		{Start: testStart, End: testStart.Add(11 * time.Hour)},
 	}
 	validateTimeRanges(t, unfulfilled, expected)
 }
@@ -283,7 +283,6 @@ func validateReadResults(t *testing.T, dir string, timeInNano int) {
 	tr := createTimeRanges()
 	expected := []xtime.Range{
 		{Start: testStart.Add(2 * time.Hour), End: testStart.Add(10 * time.Hour)},
-		{Start: testStart.Add(12 * time.Hour), End: testStart.Add(15 * time.Hour)},
 	}
 	res, unfulfilled := fss.ReadData(0, tr)
 	require.Equal(t, 2, len(res.GetAllSeries()))
