@@ -110,7 +110,7 @@ func NewWriter(
 	blockSize time.Duration,
 	filePathPrefix string,
 	options WriterOptions,
-) m3db.FileWriter {
+) m3db.FileSetWriter {
 	if options == nil {
 		options = NewWriterOptions()
 	}

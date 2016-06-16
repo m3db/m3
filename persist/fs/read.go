@@ -79,7 +79,7 @@ type reader struct {
 
 // NewReader returns a new reader for a filePathPrefix, expects all files to exist.  Will
 // read the index info.
-func NewReader(filePathPrefix string) m3db.FileReader {
+func NewReader(filePathPrefix string) m3db.FileSetReader {
 	return &reader{
 		filePathPrefix: filePathPrefix,
 		read:           readFile,

@@ -59,10 +59,10 @@ type databaseSeries interface {
 	Empty() bool
 
 	// Bootstrap merges the raw series bootstrapped along with the buffered data
-	Bootstrap(rs m3db.DatabaseSeriesBlocks, ignoreBefore time.Time) error
+	Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error
 
 	// FlushToDisk flushes the blocks to disk for a given start time.
-	FlushToDisk(writer m3db.FileWriter, blockStart time.Time, segmentHolder [][]byte) error
+	FlushToDisk(writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error
 }
 
 type dbSeries struct {
@@ -216,7 +216,7 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
 	stream.Close()
 }
 
-func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reader, ignoreBefore time.Time) error {
+func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reader, cutover time.Time) error {
 	iter := s.opts.GetIteratorPool().Get()
 	iter.Reset(stream)
 
@@ -226,7 +226,7 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		// If the datapoint timestamp is before the cutover, skip it.
-		if dp.Timestamp.Before(ignoreBefore) {
+		if dp.Timestamp.Before(cutover) {
 			continue
 		}
 		blockStart := dp.Timestamp.Truncate(s.blockSize)
@@ -242,7 +242,7 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 	return nil
 }
 
-func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, ignoreBefore time.Time) error {
+func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error {
 	if success, err := tryBootstrap(&s.RWMutex, &s.bs, "series"); !success {
 		return err
 	}
@@ -268,7 +268,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, ignoreBefore time.Tim
 		s.Unlock()
 
 		stream := drain.encoder.Stream()
-		if err := s.drainStream(rs, stream, ignoreBefore); err != nil {
+		if err := s.drainStream(rs, stream, cutover); err != nil {
 			stream.Close()
 			return err
 		}
@@ -281,7 +281,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, ignoreBefore time.Tim
 // NB(xichen): segmentHolder is a two-item slice that's reused to
 // hold pointers to the head and the tail of each segment so we
 // don't need to allocate memory and gc it shortly after.
-func (s *dbSeries) FlushToDisk(writer m3db.FileWriter, blockStart time.Time, segmentHolder [][]byte) error {
+func (s *dbSeries) FlushToDisk(writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error {
 	s.RLock()
 	b, exists := s.blocks.GetBlockAt(blockStart)
 	if !exists {

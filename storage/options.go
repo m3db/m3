@@ -85,7 +85,7 @@ type dbOptions struct {
 	iteratorPool          m3db.IteratorPool
 	maxFlushRetries       int
 	filePathPrefix        string
-	newFileWriterFn       m3db.NewFileWriterFn
+	newFileSetWriterFn    m3db.NewFileSetWriterFn
 }
 
 // NewDatabaseOptions creates a new set of database options with defaults
@@ -103,7 +103,7 @@ func NewDatabaseOptions() m3db.DatabaseOptions {
 		bufferDrain:     defaultBufferDrain,
 		maxFlushRetries: defaultMaxFlushRetries,
 		filePathPrefix:  defaultFilePathPrefix,
-		newFileWriterFn: func(blockSize time.Duration, filePathPrefix string) m3db.FileWriter {
+		newFileSetWriterFn: func(blockSize time.Duration, filePathPrefix string) m3db.FileSetWriter {
 			return fs.NewWriter(blockSize, filePathPrefix, fs.NewWriterOptions())
 		},
 	}
@@ -338,12 +338,12 @@ func (o *dbOptions) GetFilePathPrefix() string {
 	return o.filePathPrefix
 }
 
-func (o *dbOptions) NewFileWriterFn(value m3db.NewFileWriterFn) m3db.DatabaseOptions {
+func (o *dbOptions) NewFileSetWriterFn(value m3db.NewFileSetWriterFn) m3db.DatabaseOptions {
 	opts := *o
-	opts.newFileWriterFn = value
+	opts.newFileSetWriterFn = value
 	return &opts
 }
 
-func (o *dbOptions) GetNewFileWriterFn() m3db.NewFileWriterFn {
-	return o.newFileWriterFn
+func (o *dbOptions) GetNewFileSetWriterFn() m3db.NewFileSetWriterFn {
+	return o.newFileSetWriterFn
 }

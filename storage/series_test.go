@@ -166,7 +166,7 @@ func TestSeriesFlushToDisk(t *testing.T) {
 	reader := mocks.NewMockSegmentReader(ctrl)
 	encoder.EXPECT().Stream().Return(reader)
 	reader.EXPECT().Segment().Return(m3db.Segment{Head: head, Tail: tail})
-	writer := mocks.NewMockFileWriter(ctrl)
+	writer := mocks.NewMockFileSetWriter(ctrl)
 	writer.EXPECT().WriteAll("foo", segmentHolder).Do(func(_ string, holder [][]byte) {
 		res.Head = holder[0]
 		res.Tail = holder[1]

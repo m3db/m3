@@ -27,8 +27,8 @@ import (
 	xtime "github.com/m3db/m3db/x/time"
 )
 
-// FileWriter provides an unsynchronized writer for a TSDB file set
-type FileWriter interface {
+// FileSetWriter provides an unsynchronized writer for a TSDB file set.
+type FileSetWriter interface {
 	io.Closer
 
 	// Open opens the files for writing data to the given shard.
@@ -41,8 +41,8 @@ type FileWriter interface {
 	WriteAll(key string, data [][]byte) error
 }
 
-// FileReader provides an unsynchronized reader for a TSDB file set
-type FileReader interface {
+// FileSetReader provides an unsynchronized reader for a TSDB file set.
+type FileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading.
@@ -61,8 +61,8 @@ type FileReader interface {
 	EntriesRead() int
 }
 
-// NewFileWriterFn creates a new writer.
-type NewFileWriterFn func(blockSize time.Duration, filePathPrefix string) FileWriter
+// NewFileSetWriterFn creates a new fileset writer.
+type NewFileSetWriterFn func(blockSize time.Duration, filePathPrefix string) FileSetWriter
 
-// NewFileReaderFn creates a new reader.
-type NewFileReaderFn func(filePathPrefix string) FileReader
+// NewFileSetReaderFn creates a new fileset reader.
+type NewFileSetReaderFn func(filePathPrefix string) FileSetReader

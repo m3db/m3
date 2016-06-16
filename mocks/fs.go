@@ -24,115 +24,115 @@
 package mocks
 
 import (
-	time0 "time"
+	time "time"
 
 	gomock "github.com/golang/mock/gomock"
-	time "github.com/m3db/m3db/x/time"
+	time0 "github.com/m3db/m3db/x/time"
 )
 
-// Mock of FileWriter interface
-type MockFileWriter struct {
+// Mock of FileSetWriter interface
+type MockFileSetWriter struct {
 	ctrl     *gomock.Controller
-	recorder *_MockFileWriterRecorder
+	recorder *_MockFileSetWriterRecorder
 }
 
-// Recorder for MockFileWriter (not exported)
-type _MockFileWriterRecorder struct {
-	mock *MockFileWriter
+// Recorder for MockFileSetWriter (not exported)
+type _MockFileSetWriterRecorder struct {
+	mock *MockFileSetWriter
 }
 
-func NewMockFileWriter(ctrl *gomock.Controller) *MockFileWriter {
-	mock := &MockFileWriter{ctrl: ctrl}
-	mock.recorder = &_MockFileWriterRecorder{mock}
+func NewMockFileSetWriter(ctrl *gomock.Controller) *MockFileSetWriter {
+	mock := &MockFileSetWriter{ctrl: ctrl}
+	mock.recorder = &_MockFileSetWriterRecorder{mock}
 	return mock
 }
 
-func (_m *MockFileWriter) EXPECT() *_MockFileWriterRecorder {
+func (_m *MockFileSetWriter) EXPECT() *_MockFileSetWriterRecorder {
 	return _m.recorder
 }
 
-func (_m *MockFileWriter) Close() error {
+func (_m *MockFileSetWriter) Close() error {
 	ret := _m.ctrl.Call(_m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileWriterRecorder) Close() *gomock.Call {
+func (_mr *_MockFileSetWriterRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockFileWriter) Open(shard uint32, start time0.Time) error {
+func (_m *MockFileSetWriter) Open(shard uint32, start time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", shard, start)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileWriterRecorder) Open(arg0, arg1 interface{}) *gomock.Call {
+func (_mr *_MockFileSetWriterRecorder) Open(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1)
 }
 
-func (_m *MockFileWriter) Write(key string, data []byte) error {
+func (_m *MockFileSetWriter) Write(key string, data []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", key, data)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileWriterRecorder) Write(arg0, arg1 interface{}) *gomock.Call {
+func (_mr *_MockFileSetWriterRecorder) Write(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1)
 }
 
-func (_m *MockFileWriter) WriteAll(key string, data [][]byte) error {
+func (_m *MockFileSetWriter) WriteAll(key string, data [][]byte) error {
 	ret := _m.ctrl.Call(_m, "WriteAll", key, data)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileWriterRecorder) WriteAll(arg0, arg1 interface{}) *gomock.Call {
+func (_mr *_MockFileSetWriterRecorder) WriteAll(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteAll", arg0, arg1)
 }
 
-// Mock of FileReader interface
-type MockFileReader struct {
+// Mock of FileSetReader interface
+type MockFileSetReader struct {
 	ctrl     *gomock.Controller
-	recorder *_MockFileReaderRecorder
+	recorder *_MockFileSetReaderRecorder
 }
 
-// Recorder for MockFileReader (not exported)
-type _MockFileReaderRecorder struct {
-	mock *MockFileReader
+// Recorder for MockFileSetReader (not exported)
+type _MockFileSetReaderRecorder struct {
+	mock *MockFileSetReader
 }
 
-func NewMockFileReader(ctrl *gomock.Controller) *MockFileReader {
-	mock := &MockFileReader{ctrl: ctrl}
-	mock.recorder = &_MockFileReaderRecorder{mock}
+func NewMockFileSetReader(ctrl *gomock.Controller) *MockFileSetReader {
+	mock := &MockFileSetReader{ctrl: ctrl}
+	mock.recorder = &_MockFileSetReaderRecorder{mock}
 	return mock
 }
 
-func (_m *MockFileReader) EXPECT() *_MockFileReaderRecorder {
+func (_m *MockFileSetReader) EXPECT() *_MockFileSetReaderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockFileReader) Close() error {
+func (_m *MockFileSetReader) Close() error {
 	ret := _m.ctrl.Call(_m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileReaderRecorder) Close() *gomock.Call {
+func (_mr *_MockFileSetReaderRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockFileReader) Open(shard uint32, start time0.Time) error {
+func (_m *MockFileSetReader) Open(shard uint32, start time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", shard, start)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileReaderRecorder) Open(arg0, arg1 interface{}) *gomock.Call {
+func (_mr *_MockFileSetReaderRecorder) Open(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1)
 }
 
-func (_m *MockFileReader) Read() (string, []byte, error) {
+func (_m *MockFileSetReader) Read() (string, []byte, error) {
 	ret := _m.ctrl.Call(_m, "Read")
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].([]byte)
@@ -140,36 +140,36 @@ func (_m *MockFileReader) Read() (string, []byte, error) {
 	return ret0, ret1, ret2
 }
 
-func (_mr *_MockFileReaderRecorder) Read() *gomock.Call {
+func (_mr *_MockFileSetReaderRecorder) Read() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read")
 }
 
-func (_m *MockFileReader) Range() time.Range {
+func (_m *MockFileSetReader) Range() time0.Range {
 	ret := _m.ctrl.Call(_m, "Range")
-	ret0, _ := ret[0].(time.Range)
+	ret0, _ := ret[0].(time0.Range)
 	return ret0
 }
 
-func (_mr *_MockFileReaderRecorder) Range() *gomock.Call {
+func (_mr *_MockFileSetReaderRecorder) Range() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Range")
 }
 
-func (_m *MockFileReader) Entries() int {
+func (_m *MockFileSetReader) Entries() int {
 	ret := _m.ctrl.Call(_m, "Entries")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockFileReaderRecorder) Entries() *gomock.Call {
+func (_mr *_MockFileSetReaderRecorder) Entries() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Entries")
 }
 
-func (_m *MockFileReader) EntriesRead() int {
+func (_m *MockFileSetReader) EntriesRead() int {
 	ret := _m.ctrl.Call(_m, "EntriesRead")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockFileReaderRecorder) EntriesRead() *gomock.Call {
+func (_mr *_MockFileSetReaderRecorder) EntriesRead() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EntriesRead")
 }

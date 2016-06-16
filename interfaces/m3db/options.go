@@ -144,9 +144,9 @@ type DatabaseOptions interface {
 	// GetFilePathPrefix returns the file path prefix for sharded TSDB files.
 	GetFilePathPrefix() string
 
-	// NewFileWriterFn sets the function for creating a new file writer.
-	NewFileWriterFn(value NewFileWriterFn) DatabaseOptions
+	// NewFileSetWriterFn sets the function for creating a new fileset writer.
+	NewFileSetWriterFn(value NewFileSetWriterFn) DatabaseOptions
 
-	// GetNewFileWriterFn returns the function for creating a new file writer.
-	GetNewFileWriterFn() NewFileWriterFn
+	// GetNewFileSetWriterFn returns the function for creating a new fileset writer.
+	GetNewFileSetWriterFn() NewFileSetWriterFn
 }
