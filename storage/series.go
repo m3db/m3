@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/persist/fs"
 	xerrors "github.com/m3db/m3db/x/errors"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3db/x/time"
@@ -60,10 +59,10 @@ type databaseSeries interface {
 	Empty() bool
 
 	// Bootstrap merges the raw series bootstrapped along with the buffered data
-	Bootstrap(rs m3db.DatabaseSeriesBlocks) error
+	Bootstrap(rs m3db.DatabaseSeriesBlocks, ignoreBefore time.Time) error
 
 	// FlushToDisk flushes the blocks to disk for a given start time.
-	FlushToDisk(writer fs.Writer, blockStart time.Time, segmentHolder [][]byte) error
+	FlushToDisk(writer m3db.FileWriter, blockStart time.Time, segmentHolder [][]byte) error
 }
 
 type dbSeries struct {
@@ -213,12 +212,11 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
 	// NB(r): this will occur if after bootstrap we have a partial
 	// block and now the buffer is passing the rest of that block
 	stream := encoder.Stream()
-	s.drainStream(s.blocks, stream)
+	s.drainStream(s.blocks, stream, timeZero)
 	stream.Close()
 }
 
-// TODO(xichen): skip datapoints that fall within the bootstrap time range.
-func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reader) error {
+func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reader, ignoreBefore time.Time) error {
 	iter := s.opts.GetIteratorPool().Get()
 	iter.Reset(stream)
 
@@ -227,6 +225,10 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
+		// If the datapoint timestamp is before the cutover, skip it.
+		if dp.Timestamp.Before(ignoreBefore) {
+			continue
+		}
 		blockStart := dp.Timestamp.Truncate(s.blockSize)
 		block := blocks.GetBlockOrAdd(blockStart)
 
@@ -240,7 +242,7 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 	return nil
 }
 
-func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks) error {
+func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, ignoreBefore time.Time) error {
 	if success, err := tryBootstrap(&s.RWMutex, &s.bs, "series"); !success {
 		return err
 	}
@@ -266,7 +268,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks) error {
 		s.Unlock()
 
 		stream := drain.encoder.Stream()
-		if err := s.drainStream(rs, stream); err != nil {
+		if err := s.drainStream(rs, stream, ignoreBefore); err != nil {
 			stream.Close()
 			return err
 		}
@@ -279,7 +281,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks) error {
 // NB(xichen): segmentHolder is a two-item slice that's reused to
 // hold pointers to the head and the tail of each segment so we
 // don't need to allocate memory and gc it shortly after.
-func (s *dbSeries) FlushToDisk(writer fs.Writer, blockStart time.Time, segmentHolder [][]byte) error {
+func (s *dbSeries) FlushToDisk(writer m3db.FileWriter, blockStart time.Time, segmentHolder [][]byte) error {
 	s.RLock()
 	b, exists := s.blocks.GetBlockAt(blockStart)
 	if !exists {

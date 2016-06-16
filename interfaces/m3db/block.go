@@ -40,6 +40,9 @@ type DatabaseBlock interface {
 // DatabaseSeriesBlocks represents a collection of data blocks.
 type DatabaseSeriesBlocks interface {
 
+	// Number of blocks contained in the collection.
+	Len() int
+
 	// AddBlock adds a data block.
 	AddBlock(block DatabaseBlock)
 

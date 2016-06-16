@@ -80,7 +80,7 @@ func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard 
 		t := xtime.FromNanoseconds(info.Start)
 		w := time.Duration(info.BlockSize)
 		curRange := xtime.Range{t, t.Add(w)}
-		if targetRangesForShard.Contains(curRange) {
+		if targetRangesForShard.Overlaps(curRange) {
 			tr = tr.AddRange(curRange)
 		}
 	}
@@ -112,7 +112,7 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.Shard
 			continue
 		}
 		timeRange := r.Range()
-		if !tr.Contains(timeRange) {
+		if !tr.Overlaps(timeRange) {
 			r.Close()
 			continue
 		}

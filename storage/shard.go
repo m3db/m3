@@ -74,7 +74,7 @@ type dbShard struct {
 	list                  *list.List
 	bs                    bootstrapState
 	newSeriesBootstrapped bool
-	flushWriter           fs.Writer
+	flushWriter           m3db.FileWriter
 }
 
 type dbShardEntry struct {
@@ -88,7 +88,7 @@ func newDatabaseShard(shard uint32, opts m3db.DatabaseOptions) databaseShard {
 		shard:       shard,
 		lookup:      make(map[string]*dbShardEntry),
 		list:        list.New(),
-		flushWriter: opts.GetNewWriterFn()(opts.GetBlockSize(), opts.GetFilePathPrefix()),
+		flushWriter: opts.GetNewFileWriterFn()(opts.GetBlockSize(), opts.GetFilePathPrefix()),
 	}
 }
 
@@ -236,10 +236,11 @@ func (s *dbShard) Bootstrap(writeStart time.Time) error {
 		return err
 	}
 
+	ignoreBefore := writeStart.Add(s.opts.GetBufferFuture())
 	bootstrappedSeries := sr.GetAllSeries()
 	for id, dbBlocks := range bootstrappedSeries {
 		series := s.series(id)
-		if err := series.Bootstrap(dbBlocks); err != nil {
+		if err := series.Bootstrap(dbBlocks, ignoreBefore); err != nil {
 			return err
 		}
 	}
@@ -265,7 +266,7 @@ func (s *dbShard) Bootstrap(writeStart time.Time) error {
 
 	// finally bootstrapping series with no recent data.
 	for _, series := range bufferedSeries {
-		if err := series.Bootstrap(nil); err != nil {
+		if err := series.Bootstrap(nil, ignoreBefore); err != nil {
 			return err
 		}
 	}

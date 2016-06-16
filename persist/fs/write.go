@@ -24,6 +24,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/interfaces/m3db"
 	schema "github.com/m3db/m3db/persist/fs/proto"
 	xtime "github.com/m3db/m3db/x/time"
 
@@ -109,7 +110,7 @@ func NewWriter(
 	blockSize time.Duration,
 	filePathPrefix string,
 	options WriterOptions,
-) Writer {
+) m3db.FileWriter {
 	if options == nil {
 		options = NewWriterOptions()
 	}

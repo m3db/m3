@@ -28,6 +28,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/interfaces/m3db"
 	schema "github.com/m3db/m3db/persist/fs/proto"
 	xtime "github.com/m3db/m3db/x/time"
 
@@ -78,7 +79,7 @@ type reader struct {
 
 // NewReader returns a new reader for a filePathPrefix, expects all files to exist.  Will
 // read the index info.
-func NewReader(filePathPrefix string) Reader {
+func NewReader(filePathPrefix string) m3db.FileReader {
 	return &reader{
 		filePathPrefix: filePathPrefix,
 		read:           readFile,

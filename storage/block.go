@@ -74,6 +74,10 @@ func NewDatabaseSeriesBlocks(dbOpts m3db.DatabaseOptions) m3db.DatabaseSeriesBlo
 	}
 }
 
+func (dbb *databaseSeriesBlocks) Len() int {
+	return len(dbb.elems)
+}
+
 func (dbb *databaseSeriesBlocks) AddBlock(block m3db.DatabaseBlock) {
 	start := block.StartTime()
 	if dbb.min.Equal(timeZero) || start.Before(dbb.min) {
