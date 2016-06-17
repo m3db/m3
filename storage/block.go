@@ -127,3 +127,22 @@ func (dbb *databaseSeriesBlocks) GetBlockOrAdd(t time.Time) m3db.DatabaseBlock {
 func (dbb *databaseSeriesBlocks) GetAllBlocks() map[time.Time]m3db.DatabaseBlock {
 	return dbb.elems
 }
+
+func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
+	if _, exists := dbb.elems[t]; !exists {
+		return
+	}
+	delete(dbb.elems, t)
+	if !dbb.min.Equal(t) && !dbb.max.Equal(t) {
+		return
+	}
+	dbb.min, dbb.max = timeZero, timeZero
+	for k := range dbb.elems {
+		if dbb.min.After(k) {
+			dbb.min = k
+		}
+		if dbb.max.Before(k) {
+			dbb.max = k
+		}
+	}
+}
