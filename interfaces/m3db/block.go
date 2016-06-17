@@ -63,4 +63,7 @@ type DatabaseSeriesBlocks interface {
 
 	// GetAllBlocks returns all the blocks in the series.
 	GetAllBlocks() map[time.Time]DatabaseBlock
+
+	// RemoveBlockAt removes the block at a given time if any.
+	RemoveBlockAt(t time.Time)
 }
