@@ -21,9 +21,9 @@
 package storage
 
 import (
+	"container/heap"
 	"errors"
 	"io"
-	"sort"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
@@ -77,6 +77,40 @@ type dbBuffer struct {
 }
 
 type databaseBufferDrainFn func(start time.Time, encoder m3db.Encoder)
+
+// An IteratorHeap is a min-heap of iterators. The top of the heap is the iterator
+// whose current value is the earliest datapoint among all iterators in the heap.
+type iteratorHeap []m3db.Iterator
+
+func (h iteratorHeap) Len() int {
+	return len(h)
+}
+
+func (h iteratorHeap) Less(i, j int) bool {
+	di, _, _ := h[i].Current()
+	dj, _, _ := h[j].Current()
+	return di.Timestamp.Before(dj.Timestamp)
+}
+
+func (h iteratorHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
+
+func (h *iteratorHeap) Push(x interface{}) {
+	*h = append(*h, x.(m3db.Iterator))
+}
+
+func (h *iteratorHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	if n == 0 {
+		return nil
+	}
+
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
+}
 
 func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts m3db.DatabaseOptions) databaseBuffer {
 	nowFn := opts.GetNowFn()
@@ -307,39 +341,39 @@ func (b *dbBufferBucket) sort() {
 		return
 	}
 
-	// TODO(r): instead of old sorting technique below, simply take the next datapoint
-	// that's available from all the iterators and proceed in step
 	encoder := b.opts.GetEncoderPool().Get()
 	encoder.Reset(b.start, b.opts.GetBufferBucketAllocSize())
 
-	// NB(r): consider pooling these for reordering use
-	var datapoints []*datapoint
+	// NB(xichen): if this turns out to be memory inefficient, either
+	// pool these, or switch to linear scanning the list of iterators.
+	iterHeap := make(iteratorHeap, 0, len(b.encoders))
+	heap.Init(&iterHeap)
 	for i := range b.encoders {
 		iter := b.opts.GetIteratorPool().Get()
 		iter.Reset(b.encoders[i].encoder.Stream())
-		for iter.Next() {
-			dp, unit, annotation := iter.Current()
-			datapoints = append(datapoints, &datapoint{
-				t:          dp.Timestamp,
-				value:      dp.Value,
-				unit:       unit,
-				annotation: annotation,
-			})
+		if iter.Next() {
+			heap.Push(&iterHeap, iter)
+		} else {
+			iter.Close()
 		}
-		iter.Close()
+	}
+
+	for iterHeap.Len() > 0 {
+		iter := heap.Pop(&iterHeap).(m3db.Iterator)
+		dp, unit, annotation := iter.Current()
+		b.lastWriteAt = dp.Timestamp
+		encoder.Encode(dp, unit, annotation)
+		if iter.Next() {
+			heap.Push(&iterHeap, iter)
+		} else {
+			iter.Close()
+		}
+	}
+
+	for i := range b.encoders {
 		b.encoders[i].encoder.Close()
 	}
 
-	sort.Sort(byTimeAsc(datapoints))
-
-	var dp m3db.Datapoint
-	for i := range datapoints {
-		dp.Timestamp = datapoints[i].t
-		dp.Value = datapoints[i].value
-		encoder.Encode(dp, datapoints[i].unit, datapoints[i].annotation)
-	}
-
-	b.lastWriteAt = dp.Timestamp
 	b.encoders = append(b.encoders[:0], inOrderEncoder{
 		lastWriteAt: b.lastWriteAt,
 		encoder:     encoder,
