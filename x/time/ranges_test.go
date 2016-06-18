@@ -115,8 +115,8 @@ func TestAddRange(t *testing.T) {
 		{rangestoAdd[0], rangestoAdd[1]},
 		{rangestoAdd[2], rangestoAdd[0], rangestoAdd[1]},
 		{rangestoAdd[3], rangestoAdd[2], rangestoAdd[0], rangestoAdd[1]},
-		{rangestoAdd[3], {Start: testStart.Add(-3 * time.Second), End: testStart.Add(time.Second)}, rangestoAdd[1]},
-		{rangestoAdd[3], {Start: testStart.Add(-3 * time.Second), End: testStart.Add(8 * time.Second)}, rangestoAdd[1]},
+		{rangestoAdd[3], rangestoAdd[2], rangestoAdd[4], rangestoAdd[0], rangestoAdd[1]},
+		{rangestoAdd[3], rangestoAdd[2], rangestoAdd[4], rangestoAdd[0], rangestoAdd[5], rangestoAdd[1]},
 		{{Start: testStart.Add(-10 * time.Second), End: testStart.Add(15 * time.Second)}},
 	}
 

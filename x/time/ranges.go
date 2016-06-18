@@ -20,9 +20,7 @@
 
 package time
 
-import (
-	"container/list"
-)
+import "container/list"
 
 // Ranges is a collection of time ranges.
 type Ranges interface {
@@ -76,7 +74,7 @@ func (tr *ranges) Overlaps(r Range) bool {
 	if r.IsEmpty() {
 		return false
 	}
-	_, e := tr.findFirstNotBefore(r)
+	e := tr.findFirstNotBefore(r)
 	if e == nil {
 		return false
 	}
@@ -97,26 +95,11 @@ func (tr *ranges) addRangeInPlace(r Range) {
 		return
 	}
 
-	// if the previous range touches r, merge them
-	pe, e := tr.findFirstNotBefore(r)
-	if pe != nil {
-		pr := pe.Value.(Range)
-		if pr.End == r.Start {
-			r.Start = pr.Start
-			tr.sortedRanges.Remove(pe)
-		}
-	}
-
+	e := tr.findFirstNotBefore(r)
 	for e != nil {
 		lr := e.Value.(Range)
 		ne := e.Next()
 		if !lr.Overlaps(r) {
-			// if r touches the next range, merge them
-			if r.End == lr.Start {
-				r.End = lr.End
-				tr.sortedRanges.Remove(e)
-				e = ne
-			}
 			break
 		}
 		r = r.Merge(lr)
@@ -154,7 +137,7 @@ func (tr *ranges) removeRangeInPlace(r Range) {
 	if r.IsEmpty() {
 		return
 	}
-	_, e := tr.findFirstNotBefore(r)
+	e := tr.findFirstNotBefore(r)
 	for e != nil {
 		lr := e.Value.(Range)
 		ne := e.Next()
@@ -193,15 +176,13 @@ func (tr *ranges) Iter() RangeIter {
 }
 
 // findFirstNotBefore finds the first interval that's not before r.
-func (tr *ranges) findFirstNotBefore(r Range) (*list.Element, *list.Element) {
-	var pe *list.Element
+func (tr *ranges) findFirstNotBefore(r Range) *list.Element {
 	for e := tr.sortedRanges.Front(); e != nil; e = e.Next() {
 		if !e.Value.(Range).Before(r) {
-			return pe, e
+			return e
 		}
-		pe = e
 	}
-	return pe, nil
+	return nil
 }
 
 // clone returns a copy of the time ranges.
