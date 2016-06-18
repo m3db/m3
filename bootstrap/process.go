@@ -129,15 +129,14 @@ func NewBootstrapProcess(
 // are lost, which means the data buffered between [writeStart, writeStart + bufferFuture)
 // cannot be trusted and therefore need to be bootstrapped as well, which means in the worst
 // case we need to wait till writeStart + bufferPast + bufferFuture before bootstrap can complete.
-func (b *bootstrapProcess) initTimeRanges(writeStart time.Time) []xtime.Ranges {
+func (b *bootstrapProcess) initTimeRanges(writeStart time.Time) xtime.Ranges {
 	start := writeStart.Add(-b.dbOpts.GetRetentionPeriod())
 	midPoint := writeStart.Add(-b.dbOpts.GetBufferPast())
 	end := writeStart.Add(b.dbOpts.GetBufferFuture())
 
-	return []xtime.Ranges{
-		xtime.NewRanges().AddRange(xtime.Range{Start: start, End: midPoint}),
-		xtime.NewRanges().AddRange(xtime.Range{Start: midPoint, End: end}),
-	}
+	return xtime.NewRanges().
+		AddRange(xtime.Range{Start: start, End: midPoint}).
+		AddRange(xtime.Range{Start: midPoint, End: end})
 }
 
 // bootstrap returns the bootstrapped results for a given shard time ranges.
@@ -162,14 +161,5 @@ func (b *bootstrapProcess) Run(writeStart time.Time, shard uint32) (m3db.ShardRe
 	// initializes the target range we'd like to bootstrap
 	unfulfilledRanges := b.initTimeRanges(writeStart)
 
-	result := NewShardResult(b.dbOpts)
-	for _, timeRanges := range unfulfilledRanges {
-		res, err := b.bootstrap(shard, timeRanges)
-		if err != nil {
-			return nil, err
-		}
-		result.AddResult(res)
-	}
-
-	return result, nil
+	return b.bootstrap(shard, unfulfilledRanges)
 }
