@@ -41,14 +41,12 @@ type encoder struct {
 	opts Options
 
 	// internal bookkeeping
-	t   time.Time     // current time
-	dt  time.Duration // current time delta
-	vb  uint64        // current value
-	xor uint64        // current xor
-
-	ant m3db.Annotation             // current annotation
-	tu  xtime.Unit                  // current time unit
-	buf [binary.MaxVarintLen32]byte // temporary buffer
+	t   time.Time       // current time
+	dt  time.Duration   // current time delta
+	vb  uint64          // current value
+	xor uint64          // current xor
+	ant m3db.Annotation // current annotation
+	tu  xtime.Unit      // current time unit
 
 	writable bool
 	closed   bool
@@ -125,9 +123,11 @@ func (enc *encoder) writeAnnotation(ant m3db.Annotation) {
 	}
 	scheme := enc.opts.GetMarkerEncodingScheme()
 	writeSpecialMarker(enc.os, scheme, scheme.Annotation())
+
+	var buf [binary.MaxVarintLen32]byte
 	// NB: we subtract 1 for possible varint encoding savings
-	annotationLength := binary.PutVarint(enc.buf[:], int64(len(ant)-1))
-	enc.os.WriteBytes(enc.buf[:annotationLength])
+	annotationLength := binary.PutVarint(buf[:], int64(len(ant)-1))
+	enc.os.WriteBytes(buf[:annotationLength])
 	enc.os.WriteBytes(ant)
 	enc.ant = ant
 }

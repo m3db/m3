@@ -282,3 +282,46 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 
 	assertValuesEqual(t, data, results, opts)
 }
+
+func TestBufferBucketSort(t *testing.T) {
+	opts := bufferTestOptions()
+	curr := time.Now().Truncate(opts.GetBlockSize())
+	b := &dbBufferBucket{opts: opts, start: curr, outOfOrder: true}
+	data := [][]value{
+		{
+			{curr, 1, xtime.Second, nil},
+			{curr.Add(secs(10)), 2, xtime.Second, nil},
+			{curr.Add(secs(50)), 3, xtime.Second, nil},
+		},
+		{
+			{curr.Add(secs(20)), 4, xtime.Second, nil},
+			{curr.Add(secs(40)), 5, xtime.Second, nil},
+			{curr.Add(secs(60)), 6, xtime.Second, nil},
+		},
+		{
+			{curr.Add(secs(30)), 4, xtime.Second, nil},
+			{curr.Add(secs(70)), 5, xtime.Second, nil},
+		},
+		{
+			{curr.Add(secs(35)), 6, xtime.Second, nil},
+		},
+	}
+
+	var expected []value
+	for i, d := range data {
+		encoder := opts.GetEncoderPool().Get()
+		encoder.Reset(curr, 0)
+		for _, v := range data[i] {
+			encoder.Encode(m3db.Datapoint{v.timestamp, v.value}, v.unit, v.annotation)
+		}
+		b.encoders = append(b.encoders, inOrderEncoder{encoder: encoder})
+		expected = append(expected, d...)
+	}
+
+	sort.Sort(valuesByTime(expected))
+	b.sort()
+
+	assert.Len(t, b.encoders, 1)
+	assert.Equal(t, b.lastWriteAt, expected[len(expected)-1].timestamp)
+	assertValuesEqual(t, expected, []io.Reader{b.encoders[0].encoder.Stream()}, opts)
+}
