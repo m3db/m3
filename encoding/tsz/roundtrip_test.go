@@ -67,7 +67,7 @@ func TestRoundTrip(t *testing.T) {
 			}
 		}
 		decoder := NewDecoder(nil)
-		it := decoder.Decode(encoder.Stream())
+		it := decoder.DecodeSingle(encoder.Stream())
 		var decompressed []m3db.Datapoint
 		j := 0
 		for it.Next() {

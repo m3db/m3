@@ -70,7 +70,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	for _, reader := range encoded.Readers() {
 		newDecoderFn := s.db.Options().GetNewDecoderFn()
-		it := newDecoderFn().Decode(reader)
+		it := newDecoderFn().DecodeSingle(reader)
 		for it.Next() {
 			dp, _, annotation := it.Current()
 			ts, tsErr := timeToValue(dp.Timestamp, req.ResultTimeType)
