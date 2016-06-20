@@ -43,17 +43,23 @@ type Options interface {
 	// GetMarkerEncodingScheme returns the marker encoding scheme.
 	GetMarkerEncodingScheme() MarkerEncodingScheme
 
-	// Pool sets the encoder pool.
-	Pool(value m3db.EncoderPool) Options
+	// EncoderPool sets the encoder pool.
+	EncoderPool(value m3db.EncoderPool) Options
 
-	// GetPool returns the encoder pool.
-	GetPool() m3db.EncoderPool
+	// GetEncoderPool returns the encoder pool.
+	GetEncoderPool() m3db.EncoderPool
 
-	// IteratorPool sets the iterator pool.
-	IteratorPool(value m3db.IteratorPool) Options
+	// SingleReaderIteratorPool sets the SingleReaderIteratorPool.
+	SingleReaderIteratorPool(value m3db.SingleReaderIteratorPool) Options
 
-	// GetIteratorPool returns the iterator pool.
-	GetIteratorPool() m3db.IteratorPool
+	// GetSingleReaderIteratorPool returns the SingleReaderIteratorPool
+	GetSingleReaderIteratorPool() m3db.SingleReaderIteratorPool
+
+	// MultiReaderIteratorPool sets the MultiReaderIteratorPool.
+	MultiReaderIteratorPool(value m3db.MultiReaderIteratorPool) Options
+
+	// GetMultiReaderIteratorPool returns the MultiReaderIteratorPool
+	GetMultiReaderIteratorPool() m3db.MultiReaderIteratorPool
 
 	// BytesPool sets the bytes pool.
 	BytesPool(value m3db.BytesPool) Options
@@ -69,12 +75,13 @@ type Options interface {
 }
 
 type options struct {
-	timeEncodingSchemes  TimeEncodingSchemes
-	markerEncodingScheme MarkerEncodingScheme
-	pool                 m3db.EncoderPool
-	iteratorPool         m3db.IteratorPool
-	bytesPool            m3db.BytesPool
-	segmentReaderPool    m3db.SegmentReaderPool
+	timeEncodingSchemes      TimeEncodingSchemes
+	markerEncodingScheme     MarkerEncodingScheme
+	encoderPool              m3db.EncoderPool
+	singleReaderIteratorPool m3db.SingleReaderIteratorPool
+	multiReaderIteratorPool  m3db.MultiReaderIteratorPool
+	bytesPool                m3db.BytesPool
+	segmentReaderPool        m3db.SegmentReaderPool
 }
 
 func newOptions() Options {
@@ -109,24 +116,34 @@ func (o *options) GetMarkerEncodingScheme() MarkerEncodingScheme {
 	return o.markerEncodingScheme
 }
 
-func (o *options) Pool(value m3db.EncoderPool) Options {
+func (o *options) EncoderPool(value m3db.EncoderPool) Options {
 	opts := *o
-	opts.pool = value
+	opts.encoderPool = value
 	return &opts
 }
 
-func (o *options) GetPool() m3db.EncoderPool {
-	return o.pool
+func (o *options) GetEncoderPool() m3db.EncoderPool {
+	return o.encoderPool
 }
 
-func (o *options) IteratorPool(value m3db.IteratorPool) Options {
+func (o *options) SingleReaderIteratorPool(value m3db.SingleReaderIteratorPool) Options {
 	opts := *o
-	opts.iteratorPool = value
+	opts.singleReaderIteratorPool = value
 	return &opts
 }
 
-func (o *options) GetIteratorPool() m3db.IteratorPool {
-	return o.iteratorPool
+func (o *options) GetSingleReaderIteratorPool() m3db.SingleReaderIteratorPool {
+	return o.singleReaderIteratorPool
+}
+
+func (o *options) MultiReaderIteratorPool(value m3db.MultiReaderIteratorPool) Options {
+	opts := *o
+	opts.multiReaderIteratorPool = value
+	return &opts
+}
+
+func (o *options) GetMultiReaderIteratorPool() m3db.MultiReaderIteratorPool {
+	return o.multiReaderIteratorPool
 }
 
 func (o *options) BytesPool(value m3db.BytesPool) Options {

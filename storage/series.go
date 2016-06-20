@@ -217,7 +217,7 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
 }
 
 func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reader, cutover time.Time) error {
-	iter := s.opts.GetIteratorPool().Get()
+	iter := s.opts.GetSingleReaderIteratorPool().Get()
 	iter.Reset(stream)
 
 	// Close the iterator and return to pool when done

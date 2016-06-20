@@ -60,7 +60,7 @@ func NewEncoder(start time.Time, bytes []byte, opts Options) m3db.Encoder {
 	// NB(r): only perform an initial allocation if there is no pool that
 	// will be used for this encoder.  If a pool is being used alloc when the
 	// `Reset` method is called.
-	initAllocIfEmpty := opts.GetPool() == nil
+	initAllocIfEmpty := opts.GetEncoderPool() == nil
 	return &encoder{
 		os:       newOStream(bytes, initAllocIfEmpty),
 		opts:     opts,
@@ -334,7 +334,7 @@ func (enc *encoder) Close() {
 		bytesPool.Put(buffer)
 	}
 
-	pool := enc.opts.GetPool()
+	pool := enc.opts.GetEncoderPool()
 	if pool != nil {
 		pool.Put(enc)
 	}

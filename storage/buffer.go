@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"container/heap"
 	"errors"
 	"io"
 	"time"
@@ -77,40 +76,6 @@ type dbBuffer struct {
 }
 
 type databaseBufferDrainFn func(start time.Time, encoder m3db.Encoder)
-
-// An IteratorHeap is a min-heap of iterators. The top of the heap is the iterator
-// whose current value is the earliest datapoint among all iterators in the heap.
-type iteratorHeap []m3db.Iterator
-
-func (h iteratorHeap) Len() int {
-	return len(h)
-}
-
-func (h iteratorHeap) Less(i, j int) bool {
-	di, _, _ := h[i].Current()
-	dj, _, _ := h[j].Current()
-	return di.Timestamp.Before(dj.Timestamp)
-}
-
-func (h iteratorHeap) Swap(i, j int) {
-	h[i], h[j] = h[j], h[i]
-}
-
-func (h *iteratorHeap) Push(x interface{}) {
-	*h = append(*h, x.(m3db.Iterator))
-}
-
-func (h *iteratorHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	if n == 0 {
-		return nil
-	}
-
-	x := old[n-1]
-	*h = old[:n-1]
-	return x
-}
 
 func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts m3db.DatabaseOptions) databaseBuffer {
 	nowFn := opts.GetNowFn()
@@ -344,31 +309,19 @@ func (b *dbBufferBucket) sort() {
 	encoder := b.opts.GetEncoderPool().Get()
 	encoder.Reset(b.start, b.opts.GetBufferBucketAllocSize())
 
-	// NB(xichen): if this turns out to be memory inefficient, either
-	// pool these, or switch to linear scanning the list of iterators.
-	iterHeap := make(iteratorHeap, 0, len(b.encoders))
-	heap.Init(&iterHeap)
+	readers := make([]io.Reader, len(b.encoders))
 	for i := range b.encoders {
-		iter := b.opts.GetIteratorPool().Get()
-		iter.Reset(b.encoders[i].encoder.Stream())
-		if iter.Next() {
-			heap.Push(&iterHeap, iter)
-		} else {
-			iter.Close()
-		}
+		readers[i] = b.encoders[i].encoder.Stream()
 	}
 
-	for iterHeap.Len() > 0 {
-		iter := heap.Pop(&iterHeap).(m3db.Iterator)
+	iter := b.opts.GetMultiReaderIteratorPool().Get()
+	iter.Reset(readers)
+	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		b.lastWriteAt = dp.Timestamp
 		encoder.Encode(dp, unit, annotation)
-		if iter.Next() {
-			heap.Push(&iterHeap, iter)
-		} else {
-			iter.Close()
-		}
 	}
+	iter.Close()
 
 	for i := range b.encoders {
 		b.encoders[i].encoder.Close()

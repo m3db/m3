@@ -23,25 +23,49 @@ package pool
 import "github.com/m3db/m3db/interfaces/m3db"
 
 // TODO(r): instrument this to tune pooling
-type iteratorPool struct {
+type singleReaderIteratorPool struct {
 	pool m3db.ObjectPool
 }
 
-// NewIteratorPool creates a new pool
-func NewIteratorPool(size int) m3db.IteratorPool {
-	return &iteratorPool{pool: NewObjectPool(size)}
+// NewSingleReaderIteratorPool creates a new pool for SingleReaderIterators.
+func NewSingleReaderIteratorPool(size int) m3db.SingleReaderIteratorPool {
+	return &singleReaderIteratorPool{pool: NewObjectPool(size)}
 }
 
-func (p *iteratorPool) Init(alloc m3db.IteratorAllocate) {
+func (p *singleReaderIteratorPool) Init(alloc m3db.SingleReaderIteratorAllocate) {
 	p.pool.Init(func() interface{} {
 		return alloc()
 	})
 }
 
-func (p *iteratorPool) Get() m3db.Iterator {
-	return p.pool.Get().(m3db.Iterator)
+func (p *singleReaderIteratorPool) Get() m3db.SingleReaderIterator {
+	return p.pool.Get().(m3db.SingleReaderIterator)
 }
 
-func (p *iteratorPool) Put(iter m3db.Iterator) {
+func (p *singleReaderIteratorPool) Put(iter m3db.SingleReaderIterator) {
+	p.pool.Put(iter)
+}
+
+// TODO(xichen): instrument this to tune pooling
+type multiReaderIteratorPool struct {
+	pool m3db.ObjectPool
+}
+
+// NewMultiReaderIteratorPool creates a new pool for MultiReaderIterators.
+func NewMultiReaderIteratorPool(size int) m3db.MultiReaderIteratorPool {
+	return &multiReaderIteratorPool{pool: NewObjectPool(size)}
+}
+
+func (p *multiReaderIteratorPool) Init(alloc m3db.MultiReaderIteratorAllocate) {
+	p.pool.Init(func() interface{} {
+		return alloc()
+	})
+}
+
+func (p *multiReaderIteratorPool) Get() m3db.MultiReaderIterator {
+	return p.pool.Get().(m3db.MultiReaderIterator)
+}
+
+func (p *multiReaderIteratorPool) Put(iter m3db.MultiReaderIterator) {
 	p.pool.Put(iter)
 }
