@@ -332,7 +332,7 @@ func (h *iteratorHeap) Pop() interface{} {
 
 type newSingleReaderIteratorFn func(reader io.Reader, opts Options) m3db.SingleReaderIterator
 
-func getSingleReaderIteratorAllocFn(opts Options) newSingleReaderIteratorFn {
+func getNewSingleReaderIteratorFn(opts Options) newSingleReaderIteratorFn {
 	singleReaderIteratorPool := opts.GetSingleReaderIteratorPool()
 	if singleReaderIteratorPool == nil {
 		return NewSingleReaderIterator
@@ -373,7 +373,7 @@ func (it *multiReaderIterator) Next() bool {
 }
 
 func (it *multiReaderIterator) initHeap() {
-	alloc := getSingleReaderIteratorAllocFn(it.opts)
+	alloc := getNewSingleReaderIteratorFn(it.opts)
 	iterHeap := make(iteratorHeap, 0, len(it.readers))
 	heap.Init(&iterHeap)
 	for i := range it.readers {
