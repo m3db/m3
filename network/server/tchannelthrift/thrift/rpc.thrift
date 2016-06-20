@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-namespace java com.memtsdb.mdbnode
+namespace java com.github.m3db
 
 enum TimeType {
 	UNIX_SECONDS,
@@ -27,18 +27,18 @@ enum TimeType {
 	UNIX_NANOSECONDS
 }
 
-enum NodeErrorType {
+enum ErrorType {
 	INTERNAL_ERROR,
 	BAD_REQUEST
 }
 
-exception NodeError {
-	1: required NodeErrorType type = NodeErrorType.INTERNAL_ERROR
+exception Error {
+	1: required ErrorType type = ErrorType.INTERNAL_ERROR
 	2: required string message
 }
 
 exception WriteError {
-	1: required NodeErrorType type = NodeErrorType.INTERNAL_ERROR
+	1: required ErrorType type = ErrorType.INTERNAL_ERROR
 	2: required string message
 }
 exception WriteBatchErrors {
@@ -46,10 +46,16 @@ exception WriteBatchErrors {
 }
 
 service Node {
+	HealthResult health() throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: WriteError err)
 	void writeBatch(1: WriteBatchRequest req) throws (1: WriteBatchErrors err)
-	FetchResult fetch(1: FetchRequest req) throws (1: NodeError err)
-	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req) throws (1: NodeError err)
+	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
+	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req) throws (1: Error err)
+}
+
+struct HealthResult {
+	1: required bool ok
+	2: required string status
 }
 
 struct WriteRequest {
@@ -103,4 +109,10 @@ struct Segment {
 
 struct FetchRawResult {
 	1: required list<Segment> segments
+}
+
+service Cluster {
+	HealthResult health() throws (1: Error err)
+	void write(1: WriteRequest req) throws (1: WriteError err)
+	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 }

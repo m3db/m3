@@ -18,63 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package sharding
+package client
 
 import (
-	"errors"
-
 	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/pool"
 )
 
 var (
-	// ErrToLessThanFrom returned when to is less than from
-	ErrToLessThanFrom = errors.New("to is less than from")
+	writeBatchRequestZeroed rpc.WriteBatchRequest
 )
 
-type shardScheme struct {
-	from uint32
-	to   uint32
-	fn   m3db.HashFn
+type writeBatchRequestPool interface {
+	// Get a write batch request
+	Get() *rpc.WriteBatchRequest
+
+	// Put a write batch request
+	Put(w *rpc.WriteBatchRequest)
 }
 
-// NewShardScheme creates a new sharding scheme, from and to are inclusive
-func NewShardScheme(from, to uint32, fn m3db.HashFn) (m3db.ShardScheme, error) {
-	if to < from {
-		return nil, ErrToLessThanFrom
-	}
-	return &shardScheme{from, to, fn}, nil
+type poolOfWriteBatchRequest struct {
+	pool m3db.ObjectPool
 }
 
-func (s *shardScheme) Shard(identifer string) uint32 {
-	return s.fn(identifer)
+func newWriteBatchRequestPool(size int) writeBatchRequestPool {
+	p := pool.NewObjectPool(size)
+	p.Init(func() interface{} {
+		return &rpc.WriteBatchRequest{}
+	})
+	return &poolOfWriteBatchRequest{p}
 }
 
-func (s *shardScheme) CreateSet(from, to uint32) m3db.ShardSet {
-	var shards []uint32
-	for i := from; i >= s.from && i <= s.to && i <= to; i++ {
-		shards = append(shards, i)
-	}
-	return NewShardSet(shards, s)
+func (p *poolOfWriteBatchRequest) Get() *rpc.WriteBatchRequest {
+	return p.pool.Get().(*rpc.WriteBatchRequest)
 }
 
-func (s *shardScheme) All() m3db.ShardSet {
-	return s.CreateSet(s.from, s.to)
-}
-
-type shardSet struct {
-	shards []uint32
-	scheme m3db.ShardScheme
-}
-
-// NewShardSet creates a new shard set
-func NewShardSet(shards []uint32, scheme m3db.ShardScheme) m3db.ShardSet {
-	return &shardSet{shards, scheme}
-}
-
-func (s *shardSet) Shards() []uint32 {
-	return s.shards[:]
-}
-
-func (s *shardSet) Scheme() m3db.ShardScheme {
-	return s.scheme
+func (p *poolOfWriteBatchRequest) Put(w *rpc.WriteBatchRequest) {
+	*w = writeBatchRequestZeroed
+	p.pool.Put(w)
 }

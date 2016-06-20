@@ -30,9 +30,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/bootstrap"
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/services/m3dbnode/serve/httpjson"
-	"github.com/m3db/m3db/services/m3dbnode/serve/tchannelthrift"
+	hjcluster "github.com/m3db/m3db/network/server/httpjson/cluster"
+	hjnode "github.com/m3db/m3db/network/server/httpjson/node"
+	ttcluster "github.com/m3db/m3db/network/server/tchannelthrift/cluster"
+	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 
@@ -40,20 +43,27 @@ import (
 )
 
 var (
-	tchannelAddrArg = flag.String("tchanneladdr", "0.0.0.0:9000", "TChannel server address")
-	httpAddrArg     = flag.String("httpaddr", "0.0.0.0:9001", "HTTP server address")
+	httpClusterAddrArg     = flag.String("clusterhttpaddr", "0.0.0.0:9000", "Cluster HTTP server address")
+	tchannelClusterAddrArg = flag.String("clustertchanneladdr", "0.0.0.0:9001", "Cluster TChannel server address")
+	httpNodeAddrArg        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
+	tchannelNodeAddrArg    = flag.String("nodetchanneladdr", "0.0.0.0:9003", "Node TChannel server address")
 )
 
 func main() {
 	flag.Parse()
 
-	if *tchannelAddrArg == "" || *httpAddrArg == "" {
+	if *httpClusterAddrArg == "" ||
+		*tchannelClusterAddrArg == "" ||
+		*httpNodeAddrArg == "" ||
+		*tchannelNodeAddrArg == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	tchannelAddr := *tchannelAddrArg
-	httpAddr := *httpAddrArg
+	httpClusterAddr := *httpClusterAddrArg
+	tchannelClusterAddr := *tchannelClusterAddrArg
+	httpNodeAddr := *httpNodeAddrArg
+	tchannelNodeAddr := *tchannelNodeAddrArg
 
 	var opts m3db.DatabaseOptions
 	opts = storage.NewDatabaseOptions().NewBootstrapFn(func() m3db.Bootstrap {
@@ -76,19 +86,34 @@ func main() {
 	}
 	defer db.Close()
 
-	tchannelthriftClose, err := tchannelthrift.NewServer(db, tchannelAddr, nil).ListenAndServe()
-	if err != nil {
-		log.Fatalf("could not open tchannelthrift interface: %v", err)
-	}
-	defer tchannelthriftClose()
-	log.Infof("tchannelthrift: listening on %v", tchannelAddr)
+	client := client.NewClient(client.NewOptions())
 
-	httpjsonClose, err := httpjson.NewServer(db, httpAddr, nil).ListenAndServe()
+	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, nil).ListenAndServe()
 	if err != nil {
-		log.Fatalf("could not open httpjson interface: %v", err)
+		log.Fatalf("could not open tchannelthrift interface %s: %v", tchannelNodeAddr, err)
 	}
-	defer httpjsonClose()
-	log.Infof("httpjson: listening on %v", httpAddr)
+	defer nativeNodeClose()
+	log.Infof("node tchannelthrift: listening on %v", tchannelNodeAddr)
+
+	httpjsonNodeClose, err := hjnode.NewServer(db, httpNodeAddr, nil).ListenAndServe()
+	if err != nil {
+		log.Fatalf("could not open httpjson interface %s: %v", httpNodeAddr, err)
+	}
+	defer httpjsonNodeClose()
+	log.Infof("node httpjson: listening on %v", httpNodeAddr)
+
+	nativeClusterClose, err := ttcluster.NewServer(client, tchannelClusterAddr, nil).ListenAndServe()
+	if err != nil {
+		log.Fatalf("could not open tchannelthrift interface %s: %v", tchannelClusterAddr, err)
+	}
+	defer nativeClusterClose()
+	log.Infof("cluster tchannelthrift: listening on %v", tchannelClusterAddr)
+	httpjsonClusterClose, err := hjcluster.NewServer(client, httpClusterAddr, nil).ListenAndServe()
+	if err != nil {
+		log.Fatalf("could not open httpjson interface %s: %v", httpClusterAddr, err)
+	}
+	defer httpjsonClusterClose()
+	log.Infof("cluster httpjson: listening on %v", httpClusterAddr)
 
 	if err := db.Bootstrap(time.Now()); err != nil {
 		log.Fatalf("could not bootstrap database: %v", err)

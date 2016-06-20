@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/x/logging"
 	"github.com/m3db/m3db/x/metrics"
+	"github.com/uber/tchannel-go"
 )
 
 // NowFn is the function supplied to determine "now"
@@ -150,4 +151,94 @@ type DatabaseOptions interface {
 
 	// GetNewWriterFn returns the function for creating a new writer.
 	GetNewWriterFn() fs.NewWriterFn
+}
+
+// ClientOptions is a set of client options
+type ClientOptions interface {
+	// Logger sets the logger and returns a new ClientOptions
+	Logger(value logging.Logger) ClientOptions
+
+	// GetLogger returns the logger
+	GetLogger() logging.Logger
+
+	// MetricsScope sets the metricsScope and returns a new ClientOptions
+	MetricsScope(value metrics.Scope) ClientOptions
+
+	// GetMetricsScope returns the metricsScope
+	GetMetricsScope() metrics.Scope
+
+	// TopologyType sets the topologyType and returns a new ClientOptions
+	TopologyType(value TopologyType) ClientOptions
+
+	// GetTopologyType returns the logger
+	GetTopologyType() TopologyType
+
+	// ChannelOptions sets the channelOptions and returns a new ClientOptions
+	ChannelOptions(value *tchannel.ChannelOptions) ClientOptions
+
+	// GetChannelOptions returns the channelOptions
+	GetChannelOptions() *tchannel.ChannelOptions
+
+	// NowFn sets the nowFn and returns a new ClientOptions
+	NowFn(value NowFn) ClientOptions
+
+	// GetNowFn returns the nowFn
+	GetNowFn() NowFn
+
+	// MaxConnectionCount sets the maxConnectionCount and returns a new ClientOptions
+	MaxConnectionCount(value int) ClientOptions
+
+	// GetMaxConnectionCount returns the maxConnectionCount
+	GetMaxConnectionCount() int
+
+	// MinConnectionCount sets the minConnectionCount and returns a new ClientOptions
+	MinConnectionCount(value int) ClientOptions
+
+	// GetMinConnectionCount returns the minConnectionCount
+	GetMinConnectionCount() int
+
+	// HostConnectTimeout sets the hostConnectTimeout and returns a new ClientOptions
+	HostConnectTimeout(value time.Duration) ClientOptions
+
+	// GetHostConnectTimeout returns the hostConnectTimeout
+	GetHostConnectTimeout() time.Duration
+
+	// ClusterConnectTimeout sets the clusterConnectTimeout and returns a new ClientOptions
+	ClusterConnectTimeout(value time.Duration) ClientOptions
+
+	// GetClusterConnectTimeout returns the clusterConnectTimeout
+	GetClusterConnectTimeout() time.Duration
+
+	// WriteRequestTimeout sets the writeRequestTimeout and returns a new ClientOptions
+	WriteRequestTimeout(value time.Duration) ClientOptions
+
+	// GetWriteRequestTimeout returns the writeRequestTimeout
+	GetWriteRequestTimeout() time.Duration
+
+	// WriteOpPoolSize sets the writeOpPoolSize and returns a new ClientOptions
+	WriteOpPoolSize(value int) ClientOptions
+
+	// GetWriteOpPoolSize returns the writeOpPoolSize
+	GetWriteOpPoolSize() int
+
+	// WriteBatchSize sets the writeBatchSize and returns a new ClientOptions
+	// NB(r): for a write only application load this should match the host
+	// queue ops flush size so that each time a host queue is flushed it can
+	// fit the entire flushed write ops into a single batch.
+	WriteBatchSize(value int) ClientOptions
+
+	// GetWriteBatchSize returns the writeBatchSize
+	GetWriteBatchSize() int
+
+	// HostQueueOpsFlushSize sets the hostQueueOpsFlushSize and returns a new ClientOptions
+	HostQueueOpsFlushSize(value int) ClientOptions
+
+	// GetHostQueueOpsFlushSize returns the hostQueueOpsFlushSize
+	GetHostQueueOpsFlushSize() int
+
+	// HostQueueOpsFlushInterval sets the hostQueueOpsFlushInterval and returns a new ClientOptions
+	HostQueueOpsFlushInterval(value time.Duration) ClientOptions
+
+	// GetHostQueueOpsFlushInterval returns the hostQueueOpsFlushInterval
+	GetHostQueueOpsFlushInterval() time.Duration
 }

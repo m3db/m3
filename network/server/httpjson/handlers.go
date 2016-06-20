@@ -25,25 +25,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"reflect"
 	"strings"
-	"time"
 
-	"github.com/m3db/m3db/services/m3dbnode/serve"
-	"github.com/m3db/m3db/services/m3dbnode/serve/tchannelthrift"
-	"github.com/m3db/m3db/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
-	"github.com/m3db/m3db/storage"
 	xerrors "github.com/m3db/m3db/x/errors"
 
 	"github.com/uber/tchannel-go/thrift"
-)
-
-const (
-	defaultReadTimeout    = 10 * time.Second
-	defaultWriteTimeout   = 10 * time.Second
-	defaultRequestTimeout = 60 * time.Second
 )
 
 var (
@@ -52,138 +40,19 @@ var (
 	errEncodeResponseBody = errors.New("failed to encode response body")
 )
 
-type server struct {
-	address string
-	db      storage.Database
-	opts    ServerOptions
-}
-
-// ServerOptions is a set of server options
-type ServerOptions interface {
-	// ReadTimeout sets the readTimeout and returns a new ServerOptions
-	ReadTimeout(value time.Duration) ServerOptions
-
-	// GetReadTimeout returns the readTimeout
-	GetReadTimeout() time.Duration
-
-	// WriteTimeout sets the writeTimeout and returns a new ServerOptions
-	WriteTimeout(value time.Duration) ServerOptions
-
-	// GetWriteTimeout returns the writeTimeout
-	GetWriteTimeout() time.Duration
-
-	// RequestTimeout sets the requestTimeout and returns a new ServerOptions
-	RequestTimeout(value time.Duration) ServerOptions
-
-	// GetRequestTimeout returns the requestTimeout
-	GetRequestTimeout() time.Duration
-}
-
-type serverOptions struct {
-	readTimeout    time.Duration
-	writeTimeout   time.Duration
-	requestTimeout time.Duration
-}
-
-// NewServerOptions creates a new set of server options with defaults
-func NewServerOptions() ServerOptions {
-	return &serverOptions{
-		readTimeout:    defaultReadTimeout,
-		writeTimeout:   defaultWriteTimeout,
-		requestTimeout: defaultRequestTimeout,
-	}
-}
-
-func (o *serverOptions) ReadTimeout(value time.Duration) ServerOptions {
-	opts := *o
-	opts.readTimeout = value
-	return &opts
-}
-
-func (o *serverOptions) GetReadTimeout() time.Duration {
-	return o.readTimeout
-}
-
-func (o *serverOptions) WriteTimeout(value time.Duration) ServerOptions {
-	opts := *o
-	opts.writeTimeout = value
-	return &opts
-}
-
-func (o *serverOptions) GetWriteTimeout() time.Duration {
-	return o.writeTimeout
-}
-
-func (o *serverOptions) RequestTimeout(value time.Duration) ServerOptions {
-	opts := *o
-	opts.requestTimeout = value
-	return &opts
-}
-
-func (o *serverOptions) GetRequestTimeout() time.Duration {
-	return o.requestTimeout
-}
-
-// NewServer creates a TChannel Thrift network service
-func NewServer(
-	db storage.Database,
-	address string,
-	opts ServerOptions,
-) serve.NetworkService {
-	if opts == nil {
-		opts = NewServerOptions()
-	}
-	return &server{
-		address: address,
-		db:      db,
-		opts:    opts,
-	}
-}
-
-func (s *server) ListenAndServe() (serve.Close, error) {
-	mux := http.NewServeMux()
-	if err := registerHandlers(mux, tchannelthrift.NewService(s.db), s.opts); err != nil {
-		return nil, err
-	}
-
-	listener, err := net.Listen("tcp", s.address)
-	if err != nil {
-		return nil, err
-	}
-
-	server := http.Server{
-		Handler:      mux,
-		ReadTimeout:  s.opts.GetReadTimeout(),
-		WriteTimeout: s.opts.GetWriteTimeout(),
-	}
-
-	go func() {
-		server.Serve(listener)
-	}()
-
-	return func() {
-		listener.Close()
-	}, nil
-}
-
-func defaultDuration(value time.Duration, defaultValue time.Duration) time.Duration {
-	if value == time.Duration(0) {
-		return defaultValue
-	}
-	return value
-}
-
 type respSuccess struct {
 }
+
 type respErrorResult struct {
 	Error respError `json:"error"`
 }
+
 type respError struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
 }
 
-func registerHandlers(mux *http.ServeMux, service rpc.TChanNode, opts ServerOptions) error {
+func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOptions) error {
 	v := reflect.ValueOf(service)
 	t := v.Type()
 	for i := 0; i < t.NumMethod(); i++ {
@@ -206,8 +75,7 @@ func registerHandlers(mux *http.ServeMux, service rpc.TChanNode, opts ServerOpti
 			resultErr = method.Type.Out(1)
 		}
 
-		serviceInterfaceType := reflect.TypeOf((*rpc.TChanNode)(nil)).Elem()
-		if !obj.Implements(serviceInterfaceType) {
+		if !obj.Implements(t) {
 			continue
 		}
 

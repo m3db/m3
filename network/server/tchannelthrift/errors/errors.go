@@ -18,52 +18,58 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tchannelthrift
+package errors
 
 import (
 	"fmt"
 
-	"github.com/m3db/m3db/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 )
 
-func newNodeError(errType rpc.NodeErrorType, err error) *rpc.NodeError {
-	nodeErr := rpc.NewNodeError()
-	nodeErr.Type = errType
-	nodeErr.Message = fmt.Sprintf("%v", err)
-	return nodeErr
+func newError(errType rpc.ErrorType, err error) *rpc.Error {
+	rpcErr := rpc.NewError()
+	rpcErr.Type = errType
+	rpcErr.Message = fmt.Sprintf("%v", err)
+	return rpcErr
 }
 
-func newNodeInternalError(err error) *rpc.NodeError {
-	return newNodeError(rpc.NodeErrorType_INTERNAL_ERROR, err)
+// NewInternalError creates a new internal error
+func NewInternalError(err error) *rpc.Error {
+	return newError(rpc.ErrorType_INTERNAL_ERROR, err)
 }
 
-func newNodeBadRequestError(err error) *rpc.NodeError {
-	return newNodeError(rpc.NodeErrorType_BAD_REQUEST, err)
+// NewBadRequestError creates a new bad request error
+func NewBadRequestError(err error) *rpc.Error {
+	return newError(rpc.ErrorType_BAD_REQUEST, err)
 }
 
-func newWriteError(err error) *rpc.WriteError {
+// NewWriteError creates a new write error
+func NewWriteError(err error) *rpc.WriteError {
 	writeErr := rpc.NewWriteError()
 	writeErr.Message = fmt.Sprintf("%v", err)
 	return writeErr
 }
 
-func newBadRequestWriteError(err error) *rpc.WriteError {
+// NewBadRequestWriteError creates a new bad request write error
+func NewBadRequestWriteError(err error) *rpc.WriteError {
 	writeErr := rpc.NewWriteError()
-	writeErr.Type = rpc.NodeErrorType_BAD_REQUEST
+	writeErr.Type = rpc.ErrorType_BAD_REQUEST
 	writeErr.Message = fmt.Sprintf("%v", err)
 	return writeErr
 }
 
-func newWriteBatchError(index int, err error) *rpc.WriteBatchError {
+// NewWriteBatchError creates a new write batch error
+func NewWriteBatchError(index int, err error) *rpc.WriteBatchError {
 	batchErr := rpc.NewWriteBatchError()
 	batchErr.ElementErrorIndex = int64(index)
-	batchErr.Error = newWriteError(err)
+	batchErr.Error = NewWriteError(err)
 	return batchErr
 }
 
-func newBadRequestWriteBatchError(index int, err error) *rpc.WriteBatchError {
+// NewBadRequestWriteBatchError creates a new bad request write batch error
+func NewBadRequestWriteBatchError(index int, err error) *rpc.WriteBatchError {
 	batchErr := rpc.NewWriteBatchError()
 	batchErr.ElementErrorIndex = int64(index)
-	batchErr.Error = newBadRequestWriteError(err)
+	batchErr.Error = NewBadRequestWriteError(err)
 	return batchErr
 }

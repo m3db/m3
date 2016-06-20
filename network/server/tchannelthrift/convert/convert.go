@@ -18,46 +18,51 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tchannelthrift
+package convert
 
 import (
 	"errors"
 	"time"
 
-	"github.com/m3db/m3db/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
 var (
 	errUnknownTimeType = errors.New("unknown time type")
+	errUnknownUnit     = errors.New("unknown unit")
 	timeZero           time.Time
 )
 
-func valueToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
-	unit, err := timeTypeToDuration(timeType)
+// ValueToTime converts a value to a time
+func ValueToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
+	unit, err := TimeTypeToDuration(timeType)
 	if err != nil {
 		return timeZero, err
 	}
 	return xtime.FromNormalizedTime(value, unit), nil
 }
 
-func timeToValue(t time.Time, timeType rpc.TimeType) (int64, error) {
-	unit, err := timeTypeToDuration(timeType)
+// TimeToValue converts a time to a value
+func TimeToValue(t time.Time, timeType rpc.TimeType) (int64, error) {
+	unit, err := TimeTypeToDuration(timeType)
 	if err != nil {
 		return 0, err
 	}
 	return xtime.ToNormalizedTime(t, unit), nil
 }
 
-func timeTypeToDuration(timeType rpc.TimeType) (time.Duration, error) {
-	unit, err := timeTypeToUnit(timeType)
+// TimeTypeToDuration converts a time type to a duration
+func TimeTypeToDuration(timeType rpc.TimeType) (time.Duration, error) {
+	unit, err := TimeTypeToUnit(timeType)
 	if err != nil {
 		return 0, err
 	}
 	return unit.Value()
 }
 
-func timeTypeToUnit(timeType rpc.TimeType) (xtime.Unit, error) {
+// TimeTypeToUnit converts a time type to a unit
+func TimeTypeToUnit(timeType rpc.TimeType) (xtime.Unit, error) {
 	switch timeType {
 	case rpc.TimeType_UNIX_SECONDS:
 		return xtime.Second, nil
@@ -69,4 +74,19 @@ func timeTypeToUnit(timeType rpc.TimeType) (xtime.Unit, error) {
 		return xtime.Nanosecond, nil
 	}
 	return 0, errUnknownTimeType
+}
+
+// UnitToTimeType converts a unit to a time type
+func UnitToTimeType(unit xtime.Unit) (rpc.TimeType, error) {
+	switch unit {
+	case xtime.Second:
+		return rpc.TimeType_UNIX_SECONDS, nil
+	case xtime.Millisecond:
+		return rpc.TimeType_UNIX_MILLISECONDS, nil
+	case xtime.Microsecond:
+		return rpc.TimeType_UNIX_MICROSECONDS, nil
+	case xtime.Nanosecond:
+		return rpc.TimeType_UNIX_NANOSECONDS, nil
+	}
+	return 0, errUnknownUnit
 }

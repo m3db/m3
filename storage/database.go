@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/sharding"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -97,8 +96,8 @@ type flushState struct {
 type db struct {
 	sync.RWMutex
 	opts        m3db.DatabaseOptions
-	shardScheme sharding.ShardScheme
-	shardSet    sharding.ShardSet
+	shardScheme m3db.ShardScheme
+	shardSet    m3db.ShardSet
 	bs          bootstrapState
 
 	fm             sync.RWMutex
@@ -117,7 +116,7 @@ type db struct {
 }
 
 // NewDatabase creates a new database
-func NewDatabase(shardSet sharding.ShardSet, opts m3db.DatabaseOptions) Database {
+func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) Database {
 	shardScheme := shardSet.Scheme()
 	return &db{
 		opts:           opts,

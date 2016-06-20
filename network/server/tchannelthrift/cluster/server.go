@@ -18,63 +18,62 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package sharding
+package cluster
 
 import (
-	"errors"
-
 	"github.com/m3db/m3db/interfaces/m3db"
+	ns "github.com/m3db/m3db/network/server"
+	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	xclose "github.com/m3db/m3db/x/close"
+
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
 )
 
-var (
-	// ErrToLessThanFrom returned when to is less than from
-	ErrToLessThanFrom = errors.New("to is less than from")
+const (
+	// ChannelName is the TChannel channel name the cluster service is exposed on
+	ChannelName = "Cluster"
 )
 
-type shardScheme struct {
-	from uint32
-	to   uint32
-	fn   m3db.HashFn
+type server struct {
+	client  m3db.Client
+	address string
+	opts    *tchannel.ChannelOptions
 }
 
-// NewShardScheme creates a new sharding scheme, from and to are inclusive
-func NewShardScheme(from, to uint32, fn m3db.HashFn) (m3db.ShardScheme, error) {
-	if to < from {
-		return nil, ErrToLessThanFrom
+// NewServer creates a new cluster TChannel Thrift network service
+func NewServer(
+	client m3db.Client,
+	address string,
+	opts *tchannel.ChannelOptions,
+) ns.NetworkService {
+	// Make the opts immutable on the way in
+	if opts != nil {
+		immutableOpts := *opts
+		opts = &immutableOpts
 	}
-	return &shardScheme{from, to, fn}, nil
-}
-
-func (s *shardScheme) Shard(identifer string) uint32 {
-	return s.fn(identifer)
-}
-
-func (s *shardScheme) CreateSet(from, to uint32) m3db.ShardSet {
-	var shards []uint32
-	for i := from; i >= s.from && i <= s.to && i <= to; i++ {
-		shards = append(shards, i)
+	return &server{
+		address: address,
+		client:  client,
+		opts:    opts,
 	}
-	return NewShardSet(shards, s)
 }
 
-func (s *shardScheme) All() m3db.ShardSet {
-	return s.CreateSet(s.from, s.to)
-}
+func (s *server) ListenAndServe() (ns.Close, error) {
+	channel, err := tchannel.NewChannel(ChannelName, s.opts)
+	if err != nil {
+		return nil, err
+	}
 
-type shardSet struct {
-	shards []uint32
-	scheme m3db.ShardScheme
-}
+	service := NewService(s.client)
 
-// NewShardSet creates a new shard set
-func NewShardSet(shards []uint32, scheme m3db.ShardScheme) m3db.ShardSet {
-	return &shardSet{shards, scheme}
-}
+	server := thrift.NewServer(channel)
+	server.Register(rpc.NewTChanClusterServer(service))
 
-func (s *shardSet) Shards() []uint32 {
-	return s.shards[:]
-}
+	channel.ListenAndServe(s.address)
 
-func (s *shardSet) Scheme() m3db.ShardScheme {
-	return s.scheme
+	return func() {
+		channel.Close()
+		xclose.TryClose(service)
+	}, nil
 }

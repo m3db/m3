@@ -18,56 +18,66 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tchannelthrift
+package cluster
 
 import (
-	"github.com/m3db/m3db/services/m3dbnode/serve"
-	"github.com/m3db/m3db/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
-	"github.com/m3db/m3db/storage"
+	"net"
+	"net/http"
 
-	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
-)
-
-const (
-	// ChannelName is the name of the TChannel channel name the service is exposed on
-	ChannelName = "Node"
+	"github.com/m3db/m3db/interfaces/m3db"
+	ns "github.com/m3db/m3db/network/server"
+	"github.com/m3db/m3db/network/server/httpjson"
+	ttcluster "github.com/m3db/m3db/network/server/tchannelthrift/cluster"
+	xclose "github.com/m3db/m3db/x/close"
 )
 
 type server struct {
+	client  m3db.Client
 	address string
-	opts    *tchannel.ChannelOptions
-	db      storage.Database
+	opts    httpjson.ServerOptions
 }
 
-// NewServer creates a TChannel Thrift network service
+// NewServer creates a cluster HTTP network service
 func NewServer(
-	db storage.Database,
+	client m3db.Client,
 	address string,
-	opts *tchannel.ChannelOptions,
-) serve.NetworkService {
-	// Make the opts immutable on the way in
-	if opts != nil {
-		immutableOpts := *opts
-		opts = &immutableOpts
+	opts httpjson.ServerOptions,
+) ns.NetworkService {
+	if opts == nil {
+		opts = httpjson.NewServerOptions()
 	}
 	return &server{
+		client:  client,
 		address: address,
 		opts:    opts,
-		db:      db,
 	}
 }
 
-func (s *server) ListenAndServe() (serve.Close, error) {
-	channel, err := tchannel.NewChannel(ChannelName, s.opts)
+func (s *server) ListenAndServe() (ns.Close, error) {
+	service := ttcluster.NewService(s.client)
+
+	mux := http.NewServeMux()
+	if err := httpjson.RegisterHandlers(mux, service, s.opts); err != nil {
+		return nil, err
+	}
+
+	listener, err := net.Listen("tcp", s.address)
 	if err != nil {
 		return nil, err
 	}
 
-	server := thrift.NewServer(channel)
-	server.Register(rpc.NewTChanNodeServer(NewService(s.db)))
+	server := http.Server{
+		Handler:      mux,
+		ReadTimeout:  s.opts.GetReadTimeout(),
+		WriteTimeout: s.opts.GetWriteTimeout(),
+	}
 
-	channel.ListenAndServe(s.address)
+	go func() {
+		server.Serve(listener)
+	}()
 
-	return channel.Close, nil
+	return func() {
+		listener.Close()
+		xclose.TryClose(service)
+	}, nil
 }

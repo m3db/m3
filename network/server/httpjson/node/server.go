@@ -18,13 +18,62 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package serve
+package node
 
-// NetworkService is a network service that can serve remote clients
-type NetworkService interface {
-	// ListenAndServe will listen and serve traffic, returns a close and any error that occurred
-	ListenAndServe() (Close, error)
+import (
+	"net"
+	"net/http"
+
+	ns "github.com/m3db/m3db/network/server"
+	"github.com/m3db/m3db/network/server/httpjson"
+	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
+	"github.com/m3db/m3db/storage"
+)
+
+type server struct {
+	address string
+	db      storage.Database
+	opts    httpjson.ServerOptions
 }
 
-// Close is a method to call to close a resource or procedure
-type Close func()
+// NewServer creates a node HTTP network service
+func NewServer(
+	db storage.Database,
+	address string,
+	opts httpjson.ServerOptions,
+) ns.NetworkService {
+	if opts == nil {
+		opts = httpjson.NewServerOptions()
+	}
+	return &server{
+		address: address,
+		db:      db,
+		opts:    opts,
+	}
+}
+
+func (s *server) ListenAndServe() (ns.Close, error) {
+	mux := http.NewServeMux()
+	if err := httpjson.RegisterHandlers(mux, ttnode.NewService(s.db), s.opts); err != nil {
+		return nil, err
+	}
+
+	listener, err := net.Listen("tcp", s.address)
+	if err != nil {
+		return nil, err
+	}
+
+	server := http.Server{
+		Handler:      mux,
+		ReadTimeout:  s.opts.GetReadTimeout(),
+		WriteTimeout: s.opts.GetWriteTimeout(),
+	}
+
+	go func() {
+		server.Serve(listener)
+	}()
+
+	return func() {
+		listener.Close()
+	}, nil
+}

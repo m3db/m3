@@ -18,12 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tchannelthrift
+package node
 
 import (
 	"fmt"
+	"sync"
 
-	"github.com/m3db/m3db/services/m3dbnode/serve/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
+	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3db/storage"
 	xerrors "github.com/m3db/m3db/x/errors"
 	xio "github.com/m3db/m3db/x/io"
@@ -33,30 +36,43 @@ import (
 )
 
 type service struct {
-	db storage.Database
+	sync.RWMutex
+
+	db     storage.Database
+	health *rpc.HealthResult_
 }
 
-// NewService creates a new TChannel Thrift compatible service
+// NewService creates a new node TChannel Thrift service
 func NewService(db storage.Database) rpc.TChanNode {
-	return &service{db: db}
+	return &service{
+		db:     db,
+		health: &rpc.HealthResult_{Ok: true, Status: "up"},
+	}
+}
+
+func (s *service) Health(ctx thrift.Context) (*rpc.HealthResult_, error) {
+	s.RLock()
+	health := s.health
+	s.RUnlock()
+	return health, nil
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 	ctx := s.db.Options().GetContextPool().Get()
 	defer ctx.Close()
 
-	start, rangeStartErr := valueToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := valueToTime(req.RangeEnd, req.RangeType)
+	start, rangeStartErr := convert.ValueToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ValueToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
-		return nil, newNodeBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
 	encoded, err := s.db.ReadEncoded(ctx, req.ID, start, end)
 	if err != nil {
 		if xerrors.IsInvalidParams(err) {
-			return nil, newNodeBadRequestError(err)
+			return nil, tterrors.NewBadRequestError(err)
 		}
-		return nil, newNodeInternalError(err)
+		return nil, tterrors.NewInternalError(err)
 	}
 
 	result := rpc.NewFetchResult_()
@@ -73,9 +89,9 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		it := newDecoderFn().Decode(reader)
 		for it.Next() {
 			dp, _, annotation := it.Current()
-			ts, tsErr := timeToValue(dp.Timestamp, req.ResultTimeType)
+			ts, tsErr := convert.TimeToValue(dp.Timestamp, req.ResultTimeType)
 			if tsErr != nil {
-				return nil, newNodeBadRequestError(tsErr)
+				return nil, tterrors.NewBadRequestError(tsErr)
 			}
 
 			afterOrAtStart := !dp.Timestamp.Before(start)
@@ -89,7 +105,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 			}
 		}
 		if err := it.Err(); err != nil {
-			return nil, newNodeInternalError(err)
+			return nil, tterrors.NewInternalError(err)
 		}
 	}
 
@@ -100,10 +116,10 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 	ctx := s.db.Options().GetContextPool().Get()
 	defer ctx.Close()
 
-	start, rangeStartErr := valueToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := valueToTime(req.RangeEnd, req.RangeType)
+	start, rangeStartErr := convert.ValueToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ValueToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
-		return nil, newNodeBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
 	result := rpc.NewFetchRawBatchResult_()
@@ -111,14 +127,14 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 		encoded, err := s.db.ReadEncoded(ctx, req.Ids[i], start, end)
 		if err != nil {
 			if xerrors.IsInvalidParams(err) {
-				return nil, newNodeBadRequestError(err)
+				return nil, tterrors.NewBadRequestError(err)
 			}
-			return nil, newNodeInternalError(err)
+			return nil, tterrors.NewInternalError(err)
 		}
 		rawResult := rpc.NewFetchRawResult_()
 		sgrs, err := xio.GetSegmentReaders(encoded)
 		if err != nil {
-			return nil, newNodeInternalError(err)
+			return nil, tterrors.NewInternalError(err)
 		}
 		segments := make([]*rpc.Segment, 0, len(sgrs))
 		for _, sgr := range sgrs {
@@ -137,23 +153,23 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	defer ctx.Close()
 
 	if req.Datapoint == nil {
-		return newBadRequestWriteError(fmt.Errorf("requires datapoint"))
+		return tterrors.NewBadRequestWriteError(fmt.Errorf("requires datapoint"))
 	}
-	unit, unitErr := timeTypeToUnit(req.Datapoint.TimestampType)
+	unit, unitErr := convert.TimeTypeToUnit(req.Datapoint.TimestampType)
 	if unitErr != nil {
-		return newBadRequestWriteError(unitErr)
+		return tterrors.NewBadRequestWriteError(unitErr)
 	}
 	d, err := unit.Value()
 	if err != nil {
-		return newBadRequestWriteError(err)
+		return tterrors.NewBadRequestWriteError(err)
 	}
 	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
 	err = s.db.Write(ctx, req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
 	if err != nil {
 		if xerrors.IsInvalidParams(err) {
-			return newBadRequestWriteError(err)
+			return tterrors.NewBadRequestWriteError(err)
 		}
-		return newWriteError(err)
+		return tterrors.NewWriteError(err)
 	}
 	return nil
 }
@@ -164,23 +180,23 @@ func (s *service) WriteBatch(tctx thrift.Context, req *rpc.WriteBatchRequest) er
 
 	var errs []*rpc.WriteBatchError
 	for i, elem := range req.Elements {
-		unit, unitErr := timeTypeToUnit(elem.Datapoint.TimestampType)
+		unit, unitErr := convert.TimeTypeToUnit(elem.Datapoint.TimestampType)
 		if unitErr != nil {
-			errs = append(errs, newBadRequestWriteBatchError(i, unitErr))
+			errs = append(errs, tterrors.NewBadRequestWriteBatchError(i, unitErr))
 			continue
 		}
 		d, err := unit.Value()
 		if err != nil {
-			errs = append(errs, newBadRequestWriteBatchError(i, err))
+			errs = append(errs, tterrors.NewBadRequestWriteBatchError(i, err))
 			continue
 		}
 		ts := xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d)
 		err = s.db.Write(ctx, elem.ID, ts, elem.Datapoint.Value, unit, elem.Datapoint.Annotation)
 		if err != nil {
 			if xerrors.IsInvalidParams(err) {
-				errs = append(errs, newBadRequestWriteBatchError(i, err))
+				errs = append(errs, tterrors.NewBadRequestWriteBatchError(i, err))
 			} else {
-				errs = append(errs, newWriteBatchError(i, err))
+				errs = append(errs, tterrors.NewWriteBatchError(i, err))
 			}
 		}
 	}

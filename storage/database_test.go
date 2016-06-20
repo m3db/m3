@@ -34,7 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testShardingScheme(t *testing.T) sharding.ShardScheme {
+func testShardingScheme(t *testing.T) m3db.ShardScheme {
 	shardScheme, err := sharding.NewShardScheme(0, 1, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % 1024
 	})
