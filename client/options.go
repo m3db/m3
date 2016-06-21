@@ -60,45 +60,65 @@ const (
 
 	// defaultHostQueueOpsArrayPoolSize is the default host queue ops array pool size
 	defaultHostQueueOpsArrayPoolSize = 8
+
+	// defaultBackgroundConnectInterval is the default background connect interval
+	defaultBackgroundConnectInterval = 10 * time.Second
+
+	// defaultBackgroundConnectStutter is the default background connect stutter
+	defaultBackgroundConnectStutter = 5 * time.Second
+
+	// defaultBackgroundHealthCheckInterval is the default background health check interval
+	defaultBackgroundHealthCheckInterval = 5 * time.Second
+
+	// defaultBackgroundHealthCheckStutter is the default background health check stutter
+	defaultBackgroundHealthCheckStutter = 5 * time.Second
 )
 
 type options struct {
-	logger                    logging.Logger
-	scope                     metrics.Scope
-	topologyType              m3db.TopologyType
-	consistencyLevel          m3db.ConsistencyLevel
-	channelOptions            *tchannel.ChannelOptions
-	nowFn                     m3db.NowFn
-	maxConnectionCount        int
-	minConnectionCount        int
-	hostConnectTimeout        time.Duration
-	clusterConnectTimeout     time.Duration
-	writeRequestTimeout       time.Duration
-	writeOpPoolSize           int
-	writeBatchSize            int
-	hostQueueOpsFlushSize     int
-	hostQueueOpsFlushInterval time.Duration
-	hostQueueOpsArrayPoolSize int
+	logger                        logging.Logger
+	scope                         metrics.Scope
+	topologyType                  m3db.TopologyType
+	consistencyLevel              m3db.ConsistencyLevel
+	channelOptions                *tchannel.ChannelOptions
+	nowFn                         m3db.NowFn
+	maxConnectionCount            int
+	minConnectionCount            int
+	hostConnectTimeout            time.Duration
+	clusterConnectTimeout         time.Duration
+	writeRequestTimeout           time.Duration
+	backgroundConnectInterval     time.Duration
+	backgroundConnectStutter      time.Duration
+	backgroundHealthCheckInterval time.Duration
+	backgroundHealthCheckStutter  time.Duration
+	writeOpPoolSize               int
+	writeBatchSize                int
+	hostQueueOpsFlushSize         int
+	hostQueueOpsFlushInterval     time.Duration
+	hostQueueOpsArrayPoolSize     int
 }
 
 // NewOptions creates a new set of client options with defaults
 // TODO(r): add an "IsValid()" method and ensure topology type is set
 func NewOptions() m3db.ClientOptions {
 	return &options{
-		logger:                    logging.SimpleLogger,
-		scope:                     metrics.NoopScope,
-		consistencyLevel:          m3db.ConsistencyLevelQuorum,
-		nowFn:                     time.Now,
-		maxConnectionCount:        defaultMaxConnectionCount,
-		minConnectionCount:        defaultMinConnectionCount,
-		hostConnectTimeout:        defaultHostConnectTimeout,
-		clusterConnectTimeout:     defaultClusterConnectTimeout,
-		writeRequestTimeout:       defaultWriteRequestTimeout,
-		writeOpPoolSize:           defaultWriteOpPoolSize,
-		writeBatchSize:            defaultWriteBatchSize,
-		hostQueueOpsFlushSize:     defaultHostQueueOpsFlushSize,
-		hostQueueOpsFlushInterval: defaultHostQueueOpsFlushInterval,
-		hostQueueOpsArrayPoolSize: defaultHostQueueOpsArrayPoolSize,
+		logger:                        logging.SimpleLogger,
+		scope:                         metrics.NoopScope,
+		consistencyLevel:              m3db.ConsistencyLevelQuorum,
+		nowFn:                         time.Now,
+		maxConnectionCount:            defaultMaxConnectionCount,
+		minConnectionCount:            defaultMinConnectionCount,
+		hostConnectTimeout:            defaultHostConnectTimeout,
+		clusterConnectTimeout:         defaultClusterConnectTimeout,
+		writeRequestTimeout:           defaultWriteRequestTimeout,
+		backgroundConnectInterval:     defaultBackgroundConnectInterval,
+		backgroundConnectStutter:      defaultBackgroundConnectStutter,
+		backgroundHealthCheckInterval: defaultBackgroundHealthCheckInterval,
+		backgroundHealthCheckStutter:  defaultBackgroundHealthCheckStutter,
+		writeOpPoolSize:               defaultWriteOpPoolSize,
+		writeBatchSize:                defaultWriteBatchSize,
+		hostQueueOpsFlushSize:         defaultHostQueueOpsFlushSize,
+		hostQueueOpsFlushInterval:     defaultHostQueueOpsFlushInterval,
+		hostQueueOpsArrayPoolSize:     defaultHostQueueOpsArrayPoolSize,
 	}
 }
 
@@ -210,6 +230,46 @@ func (o *options) WriteRequestTimeout(value time.Duration) m3db.ClientOptions {
 
 func (o *options) GetWriteRequestTimeout() time.Duration {
 	return o.writeRequestTimeout
+}
+
+func (o *options) BackgroundConnectInterval(value time.Duration) m3db.ClientOptions {
+	opts := *o
+	opts.backgroundConnectInterval = value
+	return &opts
+}
+
+func (o *options) GetBackgroundConnectInterval() time.Duration {
+	return o.writeRequestTimeout
+}
+
+func (o *options) BackgroundConnectStutter(value time.Duration) m3db.ClientOptions {
+	opts := *o
+	opts.backgroundConnectStutter = value
+	return &opts
+}
+
+func (o *options) GetBackgroundConnectStutter() time.Duration {
+	return o.backgroundConnectStutter
+}
+
+func (o *options) BackgroundHealthCheckInterval(value time.Duration) m3db.ClientOptions {
+	opts := *o
+	opts.backgroundHealthCheckInterval = value
+	return &opts
+}
+
+func (o *options) GetBackgroundHealthCheckInterval() time.Duration {
+	return o.backgroundHealthCheckInterval
+}
+
+func (o *options) BackgroundHealthCheckStutter(value time.Duration) m3db.ClientOptions {
+	opts := *o
+	opts.backgroundHealthCheckStutter = value
+	return &opts
+}
+
+func (o *options) GetBackgroundHealthCheckStutter() time.Duration {
+	return o.backgroundHealthCheckStutter
 }
 
 func (o *options) WriteOpPoolSize(value int) m3db.ClientOptions {

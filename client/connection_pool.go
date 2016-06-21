@@ -22,6 +22,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"math/rand"
 	"sync"
@@ -31,6 +32,7 @@ import (
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	xclose "github.com/m3db/m3db/x/close"
 
 	"github.com/spaolacci/murmur3"
 	"github.com/uber/tchannel-go"
@@ -38,11 +40,7 @@ import (
 )
 
 const (
-	channelName        = "Client"
-	connectEvery       = 10 * time.Second
-	connectStutter     = 5 * time.Second
-	healthCheckEvery   = 5 * time.Second
-	healthCheckStutter = 5 * time.Second
+	channelName = "Client"
 )
 
 var (
@@ -51,6 +49,9 @@ var (
 )
 
 type connectionPool interface {
+	// Open starts the connection pool connecting and health checking
+	Open()
+
 	// GetConnectionCount gets the current open connection count
 	GetConnectionCount() int
 
@@ -64,38 +65,70 @@ type connectionPool interface {
 type connPool struct {
 	sync.RWMutex
 
-	opts            m3db.ClientOptions
-	host            m3db.Host
-	pool            []conn
-	poolLen         int64
-	used            int64
-	connectRand     rand.Source
-	healthCheckRand rand.Source
-	closed          bool
+	opts               m3db.ClientOptions
+	host               m3db.Host
+	pool               []conn
+	poolLen            int64
+	used               int64
+	connectRand        rand.Source
+	healthCheckRand    rand.Source
+	newConn            newConnFn
+	healthCheckNewConn healthCheckFn
+	healthCheck        healthCheckFn
+	sleepConnect       sleepFn
+	sleepHealth        sleepFn
+	opened             bool
+	closed             bool
 }
 
 type conn struct {
-	channel *tchannel.Channel
+	channel xclose.SimpleCloser
 	client  rpc.TChanNode
 }
+
+type newConnFn func(channelName string, addr string, opts m3db.ClientOptions) (xclose.SimpleCloser, rpc.TChanNode, error)
+
+type healthCheckFn func(client rpc.TChanNode, opts m3db.ClientOptions) error
+
+type sleepFn func(t time.Duration)
 
 func newConnectionPool(host m3db.Host, opts m3db.ClientOptions) connectionPool {
 	seed := int64(murmur3.Sum32([]byte(host.Address())))
 
 	p := &connPool{
-		opts:            opts,
-		host:            host,
-		pool:            make([]conn, 0, opts.GetMaxConnectionCount()),
-		poolLen:         0,
-		connectRand:     rand.NewSource(seed),
-		healthCheckRand: rand.NewSource(seed + 1),
+		opts:               opts,
+		host:               host,
+		pool:               make([]conn, 0, opts.GetMaxConnectionCount()),
+		poolLen:            0,
+		connectRand:        rand.NewSource(seed),
+		healthCheckRand:    rand.NewSource(seed + 1),
+		newConn:            newConn,
+		healthCheckNewConn: healthCheck,
+		healthCheck:        healthCheck,
+		sleepConnect:       time.Sleep,
+		sleepHealth:        time.Sleep,
 	}
 
+	return p
+}
+
+func (p *connPool) Open() {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.opened {
+		return
+	}
+
+	p.opened = true
+
+	connectEvery := p.opts.GetBackgroundConnectInterval()
+	connectStutter := p.opts.GetBackgroundConnectStutter()
 	go p.connectEvery(connectEvery, connectStutter)
 
+	healthCheckEvery := p.opts.GetBackgroundHealthCheckInterval()
+	healthCheckStutter := p.opts.GetBackgroundHealthCheckStutter()
 	go p.healthCheckEvery(healthCheckEvery, healthCheckStutter)
-
-	return p
 }
 
 func (p *connPool) GetConnectionCount() int {
@@ -150,36 +183,28 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 		target := p.opts.GetMaxConnectionCount()
 		if poolLen >= target {
 			// No need to spawn connections
-			time.Sleep(interval + randStutter(p.connectRand, stutter))
+			p.sleepConnect(interval + randStutter(p.connectRand, stutter))
 			continue
 		}
 
-		var wg sync.WaitGroup
 		address := p.host.Address()
+
+		var wg sync.WaitGroup
 		for i := 0; i < target-poolLen; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 
-				channel, err := tchannel.NewChannel(channelName, p.opts.GetChannelOptions())
-				if err != nil {
-					log.Warnf("construct channel error to %s: %v", address, err)
-					return
-				}
-
-				endpoint := &thrift.ClientOptions{HostPort: address}
-				thriftClient := thrift.NewClient(channel, node.ChannelName, endpoint)
-				client := rpc.NewTChanNodeClient(thriftClient)
-
-				// Force a request to open the connection
-				ctx, _ := thrift.NewContext(p.opts.GetHostConnectTimeout())
-				result, err := client.Health(ctx)
+				// Create connection
+				channel, client, err := p.newConn(channelName, address, p.opts)
 				if err != nil {
 					log.Warnf("could not connect to %s: %v", address, err)
 					return
 				}
-				if !result.Ok {
-					log.Warnf("could not connect to unhealthy host %s: %s", address, result.Status)
+
+				// Health check the connection
+				if err := p.healthCheckNewConn(client, p.opts); err != nil {
+					log.Warnf("could not connect to %s: failed health check: %v", address, err)
 					return
 				}
 
@@ -194,7 +219,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 
 		wg.Wait()
 
-		time.Sleep(interval + randStutter(p.connectRand, stutter))
+		p.sleepConnect(interval + randStutter(p.connectRand, stutter))
 	}
 }
 
@@ -215,20 +240,14 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 		deadline := start.Add(interval + randStutter(p.healthCheckRand, stutter))
 		// As this is the only loop that removes connections it is safe to loop upwards
 		for i := 0; i < poolLen; i++ {
-			healthy := true
-
 			p.RLock()
 			client := p.pool[i].client
 			p.RUnlock()
 
-			tctx, _ := thrift.NewContext(p.opts.GetHostConnectTimeout())
-			result, err := client.Health(tctx)
-			if err != nil {
+			healthy := true
+			if err := p.healthCheck(client, p.opts); err != nil {
 				healthy = false
 				log.Warnf("health check failed to %s: %v", p.host.Address(), err)
-			} else if !result.Ok {
-				healthy = false
-				log.Warnf("health check found unhealthy host %s: %s", p.host.Address(), result.Status)
 			}
 
 			if !healthy {
@@ -264,8 +283,31 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 			continue
 		}
 
-		time.Sleep(deadline.Sub(now))
+		p.sleepHealth(deadline.Sub(now))
 	}
+}
+
+func newConn(channelName string, address string, opts m3db.ClientOptions) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	channel, err := tchannel.NewChannel(channelName, opts.GetChannelOptions())
+	if err != nil {
+		return nil, nil, err
+	}
+	endpoint := &thrift.ClientOptions{HostPort: address}
+	thriftClient := thrift.NewClient(channel, node.ChannelName, endpoint)
+	client := rpc.NewTChanNodeClient(thriftClient)
+	return channel, client, nil
+}
+
+func healthCheck(client rpc.TChanNode, opts m3db.ClientOptions) error {
+	tctx, _ := thrift.NewContext(opts.GetHostConnectTimeout())
+	result, err := client.Health(tctx)
+	if err != nil {
+		return err
+	}
+	if !result.Ok {
+		return fmt.Errorf("status not ok: %s", result.Status)
+	}
+	return nil
 }
 
 func randStutter(source rand.Source, t time.Duration) time.Duration {

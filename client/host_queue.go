@@ -86,6 +86,9 @@ func newHostQueue(
 		closed:  false,
 	}
 
+	// Open the connection pool
+	q.connPool.Open()
+
 	// Continually drain the queue until closed
 	go q.drain()
 

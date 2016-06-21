@@ -221,6 +221,30 @@ type ClientOptions interface {
 	// GetWriteRequestTimeout returns the writeRequestTimeout
 	GetWriteRequestTimeout() time.Duration
 
+	// BackgroundConnectInterval sets the backgroundConnectInterval and returns a new ClientOptions
+	BackgroundConnectInterval(value time.Duration) ClientOptions
+
+	// GetBackgroundConnectInterval returns the backgroundConnectInterval
+	GetBackgroundConnectInterval() time.Duration
+
+	// BackgroundConnectStutter sets the backgroundConnectStutter and returns a new ClientOptions
+	BackgroundConnectStutter(value time.Duration) ClientOptions
+
+	// GetBackgroundConnectStutter returns the backgroundConnectStutter
+	GetBackgroundConnectStutter() time.Duration
+
+	// BackgroundHealthCheckInterval sets the backgroundHealthCheckInterval and returns a new ClientOptions
+	BackgroundHealthCheckInterval(value time.Duration) ClientOptions
+
+	// GetBackgroundHealthCheckInterval returns the backgroundHealthCheckInterval
+	GetBackgroundHealthCheckInterval() time.Duration
+
+	// BackgroundHealthCheckStutter sets the backgroundHealthCheckStutter and returns a new ClientOptions
+	BackgroundHealthCheckStutter(value time.Duration) ClientOptions
+
+	// GetBackgroundHealthCheckStutter returns the backgroundHealthCheckStutter
+	GetBackgroundHealthCheckStutter() time.Duration
+
 	// WriteOpPoolSize sets the writeOpPoolSize and returns a new ClientOptions
 	WriteOpPoolSize(value int) ClientOptions
 
