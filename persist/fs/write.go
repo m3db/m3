@@ -135,6 +135,8 @@ func (w *writer) Open(shard uint32, blockStart time.Time) error {
 		return err
 	}
 	w.start = blockStart
+	w.currIdx = 0
+	w.currOffset = 0
 	w.checkpointFilePath = filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	return openFiles(
 		w.openWritable,
@@ -224,6 +226,7 @@ func (w *writer) Close() error {
 		BlockSize: int64(w.blockSize),
 		Entries:   w.currIdx,
 	}
+	w.infoBuffer.Reset()
 	if err := w.infoBuffer.Marshal(info); err != nil {
 		return err
 	}

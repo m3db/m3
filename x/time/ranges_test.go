@@ -225,7 +225,7 @@ func TestOverlaps(t *testing.T) {
 	require.False(t, tr.Overlaps(Range{Start: testStart.Add(time.Second), End: testStart.Add(2 * time.Second)}))
 }
 
-func TestIter(t *testing.T) {
+func TestRangesIter(t *testing.T) {
 	rangesToAdd := getRangesToAdd()
 	tr := getPopulatedRanges(rangesToAdd, 0, 4)
 	expectedResults := []Range{
@@ -237,4 +237,13 @@ func TestIter(t *testing.T) {
 	validateIter(t, tr.Iter(), expectedResults)
 	tr = tr.RemoveRange(rangesToAdd[2])
 	validateIter(t, tr.Iter(), append(expectedResults[:1], expectedResults[2:]...))
+}
+
+func TestRangesString(t *testing.T) {
+	tr := NewRanges()
+	require.Equal(t, "[]", tr.String())
+	start := time.Unix(1465430400, 0).UTC()
+	tr = tr.AddRange(Range{Start: start, End: start.Add(2 * time.Hour)}).
+		AddRange(Range{Start: start.Add(4 * time.Hour), End: start.Add(5 * time.Hour)})
+	require.Equal(t, "[(2016-06-09 00:00:00 +0000 UTC,2016-06-09 02:00:00 +0000 UTC),(2016-06-09 04:00:00 +0000 UTC,2016-06-09 05:00:00 +0000 UTC)]", tr.String())
 }

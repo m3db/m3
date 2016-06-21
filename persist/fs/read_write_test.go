@@ -22,10 +22,12 @@ package fs
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/m3db/m3db/interfaces/m3db"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -35,30 +37,18 @@ type testEntry struct {
 	data []byte
 }
 
-func TestSimpleReadWrite(t *testing.T) {
-	dir, err := ioutil.TempDir("", "testdb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	filePathPrefix := filepath.Join(dir, "")
-	defer os.RemoveAll(dir)
-
-	entries := []testEntry{
-		{"foo", []byte{1, 2, 3}},
-		{"bar", []byte{4, 5, 6}},
-	}
-
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
-	err = w.Open(0, testWriterStart)
+func writeTestData(t *testing.T, w m3db.FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
+	err := w.Open(shard, timestamp)
 	assert.NoError(t, err)
 
 	for i := range entries {
 		assert.NoError(t, w.Write(entries[i].key, entries[i].data))
 	}
 	assert.NoError(t, w.Close())
+}
 
-	r := NewReader(filePathPrefix)
-	err = r.Open(0, testWriterStart)
+func readTestData(t *testing.T, r m3db.FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+	err := r.Open(0, timestamp)
 	assert.NoError(t, err)
 
 	assert.Equal(t, len(entries), r.Entries())
@@ -74,4 +64,47 @@ func TestSimpleReadWrite(t *testing.T) {
 	}
 
 	assert.NoError(t, r.Close())
+}
+
+func TestSimpleReadWrite(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+	}
+
+	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	writeTestData(t, w, 0, testWriterStart, entries)
+
+	r := NewReader(filePathPrefix)
+	readTestData(t, r, 0, testWriterStart, entries)
+}
+
+func TestReusingReaderWriter(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	allEntries := [][]testEntry{
+		{
+			{"foo", []byte{1, 2, 3}},
+			{"bar", []byte{4, 5, 6}},
+		},
+		{
+			{"baz", []byte{7, 8, 9}},
+		},
+		{},
+	}
+	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	for i := range allEntries {
+		writeTestData(t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
+	}
+
+	r := NewReader(filePathPrefix)
+	for i := range allEntries {
+		readTestData(t, r, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
+	}
 }

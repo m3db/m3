@@ -190,7 +190,12 @@ func (d *db) Bootstrap(writeStart time.Time) error {
 		}
 	}
 
-	d.flushToDisk(time.Now(), false)
+	// NB(xichen): when we get here, we should have bootstrapped everything between
+	// writeStart - retentionPeriod and writeStart + bufferFuture, which means the
+	// current time is at least writeStart + bufferFuture + bufferPast. We intentionally
+	// don't use now because we don't know whether the in-memory buffers have been drained.
+	flushTime := writeStart.Add(d.opts.GetBufferFuture()).Add(d.opts.GetBufferPast())
+	d.flushToDisk(flushTime, false)
 
 	d.Lock()
 	d.bs = bootstrapped
