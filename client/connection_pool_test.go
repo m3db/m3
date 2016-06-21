@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3db/topology"
 	xclose "github.com/m3db/m3db/x/close"
+	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -39,10 +40,6 @@ var (
 	h           = topology.NewHost("testhost:9000")
 	channelNone = &nullChannel{}
 )
-
-type nullChannel struct{}
-
-func (*nullChannel) Close() {}
 
 func newConnectionPoolTestOptions() m3db.ClientOptions {
 	return NewOptions().
@@ -63,25 +60,19 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	// 4. Don't bother
 
 	var (
-		attempts             int
-		sleeps               int
-		rounds               int32
-		firstSleepWg         sync.WaitGroup
-		proceedFirstSleepWg  sync.WaitGroup
-		secondSleepWg        sync.WaitGroup
-		proceedSecondSleepWg sync.WaitGroup
-		thirdSleepWg         sync.WaitGroup
-		proceedThirdSleepWg  sync.WaitGroup
-		fourthSleepWg        sync.WaitGroup
-		doneWg               sync.WaitGroup
+		attempts        int
+		sleeps          int
+		rounds          int32
+		sleepWgs        [4]sync.WaitGroup
+		proceedSleepWgs [3]sync.WaitGroup
+		doneWg          sync.WaitGroup
 	)
-	firstSleepWg.Add(1)
-	proceedFirstSleepWg.Add(1)
-	secondSleepWg.Add(1)
-	proceedSecondSleepWg.Add(1)
-	thirdSleepWg.Add(1)
-	proceedThirdSleepWg.Add(1)
-	fourthSleepWg.Add(1)
+	for i := range sleepWgs {
+		sleepWgs[i].Add(1)
+	}
+	for i := range proceedSleepWgs {
+		proceedSleepWgs[i].Add(1)
+	}
 	doneWg.Add(1)
 
 	opts := newConnectionPoolTestOptions()
@@ -106,17 +97,15 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	}
 	conns.sleepConnect = func(t time.Duration) {
 		sleeps++
-		if sleeps == 1 {
-			firstSleepWg.Done()
-			proceedFirstSleepWg.Wait()
-		} else if sleeps == 2 {
-			secondSleepWg.Done()
-			proceedSecondSleepWg.Wait()
-		} else if sleeps == 3 {
-			thirdSleepWg.Done()
-			proceedThirdSleepWg.Wait()
-		} else if sleeps == 4 {
-			fourthSleepWg.Done()
+		if sleeps <= 4 {
+			if sleeps <= len(sleepWgs) {
+				sleepWgs[sleeps-1].Done()
+			}
+			if sleeps <= len(proceedSleepWgs) {
+				proceedSleepWgs[sleeps-1].Wait()
+			}
+		}
+		if sleeps == 4 {
 			doneWg.Wait()
 			return // All done
 		}
@@ -129,26 +118,182 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	conns.Open()
 
 	// Wait for first round, should've created all conns except first
-	firstSleepWg.Wait()
+	sleepWgs[0].Wait()
 	assert.Equal(t, 3, conns.GetConnectionCount())
-	proceedFirstSleepWg.Done()
+	proceedSleepWgs[0].Done()
 
 	// Wait for second round, all attempts should succeed but all fail health checks
-	secondSleepWg.Wait()
+	sleepWgs[1].Wait()
 	assert.Equal(t, 3, conns.GetConnectionCount())
-	proceedSecondSleepWg.Done()
+	proceedSleepWgs[1].Done()
 
 	// Wait for third round, now should succeed and all connections accounted for
-	thirdSleepWg.Wait()
+	sleepWgs[2].Wait()
 	assert.Equal(t, 4, conns.GetConnectionCount())
 	doneAll := attempts
-	proceedThirdSleepWg.Done()
+	proceedSleepWgs[2].Done()
 
 	// Wait for fourth roundm, now should not involve attempting to spawn connections
-	fourthSleepWg.Wait()
+	sleepWgs[3].Wait()
 	// Ensure no more attempts done in fnal round
 	assert.Equal(t, doneAll, attempts)
 
 	conns.Close()
 	doneWg.Done()
+
+	nextClient, err := conns.NextClient()
+	assert.Nil(t, nextClient)
+	assert.Equal(t, errConnectionPoolClosed, err)
+}
+
+func TestConnectionPoolHealthChecks(t *testing.T) {
+	// Scenario:
+	// 1. Fill 2 connections
+	// 2. Round 1, fail conn 0 health checks
+	// > Take connection out
+	// 3. Round 2, fail conn 1 health checks
+	// > Take connection out
+
+	var (
+		newConnAttempt int
+		connectRounds  int32
+		healthRounds   int32
+		invokeFail     int32
+		client1        = &nullNodeClient{}
+		client2        = &nullNodeClient{}
+		overrides      = []healthCheckFn{}
+		overridesMut   sync.RWMutex
+		pushOverride   = func(fn healthCheckFn) {
+			overridesMut.Lock()
+			defer overridesMut.Unlock()
+			overrides = append(overrides, fn)
+		}
+		popOverride = func() healthCheckFn {
+			if len(overrides) == 0 {
+				return nil
+			}
+			next := overrides[0]
+			overrides = overrides[1:]
+			return next
+		}
+		pushFailClientOverride = func(failTargetClient rpc.TChanNode) {
+			var failOverride healthCheckFn
+			failOverride = func(client rpc.TChanNode, opts m3db.ClientOptions) error {
+				if client == failTargetClient {
+					atomic.AddInt32(&invokeFail, 1)
+					return fmt.Errorf("fail client")
+				}
+				// Not failing this client, re-enqueue
+				pushOverride(failOverride)
+				return nil
+			}
+			pushOverride(failOverride)
+		}
+		failsDoneWg [2]sync.WaitGroup
+	)
+	for i := range failsDoneWg {
+		failsDoneWg[i].Add(1)
+	}
+
+	opts := newConnectionPoolTestOptions()
+	opts = opts.MaxConnectionCount(2)
+	conns := newConnectionPool(h, opts).(*connPool)
+	conns.newConn = func(ch string, addr string, opts m3db.ClientOptions) (xclose.SimpleCloser, rpc.TChanNode, error) {
+		newConnAttempt++
+		if newConnAttempt == 1 {
+			return channelNone, client1, nil
+		} else if newConnAttempt == 2 {
+			return channelNone, client2, nil
+		}
+		return nil, nil, fmt.Errorf("spawning only 2 connections")
+	}
+	conns.healthCheckNewConn = func(client rpc.TChanNode, opts m3db.ClientOptions) error {
+		return nil
+	}
+	conns.healthCheck = func(client rpc.TChanNode, opts m3db.ClientOptions) error {
+		if fn := popOverride(); fn != nil {
+			return fn(client, opts)
+		}
+		return nil
+	}
+	conns.sleepConnect = func(t time.Duration) {
+		atomic.AddInt32(&connectRounds, 1)
+		time.Sleep(time.Millisecond)
+	}
+	conns.sleepHealth = func(t time.Duration) {
+		atomic.AddInt32(&healthRounds, 1)
+		if atomic.LoadInt32(&invokeFail) == 1 {
+			failsDoneWg[0].Done()
+		} else if atomic.LoadInt32(&invokeFail) == 2 {
+			failsDoneWg[1].Done()
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	assert.Equal(t, 0, conns.GetConnectionCount())
+
+	conns.Open()
+
+	// Wait for first round, should've created all conns except first
+	for atomic.LoadInt32(&connectRounds) < 1 {
+		time.Sleep(time.Millisecond)
+	}
+
+	assert.Equal(t, 2, conns.GetConnectionCount())
+
+	// Fail client1 health check
+	pushFailClientOverride(client1)
+
+	// Wait for health check round to take action
+	failsDoneWg[0].Wait()
+
+	// Verify only 1 connection and its client2
+	assert.Equal(t, 1, conns.GetConnectionCount())
+	for i := 0; i < 2; i++ {
+		nextClient, err := conns.NextClient()
+		assert.NoError(t, err)
+		assert.Equal(t, client2, nextClient)
+	}
+
+	// Fail client2 health check
+	pushFailClientOverride(client2)
+
+	// Wait for health check round to take action
+	failsDoneWg[1].Wait()
+	assert.Equal(t, 0, conns.GetConnectionCount())
+	nextClient, err := conns.NextClient()
+	assert.Nil(t, nextClient)
+	assert.Equal(t, errConnectionPoolHasNoConnections, err)
+
+	conns.Close()
+
+	nextClient, err = conns.NextClient()
+	assert.Nil(t, nextClient)
+	assert.Equal(t, errConnectionPoolClosed, err)
+}
+
+type nullChannel struct{}
+
+func (*nullChannel) Close() {}
+
+type nullNodeClient struct{}
+
+func (*nullNodeClient) Fetch(ctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
+	return nil, nil
+}
+
+func (*nullNodeClient) FetchRawBatch(ctx thrift.Context, req *rpc.FetchRawBatchRequest) (*rpc.FetchRawBatchResult_, error) {
+	return nil, nil
+}
+
+func (*nullNodeClient) Health(ctx thrift.Context) (*rpc.HealthResult_, error) {
+	return nil, nil
+}
+
+func (*nullNodeClient) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
+	return nil
+}
+
+func (*nullNodeClient) WriteBatch(ctx thrift.Context, req *rpc.WriteBatchRequest) error {
+	return nil
 }

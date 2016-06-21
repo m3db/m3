@@ -170,6 +170,7 @@ func (p *connPool) Close() {
 
 func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 	log := p.opts.GetLogger()
+	target := p.opts.GetMaxConnectionCount()
 
 	for {
 		p.RLock()
@@ -180,7 +181,6 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 			return
 		}
 
-		target := p.opts.GetMaxConnectionCount()
 		if poolLen >= target {
 			// No need to spawn connections
 			p.sleepConnect(interval + randStutter(p.connectRand, stutter))
@@ -280,6 +280,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 		now := nowFn()
 		if !now.Before(deadline) {
 			// Exceeded deadline, start next health check loop
+			p.sleepHealth(0) // Call sleep 0 for tests to intercept this loop continuation
 			continue
 		}
 
