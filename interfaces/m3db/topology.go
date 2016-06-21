@@ -26,6 +26,15 @@ type Host interface {
 	Address() string
 }
 
+// HostShardSet is a container for a host and corresponding shard set
+type HostShardSet interface {
+	// Host returns the host
+	Host() Host
+
+	// ShardSet returns the shard set owned by the host
+	ShardSet() ShardSet
+}
+
 // TopologyType is a type of topology that can create new instances of it's type
 type TopologyType interface {
 	// Create will return a new topology of the topology type
@@ -72,6 +81,9 @@ type TopologyMap interface {
 
 	// Replicas returns the number of replicas in the topology
 	Replicas() int
+
+	// QuorumReplicas returns the number of replicas to establish quorum in the topology
+	QuorumReplicas() int
 }
 
 // RouteShardFn is a function to execute to notify of shard routed to

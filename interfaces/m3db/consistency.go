@@ -18,39 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package m3db
 
-import (
-	"errors"
-	"io"
+// ConsistencyLevel is the consistency level for cluster operations
+type ConsistencyLevel int
+
+const (
+	consistencyLevelNone ConsistencyLevel = iota
+
+	// ConsistencyLevelOne corresponds to a single node participating
+	// for an operation
+	ConsistencyLevelOne
+
+	// ConsistencyLevelQuorum corresponds to quorum of nodes participating
+	// for an operation to succeed
+	ConsistencyLevelQuorum
+
+	// ConsistencyLevelAll corresponds to all nodes participating
+	// for an operation to succeed
+	ConsistencyLevelAll
 )
 
-var (
-	// ErrNotCloseable is returned when trying to close a resource
-	// that does not conform to a closeable interface
-	ErrNotCloseable = errors.New("not a closeable resource")
-)
-
-// Closer is a resource that can close
-type Closer interface {
-	io.Closer
-}
-
-// SimpleCloser is a resource that can close without returning a result
-type SimpleCloser interface {
-	// Close resource
-	Close()
-}
-
-// TryClose attempts to close a resource, the resource is expected to
-// implement either Closeable or CloseableResult.
-func TryClose(r interface{}) error {
-	if r, ok := r.(Closer); ok {
-		return r.Close()
+// String returns the consistency level as a string
+func (l ConsistencyLevel) String() string {
+	switch l {
+	case ConsistencyLevelOne:
+		return "ConsistencyLevelOne"
+	case ConsistencyLevelQuorum:
+		return "ConsistencyLevelQuorum"
+	case ConsistencyLevelAll:
+		return "ConsistencyLevelAll"
 	}
-	if r, ok := r.(SimpleCloser); ok {
-		r.Close()
-		return nil
-	}
-	return ErrNotCloseable
+	return "ConsistencyLevelNone"
 }

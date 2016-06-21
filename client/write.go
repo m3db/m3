@@ -30,22 +30,6 @@ var (
 	writeOpZeroed writeOp
 )
 
-type completionFn func(result interface{}, err error)
-
-type op interface {
-	// CompletionFn sets the completion function for the operation
-	CompletionFn(value completionFn)
-
-	// GetCompletionFn gets the completion function for the operation
-	GetCompletionFn() completionFn
-}
-
-func callAllCompletionFns(ops []op, result interface{}, err error) {
-	for i := range ops {
-		ops[i].GetCompletionFn()(result, err)
-	}
-}
-
 type writeOp struct {
 	request      rpc.WriteRequest
 	datapoint    rpc.Datapoint
@@ -55,10 +39,6 @@ type writeOp struct {
 func (w *writeOp) init() {
 	*w = writeOpZeroed
 	w.request.Datapoint = &w.datapoint
-}
-
-func (w *writeOp) CompletionFn(value completionFn) {
-	w.completionFn = value
 }
 
 func (w *writeOp) GetCompletionFn() completionFn {

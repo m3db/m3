@@ -32,10 +32,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-const (
-	maxRecycleOpsFlush = 8
-)
-
 var (
 	errQueueClosed      = errors.New("host operation queue already closed")
 	errUnknownOperation = errors.New("unknown operation")
@@ -62,8 +58,8 @@ type queue struct {
 	writeRequestArrayPool writeRequestArrayPool
 	size                  int
 	ops                   []op
+	opsArrayPool          opArrayPool
 	drainIn               chan []op
-	drainRecycle          chan []op
 	closed                bool
 }
 
@@ -74,19 +70,20 @@ func newHostQueue(
 	opts m3db.ClientOptions,
 ) hostQueue {
 	size := opts.GetHostQueueOpsFlushSize()
+	opArrayPool := newOpArrayPool(opts.GetHostQueueOpsArrayPoolSize(), size)
 
 	q := &queue{
+		opts:                  opts,
 		host:                  host,
 		connPool:              newConnectionPool(host, opts),
 		writeBatchRequestPool: writeBatchRequestPool,
 		writeRequestArrayPool: writeRequestArrayPool,
-		size: size,
-		ops:  make([]op, 0, size),
-		// NB(r): specifically use non-buffered queues for draining
-		// to ensure safe swapping of ops in and out
-		drainIn:      make(chan []op),
-		drainRecycle: make(chan []op, maxRecycleOpsFlush),
-		closed:       false,
+		size:         size,
+		ops:          opArrayPool.Get(),
+		opsArrayPool: opArrayPool,
+		// NB(r): specifically use non-buffered queue for single flush at a time
+		drainIn: make(chan []op),
+		closed:  false,
 	}
 
 	// Continually drain the queue until closed
@@ -127,27 +124,7 @@ func (q *queue) flushWithLock() {
 	q.drainIn <- q.ops
 
 	// Reset ops
-	q.ops = q.getOps()
-}
-
-func (q *queue) getOps() []op {
-	// Retrieve recycled ops or create new
-	var newOps []op
-	select {
-	case newOps = <-q.drainRecycle:
-	default:
-		newOps = make([]op, 0, q.size)
-	}
-	newOps = newOps[:0]
-	return newOps
-}
-
-func (q *queue) putOps(ops []op) {
-	// Recycle ops
-	select {
-	case q.drainRecycle <- ops:
-	default:
-	}
+	q.ops = q.opsArrayPool.Get()
 }
 
 func (q *queue) drain() {
@@ -165,7 +142,7 @@ func (q *queue) drain() {
 			switch v := ops[i].(type) {
 			case *writeOp:
 				if currWriteOps == nil {
-					currWriteOps = q.getOps()
+					currWriteOps = q.opsArrayPool.Get()
 					currWriteRequests = q.writeRequestArrayPool.Get()
 				}
 
@@ -173,6 +150,7 @@ func (q *queue) drain() {
 				currWriteRequests = append(currWriteRequests, &v.request)
 
 				if len(currWriteOps) == writeBatchSize {
+					// Reached write batch limit, write async and reset
 					q.asyncWrite(wgAll, currWriteOps, currWriteRequests)
 					currWriteOps = nil
 					currWriteRequests = nil
@@ -188,7 +166,7 @@ func (q *queue) drain() {
 			q.asyncWrite(wgAll, currWriteOps, currWriteRequests)
 		}
 
-		q.putOps(ops)
+		q.opsArrayPool.Put(ops)
 
 		q.RLock()
 		closed := q.closed
@@ -205,15 +183,16 @@ func (q *queue) drain() {
 
 func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []op, elems []*rpc.WriteRequest) {
 	wg.Add(1)
+	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
 		req := q.writeBatchRequestPool.Get()
 		req.Elements = elems
 
-		// NB(r): defer is slow in the hot path unfortunately
+		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			q.writeBatchRequestPool.Put(req)
 			q.writeRequestArrayPool.Put(elems)
-			q.putOps(ops)
+			q.opsArrayPool.Put(ops)
 			wg.Done()
 		}
 

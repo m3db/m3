@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"os"
 	"time"
 
 	"github.com/m3db/m3db/encoding/tsz"
@@ -57,12 +58,12 @@ const (
 
 	// defaultMaxFlushRetries is the default number of retries when flush fails.
 	defaultMaxFlushRetries = 3
-
-	// defaultFilePathPrefix is the default path prefix for local TSDB files.
-	defaultFilePathPrefix = "/var/log/m3db"
 )
 
 var (
+	// defaultFilePathPrefix is the default path prefix for local TSDB files.
+	defaultFilePathPrefix = os.TempDir()
+
 	timeZero time.Time
 )
 

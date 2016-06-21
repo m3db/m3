@@ -26,6 +26,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -38,6 +39,7 @@ import (
 	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/topology"
 
 	"github.com/spaolacci/murmur3"
 )
@@ -72,6 +74,13 @@ func main() {
 
 	log := opts.GetLogger()
 
+	var localNodeAddr string
+	if strings.IndexRune(tchannelNodeAddr, ':') == -1 {
+		log.Fatalf("tchannelthrift address does not specify port")
+	}
+	localNodeAddrComponents := strings.Split(tchannelNodeAddr, ":")
+	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
+
 	shards := uint32(1024)
 	shardingScheme, err := sharding.NewShardScheme(0, shards-1, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % shards
@@ -86,7 +95,13 @@ func main() {
 	}
 	defer db.Close()
 
-	client := client.NewClient(client.NewOptions())
+	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardingScheme.All())
+	topologyOptions := topology.NewStaticTopologyTypeOptions().
+		ShardScheme(shardingScheme).
+		Replicas(1).
+		HostShardSets([]m3db.HostShardSet{hostShardSet})
+	clientOptions := client.NewOptions().TopologyType(topology.NewStaticTopologyType(topologyOptions))
+	client := client.NewClient(clientOptions)
 
 	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, nil).ListenAndServe()
 	if err != nil {

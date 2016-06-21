@@ -170,8 +170,14 @@ type ClientOptions interface {
 	// TopologyType sets the topologyType and returns a new ClientOptions
 	TopologyType(value TopologyType) ClientOptions
 
-	// GetTopologyType returns the logger
+	// GetTopologyType returns the topologyType
 	GetTopologyType() TopologyType
+
+	// ConsistencyLevel sets the consistencyLevel and returns a new ClientOptions
+	ConsistencyLevel(value ConsistencyLevel) ClientOptions
+
+	// GetConsistencyLevel returns the consistencyLevel
+	GetConsistencyLevel() ConsistencyLevel
 
 	// ChannelOptions sets the channelOptions and returns a new ClientOptions
 	ChannelOptions(value *tchannel.ChannelOptions) ClientOptions
@@ -241,4 +247,34 @@ type ClientOptions interface {
 
 	// GetHostQueueOpsFlushInterval returns the hostQueueOpsFlushInterval
 	GetHostQueueOpsFlushInterval() time.Duration
+
+	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize and returns a new ClientOptions
+	HostQueueOpsArrayPoolSize(value int) ClientOptions
+
+	// GetHostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize
+	GetHostQueueOpsArrayPoolSize() int
+}
+
+// StaticTopologyTypeOptions is a set of static topology type options
+type StaticTopologyTypeOptions interface {
+	// Validate validates the options
+	Validate() error
+
+	// ShardScheme sets the shardScheme and returns a new StaticTopologyTypeOptions
+	ShardScheme(value ShardScheme) StaticTopologyTypeOptions
+
+	// GetShardScheme returns the shardScheme
+	GetShardScheme() ShardScheme
+
+	// Replicas sets the replicas and returns a new StaticTopologyTypeOptions
+	Replicas(value int) StaticTopologyTypeOptions
+
+	// GetReplicas returns the replicas
+	GetReplicas() int
+
+	// HostShardSets sets the hostShardSets and returns a new StaticTopologyTypeOptions
+	HostShardSets(value []HostShardSet) StaticTopologyTypeOptions
+
+	// GetHostShardSets returns the hostShardSets
+	GetHostShardSets() []HostShardSet
 }

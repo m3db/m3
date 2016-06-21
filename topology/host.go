@@ -18,39 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package topology
 
 import (
-	"errors"
-	"io"
+	"math"
+
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
-var (
-	// ErrNotCloseable is returned when trying to close a resource
-	// that does not conform to a closeable interface
-	ErrNotCloseable = errors.New("not a closeable resource")
-)
-
-// Closer is a resource that can close
-type Closer interface {
-	io.Closer
+func quorum(replicas int) int {
+	return int(math.Ceil(0.51 * float64(replicas)))
 }
 
-// SimpleCloser is a resource that can close without returning a result
-type SimpleCloser interface {
-	// Close resource
-	Close()
+type simpleHost string
+
+func (s simpleHost) Address() string {
+	return string(s)
 }
 
-// TryClose attempts to close a resource, the resource is expected to
-// implement either Closeable or CloseableResult.
-func TryClose(r interface{}) error {
-	if r, ok := r.(Closer); ok {
-		return r.Close()
-	}
-	if r, ok := r.(SimpleCloser); ok {
-		r.Close()
-		return nil
-	}
-	return ErrNotCloseable
+// NewHost creates a new host
+func NewHost(address string) m3db.Host {
+	return simpleHost(address)
+}
+
+type hostShardSet struct {
+	host     m3db.Host
+	shardSet m3db.ShardSet
+}
+
+// NewHostShardSet creates a new host shard set
+func NewHostShardSet(host m3db.Host, shardSet m3db.ShardSet) m3db.HostShardSet {
+	return &hostShardSet{host, shardSet}
+}
+
+func (h *hostShardSet) Host() m3db.Host {
+	return h.host
+}
+
+func (h *hostShardSet) ShardSet() m3db.ShardSet {
+	return h.shardSet
 }

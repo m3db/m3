@@ -20,37 +20,15 @@
 
 package client
 
-import (
-	"errors"
-	"io"
-)
+type completionFn func(result interface{}, err error)
 
-var (
-	// ErrNotCloseable is returned when trying to close a resource
-	// that does not conform to a closeable interface
-	ErrNotCloseable = errors.New("not a closeable resource")
-)
-
-// Closer is a resource that can close
-type Closer interface {
-	io.Closer
+type op interface {
+	// GetCompletionFn gets the completion function for the operation
+	GetCompletionFn() completionFn
 }
 
-// SimpleCloser is a resource that can close without returning a result
-type SimpleCloser interface {
-	// Close resource
-	Close()
-}
-
-// TryClose attempts to close a resource, the resource is expected to
-// implement either Closeable or CloseableResult.
-func TryClose(r interface{}) error {
-	if r, ok := r.(Closer); ok {
-		return r.Close()
+func callAllCompletionFns(ops []op, result interface{}, err error) {
+	for i := range ops {
+		ops[i].GetCompletionFn()(result, err)
 	}
-	if r, ok := r.(SimpleCloser); ok {
-		r.Close()
-		return nil
-	}
-	return ErrNotCloseable
 }

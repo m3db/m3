@@ -52,6 +52,7 @@ type respError struct {
 	Data    interface{} `json:"data"`
 }
 
+// RegisterHandlers will register handlers on the HTTP serve mux for a given service and options
 func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOptions) error {
 	v := reflect.ValueOf(service)
 	t := v.Type()
@@ -60,6 +61,11 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 		// Ensure this method is of either:
 		// - methodName(RequestObject) error
 		// - methodName(RequestObject) (ResultObject, error)
+
+		// TODO(r): make the following work so that health endpoint is registered,
+		// also perhaps make these GET?
+		// - methodName() error
+		// - methodName() (ResultObject, error)
 		if method.Type.NumIn() != 3 || !(method.Type.NumOut() == 1 || method.Type.NumOut() == 2) {
 			continue
 		}
@@ -75,7 +81,7 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 			resultErr = method.Type.Out(1)
 		}
 
-		if !obj.Implements(t) {
+		if obj != t {
 			continue
 		}
 

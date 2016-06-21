@@ -22,6 +22,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -131,7 +132,8 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 	s.Lock()
 	prev := s.queues
 	s.queues = queues
-	s.setWriteOpPoolsWithLock(shards)
+	s.setWriteOpPoolsWithLock(topologyMap)
+	s.topoMap = topologyMap
 	s.Unlock()
 
 	// Asynchronously close the previous set of host queues
@@ -159,22 +161,18 @@ func (s *session) newHostQueue(host m3db.Host, topologyMap m3db.TopologyMap) hos
 	return newHostQueue(host, writeBatchRequestPool, writeRequestArrayPool, s.opts)
 }
 
-func (s *session) setWriteOpPoolsWithLock(shards []uint32) {
-	maxShard := uint32(0)
-	for _, shard := range shards {
-		if shard > maxShard {
-			maxShard = shard
-		}
+func (s *session) setWriteOpPoolsWithLock(topologyMap m3db.TopologyMap) {
+	totalShards := len(topologyMap.ShardScheme().All().Shards())
+	if len(s.writeOpPools) == totalShards {
+		// Already created all pools
+		return
 	}
-	totalShards := int(maxShard + 1)
 
-	if len(s.writeOpPools) != totalShards {
-		s.writeOpPools = make([]writeOpPool, totalShards)
-		totalSize := s.opts.GetWriteOpPoolSize()
-		eachSize := totalSize / totalShards
-		for i := range s.writeOpPools {
-			s.writeOpPools[i] = newWriteOpPool(eachSize)
-		}
+	s.writeOpPools = make([]writeOpPool, totalShards)
+	totalSize := s.opts.GetWriteOpPoolSize()
+	eachSize := totalSize / totalShards
+	for i := range s.writeOpPools {
+		s.writeOpPools[i] = newWriteOpPool(eachSize)
 	}
 }
 
@@ -184,8 +182,11 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 		pool          writeOpPool
 		wg            sync.WaitGroup
 		enqueueErr    error
-		resultErrLock sync.RWMutex
+		enqueued      int
+		resultErrLock sync.Mutex
 		resultErr     error
+		resultErrs    int
+		quorum        int
 	)
 
 	timeType, timeTypeErr := convert.UnitToTimeType(unit)
@@ -210,22 +211,24 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 		w.completionFn = func(result interface{}, err error) {
 			if err != nil {
 				resultErrLock.Lock()
-				// TODO(r): respect consistency level options instead of quorum all behavior
-				if resultErr != nil {
+				if resultErr == nil {
 					resultErr = err
 				}
+				resultErrs++
 				resultErrLock.Unlock()
 			}
 			wg.Done()
 		}
 	}, func(idx int, host m3db.Host) {
 		wg.Add(1)
+		enqueued++
 		if err := s.queues[idx].Enqueue(w); err != nil && enqueueErr != nil {
 			// NB(r): if this ever happens we have a code bug, once we are in the read lock
 			// the current queues we are using should never be closed
 			enqueueErr = err
 		}
 	})
+	quorum = s.topoMap.QuorumReplicas()
 	s.RUnlock()
 
 	if routeErr != nil {
@@ -242,6 +245,28 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 
 	// Return write to pool
 	pool.Put(w)
+
+	if resultErrs > 0 {
+		// Check consistency level satisfied
+		level := s.opts.GetConsistencyLevel()
+		success := enqueued - resultErrs
+		switch level {
+		case m3db.ConsistencyLevelAll:
+			return fmt.Errorf("failed to meet %s with %d/%d success", level.String(), success, enqueued)
+		case m3db.ConsistencyLevelQuorum:
+			if success >= quorum {
+				// Meets quorum
+				break
+			}
+			return fmt.Errorf("failed to meet %s with %d/%d success", level.String(), success, enqueued)
+		case m3db.ConsistencyLevelOne:
+			if success > 0 {
+				// Meets one
+				break
+			}
+			return fmt.Errorf("failed to meet %s with %d/%d success", level.String(), success, enqueued)
+		}
+	}
 
 	return resultErr
 }

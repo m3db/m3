@@ -83,6 +83,7 @@ func newConnectionPool(host m3db.Host, opts m3db.ClientOptions) connectionPool {
 	seed := int64(murmur3.Sum32([]byte(host.Address())))
 
 	p := &connPool{
+		opts:            opts,
 		host:            host,
 		pool:            make([]conn, 0, opts.GetMaxConnectionCount()),
 		poolLen:         0,
@@ -216,8 +217,12 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 		for i := 0; i < poolLen; i++ {
 			healthy := true
 
+			p.RLock()
+			client := p.pool[i].client
+			p.RUnlock()
+
 			tctx, _ := thrift.NewContext(p.opts.GetHostConnectTimeout())
-			result, err := p.pool[i].client.Health(tctx)
+			result, err := client.Health(tctx)
 			if err != nil {
 				healthy = false
 				log.Warnf("health check failed to %s: %v", p.host.Address(), err)

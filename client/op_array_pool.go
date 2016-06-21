@@ -21,36 +21,35 @@
 package client
 
 import (
-	"errors"
-	"io"
+	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/pool"
 )
 
-var (
-	// ErrNotCloseable is returned when trying to close a resource
-	// that does not conform to a closeable interface
-	ErrNotCloseable = errors.New("not a closeable resource")
-)
+type opArrayPool interface {
+	// Get an array of ops
+	Get() []op
 
-// Closer is a resource that can close
-type Closer interface {
-	io.Closer
+	// Put an array of ops
+	Put(w []op)
 }
 
-// SimpleCloser is a resource that can close without returning a result
-type SimpleCloser interface {
-	// Close resource
-	Close()
+type poolOfOpArray struct {
+	pool m3db.ObjectPool
 }
 
-// TryClose attempts to close a resource, the resource is expected to
-// implement either Closeable or CloseableResult.
-func TryClose(r interface{}) error {
-	if r, ok := r.(Closer); ok {
-		return r.Close()
-	}
-	if r, ok := r.(SimpleCloser); ok {
-		r.Close()
-		return nil
-	}
-	return ErrNotCloseable
+func newOpArrayPool(size int, capacity int) opArrayPool {
+	p := pool.NewObjectPool(size)
+	p.Init(func() interface{} {
+		return make([]op, 0, capacity)
+	})
+	return &poolOfOpArray{p}
+}
+
+func (p *poolOfOpArray) Get() []op {
+	return p.pool.Get().([]op)
+}
+
+func (p *poolOfOpArray) Put(ops []op) {
+	ops = ops[:0]
+	p.pool.Put(ops)
 }

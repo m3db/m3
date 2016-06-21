@@ -36,9 +36,9 @@ import (
 type service struct {
 	sync.RWMutex
 
-	client  m3db.Client
-	cluster m3db.Session
-	health  *rpc.HealthResult_
+	client m3db.Client
+	active m3db.Session
+	health *rpc.HealthResult_
 }
 
 // NewService creates a new cluster TChannel Thrift service
@@ -54,15 +54,15 @@ func NewService(client m3db.Client) rpc.TChanCluster {
 
 func (s *service) session() (m3db.Session, error) {
 	s.RLock()
-	session := s.cluster
+	session := s.active
 	s.RUnlock()
 	if session != nil {
 		return session, nil
 	}
 
 	s.Lock()
-	if s.cluster != nil {
-		session := s.cluster
+	if s.active != nil {
+		session := s.active
 		s.Unlock()
 		return session, nil
 	}
@@ -71,7 +71,7 @@ func (s *service) session() (m3db.Session, error) {
 		s.Unlock()
 		return nil, err
 	}
-	s.cluster = session
+	s.active = session
 	s.Unlock()
 
 	return session, nil
@@ -80,8 +80,8 @@ func (s *service) session() (m3db.Session, error) {
 func (s *service) Close() error {
 	var err error
 	s.Lock()
-	if s.cluster != nil {
-		err = s.cluster.Close()
+	if s.active != nil {
+		err = s.active.Close()
 	}
 	s.Unlock()
 	return err

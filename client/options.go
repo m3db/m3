@@ -57,12 +57,16 @@ const (
 
 	// defaultHostQueueOpsFlushInterval is the default host queue flush interval
 	defaultHostQueueOpsFlushInterval = time.Millisecond
+
+	// defaultHostQueueOpsArrayPoolSize is the default host queue ops array pool size
+	defaultHostQueueOpsArrayPoolSize = 8
 )
 
 type options struct {
 	logger                    logging.Logger
 	scope                     metrics.Scope
 	topologyType              m3db.TopologyType
+	consistencyLevel          m3db.ConsistencyLevel
 	channelOptions            *tchannel.ChannelOptions
 	nowFn                     m3db.NowFn
 	maxConnectionCount        int
@@ -74,6 +78,7 @@ type options struct {
 	writeBatchSize            int
 	hostQueueOpsFlushSize     int
 	hostQueueOpsFlushInterval time.Duration
+	hostQueueOpsArrayPoolSize int
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -82,6 +87,7 @@ func NewOptions() m3db.ClientOptions {
 	return &options{
 		logger:                    logging.SimpleLogger,
 		scope:                     metrics.NoopScope,
+		consistencyLevel:          m3db.ConsistencyLevelQuorum,
 		nowFn:                     time.Now,
 		maxConnectionCount:        defaultMaxConnectionCount,
 		minConnectionCount:        defaultMinConnectionCount,
@@ -92,6 +98,7 @@ func NewOptions() m3db.ClientOptions {
 		writeBatchSize:            defaultWriteBatchSize,
 		hostQueueOpsFlushSize:     defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval: defaultHostQueueOpsFlushInterval,
+		hostQueueOpsArrayPoolSize: defaultHostQueueOpsArrayPoolSize,
 	}
 }
 
@@ -123,6 +130,16 @@ func (o *options) TopologyType(value m3db.TopologyType) m3db.ClientOptions {
 
 func (o *options) GetTopologyType() m3db.TopologyType {
 	return o.topologyType
+}
+
+func (o *options) ConsistencyLevel(value m3db.ConsistencyLevel) m3db.ClientOptions {
+	opts := *o
+	opts.consistencyLevel = value
+	return &opts
+}
+
+func (o *options) GetConsistencyLevel() m3db.ConsistencyLevel {
+	return o.consistencyLevel
 }
 
 func (o *options) ChannelOptions(value *tchannel.ChannelOptions) m3db.ClientOptions {
@@ -233,4 +250,14 @@ func (o *options) HostQueueOpsFlushInterval(value time.Duration) m3db.ClientOpti
 
 func (o *options) GetHostQueueOpsFlushInterval() time.Duration {
 	return o.hostQueueOpsFlushInterval
+}
+
+func (o *options) HostQueueOpsArrayPoolSize(value int) m3db.ClientOptions {
+	opts := *o
+	opts.hostQueueOpsArrayPoolSize = value
+	return &opts
+}
+
+func (o *options) GetHostQueueOpsArrayPoolSize() int {
+	return o.hostQueueOpsArrayPoolSize
 }
