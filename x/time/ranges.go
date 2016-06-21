@@ -20,7 +20,10 @@
 
 package time
 
-import "container/list"
+import (
+	"bytes"
+	"container/list"
+)
 
 // Ranges is a collection of time ranges.
 type Ranges interface {
@@ -48,6 +51,9 @@ type Ranges interface {
 
 	// Iter returns an iterator that iterates forward over the time ranges included.
 	Iter() RangeIter
+
+	// String returns the string representation of the range.
+	String() string
 }
 
 type ranges struct {
@@ -173,6 +179,20 @@ func (tr *ranges) RemoveRanges(other Ranges) Ranges {
 // Iter returns an iterator that iterates over the time ranges included.
 func (tr *ranges) Iter() RangeIter {
 	return newRangeIter(tr.sortedRanges)
+}
+
+// String returns the string representation of the range.
+func (tr *ranges) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("[")
+	for e := tr.sortedRanges.Front(); e != nil; e = e.Next() {
+		buf.WriteString(e.Value.(Range).String())
+		if e.Next() != nil {
+			buf.WriteString(",")
+		}
+	}
+	buf.WriteString("]")
+	return buf.String()
 }
 
 // findFirstNotBefore finds the first interval that's not before r.

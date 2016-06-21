@@ -65,6 +65,9 @@ func (sr *shardResult) AddSeries(id string, rawSeries m3db.DatabaseSeriesBlocks)
 
 // AddResult adds a shard result.
 func (sr *shardResult) AddResult(other m3db.ShardResult) {
+	if other == nil {
+		return
+	}
 	otherSeries := other.GetAllSeries()
 	for id, rawSeries := range otherSeries {
 		sr.AddSeries(id, rawSeries)

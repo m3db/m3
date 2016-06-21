@@ -216,3 +216,9 @@ func TestRangeSubtract(t *testing.T) {
 		require.Equal(t, expected[i], input[i].r1.Subtract(input[i].r2))
 	}
 }
+
+func TestRangeString(t *testing.T) {
+	start := time.Unix(1465430400, 0).UTC()
+	r := Range{Start: start, End: start.Add(2 * time.Hour)}
+	require.Equal(t, "(2016-06-09 00:00:00 +0000 UTC,2016-06-09 02:00:00 +0000 UTC)", r.String())
+}

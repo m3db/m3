@@ -67,6 +67,7 @@ func (bsb *baseBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) 
 		curUnfulfilled, nextUnfulfilled xtime.Ranges
 	)
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		nextResult, nextUnfulfilled = bsb.next.Bootstrap(shard, remainingRanges)

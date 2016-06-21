@@ -20,7 +20,10 @@
 
 package time
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Range represents [start, end)
 type Range struct {
@@ -103,4 +106,9 @@ func (r Range) Subtract(other Range) []Range {
 		res = append(res, right)
 	}
 	return res
+}
+
+// String returns the string representation of the range.
+func (r Range) String() string {
+	return fmt.Sprintf("(%v,%v)", r.Start, r.End)
 }
