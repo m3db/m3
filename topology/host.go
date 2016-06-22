@@ -18,63 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package sharding
+package topology
 
 import (
-	"errors"
+	"math"
 
 	"github.com/m3db/m3db/interfaces/m3db"
 )
 
-var (
-	// ErrToLessThanFrom returned when to is less than from
-	ErrToLessThanFrom = errors.New("to is less than from")
-)
-
-type shardScheme struct {
-	from uint32
-	to   uint32
-	fn   m3db.HashFn
+func quorum(replicas int) int {
+	return int(math.Ceil(0.5 * float64(replicas+1)))
 }
 
-// NewShardScheme creates a new sharding scheme, from and to are inclusive
-func NewShardScheme(from, to uint32, fn m3db.HashFn) (m3db.ShardScheme, error) {
-	if to < from {
-		return nil, ErrToLessThanFrom
-	}
-	return &shardScheme{from, to, fn}, nil
+type simpleHost string
+
+func (s simpleHost) Address() string {
+	return string(s)
 }
 
-func (s *shardScheme) Shard(identifer string) uint32 {
-	return s.fn(identifer)
+// NewHost creates a new host
+func NewHost(address string) m3db.Host {
+	return simpleHost(address)
 }
 
-func (s *shardScheme) CreateSet(from, to uint32) m3db.ShardSet {
-	var shards []uint32
-	for i := from; i >= s.from && i <= s.to && i <= to; i++ {
-		shards = append(shards, i)
-	}
-	return NewShardSet(shards, s)
+type hostShardSet struct {
+	host     m3db.Host
+	shardSet m3db.ShardSet
 }
 
-func (s *shardScheme) All() m3db.ShardSet {
-	return s.CreateSet(s.from, s.to)
+// NewHostShardSet creates a new host shard set
+func NewHostShardSet(host m3db.Host, shardSet m3db.ShardSet) m3db.HostShardSet {
+	return &hostShardSet{host, shardSet}
 }
 
-type shardSet struct {
-	shards []uint32
-	scheme m3db.ShardScheme
+func (h *hostShardSet) Host() m3db.Host {
+	return h.host
 }
 
-// NewShardSet creates a new shard set
-func NewShardSet(shards []uint32, scheme m3db.ShardScheme) m3db.ShardSet {
-	return &shardSet{shards, scheme}
-}
-
-func (s *shardSet) Shards() []uint32 {
-	return s.shards[:]
-}
-
-func (s *shardSet) Scheme() m3db.ShardScheme {
-	return s.scheme
+func (h *hostShardSet) ShardSet() m3db.ShardSet {
+	return h.shardSet
 }

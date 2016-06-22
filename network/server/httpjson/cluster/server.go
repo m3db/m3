@@ -18,63 +18,66 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package sharding
+package cluster
 
 import (
-	"errors"
+	"net"
+	"net/http"
 
 	"github.com/m3db/m3db/interfaces/m3db"
+	ns "github.com/m3db/m3db/network/server"
+	"github.com/m3db/m3db/network/server/httpjson"
+	ttcluster "github.com/m3db/m3db/network/server/tchannelthrift/cluster"
+	xclose "github.com/m3db/m3db/x/close"
 )
 
-var (
-	// ErrToLessThanFrom returned when to is less than from
-	ErrToLessThanFrom = errors.New("to is less than from")
-)
-
-type shardScheme struct {
-	from uint32
-	to   uint32
-	fn   m3db.HashFn
+type server struct {
+	client  m3db.Client
+	address string
+	opts    httpjson.ServerOptions
 }
 
-// NewShardScheme creates a new sharding scheme, from and to are inclusive
-func NewShardScheme(from, to uint32, fn m3db.HashFn) (m3db.ShardScheme, error) {
-	if to < from {
-		return nil, ErrToLessThanFrom
+// NewServer creates a cluster HTTP network service
+func NewServer(
+	client m3db.Client,
+	address string,
+	opts httpjson.ServerOptions,
+) ns.NetworkService {
+	if opts == nil {
+		opts = httpjson.NewServerOptions()
 	}
-	return &shardScheme{from, to, fn}, nil
-}
-
-func (s *shardScheme) Shard(identifer string) uint32 {
-	return s.fn(identifer)
-}
-
-func (s *shardScheme) CreateSet(from, to uint32) m3db.ShardSet {
-	var shards []uint32
-	for i := from; i >= s.from && i <= s.to && i <= to; i++ {
-		shards = append(shards, i)
+	return &server{
+		client:  client,
+		address: address,
+		opts:    opts,
 	}
-	return NewShardSet(shards, s)
 }
 
-func (s *shardScheme) All() m3db.ShardSet {
-	return s.CreateSet(s.from, s.to)
-}
+func (s *server) ListenAndServe() (ns.Close, error) {
+	service := ttcluster.NewService(s.client)
 
-type shardSet struct {
-	shards []uint32
-	scheme m3db.ShardScheme
-}
+	mux := http.NewServeMux()
+	if err := httpjson.RegisterHandlers(mux, service, s.opts); err != nil {
+		return nil, err
+	}
 
-// NewShardSet creates a new shard set
-func NewShardSet(shards []uint32, scheme m3db.ShardScheme) m3db.ShardSet {
-	return &shardSet{shards, scheme}
-}
+	listener, err := net.Listen("tcp", s.address)
+	if err != nil {
+		return nil, err
+	}
 
-func (s *shardSet) Shards() []uint32 {
-	return s.shards[:]
-}
+	server := http.Server{
+		Handler:      mux,
+		ReadTimeout:  s.opts.GetReadTimeout(),
+		WriteTimeout: s.opts.GetWriteTimeout(),
+	}
 
-func (s *shardSet) Scheme() m3db.ShardScheme {
-	return s.scheme
+	go func() {
+		server.Serve(listener)
+	}()
+
+	return func() {
+		listener.Close()
+		xclose.TryClose(service)
+	}, nil
 }

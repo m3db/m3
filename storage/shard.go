@@ -63,6 +63,7 @@ type databaseShard interface {
 
 	Bootstrap(writeStart time.Time) error
 
+	// FlushToDisk flushes the data blocks in the shard to disk
 	FlushToDisk(blockStart time.Time) error
 }
 
@@ -98,7 +99,7 @@ func (s *dbShard) ShardNum() uint32 {
 
 type databaseSeriesFn func(series databaseSeries) error
 
-func (s *dbShard) forEachSeries(seriesFn databaseSeriesFn, continueOnError bool) error {
+func (s *dbShard) forEachSeries(continueOnError bool, seriesFn databaseSeriesFn) error {
 	// NB(r): consider using a lockless list for ticking
 	s.RLock()
 	elemsLen := s.list.Len()
@@ -109,7 +110,7 @@ func (s *dbShard) forEachSeries(seriesFn databaseSeriesFn, continueOnError bool)
 	for nextElem != nil {
 		var err error
 		s.RLock()
-		if nextElem, err = s.forEachSeriesBatchWithLock(nextElem, batchSize, seriesFn, continueOnError); err != nil && !continueOnError {
+		if nextElem, err = s.forBatchWithLock(continueOnError, nextElem, batchSize, seriesFn); err != nil && !continueOnError {
 			s.RUnlock()
 			return err
 		}
@@ -118,11 +119,11 @@ func (s *dbShard) forEachSeries(seriesFn databaseSeriesFn, continueOnError bool)
 	return nil
 }
 
-func (s *dbShard) forEachSeriesBatchWithLock(
+func (s *dbShard) forBatchWithLock(
+	continueOnError bool,
 	elem *list.Element,
 	batchSize int,
 	seriesFn databaseSeriesFn,
-	continueOnError bool,
 ) (*list.Element, error) {
 	var nextElem *list.Element
 	for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
@@ -140,7 +141,7 @@ func (s *dbShard) Tick() {
 	// TODO(xichen): pool this.
 	var expired []databaseSeries
 
-	seriesFn := func(series databaseSeries) error {
+	s.forEachSeries(true, func(series databaseSeries) error {
 		err := series.Tick()
 		if err == errSeriesAllDatapointsExpired {
 			expired = append(expired, series)
@@ -148,9 +149,7 @@ func (s *dbShard) Tick() {
 			// TODO(r): log error and increment counter
 		}
 		return err
-	}
-
-	s.forEachSeries(seriesFn, true)
+	})
 
 	if len(expired) == 0 {
 		return
@@ -247,14 +246,14 @@ func (s *dbShard) Bootstrap(writeStart time.Time) error {
 		}
 	}
 
-	// from this point onwards, all newly created series that aren't in
+	// From this point onwards, all newly created series that aren't in
 	// the existing map should be considered bootstrapped because they
 	// have no data within the retention period.
 	s.Lock()
 	s.newSeriesBootstrapped = true
 	s.Unlock()
 
-	// find the series with no data within the retention period but has
+	// Find the series with no data within the retention period but has
 	// buffered data points since server start. Any new series added
 	// after this will be marked as bootstrapped.
 	var bufferedSeries []databaseSeries
@@ -266,7 +265,7 @@ func (s *dbShard) Bootstrap(writeStart time.Time) error {
 	}
 	s.RUnlock()
 
-	// finally bootstrapping series with no recent data.
+	// Finally bootstrapping series with no recent data.
 	for _, series := range bufferedSeries {
 		if err := series.Bootstrap(nil, cutover); err != nil {
 			return err
@@ -280,7 +279,6 @@ func (s *dbShard) Bootstrap(writeStart time.Time) error {
 	return nil
 }
 
-// flushToDisk flushes the data blocks in the shard to disk.
 func (s *dbShard) FlushToDisk(blockStart time.Time) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
@@ -302,9 +300,7 @@ func (s *dbShard) FlushToDisk(blockStart time.Time) error {
 	defer s.flushWriter.Close()
 
 	var segmentHolder [2][]byte
-	seriesFn := func(series databaseSeries) error {
+	return s.forEachSeries(false, func(series databaseSeries) error {
 		return series.FlushToDisk(s.flushWriter, blockStart, segmentHolder[:])
-	}
-
-	return s.forEachSeries(seriesFn, false)
+	})
 }

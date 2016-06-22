@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/x/logging"
 	"github.com/m3db/m3db/x/metrics"
+	"github.com/uber/tchannel-go"
 )
 
 // NowFn is the function supplied to determine "now"
@@ -155,4 +156,154 @@ type DatabaseOptions interface {
 
 	// GetNewFileSetWriterFn returns the function for creating a new fileset writer.
 	GetNewFileSetWriterFn() NewFileSetWriterFn
+}
+
+// ClientOptions is a set of client options
+type ClientOptions interface {
+	// Logger sets the logger and returns a new ClientOptions
+	Logger(value logging.Logger) ClientOptions
+
+	// GetLogger returns the logger
+	GetLogger() logging.Logger
+
+	// MetricsScope sets the metricsScope and returns a new ClientOptions
+	MetricsScope(value metrics.Scope) ClientOptions
+
+	// GetMetricsScope returns the metricsScope
+	GetMetricsScope() metrics.Scope
+
+	// TopologyType sets the topologyType and returns a new ClientOptions
+	TopologyType(value TopologyType) ClientOptions
+
+	// GetTopologyType returns the topologyType
+	GetTopologyType() TopologyType
+
+	// ConsistencyLevel sets the consistencyLevel and returns a new ClientOptions
+	ConsistencyLevel(value ConsistencyLevel) ClientOptions
+
+	// GetConsistencyLevel returns the consistencyLevel
+	GetConsistencyLevel() ConsistencyLevel
+
+	// ChannelOptions sets the channelOptions and returns a new ClientOptions
+	ChannelOptions(value *tchannel.ChannelOptions) ClientOptions
+
+	// GetChannelOptions returns the channelOptions
+	GetChannelOptions() *tchannel.ChannelOptions
+
+	// NowFn sets the nowFn and returns a new ClientOptions
+	NowFn(value NowFn) ClientOptions
+
+	// GetNowFn returns the nowFn
+	GetNowFn() NowFn
+
+	// MaxConnectionCount sets the maxConnectionCount and returns a new ClientOptions
+	MaxConnectionCount(value int) ClientOptions
+
+	// GetMaxConnectionCount returns the maxConnectionCount
+	GetMaxConnectionCount() int
+
+	// MinConnectionCount sets the minConnectionCount and returns a new ClientOptions
+	MinConnectionCount(value int) ClientOptions
+
+	// GetMinConnectionCount returns the minConnectionCount
+	GetMinConnectionCount() int
+
+	// HostConnectTimeout sets the hostConnectTimeout and returns a new ClientOptions
+	HostConnectTimeout(value time.Duration) ClientOptions
+
+	// GetHostConnectTimeout returns the hostConnectTimeout
+	GetHostConnectTimeout() time.Duration
+
+	// ClusterConnectTimeout sets the clusterConnectTimeout and returns a new ClientOptions
+	ClusterConnectTimeout(value time.Duration) ClientOptions
+
+	// GetClusterConnectTimeout returns the clusterConnectTimeout
+	GetClusterConnectTimeout() time.Duration
+
+	// WriteRequestTimeout sets the writeRequestTimeout and returns a new ClientOptions
+	WriteRequestTimeout(value time.Duration) ClientOptions
+
+	// GetWriteRequestTimeout returns the writeRequestTimeout
+	GetWriteRequestTimeout() time.Duration
+
+	// BackgroundConnectInterval sets the backgroundConnectInterval and returns a new ClientOptions
+	BackgroundConnectInterval(value time.Duration) ClientOptions
+
+	// GetBackgroundConnectInterval returns the backgroundConnectInterval
+	GetBackgroundConnectInterval() time.Duration
+
+	// BackgroundConnectStutter sets the backgroundConnectStutter and returns a new ClientOptions
+	BackgroundConnectStutter(value time.Duration) ClientOptions
+
+	// GetBackgroundConnectStutter returns the backgroundConnectStutter
+	GetBackgroundConnectStutter() time.Duration
+
+	// BackgroundHealthCheckInterval sets the backgroundHealthCheckInterval and returns a new ClientOptions
+	BackgroundHealthCheckInterval(value time.Duration) ClientOptions
+
+	// GetBackgroundHealthCheckInterval returns the backgroundHealthCheckInterval
+	GetBackgroundHealthCheckInterval() time.Duration
+
+	// BackgroundHealthCheckStutter sets the backgroundHealthCheckStutter and returns a new ClientOptions
+	BackgroundHealthCheckStutter(value time.Duration) ClientOptions
+
+	// GetBackgroundHealthCheckStutter returns the backgroundHealthCheckStutter
+	GetBackgroundHealthCheckStutter() time.Duration
+
+	// WriteOpPoolSize sets the writeOpPoolSize and returns a new ClientOptions
+	WriteOpPoolSize(value int) ClientOptions
+
+	// GetWriteOpPoolSize returns the writeOpPoolSize
+	GetWriteOpPoolSize() int
+
+	// WriteBatchSize sets the writeBatchSize and returns a new ClientOptions
+	// NB(r): for a write only application load this should match the host
+	// queue ops flush size so that each time a host queue is flushed it can
+	// fit the entire flushed write ops into a single batch.
+	WriteBatchSize(value int) ClientOptions
+
+	// GetWriteBatchSize returns the writeBatchSize
+	GetWriteBatchSize() int
+
+	// HostQueueOpsFlushSize sets the hostQueueOpsFlushSize and returns a new ClientOptions
+	HostQueueOpsFlushSize(value int) ClientOptions
+
+	// GetHostQueueOpsFlushSize returns the hostQueueOpsFlushSize
+	GetHostQueueOpsFlushSize() int
+
+	// HostQueueOpsFlushInterval sets the hostQueueOpsFlushInterval and returns a new ClientOptions
+	HostQueueOpsFlushInterval(value time.Duration) ClientOptions
+
+	// GetHostQueueOpsFlushInterval returns the hostQueueOpsFlushInterval
+	GetHostQueueOpsFlushInterval() time.Duration
+
+	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize and returns a new ClientOptions
+	HostQueueOpsArrayPoolSize(value int) ClientOptions
+
+	// GetHostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize
+	GetHostQueueOpsArrayPoolSize() int
+}
+
+// StaticTopologyTypeOptions is a set of static topology type options
+type StaticTopologyTypeOptions interface {
+	// Validate validates the options
+	Validate() error
+
+	// ShardScheme sets the shardScheme and returns a new StaticTopologyTypeOptions
+	ShardScheme(value ShardScheme) StaticTopologyTypeOptions
+
+	// GetShardScheme returns the shardScheme
+	GetShardScheme() ShardScheme
+
+	// Replicas sets the replicas and returns a new StaticTopologyTypeOptions
+	Replicas(value int) StaticTopologyTypeOptions
+
+	// GetReplicas returns the replicas
+	GetReplicas() int
+
+	// HostShardSets sets the hostShardSets and returns a new StaticTopologyTypeOptions
+	HostShardSets(value []HostShardSet) StaticTopologyTypeOptions
+
+	// GetHostShardSets returns the hostShardSets
+	GetHostShardSets() []HostShardSet
 }
