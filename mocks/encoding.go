@@ -326,22 +326,22 @@ func (_m *MockDecoder) EXPECT() *_MockDecoderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDecoder) DecodeSingle(readers io.Reader) m3db.SingleReaderIterator {
-	ret := _m.ctrl.Call(_m, "DecodeSingle", readers)
+func (_m *MockDecoder) Decode(reader io.Reader) m3db.SingleReaderIterator {
+	ret := _m.ctrl.Call(_m, "Decode", reader)
 	ret0, _ := ret[0].(m3db.SingleReaderIterator)
 	return ret0
 }
 
-func (_mr *_MockDecoderRecorder) DecodeSingle(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecodeSingle", arg0)
+func (_mr *_MockDecoderRecorder) Decode(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decode", arg0)
 }
 
-func (_m *MockDecoder) DecodeMulti(readers []io.Reader) m3db.MultiReaderIterator {
-	ret := _m.ctrl.Call(_m, "DecodeMulti", readers)
+func (_m *MockDecoder) DecodeAll(readers []io.Reader) m3db.MultiReaderIterator {
+	ret := _m.ctrl.Call(_m, "DecodeAll", readers)
 	ret0, _ := ret[0].(m3db.MultiReaderIterator)
 	return ret0
 }
 
-func (_mr *_MockDecoderRecorder) DecodeMulti(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecodeMulti", arg0)
+func (_mr *_MockDecoderRecorder) DecodeAll(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecodeAll", arg0)
 }

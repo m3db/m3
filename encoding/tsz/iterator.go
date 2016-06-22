@@ -330,34 +330,31 @@ func (h *iteratorHeap) Pop() interface{} {
 	return x
 }
 
-type newSingleReaderIteratorFn func(reader io.Reader, opts Options) m3db.SingleReaderIterator
-
-func getNewSingleReaderIteratorFn(opts Options) newSingleReaderIteratorFn {
-	singleReaderIteratorPool := opts.GetSingleReaderIteratorPool()
-	if singleReaderIteratorPool == nil {
-		return NewSingleReaderIterator
-	}
-	return func(reader io.Reader, opts Options) m3db.SingleReaderIterator {
-		it := singleReaderIteratorPool.Get()
-		it.Reset(reader)
-		return it
-	}
-}
-
 // multiReaderIterator provides an interface for clients to incrementally
 // read datapoints off of multiple encoded streams whose datapoints may
 // interleave in time.
 // TODO(xichen): optimize for one reader case.
 type multiReaderIterator struct {
-	iters   iteratorHeap // a heap of iterators
-	readers []io.Reader  // underlying readers
-	opts    Options      // decoding options
-	err     error        // current error
-	closed  bool         // has been closed
+	iters   iteratorHeap                      // a heap of iterators
+	readers []io.Reader                       // underlying readers
+	alloc   m3db.SingleReaderIteratorAllocate // allocation function for single reader iterators
+	opts    Options                           // decoding options
+	err     error                             // current error
+	closed  bool                              // has been closed
 }
 
 func NewMultiReaderIterator(readers []io.Reader, opts Options) m3db.MultiReaderIterator {
-	return &multiReaderIterator{readers: readers, opts: opts}
+	alloc := func() m3db.SingleReaderIterator {
+		return NewSingleReaderIterator(nil, opts)
+	}
+	if pool := opts.GetSingleReaderIteratorPool(); pool != nil {
+		alloc = pool.Get
+	}
+	return &multiReaderIterator{
+		readers: readers,
+		alloc:   alloc,
+		opts:    opts,
+	}
 }
 
 func (it *multiReaderIterator) Next() bool {
@@ -373,11 +370,11 @@ func (it *multiReaderIterator) Next() bool {
 }
 
 func (it *multiReaderIterator) initHeap() {
-	alloc := getNewSingleReaderIteratorFn(it.opts)
 	iterHeap := make(iteratorHeap, 0, len(it.readers))
 	heap.Init(&iterHeap)
 	for i := range it.readers {
-		newIt := alloc(it.readers[i], it.opts)
+		newIt := it.alloc()
+		newIt.Reset(it.readers[i])
 		if newIt.Next() {
 			heap.Push(&iterHeap, newIt)
 		} else {

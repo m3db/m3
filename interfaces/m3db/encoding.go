@@ -85,11 +85,11 @@ type MultiReaderIterator interface {
 
 // Decoder is the generic interface for different types of decoders.
 type Decoder interface {
-	// DecodeSingle decodes the encoded data in the reader.
-	DecodeSingle(readers io.Reader) SingleReaderIterator
+	// Decode decodes the encoded data in the reader.
+	Decode(reader io.Reader) SingleReaderIterator
 
-	// DecodeMulti decodes the encoded data in the readers.
-	DecodeMulti(readers []io.Reader) MultiReaderIterator
+	// DecodeAll decodes the encoded data in all the readers.
+	DecodeAll(readers []io.Reader) MultiReaderIterator
 }
 
 // NewDecoderFn creates a new decoder

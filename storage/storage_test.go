@@ -96,7 +96,7 @@ func (v decodedValuesByTime) Swap(lhs, rhs int) {
 func decodedValues(results []io.Reader, opts m3db.DatabaseOptions) ([]decodedValue, error) {
 	var all []decodedValue
 	newDecoderFn := opts.GetNewDecoderFn()
-	iter := newDecoderFn().DecodeMulti(results)
+	iter := newDecoderFn().DecodeAll(results)
 	defer iter.Close()
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
