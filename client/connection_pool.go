@@ -77,8 +77,7 @@ type connPool struct {
 	healthCheck        healthCheckFn
 	sleepConnect       sleepFn
 	sleepHealth        sleepFn
-	opened             bool
-	closed             bool
+	state              state
 }
 
 type conn struct {
@@ -116,11 +115,11 @@ func (p *connPool) Open() {
 	p.Lock()
 	defer p.Unlock()
 
-	if p.opened || p.closed {
+	if p.state != stateNotOpen {
 		return
 	}
 
-	p.opened = true
+	p.state = stateOpen
 
 	connectEvery := p.opts.GetBackgroundConnectInterval()
 	connectStutter := p.opts.GetBackgroundConnectStutter()
@@ -140,7 +139,7 @@ func (p *connPool) GetConnectionCount() int {
 
 func (p *connPool) NextClient() (rpc.TChanNode, error) {
 	p.RLock()
-	if p.closed {
+	if p.state != stateOpen {
 		p.RUnlock()
 		return nil, errConnectionPoolClosed
 	}
@@ -156,11 +155,11 @@ func (p *connPool) NextClient() (rpc.TChanNode, error) {
 
 func (p *connPool) Close() {
 	p.Lock()
-	if !p.opened || p.closed {
+	if p.state != stateOpen {
 		p.Unlock()
 		return
 	}
-	p.closed = true
+	p.state = stateClosed
 	p.Unlock()
 
 	for i := range p.pool {
@@ -174,10 +173,10 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 
 	for {
 		p.RLock()
-		closed := p.closed
+		state := p.state
 		poolLen := int(p.poolLen)
 		p.RUnlock()
-		if closed {
+		if state != stateOpen {
 			return
 		}
 
@@ -209,7 +208,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				}
 
 				p.Lock()
-				if !p.closed {
+				if p.state == stateOpen {
 					p.pool = append(p.pool, conn{channel, client})
 					p.poolLen = int64(len(p.pool))
 				}
@@ -229,10 +228,10 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 
 	for {
 		p.RLock()
-		closed := p.closed
+		state := p.state
 		poolLen := int(p.poolLen)
 		p.RUnlock()
-		if closed {
+		if state != stateOpen {
 			return
 		}
 
@@ -253,7 +252,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 			if !healthy {
 				// Swap with tail, decrement pool size, decrement "i" to try next in line
 				p.Lock()
-				if p.closed {
+				if p.state != stateOpen {
 					p.Unlock()
 					return
 				}
@@ -268,11 +267,11 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 
 			// Bail early if closed, reset poolLen in case we decremented or conns got added
 			p.RLock()
-			closed := p.closed
+			state := p.state
 			poolLen = int(p.poolLen)
 			p.RUnlock()
 
-			if closed {
+			if state != stateOpen {
 				return
 			}
 		}

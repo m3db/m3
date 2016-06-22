@@ -41,7 +41,8 @@ var (
 	// ensuring at least each partition has an up node with a connection to it
 	ErrClusterConnectTimeout = errors.New("timed out establishing min connections to cluster")
 
-	errSessionAlreadyOpen = errors.New("session already open")
+	errSessionStateNotInitial = errors.New("session not in initial state")
+	errSessionStateNotOpen    = errors.New("session not in open state")
 )
 
 type clientSession interface {
@@ -61,8 +62,7 @@ type session struct {
 	topoMap        m3db.TopologyMap
 	topoMapCh      chan m3db.TopologyMap
 	queues         []hostQueue
-	opened         bool
-	closed         bool
+	state          state
 
 	// NB(r): We make sets of pools, one for each shard, to reduce
 	// contention on the pool when retrieving ops
@@ -93,17 +93,17 @@ func newSession(opts m3db.ClientOptions) (clientSession, error) {
 
 func (s *session) Open() error {
 	s.Lock()
-	if s.opened || s.closed {
+	if s.state != stateNotOpen {
 		s.Unlock()
-		return errSessionAlreadyOpen
+		return errSessionStateNotInitial
 	}
-	s.opened = true
+	s.state = stateOpen
 	s.Unlock()
 
 	currTopologyMap := s.topo.GetAndSubscribe(s.topoMapCh)
 	if err := s.setTopologyMap(currTopologyMap); err != nil {
 		s.Lock()
-		s.opened = false
+		s.state = stateNotOpen
 		s.Unlock()
 		return err
 	}
@@ -319,11 +319,11 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 
 func (s *session) Close() error {
 	s.Lock()
-	if !s.opened || s.closed {
+	if s.state != stateOpen {
 		s.Unlock()
-		return nil
+		return errSessionStateNotOpen
 	}
-	s.closed = true
+	s.state = stateClosed
 	s.Unlock()
 
 	for _, q := range s.queues {

@@ -35,7 +35,6 @@ import (
 
 var (
 	errQueueNotOpen          = errors.New("host operation queue not open")
-	errQueueClosed           = errors.New("host operation queue already closed")
 	errQueueUnknownOperation = errors.New("unknown operation")
 )
 
@@ -68,8 +67,7 @@ type queue struct {
 	ops                   []m3db.Op
 	opsArrayPool          opArrayPool
 	drainIn               chan []m3db.Op
-	opened                bool
-	closed                bool
+	state                 state
 }
 
 func newHostQueue(
@@ -101,11 +99,11 @@ func (q *queue) Open() {
 	q.Lock()
 	defer q.Unlock()
 
-	if q.opened || q.closed {
+	if q.state != stateNotOpen {
 		return
 	}
 
-	q.opened = true
+	q.state = stateOpen
 
 	// Open the connection pool
 	q.connPool.Open()
@@ -123,16 +121,16 @@ func (q *queue) Open() {
 func (q *queue) flushEvery(interval time.Duration) {
 	for {
 		q.RLock()
-		closed := q.closed
+		state := q.state
 		q.RUnlock()
-		if closed {
+		if state != stateOpen {
 			return
 		}
 
 		time.Sleep(interval)
 
 		q.Lock()
-		if q.closed {
+		if state != stateOpen {
 			q.Unlock()
 			return
 		}
@@ -191,10 +189,10 @@ func (q *queue) drain() {
 		q.opsArrayPool.Put(ops)
 
 		q.RLock()
-		closed := q.closed
+		state := q.state
 		q.RUnlock()
 
-		if closed {
+		if state != stateOpen {
 			// Final drain, close the connection pool after all requests done
 			wgAll.Wait()
 			q.connPool.Close()
@@ -269,13 +267,9 @@ func (q *queue) Len() int {
 
 func (q *queue) Enqueue(o m3db.Op) error {
 	q.Lock()
-	if !q.opened {
+	if q.state != stateOpen {
 		q.Unlock()
 		return errQueueNotOpen
-	}
-	if q.closed {
-		q.Unlock()
-		return errQueueClosed
 	}
 	q.ops = append(q.ops, o)
 	// If queue is full flush
@@ -294,11 +288,11 @@ func (q *queue) Close() {
 	q.Lock()
 	defer q.Unlock()
 
-	if !q.opened || q.closed {
+	if q.state != stateOpen {
 		return
 	}
 
-	q.closed = true
+	q.state = stateClosed
 
 	// Flush any remaining ops and stop the drain cycle
 	q.flushWithLock()

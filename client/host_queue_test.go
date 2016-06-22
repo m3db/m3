@@ -66,7 +66,7 @@ func TestHostQueueWriteErrorAfterClose(t *testing.T) {
 
 	err := queue.Enqueue(&writeOp{})
 	assert.Error(t, err)
-	assert.Equal(t, err, errQueueClosed)
+	assert.Equal(t, err, errQueueNotOpen)
 }
 
 func TestHostQueueWriteBatches(t *testing.T) {
@@ -82,7 +82,7 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, true, queue.opened)
+	assert.Equal(t, stateOpen, queue.state)
 
 	// Prepare callback for writes
 	type result struct {
@@ -161,7 +161,7 @@ func TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, true, queue.opened)
+	assert.Equal(t, stateOpen, queue.state)
 
 	// Prepare mocks for flush
 	nextClientErr := fmt.Errorf("an error")
@@ -204,7 +204,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, true, queue.opened)
+	assert.Equal(t, stateOpen, queue.state)
 
 	// Prepare writes
 	var wg sync.WaitGroup
@@ -267,7 +267,7 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, true, queue.opened)
+	assert.Equal(t, stateOpen, queue.state)
 
 	// Prepare writes
 	var wg sync.WaitGroup

@@ -114,7 +114,7 @@ func TestSessionWrite(t *testing.T) {
 	// Ensure consecutive opens cause errors
 	consecutiveOpenErr := session.Open()
 	assert.Error(t, consecutiveOpenErr)
-	assert.Equal(t, errSessionAlreadyOpen, consecutiveOpenErr)
+	assert.Equal(t, errSessionStateNotInitial, consecutiveOpenErr)
 
 	// Begin write
 	var resultErr error
