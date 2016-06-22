@@ -36,7 +36,7 @@ type writeOp struct {
 	completionFn completionFn
 }
 
-func (w *writeOp) init() {
+func (w *writeOp) reset() {
 	*w = writeOpZeroed
 	w.request.Datapoint = &w.datapoint
 }
@@ -60,17 +60,19 @@ type poolOfWriteOp struct {
 func newWriteOpPool(size int) writeOpPool {
 	p := pool.NewObjectPool(size)
 	p.Init(func() interface{} {
-		return &writeOp{}
+		w := &writeOp{}
+		w.reset()
+		return w
 	})
 	return &poolOfWriteOp{p}
 }
 
 func (p *poolOfWriteOp) Get() *writeOp {
 	w := p.pool.Get().(*writeOp)
-	w.init()
 	return w
 }
 
 func (p *poolOfWriteOp) Put(w *writeOp) {
+	w.reset()
 	p.pool.Put(w)
 }

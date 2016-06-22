@@ -62,16 +62,16 @@ const (
 	defaultHostQueueOpsArrayPoolSize = 8
 
 	// defaultBackgroundConnectInterval is the default background connect interval
-	defaultBackgroundConnectInterval = 10 * time.Second
+	defaultBackgroundConnectInterval = 4 * time.Second
 
 	// defaultBackgroundConnectStutter is the default background connect stutter
-	defaultBackgroundConnectStutter = 5 * time.Second
+	defaultBackgroundConnectStutter = 1 * time.Second
 
 	// defaultBackgroundHealthCheckInterval is the default background health check interval
-	defaultBackgroundHealthCheckInterval = 5 * time.Second
+	defaultBackgroundHealthCheckInterval = 1 * time.Second
 
 	// defaultBackgroundHealthCheckStutter is the default background health check stutter
-	defaultBackgroundHealthCheckStutter = 5 * time.Second
+	defaultBackgroundHealthCheckStutter = 1 * time.Second
 )
 
 type options struct {

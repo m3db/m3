@@ -23,6 +23,7 @@ package client
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -33,11 +34,18 @@ import (
 )
 
 var (
-	errQueueClosed      = errors.New("host operation queue already closed")
-	errUnknownOperation = errors.New("unknown operation")
+	errQueueNotOpen          = errors.New("host operation queue not open")
+	errQueueClosed           = errors.New("host operation queue already closed")
+	errQueueUnknownOperation = errors.New("unknown operation")
 )
 
 type hostQueue interface {
+	// Open the host queue
+	Open()
+
+	// Len returns the length of the queue
+	Len() int
+
 	// Enqueue an operation
 	Enqueue(o op) error
 
@@ -60,6 +68,7 @@ type queue struct {
 	ops                   []op
 	opsArrayPool          opArrayPool
 	drainIn               chan []op
+	opened                bool
 	closed                bool
 }
 
@@ -70,9 +79,11 @@ func newHostQueue(
 	opts m3db.ClientOptions,
 ) hostQueue {
 	size := opts.GetHostQueueOpsFlushSize()
-	opArrayPool := newOpArrayPool(opts.GetHostQueueOpsArrayPoolSize(), size)
 
-	q := &queue{
+	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.GetWriteBatchSize())))
+	opArrayPool := newOpArrayPool(opts.GetHostQueueOpsArrayPoolSize(), opArrayPoolCapacity)
+
+	return &queue{
 		opts:                  opts,
 		host:                  host,
 		connPool:              newConnectionPool(host, opts),
@@ -83,8 +94,18 @@ func newHostQueue(
 		opsArrayPool: opArrayPool,
 		// NB(r): specifically use non-buffered queue for single flush at a time
 		drainIn: make(chan []op),
-		closed:  false,
 	}
+}
+
+func (q *queue) Open() {
+	q.Lock()
+	defer q.Unlock()
+
+	if q.opened || q.closed {
+		return
+	}
+
+	q.opened = true
 
 	// Open the connection pool
 	q.connPool.Open()
@@ -92,13 +113,11 @@ func newHostQueue(
 	// Continually drain the queue until closed
 	go q.drain()
 
-	flushInterval := opts.GetHostQueueOpsFlushInterval()
+	flushInterval := q.opts.GetHostQueueOpsFlushInterval()
 	if flushInterval > 0 {
 		// Continually flush the queue at given interval if set
 		go q.flushEvery(flushInterval)
 	}
-
-	return q
 }
 
 func (q *queue) flushEvery(interval time.Duration) {
@@ -160,7 +179,7 @@ func (q *queue) drain() {
 				}
 			default:
 				completionFn := ops[i].GetCompletionFn()
-				completionFn(nil, errUnknownOperation)
+				completionFn(nil, errQueueUnknownOperation)
 			}
 		}
 
@@ -201,44 +220,59 @@ func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []op, elems []*rpc.WriteReque
 
 		client, err := q.connPool.NextClient()
 		if err != nil {
+			// No client available
 			callAllCompletionFns(ops, nil, err)
 			cleanup()
 			return
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.GetWriteRequestTimeout())
-		if err := client.WriteBatch(ctx, req); err != nil {
-			if batchErrs, ok := err.(*rpc.WriteBatchErrors); ok {
-				// Callback all writes with errors
-				hasErr := make(map[int]struct{})
-				for _, batchErr := range batchErrs.Errors {
-					op := ops[batchErr.ElementErrorIndex]
-					op.GetCompletionFn()(nil, fmt.Errorf(batchErr.Error.Message))
-					hasErr[int(batchErr.ElementErrorIndex)] = struct{}{}
+		err = client.WriteBatch(ctx, req)
+		if err == nil {
+			// All succeeded
+			callAllCompletionFns(ops, nil, nil)
+			cleanup()
+			return
+		}
+
+		if batchErrs, ok := err.(*rpc.WriteBatchErrors); ok {
+			// Callback all writes with errors
+			hasErr := make(map[int]struct{})
+			for _, batchErr := range batchErrs.Errors {
+				op := ops[batchErr.ElementErrorIndex]
+				op.GetCompletionFn()(nil, fmt.Errorf(batchErr.Error.Message))
+				hasErr[int(batchErr.ElementErrorIndex)] = struct{}{}
+			}
+			// Callback all writes with no errors
+			for i := range ops {
+				if _, ok := hasErr[i]; !ok {
+					// No error
+					ops[i].GetCompletionFn()(nil, nil)
 				}
-				// Callback all writes with no errors
-				for i := range ops {
-					if _, ok := hasErr[i]; !ok {
-						// No error
-						ops[i].GetCompletionFn()(nil, nil)
-					}
-				}
-			} else {
-				// Entire batch failed
-				callAllCompletionFns(ops, nil, err)
 			}
 			cleanup()
 			return
 		}
 
-		// All succeeded
-		callAllCompletionFns(ops, nil, nil)
+		// Entire batch failed
+		callAllCompletionFns(ops, nil, err)
 		cleanup()
 	}()
 }
 
+func (q *queue) Len() int {
+	q.RLock()
+	v := len(q.ops)
+	q.RUnlock()
+	return v
+}
+
 func (q *queue) Enqueue(o op) error {
 	q.Lock()
+	if !q.opened {
+		q.Unlock()
+		return errQueueNotOpen
+	}
 	if q.closed {
 		q.Unlock()
 		return errQueueClosed
@@ -258,8 +292,14 @@ func (q *queue) GetConnectionCount() int {
 
 func (q *queue) Close() {
 	q.Lock()
+	defer q.Unlock()
+
+	if !q.opened || q.closed {
+		return
+	}
+
 	q.closed = true
+
 	// Flush any remaining ops and stop the drain cycle
 	q.flushWithLock()
-	q.Unlock()
 }

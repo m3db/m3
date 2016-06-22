@@ -153,6 +153,9 @@ func (s *session) newHostQueue(host m3db.Host, topologyMap m3db.TopologyMap) hos
 	// We need to pool:
 	// = replica * (numWrites / writeBatchSize)
 	// = number of batch request structs to pool
+	// For purposes of simplifying the options for pooling the write op pool size
+	// represents the number of ops to pool not including replication, this is due
+	// to the fact that the ops are shared between the different host queue replicas.
 	totalBatches := topologyMap.Replicas() *
 		int(math.Ceil(float64(s.opts.GetWriteOpPoolSize())/float64(s.opts.GetWriteBatchSize())))
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
@@ -222,7 +225,7 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 	}, func(idx int, host m3db.Host) {
 		wg.Add(1)
 		enqueued++
-		if err := s.queues[idx].Enqueue(w); err != nil && enqueueErr != nil {
+		if err := s.queues[idx].Enqueue(w); err != nil && enqueueErr == nil {
 			// NB(r): if this ever happens we have a code bug, once we are in the read lock
 			// the current queues we are using should never be closed
 			enqueueErr = err

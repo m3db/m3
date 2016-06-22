@@ -116,7 +116,7 @@ func (p *connPool) Open() {
 	p.Lock()
 	defer p.Unlock()
 
-	if p.opened {
+	if p.opened || p.closed {
 		return
 	}
 
@@ -156,7 +156,7 @@ func (p *connPool) NextClient() (rpc.TChanNode, error) {
 
 func (p *connPool) Close() {
 	p.Lock()
-	if p.closed {
+	if !p.opened || p.closed {
 		p.Unlock()
 		return
 	}

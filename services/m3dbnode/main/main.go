@@ -75,7 +75,7 @@ func main() {
 	log := opts.GetLogger()
 
 	var localNodeAddr string
-	if strings.IndexRune(tchannelNodeAddr, ':') == -1 {
+	if !strings.ContainsRune(tchannelNodeAddr, ':') {
 		log.Fatalf("tchannelthrift address does not specify port")
 	}
 	localNodeAddrComponents := strings.Split(tchannelNodeAddr, ":")
