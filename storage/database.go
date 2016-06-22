@@ -99,7 +99,6 @@ type db struct {
 	shardScheme m3db.ShardScheme
 	shardSet    m3db.ShardSet
 	bs          bootstrapState
-
 	fm             sync.RWMutex
 	fs             flushStatus
 	flushAttempted map[time.Time]flushState

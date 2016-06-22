@@ -47,7 +47,7 @@ type hostQueue interface {
 	Len() int
 
 	// Enqueue an operation
-	Enqueue(o op) error
+	Enqueue(op m3db.Op) error
 
 	// GetConnectionCount gets the current open connection count
 	GetConnectionCount() int
@@ -65,9 +65,9 @@ type queue struct {
 	writeBatchRequestPool writeBatchRequestPool
 	writeRequestArrayPool writeRequestArrayPool
 	size                  int
-	ops                   []op
+	ops                   []m3db.Op
 	opsArrayPool          opArrayPool
-	drainIn               chan []op
+	drainIn               chan []m3db.Op
 	opened                bool
 	closed                bool
 }
@@ -93,7 +93,7 @@ func newHostQueue(
 		ops:          opArrayPool.Get(),
 		opsArrayPool: opArrayPool,
 		// NB(r): specifically use non-buffered queue for single flush at a time
-		drainIn: make(chan []op),
+		drainIn: make(chan []m3db.Op),
 	}
 }
 
@@ -155,7 +155,7 @@ func (q *queue) drain() {
 		ops := <-q.drainIn
 
 		var (
-			currWriteOps      []op
+			currWriteOps      []m3db.Op
 			currWriteRequests []*rpc.WriteRequest
 			writeBatchSize    = q.opts.GetWriteBatchSize()
 			opsLen            = len(ops)
@@ -203,7 +203,7 @@ func (q *queue) drain() {
 	}
 }
 
-func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []op, elems []*rpc.WriteRequest) {
+func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []m3db.Op, elems []*rpc.WriteRequest) {
 	wg.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
@@ -267,7 +267,7 @@ func (q *queue) Len() int {
 	return v
 }
 
-func (q *queue) Enqueue(o op) error {
+func (q *queue) Enqueue(o m3db.Op) error {
 	q.Lock()
 	if !q.opened {
 		q.Unlock()

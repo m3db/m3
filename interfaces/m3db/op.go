@@ -18,38 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package m3db
 
-import (
-	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/pool"
-)
+// CompletionFn is a completion callback function
+type CompletionFn func(result interface{}, err error)
 
-type opArrayPool interface {
-	// Get an array of ops
-	Get() []m3db.Op
-
-	// Put an array of ops
-	Put(w []m3db.Op)
-}
-
-type poolOfOpArray struct {
-	pool m3db.ObjectPool
-}
-
-func newOpArrayPool(size int, capacity int) opArrayPool {
-	p := pool.NewObjectPool(size)
-	p.Init(func() interface{} {
-		return make([]m3db.Op, 0, capacity)
-	})
-	return &poolOfOpArray{p}
-}
-
-func (p *poolOfOpArray) Get() []m3db.Op {
-	return p.pool.Get().([]m3db.Op)
-}
-
-func (p *poolOfOpArray) Put(ops []m3db.Op) {
-	ops = ops[:0]
-	p.pool.Put(ops)
+// Op contains a client operation, used internally and in mocks package
+type Op interface {
+	// GetCompletionFn gets the completion function for the operation
+	GetCompletionFn() CompletionFn
 }

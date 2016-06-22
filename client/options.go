@@ -31,6 +31,9 @@ import (
 )
 
 const (
+	// defaultConsistencyLevel is the default consistency level
+	defaultConsistencyLevel = m3db.ConsistencyLevelQuorum
+
 	// defaultMaxConnectionCount is the default max connection count
 	defaultMaxConnectionCount = 32
 
@@ -103,7 +106,7 @@ func NewOptions() m3db.ClientOptions {
 	return &options{
 		logger:                        logging.SimpleLogger,
 		scope:                         metrics.NoopScope,
-		consistencyLevel:              m3db.ConsistencyLevelQuorum,
+		consistencyLevel:              defaultConsistencyLevel,
 		nowFn:                         time.Now,
 		maxConnectionCount:            defaultMaxConnectionCount,
 		minConnectionCount:            defaultMinConnectionCount,

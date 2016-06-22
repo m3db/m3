@@ -33,7 +33,7 @@ var (
 type writeOp struct {
 	request      rpc.WriteRequest
 	datapoint    rpc.Datapoint
-	completionFn completionFn
+	completionFn m3db.CompletionFn
 }
 
 func (w *writeOp) reset() {
@@ -41,7 +41,7 @@ func (w *writeOp) reset() {
 	w.request.Datapoint = &w.datapoint
 }
 
-func (w *writeOp) GetCompletionFn() completionFn {
+func (w *writeOp) GetCompletionFn() m3db.CompletionFn {
 	return w.completionFn
 }
 

@@ -316,7 +316,7 @@ func testWriteOp(
 	value float64,
 	timestamp int64,
 	timeType rpc.TimeType,
-	completionFn completionFn,
+	completionFn m3db.CompletionFn,
 ) *writeOp {
 	w := &writeOp{}
 	w.reset()

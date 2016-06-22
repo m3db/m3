@@ -32,5 +32,12 @@ func NewClient(opts m3db.ClientOptions) m3db.Client {
 }
 
 func (c *client) NewSession() (m3db.Session, error) {
-	return newSession(c.opts)
+	session, err := newSession(c.opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := session.Open(); err != nil {
+		return nil, err
+	}
+	return session, nil
 }

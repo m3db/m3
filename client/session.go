@@ -32,49 +32,84 @@ import (
 	xtime "github.com/m3db/m3db/x/time"
 )
 
+const (
+	clusterConnectWaitInterval = 10 * time.Millisecond
+)
+
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
 	// ensuring at least each partition has an up node with a connection to it
 	ErrClusterConnectTimeout = errors.New("timed out establishing min connections to cluster")
 
-	clusterConnectWaitInterval = 100 * time.Millisecond
+	errSessionAlreadyOpen = errors.New("session already open")
 )
+
+type clientSession interface {
+	m3db.Session
+
+	// Open the client session
+	Open() error
+}
 
 type session struct {
 	sync.RWMutex
 
-	opts      m3db.ClientOptions
-	nowFn     m3db.NowFn
-	topo      m3db.Topology
-	topoMap   m3db.TopologyMap
-	topoMapCh chan m3db.TopologyMap
-	queues    []hostQueue
+	opts           m3db.ClientOptions
+	nowFn          m3db.NowFn
+	newHostQueueFn newHostQueueFn
+	topo           m3db.Topology
+	topoMap        m3db.TopologyMap
+	topoMapCh      chan m3db.TopologyMap
+	queues         []hostQueue
+	opened         bool
+	closed         bool
 
-	// NB(r): we make sets of pools, one for each shard, to reduce
+	// NB(r): We make sets of pools, one for each shard, to reduce
 	// contention on the pool when retrieving ops
 	writeOpPools []writeOpPool
 }
 
-func newSession(opts m3db.ClientOptions) (m3db.Session, error) {
+type newHostQueueFn func(
+	host m3db.Host,
+	writeBatchRequestPool writeBatchRequestPool,
+	writeRequestArrayPool writeRequestArrayPool,
+	opts m3db.ClientOptions,
+) hostQueue
+
+func newSession(opts m3db.ClientOptions) (clientSession, error) {
 	topology, err := opts.GetTopologyType().Create()
 	if err != nil {
 		return nil, err
 	}
 
-	s := &session{
-		opts:      opts,
-		nowFn:     opts.GetNowFn(),
-		topo:      topology,
-		topoMapCh: make(chan m3db.TopologyMap),
-	}
+	return &session{
+		opts:           opts,
+		nowFn:          opts.GetNowFn(),
+		newHostQueueFn: newHostQueue,
+		topo:           topology,
+		topoMapCh:      make(chan m3db.TopologyMap),
+	}, nil
+}
 
-	currTopologyMap := topology.GetAndSubscribe(s.topoMapCh)
+func (s *session) Open() error {
+	s.Lock()
+	if s.opened || s.closed {
+		s.Unlock()
+		return errSessionAlreadyOpen
+	}
+	s.opened = true
+	s.Unlock()
+
+	currTopologyMap := s.topo.GetAndSubscribe(s.topoMapCh)
 	if err := s.setTopologyMap(currTopologyMap); err != nil {
-		return nil, err
+		s.Lock()
+		s.opened = false
+		s.Unlock()
+		return err
 	}
 
 	go func() {
-		log := opts.GetLogger()
+		log := s.opts.GetLogger()
 		for value := range s.topoMapCh {
 			if err := s.setTopologyMap(value); err != nil {
 				log.Errorf("could not update topology map: %v", err)
@@ -82,7 +117,7 @@ func newSession(opts m3db.ClientOptions) (m3db.Session, error) {
 		}
 	}()
 
-	return s, nil
+	return nil
 }
 
 func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
@@ -102,6 +137,9 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 	minConnectionCount := s.opts.GetMinConnectionCount()
 	for {
 		if s.nowFn().Sub(start) >= s.opts.GetClusterConnectTimeout() {
+			for i := range queues {
+				queues[i].Close()
+			}
 			return ErrClusterConnectTimeout
 		}
 		// Be optimistic
@@ -161,7 +199,7 @@ func (s *session) newHostQueue(host m3db.Host, topologyMap m3db.TopologyMap) hos
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
 	writeBatchRequestPool := newWriteBatchRequestPool(hostBatches)
 	writeRequestArrayPool := newWriteRequestArrayPool(hostBatches, s.opts.GetWriteBatchSize())
-	return newHostQueue(host, writeBatchRequestPool, writeRequestArrayPool, s.opts)
+	return s.newHostQueueFn(host, writeBatchRequestPool, writeRequestArrayPool, s.opts)
 }
 
 func (s *session) setWriteOpPoolsWithLock(topologyMap m3db.TopologyMap) {
@@ -253,28 +291,45 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 		// Check consistency level satisfied
 		level := s.opts.GetConsistencyLevel()
 		success := enqueued - resultErrs
+		reportErr := func() error {
+			return fmt.Errorf(
+				"failed to meet %s with %d/%d success, error[0]: %v",
+				level.String(), success, enqueued, resultErr)
+		}
 		switch level {
 		case m3db.ConsistencyLevelAll:
-			return fmt.Errorf("failed to meet %s with %d/%d success", level.String(), success, enqueued)
+			return reportErr()
 		case m3db.ConsistencyLevelQuorum:
 			if success >= quorum {
 				// Meets quorum
 				break
 			}
-			return fmt.Errorf("failed to meet %s with %d/%d success", level.String(), success, enqueued)
+			return reportErr()
 		case m3db.ConsistencyLevelOne:
 			if success > 0 {
 				// Meets one
 				break
 			}
-			return fmt.Errorf("failed to meet %s with %d/%d success", level.String(), success, enqueued)
+			return reportErr()
 		}
 	}
 
-	return resultErr
+	return nil
 }
 
 func (s *session) Close() error {
+	s.Lock()
+	if !s.opened || s.closed {
+		s.Unlock()
+		return nil
+	}
+	s.closed = true
+	s.Unlock()
+
+	for _, q := range s.queues {
+		q.Close()
+	}
+
 	close(s.topoMapCh)
 	return s.topo.Close()
 }

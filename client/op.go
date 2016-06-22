@@ -20,14 +20,11 @@
 
 package client
 
-type completionFn func(result interface{}, err error)
+import (
+	"github.com/m3db/m3db/interfaces/m3db"
+)
 
-type op interface {
-	// GetCompletionFn gets the completion function for the operation
-	GetCompletionFn() completionFn
-}
-
-func callAllCompletionFns(ops []op, result interface{}, err error) {
+func callAllCompletionFns(ops []m3db.Op, result interface{}, err error) {
 	for i := range ops {
 		ops[i].GetCompletionFn()(result, err)
 	}
