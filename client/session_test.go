@@ -199,7 +199,7 @@ func TestSessionWriteConsistencyLevelOne(t *testing.T) {
 	for i := 0; i <= 2; i++ {
 		testConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, i, outcomeSuccess)
 	}
-	testConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, 1, outcomeSuccess)
+	testConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, 3, outcomeFail)
 }
 
 func mockHostQueues(
