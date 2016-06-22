@@ -23,6 +23,7 @@ package tsz
 import (
 	"bytes"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -32,11 +33,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func getTestIterator(rawBytes []byte) *iterator {
-	return NewIterator(bytes.NewReader(rawBytes), NewOptions()).(*iterator)
+func getTestSingleReaderIterator(rawBytes []byte) *singleReaderIterator {
+	return NewSingleReaderIterator(bytes.NewReader(rawBytes), NewOptions()).(*singleReaderIterator)
 }
 
-func TestReadNextTimestamp(t *testing.T) {
+func getTestMultiReaderIterator(rawBytes [][]byte) *multiReaderIterator {
+	var readers []io.Reader
+	for _, d := range rawBytes {
+		readers = append(readers, bytes.NewReader(d))
+	}
+	return NewMultiReaderIterator(readers, NewOptions()).(*multiReaderIterator)
+}
+
+func TestSingleReaderIteratorReadNextTimestamp(t *testing.T) {
 	inputs := []struct {
 		previousTimeDelta time.Duration
 		timeUnit          xtime.Unit
@@ -56,7 +65,7 @@ func TestReadNextTimestamp(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		it := getTestIterator(input.rawBytes)
+		it := getTestSingleReaderIterator(input.rawBytes)
 		it.tu = input.timeUnit
 		it.dt = input.previousTimeDelta
 		it.readNextTimestamp()
@@ -64,14 +73,14 @@ func TestReadNextTimestamp(t *testing.T) {
 		require.NoError(t, it.Err())
 	}
 
-	it := getTestIterator([]byte{0x1})
+	it := getTestSingleReaderIterator([]byte{0x1})
 	it.readNextTimestamp()
 	require.Error(t, it.Err())
 	it.readNextTimestamp()
 	require.Error(t, it.Err())
 }
 
-func TestReadNextValue(t *testing.T) {
+func TestSingleReaderIteratorReadNextValue(t *testing.T) {
 	inputs := []struct {
 		previousValue    uint64
 		previousValueXOR uint64
@@ -84,7 +93,7 @@ func TestReadNextValue(t *testing.T) {
 		{0xdeadbeef, 0x0120000000000000, []byte{0xc1, 0x2e, 0x1, 0x40}, 0x4028000000000000, 0x40280000deadbeef},
 	}
 	for _, input := range inputs {
-		it := getTestIterator(input.rawBytes)
+		it := getTestSingleReaderIterator(input.rawBytes)
 		it.vb = input.previousValue
 		it.xor = input.previousValueXOR
 		it.readNextValue()
@@ -93,12 +102,12 @@ func TestReadNextValue(t *testing.T) {
 		require.NoError(t, it.Err())
 	}
 
-	it := getTestIterator([]byte{0xf0})
+	it := getTestSingleReaderIterator([]byte{0xf0})
 	it.readNextValue()
 	require.Error(t, it.Err())
 }
 
-func TestReadAnnotation(t *testing.T) {
+func TestSingleReaderIteratorReadAnnotation(t *testing.T) {
 	inputs := []struct {
 		rawBytes           []byte
 		expectedAnnotation m3db.Annotation
@@ -121,13 +130,13 @@ func TestReadAnnotation(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		it := getTestIterator(input.rawBytes)
+		it := getTestSingleReaderIterator(input.rawBytes)
 		it.readAnnotation()
 		require.Equal(t, input.expectedAnnotation, it.ant)
 	}
 }
 
-func TestReadTimeUnit(t *testing.T) {
+func TestSingleReaderIteratorReadTimeUnit(t *testing.T) {
 	inputs := []struct {
 		rawBytes         []byte
 		expectedTimeUnit xtime.Unit
@@ -142,14 +151,14 @@ func TestReadTimeUnit(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		it := getTestIterator(input.rawBytes)
+		it := getTestSingleReaderIterator(input.rawBytes)
 		it.readTimeUnit()
 		require.NoError(t, it.err)
 		require.Equal(t, input.expectedTimeUnit, it.tu)
 	}
 }
 
-func TestNextNoAnnotation(t *testing.T) {
+func TestSingleReaderIteratorNextNoAnnotation(t *testing.T) {
 	rawBytes := []byte{
 		0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x40, 0x33, 0xe4,
 		0x2, 0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0xb, 0xf1, 0x96, 0x7, 0x40, 0x1c,
@@ -165,7 +174,7 @@ func TestNextNoAnnotation(t *testing.T) {
 		{startTime.Add(time.Second * 2092), 15},
 		{startTime.Add(time.Second * 4200), 12},
 	}
-	it := getTestIterator(rawBytes)
+	it := getTestSingleReaderIterator(rawBytes)
 	for i := 0; i < 7; i++ {
 		require.True(t, it.Next())
 		v, u, a := it.Current()
@@ -185,14 +194,14 @@ func TestNextNoAnnotation(t *testing.T) {
 		require.True(t, it.isDone())
 	}
 
-	it = getTestIterator([]byte{0xf0})
+	it = getTestSingleReaderIterator([]byte{0xf0})
 	it.readNextValue()
 	require.False(t, it.Next())
 	require.False(t, it.isDone())
 	require.True(t, it.hasError())
 }
 
-func TestNextWithAnnotation(t *testing.T) {
+func TestSingleReaderIteratorNextWithAnnotation(t *testing.T) {
 	rawBytes := []byte{
 		0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x20, 0x1, 0x50, 0x8,
 		0x6, 0x7c, 0x80, 0x50, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x7e, 0x32, 0xc0,
@@ -212,7 +221,7 @@ func TestNextWithAnnotation(t *testing.T) {
 		{m3db.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
 		{m3db.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
 	}
-	it := getTestIterator(rawBytes)
+	it := getTestSingleReaderIterator(rawBytes)
 	for i := 0; i < 7; i++ {
 		require.True(t, it.Next())
 		v, u, a := it.Current()
@@ -232,7 +241,7 @@ func TestNextWithAnnotation(t *testing.T) {
 		require.True(t, it.isDone())
 	}
 
-	it = getTestIterator(
+	it = getTestSingleReaderIterator(
 		[]byte{0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x20, 0x1, 0x50, 0x8},
 	)
 	require.False(t, it.Next())
@@ -240,7 +249,7 @@ func TestNextWithAnnotation(t *testing.T) {
 	require.True(t, it.hasError())
 }
 
-func TestNextWithTimeUnit(t *testing.T) {
+func TestSingleReaderIteratorNextWithTimeUnit(t *testing.T) {
 	rawBytes := []byte{
 		0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x40, 0x33, 0xe4, 0x2,
 		0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0xb, 0xf1, 0x96, 0x7, 0x40, 0x1c, 0x20, 0x8,
@@ -260,7 +269,7 @@ func TestNextWithTimeUnit(t *testing.T) {
 		{m3db.Datapoint{startTime.Add(-time.Nanosecond * 15500000000), 15}, xtime.Nanosecond},
 		{m3db.Datapoint{startTime.Add(-time.Nanosecond * 14000000000), 12}, xtime.Second},
 	}
-	it := getTestIterator(rawBytes)
+	it := getTestSingleReaderIterator(rawBytes)
 	for i := 0; i < 7; i++ {
 		require.True(t, it.Next())
 		v, u, _ := it.Current()
@@ -281,7 +290,7 @@ func TestNextWithTimeUnit(t *testing.T) {
 	}
 }
 
-func TestNextWithAnnotationAndTimeUnit(t *testing.T) {
+func TestSingleReaderIteratorNextWithAnnotationAndTimeUnit(t *testing.T) {
 	rawBytes := []byte{
 		0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x20, 0x1, 0x50, 0x8,
 		0x6, 0x7c, 0x80, 0x50, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x7e, 0x32, 0xc0,
@@ -303,7 +312,7 @@ func TestNextWithAnnotationAndTimeUnit(t *testing.T) {
 		{m3db.Datapoint{startTime.Add(-time.Millisecond * 15500), 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
 		{m3db.Datapoint{startTime.Add(-time.Millisecond * 14000), 12}, nil, xtime.Second},
 	}
-	it := getTestIterator(rawBytes)
+	it := getTestSingleReaderIterator(rawBytes)
 	for i := 0; i < 7; i++ {
 		require.True(t, it.Next())
 		v, u, a := it.Current()
@@ -325,12 +334,65 @@ func TestNextWithAnnotationAndTimeUnit(t *testing.T) {
 	}
 }
 
-func TestNextWithUnexpectedTimeUnit(t *testing.T) {
+func TestSingleReaderIteratorNextWithUnexpectedTimeUnit(t *testing.T) {
 	rawBytes := []byte{
 		0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x41, 0x20, 0x0, 0x0,
 	}
-	it := getTestIterator(rawBytes)
+	it := getTestSingleReaderIterator(rawBytes)
 	require.False(t, it.Next())
 	expectedErr := errors.New("time encoding scheme for time unit 9 doesn't exist")
 	require.Equal(t, expectedErr, it.Err())
+}
+
+func TestMultiReaderIteratorNext(t *testing.T) {
+	data := [][]byte{
+		{
+			0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x40, 0x33, 0xe4,
+			0x2, 0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0xb, 0xf1, 0x96, 0x6, 0x0, 0x0,
+		},
+		{
+			0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x40, 0x38, 0x86,
+			0x80, 0x84, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x8c, 0x50, 0x0, 0x70, 0x0,
+		},
+		{
+			0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x40, 0x38, 0xa5,
+			0x80, 0x40, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0,
+		},
+	}
+	startTime := time.Unix(1427162462, 0)
+	inputs := []m3db.Datapoint{
+		{startTime, 12},
+		{startTime.Add(time.Second * 5), 36},
+		{startTime.Add(time.Second * 20), -8},
+		{startTime.Add(time.Second * 60), 12},
+		{startTime.Add(time.Second * 120), 24},
+		{startTime.Add(time.Second * 170), 40},
+	}
+
+	iter := getTestMultiReaderIterator(data)
+	curIndex := 0
+	for iter.Next() {
+		d, _, _ := iter.Current()
+		require.Equal(t, inputs[curIndex].Timestamp, d.Timestamp)
+		require.Equal(t, inputs[curIndex].Value, d.Value)
+		curIndex++
+	}
+	require.Equal(t, len(inputs), curIndex)
+}
+
+func TestMultiReaderIteratorNextError(t *testing.T) {
+	data := [][]byte{
+		{
+			0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x40, 0x33, 0xe4,
+			0x2, 0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0xb, 0xf1, 0x96, 0x6, 0x0, 0x0,
+		},
+		{
+			0x0, 0x0, 0x0, 0x0, 0x55, 0x10, 0xc5, 0x20, 0x80, 0x40, 0x3,
+		},
+	}
+
+	iter := getTestMultiReaderIterator(data)
+	for iter.Next() {
+	}
+	require.Error(t, iter.Err())
 }

@@ -22,7 +22,6 @@ package storage
 
 import (
 	"io"
-	"sort"
 	"testing"
 	"time"
 
@@ -96,29 +95,21 @@ func (v decodedValuesByTime) Swap(lhs, rhs int) {
 
 func decodedValues(results []io.Reader, opts m3db.DatabaseOptions) ([]decodedValue, error) {
 	var all []decodedValue
-	for i := range results {
-		newDecoderFn := opts.GetNewDecoderFn()
-		iter := newDecoderFn().Decode(results[i])
-
-		var values []decodedValue
-		for iter.Next() {
-			dp, unit, annotation := iter.Current()
-			values = append(values, decodedValue{dp.Timestamp, dp.Value, unit, annotation})
-		}
-		if err := iter.Err(); err != nil {
-			return nil, err
-		}
-
-		all = append(all, values...)
+	newDecoderFn := opts.GetNewDecoderFn()
+	iter := newDecoderFn().DecodeAll(results)
+	defer iter.Close()
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		all = append(all, decodedValue{dp.Timestamp, dp.Value, unit, annotation})
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
 	}
 	return all, nil
 }
 
 func assertValuesEqual(t *testing.T, values []value, results []io.Reader, opts m3db.DatabaseOptions) {
 	decodedValues, err := decodedValues(results, opts)
-
-	// TODO(r): avoid sorting results after once reader created that can read back out of order in order
-	sort.Sort(decodedValuesByTime(decodedValues))
 
 	assert.NoError(t, err)
 	assert.Len(t, decodedValues, len(values))

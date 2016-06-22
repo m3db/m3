@@ -67,25 +67,26 @@ var (
 )
 
 type dbOptions struct {
-	logger                logging.Logger
-	scope                 metrics.Scope
-	blockSize             time.Duration
-	newEncoderFn          m3db.NewEncoderFn
-	newDecoderFn          m3db.NewDecoderFn
-	nowFn                 m3db.NowFn
-	bufferFuture          time.Duration
-	bufferPast            time.Duration
-	bufferDrain           time.Duration
-	bufferBucketAllocSize int
-	retentionPeriod       time.Duration
-	newBootstrapFn        m3db.NewBootstrapFn
-	bytesPool             m3db.BytesPool
-	contextPool           m3db.ContextPool
-	encoderPool           m3db.EncoderPool
-	iteratorPool          m3db.IteratorPool
-	maxFlushRetries       int
-	filePathPrefix        string
-	newFileSetWriterFn    m3db.NewFileSetWriterFn
+	logger                   logging.Logger
+	scope                    metrics.Scope
+	blockSize                time.Duration
+	newEncoderFn             m3db.NewEncoderFn
+	newDecoderFn             m3db.NewDecoderFn
+	nowFn                    m3db.NowFn
+	bufferFuture             time.Duration
+	bufferPast               time.Duration
+	bufferDrain              time.Duration
+	bufferBucketAllocSize    int
+	retentionPeriod          time.Duration
+	newBootstrapFn           m3db.NewBootstrapFn
+	bytesPool                m3db.BytesPool
+	contextPool              m3db.ContextPool
+	encoderPool              m3db.EncoderPool
+	singleReaderIteratorPool m3db.SingleReaderIteratorPool
+	multiReaderIteratorPool  m3db.MultiReaderIteratorPool
+	maxFlushRetries          int
+	filePathPrefix           string
+	newFileSetWriterFn       m3db.NewFileSetWriterFn
 }
 
 // NewDatabaseOptions creates a new set of database options with defaults
@@ -118,15 +119,17 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) m3db.Da
 	encoderPool := pool.NewEncoderPool(0)
 	bytesPool := pool.NewBytesPool(buckets)
 	contextPool := pool.NewContextPool(0)
-	iteratorPool := pool.NewIteratorPool(0)
+	singleReaderIteratorPool := pool.NewSingleReaderIteratorPool(0)
+	multiReaderIteratorPool := pool.NewMultiReaderIteratorPool(0)
 
 	segmentReaderPool.Init()
 	bytesPool.Init()
 	contextPool.Init()
 
 	encodingOpts := tsz.NewOptions().
-		Pool(encoderPool).
-		IteratorPool(iteratorPool).
+		EncoderPool(encoderPool).
+		SingleReaderIteratorPool(singleReaderIteratorPool).
+		MultiReaderIteratorPool(multiReaderIteratorPool).
 		BytesPool(bytesPool).
 		SegmentReaderPool(segmentReaderPool)
 
@@ -134,8 +137,12 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) m3db.Da
 		return tsz.NewEncoder(timeZero, nil, encodingOpts)
 	})
 
-	iteratorPool.Init(func() m3db.Iterator {
-		return tsz.NewIterator(nil, encodingOpts)
+	singleReaderIteratorPool.Init(func() m3db.SingleReaderIterator {
+		return tsz.NewSingleReaderIterator(nil, encodingOpts)
+	})
+
+	multiReaderIteratorPool.Init(func() m3db.MultiReaderIterator {
+		return tsz.NewMultiReaderIterator(nil, encodingOpts)
 	})
 
 	newEncoderFn := func(start time.Time, bytes []byte) m3db.Encoder {
@@ -152,7 +159,8 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) m3db.Da
 	opts.bytesPool = bytesPool
 	opts.contextPool = contextPool
 	opts.encoderPool = encoderPool
-	opts.iteratorPool = iteratorPool
+	opts.singleReaderIteratorPool = singleReaderIteratorPool
+	opts.multiReaderIteratorPool = multiReaderIteratorPool
 	return &opts
 }
 
@@ -308,14 +316,24 @@ func (o *dbOptions) GetEncoderPool() m3db.EncoderPool {
 	return o.encoderPool
 }
 
-func (o *dbOptions) IteratorPool(value m3db.IteratorPool) m3db.DatabaseOptions {
+func (o *dbOptions) SingleReaderIteratorPool(value m3db.SingleReaderIteratorPool) m3db.DatabaseOptions {
 	opts := *o
-	opts.iteratorPool = value
+	opts.singleReaderIteratorPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetIteratorPool() m3db.IteratorPool {
-	return o.iteratorPool
+func (o *dbOptions) GetSingleReaderIteratorPool() m3db.SingleReaderIteratorPool {
+	return o.singleReaderIteratorPool
+}
+
+func (o *dbOptions) MultiReaderIteratorPool(value m3db.MultiReaderIteratorPool) m3db.DatabaseOptions {
+	opts := *o
+	opts.multiReaderIteratorPool = value
+	return &opts
+}
+
+func (o *dbOptions) GetMultiReaderIteratorPool() m3db.MultiReaderIteratorPool {
+	return o.multiReaderIteratorPool
 }
 
 func (o *dbOptions) MaxFlushRetries(value int) m3db.DatabaseOptions {

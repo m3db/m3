@@ -126,11 +126,17 @@ type DatabaseOptions interface {
 	// GetEncoderPool returns the encoderPool
 	GetEncoderPool() EncoderPool
 
-	// IteratorPool sets the iteratorPool and returns a new DatabaseOptions
-	IteratorPool(value IteratorPool) DatabaseOptions
+	// SingleReaderIteratorPool sets the SingleReaderIteratorPool and returns a new DatabaseOptions
+	SingleReaderIteratorPool(value SingleReaderIteratorPool) DatabaseOptions
 
-	// GetIteratorPool returns the iteratorPool
-	GetIteratorPool() IteratorPool
+	// GetSingleReaderIteratorPool returns the SingleReaderIteratorPool
+	GetSingleReaderIteratorPool() SingleReaderIteratorPool
+
+	// MultiReaderIteratorPool sets the MultiReaderIteratorPool and returns a new DatabaseOptions
+	MultiReaderIteratorPool(value MultiReaderIteratorPool) DatabaseOptions
+
+	// GetMultiReaderIteratorPool returns the MultiReaderIteratorPool
+	GetMultiReaderIteratorPool() MultiReaderIteratorPool
 
 	// MaxFlushRetries sets the maximum number of retries when data flushing fails.
 	MaxFlushRetries(value int) DatabaseOptions

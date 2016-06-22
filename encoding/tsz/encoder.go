@@ -41,14 +41,12 @@ type encoder struct {
 	opts Options
 
 	// internal bookkeeping
-	t   time.Time     // current time
-	dt  time.Duration // current time delta
-	vb  uint64        // current value
-	xor uint64        // current xor
-
-	ant m3db.Annotation             // current annotation
-	tu  xtime.Unit                  // current time unit
-	buf [binary.MaxVarintLen32]byte // temporary buffer
+	t   time.Time       // current time
+	dt  time.Duration   // current time delta
+	vb  uint64          // current value
+	xor uint64          // current xor
+	ant m3db.Annotation // current annotation
+	tu  xtime.Unit      // current time unit
 
 	writable bool
 	closed   bool
@@ -62,7 +60,7 @@ func NewEncoder(start time.Time, bytes []byte, opts Options) m3db.Encoder {
 	// NB(r): only perform an initial allocation if there is no pool that
 	// will be used for this encoder.  If a pool is being used alloc when the
 	// `Reset` method is called.
-	initAllocIfEmpty := opts.GetPool() == nil
+	initAllocIfEmpty := opts.GetEncoderPool() == nil
 	return &encoder{
 		os:       newOStream(bytes, initAllocIfEmpty),
 		opts:     opts,
@@ -125,9 +123,11 @@ func (enc *encoder) writeAnnotation(ant m3db.Annotation) {
 	}
 	scheme := enc.opts.GetMarkerEncodingScheme()
 	writeSpecialMarker(enc.os, scheme, scheme.Annotation())
+
+	var buf [binary.MaxVarintLen32]byte
 	// NB: we subtract 1 for possible varint encoding savings
-	annotationLength := binary.PutVarint(enc.buf[:], int64(len(ant)-1))
-	enc.os.WriteBytes(enc.buf[:annotationLength])
+	annotationLength := binary.PutVarint(buf[:], int64(len(ant)-1))
+	enc.os.WriteBytes(buf[:annotationLength])
 	enc.os.WriteBytes(ant)
 	enc.ant = ant
 }
@@ -334,7 +334,7 @@ func (enc *encoder) Close() {
 		bytesPool.Put(buffer)
 	}
 
-	pool := enc.opts.GetPool()
+	pool := enc.opts.GetEncoderPool()
 	if pool != nil {
 		pool.Put(enc)
 	}

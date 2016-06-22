@@ -26,8 +26,11 @@ type PoolAllocator func() interface{}
 // EncoderAllocate allocates an encoder for a pool.
 type EncoderAllocate func() Encoder
 
-// IteratorAllocate allocates an iterator for a pool.
-type IteratorAllocate func() Iterator
+// SingleReaderIteratorAllocate allocates a SingleReaderIterator for a pool.
+type SingleReaderIteratorAllocate func() SingleReaderIterator
+
+// MultiReaderIteratorAllocate allocates a MultiReaderIterator for a pool.
+type MultiReaderIteratorAllocate func() MultiReaderIterator
 
 // ObjectPool provides a pool for objects
 type ObjectPool interface {
@@ -89,16 +92,28 @@ type SegmentReaderPool interface {
 	Put(reader SegmentReader)
 }
 
-// IteratorPool provides a pool for iterators
-type IteratorPool interface {
+// SingleReaderIteratorPool provides a pool for SingleReaderIterators
+type SingleReaderIteratorPool interface {
 	// Init initializes the pool.
-	Init(alloc IteratorAllocate)
+	Init(alloc SingleReaderIteratorAllocate)
 
-	// Get provides an iterator from the pool
-	Get() Iterator
+	// Get provides a SingleReaderIterator from the pool
+	Get() SingleReaderIterator
 
-	// Put returns an iterator to the pool
-	Put(iter Iterator)
+	// Put returns a SingleReaderIterator to the pool
+	Put(iter SingleReaderIterator)
+}
+
+// MultiReaderIteratorPool provides a pool for MultiReaderIterators
+type MultiReaderIteratorPool interface {
+	// Init initializes the pool.
+	Init(alloc MultiReaderIteratorAllocate)
+
+	// Get provides a MultiReaderIterator from the pool
+	Get() MultiReaderIterator
+
+	// Put returns a MultiReaderIterator to the pool
+	Put(iter MultiReaderIterator)
 }
 
 // PoolBucket specifies a pool bucket

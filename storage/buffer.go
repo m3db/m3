@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"io"
-	"sort"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
@@ -307,39 +306,27 @@ func (b *dbBufferBucket) sort() {
 		return
 	}
 
-	// TODO(r): instead of old sorting technique below, simply take the next datapoint
-	// that's available from all the iterators and proceed in step
 	encoder := b.opts.GetEncoderPool().Get()
 	encoder.Reset(b.start, b.opts.GetBufferBucketAllocSize())
 
-	// NB(r): consider pooling these for reordering use
-	var datapoints []*datapoint
+	readers := make([]io.Reader, len(b.encoders))
 	for i := range b.encoders {
-		iter := b.opts.GetIteratorPool().Get()
-		iter.Reset(b.encoders[i].encoder.Stream())
-		for iter.Next() {
-			dp, unit, annotation := iter.Current()
-			datapoints = append(datapoints, &datapoint{
-				t:          dp.Timestamp,
-				value:      dp.Value,
-				unit:       unit,
-				annotation: annotation,
-			})
-		}
-		iter.Close()
+		readers[i] = b.encoders[i].encoder.Stream()
+	}
+
+	iter := b.opts.GetMultiReaderIteratorPool().Get()
+	iter.Reset(readers)
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		b.lastWriteAt = dp.Timestamp
+		encoder.Encode(dp, unit, annotation)
+	}
+	iter.Close()
+
+	for i := range b.encoders {
 		b.encoders[i].encoder.Close()
 	}
 
-	sort.Sort(byTimeAsc(datapoints))
-
-	var dp m3db.Datapoint
-	for i := range datapoints {
-		dp.Timestamp = datapoints[i].t
-		dp.Value = datapoints[i].value
-		encoder.Encode(dp, datapoints[i].unit, datapoints[i].annotation)
-	}
-
-	b.lastWriteAt = dp.Timestamp
 	b.encoders = append(b.encoders[:0], inOrderEncoder{
 		lastWriteAt: b.lastWriteAt,
 		encoder:     encoder,

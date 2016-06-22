@@ -65,16 +65,31 @@ type Iterator interface {
 	Current() (Datapoint, xtime.Unit, Annotation)
 	// Err returns the error encountered
 	Err() error
-	// Reset resets the iterator to read from a new reader.
-	Reset(reader io.Reader)
 	// Close closes the iterator and if pooled will return to the pool.
 	Close()
+}
+
+type SingleReaderIterator interface {
+	Iterator
+
+	// Reset resets the iterator to read from a new reader.
+	Reset(reader io.Reader)
+}
+
+type MultiReaderIterator interface {
+	Iterator
+
+	// Reset resets the iterator to read from a slice of readers.
+	Reset(readers []io.Reader)
 }
 
 // Decoder is the generic interface for different types of decoders.
 type Decoder interface {
 	// Decode decodes the encoded data in the reader.
-	Decode(r io.Reader) Iterator
+	Decode(reader io.Reader) SingleReaderIterator
+
+	// DecodeAll decodes the encoded data in all the readers.
+	DecodeAll(readers []io.Reader) MultiReaderIterator
 }
 
 // NewDecoderFn creates a new decoder
