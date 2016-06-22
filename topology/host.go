@@ -27,7 +27,7 @@ import (
 )
 
 func quorum(replicas int) int {
-	return int(math.Ceil(0.51 * float64(replicas)))
+	return int(math.Ceil(0.5 * float64(replicas+1)))
 }
 
 type simpleHost string
