@@ -134,7 +134,7 @@ func (q *queue) flushEvery(interval time.Duration) {
 			q.Unlock()
 			return
 		}
-		needsDrain := q.rotateOps()
+		needsDrain := q.rotateOpsWithLock()
 		q.Unlock()
 
 		if len(needsDrain) != 0 {
@@ -143,7 +143,12 @@ func (q *queue) flushEvery(interval time.Duration) {
 	}
 }
 
-func (q *queue) rotateOps() []m3db.Op {
+func (q *queue) rotateOpsWithLock() []m3db.Op {
+	if len(q.ops) == 0 {
+		// No need to rotate as queue is empty
+		return nil
+	}
+
 	needsDrain := q.ops
 
 	// Reset ops
@@ -155,8 +160,10 @@ func (q *queue) rotateOps() []m3db.Op {
 func (q *queue) drain() {
 	wgAll := &sync.WaitGroup{}
 	for {
-		ops := <-q.drainIn
-
+		ops, ok := <-q.drainIn
+		if !ok {
+			break
+		}
 		var (
 			currWriteOps      []m3db.Op
 			currWriteRequests []*rpc.WriteRequest
@@ -191,19 +198,14 @@ func (q *queue) drain() {
 			q.asyncWrite(wgAll, currWriteOps, currWriteRequests)
 		}
 
-		q.opsArrayPool.Put(ops)
-
-		q.RLock()
-		state := q.state
-		q.RUnlock()
-
-		if state != stateOpen {
-			// Final drain, close the connection pool after all requests done
-			wgAll.Wait()
-			q.connPool.Close()
-			return
+		if ops != nil {
+			q.opsArrayPool.Put(ops)
 		}
 	}
+
+	// Close the connection pool after all requests done
+	wgAll.Wait()
+	q.connPool.Close()
 }
 
 func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []m3db.Op, elems []*rpc.WriteRequest) {
@@ -280,7 +282,7 @@ func (q *queue) Enqueue(o m3db.Op) error {
 	q.ops = append(q.ops, o)
 	// If queue is full flush
 	if len(q.ops) >= q.size {
-		needsDrain = q.rotateOps()
+		needsDrain = q.rotateOpsWithLock()
 	}
 	q.Unlock()
 
@@ -302,10 +304,8 @@ func (q *queue) Close() {
 	}
 
 	q.state = stateClosed
-	needsDrain := q.rotateOps()
 	q.Unlock()
 
-	// NB(r): Ensure drain loop gets ops regardless of if any remaining
-	// so it can break out of it's loop successfully.
-	q.drainIn <- needsDrain
+	// Now we're closed its safe to close the drainIn channel
+	close(q.drainIn)
 }
