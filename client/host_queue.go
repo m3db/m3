@@ -134,7 +134,7 @@ func (q *queue) flushEvery(interval time.Duration) {
 			q.Unlock()
 			return
 		}
-		needsDrain := q.rotateOpsIfRequired()
+		needsDrain := q.rotateOps()
 		q.Unlock()
 
 		if len(needsDrain) != 0 {
@@ -143,11 +143,7 @@ func (q *queue) flushEvery(interval time.Duration) {
 	}
 }
 
-func (q *queue) rotateOpsIfRequired() []m3db.Op {
-	if len(q.ops) < q.size {
-		return nil
-	}
-
+func (q *queue) rotateOps() []m3db.Op {
 	needsDrain := q.ops
 
 	// Reset ops
@@ -275,16 +271,19 @@ func (q *queue) Len() int {
 }
 
 func (q *queue) Enqueue(o m3db.Op) error {
+	var needsDrain []m3db.Op
 	q.Lock()
 	if q.state != stateOpen {
 		q.Unlock()
 		return errQueueNotOpen
 	}
 	q.ops = append(q.ops, o)
-	needsDrain := q.rotateOpsIfRequired()
+	// If queue is full flush
+	if len(q.ops) >= q.size {
+		needsDrain = q.rotateOps()
+	}
 	q.Unlock()
 
-	// If queue is full flush
 	if len(needsDrain) != 0 {
 		q.drainIn <- needsDrain
 	}
@@ -303,7 +302,7 @@ func (q *queue) Close() {
 	}
 
 	q.state = stateClosed
-	needsDrain := q.rotateOpsIfRequired()
+	needsDrain := q.rotateOps()
 	q.Unlock()
 
 	// NB(r): Ensure drain loop gets ops regardless of if any remaining
