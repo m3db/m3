@@ -134,17 +134,26 @@ func (q *queue) flushEvery(interval time.Duration) {
 			q.Unlock()
 			return
 		}
-		q.flushWithLock()
+		needsDrain := q.rotateOpsIfRequired()
 		q.Unlock()
+
+		if len(needsDrain) != 0 {
+			q.drainIn <- needsDrain
+		}
 	}
 }
 
-func (q *queue) flushWithLock() {
-	// Pass the current ops to drain
-	q.drainIn <- q.ops
+func (q *queue) rotateOpsIfRequired() []m3db.Op {
+	if len(q.ops) < q.size {
+		return nil
+	}
+
+	needsDrain := q.ops
 
 	// Reset ops
 	q.ops = q.opsArrayPool.Get()
+
+	return needsDrain
 }
 
 func (q *queue) drain() {
@@ -272,11 +281,13 @@ func (q *queue) Enqueue(o m3db.Op) error {
 		return errQueueNotOpen
 	}
 	q.ops = append(q.ops, o)
-	// If queue is full flush
-	if len(q.ops) == q.size {
-		q.flushWithLock()
-	}
+	needsDrain := q.rotateOpsIfRequired()
 	q.Unlock()
+
+	// If queue is full flush
+	if len(needsDrain) != 0 {
+		q.drainIn <- needsDrain
+	}
 	return nil
 }
 
@@ -286,14 +297,16 @@ func (q *queue) GetConnectionCount() int {
 
 func (q *queue) Close() {
 	q.Lock()
-	defer q.Unlock()
-
 	if q.state != stateOpen {
+		q.Unlock()
 		return
 	}
 
 	q.state = stateClosed
+	needsDrain := q.rotateOpsIfRequired()
+	q.Unlock()
 
-	// Flush any remaining ops and stop the drain cycle
-	q.flushWithLock()
+	// NB(r): Ensure drain loop gets ops regardless of if any remaining
+	// so it can break out of it's loop successfully.
+	q.drainIn <- needsDrain
 }
