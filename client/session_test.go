@@ -219,6 +219,7 @@ func mockHostQueues(
 	) hostQueue {
 		enqueuedIdx := idx
 		hostQueue := mocks.NewMockhostQueue(ctrl)
+		hostQueue.EXPECT().Open()
 		// Take two attempts to establish min connection count
 		hostQueue.EXPECT().GetConnectionCount().Return(0).Times(sessionTestShards)
 		hostQueue.EXPECT().GetConnectionCount().Return(opts.GetMinConnectionCount()).Times(sessionTestShards)

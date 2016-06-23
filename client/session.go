@@ -199,7 +199,9 @@ func (s *session) newHostQueue(host m3db.Host, topologyMap m3db.TopologyMap) hos
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
 	writeBatchRequestPool := newWriteBatchRequestPool(hostBatches)
 	writeRequestArrayPool := newWriteRequestArrayPool(hostBatches, s.opts.GetWriteBatchSize())
-	return s.newHostQueueFn(host, writeBatchRequestPool, writeRequestArrayPool, s.opts)
+	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, writeRequestArrayPool, s.opts)
+	hostQueue.Open()
+	return hostQueue
 }
 
 func (s *session) setWriteOpPoolsWithLock(topologyMap m3db.TopologyMap) {
