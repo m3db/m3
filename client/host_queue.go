@@ -134,24 +134,36 @@ func (q *queue) flushEvery(interval time.Duration) {
 			q.Unlock()
 			return
 		}
-		q.flushWithLock()
+		needsDrain := q.rotateOpsWithLock()
 		q.Unlock()
+
+		if len(needsDrain) != 0 {
+			q.drainIn <- needsDrain
+		}
 	}
 }
 
-func (q *queue) flushWithLock() {
-	// Pass the current ops to drain
-	q.drainIn <- q.ops
+func (q *queue) rotateOpsWithLock() []m3db.Op {
+	if len(q.ops) == 0 {
+		// No need to rotate as queue is empty
+		return nil
+	}
+
+	needsDrain := q.ops
 
 	// Reset ops
 	q.ops = q.opsArrayPool.Get()
+
+	return needsDrain
 }
 
 func (q *queue) drain() {
 	wgAll := &sync.WaitGroup{}
 	for {
-		ops := <-q.drainIn
-
+		ops, ok := <-q.drainIn
+		if !ok {
+			break
+		}
 		var (
 			currWriteOps      []m3db.Op
 			currWriteRequests []*rpc.WriteRequest
@@ -186,19 +198,14 @@ func (q *queue) drain() {
 			q.asyncWrite(wgAll, currWriteOps, currWriteRequests)
 		}
 
-		q.opsArrayPool.Put(ops)
-
-		q.RLock()
-		state := q.state
-		q.RUnlock()
-
-		if state != stateOpen {
-			// Final drain, close the connection pool after all requests done
-			wgAll.Wait()
-			q.connPool.Close()
-			return
+		if ops != nil {
+			q.opsArrayPool.Put(ops)
 		}
 	}
+
+	// Close the connection pool after all requests done
+	wgAll.Wait()
+	q.connPool.Close()
 }
 
 func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []m3db.Op, elems []*rpc.WriteRequest) {
@@ -266,6 +273,7 @@ func (q *queue) Len() int {
 }
 
 func (q *queue) Enqueue(o m3db.Op) error {
+	var needsDrain []m3db.Op
 	q.Lock()
 	if q.state != stateOpen {
 		q.Unlock()
@@ -273,10 +281,14 @@ func (q *queue) Enqueue(o m3db.Op) error {
 	}
 	q.ops = append(q.ops, o)
 	// If queue is full flush
-	if len(q.ops) == q.size {
-		q.flushWithLock()
+	if len(q.ops) >= q.size {
+		needsDrain = q.rotateOpsWithLock()
 	}
 	q.Unlock()
+
+	if len(needsDrain) != 0 {
+		q.drainIn <- needsDrain
+	}
 	return nil
 }
 
@@ -286,14 +298,14 @@ func (q *queue) GetConnectionCount() int {
 
 func (q *queue) Close() {
 	q.Lock()
-	defer q.Unlock()
-
 	if q.state != stateOpen {
+		q.Unlock()
 		return
 	}
 
 	q.state = stateClosed
+	q.Unlock()
 
-	// Flush any remaining ops and stop the drain cycle
-	q.flushWithLock()
+	// Now we're closed its safe to close the drainIn channel
+	close(q.drainIn)
 }
