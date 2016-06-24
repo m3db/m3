@@ -105,22 +105,58 @@ func (s *dbSeries) Tick() error {
 	// stale buckets, cheaply check this case first with a Rlock
 	s.RLock()
 	needsDrain := s.buffer.NeedsDrain()
+	needsBlockExpiry := s.needsBlockExpiry()
 	s.RUnlock()
 
-	if needsDrain {
+	if needsDrain || needsBlockExpiry {
 		s.Lock()
-		s.buffer.DrainAndReset()
+
+		if needsDrain {
+			s.buffer.DrainAndReset()
+		}
+
+		if needsBlockExpiry {
+			s.expireBlocks()
+		}
+
 		s.Unlock()
 	}
-
-	// TODO(r): expire and write blocks to disk, when done ensure this is async
-	// as ticking through series in a shard is done synchronously
 	return nil
+}
+
+// NB(xichen): this is called inside a RLock.
+func (s *dbSeries) needsBlockExpiry() bool {
+	if s.blocks.Len() == 0 {
+		return false
+	}
+
+	// If the earliest block is not within the retention period,
+	// we should expire the blocks.
+	now := s.opts.GetNowFn()()
+	minBlockStart := s.blocks.GetMinTime()
+	return s.shouldExpire(now, minBlockStart)
+}
+
+// NB(xichen): this is called inside a Lock.
+func (s *dbSeries) expireBlocks() {
+	now := s.opts.GetNowFn()()
+	allBlocks := s.blocks.GetAllBlocks()
+	for timestamp, block := range allBlocks {
+		if s.shouldExpire(now, timestamp) {
+			s.blocks.RemoveBlockAt(timestamp)
+			block.Close()
+		}
+	}
+}
+
+func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
+	cutoff := now.Add(-s.opts.GetRetentionPeriod()).Truncate(s.opts.GetBlockSize())
+	return blockStart.Before(cutoff)
 }
 
 func (s *dbSeries) Empty() bool {
 	s.RLock()
-	blocksLen := len(s.blocks.GetAllBlocks())
+	blocksLen := s.blocks.Len()
 	bufferEmpty := s.buffer.Empty()
 	s.RUnlock()
 	if blocksLen == 0 && bufferEmpty {

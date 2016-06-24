@@ -41,7 +41,8 @@ func seriesTestOptions() m3db.DatabaseOptions {
 		BlockSize(2 * time.Minute).
 		BufferFuture(10 * time.Second).
 		BufferPast(10 * time.Second).
-		BufferDrain(30 * time.Second)
+		BufferDrain(30 * time.Second).
+		RetentionPeriod(time.Hour)
 }
 
 func TestSeriesEmpty(t *testing.T) {
@@ -176,4 +177,69 @@ func TestSeriesFlushToDisk(t *testing.T) {
 	series.blocks.AddBlock(block)
 	err := series.FlushToDisk(writer, flushTime, segmentHolder)
 	require.Nil(t, err)
+}
+
+func TestSeriesTickEmptySeries(t *testing.T) {
+	opts := seriesTestOptions()
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	err := series.Tick()
+	require.Equal(t, errSeriesAllDatapointsExpired, err)
+}
+
+func TestSeriesTickNeedsDrain(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := seriesTestOptions()
+	curr := time.Now()
+	start := curr
+	opts = opts.NowFn(func() time.Time {
+		return curr
+	})
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	series.blocks.AddBlock(NewDatabaseBlock(start, nil, opts))
+	buffer := mocks.NewMockdatabaseBuffer(ctrl)
+	series.buffer = buffer
+	buffer.EXPECT().Empty().Return(false)
+	buffer.EXPECT().NeedsDrain().Return(true)
+	buffer.EXPECT().DrainAndReset()
+	err := series.Tick()
+	require.NoError(t, err)
+}
+
+func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := seriesTestOptions()
+	curr := time.Now().Truncate(opts.GetBlockSize())
+	opts = opts.NowFn(func() time.Time {
+		return curr
+	})
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	blockStart := curr.Add(-opts.GetRetentionPeriod()).Add(-opts.GetBlockSize())
+	encoder := mocks.NewMockEncoder(ctrl)
+	encoder.EXPECT().Close()
+	series.blocks.AddBlock(NewDatabaseBlock(blockStart, encoder, opts))
+	series.blocks.AddBlock(NewDatabaseBlock(curr, nil, opts))
+	require.Equal(t, blockStart, series.blocks.GetMinTime())
+	require.Equal(t, 2, series.blocks.Len())
+	buffer := mocks.NewMockdatabaseBuffer(ctrl)
+	series.buffer = buffer
+	buffer.EXPECT().Empty().Return(true)
+	buffer.EXPECT().NeedsDrain().Return(false)
+	err := series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 1, series.blocks.Len())
+	require.Equal(t, curr, series.blocks.GetMinTime())
+	_, exists := series.blocks.GetAllBlocks()[curr]
+	require.True(t, exists)
+}
+
+func TestShouldExpire(t *testing.T) {
+	opts := seriesTestOptions()
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	now := time.Now()
+	require.False(t, series.shouldExpire(now, now))
+	require.True(t, series.shouldExpire(now, now.Add(-opts.GetRetentionPeriod()).Add(-opts.GetBlockSize())))
 }
