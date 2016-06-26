@@ -105,27 +105,27 @@ func (s *dbSeries) Tick() error {
 	// stale buckets, cheaply check this case first with a Rlock
 	s.RLock()
 	needsDrain := s.buffer.NeedsDrain()
-	needsBlockExpiry := s.needsBlockExpiry()
+	needsBlockExpiry := s.needsBlockExpiryWithRLock()
 	s.RUnlock()
 
-	if needsDrain || needsBlockExpiry {
-		s.Lock()
-
-		if needsDrain {
-			s.buffer.DrainAndReset()
-		}
-
-		if needsBlockExpiry {
-			s.expireBlocks()
-		}
-
-		s.Unlock()
+	if !needsDrain && !needsBlockExpiry {
+		return nil
 	}
+
+	s.Lock()
+	if needsDrain {
+		s.buffer.DrainAndReset()
+	}
+
+	if needsBlockExpiry {
+		s.expireBlocksWithLock()
+	}
+	s.Unlock()
+
 	return nil
 }
 
-// NB(xichen): this is called inside a RLock.
-func (s *dbSeries) needsBlockExpiry() bool {
+func (s *dbSeries) needsBlockExpiryWithRLock() bool {
 	if s.blocks.Len() == 0 {
 		return false
 	}
@@ -137,8 +137,7 @@ func (s *dbSeries) needsBlockExpiry() bool {
 	return s.shouldExpire(now, minBlockStart)
 }
 
-// NB(xichen): this is called inside a Lock.
-func (s *dbSeries) expireBlocks() {
+func (s *dbSeries) expireBlocksWithLock() {
 	now := s.opts.GetNowFn()()
 	allBlocks := s.blocks.GetAllBlocks()
 	for timestamp, block := range allBlocks {

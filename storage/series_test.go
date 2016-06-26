@@ -191,13 +191,7 @@ func TestSeriesTickNeedsDrain(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := seriesTestOptions()
-	curr := time.Now()
-	start := curr
-	opts = opts.NowFn(func() time.Time {
-		return curr
-	})
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
-	series.blocks.AddBlock(NewDatabaseBlock(start, nil, opts))
 	buffer := mocks.NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
 	buffer.EXPECT().Empty().Return(false)
