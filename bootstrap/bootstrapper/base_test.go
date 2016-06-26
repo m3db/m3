@@ -63,7 +63,9 @@ func testShardResult(entries ...testBlockEntry) m3db.ShardResult {
 	dbOpts := testDatabaseOptions()
 	res := bootstrap.NewShardResult(dbOpts)
 	for _, entry := range entries {
-		res.AddBlock(entry.id, storage.NewDatabaseBlock(entry.t, nil, dbOpts))
+		block := dbOpts.GetDatabaseBlockPool().Get()
+		block.Reset(entry.t, nil)
+		res.AddBlock(entry.id, block)
 	}
 	return res
 }

@@ -34,7 +34,6 @@ type dbBlock struct {
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
-// TODO(xichen): we need to pool the block as well.
 func NewDatabaseBlock(start time.Time, encoder m3db.Encoder, opts m3db.DatabaseOptions) m3db.DatabaseBlock {
 	return &dbBlock{
 		opts:    opts,
@@ -55,9 +54,24 @@ func (b *dbBlock) Stream() m3db.SegmentReader {
 	return b.encoder.Stream()
 }
 
+// Reset resets the block start time and the encoder.
+func (b *dbBlock) Reset(startTime time.Time, encoder m3db.Encoder) {
+	b.start = startTime
+	if b.encoder != nil {
+		b.encoder.Close()
+	}
+	b.encoder = encoder
+}
+
 func (b *dbBlock) Close() {
 	// This will return the encoder to the pool
-	b.encoder.Close()
+	if b.encoder != nil {
+		b.encoder.Close()
+	}
+	b.encoder = nil
+	if pool := b.opts.GetDatabaseBlockPool(); pool != nil {
+		pool.Put(b)
+	}
 }
 
 type databaseSeriesBlocks struct {
@@ -120,7 +134,10 @@ func (dbb *databaseSeriesBlocks) GetBlockOrAdd(t time.Time) m3db.DatabaseBlock {
 	if ok {
 		return b
 	}
-	newBlock := NewDatabaseBlock(t, nil, dbb.dbOpts)
+	encoder := dbb.dbOpts.GetEncoderPool().Get()
+	encoder.Reset(t, dbb.dbOpts.GetDatabaseBlockAllocSize())
+	newBlock := dbb.dbOpts.GetDatabaseBlockPool().Get()
+	newBlock.Reset(t, encoder)
 	dbb.AddBlock(newBlock)
 	return newBlock
 }
@@ -145,5 +162,11 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 		if dbb.max == timeZero || dbb.max.Before(k) {
 			dbb.max = k
 		}
+	}
+}
+
+func (dbb *databaseSeriesBlocks) Close() {
+	for _, block := range dbb.elems {
+		block.Close()
 	}
 }

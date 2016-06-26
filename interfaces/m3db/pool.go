@@ -23,6 +23,9 @@ package m3db
 // PoolAllocator allocates an object for a pool.
 type PoolAllocator func() interface{}
 
+// DatabaseBlockAllocate allocates a database block for a pool.
+type DatabaseBlockAllocate func() DatabaseBlock
+
 // EncoderAllocate allocates an encoder for a pool.
 type EncoderAllocate func() Encoder
 
@@ -66,6 +69,18 @@ type ContextPool interface {
 
 	// Put returns a context to the pool
 	Put(ctx Context)
+}
+
+// DatabaseBlockPool provides a pool for database blocks.
+type DatabaseBlockPool interface {
+	// Init initializes the pool.
+	Init(alloc DatabaseBlockAllocate)
+
+	// Get provides a database block from the pool.
+	Get() DatabaseBlock
+
+	// Put returns a database block to the pool.
+	Put(block DatabaseBlock)
 }
 
 // EncoderPool provides a pool for encoders

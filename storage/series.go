@@ -240,7 +240,9 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
 
 	if _, ok := s.blocks.GetBlockAt(start); !ok {
 		// New completed block
-		s.blocks.AddBlock(NewDatabaseBlock(start, encoder, s.opts))
+		newBlock := s.opts.GetDatabaseBlockPool().Get()
+		newBlock.Reset(start, encoder)
+		s.blocks.AddBlock(newBlock)
 		return
 	}
 

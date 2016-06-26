@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3db/bootstrap"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/storage"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -127,7 +126,8 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.Shard
 			}
 			encoder := fss.opts.GetEncoderPool().Get()
 			encoder.ResetSetData(timeRange.Start, data, false)
-			block := storage.NewDatabaseBlock(timeRange.Start, encoder, fss.opts)
+			block := fss.opts.GetDatabaseBlockPool().Get()
+			block.Reset(timeRange.Start, encoder)
 			curMap.AddBlock(id, block)
 		}
 		r.Close()
@@ -135,6 +135,8 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.Shard
 		if !hasError {
 			seriesMap.AddResult(curMap)
 			tr = tr.RemoveRange(timeRange)
+		} else {
+			curMap.Close()
 		}
 	}
 	return seriesMap, tr

@@ -53,8 +53,10 @@ const (
 	// per buffer drain duration
 	defaultBufferBucketAllocSize = 256
 
-	// defaultSeriesPooling is the default series expected to base pooling on
-	defaultSeriesPooling = 1000
+	// defaultDatabaseBlockAllocSize is the size to allocate for values for each
+	// database block, this should match the size of expected encoded values per
+	// block size.
+	defaultDatabaseBlockAllocSize = 1024
 
 	// defaultMaxFlushRetries is the default number of retries when flush fails.
 	defaultMaxFlushRetries = 3
@@ -78,10 +80,12 @@ type dbOptions struct {
 	bufferPast               time.Duration
 	bufferDrain              time.Duration
 	bufferBucketAllocSize    int
+	databaseBlockAllocSize   int
 	retentionPeriod          time.Duration
 	newBootstrapFn           m3db.NewBootstrapFn
 	bytesPool                m3db.BytesPool
 	contextPool              m3db.ContextPool
+	databaseBlockPool        m3db.DatabaseBlockPool
 	encoderPool              m3db.EncoderPool
 	singleReaderIteratorPool m3db.SingleReaderIteratorPool
 	multiReaderIteratorPool  m3db.MultiReaderIteratorPool
@@ -109,14 +113,15 @@ func NewDatabaseOptions() m3db.DatabaseOptions {
 			return fs.NewWriter(blockSize, filePathPrefix, fs.NewWriterOptions())
 		},
 	}
-	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultSeriesPooling)
+	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultDatabaseBlockAllocSize)
 }
 
-func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) m3db.DatabaseOptions {
+func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocSize int) m3db.DatabaseOptions {
 	// NB(r): don't enable byte pooling just yet
 	buckets := []m3db.PoolBucket{}
 
 	segmentReaderPool := pool.NewSegmentReaderPool(0)
+	databaseBlockPool := pool.NewDatabaseBlockPool(0)
 	encoderPool := pool.NewEncoderPool(0)
 	bytesPool := pool.NewBytesPool(buckets)
 	contextPool := pool.NewContextPool(0)
@@ -133,6 +138,10 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) m3db.Da
 		MultiReaderIteratorPool(multiReaderIteratorPool).
 		BytesPool(bytesPool).
 		SegmentReaderPool(segmentReaderPool)
+
+	databaseBlockPool.Init(func() m3db.DatabaseBlock {
+		return NewDatabaseBlock(timeZero, nil, o)
+	})
 
 	encoderPool.Init(func() m3db.Encoder {
 		return tsz.NewEncoder(timeZero, nil, encodingOpts)
@@ -157,8 +166,10 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) m3db.Da
 	opts.newEncoderFn = newEncoderFn
 	opts.newDecoderFn = newDecoderFn
 	opts.bufferBucketAllocSize = bufferBucketAllocSize
+	opts.databaseBlockAllocSize = databaseBlockAllocSize
 	opts.bytesPool = bytesPool
 	opts.contextPool = contextPool
+	opts.databaseBlockPool = databaseBlockPool
 	opts.encoderPool = encoderPool
 	opts.singleReaderIteratorPool = singleReaderIteratorPool
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
@@ -265,6 +276,16 @@ func (o *dbOptions) GetBufferBucketAllocSize() int {
 	return o.bufferBucketAllocSize
 }
 
+func (o *dbOptions) DatabaseBlockAllocSize(value int) m3db.DatabaseOptions {
+	opts := *o
+	opts.databaseBlockAllocSize = value
+	return &opts
+}
+
+func (o *dbOptions) GetDatabaseBlockAllocSize() int {
+	return o.databaseBlockAllocSize
+}
+
 // RetentionPeriod sets how long we intend to keep data in memory.
 func (o *dbOptions) RetentionPeriod(value time.Duration) m3db.DatabaseOptions {
 	opts := *o
@@ -305,6 +326,16 @@ func (o *dbOptions) ContextPool(value m3db.ContextPool) m3db.DatabaseOptions {
 
 func (o *dbOptions) GetContextPool() m3db.ContextPool {
 	return o.contextPool
+}
+
+func (o *dbOptions) DatabaseBlockPool(value m3db.DatabaseBlockPool) m3db.DatabaseOptions {
+	opts := *o
+	opts.databaseBlockPool = value
+	return &opts
+}
+
+func (o *dbOptions) GetDatabaseBlockPool() m3db.DatabaseBlockPool {
+	return o.databaseBlockPool
 }
 
 func (o *dbOptions) EncoderPool(value m3db.EncoderPool) m3db.DatabaseOptions {

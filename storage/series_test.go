@@ -173,7 +173,8 @@ func TestSeriesFlushToDisk(t *testing.T) {
 		res.Tail = holder[1]
 	}).Return(nil)
 
-	block := NewDatabaseBlock(flushTime, encoder, opts)
+	block := opts.GetDatabaseBlockPool().Get()
+	block.Reset(flushTime, encoder)
 	series.blocks.AddBlock(block)
 	err := series.FlushToDisk(writer, flushTime, segmentHolder)
 	require.Nil(t, err)

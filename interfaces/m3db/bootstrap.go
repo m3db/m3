@@ -46,6 +46,9 @@ type ShardResult interface {
 
 	// GetAllSeries returns all series of blocks.
 	GetAllSeries() map[string]DatabaseSeriesBlocks
+
+	// Close closes a shard result.
+	Close()
 }
 
 // Bootstrap represents the bootstrap process.
