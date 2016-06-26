@@ -34,6 +34,7 @@ type dbBlock struct {
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
+// TODO(xichen): we need to pool the block as well.
 func NewDatabaseBlock(start time.Time, encoder m3db.Encoder, opts m3db.DatabaseOptions) m3db.DatabaseBlock {
 	return &dbBlock{
 		opts:    opts,
@@ -138,10 +139,10 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 	}
 	dbb.min, dbb.max = timeZero, timeZero
 	for k := range dbb.elems {
-		if dbb.min.After(k) {
+		if dbb.min == timeZero || dbb.min.After(k) {
 			dbb.min = k
 		}
-		if dbb.max.Before(k) {
+		if dbb.max == timeZero || dbb.max.Before(k) {
 			dbb.max = k
 		}
 	}
