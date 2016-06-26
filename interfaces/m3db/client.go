@@ -37,6 +37,12 @@ type Session interface {
 	// Write value to the database for an ID
 	Write(id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
+	// Fetch values from the database for an ID
+	Fetch(id string, startInclusive, endExclusive time.Time) (Iterator, error)
+
+	// FetchAll values from the database for a set of IDs
+	FetchAll(ids []string, startInclusive, endExclusive time.Time) (SeriesIterator, error)
+
 	// Close the session
 	Close() error
 }

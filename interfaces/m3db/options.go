@@ -226,6 +226,12 @@ type ClientOptions interface {
 	// GetWriteRequestTimeout returns the writeRequestTimeout
 	GetWriteRequestTimeout() time.Duration
 
+	// FetchRequestTimeout sets the fetchRequestTimeout and returns a new ClientOptions
+	FetchRequestTimeout(value time.Duration) ClientOptions
+
+	// GetFetchRequestTimeout returns the fetchRequestTimeout
+	GetFetchRequestTimeout() time.Duration
+
 	// BackgroundConnectInterval sets the backgroundConnectInterval and returns a new ClientOptions
 	BackgroundConnectInterval(value time.Duration) ClientOptions
 
@@ -256,6 +262,18 @@ type ClientOptions interface {
 	// GetWriteOpPoolSize returns the writeOpPoolSize
 	GetWriteOpPoolSize() int
 
+	// FetchOpPoolSize sets the fetchOpPoolSize and returns a new ClientOptions
+	FetchOpPoolSize(value int) ClientOptions
+
+	// GetFetchOpPoolSize returns the fetchOpPoolSize
+	GetFetchOpPoolSize() int
+
+	// FetchOpArrayArrayPoolSize sets the fetchOpArrayArrayPoolSize and returns a new ClientOptions
+	FetchOpArrayArrayPoolSize(value int) ClientOptions
+
+	// GetFetchOpArrayArrayPoolSize returns the fetchOpArrayArrayPoolSize
+	GetFetchOpArrayArrayPoolSize() int
+
 	// WriteBatchSize sets the writeBatchSize and returns a new ClientOptions
 	// NB(r): for a write only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
@@ -264,6 +282,15 @@ type ClientOptions interface {
 
 	// GetWriteBatchSize returns the writeBatchSize
 	GetWriteBatchSize() int
+
+	// FetchBatchSize sets the fetchBatchSize and returns a new ClientOptions
+	// NB(r): for a fetch only application load this should match the host
+	// queue ops flush size so that each time a host queue is flushed it can
+	// fit the entire flushed write ops into a single batch.
+	FetchBatchSize(value int) ClientOptions
+
+	// GetFetchBatchSize returns the fetchBatchSize
+	GetFetchBatchSize() int
 
 	// HostQueueOpsFlushSize sets the hostQueueOpsFlushSize and returns a new ClientOptions
 	HostQueueOpsFlushSize(value int) ClientOptions

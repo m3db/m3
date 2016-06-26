@@ -67,10 +67,9 @@ type TopologyMap interface {
 	// Route will route a given ID to a shard and a set of hosts
 	Route(id string) (uint32, []Host, error)
 
-	// RouteForEach will route a given ID to a shard, execute a
-	// route function then execute a function for each host
-	// in the set of routed hosts
-	RouteForEach(id string, shardFn RouteShardFn, forEachFn RouteForEachFn) error
+	// RouteForEach will route a given ID to a shard then execute a
+	// function for each host in the set of routed hosts
+	RouteForEach(id string, forEachFn RouteForEachFn) error
 
 	// RouteShard will route a given shard to a set of hosts
 	RouteShard(shard uint32) ([]Host, error)
@@ -85,9 +84,6 @@ type TopologyMap interface {
 	// QuorumReplicas returns the number of replicas to establish quorum in the topology
 	QuorumReplicas() int
 }
-
-// RouteShardFn is a function to execute to notify of shard routed to
-type RouteShardFn func(shard uint32)
 
 // RouteForEachFn is a function to execute for each routed to host
 type RouteForEachFn func(idx int, host Host)

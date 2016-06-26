@@ -26,58 +26,68 @@ import (
 	"github.com/m3db/m3db/pool"
 )
 
-var (
-	writeOpZeroed writeOp
-)
-
-type writeOp struct {
-	request      rpc.WriteRequest
-	datapoint    rpc.Datapoint
-	completionFn m3db.CompletionFn
+type fetchOp struct {
+	request       rpc.FetchRawBatchRequest
+	completionFns []m3db.CompletionFn
 }
 
-func (w *writeOp) reset() {
-	*w = writeOpZeroed
-	w.request.Datapoint = &w.datapoint
+func (f *fetchOp) reset() {
+	f.request.RangeStart = 0
+	f.request.RangeEnd = 0
+	f.request.Ids = f.request.Ids[:0]
+	f.completionFns = f.completionFns[:0]
 }
 
-func (w *writeOp) Size() int {
-	// Writes always represent a single write
-	return 1
+func (f *fetchOp) append(id string, completionFn m3db.CompletionFn) {
+	f.request.Ids = append(f.request.Ids, id)
+	f.completionFns = append(f.completionFns, completionFn)
 }
 
-func (w *writeOp) GetCompletionFn() m3db.CompletionFn {
-	return w.completionFn
+func (f *fetchOp) Size() int {
+	return len(f.request.Ids)
 }
 
-type writeOpPool interface {
-	// Get a write op
-	Get() *writeOp
-
-	// Put a write op
-	Put(w *writeOp)
+func (f *fetchOp) GetCompletionFn() m3db.CompletionFn {
+	return f.completionFn
 }
 
-type poolOfWriteOp struct {
-	pool m3db.ObjectPool
+func (f *fetchOp) completionFn(result interface{}, err error) {
+	// Call all completion functions
+	for i := range f.completionFns {
+		f.completionFns[i](result, err)
+	}
 }
 
-func newWriteOpPool(size int) writeOpPool {
+type fetchOpPool interface {
+	// Get a fetch op
+	Get() *fetchOp
+
+	// Put a fetch op
+	Put(w *fetchOp)
+}
+
+type poolOfFetchOp struct {
+	pool     m3db.ObjectPool
+	capacity int
+}
+
+func newFetchOpPool(size int, capacity int) fetchOpPool {
 	p := pool.NewObjectPool(size)
 	p.Init(func() interface{} {
-		w := &writeOp{}
-		w.reset()
-		return w
+		f := &fetchOp{}
+		f.request.Ids = make([]string, 0, capacity)
+		f.reset()
+		return f
 	})
-	return &poolOfWriteOp{p}
+	return &poolOfFetchOp{p, capacity}
 }
 
-func (p *poolOfWriteOp) Get() *writeOp {
-	w := p.pool.Get().(*writeOp)
-	return w
+func (p *poolOfFetchOp) Get() *fetchOp {
+	f := p.pool.Get().(*fetchOp)
+	return f
 }
 
-func (p *poolOfWriteOp) Put(w *writeOp) {
-	w.reset()
-	p.pool.Put(w)
+func (p *poolOfFetchOp) Put(f *fetchOp) {
+	f.reset()
+	p.pool.Put(f)
 }

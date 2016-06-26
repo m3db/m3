@@ -50,7 +50,7 @@ service Node {
 	void write(1: WriteRequest req) throws (1: WriteError err)
 	void writeBatch(1: WriteBatchRequest req) throws (1: WriteBatchErrors err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
-	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req) throws (1: Error err)
+	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req)
 }
 
 struct HealthResult {
@@ -107,8 +107,14 @@ struct Segment {
     2: required binary tail
 }
 
+struct Segments {
+	1: optional Segment merged
+	2: optional list<Segment> unmerged
+}
+
 struct FetchRawResult {
-	1: required list<Segment> segments
+	1: required list<Segments> segments
+	2: optional Error err
 }
 
 service Cluster {

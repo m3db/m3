@@ -66,9 +66,24 @@ func newSessionTestOptions() m3db.ClientOptions {
 func TestSessionClusterConnectTimesOut(t *testing.T) {
 	opts := newSessionTestOptions()
 	opts = opts.ClusterConnectTimeout(3 * clusterConnectWaitInterval)
-	client := NewClient(opts)
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
 
-	_, err := client.NewSession()
+	session.newHostQueueFn = func(
+		host m3db.Host,
+		writeBatchRequestPool writeBatchRequestPool,
+		writeRequestArrayPool writeRequestArrayPool,
+		opts m3db.ClientOptions,
+	) hostQueue {
+		hostQueue := mocks.NewMockhostQueue(ctrl)
+		hostQueue.EXPECT().Open().Times(1)
+		hostQueue.EXPECT().GetConnectionCount().Return(0).AnyTimes()
+		hostQueue.EXPECT().Close().Times(1)
+		return hostQueue
+	}
+
+	err := session.Open()
 	assert.Error(t, err)
 	assert.Equal(t, ErrClusterConnectTimeout, err)
 }

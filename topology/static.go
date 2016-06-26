@@ -128,10 +128,8 @@ func (t *staticTopologyMap) Route(id string) (uint32, []m3db.Host, error) {
 	return shard, t.hostsByShard[shard], nil
 }
 
-func (t *staticTopologyMap) RouteForEach(id string, shardFn m3db.RouteShardFn, forEachFn m3db.RouteForEachFn) error {
-	shard := t.shardScheme.Shard(id)
-	shardFn(shard)
-	return t.RouteShardForEach(shard, forEachFn)
+func (t *staticTopologyMap) RouteForEach(id string, forEachFn m3db.RouteForEachFn) error {
+	return t.RouteShardForEach(t.shardScheme.Shard(id), forEachFn)
 }
 
 func (t *staticTopologyMap) RouteShard(shard uint32) ([]m3db.Host, error) {

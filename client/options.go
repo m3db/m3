@@ -55,11 +55,14 @@ const (
 	// defaultWriteBatchSize is the default write batch size
 	defaultWriteBatchSize = 128
 
+	// defaultFetchBatchSize is the default fetch batch size
+	defaultFetchBatchSize = 128
+
 	// defaultHostQueueOpsFlushSize is the default host queue ops flush size
 	defaultHostQueueOpsFlushSize = 128
 
 	// defaultHostQueueOpsFlushInterval is the default host queue flush interval
-	defaultHostQueueOpsFlushInterval = time.Millisecond
+	defaultHostQueueOpsFlushInterval = 5 * time.Millisecond
 
 	// defaultHostQueueOpsArrayPoolSize is the default host queue ops array pool size
 	defaultHostQueueOpsArrayPoolSize = 8
@@ -95,6 +98,7 @@ type options struct {
 	backgroundHealthCheckStutter  time.Duration
 	writeOpPoolSize               int
 	writeBatchSize                int
+	fetchBatchSize                int
 	hostQueueOpsFlushSize         int
 	hostQueueOpsFlushInterval     time.Duration
 	hostQueueOpsArrayPoolSize     int
@@ -119,6 +123,7 @@ func NewOptions() m3db.ClientOptions {
 		backgroundHealthCheckStutter:  defaultBackgroundHealthCheckStutter,
 		writeOpPoolSize:               defaultWriteOpPoolSize,
 		writeBatchSize:                defaultWriteBatchSize,
+		fetchBatchSize:                defaultFetchBatchSize,
 		hostQueueOpsFlushSize:         defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval:     defaultHostQueueOpsFlushInterval,
 		hostQueueOpsArrayPoolSize:     defaultHostQueueOpsArrayPoolSize,
@@ -293,6 +298,16 @@ func (o *options) WriteBatchSize(value int) m3db.ClientOptions {
 
 func (o *options) GetWriteBatchSize() int {
 	return o.writeBatchSize
+}
+
+func (o *options) FetchBatchSize(value int) m3db.ClientOptions {
+	opts := *o
+	opts.fetchBatchSize = value
+	return &opts
+}
+
+func (o *options) GetFetchBatchSize() int {
+	return o.fetchBatchSize
 }
 
 func (o *options) HostQueueOpsFlushSize(value int) m3db.ClientOptions {

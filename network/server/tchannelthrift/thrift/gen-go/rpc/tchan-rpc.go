@@ -250,9 +250,6 @@ func (c *tchanNodeClient) FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchRawBatch", &args, &resp)
 	if err == nil && !success {
-		if e := resp.Err; e != nil {
-			err = e
-		}
 	}
 
 	return resp.GetSuccess(), err
@@ -385,15 +382,7 @@ func (s *tchanNodeServer) handleFetchRawBatch(ctx thrift.Context, protocol athri
 		s.handler.FetchRawBatch(ctx, req.Req)
 
 	if err != nil {
-		switch v := err.(type) {
-		case *Error:
-			if v == nil {
-				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
-			}
-			res.Err = v
-		default:
-			return false, nil, err
-		}
+		return false, nil, err
 	} else {
 		res.Success = r
 	}
