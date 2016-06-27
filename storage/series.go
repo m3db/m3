@@ -201,7 +201,7 @@ func (s *dbSeries) ReadEncoded(
 
 	s.RLock()
 
-	if len(s.blocks.GetAllBlocks()) > 0 {
+	if s.blocks.Len() > 0 {
 		// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
 		if s.blocks.GetMinTime().After(alignedStart) {
 			alignedStart = s.blocks.GetMinTime()

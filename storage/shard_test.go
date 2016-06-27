@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/mocks"
+	xtime "github.com/m3db/m3db/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -109,4 +110,72 @@ func TestShardFlushToDiskSeriesFlushError(t *testing.T) {
 		_, ok := flushed[i]
 		require.True(t, ok)
 	}
+}
+
+func addTestSeries(t *testing.T, shard *dbShard, id string) databaseSeries {
+	series := newDatabaseSeries(id, bootstrapped, shard.opts)
+	elem := shard.list.PushBack(series)
+	entry := &dbShardEntry{series: series, elem: elem, curWriters: 0}
+	shard.lookup[id] = entry
+	return series
+}
+
+// This tests the scenario where an empty series is expired.
+func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(opts)
+	addTestSeries(t, shard, "foo")
+	shard.Tick()
+	require.Equal(t, 0, len(shard.lookup))
+}
+
+// This tests the scenario where a non-empty series is not expired.
+func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(opts)
+	ctx := opts.GetContextPool().Get()
+	nowFn := opts.GetNowFn()
+	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
+	expired := shard.tickForEachSeries()
+	require.Len(t, expired, 0)
+}
+
+// This tests the scenario where a series is empty when series.Tick() is called,
+// but receives writes after tickForEachSeries finishes but before purgeExpiredSeries
+// starts. The expected behavior is not to expire series in this case.
+func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(opts)
+	series := addTestSeries(t, shard, "foo")
+	expired := shard.tickForEachSeries()
+	require.Len(t, expired, 1)
+
+	ctx := opts.GetContextPool().Get()
+	nowFn := opts.GetNowFn()
+	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
+	require.False(t, series.Empty())
+
+	shard.purgeExpiredSeries(expired)
+	require.Equal(t, 1, len(shard.lookup))
+}
+
+// This tests the scenario where tickForEachSeries finishes, and before purgeExpiredSeries
+// starts, we receive a write for a series, then purgeExpiredSeries runs, then we write to
+// the series. The expected behavior is not to expire series in this case.
+func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(opts)
+	addTestSeries(t, shard, "foo")
+	expired := shard.tickForEachSeries()
+	require.Len(t, expired, 1)
+
+	ctx := opts.GetContextPool().Get()
+	nowFn := opts.GetNowFn()
+	series, completionFn := shard.writableSeries("foo")
+	shard.purgeExpiredSeries(expired)
+	series.Write(ctx, nowFn(), 1.0, xtime.Second, nil)
+	completionFn()
+
+	require.False(t, series.Empty())
+	require.Equal(t, 1, len(shard.lookup))
 }
