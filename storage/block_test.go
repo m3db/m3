@@ -28,13 +28,17 @@ import (
 )
 
 func testDatabaseSeriesBlocks() *databaseSeriesBlocks {
-	return NewDatabaseSeriesBlocks(nil).(*databaseSeriesBlocks)
+	opts := testDatabaseOptions()
+	return NewDatabaseSeriesBlocks(opts).(*databaseSeriesBlocks)
 }
 
 func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks {
-	blocks := NewDatabaseSeriesBlocks(nil).(*databaseSeriesBlocks)
+	opts := testDatabaseOptions()
+	blocks := testDatabaseSeriesBlocks()
 	for _, timestamp := range times {
-		blocks.AddBlock(NewDatabaseBlock(timestamp, nil, nil))
+		block := opts.GetDatabaseBlockPool().Get()
+		block.Reset(timestamp, nil)
+		blocks.AddBlock(block)
 	}
 	return blocks
 }
@@ -86,9 +90,11 @@ func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
 }
 
 func TestDatabaseSeriesBlocksGetBlockOrAdd(t *testing.T) {
-	now := time.Now()
+	opts := testDatabaseOptions()
 	blocks := testDatabaseSeriesBlocks()
-	block := NewDatabaseBlock(now, nil, nil)
+	block := opts.GetDatabaseBlockPool().Get()
+	now := time.Now()
+	block.Reset(now, nil)
 	blocks.AddBlock(block)
 	res := blocks.GetBlockOrAdd(now)
 	require.True(t, res == block)
