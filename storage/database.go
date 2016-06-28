@@ -73,7 +73,7 @@ type Database interface {
 		ctx m3db.Context,
 		id string,
 		start, end time.Time,
-	) (m3db.ReaderSliceReader, error)
+	) ([][]m3db.SegmentReader, error)
 
 	// Bootstrap bootstraps the database.
 	Bootstrap(writeStart time.Time) error
@@ -95,10 +95,10 @@ type flushState struct {
 
 type db struct {
 	sync.RWMutex
-	opts        m3db.DatabaseOptions
-	shardScheme m3db.ShardScheme
-	shardSet    m3db.ShardSet
-	bs          bootstrapState
+	opts           m3db.DatabaseOptions
+	shardScheme    m3db.ShardScheme
+	shardSet       m3db.ShardSet
+	bs             bootstrapState
 	fm             sync.RWMutex
 	fs             flushStatus
 	flushAttempted map[time.Time]flushState
@@ -243,7 +243,7 @@ func (d *db) ReadEncoded(
 	ctx m3db.Context,
 	id string,
 	start, end time.Time,
-) (m3db.ReaderSliceReader, error) {
+) ([][]m3db.SegmentReader, error) {
 	d.RLock()
 	if d.bs != bootstrapped {
 		d.RUnlock()

@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"io"
 	"testing"
 	"time"
 
@@ -86,7 +85,9 @@ func TestSeriesWriteFlush(t *testing.T) {
 	block, ok := series.blocks.GetBlockAt(start)
 	assert.Equal(t, true, ok)
 
-	assertValuesEqual(t, data[:2], []io.Reader{block.Stream()}, opts)
+	assertValuesEqual(t, data[:2], [][]m3db.SegmentReader{[]m3db.SegmentReader{
+		block.Stream(),
+	}}, opts)
 }
 
 func TestSeriesWriteFlushRead(t *testing.T) {
@@ -120,13 +121,13 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)))
 	assert.NoError(t, err)
 
-	assertValuesEqual(t, data, results.Readers(), opts)
+	assertValuesEqual(t, data, results, opts)
 
 	// Test wide range
 	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NoError(t, err)
 
-	assertValuesEqual(t, data, results.Readers(), opts)
+	assertValuesEqual(t, data, results, opts)
 }
 
 func TestSeriesReadEndBeforeStart(t *testing.T) {

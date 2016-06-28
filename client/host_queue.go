@@ -128,7 +128,7 @@ func (q *queue) flushEvery(interval time.Duration) {
 	var sleepForOverride time.Duration
 	for {
 		sleepFor := interval
-		if sleepOverride > 0 {
+		if sleepForOverride > 0 {
 			sleepFor = sleepForOverride
 			sleepForOverride = 0
 		}
@@ -161,7 +161,7 @@ func (q *queue) flushEvery(interval time.Duration) {
 }
 
 func (q *queue) rotateOpsWithLock() []m3db.Op {
-	if len(q.ops) == 0 {
+	if q.opsSumSize == 0 {
 		// No need to rotate as queue is empty
 		return nil
 	}
@@ -304,9 +304,7 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchOp) {
 		ctx, _ := thrift.NewContext(q.opts.GetFetchRequestTimeout())
 		result, err := client.FetchRawBatch(ctx, &op.request)
 		if err != nil {
-			for i := range op.completionFns {
-				op.completionFns[i](nil, err)
-			}
+			op.completionFn(nil, err)
 			cleanup()
 			return
 		}
@@ -318,11 +316,11 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchOp) {
 				op.completionFns[i](nil, errQueueFetchNoResponse)
 				continue
 			}
-			if result.Elements[i].Error != nil {
-				op.completionFns(nil, fmt.Errorf(result.Elements[i].Error.Message))
+			if result.Elements[i].Err != nil {
+				op.completionFns[i](nil, fmt.Errorf(result.Elements[i].Err.Message))
 				continue
 			}
-			ops.completionFns[i](result.Elements[i].Segments, nil)
+			op.completionFns[i](result.Elements[i].Segments, nil)
 		}
 		cleanup()
 	}()
@@ -330,7 +328,7 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchOp) {
 
 func (q *queue) Len() int {
 	q.RLock()
-	v := len(q.ops)
+	v := q.opsSumSize
 	q.RUnlock()
 	return v
 }

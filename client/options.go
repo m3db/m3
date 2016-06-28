@@ -49,8 +49,15 @@ const (
 	// defaultWriteRequestTimeout is the default write request timeout
 	defaultWriteRequestTimeout = 5 * time.Second
 
+	// defaultFetchRequestTimeout is the default fetch request timeout
+	defaultFetchRequestTimeout = 15 * time.Second
+
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 1000000
+
+	// defaultFetchOpPoolSize is the default fetch op pool size
+	// NB(r): Each fetch op can perform a full fetch batch of IDs
+	defaultFetchOpPoolSize = 8192
 
 	// defaultWriteBatchSize is the default write batch size
 	defaultWriteBatchSize = 128
@@ -78,6 +85,9 @@ const (
 
 	// defaultBackgroundHealthCheckStutter is the default background health check stutter
 	defaultBackgroundHealthCheckStutter = 1 * time.Second
+
+	// defaultSeriesIteratorPoolSize is the default size of the series iterator pools
+	defaultSeriesIteratorPoolSize = 100000
 )
 
 type options struct {
@@ -92,16 +102,19 @@ type options struct {
 	hostConnectTimeout            time.Duration
 	clusterConnectTimeout         time.Duration
 	writeRequestTimeout           time.Duration
+	fetchRequestTimeout           time.Duration
 	backgroundConnectInterval     time.Duration
 	backgroundConnectStutter      time.Duration
 	backgroundHealthCheckInterval time.Duration
 	backgroundHealthCheckStutter  time.Duration
 	writeOpPoolSize               int
+	fetchOpPoolSize               int
 	writeBatchSize                int
 	fetchBatchSize                int
 	hostQueueOpsFlushSize         int
 	hostQueueOpsFlushInterval     time.Duration
 	hostQueueOpsArrayPoolSize     int
+	seriesIteratorPoolSize        int
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -117,16 +130,19 @@ func NewOptions() m3db.ClientOptions {
 		hostConnectTimeout:            defaultHostConnectTimeout,
 		clusterConnectTimeout:         defaultClusterConnectTimeout,
 		writeRequestTimeout:           defaultWriteRequestTimeout,
+		fetchRequestTimeout:           defaultFetchRequestTimeout,
 		backgroundConnectInterval:     defaultBackgroundConnectInterval,
 		backgroundConnectStutter:      defaultBackgroundConnectStutter,
 		backgroundHealthCheckInterval: defaultBackgroundHealthCheckInterval,
 		backgroundHealthCheckStutter:  defaultBackgroundHealthCheckStutter,
 		writeOpPoolSize:               defaultWriteOpPoolSize,
+		fetchOpPoolSize:               defaultFetchOpPoolSize,
 		writeBatchSize:                defaultWriteBatchSize,
 		fetchBatchSize:                defaultFetchBatchSize,
 		hostQueueOpsFlushSize:         defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval:     defaultHostQueueOpsFlushInterval,
 		hostQueueOpsArrayPoolSize:     defaultHostQueueOpsArrayPoolSize,
+		seriesIteratorPoolSize:        defaultSeriesIteratorPoolSize,
 	}
 }
 
@@ -240,6 +256,16 @@ func (o *options) GetWriteRequestTimeout() time.Duration {
 	return o.writeRequestTimeout
 }
 
+func (o *options) FetchRequestTimeout(value time.Duration) m3db.ClientOptions {
+	opts := *o
+	opts.fetchRequestTimeout = value
+	return &opts
+}
+
+func (o *options) GetFetchRequestTimeout() time.Duration {
+	return o.fetchRequestTimeout
+}
+
 func (o *options) BackgroundConnectInterval(value time.Duration) m3db.ClientOptions {
 	opts := *o
 	opts.backgroundConnectInterval = value
@@ -290,6 +316,16 @@ func (o *options) GetWriteOpPoolSize() int {
 	return o.writeOpPoolSize
 }
 
+func (o *options) FetchOpPoolSize(value int) m3db.ClientOptions {
+	opts := *o
+	opts.fetchOpPoolSize = value
+	return &opts
+}
+
+func (o *options) GetFetchOpPoolSize() int {
+	return o.fetchOpPoolSize
+}
+
 func (o *options) WriteBatchSize(value int) m3db.ClientOptions {
 	opts := *o
 	opts.writeBatchSize = value
@@ -338,4 +374,14 @@ func (o *options) HostQueueOpsArrayPoolSize(value int) m3db.ClientOptions {
 
 func (o *options) GetHostQueueOpsArrayPoolSize() int {
 	return o.hostQueueOpsArrayPoolSize
+}
+
+func (o *options) SeriesIteratorPoolSize(value int) m3db.ClientOptions {
+	opts := *o
+	opts.seriesIteratorPoolSize = value
+	return &opts
+}
+
+func (o *options) GetSeriesIteratorPoolSize() int {
+	return o.seriesIteratorPoolSize
 }

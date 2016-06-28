@@ -160,27 +160,3 @@ func (sr *segmentReader) Close() {
 		sr.pool.Put(sr)
 	}
 }
-
-// GetSegmentReaders returns the segment readers contained in an io reader.
-func GetSegmentReaders(r io.Reader) ([]m3db.SegmentReader, error) {
-	if r == nil {
-		return nil, nil
-	}
-	sr, ok := r.(m3db.ReaderSliceReader)
-	if !ok {
-		return nil, errUnexpectedReaderType
-	}
-	readers := sr.Readers()
-	s := make([]m3db.SegmentReader, 0, len(readers))
-	for i := 0; i < len(readers); i++ {
-		if readers[i] == nil {
-			continue
-		}
-		sgr, ok := readers[i].(m3db.SegmentReader)
-		if !ok {
-			return nil, errUnexpectedReaderType
-		}
-		s = append(s, sgr)
-	}
-	return s, nil
-}

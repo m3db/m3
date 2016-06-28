@@ -58,7 +58,7 @@ type databaseBuffer interface {
 	ReadEncoded(
 		ctx m3db.Context,
 		start, end time.Time,
-	) []io.Reader
+	) [][]m3db.SegmentReader
 
 	Empty() bool
 
@@ -196,10 +196,11 @@ func (s *dbBuffer) forEachBucketAsc(now time.Time, fn func(b *dbBufferBucket, cu
 	}
 }
 
-func (s *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) []io.Reader {
+func (s *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) [][]m3db.SegmentReader {
 	now := s.nowFn()
+
 	// TODO(r): pool these results arrays
-	var results []io.Reader
+	var results [][]m3db.SegmentReader
 	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
 		shouldRead, _, _ := s.bucketState(now, b, current)
 		if !shouldRead {
@@ -214,8 +215,7 @@ func (s *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) []io.Read
 			return
 		}
 
-		// TODO(r): instead of draining potentially out of order streams, wrap them
-		// in one big multi-stream reader so client's can read them in order easily
+		var unmerged []m3db.SegmentReader
 		for i := range b.encoders {
 			stream := b.encoders[i].encoder.Stream()
 			if stream == nil {
@@ -229,8 +229,10 @@ func (s *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) []io.Read
 				stream.Close()
 			})
 
-			results = append(results, stream)
+			unmerged = append(unmerged, stream)
 		}
+
+		results = append(results, unmerged)
 	})
 
 	return results

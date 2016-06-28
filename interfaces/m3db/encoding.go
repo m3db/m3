@@ -94,8 +94,22 @@ type MultiReaderIterator interface {
 	Reset(readers []io.Reader)
 }
 
-// ReaderSliceOfSlicesIterator will return the next readers slice from a slice of reader slices and true or nil and false
-type ReaderSliceOfSlicesIterator func() ([]io.Reader, bool)
+// ReaderSliceOfSlicesIterator is an iterator that iterates through an array of reader arrays
+type ReaderSliceOfSlicesIterator interface {
+	// Next moves to the next item
+	Next() bool
+
+	// Current returns the current array of readers
+	Current() []io.Reader
+}
+
+// ReaderSliceOfSlicesFromSegmentReadersIterator is an iterator that iterates through an array of reader arrays
+type ReaderSliceOfSlicesFromSegmentReadersIterator interface {
+	ReaderSliceOfSlicesIterator
+
+	// Reset resets the iterator with a new array of segment readers arrays
+	Reset(segments [][]SegmentReader)
+}
 
 // MixedReadersIterator is an iterator that iterates over values from a list of single and multi readers
 type MixedReadersIterator interface {
@@ -106,16 +120,23 @@ type MixedReadersIterator interface {
 }
 
 // SeriesIterator is an iterator that iterates over a set of iterators from different replicas
-// and de-dupes & merges results from the replicas for a given series
+// and de-dupes & merges results from the replicas for a given series while also applying a time
+// filter on top of the values in case replicas returned values out of range on either end
 type SeriesIterator interface {
 	Iterator
 
 	// ID gets the ID of the series
 	ID() string
 
+	// Start returns the start time filter specified for the iterator
+	Start() time.Time
+
+	// End returns the end time filter specified for the iterator
+	End() time.Time
+
 	// Reset resets the iterator to read from a set of iterators from different replicas, one
 	// must note that this can be an array with nil entries if some replicas did not return successfully
-	Reset(id string, replicas []Iterator)
+	Reset(id string, startInclusive, endExclusive time.Time, replicas []Iterator)
 }
 
 // Decoder is the generic interface for different types of decoders.

@@ -127,16 +127,16 @@ type DatabaseOptions interface {
 	// GetEncoderPool returns the encoderPool
 	GetEncoderPool() EncoderPool
 
-	// SingleReaderIteratorPool sets the SingleReaderIteratorPool and returns a new DatabaseOptions
+	// SingleReaderIteratorPool sets the singleReaderIteratorPool and returns a new DatabaseOptions
 	SingleReaderIteratorPool(value SingleReaderIteratorPool) DatabaseOptions
 
-	// GetSingleReaderIteratorPool returns the SingleReaderIteratorPool
+	// GetSingleReaderIteratorPool returns the singleReaderIteratorPool
 	GetSingleReaderIteratorPool() SingleReaderIteratorPool
 
-	// MultiReaderIteratorPool sets the MultiReaderIteratorPool and returns a new DatabaseOptions
+	// MultiReaderIteratorPool sets the multiReaderIteratorPool and returns a new DatabaseOptions
 	MultiReaderIteratorPool(value MultiReaderIteratorPool) DatabaseOptions
 
-	// GetMultiReaderIteratorPool returns the MultiReaderIteratorPool
+	// GetMultiReaderIteratorPool returns the multiReaderIteratorPool
 	GetMultiReaderIteratorPool() MultiReaderIteratorPool
 
 	// MaxFlushRetries sets the maximum number of retries when data flushing fails.
@@ -268,12 +268,6 @@ type ClientOptions interface {
 	// GetFetchOpPoolSize returns the fetchOpPoolSize
 	GetFetchOpPoolSize() int
 
-	// FetchOpArrayArrayPoolSize sets the fetchOpArrayArrayPoolSize and returns a new ClientOptions
-	FetchOpArrayArrayPoolSize(value int) ClientOptions
-
-	// GetFetchOpArrayArrayPoolSize returns the fetchOpArrayArrayPoolSize
-	GetFetchOpArrayArrayPoolSize() int
-
 	// WriteBatchSize sets the writeBatchSize and returns a new ClientOptions
 	// NB(r): for a write only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
@@ -309,6 +303,12 @@ type ClientOptions interface {
 
 	// GetHostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize
 	GetHostQueueOpsArrayPoolSize() int
+
+	// SeriesIteratorPoolSize sets the seriesIteratorPoolSize and returns a new ClientOptions
+	SeriesIteratorPoolSize(value int) ClientOptions
+
+	// GetSeriesIteratorPoolSize returns the seriesIteratorPoolSize
+	GetSeriesIteratorPoolSize() int
 }
 
 // StaticTopologyTypeOptions is a set of static topology type options

@@ -28,6 +28,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/interfaces/m3db"
 	xtime "github.com/m3db/m3db/x/time"
 )
@@ -296,46 +297,12 @@ func (it *singleReaderIterator) Close() {
 	}
 }
 
-// An IteratorHeap is a min-heap of iterators. The top of the heap is the iterator
-// whose current value is the earliest datapoint among all iterators in the heap.
-type iteratorHeap []m3db.Iterator
-
-func (h iteratorHeap) Len() int {
-	return len(h)
-}
-
-func (h iteratorHeap) Less(i, j int) bool {
-	di, _, _ := h[i].Current()
-	dj, _, _ := h[j].Current()
-	return di.Timestamp.Before(dj.Timestamp)
-}
-
-func (h iteratorHeap) Swap(i, j int) {
-	h[i], h[j] = h[j], h[i]
-}
-
-func (h *iteratorHeap) Push(x interface{}) {
-	*h = append(*h, x.(m3db.Iterator))
-}
-
-func (h *iteratorHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	if n == 0 {
-		return nil
-	}
-
-	x := old[n-1]
-	*h = old[:n-1]
-	return x
-}
-
 // multiReaderIterator provides an interface for clients to incrementally
 // read datapoints off of multiple encoded streams whose datapoints may
 // interleave in time.
 // TODO(xichen): optimize for one reader case.
 type multiReaderIterator struct {
-	iters   iteratorHeap                      // a heap of iterators
+	iters   encoding.IteratorHeap             // a heap of iterators
 	readers []io.Reader                       // underlying readers
 	alloc   m3db.SingleReaderIteratorAllocate // allocation function for single reader iterators
 	opts    Options                           // decoding options
@@ -343,6 +310,7 @@ type multiReaderIterator struct {
 	closed  bool                              // has been closed
 }
 
+// NewMultiReaderIterator creates a new multi reader iterator
 func NewMultiReaderIterator(readers []io.Reader, opts Options) m3db.MultiReaderIterator {
 	alloc := func() m3db.SingleReaderIterator {
 		return NewSingleReaderIterator(nil, opts)
@@ -370,7 +338,7 @@ func (it *multiReaderIterator) Next() bool {
 }
 
 func (it *multiReaderIterator) initHeap() {
-	iterHeap := make(iteratorHeap, 0, len(it.readers))
+	iterHeap := make(encoding.IteratorHeap, 0, len(it.readers))
 	heap.Init(&iterHeap)
 	for i := range it.readers {
 		newIt := it.alloc()

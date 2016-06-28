@@ -21,10 +21,10 @@
 package storage
 
 import (
-	"io"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/interfaces/m3db"
 	xtime "github.com/m3db/m3db/x/time"
 
@@ -93,11 +93,14 @@ func (v decodedValuesByTime) Swap(lhs, rhs int) {
 	v[lhs], v[rhs] = v[rhs], v[lhs]
 }
 
-func decodedValues(results []io.Reader, opts m3db.DatabaseOptions) ([]decodedValue, error) {
-	var all []decodedValue
-	newDecoderFn := opts.GetNewDecoderFn()
-	iter := newDecoderFn().DecodeAll(results)
+func decodedValues(results [][]m3db.SegmentReader, opts m3db.DatabaseOptions) ([]decodedValue, error) {
+	iter := encoding.NewMixedReadersIterator(
+		opts.GetSingleReaderIteratorPool().Get(),
+		opts.GetMultiReaderIteratorPool().Get(),
+		encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(results))
 	defer iter.Close()
+
+	var all []decodedValue
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		all = append(all, decodedValue{dp.Timestamp, dp.Value, unit, annotation})
@@ -105,10 +108,11 @@ func decodedValues(results []io.Reader, opts m3db.DatabaseOptions) ([]decodedVal
 	if err := iter.Err(); err != nil {
 		return nil, err
 	}
+
 	return all, nil
 }
 
-func assertValuesEqual(t *testing.T, values []value, results []io.Reader, opts m3db.DatabaseOptions) {
+func assertValuesEqual(t *testing.T, values []value, results [][]m3db.SegmentReader, opts m3db.DatabaseOptions) {
 	decodedValues, err := decodedValues(results, opts)
 
 	assert.NoError(t, err)

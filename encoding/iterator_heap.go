@@ -18,31 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package encoding
 
-import (
-	"time"
+import "github.com/m3db/m3db/interfaces/m3db"
 
-	xtime "github.com/m3db/m3db/x/time"
-)
+// An IteratorHeap is a min-heap of iterators. The top of the heap is the iterator
+// whose current value is the earliest datapoint among all iterators in the heap.
+type IteratorHeap []m3db.Iterator
 
-// Client can create sessions to write and read to a cluster
-type Client interface {
-	// NewSession creates a new session
-	NewSession() (Session, error)
+func (h IteratorHeap) Len() int {
+	return len(h)
 }
 
-// Session can write and read to a cluster
-type Session interface {
-	// Write value to the database for an ID
-	Write(id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+func (h IteratorHeap) Less(i, j int) bool {
+	di, _, _ := h[i].Current()
+	dj, _, _ := h[j].Current()
+	return di.Timestamp.Before(dj.Timestamp)
+}
 
-	// Fetch values from the database for an ID
-	Fetch(id string, startInclusive, endExclusive time.Time) (SeriesIterator, error)
+func (h IteratorHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
 
-	// FetchAll values from the database for a set of IDs
-	FetchAll(ids []string, startInclusive, endExclusive time.Time) ([]SeriesIterator, error)
+// Push an iterator
+func (h *IteratorHeap) Push(x interface{}) {
+	*h = append(*h, x.(m3db.Iterator))
+}
 
-	// Close the session
-	Close() error
+// Pop an iterator
+func (h *IteratorHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	if n == 0 {
+		return nil
+	}
+
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
 }

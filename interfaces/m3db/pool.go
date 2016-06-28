@@ -34,8 +34,6 @@ type MultiReaderIteratorAllocate func() MultiReaderIterator
 
 type MixedReadersIteratorPoolAllocate func() MixedReadersIterator
 
-type MixedReadersIteratorArrayPoolAllocate func() []MixedReadersIterator
-
 type SeriesIteratorPoolAllocate func() SeriesIterator
 
 type SeriesIteratorPoolArrayAllocate func() []SeriesIterator
@@ -130,12 +128,6 @@ type MixedReadersIteratorPool interface {
 	Put(iters MixedReadersIterator)
 }
 
-type MixedReadersIteratorArrayPool interface {
-	Init(alloc MixedReadersIteratorArrayPoolAllocate)
-	Get(size int) []MixedReadersIterator
-	Put(iters []MixedReadersIterator)
-}
-
 type SeriesIteratorPool interface {
 	Init(alloc SeriesIteratorPoolAllocate)
 	Get() SeriesIterator
@@ -146,6 +138,11 @@ type SeriesArrayIteratorPool interface {
 	Init(alloc SeriesIteratorPoolArrayAllocate)
 	Get(size int) []SeriesIterator
 	Put(iters []SeriesIterator)
+}
+
+type IteratorArrayPool interface {
+	Get(size int) []Iterator
+	Put(iters []Iterator)
 }
 
 // PoolBucket specifies a pool bucket

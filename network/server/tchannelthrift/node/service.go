@@ -24,17 +24,19 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3db/storage"
 	xerrors "github.com/m3db/m3db/x/errors"
-	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3db/x/time"
 
 	"github.com/uber/tchannel-go/thrift"
 )
 
+// TODO(r): server side pooling for all return types from service methods
 type service struct {
 	sync.RWMutex
 
@@ -80,33 +82,27 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
-	if encoded == nil || len(encoded.Readers()) == 0 {
-		return result, nil
+	it := encoding.NewSeriesIterator(req.ID, start, end, []m3db.Iterator{
+		encoding.NewMixedReadersIterator(
+			s.db.Options().GetSingleReaderIteratorPool().Get(),
+			s.db.Options().GetMultiReaderIteratorPool().Get(),
+			encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded)),
+	})
+	for it.Next() {
+		dp, _, annotation := it.Current()
+		ts, tsErr := convert.TimeToValue(dp.Timestamp, req.ResultTimeType)
+		if tsErr != nil {
+			return nil, tterrors.NewBadRequestError(tsErr)
+		}
+
+		datapoint := rpc.NewDatapoint()
+		datapoint.Timestamp = ts
+		datapoint.Value = dp.Value
+		datapoint.Annotation = annotation
+		result.Datapoints = append(result.Datapoints, datapoint)
 	}
-
-	for _, reader := range encoded.Readers() {
-		newDecoderFn := s.db.Options().GetNewDecoderFn()
-		it := newDecoderFn().Decode(reader)
-		for it.Next() {
-			dp, _, annotation := it.Current()
-			ts, tsErr := convert.TimeToValue(dp.Timestamp, req.ResultTimeType)
-			if tsErr != nil {
-				return nil, tterrors.NewBadRequestError(tsErr)
-			}
-
-			afterOrAtStart := !dp.Timestamp.Before(start)
-			beforeOrAtEnd := !dp.Timestamp.After(end)
-			if afterOrAtStart && beforeOrAtEnd {
-				datapoint := rpc.NewDatapoint()
-				datapoint.Timestamp = ts
-				datapoint.Value = dp.Value
-				datapoint.Annotation = annotation
-				result.Datapoints = append(result.Datapoints, datapoint)
-			}
-		}
-		if err := it.Err(); err != nil {
-			return nil, tterrors.NewInternalError(err)
-		}
+	if err := it.Err(); err != nil {
+		return nil, tterrors.NewInternalError(err)
 	}
 
 	return result, nil
@@ -124,22 +120,30 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 
 	result := rpc.NewFetchRawBatchResult_()
 	for i := range req.Ids {
+		rawResult := rpc.NewFetchRawResult_()
 		encoded, err := s.db.ReadEncoded(ctx, req.Ids[i], start, end)
 		if err != nil {
 			if xerrors.IsInvalidParams(err) {
-				return nil, tterrors.NewBadRequestError(err)
+				rawResult.Err = tterrors.NewBadRequestError(err)
+				continue
 			}
-			return nil, tterrors.NewInternalError(err)
+			rawResult.Err = tterrors.NewInternalError(err)
+			continue
 		}
-		rawResult := rpc.NewFetchRawResult_()
-		sgrs, err := xio.GetSegmentReaders(encoded)
-		if err != nil {
-			return nil, tterrors.NewInternalError(err)
-		}
-		segments := make([]*rpc.Segment, 0, len(sgrs))
-		for _, sgr := range sgrs {
-			seg := sgr.Segment()
-			segments = append(segments, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
+
+		segments := make([]*rpc.Segments, 0, len(encoded))
+		for _, readers := range encoded {
+			s := &rpc.Segments{}
+			if len(readers) == 1 {
+				seg := readers[0].Segment()
+				s.Merged = &rpc.Segment{Head: seg.Head, Tail: seg.Tail}
+			} else {
+				for _, reader := range readers {
+					seg := reader.Segment()
+					s.Unmerged = append(s.Unmerged, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
+				}
+			}
+			segments = append(segments, s)
 		}
 		rawResult.Segments = segments
 		result.Elements = append(result.Elements, rawResult)

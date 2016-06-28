@@ -18,31 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package encoding
 
 import (
-	"time"
+	"io"
 
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
-// Client can create sessions to write and read to a cluster
-type Client interface {
-	// NewSession creates a new session
-	NewSession() (Session, error)
+type readerSliceOfSlicesIterator struct {
+	segments [][]m3db.SegmentReader
+	readers  []io.Reader
+	idx      int
+	len      int
 }
 
-// Session can write and read to a cluster
-type Session interface {
-	// Write value to the database for an ID
-	Write(id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+// NewReaderSliceOfSlicesFromSegmentReadersIterator creates a new reader slice of slices iterator
+func NewReaderSliceOfSlicesFromSegmentReadersIterator(
+	segments [][]m3db.SegmentReader,
+) m3db.ReaderSliceOfSlicesFromSegmentReadersIterator {
+	it := &readerSliceOfSlicesIterator{}
+	it.Reset(segments)
+	return it
+}
 
-	// Fetch values from the database for an ID
-	Fetch(id string, startInclusive, endExclusive time.Time) (SeriesIterator, error)
+func (it *readerSliceOfSlicesIterator) Next() bool {
+	if !(it.idx+1 < it.len) {
+		return false
+	}
+	it.idx++
+	return true
+}
 
-	// FetchAll values from the database for a set of IDs
-	FetchAll(ids []string, startInclusive, endExclusive time.Time) ([]SeriesIterator, error)
+func (it *readerSliceOfSlicesIterator) Current() []io.Reader {
+	slice := it.segments[it.idx]
+	it.readers = it.readers[:0]
+	for i := range slice {
+		it.readers = append(it.readers, slice[i])
+	}
+	return it.readers
+}
 
-	// Close the session
-	Close() error
+func (it *readerSliceOfSlicesIterator) Reset(segments [][]m3db.SegmentReader) {
+	it.segments = segments
+	it.readers = it.readers[:0]
+	it.idx = -1
+	it.len = len(segments)
 }

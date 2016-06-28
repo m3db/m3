@@ -23,7 +23,6 @@ package client
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -58,25 +57,25 @@ type clientSession interface {
 type session struct {
 	sync.RWMutex
 
-	opts                          m3db.ClientOptions
-	level                         m3db.ConsistencyLevel
-	nowFn                         m3db.NowFn
-	newHostQueueFn                newHostQueueFn
-	topo                          m3db.Topology
-	topoMap                       m3db.TopologyMap
-	topoMapCh                     chan m3db.TopologyMap
-	replicas                      int
-	quorum                        int
-	queues                        []hostQueue
-	state                         state
-	writeOpPool                   writeOpPool
-	fetchOpPool                   fetchOpPool
-	fetchOpArrayArrayPool         fetchOpArrayArrayPool
-	mixedReadersIteratorPool      m3db.MixedReadersIteratorPool
-	mixedReadersIteratorArrayPool m3db.MixedReadersIteratorArrayPool
-	seriesIteratorPool            m3db.SeriesIteratorPool
-	seriesArrayIteratorPool       m3db.SeriesArrayIteratorPool
-	fetchBatchSize                int
+	opts                     m3db.ClientOptions
+	level                    m3db.ConsistencyLevel
+	nowFn                    m3db.NowFn
+	newHostQueueFn           newHostQueueFn
+	topo                     m3db.Topology
+	topoMap                  m3db.TopologyMap
+	topoMapCh                chan m3db.TopologyMap
+	replicas                 int
+	quorum                   int
+	queues                   []hostQueue
+	state                    state
+	writeOpPool              writeOpPool
+	fetchOpPool              fetchOpPool
+	fetchOpArrayArrayPool    fetchOpArrayArrayPool
+	mixedReadersIteratorPool m3db.MixedReadersIteratorPool
+	iteratorArrayPool        m3db.IteratorArrayPool
+	seriesIteratorPool       m3db.SeriesIteratorPool
+	seriesArrayIteratorPool  m3db.SeriesArrayIteratorPool
+	fetchBatchSize           int
 }
 
 type newHostQueueFn func(
@@ -195,9 +194,9 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 		s.fetchOpArrayArrayPool = newFetchOpArrayArrayPool(
 			s.opts.GetFetchOpPoolSize(),
 			len(queues),
-			s.opts.GetFetchOpArrayArrayPoolSize())
+			s.opts.GetFetchOpPoolSize()/s.opts.GetFetchBatchSize())
 	}
-	// TODO(r): create pool for mixedReadersIteratorArrayPool based on replicas count
+	// TODO(r): create pool for iteratorArrayPool based on replicas count
 	// TODO(r): create pool for mixedReadersIteratorPool
 	s.Unlock()
 
@@ -296,16 +295,13 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 	wg.Wait()
 
 	// Return write to pool
-	w.writeOpPool.Put(w)
+	s.writeOpPool.Put(w)
 
 	return s.consistencyResult(quorum, enqueued, resultErrs, resultErr)
 }
 
 func (s *session) Fetch(id string, startInclusive, endExclusive time.Time) (m3db.SeriesIterator, error) {
-	// NB(r): Allocate on the stack
-	var ids [1]string
-	ids[0] = id
-	results, err := s.FetchAll(ids, startInclusive, endExclusive)
+	results, err := s.FetchAll([]string{id}, startInclusive, endExclusive)
 	if err != nil {
 		return nil, err
 	}
@@ -319,6 +315,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		enqueueErr        error
 		resultErrLock     sync.Mutex
 		resultErr         error
+		resultErrs        int
 		replicas          int
 		quorum            int
 		fetchOpsByHostIdx [][]*fetchOp
@@ -348,7 +345,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		enqueued := 0
 		pending := int32(0)
 		errs := int32(0)
-		results := s.mixedReadersIteratorArrayPool.Get(replicas)
+		results := s.iteratorArrayPool.Get(replicas)
 
 		wg.Add(1)
 		completionFn := func(result interface{}, err error) {
@@ -359,9 +356,12 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 					firstErr = err
 				}
 			} else {
-				r := result.([][]*rpc.Segment)
-				results[resultsIdx] = s.mixedReadersIteratorPool.Get()
-				results[resultsIdx].Reset(s.readerSliceOfSlicesIteratorFromSegments(r))
+				r := result.([]*rpc.Segments)
+				// TODO(r): pool the slicesIter
+				slicesIter := newReaderSliceOfSlicesIterator(r)
+				mixedIter := s.mixedReadersIteratorPool.Get()
+				mixedIter.Reset(slicesIter)
+				results[resultsIdx] = mixedIter
 			}
 			if resultsIdx != 0 {
 				// Requests still pending
@@ -376,12 +376,12 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				resultErrLock.Unlock()
 			} else {
 				iters[idx] = s.seriesIteratorPool.Get()
-				iters[idx].Reset(ids[idx], results)
+				iters[idx].Reset(ids[idx], startInclusive, endExclusive, results)
 			}
 			wg.Done()
 		}
 
-		if err := s.topoMap.RouteForEach(ids[idx], func(idx int, host Host) {
+		if err := s.topoMap.RouteForEach(ids[idx], func(idx int, host m3db.Host) {
 			// Inc safely as this for each is sequential
 			enqueued++
 			pending++
@@ -400,7 +400,6 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				f.request.RangeStart = rangeStart
 				f.request.RangeEnd = rangeEnd
 				f.request.RangeType = rpc.TimeType_UNIX_NANOSECONDS
-				fetchOps[idx] = f
 			}
 
 			// Append ID to this request
@@ -417,9 +416,8 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	}
 
 	// Enqueue fetch ops
-	for idx, ops := range fetchOpsByHostIdx {
-		opsLen := len(ops)
-		for i := 0; i < opsLen; i++ {
+	for idx := range fetchOpsByHostIdx {
+		for _, f := range fetchOpsByHostIdx[idx] {
 			if err := s.queues[idx].Enqueue(f); err != nil && enqueueErr == nil {
 				enqueueErr = err
 			}
@@ -434,6 +432,13 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 
 	wg.Wait()
 
+	// Return fetch ops to pool
+	for _, ops := range fetchOpsByHostIdx {
+		for _, op := range ops {
+			s.fetchOpPool.Put(op)
+		}
+	}
+
 	// Return fetch ops array array to pool
 	s.fetchOpArrayArrayPool.Put(fetchOpsByHostIdx)
 
@@ -444,7 +449,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 }
 
 func (s *session) consistencyResult(quorum, enqueued, resultErrs int, resultErr error) error {
-	if resultsErrs == 0 {
+	if resultErrs == 0 {
 		return nil
 	}
 
@@ -453,7 +458,7 @@ func (s *session) consistencyResult(quorum, enqueued, resultErrs int, resultErr 
 	reportErr := func() error {
 		return fmt.Errorf(
 			"failed to meet %s with %d/%d success, error[0]: %v",
-			level.String(), success, enqueued, resultErr)
+			s.level.String(), success, enqueued, resultErr)
 	}
 
 	switch s.level {
@@ -474,26 +479,6 @@ func (s *session) consistencyResult(quorum, enqueued, resultErrs int, resultErr 
 	}
 
 	return nil
-}
-
-func (s *session) readerSliceOfSlicesIteratorFromSegments(
-	segments [][]*rpc.Segment,
-) ReaderSliceOfSlicesIterator {
-	segmentsLen := len(segments)
-	segmentsIdx := 0
-
-	var readers [segmentsLen]io.Reader
-	return func() ([]io.Reader, bool) {
-		if !(segmentsIdx < segmentsLen) {
-			return nil, false
-		}
-		s := segments[segmentsIdx]
-		sLen := len(s)
-		for i := range s {
-			readers[i] = s[i]
-		}
-		return readers[:sLen], true
-	}
 }
 
 func (s *session) Close() error {

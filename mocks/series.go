@@ -24,11 +24,10 @@
 package mocks
 
 import (
-	time "time"
-
 	gomock "github.com/golang/mock/gomock"
 	m3db "github.com/m3db/m3db/interfaces/m3db"
 	time0 "github.com/m3db/m3db/x/time"
+	time "time"
 )
 
 // Mock of databaseSeries interface
@@ -82,9 +81,9 @@ func (_mr *_MockdatabaseSeriesRecorder) Write(arg0, arg1, arg2, arg3, arg4 inter
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockdatabaseSeries) ReadEncoded(ctx m3db.Context, start time.Time, end time.Time) (m3db.ReaderSliceReader, error) {
+func (_m *MockdatabaseSeries) ReadEncoded(ctx m3db.Context, start time.Time, end time.Time) ([][]m3db.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, start, end)
-	ret0, _ := ret[0].(m3db.ReaderSliceReader)
+	ret0, _ := ret[0].([][]m3db.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -64,6 +64,9 @@ func newSessionTestOptions() m3db.ClientOptions {
 }
 
 func TestSessionClusterConnectTimesOut(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	opts := newSessionTestOptions()
 	opts = opts.ClusterConnectTimeout(3 * clusterConnectWaitInterval)
 	s, err := newSession(opts)
@@ -83,7 +86,7 @@ func TestSessionClusterConnectTimesOut(t *testing.T) {
 		return hostQueue
 	}
 
-	err := session.Open()
+	err = session.Open()
 	assert.Error(t, err)
 	assert.Equal(t, ErrClusterConnectTimeout, err)
 }

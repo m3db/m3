@@ -74,7 +74,7 @@ type poolOfFetchOpArrayArray struct {
 	capacity int
 }
 
-func newFetchOpArrayArrayPool(size int, entries int, capacity int) fetchOpArrayPool {
+func newFetchOpArrayArrayPool(size int, entries int, capacity int) fetchOpArrayArrayPool {
 	p := pool.NewObjectPool(size)
 	p.Init(func() interface{} {
 		arr := make([][]*fetchOp, entries)

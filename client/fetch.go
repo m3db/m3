@@ -63,7 +63,7 @@ type fetchOpPool interface {
 	Get() *fetchOp
 
 	// Put a fetch op
-	Put(w *fetchOp)
+	Put(f *fetchOp)
 }
 
 type poolOfFetchOp struct {
@@ -76,6 +76,7 @@ func newFetchOpPool(size int, capacity int) fetchOpPool {
 	p.Init(func() interface{} {
 		f := &fetchOp{}
 		f.request.Ids = make([]string, 0, capacity)
+		f.completionFns = make([]m3db.CompletionFn, 0, capacity)
 		f.reset()
 		return f
 	})
@@ -88,6 +89,10 @@ func (p *poolOfFetchOp) Get() *fetchOp {
 }
 
 func (p *poolOfFetchOp) Put(f *fetchOp) {
+	if cap(f.request.Ids) != p.capacity || cap(f.completionFns) != p.capacity {
+		// Grew outside capacity, do not return to pool
+		return
+	}
 	f.reset()
 	p.pool.Put(f)
 }

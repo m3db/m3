@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"io"
 	"sort"
 	"testing"
 	"time"
@@ -185,7 +184,9 @@ func TestBufferDrain(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
-	assertValuesEqual(t, data[:4], []io.Reader{drained[0].encoder.Stream()}, opts)
+	assertValuesEqual(t, data[:4], [][]m3db.SegmentReader{[]m3db.SegmentReader{
+		drained[0].encoder.Stream(),
+	}}, opts)
 	assertValuesEqual(t, data[4:], results, opts)
 }
 
@@ -225,10 +226,10 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
-	assertValuesEqual(t, data[:2], []io.Reader{
+	assertValuesEqual(t, data[:2], [][]m3db.SegmentReader{[]m3db.SegmentReader{
 		drained[0].encoder.Stream(),
 		drained[1].encoder.Stream(),
-	}, opts)
+	}}, opts)
 	assertValuesEqual(t, data[2:], results, opts)
 }
 
@@ -323,5 +324,7 @@ func TestBufferBucketSort(t *testing.T) {
 
 	assert.Len(t, b.encoders, 1)
 	assert.Equal(t, b.lastWriteAt, expected[len(expected)-1].timestamp)
-	assertValuesEqual(t, expected, []io.Reader{b.encoders[0].encoder.Stream()}, opts)
+	assertValuesEqual(t, expected, [][]m3db.SegmentReader{[]m3db.SegmentReader{
+		b.encoders[0].encoder.Stream(),
+	}}, opts)
 }
