@@ -92,12 +92,9 @@ func (b *dbBlock) closeContextAndEncoder() {
 	if b.ctx == nil {
 		return
 	}
-	encoder := b.encoder
-	b.ctx.RegisterCloser(func() {
-		if encoder != nil {
-			encoder.Close()
-		}
-	})
+	if encoder := b.encoder; encoder != nil {
+		b.ctx.RegisterCloser(encoder.Close)
+	}
 	b.ctx.Close()
 	b.ctx = nil
 	b.encoder = nil
