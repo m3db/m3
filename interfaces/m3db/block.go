@@ -38,7 +38,7 @@ type DatabaseBlock interface {
 	Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// Stream returns the encoded byte stream.
-	Stream() SegmentReader
+	Stream(blocker Context) (SegmentReader, error)
 
 	// Reset resets the block start time and the encoder.
 	Reset(startTime time.Time, encoder Encoder)

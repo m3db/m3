@@ -62,7 +62,7 @@ type databaseSeries interface {
 	Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error
 
 	// FlushToDisk flushes the blocks to disk for a given start time.
-	FlushToDisk(writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error
+	FlushToDisk(ctx m3db.Context, writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error
 }
 
 type dbSeries struct {
@@ -211,8 +211,12 @@ func (s *dbSeries) ReadEncoded(
 		}
 		for blockAt := alignedStart; !blockAt.After(alignedEnd); blockAt = blockAt.Add(s.blockSize) {
 			if block, ok := s.blocks.GetBlockAt(blockAt); ok {
-				if s := block.Stream(); s != nil {
-					results = append(results, s)
+				stream, err := block.Stream(ctx)
+				if err != nil {
+					return nil, err
+				}
+				if stream != nil {
+					results = append(results, stream)
 				}
 			}
 		}
@@ -318,21 +322,24 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 // NB(xichen): segmentHolder is a two-item slice that's reused to
 // hold pointers to the head and the tail of each segment so we
 // don't need to allocate memory and gc it shortly after.
-func (s *dbSeries) FlushToDisk(writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error {
+func (s *dbSeries) FlushToDisk(
+	ctx m3db.Context,
+	writer m3db.FileSetWriter,
+	blockStart time.Time,
+	segmentHolder [][]byte,
+) error {
 	s.RLock()
 	b, exists := s.blocks.GetBlockAt(blockStart)
 	if !exists {
 		s.RUnlock()
 		return nil
 	}
-	sr := b.Stream()
-	if sr == nil {
-		s.RUnlock()
-		return nil
-	}
+	sr, err := b.Stream(ctx)
 	s.RUnlock()
 
-	// TODO(xichen): register this with contexts when it's in place.
+	if err != nil || sr == nil {
+		return err
+	}
 	segment := sr.Segment()
 	if len(segmentHolder) != 2 {
 		segmentHolder = make([][]byte, 2)

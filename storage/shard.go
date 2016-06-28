@@ -64,7 +64,7 @@ type databaseShard interface {
 	Bootstrap(writeStart time.Time) error
 
 	// FlushToDisk flushes the data blocks in the shard to disk
-	FlushToDisk(blockStart time.Time) error
+	FlushToDisk(ctx m3db.Context, blockStart time.Time) error
 }
 
 type dbShard struct {
@@ -279,7 +279,7 @@ func (s *dbShard) Bootstrap(writeStart time.Time) error {
 	return nil
 }
 
-func (s *dbShard) FlushToDisk(blockStart time.Time) error {
+func (s *dbShard) FlushToDisk(ctx m3db.Context, blockStart time.Time) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bs != bootstrapped {
@@ -301,6 +301,6 @@ func (s *dbShard) FlushToDisk(blockStart time.Time) error {
 
 	var segmentHolder [2][]byte
 	return s.forEachSeries(false, func(series databaseSeries) error {
-		return series.FlushToDisk(s.flushWriter, blockStart, segmentHolder[:])
+		return series.FlushToDisk(ctx, s.flushWriter, blockStart, segmentHolder[:])
 	})
 }

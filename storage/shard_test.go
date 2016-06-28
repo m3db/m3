@@ -57,7 +57,7 @@ func testDatabaseShard(opts m3db.DatabaseOptions) *dbShard {
 func TestShardFlushToDiskDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapping
-	err := s.FlushToDisk(time.Now())
+	err := s.FlushToDisk(nil, time.Now())
 	require.Equal(t, err, errShardNotBootstrapped)
 }
 
@@ -74,7 +74,7 @@ func TestShardFlushToDiskFileExists(t *testing.T) {
 	fd := openFile(t, checkpointFile)
 	fd.Close()
 
-	require.Nil(t, s.FlushToDisk(blockStart))
+	require.Nil(t, s.FlushToDisk(nil, blockStart))
 }
 
 func TestShardFlushToDiskSeriesFlushError(t *testing.T) {
@@ -97,12 +97,12 @@ func TestShardFlushToDiskSeriesFlushError(t *testing.T) {
 			expectedErr = errors.New("some error")
 		}
 		series := mocks.NewMockdatabaseSeries(ctrl)
-		series.EXPECT().FlushToDisk(s.flushWriter, blockStart, gomock.Any()).Do(func(_ interface{}, _ time.Time, _ [][]byte) {
+		series.EXPECT().FlushToDisk(nil, s.flushWriter, blockStart, gomock.Any()).Do(func(_ m3db.Context, _ interface{}, _ time.Time, _ [][]byte) {
 			flushed[i] = struct{}{}
 		}).Return(expectedErr)
 		s.list.PushBack(series)
 	}
-	s.FlushToDisk(blockStart)
+	s.FlushToDisk(nil, blockStart)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {

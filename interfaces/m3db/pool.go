@@ -23,6 +23,9 @@ package m3db
 // PoolAllocator allocates an object for a pool.
 type PoolAllocator func() interface{}
 
+// ContextAllocate allocates a new context for a pool.
+type ContextAllocate func() Context
+
 // DatabaseBlockAllocate allocates a database block for a pool.
 type DatabaseBlockAllocate func() DatabaseBlock
 

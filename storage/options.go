@@ -117,62 +117,71 @@ func NewDatabaseOptions() m3db.DatabaseOptions {
 }
 
 func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocSize int) m3db.DatabaseOptions {
+	opts := *o
+	opts.bufferBucketAllocSize = bufferBucketAllocSize
+	opts.databaseBlockAllocSize = databaseBlockAllocSize
+
 	// NB(r): don't enable byte pooling just yet
 	buckets := []m3db.PoolBucket{}
-
-	segmentReaderPool := pool.NewSegmentReaderPool(0)
-	databaseBlockPool := pool.NewDatabaseBlockPool(0)
-	encoderPool := pool.NewEncoderPool(0)
 	bytesPool := pool.NewBytesPool(buckets)
+	bytesPool.Init()
+	opts.bytesPool = bytesPool
+
+	// initialize context pool
 	contextPool := pool.NewContextPool(0)
+	contextPool.Init()
+	opts.contextPool = contextPool
+
+	// initialize database block pool
+	databaseBlockPool := pool.NewDatabaseBlockPool(0)
+	databaseBlockPool.Init(func() m3db.DatabaseBlock {
+		return NewDatabaseBlock(timeZero, nil, &opts)
+	})
+	opts.databaseBlockPool = databaseBlockPool
+
+	encoderPool := pool.NewEncoderPool(0)
 	singleReaderIteratorPool := pool.NewSingleReaderIteratorPool(0)
 	multiReaderIteratorPool := pool.NewMultiReaderIteratorPool(0)
-
-	segmentReaderPool.Init()
-	bytesPool.Init()
-	contextPool.Init()
+	segmentReaderPool := pool.NewSegmentReaderPool(0)
 
 	encodingOpts := tsz.NewOptions().
+		BytesPool(bytesPool).
 		EncoderPool(encoderPool).
 		SingleReaderIteratorPool(singleReaderIteratorPool).
 		MultiReaderIteratorPool(multiReaderIteratorPool).
-		BytesPool(bytesPool).
 		SegmentReaderPool(segmentReaderPool)
 
-	databaseBlockPool.Init(func() m3db.DatabaseBlock {
-		return NewDatabaseBlock(timeZero, nil, o)
-	})
-
+	// initialize encoder pool
 	encoderPool.Init(func() m3db.Encoder {
 		return tsz.NewEncoder(timeZero, nil, encodingOpts)
 	})
+	opts.encoderPool = encoderPool
 
+	// initialize single reader iterator pool
 	singleReaderIteratorPool.Init(func() m3db.SingleReaderIterator {
 		return tsz.NewSingleReaderIterator(nil, encodingOpts)
 	})
+	opts.singleReaderIteratorPool = singleReaderIteratorPool
 
+	// initialize multi reader iterator pool
 	multiReaderIteratorPool.Init(func() m3db.MultiReaderIterator {
 		return tsz.NewMultiReaderIterator(nil, encodingOpts)
 	})
+	opts.multiReaderIteratorPool = multiReaderIteratorPool
+
+	// initialize segment reader pool
+	segmentReaderPool.Init()
 
 	newEncoderFn := func(start time.Time, bytes []byte) m3db.Encoder {
 		return tsz.NewEncoder(start, bytes, encodingOpts)
 	}
+	opts.newEncoderFn = newEncoderFn
+
 	newDecoderFn := func() m3db.Decoder {
 		return tsz.NewDecoder(encodingOpts)
 	}
-
-	opts := *o
-	opts.newEncoderFn = newEncoderFn
 	opts.newDecoderFn = newDecoderFn
-	opts.bufferBucketAllocSize = bufferBucketAllocSize
-	opts.databaseBlockAllocSize = databaseBlockAllocSize
-	opts.bytesPool = bytesPool
-	opts.contextPool = contextPool
-	opts.databaseBlockPool = databaseBlockPool
-	opts.encoderPool = encoderPool
-	opts.singleReaderIteratorPool = singleReaderIteratorPool
-	opts.multiReaderIteratorPool = multiReaderIteratorPool
+
 	return &opts
 }
 
