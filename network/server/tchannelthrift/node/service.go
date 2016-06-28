@@ -88,6 +88,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 			s.db.Options().GetMultiReaderIteratorPool().Get(),
 			encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded)),
 	})
+	defer it.Close()
 	for it.Next() {
 		dp, _, annotation := it.Current()
 		ts, tsErr := convert.TimeToValue(dp.Timestamp, req.ResultTimeType)
@@ -121,6 +122,8 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 	result := rpc.NewFetchRawBatchResult_()
 	for i := range req.Ids {
 		rawResult := rpc.NewFetchRawResult_()
+		result.Elements = append(result.Elements, rawResult)
+
 		encoded, err := s.db.ReadEncoded(ctx, req.Ids[i], start, end)
 		if err != nil {
 			if xerrors.IsInvalidParams(err) {
@@ -146,7 +149,6 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 			segments = append(segments, s)
 		}
 		rawResult.Segments = segments
-		result.Elements = append(result.Elements, rawResult)
 	}
 
 	return result, nil
