@@ -31,9 +31,19 @@ type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock represents a data block.
 type DatabaseBlock interface {
+	// StartTime returns the start time of the block.
 	StartTime() time.Time
+
+	// Write writes a datapoint to the block along with time unit and annotation.
 	Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
-	Stream() SegmentReader
+
+	// Stream returns the encoded byte stream.
+	Stream(blocker Context) (SegmentReader, error)
+
+	// Reset resets the block start time and the encoder.
+	Reset(startTime time.Time, encoder Encoder)
+
+	// Close closes the block.
 	Close()
 }
 
@@ -66,4 +76,7 @@ type DatabaseSeriesBlocks interface {
 
 	// RemoveBlockAt removes the block at a given time if any.
 	RemoveBlockAt(t time.Time)
+
+	// Close closes all the blocks.
+	Close()
 }

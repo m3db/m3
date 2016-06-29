@@ -24,11 +24,12 @@
 package mocks
 
 import (
-	time0 "time"
+	time "time"
+
+	m3db "github.com/m3db/m3db/interfaces/m3db"
+	time0 "github.com/m3db/m3db/x/time"
 
 	gomock "github.com/golang/mock/gomock"
-	m3db "github.com/m3db/m3db/interfaces/m3db"
-	time "github.com/m3db/m3db/x/time"
 )
 
 // Mock of databaseShard interface
@@ -70,7 +71,7 @@ func (_mr *_MockdatabaseShardRecorder) Tick() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick")
 }
 
-func (_m *MockdatabaseShard) Write(ctx m3db.Context, id string, timestamp time0.Time, value float64, unit time.Unit, annotation []byte) error {
+func (_m *MockdatabaseShard) Write(ctx m3db.Context, id string, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", ctx, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -80,7 +81,7 @@ func (_mr *_MockdatabaseShardRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockdatabaseShard) ReadEncoded(ctx m3db.Context, id string, start time0.Time, end time0.Time) (m3db.ReaderSliceReader, error) {
+func (_m *MockdatabaseShard) ReadEncoded(ctx m3db.Context, id string, start time.Time, end time.Time) (m3db.ReaderSliceReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end)
 	ret0, _ := ret[0].(m3db.ReaderSliceReader)
 	ret1, _ := ret[1].(error)
@@ -91,7 +92,7 @@ func (_mr *_MockdatabaseShardRecorder) ReadEncoded(arg0, arg1, arg2, arg3 interf
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockdatabaseShard) Bootstrap(writeStart time0.Time) error {
+func (_m *MockdatabaseShard) Bootstrap(writeStart time.Time) error {
 	ret := _m.ctrl.Call(_m, "Bootstrap", writeStart)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -101,12 +102,12 @@ func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0 interface{}) *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
 }
 
-func (_m *MockdatabaseShard) FlushToDisk(blockStart time0.Time) error {
-	ret := _m.ctrl.Call(_m, "FlushToDisk", blockStart)
+func (_m *MockdatabaseShard) FlushToDisk(ctx m3db.Context, blockStart time.Time) error {
+	ret := _m.ctrl.Call(_m, "FlushToDisk", ctx, blockStart)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) FlushToDisk(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushToDisk", arg0)
+func (_mr *_MockdatabaseShardRecorder) FlushToDisk(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushToDisk", arg0, arg1)
 }

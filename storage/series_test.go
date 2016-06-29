@@ -87,7 +87,9 @@ func TestSeriesWriteFlush(t *testing.T) {
 	block, ok := series.blocks.GetBlockAt(start)
 	assert.Equal(t, true, ok)
 
-	assertValuesEqual(t, data[:2], []io.Reader{block.Stream()}, opts)
+	stream, err := block.Stream(nil)
+	require.NoError(t, err)
+	assertValuesEqual(t, data[:2], []io.Reader{stream}, opts)
 }
 
 func TestSeriesWriteFlushRead(t *testing.T) {
@@ -147,7 +149,7 @@ func TestSeriesFlushToDiskNoBlock(t *testing.T) {
 	opts := seriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	flushTime := time.Unix(7200, 0)
-	err := series.FlushToDisk(nil, flushTime, nil)
+	err := series.FlushToDisk(nil, nil, flushTime, nil)
 	require.Nil(t, err)
 }
 
@@ -173,9 +175,10 @@ func TestSeriesFlushToDisk(t *testing.T) {
 		res.Tail = holder[1]
 	}).Return(nil)
 
-	block := NewDatabaseBlock(flushTime, encoder, opts)
+	block := opts.GetDatabaseBlockPool().Get()
+	block.Reset(flushTime, encoder)
 	series.blocks.AddBlock(block)
-	err := series.FlushToDisk(writer, flushTime, segmentHolder)
+	err := series.FlushToDisk(nil, writer, flushTime, segmentHolder)
 	require.Nil(t, err)
 }
 
@@ -212,10 +215,13 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	})
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	blockStart := curr.Add(-opts.GetRetentionPeriod()).Add(-opts.GetBlockSize())
-	encoder := mocks.NewMockEncoder(ctrl)
-	encoder.EXPECT().Close()
-	series.blocks.AddBlock(NewDatabaseBlock(blockStart, encoder, opts))
-	series.blocks.AddBlock(NewDatabaseBlock(curr, nil, opts))
+	block := mocks.NewMockDatabaseBlock(ctrl)
+	block.EXPECT().StartTime().Return(blockStart)
+	block.EXPECT().Close()
+	series.blocks.AddBlock(block)
+	block = mocks.NewMockDatabaseBlock(ctrl)
+	block.EXPECT().StartTime().Return(curr)
+	series.blocks.AddBlock(block)
 	require.Equal(t, blockStart, series.blocks.GetMinTime())
 	require.Equal(t, 2, series.blocks.Len())
 	buffer := mocks.NewMockdatabaseBuffer(ctrl)

@@ -34,7 +34,7 @@ type NowFn func() time.Time
 // DatabaseOptions is a set of database options
 type DatabaseOptions interface {
 	// EncodingTszPooled sets tsz encoding with pooling and returns a new DatabaseOptions
-	EncodingTszPooled(bufferBucketAllocSize, series int) DatabaseOptions
+	EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocSize int) DatabaseOptions
 
 	// Logger sets the logger and returns a new DatabaseOptions
 	Logger(value logging.Logger) DatabaseOptions
@@ -97,6 +97,12 @@ type DatabaseOptions interface {
 	// GetBufferBucketAllocSize returns the bufferBucketAllocSize
 	GetBufferBucketAllocSize() int
 
+	// DatabaseBlockAllocSize sets the databaseBlockAllocSize and returns a new DatabaseOptions
+	DatabaseBlockAllocSize(value int) DatabaseOptions
+
+	// GetDatabaseBlockAllocSize returns the databaseBlockAllocSize
+	GetDatabaseBlockAllocSize() int
+
 	// RetentionPeriod sets how long we intend to keep data in memory.
 	RetentionPeriod(value time.Duration) DatabaseOptions
 
@@ -120,6 +126,12 @@ type DatabaseOptions interface {
 
 	// GetContextPool returns the contextPool
 	GetContextPool() ContextPool
+
+	// DatabaseBlockPool sets the databaseBlockPool and returns a new DatabaseOptions
+	DatabaseBlockPool(value DatabaseBlockPool) DatabaseOptions
+
+	// GetDatabaseBlockPool returns the databaseBlockPool
+	GetDatabaseBlockPool() DatabaseBlockPool
 
 	// EncoderPool sets the encoderPool and returns a new DatabaseOptions
 	EncoderPool(value EncoderPool) DatabaseOptions
