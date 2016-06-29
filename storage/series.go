@@ -337,8 +337,11 @@ func (s *dbSeries) FlushToDisk(
 	sr, err := b.Stream(ctx)
 	s.RUnlock()
 
-	if err != nil || sr == nil {
+	if err != nil {
 		return err
+	}
+	if sr == nil {
+		return nil
 	}
 	segment := sr.Segment()
 	if len(segmentHolder) != 2 {
