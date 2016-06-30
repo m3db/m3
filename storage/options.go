@@ -66,6 +66,16 @@ var (
 	// defaultFilePathPrefix is the default path prefix for local TSDB files.
 	defaultFilePathPrefix = os.TempDir()
 
+	// defaultFileSetReaderFn is the default function for creating a TSDB fileset reader.
+	defaultFileSetReaderFn = func(filePathPrefix string) m3db.FileSetReader {
+		return fs.NewReader(filePathPrefix)
+	}
+
+	// defaultFileSetWriterFn is the default function for creating a TSDB fileset writer.
+	defaultFileSetWriterFn = func(blockSize time.Duration, filePathPrefix string) m3db.FileSetWriter {
+		return fs.NewWriter(blockSize, filePathPrefix, fs.NewWriterOptions())
+	}
+
 	timeZero time.Time
 )
 
@@ -91,6 +101,7 @@ type dbOptions struct {
 	multiReaderIteratorPool  m3db.MultiReaderIteratorPool
 	maxFlushRetries          int
 	filePathPrefix           string
+	newFileSetReaderFn       m3db.NewFileSetReaderFn
 	newFileSetWriterFn       m3db.NewFileSetWriterFn
 }
 
@@ -99,19 +110,18 @@ type dbOptions struct {
 // less than blocksize and check when opening database
 func NewDatabaseOptions() m3db.DatabaseOptions {
 	opts := &dbOptions{
-		logger:          logging.SimpleLogger,
-		scope:           metrics.NoopScope,
-		blockSize:       defaultBlockSize,
-		nowFn:           time.Now,
-		retentionPeriod: defaultRetentionPeriod,
-		bufferFuture:    defaultBufferFuture,
-		bufferPast:      defaultBufferPast,
-		bufferDrain:     defaultBufferDrain,
-		maxFlushRetries: defaultMaxFlushRetries,
-		filePathPrefix:  defaultFilePathPrefix,
-		newFileSetWriterFn: func(blockSize time.Duration, filePathPrefix string) m3db.FileSetWriter {
-			return fs.NewWriter(blockSize, filePathPrefix, fs.NewWriterOptions())
-		},
+		logger:             logging.SimpleLogger,
+		scope:              metrics.NoopScope,
+		blockSize:          defaultBlockSize,
+		nowFn:              time.Now,
+		retentionPeriod:    defaultRetentionPeriod,
+		bufferFuture:       defaultBufferFuture,
+		bufferPast:         defaultBufferPast,
+		bufferDrain:        defaultBufferDrain,
+		maxFlushRetries:    defaultMaxFlushRetries,
+		filePathPrefix:     defaultFilePathPrefix,
+		newFileSetReaderFn: defaultFileSetReaderFn,
+		newFileSetWriterFn: defaultFileSetWriterFn,
 	}
 	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultDatabaseBlockAllocSize)
 }
@@ -395,6 +405,16 @@ func (o *dbOptions) FilePathPrefix(value string) m3db.DatabaseOptions {
 
 func (o *dbOptions) GetFilePathPrefix() string {
 	return o.filePathPrefix
+}
+
+func (o *dbOptions) NewFileSetReaderFn(value m3db.NewFileSetReaderFn) m3db.DatabaseOptions {
+	opts := *o
+	opts.newFileSetReaderFn = value
+	return &opts
+}
+
+func (o *dbOptions) GetNewFileSetReaderFn() m3db.NewFileSetReaderFn {
+	return o.newFileSetReaderFn
 }
 
 func (o *dbOptions) NewFileSetWriterFn(value m3db.NewFileSetWriterFn) m3db.DatabaseOptions {
