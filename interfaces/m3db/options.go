@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/x/logging"
 	"github.com/m3db/m3db/x/metrics"
+
 	"github.com/uber/tchannel-go"
 )
 
@@ -35,6 +36,9 @@ type NowFn func() time.Time
 type DatabaseOptions interface {
 	// EncodingTszPooled sets tsz encoding with pooling and returns a new DatabaseOptions
 	EncodingTszPooled(bufferBucketAllocSize, series int) DatabaseOptions
+
+	// EncodingTsz sets tsz encoding and returns a new DatabaseOptions
+	EncodingTsz() DatabaseOptions
 
 	// Logger sets the logger and returns a new DatabaseOptions
 	Logger(value logging.Logger) DatabaseOptions
@@ -160,6 +164,12 @@ type DatabaseOptions interface {
 
 // ClientOptions is a set of client options
 type ClientOptions interface {
+	// Validate validates the options
+	Validate() error
+
+	// EncodingTsz sets tsz encoding and returns a new ClientOptions
+	EncodingTsz() ClientOptions
+
 	// Logger sets the logger and returns a new ClientOptions
 	Logger(value logging.Logger) ClientOptions
 
@@ -256,6 +266,12 @@ type ClientOptions interface {
 	// GetBackgroundHealthCheckStutter returns the backgroundHealthCheckStutter
 	GetBackgroundHealthCheckStutter() time.Duration
 
+	// MixedReadersIteratorAlloc sets the mixedReadersIteratorAlloc and returns a new ClientOptions
+	MixedReadersIteratorAlloc(value MixedReadersIteratorAllocate) ClientOptions
+
+	// GetMixedReadersIteratorAlloc returns the mixedReadersIteratorAlloc
+	GetMixedReadersIteratorAlloc() MixedReadersIteratorAllocate
+
 	// WriteOpPoolSize sets the writeOpPoolSize and returns a new ClientOptions
 	WriteOpPoolSize(value int) ClientOptions
 
@@ -309,6 +325,12 @@ type ClientOptions interface {
 
 	// GetSeriesIteratorPoolSize returns the seriesIteratorPoolSize
 	GetSeriesIteratorPoolSize() int
+
+	// SeriesIteratorArrayPoolBuckets sets the seriesIteratorArrayPoolBuckets and returns a new ClientOptions
+	SeriesIteratorArrayPoolBuckets(value []PoolBucket) ClientOptions
+
+	// GetSeriesIteratorArrayPoolBuckets returns the seriesIteratorArrayPoolBuckets
+	GetSeriesIteratorArrayPoolBuckets() []PoolBucket
 }
 
 // StaticTopologyTypeOptions is a set of static topology type options

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/pool"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -71,10 +72,10 @@ type session struct {
 	writeOpPool              writeOpPool
 	fetchOpPool              fetchOpPool
 	fetchOpArrayArrayPool    fetchOpArrayArrayPool
-	mixedReadersIteratorPool m3db.MixedReadersIteratorPool
 	iteratorArrayPool        m3db.IteratorArrayPool
+	mixedReadersIteratorPool m3db.MixedReadersIteratorPool
 	seriesIteratorPool       m3db.SeriesIteratorPool
-	seriesArrayIteratorPool  m3db.SeriesArrayIteratorPool
+	seriesIteratorArrayPool  m3db.SeriesIteratorArrayPool
 	fetchBatchSize           int
 }
 
@@ -113,7 +114,10 @@ func (s *session) Open() error {
 	// that Open will take some time.
 	s.writeOpPool = newWriteOpPool(s.opts.GetWriteOpPoolSize())
 	s.fetchOpPool = newFetchOpPool(s.opts.GetFetchOpPoolSize(), s.fetchBatchSize)
-	// TODO(r): create pools for: SeriesIteratorPool, SeriesArrayIteratorPool
+	s.seriesIteratorPool = pool.NewSeriesIteratorPool(s.opts.GetSeriesIteratorPoolSize())
+	s.seriesIteratorPool.Init()
+	s.seriesIteratorArrayPool = pool.NewSeriesIteratorArrayPool(s.opts.GetSeriesIteratorArrayPoolBuckets())
+	s.seriesIteratorArrayPool.Init()
 	s.Unlock()
 
 	currTopologyMap := s.topo.GetAndSubscribe(s.topoMapCh)
@@ -187,6 +191,7 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 	prev := s.queues
 	s.queues = queues
 	s.topoMap = topologyMap
+	prevReplicas := s.replicas
 	s.replicas = topologyMap.Replicas()
 	s.quorum = topologyMap.QuorumReplicas()
 	if s.fetchOpArrayArrayPool == nil ||
@@ -196,8 +201,22 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 			len(queues),
 			s.opts.GetFetchOpPoolSize()/s.opts.GetFetchBatchSize())
 	}
-	// TODO(r): create pool for iteratorArrayPool based on replicas count
-	// TODO(r): create pool for mixedReadersIteratorPool
+	if s.iteratorArrayPool == nil ||
+		prevReplicas != s.replicas {
+		s.iteratorArrayPool = pool.NewIteratorArrayPool([]m3db.PoolBucket{
+			m3db.PoolBucket{
+				Capacity: s.replicas,
+				Count:    s.opts.GetSeriesIteratorPoolSize(),
+			},
+		})
+		s.iteratorArrayPool.Init()
+	}
+	if s.mixedReadersIteratorPool == nil ||
+		prevReplicas != s.replicas {
+		size := s.replicas * s.opts.GetSeriesIteratorPoolSize()
+		s.mixedReadersIteratorPool = pool.NewMixedReadersIteratorPool(size)
+		s.mixedReadersIteratorPool.Init(s.opts.GetMixedReadersIteratorAlloc())
+	}
 	s.Unlock()
 
 	// Asynchronously close the previous set of host queues
@@ -331,7 +350,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		return nil, tsErr
 	}
 
-	iters := s.seriesArrayIteratorPool.Get(len(ids))
+	iters := s.seriesIteratorArrayPool.Get(len(ids))
 
 	fetchOpsByHostIdx = s.fetchOpArrayArrayPool.Get()
 

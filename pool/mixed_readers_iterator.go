@@ -18,29 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package pool
 
 import "github.com/m3db/m3db/interfaces/m3db"
 
-type client struct {
-	opts m3db.ClientOptions
+// TODO(r): instrument this to tune pooling
+type mixedReadersIteratorPool struct {
+	pool m3db.ObjectPool
 }
 
-// NewClient creates a new client
-func NewClient(opts m3db.ClientOptions) (m3db.Client, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-	return &client{opts: opts}, nil
+// NewMixedReadersIteratorPool creates a new pool
+func NewMixedReadersIteratorPool(size int) m3db.MixedReadersIteratorPool {
+	return &mixedReadersIteratorPool{pool: NewObjectPool(size)}
 }
 
-func (c *client) NewSession() (m3db.Session, error) {
-	session, err := newSession(c.opts)
-	if err != nil {
-		return nil, err
-	}
-	if err := session.Open(); err != nil {
-		return nil, err
-	}
-	return session, nil
+func (p *mixedReadersIteratorPool) Init(alloc m3db.MixedReadersIteratorAllocate) {
+	p.pool.Init(func() interface{} {
+		return alloc()
+	})
+}
+
+func (p *mixedReadersIteratorPool) Get() m3db.MixedReadersIterator {
+	return p.pool.Get().(m3db.MixedReadersIterator)
+}
+
+func (p *mixedReadersIteratorPool) Put(iter m3db.MixedReadersIterator) {
+	p.pool.Put(iter)
 }

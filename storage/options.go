@@ -146,6 +146,21 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) m3db.Da
 		return tsz.NewMultiReaderIterator(nil, encodingOpts)
 	})
 
+	opts := *o
+	opts.bufferBucketAllocSize = bufferBucketAllocSize
+	opts.bytesPool = bytesPool
+	opts.contextPool = contextPool
+	opts.encoderPool = encoderPool
+	opts.singleReaderIteratorPool = singleReaderIteratorPool
+	opts.multiReaderIteratorPool = multiReaderIteratorPool
+	return (&opts).encodingTsz(encodingOpts)
+}
+
+func (o *dbOptions) EncodingTsz() m3db.DatabaseOptions {
+	return o.encodingTsz(tsz.NewOptions())
+}
+
+func (o *dbOptions) encodingTsz(encodingOpts tsz.Options) m3db.DatabaseOptions {
 	newEncoderFn := func(start time.Time, bytes []byte) m3db.Encoder {
 		return tsz.NewEncoder(start, bytes, encodingOpts)
 	}
@@ -156,12 +171,6 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, series int) m3db.Da
 	opts := *o
 	opts.newEncoderFn = newEncoderFn
 	opts.newDecoderFn = newDecoderFn
-	opts.bufferBucketAllocSize = bufferBucketAllocSize
-	opts.bytesPool = bytesPool
-	opts.contextPool = contextPool
-	opts.encoderPool = encoderPool
-	opts.singleReaderIteratorPool = singleReaderIteratorPool
-	opts.multiReaderIteratorPool = multiReaderIteratorPool
 	return &opts
 }
 

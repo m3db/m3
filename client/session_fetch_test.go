@@ -19,28 +19,3 @@
 // THE SOFTWARE.
 
 package client
-
-import "github.com/m3db/m3db/interfaces/m3db"
-
-type client struct {
-	opts m3db.ClientOptions
-}
-
-// NewClient creates a new client
-func NewClient(opts m3db.ClientOptions) (m3db.Client, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-	return &client{opts: opts}, nil
-}
-
-func (c *client) NewSession() (m3db.Session, error) {
-	session, err := newSession(c.opts)
-	if err != nil {
-		return nil, err
-	}
-	if err := session.Open(); err != nil {
-		return nil, err
-	}
-	return session, nil
-}

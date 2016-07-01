@@ -32,11 +32,8 @@ type SingleReaderIteratorAllocate func() SingleReaderIterator
 // MultiReaderIteratorAllocate allocates a MultiReaderIterator for a pool.
 type MultiReaderIteratorAllocate func() MultiReaderIterator
 
-type MixedReadersIteratorPoolAllocate func() MixedReadersIterator
-
-type SeriesIteratorPoolAllocate func() SeriesIterator
-
-type SeriesIteratorPoolArrayAllocate func() []SeriesIterator
+// MixedReadersIteratorAllocate allocates a MixedReadersIterator for a pool.
+type MixedReadersIteratorAllocate func() MixedReadersIterator
 
 // ObjectPool provides a pool for objects
 type ObjectPool interface {
@@ -122,26 +119,51 @@ type MultiReaderIteratorPool interface {
 	Put(iter MultiReaderIterator)
 }
 
+// MixedReadersIteratorPool provides a pool for MixedReadersIterators
 type MixedReadersIteratorPool interface {
-	Init(alloc MixedReadersIteratorPoolAllocate)
+	// Init initializes the pool
+	Init(alloc MixedReadersIteratorAllocate)
+
+	// Get provides a MixedReadersIterator from the pool
 	Get() MixedReadersIterator
+
+	// Put returns a MixedReadersIterator to the pool
 	Put(iters MixedReadersIterator)
 }
 
+// SeriesIteratorPool provides a pool for SeriesIterator
 type SeriesIteratorPool interface {
-	Init(alloc SeriesIteratorPoolAllocate)
+	// Init initializes the pool
+	Init()
+
+	// Get provides a SeriesIterator from the pool
 	Get() SeriesIterator
+
+	// Put returns a SeriesIterator to the pool
 	Put(iter SeriesIterator)
 }
 
-type SeriesArrayIteratorPool interface {
-	Init(alloc SeriesIteratorPoolArrayAllocate)
+// SeriesIteratorArrayPool provides a pool for SeriesIterator arrays
+type SeriesIteratorArrayPool interface {
+	// Init initializes the pool
+	Init()
+
+	// Get provides a SeriesIterator array from the pool
 	Get(size int) []SeriesIterator
+
+	// Put returns a SeriesIterator array to the pool
 	Put(iters []SeriesIterator)
 }
 
+// IteratorArrayPool provides a pool for Iterator arrays
 type IteratorArrayPool interface {
+	// Init initializes the pool
+	Init()
+
+	// Get provides a Iterator array from the pool
 	Get(size int) []Iterator
+
+	// Put returns a Iterator array to the pool
 	Put(iters []Iterator)
 }
 

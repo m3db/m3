@@ -101,7 +101,10 @@ func main() {
 		Replicas(1).
 		HostShardSets([]m3db.HostShardSet{hostShardSet})
 	clientOptions := client.NewOptions().TopologyType(topology.NewStaticTopologyType(topologyOptions))
-	client := client.NewClient(clientOptions)
+	client, err := client.NewClient(clientOptions)
+	if err != nil {
+		log.Fatalf("could not create client for cluster service: %v", err)
+	}
 
 	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, nil).ListenAndServe()
 	if err != nil {

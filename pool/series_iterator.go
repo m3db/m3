@@ -18,29 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package pool
 
-import "github.com/m3db/m3db/interfaces/m3db"
+import (
+	"time"
 
-type client struct {
-	opts m3db.ClientOptions
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/interfaces/m3db"
+)
+
+var (
+	timeZero time.Time
+)
+
+// TODO(r): instrument this to tune pooling
+type seriesIteratorPool struct {
+	pool m3db.ObjectPool
 }
 
-// NewClient creates a new client
-func NewClient(opts m3db.ClientOptions) (m3db.Client, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-	return &client{opts: opts}, nil
+// NewSeriesIteratorPool creates a new pool for SeriesIterators.
+func NewSeriesIteratorPool(size int) m3db.SeriesIteratorPool {
+	return &seriesIteratorPool{pool: NewObjectPool(size)}
 }
 
-func (c *client) NewSession() (m3db.Session, error) {
-	session, err := newSession(c.opts)
-	if err != nil {
-		return nil, err
-	}
-	if err := session.Open(); err != nil {
-		return nil, err
-	}
-	return session, nil
+func (p *seriesIteratorPool) Init() {
+	p.pool.Init(func() interface{} {
+		return encoding.NewSeriesIterator("", timeZero, timeZero, nil)
+	})
+}
+
+func (p *seriesIteratorPool) Get() m3db.SeriesIterator {
+	return p.pool.Get().(m3db.SeriesIterator)
+}
+
+func (p *seriesIteratorPool) Put(iter m3db.SeriesIterator) {
+	p.pool.Put(iter)
 }

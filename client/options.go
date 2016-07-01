@@ -21,8 +21,11 @@
 package client
 
 import (
+	"errors"
 	"time"
 
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/x/logging"
 	"github.com/m3db/m3db/x/metrics"
@@ -90,60 +93,92 @@ const (
 	defaultSeriesIteratorPoolSize = 100000
 )
 
+var (
+	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
+	defaultSeriesIteratorArrayPoolBuckets = []m3db.PoolBucket{}
+
+	errNoTopologyTypeSet              = errors.New("no topology type set")
+	errNoMixedReadersIteratorAllocSet = errors.New("no mixed readers iterator alloc set, has encoding been set?")
+)
+
 type options struct {
-	logger                        logging.Logger
-	scope                         metrics.Scope
-	topologyType                  m3db.TopologyType
-	consistencyLevel              m3db.ConsistencyLevel
-	channelOptions                *tchannel.ChannelOptions
-	nowFn                         m3db.NowFn
-	maxConnectionCount            int
-	minConnectionCount            int
-	hostConnectTimeout            time.Duration
-	clusterConnectTimeout         time.Duration
-	writeRequestTimeout           time.Duration
-	fetchRequestTimeout           time.Duration
-	backgroundConnectInterval     time.Duration
-	backgroundConnectStutter      time.Duration
-	backgroundHealthCheckInterval time.Duration
-	backgroundHealthCheckStutter  time.Duration
-	writeOpPoolSize               int
-	fetchOpPoolSize               int
-	writeBatchSize                int
-	fetchBatchSize                int
-	hostQueueOpsFlushSize         int
-	hostQueueOpsFlushInterval     time.Duration
-	hostQueueOpsArrayPoolSize     int
-	seriesIteratorPoolSize        int
+	logger                         logging.Logger
+	scope                          metrics.Scope
+	topologyType                   m3db.TopologyType
+	consistencyLevel               m3db.ConsistencyLevel
+	channelOptions                 *tchannel.ChannelOptions
+	nowFn                          m3db.NowFn
+	maxConnectionCount             int
+	minConnectionCount             int
+	hostConnectTimeout             time.Duration
+	clusterConnectTimeout          time.Duration
+	writeRequestTimeout            time.Duration
+	fetchRequestTimeout            time.Duration
+	backgroundConnectInterval      time.Duration
+	backgroundConnectStutter       time.Duration
+	backgroundHealthCheckInterval  time.Duration
+	backgroundHealthCheckStutter   time.Duration
+	mixedReadersIteratorAlloc      m3db.MixedReadersIteratorAllocate
+	writeOpPoolSize                int
+	fetchOpPoolSize                int
+	writeBatchSize                 int
+	fetchBatchSize                 int
+	hostQueueOpsFlushSize          int
+	hostQueueOpsFlushInterval      time.Duration
+	hostQueueOpsArrayPoolSize      int
+	seriesIteratorPoolSize         int
+	seriesIteratorArrayPoolBuckets []m3db.PoolBucket
 }
 
 // NewOptions creates a new set of client options with defaults
-// TODO(r): add an "IsValid()" method and ensure topology type is set
 func NewOptions() m3db.ClientOptions {
-	return &options{
-		logger:                        logging.SimpleLogger,
-		scope:                         metrics.NoopScope,
-		consistencyLevel:              defaultConsistencyLevel,
-		nowFn:                         time.Now,
-		maxConnectionCount:            defaultMaxConnectionCount,
-		minConnectionCount:            defaultMinConnectionCount,
-		hostConnectTimeout:            defaultHostConnectTimeout,
-		clusterConnectTimeout:         defaultClusterConnectTimeout,
-		writeRequestTimeout:           defaultWriteRequestTimeout,
-		fetchRequestTimeout:           defaultFetchRequestTimeout,
-		backgroundConnectInterval:     defaultBackgroundConnectInterval,
-		backgroundConnectStutter:      defaultBackgroundConnectStutter,
-		backgroundHealthCheckInterval: defaultBackgroundHealthCheckInterval,
-		backgroundHealthCheckStutter:  defaultBackgroundHealthCheckStutter,
-		writeOpPoolSize:               defaultWriteOpPoolSize,
-		fetchOpPoolSize:               defaultFetchOpPoolSize,
-		writeBatchSize:                defaultWriteBatchSize,
-		fetchBatchSize:                defaultFetchBatchSize,
-		hostQueueOpsFlushSize:         defaultHostQueueOpsFlushSize,
-		hostQueueOpsFlushInterval:     defaultHostQueueOpsFlushInterval,
-		hostQueueOpsArrayPoolSize:     defaultHostQueueOpsArrayPoolSize,
-		seriesIteratorPoolSize:        defaultSeriesIteratorPoolSize,
+	opts := &options{
+		logger:                         logging.SimpleLogger,
+		scope:                          metrics.NoopScope,
+		consistencyLevel:               defaultConsistencyLevel,
+		nowFn:                          time.Now,
+		maxConnectionCount:             defaultMaxConnectionCount,
+		minConnectionCount:             defaultMinConnectionCount,
+		hostConnectTimeout:             defaultHostConnectTimeout,
+		clusterConnectTimeout:          defaultClusterConnectTimeout,
+		writeRequestTimeout:            defaultWriteRequestTimeout,
+		fetchRequestTimeout:            defaultFetchRequestTimeout,
+		backgroundConnectInterval:      defaultBackgroundConnectInterval,
+		backgroundConnectStutter:       defaultBackgroundConnectStutter,
+		backgroundHealthCheckInterval:  defaultBackgroundHealthCheckInterval,
+		backgroundHealthCheckStutter:   defaultBackgroundHealthCheckStutter,
+		writeOpPoolSize:                defaultWriteOpPoolSize,
+		fetchOpPoolSize:                defaultFetchOpPoolSize,
+		writeBatchSize:                 defaultWriteBatchSize,
+		fetchBatchSize:                 defaultFetchBatchSize,
+		hostQueueOpsFlushSize:          defaultHostQueueOpsFlushSize,
+		hostQueueOpsFlushInterval:      defaultHostQueueOpsFlushInterval,
+		hostQueueOpsArrayPoolSize:      defaultHostQueueOpsArrayPoolSize,
+		seriesIteratorPoolSize:         defaultSeriesIteratorPoolSize,
+		seriesIteratorArrayPoolBuckets: defaultSeriesIteratorArrayPoolBuckets,
 	}
+	return opts.EncodingTsz()
+}
+
+func (o *options) Validate() error {
+	if o.topologyType == nil {
+		return errNoTopologyTypeSet
+	}
+	if o.mixedReadersIteratorAlloc == nil {
+		return errNoMixedReadersIteratorAllocSet
+	}
+	return nil
+}
+
+func (o *options) EncodingTsz() m3db.ClientOptions {
+	opts := *o
+	opts.mixedReadersIteratorAlloc = func() m3db.MixedReadersIterator {
+		encodingOpts := tsz.NewOptions()
+		singleIter := tsz.NewSingleReaderIterator(nil, encodingOpts)
+		multiIter := tsz.NewMultiReaderIterator(nil, encodingOpts)
+		return encoding.NewMixedReadersIterator(singleIter, multiIter, nil)
+	}
+	return &opts
 }
 
 func (o *options) Logger(value logging.Logger) m3db.ClientOptions {
@@ -384,4 +419,24 @@ func (o *options) SeriesIteratorPoolSize(value int) m3db.ClientOptions {
 
 func (o *options) GetSeriesIteratorPoolSize() int {
 	return o.seriesIteratorPoolSize
+}
+
+func (o *options) SeriesIteratorArrayPoolBuckets(value []m3db.PoolBucket) m3db.ClientOptions {
+	opts := *o
+	opts.seriesIteratorArrayPoolBuckets = value
+	return &opts
+}
+
+func (o *options) GetSeriesIteratorArrayPoolBuckets() []m3db.PoolBucket {
+	return o.seriesIteratorArrayPoolBuckets
+}
+
+func (o *options) MixedReadersIteratorAlloc(value m3db.MixedReadersIteratorAllocate) m3db.ClientOptions {
+	opts := *o
+	opts.mixedReadersIteratorAlloc = value
+	return &opts
+}
+
+func (o *options) GetMixedReadersIteratorAlloc() m3db.MixedReadersIteratorAllocate {
+	return o.mixedReadersIteratorAlloc
 }
