@@ -78,7 +78,8 @@ testhtml: test-internal
 
 install-ci: 
 	git submodule update --init --recursive
-	go get -u github.com/mattn/goveralls
+	go get -u -f github.com/mattn/goveralls
+	go get -u -f github.com/golang/lint/golint
 
 test-ci: test-internal
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
