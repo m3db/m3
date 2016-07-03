@@ -69,6 +69,7 @@ type Iterator interface {
 	Close()
 }
 
+// SingleReaderIterator is the interface for a single-reader iterator.
 type SingleReaderIterator interface {
 	Iterator
 
@@ -76,6 +77,7 @@ type SingleReaderIterator interface {
 	Reset(reader io.Reader)
 }
 
+// MultiReaderIterator is the interface for a multi-reader iterator.
 type MultiReaderIterator interface {
 	Iterator
 

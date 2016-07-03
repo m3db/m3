@@ -38,6 +38,7 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
+// DefaultShardingScheme creates a default sharding scheme.
 func DefaultShardingScheme() (m3db.ShardScheme, error) {
 	shards := uint32(1024)
 	return sharding.NewShardScheme(0, shards-1, func(id string) uint32 {
@@ -45,6 +46,7 @@ func DefaultShardingScheme() (m3db.ShardScheme, error) {
 	})
 }
 
+// DefaultClient creates a default m3db client.
 func DefaultClient(localNodeAddr string, shardingScheme m3db.ShardScheme) m3db.Client {
 	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardingScheme.All())
 	topologyOptions := topology.NewStaticTopologyTypeOptions().
@@ -55,6 +57,7 @@ func DefaultClient(localNodeAddr string, shardingScheme m3db.ShardScheme) m3db.C
 	return client.NewClient(clientOptions)
 }
 
+// Serve starts up the tchannel server as well as the http server.
 func Serve(
 	httpClusterAddr string,
 	tchannelClusterAddr string,

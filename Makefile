@@ -56,6 +56,7 @@ $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 lint:
+	@which golint > /dev/null || go get -u github.com/golang/lint/golint
 	$(VENDOR_ENV) $(lint_check)
 
 test-internal:

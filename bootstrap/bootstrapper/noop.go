@@ -43,6 +43,7 @@ var (
 // know how to bootstrap any time ranges.
 type noOpNoneBootstrapper struct{}
 
+// NewNoOpNoneBootstrapper creates a new noOpNoneBootstrapper.
 func NewNoOpNoneBootstrapper() m3db.Bootstrapper {
 	return defaultNoOpNoneBootstrapper
 }
@@ -59,6 +60,7 @@ func (noop *noOpNoneBootstrapper) String() string {
 // it can bootstrap any time ranges.
 type noOpAllBootstrapper struct{}
 
+// NewNoOpAllBootstrapper creates a new noOpAllBootstrapper.
 func NewNoOpAllBootstrapper() m3db.Bootstrapper {
 	return defaultNoOpAllBootstrapper
 }
