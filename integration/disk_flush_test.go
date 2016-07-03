@@ -25,19 +25,17 @@ package integration
 import (
 	"bytes"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/services/m3dbnode/server"
 
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	errDiskFlushTimedOut = errors.New("Flushing data to disk took too long")
+	errDiskFlushTimedOut = errors.New("flushing data to disk took too long")
 )
 
 func waitUntilDataFlushed(
@@ -114,54 +112,53 @@ func verifyFlushed(
 
 func TestDiskFlush(t *testing.T) {
 	// Test setup
-	opts, now, err := setup()
+	testSetup, err := newTestSetup(newOptions())
 	require.NoError(t, err)
+	defer testSetup.close()
 
-	opts = opts.BufferDrain(3 * time.Second).RetentionPeriod(6 * time.Hour)
-	blockSize := opts.GetBlockSize()
-	filePathPrefix := opts.GetFilePathPrefix()
-	defer os.RemoveAll(filePathPrefix)
+	testSetup.dbOpts = testSetup.dbOpts.BufferDrain(3 * time.Second).RetentionPeriod(6 * time.Hour)
+	blockSize := testSetup.dbOpts.GetBlockSize()
+	filePathPrefix := testSetup.dbOpts.GetFilePathPrefix()
 
 	// Start the server
-	log := opts.GetLogger()
+	log := testSetup.dbOpts.GetLogger()
 	log.Debug("disk flush test")
 	doneCh := make(chan struct{})
-	require.NoError(t, startServer(opts, doneCh))
+	require.NoError(t, testSetup.startServer(doneCh))
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, stopServer(doneCh))
+		require.NoError(t, testSetup.stopServer(doneCh))
 		log.Debug("server is now down")
 	}()
 
 	// Write test data
+	now := testSetup.getNowFn()
 	dataMaps := make(map[time.Time]dataMap)
 	inputData := []struct {
 		metricNames []string
 		numPoints   int
 		start       time.Time
 	}{
-		{[]string{"foo", "bar"}, 100, *now},
-		{[]string{"foo", "baz"}, 50, (*now).Add(blockSize)},
+		{[]string{"foo", "bar"}, 100, now},
+		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
 	}
 	for _, input := range inputData {
-		*now = input.start
+		testSetup.setNowFn(input.start)
 		testData := generateTestData(input.metricNames, input.numPoints, input.start)
 		dataMaps[input.start] = testData
-		require.NoError(t, writeBatch(testData))
+		require.NoError(t, m3dbClientWriteBatch(testSetup.m3dbClient, testData))
 	}
 	log.Debug("test data is now written")
 
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
-	*now = (*now).Add(blockSize * 2)
-	waitTimeout := opts.GetBufferDrain() * 3
-	shardingScheme, err := server.ShardingScheme()
-	require.NoError(t, err)
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, shardingScheme, dataMaps, waitTimeout))
+	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
+	waitTimeout := testSetup.dbOpts.GetBufferDrain() * 3
+	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardingScheme, dataMaps, waitTimeout))
 
 	// Verify on-disk data match what we expect
-	verifyFlushed(t, shardingScheme, opts, dataMaps)
+	verifyFlushed(t, testSetup.shardingScheme, testSetup.dbOpts, dataMaps)
 }

@@ -38,11 +38,21 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-func ShardingScheme() (m3db.ShardScheme, error) {
+func DefaultShardingScheme() (m3db.ShardScheme, error) {
 	shards := uint32(1024)
 	return sharding.NewShardScheme(0, shards-1, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % shards
 	})
+}
+
+func DefaultClient(localNodeAddr string, shardingScheme m3db.ShardScheme) m3db.Client {
+	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardingScheme.All())
+	topologyOptions := topology.NewStaticTopologyTypeOptions().
+		ShardScheme(shardingScheme).
+		Replicas(1).
+		HostShardSets([]m3db.HostShardSet{hostShardSet})
+	clientOptions := client.NewOptions().TopologyType(topology.NewStaticTopologyType(topologyOptions))
+	return client.NewClient(clientOptions)
 }
 
 func Serve(
@@ -50,6 +60,7 @@ func Serve(
 	tchannelClusterAddr string,
 	httpNodeAddr string,
 	tchannelNodeAddr string,
+	shardingScheme m3db.ShardScheme,
 	opts m3db.DatabaseOptions,
 	doneCh chan struct{},
 ) error {
@@ -62,24 +73,13 @@ func Serve(
 	localNodeAddrComponents := strings.Split(tchannelNodeAddr, ":")
 	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
 
-	shardingScheme, err := ShardingScheme()
-	if err != nil {
-		return fmt.Errorf("could not create sharding scheme: %v", err)
-	}
-
 	db := storage.NewDatabase(shardingScheme.All(), opts)
 	if err := db.Open(); err != nil {
 		return fmt.Errorf("could not open database: %v", err)
 	}
 	defer db.Close()
 
-	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardingScheme.All())
-	topologyOptions := topology.NewStaticTopologyTypeOptions().
-		ShardScheme(shardingScheme).
-		Replicas(1).
-		HostShardSets([]m3db.HostShardSet{hostShardSet})
-	clientOptions := client.NewOptions().TopologyType(topology.NewStaticTopologyType(topologyOptions))
-	client := client.NewClient(clientOptions)
+	client := DefaultClient(localNodeAddr, shardingScheme)
 
 	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, nil).ListenAndServe()
 	if err != nil {

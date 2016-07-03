@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -31,7 +30,6 @@ import (
 	"github.com/m3db/m3db/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3db/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/services/m3dbnode/server"
 	xtime "github.com/m3db/m3db/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -77,53 +75,53 @@ func writeToDisk(
 
 func TestFilesystemBootstrap(t *testing.T) {
 	// Test setup
-	opts, now, err := setup()
+	testSetup, err := newTestSetup(newOptions())
 	require.NoError(t, err)
-	blockSize := opts.GetBlockSize()
-	filePathPrefix := opts.GetFilePathPrefix()
-	opts = opts.RetentionPeriod(2 * time.Hour).NewBootstrapFn(func() m3db.Bootstrap {
-		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-		bs := bfs.NewFileSystemBootstrapper(filePathPrefix, opts, noOpAll)
-		bsOpts := bootstrap.NewOptions()
-		return bootstrap.NewBootstrapProcess(bsOpts, opts, bs)
-	})
-	defer os.RemoveAll(filePathPrefix)
+	defer testSetup.close()
 
-	writerFn := opts.GetNewFileSetWriterFn()
+	blockSize := testSetup.dbOpts.GetBlockSize()
+	filePathPrefix := testSetup.dbOpts.GetFilePathPrefix()
+	testSetup.dbOpts = testSetup.dbOpts.RetentionPeriod(2 * time.Hour).NewBootstrapFn(func() m3db.Bootstrap {
+		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+		bs := bfs.NewFileSystemBootstrapper(filePathPrefix, testSetup.dbOpts, noOpAll)
+		bsOpts := bootstrap.NewOptions()
+		return bootstrap.NewBootstrapProcess(bsOpts, testSetup.dbOpts, bs)
+	})
+
+	writerFn := testSetup.dbOpts.GetNewFileSetWriterFn()
 	writer := writerFn(blockSize, filePathPrefix)
-	shardingScheme, err := server.ShardingScheme()
-	require.NoError(t, err)
-	encoder := opts.GetEncoderPool().Get()
+	encoder := testSetup.dbOpts.GetEncoderPool().Get()
 	dataMaps := make(map[time.Time]dataMap)
 
 	// Write test data
+	now := testSetup.getNowFn()
 	inputData := []struct {
 		metricNames []string
 		numPoints   int
 		start       time.Time
 	}{
-		{[]string{"foo", "bar"}, 100, (*now).Add(-blockSize)},
-		{[]string{"foo", "baz"}, 50, *now},
+		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
+		{[]string{"foo", "baz"}, 50, now},
 	}
 	for _, input := range inputData {
 		testData := generateTestData(input.metricNames, input.numPoints, input.start)
 		dataMaps[input.start] = testData
-		require.NoError(t, writeToDisk(writer, shardingScheme, encoder, input.start, testData))
+		require.NoError(t, writeToDisk(writer, testSetup.shardingScheme, encoder, input.start, testData))
 	}
 
 	// Start the server with filesystem bootstrapper
-	log := opts.GetLogger()
+	log := testSetup.dbOpts.GetLogger()
 	log.Debug("filesystem bootstrap test")
 	doneCh := make(chan struct{})
-	require.NoError(t, startServer(opts, doneCh))
+	require.NoError(t, testSetup.startServer(doneCh))
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, stopServer(doneCh))
+		require.NoError(t, testSetup.stopServer(doneCh))
 		log.Debug("server is now down")
 	}()
 
 	// Verify in-memory data match what we expect
-	verifyDataMaps(t, blockSize, dataMaps)
+	verifyDataMaps(t, testSetup, dataMaps)
 }

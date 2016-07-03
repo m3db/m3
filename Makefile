@@ -83,7 +83,7 @@ install-ci:
 	git submodule update --init --recursive
 	go get -u github.com/mattn/goveralls
 
-test-ci: test-internal
+test-ci-unit: test-internal
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
 
 clean:

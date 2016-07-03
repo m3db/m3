@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -32,43 +31,41 @@ import (
 
 func TestRoundtrip(t *testing.T) {
 	// Test setup
-	opts, now, err := setup()
+	testSetup, err := newTestSetup(newOptions())
 	require.NoError(t, err)
-	blockSize := opts.GetBlockSize()
-	filePathPrefix := opts.GetFilePathPrefix()
-	defer os.RemoveAll(filePathPrefix)
-
+	defer testSetup.close()
 	// Start the server
-	log := opts.GetLogger()
+	log := testSetup.dbOpts.GetLogger()
 	log.Debug("round trip test")
 	doneCh := make(chan struct{})
-	require.NoError(t, startServer(opts, doneCh))
+	require.NoError(t, testSetup.startServer(doneCh))
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, stopServer(doneCh))
+		require.NoError(t, testSetup.stopServer(doneCh))
 		log.Debug("server is now down")
 	}()
 
 	// Write test data
+	now := testSetup.getNowFn()
 	dataMaps := make(map[time.Time]dataMap)
 	inputData := []struct {
 		metricNames []string
 		numPoints   int
 		start       time.Time
 	}{
-		{[]string{"foo", "bar"}, 100, *now},
-		{[]string{"foo", "baz"}, 50, (*now).Add(blockSize)},
+		{[]string{"foo", "bar"}, 100, now},
+		{[]string{"foo", "baz"}, 50, now.Add(testSetup.dbOpts.GetBlockSize())},
 	}
 	for _, input := range inputData {
-		*now = input.start
+		testSetup.setNowFn(input.start)
 		testData := generateTestData(input.metricNames, input.numPoints, input.start)
 		dataMaps[input.start] = testData
-		require.NoError(t, writeBatch(testData))
+		require.NoError(t, testSetup.writeBatch(testData))
 	}
 	log.Debug("test data is now written")
 
 	// Verify in-memory data match what we've written
-	verifyDataMaps(t, blockSize, dataMaps)
+	verifyDataMaps(t, testSetup, dataMaps)
 }

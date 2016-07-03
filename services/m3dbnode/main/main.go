@@ -63,10 +63,22 @@ func main() {
 	})
 
 	log := opts.GetLogger()
-	doneCh := make(chan struct{})
+	shardingScheme, err := server.DefaultShardingScheme()
+	if err != nil {
+		log.Fatalf("could not create sharding scheme: %v", err)
+	}
 
+	doneCh := make(chan struct{})
 	go func() {
-		if err := server.Serve(httpClusterAddr, tchannelClusterAddr, httpNodeAddr, tchannelNodeAddr, opts, doneCh); err != nil {
+		if err := server.Serve(
+			httpClusterAddr,
+			tchannelClusterAddr,
+			httpNodeAddr,
+			tchannelNodeAddr,
+			shardingScheme,
+			opts,
+			doneCh,
+		); err != nil {
 			log.Fatalf("unable to start server: %v", err)
 		}
 	}()
