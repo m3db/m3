@@ -34,6 +34,9 @@ const (
 	// defaultWriteRequestTimeout is the default write request timeout.
 	defaultWriteRequestTimeout = 5 * time.Second
 
+	// defaultWorkerPoolSize is the default number of workers in the worker pool.
+	defaultWorkerPoolSize = 10
+
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
 	defaultUseTChannelClientForReading = true
 
@@ -60,6 +63,12 @@ type testOptions interface {
 	// GetWriteRequestTimeout returns the write request timeout.
 	GetWriteRequestTimeout() time.Duration
 
+	// WorkerPoolSize sets the number of workers in the worker pool.
+	WorkerPoolSize(value int) testOptions
+
+	// GetWorkerPoolSize returns the number of workers in the worker pool.
+	GetWorkerPoolSize() int
+
 	// UseTChannelClientForReading sets whether we use the tchannel client for reading.
 	UseTChannelClientForReading(value bool) testOptions
 
@@ -77,15 +86,17 @@ type options struct {
 	serverStateChangeTimeout    time.Duration
 	readRequestTimeout          time.Duration
 	writeRequestTimeout         time.Duration
+	workerPoolSize              int
 	useTChannelClientForReading bool
 	useTChannelClientForWriting bool
 }
 
-func newOptions() testOptions {
+func newTestOptions() testOptions {
 	return &options{
 		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
 		readRequestTimeout:          defaultReadRequestTimeout,
 		writeRequestTimeout:         defaultWriteRequestTimeout,
+		workerPoolSize:              defaultWorkerPoolSize,
 		useTChannelClientForReading: defaultUseTChannelClientForReading,
 		useTChannelClientForWriting: defaultUseTChannelClientForWriting,
 	}
@@ -119,6 +130,16 @@ func (o *options) WriteRequestTimeout(value time.Duration) testOptions {
 
 func (o *options) GetWriteRequestTimeout() time.Duration {
 	return o.writeRequestTimeout
+}
+
+func (o *options) WorkerPoolSize(value int) testOptions {
+	opts := *o
+	opts.workerPoolSize = value
+	return &opts
+}
+
+func (o *options) GetWorkerPoolSize() int {
+	return o.workerPoolSize
 }
 
 func (o *options) UseTChannelClientForReading(value bool) testOptions {

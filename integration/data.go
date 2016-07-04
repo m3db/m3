@@ -21,6 +21,7 @@
 package integration
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -30,6 +31,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+type byTimestampAscending []m3db.Datapoint
+
+func (asc byTimestampAscending) Len() int           { return len(asc) }
+func (asc byTimestampAscending) Swap(i, j int)      { asc[i], asc[j] = asc[j], asc[i] }
+func (asc byTimestampAscending) Less(i, j int) bool { return asc[i].Timestamp.Before(asc[j].Timestamp) }
 
 type dataMap map[string][]m3db.Datapoint
 
@@ -74,6 +81,10 @@ func verifyDataMapForRange(
 				Value:     dp.Value,
 			}
 		}
+		// TODO(xichen): sorting is necessary in that the fetch call may return
+		// out-of-order datapoints at the moment. Remove this once the client read
+		// diff lands.
+		sort.Sort(byTimestampAscending(converted))
 		actual[id] = converted
 	}
 	require.Equal(t, expected, actual)

@@ -112,7 +112,7 @@ func verifyFlushed(
 
 func TestDiskFlush(t *testing.T) {
 	// Test setup
-	testSetup, err := newTestSetup(newOptions())
+	testSetup, err := newTestSetup(newTestOptions())
 	require.NoError(t, err)
 	defer testSetup.close()
 
@@ -148,7 +148,7 @@ func TestDiskFlush(t *testing.T) {
 		testSetup.setNowFn(input.start)
 		testData := generateTestData(input.metricNames, input.numPoints, input.start)
 		dataMaps[input.start] = testData
-		require.NoError(t, m3dbClientWriteBatch(testSetup.m3dbClient, testData))
+		require.NoError(t, testSetup.writeBatch(testData))
 	}
 	log.Debug("test data is now written")
 

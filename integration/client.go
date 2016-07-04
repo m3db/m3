@@ -21,6 +21,7 @@
 package integration
 
 import (
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
@@ -49,19 +50,40 @@ func tchannelClient(address string) (*tchannel.Channel, rpc.TChanNode, error) {
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
-func m3dbClientWriteBatch(client m3db.Client, dm dataMap) error {
+func m3dbClientWriteBatch(client m3db.Client, workerPool m3db.WorkerPool, dm dataMap) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
 	}
 	defer session.Close()
 
+	var (
+		errCh = make(chan error, 1)
+		wg    sync.WaitGroup
+	)
+
 	for name, datapoints := range dm {
 		for _, dp := range datapoints {
-			if err := session.Write(name, dp.Timestamp, dp.Value, xtime.Second, nil); err != nil {
-				return err
-			}
+			wg.Add(1)
+			n, d := name, dp
+			workerPool.Go(func() {
+				defer wg.Done()
+
+				if err := session.Write(n, d.Timestamp, d.Value, xtime.Second, nil); err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+				}
+			})
 		}
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	if err := <-errCh; err != nil {
+		return err
 	}
 	return nil
 }

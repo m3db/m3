@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage"
 
+	"github.com/m3db/m3db/pool"
 	"github.com/uber/tchannel-go"
 )
 
@@ -59,6 +60,7 @@ type testSetup struct {
 	setNowFn       nowSetterFn
 	tchannelClient rpc.TChanNode
 	m3dbClient     m3db.Client
+	workerPool     m3db.WorkerPool
 
 	// things that need to be cleaned up
 	channel        *tchannel.Channel
@@ -67,7 +69,7 @@ type testSetup struct {
 
 func newTestSetup(opts testOptions) (*testSetup, error) {
 	if opts == nil {
-		opts = newOptions()
+		opts = newTestOptions()
 	}
 
 	var dbOpts m3db.DatabaseOptions
@@ -89,6 +91,10 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	// Set up m3db client
 	mc := m3dbClient(*tchannelNodeAddr, shardingScheme)
+
+	// Set up worker pool
+	workerPool := pool.NewWorkerPool(opts.GetWorkerPoolSize())
+	workerPool.Init()
 
 	// Set up getter and setter for now
 	var lock sync.RWMutex
@@ -121,6 +127,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		setNowFn:       setNowFn,
 		tchannelClient: tc,
 		m3dbClient:     mc,
+		workerPool:     workerPool,
 		channel:        channel,
 		filePathPrefix: filePathPrefix,
 	}, nil
@@ -168,7 +175,7 @@ func (ts *testSetup) writeBatch(dm dataMap) error {
 	if ts.opts.GetUseTChannelClientForWriting() {
 		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.GetWriteRequestTimeout(), dm)
 	}
-	return m3dbClientWriteBatch(ts.m3dbClient, dm)
+	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, dm)
 }
 
 func (ts *testSetup) fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {

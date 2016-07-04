@@ -75,7 +75,7 @@ func writeToDisk(
 
 func TestFilesystemBootstrap(t *testing.T) {
 	// Test setup
-	testSetup, err := newTestSetup(newOptions())
+	testSetup, err := newTestSetup(newTestOptions())
 	require.NoError(t, err)
 	defer testSetup.close()
 
