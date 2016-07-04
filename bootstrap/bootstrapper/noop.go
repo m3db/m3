@@ -27,22 +27,48 @@ import (
 )
 
 const (
-	// noOpBootstrapper is the name of the no-op bootstrapper
-	noOpBootstrapperName = "noop"
+	// noOpNoneBootstrapperName is the name of the noOpNoneBootstrapper
+	noOpNoneBootstrapperName = "noop-none"
+
+	// noOpAllBootstrapperName is the name of the noOpAllBootstrapper
+	noOpAllBootstrapperName = "noop-all"
 )
 
 var (
-	defaultNoOpBootstrapper = &noOpBootstrapper{}
+	defaultNoOpNoneBootstrapper = &noOpNoneBootstrapper{}
+	defaultNoOpAllBootstrapper  = &noOpAllBootstrapper{}
 )
 
-type noOpBootstrapper struct{}
+// noOpNoneBootstrapper is the no-op bootstrapper that doesn't
+// know how to bootstrap any time ranges.
+type noOpNoneBootstrapper struct{}
 
-// Bootstrap performs bootstrapping for the given shards and the associated time ranges.
-func (noop *noOpBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (m3db.ShardResult, xtime.Ranges) {
+// NewNoOpNoneBootstrapper creates a new noOpNoneBootstrapper.
+func NewNoOpNoneBootstrapper() m3db.Bootstrapper {
+	return defaultNoOpNoneBootstrapper
+}
+
+func (noop *noOpNoneBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (m3db.ShardResult, xtime.Ranges) {
 	return nil, targetRanges
 }
 
-// String returns the name of the boostrapper.
-func (noop *noOpBootstrapper) String() string {
-	return noOpBootstrapperName
+func (noop *noOpNoneBootstrapper) String() string {
+	return noOpNoneBootstrapperName
+}
+
+// noOpAllBootstrapper is the no-op bootstrapper that pretends
+// it can bootstrap any time ranges.
+type noOpAllBootstrapper struct{}
+
+// NewNoOpAllBootstrapper creates a new noOpAllBootstrapper.
+func NewNoOpAllBootstrapper() m3db.Bootstrapper {
+	return defaultNoOpAllBootstrapper
+}
+
+func (noop *noOpAllBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (m3db.ShardResult, xtime.Ranges) {
+	return nil, nil
+}
+
+func (noop *noOpAllBootstrapper) String() string {
+	return noOpAllBootstrapperName
 }

@@ -56,11 +56,15 @@ $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 lint:
+	@which golint > /dev/null || go get -u github.com/golang/lint/golint
 	$(VENDOR_ENV) $(lint_check)
 
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
 	@$(VENDOR_ENV) $(test) $(test_target) $(coverfile) | tee $(test_log)
+
+test-integration:
+	@$(VENDOR_ENV) go test -v -tags=integration ./integration
 
 test-xml: test-internal
 	go-junit-report < $(test_log) > $(junit_xml)
@@ -80,7 +84,7 @@ install-ci:
 	git submodule update --init --recursive
 	go get -u github.com/mattn/goveralls
 
-test-ci: test-internal
+test-ci-unit: test-internal
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
 
 clean:

@@ -206,7 +206,13 @@ func (l writerLogger) Info(msg string)                        { l.printfn("I", m
 func (l writerLogger) Debugf(msg string, args ...interface{}) { l.printfn("D", msg, args...) }
 func (l writerLogger) Debug(msg string)                       { l.printfn("D", msg) }
 func (l writerLogger) printfn(prefix, msg string, args ...interface{}) {
-	fmt.Fprintf(l.writer, "%s [%s] %s %v\n", time.Now().Format(writerLoggerStamp), prefix, fmt.Sprintf(msg, args...), l.fields)
+	ft := time.Now().Format(writerLoggerStamp)
+	fma := fmt.Sprintf(msg, args...)
+	if l.fields.Len() == 0 {
+		fmt.Fprintf(l.writer, "%s [%s] %s\n", ft, prefix, fma)
+		return
+	}
+	fmt.Fprintf(l.writer, "%s [%s] %s %v\n", ft, prefix, fma, l.fields)
 }
 
 func (l writerLogger) Fields() LogFields {

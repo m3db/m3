@@ -32,6 +32,9 @@ type DatabaseBlockAllocate func() DatabaseBlock
 // EncoderAllocate allocates an encoder for a pool.
 type EncoderAllocate func() Encoder
 
+// Work is a unit of item to be worked on.
+type Work func()
+
 // SingleReaderIteratorAllocate allocates a SingleReaderIterator for a pool.
 type SingleReaderIteratorAllocate func() SingleReaderIterator
 
@@ -72,6 +75,19 @@ type ContextPool interface {
 
 	// Put returns a context to the pool
 	Put(ctx Context)
+}
+
+// WorkerPool provides a pool for goroutines.
+type WorkerPool interface {
+	// Init initializes the pool.
+	Init()
+
+	// Go waits until the next worker becomes available and executes it.
+	Go(work Work)
+
+	// GoIfAvailable performs the work inside a worker if one is available and returns true,
+	// or false otherwise.
+	GoIfAvailable(work Work) bool
 }
 
 // DatabaseBlockPool provides a pool for database blocks.

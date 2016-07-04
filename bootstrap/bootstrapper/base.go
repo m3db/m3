@@ -47,7 +47,7 @@ func NewBaseBootstrapper(
 ) m3db.Bootstrapper {
 	bs := next
 	if next == nil {
-		bs = defaultNoOpBootstrapper
+		bs = NewNoOpNoneBootstrapper()
 	}
 	return &baseBootstrapper{s: s, dbOpts: dbOpts, next: bs}
 }

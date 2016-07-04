@@ -343,6 +343,7 @@ type multiReaderIterator struct {
 	closed  bool                              // has been closed
 }
 
+// NewMultiReaderIterator creates a new multi-reader iterator.
 func NewMultiReaderIterator(readers []io.Reader, opts Options) m3db.MultiReaderIterator {
 	alloc := func() m3db.SingleReaderIterator {
 		return NewSingleReaderIterator(nil, opts)
