@@ -405,6 +405,7 @@ func (it *multiReaderIterator) Close() {
 	if it.closed {
 		return
 	}
+	it.closed = true
 	for i := range it.iters {
 		it.iters[i].Close()
 	}
@@ -412,5 +413,4 @@ func (it *multiReaderIterator) Close() {
 	if pool != nil {
 		pool.Put(it)
 	}
-	it.closed = true
 }

@@ -35,14 +35,16 @@ var (
 )
 
 type seriesIterator struct {
-	id        string
-	start     time.Time
-	end       time.Time
-	iters     []m3db.Iterator
-	currIters IteratorHeap
-	err       error
-	firstNext bool
-	closed    bool
+	id            string
+	start         time.Time
+	end           time.Time
+	iters         []m3db.Iterator
+	currIters     IteratorHeap
+	unclosedIters []m3db.Iterator
+	err           error
+	firstNext     bool
+	closed        bool
+	pool          m3db.SeriesIteratorPool
 }
 
 // NewSeriesIterator creates a new series iterator
@@ -50,8 +52,9 @@ func NewSeriesIterator(
 	id string,
 	startInclusive, endExclusive time.Time,
 	replicas []m3db.Iterator,
+	pool m3db.SeriesIteratorPool,
 ) m3db.SeriesIterator {
-	it := &seriesIterator{}
+	it := &seriesIterator{pool: pool}
 	it.Reset(id, startInclusive, endExclusive, replicas)
 	return it
 }
@@ -93,7 +96,13 @@ func (it *seriesIterator) Close() {
 		return
 	}
 	it.closed = true
-	// TODO(r): when able to be pooled check if has pool and return to pool
+	for _, iter := range it.iters {
+		iter.Close()
+	}
+	it.iters = it.iters[:0]
+	if it.pool != nil {
+		it.pool.Put(it)
+	}
 }
 
 func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Time, replicas []m3db.Iterator) {
@@ -102,6 +111,7 @@ func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Tim
 	it.end = endExclusive
 	it.iters = it.iters[:0]
 	it.currIters = it.currIters[:0]
+	it.unclosedIters = it.unclosedIters[:0]
 	it.err = nil
 	it.firstNext = true
 	it.closed = false

@@ -311,9 +311,9 @@ func assertFetchResults(
 	results m3db.SeriesIterators,
 ) testFetchResultsAssertion {
 	trimToTimeRange := 0
-	assert.Equal(t, len(fetches), len(results))
+	assert.Equal(t, len(fetches), results.Len())
 
-	for i, series := range results {
+	for i, series := range results.Iters() {
 		expected := fetches[i]
 		assert.Equal(t, expected.id, series.ID())
 		assert.Equal(t, start, series.Start())
@@ -347,7 +347,7 @@ func assertFetchResults(
 		assert.Equal(t, len(expectedValues), j)
 		assert.NoError(t, series.Err())
 	}
-	results.CloseAll()
+	results.Close()
 
 	return testFetchResultsAssertion{trimToTimeRange: trimToTimeRange}
 }

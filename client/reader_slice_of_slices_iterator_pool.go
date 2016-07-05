@@ -18,30 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package pool
+package client
 
-import "github.com/m3db/m3db/interfaces/m3db"
+import (
+	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/pool"
+)
 
-// TODO(r): instrument this to tune pooling
-type mixedReadersIteratorPool struct {
+type readerSliceOfSlicesIteratorPool interface {
+	// Get an iterator
+	Get() *readerSliceOfSlicesIterator
+
+	// Put an iterator
+	Put(it *readerSliceOfSlicesIterator)
+}
+
+type poolOfReaderSliceOfSlicesIterator struct {
 	pool m3db.ObjectPool
 }
 
-// NewMixedReadersIteratorPool creates a new pool
-func NewMixedReadersIteratorPool(size int) m3db.MixedReadersIteratorPool {
-	return &mixedReadersIteratorPool{pool: NewObjectPool(size)}
-}
-
-func (p *mixedReadersIteratorPool) Init(alloc m3db.MixedReadersIteratorAllocate) {
-	p.pool.Init(func() interface{} {
-		return alloc(p)
+func newReaderSliceOfSlicesIteratorPool(size int) readerSliceOfSlicesIteratorPool {
+	p := pool.NewObjectPool(size)
+	pool := &poolOfReaderSliceOfSlicesIterator{p}
+	p.Init(func() interface{} {
+		return newReaderSliceOfSlicesIterator(nil, pool)
 	})
+	return pool
 }
 
-func (p *mixedReadersIteratorPool) Get() m3db.MixedReadersIterator {
-	return p.pool.Get().(m3db.MixedReadersIterator)
+func (p *poolOfReaderSliceOfSlicesIterator) Get() *readerSliceOfSlicesIterator {
+	return p.pool.Get().(*readerSliceOfSlicesIterator)
 }
 
-func (p *mixedReadersIteratorPool) Put(iter m3db.MixedReadersIterator) {
-	p.pool.Put(iter)
+func (p *poolOfReaderSliceOfSlicesIterator) Put(it *readerSliceOfSlicesIterator) {
+	p.pool.Put(it)
 }

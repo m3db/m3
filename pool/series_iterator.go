@@ -43,7 +43,7 @@ func NewSeriesIteratorPool(size int) m3db.SeriesIteratorPool {
 
 func (p *seriesIteratorPool) Init() {
 	p.pool.Init(func() interface{} {
-		return encoding.NewSeriesIterator("", timeZero, timeZero, nil)
+		return encoding.NewSeriesIterator("", timeZero, timeZero, nil, p)
 	})
 }
 

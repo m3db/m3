@@ -42,7 +42,7 @@ type SingleReaderIteratorAllocate func() SingleReaderIterator
 type MultiReaderIteratorAllocate func() MultiReaderIterator
 
 // MixedReadersIteratorAllocate allocates a MixedReadersIterator for a pool.
-type MixedReadersIteratorAllocate func() MixedReadersIterator
+type MixedReadersIteratorAllocate func(pool MixedReadersIteratorPool) MixedReadersIterator
 
 // ObjectPool provides a pool for objects
 type ObjectPool interface {
@@ -177,16 +177,16 @@ type SeriesIteratorPool interface {
 	Put(iter SeriesIterator)
 }
 
-// SeriesIteratorArrayPool provides a pool for SeriesIterator arrays
-type SeriesIteratorArrayPool interface {
+// MutableSeriesIteratorsPool provides a pool for MutableSeriesIterators
+type MutableSeriesIteratorsPool interface {
 	// Init initializes the pool
 	Init()
 
-	// Get provides a SeriesIterator array from the pool
-	Get(size int) []SeriesIterator
+	// Get provides a MutableSeriesIterators from the pool
+	Get(size int) MutableSeriesIterators
 
-	// Put returns a SeriesIterator array to the pool
-	Put(iters []SeriesIterator)
+	// Put returns a MutableSeriesIterators to the pool
+	Put(iters MutableSeriesIterators)
 }
 
 // IteratorArrayPool provides a pool for Iterator arrays

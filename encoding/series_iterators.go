@@ -18,30 +18,55 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package pool
+package encoding
 
 import "github.com/m3db/m3db/interfaces/m3db"
 
-// TODO(r): instrument this to tune pooling
-type mixedReadersIteratorPool struct {
-	pool m3db.ObjectPool
+type seriesIterators struct {
+	iters  []m3db.SeriesIterator
+	closed bool
+	pool   m3db.MutableSeriesIteratorsPool
 }
 
-// NewMixedReadersIteratorPool creates a new pool
-func NewMixedReadersIteratorPool(size int) m3db.MixedReadersIteratorPool {
-	return &mixedReadersIteratorPool{pool: NewObjectPool(size)}
+// NewSeriesIterators creates a new series iterators collection
+func NewSeriesIterators(
+	iters []m3db.SeriesIterator,
+	pool m3db.MutableSeriesIteratorsPool,
+) m3db.MutableSeriesIterators {
+	it := &seriesIterators{iters: iters}
+	it.Reset(0)
+	return it
 }
 
-func (p *mixedReadersIteratorPool) Init(alloc m3db.MixedReadersIteratorAllocate) {
-	p.pool.Init(func() interface{} {
-		return alloc(p)
-	})
+func (iters *seriesIterators) Iters() []m3db.SeriesIterator {
+	return iters.iters
 }
 
-func (p *mixedReadersIteratorPool) Get() m3db.MixedReadersIterator {
-	return p.pool.Get().(m3db.MixedReadersIterator)
+func (iters *seriesIterators) Close() {
+	if iters.closed {
+		return
+	}
+	iters.closed = true
+	for _, iter := range iters.iters {
+		iter.Close()
+	}
+	if iters.pool != nil {
+		iters.pool.Put(iters)
+	}
 }
 
-func (p *mixedReadersIteratorPool) Put(iter m3db.MixedReadersIterator) {
-	p.pool.Put(iter)
+func (iters *seriesIterators) Len() int {
+	return len(iters.iters)
+}
+
+func (iters *seriesIterators) Cap() int {
+	return cap(iters.iters)
+}
+
+func (iters *seriesIterators) SetAt(idx int, iter m3db.SeriesIterator) {
+	iters.iters[idx] = iter
+}
+
+func (iters *seriesIterators) Reset(size int) {
+	iters.iters = iters.iters[:size]
 }

@@ -31,6 +31,7 @@ type readerSliceOfSlicesIterator struct {
 	readers  []io.Reader
 	idx      int
 	len      int
+	closed   bool
 }
 
 // NewReaderSliceOfSlicesFromSegmentReadersIterator creates a new reader slice of slices iterator
@@ -64,4 +65,11 @@ func (it *readerSliceOfSlicesIterator) Reset(segments [][]m3db.SegmentReader) {
 	it.readers = it.readers[:0]
 	it.idx = -1
 	it.len = len(segments)
+}
+
+func (it *readerSliceOfSlicesIterator) Close() {
+	if it.closed {
+		return
+	}
+	it.closed = true
 }

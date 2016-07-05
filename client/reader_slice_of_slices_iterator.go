@@ -35,11 +35,14 @@ type readerSliceOfSlicesIterator struct {
 	segmentReaders []m3db.SegmentReader
 	idx            int
 	len            int
+	closed         bool
+	pool           readerSliceOfSlicesIteratorPool
 }
 
 func newReaderSliceOfSlicesIterator(
 	segments []*rpc.Segments,
-) m3db.ReaderSliceOfSlicesIterator {
+	pool readerSliceOfSlicesIteratorPool,
+) *readerSliceOfSlicesIterator {
 	it := &readerSliceOfSlicesIterator{}
 	it.Reset(segments)
 	return it
@@ -73,6 +76,16 @@ func (it *readerSliceOfSlicesIterator) Current() []io.Reader {
 	return it.readers
 }
 
+func (it *readerSliceOfSlicesIterator) Close() {
+	if it.closed {
+		return
+	}
+	it.closed = true
+	if it.pool != nil {
+		it.pool.Put(it)
+	}
+}
+
 func (it *readerSliceOfSlicesIterator) setNextReader(value *rpc.Segment) {
 	idx := it.readersIdx
 	it.readersIdx++
@@ -94,4 +107,5 @@ func (it *readerSliceOfSlicesIterator) Reset(segments []*rpc.Segments) {
 	it.readersIdx = 0
 	it.idx = -1
 	it.len = len(segments)
+	it.closed = false
 }

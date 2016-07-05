@@ -172,11 +172,11 @@ func (o *options) Validate() error {
 
 func (o *options) EncodingTsz() m3db.ClientOptions {
 	opts := *o
-	opts.mixedReadersIteratorAlloc = func() m3db.MixedReadersIterator {
+	opts.mixedReadersIteratorAlloc = func(pool m3db.MixedReadersIteratorPool) m3db.MixedReadersIterator {
 		encodingOpts := tsz.NewOptions()
 		singleIter := tsz.NewSingleReaderIterator(nil, encodingOpts)
 		multiIter := tsz.NewMultiReaderIterator(nil, encodingOpts)
-		return encoding.NewMixedReadersIterator(singleIter, multiIter, nil)
+		return encoding.NewMixedReadersIterator(singleIter, multiIter, nil, pool)
 	}
 	return &opts
 }

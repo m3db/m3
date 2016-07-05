@@ -86,8 +86,9 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		encoding.NewMixedReadersIterator(
 			s.db.Options().GetSingleReaderIteratorPool().Get(),
 			s.db.Options().GetMultiReaderIteratorPool().Get(),
-			encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded)),
-	})
+			encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded),
+			nil),
+	}, nil)
 	defer it.Close()
 	for it.Next() {
 		dp, _, annotation := it.Current()

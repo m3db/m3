@@ -23,11 +23,12 @@ package pool
 import (
 	"sort"
 
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 // TODO(r): instrument this to tune pooling
-type seriesIteratorArrayPool struct {
+type seriesIteratorsPool struct {
 	sizesAsc          []m3db.PoolBucket
 	buckets           []seriesIteratorArrayPoolBucket
 	maxBucketCapacity int
@@ -35,11 +36,11 @@ type seriesIteratorArrayPool struct {
 
 type seriesIteratorArrayPoolBucket struct {
 	capacity int
-	values   chan []m3db.SeriesIterator
+	values   chan m3db.MutableSeriesIterators
 }
 
-// NewSeriesIteratorArrayPool creates a new pool
-func NewSeriesIteratorArrayPool(sizes []m3db.PoolBucket) m3db.SeriesIteratorArrayPool {
+// NewMutableSeriesIteratorsPool creates a new pool
+func NewMutableSeriesIteratorsPool(sizes []m3db.PoolBucket) m3db.MutableSeriesIteratorsPool {
 	sizesAsc := make([]m3db.PoolBucket, len(sizes))
 	copy(sizesAsc, sizes)
 	sort.Sort(m3db.PoolBucketByCapacity(sizesAsc))
@@ -47,18 +48,19 @@ func NewSeriesIteratorArrayPool(sizes []m3db.PoolBucket) m3db.SeriesIteratorArra
 	if len(sizesAsc) != 0 {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity
 	}
-	return &seriesIteratorArrayPool{sizesAsc: sizesAsc, maxBucketCapacity: maxBucketCapacity}
+	return &seriesIteratorsPool{sizesAsc: sizesAsc, maxBucketCapacity: maxBucketCapacity}
 }
 
-func (p *seriesIteratorArrayPool) alloc(capacity int) []m3db.SeriesIterator {
-	return make([]m3db.SeriesIterator, 0, capacity)
+func (p *seriesIteratorsPool) alloc(capacity int) m3db.MutableSeriesIterators {
+	iters := make([]m3db.SeriesIterator, 0, capacity)
+	return encoding.NewSeriesIterators(iters, p)
 }
 
-func (p *seriesIteratorArrayPool) Init() {
+func (p *seriesIteratorsPool) Init() {
 	buckets := make([]seriesIteratorArrayPoolBucket, len(p.sizesAsc))
 	for i := range p.sizesAsc {
 		buckets[i].capacity = p.sizesAsc[i].Capacity
-		buckets[i].values = make(chan []m3db.SeriesIterator, p.sizesAsc[i].Count)
+		buckets[i].values = make(chan m3db.MutableSeriesIterators, p.sizesAsc[i].Count)
 		for j := 0; j < p.sizesAsc[i].Count; j++ {
 			buckets[i].values <- p.alloc(p.sizesAsc[i].Capacity)
 		}
@@ -66,7 +68,7 @@ func (p *seriesIteratorArrayPool) Init() {
 	p.buckets = buckets
 }
 
-func (p *seriesIteratorArrayPool) Get(capacity int) []m3db.SeriesIterator {
+func (p *seriesIteratorsPool) Get(capacity int) m3db.MutableSeriesIterators {
 	if capacity > p.maxBucketCapacity {
 		return p.alloc(capacity)
 	}
@@ -85,17 +87,16 @@ func (p *seriesIteratorArrayPool) Get(capacity int) []m3db.SeriesIterator {
 	return p.alloc(capacity)
 }
 
-func (p *seriesIteratorArrayPool) Put(array []m3db.SeriesIterator) {
-	capacity := cap(array)
+func (p *seriesIteratorsPool) Put(iters m3db.MutableSeriesIterators) {
+	capacity := iters.Cap()
 	if capacity > p.maxBucketCapacity {
 		return
 	}
 
-	array = array[:0]
 	for i := range p.buckets {
 		if p.buckets[i].capacity >= capacity {
 			select {
-			case p.buckets[i].values <- array:
+			case p.buckets[i].values <- iters:
 				return
 			default:
 				return

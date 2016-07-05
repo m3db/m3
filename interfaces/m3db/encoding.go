@@ -101,6 +101,9 @@ type ReaderSliceOfSlicesIterator interface {
 
 	// Current returns the current array of readers
 	Current() []io.Reader
+
+	// Close closes the iterator and if pooled will return to the pool
+	Close()
 }
 
 // ReaderSliceOfSlicesFromSegmentReadersIterator is an iterator that iterates through an array of reader arrays
@@ -139,14 +142,30 @@ type SeriesIterator interface {
 	Reset(id string, startInclusive, endExclusive time.Time, replicas []Iterator)
 }
 
-// SeriesIterators is an array of SeriesIterator that can close all iterators
-type SeriesIterators []SeriesIterator
+// SeriesIterators is a collection of SeriesIterator that can close all iterators
+type SeriesIterators interface {
+	// Iters returns the array of series iterators
+	Iters() []SeriesIterator
 
-// CloseAll will close all iterators
-func (its SeriesIterators) CloseAll() {
-	for i := range its {
-		its[i].Close()
-	}
+	// Len returns the length of the iters
+	Len() int
+
+	// Close closes all iterators contained
+	Close()
+}
+
+// MutableSeriesIterators is a mutable SeriesIterators
+type MutableSeriesIterators interface {
+	SeriesIterators
+
+	// Reset the iters collection to a size for reuse
+	Reset(size int)
+
+	// Cap returns the capacity of the iters
+	Cap() int
+
+	// SetAt an index a SeriesIterator
+	SetAt(idx int, iter SeriesIterator)
 }
 
 // Decoder is the generic interface for different types of decoders.

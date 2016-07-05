@@ -40,6 +40,7 @@ type mixedReadersIterator struct {
 	state      activeIterState
 	err        error
 	closed     bool
+	pool       m3db.MixedReadersIteratorPool
 }
 
 // NewMixedReadersIterator creates a new mixed readers iterator
@@ -47,10 +48,12 @@ func NewMixedReadersIterator(
 	singleIter m3db.SingleReaderIterator,
 	multiIter m3db.MultiReaderIterator,
 	slicesIter m3db.ReaderSliceOfSlicesIterator,
+	pool m3db.MixedReadersIteratorPool,
 ) m3db.MixedReadersIterator {
 	it := &mixedReadersIterator{
 		singleIter: singleIter,
 		multiIter:  multiIter,
+		pool:       pool,
 	}
 	it.Reset(slicesIter)
 	return it
@@ -127,7 +130,11 @@ func (it *mixedReadersIterator) Close() {
 		return
 	}
 	it.closed = true
-	// TODO(r): enable pooling and return to pool
+	it.slicesIter.Close()
+	it.slicesIter = nil
+	if it.pool != nil {
+		it.pool.Put(it)
+	}
 }
 
 func (it *mixedReadersIterator) Reset(slicesIter m3db.ReaderSliceOfSlicesIterator) {

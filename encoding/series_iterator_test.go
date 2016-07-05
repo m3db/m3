@@ -98,7 +98,7 @@ func assertTestSeriesIterator(
 	series *testSeries,
 	iters []m3db.Iterator,
 ) {
-	iter := NewSeriesIterator(series.id, series.start, series.end, iters)
+	iter := NewSeriesIterator(series.id, series.start, series.end, iters, nil)
 	defer iter.Close()
 
 	assert.Equal(t, series.id, iter.ID())
