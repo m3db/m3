@@ -140,6 +140,7 @@ type testReaderSliceOfSlicesIterator struct {
 	readers [][]io.Reader
 	idx     int
 	len     int
+	closed  bool
 }
 
 func newTestReaderSliceOfSlicesIterator(
@@ -162,6 +163,10 @@ func (it *testReaderSliceOfSlicesIterator) Current() []io.Reader {
 		idx = 0
 	}
 	return it.readers[idx]
+}
+
+func (it *testReaderSliceOfSlicesIterator) Close() {
+	it.closed = true
 }
 
 type testNoopReader struct {

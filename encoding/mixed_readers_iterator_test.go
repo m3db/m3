@@ -136,7 +136,7 @@ func assertTestMixedReadersIterator(
 	multiIter := newTestMultiReaderIterator(t, multiIterValues)
 	slicesIter := newTestReaderSliceOfSlicesIterator(slicesIterValues)
 
-	iter := NewMixedReadersIterator(singleIter, multiIter, slicesIter)
+	iter := NewMixedReadersIterator(singleIter, multiIter, slicesIter, nil)
 	defer iter.Close()
 
 	for i := 0; i < len(values); i++ {
