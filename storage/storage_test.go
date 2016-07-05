@@ -97,7 +97,8 @@ func decodedValues(results [][]m3db.SegmentReader, opts m3db.DatabaseOptions) ([
 	iter := encoding.NewMixedReadersIterator(
 		opts.GetSingleReaderIteratorPool().Get(),
 		opts.GetMultiReaderIteratorPool().Get(),
-		encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(results))
+		encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(results),
+		nil)
 	defer iter.Close()
 
 	var all []decodedValue
