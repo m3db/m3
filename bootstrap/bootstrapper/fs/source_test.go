@@ -301,7 +301,8 @@ func validateReadResults(t *testing.T, dir string, timeInNano int) {
 		allBlocks := allSeries[id].GetAllBlocks()
 		require.Equal(t, 1, len(allBlocks))
 		block := allBlocks[times[i]]
-		stream := block.Stream()
+		stream, err := block.Stream(nil)
+		require.NoError(t, err)
 		var b [100]byte
 		n, err := stream.Read(b[:])
 		require.NoError(t, err)

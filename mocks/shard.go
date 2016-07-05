@@ -26,9 +26,10 @@ package mocks
 import (
 	time "time"
 
-	gomock "github.com/golang/mock/gomock"
 	m3db "github.com/m3db/m3db/interfaces/m3db"
 	time0 "github.com/m3db/m3db/x/time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of databaseShard interface
@@ -101,12 +102,12 @@ func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0 interface{}) *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
 }
 
-func (_m *MockdatabaseShard) FlushToDisk(blockStart time.Time) error {
-	ret := _m.ctrl.Call(_m, "FlushToDisk", blockStart)
+func (_m *MockdatabaseShard) FlushToDisk(ctx m3db.Context, blockStart time.Time) error {
+	ret := _m.ctrl.Call(_m, "FlushToDisk", ctx, blockStart)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) FlushToDisk(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushToDisk", arg0)
+func (_mr *_MockdatabaseShardRecorder) FlushToDisk(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushToDisk", arg0, arg1)
 }

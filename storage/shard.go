@@ -25,6 +25,7 @@ import (
 	"errors"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
@@ -64,7 +65,7 @@ type databaseShard interface {
 	Bootstrap(writeStart time.Time) error
 
 	// FlushToDisk flushes the data blocks in the shard to disk
-	FlushToDisk(blockStart time.Time) error
+	FlushToDisk(ctx m3db.Context, blockStart time.Time) error
 }
 
 type dbShard struct {
@@ -79,9 +80,24 @@ type dbShard struct {
 }
 
 type dbShardEntry struct {
-	series databaseSeries
-	elem   *list.Element
+	series     databaseSeries
+	elem       *list.Element
+	curWriters int32
 }
+
+func (entry *dbShardEntry) writerCount() int32 {
+	return atomic.LoadInt32(&entry.curWriters)
+}
+
+func (entry *dbShardEntry) incrementWriterCount() {
+	atomic.AddInt32(&entry.curWriters, 1)
+}
+
+func (entry *dbShardEntry) decrementWriterCount() {
+	atomic.AddInt32(&entry.curWriters, -1)
+}
+
+type writeCompletionFn func()
 
 func newDatabaseShard(shard uint32, opts m3db.DatabaseOptions) databaseShard {
 	return &dbShard{
@@ -137,7 +153,9 @@ func (s *dbShard) forBatchWithLock(
 	return nextElem, nil
 }
 
-func (s *dbShard) Tick() {
+// tickForEachSeries ticks through each series in the shard and
+// returns a list of series that might have expired.
+func (s *dbShard) tickForEachSeries() []databaseSeries {
 	// TODO(xichen): pool this.
 	var expired []databaseSeries
 
@@ -151,19 +169,41 @@ func (s *dbShard) Tick() {
 		return err
 	})
 
+	return expired
+}
+
+func (s *dbShard) purgeExpiredSeries(expired []databaseSeries) {
 	if len(expired) == 0 {
 		return
 	}
 
-	// Remove all expired series from lookup and list
+	// Remove all expired series from lookup and list.
 	s.Lock()
 	for _, series := range expired {
 		id := series.ID()
 		entry := s.lookup[id]
+		// If this series is currently being written to, we don't remove
+		// it even though it's empty in that it might become non-empty soon.
+		if entry.writerCount() > 0 {
+			continue
+		}
+		// If there have been datapoints written to the series since its
+		// last empty check, we don't remove it.
+		if !series.Empty() {
+			continue
+		}
+		// NB(xichen): if we get here, we are guaranteed that there can be
+		// no more writes to this series while the lock is held, so it's
+		// safe to remove it.
 		s.list.Remove(entry.elem)
 		delete(s.lookup, id)
 	}
 	s.Unlock()
+}
+
+func (s *dbShard) Tick() {
+	expired := s.tickForEachSeries()
+	s.purgeExpiredSeries(expired)
 }
 
 func (s *dbShard) Write(
@@ -174,8 +214,10 @@ func (s *dbShard) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	series := s.series(id)
-	return series.Write(ctx, timestamp, value, unit, annotation)
+	series, completionFn := s.writableSeries(id)
+	err := series.Write(ctx, timestamp, value, unit, annotation)
+	completionFn()
+	return err
 }
 
 func (s *dbShard) ReadEncoded(
@@ -192,20 +234,21 @@ func (s *dbShard) ReadEncoded(
 	return entry.series.ReadEncoded(ctx, start, end)
 }
 
-func (s *dbShard) series(id string) databaseSeries {
+func (s *dbShard) writableSeries(id string) (databaseSeries, writeCompletionFn) {
 	s.RLock()
-	entry, exists := s.lookup[id]
-	s.RUnlock()
-	if exists {
-		return entry.series
+	if entry, exists := s.lookup[id]; exists {
+		entry.incrementWriterCount()
+		s.RUnlock()
+		return entry.series, entry.decrementWriterCount
 	}
+	s.RUnlock()
 
 	s.Lock()
-	entry, exists = s.lookup[id]
-	if exists {
+	if entry, exists := s.lookup[id]; exists {
+		entry.incrementWriterCount()
 		s.Unlock()
 		// During Rlock -> Wlock promotion the entry was inserted
-		return entry.series
+		return entry.series, entry.decrementWriterCount
 	}
 	bs := bootstrapNotStarted
 	if s.newSeriesBootstrapped {
@@ -213,10 +256,11 @@ func (s *dbShard) series(id string) databaseSeries {
 	}
 	series := newDatabaseSeries(id, bs, s.opts)
 	elem := s.list.PushBack(series)
-	s.lookup[id] = &dbShardEntry{series, elem}
+	entry := &dbShardEntry{series: series, elem: elem, curWriters: 1}
+	s.lookup[id] = entry
 	s.Unlock()
 
-	return series
+	return entry.series, entry.decrementWriterCount
 }
 
 func (s *dbShard) Bootstrap(writeStart time.Time) error {
@@ -240,8 +284,10 @@ func (s *dbShard) Bootstrap(writeStart time.Time) error {
 	cutover := writeStart.Add(s.opts.GetBufferFuture())
 	bootstrappedSeries := sr.GetAllSeries()
 	for id, dbBlocks := range bootstrappedSeries {
-		series := s.series(id)
-		if err := series.Bootstrap(dbBlocks, cutover); err != nil {
+		series, completionFn := s.writableSeries(id)
+		err := series.Bootstrap(dbBlocks, cutover)
+		completionFn()
+		if err != nil {
 			return err
 		}
 	}
@@ -279,7 +325,7 @@ func (s *dbShard) Bootstrap(writeStart time.Time) error {
 	return nil
 }
 
-func (s *dbShard) FlushToDisk(blockStart time.Time) error {
+func (s *dbShard) FlushToDisk(ctx m3db.Context, blockStart time.Time) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bs != bootstrapped {
@@ -301,6 +347,6 @@ func (s *dbShard) FlushToDisk(blockStart time.Time) error {
 
 	var segmentHolder [2][]byte
 	return s.forEachSeries(false, func(series databaseSeries) error {
-		return series.FlushToDisk(s.flushWriter, blockStart, segmentHolder[:])
+		return series.FlushToDisk(ctx, s.flushWriter, blockStart, segmentHolder[:])
 	})
 }

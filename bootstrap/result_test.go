@@ -38,7 +38,9 @@ func TestResultIsEmpty(t *testing.T) {
 	opts := getTestResultOptions()
 	sr := NewShardResult(opts)
 	require.True(t, sr.IsEmpty())
-	sr.AddBlock("foo", storage.NewDatabaseBlock(time.Now(), nil, nil))
+	block := opts.GetDatabaseBlockPool().Get()
+	block.Reset(time.Now(), nil)
+	sr.AddBlock("foo", block)
 	require.False(t, sr.IsEmpty())
 }
 
@@ -47,15 +49,17 @@ func TestAddBlockToResult(t *testing.T) {
 	sr := NewShardResult(opts)
 	start := time.Now()
 	inputs := []struct {
-		id    string
-		block m3db.DatabaseBlock
+		id        string
+		timestamp time.Time
 	}{
-		{"foo", storage.NewDatabaseBlock(start, nil, nil)},
-		{"foo", storage.NewDatabaseBlock(start.Add(2*time.Hour), nil, nil)},
-		{"bar", storage.NewDatabaseBlock(start, nil, nil)},
+		{"foo", start},
+		{"foo", start.Add(2 * time.Hour)},
+		{"bar", start},
 	}
 	for _, input := range inputs {
-		sr.AddBlock(input.id, input.block)
+		block := opts.GetDatabaseBlockPool().Get()
+		block.Reset(input.timestamp, nil)
+		sr.AddBlock(input.id, block)
 	}
 	allSeries := sr.GetAllSeries()
 	require.Len(t, allSeries, 2)
@@ -78,7 +82,9 @@ func TestAddSeriesToResult(t *testing.T) {
 		sr.AddSeries(input.id, input.series)
 	}
 	moreSeries := storage.NewDatabaseSeriesBlocks(opts)
-	moreSeries.AddBlock(storage.NewDatabaseBlock(start, nil, nil))
+	block := opts.GetDatabaseBlockPool().Get()
+	block.Reset(start, nil)
+	moreSeries.AddBlock(block)
 	sr.AddSeries("foo", moreSeries)
 	allSeries := sr.GetAllSeries()
 	require.Len(t, allSeries, 2)

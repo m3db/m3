@@ -35,7 +35,7 @@ type NowFn func() time.Time
 // DatabaseOptions is a set of database options
 type DatabaseOptions interface {
 	// EncodingTszPooled sets tsz encoding with pooling and returns a new DatabaseOptions
-	EncodingTszPooled(bufferBucketAllocSize, series int) DatabaseOptions
+	EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocSize int) DatabaseOptions
 
 	// EncodingTsz sets tsz encoding and returns a new DatabaseOptions
 	EncodingTsz() DatabaseOptions
@@ -101,6 +101,12 @@ type DatabaseOptions interface {
 	// GetBufferBucketAllocSize returns the bufferBucketAllocSize
 	GetBufferBucketAllocSize() int
 
+	// DatabaseBlockAllocSize sets the databaseBlockAllocSize and returns a new DatabaseOptions
+	DatabaseBlockAllocSize(value int) DatabaseOptions
+
+	// GetDatabaseBlockAllocSize returns the databaseBlockAllocSize
+	GetDatabaseBlockAllocSize() int
+
 	// RetentionPeriod sets how long we intend to keep data in memory.
 	RetentionPeriod(value time.Duration) DatabaseOptions
 
@@ -124,6 +130,12 @@ type DatabaseOptions interface {
 
 	// GetContextPool returns the contextPool
 	GetContextPool() ContextPool
+
+	// DatabaseBlockPool sets the databaseBlockPool and returns a new DatabaseOptions
+	DatabaseBlockPool(value DatabaseBlockPool) DatabaseOptions
+
+	// GetDatabaseBlockPool returns the databaseBlockPool
+	GetDatabaseBlockPool() DatabaseBlockPool
 
 	// EncoderPool sets the encoderPool and returns a new DatabaseOptions
 	EncoderPool(value EncoderPool) DatabaseOptions
@@ -154,6 +166,12 @@ type DatabaseOptions interface {
 
 	// GetFilePathPrefix returns the file path prefix for sharded TSDB files.
 	GetFilePathPrefix() string
+
+	// NewFileSetReaderFn sets the function for creating a new fileset reader.
+	NewFileSetReaderFn(value NewFileSetReaderFn) DatabaseOptions
+
+	// GetNewFileSetReaderFn returns the function for creating a new fileset reader.
+	GetNewFileSetReaderFn() NewFileSetReaderFn
 
 	// NewFileSetWriterFn sets the function for creating a new fileset writer.
 	NewFileSetWriterFn(value NewFileSetWriterFn) DatabaseOptions

@@ -134,11 +134,11 @@ func TestFlushToDisk(t *testing.T) {
 		cur := inputTimes[0].bs
 		for !cur.After(endTime) {
 			if _, excluded := notFlushed[cur]; !excluded {
-				m.EXPECT().FlushToDisk(cur).Return(nil)
+				m.EXPECT().FlushToDisk(gomock.Any(), cur).Return(nil)
 			}
 			cur = cur.Add(2 * time.Hour)
 		}
-		m.EXPECT().FlushToDisk(cur).Return(errors.New("some errors"))
+		m.EXPECT().FlushToDisk(gomock.Any(), cur).Return(errors.New("some errors"))
 	}
 
 	database.flushToDisk(tickStart, false)
@@ -192,23 +192,25 @@ func TestFlushToDiskWithTimes(t *testing.T) {
 	defer ctrl.Finish()
 
 	database := testDatabase(t)
-	flushTime := time.Unix(7200, 0)
+	ctx := database.opts.GetContextPool().Get()
+	defer ctx.Close()
 
+	flushTime := time.Unix(7200, 0)
 	for i := 0; i < 2; i++ {
 		m := mocks.NewMockdatabaseShard(ctrl)
 		database.shards[i] = m
-		m.EXPECT().FlushToDisk(flushTime).Return(nil)
+		m.EXPECT().FlushToDisk(ctx, flushTime).Return(nil)
 	}
-	require.True(t, database.flushToDiskWithTime(flushTime))
+	require.True(t, database.flushToDiskWithTime(ctx, flushTime))
 
 	m := mocks.NewMockdatabaseShard(ctrl)
 	database.shards[0] = m
-	m.EXPECT().FlushToDisk(flushTime).Return(nil)
+	m.EXPECT().FlushToDisk(ctx, flushTime).Return(nil)
 
 	m = mocks.NewMockdatabaseShard(ctrl)
 	database.shards[1] = m
-	m.EXPECT().FlushToDisk(flushTime).Return(errors.New("some errors"))
+	m.EXPECT().FlushToDisk(ctx, flushTime).Return(errors.New("some errors"))
 	m.EXPECT().ShardNum().Return(uint32(1))
 
-	require.False(t, database.flushToDiskWithTime(flushTime))
+	require.False(t, database.flushToDiskWithTime(ctx, flushTime))
 }

@@ -24,10 +24,12 @@
 package mocks
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	time "time"
+
 	m3db "github.com/m3db/m3db/interfaces/m3db"
 	time0 "github.com/m3db/m3db/x/time"
-	time "time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of databaseSeries interface
@@ -112,12 +114,12 @@ func (_mr *_MockdatabaseSeriesRecorder) Bootstrap(arg0, arg1 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1)
 }
 
-func (_m *MockdatabaseSeries) FlushToDisk(writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error {
-	ret := _m.ctrl.Call(_m, "FlushToDisk", writer, blockStart, segmentHolder)
+func (_m *MockdatabaseSeries) FlushToDisk(ctx m3db.Context, writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error {
+	ret := _m.ctrl.Call(_m, "FlushToDisk", ctx, writer, blockStart, segmentHolder)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseSeriesRecorder) FlushToDisk(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushToDisk", arg0, arg1, arg2)
+func (_mr *_MockdatabaseSeriesRecorder) FlushToDisk(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushToDisk", arg0, arg1, arg2, arg3)
 }

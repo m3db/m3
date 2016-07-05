@@ -350,8 +350,11 @@ func (d *db) flushToDisk(tickStart time.Time, asyncFlush bool) {
 	d.fm.Unlock()
 
 	flushFn := func() {
+		ctx := d.opts.GetContextPool().Get()
+		defer ctx.Close()
+
 		for _, t := range timesToFlush {
-			success := d.flushToDiskWithTime(t)
+			success := d.flushToDiskWithTime(ctx, t)
 			d.fm.Lock()
 			flushState := d.flushAttempted[t]
 			if success {
@@ -396,14 +399,14 @@ func (d *db) getTimesToFlush(tickStart time.Time) []time.Time {
 }
 
 // flushToDiskWithTime flushes data blocks for owned shards to local disk.
-func (d *db) flushToDiskWithTime(t time.Time) bool {
+func (d *db) flushToDiskWithTime(ctx m3db.Context, t time.Time) bool {
 	allShardsSucceeded := true
 	log := d.opts.GetLogger()
 	shards := d.getOwnedShards()
 	for _, shard := range shards {
 		// NB(xichen): we still want to proceed if a shard fails to flush its data to disk.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.FlushToDisk(t); err != nil {
+		if err := shard.FlushToDisk(ctx, t); err != nil {
 			log.Errorf("shard %d failed to flush data to disk: %v", shard.ShardNum(), err)
 			allShardsSucceeded = false
 		}

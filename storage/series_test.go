@@ -40,7 +40,8 @@ func newSeriesTestOptions() m3db.DatabaseOptions {
 		BlockSize(2 * time.Minute).
 		BufferFuture(10 * time.Second).
 		BufferPast(10 * time.Second).
-		BufferDrain(30 * time.Second)
+		BufferDrain(30 * time.Second).
+		RetentionPeriod(time.Hour)
 }
 
 func TestSeriesEmpty(t *testing.T) {
@@ -85,8 +86,10 @@ func TestSeriesWriteFlush(t *testing.T) {
 	block, ok := series.blocks.GetBlockAt(start)
 	assert.Equal(t, true, ok)
 
+	stream, err := block.Stream(nil)
+	require.NoError(t, err)
 	assertValuesEqual(t, data[:2], [][]m3db.SegmentReader{[]m3db.SegmentReader{
-		block.Stream(),
+		stream,
 	}}, opts)
 }
 
@@ -147,7 +150,7 @@ func TestSeriesFlushToDiskNoBlock(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	flushTime := time.Unix(7200, 0)
-	err := series.FlushToDisk(nil, flushTime, nil)
+	err := series.FlushToDisk(nil, nil, flushTime, nil)
 	require.Nil(t, err)
 }
 
@@ -173,8 +176,71 @@ func TestSeriesFlushToDisk(t *testing.T) {
 		res.Tail = holder[1]
 	}).Return(nil)
 
-	block := NewDatabaseBlock(flushTime, encoder, opts)
+	block := opts.GetDatabaseBlockPool().Get()
+	block.Reset(flushTime, encoder)
 	series.blocks.AddBlock(block)
-	err := series.FlushToDisk(writer, flushTime, segmentHolder)
+	err := series.FlushToDisk(nil, writer, flushTime, segmentHolder)
 	require.Nil(t, err)
+}
+
+func TestSeriesTickEmptySeries(t *testing.T) {
+	opts := newSeriesTestOptions()
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	err := series.Tick()
+	require.Equal(t, errSeriesAllDatapointsExpired, err)
+}
+
+func TestSeriesTickNeedsDrain(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	buffer := mocks.NewMockdatabaseBuffer(ctrl)
+	series.buffer = buffer
+	buffer.EXPECT().Empty().Return(false)
+	buffer.EXPECT().NeedsDrain().Return(true)
+	buffer.EXPECT().DrainAndReset()
+	err := series.Tick()
+	require.NoError(t, err)
+}
+
+func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	curr := time.Now().Truncate(opts.GetBlockSize())
+	opts = opts.NowFn(func() time.Time {
+		return curr
+	})
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	blockStart := curr.Add(-opts.GetRetentionPeriod()).Add(-opts.GetBlockSize())
+	block := mocks.NewMockDatabaseBlock(ctrl)
+	block.EXPECT().StartTime().Return(blockStart)
+	block.EXPECT().Close()
+	series.blocks.AddBlock(block)
+	block = mocks.NewMockDatabaseBlock(ctrl)
+	block.EXPECT().StartTime().Return(curr)
+	series.blocks.AddBlock(block)
+	require.Equal(t, blockStart, series.blocks.GetMinTime())
+	require.Equal(t, 2, series.blocks.Len())
+	buffer := mocks.NewMockdatabaseBuffer(ctrl)
+	series.buffer = buffer
+	buffer.EXPECT().Empty().Return(true)
+	buffer.EXPECT().NeedsDrain().Return(false)
+	err := series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 1, series.blocks.Len())
+	require.Equal(t, curr, series.blocks.GetMinTime())
+	_, exists := series.blocks.GetAllBlocks()[curr]
+	require.True(t, exists)
+}
+
+func TestShouldExpire(t *testing.T) {
+	opts := newSeriesTestOptions()
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	now := time.Now()
+	require.False(t, series.shouldExpire(now, now))
+	require.True(t, series.shouldExpire(now, now.Add(-opts.GetRetentionPeriod()).Add(-opts.GetBlockSize())))
 }

@@ -21,24 +21,45 @@
 package storage
 
 import (
+	"errors"
 	"time"
 
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/interfaces/m3db"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
+var (
+	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
+	errWriteToClosedBlock  = errors.New("attemp to write to a closed block")
+)
+
+// NB(xichen): locking of dbBlock instances is currently done outside the dbBlock struct at the series level.
+// Specifically, read lock is acquired for accessing operations like Stream(), and write lock is acquired
+// for mutating operations like Write(), Reset(), and Close(). Adding a explicit lock to the dbBlock struct might
+// make it more clear w.r.t. how/when we acquire locks, though.
 type dbBlock struct {
-	opts    m3db.DatabaseOptions
-	start   time.Time
-	encoder m3db.Encoder
+	opts     m3db.DatabaseOptions
+	start    time.Time
+	encoder  m3db.Encoder
+	ctxAlloc m3db.ContextAllocate
+	ctx      m3db.Context
+	closed   bool
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(start time.Time, encoder m3db.Encoder, opts m3db.DatabaseOptions) m3db.DatabaseBlock {
+	ctxAlloc := context.NewContext
+	if pool := opts.GetContextPool(); pool != nil {
+		ctxAlloc = pool.Get
+	}
 	return &dbBlock{
-		opts:    opts,
-		start:   start,
-		encoder: encoder,
+		opts:     opts,
+		start:    start,
+		encoder:  encoder,
+		ctxAlloc: ctxAlloc,
+		ctx:      ctxAlloc(),
+		closed:   false,
 	}
 }
 
@@ -47,16 +68,56 @@ func (b *dbBlock) StartTime() time.Time {
 }
 
 func (b *dbBlock) Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+	if b.closed {
+		return errWriteToClosedBlock
+	}
 	return b.encoder.Encode(m3db.Datapoint{Timestamp: timestamp, Value: value}, unit, annotation)
 }
 
-func (b *dbBlock) Stream() m3db.SegmentReader {
-	return b.encoder.Stream()
+func (b *dbBlock) Stream(blocker m3db.Context) (m3db.SegmentReader, error) {
+	if b.closed {
+		return nil, errReadFromClosedBlock
+	}
+	s := b.encoder.Stream()
+	if blocker != nil {
+		b.ctx.DependsOn(blocker)
+	}
+	return s, nil
+}
+
+// close closes internal context and returns encoder to pool.
+func (b *dbBlock) closeContextAndEncoder() {
+	// If the context is nil (e.g., when it's just obtained from the pool),
+	// we return immediately.
+	if b.ctx == nil {
+		return
+	}
+	if encoder := b.encoder; encoder != nil {
+		b.ctx.RegisterCloser(encoder.Close)
+	}
+	b.ctx.Close()
+	b.ctx = nil
+	b.encoder = nil
+}
+
+// Reset resets the block start time and the encoder.
+func (b *dbBlock) Reset(startTime time.Time, encoder m3db.Encoder) {
+	b.closeContextAndEncoder()
+	b.start = startTime
+	b.encoder = encoder
+	b.ctx = b.ctxAlloc()
+	b.closed = false
 }
 
 func (b *dbBlock) Close() {
-	// This will return the encoder to the pool
-	b.encoder.Close()
+	if b.closed {
+		return
+	}
+	b.closeContextAndEncoder()
+	if pool := b.opts.GetDatabaseBlockPool(); pool != nil {
+		pool.Put(b)
+	}
+	b.closed = true
 }
 
 type databaseSeriesBlocks struct {
@@ -119,7 +180,10 @@ func (dbb *databaseSeriesBlocks) GetBlockOrAdd(t time.Time) m3db.DatabaseBlock {
 	if ok {
 		return b
 	}
-	newBlock := NewDatabaseBlock(t, nil, dbb.dbOpts)
+	encoder := dbb.dbOpts.GetEncoderPool().Get()
+	encoder.Reset(t, dbb.dbOpts.GetDatabaseBlockAllocSize())
+	newBlock := dbb.dbOpts.GetDatabaseBlockPool().Get()
+	newBlock.Reset(t, encoder)
 	dbb.AddBlock(newBlock)
 	return newBlock
 }
@@ -138,11 +202,17 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 	}
 	dbb.min, dbb.max = timeZero, timeZero
 	for k := range dbb.elems {
-		if dbb.min.After(k) {
+		if dbb.min == timeZero || dbb.min.After(k) {
 			dbb.min = k
 		}
-		if dbb.max.Before(k) {
+		if dbb.max == timeZero || dbb.max.Before(k) {
 			dbb.max = k
 		}
+	}
+}
+
+func (dbb *databaseSeriesBlocks) Close() {
+	for _, block := range dbb.elems {
+		block.Close()
 	}
 }

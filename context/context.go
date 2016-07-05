@@ -106,6 +106,7 @@ func (c *ctx) Close() {
 	c.Unlock()
 
 	if len(closers) > 0 {
+		// NB(xichen): might be worth using a worker pool for the go routines.
 		go func() {
 			// Wait for dependencies
 			c.dep.dependencies.Wait()

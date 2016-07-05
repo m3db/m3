@@ -78,3 +78,10 @@ func (sr *shardResult) AddResult(other m3db.ShardResult) {
 func (sr *shardResult) GetAllSeries() map[string]m3db.DatabaseSeriesBlocks {
 	return sr.blocks
 }
+
+// Close closes a shard result.
+func (sr *shardResult) Close() {
+	for _, series := range sr.blocks {
+		series.Close()
+	}
+}

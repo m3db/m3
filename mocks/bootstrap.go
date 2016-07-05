@@ -26,9 +26,10 @@ package mocks
 import (
 	time "time"
 
-	gomock "github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/interfaces/m3db"
 	time0 "github.com/m3db/m3db/x/time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of ShardResult interface
@@ -94,6 +95,14 @@ func (_m *MockShardResult) GetAllSeries() map[string]m3db.DatabaseSeriesBlocks {
 
 func (_mr *_MockShardResultRecorder) GetAllSeries() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetAllSeries")
+}
+
+func (_m *MockShardResult) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+func (_mr *_MockShardResultRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
 // Mock of Bootstrap interface

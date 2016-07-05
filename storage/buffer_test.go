@@ -256,6 +256,12 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		ctx.Close()
 	}
 
+	bucketIdx := (curr.UnixNano() / int64(opts.GetBlockSize())) % bucketsLen
+	assert.Equal(t, 2, len(buffer.buckets[bucketIdx].encoders))
+	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].lastWriteAt)
+	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].encoders[0].lastWriteAt)
+	assert.Equal(t, data[2].timestamp, buffer.buckets[bucketIdx].encoders[1].lastWriteAt)
+
 	// Restore data to in order for comparison
 	sort.Sort(valuesByTime(data))
 

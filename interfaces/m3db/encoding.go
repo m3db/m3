@@ -77,7 +77,7 @@ type Iterator interface {
 	Close()
 }
 
-// SingleReaderIterator is an iterators that iterates over a single reader
+// SingleReaderIterator is the interface for a single-reader iterator.
 type SingleReaderIterator interface {
 	Iterator
 
@@ -86,7 +86,7 @@ type SingleReaderIterator interface {
 }
 
 // MultiReaderIterator is an iterator that iterates in order over a set of
-// internally ordered but not collectively in order readers
+// internally ordered but not collectively in order readers.
 type MultiReaderIterator interface {
 	Iterator
 

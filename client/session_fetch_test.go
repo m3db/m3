@@ -21,7 +21,6 @@
 package client
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -33,6 +32,11 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
+
+type testFetch struct {
+	id     string
+	values []testValue
+}
 
 type testValue struct {
 	value      float64
@@ -53,10 +57,7 @@ func TestSessionFetchAll(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)
 
-	data := []struct {
-		id     string
-		values []testValue
-	}{
+	fetches := []testFetch{
 		{"foo", []testValue{
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
@@ -90,34 +91,7 @@ func TestSessionFetchAll(t *testing.T) {
 	go func() {
 		// TODO(r): work out why it takes so long to wait for enqueue to be called
 		enqueueWg.Wait()
-
-		for _, op := range fetchOps {
-			for i, id := range op.request.Ids {
-				calledCompletionFn := false
-				for _, d := range data {
-					if d.id != id {
-						continue
-					}
-
-					// Options uses TSZ encoding by default
-					encoder := tsz.NewEncoder(d.values[0].t, nil, nil)
-					for _, value := range d.values {
-						dp := m3db.Datapoint{
-							Timestamp: value.t,
-							Value:     value.value,
-						}
-						encoder.Encode(dp, value.unit, value.annotation)
-					}
-					seg := encoder.Stream().Segment()
-					op.completionFns[i]([]*rpc.Segments{&rpc.Segments{
-						Merged: &rpc.Segment{Head: seg.Head, Tail: seg.Tail},
-					}}, nil)
-					calledCompletionFn = true
-					break
-				}
-				assert.True(t, calledCompletionFn, "must call completion for ID", id)
-			}
-		}
+		fulfillTszFetchOps(t, fetches, fetchOps)
 	}()
 
 	assert.NoError(t, session.Open())
@@ -125,21 +99,18 @@ func TestSessionFetchAll(t *testing.T) {
 	ids := []string{"foo", "bar", "baz"}
 	results, err := session.FetchAll(ids, start, end)
 	assert.NoError(t, err)
-	assert.Equal(t, len(data), len(results))
+	assert.Equal(t, len(fetches), len(results))
 
 	for i, series := range results {
-		expected := data[i]
+		expected := fetches[i]
 		assert.Equal(t, expected.id, series.ID())
 		assert.Equal(t, start, series.Start())
 		assert.Equal(t, end, series.End())
 
 		j := 0
-		fmt.Printf("checking %s\n", expected.id)
 		for series.Next() {
 			value := expected.values[j]
 			dp, unit, annotation := series.Current()
-			fmt.Printf("expected %v, %v\n", value.t, value.value)
-			fmt.Printf("actual %v, %v\n", dp.Timestamp, dp.Value)
 			assert.True(t, dp.Timestamp.Equal(value.t))
 			assert.Equal(t, value.value, dp.Value)
 			assert.Equal(t, value.unit, unit)
@@ -152,4 +123,33 @@ func TestSessionFetchAll(t *testing.T) {
 	results.CloseAll()
 
 	assert.NoError(t, session.Close())
+}
+
+func fulfillTszFetchOps(t *testing.T, fetches []testFetch, fetchOps []*fetchOp) {
+	for _, op := range fetchOps {
+		for i, id := range op.request.Ids {
+			calledCompletionFn := false
+			for _, f := range fetches {
+				if f.id != id {
+					continue
+				}
+
+				encoder := tsz.NewEncoder(f.values[0].t, nil, nil)
+				for _, value := range f.values {
+					dp := m3db.Datapoint{
+						Timestamp: value.t,
+						Value:     value.value,
+					}
+					encoder.Encode(dp, value.unit, value.annotation)
+				}
+				seg := encoder.Stream().Segment()
+				op.completionFns[i]([]*rpc.Segments{&rpc.Segments{
+					Merged: &rpc.Segment{Head: seg.Head, Tail: seg.Tail},
+				}}, nil)
+				calledCompletionFn = true
+				break
+			}
+			assert.True(t, calledCompletionFn, "must call completion for ID", id)
+		}
+	}
 }

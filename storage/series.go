@@ -61,7 +61,7 @@ type databaseSeries interface {
 	Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error
 
 	// FlushToDisk flushes the blocks to disk for a given start time.
-	FlushToDisk(writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error
+	FlushToDisk(ctx m3db.Context, writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error
 }
 
 type dbSeries struct {
@@ -104,22 +104,57 @@ func (s *dbSeries) Tick() error {
 	// stale buckets, cheaply check this case first with a Rlock
 	s.RLock()
 	needsDrain := s.buffer.NeedsDrain()
+	needsBlockExpiry := s.needsBlockExpiryWithRLock()
 	s.RUnlock()
 
-	if needsDrain {
-		s.Lock()
-		s.buffer.DrainAndReset()
-		s.Unlock()
+	if !needsDrain && !needsBlockExpiry {
+		return nil
 	}
 
-	// TODO(r): expire and write blocks to disk, when done ensure this is async
-	// as ticking through series in a shard is done synchronously
+	s.Lock()
+	if needsDrain {
+		s.buffer.DrainAndReset()
+	}
+
+	if needsBlockExpiry {
+		s.expireBlocksWithLock()
+	}
+	s.Unlock()
+
 	return nil
+}
+
+func (s *dbSeries) needsBlockExpiryWithRLock() bool {
+	if s.blocks.Len() == 0 {
+		return false
+	}
+
+	// If the earliest block is not within the retention period,
+	// we should expire the blocks.
+	now := s.opts.GetNowFn()()
+	minBlockStart := s.blocks.GetMinTime()
+	return s.shouldExpire(now, minBlockStart)
+}
+
+func (s *dbSeries) expireBlocksWithLock() {
+	now := s.opts.GetNowFn()()
+	allBlocks := s.blocks.GetAllBlocks()
+	for timestamp, block := range allBlocks {
+		if s.shouldExpire(now, timestamp) {
+			s.blocks.RemoveBlockAt(timestamp)
+			block.Close()
+		}
+	}
+}
+
+func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
+	cutoff := now.Add(-s.opts.GetRetentionPeriod()).Truncate(s.opts.GetBlockSize())
+	return blockStart.Before(cutoff)
 }
 
 func (s *dbSeries) Empty() bool {
 	s.RLock()
-	blocksLen := len(s.blocks.GetAllBlocks())
+	blocksLen := s.blocks.Len()
 	bufferEmpty := s.buffer.Empty()
 	s.RUnlock()
 	if blocksLen == 0 && bufferEmpty {
@@ -165,7 +200,7 @@ func (s *dbSeries) ReadEncoded(
 
 	s.RLock()
 
-	if len(s.blocks.GetAllBlocks()) > 0 {
+	if s.blocks.Len() > 0 {
 		// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
 		if s.blocks.GetMinTime().After(alignedStart) {
 			alignedStart = s.blocks.GetMinTime()
@@ -175,8 +210,12 @@ func (s *dbSeries) ReadEncoded(
 		}
 		for blockAt := alignedStart; !blockAt.After(alignedEnd); blockAt = blockAt.Add(s.blockSize) {
 			if block, ok := s.blocks.GetBlockAt(blockAt); ok {
-				if s := block.Stream(); s != nil {
-					results = append(results, []m3db.SegmentReader{s})
+				stream, err := block.Stream(ctx)
+				if err != nil {
+					return nil, err
+				}
+				if stream != nil {
+					results = append(results, []m3db.SegmentReader{stream})
 				}
 			}
 		}
@@ -204,7 +243,9 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
 
 	if _, ok := s.blocks.GetBlockAt(start); !ok {
 		// New completed block
-		s.blocks.AddBlock(NewDatabaseBlock(start, encoder, s.opts))
+		newBlock := s.opts.GetDatabaseBlockPool().Get()
+		newBlock.Reset(start, encoder)
+		s.blocks.AddBlock(newBlock)
 		return
 	}
 
@@ -280,21 +321,27 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 // NB(xichen): segmentHolder is a two-item slice that's reused to
 // hold pointers to the head and the tail of each segment so we
 // don't need to allocate memory and gc it shortly after.
-func (s *dbSeries) FlushToDisk(writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error {
+func (s *dbSeries) FlushToDisk(
+	ctx m3db.Context,
+	writer m3db.FileSetWriter,
+	blockStart time.Time,
+	segmentHolder [][]byte,
+) error {
 	s.RLock()
 	b, exists := s.blocks.GetBlockAt(blockStart)
 	if !exists {
 		s.RUnlock()
 		return nil
 	}
-	sr := b.Stream()
-	if sr == nil {
-		s.RUnlock()
-		return nil
-	}
+	sr, err := b.Stream(ctx)
 	s.RUnlock()
 
-	// TODO(xichen): register this with contexts when it's in place.
+	if err != nil {
+		return err
+	}
+	if sr == nil {
+		return nil
+	}
 	segment := sr.Segment()
 	if len(segmentHolder) != 2 {
 		segmentHolder = make([][]byte, 2)

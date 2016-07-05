@@ -288,7 +288,7 @@ func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Un
 		encoder.Reset(timestamp.Truncate(b.opts.GetBlockSize()), b.opts.GetBufferBucketAllocSize())
 		next := inOrderEncoder{encoder: encoder}
 		b.encoders = append(b.encoders, next)
-		target = &next
+		target = &b.encoders[len(b.encoders)-1]
 	}
 
 	datapoint := m3db.Datapoint{
