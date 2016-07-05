@@ -61,7 +61,7 @@ func TestRoundTrip(t *testing.T) {
 			if j == 0 {
 				encoder.Encode(v, xtime.Millisecond, proto.EncodeVarint(10))
 			} else if j == 10 {
-				encoder.Encode(v, xtime.Millisecond, proto.EncodeVarint(60))
+				encoder.Encode(v, xtime.Microsecond, proto.EncodeVarint(60))
 			} else {
 				encoder.Encode(v, xtime.Second, nil)
 			}
