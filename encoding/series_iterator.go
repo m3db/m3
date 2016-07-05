@@ -106,6 +106,10 @@ func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Tim
 	it.firstNext = true
 	it.closed = false
 	for _, replica := range replicas {
+		// Replica can be nil if replica failed to respond
+		if replica == nil {
+			continue
+		}
 		it.iters = append(it.iters, replica)
 	}
 	heap.Init(&it.currIters)

@@ -164,13 +164,6 @@ func TestSessionWriteConsistencyLevelOne(t *testing.T) {
 	testWriteConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, 3, outcomeFail)
 }
 
-type outcome int
-
-const (
-	outcomeSuccess outcome = iota
-	outcomeFail
-)
-
 func testWriteConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
@@ -216,7 +209,7 @@ func testWriteConsistencyLevel(
 
 	// Callback
 	enqueueWg.Wait()
-	writeErr := "a very specific write error"
+	writeErr := "a specific write error"
 	for i := 0; i < session.topoMap.Replicas()-failures; i++ {
 		completionFn(nil, nil)
 	}

@@ -39,6 +39,13 @@ const (
 	sessionTestShards   = 3
 )
 
+type outcome int
+
+const (
+	outcomeSuccess outcome = iota
+	outcomeFail
+)
+
 type testEnqueueFn func(idx int, op m3db.Op)
 
 func newSessionTestOptions() m3db.ClientOptions {
@@ -54,7 +61,12 @@ func newSessionTestOptions() m3db.ClientOptions {
 		hostShardSets = append(hostShardSets, topology.NewHostShardSet(host, shardScheme.All()))
 	}
 
-	return NewOptions().TopologyType(topology.NewStaticTopologyType(
+	return NewOptions().
+		SeriesIteratorPoolSize(0).
+		SeriesIteratorArrayPoolBuckets([]m3db.PoolBucket{}).
+		WriteOpPoolSize(0).
+		FetchOpPoolSize(0).
+		TopologyType(topology.NewStaticTopologyType(
 		topology.NewStaticTopologyTypeOptions().
 			Replicas(sessionTestReplicas).
 			ShardScheme(shardScheme).
