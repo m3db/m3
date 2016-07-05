@@ -39,6 +39,7 @@ type mixedReadersIterator struct {
 	slicesIter m3db.ReaderSliceOfSlicesIterator
 	state      activeIterState
 	err        error
+	closed     bool
 }
 
 // NewMixedReadersIterator creates a new mixed readers iterator
@@ -56,7 +57,7 @@ func NewMixedReadersIterator(
 }
 
 func (it *mixedReadersIterator) Next() bool {
-	if it.err != nil {
+	if it.err != nil || it.closed {
 		return false
 	}
 	switch it.state {
@@ -92,7 +93,7 @@ func (it *mixedReadersIterator) Next() bool {
 	case activeIterStateMulti:
 		next := it.multiIter.Next()
 		if it.err == nil {
-			it.err = it.singleIter.Err()
+			it.err = it.multiIter.Err()
 		}
 		if next {
 			return true
@@ -106,7 +107,7 @@ func (it *mixedReadersIterator) Next() bool {
 }
 
 func (it *mixedReadersIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
-	if it.err == nil {
+	if it.err == nil && !it.closed {
 		switch it.state {
 		case activeIterStateSingle:
 			return it.singleIter.Current()
@@ -122,7 +123,10 @@ func (it *mixedReadersIterator) Err() error {
 }
 
 func (it *mixedReadersIterator) Close() {
-	// No-op
+	if it.closed {
+		return
+	}
+	it.closed = true
 	// TODO(r): enable pooling and return to pool
 }
 
@@ -130,4 +134,5 @@ func (it *mixedReadersIterator) Reset(slicesIter m3db.ReaderSliceOfSlicesIterato
 	it.slicesIter = slicesIter
 	it.state = activeIterStateNone
 	it.err = nil
+	it.closed = false
 }

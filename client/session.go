@@ -327,7 +327,7 @@ func (s *session) Fetch(id string, startInclusive, endExclusive time.Time) (m3db
 	return results[0], nil
 }
 
-func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time) ([]m3db.SeriesIterator, error) {
+func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time) (m3db.SeriesIterators, error) {
 	var (
 		wg                sync.WaitGroup
 		routeErr          error
@@ -335,7 +335,6 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		resultErrLock     sync.Mutex
 		resultErr         error
 		resultErrs        int
-		replicas          int
 		quorum            int
 		fetchOpsByHostIdx [][]*fetchOp
 	)
@@ -351,20 +350,22 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	}
 
 	iters := s.seriesIteratorArrayPool.Get(len(ids))
+	iters = iters[:len(ids)]
 
 	fetchOpsByHostIdx = s.fetchOpArrayArrayPool.Get()
 
 	s.RLock()
-	replicas = s.replicas
 	quorum = s.quorum
 	for idx := range ids {
 		idx := idx
 
-		var firstErr error
-		enqueued := 0
-		pending := int32(0)
-		errs := int32(0)
-		results := s.iteratorArrayPool.Get(replicas)
+		var (
+			results  []m3db.Iterator
+			enqueued int
+			pending  int32
+			firstErr error
+			errs     int32
+		)
 
 		wg.Add(1)
 		completionFn := func(result interface{}, err error) {
@@ -380,6 +381,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				slicesIter := newReaderSliceOfSlicesIterator(r)
 				mixedIter := s.mixedReadersIteratorPool.Get()
 				mixedIter.Reset(slicesIter)
+				// Results is pre-allocated after creating fetchops for this ID below
 				results[resultsIdx] = mixedIter
 			}
 			if resultsIdx != 0 {
@@ -400,12 +402,12 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 			wg.Done()
 		}
 
-		if err := s.topoMap.RouteForEach(ids[idx], func(idx int, host m3db.Host) {
+		if err := s.topoMap.RouteForEach(ids[idx], func(hostIdx int, host m3db.Host) {
 			// Inc safely as this for each is sequential
 			enqueued++
 			pending++
 
-			ops := fetchOpsByHostIdx[idx]
+			ops := fetchOpsByHostIdx[hostIdx]
 
 			var f *fetchOp
 			if len(ops) > 0 {
@@ -415,7 +417,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 			if f == nil || f.Size() >= s.fetchBatchSize {
 				// If no current fetch op or existing one is at batch capacity add one
 				f = s.fetchOpPool.Get()
-				ops = append(ops, f)
+				fetchOpsByHostIdx[hostIdx] = append(fetchOpsByHostIdx[hostIdx], f)
 				f.request.RangeStart = rangeStart
 				f.request.RangeEnd = rangeEnd
 				f.request.RangeType = rpc.TimeType_UNIX_NANOSECONDS
@@ -427,6 +429,10 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 			routeErr = err
 			break
 		}
+
+		// Once we've enqueued we know how many to expect so retrive and set length
+		results = s.iteratorArrayPool.Get(enqueued)
+		results = results[:enqueued]
 	}
 
 	if routeErr != nil {

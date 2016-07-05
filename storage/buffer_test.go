@@ -33,7 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func bufferTestOptions() m3db.DatabaseOptions {
+func newBufferTestOptions() m3db.DatabaseOptions {
 	return NewDatabaseOptions().
 		BlockSize(2 * time.Minute).
 		BufferFuture(10 * time.Second).
@@ -42,7 +42,7 @@ func bufferTestOptions() m3db.DatabaseOptions {
 }
 
 func TestBufferWriteTooFuture(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -58,7 +58,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 }
 
 func TestBufferWriteTooPast(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -74,7 +74,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 }
 
 func TestBufferWriteRead(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -103,7 +103,7 @@ func TestBufferWriteRead(t *testing.T) {
 }
 
 func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	start := curr
 	opts = opts.NowFn(func() time.Time {
@@ -147,7 +147,7 @@ func TestBufferDrain(t *testing.T) {
 		drained = append(drained, drain{start, encoder})
 	}
 
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -196,7 +196,7 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 		drained = append(drained, drain{start, encoder})
 	}
 
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -234,7 +234,7 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 }
 
 func TestBufferWriteOutOfOrder(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -285,7 +285,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 }
 
 func TestBufferBucketSort(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	b := &dbBufferBucket{opts: opts, start: curr, outOfOrder: true}
 	data := [][]value{

@@ -22,6 +22,7 @@ package encoding
 
 import (
 	"container/heap"
+	"errors"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
@@ -29,17 +30,19 @@ import (
 )
 
 var (
-	timeZero time.Time
+	timeZero              time.Time
+	errOutOfOrderIterator = errors.New("series values are out of order from mixed reader")
 )
 
 type seriesIterator struct {
-	id     string
-	start  time.Time
-	end    time.Time
-	iters  IteratorHeap
-	lastAt time.Time
-	err    error
-	closed bool
+	id        string
+	start     time.Time
+	end       time.Time
+	iters     []m3db.Iterator
+	currIters IteratorHeap
+	err       error
+	firstNext bool
+	closed    bool
 }
 
 // NewSeriesIterator creates a new series iterator
@@ -66,15 +69,19 @@ func (it *seriesIterator) End() time.Time {
 }
 
 func (it *seriesIterator) Next() bool {
+	if it.firstNext {
+		it.firstNext = false
+		return it.hasNext()
+	}
 	if !it.hasNext() {
 		return false
 	}
-	it.moveToNext()
+	it.moveToNext(true)
 	return it.hasNext()
 }
 
 func (it *seriesIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
-	return it.iters[0].Current()
+	return it.currIters[0].Current()
 }
 
 func (it *seriesIterator) Err() error {
@@ -94,24 +101,15 @@ func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Tim
 	it.start = startInclusive
 	it.end = endExclusive
 	it.iters = it.iters[:0]
-	it.lastAt = timeZero
+	it.currIters = it.currIters[:0]
 	it.err = nil
-	heap.Init(&it.iters)
-	for _, replicaIter := range replicas {
-		if replicaIter == nil {
-			continue
-		}
-		if replicaIter.Next() {
-			heap.Push(&it.iters, replicaIter)
-		} else {
-			err := replicaIter.Err()
-			replicaIter.Close()
-			if err != nil {
-				it.err = err
-				return
-			}
-		}
+	it.firstNext = true
+	it.closed = false
+	for _, replica := range replicas {
+		it.iters = append(it.iters, replica)
 	}
+	heap.Init(&it.currIters)
+	it.moveToNext(false)
 }
 
 func (it *seriesIterator) hasError() bool {
@@ -123,32 +121,91 @@ func (it *seriesIterator) isClosed() bool {
 }
 
 func (it *seriesIterator) hasMore() bool {
-	return it.iters == nil || it.iters.Len() > 0
+	return len(it.iters) > 0
 }
 
 func (it *seriesIterator) hasNext() bool {
 	return !it.hasError() && !it.isClosed() && it.hasMore()
 }
 
-func (it *seriesIterator) moveToNext() {
-	earliest := heap.Pop(&it.iters).(m3db.Iterator)
-	if earliest.Next() {
-		heap.Push(&it.iters, earliest)
-
-		// Now de-dupe and apply filters
-		dp, _, _ := earliest.Current()
-		if dp.Timestamp.Before(it.start) ||
-			!dp.Timestamp.Before(it.end) ||
-			!dp.Timestamp.After(it.lastAt) {
-			it.moveToNext()
-		} else {
-			it.lastAt = dp.Timestamp
+func (it *seriesIterator) moveIterToValidNext(iter m3db.Iterator) bool {
+	dp, _, _ := iter.Current()
+	prevT := dp.Timestamp
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		t := dp.Timestamp
+		if t.Before(prevT) {
+			// Out of order datapoint
+			it.err = errOutOfOrderIterator
+			iter.Close()
+			return false
 		}
-	} else {
-		err := earliest.Err()
-		earliest.Close()
-		if err != nil {
-			it.err = err
+		if t.Before(it.start) {
+			// Fast forward
+			continue
+		}
+		if !t.Before(it.end) {
+			// Close this iter
+			break
+		}
+		return true
+	}
+
+	err := iter.Err()
+	iter.Close()
+	if err != nil {
+		it.err = err
+	}
+	return false
+}
+
+func (it *seriesIterator) moveToNext(pop bool) {
+	if pop {
+		heap.Pop(&it.currIters)
+	}
+
+	for i, iter := range it.iters {
+		for _, existing := range it.currIters {
+			if existing == iter {
+				// Already have this iterator in the currIters
+				continue
+			}
+		}
+
+		if !it.moveIterToValidNext(iter) {
+			// Closed so remove it, two step, first nil out then delete
+			it.iters[i] = nil
+			continue
+		}
+
+		// Dedupe
+		dp, _, _ := iter.Current()
+		t := dp.Timestamp
+		dupe := false
+		for i := range it.currIters {
+			dp, _, _ := it.currIters[i].Current()
+			existsT := dp.Timestamp
+			if t.Equal(existsT) {
+				dupe = true
+				break
+			}
+		}
+		if !dupe {
+			heap.Push(&it.currIters, iter)
+		}
+	}
+
+	// Delete all nil iters
+	itersLen := len(it.iters)
+	for i := 0; i < itersLen; i++ {
+		if it.iters[i] == nil {
+			// Swap tail to here and progress
+			it.iters[i] = it.iters[itersLen-1]
+			it.iters = it.iters[:itersLen-1]
+			itersLen--
+
+			// Reconsider this record
+			i--
 		}
 	}
 }

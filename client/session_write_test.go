@@ -29,7 +29,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/mocks"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	xtime "github.com/m3db/m3db/x/time"
 
@@ -60,7 +59,7 @@ func TestSessionWrite(t *testing.T) {
 	}
 
 	var completionFn m3db.CompletionFn
-	enqueueWg := mockHostQueues(ctrl, session, sessionTestShards, func(idx int, op m3db.Op) {
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op m3db.Op) {
 		completionFn = op.GetCompletionFn()
 		write, ok := op.(*writeOp)
 		assert.True(t, ok)
@@ -70,7 +69,7 @@ func TestSessionWrite(t *testing.T) {
 		assert.Equal(t, w.t.Unix(), write.datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.datapoint.TimestampType)
 		assert.NotNil(t, write.completionFn)
-	})
+	}})
 
 	assert.NoError(t, session.Open())
 
@@ -124,7 +123,7 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 		annotation: nil,
 	}
 
-	mockHostQueues(ctrl, session, sessionTestShards, nil)
+	mockHostQueues(ctrl, session, sessionTestReplicas, nil)
 
 	assert.NoError(t, session.Open())
 
@@ -137,9 +136,9 @@ func TestSessionWriteConsistencyLevelAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	testConsistencyLevel(t, ctrl, m3db.ConsistencyLevelAll, 0, outcomeSuccess)
+	testWriteConsistencyLevel(t, ctrl, m3db.ConsistencyLevelAll, 0, outcomeSuccess)
 	for i := 1; i <= 3; i++ {
-		testConsistencyLevel(t, ctrl, m3db.ConsistencyLevelAll, i, outcomeFail)
+		testWriteConsistencyLevel(t, ctrl, m3db.ConsistencyLevelAll, i, outcomeFail)
 	}
 }
 
@@ -148,10 +147,10 @@ func TestSessionWriteConsistencyLevelQuorum(t *testing.T) {
 	defer ctrl.Finish()
 
 	for i := 0; i <= 1; i++ {
-		testConsistencyLevel(t, ctrl, m3db.ConsistencyLevelQuorum, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, m3db.ConsistencyLevelQuorum, i, outcomeSuccess)
 	}
 	for i := 2; i <= 3; i++ {
-		testConsistencyLevel(t, ctrl, m3db.ConsistencyLevelQuorum, i, outcomeFail)
+		testWriteConsistencyLevel(t, ctrl, m3db.ConsistencyLevelQuorum, i, outcomeFail)
 	}
 }
 
@@ -160,44 +159,9 @@ func TestSessionWriteConsistencyLevelOne(t *testing.T) {
 	defer ctrl.Finish()
 
 	for i := 0; i <= 2; i++ {
-		testConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, i, outcomeSuccess)
 	}
-	testConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, 3, outcomeFail)
-}
-
-func mockHostQueues(
-	ctrl *gomock.Controller,
-	s *session,
-	replicas int,
-	enqueueFn func(idx int, op m3db.Op),
-) *sync.WaitGroup {
-	var enqueueWg sync.WaitGroup
-	enqueueWg.Add(replicas)
-	idx := 0
-	s.newHostQueueFn = func(
-		host m3db.Host,
-		writeBatchRequestPool writeBatchRequestPool,
-		writeRequestArrayPool writeRequestArrayPool,
-		opts m3db.ClientOptions,
-	) hostQueue {
-		enqueuedIdx := idx
-		hostQueue := mocks.NewMockhostQueue(ctrl)
-		hostQueue.EXPECT().Open()
-		// Take two attempts to establish min connection count
-		hostQueue.EXPECT().GetConnectionCount().Return(0).Times(sessionTestShards)
-		hostQueue.EXPECT().GetConnectionCount().Return(opts.GetMinConnectionCount()).Times(sessionTestShards)
-		if enqueueFn != nil {
-			hostQueue.EXPECT().Enqueue(gomock.Any()).Do(func(op m3db.Op) error {
-				enqueueFn(enqueuedIdx, op)
-				enqueueWg.Done()
-				return nil
-			}).Return(nil)
-		}
-		hostQueue.EXPECT().Close()
-		idx++
-		return hostQueue
-	}
-	return &enqueueWg
+	testWriteConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, 3, outcomeFail)
 }
 
 type outcome int
@@ -207,7 +171,7 @@ const (
 	outcomeFail
 )
 
-func testConsistencyLevel(
+func testWriteConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	level m3db.ConsistencyLevel,
@@ -235,9 +199,9 @@ func testConsistencyLevel(
 	}
 
 	var completionFn m3db.CompletionFn
-	enqueueWg := mockHostQueues(ctrl, session, sessionTestShards, func(idx int, op m3db.Op) {
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op m3db.Op) {
 		completionFn = op.GetCompletionFn()
-	})
+	}})
 
 	assert.NoError(t, session.Open())
 

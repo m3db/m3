@@ -41,7 +41,7 @@ type Session interface {
 	Fetch(id string, startInclusive, endExclusive time.Time) (SeriesIterator, error)
 
 	// FetchAll values from the database for a set of IDs
-	FetchAll(ids []string, startInclusive, endExclusive time.Time) ([]SeriesIterator, error)
+	FetchAll(ids []string, startInclusive, endExclusive time.Time) (SeriesIterators, error)
 
 	// Close the session
 	Close() error

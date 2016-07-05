@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -37,6 +38,8 @@ const (
 	sessionTestReplicas = 3
 	sessionTestShards   = 3
 )
+
+type testEnqueueFn func(idx int, op m3db.Op)
 
 func newSessionTestOptions() m3db.ClientOptions {
 	shardScheme, _ := sharding.NewShardScheme(0, sessionTestShards-1, func(id string) uint32 { return 0 })
@@ -84,4 +87,53 @@ func TestSessionClusterConnectTimesOut(t *testing.T) {
 	err = session.Open()
 	assert.Error(t, err)
 	assert.Equal(t, ErrClusterConnectTimeout, err)
+}
+
+func mockHostQueues(
+	ctrl *gomock.Controller,
+	s *session,
+	replicas int,
+	enqueueFns []testEnqueueFn,
+) *sync.WaitGroup {
+	var enqueueWg sync.WaitGroup
+	enqueueWg.Add(replicas)
+	idx := 0
+	s.newHostQueueFn = func(
+		host m3db.Host,
+		writeBatchRequestPool writeBatchRequestPool,
+		writeRequestArrayPool writeRequestArrayPool,
+		opts m3db.ClientOptions,
+	) hostQueue {
+		// Make a copy of the enqueue fns for each host
+		hostEnqueueFns := make([]testEnqueueFn, len(enqueueFns))
+		copy(hostEnqueueFns, enqueueFns)
+
+		enqueuedIdx := idx
+		hostQueue := mocks.NewMockhostQueue(ctrl)
+		hostQueue.EXPECT().Open()
+		// Take two attempts to establish min connection count
+		hostQueue.EXPECT().GetConnectionCount().Return(0).Times(sessionTestShards)
+		hostQueue.EXPECT().GetConnectionCount().Return(opts.GetMinConnectionCount()).Times(sessionTestShards)
+		var expectNextEnqueueFn func(fns []testEnqueueFn)
+		expectNextEnqueueFn = func(fns []testEnqueueFn) {
+			fn := fns[0]
+			fns = fns[1:]
+			hostQueue.EXPECT().Enqueue(gomock.Any()).Do(func(op m3db.Op) error {
+				fn(enqueuedIdx, op)
+				if len(fns) > 0 {
+					expectNextEnqueueFn(fns)
+				} else {
+					enqueueWg.Done()
+				}
+				return nil
+			}).Return(nil)
+		}
+		if len(hostEnqueueFns) > 0 {
+			expectNextEnqueueFn(hostEnqueueFns)
+		}
+		hostQueue.EXPECT().Close()
+		idx++
+		return hostQueue
+	}
+	return &enqueueWg
 }

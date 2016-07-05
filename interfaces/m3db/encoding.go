@@ -139,6 +139,16 @@ type SeriesIterator interface {
 	Reset(id string, startInclusive, endExclusive time.Time, replicas []Iterator)
 }
 
+// SeriesIterators is an array of SeriesIterator that can close all iterators
+type SeriesIterators []SeriesIterator
+
+// CloseAll will close all iterators
+func (its SeriesIterators) CloseAll() {
+	for i := range its {
+		its[i].Close()
+	}
+}
+
 // Decoder is the generic interface for different types of decoders.
 type Decoder interface {
 	// Decode decodes the encoded data in the reader.

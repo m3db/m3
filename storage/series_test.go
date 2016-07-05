@@ -35,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func seriesTestOptions() m3db.DatabaseOptions {
+func newSeriesTestOptions() m3db.DatabaseOptions {
 	return NewDatabaseOptions().
 		BlockSize(2 * time.Minute).
 		BufferFuture(10 * time.Second).
@@ -44,13 +44,13 @@ func seriesTestOptions() m3db.DatabaseOptions {
 }
 
 func TestSeriesEmpty(t *testing.T) {
-	opts := seriesTestOptions()
+	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	assert.True(t, series.Empty())
 }
 
 func TestSeriesWriteFlush(t *testing.T) {
-	opts := seriesTestOptions()
+	opts := newSeriesTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	start := curr
 	opts = opts.NowFn(func() time.Time {
@@ -91,7 +91,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 }
 
 func TestSeriesWriteFlushRead(t *testing.T) {
-	opts := seriesTestOptions()
+	opts := newSeriesTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	start := curr
 	opts = opts.NowFn(func() time.Time {
@@ -131,7 +131,7 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 }
 
 func TestSeriesReadEndBeforeStart(t *testing.T) {
-	opts := seriesTestOptions()
+	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 
 	ctx := context.NewContext()
@@ -144,7 +144,7 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 }
 
 func TestSeriesFlushToDiskNoBlock(t *testing.T) {
-	opts := seriesTestOptions()
+	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	flushTime := time.Unix(7200, 0)
 	err := series.FlushToDisk(nil, flushTime, nil)
@@ -155,7 +155,7 @@ func TestSeriesFlushToDisk(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := seriesTestOptions()
+	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	flushTime := time.Unix(7200, 0)
 	head := []byte{0x1, 0x2}
