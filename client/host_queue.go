@@ -155,7 +155,15 @@ func (q *queue) flushEvery(interval time.Duration) {
 		q.Unlock()
 
 		if len(needsDrain) != 0 {
+			q.RLock()
+			if q.state != stateOpen {
+				q.RUnlock()
+				return
+			}
+			// Need to hold lock while writing to the drainIn
+			// channel to ensure it has not been closed
 			q.drainIn <- needsDrain
+			q.RUnlock()
 		}
 	}
 }
@@ -296,7 +304,7 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			op.completionFn(nil, err)
+			op.completeAll(nil, err)
 			cleanup()
 			return
 		}
@@ -304,23 +312,23 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 		ctx, _ := thrift.NewContext(q.opts.GetFetchRequestTimeout())
 		result, err := client.FetchRawBatch(ctx, &op.request)
 		if err != nil {
-			op.completionFn(nil, err)
+			op.completeAll(nil, err)
 			cleanup()
 			return
 		}
 
 		resultLen := len(result.Elements)
-		for i := range op.completionFns {
+		for i := 0; i < op.Size(); i++ {
 			if !(i < resultLen) {
 				// No results for this entry, in practice should never occur
-				op.completionFns[i](nil, errQueueFetchNoResponse)
+				op.complete(i, nil, errQueueFetchNoResponse)
 				continue
 			}
 			if result.Elements[i].Err != nil {
-				op.completionFns[i](nil, fmt.Errorf(result.Elements[i].Err.Message))
+				op.complete(i, nil, fmt.Errorf(result.Elements[i].Err.Message))
 				continue
 			}
-			op.completionFns[i](result.Elements[i].Segments, nil)
+			op.complete(i, result.Elements[i].Segments, nil)
 		}
 		cleanup()
 	}()
@@ -346,11 +354,12 @@ func (q *queue) Enqueue(o m3db.Op) error {
 	if q.opsSumSize >= q.size {
 		needsDrain = q.rotateOpsWithLock()
 	}
-	q.Unlock()
-
+	// Need to hold lock while writing to the drainIn
+	// channel to ensure it has not been closed
 	if len(needsDrain) != 0 {
 		q.drainIn <- needsDrain
 	}
+	q.Unlock()
 	return nil
 }
 
@@ -366,8 +375,8 @@ func (q *queue) Close() {
 	}
 
 	q.state = stateClosed
-	q.Unlock()
-
-	// Now we're closed its safe to close the drainIn channel
+	// Closed drainIn channel in lock to ensure writers know
+	// consistently if channel is open or not by checking state
 	close(q.drainIn)
+	q.Unlock()
 }

@@ -48,14 +48,17 @@ func (f *fetchBatchOp) Size() int {
 }
 
 func (f *fetchBatchOp) GetCompletionFn() m3db.CompletionFn {
-	return f.completionFn
+	return f.completeAll
 }
 
-func (f *fetchBatchOp) completionFn(result interface{}, err error) {
-	// Call all completion functions
-	for i := range f.completionFns {
-		f.completionFns[i](result, err)
+func (f *fetchBatchOp) completeAll(result interface{}, err error) {
+	for idx := range f.completionFns {
+		f.completionFns[idx](result, err)
 	}
+}
+
+func (f *fetchBatchOp) complete(idx int, result interface{}, err error) {
+	f.completionFns[idx](result, err)
 }
 
 type fetchBatchOpPool interface {
