@@ -296,11 +296,11 @@ type ClientOptions interface {
 	// GetWriteOpPoolSize returns the writeOpPoolSize
 	GetWriteOpPoolSize() int
 
-	// FetchOpPoolSize sets the fetchOpPoolSize and returns a new ClientOptions
-	FetchOpPoolSize(value int) ClientOptions
+	// FetchBatchOpPoolSize sets the fetchBatchOpPoolSize and returns a new ClientOptions
+	FetchBatchOpPoolSize(value int) ClientOptions
 
-	// GetFetchOpPoolSize returns the fetchOpPoolSize
-	GetFetchOpPoolSize() int
+	// GetFetchBatchOpPoolSize returns the fetchBatchOpPoolSize
+	GetFetchBatchOpPoolSize() int
 
 	// WriteBatchSize sets the writeBatchSize and returns a new ClientOptions
 	// NB(r): for a write only application load this should match the host

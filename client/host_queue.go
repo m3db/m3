@@ -206,7 +206,7 @@ func (q *queue) drain() {
 					currWriteOps = nil
 					currWriteRequests = nil
 				}
-			case *fetchOp:
+			case *fetchBatchOp:
 				q.asyncFetch(wgAll, v)
 			default:
 				completionFn := ops[i].GetCompletionFn()
@@ -286,7 +286,7 @@ func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []m3db.Op, elems []*rpc.Write
 	}()
 }
 
-func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchOp) {
+func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 	wg.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async fetches
 	go func() {

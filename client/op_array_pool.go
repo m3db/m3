@@ -54,12 +54,12 @@ func (p *poolOfOpArray) Put(ops []m3db.Op) {
 	p.pool.Put(ops)
 }
 
-type fetchOpArrayArrayPool interface {
+type fetchBatchOpArrayArrayPool interface {
 	// Get an array of fetch ops arrays
-	Get() [][]*fetchOp
+	Get() [][]*fetchBatchOp
 
 	// Put an array of fetch ops arrays
-	Put(ops [][]*fetchOp)
+	Put(ops [][]*fetchBatchOp)
 
 	// Entries returns the entries of fetch ops array array returned by the pool
 	Entries() int
@@ -68,39 +68,39 @@ type fetchOpArrayArrayPool interface {
 	Capacity() int
 }
 
-type poolOfFetchOpArrayArray struct {
+type poolOfFetchBatchOpArrayArray struct {
 	pool     m3db.ObjectPool
 	entries  int
 	capacity int
 }
 
-func newFetchOpArrayArrayPool(size int, entries int, capacity int) fetchOpArrayArrayPool {
+func newFetchBatchOpArrayArrayPool(size int, entries int, capacity int) fetchBatchOpArrayArrayPool {
 	p := pool.NewObjectPool(size)
 	p.Init(func() interface{} {
-		arr := make([][]*fetchOp, entries)
+		arr := make([][]*fetchBatchOp, entries)
 		for i := range arr {
-			arr[i] = make([]*fetchOp, 0, capacity)
+			arr[i] = make([]*fetchBatchOp, 0, capacity)
 		}
 		return arr
 	})
-	return &poolOfFetchOpArrayArray{p, entries, capacity}
+	return &poolOfFetchBatchOpArrayArray{p, entries, capacity}
 }
 
-func (p *poolOfFetchOpArrayArray) Get() [][]*fetchOp {
-	return p.pool.Get().([][]*fetchOp)
+func (p *poolOfFetchBatchOpArrayArray) Get() [][]*fetchBatchOp {
+	return p.pool.Get().([][]*fetchBatchOp)
 }
 
-func (p *poolOfFetchOpArrayArray) Put(arr [][]*fetchOp) {
+func (p *poolOfFetchBatchOpArrayArray) Put(arr [][]*fetchBatchOp) {
 	for i := range arr {
 		arr[i] = arr[i][:0]
 	}
 	p.pool.Put(arr)
 }
 
-func (p *poolOfFetchOpArrayArray) Entries() int {
+func (p *poolOfFetchBatchOpArrayArray) Entries() int {
 	return p.entries
 }
 
-func (p *poolOfFetchOpArrayArray) Capacity() int {
+func (p *poolOfFetchBatchOpArrayArray) Capacity() int {
 	return p.capacity
 }

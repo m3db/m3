@@ -58,9 +58,8 @@ const (
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 1000000
 
-	// defaultFetchOpPoolSize is the default fetch op pool size
-	// NB(r): Each fetch op can perform a full fetch batch of IDs
-	defaultFetchOpPoolSize = 8192
+	// defaultFetchBatchOpPoolSize is the default fetch op pool size
+	defaultFetchBatchOpPoolSize = 8192
 
 	// defaultWriteBatchSize is the default write batch size
 	defaultWriteBatchSize = 128
@@ -120,7 +119,7 @@ type options struct {
 	backgroundHealthCheckStutter   time.Duration
 	mixedReadersIteratorAlloc      m3db.MixedReadersIteratorAllocate
 	writeOpPoolSize                int
-	fetchOpPoolSize                int
+	fetchBatchOpPoolSize           int
 	writeBatchSize                 int
 	fetchBatchSize                 int
 	hostQueueOpsFlushSize          int
@@ -148,7 +147,7 @@ func NewOptions() m3db.ClientOptions {
 		backgroundHealthCheckInterval:  defaultBackgroundHealthCheckInterval,
 		backgroundHealthCheckStutter:   defaultBackgroundHealthCheckStutter,
 		writeOpPoolSize:                defaultWriteOpPoolSize,
-		fetchOpPoolSize:                defaultFetchOpPoolSize,
+		fetchBatchOpPoolSize:           defaultFetchBatchOpPoolSize,
 		writeBatchSize:                 defaultWriteBatchSize,
 		fetchBatchSize:                 defaultFetchBatchSize,
 		hostQueueOpsFlushSize:          defaultHostQueueOpsFlushSize,
@@ -351,14 +350,14 @@ func (o *options) GetWriteOpPoolSize() int {
 	return o.writeOpPoolSize
 }
 
-func (o *options) FetchOpPoolSize(value int) m3db.ClientOptions {
+func (o *options) FetchBatchOpPoolSize(value int) m3db.ClientOptions {
 	opts := *o
-	opts.fetchOpPoolSize = value
+	opts.fetchBatchOpPoolSize = value
 	return &opts
 }
 
-func (o *options) GetFetchOpPoolSize() int {
-	return o.fetchOpPoolSize
+func (o *options) GetFetchBatchOpPoolSize() int {
+	return o.fetchBatchOpPoolSize
 }
 
 func (o *options) WriteBatchSize(value int) m3db.ClientOptions {

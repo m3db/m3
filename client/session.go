@@ -70,8 +70,8 @@ type session struct {
 	queues                          []hostQueue
 	state                           state
 	writeOpPool                     writeOpPool
-	fetchOpPool                     fetchOpPool
-	fetchOpArrayArrayPool           fetchOpArrayArrayPool
+	fetchBatchOpPool                fetchBatchOpPool
+	fetchBatchOpArrayArrayPool      fetchBatchOpArrayArrayPool
 	iteratorArrayPool               m3db.IteratorArrayPool
 	readerSliceOfSlicesIteratorPool readerSliceOfSlicesIteratorPool
 	mixedReadersIteratorPool        m3db.MixedReadersIteratorPool
@@ -114,7 +114,7 @@ func (s *session) Open() error {
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
 	s.writeOpPool = newWriteOpPool(s.opts.GetWriteOpPoolSize())
-	s.fetchOpPool = newFetchOpPool(s.opts.GetFetchOpPoolSize(), s.fetchBatchSize)
+	s.fetchBatchOpPool = newFetchBatchOpPool(s.opts.GetFetchBatchOpPoolSize(), s.fetchBatchSize)
 	s.seriesIteratorPool = pool.NewSeriesIteratorPool(s.opts.GetSeriesIteratorPoolSize())
 	s.seriesIteratorPool.Init()
 	s.seriesIteratorsPool = pool.NewMutableSeriesIteratorsPool(s.opts.GetSeriesIteratorArrayPoolBuckets())
@@ -195,12 +195,12 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 	prevReplicas := s.replicas
 	s.replicas = topologyMap.Replicas()
 	s.quorum = topologyMap.QuorumReplicas()
-	if s.fetchOpArrayArrayPool == nil ||
-		s.fetchOpArrayArrayPool.Entries() != len(queues) {
-		s.fetchOpArrayArrayPool = newFetchOpArrayArrayPool(
-			s.opts.GetFetchOpPoolSize(),
+	if s.fetchBatchOpArrayArrayPool == nil ||
+		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
+		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
+			s.opts.GetFetchBatchOpPoolSize(),
 			len(queues),
-			s.opts.GetFetchOpPoolSize()/s.opts.GetFetchBatchSize())
+			s.opts.GetFetchBatchOpPoolSize()/s.opts.GetFetchBatchSize())
 	}
 	if s.iteratorArrayPool == nil ||
 		prevReplicas != s.replicas {
@@ -341,14 +341,14 @@ func (s *session) Fetch(id string, startInclusive, endExclusive time.Time) (m3db
 
 func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time) (m3db.SeriesIterators, error) {
 	var (
-		wg                sync.WaitGroup
-		routeErr          error
-		enqueueErr        error
-		resultErrLock     sync.Mutex
-		resultErr         error
-		resultErrs        int
-		quorum            int
-		fetchOpsByHostIdx [][]*fetchOp
+		wg                     sync.WaitGroup
+		routeErr               error
+		enqueueErr             error
+		resultErrLock          sync.Mutex
+		resultErr              error
+		resultErrs             int
+		quorum                 int
+		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 	)
 
 	rangeStart, tsErr := convert.TimeToValue(startInclusive, rpc.TimeType_UNIX_NANOSECONDS)
@@ -364,7 +364,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	iters := s.seriesIteratorsPool.Get(len(ids))
 	iters.Reset(len(ids))
 
-	fetchOpsByHostIdx = s.fetchOpArrayArrayPool.Get()
+	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
 
 	s.RLock()
 	quorum = s.quorum
@@ -392,7 +392,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				slicesIter.Reset(result.([]*rpc.Segments))
 				mixedIter := s.mixedReadersIteratorPool.Get()
 				mixedIter.Reset(slicesIter)
-				// Results is pre-allocated after creating fetchops for this ID below
+				// Results is pre-allocated after creating fetch ops for this ID below
 				results[resultsIdx] = mixedIter
 			}
 			if resultsIdx != 0 {
@@ -419,17 +419,17 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 			enqueued++
 			pending++
 
-			ops := fetchOpsByHostIdx[hostIdx]
+			ops := fetchBatchOpsByHostIdx[hostIdx]
 
-			var f *fetchOp
+			var f *fetchBatchOp
 			if len(ops) > 0 {
 				// Find the last and potentially current fetch op for this host
 				f = ops[len(ops)-1]
 			}
 			if f == nil || f.Size() >= s.fetchBatchSize {
 				// If no current fetch op or existing one is at batch capacity add one
-				f = s.fetchOpPool.Get()
-				fetchOpsByHostIdx[hostIdx] = append(fetchOpsByHostIdx[hostIdx], f)
+				f = s.fetchBatchOpPool.Get()
+				fetchBatchOpsByHostIdx[hostIdx] = append(fetchBatchOpsByHostIdx[hostIdx], f)
 				f.request.RangeStart = rangeStart
 				f.request.RangeEnd = rangeEnd
 				f.request.RangeType = rpc.TimeType_UNIX_NANOSECONDS
@@ -453,8 +453,8 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	}
 
 	// Enqueue fetch ops
-	for idx := range fetchOpsByHostIdx {
-		for _, f := range fetchOpsByHostIdx[idx] {
+	for idx := range fetchBatchOpsByHostIdx {
+		for _, f := range fetchBatchOpsByHostIdx[idx] {
 			if err := s.queues[idx].Enqueue(f); err != nil && enqueueErr == nil {
 				enqueueErr = err
 			}
@@ -470,14 +470,14 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	wg.Wait()
 
 	// Return fetch ops to pool
-	for _, ops := range fetchOpsByHostIdx {
+	for _, ops := range fetchBatchOpsByHostIdx {
 		for _, op := range ops {
-			s.fetchOpPool.Put(op)
+			s.fetchBatchOpPool.Put(op)
 		}
 	}
 
 	// Return fetch ops array array to pool
-	s.fetchOpArrayArrayPool.Put(fetchOpsByHostIdx)
+	s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
 
 	if resultErr != nil {
 		return nil, resultErr

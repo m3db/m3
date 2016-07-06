@@ -65,7 +65,7 @@ func newSessionTestOptions() m3db.ClientOptions {
 		SeriesIteratorPoolSize(0).
 		SeriesIteratorArrayPoolBuckets([]m3db.PoolBucket{}).
 		WriteOpPoolSize(0).
-		FetchOpPoolSize(0).
+		FetchBatchOpPoolSize(0).
 		TopologyType(topology.NewStaticTopologyType(
 		topology.NewStaticTopologyTypeOptions().
 			Replicas(sessionTestReplicas).

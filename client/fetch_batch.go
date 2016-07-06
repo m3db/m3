@@ -26,69 +26,69 @@ import (
 	"github.com/m3db/m3db/pool"
 )
 
-type fetchOp struct {
+type fetchBatchOp struct {
 	request       rpc.FetchRawBatchRequest
 	completionFns []m3db.CompletionFn
 }
 
-func (f *fetchOp) reset() {
+func (f *fetchBatchOp) reset() {
 	f.request.RangeStart = 0
 	f.request.RangeEnd = 0
 	f.request.Ids = f.request.Ids[:0]
 	f.completionFns = f.completionFns[:0]
 }
 
-func (f *fetchOp) append(id string, completionFn m3db.CompletionFn) {
+func (f *fetchBatchOp) append(id string, completionFn m3db.CompletionFn) {
 	f.request.Ids = append(f.request.Ids, id)
 	f.completionFns = append(f.completionFns, completionFn)
 }
 
-func (f *fetchOp) Size() int {
+func (f *fetchBatchOp) Size() int {
 	return len(f.request.Ids)
 }
 
-func (f *fetchOp) GetCompletionFn() m3db.CompletionFn {
+func (f *fetchBatchOp) GetCompletionFn() m3db.CompletionFn {
 	return f.completionFn
 }
 
-func (f *fetchOp) completionFn(result interface{}, err error) {
+func (f *fetchBatchOp) completionFn(result interface{}, err error) {
 	// Call all completion functions
 	for i := range f.completionFns {
 		f.completionFns[i](result, err)
 	}
 }
 
-type fetchOpPool interface {
+type fetchBatchOpPool interface {
 	// Get a fetch op
-	Get() *fetchOp
+	Get() *fetchBatchOp
 
 	// Put a fetch op
-	Put(f *fetchOp)
+	Put(f *fetchBatchOp)
 }
 
-type poolOfFetchOp struct {
+type poolOfFetchBatchOp struct {
 	pool     m3db.ObjectPool
 	capacity int
 }
 
-func newFetchOpPool(size int, capacity int) fetchOpPool {
+func newFetchBatchOpPool(size int, capacity int) fetchBatchOpPool {
 	p := pool.NewObjectPool(size)
 	p.Init(func() interface{} {
-		f := &fetchOp{}
+		f := &fetchBatchOp{}
 		f.request.Ids = make([]string, 0, capacity)
 		f.completionFns = make([]m3db.CompletionFn, 0, capacity)
 		f.reset()
 		return f
 	})
-	return &poolOfFetchOp{p, capacity}
+	return &poolOfFetchBatchOp{p, capacity}
 }
 
-func (p *poolOfFetchOp) Get() *fetchOp {
-	f := p.pool.Get().(*fetchOp)
+func (p *poolOfFetchBatchOp) Get() *fetchBatchOp {
+	f := p.pool.Get().(*fetchBatchOp)
 	return f
 }
 
-func (p *poolOfFetchOp) Put(f *fetchOp) {
+func (p *poolOfFetchBatchOp) Put(f *fetchBatchOp) {
 	if cap(f.request.Ids) != p.capacity || cap(f.completionFns) != p.capacity {
 		// Grew outside capacity, do not return to pool
 		return

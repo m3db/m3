@@ -97,12 +97,12 @@ func TestSessionFetchAll(t *testing.T) {
 		}},
 	})
 
-	fetchOps, enqueueWg := prepareEnqueues(t, ctrl, session, fetches)
+	fetchBatchOps, enqueueWg := prepareEnqueues(t, ctrl, session, fetches)
 
 	go func() {
 		// Fulfill fetch ops once enqueued
 		enqueueWg.Wait()
-		fulfillTszFetchOps(t, fetches, *fetchOps, 0)
+		fulfillTszFetchBatchOps(t, fetches, *fetchBatchOps, 0)
 	}()
 
 	assert.NoError(t, session.Open())
@@ -136,12 +136,12 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 		}},
 	})
 
-	fetchOps, enqueueWg := prepareEnqueues(t, ctrl, session, fetches)
+	fetchBatchOps, enqueueWg := prepareEnqueues(t, ctrl, session, fetches)
 
 	go func() {
 		// Fulfill fetch ops once enqueued
 		enqueueWg.Wait()
-		fulfillTszFetchOps(t, fetches, *fetchOps, 0)
+		fulfillTszFetchBatchOps(t, fetches, *fetchBatchOps, 0)
 	}()
 
 	assert.NoError(t, session.Open())
@@ -211,12 +211,12 @@ func testFetchConsistencyLevel(
 		}},
 	})
 
-	fetchOps, enqueueWg := prepareEnqueues(t, ctrl, session, fetches)
+	fetchBatchOps, enqueueWg := prepareEnqueues(t, ctrl, session, fetches)
 
 	go func() {
 		// Fulfill fetch ops once enqueued
 		enqueueWg.Wait()
-		fulfillTszFetchOps(t, fetches, *fetchOps, failures)
+		fulfillTszFetchBatchOps(t, fetches, *fetchBatchOps, failures)
 	}()
 
 	assert.NoError(t, session.Open())
@@ -240,12 +240,12 @@ func prepareEnqueues(
 	ctrl *gomock.Controller,
 	session *session,
 	fetches []testFetch,
-) (*[]*fetchOp, *sync.WaitGroup) {
-	var fetchOps []*fetchOp
+) (*[]*fetchBatchOp, *sync.WaitGroup) {
+	var fetchBatchOps []*fetchBatchOp
 	enqueueFn := func(idx int, op m3db.Op) {
-		fetch, ok := op.(*fetchOp)
+		fetch, ok := op.(*fetchBatchOp)
 		assert.True(t, ok)
-		fetchOps = append(fetchOps, fetch)
+		fetchBatchOps = append(fetchBatchOps, fetch)
 	}
 
 	var enqueueFns []testEnqueueFn
@@ -254,13 +254,13 @@ func prepareEnqueues(
 		enqueueFns = append(enqueueFns, enqueueFn)
 	}
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, enqueueFns)
-	return &fetchOps, enqueueWg
+	return &fetchBatchOps, enqueueWg
 }
 
-func fulfillTszFetchOps(
+func fulfillTszFetchBatchOps(
 	t *testing.T,
 	fetches []testFetch,
-	fetchOps []*fetchOp,
+	fetchBatchOps []*fetchBatchOp,
 	failures int,
 ) {
 	failed := make(map[string]int)
@@ -268,7 +268,7 @@ func fulfillTszFetchOps(
 		failed[f.id] = 0
 	}
 
-	for _, op := range fetchOps {
+	for _, op := range fetchBatchOps {
 		for i, id := range op.request.Ids {
 			calledCompletionFn := false
 			for _, f := range fetches {
