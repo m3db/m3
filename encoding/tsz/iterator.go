@@ -89,9 +89,10 @@ func (it *singleReaderIterator) Next() bool {
 
 func (it *singleReaderIterator) readFirstTimestamp() {
 	nt := int64(it.readBits(64))
-	it.readNextTimestamp()
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
 	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
+	it.tu = initialTimeUnit(st, it.opts.GetDefaultTimeUnit())
+	it.readNextTimestamp()
 	it.t = st.Add(it.dt)
 }
 

@@ -41,13 +41,12 @@ type encoder struct {
 	opts Options
 
 	// internal bookkeeping
-	t         time.Time       // current time
-	dt        time.Duration   // current time delta
-	vb        uint64          // current value
-	xor       uint64          // current xor
-	ant       m3db.Annotation // current annotation
-	tu        xtime.Unit      // current time unit
-	tuChanged bool            // whether we have a new time unit
+	t   time.Time       // current time
+	dt  time.Duration   // current time delta
+	vb  uint64          // current value
+	xor uint64          // current xor
+	ant m3db.Annotation // current annotation
+	tu  xtime.Unit      // current time unit
 
 	writable bool
 	closed   bool
@@ -62,13 +61,30 @@ func NewEncoder(start time.Time, bytes []byte, opts Options) m3db.Encoder {
 	// will be used for this encoder.  If a pool is being used alloc when the
 	// `Reset` method is called.
 	initAllocIfEmpty := opts.GetEncoderPool() == nil
+	tu := initialTimeUnit(start, opts.GetDefaultTimeUnit())
 	return &encoder{
 		os:       newOStream(bytes, initAllocIfEmpty),
 		opts:     opts,
 		t:        start,
+		tu:       tu,
 		writable: true,
 		closed:   false,
 	}
+}
+
+func initialTimeUnit(start time.Time, tu xtime.Unit) xtime.Unit {
+	tv, err := tu.Value()
+	if err != nil {
+		return xtime.None
+	}
+	// If we want to use tu as the time unit for start, start must
+	// be a multiple of tu.
+	startInNano := xtime.ToNormalizedTime(start, time.Nanosecond)
+	tvInNano := xtime.ToNormalizedDuration(tv, time.Nanosecond)
+	if startInNano%tvInNano == 0 {
+		return tu
+	}
+	return xtime.None
 }
 
 // Encode encodes the timestamp and the value of a datapoint.
@@ -142,16 +158,17 @@ func (enc *encoder) shouldWriteTimeUnit(tu xtime.Unit) bool {
 	return true
 }
 
-func (enc *encoder) writeTimeUnit(tu xtime.Unit) {
-	enc.tuChanged = false
+// writeTimeUnit encodes the time unit and returns true if the time unit has
+// changed, and false otherwise.
+func (enc *encoder) writeTimeUnit(tu xtime.Unit) bool {
 	if !enc.shouldWriteTimeUnit(tu) {
-		return
+		return false
 	}
-	enc.tuChanged = true
 	scheme := enc.opts.GetMarkerEncodingScheme()
 	writeSpecialMarker(enc.os, scheme, scheme.TimeUnit())
 	enc.os.WriteByte(byte(tu))
 	enc.tu = tu
+	return true
 }
 
 func (enc *encoder) writeFirstTime(t time.Time, ant m3db.Annotation, tu xtime.Unit) error {
@@ -164,37 +181,35 @@ func (enc *encoder) writeFirstTime(t time.Time, ant m3db.Annotation, tu xtime.Un
 
 func (enc *encoder) writeNextTime(t time.Time, ant m3db.Annotation, tu xtime.Unit) error {
 	enc.writeAnnotation(ant)
-	enc.writeTimeUnit(tu)
+	tuChanged := enc.writeTimeUnit(tu)
 
 	dt := t.Sub(enc.t)
-	if err := enc.writeDeltaOfDelta(enc.dt, dt, tu); err != nil {
-		return err
-	}
 	enc.t = t
-	if enc.tuChanged {
+	if tuChanged {
+		enc.writeDeltaOfDeltaTimeUnitChanged(enc.dt, dt)
 		// NB(xichen): if the time unit has changed, we reset the time delta to zero
 		// because we can't guarantee that dt is a multiple of the new time unit, which
 		// means we can't guarantee that the delta of delta when encoding the next
 		// data point is a multiple of the new time unit.
 		enc.dt = 0
-	} else {
-		enc.dt = dt
+		return nil
 	}
-
-	return nil
+	err := enc.writeDeltaOfDeltaTimeUnitUnchanged(enc.dt, dt, tu)
+	enc.dt = dt
+	return err
 }
 
-func (enc *encoder) writeDeltaOfDelta(prevDelta, curDelta time.Duration, tu xtime.Unit) error {
+func (enc *encoder) writeDeltaOfDeltaTimeUnitChanged(prevDelta, curDelta time.Duration) {
+	// NB(xichen): if the time unit has changed, always normalize delta-of-delta
+	// to nanoseconds and encode it using 64 bits.
+	dodInNano := int64(curDelta - prevDelta)
+	enc.os.WriteBits(uint64(dodInNano), 64)
+}
+
+func (enc *encoder) writeDeltaOfDeltaTimeUnitUnchanged(prevDelta, curDelta time.Duration, tu xtime.Unit) error {
 	u, err := tu.Value()
 	if err != nil {
 		return err
-	}
-	if enc.tuChanged {
-		// NB(xichen): if the time unit has changed, always normalize delta-of-delta
-		// to nanoseconds and encode it using 64 bits.
-		dodInNano := int64(curDelta - prevDelta)
-		enc.os.WriteBits(uint64(dodInNano), 64)
-		return nil
 	}
 	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
 	tes, exists := enc.opts.GetTimeEncodingSchemes()[tu]
@@ -275,7 +290,7 @@ func (enc *encoder) ResetSetData(start time.Time, data []byte, writable bool) {
 	enc.vb = 0
 	enc.xor = 0
 	enc.ant = nil
-	enc.tu = xtime.None
+	enc.tu = initialTimeUnit(start, enc.opts.GetDefaultTimeUnit())
 	enc.closed = false
 	enc.writable = writable
 }

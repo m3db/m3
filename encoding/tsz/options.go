@@ -22,6 +22,11 @@ package tsz
 
 import (
 	"github.com/m3db/m3db/interfaces/m3db"
+	xtime "github.com/m3db/m3db/x/time"
+)
+
+const (
+	defaultDefaultTimeUnit = xtime.Second
 )
 
 var (
@@ -31,6 +36,12 @@ var (
 
 // Options represents different options for encoding time as well as markers.
 type Options interface {
+	// DefaultTimeUnit sets the default time unit for the encoder.
+	DefaultTimeUnit(tu xtime.Unit) Options
+
+	// GetDefaultTimeUnit returns the default time unit for the encoder.
+	GetDefaultTimeUnit() xtime.Unit
+
 	// TimeEncodingSchemes sets the time encoding schemes for different time units.
 	TimeEncodingSchemes(value TimeEncodingSchemes) Options
 
@@ -75,6 +86,7 @@ type Options interface {
 }
 
 type options struct {
+	defaultTimeUnit          xtime.Unit
 	timeEncodingSchemes      TimeEncodingSchemes
 	markerEncodingScheme     MarkerEncodingScheme
 	encoderPool              m3db.EncoderPool
@@ -86,6 +98,7 @@ type options struct {
 
 func newOptions() Options {
 	return &options{
+		defaultTimeUnit:      defaultDefaultTimeUnit,
 		timeEncodingSchemes:  defaultTimeEncodingSchemes,
 		markerEncodingScheme: defaultMarkerEncodingScheme,
 	}
@@ -94,6 +107,16 @@ func newOptions() Options {
 // NewOptions creates a new options.
 func NewOptions() Options {
 	return defaultOptions
+}
+
+func (o *options) DefaultTimeUnit(value xtime.Unit) Options {
+	opts := *o
+	opts.defaultTimeUnit = value
+	return &opts
+}
+
+func (o *options) GetDefaultTimeUnit() xtime.Unit {
+	return o.defaultTimeUnit
 }
 
 func (o *options) TimeEncodingSchemes(value TimeEncodingSchemes) Options {
