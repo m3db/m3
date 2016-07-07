@@ -33,9 +33,7 @@ func NewSeriesIterators(
 	iters []m3db.SeriesIterator,
 	pool m3db.MutableSeriesIteratorsPool,
 ) m3db.MutableSeriesIterators {
-	it := &seriesIterators{iters: iters}
-	it.Reset(0)
-	return it
+	return &seriesIterators{iters: iters}
 }
 
 func (iters *seriesIterators) Iters() []m3db.SeriesIterator {

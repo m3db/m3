@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
@@ -146,9 +147,9 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchAll(fetches.IDs(), start, end)
+	result, err := session.Fetch(fetches[0].id, start, end)
 	assert.NoError(t, err)
-	assertion := assertFetchResults(t, start, end, fetches, results)
+	assertion := assertFetchResults(t, start, end, fetches, seriesIterators(result))
 	assert.Equal(t, 2, assertion.trimToTimeRange)
 
 	assert.NoError(t, session.Close())
@@ -350,4 +351,8 @@ func assertFetchResults(
 	results.Close()
 
 	return testFetchResultsAssertion{trimToTimeRange: trimToTimeRange}
+}
+
+func seriesIterators(iters ...m3db.SeriesIterator) m3db.SeriesIterators {
+	return encoding.NewSeriesIterators(iters, nil)
 }
