@@ -48,6 +48,7 @@ var (
 	errSessionStateNotOpen    = errors.New("session not in open state")
 )
 
+// clientSession adds methods not exposed to users of the client
 type clientSession interface {
 	m3db.Session
 

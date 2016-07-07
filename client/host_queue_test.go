@@ -45,6 +45,7 @@ func newHostQueueTestOptions() m3db.ClientOptions {
 		HostQueueOpsFlushSize(4).
 		HostQueueOpsArrayPoolSize(4).
 		WriteBatchSize(4).
+		FetchBatchSize(4).
 		HostQueueOpsFlushInterval(0)
 }
 
@@ -300,6 +301,89 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 
 	// Wait for flush
 	wg.Wait()
+
+	// Close
+	var closeWg sync.WaitGroup
+	closeWg.Add(1)
+	mockConnPool.EXPECT().Close().Do(func() {
+		closeWg.Done()
+	})
+	queue.Close()
+	closeWg.Wait()
+}
+
+func TestHostQueueFetchBatches(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConnPool := mocks.NewMockconnectionPool(ctrl)
+
+	opts := newHostQueueTestOptions()
+	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
+	queue.connPool = mockConnPool
+
+	// Open
+	mockConnPool.EXPECT().Open()
+	queue.Open()
+	assert.Equal(t, stateOpen, queue.state)
+
+	// Prepare callback for fetches
+	type result struct {
+		result interface{}
+		err    error
+	}
+	var (
+		results []result
+		wg      sync.WaitGroup
+	)
+	callback := func(r interface{}, err error) {
+		results = append(results, result{r, err})
+		wg.Done()
+	}
+
+	// Prepare fetch batch op
+	fetchBatch := &fetchBatchOp{
+		request: rpc.FetchRawBatchRequest{
+			RangeStart: 0,
+			RangeEnd:   1,
+			Ids:        []string{"foo", "bar", "baz", "qux"},
+		},
+	}
+	for _ = range fetchBatch.request.Ids {
+		fetchBatch.completionFns = append(fetchBatch.completionFns, callback)
+	}
+	wg.Add(len(fetchBatch.request.Ids))
+
+	// Prepare mocks for flush
+	mockClient := mocks.NewMockTChanNode(ctrl)
+	fetchRawBatch := func(ctx thrift.Context, req *rpc.FetchRawBatchRequest) {
+		assert.Equal(t, &fetchBatch.request, req)
+	}
+	fetchRawBatchResult := &rpc.FetchRawBatchResult_{}
+	for _ = range fetchBatch.request.Ids {
+		result := &rpc.FetchRawResult_{Segments: []*rpc.Segments{}}
+		fetchRawBatchResult.Elements = append(fetchRawBatchResult.Elements, result)
+	}
+	mockClient.EXPECT().
+		FetchRawBatch(gomock.Any(), gomock.Any()).
+		Do(fetchRawBatch).
+		Return(fetchRawBatchResult, nil)
+
+	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+
+	// Fetch
+	assert.NoError(t, queue.Enqueue(fetchBatch))
+
+	// Wait for fetch to complete
+	wg.Wait()
+
+	// Assert fetches successful
+	var success []result
+	for i := range fetchBatch.request.Ids {
+		segments := fetchRawBatchResult.Elements[i].Segments
+		success = append(success, result{segments, nil})
+	}
+	assert.Equal(t, success, results)
 
 	// Close
 	var closeWg sync.WaitGroup

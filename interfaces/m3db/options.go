@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3db/x/logging"
 	"github.com/m3db/m3db/x/metrics"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 )
 
 // NowFn is the function supplied to determine "now"
