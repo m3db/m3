@@ -115,7 +115,9 @@ func (s *session) Open() error {
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
 	s.writeOpPool = newWriteOpPool(s.opts.GetWriteOpPoolSize())
+	s.writeOpPool.Init()
 	s.fetchBatchOpPool = newFetchBatchOpPool(s.opts.GetFetchBatchOpPoolSize(), s.fetchBatchSize)
+	s.fetchBatchOpPool.Init()
 	s.seriesIteratorPool = pool.NewSeriesIteratorPool(s.opts.GetSeriesIteratorPoolSize())
 	s.seriesIteratorPool.Init()
 	s.seriesIteratorsPool = pool.NewMutableSeriesIteratorsPool(s.opts.GetSeriesIteratorArrayPoolBuckets())
@@ -202,6 +204,7 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 			s.opts.GetFetchBatchOpPoolSize(),
 			len(queues),
 			s.opts.GetFetchBatchOpPoolSize()/s.opts.GetFetchBatchSize())
+		s.fetchBatchOpArrayArrayPool.Init()
 	}
 	if s.iteratorArrayPool == nil ||
 		prevReplicas != s.replicas {
@@ -217,6 +220,7 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 		prevReplicas != s.replicas {
 		size := s.replicas * s.opts.GetSeriesIteratorPoolSize()
 		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(size)
+		s.readerSliceOfSlicesIteratorPool.Init()
 	}
 	if s.mixedReadersIteratorPool == nil ||
 		prevReplicas != s.replicas {
@@ -250,7 +254,9 @@ func (s *session) newHostQueue(host m3db.Host, topologyMap m3db.TopologyMap) hos
 		int(math.Ceil(float64(s.opts.GetWriteOpPoolSize())/float64(s.opts.GetWriteBatchSize())))
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
 	writeBatchRequestPool := newWriteBatchRequestPool(hostBatches)
+	writeBatchRequestPool.Init()
 	writeRequestArrayPool := newWriteRequestArrayPool(hostBatches, s.opts.GetWriteBatchSize())
+	writeRequestArrayPool.Init()
 	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, writeRequestArrayPool, s.opts)
 	hostQueue.Open()
 	return hostQueue

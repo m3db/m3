@@ -84,6 +84,7 @@ func newHostQueue(
 
 	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.GetWriteBatchSize())))
 	opArrayPool := newOpArrayPool(opts.GetHostQueueOpsArrayPoolSize(), opArrayPoolCapacity)
+	opArrayPool.Init()
 
 	return &queue{
 		opts:                  opts,

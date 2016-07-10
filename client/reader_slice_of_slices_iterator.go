@@ -98,7 +98,7 @@ func (it *readerSliceOfSlicesIterator) setNextReader(value *rpc.Segment) {
 	} else {
 		it.segmentReaders[idx].Reset(segment)
 	}
-	it.readers = append(it.readers, io.Reader(it.segmentReaders[idx]))
+	it.readers = append(it.readers, it.segmentReaders[idx])
 }
 
 func (it *readerSliceOfSlicesIterator) Reset(segments []*rpc.Segments) {

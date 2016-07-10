@@ -62,6 +62,9 @@ func (f *fetchBatchOp) complete(idx int, result interface{}, err error) {
 }
 
 type fetchBatchOpPool interface {
+	// Init pool
+	Init()
+
 	// Get a fetch op
 	Get() *fetchBatchOp
 
@@ -76,14 +79,17 @@ type poolOfFetchBatchOp struct {
 
 func newFetchBatchOpPool(size int, capacity int) fetchBatchOpPool {
 	p := pool.NewObjectPool(size)
-	p.Init(func() interface{} {
+	return &poolOfFetchBatchOp{p, capacity}
+}
+
+func (p *poolOfFetchBatchOp) Init() {
+	p.pool.Init(func() interface{} {
 		f := &fetchBatchOp{}
-		f.request.Ids = make([]string, 0, capacity)
-		f.completionFns = make([]m3db.CompletionFn, 0, capacity)
+		f.request.Ids = make([]string, 0, p.capacity)
+		f.completionFns = make([]m3db.CompletionFn, 0, p.capacity)
 		f.reset()
 		return f
 	})
-	return &poolOfFetchBatchOp{p, capacity}
 }
 
 func (p *poolOfFetchBatchOp) Get() *fetchBatchOp {

@@ -51,6 +51,9 @@ func (w *writeOp) GetCompletionFn() m3db.CompletionFn {
 }
 
 type writeOpPool interface {
+	// Init pool
+	Init()
+
 	// Get a write op
 	Get() *writeOp
 
@@ -64,12 +67,15 @@ type poolOfWriteOp struct {
 
 func newWriteOpPool(size int) writeOpPool {
 	p := pool.NewObjectPool(size)
-	p.Init(func() interface{} {
+	return &poolOfWriteOp{p}
+}
+
+func (p *poolOfWriteOp) Init() {
+	p.pool.Init(func() interface{} {
 		w := &writeOp{}
 		w.reset()
 		return w
 	})
-	return &poolOfWriteOp{p}
 }
 
 func (p *poolOfWriteOp) Get() *writeOp {

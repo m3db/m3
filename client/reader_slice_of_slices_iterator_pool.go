@@ -26,6 +26,9 @@ import (
 )
 
 type readerSliceOfSlicesIteratorPool interface {
+	// Init pool
+	Init()
+
 	// Get an iterator
 	Get() *readerSliceOfSlicesIterator
 
@@ -39,11 +42,13 @@ type poolOfReaderSliceOfSlicesIterator struct {
 
 func newReaderSliceOfSlicesIteratorPool(size int) readerSliceOfSlicesIteratorPool {
 	p := pool.NewObjectPool(size)
-	pool := &poolOfReaderSliceOfSlicesIterator{p}
-	p.Init(func() interface{} {
-		return newReaderSliceOfSlicesIterator(nil, pool)
+	return &poolOfReaderSliceOfSlicesIterator{p}
+}
+
+func (p *poolOfReaderSliceOfSlicesIterator) Init() {
+	p.pool.Init(func() interface{} {
+		return newReaderSliceOfSlicesIterator(nil, p)
 	})
-	return pool
 }
 
 func (p *poolOfReaderSliceOfSlicesIterator) Get() *readerSliceOfSlicesIterator {

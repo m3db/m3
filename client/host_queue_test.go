@@ -36,9 +36,16 @@ import (
 )
 
 var (
-	testWriteBatchPool = newWriteBatchRequestPool(0)
-	testWriteArrayPool = newWriteRequestArrayPool(0, 0)
+	testWriteBatchPool writeBatchRequestPool
+	testWriteArrayPool writeRequestArrayPool
 )
+
+func init() {
+	testWriteBatchPool = newWriteBatchRequestPool(0)
+	testWriteBatchPool.Init()
+	testWriteArrayPool = newWriteRequestArrayPool(0, 0)
+	testWriteArrayPool.Init()
+}
 
 type hostQueueResult struct {
 	result interface{}
