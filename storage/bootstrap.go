@@ -21,10 +21,10 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 	"time"
 
-	"code.uber.internal/infra/statsdex/x/errors"
 	"github.com/m3db/m3db/interfaces/m3db"
 )
 
