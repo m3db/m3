@@ -114,7 +114,7 @@ func (s *dbSeries) Tick() error {
 
 	s.Lock()
 	if needsDrain {
-		s.buffer.DrainAndReset()
+		s.buffer.DrainAndReset(false)
 	}
 
 	if needsBlockExpiry {
@@ -283,38 +283,45 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 	return nil
 }
 
-func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error {
-	if success, err := tryBootstrap(&s.RWMutex, &s.bs, "series"); !success {
-		return err
-	}
+// NB(xichen): we are holding a big lock here to drain the in-memory buffer.
+// This could potentially be expensive in that we might accumulate a lot of
+// data in memory during bootstrapping. If that becomes a problem, we could
+// bootstrap in batches, e.g., drain and reset the buffer, drain the streams,
+// then repeat, until len(s.pendingBootstrap) is below a given threshold.
+func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutOver time.Time) error {
 
 	s.Lock()
+	if s.bs == bootstrapped {
+		s.Unlock()
+		return nil
+	}
+	if s.bs == bootstrapping {
+		s.Unlock()
+		return errSeriesIsBootstrapping
+	}
 	s.bs = bootstrapping
-	s.Unlock()
 
 	if rs == nil {
 		rs = NewDatabaseSeriesBlocks(s.opts)
 	}
 
-	for {
-		s.Lock()
-		if len(s.pendingBootstrap) == 0 {
-			s.blocks = rs
-			s.bs = bootstrapped
-			s.Unlock()
-			break
-		}
-		drain := s.pendingBootstrap[0]
-		s.pendingBootstrap = s.pendingBootstrap[1:]
-		s.Unlock()
+	// Force the in-memory buffer to drain and reset so we can merge the in-memory
+	// data accumulated during bootstrapping.
+	s.buffer.DrainAndReset(true)
 
-		stream := drain.encoder.Stream()
-		if err := s.drainStream(rs, stream, cutover); err != nil {
-			stream.Close()
+	for i := range s.pendingBootstrap {
+		stream := s.pendingBootstrap[i].encoder.Stream()
+		err := s.drainStream(rs, stream, cutOver)
+		stream.Close()
+		if err != nil {
+			s.Unlock()
 			return err
 		}
-		stream.Close()
 	}
+
+	s.blocks = rs
+	s.bs = bootstrapped
+	s.Unlock()
 
 	return nil
 }
@@ -329,6 +336,10 @@ func (s *dbSeries) FlushToDisk(
 	segmentHolder [][]byte,
 ) error {
 	s.RLock()
+	if s.bs != bootstrapped {
+		s.RUnlock()
+		return errSeriesNotBootstrapped
+	}
 	b, exists := s.blocks.GetBlockAt(blockStart)
 	if !exists {
 		s.RUnlock()

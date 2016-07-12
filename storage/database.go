@@ -37,9 +37,6 @@ var (
 
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
-
-	// errDatabaseNotBootstrapped raised when trying to query a database that's not yet bootstrapped
-	errDatabaseNotBootstrapped = errors.New("database not yet bootstrapped")
 )
 
 const (
@@ -76,7 +73,7 @@ type Database interface {
 	) (m3db.ReaderSliceReader, error)
 
 	// Bootstrap bootstraps the database.
-	Bootstrap(writeStart time.Time) error
+	Bootstrap() error
 }
 
 type flushStatus byte
@@ -98,7 +95,7 @@ type db struct {
 	opts           m3db.DatabaseOptions
 	shardScheme    m3db.ShardScheme
 	shardSet       m3db.ShardSet
-	bs             bootstrapState
+	bsm            bootstrapManager
 	fm             sync.RWMutex
 	fs             flushStatus
 	flushAttempted map[time.Time]flushState
@@ -117,19 +114,21 @@ type db struct {
 // NewDatabase creates a new database
 func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) Database {
 	shardScheme := shardSet.Scheme()
-	return &db{
+	database := &db{
 		opts:           opts,
 		shardScheme:    shardScheme,
 		shardSet:       shardSet,
+		fs:             flushNotStarted,
+		flushAttempted: make(map[time.Time]flushState),
+		flushTimes:     make([]time.Time, 0, int(math.Ceil(float64(opts.GetRetentionPeriod())/float64(opts.GetBlockSize())))),
 		shards:         make([]databaseShard, len(shardScheme.All().Shards())),
 		nowFn:          opts.GetNowFn(),
 		tickDeadline:   opts.GetBufferDrain(),
 		openCh:         make(chan struct{}, 1),
 		doneCh:         make(chan struct{}, dbOngoingTasks),
-		fs:             flushNotStarted,
-		flushAttempted: make(map[time.Time]flushState),
-		flushTimes:     make([]time.Time, 0, int(math.Ceil(float64(opts.GetRetentionPeriod())/float64(opts.GetBlockSize())))),
 	}
+	database.bsm = newBootstrapManager(database)
+	return database
 }
 
 func (d *db) Options() m3db.DatabaseOptions {
@@ -164,42 +163,8 @@ func (d *db) getOwnedShards() []databaseShard {
 	return databaseShards
 }
 
-// Bootstrap performs bootstrapping for all shards owned by db, assuming the servers
-// start accepting writes at writeStart. It returns an error if the server is currently
-// being bootstrapped, and nil otherwise.
-func (d *db) Bootstrap(writeStart time.Time) error {
-	if success, err := tryBootstrap(&d.RWMutex, &d.bs, "database"); !success {
-		return err
-	}
-
-	d.Lock()
-	d.bs = bootstrapping
-	d.Unlock()
-
-	shards := d.getOwnedShards()
-
-	// NB(xichen): each bootstrapper should be responsible for choosing the most
-	// efficient way of bootstrapping database shards, be it sequential or parallel.
-	// In particular, the filesystem bootstrapper bootstraps each shard sequentially
-	// due to disk seek overhead.
-	for _, s := range shards {
-		if err := s.Bootstrap(writeStart); err != nil {
-			return err
-		}
-	}
-
-	// NB(xichen): when we get here, we should have bootstrapped everything between
-	// writeStart - retentionPeriod and writeStart + bufferFuture, which means the
-	// current time is at least writeStart + bufferFuture + bufferPast. We intentionally
-	// don't use now because we don't know whether the in-memory buffers have been drained.
-	flushTime := writeStart.Add(d.opts.GetBufferFuture()).Add(d.opts.GetBufferPast())
-	d.flushToDisk(flushTime, false)
-
-	d.Lock()
-	d.bs = bootstrapped
-	d.Unlock()
-
-	return nil
+func (d *db) Bootstrap() error {
+	return d.bsm.Bootstrap()
 }
 
 func (d *db) Close() error {
@@ -244,11 +209,10 @@ func (d *db) ReadEncoded(
 	id string,
 	start, end time.Time,
 ) (m3db.ReaderSliceReader, error) {
-	d.RLock()
-	if d.bs != bootstrapped {
-		d.RUnlock()
+	if !d.bsm.IsBootstrapped() {
 		return nil, errDatabaseNotBootstrapped
 	}
+	d.RLock()
 	shardID := d.shardScheme.Shard(id)
 	shard := d.shards[shardID]
 	d.RUnlock()
@@ -307,11 +271,8 @@ func (d *db) splayedTick() {
 }
 
 func (d *db) needDiskFlush(tickStart time.Time) bool {
-	d.RLock()
-	bs := d.bs
-	d.RUnlock()
 	// If we haven't bootstrapped yet, don't flush.
-	if bs != bootstrapped {
+	if !d.bsm.IsBootstrapped() {
 		return false
 	}
 
