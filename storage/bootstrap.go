@@ -74,7 +74,7 @@ type bootstrapManager struct {
 	state    bootstrapState       // bootstrap state
 }
 
-func newBootstrapManager(database *db) databaseBootstrapManager {
+func newBootstrapManager(database database) databaseBootstrapManager {
 	return &bootstrapManager{
 		database: database,
 		opts:     database.Options(),
