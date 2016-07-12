@@ -288,7 +288,7 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 // data in memory during bootstrapping. If that becomes a problem, we could
 // bootstrap in batches, e.g., drain and reset the buffer, drain the streams,
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
-func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutOver time.Time) error {
+func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error {
 
 	s.Lock()
 	if s.bs == bootstrapped {
@@ -311,7 +311,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutOver time.Time) er
 
 	for i := range s.pendingBootstrap {
 		stream := s.pendingBootstrap[i].encoder.Stream()
-		err := s.drainStream(rs, stream, cutOver)
+		err := s.drainStream(rs, stream, cutover)
 		stream.Close()
 		if err != nil {
 			s.Unlock()

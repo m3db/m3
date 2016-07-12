@@ -92,8 +92,8 @@ func (_mr *_MockdatabaseShardRecorder) ReadEncoded(arg0, arg1, arg2, arg3 interf
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockdatabaseShard) Bootstrap(writeStart time.Time, cutOver time.Time) error {
-	ret := _m.ctrl.Call(_m, "Bootstrap", writeStart, cutOver)
+func (_m *MockdatabaseShard) Bootstrap(writeStart time.Time, cutover time.Time) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", writeStart, cutover)
 	ret0, _ := ret[0].(error)
 	return ret0
 }

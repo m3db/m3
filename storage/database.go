@@ -76,6 +76,17 @@ type Database interface {
 	Bootstrap() error
 }
 
+// database is the internal database interface.
+type database interface {
+	Database
+
+	// getOwnedShards returns the shards this database owns.
+	getOwnedShards() []databaseShard
+
+	// flushToDisk flushes data to disk given a start time.
+	flushToDisk(tickStart time.Time, asyncFlush bool)
+}
+
 type flushStatus byte
 
 const (
@@ -95,7 +106,7 @@ type db struct {
 	opts           m3db.DatabaseOptions
 	shardScheme    m3db.ShardScheme
 	shardSet       m3db.ShardSet
-	bsm            bootstrapManager
+	bsm            databaseBootstrapManager
 	fm             sync.RWMutex
 	fs             flushStatus
 	flushAttempted map[time.Time]flushState

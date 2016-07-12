@@ -164,19 +164,11 @@ func (s *dbBuffer) bucketState(
 func (s *dbBuffer) DrainAndReset(forced bool) {
 	now := s.nowFn()
 	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
-		needsDrain, needsReset := true, true
-		if !forced {
-			_, needsDrain, needsReset = s.bucketState(now, b, current)
-			if !needsDrain && !needsReset {
-				// No action necessary
-				return
-			}
-		} else if b.drained || b.lastWriteAt.IsZero() {
-			// No action necessary if the bucket has been drained,
-			// or there is no data in the bucket.
-			return
+		_, needsDrain, needsReset := s.bucketState(now, b, current)
+		if forced && !b.drained && !b.lastWriteAt.IsZero() {
+			// If the bucket is not empty and hasn't been drained, force it to drain.
+			needsDrain, needsReset = true, true
 		}
-
 		if needsDrain {
 			b.sort()
 

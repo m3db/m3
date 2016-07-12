@@ -57,7 +57,7 @@ type databaseShard interface {
 		start, end time.Time,
 	) (m3db.ReaderSliceReader, error)
 
-	Bootstrap(writeStart time.Time, cutOver time.Time) error
+	Bootstrap(writeStart time.Time, cutover time.Time) error
 
 	// FlushToDisk flushes the data blocks in the shard to disk
 	FlushToDisk(ctx m3db.Context, blockStart time.Time) error
@@ -258,7 +258,7 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, writeCompletionFn) 
 	return entry.series, entry.decrementWriterCount
 }
 
-func (s *dbShard) Bootstrap(writeStart time.Time, cutOver time.Time) error {
+func (s *dbShard) Bootstrap(writeStart time.Time, cutover time.Time) error {
 	s.Lock()
 	if s.bs == bootstrapped {
 		s.Unlock()
@@ -281,7 +281,7 @@ func (s *dbShard) Bootstrap(writeStart time.Time, cutOver time.Time) error {
 	bootstrappedSeries := sr.GetAllSeries()
 	for id, dbBlocks := range bootstrappedSeries {
 		series, completionFn := s.writableSeries(id)
-		err := series.Bootstrap(dbBlocks, cutOver)
+		err := series.Bootstrap(dbBlocks, cutover)
 		completionFn()
 		if err != nil {
 			return err
@@ -309,7 +309,7 @@ func (s *dbShard) Bootstrap(writeStart time.Time, cutOver time.Time) error {
 
 	// Finally bootstrapping series with no recent data.
 	for _, series := range bufferedSeries {
-		if err := series.Bootstrap(nil, cutOver); err != nil {
+		if err := series.Bootstrap(nil, cutover); err != nil {
 			return err
 		}
 	}
