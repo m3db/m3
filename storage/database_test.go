@@ -65,13 +65,13 @@ func TestNeedDiskFlushDuringBootstrap(t *testing.T) {
 	database := testDatabase(t)
 	now := database.opts.GetNowFn()()
 	require.False(t, database.needDiskFlush(now))
-	database.bs = bootstrapped
+	database.bsm.(*bootstrapManager).state = bootstrapped
 	require.True(t, database.needDiskFlush(now))
 }
 
 func TestNeedDiskFlushWhileFlushing(t *testing.T) {
 	database := testDatabase(t)
-	database.bs = bootstrapped
+	database.bsm.(*bootstrapManager).state = bootstrapped
 	now := database.opts.GetNowFn()()
 	require.True(t, database.needDiskFlush(now))
 	database.fs = flushInProgress
@@ -80,7 +80,7 @@ func TestNeedDiskFlushWhileFlushing(t *testing.T) {
 
 func TestNeedDiskFlushAttemptedBefore(t *testing.T) {
 	database := testDatabase(t)
-	database.bs = bootstrapped
+	database.bsm.(*bootstrapManager).state = bootstrapped
 	now := database.opts.GetNowFn()()
 	require.True(t, database.needDiskFlush(now))
 	firstBlockStart := now.Add(-2 * time.Hour).Add(-10 * time.Minute).Truncate(2 * time.Hour)

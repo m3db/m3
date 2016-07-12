@@ -64,7 +64,7 @@ type databaseBuffer interface {
 
 	NeedsDrain() bool
 
-	DrainAndReset()
+	DrainAndReset(forced bool)
 }
 
 type dbBuffer struct {
@@ -118,7 +118,7 @@ func (s *dbBuffer) Write(
 	_, _, needsReset := s.bucketState(now, bucket, bucketStart)
 	if needsReset {
 		// Needs reset
-		s.DrainAndReset()
+		s.DrainAndReset(false)
 	}
 
 	return bucket.write(timestamp, value, unit, annotation)
@@ -161,15 +161,14 @@ func (s *dbBuffer) bucketState(
 	return shouldRead, needsDrain, needsReset
 }
 
-func (s *dbBuffer) DrainAndReset() {
+func (s *dbBuffer) DrainAndReset(forced bool) {
 	now := s.nowFn()
 	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
 		_, needsDrain, needsReset := s.bucketState(now, b, current)
-		if !needsDrain && !needsReset {
-			// No action necessary
-			return
+		if forced && !b.drained && !b.lastWriteAt.IsZero() {
+			// If the bucket is not empty and hasn't been drained, force it to drain.
+			needsDrain, needsReset = true, true
 		}
-
 		if needsDrain {
 			b.sort()
 

@@ -94,10 +94,10 @@ func (_mr *_MockdatabaseBufferRecorder) NeedsDrain() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NeedsDrain")
 }
 
-func (_m *MockdatabaseBuffer) DrainAndReset() {
-	_m.ctrl.Call(_m, "DrainAndReset")
+func (_m *MockdatabaseBuffer) DrainAndReset(forced bool) {
+	_m.ctrl.Call(_m, "DrainAndReset", forced)
 }
 
-func (_mr *_MockdatabaseBufferRecorder) DrainAndReset() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DrainAndReset")
+func (_mr *_MockdatabaseBufferRecorder) DrainAndReset(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DrainAndReset", arg0)
 }

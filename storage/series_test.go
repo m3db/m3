@@ -199,7 +199,7 @@ func TestSeriesTickNeedsDrain(t *testing.T) {
 	series.buffer = buffer
 	buffer.EXPECT().Empty().Return(false)
 	buffer.EXPECT().NeedsDrain().Return(true)
-	buffer.EXPECT().DrainAndReset()
+	buffer.EXPECT().DrainAndReset(false)
 	err := series.Tick()
 	require.NoError(t, err)
 }
