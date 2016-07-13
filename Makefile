@@ -73,7 +73,6 @@ test-xml: test-internal
 	@rm $(coverfile) &> /dev/null
 
 test: test-internal
-	@$(test)
 	gocov convert $(coverfile) | gocov report
 
 testhtml: test-internal
