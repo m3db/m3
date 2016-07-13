@@ -271,7 +271,6 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 		resultErr     error
 		resultErrs    int
 		quorum        int
-		w             = s.writeOpPool.Get()
 	)
 
 	timeType, timeTypeErr := convert.UnitToTimeType(unit)
@@ -284,6 +283,7 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 		return tsErr
 	}
 
+	w := s.writeOpPool.Get()
 	w.request.ID = id
 	w.datapoint.Value = value
 	w.datapoint.Timestamp = ts
@@ -372,6 +372,19 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	iters.Reset(len(ids))
 
 	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
+
+	// Defer cleanup
+	defer func() {
+		// Return fetch ops to pool
+		for _, ops := range fetchBatchOpsByHostIdx {
+			for _, op := range ops {
+				s.fetchBatchOpPool.Put(op)
+			}
+		}
+
+		// Return fetch ops array array to pool
+		s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
+	}()
 
 	s.RLock()
 	quorum = s.quorum
@@ -475,16 +488,6 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	}
 
 	wg.Wait()
-
-	// Return fetch ops to pool
-	for _, ops := range fetchBatchOpsByHostIdx {
-		for _, op := range ops {
-			s.fetchBatchOpPool.Put(op)
-		}
-	}
-
-	// Return fetch ops array array to pool
-	s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
 
 	if resultErr != nil {
 		return nil, resultErr
