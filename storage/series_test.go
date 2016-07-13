@@ -222,6 +222,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	series.blocks.AddBlock(block)
 	block = mocks.NewMockDatabaseBlock(ctrl)
 	block.EXPECT().StartTime().Return(curr)
+	block.EXPECT().IsSealed().Return(false)
 	series.blocks.AddBlock(block)
 	require.Equal(t, blockStart, series.blocks.GetMinTime())
 	require.Equal(t, 2, series.blocks.Len())
@@ -237,10 +238,63 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.True(t, exists)
 }
 
+func TestSeriesTickNeedsBlockSeal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := seriesTestOptions()
+	curr := time.Now().Truncate(opts.GetBlockSize())
+	opts = opts.NowFn(func() time.Time {
+		return curr
+	})
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	block := mocks.NewMockDatabaseBlock(ctrl)
+	block.EXPECT().StartTime().Return(curr)
+	block.EXPECT().IsSealed().Return(false).MinTimes(1).MaxTimes(2)
+	series.blocks.AddBlock(block)
+	blockStart := curr.Add(-opts.GetBufferPast()).Add(-2 * opts.GetBlockSize())
+	block = mocks.NewMockDatabaseBlock(ctrl)
+	block.EXPECT().StartTime().Return(blockStart)
+	block.EXPECT().IsSealed().Return(false).Times(2)
+	block.EXPECT().Seal()
+	series.blocks.AddBlock(block)
+	buffer := mocks.NewMockdatabaseBuffer(ctrl)
+	series.buffer = buffer
+	buffer.EXPECT().Empty().Return(true)
+	buffer.EXPECT().NeedsDrain().Return(false)
+	err := series.Tick()
+	require.NoError(t, err)
+}
+
 func TestShouldExpire(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	now := time.Now()
 	require.False(t, series.shouldExpire(now, now))
 	require.True(t, series.shouldExpire(now, now.Add(-opts.GetRetentionPeriod()).Add(-opts.GetBlockSize())))
+}
+
+func TestShouldSeal(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := seriesTestOptions()
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	now := time.Now()
+	inputs := []struct {
+		blockStart     time.Time
+		expectedSeal   bool
+		expectedResult bool
+	}{
+		{now, true, false},
+		{now, false, false},
+		{now.Add(-opts.GetBufferPast()).Add(-2 * opts.GetBlockSize()), false, true},
+		{now.Add(-opts.GetBufferPast()).Add(-2 * opts.GetBlockSize()), true, false},
+	}
+
+	for _, input := range inputs {
+		block := mocks.NewMockDatabaseBlock(ctrl)
+		block.EXPECT().IsSealed().Return(input.expectedSeal)
+		require.Equal(t, input.expectedResult, series.shouldSeal(now, input.blockStart, block))
+	}
 }

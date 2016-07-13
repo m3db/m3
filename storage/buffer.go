@@ -174,7 +174,7 @@ func (s *dbBuffer) DrainAndReset(forced bool) {
 
 			// After we sort there is always only a single encoder
 			encoder := b.encoders[0].encoder
-			encoder.Done()
+			encoder.Seal()
 			s.drainFn(b.start, encoder)
 			b.drained = true
 		}
