@@ -82,13 +82,9 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
-	it := encoding.NewSeriesIterator(req.ID, start, end, []m3db.Iterator{
-		encoding.NewMixedReadersIterator(
-			s.db.Options().GetSingleReaderIteratorPool().Get(),
-			s.db.Options().GetMultiReaderIteratorPool().Get(),
-			encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded),
-			nil),
-	}, nil)
+	multiIt := s.db.Options().GetMultiReaderIteratorPool().Get()
+	multiIt.ResetSliceOfSlices(encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
+	it := encoding.NewSeriesIterator(req.ID, start, end, []m3db.Iterator{multiIt}, nil)
 	defer it.Close()
 	for it.Next() {
 		dp, _, annotation := it.Current()

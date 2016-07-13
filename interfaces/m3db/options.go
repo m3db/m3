@@ -143,11 +143,11 @@ type DatabaseOptions interface {
 	// GetEncoderPool returns the encoderPool
 	GetEncoderPool() EncoderPool
 
-	// SingleReaderIteratorPool sets the singleReaderIteratorPool and returns a new DatabaseOptions
-	SingleReaderIteratorPool(value SingleReaderIteratorPool) DatabaseOptions
+	// ReaderIteratorPool sets the readerIteratorPool and returns a new DatabaseOptions
+	ReaderIteratorPool(value ReaderIteratorPool) DatabaseOptions
 
-	// GetSingleReaderIteratorPool returns the singleReaderIteratorPool
-	GetSingleReaderIteratorPool() SingleReaderIteratorPool
+	// GetReaderIteratorPool returns the readerIteratorPool
+	GetReaderIteratorPool() ReaderIteratorPool
 
 	// MultiReaderIteratorPool sets the multiReaderIteratorPool and returns a new DatabaseOptions
 	MultiReaderIteratorPool(value MultiReaderIteratorPool) DatabaseOptions
@@ -284,12 +284,6 @@ type ClientOptions interface {
 	// GetBackgroundHealthCheckStutter returns the backgroundHealthCheckStutter
 	GetBackgroundHealthCheckStutter() time.Duration
 
-	// MixedReadersIteratorAlloc sets the mixedReadersIteratorAlloc and returns a new ClientOptions
-	MixedReadersIteratorAlloc(value MixedReadersIteratorAllocate) ClientOptions
-
-	// GetMixedReadersIteratorAlloc returns the mixedReadersIteratorAlloc
-	GetMixedReadersIteratorAlloc() MixedReadersIteratorAllocate
-
 	// WriteOpPoolSize sets the writeOpPoolSize and returns a new ClientOptions
 	WriteOpPoolSize(value int) ClientOptions
 
@@ -349,6 +343,12 @@ type ClientOptions interface {
 
 	// GetSeriesIteratorArrayPoolBuckets returns the seriesIteratorArrayPoolBuckets
 	GetSeriesIteratorArrayPoolBuckets() []PoolBucket
+
+	// ReaderIteratorAllocate sets the readerIteratorAllocate and returns a new ClientOptions
+	ReaderIteratorAllocate(value ReaderIteratorAllocate) ClientOptions
+
+	// GetReaderIteratorAllocate returns the readerIteratorAllocate
+	GetReaderIteratorAllocate() ReaderIteratorAllocate
 }
 
 // StaticTopologyTypeOptions is a set of static topology type options

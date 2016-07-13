@@ -75,7 +75,7 @@ type session struct {
 	fetchBatchOpArrayArrayPool      fetchBatchOpArrayArrayPool
 	iteratorArrayPool               m3db.IteratorArrayPool
 	readerSliceOfSlicesIteratorPool readerSliceOfSlicesIteratorPool
-	mixedReadersIteratorPool        m3db.MixedReadersIteratorPool
+	multiReaderIteratorPool         m3db.MultiReaderIteratorPool
 	seriesIteratorPool              m3db.SeriesIteratorPool
 	seriesIteratorsPool             m3db.MutableSeriesIteratorsPool
 	fetchBatchSize                  int
@@ -222,11 +222,11 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(size)
 		s.readerSliceOfSlicesIteratorPool.Init()
 	}
-	if s.mixedReadersIteratorPool == nil ||
+	if s.multiReaderIteratorPool == nil ||
 		prevReplicas != s.replicas {
 		size := s.replicas * s.opts.GetSeriesIteratorPoolSize()
-		s.mixedReadersIteratorPool = pool.NewMixedReadersIteratorPool(size)
-		s.mixedReadersIteratorPool.Init(s.opts.GetMixedReadersIteratorAlloc())
+		s.multiReaderIteratorPool = pool.NewMultiReaderIteratorPool(size)
+		s.multiReaderIteratorPool.Init(s.opts.GetReaderIteratorAllocate())
 	}
 	s.Unlock()
 
@@ -397,10 +397,10 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 			} else {
 				slicesIter := s.readerSliceOfSlicesIteratorPool.Get()
 				slicesIter.Reset(result.([]*rpc.Segments))
-				mixedIter := s.mixedReadersIteratorPool.Get()
-				mixedIter.Reset(slicesIter)
+				multiIter := s.multiReaderIteratorPool.Get()
+				multiIter.ResetSliceOfSlices(slicesIter)
 				// Results is pre-allocated after creating fetch ops for this ID below
-				results[resultsIdx] = mixedIter
+				results[resultsIdx] = multiIter
 			}
 			if resultsIdx != 0 {
 				// Requests still pending

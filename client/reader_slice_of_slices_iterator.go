@@ -30,8 +30,6 @@ import (
 
 type readerSliceOfSlicesIterator struct {
 	segments       []*rpc.Segments
-	readers        []io.Reader
-	readersIdx     int
 	segmentReaders []m3db.SegmentReader
 	idx            int
 	len            int
@@ -53,27 +51,47 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 		return false
 	}
 	it.idx++
-	it.readers = it.readers[:0]
-	it.readersIdx = 0
+
+	// Extend segment readers if not enough available
+	currLen := it.CurrentLen()
+	if len(it.segmentReaders) < currLen {
+		diff := currLen - len(it.segmentReaders)
+		for i := 0; i < diff; i++ {
+			it.segmentReaders = append(it.segmentReaders, xio.NewSegmentReader(m3db.Segment{}))
+		}
+	}
+
+	// Set the segment readers to reader from current segment pieces
+	segment := it.segments[it.idx]
+	if currLen == 1 && segment.Merged != nil {
+		it.segmentReaders[0].Reset(m3db.Segment{
+			Head: segment.Merged.Head,
+			Tail: segment.Merged.Tail,
+		})
+	} else {
+		for i := 0; i < currLen; i++ {
+			it.segmentReaders[i].Reset(m3db.Segment{
+				Head: segment.Unmerged[i].Head,
+				Tail: segment.Unmerged[i].Tail,
+			})
+		}
+	}
+
 	return true
 }
 
-func (it *readerSliceOfSlicesIterator) Current() []io.Reader {
-	if len(it.readers) != 0 {
-		// Already computed
-		return it.readers
+func (it *readerSliceOfSlicesIterator) CurrentLen() int {
+	if it.segments[it.idx].Merged != nil {
+		return 1
 	}
+	return len(it.segments[it.idx].Unmerged)
+}
 
-	group := it.segments[it.idx]
-	if group.Merged != nil {
-		it.setNextReader(group.Merged)
-		return it.readers
+func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) io.Reader {
+	if idx >= it.CurrentLen() {
+		return nil
 	}
-
-	for _, value := range group.Unmerged {
-		it.setNextReader(value)
-	}
-	return it.readers
+	return it.segmentReaders[idx]
 }
 
 func (it *readerSliceOfSlicesIterator) Close() {
@@ -86,25 +104,8 @@ func (it *readerSliceOfSlicesIterator) Close() {
 	}
 }
 
-func (it *readerSliceOfSlicesIterator) setNextReader(value *rpc.Segment) {
-	idx := it.readersIdx
-	it.readersIdx++
-
-	// Creating segment readers is pass by value so this is safe
-	segment := m3db.Segment{Head: value.Head, Tail: value.Tail}
-	if idx >= len(it.segmentReaders) {
-		newReader := xio.NewSegmentReader(segment)
-		it.segmentReaders = append(it.segmentReaders, newReader)
-	} else {
-		it.segmentReaders[idx].Reset(segment)
-	}
-	it.readers = append(it.readers, it.segmentReaders[idx])
-}
-
 func (it *readerSliceOfSlicesIterator) Reset(segments []*rpc.Segments) {
 	it.segments = segments
-	it.readers = it.readers[:0]
-	it.readersIdx = 0
 	it.idx = -1
 	it.len = len(segments)
 	it.closed = false

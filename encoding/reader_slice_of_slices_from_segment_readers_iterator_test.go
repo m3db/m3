@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"io"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -48,14 +47,12 @@ func TestReaderSliceOfSlicesFromSegmentReadersIterator(t *testing.T) {
 	}
 
 	iter := NewReaderSliceOfSlicesFromSegmentReadersIterator(readers)
-
 	for i := range readers {
 		assert.True(t, iter.Next())
-		var expected []io.Reader
-		for _, r := range readers[i] {
-			expected = append(expected, io.Reader(r))
+		assert.Equal(t, len(readers[i]), iter.CurrentLen())
+		for j, r := range readers[i] {
+			assert.Equal(t, r, iter.CurrentAt(j))
 		}
-		assert.Equal(t, expected, iter.Current())
 	}
 	assert.False(t, iter.Next())
 }

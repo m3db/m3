@@ -20,6 +20,10 @@
 
 package m3db
 
+import (
+	"io"
+)
+
 // PoolAllocator allocates an object for a pool.
 type PoolAllocator func() interface{}
 
@@ -35,14 +39,8 @@ type EncoderAllocate func() Encoder
 // Work is a unit of item to be worked on.
 type Work func()
 
-// SingleReaderIteratorAllocate allocates a SingleReaderIterator for a pool.
-type SingleReaderIteratorAllocate func() SingleReaderIterator
-
-// MultiReaderIteratorAllocate allocates a MultiReaderIterator for a pool.
-type MultiReaderIteratorAllocate func() MultiReaderIterator
-
-// MixedReadersIteratorAllocate allocates a MixedReadersIterator for a pool.
-type MixedReadersIteratorAllocate func(pool MixedReadersIteratorPool) MixedReadersIterator
+// ReaderIteratorAllocate allocates a ReaderIterator for a pool.
+type ReaderIteratorAllocate func(reader io.Reader) ReaderIterator
 
 // ObjectPool provides a pool for objects
 type ObjectPool interface {
@@ -129,40 +127,28 @@ type SegmentReaderPool interface {
 	Put(reader SegmentReader)
 }
 
-// SingleReaderIteratorPool provides a pool for SingleReaderIterators
-type SingleReaderIteratorPool interface {
+// ReaderIteratorPool provides a pool for ReaderIterators
+type ReaderIteratorPool interface {
 	// Init initializes the pool.
-	Init(alloc SingleReaderIteratorAllocate)
+	Init(alloc ReaderIteratorAllocate)
 
-	// Get provides a SingleReaderIterator from the pool
-	Get() SingleReaderIterator
+	// Get provides a ReaderIterator from the pool
+	Get() ReaderIterator
 
-	// Put returns a SingleReaderIterator to the pool
-	Put(iter SingleReaderIterator)
+	// Put returns a ReaderIterator to the pool
+	Put(iter ReaderIterator)
 }
 
 // MultiReaderIteratorPool provides a pool for MultiReaderIterators
 type MultiReaderIteratorPool interface {
 	// Init initializes the pool.
-	Init(alloc MultiReaderIteratorAllocate)
+	Init(alloc ReaderIteratorAllocate)
 
 	// Get provides a MultiReaderIterator from the pool
 	Get() MultiReaderIterator
 
 	// Put returns a MultiReaderIterator to the pool
 	Put(iter MultiReaderIterator)
-}
-
-// MixedReadersIteratorPool provides a pool for MixedReadersIterators
-type MixedReadersIteratorPool interface {
-	// Init initializes the pool
-	Init(alloc MixedReadersIteratorAllocate)
-
-	// Get provides a MixedReadersIterator from the pool
-	Get() MixedReadersIterator
-
-	// Put returns a MixedReadersIterator to the pool
-	Put(iters MixedReadersIterator)
 }
 
 // SeriesIteratorPool provides a pool for SeriesIterator

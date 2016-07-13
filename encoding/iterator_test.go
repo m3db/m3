@@ -22,13 +22,10 @@ package encoding
 
 import (
 	"io"
-	"testing"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	xtime "github.com/m3db/m3db/x/time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 type testValue struct {
@@ -39,17 +36,25 @@ type testValue struct {
 }
 
 type testIterator struct {
-	values []testValue
-	idx    int
-	closed bool
-	err    error
+	values  []testValue
+	idx     int
+	closed  bool
+	err     error
+	onNext  func(oldIdx, newIdx int)
+	onReset func(r io.Reader)
 }
 
-func newTestIterator(values []testValue) m3db.Iterator {
+func newTestIterator(values []testValue) m3db.ReaderIterator {
 	return &testIterator{values: values, idx: -1}
 }
 
 func (it *testIterator) Next() bool {
+	if it.onNext != nil {
+		it.onNext(it.idx, it.idx+1)
+	}
+	if it.Err() != nil {
+		return false
+	}
 	if it.idx+1 >= len(it.values) {
 		return false
 	}
@@ -63,7 +68,8 @@ func (it *testIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) 
 		idx = 0
 	}
 	v := it.values[idx]
-	return m3db.Datapoint{Timestamp: v.t, Value: v.value}, v.unit, m3db.Annotation(v.annotation)
+	dp := m3db.Datapoint{Timestamp: v.t, Value: v.value}
+	return dp, v.unit, m3db.Annotation(v.annotation)
 }
 
 func (it *testIterator) Err() error {
@@ -74,66 +80,8 @@ func (it *testIterator) Close() {
 	it.closed = true
 }
 
-type testReaderValues struct {
-	values []testValue
-	reader io.Reader
-}
-
-type testSingleReaderIterator struct {
-	testIterator
-	values []testReaderValues
-	idx    int
-	t      *testing.T
-}
-
-func newTestSingleReaderIterator(
-	t *testing.T,
-	values []testReaderValues,
-) m3db.SingleReaderIterator {
-	return &testSingleReaderIterator{
-		testIterator: *newTestIterator(nil).(*testIterator),
-		values:       values,
-		idx:          -1,
-		t:            t,
-	}
-}
-
-func (it *testSingleReaderIterator) Reset(reader io.Reader) {
-	it.idx++
-	assert.Equal(it.t, it.values[it.idx].reader, reader)
-	it.testIterator = *newTestIterator(nil).(*testIterator)
-	it.testIterator.values = it.values[it.idx].values
-}
-
-type testReadersValues struct {
-	values  []testValue
-	readers []io.Reader
-}
-
-type testMultiReaderIterator struct {
-	testIterator
-	values []testReadersValues
-	idx    int
-	t      *testing.T
-}
-
-func newTestMultiReaderIterator(
-	t *testing.T,
-	values []testReadersValues,
-) m3db.MultiReaderIterator {
-	return &testMultiReaderIterator{
-		testIterator: *newTestIterator(nil).(*testIterator),
-		values:       values,
-		idx:          -1,
-		t:            t,
-	}
-}
-
-func (it *testMultiReaderIterator) Reset(readers []io.Reader) {
-	it.idx++
-	assert.Equal(it.t, it.values[it.idx].readers, readers)
-	it.testIterator = *newTestIterator(nil).(*testIterator)
-	it.testIterator.values = it.values[it.idx].values
+func (it *testIterator) Reset(r io.Reader) {
+	it.onReset(r)
 }
 
 type testReaderSliceOfSlicesIterator struct {
@@ -157,21 +105,30 @@ func (it *testReaderSliceOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *testReaderSliceOfSlicesIterator) Current() []io.Reader {
-	idx := it.idx
-	if idx == -1 {
-		idx = 0
-	}
-	return it.readers[idx]
+func (it *testReaderSliceOfSlicesIterator) CurrentLen() int {
+	return len(it.readers[it.arrayIdx()])
+}
+
+func (it *testReaderSliceOfSlicesIterator) CurrentAt(idx int) io.Reader {
+	return it.readers[it.arrayIdx()][idx]
 }
 
 func (it *testReaderSliceOfSlicesIterator) Close() {
 	it.closed = true
 }
 
-type testNoopReader struct {
+func (it *testReaderSliceOfSlicesIterator) arrayIdx() int {
+	idx := it.idx
+	if idx == -1 {
+		idx = 0
+	}
+	return idx
 }
 
-func (*testNoopReader) Read(p []byte) (n int, err error) {
-	return 0, nil
+type testNoopReader struct {
+	n int // return for "n", also required so that each struct construction has its address
+}
+
+func (r *testNoopReader) Read(p []byte) (int, error) {
+	return r.n, nil
 }

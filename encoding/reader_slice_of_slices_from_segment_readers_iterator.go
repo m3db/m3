@@ -28,7 +28,6 @@ import (
 
 type readerSliceOfSlicesIterator struct {
 	segments [][]m3db.SegmentReader
-	readers  []io.Reader
 	idx      int
 	len      int
 	closed   bool
@@ -51,20 +50,19 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *readerSliceOfSlicesIterator) Current() []io.Reader {
-	slice := it.segments[it.idx]
-	it.readers = it.readers[:0]
-	for i := range slice {
-		it.readers = append(it.readers, slice[i])
-	}
-	return it.readers
+func (it *readerSliceOfSlicesIterator) CurrentLen() int {
+	return len(it.segments[it.arrayIdx()])
+}
+
+func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) io.Reader {
+	return it.segments[it.arrayIdx()][idx]
 }
 
 func (it *readerSliceOfSlicesIterator) Reset(segments [][]m3db.SegmentReader) {
 	it.segments = segments
-	it.readers = it.readers[:0]
 	it.idx = -1
 	it.len = len(segments)
+	it.closed = false
 }
 
 func (it *readerSliceOfSlicesIterator) Close() {
@@ -72,4 +70,12 @@ func (it *readerSliceOfSlicesIterator) Close() {
 		return
 	}
 	it.closed = true
+}
+
+func (it *readerSliceOfSlicesIterator) arrayIdx() int {
+	idx := it.idx
+	if idx == -1 {
+		idx = 0
+	}
+	return idx
 }

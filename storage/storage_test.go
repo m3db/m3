@@ -94,11 +94,9 @@ func (v decodedValuesByTime) Swap(lhs, rhs int) {
 }
 
 func decodedValues(results [][]m3db.SegmentReader, opts m3db.DatabaseOptions) ([]decodedValue, error) {
-	iter := encoding.NewMixedReadersIterator(
-		opts.GetSingleReaderIteratorPool().Get(),
-		opts.GetMultiReaderIteratorPool().Get(),
-		encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(results),
-		nil)
+	slicesIter := encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(results)
+	iter := opts.GetMultiReaderIteratorPool().Get()
+	iter.ResetSliceOfSlices(slicesIter)
 	defer iter.Close()
 
 	var all []decodedValue

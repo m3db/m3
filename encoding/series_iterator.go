@@ -22,29 +22,21 @@ package encoding
 
 import (
 	"container/heap"
-	"errors"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
-var (
-	timeZero              time.Time
-	errOutOfOrderIterator = errors.New("series values are out of order from mixed reader")
-)
-
 type seriesIterator struct {
-	id            string
-	start         time.Time
-	end           time.Time
-	iters         []m3db.Iterator
-	currIters     IteratorHeap
-	unclosedIters []m3db.Iterator
-	err           error
-	firstNext     bool
-	closed        bool
-	pool          m3db.SeriesIteratorPool
+	id     string
+	start  time.Time
+	end    time.Time
+	iters  IteratorHeap
+	err    error
+	clean  bool
+	closed bool
+	pool   m3db.SeriesIteratorPool
 }
 
 // NewSeriesIterator creates a new series iterator
@@ -72,19 +64,18 @@ func (it *seriesIterator) End() time.Time {
 }
 
 func (it *seriesIterator) Next() bool {
-	if it.firstNext {
-		it.firstNext = false
-		return it.hasNext()
+	if !it.clean {
+		if !it.hasNext() {
+			return false
+		}
+		it.moveToNext()
 	}
-	if !it.hasNext() {
-		return false
-	}
-	it.moveToNext(true)
+	it.clean = false
 	return it.hasNext()
 }
 
 func (it *seriesIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
-	return it.currIters[0].Current()
+	return it.iters[0].Current()
 }
 
 func (it *seriesIterator) Err() error {
@@ -110,20 +101,21 @@ func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Tim
 	it.start = startInclusive
 	it.end = endExclusive
 	it.iters = it.iters[:0]
-	it.currIters = it.currIters[:0]
-	it.unclosedIters = it.unclosedIters[:0]
 	it.err = nil
-	it.firstNext = true
+	it.clean = true
 	it.closed = false
+	heap.Init(&it.iters)
 	for _, replica := range replicas {
 		// Replica can be nil if replica failed to respond
 		if replica == nil {
 			continue
 		}
-		it.iters = append(it.iters, replica)
+		if !it.moveIteratorToValidNext(replica, true) {
+			// No values within range
+			continue
+		}
+		heap.Push(&it.iters, replica)
 	}
-	heap.Init(&it.currIters)
-	it.moveToNext(false)
 }
 
 func (it *seriesIterator) hasError() bool {
@@ -135,19 +127,41 @@ func (it *seriesIterator) isClosed() bool {
 }
 
 func (it *seriesIterator) hasMore() bool {
-	return len(it.iters) > 0
+	return it.iters.Len() > 0
 }
 
 func (it *seriesIterator) hasNext() bool {
 	return !it.hasError() && !it.isClosed() && it.hasMore()
 }
 
-func (it *seriesIterator) moveIterToValidNext(iter m3db.Iterator) bool {
-	dp, _, _ := iter.Current()
-	prevT := dp.Timestamp
+func (it *seriesIterator) moveToNext() {
+	iter := heap.Pop(&it.iters).(m3db.Iterator)
+	prev, _, _ := iter.Current()
+
+	if it.moveIteratorToValidNext(iter, false) {
+		heap.Push(&it.iters, iter)
+	}
+
+	if it.iters.Len() == 0 {
+		return
+	}
+
+	curr, _, _ := it.Current()
+	if curr.Timestamp.Equal(prev.Timestamp) {
+		// Dedupe
+		it.moveToNext()
+	}
+}
+
+func (it *seriesIterator) moveIteratorToValidNext(iter m3db.Iterator, first bool) bool {
+	var prevT time.Time
+	if !first {
+		prev, _, _ := iter.Current()
+		prevT = prev.Timestamp
+	}
 	for iter.Next() {
-		dp, _, _ := iter.Current()
-		t := dp.Timestamp
+		curr, _, _ := iter.Current()
+		t := curr.Timestamp
 		if t.Before(prevT) {
 			// Out of order datapoint
 			it.err = errOutOfOrderIterator
@@ -155,11 +169,12 @@ func (it *seriesIterator) moveIterToValidNext(iter m3db.Iterator) bool {
 			return false
 		}
 		if t.Before(it.start) {
-			// Fast forward
+			// Continue past
+			prevT = t
 			continue
 		}
 		if !t.Before(it.end) {
-			// Close this iter
+			// Past end
 			break
 		}
 		return true
@@ -171,55 +186,4 @@ func (it *seriesIterator) moveIterToValidNext(iter m3db.Iterator) bool {
 		it.err = err
 	}
 	return false
-}
-
-func (it *seriesIterator) moveToNext(pop bool) {
-	if pop {
-		heap.Pop(&it.currIters)
-	}
-
-	for i, iter := range it.iters {
-		for _, existing := range it.currIters {
-			if existing == iter {
-				// Already have this iterator in the currIters
-				continue
-			}
-		}
-
-		if !it.moveIterToValidNext(iter) {
-			// Closed so remove it, two step, first nil out then delete
-			it.iters[i] = nil
-			continue
-		}
-
-		// Dedupe
-		dp, _, _ := iter.Current()
-		t := dp.Timestamp
-		dupe := false
-		for i := range it.currIters {
-			dp, _, _ := it.currIters[i].Current()
-			existsT := dp.Timestamp
-			if t.Equal(existsT) {
-				dupe = true
-				break
-			}
-		}
-		if !dupe {
-			heap.Push(&it.currIters, iter)
-		}
-	}
-
-	// Delete all nil iters
-	itersLen := len(it.iters)
-	for i := 0; i < itersLen; i++ {
-		if it.iters[i] == nil {
-			// Swap tail to here and progress
-			it.iters[i] = it.iters[itersLen-1]
-			it.iters = it.iters[:itersLen-1]
-			itersLen--
-
-			// Reconsider this record
-			i--
-		}
-	}
 }

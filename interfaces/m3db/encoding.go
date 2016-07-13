@@ -77,21 +77,24 @@ type Iterator interface {
 	Close()
 }
 
-// SingleReaderIterator is the interface for a single-reader iterator.
-type SingleReaderIterator interface {
+// ReaderIterator is the interface for a single-reader iterator.
+type ReaderIterator interface {
 	Iterator
 
 	// Reset resets the iterator to read from a new reader.
 	Reset(reader io.Reader)
 }
 
-// MultiReaderIterator is an iterator that iterates in order over a set of
-// internally ordered but not collectively in order readers.
+// MultiReaderIterator is an iterator that iterates in order over a list of sets of
+// internally ordered but not collectively in order readers, it also deduplicates datapoints.
 type MultiReaderIterator interface {
 	Iterator
 
 	// Reset resets the iterator to read from a slice of readers.
 	Reset(readers []io.Reader)
+
+	// Reset resets the iterator to read from a slice of slice readers.
+	ResetSliceOfSlices(readers ReaderSliceOfSlicesIterator)
 }
 
 // ReaderSliceOfSlicesIterator is an iterator that iterates through an array of reader arrays
@@ -99,8 +102,11 @@ type ReaderSliceOfSlicesIterator interface {
 	// Next moves to the next item
 	Next() bool
 
-	// Current returns the current array of readers
-	Current() []io.Reader
+	// CurrentLen returns the current slice of readers
+	CurrentLen() int
+
+	// CurrentAt returns the current reader in the slice of readers at an index
+	CurrentAt(idx int) io.Reader
 
 	// Close closes the iterator and if pooled will return to the pool
 	Close()
@@ -112,14 +118,6 @@ type ReaderSliceOfSlicesFromSegmentReadersIterator interface {
 
 	// Reset resets the iterator with a new array of segment readers arrays
 	Reset(segments [][]SegmentReader)
-}
-
-// MixedReadersIterator is an iterator that iterates over values from a list of single and multi readers
-type MixedReadersIterator interface {
-	Iterator
-
-	// Reset resets the iterator to read from a slice of reader slices iterator.
-	Reset(iter ReaderSliceOfSlicesIterator)
 }
 
 // SeriesIterator is an iterator that iterates over a set of iterators from different replicas
@@ -171,10 +169,7 @@ type MutableSeriesIterators interface {
 // Decoder is the generic interface for different types of decoders.
 type Decoder interface {
 	// Decode decodes the encoded data in the reader.
-	Decode(reader io.Reader) SingleReaderIterator
-
-	// DecodeAll decodes the encoded data in all the readers.
-	DecodeAll(readers []io.Reader) MultiReaderIterator
+	Decode(reader io.Reader) ReaderIterator
 }
 
 // NewDecoderFn creates a new decoder

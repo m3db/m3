@@ -22,9 +22,9 @@ package client
 
 import (
 	"errors"
+	"io"
 	"time"
 
-	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/x/logging"
@@ -96,8 +96,8 @@ var (
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
 	defaultSeriesIteratorArrayPoolBuckets = []m3db.PoolBucket{}
 
-	errNoTopologyTypeSet              = errors.New("no topology type set")
-	errNoMixedReadersIteratorAllocSet = errors.New("no mixed readers iterator alloc set, has encoding been set?")
+	errNoTopologyTypeSet           = errors.New("no topology type set")
+	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
 
 type options struct {
@@ -117,7 +117,7 @@ type options struct {
 	backgroundConnectStutter       time.Duration
 	backgroundHealthCheckInterval  time.Duration
 	backgroundHealthCheckStutter   time.Duration
-	mixedReadersIteratorAlloc      m3db.MixedReadersIteratorAllocate
+	readerIteratorAllocate         m3db.ReaderIteratorAllocate
 	writeOpPoolSize                int
 	fetchBatchOpPoolSize           int
 	writeBatchSize                 int
@@ -163,19 +163,16 @@ func (o *options) Validate() error {
 	if o.topologyType == nil {
 		return errNoTopologyTypeSet
 	}
-	if o.mixedReadersIteratorAlloc == nil {
-		return errNoMixedReadersIteratorAllocSet
+	if o.readerIteratorAllocate == nil {
+		return errNoReaderIteratorAllocateSet
 	}
 	return nil
 }
 
 func (o *options) EncodingTsz() m3db.ClientOptions {
 	opts := *o
-	opts.mixedReadersIteratorAlloc = func(pool m3db.MixedReadersIteratorPool) m3db.MixedReadersIterator {
-		encodingOpts := tsz.NewOptions()
-		singleIter := tsz.NewSingleReaderIterator(nil, encodingOpts)
-		multiIter := tsz.NewMultiReaderIterator(nil, encodingOpts)
-		return encoding.NewMixedReadersIterator(singleIter, multiIter, nil, pool)
+	opts.readerIteratorAllocate = func(r io.Reader) m3db.ReaderIterator {
+		return tsz.NewReaderIterator(r, tsz.NewOptions())
 	}
 	return &opts
 }
@@ -430,12 +427,12 @@ func (o *options) GetSeriesIteratorArrayPoolBuckets() []m3db.PoolBucket {
 	return o.seriesIteratorArrayPoolBuckets
 }
 
-func (o *options) MixedReadersIteratorAlloc(value m3db.MixedReadersIteratorAllocate) m3db.ClientOptions {
+func (o *options) ReaderIteratorAllocate(value m3db.ReaderIteratorAllocate) m3db.ClientOptions {
 	opts := *o
-	opts.mixedReadersIteratorAlloc = value
+	opts.readerIteratorAllocate = value
 	return &opts
 }
 
-func (o *options) GetMixedReadersIteratorAlloc() m3db.MixedReadersIteratorAllocate {
-	return o.mixedReadersIteratorAlloc
+func (o *options) GetReaderIteratorAllocate() m3db.ReaderIteratorAllocate {
+	return o.readerIteratorAllocate
 }

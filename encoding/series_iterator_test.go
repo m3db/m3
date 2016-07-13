@@ -31,11 +31,12 @@ import (
 )
 
 type testSeries struct {
-	id     string
-	start  time.Time
-	end    time.Time
-	values []testValue
-	err    *testSeriesErr
+	id          string
+	start       time.Time
+	end         time.Time
+	input       [][]testValue
+	expected    []testValue
+	expectedErr *testSeriesErr
 }
 
 type testSeriesErr struct {
@@ -43,84 +44,175 @@ type testSeriesErr struct {
 	atIdx int
 }
 
-func TestSeriesIteratorMatchingReplicas(t *testing.T) {
-	start := time.Now().Truncate(time.Hour)
-	end := start.Add(time.Hour)
+func TestMultiReaderMergesReplicas(t *testing.T) {
+	start := time.Now().Truncate(time.Minute)
+	end := start.Add(time.Minute)
 
-	all := []testSeries{
-		{
-			id:    "foo",
-			start: start,
-			end:   end,
-			values: []testValue{
-				{1.0, start.Add(1 * time.Millisecond), xtime.Millisecond, []byte{1, 2, 3}},
-				{2.0, start.Add(1 * time.Second), xtime.Second, nil},
-				{3.0, start.Add(2 * time.Second), xtime.Second, nil},
-			},
+	values := [][]testValue{
+		[]testValue{
+			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 		},
-		{
-			id:    "bar",
-			start: start,
-			end:   end,
-			values: []testValue{
-				{4.0, start.Add(1 * time.Second), xtime.Second, []byte{4, 5, 6}},
-				{5.0, start.Add(2 * time.Second), xtime.Second, nil},
-				{6.0, start.Add(3 * time.Second), xtime.Second, nil},
-			},
+		[]testValue{
+			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 		},
-		{
-			id:    "baz",
-			start: start,
-			end:   end,
-			values: []testValue{
-				{7.0, start.Add(1 * time.Minute), xtime.Second, []byte{7, 8, 9}},
-				{8.0, start.Add(3 * time.Minute), xtime.Second, nil},
-				{9.0, start.Add(2 * time.Minute), xtime.Second, nil},
-			},
-			err: &testSeriesErr{errOutOfOrderIterator, 2},
+		[]testValue{
+			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+			{4.0, start.Add(4 * time.Second), xtime.Second, nil},
+			{5.0, start.Add(5 * time.Second), xtime.Second, nil},
 		},
 	}
 
-	for i := range all {
-		series := &all[i]
-
-		var replicas []m3db.Iterator
-		for i := 0; i < 3; i++ {
-			replicas = append(replicas, newTestIterator(series.values))
-		}
-
-		assertTestSeriesIterator(t, series, replicas)
+	test := testSeries{
+		id:       "foo",
+		start:    start,
+		end:      end,
+		input:    values,
+		expected: append(values[0], values[2][1:]...),
 	}
+
+	assertTestSeriesIterator(t, test)
+}
+
+func TestMultiReaderFiltersToRange(t *testing.T) {
+	start := time.Now().Truncate(time.Minute)
+	end := start.Add(time.Minute)
+
+	values := []testValue{
+		{0.0, start.Add(-2 * time.Second), xtime.Second, []byte{1, 2, 3}},
+		{1.0, start.Add(-1 * time.Second), xtime.Second, nil},
+		{2.0, start, xtime.Second, nil},
+		{3.0, start.Add(1 * time.Second), xtime.Second, nil},
+		{4.0, start.Add(60 * time.Second), xtime.Second, nil},
+		{5.0, start.Add(61 * time.Second), xtime.Second, nil},
+	}
+
+	test := testSeries{
+		id:       "foo",
+		start:    start,
+		end:      end,
+		input:    [][]testValue{values, values, values},
+		expected: values[2:4],
+	}
+
+	assertTestSeriesIterator(t, test)
+}
+
+func TestSeriesIteratorIgnoresNilReplicas(t *testing.T) {
+	start := time.Now().Truncate(time.Minute)
+	end := start.Add(time.Minute)
+
+	values := []testValue{
+		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+	}
+
+	test := testSeries{
+		id:       "foo",
+		start:    start,
+		end:      end,
+		input:    [][]testValue{values, nil, values},
+		expected: values,
+	}
+
+	assertTestSeriesIterator(t, test)
+}
+
+func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
+	start := time.Now().Truncate(time.Minute)
+	end := start.Add(time.Minute)
+
+	values := []testValue{
+		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+	}
+
+	test := testSeries{
+		id:       "foo",
+		start:    start,
+		end:      end,
+		input:    [][]testValue{values, []testValue{}, values},
+		expected: values,
+	}
+
+	assertTestSeriesIterator(t, test)
+}
+
+func TestSeriesIteratorErrorOnOutOfOrder(t *testing.T) {
+	start := time.Now().Truncate(time.Minute)
+	end := start.Add(time.Minute)
+
+	values := []testValue{
+		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+	}
+
+	test := testSeries{
+		id:       "foo",
+		start:    start,
+		end:      end,
+		input:    [][]testValue{values},
+		expected: values[:2],
+		expectedErr: &testSeriesErr{
+			err:   errOutOfOrderIterator,
+			atIdx: 2,
+		},
+	}
+
+	assertTestSeriesIterator(t, test)
 }
 
 func assertTestSeriesIterator(
 	t *testing.T,
-	series *testSeries,
-	iters []m3db.Iterator,
+	series testSeries,
 ) {
+	var iters []m3db.Iterator
+	for i := range series.input {
+		if series.input[i] == nil {
+			iters = append(iters, nil)
+		} else {
+			iters = append(iters, newTestIterator(series.input[i]))
+		}
+	}
+
 	iter := NewSeriesIterator(series.id, series.start, series.end, iters, nil)
 	defer iter.Close()
 
 	assert.Equal(t, series.id, iter.ID())
 	assert.Equal(t, series.start, iter.Start())
 	assert.Equal(t, series.end, iter.End())
-	for i := 0; i < len(series.values); i++ {
+	for i := 0; i < len(series.expected); i++ {
 		next := iter.Next()
-		if series.err != nil && i == series.err.atIdx {
+		if series.expectedErr != nil && i == series.expectedErr.atIdx {
 			assert.Equal(t, false, next)
 			break
 		}
 		assert.Equal(t, true, next)
 		dp, unit, annotation := iter.Current()
-		expected := series.values[i]
+		expected := series.expected[i]
 		assert.Equal(t, expected.value, dp.Value)
 		assert.Equal(t, expected.t, dp.Timestamp)
 		assert.Equal(t, expected.unit, unit)
 		assert.Equal(t, expected.annotation, []byte(annotation))
 	}
-	if series.err == nil {
+	// Ensure further calls to next false
+	for i := 0; i < 2; i++ {
+		assert.Equal(t, false, iter.Next())
+	}
+	if series.expectedErr == nil {
 		assert.NoError(t, iter.Err())
 	} else {
-		assert.Equal(t, series.err.err, iter.Err())
+		assert.Equal(t, series.expectedErr.err, iter.Err())
+	}
+	for _, iter := range iters {
+		if iter != nil {
+			assert.Equal(t, true, iter.(*testIterator).closed)
+		}
 	}
 }
