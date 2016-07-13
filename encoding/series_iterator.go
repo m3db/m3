@@ -29,14 +29,14 @@ import (
 )
 
 type seriesIterator struct {
-	id     string
-	start  time.Time
-	end    time.Time
-	iters  IteratorHeap
-	err    error
-	clean  bool
-	closed bool
-	pool   m3db.SeriesIteratorPool
+	id        string
+	start     time.Time
+	end       time.Time
+	iters     IteratorHeap
+	err       error
+	firstNext bool
+	closed    bool
+	pool      m3db.SeriesIteratorPool
 }
 
 // NewSeriesIterator creates a new series iterator
@@ -64,13 +64,13 @@ func (it *seriesIterator) End() time.Time {
 }
 
 func (it *seriesIterator) Next() bool {
-	if !it.clean {
+	if !it.firstNext {
 		if !it.hasNext() {
 			return false
 		}
 		it.moveToNext()
 	}
-	it.clean = false
+	it.firstNext = false
 	return it.hasNext()
 }
 
@@ -102,7 +102,7 @@ func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Tim
 	it.end = endExclusive
 	it.iters = it.iters[:0]
 	it.err = nil
-	it.clean = true
+	it.firstNext = true
 	it.closed = false
 	heap.Init(&it.iters)
 	for _, replica := range replicas {
@@ -164,7 +164,9 @@ func (it *seriesIterator) moveIteratorToValidNext(iter m3db.Iterator, first bool
 		t := curr.Timestamp
 		if t.Before(prevT) {
 			// Out of order datapoint
-			it.err = errOutOfOrderIterator
+			if it.err == nil {
+				it.err = errOutOfOrderIterator
+			}
 			iter.Close()
 			return false
 		}
@@ -182,7 +184,7 @@ func (it *seriesIterator) moveIteratorToValidNext(iter m3db.Iterator, first bool
 
 	err := iter.Err()
 	iter.Close()
-	if err != nil {
+	if it.err == nil && err != nil {
 		it.err = err
 	}
 	return false

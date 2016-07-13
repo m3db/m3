@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	errOutOfOrderIterator = errors.New("series values are out of order from mixed reader")
+	errOutOfOrderIterator = errors.New("values are out of order from inner iterator")
 )
 
 // multiReaderIterator is an iterator that iterates in order over a list of sets of
@@ -43,7 +43,7 @@ type multiReaderIterator struct {
 	singleSlicesIter singleSlicesOfSlicesIterator
 	pool             m3db.MultiReaderIteratorPool
 	err              error
-	clean            bool
+	firstNext        bool
 	closed           bool
 }
 
@@ -58,14 +58,14 @@ func NewMultiReaderIterator(
 }
 
 func (it *multiReaderIterator) Next() bool {
-	if !it.clean {
-		// When clean do not progress the first time
+	if !it.firstNext {
+		// When firstNext do not progress the first time
 		if !it.hasNext() {
 			return false
 		}
 		it.moveToNext()
 	}
-	it.clean = false
+	it.firstNext = false
 	return it.hasNext()
 }
 
@@ -126,7 +126,7 @@ func (it *multiReaderIterator) moveToNext() {
 		} else {
 			err := iter.Err()
 			iter.Close()
-			if err != nil {
+			if it.err == nil && err != nil {
 				it.err = err
 			}
 		}
@@ -167,7 +167,9 @@ func (it *multiReaderIterator) moveIteratorToValidNext(iter m3db.Iterator) bool 
 		t := curr.Timestamp
 		if t.Before(prevT) {
 			// Out of order datapoint
-			it.err = errOutOfOrderIterator
+			if it.err == nil {
+				it.err = errOutOfOrderIterator
+			}
 			iter.Close()
 			return false
 		}
@@ -176,7 +178,7 @@ func (it *multiReaderIterator) moveIteratorToValidNext(iter m3db.Iterator) bool 
 
 	err := iter.Err()
 	iter.Close()
-	if err != nil {
+	if it.err == nil && err != nil {
 		it.err = err
 	}
 	return false
@@ -188,7 +190,7 @@ func (it *multiReaderIterator) Err() error {
 
 func (it *multiReaderIterator) Reset(readers []io.Reader) {
 	it.singleSlicesIter.readers = readers
-	it.singleSlicesIter.clean = true
+	it.singleSlicesIter.firstNext = true
 	it.singleSlicesIter.closed = false
 	it.ResetSliceOfSlices(&it.singleSlicesIter)
 }
@@ -197,7 +199,7 @@ func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter m3db.ReaderSliceOfS
 	it.iters = it.iters[:0]
 	it.slicesIter = slicesIter
 	it.err = nil
-	it.clean = true
+	it.firstNext = true
 	it.closed = false
 	heap.Init(&it.iters)
 	// Try moveToNext to load values for calls to Current before Next
@@ -222,16 +224,16 @@ func (it *multiReaderIterator) Close() {
 }
 
 type singleSlicesOfSlicesIterator struct {
-	readers []io.Reader
-	clean   bool
-	closed  bool
+	readers   []io.Reader
+	firstNext bool
+	closed    bool
 }
 
 func (it *singleSlicesOfSlicesIterator) Next() bool {
-	if !it.clean || it.closed {
+	if !it.firstNext || it.closed {
 		return false
 	}
-	it.clean = false
+	it.firstNext = false
 	return true
 }
 
