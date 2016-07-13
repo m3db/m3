@@ -107,31 +107,35 @@ func (b *dbBlock) close() {
 	if b.ctx == nil {
 		return
 	}
+
+	cleanUp := func() {
+		b.ctx.Close()
+		b.ctx = nil
+		b.encoder = nil
+		b.stream = nil
+	}
+	defer cleanUp()
+
 	if b.writable {
 		// If the block is not sealed, we need to close the encoder.
 		if encoder := b.encoder; encoder != nil {
 			b.ctx.RegisterCloser(encoder.Close)
 		}
-	} else {
-		// Otherwise, we need to close the stream.
-		if stream := b.stream; stream != nil {
-			closer := func() {
-				if bytesPool := b.opts.GetBytesPool(); bytesPool != nil {
-					segment := stream.Segment()
-					stream.Reset(m3db.Segment{})
-					bytesPool.Put(segment.Head)
-					bytesPool.Put(segment.Tail)
-				}
-				stream.Close()
-			}
-			b.ctx.RegisterCloser(closer)
-		}
+		return
 	}
 
-	b.ctx.Close()
-	b.ctx = nil
-	b.encoder = nil
-	b.stream = nil
+	// Otherwise, we need to close the stream.
+	if stream := b.stream; stream != nil {
+		b.ctx.RegisterCloser(func() {
+			if bytesPool := b.opts.GetBytesPool(); bytesPool != nil {
+				segment := stream.Segment()
+				stream.Reset(m3db.Segment{})
+				bytesPool.Put(segment.Head)
+				bytesPool.Put(segment.Tail)
+			}
+			stream.Close()
+		})
+	}
 }
 
 // Reset resets the block start time and the encoder.
@@ -162,6 +166,8 @@ func (b *dbBlock) Seal() {
 	}
 	b.writable = false
 	b.stream = b.encoder.Stream()
+	// Reset encoder to prevent the byte stream inside the encoder
+	// from being returned to the bytes pool.
 	b.encoder.ResetSetData(b.start, nil, false)
 	b.encoder.Close()
 	b.encoder = nil
