@@ -477,7 +477,11 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		for _, f := range fetchBatchOpsByHostIdx[idx] {
 			if err := s.queues[idx].Enqueue(f); err != nil && enqueueErr == nil {
 				enqueueErr = err
+				break
 			}
+		}
+		if enqueueErr != nil {
+			break
 		}
 	}
 	s.RUnlock()
