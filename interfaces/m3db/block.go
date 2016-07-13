@@ -34,6 +34,9 @@ type DatabaseBlock interface {
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
+	// IsSealed returns whether the block is sealed.
+	IsSealed() bool
+
 	// Write writes a datapoint to the block along with time unit and annotation.
 	Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
@@ -45,6 +48,9 @@ type DatabaseBlock interface {
 
 	// Close closes the block.
 	Close()
+
+	// Seal seals the block.
+	Seal()
 }
 
 // DatabaseSeriesBlocks represents a collection of data blocks.

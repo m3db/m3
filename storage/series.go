@@ -105,10 +105,10 @@ func (s *dbSeries) Tick() error {
 	// stale buckets, cheaply check this case first with a Rlock
 	s.RLock()
 	needsDrain := s.buffer.NeedsDrain()
-	needsBlockExpiry := s.needsBlockExpiryWithRLock()
+	needsBlockUpdate := s.needsBlockUpdateWithRLock()
 	s.RUnlock()
 
-	if !needsDrain && !needsBlockExpiry {
+	if !needsDrain && !needsBlockUpdate {
 		return nil
 	}
 
@@ -117,15 +117,15 @@ func (s *dbSeries) Tick() error {
 		s.buffer.DrainAndReset(false)
 	}
 
-	if needsBlockExpiry {
-		s.expireBlocksWithLock()
+	if needsBlockUpdate {
+		s.updateBlocksWithLock()
 	}
 	s.Unlock()
 
 	return nil
 }
 
-func (s *dbSeries) needsBlockExpiryWithRLock() bool {
+func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 	if s.blocks.Len() == 0 {
 		return false
 	}
@@ -134,22 +134,46 @@ func (s *dbSeries) needsBlockExpiryWithRLock() bool {
 	// we should expire the blocks.
 	now := s.opts.GetNowFn()()
 	minBlockStart := s.blocks.GetMinTime()
-	return s.shouldExpire(now, minBlockStart)
-}
+	if s.shouldExpire(now, minBlockStart) {
+		return true
+	}
 
-func (s *dbSeries) expireBlocksWithLock() {
-	now := s.opts.GetNowFn()()
+	// If one or more blocks need to be sealed, we should update
+	// the blocks.
 	allBlocks := s.blocks.GetAllBlocks()
-	for timestamp, block := range allBlocks {
-		if s.shouldExpire(now, timestamp) {
-			s.blocks.RemoveBlockAt(timestamp)
-			block.Close()
+	for blockStart, block := range allBlocks {
+		if s.shouldSeal(now, blockStart, block) {
+			return true
 		}
 	}
+
+	return false
 }
 
 func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
 	cutoff := now.Add(-s.opts.GetRetentionPeriod()).Truncate(s.opts.GetBlockSize())
+	return blockStart.Before(cutoff)
+}
+
+func (s *dbSeries) updateBlocksWithLock() {
+	now := s.opts.GetNowFn()()
+	allBlocks := s.blocks.GetAllBlocks()
+	for blockStart, block := range allBlocks {
+		if s.shouldExpire(now, blockStart) {
+			s.blocks.RemoveBlockAt(blockStart)
+			block.Close()
+		} else if s.shouldSeal(now, blockStart, block) {
+			block.Seal()
+		}
+	}
+}
+
+func (s *dbSeries) shouldSeal(now, blockStart time.Time, block m3db.DatabaseBlock) bool {
+	if block.IsSealed() {
+		return false
+	}
+	blockSize := s.opts.GetBlockSize()
+	cutoff := now.Add(-s.opts.GetBufferPast()).Add(-blockSize).Truncate(blockSize)
 	return blockStart.Before(cutoff)
 }
 

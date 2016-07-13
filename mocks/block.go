@@ -63,6 +63,16 @@ func (_mr *_MockDatabaseBlockRecorder) StartTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "StartTime")
 }
 
+func (_m *MockDatabaseBlock) IsSealed() bool {
+	ret := _m.ctrl.Call(_m, "IsSealed")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockDatabaseBlockRecorder) IsSealed() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsSealed")
+}
+
 func (_m *MockDatabaseBlock) Write(timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -98,6 +108,14 @@ func (_m *MockDatabaseBlock) Close() {
 
 func (_mr *_MockDatabaseBlockRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+func (_m *MockDatabaseBlock) Seal() {
+	_m.ctrl.Call(_m, "Seal")
+}
+
+func (_mr *_MockDatabaseBlockRecorder) Seal() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Seal")
 }
 
 // Mock of DatabaseSeriesBlocks interface

@@ -323,9 +323,10 @@ func (enc *encoder) Stream() m3db.SegmentReader {
 	return xio.NewSegmentReader(m3db.Segment{Head: head, Tail: tail})
 }
 
-func (enc *encoder) Done() {
-	if !enc.writable {
-		// Already written the tail
+func (enc *encoder) Seal() {
+	if enc.closed || !enc.writable {
+		// If the encoder is already closed, or we've already written the tail,
+		// no action is necessary.
 		return
 	}
 	enc.writable = false
