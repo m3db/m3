@@ -25,6 +25,9 @@ type CompletionFn func(result interface{}, err error)
 
 // Op contains a client operation, used internally and in mocks package
 type Op interface {
+	// Size returns the effective size of inner operations
+	Size() int
+
 	// GetCompletionFn gets the completion function for the operation
 	GetCompletionFn() CompletionFn
 }

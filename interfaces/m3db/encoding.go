@@ -40,14 +40,19 @@ type Annotation []byte
 type Encoder interface {
 	// Encode encodes a datapoint and optionally an annotation.
 	Encode(dp Datapoint, timeUnit xtime.Unit, annotation Annotation) error
+
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
 	Stream() SegmentReader
+
 	// Done will append any end of stream marker and ensure the encoder cannot be written to anymore.
 	Done()
+
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)
+
 	// Reset resets the start time of the encoder and the internal state with some preset data.
 	ResetSetData(t time.Time, data []byte, writable bool)
+
 	// Close closes the encoder and if pooled will return to the pool.
 	Close()
 }
@@ -59,39 +64,112 @@ type NewEncoderFn func(start time.Time, bytes []byte) Encoder
 type Iterator interface {
 	// Next moves to the next item
 	Next() bool
+
 	// Current returns the value as well as the annotation associated with the current datapoint.
 	// Users should not hold on to the returned Annotation object as it may get invalidated when
 	// the iterator calls Next().
 	Current() (Datapoint, xtime.Unit, Annotation)
+
 	// Err returns the error encountered
 	Err() error
+
 	// Close closes the iterator and if pooled will return to the pool.
 	Close()
 }
 
-// SingleReaderIterator is the interface for a single-reader iterator.
-type SingleReaderIterator interface {
+// ReaderIterator is the interface for a single-reader iterator.
+type ReaderIterator interface {
 	Iterator
 
 	// Reset resets the iterator to read from a new reader.
 	Reset(reader io.Reader)
 }
 
-// MultiReaderIterator is the interface for a multi-reader iterator.
+// MultiReaderIterator is an iterator that iterates in order over a list of sets of
+// internally ordered but not collectively in order readers, it also deduplicates datapoints.
 type MultiReaderIterator interface {
 	Iterator
 
 	// Reset resets the iterator to read from a slice of readers.
 	Reset(readers []io.Reader)
+
+	// Reset resets the iterator to read from a slice of slice readers.
+	ResetSliceOfSlices(readers ReaderSliceOfSlicesIterator)
+}
+
+// ReaderSliceOfSlicesIterator is an iterator that iterates through an array of reader arrays
+type ReaderSliceOfSlicesIterator interface {
+	// Next moves to the next item
+	Next() bool
+
+	// CurrentLen returns the current slice of readers
+	CurrentLen() int
+
+	// CurrentAt returns the current reader in the slice of readers at an index
+	CurrentAt(idx int) io.Reader
+
+	// Close closes the iterator and if pooled will return to the pool
+	Close()
+}
+
+// ReaderSliceOfSlicesFromSegmentReadersIterator is an iterator that iterates through an array of reader arrays
+type ReaderSliceOfSlicesFromSegmentReadersIterator interface {
+	ReaderSliceOfSlicesIterator
+
+	// Reset resets the iterator with a new array of segment readers arrays
+	Reset(segments [][]SegmentReader)
+}
+
+// SeriesIterator is an iterator that iterates over a set of iterators from different replicas
+// and de-dupes & merges results from the replicas for a given series while also applying a time
+// filter on top of the values in case replicas returned values out of range on either end
+type SeriesIterator interface {
+	Iterator
+
+	// ID gets the ID of the series
+	ID() string
+
+	// Start returns the start time filter specified for the iterator
+	Start() time.Time
+
+	// End returns the end time filter specified for the iterator
+	End() time.Time
+
+	// Reset resets the iterator to read from a set of iterators from different replicas, one
+	// must note that this can be an array with nil entries if some replicas did not return successfully
+	Reset(id string, startInclusive, endExclusive time.Time, replicas []Iterator)
+}
+
+// SeriesIterators is a collection of SeriesIterator that can close all iterators
+type SeriesIterators interface {
+	// Iters returns the array of series iterators
+	Iters() []SeriesIterator
+
+	// Len returns the length of the iters
+	Len() int
+
+	// Close closes all iterators contained
+	Close()
+}
+
+// MutableSeriesIterators is a mutable SeriesIterators
+type MutableSeriesIterators interface {
+	SeriesIterators
+
+	// Reset the iters collection to a size for reuse
+	Reset(size int)
+
+	// Cap returns the capacity of the iters
+	Cap() int
+
+	// SetAt an index a SeriesIterator
+	SetAt(idx int, iter SeriesIterator)
 }
 
 // Decoder is the generic interface for different types of decoders.
 type Decoder interface {
 	// Decode decodes the encoded data in the reader.
-	Decode(reader io.Reader) SingleReaderIterator
-
-	// DecodeAll decodes the encoded data in all the readers.
-	DecodeAll(readers []io.Reader) MultiReaderIterator
+	Decode(reader io.Reader) ReaderIterator
 }
 
 // NewDecoderFn creates a new decoder

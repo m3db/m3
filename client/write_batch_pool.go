@@ -31,6 +31,9 @@ var (
 )
 
 type writeBatchRequestPool interface {
+	// Init pool
+	Init()
+
 	// Get a write batch request
 	Get() *rpc.WriteBatchRequest
 
@@ -44,10 +47,13 @@ type poolOfWriteBatchRequest struct {
 
 func newWriteBatchRequestPool(size int) writeBatchRequestPool {
 	p := pool.NewObjectPool(size)
-	p.Init(func() interface{} {
+	return &poolOfWriteBatchRequest{p}
+}
+
+func (p *poolOfWriteBatchRequest) Init() {
+	p.pool.Init(func() interface{} {
 		return &rpc.WriteBatchRequest{}
 	})
-	return &poolOfWriteBatchRequest{p}
 }
 
 func (p *poolOfWriteBatchRequest) Get() *rpc.WriteBatchRequest {

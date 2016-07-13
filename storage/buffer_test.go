@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"io"
 	"sort"
 	"testing"
 	"time"
@@ -34,7 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func bufferTestOptions() m3db.DatabaseOptions {
+func newBufferTestOptions() m3db.DatabaseOptions {
 	return NewDatabaseOptions().
 		BlockSize(2 * time.Minute).
 		BufferFuture(10 * time.Second).
@@ -43,7 +42,7 @@ func bufferTestOptions() m3db.DatabaseOptions {
 }
 
 func TestBufferWriteTooFuture(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -59,7 +58,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 }
 
 func TestBufferWriteTooPast(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -75,7 +74,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 }
 
 func TestBufferWriteRead(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -104,7 +103,7 @@ func TestBufferWriteRead(t *testing.T) {
 }
 
 func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	start := curr
 	opts = opts.NowFn(func() time.Time {
@@ -148,7 +147,7 @@ func TestBufferDrain(t *testing.T) {
 		drained = append(drained, drain{start, encoder})
 	}
 
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -185,7 +184,9 @@ func TestBufferDrain(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
-	assertValuesEqual(t, data[:4], []io.Reader{drained[0].encoder.Stream()}, opts)
+	assertValuesEqual(t, data[:4], [][]m3db.SegmentReader{[]m3db.SegmentReader{
+		drained[0].encoder.Stream(),
+	}}, opts)
 	assertValuesEqual(t, data[4:], results, opts)
 }
 
@@ -195,7 +196,7 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 		drained = append(drained, drain{start, encoder})
 	}
 
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -225,15 +226,15 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
-	assertValuesEqual(t, data[:2], []io.Reader{
+	assertValuesEqual(t, data[:2], [][]m3db.SegmentReader{[]m3db.SegmentReader{
 		drained[0].encoder.Stream(),
 		drained[1].encoder.Stream(),
-	}, opts)
+	}}, opts)
 	assertValuesEqual(t, data[2:], results, opts)
 }
 
 func TestBufferWriteOutOfOrder(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -290,7 +291,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 }
 
 func TestBufferBucketSort(t *testing.T) {
-	opts := bufferTestOptions()
+	opts := newBufferTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	b := &dbBufferBucket{opts: opts, start: curr, outOfOrder: true}
 	data := [][]value{
@@ -329,5 +330,7 @@ func TestBufferBucketSort(t *testing.T) {
 
 	assert.Len(t, b.encoders, 1)
 	assert.Equal(t, b.lastWriteAt, expected[len(expected)-1].timestamp)
-	assertValuesEqual(t, expected, []io.Reader{b.encoders[0].encoder.Stream()}, opts)
+	assertValuesEqual(t, expected, [][]m3db.SegmentReader{[]m3db.SegmentReader{
+		b.encoders[0].encoder.Stream(),
+	}}, opts)
 }

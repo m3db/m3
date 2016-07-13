@@ -23,16 +23,22 @@ package client
 import "github.com/m3db/m3db/interfaces/m3db"
 
 type client struct {
-	opts m3db.ClientOptions
+	opts         m3db.ClientOptions
+	newSessionFn newSessionFn
 }
 
+type newSessionFn func(opts m3db.ClientOptions) (clientSession, error)
+
 // NewClient creates a new client
-func NewClient(opts m3db.ClientOptions) m3db.Client {
-	return &client{opts: opts}
+func NewClient(opts m3db.ClientOptions) (m3db.Client, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	return &client{opts: opts, newSessionFn: newSession}, nil
 }
 
 func (c *client) NewSession() (m3db.Session, error) {
-	session, err := newSession(c.opts)
+	session, err := c.newSessionFn(c.opts)
 	if err != nil {
 		return nil, err
 	}

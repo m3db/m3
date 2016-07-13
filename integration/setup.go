@@ -90,7 +90,10 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up m3db client
-	mc := m3dbClient(*tchannelNodeAddr, shardingScheme)
+	mc, err := m3dbClient(*tchannelNodeAddr, shardingScheme)
+	if err != nil {
+		return nil, err
+	}
 
 	// Set up worker pool
 	workerPool := pool.NewWorkerPool(opts.GetWorkerPoolSize())

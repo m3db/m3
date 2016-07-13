@@ -25,10 +25,13 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
+	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/pool"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -45,6 +48,7 @@ var (
 	errSessionStateNotOpen    = errors.New("session not in open state")
 )
 
+// clientSession adds methods not exposed to users of the client
 type clientSession interface {
 	m3db.Session
 
@@ -55,18 +59,26 @@ type clientSession interface {
 type session struct {
 	sync.RWMutex
 
-	opts           m3db.ClientOptions
-	nowFn          m3db.NowFn
-	newHostQueueFn newHostQueueFn
-	topo           m3db.Topology
-	topoMap        m3db.TopologyMap
-	topoMapCh      chan m3db.TopologyMap
-	queues         []hostQueue
-	state          state
-
-	// NB(r): We make sets of pools, one for each shard, to reduce
-	// contention on the pool when retrieving ops
-	writeOpPools []writeOpPool
+	opts                            m3db.ClientOptions
+	level                           m3db.ConsistencyLevel
+	nowFn                           m3db.NowFn
+	newHostQueueFn                  newHostQueueFn
+	topo                            m3db.Topology
+	topoMap                         m3db.TopologyMap
+	topoMapCh                       chan m3db.TopologyMap
+	replicas                        int
+	quorum                          int
+	queues                          []hostQueue
+	state                           state
+	writeOpPool                     writeOpPool
+	fetchBatchOpPool                fetchBatchOpPool
+	fetchBatchOpArrayArrayPool      fetchBatchOpArrayArrayPool
+	iteratorArrayPool               m3db.IteratorArrayPool
+	readerSliceOfSlicesIteratorPool readerSliceOfSlicesIteratorPool
+	multiReaderIteratorPool         m3db.MultiReaderIteratorPool
+	seriesIteratorPool              m3db.SeriesIteratorPool
+	seriesIteratorsPool             m3db.MutableSeriesIteratorsPool
+	fetchBatchSize                  int
 }
 
 type newHostQueueFn func(
@@ -84,10 +96,12 @@ func newSession(opts m3db.ClientOptions) (clientSession, error) {
 
 	return &session{
 		opts:           opts,
+		level:          opts.GetConsistencyLevel(),
 		nowFn:          opts.GetNowFn(),
 		newHostQueueFn: newHostQueue,
 		topo:           topology,
 		topoMapCh:      make(chan m3db.TopologyMap),
+		fetchBatchSize: opts.GetFetchBatchSize(),
 	}, nil
 }
 
@@ -98,6 +112,16 @@ func (s *session) Open() error {
 		return errSessionStateNotInitial
 	}
 	s.state = stateOpen
+	// NB(r): Alloc pools that can take some time in Open, expectation
+	// is already that Open will take some time
+	s.writeOpPool = newWriteOpPool(s.opts.GetWriteOpPoolSize())
+	s.writeOpPool.Init()
+	s.fetchBatchOpPool = newFetchBatchOpPool(s.opts.GetFetchBatchOpPoolSize(), s.fetchBatchSize)
+	s.fetchBatchOpPool.Init()
+	s.seriesIteratorPool = pool.NewSeriesIteratorPool(s.opts.GetSeriesIteratorPoolSize())
+	s.seriesIteratorPool.Init()
+	s.seriesIteratorsPool = pool.NewMutableSeriesIteratorsPool(s.opts.GetSeriesIteratorArrayPoolBuckets())
+	s.seriesIteratorsPool.Init()
 	s.Unlock()
 
 	currTopologyMap := s.topo.GetAndSubscribe(s.topoMapCh)
@@ -170,8 +194,40 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 	s.Lock()
 	prev := s.queues
 	s.queues = queues
-	s.setWriteOpPoolsWithLock(topologyMap)
 	s.topoMap = topologyMap
+	prevReplicas := s.replicas
+	s.replicas = topologyMap.Replicas()
+	s.quorum = topologyMap.QuorumReplicas()
+	if s.fetchBatchOpArrayArrayPool == nil ||
+		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
+		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
+			s.opts.GetFetchBatchOpPoolSize(),
+			len(queues),
+			s.opts.GetFetchBatchOpPoolSize()/len(queues))
+		s.fetchBatchOpArrayArrayPool.Init()
+	}
+	if s.iteratorArrayPool == nil ||
+		prevReplicas != s.replicas {
+		s.iteratorArrayPool = pool.NewIteratorArrayPool([]m3db.PoolBucket{
+			m3db.PoolBucket{
+				Capacity: s.replicas,
+				Count:    s.opts.GetSeriesIteratorPoolSize(),
+			},
+		})
+		s.iteratorArrayPool.Init()
+	}
+	if s.readerSliceOfSlicesIteratorPool == nil ||
+		prevReplicas != s.replicas {
+		size := s.replicas * s.opts.GetSeriesIteratorPoolSize()
+		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(size)
+		s.readerSliceOfSlicesIteratorPool.Init()
+	}
+	if s.multiReaderIteratorPool == nil ||
+		prevReplicas != s.replicas {
+		size := s.replicas * s.opts.GetSeriesIteratorPoolSize()
+		s.multiReaderIteratorPool = pool.NewMultiReaderIteratorPool(size)
+		s.multiReaderIteratorPool.Init(s.opts.GetReaderIteratorAllocate())
+	}
 	s.Unlock()
 
 	// Asynchronously close the previous set of host queues
@@ -198,31 +254,16 @@ func (s *session) newHostQueue(host m3db.Host, topologyMap m3db.TopologyMap) hos
 		int(math.Ceil(float64(s.opts.GetWriteOpPoolSize())/float64(s.opts.GetWriteBatchSize())))
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
 	writeBatchRequestPool := newWriteBatchRequestPool(hostBatches)
+	writeBatchRequestPool.Init()
 	writeRequestArrayPool := newWriteRequestArrayPool(hostBatches, s.opts.GetWriteBatchSize())
+	writeRequestArrayPool.Init()
 	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, writeRequestArrayPool, s.opts)
 	hostQueue.Open()
 	return hostQueue
 }
 
-func (s *session) setWriteOpPoolsWithLock(topologyMap m3db.TopologyMap) {
-	totalShards := len(topologyMap.ShardScheme().All().Shards())
-	if len(s.writeOpPools) == totalShards {
-		// Already created all pools
-		return
-	}
-
-	s.writeOpPools = make([]writeOpPool, totalShards)
-	totalSize := s.opts.GetWriteOpPoolSize()
-	eachSize := totalSize / totalShards
-	for i := range s.writeOpPools {
-		s.writeOpPools[i] = newWriteOpPool(eachSize)
-	}
-}
-
 func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	var (
-		w             *writeOp
-		pool          writeOpPool
 		wg            sync.WaitGroup
 		enqueueErr    error
 		enqueued      int
@@ -242,27 +283,27 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 		return tsErr
 	}
 
-	s.RLock()
-	routeErr := s.topoMap.RouteForEach(id, func(shard uint32) {
-		pool = s.writeOpPools[shard]
-		w = pool.Get()
-		w.request.ID = id
-		w.datapoint.Value = value
-		w.datapoint.Timestamp = ts
-		w.datapoint.TimestampType = timeType
-		w.datapoint.Annotation = annotation
-		w.completionFn = func(result interface{}, err error) {
-			if err != nil {
-				resultErrLock.Lock()
-				if resultErr == nil {
-					resultErr = err
-				}
-				resultErrs++
-				resultErrLock.Unlock()
+	w := s.writeOpPool.Get()
+	w.request.ID = id
+	w.datapoint.Value = value
+	w.datapoint.Timestamp = ts
+	w.datapoint.TimestampType = timeType
+	w.datapoint.Annotation = annotation
+	w.completionFn = func(result interface{}, err error) {
+		if err != nil {
+			resultErrLock.Lock()
+			if resultErr == nil {
+				resultErr = err
 			}
-			wg.Done()
+			resultErrs++
+			resultErrLock.Unlock()
 		}
-	}, func(idx int, host m3db.Host) {
+		wg.Done()
+	}
+
+	s.RLock()
+	quorum = s.quorum
+	routeErr := s.topoMap.RouteForEach(id, func(idx int, host m3db.Host) {
 		wg.Add(1)
 		enqueued++
 		if err := s.queues[idx].Enqueue(w); err != nil && enqueueErr == nil {
@@ -271,7 +312,6 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 			enqueueErr = err
 		}
 	})
-	quorum = s.topoMap.QuorumReplicas()
 	s.RUnlock()
 
 	if routeErr != nil {
@@ -287,33 +327,206 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 	wg.Wait()
 
 	// Return write to pool
-	pool.Put(w)
+	s.writeOpPool.Put(w)
 
-	if resultErrs > 0 {
-		// Check consistency level satisfied
-		level := s.opts.GetConsistencyLevel()
-		success := enqueued - resultErrs
-		reportErr := func() error {
-			return fmt.Errorf(
-				"failed to meet %s with %d/%d success, error[0]: %v",
-				level.String(), success, enqueued, resultErr)
+	return s.consistencyResult(quorum, enqueued, resultErrs, resultErr)
+}
+
+func (s *session) Fetch(id string, startInclusive, endExclusive time.Time) (m3db.SeriesIterator, error) {
+	results, err := s.FetchAll([]string{id}, startInclusive, endExclusive)
+	if err != nil {
+		return nil, err
+	}
+	mutableResults := results.(m3db.MutableSeriesIterators)
+	iters := mutableResults.Iters()
+	iter := iters[0]
+	// Reset to zero so that when we close this results set the iter doesn't get closed
+	mutableResults.Reset(0)
+	mutableResults.Close()
+	return iter, nil
+}
+
+func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time) (m3db.SeriesIterators, error) {
+	var (
+		wg                     sync.WaitGroup
+		routeErr               error
+		enqueueErr             error
+		resultErrLock          sync.Mutex
+		resultErr              error
+		resultErrs             int
+		quorum                 int
+		fetchBatchOpsByHostIdx [][]*fetchBatchOp
+	)
+
+	rangeStart, tsErr := convert.TimeToValue(startInclusive, rpc.TimeType_UNIX_NANOSECONDS)
+	if tsErr != nil {
+		return nil, tsErr
+	}
+
+	rangeEnd, tsErr := convert.TimeToValue(endExclusive, rpc.TimeType_UNIX_NANOSECONDS)
+	if tsErr != nil {
+		return nil, tsErr
+	}
+
+	iters := s.seriesIteratorsPool.Get(len(ids))
+	iters.Reset(len(ids))
+
+	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
+
+	// Defer cleanup
+	defer func() {
+		// Return fetch ops to pool
+		for _, ops := range fetchBatchOpsByHostIdx {
+			for _, op := range ops {
+				s.fetchBatchOpPool.Put(op)
+			}
 		}
-		switch level {
-		case m3db.ConsistencyLevelAll:
-			return reportErr()
-		case m3db.ConsistencyLevelQuorum:
-			if success >= quorum {
-				// Meets quorum
+
+		// Return fetch ops array array to pool
+		s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
+	}()
+
+	s.RLock()
+	quorum = s.quorum
+	for idx := range ids {
+		idx := idx
+
+		var (
+			results  []m3db.Iterator
+			enqueued int
+			pending  int32
+			firstErr error
+			errs     int32
+		)
+
+		wg.Add(1)
+		completionFn := func(result interface{}, err error) {
+			resultsIdx := atomic.AddInt32(&pending, -1)
+			if err != nil {
+				n := atomic.AddInt32(&errs, 1)
+				if n == 1 {
+					firstErr = err
+				}
+			} else {
+				slicesIter := s.readerSliceOfSlicesIteratorPool.Get()
+				slicesIter.Reset(result.([]*rpc.Segments))
+				multiIter := s.multiReaderIteratorPool.Get()
+				multiIter.ResetSliceOfSlices(slicesIter)
+				// Results is pre-allocated after creating fetch ops for this ID below
+				results[resultsIdx] = multiIter
+			}
+			if resultsIdx != 0 {
+				// Requests still pending
+				return
+			}
+			if err := s.consistencyResult(quorum, enqueued, int(errs), firstErr); err != nil {
+				resultErrLock.Lock()
+				if resultErr == nil {
+					resultErr = err
+				}
+				resultErrs++
+				resultErrLock.Unlock()
+			} else {
+				iter := s.seriesIteratorPool.Get()
+				iter.Reset(ids[idx], startInclusive, endExclusive, results)
+				iters.SetAt(idx, iter)
+			}
+			wg.Done()
+		}
+
+		if err := s.topoMap.RouteForEach(ids[idx], func(hostIdx int, host m3db.Host) {
+			// Inc safely as this for each is sequential
+			enqueued++
+			pending++
+
+			ops := fetchBatchOpsByHostIdx[hostIdx]
+
+			var f *fetchBatchOp
+			if len(ops) > 0 {
+				// Find the last and potentially current fetch op for this host
+				f = ops[len(ops)-1]
+			}
+			if f == nil || f.Size() >= s.fetchBatchSize {
+				// If no current fetch op or existing one is at batch capacity add one
+				f = s.fetchBatchOpPool.Get()
+				fetchBatchOpsByHostIdx[hostIdx] = append(fetchBatchOpsByHostIdx[hostIdx], f)
+				f.request.RangeStart = rangeStart
+				f.request.RangeEnd = rangeEnd
+				f.request.RangeType = rpc.TimeType_UNIX_NANOSECONDS
+			}
+
+			// Append ID to this request
+			f.append(ids[idx], completionFn)
+		}); err != nil {
+			routeErr = err
+			break
+		}
+
+		// Once we've enqueued we know how many to expect so retrieve and set length
+		results = s.iteratorArrayPool.Get(enqueued)
+		results = results[:enqueued]
+	}
+
+	if routeErr != nil {
+		s.RUnlock()
+		return nil, routeErr
+	}
+
+	// Enqueue fetch ops
+	for idx := range fetchBatchOpsByHostIdx {
+		for _, f := range fetchBatchOpsByHostIdx[idx] {
+			if err := s.queues[idx].Enqueue(f); err != nil && enqueueErr == nil {
+				enqueueErr = err
 				break
 			}
-			return reportErr()
-		case m3db.ConsistencyLevelOne:
-			if success > 0 {
-				// Meets one
-				break
-			}
-			return reportErr()
 		}
+		if enqueueErr != nil {
+			break
+		}
+	}
+	s.RUnlock()
+
+	if enqueueErr != nil {
+		s.opts.GetLogger().Errorf("failed to enqueue fetch: %v", enqueueErr)
+		return nil, enqueueErr
+	}
+
+	wg.Wait()
+
+	if resultErr != nil {
+		return nil, resultErr
+	}
+	return iters, nil
+}
+
+func (s *session) consistencyResult(quorum, enqueued, resultErrs int, resultErr error) error {
+	if resultErrs == 0 {
+		return nil
+	}
+
+	// Check consistency level satisfied
+	success := enqueued - resultErrs
+	reportErr := func() error {
+		return fmt.Errorf(
+			"failed to meet %s with %d/%d success, error[0]: %v",
+			s.level.String(), success, enqueued, resultErr)
+	}
+
+	switch s.level {
+	case m3db.ConsistencyLevelAll:
+		return reportErr()
+	case m3db.ConsistencyLevelQuorum:
+		if success >= quorum {
+			// Meets quorum
+			break
+		}
+		return reportErr()
+	case m3db.ConsistencyLevelOne:
+		if success > 0 {
+			// Meets one
+			break
+		}
+		return reportErr()
 	}
 
 	return nil

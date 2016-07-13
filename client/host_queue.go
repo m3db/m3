@@ -35,7 +35,8 @@ import (
 
 var (
 	errQueueNotOpen          = errors.New("host operation queue not open")
-	errQueueUnknownOperation = errors.New("unknown operation")
+	errQueueUnknownOperation = errors.New("host operation queue received unknown operation")
+	errQueueFetchNoResponse  = errors.New("host operation queue did not receive response for given fetch")
 )
 
 type hostQueue interface {
@@ -59,12 +60,15 @@ type queue struct {
 	sync.RWMutex
 
 	opts                  m3db.ClientOptions
+	nowFn                 m3db.NowFn
 	host                  m3db.Host
 	connPool              connectionPool
 	writeBatchRequestPool writeBatchRequestPool
 	writeRequestArrayPool writeRequestArrayPool
 	size                  int
 	ops                   []m3db.Op
+	opsSumSize            int
+	opsLastRotatedAt      time.Time
 	opsArrayPool          opArrayPool
 	drainIn               chan []m3db.Op
 	state                 state
@@ -80,9 +84,11 @@ func newHostQueue(
 
 	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.GetWriteBatchSize())))
 	opArrayPool := newOpArrayPool(opts.GetHostQueueOpsArrayPoolSize(), opArrayPoolCapacity)
+	opArrayPool.Init()
 
 	return &queue{
 		opts:                  opts,
+		nowFn:                 opts.GetNowFn(),
 		host:                  host,
 		connPool:              newConnectionPool(host, opts),
 		writeBatchRequestPool: writeBatchRequestPool,
@@ -119,32 +125,52 @@ func (q *queue) Open() {
 }
 
 func (q *queue) flushEvery(interval time.Duration) {
+	// sleepForOverride used change the next sleep based on last ops rotation
+	var sleepForOverride time.Duration
 	for {
-		q.RLock()
-		state := q.state
-		q.RUnlock()
-		if state != stateOpen {
-			return
+		sleepFor := interval
+		if sleepForOverride > 0 {
+			sleepFor = sleepForOverride
+			sleepForOverride = 0
 		}
 
-		time.Sleep(interval)
+		time.Sleep(sleepFor)
+
+		q.RLock()
+		if q.state != stateOpen {
+			q.RUnlock()
+			return
+		}
+		lastRotateAt := q.opsLastRotatedAt
+		q.RUnlock()
+
+		sinceLastRotate := q.nowFn().Sub(lastRotateAt)
+		if sinceLastRotate < interval {
+			// Rotated already recently, sleep until we would next consider flushing
+			sleepForOverride = interval - sinceLastRotate
+			continue
+		}
 
 		q.Lock()
-		if state != stateOpen {
-			q.Unlock()
-			return
-		}
 		needsDrain := q.rotateOpsWithLock()
 		q.Unlock()
 
 		if len(needsDrain) != 0 {
+			q.RLock()
+			if q.state != stateOpen {
+				q.RUnlock()
+				return
+			}
+			// Need to hold lock while writing to the drainIn
+			// channel to ensure it has not been closed
 			q.drainIn <- needsDrain
+			q.RUnlock()
 		}
 	}
 }
 
 func (q *queue) rotateOpsWithLock() []m3db.Op {
-	if len(q.ops) == 0 {
+	if q.opsSumSize == 0 {
 		// No need to rotate as queue is empty
 		return nil
 	}
@@ -153,6 +179,8 @@ func (q *queue) rotateOpsWithLock() []m3db.Op {
 
 	// Reset ops
 	q.ops = q.opsArrayPool.Get()
+	q.opsSumSize = 0
+	q.opsLastRotatedAt = q.nowFn()
 
 	return needsDrain
 }
@@ -187,6 +215,8 @@ func (q *queue) drain() {
 					currWriteOps = nil
 					currWriteRequests = nil
 				}
+			case *fetchBatchOp:
+				q.asyncFetch(wgAll, v)
 			default:
 				completionFn := ops[i].GetCompletionFn()
 				completionFn(nil, errQueueUnknownOperation)
@@ -265,9 +295,49 @@ func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []m3db.Op, elems []*rpc.Write
 	}()
 }
 
+func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
+	wg.Add(1)
+	// TODO(r): Use a worker pool to avoid creating new go routines for async fetches
+	go func() {
+		// NB(r): Defer is slow in the hot path unfortunately
+		cleanup := wg.Done
+
+		client, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available
+			op.completeAll(nil, err)
+			cleanup()
+			return
+		}
+
+		ctx, _ := thrift.NewContext(q.opts.GetFetchRequestTimeout())
+		result, err := client.FetchRawBatch(ctx, &op.request)
+		if err != nil {
+			op.completeAll(nil, err)
+			cleanup()
+			return
+		}
+
+		resultLen := len(result.Elements)
+		for i := 0; i < op.Size(); i++ {
+			if !(i < resultLen) {
+				// No results for this entry, in practice should never occur
+				op.complete(i, nil, errQueueFetchNoResponse)
+				continue
+			}
+			if result.Elements[i].Err != nil {
+				op.complete(i, nil, fmt.Errorf(result.Elements[i].Err.Message))
+				continue
+			}
+			op.complete(i, result.Elements[i].Segments, nil)
+		}
+		cleanup()
+	}()
+}
+
 func (q *queue) Len() int {
 	q.RLock()
-	v := len(q.ops)
+	v := q.opsSumSize
 	q.RUnlock()
 	return v
 }
@@ -280,15 +350,17 @@ func (q *queue) Enqueue(o m3db.Op) error {
 		return errQueueNotOpen
 	}
 	q.ops = append(q.ops, o)
+	q.opsSumSize += o.Size()
 	// If queue is full flush
-	if len(q.ops) >= q.size {
+	if q.opsSumSize >= q.size {
 		needsDrain = q.rotateOpsWithLock()
 	}
-	q.Unlock()
-
+	// Need to hold lock while writing to the drainIn
+	// channel to ensure it has not been closed
 	if len(needsDrain) != 0 {
 		q.drainIn <- needsDrain
 	}
+	q.Unlock()
 	return nil
 }
 
@@ -304,8 +376,8 @@ func (q *queue) Close() {
 	}
 
 	q.state = stateClosed
-	q.Unlock()
-
-	// Now we're closed its safe to close the drainIn channel
+	// Closed drainIn channel in lock to ensure writers know
+	// consistently if channel is open or not by checking state
 	close(q.drainIn)
+	q.Unlock()
 }

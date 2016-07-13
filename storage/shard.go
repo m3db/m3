@@ -55,7 +55,7 @@ type databaseShard interface {
 		ctx m3db.Context,
 		id string,
 		start, end time.Time,
-	) (m3db.ReaderSliceReader, error)
+	) ([][]m3db.SegmentReader, error)
 
 	Bootstrap(writeStart time.Time, cutover time.Time) error
 
@@ -219,7 +219,7 @@ func (s *dbShard) ReadEncoded(
 	ctx m3db.Context,
 	id string,
 	start, end time.Time,
-) (m3db.ReaderSliceReader, error) {
+) ([][]m3db.SegmentReader, error) {
 	s.RLock()
 	entry, exists := s.lookup[id]
 	s.RUnlock()

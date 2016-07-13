@@ -47,7 +47,7 @@ func DefaultShardingScheme() (m3db.ShardScheme, error) {
 }
 
 // DefaultClient creates a default m3db client.
-func DefaultClient(localNodeAddr string, shardingScheme m3db.ShardScheme) m3db.Client {
+func DefaultClient(localNodeAddr string, shardingScheme m3db.ShardScheme) (m3db.Client, error) {
 	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardingScheme.All())
 	topologyOptions := topology.NewStaticTopologyTypeOptions().
 		ShardScheme(shardingScheme).
@@ -82,7 +82,10 @@ func Serve(
 	}
 	defer db.Close()
 
-	client := DefaultClient(localNodeAddr, shardingScheme)
+	client, err := DefaultClient(localNodeAddr, shardingScheme)
+	if err != nil {
+		return fmt.Errorf("could not create cluster client: %v", err)
+	}
 
 	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, nil).ListenAndServe()
 	if err != nil {

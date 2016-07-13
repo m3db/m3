@@ -180,12 +180,6 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 			return
 		}
 
-		if poolLen >= target {
-			// No need to spawn connections
-			p.sleepConnect(interval + randStutter(p.connectRand, stutter))
-			continue
-		}
-
 		address := p.host.Address()
 
 		var wg sync.WaitGroup

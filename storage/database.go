@@ -70,7 +70,7 @@ type Database interface {
 		ctx m3db.Context,
 		id string,
 		start, end time.Time,
-	) (m3db.ReaderSliceReader, error)
+	) ([][]m3db.SegmentReader, error)
 
 	// Bootstrap bootstraps the database.
 	Bootstrap() error
@@ -219,8 +219,10 @@ func (d *db) ReadEncoded(
 	ctx m3db.Context,
 	id string,
 	start, end time.Time,
-) (m3db.ReaderSliceReader, error) {
+) ([][]m3db.SegmentReader, error) {
+	d.RLock()
 	if !d.bsm.IsBootstrapped() {
+		d.RUnlock()
 		return nil, errDatabaseNotBootstrapped
 	}
 	d.RLock()

@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	xerrors "github.com/m3db/m3db/x/errors"
-	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -54,7 +53,7 @@ type databaseSeries interface {
 	ReadEncoded(
 		ctx m3db.Context,
 		start, end time.Time,
-	) (m3db.ReaderSliceReader, error)
+	) ([][]m3db.SegmentReader, error)
 
 	Empty() bool
 
@@ -184,13 +183,13 @@ func (s *dbSeries) Write(
 func (s *dbSeries) ReadEncoded(
 	ctx m3db.Context,
 	start, end time.Time,
-) (m3db.ReaderSliceReader, error) {
+) ([][]m3db.SegmentReader, error) {
 	if end.Before(start) {
 		return nil, xerrors.NewInvalidParamsError(errInvalidRange)
 	}
 
 	// TODO(r): pool these results arrays
-	var results []io.Reader
+	var results [][]m3db.SegmentReader
 
 	alignedStart := start.Truncate(s.blockSize)
 	alignedEnd := end.Truncate(s.blockSize)
@@ -216,7 +215,7 @@ func (s *dbSeries) ReadEncoded(
 					return nil, err
 				}
 				if stream != nil {
-					results = append(results, stream)
+					results = append(results, []m3db.SegmentReader{stream})
 				}
 			}
 		}
@@ -229,7 +228,7 @@ func (s *dbSeries) ReadEncoded(
 
 	s.RUnlock()
 
-	return xio.NewReaderSliceReader(results), nil
+	return results, nil
 }
 
 func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
@@ -258,7 +257,7 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
 }
 
 func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reader, cutover time.Time) error {
-	iter := s.opts.GetSingleReaderIteratorPool().Get()
+	iter := s.opts.GetReaderIteratorPool().Get()
 	iter.Reset(stream)
 
 	// Close the iterator and return to pool when done

@@ -36,15 +36,28 @@ import (
 )
 
 var (
-	testWriteBatchPool = newWriteBatchRequestPool(0)
-	testWriteArrayPool = newWriteRequestArrayPool(0, 0)
+	testWriteBatchPool writeBatchRequestPool
+	testWriteArrayPool writeRequestArrayPool
 )
+
+func init() {
+	testWriteBatchPool = newWriteBatchRequestPool(0)
+	testWriteBatchPool.Init()
+	testWriteArrayPool = newWriteRequestArrayPool(0, 0)
+	testWriteArrayPool.Init()
+}
+
+type hostQueueResult struct {
+	result interface{}
+	err    error
+}
 
 func newHostQueueTestOptions() m3db.ClientOptions {
 	return NewOptions().
 		HostQueueOpsFlushSize(4).
 		HostQueueOpsArrayPoolSize(4).
 		WriteBatchSize(4).
+		FetchBatchSize(4).
 		HostQueueOpsFlushInterval(0)
 }
 
@@ -85,16 +98,12 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	assert.Equal(t, stateOpen, queue.state)
 
 	// Prepare callback for writes
-	type result struct {
-		result interface{}
-		err    error
-	}
 	var (
-		results []result
+		results []hostQueueResult
 		wg      sync.WaitGroup
 	)
 	callback := func(r interface{}, err error) {
-		results = append(results, result{r, err})
+		results = append(results, hostQueueResult{r, err})
 		wg.Done()
 	}
 
@@ -134,7 +143,7 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	wg.Wait()
 
 	// Assert writes successful
-	success := []result{{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}}
+	success := []hostQueueResult{{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}}
 	assert.Equal(t, success, results)
 
 	// Close
@@ -300,6 +309,180 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 
 	// Wait for flush
 	wg.Wait()
+
+	// Close
+	var closeWg sync.WaitGroup
+	closeWg.Add(1)
+	mockConnPool.EXPECT().Close().Do(func() {
+		closeWg.Done()
+	})
+	queue.Close()
+	closeWg.Wait()
+}
+
+func TestHostQueueFetchBatches(t *testing.T) {
+	ids := []string{"foo", "bar", "baz", "qux"}
+	result := &rpc.FetchRawBatchResult_{}
+	for _ = range ids {
+		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
+	}
+	var expected []hostQueueResult
+	for i := range ids {
+		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
+	}
+	testHostQueueFetchBatches(t, ids, result, expected, nil, func(results []hostQueueResult) {
+		assert.Equal(t, expected, results)
+	})
+}
+
+func TestHostQueueFetchBatchesErrorOnNextClientUnavailable(t *testing.T) {
+	ids := []string{"foo", "bar", "baz", "qux"}
+	expectedErr := fmt.Errorf("an error")
+	var expected []hostQueueResult
+	for _ = range ids {
+		expected = append(expected, hostQueueResult{nil, expectedErr})
+	}
+	opts := &testHostQueueFetchBatchesOptions{
+		nextClientErr: expectedErr,
+	}
+	testHostQueueFetchBatches(t, ids, nil, expected, opts, func(results []hostQueueResult) {
+		assert.Equal(t, expected, results)
+	})
+}
+
+func TestHostQueueFetchBatchesErrorOnFetchRawBatchError(t *testing.T) {
+	ids := []string{"foo", "bar", "baz", "qux"}
+	expectedErr := fmt.Errorf("an error")
+	var expected []hostQueueResult
+	for _ = range ids {
+		expected = append(expected, hostQueueResult{nil, expectedErr})
+	}
+	opts := &testHostQueueFetchBatchesOptions{
+		fetchRawBatchErr: expectedErr,
+	}
+	testHostQueueFetchBatches(t, ids, nil, expected, opts, func(results []hostQueueResult) {
+		assert.Equal(t, expected, results)
+	})
+}
+
+func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
+	ids := []string{"foo", "bar", "baz", "qux"}
+	result := &rpc.FetchRawBatchResult_{}
+	for _ = range ids[:len(ids)-1] {
+		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
+	}
+	var expected []hostQueueResult
+	for i := range ids[:len(ids)-1] {
+		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
+	}
+	expected = append(expected, hostQueueResult{nil, errQueueFetchNoResponse})
+	testHostQueueFetchBatches(t, ids, result, expected, nil, func(results []hostQueueResult) {
+		assert.Equal(t, expected, results)
+	})
+}
+
+func TestHostQueueFetchBatchesErrorOnResultError(t *testing.T) {
+	ids := []string{"foo", "bar", "baz", "qux"}
+	anError := &rpc.Error{Message: "an error"}
+	result := &rpc.FetchRawBatchResult_{}
+	for _ = range ids[:len(ids)-1] {
+		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
+	}
+	result.Elements = append(result.Elements, &rpc.FetchRawResult_{Err: anError})
+	var expected []hostQueueResult
+	for i := range ids[:len(ids)-1] {
+		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
+	}
+	testHostQueueFetchBatches(t, ids, result, expected, nil, func(results []hostQueueResult) {
+		assert.Equal(t, expected, results[:len(results)-1])
+		assert.Equal(t, anError.Message, results[len(results)-1].err.Error())
+	})
+}
+
+type testHostQueueFetchBatchesOptions struct {
+	nextClientErr    error
+	fetchRawBatchErr error
+}
+
+func testHostQueueFetchBatches(
+	t *testing.T,
+	ids []string,
+	result *rpc.FetchRawBatchResult_,
+	expected []hostQueueResult,
+	testOpts *testHostQueueFetchBatchesOptions,
+	assertion func(results []hostQueueResult),
+) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConnPool := mocks.NewMockconnectionPool(ctrl)
+
+	opts := newHostQueueTestOptions()
+	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
+	queue.connPool = mockConnPool
+
+	// Open
+	mockConnPool.EXPECT().Open()
+	queue.Open()
+	assert.Equal(t, stateOpen, queue.state)
+
+	// Prepare callback for fetches
+	var (
+		results []hostQueueResult
+		wg      sync.WaitGroup
+	)
+	callback := func(r interface{}, err error) {
+		results = append(results, hostQueueResult{r, err})
+		wg.Done()
+	}
+
+	// Prepare fetch batch op
+	fetchBatch := &fetchBatchOp{
+		request: rpc.FetchRawBatchRequest{
+			RangeStart: 0,
+			RangeEnd:   1,
+			Ids:        ids,
+		},
+	}
+	for _ = range fetchBatch.request.Ids {
+		fetchBatch.completionFns = append(fetchBatch.completionFns, callback)
+	}
+	wg.Add(len(fetchBatch.request.Ids))
+
+	// Prepare mocks for flush
+	mockClient := mocks.NewMockTChanNode(ctrl)
+	if testOpts != nil && testOpts.nextClientErr != nil {
+		mockConnPool.EXPECT().NextClient().Return(nil, testOpts.nextClientErr)
+	} else if testOpts != nil && testOpts.fetchRawBatchErr != nil {
+		fetchRawBatch := func(ctx thrift.Context, req *rpc.FetchRawBatchRequest) {
+			assert.Equal(t, &fetchBatch.request, req)
+		}
+		mockClient.EXPECT().
+			FetchRawBatch(gomock.Any(), gomock.Any()).
+			Do(fetchRawBatch).
+			Return(nil, testOpts.fetchRawBatchErr)
+
+		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+	} else {
+		fetchRawBatch := func(ctx thrift.Context, req *rpc.FetchRawBatchRequest) {
+			assert.Equal(t, &fetchBatch.request, req)
+		}
+		mockClient.EXPECT().
+			FetchRawBatch(gomock.Any(), gomock.Any()).
+			Do(fetchRawBatch).
+			Return(result, nil)
+
+		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+	}
+
+	// Fetch
+	assert.NoError(t, queue.Enqueue(fetchBatch))
+
+	// Wait for fetch to complete
+	wg.Wait()
+
+	// Assert results match expected
+	assertion(results)
 
 	// Close
 	var closeWg sync.WaitGroup

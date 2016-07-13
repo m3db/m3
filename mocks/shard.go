@@ -81,9 +81,9 @@ func (_mr *_MockdatabaseShardRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockdatabaseShard) ReadEncoded(ctx m3db.Context, id string, start time.Time, end time.Time) (m3db.ReaderSliceReader, error) {
+func (_m *MockdatabaseShard) ReadEncoded(ctx m3db.Context, id string, start time.Time, end time.Time) ([][]m3db.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end)
-	ret0, _ := ret[0].(m3db.ReaderSliceReader)
+	ret0, _ := ret[0].([][]m3db.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

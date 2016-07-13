@@ -20,29 +20,32 @@
 
 package pool
 
-import "github.com/m3db/m3db/interfaces/m3db"
+import (
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/interfaces/m3db"
+)
 
 // TODO(r): instrument this to tune pooling
-type singleReaderIteratorPool struct {
+type readerIteratorPool struct {
 	pool m3db.ObjectPool
 }
 
-// NewSingleReaderIteratorPool creates a new pool for SingleReaderIterators.
-func NewSingleReaderIteratorPool(size int) m3db.SingleReaderIteratorPool {
-	return &singleReaderIteratorPool{pool: NewObjectPool(size)}
+// NewReaderIteratorPool creates a new pool for ReaderIterators.
+func NewReaderIteratorPool(size int) m3db.ReaderIteratorPool {
+	return &readerIteratorPool{pool: NewObjectPool(size)}
 }
 
-func (p *singleReaderIteratorPool) Init(alloc m3db.SingleReaderIteratorAllocate) {
+func (p *readerIteratorPool) Init(alloc m3db.ReaderIteratorAllocate) {
 	p.pool.Init(func() interface{} {
-		return alloc()
+		return alloc(nil)
 	})
 }
 
-func (p *singleReaderIteratorPool) Get() m3db.SingleReaderIterator {
-	return p.pool.Get().(m3db.SingleReaderIterator)
+func (p *readerIteratorPool) Get() m3db.ReaderIterator {
+	return p.pool.Get().(m3db.ReaderIterator)
 }
 
-func (p *singleReaderIteratorPool) Put(iter m3db.SingleReaderIterator) {
+func (p *readerIteratorPool) Put(iter m3db.ReaderIterator) {
 	p.pool.Put(iter)
 }
 
@@ -56,9 +59,9 @@ func NewMultiReaderIteratorPool(size int) m3db.MultiReaderIteratorPool {
 	return &multiReaderIteratorPool{pool: NewObjectPool(size)}
 }
 
-func (p *multiReaderIteratorPool) Init(alloc m3db.MultiReaderIteratorAllocate) {
+func (p *multiReaderIteratorPool) Init(alloc m3db.ReaderIteratorAllocate) {
 	p.pool.Init(func() interface{} {
-		return alloc()
+		return encoding.NewMultiReaderIterator(alloc, p)
 	})
 }
 

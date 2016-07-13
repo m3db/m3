@@ -25,7 +25,8 @@ import (
 
 	"github.com/m3db/m3db/x/logging"
 	"github.com/m3db/m3db/x/metrics"
-	"github.com/uber/tchannel-go"
+
+	tchannel "github.com/uber/tchannel-go"
 )
 
 // NowFn is the function supplied to determine "now"
@@ -35,6 +36,9 @@ type NowFn func() time.Time
 type DatabaseOptions interface {
 	// EncodingTszPooled sets tsz encoding with pooling and returns a new DatabaseOptions
 	EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocSize int) DatabaseOptions
+
+	// EncodingTsz sets tsz encoding and returns a new DatabaseOptions
+	EncodingTsz() DatabaseOptions
 
 	// Logger sets the logger and returns a new DatabaseOptions
 	Logger(value logging.Logger) DatabaseOptions
@@ -139,16 +143,16 @@ type DatabaseOptions interface {
 	// GetEncoderPool returns the encoderPool
 	GetEncoderPool() EncoderPool
 
-	// SingleReaderIteratorPool sets the SingleReaderIteratorPool and returns a new DatabaseOptions
-	SingleReaderIteratorPool(value SingleReaderIteratorPool) DatabaseOptions
+	// ReaderIteratorPool sets the readerIteratorPool and returns a new DatabaseOptions
+	ReaderIteratorPool(value ReaderIteratorPool) DatabaseOptions
 
-	// GetSingleReaderIteratorPool returns the SingleReaderIteratorPool
-	GetSingleReaderIteratorPool() SingleReaderIteratorPool
+	// GetReaderIteratorPool returns the readerIteratorPool
+	GetReaderIteratorPool() ReaderIteratorPool
 
-	// MultiReaderIteratorPool sets the MultiReaderIteratorPool and returns a new DatabaseOptions
+	// MultiReaderIteratorPool sets the multiReaderIteratorPool and returns a new DatabaseOptions
 	MultiReaderIteratorPool(value MultiReaderIteratorPool) DatabaseOptions
 
-	// GetMultiReaderIteratorPool returns the MultiReaderIteratorPool
+	// GetMultiReaderIteratorPool returns the multiReaderIteratorPool
 	GetMultiReaderIteratorPool() MultiReaderIteratorPool
 
 	// MaxFlushRetries sets the maximum number of retries when data flushing fails.
@@ -178,6 +182,12 @@ type DatabaseOptions interface {
 
 // ClientOptions is a set of client options
 type ClientOptions interface {
+	// Validate validates the options
+	Validate() error
+
+	// EncodingTsz sets tsz encoding and returns a new ClientOptions
+	EncodingTsz() ClientOptions
+
 	// Logger sets the logger and returns a new ClientOptions
 	Logger(value logging.Logger) ClientOptions
 
@@ -244,6 +254,12 @@ type ClientOptions interface {
 	// GetWriteRequestTimeout returns the writeRequestTimeout
 	GetWriteRequestTimeout() time.Duration
 
+	// FetchRequestTimeout sets the fetchRequestTimeout and returns a new ClientOptions
+	FetchRequestTimeout(value time.Duration) ClientOptions
+
+	// GetFetchRequestTimeout returns the fetchRequestTimeout
+	GetFetchRequestTimeout() time.Duration
+
 	// BackgroundConnectInterval sets the backgroundConnectInterval and returns a new ClientOptions
 	BackgroundConnectInterval(value time.Duration) ClientOptions
 
@@ -274,6 +290,12 @@ type ClientOptions interface {
 	// GetWriteOpPoolSize returns the writeOpPoolSize
 	GetWriteOpPoolSize() int
 
+	// FetchBatchOpPoolSize sets the fetchBatchOpPoolSize and returns a new ClientOptions
+	FetchBatchOpPoolSize(value int) ClientOptions
+
+	// GetFetchBatchOpPoolSize returns the fetchBatchOpPoolSize
+	GetFetchBatchOpPoolSize() int
+
 	// WriteBatchSize sets the writeBatchSize and returns a new ClientOptions
 	// NB(r): for a write only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
@@ -282,6 +304,15 @@ type ClientOptions interface {
 
 	// GetWriteBatchSize returns the writeBatchSize
 	GetWriteBatchSize() int
+
+	// FetchBatchSize sets the fetchBatchSize and returns a new ClientOptions
+	// NB(r): for a fetch only application load this should match the host
+	// queue ops flush size so that each time a host queue is flushed it can
+	// fit the entire flushed fetch ops into a single batch.
+	FetchBatchSize(value int) ClientOptions
+
+	// GetFetchBatchSize returns the fetchBatchSize
+	GetFetchBatchSize() int
 
 	// HostQueueOpsFlushSize sets the hostQueueOpsFlushSize and returns a new ClientOptions
 	HostQueueOpsFlushSize(value int) ClientOptions
@@ -300,6 +331,24 @@ type ClientOptions interface {
 
 	// GetHostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize
 	GetHostQueueOpsArrayPoolSize() int
+
+	// SeriesIteratorPoolSize sets the seriesIteratorPoolSize and returns a new ClientOptions
+	SeriesIteratorPoolSize(value int) ClientOptions
+
+	// GetSeriesIteratorPoolSize returns the seriesIteratorPoolSize
+	GetSeriesIteratorPoolSize() int
+
+	// SeriesIteratorArrayPoolBuckets sets the seriesIteratorArrayPoolBuckets and returns a new ClientOptions
+	SeriesIteratorArrayPoolBuckets(value []PoolBucket) ClientOptions
+
+	// GetSeriesIteratorArrayPoolBuckets returns the seriesIteratorArrayPoolBuckets
+	GetSeriesIteratorArrayPoolBuckets() []PoolBucket
+
+	// ReaderIteratorAllocate sets the readerIteratorAllocate and returns a new ClientOptions
+	ReaderIteratorAllocate(value ReaderIteratorAllocate) ClientOptions
+
+	// GetReaderIteratorAllocate returns the readerIteratorAllocate
+	GetReaderIteratorAllocate() ReaderIteratorAllocate
 }
 
 // StaticTopologyTypeOptions is a set of static topology type options

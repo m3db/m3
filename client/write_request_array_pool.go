@@ -27,6 +27,9 @@ import (
 )
 
 type writeRequestArrayPool interface {
+	// Init pool
+	Init()
+
 	// Get an array of write requests
 	Get() []*rpc.WriteRequest
 
@@ -35,15 +38,19 @@ type writeRequestArrayPool interface {
 }
 
 type poolOfWriteRequestArray struct {
-	pool m3db.ObjectPool
+	pool     m3db.ObjectPool
+	capacity int
 }
 
 func newWriteRequestArrayPool(size int, capacity int) writeRequestArrayPool {
 	p := pool.NewObjectPool(size)
-	p.Init(func() interface{} {
-		return make([]*rpc.WriteRequest, 0, capacity)
+	return &poolOfWriteRequestArray{p, capacity}
+}
+
+func (p *poolOfWriteRequestArray) Init() {
+	p.pool.Init(func() interface{} {
+		return make([]*rpc.WriteRequest, 0, p.capacity)
 	})
-	return &poolOfWriteRequestArray{p}
 }
 
 func (p *poolOfWriteRequestArray) Get() []*rpc.WriteRequest {

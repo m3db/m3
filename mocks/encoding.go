@@ -167,38 +167,38 @@ func (_mr *_MockIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-// Mock of SingleReaderIterator interface
-type MockSingleReaderIterator struct {
+// Mock of ReaderIterator interface
+type MockReaderIterator struct {
 	ctrl     *gomock.Controller
-	recorder *_MockSingleReaderIteratorRecorder
+	recorder *_MockReaderIteratorRecorder
 }
 
-// Recorder for MockSingleReaderIterator (not exported)
-type _MockSingleReaderIteratorRecorder struct {
-	mock *MockSingleReaderIterator
+// Recorder for MockReaderIterator (not exported)
+type _MockReaderIteratorRecorder struct {
+	mock *MockReaderIterator
 }
 
-func NewMockSingleReaderIterator(ctrl *gomock.Controller) *MockSingleReaderIterator {
-	mock := &MockSingleReaderIterator{ctrl: ctrl}
-	mock.recorder = &_MockSingleReaderIteratorRecorder{mock}
+func NewMockReaderIterator(ctrl *gomock.Controller) *MockReaderIterator {
+	mock := &MockReaderIterator{ctrl: ctrl}
+	mock.recorder = &_MockReaderIteratorRecorder{mock}
 	return mock
 }
 
-func (_m *MockSingleReaderIterator) EXPECT() *_MockSingleReaderIteratorRecorder {
+func (_m *MockReaderIterator) EXPECT() *_MockReaderIteratorRecorder {
 	return _m.recorder
 }
 
-func (_m *MockSingleReaderIterator) Next() bool {
+func (_m *MockReaderIterator) Next() bool {
 	ret := _m.ctrl.Call(_m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockSingleReaderIteratorRecorder) Next() *gomock.Call {
+func (_mr *_MockReaderIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockSingleReaderIterator) Current() (m3db.Datapoint, time.Unit, m3db.Annotation) {
+func (_m *MockReaderIterator) Current() (m3db.Datapoint, time.Unit, m3db.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(m3db.Datapoint)
 	ret1, _ := ret[1].(time.Unit)
@@ -206,33 +206,33 @@ func (_m *MockSingleReaderIterator) Current() (m3db.Datapoint, time.Unit, m3db.A
 	return ret0, ret1, ret2
 }
 
-func (_mr *_MockSingleReaderIteratorRecorder) Current() *gomock.Call {
+func (_mr *_MockReaderIteratorRecorder) Current() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Current")
 }
 
-func (_m *MockSingleReaderIterator) Err() error {
+func (_m *MockReaderIterator) Err() error {
 	ret := _m.ctrl.Call(_m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockSingleReaderIteratorRecorder) Err() *gomock.Call {
+func (_mr *_MockReaderIteratorRecorder) Err() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
 }
 
-func (_m *MockSingleReaderIterator) Close() {
+func (_m *MockReaderIterator) Close() {
 	_m.ctrl.Call(_m, "Close")
 }
 
-func (_mr *_MockSingleReaderIteratorRecorder) Close() *gomock.Call {
+func (_mr *_MockReaderIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockSingleReaderIterator) Reset(reader io.Reader) {
+func (_m *MockReaderIterator) Reset(reader io.Reader) {
 	_m.ctrl.Call(_m, "Reset", reader)
 }
 
-func (_mr *_MockSingleReaderIteratorRecorder) Reset(arg0 interface{}) *gomock.Call {
+func (_mr *_MockReaderIteratorRecorder) Reset(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0)
 }
 
@@ -326,9 +326,9 @@ func (_m *MockDecoder) EXPECT() *_MockDecoderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDecoder) Decode(reader io.Reader) m3db.SingleReaderIterator {
+func (_m *MockDecoder) Decode(reader io.Reader) m3db.ReaderIterator {
 	ret := _m.ctrl.Call(_m, "Decode", reader)
-	ret0, _ := ret[0].(m3db.SingleReaderIterator)
+	ret0, _ := ret[0].(m3db.ReaderIterator)
 	return ret0
 }
 

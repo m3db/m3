@@ -21,7 +21,6 @@
 package tsz
 
 import (
-	"container/heap"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -32,9 +31,9 @@ import (
 	xtime "github.com/m3db/m3db/x/time"
 )
 
-// singleReaderIterator provides an interface for clients to incrementally
+// readerIterator provides an interface for clients to incrementally
 // read datapoints off of an encoded stream.
-type singleReaderIterator struct {
+type readerIterator struct {
 	is   *istream
 	opts Options
 	tess TimeEncodingSchemes
@@ -55,9 +54,9 @@ type singleReaderIterator struct {
 	closed bool
 }
 
-// NewSingleReaderIterator returns a new iterator for a given reader
-func NewSingleReaderIterator(reader io.Reader, opts Options) m3db.SingleReaderIterator {
-	return &singleReaderIterator{
+// NewReaderIterator returns a new iterator for a given reader
+func NewReaderIterator(reader io.Reader, opts Options) m3db.ReaderIterator {
+	return &readerIterator{
 		is:   newIStream(reader),
 		opts: opts,
 		tess: opts.GetTimeEncodingSchemes(),
@@ -66,7 +65,7 @@ func NewSingleReaderIterator(reader io.Reader, opts Options) m3db.SingleReaderIt
 }
 
 // Next moves to the next item
-func (it *singleReaderIterator) Next() bool {
+func (it *readerIterator) Next() bool {
 	if !it.hasNext() {
 		return false
 	}
@@ -87,7 +86,7 @@ func (it *singleReaderIterator) Next() bool {
 	return it.hasNext()
 }
 
-func (it *singleReaderIterator) readFirstTimestamp() {
+func (it *readerIterator) readFirstTimestamp() {
 	nt := int64(it.readBits(64))
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
 	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
@@ -96,17 +95,17 @@ func (it *singleReaderIterator) readFirstTimestamp() {
 	it.t = st.Add(it.dt)
 }
 
-func (it *singleReaderIterator) readFirstValue() {
+func (it *readerIterator) readFirstValue() {
 	it.vb = it.readBits(64)
 	it.xor = it.vb
 }
 
-func (it *singleReaderIterator) readNextTimestamp() {
+func (it *readerIterator) readNextTimestamp() {
 	it.dt += it.readMarkerOrDeltaOfDelta()
 	it.t = it.t.Add(it.dt)
 }
 
-func (it *singleReaderIterator) tryReadMarker() (time.Duration, bool) {
+func (it *readerIterator) tryReadMarker() (time.Duration, bool) {
 	numBits := it.mes.NumOpcodeBits() + it.mes.NumValueBits()
 	opcodeAndValue, success := it.tryPeekBits(numBits)
 	if !success {
@@ -136,7 +135,7 @@ func (it *singleReaderIterator) tryReadMarker() (time.Duration, bool) {
 	}
 }
 
-func (it *singleReaderIterator) readMarkerOrDeltaOfDelta() time.Duration {
+func (it *readerIterator) readMarkerOrDeltaOfDelta() time.Duration {
 	if dod, success := it.tryReadMarker(); success {
 		return dod
 	}
@@ -148,13 +147,14 @@ func (it *singleReaderIterator) readMarkerOrDeltaOfDelta() time.Duration {
 	return it.readDeltaOfDelta(tes)
 }
 
-func (it *singleReaderIterator) readDeltaOfDelta(tes TimeEncodingScheme) (d time.Duration) {
+func (it *readerIterator) readDeltaOfDelta(tes TimeEncodingScheme) (d time.Duration) {
 	if it.tuChanged {
 		// NB(xichen): if the time unit has changed, always read 64 bits as normalized
 		// dod in nanoseconds.
 		dod := signExtend(it.readBits(64), 64)
 		return time.Duration(dod)
 	}
+
 	cb := it.readBits(1)
 	if cb == tes.ZeroBucket().Opcode() {
 		return 0
@@ -172,12 +172,12 @@ func (it *singleReaderIterator) readDeltaOfDelta(tes TimeEncodingScheme) (d time
 	return xtime.FromNormalizedDuration(dod, it.timeUnit())
 }
 
-func (it *singleReaderIterator) readNextValue() {
+func (it *readerIterator) readNextValue() {
 	it.xor = it.readXOR()
 	it.vb ^= it.xor
 }
 
-func (it *singleReaderIterator) readAnnotation() {
+func (it *readerIterator) readAnnotation() {
 	// NB: we add 1 here to offset the 1 we subtracted during encoding
 	antLen := it.readVarint() + 1
 	if it.hasError() {
@@ -195,7 +195,7 @@ func (it *singleReaderIterator) readAnnotation() {
 	it.ant = buf
 }
 
-func (it *singleReaderIterator) readTimeUnit() {
+func (it *readerIterator) readTimeUnit() {
 	tu := xtime.Unit(it.readBits(8))
 	if tu.IsValid() && tu != it.tu {
 		it.tuChanged = true
@@ -203,7 +203,7 @@ func (it *singleReaderIterator) readTimeUnit() {
 	it.tu = tu
 }
 
-func (it *singleReaderIterator) readXOR() uint64 {
+func (it *readerIterator) readXOR() uint64 {
 	cb := it.readBits(1)
 	if cb == opcodeZeroValueXOR {
 		return 0
@@ -223,7 +223,7 @@ func (it *singleReaderIterator) readXOR() uint64 {
 	return meaningfulBits << uint(numTrailingZeros)
 }
 
-func (it *singleReaderIterator) readBits(numBits int) uint64 {
+func (it *readerIterator) readBits(numBits int) uint64 {
 	if !it.hasNext() {
 		return 0
 	}
@@ -232,7 +232,7 @@ func (it *singleReaderIterator) readBits(numBits int) uint64 {
 	return res
 }
 
-func (it *singleReaderIterator) readVarint() int {
+func (it *readerIterator) readVarint() int {
 	if !it.hasNext() {
 		return 0
 	}
@@ -241,7 +241,7 @@ func (it *singleReaderIterator) readVarint() int {
 	return int(res)
 }
 
-func (it *singleReaderIterator) tryPeekBits(numBits int) (uint64, bool) {
+func (it *readerIterator) tryPeekBits(numBits int) (uint64, bool) {
 	if !it.hasNext() {
 		return 0, false
 	}
@@ -252,7 +252,7 @@ func (it *singleReaderIterator) tryPeekBits(numBits int) (uint64, bool) {
 	return res, true
 }
 
-func (it *singleReaderIterator) timeUnit() time.Duration {
+func (it *readerIterator) timeUnit() time.Duration {
 	if it.hasError() {
 		return 0
 	}
@@ -264,7 +264,7 @@ func (it *singleReaderIterator) timeUnit() time.Duration {
 // Current returns the value as well as the annotation associated with the current datapoint.
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
-func (it *singleReaderIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
+func (it *readerIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
 	return m3db.Datapoint{
 		Timestamp: it.t,
 		Value:     math.Float64frombits(it.vb),
@@ -272,27 +272,27 @@ func (it *singleReaderIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Anno
 }
 
 // Err returns the error encountered
-func (it *singleReaderIterator) Err() error {
+func (it *readerIterator) Err() error {
 	return it.err
 }
 
-func (it *singleReaderIterator) hasError() bool {
+func (it *readerIterator) hasError() bool {
 	return it.err != nil
 }
 
-func (it *singleReaderIterator) isDone() bool {
+func (it *readerIterator) isDone() bool {
 	return it.done
 }
 
-func (it *singleReaderIterator) isClosed() bool {
+func (it *readerIterator) isClosed() bool {
 	return it.closed
 }
 
-func (it *singleReaderIterator) hasNext() bool {
+func (it *readerIterator) hasNext() bool {
 	return !it.hasError() && !it.isDone() && !it.isClosed()
 }
 
-func (it *singleReaderIterator) Reset(reader io.Reader) {
+func (it *readerIterator) Reset(reader io.Reader) {
 	it.is.Reset(reader)
 	it.t = time.Time{}
 	it.dt = 0
@@ -305,165 +305,13 @@ func (it *singleReaderIterator) Reset(reader io.Reader) {
 	it.closed = false
 }
 
-func (it *singleReaderIterator) Close() {
+func (it *readerIterator) Close() {
 	if it.closed {
 		return
 	}
 	it.closed = true
-	pool := it.opts.GetSingleReaderIteratorPool()
+	pool := it.opts.GetReaderIteratorPool()
 	if pool != nil {
 		pool.Put(it)
 	}
-}
-
-// An IteratorHeap is a min-heap of iterators. The top of the heap is the iterator
-// whose current value is the earliest datapoint among all iterators in the heap.
-type iteratorHeap []m3db.Iterator
-
-func (h iteratorHeap) Len() int {
-	return len(h)
-}
-
-func (h iteratorHeap) Less(i, j int) bool {
-	di, _, _ := h[i].Current()
-	dj, _, _ := h[j].Current()
-	return di.Timestamp.Before(dj.Timestamp)
-}
-
-func (h iteratorHeap) Swap(i, j int) {
-	h[i], h[j] = h[j], h[i]
-}
-
-func (h *iteratorHeap) Push(x interface{}) {
-	*h = append(*h, x.(m3db.Iterator))
-}
-
-func (h *iteratorHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	if n == 0 {
-		return nil
-	}
-
-	x := old[n-1]
-	*h = old[:n-1]
-	return x
-}
-
-// multiReaderIterator provides an interface for clients to incrementally
-// read datapoints off of multiple encoded streams whose datapoints may
-// interleave in time.
-// TODO(xichen): optimize for one reader case.
-type multiReaderIterator struct {
-	iters   iteratorHeap                      // a heap of iterators
-	readers []io.Reader                       // underlying readers
-	alloc   m3db.SingleReaderIteratorAllocate // allocation function for single reader iterators
-	opts    Options                           // decoding options
-	err     error                             // current error
-	closed  bool                              // has been closed
-}
-
-// NewMultiReaderIterator creates a new multi-reader iterator.
-func NewMultiReaderIterator(readers []io.Reader, opts Options) m3db.MultiReaderIterator {
-	alloc := func() m3db.SingleReaderIterator {
-		return NewSingleReaderIterator(nil, opts)
-	}
-	if pool := opts.GetSingleReaderIteratorPool(); pool != nil {
-		alloc = pool.Get
-	}
-	return &multiReaderIterator{
-		readers: readers,
-		alloc:   alloc,
-		opts:    opts,
-	}
-}
-
-func (it *multiReaderIterator) Next() bool {
-	if !it.hasNext() {
-		return false
-	}
-	if it.iters == nil {
-		it.initHeap()
-	} else {
-		it.moveToNext()
-	}
-	return it.hasNext()
-}
-
-func (it *multiReaderIterator) initHeap() {
-	iterHeap := make(iteratorHeap, 0, len(it.readers))
-	heap.Init(&iterHeap)
-	for i := range it.readers {
-		newIt := it.alloc()
-		newIt.Reset(it.readers[i])
-		if newIt.Next() {
-			heap.Push(&iterHeap, newIt)
-		} else {
-			err := newIt.Err()
-			newIt.Close()
-			if err != nil {
-				it.err = err
-				return
-			}
-		}
-	}
-	it.iters = iterHeap
-}
-
-func (it *multiReaderIterator) moveToNext() {
-	earliest := heap.Pop(&it.iters).(m3db.SingleReaderIterator)
-	if earliest.Next() {
-		heap.Push(&it.iters, earliest)
-	} else {
-		err := earliest.Err()
-		earliest.Close()
-		if err != nil {
-			it.err = err
-		}
-	}
-}
-
-func (it *multiReaderIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
-	return it.iters[0].Current()
-}
-
-func (it *multiReaderIterator) hasError() bool {
-	return it.err != nil
-}
-
-func (it *multiReaderIterator) isClosed() bool {
-	return it.closed
-}
-
-func (it *multiReaderIterator) hasMore() bool {
-	return it.iters == nil || it.iters.Len() > 0
-}
-
-func (it *multiReaderIterator) hasNext() bool {
-	return !it.hasError() && !it.isClosed() && it.hasMore()
-}
-
-func (it *multiReaderIterator) Err() error {
-	return it.err
-}
-
-func (it *multiReaderIterator) Reset(readers []io.Reader) {
-	it.iters = nil
-	it.readers = readers
-	it.err = nil
-	it.closed = false
-}
-
-func (it *multiReaderIterator) Close() {
-	if it.closed {
-		return
-	}
-	for i := range it.iters {
-		it.iters[i].Close()
-	}
-	pool := it.opts.GetMultiReaderIteratorPool()
-	if pool != nil {
-		pool.Put(it)
-	}
-	it.closed = true
 }

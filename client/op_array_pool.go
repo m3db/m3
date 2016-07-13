@@ -26,23 +26,30 @@ import (
 )
 
 type opArrayPool interface {
+	// Init pool
+	Init()
+
 	// Get an array of ops
 	Get() []m3db.Op
 
 	// Put an array of ops
-	Put(w []m3db.Op)
+	Put(ops []m3db.Op)
 }
 
 type poolOfOpArray struct {
-	pool m3db.ObjectPool
+	pool     m3db.ObjectPool
+	capacity int
 }
 
 func newOpArrayPool(size int, capacity int) opArrayPool {
 	p := pool.NewObjectPool(size)
-	p.Init(func() interface{} {
-		return make([]m3db.Op, 0, capacity)
+	return &poolOfOpArray{p, capacity}
+}
+
+func (p *poolOfOpArray) Init() {
+	p.pool.Init(func() interface{} {
+		return make([]m3db.Op, 0, p.capacity)
 	})
-	return &poolOfOpArray{p}
 }
 
 func (p *poolOfOpArray) Get() []m3db.Op {
@@ -52,4 +59,61 @@ func (p *poolOfOpArray) Get() []m3db.Op {
 func (p *poolOfOpArray) Put(ops []m3db.Op) {
 	ops = ops[:0]
 	p.pool.Put(ops)
+}
+
+type fetchBatchOpArrayArrayPool interface {
+	// Init pool
+	Init()
+
+	// Get an array of fetch ops arrays
+	Get() [][]*fetchBatchOp
+
+	// Put an array of fetch ops arrays
+	Put(ops [][]*fetchBatchOp)
+
+	// Entries returns the entries of fetch ops array array returned by the pool
+	Entries() int
+
+	// Capacity returns the capacity of each fetch ops array in each entry
+	Capacity() int
+}
+
+type poolOfFetchBatchOpArrayArray struct {
+	pool     m3db.ObjectPool
+	entries  int
+	capacity int
+}
+
+func newFetchBatchOpArrayArrayPool(size int, entries int, capacity int) fetchBatchOpArrayArrayPool {
+	p := pool.NewObjectPool(size)
+	return &poolOfFetchBatchOpArrayArray{p, entries, capacity}
+}
+
+func (p *poolOfFetchBatchOpArrayArray) Init() {
+	p.pool.Init(func() interface{} {
+		arr := make([][]*fetchBatchOp, p.entries)
+		for i := range arr {
+			arr[i] = make([]*fetchBatchOp, 0, p.capacity)
+		}
+		return arr
+	})
+}
+
+func (p *poolOfFetchBatchOpArrayArray) Get() [][]*fetchBatchOp {
+	return p.pool.Get().([][]*fetchBatchOp)
+}
+
+func (p *poolOfFetchBatchOpArrayArray) Put(arr [][]*fetchBatchOp) {
+	for i := range arr {
+		arr[i] = arr[i][:0]
+	}
+	p.pool.Put(arr)
+}
+
+func (p *poolOfFetchBatchOpArrayArray) Entries() int {
+	return p.entries
+}
+
+func (p *poolOfFetchBatchOpArrayArray) Capacity() int {
+	return p.capacity
 }

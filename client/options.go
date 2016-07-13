@@ -21,8 +21,11 @@
 package client
 
 import (
+	"errors"
+	"io"
 	"time"
 
+	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/x/logging"
 	"github.com/m3db/m3db/x/metrics"
@@ -49,17 +52,26 @@ const (
 	// defaultWriteRequestTimeout is the default write request timeout
 	defaultWriteRequestTimeout = 5 * time.Second
 
+	// defaultFetchRequestTimeout is the default fetch request timeout
+	defaultFetchRequestTimeout = 15 * time.Second
+
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 1000000
 
+	// defaultFetchBatchOpPoolSize is the default fetch op pool size
+	defaultFetchBatchOpPoolSize = 8192
+
 	// defaultWriteBatchSize is the default write batch size
 	defaultWriteBatchSize = 128
+
+	// defaultFetchBatchSize is the default fetch batch size
+	defaultFetchBatchSize = 128
 
 	// defaultHostQueueOpsFlushSize is the default host queue ops flush size
 	defaultHostQueueOpsFlushSize = 128
 
 	// defaultHostQueueOpsFlushInterval is the default host queue flush interval
-	defaultHostQueueOpsFlushInterval = time.Millisecond
+	defaultHostQueueOpsFlushInterval = 5 * time.Millisecond
 
 	// defaultHostQueueOpsArrayPoolSize is the default host queue ops array pool size
 	defaultHostQueueOpsArrayPoolSize = 8
@@ -75,54 +87,94 @@ const (
 
 	// defaultBackgroundHealthCheckStutter is the default background health check stutter
 	defaultBackgroundHealthCheckStutter = 1 * time.Second
+
+	// defaultSeriesIteratorPoolSize is the default size of the series iterator pools
+	defaultSeriesIteratorPoolSize = 100000
+)
+
+var (
+	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
+	defaultSeriesIteratorArrayPoolBuckets = []m3db.PoolBucket{}
+
+	errNoTopologyTypeSet           = errors.New("no topology type set")
+	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
 
 type options struct {
-	logger                        logging.Logger
-	scope                         metrics.Scope
-	topologyType                  m3db.TopologyType
-	consistencyLevel              m3db.ConsistencyLevel
-	channelOptions                *tchannel.ChannelOptions
-	nowFn                         m3db.NowFn
-	maxConnectionCount            int
-	minConnectionCount            int
-	hostConnectTimeout            time.Duration
-	clusterConnectTimeout         time.Duration
-	writeRequestTimeout           time.Duration
-	backgroundConnectInterval     time.Duration
-	backgroundConnectStutter      time.Duration
-	backgroundHealthCheckInterval time.Duration
-	backgroundHealthCheckStutter  time.Duration
-	writeOpPoolSize               int
-	writeBatchSize                int
-	hostQueueOpsFlushSize         int
-	hostQueueOpsFlushInterval     time.Duration
-	hostQueueOpsArrayPoolSize     int
+	logger                         logging.Logger
+	scope                          metrics.Scope
+	topologyType                   m3db.TopologyType
+	consistencyLevel               m3db.ConsistencyLevel
+	channelOptions                 *tchannel.ChannelOptions
+	nowFn                          m3db.NowFn
+	maxConnectionCount             int
+	minConnectionCount             int
+	hostConnectTimeout             time.Duration
+	clusterConnectTimeout          time.Duration
+	writeRequestTimeout            time.Duration
+	fetchRequestTimeout            time.Duration
+	backgroundConnectInterval      time.Duration
+	backgroundConnectStutter       time.Duration
+	backgroundHealthCheckInterval  time.Duration
+	backgroundHealthCheckStutter   time.Duration
+	readerIteratorAllocate         m3db.ReaderIteratorAllocate
+	writeOpPoolSize                int
+	fetchBatchOpPoolSize           int
+	writeBatchSize                 int
+	fetchBatchSize                 int
+	hostQueueOpsFlushSize          int
+	hostQueueOpsFlushInterval      time.Duration
+	hostQueueOpsArrayPoolSize      int
+	seriesIteratorPoolSize         int
+	seriesIteratorArrayPoolBuckets []m3db.PoolBucket
 }
 
 // NewOptions creates a new set of client options with defaults
-// TODO(r): add an "IsValid()" method and ensure topology type is set
 func NewOptions() m3db.ClientOptions {
-	return &options{
-		logger:                        logging.SimpleLogger,
-		scope:                         metrics.NoopScope,
-		consistencyLevel:              defaultConsistencyLevel,
-		nowFn:                         time.Now,
-		maxConnectionCount:            defaultMaxConnectionCount,
-		minConnectionCount:            defaultMinConnectionCount,
-		hostConnectTimeout:            defaultHostConnectTimeout,
-		clusterConnectTimeout:         defaultClusterConnectTimeout,
-		writeRequestTimeout:           defaultWriteRequestTimeout,
-		backgroundConnectInterval:     defaultBackgroundConnectInterval,
-		backgroundConnectStutter:      defaultBackgroundConnectStutter,
-		backgroundHealthCheckInterval: defaultBackgroundHealthCheckInterval,
-		backgroundHealthCheckStutter:  defaultBackgroundHealthCheckStutter,
-		writeOpPoolSize:               defaultWriteOpPoolSize,
-		writeBatchSize:                defaultWriteBatchSize,
-		hostQueueOpsFlushSize:         defaultHostQueueOpsFlushSize,
-		hostQueueOpsFlushInterval:     defaultHostQueueOpsFlushInterval,
-		hostQueueOpsArrayPoolSize:     defaultHostQueueOpsArrayPoolSize,
+	opts := &options{
+		logger:                         logging.SimpleLogger,
+		scope:                          metrics.NoopScope,
+		consistencyLevel:               defaultConsistencyLevel,
+		nowFn:                          time.Now,
+		maxConnectionCount:             defaultMaxConnectionCount,
+		minConnectionCount:             defaultMinConnectionCount,
+		hostConnectTimeout:             defaultHostConnectTimeout,
+		clusterConnectTimeout:          defaultClusterConnectTimeout,
+		writeRequestTimeout:            defaultWriteRequestTimeout,
+		fetchRequestTimeout:            defaultFetchRequestTimeout,
+		backgroundConnectInterval:      defaultBackgroundConnectInterval,
+		backgroundConnectStutter:       defaultBackgroundConnectStutter,
+		backgroundHealthCheckInterval:  defaultBackgroundHealthCheckInterval,
+		backgroundHealthCheckStutter:   defaultBackgroundHealthCheckStutter,
+		writeOpPoolSize:                defaultWriteOpPoolSize,
+		fetchBatchOpPoolSize:           defaultFetchBatchOpPoolSize,
+		writeBatchSize:                 defaultWriteBatchSize,
+		fetchBatchSize:                 defaultFetchBatchSize,
+		hostQueueOpsFlushSize:          defaultHostQueueOpsFlushSize,
+		hostQueueOpsFlushInterval:      defaultHostQueueOpsFlushInterval,
+		hostQueueOpsArrayPoolSize:      defaultHostQueueOpsArrayPoolSize,
+		seriesIteratorPoolSize:         defaultSeriesIteratorPoolSize,
+		seriesIteratorArrayPoolBuckets: defaultSeriesIteratorArrayPoolBuckets,
 	}
+	return opts.EncodingTsz()
+}
+
+func (o *options) Validate() error {
+	if o.topologyType == nil {
+		return errNoTopologyTypeSet
+	}
+	if o.readerIteratorAllocate == nil {
+		return errNoReaderIteratorAllocateSet
+	}
+	return nil
+}
+
+func (o *options) EncodingTsz() m3db.ClientOptions {
+	opts := *o
+	opts.readerIteratorAllocate = func(r io.Reader) m3db.ReaderIterator {
+		return tsz.NewReaderIterator(r, tsz.NewOptions())
+	}
+	return &opts
 }
 
 func (o *options) Logger(value logging.Logger) m3db.ClientOptions {
@@ -235,6 +287,16 @@ func (o *options) GetWriteRequestTimeout() time.Duration {
 	return o.writeRequestTimeout
 }
 
+func (o *options) FetchRequestTimeout(value time.Duration) m3db.ClientOptions {
+	opts := *o
+	opts.fetchRequestTimeout = value
+	return &opts
+}
+
+func (o *options) GetFetchRequestTimeout() time.Duration {
+	return o.fetchRequestTimeout
+}
+
 func (o *options) BackgroundConnectInterval(value time.Duration) m3db.ClientOptions {
 	opts := *o
 	opts.backgroundConnectInterval = value
@@ -285,6 +347,16 @@ func (o *options) GetWriteOpPoolSize() int {
 	return o.writeOpPoolSize
 }
 
+func (o *options) FetchBatchOpPoolSize(value int) m3db.ClientOptions {
+	opts := *o
+	opts.fetchBatchOpPoolSize = value
+	return &opts
+}
+
+func (o *options) GetFetchBatchOpPoolSize() int {
+	return o.fetchBatchOpPoolSize
+}
+
 func (o *options) WriteBatchSize(value int) m3db.ClientOptions {
 	opts := *o
 	opts.writeBatchSize = value
@@ -293,6 +365,16 @@ func (o *options) WriteBatchSize(value int) m3db.ClientOptions {
 
 func (o *options) GetWriteBatchSize() int {
 	return o.writeBatchSize
+}
+
+func (o *options) FetchBatchSize(value int) m3db.ClientOptions {
+	opts := *o
+	opts.fetchBatchSize = value
+	return &opts
+}
+
+func (o *options) GetFetchBatchSize() int {
+	return o.fetchBatchSize
 }
 
 func (o *options) HostQueueOpsFlushSize(value int) m3db.ClientOptions {
@@ -323,4 +405,34 @@ func (o *options) HostQueueOpsArrayPoolSize(value int) m3db.ClientOptions {
 
 func (o *options) GetHostQueueOpsArrayPoolSize() int {
 	return o.hostQueueOpsArrayPoolSize
+}
+
+func (o *options) SeriesIteratorPoolSize(value int) m3db.ClientOptions {
+	opts := *o
+	opts.seriesIteratorPoolSize = value
+	return &opts
+}
+
+func (o *options) GetSeriesIteratorPoolSize() int {
+	return o.seriesIteratorPoolSize
+}
+
+func (o *options) SeriesIteratorArrayPoolBuckets(value []m3db.PoolBucket) m3db.ClientOptions {
+	opts := *o
+	opts.seriesIteratorArrayPoolBuckets = value
+	return &opts
+}
+
+func (o *options) GetSeriesIteratorArrayPoolBuckets() []m3db.PoolBucket {
+	return o.seriesIteratorArrayPoolBuckets
+}
+
+func (o *options) ReaderIteratorAllocate(value m3db.ReaderIteratorAllocate) m3db.ClientOptions {
+	opts := *o
+	opts.readerIteratorAllocate = value
+	return &opts
+}
+
+func (o *options) GetReaderIteratorAllocate() m3db.ReaderIteratorAllocate {
+	return o.readerIteratorAllocate
 }

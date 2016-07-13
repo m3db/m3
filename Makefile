@@ -73,7 +73,6 @@ test-xml: test-internal
 	@rm $(coverfile) &> /dev/null
 
 test: test-internal
-	@$(test)
 	gocov convert $(coverfile) | gocov report
 
 testhtml: test-internal
@@ -82,9 +81,9 @@ testhtml: test-internal
 
 install-ci: 
 	git submodule update --init --recursive
-	go get -u github.com/mattn/goveralls
 
 test-ci-unit: test-internal
+	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
 
 clean:

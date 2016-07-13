@@ -79,7 +79,7 @@ func main() {
 			opts,
 			doneCh,
 		); err != nil {
-			log.Fatalf("unable to start server: %v", err)
+			log.Fatalf("serve error: %v", err)
 		}
 	}()
 

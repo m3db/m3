@@ -39,11 +39,6 @@ func NewDecoder(opts Options) m3db.Decoder {
 }
 
 // Decode decodes the encoded data captured by the reader.
-func (dec *decoder) Decode(reader io.Reader) m3db.SingleReaderIterator {
-	return NewSingleReaderIterator(reader, dec.opts)
-}
-
-// DecodeAll decodes the encoded data in all the readers.
-func (dec *decoder) DecodeAll(readers []io.Reader) m3db.MultiReaderIterator {
-	return NewMultiReaderIterator(readers, dec.opts)
+func (dec *decoder) Decode(reader io.Reader) m3db.ReaderIterator {
+	return NewReaderIterator(reader, dec.opts)
 }

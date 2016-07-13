@@ -34,7 +34,7 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-func m3dbClient(address string, shardingScheme m3db.ShardScheme) m3db.Client {
+func m3dbClient(address string, shardingScheme m3db.ShardScheme) (m3db.Client, error) {
 	return server.DefaultClient(address, shardingScheme)
 }
 

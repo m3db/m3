@@ -60,17 +60,11 @@ type Options interface {
 	// GetEncoderPool returns the encoder pool.
 	GetEncoderPool() m3db.EncoderPool
 
-	// SingleReaderIteratorPool sets the SingleReaderIteratorPool.
-	SingleReaderIteratorPool(value m3db.SingleReaderIteratorPool) Options
+	// ReaderIteratorPool sets the ReaderIteratorPool.
+	ReaderIteratorPool(value m3db.ReaderIteratorPool) Options
 
-	// GetSingleReaderIteratorPool returns the SingleReaderIteratorPool
-	GetSingleReaderIteratorPool() m3db.SingleReaderIteratorPool
-
-	// MultiReaderIteratorPool sets the MultiReaderIteratorPool.
-	MultiReaderIteratorPool(value m3db.MultiReaderIteratorPool) Options
-
-	// GetMultiReaderIteratorPool returns the MultiReaderIteratorPool
-	GetMultiReaderIteratorPool() m3db.MultiReaderIteratorPool
+	// GetReaderIteratorPool returns the ReaderIteratorPool
+	GetReaderIteratorPool() m3db.ReaderIteratorPool
 
 	// BytesPool sets the bytes pool.
 	BytesPool(value m3db.BytesPool) Options
@@ -86,14 +80,13 @@ type Options interface {
 }
 
 type options struct {
-	defaultTimeUnit          xtime.Unit
-	timeEncodingSchemes      TimeEncodingSchemes
-	markerEncodingScheme     MarkerEncodingScheme
-	encoderPool              m3db.EncoderPool
-	singleReaderIteratorPool m3db.SingleReaderIteratorPool
-	multiReaderIteratorPool  m3db.MultiReaderIteratorPool
-	bytesPool                m3db.BytesPool
-	segmentReaderPool        m3db.SegmentReaderPool
+	defaultTimeUnit      xtime.Unit
+	timeEncodingSchemes  TimeEncodingSchemes
+	markerEncodingScheme MarkerEncodingScheme
+	encoderPool          m3db.EncoderPool
+	readerIteratorPool   m3db.ReaderIteratorPool
+	bytesPool            m3db.BytesPool
+	segmentReaderPool    m3db.SegmentReaderPool
 }
 
 func newOptions() Options {
@@ -149,24 +142,14 @@ func (o *options) GetEncoderPool() m3db.EncoderPool {
 	return o.encoderPool
 }
 
-func (o *options) SingleReaderIteratorPool(value m3db.SingleReaderIteratorPool) Options {
+func (o *options) ReaderIteratorPool(value m3db.ReaderIteratorPool) Options {
 	opts := *o
-	opts.singleReaderIteratorPool = value
+	opts.readerIteratorPool = value
 	return &opts
 }
 
-func (o *options) GetSingleReaderIteratorPool() m3db.SingleReaderIteratorPool {
-	return o.singleReaderIteratorPool
-}
-
-func (o *options) MultiReaderIteratorPool(value m3db.MultiReaderIteratorPool) Options {
-	opts := *o
-	opts.multiReaderIteratorPool = value
-	return &opts
-}
-
-func (o *options) GetMultiReaderIteratorPool() m3db.MultiReaderIteratorPool {
-	return o.multiReaderIteratorPool
+func (o *options) GetReaderIteratorPool() m3db.ReaderIteratorPool {
+	return o.readerIteratorPool
 }
 
 func (o *options) BytesPool(value m3db.BytesPool) Options {
