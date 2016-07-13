@@ -308,7 +308,7 @@ type ClientOptions interface {
 	// FetchBatchSize sets the fetchBatchSize and returns a new ClientOptions
 	// NB(r): for a fetch only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
-	// fit the entire flushed write ops into a single batch.
+	// fit the entire flushed fetch ops into a single batch.
 	FetchBatchSize(value int) ClientOptions
 
 	// GetFetchBatchSize returns the fetchBatchSize

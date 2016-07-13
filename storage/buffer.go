@@ -215,7 +215,7 @@ func (s *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) [][]m3db.
 			return
 		}
 
-		var unmerged []m3db.SegmentReader
+		unmerged := make([]m3db.SegmentReader, 0, len(b.encoders))
 		for i := range b.encoders {
 			stream := b.encoders[i].encoder.Stream()
 			if stream == nil {
