@@ -26,6 +26,13 @@ import (
 	"github.com/m3db/m3db/interfaces/m3db"
 )
 
+// TODO(r): there should be an ArrayPool that can take an alloc function
+// that given a "capacity" can return a "interface{}" which consists of an array
+// with the specifified capacity and does the bucket logic for the type safe
+// higher level specific array pool, i.e. IteratorArrayPool.
+// This way we can avoid having the bucketing logic for each pool in each concrete
+// array pool.
+
 // TODO(r): instrument this to tune pooling
 type iteratorArrayPool struct {
 	sizesAsc          []m3db.PoolBucket
