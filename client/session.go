@@ -203,7 +203,7 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
 			s.opts.GetFetchBatchOpPoolSize(),
 			len(queues),
-			s.opts.GetFetchBatchOpPoolSize()/s.opts.GetFetchBatchSize())
+			s.opts.GetFetchBatchOpPoolSize()/len(queues))
 		s.fetchBatchOpArrayArrayPool.Init()
 	}
 	if s.iteratorArrayPool == nil ||
