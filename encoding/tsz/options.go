@@ -22,6 +22,11 @@ package tsz
 
 import (
 	"github.com/m3db/m3db/interfaces/m3db"
+	xtime "github.com/m3db/m3db/x/time"
+)
+
+const (
+	defaultDefaultTimeUnit = xtime.Second
 )
 
 var (
@@ -31,6 +36,12 @@ var (
 
 // Options represents different options for encoding time as well as markers.
 type Options interface {
+	// DefaultTimeUnit sets the default time unit for the encoder.
+	DefaultTimeUnit(tu xtime.Unit) Options
+
+	// GetDefaultTimeUnit returns the default time unit for the encoder.
+	GetDefaultTimeUnit() xtime.Unit
+
 	// TimeEncodingSchemes sets the time encoding schemes for different time units.
 	TimeEncodingSchemes(value TimeEncodingSchemes) Options
 
@@ -55,12 +66,6 @@ type Options interface {
 	// GetReaderIteratorPool returns the ReaderIteratorPool
 	GetReaderIteratorPool() m3db.ReaderIteratorPool
 
-	// MultiReaderIteratorPool sets the MultiReaderIteratorPool.
-	MultiReaderIteratorPool(value m3db.MultiReaderIteratorPool) Options
-
-	// GetMultiReaderIteratorPool returns the MultiReaderIteratorPool
-	GetMultiReaderIteratorPool() m3db.MultiReaderIteratorPool
-
 	// BytesPool sets the bytes pool.
 	BytesPool(value m3db.BytesPool) Options
 
@@ -75,17 +80,18 @@ type Options interface {
 }
 
 type options struct {
-	timeEncodingSchemes     TimeEncodingSchemes
-	markerEncodingScheme    MarkerEncodingScheme
-	encoderPool             m3db.EncoderPool
-	readerIteratorPool      m3db.ReaderIteratorPool
-	multiReaderIteratorPool m3db.MultiReaderIteratorPool
-	bytesPool               m3db.BytesPool
-	segmentReaderPool       m3db.SegmentReaderPool
+	defaultTimeUnit      xtime.Unit
+	timeEncodingSchemes  TimeEncodingSchemes
+	markerEncodingScheme MarkerEncodingScheme
+	encoderPool          m3db.EncoderPool
+	readerIteratorPool   m3db.ReaderIteratorPool
+	bytesPool            m3db.BytesPool
+	segmentReaderPool    m3db.SegmentReaderPool
 }
 
 func newOptions() Options {
 	return &options{
+		defaultTimeUnit:      defaultDefaultTimeUnit,
 		timeEncodingSchemes:  defaultTimeEncodingSchemes,
 		markerEncodingScheme: defaultMarkerEncodingScheme,
 	}
@@ -94,6 +100,16 @@ func newOptions() Options {
 // NewOptions creates a new options.
 func NewOptions() Options {
 	return defaultOptions
+}
+
+func (o *options) DefaultTimeUnit(value xtime.Unit) Options {
+	opts := *o
+	opts.defaultTimeUnit = value
+	return &opts
+}
+
+func (o *options) GetDefaultTimeUnit() xtime.Unit {
+	return o.defaultTimeUnit
 }
 
 func (o *options) TimeEncodingSchemes(value TimeEncodingSchemes) Options {
@@ -134,16 +150,6 @@ func (o *options) ReaderIteratorPool(value m3db.ReaderIteratorPool) Options {
 
 func (o *options) GetReaderIteratorPool() m3db.ReaderIteratorPool {
 	return o.readerIteratorPool
-}
-
-func (o *options) MultiReaderIteratorPool(value m3db.MultiReaderIteratorPool) Options {
-	opts := *o
-	opts.multiReaderIteratorPool = value
-	return &opts
-}
-
-func (o *options) GetMultiReaderIteratorPool() m3db.MultiReaderIteratorPool {
-	return o.multiReaderIteratorPool
 }
 
 func (o *options) BytesPool(value m3db.BytesPool) Options {

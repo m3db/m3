@@ -47,8 +47,9 @@ type readerIterator struct {
 	done bool          // has reached the end
 	err  error         // current error
 
-	ant m3db.Annotation // current annotation
-	tu  xtime.Unit      // current time unit
+	ant       m3db.Annotation // current annotation
+	tu        xtime.Unit      // current time unit
+	tuChanged bool            // whether we have a new time unit
 
 	closed bool
 }
@@ -69,6 +70,7 @@ func (it *readerIterator) Next() bool {
 		return false
 	}
 	it.ant = nil
+	it.tuChanged = false
 	if it.t.IsZero() {
 		it.readFirstTimestamp()
 		it.readFirstValue()
@@ -76,13 +78,20 @@ func (it *readerIterator) Next() bool {
 		it.readNextTimestamp()
 		it.readNextValue()
 	}
+	// NB(xichen): reset time delta to 0 when there is a time unit change to be
+	// consistent with the encoder.
+	if it.tuChanged {
+		it.dt = 0
+	}
 	return it.hasNext()
 }
 
 func (it *readerIterator) readFirstTimestamp() {
 	nt := int64(it.readBits(64))
+	// NB(xichen): first time stamp is always normalized to nanoseconds.
+	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
+	it.tu = initialTimeUnit(st, it.opts.GetDefaultTimeUnit())
 	it.readNextTimestamp()
-	st := xtime.FromNormalizedTime(nt, it.timeUnit())
 	it.t = st.Add(it.dt)
 }
 
@@ -92,12 +101,11 @@ func (it *readerIterator) readFirstValue() {
 }
 
 func (it *readerIterator) readNextTimestamp() {
-	dod := it.readMarkerOrDeltaOfDelta()
-	it.dt += xtime.FromNormalizedDuration(dod, it.timeUnit())
+	it.dt += it.readMarkerOrDeltaOfDelta()
 	it.t = it.t.Add(it.dt)
 }
 
-func (it *readerIterator) tryReadMarker() (int64, bool) {
+func (it *readerIterator) tryReadMarker() (time.Duration, bool) {
 	numBits := it.mes.NumOpcodeBits() + it.mes.NumValueBits()
 	opcodeAndValue, success := it.tryPeekBits(numBits)
 	if !success {
@@ -108,26 +116,26 @@ func (it *readerIterator) tryReadMarker() (int64, bool) {
 		return 0, false
 	}
 	valueMask := (1 << uint(it.mes.NumValueBits())) - 1
-	value := int64(opcodeAndValue & uint64(valueMask))
-	switch Marker(value) {
+	markerValue := int64(opcodeAndValue & uint64(valueMask))
+	switch Marker(markerValue) {
 	case it.mes.EndOfStream():
 		it.readBits(numBits)
 		it.done = true
+		return 0, true
 	case it.mes.Annotation():
 		it.readBits(numBits)
 		it.readAnnotation()
-		value = it.readMarkerOrDeltaOfDelta()
+		return it.readMarkerOrDeltaOfDelta(), true
 	case it.mes.TimeUnit():
 		it.readBits(numBits)
 		it.readTimeUnit()
-		value = it.readMarkerOrDeltaOfDelta()
+		return it.readMarkerOrDeltaOfDelta(), true
 	default:
 		return 0, false
 	}
-	return value, true
 }
 
-func (it *readerIterator) readMarkerOrDeltaOfDelta() int64 {
+func (it *readerIterator) readMarkerOrDeltaOfDelta() time.Duration {
 	if dod, success := it.tryReadMarker(); success {
 		return dod
 	}
@@ -139,7 +147,14 @@ func (it *readerIterator) readMarkerOrDeltaOfDelta() int64 {
 	return it.readDeltaOfDelta(tes)
 }
 
-func (it *readerIterator) readDeltaOfDelta(tes TimeEncodingScheme) int64 {
+func (it *readerIterator) readDeltaOfDelta(tes TimeEncodingScheme) (d time.Duration) {
+	if it.tuChanged {
+		// NB(xichen): if the time unit has changed, always read 64 bits as normalized
+		// dod in nanoseconds.
+		dod := signExtend(it.readBits(64), 64)
+		return time.Duration(dod)
+	}
+
 	cb := it.readBits(1)
 	if cb == tes.ZeroBucket().Opcode() {
 		return 0
@@ -148,11 +163,13 @@ func (it *readerIterator) readDeltaOfDelta(tes TimeEncodingScheme) int64 {
 	for i := 0; i < len(buckets); i++ {
 		cb = (cb << 1) | it.readBits(1)
 		if cb == buckets[i].Opcode() {
-			return signExtend(it.readBits(buckets[i].NumValueBits()), buckets[i].NumValueBits())
+			dod := signExtend(it.readBits(buckets[i].NumValueBits()), buckets[i].NumValueBits())
+			return xtime.FromNormalizedDuration(dod, it.timeUnit())
 		}
 	}
 	numValueBits := tes.DefaultBucket().NumValueBits()
-	return signExtend(it.readBits(numValueBits), numValueBits)
+	dod := signExtend(it.readBits(numValueBits), numValueBits)
+	return xtime.FromNormalizedDuration(dod, it.timeUnit())
 }
 
 func (it *readerIterator) readNextValue() {
@@ -179,7 +196,11 @@ func (it *readerIterator) readAnnotation() {
 }
 
 func (it *readerIterator) readTimeUnit() {
-	it.tu = xtime.Unit(it.readBits(8))
+	tu := xtime.Unit(it.readBits(8))
+	if tu.IsValid() && tu != it.tu {
+		it.tuChanged = true
+	}
+	it.tu = tu
 }
 
 func (it *readerIterator) readXOR() uint64 {

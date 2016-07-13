@@ -22,7 +22,6 @@ package storage
 
 import (
 	"container/list"
-	"errors"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -35,10 +34,6 @@ import (
 
 const (
 	shardIterateBatchPercent = 0.05
-)
-
-var (
-	errShardNotBootstrapped = errors.New("shard is not yet bootstrapped")
 )
 
 type databaseShard interface {
@@ -62,7 +57,7 @@ type databaseShard interface {
 		start, end time.Time,
 	) ([][]m3db.SegmentReader, error)
 
-	Bootstrap(writeStart time.Time) error
+	Bootstrap(writeStart time.Time, cutover time.Time) error
 
 	// FlushToDisk flushes the data blocks in the shard to disk
 	FlushToDisk(ctx m3db.Context, blockStart time.Time) error
@@ -263,12 +258,16 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, writeCompletionFn) 
 	return entry.series, entry.decrementWriterCount
 }
 
-func (s *dbShard) Bootstrap(writeStart time.Time) error {
-	if success, err := tryBootstrap(&s.RWMutex, &s.bs, "shard"); !success {
-		return err
-	}
-
+func (s *dbShard) Bootstrap(writeStart time.Time, cutover time.Time) error {
 	s.Lock()
+	if s.bs == bootstrapped {
+		s.Unlock()
+		return nil
+	}
+	if s.bs == bootstrapping {
+		s.Unlock()
+		return errShardIsBootstrapping
+	}
 	s.bs = bootstrapping
 	s.Unlock()
 
@@ -279,9 +278,6 @@ func (s *dbShard) Bootstrap(writeStart time.Time) error {
 		return err
 	}
 
-	// NB(xichen): datapoints accumulated during [writeStart, writeStart + bufferFuture)
-	// are ignored because future writes before server starts accepting writes are lost.
-	cutover := writeStart.Add(s.opts.GetBufferFuture())
 	bootstrappedSeries := sr.GetAllSeries()
 	for id, dbBlocks := range bootstrappedSeries {
 		series, completionFn := s.writableSeries(id)

@@ -159,7 +159,6 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocS
 		BytesPool(bytesPool).
 		EncoderPool(encoderPool).
 		ReaderIteratorPool(readerIteratorPool).
-		MultiReaderIteratorPool(multiReaderIteratorPool).
 		SegmentReaderPool(segmentReaderPool)
 
 	// initialize encoder pool

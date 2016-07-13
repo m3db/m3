@@ -173,7 +173,7 @@ func TestBufferDrain(t *testing.T) {
 	assert.Equal(t, true, buffer.NeedsDrain())
 	assert.Len(t, drained, 0)
 
-	buffer.DrainAndReset()
+	buffer.DrainAndReset(false)
 
 	assert.Equal(t, false, buffer.NeedsDrain())
 	assert.Len(t, drained, 1)
