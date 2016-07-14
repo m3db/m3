@@ -221,7 +221,10 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	writes := []*writeOp{
 		testWriteOp("foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, func(r interface{}, err error) {
 			assert.Error(t, err)
-			assert.Equal(t, fmt.Sprintf("%v", err), writeErr)
+			rpcErr, ok := err.(*rpc.Error)
+			assert.True(t, ok)
+			assert.Equal(t, rpc.ErrorType_INTERNAL_ERROR, rpcErr.Type)
+			assert.Equal(t, writeErr, rpcErr.Message)
 			wg.Done()
 		}),
 		testWriteOp("bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, func(r interface{}, err error) {
@@ -239,7 +242,10 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 		}
 	}
 	batchErrs := &rpc.WriteBatchErrors{Errors: []*rpc.WriteBatchError{
-		&rpc.WriteBatchError{ElementErrorIndex: 0, Error: &rpc.WriteError{Message: writeErr}},
+		&rpc.WriteBatchError{Index: 0, Err: &rpc.Error{
+			Type:    rpc.ErrorType_INTERNAL_ERROR,
+			Message: writeErr,
+		}},
 	}}
 	mockClient.EXPECT().WriteBatch(gomock.Any(), gomock.Any()).Do(writeBatch).Return(batchErrs)
 	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
@@ -383,7 +389,7 @@ func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
 
 func TestHostQueueFetchBatchesErrorOnResultError(t *testing.T) {
 	ids := []string{"foo", "bar", "baz", "qux"}
-	anError := &rpc.Error{Message: "an error"}
+	anError := &rpc.Error{Type: rpc.ErrorType_INTERNAL_ERROR, Message: "an error"}
 	result := &rpc.FetchRawBatchResult_{}
 	for _ = range ids[:len(ids)-1] {
 		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
@@ -395,7 +401,10 @@ func TestHostQueueFetchBatchesErrorOnResultError(t *testing.T) {
 	}
 	testHostQueueFetchBatches(t, ids, result, expected, nil, func(results []hostQueueResult) {
 		assert.Equal(t, expected, results[:len(results)-1])
-		assert.Equal(t, anError.Message, results[len(results)-1].err.Error())
+		rpcErr, ok := results[len(results)-1].err.(*rpc.Error)
+		assert.True(t, ok)
+		assert.Equal(t, anError.Type, rpcErr.Type)
+		assert.Equal(t, anError.Message, rpcErr.Message)
 	})
 }
 

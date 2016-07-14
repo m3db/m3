@@ -22,7 +22,6 @@ package client
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -274,9 +273,9 @@ func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []m3db.Op, elems []*rpc.Write
 			// Callback all writes with errors
 			hasErr := make(map[int]struct{})
 			for _, batchErr := range batchErrs.Errors {
-				op := ops[batchErr.ElementErrorIndex]
-				op.GetCompletionFn()(nil, fmt.Errorf(batchErr.Error.Message))
-				hasErr[int(batchErr.ElementErrorIndex)] = struct{}{}
+				op := ops[batchErr.Index]
+				op.GetCompletionFn()(nil, batchErr.Err)
+				hasErr[int(batchErr.Index)] = struct{}{}
 			}
 			// Callback all writes with no errors
 			for i := range ops {
@@ -326,7 +325,7 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 				continue
 			}
 			if result.Elements[i].Err != nil {
-				op.complete(i, nil, fmt.Errorf(result.Elements[i].Err.Message))
+				op.complete(i, nil, result.Elements[i].Err)
 				continue
 			}
 			op.complete(i, result.Elements[i].Segments, nil)

@@ -228,6 +228,8 @@ func testFetchConsistencyLevel(
 		assertFetchResults(t, start, end, fetches, results)
 	} else {
 		assert.Error(t, err)
+		assert.True(t, IsInternalServerError(err))
+		assert.False(t, IsBadRequestError(err))
 		resultErrStr := fmt.Sprintf("%v", err)
 		assert.True(t, strings.Contains(resultErrStr, fmt.Sprintf("failed to meet %s", level.String())))
 		assert.True(t, strings.Contains(resultErrStr, fetchFailureErrStr))
@@ -280,7 +282,10 @@ func fulfillTszFetchBatchOps(
 				if failed[f.id] < failures {
 					// Requires failing
 					failed[f.id] = failed[f.id] + 1
-					op.completionFns[i](nil, fmt.Errorf(fetchFailureErrStr))
+					op.completionFns[i](nil, &rpc.Error{
+						Type:    rpc.ErrorType_INTERNAL_ERROR,
+						Message: fetchFailureErrStr,
+					})
 					calledCompletionFn = true
 					break
 				}
