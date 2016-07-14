@@ -242,7 +242,7 @@ func TestSeriesTickNeedsBlockSeal(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := seriesTestOptions()
+	opts := newSeriesTestOptions()
 	curr := time.Now().Truncate(opts.GetBlockSize())
 	opts = opts.NowFn(func() time.Time {
 		return curr
@@ -278,7 +278,7 @@ func TestShouldSeal(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := seriesTestOptions()
+	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	now := time.Now()
 	inputs := []struct {
