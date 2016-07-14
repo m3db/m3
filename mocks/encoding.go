@@ -74,12 +74,12 @@ func (_mr *_MockEncoderRecorder) Stream() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream")
 }
 
-func (_m *MockEncoder) Done() {
-	_m.ctrl.Call(_m, "Done")
+func (_m *MockEncoder) Seal() {
+	_m.ctrl.Call(_m, "Seal")
 }
 
-func (_mr *_MockEncoderRecorder) Done() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Done")
+func (_mr *_MockEncoderRecorder) Seal() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Seal")
 }
 
 func (_m *MockEncoder) Reset(t time0.Time, capacity int) {

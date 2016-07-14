@@ -44,8 +44,8 @@ type Encoder interface {
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
 	Stream() SegmentReader
 
-	// Done will append any end of stream marker and ensure the encoder cannot be written to anymore.
-	Done()
+	// Seal will append any end of stream marker and ensure the encoder cannot be written to anymore.
+	Seal()
 
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)

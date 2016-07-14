@@ -31,7 +31,8 @@ import (
 
 var (
 	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
-	errWriteToClosedBlock  = errors.New("attemp to write to a closed block")
+	errWriteToClosedBlock  = errors.New("attempt to write to a closed block")
+	errWriteToSealedBlock  = errors.New("attempt to write to a sealed block")
 )
 
 // NB(xichen): locking of dbBlock instances is currently done outside the dbBlock struct at the series level.
@@ -42,9 +43,11 @@ type dbBlock struct {
 	opts     m3db.DatabaseOptions
 	start    time.Time
 	encoder  m3db.Encoder
+	stream   m3db.SegmentReader
 	ctxAlloc m3db.ContextAllocate
 	ctx      m3db.Context
 	closed   bool
+	writable bool
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
@@ -57,9 +60,11 @@ func NewDatabaseBlock(start time.Time, encoder m3db.Encoder, opts m3db.DatabaseO
 		opts:     opts,
 		start:    start,
 		encoder:  encoder,
+		stream:   nil,
 		ctxAlloc: ctxAlloc,
 		ctx:      ctxAlloc(),
 		closed:   false,
+		writable: true,
 	}
 }
 
@@ -67,9 +72,16 @@ func (b *dbBlock) StartTime() time.Time {
 	return b.start
 }
 
+func (b *dbBlock) IsSealed() bool {
+	return !b.writable
+}
+
 func (b *dbBlock) Write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	if b.closed {
 		return errWriteToClosedBlock
+	}
+	if !b.writable {
+		return errWriteToSealedBlock
 	}
 	return b.encoder.Encode(m3db.Datapoint{Timestamp: timestamp, Value: value}, unit, annotation)
 }
@@ -78,46 +90,87 @@ func (b *dbBlock) Stream(blocker m3db.Context) (m3db.SegmentReader, error) {
 	if b.closed {
 		return nil, errReadFromClosedBlock
 	}
-	s := b.encoder.Stream()
 	if blocker != nil {
 		b.ctx.DependsOn(blocker)
+	}
+	s := b.stream
+	if b.writable {
+		s = b.encoder.Stream()
 	}
 	return s, nil
 }
 
-// close closes internal context and returns encoder to pool.
-func (b *dbBlock) closeContextAndEncoder() {
+// close closes internal context and returns encoder and stream to pool.
+func (b *dbBlock) close() {
 	// If the context is nil (e.g., when it's just obtained from the pool),
 	// we return immediately.
 	if b.ctx == nil {
 		return
 	}
-	if encoder := b.encoder; encoder != nil {
-		b.ctx.RegisterCloser(encoder.Close)
+
+	cleanUp := func() {
+		b.ctx.Close()
+		b.ctx = nil
+		b.encoder = nil
+		b.stream = nil
 	}
-	b.ctx.Close()
-	b.ctx = nil
-	b.encoder = nil
+	defer cleanUp()
+
+	if b.writable {
+		// If the block is not sealed, we need to close the encoder.
+		if encoder := b.encoder; encoder != nil {
+			b.ctx.RegisterCloser(encoder.Close)
+		}
+		return
+	}
+
+	// Otherwise, we need to close the stream.
+	if stream := b.stream; stream != nil {
+		b.ctx.RegisterCloser(func() {
+			if bytesPool := b.opts.GetBytesPool(); bytesPool != nil {
+				segment := stream.Segment()
+				stream.Reset(m3db.Segment{})
+				bytesPool.Put(segment.Head)
+				bytesPool.Put(segment.Tail)
+			}
+			stream.Close()
+		})
+	}
 }
 
 // Reset resets the block start time and the encoder.
 func (b *dbBlock) Reset(startTime time.Time, encoder m3db.Encoder) {
-	b.closeContextAndEncoder()
+	b.close()
 	b.start = startTime
 	b.encoder = encoder
+	b.stream = nil
 	b.ctx = b.ctxAlloc()
 	b.closed = false
+	b.writable = true
 }
 
 func (b *dbBlock) Close() {
 	if b.closed {
 		return
 	}
-	b.closeContextAndEncoder()
+	b.closed = true
+	b.close()
 	if pool := b.opts.GetDatabaseBlockPool(); pool != nil {
 		pool.Put(b)
 	}
-	b.closed = true
+}
+
+func (b *dbBlock) Seal() {
+	if b.closed || !b.writable {
+		return
+	}
+	b.writable = false
+	b.stream = b.encoder.Stream()
+	// Reset encoder to prevent the byte stream inside the encoder
+	// from being returned to the bytes pool.
+	b.encoder.ResetSetData(b.start, nil, false)
+	b.encoder.Close()
+	b.encoder = nil
 }
 
 type databaseSeriesBlocks struct {
