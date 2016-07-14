@@ -197,9 +197,9 @@ func (s *tchanClusterServer) handleWrite(ctx thrift.Context, protocol athrift.TP
 
 	if err != nil {
 		switch v := err.(type) {
-		case *WriteError:
+		case *Error:
 			if v == nil {
-				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *WriteError but nil value")
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
 			}
 			res.Err = v
 		default:
@@ -250,6 +250,9 @@ func (c *tchanNodeClient) FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchRawBatch", &args, &resp)
 	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
 	}
 
 	return resp.GetSuccess(), err
@@ -382,7 +385,15 @@ func (s *tchanNodeServer) handleFetchRawBatch(ctx thrift.Context, protocol athri
 		s.handler.FetchRawBatch(ctx, req.Req)
 
 	if err != nil {
-		return false, nil, err
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
 	} else {
 		res.Success = r
 	}
@@ -431,9 +442,9 @@ func (s *tchanNodeServer) handleWrite(ctx thrift.Context, protocol athrift.TProt
 
 	if err != nil {
 		switch v := err.(type) {
-		case *WriteError:
+		case *Error:
 			if v == nil {
-				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *WriteError but nil value")
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
 			}
 			res.Err = v
 		default:

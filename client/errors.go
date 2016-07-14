@@ -18,43 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package errors
+package client
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	xerrors "github.com/m3db/m3db/x/errors"
 )
 
-func newError(errType rpc.ErrorType, err error) *rpc.Error {
-	rpcErr := rpc.NewError()
-	rpcErr.Type = errType
-	rpcErr.Message = fmt.Sprintf("%v", err)
-	return rpcErr
+func IsInternalServerError(err error) bool {
+	errType := rpc.ErrorType_INTERNAL_ERROR
+	for err != nil {
+		if e, ok := err.(*rpc.Error); ok && e.Type == errType {
+			return true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return false
 }
 
-// NewInternalError creates a new internal error
-func NewInternalError(err error) *rpc.Error {
-	return newError(rpc.ErrorType_INTERNAL_ERROR, err)
-}
-
-// NewBadRequestError creates a new bad request error
-func NewBadRequestError(err error) *rpc.Error {
-	return newError(rpc.ErrorType_BAD_REQUEST, err)
-}
-
-// NewWriteBatchError creates a new write batch error
-func NewWriteBatchError(index int, err error) *rpc.WriteBatchError {
-	batchErr := rpc.NewWriteBatchError()
-	batchErr.Index = int64(index)
-	batchErr.Err = NewInternalError(err)
-	return batchErr
-}
-
-// NewBadRequestWriteBatchError creates a new bad request write batch error
-func NewBadRequestWriteBatchError(index int, err error) *rpc.WriteBatchError {
-	batchErr := rpc.NewWriteBatchError()
-	batchErr.Index = int64(index)
-	batchErr.Err = NewBadRequestError(err)
-	return batchErr
+func IsBadRequestError(err error) bool {
+	errType := rpc.ErrorType_BAD_REQUEST
+	for err != nil {
+		if e, ok := err.(*rpc.Error); ok && e.Type == errType {
+			return true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return false
 }

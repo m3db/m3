@@ -104,15 +104,15 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		return tterrors.NewInternalError(err)
 	}
 	if req.Datapoint == nil {
-		return tterrors.NewBadRequestWriteError(fmt.Errorf("requires datapoint"))
+		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
 	}
 	unit, unitErr := convert.TimeTypeToUnit(req.Datapoint.TimestampType)
 	if unitErr != nil {
-		return tterrors.NewBadRequestWriteError(unitErr)
+		return tterrors.NewBadRequestError(unitErr)
 	}
 	d, err := unit.Value()
 	if err != nil {
-		return tterrors.NewBadRequestWriteError(err)
+		return tterrors.NewBadRequestError(err)
 	}
 	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
 	return session.Write(req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)

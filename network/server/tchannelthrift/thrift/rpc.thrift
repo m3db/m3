@@ -37,20 +37,16 @@ exception Error {
 	2: required string message
 }
 
-exception WriteError {
-	1: required ErrorType type = ErrorType.INTERNAL_ERROR
-	2: required string message
-}
 exception WriteBatchErrors {
 	1: required list<WriteBatchError> errors
 }
 
 service Node {
 	HealthResult health() throws (1: Error err)
-	void write(1: WriteRequest req) throws (1: WriteError err)
+	void write(1: WriteRequest req) throws (1: Error err)
 	void writeBatch(1: WriteBatchRequest req) throws (1: WriteBatchErrors err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
-	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req)
+	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req) throws (1: Error err)
 }
 
 struct HealthResult {
@@ -68,8 +64,8 @@ struct WriteBatchRequest {
 }
 
 struct WriteBatchError {
-	1: required i64 elementErrorIndex
-	2: required WriteError error
+	1: required i64 index
+	2: required Error err
 }
 
 struct FetchRequest {
@@ -119,6 +115,6 @@ struct FetchRawResult {
 
 service Cluster {
 	HealthResult health() throws (1: Error err)
-	void write(1: WriteRequest req) throws (1: WriteError err)
+	void write(1: WriteRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 }

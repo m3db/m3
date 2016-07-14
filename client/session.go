@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3db/pool"
+	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -507,9 +508,9 @@ func (s *session) consistencyResult(quorum, enqueued, resultErrs int, resultErr 
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
 	reportErr := func() error {
-		return fmt.Errorf(
-			"failed to meet %s with %d/%d success, error[0]: %v",
-			s.level.String(), success, enqueued, resultErr)
+		return xerrors.NewRenamedError(resultErr, fmt.Errorf(
+			"failed to meet %s with %d/%d success, first error: %v",
+			s.level.String(), success, enqueued, resultErr))
 	}
 
 	switch s.level {
