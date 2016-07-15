@@ -76,7 +76,7 @@ func TestLoggingConfiguration(t *testing.T) {
 	require.NoError(t, err)
 
 	str := string(b)
-	pieces := strings.Split(str, " ")
+	pieces := strings.Split(str, "[")
 	assert.True(t, len(pieces) >= 2)
 
 	ts := pieces[0]
