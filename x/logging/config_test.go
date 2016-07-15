@@ -80,5 +80,5 @@ func TestLoggingConfiguration(t *testing.T) {
 	assert.True(t, len(pieces) >= 2)
 
 	ts := pieces[0]
-	assert.EqualValues(t, ts+" [E] this should be appear [{my-field my-val}]\n", str)
+	assert.EqualValues(t, ts+"[E] this should be appear [{my-field my-val}]\n", str)
 }
