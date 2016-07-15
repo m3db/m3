@@ -92,14 +92,14 @@ func (_mr *_MockdatabaseShardRecorder) ReadEncoded(arg0, arg1, arg2, arg3 interf
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockdatabaseShard) Bootstrap(writeStart time.Time, cutover time.Time) error {
-	ret := _m.ctrl.Call(_m, "Bootstrap", writeStart, cutover)
+func (_m *MockdatabaseShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover time.Time) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", bs, writeStart, cutover)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1)
+func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2)
 }
 
 func (_m *MockdatabaseShard) FlushToDisk(ctx m3db.Context, blockStart time.Time) error {

@@ -69,15 +69,18 @@ type databaseBootstrapManager interface {
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database database             // storage database
-	opts     m3db.DatabaseOptions // database options
-	state    bootstrapState       // bootstrap state
+	database    database             // storage database
+	opts        m3db.DatabaseOptions // database options
+	bootstrapFn m3db.NewBootstrapFn  // function to create a new bootstrap process
+	state       bootstrapState       // bootstrap state
 }
 
 func newBootstrapManager(database database) databaseBootstrapManager {
+	opts := database.Options()
 	return &bootstrapManager{
-		database: database,
-		opts:     database.Options(),
+		database:    database,
+		opts:        opts,
+		bootstrapFn: opts.GetBootstrapFn(),
 	}
 }
 
@@ -129,8 +132,9 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	// due to disk seek overhead.
 	cutover := bsm.cutoverTime(writeStart)
 	shards := bsm.database.getOwnedShards()
+	bs := bsm.bootstrapFn()
 	for _, shard := range shards {
-		if err := shard.Bootstrap(writeStart, cutover); err != nil {
+		if err := shard.Bootstrap(bs, writeStart, cutover); err != nil {
 			return err
 		}
 	}

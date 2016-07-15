@@ -57,7 +57,7 @@ type databaseShard interface {
 		start, end time.Time,
 	) ([][]m3db.SegmentReader, error)
 
-	Bootstrap(writeStart time.Time, cutover time.Time) error
+	Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover time.Time) error
 
 	// FlushToDisk flushes the data blocks in the shard to disk
 	FlushToDisk(ctx m3db.Context, blockStart time.Time) error
@@ -258,7 +258,7 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, writeCompletionFn) 
 	return entry.series, entry.decrementWriterCount
 }
 
-func (s *dbShard) Bootstrap(writeStart time.Time, cutover time.Time) error {
+func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover time.Time) error {
 	s.Lock()
 	if s.bs == bootstrapped {
 		s.Unlock()
@@ -271,8 +271,6 @@ func (s *dbShard) Bootstrap(writeStart time.Time, cutover time.Time) error {
 	s.bs = bootstrapping
 	s.Unlock()
 
-	bootstrapFn := s.opts.GetBootstrapFn()
-	bs := bootstrapFn()
 	sr, err := bs.Run(writeStart, s.shard)
 	if err != nil {
 		return err
