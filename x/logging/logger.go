@@ -209,10 +209,10 @@ func (l writerLogger) printfn(prefix, msg string, args ...interface{}) {
 	ft := time.Now().Format(writerLoggerStamp)
 	fma := fmt.Sprintf(msg, args...)
 	if l.fields.Len() == 0 {
-		fmt.Fprintf(l.writer, "%s [%s] %s\n", ft, prefix, fma)
+		fmt.Fprintf(l.writer, "%s[%s] %s\n", ft, prefix, fma)
 		return
 	}
-	fmt.Fprintf(l.writer, "%s [%s] %s %v\n", ft, prefix, fma, l.fields)
+	fmt.Fprintf(l.writer, "%s[%s] %s %v\n", ft, prefix, fma, l.fields)
 }
 
 func (l writerLogger) Fields() LogFields {

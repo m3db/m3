@@ -76,9 +76,9 @@ func TestLoggingConfiguration(t *testing.T) {
 	require.NoError(t, err)
 
 	str := string(b)
-	pieces := strings.Split(str, " ")
+	pieces := strings.Split(str, "[")
 	assert.True(t, len(pieces) >= 2)
 
 	ts := pieces[0]
-	assert.EqualValues(t, ts+" [E] this should be appear [{my-field my-val}]\n", str)
+	assert.EqualValues(t, ts+"[E] this should be appear [{my-field my-val}]\n", str)
 }

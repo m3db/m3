@@ -24,10 +24,12 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
 
 	"github.com/uber/tchannel-go/thrift"
@@ -95,7 +97,49 @@ func (s *service) Health(ctx thrift.Context) (*rpc.HealthResult_, error) {
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	return nil, nil
+	session, err := s.session()
+	if err != nil {
+		return nil, tterrors.NewInternalError(err)
+	}
+
+	start, rangeStartErr := convert.ValueToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ValueToTime(req.RangeEnd, req.RangeType)
+	if rangeStartErr != nil || rangeEndErr != nil {
+		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+	}
+
+	it, err := session.Fetch(req.ID, start, end)
+	if err != nil {
+		if client.IsBadRequestError(err) {
+			return nil, tterrors.NewBadRequestError(err)
+		}
+		return nil, tterrors.NewInternalError(err)
+	}
+
+	defer it.Close()
+
+	result := rpc.NewFetchResult_()
+	// Make datapoints an initialized empty array for JSON serialization as empty array than null
+	result.Datapoints = make([]*rpc.Datapoint, 0)
+
+	for it.Next() {
+		dp, _, annotation := it.Current()
+		ts, tsErr := convert.TimeToValue(dp.Timestamp, req.ResultTimeType)
+		if tsErr != nil {
+			return nil, tterrors.NewBadRequestError(tsErr)
+		}
+
+		datapoint := rpc.NewDatapoint()
+		datapoint.Timestamp = ts
+		datapoint.Value = dp.Value
+		datapoint.Annotation = annotation
+		result.Datapoints = append(result.Datapoints, datapoint)
+	}
+	if err := it.Err(); err != nil {
+		return nil, tterrors.NewInternalError(err)
+	}
+
+	return result, nil
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
@@ -115,5 +159,12 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		return tterrors.NewBadRequestError(err)
 	}
 	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
-	return session.Write(req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
+	err = session.Write(req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
+	if err != nil {
+		if client.IsBadRequestError(err) {
+			return tterrors.NewBadRequestError(err)
+		}
+		return tterrors.NewInternalError(err)
+	}
+	return nil
 }
