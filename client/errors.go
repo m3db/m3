@@ -25,6 +25,7 @@ import (
 	xerrors "github.com/m3db/m3db/x/errors"
 )
 
+// IsInternalServerError determines if the error is an internal server error.
 func IsInternalServerError(err error) bool {
 	errType := rpc.ErrorType_INTERNAL_ERROR
 	for err != nil {
@@ -36,6 +37,7 @@ func IsInternalServerError(err error) bool {
 	return false
 }
 
+// IsBadRequestError determines if the error is a bad request error.
 func IsBadRequestError(err error) bool {
 	errType := rpc.ErrorType_BAD_REQUEST
 	for err != nil {
