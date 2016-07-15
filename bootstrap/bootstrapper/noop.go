@@ -27,11 +27,11 @@ import (
 )
 
 const (
-	// noOpNoneBootstrapperName is the name of the noOpNoneBootstrapper
-	noOpNoneBootstrapperName = "noop-none"
+	// NoOpNoneBootstrapperName is the name of the noOpNoneBootstrapper
+	NoOpNoneBootstrapperName = "noop-none"
 
-	// noOpAllBootstrapperName is the name of the noOpAllBootstrapper
-	noOpAllBootstrapperName = "noop-all"
+	// NoOpAllBootstrapperName is the name of the noOpAllBootstrapper
+	NoOpAllBootstrapperName = "noop-all"
 )
 
 var (
@@ -53,7 +53,7 @@ func (noop *noOpNoneBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ran
 }
 
 func (noop *noOpNoneBootstrapper) String() string {
-	return noOpNoneBootstrapperName
+	return NoOpNoneBootstrapperName
 }
 
 // noOpAllBootstrapper is the no-op bootstrapper that pretends
@@ -70,5 +70,5 @@ func (noop *noOpAllBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Rang
 }
 
 func (noop *noOpAllBootstrapper) String() string {
-	return noOpAllBootstrapperName
+	return NoOpAllBootstrapperName
 }
