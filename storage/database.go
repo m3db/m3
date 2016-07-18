@@ -276,6 +276,9 @@ func (d *db) splayedTick() {
 	if duration > d.tickDeadline {
 		// TODO(r): log an error and/or increment counter
 		_ = "todo"
+	} else {
+		// throttle to reduce locking overhead during ticking
+		time.Sleep(d.tickDeadline - duration)
 	}
 
 	if d.needDiskFlush(start) {

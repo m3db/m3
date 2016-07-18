@@ -103,3 +103,23 @@ func TestAddResultToResult(t *testing.T) {
 	sr.AddResult(other)
 	require.Len(t, sr.GetAllSeries(), 2)
 }
+
+func TestRemoveSeriesFromResult(t *testing.T) {
+	opts := getTestResultOptions()
+	sr := NewShardResult(opts)
+	inputs := []struct {
+		id     string
+		series m3db.DatabaseSeriesBlocks
+	}{
+		{"foo", storage.NewDatabaseSeriesBlocks(opts)},
+		{"bar", storage.NewDatabaseSeriesBlocks(opts)},
+	}
+	for _, input := range inputs {
+		sr.AddSeries(input.id, input.series)
+	}
+	require.Equal(t, 2, len(sr.GetAllSeries()))
+	sr.RemoveSeries("bar")
+	require.Equal(t, 1, len(sr.GetAllSeries()))
+	sr.RemoveSeries("nonexistent")
+	require.Equal(t, 1, len(sr.GetAllSeries()))
+}

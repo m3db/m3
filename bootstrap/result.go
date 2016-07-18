@@ -74,6 +74,11 @@ func (sr *shardResult) AddResult(other m3db.ShardResult) {
 	}
 }
 
+// RemoveSeries removes a single series of blocks.
+func (sr *shardResult) RemoveSeries(id string) {
+	delete(sr.blocks, id)
+}
+
 // GetAllSeries returns all series in the map.
 func (sr *shardResult) GetAllSeries() map[string]m3db.DatabaseSeriesBlocks {
 	return sr.blocks
