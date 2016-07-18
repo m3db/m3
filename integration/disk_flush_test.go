@@ -156,7 +156,7 @@ func TestDiskFlush(t *testing.T) {
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	waitTimeout := testSetup.dbOpts.GetBufferDrain() * 3
+	waitTimeout := testSetup.dbOpts.GetBufferDrain() * 4
 	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardingScheme, dataMaps, waitTimeout))
 
 	// Verify on-disk data match what we expect
