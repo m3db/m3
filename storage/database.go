@@ -270,6 +270,10 @@ func (d *db) splayedTick() {
 
 	wg.Wait()
 
+	if d.needDiskFlush(start) {
+		d.flushToDisk(start, true)
+	}
+
 	end := d.nowFn()
 	duration := end.Sub(start)
 	// TODO(r): instrument duration of tick
@@ -279,10 +283,6 @@ func (d *db) splayedTick() {
 	} else {
 		// throttle to reduce locking overhead during ticking
 		time.Sleep(d.tickDeadline - duration)
-	}
-
-	if d.needDiskFlush(start) {
-		d.flushToDisk(start, true)
 	}
 }
 
