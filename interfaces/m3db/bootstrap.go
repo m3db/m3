@@ -44,6 +44,9 @@ type ShardResult interface {
 	// AddResult adds a shard result.
 	AddResult(other ShardResult)
 
+	// RemoveSeries removes a single series of blocks.
+	RemoveSeries(id string)
+
 	// GetAllSeries returns all series of blocks.
 	GetAllSeries() map[string]DatabaseSeriesBlocks
 

@@ -87,6 +87,14 @@ func (_mr *_MockShardResultRecorder) AddResult(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddResult", arg0)
 }
 
+func (_m *MockShardResult) RemoveSeries(id string) {
+	_m.ctrl.Call(_m, "RemoveSeries", id)
+}
+
+func (_mr *_MockShardResultRecorder) RemoveSeries(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveSeries", arg0)
+}
+
 func (_m *MockShardResult) GetAllSeries() map[string]m3db.DatabaseSeriesBlocks {
 	ret := _m.ctrl.Call(_m, "GetAllSeries")
 	ret0, _ := ret[0].(map[string]m3db.DatabaseSeriesBlocks)
