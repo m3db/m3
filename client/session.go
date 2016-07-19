@@ -414,7 +414,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				multiIter := s.multiReaderIteratorPool.Get()
 				multiIter.ResetSliceOfSlices(slicesIter)
 				// Results is pre-allocated after creating fetch ops for this ID below
-				results[resultsIdx] = multiIter
+				results[resultsIdx] = m3db.Iterator(multiIter)
 			}
 			if resultsIdx != 0 {
 				// Requests still pending
@@ -466,6 +466,12 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		// Once we've enqueued we know how many to expect so retrieve and set length
 		results = s.iteratorArrayPool.Get(enqueued)
 		results = results[:enqueued]
+
+		// Default all values to nil to avoid an interface that's non-nil containing
+		// a nil data reference to inner iterator
+		for i := range results {
+			results[i] = nil
+		}
 	}
 
 	if routeErr != nil {
