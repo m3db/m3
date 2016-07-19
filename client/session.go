@@ -396,13 +396,14 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 			results  []m3db.Iterator
 			enqueued int
 			pending  int32
+			success  int32
 			firstErr error
 			errs     int32
 		)
 
 		wg.Add(1)
 		completionFn := func(result interface{}, err error) {
-			resultsIdx := atomic.AddInt32(&pending, -1)
+			remaining := atomic.AddInt32(&pending, -1)
 			if err != nil {
 				n := atomic.AddInt32(&errs, 1)
 				if n == 1 {
@@ -414,9 +415,10 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				multiIter := s.multiReaderIteratorPool.Get()
 				multiIter.ResetSliceOfSlices(slicesIter)
 				// Results is pre-allocated after creating fetch ops for this ID below
-				results[resultsIdx] = m3db.Iterator(multiIter)
+				iterIdx := atomic.AddInt32(&success, 1) - 1
+				results[iterIdx] = multiIter
 			}
-			if resultsIdx != 0 {
+			if remaining != 0 {
 				// Requests still pending
 				return
 			}
@@ -428,11 +430,15 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				resultErrs++
 				resultErrLock.Unlock()
 			} else {
+				// This is the final result, its safe to load "success" now without atomic operation
 				iter := s.seriesIteratorPool.Get()
-				iter.Reset(ids[idx], startInclusive, endExclusive, results)
+				iter.Reset(ids[idx], startInclusive, endExclusive, results[:success])
 				iters.SetAt(idx, iter)
 			}
 			wg.Done()
+
+			// SeriesIterator has taken its own references to the results array after Reset
+			s.iteratorArrayPool.Put(results)
 		}
 
 		if err := s.topoMap.RouteForEach(ids[idx], func(hostIdx int, host m3db.Host) {
@@ -466,12 +472,6 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		// Once we've enqueued we know how many to expect so retrieve and set length
 		results = s.iteratorArrayPool.Get(enqueued)
 		results = results[:enqueued]
-
-		// Default all values to nil to avoid an interface that's non-nil containing
-		// a nil data reference to inner iterator
-		for i := range results {
-			results[i] = nil
-		}
 	}
 
 	if routeErr != nil {
