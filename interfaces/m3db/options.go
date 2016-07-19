@@ -143,6 +143,12 @@ type DatabaseOptions interface {
 	// GetEncoderPool returns the encoderPool
 	GetEncoderPool() EncoderPool
 
+	// SegmentReaderPool sets the segment reader pool.
+	SegmentReaderPool(value SegmentReaderPool) DatabaseOptions
+
+	// GetSegmentReaderPool returns the segment reader pool.
+	GetSegmentReaderPool() SegmentReaderPool
+
 	// ReaderIteratorPool sets the readerIteratorPool and returns a new DatabaseOptions
 	ReaderIteratorPool(value ReaderIteratorPool) DatabaseOptions
 

@@ -108,8 +108,15 @@ type segmentReader struct {
 }
 
 // NewSegmentReader creates a new segment reader.
-func NewSegmentReader(segment m3db.Segment) m3db.SegmentReader {
-	return &segmentReader{segment: segment}
+func NewSegmentReader() m3db.SegmentReader {
+	return &segmentReader{}
+}
+
+// NewSegmentReaderWithSegment creates a new segment reader along with a specified segment.
+func NewSegmentReaderWithSegment(segment m3db.Segment) m3db.SegmentReader {
+	reader := NewSegmentReader()
+	reader.Reset(segment)
+	return reader
 }
 
 // NewPooledSegmentReader creates a new pooled segment reader.

@@ -25,16 +25,17 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3db/bootstrap"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage"
 
-	"github.com/m3db/m3db/pool"
 	"github.com/uber/tchannel-go"
 )
 
@@ -44,9 +45,8 @@ var (
 	httpNodeAddr        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
 	tchannelNodeAddr    = flag.String("nodetchanneladdr", "0.0.0.0:9003", "Node TChannel server address")
 
-	errServerStartTimedOut           = errors.New("server took too long to start")
-	errServerStopTimedOut            = errors.New("server took too long to stop")
-	errM3DBClientFetchNotImplemented = errors.New("m3db client fetch method not yet implemented")
+	errServerStartTimedOut = errors.New("server took too long to start")
+	errServerStopTimedOut  = errors.New("server took too long to stop")
 )
 
 // nowSetterFn is the function that sets the current time
@@ -181,12 +181,17 @@ func (ts *testSetup) writeBatch(dm dataMap) error {
 	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, dm)
 }
 
-func (ts *testSetup) fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
+func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]m3db.Datapoint, error) {
 	if ts.opts.GetUseTChannelClientForReading() {
-		return tchannelClientFetch(ts.tchannelClient, ts.opts.GetReadRequestTimeout(), req)
+		datapoints, err := tchannelClientFetch(ts.tchannelClient, ts.opts.GetReadRequestTimeout(), req)
+		if err != nil {
+			return nil, err
+		}
+		// Sorting is necessary in that fetching with tchannel client may return out-of-order datapoints.
+		sort.Sort(byTimestampAscending(datapoints))
+		return datapoints, nil
 	}
-	// TODO(xichen): replace this with m3db client fetch method when it's ready.
-	return nil, errM3DBClientFetchNotImplemented
+	return m3dbClientFetch(ts.m3dbClient, req)
 }
 
 func (ts *testSetup) close() {
