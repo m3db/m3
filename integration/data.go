@@ -21,7 +21,6 @@
 package integration
 
 import (
-	"sort"
 	"testing"
 	"time"
 
@@ -59,6 +58,17 @@ func generateTestData(metricNames []string, numPoints int, start time.Time) data
 	return testData
 }
 
+func toDatapoints(fetched *rpc.FetchResult_) []m3db.Datapoint {
+	converted := make([]m3db.Datapoint, len(fetched.Datapoints))
+	for i, dp := range fetched.Datapoints {
+		converted[i] = m3db.Datapoint{
+			Timestamp: xtime.FromNormalizedTime(dp.Timestamp, time.Second),
+			Value:     dp.Value,
+		}
+	}
+	return converted
+}
+
 func verifyDataMapForRange(
 	t *testing.T,
 	ts *testSetup,
@@ -74,18 +84,7 @@ func verifyDataMapForRange(
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
 		require.NoError(t, err)
-		converted := make([]m3db.Datapoint, len(fetched.Datapoints))
-		for i, dp := range fetched.Datapoints {
-			converted[i] = m3db.Datapoint{
-				Timestamp: xtime.FromNormalizedTime(dp.Timestamp, time.Second),
-				Value:     dp.Value,
-			}
-		}
-		// TODO(xichen): sorting is necessary in that the fetch call may return
-		// out-of-order datapoints at the moment. Remove this once the client read
-		// diff lands.
-		sort.Sort(byTimestampAscending(converted))
-		actual[id] = converted
+		actual[id] = fetched
 	}
 	require.Equal(t, expected, actual)
 }

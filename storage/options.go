@@ -98,6 +98,7 @@ type dbOptions struct {
 	contextPool             m3db.ContextPool
 	databaseBlockPool       m3db.DatabaseBlockPool
 	encoderPool             m3db.EncoderPool
+	segmentReaderPool       m3db.SegmentReaderPool
 	readerIteratorPool      m3db.ReaderIteratorPool
 	multiReaderIteratorPool m3db.MultiReaderIteratorPool
 	maxFlushRetries         int
@@ -150,10 +151,14 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocS
 	})
 	opts.databaseBlockPool = databaseBlockPool
 
+	// initialize segment reader pool
+	segmentReaderPool := pool.NewSegmentReaderPool(0)
+	segmentReaderPool.Init()
+	opts.segmentReaderPool = segmentReaderPool
+
 	encoderPool := pool.NewEncoderPool(0)
 	readerIteratorPool := pool.NewReaderIteratorPool(0)
 	multiReaderIteratorPool := pool.NewMultiReaderIteratorPool(0)
-	segmentReaderPool := pool.NewSegmentReaderPool(0)
 
 	encodingOpts := tsz.NewOptions().
 		BytesPool(bytesPool).
@@ -178,9 +183,6 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocS
 		return tsz.NewReaderIterator(r, encodingOpts)
 	})
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
-
-	// initialize segment reader pool
-	segmentReaderPool.Init()
 
 	return (&opts).encodingTsz(encodingOpts)
 }
@@ -375,6 +377,16 @@ func (o *dbOptions) EncoderPool(value m3db.EncoderPool) m3db.DatabaseOptions {
 
 func (o *dbOptions) GetEncoderPool() m3db.EncoderPool {
 	return o.encoderPool
+}
+
+func (o *dbOptions) SegmentReaderPool(value m3db.SegmentReaderPool) m3db.DatabaseOptions {
+	opts := *o
+	opts.segmentReaderPool = value
+	return &opts
+}
+
+func (o *dbOptions) GetSegmentReaderPool() m3db.SegmentReaderPool {
+	return o.segmentReaderPool
 }
 
 func (o *dbOptions) ReaderIteratorPool(value m3db.ReaderIteratorPool) m3db.DatabaseOptions {

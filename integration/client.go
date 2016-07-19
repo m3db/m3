@@ -34,10 +34,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-func m3dbClient(address string, shardingScheme m3db.ShardScheme) (m3db.Client, error) {
-	return server.DefaultClient(address, shardingScheme)
-}
-
 func tchannelClient(address string) (*tchannel.Channel, rpc.TChanNode, error) {
 	channel, err := tchannel.NewChannel("integration-test", nil)
 	if err != nil {
@@ -47,6 +43,42 @@ func tchannelClient(address string) (*tchannel.Channel, rpc.TChanNode, error) {
 	thriftClient := thrift.NewClient(channel, node.ChannelName, endpoint)
 	client := rpc.NewTChanNodeClient(thriftClient)
 	return channel, client, nil
+}
+
+// tchannelClientWriteBatch writes a data map using a tchannel client.
+func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, dm dataMap) error {
+	var elems []*rpc.WriteRequest
+	for name, datapoints := range dm {
+		for _, dp := range datapoints {
+			req := &rpc.WriteRequest{
+				ID: name,
+				Datapoint: &rpc.Datapoint{
+					Timestamp:     xtime.ToNormalizedTime(dp.Timestamp, time.Second),
+					Value:         dp.Value,
+					TimestampType: rpc.TimeType_UNIX_SECONDS,
+				},
+			}
+			elems = append(elems, req)
+		}
+	}
+
+	ctx, _ := thrift.NewContext(timeout)
+	batchReq := &rpc.WriteBatchRequest{Elements: elems}
+	return client.WriteBatch(ctx, batchReq)
+}
+
+// tchannelClientFetch fulfills a fetch request using a tchannel client.
+func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.FetchRequest) ([]m3db.Datapoint, error) {
+	ctx, _ := thrift.NewContext(timeout)
+	fetched, err := client.Fetch(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return toDatapoints(fetched), nil
+}
+
+func m3dbClient(address string, shardingScheme m3db.ShardScheme) (m3db.Client, error) {
+	return server.DefaultClient(address, shardingScheme)
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
@@ -88,30 +120,30 @@ func m3dbClientWriteBatch(client m3db.Client, workerPool m3db.WorkerPool, dm dat
 	return nil
 }
 
-// tchannelClientWriteBatch writes a data map using a tchannel client.
-func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, dm dataMap) error {
-	var elems []*rpc.WriteRequest
-	for name, datapoints := range dm {
-		for _, dp := range datapoints {
-			req := &rpc.WriteRequest{
-				ID: name,
-				Datapoint: &rpc.Datapoint{
-					Timestamp:     xtime.ToNormalizedTime(dp.Timestamp, time.Second),
-					Value:         dp.Value,
-					TimestampType: rpc.TimeType_UNIX_SECONDS,
-				},
-			}
-			elems = append(elems, req)
-		}
+// m3dbClientFetch fulfills a fetch request using an m3db client.
+func m3dbClientFetch(client m3db.Client, req *rpc.FetchRequest) ([]m3db.Datapoint, error) {
+	session, err := client.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
+
+	iter, err := session.Fetch(
+		req.ID,
+		xtime.FromNormalizedTime(req.RangeStart, time.Second),
+		xtime.FromNormalizedTime(req.RangeEnd, time.Second),
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	ctx, _ := thrift.NewContext(timeout)
-	batchReq := &rpc.WriteBatchRequest{Elements: elems}
-	return client.WriteBatch(ctx, batchReq)
-}
-
-// tchannelClientFetch fulfills a fetch request using a tchannel client.
-func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	ctx, _ := thrift.NewContext(timeout)
-	return client.Fetch(ctx, req)
+	var datapoints []m3db.Datapoint
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		datapoints = append(datapoints, dp)
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+	return datapoints, nil
 }
