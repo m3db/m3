@@ -24,9 +24,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/interfaces/m3db"
-	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -44,9 +42,7 @@ type dbBlock struct {
 	opts     m3db.DatabaseOptions
 	start    time.Time
 	encoder  m3db.Encoder
-	segment  *m3db.Segment
-	srAlloc  m3db.SegmentReaderAllocate
-	ctxAlloc m3db.ContextAllocate
+	segment  m3db.Segment
 	ctx      m3db.Context
 	closed   bool
 	writable bool
@@ -54,22 +50,11 @@ type dbBlock struct {
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(start time.Time, encoder m3db.Encoder, opts m3db.DatabaseOptions) m3db.DatabaseBlock {
-	srAlloc := xio.NewSegmentReader
-	if pool := opts.GetSegmentReaderPool(); pool != nil {
-		srAlloc = pool.Get
-	}
-	ctxAlloc := context.NewContext
-	if pool := opts.GetContextPool(); pool != nil {
-		ctxAlloc = pool.Get
-	}
 	return &dbBlock{
 		opts:     opts,
 		start:    start,
 		encoder:  encoder,
-		segment:  nil,
-		srAlloc:  srAlloc,
-		ctxAlloc: ctxAlloc,
-		ctx:      ctxAlloc(),
+		ctx:      opts.GetContextPool().Get(),
 		closed:   false,
 		writable: true,
 	}
@@ -100,13 +85,16 @@ func (b *dbBlock) Stream(blocker m3db.Context) (m3db.SegmentReader, error) {
 	if blocker != nil {
 		b.ctx.DependsOn(blocker)
 	}
-	var s m3db.SegmentReader
 	if b.writable {
-		s = b.encoder.Stream()
-	} else if b.segment != nil {
-		s = b.srAlloc()
-		s.Reset(*b.segment)
+		return b.encoder.Stream(), nil
 	}
+	// If the block is not writable, and the segment is empty, it means
+	// there are no data encoded in this block, so we return a nil reader.
+	if b.segment.Head == nil && b.segment.Tail == nil {
+		return nil, nil
+	}
+	s := b.opts.GetSegmentReaderPool().Get()
+	s.Reset(b.segment)
 	return s, nil
 }
 
@@ -122,7 +110,7 @@ func (b *dbBlock) close() {
 		b.ctx.Close()
 		b.ctx = nil
 		b.encoder = nil
-		b.segment = nil
+		b.segment = m3db.Segment{}
 	}
 	defer cleanUp()
 
@@ -134,15 +122,15 @@ func (b *dbBlock) close() {
 		return
 	}
 
-	// Otherwise, we need to close the stream.
-	if segment := b.segment; segment != nil {
-		b.ctx.RegisterCloser(func() {
-			if bytesPool := b.opts.GetBytesPool(); bytesPool != nil {
-				bytesPool.Put(segment.Head)
-				bytesPool.Put(segment.Tail)
-			}
-		})
-	}
+	// Otherwise, we need to return bytes to the pool.
+	b.ctx.RegisterCloser(func() {
+		// NB(xichen): we do not return segment tail here because the tails
+		// are precomputed in the encoding options and therefore potentially
+		// reused across different encoders.
+		if b.segment.Head != nil {
+			b.opts.GetBytesPool().Put(b.segment.Head)
+		}
+	})
 }
 
 // Reset resets the block start time and the encoder.
@@ -150,8 +138,8 @@ func (b *dbBlock) Reset(startTime time.Time, encoder m3db.Encoder) {
 	b.close()
 	b.start = startTime
 	b.encoder = encoder
-	b.segment = nil
-	b.ctx = b.ctxAlloc()
+	b.segment = m3db.Segment{}
+	b.ctx = b.opts.GetContextPool().Get()
 	b.closed = false
 	b.writable = true
 }
@@ -173,8 +161,7 @@ func (b *dbBlock) Seal() {
 	}
 	b.writable = false
 	if stream := b.encoder.Stream(); stream != nil {
-		segment := stream.Segment()
-		b.segment = &segment
+		b.segment = stream.Segment()
 	}
 	// Reset encoder to prevent the byte stream inside the encoder
 	// from being returned to the bytes pool.

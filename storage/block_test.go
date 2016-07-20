@@ -115,7 +115,7 @@ func TestDatabaseBlockReadFromSealedBlock(t *testing.T) {
 	block, _ := testDatabaseBlock(ctrl)
 	block.writable = false
 	segment := m3db.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
-	block.segment = &segment
+	block.segment = segment
 	r, err := block.Stream(nil)
 	require.NoError(t, err)
 	require.Equal(t, segment, r.Segment())

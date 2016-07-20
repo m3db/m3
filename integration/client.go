@@ -136,6 +136,7 @@ func m3dbClientFetch(client m3db.Client, req *rpc.FetchRequest) ([]m3db.Datapoin
 	if err != nil {
 		return nil, err
 	}
+	defer iter.Close()
 
 	var datapoints []m3db.Datapoint
 	for iter.Next() {

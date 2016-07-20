@@ -31,12 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type byTimestampAscending []m3db.Datapoint
-
-func (asc byTimestampAscending) Len() int           { return len(asc) }
-func (asc byTimestampAscending) Swap(i, j int)      { asc[i], asc[j] = asc[j], asc[i] }
-func (asc byTimestampAscending) Less(i, j int) bool { return asc[i].Timestamp.Before(asc[j].Timestamp) }
-
 type dataMap map[string][]m3db.Datapoint
 
 func generateTestData(metricNames []string, numPoints int, start time.Time) dataMap {
