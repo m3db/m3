@@ -101,27 +101,6 @@ func TestMultiReaderFiltersToRange(t *testing.T) {
 	assertTestSeriesIterator(t, test)
 }
 
-func TestSeriesIteratorIgnoresNilReplicas(t *testing.T) {
-	start := time.Now().Truncate(time.Minute)
-	end := start.Add(time.Minute)
-
-	values := []testValue{
-		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
-		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
-		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
-	}
-
-	test := testSeries{
-		id:       "foo",
-		start:    start,
-		end:      end,
-		input:    [][]testValue{values, nil, values},
-		expected: values,
-	}
-
-	assertTestSeriesIterator(t, test)
-}
-
 func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
 	start := time.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)

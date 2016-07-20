@@ -403,7 +403,6 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 
 		wg.Add(1)
 		completionFn := func(result interface{}, err error) {
-			remaining := atomic.AddInt32(&pending, -1)
 			if err != nil {
 				n := atomic.AddInt32(&errs, 1)
 				if n == 1 {
@@ -418,7 +417,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				iterIdx := atomic.AddInt32(&success, 1) - 1
 				results[iterIdx] = multiIter
 			}
-			if remaining != 0 {
+			if remaining := atomic.AddInt32(&pending, -1); remaining != 0 {
 				// Requests still pending
 				return
 			}
