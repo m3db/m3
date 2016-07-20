@@ -25,7 +25,6 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
-	"sort"
 	"sync"
 	"time"
 
@@ -183,13 +182,7 @@ func (ts *testSetup) writeBatch(dm dataMap) error {
 
 func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]m3db.Datapoint, error) {
 	if ts.opts.GetUseTChannelClientForReading() {
-		datapoints, err := tchannelClientFetch(ts.tchannelClient, ts.opts.GetReadRequestTimeout(), req)
-		if err != nil {
-			return nil, err
-		}
-		// Sorting is necessary in that fetching with tchannel client may return out-of-order datapoints.
-		sort.Sort(byTimestampAscending(datapoints))
-		return datapoints, nil
+		return tchannelClientFetch(ts.tchannelClient, ts.opts.GetReadRequestTimeout(), req)
 	}
 	return m3dbClientFetch(ts.m3dbClient, req)
 }
