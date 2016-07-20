@@ -36,9 +36,6 @@ type DatabaseBlockAllocate func() DatabaseBlock
 // EncoderAllocate allocates an encoder for a pool.
 type EncoderAllocate func() Encoder
 
-// SegmentReaderAllocate allocates a new segment reader.
-type SegmentReaderAllocate func() SegmentReader
-
 // Work is a unit of item to be worked on.
 type Work func()
 

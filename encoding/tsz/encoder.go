@@ -320,7 +320,7 @@ func (enc *encoder) Stream() m3db.SegmentReader {
 		reader.Reset(m3db.Segment{Head: head, Tail: tail})
 		return reader
 	}
-	return xio.NewSegmentReaderWithSegment(m3db.Segment{Head: head, Tail: tail})
+	return xio.NewSegmentReader(m3db.Segment{Head: head, Tail: tail})
 }
 
 func (enc *encoder) Seal() {

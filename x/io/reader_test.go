@@ -156,7 +156,7 @@ func TestSegmentReader(t *testing.T) {
 		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
 	}
 
-	r := NewSegmentReaderWithSegment(m3db.Segment{Head: head, Tail: tail})
+	r := NewSegmentReader(m3db.Segment{Head: head, Tail: tail})
 	var b [100]byte
 	n, err := r.Read(b[:])
 	require.NoError(t, err)

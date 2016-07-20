@@ -56,7 +56,7 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	if len(it.segmentReaders) < currLen {
 		diff := currLen - len(it.segmentReaders)
 		for i := 0; i < diff; i++ {
-			it.segmentReaders = append(it.segmentReaders, xio.NewSegmentReaderWithSegment(m3db.Segment{}))
+			it.segmentReaders = append(it.segmentReaders, xio.NewSegmentReader(m3db.Segment{}))
 		}
 	}
 
