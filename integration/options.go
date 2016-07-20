@@ -41,7 +41,7 @@ const (
 	defaultUseTChannelClientForReading = false
 
 	// defaultUseTChannelClientForWriting determines whether we use the tchannel client for writing by default.
-	defaultUseTChannelClientForWriting = false
+	defaultUseTChannelClientForWriting = true
 )
 
 type testOptions interface {

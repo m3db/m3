@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
+	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
