@@ -31,11 +31,11 @@ var (
 )
 
 type staticTopologyType struct {
-	opts m3db.StaticTopologyTypeOptions
+	opts m3db.TopologyTypeOptions
 }
 
 // NewStaticTopologyType creates a new static topology type
-func NewStaticTopologyType(opts m3db.StaticTopologyTypeOptions) m3db.TopologyType {
+func NewStaticTopologyType(opts m3db.TopologyTypeOptions) m3db.TopologyType {
 	return &staticTopologyType{opts}
 }
 
@@ -46,12 +46,16 @@ func (t *staticTopologyType) Create() (m3db.Topology, error) {
 	return newStaticTopology(t.opts), nil
 }
 
+func (t *staticTopologyType) Options() m3db.TopologyTypeOptions {
+	return t.opts
+}
+
 type staticTopology struct {
 	topologyMap staticTopologyMap
 }
 
-func newStaticTopology(opts m3db.StaticTopologyTypeOptions) m3db.Topology {
-	return &staticTopology{newStaticTopologyMap(opts)}
+func newStaticTopology(opts m3db.TopologyTypeOptions) m3db.Topology {
+	return &staticTopology{topologyMap: newStaticTopologyMap(opts)}
 }
 
 func (t *staticTopology) Get() m3db.TopologyMap {
@@ -76,7 +80,7 @@ type staticTopologyMap struct {
 	quorum              int
 }
 
-func newStaticTopologyMap(opts m3db.StaticTopologyTypeOptions) staticTopologyMap {
+func newStaticTopologyMap(opts m3db.TopologyTypeOptions) staticTopologyMap {
 	totalShards := len(opts.GetShardScheme().All().Shards())
 	hostShardSets := opts.GetHostShardSets()
 	topoMap := staticTopologyMap{

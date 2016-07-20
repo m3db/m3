@@ -1147,9 +1147,9 @@ func (_mr *_MockStaticTopologyTypeOptionsRecorder) Validate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
-func (_m *MockStaticTopologyTypeOptions) ShardScheme(value m3db.ShardScheme) m3db.StaticTopologyTypeOptions {
+func (_m *MockStaticTopologyTypeOptions) ShardScheme(value m3db.ShardScheme) m3db.TopologyTypeOptions {
 	ret := _m.ctrl.Call(_m, "ShardScheme", value)
-	ret0, _ := ret[0].(m3db.StaticTopologyTypeOptions)
+	ret0, _ := ret[0].(m3db.TopologyTypeOptions)
 	return ret0
 }
 
@@ -1167,9 +1167,9 @@ func (_mr *_MockStaticTopologyTypeOptionsRecorder) GetShardScheme() *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetShardScheme")
 }
 
-func (_m *MockStaticTopologyTypeOptions) Replicas(value int) m3db.StaticTopologyTypeOptions {
+func (_m *MockStaticTopologyTypeOptions) Replicas(value int) m3db.TopologyTypeOptions {
 	ret := _m.ctrl.Call(_m, "Replicas", value)
-	ret0, _ := ret[0].(m3db.StaticTopologyTypeOptions)
+	ret0, _ := ret[0].(m3db.TopologyTypeOptions)
 	return ret0
 }
 
@@ -1187,9 +1187,9 @@ func (_mr *_MockStaticTopologyTypeOptionsRecorder) GetReplicas() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetReplicas")
 }
 
-func (_m *MockStaticTopologyTypeOptions) HostShardSets(value []m3db.HostShardSet) m3db.StaticTopologyTypeOptions {
+func (_m *MockStaticTopologyTypeOptions) HostShardSets(value []m3db.HostShardSet) m3db.TopologyTypeOptions {
 	ret := _m.ctrl.Call(_m, "HostShardSets", value)
-	ret0, _ := ret[0].(m3db.StaticTopologyTypeOptions)
+	ret0, _ := ret[0].(m3db.TopologyTypeOptions)
 	return ret0
 }
 

@@ -38,6 +38,10 @@ import (
 	"github.com/uber/tchannel-go"
 )
 
+const (
+	clusterConnectionTimeout = time.Second
+)
+
 var (
 	httpClusterAddr     = flag.String("clusterhttpaddr", "0.0.0.0:9000", "Cluster HTTP server address")
 	tchannelClusterAddr = flag.String("clustertchanneladdr", "0.0.0.0:9001", "Cluster TChannel server address")
@@ -53,6 +57,7 @@ type nowSetterFn func(t time.Time)
 
 type testSetup struct {
 	opts           testOptions
+	clientOpts     m3db.ClientOptions
 	dbOpts         m3db.DatabaseOptions
 	shardingScheme m3db.ShardScheme
 	getNowFn       m3db.NowFn
@@ -82,6 +87,12 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return nil, err
 	}
 
+	clientOpts, err := server.DefaultClientOptions(*tchannelNodeAddr, shardingScheme)
+	if err != nil {
+		return nil, err
+	}
+	clientOpts = clientOpts.ClusterConnectTimeout(clusterConnectionTimeout)
+
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(*tchannelNodeAddr)
 	if err != nil {
@@ -89,7 +100,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up m3db client
-	mc, err := m3dbClient(*tchannelNodeAddr, shardingScheme)
+	mc, err := m3dbClient(clientOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +134,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	return &testSetup{
 		opts:           opts,
+		clientOpts:     clientOpts,
 		dbOpts:         dbOpts,
 		shardingScheme: shardingScheme,
 		getNowFn:       getNowFn,
@@ -159,7 +171,7 @@ func (ts *testSetup) startServer(doneCh chan struct{}) error {
 		*tchannelClusterAddr,
 		*httpNodeAddr,
 		*tchannelNodeAddr,
-		ts.shardingScheme,
+		ts.clientOpts,
 		ts.dbOpts,
 		doneCh,
 	)

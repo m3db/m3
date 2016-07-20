@@ -24,10 +24,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
-	"github.com/m3db/m3db/services/m3dbnode/server"
 	xtime "github.com/m3db/m3db/x/time"
 
 	"github.com/uber/tchannel-go"
@@ -77,8 +77,8 @@ func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.F
 	return toDatapoints(fetched), nil
 }
 
-func m3dbClient(address string, shardingScheme m3db.ShardScheme) (m3db.Client, error) {
-	return server.DefaultClient(address, shardingScheme)
+func m3dbClient(opts m3db.ClientOptions) (m3db.Client, error) {
+	return client.NewClient(opts)
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.

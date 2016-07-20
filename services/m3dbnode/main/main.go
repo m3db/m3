@@ -57,15 +57,19 @@ func main() {
 	httpNodeAddr := *httpNodeAddrArg
 	tchannelNodeAddr := *tchannelNodeAddrArg
 
-	var opts m3db.DatabaseOptions
-	opts = storage.NewDatabaseOptions().NewBootstrapFn(func() m3db.Bootstrap {
-		return bootstrap.NewNoOpBootstrapProcess(opts)
+	var dbOpts m3db.DatabaseOptions
+	dbOpts = storage.NewDatabaseOptions().NewBootstrapFn(func() m3db.Bootstrap {
+		return bootstrap.NewNoOpBootstrapProcess(dbOpts)
 	})
 
-	log := opts.GetLogger()
+	log := dbOpts.GetLogger()
 	shardingScheme, err := server.DefaultShardingScheme()
 	if err != nil {
 		log.Fatalf("could not create sharding scheme: %v", err)
+	}
+	clientOpts, err := server.DefaultClientOptions(tchannelNodeAddr, shardingScheme)
+	if err != nil {
+		log.Fatalf("could not create client options: %v", err)
 	}
 
 	doneCh := make(chan struct{})
@@ -75,8 +79,8 @@ func main() {
 			tchannelClusterAddr,
 			httpNodeAddr,
 			tchannelNodeAddr,
-			shardingScheme,
-			opts,
+			clientOpts,
+			dbOpts,
 			doneCh,
 		); err != nil {
 			log.Fatalf("serve error: %v", err)
