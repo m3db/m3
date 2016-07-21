@@ -126,11 +126,11 @@ func (b *dbBlock) close() {
 	segment := b.segment
 	bytesPool := b.opts.GetBytesPool()
 	b.ctx.RegisterCloser(func() {
-		// NB(xichen): we do not return segment tail here because the tails
-		// are precomputed in the encoding options and therefore potentially
-		// reused across different encoders.
-		if segment.Head != nil {
+		if segment.Head != nil && !segment.HeadShared {
 			bytesPool.Put(segment.Head)
+		}
+		if segment.Tail != nil && !segment.TailShared {
+			bytesPool.Put(segment.Tail)
 		}
 	})
 }
