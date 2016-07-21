@@ -52,4 +52,10 @@ type Segment struct {
 
 	// Tail is the tail of the segment.
 	Tail []byte
+
+	// HeadShared determines whether the head bytes are shared.
+	HeadShared bool
+
+	// TailShared determines whether the tail bytes are shared.
+	TailShared bool
 }

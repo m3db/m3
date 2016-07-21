@@ -32,13 +32,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testDatabaseBlock(ctrl *gomock.Controller) (*dbBlock, *mocks.MockEncoder, *mocks.MockSegmentReader) {
+func testDatabaseBlock(ctrl *gomock.Controller) (*dbBlock, *mocks.MockEncoder) {
 	opts := testDatabaseOptions()
 	encoder := mocks.NewMockEncoder(ctrl)
-	stream := mocks.NewMockSegmentReader(ctrl)
 	b := NewDatabaseBlock(time.Now(), encoder, opts).(*dbBlock)
-	b.stream = stream
-	return b, encoder, stream
+	return b, encoder
 }
 
 func testDatabaseSeriesBlocks() *databaseSeriesBlocks {
@@ -82,7 +80,7 @@ func TestDatabaseBlockWriteToClosedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	block, encoder, _ := testDatabaseBlock(ctrl)
+	block, encoder := testDatabaseBlock(ctrl)
 	encoder.EXPECT().Close()
 	closeTestDatabaseBlock(t, block)
 	err := block.Write(time.Now(), 1.0, xtime.Second, nil)
@@ -93,7 +91,7 @@ func TestDatabaseBlockWriteToSealedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	block, _, _ := testDatabaseBlock(ctrl)
+	block, _ := testDatabaseBlock(ctrl)
 	block.writable = false
 	err := block.Write(time.Now(), 1.0, xtime.Second, nil)
 	require.Equal(t, errWriteToSealedBlock, err)
@@ -103,7 +101,7 @@ func TestDatabaseBlockReadFromClosedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	block, encoder, _ := testDatabaseBlock(ctrl)
+	block, encoder := testDatabaseBlock(ctrl)
 	encoder.EXPECT().Close()
 	closeTestDatabaseBlock(t, block)
 	_, err := block.Stream(nil)
@@ -114,16 +112,18 @@ func TestDatabaseBlockReadFromSealedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	block, _, stream := testDatabaseBlock(ctrl)
+	block, _ := testDatabaseBlock(ctrl)
 	block.writable = false
+	segment := m3db.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
+	block.segment = segment
 	r, err := block.Stream(nil)
 	require.NoError(t, err)
-	require.Equal(t, stream, r)
+	require.Equal(t, segment, r.Segment())
 }
 
 type testDatabaseBlockFn func(block *dbBlock)
 
-type testDatabaseBlockExpectedFn func(encoder *mocks.MockEncoder, stream *mocks.MockSegmentReader)
+type testDatabaseBlockExpectedFn func(encoder *mocks.MockEncoder)
 
 type testDatabaseBlockAssertionFn func(t *testing.T, block *dbBlock)
 
@@ -136,7 +136,7 @@ func testDatabaseBlockWithDependentContext(
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	block, encoder, stream := testDatabaseBlock(ctrl)
+	block, encoder := testDatabaseBlock(ctrl)
 	depCtx := block.opts.GetContextPool().Get()
 
 	// register a dependent context here
@@ -152,7 +152,7 @@ func testDatabaseBlockWithDependentContext(
 	time.Sleep(200 * time.Millisecond)
 	require.False(t, finished)
 
-	ef(encoder, stream)
+	ef(encoder)
 
 	// now closing the dependent context
 	depCtx.Close()
@@ -165,36 +165,28 @@ func testDatabaseBlockWithDependentContext(
 
 func TestDatabaseBlockResetNormalWithDependentContext(t *testing.T) {
 	f := func(block *dbBlock) { block.Reset(time.Now(), nil) }
-	ef := func(encoder *mocks.MockEncoder, stream *mocks.MockSegmentReader) { encoder.EXPECT().Close() }
+	ef := func(encoder *mocks.MockEncoder) { encoder.EXPECT().Close() }
 	af := func(t *testing.T, block *dbBlock) { require.False(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, ef, af)
 }
 
 func TestDatabaseBlockResetSealedWithDependentContext(t *testing.T) {
 	f := func(block *dbBlock) { block.writable = false; block.Reset(time.Now(), nil) }
-	ef := func(encoder *mocks.MockEncoder, stream *mocks.MockSegmentReader) {
-		stream.EXPECT().Segment().Return(m3db.Segment{})
-		stream.EXPECT().Reset(m3db.Segment{})
-		stream.EXPECT().Close()
-	}
+	ef := func(encoder *mocks.MockEncoder) {}
 	af := func(t *testing.T, block *dbBlock) { require.False(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, ef, af)
 }
 
 func TestDatabaseBlockCloseNormalWithDependentContext(t *testing.T) {
 	f := func(block *dbBlock) { block.Close() }
-	ef := func(encoder *mocks.MockEncoder, stream *mocks.MockSegmentReader) { encoder.EXPECT().Close() }
+	ef := func(encoder *mocks.MockEncoder) { encoder.EXPECT().Close() }
 	af := func(t *testing.T, block *dbBlock) { require.True(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, ef, af)
 }
 
 func TestDatabaseBlockCloseSealedWithDependentContext(t *testing.T) {
 	f := func(block *dbBlock) { block.writable = false; block.Close() }
-	ef := func(encoder *mocks.MockEncoder, stream *mocks.MockSegmentReader) {
-		stream.EXPECT().Segment().Return(m3db.Segment{})
-		stream.EXPECT().Reset(m3db.Segment{})
-		stream.EXPECT().Close()
-	}
+	ef := func(encoder *mocks.MockEncoder) {}
 	af := func(t *testing.T, block *dbBlock) { require.True(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, ef, af)
 }

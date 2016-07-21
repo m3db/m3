@@ -34,6 +34,10 @@ func TestRoundtrip(t *testing.T) {
 	testSetup, err := newTestSetup(newTestOptions())
 	require.NoError(t, err)
 	defer testSetup.close()
+
+	testSetup.dbOpts = testSetup.dbOpts.BufferDrain(time.Second).RetentionPeriod(6 * time.Hour)
+	blockSize := testSetup.dbOpts.GetBlockSize()
+
 	// Start the server
 	log := testSetup.dbOpts.GetLogger()
 	log.Debug("round trip test")
@@ -56,7 +60,7 @@ func TestRoundtrip(t *testing.T) {
 		start       time.Time
 	}{
 		{[]string{"foo", "bar"}, 100, now},
-		{[]string{"foo", "baz"}, 50, now.Add(testSetup.dbOpts.GetBlockSize())},
+		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
 	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.start)
@@ -66,6 +70,13 @@ func TestRoundtrip(t *testing.T) {
 	}
 	log.Debug("test data is now written")
 
+	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
+	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
+	time.Sleep(testSetup.dbOpts.GetBufferDrain() * 4)
+
 	// Verify in-memory data match what we've written
+	verifyDataMaps(t, testSetup, dataMaps)
+
+	// Verify in-memory data again just to be sure the data can be read multiple times without issues
 	verifyDataMaps(t, testSetup, dataMaps)
 }

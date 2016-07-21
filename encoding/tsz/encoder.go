@@ -314,13 +314,14 @@ func (enc *encoder) Stream() m3db.SegmentReader {
 		tail = scheme.Tail(b[blen-1], pos)
 	}
 
+	segment := m3db.Segment{Head: head, Tail: tail, TailShared: true}
 	readerPool := enc.opts.GetSegmentReaderPool()
 	if readerPool != nil {
 		reader := readerPool.Get()
-		reader.Reset(m3db.Segment{Head: head, Tail: tail})
+		reader.Reset(segment)
 		return reader
 	}
-	return xio.NewSegmentReader(m3db.Segment{Head: head, Tail: tail})
+	return xio.NewSegmentReader(segment)
 }
 
 func (enc *encoder) Seal() {

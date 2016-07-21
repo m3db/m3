@@ -31,10 +31,10 @@ import (
 	"github.com/m3db/m3db/bootstrap"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage"
 
-	"github.com/m3db/m3db/pool"
 	"github.com/uber/tchannel-go"
 )
 
@@ -44,9 +44,8 @@ var (
 	httpNodeAddr        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
 	tchannelNodeAddr    = flag.String("nodetchanneladdr", "0.0.0.0:9003", "Node TChannel server address")
 
-	errServerStartTimedOut           = errors.New("server took too long to start")
-	errServerStopTimedOut            = errors.New("server took too long to stop")
-	errM3DBClientFetchNotImplemented = errors.New("m3db client fetch method not yet implemented")
+	errServerStartTimedOut = errors.New("server took too long to start")
+	errServerStopTimedOut  = errors.New("server took too long to stop")
 )
 
 // nowSetterFn is the function that sets the current time
@@ -54,6 +53,7 @@ type nowSetterFn func(t time.Time)
 
 type testSetup struct {
 	opts           testOptions
+	clientOpts     m3db.ClientOptions
 	dbOpts         m3db.DatabaseOptions
 	shardingScheme m3db.ShardScheme
 	getNowFn       m3db.NowFn
@@ -83,6 +83,12 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return nil, err
 	}
 
+	clientOpts, err := server.DefaultClientOptions(*tchannelNodeAddr, shardingScheme)
+	if err != nil {
+		return nil, err
+	}
+	clientOpts = clientOpts.ClusterConnectTimeout(opts.GetClusterConnectionTimeout())
+
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(*tchannelNodeAddr)
 	if err != nil {
@@ -90,7 +96,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up m3db client
-	mc, err := m3dbClient(*tchannelNodeAddr, shardingScheme)
+	mc, err := m3dbClient(clientOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +130,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	return &testSetup{
 		opts:           opts,
+		clientOpts:     clientOpts,
 		dbOpts:         dbOpts,
 		shardingScheme: shardingScheme,
 		getNowFn:       getNowFn,
@@ -160,7 +167,7 @@ func (ts *testSetup) startServer(doneCh chan struct{}) error {
 		*tchannelClusterAddr,
 		*httpNodeAddr,
 		*tchannelNodeAddr,
-		ts.shardingScheme,
+		ts.clientOpts,
 		ts.dbOpts,
 		doneCh,
 	)
@@ -181,12 +188,11 @@ func (ts *testSetup) writeBatch(dm dataMap) error {
 	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, dm)
 }
 
-func (ts *testSetup) fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
+func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]m3db.Datapoint, error) {
 	if ts.opts.GetUseTChannelClientForReading() {
 		return tchannelClientFetch(ts.tchannelClient, ts.opts.GetReadRequestTimeout(), req)
 	}
-	// TODO(xichen): replace this with m3db client fetch method when it's ready.
-	return nil, errM3DBClientFetchNotImplemented
+	return m3dbClientFetch(ts.m3dbClient, req)
 }
 
 func (ts *testSetup) close() {

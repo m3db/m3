@@ -46,15 +46,21 @@ func DefaultShardingScheme() (m3db.ShardScheme, error) {
 	})
 }
 
-// DefaultClient creates a default m3db client.
-func DefaultClient(localNodeAddr string, shardingScheme m3db.ShardScheme) (m3db.Client, error) {
+// DefaultClientOptions creates a default m3db client options.
+func DefaultClientOptions(tchannelNodeAddr string, shardingScheme m3db.ShardScheme) (m3db.ClientOptions, error) {
+	var localNodeAddr string
+	if !strings.ContainsRune(tchannelNodeAddr, ':') {
+		return nil, errors.New("tchannelthrift address does not specify port")
+	}
+	localNodeAddrComponents := strings.Split(tchannelNodeAddr, ":")
+	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
+
 	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardingScheme.All())
 	topologyOptions := topology.NewStaticTopologyTypeOptions().
 		ShardScheme(shardingScheme).
 		Replicas(1).
 		HostShardSets([]m3db.HostShardSet{hostShardSet})
-	clientOptions := client.NewOptions().TopologyType(topology.NewStaticTopologyType(topologyOptions))
-	return client.NewClient(clientOptions)
+	return client.NewOptions().TopologyType(topology.NewStaticTopologyType(topologyOptions)), nil
 }
 
 // Serve starts up the tchannel server as well as the http server.
@@ -63,26 +69,19 @@ func Serve(
 	tchannelClusterAddr string,
 	httpNodeAddr string,
 	tchannelNodeAddr string,
-	shardingScheme m3db.ShardScheme,
-	opts m3db.DatabaseOptions,
+	clientOpts m3db.ClientOptions,
+	dbOpts m3db.DatabaseOptions,
 	doneCh chan struct{},
 ) error {
-	log := opts.GetLogger()
-
-	var localNodeAddr string
-	if !strings.ContainsRune(tchannelNodeAddr, ':') {
-		return errors.New("tchannelthrift address does not specify port")
-	}
-	localNodeAddrComponents := strings.Split(tchannelNodeAddr, ":")
-	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
-
-	db := storage.NewDatabase(shardingScheme.All(), opts)
+	log := dbOpts.GetLogger()
+	shardingScheme := clientOpts.GetTopologyType().Options().GetShardScheme()
+	db := storage.NewDatabase(shardingScheme.All(), dbOpts)
 	if err := db.Open(); err != nil {
 		return fmt.Errorf("could not open database: %v", err)
 	}
 	defer db.Close()
 
-	client, err := DefaultClient(localNodeAddr, shardingScheme)
+	client, err := client.NewClient(clientOpts)
 	if err != nil {
 		return fmt.Errorf("could not create cluster client: %v", err)
 	}

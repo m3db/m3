@@ -39,6 +39,9 @@ type HostShardSet interface {
 type TopologyType interface {
 	// Create will return a new topology of the topology type
 	Create() (Topology, error)
+
+	// Options will return the topology options associated with the topology type
+	Options() TopologyTypeOptions
 }
 
 // Topology is a container of a topology map and disseminates topology map changes

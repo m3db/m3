@@ -107,7 +107,7 @@ type segmentReader struct {
 	pool    m3db.SegmentReaderPool
 }
 
-// NewSegmentReader creates a new segment reader.
+// NewSegmentReader creates a new segment reader along with a specified segment.
 func NewSegmentReader(segment m3db.Segment) m3db.SegmentReader {
 	return &segmentReader{segment: segment}
 }

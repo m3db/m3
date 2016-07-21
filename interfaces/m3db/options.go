@@ -143,6 +143,12 @@ type DatabaseOptions interface {
 	// GetEncoderPool returns the encoderPool
 	GetEncoderPool() EncoderPool
 
+	// SegmentReaderPool sets the segment reader pool.
+	SegmentReaderPool(value SegmentReaderPool) DatabaseOptions
+
+	// GetSegmentReaderPool returns the segment reader pool.
+	GetSegmentReaderPool() SegmentReaderPool
+
 	// ReaderIteratorPool sets the readerIteratorPool and returns a new DatabaseOptions
 	ReaderIteratorPool(value ReaderIteratorPool) DatabaseOptions
 
@@ -351,25 +357,25 @@ type ClientOptions interface {
 	GetReaderIteratorAllocate() ReaderIteratorAllocate
 }
 
-// StaticTopologyTypeOptions is a set of static topology type options
-type StaticTopologyTypeOptions interface {
+// TopologyTypeOptions is a set of static topology type options
+type TopologyTypeOptions interface {
 	// Validate validates the options
 	Validate() error
 
-	// ShardScheme sets the shardScheme and returns a new StaticTopologyTypeOptions
-	ShardScheme(value ShardScheme) StaticTopologyTypeOptions
+	// ShardScheme sets the shardScheme and returns a new TopologyTypeOptions
+	ShardScheme(value ShardScheme) TopologyTypeOptions
 
 	// GetShardScheme returns the shardScheme
 	GetShardScheme() ShardScheme
 
-	// Replicas sets the replicas and returns a new StaticTopologyTypeOptions
-	Replicas(value int) StaticTopologyTypeOptions
+	// Replicas sets the replicas and returns a new TopologyTypeOptions
+	Replicas(value int) TopologyTypeOptions
 
 	// GetReplicas returns the replicas
 	GetReplicas() int
 
-	// HostShardSets sets the hostShardSets and returns a new StaticTopologyTypeOptions
-	HostShardSets(value []HostShardSet) StaticTopologyTypeOptions
+	// HostShardSets sets the hostShardSets and returns a new TopologyTypeOptions
+	HostShardSets(value []HostShardSet) TopologyTypeOptions
 
 	// GetHostShardSets returns the hostShardSets
 	GetHostShardSets() []HostShardSet
