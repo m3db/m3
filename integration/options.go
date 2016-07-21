@@ -29,7 +29,7 @@ const (
 	defaultServerStateChangeTimeout = 30 * time.Second
 
 	// defaultClusterConnectionTimeout is the default time we wait for cluster connections to be established.
-	defaultClusterConnectionTimeout = 500 * time.Millisecond
+	defaultClusterConnectionTimeout = 2 * time.Second
 
 	// defaultReadRequestTimeout is the default read request timeout.
 	defaultReadRequestTimeout = 2 * time.Second
