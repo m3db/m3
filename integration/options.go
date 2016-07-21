@@ -28,11 +28,14 @@ const (
 	// defaultServerStateChangeTimeout is the default time we wait for a server to change its state.
 	defaultServerStateChangeTimeout = 30 * time.Second
 
+	// defaultClusterConnectionTimeout is the default time we wait for cluster connections to be established.
+	defaultClusterConnectionTimeout = 500 * time.Millisecond
+
 	// defaultReadRequestTimeout is the default read request timeout.
-	defaultReadRequestTimeout = 5 * time.Second
+	defaultReadRequestTimeout = 2 * time.Second
 
 	// defaultWriteRequestTimeout is the default write request timeout.
-	defaultWriteRequestTimeout = 5 * time.Second
+	defaultWriteRequestTimeout = 2 * time.Second
 
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
@@ -50,6 +53,12 @@ type testOptions interface {
 
 	// GetServerStateChangeTimeout returns the server state change timeout.
 	GetServerStateChangeTimeout() time.Duration
+
+	// ClusterConnectionTimeout sets the cluster connection timeout.
+	ClusterConnectionTimeout(value time.Duration) testOptions
+
+	// GetClusterConnectionTimeout returns the cluster connection timeout.
+	GetClusterConnectionTimeout() time.Duration
 
 	// ReadRequestTimeout sets the read request timeout.
 	ReadRequestTimeout(value time.Duration) testOptions
@@ -84,6 +93,7 @@ type testOptions interface {
 
 type options struct {
 	serverStateChangeTimeout    time.Duration
+	clusterConnectionTimeout    time.Duration
 	readRequestTimeout          time.Duration
 	writeRequestTimeout         time.Duration
 	workerPoolSize              int
@@ -94,6 +104,7 @@ type options struct {
 func newTestOptions() testOptions {
 	return &options{
 		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
+		clusterConnectionTimeout:    defaultClusterConnectionTimeout,
 		readRequestTimeout:          defaultReadRequestTimeout,
 		writeRequestTimeout:         defaultWriteRequestTimeout,
 		workerPoolSize:              defaultWorkerPoolSize,
@@ -110,6 +121,16 @@ func (o *options) ServerStateChangeTimeout(value time.Duration) testOptions {
 
 func (o *options) GetServerStateChangeTimeout() time.Duration {
 	return o.serverStateChangeTimeout
+}
+
+func (o *options) ClusterConnectionTimeout(value time.Duration) testOptions {
+	opts := *o
+	opts.clusterConnectionTimeout = value
+	return &opts
+}
+
+func (o *options) GetClusterConnectionTimeout() time.Duration {
+	return o.clusterConnectionTimeout
 }
 
 func (o *options) ReadRequestTimeout(value time.Duration) testOptions {

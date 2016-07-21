@@ -35,7 +35,7 @@ func TestRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.dbOpts = testSetup.dbOpts.BufferDrain(3 * time.Second)
+	testSetup.dbOpts = testSetup.dbOpts.BufferDrain(time.Second).RetentionPeriod(6 * time.Hour)
 	blockSize := testSetup.dbOpts.GetBlockSize()
 
 	// Start the server

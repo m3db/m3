@@ -38,10 +38,6 @@ import (
 	"github.com/uber/tchannel-go"
 )
 
-const (
-	clusterConnectionTimeout = time.Second
-)
-
 var (
 	httpClusterAddr     = flag.String("clusterhttpaddr", "0.0.0.0:9000", "Cluster HTTP server address")
 	tchannelClusterAddr = flag.String("clustertchanneladdr", "0.0.0.0:9001", "Cluster TChannel server address")
@@ -91,7 +87,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	if err != nil {
 		return nil, err
 	}
-	clientOpts = clientOpts.ClusterConnectTimeout(clusterConnectionTimeout)
+	clientOpts = clientOpts.ClusterConnectTimeout(opts.GetClusterConnectionTimeout())
 
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(*tchannelNodeAddr)
