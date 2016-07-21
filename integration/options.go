@@ -41,7 +41,7 @@ const (
 	defaultWorkerPoolSize = 10
 
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
-	defaultUseTChannelClientForReading = false
+	defaultUseTChannelClientForReading = true
 
 	// defaultUseTChannelClientForWriting determines whether we use the tchannel client for writing by default.
 	defaultUseTChannelClientForWriting = false
