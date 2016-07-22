@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"fmt"
+
 	"github.com/m3db/m3db/interfaces/m3db"
 	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
@@ -342,6 +344,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 		if err != nil {
 			rs.Close()
 			rs = NewDatabaseSeriesBlocks(s.opts)
+			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.seriesID, err))
 			break
 		}
 	}

@@ -84,7 +84,7 @@ func TestShardBootstrapWithError(t *testing.T) {
 	err := s.Bootstrap(bs, writeStart, cutover)
 
 	require.NotNil(t, err)
-	require.Equal(t, "bootstrap error\nseries error", err.Error())
+	require.Equal(t, "error occurred bootstrapping shard 0 from external sources: bootstrap error\nseries error", err.Error())
 	require.Equal(t, bootstrapped, s.bs)
 }
 

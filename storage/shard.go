@@ -27,6 +27,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"fmt"
+
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
 	xerrors "github.com/m3db/m3db/x/errors"
@@ -274,6 +276,10 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 
 	multiErr := xerrors.NewMultiError()
 	sr, err := bs.Run(writeStart, s.shard)
+	if err != nil {
+		renamedErr := fmt.Errorf("error occurred bootstrapping shard %d from external sources: %v", s.shard, err)
+		err = xerrors.NewRenamedError(err, renamedErr)
+	}
 	multiErr.Add(err)
 
 	var bootstrappedSeries map[string]m3db.DatabaseSeriesBlocks

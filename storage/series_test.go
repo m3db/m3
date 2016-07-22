@@ -282,6 +282,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	err := series.Bootstrap(nil, time.Now())
 
 	require.NotNil(t, err)
+	require.Equal(t, "error occurred bootstrapping series foo: EOF", err.Error())
 	require.Equal(t, bootstrapped, series.bs)
 	require.Equal(t, 0, series.blocks.Len())
 }
