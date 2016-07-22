@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
+	xerrors "github.com/m3db/m3db/x/errors"
 )
 
 type bootstrapState int
@@ -130,13 +131,13 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	// In particular, the filesystem bootstrapper bootstraps each shard sequentially
 	// due to disk seek overhead.
+	multiErr := xerrors.NewMultiError()
 	cutover := bsm.cutoverTime(writeStart)
 	shards := bsm.database.getOwnedShards()
 	bs := bsm.bootstrapFn()
 	for _, shard := range shards {
-		if err := shard.Bootstrap(bs, writeStart, cutover); err != nil {
-			return err
-		}
+		err := shard.Bootstrap(bs, writeStart, cutover)
+		multiErr.Add(err)
 	}
 
 	flushTime := bsm.flushTime(writeStart)
@@ -146,5 +147,5 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	bsm.state = bootstrapped
 	bsm.Unlock()
 
-	return nil
+	return multiErr.FinalError()
 }

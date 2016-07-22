@@ -20,6 +20,10 @@
 
 package errors
 
+import (
+	"bytes"
+)
+
 // FirstError will return the first non nil error
 func FirstError(errs ...error) error {
 	for i := range errs {
@@ -105,4 +109,45 @@ func GetInnerInvalidParamsError(err error) error {
 		err = InnerError(err)
 	}
 	return nil
+}
+
+// MultiError is an error that packages a list of errors.
+type MultiError struct {
+	errors []error
+}
+
+// NewMultiError creates a new multiError object.
+func NewMultiError() *MultiError {
+	return &MultiError{}
+}
+
+func (e *MultiError) Error() string {
+	numErrors := len(e.errors)
+	if numErrors == 0 {
+		return ""
+	}
+	var b bytes.Buffer
+	for i := range e.errors {
+		b.WriteString(e.errors[i].Error())
+		if i < numErrors-1 {
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
+// Add adds an error to the list of errors.
+func (e *MultiError) Add(err error) {
+	if err == nil {
+		return
+	}
+	e.errors = append(e.errors, err)
+}
+
+// FinalError returns the list of errors if any.
+func (e *MultiError) FinalError() error {
+	if len(e.errors) == 0 {
+		return nil
+	}
+	return e
 }

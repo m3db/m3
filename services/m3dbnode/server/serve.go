@@ -114,7 +114,7 @@ func Serve(
 	log.Infof("cluster httpjson: listening on %v", httpClusterAddr)
 
 	if err := db.Bootstrap(); err != nil {
-		return fmt.Errorf("could not bootstrap database: %v", err)
+		log.Errorf("bootstrapping database encountered error(s): %v", err)
 	}
 	log.Debug("bootstrapped")
 

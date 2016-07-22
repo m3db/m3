@@ -312,7 +312,6 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 // bootstrap in batches, e.g., drain and reset the buffer, drain the streams,
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
 func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error {
-
 	s.Lock()
 	if s.bs == bootstrapped {
 		s.Unlock()
@@ -332,13 +331,18 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 	// data accumulated during bootstrapping.
 	s.buffer.DrainAndReset(true)
 
+	// NB(xichen): if an error occurred during series bootstrap, we close
+	// the database series blocks and mark the series bootstrapped regardless
+	// in the hope that the other replicas will provide data for this series.
+	var err error
 	for i := range s.pendingBootstrap {
 		stream := s.pendingBootstrap[i].encoder.Stream()
-		err := s.drainStream(rs, stream, cutover)
+		err = s.drainStream(rs, stream, cutover)
 		stream.Close()
 		if err != nil {
-			s.Unlock()
-			return err
+			rs.Close()
+			rs = NewDatabaseSeriesBlocks(s.opts)
+			break
 		}
 	}
 
@@ -346,7 +350,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 	s.bs = bootstrapped
 	s.Unlock()
 
-	return nil
+	return err
 }
 
 // NB(xichen): segmentHolder is a two-item slice that's reused to

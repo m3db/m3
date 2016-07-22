@@ -55,6 +55,39 @@ func testDatabaseShard(opts m3db.DatabaseOptions) *dbShard {
 	return newDatabaseShard(0, opts).(*dbShard)
 }
 
+func TestShardBootstrapWithError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	writeStart := time.Now()
+	cutover := time.Now().Add(-time.Minute)
+	opts := testDatabaseOptions()
+	s := testDatabaseShard(opts)
+	fooSeries := mocks.NewMockdatabaseSeries(ctrl)
+	barSeries := mocks.NewMockdatabaseSeries(ctrl)
+	s.lookup["foo"] = &dbShardEntry{series: fooSeries}
+	s.lookup["bar"] = &dbShardEntry{series: barSeries}
+
+	fooBlocks := mocks.NewMockDatabaseSeriesBlocks(ctrl)
+	barBlocks := mocks.NewMockDatabaseSeriesBlocks(ctrl)
+	fooSeries.EXPECT().Bootstrap(fooBlocks, cutover).Return(nil)
+	barSeries.EXPECT().Bootstrap(barBlocks, cutover).Return(errors.New("series error"))
+	bootstrappedSeries := map[string]m3db.DatabaseSeriesBlocks{
+		"foo": fooBlocks,
+		"bar": barBlocks,
+	}
+	shardResult := mocks.NewMockShardResult(ctrl)
+	shardResult.EXPECT().GetAllSeries().Return(bootstrappedSeries)
+
+	bs := mocks.NewMockBootstrap(ctrl)
+	bs.EXPECT().Run(writeStart, s.shard).Return(shardResult, errors.New("bootstrap error"))
+	err := s.Bootstrap(bs, writeStart, cutover)
+
+	require.NotNil(t, err)
+	require.Equal(t, "bootstrap error\nseries error", err.Error())
+	require.Equal(t, bootstrapped, s.bs)
+}
+
 func TestShardFlushToDiskDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapping

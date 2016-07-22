@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
+	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -271,18 +272,18 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 	s.bs = bootstrapping
 	s.Unlock()
 
+	multiErr := xerrors.NewMultiError()
 	sr, err := bs.Run(writeStart, s.shard)
-	if err != nil {
-		return err
-	}
+	multiErr.Add(err)
 
-	bootstrappedSeries := sr.GetAllSeries()
-	for id, dbBlocks := range bootstrappedSeries {
-		series, completionFn := s.writableSeries(id)
-		err := series.Bootstrap(dbBlocks, cutover)
-		completionFn()
-		if err != nil {
-			return err
+	var bootstrappedSeries map[string]m3db.DatabaseSeriesBlocks
+	if sr != nil {
+		bootstrappedSeries = sr.GetAllSeries()
+		for id, dbBlocks := range bootstrappedSeries {
+			series, completionFn := s.writableSeries(id)
+			err := series.Bootstrap(dbBlocks, cutover)
+			completionFn()
+			multiErr.Add(err)
 		}
 	}
 
@@ -296,19 +297,30 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 	// Find the series with no data within the retention period but has
 	// buffered data points since server start. Any new series added
 	// after this will be marked as bootstrapped.
-	var bufferedSeries []databaseSeries
-	s.RLock()
-	for id, entry := range s.lookup {
-		if _, exists := bootstrappedSeries[id]; !exists {
-			bufferedSeries = append(bufferedSeries, entry.series)
-		}
-	}
-	s.RUnlock()
-
-	// Finally bootstrapping series with no recent data.
-	for _, series := range bufferedSeries {
-		if err := series.Bootstrap(nil, cutover); err != nil {
+	if bootstrappedSeries == nil {
+		// If we failed to bootstrap any series from the external sources,
+		// we need to bootstrap all the series seen so far.
+		s.forEachSeries(true, func(series databaseSeries) error {
+			err := series.Bootstrap(nil, cutover)
+			multiErr.Add(err)
 			return err
+		})
+	} else {
+		// Otherwise we only bootstrap the series we haven't bootstrapped
+		// from external sources.
+		var bufferedSeries []databaseSeries
+		s.RLock()
+		for id, entry := range s.lookup {
+			if _, exists := bootstrappedSeries[id]; !exists {
+				bufferedSeries = append(bufferedSeries, entry.series)
+			}
+		}
+		s.RUnlock()
+
+		// Finally bootstrapping series with no recent data.
+		for _, series := range bufferedSeries {
+			err := series.Bootstrap(nil, cutover)
+			multiErr.Add(err)
 		}
 	}
 
@@ -316,7 +328,7 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 	s.bs = bootstrapped
 	s.Unlock()
 
-	return nil
+	return multiErr.FinalError()
 }
 
 func (s *dbShard) FlushToDisk(ctx m3db.Context, blockStart time.Time) error {
