@@ -160,6 +160,9 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 
 	shards := topologyMap.ShardScheme().All().Shards()
 	minConnectionCount := s.opts.GetMinConnectionCount()
+	replicas := topologyMap.Replicas()
+	quorum := topologyMap.QuorumReplicas()
+	connectConsistencyLevel := s.opts.GetClusterConnectConsistencyLevel()
 	for {
 		if s.nowFn().Sub(start) >= s.opts.GetClusterConnectTimeout() {
 			for i := range queues {
@@ -168,24 +171,27 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 			return ErrClusterConnectTimeout
 		}
 		// Be optimistic
-		clusterHasMinConnectionsToAllShards := true
+		var clusterAvailable bool
 		for _, shard := range shards {
-			// Be optimistic
-			shardHasMinConnectionsToOneHost := true
+			shardReplicasAvailable := 0
 			routeErr := topologyMap.RouteShardForEach(shard, func(idx int, host m3db.Host) {
-				if queues[idx].GetConnectionCount() < minConnectionCount {
-					shardHasMinConnectionsToOneHost = false
+				if queues[idx].GetConnectionCount() >= minConnectionCount {
+					shardReplicasAvailable++
 				}
 			})
 			if routeErr != nil {
 				return routeErr
 			}
-			if !shardHasMinConnectionsToOneHost {
-				clusterHasMinConnectionsToAllShards = false
-				break
+			switch connectConsistencyLevel {
+			case m3db.ConsistencyLevelAll:
+				clusterAvailable = shardReplicasAvailable == replicas
+			case m3db.ConsistencyLevelQuorum:
+				clusterAvailable = shardReplicasAvailable >= quorum
+			case m3db.ConsistencyLevelOne:
+				clusterAvailable = shardReplicasAvailable > 0
 			}
 		}
-		if clusterHasMinConnectionsToAllShards {
+		if clusterAvailable {
 			// All done
 			break
 		}
@@ -197,8 +203,8 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 	s.queues = queues
 	s.topoMap = topologyMap
 	prevReplicas := s.replicas
-	s.replicas = topologyMap.Replicas()
-	s.quorum = topologyMap.QuorumReplicas()
+	s.replicas = replicas
+	s.quorum = quorum
 	if s.fetchBatchOpArrayArrayPool == nil ||
 		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
 		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(

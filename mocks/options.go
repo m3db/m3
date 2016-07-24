@@ -796,6 +796,26 @@ func (_mr *_MockClientOptionsRecorder) GetClusterConnectTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClusterConnectTimeout")
 }
 
+func (_m *MockClientOptions) ClusterConnectConsistencyLevel(value m3db.ConsistencyLevel) m3db.ClientOptions {
+	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel", value)
+	ret0, _ := ret[0].(m3db.ClientOptions)
+	return ret0
+}
+
+func (_mr *_MockClientOptionsRecorder) ClusterConnectConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectConsistencyLevel", arg0)
+}
+
+func (_m *MockClientOptions) GetClusterConnectConsistencyLevel() m3db.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "GetClusterConnectConsistencyLevel")
+	ret0, _ := ret[0].(m3db.ConsistencyLevel)
+	return ret0
+}
+
+func (_mr *_MockClientOptionsRecorder) GetClusterConnectConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClusterConnectConsistencyLevel")
+}
+
 func (_m *MockClientOptions) WriteRequestTimeout(value time.Duration) m3db.ClientOptions {
 	ret := _m.ctrl.Call(_m, "WriteRequestTimeout", value)
 	ret0, _ := ret[0].(m3db.ClientOptions)
