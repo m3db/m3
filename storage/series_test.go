@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -30,7 +31,6 @@ import (
 	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
 
-	"code.uber.internal/infra/statsdex/x/errors"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
