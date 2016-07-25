@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +31,7 @@ import (
 	"github.com/m3db/m3db/interfaces/m3db"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testEntry struct {
@@ -107,4 +109,29 @@ func TestReusingReaderWriter(t *testing.T) {
 	for i := range allEntries {
 		readTestData(t, r, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
 	}
+}
+
+func TestReusingWriterAfterWriteError(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+	}
+	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	shard := uint32(0)
+	require.NoError(t, w.Open(shard, testWriterStart))
+	require.NoError(t, w.Write(entries[0].key, entries[0].data))
+	// Intentionally force a writer error.
+	w.(*writer).err = errors.New("foo")
+	require.Equal(t, "foo", w.Write(entries[1].key, entries[1].data).Error())
+	w.Close()
+	r := NewReader(filePathPrefix)
+	require.Equal(t, errCheckpointFileNotFound, r.Open(shard, testWriterStart))
+
+	// Now reuse the writer and validate the data are written as expected.
+	writeTestData(t, w, shard, testWriterStart, entries)
+	readTestData(t, r, shard, testWriterStart, entries)
 }

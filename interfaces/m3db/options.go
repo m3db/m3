@@ -184,6 +184,12 @@ type DatabaseOptions interface {
 
 	// GetNewFileSetWriterFn returns the function for creating a new fileset writer.
 	GetNewFileSetWriterFn() NewFileSetWriterFn
+
+	// NewPersistenceManagerFn sets the function for creating a new persistence manager.
+	NewPersistenceManagerFn(value NewPersistenceManagerFn) DatabaseOptions
+
+	// GetNewPersistenceManagerFn returns the function for creating a new persistence manager.
+	GetNewPersistenceManagerFn() NewPersistenceManagerFn
 }
 
 // ClientOptions is a set of client options

@@ -77,6 +77,11 @@ var (
 		return fs.NewWriter(blockSize, filePathPrefix, fs.NewWriterOptions())
 	}
 
+	// defaultPersistenceManagerFn is the default function for creating a new persistence manager.
+	defaultPersistenceManagerFn = func(opts m3db.DatabaseOptions) m3db.PersistenceManager {
+		return fs.NewPersistenceManager(opts)
+	}
+
 	timeZero time.Time
 )
 
@@ -105,6 +110,7 @@ type dbOptions struct {
 	filePathPrefix          string
 	newFileSetReaderFn      m3db.NewFileSetReaderFn
 	newFileSetWriterFn      m3db.NewFileSetWriterFn
+	newPersistenceManagerFn m3db.NewPersistenceManagerFn
 }
 
 // NewDatabaseOptions creates a new set of database options with defaults
@@ -112,18 +118,19 @@ type dbOptions struct {
 // less than blocksize and check when opening database
 func NewDatabaseOptions() m3db.DatabaseOptions {
 	opts := &dbOptions{
-		logger:             logging.SimpleLogger,
-		scope:              metrics.NoopScope,
-		blockSize:          defaultBlockSize,
-		nowFn:              time.Now,
-		retentionPeriod:    defaultRetentionPeriod,
-		bufferFuture:       defaultBufferFuture,
-		bufferPast:         defaultBufferPast,
-		bufferDrain:        defaultBufferDrain,
-		maxFlushRetries:    defaultMaxFlushRetries,
-		filePathPrefix:     defaultFilePathPrefix,
-		newFileSetReaderFn: defaultFileSetReaderFn,
-		newFileSetWriterFn: defaultFileSetWriterFn,
+		logger:                  logging.SimpleLogger,
+		scope:                   metrics.NoopScope,
+		blockSize:               defaultBlockSize,
+		nowFn:                   time.Now,
+		retentionPeriod:         defaultRetentionPeriod,
+		bufferFuture:            defaultBufferFuture,
+		bufferPast:              defaultBufferPast,
+		bufferDrain:             defaultBufferDrain,
+		maxFlushRetries:         defaultMaxFlushRetries,
+		filePathPrefix:          defaultFilePathPrefix,
+		newFileSetReaderFn:      defaultFileSetReaderFn,
+		newFileSetWriterFn:      defaultFileSetWriterFn,
+		newPersistenceManagerFn: defaultPersistenceManagerFn,
 	}
 	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultDatabaseBlockAllocSize)
 }
@@ -447,4 +454,14 @@ func (o *dbOptions) NewFileSetWriterFn(value m3db.NewFileSetWriterFn) m3db.Datab
 
 func (o *dbOptions) GetNewFileSetWriterFn() m3db.NewFileSetWriterFn {
 	return o.newFileSetWriterFn
+}
+
+func (o *dbOptions) NewPersistenceManagerFn(value m3db.NewPersistenceManagerFn) m3db.DatabaseOptions {
+	opts := *o
+	opts.newPersistenceManagerFn = value
+	return &opts
+}
+
+func (o *dbOptions) GetNewPersistenceManagerFn() m3db.NewPersistenceManagerFn {
+	return o.newPersistenceManagerFn
 }

@@ -53,6 +53,9 @@ func openFiles(opener fileOpener, fds map[string]**os.File) error {
 
 func closeFiles(fds ...*os.File) error {
 	for _, fd := range fds {
+		if fd == nil {
+			continue
+		}
 		if err := fd.Close(); err != nil {
 			return err
 		}

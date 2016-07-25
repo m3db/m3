@@ -30,6 +30,7 @@ import (
 	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
 
+	"code.uber.internal/infra/statsdex/x/errors"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -146,15 +147,15 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 	assert.Nil(t, results)
 }
 
-func TestSeriesFlushToDiskNoBlock(t *testing.T) {
+func TestSeriesFlushNoBlock(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	flushTime := time.Unix(7200, 0)
-	err := series.FlushToDisk(nil, nil, flushTime, nil)
+	err := series.Flush(nil, flushTime, nil)
 	require.Nil(t, err)
 }
 
-func TestSeriesFlushToDisk(t *testing.T) {
+func TestSeriesFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -163,24 +164,22 @@ func TestSeriesFlushToDisk(t *testing.T) {
 	flushTime := time.Unix(7200, 0)
 	head := []byte{0x1, 0x2}
 	tail := []byte{0x3, 0x4}
-	segmentHolder := [][]byte{head, tail}
 
-	var res m3db.Segment
 	encoder := mocks.NewMockEncoder(ctrl)
 	reader := mocks.NewMockSegmentReader(ctrl)
-	encoder.EXPECT().Stream().Return(reader)
-	reader.EXPECT().Segment().Return(m3db.Segment{Head: head, Tail: tail})
-	writer := mocks.NewMockFileSetWriter(ctrl)
-	writer.EXPECT().WriteAll("foo", segmentHolder).Do(func(_ string, holder [][]byte) {
-		res.Head = holder[0]
-		res.Tail = holder[1]
-	}).Return(nil)
+	encoder.EXPECT().Stream().Return(reader).Times(2)
+	reader.EXPECT().Segment().Return(m3db.Segment{Head: head, Tail: tail}).Times(2)
 
 	block := opts.GetDatabaseBlockPool().Get()
 	block.Reset(flushTime, encoder)
 	series.blocks.AddBlock(block)
-	err := series.FlushToDisk(nil, writer, flushTime, segmentHolder)
-	require.Nil(t, err)
+
+	inputs := []error{errors.New("some error"), nil}
+	for _, input := range inputs {
+		persistFn := func(id string, segment m3db.Segment) error { return input }
+		err := series.Flush(nil, flushTime, persistFn)
+		require.Equal(t, input, err)
+	}
 }
 
 func TestSeriesTickEmptySeries(t *testing.T) {

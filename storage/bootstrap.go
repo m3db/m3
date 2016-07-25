@@ -47,13 +47,13 @@ var (
 	// errShardIsBootstrapping raised when trying to bootstrap a shard that's being bootstrapped.
 	errShardIsBootstrapping = errors.New("shard is bootstrapping")
 
-	// errShardNotBootstrapped raised when trying to flush data to disk for a shard that's not yet bootstrapped.
+	// errShardNotBootstrapped raised when trying to flush data for a shard that's not yet bootstrapped.
 	errShardNotBootstrapped = errors.New("shard is not yet bootstrapped")
 
 	// errSeriesIsBootstrapping raised when trying to bootstrap a series that's being bootstrapped.
 	errSeriesIsBootstrapping = errors.New("series is bootstrapping")
 
-	// errSeriesNotBootstrapped raised when trying to flush data to disk for a series that's not yet bootstrapped.
+	// errSeriesNotBootstrapped raised when trying to flush data for a series that's not yet bootstrapped.
 	errSeriesNotBootstrapped = errors.New("series is not yet bootstrapped")
 )
 
@@ -129,8 +129,6 @@ func (bsm *bootstrapManager) Bootstrap() error {
 
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
-	// In particular, the filesystem bootstrapper bootstraps each shard sequentially
-	// due to disk seek overhead.
 	multiErr := xerrors.NewMultiError()
 	cutover := bsm.cutoverTime(writeStart)
 	shards := bsm.database.getOwnedShards()
@@ -141,7 +139,7 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	}
 
 	flushTime := bsm.flushTime(writeStart)
-	bsm.database.flushToDisk(flushTime, false)
+	bsm.database.flush(flushTime, false)
 
 	bsm.Lock()
 	bsm.state = bootstrapped

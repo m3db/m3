@@ -22,9 +22,6 @@ package storage
 
 import (
 	"errors"
-	"io/ioutil"
-	"os"
-	"path"
 	"testing"
 	"time"
 
@@ -35,21 +32,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
-
-func createShardDir(t *testing.T) (string, string) {
-	dir, err := ioutil.TempDir("", "foo")
-	require.NoError(t, err)
-	shardDir := path.Join(dir, "0")
-	err = os.Mkdir(shardDir, os.ModeDir|os.FileMode(0755))
-	require.NoError(t, err)
-	return dir, shardDir
-}
-
-func openFile(t *testing.T, filePath string) *os.File {
-	fd, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	require.NoError(t, err)
-	return fd
-}
 
 func testDatabaseShard(opts m3db.DatabaseOptions) *dbShard {
 	return newDatabaseShard(0, opts).(*dbShard)
@@ -88,61 +70,86 @@ func TestShardBootstrapWithError(t *testing.T) {
 	require.Equal(t, bootstrapped, s.bs)
 }
 
-func TestShardFlushToDiskDuringBootstrap(t *testing.T) {
+func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapping
-	err := s.FlushToDisk(nil, time.Now())
+	err := s.Flush(nil, time.Now(), nil)
 	require.Equal(t, err, errShardNotBootstrapped)
 }
 
-func TestShardFlushToDiskFileExists(t *testing.T) {
-	dir, shardDir := createShardDir(t)
-	defer os.RemoveAll(dir)
-
-	opts := testDatabaseOptions().FilePathPrefix(dir)
-	s := testDatabaseShard(opts)
-	s.bs = bootstrapped
-
-	blockStart := time.Unix(21600, 0)
-	checkpointFile := path.Join(shardDir, "21600000000000-checkpoint.db")
-	fd := openFile(t, checkpointFile)
-	fd.Close()
-
-	require.Nil(t, s.FlushToDisk(nil, blockStart))
-}
-
-func TestShardFlushToDiskSeriesFlushError(t *testing.T) {
+func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dir, _ := createShardDir(t)
-	defer os.RemoveAll(dir)
+	s := testDatabaseShard(testDatabaseOptions())
+	s.bs = bootstrapped
+	blockStart := time.Unix(21600, 0)
+	pm := mocks.NewMockPersistenceManager(ctrl)
+	prepared := m3db.PreparedPersistence{}
+	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, nil)
+	require.Nil(t, s.Flush(nil, blockStart, pm))
+}
 
-	opts := testDatabaseOptions().FilePathPrefix(dir)
-	s := testDatabaseShard(opts)
+func TestShardFlushNoPersistFuncWithError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	s := testDatabaseShard(testDatabaseOptions())
+	s.bs = bootstrapped
+	blockStart := time.Unix(21600, 0)
+	pm := mocks.NewMockPersistenceManager(ctrl)
+	prepared := m3db.PreparedPersistence{}
+	expectedErr := errors.New("some error")
+	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, expectedErr)
+	actualErr := s.Flush(nil, blockStart, pm)
+	require.NotNil(t, actualErr)
+	require.Equal(t, "some error", actualErr.Error())
+}
+
+func TestShardFlushSeriesFlushError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapped
 
+	var closed bool
 	blockStart := time.Unix(21600, 0)
+	pm := mocks.NewMockPersistenceManager(ctrl)
+	prepared := m3db.PreparedPersistence{
+		Persist: func(string, m3db.Segment) error { return nil },
+		Close:   func() { closed = true },
+	}
+	expectedErr := errors.New("error foo")
+	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, expectedErr)
+
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
 		i := i
 		var expectedErr error
 		if i == 1 {
-			expectedErr = errors.New("some error")
+			expectedErr = errors.New("error bar")
 		}
 		series := mocks.NewMockdatabaseSeries(ctrl)
-		series.EXPECT().FlushToDisk(nil, s.flushWriter, blockStart, gomock.Any()).Do(func(_ m3db.Context, _ interface{}, _ time.Time, _ [][]byte) {
-			flushed[i] = struct{}{}
-		}).Return(expectedErr)
+		series.EXPECT().
+			Flush(nil, blockStart, gomock.Any()).
+			Do(func(m3db.Context, time.Time, m3db.PersistenceFunc) {
+				flushed[i] = struct{}{}
+			}).
+			Return(expectedErr)
 		s.list.PushBack(series)
 	}
-	s.FlushToDisk(nil, blockStart)
+	err := s.Flush(nil, blockStart, pm)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
 		_, ok := flushed[i]
 		require.True(t, ok)
 	}
+
+	require.True(t, closed)
+	require.NotNil(t, err)
+	require.Equal(t, "error foo\nerror bar", err.Error())
 }
 
 func addTestSeries(t *testing.T, shard *dbShard, id string) databaseSeries {

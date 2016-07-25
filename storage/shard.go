@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/persist/fs"
 	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
 )
@@ -41,7 +40,7 @@ const (
 type databaseShard interface {
 	ShardNum() uint32
 
-	// Tick performs any updates to ensure series drain their buffers and blocks are written to disk, etc
+	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
 	Tick()
 
 	Write(
@@ -61,8 +60,8 @@ type databaseShard interface {
 
 	Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover time.Time) error
 
-	// FlushToDisk flushes the data blocks in the shard to disk
-	FlushToDisk(ctx m3db.Context, blockStart time.Time) error
+	// Flush flushes the series in this shard.
+	Flush(ctx m3db.Context, blockStart time.Time, pm m3db.PersistenceManager) error
 }
 
 type dbShard struct {
@@ -73,7 +72,6 @@ type dbShard struct {
 	list                  *list.List
 	bs                    bootstrapState
 	newSeriesBootstrapped bool
-	flushWriter           m3db.FileSetWriter
 }
 
 type dbShardEntry struct {
@@ -98,11 +96,10 @@ type writeCompletionFn func()
 
 func newDatabaseShard(shard uint32, opts m3db.DatabaseOptions) databaseShard {
 	return &dbShard{
-		opts:        opts,
-		shard:       shard,
-		lookup:      make(map[string]*dbShardEntry),
-		list:        list.New(),
-		flushWriter: opts.GetNewFileSetWriterFn()(opts.GetBlockSize(), opts.GetFilePathPrefix()),
+		opts:   opts,
+		shard:  shard,
+		lookup: make(map[string]*dbShardEntry),
+		list:   list.New(),
 	}
 }
 
@@ -321,7 +318,7 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) FlushToDisk(ctx m3db.Context, blockStart time.Time) error {
+func (s *dbShard) Flush(ctx m3db.Context, blockStart time.Time, pm m3db.PersistenceManager) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bs != bootstrapped {
@@ -330,19 +327,22 @@ func (s *dbShard) FlushToDisk(ctx m3db.Context, blockStart time.Time) error {
 	}
 	s.RUnlock()
 
-	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
-	// This allows us to retry failed flushing attempts because they wouldn't
-	// have created the checkpoint file.
-	if fs.FileExistsAt(s.opts.GetFilePathPrefix(), s.shard, blockStart) {
-		return nil
-	}
-	if err := s.flushWriter.Open(s.shard, blockStart); err != nil {
-		return err
-	}
-	defer s.flushWriter.Close()
+	var multiErr xerrors.MultiError
+	prepared, err := pm.Prepare(s.ShardNum(), blockStart)
+	multiErr = multiErr.Add(err)
 
-	var segmentHolder [2][]byte
-	return s.forEachSeries(false, func(series databaseSeries) error {
-		return series.FlushToDisk(ctx, s.flushWriter, blockStart, segmentHolder[:])
+	if prepared.Persist == nil {
+		// No action is necessary therefore we bail out early and there is no need to close.
+		return multiErr.FinalError()
+	}
+	defer prepared.Close()
+
+	// If we encounter an error when persisting a series, we continue regardless.
+	s.forEachSeries(true, func(series databaseSeries) error {
+		err := series.Flush(ctx, blockStart, prepared.Persist)
+		multiErr = multiErr.Add(err)
+		return err
 	})
+
+	return multiErr.FinalError()
 }
