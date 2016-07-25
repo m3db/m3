@@ -114,12 +114,12 @@ func (_mr *_MockdatabaseSeriesRecorder) Bootstrap(arg0, arg1 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1)
 }
 
-func (_m *MockdatabaseSeries) FlushToDisk(ctx m3db.Context, writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error {
-	ret := _m.ctrl.Call(_m, "FlushToDisk", ctx, writer, blockStart, segmentHolder)
+func (_m *MockdatabaseSeries) Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFunc) error {
+	ret := _m.ctrl.Call(_m, "Flush", ctx, blockStart, persistFn)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseSeriesRecorder) FlushToDisk(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushToDisk", arg0, arg1, arg2, arg3)
+func (_mr *_MockdatabaseSeriesRecorder) Flush(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1, arg2)
 }

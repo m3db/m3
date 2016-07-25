@@ -18,54 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package errors
 
 import (
+	"errors"
 	"testing"
-	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/sharding"
-	"github.com/spaolacci/murmur3"
 	"github.com/stretchr/testify/require"
 )
 
-func testShardingScheme(t *testing.T) m3db.ShardScheme {
-	shardScheme, err := sharding.NewShardScheme(0, 1, func(id string) uint32 {
-		return murmur3.Sum32([]byte(id)) % 1024
-	})
-	require.NoError(t, err)
-	return shardScheme
+func TestMultiErrorNoError(t *testing.T) {
+	err := NewMultiError()
+	require.Nil(t, err.FinalError())
+	require.Equal(t, "", err.Error())
 }
 
-func testDatabaseOptions() m3db.DatabaseOptions {
-	var opts m3db.DatabaseOptions
-	opts = NewDatabaseOptions().
-		NowFn(time.Now).
-		BufferFuture(10 * time.Minute).
-		BufferPast(10 * time.Minute).
-		BufferDrain(10 * time.Minute).
-		BlockSize(2 * time.Hour).
-		RetentionPeriod(2 * 24 * time.Hour).
-		MaxFlushRetries(3)
-	return opts
+func TestMultiErrorOneError(t *testing.T) {
+	err := NewMultiError()
+	err = err.Add(errors.New("foo"))
+	final := err.FinalError()
+	require.NotNil(t, final)
+	require.Equal(t, "foo", final.Error())
 }
 
-func testDatabase(t *testing.T) *db {
-	ss := testShardingScheme(t)
-	opts := testDatabaseOptions()
-	return NewDatabase(ss.All(), opts).(*db)
-}
-
-func TestDatabaseOpen(t *testing.T) {
-	d := testDatabase(t)
-	require.NoError(t, d.Open())
-	require.Equal(t, errDatabaseAlreadyOpen, d.Open())
-}
-
-func TestDatabaseClose(t *testing.T) {
-	d := testDatabase(t)
-	require.NoError(t, d.Open())
-	require.NoError(t, d.Close())
-	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
+func TestMultiErrorMultipleErrors(t *testing.T) {
+	err := NewMultiError()
+	for _, errMsg := range []string{"foo", "bar", "baz"} {
+		err = err.Add(errors.New(errMsg))
+	}
+	err = err.Add(nil)
+	final := err.FinalError()
+	require.NotNil(t, final)
+	require.Equal(t, final.Error(), "foo\nbar\nbaz")
 }
