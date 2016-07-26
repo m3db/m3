@@ -22,6 +22,7 @@ package storage
 
 import (
 	"container/list"
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
+	xerrors "github.com/m3db/m3db/x/errors"
 	xtime "github.com/m3db/m3db/x/time"
 )
 
@@ -118,34 +120,35 @@ func (s *dbShard) forEachSeries(continueOnError bool, seriesFn databaseSeriesFn)
 	nextElem := s.list.Front()
 	s.RUnlock()
 
+	// TODO(xichen): pool or cache this.
+	curSeries := make([]databaseSeries, 0, batchSize)
 	for nextElem != nil {
-		var err error
 		s.RLock()
-		if nextElem, err = s.forBatchWithLock(continueOnError, nextElem, batchSize, seriesFn); err != nil && !continueOnError {
-			s.RUnlock()
-			return err
-		}
+		nextElem = s.forBatchWithLock(nextElem, &curSeries, batchSize)
 		s.RUnlock()
+		for _, series := range curSeries {
+			if err := seriesFn(series); err != nil && !continueOnError {
+				return err
+			}
+		}
 	}
 	return nil
 }
 
 func (s *dbShard) forBatchWithLock(
-	continueOnError bool,
 	elem *list.Element,
+	curSeries *[]databaseSeries,
 	batchSize int,
-	seriesFn databaseSeriesFn,
-) (*list.Element, error) {
+) *list.Element {
 	var nextElem *list.Element
+	*curSeries = (*curSeries)[:0]
 	for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
 		nextElem = elem.Next()
 		series := elem.Value.(databaseSeries)
-		if err := seriesFn(series); err != nil && !continueOnError {
-			return nil, err
-		}
+		*curSeries = append(*curSeries, series)
 		elem = nextElem
 	}
-	return nextElem, nil
+	return nextElem
 }
 
 // tickForEachSeries ticks through each series in the shard and
@@ -271,18 +274,22 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 	s.bs = bootstrapping
 	s.Unlock()
 
+	multiErr := xerrors.NewMultiError()
 	sr, err := bs.Run(writeStart, s.shard)
 	if err != nil {
-		return err
+		renamedErr := fmt.Errorf("error occurred bootstrapping shard %d from external sources: %v", s.shard, err)
+		err = xerrors.NewRenamedError(err, renamedErr)
+		multiErr = multiErr.Add(err)
 	}
 
-	bootstrappedSeries := sr.GetAllSeries()
-	for id, dbBlocks := range bootstrappedSeries {
-		series, completionFn := s.writableSeries(id)
-		err := series.Bootstrap(dbBlocks, cutover)
-		completionFn()
-		if err != nil {
-			return err
+	var bootstrappedSeries map[string]m3db.DatabaseSeriesBlocks
+	if sr != nil {
+		bootstrappedSeries = sr.GetAllSeries()
+		for id, dbBlocks := range bootstrappedSeries {
+			series, completionFn := s.writableSeries(id)
+			err := series.Bootstrap(dbBlocks, cutover)
+			completionFn()
+			multiErr = multiErr.Add(err)
 		}
 	}
 
@@ -296,27 +303,22 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 	// Find the series with no data within the retention period but has
 	// buffered data points since server start. Any new series added
 	// after this will be marked as bootstrapped.
-	var bufferedSeries []databaseSeries
-	s.RLock()
-	for id, entry := range s.lookup {
-		if _, exists := bootstrappedSeries[id]; !exists {
-			bufferedSeries = append(bufferedSeries, entry.series)
+	s.forEachSeries(true, func(series databaseSeries) error {
+		if bootstrappedSeries != nil {
+			if _, exists := bootstrappedSeries[series.ID()]; exists {
+				return nil
+			}
 		}
-	}
-	s.RUnlock()
-
-	// Finally bootstrapping series with no recent data.
-	for _, series := range bufferedSeries {
-		if err := series.Bootstrap(nil, cutover); err != nil {
-			return err
-		}
-	}
+		err := series.Bootstrap(nil, cutover)
+		multiErr = multiErr.Add(err)
+		return err
+	})
 
 	s.Lock()
 	s.bs = bootstrapped
 	s.Unlock()
 
-	return nil
+	return multiErr.FinalError()
 }
 
 func (s *dbShard) FlushToDisk(ctx m3db.Context, blockStart time.Time) error {

@@ -266,6 +266,27 @@ func TestSeriesTickNeedsBlockSeal(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSeriesBootstrapWithError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	series := newDatabaseSeries("foo", bootstrapNotStarted, opts).(*dbSeries)
+	buffer := mocks.NewMockdatabaseBuffer(ctrl)
+	buffer.EXPECT().DrainAndReset(true)
+	series.buffer = buffer
+
+	faultyEncoder := opts.GetEncoderPool().Get()
+	faultyEncoder.ResetSetData(time.Now(), []byte{0x1, 0x2, 0x3}, true)
+	series.pendingBootstrap = []pendingBootstrapDrain{pendingBootstrapDrain{encoder: faultyEncoder}}
+	err := series.Bootstrap(nil, time.Now())
+
+	require.NotNil(t, err)
+	require.Equal(t, "error occurred bootstrapping series foo: EOF", err.Error())
+	require.Equal(t, bootstrapped, series.bs)
+	require.Equal(t, 0, series.blocks.Len())
+}
+
 func TestShouldExpire(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
