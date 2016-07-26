@@ -25,9 +25,6 @@ test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
 	@$(VENDOR_ENV) $(test) $(test_target) $(coverfile) | tee $(test_log)
 
-test-integration:
-	@$(VENDOR_ENV) go test -v -tags=integration ./integration
-
 test-xml: test-internal
 	go-junit-report < $(test_log) > $(junit_xml)
 	gocov convert $(coverfile) | gocov-xml > $(coverage_xml)
