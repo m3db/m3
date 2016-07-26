@@ -1,8 +1,8 @@
 ## WARNING: This is Alpha software and not intended for use until a stable release.
 
-# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
+# M3X [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
 
-A time series database.
+Common utility code shared by all M3DB components
 
 <hr>
 This project is released under the [MIT License](LICENSE.md).
