@@ -53,14 +53,22 @@ func openFiles(opener fileOpener, fds map[string]**os.File) error {
 
 func closeFiles(fds ...*os.File) error {
 	for _, fd := range fds {
-		if fd == nil {
-			continue
-		}
 		if err := fd.Close(); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func validFiles(fds ...*os.File) []*os.File {
+	var vf []*os.File
+	for _, fd := range fds {
+		if fd == nil {
+			continue
+		}
+		vf = append(vf, fd)
+	}
+	return vf
 }
 
 // byTimeAscending sorts files by their block start times in ascending order.

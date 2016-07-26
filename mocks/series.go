@@ -114,7 +114,7 @@ func (_mr *_MockdatabaseSeriesRecorder) Bootstrap(arg0, arg1 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1)
 }
 
-func (_m *MockdatabaseSeries) Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFunc) error {
+func (_m *MockdatabaseSeries) Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFn) error {
 	ret := _m.ctrl.Call(_m, "Flush", ctx, blockStart, persistFn)
 	ret0, _ := ret[0].(error)
 	return ret0

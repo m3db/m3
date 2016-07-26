@@ -30,28 +30,30 @@ import (
 
 // persistenceManager delegates to the list of persistence managers contained inside for data persistence.
 type persistenceManager struct {
-	async    bool                      // whether the persistence managers should persist in parallel
 	managers []m3db.PersistenceManager // persistence managers
 
-	pfns    []m3db.PersistenceFunc   // cached persistence functions
+	fns     []m3db.PersistenceFn     // cached persistence functions
 	closers []m3db.PersistenceCloser // cached persistence closers
 }
 
 // NewPersistenceManager creates a new composite persistence manager.
-func NewPersistenceManager(async bool, managers ...m3db.PersistenceManager) m3db.PersistenceManager {
+func NewPersistenceManager(managers ...m3db.PersistenceManager) m3db.PersistenceManager {
 	return &persistenceManager{
-		async:    async,
 		managers: managers,
-		pfns:     make([]m3db.PersistenceFunc, 0, len(managers)),
+		fns:      make([]m3db.PersistenceFn, 0, len(managers)),
 		closers:  make([]m3db.PersistenceCloser, 0, len(managers)),
 	}
 }
 
+func (pm *persistenceManager) hasMultiple() bool {
+	return len(pm.managers) > 1
+}
+
 func (pm *persistenceManager) persist(id string, segment m3db.Segment) error {
-	if !pm.async {
+	if !pm.hasMultiple() {
 		var multiErr xerrors.MultiError
-		for i := range pm.pfns {
-			err := pm.pfns[i](id, segment)
+		for i := range pm.fns {
+			err := pm.fns[i](id, segment)
 			multiErr = multiErr.Add(err)
 		}
 		return multiErr.FinalError()
@@ -59,12 +61,12 @@ func (pm *persistenceManager) persist(id string, segment m3db.Segment) error {
 
 	var (
 		wg    sync.WaitGroup
-		errCh = make(chan error, len(pm.pfns))
+		errCh = make(chan error, len(pm.fns))
 	)
 
 	// TODO(xichen): use a worker pool.
-	for i := range pm.pfns {
-		pfn := pm.pfns[i]
+	for i := range pm.fns {
+		pfn := pm.fns[i]
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -84,7 +86,7 @@ func (pm *persistenceManager) persist(id string, segment m3db.Segment) error {
 }
 
 func (pm *persistenceManager) close() {
-	if !pm.async {
+	if !pm.hasMultiple() {
 		for i := range pm.closers {
 			pm.closers[i]()
 		}
@@ -111,7 +113,7 @@ func (pm *persistenceManager) createPreparedWithError(multiErr xerrors.MultiErro
 	// NB(xichen): if no managers need to persist this (shard, blockStart) combination,
 	// we return an empty object to shortcut the persistence process without attempting
 	// pm.persist on each series, which is a no-op at this point.
-	if len(pm.pfns) == 0 {
+	if len(pm.fns) == 0 {
 		return prepared, multiErr.FinalError()
 	}
 
@@ -121,16 +123,18 @@ func (pm *persistenceManager) createPreparedWithError(multiErr xerrors.MultiErro
 }
 
 func (pm *persistenceManager) Prepare(shard uint32, blockStart time.Time) (m3db.PreparedPersistence, error) {
-	pm.pfns = pm.pfns[:0]
+	pm.fns = pm.fns[:0]
 	pm.closers = pm.closers[:0]
 
+	// If we don't have multiple managers, we persist sequentially to avoid the cost of
+	// creating goroutines.
 	var multiErr xerrors.MultiError
-	if !pm.async {
+	if !pm.hasMultiple() {
 		for i := range pm.managers {
 			pp, err := pm.managers[i].Prepare(shard, blockStart)
 			multiErr = multiErr.Add(err)
 			if pp.Persist != nil {
-				pm.pfns = append(pm.pfns, pp.Persist)
+				pm.fns = append(pm.fns, pp.Persist)
 			}
 			if pp.Close != nil {
 				pm.closers = append(pm.closers, pp.Close)
@@ -167,7 +171,7 @@ func (pm *persistenceManager) Prepare(shard uint32, blockStart time.Time) (m3db.
 		err := <-errCh
 		multiErr = multiErr.Add(err)
 		if pp.Persist != nil {
-			pm.pfns = append(pm.pfns, pp.Persist)
+			pm.fns = append(pm.fns, pp.Persist)
 		}
 		if pp.Close != nil {
 			pm.closers = append(pm.closers, pp.Close)

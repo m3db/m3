@@ -148,7 +148,7 @@ func (w *writer) Open(shard uint32, blockStart time.Time) error {
 			filepathFromTime(shardDir, blockStart, dataFileSuffix):  &w.dataFd,
 		},
 	); err != nil {
-		closeFiles(w.infoFd, w.indexFd, w.dataFd)
+		closeFiles(validFiles(w.infoFd, w.indexFd, w.dataFd)...)
 		return err
 	}
 	return nil

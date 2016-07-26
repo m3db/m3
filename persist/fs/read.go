@@ -99,6 +99,7 @@ func (r *reader) Open(shard uint32, blockStart time.Time) error {
 		filepathFromTime(shardDir, blockStart, indexFileSuffix): &r.indexFd,
 		filepathFromTime(shardDir, blockStart, dataFileSuffix):  &r.dataFd,
 	}); err != nil {
+		closeFiles(validFiles(r.infoFd, r.indexFd, r.dataFd)...)
 		return err
 	}
 	if err := r.readInfo(); err != nil {
