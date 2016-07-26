@@ -133,7 +133,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		series := mocks.NewMockdatabaseSeries(ctrl)
 		series.EXPECT().
 			Flush(nil, blockStart, gomock.Any()).
-			Do(func(m3db.Context, time.Time, m3db.PersistenceFunc) {
+			Do(func(m3db.Context, time.Time, m3db.PersistenceFn) {
 				flushed[i] = struct{}{}
 			}).
 			Return(expectedErr)

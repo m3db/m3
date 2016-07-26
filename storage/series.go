@@ -62,7 +62,7 @@ type databaseSeries interface {
 	Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error
 
 	// Flush flushes the data blocks of this series for a given start time.
-	Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFunc) error
+	Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFn) error
 }
 
 type dbSeries struct {
@@ -356,7 +356,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 	return multiErr.FinalError()
 }
 
-func (s *dbSeries) Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFunc) error {
+func (s *dbSeries) Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFn) error {
 	s.RLock()
 	if s.bs != bootstrapped {
 		s.RUnlock()

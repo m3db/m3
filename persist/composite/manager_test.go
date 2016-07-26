@@ -37,7 +37,7 @@ func testPersistenceManager(
 ) (*persistenceManager, *mocks.MockPersistenceManager, *mocks.MockPersistenceManager) {
 	m1 := mocks.NewMockPersistenceManager(ctrl)
 	m2 := mocks.NewMockPersistenceManager(ctrl)
-	pm := NewPersistenceManager(true, m1, m2)
+	pm := NewPersistenceManager(m1, m2)
 	return pm.(*persistenceManager), m1, m2
 }
 

@@ -22,8 +22,8 @@ package m3db
 
 import "time"
 
-// PersistenceFunc is a function that persists a m3db segment for a given id.
-type PersistenceFunc func(id string, segment Segment) error
+// PersistenceFn is a function that persists a m3db segment for a given id.
+type PersistenceFn func(id string, segment Segment) error
 
 // PersistenceCloser is a function that performs cleanup after persisting the data
 // blocks for a (shard, blockStart) combination.
@@ -32,7 +32,7 @@ type PersistenceCloser func()
 // PreparedPersistence is an object that wraps inside a persistence function and
 // a closer.
 type PreparedPersistence struct {
-	Persist PersistenceFunc
+	Persist PersistenceFn
 	Close   PersistenceCloser
 }
 
