@@ -1,0 +1,12 @@
+language: go
+go:
+  - 1.5
+  - 1.6
+install: make install-ci
+env:
+ # Set higher timeouts for Travis
+ - TEST_TIMEOUT_SCALE=20
+script:
+ - make lint
+ - make test-ci-unit
+ - make test-integration
