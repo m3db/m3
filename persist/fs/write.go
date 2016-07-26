@@ -170,17 +170,19 @@ func (w *writer) Write(key string, data []byte) error {
 	return w.WriteAll(key, [][]byte{data})
 }
 
-func (w *writer) WriteAll(key string, data [][]byte) (retErr error) {
+func (w *writer) WriteAll(key string, data [][]byte) error {
 	if w.err != nil {
 		return w.err
 	}
 
-	defer func() {
-		if retErr != nil {
-			w.err = retErr
-		}
-	}()
+	if err := w.writeAll(key, data); err != nil {
+		w.err = err
+		return err
+	}
+	return nil
+}
 
+func (w *writer) writeAll(key string, data [][]byte) error {
 	var size int64
 	for _, d := range data {
 		size += int64(len(d))
@@ -232,13 +234,7 @@ func (w *writer) WriteAll(key string, data [][]byte) (retErr error) {
 	return nil
 }
 
-func (w *writer) close() (retErr error) {
-	defer func() {
-		if retErr != nil {
-			w.err = retErr
-		}
-	}()
-
+func (w *writer) close() error {
 	if err := w.infoFd.Truncate(0); err != nil {
 		return err
 	}
@@ -265,9 +261,13 @@ func (w *writer) close() (retErr error) {
 }
 
 func (w *writer) Close() error {
-	w.close()
+	err := w.close()
 	if w.err != nil {
 		return w.err
+	}
+	if err != nil {
+		w.err = err
+		return err
 	}
 	// NB(xichen): only write out the checkpoint file if there are no errors
 	// encountered between calling writer.Open() and writer.Close().
