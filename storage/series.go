@@ -349,6 +349,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 	}
 
 	s.blocks = rs
+	s.pendingBootstrap = nil
 	s.bs = bootstrapped
 	s.Unlock()
 
