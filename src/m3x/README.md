@@ -2,7 +2,7 @@
 
 # M3X [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
 
-Common utility code shared by all M3DB components
+Common utility code shared by all M3DB components.
 
 <hr>
 This project is released under the [MIT License](LICENSE.md).
