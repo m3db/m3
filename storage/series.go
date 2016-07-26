@@ -22,11 +22,10 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
-
-	"fmt"
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	xerrors "github.com/m3db/m3db/x/errors"
@@ -336,16 +335,16 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 	// NB(xichen): if an error occurred during series bootstrap, we close
 	// the database series blocks and mark the series bootstrapped regardless
 	// in the hope that the other replicas will provide data for this series.
-	var err error
+	multiErr := xerrors.NewMultiError()
 	for i := range s.pendingBootstrap {
 		stream := s.pendingBootstrap[i].encoder.Stream()
-		err = s.drainStream(rs, stream, cutover)
+		err := s.drainStream(rs, stream, cutover)
 		stream.Close()
 		if err != nil {
 			rs.Close()
 			rs = NewDatabaseSeriesBlocks(s.opts)
 			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.seriesID, err))
-			break
+			multiErr = multiErr.Add(err)
 		}
 	}
 
@@ -353,7 +352,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 	s.bs = bootstrapped
 	s.Unlock()
 
-	return err
+	return multiErr.FinalError()
 }
 
 // NB(xichen): segmentHolder is a two-item slice that's reused to

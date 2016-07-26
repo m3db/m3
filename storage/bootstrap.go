@@ -137,7 +137,7 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	bs := bsm.bootstrapFn()
 	for _, shard := range shards {
 		err := shard.Bootstrap(bs, writeStart, cutover)
-		multiErr.Add(err)
+		multiErr = multiErr.Add(err)
 	}
 
 	flushTime := bsm.flushTime(writeStart)

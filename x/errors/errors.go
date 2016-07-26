@@ -20,9 +20,7 @@
 
 package errors
 
-import (
-	"bytes"
-)
+import "bytes"
 
 // FirstError will return the first non nil error
 func FirstError(errs ...error) error {
@@ -111,42 +109,52 @@ func GetInnerInvalidParamsError(err error) error {
 	return nil
 }
 
-// MultiError is an error that packages a list of errors.
+// MultiError is an immutable error that packages a list of errors.
+// TODO(xichen): we may want to limit the number of errors included.
 type MultiError struct {
+	err    error // optimization for single error case
 	errors []error
 }
 
-// NewMultiError creates a new multiError object.
-func NewMultiError() *MultiError {
-	return &MultiError{}
+// NewMultiError creates a new MultiError object.
+func NewMultiError() MultiError {
+	return MultiError{}
 }
 
-func (e *MultiError) Error() string {
-	numErrors := len(e.errors)
-	if numErrors == 0 {
+func (e MultiError) Error() string {
+	if e.err == nil {
 		return ""
+	}
+	if len(e.errors) == 0 {
+		return e.err.Error()
 	}
 	var b bytes.Buffer
 	for i := range e.errors {
 		b.WriteString(e.errors[i].Error())
-		if i < numErrors-1 {
-			b.WriteString("\n")
-		}
+		b.WriteString("\n")
 	}
+	b.WriteString(e.err.Error())
 	return b.String()
 }
 
-// Add adds an error to the list of errors.
-func (e *MultiError) Add(err error) {
+// Add adds an error returns a new MultiError object.
+func (e MultiError) Add(err error) MultiError {
 	if err == nil {
-		return
+		return e
 	}
-	e.errors = append(e.errors, err)
+	me := e
+	if me.err == nil {
+		me.err = err
+		return me
+	}
+	me.errors = append(me.errors, me.err)
+	me.err = err
+	return me
 }
 
-// FinalError returns the list of errors if any.
-func (e *MultiError) FinalError() error {
-	if len(e.errors) == 0 {
+// FinalError returns the final error if any.
+func (e MultiError) FinalError() error {
+	if e.err == nil {
 		return nil
 	}
 	return e

@@ -280,7 +280,7 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 		renamedErr := fmt.Errorf("error occurred bootstrapping shard %d from external sources: %v", s.shard, err)
 		err = xerrors.NewRenamedError(err, renamedErr)
 	}
-	multiErr.Add(err)
+	multiErr = multiErr.Add(err)
 
 	var bootstrappedSeries map[string]m3db.DatabaseSeriesBlocks
 	if sr != nil {
@@ -289,7 +289,7 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 			series, completionFn := s.writableSeries(id)
 			err := series.Bootstrap(dbBlocks, cutover)
 			completionFn()
-			multiErr.Add(err)
+			multiErr = multiErr.Add(err)
 		}
 	}
 
@@ -308,7 +308,7 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 		// we need to bootstrap all the series seen so far.
 		s.forEachSeries(true, func(series databaseSeries) error {
 			err := series.Bootstrap(nil, cutover)
-			multiErr.Add(err)
+			multiErr = multiErr.Add(err)
 			return err
 		})
 	} else {
@@ -326,7 +326,7 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 		// Finally bootstrapping series with no recent data.
 		for _, series := range bufferedSeries {
 			err := series.Bootstrap(nil, cutover)
-			multiErr.Add(err)
+			multiErr = multiErr.Add(err)
 		}
 	}
 
