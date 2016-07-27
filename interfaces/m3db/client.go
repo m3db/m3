@@ -23,7 +23,7 @@ package m3db
 import (
 	"time"
 
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 )
 
 // Client can create sessions to write and read to a cluster

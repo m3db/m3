@@ -27,7 +27,7 @@ import (
 	time "time"
 
 	gomock "github.com/golang/mock/gomock"
-	time0 "github.com/m3db/m3db/x/time"
+	time0 "github.com/m3db/m3x/time"
 )
 
 // Mock of FileSetWriter interface

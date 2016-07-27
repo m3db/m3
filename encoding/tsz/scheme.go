@@ -21,7 +21,7 @@
 package tsz
 
 import (
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 )
 
 const (

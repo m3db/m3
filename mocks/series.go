@@ -27,7 +27,7 @@ import (
 	time "time"
 
 	m3db "github.com/m3db/m3db/interfaces/m3db"
-	time0 "github.com/m3db/m3db/x/time"
+	time0 "github.com/m3db/m3x/time"
 
 	gomock "github.com/golang/mock/gomock"
 )

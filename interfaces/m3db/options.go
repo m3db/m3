@@ -23,8 +23,8 @@ package m3db
 import (
 	"time"
 
-	"github.com/m3db/m3db/x/logging"
-	"github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/metrics"
 
 	tchannel "github.com/uber/tchannel-go"
 )
@@ -41,16 +41,16 @@ type DatabaseOptions interface {
 	EncodingTsz() DatabaseOptions
 
 	// Logger sets the logger and returns a new DatabaseOptions
-	Logger(value logging.Logger) DatabaseOptions
+	Logger(value xlog.Logger) DatabaseOptions
 
 	// GetLogger returns the logger
-	GetLogger() logging.Logger
+	GetLogger() xlog.Logger
 
 	// MetricsScope sets the metricsScope and returns a new DatabaseOptions
-	MetricsScope(value metrics.Scope) DatabaseOptions
+	MetricsScope(value xmetrics.Scope) DatabaseOptions
 
 	// GetMetricsScope returns the metricsScope
-	GetMetricsScope() metrics.Scope
+	GetMetricsScope() xmetrics.Scope
 
 	// BlockSize sets the blockSize and returns a new DatabaseOptions
 	BlockSize(value time.Duration) DatabaseOptions
@@ -201,16 +201,16 @@ type ClientOptions interface {
 	EncodingTsz() ClientOptions
 
 	// Logger sets the logger and returns a new ClientOptions
-	Logger(value logging.Logger) ClientOptions
+	Logger(value xlog.Logger) ClientOptions
 
 	// GetLogger returns the logger
-	GetLogger() logging.Logger
+	GetLogger() xlog.Logger
 
 	// MetricsScope sets the metricsScope and returns a new ClientOptions
-	MetricsScope(value metrics.Scope) ClientOptions
+	MetricsScope(value xmetrics.Scope) ClientOptions
 
 	// GetMetricsScope returns the metricsScope
-	GetMetricsScope() metrics.Scope
+	GetMetricsScope() xmetrics.Scope
 
 	// TopologyType sets the topologyType and returns a new ClientOptions
 	TopologyType(value TopologyType) ClientOptions

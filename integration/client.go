@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"

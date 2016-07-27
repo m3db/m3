@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3db/pool"
-	xerrors "github.com/m3db/m3db/x/errors"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/time"
 )
 
 const (

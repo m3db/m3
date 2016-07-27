@@ -24,7 +24,7 @@ import (
 	"io"
 	"time"
 
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 )
 
 // FileSetWriter provides an unsynchronized writer for a TSDB file set.

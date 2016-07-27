@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/mocks"
-	xerrors "github.com/m3db/m3db/x/errors"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

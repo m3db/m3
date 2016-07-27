@@ -26,7 +26,7 @@ import (
 	"io"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 )
 
 var (

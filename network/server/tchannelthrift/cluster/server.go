@@ -24,7 +24,7 @@ import (
 	"github.com/m3db/m3db/interfaces/m3db"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
-	xclose "github.com/m3db/m3db/x/close"
+	"github.com/m3db/m3x/close"
 
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"

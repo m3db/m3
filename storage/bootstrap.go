@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	xerrors "github.com/m3db/m3db/x/errors"
+	"github.com/m3db/m3x/errors"
 )
 
 type bootstrapState int

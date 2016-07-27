@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3db/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3db/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/interfaces/m3db"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
