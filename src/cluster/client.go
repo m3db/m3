@@ -22,7 +22,7 @@ package cluster
 
 // KVStore provides access to the configuration store
 type KVStore interface {
-	// Get retrieves the value for the given key, marshalling it into the provided value
+	// Get retrieves the value for the given key, unmarshalling it into the provided value
 	Get(key string, v interface{}) error
 
 	// Put stores the value for the given key
@@ -30,26 +30,45 @@ type KVStore interface {
 }
 
 // A ServiceInstance is a single instance of a service
-type ServiceInstance struct {
-	Service  string // the service implemented by the instance
-	ID       string // ID of the instance
-	Zone     string // Zone in which the instance resides
-	Endpoint string // Endpoint address for contacting the instance
+type ServiceInstance interface {
+	Service() string                      // the service implemented by the instance
+	SetService(s string) ServiceInstance  // sets the service implemented by the instance
+	ID() string                           // ID of the instance
+	SetID(id string) ServiceInstance      // sets the ID of the instance
+	Zone() string                         // Zone in which the instance resides
+	SetZone(z string) ServiceInstance     // sets the zone in which the instance resides
+	Endpoint() string                     // Endpoint address for contacting the instance
+	SetEndpoint(e string) ServiceInstance // sets the endpoint address for the instance
 }
+
+// NewServiceInstance creates a new ServiceInstance
+func NewServiceInstance() ServiceInstance { return new(serviceInstance) }
 
 // Advertisement advertises the availability of a given instance of a service
-type Advertisement struct {
-	ID       string       // the ID of the instance being advertised
-	Service  string       // the service being advertised
-	Health   func() error // optional health function.  return an error to indicate unhealthy
-	Endpoint string       // endpoint exposed by the service
+type Advertisement interface {
+	ID() string                                  // the ID of the instance being advertised
+	SetID(id string) Advertisement               // sets the ID being advertised
+	Service() string                             // the service being advertised
+	SetService(service string) Advertisement     // sets the service being advertised
+	Health() func() error                        // optional health function.  return an error to indicate unhealthy
+	SetHealth(health func() error) Advertisement // sets the health function for the advertised instance
+	Endpoint() string                            // endpoint exposed by the service
+	SetEndpoint(e string) Advertisement          // sets the endpoint exposed by the service
 }
 
+// NewAdvertisement creates a new Advertisement
+func NewAdvertisement() Advertisement { return new(advertisement) }
+
 // QueryOptions are options to service discovery queries
-type QueryOptions struct {
-	Zones            []string // list of zones to consult. if empty only the local zone will be queried
-	IncludeUnhealthy bool     // if true, will return unhealthy instances
+type QueryOptions interface {
+	Zones() []string                         // list of zones to consult. if empty only the local zone will be queried
+	SetZones(zones []string) QueryOptions    // sets the list of zones to consult
+	IncludeUnhealthy() bool                  // if true, will return unhealthy instances
+	SetIncludeUnhealthy(h bool) QueryOptions // sets whether to include unhealthy instances
 }
+
+// NewQueryOptions creates new QueryOptions
+func NewQueryOptions() QueryOptions { return new(queryOptions) }
 
 // Services provides access to the service topology
 type Services interface {
@@ -60,10 +79,7 @@ type Services interface {
 	Unadvertise(service, id string) error
 
 	// QueryInstances returns the list of available instances for a given service
-	QueryInstances(service string, opts *QueryOptions) ([]*ServiceInstance, error)
-
-	// QueryEndpoints returns a list of available endpoints for a given service
-	QueryEndpoints(service string, opts *QueryOptions) ([]string, error)
+	QueryInstances(service string, opts QueryOptions) ([]ServiceInstance, error)
 }
 
 // Client is the base interface into the cluster management system, providing
@@ -75,3 +91,45 @@ type Client interface {
 	// KV returns access to the distributed configuration store
 	KV() KVStore
 }
+
+type serviceInstance struct {
+	id       string
+	service  string
+	zone     string
+	endpoint string
+}
+
+func (i *serviceInstance) Service() string                      { return i.service }
+func (i *serviceInstance) ID() string                           { return i.id }
+func (i *serviceInstance) Zone() string                         { return i.zone }
+func (i *serviceInstance) Endpoint() string                     { return i.endpoint }
+func (i *serviceInstance) SetService(s string) ServiceInstance  { i.service = s; return i }
+func (i *serviceInstance) SetID(id string) ServiceInstance      { i.id = id; return i }
+func (i *serviceInstance) SetZone(z string) ServiceInstance     { i.zone = z; return i }
+func (i *serviceInstance) SetEndpoint(e string) ServiceInstance { i.endpoint = e; return i }
+
+type advertisement struct {
+	id       string
+	service  string
+	endpoint string
+	health   func() error
+}
+
+func (a *advertisement) ID() string                             { return a.id }
+func (a *advertisement) Service() string                        { return a.service }
+func (a *advertisement) Endpoint() string                       { return a.endpoint }
+func (a *advertisement) Health() func() error                   { return a.health }
+func (a *advertisement) SetID(id string) Advertisement          { a.id = id; return a }
+func (a *advertisement) SetService(s string) Advertisement      { a.service = s; return a }
+func (a *advertisement) SetEndpoint(e string) Advertisement     { a.endpoint = e; return a }
+func (a *advertisement) SetHealth(h func() error) Advertisement { a.health = h; return a }
+
+type queryOptions struct {
+	zones            []string
+	includeUnhealthy bool
+}
+
+func (qo *queryOptions) Zones() []string                         { return qo.zones }
+func (qo *queryOptions) IncludeUnhealthy() bool                  { return qo.includeUnhealthy }
+func (qo *queryOptions) SetZones(z []string) QueryOptions        { qo.zones = z; return qo }
+func (qo *queryOptions) SetIncludeUnhealthy(h bool) QueryOptions { qo.includeUnhealthy = h; return qo }
