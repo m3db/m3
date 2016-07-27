@@ -35,7 +35,7 @@ import (
 
 const (
 	// defaultConsistencyLevel is the default consistency level
-	defaultConsistencyLevel = m3db.ConsistencyLevelQuorum
+	defaultConsistencyLevel = m3db.ConsistencyLevelMajority
 
 	// defaultMaxConnectionCount is the default max connection count
 	defaultMaxConnectionCount = 32
@@ -48,6 +48,9 @@ const (
 
 	// defaultClusterConnectTimeout is the default cluster connect timeout
 	defaultClusterConnectTimeout = 30 * time.Second
+
+	// defaultClusterConnectConsistencyLevel is the default cluster connect consistency level
+	defaultClusterConnectConsistencyLevel = m3db.ConsistencyLevelMajority
 
 	// defaultWriteRequestTimeout is the default write request timeout
 	defaultWriteRequestTimeout = 5 * time.Second
@@ -111,6 +114,7 @@ type options struct {
 	minConnectionCount             int
 	hostConnectTimeout             time.Duration
 	clusterConnectTimeout          time.Duration
+	clusterConnectConsistencyLevel m3db.ConsistencyLevel
 	writeRequestTimeout            time.Duration
 	fetchRequestTimeout            time.Duration
 	backgroundConnectInterval      time.Duration
@@ -140,6 +144,7 @@ func NewOptions() m3db.ClientOptions {
 		minConnectionCount:             defaultMinConnectionCount,
 		hostConnectTimeout:             defaultHostConnectTimeout,
 		clusterConnectTimeout:          defaultClusterConnectTimeout,
+		clusterConnectConsistencyLevel: defaultClusterConnectConsistencyLevel,
 		writeRequestTimeout:            defaultWriteRequestTimeout,
 		fetchRequestTimeout:            defaultFetchRequestTimeout,
 		backgroundConnectInterval:      defaultBackgroundConnectInterval,
@@ -275,6 +280,16 @@ func (o *options) ClusterConnectTimeout(value time.Duration) m3db.ClientOptions 
 
 func (o *options) GetClusterConnectTimeout() time.Duration {
 	return o.clusterConnectTimeout
+}
+
+func (o *options) ClusterConnectConsistencyLevel(value m3db.ConsistencyLevel) m3db.ClientOptions {
+	opts := *o
+	opts.clusterConnectConsistencyLevel = value
+	return &opts
+}
+
+func (o *options) GetClusterConnectConsistencyLevel() m3db.ConsistencyLevel {
+	return o.clusterConnectConsistencyLevel
 }
 
 func (o *options) WriteRequestTimeout(value time.Duration) m3db.ClientOptions {

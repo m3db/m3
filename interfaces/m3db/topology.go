@@ -84,8 +84,8 @@ type TopologyMap interface {
 	// Replicas returns the number of replicas in the topology
 	Replicas() int
 
-	// QuorumReplicas returns the number of replicas to establish quorum in the topology
-	QuorumReplicas() int
+	// MajorityReplicas returns the number of replicas to establish majority in the topology
+	MajorityReplicas() int
 }
 
 // RouteForEachFn is a function to execute for each routed to host

@@ -77,7 +77,7 @@ type staticTopologyMap struct {
 	hostsByShard        [][]m3db.Host
 	orderedHostsByShard [][]orderedHost
 	replicas            int
-	quorum              int
+	majority            int
 }
 
 func newStaticTopologyMap(opts m3db.TopologyTypeOptions) staticTopologyMap {
@@ -89,7 +89,7 @@ func newStaticTopologyMap(opts m3db.TopologyTypeOptions) staticTopologyMap {
 		hostsByShard:        make([][]m3db.Host, totalShards),
 		orderedHostsByShard: make([][]orderedHost, totalShards),
 		replicas:            opts.GetReplicas(),
-		quorum:              quorum(opts.GetReplicas()),
+		majority:            majority(opts.GetReplicas()),
 	}
 
 	for idx, hostShardSet := range hostShardSets {
@@ -158,6 +158,6 @@ func (t *staticTopologyMap) Replicas() int {
 	return t.replicas
 }
 
-func (t *staticTopologyMap) QuorumReplicas() int {
-	return t.quorum
+func (t *staticTopologyMap) MajorityReplicas() int {
+	return t.majority
 }

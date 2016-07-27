@@ -23,6 +23,7 @@ package client
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -67,22 +68,62 @@ func newSessionTestOptions() m3db.ClientOptions {
 		WriteOpPoolSize(0).
 		FetchBatchOpPoolSize(0).
 		TopologyType(topology.NewStaticTopologyType(
-		topology.NewStaticTopologyTypeOptions().
-			Replicas(sessionTestReplicas).
-			ShardScheme(shardScheme).
-			HostShardSets(hostShardSets)))
+			topology.NewStaticTopologyTypeOptions().
+				Replicas(sessionTestReplicas).
+				ShardScheme(shardScheme).
+				HostShardSets(hostShardSets)))
 }
 
-func TestSessionClusterConnectTimesOut(t *testing.T) {
+func TestSessionClusterConnectConsistencyLevelAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	level := m3db.ConsistencyLevelAll
+	testSessionClusterConnectConsistencyLevel(t, ctrl, level, 0, outcomeSuccess)
+	for i := 1; i <= 3; i++ {
+		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeFail)
+	}
+}
+
+func TestSessionClusterConnectConsistencyLevelMajority(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	level := m3db.ConsistencyLevelMajority
+	for i := 0; i <= 1; i++ {
+		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
+	}
+	for i := 2; i <= 3; i++ {
+		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeFail)
+	}
+}
+
+func TestSessionClusterConnectConsistencyLevelOne(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	level := m3db.ConsistencyLevelOne
+	for i := 0; i <= 2; i++ {
+		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
+	}
+	testSessionClusterConnectConsistencyLevel(t, ctrl, level, 3, outcomeFail)
+}
+
+func testSessionClusterConnectConsistencyLevel(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	level m3db.ConsistencyLevel,
+	failures int,
+	expected outcome,
+) {
 	opts := newSessionTestOptions()
 	opts = opts.ClusterConnectTimeout(3 * clusterConnectWaitInterval)
+	opts = opts.ClusterConnectConsistencyLevel(level)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
 
+	var failingConns int32
 	session.newHostQueueFn = func(
 		host m3db.Host,
 		writeBatchRequestPool writeBatchRequestPool,
@@ -91,14 +132,24 @@ func TestSessionClusterConnectTimesOut(t *testing.T) {
 	) hostQueue {
 		hostQueue := mocks.NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open().Times(1)
-		hostQueue.EXPECT().GetConnectionCount().Return(0).AnyTimes()
-		hostQueue.EXPECT().Close().Times(1)
+		if atomic.AddInt32(&failingConns, 1) <= int32(failures) {
+			hostQueue.EXPECT().GetConnectionCount().Return(0).AnyTimes()
+		} else {
+			min := opts.GetMinConnectionCount()
+			hostQueue.EXPECT().GetConnectionCount().Return(min).AnyTimes()
+		}
+		hostQueue.EXPECT().Close().AnyTimes()
 		return hostQueue
 	}
 
 	err = session.Open()
-	assert.Error(t, err)
-	assert.Equal(t, ErrClusterConnectTimeout, err)
+	switch expected {
+	case outcomeSuccess:
+		assert.NoError(t, err)
+	case outcomeFail:
+		assert.Error(t, err)
+		assert.Equal(t, ErrClusterConnectTimeout, err)
+	}
 }
 
 func mockHostQueues(

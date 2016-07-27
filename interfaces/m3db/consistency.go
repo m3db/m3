@@ -27,12 +27,12 @@ const (
 	consistencyLevelNone ConsistencyLevel = iota
 
 	// ConsistencyLevelOne corresponds to a single node participating
-	// for an operation
+	// for an operation to succeed
 	ConsistencyLevelOne
 
-	// ConsistencyLevelQuorum corresponds to quorum of nodes participating
+	// ConsistencyLevelMajority corresponds to the majority of nodes participating
 	// for an operation to succeed
-	ConsistencyLevelQuorum
+	ConsistencyLevelMajority
 
 	// ConsistencyLevelAll corresponds to all nodes participating
 	// for an operation to succeed
@@ -44,8 +44,8 @@ func (l ConsistencyLevel) String() string {
 	switch l {
 	case ConsistencyLevelOne:
 		return "ConsistencyLevelOne"
-	case ConsistencyLevelQuorum:
-		return "ConsistencyLevelQuorum"
+	case ConsistencyLevelMajority:
+		return "ConsistencyLevelMajority"
 	case ConsistencyLevelAll:
 		return "ConsistencyLevelAll"
 	}

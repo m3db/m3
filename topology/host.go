@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3db/interfaces/m3db"
 )
 
-func quorum(replicas int) int {
+func majority(replicas int) int {
 	return int(math.Ceil(0.5 * float64(replicas+1)))
 }
 

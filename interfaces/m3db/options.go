@@ -260,6 +260,12 @@ type ClientOptions interface {
 	// GetClusterConnectTimeout returns the clusterConnectTimeout
 	GetClusterConnectTimeout() time.Duration
 
+	// ClusterConnectConsistencyLevel sets the clusterConnectConsistencyLevel and returns a new ClientOptions
+	ClusterConnectConsistencyLevel(value ConsistencyLevel) ClientOptions
+
+	// GetClusterConnectConsistencyLevel returns the clusterConnectConsistencyLevel
+	GetClusterConnectConsistencyLevel() ConsistencyLevel
+
 	// WriteRequestTimeout sets the writeRequestTimeout and returns a new ClientOptions
 	WriteRequestTimeout(value time.Duration) ClientOptions
 
