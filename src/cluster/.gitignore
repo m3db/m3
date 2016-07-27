@@ -1,0 +1,20 @@
+*.out
+*.test
+*.xml
+*.swp
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.cov
+*.html
+test.log
+
+# Build binaries
+bin/
+
+# Debug binaries
+debug
+debug.test
+
