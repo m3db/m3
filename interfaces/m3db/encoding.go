@@ -24,7 +24,7 @@ import (
 	"io"
 	"time"
 
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 )
 
 // A Datapoint is a single data value reported at a given time

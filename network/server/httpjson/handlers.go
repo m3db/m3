@@ -29,7 +29,7 @@ import (
 	"reflect"
 	"strings"
 
-	xerrors "github.com/m3db/m3db/x/errors"
+	"github.com/m3db/m3x/errors"
 
 	"github.com/uber/tchannel-go/thrift"
 )

@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/x/logging"
-	"github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/metrics"
 
 	"github.com/uber/tchannel-go"
 )
@@ -101,8 +101,8 @@ var (
 )
 
 type options struct {
-	logger                         logging.Logger
-	scope                          metrics.Scope
+	logger                         xlog.Logger
+	scope                          xmetrics.Scope
 	topologyType                   m3db.TopologyType
 	consistencyLevel               m3db.ConsistencyLevel
 	channelOptions                 *tchannel.ChannelOptions
@@ -132,8 +132,8 @@ type options struct {
 // NewOptions creates a new set of client options with defaults
 func NewOptions() m3db.ClientOptions {
 	opts := &options{
-		logger:                         logging.SimpleLogger,
-		scope:                          metrics.NoopScope,
+		logger:                         xlog.SimpleLogger,
+		scope:                          xmetrics.NoopScope,
 		consistencyLevel:               defaultConsistencyLevel,
 		nowFn:                          time.Now,
 		maxConnectionCount:             defaultMaxConnectionCount,
@@ -177,23 +177,23 @@ func (o *options) EncodingTsz() m3db.ClientOptions {
 	return &opts
 }
 
-func (o *options) Logger(value logging.Logger) m3db.ClientOptions {
+func (o *options) Logger(value xlog.Logger) m3db.ClientOptions {
 	opts := *o
 	opts.logger = value
 	return &opts
 }
 
-func (o *options) GetLogger() logging.Logger {
+func (o *options) GetLogger() xlog.Logger {
 	return o.logger
 }
 
-func (o *options) MetricsScope(value metrics.Scope) m3db.ClientOptions {
+func (o *options) MetricsScope(value xmetrics.Scope) m3db.ClientOptions {
 	opts := *o
 	opts.scope = value
 	return &opts
 }
 
-func (o *options) GetMetricsScope() metrics.Scope {
+func (o *options) GetMetricsScope() xmetrics.Scope {
 	return o.scope
 }
 

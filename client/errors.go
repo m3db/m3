@@ -22,7 +22,7 @@ package client
 
 import (
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
-	xerrors "github.com/m3db/m3db/x/errors"
+	"github.com/m3db/m3x/errors"
 )
 
 // IsInternalServerError determines if the error is an internal server error.

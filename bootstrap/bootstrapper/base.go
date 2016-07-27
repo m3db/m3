@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3db/bootstrap"
 	"github.com/m3db/m3db/interfaces/m3db"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 )
 
 const (

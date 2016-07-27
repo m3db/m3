@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 )
 
 var (

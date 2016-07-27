@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

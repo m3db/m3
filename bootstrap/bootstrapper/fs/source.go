@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3db/bootstrap"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 )
 
 // fileSystemSource provides information about TSDB data stored on disk.

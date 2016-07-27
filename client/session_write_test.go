@@ -30,7 +30,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 )

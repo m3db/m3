@@ -30,8 +30,8 @@ import (
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3db/storage"
-	xerrors "github.com/m3db/m3db/x/errors"
-	xtime "github.com/m3db/m3db/x/time"
+	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/time"
 
 	"github.com/uber/tchannel-go/thrift"
 )

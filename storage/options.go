@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/pool"
-	"github.com/m3db/m3db/x/logging"
-	"github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/metrics"
 )
 
 const (
@@ -86,8 +86,8 @@ var (
 )
 
 type dbOptions struct {
-	logger                  logging.Logger
-	scope                   metrics.Scope
+	logger                  xlog.Logger
+	scope                   xmetrics.Scope
 	blockSize               time.Duration
 	newEncoderFn            m3db.NewEncoderFn
 	newDecoderFn            m3db.NewDecoderFn
@@ -118,8 +118,8 @@ type dbOptions struct {
 // less than blocksize and check when opening database
 func NewDatabaseOptions() m3db.DatabaseOptions {
 	opts := &dbOptions{
-		logger:                  logging.SimpleLogger,
-		scope:                   metrics.NoopScope,
+		logger:                  xlog.SimpleLogger,
+		scope:                   xmetrics.NoopScope,
 		blockSize:               defaultBlockSize,
 		nowFn:                   time.Now,
 		retentionPeriod:         defaultRetentionPeriod,
@@ -214,23 +214,23 @@ func (o *dbOptions) encodingTsz(encodingOpts tsz.Options) m3db.DatabaseOptions {
 	return &opts
 }
 
-func (o *dbOptions) Logger(value logging.Logger) m3db.DatabaseOptions {
+func (o *dbOptions) Logger(value xlog.Logger) m3db.DatabaseOptions {
 	opts := *o
 	opts.logger = value
 	return &opts
 }
 
-func (o *dbOptions) GetLogger() logging.Logger {
+func (o *dbOptions) GetLogger() xlog.Logger {
 	return o.logger
 }
 
-func (o *dbOptions) MetricsScope(value metrics.Scope) m3db.DatabaseOptions {
+func (o *dbOptions) MetricsScope(value xmetrics.Scope) m3db.DatabaseOptions {
 	opts := *o
 	opts.scope = value
 	return &opts
 }
 
-func (o *dbOptions) GetMetricsScope() metrics.Scope {
+func (o *dbOptions) GetMetricsScope() xmetrics.Scope {
 	return o.scope
 }
 
@@ -331,7 +331,7 @@ func (o *dbOptions) RetentionPeriod(value time.Duration) m3db.DatabaseOptions {
 	return &opts
 }
 
-// GetRetentionPeriod returns how long we intend to keep raw metrics in memory.
+// GetRetentionPeriod returns how long we intend to keep raw xmetrics in memory.
 func (o *dbOptions) GetRetentionPeriod() time.Duration {
 	return o.retentionPeriod
 }
