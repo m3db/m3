@@ -40,7 +40,7 @@ var (
 type databaseSeries interface {
 	ID() string
 
-	// Tick performs any updates to ensure buffer drains, blocks are written to disk, etc
+	// Tick performs any updates to ensure buffer drains, blocks are flushed, etc
 	Tick() error
 
 	Write(
@@ -58,11 +58,11 @@ type databaseSeries interface {
 
 	Empty() bool
 
-	// Bootstrap merges the raw series bootstrapped along with the buffered data
+	// Bootstrap merges the raw series bootstrapped along with the buffered data.
 	Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error
 
-	// FlushToDisk flushes the blocks to disk for a given start time.
-	FlushToDisk(ctx m3db.Context, writer m3db.FileSetWriter, blockStart time.Time, segmentHolder [][]byte) error
+	// Flush flushes the data blocks of this series for a given start time.
+	Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFn) error
 }
 
 type dbSeries struct {
@@ -356,15 +356,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 	return multiErr.FinalError()
 }
 
-// NB(xichen): segmentHolder is a two-item slice that's reused to
-// hold pointers to the head and the tail of each segment so we
-// don't need to allocate memory and gc it shortly after.
-func (s *dbSeries) FlushToDisk(
-	ctx m3db.Context,
-	writer m3db.FileSetWriter,
-	blockStart time.Time,
-	segmentHolder [][]byte,
-) error {
+func (s *dbSeries) Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFn) error {
 	s.RLock()
 	if s.bs != bootstrapped {
 		s.RUnlock()
@@ -385,10 +377,5 @@ func (s *dbSeries) FlushToDisk(
 		return nil
 	}
 	segment := sr.Segment()
-	if len(segmentHolder) != 2 {
-		segmentHolder = make([][]byte, 2)
-	}
-	segmentHolder[0] = segment.Head
-	segmentHolder[1] = segment.Tail
-	return writer.WriteAll(s.seriesID, segmentHolder)
+	return persistFn(s.seriesID, segment)
 }

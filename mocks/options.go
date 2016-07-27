@@ -555,6 +555,26 @@ func (_mr *_MockDatabaseOptionsRecorder) GetNewFileSetWriterFn() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetNewFileSetWriterFn")
 }
 
+func (_m *MockDatabaseOptions) NewPersistenceManagerFn(value m3db.NewPersistenceManagerFn) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "NewPersistenceManagerFn", value)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) NewPersistenceManagerFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewPersistenceManagerFn", arg0)
+}
+
+func (_m *MockDatabaseOptions) GetNewPersistenceManagerFn() m3db.NewPersistenceManagerFn {
+	ret := _m.ctrl.Call(_m, "GetNewPersistenceManagerFn")
+	ret0, _ := ret[0].(m3db.NewPersistenceManagerFn)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetNewPersistenceManagerFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetNewPersistenceManagerFn")
+}
+
 // Mock of ClientOptions interface
 type MockClientOptions struct {
 	ctrl     *gomock.Controller
@@ -1116,93 +1136,93 @@ func (_mr *_MockClientOptionsRecorder) GetReaderIteratorAllocate() *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetReaderIteratorAllocate")
 }
 
-// Mock of StaticTopologyTypeOptions interface
-type MockStaticTopologyTypeOptions struct {
+// Mock of TopologyTypeOptions interface
+type MockTopologyTypeOptions struct {
 	ctrl     *gomock.Controller
-	recorder *_MockStaticTopologyTypeOptionsRecorder
+	recorder *_MockTopologyTypeOptionsRecorder
 }
 
-// Recorder for MockStaticTopologyTypeOptions (not exported)
-type _MockStaticTopologyTypeOptionsRecorder struct {
-	mock *MockStaticTopologyTypeOptions
+// Recorder for MockTopologyTypeOptions (not exported)
+type _MockTopologyTypeOptionsRecorder struct {
+	mock *MockTopologyTypeOptions
 }
 
-func NewMockStaticTopologyTypeOptions(ctrl *gomock.Controller) *MockStaticTopologyTypeOptions {
-	mock := &MockStaticTopologyTypeOptions{ctrl: ctrl}
-	mock.recorder = &_MockStaticTopologyTypeOptionsRecorder{mock}
+func NewMockTopologyTypeOptions(ctrl *gomock.Controller) *MockTopologyTypeOptions {
+	mock := &MockTopologyTypeOptions{ctrl: ctrl}
+	mock.recorder = &_MockTopologyTypeOptionsRecorder{mock}
 	return mock
 }
 
-func (_m *MockStaticTopologyTypeOptions) EXPECT() *_MockStaticTopologyTypeOptionsRecorder {
+func (_m *MockTopologyTypeOptions) EXPECT() *_MockTopologyTypeOptionsRecorder {
 	return _m.recorder
 }
 
-func (_m *MockStaticTopologyTypeOptions) Validate() error {
+func (_m *MockTopologyTypeOptions) Validate() error {
 	ret := _m.ctrl.Call(_m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockStaticTopologyTypeOptionsRecorder) Validate() *gomock.Call {
+func (_mr *_MockTopologyTypeOptionsRecorder) Validate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
-func (_m *MockStaticTopologyTypeOptions) ShardScheme(value m3db.ShardScheme) m3db.TopologyTypeOptions {
+func (_m *MockTopologyTypeOptions) ShardScheme(value m3db.ShardScheme) m3db.TopologyTypeOptions {
 	ret := _m.ctrl.Call(_m, "ShardScheme", value)
 	ret0, _ := ret[0].(m3db.TopologyTypeOptions)
 	return ret0
 }
 
-func (_mr *_MockStaticTopologyTypeOptionsRecorder) ShardScheme(arg0 interface{}) *gomock.Call {
+func (_mr *_MockTopologyTypeOptionsRecorder) ShardScheme(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardScheme", arg0)
 }
 
-func (_m *MockStaticTopologyTypeOptions) GetShardScheme() m3db.ShardScheme {
+func (_m *MockTopologyTypeOptions) GetShardScheme() m3db.ShardScheme {
 	ret := _m.ctrl.Call(_m, "GetShardScheme")
 	ret0, _ := ret[0].(m3db.ShardScheme)
 	return ret0
 }
 
-func (_mr *_MockStaticTopologyTypeOptionsRecorder) GetShardScheme() *gomock.Call {
+func (_mr *_MockTopologyTypeOptionsRecorder) GetShardScheme() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetShardScheme")
 }
 
-func (_m *MockStaticTopologyTypeOptions) Replicas(value int) m3db.TopologyTypeOptions {
+func (_m *MockTopologyTypeOptions) Replicas(value int) m3db.TopologyTypeOptions {
 	ret := _m.ctrl.Call(_m, "Replicas", value)
 	ret0, _ := ret[0].(m3db.TopologyTypeOptions)
 	return ret0
 }
 
-func (_mr *_MockStaticTopologyTypeOptionsRecorder) Replicas(arg0 interface{}) *gomock.Call {
+func (_mr *_MockTopologyTypeOptionsRecorder) Replicas(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Replicas", arg0)
 }
 
-func (_m *MockStaticTopologyTypeOptions) GetReplicas() int {
+func (_m *MockTopologyTypeOptions) GetReplicas() int {
 	ret := _m.ctrl.Call(_m, "GetReplicas")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockStaticTopologyTypeOptionsRecorder) GetReplicas() *gomock.Call {
+func (_mr *_MockTopologyTypeOptionsRecorder) GetReplicas() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetReplicas")
 }
 
-func (_m *MockStaticTopologyTypeOptions) HostShardSets(value []m3db.HostShardSet) m3db.TopologyTypeOptions {
+func (_m *MockTopologyTypeOptions) HostShardSets(value []m3db.HostShardSet) m3db.TopologyTypeOptions {
 	ret := _m.ctrl.Call(_m, "HostShardSets", value)
 	ret0, _ := ret[0].(m3db.TopologyTypeOptions)
 	return ret0
 }
 
-func (_mr *_MockStaticTopologyTypeOptionsRecorder) HostShardSets(arg0 interface{}) *gomock.Call {
+func (_mr *_MockTopologyTypeOptionsRecorder) HostShardSets(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostShardSets", arg0)
 }
 
-func (_m *MockStaticTopologyTypeOptions) GetHostShardSets() []m3db.HostShardSet {
+func (_m *MockTopologyTypeOptions) GetHostShardSets() []m3db.HostShardSet {
 	ret := _m.ctrl.Call(_m, "GetHostShardSets")
 	ret0, _ := ret[0].([]m3db.HostShardSet)
 	return ret0
 }
 
-func (_mr *_MockStaticTopologyTypeOptionsRecorder) GetHostShardSets() *gomock.Call {
+func (_mr *_MockTopologyTypeOptionsRecorder) GetHostShardSets() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostShardSets")
 }

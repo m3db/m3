@@ -60,6 +60,17 @@ func closeFiles(fds ...*os.File) error {
 	return nil
 }
 
+func validFiles(fds ...*os.File) []*os.File {
+	var vf []*os.File
+	for _, fd := range fds {
+		if fd == nil {
+			continue
+		}
+		vf = append(vf, fd)
+	}
+	return vf
+}
+
 // byTimeAscending sorts files by their block start times in ascending order.
 // If the files do not have block start times in their names, the result is undefined.
 type byTimeAscending []string

@@ -18,48 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package m3db
 
-import (
-	"errors"
-	"testing"
-	"time"
+import "time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/mocks"
+// PersistenceFn is a function that persists a m3db segment for a given id.
+type PersistenceFn func(id string, segment Segment) error
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-)
+// PersistenceCloser is a function that performs cleanup after persisting the data
+// blocks for a (shard, blockStart) combination.
+type PersistenceCloser func()
 
-func TestDatabaseBootstrapWithError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := testDatabaseOptions()
-	now := time.Now()
-	cutover := now.Add(opts.GetBufferFuture())
-	bs := mocks.NewMockBootstrap(ctrl)
-	opts = opts.NewBootstrapFn(func() m3db.Bootstrap { return bs }).NowFn(func() time.Time { return now })
-
-	errs := []error{
-		errors.New("some error"),
-		errors.New("some other error"),
-		nil,
-	}
-
-	var shards []databaseShard
-	for _, err := range errs {
-		shard := mocks.NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Bootstrap(bs, now, cutover).Return(err)
-		shards = append(shards, shard)
-	}
-
-	db := &mockDatabase{shards: shards, opts: opts}
-	bsm := newBootstrapManager(db).(*bootstrapManager)
-	err := bsm.Bootstrap()
-
-	require.NotNil(t, err)
-	require.Equal(t, "some error\nsome other error", err.Error())
-	require.Equal(t, bootstrapped, bsm.state)
+// PreparedPersistence is an object that wraps inside a persistence function and
+// a closer.
+type PreparedPersistence struct {
+	Persist PersistenceFn
+	Close   PersistenceCloser
 }
+
+// PersistenceManager manages the internals of persisting data onto storage layer.
+type PersistenceManager interface {
+
+	// Prepare prepares writing data for a given (shard, blockStart) combination,
+	// returning a PreparedPersistence object and any error encountered during
+	// preparation if any.
+	Prepare(shard uint32, blockStart time.Time) (PreparedPersistence, error)
+}
+
+// NewPersistenceManagerFn creates a new persistence manager.
+type NewPersistenceManagerFn func(opts DatabaseOptions) PersistenceManager

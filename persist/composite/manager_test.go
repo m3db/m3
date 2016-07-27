@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package composite
 
 import (
 	"errors"
@@ -32,34 +32,50 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDatabaseBootstrapWithError(t *testing.T) {
+func testPersistenceManager(
+	ctrl *gomock.Controller,
+) (*persistenceManager, *mocks.MockPersistenceManager, *mocks.MockPersistenceManager) {
+	m1 := mocks.NewMockPersistenceManager(ctrl)
+	m2 := mocks.NewMockPersistenceManager(ctrl)
+	pm := NewPersistenceManager(m1, m2)
+	return pm.(*persistenceManager), m1, m2
+}
+
+func TestPersistenceManagerPrepare(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
-	now := time.Now()
-	cutover := now.Add(opts.GetBufferFuture())
-	bs := mocks.NewMockBootstrap(ctrl)
-	opts = opts.NewBootstrapFn(func() m3db.Bootstrap { return bs }).NowFn(func() time.Time { return now })
-
-	errs := []error{
-		errors.New("some error"),
-		errors.New("some other error"),
-		nil,
+	pm, m1, m2 := testPersistenceManager(ctrl)
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
+	var (
+		persisted bool
+		closed    bool
+	)
+	persistFn := func(id string, segment m3db.Segment) error {
+		persisted = true
+		return nil
 	}
-
-	var shards []databaseShard
-	for _, err := range errs {
-		shard := mocks.NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Bootstrap(bs, now, cutover).Return(err)
-		shards = append(shards, shard)
+	closer := func() {
+		closed = true
 	}
+	expectedErr := errors.New("foo")
+	prepared := m3db.PreparedPersistence{Persist: persistFn, Close: closer}
+	m1.EXPECT().Prepare(shard, blockStart).Return(prepared, nil)
+	m2.EXPECT().Prepare(shard, blockStart).Return(m3db.PreparedPersistence{}, expectedErr)
 
-	db := &mockDatabase{shards: shards, opts: opts}
-	bsm := newBootstrapManager(db).(*bootstrapManager)
-	err := bsm.Bootstrap()
-
+	res, err := pm.Prepare(shard, blockStart)
+	require.NotNil(t, res.Persist)
+	require.NotNil(t, res.Close)
 	require.NotNil(t, err)
-	require.Equal(t, "some error\nsome other error", err.Error())
-	require.Equal(t, bootstrapped, bsm.state)
+	require.Equal(t, "foo", err.Error())
+
+	id := "bar"
+	segment := m3db.Segment{Head: []byte{0x1}, Tail: []byte{0x2}}
+	defer func() {
+		res.Close()
+		require.True(t, closed)
+	}()
+	require.Nil(t, res.Persist(id, segment))
+	require.True(t, persisted)
 }

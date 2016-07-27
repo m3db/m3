@@ -55,6 +55,7 @@ type writer struct {
 	indexBuffer  *proto.Buffer
 	varintBuffer *proto.Buffer
 	idxData      []byte
+	err          error
 }
 
 // WriterOptions provides options for a Writer
@@ -138,14 +139,19 @@ func (w *writer) Open(shard uint32, blockStart time.Time) error {
 	w.currIdx = 0
 	w.currOffset = 0
 	w.checkpointFilePath = filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	return openFiles(
+	w.err = nil
+	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
 			filepathFromTime(shardDir, blockStart, infoFileSuffix):  &w.infoFd,
 			filepathFromTime(shardDir, blockStart, indexFileSuffix): &w.indexFd,
 			filepathFromTime(shardDir, blockStart, dataFileSuffix):  &w.dataFd,
 		},
-	)
+	); err != nil {
+		closeFiles(validFiles(w.infoFd, w.indexFd, w.dataFd)...)
+		return err
+	}
+	return nil
 }
 
 func (w *writer) writeData(data []byte) error {
@@ -165,6 +171,18 @@ func (w *writer) Write(key string, data []byte) error {
 }
 
 func (w *writer) WriteAll(key string, data [][]byte) error {
+	if w.err != nil {
+		return w.err
+	}
+
+	if err := w.writeAll(key, data); err != nil {
+		w.err = err
+		return err
+	}
+	return nil
+}
+
+func (w *writer) writeAll(key string, data [][]byte) error {
 	var size int64
 	for _, d := range data {
 		size += int64(len(d))
@@ -216,7 +234,7 @@ func (w *writer) WriteAll(key string, data [][]byte) error {
 	return nil
 }
 
-func (w *writer) Close() error {
+func (w *writer) close() error {
 	if err := w.infoFd.Truncate(0); err != nil {
 		return err
 	}
@@ -239,6 +257,20 @@ func (w *writer) Close() error {
 		return err
 	}
 
+	return nil
+}
+
+func (w *writer) Close() error {
+	err := w.close()
+	if w.err != nil {
+		return w.err
+	}
+	if err != nil {
+		w.err = err
+		return err
+	}
+	// NB(xichen): only write out the checkpoint file if there are no errors
+	// encountered between calling writer.Open() and writer.Close().
 	return w.writeCheckpointFile()
 }
 
