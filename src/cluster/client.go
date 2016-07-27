@@ -20,13 +20,17 @@
 
 package cluster
 
+import (
+	"github.com/golang/protobuf/proto"
+)
+
 // KVStore provides access to the configuration store
 type KVStore interface {
 	// Get retrieves the value for the given key, unmarshalling it into the provided value
-	Get(key string, v interface{}) error
+	Get(key string, v proto.Message) error
 
 	// Put stores the value for the given key
-	Put(key string, v interface{}) error
+	Put(key string, v proto.Message) error
 }
 
 // A ServiceInstance is a single instance of a service
