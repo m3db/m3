@@ -27,8 +27,8 @@ import (
 	time "time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	logging "github.com/m3db/m3db/x/logging"
-	metrics "github.com/m3db/m3db/x/metrics"
+	logging "github.com/m3db/m3x/log"
+	metrics "github.com/m3db/m3x/metrics"
 
 	gomock "github.com/golang/mock/gomock"
 	tchannel_go "github.com/uber/tchannel-go"

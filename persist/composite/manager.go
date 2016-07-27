@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	xerrors "github.com/m3db/m3db/x/errors"
+	"github.com/m3db/m3x/errors"
 )
 
 // persistenceManager delegates to the list of persistence managers contained inside for data persistence.
