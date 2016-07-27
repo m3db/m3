@@ -143,11 +143,11 @@ func TestSessionWriteConsistencyLevelAll(t *testing.T) {
 	}
 }
 
-func TestSessionWriteConsistencyLevelQuorum(t *testing.T) {
+func TestSessionWriteConsistencyLevelMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := m3db.ConsistencyLevelQuorum
+	level := m3db.ConsistencyLevelMajority
 	for i := 0; i <= 1; i++ {
 		testWriteConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}

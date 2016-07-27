@@ -68,7 +68,7 @@ type session struct {
 	topoMap                         m3db.TopologyMap
 	topoMapCh                       chan m3db.TopologyMap
 	replicas                        int
-	quorum                          int
+	majority                        int
 	queues                          []hostQueue
 	state                           state
 	writeOpPool                     writeOpPool
@@ -161,7 +161,7 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 	shards := topologyMap.ShardScheme().All().Shards()
 	minConnectionCount := s.opts.GetMinConnectionCount()
 	replicas := topologyMap.Replicas()
-	quorum := topologyMap.QuorumReplicas()
+	majority := topologyMap.MajorityReplicas()
 	connectConsistencyLevel := s.opts.GetClusterConnectConsistencyLevel()
 	for {
 		if s.nowFn().Sub(start) >= s.opts.GetClusterConnectTimeout() {
@@ -171,7 +171,7 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 			return ErrClusterConnectTimeout
 		}
 		// Be optimistic
-		var clusterAvailable bool
+		clusterAvailable := true
 		for _, shard := range shards {
 			shardReplicasAvailable := 0
 			routeErr := topologyMap.RouteShardForEach(shard, func(idx int, host m3db.Host) {
@@ -182,13 +182,18 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 			if routeErr != nil {
 				return routeErr
 			}
+			var clusterAvailableForShard bool
 			switch connectConsistencyLevel {
 			case m3db.ConsistencyLevelAll:
-				clusterAvailable = shardReplicasAvailable == replicas
-			case m3db.ConsistencyLevelQuorum:
-				clusterAvailable = shardReplicasAvailable >= quorum
+				clusterAvailableForShard = shardReplicasAvailable == replicas
+			case m3db.ConsistencyLevelMajority:
+				clusterAvailableForShard = shardReplicasAvailable >= majority
 			case m3db.ConsistencyLevelOne:
-				clusterAvailable = shardReplicasAvailable > 0
+				clusterAvailableForShard = shardReplicasAvailable > 0
+			}
+			if !clusterAvailableForShard {
+				clusterAvailable = false
+				break
 			}
 		}
 		if clusterAvailable {
@@ -204,7 +209,7 @@ func (s *session) setTopologyMap(topologyMap m3db.TopologyMap) error {
 	s.topoMap = topologyMap
 	prevReplicas := s.replicas
 	s.replicas = replicas
-	s.quorum = quorum
+	s.majority = majority
 	if s.fetchBatchOpArrayArrayPool == nil ||
 		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
 		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
@@ -277,7 +282,7 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 		resultErrLock sync.Mutex
 		resultErr     error
 		resultErrs    int
-		quorum        int
+		majority      int
 	)
 
 	timeType, timeTypeErr := convert.UnitToTimeType(unit)
@@ -309,7 +314,7 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 	}
 
 	s.RLock()
-	quorum = s.quorum
+	majority = s.majority
 	routeErr := s.topoMap.RouteForEach(id, func(idx int, host m3db.Host) {
 		wg.Add(1)
 		enqueued++
@@ -336,7 +341,7 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 	// Return write to pool
 	s.writeOpPool.Put(w)
 
-	return s.consistencyResult(quorum, enqueued, resultErrs, resultErr)
+	return s.consistencyResult(majority, enqueued, resultErrs, resultErr)
 }
 
 func (s *session) Fetch(id string, startInclusive, endExclusive time.Time) (m3db.SeriesIterator, error) {
@@ -361,7 +366,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		resultErrLock          sync.Mutex
 		resultErr              error
 		resultErrs             int
-		quorum                 int
+		majority               int
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 	)
 
@@ -394,7 +399,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	}()
 
 	s.RLock()
-	quorum = s.quorum
+	majority = s.majority
 	for idx := range ids {
 		idx := idx
 
@@ -431,7 +436,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				// Requests still pending
 				return
 			}
-			if err := s.consistencyResult(quorum, enqueued, int(errs), firstErr); err != nil {
+			if err := s.consistencyResult(majority, enqueued, int(errs), firstErr); err != nil {
 				resultErrLock.Lock()
 				if resultErr == nil {
 					resultErr = err
@@ -515,7 +520,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	return iters, nil
 }
 
-func (s *session) consistencyResult(quorum, enqueued, resultErrs int, resultErr error) error {
+func (s *session) consistencyResult(majority, enqueued, resultErrs int, resultErr error) error {
 	if resultErrs == 0 {
 		return nil
 	}
@@ -531,9 +536,9 @@ func (s *session) consistencyResult(quorum, enqueued, resultErrs int, resultErr 
 	switch s.level {
 	case m3db.ConsistencyLevelAll:
 		return reportErr()
-	case m3db.ConsistencyLevelQuorum:
-		if success >= quorum {
-			// Meets quorum
+	case m3db.ConsistencyLevelMajority:
+		if success >= majority {
+			// Meets majority
 			break
 		}
 		return reportErr()

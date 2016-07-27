@@ -35,7 +35,7 @@ import (
 
 const (
 	// defaultConsistencyLevel is the default consistency level
-	defaultConsistencyLevel = m3db.ConsistencyLevelQuorum
+	defaultConsistencyLevel = m3db.ConsistencyLevelMajority
 
 	// defaultMaxConnectionCount is the default max connection count
 	defaultMaxConnectionCount = 32
@@ -50,7 +50,7 @@ const (
 	defaultClusterConnectTimeout = 30 * time.Second
 
 	// defaultClusterConnectConsistencyLevel is the default cluster connect consistency level
-	defaultClusterConnectConsistencyLevel = m3db.ConsistencyLevelQuorum
+	defaultClusterConnectConsistencyLevel = m3db.ConsistencyLevelMajority
 
 	// defaultWriteRequestTimeout is the default write request timeout
 	defaultWriteRequestTimeout = 5 * time.Second

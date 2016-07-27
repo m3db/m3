@@ -68,10 +68,10 @@ func newSessionTestOptions() m3db.ClientOptions {
 		WriteOpPoolSize(0).
 		FetchBatchOpPoolSize(0).
 		TopologyType(topology.NewStaticTopologyType(
-		topology.NewStaticTopologyTypeOptions().
-			Replicas(sessionTestReplicas).
-			ShardScheme(shardScheme).
-			HostShardSets(hostShardSets)))
+			topology.NewStaticTopologyTypeOptions().
+				Replicas(sessionTestReplicas).
+				ShardScheme(shardScheme).
+				HostShardSets(hostShardSets)))
 }
 
 func TestSessionClusterConnectConsistencyLevelAll(t *testing.T) {
@@ -85,11 +85,11 @@ func TestSessionClusterConnectConsistencyLevelAll(t *testing.T) {
 	}
 }
 
-func TestSessionClusterConnectConsistencyLevelQuorum(t *testing.T) {
+func TestSessionClusterConnectConsistencyLevelMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := m3db.ConsistencyLevelQuorum
+	level := m3db.ConsistencyLevelMajority
 	for i := 0; i <= 1; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}

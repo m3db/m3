@@ -165,15 +165,15 @@ func TestSessionFetchConsistencyLevelAll(t *testing.T) {
 	}
 }
 
-func TestSessionFetchConsistencyLevelQuorum(t *testing.T) {
+func TestSessionFetchConsistencyLevelMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	for i := 0; i <= 1; i++ {
-		testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelQuorum, i, outcomeSuccess)
+		testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelMajority, i, outcomeSuccess)
 	}
 	for i := 2; i <= 3; i++ {
-		testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelQuorum, i, outcomeFail)
+		testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelMajority, i, outcomeFail)
 	}
 }
 
