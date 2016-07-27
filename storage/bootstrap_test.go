@@ -27,36 +27,10 @@ import (
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/mocks"
-	xtime "github.com/m3db/m3db/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
-
-type mockDatabase struct {
-	shards []databaseShard
-	opts   m3db.DatabaseOptions
-}
-
-func (db *mockDatabase) Options() m3db.DatabaseOptions { return db.opts }
-
-func (db *mockDatabase) Open() error { return nil }
-
-func (db *mockDatabase) Close() error { return nil }
-
-func (db *mockDatabase) Write(m3db.Context, string, time.Time, float64, xtime.Unit, []byte) error {
-	return nil
-}
-
-func (db *mockDatabase) ReadEncoded(m3db.Context, string, time.Time, time.Time) ([][]m3db.SegmentReader, error) {
-	return nil, nil
-}
-
-func (db *mockDatabase) Bootstrap() error { return nil }
-
-func (db *mockDatabase) getOwnedShards() []databaseShard { return db.shards }
-
-func (db *mockDatabase) flushToDisk(tickStart time.Time, asyncFlush bool) {}
 
 func TestDatabaseBootstrapWithError(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -81,7 +55,7 @@ func TestDatabaseBootstrapWithError(t *testing.T) {
 		shards = append(shards, shard)
 	}
 
-	db := &mockDatabase{shards, opts}
+	db := &mockDatabase{shards: shards, opts: opts}
 	bsm := newBootstrapManager(db).(*bootstrapManager)
 	err := bsm.Bootstrap()
 
