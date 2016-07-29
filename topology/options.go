@@ -39,7 +39,7 @@ type staticTopologyTypeOptions struct {
 }
 
 // NewStaticTopologyTypeOptions creates a new set of static topology type options
-func NewStaticTopologyTypeOptions() m3db.TopologyTypeOptions {
+func NewStaticTopologyTypeOptions() m3db.StaticTopologyTypeOptions {
 	return &staticTopologyTypeOptions{}
 }
 
@@ -97,7 +97,7 @@ func (o *staticTopologyTypeOptions) GetReplicas() int {
 	return o.replicas
 }
 
-func (o *staticTopologyTypeOptions) HostShardSets(value []m3db.HostShardSet) m3db.TopologyTypeOptions {
+func (o *staticTopologyTypeOptions) HostShardSets(value []m3db.HostShardSet) m3db.StaticTopologyTypeOptions {
 	opts := *o
 	opts.hostShardSets = value
 	return &opts

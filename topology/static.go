@@ -31,11 +31,11 @@ var (
 )
 
 type staticTopologyType struct {
-	opts m3db.TopologyTypeOptions
+	opts m3db.StaticTopologyTypeOptions
 }
 
 // NewStaticTopologyType creates a new static topology type
-func NewStaticTopologyType(opts m3db.TopologyTypeOptions) m3db.TopologyType {
+func NewStaticTopologyType(opts m3db.StaticTopologyTypeOptions) m3db.TopologyType {
 	return &staticTopologyType{opts}
 }
 
@@ -54,7 +54,7 @@ type staticTopology struct {
 	topologyMap staticTopologyMap
 }
 
-func newStaticTopology(opts m3db.TopologyTypeOptions) m3db.Topology {
+func newStaticTopology(opts m3db.StaticTopologyTypeOptions) m3db.Topology {
 	return &staticTopology{topologyMap: newStaticTopologyMap(opts)}
 }
 
@@ -62,9 +62,13 @@ func (t *staticTopology) Get() m3db.TopologyMap {
 	return &t.topologyMap
 }
 
-func (t *staticTopology) GetAndSubscribe(ch chan<- m3db.TopologyMap) m3db.TopologyMap {
+func (t *staticTopology) GetAndSubscribe(subscriber m3db.TopologySubscriber) m3db.TopologyMap {
 	// Topology is static, ignore the subscription channel
 	return &t.topologyMap
+}
+
+func (t *staticTopology) PostUpdate(update m3db.TopologyUpdate) {
+	// Topology is static, ignore the update
 }
 
 func (t *staticTopology) Close() error {
@@ -80,7 +84,7 @@ type staticTopologyMap struct {
 	majority            int
 }
 
-func newStaticTopologyMap(opts m3db.TopologyTypeOptions) staticTopologyMap {
+func newStaticTopologyMap(opts m3db.StaticTopologyTypeOptions) staticTopologyMap {
 	totalShards := len(opts.GetShardScheme().All().Shards())
 	hostShardSets := opts.GetHostShardSets()
 	topoMap := staticTopologyMap{
@@ -122,6 +126,11 @@ func (t *staticTopologyMap) HostsLen() int {
 
 func (t *staticTopologyMap) ShardScheme() m3db.ShardScheme {
 	return t.shardScheme
+}
+
+func (t *staticTopologyMap) ShardAssignments() m3db.ShardAssignments {
+	// TODO(xichen): construct the static shard assignments here.
+	return nil
 }
 
 func (t *staticTopologyMap) Route(id string) (uint32, []m3db.Host, error) {

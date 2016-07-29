@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/time"
 )
 
@@ -70,12 +71,6 @@ type Database interface {
 		id string,
 		start, end time.Time,
 	) ([][]m3db.SegmentReader, error)
-
-	// Bootstrap bootstraps the database.
-	Bootstrap() error
-
-	// IsBootstrapped determines whether the database is bootstrapped.
-	IsBootstrapped() bool
 }
 
 // database is the internal database interface.
@@ -89,17 +84,25 @@ type database interface {
 	flush(t time.Time, async bool)
 }
 
+type shardAssignment struct {
+	shard       databaseShard
+	curState    m3db.ShardState
+	targetState m3db.ShardState
+}
+
 type db struct {
 	sync.RWMutex
 	opts        m3db.DatabaseOptions
+	host        m3db.Host
+	topology    m3db.Topology
 	shardScheme m3db.ShardScheme
-	shardSet    m3db.ShardSet
 	bsm         databaseBootstrapManager
 	fm          databaseFlushManager
 
-	// Contains an entry to all shards for fast shard lookup, an
-	// entry will be nil when this shard does not belong to current database
-	shards []databaseShard
+	// Contains an entry to all shards for fast shard lookup.
+	// If the current database does not own a shard, the
+	// databaseShard field in the corresponding entry will be nil.
+	shards []shardAssignment
 
 	nowFn        m3db.NowFn
 	tickDeadline time.Duration
@@ -108,13 +111,24 @@ type db struct {
 }
 
 // NewDatabase creates a new database
-func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) Database {
-	shardScheme := shardSet.Scheme()
+func NewDatabase(opts m3db.DatabaseOptions) (Database, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	topologyType := opts.GetTopologyType()
+	topology, err := topologyType.Create()
+	if err != nil {
+		return nil, err
+	}
+	shardScheme := topologyType.Options().GetShardScheme()
+	shards := make([]shardAssignment, len(shardScheme.All().Shards()))
+
 	database := &db{
 		opts:         opts,
+		host:         opts.GetLocalHost(),
+		topology:     topology,
 		shardScheme:  shardScheme,
-		shardSet:     shardSet,
-		shards:       make([]databaseShard, len(shardScheme.All().Shards())),
+		shards:       shards,
 		nowFn:        opts.GetNowFn(),
 		tickDeadline: opts.GetBufferDrain(),
 		openCh:       make(chan struct{}, 1),
@@ -122,7 +136,7 @@ func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) Database {
 	}
 	database.bsm = newBootstrapManager(database)
 	database.fm = newFlushManager(database)
-	return database
+	return database, nil
 }
 
 func (d *db) Options() m3db.DatabaseOptions {
@@ -135,15 +149,128 @@ func (d *db) Open() error {
 	default:
 		return errDatabaseAlreadyOpen
 	}
-	d.Lock()
-	defer d.Unlock()
-	// Initialize shards
-	for _, x := range d.shardSet.Shards() {
-		d.shards[x] = newDatabaseShard(x, d.opts)
-	}
+
+	subscriber := make(chan m3db.TopologyMap, 1)
+	curTopologyMap := d.topology.GetAndSubscribe(subscriber)
+	d.setTopologyMap(curTopologyMap)
+
+	// TODO(xichen): account for this in dbOngoingTasks.
+	go func() {
+		for value := range subscriber {
+			d.setTopologyMap(value)
+		}
+	}()
+
+	// NB(xichen): use a different goroutine to scan shard assignments to
+	// avoid blocking the goroutine that receives config updates during bootstrapping,
+	// and at the same time avoid bootstrapping multiple shards simultaneously.
+	// Can probably achieve the same effect using a bootstrapLock and spin
+	// up bootstrap goroutines as needed but feels cleaner this way.
+	go d.processShardAssignments()
+
 	// All goroutines must be accounted for with dbOngoingTasks to receive done signal
 	go d.ongoingTick()
+
 	return nil
+}
+
+func (d *db) setTopologyMap(tm m3db.TopologyMap) {
+	newAssignments := tm.ShardAssignments().GetAssignmentsFor(d.host)
+	targetShardAssigments := make(map[uint32]m3db.ShardState)
+	for _, assignment := range newAssignments {
+		targetShardAssigments[assignment.ShardID()] = assignment.ShardState()
+	}
+	d.Lock()
+	for i := range d.shards {
+		targetShardState, exists := targetShardAssigments[uint32(i)]
+		if !exists {
+			d.shards[i].targetState = m3db.ShardUnassigned
+		} else {
+			d.shards[i].targetState = targetShardState
+		}
+	}
+	d.Unlock()
+}
+
+// processShardAssignments periodically checks shard assignments and takes necessary actions.
+func (d *db) processShardAssignments() {
+	shardWithChanges := make([]uint32, 0, len(d.shardScheme.All().Shards()))
+	period := d.opts.GetShardAssignmentProcessingPeriod()
+	for {
+		start := d.nowFn()
+		shardWithChanges = shardWithChanges[:0]
+		d.RLock()
+		for shardID := range d.shards {
+			if d.shards[shardID].curState != d.shards[shardID].targetState {
+				shardWithChanges = append(shardWithChanges, uint32(shardID))
+			}
+		}
+		d.RUnlock()
+		for _, shardID := range shardWithChanges {
+			d.processAssignmentChangeFor(shardID)
+		}
+		end := d.nowFn()
+		if d := end.Sub(start); d < period {
+			time.Sleep(period - d)
+		}
+	}
+}
+
+func (d *db) createShardAssignmentUpdate() m3db.TopologyUpdate {
+	var assignments []m3db.ShardAssignment
+	d.RLock()
+	for id, shard := range d.shards {
+		if shard.curState != m3db.ShardUnassigned {
+			assignments = append(assignments, topology.NewShardAssignment(uint32(id), shard.curState))
+		}
+	}
+	d.RUnlock()
+	return topology.NewShardAssignmentUpdate(d.host, assignments)
+}
+
+func (d *db) processAssignmentChangeFor(shard uint32) error {
+	log := d.opts.GetLogger()
+
+	d.Lock()
+	sa := d.shards[shard]
+	if sa.curState == sa.targetState {
+		d.Unlock()
+		return nil
+	}
+	d.shards[shard].curState = d.shards[shard].targetState
+
+	// We received a new shard so we need to initialize and bootstrap it.
+	if sa.curState == m3db.ShardUnassigned && sa.targetState == m3db.ShardInitializing {
+		if d.shards[shard].shard == nil {
+			d.shards[shard].shard = newDatabaseShard(shard, d.opts)
+		}
+		d.Unlock()
+		// NB(xichen): assume bootstrapping finished regardless of errors.
+		if err := d.bsm.Bootstrap(sa.shard); err != nil {
+			log.Errorf("error encountered during bootstrapping shard %d: %v", shard, err)
+		}
+		// Update the external source about the shard state change.
+		update := d.createShardAssignmentUpdate()
+		d.topology.PostUpdate(update)
+		return nil
+	}
+
+	// The shard has finished initialization and been marked as available, nothing to do
+	// here other than updating the current shard state.
+	if sa.curState == m3db.ShardInitializing && sa.targetState == m3db.ShardAvailable {
+		d.Unlock()
+		return nil
+	}
+
+	// The shard is no longer owned by us, so remove it.
+	if sa.curState == m3db.ShardAvailable && sa.targetState == m3db.ShardUnassigned {
+		d.shards[shard].shard = nil
+		d.Unlock()
+		return nil
+	}
+
+	d.Unlock()
+	return fmt.Errorf("unexpected shard assignment state change from %v to %v", sa.curState, sa.targetState)
 }
 
 func (d *db) Close() error {
@@ -157,7 +284,7 @@ func (d *db) Close() error {
 	// For now just remove all shards, in future this could be made more explicit.  However
 	// this is nice as we do not need to do any other branching now in write/read methods.
 	for i := range d.shards {
-		d.shards[i] = nil
+		d.shards[i] = shardAssignment{}
 	}
 	for i := 0; i < dbOngoingTasks; i++ {
 		d.doneCh <- struct{}{}
@@ -175,11 +302,13 @@ func (d *db) Write(
 ) error {
 	d.RLock()
 	shardID := d.shardScheme.Shard(id)
-	shard := d.shards[shardID]
+	shard := d.shards[shardID].shard
+	shardState := d.shards[shardID].curState
 	d.RUnlock()
-	if shard == nil {
+	if shardState == m3db.ShardUnassigned {
 		return fmt.Errorf("not responsible for shard %d", shardID)
 	}
+	// NB(xichen): if the shard is initializing or available, we allow the writes to go through.
 	return shard.Write(ctx, id, timestamp, value, unit, annotation)
 }
 
@@ -189,37 +318,29 @@ func (d *db) ReadEncoded(
 	start, end time.Time,
 ) ([][]m3db.SegmentReader, error) {
 	d.RLock()
-	if !d.bsm.IsBootstrapped() {
-		d.RUnlock()
-		return nil, errDatabaseNotBootstrapped
-	}
-	d.RLock()
 	shardID := d.shardScheme.Shard(id)
-	shard := d.shards[shardID]
+	shard := d.shards[shardID].shard
+	shardState := d.shards[shardID].curState
 	d.RUnlock()
-	if shard == nil {
+	if shardState == m3db.ShardUnassigned {
 		return nil, fmt.Errorf("not responsible for shard %d", shardID)
+	}
+	if shardState == m3db.ShardInitializing {
+		return nil, fmt.Errorf("shard %d is still initializing", shardID)
 	}
 	return shard.ReadEncoded(ctx, id, start, end)
 }
 
-func (d *db) Bootstrap() error {
-	return d.bsm.Bootstrap()
-}
-
-func (d *db) IsBootstrapped() bool {
-	return d.bsm.IsBootstrapped()
-}
-
 func (d *db) getOwnedShards() []databaseShard {
+	var ownedShards []databaseShard
 	d.RLock()
-	shards := d.shardSet.Shards()
-	databaseShards := make([]databaseShard, len(shards))
-	for i, shard := range shards {
-		databaseShards[i] = d.shards[shard]
+	for _, shard := range d.shards {
+		if shard.curState == m3db.ShardAvailable {
+			ownedShards = append(ownedShards, shard.shard)
+		}
 	}
 	d.RUnlock()
-	return databaseShards
+	return ownedShards
 }
 
 func (d *db) flush(t time.Time, async bool) {

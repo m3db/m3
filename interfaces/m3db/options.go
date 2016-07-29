@@ -34,6 +34,9 @@ type NowFn func() time.Time
 
 // DatabaseOptions is a set of database options
 type DatabaseOptions interface {
+	// Validate validates the options
+	Validate() error
+
 	// EncodingTszPooled sets tsz encoding with pooling and returns a new DatabaseOptions
 	EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocSize int) DatabaseOptions
 
@@ -51,6 +54,24 @@ type DatabaseOptions interface {
 
 	// GetMetricsScope returns the metricsScope
 	GetMetricsScope() xmetrics.Scope
+
+	// TopologyType sets the topologyType and returns a new DatabaseOptions
+	TopologyType(value TopologyType) DatabaseOptions
+
+	// GetTopologyType returns the topologyType
+	GetTopologyType() TopologyType
+
+	// LocalHost sets the local host
+	LocalHost(value Host) DatabaseOptions
+
+	// GetLocalHost returns the local host
+	GetLocalHost() Host
+
+	// ShardAssignmentProcessingPeriod sets the shard assignment processing period
+	ShardAssignmentProcessingPeriod(value time.Duration) DatabaseOptions
+
+	// GetShardAssignmentProcessingPeriod returns the shard assignment processing period
+	GetShardAssignmentProcessingPeriod() time.Duration
 
 	// BlockSize sets the blockSize and returns a new DatabaseOptions
 	BlockSize(value time.Duration) DatabaseOptions
@@ -369,7 +390,7 @@ type ClientOptions interface {
 	GetReaderIteratorAllocate() ReaderIteratorAllocate
 }
 
-// TopologyTypeOptions is a set of static topology type options
+// TopologyTypeOptions is the common interface for topology type options.
 type TopologyTypeOptions interface {
 	// Validate validates the options
 	Validate() error
@@ -385,10 +406,26 @@ type TopologyTypeOptions interface {
 
 	// GetReplicas returns the replicas
 	GetReplicas() int
+}
+
+// StaticTopologyTypeOptions is a set of static topology type options
+type StaticTopologyTypeOptions interface {
+	TopologyTypeOptions
 
 	// HostShardSets sets the hostShardSets and returns a new TopologyTypeOptions
-	HostShardSets(value []HostShardSet) TopologyTypeOptions
+	HostShardSets(value []HostShardSet) StaticTopologyTypeOptions
 
 	// GetHostShardSets returns the hostShardSets
 	GetHostShardSets() []HostShardSet
+}
+
+// DynamicTopologyTypeOptions is a set of dynamic topology type options
+type DynamicTopologyTypeOptions interface {
+	TopologyTypeOptions
+
+	// NewTopologyClientFn sets the function that creates a new topology client
+	NewTopologyClientFn(value NewTopologyClientFn) DynamicTopologyTypeOptions
+
+	// GetNewTopologyClientFn returns the function that creates a new topology client
+	GetNewTopologyClientFn() NewTopologyClientFn
 }

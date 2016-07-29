@@ -94,7 +94,10 @@ func (entry *dbShardEntry) decrementWriterCount() {
 
 type writeCompletionFn func()
 
-func newDatabaseShard(shard uint32, opts m3db.DatabaseOptions) databaseShard {
+func newDatabaseShard(
+	shard uint32,
+	opts m3db.DatabaseOptions,
+) databaseShard {
 	return &dbShard{
 		opts:   opts,
 		shard:  shard,

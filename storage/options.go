@@ -25,6 +25,8 @@ import (
 	"os"
 	"time"
 
+	"errors"
+
 	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
@@ -34,6 +36,9 @@ import (
 )
 
 const (
+	// defaultShardAssignmentProcessingPeriod is the default shard assignment processing period
+	defaultShardAssignmentProcessingPeriod = time.Minute
+
 	// defaultBlockSize is the default block size
 	defaultBlockSize = 2 * time.Hour
 
@@ -64,6 +69,18 @@ const (
 )
 
 var (
+	// errNoTopologyType raised if the option doesn't have a topology type
+	errNoTopologyType = errors.New("no topology type set")
+
+	// errBufferPastNoLessThanBlockSize raised if the buffer past is no less than the block size
+	errBufferPastNoLessThanBlockSize = errors.New("buffer past is not less than block size")
+
+	// errBufferFutureNoLessThanBlockSize raised if the buffer future is no less than the block size
+	errBufferFutureNoLessThanBlockSize = errors.New("buffer future is not less than block size")
+
+	// errNoLocalHost raised if the option doesn't have the local host set
+	errNoLocalHost = errors.New("no local host set")
+
 	// defaultFilePathPrefix is the default path prefix for local TSDB files.
 	defaultFilePathPrefix = os.TempDir()
 
@@ -86,53 +103,71 @@ var (
 )
 
 type dbOptions struct {
-	logger                  xlog.Logger
-	scope                   xmetrics.Scope
-	blockSize               time.Duration
-	newEncoderFn            m3db.NewEncoderFn
-	newDecoderFn            m3db.NewDecoderFn
-	nowFn                   m3db.NowFn
-	bufferFuture            time.Duration
-	bufferPast              time.Duration
-	bufferDrain             time.Duration
-	bufferBucketAllocSize   int
-	databaseBlockAllocSize  int
-	retentionPeriod         time.Duration
-	newBootstrapFn          m3db.NewBootstrapFn
-	bytesPool               m3db.BytesPool
-	contextPool             m3db.ContextPool
-	databaseBlockPool       m3db.DatabaseBlockPool
-	encoderPool             m3db.EncoderPool
-	segmentReaderPool       m3db.SegmentReaderPool
-	readerIteratorPool      m3db.ReaderIteratorPool
-	multiReaderIteratorPool m3db.MultiReaderIteratorPool
-	maxFlushRetries         int
-	filePathPrefix          string
-	newFileSetReaderFn      m3db.NewFileSetReaderFn
-	newFileSetWriterFn      m3db.NewFileSetWriterFn
-	newPersistenceManagerFn m3db.NewPersistenceManagerFn
+	logger                          xlog.Logger
+	scope                           xmetrics.Scope
+	topologyType                    m3db.TopologyType
+	localHost                       m3db.Host
+	shardAssignmentProcessingPeriod time.Duration
+	blockSize                       time.Duration
+	newEncoderFn                    m3db.NewEncoderFn
+	newDecoderFn                    m3db.NewDecoderFn
+	nowFn                           m3db.NowFn
+	bufferFuture                    time.Duration
+	bufferPast                      time.Duration
+	bufferDrain                     time.Duration
+	bufferBucketAllocSize           int
+	databaseBlockAllocSize          int
+	retentionPeriod                 time.Duration
+	newBootstrapFn                  m3db.NewBootstrapFn
+	bytesPool                       m3db.BytesPool
+	contextPool                     m3db.ContextPool
+	databaseBlockPool               m3db.DatabaseBlockPool
+	encoderPool                     m3db.EncoderPool
+	segmentReaderPool               m3db.SegmentReaderPool
+	readerIteratorPool              m3db.ReaderIteratorPool
+	multiReaderIteratorPool         m3db.MultiReaderIteratorPool
+	maxFlushRetries                 int
+	filePathPrefix                  string
+	newFileSetReaderFn              m3db.NewFileSetReaderFn
+	newFileSetWriterFn              m3db.NewFileSetWriterFn
+	newPersistenceManagerFn         m3db.NewPersistenceManagerFn
 }
 
 // NewDatabaseOptions creates a new set of database options with defaults
-// TODO(r): add an "IsValid()" method and ensure buffer future and buffer past are
-// less than blocksize and check when opening database
 func NewDatabaseOptions() m3db.DatabaseOptions {
 	opts := &dbOptions{
-		logger:                  xlog.SimpleLogger,
-		scope:                   xmetrics.NoopScope,
-		blockSize:               defaultBlockSize,
-		nowFn:                   time.Now,
-		retentionPeriod:         defaultRetentionPeriod,
-		bufferFuture:            defaultBufferFuture,
-		bufferPast:              defaultBufferPast,
-		bufferDrain:             defaultBufferDrain,
-		maxFlushRetries:         defaultMaxFlushRetries,
-		filePathPrefix:          defaultFilePathPrefix,
-		newFileSetReaderFn:      defaultFileSetReaderFn,
-		newFileSetWriterFn:      defaultFileSetWriterFn,
-		newPersistenceManagerFn: defaultPersistenceManagerFn,
+		logger:    xlog.SimpleLogger,
+		scope:     xmetrics.NoopScope,
+		blockSize: defaultBlockSize,
+		nowFn:     time.Now,
+		shardAssignmentProcessingPeriod: defaultShardAssignmentProcessingPeriod,
+		retentionPeriod:                 defaultRetentionPeriod,
+		bufferFuture:                    defaultBufferFuture,
+		bufferPast:                      defaultBufferPast,
+		bufferDrain:                     defaultBufferDrain,
+		maxFlushRetries:                 defaultMaxFlushRetries,
+		filePathPrefix:                  defaultFilePathPrefix,
+		newFileSetReaderFn:              defaultFileSetReaderFn,
+		newFileSetWriterFn:              defaultFileSetWriterFn,
+		newPersistenceManagerFn:         defaultPersistenceManagerFn,
 	}
 	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultDatabaseBlockAllocSize)
+}
+
+func (o *dbOptions) Validate() error {
+	if o.topologyType == nil {
+		return errNoTopologyType
+	}
+	if o.bufferPast >= o.blockSize {
+		return errBufferPastNoLessThanBlockSize
+	}
+	if o.bufferFuture >= o.blockSize {
+		return errBufferFutureNoLessThanBlockSize
+	}
+	if o.localHost == nil {
+		return errNoLocalHost
+	}
+	return nil
 }
 
 func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocSize int) m3db.DatabaseOptions {
@@ -232,6 +267,36 @@ func (o *dbOptions) MetricsScope(value xmetrics.Scope) m3db.DatabaseOptions {
 
 func (o *dbOptions) GetMetricsScope() xmetrics.Scope {
 	return o.scope
+}
+
+func (o *dbOptions) TopologyType(value m3db.TopologyType) m3db.DatabaseOptions {
+	opts := *o
+	opts.topologyType = value
+	return &opts
+}
+
+func (o *dbOptions) GetTopologyType() m3db.TopologyType {
+	return o.topologyType
+}
+
+func (o *dbOptions) LocalHost(value m3db.Host) m3db.DatabaseOptions {
+	opts := *o
+	opts.localHost = value
+	return &opts
+}
+
+func (o *dbOptions) GetLocalHost() m3db.Host {
+	return o.localHost
+}
+
+func (o *dbOptions) ShardAssignmentProcessingPeriod(value time.Duration) m3db.DatabaseOptions {
+	opts := *o
+	opts.shardAssignmentProcessingPeriod = value
+	return &opts
+}
+
+func (o *dbOptions) GetShardAssignmentProcessingPeriod() time.Duration {
+	return o.shardAssignmentProcessingPeriod
 }
 
 func (o *dbOptions) BlockSize(value time.Duration) m3db.DatabaseOptions {

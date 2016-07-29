@@ -21,39 +21,47 @@
 package topology
 
 import (
-	"math"
-
 	"github.com/m3db/m3db/interfaces/m3db"
 )
 
-func majority(replicas int) int {
-	return int(math.Ceil(0.5 * float64(replicas+1)))
+type dynamicTopologyType struct {
+	opts m3db.DynamicTopologyTypeOptions
 }
 
-type simpleHost string
-
-func (s simpleHost) ID() string      { return string(s) }
-func (s simpleHost) Address() string { return string(s) }
-
-// NewHost creates a new host
-func NewHost(address string) m3db.Host {
-	return simpleHost(address)
+// NewDynamicTopologyType creates a new dynamic topology type
+func NewDynamicTopologyType(opts m3db.DynamicTopologyTypeOptions) m3db.TopologyType {
+	return &dynamicTopologyType{opts: opts}
 }
 
-type hostShardSet struct {
-	host     m3db.Host
-	shardSet m3db.ShardSet
+func (t *dynamicTopologyType) Create() (m3db.Topology, error) {
+	if err := t.opts.Validate(); err != nil {
+		return nil, err
+	}
+	return newDynamicTopology(t.opts), nil
 }
 
-// NewHostShardSet creates a new host shard set
-func NewHostShardSet(host m3db.Host, shardSet m3db.ShardSet) m3db.HostShardSet {
-	return &hostShardSet{host, shardSet}
+func (t *dynamicTopologyType) Options() m3db.TopologyTypeOptions {
+	return t.opts
 }
 
-func (h *hostShardSet) Host() m3db.Host {
-	return h.host
+type dynamicTopology struct {
+	client m3db.TopologyClient
 }
 
-func (h *hostShardSet) ShardSet() m3db.ShardSet {
-	return h.shardSet
+// newDynamicTopology creates a new dynamic topology.
+func newDynamicTopology(opts m3db.DynamicTopologyTypeOptions) m3db.Topology {
+	newClientFn := opts.GetNewTopologyClientFn()
+	return &dynamicTopology{client: newClientFn()}
+}
+
+func (t *dynamicTopology) GetAndSubscribe(subscriber m3db.TopologySubscriber) m3db.TopologyMap {
+	return t.client.AddSubscriber(subscriber)
+}
+
+func (t *dynamicTopology) PostUpdate(update m3db.TopologyUpdate) {
+	t.client.PostUpdate(update)
+}
+
+func (t *dynamicTopology) Close() error {
+	return t.client.Close()
 }

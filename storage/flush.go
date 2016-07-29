@@ -80,11 +80,6 @@ func newFlushManager(database database) databaseFlushManager {
 }
 
 func (fm *flushManager) NeedsFlush(t time.Time) bool {
-	// If we haven't bootstrapped yet, don't flush.
-	if !fm.database.IsBootstrapped() {
-		return false
-	}
-
 	firstBlockStart := fm.getFirstBlockStart(t)
 	fm.RLock()
 	defer fm.RUnlock()
