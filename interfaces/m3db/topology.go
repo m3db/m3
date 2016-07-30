@@ -22,6 +22,9 @@ package m3db
 
 // Host is a container of a host in a topology
 type Host interface {
+	// ID returns the unique id of the host
+	ID() string
+
 	// Address returns the address of the host
 	Address() string
 }
@@ -44,16 +47,79 @@ type TopologyType interface {
 	Options() TopologyTypeOptions
 }
 
+// TopologySubscriber is a receive channel for topology updates
+type TopologySubscriber chan<- TopologyMap
+
 // Topology is a container of a topology map and disseminates topology map changes
 type Topology interface {
-	// Get the topology map
-	Get() TopologyMap
-
 	// Get and subscribe to updates for the topology map
-	GetAndSubscribe(ch chan<- TopologyMap) TopologyMap
+	GetAndSubscribe(subscriber TopologySubscriber) TopologyMap
+
+	// PostUpdate posts a topology update
+	PostUpdate(update TopologyUpdate)
 
 	// Close will close the topology
 	Close() error
+}
+
+type TopologyUpdateType int
+
+const (
+	ShardAssignmentUpdate TopologyUpdateType = iota
+)
+
+// TopologyUpdate encapsulates information about a topology update.
+type TopologyUpdate interface {
+	// Type returns the type of the topology update
+	Type() TopologyUpdateType
+
+	// Data returns the data related to the update
+	Data() interface{}
+}
+
+// TopologyClient is the client interface that supports subscribing to topology changes.
+type TopologyClient interface {
+
+	// AddSubscriber adds a subscriber to topology change notifications produced
+	// by an external source (e.g., the cluster configuration service).
+	AddSubscriber(subscriber TopologySubscriber) TopologyMap
+
+	// RemoveSubscriber removes a subscriber from the list of registered subscribers.
+	RemoveSubscriber(subscriber TopologySubscriber)
+
+	// PostUpdate posts an topology update.
+	PostUpdate(update TopologyUpdate)
+
+	// Close stops the background goroutine that polls the external source for topology updates.
+	Close() error
+}
+
+type NewTopologyClientFn func() TopologyClient
+
+type ShardState int
+
+const (
+	ShardUnassigned ShardState = iota
+	ShardInitializing
+	ShardAvailable
+)
+
+// ShardAssignment represents a shard assignment.
+type ShardAssignment interface {
+	// ShardID returns the shard id
+	ShardID() uint32
+
+	// ShardState returns the shard state.
+	ShardState() ShardState
+}
+
+// ShardAssignments encapsulates shard assignment information across hosts.
+type ShardAssignments interface {
+	// GetAssignmentsFor returns the shard assignments for a given host.
+	GetAssignmentsFor(host Host) []ShardAssignment
+
+	// AddAssignmentsFor adds the shard assignments for a given host.
+	AddAssignmentsFor(host Host, assignments []ShardAssignment)
 }
 
 // TopologyMap describes a topology
@@ -66,6 +132,9 @@ type TopologyMap interface {
 
 	// ShardScheme returns the shard scheme for the topology
 	ShardScheme() ShardScheme
+
+	// ShardAssignments returns the shard assignments across hosts
+	ShardAssignments() ShardAssignments
 
 	// Route will route a given ID to a shard and a set of hosts
 	Route(id string) (uint32, []Host, error)

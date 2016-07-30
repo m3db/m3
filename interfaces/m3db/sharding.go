@@ -23,6 +23,10 @@ package m3db
 // HashFn is a sharding hash function
 type HashFn func(identifer string) uint32
 
+// TODO(xichen):
+// - it's possible we don't need CreateSet or All
+// - we do need TotalShards()
+//
 // ShardScheme is a sharding scheme
 type ShardScheme interface {
 	// Shard will return a shard for a given identifer
@@ -37,7 +41,7 @@ type ShardScheme interface {
 
 // ShardSet is a set of shards, this interface allows for potentially out of order shard sets
 type ShardSet interface {
-	// Shards returns a slice to the shards in this set
+	// Shards returns a slice of the shard IDs in this set
 	Shards() []uint32
 
 	// Scheme returns the scheme this shard set belongs to

@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3x/errors"
 )
 
 type bootstrapState int
@@ -59,37 +58,27 @@ var (
 
 // databaseBootstrapManager manages the bootstrap process.
 type databaseBootstrapManager interface {
-	// IsBootstrapped returns whether the database is already bootstrapped.
-	IsBootstrapped() bool
-
-	// Bootstrap performs bootstrapping for all shards owned by db. It returns an error
+	// Bootstrap performs bootstrapping for a given shard. It returns an error
 	// if the server is currently being bootstrapped, and nil otherwise.
-	Bootstrap() error
+	Bootstrap(shard databaseShard) error
 }
 
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database    database             // storage database
-	opts        m3db.DatabaseOptions // database options
-	bootstrapFn m3db.NewBootstrapFn  // function to create a new bootstrap process
-	state       bootstrapState       // bootstrap state
+	database database             // storage database
+	opts     m3db.DatabaseOptions // database options
+	bs       m3db.Bootstrap       // function to create a new bootstrap process
 }
 
 func newBootstrapManager(database database) databaseBootstrapManager {
 	opts := database.Options()
+	bootstrapFn := opts.GetBootstrapFn()
 	return &bootstrapManager{
-		database:    database,
-		opts:        opts,
-		bootstrapFn: opts.GetBootstrapFn(),
+		database: database,
+		opts:     opts,
+		bs:       bootstrapFn(),
 	}
-}
-
-func (bsm *bootstrapManager) IsBootstrapped() bool {
-	bsm.RLock()
-	state := bsm.state
-	bsm.RUnlock()
-	return state == bootstrapped
 }
 
 // cutoverTime is when we should cut over to the in-memory data during bootstrapping.
@@ -112,38 +101,16 @@ func (bsm *bootstrapManager) flushTime(writeStart time.Time) time.Time {
 }
 
 // NB(xichen): Bootstrap must be called after the server starts accepting writes.
-func (bsm *bootstrapManager) Bootstrap() error {
+func (bsm *bootstrapManager) Bootstrap(shard databaseShard) error {
 	writeStart := bsm.opts.GetNowFn()()
-
-	bsm.Lock()
-	if bsm.state == bootstrapped {
-		bsm.Unlock()
-		return nil
-	}
-	if bsm.state == bootstrapping {
-		bsm.Unlock()
-		return errDatabaseIsBootstrapping
-	}
-	bsm.state = bootstrapping
-	bsm.Unlock()
 
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
-	multiErr := xerrors.NewMultiError()
 	cutover := bsm.cutoverTime(writeStart)
-	shards := bsm.database.getOwnedShards()
-	bs := bsm.bootstrapFn()
-	for _, shard := range shards {
-		err := shard.Bootstrap(bs, writeStart, cutover)
-		multiErr = multiErr.Add(err)
-	}
+	err := shard.Bootstrap(bsm.bs, writeStart, cutover)
 
 	flushTime := bsm.flushTime(writeStart)
 	bsm.database.flush(flushTime, false)
 
-	bsm.Lock()
-	bsm.state = bootstrapped
-	bsm.Unlock()
-
-	return multiErr.FinalError()
+	return err
 }

@@ -54,7 +54,9 @@ func testDatabaseOptions() m3db.DatabaseOptions {
 func testDatabase(t *testing.T) *db {
 	ss := testShardingScheme(t)
 	opts := testDatabaseOptions()
-	return NewDatabase(ss.All(), opts).(*db)
+	db, err := NewDatabase(ss.All(), opts)
+	require.NoError(t, err)
+	return db.(*db)
 }
 
 func TestDatabaseOpen(t *testing.T) {

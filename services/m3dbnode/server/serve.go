@@ -75,7 +75,10 @@ func Serve(
 ) error {
 	log := dbOpts.GetLogger()
 	shardingScheme := clientOpts.GetTopologyType().Options().GetShardScheme()
-	db := storage.NewDatabase(shardingScheme.All(), dbOpts)
+	db, err := storage.NewDatabase(shardingScheme.All(), dbOpts)
+	if err != nil {
+		return fmt.Errorf("could not create database: %v", err)
+	}
 	if err := db.Open(); err != nil {
 		return fmt.Errorf("could not open database: %v", err)
 	}
