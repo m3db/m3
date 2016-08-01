@@ -36,7 +36,7 @@ func testPersistenceManager(
 	ctrl *gomock.Controller,
 ) (*persistenceManager, *mocks.MockPersistenceManager, *mocks.MockPersistenceManager) {
 	m1 := mocks.NewMockPersistenceManager(ctrl)
-m2:
+	m2 := mocks.NewMockPersistenceManager(ctrl)
 	mocks.NewMockPersistenceManager(ctrl)
 	pm := NewPersistenceManager(m1, m2)
 	return pm.(*persistenceManager), m1, m2
