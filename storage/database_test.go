@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/generated/mocks/mocks"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/mocks"
 	"github.com/m3db/m3db/sharding"
 
 	"github.com/golang/mock/gomock"
