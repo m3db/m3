@@ -126,7 +126,7 @@ testhtml: test-internal
 	@rm -f $(test_log) &> /dev/null
 
 install-ci: 
-	make install_vendor
+	make install-vendor
 
 test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
