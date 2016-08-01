@@ -28,12 +28,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
-	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3db/pool"
-	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3x/errors"
+	xtime "github.com/m3db/m3x/time"
 )
 
 const (

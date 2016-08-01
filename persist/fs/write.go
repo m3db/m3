@@ -24,8 +24,8 @@ import (
 	"os"
 	"time"
 
+	schema "github.com/m3db/m3db/generated/proto/persistfs"
 	"github.com/m3db/m3db/interfaces/m3db"
-	schema "github.com/m3db/m3db/persist/fs/proto"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"

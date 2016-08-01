@@ -23,7 +23,7 @@ go run .ci/gotestcover/gotestcover.go -covermode=set -coverprofile=${TARGET} -v 
 
 TEST_EXIT=${PIPESTATUS[0]}
 
-find . | grep \\.tmp | xargs -I{} rm {}
+find . -not -path '*/vendor/*' | grep \\.tmp$ | xargs -I{} rm {}
 echo "test-cover result: $TEST_EXIT"
 
 exit $TEST_EXIT

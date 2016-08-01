@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3x/errors"
+	xtime "github.com/m3db/m3x/time"
 )
 
 var (

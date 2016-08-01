@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"

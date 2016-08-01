@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/generated/mocks/mocks"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/mocks"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"

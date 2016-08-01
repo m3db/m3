@@ -9,6 +9,20 @@ junit_xml := junit.xml
 test_log := test.log
 test_target := .
 lint_check := .ci/lint.sh
+m3db_package := github.com/m3db/m3db
+gopath_prefix := $(GOPATH)/src
+vendor_prefix := vendor
+license_dir := $(vendor_prefix)/github.com/uber/uber-licence
+license_node_modules := $(license_dir)/node_modules
+auto_gen := .ci/auto-gen.sh
+mockgen_package := github.com/golang/mock/mockgen
+mocks_output_dir := generated/mocks/mocks
+mocks_rules_dir := generated/mocks
+protoc_go_package := github.com/golang/protobuf/protoc-gen-go
+proto_output_dir := generated/proto/persistfs
+proto_rules_dir := generated/proto
+thrift_output_dir := generated/thrift/rpc
+thrift_rules_dir := generated/thrift
 
 BUILD := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -55,6 +69,38 @@ tools-linux-amd64:
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
+install-vendor: .gitmodules
+	@echo Updating submodules
+	git submodule update --init --recursive
+
+install-license-bin: install-vendor
+	@echo Installing node modules
+	[ -d $(license_node_modules) ] || (cd $(license_dir) && npm install)
+
+install-mockgen: install-vendor
+	@echo Installing mockgen
+	rm -rf $(gopath_prefix)/$(mockgen_package) && \
+	cp -r $(vendor_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package) && \
+	go install $(mockgen_package)
+
+install-protoc-go: install-vendor
+	go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)
+
+# mock-gen depends on thrift-gen because one of mocks generated is for the tchannel rpc interfaces
+mock-gen: install-vendor install-mockgen install-license-bin thrift-gen
+	@echo Generating mocks
+	$(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
+
+proto-gen: install-vendor install-protoc-go install-license-bin
+	@echo Generating protobuf files
+	$(auto_gen) $(proto_output_dir) $(proto_rules_dir)
+
+thrift-gen: install-license-bin
+	@echo Generating thrift files
+	$(auto_gen) $(thrift_output_dir) $(thrift_rules_dir)
+
+all-gen: mock-gen proto-gen thrift-gen
+
 lint:
 	@which golint > /dev/null || go get -u github.com/golang/lint/golint
 	$(VENDOR_ENV) $(lint_check)
@@ -80,7 +126,7 @@ testhtml: test-internal
 	@rm -f $(test_log) &> /dev/null
 
 install-ci: 
-	git submodule update --init --recursive
+	make install_vendor
 
 test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
