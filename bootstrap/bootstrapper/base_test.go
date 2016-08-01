@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/bootstrap"
+	"github.com/m3db/m3db/generated/mocks/mocks"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/mocks"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3x/time"
 

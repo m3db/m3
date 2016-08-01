@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/m3db/m3db/generated/mocks/mocks"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/mocks"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

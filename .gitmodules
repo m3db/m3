@@ -31,3 +31,6 @@
 [submodule "vendor/github.com/m3db/m3x"]
 	path = vendor/github.com/m3db/m3x
 	url = https://github.com/m3db/m3x
+[submodule "vendor/github.com/uber/uber-licence"]
+	path = vendor/github.com/uber/uber-licence
+	url = https://github.com/uber/uber-licence

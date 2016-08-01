@@ -24,7 +24,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3x/time"
 )
 

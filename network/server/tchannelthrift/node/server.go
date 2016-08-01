@@ -21,8 +21,8 @@
 package node
 
 import (
+	"github.com/m3db/m3db/generated/thrift/rpc"
 	ns "github.com/m3db/m3db/network/server"
-	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3db/storage"
 
 	"github.com/uber/tchannel-go"
