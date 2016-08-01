@@ -24,14 +24,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/mocks"
 	"github.com/m3db/m3db/sharding"
+
+	"github.com/golang/mock/gomock"
 	"github.com/spaolacci/murmur3"
 	"github.com/stretchr/testify/require"
 )
 
 func testShardingScheme(t *testing.T) m3db.ShardScheme {
-	shardScheme, err := sharding.NewShardScheme(0, 1, func(id string) uint32 {
+	shardScheme, err := sharding.NewShardScheme(0, 1023, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % 1024
 	})
 	require.NoError(t, err)
@@ -51,21 +55,56 @@ func testDatabaseOptions() m3db.DatabaseOptions {
 	return opts
 }
 
-func testDatabase(t *testing.T) *db {
+func testDatabase(t *testing.T, bs bootstrapState) *db {
 	ss := testShardingScheme(t)
 	opts := testDatabaseOptions()
-	return NewDatabase(ss.All(), opts).(*db)
+	d := NewDatabase(ss.CreateSet(397, 397), opts).(*db)
+	bsm := newBootstrapManager(d).(*bootstrapManager)
+	bsm.state = bs
+	d.bsm = bsm
+	return d
 }
 
 func TestDatabaseOpen(t *testing.T) {
-	d := testDatabase(t)
+	d := testDatabase(t, bootstrapNotStarted)
 	require.NoError(t, d.Open())
 	require.Equal(t, errDatabaseAlreadyOpen, d.Open())
 }
 
 func TestDatabaseClose(t *testing.T) {
-	d := testDatabase(t)
+	d := testDatabase(t, bootstrapped)
 	require.NoError(t, d.Open())
 	require.NoError(t, d.Close())
 	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
+}
+
+func TestDatabaseReadEncodedNotBootstrapped(t *testing.T) {
+	d := testDatabase(t, bootstrapNotStarted)
+	_, err := d.ReadEncoded(context.NewContext(), "foo", time.Now(), time.Now())
+	require.Equal(t, errDatabaseNotBootstrapped, err)
+}
+
+func TestDatabaseReadEncodedShardNotOwned(t *testing.T) {
+	d := testDatabase(t, bootstrapped)
+	_, err := d.ReadEncoded(context.NewContext(), "foo", time.Now(), time.Now())
+	require.Equal(t, "not responsible for shard 32", err.Error())
+	require.Panics(t, func() { d.RUnlock() }, "shouldn't be able to unlock the read lock")
+}
+
+func TestDatabaseReadEncodedShardOwned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d := testDatabase(t, bootstrapped)
+	ctx := context.NewContext()
+	id := "bar"
+	end := time.Now()
+	start := end.Add(-time.Hour)
+	mockShard := mocks.NewMockdatabaseShard(ctrl)
+	mockShard.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
+	d.shards[397] = mockShard
+	res, err := d.ReadEncoded(ctx, id, start, end)
+	require.Nil(t, res)
+	require.Nil(t, err)
+	require.Panics(t, func() { d.RUnlock() }, "shouldn't be able to unlock the read lock")
 }
