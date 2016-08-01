@@ -24,7 +24,7 @@ if [ $# -ne 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
     exit 1
 fi
 
-set -ex
+set -e
 
 . "$(dirname $0)/variables.sh"
 
