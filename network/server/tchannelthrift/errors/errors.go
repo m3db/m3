@@ -23,7 +23,7 @@ package errors
 import (
 	"fmt"
 
-	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
+	"github.com/m3db/m3db/generated/thrift/rpc"
 )
 
 func newError(errType rpc.ErrorType, err error) *rpc.Error {

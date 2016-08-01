@@ -21,9 +21,9 @@
 package cluster
 
 import (
+	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/interfaces/m3db"
 	ns "github.com/m3db/m3db/network/server"
-	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	"github.com/m3db/m3x/close"
 
 	"github.com/uber/tchannel-go"

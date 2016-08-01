@@ -23,8 +23,8 @@ package client
 import (
 	"io"
 
+	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
 	xio "github.com/m3db/m3db/x/io"
 )
 

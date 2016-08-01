@@ -26,13 +26,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/generated/mocks/mocks"
+	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3db/mocks"
-	"github.com/m3db/m3db/network/server/tchannelthrift/thrift/gen-go/rpc"
-	"github.com/uber/tchannel-go/thrift"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/uber/tchannel-go/thrift"
 )
 
 var (
