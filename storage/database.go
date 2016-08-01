@@ -193,7 +193,6 @@ func (d *db) ReadEncoded(
 		d.RUnlock()
 		return nil, errDatabaseNotBootstrapped
 	}
-	d.RLock()
 	shardID := d.shardScheme.Shard(id)
 	shard := d.shards[shardID]
 	d.RUnlock()
