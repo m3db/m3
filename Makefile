@@ -21,6 +21,7 @@ mocks_rules_dir := generated/mocks
 protoc_go_package := github.com/golang/protobuf/protoc-gen-go
 proto_output_dir := generated/proto/persistfs
 proto_rules_dir := generated/proto
+thrift_gen_package := github.com/uber/tchannel-go
 thrift_output_dir := generated/thrift/rpc
 thrift_rules_dir := generated/thrift
 
@@ -83,19 +84,30 @@ install-mockgen: install-vendor
 	cp -r $(vendor_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package) && \
 	go install $(mockgen_package)
 
-install-protoc-go: install-vendor
+install-proto-bin: install-vendor
+	@echo Installing protobuf binaries
+	@echo Note: the protobuf compiler v3.0.0 can be downloaded from https://github.com/google/protobuf/releases or built from source at https://github.com/google/protobuf.
 	go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)
 
+install-glide:
+	@which glide > /dev/null || go get -u github.com/Masterminds/glide
+
+install-thrift-bin: install-vendor install-glide
+	@echo Installing thrift binaries
+	@echo Note: the thrift binary should be installed from https://github.com/apache/thrift at commit 9b954e6a469fef18682314458e6fc4af2dd84add.
+	go get $(thrift_gen_package) && cd $(GOPATH)/src/$(thrift_gen_package) && glide install
+	go install $(thrift_gen_package)/thrift/thrift-gen
+
 # mock-gen depends on thrift-gen because one of mocks generated is for the tchannel rpc interfaces
-mock-gen: install-vendor install-mockgen install-license-bin thrift-gen
+mock-gen: install-mockgen install-license-bin thrift-gen
 	@echo Generating mocks
 	$(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
-proto-gen: install-vendor install-protoc-go install-license-bin
+proto-gen: install-proto-bin install-license-bin
 	@echo Generating protobuf files
 	$(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
-thrift-gen: install-license-bin
+thrift-gen: install-thrift-bin install-license-bin
 	@echo Generating thrift files
 	$(auto_gen) $(thrift_output_dir) $(thrift_rules_dir)
 
