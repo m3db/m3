@@ -1,5 +1,5 @@
 syntax = "proto3";
-package persistfs;
+package schema;
 
 message IndexInfo {
 	int64 start = 1;

@@ -18,6 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "protoc -I$GOPATH/src/$PACKAGE/generated/proto --go_out=$GOPATH/src/$PACKAGE/generated/proto/persistfs $GOPATH/src/$PACKAGE/generated/proto/persistfs.proto"
+//go:generate sh -c "protoc -I$GOPATH/src/$PACKAGE/generated/proto --go_out=$GOPATH/src/$PACKAGE/generated/proto/schema $GOPATH/src/$PACKAGE/generated/proto/persistfs.proto"
 
 package proto

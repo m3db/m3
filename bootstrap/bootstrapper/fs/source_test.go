@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	schema "github.com/m3db/m3db/generated/proto/persistfs"
+	schema "github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/time"
 
