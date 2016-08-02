@@ -515,6 +515,26 @@ func (_mr *_MockDatabaseOptionsRecorder) GetFilePathPrefix() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFilePathPrefix")
 }
 
+func (_m *MockDatabaseOptions) FileWriterOptions(value m3db.FileWriterOptions) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "FileWriterOptions", value)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) FileWriterOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FileWriterOptions", arg0)
+}
+
+func (_m *MockDatabaseOptions) GetFileWriterOptions() m3db.FileWriterOptions {
+	ret := _m.ctrl.Call(_m, "GetFileWriterOptions")
+	ret0, _ := ret[0].(m3db.FileWriterOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetFileWriterOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFileWriterOptions")
+}
+
 func (_m *MockDatabaseOptions) NewFileSetReaderFn(value m3db.NewFileSetReaderFn) m3db.DatabaseOptions {
 	ret := _m.ctrl.Call(_m, "NewFileSetReaderFn", value)
 	ret0, _ := ret[0].(m3db.DatabaseOptions)

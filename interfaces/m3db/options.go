@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"os"
 	"time"
 
 	"github.com/m3db/m3x/log"
@@ -172,6 +173,12 @@ type DatabaseOptions interface {
 
 	// GetFilePathPrefix returns the file path prefix for sharded TSDB files.
 	GetFilePathPrefix() string
+
+	// FileWriterOptions sets the file writer options.
+	FileWriterOptions(value FileWriterOptions) DatabaseOptions
+
+	// GetFileWriterOptions returns the file writer options.
+	GetFileWriterOptions() FileWriterOptions
 
 	// NewFileSetReaderFn sets the function for creating a new fileset reader.
 	NewFileSetReaderFn(value NewFileSetReaderFn) DatabaseOptions
@@ -391,4 +398,19 @@ type TopologyTypeOptions interface {
 
 	// GetHostShardSets returns the hostShardSets
 	GetHostShardSets() []HostShardSet
+}
+
+// FileWriterOptions is a set of file writing options for a file writer
+type FileWriterOptions interface {
+	// NewFileMode sets the new file mode.
+	NewFileMode(value os.FileMode) FileWriterOptions
+
+	// GetNewFileMode returns the new file mode.
+	GetNewFileMode() os.FileMode
+
+	// NewDirectoryMode sets the new directory mode.
+	NewDirectoryMode(value os.FileMode) FileWriterOptions
+
+	// GetNewDirectoryMode returns the new directory mode.
+	GetNewDirectoryMode() os.FileMode
 }

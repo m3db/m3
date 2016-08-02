@@ -21,31 +21,45 @@
 package fs
 
 import (
-	"encoding/binary"
-)
+	"os"
 
-const (
-	infoFileSuffix       = "info"
-	indexFileSuffix      = "index"
-	dataFileSuffix       = "data"
-	checkpointFileSuffix = "checkpoint"
-	filesetFilePrefix    = "fileset"
-	commitLogFilePrefix  = "commitlog"
-	fileSuffix           = ".db"
-
-	separator            = "-"
-	infoFilePattern      = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
-	commitLogFilePattern = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
-
-	// Index ID is int64
-	idxLen = 8
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
-
-	// Endianness is little endian
-	endianness = binary.LittleEndian
+	defaultNewFileMode      = os.FileMode(0666)
+	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
 )
+
+type writerOptions struct {
+	newFileMode      os.FileMode
+	newDirectoryMode os.FileMode
+}
+
+// NewFileWriterOptions creates a file writer options.
+func NewFileWriterOptions() m3db.FileWriterOptions {
+	return &writerOptions{
+		newFileMode:      defaultNewFileMode,
+		newDirectoryMode: defaultNewDirectoryMode,
+	}
+}
+
+func (o *writerOptions) NewFileMode(value os.FileMode) m3db.FileWriterOptions {
+	opts := *o
+	opts.newFileMode = value
+	return &opts
+}
+
+func (o *writerOptions) GetNewFileMode() os.FileMode {
+	return o.newFileMode
+}
+
+func (o *writerOptions) NewDirectoryMode(value os.FileMode) m3db.FileWriterOptions {
+	opts := *o
+	opts.newDirectoryMode = value
+	return &opts
+}
+
+func (o *writerOptions) GetNewDirectoryMode() os.FileMode {
+	return o.newDirectoryMode
+}

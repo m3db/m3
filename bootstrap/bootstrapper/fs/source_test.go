@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
-	schema "github.com/m3db/m3db/persist/fs/proto"
+	"github.com/m3db/m3db/persist/fs/proto"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"

@@ -71,7 +71,6 @@ type dbSeries struct {
 	seriesID         string
 	buffer           databaseBuffer
 	blocks           m3db.DatabaseSeriesBlocks
-	blockSize        time.Duration
 	pendingBootstrap []pendingBootstrapDrain
 	bs               bootstrapState
 }
@@ -82,11 +81,10 @@ type pendingBootstrapDrain struct {
 
 func newDatabaseSeries(id string, bs bootstrapState, opts m3db.DatabaseOptions) databaseSeries {
 	series := &dbSeries{
-		opts:      opts,
-		seriesID:  id,
-		blocks:    NewDatabaseSeriesBlocks(opts),
-		blockSize: opts.GetBlockSize(),
-		bs:        bs,
+		opts:     opts,
+		seriesID: id,
+		blocks:   NewDatabaseSeriesBlocks(opts),
+		bs:       bs,
 	}
 	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
 	return series
@@ -216,11 +214,12 @@ func (s *dbSeries) ReadEncoded(
 	// TODO(r): pool these results arrays
 	var results [][]m3db.SegmentReader
 
-	alignedStart := start.Truncate(s.blockSize)
-	alignedEnd := end.Truncate(s.blockSize)
+	blockSize := s.opts.GetBlockSize()
+	alignedStart := start.Truncate(blockSize)
+	alignedEnd := end.Truncate(blockSize)
 	if alignedEnd.Equal(end) {
 		// Move back to make range [start, end)
-		alignedEnd = alignedEnd.Add(-1 * s.blockSize)
+		alignedEnd = alignedEnd.Add(-1 * blockSize)
 	}
 
 	s.RLock()
@@ -233,7 +232,7 @@ func (s *dbSeries) ReadEncoded(
 		if s.blocks.GetMaxTime().Before(alignedEnd) {
 			alignedEnd = s.blocks.GetMaxTime()
 		}
-		for blockAt := alignedStart; !blockAt.After(alignedEnd); blockAt = blockAt.Add(s.blockSize) {
+		for blockAt := alignedStart; !blockAt.After(alignedEnd); blockAt = blockAt.Add(blockSize) {
 			if block, ok := s.blocks.GetBlockAt(blockAt); ok {
 				stream, err := block.Stream(ctx)
 				if err != nil {
@@ -294,7 +293,7 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 		if dp.Timestamp.Before(cutover) {
 			continue
 		}
-		blockStart := dp.Timestamp.Truncate(s.blockSize)
+		blockStart := dp.Timestamp.Truncate(s.opts.GetBlockSize())
 		block := blocks.GetBlockOrAdd(blockStart)
 
 		if err := block.Write(dp.Timestamp, dp.Value, unit, annotation); err != nil {

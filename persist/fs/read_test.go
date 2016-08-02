@@ -23,9 +23,7 @@ package fs
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -238,14 +236,14 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := NewWriter(testBlockSize, filePathPrefix, nil)
-	shard := 0
-	err = w.Open(uint32(shard), testWriterStart)
+	shard := uint32(0)
+	err = w.Open(shard, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
-	shardDir := path.Join(filePathPrefix, strconv.Itoa(shard))
-	checkpointFile := filepathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
-	require.True(t, fileExists(checkpointFile))
+	shardDir := ShardDirPath(filePathPrefix, shard)
+	checkpointFile := filesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
+	require.True(t, FileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
 	r := NewReader(filePathPrefix)

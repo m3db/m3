@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	schema "github.com/m3db/m3db/persist/fs/proto"
+	"github.com/m3db/m3db/persist/fs/proto"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -89,15 +89,15 @@ func NewReader(filePathPrefix string) m3db.FileSetReader {
 func (r *reader) Open(shard uint32, blockStart time.Time) error {
 	// If there is no checkpoint file, don't read the data files.
 	shardDir := ShardDirPath(r.filePathPrefix, shard)
-	checkpointFilePath := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	if !fileExists(checkpointFilePath) {
+	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	if !FileExists(checkpointFilePath) {
 		return errCheckpointFileNotFound
 	}
 
 	if err := openFiles(os.Open, map[string]**os.File{
-		filepathFromTime(shardDir, blockStart, infoFileSuffix):  &r.infoFd,
-		filepathFromTime(shardDir, blockStart, indexFileSuffix): &r.indexFd,
-		filepathFromTime(shardDir, blockStart, dataFileSuffix):  &r.dataFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):  &r.infoFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): &r.indexFd,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):  &r.dataFd,
 	}); err != nil {
 		closeFiles(validFiles(r.infoFd, r.indexFd, r.dataFd)...)
 		return err

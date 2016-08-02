@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	schema "github.com/m3db/m3db/persist/fs/proto"
+	"github.com/m3db/m3db/persist/fs/proto"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -63,10 +63,22 @@ func createFile(t *testing.T, filePath string) {
 func createInfoFiles(t *testing.T, iter int) string {
 	dir := createTempDir(t)
 	for i := 0; i < iter; i++ {
-		infoFilePath := path.Join(dir, fmt.Sprintf("%d%s%s", i, separator, infoFileSuffix))
+		infoFilePath := filesetPathFromTime(dir, time.Unix(0, int64(i)), infoFileSuffix)
 		createFile(t, infoFilePath)
-		checkpointFilePath := path.Join(dir, fmt.Sprintf("%d%s%s", i, separator, checkpointFileSuffix))
+		checkpointFilePath := filesetPathFromTime(dir, time.Unix(0, int64(i)), checkpointFileSuffix)
 		createFile(t, checkpointFilePath)
+	}
+	return dir
+}
+
+func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
+	dir := createTempDir(t)
+	commitLogsDir := path.Join(dir, commitLogsDirName)
+	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
+	for i := 0; i < iter; i++ {
+		for j := 0; j < perSlot; j++ {
+			createFile(t, NextCommitLogsFile(dir, time.Unix(0, int64(i))))
+		}
 	}
 	return dir
 }
@@ -97,8 +109,8 @@ func TestCloseFilesFails(t *testing.T) {
 }
 
 func TestByTimeAscending(t *testing.T) {
-	files := []string{"foo/1-info.db", "foo/12-info.db", "foo/2-info.db"}
-	expected := []string{"foo/1-info.db", "foo/2-info.db", "foo/12-info.db"}
+	files := []string{"foo/fileset-1-info.db", "foo/fileset-12-info.db", "foo/fileset-2-info.db"}
+	expected := []string{"foo/fileset-1-info.db", "foo/fileset-2-info.db", "foo/fileset-12-info.db"}
 	sort.Sort(byTimeAscending(files))
 	require.Equal(t, expected, files)
 }
@@ -109,14 +121,40 @@ func TestInfoFiles(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	createFile(t, path.Join(dir, "abcd"))
-	createFile(t, path.Join(dir, separator+infoFileSuffix))
-	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+infoFileSuffix))
+	createFile(t, path.Join(dir, infoFileSuffix+fileSuffix))
+	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+infoFileSuffix+fileSuffix))
+	createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+infoFileSuffix+fileSuffix))
 
 	files, err := InfoFiles(dir)
 	require.NoError(t, err)
 	require.Equal(t, iter, len(files))
 	for i := 0; i < iter; i++ {
-		require.Equal(t, path.Join(dir, fmt.Sprintf("%d%s%s", i, separator, infoFileSuffix)), files[i])
+		require.Equal(t, path.Join(dir, fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, i, separator, infoFileSuffix, fileSuffix)), files[i])
+	}
+}
+
+func TestCommitLogFiles(t *testing.T) {
+	iter := 20
+	perSlot := 3
+	dir := createCommitLogFiles(t, iter, perSlot)
+	defer os.RemoveAll(dir)
+
+	createFile(t, path.Join(dir, "abcd"))
+	createFile(t, path.Join(dir, strconv.Itoa(perSlot+1)+fileSuffix))
+	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix))
+	createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix))
+
+	files, err := CommitLogFiles(CommitLogsDirPath(dir))
+	require.NoError(t, err)
+	require.Equal(t, iter*perSlot, len(files))
+	for i := 0; i < iter; i++ {
+		for j := 0; j < perSlot; j++ {
+			entry := fmt.Sprintf("%d%s%d", i, separator, j)
+			fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
+
+			x := (i * perSlot) + j
+			require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
+		}
 	}
 }
 
@@ -159,20 +197,45 @@ func TestTimeFromName(t *testing.T) {
 	_, err = TimeFromFileName("foo/bar-baz")
 	require.Error(t, err)
 
-	v, err := TimeFromFileName("1-test.db")
+	v, err := TimeFromFileName("test-1.db")
 	expected := time.Unix(0, 1)
 	require.Equal(t, expected, v)
 	require.NoError(t, err)
 
-	v, err = TimeFromFileName("foo/bar/21234567890-test.db")
+	v, err = TimeFromFileName("foo/bar/test-21234567890.db")
 	expected = time.Unix(0, 21234567890)
 	require.Equal(t, expected, v)
 	require.NoError(t, err)
 }
 
+func TestTimeAndIndexFromFileName(t *testing.T) {
+	_, _, err := TimeAndIndexFromFileName("foo/bar")
+	require.Error(t, err)
+	require.Equal(t, "unexpected file name foo/bar", err.Error())
+
+	_, _, err = TimeAndIndexFromFileName("foo/bar-baz")
+	require.Error(t, err)
+
+	type expected struct {
+		t time.Time
+		i int
+	}
+	ts, i, err := TimeAndIndexFromFileName("test-1-0.db")
+	exp := expected{time.Unix(0, 1), 0}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+
+	ts, i, err = TimeAndIndexFromFileName("foo/bar/test-21234567890-1.db")
+	exp = expected{time.Unix(0, 21234567890), 1}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+}
+
 func TestShardDirPath(t *testing.T) {
-	require.Equal(t, "foo/bar/12", ShardDirPath("foo/bar", 12))
-	require.Equal(t, "foo/bar/12", ShardDirPath("foo/bar/", 12))
+	require.Equal(t, "foo/bar/data/12", ShardDirPath("foo/bar", 12))
+	require.Equal(t, "foo/bar/data/12", ShardDirPath("foo/bar/", 12))
 }
 
 func TestFilePathFromTime(t *testing.T) {
@@ -182,14 +245,14 @@ func TestFilePathFromTime(t *testing.T) {
 		suffix   string
 		expected string
 	}{
-		{"foo/bar", infoFileSuffix, "foo/bar/1465501321123456789-info.db"},
-		{"foo/bar", indexFileSuffix, "foo/bar/1465501321123456789-index.db"},
-		{"foo/bar", dataFileSuffix, "foo/bar/1465501321123456789-data.db"},
-		{"foo/bar", checkpointFileSuffix, "foo/bar/1465501321123456789-checkpoint.db"},
-		{"foo/bar/", infoFileSuffix, "foo/bar/1465501321123456789-info.db"},
+		{"foo/bar", infoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
+		{"foo/bar", indexFileSuffix, "foo/bar/fileset-1465501321123456789-index.db"},
+		{"foo/bar", dataFileSuffix, "foo/bar/fileset-1465501321123456789-data.db"},
+		{"foo/bar", checkpointFileSuffix, "foo/bar/fileset-1465501321123456789-checkpoint.db"},
+		{"foo/bar/", infoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expected, filepathFromTime(input.prefix, start, input.suffix))
+		require.Equal(t, input.expected, filesetPathFromTime(input.prefix, start, input.suffix))
 	}
 }
 
@@ -202,16 +265,16 @@ func TestFileExists(t *testing.T) {
 	shardDir := path.Join(dir, strconv.Itoa(shard))
 	err := os.Mkdir(shardDir, defaultNewDirectoryMode)
 	require.NoError(t, err)
-	infoFilePath := path.Join(shardDir, fmt.Sprintf("%d%s%s", start, separator, infoFileSuffix))
+	infoFilePath := path.Join(shardDir, fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, start, separator, infoFileSuffix, fileSuffix))
 	createFile(t, infoFilePath)
-	require.True(t, fileExists(infoFilePath))
+	require.True(t, FileExists(infoFilePath))
 	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
 
-	checkpointFilePath := path.Join(shardDir, fmt.Sprintf("%d%s%s", start, separator, checkpointFileSuffix))
+	checkpointFilePath := path.Join(shardDir, fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, start, separator, checkpointFileSuffix, fileSuffix))
 	createFile(t, checkpointFilePath)
-	require.True(t, fileExists(checkpointFilePath))
+	require.True(t, FileExists(checkpointFilePath))
 	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
 
 	os.Remove(infoFilePath)
-	require.False(t, fileExists(infoFilePath))
+	require.False(t, FileExists(infoFilePath))
 }

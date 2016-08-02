@@ -18,34 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package commitlog
 
 import (
-	"encoding/binary"
+	bset "github.com/willf/bitset"
 )
 
-const (
-	infoFileSuffix       = "info"
-	indexFileSuffix      = "index"
-	dataFileSuffix       = "data"
-	checkpointFileSuffix = "checkpoint"
-	filesetFilePrefix    = "fileset"
-	commitLogFilePrefix  = "commitlog"
-	fileSuffix           = ".db"
+const newBitsetLength = 65536
 
-	separator            = "-"
-	infoFilePattern      = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
-	commitLogFilePattern = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
+// bitset is a shim for providing a bitset
+type bitset interface {
+	has(i uint64) bool
+	set(i uint64)
+	clear(i uint64)
+	clearAll()
+}
 
-	// Index ID is int64
-	idxLen = 8
-)
+type set struct {
+	bitset *bset.BitSet
+}
 
-var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
+func newBitset() bitset {
+	return &set{bitset: bset.New(newBitsetLength)}
+}
 
-	// Endianness is little endian
-	endianness = binary.LittleEndian
-)
+func (s *set) has(i uint64) bool {
+	return s.bitset.Test(uint(i))
+}
+
+func (s *set) set(i uint64) {
+	s.bitset.Set(uint(i))
+}
+
+func (s *set) clear(i uint64) {
+	s.bitset.Clear(uint(i))
+}
+
+func (s *set) clearAll() {
+	s.bitset.ClearAll()
+}

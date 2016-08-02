@@ -67,6 +67,9 @@ var (
 	// defaultFilePathPrefix is the default path prefix for local TSDB files.
 	defaultFilePathPrefix = os.TempDir()
 
+	// defaultFileWriterOptions is the default file writing options.
+	defaultFileWriterOptions = fs.NewFileWriterOptions()
+
 	// defaultFileSetReaderFn is the default function for creating a TSDB fileset reader.
 	defaultFileSetReaderFn = func(filePathPrefix string) m3db.FileSetReader {
 		return fs.NewReader(filePathPrefix)
@@ -74,7 +77,7 @@ var (
 
 	// defaultFileSetWriterFn is the default function for creating a TSDB fileset writer.
 	defaultFileSetWriterFn = func(blockSize time.Duration, filePathPrefix string) m3db.FileSetWriter {
-		return fs.NewWriter(blockSize, filePathPrefix, fs.NewWriterOptions())
+		return fs.NewWriter(blockSize, filePathPrefix, defaultFileWriterOptions)
 	}
 
 	// defaultPersistenceManagerFn is the default function for creating a new persistence manager.
@@ -108,6 +111,7 @@ type dbOptions struct {
 	multiReaderIteratorPool m3db.MultiReaderIteratorPool
 	maxFlushRetries         int
 	filePathPrefix          string
+	fileWriterOptions       m3db.FileWriterOptions
 	newFileSetReaderFn      m3db.NewFileSetReaderFn
 	newFileSetWriterFn      m3db.NewFileSetWriterFn
 	newPersistenceManagerFn m3db.NewPersistenceManagerFn
@@ -128,6 +132,7 @@ func NewDatabaseOptions() m3db.DatabaseOptions {
 		bufferDrain:             defaultBufferDrain,
 		maxFlushRetries:         defaultMaxFlushRetries,
 		filePathPrefix:          defaultFilePathPrefix,
+		fileWriterOptions:       defaultFileWriterOptions,
 		newFileSetReaderFn:      defaultFileSetReaderFn,
 		newFileSetWriterFn:      defaultFileSetWriterFn,
 		newPersistenceManagerFn: defaultPersistenceManagerFn,
@@ -434,6 +439,16 @@ func (o *dbOptions) FilePathPrefix(value string) m3db.DatabaseOptions {
 
 func (o *dbOptions) GetFilePathPrefix() string {
 	return o.filePathPrefix
+}
+
+func (o *dbOptions) FileWriterOptions(value m3db.FileWriterOptions) m3db.DatabaseOptions {
+	opts := *o
+	opts.fileWriterOptions = value
+	return &opts
+}
+
+func (o *dbOptions) GetFileWriterOptions() m3db.FileWriterOptions {
+	return o.fileWriterOptions
 }
 
 func (o *dbOptions) NewFileSetReaderFn(value m3db.NewFileSetReaderFn) m3db.DatabaseOptions {

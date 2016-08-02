@@ -31,3 +31,6 @@
 [submodule "vendor/github.com/m3db/m3x"]
 	path = vendor/github.com/m3db/m3x
 	url = https://github.com/m3db/m3x
+[submodule "vendor/github.com/willf/bitset"]
+	path = vendor/github.com/willf/bitset
+	url = https://github.com/willf/bitset

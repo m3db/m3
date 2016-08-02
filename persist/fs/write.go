@@ -25,15 +25,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
-	schema "github.com/m3db/m3db/persist/fs/proto"
+	"github.com/m3db/m3db/persist/fs/proto"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
-)
-
-var (
-	defaultNewFileMode      = os.FileMode(0666)
-	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
 )
 
 type writer struct {
@@ -58,62 +53,14 @@ type writer struct {
 	err          error
 }
 
-// WriterOptions provides options for a Writer
-type WriterOptions interface {
-	// NewFileMode sets the new file mode.
-	NewFileMode(value os.FileMode) WriterOptions
-
-	// GetNewFileMode returns the new file mode.
-	GetNewFileMode() os.FileMode
-
-	// NewDirectoryMode sets the new directory mode.
-	NewDirectoryMode(value os.FileMode) WriterOptions
-
-	// GetNewDirectoryMode returns the new directory mode.
-	GetNewDirectoryMode() os.FileMode
-}
-
-type writerOptions struct {
-	newFileMode      os.FileMode
-	newDirectoryMode os.FileMode
-}
-
-// NewWriterOptions creates a writer options.
-func NewWriterOptions() WriterOptions {
-	return &writerOptions{
-		newFileMode:      defaultNewFileMode,
-		newDirectoryMode: defaultNewDirectoryMode,
-	}
-}
-
-func (o *writerOptions) NewFileMode(value os.FileMode) WriterOptions {
-	opts := *o
-	opts.newFileMode = value
-	return &opts
-}
-
-func (o *writerOptions) GetNewFileMode() os.FileMode {
-	return o.newFileMode
-}
-
-func (o *writerOptions) NewDirectoryMode(value os.FileMode) WriterOptions {
-	opts := *o
-	opts.newDirectoryMode = value
-	return &opts
-}
-
-func (o *writerOptions) GetNewDirectoryMode() os.FileMode {
-	return o.newDirectoryMode
-}
-
 // NewWriter returns a new writer for a filePathPrefix
 func NewWriter(
 	blockSize time.Duration,
 	filePathPrefix string,
-	options WriterOptions,
+	options m3db.FileWriterOptions,
 ) m3db.FileSetWriter {
 	if options == nil {
-		options = NewWriterOptions()
+		options = NewFileWriterOptions()
 	}
 	return &writer{
 		blockSize:        blockSize,
@@ -138,14 +85,14 @@ func (w *writer) Open(shard uint32, blockStart time.Time) error {
 	w.start = blockStart
 	w.currIdx = 0
 	w.currOffset = 0
-	w.checkpointFilePath = filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	w.err = nil
 	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
-			filepathFromTime(shardDir, blockStart, infoFileSuffix):  &w.infoFd,
-			filepathFromTime(shardDir, blockStart, indexFileSuffix): &w.indexFd,
-			filepathFromTime(shardDir, blockStart, dataFileSuffix):  &w.dataFd,
+			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):  &w.infoFd,
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix): &w.indexFd,
+			filesetPathFromTime(shardDir, blockStart, dataFileSuffix):  &w.dataFd,
 		},
 	); err != nil {
 		closeFiles(validFiles(w.infoFd, w.indexFd, w.dataFd)...)
@@ -284,9 +231,5 @@ func (w *writer) writeCheckpointFile() error {
 }
 
 func (w *writer) openWritable(filePath string) (*os.File, error) {
-	fd, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, w.newFileMode)
-	if err != nil {
-		return nil, err
-	}
-	return fd, nil
+	return OpenWritable(filePath, w.newFileMode)
 }

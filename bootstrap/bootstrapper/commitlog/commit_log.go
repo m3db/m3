@@ -18,34 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package commitlog
 
 import (
-	"encoding/binary"
+	"github.com/m3db/m3db/bootstrap/bootstrapper"
+	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 const (
-	infoFileSuffix       = "info"
-	indexFileSuffix      = "index"
-	dataFileSuffix       = "data"
-	checkpointFileSuffix = "checkpoint"
-	filesetFilePrefix    = "fileset"
-	commitLogFilePrefix  = "commitlog"
-	fileSuffix           = ".db"
-
-	separator            = "-"
-	infoFilePattern      = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
-	commitLogFilePattern = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
-
-	// Index ID is int64
-	idxLen = 8
+	// CommitLogBootstrapperName is the name of the commit log bootstrapper.
+	CommitLogBootstrapperName = "commitlog"
 )
 
-var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
+type commitLogBootstrapper struct {
+	m3db.Bootstrapper
+}
 
-	// Endianness is little endian
-	endianness = binary.LittleEndian
-)
+// NewCommitLogBootstrapper creates a new bootstrapper to bootstrap from commit log files.
+func NewCommitLogBootstrapper(
+	prefix string,
+	opts m3db.DatabaseOptions,
+	next m3db.Bootstrapper,
+) m3db.Bootstrapper {
+	src := newCommitLogSource(prefix, opts)
+	return &commitLogBootstrapper{
+		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts, next),
+	}
+}
+
+func (*commitLogBootstrapper) String() string {
+	return CommitLogBootstrapperName
+}
