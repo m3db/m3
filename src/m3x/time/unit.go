@@ -45,40 +45,55 @@ type Unit byte
 
 // Value is the time duration of the time unit.
 func (tu Unit) Value() (time.Duration, error) {
-	switch tu {
-	case Second:
-		return time.Second, nil
-	case Millisecond:
-		return time.Millisecond, nil
-	case Microsecond:
-		return time.Microsecond, nil
-	case Nanosecond:
-		return time.Nanosecond, nil
+	if d, found := unitsToDuration[tu]; found {
+		return d, nil
 	}
 	return 0, errUnrecognizedTimeUnit
 }
 
 // IsValid returns whether the given time unit is valid / supported.
 func (tu Unit) IsValid() bool {
-	switch tu {
-	case Second, Millisecond, Microsecond, Nanosecond:
-		return true
-	default:
-		return false
+	_, valid := unitsToDuration[tu]
+	return valid
+}
+
+// String returns the string representation for the time unit
+func (tu Unit) String() string {
+	if s, found := unitStrings[tu]; found {
+		return s
 	}
+
+	return "unknown"
 }
 
 // UnitFromDuration creates a time unit from a time duration.
 func UnitFromDuration(d time.Duration) (Unit, error) {
-	switch d {
-	case time.Second:
-		return Second, nil
-	case time.Millisecond:
-		return Millisecond, nil
-	case time.Microsecond:
-		return Microsecond, nil
-	case time.Nanosecond:
-		return Nanosecond, nil
+	if unit, found := durationsToUnit[d]; found {
+		return unit, nil
 	}
+
 	return None, errConvertDurationToUnit
+}
+
+var (
+	unitStrings = map[Unit]string{
+		Second:      "s",
+		Millisecond: "ms",
+		Nanosecond:  "ns",
+		Microsecond: "us",
+	}
+
+	durationsToUnit = make(map[time.Duration]Unit)
+	unitsToDuration = map[Unit]time.Duration{
+		Second:      time.Second,
+		Millisecond: time.Millisecond,
+		Nanosecond:  time.Nanosecond,
+		Microsecond: time.Microsecond,
+	}
+)
+
+func init() {
+	for u, d := range unitsToDuration {
+		durationsToUnit[d] = u
+	}
 }
