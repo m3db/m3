@@ -29,9 +29,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/persist/fs/commitlog/proto"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
