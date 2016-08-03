@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3db/persist/fs/proto"
+	"github.com/m3db/m3db/generated/proto/schema"
 
 	"github.com/golang/protobuf/proto"
 )

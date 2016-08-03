@@ -1,5 +1,3 @@
-//go:generate sh -c "thrift-gen --generateThrift --inputFile rpc.thrift"
-
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,5 +17,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+
+//go:generate sh -c "thrift-gen --generateThrift --inputFile $GOPATH/src/$PACKAGE/generated/thrift/rpc.thrift -outputDir $GOPATH/src/$PACKAGE/generated/thrift/"
 
 package thrift

@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/persist/fs/proto"
+	"github.com/m3db/m3db/generated/proto/schema"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -77,7 +77,8 @@ func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
 	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
 	for i := 0; i < iter; i++ {
 		for j := 0; j < perSlot; j++ {
-			createFile(t, NextCommitLogsFile(dir, time.Unix(0, int64(i))))
+			filePath, _ := NextCommitLogsFile(dir, time.Unix(0, int64(i)))
+			createFile(t, filePath)
 		}
 	}
 	return dir

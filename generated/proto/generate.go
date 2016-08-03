@@ -18,43 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package errors
+//go:generate sh -c "protoc -I$GOPATH/src/$PACKAGE/generated/proto --go_out=$GOPATH/src/$PACKAGE/generated/proto/schema $GOPATH/src/$PACKAGE/generated/proto/persistfs.proto"
 
-import (
-	"fmt"
-
-	"github.com/m3db/m3db/generated/thrift/rpc"
-)
-
-func newError(errType rpc.ErrorType, err error) *rpc.Error {
-	rpcErr := rpc.NewError()
-	rpcErr.Type = errType
-	rpcErr.Message = fmt.Sprintf("%v", err)
-	return rpcErr
-}
-
-// NewInternalError creates a new internal error
-func NewInternalError(err error) *rpc.Error {
-	return newError(rpc.ErrorType_INTERNAL_ERROR, err)
-}
-
-// NewBadRequestError creates a new bad request error
-func NewBadRequestError(err error) *rpc.Error {
-	return newError(rpc.ErrorType_BAD_REQUEST, err)
-}
-
-// NewWriteBatchError creates a new write batch error
-func NewWriteBatchError(index int, err error) *rpc.WriteBatchError {
-	batchErr := rpc.NewWriteBatchError()
-	batchErr.Index = int64(index)
-	batchErr.Err = NewInternalError(err)
-	return batchErr
-}
-
-// NewBadRequestWriteBatchError creates a new bad request write batch error
-func NewBadRequestWriteBatchError(index int, err error) *rpc.WriteBatchError {
-	batchErr := rpc.NewWriteBatchError()
-	batchErr.Index = int64(index)
-	batchErr.Err = NewBadRequestError(err)
-	return batchErr
-}
+package proto

@@ -1,6 +1,2 @@
 (vendor/)
-(proto/)
-(gen-go/)
-(mocks/)
-(.pb.go)
-(.gen.go)
+(generated/)
