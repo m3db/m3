@@ -47,8 +47,9 @@ type completionFn func(err error)
 
 type commitLog struct {
 	sync.RWMutex
-	opts  m3db.DatabaseOptions
-	nowFn m3db.NowFn
+	opts    m3db.DatabaseOptions
+	metrics xmetrics.Scope
+	nowFn   m3db.NowFn
 	// TODO(r): replace buffered channel with concurrent striped
 	// circular buffer to avoid central write lock contention
 	writes         chan commitLogWrite
@@ -57,7 +58,7 @@ type commitLog struct {
 	bitset         bitset
 	writerExpireAt time.Time
 	closed         bool
-	metrics        xmetrics.Scope
+	closeErr       chan error
 }
 
 type commitLogWrite struct {
@@ -72,19 +73,26 @@ type commitLogWrite struct {
 // NewCommitLog creates a new commit log
 func NewCommitLog(opts m3db.DatabaseOptions) (m3db.CommitLog, error) {
 	l := &commitLog{
-		opts:    opts,
-		nowFn:   opts.GetNowFn(),
-		writes:  make(chan commitLogWrite, commitLogWriteQueue),
-		metrics: opts.GetMetricsScope().SubScope("commitlog"),
+		opts:     opts,
+		nowFn:    opts.GetNowFn(),
+		writes:   make(chan commitLogWrite, commitLogWriteQueue),
+		metrics:  opts.GetMetricsScope().SubScope("commitlog"),
+		closeErr: make(chan error),
 	}
+
+	// Open the buffered commit log writer
 	if err := l.openWriter(l.nowFn()); err != nil {
 		return nil, err
 	}
+
 	// Flush the info header to ensure we can write to disk
 	if err := l.writer.Flush(); err != nil {
 		return nil, err
 	}
+
+	// Asynchronously write
 	go l.write()
+
 	return l, nil
 }
 
@@ -138,7 +146,11 @@ func (l *commitLog) write() {
 	}
 
 	if l.writer != nil {
-		l.writer.Close()
+		writer := l.writer
+		l.writer = nil
+		l.closeErr <- writer.Close()
+	} else {
+		l.closeErr <- nil
 	}
 }
 
@@ -210,7 +222,6 @@ func (l *commitLog) Write(
 		result = err
 		wg.Done()
 	}
-
 	l.writes <- commitLogWrite{
 		series:       series,
 		datapoint:    datapoint,
@@ -218,7 +229,6 @@ func (l *commitLog) Write(
 		annotation:   annotation,
 		completionFn: completion,
 	}
-
 	l.RUnlock()
 
 	wg.Wait()
@@ -237,14 +247,12 @@ func (l *commitLog) WriteBehind(
 		l.RUnlock()
 		return errCommitLogClosed
 	}
-
 	l.writes <- commitLogWrite{
 		series:     series,
 		datapoint:  datapoint,
 		unit:       unit,
 		annotation: annotation,
 	}
-
 	l.RUnlock()
 	return nil
 }
@@ -254,7 +262,6 @@ func (l *commitLog) Iter() (m3db.CommitLogIterator, error) {
 }
 
 func (l *commitLog) Close() error {
-	var err error
 	l.Lock()
 	if l.closed {
 		l.Unlock()
@@ -263,5 +270,6 @@ func (l *commitLog) Close() error {
 	l.closed = true
 	close(l.writes)
 	l.Unlock()
-	return err
+	// Receive the result of closing the writer from asynchronous writer
+	return <-l.closeErr
 }

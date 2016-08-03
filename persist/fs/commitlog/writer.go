@@ -158,15 +158,15 @@ func (w *writer) IsOpen() bool {
 func (w *writer) Write(series m3db.CommitLogSeries, datapoint m3db.Datapoint, unit xtime.Unit, annotation []byte) error {
 	w.log = schema.CommitLog{}
 	w.log.Created = w.nowFn().UnixNano()
-	w.log.Idx = series.UniqueIndex()
+	w.log.Idx = series.UniqueIndex
 
 	seen := w.bitset.has(w.log.Idx)
 	if !seen {
 		// If "idx" hasn't been written to commit log
 		// yet we need to include series metadata
 		w.metadata = schema.CommitLogMetadata{}
-		w.metadata.Id = series.ID()
-		w.metadata.Shard = series.Shard()
+		w.metadata.Id = series.ID
+		w.metadata.Shard = series.Shard
 
 		w.metadataBuffer.Reset()
 		if err := w.metadataBuffer.Marshal(&w.metadata); err != nil {

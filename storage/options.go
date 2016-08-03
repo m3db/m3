@@ -59,6 +59,9 @@ const (
 	// block size.
 	defaultDatabaseBlockAllocSize = 1024
 
+	// defaultCommitLogStrategy is the default commit log strategy
+	defaultCommitLogStrategy = m3db.CommitLogStrategyWriteBehind
+
 	// defaultMaxFlushRetries is the default number of retries when flush fails.
 	defaultMaxFlushRetries = 3
 )
@@ -102,6 +105,7 @@ type dbOptions struct {
 	databaseBlockAllocSize  int
 	retentionPeriod         time.Duration
 	newBootstrapFn          m3db.NewBootstrapFn
+	commitLogStrategy       m3db.CommitLogStrategy
 	bytesPool               m3db.BytesPool
 	contextPool             m3db.ContextPool
 	databaseBlockPool       m3db.DatabaseBlockPool
@@ -130,6 +134,7 @@ func NewDatabaseOptions() m3db.DatabaseOptions {
 		bufferFuture:            defaultBufferFuture,
 		bufferPast:              defaultBufferPast,
 		bufferDrain:             defaultBufferDrain,
+		commitLogStrategy:       defaultCommitLogStrategy,
 		maxFlushRetries:         defaultMaxFlushRetries,
 		filePathPrefix:          defaultFilePathPrefix,
 		fileWriterOptions:       defaultFileWriterOptions,
@@ -349,6 +354,16 @@ func (o *dbOptions) NewBootstrapFn(value m3db.NewBootstrapFn) m3db.DatabaseOptio
 
 func (o *dbOptions) GetBootstrapFn() m3db.NewBootstrapFn {
 	return o.newBootstrapFn
+}
+
+func (o *dbOptions) CommitLogStrategy(value m3db.CommitLogStrategy) m3db.DatabaseOptions {
+	opts := *o
+	opts.commitLogStrategy = value
+	return &opts
+}
+
+func (o *dbOptions) GetCommitLogStrategy() m3db.CommitLogStrategy {
+	return o.commitLogStrategy
 }
 
 func (o *dbOptions) BytesPool(value m3db.BytesPool) m3db.DatabaseOptions {

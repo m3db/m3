@@ -120,6 +120,12 @@ type DatabaseOptions interface {
 	// GetBootstrapFn returns the newBootstrapFn
 	GetBootstrapFn() NewBootstrapFn
 
+	// CommitLogStrategy sets the commit log strategy and returns a new DatabaseOptions
+	CommitLogStrategy(value CommitLogStrategy) DatabaseOptions
+
+	// GetCommitLogStrategy returns the commit log strategy
+	GetCommitLogStrategy() CommitLogStrategy
+
 	// BytesPool sets the bytesPool and returns a new DatabaseOptions
 	BytesPool(value BytesPool) DatabaseOptions
 

@@ -26,6 +26,21 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
+// CommitLogStrategy describes the comit log writing strategy
+type CommitLogStrategy int
+
+const (
+	// CommitLogStrategyWriteWait describes the strategy that waits
+	// for the buffered commit log chunk that contains a write to flush
+	// before acknowledging a write
+	CommitLogStrategyWriteWait CommitLogStrategy = iota
+
+	// CommitLogStrategyWriteBehind describes the strategy that does not wait
+	// for the buffered commit log chunk that contains a write to flush
+	// before acknowledging a write
+	CommitLogStrategyWriteBehind
+)
+
 // CommitLog provides a synchronized commit log
 type CommitLog interface {
 	io.Closer
@@ -56,13 +71,13 @@ type CommitLogIterator interface {
 }
 
 // CommitLogSeries describes a series in the commit log
-type CommitLogSeries interface {
+type CommitLogSeries struct {
 	// UniqueIndex is the unique index assigned to this series
-	UniqueIndex() uint64
+	UniqueIndex uint64
 
 	// ID is the series identifier
-	ID() string
+	ID string
 
 	// Shard is the shard the series belongs to
-	Shard() uint32
+	Shard uint32
 }

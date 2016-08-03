@@ -68,6 +68,8 @@ type dbShard struct {
 	sync.RWMutex
 	opts                  m3db.DatabaseOptions
 	shard                 uint32
+	uniqueIndex           uniqueIndex
+	writeCommitLogFn      writeCommitLogFn
 	lookup                map[string]*dbShardEntry
 	list                  *list.List
 	bs                    bootstrapState
@@ -75,9 +77,10 @@ type dbShard struct {
 }
 
 type dbShardEntry struct {
-	series     databaseSeries
-	elem       *list.Element
-	curWriters int32
+	series      databaseSeries
+	uniqueIndex uint64
+	elem        *list.Element
+	curWriters  int32
 }
 
 func (entry *dbShardEntry) writerCount() int32 {
@@ -94,20 +97,27 @@ func (entry *dbShardEntry) decrementWriterCount() {
 
 type writeCompletionFn func()
 
-func newDatabaseShard(shard uint32, opts m3db.DatabaseOptions) databaseShard {
+type databaseSeriesFn func(series databaseSeries) error
+
+func newDatabaseShard(
+	shard uint32,
+	uniqueIndex uniqueIndex,
+	writeCommitLogFn writeCommitLogFn,
+	opts m3db.DatabaseOptions,
+) databaseShard {
 	return &dbShard{
-		opts:   opts,
-		shard:  shard,
-		lookup: make(map[string]*dbShardEntry),
-		list:   list.New(),
+		opts:             opts,
+		shard:            shard,
+		uniqueIndex:      uniqueIndex,
+		writeCommitLogFn: writeCommitLogFn,
+		lookup:           make(map[string]*dbShardEntry),
+		list:             list.New(),
 	}
 }
 
 func (s *dbShard) ShardNum() uint32 {
 	return s.shard
 }
-
-type databaseSeriesFn func(series databaseSeries) error
 
 func (s *dbShard) forEachSeries(continueOnError bool, seriesFn databaseSeriesFn) error {
 	// NB(r): consider using a lockless list for ticking
@@ -209,10 +219,27 @@ func (s *dbShard) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	series, completionFn := s.writableSeries(id)
+	// Prepare write
+	series, idx, completionFn := s.writableSeries(id)
+
+	// Perform write
 	err := series.Write(ctx, timestamp, value, unit, annotation)
 	completionFn()
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Write commit log
+	info := m3db.CommitLogSeries{
+		UniqueIndex: idx,
+		ID:          id,
+		Shard:       s.shard,
+	}
+	datapoint := m3db.Datapoint{
+		Timestamp: timestamp,
+		Value:     value,
+	}
+	return s.writeCommitLogFn(info, datapoint, unit, annotation)
 }
 
 func (s *dbShard) ReadEncoded(
@@ -229,12 +256,12 @@ func (s *dbShard) ReadEncoded(
 	return entry.series.ReadEncoded(ctx, start, end)
 }
 
-func (s *dbShard) writableSeries(id string) (databaseSeries, writeCompletionFn) {
+func (s *dbShard) writableSeries(id string) (databaseSeries, uint64, writeCompletionFn) {
 	s.RLock()
 	if entry, exists := s.lookup[id]; exists {
 		entry.incrementWriterCount()
 		s.RUnlock()
-		return entry.series, entry.decrementWriterCount
+		return entry.series, entry.uniqueIndex, entry.decrementWriterCount
 	}
 	s.RUnlock()
 
@@ -243,7 +270,7 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, writeCompletionFn) 
 		entry.incrementWriterCount()
 		s.Unlock()
 		// During Rlock -> Wlock promotion the entry was inserted
-		return entry.series, entry.decrementWriterCount
+		return entry.series, entry.uniqueIndex, entry.decrementWriterCount
 	}
 	bs := bootstrapNotStarted
 	if s.newSeriesBootstrapped {
@@ -251,11 +278,16 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, writeCompletionFn) 
 	}
 	series := newDatabaseSeries(id, bs, s.opts)
 	elem := s.list.PushBack(series)
-	entry := &dbShardEntry{series: series, elem: elem, curWriters: 1}
+	entry := &dbShardEntry{
+		series:      series,
+		uniqueIndex: s.uniqueIndex.nextUniqueIndex(),
+		elem:        elem,
+		curWriters:  1,
+	}
 	s.lookup[id] = entry
 	s.Unlock()
 
-	return entry.series, entry.decrementWriterCount
+	return entry.series, entry.uniqueIndex, entry.decrementWriterCount
 }
 
 func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover time.Time) error {
@@ -283,7 +315,7 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 	if sr != nil {
 		bootstrappedSeries = sr.GetAllSeries()
 		for id, dbBlocks := range bootstrappedSeries {
-			series, completionFn := s.writableSeries(id)
+			series, _, completionFn := s.writableSeries(id)
 			err := series.Bootstrap(dbBlocks, cutover)
 			completionFn()
 			multiErr = multiErr.Add(err)

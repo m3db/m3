@@ -24,9 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3x/time"
 )
 
@@ -36,6 +38,9 @@ var (
 
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
+
+	// errCommitLogStrategyUnknown raised when trying to use an unknown commit log strategy
+	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
 )
 
 const (
@@ -89,28 +94,44 @@ type database interface {
 	flush(t time.Time, async bool)
 }
 
+// uniqueIndex provides a unique index for new series
+type uniqueIndex interface {
+	nextUniqueIndex() uint64
+}
+
+// writeCommitLogFn is a method for writing to the commit log
+type writeCommitLogFn func(
+	series m3db.CommitLogSeries,
+	datapoint m3db.Datapoint,
+	unit xtime.Unit,
+	annotation []byte,
+) error
+
 type db struct {
 	sync.RWMutex
-	opts        m3db.DatabaseOptions
-	shardScheme m3db.ShardScheme
-	shardSet    m3db.ShardSet
-	bsm         databaseBootstrapManager
-	fm          databaseFlushManager
+	opts             m3db.DatabaseOptions
+	nowFn            m3db.NowFn
+	shardScheme      m3db.ShardScheme
+	shardSet         m3db.ShardSet
+	commitLog        m3db.CommitLog
+	writeCommitLogFn writeCommitLogFn
+	bsm              databaseBootstrapManager
+	fm               databaseFlushManager
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
 	shards []databaseShard
 
-	nowFn        m3db.NowFn
+	created      uint64
 	tickDeadline time.Duration
 	openCh       chan struct{}
 	doneCh       chan struct{}
 }
 
 // NewDatabase creates a new database
-func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) Database {
+func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) (Database, error) {
 	shardScheme := shardSet.Scheme()
-	database := &db{
+	d := &db{
 		opts:         opts,
 		shardScheme:  shardScheme,
 		shardSet:     shardSet,
@@ -120,9 +141,24 @@ func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) Database {
 		openCh:       make(chan struct{}, 1),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
-	database.bsm = newBootstrapManager(database)
-	database.fm = newFlushManager(database)
-	return database
+	d.bsm = newBootstrapManager(d)
+	d.fm = newFlushManager(d)
+
+	var err error
+	if d.commitLog, err = commitlog.NewCommitLog(opts); err != nil {
+		return nil, err
+	}
+
+	switch opts.GetCommitLogStrategy() {
+	case m3db.CommitLogStrategyWriteWait:
+		d.writeCommitLogFn = d.commitLog.Write
+	case m3db.CommitLogStrategyWriteBehind:
+		d.writeCommitLogFn = d.commitLog.WriteBehind
+	default:
+		return nil, errCommitLogStrategyUnknown
+	}
+
+	return d, nil
 }
 
 func (d *db) Options() m3db.DatabaseOptions {
@@ -139,7 +175,7 @@ func (d *db) Open() error {
 	defer d.Unlock()
 	// Initialize shards
 	for _, x := range d.shardSet.Shards() {
-		d.shards[x] = newDatabaseShard(x, d.opts)
+		d.shards[x] = newDatabaseShard(x, d, d.writeCommitLogFn, d.opts)
 	}
 	// All goroutines must be accounted for with dbOngoingTasks to receive done signal
 	go d.ongoingTick()
@@ -162,7 +198,8 @@ func (d *db) Close() error {
 	for i := 0; i < dbOngoingTasks; i++ {
 		d.doneCh <- struct{}{}
 	}
-	return nil
+	// Finally close the commit log
+	return d.commitLog.Close()
 }
 
 func (d *db) Write(
@@ -177,6 +214,7 @@ func (d *db) Write(
 	shardID := d.shardScheme.Shard(id)
 	shard := d.shards[shardID]
 	d.RUnlock()
+
 	if shard == nil {
 		return fmt.Errorf("not responsible for shard %d", shardID)
 	}
@@ -274,4 +312,9 @@ func (d *db) splayedTick() {
 		// throttle to reduce locking overhead during ticking
 		time.Sleep(d.tickDeadline - duration)
 	}
+}
+
+func (d *db) nextUniqueIndex() uint64 {
+	created := atomic.AddUint64(&d.created, 1)
+	return created - 1
 }

@@ -27,24 +27,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/generated/mocks/mocks"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/metrics"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestOptions(t *testing.T) (m3db.DatabaseOptions, xmetrics.TestStatsReporter) {
+func newTestOptions(t *testing.T, ctrl *gomock.Controller) (m3db.DatabaseOptions, xmetrics.TestStatsReporter) {
 	dir, err := ioutil.TempDir("", "foo")
 	assert.NoError(t, err)
+
 	stats := xmetrics.NewTestStatsReporter()
-	return storage.NewDatabaseOptions().
-			FilePathPrefix(dir).
-			MetricsScope(xmetrics.NewScope("", stats)).
-			BlockSize(2 * time.Hour),
-		stats
+
+	opts := mocks.NewMockDatabaseOptions(ctrl)
+	opts.EXPECT().GetNowFn().Return(time.Now).AnyTimes()
+	opts.EXPECT().GetLogger().Return(xlog.SimpleLogger).AnyTimes()
+	opts.EXPECT().GetMetricsScope().Return(xmetrics.NewScope("", stats)).AnyTimes()
+	opts.EXPECT().GetFilePathPrefix().Return(dir).AnyTimes()
+	opts.EXPECT().GetFileWriterOptions().Return(fs.NewFileWriterOptions()).AnyTimes()
+	opts.EXPECT().GetBlockSize().Return(2 * time.Hour).AnyTimes()
+
+	return opts, stats
 }
 
 func cleanup(t *testing.T, opts m3db.DatabaseOptions) {
@@ -52,30 +60,24 @@ func cleanup(t *testing.T, opts m3db.DatabaseOptions) {
 	assert.NoError(t, os.RemoveAll(filePathPrefix))
 }
 
-type testSeries struct {
-	idx   uint64
-	id    string
-	shard uint32
-}
-
-func (s testSeries) UniqueIndex() uint64 {
-	return s.idx
-}
-
-func (s testSeries) ID() string {
-	return s.id
-}
-
-func (s testSeries) Shard() uint32 {
-	return s.shard
-}
-
 type testWrite struct {
-	series testSeries
+	series m3db.CommitLogSeries
 	t      time.Time
 	v      float64
 	u      xtime.Unit
 	a      []byte
+}
+
+func testSeries(
+	uniqueIndex uint64,
+	id string,
+	shard uint32,
+) m3db.CommitLogSeries {
+	return m3db.CommitLogSeries{
+		UniqueIndex: uniqueIndex,
+		ID:          id,
+		Shard:       shard,
+	}
 }
 
 func (w testWrite) assert(
@@ -85,9 +87,9 @@ func (w testWrite) assert(
 	unit xtime.Unit,
 	annotation []byte,
 ) {
-	assert.Equal(t, w.series.idx, series.UniqueIndex())
-	assert.Equal(t, w.series.id, series.ID())
-	assert.Equal(t, w.series.shard, series.Shard())
+	assert.Equal(t, w.series.UniqueIndex, series.UniqueIndex)
+	assert.Equal(t, w.series.ID, series.ID)
+	assert.Equal(t, w.series.Shard, series.Shard)
 	assert.True(t, w.t.Equal(datapoint.Timestamp))
 	assert.Equal(t, datapoint.Value, datapoint.Value)
 	assert.Equal(t, w.u, unit)
@@ -95,7 +97,10 @@ func (w testWrite) assert(
 }
 
 func TestCommitLogRoundtrip(t *testing.T) {
-	opts, stats := newTestOptions(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts, stats := newTestOptions(t, ctrl)
 	defer cleanup(t, opts)
 
 	log, err := NewCommitLog(opts)
@@ -104,8 +109,8 @@ func TestCommitLogRoundtrip(t *testing.T) {
 	defer func() { assert.NoError(t, commitLog.Close()) }()
 
 	writes := []testWrite{
-		{testSeries{0, "foo.bar", 127}, time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}},
-		{testSeries{1, "foo.baz", 150}, time.Now(), 456.789, xtime.Second, nil},
+		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}},
+		{testSeries(1, "foo.baz", 150), time.Now(), 456.789, xtime.Second, nil},
 	}
 
 	var wg sync.WaitGroup

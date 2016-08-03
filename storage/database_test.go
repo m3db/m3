@@ -58,7 +58,9 @@ func testDatabaseOptions() m3db.DatabaseOptions {
 func testDatabase(t *testing.T, bs bootstrapState) *db {
 	ss := testShardingScheme(t)
 	opts := testDatabaseOptions()
-	d := NewDatabase(ss.CreateSet(397, 397), opts).(*db)
+	database, err := NewDatabase(ss.CreateSet(397, 397), opts)
+	require.NoError(t, err)
+	d := database.(*db)
 	bsm := newBootstrapManager(d).(*bootstrapManager)
 	bsm.state = bs
 	d.bsm = bsm

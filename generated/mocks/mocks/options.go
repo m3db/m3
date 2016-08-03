@@ -113,6 +113,16 @@ func (_mr *_MockDatabaseOptionsRecorder) BytesPool(arg0 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BytesPool", arg0)
 }
 
+func (_m *MockDatabaseOptions) CommitLogStrategy(_param0 m3db.CommitLogStrategy) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "CommitLogStrategy", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) CommitLogStrategy(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogStrategy", arg0)
+}
+
 func (_m *MockDatabaseOptions) ContextPool(_param0 m3db.ContextPool) m3db.DatabaseOptions {
 	ret := _m.ctrl.Call(_m, "ContextPool", _param0)
 	ret0, _ := ret[0].(m3db.DatabaseOptions)
@@ -261,6 +271,16 @@ func (_m *MockDatabaseOptions) GetBytesPool() m3db.BytesPool {
 
 func (_mr *_MockDatabaseOptionsRecorder) GetBytesPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBytesPool")
+}
+
+func (_m *MockDatabaseOptions) GetCommitLogStrategy() m3db.CommitLogStrategy {
+	ret := _m.ctrl.Call(_m, "GetCommitLogStrategy")
+	ret0, _ := ret[0].(m3db.CommitLogStrategy)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetCommitLogStrategy() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogStrategy")
 }
 
 func (_m *MockDatabaseOptions) GetContextPool() m3db.ContextPool {

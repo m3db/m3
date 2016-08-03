@@ -62,25 +62,7 @@ type reader struct {
 	info           schema.CommitLogInfo
 	log            schema.CommitLog
 	metadata       schema.CommitLogMetadata
-	metadataLookup map[uint64]*readerSeries
-}
-
-type readerSeries struct {
-	idx   uint64
-	id    string
-	shard uint32
-}
-
-func (s readerSeries) UniqueIndex() uint64 {
-	return s.idx
-}
-
-func (s readerSeries) ID() string {
-	return s.id
-}
-
-func (s readerSeries) Shard() uint32 {
-	return s.shard
+	metadataLookup map[uint64]m3db.CommitLogSeries
 }
 
 func newCommitLogReader(opts m3db.DatabaseOptions) commitLogReader {
@@ -90,7 +72,7 @@ func newCommitLogReader(opts m3db.DatabaseOptions) commitLogReader {
 			buffer: bufio.NewReaderSize(nil, bufferWriteSize),
 		},
 		sizeBuffer:     make([]byte, binary.MaxVarintLen64),
-		metadataLookup: make(map[uint64]*readerSeries),
+		metadataLookup: make(map[uint64]m3db.CommitLogSeries),
 	}
 	r.chunkReaderRef = &r.chunkReader
 	return r
@@ -137,10 +119,10 @@ func (r *reader) Read() (
 			resultErr = err
 			return
 		}
-		r.metadataLookup[r.log.Idx] = &readerSeries{
-			idx:   r.log.Idx,
-			id:    r.metadata.Id,
-			shard: r.metadata.Shard,
+		r.metadataLookup[r.log.Idx] = m3db.CommitLogSeries{
+			UniqueIndex: r.log.Idx,
+			ID:          r.metadata.Id,
+			Shard:       r.metadata.Shard,
 		}
 	}
 
@@ -198,7 +180,7 @@ func (r *reader) Close() error {
 	}
 
 	r.chunkReader.fd = nil
-	r.metadataLookup = make(map[uint64]*readerSeries)
+	r.metadataLookup = make(map[uint64]m3db.CommitLogSeries)
 	return nil
 }
 
