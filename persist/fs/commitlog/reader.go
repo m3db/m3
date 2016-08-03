@@ -40,7 +40,6 @@ var (
 	errCommitLogReaderAlreadyOpen               = errors.New("commit log reader already open")
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
 	errCommitLogReaderChunkDataChecksumMismatch = errors.New("commit log reader encountered chunk data checksum mismatch")
-	errCommitLogReaderChunkUnexpectedEnd        = errors.New("commit log reader encountered message in chunk with unexpected end")
 	errCommitLogReaderMissingLogMetadata        = errors.New("commit log reader encountered message missing metadata")
 )
 
@@ -56,10 +55,10 @@ type commitLogReader interface {
 
 type reader struct {
 	opts           m3db.DatabaseOptions
-	fd             *os.File
-	buffer         *bufio.Reader
-	chunkRemaining uint32
+	chunkReader    chunkReader
+	chunkReaderRef *chunkReader
 	sizeBuffer     []byte
+	dataBuffer     []byte
 	info           schema.CommitLogInfo
 	log            schema.CommitLog
 	metadata       schema.CommitLogMetadata
@@ -85,26 +84,30 @@ func (s readerSeries) Shard() uint32 {
 }
 
 func newCommitLogReader(opts m3db.DatabaseOptions) commitLogReader {
-	return &reader{
-		opts:           opts,
-		buffer:         bufio.NewReaderSize(nil, bufferWriteSize),
+	r := &reader{
+		opts: opts,
+		chunkReader: chunkReader{
+			buffer: bufio.NewReaderSize(nil, bufferWriteSize),
+		},
 		sizeBuffer:     make([]byte, binary.MaxVarintLen64),
 		metadataLookup: make(map[uint64]*readerSeries),
 	}
+	r.chunkReaderRef = &r.chunkReader
+	return r
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
-	if r.fd != nil {
+	if r.chunkReader.fd != nil {
 		return timeZero, 0, 0, errCommitLogReaderAlreadyOpen
 	}
 
 	var err error
-	r.fd, err = os.Open(filePath)
+	r.chunkReader.fd, err = os.Open(filePath)
 	if err != nil {
 		return timeZero, 0, 0, err
 	}
 
-	r.buffer.Reset(r.fd)
+	r.chunkReader.reset(r.chunkReader.fd)
 	r.info = schema.CommitLogInfo{}
 	if err := r.read(&r.info); err != nil {
 		r.Close()
@@ -158,85 +161,137 @@ func (r *reader) Read() (
 }
 
 func (r *reader) read(message proto.Message) error {
-	if r.chunkRemaining == 0 {
-		// Peek instead of read as we take reference to the underlying buffer
-		// rather than have to copy from the buffer to our own buffer
-		header, err := r.buffer.Peek(chunkReserveHeaderLen)
-		if err != nil {
-			return err
-		}
-
-		size := endianness.Uint32(header[:4])
-		checksumSize := endianness.Uint32(header[4:8])
-		checksumData := endianness.Uint32(header[8:12])
-
-		// Verify size checksum
-		if adler32.Checksum(header[:4]) != checksumSize {
-			return errCommitLogReaderChunkSizeChecksumMismatch
-		}
-
-		// Discard the peeked header
-		if _, err := r.buffer.Discard(chunkReserveHeaderLen); err != nil {
-			return err
-		}
-
-		// Verify data checksum
-		data, err := r.buffer.Peek(int(size))
-		if err != nil {
-			return err
-		}
-
-		if adler32.Checksum(data) != checksumData {
-			return errCommitLogReaderChunkSizeChecksumMismatch
-		}
-
-		r.chunkRemaining = size
-	}
-
 	// Read size of message
-	size, err := binary.ReadUvarint(r.buffer)
+	size, err := binary.ReadUvarint(r.chunkReaderRef)
 	if err != nil {
 		return err
 	}
 
-	// Track consumed
-	consumed := binary.PutUvarint(r.sizeBuffer, size)
-	r.chunkRemaining -= uint32(consumed)
+	// Extend buffer as necessary
+	if len(r.dataBuffer) < int(size) {
+		diff := int(size) - len(r.dataBuffer)
+		for i := 0; i < diff; i++ {
+			r.dataBuffer = append(r.dataBuffer, 0)
+		}
+	}
+
+	// Size the target buffer for reading and unmarshalling
+	buffer := r.dataBuffer[:size]
 
 	// Read message
-	if r.chunkRemaining < uint32(size) {
-		return errCommitLogReaderChunkUnexpectedEnd
-	}
-
-	data, err := r.buffer.Peek(int(size))
-	if err != nil {
+	if _, err := r.chunkReaderRef.Read(buffer); err != nil {
 		return err
 	}
-	if err := proto.Unmarshal(data, message); err != nil {
+	if err := proto.Unmarshal(buffer, message); err != nil {
 		return err
 	}
-
-	// Discard the peeked data
-	if _, err := r.buffer.Discard(int(size)); err != nil {
-		return err
-	}
-
-	// Track consumed
-	r.chunkRemaining -= uint32(size)
 	return nil
 }
 
 func (r *reader) Close() error {
-	if r.fd == nil {
+	if r.chunkReader.fd == nil {
 		return nil
 	}
 
-	if err := r.fd.Close(); err != nil {
+	if err := r.chunkReader.fd.Close(); err != nil {
 		return err
 	}
 
-	r.fd = nil
-	r.chunkRemaining = 0
+	r.chunkReader.fd = nil
 	r.metadataLookup = make(map[uint64]*readerSeries)
+	return nil
+}
+
+type chunkReader struct {
+	fd        *os.File
+	buffer    *bufio.Reader
+	remaining int
+	charBuff  []byte
+}
+
+func (r *chunkReader) Read(p []byte) (int, error) {
+	size := len(p)
+	read := 0
+	// Check if requesting for size larger than this chunk
+	if r.remaining < size {
+		// Copy any remaining
+		if r.remaining > 0 {
+			n, err := r.buffer.Read(p[:r.remaining])
+			r.remaining -= n
+			read += n
+			if err != nil {
+				return read, err
+			}
+		}
+
+		// Read next header
+		if err := r.readHeader(); err != nil {
+			return read, err
+		}
+
+		// Reset read target
+		p = p[read:]
+		size = len(p)
+
+		// Perform consecutive read(s)
+		n, err := r.Read(p)
+		read += n
+		return read, err
+	}
+
+	n, err := r.buffer.Read(p)
+	r.remaining -= n
+	read += n
+	return read, err
+}
+
+func (r *chunkReader) ReadByte() (c byte, err error) {
+	if _, err := r.Read(r.charBuff); err != nil {
+		return byte(0), err
+	}
+	return r.charBuff[0], nil
+}
+
+func (r *chunkReader) reset(fd *os.File) {
+	r.fd = fd
+	r.buffer.Reset(fd)
+	r.remaining = 0
+	r.charBuff = r.charBuff[:0]
+	r.charBuff = append(r.charBuff, 0)
+}
+
+func (r *chunkReader) readHeader() error {
+	header, err := r.buffer.Peek(chunkReserveHeaderLen)
+	if err != nil {
+		return err
+	}
+
+	size := endianness.Uint32(header[:4])
+	checksumSize := endianness.Uint32(header[4:8])
+	checksumData := endianness.Uint32(header[8:12])
+
+	// Verify size checksum
+	if adler32.Checksum(header[:4]) != checksumSize {
+		return errCommitLogReaderChunkSizeChecksumMismatch
+	}
+
+	// Discard the peeked header
+	if _, err := r.buffer.Discard(chunkReserveHeaderLen); err != nil {
+		return err
+	}
+
+	// Verify data checksum
+	data, err := r.buffer.Peek(int(size))
+	if err != nil {
+		return err
+	}
+
+	if adler32.Checksum(data) != checksumData {
+		return errCommitLogReaderChunkSizeChecksumMismatch
+	}
+
+	// Set remaining data to be consumed
+	r.remaining = int(size)
+
 	return nil
 }

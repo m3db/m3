@@ -217,7 +217,8 @@ func (w *writer) Close() error {
 }
 
 func (w *writer) write(data []byte) error {
-	if w.buffer.Buffered() == 0 {
+	hasBufferedData := w.buffer.Buffered() > 0
+	if !hasBufferedData {
 		// Reserve bytes for checksums and size prepend
 		if _, err := w.buffer.Write(w.chunkReserveHeader); err != nil {
 			return err
@@ -226,16 +227,17 @@ func (w *writer) write(data []byte) error {
 
 	dataLen := len(data)
 	sizeLen := binary.PutUvarint(w.sizeBuffer, uint64(dataLen))
-	if dataLen+sizeLen > w.buffer.Available() {
-		// Ensure to never write across write boundary
+	totalLen := dataLen + sizeLen
+
+	// Avoid writing across the checksum boundary if we can avoid it
+	if hasBufferedData && totalLen > w.buffer.Available() {
 		if err := w.buffer.Flush(); err != nil {
 			return err
 		}
-		// Reserve bytes for checksums and size prepend
-		if _, err := w.buffer.Write(w.chunkReserveHeader); err != nil {
-			return err
-		}
+		return w.write(data)
 	}
+
+	// Write size and then data
 	if _, err := w.buffer.Write(w.sizeBuffer[:sizeLen]); err != nil {
 		return err
 	}

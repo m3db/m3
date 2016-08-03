@@ -107,8 +107,8 @@ func (i *iterator) Close() {
 	i.closed = true
 	if i.reader != nil {
 		i.reader.Close()
+		i.reader = nil
 	}
-	i.reader = nil
 }
 
 func (i *iterator) hasError() bool {
@@ -118,6 +118,11 @@ func (i *iterator) hasError() bool {
 func (i *iterator) nextReader() bool {
 	if len(i.files) == 0 {
 		return false
+	}
+
+	if i.reader != nil {
+		i.reader.Close()
+		i.reader = nil
 	}
 
 	file := i.files[0]

@@ -30,10 +30,10 @@ import (
 
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/m3db/m3db/storage"
 	"github.com/stretchr/testify/require"
 )
 
