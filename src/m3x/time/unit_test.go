@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,5 +79,27 @@ func TestUnitFromDuration(t *testing.T) {
 		u, err := UnitFromDuration(input.d)
 		require.NoError(t, err)
 		require.Equal(t, input.expected, u)
+	}
+}
+
+func TestUnitFromDurationError(t *testing.T) {
+	_, err := UnitFromDuration(time.Hour * 30)
+	require.Equal(t, errConvertDurationToUnit, err)
+}
+
+func TestUnitString(t *testing.T) {
+	tests := []struct {
+		u Unit
+		s string
+	}{
+		{Second, "s"},
+		{Millisecond, "ms"},
+		{Microsecond, "us"},
+		{Nanosecond, "ns"},
+		{None, "unknown"},
+	}
+
+	for _, test := range tests {
+		assert.Equal(t, test.s, test.u.String(), "invalid String() for %v", test.u)
 	}
 }
