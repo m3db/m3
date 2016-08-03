@@ -68,14 +68,14 @@ func (s *commitLogSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.ShardRes
 	errs := 0
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if series.Shard() != shard {
+		if series.Shard != shard {
 			continue
 		}
 
-		blocks, ok := seriesMap.GetAllSeries()[series.ID()]
+		blocks, ok := seriesMap.GetAllSeries()[series.ID]
 		if !ok {
 			blocks = storage.NewDatabaseSeriesBlocks(s.opts)
-			seriesMap.AddSeries(series.ID(), blocks)
+			seriesMap.AddSeries(series.ID, blocks)
 		}
 
 		block := blocks.GetBlockOrAdd(dp.Timestamp.Truncate(blockSize))
