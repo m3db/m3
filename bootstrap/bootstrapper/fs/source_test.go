@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strconv"
 	"testing"
 	"time"
 
@@ -53,8 +52,8 @@ func createTempDir(t *testing.T) string {
 }
 
 func createShardDir(t *testing.T, prefix string, shard int) string {
-	shardDirPath := path.Join(prefix, strconv.Itoa(shard))
-	err := os.Mkdir(shardDirPath, os.ModeDir|os.FileMode(0755))
+	shardDirPath := fs.ShardDirPath(prefix, uint32(shard))
+	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
 	require.Nil(t, err)
 	return shardDirPath
 }
@@ -77,11 +76,11 @@ func createBadInfoFile(t *testing.T, shardDirPath string, blockStartTime time.Ti
 }
 
 func createInfoFileWithCheckpoint(t *testing.T, shardDirPath string, blockStartTime time.Time) *os.File {
-	checkpointPath := path.Join(shardDirPath, fmt.Sprintf("%d-checkpoint.db", xtime.ToNanoseconds(blockStartTime)))
+	checkpointPath := path.Join(shardDirPath, fmt.Sprintf("fileset-%d-checkpoint.db", xtime.ToNanoseconds(blockStartTime)))
 	checkpointFile := createFile(t, checkpointPath)
 	checkpointFile.Close()
 
-	infoPath := path.Join(shardDirPath, fmt.Sprintf("%d-info.db", xtime.ToNanoseconds(blockStartTime)))
+	infoPath := path.Join(shardDirPath, fmt.Sprintf("fileset-%d-info.db", xtime.ToNanoseconds(blockStartTime)))
 	infoFile := createFile(t, infoPath)
 	return infoFile
 }
@@ -110,18 +109,18 @@ func writeInfoFile(t *testing.T, f *os.File, start time.Time) {
 func writeFilesForTimeRaw(t *testing.T, shardDirPath string, start time.Time, data []byte) {
 	timeInNano := xtime.ToNanoseconds(start)
 
-	f := createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-info.db", timeInNano)))
+	f := createFile(t, path.Join(shardDirPath, fmt.Sprintf("fileset-%d-info.db", timeInNano)))
 	writeInfoFile(t, f, start)
 	f.Close()
 
-	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-index.db", timeInNano)))
+	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("fileset-%d-index.db", timeInNano)))
 	f.Write(data)
 	f.Close()
 
-	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-data.db", timeInNano)))
+	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("fileset-%d-data.db", timeInNano)))
 	f.Close()
 
-	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-checkpoint.db", timeInNano)))
+	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("fileset-%d-checkpoint.db", timeInNano)))
 	f.Close()
 }
 
@@ -176,7 +175,7 @@ func TestGetAvailabilityOpenFileError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shardDirPath := createShardDir(t, dir, 0)
-	fpath := path.Join(shardDirPath, "1000-info.db")
+	fpath := path.Join(shardDirPath, "fileset-1000-info.db")
 	f := createFile(t, fpath)
 	f.Close()
 
