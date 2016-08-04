@@ -21,8 +21,8 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -31,12 +31,17 @@ import (
 	"strings"
 	"time"
 
-	schema "github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/generated/proto/schema"
 
 	"github.com/golang/protobuf/proto"
 )
 
-var timeZero time.Time
+var (
+	timeZero time.Time
+
+	// errCheckpointFileNotFound returned when the checkpoint file doesn't exist
+	errCheckpointFileNotFound = errors.New("checkpoint file does not exist")
+)
 
 type fileOpener func(filePath string) (*os.File, error)
 
@@ -96,44 +101,77 @@ func TimeFromFileName(fname string) (time.Time, error) {
 	return time.Unix(0, latestTimeInNano), nil
 }
 
-// InfoFiles returns all the completed info files in the given shard
-// directory, sorted by their corresponding block start times.
-func InfoFiles(shardDir string) ([]string, error) {
+// readCheckpointFile reads the checkpoint file and returns the digest stored
+// in the checkpoint file. Note that buf has digestSize bytes to avoid gc and
+// repeated memory allocation.
+func readCheckpointFile(shardDir string, blockStart time.Time, buf []byte) (uint32, error) {
+	checkpointFilePath := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	if !fileExists(checkpointFilePath) {
+		return 0, errCheckpointFileNotFound
+	}
+	checkpointFd, err := os.Open(checkpointFilePath)
+	if err != nil {
+		return 0, err
+	}
+	defer checkpointFd.Close()
+	return readDigestFromFile(checkpointFd, buf)
+}
+
+type infoFileFn func(fname string, infoData []byte)
+
+// ForEachInfoFile iterates over each valid info file and applies the function passed in.
+func ForEachInfoFile(filePathPrefix string, shard uint32, fn infoFileFn) {
+	shardDir := shardDirPath(filePathPrefix, shard)
 	matched, err := filepath.Glob(path.Join(shardDir, infoFilePattern))
 	if err != nil {
-		return nil, err
+		return
 	}
-	j := 0
+
+	sort.Sort(byTimeAscending(matched))
+	buf := make([]byte, digestLen)
 	for i := range matched {
 		t, err := TimeFromFileName(matched[i])
 		if err != nil {
-			return nil, err
+			continue
 		}
-		checkpointFile := filepathFromTime(shardDir, t, checkpointFileSuffix)
-		if fileExists(checkpointFile) {
-			matched[j] = matched[i]
-			j++
+		expectedDigestOfDigest, err := readCheckpointFile(shardDir, t, buf)
+		if err != nil {
+			continue
 		}
+		// Read and validate the digest file
+		digestData, err := readAndValidate(shardDir, t, digestFileSuffix, expectedDigestOfDigest)
+		if err != nil {
+			continue
+		}
+		// Read and validate the info file
+		expectedInfoDigest := readDigest(digestData[:digestLen])
+		infoData, err := readAndValidate(shardDir, t, infoFileSuffix, expectedInfoDigest)
+		if err != nil {
+			continue
+		}
+		fn(matched[i], infoData)
 	}
-	matched = matched[:j]
-	sort.Sort(byTimeAscending(matched))
-	return matched, nil
 }
 
-// FileExistsAt determines whether a data file exists for the given shard and block start time.
-func FileExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
-	shardDir := ShardDirPath(prefix, shard)
-	checkpointFile := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	return fileExists(checkpointFile)
+// ReadInfoFiles reads all the valid info entries.
+func ReadInfoFiles(filePathPrefix string, shard uint32) []*schema.IndexInfo {
+	var indexEntries []*schema.IndexInfo
+	ForEachInfoFile(
+		filePathPrefix,
+		shard,
+		func(_ string, data []byte) {
+			info, err := readInfo(data)
+			if err != nil {
+				return
+			}
+			indexEntries = append(indexEntries, info)
+		},
+	)
+	return indexEntries
 }
 
-// ReadInfo reads the info file.
-func ReadInfo(infoFd *os.File) (*schema.IndexInfo, error) {
-	data, err := ioutil.ReadAll(infoFd)
-	if err != nil {
-		return nil, err
-	}
-
+// readInfo reads the data stored in the info file and returns an index entry.
+func readInfo(data []byte) (*schema.IndexInfo, error) {
 	info := &schema.IndexInfo{}
 	if err := proto.Unmarshal(data, info); err != nil {
 		return nil, err
@@ -141,14 +179,33 @@ func ReadInfo(infoFd *os.File) (*schema.IndexInfo, error) {
 	return info, nil
 }
 
-// ShardDirPath returns the path to a given shard.
-func ShardDirPath(prefix string, shard uint32) string {
+// FileExistsAt determines whether a data file exists for the given shard and block start time.
+func FileExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
+	shardDir := shardDirPath(prefix, shard)
+	checkpointFile := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	return fileExists(checkpointFile)
+}
+
+// shardDirPath returns the path to a given shard.
+func shardDirPath(prefix string, shard uint32) string {
 	return path.Join(prefix, strconv.Itoa(int(shard)))
 }
 
 func fileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
 	return err == nil
+}
+
+func readAndValidate(prefix string, t time.Time, suffix string, expectedDigest uint32) ([]byte, error) {
+	filePath := filepathFromTime(prefix, t, suffix)
+	fd, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close()
+	fwd := newFdWithDigest()
+	fwd.fd = fd
+	return fwd.readAllAndValidate(expectedDigest)
 }
 
 func filepathFromTime(prefix string, t time.Time, suffix string) string {

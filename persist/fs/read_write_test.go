@@ -124,10 +124,12 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	shard := uint32(0)
 	require.NoError(t, w.Open(shard, testWriterStart))
 	require.NoError(t, w.Write(entries[0].key, entries[0].data))
+
 	// Intentionally force a writer error.
 	w.(*writer).err = errors.New("foo")
 	require.Equal(t, "foo", w.Write(entries[1].key, entries[1].data).Error())
 	w.Close()
+
 	r := NewReader(filePathPrefix)
 	require.Equal(t, errCheckpointFileNotFound, r.Open(shard, testWriterStart))
 

@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -29,111 +30,62 @@ import (
 	"testing"
 	"time"
 
-	schema "github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/generated/mocks/mocks"
+	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3x/time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/m3db/m3db/storage"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testStart      = time.Now()
-	testBlockSize  = 2 * time.Hour
-	testBlockTimes = []time.Time{testStart, testStart.Add(10 * time.Hour), testStart.Add(20 * time.Hour)}
+	testStart     = time.Now()
+	testBlockSize = 2 * time.Hour
+	testFileMode  = os.FileMode(0666)
 )
 
 func createTempDir(t *testing.T) string {
 	dir, err := ioutil.TempDir("", "foo")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return dir
 }
 
-func createShardDir(t *testing.T, prefix string, shard int) string {
-	shardDirPath := path.Join(prefix, strconv.Itoa(shard))
-	err := os.Mkdir(shardDirPath, os.ModeDir|os.FileMode(0755))
-	require.Nil(t, err)
-	return shardDirPath
+func getShardDirPath(prefix string, shard uint32) string {
+	return path.Join(prefix, strconv.Itoa(int(shard)))
 }
 
-func createFile(t *testing.T, filePath string) *os.File {
-	f, err := os.Create(filePath)
+func writeInfoFile(t *testing.T, prefix string, shard uint32, start time.Time, data []byte) {
+	filePath := path.Join(getShardDirPath(prefix, shard), fmt.Sprintf("%d-info.db", xtime.ToNanoseconds(start)))
+	writeFile(t, filePath, data)
+}
+
+func writeDataFile(t *testing.T, prefix string, shard uint32, start time.Time, data []byte) {
+	filePath := path.Join(getShardDirPath(prefix, shard), fmt.Sprintf("%d-data.db", xtime.ToNanoseconds(start)))
+	writeFile(t, filePath, data)
+}
+
+func writeDigestFile(t *testing.T, prefix string, shard uint32, start time.Time, data []byte) {
+	filePath := path.Join(getShardDirPath(prefix, shard), fmt.Sprintf("%d-digest.db", xtime.ToNanoseconds(start)))
+	writeFile(t, filePath, data)
+}
+
+func writeFile(t *testing.T, filePath string, data []byte) {
+	fd, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, testFileMode)
 	require.NoError(t, err)
-	return f
+	if data != nil {
+		_, err = fd.Write(data)
+		require.NoError(t, err)
+	}
+	require.NoError(t, fd.Close())
 }
 
 func createTimeRanges() xtime.Ranges {
 	return xtime.NewRanges().AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 }
 
-func createBadInfoFile(t *testing.T, shardDirPath string, blockStartTime time.Time) {
-	f := createInfoFileWithCheckpoint(t, shardDirPath, blockStartTime)
-	_, err := f.Write([]byte{0x1, 0x2})
-	require.NoError(t, err)
-	f.Close()
-}
-
-func createInfoFileWithCheckpoint(t *testing.T, shardDirPath string, blockStartTime time.Time) *os.File {
-	checkpointPath := path.Join(shardDirPath, fmt.Sprintf("%d-checkpoint.db", xtime.ToNanoseconds(blockStartTime)))
-	checkpointFile := createFile(t, checkpointPath)
-	checkpointFile.Close()
-
-	infoPath := path.Join(shardDirPath, fmt.Sprintf("%d-info.db", xtime.ToNanoseconds(blockStartTime)))
-	infoFile := createFile(t, infoPath)
-	return infoFile
-}
-
-func writeGoodInfoFiles(t *testing.T, shardDirPath string, blockStartTimes []time.Time) {
-	for _, blockStartTime := range blockStartTimes {
-		infoFile := createInfoFileWithCheckpoint(t, shardDirPath, blockStartTime)
-		writeInfoFile(t, infoFile, blockStartTime)
-		infoFile.Close()
-	}
-}
-
-func writeInfoFile(t *testing.T, f *os.File, start time.Time) {
-	info := &schema.IndexInfo{
-		Start:     xtime.ToNanoseconds(start),
-		BlockSize: int64(testBlockSize),
-		Entries:   10,
-	}
-	data, err := proto.Marshal(info)
-	require.NoError(t, err)
-
-	_, err = f.Write(data)
-	require.NoError(t, err)
-}
-
-func writeFilesForTimeRaw(t *testing.T, shardDirPath string, start time.Time, data []byte) {
-	timeInNano := xtime.ToNanoseconds(start)
-
-	f := createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-info.db", timeInNano)))
-	writeInfoFile(t, f, start)
-	f.Close()
-
-	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-index.db", timeInNano)))
-	f.Write(data)
-	f.Close()
-
-	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-data.db", timeInNano)))
-	f.Close()
-
-	f = createFile(t, path.Join(shardDirPath, fmt.Sprintf("%d-checkpoint.db", timeInNano)))
-	f.Close()
-}
-
-func writeFilesForTimeUsingWriter(t *testing.T, dir string, start time.Time, id string, data []byte) {
-	w := fs.NewWriter(testBlockSize, dir, nil)
-	err := w.Open(0, start)
-	require.NoError(t, err)
-	require.NoError(t, w.Write(id, data))
-	require.NoError(t, w.Close())
-}
-
-func writeGoodFiles(t *testing.T, dir string) {
+func writeGoodFiles(t *testing.T, dir string, shard uint32) {
 	inputs := []struct {
 		start time.Time
 		id    string
@@ -145,8 +97,15 @@ func writeGoodFiles(t *testing.T, dir string) {
 	}
 
 	for _, input := range inputs {
-		writeFilesForTimeUsingWriter(t, dir, input.start, input.id, input.data)
+		writeTSDBFiles(t, dir, shard, input.start, input.id, input.data)
 	}
+}
+
+func writeTSDBFiles(t *testing.T, dir string, shard uint32, start time.Time, id string, data []byte) {
+	w := fs.NewWriter(testBlockSize, dir, nil)
+	require.NoError(t, w.Open(shard, start))
+	require.NoError(t, w.Write(id, data))
+	require.NoError(t, w.Close())
 }
 
 func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected []xtime.Range) {
@@ -171,43 +130,43 @@ func TestGetAvailabilityPatternError(t *testing.T) {
 	require.Nil(t, res)
 }
 
-func TestGetAvailabilityOpenFileError(t *testing.T) {
-	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
-
-	shardDirPath := createShardDir(t, dir, 0)
-	fpath := path.Join(shardDirPath, "1000-info.db")
-	f := createFile(t, fpath)
-	f.Close()
-
-	os.Chmod(fpath, os.FileMode(0333))
-
-	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
-	res := fss.GetAvailability(0, createTimeRanges())
-	require.True(t, res.IsEmpty())
-}
-
 func TestGetAvailabilityReadInfoError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	shardDirPath := createShardDir(t, dir, 0)
-	createBadInfoFile(t, shardDirPath, testStart.Add(4*time.Hour))
+	shard := uint32(0)
+	writeTSDBFiles(t, dir, shard, testStart, "foo", []byte{0x1})
+	// Intentionally corrupt the info file
+	writeInfoFile(t, dir, shard, testStart, []byte{0x1, 0x2})
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
-	res := fss.GetAvailability(0, createTimeRanges())
-	require.True(t, res.IsEmpty())
+	res := fss.GetAvailability(shard, createTimeRanges())
+	require.Nil(t, res)
+}
+
+func TestGetAvailabilityDigestOfDigestMismatch(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	shard := uint32(0)
+	writeTSDBFiles(t, dir, shard, testStart, "foo", []byte{0x1})
+	// Intentionally corrupt the digest file
+	writeDigestFile(t, dir, shard, testStart, nil)
+
+	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
+	res := fss.GetAvailability(shard, createTimeRanges())
+	require.Nil(t, res)
 }
 
 func TestGetAvailabilityTimeRangeFilter(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	shardDirPath := createShardDir(t, dir, 0)
-	writeGoodInfoFiles(t, shardDirPath, testBlockTimes)
+	shard := uint32(0)
+	writeGoodFiles(t, dir, shard)
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
-	res := fss.GetAvailability(0, createTimeRanges())
+	res := fss.GetAvailability(shard, createTimeRanges())
 
 	expected := []xtime.Range{
 		{Start: testStart, End: testStart.Add(2 * time.Hour)},
@@ -220,12 +179,13 @@ func TestGetAvailabilityTimeRangePartialError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	shardDirPath := createShardDir(t, dir, 0)
-	writeGoodInfoFiles(t, shardDirPath, testBlockTimes)
-	createBadInfoFile(t, shardDirPath, testStart.Add(4*time.Hour))
+	shard := uint32(0)
+	writeGoodFiles(t, dir, shard)
+	// Intentionally write a corrupted info file
+	writeInfoFile(t, dir, shard, testStart.Add(4*time.Hour), []byte{0x1, 0x2})
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
-	res := fss.GetAvailability(0, createTimeRanges())
+	res := fss.GetAvailability(shard, createTimeRanges())
 
 	expected := []xtime.Range{
 		{Start: testStart, End: testStart.Add(2 * time.Hour)},
@@ -252,12 +212,14 @@ func TestReadDataOpenFileError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	shardDirPath := createShardDir(t, dir, 0)
-	createInfoFileWithCheckpoint(t, shardDirPath, testStart).Close()
+	shard := uint32(0)
+	writeTSDBFiles(t, dir, shard, testStart, "foo", []byte{0x1})
+	// Intentionally truncate the info file
+	writeInfoFile(t, dir, shard, testStart, nil)
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
-	res, unfulfilled := fss.ReadData(0, createTimeRanges())
-	require.True(t, res.IsEmpty())
+	res, unfulfilled := fss.ReadData(shard, createTimeRanges())
+	require.Nil(t, res)
 	expected := []xtime.Range{
 		{Start: testStart, End: testStart.Add(11 * time.Hour)},
 	}
@@ -268,23 +230,24 @@ func TestReadDataDataCorruptionError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	shardDirPath := createShardDir(t, dir, 0)
-	writeFilesForTimeRaw(t, shardDirPath, testStart, []byte{0x1})
+	shard := uint32(0)
+	writeTSDBFiles(t, dir, shard, testStart, "foo", []byte{0x1})
+	// Intentionally corrupt the data file
+	writeDataFile(t, dir, shard, testStart, []byte{0x1})
 
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
 	tr := createTimeRanges()
-	res, unfulfilled := fss.ReadData(0, tr)
+	res, unfulfilled := fss.ReadData(shard, tr)
 	require.True(t, res.IsEmpty())
 	require.Equal(t, tr, unfulfilled)
 }
 
-func validateReadResults(t *testing.T, dir string, timeInNano int) {
-	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
+func validateReadResults(t *testing.T, fss m3db.Source, dir string, shard uint32) {
 	tr := createTimeRanges()
 	expected := []xtime.Range{
 		{Start: testStart.Add(2 * time.Hour), End: testStart.Add(10 * time.Hour)},
 	}
-	res, unfulfilled := fss.ReadData(0, tr)
+	res, unfulfilled := fss.ReadData(shard, tr)
 	require.Equal(t, 2, len(res.GetAllSeries()))
 	validateTimeRanges(t, unfulfilled, expected)
 
@@ -314,17 +277,51 @@ func TestReadDataTimeFilter(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	writeGoodFiles(t, dir)
-	validateReadResults(t, dir, 0)
+	shard := uint32(0)
+	writeGoodFiles(t, dir, shard)
+
+	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
+	validateReadResults(t, fss, dir, shard)
 }
 
 func TestReadDataPartialError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	shardDirPath := createShardDir(t, dir, 0)
-	writeGoodFiles(t, dir)
-	writeFilesForTimeRaw(t, shardDirPath, testStart.Add(4*time.Hour), []byte{0x1})
+	shard := uint32(0)
+	writeGoodFiles(t, dir, shard)
+	// Intentionally corrupt the data file
+	writeDataFile(t, dir, shard, testStart.Add(4*time.Hour), []byte{0x1})
 
-	validateReadResults(t, dir, 0)
+	fss := newFileSystemSource(dir, storage.NewDatabaseOptions())
+	validateReadResults(t, fss, dir, shard)
+}
+
+func TestReadDataValidateError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	reader := mocks.NewMockFileSetReader(ctrl)
+	fss := newFileSystemSource(dir, storage.NewDatabaseOptions()).(*fileSystemSource)
+	fss.newReaderFn = func(filePathPrefix string) m3db.FileSetReader {
+		return reader
+	}
+
+	shard := uint32(0)
+	writeTSDBFiles(t, dir, shard, testStart, "foo", []byte{0x1})
+	reader.EXPECT().Open(shard, testStart).Return(nil)
+	reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)})
+	reader.EXPECT().Entries().Return(0)
+	reader.EXPECT().Validate().Return(errors.New("foo"))
+	reader.EXPECT().Close().Return(nil)
+
+	res, unfulfilled := fss.ReadData(shard, createTimeRanges())
+	require.True(t, res.IsEmpty())
+	expected := []xtime.Range{
+		{Start: testStart, End: testStart.Add(11 * time.Hour)},
+	}
+	validateTimeRanges(t, unfulfilled, expected)
 }

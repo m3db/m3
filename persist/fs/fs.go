@@ -28,6 +28,7 @@ const (
 	infoFileSuffix       = "info.db"
 	indexFileSuffix      = "index.db"
 	dataFileSuffix       = "data.db"
+	digestFileSuffix     = "digest.db"
 	checkpointFileSuffix = "checkpoint.db"
 
 	separator       = "-"
@@ -35,6 +36,9 @@ const (
 
 	// Index ID is int64
 	idxLen = 8
+
+	// Digest uses 4 bytes
+	digestLen = 4
 )
 
 var (

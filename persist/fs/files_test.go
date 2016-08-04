@@ -23,6 +23,7 @@ package fs
 import (
 	"errors"
 	"fmt"
+	"hash/adler32"
 	"io/ioutil"
 	"os"
 	"path"
@@ -31,9 +32,6 @@ import (
 	"testing"
 	"time"
 
-	schema "github.com/m3db/m3db/generated/proto/schema"
-
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,21 +52,14 @@ func createTempDir(t *testing.T) string {
 	return dir
 }
 
-func createFile(t *testing.T, filePath string) {
-	f, err := os.Create(filePath)
+func createFile(t *testing.T, shardDir string, blockStart time.Time, suffix string, b []byte) {
+	filePath := filepathFromTime(shardDir, blockStart, suffix)
+	fd, err := os.Create(filePath)
 	require.NoError(t, err)
-	f.Close()
-}
-
-func createInfoFiles(t *testing.T, iter int) string {
-	dir := createTempDir(t)
-	for i := 0; i < iter; i++ {
-		infoFilePath := path.Join(dir, fmt.Sprintf("%d%s%s", i, separator, infoFileSuffix))
-		createFile(t, infoFilePath)
-		checkpointFilePath := path.Join(dir, fmt.Sprintf("%d%s%s", i, separator, checkpointFileSuffix))
-		createFile(t, checkpointFilePath)
+	if b != nil {
+		fd.Write(b)
 	}
-	return dir
+	fd.Close()
 }
 
 func TestOpenFilesFails(t *testing.T) {
@@ -103,52 +94,92 @@ func TestByTimeAscending(t *testing.T) {
 	require.Equal(t, expected, files)
 }
 
-func TestInfoFiles(t *testing.T) {
-	iter := 20
-	dir := createInfoFiles(t, iter)
-	defer os.RemoveAll(dir)
-
-	createFile(t, path.Join(dir, "abcd"))
-	createFile(t, path.Join(dir, separator+infoFileSuffix))
-	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+infoFileSuffix))
-
-	files, err := InfoFiles(dir)
-	require.NoError(t, err)
-	require.Equal(t, iter, len(files))
-	for i := 0; i < iter; i++ {
-		require.Equal(t, path.Join(dir, fmt.Sprintf("%d%s%s", i, separator, infoFileSuffix)), files[i])
-	}
+func TestReadCheckpointFileNonExistent(t *testing.T) {
+	shardDir := "/non/existent"
+	_, err := readCheckpointFile(shardDir, time.Now(), nil)
+	require.Equal(t, errCheckpointFileNotFound, err)
 }
 
-func TestReadInfo(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "example")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestReadCheckpointFileSuccess(t *testing.T) {
+	shardDir := createTempDir(t)
+	defer os.RemoveAll(shardDir)
 
-	defer os.Remove(tmpfile.Name())
-
-	_, err = tmpfile.Write([]byte{0x1, 0x2})
+	blockStart := time.Now()
+	path := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	fd, err := os.Create(path)
 	require.NoError(t, err)
+	buf := make([]byte, digestLen)
+	digest := adler32.New()
+	digest.Write([]byte{0x1, 0x2})
+	require.NoError(t, writeDigestToFile(fd, digest, buf))
+	fd.Close()
 
-	tmpfile.Seek(0, 0)
-	_, err = ReadInfo(tmpfile)
-	require.Error(t, err)
-
-	data, err := proto.Marshal(&schema.IndexInfo{Start: 100, BlockSize: 10, Entries: 20})
+	res, err := readCheckpointFile(shardDir, blockStart, buf)
 	require.NoError(t, err)
+	require.Equal(t, digest.Sum32(), res)
+}
 
-	tmpfile.Truncate(0)
-	tmpfile.Seek(0, 0)
-	_, err = tmpfile.Write(data)
-	require.NoError(t, err)
+func TestForEachInfoFile(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
 
-	tmpfile.Seek(0, 0)
-	entry, err := ReadInfo(tmpfile)
-	require.NoError(t, err)
-	require.Equal(t, int64(100), entry.Start)
-	require.Equal(t, int64(10), entry.BlockSize)
-	require.Equal(t, int64(20), entry.Entries)
+	shard := uint32(0)
+	shardDir := shardDirPath(dir, shard)
+	require.NoError(t, os.MkdirAll(shardDir, os.ModeDir|os.FileMode(0755)))
+
+	blockStart := time.Unix(0, 0)
+	buf := make([]byte, digestLen)
+	digest := adler32.New()
+
+	// No checkpoint file
+	createFile(t, shardDir, blockStart, infoFileSuffix, nil)
+
+	// No digest file
+	blockStart = blockStart.Add(time.Nanosecond)
+	createFile(t, shardDir, blockStart, infoFileSuffix, nil)
+	createFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+
+	// Digest of digest mismatch
+	blockStart = blockStart.Add(time.Nanosecond)
+	digests := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}
+	digest.Write(append(digests, 0xd))
+	writeDigest(digest, buf)
+	createFile(t, shardDir, blockStart, infoFileSuffix, nil)
+	createFile(t, shardDir, blockStart, digestFileSuffix, digests)
+	createFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+
+	// Info file digest mismatch
+	blockStart = blockStart.Add(time.Nanosecond)
+	digest.Reset()
+	digest.Write(digests)
+	writeDigest(digest, buf)
+	createFile(t, shardDir, blockStart, infoFileSuffix, []byte{0x1})
+	createFile(t, shardDir, blockStart, digestFileSuffix, digests)
+	createFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+
+	// All digests match
+	blockStart = blockStart.Add(time.Nanosecond)
+	infoData := []byte{0x1, 0x2, 0x3, 0x4}
+	digest.Reset()
+	digest.Write(infoData)
+	writeDigest(digest, buf)
+	digestOfDigest := append(buf, []byte{0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}...)
+	digest.Reset()
+	digest.Write(digestOfDigest)
+	writeDigest(digest, buf)
+	createFile(t, shardDir, blockStart, infoFileSuffix, infoData)
+	createFile(t, shardDir, blockStart, digestFileSuffix, digestOfDigest)
+	createFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+
+	var fnames []string
+	var res []byte
+	ForEachInfoFile(dir, shard, func(fname string, data []byte) {
+		fnames = append(fnames, fname)
+		res = append(res, data...)
+	})
+
+	require.Equal(t, []string{filepathFromTime(shardDir, blockStart, infoFileSuffix)}, fnames)
+	require.Equal(t, infoData, res)
 }
 
 func TestTimeFromName(t *testing.T) {
@@ -171,8 +202,8 @@ func TestTimeFromName(t *testing.T) {
 }
 
 func TestShardDirPath(t *testing.T) {
-	require.Equal(t, "foo/bar/12", ShardDirPath("foo/bar", 12))
-	require.Equal(t, "foo/bar/12", ShardDirPath("foo/bar/", 12))
+	require.Equal(t, "foo/bar/12", shardDirPath("foo/bar", 12))
+	require.Equal(t, "foo/bar/12", shardDirPath("foo/bar/", 12))
 }
 
 func TestFilePathFromTime(t *testing.T) {
@@ -202,13 +233,14 @@ func TestFileExists(t *testing.T) {
 	shardDir := path.Join(dir, strconv.Itoa(shard))
 	err := os.Mkdir(shardDir, defaultNewDirectoryMode)
 	require.NoError(t, err)
-	infoFilePath := path.Join(shardDir, fmt.Sprintf("%d%s%s", start, separator, infoFileSuffix))
-	createFile(t, infoFilePath)
+
+	infoFilePath := path.Join(shardDir, fmt.Sprintf("%d%s%s", start.UnixNano(), separator, infoFileSuffix))
+	createFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, fileExists(infoFilePath))
 	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
 
-	checkpointFilePath := path.Join(shardDir, fmt.Sprintf("%d%s%s", start, separator, checkpointFileSuffix))
-	createFile(t, checkpointFilePath)
+	checkpointFilePath := path.Join(shardDir, fmt.Sprintf("%d%s%s", start.UnixNano(), separator, checkpointFileSuffix))
+	createFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, fileExists(checkpointFilePath))
 	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
 
