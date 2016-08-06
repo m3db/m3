@@ -126,6 +126,9 @@ func TimeFromFileName(fname string) (time.Time, error) {
 // TimeAndIndexFromFileName extracts the block start and index from file name.
 func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
 	components, t, err := componentsAndTimeFromFileName(fname)
+	if err != nil {
+		return timeZero, 0, err
+	}
 	str := strings.Replace(components[2], fileSuffix, "", 1)
 	index, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {

@@ -120,6 +120,24 @@ type DatabaseOptions interface {
 	// GetBootstrapFn returns the newBootstrapFn
 	GetBootstrapFn() NewBootstrapFn
 
+	// CommitLogFlushSize sets the commit log flush size and returns a new DatabaseOptions
+	CommitLogFlushSize(value int) DatabaseOptions
+
+	// GetCommitLogFlushSize returns the commit log flush size
+	GetCommitLogFlushSize() int
+
+	// CommitLogFlushInterval sets the commit log flush interval and returns a new DatabaseOptions
+	CommitLogFlushInterval(value time.Duration) DatabaseOptions
+
+	// GetCommitLogFlushInterval returns the commit log flush interval
+	GetCommitLogFlushInterval() time.Duration
+
+	// CommitLogBacklogQueueSize sets the commit log backlog queue size and returns a new DatabaseOptions
+	CommitLogBacklogQueueSize(value int) DatabaseOptions
+
+	// GetCommitLogBacklogQueueSize returns the commit log backlog queue size
+	GetCommitLogBacklogQueueSize() int
+
 	// CommitLogStrategy sets the commit log strategy and returns a new DatabaseOptions
 	CommitLogStrategy(value CommitLogStrategy) DatabaseOptions
 

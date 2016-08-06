@@ -67,7 +67,7 @@ type reader struct {
 func newCommitLogReader(opts m3db.DatabaseOptions) commitLogReader {
 	return &reader{
 		opts:           opts,
-		chunkReader:    newChunkReader(bufferWriteSize),
+		chunkReader:    newChunkReader(opts.GetCommitLogFlushSize()),
 		sizeBuffer:     make([]byte, binary.MaxVarintLen64),
 		metadataLookup: make(map[uint64]m3db.CommitLogSeries),
 	}

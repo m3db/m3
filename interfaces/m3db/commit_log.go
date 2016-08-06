@@ -46,10 +46,20 @@ type CommitLog interface {
 	io.Closer
 
 	// Write will write an entry in the commit log for a given series
-	Write(series CommitLogSeries, datapoint Datapoint, unit xtime.Unit, annotation []byte) error
+	Write(
+		series CommitLogSeries,
+		datapoint Datapoint,
+		unit xtime.Unit,
+		annotation Annotation,
+	) error
 
 	// WriteBehind will write an entry in the commit log for a given series without waiting for completion
-	WriteBehind(series CommitLogSeries, datapoint Datapoint, unit xtime.Unit, annotation []byte) error
+	WriteBehind(
+		series CommitLogSeries,
+		datapoint Datapoint,
+		unit xtime.Unit,
+		annotation Annotation,
+	) error
 
 	// Iter returns an iterator for accessing commit logs
 	Iter() (CommitLogIterator, error)

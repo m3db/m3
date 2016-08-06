@@ -198,12 +198,12 @@ func TestTimeFromName(t *testing.T) {
 	_, err = TimeFromFileName("foo/bar-baz")
 	require.Error(t, err)
 
-	v, err := TimeFromFileName("test-1.db")
+	v, err := TimeFromFileName("foo-1-bar.db")
 	expected := time.Unix(0, 1)
 	require.Equal(t, expected, v)
 	require.NoError(t, err)
 
-	v, err = TimeFromFileName("foo/bar/test-21234567890.db")
+	v, err = TimeFromFileName("foo/bar/foo-21234567890-bar.db")
 	expected = time.Unix(0, 21234567890)
 	require.Equal(t, expected, v)
 	require.NoError(t, err)
@@ -221,13 +221,13 @@ func TestTimeAndIndexFromFileName(t *testing.T) {
 		t time.Time
 		i int
 	}
-	ts, i, err := TimeAndIndexFromFileName("test-1-0.db")
+	ts, i, err := TimeAndIndexFromFileName("foo-1-0.db")
 	exp := expected{time.Unix(0, 1), 0}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 
-	ts, i, err = TimeAndIndexFromFileName("foo/bar/test-21234567890-1.db")
+	ts, i, err = TimeAndIndexFromFileName("foo/bar/foo-21234567890-1.db")
 	exp = expected{time.Unix(0, 21234567890), 1}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)

@@ -113,6 +113,36 @@ func (_mr *_MockDatabaseOptionsRecorder) BytesPool(arg0 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BytesPool", arg0)
 }
 
+func (_m *MockDatabaseOptions) CommitLogBacklogQueueSize(_param0 int) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "CommitLogBacklogQueueSize", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) CommitLogBacklogQueueSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogBacklogQueueSize", arg0)
+}
+
+func (_m *MockDatabaseOptions) CommitLogFlushInterval(_param0 time.Duration) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "CommitLogFlushInterval", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) CommitLogFlushInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogFlushInterval", arg0)
+}
+
+func (_m *MockDatabaseOptions) CommitLogFlushSize(_param0 int) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "CommitLogFlushSize", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) CommitLogFlushSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogFlushSize", arg0)
+}
+
 func (_m *MockDatabaseOptions) CommitLogStrategy(_param0 m3db.CommitLogStrategy) m3db.DatabaseOptions {
 	ret := _m.ctrl.Call(_m, "CommitLogStrategy", _param0)
 	ret0, _ := ret[0].(m3db.DatabaseOptions)
@@ -271,6 +301,36 @@ func (_m *MockDatabaseOptions) GetBytesPool() m3db.BytesPool {
 
 func (_mr *_MockDatabaseOptionsRecorder) GetBytesPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBytesPool")
+}
+
+func (_m *MockDatabaseOptions) GetCommitLogBacklogQueueSize() int {
+	ret := _m.ctrl.Call(_m, "GetCommitLogBacklogQueueSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetCommitLogBacklogQueueSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogBacklogQueueSize")
+}
+
+func (_m *MockDatabaseOptions) GetCommitLogFlushInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "GetCommitLogFlushInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetCommitLogFlushInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogFlushInterval")
+}
+
+func (_m *MockDatabaseOptions) GetCommitLogFlushSize() int {
+	ret := _m.ctrl.Call(_m, "GetCommitLogFlushSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetCommitLogFlushSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogFlushSize")
 }
 
 func (_m *MockDatabaseOptions) GetCommitLogStrategy() m3db.CommitLogStrategy {

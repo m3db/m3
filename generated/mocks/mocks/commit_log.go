@@ -120,12 +120,12 @@ func (_mr *_MockCommitLogIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockCommitLogIterator) Current() (m3db.CommitLogSeries, m3db.Datapoint, time.Unit, []byte) {
+func (_m *MockCommitLogIterator) Current() (m3db.CommitLogSeries, m3db.Datapoint, time.Unit, m3db.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(m3db.CommitLogSeries)
 	ret1, _ := ret[1].(m3db.Datapoint)
 	ret2, _ := ret[2].(time.Unit)
-	ret3, _ := ret[3].([]byte)
+	ret3, _ := ret[3].(m3db.Annotation)
 	return ret0, ret1, ret2, ret3
 }
 

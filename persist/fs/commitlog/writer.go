@@ -48,9 +48,6 @@ const (
 	chunkHeaderLen             = chunkHeaderSizeLen +
 		chunkHeaderChecksumSizeLen +
 		chunkHeaderChecksumDataLen
-
-	// TODO: make configurable by DatabaseOptions once rebased with options from master
-	bufferWriteSize = 65536
 )
 
 var (
@@ -109,7 +106,7 @@ func newCommitLogWriter(
 		nowFn:              opts.GetNowFn(),
 		chunkWriter:        chunkWriter{flushFn: flushFn},
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
-		buffer:             bufio.NewWriterSize(nil, bufferWriteSize),
+		buffer:             bufio.NewWriterSize(nil, opts.GetCommitLogFlushSize()),
 		bitset:             newBitset(),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		infoBuffer:         proto.NewBuffer(nil),
@@ -209,6 +206,9 @@ func (w *writer) Close() error {
 		return nil
 	}
 
+	if err := w.Flush(); err != nil {
+		return err
+	}
 	if err := w.chunkWriter.fd.Close(); err != nil {
 		return err
 	}

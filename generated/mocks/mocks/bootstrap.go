@@ -26,8 +26,8 @@ package mocks
 import (
 	gomock "github.com/golang/mock/gomock"
 	m3db "github.com/m3db/m3db/interfaces/m3db"
-	time "github.com/m3db/m3x/time"
-	time0 "time"
+	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of ShardResult interface
@@ -132,7 +132,7 @@ func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(_param0 time0.Time, _param1 uint32) (m3db.ShardResult, error) {
+func (_m *MockBootstrap) Run(_param0 time.Time, _param1 uint32) (m3db.ShardResult, error) {
 	ret := _m.ctrl.Call(_m, "Run", _param0, _param1)
 	ret0, _ := ret[0].(m3db.ShardResult)
 	ret1, _ := ret[1].(error)
@@ -164,10 +164,10 @@ func (_m *MockBootstrapper) EXPECT() *_MockBootstrapperRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrapper) Bootstrap(_param0 uint32, _param1 time.Ranges) (m3db.ShardResult, time.Ranges) {
+func (_m *MockBootstrapper) Bootstrap(_param0 uint32, _param1 time0.Ranges) (m3db.ShardResult, time0.Ranges) {
 	ret := _m.ctrl.Call(_m, "Bootstrap", _param0, _param1)
 	ret0, _ := ret[0].(m3db.ShardResult)
-	ret1, _ := ret[1].(time.Ranges)
+	ret1, _ := ret[1].(time0.Ranges)
 	return ret0, ret1
 }
 
@@ -196,9 +196,9 @@ func (_m *MockSource) EXPECT() *_MockSourceRecorder {
 	return _m.recorder
 }
 
-func (_m *MockSource) GetAvailability(_param0 uint32, _param1 time.Ranges) time.Ranges {
+func (_m *MockSource) GetAvailability(_param0 uint32, _param1 time0.Ranges) time0.Ranges {
 	ret := _m.ctrl.Call(_m, "GetAvailability", _param0, _param1)
-	ret0, _ := ret[0].(time.Ranges)
+	ret0, _ := ret[0].(time0.Ranges)
 	return ret0
 }
 
@@ -206,10 +206,10 @@ func (_mr *_MockSourceRecorder) GetAvailability(arg0, arg1 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetAvailability", arg0, arg1)
 }
 
-func (_m *MockSource) ReadData(_param0 uint32, _param1 time.Ranges) (m3db.ShardResult, time.Ranges) {
+func (_m *MockSource) ReadData(_param0 uint32, _param1 time0.Ranges) (m3db.ShardResult, time0.Ranges) {
 	ret := _m.ctrl.Call(_m, "ReadData", _param0, _param1)
 	ret0, _ := ret[0].(m3db.ShardResult)
-	ret1, _ := ret[1].(time.Ranges)
+	ret1, _ := ret[1].(time0.Ranges)
 	return ret0, ret1
 }
 

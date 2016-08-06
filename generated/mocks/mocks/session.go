@@ -26,8 +26,8 @@ package mocks
 import (
 	gomock "github.com/golang/mock/gomock"
 	m3db "github.com/m3db/m3db/interfaces/m3db"
-	time0 "github.com/m3db/m3x/time"
-	time "time"
+	time "github.com/m3db/m3x/time"
+	time0 "time"
 )
 
 // Mock of clientSession interface
@@ -51,7 +51,7 @@ func (_m *MockclientSession) EXPECT() *_MockclientSessionRecorder {
 	return _m.recorder
 }
 
-func (_m *MockclientSession) Write(id string, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (_m *MockclientSession) Write(id string, t time0.Time, value float64, unit time.Unit, annotation []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", id, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -61,7 +61,7 @@ func (_mr *_MockclientSessionRecorder) Write(arg0, arg1, arg2, arg3, arg4 interf
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockclientSession) Fetch(id string, startInclusive time.Time, endExclusive time.Time) (m3db.SeriesIterator, error) {
+func (_m *MockclientSession) Fetch(id string, startInclusive time0.Time, endExclusive time0.Time) (m3db.SeriesIterator, error) {
 	ret := _m.ctrl.Call(_m, "Fetch", id, startInclusive, endExclusive)
 	ret0, _ := ret[0].(m3db.SeriesIterator)
 	ret1, _ := ret[1].(error)
@@ -72,7 +72,7 @@ func (_mr *_MockclientSessionRecorder) Fetch(arg0, arg1, arg2 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2)
 }
 
-func (_m *MockclientSession) FetchAll(ids []string, startInclusive time.Time, endExclusive time.Time) (m3db.SeriesIterators, error) {
+func (_m *MockclientSession) FetchAll(ids []string, startInclusive time0.Time, endExclusive time0.Time) (m3db.SeriesIterators, error) {
 	ret := _m.ctrl.Call(_m, "FetchAll", ids, startInclusive, endExclusive)
 	ret0, _ := ret[0].(m3db.SeriesIterators)
 	ret1, _ := ret[1].(error)
