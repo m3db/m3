@@ -65,7 +65,7 @@ func NewCommitLogIterator(opts m3db.DatabaseOptions) (m3db.CommitLogIterator, er
 }
 
 func (i *iterator) Next() bool {
-	if i.hasError() {
+	if i.hasError() || i.closed {
 		return false
 	}
 	if i.reader == nil {
@@ -88,9 +88,9 @@ func (i *iterator) Next() bool {
 	return true
 }
 
-func (i *iterator) Current() (m3db.CommitLogSeries, m3db.Datapoint, xtime.Unit, []byte) {
+func (i *iterator) Current() (m3db.CommitLogSeries, m3db.Datapoint, xtime.Unit, m3db.Annotation) {
 	read := i.read
-	if i.hasError() || !i.setRead {
+	if i.hasError() || i.closed || !i.setRead {
 		read = iteratorRead{}
 	}
 	return read.series, read.datapoint, read.unit, read.annotation

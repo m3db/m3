@@ -38,11 +38,16 @@ import (
 )
 
 const (
-	// The length to reserve for a chunk header:
+	// The lengths to reserve for a chunk header:
 	// - size uint32
 	// - checksumSize uint32
 	// - checksumData uint32
-	chunkReserveHeaderLen = 4 + 4 + 4
+	chunkHeaderSizeLen         = 4
+	chunkHeaderChecksumSizeLen = 4
+	chunkHeaderChecksumDataLen = 4
+	chunkHeaderLen             = chunkHeaderSizeLen +
+		chunkHeaderChecksumSizeLen +
+		chunkHeaderChecksumDataLen
 
 	// TODO: make configurable by DatabaseOptions once rebased with options from master
 	bufferWriteSize = 65536
@@ -103,7 +108,7 @@ func newCommitLogWriter(
 		newDirectoryMode:   opts.GetFileWriterOptions().GetNewDirectoryMode(),
 		nowFn:              opts.GetNowFn(),
 		chunkWriter:        chunkWriter{flushFn: flushFn},
-		chunkReserveHeader: make([]byte, chunkReserveHeaderLen),
+		chunkReserveHeader: make([]byte, chunkHeaderLen),
 		buffer:             bufio.NewWriterSize(nil, bufferWriteSize),
 		bitset:             newBitset(),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
@@ -252,25 +257,26 @@ type chunkWriter struct {
 
 func (w *chunkWriter) Write(p []byte) (int, error) {
 	rawLen := len(p)
-	if rawLen <= chunkReserveHeaderLen {
+	if rawLen <= chunkHeaderLen {
 		return 0, errCommitLogWriterFlushWithoutReservedLength
 	}
 
-	size := rawLen - chunkReserveHeaderLen
+	size := rawLen - chunkHeaderLen
+
+	sizeStart, sizeEnd := 0, chunkHeaderSizeLen
+	checksumSizeStart, checksumSizeEnd := sizeEnd, sizeEnd+chunkHeaderSizeLen
+	checksumDataStart, checksumDataEnd := checksumSizeEnd, checksumSizeEnd+chunkHeaderChecksumDataLen
 
 	// Write size
-	slice := p[:4]
-	endianness.PutUint32(slice, uint32(size))
+	endianness.PutUint32(p[sizeStart:sizeEnd], uint32(size))
 
 	// Calculate checksums
-	checksumSize := adler32.Checksum(slice)
-	checksumData := adler32.Checksum(p[12:])
+	checksumSize := adler32.Checksum(p[sizeStart:sizeEnd])
+	checksumData := adler32.Checksum(p[chunkHeaderLen:])
 
 	// Write checksums
-	slice = p[4:8]
-	endianness.PutUint32(slice, uint32(checksumSize))
-	slice = p[8:12]
-	endianness.PutUint32(slice, uint32(checksumData))
+	endianness.PutUint32(p[checksumSizeStart:checksumSizeEnd], uint32(checksumSize))
+	endianness.PutUint32(p[checksumDataStart:checksumDataEnd], uint32(checksumData))
 
 	// Write to file descriptor
 	n, err := w.fd.Write(p)

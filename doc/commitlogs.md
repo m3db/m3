@@ -4,8 +4,8 @@
 
 There are two integrity levels available for M3DB commit logs:
 
-- **Synchronous:** all write operations must synchronously finish writing an entry in the commit log to complete.
-- **Buffered:** all write operations must enqueue to a buffer an entry in the commit log to complete.
+- **Synchronous:** all write operations must wait until it has finished writing an entry in the commit log to complete.
+- **Behind:** all write operations must finish enqueueing an entry to the commit log write queue to complete.
 
 Depending on the data loss requirements consumers can choose either integrity level.
 
@@ -23,25 +23,22 @@ The structures have the following properties:
 CommitLogInfo struct {
   start int64
   duration int64
+  index int64
 }
 
 CommitLog struct {
   created int64
   idx uint64
-  series *CommitLogSeries
-  data CommitLogData
+  metadata bytes
+  timestamp int64
+  value double
+  unit uint32
+  annotation bytes
 }
 
-CommitLogSeries struct {
+CommitLogMetadata struct {
   id string
   shard uint32
-}
-
-CommitLogData struct {
-  timestamp int64
-  value float64
-  unit int32
-  annotation []byte
 }
 ```
 

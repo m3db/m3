@@ -30,16 +30,12 @@ import (
 
 // commitLogSource provides information about commit log data stored on disk.
 type commitLogSource struct {
-	opts           m3db.DatabaseOptions
-	filePathPrefix string
+	opts m3db.DatabaseOptions
 }
 
 // newCommitLogSource creates a new commit log based database.
-func newCommitLogSource(prefix string, opts m3db.DatabaseOptions) m3db.Source {
-	return &commitLogSource{
-		opts:           opts,
-		filePathPrefix: prefix,
-	}
+func newCommitLogSource(opts m3db.DatabaseOptions) m3db.Source {
+	return &commitLogSource{opts: opts}
 }
 
 // GetAvailability returns what time ranges are available for a given shard.

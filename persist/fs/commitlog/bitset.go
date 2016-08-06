@@ -35,25 +35,25 @@ type bitset interface {
 }
 
 type set struct {
-	bitset *bset.BitSet
+	*bset.BitSet
 }
 
 func newBitset() bitset {
-	return &set{bitset: bset.New(newBitsetLength)}
+	return &set{bset.New(newBitsetLength)}
 }
 
 func (s *set) has(i uint64) bool {
-	return s.bitset.Test(uint(i))
+	return s.Test(uint(i))
 }
 
 func (s *set) set(i uint64) {
-	s.bitset.Set(uint(i))
+	s.Set(uint(i))
 }
 
 func (s *set) clear(i uint64) {
-	s.bitset.Clear(uint(i))
+	s.Clear(uint(i))
 }
 
 func (s *set) clearAll() {
-	s.bitset.ClearAll()
+	s.ClearAll()
 }

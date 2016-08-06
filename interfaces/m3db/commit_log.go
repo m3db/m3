@@ -61,7 +61,7 @@ type CommitLogIterator interface {
 	Next() bool
 
 	// Current returns the current commit log entry
-	Current() (CommitLogSeries, Datapoint, xtime.Unit, []byte)
+	Current() (CommitLogSeries, Datapoint, xtime.Unit, Annotation)
 
 	// Err returns an error if an error occurred
 	Err() error

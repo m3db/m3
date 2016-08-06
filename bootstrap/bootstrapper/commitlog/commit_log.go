@@ -36,11 +36,10 @@ type commitLogBootstrapper struct {
 
 // NewCommitLogBootstrapper creates a new bootstrapper to bootstrap from commit log files.
 func NewCommitLogBootstrapper(
-	prefix string,
 	opts m3db.DatabaseOptions,
 	next m3db.Bootstrapper,
 ) m3db.Bootstrapper {
-	src := newCommitLogSource(prefix, opts)
+	src := newCommitLogSource(opts)
 	return &commitLogBootstrapper{
 		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts, next),
 	}

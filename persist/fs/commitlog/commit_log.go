@@ -37,10 +37,14 @@ const (
 var (
 	errCommitLogClosed = errors.New("commit log is closed")
 
+	errCommitLogQueueFull = errors.New("commit log queue is full")
+
+	// TODO(r): parameterize commit log write retries and retry delay in future
 	writeRetries    = 2
 	writeRetryDelay = time.Millisecond
-	timeNow         = time.Now
-	timeZero        = time.Time{}
+
+	timeNow  = time.Now
+	timeZero = time.Time{}
 )
 
 type completionFn func(err error)
@@ -65,8 +69,7 @@ type commitLogWrite struct {
 	series       m3db.CommitLogSeries
 	datapoint    m3db.Datapoint
 	unit         xtime.Unit
-	annotation   []byte
-	attempt      int
+	annotation   m3db.Annotation
 	completionFn completionFn
 }
 
@@ -100,16 +103,18 @@ func (l *commitLog) write() {
 	// TODO(r): also periodically flush the underlying commit log writer
 	// in case writes stall and commit log not written
 	var (
-		write commitLogWrite
-		retry = commitLogWrite{attempt: writeRetries}
-		open  bool
+		write, retry    commitLogWrite
+		retryInProgress bool
+		retryAttempts   int
+		open            bool
 	)
 	for {
-		if retry.attempt < writeRetries {
-			retry.attempt++
+		if retryInProgress && retryAttempts < 0 {
+			retryAttempts++
 			write = retry
 			time.Sleep(writeRetryDelay)
 		} else {
+			retryInProgress = false
 			write, open = <-l.writes
 			if !open {
 				break
@@ -121,15 +126,13 @@ func (l *commitLog) write() {
 			if err := l.openWriter(now); err != nil {
 				l.metrics.IncCounter("writes.errors", 1)
 				l.metrics.IncCounter("writes.openerrors", 1)
-				// Re-attempt next write
-				retry = write
+				// Begin retrying write if not already
+				if !retryInProgress {
+					retry = write
+					retryAttempts = writeRetries
+				}
 				continue
 			}
-		}
-
-		// For writes requiring acks add to pending acks
-		if write.completionFn != nil {
-			l.pendingAcks = append(l.pendingAcks, write.completionFn)
 		}
 
 		err := l.writer.Write(write.series, write.datapoint, write.unit, write.annotation)
@@ -137,9 +140,17 @@ func (l *commitLog) write() {
 			l.metrics.IncCounter("writes.errors", 1)
 			// Log error and expire writer
 			l.writeError(err)
-			// Re-attempt next write
-			retry = write
+			// Begin retrying write if not already
+			if !retryInProgress {
+				retry = write
+				retryAttempts = writeRetries
+			}
 			continue
+		}
+
+		// For writes requiring acks add to pending acks
+		if write.completionFn != nil {
+			l.pendingAcks = append(l.pendingAcks, write.completionFn)
 		}
 
 		l.metrics.IncCounter("writes", 1)
@@ -208,6 +219,7 @@ func (l *commitLog) Write(
 	annotation []byte,
 ) error {
 	l.RLock()
+
 	if l.closed {
 		l.RUnlock()
 		return errCommitLogClosed
@@ -222,14 +234,28 @@ func (l *commitLog) Write(
 		result = err
 		wg.Done()
 	}
-	l.writes <- commitLogWrite{
-		series:       series,
-		datapoint:    datapoint,
-		unit:         unit,
-		annotation:   annotation,
-		completionFn: completion,
+
+	var (
+		write = commitLogWrite{
+			series:       series,
+			datapoint:    datapoint,
+			unit:         unit,
+			annotation:   annotation,
+			completionFn: completion,
+		}
+		enqueued = false
+	)
+	select {
+	case l.writes <- write:
+		enqueued = true
+	default:
 	}
+
 	l.RUnlock()
+
+	if !enqueued {
+		return errCommitLogQueueFull
+	}
 
 	wg.Wait()
 
@@ -243,16 +269,31 @@ func (l *commitLog) WriteBehind(
 	annotation []byte,
 ) error {
 	l.RLock()
+
 	if l.closed {
 		l.RUnlock()
 		return errCommitLogClosed
 	}
-	l.writes <- commitLogWrite{
-		series:     series,
-		datapoint:  datapoint,
-		unit:       unit,
-		annotation: annotation,
+
+	var (
+		write = commitLogWrite{
+			series:     series,
+			datapoint:  datapoint,
+			unit:       unit,
+			annotation: annotation,
+		}
+		enqueued = false
+	)
+	select {
+	case l.writes <- write:
+		enqueued = true
+	default:
 	}
+
+	if !enqueued {
+		return errCommitLogQueueFull
+	}
+
 	l.RUnlock()
 	return nil
 }

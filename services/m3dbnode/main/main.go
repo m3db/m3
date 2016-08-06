@@ -88,7 +88,7 @@ func main() {
 		}
 
 		// Server is closed
-		<-closedCh
+		closedCh <- struct{}{}
 	}()
 
 	// Handle interrupt

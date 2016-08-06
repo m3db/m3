@@ -104,30 +104,28 @@ func (a byTimeAndIndexAscending) Less(i, j int) bool {
 	return ti.Equal(tj) && ii < ij
 }
 
-// TimeFromFileName extracts the block start time from file name.
-func TimeFromFileName(fname string) (time.Time, error) {
+func componentsAndTimeFromFileName(fname string) ([]string, time.Time, error) {
 	components := strings.Split(filepath.Base(fname), separator)
-	if len(components) < 2 {
-		return timeZero, fmt.Errorf("unexpected file name %s", fname)
+	if len(components) < 3 {
+		return nil, timeZero, fmt.Errorf("unexpected file name %s", fname)
 	}
 	str := strings.Replace(components[1], fileSuffix, "", 1)
 	nanoseconds, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
-		return timeZero, err
+		return nil, timeZero, err
 	}
-	return time.Unix(0, nanoseconds), nil
+	return components, time.Unix(0, nanoseconds), nil
+}
+
+// TimeFromFileName extracts the block start time from file name.
+func TimeFromFileName(fname string) (time.Time, error) {
+	_, t, err := componentsAndTimeFromFileName(fname)
+	return t, err
 }
 
 // TimeAndIndexFromFileName extracts the block start and index from file name.
 func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
-	t, err := TimeFromFileName(fname)
-	if err != nil {
-		return timeZero, 0, err
-	}
-	components := strings.Split(filepath.Base(fname), separator)
-	if len(components) < 3 {
-		return timeZero, 0, fmt.Errorf("unexpected file name %s", fname)
-	}
+	components, t, err := componentsAndTimeFromFileName(fname)
 	str := strings.Replace(components[2], fileSuffix, "", 1)
 	index, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
@@ -221,11 +219,7 @@ func FileExists(filePath string) bool {
 
 // OpenWritable opens a file for writing and truncating as necessary.
 func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
-	fd, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
-	if err != nil {
-		return nil, err
-	}
-	return fd, nil
+	return os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 }
 
 func filesetPathFromTime(prefix string, t time.Time, suffix string) string {

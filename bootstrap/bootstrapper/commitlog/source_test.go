@@ -29,7 +29,7 @@ import (
 )
 
 func TestGetAvailabilityEmptyRangeError(t *testing.T) {
-	src := newCommitLogSource("foo", storage.NewDatabaseOptions())
+	src := newCommitLogSource(storage.NewDatabaseOptions())
 	res := src.GetAvailability(0, nil)
 	require.Nil(t, res)
 }
