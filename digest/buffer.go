@@ -18,31 +18,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package digest
 
-import (
-	"encoding/binary"
-)
+import "os"
 
-const (
-	infoFileSuffix       = "info.db"
-	indexFileSuffix      = "index.db"
-	dataFileSuffix       = "data.db"
-	digestFileSuffix     = "digest.db"
-	checkpointFileSuffix = "checkpoint.db"
+// Buffer is a byte slice that facilitates digest reading and writing.
+type Buffer []byte
 
-	separator       = "-"
-	infoFilePattern = "[0-9]*" + separator + infoFileSuffix
+// NewBuffer creates a new digest buffer.
+func NewBuffer() Buffer {
+	return make([]byte, digestLen)
+}
 
-	// Index ID is int64
-	idxLen = 8
-)
+// WriteDigest writes a digest to the buffer.
+func (b Buffer) WriteDigest(digest uint32) {
+	endianness.PutUint32(b, digest)
+}
 
-var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
+// WriteDigestToFile writes a digest to the file.
+func (b Buffer) WriteDigestToFile(fd *os.File, digest uint32) error {
+	b.WriteDigest(digest)
+	_, err := fd.Write(b)
+	return err
+}
 
-	// Endianness is little endian
-	endianness = binary.LittleEndian
-)
+// ReadDigest reads the digest from the buffer.
+func (b Buffer) ReadDigest() uint32 {
+	return endianness.Uint32(b)
+}
+
+// ReadDigestFromFile reads the digest from the file.
+func (b Buffer) ReadDigestFromFile(fd *os.File) (uint32, error) {
+	_, err := fd.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	return b.ReadDigest(), nil
+}
+
+// ToBuffer converts a byte slice to a digest buffer.
+func ToBuffer(buf []byte) Buffer {
+	return Buffer(buf[:digestLen])
+}

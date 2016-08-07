@@ -51,14 +51,14 @@ func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard 
 		return nil
 	}
 
-	indexEntries := fs.ReadInfoFiles(fss.filePathPrefix, shard)
-	if len(indexEntries) == 0 {
+	entries := fs.ReadInfoFiles(fss.filePathPrefix, shard)
+	if len(entries) == 0 {
 		return nil
 	}
 
 	tr := xtime.NewRanges()
-	for i := 0; i < len(indexEntries); i++ {
-		info := indexEntries[i]
+	for i := 0; i < len(entries); i++ {
+		info := entries[i]
 		t := xtime.FromNanoseconds(info.Start)
 		w := time.Duration(info.BlockSize)
 		curRange := xtime.Range{t, t.Add(w)}
@@ -120,7 +120,12 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.Shard
 			block.Reset(timeRange.Start, encoder)
 			curMap.AddBlock(id, block)
 		}
-		hasError = hasError || r.Validate() != nil
+		if !hasError {
+			if err := r.Validate(); err != nil {
+				hasError = true
+				log.Errorf("data validation error: %v", err)
+			}
+		}
 		r.Close()
 
 		if !hasError {

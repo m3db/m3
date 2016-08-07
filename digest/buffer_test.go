@@ -18,31 +18,57 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package digest
 
 import (
-	"encoding/binary"
+	"io/ioutil"
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-const (
-	infoFileSuffix       = "info.db"
-	indexFileSuffix      = "index.db"
-	dataFileSuffix       = "data.db"
-	digestFileSuffix     = "digest.db"
-	checkpointFileSuffix = "checkpoint.db"
+func TestWriteDigest(t *testing.T) {
+	buf := NewBuffer()
+	buf.WriteDigest(2)
+	require.Equal(t, []byte{0x2, 0x0, 0x0, 0x0}, []byte(buf))
+}
 
-	separator       = "-"
-	infoFilePattern = "[0-9]*" + separator + infoFileSuffix
+func TestWriteDigestToFile(t *testing.T) {
+	fd := createTempFile(t)
+	filePath := fd.Name()
+	defer os.Remove(filePath)
 
-	// Index ID is int64
-	idxLen = 8
-)
+	buf := NewBuffer()
+	require.NoError(t, buf.WriteDigestToFile(fd, 20))
+	fd.Close()
 
-var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
+	fd, err := os.Open(filePath)
+	require.NoError(t, err)
+	b, err := ioutil.ReadAll(fd)
+	require.NoError(t, err)
+	fd.Close()
+	require.Equal(t, []byte{0x14, 0x0, 0x0, 0x0}, b)
+}
 
-	// Endianness is little endian
-	endianness = binary.LittleEndian
-)
+func TestReadDigest(t *testing.T) {
+	buf := ToBuffer([]byte{0x0, 0x1, 0x0, 0x1, 0x0, 0x1})
+	require.Equal(t, uint32(0x1000100), buf.ReadDigest())
+}
+
+func TestReadDigestFromFile(t *testing.T) {
+	fd := createTempFile(t)
+	defer func() {
+		fd.Close()
+		os.Remove(fd.Name())
+	}()
+
+	b := []byte{0xa, 0x0, 0x0, 0x0}
+	fd.Write(b)
+	fd.Seek(0, 0)
+
+	buf := NewBuffer()
+	res, err := buf.ReadDigestFromFile(fd)
+	require.NoError(t, err)
+	require.Equal(t, uint32(10), res)
+}

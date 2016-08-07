@@ -18,31 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package digest
 
 import (
 	"encoding/binary"
+	"errors"
+	"hash"
+	"hash/adler32"
 )
 
 const (
-	infoFileSuffix       = "info.db"
-	indexFileSuffix      = "index.db"
-	dataFileSuffix       = "data.db"
-	digestFileSuffix     = "digest.db"
-	checkpointFileSuffix = "checkpoint.db"
-
-	separator       = "-"
-	infoFilePattern = "[0-9]*" + separator + infoFileSuffix
-
-	// Index ID is int64
-	idxLen = 8
+	// digest size is 4 bytes
+	digestLen = 4
 )
 
 var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
-
 	// Endianness is little endian
 	endianness = binary.LittleEndian
+
+	// errCheckSumMismatch returned when the calculated checksum doesn't match the stored checksum
+	errCheckSumMismatch = errors.New("calculated checksum doesn't match stored checksum")
 )
+
+// NewDigest creates a new digest.
+// The default 32-bit hashing algorithm is adler32.
+func NewDigest() hash.Hash32 {
+	return adler32.New()
+}
+
+// CheckSum returns the 32-bit data checksum.
+func CheckSum(data []byte) uint32 {
+	return adler32.Checksum(data)
+}

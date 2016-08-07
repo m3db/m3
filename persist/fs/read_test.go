@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"hash/adler32"
 	"io/ioutil"
 	"os"
 	"path"
@@ -30,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
 
 	"github.com/golang/protobuf/proto"
@@ -103,7 +103,7 @@ func TestReadDataError(t *testing.T) {
 	w := NewWriter(testBlockSize, filePathPrefix, nil)
 	err = w.Open(0, testWriterStart)
 	assert.NoError(t, err)
-	dataFile := w.(*writer).dataFdWithDigest.fd.Name()
+	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
@@ -112,15 +112,16 @@ func TestReadDataError(t *testing.T) {
 
 	// Close out the dataFd and expect an error on next read
 	reader := r.(*reader)
-	assert.NoError(t, reader.dataFdWithDigest.fd.Close())
+	assert.NoError(t, reader.dataFdWithDigest.Fd().Close())
 
 	_, _, err = r.Read()
 	assert.Error(t, err)
 
 	// Restore the file to cleanly close
-	reader.dataFdWithDigest.fd, err = os.Open(dataFile)
+	fd, err := os.Open(dataFile)
 	assert.NoError(t, err)
 
+	reader.dataFdWithDigest.Reset(fd)
 	assert.NoError(t, r.Close())
 }
 
@@ -135,13 +136,12 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	w := NewWriter(testBlockSize, filePathPrefix, nil)
 	err = w.Open(0, testWriterStart)
 	assert.NoError(t, err)
+	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
-
-	// Remove a byte
-	writer := w.(*writer)
-	assert.NoError(t, writer.dataFdWithDigest.fd.Truncate(int64(writer.currOffset-1)))
-
 	assert.NoError(t, w.Close())
+
+	// Truncate one bye
+	assert.NoError(t, os.Truncate(dataFile, 1))
 
 	r := NewReader(filePathPrefix)
 	err = r.Open(0, testWriterStart)
@@ -149,7 +149,6 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 
 	_, _, err = r.Read()
 	assert.Error(t, err)
-	assert.Equal(t, errReadNotExpectedSize, err)
 
 	assert.NoError(t, r.Close())
 }
@@ -253,11 +252,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	require.Equal(t, errCheckpointFileNotFound, err)
 }
 
-func testReadOpen(
-	t *testing.T,
-	fileData map[string][]byte,
-	expectedErr error,
-) {
+func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	filePathPrefix := createTempDir(t)
 	defer os.RemoveAll(filePathPrefix)
 
@@ -279,8 +274,7 @@ func testReadOpen(
 	}
 
 	r := NewReader(filePathPrefix)
-	err := r.Open(shard, time.Unix(1000, 0))
-	require.Equal(t, expectedErr, err)
+	require.Error(t, r.Open(shard, time.Unix(1000, 0)))
 }
 
 func TestReadOpenDigestOfDigestMismatch(t *testing.T) {
@@ -293,7 +287,6 @@ func TestReadOpenDigestOfDigestMismatch(t *testing.T) {
 			digestFileSuffix:     []byte{0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
 			checkpointFileSuffix: []byte{0x12, 0x0, 0x7a, 0x0},
 		},
-		errCheckSumMismatch,
 	)
 }
 
@@ -307,23 +300,25 @@ func TestReadOpenInfoDigestMismatch(t *testing.T) {
 			digestFileSuffix:     []byte{0x2, 0x0, 0x2, 0x0, 0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0},
 			checkpointFileSuffix: []byte{0x13, 0x0, 0x7a, 0x0},
 		},
-		errCheckSumMismatch,
 	)
 }
 
 func TestReadOpenIndexDigestMismatch(t *testing.T) {
+	// Write the correct info digest
 	b, err := proto.Marshal(&schema.IndexInfo{})
 	require.NoError(t, err)
-	digest := adler32.New()
-	_, err = digest.Write(b)
+	di := digest.NewDigest()
+	_, err = di.Write(b)
 	require.NoError(t, err)
-	buf := make([]byte, digestLen)
-	writeDigest(digest, buf)
-	digestOfDigest := append(buf, []byte{0x3, 0x0, 0x3, 0x0, 0x4, 0x0, 0x4, 0x0}...)
-	digest.Reset()
-	_, err = digest.Write(digestOfDigest)
+
+	// Write the wrong index digest
+	buf := digest.NewBuffer()
+	buf.WriteDigest(di.Sum32())
+	digestOfDigest := append(buf, make([]byte, 8)...)
+	di.Reset()
+	_, err = di.Write(digestOfDigest)
 	require.NoError(t, err)
-	writeDigest(digest, buf)
+	buf.WriteDigest(di.Sum32())
 
 	testReadOpen(
 		t,
@@ -334,7 +329,6 @@ func TestReadOpenIndexDigestMismatch(t *testing.T) {
 			digestFileSuffix:     digestOfDigest,
 			checkpointFileSuffix: buf,
 		},
-		errCheckSumMismatch,
 	)
 }
 
@@ -357,7 +351,7 @@ func TestReadValidate(t *testing.T) {
 	// Mutate expected data checksum to simulate data corruption
 	reader := r.(*reader)
 	reader.expectedDataDigest = 0
-	require.Equal(t, errCheckSumMismatch, r.Validate())
+	require.Error(t, r.Validate())
 
 	require.NoError(t, r.Close())
 }

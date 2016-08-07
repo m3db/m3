@@ -76,6 +76,9 @@ func TestSimpleReadWrite(t *testing.T) {
 	entries := []testEntry{
 		{"foo", []byte{1, 2, 3}},
 		{"bar", []byte{4, 5, 6}},
+		{"baz", make([]byte, 65536)},
+		{"cat", make([]byte, 100000)},
+		{"echo", []byte{7, 8, 9}},
 	}
 
 	w := NewWriter(testBlockSize, filePathPrefix, nil)

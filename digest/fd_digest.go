@@ -18,31 +18,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package digest
 
 import (
-	"encoding/binary"
+	"hash"
+	"os"
 )
 
-const (
-	infoFileSuffix       = "info.db"
-	indexFileSuffix      = "index.db"
-	dataFileSuffix       = "data.db"
-	digestFileSuffix     = "digest.db"
-	checkpointFileSuffix = "checkpoint.db"
+// fdWithDigest is a wrapper around a file descriptor
+// alongside the digest for what's stored in the file.
+type fdWithDigest struct {
+	fd     *os.File
+	digest hash.Hash32
+}
 
-	separator       = "-"
-	infoFilePattern = "[0-9]*" + separator + infoFileSuffix
+func newFdWithDigest() *fdWithDigest {
+	return &fdWithDigest{
+		digest: NewDigest(),
+	}
+}
 
-	// Index ID is int64
-	idxLen = 8
-)
+// Fd returns the file descriptor.
+func (fwd *fdWithDigest) Fd() *os.File {
+	return fwd.fd
+}
 
-var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
+// Digest returns the digest.
+func (fwd *fdWithDigest) Digest() uint32 {
+	return fwd.digest.Sum32()
+}
 
-	// Endianness is little endian
-	endianness = binary.LittleEndian
-)
+// Reset resets the file descriptor and the digest.
+func (fwd *fdWithDigest) Reset(fd *os.File) {
+	fwd.fd = fd
+	fwd.digest.Reset()
+}
+
+// Close closes the file descriptor.
+func (fwd *fdWithDigest) Close() error {
+	fd := fwd.fd
+	fwd.fd = nil
+	return fd.Close()
+}
