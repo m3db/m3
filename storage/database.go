@@ -144,8 +144,8 @@ func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) (Database, e
 	d.bsm = newBootstrapManager(d)
 	d.fm = newFlushManager(d)
 
-	var err error
-	if d.commitLog, err = commitlog.NewCommitLog(opts); err != nil {
+	d.commitLog = commitlog.NewCommitLog(opts)
+	if err := d.commitLog.Open(); err != nil {
 		return nil, err
 	}
 

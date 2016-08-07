@@ -26,8 +26,8 @@ package mocks
 import (
 	gomock "github.com/golang/mock/gomock"
 	m3db "github.com/m3db/m3db/interfaces/m3db"
-	time0 "github.com/m3db/m3x/time"
-	time "time"
+	time "github.com/m3db/m3x/time"
+	time0 "time"
 )
 
 // Mock of SeriesIterator interface
@@ -59,10 +59,10 @@ func (_mr *_MockSeriesIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockSeriesIterator) Current() (m3db.Datapoint, time0.Unit, m3db.Annotation) {
+func (_m *MockSeriesIterator) Current() (m3db.Datapoint, time.Unit, m3db.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(m3db.Datapoint)
-	ret1, _ := ret[1].(time0.Unit)
+	ret1, _ := ret[1].(time.Unit)
 	ret2, _ := ret[2].(m3db.Annotation)
 	return ret0, ret1, ret2
 }
@@ -71,9 +71,9 @@ func (_mr *_MockSeriesIteratorRecorder) Current() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Current")
 }
 
-func (_m *MockSeriesIterator) End() time.Time {
+func (_m *MockSeriesIterator) End() time0.Time {
 	ret := _m.ctrl.Call(_m, "End")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.Time)
 	return ret0
 }
 
@@ -111,7 +111,7 @@ func (_mr *_MockSeriesIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockSeriesIterator) Reset(_param0 string, _param1 time.Time, _param2 time.Time, _param3 []m3db.Iterator) {
+func (_m *MockSeriesIterator) Reset(_param0 string, _param1 time0.Time, _param2 time0.Time, _param3 []m3db.Iterator) {
 	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2, _param3)
 }
 
@@ -119,9 +119,9 @@ func (_mr *_MockSeriesIteratorRecorder) Reset(arg0, arg1, arg2, arg3 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockSeriesIterator) Start() time.Time {
+func (_m *MockSeriesIterator) Start() time0.Time {
 	ret := _m.ctrl.Call(_m, "Start")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.Time)
 	return ret0
 }
 

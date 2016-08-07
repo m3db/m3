@@ -71,7 +71,7 @@ func (_mr *_MockCommitLogRecorder) Iter() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Iter")
 }
 
-func (_m *MockCommitLog) Write(_param0 m3db.CommitLogSeries, _param1 m3db.Datapoint, _param2 time.Unit, _param3 []byte) error {
+func (_m *MockCommitLog) Write(_param0 m3db.CommitLogSeries, _param1 m3db.Datapoint, _param2 time.Unit, _param3 m3db.Annotation) error {
 	ret := _m.ctrl.Call(_m, "Write", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -81,7 +81,7 @@ func (_mr *_MockCommitLogRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *go
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockCommitLog) WriteBehind(_param0 m3db.CommitLogSeries, _param1 m3db.Datapoint, _param2 time.Unit, _param3 []byte) error {
+func (_m *MockCommitLog) WriteBehind(_param0 m3db.CommitLogSeries, _param1 m3db.Datapoint, _param2 time.Unit, _param3 m3db.Annotation) error {
 	ret := _m.ctrl.Call(_m, "WriteBehind", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].(error)
 	return ret0

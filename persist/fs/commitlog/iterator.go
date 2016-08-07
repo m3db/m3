@@ -26,6 +26,8 @@ import (
 
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/metrics"
 	"github.com/m3db/m3x/time"
 )
 
@@ -37,6 +39,8 @@ var (
 
 type iterator struct {
 	opts    m3db.DatabaseOptions
+	metrics xmetrics.Scope
+	log     xlog.Logger
 	files   []string
 	reader  commitLogReader
 	read    iteratorRead
@@ -54,13 +58,16 @@ type iteratorRead struct {
 
 // NewCommitLogIterator creates a new commit log iterator
 func NewCommitLogIterator(opts m3db.DatabaseOptions) (m3db.CommitLogIterator, error) {
+	opts = opts.MetricsScope(opts.GetMetricsScope().SubScope("iterator"))
 	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(opts.GetFilePathPrefix()))
 	if err != nil {
 		return nil, err
 	}
 	return &iterator{
-		opts:  opts,
-		files: files,
+		opts:    opts,
+		metrics: opts.GetMetricsScope(),
+		log:     opts.GetLogger(),
+		files:   files,
 	}, nil
 }
 
@@ -81,8 +88,10 @@ func (i *iterator) Next() bool {
 		return i.Next()
 	}
 	if err != nil {
-		i.err = err
-		return false
+		// Try the next reader, this enables restoring with best effort from commit logs
+		i.metrics.IncCounter("reads.errors", 1)
+		i.log.Errorf("commit log reader returned error, iterator moving to next file: %v", err)
+		return i.Next()
 	}
 	i.setRead = true
 	return true

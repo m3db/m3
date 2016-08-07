@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/metrics"
 	"github.com/m3db/m3x/time"
 )
@@ -42,15 +43,19 @@ var (
 	timeZero = time.Time{}
 )
 
+type newCommitLogWriterFn func(flushFn flushFn, opts m3db.DatabaseOptions) commitLogWriter
+
 type completionFn func(err error)
 
 type commitLog struct {
 	sync.RWMutex
 	opts    m3db.DatabaseOptions
 	metrics xmetrics.Scope
+	log     xlog.Logger
 	nowFn   m3db.NowFn
 
-	writer commitLogWriter
+	newCommitLogWriterFn newCommitLogWriterFn
+	writer               commitLogWriter
 
 	// TODO(r): replace buffered channel with concurrent striped
 	// circular buffer to avoid central write lock contention
@@ -84,23 +89,28 @@ type commitLogWrite struct {
 }
 
 // NewCommitLog creates a new commit log
-func NewCommitLog(opts m3db.DatabaseOptions) (m3db.CommitLog, error) {
-	l := &commitLog{
-		opts:     opts,
-		nowFn:    opts.GetNowFn(),
-		writes:   make(chan commitLogWrite, opts.GetCommitLogBacklogQueueSize()),
-		metrics:  opts.GetMetricsScope().SubScope("commitlog"),
-		closeErr: make(chan error),
+func NewCommitLog(opts m3db.DatabaseOptions) m3db.CommitLog {
+	opts = opts.MetricsScope(opts.GetMetricsScope().SubScope("commitlog"))
+	return &commitLog{
+		opts:                 opts,
+		metrics:              opts.GetMetricsScope(),
+		log:                  opts.GetLogger(),
+		nowFn:                opts.GetNowFn(),
+		newCommitLogWriterFn: newCommitLogWriter,
+		writes:               make(chan commitLogWrite, opts.GetCommitLogBacklogQueueSize()),
+		closeErr:             make(chan error),
 	}
+}
 
+func (l *commitLog) Open() error {
 	// Open the buffered commit log writer
 	if err := l.openWriter(l.nowFn()); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Flush the info header to ensure we can write to disk
 	if err := l.writer.Flush(); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Asynchronously write
@@ -112,7 +122,7 @@ func NewCommitLog(opts m3db.DatabaseOptions) (m3db.CommitLog, error) {
 		go l.flushEvery(flushInterval)
 	}
 
-	return l, nil
+	return nil
 }
 
 func (l *commitLog) flushEvery(interval time.Duration) {
@@ -152,34 +162,25 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 
 func (l *commitLog) write() {
 	var (
-		log             = l.opts.GetLogger()
-		write, retry    commitLogWrite
-		retryInProgress bool
-		retryAttempts   int
-		err             error
-		open            bool
+		write commitLogWrite
+		err   error
+		open  bool
 	)
 	for {
-		if retryInProgress && retryAttempts < 0 {
-			retryAttempts++
-			write = retry
-			time.Sleep(writeRetryDelay)
-		} else {
-			if retryInProgress && retry.completionFn != nil {
-				// If ran out of attempts and require callback then fire callback
-				retry.completionFn(err)
-			}
-			retryInProgress = false
-			write, open = <-l.writes
-			if !open {
-				break
-			}
+		write, open = <-l.writes
+		if !open {
+			break
+		}
+
+		// For writes requiring acks add to pending acks
+		if write.completionFn != nil {
+			l.pendingFlushFns = append(l.pendingFlushFns, write.completionFn)
 		}
 
 		if write.valueType == flushValueType {
 			if err = l.writer.Flush(); err != nil {
 				l.metrics.IncCounter("writes.flush-errors", 1)
-				log.Errorf("failed to flush commit log: %v", err)
+				l.log.Errorf("failed to flush commit log: %v", err)
 			}
 			continue
 		}
@@ -187,34 +188,25 @@ func (l *commitLog) write() {
 		now := l.nowFn()
 		if !now.Before(l.writerExpireAt) {
 			if err = l.openWriter(now); err != nil {
+				l.callbackPendingFlushFns(err)
+
+				l.metrics.IncCounter("writes.errors", 1)
 				l.metrics.IncCounter("writes.open-errors", 1)
-				// Begin retrying write if not already
-				if !retryInProgress {
-					retry = write
-					retryAttempts = writeRetries
-				}
+				l.log.Errorf("failed to open commit log: %v", err)
 				continue
 			}
 		}
 
 		err = l.writer.Write(write.series, write.datapoint, write.unit, write.annotation)
 		if err != nil {
-			l.metrics.IncCounter("writes.errors", 1)
-			// Log error and expire writer
-			l.writeError(err)
-			// Begin retrying write if not already
-			if !retryInProgress {
-				retry = write
-				retryAttempts = writeRetries
-			}
-			continue
-		}
+			l.callbackPendingFlushFns(err)
 
-		// For writes requiring acks add to pending acks
-		if write.completionFn != nil {
-			l.flushMutex.Lock()
-			l.pendingFlushFns = append(l.pendingFlushFns, write.completionFn)
-			l.flushMutex.Unlock()
+			l.metrics.IncCounter("writes.errors", 1)
+			l.log.Errorf("failed to write to commit log: %v", err)
+
+			// Explicitly expire the writer so we reopen a new commit log
+			l.writerExpireAt = timeZero
+			continue
 		}
 
 		l.metrics.IncCounter("writes.success", 1)
@@ -223,61 +215,57 @@ func (l *commitLog) write() {
 	l.Lock()
 	defer l.Unlock()
 
-	if l.writer != nil {
-		writer := l.writer
-		l.writer = nil
-		l.closeErr <- writer.Close()
-	} else {
-		l.closeErr <- nil
-	}
+	writer := l.writer
+	l.writer = nil
+	l.closeErr <- writer.Close()
 }
 
 func (l *commitLog) onFlush(err error) {
 	l.flushMutex.Lock()
-
 	l.lastFlushAt = l.nowFn()
+	l.flushMutex.Unlock()
+	l.callbackPendingFlushFns(err)
+}
 
-	if len(l.pendingFlushFns) > 0 {
-		// Safe to callback acks as all they do is record a
-		// result and unblock another goroutine
-		for i := range l.pendingFlushFns {
-			l.pendingFlushFns[i](err)
-		}
-		l.pendingFlushFns = l.pendingFlushFns[:0]
+func (l *commitLog) callbackPendingFlushFns(err error) {
+	// callbackPendingFlushFns only ever called by "write()" routine from "onFlush(...)"
+	// and "openWriter" or before "write()" begins on "Open()" and there are no other
+	// accessors of "pendingFlushFns" so it is safe to read and mutate without lock here
+	if len(l.pendingFlushFns) == 0 {
+		return
 	}
 
-	l.flushMutex.Unlock()
+	for i := range l.pendingFlushFns {
+		l.pendingFlushFns[i](err)
+	}
+	l.pendingFlushFns = l.pendingFlushFns[:0]
 }
 
 func (l *commitLog) openWriter(now time.Time) error {
-	log := l.opts.GetLogger()
 	if l.writer != nil {
 		if err := l.writer.Close(); err != nil {
-			log.Errorf("failed to close commit log: %v", err)
+			// Callback any pending acks, don't need to do this in truthy case as
+			// closing the writer will caused all buffered data to flush
+			l.callbackPendingFlushFns(err)
+
+			l.metrics.IncCounter("writes.close-errors", 1)
+			l.log.Errorf("failed to close commit log: %v", err)
 			// If we failed to close then create a new commit log writer
 			l.writer = nil
 		}
 	}
 	if l.writer == nil {
-		l.writer = newCommitLogWriter(l.onFlush, l.opts)
+		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
 	blockSize := l.opts.GetBlockSize()
 	start := now.Truncate(blockSize)
 	if err := l.writer.Open(start, blockSize); err != nil {
-		log.Errorf("failed to open new commit log: %v", err)
 		return err
 	}
 
 	l.writerExpireAt = start.Add(blockSize)
 	return nil
-}
-
-func (l *commitLog) writeError(err error) {
-	log := l.opts.GetLogger()
-	log.Errorf("failed to write commit log entry: %v", err)
-	// Explicitly expire the writer so we reopen a new commit log
-	l.writerExpireAt = timeZero
 }
 
 func (l *commitLog) Write(

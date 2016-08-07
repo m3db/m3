@@ -26,9 +26,9 @@ package mocks
 import (
 	gomock "github.com/golang/mock/gomock"
 	m3db "github.com/m3db/m3db/interfaces/m3db"
-	time "github.com/m3db/m3x/time"
+	time0 "github.com/m3db/m3x/time"
 	io "io"
-	time0 "time"
+	time "time"
 )
 
 // Mock of Encoder interface
@@ -60,7 +60,7 @@ func (_mr *_MockEncoderRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockEncoder) Encode(_param0 m3db.Datapoint, _param1 time.Unit, _param2 m3db.Annotation) error {
+func (_m *MockEncoder) Encode(_param0 m3db.Datapoint, _param1 time0.Unit, _param2 m3db.Annotation) error {
 	ret := _m.ctrl.Call(_m, "Encode", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -70,7 +70,7 @@ func (_mr *_MockEncoderRecorder) Encode(arg0, arg1, arg2 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Encode", arg0, arg1, arg2)
 }
 
-func (_m *MockEncoder) Reset(_param0 time0.Time, _param1 int) {
+func (_m *MockEncoder) Reset(_param0 time.Time, _param1 int) {
 	_m.ctrl.Call(_m, "Reset", _param0, _param1)
 }
 
@@ -78,7 +78,7 @@ func (_mr *_MockEncoderRecorder) Reset(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1)
 }
 
-func (_m *MockEncoder) ResetSetData(_param0 time0.Time, _param1 []byte, _param2 bool) {
+func (_m *MockEncoder) ResetSetData(_param0 time.Time, _param1 []byte, _param2 bool) {
 	_m.ctrl.Call(_m, "ResetSetData", _param0, _param1, _param2)
 }
 
@@ -133,10 +133,10 @@ func (_mr *_MockIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockIterator) Current() (m3db.Datapoint, time.Unit, m3db.Annotation) {
+func (_m *MockIterator) Current() (m3db.Datapoint, time0.Unit, m3db.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(m3db.Datapoint)
-	ret1, _ := ret[1].(time.Unit)
+	ret1, _ := ret[1].(time0.Unit)
 	ret2, _ := ret[2].(m3db.Annotation)
 	return ret0, ret1, ret2
 }
@@ -194,10 +194,10 @@ func (_mr *_MockReaderIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockReaderIterator) Current() (m3db.Datapoint, time.Unit, m3db.Annotation) {
+func (_m *MockReaderIterator) Current() (m3db.Datapoint, time0.Unit, m3db.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(m3db.Datapoint)
-	ret1, _ := ret[1].(time.Unit)
+	ret1, _ := ret[1].(time0.Unit)
 	ret2, _ := ret[2].(m3db.Annotation)
 	return ret0, ret1, ret2
 }
@@ -263,10 +263,10 @@ func (_mr *_MockMultiReaderIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockMultiReaderIterator) Current() (m3db.Datapoint, time.Unit, m3db.Annotation) {
+func (_m *MockMultiReaderIterator) Current() (m3db.Datapoint, time0.Unit, m3db.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(m3db.Datapoint)
-	ret1, _ := ret[1].(time.Unit)
+	ret1, _ := ret[1].(time0.Unit)
 	ret2, _ := ret[2].(m3db.Annotation)
 	return ret0, ret1, ret2
 }

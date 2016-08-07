@@ -25,13 +25,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"hash/adler32"
-	"io"
 	"os"
 	"time"
 
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/interfaces/m3db"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -44,13 +43,14 @@ var (
 )
 
 type commitLogReader interface {
-	io.Closer
-
 	// Open opens the commit log for reading
 	Open(filePath string) (time.Time, time.Duration, int, error)
 
 	// Read returns the next key and data pair or error, will return io.EOF at end of volume
 	Read() (m3db.CommitLogSeries, m3db.Datapoint, xtime.Unit, m3db.Annotation, error)
+
+	// Close the reader
+	Close() error
 }
 
 type reader struct {

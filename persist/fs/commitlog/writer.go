@@ -25,14 +25,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"hash/adler32"
-	"io"
 	"os"
 	"time"
 
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -58,8 +57,6 @@ var (
 )
 
 type commitLogWriter interface {
-	io.Closer
-
 	// Open opens the commit log for writing data
 	Open(start time.Time, duration time.Duration) error
 
@@ -71,6 +68,9 @@ type commitLogWriter interface {
 
 	// Flush will flush the contents to the disk, useful when first testing if first commit log is writable
 	Flush() error
+
+	// Close the reader
+	Close() error
 }
 
 type flushFn func(err error)
@@ -83,7 +83,7 @@ type writer struct {
 	bitset             bitset
 	start              time.Time
 	duration           time.Duration
-	chunkWriter        chunkWriter
+	chunkWriter        *chunkWriter
 	chunkReserveHeader []byte
 	buffer             *bufio.Writer
 	info               schema.CommitLogInfo
@@ -104,7 +104,7 @@ func newCommitLogWriter(
 		newFileMode:        opts.GetFileWriterOptions().GetNewFileMode(),
 		newDirectoryMode:   opts.GetFileWriterOptions().GetNewDirectoryMode(),
 		nowFn:              opts.GetNowFn(),
-		chunkWriter:        chunkWriter{flushFn: flushFn},
+		chunkWriter:        newChunkWriter(flushFn),
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
 		buffer:             bufio.NewWriterSize(nil, opts.GetCommitLogFlushSize()),
 		bitset:             newBitset(),
@@ -142,7 +142,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	}
 
 	w.chunkWriter.fd = fd
-	w.buffer.Reset(&w.chunkWriter)
+	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.infoBuffer.Bytes()); err != nil {
 		w.Close()
 		return err
@@ -221,20 +221,12 @@ func (w *writer) Close() error {
 }
 
 func (w *writer) write(data []byte) error {
-	hasBufferedData := w.buffer.Buffered() > 0
-	if !hasBufferedData {
-		// Reserve bytes for checksums and size prepend
-		if _, err := w.buffer.Write(w.chunkReserveHeader); err != nil {
-			return err
-		}
-	}
-
 	dataLen := len(data)
 	sizeLen := binary.PutUvarint(w.sizeBuffer, uint64(dataLen))
-	totalLen := dataLen + sizeLen
+	totalLen := sizeLen + dataLen
 
 	// Avoid writing across the checksum boundary if we can avoid it
-	if hasBufferedData && totalLen > w.buffer.Available() {
+	if w.buffer.Buffered() > 0 && totalLen > w.buffer.Available() {
 		if err := w.buffer.Flush(); err != nil {
 			return err
 		}
@@ -252,32 +244,39 @@ func (w *writer) write(data []byte) error {
 type chunkWriter struct {
 	fd      *os.File
 	flushFn flushFn
+	header  []byte
+}
+
+func newChunkWriter(flushFn flushFn) *chunkWriter {
+	return &chunkWriter{flushFn: flushFn, header: make([]byte, chunkHeaderLen)}
 }
 
 func (w *chunkWriter) Write(p []byte) (int, error) {
-	rawLen := len(p)
-	if rawLen <= chunkHeaderLen {
-		return 0, errCommitLogWriterFlushWithoutReservedLength
-	}
-
-	size := rawLen - chunkHeaderLen
+	size := len(p)
 
 	sizeStart, sizeEnd := 0, chunkHeaderSizeLen
 	checksumSizeStart, checksumSizeEnd := sizeEnd, sizeEnd+chunkHeaderSizeLen
 	checksumDataStart, checksumDataEnd := checksumSizeEnd, checksumSizeEnd+chunkHeaderChecksumDataLen
 
 	// Write size
-	endianness.PutUint32(p[sizeStart:sizeEnd], uint32(size))
+	endianness.PutUint32(w.header[sizeStart:sizeEnd], uint32(size))
 
 	// Calculate checksums
-	checksumSize := adler32.Checksum(p[sizeStart:sizeEnd])
-	checksumData := adler32.Checksum(p[chunkHeaderLen:])
+	checksumSize := adler32.Checksum(w.header[sizeStart:sizeEnd])
+	checksumData := adler32.Checksum(p)
 
 	// Write checksums
-	endianness.PutUint32(p[checksumSizeStart:checksumSizeEnd], uint32(checksumSize))
-	endianness.PutUint32(p[checksumDataStart:checksumDataEnd], uint32(checksumData))
+	endianness.PutUint32(w.header[checksumSizeStart:checksumSizeEnd], uint32(checksumSize))
+	endianness.PutUint32(w.header[checksumDataStart:checksumDataEnd], uint32(checksumData))
 
-	// Write to file descriptor
+	// Write header to file descriptor
+	if _, err := w.fd.Write(w.header); err != nil {
+		// Fire flush callback
+		w.flushFn(err)
+		return 0, err
+	}
+
+	// Write contents to file descriptor
 	n, err := w.fd.Write(p)
 
 	// Fire flush callback

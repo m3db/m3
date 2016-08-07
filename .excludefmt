@@ -3,4 +3,3 @@
 (gen-go/)
 (mocks/)
 (.pb.go)
-(.gen.go)

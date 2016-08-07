@@ -39,5 +39,7 @@
 //go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/storage/buffer.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/buffer.go"
 //go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/storage/series.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/series.go"
 //go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/storage/shard.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/shard.go"
+//go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/persist/fs/commitlog/writer.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/commit_log_writer.go"
+//go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/persist/fs/commitlog/reader.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/commit_log_reader.go"
 
 package mocks

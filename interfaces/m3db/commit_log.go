@@ -45,6 +45,9 @@ const (
 type CommitLog interface {
 	io.Closer
 
+	// Open the commit log
+	Open() error
+
 	// Write will write an entry in the commit log for a given series
 	Write(
 		series CommitLogSeries,
