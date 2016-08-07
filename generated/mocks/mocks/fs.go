@@ -172,3 +172,13 @@ func (_m *MockFileSetReader) Read() (string, []byte, error) {
 func (_mr *_MockFileSetReaderRecorder) Read() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read")
 }
+
+func (_m *MockFileSetReader) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockFileSetReaderRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
+}

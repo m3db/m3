@@ -24,7 +24,8 @@ import (
 	"os"
 	"time"
 
-	schema "github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3x/time"
 
@@ -42,10 +43,11 @@ type writer struct {
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
 
-	infoFd             *os.File
-	indexFd            *os.File
-	dataFd             *os.File
-	checkpointFilePath string
+	infoFdWithDigest           digest.FdWithDigestWriter
+	indexFdWithDigest          digest.FdWithDigestWriter
+	dataFdWithDigest           digest.FdWithDigestWriter
+	digestFdWithDigestContents digest.FdWithDigestContentsWriter
+	checkpointFilePath         string
 
 	start        time.Time
 	currEntry    schema.IndexEntry
@@ -54,6 +56,7 @@ type writer struct {
 	infoBuffer   *proto.Buffer
 	indexBuffer  *proto.Buffer
 	varintBuffer *proto.Buffer
+	digestBuf    digest.Buffer
 	idxData      []byte
 	err          error
 }
@@ -110,20 +113,26 @@ func (o *writerOptions) GetNewDirectoryMode() os.FileMode {
 func NewWriter(
 	blockSize time.Duration,
 	filePathPrefix string,
+	bufferSize int,
 	options WriterOptions,
 ) m3db.FileSetWriter {
 	if options == nil {
 		options = NewWriterOptions()
 	}
 	return &writer{
-		blockSize:        blockSize,
-		filePathPrefix:   filePathPrefix,
-		newFileMode:      options.GetNewFileMode(),
-		newDirectoryMode: options.GetNewDirectoryMode(),
-		infoBuffer:       proto.NewBuffer(nil),
-		indexBuffer:      proto.NewBuffer(nil),
-		varintBuffer:     proto.NewBuffer(nil),
-		idxData:          make([]byte, idxLen),
+		blockSize:                  blockSize,
+		filePathPrefix:             filePathPrefix,
+		newFileMode:                options.GetNewFileMode(),
+		newDirectoryMode:           options.GetNewDirectoryMode(),
+		infoBuffer:                 proto.NewBuffer(nil),
+		indexBuffer:                proto.NewBuffer(nil),
+		varintBuffer:               proto.NewBuffer(nil),
+		infoFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
+		indexFdWithDigest:          digest.NewFdWithDigestWriter(bufferSize),
+		dataFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsWriter(bufferSize),
+		digestBuf:                  digest.NewBuffer(),
+		idxData:                    make([]byte, idxLen),
 	}
 }
 
@@ -131,7 +140,7 @@ func NewWriter(
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
 func (w *writer) Open(shard uint32, blockStart time.Time) error {
-	shardDir := ShardDirPath(w.filePathPrefix, shard)
+	shardDir := shardDirPath(w.filePathPrefix, shard)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
 	}
@@ -140,17 +149,25 @@ func (w *writer) Open(shard uint32, blockStart time.Time) error {
 	w.currOffset = 0
 	w.checkpointFilePath = filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	w.err = nil
+
+	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
-			filepathFromTime(shardDir, blockStart, infoFileSuffix):  &w.infoFd,
-			filepathFromTime(shardDir, blockStart, indexFileSuffix): &w.indexFd,
-			filepathFromTime(shardDir, blockStart, dataFileSuffix):  &w.dataFd,
+			filepathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
+			filepathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
+			filepathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
+			filepathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
 		},
 	); err != nil {
-		closeFiles(validFiles(w.infoFd, w.indexFd, w.dataFd)...)
 		return err
 	}
+
+	w.infoFdWithDigest.Reset(infoFd)
+	w.indexFdWithDigest.Reset(indexFd)
+	w.dataFdWithDigest.Reset(dataFd)
+	w.digestFdWithDigestContents.Reset(digestFd)
+
 	return nil
 }
 
@@ -158,7 +175,7 @@ func (w *writer) writeData(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	written, err := w.dataFd.Write(data)
+	written, err := w.dataFdWithDigest.WriteBytes(data)
 	if err != nil {
 		return err
 	}
@@ -221,24 +238,18 @@ func (w *writer) writeAll(key string, data [][]byte) error {
 			return err
 		}
 	}
-
-	if _, err := w.indexFd.Write(w.varintBuffer.Bytes()); err != nil {
+	if _, err := w.indexFdWithDigest.WriteBytes(w.varintBuffer.Bytes()); err != nil {
 		return err
 	}
-	if _, err := w.indexFd.Write(entryBytes); err != nil {
+	if _, err := w.indexFdWithDigest.WriteBytes(entryBytes); err != nil {
 		return err
 	}
-
 	w.currIdx++
 
 	return nil
 }
 
 func (w *writer) close() error {
-	if err := w.infoFd.Truncate(0); err != nil {
-		return err
-	}
-
 	info := &schema.IndexInfo{
 		Start:     xtime.ToNanoseconds(w.start),
 		BlockSize: int64(w.blockSize),
@@ -249,11 +260,24 @@ func (w *writer) close() error {
 		return err
 	}
 
-	if _, err := w.infoFd.Write(w.infoBuffer.Bytes()); err != nil {
+	if _, err := w.infoFdWithDigest.WriteBytes(w.infoBuffer.Bytes()); err != nil {
 		return err
 	}
 
-	if err := closeFiles(w.infoFd, w.indexFd, w.dataFd); err != nil {
+	if err := w.digestFdWithDigestContents.WriteDigests(
+		w.infoFdWithDigest.Digest().Sum32(),
+		w.indexFdWithDigest.Digest().Sum32(),
+		w.dataFdWithDigest.Digest().Sum32(),
+	); err != nil {
+		return err
+	}
+
+	if err := closeAll(
+		w.infoFdWithDigest,
+		w.indexFdWithDigest,
+		w.dataFdWithDigest,
+		w.digestFdWithDigestContents,
+	); err != nil {
 		return err
 	}
 
@@ -271,7 +295,11 @@ func (w *writer) Close() error {
 	}
 	// NB(xichen): only write out the checkpoint file if there are no errors
 	// encountered between calling writer.Open() and writer.Close().
-	return w.writeCheckpointFile()
+	if err := w.writeCheckpointFile(); err != nil {
+		w.err = err
+		return err
+	}
+	return nil
 }
 
 func (w *writer) writeCheckpointFile() error {
@@ -279,7 +307,10 @@ func (w *writer) writeCheckpointFile() error {
 	if err != nil {
 		return err
 	}
-	fd.Close()
+	defer fd.Close()
+	if err := w.digestBuf.WriteDigestToFile(fd, w.digestFdWithDigestContents.Digest().Sum32()); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/m3db/m3db/digest"
 )
 
 type fileReader func(fd *os.File, buf []byte) (int, error)
@@ -66,40 +66,57 @@ type reader struct {
 	start          time.Time
 	blockSize      time.Duration
 
-	infoFd  *os.File
-	indexFd *os.File
-	dataFd  *os.File
+	infoFdWithDigest           digest.FdWithDigestReader
+	indexFdWithDigest          digest.FdWithDigestReader
+	dataFdWithDigest           digest.FdWithDigestReader
+	digestFdWithDigestContents digest.FdWithDigestContentsReader
+	expectedInfoDigest         uint32
+	expectedIndexDigest        uint32
+	expectedDataDigest         uint32
+	expectedDigestOfDigest     uint32
 
-	read        fileReader
 	entries     int
 	entriesRead int
 	indexUnread []byte
 	currEntry   schema.IndexEntry
+	digestBuf   digest.Buffer
 }
 
 // NewReader returns a new reader for a filePathPrefix, expects all files to exist.  Will
 // read the index info.
-func NewReader(filePathPrefix string) m3db.FileSetReader {
+func NewReader(filePathPrefix string, bufferSize int) m3db.FileSetReader {
 	return &reader{
-		filePathPrefix: filePathPrefix,
-		read:           readFile,
+		filePathPrefix:             filePathPrefix,
+		infoFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
+		indexFdWithDigest:          digest.NewFdWithDigestReader(bufferSize),
+		dataFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
+		digestBuf:                  digest.NewBuffer(),
 	}
 }
 
 func (r *reader) Open(shard uint32, blockStart time.Time) error {
 	// If there is no checkpoint file, don't read the data files.
-	shardDir := ShardDirPath(r.filePathPrefix, shard)
-	checkpointFilePath := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	if !fileExists(checkpointFilePath) {
-		return errCheckpointFileNotFound
+	shardDir := shardDirPath(r.filePathPrefix, shard)
+	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
+		return err
 	}
-
+	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		filepathFromTime(shardDir, blockStart, infoFileSuffix):  &r.infoFd,
-		filepathFromTime(shardDir, blockStart, indexFileSuffix): &r.indexFd,
-		filepathFromTime(shardDir, blockStart, dataFileSuffix):  &r.dataFd,
+		filepathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
+		filepathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
+		filepathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
+		filepathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
 	}); err != nil {
-		closeFiles(validFiles(r.infoFd, r.indexFd, r.dataFd)...)
+		return err
+	}
+	r.infoFdWithDigest.Reset(infoFd)
+	r.indexFdWithDigest.Reset(indexFd)
+	r.dataFdWithDigest.Reset(dataFd)
+	r.digestFdWithDigestContents.Reset(digestFd)
+	if err := r.readDigest(); err != nil {
+		// Try to close if failed to read digest
+		r.Close()
 		return err
 	}
 	if err := r.readInfo(); err != nil {
@@ -115,12 +132,47 @@ func (r *reader) Open(shard uint32, blockStart time.Time) error {
 	return nil
 }
 
-func (r *reader) readInfo() error {
-	info, err := ReadInfo(r.infoFd)
+func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error {
+	filePath := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	if !fileExists(filePath) {
+		return errCheckpointFileNotFound
+	}
+	fd, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
+	defer fd.Close()
+	digest, err := r.digestBuf.ReadDigestFromFile(fd)
+	if err != nil {
+		return err
+	}
+	r.expectedDigestOfDigest = digest
+	return nil
+}
 
+func (r *reader) readDigest() error {
+	var err error
+	if r.expectedInfoDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
+		return err
+	}
+	if r.expectedIndexDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
+		return err
+	}
+	if r.expectedDataDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
+		return err
+	}
+	return r.digestFdWithDigestContents.Validate(r.expectedDigestOfDigest)
+}
+
+func (r *reader) readInfo() error {
+	data, err := r.infoFdWithDigest.ReadAllAndValidate(r.expectedInfoDigest)
+	if err != nil {
+		return err
+	}
+	info, err := readInfo(data)
+	if err != nil {
+		return err
+	}
 	r.start = xtime.FromNanoseconds(info.Start)
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
@@ -130,11 +182,10 @@ func (r *reader) readInfo() error {
 
 func (r *reader) readIndex() error {
 	// NB(r): use a bytes.NewReader if/when protobuf library supports buffered reading
-	data, err := ioutil.ReadAll(r.indexFd)
+	data, err := r.indexFdWithDigest.ReadAllAndValidate(r.expectedIndexDigest)
 	if err != nil {
 		return err
 	}
-
 	r.indexUnread = data
 
 	return nil
@@ -158,14 +209,14 @@ func (r *reader) Read() (string, []byte, error) {
 
 	expectedSize := markerLen + idxLen + int(entry.Size)
 	data := make([]byte, expectedSize)
-	n, err := r.read(r.dataFd, data)
+	n, err := r.dataFdWithDigest.ReadBytes(data)
 	if err != nil {
 		return none, nil, err
 	}
 	if n != expectedSize {
 		return none, nil, errReadNotExpectedSize
-	}
 
+	}
 	if !bytes.Equal(data[:markerLen], marker) {
 		return none, nil, errReadMarkerNotFound
 	}
@@ -178,6 +229,12 @@ func (r *reader) Read() (string, []byte, error) {
 	r.entriesRead++
 
 	return entry.Key, data[markerLen+idxLen:], nil
+}
+
+// NB(xichen): Validate should be called after all data are read because the
+// digest is calculated for the entire data file.
+func (r *reader) Validate() error {
+	return r.dataFdWithDigest.Validate(r.expectedDataDigest)
 }
 
 func (r *reader) Range() xtime.Range {
@@ -193,9 +250,10 @@ func (r *reader) EntriesRead() int {
 }
 
 func (r *reader) Close() error {
-	return closeFiles(r.infoFd, r.indexFd, r.dataFd)
-}
-
-func readFile(fd *os.File, buf []byte) (int, error) {
-	return fd.Read(buf)
+	return closeAll(
+		r.infoFdWithDigest,
+		r.indexFdWithDigest,
+		r.dataFdWithDigest,
+		r.digestFdWithDigestContents,
+	)
 }

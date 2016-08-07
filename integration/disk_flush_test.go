@@ -102,7 +102,7 @@ func verifyFlushed(
 	dataMaps map[time.Time]dataMap,
 ) {
 	readerFn := opts.GetNewFileSetReaderFn()
-	reader := readerFn(opts.GetFilePathPrefix())
+	reader := readerFn(opts.GetFilePathPrefix(), opts.GetReaderBufferSize())
 	decoderFn := opts.GetNewDecoderFn()
 	decoder := decoderFn()
 	for timestamp, dm := range dataMaps {

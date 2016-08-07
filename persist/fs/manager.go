@@ -42,7 +42,8 @@ type persistenceManager struct {
 // NewPersistenceManager creates a new filesystem persistence manager.
 func NewPersistenceManager(opts m3db.DatabaseOptions) m3db.PersistenceManager {
 	filePathPrefix := opts.GetFilePathPrefix()
-	writer := opts.GetNewFileSetWriterFn()(opts.GetBlockSize(), filePathPrefix)
+	writerBufferSize := opts.GetWriterBufferSize()
+	writer := opts.GetNewFileSetWriterFn()(opts.GetBlockSize(), filePathPrefix, writerBufferSize)
 	return &persistenceManager{
 		opts:           opts,
 		filePathPrefix: filePathPrefix,
