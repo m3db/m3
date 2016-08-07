@@ -38,7 +38,7 @@ var noopWriteCommitLogFn = func(
 	series m3db.CommitLogSeries,
 	datapoint m3db.Datapoint,
 	unit xtime.Unit,
-	annotation []byte,
+	annotation m3db.Annotation,
 ) error {
 	return nil
 }

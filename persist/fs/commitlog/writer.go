@@ -214,7 +214,6 @@ func (w *writer) Close() error {
 	}
 
 	w.chunkWriter.fd = nil
-	w.chunkWriter.flushFn = nil
 	w.bitset.clearAll()
 	w.start = timeZero
 	w.duration = 0
