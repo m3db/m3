@@ -32,18 +32,15 @@ import (
 )
 
 var (
-	errCommitLogClosed = errors.New("commit log is closed")
-
+	errCommitLogClosed    = errors.New("commit log is closed")
 	errCommitLogQueueFull = errors.New("commit log queue is full")
-
-	// TODO(r): parameterize commit log write retries and retry delay in future
-	writeRetries    = 2
-	writeRetryDelay = time.Millisecond
 
 	timeZero = time.Time{}
 )
 
 type newCommitLogWriterFn func(flushFn flushFn, opts m3db.DatabaseOptions) commitLogWriter
+
+type commitLogFailFn func(err error)
 
 type completionFn func(err error)
 
@@ -55,6 +52,7 @@ type commitLog struct {
 	nowFn   m3db.NowFn
 
 	newCommitLogWriterFn newCommitLogWriterFn
+	commitLogFailFn      commitLogFailFn
 	writer               commitLogWriter
 
 	// TODO(r): replace buffered channel with concurrent striped
@@ -111,6 +109,14 @@ func (l *commitLog) Open() error {
 	// Flush the info header to ensure we can write to disk
 	if err := l.writer.Flush(); err != nil {
 		return err
+	}
+
+	// NB(r): In the future we can introduce a commit log failure policy
+	// similar to Cassandra's "stop", for example see:
+	// https://github.com/apache/cassandra/blob/6dfc1e7eeba539774784dfd650d3e1de6785c938/conf/cassandra.yaml#L232
+	// Right now it is a large amount of coordination to implement something similiar.
+	l.commitLogFailFn = func(err error) {
+		l.log.Fatalf("fatal commit log error: %v", err)
 	}
 
 	// Asynchronously write
@@ -178,34 +184,30 @@ func (l *commitLog) write() {
 		}
 
 		if write.valueType == flushValueType {
-			if err = l.writer.Flush(); err != nil {
-				l.metrics.IncCounter("writes.flush-errors", 1)
-				l.log.Errorf("failed to flush commit log: %v", err)
-			}
+			l.writer.Flush()
 			continue
 		}
 
 		now := l.nowFn()
 		if !now.Before(l.writerExpireAt) {
 			if err = l.openWriter(now); err != nil {
-				l.callbackPendingFlushFns(err)
-
 				l.metrics.IncCounter("writes.errors", 1)
 				l.metrics.IncCounter("writes.open-errors", 1)
 				l.log.Errorf("failed to open commit log: %v", err)
+				if l.commitLogFailFn != nil {
+					l.commitLogFailFn(err)
+				}
 				continue
 			}
 		}
 
 		err = l.writer.Write(write.series, write.datapoint, write.unit, write.annotation)
 		if err != nil {
-			l.callbackPendingFlushFns(err)
-
 			l.metrics.IncCounter("writes.errors", 1)
 			l.log.Errorf("failed to write to commit log: %v", err)
-
-			// Explicitly expire the writer so we reopen a new commit log
-			l.writerExpireAt = timeZero
+			if l.commitLogFailFn != nil {
+				l.commitLogFailFn(err)
+			}
 			continue
 		}
 
@@ -224,13 +226,21 @@ func (l *commitLog) onFlush(err error) {
 	l.flushMutex.Lock()
 	l.lastFlushAt = l.nowFn()
 	l.flushMutex.Unlock()
-	l.callbackPendingFlushFns(err)
-}
 
-func (l *commitLog) callbackPendingFlushFns(err error) {
-	// callbackPendingFlushFns only ever called by "write()" routine from "onFlush(...)"
-	// and "openWriter" or before "write()" begins on "Open()" and there are no other
-	// accessors of "pendingFlushFns" so it is safe to read and mutate without lock here
+	if err != nil {
+		l.metrics.IncCounter("writes.errors", 1)
+		l.metrics.IncCounter("writes.flush-errors", 1)
+		l.log.Errorf("failed to flush commit log: %v", err)
+		if l.commitLogFailFn != nil {
+			l.commitLogFailFn(err)
+		}
+		return
+	}
+
+	// onFlush only ever called by "write()" and "openWriter" or
+	// before "write()" begins on "Open()" and there are no other
+	// accessors of "pendingFlushFns" so it is safe to read and mutate
+	// without a lock here
 	if len(l.pendingFlushFns) == 0 {
 		return
 	}
@@ -238,16 +248,13 @@ func (l *commitLog) callbackPendingFlushFns(err error) {
 	for i := range l.pendingFlushFns {
 		l.pendingFlushFns[i](err)
 	}
+
 	l.pendingFlushFns = l.pendingFlushFns[:0]
 }
 
 func (l *commitLog) openWriter(now time.Time) error {
 	if l.writer != nil {
 		if err := l.writer.Close(); err != nil {
-			// Callback any pending acks, don't need to do this in truthy case as
-			// closing the writer will caused all buffered data to flush
-			l.callbackPendingFlushFns(err)
-
 			l.metrics.IncCounter("writes.close-errors", 1)
 			l.log.Errorf("failed to close commit log: %v", err)
 			// If we failed to close then create a new commit log writer

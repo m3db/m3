@@ -253,6 +253,17 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 	assert.NoError(t, iter.Err())
 }
 
+func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	l.commitLogFailFn = func(err error) {
+		go func() { l.closeErr <- nil }()
+		assert.NoError(t, l.Close())
+		wg.Done()
+	}
+	return &wg
+}
+
 func TestCommitLogWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -413,7 +424,7 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 	assertCommitLogWritesByIterating(t, commitLog, writes)
 }
 
-func TestCommitLogContinueOnWriteError(t *testing.T) {
+func TestCommitLogFailOnWriteError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -423,20 +434,13 @@ func TestCommitLogContinueOnWriteError(t *testing.T) {
 	commitLog := NewCommitLog(opts).(*commitLog)
 
 	writer := mocks.NewMockcommitLogWriter(ctrl)
-	writer.EXPECT().Open(gomock.Any(), gomock.Any()).Return(nil).Times(2) // Open again on error
+	writer.EXPECT().Open(gomock.Any(), gomock.Any()).Return(nil)
 	writer.EXPECT().Flush().Do(func() { commitLog.onFlush(nil) }).Return(nil).AnyTimes()
 
 	// Return error on first write
-	writer.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Do(
-		func(s, d, u, a interface{}) {
-			// Return nil on future writes
-			writer.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(nil)
-		}).
-		Return(fmt.Errorf("an error"))
+	writer.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("an error"))
 
-	writer.EXPECT().Close().Return(nil).Times(2)
+	writer.EXPECT().Close().Return(nil)
 
 	commitLog.newCommitLogWriterFn = func(
 		flushFn flushFn,
@@ -447,28 +451,24 @@ func TestCommitLogContinueOnWriteError(t *testing.T) {
 
 	assert.NoError(t, commitLog.Open())
 
+	wg := setupCloseOnFail(t, commitLog)
+
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, fmt.Errorf("an error")},
-		{testSeries(1, "foo.baz", 150), time.Now(), 456.789, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
+	writeCommitLogs(t, stats, commitLog.WriteBehind, writes)
 
-	// Call write sync
-	writeCommitLogs(t, stats, commitLog.Write, writes).Wait()
-
-	// Close the commit log
-	assert.NoError(t, commitLog.Close())
+	wg.Wait()
 
 	// Check stats
 	assert.Equal(t, int64(1), stats.Counter("commitlog.writes.errors", nil))
-	assert.Equal(t, int64(1), stats.Counter("commitlog.writes.success", nil))
 }
 
-func TestCommitLogContinuesOnOpenError(t *testing.T) {
+func TestCommitLogFailOnOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	clock := clock.NewMock()
-	opts, stats := newTestOptions(t, ctrl, overrides{clock: clock})
+	opts, stats := newTestOptions(t, ctrl, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := NewCommitLog(opts).(*commitLog)
@@ -480,19 +480,12 @@ func TestCommitLogContinuesOnOpenError(t *testing.T) {
 		Do(
 		func(s, b interface{}) {
 			// Not ok second open
-			writer.EXPECT().Open(gomock.Any(), gomock.Any()).
-				Do(
-				func(s, b interface{}) {
-					// Ok third open
-					writer.EXPECT().Open(gomock.Any(), gomock.Any()).Return(nil)
-				}).
-				Return(fmt.Errorf("an error"))
+			writer.EXPECT().Open(gomock.Any(), gomock.Any()).Return(fmt.Errorf("an error"))
 		}).
 		Return(nil)
-
 	writer.EXPECT().Flush().Do(func() { commitLog.onFlush(nil) }).Return(nil).AnyTimes()
 	writer.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	writer.EXPECT().Close().Return(nil).AnyTimes()
+	writer.EXPECT().Close().Return(nil).Times(2)
 
 	commitLog.newCommitLogWriterFn = func(
 		flushFn flushFn,
@@ -503,31 +496,74 @@ func TestCommitLogContinuesOnOpenError(t *testing.T) {
 
 	assert.NoError(t, commitLog.Open())
 
-	blockSize := opts.GetBlockSize()
-	alignedStart := clock.Now().Truncate(blockSize)
+	wg := setupCloseOnFail(t, commitLog)
 
-	// Writes spaced apart by block size
+	func() {
+		commitLog.RLock()
+		defer commitLog.RUnlock()
+		// Expire the writer so it requires a new open
+		commitLog.writerExpireAt = timeZero
+	}()
+
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, fmt.Errorf("an error")},
-		{testSeries(2, "foo.qux", 291), alignedStart.Add(1 * blockSize), 789.123, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
+	writeCommitLogs(t, stats, commitLog.WriteBehind, writes)
 
-	for _, write := range writes {
-		// Set clock to align with the write
-		clock.Add(write.t.Sub(clock.Now()))
-
-		// Write entry
-		wg := writeCommitLogs(t, stats, commitLog.Write, []testWrite{write})
-
-		// Flush until finished, this is required as timed flusher not active when clock is mocked
-		flushUntilDone(commitLog, wg)
-	}
-
-	// Close the commit log
-	assert.NoError(t, commitLog.Close())
+	wg.Wait()
 
 	// Check stats
 	assert.Equal(t, int64(1), stats.Counter("commitlog.writes.errors", nil))
-	assert.Equal(t, int64(2), stats.Counter("commitlog.writes.success", nil))
+	assert.Equal(t, int64(1), stats.Counter("commitlog.writes.open-errors", nil))
+}
+
+func TestCommitLogFailOnFlushError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts, stats := newTestOptions(t, ctrl, overrides{})
+	defer cleanup(t, opts)
+
+	commitLog := NewCommitLog(opts).(*commitLog)
+
+	writer := mocks.NewMockcommitLogWriter(ctrl)
+	writer.EXPECT().Open(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	// Ok first flush
+	writer.EXPECT().Flush().
+		Do(
+		func() {
+			// Not ok second flush
+			writer.EXPECT().Flush().
+				Do(
+				func() {
+					commitLog.onFlush(fmt.Errorf("an error"))
+				}).
+				Return(nil).
+				AnyTimes()
+		}).
+		Return(nil)
+	writer.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	writer.EXPECT().Close().Return(nil)
+
+	commitLog.newCommitLogWriterFn = func(
+		flushFn flushFn,
+		opts m3db.DatabaseOptions,
+	) commitLogWriter {
+		return writer
+	}
+
+	assert.NoError(t, commitLog.Open())
+
+	wg := setupCloseOnFail(t, commitLog)
+
+	writes := []testWrite{
+		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
+	}
+	writeCommitLogs(t, stats, commitLog.WriteBehind, writes)
+
+	wg.Wait()
+
+	// Check stats
+	assert.Equal(t, int64(1), stats.Counter("commitlog.writes.errors", nil))
+	assert.Equal(t, int64(1), stats.Counter("commitlog.writes.flush-errors", nil))
 }
