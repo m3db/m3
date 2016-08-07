@@ -205,7 +205,7 @@ func TestFdWithDigestReadDigestTooFewBytes(t *testing.T) {
 	fd.Seek(-1, 1)
 
 	_, err := reader.ReadDigest()
-	require.Error(t, err)
+	require.Equal(t, errReadFewerThanExpectedBytes, err)
 }
 
 func TestFdWithDigestReadDigestSuccess(t *testing.T) {

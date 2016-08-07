@@ -44,6 +44,9 @@ var (
 	// errReadIndexEntryZeroSize returned when size of next index entry is zero
 	errReadIndexEntryZeroSize = errors.New("next index entry is encoded as zero size")
 
+	// errReadNotExpectedSize returned when the size of the next read does not match size specified by the index
+	errReadNotExpectedSize = errors.New("next read not expected size")
+
 	// errReadMarkerNotFound returned when the marker is not found at the beginning of a data record
 	errReadMarkerNotFound = errors.New("expected marker not found")
 )
@@ -206,9 +209,13 @@ func (r *reader) Read() (string, []byte, error) {
 
 	expectedSize := markerLen + idxLen + int(entry.Size)
 	data := make([]byte, expectedSize)
-	_, err := r.dataFdWithDigest.ReadBytes(data)
+	n, err := r.dataFdWithDigest.ReadBytes(data)
 	if err != nil {
 		return none, nil, err
+	}
+	if n != expectedSize {
+		return none, nil, errReadNotExpectedSize
+
 	}
 	if !bytes.Equal(data[:markerLen], marker) {
 		return none, nil, errReadMarkerNotFound

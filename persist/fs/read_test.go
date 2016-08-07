@@ -154,6 +154,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 
 	_, _, err = r.Read()
 	assert.Error(t, err)
+	assert.Equal(t, errReadNotExpectedSize, err)
 
 	assert.NoError(t, r.Close())
 }

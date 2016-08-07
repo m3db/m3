@@ -23,11 +23,15 @@ package digest
 import (
 	"bufio"
 	"errors"
+	"io"
 	"io/ioutil"
 	"os"
 )
 
 var (
+	// errReadFewerThanExpectedBytes returned when number of bytes read is fewer than expected
+	errReadFewerThanExpectedBytes = errors.New("number of bytes read is fewer than expected")
+
 	// errCheckSumMismatch returned when the calculated checksum doesn't match the stored checksum
 	errCheckSumMismatch = errors.New("calculated checksum doesn't match stored checksum")
 )
@@ -85,10 +89,15 @@ func (r *fdWithDigestReader) readBytes(b []byte) (int, error) {
 
 func (r *fdWithDigestReader) ReadBytes(b []byte) (int, error) {
 	n, err := r.readBytes(b)
-	if err != nil {
+	if err != nil && err != io.EOF {
+		return n, err
+	}
+	// If we encountered an EOF error and didn't read any bytes
+	// given a non-empty slice, we return an EOF error.
+	if err == io.EOF && n == 0 && len(b) > 0 {
 		return 0, err
 	}
-	if _, err := r.FdWithDigest.Digest().Write(b); err != nil {
+	if _, err := r.FdWithDigest.Digest().Write(b[:n]); err != nil {
 		return 0, err
 	}
 	return n, nil
@@ -138,9 +147,12 @@ func NewFdWithDigestContentsReader(bufferSize int) FdWithDigestContentsReader {
 }
 
 func (r *fdWithDigestContentsReader) ReadDigest() (uint32, error) {
-	_, err := r.ReadBytes(r.digestBuf)
+	n, err := r.ReadBytes(r.digestBuf)
 	if err != nil {
 		return 0, err
+	}
+	if n < len(r.digestBuf) {
+		return 0, errReadFewerThanExpectedBytes
 	}
 	return r.digestBuf.ReadDigest(), nil
 }
