@@ -66,6 +66,10 @@ type testSetup struct {
 	// things that need to be cleaned up
 	channel        *tchannel.Channel
 	filePathPrefix string
+
+	// signals
+	doneCh   chan struct{}
+	closedCh chan struct{}
 }
 
 func newTestSetup(opts testOptions) (*testSetup, error) {
@@ -146,6 +150,8 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		workerPool:     workerPool,
 		channel:        channel,
 		filePathPrefix: filePathPrefix,
+		doneCh:         make(chan struct{}),
+		closedCh:       make(chan struct{}),
 	}, nil
 }
 
@@ -167,24 +173,48 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 	return errServerStopTimedOut
 }
 
-func (ts *testSetup) startServer(doneCh chan struct{}) error {
-	go server.Serve(
-		*httpClusterAddr,
-		*tchannelClusterAddr,
-		*httpNodeAddr,
-		*tchannelNodeAddr,
-		ts.clientOpts,
-		ts.dbOpts,
-		doneCh,
-	)
+func (ts *testSetup) startServer() error {
+	resultCh := make(chan error, 1)
 
-	return ts.waitUntilServerIsUp()
+	go func() {
+		err := server.Serve(
+			*httpClusterAddr,
+			*tchannelClusterAddr,
+			*httpNodeAddr,
+			*tchannelNodeAddr,
+			ts.clientOpts,
+			ts.dbOpts,
+			ts.doneCh)
+		if err != nil {
+			select {
+			case resultCh <- err:
+			default:
+			}
+		}
+
+		ts.closedCh <- struct{}{}
+	}()
+
+	go func() {
+		select {
+		case resultCh <- ts.waitUntilServerIsUp():
+		default:
+		}
+	}()
+
+	return <-resultCh
 }
 
-func (ts *testSetup) stopServer(doneCh chan<- struct{}) error {
-	doneCh <- struct{}{}
+func (ts *testSetup) stopServer() error {
+	ts.doneCh <- struct{}{}
 
-	return ts.waitUntilServerIsDown()
+	if err := ts.waitUntilServerIsDown(); err != nil {
+		return err
+	}
+
+	// Wait for graceful server close
+	<-ts.closedCh
+	return nil
 }
 
 func (ts *testSetup) writeBatch(dm dataMap) error {

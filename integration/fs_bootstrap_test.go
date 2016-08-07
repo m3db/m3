@@ -112,13 +112,12 @@ func TestFilesystemBootstrap(t *testing.T) {
 	// Start the server with filesystem bootstrapper
 	log := testSetup.dbOpts.GetLogger()
 	log.Debug("filesystem bootstrap test")
-	doneCh := make(chan struct{})
-	require.NoError(t, testSetup.startServer(doneCh))
+	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer(doneCh))
+		require.NoError(t, testSetup.stopServer())
 		log.Debug("server is now down")
 	}()
 

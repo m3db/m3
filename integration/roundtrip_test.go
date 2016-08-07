@@ -41,13 +41,12 @@ func TestRoundtrip(t *testing.T) {
 	// Start the server
 	log := testSetup.dbOpts.GetLogger()
 	log.Debug("round trip test")
-	doneCh := make(chan struct{})
-	require.NoError(t, testSetup.startServer(doneCh))
+	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer(doneCh))
+		require.NoError(t, testSetup.stopServer())
 		log.Debug("server is now down")
 	}()
 
