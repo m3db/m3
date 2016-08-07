@@ -81,13 +81,13 @@ type reader struct {
 
 // NewReader returns a new reader for a filePathPrefix, expects all files to exist.  Will
 // read the index info.
-func NewReader(filePathPrefix string) m3db.FileSetReader {
+func NewReader(filePathPrefix string, bufferSize int) m3db.FileSetReader {
 	return &reader{
 		filePathPrefix:             filePathPrefix,
-		infoFdWithDigest:           digest.NewFdWithDigestReader(),
-		indexFdWithDigest:          digest.NewFdWithDigestReader(),
-		dataFdWithDigest:           digest.NewFdWithDigestReader(),
-		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(),
+		infoFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
+		indexFdWithDigest:          digest.NewFdWithDigestReader(bufferSize),
+		dataFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
 		digestBuf:                  digest.NewBuffer(),
 	}
 }

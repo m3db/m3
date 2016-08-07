@@ -190,6 +190,18 @@ type DatabaseOptions interface {
 
 	// GetNewPersistenceManagerFn returns the function for creating a new persistence manager.
 	GetNewPersistenceManagerFn() NewPersistenceManagerFn
+
+	// WriterBufferSize sets the buffer size for writing TSDB files.
+	WriterBufferSize(value int) DatabaseOptions
+
+	// GetWriterBufferSize returns the buffer size for writing TSDB files.
+	GetWriterBufferSize() int
+
+	// ReaderBufferSize sets the buffer size for reading TSDB files.
+	ReaderBufferSize(value int) DatabaseOptions
+
+	// GetReaderBufferSize returns the buffer size for reading TSDB files.
+	GetReaderBufferSize() int
 }
 
 // ClientOptions is a set of client options

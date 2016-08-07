@@ -31,17 +31,19 @@ import (
 
 // fileSystemSource provides information about TSDB data stored on disk.
 type fileSystemSource struct {
-	opts           m3db.DatabaseOptions
-	filePathPrefix string
-	newReaderFn    m3db.NewFileSetReaderFn
+	opts             m3db.DatabaseOptions
+	filePathPrefix   string
+	readerBufferSize int
+	newReaderFn      m3db.NewFileSetReaderFn
 }
 
 // newFileSystemSource creates a new filesystem based database.
 func newFileSystemSource(prefix string, opts m3db.DatabaseOptions) m3db.Source {
 	return &fileSystemSource{
-		opts:           opts,
-		filePathPrefix: prefix,
-		newReaderFn:    fs.NewReader,
+		opts:             opts,
+		filePathPrefix:   prefix,
+		readerBufferSize: opts.GetReaderBufferSize(),
+		newReaderFn:      fs.NewReader,
 	}
 }
 
@@ -51,7 +53,7 @@ func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard 
 		return nil
 	}
 
-	entries := fs.ReadInfoFiles(fss.filePathPrefix, shard)
+	entries := fs.ReadInfoFiles(fss.filePathPrefix, shard, fss.readerBufferSize)
 	if len(entries) == 0 {
 		return nil
 	}
@@ -76,7 +78,7 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.Shard
 	}
 
 	var files []string
-	fs.ForEachInfoFile(fss.filePathPrefix, shard, func(fname string, _ []byte) {
+	fs.ForEachInfoFile(fss.filePathPrefix, shard, fss.readerBufferSize, func(fname string, _ []byte) {
 		files = append(files, fname)
 	})
 	if len(files) == 0 {
@@ -85,7 +87,7 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.Shard
 
 	log := fss.opts.GetLogger()
 	seriesMap := bootstrap.NewShardResult(fss.opts)
-	r := fss.newReaderFn(fss.filePathPrefix)
+	r := fss.newReaderFn(fss.filePathPrefix, fss.readerBufferSize)
 	for i := 0; i < len(files); i++ {
 		t, err := fs.TimeFromFileName(files[i])
 		if err != nil {

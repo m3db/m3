@@ -29,9 +29,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testReaderBufferSize = 10
+)
+
 func createTestFdWithDigestReader(t *testing.T) (*fdWithDigestReader, *os.File, *mockDigest) {
 	fd, md := createTestFdWithDigest(t)
-	reader := NewFdWithDigestReader().(*fdWithDigestReader)
+	reader := NewFdWithDigestReader(testReaderBufferSize).(*fdWithDigestReader)
 	reader.FdWithDigest.(*fdWithDigest).digest = md
 	reader.reader = bufio.NewReaderSize(nil, 100)
 	reader.Reset(fd)
@@ -40,7 +44,7 @@ func createTestFdWithDigestReader(t *testing.T) (*fdWithDigestReader, *os.File, 
 
 func createTestFdWithDigestContentsReader(t *testing.T) (*fdWithDigestContentsReader, *os.File, *mockDigest) {
 	fdr, fd, md := createTestFdWithDigestReader(t)
-	reader := NewFdWithDigestContentsReader().(*fdWithDigestContentsReader)
+	reader := NewFdWithDigestContentsReader(testReaderBufferSize).(*fdWithDigestContentsReader)
 	reader.FdWithDigestReader = fdr
 	return reader, fd, md
 }
@@ -159,7 +163,7 @@ func TestFdWithDigestReadAllValidationSuccess(t *testing.T) {
 }
 
 func TestFdWithDigestValidateDigest(t *testing.T) {
-	reader := NewFdWithDigestReader().(*fdWithDigestReader)
+	reader := NewFdWithDigestReader(testReaderBufferSize).(*fdWithDigestReader)
 	reader.FdWithDigest.(*fdWithDigest).digest = &mockDigest{digest: 123}
 	require.NoError(t, reader.Validate(123))
 	require.Equal(t, errCheckSumMismatch, reader.Validate(100))

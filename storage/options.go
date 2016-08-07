@@ -61,6 +61,12 @@ const (
 
 	// defaultMaxFlushRetries is the default number of retries when flush fails.
 	defaultMaxFlushRetries = 3
+
+	// defaultWriterBufferSize is the default buffer size for writing TSDB files.
+	defaultWriterBufferSize = 65536
+
+	// defaultReaderBufferSize is the default buffer size for reading TSDB files.
+	defaultReaderBufferSize = 65536
 )
 
 var (
@@ -68,13 +74,13 @@ var (
 	defaultFilePathPrefix = os.TempDir()
 
 	// defaultFileSetReaderFn is the default function for creating a TSDB fileset reader.
-	defaultFileSetReaderFn = func(filePathPrefix string) m3db.FileSetReader {
-		return fs.NewReader(filePathPrefix)
+	defaultFileSetReaderFn = func(filePathPrefix string, readerBufferSize int) m3db.FileSetReader {
+		return fs.NewReader(filePathPrefix, readerBufferSize)
 	}
 
 	// defaultFileSetWriterFn is the default function for creating a TSDB fileset writer.
-	defaultFileSetWriterFn = func(blockSize time.Duration, filePathPrefix string) m3db.FileSetWriter {
-		return fs.NewWriter(blockSize, filePathPrefix, fs.NewWriterOptions())
+	defaultFileSetWriterFn = func(blockSize time.Duration, filePathPrefix string, writerBufferSize int) m3db.FileSetWriter {
+		return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, fs.NewWriterOptions())
 	}
 
 	// defaultPersistenceManagerFn is the default function for creating a new persistence manager.
@@ -111,6 +117,8 @@ type dbOptions struct {
 	newFileSetReaderFn      m3db.NewFileSetReaderFn
 	newFileSetWriterFn      m3db.NewFileSetWriterFn
 	newPersistenceManagerFn m3db.NewPersistenceManagerFn
+	writerBufferSize        int
+	readerBufferSize        int
 }
 
 // NewDatabaseOptions creates a new set of database options with defaults
@@ -131,6 +139,8 @@ func NewDatabaseOptions() m3db.DatabaseOptions {
 		newFileSetReaderFn:      defaultFileSetReaderFn,
 		newFileSetWriterFn:      defaultFileSetWriterFn,
 		newPersistenceManagerFn: defaultPersistenceManagerFn,
+		writerBufferSize:        defaultWriterBufferSize,
+		readerBufferSize:        defaultReaderBufferSize,
 	}
 	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultDatabaseBlockAllocSize)
 }
@@ -464,4 +474,24 @@ func (o *dbOptions) NewPersistenceManagerFn(value m3db.NewPersistenceManagerFn) 
 
 func (o *dbOptions) GetNewPersistenceManagerFn() m3db.NewPersistenceManagerFn {
 	return o.newPersistenceManagerFn
+}
+
+func (o *dbOptions) WriterBufferSize(value int) m3db.DatabaseOptions {
+	opts := *o
+	opts.writerBufferSize = value
+	return &opts
+}
+
+func (o *dbOptions) GetWriterBufferSize() int {
+	return o.writerBufferSize
+}
+
+func (o *dbOptions) ReaderBufferSize(value int) m3db.DatabaseOptions {
+	opts := *o
+	opts.readerBufferSize = value
+	return &opts
+}
+
+func (o *dbOptions) GetReaderBufferSize() int {
+	return o.readerBufferSize
 }

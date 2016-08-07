@@ -25,10 +25,6 @@ import (
 	"os"
 )
 
-const (
-	writerBufferSize = 65536
-)
-
 // FdWithDigestWriter provides a buffered writer for writing to the underlying file.
 type FdWithDigestWriter interface {
 	FdWithDigest
@@ -44,10 +40,10 @@ type fdWithDigestWriter struct {
 }
 
 // NewFdWithDigestWriter creates a new FdWithDigestWriter.
-func NewFdWithDigestWriter() FdWithDigestWriter {
+func NewFdWithDigestWriter(bufferSize int) FdWithDigestWriter {
 	return &fdWithDigestWriter{
 		FdWithDigest: newFdWithDigest(),
-		writer:       bufio.NewWriterSize(nil, writerBufferSize),
+		writer:       bufio.NewWriterSize(nil, bufferSize),
 	}
 }
 
@@ -92,9 +88,9 @@ type fdWithDigestContentsWriter struct {
 }
 
 // NewFdWithDigestContentsWriter creates a new FdWithDigestContentsWriter.
-func NewFdWithDigestContentsWriter() FdWithDigestContentsWriter {
+func NewFdWithDigestContentsWriter(bufferSize int) FdWithDigestContentsWriter {
 	return &fdWithDigestContentsWriter{
-		FdWithDigestWriter: NewFdWithDigestWriter(),
+		FdWithDigestWriter: NewFdWithDigestWriter(bufferSize),
 		digestBuf:          NewBuffer(),
 	}
 }

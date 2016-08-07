@@ -30,9 +30,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testWriterBufferSize = 10
+)
+
 func createTestFdWithDigestWriter(t *testing.T) (*fdWithDigestWriter, *os.File, *mockDigest) {
 	fd, md := createTestFdWithDigest(t)
-	writer := NewFdWithDigestWriter().(*fdWithDigestWriter)
+	writer := NewFdWithDigestWriter(testWriterBufferSize).(*fdWithDigestWriter)
 	writer.FdWithDigest.(*fdWithDigest).digest = md
 	writer.writer = bufio.NewWriterSize(nil, 2)
 	writer.Reset(fd)
@@ -41,7 +45,7 @@ func createTestFdWithDigestWriter(t *testing.T) (*fdWithDigestWriter, *os.File, 
 
 func createTestFdWithDigestContentsWriter(t *testing.T) (*fdWithDigestContentsWriter, *os.File, *mockDigest) {
 	fwd, fd, md := createTestFdWithDigestWriter(t)
-	writer := NewFdWithDigestContentsWriter().(*fdWithDigestContentsWriter)
+	writer := NewFdWithDigestContentsWriter(testWriterBufferSize).(*fdWithDigestContentsWriter)
 	writer.FdWithDigestWriter = fwd
 	return writer, fd, md
 }
@@ -93,7 +97,7 @@ func TestFdWithDigestWriteBytesSuccess(t *testing.T) {
 }
 
 func TestFdWithDigestWriterCloseFlushError(t *testing.T) {
-	writer := NewFdWithDigestWriter()
+	writer := NewFdWithDigestWriter(testWriterBufferSize)
 	require.Error(t, writer.Close())
 }
 

@@ -37,6 +37,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testReaderBufferSize = 10
+	testWriterBufferSize = 10
+)
+
 var (
 	testWriterStart = time.Now()
 	testBlockSize   = 2 * time.Hour
@@ -50,12 +55,12 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	err = w.Open(0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
-	r := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix, testReaderBufferSize)
 	err = r.Open(0, testWriterStart)
 	assert.NoError(t, err)
 
@@ -74,13 +79,13 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	err = w.Open(0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
-	r := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix, testReaderBufferSize)
 	err = r.Open(0, testWriterStart)
 	assert.NoError(t, err)
 
@@ -100,14 +105,14 @@ func TestReadDataError(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	err = w.Open(0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
-	r := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix, testReaderBufferSize)
 	err = r.Open(0, testWriterStart)
 
 	// Close out the dataFd and expect an error on next read
@@ -133,7 +138,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	err = w.Open(0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
@@ -143,7 +148,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	// Truncate one bye
 	assert.NoError(t, os.Truncate(dataFile, 1))
 
-	r := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix, testReaderBufferSize)
 	err = r.Open(0, testWriterStart)
 	assert.NoError(t, err)
 
@@ -161,7 +166,7 @@ func TestReadBadMarker(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	err = w.Open(0, testWriterStart)
 	assert.NoError(t, err)
 
@@ -179,7 +184,7 @@ func TestReadBadMarker(t *testing.T) {
 
 	assert.NoError(t, w.Close())
 
-	r := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix, testReaderBufferSize)
 	err = r.Open(0, testWriterStart)
 	assert.NoError(t, err)
 
@@ -198,13 +203,13 @@ func TestReadWrongIdx(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	err = w.Open(0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
-	r := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix, testReaderBufferSize)
 	err = r.Open(0, testWriterStart)
 	assert.NoError(t, err)
 
@@ -236,7 +241,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	filePathPrefix := createTempDir(t)
 	defer os.RemoveAll(filePathPrefix)
 
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	shard := uint32(0)
 	err := w.Open(shard, testWriterStart)
 	assert.NoError(t, err)
@@ -247,7 +252,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	require.True(t, fileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
-	r := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix, testReaderBufferSize)
 	err = r.Open(shard, testWriterStart)
 	require.Equal(t, errCheckpointFileNotFound, err)
 }
@@ -258,7 +263,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 
 	shard := uint32(0)
 	start := time.Unix(1000, 0)
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	assert.NoError(t, w.Open(uint32(shard), start))
 	assert.NoError(t, w.Write("foo", []byte{0x1}))
 	assert.NoError(t, w.Close())
@@ -273,7 +278,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		fd.Close()
 	}
 
-	r := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix, testReaderBufferSize)
 	require.Error(t, r.Open(shard, time.Unix(1000, 0)))
 }
 
@@ -338,12 +343,12 @@ func TestReadValidate(t *testing.T) {
 
 	shard := uint32(0)
 	start := time.Unix(1000, 0)
-	w := NewWriter(testBlockSize, filePathPrefix, nil)
+	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	require.NoError(t, w.Open(shard, start))
 	require.NoError(t, w.Write("foo", []byte{0x1}))
 	require.NoError(t, w.Close())
 
-	r := NewReader(filePathPrefix)
+	r := NewReader(filePathPrefix, testReaderBufferSize)
 	require.NoError(t, r.Open(shard, start))
 	_, _, err := r.Read()
 	require.NoError(t, err)

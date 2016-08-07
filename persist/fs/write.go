@@ -113,6 +113,7 @@ func (o *writerOptions) GetNewDirectoryMode() os.FileMode {
 func NewWriter(
 	blockSize time.Duration,
 	filePathPrefix string,
+	bufferSize int,
 	options WriterOptions,
 ) m3db.FileSetWriter {
 	if options == nil {
@@ -126,10 +127,10 @@ func NewWriter(
 		infoBuffer:                 proto.NewBuffer(nil),
 		indexBuffer:                proto.NewBuffer(nil),
 		varintBuffer:               proto.NewBuffer(nil),
-		infoFdWithDigest:           digest.NewFdWithDigestWriter(),
-		indexFdWithDigest:          digest.NewFdWithDigestWriter(),
-		dataFdWithDigest:           digest.NewFdWithDigestWriter(),
-		digestFdWithDigestContents: digest.NewFdWithDigestContentsWriter(),
+		infoFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
+		indexFdWithDigest:          digest.NewFdWithDigestWriter(bufferSize),
+		dataFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsWriter(bufferSize),
 		digestBuf:                  digest.NewBuffer(),
 		idxData:                    make([]byte, idxLen),
 	}

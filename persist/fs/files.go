@@ -107,7 +107,7 @@ func TimeFromFileName(fname string) (time.Time, error) {
 type infoFileFn func(fname string, infoData []byte)
 
 // ForEachInfoFile iterates over each valid info file and applies the function passed in.
-func ForEachInfoFile(filePathPrefix string, shard uint32, fn infoFileFn) {
+func ForEachInfoFile(filePathPrefix string, shard uint32, readerBufferSize int, fn infoFileFn) {
 	shardDir := shardDirPath(filePathPrefix, shard)
 	matched, err := filepath.Glob(path.Join(shardDir, infoFilePattern))
 	if err != nil {
@@ -136,13 +136,13 @@ func ForEachInfoFile(filePathPrefix string, shard uint32, fn infoFileFn) {
 			continue
 		}
 		// Read and validate the digest file
-		digestData, err := readAndValidate(shardDir, t, digestFileSuffix, expectedDigestOfDigest)
+		digestData, err := readAndValidate(shardDir, t, digestFileSuffix, readerBufferSize, expectedDigestOfDigest)
 		if err != nil {
 			continue
 		}
 		// Read and validate the info file
 		expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
-		infoData, err := readAndValidate(shardDir, t, infoFileSuffix, expectedInfoDigest)
+		infoData, err := readAndValidate(shardDir, t, infoFileSuffix, readerBufferSize, expectedInfoDigest)
 		if err != nil {
 			continue
 		}
@@ -151,9 +151,9 @@ func ForEachInfoFile(filePathPrefix string, shard uint32, fn infoFileFn) {
 }
 
 // ReadInfoFiles reads all the valid info entries.
-func ReadInfoFiles(filePathPrefix string, shard uint32) []*schema.IndexInfo {
+func ReadInfoFiles(filePathPrefix string, shard uint32, readerBufferSize int) []*schema.IndexInfo {
 	var indexEntries []*schema.IndexInfo
-	ForEachInfoFile(filePathPrefix, shard, func(_ string, data []byte) {
+	ForEachInfoFile(filePathPrefix, shard, readerBufferSize, func(_ string, data []byte) {
 		info, err := readInfo(data)
 		if err != nil {
 			return
@@ -172,7 +172,13 @@ func readInfo(data []byte) (*schema.IndexInfo, error) {
 	return info, nil
 }
 
-func readAndValidate(prefix string, t time.Time, suffix string, expectedDigest uint32) ([]byte, error) {
+func readAndValidate(
+	prefix string,
+	t time.Time,
+	suffix string,
+	readerBufferSize int,
+	expectedDigest uint32,
+) ([]byte, error) {
 	filePath := filepathFromTime(prefix, t, suffix)
 	fd, err := os.Open(filePath)
 	if err != nil {
@@ -180,7 +186,7 @@ func readAndValidate(prefix string, t time.Time, suffix string, expectedDigest u
 	}
 	defer fd.Close()
 
-	fwd := digest.NewFdWithDigestReader()
+	fwd := digest.NewFdWithDigestReader(readerBufferSize)
 	fwd.Reset(fd)
 	return fwd.ReadAllAndValidate(expectedDigest)
 }

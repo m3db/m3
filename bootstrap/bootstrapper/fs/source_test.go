@@ -41,9 +41,10 @@ import (
 )
 
 var (
-	testStart     = time.Now()
-	testBlockSize = 2 * time.Hour
-	testFileMode  = os.FileMode(0666)
+	testStart            = time.Now()
+	testBlockSize        = 2 * time.Hour
+	testFileMode         = os.FileMode(0666)
+	testWriterBufferSize = 10
 )
 
 func createTempDir(t *testing.T) string {
@@ -102,7 +103,7 @@ func writeGoodFiles(t *testing.T, dir string, shard uint32) {
 }
 
 func writeTSDBFiles(t *testing.T, dir string, shard uint32, start time.Time, id string, data []byte) {
-	w := fs.NewWriter(testBlockSize, dir, nil)
+	w := fs.NewWriter(testBlockSize, dir, testWriterBufferSize, nil)
 	require.NoError(t, w.Open(shard, start))
 	require.NoError(t, w.Write(id, data))
 	require.NoError(t, w.Close())
@@ -306,7 +307,7 @@ func TestReadDataValidateError(t *testing.T) {
 
 	reader := mocks.NewMockFileSetReader(ctrl)
 	fss := newFileSystemSource(dir, storage.NewDatabaseOptions()).(*fileSystemSource)
-	fss.newReaderFn = func(filePathPrefix string) m3db.FileSetReader {
+	fss.newReaderFn = func(filePathPrefix string, readerBufferSize int) m3db.FileSetReader {
 		return reader
 	}
 

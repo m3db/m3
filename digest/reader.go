@@ -27,10 +27,6 @@ import (
 	"os"
 )
 
-const (
-	readerBufferSize = 65536
-)
-
 var (
 	// errCheckSumMismatch returned when the calculated checksum doesn't match the stored checksum
 	errCheckSumMismatch = errors.New("calculated checksum doesn't match stored checksum")
@@ -59,10 +55,10 @@ type fdWithDigestReader struct {
 }
 
 // NewFdWithDigestReader creates a new FdWithDigestReader.
-func NewFdWithDigestReader() FdWithDigestReader {
+func NewFdWithDigestReader(bufferSize int) FdWithDigestReader {
 	return &fdWithDigestReader{
 		FdWithDigest: newFdWithDigest(),
-		reader:       bufio.NewReaderSize(nil, readerBufferSize),
+		reader:       bufio.NewReaderSize(nil, bufferSize),
 	}
 }
 
@@ -134,9 +130,9 @@ type fdWithDigestContentsReader struct {
 }
 
 // NewFdWithDigestContentsReader creates a new FdWithDigestContentsReader.
-func NewFdWithDigestContentsReader() FdWithDigestContentsReader {
+func NewFdWithDigestContentsReader(bufferSize int) FdWithDigestContentsReader {
 	return &fdWithDigestContentsReader{
-		FdWithDigestReader: NewFdWithDigestReader(),
+		FdWithDigestReader: NewFdWithDigestReader(bufferSize),
 		digestBuf:          NewBuffer(),
 	}
 }

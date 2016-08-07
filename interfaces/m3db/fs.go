@@ -65,7 +65,7 @@ type FileSetReader interface {
 }
 
 // NewFileSetWriterFn creates a new fileset writer.
-type NewFileSetWriterFn func(blockSize time.Duration, filePathPrefix string) FileSetWriter
+type NewFileSetWriterFn func(blockSize time.Duration, filePathPrefix string, writerBufferSize int) FileSetWriter
 
 // NewFileSetReaderFn creates a new fileset reader.
-type NewFileSetReaderFn func(filePathPrefix string) FileSetReader
+type NewFileSetReaderFn func(filePathPrefix string, readerBufferSize int) FileSetReader

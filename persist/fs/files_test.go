@@ -147,7 +147,7 @@ func TestForEachInfoFile(t *testing.T) {
 
 	var fnames []string
 	var res []byte
-	ForEachInfoFile(dir, shard, func(fname string, data []byte) {
+	ForEachInfoFile(dir, shard, testReaderBufferSize, func(fname string, data []byte) {
 		fnames = append(fnames, fname)
 		res = append(res, data...)
 	})
