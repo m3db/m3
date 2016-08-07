@@ -39,7 +39,6 @@ var (
 	writeRetries    = 2
 	writeRetryDelay = time.Millisecond
 
-	timeNow  = time.Now
 	timeZero = time.Time{}
 )
 
@@ -50,19 +49,33 @@ type commitLog struct {
 	opts    m3db.DatabaseOptions
 	metrics xmetrics.Scope
 	nowFn   m3db.NowFn
+
+	writer commitLogWriter
+
 	// TODO(r): replace buffered channel with concurrent striped
 	// circular buffer to avoid central write lock contention
-	writes         chan commitLogWrite
-	lastFlushAt    time.Time
-	writer         commitLogWriter
-	pendingAcks    []completionFn
+	writes chan commitLogWrite
+
+	flushMutex      sync.RWMutex
+	lastFlushAt     time.Time
+	pendingFlushFns []completionFn
+
 	bitset         bitset
 	writerExpireAt time.Time
 	closed         bool
 	closeErr       chan error
 }
 
+type valueType int
+
+const (
+	writeValueType valueType = iota
+	flushValueType
+)
+
 type commitLogWrite struct {
+	valueType valueType
+
 	series       m3db.CommitLogSeries
 	datapoint    m3db.Datapoint
 	unit         xtime.Unit
@@ -105,8 +118,6 @@ func NewCommitLog(opts m3db.DatabaseOptions) (m3db.CommitLog, error) {
 func (l *commitLog) flushEvery(interval time.Duration) {
 	// Periodically flush the underlying commit log writer to cover
 	// the case when writes stall for a considerable time
-	log := l.opts.GetLogger()
-
 	var sleepForOverride time.Duration
 	for {
 		sleepFor := interval
@@ -117,57 +128,47 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 
 		time.Sleep(sleepFor)
 
+		l.flushMutex.RLock()
+		lastFlushAt := l.lastFlushAt
+		l.flushMutex.RUnlock()
+
+		sinceLastFlush := l.nowFn().Sub(lastFlushAt)
+		if sinceLastFlush < interval {
+			// Flushed already recently, sleep until we would next consider flushing
+			sleepForOverride = interval - sinceLastFlush
+			continue
+		}
+
+		// Request a flush
 		l.RLock()
 		if l.closed {
 			l.RUnlock()
 			return
 		}
-		lastFlushAt := l.lastFlushAt
+		l.writes <- commitLogWrite{valueType: flushValueType}
 		l.RUnlock()
-
-		sinceLastFlush := l.nowFn().Sub(lastFlushAt)
-		if sinceLastFlush < interval {
-			// Rotated already recently, sleep until we would next consider flushing
-			sleepForOverride = interval - sinceLastFlush
-			continue
-		}
-
-		l.Lock()
-		if l.closed {
-			l.Unlock()
-			return
-		}
-
-		if err := l.writer.Flush(); err != nil {
-			l.metrics.IncCounter("writes.flush-errors", 1)
-			log.Errorf("failed to flush commit log: %v", err)
-		}
-
-		l.Unlock()
 	}
 }
 
 func (l *commitLog) write() {
-	// TODO(r): also periodically flush the underlying commit log writer
-	// in case writes stall and commit log not written
 	var (
+		log             = l.opts.GetLogger()
 		write, retry    commitLogWrite
 		retryInProgress bool
 		retryAttempts   int
+		err             error
 		open            bool
-		hasLock         bool
 	)
 	for {
-		if hasLock {
-			l.Unlock()
-			hasLock = false
-		}
-
 		if retryInProgress && retryAttempts < 0 {
 			retryAttempts++
 			write = retry
 			time.Sleep(writeRetryDelay)
 		} else {
+			if retryInProgress && retry.completionFn != nil {
+				// If ran out of attempts and require callback then fire callback
+				retry.completionFn(err)
+			}
 			retryInProgress = false
 			write, open = <-l.writes
 			if !open {
@@ -175,15 +176,18 @@ func (l *commitLog) write() {
 			}
 		}
 
-		// Both openWriter and Write which in turn may flush require holding the lock
-		l.Lock()
-		hasLock = true
+		if write.valueType == flushValueType {
+			if err = l.writer.Flush(); err != nil {
+				l.metrics.IncCounter("writes.flush-errors", 1)
+				log.Errorf("failed to flush commit log: %v", err)
+			}
+			continue
+		}
 
 		now := l.nowFn()
 		if !now.Before(l.writerExpireAt) {
-			if err := l.openWriter(now); err != nil {
-				l.metrics.IncCounter("writes.errors", 1)
-				l.metrics.IncCounter("writes.openerrors", 1)
+			if err = l.openWriter(now); err != nil {
+				l.metrics.IncCounter("writes.open-errors", 1)
 				// Begin retrying write if not already
 				if !retryInProgress {
 					retry = write
@@ -193,7 +197,7 @@ func (l *commitLog) write() {
 			}
 		}
 
-		err := l.writer.Write(write.series, write.datapoint, write.unit, write.annotation)
+		err = l.writer.Write(write.series, write.datapoint, write.unit, write.annotation)
 		if err != nil {
 			l.metrics.IncCounter("writes.errors", 1)
 			// Log error and expire writer
@@ -208,10 +212,12 @@ func (l *commitLog) write() {
 
 		// For writes requiring acks add to pending acks
 		if write.completionFn != nil {
-			l.pendingAcks = append(l.pendingAcks, write.completionFn)
+			l.flushMutex.Lock()
+			l.pendingFlushFns = append(l.pendingFlushFns, write.completionFn)
+			l.flushMutex.Unlock()
 		}
 
-		l.metrics.IncCounter("writes", 1)
+		l.metrics.IncCounter("writes.success", 1)
 	}
 
 	l.Lock()
@@ -227,21 +233,20 @@ func (l *commitLog) write() {
 }
 
 func (l *commitLog) onFlush(err error) {
+	l.flushMutex.Lock()
+
 	l.lastFlushAt = l.nowFn()
 
-	// Taking the pending acks is safe here as is called by the goroutine
-	// enqueuing the pending acks in write method from the writer as a
-	// result of a write
-	if len(l.pendingAcks) == 0 {
-		return
+	if len(l.pendingFlushFns) > 0 {
+		// Safe to callback acks as all they do is record a
+		// result and unblock another goroutine
+		for i := range l.pendingFlushFns {
+			l.pendingFlushFns[i](err)
+		}
+		l.pendingFlushFns = l.pendingFlushFns[:0]
 	}
 
-	// Safe to callback acks as all they do is record a result and unblock
-	// another goroutine
-	for i := range l.pendingAcks {
-		l.pendingAcks[i](err)
-	}
-	l.pendingAcks = l.pendingAcks[:0]
+	l.flushMutex.Unlock()
 }
 
 func (l *commitLog) openWriter(now time.Time) error {
@@ -317,6 +322,7 @@ func (l *commitLog) Write(
 	l.RUnlock()
 
 	if !enqueued {
+		l.RUnlock()
 		return errCommitLogQueueFull
 	}
 
@@ -354,6 +360,7 @@ func (l *commitLog) WriteBehind(
 	}
 
 	if !enqueued {
+		l.RUnlock()
 		return errCommitLogQueueFull
 	}
 
