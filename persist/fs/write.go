@@ -43,10 +43,10 @@ type writer struct {
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
 
-	infoFdWithDigest           *digest.FdWithDigestWriter
-	indexFdWithDigest          *digest.FdWithDigestWriter
-	dataFdWithDigest           *digest.FdWithDigestWriter
-	digestFdWithDigestContents *digest.FdWithDigestContentsWriter
+	infoFdWithDigest           digest.FdWithDigestWriter
+	indexFdWithDigest          digest.FdWithDigestWriter
+	dataFdWithDigest           digest.FdWithDigestWriter
+	digestFdWithDigestContents digest.FdWithDigestContentsWriter
 	checkpointFilePath         string
 
 	start        time.Time
@@ -264,9 +264,9 @@ func (w *writer) close() error {
 	}
 
 	if err := w.digestFdWithDigestContents.WriteDigests(
-		w.infoFdWithDigest.Digest(),
-		w.indexFdWithDigest.Digest(),
-		w.dataFdWithDigest.Digest(),
+		w.infoFdWithDigest.Digest().Sum32(),
+		w.indexFdWithDigest.Digest().Sum32(),
+		w.dataFdWithDigest.Digest().Sum32(),
 	); err != nil {
 		return err
 	}
@@ -307,7 +307,7 @@ func (w *writer) writeCheckpointFile() error {
 		return err
 	}
 	defer fd.Close()
-	if err := w.digestBuf.WriteDigestToFile(fd, w.digestFdWithDigestContents.Digest()); err != nil {
+	if err := w.digestBuf.WriteDigestToFile(fd, w.digestFdWithDigestContents.Digest().Sum32()); err != nil {
 		return err
 	}
 	return nil

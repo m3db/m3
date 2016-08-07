@@ -22,6 +22,7 @@ package digest
 
 import (
 	"bufio"
+	"errors"
 	"io/ioutil"
 	"os"
 )
@@ -30,29 +31,48 @@ const (
 	readerBufferSize = 65536
 )
 
-// FdWithDigestReader provides a buffered reader for reading
-// from the underlying file.
-type FdWithDigestReader struct {
-	fdWithDigest
+var (
+	// errCheckSumMismatch returned when the calculated checksum doesn't match the stored checksum
+	errCheckSumMismatch = errors.New("calculated checksum doesn't match stored checksum")
+)
+
+// FdWithDigestReader provides a buffered reader for reading from the underlying file.
+type FdWithDigestReader interface {
+	FdWithDigest
+
+	// ReadBytes reads bytes from the underlying file into the provided byte slice.
+	ReadBytes(b []byte) (int, error)
+
+	// ReadAllAndValidate reads everything in the underlying file and validates
+	// it against the expected digest, returning an error if they don't match.
+	ReadAllAndValidate(expectedDigest uint32) ([]byte, error)
+
+	// Validate compares the current digest against the expected digest and returns
+	// an error if they don't match.
+	Validate(expectedDigest uint32) error
+}
+
+type fdWithDigestReader struct {
+	FdWithDigest
 
 	reader *bufio.Reader
 }
 
 // NewFdWithDigestReader creates a new FdWithDigestReader.
-func NewFdWithDigestReader() *FdWithDigestReader {
-	return &FdWithDigestReader{
-		fdWithDigest: *newFdWithDigest(),
+func NewFdWithDigestReader() FdWithDigestReader {
+	return &fdWithDigestReader{
+		FdWithDigest: newFdWithDigest(),
 		reader:       bufio.NewReaderSize(nil, readerBufferSize),
 	}
 }
 
 // Reset resets the underlying file descriptor and the buffered reader.
-func (r *FdWithDigestReader) Reset(fd *os.File) {
-	r.fdWithDigest.Reset(fd)
+func (r *fdWithDigestReader) Reset(fd *os.File) {
+	r.FdWithDigest.Reset(fd)
 	r.reader.Reset(fd)
 }
 
-func (r *FdWithDigestReader) readBytes(b []byte) (int, error) {
+func (r *fdWithDigestReader) readBytes(b []byte) (int, error) {
 	n, err := r.reader.Read(b)
 	if err != nil {
 		return 0, err
@@ -67,26 +87,23 @@ func (r *FdWithDigestReader) readBytes(b []byte) (int, error) {
 	return n, err
 }
 
-// ReadBytes reads bytes from the underlying file into the provided byte slice.
-func (r *FdWithDigestReader) ReadBytes(b []byte) (int, error) {
+func (r *fdWithDigestReader) ReadBytes(b []byte) (int, error) {
 	n, err := r.readBytes(b)
 	if err != nil {
 		return 0, err
 	}
-	if _, err := r.digest.Write(b); err != nil {
+	if _, err := r.FdWithDigest.Digest().Write(b); err != nil {
 		return 0, err
 	}
 	return n, nil
 }
 
-// ReadAllAndValidate reads everything in the underlying file and validates
-// it against the expected digest, returning an error if they don't match.
-func (r *FdWithDigestReader) ReadAllAndValidate(expectedDigest uint32) ([]byte, error) {
+func (r *fdWithDigestReader) ReadAllAndValidate(expectedDigest uint32) ([]byte, error) {
 	b, err := ioutil.ReadAll(r.reader)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := r.digest.Write(b); err != nil {
+	if _, err := r.FdWithDigest.Digest().Write(b); err != nil {
 		return nil, err
 	}
 	if err := r.Validate(expectedDigest); err != nil {
@@ -95,33 +112,36 @@ func (r *FdWithDigestReader) ReadAllAndValidate(expectedDigest uint32) ([]byte, 
 	return b, nil
 }
 
-// Validate compares the current digest against the expected digest and returns
-// an error if they don't match.
-func (r *FdWithDigestReader) Validate(expectedDigest uint32) error {
-	if r.digest.Sum32() != expectedDigest {
+func (r *fdWithDigestReader) Validate(expectedDigest uint32) error {
+	if r.FdWithDigest.Digest().Sum32() != expectedDigest {
 		return errCheckSumMismatch
 	}
 	return nil
 }
 
-// FdWithDigestContentsReader provides additional functionality of reading a
-// digest from the underlying file.
-type FdWithDigestContentsReader struct {
+// FdWithDigestContentsReader provides additional functionality of reading a digest from the underlying file.
+type FdWithDigestContentsReader interface {
+	FdWithDigestReader
+
+	// ReadDigest reads a digest from the underlying file.
+	ReadDigest() (uint32, error)
+}
+
+type fdWithDigestContentsReader struct {
 	FdWithDigestReader
 
 	digestBuf Buffer
 }
 
 // NewFdWithDigestContentsReader creates a new FdWithDigestContentsReader.
-func NewFdWithDigestContentsReader() *FdWithDigestContentsReader {
-	return &FdWithDigestContentsReader{
-		FdWithDigestReader: *NewFdWithDigestReader(),
+func NewFdWithDigestContentsReader() FdWithDigestContentsReader {
+	return &fdWithDigestContentsReader{
+		FdWithDigestReader: NewFdWithDigestReader(),
 		digestBuf:          NewBuffer(),
 	}
 }
 
-// ReadDigest reads a digest from the underlying file.
-func (r *FdWithDigestContentsReader) ReadDigest() (uint32, error) {
+func (r *fdWithDigestContentsReader) ReadDigest() (uint32, error) {
 	_, err := r.ReadBytes(r.digestBuf)
 	if err != nil {
 		return 0, err

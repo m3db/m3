@@ -29,29 +29,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestFdWithDigestReader(t *testing.T) (*FdWithDigestReader, *os.File, *mockDigest) {
+func createTestFdWithDigestReader(t *testing.T) (*fdWithDigestReader, *os.File, *mockDigest) {
 	fd, md := createTestFdWithDigest(t)
-	reader := NewFdWithDigestReader()
-	reader.digest = md
+	reader := NewFdWithDigestReader().(*fdWithDigestReader)
+	reader.FdWithDigest.(*fdWithDigest).digest = md
 	reader.reader = bufio.NewReaderSize(nil, 100)
 	reader.Reset(fd)
 	return reader, fd, md
 }
 
-func createTestFdWithDigestContentsReader(t *testing.T) (*FdWithDigestContentsReader, *os.File, *mockDigest) {
-	fd, md := createTestFdWithDigest(t)
-	reader := NewFdWithDigestContentsReader()
-	reader.digest = md
-	reader.reader = bufio.NewReaderSize(nil, 100)
-	reader.Reset(fd)
+func createTestFdWithDigestContentsReader(t *testing.T) (*fdWithDigestContentsReader, *os.File, *mockDigest) {
+	fdr, fd, md := createTestFdWithDigestReader(t)
+	reader := NewFdWithDigestContentsReader().(*fdWithDigestContentsReader)
+	reader.FdWithDigestReader = fdr
 	return reader, fd, md
 }
 
 func TestFdWithDigestReaderReset(t *testing.T) {
 	reader, _, _ := createTestFdWithDigestReader(t)
-	require.NotNil(t, reader.fd)
+	require.NotNil(t, reader.Fd())
 	reader.Reset(nil)
-	require.Nil(t, reader.fd)
+	require.Nil(t, reader.Fd())
 }
 
 func TestFdWithDigestReadBytesFileReadError(t *testing.T) {
@@ -161,8 +159,8 @@ func TestFdWithDigestReadAllValidationSuccess(t *testing.T) {
 }
 
 func TestFdWithDigestValidateDigest(t *testing.T) {
-	reader := NewFdWithDigestReader()
-	reader.digest = &mockDigest{digest: 123}
+	reader := NewFdWithDigestReader().(*fdWithDigestReader)
+	reader.FdWithDigest.(*fdWithDigest).digest = &mockDigest{digest: 123}
 	require.NoError(t, reader.Validate(123))
 	require.Equal(t, errCheckSumMismatch, reader.Validate(100))
 }
@@ -174,9 +172,9 @@ func TestFdWithDigestReaderClose(t *testing.T) {
 		os.Remove(fd.Name())
 	}()
 
-	require.NotNil(t, reader.fd)
+	require.NotNil(t, reader.Fd())
 	require.NoError(t, reader.Close())
-	require.Nil(t, reader.fd)
+	require.Nil(t, reader.Fd())
 }
 
 func TestFdWithDigestReadDigestReadError(t *testing.T) {

@@ -63,10 +63,10 @@ type reader struct {
 	start          time.Time
 	blockSize      time.Duration
 
-	infoFdWithDigest           *digest.FdWithDigestReader
-	indexFdWithDigest          *digest.FdWithDigestReader
-	dataFdWithDigest           *digest.FdWithDigestReader
-	digestFdWithDigestContents *digest.FdWithDigestContentsReader
+	infoFdWithDigest           digest.FdWithDigestReader
+	indexFdWithDigest          digest.FdWithDigestReader
+	dataFdWithDigest           digest.FdWithDigestReader
+	digestFdWithDigestContents digest.FdWithDigestContentsReader
 	expectedInfoDigest         uint32
 	expectedIndexDigest        uint32
 	expectedDataDigest         uint32

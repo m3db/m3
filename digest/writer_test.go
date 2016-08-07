@@ -30,29 +30,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestFdWithDigestWriter(t *testing.T) (*FdWithDigestWriter, *os.File, *mockDigest) {
+func createTestFdWithDigestWriter(t *testing.T) (*fdWithDigestWriter, *os.File, *mockDigest) {
 	fd, md := createTestFdWithDigest(t)
-	writer := NewFdWithDigestWriter()
-	writer.digest = md
+	writer := NewFdWithDigestWriter().(*fdWithDigestWriter)
+	writer.FdWithDigest.(*fdWithDigest).digest = md
 	writer.writer = bufio.NewWriterSize(nil, 2)
 	writer.Reset(fd)
 	return writer, fd, md
 }
 
-func createTestFdWithDigestContentsWriter(t *testing.T) (*FdWithDigestContentsWriter, *os.File, *mockDigest) {
-	fd, md := createTestFdWithDigest(t)
-	writer := NewFdWithDigestContentsWriter()
-	writer.digest = md
-	writer.writer = bufio.NewWriterSize(nil, 2)
-	writer.Reset(fd)
+func createTestFdWithDigestContentsWriter(t *testing.T) (*fdWithDigestContentsWriter, *os.File, *mockDigest) {
+	fwd, fd, md := createTestFdWithDigestWriter(t)
+	writer := NewFdWithDigestContentsWriter().(*fdWithDigestContentsWriter)
+	writer.FdWithDigestWriter = fwd
 	return writer, fd, md
 }
 
 func TestFdWithDigestWriterReset(t *testing.T) {
 	writer, _, _ := createTestFdWithDigestWriter(t)
-	require.NotNil(t, writer.fd)
+	require.NotNil(t, writer.Fd())
 	writer.Reset(nil)
-	require.Nil(t, writer.fd)
+	require.Nil(t, writer.Fd())
 }
 
 func TestFdWithDigestWriteBytesFileWriteError(t *testing.T) {
@@ -106,9 +104,9 @@ func TestFdWithDigestWriterCloseSuccess(t *testing.T) {
 		os.Remove(fd.Name())
 	}()
 
-	require.NotNil(t, writer.fd)
+	require.NotNil(t, writer.Fd())
 	require.NoError(t, writer.Close())
-	require.Nil(t, writer.fd)
+	require.Nil(t, writer.Fd())
 }
 
 func TestFdWithDigestWriteDigestsError(t *testing.T) {

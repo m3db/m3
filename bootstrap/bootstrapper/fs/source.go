@@ -76,13 +76,9 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.Shard
 	}
 
 	var files []string
-	fs.ForEachInfoFile(
-		fss.filePathPrefix,
-		shard,
-		func(fname string, _ []byte) {
-			files = append(files, fname)
-		},
-	)
+	fs.ForEachInfoFile(fss.filePathPrefix, shard, func(fname string, _ []byte) {
+		files = append(files, fname)
+	})
 	if len(files) == 0 {
 		return nil, tr
 	}
@@ -123,7 +119,7 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.Shard
 		if !hasError {
 			if err := r.Validate(); err != nil {
 				hasError = true
-				log.Errorf("data validation error: %v", err)
+				log.Errorf("data validation failed for shard %d time %v: %v", shard, t, err)
 			}
 		}
 		r.Close()

@@ -21,23 +21,8 @@
 package digest
 
 import (
-	"encoding/binary"
-	"errors"
 	"hash"
 	"hash/adler32"
-)
-
-const (
-	// digest size is 4 bytes
-	digestLen = 4
-)
-
-var (
-	// Endianness is little endian
-	endianness = binary.LittleEndian
-
-	// errCheckSumMismatch returned when the calculated checksum doesn't match the stored checksum
-	errCheckSumMismatch = errors.New("calculated checksum doesn't match stored checksum")
 )
 
 // NewDigest creates a new digest.
@@ -46,7 +31,7 @@ func NewDigest() hash.Hash32 {
 	return adler32.New()
 }
 
-// CheckSum returns the 32-bit data checksum.
-func CheckSum(data []byte) uint32 {
+// Checksum returns the 32-bit data checksum.
+func Checksum(data []byte) uint32 {
 	return adler32.Checksum(data)
 }

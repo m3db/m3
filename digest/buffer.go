@@ -20,7 +20,20 @@
 
 package digest
 
-import "os"
+import (
+	"encoding/binary"
+	"os"
+)
+
+const (
+	// digest size is 4 bytes
+	digestLen = 4
+)
+
+var (
+	// Endianness is little endian
+	endianness = binary.LittleEndian
+)
 
 // Buffer is a byte slice that facilitates digest reading and writing.
 type Buffer []byte

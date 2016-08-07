@@ -29,35 +29,40 @@ const (
 	writerBufferSize = 65536
 )
 
-// FdWithDigestWriter provides a buffered writer for writing
-// to the underlying file.
-type FdWithDigestWriter struct {
-	fdWithDigest
+// FdWithDigestWriter provides a buffered writer for writing to the underlying file.
+type FdWithDigestWriter interface {
+	FdWithDigest
+
+	// WriteBytes writes the provided bytes into the underlying file.
+	WriteBytes(b []byte) (int, error)
+}
+
+type fdWithDigestWriter struct {
+	FdWithDigest
 
 	writer *bufio.Writer
 }
 
 // NewFdWithDigestWriter creates a new FdWithDigestWriter.
-func NewFdWithDigestWriter() *FdWithDigestWriter {
-	return &FdWithDigestWriter{
-		fdWithDigest: *newFdWithDigest(),
+func NewFdWithDigestWriter() FdWithDigestWriter {
+	return &fdWithDigestWriter{
+		FdWithDigest: newFdWithDigest(),
 		writer:       bufio.NewWriterSize(nil, writerBufferSize),
 	}
 }
 
-// Reset resets the underlying file descriptor and the buffered writer.
-func (w *FdWithDigestWriter) Reset(fd *os.File) {
-	w.fdWithDigest.Reset(fd)
+func (w *fdWithDigestWriter) Reset(fd *os.File) {
+	w.FdWithDigest.Reset(fd)
 	w.writer.Reset(fd)
 }
 
 // WriteBytes writes the provided bytes into the underlying file.
-func (w *FdWithDigestWriter) WriteBytes(b []byte) (int, error) {
+func (w *fdWithDigestWriter) WriteBytes(b []byte) (int, error) {
 	written, err := w.writer.Write(b)
 	if err != nil {
 		return 0, err
 	}
-	if _, err := w.digest.Write(b); err != nil {
+	if _, err := w.FdWithDigest.Digest().Write(b); err != nil {
 		return 0, err
 	}
 	return written, nil
@@ -65,31 +70,36 @@ func (w *FdWithDigestWriter) WriteBytes(b []byte) (int, error) {
 
 // Close flushes what's remaining in the buffered writer and closes
 // the underlying file.
-func (w *FdWithDigestWriter) Close() error {
+func (w *fdWithDigestWriter) Close() error {
 	if err := w.writer.Flush(); err != nil {
 		return err
 	}
-	return w.fdWithDigest.Close()
+	return w.FdWithDigest.Close()
 }
 
-// FdWithDigestContentsWriter provides additional functionality of writing
-// a digest to the underlying file.
-type FdWithDigestContentsWriter struct {
+// FdWithDigestContentsWriter provides additional functionality of writing a digest to the underlying file.
+type FdWithDigestContentsWriter interface {
+	FdWithDigestWriter
+
+	// WriteDigests writes a list of digests to the underlying file.
+	WriteDigests(digests ...uint32) error
+}
+
+type fdWithDigestContentsWriter struct {
 	FdWithDigestWriter
 
 	digestBuf Buffer
 }
 
 // NewFdWithDigestContentsWriter creates a new FdWithDigestContentsWriter.
-func NewFdWithDigestContentsWriter() *FdWithDigestContentsWriter {
-	return &FdWithDigestContentsWriter{
-		FdWithDigestWriter: *NewFdWithDigestWriter(),
+func NewFdWithDigestContentsWriter() FdWithDigestContentsWriter {
+	return &fdWithDigestContentsWriter{
+		FdWithDigestWriter: NewFdWithDigestWriter(),
 		digestBuf:          NewBuffer(),
 	}
 }
 
-// WriteDigests writes a list of digests to the underlying file.
-func (w *FdWithDigestContentsWriter) WriteDigests(digests ...uint32) error {
+func (w *fdWithDigestContentsWriter) WriteDigests(digests ...uint32) error {
 	for _, digest := range digests {
 		w.digestBuf.WriteDigest(digest)
 		if _, err := w.WriteBytes(w.digestBuf); err != nil {

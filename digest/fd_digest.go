@@ -23,32 +23,43 @@ package digest
 import (
 	"hash"
 	"os"
+
+	"github.com/m3db/m3x/close"
 )
 
-// fdWithDigest is a wrapper around a file descriptor
-// alongside the digest for what's stored in the file.
+// FdWithDigest is a wrapper around a file descriptor alongside the digest for what's stored in the file.
+type FdWithDigest interface {
+	xclose.Closer
+
+	// Fd returns the file descriptor.
+	Fd() *os.File
+
+	// Digest returns the digest.
+	Digest() hash.Hash32
+
+	// Reset resets the file descriptor and the digest.
+	Reset(fd *os.File)
+}
+
 type fdWithDigest struct {
 	fd     *os.File
 	digest hash.Hash32
 }
 
-func newFdWithDigest() *fdWithDigest {
+func newFdWithDigest() FdWithDigest {
 	return &fdWithDigest{
 		digest: NewDigest(),
 	}
 }
 
-// Fd returns the file descriptor.
 func (fwd *fdWithDigest) Fd() *os.File {
 	return fwd.fd
 }
 
-// Digest returns the digest.
-func (fwd *fdWithDigest) Digest() uint32 {
-	return fwd.digest.Sum32()
+func (fwd *fdWithDigest) Digest() hash.Hash32 {
+	return fwd.digest
 }
 
-// Reset resets the file descriptor and the digest.
 func (fwd *fdWithDigest) Reset(fd *os.File) {
 	fwd.fd = fd
 	fwd.digest.Reset()

@@ -153,17 +153,13 @@ func ForEachInfoFile(filePathPrefix string, shard uint32, fn infoFileFn) {
 // ReadInfoFiles reads all the valid info entries.
 func ReadInfoFiles(filePathPrefix string, shard uint32) []*schema.IndexInfo {
 	var indexEntries []*schema.IndexInfo
-	ForEachInfoFile(
-		filePathPrefix,
-		shard,
-		func(_ string, data []byte) {
-			info, err := readInfo(data)
-			if err != nil {
-				return
-			}
-			indexEntries = append(indexEntries, info)
-		},
-	)
+	ForEachInfoFile(filePathPrefix, shard, func(_ string, data []byte) {
+		info, err := readInfo(data)
+		if err != nil {
+			return
+		}
+		indexEntries = append(indexEntries, info)
+	})
 	return indexEntries
 }
 
