@@ -24,10 +24,10 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
-	"hash/adler32"
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
@@ -262,8 +262,8 @@ func (w *chunkWriter) Write(p []byte) (int, error) {
 	endianness.PutUint32(w.header[sizeStart:sizeEnd], uint32(size))
 
 	// Calculate checksums
-	checksumSize := adler32.Checksum(w.header[sizeStart:sizeEnd])
-	checksumData := adler32.Checksum(p)
+	checksumSize := digest.Checksum(w.header[sizeStart:sizeEnd])
+	checksumData := digest.Checksum(p)
 
 	// Write checksums
 	endianness.PutUint32(w.header[checksumSizeStart:checksumSizeEnd], uint32(checksumSize))

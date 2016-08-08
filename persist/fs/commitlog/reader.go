@@ -24,10 +24,10 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
-	"hash/adler32"
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/interfaces/m3db"
 	xtime "github.com/m3db/m3x/time"
@@ -212,7 +212,7 @@ func (r *chunkReader) readHeader() error {
 	checksumData := endianness.Uint32(header[checksumDataStart:checksumDataEnd])
 
 	// Verify size checksum
-	if adler32.Checksum(header[:4]) != checksumSize {
+	if digest.Checksum(header[:4]) != checksumSize {
 		return errCommitLogReaderChunkSizeChecksumMismatch
 	}
 
@@ -227,7 +227,7 @@ func (r *chunkReader) readHeader() error {
 		return err
 	}
 
-	if adler32.Checksum(data) != checksumData {
+	if digest.Checksum(data) != checksumData {
 		return errCommitLogReaderChunkSizeChecksumMismatch
 	}
 
