@@ -208,8 +208,8 @@ func (r *chunkReader) readHeader() error {
 	checksumSizeStart, checksumSizeEnd := sizeEnd, sizeEnd+chunkHeaderSizeLen
 	checksumDataStart, checksumDataEnd := checksumSizeEnd, checksumSizeEnd+chunkHeaderChecksumDataLen
 	size := endianness.Uint32(header[sizeStart:sizeEnd])
-	checksumSize := endianness.Uint32(header[checksumSizeStart:checksumSizeEnd])
-	checksumData := endianness.Uint32(header[checksumDataStart:checksumDataEnd])
+	checksumSize := digest.Buffer(header[checksumSizeStart:checksumSizeEnd]).ReadDigest()
+	checksumData := digest.Buffer(header[checksumDataStart:checksumDataEnd]).ReadDigest()
 
 	// Verify size checksum
 	if digest.Checksum(header[:4]) != checksumSize {
