@@ -60,8 +60,8 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	// 4. Don't bother
 
 	var (
-		attempts        int
-		sleeps          int
+		attempts        int32
+		sleeps          int32
 		rounds          int32
 		sleepWgs        [4]sync.WaitGroup
 		proceedSleepWgs [3]sync.WaitGroup
@@ -79,8 +79,8 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	opts = opts.MaxConnectionCount(4)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.newConn = func(ch string, addr string, opts m3db.ClientOptions) (xclose.SimpleCloser, rpc.TChanNode, error) {
-		attempts++
-		if attempts == 1 {
+		attempt := int(atomic.AddInt32(&attempts, 1))
+		if attempt == 1 {
 			return nil, nil, fmt.Errorf("a connect error")
 		}
 		return channelNone, nil, nil
@@ -96,16 +96,16 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 		return nil
 	}
 	conns.sleepConnect = func(t time.Duration) {
-		sleeps++
-		if sleeps <= 4 {
-			if sleeps <= len(sleepWgs) {
-				sleepWgs[sleeps-1].Done()
+		sleep := int(atomic.AddInt32(&sleeps, 1))
+		if sleep <= 4 {
+			if sleep <= len(sleepWgs) {
+				sleepWgs[sleep-1].Done()
 			}
-			if sleeps <= len(proceedSleepWgs) {
-				proceedSleepWgs[sleeps-1].Wait()
+			if sleep <= len(proceedSleepWgs) {
+				proceedSleepWgs[sleep-1].Wait()
 			}
 		}
-		if sleeps == 4 {
+		if sleep == 4 {
 			doneWg.Wait()
 			return // All done
 		}
@@ -155,7 +155,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	// > Take connection out
 
 	var (
-		newConnAttempt int
+		newConnAttempt int32
 		connectRounds  int32
 		healthRounds   int32
 		invokeFail     int32
@@ -169,6 +169,8 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 			overrides = append(overrides, fn)
 		}
 		popOverride = func() healthCheckFn {
+			overridesMut.Lock()
+			defer overridesMut.Unlock()
 			if len(overrides) == 0 {
 				return nil
 			}
@@ -199,10 +201,10 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	opts = opts.MaxConnectionCount(2)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.newConn = func(ch string, addr string, opts m3db.ClientOptions) (xclose.SimpleCloser, rpc.TChanNode, error) {
-		newConnAttempt++
-		if newConnAttempt == 1 {
+		attempt := atomic.AddInt32(&newConnAttempt, 1)
+		if attempt == 1 {
 			return channelNone, client1, nil
-		} else if newConnAttempt == 2 {
+		} else if attempt == 2 {
 			return channelNone, client2, nil
 		}
 		return nil, nil, fmt.Errorf("spawning only 2 connections")
