@@ -208,13 +208,24 @@ func writeCommitLogs(
 }
 
 func waitForFlush(l *commitLog) {
+	var currFlushAt, lastFlushAt time.Time
+	l.flushMutex.RLock()
+	lastFlushAt = l.lastFlushAt
+	l.flushMutex.RUnlock()
+	matches := 0
 	for {
-		l.RLock()
-		buffered := l.writer.(*writer).buffer.Buffered()
-		l.RUnlock()
-		if buffered == 0 {
+		l.flushMutex.RLock()
+		currFlushAt = l.lastFlushAt
+		l.flushMutex.RUnlock()
+		if currFlushAt.Equal(lastFlushAt) {
+			matches++
+		} else {
+			matches = 0
+		}
+		if matches >= 10 {
 			break
 		}
+		lastFlushAt = currFlushAt
 		time.Sleep(10 * time.Millisecond)
 	}
 }
