@@ -89,7 +89,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	})
 
 	writerFn := testSetup.dbOpts.GetNewFileSetWriterFn()
-	writer := writerFn(blockSize, filePathPrefix, testSetup.dbOpts.GetWriterBufferSize())
+	writer := writerFn(blockSize, filePathPrefix, testSetup.dbOpts.GetWriterBufferSize(), testSetup.dbOpts.GetFileWriterOptions())
 	encoder := testSetup.dbOpts.GetEncoderPool().Get()
 	dataMaps := make(map[time.Time]dataMap)
 
