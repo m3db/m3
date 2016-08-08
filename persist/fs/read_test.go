@@ -23,9 +23,7 @@ package fs
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -248,9 +246,9 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
-	shardDir := path.Join(filePathPrefix, strconv.Itoa(int(shard)))
-	checkpointFile := filepathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
-	require.True(t, fileExists(checkpointFile))
+	shardDir := ShardDirPath(filePathPrefix, shard)
+	checkpointFile := filesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
+	require.True(t, FileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
 	r := NewReader(filePathPrefix, testReaderBufferSize)
@@ -264,14 +262,14 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 
 	shard := uint32(0)
 	start := time.Unix(1000, 0)
+	shardDir := ShardDirPath(filePathPrefix, shard)
 	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
 	assert.NoError(t, w.Open(uint32(shard), start))
 	assert.NoError(t, w.Write("foo", []byte{0x1}))
 	assert.NoError(t, w.Close())
 
 	for suffix, data := range fileData {
-		shardDir := path.Join(filePathPrefix, strconv.Itoa(int(shard)))
-		digestFile := filepathFromTime(shardDir, start, suffix)
+		digestFile := filesetPathFromTime(shardDir, start, suffix)
 		fd, err := os.OpenFile(digestFile, os.O_WRONLY|os.O_TRUNC, os.FileMode(0666))
 		require.NoError(t, err)
 		_, err = fd.Write(data)

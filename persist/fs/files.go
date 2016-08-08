@@ -40,6 +40,11 @@ import (
 
 var timeZero time.Time
 
+const (
+	dataDirName       = "data"
+	commitLogsDirName = "commitlogs"
+)
+
 type fileOpener func(filePath string) (*os.File, error)
 
 func openFiles(opener fileOpener, fds map[string]**os.File) error {
@@ -91,24 +96,60 @@ func (a byTimeAscending) Less(i, j int) bool {
 	return ti.Before(tj)
 }
 
+// byTimeAndIndexAscending sorts files by their block start times and index in ascending
+// order. If the files do not have block start times or indexes in their names, the result
+// is undefined.
+type byTimeAndIndexAscending []string
+
+func (a byTimeAndIndexAscending) Len() int      { return len(a) }
+func (a byTimeAndIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a byTimeAndIndexAscending) Less(i, j int) bool {
+	ti, ii, _ := TimeAndIndexFromFileName(a[i])
+	tj, ij, _ := TimeAndIndexFromFileName(a[j])
+	if ti.Before(tj) {
+		return true
+	}
+	return ti.Equal(tj) && ii < ij
+}
+
+func componentsAndTimeFromFileName(fname string) ([]string, time.Time, error) {
+	components := strings.Split(filepath.Base(fname), separator)
+	if len(components) < 3 {
+		return nil, timeZero, fmt.Errorf("unexpected file name %s", fname)
+	}
+	str := strings.Replace(components[1], fileSuffix, "", 1)
+	nanoseconds, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return nil, timeZero, err
+	}
+	return components, time.Unix(0, nanoseconds), nil
+}
+
 // TimeFromFileName extracts the block start time from file name.
 func TimeFromFileName(fname string) (time.Time, error) {
-	components := strings.Split(filepath.Base(fname), separator)
-	if len(components) < 2 {
-		return timeZero, fmt.Errorf("unexpected file name %s", fname)
-	}
-	latestTimeInNano, err := strconv.ParseInt(components[0], 10, 64)
+	_, t, err := componentsAndTimeFromFileName(fname)
+	return t, err
+}
+
+// TimeAndIndexFromFileName extracts the block start and index from file name.
+func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
+	components, t, err := componentsAndTimeFromFileName(fname)
 	if err != nil {
-		return timeZero, err
+		return timeZero, 0, err
 	}
-	return time.Unix(0, latestTimeInNano), nil
+	str := strings.Replace(components[2], fileSuffix, "", 1)
+	index, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return timeZero, 0, err
+	}
+	return t, int(index), nil
 }
 
 type infoFileFn func(fname string, infoData []byte)
 
 // ForEachInfoFile iterates over each valid info file and applies the function passed in.
 func ForEachInfoFile(filePathPrefix string, shard uint32, readerBufferSize int, fn infoFileFn) {
-	shardDir := shardDirPath(filePathPrefix, shard)
+	shardDir := ShardDirPath(filePathPrefix, shard)
 	matched, err := filepath.Glob(path.Join(shardDir, infoFilePattern))
 	if err != nil {
 		return
@@ -121,8 +162,8 @@ func ForEachInfoFile(filePathPrefix string, shard uint32, readerBufferSize int, 
 		if err != nil {
 			continue
 		}
-		checkpointFilePath := filepathFromTime(shardDir, t, checkpointFileSuffix)
-		if !fileExists(checkpointFilePath) {
+		checkpointFilePath := filesetPathFromTime(shardDir, t, checkpointFileSuffix)
+		if !FileExists(checkpointFilePath) {
 			continue
 		}
 		checkpointFd, err := os.Open(checkpointFilePath)
@@ -163,6 +204,16 @@ func ReadInfoFiles(filePathPrefix string, shard uint32, readerBufferSize int) []
 	return indexEntries
 }
 
+// CommitLogFiles returns all the commit log files in the commit logs directory.
+func CommitLogFiles(commitLogsDir string) ([]string, error) {
+	matched, err := filepath.Glob(path.Join(commitLogsDir, commitLogFilePattern))
+	if err != nil {
+		return nil, err
+	}
+	sort.Sort(byTimeAndIndexAscending(matched))
+	return matched, err
+}
+
 // readInfo reads the data stored in the info file and returns an index entry.
 func readInfo(data []byte) (*schema.IndexInfo, error) {
 	info := &schema.IndexInfo{}
@@ -179,7 +230,7 @@ func readAndValidate(
 	readerBufferSize int,
 	expectedDigest uint32,
 ) ([]byte, error) {
-	filePath := filepathFromTime(prefix, t, suffix)
+	filePath := filesetPathFromTime(prefix, t, suffix)
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -191,23 +242,47 @@ func readAndValidate(
 	return fwd.ReadAllAndValidate(expectedDigest)
 }
 
-// FileExistsAt determines whether a data file exists for the given shard and block start time.
-func FileExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
-	shardDir := shardDirPath(prefix, shard)
-	checkpointFile := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	return fileExists(checkpointFile)
+// ShardDirPath returns the path to a given shard.
+func ShardDirPath(prefix string, shard uint32) string {
+	return path.Join(prefix, dataDirName, strconv.Itoa(int(shard)))
 }
 
-func fileExists(filePath string) bool {
+// CommitLogsDirPath returns the path to commit logs.
+func CommitLogsDirPath(prefix string) string {
+	return path.Join(prefix, commitLogsDirName)
+}
+
+// FileExistsAt determines whether a data file exists for the given shard and block start time.
+func FileExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
+	shardDir := ShardDirPath(prefix, shard)
+	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	return FileExists(checkpointFile)
+}
+
+// NextCommitLogsFile returns the next commit logs file.
+func NextCommitLogsFile(prefix string, start time.Time) (string, int) {
+	for i := 0; ; i++ {
+		entry := fmt.Sprintf("%d%s%d", start.UnixNano(), separator, i)
+		fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
+		filePath := path.Join(CommitLogsDirPath(prefix), fileName)
+		if !FileExists(filePath) {
+			return filePath, i
+		}
+	}
+}
+
+// FileExists returns whether a file at the given path exists.
+func FileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
 	return err == nil
 }
 
-// shardDirPath returns the path to a given shard.
-func shardDirPath(prefix string, shard uint32) string {
-	return path.Join(prefix, strconv.Itoa(int(shard)))
+// OpenWritable opens a file for writing and truncating as necessary.
+func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
+	return os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 }
 
-func filepathFromTime(prefix string, t time.Time, suffix string) string {
-	return path.Join(prefix, fmt.Sprintf("%d%s%s", t.UnixNano(), separator, suffix))
+func filesetPathFromTime(prefix string, t time.Time, suffix string) string {
+	name := fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix)
+	return path.Join(prefix, name)
 }

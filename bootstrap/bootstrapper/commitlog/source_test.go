@@ -18,6 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "protoc -I$GOPATH/src/$PACKAGE/generated/proto --go_out=$GOPATH/src/$PACKAGE/generated/proto/schema $GOPATH/src/$PACKAGE/generated/proto/*.proto"
+package commitlog
 
-package proto
+import (
+	"testing"
+
+	"github.com/m3db/m3db/storage"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestGetAvailabilityEmptyRangeError(t *testing.T) {
+	src := newCommitLogSource(storage.NewDatabaseOptions())
+	res := src.GetAvailability(0, nil)
+	require.Nil(t, res)
+}

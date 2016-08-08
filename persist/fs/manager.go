@@ -43,7 +43,8 @@ type persistenceManager struct {
 func NewPersistenceManager(opts m3db.DatabaseOptions) m3db.PersistenceManager {
 	filePathPrefix := opts.GetFilePathPrefix()
 	writerBufferSize := opts.GetWriterBufferSize()
-	writer := opts.GetNewFileSetWriterFn()(opts.GetBlockSize(), filePathPrefix, writerBufferSize)
+	fileWriterOptions := opts.GetFileWriterOptions()
+	writer := opts.GetNewFileSetWriterFn()(opts.GetBlockSize(), filePathPrefix, writerBufferSize, fileWriterOptions)
 	return &persistenceManager{
 		opts:           opts,
 		filePathPrefix: filePathPrefix,

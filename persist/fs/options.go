@@ -18,6 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "protoc -I$GOPATH/src/$PACKAGE/generated/proto --go_out=$GOPATH/src/$PACKAGE/generated/proto/schema $GOPATH/src/$PACKAGE/generated/proto/*.proto"
+package fs
 
-package proto
+import (
+	"os"
+
+	"github.com/m3db/m3db/interfaces/m3db"
+)
+
+var (
+	defaultNewFileMode      = os.FileMode(0666)
+	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
+)
+
+type writerOptions struct {
+	newFileMode      os.FileMode
+	newDirectoryMode os.FileMode
+}
+
+// NewFileWriterOptions creates a file writer options.
+func NewFileWriterOptions() m3db.FileWriterOptions {
+	return &writerOptions{
+		newFileMode:      defaultNewFileMode,
+		newDirectoryMode: defaultNewDirectoryMode,
+	}
+}
+
+func (o *writerOptions) NewFileMode(value os.FileMode) m3db.FileWriterOptions {
+	opts := *o
+	opts.newFileMode = value
+	return &opts
+}
+
+func (o *writerOptions) GetNewFileMode() os.FileMode {
+	return o.newFileMode
+}
+
+func (o *writerOptions) NewDirectoryMode(value os.FileMode) m3db.FileWriterOptions {
+	opts := *o
+	opts.newDirectoryMode = value
+	return &opts
+}
+
+func (o *writerOptions) GetNewDirectoryMode() os.FileMode {
+	return o.newDirectoryMode
+}

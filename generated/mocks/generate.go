@@ -24,6 +24,7 @@
 //go:generate sh -c "mockgen -package=mocks -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/client.go $PACKAGE/interfaces/m3db Client"
 //go:generate sh -c "mockgen -package=mocks -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/encoding.go $PACKAGE/interfaces/m3db Encoder,Iterator,ReaderIterator,MultiReaderIterator,Decoder"
 //go:generate sh -c "mockgen -package=mocks -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/fs.go $PACKAGE/interfaces/m3db FileSetWriter,FileSetReader"
+//go:generate sh -c "mockgen -package=mocks -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/commit_log.go $PACKAGE/interfaces/m3db CommitLog,CommitLogIterator"
 //go:generate sh -c "mockgen -package=mocks -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/options.go $PACKAGE/interfaces/m3db DatabaseOptions,ClientOptions,TopologyTypeOptions"
 //go:generate sh -c "mockgen -package=mocks -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/persist.go $PACKAGE/interfaces/m3db PersistenceManager"
 //go:generate sh -c "mockgen -package=mocks -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/reader.go $PACKAGE/interfaces/m3db ReaderSliceReader,SegmentReader"
@@ -38,5 +39,7 @@
 //go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/storage/buffer.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/buffer.go"
 //go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/storage/series.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/series.go"
 //go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/storage/shard.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/shard.go"
+//go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/persist/fs/commitlog/writer.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/commit_log_writer.go"
+//go:generate sh -c "mockgen -package=mocks -source=$GOPATH/src/$PACKAGE/persist/fs/commitlog/reader.go -destination=$GOPATH/src/$PACKAGE/generated/mocks/mocks/commit_log_reader.go"
 
 package mocks

@@ -23,6 +23,7 @@ package storage
 import (
 	"io"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/m3db/m3db/encoding/tsz"
@@ -59,6 +60,15 @@ const (
 	// block size.
 	defaultDatabaseBlockAllocSize = 1024
 
+	// defaultCommitLogFlushSize is the default commit log flush size
+	defaultCommitLogFlushSize = 65536
+
+	// defaultCommitLogFlushInterval is the default commit log flush interval
+	defaultCommitLogFlushInterval = time.Second
+
+	// defaultCommitLogStrategy is the default commit log strategy
+	defaultCommitLogStrategy = m3db.CommitLogStrategyWriteBehind
+
 	// defaultMaxFlushRetries is the default number of retries when flush fails.
 	defaultMaxFlushRetries = 3
 
@@ -70,8 +80,14 @@ const (
 )
 
 var (
+	// defaultCommitLogBacklogQueueSize is the default commit log backlog queue size
+	defaultCommitLogBacklogQueueSize = 1024 * runtime.NumCPU()
+
 	// defaultFilePathPrefix is the default path prefix for local TSDB files.
 	defaultFilePathPrefix = os.TempDir()
+
+	// defaultFileWriterOptions is the default file writing options.
+	defaultFileWriterOptions = fs.NewFileWriterOptions()
 
 	// defaultFileSetReaderFn is the default function for creating a TSDB fileset reader.
 	defaultFileSetReaderFn = func(filePathPrefix string, readerBufferSize int) m3db.FileSetReader {
@@ -79,8 +95,8 @@ var (
 	}
 
 	// defaultFileSetWriterFn is the default function for creating a TSDB fileset writer.
-	defaultFileSetWriterFn = func(blockSize time.Duration, filePathPrefix string, writerBufferSize int) m3db.FileSetWriter {
-		return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, fs.NewWriterOptions())
+	defaultFileSetWriterFn = func(blockSize time.Duration, filePathPrefix string, writerBufferSize int, opts m3db.FileWriterOptions) m3db.FileSetWriter {
+		return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, opts)
 	}
 
 	// defaultPersistenceManagerFn is the default function for creating a new persistence manager.
@@ -92,33 +108,38 @@ var (
 )
 
 type dbOptions struct {
-	logger                  xlog.Logger
-	scope                   xmetrics.Scope
-	blockSize               time.Duration
-	newEncoderFn            m3db.NewEncoderFn
-	newDecoderFn            m3db.NewDecoderFn
-	nowFn                   m3db.NowFn
-	bufferFuture            time.Duration
-	bufferPast              time.Duration
-	bufferDrain             time.Duration
-	bufferBucketAllocSize   int
-	databaseBlockAllocSize  int
-	retentionPeriod         time.Duration
-	newBootstrapFn          m3db.NewBootstrapFn
-	bytesPool               m3db.BytesPool
-	contextPool             m3db.ContextPool
-	databaseBlockPool       m3db.DatabaseBlockPool
-	encoderPool             m3db.EncoderPool
-	segmentReaderPool       m3db.SegmentReaderPool
-	readerIteratorPool      m3db.ReaderIteratorPool
-	multiReaderIteratorPool m3db.MultiReaderIteratorPool
-	maxFlushRetries         int
-	filePathPrefix          string
-	newFileSetReaderFn      m3db.NewFileSetReaderFn
-	newFileSetWriterFn      m3db.NewFileSetWriterFn
-	newPersistenceManagerFn m3db.NewPersistenceManagerFn
-	writerBufferSize        int
-	readerBufferSize        int
+	logger                    xlog.Logger
+	scope                     xmetrics.Scope
+	blockSize                 time.Duration
+	newEncoderFn              m3db.NewEncoderFn
+	newDecoderFn              m3db.NewDecoderFn
+	nowFn                     m3db.NowFn
+	bufferFuture              time.Duration
+	bufferPast                time.Duration
+	bufferDrain               time.Duration
+	bufferBucketAllocSize     int
+	databaseBlockAllocSize    int
+	retentionPeriod           time.Duration
+	newBootstrapFn            m3db.NewBootstrapFn
+	commitLogFlushSize        int
+	commitLogFlushInterval    time.Duration
+	commitLogBacklogQueueSize int
+	commitLogStrategy         m3db.CommitLogStrategy
+	bytesPool                 m3db.BytesPool
+	contextPool               m3db.ContextPool
+	databaseBlockPool         m3db.DatabaseBlockPool
+	encoderPool               m3db.EncoderPool
+	segmentReaderPool         m3db.SegmentReaderPool
+	readerIteratorPool        m3db.ReaderIteratorPool
+	multiReaderIteratorPool   m3db.MultiReaderIteratorPool
+	maxFlushRetries           int
+	filePathPrefix            string
+	fileWriterOptions         m3db.FileWriterOptions
+	newFileSetReaderFn        m3db.NewFileSetReaderFn
+	newFileSetWriterFn        m3db.NewFileSetWriterFn
+	newPersistenceManagerFn   m3db.NewPersistenceManagerFn
+	writerBufferSize          int
+	readerBufferSize          int
 }
 
 // NewDatabaseOptions creates a new set of database options with defaults
@@ -126,21 +147,26 @@ type dbOptions struct {
 // less than blocksize and check when opening database
 func NewDatabaseOptions() m3db.DatabaseOptions {
 	opts := &dbOptions{
-		logger:                  xlog.SimpleLogger,
-		scope:                   xmetrics.NoopScope,
-		blockSize:               defaultBlockSize,
-		nowFn:                   time.Now,
-		retentionPeriod:         defaultRetentionPeriod,
-		bufferFuture:            defaultBufferFuture,
-		bufferPast:              defaultBufferPast,
-		bufferDrain:             defaultBufferDrain,
-		maxFlushRetries:         defaultMaxFlushRetries,
-		filePathPrefix:          defaultFilePathPrefix,
-		newFileSetReaderFn:      defaultFileSetReaderFn,
-		newFileSetWriterFn:      defaultFileSetWriterFn,
-		newPersistenceManagerFn: defaultPersistenceManagerFn,
-		writerBufferSize:        defaultWriterBufferSize,
-		readerBufferSize:        defaultReaderBufferSize,
+		logger:                    xlog.SimpleLogger,
+		scope:                     xmetrics.NoopScope,
+		blockSize:                 defaultBlockSize,
+		nowFn:                     time.Now,
+		retentionPeriod:           defaultRetentionPeriod,
+		bufferFuture:              defaultBufferFuture,
+		bufferPast:                defaultBufferPast,
+		bufferDrain:               defaultBufferDrain,
+		commitLogFlushSize:        defaultCommitLogFlushSize,
+		commitLogFlushInterval:    defaultCommitLogFlushInterval,
+		commitLogBacklogQueueSize: defaultCommitLogBacklogQueueSize,
+		commitLogStrategy:         defaultCommitLogStrategy,
+		maxFlushRetries:           defaultMaxFlushRetries,
+		filePathPrefix:            defaultFilePathPrefix,
+		fileWriterOptions:         defaultFileWriterOptions,
+		newFileSetReaderFn:        defaultFileSetReaderFn,
+		newFileSetWriterFn:        defaultFileSetWriterFn,
+		newPersistenceManagerFn:   defaultPersistenceManagerFn,
+		writerBufferSize:          defaultWriterBufferSize,
+		readerBufferSize:          defaultReaderBufferSize,
 	}
 	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultDatabaseBlockAllocSize)
 }
@@ -356,6 +382,46 @@ func (o *dbOptions) GetBootstrapFn() m3db.NewBootstrapFn {
 	return o.newBootstrapFn
 }
 
+func (o *dbOptions) CommitLogFlushSize(value int) m3db.DatabaseOptions {
+	opts := *o
+	opts.commitLogFlushSize = value
+	return &opts
+}
+
+func (o *dbOptions) GetCommitLogFlushSize() int {
+	return o.commitLogFlushSize
+}
+
+func (o *dbOptions) CommitLogFlushInterval(value time.Duration) m3db.DatabaseOptions {
+	opts := *o
+	opts.commitLogFlushInterval = value
+	return &opts
+}
+
+func (o *dbOptions) GetCommitLogFlushInterval() time.Duration {
+	return o.commitLogFlushInterval
+}
+
+func (o *dbOptions) CommitLogBacklogQueueSize(value int) m3db.DatabaseOptions {
+	opts := *o
+	opts.commitLogBacklogQueueSize = value
+	return &opts
+}
+
+func (o *dbOptions) GetCommitLogBacklogQueueSize() int {
+	return o.commitLogBacklogQueueSize
+}
+
+func (o *dbOptions) CommitLogStrategy(value m3db.CommitLogStrategy) m3db.DatabaseOptions {
+	opts := *o
+	opts.commitLogStrategy = value
+	return &opts
+}
+
+func (o *dbOptions) GetCommitLogStrategy() m3db.CommitLogStrategy {
+	return o.commitLogStrategy
+}
+
 func (o *dbOptions) BytesPool(value m3db.BytesPool) m3db.DatabaseOptions {
 	opts := *o
 	opts.bytesPool = value
@@ -444,6 +510,16 @@ func (o *dbOptions) FilePathPrefix(value string) m3db.DatabaseOptions {
 
 func (o *dbOptions) GetFilePathPrefix() string {
 	return o.filePathPrefix
+}
+
+func (o *dbOptions) FileWriterOptions(value m3db.FileWriterOptions) m3db.DatabaseOptions {
+	opts := *o
+	opts.fileWriterOptions = value
+	return &opts
+}
+
+func (o *dbOptions) GetFileWriterOptions() m3db.FileWriterOptions {
+	return o.fileWriterOptions
 }
 
 func (o *dbOptions) NewFileSetReaderFn(value m3db.NewFileSetReaderFn) m3db.DatabaseOptions {

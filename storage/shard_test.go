@@ -22,6 +22,7 @@ package storage
 
 import (
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,8 +34,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var noopWriteCommitLogFn = func(
+	series m3db.CommitLogSeries,
+	datapoint m3db.Datapoint,
+	unit xtime.Unit,
+	annotation m3db.Annotation,
+) error {
+	return nil
+}
+
+type testUniqueIndex struct {
+	created uint64
+}
+
+func (i *testUniqueIndex) nextUniqueIndex() uint64 {
+	created := atomic.AddUint64(&i.created, 1)
+	return created - 1
+}
+
 func testDatabaseShard(opts m3db.DatabaseOptions) *dbShard {
-	return newDatabaseShard(0, opts).(*dbShard)
+	return newDatabaseShard(0, &testUniqueIndex{}, noopWriteCommitLogFn, opts).(*dbShard)
 }
 
 func TestShardBootstrapWithError(t *testing.T) {
@@ -134,8 +153,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		series.EXPECT().
 			Flush(nil, blockStart, gomock.Any()).
 			Do(func(m3db.Context, time.Time, m3db.PersistenceFn) {
-				flushed[i] = struct{}{}
-			}).
+			flushed[i] = struct{}{}
+		}).
 			Return(expectedErr)
 		s.list.PushBack(series)
 	}
@@ -211,7 +230,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 
 	ctx := opts.GetContextPool().Get()
 	nowFn := opts.GetNowFn()
-	series, completionFn := shard.writableSeries("foo")
+	series, _, completionFn := shard.writableSeries("foo")
 	shard.purgeExpiredSeries(expired)
 	series.Write(ctx, nowFn(), 1.0, xtime.Second, nil)
 	completionFn()

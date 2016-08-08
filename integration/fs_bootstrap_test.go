@@ -89,7 +89,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	})
 
 	writerFn := testSetup.dbOpts.GetNewFileSetWriterFn()
-	writer := writerFn(blockSize, filePathPrefix, testSetup.dbOpts.GetWriterBufferSize())
+	writer := writerFn(blockSize, filePathPrefix, testSetup.dbOpts.GetWriterBufferSize(), testSetup.dbOpts.GetFileWriterOptions())
 	encoder := testSetup.dbOpts.GetEncoderPool().Get()
 	dataMaps := make(map[time.Time]dataMap)
 
@@ -112,13 +112,12 @@ func TestFilesystemBootstrap(t *testing.T) {
 	// Start the server with filesystem bootstrapper
 	log := testSetup.dbOpts.GetLogger()
 	log.Debug("filesystem bootstrap test")
-	doneCh := make(chan struct{})
-	require.NoError(t, testSetup.startServer(doneCh))
+	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer(doneCh))
+		require.NoError(t, testSetup.stopServer())
 		log.Debug("server is now down")
 	}()
 

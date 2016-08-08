@@ -25,14 +25,18 @@ import (
 )
 
 const (
-	infoFileSuffix       = "info.db"
-	indexFileSuffix      = "index.db"
-	dataFileSuffix       = "data.db"
-	digestFileSuffix     = "digest.db"
-	checkpointFileSuffix = "checkpoint.db"
+	infoFileSuffix       = "info"
+	indexFileSuffix      = "index"
+	dataFileSuffix       = "data"
+	digestFileSuffix     = "digest"
+	checkpointFileSuffix = "checkpoint"
+	filesetFilePrefix    = "fileset"
+	commitLogFilePrefix  = "commitlog"
+	fileSuffix           = ".db"
 
-	separator       = "-"
-	infoFilePattern = "[0-9]*" + separator + infoFileSuffix
+	separator            = "-"
+	infoFilePattern      = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
+	commitLogFilePattern = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
 
 	// Index ID is int64
 	idxLen = 8

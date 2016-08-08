@@ -27,7 +27,7 @@ import (
 	"os"
 	"time"
 
-	schema "github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3x/time"
 
@@ -97,16 +97,16 @@ func NewReader(filePathPrefix string, bufferSize int) m3db.FileSetReader {
 
 func (r *reader) Open(shard uint32, blockStart time.Time) error {
 	// If there is no checkpoint file, don't read the data files.
-	shardDir := shardDirPath(r.filePathPrefix, shard)
+	shardDir := ShardDirPath(r.filePathPrefix, shard)
 	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
 		return err
 	}
 	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		filepathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-		filepathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
-		filepathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
-		filepathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
+		filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
 	}); err != nil {
 		return err
 	}
@@ -133,8 +133,8 @@ func (r *reader) Open(shard uint32, blockStart time.Time) error {
 }
 
 func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error {
-	filePath := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	if !fileExists(filePath) {
+	filePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	if !FileExists(filePath) {
 		return errCheckpointFileNotFound
 	}
 	fd, err := os.Open(filePath)

@@ -26,7 +26,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strconv"
 	"testing"
 	"time"
 
@@ -53,22 +52,21 @@ func createTempDir(t *testing.T) string {
 	return dir
 }
 
-func getShardDirPath(prefix string, shard uint32) string {
-	return path.Join(prefix, strconv.Itoa(int(shard)))
-}
-
 func writeInfoFile(t *testing.T, prefix string, shard uint32, start time.Time, data []byte) {
-	filePath := path.Join(getShardDirPath(prefix, shard), fmt.Sprintf("%d-info.db", xtime.ToNanoseconds(start)))
+	shardDir := fs.ShardDirPath(prefix, shard)
+	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-info.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 
 func writeDataFile(t *testing.T, prefix string, shard uint32, start time.Time, data []byte) {
-	filePath := path.Join(getShardDirPath(prefix, shard), fmt.Sprintf("%d-data.db", xtime.ToNanoseconds(start)))
+	shardDir := fs.ShardDirPath(prefix, shard)
+	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-data.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 
 func writeDigestFile(t *testing.T, prefix string, shard uint32, start time.Time, data []byte) {
-	filePath := path.Join(getShardDirPath(prefix, shard), fmt.Sprintf("%d-digest.db", xtime.ToNanoseconds(start)))
+	shardDir := fs.ShardDirPath(prefix, shard)
+	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-digest.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 

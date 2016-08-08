@@ -32,11 +32,6 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-var (
-	defaultNewFileMode      = os.FileMode(0666)
-	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
-)
-
 type writer struct {
 	blockSize        time.Duration
 	filePathPrefix   string
@@ -61,63 +56,15 @@ type writer struct {
 	err          error
 }
 
-// WriterOptions provides options for a Writer
-type WriterOptions interface {
-	// NewFileMode sets the new file mode.
-	NewFileMode(value os.FileMode) WriterOptions
-
-	// GetNewFileMode returns the new file mode.
-	GetNewFileMode() os.FileMode
-
-	// NewDirectoryMode sets the new directory mode.
-	NewDirectoryMode(value os.FileMode) WriterOptions
-
-	// GetNewDirectoryMode returns the new directory mode.
-	GetNewDirectoryMode() os.FileMode
-}
-
-type writerOptions struct {
-	newFileMode      os.FileMode
-	newDirectoryMode os.FileMode
-}
-
-// NewWriterOptions creates a writer options.
-func NewWriterOptions() WriterOptions {
-	return &writerOptions{
-		newFileMode:      defaultNewFileMode,
-		newDirectoryMode: defaultNewDirectoryMode,
-	}
-}
-
-func (o *writerOptions) NewFileMode(value os.FileMode) WriterOptions {
-	opts := *o
-	opts.newFileMode = value
-	return &opts
-}
-
-func (o *writerOptions) GetNewFileMode() os.FileMode {
-	return o.newFileMode
-}
-
-func (o *writerOptions) NewDirectoryMode(value os.FileMode) WriterOptions {
-	opts := *o
-	opts.newDirectoryMode = value
-	return &opts
-}
-
-func (o *writerOptions) GetNewDirectoryMode() os.FileMode {
-	return o.newDirectoryMode
-}
-
 // NewWriter returns a new writer for a filePathPrefix
 func NewWriter(
 	blockSize time.Duration,
 	filePathPrefix string,
 	bufferSize int,
-	options WriterOptions,
+	options m3db.FileWriterOptions,
 ) m3db.FileSetWriter {
 	if options == nil {
-		options = NewWriterOptions()
+		options = NewFileWriterOptions()
 	}
 	return &writer{
 		blockSize:                  blockSize,
@@ -140,24 +87,24 @@ func NewWriter(
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
 func (w *writer) Open(shard uint32, blockStart time.Time) error {
-	shardDir := shardDirPath(w.filePathPrefix, shard)
+	shardDir := ShardDirPath(w.filePathPrefix, shard)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
 	}
 	w.start = blockStart
 	w.currIdx = 0
 	w.currOffset = 0
-	w.checkpointFilePath = filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	w.err = nil
 
 	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
-			filepathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-			filepathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
-			filepathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
-			filepathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
+			filesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
+			filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
 		},
 	); err != nil {
 		return err
@@ -315,9 +262,5 @@ func (w *writer) writeCheckpointFile() error {
 }
 
 func (w *writer) openWritable(filePath string) (*os.File, error) {
-	fd, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, w.newFileMode)
-	if err != nil {
-		return nil, err
-	}
-	return fd, nil
+	return OpenWritable(filePath, w.newFileMode)
 }

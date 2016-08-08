@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"os"
 	"time"
 
 	"github.com/m3db/m3x/log"
@@ -119,6 +120,30 @@ type DatabaseOptions interface {
 	// GetBootstrapFn returns the newBootstrapFn
 	GetBootstrapFn() NewBootstrapFn
 
+	// CommitLogFlushSize sets the commit log flush size and returns a new DatabaseOptions
+	CommitLogFlushSize(value int) DatabaseOptions
+
+	// GetCommitLogFlushSize returns the commit log flush size
+	GetCommitLogFlushSize() int
+
+	// CommitLogFlushInterval sets the commit log flush interval and returns a new DatabaseOptions
+	CommitLogFlushInterval(value time.Duration) DatabaseOptions
+
+	// GetCommitLogFlushInterval returns the commit log flush interval
+	GetCommitLogFlushInterval() time.Duration
+
+	// CommitLogBacklogQueueSize sets the commit log backlog queue size and returns a new DatabaseOptions
+	CommitLogBacklogQueueSize(value int) DatabaseOptions
+
+	// GetCommitLogBacklogQueueSize returns the commit log backlog queue size
+	GetCommitLogBacklogQueueSize() int
+
+	// CommitLogStrategy sets the commit log strategy and returns a new DatabaseOptions
+	CommitLogStrategy(value CommitLogStrategy) DatabaseOptions
+
+	// GetCommitLogStrategy returns the commit log strategy
+	GetCommitLogStrategy() CommitLogStrategy
+
 	// BytesPool sets the bytesPool and returns a new DatabaseOptions
 	BytesPool(value BytesPool) DatabaseOptions
 
@@ -172,6 +197,12 @@ type DatabaseOptions interface {
 
 	// GetFilePathPrefix returns the file path prefix for sharded TSDB files.
 	GetFilePathPrefix() string
+
+	// FileWriterOptions sets the file writer options.
+	FileWriterOptions(value FileWriterOptions) DatabaseOptions
+
+	// GetFileWriterOptions returns the file writer options.
+	GetFileWriterOptions() FileWriterOptions
 
 	// NewFileSetReaderFn sets the function for creating a new fileset reader.
 	NewFileSetReaderFn(value NewFileSetReaderFn) DatabaseOptions
@@ -403,4 +434,19 @@ type TopologyTypeOptions interface {
 
 	// GetHostShardSets returns the hostShardSets
 	GetHostShardSets() []HostShardSet
+}
+
+// FileWriterOptions is a set of file writing options for a file writer
+type FileWriterOptions interface {
+	// NewFileMode sets the new file mode.
+	NewFileMode(value os.FileMode) FileWriterOptions
+
+	// GetNewFileMode returns the new file mode.
+	GetNewFileMode() os.FileMode
+
+	// NewDirectoryMode sets the new directory mode.
+	NewDirectoryMode(value os.FileMode) FileWriterOptions
+
+	// GetNewDirectoryMode returns the new directory mode.
+	GetNewDirectoryMode() os.FileMode
 }

@@ -113,6 +113,46 @@ func (_mr *_MockDatabaseOptionsRecorder) BytesPool(arg0 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BytesPool", arg0)
 }
 
+func (_m *MockDatabaseOptions) CommitLogBacklogQueueSize(_param0 int) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "CommitLogBacklogQueueSize", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) CommitLogBacklogQueueSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogBacklogQueueSize", arg0)
+}
+
+func (_m *MockDatabaseOptions) CommitLogFlushInterval(_param0 time.Duration) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "CommitLogFlushInterval", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) CommitLogFlushInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogFlushInterval", arg0)
+}
+
+func (_m *MockDatabaseOptions) CommitLogFlushSize(_param0 int) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "CommitLogFlushSize", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) CommitLogFlushSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogFlushSize", arg0)
+}
+
+func (_m *MockDatabaseOptions) CommitLogStrategy(_param0 m3db.CommitLogStrategy) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "CommitLogStrategy", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) CommitLogStrategy(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogStrategy", arg0)
+}
+
 func (_m *MockDatabaseOptions) ContextPool(_param0 m3db.ContextPool) m3db.DatabaseOptions {
 	ret := _m.ctrl.Call(_m, "ContextPool", _param0)
 	ret0, _ := ret[0].(m3db.DatabaseOptions)
@@ -181,6 +221,16 @@ func (_m *MockDatabaseOptions) FilePathPrefix(_param0 string) m3db.DatabaseOptio
 
 func (_mr *_MockDatabaseOptionsRecorder) FilePathPrefix(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FilePathPrefix", arg0)
+}
+
+func (_m *MockDatabaseOptions) FileWriterOptions(_param0 m3db.FileWriterOptions) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "FileWriterOptions", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) FileWriterOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FileWriterOptions", arg0)
 }
 
 func (_m *MockDatabaseOptions) GetBlockSize() time.Duration {
@@ -253,6 +303,46 @@ func (_mr *_MockDatabaseOptionsRecorder) GetBytesPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBytesPool")
 }
 
+func (_m *MockDatabaseOptions) GetCommitLogBacklogQueueSize() int {
+	ret := _m.ctrl.Call(_m, "GetCommitLogBacklogQueueSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetCommitLogBacklogQueueSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogBacklogQueueSize")
+}
+
+func (_m *MockDatabaseOptions) GetCommitLogFlushInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "GetCommitLogFlushInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetCommitLogFlushInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogFlushInterval")
+}
+
+func (_m *MockDatabaseOptions) GetCommitLogFlushSize() int {
+	ret := _m.ctrl.Call(_m, "GetCommitLogFlushSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetCommitLogFlushSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogFlushSize")
+}
+
+func (_m *MockDatabaseOptions) GetCommitLogStrategy() m3db.CommitLogStrategy {
+	ret := _m.ctrl.Call(_m, "GetCommitLogStrategy")
+	ret0, _ := ret[0].(m3db.CommitLogStrategy)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetCommitLogStrategy() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogStrategy")
+}
+
 func (_m *MockDatabaseOptions) GetContextPool() m3db.ContextPool {
 	ret := _m.ctrl.Call(_m, "GetContextPool")
 	ret0, _ := ret[0].(m3db.ContextPool)
@@ -301,6 +391,16 @@ func (_m *MockDatabaseOptions) GetFilePathPrefix() string {
 
 func (_mr *_MockDatabaseOptionsRecorder) GetFilePathPrefix() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFilePathPrefix")
+}
+
+func (_m *MockDatabaseOptions) GetFileWriterOptions() m3db.FileWriterOptions {
+	ret := _m.ctrl.Call(_m, "GetFileWriterOptions")
+	ret0, _ := ret[0].(m3db.FileWriterOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetFileWriterOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFileWriterOptions")
 }
 
 func (_m *MockDatabaseOptions) GetLogger() log.Logger {

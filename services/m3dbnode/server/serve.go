@@ -75,11 +75,13 @@ func Serve(
 ) error {
 	log := dbOpts.GetLogger()
 	shardingScheme := clientOpts.GetTopologyType().Options().GetShardScheme()
-	db := storage.NewDatabase(shardingScheme.All(), dbOpts)
+	db, err := storage.NewDatabase(shardingScheme.All(), dbOpts)
+	if err != nil {
+		return err
+	}
 	if err := db.Open(); err != nil {
 		return fmt.Errorf("could not open database: %v", err)
 	}
-	defer db.Close()
 
 	client, err := client.NewClient(clientOpts)
 	if err != nil {
@@ -119,7 +121,7 @@ func Serve(
 	log.Debug("bootstrapped")
 
 	<-doneCh
-	log.Debug("server exiting")
+	log.Debug("server closing")
 
-	return nil
+	return db.Close()
 }

@@ -18,6 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "protoc -I$GOPATH/src/$PACKAGE/generated/proto --go_out=$GOPATH/src/$PACKAGE/generated/proto/schema $GOPATH/src/$PACKAGE/generated/proto/*.proto"
+package commitlog
 
-package proto
+import (
+	bset "github.com/willf/bitset"
+)
+
+const newBitsetLength = 65536
+
+// bitset is a shim for providing a bitset
+type bitset interface {
+	has(i uint64) bool
+	set(i uint64)
+	clear(i uint64)
+	clearAll()
+}
+
+type set struct {
+	*bset.BitSet
+}
+
+func newBitset() bitset {
+	return &set{bset.New(newBitsetLength)}
+}
+
+func (s *set) has(i uint64) bool {
+	return s.Test(uint(i))
+}
+
+func (s *set) set(i uint64) {
+	s.Set(uint(i))
+}
+
+func (s *set) clear(i uint64) {
+	s.Clear(uint(i))
+}
+
+func (s *set) clearAll() {
+	s.ClearAll()
+}

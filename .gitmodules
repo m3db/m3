@@ -34,3 +34,6 @@
 [submodule "vendor/github.com/uber/uber-licence"]
 	path = vendor/github.com/uber/uber-licence
 	url = https://github.com/uber/uber-licence
+[submodule "vendor/github.com/willf/bitset"]
+	path = vendor/github.com/willf/bitset
+	url = https://github.com/willf/bitset

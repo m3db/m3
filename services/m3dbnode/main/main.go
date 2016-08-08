@@ -73,6 +73,7 @@ func main() {
 	}
 
 	doneCh := make(chan struct{})
+	closedCh := make(chan struct{})
 	go func() {
 		if err := server.Serve(
 			httpClusterAddr,
@@ -83,11 +84,20 @@ func main() {
 			dbOpts,
 			doneCh,
 		); err != nil {
-			log.Fatalf("serve error: %v", err)
+			log.Fatalf("server fatal error: %v", err)
 		}
+
+		// Server is closed
+		closedCh <- struct{}{}
 	}()
 
-	log.Fatalf("interrupt: %v", interrupt())
+	// Handle interrupt
+	log.Infof("interrupt: %v", interrupt())
+
+	// Attempt graceful server close
+	doneCh <- struct{}{}
+	<-closedCh
+	log.Infof("server closed")
 }
 
 func interrupt() error {

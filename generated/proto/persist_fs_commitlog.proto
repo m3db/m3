@@ -1,0 +1,25 @@
+syntax = "proto3";
+package schema;
+
+message CommitLogInfo {
+	int64 start = 1;
+	int64 duration = 2;
+	int64 index = 3;
+}
+
+message CommitLog {
+	int64 created = 1;
+
+	uint64 idx = 2;
+	bytes metadata = 3; 
+
+	int64 timestamp = 4;
+	double value = 5;
+	uint32 unit = 6;
+	bytes annotation = 7;
+}
+
+message CommitLogMetadata {
+	string id = 1;
+	uint32 shard = 2; 
+}

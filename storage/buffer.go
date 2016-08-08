@@ -80,30 +80,29 @@ type databaseBufferDrainFn func(start time.Time, encoder m3db.Encoder)
 func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts m3db.DatabaseOptions) databaseBuffer {
 	nowFn := opts.GetNowFn()
 
-	buffer := &dbBuffer{
+	b := &dbBuffer{
 		opts:      opts,
 		nowFn:     nowFn,
 		drainFn:   drainFn,
 		blockSize: opts.GetBlockSize(),
 	}
-	buffer.forEachBucketAsc(nowFn(), func(b *dbBufferBucket, start time.Time) {
-		b.opts = opts
-		b.resetTo(start)
+	b.forEachBucketAsc(nowFn(), func(bucket *dbBufferBucket, start time.Time) {
+		bucket.opts = opts
+		bucket.resetTo(start)
 	})
-
-	return buffer
+	return b
 }
 
-func (s *dbBuffer) Write(
+func (b *dbBuffer) Write(
 	ctx m3db.Context,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	now := s.nowFn()
-	futureLimit := now.Add(s.opts.GetBufferFuture())
-	pastLimit := now.Add(-1 * s.opts.GetBufferPast())
+	now := b.nowFn()
+	futureLimit := now.Add(b.opts.GetBufferFuture())
+	pastLimit := now.Add(-1 * b.opts.GetBufferPast())
 	if !futureLimit.After(timestamp) {
 		return xerrors.NewInvalidParamsError(errTooFuture)
 	}
@@ -111,112 +110,112 @@ func (s *dbBuffer) Write(
 		return xerrors.NewInvalidParamsError(errTooPast)
 	}
 
-	bucketStart := timestamp.Truncate(s.blockSize)
-	bucketIdx := (timestamp.UnixNano() / int64(s.blockSize)) % bucketsLen
+	bucketStart := timestamp.Truncate(b.blockSize)
+	bucketIdx := (timestamp.UnixNano() / int64(b.blockSize)) % bucketsLen
 
-	bucket := &s.buckets[bucketIdx]
-	_, _, needsReset := s.bucketState(now, bucket, bucketStart)
+	bucket := &b.buckets[bucketIdx]
+	_, _, needsReset := b.bucketState(now, bucket, bucketStart)
 	if needsReset {
 		// Needs reset
-		s.DrainAndReset(false)
+		b.DrainAndReset(false)
 	}
 
 	return bucket.write(timestamp, value, unit, annotation)
 }
 
-func (s *dbBuffer) Empty() bool {
-	now := s.nowFn()
+func (b *dbBuffer) Empty() bool {
+	now := b.nowFn()
 	canReadAny := false
-	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
+	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
 		if !canReadAny {
-			canReadAny, _, _ = s.bucketState(now, b, current)
+			canReadAny, _, _ = b.bucketState(now, bucket, current)
 		}
 	})
 	return !canReadAny
 }
 
-func (s *dbBuffer) NeedsDrain() bool {
-	now := s.nowFn()
+func (b *dbBuffer) NeedsDrain() bool {
+	now := b.nowFn()
 	needsDrainAny := false
-	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
+	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
 		if !needsDrainAny {
-			_, needsDrainAny, _ = s.bucketState(now, b, current)
+			_, needsDrainAny, _ = b.bucketState(now, bucket, current)
 		}
 	})
 	return needsDrainAny
 }
 
-func (s *dbBuffer) bucketState(
+func (b *dbBuffer) bucketState(
 	now time.Time,
-	b *dbBufferBucket,
+	bucket *dbBufferBucket,
 	bucketStart time.Time,
 ) (bool, bool, bool) {
-	notDrainedHasValues := !b.drained && !b.lastWriteAt.IsZero()
+	notDrainedHasValues := !bucket.drained && !bucket.lastWriteAt.IsZero()
 
 	shouldRead := notDrainedHasValues
-	needsReset := !b.start.Equal(bucketStart)
+	needsReset := !bucket.start.Equal(bucketStart)
 	needsDrain := (notDrainedHasValues && needsReset) ||
-		(notDrainedHasValues && bucketStart.Add(s.blockSize).Before(now.Add(-1*b.opts.GetBufferPast())))
+		(notDrainedHasValues && bucketStart.Add(b.blockSize).Before(now.Add(-1*b.opts.GetBufferPast())))
 
 	return shouldRead, needsDrain, needsReset
 }
 
-func (s *dbBuffer) DrainAndReset(forced bool) {
-	now := s.nowFn()
-	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
-		_, needsDrain, needsReset := s.bucketState(now, b, current)
-		if forced && !b.drained && !b.lastWriteAt.IsZero() {
+func (b *dbBuffer) DrainAndReset(forced bool) {
+	now := b.nowFn()
+	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
+		_, needsDrain, needsReset := b.bucketState(now, bucket, current)
+		if forced && !bucket.drained && !bucket.lastWriteAt.IsZero() {
 			// If the bucket is not empty and hasn't been drained, force it to drain.
 			needsDrain, needsReset = true, true
 		}
 		if needsDrain {
-			b.sort()
+			bucket.sort()
 
 			// After we sort there is always only a single encoder
-			encoder := b.encoders[0].encoder
+			encoder := bucket.encoders[0].encoder
 			encoder.Seal()
-			s.drainFn(b.start, encoder)
-			b.drained = true
+			b.drainFn(bucket.start, encoder)
+			bucket.drained = true
 		}
 
 		if needsReset {
 			// Reset bucket
-			b.resetTo(current)
+			bucket.resetTo(current)
 		}
 	})
 }
 
-func (s *dbBuffer) forEachBucketAsc(now time.Time, fn func(b *dbBufferBucket, current time.Time)) {
-	pastMostBucketStart := now.Truncate(s.blockSize).Add(-1 * s.blockSize)
-	bucketNum := (pastMostBucketStart.UnixNano() / int64(s.blockSize)) % bucketsLen
+func (b *dbBuffer) forEachBucketAsc(now time.Time, fn func(*dbBufferBucket, time.Time)) {
+	pastMostBucketStart := now.Truncate(b.blockSize).Add(-1 * b.blockSize)
+	bucketNum := (pastMostBucketStart.UnixNano() / int64(b.blockSize)) % bucketsLen
 	for i := int64(0); i < bucketsLen; i++ {
 		idx := int((bucketNum + i) % bucketsLen)
-		fn(&s.buckets[idx], pastMostBucketStart.Add(time.Duration(i)*s.blockSize))
+		fn(&b.buckets[idx], pastMostBucketStart.Add(time.Duration(i)*b.blockSize))
 	}
 }
 
-func (s *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) [][]m3db.SegmentReader {
-	now := s.nowFn()
+func (b *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) [][]m3db.SegmentReader {
+	now := b.nowFn()
 
 	// TODO(r): pool these results arrays
 	var results [][]m3db.SegmentReader
-	s.forEachBucketAsc(now, func(b *dbBufferBucket, current time.Time) {
-		shouldRead, _, _ := s.bucketState(now, b, current)
+	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
+		shouldRead, _, _ := b.bucketState(now, bucket, current)
 		if !shouldRead {
 			// Requires reset and drained already or not written to
 			return
 		}
 
-		if !start.Before(b.start.Add(s.blockSize)) {
+		if !start.Before(bucket.start.Add(b.blockSize)) {
 			return
 		}
-		if !b.start.Before(end) {
+		if !bucket.start.Before(end) {
 			return
 		}
 
-		unmerged := make([]m3db.SegmentReader, 0, len(b.encoders))
-		for i := range b.encoders {
-			stream := b.encoders[i].encoder.Stream()
+		unmerged := make([]m3db.SegmentReader, 0, len(bucket.encoders))
+		for i := range bucket.encoders {
+			stream := bucket.encoders[i].encoder.Stream()
 			if stream == nil {
 				// TODO(r): log an error and emit a metric, this is pretty bad as this
 				// encoder should have values if "shouldRead" returned true
@@ -333,27 +332,4 @@ func (b *dbBufferBucket) sort() {
 		encoder:     encoder,
 	})
 	b.outOfOrder = false
-}
-
-// NB(r): only used for intermediate storage while sorting out of order buffers
-type datapoint struct {
-	t          time.Time
-	value      float64
-	unit       xtime.Unit
-	annotation []byte
-}
-
-// Implements sort.Interface
-type byTimeAsc []*datapoint
-
-func (v byTimeAsc) Len() int {
-	return len(v)
-}
-
-func (v byTimeAsc) Less(lhs, rhs int) bool {
-	return v[lhs].t.Before(v[rhs].t)
-}
-
-func (v byTimeAsc) Swap(lhs, rhs int) {
-	v[lhs], v[rhs] = v[rhs], v[lhs]
 }

@@ -23,8 +23,6 @@ package fs
 import (
 	"errors"
 	"os"
-	"path"
-	"strconv"
 	"testing"
 	"time"
 
@@ -36,8 +34,8 @@ import (
 )
 
 func createShardDir(t *testing.T, prefix string, shard uint32) string {
-	shardDirPath := path.Join(prefix, strconv.Itoa(int(shard)))
-	err := os.Mkdir(shardDirPath, os.ModeDir|os.FileMode(0755))
+	shardDirPath := ShardDirPath(prefix, shard)
+	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
 	require.Nil(t, err)
 	return shardDirPath
 }
@@ -45,13 +43,19 @@ func createShardDir(t *testing.T, prefix string, shard uint32) string {
 func testPersistenceManager(t *testing.T, ctrl *gomock.Controller) (*persistenceManager, *mocks.MockFileSetWriter) {
 	opts := mocks.NewMockDatabaseOptions(ctrl)
 	writer := mocks.NewMockFileSetWriter(ctrl)
-	fileSetWriterFn := func(blockSize time.Duration, filePathPrefix string, writerBufferSize int) m3db.FileSetWriter {
+	fileSetWriterFn := func(
+		blockSize time.Duration,
+		filePathPrefix string,
+		writerBufferSize int,
+		options m3db.FileWriterOptions,
+	) m3db.FileSetWriter {
 		return writer
 	}
 	dir := createTempDir(t)
 	opts.EXPECT().GetFilePathPrefix().Return(dir)
 	opts.EXPECT().GetBlockSize().Return(2 * time.Hour)
 	opts.EXPECT().GetWriterBufferSize().Return(10)
+	opts.EXPECT().GetFileWriterOptions().Return(NewFileWriterOptions())
 	opts.EXPECT().GetNewFileSetWriterFn().Return(fileSetWriterFn)
 	return NewPersistenceManager(opts).(*persistenceManager), writer
 }
@@ -66,7 +70,7 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	shardDir := createShardDir(t, pm.filePathPrefix, shard)
-	checkpointFilePath := filepathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	f, err := os.Create(checkpointFilePath)
 	require.NoError(t, err)
 	f.Close()
