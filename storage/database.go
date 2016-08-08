@@ -36,6 +36,9 @@ var (
 	// errDatabaseAlreadyOpen raised when trying to open a database that is already open
 	errDatabaseAlreadyOpen = errors.New("database is already open")
 
+	// errDatabaseNotOpen raised when trying to close a database that is not open
+	errDatabaseNotOpen = errors.New("database is not open")
+
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
 
@@ -83,6 +86,14 @@ type Database interface {
 	IsBootstrapped() bool
 }
 
+type databaseState int
+
+const (
+	databaseNotOpen databaseState = iota
+	databaseOpen
+	databaseClosed
+)
+
 // database is the internal database interface.
 type database interface {
 	Database
@@ -115,6 +126,7 @@ type db struct {
 	shardSet         m3db.ShardSet
 	commitLog        m3db.CommitLog
 	writeCommitLogFn writeCommitLogFn
+	state            databaseState
 	bsm              databaseBootstrapManager
 	fm               databaseFlushManager
 
@@ -124,8 +136,8 @@ type db struct {
 
 	created      uint64
 	tickDeadline time.Duration
-	openCh       chan struct{}
-	doneCh       chan struct{}
+
+	doneCh chan struct{}
 }
 
 // NewDatabase creates a new database
@@ -138,7 +150,6 @@ func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) (Database, e
 		shards:       make([]databaseShard, len(shardScheme.All().Shards())),
 		nowFn:        opts.GetNowFn(),
 		tickDeadline: opts.GetBufferDrain(),
-		openCh:       make(chan struct{}, 1),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
 	d.bsm = newBootstrapManager(d)
@@ -166,30 +177,34 @@ func (d *db) Options() m3db.DatabaseOptions {
 }
 
 func (d *db) Open() error {
-	select {
-	case d.openCh <- struct{}{}:
-	default:
-		return errDatabaseAlreadyOpen
-	}
 	d.Lock()
 	defer d.Unlock()
+	if d.state != databaseNotOpen {
+		return errDatabaseAlreadyOpen
+	}
+	d.state = databaseOpen
+
 	// Initialize shards
 	for _, x := range d.shardSet.Shards() {
 		d.shards[x] = newDatabaseShard(x, d, d.writeCommitLogFn, d.opts)
 	}
+
 	// All goroutines must be accounted for with dbOngoingTasks to receive done signal
 	go d.ongoingTick()
 	return nil
 }
 
 func (d *db) Close() error {
-	select {
-	case _ = <-d.openCh:
-	default:
-		return errDatabaseAlreadyClosed
-	}
 	d.Lock()
 	defer d.Unlock()
+	if d.state == databaseNotOpen {
+		return errDatabaseNotOpen
+	}
+	if d.state == databaseClosed {
+		return errDatabaseAlreadyClosed
+	}
+	d.state = databaseClosed
+
 	// For now just remove all shards, in future this could be made more explicit.  However
 	// this is nice as we do not need to do any other branching now in write/read methods.
 	for i := range d.shards {
@@ -250,6 +265,11 @@ func (d *db) IsBootstrapped() bool {
 
 func (d *db) getOwnedShards() []databaseShard {
 	d.RLock()
+	// If the database is not open, don't return anything.
+	if d.state != databaseOpen {
+		d.RUnlock()
+		return nil
+	}
 	shards := d.shardSet.Shards()
 	databaseShards := make([]databaseShard, len(shards))
 	for i, shard := range shards {
@@ -276,6 +296,9 @@ func (d *db) ongoingTick() {
 
 func (d *db) splayedTick() {
 	shards := d.getOwnedShards()
+	if len(shards) == 0 {
+		return
+	}
 
 	splayApart := d.tickDeadline / time.Duration(len(shards))
 
