@@ -266,8 +266,8 @@ func (w *chunkWriter) Write(p []byte) (int, error) {
 	checksumData := digest.Checksum(p)
 
 	// Write checksums
-	endianness.PutUint32(w.header[checksumSizeStart:checksumSizeEnd], uint32(checksumSize))
-	endianness.PutUint32(w.header[checksumDataStart:checksumDataEnd], uint32(checksumData))
+	digest.Buffer(w.header[checksumSizeStart:checksumSizeEnd]).WriteDigest(checksumSize)
+	digest.Buffer(w.header[checksumDataStart:checksumDataEnd]).WriteDigest(checksumData)
 
 	// Write header to file descriptor
 	if _, err := w.fd.Write(w.header); err != nil {
