@@ -71,6 +71,7 @@ func TestDatabaseOpen(t *testing.T) {
 	d := testDatabase(t, bootstrapNotStarted)
 	require.NoError(t, d.Open())
 	require.Equal(t, errDatabaseAlreadyOpen, d.Open())
+	require.NoError(t, d.Close())
 }
 
 func TestDatabaseClose(t *testing.T) {

@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -67,11 +68,11 @@ func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime
 }
 
 func closeTestDatabaseBlock(t *testing.T, block *dbBlock) {
-	finished := false
-	block.ctx.RegisterCloser(func() { finished = true })
+	var finished uint32
+	block.ctx.RegisterCloser(func() { atomic.StoreUint32(&finished, 1) })
 	block.Close()
 	// waiting for the goroutine that closes context to finish
-	for !finished {
+	for atomic.LoadUint32(&finished) == 0 {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
@@ -144,19 +145,19 @@ func testDatabaseBlockWithDependentContext(
 	_, err := block.Stream(depCtx)
 	require.NoError(t, err)
 
-	finished := false
-	block.ctx.RegisterCloser(func() { finished = true })
+	var finished uint32
+	block.ctx.RegisterCloser(func() { atomic.StoreUint32(&finished, 1) })
 	f(block)
 
 	// sleep a bit to let the goroutine run
 	time.Sleep(200 * time.Millisecond)
-	require.False(t, finished)
+	require.Equal(t, uint32(0), atomic.LoadUint32(&finished))
 
 	ef(encoder)
 
 	// now closing the dependent context
 	depCtx.Close()
-	for !finished {
+	for atomic.LoadUint32(&finished) == 0 {
 		time.Sleep(200 * time.Millisecond)
 	}
 
