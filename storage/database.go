@@ -296,6 +296,9 @@ func (d *db) ongoingTick() {
 
 func (d *db) splayedTick() {
 	shards := d.getOwnedShards()
+	if len(shards) == 0 {
+		return
+	}
 
 	splayApart := d.tickDeadline / time.Duration(len(shards))
 
