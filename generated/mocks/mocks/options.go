@@ -503,6 +503,16 @@ func (_mr *_MockDatabaseOptionsRecorder) GetNowFn() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetNowFn")
 }
 
+func (_m *MockDatabaseOptions) GetReaderBufferSize() int {
+	ret := _m.ctrl.Call(_m, "GetReaderBufferSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetReaderBufferSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetReaderBufferSize")
+}
+
 func (_m *MockDatabaseOptions) GetReaderIteratorPool() m3db.ReaderIteratorPool {
 	ret := _m.ctrl.Call(_m, "GetReaderIteratorPool")
 	ret0, _ := ret[0].(m3db.ReaderIteratorPool)
@@ -531,6 +541,16 @@ func (_m *MockDatabaseOptions) GetSegmentReaderPool() m3db.SegmentReaderPool {
 
 func (_mr *_MockDatabaseOptionsRecorder) GetSegmentReaderPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetSegmentReaderPool")
+}
+
+func (_m *MockDatabaseOptions) GetWriterBufferSize() int {
+	ret := _m.ctrl.Call(_m, "GetWriterBufferSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) GetWriterBufferSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriterBufferSize")
 }
 
 func (_m *MockDatabaseOptions) Logger(_param0 log.Logger) m3db.DatabaseOptions {
@@ -643,6 +663,16 @@ func (_mr *_MockDatabaseOptionsRecorder) NowFn(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NowFn", arg0)
 }
 
+func (_m *MockDatabaseOptions) ReaderBufferSize(_param0 int) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "ReaderBufferSize", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) ReaderBufferSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderBufferSize", arg0)
+}
+
 func (_m *MockDatabaseOptions) ReaderIteratorPool(_param0 m3db.ReaderIteratorPool) m3db.DatabaseOptions {
 	ret := _m.ctrl.Call(_m, "ReaderIteratorPool", _param0)
 	ret0, _ := ret[0].(m3db.DatabaseOptions)
@@ -671,6 +701,16 @@ func (_m *MockDatabaseOptions) SegmentReaderPool(_param0 m3db.SegmentReaderPool)
 
 func (_mr *_MockDatabaseOptionsRecorder) SegmentReaderPool(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SegmentReaderPool", arg0)
+}
+
+func (_m *MockDatabaseOptions) WriterBufferSize(_param0 int) m3db.DatabaseOptions {
+	ret := _m.ctrl.Call(_m, "WriterBufferSize", _param0)
+	ret0, _ := ret[0].(m3db.DatabaseOptions)
+	return ret0
+}
+
+func (_mr *_MockDatabaseOptionsRecorder) WriterBufferSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriterBufferSize", arg0)
 }
 
 // Mock of ClientOptions interface

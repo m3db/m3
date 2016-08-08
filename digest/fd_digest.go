@@ -18,35 +18,56 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package digest
 
 import (
-	"encoding/binary"
+	"hash"
+	"os"
+
+	"github.com/m3db/m3x/close"
 )
 
-const (
-	infoFileSuffix       = "info"
-	indexFileSuffix      = "index"
-	dataFileSuffix       = "data"
-	digestFileSuffix     = "digest"
-	checkpointFileSuffix = "checkpoint"
-	filesetFilePrefix    = "fileset"
-	commitLogFilePrefix  = "commitlog"
-	fileSuffix           = ".db"
+// FdWithDigest is a wrapper around a file descriptor alongside the digest for what's stored in the file.
+type FdWithDigest interface {
+	xclose.Closer
 
-	separator            = "-"
-	infoFilePattern      = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
-	commitLogFilePattern = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
+	// Fd returns the file descriptor.
+	Fd() *os.File
 
-	// Index ID is int64
-	idxLen = 8
-)
+	// Digest returns the digest.
+	Digest() hash.Hash32
 
-var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
+	// Reset resets the file descriptor and the digest.
+	Reset(fd *os.File)
+}
 
-	// Endianness is little endian
-	endianness = binary.LittleEndian
-)
+type fdWithDigest struct {
+	fd     *os.File
+	digest hash.Hash32
+}
+
+func newFdWithDigest() FdWithDigest {
+	return &fdWithDigest{
+		digest: NewDigest(),
+	}
+}
+
+func (fwd *fdWithDigest) Fd() *os.File {
+	return fwd.fd
+}
+
+func (fwd *fdWithDigest) Digest() hash.Hash32 {
+	return fwd.digest
+}
+
+func (fwd *fdWithDigest) Reset(fd *os.File) {
+	fwd.fd = fd
+	fwd.digest.Reset()
+}
+
+// Close closes the file descriptor.
+func (fwd *fdWithDigest) Close() error {
+	fd := fwd.fd
+	fwd.fd = nil
+	return fd.Close()
+}

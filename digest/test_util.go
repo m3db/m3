@@ -18,35 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package digest
 
 import (
-	"encoding/binary"
+	"io/ioutil"
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-const (
-	infoFileSuffix       = "info"
-	indexFileSuffix      = "index"
-	dataFileSuffix       = "data"
-	digestFileSuffix     = "digest"
-	checkpointFileSuffix = "checkpoint"
-	filesetFilePrefix    = "fileset"
-	commitLogFilePrefix  = "commitlog"
-	fileSuffix           = ".db"
+type mockDigest struct {
+	b      []byte
+	digest uint32
+	err    error
+}
 
-	separator            = "-"
-	infoFilePattern      = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
-	commitLogFilePattern = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
+func (md *mockDigest) Write(p []byte) (n int, err error) {
+	if md.err != nil {
+		return 0, md.err
+	}
+	md.b = append(md.b, p...)
+	return len(p), nil
+}
 
-	// Index ID is int64
-	idxLen = 8
-)
+func (md *mockDigest) Sum(b []byte) []byte { return nil }
+func (md *mockDigest) Reset()              {}
+func (md *mockDigest) Size() int           { return 0 }
+func (md *mockDigest) BlockSize() int      { return 0 }
+func (md *mockDigest) Sum32() uint32       { return md.digest }
 
-var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
+func createTestFdWithDigest(t *testing.T) (*os.File, *mockDigest) {
+	fd := createTempFile(t)
+	md := &mockDigest{}
+	return fd, md
+}
 
-	// Endianness is little endian
-	endianness = binary.LittleEndian
-)
+func createTempFile(t *testing.T) *os.File {
+	fd, err := ioutil.TempFile("", "testfile")
+	require.NoError(t, err)
+	return fd
+}

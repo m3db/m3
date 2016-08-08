@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"os"
 	"time"
 
 	"github.com/m3db/m3db/bootstrap"
@@ -32,50 +31,36 @@ import (
 
 // fileSystemSource provides information about TSDB data stored on disk.
 type fileSystemSource struct {
-	opts           m3db.DatabaseOptions
-	filePathPrefix string
+	opts             m3db.DatabaseOptions
+	filePathPrefix   string
+	readerBufferSize int
+	newReaderFn      m3db.NewFileSetReaderFn
 }
 
 // newFileSystemSource creates a new filesystem based database.
 func newFileSystemSource(prefix string, opts m3db.DatabaseOptions) m3db.Source {
 	return &fileSystemSource{
-		opts:           opts,
-		filePathPrefix: prefix,
+		opts:             opts,
+		filePathPrefix:   prefix,
+		readerBufferSize: opts.GetReaderBufferSize(),
+		newReaderFn:      fs.NewReader,
 	}
-}
-
-func (fss *fileSystemSource) getInfoFiles(shard uint32) ([]string, error) {
-	shardDir := fs.ShardDirPath(fss.filePathPrefix, shard)
-	return fs.InfoFiles(shardDir)
 }
 
 // GetAvailability returns what time ranges are available for a given shard.
 func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard xtime.Ranges) xtime.Ranges {
-	log := fss.opts.GetLogger()
-
 	if targetRangesForShard == nil {
 		return nil
 	}
-	files, err := fss.getInfoFiles(shard)
-	if err != nil {
-		log.Errorf("unable to get info files for shard %d: %v", shard, err)
+
+	entries := fs.ReadInfoFiles(fss.filePathPrefix, shard, fss.readerBufferSize)
+	if len(entries) == 0 {
 		return nil
 	}
 
-	numFiles := len(files)
 	tr := xtime.NewRanges()
-	for i := 0; i < numFiles; i++ {
-		f, err := os.Open(files[i])
-		if err != nil {
-			log.Errorf("unable to open info file %s: %v", files[i], err)
-			continue
-		}
-		info, err := fs.ReadInfo(f)
-		f.Close()
-		if err != nil {
-			log.Errorf("unable to read info file %s: %v", files[i], err)
-			continue
-		}
+	for i := 0; i < len(entries); i++ {
+		info := entries[i]
 		t := xtime.FromNanoseconds(info.Start)
 		w := time.Duration(info.BlockSize)
 		curRange := xtime.Range{t, t.Add(w)}
@@ -88,18 +73,21 @@ func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard 
 
 // ReadData returns raw series for a given shard within certain time ranges.
 func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.ShardResult, xtime.Ranges) {
-	log := fss.opts.GetLogger()
-
 	if xtime.IsEmpty(tr) {
 		return nil, tr
 	}
-	files, err := fss.getInfoFiles(shard)
-	if err != nil {
-		log.Errorf("unable to get info files for shard %d: %v", shard, err)
+
+	var files []string
+	fs.ForEachInfoFile(fss.filePathPrefix, shard, fss.readerBufferSize, func(fname string, _ []byte) {
+		files = append(files, fname)
+	})
+	if len(files) == 0 {
 		return nil, tr
 	}
+
+	log := fss.opts.GetLogger()
 	seriesMap := bootstrap.NewShardResult(fss.opts)
-	r := fs.NewReader(fss.filePathPrefix)
+	r := fss.newReaderFn(fss.filePathPrefix, fss.readerBufferSize)
 	for i := 0; i < len(files); i++ {
 		t, err := fs.TimeFromFileName(files[i])
 		if err != nil {
@@ -129,6 +117,12 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (m3db.Shard
 			block := fss.opts.GetDatabaseBlockPool().Get()
 			block.Reset(timeRange.Start, encoder)
 			curMap.AddBlock(id, block)
+		}
+		if !hasError {
+			if err := r.Validate(); err != nil {
+				hasError = true
+				log.Errorf("data validation failed for shard %d time %v: %v", shard, t, err)
+			}
 		}
 		r.Close()
 

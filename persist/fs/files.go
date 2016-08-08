@@ -22,7 +22,6 @@ package fs
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -31,7 +30,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3x/close"
+	"github.com/m3db/m3x/errors"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -46,34 +48,40 @@ const (
 type fileOpener func(filePath string) (*os.File, error)
 
 func openFiles(opener fileOpener, fds map[string]**os.File) error {
+	var firstErr error
 	for filePath, fdPtr := range fds {
 		fd, err := opener(filePath)
 		if err != nil {
-			return err
+			firstErr = err
+			break
 		}
 		*fdPtr = fd
 	}
-	return nil
-}
 
-func closeFiles(fds ...*os.File) error {
-	for _, fd := range fds {
-		if err := fd.Close(); err != nil {
-			return err
+	if firstErr == nil {
+		return nil
+	}
+
+	// If we have encountered an error when opening the files,
+	// close the ones that have been opened.
+	for _, fdPtr := range fds {
+		if *fdPtr != nil {
+			(*fdPtr).Close()
 		}
 	}
-	return nil
+
+	return firstErr
 }
 
-func validFiles(fds ...*os.File) []*os.File {
-	var vf []*os.File
-	for _, fd := range fds {
-		if fd == nil {
-			continue
+// TODO(xichen): move closeAll to m3x/close.
+func closeAll(closers ...xclose.Closer) error {
+	multiErr := xerrors.NewMultiError()
+	for _, closer := range closers {
+		if err := closer.Close(); err != nil {
+			multiErr = multiErr.Add(err)
 		}
-		vf = append(vf, fd)
 	}
-	return vf
+	return multiErr.FinalError()
 }
 
 // byTimeAscending sorts files by their block start times in ascending order.
@@ -137,28 +145,63 @@ func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
 	return t, int(index), nil
 }
 
-// InfoFiles returns all the completed info files in the given shard
-// directory, sorted by their corresponding block start times.
-func InfoFiles(shardDir string) ([]string, error) {
+type infoFileFn func(fname string, infoData []byte)
+
+// ForEachInfoFile iterates over each valid info file and applies the function passed in.
+func ForEachInfoFile(filePathPrefix string, shard uint32, readerBufferSize int, fn infoFileFn) {
+	shardDir := ShardDirPath(filePathPrefix, shard)
 	matched, err := filepath.Glob(path.Join(shardDir, infoFilePattern))
 	if err != nil {
-		return nil, err
+		return
 	}
-	j := 0
+
+	sort.Sort(byTimeAscending(matched))
+	digestBuf := digest.NewBuffer()
 	for i := range matched {
 		t, err := TimeFromFileName(matched[i])
 		if err != nil {
-			return nil, err
+			continue
 		}
-		checkpointFile := filesetPathFromTime(shardDir, t, checkpointFileSuffix)
-		if FileExists(checkpointFile) {
-			matched[j] = matched[i]
-			j++
+		checkpointFilePath := filesetPathFromTime(shardDir, t, checkpointFileSuffix)
+		if !FileExists(checkpointFilePath) {
+			continue
 		}
+		checkpointFd, err := os.Open(checkpointFilePath)
+		if err != nil {
+			continue
+		}
+		// Read digest of digests from the checkpoint file
+		expectedDigestOfDigest, err := digestBuf.ReadDigestFromFile(checkpointFd)
+		checkpointFd.Close()
+		if err != nil {
+			continue
+		}
+		// Read and validate the digest file
+		digestData, err := readAndValidate(shardDir, t, digestFileSuffix, readerBufferSize, expectedDigestOfDigest)
+		if err != nil {
+			continue
+		}
+		// Read and validate the info file
+		expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
+		infoData, err := readAndValidate(shardDir, t, infoFileSuffix, readerBufferSize, expectedInfoDigest)
+		if err != nil {
+			continue
+		}
+		fn(matched[i], infoData)
 	}
-	matched = matched[:j]
-	sort.Sort(byTimeAscending(matched))
-	return matched, nil
+}
+
+// ReadInfoFiles reads all the valid info entries.
+func ReadInfoFiles(filePathPrefix string, shard uint32, readerBufferSize int) []*schema.IndexInfo {
+	var indexEntries []*schema.IndexInfo
+	ForEachInfoFile(filePathPrefix, shard, readerBufferSize, func(_ string, data []byte) {
+		info, err := readInfo(data)
+		if err != nil {
+			return
+		}
+		indexEntries = append(indexEntries, info)
+	})
+	return indexEntries
 }
 
 // CommitLogFiles returns all the commit log files in the commit logs directory.
@@ -171,25 +214,32 @@ func CommitLogFiles(commitLogsDir string) ([]string, error) {
 	return matched, err
 }
 
-// FileExistsAt determines whether a data file exists for the given shard and block start time.
-func FileExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
-	shardDir := ShardDirPath(prefix, shard)
-	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	return FileExists(checkpointFile)
-}
-
-// ReadInfo reads the info file.
-func ReadInfo(infoFd *os.File) (*schema.IndexInfo, error) {
-	data, err := ioutil.ReadAll(infoFd)
-	if err != nil {
-		return nil, err
-	}
-
+// readInfo reads the data stored in the info file and returns an index entry.
+func readInfo(data []byte) (*schema.IndexInfo, error) {
 	info := &schema.IndexInfo{}
 	if err := proto.Unmarshal(data, info); err != nil {
 		return nil, err
 	}
 	return info, nil
+}
+
+func readAndValidate(
+	prefix string,
+	t time.Time,
+	suffix string,
+	readerBufferSize int,
+	expectedDigest uint32,
+) ([]byte, error) {
+	filePath := filesetPathFromTime(prefix, t, suffix)
+	fd, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close()
+
+	fwd := digest.NewFdWithDigestReader(readerBufferSize)
+	fwd.Reset(fd)
+	return fwd.ReadAllAndValidate(expectedDigest)
 }
 
 // ShardDirPath returns the path to a given shard.
@@ -200,6 +250,13 @@ func ShardDirPath(prefix string, shard uint32) string {
 // CommitLogsDirPath returns the path to commit logs.
 func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
+}
+
+// FileExistsAt determines whether a data file exists for the given shard and block start time.
+func FileExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
+	shardDir := ShardDirPath(prefix, shard)
+	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	return FileExists(checkpointFile)
 }
 
 // NextCommitLogsFile returns the next commit logs file.

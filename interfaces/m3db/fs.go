@@ -51,6 +51,9 @@ type FileSetReader interface {
 	// Read returns the next key and data pair or error, will return io.EOF at end of volume
 	Read() (key string, data []byte, err error)
 
+	// Validate validates the data and returns an error if the data are corrupted
+	Validate() error
+
 	// Range returns the time range associated with data in the volume.
 	Range() xtime.Range
 
@@ -62,7 +65,15 @@ type FileSetReader interface {
 }
 
 // NewFileSetWriterFn creates a new fileset writer.
-type NewFileSetWriterFn func(blockSize time.Duration, filePathPrefix string) FileSetWriter
+type NewFileSetWriterFn func(
+	blockSize time.Duration,
+	filePathPrefix string,
+	writerBufferSize int,
+	options FileWriterOptions,
+) FileSetWriter
 
 // NewFileSetReaderFn creates a new fileset reader.
-type NewFileSetReaderFn func(filePathPrefix string) FileSetReader
+type NewFileSetReaderFn func(
+	filePathPrefix string,
+	readerBufferSize int,
+) FileSetReader

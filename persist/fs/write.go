@@ -24,6 +24,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3x/time"
@@ -37,10 +38,11 @@ type writer struct {
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
 
-	infoFd             *os.File
-	indexFd            *os.File
-	dataFd             *os.File
-	checkpointFilePath string
+	infoFdWithDigest           digest.FdWithDigestWriter
+	indexFdWithDigest          digest.FdWithDigestWriter
+	dataFdWithDigest           digest.FdWithDigestWriter
+	digestFdWithDigestContents digest.FdWithDigestContentsWriter
+	checkpointFilePath         string
 
 	start        time.Time
 	currEntry    schema.IndexEntry
@@ -49,6 +51,7 @@ type writer struct {
 	infoBuffer   *proto.Buffer
 	indexBuffer  *proto.Buffer
 	varintBuffer *proto.Buffer
+	digestBuf    digest.Buffer
 	idxData      []byte
 	err          error
 }
@@ -57,20 +60,26 @@ type writer struct {
 func NewWriter(
 	blockSize time.Duration,
 	filePathPrefix string,
+	bufferSize int,
 	options m3db.FileWriterOptions,
 ) m3db.FileSetWriter {
 	if options == nil {
 		options = NewFileWriterOptions()
 	}
 	return &writer{
-		blockSize:        blockSize,
-		filePathPrefix:   filePathPrefix,
-		newFileMode:      options.GetNewFileMode(),
-		newDirectoryMode: options.GetNewDirectoryMode(),
-		infoBuffer:       proto.NewBuffer(nil),
-		indexBuffer:      proto.NewBuffer(nil),
-		varintBuffer:     proto.NewBuffer(nil),
-		idxData:          make([]byte, idxLen),
+		blockSize:                  blockSize,
+		filePathPrefix:             filePathPrefix,
+		newFileMode:                options.GetNewFileMode(),
+		newDirectoryMode:           options.GetNewDirectoryMode(),
+		infoBuffer:                 proto.NewBuffer(nil),
+		indexBuffer:                proto.NewBuffer(nil),
+		varintBuffer:               proto.NewBuffer(nil),
+		infoFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
+		indexFdWithDigest:          digest.NewFdWithDigestWriter(bufferSize),
+		dataFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsWriter(bufferSize),
+		digestBuf:                  digest.NewBuffer(),
+		idxData:                    make([]byte, idxLen),
 	}
 }
 
@@ -87,17 +96,25 @@ func (w *writer) Open(shard uint32, blockStart time.Time) error {
 	w.currOffset = 0
 	w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	w.err = nil
+
+	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
-			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):  &w.infoFd,
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix): &w.indexFd,
-			filesetPathFromTime(shardDir, blockStart, dataFileSuffix):  &w.dataFd,
+			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
+			filesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
+			filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
 		},
 	); err != nil {
-		closeFiles(validFiles(w.infoFd, w.indexFd, w.dataFd)...)
 		return err
 	}
+
+	w.infoFdWithDigest.Reset(infoFd)
+	w.indexFdWithDigest.Reset(indexFd)
+	w.dataFdWithDigest.Reset(dataFd)
+	w.digestFdWithDigestContents.Reset(digestFd)
+
 	return nil
 }
 
@@ -105,7 +122,7 @@ func (w *writer) writeData(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	written, err := w.dataFd.Write(data)
+	written, err := w.dataFdWithDigest.WriteBytes(data)
 	if err != nil {
 		return err
 	}
@@ -168,24 +185,18 @@ func (w *writer) writeAll(key string, data [][]byte) error {
 			return err
 		}
 	}
-
-	if _, err := w.indexFd.Write(w.varintBuffer.Bytes()); err != nil {
+	if _, err := w.indexFdWithDigest.WriteBytes(w.varintBuffer.Bytes()); err != nil {
 		return err
 	}
-	if _, err := w.indexFd.Write(entryBytes); err != nil {
+	if _, err := w.indexFdWithDigest.WriteBytes(entryBytes); err != nil {
 		return err
 	}
-
 	w.currIdx++
 
 	return nil
 }
 
 func (w *writer) close() error {
-	if err := w.infoFd.Truncate(0); err != nil {
-		return err
-	}
-
 	info := &schema.IndexInfo{
 		Start:     xtime.ToNanoseconds(w.start),
 		BlockSize: int64(w.blockSize),
@@ -196,11 +207,24 @@ func (w *writer) close() error {
 		return err
 	}
 
-	if _, err := w.infoFd.Write(w.infoBuffer.Bytes()); err != nil {
+	if _, err := w.infoFdWithDigest.WriteBytes(w.infoBuffer.Bytes()); err != nil {
 		return err
 	}
 
-	if err := closeFiles(w.infoFd, w.indexFd, w.dataFd); err != nil {
+	if err := w.digestFdWithDigestContents.WriteDigests(
+		w.infoFdWithDigest.Digest().Sum32(),
+		w.indexFdWithDigest.Digest().Sum32(),
+		w.dataFdWithDigest.Digest().Sum32(),
+	); err != nil {
+		return err
+	}
+
+	if err := closeAll(
+		w.infoFdWithDigest,
+		w.indexFdWithDigest,
+		w.dataFdWithDigest,
+		w.digestFdWithDigestContents,
+	); err != nil {
 		return err
 	}
 
@@ -218,7 +242,11 @@ func (w *writer) Close() error {
 	}
 	// NB(xichen): only write out the checkpoint file if there are no errors
 	// encountered between calling writer.Open() and writer.Close().
-	return w.writeCheckpointFile()
+	if err := w.writeCheckpointFile(); err != nil {
+		w.err = err
+		return err
+	}
+	return nil
 }
 
 func (w *writer) writeCheckpointFile() error {
@@ -226,7 +254,10 @@ func (w *writer) writeCheckpointFile() error {
 	if err != nil {
 		return err
 	}
-	fd.Close()
+	defer fd.Close()
+	if err := w.digestBuf.WriteDigestToFile(fd, w.digestFdWithDigestContents.Digest().Sum32()); err != nil {
+		return err
+	}
 	return nil
 }
 

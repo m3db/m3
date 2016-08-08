@@ -31,19 +31,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/digest"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func createTempFile(t *testing.T) *os.File {
-	file, err := ioutil.TempFile("", "testfile")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return file
+	fd, err := ioutil.TempFile("", "testfile")
+	require.NoError(t, err)
+	return fd
 }
 
 func createTempDir(t *testing.T) string {
@@ -54,21 +51,18 @@ func createTempDir(t *testing.T) string {
 	return dir
 }
 
-func createFile(t *testing.T, filePath string) {
-	f, err := os.Create(filePath)
-	require.NoError(t, err)
-	f.Close()
+func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix string, b []byte) {
+	filePath := filesetPathFromTime(shardDir, blockStart, suffix)
+	createFile(t, filePath, b)
 }
 
-func createInfoFiles(t *testing.T, iter int) string {
-	dir := createTempDir(t)
-	for i := 0; i < iter; i++ {
-		infoFilePath := filesetPathFromTime(dir, time.Unix(0, int64(i)), infoFileSuffix)
-		createFile(t, infoFilePath)
-		checkpointFilePath := filesetPathFromTime(dir, time.Unix(0, int64(i)), checkpointFileSuffix)
-		createFile(t, checkpointFilePath)
+func createFile(t *testing.T, filePath string, b []byte) {
+	fd, err := os.Create(filePath)
+	require.NoError(t, err)
+	if b != nil {
+		fd.Write(b)
 	}
-	return dir
+	fd.Close()
 }
 
 func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
@@ -78,7 +72,9 @@ func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
 	for i := 0; i < iter; i++ {
 		for j := 0; j < perSlot; j++ {
 			filePath, _ := NextCommitLogsFile(dir, time.Unix(0, int64(i)))
-			createFile(t, filePath)
+			fd, err := os.Create(filePath)
+			assert.NoError(t, err)
+			assert.NoError(t, fd.Close())
 		}
 	}
 	return dir
@@ -101,12 +97,12 @@ func TestOpenFilesFails(t *testing.T) {
 	assert.Equal(t, expectedErr, err)
 }
 
-func TestCloseFilesFails(t *testing.T) {
+func TestCloseAllFails(t *testing.T) {
 	file := createTempFile(t)
 	defer os.Remove(file.Name())
 
 	assert.NoError(t, file.Close())
-	assert.Error(t, closeFiles(file))
+	assert.Error(t, closeAll(file))
 }
 
 func TestByTimeAscending(t *testing.T) {
@@ -116,78 +112,67 @@ func TestByTimeAscending(t *testing.T) {
 	require.Equal(t, expected, files)
 }
 
-func TestInfoFiles(t *testing.T) {
-	iter := 20
-	dir := createInfoFiles(t, iter)
+func TestForEachInfoFile(t *testing.T) {
+	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	createFile(t, path.Join(dir, "abcd"))
-	createFile(t, path.Join(dir, infoFileSuffix+fileSuffix))
-	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+infoFileSuffix+fileSuffix))
-	createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+infoFileSuffix+fileSuffix))
+	shard := uint32(0)
+	shardDir := ShardDirPath(dir, shard)
+	require.NoError(t, os.MkdirAll(shardDir, os.ModeDir|os.FileMode(0755)))
 
-	files, err := InfoFiles(dir)
-	require.NoError(t, err)
-	require.Equal(t, iter, len(files))
-	for i := 0; i < iter; i++ {
-		require.Equal(t, path.Join(dir, fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, i, separator, infoFileSuffix, fileSuffix)), files[i])
-	}
-}
+	blockStart := time.Unix(0, 0)
+	buf := digest.NewBuffer()
+	digest := digest.NewDigest()
 
-func TestCommitLogFiles(t *testing.T) {
-	iter := 20
-	perSlot := 3
-	dir := createCommitLogFiles(t, iter, perSlot)
-	defer os.RemoveAll(dir)
+	// No checkpoint file
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
 
-	createFile(t, path.Join(dir, "abcd"))
-	createFile(t, path.Join(dir, strconv.Itoa(perSlot+1)+fileSuffix))
-	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix))
-	createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix))
+	// No digest file
+	blockStart = blockStart.Add(time.Nanosecond)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
 
-	files, err := CommitLogFiles(CommitLogsDirPath(dir))
-	require.NoError(t, err)
-	require.Equal(t, iter*perSlot, len(files))
-	for i := 0; i < iter; i++ {
-		for j := 0; j < perSlot; j++ {
-			entry := fmt.Sprintf("%d%s%d", i, separator, j)
-			fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
+	// Digest of digest mismatch
+	blockStart = blockStart.Add(time.Nanosecond)
+	digests := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}
+	digest.Write(append(digests, 0xd))
+	buf.WriteDigest(digest.Sum32())
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
+	createDataFile(t, shardDir, blockStart, digestFileSuffix, digests)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
 
-			x := (i * perSlot) + j
-			require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
-		}
-	}
-}
+	// Info file digest mismatch
+	blockStart = blockStart.Add(time.Nanosecond)
+	digest.Reset()
+	digest.Write(digests)
+	buf.WriteDigest(digest.Sum32())
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, []byte{0x1})
+	createDataFile(t, shardDir, blockStart, digestFileSuffix, digests)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
 
-func TestReadInfo(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "example")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// All digests match
+	blockStart = blockStart.Add(time.Nanosecond)
+	infoData := []byte{0x1, 0x2, 0x3, 0x4}
+	digest.Reset()
+	digest.Write(infoData)
+	buf.WriteDigest(digest.Sum32())
+	digestOfDigest := append(buf, []byte{0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}...)
+	digest.Reset()
+	digest.Write(digestOfDigest)
+	buf.WriteDigest(digest.Sum32())
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, infoData)
+	createDataFile(t, shardDir, blockStart, digestFileSuffix, digestOfDigest)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
 
-	defer os.Remove(tmpfile.Name())
+	var fnames []string
+	var res []byte
+	ForEachInfoFile(dir, shard, testReaderBufferSize, func(fname string, data []byte) {
+		fnames = append(fnames, fname)
+		res = append(res, data...)
+	})
 
-	_, err = tmpfile.Write([]byte{0x1, 0x2})
-	require.NoError(t, err)
-
-	tmpfile.Seek(0, 0)
-	_, err = ReadInfo(tmpfile)
-	require.Error(t, err)
-
-	data, err := proto.Marshal(&schema.IndexInfo{Start: 100, BlockSize: 10, Entries: 20})
-	require.NoError(t, err)
-
-	tmpfile.Truncate(0)
-	tmpfile.Seek(0, 0)
-	_, err = tmpfile.Write(data)
-	require.NoError(t, err)
-
-	tmpfile.Seek(0, 0)
-	entry, err := ReadInfo(tmpfile)
-	require.NoError(t, err)
-	require.Equal(t, int64(100), entry.Start)
-	require.Equal(t, int64(10), entry.BlockSize)
-	require.Equal(t, int64(20), entry.Entries)
+	require.Equal(t, []string{filesetPathFromTime(shardDir, blockStart, infoFileSuffix)}, fnames)
+	require.Equal(t, infoData, res)
 }
 
 func TestTimeFromName(t *testing.T) {
@@ -234,6 +219,30 @@ func TestTimeAndIndexFromFileName(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestFileExists(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	shard := uint32(10)
+	start := time.Now()
+	shardDir := ShardDirPath(dir, shard)
+	err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
+	require.NoError(t, err)
+
+	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
+	createDataFile(t, shardDir, start, infoFileSuffix, nil)
+	require.True(t, FileExists(infoFilePath))
+	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
+
+	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
+	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
+	require.True(t, FileExists(checkpointFilePath))
+	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
+
+	os.Remove(infoFilePath)
+	require.False(t, FileExists(infoFilePath))
+}
+
 func TestShardDirPath(t *testing.T) {
 	require.Equal(t, "foo/bar/data/12", ShardDirPath("foo/bar", 12))
 	require.Equal(t, "foo/bar/data/12", ShardDirPath("foo/bar/", 12))
@@ -257,25 +266,27 @@ func TestFilePathFromTime(t *testing.T) {
 	}
 }
 
-func TestFileExists(t *testing.T) {
-	dir := createTempDir(t)
+func TestCommitLogFiles(t *testing.T) {
+	iter := 20
+	perSlot := 3
+	dir := createCommitLogFiles(t, iter, perSlot)
 	defer os.RemoveAll(dir)
 
-	shard := 10
-	start := time.Now()
-	shardDir := path.Join(dir, strconv.Itoa(shard))
-	err := os.Mkdir(shardDir, defaultNewDirectoryMode)
+	createFile(t, path.Join(dir, "abcd"), nil)
+	createFile(t, path.Join(dir, strconv.Itoa(perSlot+1)+fileSuffix), nil)
+	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
+	createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
+
+	files, err := CommitLogFiles(CommitLogsDirPath(dir))
 	require.NoError(t, err)
-	infoFilePath := path.Join(shardDir, fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, start, separator, infoFileSuffix, fileSuffix))
-	createFile(t, infoFilePath)
-	require.True(t, FileExists(infoFilePath))
-	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
+	require.Equal(t, iter*perSlot, len(files))
+	for i := 0; i < iter; i++ {
+		for j := 0; j < perSlot; j++ {
+			entry := fmt.Sprintf("%d%s%d", i, separator, j)
+			fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
 
-	checkpointFilePath := path.Join(shardDir, fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, start, separator, checkpointFileSuffix, fileSuffix))
-	createFile(t, checkpointFilePath)
-	require.True(t, FileExists(checkpointFilePath))
-	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
-
-	os.Remove(infoFilePath)
-	require.False(t, FileExists(infoFilePath))
+			x := (i * perSlot) + j
+			require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
+		}
+	}
 }
