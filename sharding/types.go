@@ -28,8 +28,8 @@ type ShardScheme interface {
 	// Shard will return a shard for a given identifer
 	Shard(identifer string) uint32
 
-	// CreateSet will return a new shard set, from and to are inclusive
-	CreateSet(from, to uint32) ShardSet
+	// CreateSet will return a new shard set from a set of shards
+	CreateSet(shards []uint32) (ShardSet, error)
 
 	// All returns a shard set representing all shards
 	All() ShardSet

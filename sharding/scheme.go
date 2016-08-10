@@ -27,36 +27,50 @@ import (
 var (
 	// ErrToLessThanFrom returned when to is less than from
 	ErrToLessThanFrom = errors.New("to is less than from")
+	// ErrNoShards returned when shard set is empty
+	ErrNoShards = errors.New("empty shard set")
+	// ErrDuplicateShards returned when shard set is empty
+	ErrDuplicateShards = errors.New("duplicate shards")
 )
 
 type shardScheme struct {
-	from uint32
-	to   uint32
+	shards []uint32
 	fn   HashFn
 }
 
-// NewShardScheme creates a new sharding scheme, from and to are inclusive
-func NewShardScheme(from, to uint32, fn HashFn) (ShardScheme, error) {
+// NewShardSchemeFromRange creates a new sharding scheme, from and to are inclusive
+func NewShardSchemeFromRange(from, to uint32, fn HashFn) (ShardScheme, error) {
 	if to < from {
 		return nil, ErrToLessThanFrom
 	}
-	return &shardScheme{from, to, fn}, nil
+	var shards []uint32
+	for i := from; i <= to; i++ {
+		shards = append(shards, i)
+	}
+	return NewShardScheme(shards, fn)
+}
+
+// NewShardScheme creates a new sharding scheme with a set of shards
+func NewShardScheme(shards []uint32, fn HashFn) (ShardScheme, error) {
+	if err := validateShards(shards); err != nil {
+		return nil, err
+	}
+	return &shardScheme{shards, fn}, nil
 }
 
 func (s *shardScheme) Shard(identifer string) uint32 {
 	return s.fn(identifer)
 }
 
-func (s *shardScheme) CreateSet(from, to uint32) ShardSet {
-	var shards []uint32
-	for i := from; i >= s.from && i <= s.to && i <= to; i++ {
-		shards = append(shards, i)
+func (s *shardScheme) CreateSet(shards []uint32) (ShardSet, error) {
+	if err := validateShards(shards); err != nil {
+		return nil, err
 	}
-	return NewShardSet(shards, s)
+	return NewShardSet(shards, s), nil
 }
 
 func (s *shardScheme) All() ShardSet {
-	return s.CreateSet(s.from, s.to)
+	return NewShardSet(s.shards, s)
 }
 
 type shardSet struct {
@@ -75,4 +89,18 @@ func (s *shardSet) Shards() []uint32 {
 
 func (s *shardSet) Scheme() ShardScheme {
 	return s.scheme
+}
+
+func validateShards(shards []uint32) error {
+	if len(shards) <= 0 {
+		return ErrNoShards
+	}
+	uniqueShards := make(map[uint32]struct{}, len(shards))
+	for _, s := range shards {
+		if _, exist := uniqueShards[s]; exist {
+			return ErrDuplicateShards
+		}
+		uniqueShards[s] = struct{}{}
+	}
+	return nil
 }

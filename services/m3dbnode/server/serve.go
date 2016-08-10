@@ -40,7 +40,7 @@ import (
 // DefaultShardingScheme creates a default sharding scheme.
 func DefaultShardingScheme() (sharding.ShardScheme, error) {
 	shards := uint32(1024)
-	return sharding.NewShardScheme(0, shards-1, func(id string) uint32 {
+	return sharding.NewShardSchemeFromRange(0, shards-1, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % shards
 	})
 }
