@@ -62,8 +62,9 @@ func TestWriteDeltaOfDeltaTimeUnitUnchanged(t *testing.T) {
 	for _, input := range inputs {
 		encoder.Reset(testStartTime, 0)
 		encoder.writeDeltaOfDeltaTimeUnitUnchanged(0, input.delta, input.timeUnit)
-		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
-		require.Equal(t, input.expectedPos, encoder.os.pos)
+		b, p := encoder.os.Rawbytes()
+		require.Equal(t, input.expectedBytes, b)
+		require.Equal(t, input.expectedPos, p)
 	}
 }
 
@@ -81,8 +82,9 @@ func TestWriteDeltaOfDeltaTimeUnitChanged(t *testing.T) {
 	for _, input := range inputs {
 		encoder.Reset(testStartTime, 0)
 		encoder.writeDeltaOfDeltaTimeUnitChanged(0, input.delta)
-		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
-		require.Equal(t, input.expectedPos, encoder.os.pos)
+		b, p := encoder.os.Rawbytes()
+		require.Equal(t, input.expectedBytes, b)
+		require.Equal(t, input.expectedPos, p)
 	}
 }
 
@@ -101,8 +103,9 @@ func TestWriteValue(t *testing.T) {
 	for _, input := range inputs {
 		encoder.Reset(testStartTime, 0)
 		encoder.writeXOR(input.previousXOR, input.currentXOR)
-		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
-		require.Equal(t, input.expectedPos, encoder.os.pos)
+		b, p := encoder.os.Rawbytes()
+		require.Equal(t, input.expectedBytes, b)
+		require.Equal(t, input.expectedPos, p)
 	}
 }
 
@@ -133,8 +136,9 @@ func TestWriteAnnotation(t *testing.T) {
 	for _, input := range inputs {
 		encoder.Reset(testStartTime, 0)
 		encoder.writeAnnotation(input.annotation)
-		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
-		require.Equal(t, input.expectedPos, encoder.os.pos)
+		b, p := encoder.os.Rawbytes()
+		require.Equal(t, input.expectedBytes, b)
+		require.Equal(t, input.expectedPos, p)
 	}
 }
 
@@ -175,8 +179,9 @@ func TestWriteTimeUnit(t *testing.T) {
 		encoder.Reset(testStartTime, 0)
 		encoder.tu = xtime.None
 		encoder.writeTimeUnit(input.timeUnit)
-		require.Equal(t, input.expectedBytes, encoder.os.rawBuffer)
-		require.Equal(t, input.expectedPos, encoder.os.pos)
+		b, p := encoder.os.Rawbytes()
+		require.Equal(t, input.expectedBytes, b)
+		require.Equal(t, input.expectedPos, p)
 	}
 }
 
@@ -210,8 +215,10 @@ func TestEncodeNoAnnotation(t *testing.T) {
 		0x0, 0x0, 0x0, 0x0, 0x5f, 0x8c, 0xb0, 0x3a, 0x0, 0xe1, 0x0, 0x78, 0x0, 0x0,
 		0x40, 0x6, 0x58, 0x76, 0x8c,
 	}
-	require.Equal(t, expectedBuffer, encoder.os.rawBuffer)
-	require.Equal(t, 6, encoder.os.pos)
+
+	b, p := encoder.os.Rawbytes()
+	require.Equal(t, expectedBuffer, b)
+	require.Equal(t, 6, p)
 }
 
 func TestEncodeWithAnnotation(t *testing.T) {
@@ -241,8 +248,10 @@ func TestEncodeWithAnnotation(t *testing.T) {
 		0x2, 0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0xb, 0xf1, 0x96, 0x7, 0x40, 0x10, 0x4,
 		0x8, 0x4, 0xb, 0x84, 0x1, 0xe0, 0x0, 0x1, 0x0, 0x19, 0x61, 0xda, 0x30,
 	}
-	require.Equal(t, expectedBuffer, encoder.os.rawBuffer)
-	require.Equal(t, 4, encoder.os.pos)
+
+	b, p := encoder.os.Rawbytes()
+	require.Equal(t, expectedBuffer, b)
+	require.Equal(t, 4, p)
 
 	expectedBytes := []byte{
 		0x13, 0xce, 0x4c, 0xa4, 0x30, 0xcb, 0x40, 0x0, 0x80, 0x20, 0x1, 0x53, 0xe4,

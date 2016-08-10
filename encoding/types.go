@@ -23,7 +23,8 @@ package encoding
 import (
 	"io"
 	"time"
-
+	
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
@@ -52,6 +53,51 @@ type Encoder interface {
 
 // NewEncoderFn creates a new encoder
 type NewEncoderFn func(start time.Time, bytes []byte) Encoder
+
+// Options represents different options for encoding time as well as markers.
+type Options interface {
+	// DefaultTimeUnit sets the default time unit for the encoder.
+	DefaultTimeUnit(tu xtime.Unit) Options
+
+	// GetDefaultTimeUnit returns the default time unit for the encoder.
+	GetDefaultTimeUnit() xtime.Unit
+
+	// TimeEncodingSchemes sets the time encoding schemes for different time units.
+	TimeEncodingSchemes(value TimeEncodingSchemes) Options
+
+	// GetTimeEncodingSchemes returns the time encoding schemes for different time units.
+	GetTimeEncodingSchemes() TimeEncodingSchemes
+
+	// MarkerEncodingScheme sets the marker encoding scheme.
+	MarkerEncodingScheme(value MarkerEncodingScheme) Options
+
+	// GetMarkerEncodingScheme returns the marker encoding scheme.
+	GetMarkerEncodingScheme() MarkerEncodingScheme
+
+	// EncoderPool sets the encoder pool.
+	EncoderPool(value EncoderPool) Options
+
+	// GetEncoderPool returns the encoder pool.
+	GetEncoderPool() EncoderPool
+
+	// ReaderIteratorPool sets the ReaderIteratorPool.
+	ReaderIteratorPool(value ReaderIteratorPool) Options
+
+	// GetReaderIteratorPool returns the ReaderIteratorPool
+	GetReaderIteratorPool() ReaderIteratorPool
+
+	// BytesPool sets the bytes pool.
+	BytesPool(value pool.BytesPool) Options
+
+	// GetBytesPool returns the bytes pool.
+	GetBytesPool() pool.BytesPool
+
+	// SegmentReaderPool sets the segment reader pool.
+	SegmentReaderPool(value xio.SegmentReaderPool) Options
+
+	// GetSegmentReaderPool returns the segment reader pool.
+	GetSegmentReaderPool() xio.SegmentReaderPool
+}
 
 // Iterator is the generic interface for iterating over encoded data.
 type Iterator interface {

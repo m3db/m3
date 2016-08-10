@@ -25,7 +25,8 @@ import (
 	"errors"
 	"testing"
 	"time"
-
+	
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -33,7 +34,7 @@ import (
 )
 
 func getTestReaderIterator(rawBytes []byte) *readerIterator {
-	return NewReaderIterator(bytes.NewReader(rawBytes), NewOptions()).(*readerIterator)
+	return NewReaderIterator(bytes.NewReader(rawBytes), encoding.NewOptions()).(*readerIterator)
 }
 
 func TestReaderIteratorReadNextTimestamp(t *testing.T) {
@@ -342,6 +343,6 @@ func TestReaderIteratorNextWithUnexpectedTimeUnit(t *testing.T) {
 	}
 	it := getTestReaderIterator(rawBytes)
 	require.False(t, it.Next())
-	expectedErr := errors.New("time encoding scheme for time unit 9 doesn't exist")
+	expectedErr := errors.New("time encoding scheme for time unit unknown doesn't exist")
 	require.Equal(t, expectedErr, it.Err())
 }

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package m3ts
 
 import (
 	"encoding/binary"
@@ -43,16 +43,20 @@ type readerIterator struct {
 	// internal bookkeeping
 	t    time.Time     // current time
 	dt   time.Duration // current time delta
-	vb   uint64        // current value
-	xor  uint64        // current xor
+	vb   uint64        // current float value
+	xor  uint64        // current float xor
 	done bool          // has reached the end
 	err  error         // current error
 
-	ant       ts.Annotation // current annotation
-	tu        xtime.Unit    // current time unit
-	tuChanged bool          // whether we have a new time unit
+	isFloat bool    // whether encoding is in int or float
+	intVal  float64 // current int value
+	mult    int     // current int multiplier
+	sig     int     // current number of significant bits for int diff
 
-	closed bool
+	ant       ts.Annotation // current annotation
+	tu        xtime.Unit      // current time unit
+	tuChanged bool            // whether we have a new time unit
+	closed    bool
 }
 
 // NewReaderIterator returns a new iterator for a given reader
@@ -96,11 +100,6 @@ func (it *readerIterator) readFirstTimestamp() {
 	it.t = st.Add(it.dt)
 }
 
-func (it *readerIterator) readFirstValue() {
-	it.vb = it.readBits(64)
-	it.xor = it.vb
-}
-
 func (it *readerIterator) readNextTimestamp() {
 	it.dt += it.readMarkerOrDeltaOfDelta()
 	it.t = it.t.Add(it.dt)
@@ -112,6 +111,7 @@ func (it *readerIterator) tryReadMarker() (time.Duration, bool) {
 	if !success {
 		return 0, false
 	}
+
 	opcode := opcodeAndValue >> uint(it.mes.NumValueBits())
 	if opcode != it.mes.Opcode() {
 		return 0, false
@@ -173,9 +173,67 @@ func (it *readerIterator) readDeltaOfDelta(tes encoding.TimeEncodingScheme) (d t
 	return xtime.FromNormalizedDuration(dod, it.timeUnit())
 }
 
+func (it *readerIterator) readFirstValue() {
+	if it.readBits(1) == opcodeFloatMode {
+		it.vb = it.readBits(64)
+		it.xor = it.vb
+		it.isFloat = true
+		return
+	}
+
+	it.readIntSigMult()
+	it.readIntValDiff()
+}
+
 func (it *readerIterator) readNextValue() {
-	it.xor = it.readXOR()
-	it.vb ^= it.xor
+	if it.readBits(1) == opcodeUpdate {
+		if it.readBits(1) == opcodeRepeat {
+			return
+		}
+
+		if it.readBits(1) == opcodeFloatMode {
+			// Change to floatVal
+			it.vb = it.readBits(64)
+			it.xor = it.vb
+			it.isFloat = true
+			return
+		}
+
+		it.readIntSigMult()
+		it.readIntValDiff()
+		it.isFloat = false
+		return
+	}
+
+	if it.isFloat {
+		it.xor = it.readXOR()
+		it.vb ^= it.xor
+	} else {
+		it.readIntValDiff()
+	}
+}
+
+func (it *readerIterator) readIntSigMult() {
+	if it.readBits(1) == opcodeUpdateSig {
+		if it.readBits(1) == opcodeZeroSig {
+			it.sig = 0
+		} else {
+			it.sig = int(it.readBits(numSigBits)) + 1
+		}
+	}
+
+	if it.readBits(1) == opcodeUpdateMult {
+		it.mult = int(it.readBits(numMultBits)) + 1
+	}
+}
+
+func (it *readerIterator) readIntValDiff() {
+	sign := -1.0
+	if it.readBits(1) == opcodeNegative {
+		sign = 1.0
+	}
+
+	it.intVal += sign * float64(int64(it.readBits(it.sig)))
 }
 
 func (it *readerIterator) readAnnotation() {
@@ -266,9 +324,16 @@ func (it *readerIterator) timeUnit() time.Duration {
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
 func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+	if it.isFloat {
+		return ts.Datapoint{
+			Timestamp: it.t,
+			Value:     math.Float64frombits(it.vb),
+		}, it.tu, it.ant
+	}
+
 	return ts.Datapoint{
 		Timestamp: it.t,
-		Value:     math.Float64frombits(it.vb),
+		Value:     convertFromIntFloat(it.intVal, it.mult),
 	}, it.tu, it.ant
 }
 
@@ -302,6 +367,10 @@ func (it *readerIterator) Reset(reader io.Reader) {
 	it.done = false
 	it.err = nil
 	it.ant = nil
+	it.isFloat = false
+	it.intVal = 0.0
+	it.mult = 0
+	it.sig = 0
 	it.tu = xtime.None
 	it.closed = false
 }

@@ -27,13 +27,13 @@ import (
 )
 
 type decoder struct {
-	opts Options
+	opts encoding.Options
 }
 
 // NewDecoder creates a decoder.
-func NewDecoder(opts Options) encoding.Decoder {
+func NewDecoder(opts encoding.Options) encoding.Decoder {
 	if opts == nil {
-		opts = NewOptions()
+		opts = encoding.NewOptions()
 	}
 	return &decoder{opts: opts}
 }

@@ -18,28 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package m3ts
 
-func leadingAndTrailingZeros(v uint64) (int, int) {
-	if v == 0 {
-		return 64, 0
-	}
+import (
+	"io"
+	
+	"github.com/m3db/m3db/encoding"
+)
 
-	numTrailing := 0
-	for tmp := v; (tmp & 1) == 0; tmp >>= 1 {
-		numTrailing++
-	}
-
-	numLeading := 0
-	for tmp := v; (tmp & (1 << 63)) == 0; tmp <<= 1 {
-		numLeading++
-	}
-
-	return numLeading, numTrailing
+type decoder struct {
+	opts encoding.Options
 }
 
-// signExtend sign extends the highest bit of v which has numBits (<=64)
-func signExtend(v uint64, numBits int) int64 {
-	shift := uint(64 - numBits)
-	return (int64(v) << shift) >> shift
+// NewDecoder creates a decoder.
+func NewDecoder(opts encoding.Options) encoding.Decoder {
+	if opts == nil {
+		opts = encoding.NewOptions()
+	}
+	return &decoder{opts: opts}
+}
+
+// Decode decodes the encoded data captured by the reader.
+func (dec *decoder) Decode(reader io.Reader) encoding.ReaderIterator {
+	return NewReaderIterator(reader, dec.opts)
 }

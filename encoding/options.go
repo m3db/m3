@@ -18,10 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package encoding
 
 import (
-	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/pool"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
@@ -36,57 +35,12 @@ var (
 	defaultOptions = newOptions()
 )
 
-// Options represents different options for encoding time as well as markers.
-type Options interface {
-	// DefaultTimeUnit sets the default time unit for the encoder.
-	DefaultTimeUnit(tu xtime.Unit) Options
-
-	// GetDefaultTimeUnit returns the default time unit for the encoder.
-	GetDefaultTimeUnit() xtime.Unit
-
-	// TimeEncodingSchemes sets the time encoding schemes for different time units.
-	TimeEncodingSchemes(value TimeEncodingSchemes) Options
-
-	// GetTimeEncodingSchemes returns the time encoding schemes for different time units.
-	GetTimeEncodingSchemes() TimeEncodingSchemes
-
-	// MarkerEncodingScheme sets the marker encoding scheme.
-	MarkerEncodingScheme(value MarkerEncodingScheme) Options
-
-	// GetMarkerEncodingScheme returns the marker encoding scheme.
-	GetMarkerEncodingScheme() MarkerEncodingScheme
-
-	// EncoderPool sets the encoder pool.
-	EncoderPool(value encoding.EncoderPool) Options
-
-	// GetEncoderPool returns the encoder pool.
-	GetEncoderPool() encoding.EncoderPool
-
-	// ReaderIteratorPool sets the ReaderIteratorPool.
-	ReaderIteratorPool(value encoding.ReaderIteratorPool) Options
-
-	// GetReaderIteratorPool returns the ReaderIteratorPool
-	GetReaderIteratorPool() encoding.ReaderIteratorPool
-
-	// BytesPool sets the bytes pool.
-	BytesPool(value pool.BytesPool) Options
-
-	// GetBytesPool returns the bytes pool.
-	GetBytesPool() pool.BytesPool
-
-	// SegmentReaderPool sets the segment reader pool.
-	SegmentReaderPool(value xio.SegmentReaderPool) Options
-
-	// GetSegmentReaderPool returns the segment reader pool.
-	GetSegmentReaderPool() xio.SegmentReaderPool
-}
-
 type options struct {
 	defaultTimeUnit      xtime.Unit
 	timeEncodingSchemes  TimeEncodingSchemes
 	markerEncodingScheme MarkerEncodingScheme
-	encoderPool          encoding.EncoderPool
-	readerIteratorPool   encoding.ReaderIteratorPool
+	encoderPool          EncoderPool
+	readerIteratorPool   ReaderIteratorPool
 	bytesPool            pool.BytesPool
 	segmentReaderPool    xio.SegmentReaderPool
 }
@@ -134,23 +88,23 @@ func (o *options) GetMarkerEncodingScheme() MarkerEncodingScheme {
 	return o.markerEncodingScheme
 }
 
-func (o *options) EncoderPool(value encoding.EncoderPool) Options {
+func (o *options) EncoderPool(value EncoderPool) Options {
 	opts := *o
 	opts.encoderPool = value
 	return &opts
 }
 
-func (o *options) GetEncoderPool() encoding.EncoderPool {
+func (o *options) GetEncoderPool() EncoderPool {
 	return o.encoderPool
 }
 
-func (o *options) ReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
+func (o *options) ReaderIteratorPool(value ReaderIteratorPool) Options {
 	opts := *o
 	opts.readerIteratorPool = value
 	return &opts
 }
 
-func (o *options) GetReaderIteratorPool() encoding.ReaderIteratorPool {
+func (o *options) GetReaderIteratorPool() ReaderIteratorPool {
 	return o.readerIteratorPool
 }
 
