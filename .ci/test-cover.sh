@@ -19,9 +19,11 @@ do
 done
 
 NPROC=$(getconf _NPROCESSORS_ONLN)
-go run .ci/gotestcover/gotestcover.go -race -covermode=atomic -coverprofile=${TARGET} -v -parallelpackages $NPROC $DIRS | tee $LOG
+go run .ci/gotestcover/gotestcover.go -race -covermode=atomic -coverprofile=profile.tmp -v -parallelpackages $NPROC $DIRS | tee $LOG
 
 TEST_EXIT=${PIPESTATUS[0]}
+
+cat profile.tmp | grep -v "_mock.go" > $TARGET
 
 find . -not -path '*/vendor/*' | grep \\.tmp$ | xargs -I{} rm {}
 echo "test-cover result: $TEST_EXIT"
