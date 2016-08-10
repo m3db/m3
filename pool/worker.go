@@ -20,17 +20,12 @@
 
 package pool
 
-import (
-	"github.com/m3db/m3db/interfaces/m3db"
-)
-
-// TODO(xichen): instrument this.
 type workerPool struct {
 	workCh chan struct{}
 }
 
 // NewWorkerPool creates a new worker pool.
-func NewWorkerPool(size int) m3db.WorkerPool {
+func NewWorkerPool(size int) WorkerPool {
 	return &workerPool{workCh: make(chan struct{}, size)}
 }
 
@@ -40,7 +35,7 @@ func (p *workerPool) Init() {
 	}
 }
 
-func (p *workerPool) Go(work m3db.Work) {
+func (p *workerPool) Go(work Work) {
 	token := <-p.workCh
 	go func() {
 		work()
@@ -48,7 +43,7 @@ func (p *workerPool) Go(work m3db.Work) {
 	}()
 }
 
-func (p *workerPool) GoIfAvailable(work m3db.Work) bool {
+func (p *workerPool) GoIfAvailable(work Work) bool {
 	select {
 	case token := <-p.workCh:
 		go func() {

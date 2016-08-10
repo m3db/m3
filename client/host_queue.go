@@ -26,8 +26,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/topology"
 
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -38,46 +39,29 @@ var (
 	errQueueFetchNoResponse  = errors.New("host operation queue did not receive response for given fetch")
 )
 
-type hostQueue interface {
-	// Open the host queue
-	Open()
-
-	// Len returns the length of the queue
-	Len() int
-
-	// Enqueue an operation
-	Enqueue(op m3db.Op) error
-
-	// GetConnectionCount gets the current open connection count
-	GetConnectionCount() int
-
-	// Close the host queue, will flush any operations still pending
-	Close()
-}
-
 type queue struct {
 	sync.RWMutex
 
-	opts                  m3db.ClientOptions
-	nowFn                 m3db.NowFn
-	host                  m3db.Host
+	opts                  Options
+	nowFn                 clock.NowFn
+	host                  topology.Host
 	connPool              connectionPool
 	writeBatchRequestPool writeBatchRequestPool
 	writeRequestArrayPool writeRequestArrayPool
 	size                  int
-	ops                   []m3db.Op
+	ops                   []op
 	opsSumSize            int
 	opsLastRotatedAt      time.Time
 	opsArrayPool          opArrayPool
-	drainIn               chan []m3db.Op
+	drainIn               chan []op
 	state                 state
 }
 
 func newHostQueue(
-	host m3db.Host,
+	host topology.Host,
 	writeBatchRequestPool writeBatchRequestPool,
 	writeRequestArrayPool writeRequestArrayPool,
-	opts m3db.ClientOptions,
+	opts Options,
 ) hostQueue {
 	size := opts.GetHostQueueOpsFlushSize()
 
@@ -87,7 +71,7 @@ func newHostQueue(
 
 	return &queue{
 		opts:                  opts,
-		nowFn:                 opts.GetNowFn(),
+		nowFn:                 opts.GetClockOptions().GetNowFn(),
 		host:                  host,
 		connPool:              newConnectionPool(host, opts),
 		writeBatchRequestPool: writeBatchRequestPool,
@@ -96,7 +80,7 @@ func newHostQueue(
 		ops:          opArrayPool.Get(),
 		opsArrayPool: opArrayPool,
 		// NB(r): specifically use non-buffered queue for single flush at a time
-		drainIn: make(chan []m3db.Op),
+		drainIn: make(chan []op),
 	}
 }
 
@@ -168,7 +152,7 @@ func (q *queue) flushEvery(interval time.Duration) {
 	}
 }
 
-func (q *queue) rotateOpsWithLock() []m3db.Op {
+func (q *queue) rotateOpsWithLock() []op {
 	if q.opsSumSize == 0 {
 		// No need to rotate as queue is empty
 		return nil
@@ -192,7 +176,7 @@ func (q *queue) drain() {
 			break
 		}
 		var (
-			currWriteOps      []m3db.Op
+			currWriteOps      []op
 			currWriteRequests []*rpc.WriteRequest
 			writeBatchSize    = q.opts.GetWriteBatchSize()
 			opsLen            = len(ops)
@@ -237,7 +221,7 @@ func (q *queue) drain() {
 	q.connPool.Close()
 }
 
-func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []m3db.Op, elems []*rpc.WriteRequest) {
+func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []op, elems []*rpc.WriteRequest) {
 	wg.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
@@ -341,8 +325,8 @@ func (q *queue) Len() int {
 	return v
 }
 
-func (q *queue) Enqueue(o m3db.Op) error {
-	var needsDrain []m3db.Op
+func (q *queue) Enqueue(o op) error {
+	var needsDrain []op
 	q.Lock()
 	if q.state != stateOpen {
 		q.Unlock()

@@ -25,24 +25,24 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
-type dataMap map[string][]m3db.Datapoint
+type dataMap map[string][]ts.Datapoint
 
 func generateTestData(metricNames []string, numPoints int, start time.Time) dataMap {
 	if numPoints <= 0 {
 		return nil
 	}
-	testData := make(map[string][]m3db.Datapoint)
+	testData := make(map[string][]ts.Datapoint)
 	for _, name := range metricNames {
-		datapoints := make([]m3db.Datapoint, 0, numPoints)
+		datapoints := make([]ts.Datapoint, 0, numPoints)
 		for i := 0; i < numPoints; i++ {
 			timestamp := start.Add(time.Duration(i) * time.Second)
-			datapoints = append(datapoints, m3db.Datapoint{
+			datapoints = append(datapoints, ts.Datapoint{
 				Timestamp: timestamp,
 				Value:     0.1 * float64(i),
 			})
@@ -52,10 +52,10 @@ func generateTestData(metricNames []string, numPoints int, start time.Time) data
 	return testData
 }
 
-func toDatapoints(fetched *rpc.FetchResult_) []m3db.Datapoint {
-	converted := make([]m3db.Datapoint, len(fetched.Datapoints))
+func toDatapoints(fetched *rpc.FetchResult_) []ts.Datapoint {
+	converted := make([]ts.Datapoint, len(fetched.Datapoints))
 	for i, dp := range fetched.Datapoints {
-		converted[i] = m3db.Datapoint{
+		converted[i] = ts.Datapoint{
 			Timestamp: xtime.FromNormalizedTime(dp.Timestamp, time.Second),
 			Value:     dp.Value,
 		}
@@ -90,7 +90,7 @@ func verifyDataMaps(
 ) {
 	for timestamp, dm := range dataMaps {
 		start := timestamp
-		end := timestamp.Add(ts.dbOpts.GetBlockSize())
+		end := timestamp.Add(ts.storageOpts.GetRetentionOptions().GetBlockSize())
 		verifyDataMapForRange(t, ts, start, end, dm)
 	}
 }

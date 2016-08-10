@@ -21,7 +21,9 @@
 package tsz
 
 import (
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/pool"
+	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
 )
 
@@ -55,38 +57,38 @@ type Options interface {
 	GetMarkerEncodingScheme() MarkerEncodingScheme
 
 	// EncoderPool sets the encoder pool.
-	EncoderPool(value m3db.EncoderPool) Options
+	EncoderPool(value encoding.EncoderPool) Options
 
 	// GetEncoderPool returns the encoder pool.
-	GetEncoderPool() m3db.EncoderPool
+	GetEncoderPool() encoding.EncoderPool
 
 	// ReaderIteratorPool sets the ReaderIteratorPool.
-	ReaderIteratorPool(value m3db.ReaderIteratorPool) Options
+	ReaderIteratorPool(value encoding.ReaderIteratorPool) Options
 
 	// GetReaderIteratorPool returns the ReaderIteratorPool
-	GetReaderIteratorPool() m3db.ReaderIteratorPool
+	GetReaderIteratorPool() encoding.ReaderIteratorPool
 
 	// BytesPool sets the bytes pool.
-	BytesPool(value m3db.BytesPool) Options
+	BytesPool(value pool.BytesPool) Options
 
 	// GetBytesPool returns the bytes pool.
-	GetBytesPool() m3db.BytesPool
+	GetBytesPool() pool.BytesPool
 
 	// SegmentReaderPool sets the segment reader pool.
-	SegmentReaderPool(value m3db.SegmentReaderPool) Options
+	SegmentReaderPool(value xio.SegmentReaderPool) Options
 
 	// GetSegmentReaderPool returns the segment reader pool.
-	GetSegmentReaderPool() m3db.SegmentReaderPool
+	GetSegmentReaderPool() xio.SegmentReaderPool
 }
 
 type options struct {
 	defaultTimeUnit      xtime.Unit
 	timeEncodingSchemes  TimeEncodingSchemes
 	markerEncodingScheme MarkerEncodingScheme
-	encoderPool          m3db.EncoderPool
-	readerIteratorPool   m3db.ReaderIteratorPool
-	bytesPool            m3db.BytesPool
-	segmentReaderPool    m3db.SegmentReaderPool
+	encoderPool          encoding.EncoderPool
+	readerIteratorPool   encoding.ReaderIteratorPool
+	bytesPool            pool.BytesPool
+	segmentReaderPool    xio.SegmentReaderPool
 }
 
 func newOptions() Options {
@@ -132,42 +134,42 @@ func (o *options) GetMarkerEncodingScheme() MarkerEncodingScheme {
 	return o.markerEncodingScheme
 }
 
-func (o *options) EncoderPool(value m3db.EncoderPool) Options {
+func (o *options) EncoderPool(value encoding.EncoderPool) Options {
 	opts := *o
 	opts.encoderPool = value
 	return &opts
 }
 
-func (o *options) GetEncoderPool() m3db.EncoderPool {
+func (o *options) GetEncoderPool() encoding.EncoderPool {
 	return o.encoderPool
 }
 
-func (o *options) ReaderIteratorPool(value m3db.ReaderIteratorPool) Options {
+func (o *options) ReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
 	opts := *o
 	opts.readerIteratorPool = value
 	return &opts
 }
 
-func (o *options) GetReaderIteratorPool() m3db.ReaderIteratorPool {
+func (o *options) GetReaderIteratorPool() encoding.ReaderIteratorPool {
 	return o.readerIteratorPool
 }
 
-func (o *options) BytesPool(value m3db.BytesPool) Options {
+func (o *options) BytesPool(value pool.BytesPool) Options {
 	opts := *o
 	opts.bytesPool = value
 	return &opts
 }
 
-func (o *options) GetBytesPool() m3db.BytesPool {
+func (o *options) GetBytesPool() pool.BytesPool {
 	return o.bytesPool
 }
 
-func (o *options) SegmentReaderPool(value m3db.SegmentReaderPool) Options {
+func (o *options) SegmentReaderPool(value xio.SegmentReaderPool) Options {
 	opts := *o
 	opts.segmentReaderPool = value
 	return &opts
 }
 
-func (o *options) GetSegmentReaderPool() m3db.SegmentReaderPool {
+func (o *options) GetSegmentReaderPool() xio.SegmentReaderPool {
 	return o.segmentReaderPool
 }

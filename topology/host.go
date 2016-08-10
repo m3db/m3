@@ -23,7 +23,7 @@ package topology
 import (
 	"math"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/sharding"
 )
 
 func majority(replicas int) int {
@@ -37,24 +37,24 @@ func (s simpleHost) Address() string {
 }
 
 // NewHost creates a new host
-func NewHost(address string) m3db.Host {
+func NewHost(address string) Host {
 	return simpleHost(address)
 }
 
 type hostShardSet struct {
-	host     m3db.Host
-	shardSet m3db.ShardSet
+	host     Host
+	shardSet sharding.ShardSet
 }
 
 // NewHostShardSet creates a new host shard set
-func NewHostShardSet(host m3db.Host, shardSet m3db.ShardSet) m3db.HostShardSet {
+func NewHostShardSet(host Host, shardSet sharding.ShardSet) HostShardSet {
 	return &hostShardSet{host, shardSet}
 }
 
-func (h *hostShardSet) Host() m3db.Host {
+func (h *hostShardSet) Host() Host {
 	return h.host
 }
 
-func (h *hostShardSet) ShardSet() m3db.ShardSet {
+func (h *hostShardSet) ShardSet() sharding.ShardSet {
 	return h.shardSet
 }

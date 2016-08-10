@@ -31,7 +31,8 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -159,9 +160,9 @@ func TestSessionFetchConsistencyLevelAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelAll, 0, outcomeSuccess)
+	testFetchConsistencyLevel(t, ctrl, topology.ConsistencyLevelAll, 0, outcomeSuccess)
 	for i := 1; i <= 3; i++ {
-		testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelAll, i, outcomeFail)
+		testFetchConsistencyLevel(t, ctrl, topology.ConsistencyLevelAll, i, outcomeFail)
 	}
 }
 
@@ -170,10 +171,10 @@ func TestSessionFetchConsistencyLevelMajority(t *testing.T) {
 	defer ctrl.Finish()
 
 	for i := 0; i <= 1; i++ {
-		testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelMajority, i, outcomeSuccess)
+		testFetchConsistencyLevel(t, ctrl, topology.ConsistencyLevelMajority, i, outcomeSuccess)
 	}
 	for i := 2; i <= 3; i++ {
-		testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelMajority, i, outcomeFail)
+		testFetchConsistencyLevel(t, ctrl, topology.ConsistencyLevelMajority, i, outcomeFail)
 	}
 }
 
@@ -182,15 +183,15 @@ func TestSessionFetchConsistencyLevelOne(t *testing.T) {
 	defer ctrl.Finish()
 
 	for i := 0; i <= 2; i++ {
-		testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, i, outcomeSuccess)
+		testFetchConsistencyLevel(t, ctrl, topology.ConsistencyLevelOne, i, outcomeSuccess)
 	}
-	testFetchConsistencyLevel(t, ctrl, m3db.ConsistencyLevelOne, 3, outcomeFail)
+	testFetchConsistencyLevel(t, ctrl, topology.ConsistencyLevelOne, 3, outcomeFail)
 }
 
 func testFetchConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
-	level m3db.ConsistencyLevel,
+	level topology.ConsistencyLevel,
 	failures int,
 	expected outcome,
 ) {
@@ -245,7 +246,7 @@ func prepareEnqueues(
 	fetches []testFetch,
 ) (*[]*fetchBatchOp, *sync.WaitGroup) {
 	var fetchBatchOps []*fetchBatchOp
-	enqueueFn := func(idx int, op m3db.Op) {
+	enqueueFn := func(idx int, op op) {
 		fetch, ok := op.(*fetchBatchOp)
 		assert.True(t, ok)
 		fetchBatchOps = append(fetchBatchOps, fetch)
@@ -292,7 +293,7 @@ func fulfillTszFetchBatchOps(
 
 				encoder := tsz.NewEncoder(f.values[0].t, nil, nil)
 				for _, value := range f.values {
-					dp := m3db.Datapoint{
+					dp := ts.Datapoint{
 						Timestamp: value.t,
 						Value:     value.value,
 					}
@@ -314,7 +315,7 @@ func assertFetchResults(
 	t *testing.T,
 	start, end time.Time,
 	fetches []testFetch,
-	results m3db.SeriesIterators,
+	results encoding.SeriesIterators,
 ) testFetchResultsAssertion {
 	trimToTimeRange := 0
 	assert.Equal(t, len(fetches), results.Len())
@@ -358,6 +359,6 @@ func assertFetchResults(
 	return testFetchResultsAssertion{trimToTimeRange: trimToTimeRange}
 }
 
-func seriesIterators(iters ...m3db.SeriesIterator) m3db.SeriesIterators {
+func seriesIterators(iters ...encoding.SeriesIterator) encoding.SeriesIterators {
 	return encoding.NewSeriesIterators(iters, nil)
 }

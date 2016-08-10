@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/interfaces/m3db"
+	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +47,7 @@ func hrs(x float64) time.Duration {
 
 type drain struct {
 	start   time.Time
-	encoder m3db.Encoder
+	encoder encoding.Encoder
 }
 
 type value struct {
@@ -93,8 +93,8 @@ func (v decodedValuesByTime) Swap(lhs, rhs int) {
 	v[lhs], v[rhs] = v[rhs], v[lhs]
 }
 
-func decodedValues(results [][]m3db.SegmentReader, opts m3db.DatabaseOptions) ([]decodedValue, error) {
-	slicesIter := encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(results)
+func decodedValues(results [][]xio.SegmentReader, opts Options) ([]decodedValue, error) {
+	slicesIter := xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(results)
 	iter := opts.GetMultiReaderIteratorPool().Get()
 	iter.ResetSliceOfSlices(slicesIter)
 	defer iter.Close()
@@ -111,7 +111,7 @@ func decodedValues(results [][]m3db.SegmentReader, opts m3db.DatabaseOptions) ([
 	return all, nil
 }
 
-func assertValuesEqual(t *testing.T, values []value, results [][]m3db.SegmentReader, opts m3db.DatabaseOptions) {
+func assertValuesEqual(t *testing.T, values []value, results [][]xio.SegmentReader, opts Options) {
 	decodedValues, err := decodedValues(results, opts)
 
 	assert.NoError(t, err)

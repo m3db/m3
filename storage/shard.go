@@ -28,7 +28,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -37,36 +43,9 @@ const (
 	shardIterateBatchPercent = 0.05
 )
 
-type databaseShard interface {
-	ShardNum() uint32
-
-	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
-	Tick()
-
-	Write(
-		ctx m3db.Context,
-		id string,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	) error
-
-	ReadEncoded(
-		ctx m3db.Context,
-		id string,
-		start, end time.Time,
-	) ([][]m3db.SegmentReader, error)
-
-	Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover time.Time) error
-
-	// Flush flushes the series in this shard.
-	Flush(ctx m3db.Context, blockStart time.Time, pm m3db.PersistenceManager) error
-}
-
 type dbShard struct {
 	sync.RWMutex
-	opts                  m3db.DatabaseOptions
+	opts                  Options
 	shard                 uint32
 	uniqueIndex           uniqueIndex
 	writeCommitLogFn      writeCommitLogFn
@@ -103,7 +82,7 @@ func newDatabaseShard(
 	shard uint32,
 	uniqueIndex uniqueIndex,
 	writeCommitLogFn writeCommitLogFn,
-	opts m3db.DatabaseOptions,
+	opts Options,
 ) databaseShard {
 	return &dbShard{
 		opts:             opts,
@@ -212,7 +191,7 @@ func (s *dbShard) Tick() {
 }
 
 func (s *dbShard) Write(
-	ctx m3db.Context,
+	ctx context.Context,
 	id string,
 	timestamp time.Time,
 	value float64,
@@ -230,12 +209,12 @@ func (s *dbShard) Write(
 	}
 
 	// Write commit log
-	info := m3db.CommitLogSeries{
+	info := commitlog.Series{
 		UniqueIndex: idx,
 		ID:          id,
 		Shard:       s.shard,
 	}
-	datapoint := m3db.Datapoint{
+	datapoint := ts.Datapoint{
 		Timestamp: timestamp,
 		Value:     value,
 	}
@@ -243,10 +222,10 @@ func (s *dbShard) Write(
 }
 
 func (s *dbShard) ReadEncoded(
-	ctx m3db.Context,
+	ctx context.Context,
 	id string,
 	start, end time.Time,
-) ([][]m3db.SegmentReader, error) {
+) ([][]xio.SegmentReader, error) {
 	s.RLock()
 	entry, exists := s.lookup[id]
 	s.RUnlock()
@@ -290,7 +269,7 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, uint64, writeComple
 	return entry.series, entry.uniqueIndex, entry.decrementWriterCount
 }
 
-func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover time.Time) error {
+func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error {
 	s.Lock()
 	if s.bs == bootstrapped {
 		s.Unlock()
@@ -311,7 +290,7 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 		multiErr = multiErr.Add(err)
 	}
 
-	var bootstrappedSeries map[string]m3db.DatabaseSeriesBlocks
+	var bootstrappedSeries map[string]block.DatabaseSeriesBlocks
 	if sr != nil {
 		bootstrappedSeries = sr.GetAllSeries()
 		for id, dbBlocks := range bootstrappedSeries {
@@ -350,7 +329,7 @@ func (s *dbShard) Bootstrap(bs m3db.Bootstrap, writeStart time.Time, cutover tim
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Flush(ctx m3db.Context, blockStart time.Time, pm m3db.PersistenceManager) error {
+func (s *dbShard) Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bs != bootstrapped {

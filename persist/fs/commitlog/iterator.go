@@ -24,8 +24,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/metrics"
 	"github.com/m3db/m3x/time"
@@ -38,7 +38,7 @@ var (
 )
 
 type iterator struct {
-	opts    m3db.DatabaseOptions
+	opts    Options
 	metrics xmetrics.Scope
 	log     xlog.Logger
 	files   []string
@@ -50,23 +50,25 @@ type iterator struct {
 }
 
 type iteratorRead struct {
-	series     m3db.CommitLogSeries
-	datapoint  m3db.Datapoint
+	series     Series
+	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation []byte
 }
 
-// NewCommitLogIterator creates a new commit log iterator
-func NewCommitLogIterator(opts m3db.DatabaseOptions) (m3db.CommitLogIterator, error) {
-	opts = opts.MetricsScope(opts.GetMetricsScope().SubScope("iterator"))
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(opts.GetFilePathPrefix()))
+// NewIterator creates a new commit log iterator
+func NewIterator(opts Options) (Iterator, error) {
+	iops := opts.GetInstrumentOptions()
+	iops = iops.MetricsScope(iops.GetMetricsScope().SubScope("iterator"))
+	fsopts := opts.GetFilesystemOptions()
+	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.GetFilePathPrefix()))
 	if err != nil {
 		return nil, err
 	}
 	return &iterator{
 		opts:    opts,
-		metrics: opts.GetMetricsScope(),
-		log:     opts.GetLogger(),
+		metrics: iops.GetMetricsScope(),
+		log:     iops.GetLogger(),
 		files:   files,
 	}, nil
 }
@@ -97,7 +99,7 @@ func (i *iterator) Next() bool {
 	return true
 }
 
-func (i *iterator) Current() (m3db.CommitLogSeries, m3db.Datapoint, xtime.Unit, m3db.Annotation) {
+func (i *iterator) Current() (Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
 	read := i.read
 	if i.hasError() || i.closed || !i.setRead {
 		read = iteratorRead{}
@@ -153,7 +155,7 @@ func (i *iterator) nextReader() bool {
 		i.err = errStartDoesNotMatch
 		return false
 	}
-	if duration != i.opts.GetBlockSize() {
+	if duration != i.opts.GetRetentionOptions().GetBlockSize() {
 		i.err = errDurationDoesNotMatch
 		return false
 	}

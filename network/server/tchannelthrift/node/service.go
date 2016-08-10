@@ -26,10 +26,10 @@ import (
 
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/storage"
+	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 
@@ -83,8 +83,8 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
 	multiIt := s.db.Options().GetMultiReaderIteratorPool().Get()
-	multiIt.ResetSliceOfSlices(encoding.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
-	it := encoding.NewSeriesIterator(req.ID, start, end, []m3db.Iterator{multiIt}, nil)
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
+	it := encoding.NewSeriesIterator(req.ID, start, end, []encoding.Iterator{multiIt}, nil)
 	defer it.Close()
 	for it.Next() {
 		dp, _, annotation := it.Current()

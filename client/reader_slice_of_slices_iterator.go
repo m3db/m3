@@ -24,13 +24,13 @@ import (
 	"io"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 )
 
 type readerSliceOfSlicesIterator struct {
 	segments       []*rpc.Segments
-	segmentReaders []m3db.SegmentReader
+	segmentReaders []xio.SegmentReader
 	idx            int
 	closed         bool
 	pool           readerSliceOfSlicesIteratorPool
@@ -56,20 +56,20 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	if len(it.segmentReaders) < currLen {
 		diff := currLen - len(it.segmentReaders)
 		for i := 0; i < diff; i++ {
-			it.segmentReaders = append(it.segmentReaders, xio.NewSegmentReader(m3db.Segment{}))
+			it.segmentReaders = append(it.segmentReaders, xio.NewSegmentReader(ts.Segment{}))
 		}
 	}
 
 	// Set the segment readers to reader from current segment pieces
 	segment := it.segments[it.idx]
 	if segment.Merged != nil {
-		it.segmentReaders[0].Reset(m3db.Segment{
+		it.segmentReaders[0].Reset(ts.Segment{
 			Head: segment.Merged.Head,
 			Tail: segment.Merged.Tail,
 		})
 	} else {
 		for i := 0; i < currLen; i++ {
-			it.segmentReaders[i].Reset(m3db.Segment{
+			it.segmentReaders[i].Reset(ts.Segment{
 				Head: segment.Unmerged[i].Head,
 				Tail: segment.Unmerged[i].Tail,
 			})

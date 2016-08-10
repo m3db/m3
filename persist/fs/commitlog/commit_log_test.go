@@ -30,85 +30,70 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/generated/mocks/mocks"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/metrics"
 	"github.com/m3db/m3x/time"
 
-	"github.com/facebookgo/clock"
-	"github.com/golang/mock/gomock"
+	mclock "github.com/facebookgo/clock"
 	"github.com/stretchr/testify/assert"
 )
 
 type overrides struct {
-	clock            *clock.Mock
-	backlogQueueSize *int
+	clock            *mclock.Mock
 	flushInterval    *time.Duration
+	backlogQueueSize *int
 }
 
 func newTestOptions(
 	t *testing.T,
-	ctrl *gomock.Controller,
 	overrides overrides,
 ) (
-	*mocks.MockDatabaseOptions,
+	Options,
 	xmetrics.TestStatsReporter,
 ) {
 	dir, err := ioutil.TempDir("", "foo")
 	assert.NoError(t, err)
 
-	var c clock.Clock
+	var c mclock.Clock
 	if overrides.clock != nil {
 		c = overrides.clock
 	} else {
-		c = clock.New()
+		c = mclock.New()
 	}
 
 	stats := xmetrics.NewTestStatsReporter()
 
-	opts := mocks.NewMockDatabaseOptions(ctrl)
-	opts.EXPECT().GetNowFn().Return(c.Now).AnyTimes()
-	opts.EXPECT().GetLogger().Return(xlog.SimpleLogger).AnyTimes()
+	opts := NewOptions().
+		ClockOptions(clock.NewOptions().NowFn(c.Now)).
+		InstrumentOptions(instrument.NewOptions().MetricsScope(xmetrics.NewScope("", stats))).
+		FilesystemOptions(fs.NewOptions().FilePathPrefix(dir)).
+		RetentionOptions(retention.NewOptions().BlockSize(2 * time.Hour)).
+		FlushSize(4096).
+		FlushInterval(100 * time.Millisecond).
+		BacklogQueueSize(1024)
 
-	call := opts.EXPECT().GetMetricsScope().
-		Return(xmetrics.NewScope("", stats)).
-		AnyTimes()
-
-	opts.EXPECT().MetricsScope(gomock.Any()).
-		Do(
-		func(newScope xmetrics.Scope) {
-			call.Return(newScope).AnyTimes()
-		}).
-		Return(opts).
-		AnyTimes()
-
-	opts.EXPECT().GetFilePathPrefix().Return(dir).AnyTimes()
-	opts.EXPECT().GetFileWriterOptions().Return(fs.NewFileWriterOptions()).AnyTimes()
-	opts.EXPECT().GetBlockSize().Return(2 * time.Hour).AnyTimes()
-	if overrides.backlogQueueSize != nil {
-		opts.EXPECT().GetCommitLogBacklogQueueSize().Return(*overrides.backlogQueueSize).AnyTimes()
-	} else {
-		opts.EXPECT().GetCommitLogBacklogQueueSize().Return(1024).AnyTimes()
-	}
-	opts.EXPECT().GetCommitLogFlushSize().Return(4096).AnyTimes()
 	if overrides.flushInterval != nil {
-		opts.EXPECT().GetCommitLogFlushInterval().Return(*overrides.flushInterval).AnyTimes()
-	} else {
-		opts.EXPECT().GetCommitLogFlushInterval().Return(100 * time.Millisecond).AnyTimes()
+		opts = opts.FlushInterval(*overrides.flushInterval)
+	}
+
+	if overrides.backlogQueueSize != nil {
+		opts = opts.BacklogQueueSize(*overrides.backlogQueueSize)
 	}
 
 	return opts, stats
 }
 
-func cleanup(t *testing.T, opts m3db.DatabaseOptions) {
-	filePathPrefix := opts.GetFilePathPrefix()
+func cleanup(t *testing.T, opts Options) {
+	filePathPrefix := opts.GetFilesystemOptions().GetFilePathPrefix()
 	assert.NoError(t, os.RemoveAll(filePathPrefix))
 }
 
 type testWrite struct {
-	series      m3db.CommitLogSeries
+	series      Series
 	t           time.Time
 	v           float64
 	u           xtime.Unit
@@ -120,8 +105,8 @@ func testSeries(
 	uniqueIndex uint64,
 	id string,
 	shard uint32,
-) m3db.CommitLogSeries {
-	return m3db.CommitLogSeries{
+) Series {
+	return Series{
 		UniqueIndex: uniqueIndex,
 		ID:          id,
 		Shard:       shard,
@@ -130,8 +115,8 @@ func testSeries(
 
 func (w testWrite) assert(
 	t *testing.T,
-	series m3db.CommitLogSeries,
-	datapoint m3db.Datapoint,
+	series Series,
+	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation []byte,
 ) {
@@ -144,12 +129,58 @@ func (w testWrite) assert(
 	assert.Equal(t, w.a, annotation)
 }
 
-func newTestCommitLog(t *testing.T, opts m3db.DatabaseOptions) *commitLog {
+type mockCommitLogWriter struct {
+	openFn  func(start time.Time, duration time.Duration) error
+	writeFn func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
+	flushFn func() error
+	closeFn func() error
+}
+
+func newMockCommitLogWriter() *mockCommitLogWriter {
+	return &mockCommitLogWriter{
+		openFn: func(start time.Time, duration time.Duration) error {
+			return nil
+		},
+		writeFn: func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+			return nil
+		},
+		flushFn: func() error {
+			return nil
+		},
+		closeFn: func() error {
+			return nil
+		},
+	}
+}
+
+func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) error {
+	return w.openFn(start, duration)
+}
+
+func (w *mockCommitLogWriter) Write(
+	series Series,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation ts.Annotation,
+) error {
+	return w.writeFn(series, datapoint, unit, annotation)
+}
+
+func (w *mockCommitLogWriter) Flush() error {
+	return w.flushFn()
+}
+
+func (w *mockCommitLogWriter) Close() error {
+	return w.closeFn()
+}
+
+func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 	commitLog := NewCommitLog(opts).(*commitLog)
 	assert.NoError(t, commitLog.Open())
 
 	// Ensure files present
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(opts.GetFilePathPrefix()))
+	fsopts := opts.GetFilesystemOptions()
+	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.GetFilePathPrefix()))
 	assert.NoError(t, err)
 	assert.True(t, len(files) == 1)
 
@@ -157,10 +188,10 @@ func newTestCommitLog(t *testing.T, opts m3db.DatabaseOptions) *commitLog {
 }
 
 type writeCommitLogFn func(
-	series m3db.CommitLogSeries,
-	datapoint m3db.Datapoint,
+	series Series,
+	datapoint ts.Datapoint,
 	unit xtime.Unit,
-	annotation m3db.Annotation,
+	annotation ts.Annotation,
 ) error
 
 func writeCommitLogs(
@@ -188,7 +219,7 @@ func writeCommitLogs(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			datapoint := m3db.Datapoint{Timestamp: write.t, Value: write.v}
+			datapoint := ts.Datapoint{Timestamp: write.t, Value: write.v}
 
 			err := writeFn(write.series, datapoint, write.u, write.a)
 			if write.expectedErr != nil {
@@ -276,10 +307,7 @@ func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
 }
 
 func TestCommitLogWrite(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts, stats := newTestOptions(t, ctrl, overrides{})
+	opts, stats := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
@@ -303,10 +331,7 @@ func TestCommitLogWrite(t *testing.T) {
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts, stats := newTestOptions(t, ctrl, overrides{})
+	opts, stats := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
@@ -331,17 +356,14 @@ func TestCommitLogWriteBehind(t *testing.T) {
 }
 
 func TestCommitLogWriteErrorOnClosed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts, _ := newTestOptions(t, ctrl, overrides{})
+	opts, _ := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
 	assert.NoError(t, commitLog.Close())
 
 	series := testSeries(0, "foo.bar", 127)
-	datapoint := m3db.Datapoint{Timestamp: time.Now(), Value: 123.456}
+	datapoint := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
 
 	err := commitLog.Write(series, datapoint, xtime.Millisecond, nil)
 	assert.Error(t, err)
@@ -353,13 +375,10 @@ func TestCommitLogWriteErrorOnClosed(t *testing.T) {
 }
 
 func TestCommitLogWriteErrorOnFull(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	// Set backlog of size one and don't automatically flush
 	backlogQueueSize := 1
 	flushInterval := time.Duration(0)
-	opts, _ := newTestOptions(t, ctrl, overrides{
+	opts, _ := newTestOptions(t, overrides{
 		backlogQueueSize: &backlogQueueSize,
 		flushInterval:    &flushInterval,
 	})
@@ -370,7 +389,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	// Test filling queue
 	var writes []testWrite
 	series := testSeries(0, "foo.bar", 127)
-	dp := m3db.Datapoint{Timestamp: time.Now(), Value: 123.456}
+	dp := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
 	unit := xtime.Millisecond
 	for {
 		if err := commitLog.WriteBehind(series, dp, unit, nil); err != nil {
@@ -393,16 +412,13 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 }
 
 func TestCommitLogExpiresWriter(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	clock := clock.NewMock()
-	opts, stats := newTestOptions(t, ctrl, overrides{clock: clock})
+	clock := mclock.NewMock()
+	opts, stats := newTestOptions(t, overrides{clock: clock})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
 
-	blockSize := opts.GetBlockSize()
+	blockSize := opts.GetRetentionOptions().GetBlockSize()
 	alignedStart := clock.Now().Truncate(blockSize)
 
 	// Writes spaced apart by block size
@@ -424,7 +440,8 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 	}
 
 	// Ensure files present for each block size time window
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(opts.GetFilePathPrefix()))
+	fsopts := opts.GetFilesystemOptions()
+	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.GetFilePathPrefix()))
 	assert.NoError(t, err)
 	assert.True(t, len(files) == len(writes))
 
@@ -436,26 +453,33 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 }
 
 func TestCommitLogFailOnWriteError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts, stats := newTestOptions(t, ctrl, overrides{})
+	opts, stats := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := NewCommitLog(opts).(*commitLog)
 
-	writer := mocks.NewMockcommitLogWriter(ctrl)
-	writer.EXPECT().Open(gomock.Any(), gomock.Any()).Return(nil)
-	writer.EXPECT().Flush().Do(func() { commitLog.onFlush(nil) }).Return(nil).AnyTimes()
+	writer := newMockCommitLogWriter()
 
-	// Return error on first write
-	writer.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("an error"))
+	writer.writeFn = func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+		return fmt.Errorf("an error")
+	}
 
-	writer.EXPECT().Close().Return(nil)
+	var opens int64
+	writer.openFn = func(start time.Time, duration time.Duration) error {
+		if atomic.AddInt64(&opens, 1) >= 2 {
+			return fmt.Errorf("an error")
+		}
+		return nil
+	}
+
+	writer.flushFn = func() error {
+		commitLog.onFlush(nil)
+		return nil
+	}
 
 	commitLog.newCommitLogWriterFn = func(
 		flushFn flushFn,
-		opts m3db.DatabaseOptions,
+		opts Options,
 	) commitLogWriter {
 		return writer
 	}
@@ -476,31 +500,29 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 }
 
 func TestCommitLogFailOnOpenError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts, stats := newTestOptions(t, ctrl, overrides{})
+	opts, stats := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := NewCommitLog(opts).(*commitLog)
 
-	writer := mocks.NewMockcommitLogWriter(ctrl)
+	writer := newMockCommitLogWriter()
 
-	// Ok first open
-	writer.EXPECT().Open(gomock.Any(), gomock.Any()).
-		Do(
-		func(s, b interface{}) {
-			// Not ok second open
-			writer.EXPECT().Open(gomock.Any(), gomock.Any()).Return(fmt.Errorf("an error"))
-		}).
-		Return(nil)
-	writer.EXPECT().Flush().Do(func() { commitLog.onFlush(nil) }).Return(nil).AnyTimes()
-	writer.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	writer.EXPECT().Close().Return(nil).Times(2)
+	var opens int64
+	writer.openFn = func(start time.Time, duration time.Duration) error {
+		if atomic.AddInt64(&opens, 1) >= 2 {
+			return fmt.Errorf("an error")
+		}
+		return nil
+	}
+
+	writer.flushFn = func() error {
+		commitLog.onFlush(nil)
+		return nil
+	}
 
 	commitLog.newCommitLogWriterFn = func(
 		flushFn flushFn,
-		opts m3db.DatabaseOptions,
+		opts Options,
 	) commitLogWriter {
 		return writer
 	}
@@ -529,36 +551,26 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 }
 
 func TestCommitLogFailOnFlushError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts, stats := newTestOptions(t, ctrl, overrides{})
+	opts, stats := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := NewCommitLog(opts).(*commitLog)
 
-	writer := mocks.NewMockcommitLogWriter(ctrl)
-	writer.EXPECT().Open(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	// Ok first flush
-	writer.EXPECT().Flush().
-		Do(
-		func() {
-			// Not ok second flush
-			writer.EXPECT().Flush().
-				Do(
-				func() {
-					commitLog.onFlush(fmt.Errorf("an error"))
-				}).
-				Return(nil).
-				AnyTimes()
-		}).
-		Return(nil)
-	writer.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	writer.EXPECT().Close().Return(nil)
+	writer := newMockCommitLogWriter()
+
+	var flushes int64
+	writer.flushFn = func() error {
+		if atomic.AddInt64(&flushes, 1) >= 2 {
+			commitLog.onFlush(fmt.Errorf("an error"))
+		} else {
+			commitLog.onFlush(nil)
+		}
+		return nil
+	}
 
 	commitLog.newCommitLogWriterFn = func(
 		flushFn flushFn,
-		opts m3db.DatabaseOptions,
+		opts Options,
 	) commitLogWriter {
 		return writer
 	}

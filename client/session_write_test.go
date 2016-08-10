@@ -27,11 +27,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -58,8 +58,8 @@ func TestSessionWrite(t *testing.T) {
 		annotation: nil,
 	}
 
-	var completionFn m3db.CompletionFn
-	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op m3db.Op) {
+	var completionFn completionFn
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
 		completionFn = op.GetCompletionFn()
 		write, ok := op.(*writeOp)
 		assert.True(t, ok)
@@ -136,7 +136,7 @@ func TestSessionWriteConsistencyLevelAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := m3db.ConsistencyLevelAll
+	level := topology.ConsistencyLevelAll
 	testWriteConsistencyLevel(t, ctrl, level, 0, outcomeSuccess)
 	for i := 1; i <= 3; i++ {
 		testWriteConsistencyLevel(t, ctrl, level, i, outcomeFail)
@@ -147,7 +147,7 @@ func TestSessionWriteConsistencyLevelMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := m3db.ConsistencyLevelMajority
+	level := topology.ConsistencyLevelMajority
 	for i := 0; i <= 1; i++ {
 		testWriteConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
@@ -160,7 +160,7 @@ func TestSessionWriteConsistencyLevelOne(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := m3db.ConsistencyLevelOne
+	level := topology.ConsistencyLevelOne
 	for i := 0; i <= 2; i++ {
 		testWriteConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
@@ -170,7 +170,7 @@ func TestSessionWriteConsistencyLevelOne(t *testing.T) {
 func testWriteConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
-	level m3db.ConsistencyLevel,
+	level topology.ConsistencyLevel,
 	failures int,
 	expected outcome,
 ) {
@@ -194,8 +194,8 @@ func testWriteConsistencyLevel(
 		annotation: nil,
 	}
 
-	var completionFn m3db.CompletionFn
-	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op m3db.Op) {
+	var completionFn completionFn
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
 		completionFn = op.GetCompletionFn()
 	}})
 

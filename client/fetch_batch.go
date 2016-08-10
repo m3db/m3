@@ -22,13 +22,12 @@ package client
 
 import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/pool"
 )
 
 type fetchBatchOp struct {
 	request       rpc.FetchRawBatchRequest
-	completionFns []m3db.CompletionFn
+	completionFns []completionFn
 }
 
 func (f *fetchBatchOp) reset() {
@@ -38,7 +37,7 @@ func (f *fetchBatchOp) reset() {
 	f.completionFns = f.completionFns[:0]
 }
 
-func (f *fetchBatchOp) append(id string, completionFn m3db.CompletionFn) {
+func (f *fetchBatchOp) append(id string, completionFn completionFn) {
 	f.request.Ids = append(f.request.Ids, id)
 	f.completionFns = append(f.completionFns, completionFn)
 }
@@ -47,7 +46,7 @@ func (f *fetchBatchOp) Size() int {
 	return len(f.request.Ids)
 }
 
-func (f *fetchBatchOp) GetCompletionFn() m3db.CompletionFn {
+func (f *fetchBatchOp) GetCompletionFn() completionFn {
 	return f.completeAll
 }
 
@@ -73,7 +72,7 @@ type fetchBatchOpPool interface {
 }
 
 type poolOfFetchBatchOp struct {
-	pool     m3db.ObjectPool
+	pool     pool.ObjectPool
 	capacity int
 }
 
@@ -86,7 +85,7 @@ func (p *poolOfFetchBatchOp) Init() {
 	p.pool.Init(func() interface{} {
 		f := &fetchBatchOp{}
 		f.request.Ids = make([]string, 0, p.capacity)
-		f.completionFns = make([]m3db.CompletionFn, 0, p.capacity)
+		f.completionFns = make([]completionFn, 0, p.capacity)
 		f.reset()
 		return f
 	})

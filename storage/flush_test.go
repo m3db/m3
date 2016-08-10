@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/generated/mocks/mocks"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/context"
+	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -34,30 +34,30 @@ import (
 )
 
 type mockDatabase struct {
-	opts   m3db.DatabaseOptions
+	opts   Options
 	shards []databaseShard
 	bs     bootstrapState
 }
 
 func newMockDatabase() *mockDatabase                    { return &mockDatabase{opts: testDatabaseOptions()} }
-func (d *mockDatabase) Options() m3db.DatabaseOptions   { return d.opts }
+func (d *mockDatabase) Options() Options                { return d.opts }
 func (d *mockDatabase) Open() error                     { return nil }
 func (d *mockDatabase) Close() error                    { return nil }
 func (d *mockDatabase) Bootstrap() error                { return nil }
 func (d *mockDatabase) IsBootstrapped() bool            { return d.bs == bootstrapped }
 func (d *mockDatabase) getOwnedShards() []databaseShard { return d.shards }
 func (d *mockDatabase) flush(t time.Time, async bool)   {}
-func (d *mockDatabase) Write(m3db.Context, string, time.Time, float64, xtime.Unit, []byte) error {
+func (d *mockDatabase) Write(context.Context, string, time.Time, float64, xtime.Unit, []byte) error {
 	return nil
 }
-func (d *mockDatabase) ReadEncoded(m3db.Context, string, time.Time, time.Time) ([][]m3db.SegmentReader, error) {
+func (d *mockDatabase) ReadEncoded(context.Context, string, time.Time, time.Time) ([][]xio.SegmentReader, error) {
 	return nil, nil
 }
 
 func TestNeedFlushDuringBootstrap(t *testing.T) {
 	database := newMockDatabase()
 	fm := newFlushManager(database)
-	now := database.Options().GetNowFn()()
+	now := database.Options().GetClockOptions().GetNowFn()()
 	require.False(t, fm.NeedsFlush(now))
 	database.bs = bootstrapped
 	require.True(t, fm.NeedsFlush(now))
@@ -67,7 +67,7 @@ func TestNeedFlushWhileFlushing(t *testing.T) {
 	database := newMockDatabase()
 	database.bs = bootstrapped
 	fm := newFlushManager(database).(*flushManager)
-	now := database.Options().GetNowFn()()
+	now := database.Options().GetClockOptions().GetNowFn()()
 	require.True(t, fm.NeedsFlush(now))
 	fm.fs = flushInProgress
 	require.False(t, fm.NeedsFlush(now))
@@ -77,7 +77,7 @@ func TestNeedFlushAttemptedBefore(t *testing.T) {
 	database := newMockDatabase()
 	database.bs = bootstrapped
 	fm := newFlushManager(database).(*flushManager)
-	now := database.Options().GetNowFn()()
+	now := database.Options().GetClockOptions().GetNowFn()()
 	require.True(t, fm.NeedsFlush(now))
 	firstBlockStart := now.Add(-2 * time.Hour).Add(-10 * time.Minute).Truncate(2 * time.Hour)
 	fm.flushAttempted[firstBlockStart] = flushState{Status: flushInProgress}
@@ -126,7 +126,7 @@ func TestFlush(t *testing.T) {
 	}
 	endTime := time.Unix(0, 0).Add(2 * 24 * time.Hour)
 	for shard := 0; shard < 2; shard++ {
-		m := mocks.NewMockdatabaseShard(ctrl)
+		m := NewMockdatabaseShard(ctrl)
 		database.shards = append(database.shards, m)
 		m.EXPECT().ShardNum().Return(uint32(shard))
 		cur := inputTimes[0].bs
@@ -197,17 +197,17 @@ func TestFlushWithTimes(t *testing.T) {
 
 	flushTime := time.Unix(7200, 0)
 	for i := 0; i < 2; i++ {
-		m := mocks.NewMockdatabaseShard(ctrl)
+		m := NewMockdatabaseShard(ctrl)
 		database.shards = append(database.shards, m)
 		m.EXPECT().Flush(ctx, flushTime, fm.pm).Return(nil)
 	}
 	require.True(t, fm.flushWithTime(ctx, flushTime))
 
-	m := mocks.NewMockdatabaseShard(ctrl)
+	m := NewMockdatabaseShard(ctrl)
 	database.shards[0] = m
 	m.EXPECT().Flush(ctx, flushTime, fm.pm).Return(nil)
 
-	m = mocks.NewMockdatabaseShard(ctrl)
+	m = NewMockdatabaseShard(ctrl)
 	database.shards[1] = m
 	m.EXPECT().Flush(ctx, flushTime, fm.pm).Return(errors.New("some errors"))
 	m.EXPECT().ShardNum().Return(uint32(1))

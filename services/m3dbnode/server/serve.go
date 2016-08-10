@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/interfaces/m3db"
 	hjcluster "github.com/m3db/m3db/network/server/httpjson/cluster"
 	hjnode "github.com/m3db/m3db/network/server/httpjson/node"
 	ttcluster "github.com/m3db/m3db/network/server/tchannelthrift/cluster"
@@ -39,7 +38,7 @@ import (
 )
 
 // DefaultShardingScheme creates a default sharding scheme.
-func DefaultShardingScheme() (m3db.ShardScheme, error) {
+func DefaultShardingScheme() (sharding.ShardScheme, error) {
 	shards := uint32(1024)
 	return sharding.NewShardScheme(0, shards-1, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % shards
@@ -47,7 +46,7 @@ func DefaultShardingScheme() (m3db.ShardScheme, error) {
 }
 
 // DefaultClientOptions creates a default m3db client options.
-func DefaultClientOptions(tchannelNodeAddr string, shardingScheme m3db.ShardScheme) (m3db.ClientOptions, error) {
+func DefaultClientOptions(tchannelNodeAddr string, shardingScheme sharding.ShardScheme) (client.Options, error) {
 	var localNodeAddr string
 	if !strings.ContainsRune(tchannelNodeAddr, ':') {
 		return nil, errors.New("tchannelthrift address does not specify port")
@@ -56,11 +55,11 @@ func DefaultClientOptions(tchannelNodeAddr string, shardingScheme m3db.ShardSche
 	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
 
 	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardingScheme.All())
-	topologyOptions := topology.NewStaticTopologyTypeOptions().
+	topologyOptions := topology.NewStaticTypeOptions().
 		ShardScheme(shardingScheme).
 		Replicas(1).
-		HostShardSets([]m3db.HostShardSet{hostShardSet})
-	return client.NewOptions().TopologyType(topology.NewStaticTopologyType(topologyOptions)), nil
+		HostShardSets([]topology.HostShardSet{hostShardSet})
+	return client.NewOptions().TopologyType(topology.NewStaticType(topologyOptions)), nil
 }
 
 // Serve starts up the tchannel server as well as the http server.
@@ -69,13 +68,13 @@ func Serve(
 	tchannelClusterAddr string,
 	httpNodeAddr string,
 	tchannelNodeAddr string,
-	clientOpts m3db.ClientOptions,
-	dbOpts m3db.DatabaseOptions,
+	clientOpts client.Options,
+	storageOpts storage.Options,
 	doneCh chan struct{},
 ) error {
-	log := dbOpts.GetLogger()
+	log := storageOpts.GetInstrumentOptions().GetLogger()
 	shardingScheme := clientOpts.GetTopologyType().Options().GetShardScheme()
-	db, err := storage.NewDatabase(shardingScheme.All(), dbOpts)
+	db, err := storage.NewDatabase(shardingScheme.All(), storageOpts)
 	if err != nil {
 		return err
 	}

@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/generated/mocks/mocks"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -40,31 +40,29 @@ func createShardDir(t *testing.T, prefix string, shard uint32) string {
 	return shardDirPath
 }
 
-func testPersistenceManager(t *testing.T, ctrl *gomock.Controller) (*persistenceManager, *mocks.MockFileSetWriter) {
-	opts := mocks.NewMockDatabaseOptions(ctrl)
-	writer := mocks.NewMockFileSetWriter(ctrl)
-	fileSetWriterFn := func(
-		blockSize time.Duration,
-		filePathPrefix string,
-		writerBufferSize int,
-		options m3db.FileWriterOptions,
-	) m3db.FileSetWriter {
-		return writer
-	}
+func testManager(t *testing.T, ctrl *gomock.Controller) (*persistManager, *MockFileSetWriter) {
 	dir := createTempDir(t)
-	opts.EXPECT().GetFilePathPrefix().Return(dir)
-	opts.EXPECT().GetBlockSize().Return(2 * time.Hour)
-	opts.EXPECT().GetWriterBufferSize().Return(10)
-	opts.EXPECT().GetFileWriterOptions().Return(NewFileWriterOptions())
-	opts.EXPECT().GetNewFileSetWriterFn().Return(fileSetWriterFn)
-	return NewPersistenceManager(opts).(*persistenceManager), writer
+
+	opts := NewOptions().
+		FilePathPrefix(dir).
+		WriterBufferSize(10).
+		RetentionOptions(
+			retention.NewOptions().
+				BlockSize(2 * time.Hour))
+
+	writer := NewMockFileSetWriter(ctrl)
+
+	manager := NewPersistManager(opts).(*persistManager)
+	manager.writer = writer
+
+	return manager, writer
 }
 
 func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, _ := testPersistenceManager(t, ctrl)
+	pm, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -85,7 +83,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer := testPersistenceManager(t, ctrl)
+	pm, writer := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -103,7 +101,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer := testPersistenceManager(t, ctrl)
+	pm, writer := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -111,7 +109,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	writer.EXPECT().Open(shard, blockStart).Return(nil)
 
 	id := "foo"
-	segment := m3db.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
+	segment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
 	writer.EXPECT().WriteAll(id, gomock.Any()).Return(nil)
 	writer.EXPECT().Close()
 

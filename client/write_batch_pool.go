@@ -22,7 +22,6 @@ package client
 
 import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/pool"
 )
 
@@ -42,7 +41,7 @@ type writeBatchRequestPool interface {
 }
 
 type poolOfWriteBatchRequest struct {
-	pool m3db.ObjectPool
+	pool pool.ObjectPool
 }
 
 func newWriteBatchRequestPool(size int) writeBatchRequestPool {

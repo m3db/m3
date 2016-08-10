@@ -24,7 +24,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/sharding"
 )
 
 var (
@@ -32,18 +32,18 @@ var (
 	errHostShardSetSchemeDoesNotMatch = errors.New("host shard set's shard scheme is not the specified shard scheme")
 )
 
-type staticTopologyTypeOptions struct {
-	shardScheme   m3db.ShardScheme
+type staticTypeOptions struct {
+	shardScheme   sharding.ShardScheme
 	replicas      int
-	hostShardSets []m3db.HostShardSet
+	hostShardSets []HostShardSet
 }
 
-// NewStaticTopologyTypeOptions creates a new set of static topology type options
-func NewStaticTopologyTypeOptions() m3db.TopologyTypeOptions {
-	return &staticTopologyTypeOptions{}
+// NewStaticTypeOptions creates a new set of static topology type options
+func NewStaticTypeOptions() TypeOptions {
+	return &staticTypeOptions{}
 }
 
-func (o *staticTopologyTypeOptions) Validate() error {
+func (o *staticTypeOptions) Validate() error {
 	if o.replicas < 1 {
 		return errInvalidReplicas
 	}
@@ -77,32 +77,32 @@ func (o *staticTopologyTypeOptions) Validate() error {
 	return nil
 }
 
-func (o *staticTopologyTypeOptions) ShardScheme(value m3db.ShardScheme) m3db.TopologyTypeOptions {
+func (o *staticTypeOptions) ShardScheme(value sharding.ShardScheme) TypeOptions {
 	opts := *o
 	opts.shardScheme = value
 	return &opts
 }
 
-func (o *staticTopologyTypeOptions) GetShardScheme() m3db.ShardScheme {
+func (o *staticTypeOptions) GetShardScheme() sharding.ShardScheme {
 	return o.shardScheme
 }
 
-func (o *staticTopologyTypeOptions) Replicas(value int) m3db.TopologyTypeOptions {
+func (o *staticTypeOptions) Replicas(value int) TypeOptions {
 	opts := *o
 	opts.replicas = value
 	return &opts
 }
 
-func (o *staticTopologyTypeOptions) GetReplicas() int {
+func (o *staticTypeOptions) GetReplicas() int {
 	return o.replicas
 }
 
-func (o *staticTopologyTypeOptions) HostShardSets(value []m3db.HostShardSet) m3db.TopologyTypeOptions {
+func (o *staticTypeOptions) HostShardSets(value []HostShardSet) TypeOptions {
 	opts := *o
 	opts.hostShardSets = value
 	return &opts
 }
 
-func (o *staticTopologyTypeOptions) GetHostShardSets() []m3db.HostShardSet {
+func (o *staticTypeOptions) GetHostShardSets() []HostShardSet {
 	return o.hostShardSets
 }

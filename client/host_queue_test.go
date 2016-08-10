@@ -26,9 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/generated/mocks/mocks"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -52,7 +50,7 @@ type hostQueueResult struct {
 	err    error
 }
 
-func newHostQueueTestOptions() m3db.ClientOptions {
+func newHostQueueTestOptions() Options {
 	return NewOptions().
 		HostQueueOpsFlushSize(4).
 		HostQueueOpsArrayPoolSize(4).
@@ -86,7 +84,7 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockConnPool := mocks.NewMockconnectionPool(ctrl)
+	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
 	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
@@ -125,7 +123,7 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	}
 
 	// Prepare mocks for flush
-	mockClient := mocks.NewMockTChanNode(ctrl)
+	mockClient := rpc.NewMockTChanNode(ctrl)
 	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRequest) {
 		for i, write := range writes {
 			assert.Equal(t, *req.Elements[i], write.request)
@@ -160,7 +158,7 @@ func TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockConnPool := mocks.NewMockconnectionPool(ctrl)
+	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
 	opts = opts.HostQueueOpsFlushInterval(time.Millisecond)
@@ -203,7 +201,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockConnPool := mocks.NewMockconnectionPool(ctrl)
+	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
 	opts = opts.HostQueueOpsFlushSize(2)
@@ -235,7 +233,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	wg.Add(len(writes))
 
 	// Prepare mocks for flush
-	mockClient := mocks.NewMockTChanNode(ctrl)
+	mockClient := rpc.NewMockTChanNode(ctrl)
 	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRequest) {
 		for i, write := range writes {
 			assert.Equal(t, *req.Elements[i], write.request)
@@ -272,7 +270,7 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockConnPool := mocks.NewMockconnectionPool(ctrl)
+	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
 	opts = opts.HostQueueOpsFlushSize(2)
@@ -299,7 +297,7 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 	wg.Add(len(writes))
 
 	// Prepare mocks for flush
-	mockClient := mocks.NewMockTChanNode(ctrl)
+	mockClient := rpc.NewMockTChanNode(ctrl)
 	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRequest) {
 		for i, write := range writes {
 			assert.Equal(t, *req.Elements[i], write.request)
@@ -424,7 +422,7 @@ func testHostQueueFetchBatches(
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockConnPool := mocks.NewMockconnectionPool(ctrl)
+	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
 	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
@@ -459,7 +457,7 @@ func testHostQueueFetchBatches(
 	wg.Add(len(fetchBatch.request.Ids))
 
 	// Prepare mocks for flush
-	mockClient := mocks.NewMockTChanNode(ctrl)
+	mockClient := rpc.NewMockTChanNode(ctrl)
 	if testOpts != nil && testOpts.nextClientErr != nil {
 		mockConnPool.EXPECT().NextClient().Return(nil, testOpts.nextClientErr)
 	} else if testOpts != nil && testOpts.fetchRawBatchErr != nil {
@@ -508,7 +506,7 @@ func testWriteOp(
 	value float64,
 	timestamp int64,
 	timeType rpc.TimeType,
-	completionFn m3db.CompletionFn,
+	completionFn completionFn,
 ) *writeOp {
 	w := &writeOp{}
 	w.reset()

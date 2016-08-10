@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3x/errors"
@@ -38,13 +37,13 @@ import (
 type service struct {
 	sync.RWMutex
 
-	client m3db.Client
-	active m3db.Session
+	client client.Client
+	active client.Session
 	health *rpc.HealthResult_
 }
 
 // NewService creates a new cluster TChannel Thrift service
-func NewService(client m3db.Client) rpc.TChanCluster {
+func NewService(client client.Client) rpc.TChanCluster {
 	s := &service{
 		client: client,
 		health: &rpc.HealthResult_{Ok: true, Status: "up"},
@@ -54,7 +53,7 @@ func NewService(client m3db.Client) rpc.TChanCluster {
 	return s
 }
 
-func (s *service) session() (m3db.Session, error) {
+func (s *service) session() (client.Session, error) {
 	s.RLock()
 	session := s.active
 	s.RUnlock()

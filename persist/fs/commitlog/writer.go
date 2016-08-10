@@ -27,10 +27,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -60,11 +61,13 @@ type commitLogWriter interface {
 	// Open opens the commit log for writing data
 	Open(start time.Time, duration time.Duration) error
 
-	// IsOpen returns whether open or not
-	IsOpen() bool
-
 	// Write will write an entry in the commit log for a given series
-	Write(series m3db.CommitLogSeries, datapoint m3db.Datapoint, unit xtime.Unit, annotation []byte) error
+	Write(
+		series Series,
+		datapoint ts.Datapoint,
+		unit xtime.Unit,
+		annotation ts.Annotation,
+	) error
 
 	// Flush will flush the contents to the disk, useful when first testing if first commit log is writable
 	Flush() error
@@ -79,7 +82,7 @@ type writer struct {
 	filePathPrefix     string
 	newFileMode        os.FileMode
 	newDirectoryMode   os.FileMode
-	nowFn              m3db.NowFn
+	nowFn              clock.NowFn
 	bitset             bitset
 	start              time.Time
 	duration           time.Duration
@@ -97,16 +100,16 @@ type writer struct {
 
 func newCommitLogWriter(
 	flushFn flushFn,
-	opts m3db.DatabaseOptions,
+	opts Options,
 ) commitLogWriter {
 	return &writer{
-		filePathPrefix:     opts.GetFilePathPrefix(),
-		newFileMode:        opts.GetFileWriterOptions().GetNewFileMode(),
-		newDirectoryMode:   opts.GetFileWriterOptions().GetNewDirectoryMode(),
-		nowFn:              opts.GetNowFn(),
+		filePathPrefix:     opts.GetFilesystemOptions().GetFilePathPrefix(),
+		newFileMode:        opts.GetFilesystemOptions().GetNewFileMode(),
+		newDirectoryMode:   opts.GetFilesystemOptions().GetNewDirectoryMode(),
+		nowFn:              opts.GetClockOptions().GetNowFn(),
 		chunkWriter:        newChunkWriter(flushFn),
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
-		buffer:             bufio.NewWriterSize(nil, opts.GetCommitLogFlushSize()),
+		buffer:             bufio.NewWriterSize(nil, opts.GetFlushSize()),
 		bitset:             newBitset(),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		infoBuffer:         proto.NewBuffer(nil),
@@ -116,7 +119,7 @@ func newCommitLogWriter(
 }
 
 func (w *writer) Open(start time.Time, duration time.Duration) error {
-	if w.IsOpen() {
+	if w.isOpen() {
 		return errCommitLogWriterAlreadyOpen
 	}
 
@@ -153,11 +156,16 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	return nil
 }
 
-func (w *writer) IsOpen() bool {
+func (w *writer) isOpen() bool {
 	return w.chunkWriter.fd != nil
 }
 
-func (w *writer) Write(series m3db.CommitLogSeries, datapoint m3db.Datapoint, unit xtime.Unit, annotation []byte) error {
+func (w *writer) Write(
+	series Series,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation ts.Annotation,
+) error {
 	w.log = schema.CommitLog{}
 	w.log.Created = w.nowFn().UnixNano()
 	w.log.Idx = series.UniqueIndex
@@ -202,7 +210,7 @@ func (w *writer) Flush() error {
 }
 
 func (w *writer) Close() error {
-	if !w.IsOpen() {
+	if !w.isOpen() {
 		return nil
 	}
 
@@ -254,9 +262,12 @@ func newChunkWriter(flushFn flushFn) *chunkWriter {
 func (w *chunkWriter) Write(p []byte) (int, error) {
 	size := len(p)
 
-	sizeStart, sizeEnd := 0, chunkHeaderSizeLen
-	checksumSizeStart, checksumSizeEnd := sizeEnd, sizeEnd+chunkHeaderSizeLen
-	checksumDataStart, checksumDataEnd := checksumSizeEnd, checksumSizeEnd+chunkHeaderChecksumDataLen
+	sizeStart, sizeEnd :=
+		0, chunkHeaderSizeLen
+	checksumSizeStart, checksumSizeEnd :=
+		sizeEnd, sizeEnd+chunkHeaderSizeLen
+	checksumDataStart, checksumDataEnd :=
+		checksumSizeEnd, checksumSizeEnd+chunkHeaderChecksumDataLen
 
 	// Write size
 	endianness.PutUint32(w.header[sizeStart:sizeEnd], uint32(size))
@@ -266,8 +277,12 @@ func (w *chunkWriter) Write(p []byte) (int, error) {
 	checksumData := digest.Checksum(p)
 
 	// Write checksums
-	digest.Buffer(w.header[checksumSizeStart:checksumSizeEnd]).WriteDigest(checksumSize)
-	digest.Buffer(w.header[checksumDataStart:checksumDataEnd]).WriteDigest(checksumData)
+	digest.
+		Buffer(w.header[checksumSizeStart:checksumSizeEnd]).
+		WriteDigest(checksumSize)
+	digest.
+		Buffer(w.header[checksumDataStart:checksumDataEnd]).
+		WriteDigest(checksumData)
 
 	// Write header to file descriptor
 	if _, err := w.fd.Write(w.header); err != nil {

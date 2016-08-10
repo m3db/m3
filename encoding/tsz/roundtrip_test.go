@@ -25,27 +25,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
 
-func generateDatapoints(numPoints int, timeUnit time.Duration) []m3db.Datapoint {
+func generateDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
 	rand.Seed(time.Now().UnixNano())
 	var startTime int64 = 1427162462
 	currentTime := time.Unix(startTime, 0)
 	endTime := testStartTime.Add(2 * time.Hour)
 	currentValue := 1.0
-	res := []m3db.Datapoint{{currentTime, currentValue}}
+	res := []ts.Datapoint{{currentTime, currentValue}}
 	for i := 1; i < numPoints; i++ {
 		currentTime := currentTime.Add(time.Second * time.Duration(rand.Intn(7200)))
 		currentValue += (rand.Float64() - 0.5) * 10
 		if !currentTime.Before(endTime) {
 			break
 		}
-		res = append(res, m3db.Datapoint{Timestamp: currentTime, Value: currentValue})
+		res = append(res, ts.Datapoint{Timestamp: currentTime, Value: currentValue})
 	}
 	return res
 }
@@ -68,7 +68,7 @@ func TestRoundTrip(t *testing.T) {
 		}
 		decoder := NewDecoder(nil)
 		it := decoder.Decode(encoder.Stream())
-		var decompressed []m3db.Datapoint
+		var decompressed []ts.Datapoint
 		j := 0
 		for it.Next() {
 			v, _, a := it.Current()

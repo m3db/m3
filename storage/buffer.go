@@ -25,7 +25,11 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -44,47 +48,28 @@ const (
 	bucketsLen = 3
 )
 
-type databaseBuffer interface {
-	Write(
-		ctx m3db.Context,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	) error
-
-	// ReadEncoded will return the full buffer's data as encoded segments
-	// if start and end intersects the buffer at all, nil otherwise
-	ReadEncoded(
-		ctx m3db.Context,
-		start, end time.Time,
-	) [][]m3db.SegmentReader
-
-	Empty() bool
-
-	NeedsDrain() bool
-
-	DrainAndReset(forced bool)
-}
-
 type dbBuffer struct {
-	opts      m3db.DatabaseOptions
-	nowFn     m3db.NowFn
-	drainFn   databaseBufferDrainFn
-	buckets   [bucketsLen]dbBufferBucket
-	blockSize time.Duration
+	opts         Options
+	nowFn        clock.NowFn
+	drainFn      databaseBufferDrainFn
+	buckets      [bucketsLen]dbBufferBucket
+	blockSize    time.Duration
+	bufferPast   time.Duration
+	bufferFuture time.Duration
 }
 
-type databaseBufferDrainFn func(start time.Time, encoder m3db.Encoder)
+type databaseBufferDrainFn func(start time.Time, encoder encoding.Encoder)
 
-func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts m3db.DatabaseOptions) databaseBuffer {
-	nowFn := opts.GetNowFn()
+func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuffer {
+	nowFn := opts.GetClockOptions().GetNowFn()
 
 	b := &dbBuffer{
-		opts:      opts,
-		nowFn:     nowFn,
-		drainFn:   drainFn,
-		blockSize: opts.GetBlockSize(),
+		opts:         opts,
+		nowFn:        nowFn,
+		drainFn:      drainFn,
+		blockSize:    opts.GetRetentionOptions().GetBlockSize(),
+		bufferPast:   opts.GetRetentionOptions().GetBufferPast(),
+		bufferFuture: opts.GetRetentionOptions().GetBufferFuture(),
 	}
 	b.forEachBucketAsc(nowFn(), func(bucket *dbBufferBucket, start time.Time) {
 		bucket.opts = opts
@@ -94,15 +79,15 @@ func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts m3db.DatabaseOptions)
 }
 
 func (b *dbBuffer) Write(
-	ctx m3db.Context,
+	ctx context.Context,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
 	now := b.nowFn()
-	futureLimit := now.Add(b.opts.GetBufferFuture())
-	pastLimit := now.Add(-1 * b.opts.GetBufferPast())
+	futureLimit := now.Add(1 * b.bufferFuture)
+	pastLimit := now.Add(-1 * b.bufferPast)
 	if !futureLimit.After(timestamp) {
 		return xerrors.NewInvalidParamsError(errTooFuture)
 	}
@@ -155,7 +140,7 @@ func (b *dbBuffer) bucketState(
 	shouldRead := notDrainedHasValues
 	needsReset := !bucket.start.Equal(bucketStart)
 	needsDrain := (notDrainedHasValues && needsReset) ||
-		(notDrainedHasValues && bucketStart.Add(b.blockSize).Before(now.Add(-1*b.opts.GetBufferPast())))
+		(notDrainedHasValues && bucketStart.Add(b.blockSize).Before(now.Add(-1*b.bufferPast)))
 
 	return shouldRead, needsDrain, needsReset
 }
@@ -194,11 +179,11 @@ func (b *dbBuffer) forEachBucketAsc(now time.Time, fn func(*dbBufferBucket, time
 	}
 }
 
-func (b *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) [][]m3db.SegmentReader {
+func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.SegmentReader {
 	now := b.nowFn()
 
 	// TODO(r): pool these results arrays
-	var results [][]m3db.SegmentReader
+	var results [][]xio.SegmentReader
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
 		shouldRead, _, _ := b.bucketState(now, bucket, current)
 		if !shouldRead {
@@ -213,7 +198,7 @@ func (b *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) [][]m3db.
 			return
 		}
 
-		unmerged := make([]m3db.SegmentReader, 0, len(bucket.encoders))
+		unmerged := make([]xio.SegmentReader, 0, len(bucket.encoders))
 		for i := range bucket.encoders {
 			stream := bucket.encoders[i].encoder.Stream()
 			if stream == nil {
@@ -237,7 +222,7 @@ func (b *dbBuffer) ReadEncoded(ctx m3db.Context, start, end time.Time) [][]m3db.
 }
 
 type dbBufferBucket struct {
-	opts        m3db.DatabaseOptions
+	opts        Options
 	start       time.Time
 	encoders    []inOrderEncoder
 	lastWriteAt time.Time
@@ -247,12 +232,13 @@ type dbBufferBucket struct {
 
 type inOrderEncoder struct {
 	lastWriteAt time.Time
-	encoder     m3db.Encoder
+	encoder     encoding.Encoder
 }
 
 func (b *dbBufferBucket) resetTo(start time.Time) {
-	encoder := b.opts.GetEncoderPool().Get()
-	encoder.Reset(start, b.opts.GetBufferBucketAllocSize())
+	bopts := b.opts.GetDatabaseBlockOptions()
+	encoder := bopts.GetEncoderPool().Get()
+	encoder.Reset(start, bopts.GetDatabaseBlockAllocSize())
 	first := inOrderEncoder{
 		lastWriteAt: timeZero,
 		encoder:     encoder,
@@ -282,14 +268,16 @@ func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Un
 		}
 	}
 	if target == nil {
-		encoder := b.opts.GetEncoderPool().Get()
-		encoder.Reset(timestamp.Truncate(b.opts.GetBlockSize()), b.opts.GetBufferBucketAllocSize())
+		bopts := b.opts.GetDatabaseBlockOptions()
+		blockSize := b.opts.GetRetentionOptions().GetBlockSize()
+		encoder := bopts.GetEncoderPool().Get()
+		encoder.Reset(timestamp.Truncate(blockSize), bopts.GetDatabaseBlockAllocSize())
 		next := inOrderEncoder{encoder: encoder}
 		b.encoders = append(b.encoders, next)
 		target = &b.encoders[len(b.encoders)-1]
 	}
 
-	datapoint := m3db.Datapoint{
+	datapoint := ts.Datapoint{
 		Timestamp: timestamp,
 		Value:     value,
 	}
@@ -306,8 +294,9 @@ func (b *dbBufferBucket) sort() {
 		return
 	}
 
-	encoder := b.opts.GetEncoderPool().Get()
-	encoder.Reset(b.start, b.opts.GetBufferBucketAllocSize())
+	bopts := b.opts.GetDatabaseBlockOptions()
+	encoder := bopts.GetEncoderPool().Get()
+	encoder.Reset(b.start, bopts.GetDatabaseBlockAllocSize())
 
 	readers := make([]io.Reader, len(b.encoders))
 	for i := range b.encoders {

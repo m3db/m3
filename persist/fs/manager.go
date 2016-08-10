@@ -23,15 +23,15 @@ package fs
 import (
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/ts"
 )
 
-// persistenceManager is responsible for persisting series segments onto local
-// filesystem.
-type persistenceManager struct {
-	opts           m3db.DatabaseOptions
+// persistManager is responsible for persisting series segments onto local filesystem
+type persistManager struct {
+	opts           Options
 	filePathPrefix string
-	writer         m3db.FileSetWriter
+	writer         FileSetWriter
 
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
 	// head and the tail of each segment so we don't need to allocate memory
@@ -39,13 +39,15 @@ type persistenceManager struct {
 	segmentHolder [][]byte
 }
 
-// NewPersistenceManager creates a new filesystem persistence manager.
-func NewPersistenceManager(opts m3db.DatabaseOptions) m3db.PersistenceManager {
+// NewPersistManager creates a new filesystem persist manager
+func NewPersistManager(opts Options) persist.Manager {
 	filePathPrefix := opts.GetFilePathPrefix()
 	writerBufferSize := opts.GetWriterBufferSize()
-	fileWriterOptions := opts.GetFileWriterOptions()
-	writer := opts.GetNewFileSetWriterFn()(opts.GetBlockSize(), filePathPrefix, writerBufferSize, fileWriterOptions)
-	return &persistenceManager{
+	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	newFileMode := opts.GetNewFileMode()
+	newDirectoryMode := opts.GetNewDirectoryMode()
+	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
+	return &persistManager{
 		opts:           opts,
 		filePathPrefix: filePathPrefix,
 		writer:         writer,
@@ -53,18 +55,18 @@ func NewPersistenceManager(opts m3db.DatabaseOptions) m3db.PersistenceManager {
 	}
 }
 
-func (pm *persistenceManager) persist(id string, segment m3db.Segment) error {
+func (pm *persistManager) persist(id string, segment ts.Segment) error {
 	pm.segmentHolder[0] = segment.Head
 	pm.segmentHolder[1] = segment.Tail
 	return pm.writer.WriteAll(id, pm.segmentHolder)
 }
 
-func (pm *persistenceManager) close() {
+func (pm *persistManager) close() {
 	pm.writer.Close()
 }
 
-func (pm *persistenceManager) Prepare(shard uint32, blockStart time.Time) (m3db.PreparedPersistence, error) {
-	var prepared m3db.PreparedPersistence
+func (pm *persistManager) Prepare(shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
+	var prepared persist.PreparedPersist
 
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 	// This allows us to retry failed flushing attempts because they wouldn't

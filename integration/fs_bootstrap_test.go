@@ -26,19 +26,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/bootstrap"
-	"github.com/m3db/m3db/bootstrap/bootstrapper"
-	bfs "github.com/m3db/m3db/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
+	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func writeToDisk(
-	writer m3db.FileSetWriter,
-	shardingScheme m3db.ShardScheme,
-	encoder m3db.Encoder,
+	writer fs.FileSetWriter,
+	shardingScheme sharding.ShardScheme,
+	encoder encoding.Encoder,
 	start time.Time,
 	dm dataMap,
 ) error {
@@ -79,18 +81,27 @@ func TestFilesystemBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	blockSize := testSetup.dbOpts.GetBlockSize()
-	filePathPrefix := testSetup.dbOpts.GetFilePathPrefix()
-	testSetup.dbOpts = testSetup.dbOpts.RetentionPeriod(2 * time.Hour).NewBootstrapFn(func() m3db.Bootstrap {
-		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-		bs := bfs.NewFileSystemBootstrapper(filePathPrefix, testSetup.dbOpts, noOpAll)
-		bsOpts := bootstrap.NewOptions()
-		return bootstrap.NewBootstrapProcess(bsOpts, testSetup.dbOpts, bs)
-	})
+	fsOpts := testSetup.storageOpts.GetCommitLogOptions().GetFilesystemOptions()
+	blockSize := testSetup.storageOpts.GetRetentionOptions().GetBlockSize()
+	filePathPrefix := fsOpts.GetFilePathPrefix()
+	testSetup.storageOpts = testSetup.storageOpts.
+		RetentionOptions(testSetup.storageOpts.GetRetentionOptions().
+			RetentionPeriod(2 * time.Hour)).
+		NewBootstrapFn(func() bootstrap.Bootstrap {
+			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+			bsOpts := bootstrap.NewOptions()
+			bfsOpts := bfs.NewOptions().
+				BootstrapOptions(bsOpts).
+				FilesystemOptions(fsOpts)
+			bs := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+			return bootstrap.NewBootstrapProcess(bsOpts, bs)
+		})
 
-	writerFn := testSetup.dbOpts.GetNewFileSetWriterFn()
-	writer := writerFn(blockSize, filePathPrefix, testSetup.dbOpts.GetWriterBufferSize(), testSetup.dbOpts.GetFileWriterOptions())
-	encoder := testSetup.dbOpts.GetEncoderPool().Get()
+	writerBufferSize := fsOpts.GetWriterBufferSize()
+	newFileMode := fsOpts.GetNewFileMode()
+	newDirectoryMode := fsOpts.GetNewDirectoryMode()
+	writer := fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
+	encoder := testSetup.storageOpts.GetEncoderPool().Get()
 	dataMaps := make(map[time.Time]dataMap)
 
 	// Write test data
@@ -110,7 +121,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	}
 
 	// Start the server with filesystem bootstrapper
-	log := testSetup.dbOpts.GetLogger()
+	log := testSetup.storageOpts.GetInstrumentOptions().GetLogger()
 	log.Debug("filesystem bootstrap test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")

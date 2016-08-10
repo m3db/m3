@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -102,7 +102,7 @@ func TestReaderIteratorReadNextValue(t *testing.T) {
 func TestReaderIteratorReadAnnotation(t *testing.T) {
 	inputs := []struct {
 		rawBytes           []byte
-		expectedAnnotation m3db.Annotation
+		expectedAnnotation ts.Annotation
 	}{
 		{
 			[]byte{0x0, 0xff},
@@ -165,7 +165,7 @@ func TestReaderIteratorNextNoAnnotation(t *testing.T) {
 		0x40, 0x6, 0x58, 0x76, 0x8e, 0x0, 0x0,
 	}
 	startTime := time.Unix(1427162462, 0)
-	inputs := []m3db.Datapoint{
+	inputs := []ts.Datapoint{
 		{startTime, 12},
 		{startTime.Add(time.Second * 60), 12},
 		{startTime.Add(time.Second * 120), 24},
@@ -209,16 +209,16 @@ func TestReaderIteratorNextWithAnnotation(t *testing.T) {
 	}
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
-		dp  m3db.Datapoint
-		ant m3db.Annotation
+		dp  ts.Datapoint
+		ant ts.Annotation
 	}{
-		{m3db.Datapoint{startTime, 12}, []byte{0xa}},
-		{m3db.Datapoint{startTime.Add(time.Second * 60), 12}, nil},
-		{m3db.Datapoint{startTime.Add(time.Second * 120), 24}, nil},
-		{m3db.Datapoint{startTime.Add(-time.Second * 76), 24}, nil},
-		{m3db.Datapoint{startTime.Add(-time.Second * 16), 24}, []byte{0x1, 0x2}},
-		{m3db.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
-		{m3db.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
+		{ts.Datapoint{startTime, 12}, []byte{0xa}},
+		{ts.Datapoint{startTime.Add(time.Second * 60), 12}, nil},
+		{ts.Datapoint{startTime.Add(time.Second * 120), 24}, nil},
+		{ts.Datapoint{startTime.Add(-time.Second * 76), 24}, nil},
+		{ts.Datapoint{startTime.Add(-time.Second * 16), 24}, []byte{0x1, 0x2}},
+		{ts.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
+		{ts.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
 	}
 	it := getTestReaderIterator(rawBytes)
 	for i := 0; i < len(inputs); i++ {
@@ -258,18 +258,18 @@ func TestReaderIteratorNextWithTimeUnit(t *testing.T) {
 	}
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
-		dp m3db.Datapoint
+		dp ts.Datapoint
 		tu xtime.Unit
 	}{
-		{m3db.Datapoint{startTime, 12}, xtime.Second},
-		{m3db.Datapoint{startTime.Add(time.Second * 60), 12}, xtime.Second},
-		{m3db.Datapoint{startTime.Add(time.Second * 120), 24}, xtime.Second},
-		{m3db.Datapoint{startTime.Add(-time.Second * 76), 24}, xtime.Second},
-		{m3db.Datapoint{startTime.Add(-time.Second * 16), 24}, xtime.Second},
-		{m3db.Datapoint{startTime.Add(-time.Nanosecond * 15500000000), 15}, xtime.Nanosecond},
-		{m3db.Datapoint{startTime.Add(-time.Millisecond * 1400), 12}, xtime.Millisecond},
-		{m3db.Datapoint{startTime.Add(-time.Second * 10), 12}, xtime.Second},
-		{m3db.Datapoint{startTime.Add(time.Second * 10), 12}, xtime.Second},
+		{ts.Datapoint{startTime, 12}, xtime.Second},
+		{ts.Datapoint{startTime.Add(time.Second * 60), 12}, xtime.Second},
+		{ts.Datapoint{startTime.Add(time.Second * 120), 24}, xtime.Second},
+		{ts.Datapoint{startTime.Add(-time.Second * 76), 24}, xtime.Second},
+		{ts.Datapoint{startTime.Add(-time.Second * 16), 24}, xtime.Second},
+		{ts.Datapoint{startTime.Add(-time.Nanosecond * 15500000000), 15}, xtime.Nanosecond},
+		{ts.Datapoint{startTime.Add(-time.Millisecond * 1400), 12}, xtime.Millisecond},
+		{ts.Datapoint{startTime.Add(-time.Second * 10), 12}, xtime.Second},
+		{ts.Datapoint{startTime.Add(time.Second * 10), 12}, xtime.Second},
 	}
 	it := getTestReaderIterator(rawBytes)
 	for i := 0; i < len(inputs); i++ {
@@ -302,17 +302,17 @@ func TestReaderIteratorNextWithAnnotationAndTimeUnit(t *testing.T) {
 	}
 	startTime := time.Unix(1427162462, 0)
 	inputs := []struct {
-		dp  m3db.Datapoint
-		ant m3db.Annotation
+		dp  ts.Datapoint
+		ant ts.Annotation
 		tu  xtime.Unit
 	}{
-		{m3db.Datapoint{startTime, 12}, []byte{0xa}, xtime.Second},
-		{m3db.Datapoint{startTime.Add(time.Second * 60), 12}, nil, xtime.Second},
-		{m3db.Datapoint{startTime.Add(time.Second * 120), 24}, nil, xtime.Second},
-		{m3db.Datapoint{startTime.Add(-time.Second * 76), 24}, []byte{0x1, 0x2}, xtime.Second},
-		{m3db.Datapoint{startTime.Add(-time.Second * 16), 24}, nil, xtime.Millisecond},
-		{m3db.Datapoint{startTime.Add(-time.Millisecond * 15500), 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
-		{m3db.Datapoint{startTime.Add(-time.Millisecond * 14000), 12}, nil, xtime.Second},
+		{ts.Datapoint{startTime, 12}, []byte{0xa}, xtime.Second},
+		{ts.Datapoint{startTime.Add(time.Second * 60), 12}, nil, xtime.Second},
+		{ts.Datapoint{startTime.Add(time.Second * 120), 24}, nil, xtime.Second},
+		{ts.Datapoint{startTime.Add(-time.Second * 76), 24}, []byte{0x1, 0x2}, xtime.Second},
+		{ts.Datapoint{startTime.Add(-time.Second * 16), 24}, nil, xtime.Millisecond},
+		{ts.Datapoint{startTime.Add(-time.Millisecond * 15500), 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
+		{ts.Datapoint{startTime.Add(-time.Millisecond * 14000), 12}, nil, xtime.Second},
 	}
 	it := getTestReaderIterator(rawBytes)
 	for i := 0; i < len(inputs); i++ {

@@ -22,27 +22,25 @@ package pool
 
 import (
 	"sort"
-
-	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 // TODO(r): instrument this to tune pooling
 type bytesPool struct {
-	sizesAsc          []m3db.PoolBucket
-	buckets           []bytesPoolBucket
+	sizesAsc          []Bucket
+	buckets           []bytesBucket
 	maxBucketCapacity int
 }
 
-type bytesPoolBucket struct {
+type bytesBucket struct {
 	capacity int
 	values   chan []byte
 }
 
 // NewBytesPool creates a new pool
-func NewBytesPool(sizes []m3db.PoolBucket) m3db.BytesPool {
-	sizesAsc := make([]m3db.PoolBucket, len(sizes))
+func NewBytesPool(sizes []Bucket) BytesPool {
+	sizesAsc := make([]Bucket, len(sizes))
 	copy(sizesAsc, sizes)
-	sort.Sort(m3db.PoolBucketByCapacity(sizesAsc))
+	sort.Sort(BucketByCapacity(sizesAsc))
 	var maxBucketCapacity int
 	if len(sizesAsc) != 0 {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity
@@ -55,7 +53,7 @@ func (p *bytesPool) alloc(capacity int) []byte {
 }
 
 func (p *bytesPool) Init() {
-	buckets := make([]bytesPoolBucket, len(p.sizesAsc))
+	buckets := make([]bytesBucket, len(p.sizesAsc))
 	for i := range p.sizesAsc {
 		buckets[i].capacity = p.sizesAsc[i].Capacity
 		buckets[i].values = make(chan []byte, p.sizesAsc[i].Count)

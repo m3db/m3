@@ -20,11 +20,9 @@
 
 package encoding
 
-import "github.com/m3db/m3db/interfaces/m3db"
-
 // An IteratorHeap is a min-heap of iterators. The top of the heap is the iterator
 // whose current value is the earliest datapoint among all iterators in the heap.
-type IteratorHeap []m3db.Iterator
+type IteratorHeap []Iterator
 
 func (h IteratorHeap) Len() int {
 	return len(h)
@@ -42,7 +40,7 @@ func (h IteratorHeap) Swap(i, j int) {
 
 // Push an iterator
 func (h *IteratorHeap) Push(x interface{}) {
-	*h = append(*h, x.(m3db.Iterator))
+	*h = append(*h, x.(Iterator))
 }
 
 // Pop an iterator

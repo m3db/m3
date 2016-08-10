@@ -25,8 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/generated/mocks/mocks"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/storage/bootstrap"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -38,9 +37,13 @@ func TestDatabaseBootstrapWithError(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	now := time.Now()
-	cutover := now.Add(opts.GetBufferFuture())
-	bs := mocks.NewMockBootstrap(ctrl)
-	opts = opts.NewBootstrapFn(func() m3db.Bootstrap { return bs }).NowFn(func() time.Time { return now })
+	cutover := now.Add(opts.GetRetentionOptions().GetBufferFuture())
+	bs := bootstrap.NewMockBootstrap(ctrl)
+	opts = opts.NewBootstrapFn(func() bootstrap.Bootstrap {
+		return bs
+	}).ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+		return now
+	}))
 
 	errs := []error{
 		errors.New("some error"),
@@ -50,7 +53,7 @@ func TestDatabaseBootstrapWithError(t *testing.T) {
 
 	var shards []databaseShard
 	for _, err := range errs {
-		shard := mocks.NewMockdatabaseShard(ctrl)
+		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().Bootstrap(bs, now, cutover).Return(err)
 		shards = append(shards, shard)
 	}

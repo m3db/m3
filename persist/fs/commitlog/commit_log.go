@@ -26,7 +26,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/metrics"
 	"github.com/m3db/m3x/time"
@@ -39,7 +40,7 @@ var (
 	timeZero = time.Time{}
 )
 
-type newCommitLogWriterFn func(flushFn flushFn, opts m3db.DatabaseOptions) commitLogWriter
+type newCommitLogWriterFn func(flushFn flushFn, opts Options) commitLogWriter
 
 type commitLogFailFn func(err error)
 
@@ -47,10 +48,10 @@ type completionFn func(err error)
 
 type commitLog struct {
 	sync.RWMutex
-	opts    m3db.DatabaseOptions
+	opts    Options
+	nowFn   clock.NowFn
 	metrics xmetrics.Scope
 	log     xlog.Logger
-	nowFn   m3db.NowFn
 
 	newCommitLogWriterFn newCommitLogWriterFn
 	commitLogFailFn      commitLogFailFn
@@ -80,23 +81,24 @@ const (
 type commitLogWrite struct {
 	valueType valueType
 
-	series       m3db.CommitLogSeries
-	datapoint    m3db.Datapoint
+	series       Series
+	datapoint    ts.Datapoint
 	unit         xtime.Unit
-	annotation   m3db.Annotation
+	annotation   ts.Annotation
 	completionFn completionFn
 }
 
 // NewCommitLog creates a new commit log
-func NewCommitLog(opts m3db.DatabaseOptions) m3db.CommitLog {
-	opts = opts.MetricsScope(opts.GetMetricsScope().SubScope("commitlog"))
+func NewCommitLog(opts Options) CommitLog {
+	iops := opts.GetInstrumentOptions()
+	iops = iops.MetricsScope(iops.GetMetricsScope().SubScope("commitlog"))
 	return &commitLog{
 		opts:                 opts,
-		metrics:              opts.GetMetricsScope(),
-		log:                  opts.GetLogger(),
-		nowFn:                opts.GetNowFn(),
+		nowFn:                opts.GetClockOptions().GetNowFn(),
+		metrics:              iops.GetMetricsScope(),
+		log:                  iops.GetLogger(),
 		newCommitLogWriterFn: newCommitLogWriter,
-		writes:               make(chan commitLogWrite, opts.GetCommitLogBacklogQueueSize()),
+		writes:               make(chan commitLogWrite, opts.GetBacklogQueueSize()),
 		closeErr:             make(chan error),
 	}
 }
@@ -132,7 +134,7 @@ func (l *commitLog) Open() error {
 	// Asynchronously write
 	go l.write()
 
-	flushInterval := l.opts.GetCommitLogFlushInterval()
+	flushInterval := l.opts.GetFlushInterval()
 	if flushInterval > 0 {
 		// Continually flush the commit log at given interval if set
 		go l.flushEvery(flushInterval)
@@ -274,7 +276,7 @@ func (l *commitLog) openWriter(now time.Time) error {
 		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
-	blockSize := l.opts.GetBlockSize()
+	blockSize := l.opts.GetRetentionOptions().GetBlockSize()
 	start := now.Truncate(blockSize)
 	if err := l.writer.Open(start, blockSize); err != nil {
 		return err
@@ -285,10 +287,10 @@ func (l *commitLog) openWriter(now time.Time) error {
 }
 
 func (l *commitLog) Write(
-	series m3db.CommitLogSeries,
-	datapoint m3db.Datapoint,
+	series Series,
+	datapoint ts.Datapoint,
 	unit xtime.Unit,
-	annotation m3db.Annotation,
+	annotation ts.Annotation,
 ) error {
 	l.RLock()
 
@@ -336,10 +338,10 @@ func (l *commitLog) Write(
 }
 
 func (l *commitLog) WriteBehind(
-	series m3db.CommitLogSeries,
-	datapoint m3db.Datapoint,
+	series Series,
+	datapoint ts.Datapoint,
 	unit xtime.Unit,
-	annotation m3db.Annotation,
+	annotation ts.Annotation,
 ) error {
 	l.RLock()
 
@@ -372,8 +374,8 @@ func (l *commitLog) WriteBehind(
 	return nil
 }
 
-func (l *commitLog) Iter() (m3db.CommitLogIterator, error) {
-	return NewCommitLogIterator(l.opts)
+func (l *commitLog) Iter() (Iterator, error) {
+	return NewIterator(l.opts)
 }
 
 func (l *commitLog) Close() error {

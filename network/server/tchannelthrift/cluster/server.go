@@ -21,8 +21,8 @@
 package cluster
 
 import (
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3x/close"
 
@@ -36,14 +36,14 @@ const (
 )
 
 type server struct {
-	client  m3db.Client
+	client  client.Client
 	address string
 	opts    *tchannel.ChannelOptions
 }
 
 // NewServer creates a new cluster TChannel Thrift network service
 func NewServer(
-	client m3db.Client,
+	client client.Client,
 	address string,
 	opts *tchannel.ChannelOptions,
 ) ns.NetworkService {

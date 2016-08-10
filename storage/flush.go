@@ -25,7 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/persist"
 )
 
 type flushStatus byte
@@ -42,22 +43,12 @@ type flushState struct {
 	NumFailures int
 }
 
-// databaseFlushManager manages the data flushing process.
-type databaseFlushManager interface {
-
-	// NeedsFlush determines whether we need to flush in-memory data blocks given a timestamp.
-	NeedsFlush(t time.Time) bool
-
-	// Flush flushes the in-memory data blocks.
-	Flush(t time.Time, async bool)
-}
-
 type flushManager struct {
 	sync.RWMutex
 
-	database       database                // storage database
-	pm             m3db.PersistenceManager // persistence manager
-	opts           m3db.DatabaseOptions    // database options
+	opts           Options         // storage options
+	database       database        // storage database
+	pm             persist.Manager // persistence manager
 	fs             flushStatus
 	flushAttempted map[time.Time]flushState
 	flushTimes     []time.Time
@@ -65,9 +56,9 @@ type flushManager struct {
 
 func newFlushManager(database database) databaseFlushManager {
 	opts := database.Options()
-	persistenceManagerFn := opts.GetNewPersistenceManagerFn()
-	pm := persistenceManagerFn(opts)
-	numSlots := int(math.Ceil(float64(opts.GetRetentionPeriod()) / float64(opts.GetBlockSize())))
+	pm := opts.GetNewPersistManagerFn()()
+	rops := opts.GetRetentionOptions()
+	numSlots := int(math.Ceil(float64(rops.GetRetentionPeriod()) / float64(rops.GetBlockSize())))
 
 	return &flushManager{
 		database:       database,
@@ -100,8 +91,9 @@ func (fm *flushManager) NeedsFlush(t time.Time) bool {
 }
 
 func (fm *flushManager) getFirstBlockStart(t time.Time) time.Time {
-	bufferPast := fm.opts.GetBufferPast()
-	blockSize := fm.opts.GetBlockSize()
+	rops := fm.opts.GetRetentionOptions()
+	bufferPast := rops.GetBufferPast()
+	blockSize := rops.GetBlockSize()
 	return t.Add(-bufferPast).Add(-blockSize).Truncate(blockSize)
 }
 
@@ -150,10 +142,11 @@ func (fm *flushManager) Flush(t time.Time, async bool) {
 }
 
 func (fm *flushManager) getTimesToFlush(t time.Time) []time.Time {
-	blockSize := fm.opts.GetBlockSize()
+	rops := fm.opts.GetRetentionOptions()
+	blockSize := rops.GetBlockSize()
 	maxFlushRetries := fm.opts.GetMaxFlushRetries()
 	firstBlockStart := fm.getFirstBlockStart(t)
-	earliestTime := t.Add(-fm.opts.GetRetentionPeriod())
+	earliestTime := t.Add(-1 * rops.GetRetentionPeriod())
 
 	fm.Lock()
 	defer fm.Unlock()
@@ -168,9 +161,9 @@ func (fm *flushManager) getTimesToFlush(t time.Time) []time.Time {
 	return fm.flushTimes
 }
 
-func (fm *flushManager) flushWithTime(ctx m3db.Context, t time.Time) bool {
+func (fm *flushManager) flushWithTime(ctx context.Context, t time.Time) bool {
 	allShardsSucceeded := true
-	log := fm.opts.GetLogger()
+	log := fm.opts.GetInstrumentOptions().GetLogger()
 	shards := fm.database.getOwnedShards()
 	for _, shard := range shards {
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.

@@ -35,11 +35,14 @@ func TestRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.dbOpts = testSetup.dbOpts.BufferDrain(time.Second).RetentionPeriod(6 * time.Hour)
-	blockSize := testSetup.dbOpts.GetBlockSize()
+	testSetup.storageOpts =
+		testSetup.storageOpts.RetentionOptions(testSetup.storageOpts.GetRetentionOptions().
+			BufferDrain(time.Second).
+			RetentionPeriod(6 * time.Hour))
+	blockSize := testSetup.storageOpts.GetRetentionOptions().GetBlockSize()
 
 	// Start the server
-	log := testSetup.dbOpts.GetLogger()
+	log := testSetup.storageOpts.GetInstrumentOptions().GetLogger()
 	log.Debug("round trip test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
@@ -71,7 +74,7 @@ func TestRoundtrip(t *testing.T) {
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	time.Sleep(testSetup.dbOpts.GetBufferDrain() * 4)
+	time.Sleep(testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 4)
 
 	// Verify in-memory data match what we've written
 	verifyDataMaps(t, testSetup, dataMaps)

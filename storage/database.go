@@ -27,8 +27,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
 )
 
@@ -49,42 +53,6 @@ var (
 const (
 	dbOngoingTasks = 1
 )
-
-// Database is a time series database
-type Database interface {
-
-	// Options returns the database options
-	Options() m3db.DatabaseOptions
-
-	// Open will open the database for writing and reading
-	Open() error
-
-	// Close will close the database for writing and reading
-	Close() error
-
-	// Write value to the database for an ID
-	Write(
-		ctx m3db.Context,
-		id string,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	) error
-
-	// ReadEncoded retrieves encoded segments for an ID
-	ReadEncoded(
-		ctx m3db.Context,
-		id string,
-		start, end time.Time,
-	) ([][]m3db.SegmentReader, error)
-
-	// Bootstrap bootstraps the database.
-	Bootstrap() error
-
-	// IsBootstrapped determines whether the database is bootstrapped.
-	IsBootstrapped() bool
-}
 
 type databaseState int
 
@@ -112,19 +80,19 @@ type uniqueIndex interface {
 
 // writeCommitLogFn is a method for writing to the commit log
 type writeCommitLogFn func(
-	series m3db.CommitLogSeries,
-	datapoint m3db.Datapoint,
+	series commitlog.Series,
+	datapoint ts.Datapoint,
 	unit xtime.Unit,
-	annotation m3db.Annotation,
+	annotation ts.Annotation,
 ) error
 
 type db struct {
 	sync.RWMutex
-	opts             m3db.DatabaseOptions
-	nowFn            m3db.NowFn
-	shardScheme      m3db.ShardScheme
-	shardSet         m3db.ShardSet
-	commitLog        m3db.CommitLog
+	opts             Options
+	nowFn            clock.NowFn
+	shardScheme      sharding.ShardScheme
+	shardSet         sharding.ShardSet
+	commitLog        commitlog.CommitLog
 	writeCommitLogFn writeCommitLogFn
 	state            databaseState
 	bsm              databaseBootstrapManager
@@ -141,29 +109,31 @@ type db struct {
 }
 
 // NewDatabase creates a new database
-func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) (Database, error) {
+func NewDatabase(shardSet sharding.ShardSet, opts Options) (Database, error) {
 	shardScheme := shardSet.Scheme()
 	d := &db{
 		opts:         opts,
 		shardScheme:  shardScheme,
 		shardSet:     shardSet,
 		shards:       make([]databaseShard, len(shardScheme.All().Shards())),
-		nowFn:        opts.GetNowFn(),
-		tickDeadline: opts.GetBufferDrain(),
+		nowFn:        opts.GetClockOptions().GetNowFn(),
+		tickDeadline: opts.GetRetentionOptions().GetBufferDrain(),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
 	d.bsm = newBootstrapManager(d)
 	d.fm = newFlushManager(d)
 
-	d.commitLog = commitlog.NewCommitLog(opts)
+	d.commitLog = commitlog.NewCommitLog(opts.GetCommitLogOptions())
 	if err := d.commitLog.Open(); err != nil {
 		return nil, err
 	}
 
-	switch opts.GetCommitLogStrategy() {
-	case m3db.CommitLogStrategyWriteWait:
+	// TODO(r): instead of binding the method here simply bind the method
+	// in the commit log itself and just call "Write()" always
+	switch opts.GetCommitLogOptions().GetStrategy() {
+	case commitlog.StrategyWriteWait:
 		d.writeCommitLogFn = d.commitLog.Write
-	case m3db.CommitLogStrategyWriteBehind:
+	case commitlog.StrategyWriteBehind:
 		d.writeCommitLogFn = d.commitLog.WriteBehind
 	default:
 		return nil, errCommitLogStrategyUnknown
@@ -172,7 +142,7 @@ func NewDatabase(shardSet m3db.ShardSet, opts m3db.DatabaseOptions) (Database, e
 	return d, nil
 }
 
-func (d *db) Options() m3db.DatabaseOptions {
+func (d *db) Options() Options {
 	return d.opts
 }
 
@@ -218,7 +188,7 @@ func (d *db) Close() error {
 }
 
 func (d *db) Write(
-	ctx m3db.Context,
+	ctx context.Context,
 	id string,
 	timestamp time.Time,
 	value float64,
@@ -237,10 +207,10 @@ func (d *db) Write(
 }
 
 func (d *db) ReadEncoded(
-	ctx m3db.Context,
+	ctx context.Context,
 	id string,
 	start, end time.Time,
-) ([][]m3db.SegmentReader, error) {
+) ([][]xio.SegmentReader, error) {
 	d.RLock()
 	if !d.bsm.IsBootstrapped() {
 		d.RUnlock()

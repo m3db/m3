@@ -27,7 +27,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
 )
@@ -41,19 +42,19 @@ type encoder struct {
 	opts Options
 
 	// internal bookkeeping
-	t   time.Time       // current time
-	dt  time.Duration   // current time delta
-	vb  uint64          // current value
-	xor uint64          // current xor
-	ant m3db.Annotation // current annotation
-	tu  xtime.Unit      // current time unit
+	t   time.Time     // current time
+	dt  time.Duration // current time delta
+	vb  uint64        // current value
+	xor uint64        // current xor
+	ant ts.Annotation // current annotation
+	tu  xtime.Unit    // current time unit
 
 	writable bool
 	closed   bool
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(start time.Time, bytes []byte, opts Options) m3db.Encoder {
+func NewEncoder(start time.Time, bytes []byte, opts Options) encoding.Encoder {
 	if opts == nil {
 		opts = NewOptions()
 	}
@@ -88,7 +89,7 @@ func initialTimeUnit(start time.Time, tu xtime.Unit) xtime.Unit {
 }
 
 // Encode encodes the timestamp and the value of a datapoint.
-func (enc *encoder) Encode(dp m3db.Datapoint, tu xtime.Unit, ant m3db.Annotation) error {
+func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
 	if !enc.writable {
 		return errEncoderNotWritable
 	}
@@ -99,7 +100,7 @@ func (enc *encoder) Encode(dp m3db.Datapoint, tu xtime.Unit, ant m3db.Annotation
 }
 
 // writeFirst writes the first datapoint with annotation.
-func (enc *encoder) writeFirst(dp m3db.Datapoint, ant m3db.Annotation, tu xtime.Unit) error {
+func (enc *encoder) writeFirst(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
 	if err := enc.writeFirstTime(dp.Timestamp, ant, tu); err != nil {
 		return err
 	}
@@ -108,7 +109,7 @@ func (enc *encoder) writeFirst(dp m3db.Datapoint, ant m3db.Annotation, tu xtime.
 }
 
 // writeNext writes the next datapoint with annotation.
-func (enc *encoder) writeNext(dp m3db.Datapoint, ant m3db.Annotation, tu xtime.Unit) error {
+func (enc *encoder) writeNext(dp ts.Datapoint, ant ts.Annotation, tu xtime.Unit) error {
 	if err := enc.writeNextTime(dp.Timestamp, ant, tu); err != nil {
 		return err
 	}
@@ -118,7 +119,7 @@ func (enc *encoder) writeNext(dp m3db.Datapoint, ant m3db.Annotation, tu xtime.U
 
 // shouldWriteAnnotation determines whether we should write ant as an annotation.
 // Returns true if ant is not empty and differs from the existing annotation, false otherwise.
-func (enc *encoder) shouldWriteAnnotation(ant m3db.Annotation) bool {
+func (enc *encoder) shouldWriteAnnotation(ant ts.Annotation) bool {
 	numAnnotationBytes := len(ant)
 	if numAnnotationBytes == 0 {
 		return false
@@ -134,7 +135,7 @@ func (enc *encoder) shouldWriteAnnotation(ant m3db.Annotation) bool {
 	return false
 }
 
-func (enc *encoder) writeAnnotation(ant m3db.Annotation) {
+func (enc *encoder) writeAnnotation(ant ts.Annotation) {
 	if !enc.shouldWriteAnnotation(ant) {
 		return
 	}
@@ -171,7 +172,7 @@ func (enc *encoder) writeTimeUnit(tu xtime.Unit) bool {
 	return true
 }
 
-func (enc *encoder) writeFirstTime(t time.Time, ant m3db.Annotation, tu xtime.Unit) error {
+func (enc *encoder) writeFirstTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
 	// NB(xichen): Always write the first time in nanoseconds because we don't know
 	// if the start time is going to be a multiple of the time unit provided.
 	nt := xtime.ToNormalizedTime(enc.t, time.Nanosecond)
@@ -179,7 +180,7 @@ func (enc *encoder) writeFirstTime(t time.Time, ant m3db.Annotation, tu xtime.Un
 	return enc.writeNextTime(t, ant, tu)
 }
 
-func (enc *encoder) writeNextTime(t time.Time, ant m3db.Annotation, tu xtime.Unit) error {
+func (enc *encoder) writeNextTime(t time.Time, ant ts.Annotation, tu xtime.Unit) error {
 	enc.writeAnnotation(ant)
 	tuChanged := enc.writeTimeUnit(tu)
 
@@ -295,7 +296,7 @@ func (enc *encoder) ResetSetData(start time.Time, data []byte, writable bool) {
 	enc.writable = writable
 }
 
-func (enc *encoder) Stream() m3db.SegmentReader {
+func (enc *encoder) Stream() xio.SegmentReader {
 	if enc.os.empty() {
 		return nil
 	}
@@ -314,7 +315,7 @@ func (enc *encoder) Stream() m3db.SegmentReader {
 		tail = scheme.Tail(b[blen-1], pos)
 	}
 
-	segment := m3db.Segment{Head: head, Tail: tail, TailShared: true}
+	segment := ts.Segment{Head: head, Tail: tail, TailShared: true}
 	readerPool := enc.opts.GetSegmentReaderPool()
 	if readerPool != nil {
 		reader := readerPool.Get()

@@ -22,8 +22,6 @@ package sharding
 
 import (
 	"errors"
-
-	"github.com/m3db/m3db/interfaces/m3db"
 )
 
 var (
@@ -34,11 +32,11 @@ var (
 type shardScheme struct {
 	from uint32
 	to   uint32
-	fn   m3db.HashFn
+	fn   HashFn
 }
 
 // NewShardScheme creates a new sharding scheme, from and to are inclusive
-func NewShardScheme(from, to uint32, fn m3db.HashFn) (m3db.ShardScheme, error) {
+func NewShardScheme(from, to uint32, fn HashFn) (ShardScheme, error) {
 	if to < from {
 		return nil, ErrToLessThanFrom
 	}
@@ -49,7 +47,7 @@ func (s *shardScheme) Shard(identifer string) uint32 {
 	return s.fn(identifer)
 }
 
-func (s *shardScheme) CreateSet(from, to uint32) m3db.ShardSet {
+func (s *shardScheme) CreateSet(from, to uint32) ShardSet {
 	var shards []uint32
 	for i := from; i >= s.from && i <= s.to && i <= to; i++ {
 		shards = append(shards, i)
@@ -57,17 +55,17 @@ func (s *shardScheme) CreateSet(from, to uint32) m3db.ShardSet {
 	return NewShardSet(shards, s)
 }
 
-func (s *shardScheme) All() m3db.ShardSet {
+func (s *shardScheme) All() ShardSet {
 	return s.CreateSet(s.from, s.to)
 }
 
 type shardSet struct {
 	shards []uint32
-	scheme m3db.ShardScheme
+	scheme ShardScheme
 }
 
 // NewShardSet creates a new shard set
-func NewShardSet(shards []uint32, scheme m3db.ShardScheme) m3db.ShardSet {
+func NewShardSet(shards []uint32, scheme ShardScheme) ShardSet {
 	return &shardSet{shards, scheme}
 }
 
@@ -75,6 +73,6 @@ func (s *shardSet) Shards() []uint32 {
 	return s.shards[:]
 }
 
-func (s *shardSet) Scheme() m3db.ShardScheme {
+func (s *shardSet) Scheme() ShardScheme {
 	return s.scheme
 }

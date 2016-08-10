@@ -21,7 +21,6 @@
 package client
 
 import (
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/pool"
 )
 
@@ -30,14 +29,14 @@ type opArrayPool interface {
 	Init()
 
 	// Get an array of ops
-	Get() []m3db.Op
+	Get() []op
 
 	// Put an array of ops
-	Put(ops []m3db.Op)
+	Put(ops []op)
 }
 
 type poolOfOpArray struct {
-	pool     m3db.ObjectPool
+	pool     pool.ObjectPool
 	capacity int
 }
 
@@ -48,15 +47,15 @@ func newOpArrayPool(size int, capacity int) opArrayPool {
 
 func (p *poolOfOpArray) Init() {
 	p.pool.Init(func() interface{} {
-		return make([]m3db.Op, 0, p.capacity)
+		return make([]op, 0, p.capacity)
 	})
 }
 
-func (p *poolOfOpArray) Get() []m3db.Op {
-	return p.pool.Get().([]m3db.Op)
+func (p *poolOfOpArray) Get() []op {
+	return p.pool.Get().([]op)
 }
 
-func (p *poolOfOpArray) Put(ops []m3db.Op) {
+func (p *poolOfOpArray) Put(ops []op) {
 	ops = ops[:0]
 	p.pool.Put(ops)
 }
@@ -79,7 +78,7 @@ type fetchBatchOpArrayArrayPool interface {
 }
 
 type poolOfFetchBatchOpArrayArray struct {
-	pool     m3db.ObjectPool
+	pool     pool.ObjectPool
 	entries  int
 	capacity int
 }

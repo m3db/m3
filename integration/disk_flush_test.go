@@ -28,8 +28,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +43,7 @@ var (
 
 func waitUntilDataFlushed(
 	filePathPrefix string,
-	shardingScheme m3db.ShardScheme,
+	shardingScheme sharding.ShardScheme,
 	dataMaps map[time.Time]dataMap,
 	timeout time.Duration,
 ) error {
@@ -63,9 +66,9 @@ func waitUntilDataFlushed(
 
 func verifyForTime(
 	t *testing.T,
-	reader m3db.FileSetReader,
-	shardingScheme m3db.ShardScheme,
-	decoder m3db.Decoder,
+	reader fs.FileSetReader,
+	shardingScheme sharding.ShardScheme,
+	decoder encoding.Decoder,
 	timestamp time.Time,
 	expected dataMap,
 ) {
@@ -81,7 +84,7 @@ func verifyForTime(
 			id, data, err := reader.Read()
 			require.NoError(t, err)
 
-			var datapoints []m3db.Datapoint
+			var datapoints []ts.Datapoint
 			it := decoder.Decode(bytes.NewReader(data))
 			for it.Next() {
 				dp, _, _ := it.Current()
@@ -97,14 +100,14 @@ func verifyForTime(
 
 func verifyFlushed(
 	t *testing.T,
-	shardingScheme m3db.ShardScheme,
-	opts m3db.DatabaseOptions,
+	shardingScheme sharding.ShardScheme,
+	opts storage.Options,
 	dataMaps map[time.Time]dataMap,
 ) {
-	readerFn := opts.GetNewFileSetReaderFn()
-	reader := readerFn(opts.GetFilePathPrefix(), opts.GetReaderBufferSize())
-	decoderFn := opts.GetNewDecoderFn()
-	decoder := decoderFn()
+	fsOpts := opts.GetCommitLogOptions().GetFilesystemOptions()
+	reader := fs.NewReader(fsOpts.GetFilePathPrefix(), fsOpts.GetReaderBufferSize())
+	newDecoderFn := opts.GetNewDecoderFn()
+	decoder := newDecoderFn()
 	for timestamp, dm := range dataMaps {
 		verifyForTime(t, reader, shardingScheme, decoder, timestamp, dm)
 	}
@@ -116,12 +119,17 @@ func TestDiskFlush(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.dbOpts = testSetup.dbOpts.BufferDrain(3 * time.Second).RetentionPeriod(6 * time.Hour)
-	blockSize := testSetup.dbOpts.GetBlockSize()
-	filePathPrefix := testSetup.dbOpts.GetFilePathPrefix()
+	testSetup.storageOpts =
+		testSetup.storageOpts.
+			RetentionOptions(testSetup.storageOpts.GetRetentionOptions().
+				BufferDrain(3 * time.Second).
+				RetentionPeriod(6 * time.Hour))
+
+	blockSize := testSetup.storageOpts.GetRetentionOptions().GetBlockSize()
+	filePathPrefix := testSetup.storageOpts.GetCommitLogOptions().GetFilesystemOptions().GetFilePathPrefix()
 
 	// Start the server
-	log := testSetup.dbOpts.GetLogger()
+	log := testSetup.storageOpts.GetInstrumentOptions().GetLogger()
 	log.Debug("disk flush test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
@@ -155,9 +163,9 @@ func TestDiskFlush(t *testing.T) {
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	waitTimeout := testSetup.dbOpts.GetBufferDrain() * 4
+	waitTimeout := testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 4
 	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardingScheme, dataMaps, waitTimeout))
 
 	// Verify on-disk data match what we expect
-	verifyFlushed(t, testSetup.shardingScheme, testSetup.dbOpts, dataMaps)
+	verifyFlushed(t, testSetup.shardingScheme, testSetup.storageOpts, dataMaps)
 }
