@@ -241,11 +241,10 @@ func testSnapshotJSONRoundTrip(t *testing.T, s Snapshot) {
 	json1, err := json.Marshal(s)
 	assert.NoError(t, err)
 
-	var snapShotFromJSON snapshot
-	err = json.Unmarshal(json1, &snapShotFromJSON)
+	var unmarshalled snapshot
+	err = json.Unmarshal(json1, &unmarshalled)
 	assert.NoError(t, err)
 
-	json2, err := json.Marshal(s)
-	assert.NoError(t, err)
-	assert.Equal(t, string(json1), string(json2))
+	assert.Equal(t, s.(snapshot).placementSnapshotToJSON(), unmarshalled.placementSnapshotToJSON())
+
 }
