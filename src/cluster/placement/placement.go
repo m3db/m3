@@ -125,13 +125,12 @@ func (ps snapshot) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ps.placementSnapshotToJSON())
 }
 
-func (ps snapshot) placementSnapshotToJSON() hostShardsJSONs {
-	hsjs := make(hostShardsJSONs, ps.HostsLen())
-	for i, hs := range ps.hostShards {
-		hsjs[i] = newHostShardsJSON(hs)
+func (ps snapshot) placementSnapshotToJSON() map[string]hostShardsJSON {
+	m := make(map[string]hostShardsJSON, ps.HostsLen())
+	for _, hs := range ps.hostShards {
+		m[hs.Host().ID()] = newHostShardsJSON(hs)
 	}
-	sort.Sort(hsjs)
-	return hsjs
+	return m
 }
 
 func newHostShardsJSON(hs HostShards) hostShardsJSON {
@@ -156,28 +155,30 @@ func (su sortableUInt32) Swap(i, j int) {
 }
 
 func (ps *snapshot) UnmarshalJSON(data []byte) error {
-	var hsj hostShardsJSONs
+	var m map[string]hostShardsJSON
 	var err error
-	if err = json.Unmarshal(data, &hsj); err != nil {
+	if err = json.Unmarshal(data, &m); err != nil {
 		return err
 	}
-	if *ps, err = convertJSONtoSnapshot(hsj); err != nil {
+	if *ps, err = convertJSONtoSnapshot(m); err != nil {
 		return err
 	}
 	return nil
 }
 
-func convertJSONtoSnapshot(hsjs hostShardsJSONs) (snapshot, error) {
+func convertJSONtoSnapshot(m map[string]hostShardsJSON) (snapshot, error) {
 	var err error
-	hss := make([]HostShards, len(hsjs))
+	hss := make([]HostShards, len(m))
 	shardsReplicaMap := make(map[uint32]int)
-	for i, hsj := range hsjs {
+	i := 0
+	for _, hsj := range m {
 		if hss[i], err = hostShardsFromJSON(hsj); err != nil {
 			return snapshot{}, err
 		}
 		for _, shard := range hss[i].Shards() {
 			shardsReplicaMap[shard] = shardsReplicaMap[shard] + 1
 		}
+		i++
 	}
 	shards := make([]uint32, 0, len(shardsReplicaMap))
 	snapshotReplica := -1
@@ -194,27 +195,10 @@ func convertJSONtoSnapshot(hsjs hostShardsJSONs) (snapshot, error) {
 	return snapshot{hostShards: hss, shards: shards, rf: snapshotReplica}, nil
 }
 
-type hostShardsJSONs []hostShardsJSON
-
-func (hsj hostShardsJSONs) Len() int {
-	return len(hsj)
-}
-
-func (hsj hostShardsJSONs) Less(i, j int) bool {
-	if hsj[i].Rack == hsj[j].Rack {
-		return hsj[i].ID < hsj[j].ID
-	}
-	return hsj[i].Rack < hsj[j].Rack
-}
-
-func (hsj hostShardsJSONs) Swap(i, j int) {
-	hsj[i], hsj[j] = hsj[j], hsj[i]
-}
-
 type hostShardsJSON struct {
-	ID     string
-	Rack   string
-	Shards []uint32
+	ID     string `json:"id"`
+	Rack   string `json:"rack"`
+	Shards []uint32 `json:"shards"`
 }
 
 func hostShardsFromJSON(hsj hostShardsJSON) (HostShards, error) {
