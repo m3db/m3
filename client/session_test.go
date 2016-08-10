@@ -26,8 +26,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/m3db/m3db/generated/mocks/mocks"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/topology"
 
@@ -47,24 +46,24 @@ const (
 	outcomeFail
 )
 
-type testEnqueueFn func(idx int, op m3db.Op)
+type testEnqueueFn func(idx int, op op)
 
-func newSessionTestOptions() m3db.ClientOptions {
+func newSessionTestOptions() Options {
 	shardScheme, _ := sharding.NewShardScheme(0, sessionTestShards-1, func(id string) uint32 { return 0 })
 
-	var hosts []m3db.Host
+	var hosts []topology.Host
 	for i := 0; i < sessionTestReplicas; i++ {
 		hosts = append(hosts, topology.NewHost(fmt.Sprintf("testhost%d:9000", i)))
 	}
 
-	var hostShardSets []m3db.HostShardSet
+	var hostShardSets []topology.HostShardSet
 	for _, host := range hosts {
 		hostShardSets = append(hostShardSets, topology.NewHostShardSet(host, shardScheme.All()))
 	}
 
 	return NewOptions().
 		SeriesIteratorPoolSize(0).
-		SeriesIteratorArrayPoolBuckets([]m3db.PoolBucket{}).
+		SeriesIteratorArrayPoolBuckets([]pool.PoolBucket{}).
 		WriteOpPoolSize(0).
 		FetchBatchOpPoolSize(0).
 		TopologyType(topology.NewStaticTopologyType(
@@ -78,7 +77,7 @@ func TestSessionClusterConnectConsistencyLevelAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := m3db.ConsistencyLevelAll
+	level := topology.ConsistencyLevelAll
 	testSessionClusterConnectConsistencyLevel(t, ctrl, level, 0, outcomeSuccess)
 	for i := 1; i <= 3; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeFail)
@@ -89,7 +88,7 @@ func TestSessionClusterConnectConsistencyLevelMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := m3db.ConsistencyLevelMajority
+	level := topology.ConsistencyLevelMajority
 	for i := 0; i <= 1; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
@@ -102,7 +101,7 @@ func TestSessionClusterConnectConsistencyLevelOne(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := m3db.ConsistencyLevelOne
+	level := topology.ConsistencyLevelOne
 	for i := 0; i <= 2; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
@@ -112,7 +111,7 @@ func TestSessionClusterConnectConsistencyLevelOne(t *testing.T) {
 func testSessionClusterConnectConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
-	level m3db.ConsistencyLevel,
+	level topology.ConsistencyLevel,
 	failures int,
 	expected outcome,
 ) {
@@ -125,12 +124,12 @@ func testSessionClusterConnectConsistencyLevel(
 
 	var failingConns int32
 	session.newHostQueueFn = func(
-		host m3db.Host,
+		host topology.Host,
 		writeBatchRequestPool writeBatchRequestPool,
 		writeRequestArrayPool writeRequestArrayPool,
-		opts m3db.ClientOptions,
+		opts Options,
 	) hostQueue {
-		hostQueue := mocks.NewMockhostQueue(ctrl)
+		hostQueue := NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open().Times(1)
 		if atomic.AddInt32(&failingConns, 1) <= int32(failures) {
 			hostQueue.EXPECT().GetConnectionCount().Return(0).AnyTimes()
@@ -162,17 +161,17 @@ func mockHostQueues(
 	enqueueWg.Add(replicas)
 	idx := 0
 	s.newHostQueueFn = func(
-		host m3db.Host,
+		host topology.Host,
 		writeBatchRequestPool writeBatchRequestPool,
 		writeRequestArrayPool writeRequestArrayPool,
-		opts m3db.ClientOptions,
+		opts Options,
 	) hostQueue {
 		// Make a copy of the enqueue fns for each host
 		hostEnqueueFns := make([]testEnqueueFn, len(enqueueFns))
 		copy(hostEnqueueFns, enqueueFns)
 
 		enqueuedIdx := idx
-		hostQueue := mocks.NewMockhostQueue(ctrl)
+		hostQueue := NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open()
 		// Take two attempts to establish min connection count
 		hostQueue.EXPECT().GetConnectionCount().Return(0).Times(sessionTestShards)
@@ -181,7 +180,7 @@ func mockHostQueues(
 		expectNextEnqueueFn = func(fns []testEnqueueFn) {
 			fn := fns[0]
 			fns = fns[1:]
-			hostQueue.EXPECT().Enqueue(gomock.Any()).Do(func(op m3db.Op) error {
+			hostQueue.EXPECT().Enqueue(gomock.Any()).Do(func(op op) error {
 				fn(enqueuedIdx, op)
 				if len(fns) > 0 {
 					expectNextEnqueueFn(fns)

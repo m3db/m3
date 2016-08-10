@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/proto/schema"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -84,7 +83,7 @@ type reader struct {
 
 // NewReader returns a new reader for a filePathPrefix, expects all files to exist.  Will
 // read the index info.
-func NewReader(filePathPrefix string, bufferSize int) m3db.FileSetReader {
+func NewReader(filePathPrefix string, bufferSize int) FileSetReader {
 	return &reader{
 		filePathPrefix:             filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),

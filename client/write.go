@@ -22,7 +22,6 @@ package client
 
 import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/pool"
 )
 
@@ -33,7 +32,7 @@ var (
 type writeOp struct {
 	request      rpc.WriteRequest
 	datapoint    rpc.Datapoint
-	completionFn m3db.CompletionFn
+	completionFn completionFn
 }
 
 func (w *writeOp) reset() {
@@ -46,7 +45,7 @@ func (w *writeOp) Size() int {
 	return 1
 }
 
-func (w *writeOp) GetCompletionFn() m3db.CompletionFn {
+func (w *writeOp) GetCompletionFn() completionFn {
 	return w.completionFn
 }
 
@@ -62,7 +61,7 @@ type writeOpPool interface {
 }
 
 type poolOfWriteOp struct {
-	pool m3db.ObjectPool
+	pool pool.ObjectPool
 }
 
 func newWriteOpPool(size int) writeOpPool {

@@ -24,7 +24,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/client"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3db/network/server/httpjson"
 	ttcluster "github.com/m3db/m3db/network/server/tchannelthrift/cluster"
@@ -32,14 +32,14 @@ import (
 )
 
 type server struct {
-	client  m3db.Client
+	client  client.Client
 	address string
 	opts    httpjson.ServerOptions
 }
 
 // NewServer creates a cluster HTTP network service
 func NewServer(
-	client m3db.Client,
+	client client.Client,
 	address string,
 	opts httpjson.ServerOptions,
 ) ns.NetworkService {

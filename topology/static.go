@@ -23,7 +23,7 @@ package topology
 import (
 	"errors"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/sharding"
 )
 
 var (
@@ -31,22 +31,22 @@ var (
 )
 
 type staticTopologyType struct {
-	opts m3db.TopologyTypeOptions
+	opts TopologyTypeOptions
 }
 
 // NewStaticTopologyType creates a new static topology type
-func NewStaticTopologyType(opts m3db.TopologyTypeOptions) m3db.TopologyType {
+func NewStaticTopologyType(opts TopologyTypeOptions) TopologyType {
 	return &staticTopologyType{opts}
 }
 
-func (t *staticTopologyType) Create() (m3db.Topology, error) {
+func (t *staticTopologyType) Create() (Topology, error) {
 	if err := t.opts.Validate(); err != nil {
 		return nil, err
 	}
 	return newStaticTopology(t.opts), nil
 }
 
-func (t *staticTopologyType) Options() m3db.TopologyTypeOptions {
+func (t *staticTopologyType) Options() TopologyTypeOptions {
 	return t.opts
 }
 
@@ -54,15 +54,15 @@ type staticTopology struct {
 	topologyMap staticTopologyMap
 }
 
-func newStaticTopology(opts m3db.TopologyTypeOptions) m3db.Topology {
+func newStaticTopology(opts TopologyTypeOptions) Topology {
 	return &staticTopology{topologyMap: newStaticTopologyMap(opts)}
 }
 
-func (t *staticTopology) Get() m3db.TopologyMap {
+func (t *staticTopology) Get() TopologyMap {
 	return &t.topologyMap
 }
 
-func (t *staticTopology) GetAndSubscribe(ch chan<- m3db.TopologyMap) m3db.TopologyMap {
+func (t *staticTopology) GetAndSubscribe(ch chan<- TopologyMap) TopologyMap {
 	// Topology is static, ignore the subscription channel
 	return &t.topologyMap
 }
@@ -72,21 +72,21 @@ func (t *staticTopology) Close() error {
 }
 
 type staticTopologyMap struct {
-	shardScheme         m3db.ShardScheme
-	orderedHosts        []m3db.Host
-	hostsByShard        [][]m3db.Host
+	shardScheme         sharding.ShardScheme
+	orderedHosts        []Host
+	hostsByShard        [][]Host
 	orderedHostsByShard [][]orderedHost
 	replicas            int
 	majority            int
 }
 
-func newStaticTopologyMap(opts m3db.TopologyTypeOptions) staticTopologyMap {
+func newStaticTopologyMap(opts TopologyTypeOptions) staticTopologyMap {
 	totalShards := len(opts.GetShardScheme().All().Shards())
 	hostShardSets := opts.GetHostShardSets()
 	topoMap := staticTopologyMap{
 		shardScheme:         opts.GetShardScheme(),
-		orderedHosts:        make([]m3db.Host, 0, len(hostShardSets)),
-		hostsByShard:        make([][]m3db.Host, totalShards),
+		orderedHosts:        make([]Host, 0, len(hostShardSets)),
+		hostsByShard:        make([][]Host, totalShards),
 		orderedHostsByShard: make([][]orderedHost, totalShards),
 		replicas:            opts.GetReplicas(),
 		majority:            majority(opts.GetReplicas()),
@@ -109,10 +109,10 @@ func newStaticTopologyMap(opts m3db.TopologyTypeOptions) staticTopologyMap {
 
 type orderedHost struct {
 	idx  int
-	host m3db.Host
+	host Host
 }
 
-func (t *staticTopologyMap) Hosts() []m3db.Host {
+func (t *staticTopologyMap) Hosts() []Host {
 	return t.orderedHosts
 }
 
@@ -120,11 +120,11 @@ func (t *staticTopologyMap) HostsLen() int {
 	return len(t.orderedHosts)
 }
 
-func (t *staticTopologyMap) ShardScheme() m3db.ShardScheme {
+func (t *staticTopologyMap) ShardScheme() sharding.ShardScheme {
 	return t.shardScheme
 }
 
-func (t *staticTopologyMap) Route(id string) (uint32, []m3db.Host, error) {
+func (t *staticTopologyMap) Route(id string) (uint32, []Host, error) {
 	shard := t.shardScheme.Shard(id)
 	if int(shard) >= len(t.hostsByShard) {
 		return shard, nil, errUnownedShard
@@ -132,18 +132,18 @@ func (t *staticTopologyMap) Route(id string) (uint32, []m3db.Host, error) {
 	return shard, t.hostsByShard[shard], nil
 }
 
-func (t *staticTopologyMap) RouteForEach(id string, forEachFn m3db.RouteForEachFn) error {
+func (t *staticTopologyMap) RouteForEach(id string, forEachFn RouteForEachFn) error {
 	return t.RouteShardForEach(t.shardScheme.Shard(id), forEachFn)
 }
 
-func (t *staticTopologyMap) RouteShard(shard uint32) ([]m3db.Host, error) {
+func (t *staticTopologyMap) RouteShard(shard uint32) ([]Host, error) {
 	if int(shard) >= len(t.hostsByShard) {
 		return nil, errUnownedShard
 	}
 	return t.hostsByShard[shard], nil
 }
 
-func (t *staticTopologyMap) RouteShardForEach(shard uint32, forEachFn m3db.RouteForEachFn) error {
+func (t *staticTopologyMap) RouteShardForEach(shard uint32, forEachFn RouteForEachFn) error {
 	if int(shard) >= len(t.orderedHostsByShard) {
 		return errUnownedShard
 	}

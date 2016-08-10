@@ -28,8 +28,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/m3db/m3db/bootstrap"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage"
 )
@@ -57,12 +55,9 @@ func main() {
 	httpNodeAddr := *httpNodeAddrArg
 	tchannelNodeAddr := *tchannelNodeAddrArg
 
-	var dbOpts m3db.DatabaseOptions
-	dbOpts = storage.NewDatabaseOptions().NewBootstrapFn(func() m3db.Bootstrap {
-		return bootstrap.NewNoOpBootstrapProcess(dbOpts)
-	})
+	storageOpts := storage.NewOptions()
 
-	log := dbOpts.GetLogger()
+	log := storageOpts.GetInstrumentOptions().GetLogger()
 	shardingScheme, err := server.DefaultShardingScheme()
 	if err != nil {
 		log.Fatalf("could not create sharding scheme: %v", err)
@@ -81,7 +76,7 @@ func main() {
 			httpNodeAddr,
 			tchannelNodeAddr,
 			clientOpts,
-			dbOpts,
+			storageOpts,
 			doneCh,
 		); err != nil {
 			log.Fatalf("server fatal error: %v", err)

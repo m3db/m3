@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -47,29 +47,29 @@ type commitLogReader interface {
 	Open(filePath string) (time.Time, time.Duration, int, error)
 
 	// Read returns the next key and data pair or error, will return io.EOF at end of volume
-	Read() (m3db.CommitLogSeries, m3db.Datapoint, xtime.Unit, m3db.Annotation, error)
+	Read() (CommitLogSeries, ts.Datapoint, xtime.Unit, ts.Annotation, error)
 
 	// Close the reader
 	Close() error
 }
 
 type reader struct {
-	opts           m3db.DatabaseOptions
+	opts           Options
 	chunkReader    *chunkReader
 	sizeBuffer     []byte
 	dataBuffer     []byte
 	info           schema.CommitLogInfo
 	log            schema.CommitLog
 	metadata       schema.CommitLogMetadata
-	metadataLookup map[uint64]m3db.CommitLogSeries
+	metadataLookup map[uint64]CommitLogSeries
 }
 
-func newCommitLogReader(opts m3db.DatabaseOptions) commitLogReader {
+func newCommitLogReader(opts Options) commitLogReader {
 	return &reader{
 		opts:           opts,
-		chunkReader:    newChunkReader(opts.GetCommitLogFlushSize()),
+		chunkReader:    newChunkReader(opts.GetFlushSize()),
 		sizeBuffer:     make([]byte, binary.MaxVarintLen64),
-		metadataLookup: make(map[uint64]m3db.CommitLogSeries),
+		metadataLookup: make(map[uint64]CommitLogSeries),
 	}
 }
 
@@ -97,10 +97,10 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 }
 
 func (r *reader) Read() (
-	series m3db.CommitLogSeries,
-	datapoint m3db.Datapoint,
+	series CommitLogSeries,
+	datapoint ts.Datapoint,
 	unit xtime.Unit,
-	annotation m3db.Annotation,
+	annotation ts.Annotation,
 	resultErr error,
 ) {
 	if err := r.read(&r.log); err != nil {
@@ -113,7 +113,7 @@ func (r *reader) Read() (
 			resultErr = err
 			return
 		}
-		r.metadataLookup[r.log.Idx] = m3db.CommitLogSeries{
+		r.metadataLookup[r.log.Idx] = CommitLogSeries{
 			UniqueIndex: r.log.Idx,
 			ID:          r.metadata.Id,
 			Shard:       r.metadata.Shard,
@@ -127,7 +127,7 @@ func (r *reader) Read() (
 	}
 
 	series = metadata
-	datapoint = m3db.Datapoint{
+	datapoint = ts.Datapoint{
 		Timestamp: time.Unix(0, r.log.Timestamp),
 		Value:     r.log.Value,
 	}
@@ -174,7 +174,7 @@ func (r *reader) Close() error {
 	}
 
 	r.chunkReader.fd = nil
-	r.metadataLookup = make(map[uint64]m3db.CommitLogSeries)
+	r.metadataLookup = make(map[uint64]CommitLogSeries)
 	return nil
 }
 
@@ -204,12 +204,20 @@ func (r *chunkReader) readHeader() error {
 		return err
 	}
 
-	sizeStart, sizeEnd := 0, chunkHeaderSizeLen
-	checksumSizeStart, checksumSizeEnd := sizeEnd, sizeEnd+chunkHeaderSizeLen
-	checksumDataStart, checksumDataEnd := checksumSizeEnd, checksumSizeEnd+chunkHeaderChecksumDataLen
+	sizeStart, sizeEnd :=
+		0, chunkHeaderSizeLen
+	checksumSizeStart, checksumSizeEnd :=
+		sizeEnd, sizeEnd+chunkHeaderSizeLen
+	checksumDataStart, checksumDataEnd :=
+		checksumSizeEnd, checksumSizeEnd+chunkHeaderChecksumDataLen
+
 	size := endianness.Uint32(header[sizeStart:sizeEnd])
-	checksumSize := digest.Buffer(header[checksumSizeStart:checksumSizeEnd]).ReadDigest()
-	checksumData := digest.Buffer(header[checksumDataStart:checksumDataEnd]).ReadDigest()
+	checksumSize := digest.
+		Buffer(header[checksumSizeStart:checksumSizeEnd]).
+		ReadDigest()
+	checksumData := digest.
+		Buffer(header[checksumDataStart:checksumDataEnd]).
+		ReadDigest()
 
 	// Verify size checksum
 	if digest.Checksum(header[:4]) != checksumSize {

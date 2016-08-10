@@ -22,7 +22,6 @@ package client
 
 import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/pool"
 )
 
@@ -38,7 +37,7 @@ type writeRequestArrayPool interface {
 }
 
 type poolOfWriteRequestArray struct {
-	pool     m3db.ObjectPool
+	pool     pool.ObjectPool
 	capacity int
 }
 

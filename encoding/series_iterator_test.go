@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -151,7 +150,7 @@ func assertTestSeriesIterator(
 	t *testing.T,
 	series testSeries,
 ) {
-	var iters []m3db.Iterator
+	var iters []Iterator
 	for i := range series.input {
 		if series.input[i] == nil {
 			iters = append(iters, nil)

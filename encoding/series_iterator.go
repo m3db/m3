@@ -24,7 +24,7 @@ import (
 	"container/heap"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 )
 
@@ -36,16 +36,16 @@ type seriesIterator struct {
 	err       error
 	firstNext bool
 	closed    bool
-	pool      m3db.SeriesIteratorPool
+	pool      SeriesIteratorPool
 }
 
 // NewSeriesIterator creates a new series iterator
 func NewSeriesIterator(
 	id string,
 	startInclusive, endExclusive time.Time,
-	replicas []m3db.Iterator,
-	pool m3db.SeriesIteratorPool,
-) m3db.SeriesIterator {
+	replicas []Iterator,
+	pool SeriesIteratorPool,
+) SeriesIterator {
 	it := &seriesIterator{pool: pool}
 	it.Reset(id, startInclusive, endExclusive, replicas)
 	return it
@@ -74,7 +74,7 @@ func (it *seriesIterator) Next() bool {
 	return it.hasNext()
 }
 
-func (it *seriesIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
+func (it *seriesIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	return it.iters[0].Current()
 }
 
@@ -96,7 +96,7 @@ func (it *seriesIterator) Close() {
 	}
 }
 
-func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Time, replicas []m3db.Iterator) {
+func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Time, replicas []Iterator) {
 	it.id = id
 	it.start = startInclusive
 	it.end = endExclusive
@@ -131,7 +131,7 @@ func (it *seriesIterator) hasNext() bool {
 }
 
 func (it *seriesIterator) moveToNext() {
-	iter := heap.Pop(&it.iters).(m3db.Iterator)
+	iter := heap.Pop(&it.iters).(Iterator)
 	prev, _, _ := iter.Current()
 
 	if it.moveIteratorToValidNext(iter, false) {
@@ -149,7 +149,7 @@ func (it *seriesIterator) moveToNext() {
 	}
 }
 
-func (it *seriesIterator) moveIteratorToValidNext(iter m3db.Iterator, first bool) bool {
+func (it *seriesIterator) moveIteratorToValidNext(iter Iterator, first bool) bool {
 	var prevT time.Time
 	if !first {
 		prev, _, _ := iter.Current()

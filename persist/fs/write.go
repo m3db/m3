@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -61,16 +60,14 @@ func NewWriter(
 	blockSize time.Duration,
 	filePathPrefix string,
 	bufferSize int,
-	options m3db.FileWriterOptions,
-) m3db.FileSetWriter {
-	if options == nil {
-		options = NewFileWriterOptions()
-	}
+	newFileMode os.FileMode,
+	newDirectoryMode os.FileMode,
+) FileSetWriter {
 	return &writer{
 		blockSize:                  blockSize,
 		filePathPrefix:             filePathPrefix,
-		newFileMode:                options.GetNewFileMode(),
-		newDirectoryMode:           options.GetNewDirectoryMode(),
+		newFileMode:                newFileMode,
+		newDirectoryMode:           newDirectoryMode,
 		infoBuffer:                 proto.NewBuffer(nil),
 		indexBuffer:                proto.NewBuffer(nil),
 		varintBuffer:               proto.NewBuffer(nil),

@@ -28,8 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +37,14 @@ type testEntry struct {
 	data []byte
 }
 
-func writeTestData(t *testing.T, w m3db.FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
+func newTestWriter(filePathPrefix string) FileSetWriter {
+	blockSize := testBlockSize
+	newFileMode := defaultNewFileMode
+	newDirectoryMode := defaultNewDirectoryMode
+	return NewWriter(blockSize, filePathPrefix, testWriterBufferSize, newFileMode, newDirectoryMode)
+}
+
+func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
 	err := w.Open(shard, timestamp)
 	assert.NoError(t, err)
 
@@ -49,7 +54,7 @@ func writeTestData(t *testing.T, w m3db.FileSetWriter, shard uint32, timestamp t
 	assert.NoError(t, w.Close())
 }
 
-func readTestData(t *testing.T, r m3db.FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
 	err := r.Open(0, timestamp)
 	assert.NoError(t, err)
 
@@ -81,10 +86,10 @@ func TestSimpleReadWrite(t *testing.T) {
 		{"echo", []byte{7, 8, 9}},
 	}
 
-	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
+	w := newTestWriter(filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries)
 
-	r := NewReader(filePathPrefix, testReaderBufferSize)
+	r := newTestReader(filePathPrefix)
 	readTestData(t, r, 0, testWriterStart, entries)
 }
 
@@ -103,12 +108,12 @@ func TestReusingReaderWriter(t *testing.T) {
 		},
 		{},
 	}
-	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
+	w := newTestWriter(filePathPrefix)
 	for i := range allEntries {
 		writeTestData(t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
 	}
 
-	r := NewReader(filePathPrefix, testReaderBufferSize)
+	r := newTestReader(filePathPrefix)
 	for i := range allEntries {
 		readTestData(t, r, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
 	}
@@ -123,7 +128,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 		{"foo", []byte{1, 2, 3}},
 		{"bar", []byte{4, 5, 6}},
 	}
-	w := NewWriter(testBlockSize, filePathPrefix, testWriterBufferSize, nil)
+	w := newTestWriter(filePathPrefix)
 	shard := uint32(0)
 	require.NoError(t, w.Open(shard, testWriterStart))
 	require.NoError(t, w.Write(entries[0].key, entries[0].data))
@@ -133,7 +138,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	require.Equal(t, "foo", w.Write(entries[1].key, entries[1].data).Error())
 	w.Close()
 
-	r := NewReader(filePathPrefix, testReaderBufferSize)
+	r := newTestReader(filePathPrefix)
 	require.Equal(t, errCheckpointFileNotFound, r.Open(shard, testWriterStart))
 
 	// Now reuse the writer and validate the data are written as expected.

@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/close"
 	"github.com/uber/tchannel-go/thrift"
@@ -41,7 +40,7 @@ var (
 	channelNone = &nullChannel{}
 )
 
-func newConnectionPoolTestOptions() m3db.ClientOptions {
+func newConnectionPoolTestOptions() Options {
 	return NewOptions().
 		BackgroundConnectInterval(5 * time.Millisecond).
 		BackgroundConnectStutter(2 * time.Millisecond).
@@ -78,21 +77,21 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	opts := newConnectionPoolTestOptions()
 	opts = opts.MaxConnectionCount(4)
 	conns := newConnectionPool(h, opts).(*connPool)
-	conns.newConn = func(ch string, addr string, opts m3db.ClientOptions) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
 		attempt := int(atomic.AddInt32(&attempts, 1))
 		if attempt == 1 {
 			return nil, nil, fmt.Errorf("a connect error")
 		}
 		return channelNone, nil, nil
 	}
-	conns.healthCheckNewConn = func(client rpc.TChanNode, opts m3db.ClientOptions) error {
+	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) error {
 		if atomic.LoadInt32(&rounds) == 1 {
 			// If second round then fail health check
 			return fmt.Errorf("a health check error")
 		}
 		return nil
 	}
-	conns.healthCheck = func(client rpc.TChanNode, opts m3db.ClientOptions) error {
+	conns.healthCheck = func(client rpc.TChanNode, opts Options) error {
 		return nil
 	}
 	conns.sleepConnect = func(t time.Duration) {
@@ -180,7 +179,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		}
 		pushFailClientOverride = func(failTargetClient rpc.TChanNode) {
 			var failOverride healthCheckFn
-			failOverride = func(client rpc.TChanNode, opts m3db.ClientOptions) error {
+			failOverride = func(client rpc.TChanNode, opts Options) error {
 				if client == failTargetClient {
 					atomic.AddInt32(&invokeFail, 1)
 					return fmt.Errorf("fail client")
@@ -200,7 +199,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	opts := newConnectionPoolTestOptions()
 	opts = opts.MaxConnectionCount(2)
 	conns := newConnectionPool(h, opts).(*connPool)
-	conns.newConn = func(ch string, addr string, opts m3db.ClientOptions) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
 		if attempt == 1 {
 			return channelNone, client1, nil
@@ -209,10 +208,10 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		}
 		return nil, nil, fmt.Errorf("spawning only 2 connections")
 	}
-	conns.healthCheckNewConn = func(client rpc.TChanNode, opts m3db.ClientOptions) error {
+	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) error {
 		return nil
 	}
-	conns.healthCheck = func(client rpc.TChanNode, opts m3db.ClientOptions) error {
+	conns.healthCheck = func(client rpc.TChanNode, opts Options) error {
 		if fn := popOverride(); fn != nil {
 			return fn(client, opts)
 		}

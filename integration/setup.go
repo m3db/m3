@@ -28,13 +28,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/bootstrap"
+	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/services/m3dbnode/server"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/uber/tchannel-go"
 )
@@ -54,14 +57,14 @@ type nowSetterFn func(t time.Time)
 
 type testSetup struct {
 	opts           testOptions
-	clientOpts     m3db.ClientOptions
-	dbOpts         m3db.DatabaseOptions
-	shardingScheme m3db.ShardScheme
-	getNowFn       m3db.NowFn
+	clientOpts     client.Options
+	storageOpts    storage.Options
+	shardingScheme sharding.ShardScheme
+	getNowFn       clock.NowFn
 	setNowFn       nowSetterFn
 	tchannelClient rpc.TChanNode
-	m3dbClient     m3db.Client
-	workerPool     m3db.WorkerPool
+	m3dbClient     client.Client
+	workerPool     pool.WorkerPool
 
 	// things that need to be cleaned up
 	channel        *tchannel.Channel
@@ -77,10 +80,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		opts = newTestOptions()
 	}
 
-	var dbOpts m3db.DatabaseOptions
-	dbOpts = storage.NewDatabaseOptions().NewBootstrapFn(func() m3db.Bootstrap {
-		return bootstrap.NewNoOpBootstrapProcess(dbOpts)
-	})
+	storageOpts := storage.NewOptions()
 
 	// Set up sharding scheme
 	shardingScheme, err := server.DefaultShardingScheme()
@@ -112,7 +112,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	// Set up getter and setter for now
 	var lock sync.RWMutex
-	now := time.Now().Truncate(dbOpts.GetBlockSize())
+	now := time.Now().Truncate(storageOpts.GetRetentionOptions().GetBlockSize())
 	getNowFn := func() time.Time {
 		lock.RLock()
 		t := now
@@ -124,24 +124,27 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		now = t
 		lock.Unlock()
 	}
-	dbOpts = dbOpts.NowFn(getNowFn)
+	storageOpts = storageOpts.ClockOptions(storageOpts.GetClockOptions().NowFn(getNowFn))
 
 	// Set up file path prefix
 	filePathPrefix, err := ioutil.TempDir("", "integration-test")
 	if err != nil {
 		return nil, err
 	}
-	dbOpts = dbOpts.FilePathPrefix(filePathPrefix)
+
+	fsOpts := fs.NewOptions().FilePathPrefix(filePathPrefix)
+
+	storageOpts = storageOpts.CommitLogOptions(storageOpts.GetCommitLogOptions().FilesystemOptions(fsOpts))
 
 	// Set up persistence manager
-	dbOpts = dbOpts.NewPersistenceManagerFn(func(opts m3db.DatabaseOptions) m3db.PersistenceManager {
-		return fs.NewPersistenceManager(opts)
+	storageOpts = storageOpts.NewPersistManagerFn(func() persist.PersistManager {
+		return fs.NewPersistManager(fsOpts)
 	})
 
 	return &testSetup{
 		opts:           opts,
 		clientOpts:     clientOpts,
-		dbOpts:         dbOpts,
+		storageOpts:    storageOpts,
 		shardingScheme: shardingScheme,
 		getNowFn:       getNowFn,
 		setNowFn:       setNowFn,
@@ -183,7 +186,7 @@ func (ts *testSetup) startServer() error {
 			*httpNodeAddr,
 			*tchannelNodeAddr,
 			ts.clientOpts,
-			ts.dbOpts,
+			ts.storageOpts,
 			ts.doneCh)
 		if err != nil {
 			select {
@@ -224,7 +227,7 @@ func (ts *testSetup) writeBatch(dm dataMap) error {
 	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, dm)
 }
 
-func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]m3db.Datapoint, error) {
+func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]ts.Datapoint, error) {
 	if ts.opts.GetUseTChannelClientForReading() {
 		return tchannelClientFetch(ts.tchannelClient, ts.opts.GetReadRequestTimeout(), req)
 	}

@@ -24,9 +24,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3db/generated/mocks/mocks"
-	"github.com/m3db/m3db/interfaces/m3db"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,7 +32,7 @@ func TestClientNewClientValidatesOptions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := mocks.NewMockClientOptions(ctrl)
+	opts := NewMockOptions(ctrl)
 	opts.EXPECT().Validate().Return(nil)
 
 	client, err := NewClient(opts)
@@ -43,7 +40,7 @@ func TestClientNewClientValidatesOptions(t *testing.T) {
 	assert.NotNil(t, client)
 
 	anError := fmt.Errorf("an error")
-	opts = mocks.NewMockClientOptions(ctrl)
+	opts = NewMockOptions(ctrl)
 	opts.EXPECT().Validate().Return(anError)
 
 	_, err = NewClient(opts)
@@ -55,16 +52,16 @@ func TestClientNewSessionOpensSession(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := mocks.NewMockClientOptions(ctrl)
+	opts := NewMockOptions(ctrl)
 	opts.EXPECT().Validate().Return(nil)
 
 	cli, err := NewClient(opts)
 	assert.NoError(t, err)
 
-	var mockSession m3db.Session
+	var mockSession Session
 	client := cli.(*client)
-	client.newSessionFn = func(opts m3db.ClientOptions) (clientSession, error) {
-		session := mocks.NewMockclientSession(ctrl)
+	client.newSessionFn = func(opts Options) (clientSession, error) {
+		session := NewMockclientSession(ctrl)
 		session.EXPECT().Open().Return(nil)
 		mockSession = session
 		return session, nil
@@ -79,7 +76,7 @@ func TestClientNewSessionFailCreateReturnsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := mocks.NewMockClientOptions(ctrl)
+	opts := NewMockOptions(ctrl)
 	opts.EXPECT().Validate().Return(nil)
 
 	cli, err := NewClient(opts)
@@ -87,7 +84,7 @@ func TestClientNewSessionFailCreateReturnsError(t *testing.T) {
 
 	client := cli.(*client)
 	anError := fmt.Errorf("an error")
-	client.newSessionFn = func(opts m3db.ClientOptions) (clientSession, error) {
+	client.newSessionFn = func(opts Options) (clientSession, error) {
 		return nil, anError
 	}
 
@@ -101,7 +98,7 @@ func TestClientNewSessionFailOpenReturnsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := mocks.NewMockClientOptions(ctrl)
+	opts := NewMockOptions(ctrl)
 	opts.EXPECT().Validate().Return(nil)
 
 	cli, err := NewClient(opts)
@@ -109,8 +106,8 @@ func TestClientNewSessionFailOpenReturnsError(t *testing.T) {
 
 	client := cli.(*client)
 	anError := fmt.Errorf("an error")
-	client.newSessionFn = func(opts m3db.ClientOptions) (clientSession, error) {
-		session := mocks.NewMockclientSession(ctrl)
+	client.newSessionFn = func(opts Options) (clientSession, error) {
+		session := NewMockclientSession(ctrl)
 		session.EXPECT().Open().Return(anError)
 		return session, nil
 	}

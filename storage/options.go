@@ -22,186 +22,157 @@ package storage
 
 import (
 	"io"
-	"os"
-	"runtime"
 	"time"
 
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/tsz"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/instrument"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/pool"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/metrics"
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap"
+	xio "github.com/m3db/m3db/x/io"
 )
 
 const (
-	// defaultBlockSize is the default block size
-	defaultBlockSize = 2 * time.Hour
-
-	// defaultBufferFuture is the default buffer future limit
-	defaultBufferFuture = 2 * time.Minute
-
-	// defaultBufferPast is the default buffer past limit
-	defaultBufferPast = 10 * time.Minute
-
-	// defaultBufferDrain is the default buffer drain
-	defaultBufferDrain = 1 * time.Minute
-
-	// defaultRetentionPeriod is how long we keep data in memory by default.
-	defaultRetentionPeriod = 2 * 24 * time.Hour
-
-	// defaultBufferBucketAllocSize is the size to allocate for values for each
-	// bucket in the buffer, this should match the size of expected encoded values
-	// per buffer drain duration
-	defaultBufferBucketAllocSize = 256
-
-	// defaultDatabaseBlockAllocSize is the size to allocate for values for each
-	// database block, this should match the size of expected encoded values per
-	// block size.
-	defaultDatabaseBlockAllocSize = 1024
-
-	// defaultCommitLogFlushSize is the default commit log flush size
-	defaultCommitLogFlushSize = 65536
-
-	// defaultCommitLogFlushInterval is the default commit log flush interval
-	defaultCommitLogFlushInterval = time.Second
-
 	// defaultCommitLogStrategy is the default commit log strategy
-	defaultCommitLogStrategy = m3db.CommitLogStrategyWriteBehind
+	defaultCommitLogStrategy = commitlog.CommitLogStrategyWriteBehind
 
-	// defaultMaxFlushRetries is the default number of retries when flush fails.
+	// defaultMaxFlushRetries is the default number of retries when flush fails
 	defaultMaxFlushRetries = 3
-
-	// defaultWriterBufferSize is the default buffer size for writing TSDB files.
-	defaultWriterBufferSize = 65536
-
-	// defaultReaderBufferSize is the default buffer size for reading TSDB files.
-	defaultReaderBufferSize = 65536
 )
 
 var (
-	// defaultCommitLogBacklogQueueSize is the default commit log backlog queue size
-	defaultCommitLogBacklogQueueSize = 1024 * runtime.NumCPU()
-
-	// defaultFilePathPrefix is the default path prefix for local TSDB files.
-	defaultFilePathPrefix = os.TempDir()
-
-	// defaultFileWriterOptions is the default file writing options.
-	defaultFileWriterOptions = fs.NewFileWriterOptions()
-
-	// defaultFileSetReaderFn is the default function for creating a TSDB fileset reader.
-	defaultFileSetReaderFn = func(filePathPrefix string, readerBufferSize int) m3db.FileSetReader {
-		return fs.NewReader(filePathPrefix, readerBufferSize)
+	// defaultNewBootstrapFn is the default function for creating a new bootstrap
+	defaultNewBootstrapFn = func() bootstrap.Bootstrap {
+		return bootstrap.NewNoOpBootstrapProcess(bootstrap.NewOptions())
 	}
 
-	// defaultFileSetWriterFn is the default function for creating a TSDB fileset writer.
-	defaultFileSetWriterFn = func(blockSize time.Duration, filePathPrefix string, writerBufferSize int, opts m3db.FileWriterOptions) m3db.FileSetWriter {
-		return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, opts)
-	}
-
-	// defaultPersistenceManagerFn is the default function for creating a new persistence manager.
-	defaultPersistenceManagerFn = func(opts m3db.DatabaseOptions) m3db.PersistenceManager {
-		return fs.NewPersistenceManager(opts)
+	// defaultNewPersistManagerFn is the default function for creating a new persist manager
+	defaultNewPersistManagerFn = func() persist.PersistManager {
+		return fs.NewPersistManager(fs.NewOptions())
 	}
 
 	timeZero time.Time
 )
 
-type dbOptions struct {
-	logger                    xlog.Logger
-	scope                     xmetrics.Scope
-	blockSize                 time.Duration
-	newEncoderFn              m3db.NewEncoderFn
-	newDecoderFn              m3db.NewDecoderFn
-	nowFn                     m3db.NowFn
-	bufferFuture              time.Duration
-	bufferPast                time.Duration
-	bufferDrain               time.Duration
-	bufferBucketAllocSize     int
-	databaseBlockAllocSize    int
-	retentionPeriod           time.Duration
-	newBootstrapFn            m3db.NewBootstrapFn
-	commitLogFlushSize        int
-	commitLogFlushInterval    time.Duration
-	commitLogBacklogQueueSize int
-	commitLogStrategy         m3db.CommitLogStrategy
-	bytesPool                 m3db.BytesPool
-	contextPool               m3db.ContextPool
-	databaseBlockPool         m3db.DatabaseBlockPool
-	encoderPool               m3db.EncoderPool
-	segmentReaderPool         m3db.SegmentReaderPool
-	readerIteratorPool        m3db.ReaderIteratorPool
-	multiReaderIteratorPool   m3db.MultiReaderIteratorPool
-	maxFlushRetries           int
-	filePathPrefix            string
-	fileWriterOptions         m3db.FileWriterOptions
-	newFileSetReaderFn        m3db.NewFileSetReaderFn
-	newFileSetWriterFn        m3db.NewFileSetWriterFn
-	newPersistenceManagerFn   m3db.NewPersistenceManagerFn
-	writerBufferSize          int
-	readerBufferSize          int
+type options struct {
+	clockOpts               clock.Options
+	instrumentOpts          instrument.Options
+	retentionOpts           retention.Options
+	blockOpts               block.Options
+	commitLogOpts           commitlog.Options
+	newEncoderFn            encoding.NewEncoderFn
+	newDecoderFn            encoding.NewDecoderFn
+	newBootstrapFn          NewBootstrapFn
+	newPersistManagerFn     NewPersistManagerFn
+	maxFlushRetries         int
+	contextPool             context.ContextPool
+	bytesPool               pool.BytesPool
+	encoderPool             encoding.EncoderPool
+	segmentReaderPool       xio.SegmentReaderPool
+	readerIteratorPool      encoding.ReaderIteratorPool
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool
 }
 
-// NewDatabaseOptions creates a new set of database options with defaults
+// NewOptions creates a new set of storage options with defaults
 // TODO(r): add an "IsValid()" method and ensure buffer future and buffer past are
 // less than blocksize and check when opening database
-func NewDatabaseOptions() m3db.DatabaseOptions {
-	opts := &dbOptions{
-		logger:                    xlog.SimpleLogger,
-		scope:                     xmetrics.NoopScope,
-		blockSize:                 defaultBlockSize,
-		nowFn:                     time.Now,
-		retentionPeriod:           defaultRetentionPeriod,
-		bufferFuture:              defaultBufferFuture,
-		bufferPast:                defaultBufferPast,
-		bufferDrain:               defaultBufferDrain,
-		commitLogFlushSize:        defaultCommitLogFlushSize,
-		commitLogFlushInterval:    defaultCommitLogFlushInterval,
-		commitLogBacklogQueueSize: defaultCommitLogBacklogQueueSize,
-		commitLogStrategy:         defaultCommitLogStrategy,
-		maxFlushRetries:           defaultMaxFlushRetries,
-		filePathPrefix:            defaultFilePathPrefix,
-		fileWriterOptions:         defaultFileWriterOptions,
-		newFileSetReaderFn:        defaultFileSetReaderFn,
-		newFileSetWriterFn:        defaultFileSetWriterFn,
-		newPersistenceManagerFn:   defaultPersistenceManagerFn,
-		writerBufferSize:          defaultWriterBufferSize,
-		readerBufferSize:          defaultReaderBufferSize,
+func NewOptions() Options {
+	o := &options{
+		clockOpts:               clock.NewOptions(),
+		instrumentOpts:          instrument.NewOptions(),
+		retentionOpts:           retention.NewOptions(),
+		blockOpts:               block.NewOptions(),
+		commitLogOpts:           commitlog.NewOptions(),
+		newBootstrapFn:          defaultNewBootstrapFn,
+		newPersistManagerFn:     defaultNewPersistManagerFn,
+		maxFlushRetries:         defaultMaxFlushRetries,
+		contextPool:             context.NewContextPool(0),
+		bytesPool:               pool.NewBytesPool(nil),
+		encoderPool:             encoding.NewEncoderPool(0),
+		segmentReaderPool:       xio.NewSegmentReaderPool(0),
+		readerIteratorPool:      encoding.NewReaderIteratorPool(0),
+		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(0),
 	}
-	return opts.EncodingTszPooled(defaultBufferBucketAllocSize, defaultDatabaseBlockAllocSize)
+	return o.EncodingTszPooled()
 }
 
-func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocSize int) m3db.DatabaseOptions {
+func (o *options) ClockOptions(value clock.Options) Options {
 	opts := *o
-	opts.bufferBucketAllocSize = bufferBucketAllocSize
-	opts.databaseBlockAllocSize = databaseBlockAllocSize
+	opts.clockOpts = value
+	return &opts
+}
 
-	// NB(r): don't enable byte pooling just yet
-	buckets := []m3db.PoolBucket{}
+func (o *options) GetClockOptions() clock.Options {
+	return o.clockOpts
+}
+
+func (o *options) InstrumentOptions(value instrument.Options) Options {
+	opts := *o
+	opts.instrumentOpts = value
+	return &opts
+}
+
+func (o *options) GetInstrumentOptions() instrument.Options {
+	return o.instrumentOpts
+}
+
+func (o *options) RetentionOptions(value retention.Options) Options {
+	opts := *o
+	opts.retentionOpts = value
+	return &opts
+}
+
+func (o *options) GetRetentionOptions() retention.Options {
+	return o.retentionOpts
+}
+
+func (o *options) DatabaseBlockOptions(value block.Options) Options {
+	opts := *o
+	opts.blockOpts = value
+	return &opts
+}
+
+func (o *options) GetDatabaseBlockOptions() block.Options {
+	return o.blockOpts
+}
+
+func (o *options) CommitLogOptions(value commitlog.Options) Options {
+	opts := *o
+	opts.commitLogOpts = value
+	return &opts
+}
+
+func (o *options) GetCommitLogOptions() commitlog.Options {
+	return o.commitLogOpts
+}
+
+func (o *options) EncodingTszPooled() Options {
+	opts := *o
+
+	// NB(r): don't enable pooling just yet
+	buckets := []pool.PoolBucket{}
 	bytesPool := pool.NewBytesPool(buckets)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 
 	// initialize context pool
-	contextPool := pool.NewContextPool(0)
-	contextPool.Init()
+	contextPool := context.NewContextPool(0)
 	opts.contextPool = contextPool
 
-	// initialize database block pool
-	databaseBlockPool := pool.NewDatabaseBlockPool(0)
-	databaseBlockPool.Init(func() m3db.DatabaseBlock {
-		return NewDatabaseBlock(timeZero, nil, &opts)
-	})
-	opts.databaseBlockPool = databaseBlockPool
-
 	// initialize segment reader pool
-	segmentReaderPool := pool.NewSegmentReaderPool(0)
-	segmentReaderPool.Init()
+	segmentReaderPool := xio.NewSegmentReaderPool(0)
 	opts.segmentReaderPool = segmentReaderPool
 
-	encoderPool := pool.NewEncoderPool(0)
-	readerIteratorPool := pool.NewReaderIteratorPool(0)
-	multiReaderIteratorPool := pool.NewMultiReaderIteratorPool(0)
+	encoderPool := encoding.NewEncoderPool(0)
+	readerIteratorPool := encoding.NewReaderIteratorPool(0)
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(0)
 
 	encodingOpts := tsz.NewOptions().
 		BytesPool(bytesPool).
@@ -210,39 +181,41 @@ func (o *dbOptions) EncodingTszPooled(bufferBucketAllocSize, databaseBlockAllocS
 		SegmentReaderPool(segmentReaderPool)
 
 	// initialize encoder pool
-	encoderPool.Init(func() m3db.Encoder {
+	encoderPool.Init(func() encoding.Encoder {
 		return tsz.NewEncoder(timeZero, nil, encodingOpts)
 	})
 	opts.encoderPool = encoderPool
 
 	// initialize single reader iterator pool
-	readerIteratorPool.Init(func(r io.Reader) m3db.ReaderIterator {
+	readerIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		return tsz.NewReaderIterator(r, encodingOpts)
 	})
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
-	multiReaderIteratorPool.Init(func(r io.Reader) m3db.ReaderIterator {
+	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		return tsz.NewReaderIterator(r, encodingOpts)
 	})
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
+	opts.blockOpts = opts.blockOpts.EncoderPool(encoderPool)
+
 	return (&opts).encodingTsz(encodingOpts)
 }
 
-func (o *dbOptions) EncodingTsz() m3db.DatabaseOptions {
+func (o *options) EncodingTsz() Options {
 	return o.encodingTsz(tsz.NewOptions())
 }
 
-func (o *dbOptions) encodingTsz(encodingOpts tsz.Options) m3db.DatabaseOptions {
+func (o *options) encodingTsz(encodingOpts tsz.Options) Options {
 	opts := *o
 
-	newEncoderFn := func(start time.Time, bytes []byte) m3db.Encoder {
+	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
 		return tsz.NewEncoder(start, bytes, encodingOpts)
 	}
 	opts.newEncoderFn = newEncoderFn
 
-	newDecoderFn := func() m3db.Decoder {
+	newDecoderFn := func() encoding.Decoder {
 		return tsz.NewDecoder(encodingOpts)
 	}
 	opts.newDecoderFn = newDecoderFn
@@ -250,324 +223,112 @@ func (o *dbOptions) encodingTsz(encodingOpts tsz.Options) m3db.DatabaseOptions {
 	return &opts
 }
 
-func (o *dbOptions) Logger(value xlog.Logger) m3db.DatabaseOptions {
-	opts := *o
-	opts.logger = value
-	return &opts
-}
-
-func (o *dbOptions) GetLogger() xlog.Logger {
-	return o.logger
-}
-
-func (o *dbOptions) MetricsScope(value xmetrics.Scope) m3db.DatabaseOptions {
-	opts := *o
-	opts.scope = value
-	return &opts
-}
-
-func (o *dbOptions) GetMetricsScope() xmetrics.Scope {
-	return o.scope
-}
-
-func (o *dbOptions) BlockSize(value time.Duration) m3db.DatabaseOptions {
-	opts := *o
-	opts.blockSize = value
-	return &opts
-}
-
-func (o *dbOptions) GetBlockSize() time.Duration {
-	return o.blockSize
-}
-
-func (o *dbOptions) NewEncoderFn(value m3db.NewEncoderFn) m3db.DatabaseOptions {
+func (o *options) NewEncoderFn(value encoding.NewEncoderFn) Options {
 	opts := *o
 	opts.newEncoderFn = value
 	return &opts
 }
 
-func (o *dbOptions) GetNewEncoderFn() m3db.NewEncoderFn {
+func (o *options) GetNewEncoderFn() encoding.NewEncoderFn {
 	return o.newEncoderFn
 }
 
-func (o *dbOptions) NewDecoderFn(value m3db.NewDecoderFn) m3db.DatabaseOptions {
+func (o *options) NewDecoderFn(value encoding.NewDecoderFn) Options {
 	opts := *o
 	opts.newDecoderFn = value
 	return &opts
 }
 
-func (o *dbOptions) GetNewDecoderFn() m3db.NewDecoderFn {
+func (o *options) GetNewDecoderFn() encoding.NewDecoderFn {
 	return o.newDecoderFn
 }
 
-func (o *dbOptions) NowFn(value m3db.NowFn) m3db.DatabaseOptions {
-	opts := *o
-	opts.nowFn = value
-	return &opts
-}
-
-func (o *dbOptions) GetNowFn() m3db.NowFn {
-	return o.nowFn
-}
-
-func (o *dbOptions) BufferFuture(value time.Duration) m3db.DatabaseOptions {
-	opts := *o
-	opts.bufferFuture = value
-	return &opts
-}
-
-func (o *dbOptions) GetBufferFuture() time.Duration {
-	return o.bufferFuture
-}
-
-func (o *dbOptions) BufferPast(value time.Duration) m3db.DatabaseOptions {
-	opts := *o
-	opts.bufferPast = value
-	return &opts
-}
-
-func (o *dbOptions) GetBufferPast() time.Duration {
-	return o.bufferPast
-}
-
-func (o *dbOptions) BufferDrain(value time.Duration) m3db.DatabaseOptions {
-	opts := *o
-	opts.bufferDrain = value
-	return &opts
-}
-
-func (o *dbOptions) GetBufferDrain() time.Duration {
-	return o.bufferDrain
-}
-
-func (o *dbOptions) BufferBucketAllocSize(value int) m3db.DatabaseOptions {
-	opts := *o
-	opts.bufferBucketAllocSize = value
-	return &opts
-}
-
-func (o *dbOptions) GetBufferBucketAllocSize() int {
-	return o.bufferBucketAllocSize
-}
-
-func (o *dbOptions) DatabaseBlockAllocSize(value int) m3db.DatabaseOptions {
-	opts := *o
-	opts.databaseBlockAllocSize = value
-	return &opts
-}
-
-func (o *dbOptions) GetDatabaseBlockAllocSize() int {
-	return o.databaseBlockAllocSize
-}
-
-// RetentionPeriod sets how long we intend to keep data in memory.
-func (o *dbOptions) RetentionPeriod(value time.Duration) m3db.DatabaseOptions {
-	opts := *o
-	opts.retentionPeriod = value
-	return &opts
-}
-
-// GetRetentionPeriod returns how long we intend to keep raw xmetrics in memory.
-func (o *dbOptions) GetRetentionPeriod() time.Duration {
-	return o.retentionPeriod
-}
-
-func (o *dbOptions) NewBootstrapFn(value m3db.NewBootstrapFn) m3db.DatabaseOptions {
+func (o *options) NewBootstrapFn(value NewBootstrapFn) Options {
 	opts := *o
 	opts.newBootstrapFn = value
 	return &opts
 }
 
-func (o *dbOptions) GetBootstrapFn() m3db.NewBootstrapFn {
+func (o *options) GetNewBootstrapFn() NewBootstrapFn {
 	return o.newBootstrapFn
 }
 
-func (o *dbOptions) CommitLogFlushSize(value int) m3db.DatabaseOptions {
+func (o *options) NewPersistManagerFn(value NewPersistManagerFn) Options {
 	opts := *o
-	opts.commitLogFlushSize = value
+	opts.newPersistManagerFn = value
 	return &opts
 }
 
-func (o *dbOptions) GetCommitLogFlushSize() int {
-	return o.commitLogFlushSize
+func (o *options) GetNewPersistManagerFn() NewPersistManagerFn {
+	return o.newPersistManagerFn
 }
 
-func (o *dbOptions) CommitLogFlushInterval(value time.Duration) m3db.DatabaseOptions {
-	opts := *o
-	opts.commitLogFlushInterval = value
-	return &opts
-}
-
-func (o *dbOptions) GetCommitLogFlushInterval() time.Duration {
-	return o.commitLogFlushInterval
-}
-
-func (o *dbOptions) CommitLogBacklogQueueSize(value int) m3db.DatabaseOptions {
-	opts := *o
-	opts.commitLogBacklogQueueSize = value
-	return &opts
-}
-
-func (o *dbOptions) GetCommitLogBacklogQueueSize() int {
-	return o.commitLogBacklogQueueSize
-}
-
-func (o *dbOptions) CommitLogStrategy(value m3db.CommitLogStrategy) m3db.DatabaseOptions {
-	opts := *o
-	opts.commitLogStrategy = value
-	return &opts
-}
-
-func (o *dbOptions) GetCommitLogStrategy() m3db.CommitLogStrategy {
-	return o.commitLogStrategy
-}
-
-func (o *dbOptions) BytesPool(value m3db.BytesPool) m3db.DatabaseOptions {
-	opts := *o
-	opts.bytesPool = value
-	return &opts
-}
-
-func (o *dbOptions) GetBytesPool() m3db.BytesPool {
-	return o.bytesPool
-}
-
-func (o *dbOptions) ContextPool(value m3db.ContextPool) m3db.DatabaseOptions {
-	opts := *o
-	opts.contextPool = value
-	return &opts
-}
-
-func (o *dbOptions) GetContextPool() m3db.ContextPool {
-	return o.contextPool
-}
-
-func (o *dbOptions) DatabaseBlockPool(value m3db.DatabaseBlockPool) m3db.DatabaseOptions {
-	opts := *o
-	opts.databaseBlockPool = value
-	return &opts
-}
-
-func (o *dbOptions) GetDatabaseBlockPool() m3db.DatabaseBlockPool {
-	return o.databaseBlockPool
-}
-
-func (o *dbOptions) EncoderPool(value m3db.EncoderPool) m3db.DatabaseOptions {
-	opts := *o
-	opts.encoderPool = value
-	return &opts
-}
-
-func (o *dbOptions) GetEncoderPool() m3db.EncoderPool {
-	return o.encoderPool
-}
-
-func (o *dbOptions) SegmentReaderPool(value m3db.SegmentReaderPool) m3db.DatabaseOptions {
-	opts := *o
-	opts.segmentReaderPool = value
-	return &opts
-}
-
-func (o *dbOptions) GetSegmentReaderPool() m3db.SegmentReaderPool {
-	return o.segmentReaderPool
-}
-
-func (o *dbOptions) ReaderIteratorPool(value m3db.ReaderIteratorPool) m3db.DatabaseOptions {
-	opts := *o
-	opts.readerIteratorPool = value
-	return &opts
-}
-
-func (o *dbOptions) GetReaderIteratorPool() m3db.ReaderIteratorPool {
-	return o.readerIteratorPool
-}
-
-func (o *dbOptions) MultiReaderIteratorPool(value m3db.MultiReaderIteratorPool) m3db.DatabaseOptions {
-	opts := *o
-	opts.multiReaderIteratorPool = value
-	return &opts
-}
-
-func (o *dbOptions) GetMultiReaderIteratorPool() m3db.MultiReaderIteratorPool {
-	return o.multiReaderIteratorPool
-}
-
-func (o *dbOptions) MaxFlushRetries(value int) m3db.DatabaseOptions {
+func (o *options) MaxFlushRetries(value int) Options {
 	opts := *o
 	opts.maxFlushRetries = value
 	return &opts
 }
 
-func (o *dbOptions) GetMaxFlushRetries() int {
+func (o *options) GetMaxFlushRetries() int {
 	return o.maxFlushRetries
 }
 
-func (o *dbOptions) FilePathPrefix(value string) m3db.DatabaseOptions {
+func (o *options) ContextPool(value context.ContextPool) Options {
 	opts := *o
-	opts.filePathPrefix = value
+	opts.contextPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetFilePathPrefix() string {
-	return o.filePathPrefix
+func (o *options) GetContextPool() context.ContextPool {
+	return o.contextPool
 }
 
-func (o *dbOptions) FileWriterOptions(value m3db.FileWriterOptions) m3db.DatabaseOptions {
+func (o *options) BytesPool(value pool.BytesPool) Options {
 	opts := *o
-	opts.fileWriterOptions = value
+	opts.bytesPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetFileWriterOptions() m3db.FileWriterOptions {
-	return o.fileWriterOptions
+func (o *options) GetBytesPool() pool.BytesPool {
+	return o.bytesPool
 }
 
-func (o *dbOptions) NewFileSetReaderFn(value m3db.NewFileSetReaderFn) m3db.DatabaseOptions {
+func (o *options) EncoderPool(value encoding.EncoderPool) Options {
 	opts := *o
-	opts.newFileSetReaderFn = value
+	opts.encoderPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetNewFileSetReaderFn() m3db.NewFileSetReaderFn {
-	return o.newFileSetReaderFn
+func (o *options) GetEncoderPool() encoding.EncoderPool {
+	return o.encoderPool
 }
 
-func (o *dbOptions) NewFileSetWriterFn(value m3db.NewFileSetWriterFn) m3db.DatabaseOptions {
+func (o *options) SegmentReaderPool(value xio.SegmentReaderPool) Options {
 	opts := *o
-	opts.newFileSetWriterFn = value
+	opts.segmentReaderPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetNewFileSetWriterFn() m3db.NewFileSetWriterFn {
-	return o.newFileSetWriterFn
+func (o *options) GetSegmentReaderPool() xio.SegmentReaderPool {
+	return o.segmentReaderPool
 }
 
-func (o *dbOptions) NewPersistenceManagerFn(value m3db.NewPersistenceManagerFn) m3db.DatabaseOptions {
+func (o *options) ReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
 	opts := *o
-	opts.newPersistenceManagerFn = value
+	opts.readerIteratorPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetNewPersistenceManagerFn() m3db.NewPersistenceManagerFn {
-	return o.newPersistenceManagerFn
+func (o *options) GetReaderIteratorPool() encoding.ReaderIteratorPool {
+	return o.readerIteratorPool
 }
 
-func (o *dbOptions) WriterBufferSize(value int) m3db.DatabaseOptions {
+func (o *options) MultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
 	opts := *o
-	opts.writerBufferSize = value
+	opts.multiReaderIteratorPool = value
 	return &opts
 }
 
-func (o *dbOptions) GetWriterBufferSize() int {
-	return o.writerBufferSize
-}
-
-func (o *dbOptions) ReaderBufferSize(value int) m3db.DatabaseOptions {
-	opts := *o
-	opts.readerBufferSize = value
-	return &opts
-}
-
-func (o *dbOptions) GetReaderBufferSize() int {
-	return o.readerBufferSize
+func (o *options) GetMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
+	return o.multiReaderIteratorPool
 }

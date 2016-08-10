@@ -25,7 +25,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
 )
 
@@ -37,11 +38,11 @@ var (
 // internally ordered but not collectively in order readers, it also deduplicates datapoints.
 type multiReaderIterator struct {
 	iters            IteratorHeap
-	cachedIters      []m3db.ReaderIterator
-	slicesIter       m3db.ReaderSliceOfSlicesIterator
-	iteratorAlloc    m3db.ReaderIteratorAllocate
+	cachedIters      []ReaderIterator
+	slicesIter       xio.ReaderSliceOfSlicesIterator
+	iteratorAlloc    ReaderIteratorAllocate
 	singleSlicesIter singleSlicesOfSlicesIterator
-	pool             m3db.MultiReaderIteratorPool
+	pool             MultiReaderIteratorPool
 	err              error
 	firstNext        bool
 	closed           bool
@@ -49,9 +50,9 @@ type multiReaderIterator struct {
 
 // NewMultiReaderIterator creates a new multi-reader iterator.
 func NewMultiReaderIterator(
-	iteratorAlloc m3db.ReaderIteratorAllocate,
-	pool m3db.MultiReaderIteratorPool,
-) m3db.MultiReaderIterator {
+	iteratorAlloc ReaderIteratorAllocate,
+	pool MultiReaderIteratorPool,
+) MultiReaderIterator {
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
 	it.Reset(nil)
 	return it
@@ -69,7 +70,7 @@ func (it *multiReaderIterator) Next() bool {
 	return it.hasNext()
 }
 
-func (it *multiReaderIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
+func (it *multiReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	return it.iters[0].Current()
 }
 
@@ -110,7 +111,7 @@ func (it *multiReaderIterator) moveToNext() {
 	currentLen := it.slicesIter.CurrentLen()
 	for i := 0; i < currentLen; i++ {
 		var (
-			iter   m3db.ReaderIterator
+			iter   ReaderIterator
 			reader = it.slicesIter.CurrentAt(i)
 		)
 		if len(it.cachedIters) != 0 {
@@ -139,7 +140,7 @@ func (it *multiReaderIterator) moveToNext() {
 }
 
 func (it *multiReaderIterator) moveIteratorsToNext() {
-	iter := heap.Pop(&it.iters).(m3db.ReaderIterator)
+	iter := heap.Pop(&it.iters).(ReaderIterator)
 	prev, _, _ := iter.Current()
 
 	if it.moveIteratorToValidNext(iter) {
@@ -159,7 +160,7 @@ func (it *multiReaderIterator) moveIteratorsToNext() {
 	}
 }
 
-func (it *multiReaderIterator) moveIteratorToValidNext(iter m3db.Iterator) bool {
+func (it *multiReaderIterator) moveIteratorToValidNext(iter Iterator) bool {
 	prev, _, _ := iter.Current()
 	prevT := prev.Timestamp
 	if iter.Next() {
@@ -195,7 +196,7 @@ func (it *multiReaderIterator) Reset(readers []io.Reader) {
 	it.ResetSliceOfSlices(&it.singleSlicesIter)
 }
 
-func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter m3db.ReaderSliceOfSlicesIterator) {
+func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter xio.ReaderSliceOfSlicesIterator) {
 	it.iters = it.iters[:0]
 	it.slicesIter = slicesIter
 	it.err = nil

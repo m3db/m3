@@ -27,7 +27,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/storage/block"
+	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -37,53 +41,25 @@ var (
 	errSeriesAllDatapointsExpired = errors.New("all series datapoints expired")
 )
 
-type databaseSeries interface {
-	ID() string
-
-	// Tick performs any updates to ensure buffer drains, blocks are flushed, etc
-	Tick() error
-
-	Write(
-		ctx m3db.Context,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	) error
-
-	ReadEncoded(
-		ctx m3db.Context,
-		start, end time.Time,
-	) ([][]m3db.SegmentReader, error)
-
-	Empty() bool
-
-	// Bootstrap merges the raw series bootstrapped along with the buffered data.
-	Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error
-
-	// Flush flushes the data blocks of this series for a given start time.
-	Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFn) error
-}
-
 type dbSeries struct {
 	sync.RWMutex
-	opts             m3db.DatabaseOptions
+	opts             Options
 	seriesID         string
 	buffer           databaseBuffer
-	blocks           m3db.DatabaseSeriesBlocks
+	blocks           block.DatabaseSeriesBlocks
 	pendingBootstrap []pendingBootstrapDrain
 	bs               bootstrapState
 }
 
 type pendingBootstrapDrain struct {
-	encoder m3db.Encoder
+	encoder encoding.Encoder
 }
 
-func newDatabaseSeries(id string, bs bootstrapState, opts m3db.DatabaseOptions) databaseSeries {
+func newDatabaseSeries(id string, bs bootstrapState, opts Options) databaseSeries {
 	series := &dbSeries{
 		opts:     opts,
 		seriesID: id,
-		blocks:   NewDatabaseSeriesBlocks(opts),
+		blocks:   block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions()),
 		bs:       bs,
 	}
 	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
@@ -130,7 +106,7 @@ func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 
 	// If the earliest block is not within the retention period,
 	// we should expire the blocks.
-	now := s.opts.GetNowFn()()
+	now := s.opts.GetClockOptions().GetNowFn()()
 	minBlockStart := s.blocks.GetMinTime()
 	if s.shouldExpire(now, minBlockStart) {
 		return true
@@ -149,12 +125,13 @@ func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 }
 
 func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
-	cutoff := now.Add(-s.opts.GetRetentionPeriod()).Truncate(s.opts.GetBlockSize())
+	rops := s.opts.GetRetentionOptions()
+	cutoff := now.Add(-rops.GetRetentionPeriod()).Truncate(rops.GetBlockSize())
 	return blockStart.Before(cutoff)
 }
 
 func (s *dbSeries) updateBlocksWithLock() {
-	now := s.opts.GetNowFn()()
+	now := s.opts.GetClockOptions().GetNowFn()()
 	allBlocks := s.blocks.GetAllBlocks()
 	for blockStart, block := range allBlocks {
 		if s.shouldExpire(now, blockStart) {
@@ -166,12 +143,13 @@ func (s *dbSeries) updateBlocksWithLock() {
 	}
 }
 
-func (s *dbSeries) shouldSeal(now, blockStart time.Time, block m3db.DatabaseBlock) bool {
+func (s *dbSeries) shouldSeal(now, blockStart time.Time, block block.DatabaseBlock) bool {
 	if block.IsSealed() {
 		return false
 	}
-	blockSize := s.opts.GetBlockSize()
-	cutoff := now.Add(-s.opts.GetBufferPast()).Add(-blockSize).Truncate(blockSize)
+	rops := s.opts.GetRetentionOptions()
+	blockSize := rops.GetBlockSize()
+	cutoff := now.Add(-rops.GetBufferPast()).Add(-blockSize).Truncate(blockSize)
 	return blockStart.Before(cutoff)
 }
 
@@ -187,7 +165,7 @@ func (s *dbSeries) Empty() bool {
 }
 
 func (s *dbSeries) Write(
-	ctx m3db.Context,
+	ctx context.Context,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -204,17 +182,17 @@ func (s *dbSeries) Write(
 }
 
 func (s *dbSeries) ReadEncoded(
-	ctx m3db.Context,
+	ctx context.Context,
 	start, end time.Time,
-) ([][]m3db.SegmentReader, error) {
+) ([][]xio.SegmentReader, error) {
 	if end.Before(start) {
 		return nil, xerrors.NewInvalidParamsError(errInvalidRange)
 	}
 
 	// TODO(r): pool these results arrays
-	var results [][]m3db.SegmentReader
+	var results [][]xio.SegmentReader
 
-	blockSize := s.opts.GetBlockSize()
+	blockSize := s.opts.GetRetentionOptions().GetBlockSize()
 	alignedStart := start.Truncate(blockSize)
 	alignedEnd := end.Truncate(blockSize)
 	if alignedEnd.Equal(end) {
@@ -239,7 +217,7 @@ func (s *dbSeries) ReadEncoded(
 					return nil, err
 				}
 				if stream != nil {
-					results = append(results, []m3db.SegmentReader{stream})
+					results = append(results, []xio.SegmentReader{stream})
 				}
 			}
 		}
@@ -255,7 +233,7 @@ func (s *dbSeries) ReadEncoded(
 	return results, nil
 }
 
-func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
+func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
 	// NB(r): by the very nature of this method executing we have the
 	// lock already. Executing the drain method occurs during a write if the
 	// buffer needs to drain or if tick is called and series explicitly asks
@@ -267,7 +245,7 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
 
 	if _, ok := s.blocks.GetBlockAt(start); !ok {
 		// New completed block
-		newBlock := s.opts.GetDatabaseBlockPool().Get()
+		newBlock := s.opts.GetDatabaseBlockOptions().GetDatabaseBlockPool().Get()
 		newBlock.Reset(start, encoder)
 		s.blocks.AddBlock(newBlock)
 		return
@@ -280,7 +258,7 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder m3db.Encoder) {
 	stream.Close()
 }
 
-func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reader, cutover time.Time) error {
+func (s *dbSeries) drainStream(blocks block.DatabaseSeriesBlocks, stream io.Reader, cutover time.Time) error {
 	iter := s.opts.GetReaderIteratorPool().Get()
 	iter.Reset(stream)
 
@@ -293,7 +271,7 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 		if dp.Timestamp.Before(cutover) {
 			continue
 		}
-		blockStart := dp.Timestamp.Truncate(s.opts.GetBlockSize())
+		blockStart := dp.Timestamp.Truncate(s.opts.GetRetentionOptions().GetBlockSize())
 		block := blocks.GetBlockOrAdd(blockStart)
 
 		if err := block.Write(dp.Timestamp, dp.Value, unit, annotation); err != nil {
@@ -311,7 +289,7 @@ func (s *dbSeries) drainStream(blocks m3db.DatabaseSeriesBlocks, stream io.Reade
 // data in memory during bootstrapping. If that becomes a problem, we could
 // bootstrap in batches, e.g., drain and reset the buffer, drain the streams,
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
-func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) error {
+func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) error {
 	s.Lock()
 	if s.bs == bootstrapped {
 		s.Unlock()
@@ -324,7 +302,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 	s.bs = bootstrapping
 
 	if rs == nil {
-		rs = NewDatabaseSeriesBlocks(s.opts)
+		rs = block.NewDatabaseSeriesBlocks(s.opts.GetDatabaseBlockOptions())
 	}
 
 	// Force the in-memory buffer to drain and reset so we can merge the in-memory
@@ -341,7 +319,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 		stream.Close()
 		if err != nil {
 			rs.Close()
-			rs = NewDatabaseSeriesBlocks(s.opts)
+			rs = block.NewDatabaseSeriesBlocks(s.opts.GetDatabaseBlockOptions())
 			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.seriesID, err))
 			multiErr = multiErr.Add(err)
 		}
@@ -355,7 +333,7 @@ func (s *dbSeries) Bootstrap(rs m3db.DatabaseSeriesBlocks, cutover time.Time) er
 	return multiErr.FinalError()
 }
 
-func (s *dbSeries) Flush(ctx m3db.Context, blockStart time.Time, persistFn m3db.PersistenceFn) error {
+func (s *dbSeries) Flush(ctx context.Context, blockStart time.Time, persistFn persist.PersistFn) error {
 	s.RLock()
 	if s.bs != bootstrapped {
 		s.RUnlock()

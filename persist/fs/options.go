@@ -23,43 +23,113 @@ package fs
 import (
 	"os"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/instrument"
+	"github.com/m3db/m3db/retention"
+)
+
+const (
+	// defaultWriterBufferSize is the default buffer size for writing TSDB files
+	defaultWriterBufferSize = 65536
+
+	// defaultReaderBufferSize is the default buffer size for reading TSDB files
+	defaultReaderBufferSize = 65536
 )
 
 var (
+	defaultFilePathPrefix   = os.TempDir()
 	defaultNewFileMode      = os.FileMode(0666)
 	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
 )
 
-type writerOptions struct {
+type options struct {
+	instrumentOpts   instrument.Options
+	retentionOpts    retention.Options
+	filePathPrefix   string
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
+	writerBufferSize int
+	readerBufferSize int
 }
 
-// NewFileWriterOptions creates a file writer options.
-func NewFileWriterOptions() m3db.FileWriterOptions {
-	return &writerOptions{
+// NewOptions creates a new set of fs options
+func NewOptions() Options {
+	return &options{
+		instrumentOpts:   instrument.NewOptions(),
+		retentionOpts:    retention.NewOptions(),
+		filePathPrefix:   defaultFilePathPrefix,
 		newFileMode:      defaultNewFileMode,
 		newDirectoryMode: defaultNewDirectoryMode,
+		writerBufferSize: defaultWriterBufferSize,
+		readerBufferSize: defaultReaderBufferSize,
 	}
 }
 
-func (o *writerOptions) NewFileMode(value os.FileMode) m3db.FileWriterOptions {
+func (o *options) InstrumentOptions(value instrument.Options) Options {
+	opts := *o
+	opts.instrumentOpts = value
+	return &opts
+}
+
+func (o *options) GetInstrumentOptions() instrument.Options {
+	return o.instrumentOpts
+}
+
+func (o *options) RetentionOptions(value retention.Options) Options {
+	opts := *o
+	opts.retentionOpts = value
+	return &opts
+}
+
+func (o *options) GetRetentionOptions() retention.Options {
+	return o.retentionOpts
+}
+
+func (o *options) FilePathPrefix(value string) Options {
+	opts := *o
+	opts.filePathPrefix = value
+	return &opts
+}
+
+func (o *options) GetFilePathPrefix() string {
+	return o.filePathPrefix
+}
+
+func (o *options) NewFileMode(value os.FileMode) Options {
 	opts := *o
 	opts.newFileMode = value
 	return &opts
 }
 
-func (o *writerOptions) GetNewFileMode() os.FileMode {
+func (o *options) GetNewFileMode() os.FileMode {
 	return o.newFileMode
 }
 
-func (o *writerOptions) NewDirectoryMode(value os.FileMode) m3db.FileWriterOptions {
+func (o *options) NewDirectoryMode(value os.FileMode) Options {
 	opts := *o
 	opts.newDirectoryMode = value
 	return &opts
 }
 
-func (o *writerOptions) GetNewDirectoryMode() os.FileMode {
+func (o *options) GetNewDirectoryMode() os.FileMode {
 	return o.newDirectoryMode
+}
+
+func (o *options) WriterBufferSize(value int) Options {
+	opts := *o
+	opts.writerBufferSize = value
+	return &opts
+}
+
+func (o *options) GetWriterBufferSize() int {
+	return o.writerBufferSize
+}
+
+func (o *options) ReaderBufferSize(value int) Options {
+	opts := *o
+	opts.readerBufferSize = value
+	return &opts
+}
+
+func (o *options) GetReaderBufferSize() int {
+	return o.readerBufferSize
 }

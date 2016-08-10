@@ -24,7 +24,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
 )
 
@@ -44,7 +45,7 @@ type testIterator struct {
 	onReset func(r io.Reader)
 }
 
-func newTestIterator(values []testValue) m3db.ReaderIterator {
+func newTestIterator(values []testValue) ReaderIterator {
 	return &testIterator{values: values, idx: -1}
 }
 
@@ -62,14 +63,14 @@ func (it *testIterator) Next() bool {
 	return true
 }
 
-func (it *testIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
+func (it *testIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	idx := it.idx
 	if idx == -1 {
 		idx = 0
 	}
 	v := it.values[idx]
-	dp := m3db.Datapoint{Timestamp: v.t, Value: v.value}
-	return dp, v.unit, m3db.Annotation(v.annotation)
+	dp := ts.Datapoint{Timestamp: v.t, Value: v.value}
+	return dp, v.unit, ts.Annotation(v.annotation)
 }
 
 func (it *testIterator) Err() error {
@@ -93,7 +94,7 @@ type testReaderSliceOfSlicesIterator struct {
 
 func newTestReaderSliceOfSlicesIterator(
 	readers [][]io.Reader,
-) m3db.ReaderSliceOfSlicesIterator {
+) xio.ReaderSliceOfSlicesIterator {
 	return &testReaderSliceOfSlicesIterator{readers: readers, idx: -1}
 }
 

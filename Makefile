@@ -7,7 +7,6 @@ coverfile := cover.out
 coverage_xml := coverage.xml
 junit_xml := junit.xml
 test_log := test.log
-test_target := .
 lint_check := .ci/lint.sh
 m3db_package := github.com/m3db/m3db
 gopath_prefix := $(GOPATH)/src
@@ -119,7 +118,7 @@ lint:
 
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
-	@$(VENDOR_ENV) $(test) $(test_target) $(coverfile) | tee $(test_log)
+	@$(VENDOR_ENV) $(test) $(coverfile) | tee $(test_log)
 
 test-integration:
 	@$(VENDOR_ENV) go test -v -tags=integration ./integration

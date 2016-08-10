@@ -26,8 +26,9 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/node"
+	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber/tchannel-go"
@@ -68,7 +69,7 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, dm da
 }
 
 // tchannelClientFetch fulfills a fetch request using a tchannel client.
-func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.FetchRequest) ([]m3db.Datapoint, error) {
+func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.FetchRequest) ([]ts.Datapoint, error) {
 	ctx, _ := thrift.NewContext(timeout)
 	fetched, err := client.Fetch(ctx, req)
 	if err != nil {
@@ -77,12 +78,12 @@ func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.F
 	return toDatapoints(fetched), nil
 }
 
-func m3dbClient(opts m3db.ClientOptions) (m3db.Client, error) {
+func m3dbClient(opts client.Options) (client.Client, error) {
 	return client.NewClient(opts)
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
-func m3dbClientWriteBatch(client m3db.Client, workerPool m3db.WorkerPool, dm dataMap) error {
+func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, dm dataMap) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -121,7 +122,7 @@ func m3dbClientWriteBatch(client m3db.Client, workerPool m3db.WorkerPool, dm dat
 }
 
 // m3dbClientFetch fulfills a fetch request using an m3db client.
-func m3dbClientFetch(client m3db.Client, req *rpc.FetchRequest) ([]m3db.Datapoint, error) {
+func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoint, error) {
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, err
@@ -138,7 +139,7 @@ func m3dbClientFetch(client m3db.Client, req *rpc.FetchRequest) ([]m3db.Datapoin
 	}
 	defer iter.Close()
 
-	var datapoints []m3db.Datapoint
+	var datapoints []ts.Datapoint
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		datapoints = append(datapoints, dp)

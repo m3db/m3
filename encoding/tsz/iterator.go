@@ -27,7 +27,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 )
 
@@ -47,15 +48,15 @@ type readerIterator struct {
 	done bool          // has reached the end
 	err  error         // current error
 
-	ant       m3db.Annotation // current annotation
-	tu        xtime.Unit      // current time unit
-	tuChanged bool            // whether we have a new time unit
+	ant       ts.Annotation // current annotation
+	tu        xtime.Unit    // current time unit
+	tuChanged bool          // whether we have a new time unit
 
 	closed bool
 }
 
 // NewReaderIterator returns a new iterator for a given reader
-func NewReaderIterator(reader io.Reader, opts Options) m3db.ReaderIterator {
+func NewReaderIterator(reader io.Reader, opts Options) encoding.ReaderIterator {
 	return &readerIterator{
 		is:   newIStream(reader),
 		opts: opts,
@@ -264,8 +265,8 @@ func (it *readerIterator) timeUnit() time.Duration {
 // Current returns the value as well as the annotation associated with the current datapoint.
 // Users should not hold on to the returned Annotation object as it may get invalidated when
 // the iterator calls Next().
-func (it *readerIterator) Current() (m3db.Datapoint, xtime.Unit, m3db.Annotation) {
-	return m3db.Datapoint{
+func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+	return ts.Datapoint{
 		Timestamp: it.t,
 		Value:     math.Float64frombits(it.vb),
 	}, it.tu, it.ant

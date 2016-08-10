@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3x/errors"
 )
 
@@ -57,31 +56,21 @@ var (
 	errSeriesNotBootstrapped = errors.New("series is not yet bootstrapped")
 )
 
-// databaseBootstrapManager manages the bootstrap process.
-type databaseBootstrapManager interface {
-	// IsBootstrapped returns whether the database is already bootstrapped.
-	IsBootstrapped() bool
-
-	// Bootstrap performs bootstrapping for all shards owned by db. It returns an error
-	// if the server is currently being bootstrapped, and nil otherwise.
-	Bootstrap() error
-}
-
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database    database             // storage database
-	opts        m3db.DatabaseOptions // database options
-	bootstrapFn m3db.NewBootstrapFn  // function to create a new bootstrap process
-	state       bootstrapState       // bootstrap state
+	database       database       // storage database
+	opts           Options        // storage options
+	newBootstrapFn NewBootstrapFn // function to create a new bootstrap process
+	state          bootstrapState // bootstrap state
 }
 
 func newBootstrapManager(database database) databaseBootstrapManager {
 	opts := database.Options()
 	return &bootstrapManager{
-		database:    database,
-		opts:        opts,
-		bootstrapFn: opts.GetBootstrapFn(),
+		database:       database,
+		opts:           opts,
+		newBootstrapFn: opts.GetNewBootstrapFn(),
 	}
 }
 
@@ -96,7 +85,7 @@ func (bsm *bootstrapManager) IsBootstrapped() bool {
 // Data points accumulated before cut-over time are ignored because future writes before
 // server starts accepting writes are lost.
 func (bsm *bootstrapManager) cutoverTime(writeStart time.Time) time.Time {
-	bufferFuture := bsm.opts.GetBufferFuture()
+	bufferFuture := bsm.opts.GetRetentionOptions().GetBufferFuture()
 	return writeStart.Add(bufferFuture)
 }
 
@@ -106,14 +95,15 @@ func (bsm *bootstrapManager) flushTime(writeStart time.Time) time.Time {
 	// NB(xichen): when bootstrap process is finished, we should have bootstrapped
 	// everything until writeStart + bufferFuture, which means the current time is
 	// at least writeStart + bufferFuture + bufferPast.
-	bufferPast := bsm.opts.GetBufferPast()
-	bufferFuture := bsm.opts.GetBufferFuture()
+	rops := bsm.opts.GetRetentionOptions()
+	bufferPast := rops.GetBufferPast()
+	bufferFuture := rops.GetBufferFuture()
 	return writeStart.Add(bufferFuture).Add(bufferPast)
 }
 
 // NB(xichen): Bootstrap must be called after the server starts accepting writes.
 func (bsm *bootstrapManager) Bootstrap() error {
-	writeStart := bsm.opts.GetNowFn()()
+	writeStart := bsm.opts.GetClockOptions().GetNowFn()()
 
 	bsm.Lock()
 	if bsm.state == bootstrapped {
@@ -132,7 +122,7 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	multiErr := xerrors.NewMultiError()
 	cutover := bsm.cutoverTime(writeStart)
 	shards := bsm.database.getOwnedShards()
-	bs := bsm.bootstrapFn()
+	bs := bsm.newBootstrapFn()
 	for _, shard := range shards {
 		err := shard.Bootstrap(bs, writeStart, cutover)
 		multiErr = multiErr.Add(err)

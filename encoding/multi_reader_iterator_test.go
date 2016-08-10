@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -284,8 +283,8 @@ func assertTestMultiReaderIterator(
 	}
 
 	var testIterators []*testIterator
-	var iteratorAlloc func(reader io.Reader) m3db.ReaderIterator
-	iteratorAlloc = func(reader io.Reader) m3db.ReaderIterator {
+	var iteratorAlloc func(reader io.Reader) ReaderIterator
+	iteratorAlloc = func(reader io.Reader) ReaderIterator {
 		for i := range entriesByReader {
 			if reader != entriesByReader[i].reader {
 				continue

@@ -25,35 +25,34 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/generated/mocks/mocks"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-func testPersistenceManager(
+func testPersistManager(
 	ctrl *gomock.Controller,
-) (*persistenceManager, *mocks.MockPersistenceManager, *mocks.MockPersistenceManager) {
-	m1 := mocks.NewMockPersistenceManager(ctrl)
-	m2 := mocks.NewMockPersistenceManager(ctrl)
-	mocks.NewMockPersistenceManager(ctrl)
-	pm := NewPersistenceManager(m1, m2)
-	return pm.(*persistenceManager), m1, m2
+) (*persistManager, *persist.MockPersistManager, *persist.MockPersistManager) {
+	m1 := persist.NewMockPersistManager(ctrl)
+	m2 := persist.NewMockPersistManager(ctrl)
+	pm := NewPersistManager(m1, m2)
+	return pm.(*persistManager), m1, m2
 }
 
-func TestPersistenceManagerPrepare(t *testing.T) {
+func TestPersistManagerPrepare(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, m1, m2 := testPersistenceManager(ctrl)
+	pm, m1, m2 := testPersistManager(ctrl)
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	var (
 		persisted bool
 		closed    bool
 	)
-	persistFn := func(id string, segment m3db.Segment) error {
+	persistFn := func(id string, segment ts.Segment) error {
 		persisted = true
 		return nil
 	}
@@ -61,9 +60,9 @@ func TestPersistenceManagerPrepare(t *testing.T) {
 		closed = true
 	}
 	expectedErr := errors.New("foo")
-	prepared := m3db.PreparedPersistence{Persist: persistFn, Close: closer}
+	prepared := persist.PreparedPersist{Persist: persistFn, Close: closer}
 	m1.EXPECT().Prepare(shard, blockStart).Return(prepared, nil)
-	m2.EXPECT().Prepare(shard, blockStart).Return(m3db.PreparedPersistence{}, expectedErr)
+	m2.EXPECT().Prepare(shard, blockStart).Return(persist.PreparedPersist{}, expectedErr)
 
 	res, err := pm.Prepare(shard, blockStart)
 	require.NotNil(t, res.Persist)
@@ -72,7 +71,7 @@ func TestPersistenceManagerPrepare(t *testing.T) {
 	require.Equal(t, "foo", err.Error())
 
 	id := "bar"
-	segment := m3db.Segment{Head: []byte{0x1}, Tail: []byte{0x2}}
+	segment := ts.Segment{Head: []byte{0x1}, Tail: []byte{0x2}}
 	defer func() {
 		res.Close()
 		require.True(t, closed)

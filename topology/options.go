@@ -24,7 +24,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/sharding"
 )
 
 var (
@@ -33,13 +33,13 @@ var (
 )
 
 type staticTopologyTypeOptions struct {
-	shardScheme   m3db.ShardScheme
+	shardScheme   sharding.ShardScheme
 	replicas      int
-	hostShardSets []m3db.HostShardSet
+	hostShardSets []HostShardSet
 }
 
 // NewStaticTopologyTypeOptions creates a new set of static topology type options
-func NewStaticTopologyTypeOptions() m3db.TopologyTypeOptions {
+func NewStaticTopologyTypeOptions() TopologyTypeOptions {
 	return &staticTopologyTypeOptions{}
 }
 
@@ -77,17 +77,17 @@ func (o *staticTopologyTypeOptions) Validate() error {
 	return nil
 }
 
-func (o *staticTopologyTypeOptions) ShardScheme(value m3db.ShardScheme) m3db.TopologyTypeOptions {
+func (o *staticTopologyTypeOptions) ShardScheme(value sharding.ShardScheme) TopologyTypeOptions {
 	opts := *o
 	opts.shardScheme = value
 	return &opts
 }
 
-func (o *staticTopologyTypeOptions) GetShardScheme() m3db.ShardScheme {
+func (o *staticTopologyTypeOptions) GetShardScheme() sharding.ShardScheme {
 	return o.shardScheme
 }
 
-func (o *staticTopologyTypeOptions) Replicas(value int) m3db.TopologyTypeOptions {
+func (o *staticTopologyTypeOptions) Replicas(value int) TopologyTypeOptions {
 	opts := *o
 	opts.replicas = value
 	return &opts
@@ -97,12 +97,12 @@ func (o *staticTopologyTypeOptions) GetReplicas() int {
 	return o.replicas
 }
 
-func (o *staticTopologyTypeOptions) HostShardSets(value []m3db.HostShardSet) m3db.TopologyTypeOptions {
+func (o *staticTopologyTypeOptions) HostShardSets(value []HostShardSet) TopologyTypeOptions {
 	opts := *o
 	opts.hostShardSets = value
 	return &opts
 }
 
-func (o *staticTopologyTypeOptions) GetHostShardSets() []m3db.HostShardSet {
+func (o *staticTopologyTypeOptions) GetHostShardSets() []HostShardSet {
 	return o.hostShardSets
 }

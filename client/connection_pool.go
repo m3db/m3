@@ -30,8 +30,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/network/server/tchannelthrift/node"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/close"
 
 	"github.com/spaolacci/murmur3"
@@ -48,25 +48,11 @@ var (
 	errConnectionPoolHasNoConnections = errors.New("connection pool has no connections")
 )
 
-type connectionPool interface {
-	// Open starts the connection pool connecting and health checking
-	Open()
-
-	// GetConnectionCount gets the current open connection count
-	GetConnectionCount() int
-
-	// NextClient gets the next client for use by the connection pool
-	NextClient() (rpc.TChanNode, error)
-
-	// Close the connection pool
-	Close()
-}
-
 type connPool struct {
 	sync.RWMutex
 
-	opts               m3db.ClientOptions
-	host               m3db.Host
+	opts               Options
+	host               topology.Host
 	pool               []conn
 	poolLen            int64
 	used               int64
@@ -85,13 +71,13 @@ type conn struct {
 	client  rpc.TChanNode
 }
 
-type newConnFn func(channelName string, addr string, opts m3db.ClientOptions) (xclose.SimpleCloser, rpc.TChanNode, error)
+type newConnFn func(channelName string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error)
 
-type healthCheckFn func(client rpc.TChanNode, opts m3db.ClientOptions) error
+type healthCheckFn func(client rpc.TChanNode, opts Options) error
 
 type sleepFn func(t time.Duration)
 
-func newConnectionPool(host m3db.Host, opts m3db.ClientOptions) connectionPool {
+func newConnectionPool(host topology.Host, opts Options) connectionPool {
 	seed := int64(murmur3.Sum32([]byte(host.Address())))
 
 	p := &connPool{
@@ -168,7 +154,7 @@ func (p *connPool) Close() {
 }
 
 func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
-	log := p.opts.GetLogger()
+	log := p.opts.GetInstrumentOptions().GetLogger()
 	target := p.opts.GetMaxConnectionCount()
 
 	for {
@@ -217,8 +203,8 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 }
 
 func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duration) {
-	log := p.opts.GetLogger()
-	nowFn := p.opts.GetNowFn()
+	log := p.opts.GetInstrumentOptions().GetLogger()
+	nowFn := p.opts.GetClockOptions().GetNowFn()
 
 	for {
 		p.RLock()
@@ -281,7 +267,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 	}
 }
 
-func newConn(channelName string, address string, opts m3db.ClientOptions) (xclose.SimpleCloser, rpc.TChanNode, error) {
+func newConn(channelName string, address string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
 	channel, err := tchannel.NewChannel(channelName, opts.GetChannelOptions())
 	if err != nil {
 		return nil, nil, err
@@ -292,7 +278,7 @@ func newConn(channelName string, address string, opts m3db.ClientOptions) (xclos
 	return channel, client, nil
 }
 
-func healthCheck(client rpc.TChanNode, opts m3db.ClientOptions) error {
+func healthCheck(client rpc.TChanNode, opts Options) error {
 	tctx, _ := thrift.NewContext(opts.GetHostConnectTimeout())
 	result, err := client.Health(tctx)
 	if err != nil {

@@ -26,59 +26,72 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func newBufferTestOptions() m3db.DatabaseOptions {
-	return NewDatabaseOptions().
-		BlockSize(2 * time.Minute).
-		BufferFuture(10 * time.Second).
-		BufferPast(10 * time.Second).
-		BufferDrain(30 * time.Second)
+func newBufferTestOptions() Options {
+	opts := NewOptions()
+	opts = opts.
+		RetentionOptions(opts.GetRetentionOptions().
+			BlockSize(2 * time.Minute).
+			BufferFuture(10 * time.Second).
+			BufferPast(10 * time.Second).
+			BufferDrain(30 * time.Second)).
+		DatabaseBlockOptions(opts.GetDatabaseBlockOptions().
+			ContextPool(opts.GetContextPool()).
+			EncoderPool(opts.GetEncoderPool()).
+			SegmentReaderPool(opts.GetSegmentReaderPool()).
+			BytesPool(opts.GetBytesPool()))
+	return opts
 }
 
 func TestBufferWriteTooFuture(t *testing.T) {
 	opts := newBufferTestOptions()
-	curr := time.Now().Truncate(opts.GetBlockSize())
-	opts = opts.NowFn(func() time.Time {
+	rops := opts.GetRetentionOptions()
+	curr := time.Now().Truncate(rops.GetBlockSize())
+	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
 		return curr
-	})
+	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err := buffer.Write(ctx, curr.Add(opts.GetBufferFuture()), 1, xtime.Second, nil)
+	err := buffer.Write(ctx, curr.Add(rops.GetBufferFuture()), 1, xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestBufferWriteTooPast(t *testing.T) {
 	opts := newBufferTestOptions()
-	curr := time.Now().Truncate(opts.GetBlockSize())
-	opts = opts.NowFn(func() time.Time {
+	rops := opts.GetRetentionOptions()
+	curr := time.Now().Truncate(rops.GetBlockSize())
+	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
 		return curr
-	})
+	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err := buffer.Write(ctx, curr.Add(-1*opts.GetBufferPast()), 1, xtime.Second, nil)
+	err := buffer.Write(ctx, curr.Add(-1*rops.GetBufferPast()), 1, xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestBufferWriteRead(t *testing.T) {
 	opts := newBufferTestOptions()
-	curr := time.Now().Truncate(opts.GetBlockSize())
-	opts = opts.NowFn(func() time.Time {
+	rops := opts.GetRetentionOptions()
+	curr := time.Now().Truncate(rops.GetBlockSize())
+	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
 		return curr
-	})
+	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
 
 	data := []value{
@@ -104,11 +117,12 @@ func TestBufferWriteRead(t *testing.T) {
 
 func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	opts := newBufferTestOptions()
-	curr := time.Now().Truncate(opts.GetBlockSize())
+	rops := opts.GetRetentionOptions()
+	curr := time.Now().Truncate(rops.GetBlockSize())
 	start := curr
-	opts = opts.NowFn(func() time.Time {
+	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
 		return curr
-	})
+	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
 
 	data := []value{
@@ -143,15 +157,16 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 
 func TestBufferDrain(t *testing.T) {
 	var drained []drain
-	drainFn := func(start time.Time, encoder m3db.Encoder) {
+	drainFn := func(start time.Time, encoder encoding.Encoder) {
 		drained = append(drained, drain{start, encoder})
 	}
 
 	opts := newBufferTestOptions()
-	curr := time.Now().Truncate(opts.GetBlockSize())
-	opts = opts.NowFn(func() time.Time {
+	rops := opts.GetRetentionOptions()
+	curr := time.Now().Truncate(rops.GetBlockSize())
+	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
 		return curr
-	})
+	}))
 	buffer := newDatabaseBuffer(drainFn, opts).(*dbBuffer)
 
 	data := []value{
@@ -184,7 +199,7 @@ func TestBufferDrain(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
-	assertValuesEqual(t, data[:4], [][]m3db.SegmentReader{[]m3db.SegmentReader{
+	assertValuesEqual(t, data[:4], [][]xio.SegmentReader{[]xio.SegmentReader{
 		drained[0].encoder.Stream(),
 	}}, opts)
 	assertValuesEqual(t, data[4:], results, opts)
@@ -192,15 +207,16 @@ func TestBufferDrain(t *testing.T) {
 
 func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	var drained []drain
-	drainFn := func(start time.Time, encoder m3db.Encoder) {
+	drainFn := func(start time.Time, encoder encoding.Encoder) {
 		drained = append(drained, drain{start, encoder})
 	}
 
 	opts := newBufferTestOptions()
-	curr := time.Now().Truncate(opts.GetBlockSize())
-	opts = opts.NowFn(func() time.Time {
+	rops := opts.GetRetentionOptions()
+	curr := time.Now().Truncate(rops.GetBlockSize())
+	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
 		return curr
-	})
+	}))
 	buffer := newDatabaseBuffer(drainFn, opts).(*dbBuffer)
 
 	data := []value{
@@ -226,7 +242,7 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
-	assertValuesEqual(t, data[:2], [][]m3db.SegmentReader{[]m3db.SegmentReader{
+	assertValuesEqual(t, data[:2], [][]xio.SegmentReader{[]xio.SegmentReader{
 		drained[0].encoder.Stream(),
 		drained[1].encoder.Stream(),
 	}}, opts)
@@ -235,10 +251,11 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 
 func TestBufferWriteOutOfOrder(t *testing.T) {
 	opts := newBufferTestOptions()
-	curr := time.Now().Truncate(opts.GetBlockSize())
-	opts = opts.NowFn(func() time.Time {
+	rops := opts.GetRetentionOptions()
+	curr := time.Now().Truncate(rops.GetBlockSize())
+	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
 		return curr
-	})
+	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
 
 	data := []value{
@@ -256,7 +273,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		ctx.Close()
 	}
 
-	bucketIdx := (curr.UnixNano() / int64(opts.GetBlockSize())) % bucketsLen
+	bucketIdx := (curr.UnixNano() / int64(rops.GetBlockSize())) % bucketsLen
 	assert.Equal(t, 2, len(buffer.buckets[bucketIdx].encoders))
 	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].lastWriteAt)
 	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].encoders[0].lastWriteAt)
@@ -292,7 +309,8 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 
 func TestBufferBucketSort(t *testing.T) {
 	opts := newBufferTestOptions()
-	curr := time.Now().Truncate(opts.GetBlockSize())
+	rops := opts.GetRetentionOptions()
+	curr := time.Now().Truncate(rops.GetBlockSize())
 	b := &dbBufferBucket{opts: opts, start: curr, outOfOrder: true}
 	data := [][]value{
 		{
@@ -319,7 +337,7 @@ func TestBufferBucketSort(t *testing.T) {
 		encoder := opts.GetEncoderPool().Get()
 		encoder.Reset(curr, 0)
 		for _, v := range data[i] {
-			encoder.Encode(m3db.Datapoint{v.timestamp, v.value}, v.unit, v.annotation)
+			encoder.Encode(ts.Datapoint{v.timestamp, v.value}, v.unit, v.annotation)
 		}
 		b.encoders = append(b.encoders, inOrderEncoder{encoder: encoder})
 		expected = append(expected, d...)
@@ -330,7 +348,7 @@ func TestBufferBucketSort(t *testing.T) {
 
 	assert.Len(t, b.encoders, 1)
 	assert.Equal(t, b.lastWriteAt, expected[len(expected)-1].timestamp)
-	assertValuesEqual(t, expected, [][]m3db.SegmentReader{[]m3db.SegmentReader{
+	assertValuesEqual(t, expected, [][]xio.SegmentReader{[]xio.SegmentReader{
 		b.encoders[0].encoder.Stream(),
 	}}, opts)
 }

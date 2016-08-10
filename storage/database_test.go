@@ -25,8 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/generated/mocks/mocks"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 
 	"github.com/golang/mock/gomock"
@@ -34,7 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testShardingScheme(t *testing.T) m3db.ShardScheme {
+func testShardingScheme(t *testing.T) sharding.ShardScheme {
 	shardScheme, err := sharding.NewShardScheme(0, 1023, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % 1024
 	})
@@ -42,17 +41,15 @@ func testShardingScheme(t *testing.T) m3db.ShardScheme {
 	return shardScheme
 }
 
-func testDatabaseOptions() m3db.DatabaseOptions {
-	var opts m3db.DatabaseOptions
-	opts = NewDatabaseOptions().
-		NowFn(time.Now).
-		BufferFuture(10 * time.Minute).
-		BufferPast(10 * time.Minute).
-		BufferDrain(10 * time.Minute).
-		BlockSize(2 * time.Hour).
-		RetentionPeriod(2 * 24 * time.Hour).
-		MaxFlushRetries(3)
-	return opts
+func testDatabaseOptions() Options {
+	return NewOptions().
+		MaxFlushRetries(3).
+		RetentionOptions(retention.NewOptions().
+			BufferFuture(10 * time.Minute).
+			BufferPast(10 * time.Minute).
+			BufferDrain(10 * time.Minute).
+			BlockSize(2 * time.Hour).
+			RetentionPeriod(2 * 24 * time.Hour))
 }
 
 func testDatabase(t *testing.T, bs bootstrapState) *db {
@@ -103,7 +100,7 @@ func TestDatabaseReadEncodedShardOwned(t *testing.T) {
 	id := "bar"
 	end := time.Now()
 	start := end.Add(-time.Hour)
-	mockShard := mocks.NewMockdatabaseShard(ctrl)
+	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
 	d.shards[397] = mockShard
 	res, err := d.ReadEncoded(ctx, id, start, end)

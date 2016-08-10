@@ -18,13 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package io
+package xio
 
 import (
 	"errors"
 	"io"
 
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/ts"
 )
 
 var (
@@ -68,7 +68,7 @@ type readerSliceReader struct {
 }
 
 // NewReaderSliceReader creates a new ReaderSliceReader instance.
-func NewReaderSliceReader(r []io.Reader) m3db.ReaderSliceReader {
+func NewReaderSliceReader(r []io.Reader) ReaderSliceReader {
 	return &readerSliceReader{s: r}
 }
 
@@ -102,18 +102,18 @@ func (r *readerSliceReader) Readers() []io.Reader {
 }
 
 type segmentReader struct {
-	segment m3db.Segment
+	segment ts.Segment
 	si      int
-	pool    m3db.SegmentReaderPool
+	pool    SegmentReaderPool
 }
 
 // NewSegmentReader creates a new segment reader along with a specified segment.
-func NewSegmentReader(segment m3db.Segment) m3db.SegmentReader {
+func NewSegmentReader(segment ts.Segment) SegmentReader {
 	return &segmentReader{segment: segment}
 }
 
 // NewPooledSegmentReader creates a new pooled segment reader.
-func NewPooledSegmentReader(segment m3db.Segment, pool m3db.SegmentReaderPool) m3db.SegmentReader {
+func NewPooledSegmentReader(segment ts.Segment, pool SegmentReaderPool) SegmentReader {
 	return &segmentReader{segment: segment, pool: pool}
 }
 
@@ -146,11 +146,11 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-func (sr *segmentReader) Segment() m3db.Segment {
+func (sr *segmentReader) Segment() ts.Segment {
 	return sr.segment
 }
 
-func (sr *segmentReader) Reset(segment m3db.Segment) {
+func (sr *segmentReader) Reset(segment ts.Segment) {
 	sr.segment = segment
 	sr.si = 0
 }

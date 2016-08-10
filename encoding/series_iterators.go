@@ -20,23 +20,21 @@
 
 package encoding
 
-import "github.com/m3db/m3db/interfaces/m3db"
-
 type seriesIterators struct {
-	iters  []m3db.SeriesIterator
+	iters  []SeriesIterator
 	closed bool
-	pool   m3db.MutableSeriesIteratorsPool
+	pool   MutableSeriesIteratorsPool
 }
 
 // NewSeriesIterators creates a new series iterators collection
 func NewSeriesIterators(
-	iters []m3db.SeriesIterator,
-	pool m3db.MutableSeriesIteratorsPool,
-) m3db.MutableSeriesIterators {
+	iters []SeriesIterator,
+	pool MutableSeriesIteratorsPool,
+) MutableSeriesIterators {
 	return &seriesIterators{iters: iters}
 }
 
-func (iters *seriesIterators) Iters() []m3db.SeriesIterator {
+func (iters *seriesIterators) Iters() []SeriesIterator {
 	return iters.iters
 }
 
@@ -61,7 +59,7 @@ func (iters *seriesIterators) Cap() int {
 	return cap(iters.iters)
 }
 
-func (iters *seriesIterators) SetAt(idx int, iter m3db.SeriesIterator) {
+func (iters *seriesIterators) SetAt(idx int, iter SeriesIterator) {
 	iters.iters[idx] = iter
 }
 

@@ -21,7 +21,6 @@
 package client
 
 import (
-	"github.com/m3db/m3db/interfaces/m3db"
 	"github.com/m3db/m3db/pool"
 )
 
@@ -37,7 +36,7 @@ type readerSliceOfSlicesIteratorPool interface {
 }
 
 type poolOfReaderSliceOfSlicesIterator struct {
-	pool m3db.ObjectPool
+	pool pool.ObjectPool
 }
 
 func newReaderSliceOfSlicesIteratorPool(size int) readerSliceOfSlicesIteratorPool {

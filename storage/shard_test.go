@@ -26,8 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/generated/mocks/mocks"
-	"github.com/m3db/m3db/interfaces/m3db"
+	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -35,10 +39,10 @@ import (
 )
 
 var noopWriteCommitLogFn = func(
-	series m3db.CommitLogSeries,
-	datapoint m3db.Datapoint,
+	series commitlog.CommitLogSeries,
+	datapoint ts.Datapoint,
 	unit xtime.Unit,
-	annotation m3db.Annotation,
+	annotation ts.Annotation,
 ) error {
 	return nil
 }
@@ -52,7 +56,7 @@ func (i *testUniqueIndex) nextUniqueIndex() uint64 {
 	return created - 1
 }
 
-func testDatabaseShard(opts m3db.DatabaseOptions) *dbShard {
+func testDatabaseShard(opts Options) *dbShard {
 	return newDatabaseShard(0, &testUniqueIndex{}, noopWriteCommitLogFn, opts).(*dbShard)
 }
 
@@ -64,23 +68,23 @@ func TestShardBootstrapWithError(t *testing.T) {
 	cutover := time.Now().Add(-time.Minute)
 	opts := testDatabaseOptions()
 	s := testDatabaseShard(opts)
-	fooSeries := mocks.NewMockdatabaseSeries(ctrl)
-	barSeries := mocks.NewMockdatabaseSeries(ctrl)
+	fooSeries := NewMockdatabaseSeries(ctrl)
+	barSeries := NewMockdatabaseSeries(ctrl)
 	s.lookup["foo"] = &dbShardEntry{series: fooSeries}
 	s.lookup["bar"] = &dbShardEntry{series: barSeries}
 
-	fooBlocks := mocks.NewMockDatabaseSeriesBlocks(ctrl)
-	barBlocks := mocks.NewMockDatabaseSeriesBlocks(ctrl)
+	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
+	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	fooSeries.EXPECT().Bootstrap(fooBlocks, cutover).Return(nil)
 	barSeries.EXPECT().Bootstrap(barBlocks, cutover).Return(errors.New("series error"))
-	bootstrappedSeries := map[string]m3db.DatabaseSeriesBlocks{
+	bootstrappedSeries := map[string]block.DatabaseSeriesBlocks{
 		"foo": fooBlocks,
 		"bar": barBlocks,
 	}
-	shardResult := mocks.NewMockShardResult(ctrl)
+	shardResult := bootstrap.NewMockShardResult(ctrl)
 	shardResult.EXPECT().GetAllSeries().Return(bootstrappedSeries)
 
-	bs := mocks.NewMockBootstrap(ctrl)
+	bs := bootstrap.NewMockBootstrap(ctrl)
 	bs.EXPECT().Run(writeStart, s.shard).Return(shardResult, errors.New("bootstrap error"))
 	err := s.Bootstrap(bs, writeStart, cutover)
 
@@ -103,8 +107,8 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapped
 	blockStart := time.Unix(21600, 0)
-	pm := mocks.NewMockPersistenceManager(ctrl)
-	prepared := m3db.PreparedPersistence{}
+	pm := persist.NewMockPersistManager(ctrl)
+	prepared := persist.PreparedPersist{}
 	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, nil)
 	require.Nil(t, s.Flush(nil, blockStart, pm))
 }
@@ -116,8 +120,8 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapped
 	blockStart := time.Unix(21600, 0)
-	pm := mocks.NewMockPersistenceManager(ctrl)
-	prepared := m3db.PreparedPersistence{}
+	pm := persist.NewMockPersistManager(ctrl)
+	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
 	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, expectedErr)
 	actualErr := s.Flush(nil, blockStart, pm)
@@ -134,9 +138,9 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	var closed bool
 	blockStart := time.Unix(21600, 0)
-	pm := mocks.NewMockPersistenceManager(ctrl)
-	prepared := m3db.PreparedPersistence{
-		Persist: func(string, m3db.Segment) error { return nil },
+	pm := persist.NewMockPersistManager(ctrl)
+	prepared := persist.PreparedPersist{
+		Persist: func(string, ts.Segment) error { return nil },
 		Close:   func() { closed = true },
 	}
 	expectedErr := errors.New("error foo")
@@ -149,12 +153,12 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		if i == 1 {
 			expectedErr = errors.New("error bar")
 		}
-		series := mocks.NewMockdatabaseSeries(ctrl)
+		series := NewMockdatabaseSeries(ctrl)
 		series.EXPECT().
 			Flush(nil, blockStart, gomock.Any()).
-			Do(func(m3db.Context, time.Time, m3db.PersistenceFn) {
-			flushed[i] = struct{}{}
-		}).
+			Do(func(context.Context, time.Time, persist.PersistFn) {
+				flushed[i] = struct{}{}
+			}).
 			Return(expectedErr)
 		s.list.PushBack(series)
 	}
@@ -193,7 +197,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
 	ctx := opts.GetContextPool().Get()
-	nowFn := opts.GetNowFn()
+	nowFn := opts.GetClockOptions().GetNowFn()
 	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
 	expired := shard.tickForEachSeries()
 	require.Len(t, expired, 0)
@@ -210,7 +214,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	require.Len(t, expired, 1)
 
 	ctx := opts.GetContextPool().Get()
-	nowFn := opts.GetNowFn()
+	nowFn := opts.GetClockOptions().GetNowFn()
 	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
 	require.False(t, series.Empty())
 
@@ -229,7 +233,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	require.Len(t, expired, 1)
 
 	ctx := opts.GetContextPool().Get()
-	nowFn := opts.GetNowFn()
+	nowFn := opts.GetClockOptions().GetNowFn()
 	series, _, completionFn := shard.writableSeries("foo")
 	shard.purgeExpiredSeries(expired)
 	series.Write(ctx, nowFn(), 1.0, xtime.Second, nil)
