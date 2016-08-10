@@ -23,7 +23,7 @@ package pool
 // TODO(r): instrument this to tune pooling
 type objectPool struct {
 	values chan interface{}
-	alloc  PoolAllocator
+	alloc  Allocator
 }
 
 // NewObjectPool creates a new pool
@@ -31,7 +31,7 @@ func NewObjectPool(size int) ObjectPool {
 	return &objectPool{values: make(chan interface{}, size)}
 }
 
-func (p *objectPool) Init(alloc PoolAllocator) {
+func (p *objectPool) Init(alloc Allocator) {
 	capacity := cap(p.values)
 	for i := 0; i < capacity; i++ {
 		p.values <- alloc()

@@ -209,7 +209,7 @@ func (s *dbShard) Write(
 	}
 
 	// Write commit log
-	info := commitlog.CommitLogSeries{
+	info := commitlog.Series{
 		UniqueIndex: idx,
 		ID:          id,
 		Shard:       s.shard,
@@ -329,7 +329,7 @@ func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutove
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Flush(ctx context.Context, blockStart time.Time, pm persist.PersistManager) error {
+func (s *dbShard) Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bs != bootstrapped {

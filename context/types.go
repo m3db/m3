@@ -39,8 +39,8 @@ type Context interface {
 	Reset()
 }
 
-// ContextPool provides a pool for contexts
-type ContextPool interface {
+// Pool provides a pool for contexts
+type Pool interface {
 	// Get provides a context from the pool
 	Get() Context
 

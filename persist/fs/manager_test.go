@@ -40,7 +40,7 @@ func createShardDir(t *testing.T, prefix string, shard uint32) string {
 	return shardDirPath
 }
 
-func testPersistManager(t *testing.T, ctrl *gomock.Controller) (*persistManager, *MockFileSetWriter) {
+func testManager(t *testing.T, ctrl *gomock.Controller) (*persistManager, *MockFileSetWriter) {
 	dir := createTempDir(t)
 
 	opts := NewOptions().
@@ -62,7 +62,7 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, _ := testPersistManager(t, ctrl)
+	pm, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -83,7 +83,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer := testPersistManager(t, ctrl)
+	pm, writer := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -101,7 +101,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer := testPersistManager(t, ctrl)
+	pm, writer := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)

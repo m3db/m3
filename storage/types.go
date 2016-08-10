@@ -96,7 +96,7 @@ type databaseShard interface {
 	Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error
 
 	// Flush flushes the series in this shard.
-	Flush(ctx context.Context, blockStart time.Time, pm persist.PersistManager) error
+	Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error
 }
 
 type databaseSeries interface {
@@ -124,7 +124,7 @@ type databaseSeries interface {
 	Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) error
 
 	// Flush flushes the data blocks of this series for a given start time.
-	Flush(ctx context.Context, blockStart time.Time, persistFn persist.PersistFn) error
+	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
 }
 
 type databaseBuffer interface {
@@ -173,7 +173,7 @@ type databaseFlushManager interface {
 type NewBootstrapFn func() bootstrap.Bootstrap
 
 // NewPersistManagerFn creates a new persist manager
-type NewPersistManagerFn func() persist.PersistManager
+type NewPersistManagerFn func() persist.Manager
 
 // Options represents the options for storage
 type Options interface {
@@ -244,10 +244,10 @@ type Options interface {
 	GetMaxFlushRetries() int
 
 	// ContextPool sets the contextPool
-	ContextPool(value context.ContextPool) Options
+	ContextPool(value context.Pool) Options
 
 	// GetContextPool returns the contextPool
-	GetContextPool() context.ContextPool
+	GetContextPool() context.Pool
 
 	// BytesPool sets the bytesPool
 	BytesPool(value pool.BytesPool) Options

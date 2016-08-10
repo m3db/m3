@@ -59,8 +59,8 @@ type session struct {
 	nowFn                           clock.NowFn
 	newHostQueueFn                  newHostQueueFn
 	topo                            topology.Topology
-	topoMap                         topology.TopologyMap
-	topoMapCh                       chan topology.TopologyMap
+	topoMap                         topology.Map
+	topoMapCh                       chan topology.Map
 	replicas                        int
 	majority                        int
 	queues                          []hostQueue
@@ -95,7 +95,7 @@ func newSession(opts Options) (clientSession, error) {
 		nowFn:          opts.GetClockOptions().GetNowFn(),
 		newHostQueueFn: newHostQueue,
 		topo:           topo,
-		topoMapCh:      make(chan topology.TopologyMap),
+		topoMapCh:      make(chan topology.Map),
 		fetchBatchSize: opts.GetFetchBatchSize(),
 	}, nil
 }
@@ -139,7 +139,7 @@ func (s *session) Open() error {
 	return nil
 }
 
-func (s *session) setTopologyMap(topologyMap topology.TopologyMap) error {
+func (s *session) setTopologyMap(topologyMap topology.Map) error {
 	// NB(r): we leave existing writes in the host queues to finish
 	// as they are already enroute to their destination, this is ok
 	// as part of adding a host is to add another replica for the
@@ -214,8 +214,8 @@ func (s *session) setTopologyMap(topologyMap topology.TopologyMap) error {
 	}
 	if s.iteratorArrayPool == nil ||
 		prevReplicas != s.replicas {
-		s.iteratorArrayPool = encoding.NewIteratorArrayPool([]pool.PoolBucket{
-			pool.PoolBucket{
+		s.iteratorArrayPool = encoding.NewIteratorArrayPool([]pool.Bucket{
+			pool.Bucket{
 				Capacity: s.replicas,
 				Count:    s.opts.GetSeriesIteratorPoolSize(),
 			},
@@ -246,7 +246,7 @@ func (s *session) setTopologyMap(topologyMap topology.TopologyMap) error {
 	return nil
 }
 
-func (s *session) newHostQueue(host topology.Host, topologyMap topology.TopologyMap) hostQueue {
+func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hostQueue {
 	// NB(r): Due to hosts being replicas we have:
 	// = replica * numWrites
 	// = total writes to all hosts

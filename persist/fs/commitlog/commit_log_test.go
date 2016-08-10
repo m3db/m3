@@ -93,7 +93,7 @@ func cleanup(t *testing.T, opts Options) {
 }
 
 type testWrite struct {
-	series      CommitLogSeries
+	series      Series
 	t           time.Time
 	v           float64
 	u           xtime.Unit
@@ -105,8 +105,8 @@ func testSeries(
 	uniqueIndex uint64,
 	id string,
 	shard uint32,
-) CommitLogSeries {
-	return CommitLogSeries{
+) Series {
+	return Series{
 		UniqueIndex: uniqueIndex,
 		ID:          id,
 		Shard:       shard,
@@ -115,7 +115,7 @@ func testSeries(
 
 func (w testWrite) assert(
 	t *testing.T,
-	series CommitLogSeries,
+	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation []byte,
@@ -131,7 +131,7 @@ func (w testWrite) assert(
 
 type mockCommitLogWriter struct {
 	openFn  func(start time.Time, duration time.Duration) error
-	writeFn func(CommitLogSeries, ts.Datapoint, xtime.Unit, ts.Annotation) error
+	writeFn func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
 	flushFn func() error
 	closeFn func() error
 }
@@ -141,7 +141,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 		openFn: func(start time.Time, duration time.Duration) error {
 			return nil
 		},
-		writeFn: func(CommitLogSeries, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+		writeFn: func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 			return nil
 		},
 		flushFn: func() error {
@@ -158,7 +158,7 @@ func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) erro
 }
 
 func (w *mockCommitLogWriter) Write(
-	series CommitLogSeries,
+	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -188,7 +188,7 @@ func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 }
 
 type writeCommitLogFn func(
-	series CommitLogSeries,
+	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -460,7 +460,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 
 	writer := newMockCommitLogWriter()
 
-	writer.writeFn = func(CommitLogSeries, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+	writer.writeFn = func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 		return fmt.Errorf("an error")
 	}
 
@@ -468,9 +468,8 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	writer.openFn = func(start time.Time, duration time.Duration) error {
 		if atomic.AddInt64(&opens, 1) >= 2 {
 			return fmt.Errorf("an error")
-		} else {
-			return nil
 		}
+		return nil
 	}
 
 	writer.flushFn = func() error {
@@ -512,9 +511,8 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	writer.openFn = func(start time.Time, duration time.Duration) error {
 		if atomic.AddInt64(&opens, 1) >= 2 {
 			return fmt.Errorf("an error")
-		} else {
-			return nil
 		}
+		return nil
 	}
 
 	writer.flushFn = func() error {

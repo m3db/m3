@@ -36,7 +36,7 @@ type dependency struct {
 // NB(r): using golang.org/x/net/context is too GC expensive
 type ctx struct {
 	sync.RWMutex
-	pool   ContextPool
+	pool   Pool
 	closed bool
 	dep    *dependency
 }
@@ -47,7 +47,7 @@ func NewContext() Context {
 }
 
 // NewPooledContext returns a new context that is returned to a pool when closed
-func NewPooledContext(pool ContextPool) Context {
+func NewPooledContext(pool Pool) Context {
 	return &ctx{pool: pool}
 }
 

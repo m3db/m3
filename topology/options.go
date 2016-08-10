@@ -32,18 +32,18 @@ var (
 	errHostShardSetSchemeDoesNotMatch = errors.New("host shard set's shard scheme is not the specified shard scheme")
 )
 
-type staticTopologyTypeOptions struct {
+type staticTypeOptions struct {
 	shardScheme   sharding.ShardScheme
 	replicas      int
 	hostShardSets []HostShardSet
 }
 
-// NewStaticTopologyTypeOptions creates a new set of static topology type options
-func NewStaticTopologyTypeOptions() TopologyTypeOptions {
-	return &staticTopologyTypeOptions{}
+// NewStaticTypeOptions creates a new set of static topology type options
+func NewStaticTypeOptions() TypeOptions {
+	return &staticTypeOptions{}
 }
 
-func (o *staticTopologyTypeOptions) Validate() error {
+func (o *staticTypeOptions) Validate() error {
 	if o.replicas < 1 {
 		return errInvalidReplicas
 	}
@@ -77,32 +77,32 @@ func (o *staticTopologyTypeOptions) Validate() error {
 	return nil
 }
 
-func (o *staticTopologyTypeOptions) ShardScheme(value sharding.ShardScheme) TopologyTypeOptions {
+func (o *staticTypeOptions) ShardScheme(value sharding.ShardScheme) TypeOptions {
 	opts := *o
 	opts.shardScheme = value
 	return &opts
 }
 
-func (o *staticTopologyTypeOptions) GetShardScheme() sharding.ShardScheme {
+func (o *staticTypeOptions) GetShardScheme() sharding.ShardScheme {
 	return o.shardScheme
 }
 
-func (o *staticTopologyTypeOptions) Replicas(value int) TopologyTypeOptions {
+func (o *staticTypeOptions) Replicas(value int) TypeOptions {
 	opts := *o
 	opts.replicas = value
 	return &opts
 }
 
-func (o *staticTopologyTypeOptions) GetReplicas() int {
+func (o *staticTypeOptions) GetReplicas() int {
 	return o.replicas
 }
 
-func (o *staticTopologyTypeOptions) HostShardSets(value []HostShardSet) TopologyTypeOptions {
+func (o *staticTypeOptions) HostShardSets(value []HostShardSet) TypeOptions {
 	opts := *o
 	opts.hostShardSets = value
 	return &opts
 }
 
-func (o *staticTopologyTypeOptions) GetHostShardSets() []HostShardSet {
+func (o *staticTypeOptions) GetHostShardSets() []HostShardSet {
 	return o.hostShardSets
 }

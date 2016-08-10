@@ -333,7 +333,7 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) e
 	return multiErr.FinalError()
 }
 
-func (s *dbSeries) Flush(ctx context.Context, blockStart time.Time, persistFn persist.PersistFn) error {
+func (s *dbSeries) Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error {
 	s.RLock()
 	if s.bs != bootstrapped {
 		s.RUnlock()

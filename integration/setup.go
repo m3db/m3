@@ -137,7 +137,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	storageOpts = storageOpts.CommitLogOptions(storageOpts.GetCommitLogOptions().FilesystemOptions(fsOpts))
 
 	// Set up persistence manager
-	storageOpts = storageOpts.NewPersistManagerFn(func() persist.PersistManager {
+	storageOpts = storageOpts.NewPersistManagerFn(func() persist.Manager {
 		return fs.NewPersistManager(fsOpts)
 	})
 

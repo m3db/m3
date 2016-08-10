@@ -28,8 +28,8 @@ type contextPool struct {
 	pool pool.ObjectPool
 }
 
-// NewContextPool creates a new pool
-func NewContextPool(size int) ContextPool {
+// NewPool creates a new pool
+func NewPool(size int) Pool {
 	p := &contextPool{pool: pool.NewObjectPool(size)}
 	p.pool.Init(func() interface{} {
 		return NewPooledContext(p)

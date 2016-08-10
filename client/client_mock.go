@@ -451,7 +451,7 @@ func (_mr *_MockOptionsRecorder) EncodingTsz() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingTsz")
 }
 
-func (_m *MockOptions) TopologyType(value topology.TopologyType) Options {
+func (_m *MockOptions) TopologyType(value topology.Type) Options {
 	ret := _m.ctrl.Call(_m, "TopologyType", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -461,9 +461,9 @@ func (_mr *_MockOptionsRecorder) TopologyType(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyType", arg0)
 }
 
-func (_m *MockOptions) GetTopologyType() topology.TopologyType {
+func (_m *MockOptions) GetTopologyType() topology.Type {
 	ret := _m.ctrl.Call(_m, "GetTopologyType")
-	ret0, _ := ret[0].(topology.TopologyType)
+	ret0, _ := ret[0].(topology.Type)
 	return ret0
 }
 
@@ -891,7 +891,7 @@ func (_mr *_MockOptionsRecorder) GetSeriesIteratorPoolSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetSeriesIteratorPoolSize")
 }
 
-func (_m *MockOptions) SeriesIteratorArrayPoolBuckets(value []pool.PoolBucket) Options {
+func (_m *MockOptions) SeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
 	ret := _m.ctrl.Call(_m, "SeriesIteratorArrayPoolBuckets", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -901,9 +901,9 @@ func (_mr *_MockOptionsRecorder) SeriesIteratorArrayPoolBuckets(arg0 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesIteratorArrayPoolBuckets", arg0)
 }
 
-func (_m *MockOptions) GetSeriesIteratorArrayPoolBuckets() []pool.PoolBucket {
+func (_m *MockOptions) GetSeriesIteratorArrayPoolBuckets() []pool.Bucket {
 	ret := _m.ctrl.Call(_m, "GetSeriesIteratorArrayPoolBuckets")
-	ret0, _ := ret[0].([]pool.PoolBucket)
+	ret0, _ := ret[0].([]pool.Bucket)
 	return ret0
 }
 

@@ -47,7 +47,7 @@ type commitLogReader interface {
 	Open(filePath string) (time.Time, time.Duration, int, error)
 
 	// Read returns the next key and data pair or error, will return io.EOF at end of volume
-	Read() (CommitLogSeries, ts.Datapoint, xtime.Unit, ts.Annotation, error)
+	Read() (Series, ts.Datapoint, xtime.Unit, ts.Annotation, error)
 
 	// Close the reader
 	Close() error
@@ -61,7 +61,7 @@ type reader struct {
 	info           schema.CommitLogInfo
 	log            schema.CommitLog
 	metadata       schema.CommitLogMetadata
-	metadataLookup map[uint64]CommitLogSeries
+	metadataLookup map[uint64]Series
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
@@ -69,7 +69,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 		opts:           opts,
 		chunkReader:    newChunkReader(opts.GetFlushSize()),
 		sizeBuffer:     make([]byte, binary.MaxVarintLen64),
-		metadataLookup: make(map[uint64]CommitLogSeries),
+		metadataLookup: make(map[uint64]Series),
 	}
 }
 
@@ -97,7 +97,7 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 }
 
 func (r *reader) Read() (
-	series CommitLogSeries,
+	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -113,7 +113,7 @@ func (r *reader) Read() (
 			resultErr = err
 			return
 		}
-		r.metadataLookup[r.log.Idx] = CommitLogSeries{
+		r.metadataLookup[r.log.Idx] = Series{
 			UniqueIndex: r.log.Idx,
 			ID:          r.metadata.Id,
 			Shard:       r.metadata.Shard,
@@ -174,7 +174,7 @@ func (r *reader) Close() error {
 	}
 
 	r.chunkReader.fd = nil
-	r.metadataLookup = make(map[uint64]CommitLogSeries)
+	r.metadataLookup = make(map[uint64]Series)
 	return nil
 }
 

@@ -39,29 +39,29 @@ type HostShardSet interface {
 	ShardSet() sharding.ShardSet
 }
 
-// TopologyType is a type of topology that can create new instances of it's type
-type TopologyType interface {
+// Type is a type of topology that can create new instances of it's type
+type Type interface {
 	// Create will return a new topology of the topology type
 	Create() (Topology, error)
 
 	// Options will return the topology options associated with the topology type
-	Options() TopologyTypeOptions
+	Options() TypeOptions
 }
 
 // Topology is a container of a topology map and disseminates topology map changes
 type Topology interface {
 	// Get the topology map
-	Get() TopologyMap
+	Get() Map
 
 	// Get and subscribe to updates for the topology map
-	GetAndSubscribe(ch chan<- TopologyMap) TopologyMap
+	GetAndSubscribe(ch chan<- Map) Map
 
 	// Close will close the topology
 	Close() error
 }
 
-// TopologyMap describes a topology
-type TopologyMap interface {
+// Map describes a topology
+type Map interface {
 	// Hosts returns all hosts in the map
 	Hosts() []Host
 
@@ -127,25 +127,25 @@ func (l ConsistencyLevel) String() string {
 	return "ConsistencyLevelNone"
 }
 
-// TopologyTypeOptions is a set of static topology type options
-type TopologyTypeOptions interface {
+// TypeOptions is a set of static topology type options
+type TypeOptions interface {
 	// Validate validates the options
 	Validate() error
 
 	// ShardScheme sets the shardScheme
-	ShardScheme(value sharding.ShardScheme) TopologyTypeOptions
+	ShardScheme(value sharding.ShardScheme) TypeOptions
 
 	// GetShardScheme returns the shardScheme
 	GetShardScheme() sharding.ShardScheme
 
 	// Replicas sets the replicas
-	Replicas(value int) TopologyTypeOptions
+	Replicas(value int) TypeOptions
 
 	// GetReplicas returns the replicas
 	GetReplicas() int
 
 	// HostShardSets sets the hostShardSets
-	HostShardSets(value []HostShardSet) TopologyTypeOptions
+	HostShardSets(value []HostShardSet) TypeOptions
 
 	// GetHostShardSets returns the hostShardSets
 	GetHostShardSets() []HostShardSet

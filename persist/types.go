@@ -26,21 +26,21 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-// PersistFn is a function that persists a m3db segment for a given ID
-type PersistFn func(id string, segment ts.Segment) error
+// Fn is a function that persists a m3db segment for a given ID
+type Fn func(id string, segment ts.Segment) error
 
-// PersistCloser is a function that performs cleanup after persisting the data
+// Closer is a function that performs cleanup after persisting the data
 // blocks for a (shard, blockStart) combination
-type PersistCloser func()
+type Closer func()
 
 // PreparedPersist is an object that wraps holds a persist function and a closer
 type PreparedPersist struct {
-	Persist PersistFn
-	Close   PersistCloser
+	Persist Fn
+	Close   Closer
 }
 
-// PersistManager manages the internals of persisting data onto storage layer
-type PersistManager interface {
+// Manager manages the internals of persisting data onto storage layer
+type Manager interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.

@@ -26,21 +26,21 @@ import (
 
 // TODO(r): instrument this to tune pooling
 type bytesPool struct {
-	sizesAsc          []PoolBucket
-	buckets           []bytesPoolBucket
+	sizesAsc          []Bucket
+	buckets           []bytesBucket
 	maxBucketCapacity int
 }
 
-type bytesPoolBucket struct {
+type bytesBucket struct {
 	capacity int
 	values   chan []byte
 }
 
 // NewBytesPool creates a new pool
-func NewBytesPool(sizes []PoolBucket) BytesPool {
-	sizesAsc := make([]PoolBucket, len(sizes))
+func NewBytesPool(sizes []Bucket) BytesPool {
+	sizesAsc := make([]Bucket, len(sizes))
 	copy(sizesAsc, sizes)
-	sort.Sort(PoolBucketByCapacity(sizesAsc))
+	sort.Sort(BucketByCapacity(sizesAsc))
 	var maxBucketCapacity int
 	if len(sizesAsc) != 0 {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity
@@ -53,7 +53,7 @@ func (p *bytesPool) alloc(capacity int) []byte {
 }
 
 func (p *bytesPool) Init() {
-	buckets := make([]bytesPoolBucket, len(p.sizesAsc))
+	buckets := make([]bytesBucket, len(p.sizesAsc))
 	for i := range p.sizesAsc {
 		buckets[i].capacity = p.sizesAsc[i].Capacity
 		buckets[i].values = make(chan []byte, p.sizesAsc[i].Count)

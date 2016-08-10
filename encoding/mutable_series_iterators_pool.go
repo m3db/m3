@@ -27,7 +27,7 @@ import (
 )
 
 type seriesIteratorsPool struct {
-	sizesAsc          []pool.PoolBucket
+	sizesAsc          []pool.Bucket
 	buckets           []seriesIteratorArrayPoolBucket
 	maxBucketCapacity int
 }
@@ -38,10 +38,10 @@ type seriesIteratorArrayPoolBucket struct {
 }
 
 // NewMutableSeriesIteratorsPool creates a new pool
-func NewMutableSeriesIteratorsPool(sizes []pool.PoolBucket) MutableSeriesIteratorsPool {
-	sizesAsc := make([]pool.PoolBucket, len(sizes))
+func NewMutableSeriesIteratorsPool(sizes []pool.Bucket) MutableSeriesIteratorsPool {
+	sizesAsc := make([]pool.Bucket, len(sizes))
 	copy(sizesAsc, sizes)
-	sort.Sort(pool.PoolBucketByCapacity(sizesAsc))
+	sort.Sort(pool.BucketByCapacity(sizesAsc))
 	var maxBucketCapacity int
 	if len(sizesAsc) != 0 {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity

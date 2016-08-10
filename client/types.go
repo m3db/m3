@@ -130,10 +130,10 @@ type Options interface {
 	EncodingTsz() Options
 
 	// TopologyType sets the topologyType
-	TopologyType(value topology.TopologyType) Options
+	TopologyType(value topology.Type) Options
 
 	// GetTopologyType returns the topologyType
-	GetTopologyType() topology.TopologyType
+	GetTopologyType() topology.Type
 
 	// ConsistencyLevel sets the consistencyLevel
 	ConsistencyLevel(value topology.ConsistencyLevel) Options
@@ -268,10 +268,10 @@ type Options interface {
 	GetSeriesIteratorPoolSize() int
 
 	// SeriesIteratorArrayPoolBuckets sets the seriesIteratorArrayPoolBuckets
-	SeriesIteratorArrayPoolBuckets(value []pool.PoolBucket) Options
+	SeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options
 
 	// GetSeriesIteratorArrayPoolBuckets returns the seriesIteratorArrayPoolBuckets
-	GetSeriesIteratorArrayPoolBuckets() []pool.PoolBucket
+	GetSeriesIteratorArrayPoolBuckets() []pool.Bucket
 
 	// ReaderIteratorAllocate sets the readerIteratorAllocate
 	ReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options

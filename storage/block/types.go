@@ -121,10 +121,10 @@ type Options interface {
 	GetDatabaseBlockPool() DatabaseBlockPool
 
 	// ContextPool sets the contextPool
-	ContextPool(value context.ContextPool) Options
+	ContextPool(value context.Pool) Options
 
 	// GetContextPool returns the contextPool
-	GetContextPool() context.ContextPool
+	GetContextPool() context.Pool
 
 	// EncoderPool sets the contextPool
 	EncoderPool(value encoding.EncoderPool) Options

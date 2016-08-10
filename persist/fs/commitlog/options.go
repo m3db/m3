@@ -32,7 +32,7 @@ import (
 
 const (
 	// defaultStrategy is the default commit log write strategy
-	defaultStrategy = CommitLogStrategyWriteBehind
+	defaultStrategy = StrategyWriteBehind
 
 	// defaultFlushSize is the default commit log flush size
 	defaultFlushSize = 65536
@@ -51,7 +51,7 @@ type options struct {
 	instrumentOpts   instrument.Options
 	retentionOpts    retention.Options
 	fsOpts           fs.Options
-	strategy         CommitLogStrategy
+	strategy         Strategy
 	flushSize        int
 	flushInterval    time.Duration
 	backlogQueueSize int
@@ -111,13 +111,13 @@ func (o *options) GetFilesystemOptions() fs.Options {
 	return o.fsOpts
 }
 
-func (o *options) Strategy(value CommitLogStrategy) Options {
+func (o *options) Strategy(value Strategy) Options {
 	opts := *o
 	opts.strategy = value
 	return &opts
 }
 
-func (o *options) GetStrategy() CommitLogStrategy {
+func (o *options) GetStrategy() Strategy {
 	return o.strategy
 }
 

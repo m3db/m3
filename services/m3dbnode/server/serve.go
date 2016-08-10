@@ -55,11 +55,11 @@ func DefaultClientOptions(tchannelNodeAddr string, shardingScheme sharding.Shard
 	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
 
 	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardingScheme.All())
-	topologyOptions := topology.NewStaticTopologyTypeOptions().
+	topologyOptions := topology.NewStaticTypeOptions().
 		ShardScheme(shardingScheme).
 		Replicas(1).
 		HostShardSets([]topology.HostShardSet{hostShardSet})
-	return client.NewOptions().TopologyType(topology.NewStaticTopologyType(topologyOptions)), nil
+	return client.NewOptions().TopologyType(topology.NewStaticType(topologyOptions)), nil
 }
 
 // Serve starts up the tchannel server as well as the http server.

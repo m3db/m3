@@ -20,8 +20,8 @@
 
 package pool
 
-// PoolAllocator allocates an object for a pool.
-type PoolAllocator func() interface{}
+// Allocator allocates an object for a pool.
+type Allocator func() interface{}
 
 // Work is a unit of item to be worked on.
 type Work func()
@@ -29,7 +29,7 @@ type Work func()
 // ObjectPool provides a pool for objects
 type ObjectPool interface {
 	// Init initializes the pool.
-	Init(alloc PoolAllocator)
+	Init(alloc Allocator)
 
 	// Get provides an object from the pool
 	Get() interface{}
@@ -38,8 +38,8 @@ type ObjectPool interface {
 	Put(obj interface{})
 }
 
-// PoolBucket specifies a pool bucket
-type PoolBucket struct {
+// Bucket specifies a pool bucket
+type Bucket struct {
 	// Capacity is the size of each element in the bucket
 	Capacity int
 
@@ -47,18 +47,18 @@ type PoolBucket struct {
 	Count int
 }
 
-// PoolBucketByCapacity is a sortable collection of pool buckets
-type PoolBucketByCapacity []PoolBucket
+// BucketByCapacity is a sortable collection of pool buckets
+type BucketByCapacity []Bucket
 
-func (x PoolBucketByCapacity) Len() int {
+func (x BucketByCapacity) Len() int {
 	return len(x)
 }
 
-func (x PoolBucketByCapacity) Swap(i, j int) {
+func (x BucketByCapacity) Swap(i, j int) {
 	x[i], x[j] = x[j], x[i]
 }
 
-func (x PoolBucketByCapacity) Less(i, j int) bool {
+func (x BucketByCapacity) Less(i, j int) bool {
 	return x[i].Capacity < x[j].Capacity
 }
 

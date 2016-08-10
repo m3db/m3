@@ -39,7 +39,7 @@ import (
 )
 
 var noopWriteCommitLogFn = func(
-	series commitlog.CommitLogSeries,
+	series commitlog.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -107,7 +107,7 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapped
 	blockStart := time.Unix(21600, 0)
-	pm := persist.NewMockPersistManager(ctrl)
+	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{}
 	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, nil)
 	require.Nil(t, s.Flush(nil, blockStart, pm))
@@ -120,7 +120,7 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapped
 	blockStart := time.Unix(21600, 0)
-	pm := persist.NewMockPersistManager(ctrl)
+	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
 	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, expectedErr)
@@ -138,7 +138,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	var closed bool
 	blockStart := time.Unix(21600, 0)
-	pm := persist.NewMockPersistManager(ctrl)
+	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{
 		Persist: func(string, ts.Segment) error { return nil },
 		Close:   func() { closed = true },
@@ -156,7 +156,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		series := NewMockdatabaseSeries(ctrl)
 		series.EXPECT().
 			Flush(nil, blockStart, gomock.Any()).
-			Do(func(context.Context, time.Time, persist.PersistFn) {
+			Do(func(context.Context, time.Time, persist.Fn) {
 				flushed[i] = struct{}{}
 			}).
 			Return(expectedErr)

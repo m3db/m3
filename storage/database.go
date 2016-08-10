@@ -80,7 +80,7 @@ type uniqueIndex interface {
 
 // writeCommitLogFn is a method for writing to the commit log
 type writeCommitLogFn func(
-	series commitlog.CommitLogSeries,
+	series commitlog.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -131,9 +131,9 @@ func NewDatabase(shardSet sharding.ShardSet, opts Options) (Database, error) {
 	// TODO(r): instead of binding the method here simply bind the method
 	// in the commit log itself and just call "Write()" always
 	switch opts.GetCommitLogOptions().GetStrategy() {
-	case commitlog.CommitLogStrategyWriteWait:
+	case commitlog.StrategyWriteWait:
 		d.writeCommitLogFn = d.commitLog.Write
-	case commitlog.CommitLogStrategyWriteBehind:
+	case commitlog.StrategyWriteBehind:
 		d.writeCommitLogFn = d.commitLog.WriteBehind
 	default:
 		return nil, errCommitLogStrategyUnknown

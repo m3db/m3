@@ -342,7 +342,7 @@ func (_mr *_MockOptionsRecorder) GetDatabaseBlockPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetDatabaseBlockPool")
 }
 
-func (_m *MockOptions) ContextPool(value context.ContextPool) Options {
+func (_m *MockOptions) ContextPool(value context.Pool) Options {
 	ret := _m.ctrl.Call(_m, "ContextPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -352,9 +352,9 @@ func (_mr *_MockOptionsRecorder) ContextPool(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool", arg0)
 }
 
-func (_m *MockOptions) GetContextPool() context.ContextPool {
+func (_m *MockOptions) GetContextPool() context.Pool {
 	ret := _m.ctrl.Call(_m, "GetContextPool")
-	ret0, _ := ret[0].(context.ContextPool)
+	ret0, _ := ret[0].(context.Pool)
 	return ret0
 }
 

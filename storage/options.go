@@ -41,7 +41,7 @@ import (
 
 const (
 	// defaultCommitLogStrategy is the default commit log strategy
-	defaultCommitLogStrategy = commitlog.CommitLogStrategyWriteBehind
+	defaultCommitLogStrategy = commitlog.StrategyWriteBehind
 
 	// defaultMaxFlushRetries is the default number of retries when flush fails
 	defaultMaxFlushRetries = 3
@@ -54,7 +54,7 @@ var (
 	}
 
 	// defaultNewPersistManagerFn is the default function for creating a new persist manager
-	defaultNewPersistManagerFn = func() persist.PersistManager {
+	defaultNewPersistManagerFn = func() persist.Manager {
 		return fs.NewPersistManager(fs.NewOptions())
 	}
 
@@ -72,7 +72,7 @@ type options struct {
 	newBootstrapFn          NewBootstrapFn
 	newPersistManagerFn     NewPersistManagerFn
 	maxFlushRetries         int
-	contextPool             context.ContextPool
+	contextPool             context.Pool
 	bytesPool               pool.BytesPool
 	encoderPool             encoding.EncoderPool
 	segmentReaderPool       xio.SegmentReaderPool
@@ -93,7 +93,7 @@ func NewOptions() Options {
 		newBootstrapFn:          defaultNewBootstrapFn,
 		newPersistManagerFn:     defaultNewPersistManagerFn,
 		maxFlushRetries:         defaultMaxFlushRetries,
-		contextPool:             context.NewContextPool(0),
+		contextPool:             context.NewPool(0),
 		bytesPool:               pool.NewBytesPool(nil),
 		encoderPool:             encoding.NewEncoderPool(0),
 		segmentReaderPool:       xio.NewSegmentReaderPool(0),
@@ -157,13 +157,13 @@ func (o *options) EncodingTszPooled() Options {
 	opts := *o
 
 	// NB(r): don't enable pooling just yet
-	buckets := []pool.PoolBucket{}
+	buckets := []pool.Bucket{}
 	bytesPool := pool.NewBytesPool(buckets)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 
 	// initialize context pool
-	contextPool := context.NewContextPool(0)
+	contextPool := context.NewPool(0)
 	opts.contextPool = contextPool
 
 	// initialize segment reader pool
@@ -273,13 +273,13 @@ func (o *options) GetMaxFlushRetries() int {
 	return o.maxFlushRetries
 }
 
-func (o *options) ContextPool(value context.ContextPool) Options {
+func (o *options) ContextPool(value context.Pool) Options {
 	opts := *o
 	opts.contextPool = value
 	return &opts
 }
 
-func (o *options) GetContextPool() context.ContextPool {
+func (o *options) GetContextPool() context.Pool {
 	return o.contextPool
 }
 

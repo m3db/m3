@@ -99,7 +99,7 @@ const (
 
 var (
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
-	defaultSeriesIteratorArrayPoolBuckets = []pool.PoolBucket{}
+	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
 
 	errNoTopologyTypeSet           = errors.New("no topology type set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
@@ -108,7 +108,7 @@ var (
 type options struct {
 	clockOpts                      clock.Options
 	instrumentOpts                 instrument.Options
-	topologyType                   topology.TopologyType
+	topologyType                   topology.Type
 	consistencyLevel               topology.ConsistencyLevel
 	channelOptions                 *tchannel.ChannelOptions
 	maxConnectionCount             int
@@ -131,7 +131,7 @@ type options struct {
 	hostQueueOpsFlushInterval      time.Duration
 	hostQueueOpsArrayPoolSize      int
 	seriesIteratorPoolSize         int
-	seriesIteratorArrayPoolBuckets []pool.PoolBucket
+	seriesIteratorArrayPoolBuckets []pool.Bucket
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -202,13 +202,13 @@ func (o *options) EncodingTsz() Options {
 	return &opts
 }
 
-func (o *options) TopologyType(value topology.TopologyType) Options {
+func (o *options) TopologyType(value topology.Type) Options {
 	opts := *o
 	opts.topologyType = value
 	return &opts
 }
 
-func (o *options) GetTopologyType() topology.TopologyType {
+func (o *options) GetTopologyType() topology.Type {
 	return o.topologyType
 }
 
@@ -422,13 +422,13 @@ func (o *options) GetSeriesIteratorPoolSize() int {
 	return o.seriesIteratorPoolSize
 }
 
-func (o *options) SeriesIteratorArrayPoolBuckets(value []pool.PoolBucket) Options {
+func (o *options) SeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
 	opts := *o
 	opts.seriesIteratorArrayPoolBuckets = value
 	return &opts
 }
 
-func (o *options) GetSeriesIteratorArrayPoolBuckets() []pool.PoolBucket {
+func (o *options) GetSeriesIteratorArrayPoolBuckets() []pool.Bucket {
 	return o.seriesIteratorArrayPoolBuckets
 }
 

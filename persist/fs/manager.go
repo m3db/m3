@@ -40,7 +40,7 @@ type persistManager struct {
 }
 
 // NewPersistManager creates a new filesystem persist manager
-func NewPersistManager(opts Options) persist.PersistManager {
+func NewPersistManager(opts Options) persist.Manager {
 	filePathPrefix := opts.GetFilePathPrefix()
 	writerBufferSize := opts.GetWriterBufferSize()
 	blockSize := opts.GetRetentionOptions().GetBlockSize()

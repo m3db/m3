@@ -32,19 +32,19 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
-// CommitLogStrategy describes the commit log writing strategy
-type CommitLogStrategy int
+// Strategy describes the commit log writing strategy
+type Strategy int
 
 const (
-	// CommitLogStrategyWriteWait describes the strategy that waits
+	// StrategyWriteWait describes the strategy that waits
 	// for the buffered commit log chunk that contains a write to flush
 	// before acknowledging a write
-	CommitLogStrategyWriteWait CommitLogStrategy = iota
+	StrategyWriteWait Strategy = iota
 
-	// CommitLogStrategyWriteBehind describes the strategy that does not wait
+	// StrategyWriteBehind describes the strategy that does not wait
 	// for the buffered commit log chunk that contains a write to flush
 	// before acknowledging a write
-	CommitLogStrategyWriteBehind
+	StrategyWriteBehind
 )
 
 // CommitLog provides a synchronized commit log
@@ -56,7 +56,7 @@ type CommitLog interface {
 
 	// Write will write an entry in the commit log for a given series
 	Write(
-		series CommitLogSeries,
+		series Series,
 		datapoint ts.Datapoint,
 		unit xtime.Unit,
 		annotation ts.Annotation,
@@ -64,23 +64,23 @@ type CommitLog interface {
 
 	// WriteBehind will write an entry in the commit log for a given series without waiting for completion
 	WriteBehind(
-		series CommitLogSeries,
+		series Series,
 		datapoint ts.Datapoint,
 		unit xtime.Unit,
 		annotation ts.Annotation,
 	) error
 
 	// Iter returns an iterator for accessing commit logs
-	Iter() (CommitLogIterator, error)
+	Iter() (Iterator, error)
 }
 
-// CommitLogIterator provides an iterator for commit logs
-type CommitLogIterator interface {
+// Iterator provides an iterator for commit logs
+type Iterator interface {
 	// Next returns whether the iterator has the next value
 	Next() bool
 
 	// Current returns the current commit log entry
-	Current() (CommitLogSeries, ts.Datapoint, xtime.Unit, ts.Annotation)
+	Current() (Series, ts.Datapoint, xtime.Unit, ts.Annotation)
 
 	// Err returns an error if an error occurred
 	Err() error
@@ -89,8 +89,8 @@ type CommitLogIterator interface {
 	Close()
 }
 
-// CommitLogSeries describes a series in the commit log
-type CommitLogSeries struct {
+// Series describes a series in the commit log
+type Series struct {
 	// UniqueIndex is the unique index assigned to this series
 	UniqueIndex uint64
 
@@ -134,10 +134,10 @@ type Options interface {
 	GetFlushSize() int
 
 	// Strategy sets the strategy
-	Strategy(value CommitLogStrategy) Options
+	Strategy(value Strategy) Options
 
 	// GetStrategy returns the strategy
-	GetStrategy() CommitLogStrategy
+	GetStrategy() Strategy
 
 	// FlushInterval sets the flush interval
 	FlushInterval(value time.Duration) Options

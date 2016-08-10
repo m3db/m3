@@ -51,7 +51,7 @@ func (s *commitLogSource) ReadData(shard uint32, tr xtime.Ranges) (bootstrap.Sha
 		return nil, tr
 	}
 
-	iter, err := commitlog.NewCommitLogIterator(s.opts.GetCommitLogOptions())
+	iter, err := commitlog.NewIterator(s.opts.GetCommitLogOptions())
 	if err != nil {
 		log.Errorf("unable to create commit log iterator: %v", err)
 		return nil, tr

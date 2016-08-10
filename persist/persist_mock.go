@@ -28,34 +28,34 @@ import (
 	time "time"
 )
 
-// Mock of PersistManager interface
-type MockPersistManager struct {
+// Mock of Manager interface
+type MockManager struct {
 	ctrl     *gomock.Controller
-	recorder *_MockPersistManagerRecorder
+	recorder *_MockManagerRecorder
 }
 
-// Recorder for MockPersistManager (not exported)
-type _MockPersistManagerRecorder struct {
-	mock *MockPersistManager
+// Recorder for MockManager (not exported)
+type _MockManagerRecorder struct {
+	mock *MockManager
 }
 
-func NewMockPersistManager(ctrl *gomock.Controller) *MockPersistManager {
-	mock := &MockPersistManager{ctrl: ctrl}
-	mock.recorder = &_MockPersistManagerRecorder{mock}
+func NewMockManager(ctrl *gomock.Controller) *MockManager {
+	mock := &MockManager{ctrl: ctrl}
+	mock.recorder = &_MockManagerRecorder{mock}
 	return mock
 }
 
-func (_m *MockPersistManager) EXPECT() *_MockPersistManagerRecorder {
+func (_m *MockManager) EXPECT() *_MockManagerRecorder {
 	return _m.recorder
 }
 
-func (_m *MockPersistManager) Prepare(shard uint32, blockStart time.Time) (PreparedPersist, error) {
+func (_m *MockManager) Prepare(shard uint32, blockStart time.Time) (PreparedPersist, error) {
 	ret := _m.ctrl.Call(_m, "Prepare", shard, blockStart)
 	ret0, _ := ret[0].(PreparedPersist)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockPersistManagerRecorder) Prepare(arg0, arg1 interface{}) *gomock.Call {
+func (_mr *_MockManagerRecorder) Prepare(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Prepare", arg0, arg1)
 }

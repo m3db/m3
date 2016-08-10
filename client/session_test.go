@@ -63,11 +63,11 @@ func newSessionTestOptions() Options {
 
 	return NewOptions().
 		SeriesIteratorPoolSize(0).
-		SeriesIteratorArrayPoolBuckets([]pool.PoolBucket{}).
+		SeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		WriteOpPoolSize(0).
 		FetchBatchOpPoolSize(0).
-		TopologyType(topology.NewStaticTopologyType(
-			topology.NewStaticTopologyTypeOptions().
+		TopologyType(topology.NewStaticType(
+			topology.NewStaticTypeOptions().
 				Replicas(sessionTestReplicas).
 				ShardScheme(shardScheme).
 				HostShardSets(hostShardSets)))

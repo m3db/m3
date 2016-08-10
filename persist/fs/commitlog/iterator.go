@@ -50,14 +50,14 @@ type iterator struct {
 }
 
 type iteratorRead struct {
-	series     CommitLogSeries
+	series     Series
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation []byte
 }
 
-// NewCommitLogIterator creates a new commit log iterator
-func NewCommitLogIterator(opts Options) (CommitLogIterator, error) {
+// NewIterator creates a new commit log iterator
+func NewIterator(opts Options) (Iterator, error) {
 	iops := opts.GetInstrumentOptions()
 	iops = iops.MetricsScope(iops.GetMetricsScope().SubScope("iterator"))
 	fsopts := opts.GetFilesystemOptions()
@@ -99,7 +99,7 @@ func (i *iterator) Next() bool {
 	return true
 }
 
-func (i *iterator) Current() (CommitLogSeries, ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (i *iterator) Current() (Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
 	read := i.read
 	if i.hasError() || i.closed || !i.setRead {
 		read = iteratorRead{}

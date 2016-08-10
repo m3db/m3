@@ -34,9 +34,9 @@ import (
 
 func testPersistManager(
 	ctrl *gomock.Controller,
-) (*persistManager, *persist.MockPersistManager, *persist.MockPersistManager) {
-	m1 := persist.NewMockPersistManager(ctrl)
-	m2 := persist.NewMockPersistManager(ctrl)
+) (*persistManager, *persist.MockManager, *persist.MockManager) {
+	m1 := persist.NewMockManager(ctrl)
+	m2 := persist.NewMockManager(ctrl)
 	pm := NewPersistManager(m1, m2)
 	return pm.(*persistManager), m1, m2
 }

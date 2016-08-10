@@ -37,7 +37,7 @@ const (
 type options struct {
 	databaseBlockAllocSize int
 	databaseBlockPool      DatabaseBlockPool
-	contextPool            context.ContextPool
+	contextPool            context.Pool
 	encoderPool            encoding.EncoderPool
 	segmentReaderPool      xio.SegmentReaderPool
 	bytesPool              pool.BytesPool
@@ -48,7 +48,7 @@ func NewOptions() Options {
 	o := &options{
 		databaseBlockAllocSize: defaultDatabaseBlockAllocSize,
 		databaseBlockPool:      NewDatabaseBlockPool(0),
-		contextPool:            context.NewContextPool(0),
+		contextPool:            context.NewPool(0),
 		encoderPool:            encoding.NewEncoderPool(0),
 		segmentReaderPool:      xio.NewSegmentReaderPool(0),
 		bytesPool:              pool.NewBytesPool(nil),
@@ -82,13 +82,13 @@ func (o *options) GetDatabaseBlockPool() DatabaseBlockPool {
 	return o.databaseBlockPool
 }
 
-func (o *options) ContextPool(value context.ContextPool) Options {
+func (o *options) ContextPool(value context.Pool) Options {
 	opts := *o
 	opts.contextPool = value
 	return &opts
 }
 
-func (o *options) GetContextPool() context.ContextPool {
+func (o *options) GetContextPool() context.Pool {
 	return o.contextPool
 }
 

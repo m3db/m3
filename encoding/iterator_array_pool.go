@@ -35,7 +35,7 @@ import (
 
 // TODO(r): instrument this to tune pooling
 type iteratorArrayPool struct {
-	sizesAsc          []pool.PoolBucket
+	sizesAsc          []pool.Bucket
 	buckets           []iteratorArrayPoolBucket
 	maxBucketCapacity int
 }
@@ -46,10 +46,10 @@ type iteratorArrayPoolBucket struct {
 }
 
 // NewIteratorArrayPool creates a new pool
-func NewIteratorArrayPool(sizes []pool.PoolBucket) IteratorArrayPool {
-	sizesAsc := make([]pool.PoolBucket, len(sizes))
+func NewIteratorArrayPool(sizes []pool.Bucket) IteratorArrayPool {
+	sizesAsc := make([]pool.Bucket, len(sizes))
 	copy(sizesAsc, sizes)
-	sort.Sort(pool.PoolBucketByCapacity(sizesAsc))
+	sort.Sort(pool.BucketByCapacity(sizesAsc))
 	var maxBucketCapacity int
 	if len(sizesAsc) != 0 {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity

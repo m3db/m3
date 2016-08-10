@@ -46,9 +46,9 @@ type flushState struct {
 type flushManager struct {
 	sync.RWMutex
 
-	opts           Options                // storage options
-	database       database               // storage database
-	pm             persist.PersistManager // persistence manager
+	opts           Options         // storage options
+	database       database        // storage database
+	pm             persist.Manager // persistence manager
 	fs             flushStatus
 	flushAttempted map[time.Time]flushState
 	flushTimes     []time.Time

@@ -81,7 +81,7 @@ const (
 type commitLogWrite struct {
 	valueType valueType
 
-	series       CommitLogSeries
+	series       Series
 	datapoint    ts.Datapoint
 	unit         xtime.Unit
 	annotation   ts.Annotation
@@ -287,7 +287,7 @@ func (l *commitLog) openWriter(now time.Time) error {
 }
 
 func (l *commitLog) Write(
-	series CommitLogSeries,
+	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -338,7 +338,7 @@ func (l *commitLog) Write(
 }
 
 func (l *commitLog) WriteBehind(
-	series CommitLogSeries,
+	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -374,8 +374,8 @@ func (l *commitLog) WriteBehind(
 	return nil
 }
 
-func (l *commitLog) Iter() (CommitLogIterator, error) {
-	return NewCommitLogIterator(l.opts)
+func (l *commitLog) Iter() (Iterator, error) {
+	return NewIterator(l.opts)
 }
 
 func (l *commitLog) Close() error {

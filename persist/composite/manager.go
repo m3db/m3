@@ -31,18 +31,18 @@ import (
 
 // persistManager delegates to a set of persist managers for data persistence
 type persistManager struct {
-	managers []persist.PersistManager // persistence managers
+	managers []persist.Manager // persistence managers
 
-	fns     []persist.PersistFn     // cached persistence functions
-	closers []persist.PersistCloser // cached persistence closers
+	fns     []persist.Fn     // cached persistence functions
+	closers []persist.Closer // cached persistence closers
 }
 
 // NewPersistManager creates a new composite persist manager
-func NewPersistManager(managers ...persist.PersistManager) persist.PersistManager {
+func NewPersistManager(managers ...persist.Manager) persist.Manager {
 	return &persistManager{
 		managers: managers,
-		fns:      make([]persist.PersistFn, 0, len(managers)),
-		closers:  make([]persist.PersistCloser, 0, len(managers)),
+		fns:      make([]persist.Fn, 0, len(managers)),
+		closers:  make([]persist.Closer, 0, len(managers)),
 	}
 }
 
