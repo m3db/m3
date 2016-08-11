@@ -161,7 +161,7 @@ func TestValidate(t *testing.T) {
 
 func TestSnapshotMarshalling(t *testing.T) {
 	invalidJSON := `{
-		:{"ID":123,"Rack":"r1","Shards":[0,7,11]}
+		"abc":{"ID":123,"Rack":"r1","Shards":[0,7,11]}
 	}`
 	data := []byte(invalidJSON)
 	ps, err := NewPlacementFromJSON(data)
@@ -223,6 +223,8 @@ func TestHostShards(t *testing.T) {
 	h1.AddShard(2)
 	h1.AddShard(3)
 
+	assert.Equal(t, "[id:r1h1, rack:r1]", h1.Host().String())
+
 	assert.True(t, h1.ContainsShard(1))
 	assert.False(t, h1.ContainsShard(100))
 	assert.Equal(t, 3, h1.ShardsLen())
@@ -235,6 +237,13 @@ func TestHostShards(t *testing.T) {
 	assert.Equal(t, 2, h1.ShardsLen())
 	assert.Equal(t, "r1h1", h1.Host().ID())
 	assert.Equal(t, "r1", h1.Host().Rack())
+}
+
+func TestOptions(t *testing.T) {
+	o := NewOptions()
+	assert.False(t, o.LooseRackCheck())
+	o = o.SetLooseRackCheck(true)
+	assert.True(t, o.LooseRackCheck())
 }
 
 func testSnapshotJSONRoundTrip(t *testing.T, s Snapshot) {

@@ -23,6 +23,7 @@ package placement
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 )
 
@@ -278,6 +279,10 @@ func (h host) Rack() string {
 	return h.rack
 }
 
+func (h host) String() string {
+	return fmt.Sprintf("[id:%s, rack:%s]", h.id, h.rack)
+}
+
 // ConvertShardSliceToSet is an util function that converts a slice of shards to a set
 func ConvertShardSliceToSet(ids []uint32) map[uint32]struct{} {
 	set := make(map[uint32]struct{})
@@ -285,4 +290,22 @@ func ConvertShardSliceToSet(ids []uint32) map[uint32]struct{} {
 		set[id] = struct{}{}
 	}
 	return set
+}
+
+type options struct {
+	looseRackCheck bool
+}
+
+func (o options) LooseRackCheck() bool {
+	return o.looseRackCheck
+}
+
+func (o options) SetLooseRackCheck(looseRackCheck bool) Options {
+	o.looseRackCheck = looseRackCheck
+	return o
+}
+
+// NewOptions returns an Options instance
+func NewOptions() Options {
+	return options{}
 }
