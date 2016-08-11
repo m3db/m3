@@ -34,7 +34,7 @@ import (
 )
 
 func testShardingScheme(t *testing.T) sharding.ShardScheme {
-	shardScheme, err := sharding.NewShardScheme(0, 1023, func(id string) uint32 {
+	shardScheme, err := sharding.NewShardSchemeFromRange(0, 1023, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % 1024
 	})
 	require.NoError(t, err)
@@ -55,7 +55,9 @@ func testDatabaseOptions() Options {
 func testDatabase(t *testing.T, bs bootstrapState) *db {
 	ss := testShardingScheme(t)
 	opts := testDatabaseOptions()
-	database, err := NewDatabase(ss.CreateSet(397, 397), opts)
+	shardSet, err := ss.CreateSet([]uint32{397})
+	require.NoError(t, err)
+	database, err := NewDatabase(shardSet, opts)
 	require.NoError(t, err)
 	d := database.(*db)
 	bsm := newBootstrapManager(d).(*bootstrapManager)

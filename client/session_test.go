@@ -49,7 +49,7 @@ const (
 type testEnqueueFn func(idx int, op op)
 
 func newSessionTestOptions() Options {
-	shardScheme, _ := sharding.NewShardScheme(0, sessionTestShards-1, func(id string) uint32 { return 0 })
+	shardScheme, _ := sharding.NewShardSchemeFromRange(0, sessionTestShards-1, func(id string) uint32 { return 0 })
 
 	var hosts []topology.Host
 	for i := 0; i < sessionTestReplicas; i++ {
