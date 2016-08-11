@@ -102,6 +102,7 @@ func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 	}
 	decoder := NewDecoder(nil)
 	it := decoder.Decode(encoder.Stream())
+	defer it.Close()
 	var decompressed []ts.Datapoint
 	j := 0
 	for it.Next() {
@@ -125,6 +126,8 @@ func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 		require.Equal(t, input[i].Timestamp, decompressed[i].Timestamp)
 		require.Equal(t, input[i].Value, decompressed[i].Value)
 	}
+	it.Reset(nil)
+	it.Close()
 }
 
 func generateCounterDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
@@ -160,8 +163,8 @@ func generateDataPoints(numPoints int, timeUnit time.Duration, numDig, numDec in
 	currentValue := 1.0
 	res := []ts.Datapoint{{currentTime, currentValue}}
 	for i := 1; i < numPoints; i++ {
-		currentTime := currentTime.Add(time.Second * time.Duration(rand.Intn(7200)))
-		currentValue := encoding.GenerateFloatVal(r, numDig, numDec)
+		currentTime = currentTime.Add(time.Second * time.Duration(rand.Intn(7200)))
+		currentValue = encoding.GenerateFloatVal(r, numDig, numDec)
 		if !currentTime.Before(endTime) {
 			break
 		}
@@ -175,13 +178,14 @@ func generateMixedDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoi
 	var startTime int64 = 1427162462
 	currentTime := time.Unix(startTime, 0)
 	endTime := testStartTime.Add(2 * time.Hour)
-	currentValue := 0.0
+	currentValue := encoding.GenerateFloatVal(r, 3, 16)
 	res := []ts.Datapoint{{currentTime, currentValue}}
 
 	for i := 1; i < numPoints; i++ {
-		currentTime := currentTime.Add(time.Second * time.Duration(r.Intn(7200)))
-		currentValue := encoding.GenerateFloatVal(r, 5, 0)
-		if r.Float64() < 0.5 {
+		currentTime = currentTime.Add(time.Second * time.Duration(r.Intn(7200)))
+		if r.Float64() < 0.1 {
+			currentValue = encoding.GenerateFloatVal(r, 5, 0)
+		} else if r.Float64() < 0.2 {
 			currentValue = encoding.GenerateFloatVal(r, 3, 16)
 		}
 
