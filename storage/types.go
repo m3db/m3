@@ -213,6 +213,12 @@ type Options interface {
 	// EncodingTsz sets tsz encoding
 	EncodingTsz() Options
 
+	// EncodingM3tsPooled sets m3ts encoding with pooling
+	EncodingM3tsPooled() Options
+
+	// EncodingM3ts sets m3ts encoding
+	EncodingM3ts() Options
+
 	// NewEncoderFn sets the newEncoderFn
 	NewEncoderFn(value encoding.NewEncoderFn) Options
 

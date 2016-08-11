@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/m3ts"
 	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist"
@@ -154,6 +155,22 @@ func (o *options) GetCommitLogOptions() commitlog.Options {
 }
 
 func (o *options) EncodingTszPooled() Options {
+	return o.encodingPooled(false)
+}
+
+func (o *options) EncodingTsz() Options {
+	return o.encoding(false)
+}
+
+func (o *options) EncodingM3tsPooled() Options {
+	return o.encodingPooled(true)
+}
+
+func (o *options) EncodingM3ts() Options {
+	return o.encoding(true)
+}
+
+func (o *options) encodingPooled(useM3ts bool) Options {
 	opts := *o
 
 	// NB(r): don't enable pooling just yet
@@ -174,41 +191,68 @@ func (o *options) EncodingTszPooled() Options {
 	readerIteratorPool := encoding.NewReaderIteratorPool(0)
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(0)
 
-	encodingOpts := tsz.NewOptions().
+	encodingOpts := encoding.NewOptions().
 		BytesPool(bytesPool).
 		EncoderPool(encoderPool).
 		ReaderIteratorPool(readerIteratorPool).
 		SegmentReaderPool(segmentReaderPool)
 
 	// initialize encoder pool
-	encoderPool.Init(func() encoding.Encoder {
-		return tsz.NewEncoder(timeZero, nil, encodingOpts)
-	})
+	if useM3ts {
+		encoderPool.Init(func() encoding.Encoder {
+			return m3ts.NewEncoder(timeZero, nil, encodingOpts)
+		})
+	} else {
+		encoderPool.Init(func() encoding.Encoder {
+			return tsz.NewEncoder(timeZero, nil, encodingOpts)
+		})
+	}
 	opts.encoderPool = encoderPool
 
 	// initialize single reader iterator pool
-	readerIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return tsz.NewReaderIterator(r, encodingOpts)
-	})
+	if useM3ts {
+		readerIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+			return m3ts.NewReaderIterator(r, encodingOpts)
+		})
+	} else {
+		readerIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+			return tsz.NewReaderIterator(r, encodingOpts)
+		})
+	}
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
-	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return tsz.NewReaderIterator(r, encodingOpts)
-	})
+	if useM3ts {
+		multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+			return m3ts.NewReaderIterator(r, encodingOpts)
+		})
+	} else {
+		multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+			return tsz.NewReaderIterator(r, encodingOpts)
+		})
+	}
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
 	opts.blockOpts = opts.blockOpts.EncoderPool(encoderPool)
-
-	return (&opts).encodingTsz(encodingOpts)
+	return (&opts).encoding(useM3ts)
 }
 
-func (o *options) EncodingTsz() Options {
-	return o.encodingTsz(tsz.NewOptions())
-}
-
-func (o *options) encodingTsz(encodingOpts tsz.Options) Options {
+func (o *options) encoding(useM3ts bool) Options {
 	opts := *o
+	encodingOpts := encoding.NewOptions()
+
+	if useM3ts {
+		newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
+			return m3ts.NewEncoder(start, bytes, encodingOpts)
+		}
+		opts.newEncoderFn = newEncoderFn
+
+		newDecoderFn := func() encoding.Decoder {
+			return m3ts.NewDecoder(encodingOpts)
+		}
+		opts.newDecoderFn = newDecoderFn
+		return &opts
+	}
 
 	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
 		return tsz.NewEncoder(start, bytes, encodingOpts)

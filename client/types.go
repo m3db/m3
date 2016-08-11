@@ -129,6 +129,9 @@ type Options interface {
 	// EncodingTsz sets tsz encoding
 	EncodingTsz() Options
 
+	// EncodingM3ts sets m3ts encoding
+	EncodingM3ts() Options
+
 	// TopologyType sets the topologyType
 	TopologyType(value topology.Type) Options
 

@@ -343,6 +343,6 @@ func TestReaderIteratorNextWithUnexpectedTimeUnit(t *testing.T) {
 	}
 	it := getTestReaderIterator(rawBytes)
 	require.False(t, it.Next())
-	expectedErr := errors.New("time encoding scheme for time unit unknown doesn't exist")
+	expectedErr := errors.New("time encoding scheme for time unit 9 doesn't exist")
 	require.Equal(t, expectedErr, it.Err())
 }

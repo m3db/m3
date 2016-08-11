@@ -35,7 +35,7 @@ var (
 
 type shardScheme struct {
 	shards []uint32
-	fn   HashFn
+	fn     HashFn
 }
 
 // NewShardSchemeFromRange creates a new sharding scheme, from and to are inclusive

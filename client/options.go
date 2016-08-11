@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/m3ts"
 	"github.com/m3db/m3db/encoding/tsz"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/pool"
@@ -197,7 +198,15 @@ func (o *options) GetInstrumentOptions() instrument.Options {
 func (o *options) EncodingTsz() Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
-		return tsz.NewReaderIterator(r, tsz.NewOptions())
+		return tsz.NewReaderIterator(r, encoding.NewOptions())
+	}
+	return &opts
+}
+
+func (o *options) EncodingM3ts() Options {
+	opts := *o
+	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
+		return m3ts.NewReaderIterator(r, encoding.NewOptions())
 	}
 	return &opts
 }

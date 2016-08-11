@@ -124,7 +124,12 @@ func testFloatConversions(t *testing.T, numConv, numDig, numDec int) {
 
 func validateConvertToIntFloat(t *testing.T, val float64, curDec int, expectedVal float64, maxExpectedDec int, expectedFloat bool) {
 	iv, dec, isFloat := convertToIntFloat(val, curDec)
-	require.Equal(t, expectedVal, iv)
+	if math.IsNaN(val) {
+		require.True(t, math.IsNaN(iv))
+	} else {
+		require.Equal(t, expectedVal, iv)
+	}
+
 	require.True(t, maxExpectedDec >= dec)
 	require.Equal(t, expectedFloat, isFloat)
 }
