@@ -68,6 +68,18 @@ func TestConvertFromIntFloat(t *testing.T) {
 	validateConvertFromIntFloat(t, 200.0, 2, 2.0)
 }
 
+func TestInfNan(t *testing.T) {
+	validateConvertToIntFloat(t, math.Inf(0), 0, math.Inf(0), 0, true)
+	validateConvertToIntFloat(t, math.Inf(0), 3, math.Inf(0), 0, true)
+	validateConvertToIntFloat(t, math.Inf(0), 12, math.Inf(0), 0, true)
+	validateConvertToIntFloat(t, math.Inf(-1), 0, math.Inf(-1), 0, true)
+	validateConvertToIntFloat(t, math.Inf(-1), 3, math.Inf(-1), 0, true)
+	validateConvertToIntFloat(t, math.Inf(-1), 8, math.Inf(-1), 0, true)
+	validateConvertToIntFloat(t, math.NaN(), 0, math.NaN(), 0, true)
+	validateConvertToIntFloat(t, math.NaN(), 3, math.NaN(), 0, true)
+	validateConvertToIntFloat(t, math.NaN(), 12, math.NaN(), 0, true)
+}
+
 func testIntConversions(t *testing.T, numConv, numDig, numDec int) {
 	rand.Seed(time.Now().UnixNano())
 	digMod := int(math.Pow10(numDig))

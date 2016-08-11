@@ -23,7 +23,7 @@ package encoding
 import (
 	"io"
 	"time"
-	
+
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -196,6 +196,28 @@ type EncoderAllocate func() Encoder
 
 // ReaderIteratorAllocate allocates a ReaderIterator for a pool.
 type ReaderIteratorAllocate func(reader io.Reader) ReaderIterator
+
+// Istream encapsulates a readable stream.
+type Istream interface {
+	ReadBit() (Bit, error)
+	ReadByte() (byte, error)
+	ReadBits(numBits int) (uint64, error)
+	PeekBits(numBits int) (uint64, error)
+	Reset(r io.Reader)
+}
+
+// Ostream encapsulates a writable stream.
+type Ostream interface {
+	Clone() Ostream
+	Len() int
+	Empty() bool
+	WriteBit(v Bit)
+	WriteBits(v uint64, numBits int)
+	WriteByte(v byte)
+	WriteBytes(bytes []byte)
+	Reset(buffer []byte)
+	Rawbytes() ([]byte, int)
+}
 
 // EncoderPool provides a pool for encoders
 type EncoderPool interface {

@@ -32,7 +32,9 @@ func TestReadBits(t *testing.T) {
 		0xca, 0xfe, 0xfd, 0x89, 0x1a, 0x2b, 0x3c, 0x48, 0x55, 0xe6, 0xf7,
 		0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x80,
 	}
-	is := NewIStream(bytes.NewReader(byteStream))
+
+	o := NewIStream(bytes.NewReader(byteStream))
+	is := o.(*istream)
 	numBits := []int{1, 3, 4, 8, 7, 2, 64, 64}
 	var res []uint64
 	for _, v := range numBits {
@@ -51,7 +53,8 @@ func TestReadBits(t *testing.T) {
 
 func TestPeekBitsSuccess(t *testing.T) {
 	byteStream := []byte{0xa9, 0xfe, 0xfe, 0xdf, 0x9b, 0x57, 0x21, 0xf1}
-	is := NewIStream(bytes.NewReader(byteStream))
+	o := NewIStream(bytes.NewReader(byteStream))
+	is := o.(*istream)
 	inputs := []struct {
 		numBits  int
 		expected uint64
@@ -77,7 +80,8 @@ func TestPeekBitsSuccess(t *testing.T) {
 
 func TestPeekBitsError(t *testing.T) {
 	byteStream := []byte{0x1, 0x2}
-	is := NewIStream(bytes.NewReader(byteStream))
+	o := NewIStream(bytes.NewReader(byteStream))
+	is := o.(*istream)
 	res, err := is.PeekBits(20)
 	require.Error(t, err)
 	require.Equal(t, uint64(0), res)
@@ -85,7 +89,8 @@ func TestPeekBitsError(t *testing.T) {
 
 func TestReadAfterPeekBits(t *testing.T) {
 	byteStream := []byte{0xab, 0xcd}
-	is := NewIStream(bytes.NewReader(byteStream))
+	o := NewIStream(bytes.NewReader(byteStream))
+	is := o.(*istream)
 	res, err := is.PeekBits(10)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0x2af), res)
@@ -109,7 +114,8 @@ func TestReadAfterPeekBits(t *testing.T) {
 }
 
 func TestResetIStream(t *testing.T) {
-	is := NewIStream(bytes.NewReader(nil))
+	o := NewIStream(bytes.NewReader(nil))
+	is := o.(*istream)
 	is.ReadBits(1)
 	require.Error(t, is.err)
 	is.Reset(bytes.NewReader(nil))

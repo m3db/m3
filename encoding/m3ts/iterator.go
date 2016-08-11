@@ -35,7 +35,7 @@ import (
 // readerIterator provides an interface for clients to incrementally
 // read datapoints off of an encoded stream.
 type readerIterator struct {
-	is   *encoding.Istream
+	is   encoding.Istream
 	opts encoding.Options
 	tess encoding.TimeEncodingSchemes
 	mes  encoding.MarkerEncodingScheme
@@ -54,8 +54,8 @@ type readerIterator struct {
 	sig     int     // current number of significant bits for int diff
 
 	ant       ts.Annotation // current annotation
-	tu        xtime.Unit      // current time unit
-	tuChanged bool            // whether we have a new time unit
+	tu        xtime.Unit    // current time unit
+	tuChanged bool          // whether we have a new time unit
 	closed    bool
 }
 

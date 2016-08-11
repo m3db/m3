@@ -22,7 +22,7 @@ package m3ts
 
 import (
 	"io"
-	
+
 	"github.com/m3db/m3db/encoding"
 )
 

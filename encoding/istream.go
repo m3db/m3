@@ -26,8 +26,8 @@ import (
 	"math"
 )
 
-// Istream encapsulates a readable stream.
-type Istream struct {
+// istream encapsulates a readable stream.
+type istream struct {
 	r         *bufio.Reader // encoded stream
 	err       error         // error encountered
 	current   byte          // current byte we are working off of
@@ -35,12 +35,12 @@ type Istream struct {
 }
 
 // NewIStream creates a new Istream
-func NewIStream(reader io.Reader) *Istream {
-	return &Istream{r: bufio.NewReader(reader)}
+func NewIStream(reader io.Reader) Istream {
+	return &istream{r: bufio.NewReader(reader)}
 }
 
 // ReadBit reads the next Bit
-func (is *Istream) ReadBit() (Bit, error) {
+func (is *istream) ReadBit() (Bit, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
@@ -53,7 +53,7 @@ func (is *Istream) ReadBit() (Bit, error) {
 }
 
 // ReadByte reads the next Byte
-func (is *Istream) ReadByte() (byte, error) {
+func (is *istream) ReadByte() (byte, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
@@ -70,7 +70,7 @@ func (is *Istream) ReadByte() (byte, error) {
 }
 
 // ReadBits reads the next Bits
-func (is *Istream) ReadBits(numBits int) (uint64, error) {
+func (is *istream) ReadBits(numBits int) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
@@ -95,7 +95,7 @@ func (is *Istream) ReadBits(numBits int) (uint64, error) {
 }
 
 // PeekBits looks at the next Bits, but doesn't move the pos
-func (is *Istream) PeekBits(numBits int) (uint64, error) {
+func (is *istream) PeekBits(numBits int) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
@@ -126,21 +126,21 @@ func readBitsInByte(b byte, numBits int) byte {
 }
 
 // consumeBuffer consumes numBits in is.current.
-func (is *Istream) consumeBuffer(numBits int) byte {
+func (is *istream) consumeBuffer(numBits int) byte {
 	res := readBitsInByte(is.current, numBits)
 	is.current <<= uint(numBits)
 	is.remaining -= numBits
 	return res
 }
 
-func (is *Istream) readByteFromStream() error {
+func (is *istream) readByteFromStream() error {
 	is.current, is.err = is.r.ReadByte()
 	is.remaining = 8
 	return is.err
 }
 
 // Reset resets the Istream
-func (is *Istream) Reset(r io.Reader) {
+func (is *istream) Reset(r io.Reader) {
 	is.r.Reset(r)
 	is.err = nil
 	is.current = 0

@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"math"
 	"time"
-	
+
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -43,7 +43,7 @@ var (
 )
 
 type encoder struct {
-	os   *encoding.Ostream
+	os   encoding.Ostream
 	opts encoding.Options
 
 	// internal bookkeeping
@@ -60,7 +60,7 @@ type encoder struct {
 	numLowerSig  int
 
 	ant ts.Annotation // current annotation
-	tu  xtime.Unit      // current time unit
+	tu  xtime.Unit    // current time unit
 
 	writable bool
 	closed   bool

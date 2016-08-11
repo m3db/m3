@@ -38,7 +38,7 @@ var (
 )
 
 type encoder struct {
-	os   *encoding.Ostream
+	os   encoding.Ostream
 	opts encoding.Options
 
 	// internal bookkeeping
