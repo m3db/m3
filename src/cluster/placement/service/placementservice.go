@@ -25,6 +25,7 @@ import (
 	"sort"
 
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/placement/algo"
 )
 
 var (
@@ -34,13 +35,15 @@ var (
 )
 
 type placementService struct {
-	algo placement.Algorithm
-	ss   placement.SnapshotStorage
+	algo    placement.Algorithm
+	ss      placement.SnapshotStorage
+	options placement.Options
 }
 
 // NewPlacementService returns an instance of placement service
-func NewPlacementService(algo placement.Algorithm, ss placement.SnapshotStorage) placement.Service {
-	return placementService{algo: algo, ss: ss}
+// set looseRackCheck to true means rack check will be loosen during host replacement
+func NewPlacementService(options placement.Options, ss placement.SnapshotStorage) placement.Service {
+	return placementService{algo: algo.NewRackAwarePlacementAlgorithm(options), ss: ss, options: options}
 }
 
 func (ps placementService) BuildInitialPlacement(service string, hosts []placement.Host, shardLen int, rf int) error {
@@ -87,9 +90,8 @@ func (ps placementService) AddHost(service string, candidateHosts []placement.Ho
 	if s, err = ps.Snapshot(service); err != nil {
 		return err
 	}
-	candidateHosts = getNewHostsToPlacement(s, candidateHosts)
 	var addingHost placement.Host
-	if addingHost, err = findBestHost(ps, s, candidateHosts, nil); err != nil {
+	if addingHost, err = findAddingHost(s, candidateHosts); err != nil {
 		return err
 	}
 
@@ -128,9 +130,8 @@ func (ps placementService) ReplaceHost(service string, leavingHost placement.Hos
 		return errHostAbsent
 	}
 
-	candidateHosts = getNewHostsToPlacement(s, candidateHosts)
 	var addingHost placement.Host
-	if addingHost, err = findBestHost(ps, s, candidateHosts, leavingHostShard); err != nil {
+	if addingHost, err = ps.findReplaceHost(s, candidateHosts, leavingHostShard); err != nil {
 		return err
 	}
 
@@ -173,43 +174,32 @@ func (rls rackLens) Swap(i, j int) {
 	rls[i], rls[j] = rls[j], rls[i]
 }
 
-func findBestHost(ps placementService, p placement.Snapshot, candidateHosts []placement.Host, leaving placement.HostShards) (placement.Host, error) {
-	placementRackHostMap := make(map[string]map[placement.Host]struct{})
-	for _, phs := range p.HostShards() {
-		if _, exist := placementRackHostMap[phs.Host().Rack()]; !exist {
-			placementRackHostMap[phs.Host().Rack()] = make(map[placement.Host]struct{})
-		}
-		placementRackHostMap[phs.Host().Rack()][phs.Host()] = struct{}{}
-	}
+func findAddingHost(s placement.Snapshot, candidateHosts []placement.Host) (placement.Host, error) {
+	// filter out already existing hosts
+	candidateHosts = getNewHostsToPlacement(s, candidateHosts)
 
-	// build rackHostMap from candidate hosts
-	rackHostMap := ps.buildRackHostMap(candidateHosts)
+	// build rack-host map for candidate hosts
+	candidateRackHostMap := buildRackHostMap(candidateHosts)
 
-	// if there is a host from the same rack can be added, return it.
-	if leaving != nil {
-		if hs, exist := rackHostMap[leaving.Host().Rack()]; exist {
-			for _, host := range hs {
-				return host, nil
-			}
-		}
-	}
+	// build rack map for current placement
+	placementRackHostMap := buildRackHostMapFromHostShards(s.HostShards())
 
-	// otherwise if there is a rack not in the current placement, prefer that rack
-	for r, hosts := range rackHostMap {
+	// if there is a rack not in the current placement, prefer that rack
+	for r, hosts := range candidateRackHostMap {
 		if _, exist := placementRackHostMap[r]; !exist {
 			return hosts[0], nil
 		}
 	}
 
-	// otherwise sort the racks in the current placement by capacity and find a valid host from candidate hosts
+	// otherwise sort the racks in the current placement by capacity and find a host from least sized rack
 	rackLens := make(rackLens, 0, len(placementRackHostMap))
-	for rack, hs := range placementRackHostMap {
-		rackLens = append(rackLens, rackLen{rack: rack, len: len(hs)})
+	for rack, hss := range placementRackHostMap {
+		rackLens = append(rackLens, rackLen{rack: rack, len: len(hss)})
 	}
 	sort.Sort(rackLens)
 
 	for _, rackLen := range rackLens {
-		if hs, exist := rackHostMap[rackLen.rack]; exist {
+		if hs, exist := candidateRackHostMap[rackLen.rack]; exist {
 			for _, host := range hs {
 				return host, nil
 			}
@@ -219,13 +209,73 @@ func findBestHost(ps placementService, p placement.Snapshot, candidateHosts []pl
 	return nil, errNoValidHost
 }
 
-func (ps placementService) buildRackHostMap(candidateHosts []placement.Host) map[string][]placement.Host {
-	result := make(map[string][]placement.Host, len(candidateHosts))
-	for _, ph := range candidateHosts {
-		if _, exist := result[ph.Rack()]; !exist {
-			result[ph.Rack()] = make([]placement.Host, 0)
+func (ps placementService) findReplaceHost(s placement.Snapshot, candidateHosts []placement.Host, leaving placement.HostShards) (placement.Host, error) {
+	// filter out already existing hosts
+	candidateHosts = getNewHostsToPlacement(s, candidateHosts)
+
+	if len(candidateHosts) == 0 {
+		return nil, errNoValidHost
+	}
+	// build rackHostMap from candidate hosts
+	candidateRackHostMap := buildRackHostMap(candidateHosts)
+
+	// if there is a host from the same rack can be added, return it.
+	if hs, exist := candidateRackHostMap[leaving.Host().Rack()]; exist {
+		return hs[0], nil
+	}
+
+	return ps.findHostWithRackConflictCheck(s, candidateRackHostMap, leaving)
+}
+
+func (ps placementService) findHostWithRackConflictCheck(p placement.Snapshot, rackHostMap map[string][]placement.Host, leaving placement.HostShards) (placement.Host, error) {
+	// otherwise sort the candidate hosts by the number of conflicts
+	ph := algo.NewPlacementHelper(ps.options, p)
+
+	rackLens := make(rackLens, 0, len(rackHostMap))
+	for rack := range rackHostMap {
+		rackConflicts := 0
+		for _, shard := range leaving.Shards() {
+			if !ph.HasNoRackConflict(shard, leaving, rack) {
+				rackConflicts++
+			}
 		}
-		result[ph.Rack()] = append(result[ph.Rack()], ph)
+
+		rackLens = append(rackLens, rackLen{rack: rack, len: rackConflicts})
+	}
+	sort.Sort(rackLens)
+	if !ps.options.LooseRackCheck() {
+		rackLens = getNoConflictRacks(rackLens)
+	}
+	if len(rackLens) > 0 {
+		return rackHostMap[rackLens[0].rack][0], nil
+	}
+	return nil, errNoValidHost
+}
+
+func getNoConflictRacks(rls rackLens) rackLens {
+	for i, r := range rls {
+		if r.len > 0 {
+			return rls[:i]
+		}
+	}
+	return rls
+}
+
+func buildRackHostMap(candidateHosts []placement.Host) map[string][]placement.Host {
+	result := make(map[string][]placement.Host, len(candidateHosts))
+	for _, host := range candidateHosts {
+		if _, exist := result[host.Rack()]; !exist {
+			result[host.Rack()] = make([]placement.Host, 0)
+		}
+		result[host.Rack()] = append(result[host.Rack()], host)
 	}
 	return result
+}
+
+func buildRackHostMapFromHostShards(hosts []placement.HostShards) map[string][]placement.Host {
+	hs := make([]placement.Host, len(hosts))
+	for i, host := range hosts {
+		hs[i] = host.Host()
+	}
+	return buildRackHostMap(hs)
 }

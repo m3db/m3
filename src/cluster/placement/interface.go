@@ -20,6 +20,8 @@
 
 package placement
 
+import "fmt"
+
 // Algorithm places shards on hosts
 type Algorithm interface {
 	// InitPlacement initialize a sharding placement with RF = 1
@@ -80,6 +82,7 @@ type HostShards interface {
 
 // Host contains the information needed for placement
 type Host interface {
+	fmt.Stringer
 	ID() string
 	Rack() string
 }
@@ -101,4 +104,12 @@ type Service interface {
 type SnapshotStorage interface {
 	SaveSnapshotForService(service string, p Snapshot) error
 	ReadSnapshotForService(service string) (Snapshot, error)
+}
+
+// Options is the interface for placement options
+type Options interface {
+	// looseRackCheck enables the placement to loose the rack check
+	// during host replacement to achieve full ownership transfer
+	LooseRackCheck() bool
+	SetLooseRackCheck(looseRackCheck bool) Options
 }

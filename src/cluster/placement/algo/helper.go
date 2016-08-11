@@ -39,6 +39,8 @@ type PlacementHelper interface {
 	MoveOneShard(from, to placement.HostShards) bool
 	// MoveShard moves a particular shard between 2 hosts
 	MoveShard(shard uint32, from, to placement.HostShards) bool
+	// HasNoRackConflict checks if the rack constraint is violated if the given shard is moved to the target rack
+	HasNoRackConflict(shard uint32, from placement.HostShards, toRack string) bool
 	// GetHostHeap returns a host heap that sort the hosts based on their capacity
 	GetHostHeap() heap.Interface
 }
@@ -51,6 +53,7 @@ type placementHelper struct {
 	rf             int
 	uniqueShards   []uint32
 	hostShards     []placement.HostShards
+	options        placement.Options
 }
 
 func (ph *placementHelper) GetTargetLoadForHost(hostID string) int {
@@ -115,21 +118,21 @@ func (ph *placementHelper) GenerateSnapshot() placement.Snapshot {
 	return placement.NewPlacementSnapshot(ph.hostShards, ph.uniqueShards, ph.rf)
 }
 
-func newInitPlacementHelper(hosts []placement.Host, ids []uint32) PlacementHelper {
+// NewPlacementHelper returns a placement helper
+func NewPlacementHelper(opt placement.Options, s placement.Snapshot) PlacementHelper {
+	return newPlacementHelperWithTargetRF(opt, s, s.Replicas())
+}
+func newInitPlacementHelper(opt placement.Options, hosts []placement.Host, ids []uint32) PlacementHelper {
 	emptyPlacement := placement.NewEmptyPlacementSnapshot(hosts, ids)
-	return newPlaceShardingHelper(emptyPlacement, emptyPlacement.Replicas()+1, true)
+	return newPlaceShardingHelper(opt, emptyPlacement, emptyPlacement.Replicas()+1, true)
 }
 
-func newReplicaPlacementHelper(s placement.Snapshot, targetRF int) PlacementHelper {
-	return newPlaceShardingHelper(s, targetRF, true)
+func newPlacementHelperWithTargetRF(opt placement.Options, s placement.Snapshot, targetRF int) PlacementHelper {
+	return newPlaceShardingHelper(opt, s, targetRF, true)
 }
 
-func newAddHostShardsPlacementHelper(s placement.Snapshot, hs placement.HostShards) (PlacementHelper, error) {
+func newAddHostShardsPlacementHelper(opt placement.Options, s placement.Snapshot, hs placement.HostShards) PlacementHelper {
 	var hss []placement.HostShards
-
-	if s.HostShard(hs.Host().ID()) != nil {
-		return nil, errHostAlreadyExist
-	}
 
 	for _, phs := range s.HostShards() {
 		hss = append(hss, phs)
@@ -138,10 +141,29 @@ func newAddHostShardsPlacementHelper(s placement.Snapshot, hs placement.HostShar
 	hss = append(hss, hs)
 
 	ps := placement.NewPlacementSnapshot(hss, s.Shards(), s.Replicas())
-	return newPlaceShardingHelper(ps, s.Replicas(), false), nil
+	return newPlaceShardingHelper(opt, ps, s.Replicas(), false)
 }
 
-func newRemoveHostPlacementHelper(s placement.Snapshot, leavingHost placement.Host) (PlacementHelper, placement.HostShards, error) {
+func newReplaceHostPlacementHelper(
+	opt placement.Options,
+	s placement.Snapshot,
+	leavingHost, addingHost placement.Host,
+) (PlacementHelper, placement.HostShards, placement.HostShards, error) {
+	var err error
+	var addingHostShards placement.HostShards
+	if addingHostShards, err = getNewHostShardsForSnapshot(s, addingHost); err != nil {
+		return nil, nil, nil, err
+	}
+
+	var ph PlacementHelper
+	var leavingHostShards placement.HostShards
+	if ph, leavingHostShards, err = newRemoveHostPlacementHelper(opt, s, leavingHost); err != nil {
+		return nil, nil, nil, err
+	}
+	return ph, leavingHostShards, addingHostShards, nil
+}
+
+func newRemoveHostPlacementHelper(opt placement.Options, s placement.Snapshot, leavingHost placement.Host) (PlacementHelper, placement.HostShards, error) {
 	if s.HostShard(leavingHost.ID()) == nil {
 		return nil, nil, errHostAbsent
 	}
@@ -155,16 +177,17 @@ func newRemoveHostPlacementHelper(s placement.Snapshot, leavingHost placement.Ho
 		hosts = append(hosts, phs)
 	}
 	ps := placement.NewPlacementSnapshot(hosts, s.Shards(), s.Replicas())
-	return newPlaceShardingHelper(ps, s.Replicas(), true), leavingHostShards, nil
+	return newPlaceShardingHelper(opt, ps, s.Replicas(), true), leavingHostShards, nil
 }
 
-func newPlaceShardingHelper(ps placement.Snapshot, targetRF int, hostCapacityAscending bool) PlacementHelper {
+func newPlaceShardingHelper(opt placement.Options, ps placement.Snapshot, targetRF int, hostCapacityAscending bool) PlacementHelper {
 	ph := &placementHelper{
 		shardToHostMap: make(map[uint32]map[placement.HostShards]struct{}),
 		rackToHostsMap: make(map[string]map[placement.HostShards]struct{}),
 		rf:             targetRF,
 		hostShards:     ps.HostShards(),
 		uniqueShards:   ps.Shards(),
+		options:        opt,
 	}
 
 	// build rackToHost map
@@ -227,7 +250,7 @@ func (ph placementHelper) getShardLen() int {
 	return len(ph.uniqueShards)
 }
 
-func (ph placementHelper) canAssignRack(shard uint32, from placement.HostShards, toRack string) bool {
+func (ph placementHelper) HasNoRackConflict(shard uint32, from placement.HostShards, toRack string) bool {
 	if from != nil {
 		if from.Host().Rack() == toRack {
 			return true
@@ -245,7 +268,7 @@ func (ph placementHelper) canAssignHost(shard uint32, from, to placement.HostSha
 	if to.ContainsShard(shard) {
 		return false
 	}
-	return ph.canAssignRack(shard, from, to.Host().Rack())
+	return ph.options.LooseRackCheck() || ph.HasNoRackConflict(shard, from, to.Host().Rack())
 }
 
 func (ph placementHelper) assignShardToHost(shard uint32, to placement.HostShards) {
