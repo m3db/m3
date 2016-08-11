@@ -162,7 +162,7 @@ func NewOptions() Options {
 		seriesIteratorPoolSize:         defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets: defaultSeriesIteratorArrayPoolBuckets,
 	}
-	return opts.EncodingTsz()
+	return opts.EncodingTSZ()
 }
 
 func (o *options) Validate() error {
@@ -195,7 +195,7 @@ func (o *options) GetInstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) EncodingTsz() Options {
+func (o *options) EncodingTSZ() Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
 		return tsz.NewReaderIterator(r, encoding.NewOptions())
@@ -203,7 +203,7 @@ func (o *options) EncodingTsz() Options {
 	return &opts
 }
 
-func (o *options) EncodingM3ts() Options {
+func (o *options) EncodingM3TS() Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
 		return m3ts.NewReaderIterator(r, encoding.NewOptions())

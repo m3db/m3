@@ -101,7 +101,7 @@ func NewOptions() Options {
 		readerIteratorPool:      encoding.NewReaderIteratorPool(0),
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(0),
 	}
-	return o.EncodingTszPooled()
+	return o.EncodingTSZPooled()
 }
 
 func (o *options) ClockOptions(value clock.Options) Options {
@@ -154,19 +154,19 @@ func (o *options) GetCommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
 }
 
-func (o *options) EncodingTszPooled() Options {
+func (o *options) EncodingTSZPooled() Options {
 	return o.encodingPooled(false)
 }
 
-func (o *options) EncodingTsz() Options {
+func (o *options) EncodingTSZ() Options {
 	return o.encoding(false)
 }
 
-func (o *options) EncodingM3tsPooled() Options {
+func (o *options) EncodingM3TSPooled() Options {
 	return o.encodingPooled(true)
 }
 
-func (o *options) EncodingM3ts() Options {
+func (o *options) EncodingM3TS() Options {
 	return o.encoding(true)
 }
 
