@@ -47,6 +47,54 @@ service Node {
 	void writeBatch(1: WriteBatchRequest req) throws (1: WriteBatchErrors err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req) throws (1: Error err)
+	FetchBlocksResult fetchBlocks(1: FetchBlocksRequest req) throws (1: Error err)
+	FetchBlocksMetadataResult fetchBlocksMetadata(1: FetchBlocksMetadataRequest req) throws (1: Error err)
+}
+
+struct FetchBlocksRequest {
+	1: required list<FetchBlocksParam> elements
+}
+
+struct FetchBlocksParam {
+	1: required string id
+	2: required list<i64> starts
+}
+
+struct FetchBlocksResult {
+	1: required list<Blocks> elements
+}
+
+struct Blocks {
+	1: required string id
+	2: required list<Block> blocks
+}
+
+struct Block {
+	1: required i64 start
+	2: required binary data
+}
+
+struct FetchBlocksMetadataRequest {
+	1: required i32 shard
+	2: required i64 limit
+	3: optional i64 pageToken
+	4: optional bool includeSizes
+	5: optional bool includeChecksums
+}
+
+struct FetchBlocksMetadataResult {
+	1: required list<BlocksMetadata> elements
+}
+
+struct BlocksMetadata {
+	1: required string id
+	2: required list<BlockMetadata> blocks
+}
+
+struct BlockMetadata {
+	1: required i64 start
+	2: optional i64 size
+	3: optional i64 checksum
 }
 
 struct HealthResult {
