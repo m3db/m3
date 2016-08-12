@@ -986,10 +986,10 @@ func (p *Blocks) String() string {
 
 // Attributes:
 //  - Start
-//  - Data
+//  - Segments
 type Block struct {
-	Start int64  `thrift:"start,1,required" db:"start" json:"start"`
-	Data  []byte `thrift:"data,2,required" db:"data" json:"data"`
+	Start    int64     `thrift:"start,1,required" db:"start" json:"start"`
+	Segments *Segments `thrift:"segments,2,required" db:"segments" json:"segments"`
 }
 
 func NewBlock() *Block {
@@ -1000,16 +1000,25 @@ func (p *Block) GetStart() int64 {
 	return p.Start
 }
 
-func (p *Block) GetData() []byte {
-	return p.Data
+var Block_Segments_DEFAULT *Segments
+
+func (p *Block) GetSegments() *Segments {
+	if !p.IsSetSegments() {
+		return Block_Segments_DEFAULT
+	}
+	return p.Segments
 }
+func (p *Block) IsSetSegments() bool {
+	return p.Segments != nil
+}
+
 func (p *Block) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
 	var issetStart bool = false
-	var issetData bool = false
+	var issetSegments bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -1029,7 +1038,7 @@ func (p *Block) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField2(iprot); err != nil {
 				return err
 			}
-			issetData = true
+			issetSegments = true
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -1045,8 +1054,8 @@ func (p *Block) Read(iprot thrift.TProtocol) error {
 	if !issetStart {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Start is not set"))
 	}
-	if !issetData {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Data is not set"))
+	if !issetSegments {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Segments is not set"))
 	}
 	return nil
 }
@@ -1061,10 +1070,9 @@ func (p *Block) ReadField1(iprot thrift.TProtocol) error {
 }
 
 func (p *Block) ReadField2(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
-		return thrift.PrependError("error reading field 2: ", err)
-	} else {
-		p.Data = v
+	p.Segments = &Segments{}
+	if err := p.Segments.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Segments), err)
 	}
 	return nil
 }
@@ -1104,14 +1112,14 @@ func (p *Block) writeField1(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *Block) writeField2(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("data", thrift.STRING, 2); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:data: ", p), err)
+	if err := oprot.WriteFieldBegin("segments", thrift.STRUCT, 2); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:segments: ", p), err)
 	}
-	if err := oprot.WriteBinary(p.Data); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.data (2) field write error: ", p), err)
+	if err := p.Segments.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Segments), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:data: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:segments: ", p), err)
 	}
 	return err
 }
@@ -1128,13 +1136,11 @@ func (p *Block) String() string {
 //  - Limit
 //  - PageToken
 //  - IncludeSizes
-//  - IncludeChecksums
 type FetchBlocksMetadataRequest struct {
-	Shard            int32  `thrift:"shard,1,required" db:"shard" json:"shard"`
-	Limit            int64  `thrift:"limit,2,required" db:"limit" json:"limit"`
-	PageToken        *int64 `thrift:"pageToken,3" db:"pageToken" json:"pageToken,omitempty"`
-	IncludeSizes     *bool  `thrift:"includeSizes,4" db:"includeSizes" json:"includeSizes,omitempty"`
-	IncludeChecksums *bool  `thrift:"includeChecksums,5" db:"includeChecksums" json:"includeChecksums,omitempty"`
+	Shard        int32  `thrift:"shard,1,required" db:"shard" json:"shard"`
+	Limit        int64  `thrift:"limit,2,required" db:"limit" json:"limit"`
+	PageToken    *int64 `thrift:"pageToken,3" db:"pageToken" json:"pageToken,omitempty"`
+	IncludeSizes *bool  `thrift:"includeSizes,4" db:"includeSizes" json:"includeSizes,omitempty"`
 }
 
 func NewFetchBlocksMetadataRequest() *FetchBlocksMetadataRequest {
@@ -1166,25 +1172,12 @@ func (p *FetchBlocksMetadataRequest) GetIncludeSizes() bool {
 	}
 	return *p.IncludeSizes
 }
-
-var FetchBlocksMetadataRequest_IncludeChecksums_DEFAULT bool
-
-func (p *FetchBlocksMetadataRequest) GetIncludeChecksums() bool {
-	if !p.IsSetIncludeChecksums() {
-		return FetchBlocksMetadataRequest_IncludeChecksums_DEFAULT
-	}
-	return *p.IncludeChecksums
-}
 func (p *FetchBlocksMetadataRequest) IsSetPageToken() bool {
 	return p.PageToken != nil
 }
 
 func (p *FetchBlocksMetadataRequest) IsSetIncludeSizes() bool {
 	return p.IncludeSizes != nil
-}
-
-func (p *FetchBlocksMetadataRequest) IsSetIncludeChecksums() bool {
-	return p.IncludeChecksums != nil
 }
 
 func (p *FetchBlocksMetadataRequest) Read(iprot thrift.TProtocol) error {
@@ -1220,10 +1213,6 @@ func (p *FetchBlocksMetadataRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 4:
 			if err := p.ReadField4(iprot); err != nil {
-				return err
-			}
-		case 5:
-			if err := p.ReadField5(iprot); err != nil {
 				return err
 			}
 		default:
@@ -1283,15 +1272,6 @@ func (p *FetchBlocksMetadataRequest) ReadField4(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *FetchBlocksMetadataRequest) ReadField5(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBool(); err != nil {
-		return thrift.PrependError("error reading field 5: ", err)
-	} else {
-		p.IncludeChecksums = &v
-	}
-	return nil
-}
-
 func (p *FetchBlocksMetadataRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchBlocksMetadataRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -1307,9 +1287,6 @@ func (p *FetchBlocksMetadataRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField4(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField5(oprot); err != nil {
 			return err
 		}
 	}
@@ -1373,21 +1350,6 @@ func (p *FetchBlocksMetadataRequest) writeField4(oprot thrift.TProtocol) (err er
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:includeSizes: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *FetchBlocksMetadataRequest) writeField5(oprot thrift.TProtocol) (err error) {
-	if p.IsSetIncludeChecksums() {
-		if err := oprot.WriteFieldBegin("includeChecksums", thrift.BOOL, 5); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:includeChecksums: ", p), err)
-		}
-		if err := oprot.WriteBool(bool(*p.IncludeChecksums)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.includeChecksums (5) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:includeChecksums: ", p), err)
 		}
 	}
 	return err
@@ -1679,11 +1641,9 @@ func (p *BlocksMetadata) String() string {
 // Attributes:
 //  - Start
 //  - Size
-//  - Checksum
 type BlockMetadata struct {
-	Start    int64  `thrift:"start,1,required" db:"start" json:"start"`
-	Size     *int64 `thrift:"size,2" db:"size" json:"size,omitempty"`
-	Checksum *int64 `thrift:"checksum,3" db:"checksum" json:"checksum,omitempty"`
+	Start int64  `thrift:"start,1,required" db:"start" json:"start"`
+	Size  *int64 `thrift:"size,2" db:"size" json:"size,omitempty"`
 }
 
 func NewBlockMetadata() *BlockMetadata {
@@ -1702,21 +1662,8 @@ func (p *BlockMetadata) GetSize() int64 {
 	}
 	return *p.Size
 }
-
-var BlockMetadata_Checksum_DEFAULT int64
-
-func (p *BlockMetadata) GetChecksum() int64 {
-	if !p.IsSetChecksum() {
-		return BlockMetadata_Checksum_DEFAULT
-	}
-	return *p.Checksum
-}
 func (p *BlockMetadata) IsSetSize() bool {
 	return p.Size != nil
-}
-
-func (p *BlockMetadata) IsSetChecksum() bool {
-	return p.Checksum != nil
 }
 
 func (p *BlockMetadata) Read(iprot thrift.TProtocol) error {
@@ -1742,10 +1689,6 @@ func (p *BlockMetadata) Read(iprot thrift.TProtocol) error {
 			issetStart = true
 		case 2:
 			if err := p.ReadField2(iprot); err != nil {
-				return err
-			}
-		case 3:
-			if err := p.ReadField3(iprot); err != nil {
 				return err
 			}
 		default:
@@ -1784,15 +1727,6 @@ func (p *BlockMetadata) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *BlockMetadata) ReadField3(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
-		return thrift.PrependError("error reading field 3: ", err)
-	} else {
-		p.Checksum = &v
-	}
-	return nil
-}
-
 func (p *BlockMetadata) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("BlockMetadata"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -1802,9 +1736,6 @@ func (p *BlockMetadata) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -1840,21 +1771,6 @@ func (p *BlockMetadata) writeField2(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:size: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *BlockMetadata) writeField3(oprot thrift.TProtocol) (err error) {
-	if p.IsSetChecksum() {
-		if err := oprot.WriteFieldBegin("checksum", thrift.I64, 3); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:checksum: ", p), err)
-		}
-		if err := oprot.WriteI64(int64(*p.Checksum)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.checksum (3) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:checksum: ", p), err)
 		}
 	}
 	return err
