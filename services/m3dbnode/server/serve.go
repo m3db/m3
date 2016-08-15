@@ -51,7 +51,7 @@ func DefaultShardSet() (sharding.ShardSet, error) {
 }
 
 // DefaultClientOptions creates a default m3db client options.
-func DefaultClientOptions(tchannelNodeAddr string, shardSet sharding.ShardSet) (client.Options, error) {
+func DefaultClientOptions(id, tchannelNodeAddr string, shardSet sharding.ShardSet) (client.Options, error) {
 	var localNodeAddr string
 	if !strings.ContainsRune(tchannelNodeAddr, ':') {
 		return nil, errors.New("tchannelthrift address does not specify port")
@@ -59,7 +59,7 @@ func DefaultClientOptions(tchannelNodeAddr string, shardSet sharding.ShardSet) (
 	localNodeAddrComponents := strings.Split(tchannelNodeAddr, ":")
 	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
 
-	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardSet)
+	hostShardSet := topology.NewHostShardSet(topology.NewHost(id, localNodeAddr), shardSet)
 	topologyOptions := topology.NewStaticTypeOptions().
 		ShardSet(shardSet).
 		Replicas(1).

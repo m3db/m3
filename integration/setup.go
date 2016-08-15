@@ -43,6 +43,7 @@ import (
 )
 
 var (
+	id                  = flag.String("id", "", "Node host ID")
 	httpClusterAddr     = flag.String("clusterhttpaddr", "0.0.0.0:9000", "Cluster HTTP server address")
 	tchannelClusterAddr = flag.String("clustertchanneladdr", "0.0.0.0:9001", "Cluster TChannel server address")
 	httpNodeAddr        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
@@ -88,7 +89,12 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return nil, err
 	}
 
-	clientOpts, err := server.DefaultClientOptions(*tchannelNodeAddr, shardSet)
+	id := *id
+	if id == "" {
+		id = "testhost"
+	}
+
+	clientOpts, err := server.DefaultClientOptions(id, *tchannelNodeAddr, shardSet)
 	if err != nil {
 		return nil, err
 	}

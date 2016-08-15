@@ -33,6 +33,7 @@ import (
 )
 
 var (
+	idArg                  = flag.String("id", "", "Node host ID")
 	httpClusterAddrArg     = flag.String("clusterhttpaddr", "0.0.0.0:9000", "Cluster HTTP server address")
 	tchannelClusterAddrArg = flag.String("clustertchanneladdr", "0.0.0.0:9001", "Cluster TChannel server address")
 	httpNodeAddrArg        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
@@ -50,6 +51,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	id := *idArg
 	httpClusterAddr := *httpClusterAddrArg
 	tchannelClusterAddr := *tchannelClusterAddrArg
 	httpNodeAddr := *httpNodeAddrArg
@@ -62,7 +64,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not create sharding scheme: %v", err)
 	}
-	clientOpts, err := server.DefaultClientOptions(tchannelNodeAddr, shardSet)
+
+	if id == "" {
+		id, err = os.Hostname()
+		if err != nil {
+			log.Fatalf("could not get hostname: %v", err)
+		}
+	}
+
+	clientOpts, err := server.DefaultClientOptions(id, tchannelNodeAddr, shardSet)
 	if err != nil {
 		log.Fatalf("could not create client options: %v", err)
 	}

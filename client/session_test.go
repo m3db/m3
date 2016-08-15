@@ -58,7 +58,8 @@ func newSessionTestOptions() Options {
 
 	var hosts []topology.Host
 	for i := 0; i < sessionTestReplicas; i++ {
-		hosts = append(hosts, topology.NewHost(fmt.Sprintf("testhost%d:9000", i)))
+		id := fmt.Sprintf("testhost%d", i)
+		hosts = append(hosts, topology.NewHost(id, fmt.Sprintf("%s:9000", id)))
 	}
 
 	var hostShardSets []topology.HostShardSet
@@ -72,10 +73,10 @@ func newSessionTestOptions() Options {
 		WriteOpPoolSize(0).
 		FetchBatchOpPoolSize(0).
 		TopologyType(topology.NewStaticType(
-			topology.NewStaticTypeOptions().
-				Replicas(sessionTestReplicas).
-				ShardSet(shardSet).
-				HostShardSets(hostShardSets)))
+		topology.NewStaticTypeOptions().
+			Replicas(sessionTestReplicas).
+			ShardSet(shardSet).
+			HostShardSets(hostShardSets)))
 }
 
 func TestSessionClusterConnectConsistencyLevelAll(t *testing.T) {

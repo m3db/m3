@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	h           = topology.NewHost("testhost:9000")
+	h           = topology.NewHost("testhost", "testhost:9000")
 	channelNone = &nullChannel{}
 )
 
