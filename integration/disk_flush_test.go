@@ -43,14 +43,14 @@ var (
 
 func waitUntilDataFlushed(
 	filePathPrefix string,
-	shardingScheme sharding.ShardScheme,
+	shardSet sharding.ShardSet,
 	dataMaps map[time.Time]dataMap,
 	timeout time.Duration,
 ) error {
 	dataFlushed := func() bool {
 		for timestamp, dm := range dataMaps {
 			for id := range dm {
-				shard := shardingScheme.Shard(id)
+				shard := shardSet.Shard(id)
 				if !fs.FileExistsAt(filePathPrefix, shard, timestamp) {
 					return false
 				}
@@ -67,14 +67,14 @@ func waitUntilDataFlushed(
 func verifyForTime(
 	t *testing.T,
 	reader fs.FileSetReader,
-	shardingScheme sharding.ShardScheme,
+	shardSet sharding.ShardSet,
 	decoder encoding.Decoder,
 	timestamp time.Time,
 	expected dataMap,
 ) {
 	shards := make(map[uint32]struct{})
 	for id := range expected {
-		shard := shardingScheme.Shard(id)
+		shard := shardSet.Shard(id)
 		shards[shard] = struct{}{}
 	}
 	actual := make(dataMap, len(expected))
@@ -100,7 +100,7 @@ func verifyForTime(
 
 func verifyFlushed(
 	t *testing.T,
-	shardingScheme sharding.ShardScheme,
+	shardSet sharding.ShardSet,
 	opts storage.Options,
 	dataMaps map[time.Time]dataMap,
 ) {
@@ -109,7 +109,7 @@ func verifyFlushed(
 	newDecoderFn := opts.GetNewDecoderFn()
 	decoder := newDecoderFn()
 	for timestamp, dm := range dataMaps {
-		verifyForTime(t, reader, shardingScheme, decoder, timestamp, dm)
+		verifyForTime(t, reader, shardSet, decoder, timestamp, dm)
 	}
 }
 
@@ -164,8 +164,8 @@ func TestDiskFlush(t *testing.T) {
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
 	waitTimeout := testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 4
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardingScheme, dataMaps, waitTimeout))
+	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, dataMaps, waitTimeout))
 
 	// Verify on-disk data match what we expect
-	verifyFlushed(t, testSetup.shardingScheme, testSetup.storageOpts, dataMaps)
+	verifyFlushed(t, testSetup.shardSet, testSetup.storageOpts, dataMaps)
 }

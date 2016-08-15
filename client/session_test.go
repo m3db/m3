@@ -49,7 +49,12 @@ const (
 type testEnqueueFn func(idx int, op op)
 
 func newSessionTestOptions() Options {
-	shardScheme, _ := sharding.NewShardSchemeFromRange(0, sessionTestShards-1, func(id string) uint32 { return 0 })
+	var shards []uint32
+	for i := uint32(0); i < uint32(sessionTestShards); i++ {
+		shards = append(shards, i)
+	}
+
+	shardSet, _ := sharding.NewShardSet(shards, func(id string) uint32 { return 0 })
 
 	var hosts []topology.Host
 	for i := 0; i < sessionTestReplicas; i++ {
@@ -58,7 +63,7 @@ func newSessionTestOptions() Options {
 
 	var hostShardSets []topology.HostShardSet
 	for _, host := range hosts {
-		hostShardSets = append(hostShardSets, topology.NewHostShardSet(host, shardScheme.All()))
+		hostShardSets = append(hostShardSets, topology.NewHostShardSet(host, shardSet))
 	}
 
 	return NewOptions().
@@ -69,7 +74,7 @@ func newSessionTestOptions() Options {
 		TopologyType(topology.NewStaticType(
 			topology.NewStaticTypeOptions().
 				Replicas(sessionTestReplicas).
-				ShardScheme(shardScheme).
+				ShardSet(shardSet).
 				HostShardSets(hostShardSets)))
 }
 

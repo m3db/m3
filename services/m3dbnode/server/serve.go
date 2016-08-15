@@ -37,16 +37,21 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-// DefaultShardingScheme creates a default sharding scheme.
-func DefaultShardingScheme() (sharding.ShardScheme, error) {
-	shards := uint32(1024)
-	return sharding.NewShardSchemeFromRange(0, shards-1, func(id string) uint32 {
-		return murmur3.Sum32([]byte(id)) % shards
+// DefaultShardSet creates a default shard set.
+func DefaultShardSet() (sharding.ShardSet, error) {
+	shardsLen := uint32(1024)
+	var shards []uint32
+	for i := uint32(0); i < shardsLen; i++ {
+		shards = append(shards, i)
+	}
+
+	return sharding.NewShardSet(shards, func(id string) uint32 {
+		return murmur3.Sum32([]byte(id)) % shardsLen
 	})
 }
 
 // DefaultClientOptions creates a default m3db client options.
-func DefaultClientOptions(tchannelNodeAddr string, shardingScheme sharding.ShardScheme) (client.Options, error) {
+func DefaultClientOptions(tchannelNodeAddr string, shardSet sharding.ShardSet) (client.Options, error) {
 	var localNodeAddr string
 	if !strings.ContainsRune(tchannelNodeAddr, ':') {
 		return nil, errors.New("tchannelthrift address does not specify port")
@@ -54,9 +59,9 @@ func DefaultClientOptions(tchannelNodeAddr string, shardingScheme sharding.Shard
 	localNodeAddrComponents := strings.Split(tchannelNodeAddr, ":")
 	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
 
-	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardingScheme.All())
+	hostShardSet := topology.NewHostShardSet(topology.NewHost(localNodeAddr), shardSet)
 	topologyOptions := topology.NewStaticTypeOptions().
-		ShardScheme(shardingScheme).
+		ShardSet(shardSet).
 		Replicas(1).
 		HostShardSets([]topology.HostShardSet{hostShardSet})
 	return client.NewOptions().TopologyType(topology.NewStaticType(topologyOptions)), nil
@@ -73,8 +78,8 @@ func Serve(
 	doneCh chan struct{},
 ) error {
 	log := storageOpts.GetInstrumentOptions().GetLogger()
-	shardingScheme := clientOpts.GetTopologyType().Options().GetShardScheme()
-	db, err := storage.NewDatabase(shardingScheme.All(), storageOpts)
+	shardSet := clientOpts.GetTopologyType().Options().GetShardSet()
+	db, err := storage.NewDatabase(shardSet, storageOpts)
 	if err != nil {
 		return err
 	}

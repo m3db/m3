@@ -23,23 +23,20 @@ package sharding
 // HashFn is a sharding hash function
 type HashFn func(identifer string) uint32
 
-// ShardScheme is a sharding scheme
-type ShardScheme interface {
-	// Shard will return a shard for a given identifer
+// ShardSet contains a sharding function and a set of shards, this interface allows for potentially out of order shard sets
+type ShardSet interface {
+	// Shard will return a shard for a given identifier
 	Shard(identifer string) uint32
 
-	// CreateSet will return a new shard set from a set of shards
-	CreateSet(shards []uint32) (ShardSet, error)
-
-	// All returns a shard set representing all shards
-	All() ShardSet
-}
-
-// ShardSet is a set of shards, this interface allows for potentially out of order shard sets
-type ShardSet interface {
 	// Shards returns a slice to the shards in this set
 	Shards() []uint32
 
-	// Scheme returns the scheme this shard set belongs to
-	Scheme() ShardScheme
+	// Min returns the smallest shard owned by this shard set
+	Min() uint32
+
+	// Max returns the largest shard owned by this shard set
+	Max() uint32
+
+	// HashFn returns the sharding hash function
+	HashFn() HashFn
 }
