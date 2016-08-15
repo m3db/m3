@@ -18,44 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3ts
+package encoding
 
 import (
 	"testing"
-	"time"
-
-	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func getTestEncoder(startTime time.Time) *encoder {
-	return NewEncoder(startTime, nil, nil).(*encoder)
-}
-
-func TestEncoderResets(t *testing.T) {
-	enc := getTestEncoder(testStartTime)
-	defer enc.Close()
-	enc.Stream()
-	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
-	require.True(t, enc.os.Len() > 0)
-
-	now := time.Now()
-	enc.Reset(now, 0)
-	require.Equal(t, 0, enc.os.Len())
-
-	newBytes := []byte{0x13, 0xce}
-	enc.ResetSetData(now, newBytes, true)
-	b, _ := enc.os.Rawbytes()
-	require.Equal(t, newBytes, b)
-
-	enc.Stream()
-	enc.Seal()
-	newBytes = []byte{0x13}
-	enc.ResetSetData(now, newBytes, false)
-	b, _ = enc.os.Rawbytes()
-	require.Equal(t, newBytes, b)
-	enc.Seal()
-	enc.Close()
+func TestNumSig(t *testing.T) {
+	require.Equal(t, uint8(4), NumSig(uint64(12)))
 }

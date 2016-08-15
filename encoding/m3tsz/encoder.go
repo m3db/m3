@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package m3tsz
 
 import (
 	"encoding/binary"
@@ -33,6 +33,11 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
+const (
+	sigDiffThreshold   = uint8(3)
+	sigRepeatThreshold = uint8(5)
+)
+
 var (
 	errEncoderNotWritable = errors.New("encoder is not writable")
 )
@@ -44,8 +49,17 @@ type encoder struct {
 	// internal bookkeeping
 	t   time.Time     // current time
 	dt  time.Duration // current time delta
-	vb  uint64        // current value
-	xor uint64        // current xor
+	vb  uint64        // current value as float bits
+	xor uint64        // current float XOR
+
+	intOptimized bool    // whether the encoding scheme is optimized for ints
+	isFloat      bool    // whether we are encoding ints/floats
+	intVal       float64 // current int val
+	maxMult      uint8   // current max multiplier for int vals
+	numSig       uint8   // current largest number of significant places for int diffs
+	curLowestSig uint8
+	numLowerSig  uint8
+
 	ant ts.Annotation // current annotation
 	tu  xtime.Unit    // current time unit
 
@@ -54,7 +68,7 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(start time.Time, bytes []byte, opts encoding.Options) encoding.Encoder {
+func NewEncoder(start time.Time, bytes []byte, opts encoding.Options, intOptimized bool) encoding.Encoder {
 	if opts == nil {
 		opts = encoding.NewOptions()
 	}
@@ -64,12 +78,13 @@ func NewEncoder(start time.Time, bytes []byte, opts encoding.Options) encoding.E
 	initAllocIfEmpty := opts.GetEncoderPool() == nil
 	tu := initialTimeUnit(start, opts.GetDefaultTimeUnit())
 	return &encoder{
-		os:       encoding.NewOStream(bytes, initAllocIfEmpty),
-		opts:     opts,
-		t:        start,
-		tu:       tu,
-		writable: true,
-		closed:   false,
+		os:           encoding.NewOStream(bytes, initAllocIfEmpty),
+		opts:         opts,
+		t:            start,
+		tu:           tu,
+		writable:     true,
+		closed:       false,
+		intOptimized: intOptimized,
 	}
 }
 
@@ -93,9 +108,11 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 	if !enc.writable {
 		return errEncoderNotWritable
 	}
+
 	if enc.os.Len() == 0 {
 		return enc.writeFirst(dp, ant, tu)
 	}
+
 	return enc.writeNext(dp, ant, tu)
 }
 
@@ -238,17 +255,84 @@ func (enc *encoder) writeDeltaOfDeltaTimeUnitUnchanged(prevDelta, curDelta time.
 }
 
 func (enc *encoder) writeFirstValue(v float64) {
-	enc.vb = math.Float64bits(v)
-	enc.xor = enc.vb
-	enc.os.WriteBits(enc.vb, 64)
+	if !enc.intOptimized {
+		enc.writeFullFloatVal(math.Float64bits(v))
+		return
+	}
+
+	// Attempt to convert float to int for int optimization
+	val, mult, isFloat := convertToIntFloat(v, 0)
+	if isFloat {
+		enc.os.WriteBit(opcodeFloatMode)
+		enc.writeFullFloatVal(math.Float64bits(val))
+		enc.isFloat = true
+		enc.maxMult = mult
+		return
+	}
+
+	// val can be converted to int
+	enc.os.WriteBit(opcodeIntMode)
+	valBits := uint64(int64(val))
+	numSig := encoding.NumSig(valBits)
+	enc.writeIntSigMult(numSig, mult)
+	enc.writeIntValDiff(valBits, true)
+	enc.intVal = val
 }
 
 func (enc *encoder) writeNextValue(v float64) {
-	vb := math.Float64bits(v)
-	xor := enc.vb ^ vb
+	if !enc.intOptimized {
+		enc.writeFloatXOR(math.Float64bits(v))
+		return
+	}
+
+	// Attempt to convert float to int for int optimization
+	val, mult, floatVal := convertToIntFloat(v, enc.maxMult)
+	if floatVal {
+		enc.writeFloatVal(math.Float64bits(val), mult)
+		return
+	}
+
+	enc.writeIntVal(val, mult, floatVal)
+}
+
+// writeFloatVal writes the value as XOR of the
+// bits that represent the float
+func (enc *encoder) writeFloatVal(val uint64, mult uint8) {
+	if !enc.isFloat {
+		// Converting from int to float
+		enc.os.WriteBit(opcodeUpdate)
+		enc.os.WriteBit(opcodeNoRepeat)
+		enc.os.WriteBit(opcodeFloatMode)
+		enc.writeFullFloatVal(val)
+		enc.isFloat = true
+		enc.maxMult = mult
+		return
+	}
+
+	if val == enc.vb {
+		// Value is repeated
+		enc.os.WriteBit(opcodeUpdate)
+		enc.os.WriteBit(opcodeRepeat)
+		return
+	}
+
+	enc.os.WriteBit(opcodeNoUpdate)
+	enc.writeFloatXOR(val)
+}
+
+// writeFloatVal writes the full 64 bits of the float
+func (enc *encoder) writeFullFloatVal(val uint64) {
+	enc.vb = val
+	enc.xor = val
+	enc.os.WriteBits(val, 64)
+}
+
+// writeFloatXOR writes the XOR of the 64bits of the float
+func (enc *encoder) writeFloatXOR(val uint64) {
+	xor := enc.vb ^ val
 	enc.writeXOR(enc.xor, xor)
-	enc.vb = vb
 	enc.xor = xor
+	enc.vb = val
 }
 
 func (enc *encoder) writeXOR(prevXOR, curXOR uint64) {
@@ -273,6 +357,108 @@ func (enc *encoder) writeXOR(prevXOR, curXOR uint64) {
 	enc.os.WriteBits(curXOR>>uint(curTrailing), numMeaningfulBits)
 }
 
+// writeIntVal writes the val as a diff of ints
+func (enc *encoder) writeIntVal(val float64, mult uint8, isFloat bool) {
+	valDiff := enc.intVal - val
+	if valDiff == 0 && isFloat == enc.isFloat {
+		// Value is repeated
+		enc.os.WriteBit(opcodeUpdate)
+		enc.os.WriteBit(opcodeRepeat)
+		return
+	}
+
+	neg := false
+	if valDiff < 0 {
+		neg = true
+		valDiff = -1 * valDiff
+	}
+
+	valDiffBits := uint64(int64(valDiff))
+	numSig := encoding.NumSig(valDiffBits)
+	newSig := enc.getNewSig(numSig)
+	if mult > enc.maxMult || enc.numSig != newSig || isFloat != enc.isFloat {
+
+		enc.os.WriteBit(opcodeUpdate)
+		enc.os.WriteBit(opcodeNoRepeat)
+		enc.os.WriteBit(opcodeIntMode)
+		enc.writeIntSigMult(newSig, mult)
+		enc.writeIntValDiff(valDiffBits, neg)
+		enc.isFloat = false
+	} else {
+		enc.os.WriteBit(opcodeNoUpdate)
+		enc.writeIntValDiff(valDiffBits, neg)
+	}
+
+	enc.intVal = val
+}
+
+// writeIntValDiff writes the provided val diff bits along with
+// whether the bits are negative or not
+func (enc *encoder) writeIntValDiff(valBits uint64, neg bool) {
+	if neg {
+		enc.os.WriteBit(opcodeNegative)
+	} else {
+		enc.os.WriteBit(opcodePositive)
+	}
+
+	enc.os.WriteBits(valBits, int(enc.numSig))
+}
+
+// writeIntSigMult writes the number of significant
+// bits of the diff and the multiplier if they have changed
+func (enc *encoder) writeIntSigMult(sig, mult uint8) {
+	if enc.numSig != sig {
+		enc.os.WriteBit(opcodeUpdateSig)
+		if sig == 0 {
+			enc.os.WriteBit(opcodeZeroSig)
+		} else {
+			enc.os.WriteBit(opcodeNonZeroSig)
+			enc.os.WriteBits(uint64(sig-1), numSigBits)
+		}
+
+		enc.numSig = sig
+	} else {
+		enc.os.WriteBit(opcodeNoUpdate)
+	}
+
+	if mult > enc.maxMult {
+		enc.os.WriteBit(opcodeUpdateMult)
+		enc.os.WriteBits(uint64(mult), numMultBits)
+		enc.maxMult = mult
+	} else {
+		enc.os.WriteBit(opcodeNoUpdate)
+	}
+}
+
+// getNewSig gets the new number of significant bits given the
+// number of significant bits of the current diff. It takes into
+// account thresholds to try and find a value that's best for the
+// current data
+func (enc *encoder) getNewSig(numSig uint8) uint8 {
+	newSig := enc.numSig
+
+	if numSig > enc.numSig {
+		newSig = numSig
+	} else if enc.numSig-numSig >= sigDiffThreshold {
+		if enc.numLowerSig == 0 {
+			enc.curLowestSig = numSig
+		} else if numSig > enc.curLowestSig {
+			enc.curLowestSig = numSig
+		}
+
+		enc.numLowerSig++
+		if enc.numLowerSig >= sigRepeatThreshold {
+			newSig = enc.curLowestSig
+			enc.numLowerSig = 0
+		}
+
+	} else {
+		enc.numLowerSig = 0
+	}
+
+	return newSig
+}
+
 func (enc *encoder) Reset(start time.Time, capacity int) {
 	var newBuffer []byte
 	bytesPool := enc.opts.GetBytesPool()
@@ -290,6 +476,12 @@ func (enc *encoder) ResetSetData(start time.Time, data []byte, writable bool) {
 	enc.dt = 0
 	enc.vb = 0
 	enc.xor = 0
+	enc.intVal = 0
+	enc.isFloat = false
+	enc.maxMult = 0
+	enc.numSig = 0
+	enc.curLowestSig = 0
+	enc.numLowerSig = 0
 	enc.ant = nil
 	enc.tu = initialTimeUnit(start, enc.opts.GetDefaultTimeUnit())
 	enc.closed = false
@@ -315,14 +507,13 @@ func (enc *encoder) Stream() xio.SegmentReader {
 		tail = scheme.Tail(b[blen-1], pos)
 	}
 
-	segment := ts.Segment{Head: head, Tail: tail, TailShared: true}
 	readerPool := enc.opts.GetSegmentReaderPool()
 	if readerPool != nil {
 		reader := readerPool.Get()
-		reader.Reset(segment)
+		reader.Reset(ts.Segment{Head: head, Tail: tail})
 		return reader
 	}
-	return xio.NewSegmentReader(segment)
+	return xio.NewSegmentReader(ts.Segment{Head: head, Tail: tail})
 }
 
 func (enc *encoder) Seal() {

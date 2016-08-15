@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3ts
+package m3tsz
 
 import (
 	"math"
@@ -42,8 +42,8 @@ const (
 	opcodeZeroSig    = 0x0
 	opcodeNonZeroSig = 0x1
 
-	maxMult     = 6
-	numMultBits = 4
+	maxMult     = uint8(6)
+	numMultBits = 3
 	numSigBits  = 6
 )
 
@@ -53,7 +53,7 @@ var maxInt = float64(math.MaxInt64)
 // and returns a uint64 representation of the value, along with
 // an updated multiplier and a bool indicating whether the uint64
 // is floatBits
-func convertToIntFloat(v float64, curMaxMult int) (float64, int, bool) {
+func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool) {
 	if curMaxMult == 0 {
 		// Quick check for vals that are already ints
 		i, r := math.Modf(v)
@@ -62,7 +62,7 @@ func convertToIntFloat(v float64, curMaxMult int) (float64, int, bool) {
 		}
 	}
 
-	val := v * math.Pow10(curMaxMult)
+	val := v * math.Pow10(int(curMaxMult))
 	sign := 1.0
 	if v < 0 {
 		sign = -1.0
@@ -91,10 +91,10 @@ func convertToIntFloat(v float64, curMaxMult int) (float64, int, bool) {
 	return v, 0, true
 }
 
-func convertFromIntFloat(val float64, mult int) float64 {
+func convertFromIntFloat(val float64, mult uint8) float64 {
 	if mult == 0 {
 		return val
 	}
 
-	return val / math.Pow10(mult)
+	return val / math.Pow10(int(mult))
 }

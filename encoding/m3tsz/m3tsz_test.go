@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3ts
+package m3tsz
 
 import (
 	"math"
@@ -123,22 +123,22 @@ func testFloatConversions(t *testing.T, numConv, numDig, numDec int) {
 }
 
 func validateConvertToIntFloat(t *testing.T, val float64, curDec int, expectedVal float64, maxExpectedDec int, expectedFloat bool) {
-	iv, dec, isFloat := convertToIntFloat(val, curDec)
+	iv, dec, isFloat := convertToIntFloat(val, uint8(curDec))
 	if math.IsNaN(val) {
 		require.True(t, math.IsNaN(iv))
 	} else {
 		require.Equal(t, expectedVal, iv)
 	}
 
-	require.True(t, maxExpectedDec >= dec)
+	require.True(t, uint8(maxExpectedDec) >= dec)
 	require.Equal(t, expectedFloat, isFloat)
 }
 
 func validateConvertFloat(t *testing.T, val float64, curDec int) {
-	v, dec, isFloat := convertToIntFloat(val, curDec)
+	v, dec, isFloat := convertToIntFloat(val, uint8(curDec))
 	if isFloat {
 		require.Equal(t, val, v)
-		require.Equal(t, 0, dec)
+		require.Equal(t, uint8(0), dec)
 		require.Equal(t, true, isFloat)
 		return
 	}
@@ -146,10 +146,10 @@ func validateConvertFloat(t *testing.T, val float64, curDec int) {
 	// In the case where the randomly generated float can be converted to an int,
 	// confirm that the returned val is as expected with an error factor for
 	// inaccuracy of float multiplication
-	require.True(t, math.Abs(v-val*math.Pow10(dec)) < 1)
+	require.True(t, math.Abs(v-val*math.Pow10(int(dec))) < 1)
 }
 
 func validateConvertFromIntFloat(t *testing.T, val float64, mult int, expected float64) {
-	v := convertFromIntFloat(val, mult)
+	v := convertFromIntFloat(val, uint8(mult))
 	require.Equal(t, expected, v)
 }

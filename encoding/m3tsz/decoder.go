@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3ts
+package m3tsz
 
 import (
 	"io"
@@ -27,18 +27,19 @@ import (
 )
 
 type decoder struct {
-	opts encoding.Options
+	opts         encoding.Options
+	intOptimized bool
 }
 
 // NewDecoder creates a decoder.
-func NewDecoder(opts encoding.Options) encoding.Decoder {
+func NewDecoder(opts encoding.Options, intOptimized bool) encoding.Decoder {
 	if opts == nil {
 		opts = encoding.NewOptions()
 	}
-	return &decoder{opts: opts}
+	return &decoder{opts: opts, intOptimized: intOptimized}
 }
 
 // Decode decodes the encoded data captured by the reader.
 func (dec *decoder) Decode(reader io.Reader) encoding.ReaderIterator {
-	return NewReaderIterator(reader, dec.opts)
+	return NewReaderIterator(reader, dec.opts, dec.intOptimized)
 }

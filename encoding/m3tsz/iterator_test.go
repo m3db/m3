@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package m3tsz
 
 import (
 	"bytes"
@@ -34,7 +34,7 @@ import (
 )
 
 func getTestReaderIterator(rawBytes []byte) *readerIterator {
-	return NewReaderIterator(bytes.NewReader(rawBytes), encoding.NewOptions()).(*readerIterator)
+	return NewReaderIterator(bytes.NewReader(rawBytes), encoding.NewOptions(), false).(*readerIterator)
 }
 
 func TestReaderIteratorReadNextTimestamp(t *testing.T) {

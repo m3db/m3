@@ -18,22 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3ts
+package m3tsz
 
 import (
 	"math/rand"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/testgen"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
-
-var testStartTime = time.Unix(1427162400, 0)
 
 func TestCountsRoundTrip(t *testing.T) {
 	timeUnit := time.Second
@@ -90,7 +88,12 @@ func TestMixedRoundTrip(t *testing.T) {
 }
 
 func testRoundTrip(t *testing.T, input []ts.Datapoint) {
-	encoder := NewEncoder(testStartTime, nil, nil)
+	validateRoundTrip(t, input, true)
+	validateRoundTrip(t, input, false)
+}
+
+func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
+	encoder := NewEncoder(testStartTime, nil, nil, intOpt)
 	for j, v := range input {
 		if j == 0 {
 			encoder.Encode(v, xtime.Millisecond, proto.EncodeVarint(10))
@@ -100,7 +103,7 @@ func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 			encoder.Encode(v, xtime.Second, nil)
 		}
 	}
-	decoder := NewDecoder(nil)
+	decoder := NewDecoder(nil, intOpt)
 	it := decoder.Decode(encoder.Stream())
 	defer it.Close()
 	var decompressed []ts.Datapoint
@@ -164,7 +167,7 @@ func generateDataPoints(numPoints int, timeUnit time.Duration, numDig, numDec in
 	res := []ts.Datapoint{{currentTime, currentValue}}
 	for i := 1; i < numPoints; i++ {
 		currentTime = currentTime.Add(time.Second * time.Duration(rand.Intn(7200)))
-		currentValue = encoding.GenerateFloatVal(r, numDig, numDec)
+		currentValue = testgen.GenerateFloatVal(r, numDig, numDec)
 		if !currentTime.Before(endTime) {
 			break
 		}
@@ -178,15 +181,15 @@ func generateMixedDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoi
 	var startTime int64 = 1427162462
 	currentTime := time.Unix(startTime, 0)
 	endTime := testStartTime.Add(2 * time.Hour)
-	currentValue := encoding.GenerateFloatVal(r, 3, 16)
+	currentValue := testgen.GenerateFloatVal(r, 3, 16)
 	res := []ts.Datapoint{{currentTime, currentValue}}
 
 	for i := 1; i < numPoints; i++ {
 		currentTime = currentTime.Add(time.Second * time.Duration(r.Intn(7200)))
 		if r.Float64() < 0.1 {
-			currentValue = encoding.GenerateFloatVal(r, 5, 0)
+			currentValue = testgen.GenerateFloatVal(r, 5, 0)
 		} else if r.Float64() < 0.2 {
-			currentValue = encoding.GenerateFloatVal(r, 3, 16)
+			currentValue = testgen.GenerateFloatVal(r, 3, 16)
 		}
 
 		if !currentTime.Before(endTime) {

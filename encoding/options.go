@@ -43,6 +43,7 @@ type options struct {
 	readerIteratorPool   ReaderIteratorPool
 	bytesPool            pool.BytesPool
 	segmentReaderPool    xio.SegmentReaderPool
+	intOptimization      bool
 }
 
 func newOptions() Options {

@@ -20,27 +20,21 @@
 
 package encoding
 
-import (
-	"math"
-	"math/rand"
-	"strconv"
-)
-
 // Bit is just a byte
 type Bit byte
 
 // NumSig returns the number of significant values in a uint64
-func NumSig(v uint64) int {
+func NumSig(v uint64) uint8 {
 	if v == 0 {
 		return 0
 	}
 
-	numLeading := 0
+	numLeading := uint8(0)
 	for tmp := v; (tmp & (1 << 63)) == 0; tmp <<= 1 {
 		numLeading++
 	}
 
-	return 64 - numLeading
+	return uint8(64) - numLeading
 }
 
 // LeadingAndTrailingZeros calculates the number of leading and trailing 0s
@@ -67,21 +61,4 @@ func LeadingAndTrailingZeros(v uint64) (int, int) {
 func SignExtend(v uint64, numBits int) int64 {
 	shift := uint(64 - numBits)
 	return (int64(v) << shift) >> shift
-}
-
-// GenerateFloatVal generates a random float val given the number of digits and decimal places
-func GenerateFloatVal(r *rand.Rand, numDig, numDec int) float64 {
-	var val float64
-	digMod := int(math.Pow10(numDig))
-	decMod := int(math.Pow10(numDec))
-	dig := r.Int() % digMod
-
-	if numDec == 0 {
-		val = float64(dig)
-	} else {
-		dec := r.Int() % decMod
-		val, _ = strconv.ParseFloat(strconv.Itoa(dig)+"."+strconv.Itoa(dec), 64)
-	}
-
-	return val
 }

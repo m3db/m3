@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package m3tsz
 
 import (
 	"io"
@@ -31,12 +31,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	testStartTime = time.Unix(1427162400, 0)
-)
+var testStartTime = time.Unix(1427162400, 0)
 
 func getTestEncoder(startTime time.Time) *encoder {
-	return NewEncoder(startTime, nil, nil).(*encoder)
+	return NewEncoder(startTime, nil, nil, false).(*encoder)
+}
+
+func getTestOptEncoder(startTime time.Time) *encoder {
+	return NewEncoder(startTime, nil, nil, true).(*encoder)
 }
 
 func TestWriteDeltaOfDeltaTimeUnitUnchanged(t *testing.T) {
@@ -344,4 +346,30 @@ func TestInitTimeUnit(t *testing.T) {
 	for _, input := range inputs {
 		require.Equal(t, input.expected, initialTimeUnit(input.start, input.tu))
 	}
+}
+
+func TestEncoderResets(t *testing.T) {
+	enc := getTestOptEncoder(testStartTime)
+	defer enc.Close()
+	enc.Stream()
+	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
+	require.True(t, enc.os.Len() > 0)
+
+	now := time.Now()
+	enc.Reset(now, 0)
+	require.Equal(t, 0, enc.os.Len())
+
+	newBytes := []byte{0x13, 0xce}
+	enc.ResetSetData(now, newBytes, true)
+	b, _ := enc.os.Rawbytes()
+	require.Equal(t, newBytes, b)
+
+	enc.Stream()
+	enc.Seal()
+	newBytes = []byte{0x13}
+	enc.ResetSetData(now, newBytes, false)
+	b, _ = enc.os.Rawbytes()
+	require.Equal(t, newBytes, b)
+	enc.Seal()
+	enc.Close()
 }

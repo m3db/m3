@@ -574,44 +574,24 @@ func (_mr *_MockOptionsRecorder) GetCommitLogOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogOptions")
 }
 
-func (_m *MockOptions) EncodingTSZPooled() Options {
-	ret := _m.ctrl.Call(_m, "EncodingTSZPooled")
+func (_m *MockOptions) EncodingM3TSZPooled() Options {
+	ret := _m.ctrl.Call(_m, "EncodingM3TSZPooled")
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) EncodingTSZPooled() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingTSZPooled")
+func (_mr *_MockOptionsRecorder) EncodingM3TSZPooled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TSZPooled")
 }
 
-func (_m *MockOptions) EncodingTSZ() Options {
-	ret := _m.ctrl.Call(_m, "EncodingTSZ")
+func (_m *MockOptions) EncodingM3TSZ() Options {
+	ret := _m.ctrl.Call(_m, "EncodingM3TSZ")
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) EncodingTSZ() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingTSZ")
-}
-
-func (_m *MockOptions) EncodingM3TSPooled() Options {
-	ret := _m.ctrl.Call(_m, "EncodingM3TSPooled")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) EncodingM3TSPooled() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TSPooled")
-}
-
-func (_m *MockOptions) EncodingM3TS() Options {
-	ret := _m.ctrl.Call(_m, "EncodingM3TS")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) EncodingM3TS() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TS")
+func (_mr *_MockOptionsRecorder) EncodingM3TSZ() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TSZ")
 }
 
 func (_m *MockOptions) NewEncoderFn(value encoding.NewEncoderFn) Options {

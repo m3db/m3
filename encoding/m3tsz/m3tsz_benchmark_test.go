@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3ts
+package m3tsz
 
 import (
 	"math"
@@ -33,6 +33,18 @@ const (
 	largeDpFloat = 123.4567890123
 	intFloat     = 123.0
 )
+
+func BenchmarkFuncPointer(b *testing.B) {
+	benchPointer(b, funcNormal)
+}
+
+func BenchmarkBoolCheckTrue(b *testing.B) {
+	benchBoolCheck(b, true)
+}
+
+func BenchmarkBoolCheckFalse(b *testing.B) {
+	benchBoolCheck(b, false)
+}
 
 func BenchmarkMathModf(b *testing.B) {
 	for n := 0; n < b.N; n++ {
@@ -115,14 +127,14 @@ func benchMathConversion(b *testing.B, val float64) {
 }
 
 func benchMathConstConversion(b *testing.B, val float64) {
-	var dec int
+	var dec uint8
 	for n := 0; n < b.N; n++ {
 		_, dec, _ = convertToIntFloat(val, dec)
 	}
 }
 
 func benchStringConstConversion(b *testing.B, val float64) {
-	var dec int
+	var dec uint8
 	for n := 0; n < b.N; n++ {
 		_, dec, _ = convertToIntString(val, dec)
 	}
@@ -140,12 +152,33 @@ func benchNoCheckConversion(b *testing.B, val float64) {
 	}
 }
 
+func benchPointer(b *testing.B, f writeFunc) {
+	for n := 0; n < b.N; n++ {
+		f(largeDpFloat)
+	}
+}
+
+func benchBoolCheck(b *testing.B, enabled bool) {
+	for n := 0; n < b.N; n++ {
+		if enabled {
+			funcNormal(largeDpFloat)
+		} else {
+			funcOpt(largeDpFloat)
+		}
+	}
+}
+
+type writeFunc func(v float64)
+
+func funcNormal(v float64) {}
+func funcOpt(v float64)    {}
+
 var multipliers = newMultipliers()
 
 func newMultipliers() map[int]float64 {
 	multipliers := make(map[int]float64, maxMult+1)
 	base := 1.0
-	for i := 0; i <= maxMult; i++ {
+	for i := 0; i <= int(maxMult); i++ {
 		multipliers[i] = base
 		base = base * 10.0
 	}
@@ -153,8 +186,8 @@ func newMultipliers() map[int]float64 {
 	return multipliers
 }
 
-func convertToIntFloatIntNoCheck(v float64, curMaxMult int) (float64, int, bool) {
-	val := v * math.Pow10(curMaxMult)
+func convertToIntFloatIntNoCheck(v float64, curMaxMult uint8) (float64, uint8, bool) {
+	val := v * math.Pow10(int(curMaxMult))
 	sign := 1.0
 	if v < 0 {
 		sign = -1.0
@@ -183,7 +216,7 @@ func convertToIntFloatIntNoCheck(v float64, curMaxMult int) (float64, int, bool)
 	return v, 0, true
 }
 
-func convertToIntString(v float64, curDec int) (float64, int, bool) {
+func convertToIntString(v float64, curDec uint8) (float64, uint8, bool) {
 	val := big.NewFloat(v)
 
 	if curDec == 0 {
@@ -194,7 +227,7 @@ func convertToIntString(v float64, curDec int) (float64, int, bool) {
 	}
 
 	s := strconv.FormatFloat(v, 'f', -1, 64)
-	dec := len(s) - strings.Index(s, ".") - 1
+	dec := uint8(len(s)-strings.Index(s, ".")) - 1
 
 	if dec < curDec {
 		dec = curDec
@@ -202,7 +235,7 @@ func convertToIntString(v float64, curDec int) (float64, int, bool) {
 		dec = maxMult
 	}
 
-	val.Mul(val, big.NewFloat(math.Pow10(dec)))
+	val.Mul(val, big.NewFloat(math.Pow10(int(dec))))
 	i, _ := val.Int64()
 	if i != math.MaxInt64 && i != math.MinInt64 {
 		mv, _ := val.Float64()
