@@ -72,7 +72,7 @@ func (t *staticTopology) Close() error {
 }
 
 type staticMap struct {
-	shardScheme         sharding.ShardScheme
+	shardSet            sharding.ShardSet
 	orderedHosts        []Host
 	hostsByShard        [][]Host
 	orderedHostsByShard [][]orderedHost
@@ -81,10 +81,10 @@ type staticMap struct {
 }
 
 func newStaticMap(opts TypeOptions) staticMap {
-	totalShards := len(opts.GetShardScheme().All().Shards())
+	totalShards := len(opts.GetShardSet().Shards())
 	hostShardSets := opts.GetHostShardSets()
 	topoMap := staticMap{
-		shardScheme:         opts.GetShardScheme(),
+		shardSet:            opts.GetShardSet(),
 		orderedHosts:        make([]Host, 0, len(hostShardSets)),
 		hostsByShard:        make([][]Host, totalShards),
 		orderedHostsByShard: make([][]orderedHost, totalShards),
@@ -120,12 +120,12 @@ func (t *staticMap) HostsLen() int {
 	return len(t.orderedHosts)
 }
 
-func (t *staticMap) ShardScheme() sharding.ShardScheme {
-	return t.shardScheme
+func (t *staticMap) ShardSet() sharding.ShardSet {
+	return t.shardSet
 }
 
 func (t *staticMap) Route(id string) (uint32, []Host, error) {
-	shard := t.shardScheme.Shard(id)
+	shard := t.shardSet.Shard(id)
 	if int(shard) >= len(t.hostsByShard) {
 		return shard, nil, errUnownedShard
 	}
@@ -133,7 +133,7 @@ func (t *staticMap) Route(id string) (uint32, []Host, error) {
 }
 
 func (t *staticMap) RouteForEach(id string, forEachFn RouteForEachFn) error {
-	return t.RouteShardForEach(t.shardScheme.Shard(id), forEachFn)
+	return t.RouteShardForEach(t.shardSet.Shard(id), forEachFn)
 }
 
 func (t *staticMap) RouteShard(shard uint32) ([]Host, error) {

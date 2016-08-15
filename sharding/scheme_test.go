@@ -26,45 +26,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestShardScheme(t *testing.T) {
-	ss, err := NewShardSchemeFromRange(1, 0, func(id string) uint32 { return 0 })
-	require.Equal(t, ErrToLessThanFrom, err)
-	require.Nil(t, ss)
-
-	ss, err = NewShardScheme([]uint32{}, func(id string) uint32 { return 0 })
+func TestShardSet(t *testing.T) {
+	ss, err := NewShardSet([]uint32{}, func(id string) uint32 { return 0 })
 	require.Equal(t, ErrNoShards, err)
 	require.Nil(t, ss)
 
-	ss, err = NewShardScheme([]uint32{1, 1}, func(id string) uint32 { return 0 })
+	ss, err = NewShardSet([]uint32{1, 1}, func(id string) uint32 { return 0 })
 	require.Equal(t, ErrDuplicateShards, err)
 	require.Nil(t, ss)
 
 	staticShard := uint32(1)
-	ss, err = NewShardSchemeFromRange(0, 2, func(id string) uint32 { return staticShard })
+	ss, err = NewShardSet([]uint32{1, 5, 3}, func(id string) uint32 { return staticShard })
 	require.NoError(t, err)
 	require.NotNil(t, ss)
+	require.Equal(t, []uint32{1, 5, 3}, ss.Shards())
+	require.Equal(t, uint32(1), ss.Min())
+	require.Equal(t, uint32(5), ss.Max())
 
-	s := ss.Shard("bla")
+	id := "bla"
+	s := ss.Shard(id)
 	require.Equal(t, staticShard, s)
-}
-
-func TestShardSet(t *testing.T) {
-	ss, err := NewShardSchemeFromRange(0, 2, func(id string) uint32 { return 0 })
-	require.NoError(t, err)
-	require.NotNil(t, ss)
-
-	sSet, err := ss.CreateSet([]uint32{})
-	require.Equal(t, ErrNoShards, err)
-
-	sSet, err = ss.CreateSet([]uint32{1, 1})
-	require.Equal(t, ErrDuplicateShards, err)
-
-	sSet, err = ss.CreateSet([]uint32{1, 2})
-	require.NoError(t, err)
-	require.Equal(t, []uint32{1, 2}, sSet.Shards())
-	require.Equal(t, ss, sSet.Scheme())
-
-	sSet = ss.All()
-	require.Equal(t, []uint32{0, 1, 2}, sSet.Shards())
-	require.Equal(t, ss, sSet.Scheme())
+	fn := ss.HashFn()
+	require.Equal(t, staticShard, fn(id))
 }

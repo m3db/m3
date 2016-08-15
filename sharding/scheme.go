@@ -22,73 +22,59 @@ package sharding
 
 import (
 	"errors"
+	"math"
 )
 
 var (
-	// ErrToLessThanFrom returned when to is less than from
-	ErrToLessThanFrom = errors.New("to is less than from")
 	// ErrNoShards returned when shard set is empty
 	ErrNoShards = errors.New("empty shard set")
 	// ErrDuplicateShards returned when shard set is empty
 	ErrDuplicateShards = errors.New("duplicate shards")
 )
 
-type shardScheme struct {
+type shardSet struct {
 	shards []uint32
 	fn   HashFn
 }
 
-// NewShardSchemeFromRange creates a new sharding scheme, from and to are inclusive
-func NewShardSchemeFromRange(from, to uint32, fn HashFn) (ShardScheme, error) {
-	if to < from {
-		return nil, ErrToLessThanFrom
-	}
-	var shards []uint32
-	for i := from; i <= to; i++ {
-		shards = append(shards, i)
-	}
-	return NewShardScheme(shards, fn)
-}
-
-// NewShardScheme creates a new sharding scheme with a set of shards
-func NewShardScheme(shards []uint32, fn HashFn) (ShardScheme, error) {
+// NewShardSet creates a new sharding scheme with a set of shards
+func NewShardSet(shards []uint32, fn HashFn) (ShardSet, error) {
 	if err := validateShards(shards); err != nil {
 		return nil, err
 	}
-	return &shardScheme{shards, fn}, nil
+	return &shardSet{shards, fn}, nil
 }
 
-func (s *shardScheme) Shard(identifer string) uint32 {
+func (s *shardSet) Shard(identifer string) uint32 {
 	return s.fn(identifer)
-}
-
-func (s *shardScheme) CreateSet(shards []uint32) (ShardSet, error) {
-	if err := validateShards(shards); err != nil {
-		return nil, err
-	}
-	return NewShardSet(shards, s), nil
-}
-
-func (s *shardScheme) All() ShardSet {
-	return NewShardSet(s.shards, s)
-}
-
-type shardSet struct {
-	shards []uint32
-	scheme ShardScheme
-}
-
-// NewShardSet creates a new shard set
-func NewShardSet(shards []uint32, scheme ShardScheme) ShardSet {
-	return &shardSet{shards, scheme}
 }
 
 func (s *shardSet) Shards() []uint32 {
 	return s.shards[:]
 }
 
-func (s *shardSet) Scheme() ShardScheme {
-	return s.scheme
+func (s *shardSet) Min() uint32 {
+	min := uint32(math.MaxUint32)
+	for _, shard := range s.shards {
+		if shard < min {
+			min = shard
+		}
+	}
+	return min
+}
+
+func (s *shardSet) Max() uint32 {
+	max := uint32(0)
+	for _, shard := range s.shards {
+		if shard > max {
+			max = shard
+		}
+	}
+	return max
+}
+
+func (s *shardSet) HashFn() HashFn {
+	return s.fn
 }
 
 func validateShards(shards []uint32) error {
