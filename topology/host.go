@@ -30,15 +30,22 @@ func majority(replicas int) int {
 	return int(math.Ceil(0.5 * float64(replicas+1)))
 }
 
-type simpleHost string
+type host struct {
+	id      string
+	address string
+}
 
-func (s simpleHost) Address() string {
-	return string(s)
+func (h *host) ID() string {
+	return h.id
+}
+
+func (h *host) Address() string {
+	return h.address
 }
 
 // NewHost creates a new host
-func NewHost(address string) Host {
-	return simpleHost(address)
+func NewHost(id, address string) Host {
+	return &host{id: id, address: address}
 }
 
 type hostShardSet struct {

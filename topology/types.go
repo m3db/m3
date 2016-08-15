@@ -26,6 +26,9 @@ import (
 
 // Host is a container of a host in a topology
 type Host interface {
+	// ID is the identifier of the host
+	ID() string
+
 	// Address returns the address of the host
 	Address() string
 }
