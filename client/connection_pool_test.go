@@ -287,6 +287,14 @@ func (*nullNodeClient) FetchRawBatch(ctx thrift.Context, req *rpc.FetchRawBatchR
 	return nil, nil
 }
 
+func (*nullNodeClient) FetchBlocks(ctx thrift.Context, req *rpc.FetchBlocksRequest) (*rpc.FetchBlocksResult_, error) {
+	return nil, nil
+}
+
+func (*nullNodeClient) FetchBlocksMetadata(ctx thrift.Context, req *rpc.FetchBlocksMetadataRequest) (*rpc.FetchBlocksMetadataResult_, error) {
+	return nil, nil
+}
+
 func (*nullNodeClient) Health(ctx thrift.Context) (*rpc.HealthResult_, error) {
 	return nil, nil
 }

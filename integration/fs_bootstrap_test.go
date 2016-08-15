@@ -39,14 +39,14 @@ import (
 
 func writeToDisk(
 	writer fs.FileSetWriter,
-	shardingScheme sharding.ShardScheme,
+	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
 	dm dataMap,
 ) error {
 	idsPerShard := make(map[uint32][]string)
 	for id := range dm {
-		shard := shardingScheme.Shard(id)
+		shard := shardSet.Shard(id)
 		idsPerShard[shard] = append(idsPerShard[shard], id)
 	}
 	segmentHolder := make([][]byte, 2)
@@ -117,7 +117,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	for _, input := range inputData {
 		testData := generateTestData(input.metricNames, input.numPoints, input.start)
 		dataMaps[input.start] = testData
-		require.NoError(t, writeToDisk(writer, testSetup.shardingScheme, encoder, input.start, testData))
+		require.NoError(t, writeToDisk(writer, testSetup.shardSet, encoder, input.start, testData))
 	}
 
 	// Start the server with filesystem bootstrapper

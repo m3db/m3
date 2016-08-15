@@ -20,23 +20,32 @@
 
 package sharding
 
-// HashFn is a sharding hash function
-type HashFn func(identifer string) uint32
+import (
+	"testing"
 
-// ShardSet contains a sharding function and a set of shards, this interface allows for potentially out of order shard sets
-type ShardSet interface {
-	// Shard will return a shard for a given identifier
-	Shard(identifer string) uint32
+	"github.com/stretchr/testify/require"
+)
 
-	// Shards returns a slice to the shards in this set
-	Shards() []uint32
+func TestShardSet(t *testing.T) {
+	ss, err := NewShardSet([]uint32{}, func(id string) uint32 { return 0 })
+	require.Equal(t, ErrNoShards, err)
+	require.Nil(t, ss)
 
-	// Min returns the smallest shard owned by this shard set
-	Min() uint32
+	ss, err = NewShardSet([]uint32{1, 1}, func(id string) uint32 { return 0 })
+	require.Equal(t, ErrDuplicateShards, err)
+	require.Nil(t, ss)
 
-	// Max returns the largest shard owned by this shard set
-	Max() uint32
+	staticShard := uint32(1)
+	ss, err = NewShardSet([]uint32{1, 5, 3}, func(id string) uint32 { return staticShard })
+	require.NoError(t, err)
+	require.NotNil(t, ss)
+	require.Equal(t, []uint32{1, 5, 3}, ss.Shards())
+	require.Equal(t, uint32(1), ss.Min())
+	require.Equal(t, uint32(5), ss.Max())
 
-	// HashFn returns the sharding hash function
-	HashFn() HashFn
+	id := "bla"
+	s := ss.Shard(id)
+	require.Equal(t, staticShard, s)
+	fn := ss.HashFn()
+	require.Equal(t, staticShard, fn(id))
 }

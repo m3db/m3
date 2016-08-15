@@ -90,7 +90,6 @@ type db struct {
 	sync.RWMutex
 	opts             Options
 	nowFn            clock.NowFn
-	shardScheme      sharding.ShardScheme
 	shardSet         sharding.ShardSet
 	commitLog        commitlog.CommitLog
 	writeCommitLogFn writeCommitLogFn
@@ -110,12 +109,10 @@ type db struct {
 
 // NewDatabase creates a new database
 func NewDatabase(shardSet sharding.ShardSet, opts Options) (Database, error) {
-	shardScheme := shardSet.Scheme()
 	d := &db{
 		opts:         opts,
-		shardScheme:  shardScheme,
 		shardSet:     shardSet,
-		shards:       make([]databaseShard, len(shardScheme.All().Shards())),
+		shards:       make([]databaseShard, shardSet.Max() + 1),
 		nowFn:        opts.GetClockOptions().GetNowFn(),
 		tickDeadline: opts.GetRetentionOptions().GetBufferDrain(),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
@@ -196,7 +193,7 @@ func (d *db) Write(
 	annotation []byte,
 ) error {
 	d.RLock()
-	shardID := d.shardScheme.Shard(id)
+	shardID := d.shardSet.Shard(id)
 	shard := d.shards[shardID]
 	d.RUnlock()
 
@@ -216,7 +213,7 @@ func (d *db) ReadEncoded(
 		d.RUnlock()
 		return nil, errDatabaseNotBootstrapped
 	}
-	shardID := d.shardScheme.Shard(id)
+	shardID := d.shardSet.Shard(id)
 	shard := d.shards[shardID]
 	d.RUnlock()
 	if shard == nil {

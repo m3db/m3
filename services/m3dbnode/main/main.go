@@ -60,7 +60,7 @@ func main() {
 	storageOpts := storage.NewOptions()
 
 	log := storageOpts.GetInstrumentOptions().GetLogger()
-	shardingScheme, err := server.DefaultShardingScheme()
+	shardSet, err := server.DefaultShardSet()
 	if err != nil {
 		log.Fatalf("could not create sharding scheme: %v", err)
 	}
@@ -72,7 +72,7 @@ func main() {
 		}
 	}
 
-	clientOpts, err := server.DefaultClientOptions(id, tchannelNodeAddr, shardingScheme)
+	clientOpts, err := server.DefaultClientOptions(id, tchannelNodeAddr, shardSet)
 	if err != nil {
 		log.Fatalf("could not create client options: %v", err)
 	}

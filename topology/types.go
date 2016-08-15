@@ -71,8 +71,8 @@ type Map interface {
 	// HostsLen returns the length of all hosts in the map
 	HostsLen() int
 
-	// ShardScheme returns the shard scheme for the topology
-	ShardScheme() sharding.ShardScheme
+	// ShardSet returns the shard set for the topology
+	ShardSet() sharding.ShardSet
 
 	// Route will route a given ID to a shard and a set of hosts
 	Route(id string) (uint32, []Host, error)
@@ -135,11 +135,11 @@ type TypeOptions interface {
 	// Validate validates the options
 	Validate() error
 
-	// ShardScheme sets the shardScheme
-	ShardScheme(value sharding.ShardScheme) TypeOptions
+	// ShardSet sets the ShardSet
+	ShardSet(value sharding.ShardSet) TypeOptions
 
-	// GetShardScheme returns the shardScheme
-	GetShardScheme() sharding.ShardScheme
+	// GetShardSet returns the ShardSet
+	GetShardSet() sharding.ShardSet
 
 	// Replicas sets the replicas
 	Replicas(value int) TypeOptions

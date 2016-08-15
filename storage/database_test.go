@@ -33,12 +33,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testShardingScheme(t *testing.T) sharding.ShardScheme {
-	shardScheme, err := sharding.NewShardScheme(0, 1023, func(id string) uint32 {
+func testShardSet(t *testing.T) sharding.ShardSet {
+	shardSet, err := sharding.NewShardSet([]uint32{397}, func(id string) uint32 {
 		return murmur3.Sum32([]byte(id)) % 1024
 	})
 	require.NoError(t, err)
-	return shardScheme
+	return shardSet
 }
 
 func testDatabaseOptions() Options {
@@ -53,9 +53,9 @@ func testDatabaseOptions() Options {
 }
 
 func testDatabase(t *testing.T, bs bootstrapState) *db {
-	ss := testShardingScheme(t)
+	ss := testShardSet(t)
 	opts := testDatabaseOptions()
-	database, err := NewDatabase(ss.CreateSet(397, 397), opts)
+	database, err := NewDatabase(ss, opts)
 	require.NoError(t, err)
 	d := database.(*db)
 	bsm := newBootstrapManager(d).(*bootstrapManager)

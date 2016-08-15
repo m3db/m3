@@ -151,6 +151,14 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 	return result, nil
 }
 
+func (s *service) FetchBlocks(ctx thrift.Context, req *rpc.FetchBlocksRequest) (*rpc.FetchBlocksResult_, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *service) FetchBlocksMetadata(ctx thrift.Context, req *rpc.FetchBlocksMetadataRequest) (*rpc.FetchBlocksMetadataResult_, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	ctx := s.db.Options().GetContextPool().Get()
 	defer ctx.Close()

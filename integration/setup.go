@@ -60,7 +60,7 @@ type testSetup struct {
 	opts           testOptions
 	clientOpts     client.Options
 	storageOpts    storage.Options
-	shardingScheme sharding.ShardScheme
+	shardSet       sharding.ShardSet
 	getNowFn       clock.NowFn
 	setNowFn       nowSetterFn
 	tchannelClient rpc.TChanNode
@@ -83,8 +83,8 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	storageOpts := storage.NewOptions()
 
-	// Set up sharding scheme
-	shardingScheme, err := server.DefaultShardingScheme()
+	// Set up shard set
+	shardSet, err := server.DefaultShardSet()
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		id = "testhost"
 	}
 
-	clientOpts, err := server.DefaultClientOptions(id, *tchannelNodeAddr, shardingScheme)
+	clientOpts, err := server.DefaultClientOptions(id, *tchannelNodeAddr, shardSet)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		opts:           opts,
 		clientOpts:     clientOpts,
 		storageOpts:    storageOpts,
-		shardingScheme: shardingScheme,
+		shardSet:       shardSet,
 		getNowFn:       getNowFn,
 		setNowFn:       setNowFn,
 		tchannelClient: tc,

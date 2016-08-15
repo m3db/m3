@@ -152,7 +152,7 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 		queues[i] = s.newHostQueue(hosts[i], topologyMap)
 	}
 
-	shards := topologyMap.ShardScheme().All().Shards()
+	shards := topologyMap.ShardSet().Shards()
 	minConnectionCount := s.opts.GetMinConnectionCount()
 	replicas := topologyMap.Replicas()
 	majority := topologyMap.MajorityReplicas()

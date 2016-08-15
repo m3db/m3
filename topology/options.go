@@ -33,7 +33,7 @@ var (
 )
 
 type staticTypeOptions struct {
-	shardScheme   sharding.ShardScheme
+	shardSet      sharding.ShardSet
 	replicas      int
 	hostShardSets []HostShardSet
 }
@@ -52,13 +52,13 @@ func (o *staticTypeOptions) Validate() error {
 	// shard has at least the required replicas mapped to
 	// NB(r): We allow greater than the required replicas in case
 	// node is streaming in and needs to take writes
-	totalShards := len(o.shardScheme.All().Shards())
+	totalShards := len(o.shardSet.Shards())
 	hostAddressesByShard := make([]map[string]struct{}, totalShards)
 	for i := range hostAddressesByShard {
 		hostAddressesByShard[i] = make(map[string]struct{}, o.replicas)
 	}
 	for _, hostShardSet := range o.hostShardSets {
-		if hostShardSet.ShardSet().Scheme() != o.shardScheme {
+		if hostShardSet.ShardSet() != o.shardSet {
 			return errHostShardSetSchemeDoesNotMatch
 		}
 		hostAddress := hostShardSet.Host().Address()
@@ -77,14 +77,14 @@ func (o *staticTypeOptions) Validate() error {
 	return nil
 }
 
-func (o *staticTypeOptions) ShardScheme(value sharding.ShardScheme) TypeOptions {
+func (o *staticTypeOptions) ShardSet(value sharding.ShardSet) TypeOptions {
 	opts := *o
-	opts.shardScheme = value
+	opts.shardSet = value
 	return &opts
 }
 
-func (o *staticTypeOptions) GetShardScheme() sharding.ShardScheme {
-	return o.shardScheme
+func (o *staticTypeOptions) GetShardSet() sharding.ShardSet {
+	return o.shardSet
 }
 
 func (o *staticTypeOptions) Replicas(value int) TypeOptions {
