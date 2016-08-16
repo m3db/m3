@@ -22,6 +22,10 @@ package xtime
 
 import "time"
 
+const (
+	nanosPerMillis = int64(time.Millisecond)
+)
+
 // ToNormalizedTime returns the normalized units of time given a time unit.
 func ToNormalizedTime(t time.Time, u time.Duration) int64 {
 	return t.UnixNano() / u.Nanoseconds()
@@ -50,6 +54,16 @@ func ToNanoseconds(t time.Time) int64 {
 // FromNanoseconds converts nanoseconds to a time.
 func FromNanoseconds(nsecs int64) time.Time {
 	return time.Unix(0, nsecs)
+}
+
+// ToUnixMillis converts a time to milliseconds since Unix epoch
+func ToUnixMillis(t time.Time) int64 {
+	return t.UnixNano() / nanosPerMillis
+}
+
+// FromUnixMillis converts milliseconds since Unix epoch to a time
+func FromUnixMillis(ms int64) time.Time {
+	return time.Unix(0, ms*nanosPerMillis)
 }
 
 // Ceil returns the result of rounding t up to a multiple of d since
