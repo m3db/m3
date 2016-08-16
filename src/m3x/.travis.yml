@@ -2,7 +2,9 @@ language: go
 go:
   - 1.5
   - 1.6
-install: make install-ci
+install:
+  - go get -v github.com/Masterminds/glide
+  - glide install
 env:
  # Set higher timeouts for Travis
  - TEST_TIMEOUT_SCALE=20
