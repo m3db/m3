@@ -375,9 +375,8 @@ func (enc *encoder) writeIntVal(val float64, mult uint8, isFloat bool) {
 
 	valDiffBits := uint64(int64(valDiff))
 	numSig := encoding.NumSig(valDiffBits)
-	newSig := enc.getNewSig(numSig)
+	newSig := enc.trackNewSig(numSig)
 	if mult > enc.maxMult || enc.numSig != newSig || isFloat != enc.isFloat {
-
 		enc.os.WriteBit(opcodeUpdate)
 		enc.os.WriteBit(opcodeNoRepeat)
 		enc.os.WriteBit(opcodeIntMode)
