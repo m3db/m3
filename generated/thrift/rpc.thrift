@@ -71,7 +71,8 @@ struct Blocks {
 
 struct Block {
 	1: required i64 start
-	2: required Segments segments
+	2: optional Segments segments
+	3: optional Error err
 }
 
 struct FetchBlocksMetadataRequest {
@@ -83,6 +84,8 @@ struct FetchBlocksMetadataRequest {
 
 struct FetchBlocksMetadataResult {
 	1: required list<BlocksMetadata> elements
+	2: optional i64 nextPageToken
+	3: optional Error err
 }
 
 struct BlocksMetadata {
