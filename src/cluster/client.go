@@ -21,7 +21,23 @@
 package cluster
 
 import (
+	"errors"
+
 	"github.com/golang/protobuf/proto"
+)
+
+var (
+	// ErrVersionMismatch is returned when attempting a CheckAndSet and the
+	// key is not at the provided version
+	ErrVersionMismatch = errors.New("key is not at the specified version")
+
+	// ErrNotEmpty is returned when attempting a SetIfEmpty and the key
+	// already has a value
+	ErrNotEmpty = errors.New("key already has a value")
+
+	// ErrNotFound is returned when attempting a Get but no value is found for
+	// the given key
+	ErrNotFound = errors.New("key not found")
 )
 
 // A Value provides access to a versioned value in the configuration store
