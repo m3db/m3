@@ -31,9 +31,9 @@ var (
 	// key is not at the provided version
 	ErrVersionMismatch = errors.New("key is not at the specified version")
 
-	// ErrNotEmpty is returned when attempting a SetIfEmpty and the key
+	// ErrAlreadyExists is returned when attempting a SetIfEmpty and the key
 	// already has a value
-	ErrNotEmpty = errors.New("key already has a value")
+	ErrAlreadyExists = errors.New("key already has a value")
 
 	// ErrNotFound is returned when attempting a Get but no value is found for
 	// the given key
@@ -57,8 +57,8 @@ type KVStore interface {
 	// Set stores the value for the given key
 	Set(key string, v proto.Message) error
 
-	// SetIfEmpty sets the value for the given key only if no value already exists
-	SetIfEmpty(key string, v proto.Message) error
+	// SetIfNotExists sets the value for the given key only if no value already exists
+	SetIfNotExists(key string, v proto.Message) error
 
 	// CheckAndSet stores the value for the given key if the current version matches
 	// the provided version
