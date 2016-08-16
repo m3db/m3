@@ -987,9 +987,11 @@ func (p *Blocks) String() string {
 // Attributes:
 //  - Start
 //  - Segments
+//  - Err
 type Block struct {
 	Start    int64     `thrift:"start,1,required" db:"start" json:"start"`
-	Segments *Segments `thrift:"segments,2,required" db:"segments" json:"segments"`
+	Segments *Segments `thrift:"segments,2" db:"segments" json:"segments,omitempty"`
+	Err      *Error    `thrift:"err,3" db:"err" json:"err,omitempty"`
 }
 
 func NewBlock() *Block {
@@ -1008,8 +1010,21 @@ func (p *Block) GetSegments() *Segments {
 	}
 	return p.Segments
 }
+
+var Block_Err_DEFAULT *Error
+
+func (p *Block) GetErr() *Error {
+	if !p.IsSetErr() {
+		return Block_Err_DEFAULT
+	}
+	return p.Err
+}
 func (p *Block) IsSetSegments() bool {
 	return p.Segments != nil
+}
+
+func (p *Block) IsSetErr() bool {
+	return p.Err != nil
 }
 
 func (p *Block) Read(iprot thrift.TProtocol) error {
@@ -1018,7 +1033,6 @@ func (p *Block) Read(iprot thrift.TProtocol) error {
 	}
 
 	var issetStart bool = false
-	var issetSegments bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -1038,7 +1052,10 @@ func (p *Block) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField2(iprot); err != nil {
 				return err
 			}
-			issetSegments = true
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -1053,9 +1070,6 @@ func (p *Block) Read(iprot thrift.TProtocol) error {
 	}
 	if !issetStart {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Start is not set"))
-	}
-	if !issetSegments {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Segments is not set"))
 	}
 	return nil
 }
@@ -1077,6 +1091,16 @@ func (p *Block) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Block) ReadField3(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
 func (p *Block) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Block"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -1086,6 +1110,9 @@ func (p *Block) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -1112,14 +1139,31 @@ func (p *Block) writeField1(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *Block) writeField2(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("segments", thrift.STRUCT, 2); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:segments: ", p), err)
+	if p.IsSetSegments() {
+		if err := oprot.WriteFieldBegin("segments", thrift.STRUCT, 2); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:segments: ", p), err)
+		}
+		if err := p.Segments.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Segments), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:segments: ", p), err)
+		}
 	}
-	if err := p.Segments.Write(oprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Segments), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:segments: ", p), err)
+	return err
+}
+
+func (p *Block) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:err: ", p), err)
+		}
 	}
 	return err
 }
@@ -1364,8 +1408,12 @@ func (p *FetchBlocksMetadataRequest) String() string {
 
 // Attributes:
 //  - Elements
+//  - NextToken
+//  - Err
 type FetchBlocksMetadataResult_ struct {
-	Elements []*BlocksMetadata `thrift:"elements,1,required" db:"elements" json:"elements"`
+	Elements  []*BlocksMetadata `thrift:"elements,1,required" db:"elements" json:"elements"`
+	NextToken *int64            `thrift:"nextToken,2" db:"nextToken" json:"nextToken,omitempty"`
+	Err       *Error            `thrift:"err,3" db:"err" json:"err,omitempty"`
 }
 
 func NewFetchBlocksMetadataResult_() *FetchBlocksMetadataResult_ {
@@ -1375,6 +1423,32 @@ func NewFetchBlocksMetadataResult_() *FetchBlocksMetadataResult_ {
 func (p *FetchBlocksMetadataResult_) GetElements() []*BlocksMetadata {
 	return p.Elements
 }
+
+var FetchBlocksMetadataResult__NextToken_DEFAULT int64
+
+func (p *FetchBlocksMetadataResult_) GetNextToken() int64 {
+	if !p.IsSetNextToken() {
+		return FetchBlocksMetadataResult__NextToken_DEFAULT
+	}
+	return *p.NextToken
+}
+
+var FetchBlocksMetadataResult__Err_DEFAULT *Error
+
+func (p *FetchBlocksMetadataResult_) GetErr() *Error {
+	if !p.IsSetErr() {
+		return FetchBlocksMetadataResult__Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *FetchBlocksMetadataResult_) IsSetNextToken() bool {
+	return p.NextToken != nil
+}
+
+func (p *FetchBlocksMetadataResult_) IsSetErr() bool {
+	return p.Err != nil
+}
+
 func (p *FetchBlocksMetadataResult_) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -1396,6 +1470,14 @@ func (p *FetchBlocksMetadataResult_) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetElements = true
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -1434,12 +1516,37 @@ func (p *FetchBlocksMetadataResult_) ReadField1(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *FetchBlocksMetadataResult_) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		p.NextToken = &v
+	}
+	return nil
+}
+
+func (p *FetchBlocksMetadataResult_) ReadField3(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
 func (p *FetchBlocksMetadataResult_) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchBlocksMetadataResult"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
 	}
 	if p != nil {
 		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -1469,6 +1576,36 @@ func (p *FetchBlocksMetadataResult_) writeField1(oprot thrift.TProtocol) (err er
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:elements: ", p), err)
+	}
+	return err
+}
+
+func (p *FetchBlocksMetadataResult_) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNextToken() {
+		if err := oprot.WriteFieldBegin("nextToken", thrift.I64, 2); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:nextToken: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.NextToken)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.nextToken (2) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:nextToken: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *FetchBlocksMetadataResult_) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:err: ", p), err)
+		}
 	}
 	return err
 }
