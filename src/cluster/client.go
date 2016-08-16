@@ -38,12 +38,12 @@ type KVStore interface {
 	// Get retrieves the value for the given key
 	Get(key string) (Value, error)
 
-	// Put stores the value for the given key
-	Put(key string, v proto.Message) error
+	// Set stores the value for the given key
+	Set(key string, v proto.Message) error
 
-	// CheckAndPut stores the value for the given key if the current version matches
+	// CheckAndSet stores the value for the given key if the current version matches
 	// the provided version
-	CheckAndPut(key string, version int, v proto.Message) error
+	CheckAndSet(key string, version int, v proto.Message) error
 }
 
 // A ServiceInstance is a single instance of a service
