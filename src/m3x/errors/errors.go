@@ -109,6 +109,74 @@ func GetInnerInvalidParamsError(err error) error {
 	return nil
 }
 
+type retriableError struct {
+	containedError
+}
+
+// NewRetriableError creates a new retriable error
+func NewRetriableError(inner error) error {
+	return retriableError{containedError{inner}}
+}
+
+func (e retriableError) Error() string {
+	return e.inner.Error()
+}
+
+func (e retriableError) innerError() error {
+	return e.inner
+}
+
+// IsRetriableError returns true if this is a retriable error
+func IsRetriableError(err error) bool {
+	return GetInnerRetriableError(err) != nil
+}
+
+// GetInnerRetriableError returns an inner retriable error
+// if contained by this error, nil otherwise
+func GetInnerRetriableError(err error) error {
+	for err != nil {
+		if _, ok := err.(retriableError); ok {
+			return InnerError(err)
+		}
+		err = InnerError(err)
+	}
+	return nil
+}
+
+type nonRetriableError struct {
+	containedError
+}
+
+// NewNonRetriableError creates a new non-retriable error
+func NewNonRetriableError(inner error) error {
+	return nonRetriableError{containedError{inner}}
+}
+
+func (e nonRetriableError) Error() string {
+	return e.inner.Error()
+}
+
+func (e nonRetriableError) innerError() error {
+	return e.inner
+}
+
+// IsNonRetriableError returns true if this is a non-retriable error
+func IsNonRetriableError(err error) bool {
+	return GetInnerNonRetriableError(err) != nil
+}
+
+// GetInnerNonRetriableError returns an inner non-retriable error
+// if contained by this error, nil otherwise
+func GetInnerNonRetriableError(err error) error {
+	for err != nil {
+		if _, ok := err.(nonRetriableError); ok {
+			return InnerError(err)
+		}
+		err = InnerError(err)
+	}
+	return nil
+}
+
 // MultiError is an immutable error that packages a list of errors.
 // TODO(xichen): we may want to limit the number of errors included.
 type MultiError struct {
