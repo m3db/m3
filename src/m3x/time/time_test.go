@@ -101,6 +101,20 @@ func TestFromNanoseconds(t *testing.T) {
 	require.Equal(t, expected, FromNanoseconds(1100000000))
 }
 
+var (
+	testTime = time.Date(2015, 5, 21, 18, 17, 46, 0, time.UTC)
+)
+
+func TestToUnixMillis(t *testing.T) {
+	ms := ToUnixMillis(testTime)
+	require.Equal(t, int64(1432232266000), ms)
+}
+
+func TestFromUnixMillis(t *testing.T) {
+	tm := FromUnixMillis(1432232266000).UTC()
+	require.Equal(t, testTime, tm)
+}
+
 func TestCeil(t *testing.T) {
 	var timeZero time.Time
 	inputs := []struct {
