@@ -24,13 +24,26 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
+// A Value provides access to a versioned value in the configuration store
+type Value interface {
+	// Get retrieves the stored value
+	Get(v proto.Message) error
+
+	// Version returns the current version of the value
+	Version() int
+}
+
 // KVStore provides access to the configuration store
 type KVStore interface {
-	// Get retrieves the value for the given key, unmarshalling it into the provided value
-	Get(key string, v proto.Message) error
+	// Get retrieves the value for the given key
+	Get(key string) (Value, error)
 
 	// Put stores the value for the given key
 	Put(key string, v proto.Message) error
+
+	// CheckAndPut stores the value for the given key if the current version matches
+	// the provided version
+	CheckAndPut(key string, version int, v proto.Message) error
 }
 
 // A ServiceInstance is a single instance of a service
