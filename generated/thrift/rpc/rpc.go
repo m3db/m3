@@ -1408,12 +1408,12 @@ func (p *FetchBlocksMetadataRequest) String() string {
 
 // Attributes:
 //  - Elements
-//  - NextToken
+//  - NextPageToken
 //  - Err
 type FetchBlocksMetadataResult_ struct {
-	Elements  []*BlocksMetadata `thrift:"elements,1,required" db:"elements" json:"elements"`
-	NextToken *int64            `thrift:"nextToken,2" db:"nextToken" json:"nextToken,omitempty"`
-	Err       *Error            `thrift:"err,3" db:"err" json:"err,omitempty"`
+	Elements      []*BlocksMetadata `thrift:"elements,1,required" db:"elements" json:"elements"`
+	NextPageToken *int64            `thrift:"nextPageToken,2" db:"nextPageToken" json:"nextPageToken,omitempty"`
+	Err           *Error            `thrift:"err,3" db:"err" json:"err,omitempty"`
 }
 
 func NewFetchBlocksMetadataResult_() *FetchBlocksMetadataResult_ {
@@ -1424,13 +1424,13 @@ func (p *FetchBlocksMetadataResult_) GetElements() []*BlocksMetadata {
 	return p.Elements
 }
 
-var FetchBlocksMetadataResult__NextToken_DEFAULT int64
+var FetchBlocksMetadataResult__NextPageToken_DEFAULT int64
 
-func (p *FetchBlocksMetadataResult_) GetNextToken() int64 {
-	if !p.IsSetNextToken() {
-		return FetchBlocksMetadataResult__NextToken_DEFAULT
+func (p *FetchBlocksMetadataResult_) GetNextPageToken() int64 {
+	if !p.IsSetNextPageToken() {
+		return FetchBlocksMetadataResult__NextPageToken_DEFAULT
 	}
-	return *p.NextToken
+	return *p.NextPageToken
 }
 
 var FetchBlocksMetadataResult__Err_DEFAULT *Error
@@ -1441,8 +1441,8 @@ func (p *FetchBlocksMetadataResult_) GetErr() *Error {
 	}
 	return p.Err
 }
-func (p *FetchBlocksMetadataResult_) IsSetNextToken() bool {
-	return p.NextToken != nil
+func (p *FetchBlocksMetadataResult_) IsSetNextPageToken() bool {
+	return p.NextPageToken != nil
 }
 
 func (p *FetchBlocksMetadataResult_) IsSetErr() bool {
@@ -1520,7 +1520,7 @@ func (p *FetchBlocksMetadataResult_) ReadField2(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
-		p.NextToken = &v
+		p.NextPageToken = &v
 	}
 	return nil
 }
@@ -1581,15 +1581,15 @@ func (p *FetchBlocksMetadataResult_) writeField1(oprot thrift.TProtocol) (err er
 }
 
 func (p *FetchBlocksMetadataResult_) writeField2(oprot thrift.TProtocol) (err error) {
-	if p.IsSetNextToken() {
-		if err := oprot.WriteFieldBegin("nextToken", thrift.I64, 2); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:nextToken: ", p), err)
+	if p.IsSetNextPageToken() {
+		if err := oprot.WriteFieldBegin("nextPageToken", thrift.I64, 2); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:nextPageToken: ", p), err)
 		}
-		if err := oprot.WriteI64(int64(*p.NextToken)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.nextToken (2) field write error: ", p), err)
+		if err := oprot.WriteI64(int64(*p.NextPageToken)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.nextPageToken (2) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:nextToken: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:nextPageToken: ", p), err)
 		}
 	}
 	return err

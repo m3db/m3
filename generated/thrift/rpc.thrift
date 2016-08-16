@@ -84,7 +84,7 @@ struct FetchBlocksMetadataRequest {
 
 struct FetchBlocksMetadataResult {
 	1: required list<BlocksMetadata> elements
-	2: optional i64 nextToken
+	2: optional i64 nextPageToken
 	3: optional Error err
 }
 
