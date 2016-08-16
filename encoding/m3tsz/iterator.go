@@ -61,7 +61,7 @@ type readerIterator struct {
 }
 
 // NewReaderIterator returns a new iterator for a given reader
-func NewReaderIterator(reader io.Reader, opts encoding.Options, intOptimized bool) encoding.ReaderIterator {
+func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Options) encoding.ReaderIterator {
 	return &readerIterator{
 		is:           encoding.NewIStream(reader),
 		opts:         opts,

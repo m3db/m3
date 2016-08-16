@@ -68,7 +68,7 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(start time.Time, bytes []byte, opts encoding.Options, intOptimized bool) encoding.Encoder {
+func NewEncoder(start time.Time, bytes []byte, intOptimized bool, opts encoding.Options) encoding.Encoder {
 	if opts == nil {
 		opts = encoding.NewOptions()
 	}
@@ -286,13 +286,13 @@ func (enc *encoder) writeNextValue(v float64) {
 	}
 
 	// Attempt to convert float to int for int optimization
-	val, mult, floatVal := convertToIntFloat(v, enc.maxMult)
-	if floatVal {
+	val, mult, isFloat := convertToIntFloat(v, enc.maxMult)
+	if isFloat {
 		enc.writeFloatVal(math.Float64bits(val), mult)
 		return
 	}
 
-	enc.writeIntVal(val, mult, floatVal)
+	enc.writeIntVal(val, mult, isFloat)
 }
 
 // writeFloatVal writes the value as XOR of the
@@ -360,7 +360,7 @@ func (enc *encoder) writeXOR(prevXOR, curXOR uint64) {
 // writeIntVal writes the val as a diff of ints
 func (enc *encoder) writeIntVal(val float64, mult uint8, isFloat bool) {
 	valDiff := enc.intVal - val
-	if valDiff == 0 && isFloat == enc.isFloat {
+	if valDiff == 0 && isFloat == enc.isFloat && mult == enc.maxMult {
 		// Value is repeated
 		enc.os.WriteBit(opcodeUpdate)
 		enc.os.WriteBit(opcodeRepeat)
@@ -507,13 +507,14 @@ func (enc *encoder) Stream() xio.SegmentReader {
 		tail = scheme.Tail(b[blen-1], pos)
 	}
 
+	segment := ts.Segment{Head: head, Tail: tail, TailShared: true}
 	readerPool := enc.opts.GetSegmentReaderPool()
 	if readerPool != nil {
 		reader := readerPool.Get()
-		reader.Reset(ts.Segment{Head: head, Tail: tail})
+		reader.Reset(segment)
 		return reader
 	}
-	return xio.NewSegmentReader(ts.Segment{Head: head, Tail: tail})
+	return xio.NewSegmentReader(segment)
 }
 
 func (enc *encoder) Seal() {

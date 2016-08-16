@@ -32,7 +32,7 @@ type decoder struct {
 }
 
 // NewDecoder creates a decoder.
-func NewDecoder(opts encoding.Options, intOptimized bool) encoding.Decoder {
+func NewDecoder(intOptimized bool, opts encoding.Options) encoding.Decoder {
 	if opts == nil {
 		opts = encoding.NewOptions()
 	}
@@ -41,5 +41,5 @@ func NewDecoder(opts encoding.Options, intOptimized bool) encoding.Decoder {
 
 // Decode decodes the encoded data captured by the reader.
 func (dec *decoder) Decode(reader io.Reader) encoding.ReaderIterator {
-	return NewReaderIterator(reader, dec.opts, dec.intOptimized)
+	return NewReaderIterator(reader, dec.intOptimized, dec.opts)
 }

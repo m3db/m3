@@ -48,6 +48,7 @@ func TestTimerConversions(t *testing.T) {
 }
 
 func TestSmallGaugeConversions(t *testing.T) {
+	testIntConversions(t, 1000, 0, 1)
 	testIntConversions(t, 1000, 0, 3)
 	testIntConversions(t, 1000, 1, 3)
 	testIntConversions(t, 1000, 3, 3)

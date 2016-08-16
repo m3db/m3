@@ -34,11 +34,11 @@ import (
 var testStartTime = time.Unix(1427162400, 0)
 
 func getTestEncoder(startTime time.Time) *encoder {
-	return NewEncoder(startTime, nil, nil, false).(*encoder)
+	return NewEncoder(startTime, nil, false, nil).(*encoder)
 }
 
 func getTestOptEncoder(startTime time.Time) *encoder {
-	return NewEncoder(startTime, nil, nil, true).(*encoder)
+	return NewEncoder(startTime, nil, true, nil).(*encoder)
 }
 
 func TestWriteDeltaOfDeltaTimeUnitUnchanged(t *testing.T) {

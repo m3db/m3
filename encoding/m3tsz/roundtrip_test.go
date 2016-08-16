@@ -93,7 +93,7 @@ func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 }
 
 func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
-	encoder := NewEncoder(testStartTime, nil, nil, intOpt)
+	encoder := NewEncoder(testStartTime, nil, intOpt, nil)
 	for j, v := range input {
 		if j == 0 {
 			encoder.Encode(v, xtime.Millisecond, proto.EncodeVarint(10))
@@ -103,7 +103,7 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 			encoder.Encode(v, xtime.Second, nil)
 		}
 	}
-	decoder := NewDecoder(nil, intOpt)
+	decoder := NewDecoder(intOpt, nil)
 	it := decoder.Decode(encoder.Stream())
 	defer it.Close()
 	var decompressed []ts.Datapoint
@@ -142,7 +142,7 @@ func generateTimerDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoi
 }
 
 func generateSmallFloatDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
-	return generateDataPoints(numPoints, timeUnit, 5, 3)
+	return generateDataPoints(numPoints, timeUnit, 0, 1)
 }
 
 func generatePreciseFloatDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {

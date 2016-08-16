@@ -200,7 +200,7 @@ func (o *options) GetInstrumentOptions() instrument.Options {
 func (o *options) EncodingM3TSZ() Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, encoding.NewOptions(), defaultIntOptimizationEnabled)
+		return m3tsz.NewReaderIterator(r, defaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 	return &opts
 }

@@ -185,19 +185,19 @@ func (o *options) EncodingM3TSZPooled() Options {
 
 	// initialize encoder pool
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(timeZero, nil, encodingOpts, defaultIntOptimizationEnabled)
+		return m3tsz.NewEncoder(timeZero, nil, defaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.encoderPool = encoderPool
 
 	// initialize single reader iterator pool
 	readerIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, encodingOpts, defaultIntOptimizationEnabled)
+		return m3tsz.NewReaderIterator(r, defaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
 	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, encodingOpts, defaultIntOptimizationEnabled)
+		return m3tsz.NewReaderIterator(r, defaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
@@ -214,12 +214,12 @@ func (o *options) encodingM3TSZ() Options {
 	encodingOpts := encoding.NewOptions()
 
 	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
-		return m3tsz.NewEncoder(start, bytes, encodingOpts, defaultIntOptimizationEnabled)
+		return m3tsz.NewEncoder(start, bytes, defaultIntOptimizationEnabled, encodingOpts)
 	}
 	opts.newEncoderFn = newEncoderFn
 
 	newDecoderFn := func() encoding.Decoder {
-		return m3tsz.NewDecoder(encodingOpts, defaultIntOptimizationEnabled)
+		return m3tsz.NewDecoder(defaultIntOptimizationEnabled, encodingOpts)
 	}
 	opts.newDecoderFn = newDecoderFn
 

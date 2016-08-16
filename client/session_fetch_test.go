@@ -291,7 +291,7 @@ func fulfillTszFetchBatchOps(
 					break
 				}
 
-				encoder := m3tsz.NewEncoder(f.values[0].t, nil, nil, true)
+				encoder := m3tsz.NewEncoder(f.values[0].t, nil, true, nil)
 				for _, value := range f.values {
 					dp := ts.Datapoint{
 						Timestamp: value.t,
