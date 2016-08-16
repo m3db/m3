@@ -430,11 +430,11 @@ func (enc *encoder) writeIntSigMult(sig, mult uint8) {
 	}
 }
 
-// getNewSig gets the new number of significant bits given the
+// trackNewSig gets the new number of significant bits given the
 // number of significant bits of the current diff. It takes into
 // account thresholds to try and find a value that's best for the
 // current data
-func (enc *encoder) getNewSig(numSig uint8) uint8 {
+func (enc *encoder) trackNewSig(numSig uint8) uint8 {
 	newSig := enc.numSig
 
 	if numSig > enc.numSig {
