@@ -1,0 +1,16 @@
+package: github.com/m3db/m3x
+import:
+- package: github.com/cactus/go-statsd-client
+  subpackages:
+  - statsd
+- package: github.com/caio/go-tdigest
+- package: github.com/facebookgo/clock
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert
+  - require
+- package: github.com/golang/mock
+- package: golang.org/x/net
+- package: github.com/jessevdk/go-flags
+- package: golang.org/x/crypto
+- package: golang.org/x/text  
