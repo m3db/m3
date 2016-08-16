@@ -1,0 +1,9 @@
+package: github.com/m3db/m3cluster
+import:
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert
+  - require
