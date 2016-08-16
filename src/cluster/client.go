@@ -41,6 +41,9 @@ type KVStore interface {
 	// Set stores the value for the given key
 	Set(key string, v proto.Message) error
 
+	// SetIfEmpty sets the value for the given key only if no value already exists
+	SetIfEmpty(key string, v proto.Message) error
+
 	// CheckAndSet stores the value for the given key if the current version matches
 	// the provided version
 	CheckAndSet(key string, version int, v proto.Message) error
