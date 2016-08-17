@@ -43,7 +43,7 @@ var (
 )
 
 type encoder struct {
-	os   encoding.Ostream
+	os   encoding.OStream
 	opts encoding.Options
 
 	// internal bookkeeping
@@ -52,13 +52,13 @@ type encoder struct {
 	vb  uint64        // current value as float bits
 	xor uint64        // current float XOR
 
-	intOptimized bool    // whether the encoding scheme is optimized for ints
-	isFloat      bool    // whether we are encoding ints/floats
-	intVal       float64 // current int val
-	maxMult      uint8   // current max multiplier for int vals
-	numSig       uint8   // current largest number of significant places for int diffs
-	curLowestSig uint8
-	numLowerSig  uint8
+	intOptimized       bool    // whether the encoding scheme is optimized for ints
+	isFloat            bool    // whether we are encoding ints/floats
+	intVal             float64 // current int val
+	maxMult            uint8   // current max multiplier for int vals
+	numSig             uint8   // current largest number of significant places for int diffs
+	curHighestLowerSig uint8
+	numLowerSig        uint8
 
 	ant ts.Annotation // current annotation
 	tu  xtime.Unit    // current time unit
@@ -274,7 +274,7 @@ func (enc *encoder) writeFirstValue(v float64) {
 	enc.os.WriteBit(opcodeIntMode)
 	valBits := uint64(int64(val))
 	numSig := encoding.NumSig(valBits)
-	enc.writeIntSigMult(numSig, mult)
+	enc.writeIntSigMult(numSig, mult, false)
 	enc.writeIntValDiff(valBits, true)
 	enc.intVal = val
 }
@@ -376,11 +376,12 @@ func (enc *encoder) writeIntVal(val float64, mult uint8, isFloat bool) {
 	valDiffBits := uint64(int64(valDiff))
 	numSig := encoding.NumSig(valDiffBits)
 	newSig := enc.trackNewSig(numSig)
-	if mult > enc.maxMult || enc.numSig != newSig || isFloat != enc.isFloat {
+	isFloatChanged := isFloat != enc.isFloat
+	if mult > enc.maxMult || enc.numSig != newSig || isFloatChanged {
 		enc.os.WriteBit(opcodeUpdate)
 		enc.os.WriteBit(opcodeNoRepeat)
 		enc.os.WriteBit(opcodeIntMode)
-		enc.writeIntSigMult(newSig, mult)
+		enc.writeIntSigMult(newSig, mult, isFloatChanged)
 		enc.writeIntValDiff(valDiffBits, neg)
 		enc.isFloat = false
 	} else {
@@ -405,7 +406,7 @@ func (enc *encoder) writeIntValDiff(valBits uint64, neg bool) {
 
 // writeIntSigMult writes the number of significant
 // bits of the diff and the multiplier if they have changed
-func (enc *encoder) writeIntSigMult(sig, mult uint8) {
+func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
 	if enc.numSig != sig {
 		enc.os.WriteBit(opcodeUpdateSig)
 		if sig == 0 {
@@ -417,15 +418,15 @@ func (enc *encoder) writeIntSigMult(sig, mult uint8) {
 
 		enc.numSig = sig
 	} else {
-		enc.os.WriteBit(opcodeNoUpdate)
+		enc.os.WriteBit(opcodeNoUpdateSig)
 	}
 
-	if mult > enc.maxMult {
+	if mult > enc.maxMult || (enc.numSig == sig && enc.maxMult == mult && floatChanged) {
 		enc.os.WriteBit(opcodeUpdateMult)
 		enc.os.WriteBits(uint64(mult), numMultBits)
 		enc.maxMult = mult
 	} else {
-		enc.os.WriteBit(opcodeNoUpdate)
+		enc.os.WriteBit(opcodeNoUpdateMult)
 	}
 }
 
@@ -440,14 +441,14 @@ func (enc *encoder) trackNewSig(numSig uint8) uint8 {
 		newSig = numSig
 	} else if enc.numSig-numSig >= sigDiffThreshold {
 		if enc.numLowerSig == 0 {
-			enc.curLowestSig = numSig
-		} else if numSig > enc.curLowestSig {
-			enc.curLowestSig = numSig
+			enc.curHighestLowerSig = numSig
+		} else if numSig > enc.curHighestLowerSig {
+			enc.curHighestLowerSig = numSig
 		}
 
 		enc.numLowerSig++
 		if enc.numLowerSig >= sigRepeatThreshold {
-			newSig = enc.curLowestSig
+			newSig = enc.curHighestLowerSig
 			enc.numLowerSig = 0
 		}
 
@@ -479,7 +480,7 @@ func (enc *encoder) ResetSetData(start time.Time, data []byte, writable bool) {
 	enc.isFloat = false
 	enc.maxMult = 0
 	enc.numSig = 0
-	enc.curLowestSig = 0
+	enc.curHighestLowerSig = 0
 	enc.numLowerSig = 0
 	enc.ant = nil
 	enc.tu = initialTimeUnit(start, enc.opts.GetDefaultTimeUnit())

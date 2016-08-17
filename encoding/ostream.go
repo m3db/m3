@@ -31,7 +31,7 @@ type ostream struct {
 }
 
 // NewOStream creates a new Ostream
-func NewOStream(bytes []byte, initAllocIfEmpty bool) Ostream {
+func NewOStream(bytes []byte, initAllocIfEmpty bool) OStream {
 	if cap(bytes) == 0 && initAllocIfEmpty {
 		bytes = make([]byte, 0, initAllocSize)
 	}
@@ -41,7 +41,7 @@ func NewOStream(bytes []byte, initAllocIfEmpty bool) Ostream {
 }
 
 // Clone creates a copy of the Ostream
-func (os *ostream) Clone() Ostream {
+func (os *ostream) Clone() OStream {
 	return &ostream{os.rawBuffer, os.pos}
 }
 

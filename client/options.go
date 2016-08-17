@@ -95,9 +95,6 @@ const (
 
 	// defaultSeriesIteratorPoolSize is the default size of the series iterator pools
 	defaultSeriesIteratorPoolSize = 100000
-
-	// defaultIntOptimizationEnabled is the default switch for m3tsz int optimization
-	defaultIntOptimizationEnabled = true
 )
 
 var (
@@ -200,7 +197,7 @@ func (o *options) GetInstrumentOptions() instrument.Options {
 func (o *options) EncodingM3TSZ() Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, defaultIntOptimizationEnabled, encoding.NewOptions())
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 	return &opts
 }

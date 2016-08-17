@@ -227,7 +227,7 @@ func newMarkerEncodingScheme(
 
 // WriteSpecialMarker writes the marker that marks the start of a special symbol,
 // e.g., the eos marker, the annotation marker, or the time unit marker.
-func WriteSpecialMarker(os Ostream, scheme MarkerEncodingScheme, marker Marker) {
+func WriteSpecialMarker(os OStream, scheme MarkerEncodingScheme, marker Marker) {
 	os.WriteBits(scheme.Opcode(), scheme.NumOpcodeBits())
 	os.WriteBits(uint64(marker), scheme.NumValueBits())
 }

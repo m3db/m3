@@ -210,7 +210,7 @@ type Options interface {
 	// EncodingM3TSZPooled sets m3tsz encoding with pooling
 	EncodingM3TSZPooled() Options
 
-	// EncodingM3TSZ sets tsz encoding
+	// EncodingM3TSZ sets m3tsz encoding
 	EncodingM3TSZ() Options
 
 	// NewEncoderFn sets the newEncoderFn

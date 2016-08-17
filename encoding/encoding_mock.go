@@ -822,9 +822,9 @@ func (_m *MockOstream) EXPECT() *_MockOstreamRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOstream) Clone() Ostream {
+func (_m *MockOstream) Clone() OStream {
 	ret := _m.ctrl.Call(_m, "Clone")
-	ret0, _ := ret[0].(Ostream)
+	ret0, _ := ret[0].(OStream)
 	return ret0
 }
 

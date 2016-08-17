@@ -45,9 +45,6 @@ const (
 
 	// defaultMaxFlushRetries is the default number of retries when flush fails
 	defaultMaxFlushRetries = 3
-
-	// defaultIntOptimizationEnabled is the default switch for m3tsz int optimization
-	defaultIntOptimizationEnabled = true
 )
 
 var (
@@ -185,19 +182,19 @@ func (o *options) EncodingM3TSZPooled() Options {
 
 	// initialize encoder pool
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(timeZero, nil, defaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.encoderPool = encoderPool
 
 	// initialize single reader iterator pool
 	readerIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, defaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
 	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, defaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
@@ -214,12 +211,12 @@ func (o *options) encodingM3TSZ() Options {
 	encodingOpts := encoding.NewOptions()
 
 	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
-		return m3tsz.NewEncoder(start, bytes, defaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(start, bytes, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	}
 	opts.newEncoderFn = newEncoderFn
 
 	newDecoderFn := func() encoding.Decoder {
-		return m3tsz.NewDecoder(defaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewDecoder(m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	}
 	opts.newDecoderFn = newDecoderFn
 

@@ -25,29 +25,37 @@ import (
 )
 
 const (
+	// DefaultIntOptimizationEnabled is the default switch for m3tsz int optimization
+	DefaultIntOptimizationEnabled = true
+
 	opcodeZeroValueXOR        = 0x0
 	opcodeContainedValueXOR   = 0x2
 	opcodeUncontainedValueXOR = 0x3
 
-	opcodeNoUpdate   = 0x0
-	opcodeUpdate     = 0x1
-	opcodeUpdateSig  = 0x1
-	opcodeUpdateMult = 0x1
-	opcodeNegative   = 0x1
-	opcodePositive   = 0x0
-	opcodeRepeat     = 0x1
-	opcodeNoRepeat   = 0x0
-	opcodeFloatMode  = 0x1
-	opcodeIntMode    = 0x0
-	opcodeZeroSig    = 0x0
-	opcodeNonZeroSig = 0x1
+	opcodeUpdate       = 0x0
+	opcodeNoUpdate     = 0x1
+	opcodeUpdateSig    = 0x1
+	opcodeNoUpdateSig  = 0x0
+	opcodeUpdateMult   = 0x1
+	opcodeNoUpdateMult = 0x0
+	opcodePositive     = 0x0
+	opcodeNegative     = 0x1
+	opcodeRepeat       = 0x1
+	opcodeNoRepeat     = 0x0
+	opcodeFloatMode    = 0x1
+	opcodeIntMode      = 0x0
+	opcodeZeroSig      = 0x0
+	opcodeNonZeroSig   = 0x1
 
 	maxMult     = uint8(6)
 	numMultBits = 3
 	numSigBits  = 6
 )
 
-var maxInt = float64(math.MaxInt64)
+var (
+	maxInt      = float64(math.MaxInt64)
+	multipliers = createMultipliers()
+)
 
 // convertToIntFloat takes a float64 val and the current max multiplier
 // and attempts to tranform the float into an int with multiplier. There
@@ -62,7 +70,7 @@ func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool) {
 		}
 	}
 
-	val := v * math.Pow10(int(curMaxMult))
+	val := v * multipliers[int(curMaxMult)]
 	sign := 1.0
 	if v < 0 {
 		sign = -1.0
@@ -96,5 +104,18 @@ func convertFromIntFloat(val float64, mult uint8) float64 {
 		return val
 	}
 
-	return val / math.Pow10(int(mult))
+	return val / multipliers[int(mult)]
+}
+
+// createMultipliers creates all the multipliers up to maxMult
+// and places them into a slice
+func createMultipliers() []float64 {
+	multipliers := make([]float64, maxMult+1)
+	base := 1.0
+	for i := 0; i <= int(maxMult); i++ {
+		multipliers[i] = base
+		base = base * 10.0
+	}
+
+	return multipliers
 }

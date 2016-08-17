@@ -35,7 +35,7 @@ type istream struct {
 }
 
 // NewIStream creates a new Istream
-func NewIStream(reader io.Reader) Istream {
+func NewIStream(reader io.Reader) IStream {
 	return &istream{r: bufio.NewReader(reader)}
 }
 

@@ -197,8 +197,8 @@ type EncoderAllocate func() Encoder
 // ReaderIteratorAllocate allocates a ReaderIterator for a pool.
 type ReaderIteratorAllocate func(reader io.Reader) ReaderIterator
 
-// Istream encapsulates a readable stream.
-type Istream interface {
+// IStream encapsulates a readable stream.
+type IStream interface {
 	ReadBit() (Bit, error)
 	ReadByte() (byte, error)
 	ReadBits(numBits int) (uint64, error)
@@ -206,9 +206,9 @@ type Istream interface {
 	Reset(r io.Reader)
 }
 
-// Ostream encapsulates a writable stream.
-type Ostream interface {
-	Clone() Ostream
+// OStream encapsulates a writable stream.
+type OStream interface {
+	Clone() OStream
 	Len() int
 	Empty() bool
 	WriteBit(v Bit)

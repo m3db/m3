@@ -34,6 +34,24 @@ const (
 	intFloat     = 123.0
 )
 
+func BenchmarkMathPow(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = smallDpFloat * math.Pow10(1)
+	}
+}
+
+func BenchmarkManualMult(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = smallDpFloat * 10.0
+	}
+}
+
+func BenchmarkSliceLookup(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = largeDpFloat * multipliers[6]
+	}
+}
+
 func BenchmarkFuncPointer(b *testing.B) {
 	benchPointer(b, funcNormal)
 }
@@ -61,18 +79,6 @@ func BenchmarkMathNextafter(b *testing.B) {
 func BenchmarkFormatFloat(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		strconv.FormatFloat(largeDpFloat, 'f', -1, 64)
-	}
-}
-
-func BenchmarkMult(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		_ = largeDpFloat * math.Pow10(6)
-	}
-}
-
-func BenchmarkMapLookup(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		_ = largeDpFloat * multipliers[6]
 	}
 }
 
@@ -172,19 +178,6 @@ type writeFunc func(v float64)
 
 func funcNormal(v float64) {}
 func funcOpt(v float64)    {}
-
-var multipliers = newMultipliers()
-
-func newMultipliers() map[int]float64 {
-	multipliers := make(map[int]float64, maxMult+1)
-	base := 1.0
-	for i := 0; i <= int(maxMult); i++ {
-		multipliers[i] = base
-		base = base * 10.0
-	}
-
-	return multipliers
-}
 
 func convertToIntFloatIntNoCheck(v float64, curMaxMult uint8) (float64, uint8, bool) {
 	val := v * math.Pow10(int(curMaxMult))
