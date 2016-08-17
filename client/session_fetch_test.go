@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/encoding/tsz"
+	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -291,7 +291,7 @@ func fulfillTszFetchBatchOps(
 					break
 				}
 
-				encoder := tsz.NewEncoder(f.values[0].t, nil, nil)
+				encoder := m3tsz.NewEncoder(f.values[0].t, nil, true, nil)
 				for _, value := range f.values {
 					dp := ts.Datapoint{
 						Timestamp: value.t,

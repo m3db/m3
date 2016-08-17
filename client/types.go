@@ -126,8 +126,8 @@ type Options interface {
 	// GetInstrumentOptions returns the instrumentation options
 	GetInstrumentOptions() instrument.Options
 
-	// EncodingTsz sets tsz encoding
-	EncodingTsz() Options
+	// EncodingM3TSZ sets m3tsz encoding
+	EncodingM3TSZ() Options
 
 	// TopologyType sets the topologyType
 	TopologyType(value topology.Type) Options

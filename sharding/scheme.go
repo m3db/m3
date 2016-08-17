@@ -34,7 +34,7 @@ var (
 
 type shardSet struct {
 	shards []uint32
-	fn   HashFn
+	fn     HashFn
 }
 
 // NewShardSet creates a new sharding scheme with a set of shards

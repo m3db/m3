@@ -18,12 +18,47 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package encoding
 
-const (
-	opcodeZeroValueXOR        = 0x0
-	opcodeContainedValueXOR   = 0x2
-	opcodeUncontainedValueXOR = 0x3
-)
+// Bit is just a byte
+type Bit byte
 
-type bit byte
+// NumSig returns the number of significant values in a uint64
+func NumSig(v uint64) uint8 {
+	if v == 0 {
+		return 0
+	}
+
+	numLeading := uint8(0)
+	for tmp := v; (tmp & (1 << 63)) == 0; tmp <<= 1 {
+		numLeading++
+	}
+
+	return uint8(64) - numLeading
+}
+
+// LeadingAndTrailingZeros calculates the number of leading and trailing 0s
+// for a uint64
+func LeadingAndTrailingZeros(v uint64) (int, int) {
+	if v == 0 {
+		return 64, 0
+	}
+
+	numTrailing := 0
+	for tmp := v; (tmp & 1) == 0; tmp >>= 1 {
+		numTrailing++
+	}
+
+	numLeading := 0
+	for tmp := v; (tmp & (1 << 63)) == 0; tmp <<= 1 {
+		numLeading++
+	}
+
+	return numLeading, numTrailing
+}
+
+// SignExtend sign extends the highest bit of v which has numBits (<=64)
+func SignExtend(v uint64, numBits int) int64 {
+	shift := uint(64 - numBits)
+	return (int64(v) << shift) >> shift
+}

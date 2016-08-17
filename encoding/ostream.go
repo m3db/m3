@@ -18,19 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package encoding
 
 const (
 	initAllocSize = 1024
 )
 
-// ostream encapsulates a writable stream.
+// Ostream encapsulates a writable stream.
 type ostream struct {
 	rawBuffer []byte // raw bytes
 	pos       int    // how many bits have been used in the last byte
 }
 
-func newOStream(bytes []byte, initAllocIfEmpty bool) *ostream {
+// NewOStream creates a new Ostream
+func NewOStream(bytes []byte, initAllocIfEmpty bool) OStream {
 	if cap(bytes) == 0 && initAllocIfEmpty {
 		bytes = make([]byte, 0, initAllocSize)
 	}
@@ -39,20 +40,23 @@ func newOStream(bytes []byte, initAllocIfEmpty bool) *ostream {
 	return stream
 }
 
-func (os *ostream) clone() *ostream {
+// Clone creates a copy of the Ostream
+func (os *ostream) Clone() OStream {
 	return &ostream{os.rawBuffer, os.pos}
 }
 
-func (os *ostream) len() int {
+// Len returns the length of the Ostream
+func (os *ostream) Len() int {
 	return len(os.rawBuffer)
 }
 
-func (os *ostream) empty() bool {
-	return os.len() == 0 && os.pos == 0
+// Empty returns whether the Ostream is empty
+func (os *ostream) Empty() bool {
+	return os.Len() == 0 && os.pos == 0
 }
 
 func (os *ostream) lastIndex() int {
-	return os.len() - 1
+	return os.Len() - 1
 }
 
 func (os *ostream) hasUnusedBits() bool {
@@ -70,7 +74,7 @@ func (os *ostream) fillUnused(v byte) {
 }
 
 // WriteBit writes the last bit of v.
-func (os *ostream) WriteBit(v bit) {
+func (os *ostream) WriteBit(v Bit) {
 	v <<= 7
 	if !os.hasUnusedBits() {
 		os.grow(byte(v), 1)
@@ -97,7 +101,7 @@ func (os *ostream) WriteBytes(bytes []byte) {
 	}
 }
 
-// WritBits writes the lowest numBits of v to the stream, starting
+// WriteBits writes the lowest numBits of v to the stream, starting
 // from the most significant bit to the least significant bit.
 func (os *ostream) WriteBits(v uint64, numBits int) {
 	if numBits == 0 {
@@ -117,12 +121,13 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 	}
 
 	for numBits > 0 {
-		os.WriteBit(bit((v >> 63) & 1))
+		os.WriteBit(Bit((v >> 63) & 1))
 		v <<= 1
 		numBits--
 	}
 }
 
+// Reset resets the os
 func (os *ostream) Reset(buffer []byte) {
 	os.rawBuffer = buffer
 	os.pos = 0
@@ -133,6 +138,7 @@ func (os *ostream) Reset(buffer []byte) {
 	}
 }
 
-func (os *ostream) rawbytes() ([]byte, int) {
+// Rawbytes returns the Osteam's raw bytes
+func (os *ostream) Rawbytes() ([]byte, int) {
 	return os.rawBuffer, os.pos
 }

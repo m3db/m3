@@ -207,11 +207,11 @@ type Options interface {
 	// GetCommitLogOptions returns the commit log options
 	GetCommitLogOptions() commitlog.Options
 
-	// EncodingTszPooled sets tsz encoding with pooling
-	EncodingTszPooled() Options
+	// EncodingM3TSZPooled sets m3tsz encoding with pooling
+	EncodingM3TSZPooled() Options
 
-	// EncodingTsz sets tsz encoding
-	EncodingTsz() Options
+	// EncodingM3TSZ sets m3tsz encoding
+	EncodingM3TSZ() Options
 
 	// NewEncoderFn sets the newEncoderFn
 	NewEncoderFn(value encoding.NewEncoderFn) Options

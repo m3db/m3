@@ -18,27 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package testgen
 
 import (
-	"io"
-
-	"github.com/m3db/m3db/encoding"
+	"math"
+	"math/rand"
+	"strconv"
 )
 
-type decoder struct {
-	opts Options
-}
+// GenerateFloatVal generates a random float val given the number of digits and decimal places
+func GenerateFloatVal(r *rand.Rand, numDig, numDec int) float64 {
+	var val float64
+	digMod := int(math.Pow10(numDig))
+	decMod := int(math.Pow10(numDec))
+	dig := r.Int() % digMod
 
-// NewDecoder creates a decoder.
-func NewDecoder(opts Options) encoding.Decoder {
-	if opts == nil {
-		opts = NewOptions()
+	if numDec == 0 {
+		val = float64(dig)
+	} else {
+		dec := r.Int() % decMod
+		val, _ = strconv.ParseFloat(strconv.Itoa(dig)+"."+strconv.Itoa(dec), 64)
 	}
-	return &decoder{opts: opts}
-}
 
-// Decode decodes the encoded data captured by the reader.
-func (dec *decoder) Decode(reader io.Reader) encoding.ReaderIterator {
-	return NewReaderIterator(reader, dec.opts)
+	return val
 }
