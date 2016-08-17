@@ -53,7 +53,8 @@ const (
 )
 
 var (
-	maxInt      = math.Pow(10.0, 13) // Max int for int optimization
+	maxInt      = float64(math.MaxInt64)
+	maxOptInt   = math.Pow(10.0, 13) // Max int for int optimization
 	multipliers = createMultipliers()
 )
 
@@ -62,7 +63,7 @@ var (
 // is potential for a small accuracy loss for float values that are very
 // close to ints eg. 46.000000000000001 would be returned as 46
 func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool) {
-	if curMaxMult == 0 {
+	if curMaxMult == 0 && v < maxInt {
 		// Quick check for vals that are already ints
 		i, r := math.Modf(v)
 		if r == 0 {
@@ -77,7 +78,7 @@ func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool) {
 		val = val * -1.0
 	}
 
-	for mult := curMaxMult; mult <= maxMult && val < maxInt; mult++ {
+	for mult := curMaxMult; mult <= maxMult && val < maxOptInt; mult++ {
 		i, r := math.Modf(val)
 		if r == 0 {
 			return sign * i, mult, false

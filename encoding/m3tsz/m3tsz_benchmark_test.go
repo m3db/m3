@@ -187,7 +187,7 @@ func convertToIntFloatIntNoCheck(v float64, curMaxMult uint8) (float64, uint8, b
 		val = val * -1.0
 	}
 
-	for mult := curMaxMult; mult <= maxMult && val < maxInt; mult++ {
+	for mult := curMaxMult; mult <= maxMult && val < maxOptInt; mult++ {
 		i, r := math.Modf(val)
 		if r == 0 {
 			return sign * i, mult, false
