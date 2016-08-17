@@ -61,7 +61,9 @@ var (
 // convertToIntFloat takes a float64 val and the current max multiplier
 // and attempts to tranform the float into an int with multiplier. There
 // is potential for a small accuracy loss for float values that are very
-// close to ints eg. 46.000000000000001 would be returned as 46
+// close to ints eg. 46.000000000000001 would be returned as 46. This only
+// applies to values where the next possible smaller or larger float changes
+// the integer component of the float
 func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool) {
 	if curMaxMult == 0 && v < maxInt {
 		// Quick check for vals that are already ints

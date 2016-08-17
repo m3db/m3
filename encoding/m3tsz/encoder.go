@@ -421,10 +421,15 @@ func (enc *encoder) writeIntSigMult(sig, mult uint8, floatChanged bool) {
 		enc.os.WriteBit(opcodeNoUpdateSig)
 	}
 
-	if mult > enc.maxMult || (enc.numSig == sig && enc.maxMult == mult && floatChanged) {
+	if mult > enc.maxMult {
 		enc.os.WriteBit(opcodeUpdateMult)
 		enc.os.WriteBits(uint64(mult), numMultBits)
 		enc.maxMult = mult
+	} else if enc.numSig == sig && enc.maxMult == mult && floatChanged {
+		// If only the float mode has changed, update the Mult regardless
+		// so that we can support the annotation peek
+		enc.os.WriteBit(opcodeUpdateMult)
+		enc.os.WriteBits(uint64(enc.maxMult), numMultBits)
 	} else {
 		enc.os.WriteBit(opcodeNoUpdateMult)
 	}
