@@ -62,6 +62,12 @@ func TestPreciseGaugeConversions(t *testing.T) {
 	testFloatConversions(t, 1000, 5, 16)
 }
 
+func TestLargeGaugeConversions(t *testing.T) {
+	testFloatConversions(t, 1000, 9, 2)
+	testFloatConversions(t, 1000, 10, 3)
+	testFloatConversions(t, 1000, 11, 3)
+}
+
 func TestConvertFromIntFloat(t *testing.T) {
 	validateConvertFromIntFloat(t, 1.0, 0, 1.0)
 	validateConvertFromIntFloat(t, 2.0, 0, 2.0)
@@ -144,10 +150,10 @@ func validateConvertFloat(t *testing.T, val float64, curDec int) {
 		return
 	}
 
-	// In the case where the randomly generated float can be converted to an int,
-	// confirm that the returned val is as expected with an error factor for
-	// inaccuracy of float multiplication
-	require.True(t, math.Abs(v-val*math.Pow10(int(dec))) < 1)
+	// In the case where the randomly generated float can be converted to an int due to lack
+	// of decimal places, confirm that the returned val is as expected with an error factor
+	// that is less than the dec returned
+	require.True(t, math.Abs(val-v/math.Pow10(int(dec))) < 1.0/math.Pow10(int(dec)))
 }
 
 func validateConvertFromIntFloat(t *testing.T, val float64, mult int, expected float64) {

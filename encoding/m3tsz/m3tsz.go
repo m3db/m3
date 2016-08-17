@@ -53,7 +53,7 @@ const (
 )
 
 var (
-	maxInt      = float64(math.MaxInt64)
+	maxInt      = math.Pow(10.0, 13) // Max int for int optimization
 	multipliers = createMultipliers()
 )
 
@@ -81,12 +81,12 @@ func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool) {
 		i, r := math.Modf(val)
 		if r == 0 {
 			return sign * i, mult, false
-		} else if r < 0.5 {
+		} else if r < 0.1 {
 			// Round down and check
 			if math.Nextafter(val, 0) <= i {
 				return sign * i, mult, false
 			}
-		} else {
+		} else if r > 0.9 {
 			// Round up and check
 			next := i + 1
 			if math.Nextafter(val, next) >= next {
