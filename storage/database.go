@@ -31,8 +31,10 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 )
 
@@ -73,9 +75,9 @@ type database interface {
 	flush(t time.Time, async bool)
 }
 
-// uniqueIndex provides a unique index for new series
-type uniqueIndex interface {
-	nextUniqueIndex() uint64
+// increasingIndex provides a monotonically increasing index for new series
+type increasingIndex interface {
+	next() uint64
 }
 
 // writeCommitLogFn is a method for writing to the commit log
@@ -112,7 +114,7 @@ func NewDatabase(shardSet sharding.ShardSet, opts Options) (Database, error) {
 	d := &db{
 		opts:         opts,
 		shardSet:     shardSet,
-		shards:       make([]databaseShard, shardSet.Max() + 1),
+		shards:       make([]databaseShard, shardSet.Max()+1),
 		nowFn:        opts.GetClockOptions().GetNowFn(),
 		tickDeadline: opts.GetRetentionOptions().GetBufferDrain(),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
@@ -203,23 +205,65 @@ func (d *db) Write(
 	return shard.Write(ctx, id, timestamp, value, unit, annotation)
 }
 
-func (d *db) ReadEncoded(
-	ctx context.Context,
-	id string,
-	start, end time.Time,
-) ([][]xio.SegmentReader, error) {
+func (d *db) readableShard(shardID uint32) (databaseShard, error) {
 	d.RLock()
 	if !d.bsm.IsBootstrapped() {
 		d.RUnlock()
 		return nil, errDatabaseNotBootstrapped
 	}
-	shardID := d.shardSet.Shard(id)
 	shard := d.shards[shardID]
 	d.RUnlock()
 	if shard == nil {
 		return nil, fmt.Errorf("not responsible for shard %d", shardID)
 	}
+	return shard, nil
+}
+
+func (d *db) ReadEncoded(
+	ctx context.Context,
+	id string,
+	start, end time.Time,
+) ([][]xio.SegmentReader, error) {
+	shardID := d.shardSet.Shard(id)
+	shard, err := d.readableShard(shardID)
+	if err != nil {
+		return nil, err
+	}
 	return shard.ReadEncoded(ctx, id, start, end)
+}
+
+func (d *db) FetchBlocks(
+	ctx context.Context,
+	id string,
+	starts []time.Time,
+) []FetchBlockResult {
+	shardID := d.shardSet.Shard(id)
+	shard, err := d.readableShard(shardID)
+	if err != nil {
+		// If we don't own the shard associated with the id, return an error
+		// so the client knows it needs to retry these.
+		res := make([]FetchBlockResult, len(starts))
+		for i, start := range starts {
+			res[i] = newFetchBlockResult(start, nil, xerrors.NewInvalidParamsError(err))
+		}
+		sortFetchBlockResultByTimeAscending(res)
+		return res
+	}
+	return shard.FetchBlocks(ctx, id, starts)
+}
+
+func (d *db) FetchBlocksMetadata(
+	ctx context.Context,
+	shardID uint32,
+	limit int64,
+	pageToken int64,
+	includeSizes bool,
+) ([]block.DatabaseBlocksMetadata, *int64, error) {
+	shard, err := d.readableShard(shardID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return shard.FetchBlocksMetadata(ctx, limit, pageToken, includeSizes)
 }
 
 func (d *db) Bootstrap() error {
@@ -304,7 +348,7 @@ func (d *db) splayedTick() {
 	}
 }
 
-func (d *db) nextUniqueIndex() uint64 {
+func (d *db) next() uint64 {
 	created := atomic.AddUint64(&d.created, 1)
 	return created - 1
 }

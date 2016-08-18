@@ -27,6 +27,8 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3x/errors"
 
 	"github.com/golang/mock/gomock"
 	"github.com/spaolacci/murmur3"
@@ -79,14 +81,20 @@ func TestDatabaseClose(t *testing.T) {
 }
 
 func TestDatabaseReadEncodedNotBootstrapped(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	d := testDatabase(t, bootstrapNotStarted)
-	_, err := d.ReadEncoded(context.NewContext(), "foo", time.Now(), time.Now())
+	_, err := d.ReadEncoded(ctx, "foo", time.Now(), time.Now())
 	require.Equal(t, errDatabaseNotBootstrapped, err)
 }
 
 func TestDatabaseReadEncodedShardNotOwned(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	d := testDatabase(t, bootstrapped)
-	_, err := d.ReadEncoded(context.NewContext(), "foo", time.Now(), time.Now())
+	_, err := d.ReadEncoded(ctx, "foo", time.Now(), time.Now())
 	require.Equal(t, "not responsible for shard 32", err.Error())
 	require.Panics(t, func() { d.RUnlock() }, "shouldn't be able to unlock the read lock")
 }
@@ -95,8 +103,10 @@ func TestDatabaseReadEncodedShardOwned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d := testDatabase(t, bootstrapped)
 	ctx := context.NewContext()
+	defer ctx.Close()
+
+	d := testDatabase(t, bootstrapped)
 	id := "bar"
 	end := time.Now()
 	start := end.Add(-time.Hour)
@@ -107,4 +117,72 @@ func TestDatabaseReadEncodedShardOwned(t *testing.T) {
 	require.Nil(t, res)
 	require.Nil(t, err)
 	require.Panics(t, func() { d.RUnlock() }, "shouldn't be able to unlock the read lock")
+}
+
+func TestDatabaseFetchBlocksShardNotOwned(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	d := testDatabase(t, bootstrapped)
+	now := time.Now()
+	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+	expected := []time.Time{starts[2], starts[0], starts[1]}
+	res := d.FetchBlocks(ctx, "foo", starts)
+	require.Equal(t, len(expected), len(res))
+	for i := 0; i < len(expected); i++ {
+		require.Equal(t, expected[i], res[i].Start())
+		require.Nil(t, res[i].Readers())
+		require.True(t, xerrors.IsInvalidParams(res[i].Error()))
+	}
+}
+
+func TestDatabaseFetchBlocksShardOwned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	d := testDatabase(t, bootstrapped)
+	id := "bar"
+	now := time.Now()
+	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+	expected := []FetchBlockResult{newFetchBlockResult(starts[0], nil, nil)}
+	mockShard := NewMockdatabaseShard(ctrl)
+	mockShard.EXPECT().FetchBlocks(ctx, id, starts).Return(expected)
+	d.shards[397] = mockShard
+	res := d.FetchBlocks(ctx, id, starts)
+	require.Equal(t, expected, res)
+}
+
+func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	d := testDatabase(t, bootstrapped)
+	shardID, limit, pageToken, includeSizes := uint32(0), int64(100), int64(0), true
+	res, nextPageToken, err := d.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes)
+	require.Nil(t, res)
+	require.Nil(t, nextPageToken)
+	require.Error(t, err)
+}
+
+func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	d := testDatabase(t, bootstrapped)
+	shardID, limit, pageToken, includeSizes := uint32(397), int64(100), int64(0), true
+	expectedBlocks := []block.DatabaseBlocksMetadata{block.NewDatabaseBlocksMetadata("bar", nil)}
+	expectedToken := new(int64)
+	mockShard := NewMockdatabaseShard(ctrl)
+	mockShard.EXPECT().FetchBlocksMetadata(ctx, limit, pageToken, includeSizes).Return(expectedBlocks, expectedToken, nil)
+	d.shards[int(shardID)] = mockShard
+	res, nextToken, err := d.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes)
+	require.Equal(t, expectedBlocks, res)
+	require.Equal(t, expectedToken, nextToken)
+	require.Nil(t, err)
 }

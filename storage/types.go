@@ -37,6 +37,18 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// FetchBlockResult captures the block start time, the readers for the underlying streams, and any errors encountered.
+type FetchBlockResult interface {
+	// Start returns the start time of an encoded block
+	Start() time.Time
+
+	// Readers returns the readers for the underlying streams.
+	Readers() []xio.SegmentReader
+
+	// Error returns the error encountered when fetching the block.
+	Error() error
+}
+
 // Database is a time series database
 type Database interface {
 	// Options returns the database options
@@ -64,6 +76,22 @@ type Database interface {
 		id string,
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
+
+	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
+	FetchBlocks(
+		ctx context.Context,
+		id string,
+		starts []time.Time,
+	) []FetchBlockResult
+
+	// FetchBlocksMetadata retrieves blocks metadata for a given shard.
+	FetchBlocksMetadata(
+		ctx context.Context,
+		shardID uint32,
+		limit int64,
+		pageToken int64,
+		includeSizes bool,
+	) ([]block.DatabaseBlocksMetadata, *int64, error)
 
 	// Bootstrap bootstraps the database.
 	Bootstrap() error
@@ -93,6 +121,21 @@ type databaseShard interface {
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
 
+	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
+	FetchBlocks(
+		ctx context.Context,
+		id string,
+		starts []time.Time,
+	) []FetchBlockResult
+
+	// FetchBlocksMetadata retrieves the blocks metadata.
+	FetchBlocksMetadata(
+		ctx context.Context,
+		limit int64,
+		pageToken int64,
+		includeSizes bool,
+	) ([]block.DatabaseBlocksMetadata, *int64, error)
+
 	Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error
 
 	// Flush flushes the series in this shard.
@@ -118,6 +161,12 @@ type databaseSeries interface {
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
 
+	// FetchBlocks retrieves data blocks given a list of block start times.
+	FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult
+
+	// FetchBlocksMetadata retrieves the blocks metadata.
+	FetchBlocksMetadata(ctx context.Context, includeSizes bool) (block.DatabaseBlocksMetadata, error)
+
 	Empty() bool
 
 	// Bootstrap merges the raw series bootstrapped along with the buffered data.
@@ -142,6 +191,12 @@ type databaseBuffer interface {
 		ctx context.Context,
 		start, end time.Time,
 	) [][]xio.SegmentReader
+
+	// FetchBlocks retrieves data blocks given a list of block start times.
+	FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult
+
+	// FetchBlocksMetadata retrieves the blocks metadata.
+	FetchBlocksMetadata(ctx context.Context, includeSizes bool) []block.DatabaseBlockMetadata
 
 	Empty() bool
 

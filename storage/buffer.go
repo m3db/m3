@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
@@ -185,12 +186,6 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 	// TODO(r): pool these results arrays
 	var results [][]xio.SegmentReader
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
-		shouldRead, _, _ := b.bucketState(now, bucket, current)
-		if !shouldRead {
-			// Requires reset and drained already or not written to
-			return
-		}
-
 		if !start.Before(bucket.start.Add(b.blockSize)) {
 			return
 		}
@@ -199,26 +194,97 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 		}
 
 		unmerged := make([]xio.SegmentReader, 0, len(bucket.encoders))
-		for i := range bucket.encoders {
-			stream := bucket.encoders[i].encoder.Stream()
-			if stream == nil {
-				// TODO(r): log an error and emit a metric, this is pretty bad as this
-				// encoder should have values if "shouldRead" returned true
-				continue
-			}
-
-			ctx.RegisterCloser(func() {
-				// Close the stream and return to pool when read done
-				stream.Close()
-			})
-
+		b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
 			unmerged = append(unmerged, stream)
-		}
+		})
 
 		results = append(results, unmerged)
 	})
 
 	return results
+}
+
+func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult {
+	var res []FetchBlockResult
+
+	now := b.nowFn()
+	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
+		found := false
+		// starts has ~24 items, linear search should be okay time-wise to
+		// avoid allocating a map here.
+		for _, start := range starts {
+			if start == bucket.start {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return
+		}
+		readers := make([]xio.SegmentReader, 0, len(bucket.encoders))
+		b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
+			readers = append(readers, stream)
+		})
+		res = append(res, newFetchBlockResult(bucket.start, readers, nil))
+	})
+
+	return res
+}
+
+func (b *dbBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool) []block.DatabaseBlockMetadata {
+	var res []block.DatabaseBlockMetadata
+
+	now := b.nowFn()
+	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
+		var pSize *int64
+		if includeSizes {
+			var size int64
+			b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
+				segment := stream.Segment()
+				size += int64(len(segment.Head) + len(segment.Tail))
+			})
+			// If we have no data in this bucket, return early without
+			// appending it to the result.
+			if size == 0 {
+				return
+			}
+			pSize = &size
+		}
+		res = append(res, block.NewDatabaseBlockMetadata(bucket.start, pSize))
+	})
+
+	return res
+}
+
+type dbBufferBucketStreamFn func(stream xio.SegmentReader)
+
+func (b *dbBuffer) readBucketStreams(
+	ctx context.Context,
+	bucket *dbBufferBucket,
+	now, current time.Time,
+	streamFn dbBufferBucketStreamFn,
+) {
+	shouldRead, _, _ := b.bucketState(now, bucket, current)
+	if !shouldRead {
+		// Requires reset and drained already or not written to
+		return
+	}
+
+	for i := range bucket.encoders {
+		stream := bucket.encoders[i].encoder.Stream()
+		if stream == nil {
+			// TODO(r): log an error and emit a metric, this is pretty bad as this
+			// encoder should have values if "shouldRead" returned true
+			continue
+		}
+
+		ctx.RegisterCloser(func() {
+			// Close the stream and return to pool when read done
+			stream.Close()
+		})
+
+		streamFn(stream)
+	}
 }
 
 type dbBufferBucket struct {

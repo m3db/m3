@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/storage/block"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
 
@@ -47,11 +48,21 @@ func (d *mockDatabase) Bootstrap() error                { return nil }
 func (d *mockDatabase) IsBootstrapped() bool            { return d.bs == bootstrapped }
 func (d *mockDatabase) getOwnedShards() []databaseShard { return d.shards }
 func (d *mockDatabase) flush(t time.Time, async bool)   {}
+
 func (d *mockDatabase) Write(context.Context, string, time.Time, float64, xtime.Unit, []byte) error {
 	return nil
 }
+
 func (d *mockDatabase) ReadEncoded(context.Context, string, time.Time, time.Time) ([][]xio.SegmentReader, error) {
 	return nil, nil
+}
+
+func (d *mockDatabase) FetchBlocks(context.Context, string, []time.Time) []FetchBlockResult {
+	return nil
+}
+
+func (d *mockDatabase) FetchBlocksMetadata(context.Context, uint32, int64, int64, bool) ([]block.DatabaseBlocksMetadata, *int64, error) {
+	return nil, nil, nil
 }
 
 func TestNeedFlushDuringBootstrap(t *testing.T) {

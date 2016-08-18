@@ -144,3 +144,21 @@ type Options interface {
 	// GetBytesPool returns the bytesPool
 	GetBytesPool() pool.BytesPool
 }
+
+// DatabaseBlockMetadata captures the database block metadata.
+type DatabaseBlockMetadata interface {
+	// Start return the start time of a database block
+	Start() time.Time
+
+	// Size() returns the size of the block, or nil if not available.
+	Size() *int64
+}
+
+// DatabaseBlocksMetadata captures the metadata for multiple database blocks.
+type DatabaseBlocksMetadata interface {
+	// ID returns id of the series containing the blocks
+	ID() string
+
+	// Blocks returns the metadata of series blocks
+	Blocks() []DatabaseBlockMetadata
+}

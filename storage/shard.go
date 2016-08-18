@@ -47,19 +47,18 @@ type dbShard struct {
 	sync.RWMutex
 	opts                  Options
 	shard                 uint32
-	uniqueIndex           uniqueIndex
+	increasingIndex       increasingIndex
 	writeCommitLogFn      writeCommitLogFn
-	lookup                map[string]*dbShardEntry
+	lookup                map[string]*list.Element
 	list                  *list.List
 	bs                    bootstrapState
 	newSeriesBootstrapped bool
 }
 
 type dbShardEntry struct {
-	series      databaseSeries
-	uniqueIndex uint64
-	elem        *list.Element
-	curWriters  int32
+	series     databaseSeries
+	index      uint64
+	curWriters int32
 }
 
 func (entry *dbShardEntry) writerCount() int32 {
@@ -76,20 +75,22 @@ func (entry *dbShardEntry) decrementWriterCount() {
 
 type writeCompletionFn func()
 
-type databaseSeriesFn func(series databaseSeries) error
+type dbShardEntryWorkFn func(entry *dbShardEntry) error
+
+type dbShardEntryConditionFn func(entry *dbShardEntry) bool
 
 func newDatabaseShard(
 	shard uint32,
-	uniqueIndex uniqueIndex,
+	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
 	opts Options,
 ) databaseShard {
 	return &dbShard{
 		opts:             opts,
 		shard:            shard,
-		uniqueIndex:      uniqueIndex,
+		increasingIndex:  increasingIndex,
 		writeCommitLogFn: writeCommitLogFn,
-		lookup:           make(map[string]*dbShardEntry),
+		lookup:           make(map[string]*list.Element),
 		list:             list.New(),
 	}
 }
@@ -98,7 +99,7 @@ func (s *dbShard) ShardNum() uint32 {
 	return s.shard
 }
 
-func (s *dbShard) forEachSeries(continueOnError bool, seriesFn databaseSeriesFn) error {
+func (s *dbShard) forEachShardEntry(continueOnError bool, entryFn dbShardEntryWorkFn, stopIterFn dbShardEntryConditionFn) error {
 	// NB(r): consider using a lockless list for ticking
 	s.RLock()
 	elemsLen := s.list.Len()
@@ -107,13 +108,13 @@ func (s *dbShard) forEachSeries(continueOnError bool, seriesFn databaseSeriesFn)
 	s.RUnlock()
 
 	// TODO(xichen): pool or cache this.
-	curSeries := make([]databaseSeries, 0, batchSize)
+	curEntries := make([]*dbShardEntry, 0, batchSize)
 	for nextElem != nil {
 		s.RLock()
-		nextElem = s.forBatchWithLock(nextElem, &curSeries, batchSize)
+		nextElem = s.forBatchWithLock(nextElem, &curEntries, batchSize, stopIterFn)
 		s.RUnlock()
-		for _, series := range curSeries {
-			if err := seriesFn(series); err != nil && !continueOnError {
+		for _, entry := range curEntries {
+			if err := entryFn(entry); err != nil && !continueOnError {
 				return err
 			}
 		}
@@ -123,15 +124,19 @@ func (s *dbShard) forEachSeries(continueOnError bool, seriesFn databaseSeriesFn)
 
 func (s *dbShard) forBatchWithLock(
 	elem *list.Element,
-	curSeries *[]databaseSeries,
+	curEntries *[]*dbShardEntry,
 	batchSize int,
+	stopIterFn dbShardEntryConditionFn,
 ) *list.Element {
 	var nextElem *list.Element
-	*curSeries = (*curSeries)[:0]
+	*curEntries = (*curEntries)[:0]
 	for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
 		nextElem = elem.Next()
-		series := elem.Value.(databaseSeries)
-		*curSeries = append(*curSeries, series)
+		entry := elem.Value.(*dbShardEntry)
+		if stopIterFn != nil && stopIterFn(entry) {
+			return nil
+		}
+		*curEntries = append(*curEntries, entry)
 		elem = nextElem
 	}
 	return nextElem
@@ -143,7 +148,8 @@ func (s *dbShard) tickForEachSeries() []databaseSeries {
 	// TODO(xichen): pool this.
 	var expired []databaseSeries
 
-	s.forEachSeries(true, func(series databaseSeries) error {
+	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
+		series := entry.series
 		err := series.Tick()
 		if err == errSeriesAllDatapointsExpired {
 			expired = append(expired, series)
@@ -151,7 +157,7 @@ func (s *dbShard) tickForEachSeries() []databaseSeries {
 			// TODO(r): log error and increment counter
 		}
 		return err
-	})
+	}, nil)
 
 	return expired
 }
@@ -165,7 +171,10 @@ func (s *dbShard) purgeExpiredSeries(expired []databaseSeries) {
 	s.Lock()
 	for _, series := range expired {
 		id := series.ID()
-		entry := s.lookup[id]
+		entry, elem, exists := s.getEntryWithLock(id)
+		if !exists {
+			continue
+		}
 		// If this series is currently being written to, we don't remove
 		// it even though it's empty in that it might become non-empty soon.
 		if entry.writerCount() > 0 {
@@ -179,7 +188,7 @@ func (s *dbShard) purgeExpiredSeries(expired []databaseSeries) {
 		// NB(xichen): if we get here, we are guaranteed that there can be
 		// no more writes to this series while the lock is held, so it's
 		// safe to remove it.
-		s.list.Remove(entry.elem)
+		s.list.Remove(elem)
 		delete(s.lookup, id)
 	}
 	s.Unlock()
@@ -227,7 +236,7 @@ func (s *dbShard) ReadEncoded(
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
-	entry, exists := s.lookup[id]
+	entry, _, exists := s.getEntryWithLock(id)
 	s.RUnlock()
 	if !exists {
 		return nil, nil
@@ -235,38 +244,93 @@ func (s *dbShard) ReadEncoded(
 	return entry.series.ReadEncoded(ctx, start, end)
 }
 
+// getEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
+func (s *dbShard) getEntryWithLock(id string) (*dbShardEntry, *list.Element, bool) {
+	elem, exists := s.lookup[id]
+	if !exists {
+		return nil, nil, false
+	}
+	return elem.Value.(*dbShardEntry), elem, true
+}
+
 func (s *dbShard) writableSeries(id string) (databaseSeries, uint64, writeCompletionFn) {
 	s.RLock()
-	if entry, exists := s.lookup[id]; exists {
+	if entry, _, exists := s.getEntryWithLock(id); exists {
 		entry.incrementWriterCount()
 		s.RUnlock()
-		return entry.series, entry.uniqueIndex, entry.decrementWriterCount
+		return entry.series, entry.index, entry.decrementWriterCount
 	}
 	s.RUnlock()
 
 	s.Lock()
-	if entry, exists := s.lookup[id]; exists {
+	if entry, _, exists := s.getEntryWithLock(id); exists {
 		entry.incrementWriterCount()
 		s.Unlock()
 		// During Rlock -> Wlock promotion the entry was inserted
-		return entry.series, entry.uniqueIndex, entry.decrementWriterCount
+		return entry.series, entry.index, entry.decrementWriterCount
 	}
 	bs := bootstrapNotStarted
 	if s.newSeriesBootstrapped {
 		bs = bootstrapped
 	}
-	series := newDatabaseSeries(id, bs, s.opts)
-	elem := s.list.PushBack(series)
 	entry := &dbShardEntry{
-		series:      series,
-		uniqueIndex: s.uniqueIndex.nextUniqueIndex(),
-		elem:        elem,
-		curWriters:  1,
+		series:     newDatabaseSeries(id, bs, s.opts),
+		index:      s.increasingIndex.next(),
+		curWriters: 1,
 	}
-	s.lookup[id] = entry
+	elem := s.list.PushBack(entry)
+	s.lookup[id] = elem
 	s.Unlock()
 
-	return entry.series, entry.uniqueIndex, entry.decrementWriterCount
+	return entry.series, entry.index, entry.decrementWriterCount
+}
+
+func (s *dbShard) FetchBlocks(
+	ctx context.Context,
+	id string,
+	starts []time.Time,
+) []FetchBlockResult {
+	s.RLock()
+	entry, _, exists := s.getEntryWithLock(id)
+	s.RUnlock()
+	if !exists {
+		return nil
+	}
+	return entry.series.FetchBlocks(ctx, starts)
+}
+
+func (s *dbShard) FetchBlocksMetadata(
+	ctx context.Context,
+	limit int64,
+	pageToken int64,
+	includeSizes bool,
+) ([]block.DatabaseBlocksMetadata, *int64, error) {
+	var (
+		res            = make([]block.DatabaseBlocksMetadata, 0, limit)
+		pNextPageToken *int64
+		multiErr       xerrors.MultiError
+	)
+	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
+		if int64(entry.index) < pageToken {
+			return nil
+		}
+		blocksMetadata, err := entry.series.FetchBlocksMetadata(ctx, includeSizes)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
+		res = append(res, blocksMetadata)
+		return err
+	}, func(entry *dbShardEntry) bool {
+		// Break out of the iteration loop once we've accumulated enough entries.
+		if int64(len(res)) < limit {
+			return false
+		}
+		nextPageToken := int64(entry.index)
+		pNextPageToken = &nextPageToken
+		return true
+	})
+
+	return res, pNextPageToken, multiErr.FinalError()
 }
 
 func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error {
@@ -311,7 +375,8 @@ func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutove
 	// Find the series with no data within the retention period but has
 	// buffered data points since server start. Any new series added
 	// after this will be marked as bootstrapped.
-	s.forEachSeries(true, func(series databaseSeries) error {
+	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
+		series := entry.series
 		if bootstrappedSeries != nil {
 			if _, exists := bootstrappedSeries[series.ID()]; exists {
 				return nil
@@ -320,7 +385,7 @@ func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutove
 		err := series.Bootstrap(nil, cutover)
 		multiErr = multiErr.Add(err)
 		return err
-	})
+	}, nil)
 
 	s.Lock()
 	s.bs = bootstrapped
@@ -349,11 +414,12 @@ func (s *dbShard) Flush(ctx context.Context, blockStart time.Time, pm persist.Ma
 	defer prepared.Close()
 
 	// If we encounter an error when persisting a series, we continue regardless.
-	s.forEachSeries(true, func(series databaseSeries) error {
+	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
+		series := entry.series
 		err := series.Flush(ctx, blockStart, prepared.Persist)
 		multiErr = multiErr.Add(err)
 		return err
-	})
+	}, nil)
 
 	return multiErr.FinalError()
 }

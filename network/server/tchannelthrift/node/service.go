@@ -23,6 +23,7 @@ package node
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
@@ -106,6 +107,23 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	return result, nil
 }
 
+func toSegments(readers []xio.SegmentReader) *rpc.Segments {
+	if len(readers) == 0 {
+		return nil
+	}
+	s := &rpc.Segments{}
+	if len(readers) == 1 {
+		seg := readers[0].Segment()
+		s.Merged = &rpc.Segment{Head: seg.Head, Tail: seg.Tail}
+	} else {
+		for _, reader := range readers {
+			seg := reader.Segment()
+			s.Unmerged = append(s.Unmerged, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
+		}
+	}
+	return s
+}
+
 func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchRequest) (*rpc.FetchRawBatchResult_, error) {
 	ctx := s.db.Options().GetContextPool().Get()
 	defer ctx.Close()
@@ -133,17 +151,9 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 
 		segments := make([]*rpc.Segments, 0, len(encoded))
 		for _, readers := range encoded {
-			s := &rpc.Segments{}
-			if len(readers) == 1 {
-				seg := readers[0].Segment()
-				s.Merged = &rpc.Segment{Head: seg.Head, Tail: seg.Tail}
-			} else {
-				for _, reader := range readers {
-					seg := reader.Segment()
-					s.Unmerged = append(s.Unmerged, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
-				}
+			if s := toSegments(readers); s != nil {
+				segments = append(segments, s)
 			}
-			segments = append(segments, s)
 		}
 		rawResult.Segments = segments
 	}
@@ -151,12 +161,81 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 	return result, nil
 }
 
-func (s *service) FetchBlocks(ctx thrift.Context, req *rpc.FetchBlocksRequest) (*rpc.FetchBlocksResult_, error) {
-	return nil, fmt.Errorf("not implemented")
+func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) (*rpc.FetchBlocksResult_, error) {
+	ctx := s.db.Options().GetContextPool().Get()
+	defer ctx.Close()
+
+	var blockStarts []time.Time
+
+	res := rpc.NewFetchBlocksResult_()
+	res.Elements = make([]*rpc.Blocks, len(req.Elements))
+	for i, request := range req.Elements {
+		id := request.ID
+		blockStarts = blockStarts[:0]
+		for _, start := range request.Starts {
+			blockStarts = append(blockStarts, xtime.FromNanoseconds(start))
+		}
+		fetched := s.db.FetchBlocks(ctx, id, blockStarts)
+		blocks := rpc.NewBlocks()
+		blocks.ID = id
+		blocks.Blocks = make([]*rpc.Block, len(fetched))
+		for j, fetchedBlock := range fetched {
+			block := rpc.NewBlock()
+			block.Start = xtime.ToNanoseconds(fetchedBlock.Start())
+			if err := fetchedBlock.Error(); err != nil {
+				if xerrors.IsInvalidParams(err) {
+					block.Err = tterrors.NewBadRequestError(err)
+				} else {
+					block.Err = tterrors.NewInternalError(err)
+				}
+			} else {
+				block.Segments = toSegments(fetchedBlock.Readers())
+			}
+			blocks.Blocks[j] = block
+		}
+		res.Elements[i] = blocks
+	}
+	return res, nil
 }
 
-func (s *service) FetchBlocksMetadata(ctx thrift.Context, req *rpc.FetchBlocksMetadataRequest) (*rpc.FetchBlocksMetadataResult_, error) {
-	return nil, fmt.Errorf("not implemented")
+func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksMetadataRequest) (*rpc.FetchBlocksMetadataResult_, error) {
+	if req.Limit <= 0 {
+		return nil, nil
+	}
+	ctx := s.db.Options().GetContextPool().Get()
+	defer ctx.Close()
+
+	var pageToken int64
+	if req.PageToken != nil {
+		pageToken = *req.PageToken
+	}
+
+	var includeSizes bool
+	if req.IncludeSizes != nil {
+		includeSizes = *req.IncludeSizes
+	}
+
+	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, uint32(req.Shard), req.Limit, pageToken, includeSizes)
+	result := rpc.NewFetchBlocksMetadataResult_()
+	result.NextPageToken = nextPageToken
+	result.Elements = make([]*rpc.BlocksMetadata, len(fetched))
+	for i, fetchedMetadata := range fetched {
+		blocksMetadata := rpc.NewBlocksMetadata()
+		blocksMetadata.ID = fetchedMetadata.ID()
+		fetchedMetadataBlocks := fetchedMetadata.Blocks()
+		blocksMetadata.Blocks = make([]*rpc.BlockMetadata, len(fetchedMetadataBlocks))
+		for j, fetchedMetadataBlock := range fetchedMetadataBlocks {
+			blockMetadata := rpc.NewBlockMetadata()
+			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start())
+			blockMetadata.Size = fetchedMetadataBlock.Size()
+			blocksMetadata.Blocks[j] = blockMetadata
+		}
+		result.Elements[i] = blocksMetadata
+	}
+	if err != nil {
+		result.Err = tterrors.NewInternalError(err)
+	}
+	return result, nil
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
