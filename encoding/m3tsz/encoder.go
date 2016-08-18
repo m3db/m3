@@ -272,11 +272,17 @@ func (enc *encoder) writeFirstValue(v float64) {
 
 	// val can be converted to int
 	enc.os.WriteBit(opcodeIntMode)
+	enc.intVal = val
+	negDiff := true
+	if val < 0 {
+		negDiff = false
+		val = -1 * val
+	}
+
 	valBits := uint64(int64(val))
 	numSig := encoding.NumSig(valBits)
 	enc.writeIntSigMult(numSig, mult, false)
-	enc.writeIntValDiff(valBits, true)
-	enc.intVal = val
+	enc.writeIntValDiff(valBits, negDiff)
 }
 
 func (enc *encoder) writeNextValue(v float64) {

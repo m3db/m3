@@ -68,6 +68,13 @@ func TestLargeGaugeConversions(t *testing.T) {
 	testFloatConversions(t, 1000, 11, 3)
 }
 
+func TestNegativeGaugeConversions(t *testing.T) {
+	testNegativeIntConversions(t, 1000, 1, 0)
+	testNegativeIntConversions(t, 1000, 3, 0)
+	testNegativeIntConversions(t, 1000, 1, 2)
+	testNegativeIntConversions(t, 1000, 3, 2)
+}
+
 func TestConvertFromIntFloat(t *testing.T) {
 	validateConvertFromIntFloat(t, 1.0, 0, 1.0)
 	validateConvertFromIntFloat(t, 2.0, 0, 2.0)
@@ -88,16 +95,28 @@ func TestInfNan(t *testing.T) {
 }
 
 func testIntConversions(t *testing.T, numConv, numDig, numDec int) {
+	validateIntConversions(t, numConv, numDig, numDec, false)
+}
+
+func testNegativeIntConversions(t *testing.T, numConv, numDig, numDec int) {
+	validateIntConversions(t, numConv, numDig, numDec, true)
+}
+
+func validateIntConversions(t *testing.T, numConv, numDig, numDec int, neg bool) {
 	rand.Seed(time.Now().UnixNano())
 	digMod := int(math.Pow10(numDig))
 	decMod := int(math.Pow10(numDec))
+	sign := 1.0
+	if neg {
+		sign = -1.0
+	}
 	for i := 0; i < numConv; i++ {
 		var val float64
 		dig := rand.Int() % digMod
 		dec := rand.Int() % decMod
 		if numDec == 0 {
-			val = float64(dig)
-			validateConvertToIntFloat(t, val, numDec, float64(dig), 0, false)
+			val = sign * float64(dig)
+			validateConvertToIntFloat(t, val, numDec, val, 0, false)
 		} else {
 			val, _ = strconv.ParseFloat(strconv.Itoa(dig)+"."+strconv.Itoa(dec), 64)
 			expDecStr := strconv.Itoa(dec)
@@ -105,7 +124,7 @@ func testIntConversions(t *testing.T, numConv, numDig, numDec int) {
 				expDecStr += strings.Repeat("0", numDec-len(expDecStr))
 			}
 			expected, _ := strconv.ParseInt(strconv.Itoa(dig)+expDecStr, 10, 64)
-			validateConvertToIntFloat(t, val, numDec, float64(expected), numDec, false)
+			validateConvertToIntFloat(t, sign*val, numDec, sign*float64(expected), numDec, false)
 		}
 	}
 }
