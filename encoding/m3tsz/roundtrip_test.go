@@ -78,6 +78,15 @@ func TestNegativeGaugeFloatsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMixedGaugeIntRoundTrip(t *testing.T) {
+	timeUnit := time.Second
+	numPoints := 1000
+	numIterations := 100
+	for i := 0; i < numIterations; i++ {
+		testRoundTrip(t, generateMixSignIntDatapoints(numPoints, timeUnit))
+	}
+}
+
 func TestMixedRoundTrip(t *testing.T) {
 	timeUnit := time.Second
 	numPoints := 1000
@@ -151,8 +160,20 @@ func generatePreciseFloatDatapoints(numPoints int, timeUnit time.Duration) []ts.
 
 func generateNegativeFloatDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
 	dps := generateDataPoints(numPoints, timeUnit, 5, 3)
-	for _, dp := range dps {
-		dp.Value = -1 * dp.Value
+	for i, dp := range dps {
+		dps[i].Value = -1 * dp.Value
+	}
+
+	return dps
+}
+
+func generateMixSignIntDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoint {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	dps := generateDataPoints(numPoints, timeUnit, 3, 0)
+	for i, dp := range dps {
+		if r.Float64() < 0.5 {
+			dps[i].Value = -1 * dp.Value
+		}
 	}
 
 	return dps
@@ -166,7 +187,7 @@ func generateDataPoints(numPoints int, timeUnit time.Duration, numDig, numDec in
 	currentValue := 1.0
 	res := []ts.Datapoint{{currentTime, currentValue}}
 	for i := 1; i < numPoints; i++ {
-		currentTime = currentTime.Add(time.Second * time.Duration(rand.Intn(7200)))
+		currentTime = currentTime.Add(time.Second * time.Duration(rand.Intn(1200)))
 		currentValue = testgen.GenerateFloatVal(r, numDig, numDec)
 		if !currentTime.Before(endTime) {
 			break
