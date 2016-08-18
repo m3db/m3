@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package encoding
 
 import (
 	"bufio"
@@ -34,11 +34,13 @@ type istream struct {
 	remaining int           // bits remaining in current to be read
 }
 
-func newIStream(reader io.Reader) *istream {
+// NewIStream creates a new Istream
+func NewIStream(reader io.Reader) IStream {
 	return &istream{r: bufio.NewReader(reader)}
 }
 
-func (is *istream) ReadBit() (bit, error) {
+// ReadBit reads the next Bit
+func (is *istream) ReadBit() (Bit, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
@@ -47,9 +49,10 @@ func (is *istream) ReadBit() (bit, error) {
 			return 0, err
 		}
 	}
-	return bit(is.consumeBuffer(1)), nil
+	return Bit(is.consumeBuffer(1)), nil
 }
 
+// ReadByte reads the next Byte
 func (is *istream) ReadByte() (byte, error) {
 	if is.err != nil {
 		return 0, is.err
@@ -66,6 +69,7 @@ func (is *istream) ReadByte() (byte, error) {
 	return res, nil
 }
 
+// ReadBits reads the next Bits
 func (is *istream) ReadBits(numBits int) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
@@ -90,6 +94,7 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 	return res, nil
 }
 
+// PeekBits looks at the next Bits, but doesn't move the pos
 func (is *istream) PeekBits(numBits int) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
@@ -134,6 +139,7 @@ func (is *istream) readByteFromStream() error {
 	return is.err
 }
 
+// Reset resets the Istream
 func (is *istream) Reset(r io.Reader) {
 	is.r.Reset(r)
 	is.err = nil

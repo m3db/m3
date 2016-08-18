@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package encoding
 
 import (
 	"testing"
@@ -44,18 +44,20 @@ func TestWriteBits(t *testing.T) {
 		{0x1, 65, []byte{0xca, 0xfe, 0xfd, 0x89, 0x1a, 0x2b, 0x3c, 0x48, 0x55, 0xe6, 0xf7, 0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x80}, 1},
 	}
 
-	os := newOStream(nil, true)
-	require.True(t, os.empty())
+	o := NewOStream(nil, true)
+	os := o.(*ostream)
+	require.True(t, os.Empty())
 	for _, input := range inputs {
 		os.WriteBits(input.value, input.numBits)
 		require.Equal(t, input.expectedBytes, os.rawBuffer)
 		require.Equal(t, input.expectedPos, os.pos)
 	}
-	require.False(t, os.empty())
+	require.False(t, os.Empty())
 }
 
 func TestWriteBytes(t *testing.T) {
-	os := newOStream(nil, true)
+	o := NewOStream(nil, true)
+	os := o.(*ostream)
 	rawBytes := []byte{0x1, 0x2}
 	os.WriteBytes(rawBytes)
 	require.Equal(t, rawBytes, os.rawBuffer)
@@ -63,10 +65,11 @@ func TestWriteBytes(t *testing.T) {
 }
 
 func TestResetOStream(t *testing.T) {
-	os := newOStream(nil, true)
+	o := NewOStream(nil, true)
+	os := o.(*ostream)
 	os.WriteByte(0xfe)
 	os.Reset(nil)
-	require.True(t, os.empty())
-	require.Equal(t, 0, os.len())
+	require.True(t, os.Empty())
+	require.Equal(t, 0, os.Len())
 	require.Equal(t, 0, os.pos)
 }

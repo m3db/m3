@@ -21,11 +21,13 @@
 package integration
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/encoding/testgen"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -37,6 +39,8 @@ func generateTestData(metricNames []string, numPoints int, start time.Time) data
 	if numPoints <= 0 {
 		return nil
 	}
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	testData := make(map[string][]ts.Datapoint)
 	for _, name := range metricNames {
 		datapoints := make([]ts.Datapoint, 0, numPoints)
@@ -44,7 +48,7 @@ func generateTestData(metricNames []string, numPoints int, start time.Time) data
 			timestamp := start.Add(time.Duration(i) * time.Second)
 			datapoints = append(datapoints, ts.Datapoint{
 				Timestamp: timestamp,
-				Value:     0.1 * float64(i),
+				Value:     testgen.GenerateFloatVal(r, 3, 1),
 			})
 		}
 		testData[name] = datapoints

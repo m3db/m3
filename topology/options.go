@@ -28,8 +28,7 @@ import (
 )
 
 var (
-	errInvalidReplicas                = errors.New("replicas must be equal to or greater than 1")
-	errHostShardSetSchemeDoesNotMatch = errors.New("host shard set's shard scheme is not the specified shard scheme")
+	errInvalidReplicas = errors.New("replicas must be equal to or greater than 1")
 )
 
 type staticTypeOptions struct {
@@ -58,9 +57,6 @@ func (o *staticTypeOptions) Validate() error {
 		hostAddressesByShard[i] = make(map[string]struct{}, o.replicas)
 	}
 	for _, hostShardSet := range o.hostShardSets {
-		if hostShardSet.ShardSet() != o.shardSet {
-			return errHostShardSetSchemeDoesNotMatch
-		}
 		hostAddress := hostShardSet.Host().Address()
 		for _, shard := range hostShardSet.ShardSet().Shards() {
 			hostAddressesByShard[shard][hostAddress] = struct{}{}

@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/encoding/tsz"
+	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/topology"
@@ -161,7 +161,7 @@ func NewOptions() Options {
 		seriesIteratorPoolSize:         defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets: defaultSeriesIteratorArrayPoolBuckets,
 	}
-	return opts.EncodingTsz()
+	return opts.EncodingM3TSZ()
 }
 
 func (o *options) Validate() error {
@@ -194,10 +194,10 @@ func (o *options) GetInstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) EncodingTsz() Options {
+func (o *options) EncodingM3TSZ() Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
-		return tsz.NewReaderIterator(r, tsz.NewOptions())
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 	return &opts
 }

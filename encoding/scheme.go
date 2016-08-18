@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tsz
+package encoding
 
 import (
 	"github.com/m3db/m3x/time"
@@ -40,6 +40,7 @@ var (
 	// default time encoding schemes
 	defaultZeroBucket             = newTimeBucket(0x0, 1, 0)
 	defaultNumValueBitsForBuckets = []int{7, 9, 12}
+
 	// TODO(xichen): set more reasonable defaults once we have more knowledge
 	// of the use cases for time units other than seconds.
 	defaultTimeEncodingSchemes = map[xtime.Unit]TimeEncodingScheme{
@@ -214,14 +215,21 @@ func newMarkerEncodingScheme(
 	for i := range scheme.tails {
 		for j := range scheme.tails[i] {
 			pos := j + 1
-			tmp := newOStream(nil, false)
+			tmp := NewOStream(nil, false)
 			tmp.WriteBits(uint64(i)>>uint(8-pos), pos)
-			writeSpecialMarker(tmp, scheme, endOfStream)
-			tail, _ := tmp.rawbytes()
+			WriteSpecialMarker(tmp, scheme, endOfStream)
+			tail, _ := tmp.Rawbytes()
 			scheme.tails[i][j] = tail
 		}
 	}
 	return scheme
+}
+
+// WriteSpecialMarker writes the marker that marks the start of a special symbol,
+// e.g., the eos marker, the annotation marker, or the time unit marker.
+func WriteSpecialMarker(os OStream, scheme MarkerEncodingScheme, marker Marker) {
+	os.WriteBits(scheme.Opcode(), scheme.NumOpcodeBits())
+	os.WriteBits(uint64(marker), scheme.NumValueBits())
 }
 
 func (mes *markerEncodingScheme) Opcode() uint64              { return mes.opcode }
