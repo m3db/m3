@@ -21,7 +21,6 @@
 package m3tsz
 
 import (
-	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -136,7 +135,6 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 	require.NoError(t, it.Err())
 	require.Equal(t, len(input), len(decompressed))
 	for i := 0; i < len(input); i++ {
-		fmt.Println("Input:", input[i].Value, "Output:", decompressed[i].Value)
 		require.Equal(t, input[i].Timestamp, decompressed[i].Timestamp)
 		require.Equal(t, input[i].Value, decompressed[i].Value)
 	}
