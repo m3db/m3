@@ -108,12 +108,12 @@ func (s *dbShard) forEachShardEntry(continueOnError bool, entryFn dbShardEntryWo
 	s.RUnlock()
 
 	// TODO(xichen): pool or cache this.
-	curEntries := make([]*dbShardEntry, 0, batchSize)
+	currEntries := make([]*dbShardEntry, 0, batchSize)
 	for nextElem != nil {
 		s.RLock()
-		nextElem = s.forBatchWithLock(nextElem, &curEntries, batchSize, stopIterFn)
+		nextElem = s.forBatchWithLock(nextElem, &currEntries, batchSize, stopIterFn)
 		s.RUnlock()
-		for _, entry := range curEntries {
+		for _, entry := range currEntries {
 			if err := entryFn(entry); err != nil && !continueOnError {
 				return err
 			}
@@ -275,7 +275,7 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, uint64, writeComple
 	}
 	entry := &dbShardEntry{
 		series:     newDatabaseSeries(id, bs, s.opts),
-		index:      s.increasingIndex.next(),
+		index:      s.increasingIndex.nextIndex(),
 		curWriters: 1,
 	}
 	elem := s.list.PushBack(entry)
@@ -314,7 +314,11 @@ func (s *dbShard) FetchBlocksMetadata(
 		if int64(entry.index) < pageToken {
 			return nil
 		}
-		blocksMetadata, err := entry.series.FetchBlocksMetadata(ctx, includeSizes)
+		// Create a temporary context here so the stream readers can be returned to
+		// pool after we finish fetching the metadata for this series.
+		tmpCtx := s.opts.GetContextPool().Get()
+		blocksMetadata, err := entry.series.FetchBlocksMetadata(tmpCtx, includeSizes)
+		tmpCtx.Close()
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}

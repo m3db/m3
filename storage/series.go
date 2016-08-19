@@ -280,13 +280,12 @@ func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) (
 			multiErr = multiErr.Add(fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, t, err))
 			continue
 		}
+		// If there are no datapoints in the block, continue and don't append it to the result.
+		if reader == nil {
+			continue
+		}
 		var pSize *int64
 		if includeSizes {
-			if reader == nil {
-				// If there are no datapoints in the block, continue
-				// and don't append it to the result.
-				continue
-			}
 			segment := reader.Segment()
 			size := int64(len(segment.Head) + len(segment.Tail))
 			pSize = &size

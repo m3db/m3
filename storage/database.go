@@ -77,7 +77,7 @@ type database interface {
 
 // increasingIndex provides a monotonically increasing index for new series
 type increasingIndex interface {
-	next() uint64
+	nextIndex() uint64
 }
 
 // writeCommitLogFn is a method for writing to the commit log
@@ -348,7 +348,7 @@ func (d *db) splayedTick() {
 	}
 }
 
-func (d *db) next() uint64 {
+func (d *db) nextIndex() uint64 {
 	created := atomic.AddUint64(&d.created, 1)
 	return created - 1
 }

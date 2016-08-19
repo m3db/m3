@@ -210,7 +210,7 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []FetchB
 	now := b.nowFn()
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
 		found := false
-		// starts has ~24 items, linear search should be okay time-wise to
+		// starts have only a few items, linear search should be okay time-wise to
 		// avoid allocating a map here.
 		for _, start := range starts {
 			if start == bucket.start {
@@ -236,18 +236,17 @@ func (b *dbBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool) [
 
 	now := b.nowFn()
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
+		var size int64
+		b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
+			segment := stream.Segment()
+			size += int64(len(segment.Head) + len(segment.Tail))
+		})
+		// If we have no data in this bucket, return early without appending it to the result.
+		if size == 0 {
+			return
+		}
 		var pSize *int64
 		if includeSizes {
-			var size int64
-			b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
-				segment := stream.Segment()
-				size += int64(len(segment.Head) + len(segment.Tail))
-			})
-			// If we have no data in this bucket, return early without
-			// appending it to the result.
-			if size == 0 {
-				return
-			}
 			pSize = &size
 		}
 		res = append(res, block.NewDatabaseBlockMetadata(bucket.start, pSize))
@@ -278,10 +277,7 @@ func (b *dbBuffer) readBucketStreams(
 			continue
 		}
 
-		ctx.RegisterCloser(func() {
-			// Close the stream and return to pool when read done
-			stream.Close()
-		})
+		ctx.RegisterCloser(stream.Close)
 
 		streamFn(stream)
 	}
