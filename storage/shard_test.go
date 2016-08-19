@@ -52,7 +52,7 @@ type testIncreasingIndex struct {
 	created uint64
 }
 
-func (i *testIncreasingIndex) next() uint64 {
+func (i *testIncreasingIndex) nextIndex() uint64 {
 	created := atomic.AddUint64(&i.created, 1)
 	return created - 1
 }
