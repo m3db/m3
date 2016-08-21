@@ -21,49 +21,8 @@
 package cluster
 
 import (
-	"errors"
-
-	"github.com/golang/protobuf/proto"
+	"github.com/m3db/m3cluster/kv"
 )
-
-var (
-	// ErrVersionMismatch is returned when attempting a CheckAndSet and the
-	// key is not at the provided version
-	ErrVersionMismatch = errors.New("key is not at the specified version")
-
-	// ErrAlreadyExists is returned when attempting a SetIfEmpty and the key
-	// already has a value
-	ErrAlreadyExists = errors.New("key already has a value")
-
-	// ErrNotFound is returned when attempting a Get but no value is found for
-	// the given key
-	ErrNotFound = errors.New("key not found")
-)
-
-// A Value provides access to a versioned value in the configuration store
-type Value interface {
-	// Get retrieves the stored value
-	Get(v proto.Message) error
-
-	// Version returns the current version of the value
-	Version() int
-}
-
-// KVStore provides access to the configuration store
-type KVStore interface {
-	// Get retrieves the value for the given key
-	Get(key string) (Value, error)
-
-	// Set stores the value for the given key
-	Set(key string, v proto.Message) error
-
-	// SetIfNotExists sets the value for the given key only if no value already exists
-	SetIfNotExists(key string, v proto.Message) error
-
-	// CheckAndSet stores the value for the given key if the current version matches
-	// the provided version
-	CheckAndSet(key string, version int, v proto.Message) error
-}
 
 // A ServiceInstance is a single instance of a service
 type ServiceInstance interface {
@@ -125,7 +84,7 @@ type Client interface {
 	Services() Services
 
 	// KV returns access to the distributed configuration store
-	KV() KVStore
+	KV() kv.Store
 }
 
 type serviceInstance struct {
