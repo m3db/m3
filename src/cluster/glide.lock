@@ -1,10 +1,19 @@
-hash: fc37bf49c27216f4121997aa9ff1cec03feb15eae3e3618b2547792cf1288d64
-updated: 2016-08-16T16:09:33.848474772-04:00
+hash: 0edf6e7f692e81c1a30407a447cd1ae24dfebaf5cdaffc16ddd78396750668d4
+updated: 2016-08-17T17:14:18.464514136-04:00
 imports:
+- name: github.com/golang/mock
+  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  subpackages:
+  - gomock
+  - mockgen
 - name: github.com/golang/protobuf
   version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
   subpackages:
   - proto
+- name: github.com/m3db/m3x
+  version: 57784a54c84014c1fbb16dc42c5db7ade02818aa
+  subpackages:
+  - log
 - name: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
