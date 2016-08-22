@@ -19,7 +19,7 @@ do
 done
 
 NPROC=$(getconf _NPROCESSORS_ONLN)
-go run .ci/gotestcover/gotestcover.go -covermode=set -coverprofile=${TARGET} -v -parallelpackages $NPROC $DIRS | tee $LOG
+go run .ci/gotestcover/gotestcover.go -race -covermode=atomic -coverprofile=${TARGET} -v -parallelpackages $NPROC $DIRS | tee $LOG
 
 TEST_EXIT=${PIPESTATUS[0]}
 
