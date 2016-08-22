@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
@@ -231,8 +230,8 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []FetchB
 	return res
 }
 
-func (b *dbBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool) []block.DatabaseBlockMetadata {
-	var res []block.DatabaseBlockMetadata
+func (b *dbBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool) []FetchBlockMetadataResult {
+	var res []FetchBlockMetadataResult
 
 	now := b.nowFn()
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
@@ -249,7 +248,7 @@ func (b *dbBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool) [
 		if includeSizes {
 			pSize = &size
 		}
-		res = append(res, block.NewDatabaseBlockMetadata(bucket.start, pSize))
+		res = append(res, newFetchBlockMetadataResult(bucket.start, pSize, nil))
 	})
 
 	return res

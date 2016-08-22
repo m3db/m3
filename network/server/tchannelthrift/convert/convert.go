@@ -25,7 +25,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 )
 
@@ -112,4 +114,15 @@ func ToSegments(readers []xio.SegmentReader) *rpc.Segments {
 	}
 
 	return s
+}
+
+// ToRPCError converts a server error to a RPC error.
+func ToRPCError(err error) *rpc.Error {
+	if err == nil {
+		return nil
+	}
+	if xerrors.IsInvalidParams(err) {
+		return tterrors.NewBadRequestError(err)
+	}
+	return tterrors.NewInternalError(err)
 }

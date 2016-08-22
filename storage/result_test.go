@@ -39,3 +39,15 @@ func TestSortFetchBlockResultByTimeAscending(t *testing.T) {
 	sort.Sort(fetchBlockResultByTimeAscending(input))
 	require.Equal(t, expected, input)
 }
+
+func TestSortFetchBlockMetadataResultByTimeAscending(t *testing.T) {
+	now := time.Now()
+	input := []FetchBlockMetadataResult{
+		newFetchBlockMetadataResult(now, nil, nil),
+		newFetchBlockMetadataResult(now.Add(time.Second), nil, nil),
+		newFetchBlockMetadataResult(now.Add(-time.Second), nil, nil),
+	}
+	expected := []FetchBlockMetadataResult{input[2], input[0], input[1]}
+	sortFetchBlockMetadataResultByTimeAscending(input)
+	require.Equal(t, expected, input)
+}

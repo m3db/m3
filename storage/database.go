@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
@@ -234,22 +233,15 @@ func (d *db) ReadEncoded(
 
 func (d *db) FetchBlocks(
 	ctx context.Context,
+	shardID uint32,
 	id string,
 	starts []time.Time,
-) []FetchBlockResult {
-	shardID := d.shardSet.Shard(id)
+) ([]FetchBlockResult, error) {
 	shard, err := d.readableShard(shardID)
 	if err != nil {
-		// If we don't own the shard associated with the id, return an error
-		// so the client knows it needs to retry these.
-		res := make([]FetchBlockResult, len(starts))
-		for i, start := range starts {
-			res[i] = newFetchBlockResult(start, nil, xerrors.NewInvalidParamsError(err))
-		}
-		sortFetchBlockResultByTimeAscending(res)
-		return res
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
-	return shard.FetchBlocks(ctx, id, starts)
+	return shard.FetchBlocks(ctx, id, starts), nil
 }
 
 func (d *db) FetchBlocksMetadata(
@@ -258,12 +250,13 @@ func (d *db) FetchBlocksMetadata(
 	limit int64,
 	pageToken int64,
 	includeSizes bool,
-) ([]block.DatabaseBlocksMetadata, *int64, error) {
+) ([]FetchBlocksMetadataResult, *int64, error) {
 	shard, err := d.readableShard(shardID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	return shard.FetchBlocksMetadata(ctx, limit, pageToken, includeSizes)
+	res, nextPageToken := shard.FetchBlocksMetadata(ctx, limit, pageToken, includeSizes)
+	return res, nextPageToken, nil
 }
 
 func (d *db) Bootstrap() error {

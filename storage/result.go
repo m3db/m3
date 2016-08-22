@@ -39,7 +39,7 @@ func newFetchBlockResult(start time.Time, readers []xio.SegmentReader, err error
 
 func (b fetchBlockResult) Start() time.Time             { return b.start }
 func (b fetchBlockResult) Readers() []xio.SegmentReader { return b.readers }
-func (b fetchBlockResult) Error() error                 { return b.err }
+func (b fetchBlockResult) Err() error                   { return b.err }
 
 type fetchBlockResultByTimeAscending []FetchBlockResult
 
@@ -50,3 +50,48 @@ func (e fetchBlockResultByTimeAscending) Less(i, j int) bool { return e[i].Start
 func sortFetchBlockResultByTimeAscending(results []FetchBlockResult) {
 	sort.Sort(fetchBlockResultByTimeAscending(results))
 }
+
+type fetchBlockMetadataResult struct {
+	start time.Time
+	size  *int64
+	err   error
+}
+
+// newFetchBlockMetadataResult creates a new fetch block metadata result.
+func newFetchBlockMetadataResult(start time.Time, size *int64, err error) fetchBlockMetadataResult {
+	return fetchBlockMetadataResult{
+		start: start,
+		size:  size,
+		err:   err,
+	}
+}
+
+func (r fetchBlockMetadataResult) Start() time.Time { return r.start }
+func (r fetchBlockMetadataResult) Size() *int64     { return r.size }
+func (r fetchBlockMetadataResult) Err() error       { return r.err }
+
+type fetchBlockMetadataResultByTimeAscending []FetchBlockMetadataResult
+
+func (a fetchBlockMetadataResultByTimeAscending) Len() int      { return len(a) }
+func (a fetchBlockMetadataResultByTimeAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a fetchBlockMetadataResultByTimeAscending) Less(i, j int) bool {
+	return a[i].Start().Before(a[j].Start())
+}
+
+// sortFetchBlockMetadataResultByTimeAscending sorts fetch block metadata result array in time ascending order
+func sortFetchBlockMetadataResultByTimeAscending(metadata []FetchBlockMetadataResult) {
+	sort.Sort(fetchBlockMetadataResultByTimeAscending(metadata))
+}
+
+type fetchBlocksMetadataResult struct {
+	id     string
+	blocks []FetchBlockMetadataResult
+}
+
+// newFetchBlocksMetadataResult creates new database blocks metadata
+func newFetchBlocksMetadataResult(id string, blocks []FetchBlockMetadataResult) FetchBlocksMetadataResult {
+	return fetchBlocksMetadataResult{id: id, blocks: blocks}
+}
+
+func (m fetchBlocksMetadataResult) ID() string                         { return m.id }
+func (m fetchBlocksMetadataResult) Blocks() []FetchBlockMetadataResult { return m.blocks }

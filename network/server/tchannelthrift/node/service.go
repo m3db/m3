@@ -72,10 +72,8 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	encoded, err := s.db.ReadEncoded(ctx, req.ID, start, end)
 	if err != nil {
-		if xerrors.IsInvalidParams(err) {
-			return nil, tterrors.NewBadRequestError(err)
-		}
-		return nil, tterrors.NewInternalError(err)
+		rpcErr := convert.ToRPCError(err)
+		return nil, rpcErr
 	}
 
 	result := rpc.NewFetchResult_()
@@ -124,11 +122,7 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 
 		encoded, err := s.db.ReadEncoded(ctx, req.Ids[i], start, end)
 		if err != nil {
-			if xerrors.IsInvalidParams(err) {
-				rawResult.Err = tterrors.NewBadRequestError(err)
-				continue
-			}
-			rawResult.Err = tterrors.NewInternalError(err)
+			rawResult.Err = convert.ToRPCError(err)
 			continue
 		}
 
@@ -150,6 +144,7 @@ func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) 
 
 	var blockStarts []time.Time
 
+	shardID := uint32(req.Shard)
 	res := rpc.NewFetchBlocksResult_()
 	res.Elements = make([]*rpc.Blocks, len(req.Elements))
 	for i, request := range req.Elements {
@@ -158,19 +153,18 @@ func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) 
 		for _, start := range request.Starts {
 			blockStarts = append(blockStarts, xtime.FromNanoseconds(start))
 		}
-		fetched := s.db.FetchBlocks(ctx, id, blockStarts)
+		fetched, err := s.db.FetchBlocks(ctx, shardID, id, blockStarts)
+		if err != nil {
+			return nil, convert.ToRPCError(err)
+		}
 		blocks := rpc.NewBlocks()
 		blocks.ID = id
 		blocks.Blocks = make([]*rpc.Block, len(fetched))
 		for j, fetchedBlock := range fetched {
 			block := rpc.NewBlock()
 			block.Start = xtime.ToNanoseconds(fetchedBlock.Start())
-			if err := fetchedBlock.Error(); err != nil {
-				if xerrors.IsInvalidParams(err) {
-					block.Err = tterrors.NewBadRequestError(err)
-				} else {
-					block.Err = tterrors.NewInternalError(err)
-				}
+			if err := fetchedBlock.Err(); err != nil {
+				block.Err = convert.ToRPCError(err)
 			} else {
 				block.Segments = convert.ToSegments(fetchedBlock.Readers())
 			}
@@ -201,11 +195,11 @@ func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksM
 
 	result := rpc.NewFetchBlocksMetadataResult_()
 	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, uint32(req.Shard), req.Limit, pageToken, includeSizes)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
 	result.NextPageToken = nextPageToken
 	result.Elements = make([]*rpc.BlocksMetadata, len(fetched))
-	if err != nil {
-		result.Err = tterrors.NewInternalError(err)
-	}
 	for i, fetchedMetadata := range fetched {
 		blocksMetadata := rpc.NewBlocksMetadata()
 		blocksMetadata.ID = fetchedMetadata.ID()
@@ -241,10 +235,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
 	err = s.db.Write(ctx, req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
 	if err != nil {
-		if xerrors.IsInvalidParams(err) {
-			return tterrors.NewBadRequestError(err)
-		}
-		return tterrors.NewInternalError(err)
+		return convert.ToRPCError(err)
 	}
 	return nil
 }

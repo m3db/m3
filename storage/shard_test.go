@@ -324,19 +324,20 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	defer ctx.Close()
 
 	shard := testDatabaseShard(opts)
+	ids := make([]string, 0, 5)
 	for i := 0; i < 10; i++ {
-		series := addMockSeries(ctrl, shard, fmt.Sprintf("foo.%d", i), uint64(i))
-		var err error
-		if i == 5 {
-			err = errors.New("foo")
-		}
+		id := fmt.Sprintf("foo.%d", i)
+		series := addMockSeries(ctrl, shard, id, uint64(i))
 		if i >= 2 && i < 7 {
-			series.EXPECT().FetchBlocksMetadata(ctx, true).Return(nil, err)
+			ids = append(ids, id)
+			series.EXPECT().FetchBlocksMetadata(ctx, true).Return(newFetchBlocksMetadataResult(id, nil))
 		}
 	}
 
-	res, nextPageToken, err := shard.FetchBlocksMetadata(ctx, 5, 2, true)
-	require.Equal(t, 5, len(res))
+	res, nextPageToken := shard.FetchBlocksMetadata(ctx, 5, 2, true)
+	require.Equal(t, len(ids), len(res))
 	require.Equal(t, int64(7), *nextPageToken)
-	require.Equal(t, "foo", err.Error())
+	for i := 0; i < len(res); i++ {
+		require.Equal(t, ids[i], res[i].ID())
+	}
 }

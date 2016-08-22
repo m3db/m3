@@ -234,7 +234,7 @@ func (s *dbSeries) ReadEncoded(
 }
 
 func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult {
-	var res []FetchBlockResult
+	res := make([]FetchBlockResult, 0, len(starts)+1)
 
 	s.RLock()
 
@@ -262,11 +262,9 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []FetchB
 	return res
 }
 
-func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) (block.DatabaseBlocksMetadata, error) {
-	var (
-		res      []block.DatabaseBlockMetadata
-		multiErr xerrors.MultiError
-	)
+func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) FetchBlocksMetadataResult {
+	// TODO(xichen): pool these if this method is called frequently (e.g., for background repairs)
+	var res []FetchBlockMetadataResult
 
 	s.RLock()
 
@@ -277,7 +275,8 @@ func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) (
 		// If we failed to read some blocks, skip this block and continue to get
 		// the metadata for the rest of the blocks.
 		if err != nil {
-			multiErr = multiErr.Add(fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, t, err))
+			detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, t, err)
+			res = append(res, newFetchBlockMetadataResult(t, nil, detailedErr))
 			continue
 		}
 		// If there are no datapoints in the block, continue and don't append it to the result.
@@ -290,7 +289,7 @@ func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) (
 			size := int64(len(segment.Head) + len(segment.Tail))
 			pSize = &size
 		}
-		res = append(res, block.NewDatabaseBlockMetadata(t, pSize))
+		res = append(res, newFetchBlockMetadataResult(t, pSize, nil))
 	}
 
 	// Iterate over the encoders in the database buffer
@@ -301,9 +300,9 @@ func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) (
 
 	s.RUnlock()
 
-	block.SortMetadataByTimeAscending(res)
+	sortFetchBlockMetadataResultByTimeAscending(res)
 
-	return block.NewDatabaseBlocksMetadata(s.seriesID, res), multiErr.FinalError()
+	return newFetchBlocksMetadataResult(s.seriesID, res)
 }
 
 func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {

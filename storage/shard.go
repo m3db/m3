@@ -304,26 +304,24 @@ func (s *dbShard) FetchBlocksMetadata(
 	limit int64,
 	pageToken int64,
 	includeSizes bool,
-) ([]block.DatabaseBlocksMetadata, *int64, error) {
+) ([]FetchBlocksMetadataResult, *int64) {
 	var (
-		res            = make([]block.DatabaseBlocksMetadata, 0, limit)
+		res            = make([]FetchBlocksMetadataResult, 0, limit)
 		pNextPageToken *int64
-		multiErr       xerrors.MultiError
 	)
 	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
 		if int64(entry.index) < pageToken {
 			return nil
 		}
+
 		// Create a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching the metadata for this series.
 		tmpCtx := s.opts.GetContextPool().Get()
-		blocksMetadata, err := entry.series.FetchBlocksMetadata(tmpCtx, includeSizes)
+		blocksMetadata := entry.series.FetchBlocksMetadata(tmpCtx, includeSizes)
 		tmpCtx.Close()
-		if err != nil {
-			multiErr = multiErr.Add(err)
-		}
 		res = append(res, blocksMetadata)
-		return err
+
+		return nil
 	}, func(entry *dbShardEntry) bool {
 		// Break out of the iteration loop once we've accumulated enough entries.
 		if int64(len(res)) < limit {
@@ -334,7 +332,7 @@ func (s *dbShard) FetchBlocksMetadata(
 		return true
 	})
 
-	return res, pNextPageToken, multiErr.FinalError()
+	return res, pNextPageToken
 }
 
 func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error {

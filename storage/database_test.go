@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3x/errors"
 
 	"github.com/golang/mock/gomock"
@@ -126,14 +125,9 @@ func TestDatabaseFetchBlocksShardNotOwned(t *testing.T) {
 	d := testDatabase(t, bootstrapped)
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
-	expected := []time.Time{starts[2], starts[0], starts[1]}
-	res := d.FetchBlocks(ctx, "foo", starts)
-	require.Equal(t, len(expected), len(res))
-	for i := 0; i < len(expected); i++ {
-		require.Equal(t, expected[i], res[i].Start())
-		require.Nil(t, res[i].Readers())
-		require.True(t, xerrors.IsInvalidParams(res[i].Error()))
-	}
+	res, err := d.FetchBlocks(ctx, 0, "foo", starts)
+	require.Nil(t, res)
+	require.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestDatabaseFetchBlocksShardOwned(t *testing.T) {
@@ -145,14 +139,16 @@ func TestDatabaseFetchBlocksShardOwned(t *testing.T) {
 
 	d := testDatabase(t, bootstrapped)
 	id := "bar"
+	shardID := uint32(397)
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
 	expected := []FetchBlockResult{newFetchBlockResult(starts[0], nil, nil)}
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().FetchBlocks(ctx, id, starts).Return(expected)
-	d.shards[397] = mockShard
-	res := d.FetchBlocks(ctx, id, starts)
+	d.shards[shardID] = mockShard
+	res, err := d.FetchBlocks(ctx, shardID, id, starts)
 	require.Equal(t, expected, res)
+	require.NoError(t, err)
 }
 
 func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
@@ -176,10 +172,10 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 
 	d := testDatabase(t, bootstrapped)
 	shardID, limit, pageToken, includeSizes := uint32(397), int64(100), int64(0), true
-	expectedBlocks := []block.DatabaseBlocksMetadata{block.NewDatabaseBlocksMetadata("bar", nil)}
+	expectedBlocks := []FetchBlocksMetadataResult{newFetchBlocksMetadataResult("bar", nil)}
 	expectedToken := new(int64)
 	mockShard := NewMockdatabaseShard(ctrl)
-	mockShard.EXPECT().FetchBlocksMetadata(ctx, limit, pageToken, includeSizes).Return(expectedBlocks, expectedToken, nil)
+	mockShard.EXPECT().FetchBlocksMetadata(ctx, limit, pageToken, includeSizes).Return(expectedBlocks, expectedToken)
 	d.shards[int(shardID)] = mockShard
 	res, nextToken, err := d.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes)
 	require.Equal(t, expectedBlocks, res)

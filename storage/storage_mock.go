@@ -81,14 +81,106 @@ func (_mr *_MockFetchBlockResultRecorder) Readers() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Readers")
 }
 
-func (_m *MockFetchBlockResult) Error() error {
-	ret := _m.ctrl.Call(_m, "Error")
+func (_m *MockFetchBlockResult) Err() error {
+	ret := _m.ctrl.Call(_m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFetchBlockResultRecorder) Error() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Error")
+func (_mr *_MockFetchBlockResultRecorder) Err() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
+}
+
+// Mock of FetchBlocksMetadataResult interface
+type MockFetchBlocksMetadataResult struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFetchBlocksMetadataResultRecorder
+}
+
+// Recorder for MockFetchBlocksMetadataResult (not exported)
+type _MockFetchBlocksMetadataResultRecorder struct {
+	mock *MockFetchBlocksMetadataResult
+}
+
+func NewMockFetchBlocksMetadataResult(ctrl *gomock.Controller) *MockFetchBlocksMetadataResult {
+	mock := &MockFetchBlocksMetadataResult{ctrl: ctrl}
+	mock.recorder = &_MockFetchBlocksMetadataResultRecorder{mock}
+	return mock
+}
+
+func (_m *MockFetchBlocksMetadataResult) EXPECT() *_MockFetchBlocksMetadataResultRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFetchBlocksMetadataResult) ID() string {
+	ret := _m.ctrl.Call(_m, "ID")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockFetchBlocksMetadataResultRecorder) ID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
+}
+
+func (_m *MockFetchBlocksMetadataResult) Blocks() []FetchBlockMetadataResult {
+	ret := _m.ctrl.Call(_m, "Blocks")
+	ret0, _ := ret[0].([]FetchBlockMetadataResult)
+	return ret0
+}
+
+func (_mr *_MockFetchBlocksMetadataResultRecorder) Blocks() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Blocks")
+}
+
+// Mock of FetchBlockMetadataResult interface
+type MockFetchBlockMetadataResult struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFetchBlockMetadataResultRecorder
+}
+
+// Recorder for MockFetchBlockMetadataResult (not exported)
+type _MockFetchBlockMetadataResultRecorder struct {
+	mock *MockFetchBlockMetadataResult
+}
+
+func NewMockFetchBlockMetadataResult(ctrl *gomock.Controller) *MockFetchBlockMetadataResult {
+	mock := &MockFetchBlockMetadataResult{ctrl: ctrl}
+	mock.recorder = &_MockFetchBlockMetadataResultRecorder{mock}
+	return mock
+}
+
+func (_m *MockFetchBlockMetadataResult) EXPECT() *_MockFetchBlockMetadataResultRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFetchBlockMetadataResult) Start() time.Time {
+	ret := _m.ctrl.Call(_m, "Start")
+	ret0, _ := ret[0].(time.Time)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockMetadataResultRecorder) Start() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
+}
+
+func (_m *MockFetchBlockMetadataResult) Size() *int64 {
+	ret := _m.ctrl.Call(_m, "Size")
+	ret0, _ := ret[0].(*int64)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockMetadataResultRecorder) Size() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Size")
+}
+
+func (_m *MockFetchBlockMetadataResult) Err() error {
+	ret := _m.ctrl.Call(_m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockMetadataResultRecorder) Err() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
 }
 
 // Mock of Database interface
@@ -163,19 +255,20 @@ func (_mr *_MockDatabaseRecorder) ReadEncoded(arg0, arg1, arg2, arg3 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockDatabase) FetchBlocks(ctx context.Context, id string, starts []time.Time) []FetchBlockResult {
-	ret := _m.ctrl.Call(_m, "FetchBlocks", ctx, id, starts)
+func (_m *MockDatabase) FetchBlocks(ctx context.Context, shard uint32, id string, starts []time.Time) ([]FetchBlockResult, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocks", ctx, shard, id, starts)
 	ret0, _ := ret[0].([]FetchBlockResult)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-func (_mr *_MockDatabaseRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2)
+func (_mr *_MockDatabaseRecorder) FetchBlocks(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockDatabase) FetchBlocksMetadata(ctx context.Context, shardID uint32, limit int64, pageToken int64, includeSizes bool) ([]block.DatabaseBlocksMetadata, *int64, error) {
+func (_m *MockDatabase) FetchBlocksMetadata(ctx context.Context, shardID uint32, limit int64, pageToken int64, includeSizes bool) ([]FetchBlocksMetadataResult, *int64, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, shardID, limit, pageToken, includeSizes)
-	ret0, _ := ret[0].([]block.DatabaseBlocksMetadata)
+	ret0, _ := ret[0].([]FetchBlocksMetadataResult)
 	ret1, _ := ret[1].(*int64)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -275,12 +368,11 @@ func (_mr *_MockdatabaseShardRecorder) FetchBlocks(arg0, arg1, arg2 interface{})
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2)
 }
 
-func (_m *MockdatabaseShard) FetchBlocksMetadata(ctx context.Context, limit int64, pageToken int64, includeSizes bool) ([]block.DatabaseBlocksMetadata, *int64, error) {
+func (_m *MockdatabaseShard) FetchBlocksMetadata(ctx context.Context, limit int64, pageToken int64, includeSizes bool) ([]FetchBlocksMetadataResult, *int64) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, limit, pageToken, includeSizes)
-	ret0, _ := ret[0].([]block.DatabaseBlocksMetadata)
+	ret0, _ := ret[0].([]FetchBlocksMetadataResult)
 	ret1, _ := ret[1].(*int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	return ret0, ret1
 }
 
 func (_mr *_MockdatabaseShardRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
@@ -379,11 +471,10 @@ func (_mr *_MockdatabaseSeriesRecorder) FetchBlocks(arg0, arg1 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1)
 }
 
-func (_m *MockdatabaseSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) (block.DatabaseBlocksMetadata, error) {
+func (_m *MockdatabaseSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) FetchBlocksMetadataResult {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, includeSizes)
-	ret0, _ := ret[0].(block.DatabaseBlocksMetadata)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(FetchBlocksMetadataResult)
+	return ret0
 }
 
 func (_mr *_MockdatabaseSeriesRecorder) FetchBlocksMetadata(arg0, arg1 interface{}) *gomock.Call {
@@ -471,9 +562,9 @@ func (_mr *_MockdatabaseBufferRecorder) FetchBlocks(arg0, arg1 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1)
 }
 
-func (_m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool) []block.DatabaseBlockMetadata {
+func (_m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool) []FetchBlockMetadataResult {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, includeSizes)
-	ret0, _ := ret[0].([]block.DatabaseBlockMetadata)
+	ret0, _ := ret[0].([]FetchBlockMetadataResult)
 	return ret0
 }
 

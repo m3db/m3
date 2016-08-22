@@ -45,8 +45,29 @@ type FetchBlockResult interface {
 	// Readers returns the readers for the underlying streams.
 	Readers() []xio.SegmentReader
 
-	// Error returns the error encountered when fetching the block.
-	Error() error
+	// Err returns the error encountered when fetching the block.
+	Err() error
+}
+
+// FetchBlocksMetadataResult captures the fetch results for multiple database blocks.
+type FetchBlocksMetadataResult interface {
+	// ID returns id of the series containing the blocks
+	ID() string
+
+	// Blocks returns the metadata of series blocks
+	Blocks() []FetchBlockMetadataResult
+}
+
+// FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered
+type FetchBlockMetadataResult interface {
+	// Start return the start time of a database block
+	Start() time.Time
+
+	// Size returns the size of the block, or nil if not available.
+	Size() *int64
+
+	// Err returns the error encountered if any
+	Err() error
 }
 
 // Database is a time series database
@@ -80,9 +101,10 @@ type Database interface {
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
+		shard uint32,
 		id string,
 		starts []time.Time,
-	) []FetchBlockResult
+	) ([]FetchBlockResult, error)
 
 	// FetchBlocksMetadata retrieves blocks metadata for a given shard.
 	FetchBlocksMetadata(
@@ -91,7 +113,7 @@ type Database interface {
 		limit int64,
 		pageToken int64,
 		includeSizes bool,
-	) ([]block.DatabaseBlocksMetadata, *int64, error)
+	) ([]FetchBlocksMetadataResult, *int64, error)
 
 	// Bootstrap bootstraps the database.
 	Bootstrap() error
@@ -134,7 +156,7 @@ type databaseShard interface {
 		limit int64,
 		pageToken int64,
 		includeSizes bool,
-	) ([]block.DatabaseBlocksMetadata, *int64, error)
+	) ([]FetchBlocksMetadataResult, *int64)
 
 	Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error
 
@@ -165,7 +187,7 @@ type databaseSeries interface {
 	FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult
 
 	// FetchBlocksMetadata retrieves the blocks metadata.
-	FetchBlocksMetadata(ctx context.Context, includeSizes bool) (block.DatabaseBlocksMetadata, error)
+	FetchBlocksMetadata(ctx context.Context, includeSizes bool) FetchBlocksMetadataResult
 
 	Empty() bool
 
@@ -196,7 +218,7 @@ type databaseBuffer interface {
 	FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult
 
 	// FetchBlocksMetadata retrieves the blocks metadata.
-	FetchBlocksMetadata(ctx context.Context, includeSizes bool) []block.DatabaseBlockMetadata
+	FetchBlocksMetadata(ctx context.Context, includeSizes bool) []FetchBlockMetadataResult
 
 	Empty() bool
 

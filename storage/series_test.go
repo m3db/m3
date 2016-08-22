@@ -374,9 +374,9 @@ func TestSeriesFetchBlocks(t *testing.T) {
 			require.Nil(t, res[i].Readers())
 		}
 		if i == 2 {
-			require.Error(t, res[i].Error())
+			require.Error(t, res[i].Err())
 		} else {
-			require.NoError(t, res[i].Error())
+			require.NoError(t, res[i].Err())
 		}
 	}
 }
@@ -405,7 +405,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
 	buffer.EXPECT().Empty().Return(false)
-	buffer.EXPECT().FetchBlocksMetadata(ctx, true).Return([]block.DatabaseBlockMetadata{block.NewDatabaseBlockMetadata(starts[2], new(int64))})
+	buffer.EXPECT().FetchBlocksMetadata(ctx, true).Return([]FetchBlockMetadataResult{newFetchBlockMetadataResult(starts[2], new(int64), nil)})
 
 	series := newDatabaseSeries("bar", bootstrapped, opts).(*dbSeries)
 	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
@@ -413,20 +413,33 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	series.blocks = mockBlocks
 	series.buffer = buffer
 
-	res, err := series.FetchBlocksMetadata(ctx, true)
-	require.Error(t, err)
+	res := series.FetchBlocksMetadata(ctx, true)
 	require.Equal(t, "bar", res.ID())
 	metadata := res.Blocks()
 	expected := []struct {
-		t time.Time
-		s int64
+		t        time.Time
+		s        *int64
+		hasError bool
 	}{
-		{starts[2], 0},
-		{starts[0], 4},
+		{starts[2], nil, false},
+		{starts[0], nil, false},
+		{starts[1], nil, true},
 	}
-	require.Equal(t, len(metadata), len(expected))
+	expected[0].s = new(int64)
+	tmp := int64(4)
+	expected[1].s = &tmp
+	require.Equal(t, len(expected), len(metadata))
 	for i := 0; i < len(expected); i++ {
 		require.Equal(t, expected[i].t, metadata[i].Start())
-		require.Equal(t, expected[i].s, *metadata[i].Size())
+		if expected[i].s == nil {
+			require.Nil(t, metadata[i].Size())
+		} else {
+			require.Equal(t, *expected[i].s, *metadata[i].Size())
+		}
+		if expected[i].hasError {
+			require.Error(t, metadata[i].Err())
+		} else {
+			require.NoError(t, metadata[i].Err())
+		}
 	}
 }

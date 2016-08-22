@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/storage/block"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/time"
 
@@ -57,11 +56,11 @@ func (d *mockDatabase) ReadEncoded(context.Context, string, time.Time, time.Time
 	return nil, nil
 }
 
-func (d *mockDatabase) FetchBlocks(context.Context, string, []time.Time) []FetchBlockResult {
-	return nil
+func (d *mockDatabase) FetchBlocks(context.Context, uint32, string, []time.Time) ([]FetchBlockResult, error) {
+	return nil, nil
 }
 
-func (d *mockDatabase) FetchBlocksMetadata(context.Context, uint32, int64, int64, bool) ([]block.DatabaseBlocksMetadata, *int64, error) {
+func (d *mockDatabase) FetchBlocksMetadata(context.Context, uint32, int64, int64, bool) ([]FetchBlocksMetadataResult, *int64, error) {
 	return nil, nil, nil
 }
 

@@ -52,7 +52,8 @@ service Node {
 }
 
 struct FetchBlocksRequest {
-	1: required list<FetchBlocksParam> elements
+	1: required i32 shard
+	2: required list<FetchBlocksParam> elements
 }
 
 struct FetchBlocksParam {
@@ -85,7 +86,6 @@ struct FetchBlocksMetadataRequest {
 struct FetchBlocksMetadataResult {
 	1: required list<BlocksMetadata> elements
 	2: optional i64 nextPageToken
-	3: optional Error err
 }
 
 struct BlocksMetadata {
@@ -96,6 +96,7 @@ struct BlocksMetadata {
 struct BlockMetadata {
 	1: required i64 start
 	2: optional i64 size
+	3: optional Error err
 }
 
 struct HealthResult {
