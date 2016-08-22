@@ -106,7 +106,9 @@ type Database interface {
 		starts []time.Time,
 	) ([]FetchBlockResult, error)
 
-	// FetchBlocksMetadata retrieves blocks metadata for a given shard.
+	// FetchBlocksMetadata retrieves blocks metadata for a given shard, returns the
+	// fetched block metadata results, the next page token, and any error encountered.
+	// If we have fetched all the block metadata, we return nil as the next page token.
 	FetchBlocksMetadata(
 		ctx context.Context,
 		shardID uint32,
