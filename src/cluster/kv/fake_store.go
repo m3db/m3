@@ -33,6 +33,23 @@ func NewFakeStore() Store {
 	}
 }
 
+// NewFakeValue returns a new fake Value around the given proto
+func NewFakeValue(vers int, msg proto.Message) Value {
+	data, _ := proto.Marshal(msg)
+	return &fakeValue{
+		version: vers,
+		data:    data,
+	}
+}
+
+// NewFakeValueWithData returns a new fake Value around the given data
+func NewFakeValueWithData(vers int, data []byte) Value {
+	return &fakeValue{
+		version: vers,
+		data:    data,
+	}
+}
+
 type fakeValue struct {
 	version int
 	data    []byte
