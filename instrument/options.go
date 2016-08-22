@@ -22,19 +22,19 @@ package instrument
 
 import (
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/metrics"
+	"github.com/uber-go/tally"
 )
 
 type options struct {
 	logger xlog.Logger
-	scope  xmetrics.Scope
+	scope  tally.Scope
 }
 
 // NewOptions creates new instrument options
 func NewOptions() Options {
 	return &options{
 		logger: xlog.SimpleLogger,
-		scope:  xmetrics.NoopScope,
+		scope:  tally.NoopScope,
 	}
 }
 
@@ -48,12 +48,12 @@ func (o *options) GetLogger() xlog.Logger {
 	return o.logger
 }
 
-func (o *options) MetricsScope(value xmetrics.Scope) Options {
+func (o *options) MetricsScope(value tally.Scope) Options {
 	opts := *o
 	opts.scope = value
 	return &opts
 }
 
-func (o *options) GetMetricsScope() xmetrics.Scope {
+func (o *options) GetMetricsScope() tally.Scope {
 	return o.scope
 }
