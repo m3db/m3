@@ -23,6 +23,7 @@ package node
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
@@ -63,18 +64,16 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	ctx := s.db.Options().GetContextPool().Get()
 	defer ctx.Close()
 
-	start, rangeStartErr := convert.ValueToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := convert.ValueToTime(req.RangeEnd, req.RangeType)
+	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
 	encoded, err := s.db.ReadEncoded(ctx, req.ID, start, end)
 	if err != nil {
-		if xerrors.IsInvalidParams(err) {
-			return nil, tterrors.NewBadRequestError(err)
-		}
-		return nil, tterrors.NewInternalError(err)
+		rpcErr := convert.ToRPCError(err)
+		return nil, rpcErr
 	}
 
 	result := rpc.NewFetchResult_()
@@ -88,7 +87,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	defer it.Close()
 	for it.Next() {
 		dp, _, annotation := it.Current()
-		ts, tsErr := convert.TimeToValue(dp.Timestamp, req.ResultTimeType)
+		ts, tsErr := convert.ToValue(dp.Timestamp, req.ResultTimeType)
 		if tsErr != nil {
 			return nil, tterrors.NewBadRequestError(tsErr)
 		}
@@ -110,8 +109,8 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 	ctx := s.db.Options().GetContextPool().Get()
 	defer ctx.Close()
 
-	start, rangeStartErr := convert.ValueToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := convert.ValueToTime(req.RangeEnd, req.RangeType)
+	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
@@ -123,27 +122,15 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 
 		encoded, err := s.db.ReadEncoded(ctx, req.Ids[i], start, end)
 		if err != nil {
-			if xerrors.IsInvalidParams(err) {
-				rawResult.Err = tterrors.NewBadRequestError(err)
-				continue
-			}
-			rawResult.Err = tterrors.NewInternalError(err)
+			rawResult.Err = convert.ToRPCError(err)
 			continue
 		}
 
 		segments := make([]*rpc.Segments, 0, len(encoded))
 		for _, readers := range encoded {
-			s := &rpc.Segments{}
-			if len(readers) == 1 {
-				seg := readers[0].Segment()
-				s.Merged = &rpc.Segment{Head: seg.Head, Tail: seg.Tail}
-			} else {
-				for _, reader := range readers {
-					seg := reader.Segment()
-					s.Unmerged = append(s.Unmerged, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
-				}
+			if s := convert.ToSegments(readers); s != nil {
+				segments = append(segments, s)
 			}
-			segments = append(segments, s)
 		}
 		rawResult.Segments = segments
 	}
@@ -151,12 +138,83 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 	return result, nil
 }
 
-func (s *service) FetchBlocks(ctx thrift.Context, req *rpc.FetchBlocksRequest) (*rpc.FetchBlocksResult_, error) {
-	return nil, fmt.Errorf("not implemented")
+func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) (*rpc.FetchBlocksResult_, error) {
+	ctx := s.db.Options().GetContextPool().Get()
+	defer ctx.Close()
+
+	var blockStarts []time.Time
+
+	shardID := uint32(req.Shard)
+	res := rpc.NewFetchBlocksResult_()
+	res.Elements = make([]*rpc.Blocks, len(req.Elements))
+	for i, request := range req.Elements {
+		id := request.ID
+		blockStarts = blockStarts[:0]
+		for _, start := range request.Starts {
+			blockStarts = append(blockStarts, xtime.FromNanoseconds(start))
+		}
+		fetched, err := s.db.FetchBlocks(ctx, shardID, id, blockStarts)
+		if err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+		blocks := rpc.NewBlocks()
+		blocks.ID = id
+		blocks.Blocks = make([]*rpc.Block, len(fetched))
+		for j, fetchedBlock := range fetched {
+			block := rpc.NewBlock()
+			block.Start = xtime.ToNanoseconds(fetchedBlock.Start())
+			if err := fetchedBlock.Err(); err != nil {
+				block.Err = convert.ToRPCError(err)
+			} else {
+				block.Segments = convert.ToSegments(fetchedBlock.Readers())
+			}
+			blocks.Blocks[j] = block
+		}
+		res.Elements[i] = blocks
+	}
+	return res, nil
 }
 
-func (s *service) FetchBlocksMetadata(ctx thrift.Context, req *rpc.FetchBlocksMetadataRequest) (*rpc.FetchBlocksMetadataResult_, error) {
-	return nil, fmt.Errorf("not implemented")
+func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksMetadataRequest) (*rpc.FetchBlocksMetadataResult_, error) {
+	ctx := s.db.Options().GetContextPool().Get()
+	defer ctx.Close()
+
+	if req.Limit <= 0 {
+		return nil, nil
+	}
+
+	var pageToken int64
+	if req.PageToken != nil {
+		pageToken = *req.PageToken
+	}
+
+	var includeSizes bool
+	if req.IncludeSizes != nil {
+		includeSizes = *req.IncludeSizes
+	}
+
+	result := rpc.NewFetchBlocksMetadataResult_()
+	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, uint32(req.Shard), req.Limit, pageToken, includeSizes)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+	result.NextPageToken = nextPageToken
+	result.Elements = make([]*rpc.BlocksMetadata, len(fetched))
+	for i, fetchedMetadata := range fetched {
+		blocksMetadata := rpc.NewBlocksMetadata()
+		blocksMetadata.ID = fetchedMetadata.ID()
+		fetchedMetadataBlocks := fetchedMetadata.Blocks()
+		blocksMetadata.Blocks = make([]*rpc.BlockMetadata, len(fetchedMetadataBlocks))
+		for j, fetchedMetadataBlock := range fetchedMetadataBlocks {
+			blockMetadata := rpc.NewBlockMetadata()
+			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start())
+			blockMetadata.Size = fetchedMetadataBlock.Size()
+			blocksMetadata.Blocks[j] = blockMetadata
+		}
+		result.Elements[i] = blocksMetadata
+	}
+
+	return result, nil
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
@@ -166,7 +224,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	if req.Datapoint == nil {
 		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
 	}
-	unit, unitErr := convert.TimeTypeToUnit(req.Datapoint.TimestampType)
+	unit, unitErr := convert.ToUnit(req.Datapoint.TimestampType)
 	if unitErr != nil {
 		return tterrors.NewBadRequestError(unitErr)
 	}
@@ -177,10 +235,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
 	err = s.db.Write(ctx, req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
 	if err != nil {
-		if xerrors.IsInvalidParams(err) {
-			return tterrors.NewBadRequestError(err)
-		}
-		return tterrors.NewInternalError(err)
+		return convert.ToRPCError(err)
 	}
 	return nil
 }
@@ -191,7 +246,7 @@ func (s *service) WriteBatch(tctx thrift.Context, req *rpc.WriteBatchRequest) er
 
 	var errs []*rpc.WriteBatchError
 	for i, elem := range req.Elements {
-		unit, unitErr := convert.TimeTypeToUnit(elem.Datapoint.TimestampType)
+		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampType)
 		if unitErr != nil {
 			errs = append(errs, tterrors.NewBadRequestWriteBatchError(i, unitErr))
 			continue

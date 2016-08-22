@@ -22,6 +22,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -47,17 +48,23 @@ var noopWriteCommitLogFn = func(
 	return nil
 }
 
-type testUniqueIndex struct {
+type testIncreasingIndex struct {
 	created uint64
 }
 
-func (i *testUniqueIndex) nextUniqueIndex() uint64 {
+func (i *testIncreasingIndex) nextIndex() uint64 {
 	created := atomic.AddUint64(&i.created, 1)
 	return created - 1
 }
 
 func testDatabaseShard(opts Options) *dbShard {
-	return newDatabaseShard(0, &testUniqueIndex{}, noopWriteCommitLogFn, opts).(*dbShard)
+	return newDatabaseShard(0, &testIncreasingIndex{}, noopWriteCommitLogFn, opts).(*dbShard)
+}
+
+func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id string, index uint64) *MockdatabaseSeries {
+	series := NewMockdatabaseSeries(ctrl)
+	shard.lookup[id] = shard.list.PushBack(&dbShardEntry{series: series, index: index})
+	return series
 }
 
 func TestShardBootstrapWithError(t *testing.T) {
@@ -69,9 +76,11 @@ func TestShardBootstrapWithError(t *testing.T) {
 	opts := testDatabaseOptions()
 	s := testDatabaseShard(opts)
 	fooSeries := NewMockdatabaseSeries(ctrl)
+	fooSeries.EXPECT().ID().Return("foo")
 	barSeries := NewMockdatabaseSeries(ctrl)
-	s.lookup["foo"] = &dbShardEntry{series: fooSeries}
-	s.lookup["bar"] = &dbShardEntry{series: barSeries}
+	barSeries.EXPECT().ID().Return("bar")
+	s.lookup["foo"] = s.list.PushBack(&dbShardEntry{series: fooSeries})
+	s.lookup["bar"] = s.list.PushBack(&dbShardEntry{series: barSeries})
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
@@ -160,7 +169,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(expectedErr)
-		s.list.PushBack(series)
+		s.list.PushBack(&dbShardEntry{series: series})
 	}
 	err := s.Flush(nil, blockStart, pm)
 
@@ -175,19 +184,20 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	require.Equal(t, "error foo\nerror bar", err.Error())
 }
 
-func addTestSeries(t *testing.T, shard *dbShard, id string) databaseSeries {
+func addTestSeries(shard *dbShard, id string) databaseSeries {
 	series := newDatabaseSeries(id, bootstrapped, shard.opts)
-	elem := shard.list.PushBack(series)
-	entry := &dbShardEntry{series: series, elem: elem, curWriters: 0}
-	shard.lookup[id] = entry
+	shard.lookup[id] = shard.list.PushBack(&dbShardEntry{series: series})
 	return series
 }
 
 // This tests the scenario where an empty series is expired.
 func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
-	addTestSeries(t, shard, "foo")
+	addTestSeries(shard, "foo")
 	shard.Tick()
 	require.Equal(t, 0, len(shard.lookup))
 }
@@ -207,9 +217,12 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 // but receives writes after tickForEachSeries finishes but before purgeExpiredSeries
 // starts. The expected behavior is not to expire series in this case.
 func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
-	series := addTestSeries(t, shard, "foo")
+	series := addTestSeries(shard, "foo")
 	expired := shard.tickForEachSeries()
 	require.Len(t, expired, 1)
 
@@ -226,9 +239,12 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 // starts, we receive a write for a series, then purgeExpiredSeries runs, then we write to
 // the series. The expected behavior is not to expire series in this case.
 func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
-	addTestSeries(t, shard, "foo")
+	addTestSeries(shard, "foo")
 	expired := shard.tickForEachSeries()
 	require.Len(t, expired, 1)
 
@@ -241,4 +257,87 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 
 	require.False(t, series.Empty())
 	require.Equal(t, 1, len(shard.lookup))
+}
+
+func TestForEachShardEntry(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(opts)
+	for i := 0; i < 10; i++ {
+		addTestSeries(shard, fmt.Sprintf("foo.%d", i))
+	}
+
+	count := 0
+	entryFn := func(entry *dbShardEntry) error {
+		count++
+		if entry.series.ID() == "foo.5" {
+			return errors.New("foo")
+		}
+		return nil
+	}
+
+	stopIterFn := func(entry *dbShardEntry) bool {
+		return entry.series.ID() == "foo.8"
+	}
+
+	shard.forEachShardEntry(true, entryFn, stopIterFn)
+	require.Equal(t, 8, count)
+
+	count = 0
+	shard.forEachShardEntry(false, entryFn, stopIterFn)
+	require.Equal(t, 6, count)
+}
+
+func TestShardFetchBlocksIDNotExists(t *testing.T) {
+	opts := testDatabaseOptions()
+	ctx := opts.GetContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(opts)
+	require.Nil(t, shard.FetchBlocks(ctx, "foo", nil))
+}
+
+func TestShardFetchBlocksIDExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	ctx := opts.GetContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(opts)
+	id := "foo"
+	series := addMockSeries(ctrl, shard, id, 0)
+	now := time.Now()
+	starts := []time.Time{now}
+	expected := []FetchBlockResult{newFetchBlockResult(now, nil, nil)}
+	series.EXPECT().FetchBlocks(ctx, starts).Return(expected)
+	res := shard.FetchBlocks(ctx, id, starts)
+	require.Equal(t, expected, res)
+}
+
+func TestShardFetchBlocksMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	ctx := opts.GetContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(opts)
+	ids := make([]string, 0, 5)
+	for i := 0; i < 10; i++ {
+		id := fmt.Sprintf("foo.%d", i)
+		series := addMockSeries(ctrl, shard, id, uint64(i))
+		if i >= 2 && i < 7 {
+			ids = append(ids, id)
+			series.EXPECT().FetchBlocksMetadata(ctx, true).Return(newFetchBlocksMetadataResult(id, nil))
+		}
+	}
+
+	res, nextPageToken := shard.FetchBlocksMetadata(ctx, 5, 2, true)
+	require.Equal(t, len(ids), len(res))
+	require.Equal(t, int64(7), *nextPageToken)
+	for i := 0; i < len(res); i++ {
+		require.Equal(t, ids[i], res[i].ID())
+	}
 }

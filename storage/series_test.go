@@ -332,3 +332,114 @@ func TestShouldSeal(t *testing.T) {
 		require.Equal(t, input.expectedResult, series.shouldSeal(now, input.blockStart, block))
 	}
 }
+
+func TestSeriesFetchBlocks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ctx := opts.GetContextPool().Get()
+	defer ctx.Close()
+
+	now := time.Now()
+	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+	blocks := block.NewMockDatabaseSeriesBlocks(ctrl)
+
+	// Set up the blocks
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().Stream(ctx).Return(xio.NewSegmentReader(ts.Segment{}), nil)
+	blocks.EXPECT().GetBlockAt(starts[0]).Return(b, true)
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().Stream(ctx).Return(nil, errors.New("bar"))
+	blocks.EXPECT().GetBlockAt(starts[1]).Return(b, true)
+	blocks.EXPECT().GetBlockAt(starts[2]).Return(nil, false)
+
+	// Set up the buffer
+	buffer := NewMockdatabaseBuffer(ctrl)
+	buffer.EXPECT().Empty().Return(false)
+	buffer.EXPECT().FetchBlocks(ctx, starts).Return([]FetchBlockResult{newFetchBlockResult(starts[2], nil, nil)})
+
+	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
+	series.blocks = blocks
+	series.buffer = buffer
+	res := series.FetchBlocks(ctx, starts)
+
+	expectedTimes := []time.Time{starts[2], starts[0], starts[1]}
+	require.Equal(t, len(expectedTimes), len(res))
+	for i := 0; i < len(starts); i++ {
+		require.Equal(t, expectedTimes[i], res[i].Start())
+		if i == 1 {
+			require.NotNil(t, res[i].Readers())
+		} else {
+			require.Nil(t, res[i].Readers())
+		}
+		if i == 2 {
+			require.Error(t, res[i].Err())
+		} else {
+			require.NoError(t, res[i].Err())
+		}
+	}
+}
+
+func TestSeriesFetchBlocksMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ctx := opts.GetContextPool().Get()
+	defer ctx.Close()
+
+	now := time.Now()
+	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+
+	blocks := map[time.Time]block.DatabaseBlock{}
+	b := block.NewMockDatabaseBlock(ctrl)
+	expectedSegment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
+	b.EXPECT().Stream(ctx).Return(xio.NewSegmentReader(expectedSegment), nil)
+	blocks[starts[0]] = b
+
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().Stream(ctx).Return(nil, errors.New("foo"))
+	blocks[starts[1]] = b
+
+	// Set up the buffer
+	buffer := NewMockdatabaseBuffer(ctrl)
+	buffer.EXPECT().Empty().Return(false)
+	buffer.EXPECT().FetchBlocksMetadata(ctx, true).Return([]FetchBlockMetadataResult{newFetchBlockMetadataResult(starts[2], new(int64), nil)})
+
+	series := newDatabaseSeries("bar", bootstrapped, opts).(*dbSeries)
+	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
+	mockBlocks.EXPECT().GetAllBlocks().Return(blocks)
+	series.blocks = mockBlocks
+	series.buffer = buffer
+
+	res := series.FetchBlocksMetadata(ctx, true)
+	require.Equal(t, "bar", res.ID())
+	metadata := res.Blocks()
+	expected := []struct {
+		t        time.Time
+		s        *int64
+		hasError bool
+	}{
+		{starts[2], nil, false},
+		{starts[0], nil, false},
+		{starts[1], nil, true},
+	}
+	expected[0].s = new(int64)
+	tmp := int64(4)
+	expected[1].s = &tmp
+	require.Equal(t, len(expected), len(metadata))
+	for i := 0; i < len(expected); i++ {
+		require.Equal(t, expected[i].t, metadata[i].Start())
+		if expected[i].s == nil {
+			require.Nil(t, metadata[i].Size())
+		} else {
+			require.Equal(t, *expected[i].s, *metadata[i].Size())
+		}
+		if expected[i].hasError {
+			require.Error(t, metadata[i].Err())
+		} else {
+			require.NoError(t, metadata[i].Err())
+		}
+	}
+}

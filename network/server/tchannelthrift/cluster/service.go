@@ -101,8 +101,8 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		return nil, tterrors.NewInternalError(err)
 	}
 
-	start, rangeStartErr := convert.ValueToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := convert.ValueToTime(req.RangeEnd, req.RangeType)
+	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
@@ -123,7 +123,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	for it.Next() {
 		dp, _, annotation := it.Current()
-		ts, tsErr := convert.TimeToValue(dp.Timestamp, req.ResultTimeType)
+		ts, tsErr := convert.ToValue(dp.Timestamp, req.ResultTimeType)
 		if tsErr != nil {
 			return nil, tterrors.NewBadRequestError(tsErr)
 		}
@@ -149,7 +149,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	if req.Datapoint == nil {
 		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
 	}
-	unit, unitErr := convert.TimeTypeToUnit(req.Datapoint.TimestampType)
+	unit, unitErr := convert.ToUnit(req.Datapoint.TimestampType)
 	if unitErr != nil {
 		return tterrors.NewBadRequestError(unitErr)
 	}
