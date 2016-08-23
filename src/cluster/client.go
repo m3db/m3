@@ -22,6 +22,7 @@ package cluster
 
 import (
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3x/watch"
 )
 
 // A ServiceInstance is a single instance of a service
@@ -34,6 +35,8 @@ type ServiceInstance interface {
 	SetZone(z string) ServiceInstance     // sets the zone in which the instance resides
 	Endpoint() string                     // Endpoint address for contacting the instance
 	SetEndpoint(e string) ServiceInstance // sets the endpoint address for the instance
+	Shards() Shards                       // Shards owned by the instance
+	SetShards(s Shards) ServiceInstance   // sets the Shards assigned to the instance
 }
 
 // NewServiceInstance creates a new ServiceInstance
@@ -75,6 +78,9 @@ type Services interface {
 
 	// QueryInstances returns the list of available instances for a given service
 	QueryInstances(service string, opts QueryOptions) ([]ServiceInstance, error)
+
+	// WatchInstances returns a watch on instances updates for a given service
+	WatchInstances(service string, opts QueryOptions) (watch.Watch, error)
 }
 
 // Client is the base interface into the cluster management system, providing
@@ -92,16 +98,19 @@ type serviceInstance struct {
 	service  string
 	zone     string
 	endpoint string
+	shards   Shards
 }
 
 func (i *serviceInstance) Service() string                      { return i.service }
 func (i *serviceInstance) ID() string                           { return i.id }
 func (i *serviceInstance) Zone() string                         { return i.zone }
 func (i *serviceInstance) Endpoint() string                     { return i.endpoint }
+func (i *serviceInstance) Shards() Shards                       { return i.shards }
 func (i *serviceInstance) SetService(s string) ServiceInstance  { i.service = s; return i }
 func (i *serviceInstance) SetID(id string) ServiceInstance      { i.id = id; return i }
 func (i *serviceInstance) SetZone(z string) ServiceInstance     { i.zone = z; return i }
 func (i *serviceInstance) SetEndpoint(e string) ServiceInstance { i.endpoint = e; return i }
+func (i *serviceInstance) SetShards(s Shards) ServiceInstance   { i.shards = s; return i }
 
 type advertisement struct {
 	id       string
