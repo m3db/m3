@@ -741,21 +741,23 @@ func (s *session) streamBlocksMetadataFromPeer(
 		for _, elem := range result.Elements {
 			blocks := make([]blockMetadata, len(elem.Blocks))
 			for i, b := range elem.Blocks {
-				var (
-					start = time.Unix(0, b.Start)
-					size  = int64(0)
-				)
-				if b.Size != nil {
-					size = *b.Size
-				} else {
+				blocks[i].start = time.Unix(0, b.Start)
+
+				if b.Err != nil {
+					// Error occurred retrieving block metadata, use default values
+					continue
+				}
+
+				if b.Size == nil {
 					s.log.
 						WithFields(
 						xlog.NewLogField("id", elem.ID),
-						xlog.NewLogField("start", start),
-					).Warnf("requested for block size and returned no size")
+						xlog.NewLogField("start", blocks[i].start),
+					).Warnf("stream blocks metadata requested block size and not returned")
+					continue
 				}
-				blocks[i].start = start
-				blocks[i].size = size
+
+				blocks[i].size = *b.Size
 			}
 			ch <- blocksMetadata{
 				peer:   peer,
