@@ -84,6 +84,8 @@ func closeAll(closers ...xclose.Closer) error {
 	return multiErr.FinalError()
 }
 
+// DeleteFiles delete a set of files, returning all the errors encountered during
+// the deletion process.
 func DeleteFiles(filePaths []string) error {
 	multiErr := xerrors.NewMultiError()
 	for _, file := range filePaths {
