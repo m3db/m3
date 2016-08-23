@@ -22,7 +22,6 @@ package m3tsz
 
 import (
 	"bytes"
-	"errors"
 	"testing"
 	"time"
 

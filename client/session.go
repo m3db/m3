@@ -616,7 +616,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	)
 
 	s.RLock()
-	var peers []hostQueue
+	peers := make([]hostQueue, 0, s.topoMap.Replicas())
 	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
 		if s.origin != nil && s.origin.ID() == host.ID() {
 			// Don't include the origin host
