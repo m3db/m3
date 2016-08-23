@@ -1,5 +1,5 @@
-hash: cdf33115190385e0eac60a8947c33ef6a6ee8d5dd89a9225f45de51974661cbf
-updated: 2016-08-16T15:58:45.071453371-04:00
+hash: 66a93b2dee96b63dd10a73969dfcf06cffb16a54b6191e4d2df029b72186b41c
+updated: 2016-08-23T12:23:34.92850492-04:00
 imports:
 - name: github.com/cactus/go-statsd-client
   version: 91c326c3f7bd20f0226d3d1c289dd9f8ce28d33d
