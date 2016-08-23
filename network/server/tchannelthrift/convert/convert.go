@@ -25,6 +25,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 )
 
@@ -34,35 +37,35 @@ var (
 	timeZero           time.Time
 )
 
-// ValueToTime converts a value to a time
-func ValueToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
-	unit, err := TimeTypeToDuration(timeType)
+// ToTime converts a value to a time
+func ToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
+	unit, err := ToDuration(timeType)
 	if err != nil {
 		return timeZero, err
 	}
 	return xtime.FromNormalizedTime(value, unit), nil
 }
 
-// TimeToValue converts a time to a value
-func TimeToValue(t time.Time, timeType rpc.TimeType) (int64, error) {
-	unit, err := TimeTypeToDuration(timeType)
+// ToValue converts a time to a value
+func ToValue(t time.Time, timeType rpc.TimeType) (int64, error) {
+	unit, err := ToDuration(timeType)
 	if err != nil {
 		return 0, err
 	}
 	return xtime.ToNormalizedTime(t, unit), nil
 }
 
-// TimeTypeToDuration converts a time type to a duration
-func TimeTypeToDuration(timeType rpc.TimeType) (time.Duration, error) {
-	unit, err := TimeTypeToUnit(timeType)
+// ToDuration converts a time type to a duration
+func ToDuration(timeType rpc.TimeType) (time.Duration, error) {
+	unit, err := ToUnit(timeType)
 	if err != nil {
 		return 0, err
 	}
 	return unit.Value()
 }
 
-// TimeTypeToUnit converts a time type to a unit
-func TimeTypeToUnit(timeType rpc.TimeType) (xtime.Unit, error) {
+// ToUnit converts a time type to a unit
+func ToUnit(timeType rpc.TimeType) (xtime.Unit, error) {
 	switch timeType {
 	case rpc.TimeType_UNIX_SECONDS:
 		return xtime.Second, nil
@@ -76,8 +79,8 @@ func TimeTypeToUnit(timeType rpc.TimeType) (xtime.Unit, error) {
 	return 0, errUnknownTimeType
 }
 
-// UnitToTimeType converts a unit to a time type
-func UnitToTimeType(unit xtime.Unit) (rpc.TimeType, error) {
+// ToTimeType converts a unit to a time type
+func ToTimeType(unit xtime.Unit) (rpc.TimeType, error) {
 	switch unit {
 	case xtime.Second:
 		return rpc.TimeType_UNIX_SECONDS, nil
@@ -89,4 +92,37 @@ func UnitToTimeType(unit xtime.Unit) (rpc.TimeType, error) {
 		return rpc.TimeType_UNIX_NANOSECONDS, nil
 	}
 	return 0, errUnknownUnit
+}
+
+// ToSegments converts a list of segment readers to segments.
+func ToSegments(readers []xio.SegmentReader) *rpc.Segments {
+	if len(readers) == 0 {
+		return nil
+	}
+
+	s := &rpc.Segments{}
+
+	if len(readers) == 1 {
+		seg := readers[0].Segment()
+		s.Merged = &rpc.Segment{Head: seg.Head, Tail: seg.Tail}
+		return s
+	}
+
+	for _, reader := range readers {
+		seg := reader.Segment()
+		s.Unmerged = append(s.Unmerged, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
+	}
+
+	return s
+}
+
+// ToRPCError converts a server error to a RPC error.
+func ToRPCError(err error) *rpc.Error {
+	if err == nil {
+		return nil
+	}
+	if xerrors.IsInvalidParams(err) {
+		return tterrors.NewBadRequestError(err)
+	}
+	return tterrors.NewInternalError(err)
 }

@@ -233,6 +233,78 @@ func (s *dbSeries) ReadEncoded(
 	return results, nil
 }
 
+func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult {
+	res := make([]FetchBlockResult, 0, len(starts)+1)
+
+	s.RLock()
+
+	for _, start := range starts {
+		if b, exists := s.blocks.GetBlockAt(start); exists {
+			stream, err := b.Stream(ctx)
+			if err != nil {
+				detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, start, err)
+				res = append(res, newFetchBlockResult(start, nil, detailedErr))
+			} else if stream != nil {
+				res = append(res, newFetchBlockResult(start, []xio.SegmentReader{stream}, nil))
+			}
+		}
+	}
+
+	if !s.buffer.Empty() {
+		bufferResults := s.buffer.FetchBlocks(ctx, starts)
+		res = append(res, bufferResults...)
+	}
+
+	s.RUnlock()
+
+	sortFetchBlockResultByTimeAscending(res)
+
+	return res
+}
+
+func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) FetchBlocksMetadataResult {
+	// TODO(xichen): pool these if this method is called frequently (e.g., for background repairs)
+	var res []FetchBlockMetadataResult
+
+	s.RLock()
+
+	// Iterate over the data blocks
+	blocks := s.blocks.GetAllBlocks()
+	for t, b := range blocks {
+		reader, err := b.Stream(ctx)
+		// If we failed to read some blocks, skip this block and continue to get
+		// the metadata for the rest of the blocks.
+		if err != nil {
+			detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, t, err)
+			res = append(res, newFetchBlockMetadataResult(t, nil, detailedErr))
+			continue
+		}
+		// If there are no datapoints in the block, continue and don't append it to the result.
+		if reader == nil {
+			continue
+		}
+		var pSize *int64
+		if includeSizes {
+			segment := reader.Segment()
+			size := int64(len(segment.Head) + len(segment.Tail))
+			pSize = &size
+		}
+		res = append(res, newFetchBlockMetadataResult(t, pSize, nil))
+	}
+
+	// Iterate over the encoders in the database buffer
+	if !s.buffer.Empty() {
+		bufferResult := s.buffer.FetchBlocksMetadata(ctx, includeSizes)
+		res = append(res, bufferResult...)
+	}
+
+	s.RUnlock()
+
+	sortFetchBlockMetadataResultByTimeAscending(res)
+
+	return newFetchBlocksMetadataResult(s.seriesID, res)
+}
+
 func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
 	// NB(r): by the very nature of this method executing we have the
 	// lock already. Executing the drain method occurs during a write if the

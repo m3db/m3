@@ -312,12 +312,12 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 		majority      int
 	)
 
-	timeType, timeTypeErr := convert.UnitToTimeType(unit)
+	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
 		return timeTypeErr
 	}
 
-	ts, tsErr := convert.TimeToValue(t, timeType)
+	ts, tsErr := convert.ToValue(t, timeType)
 	if tsErr != nil {
 		return tsErr
 	}
@@ -397,12 +397,12 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 	)
 
-	rangeStart, tsErr := convert.TimeToValue(startInclusive, rpc.TimeType_UNIX_NANOSECONDS)
+	rangeStart, tsErr := convert.ToValue(startInclusive, rpc.TimeType_UNIX_NANOSECONDS)
 	if tsErr != nil {
 		return nil, tsErr
 	}
 
-	rangeEnd, tsErr := convert.TimeToValue(endExclusive, rpc.TimeType_UNIX_NANOSECONDS)
+	rangeEnd, tsErr := convert.ToValue(endExclusive, rpc.TimeType_UNIX_NANOSECONDS)
 	if tsErr != nil {
 		return nil, tsErr
 	}

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newBufferTestOptions() Options {
@@ -307,7 +308,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	assertValuesEqual(t, data, results, opts)
 }
 
-func TestBufferBucketSort(t *testing.T) {
+func initializeTestBufferBucket() (*dbBufferBucket, Options, []value) {
 	opts := newBufferTestOptions()
 	rops := opts.GetRetentionOptions()
 	curr := time.Now().Truncate(rops.GetBlockSize())
@@ -342,8 +343,14 @@ func TestBufferBucketSort(t *testing.T) {
 		b.encoders = append(b.encoders, inOrderEncoder{encoder: encoder})
 		expected = append(expected, d...)
 	}
-
+	b.lastWriteAt = curr.Add(secs(70))
 	sort.Sort(valuesByTime(expected))
+	return b, opts, expected
+}
+
+func TestBufferBucketSort(t *testing.T) {
+	b, opts, expected := initializeTestBufferBucket()
+
 	b.sort()
 
 	assert.Len(t, b.encoders, 1)
@@ -351,4 +358,46 @@ func TestBufferBucketSort(t *testing.T) {
 	assertValuesEqual(t, expected, [][]xio.SegmentReader{[]xio.SegmentReader{
 		b.encoders[0].encoder.Stream(),
 	}}, opts)
+}
+
+func TestBufferFetchBlocks(t *testing.T) {
+	b, opts, expected := initializeTestBufferBucket()
+	ctx := opts.GetContextPool().Get()
+	defer ctx.Close()
+
+	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
+	buffer.buckets[0] = *b
+
+	for i := 1; i < 3; i++ {
+		newBucketStart := b.start.Add(time.Duration(i) * time.Minute)
+		buffer.buckets[i] = dbBufferBucket{
+			start:       newBucketStart,
+			lastWriteAt: newBucketStart,
+			encoders:    []inOrderEncoder{{newBucketStart, nil}},
+		}
+	}
+
+	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)})
+	require.Equal(t, 1, len(res))
+	require.Equal(t, b.start, res[0].Start())
+	assertValuesEqual(t, expected, [][]xio.SegmentReader{res[0].Readers()}, opts)
+}
+
+func TestBufferFetchBlocksMetadata(t *testing.T) {
+	b, opts, _ := initializeTestBufferBucket()
+	ctx := opts.GetContextPool().Get()
+	defer ctx.Close()
+
+	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
+	buffer.buckets[0] = *b
+	var expectedSize int64
+	for i := range b.encoders {
+		segment := b.encoders[i].encoder.Stream().Segment()
+		expectedSize += int64(len(segment.Head) + len(segment.Tail))
+	}
+
+	res := buffer.FetchBlocksMetadata(ctx, true)
+	require.Equal(t, 1, len(res))
+	require.Equal(t, b.start, res[0].Start())
+	require.Equal(t, expectedSize, *res[0].Size())
 }
