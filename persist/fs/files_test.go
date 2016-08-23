@@ -65,6 +65,18 @@ func createFile(t *testing.T, filePath string, b []byte) {
 	fd.Close()
 }
 
+func createInfoFiles(t *testing.T, shard uint32, iter int) string {
+	dir := createTempDir(t)
+	shardDir := path.Join(dir, dataDirName, strconv.Itoa(int(shard)))
+	require.NoError(t, os.MkdirAll(shardDir, 0755))
+	for i := 0; i < iter; i++ {
+		ts := time.Unix(0, int64(i))
+		infoFilePath := filesetPathFromTime(shardDir, ts, infoFileSuffix)
+		createFile(t, infoFilePath, nil)
+	}
+	return dir
+}
+
 func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
 	dir := createTempDir(t)
 	commitLogsDir := path.Join(dir, commitLogsDirName)
@@ -78,6 +90,14 @@ func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
 		}
 	}
 	return dir
+}
+
+func validateCommitLogFiles(t *testing.T, slot, index, perSlot, resIdx int, dir string, files []string) {
+	entry := fmt.Sprintf("%d%s%d", slot, separator, index)
+	fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
+
+	x := (resIdx * perSlot) + index
+	require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
 }
 
 func TestOpenFilesFails(t *testing.T) {
@@ -103,6 +123,25 @@ func TestCloseAllFails(t *testing.T) {
 
 	assert.NoError(t, file.Close())
 	assert.Error(t, closeAll(file))
+}
+
+func TestDeleteFiles(t *testing.T) {
+	var files []string
+	iter := 3
+
+	for i := 0; i < iter; i++ {
+		fd := createTempFile(t)
+		fd.Close()
+		files = append(files, fd.Name())
+	}
+
+	// Add a non-existent file path
+	files = append(files, "/not/a/real/path")
+
+	require.Error(t, DeleteFiles(files))
+	for i := 0; i < iter; i++ {
+		require.True(t, !FileExists(files[i]))
+	}
 }
 
 func TestByTimeAscending(t *testing.T) {
@@ -232,12 +271,12 @@ func TestFileExists(t *testing.T) {
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, FileExists(infoFilePath))
-	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
+	require.False(t, FilesetFileExistsAt(shardDir, uint32(shard), start))
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	require.False(t, FileExistsAt(shardDir, uint32(shard), start))
+	require.False(t, FilesetFileExistsAt(shardDir, uint32(shard), start))
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))
@@ -266,6 +305,60 @@ func TestFilePathFromTime(t *testing.T) {
 	}
 }
 
+func TestFilesetFilesBefore(t *testing.T) {
+	shard := uint32(0)
+	dir := createInfoFiles(t, shard, 20)
+	defer os.RemoveAll(dir)
+
+	shardDir := path.Join(dir, dataDirName, strconv.Itoa(int(shard)))
+	cutoffIter := 8
+	cutoff := time.Unix(0, int64(cutoffIter))
+	res, err := FilesetFilesBefore(dir, shard, cutoff)
+	require.NoError(t, err)
+	require.Equal(t, cutoffIter, len(res))
+
+	for i := 0; i < len(res); i++ {
+		ts := time.Unix(0, int64(i))
+		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
+	}
+}
+
+func TestCommitLogFilesBefore(t *testing.T) {
+	iter := 20
+	perSlot := 3
+	dir := createCommitLogFiles(t, iter, perSlot)
+	defer os.RemoveAll(dir)
+
+	cutoffIter := 8
+	cutoff := time.Unix(0, int64(cutoffIter))
+	commitLogsDir := CommitLogsDirPath(dir)
+	files, err := CommitLogFilesBefore(commitLogsDir, cutoff)
+	require.NoError(t, err)
+	require.Equal(t, cutoffIter*perSlot, len(files))
+	for i := 0; i < cutoffIter; i++ {
+		for j := 0; j < perSlot; j++ {
+			validateCommitLogFiles(t, i, j, perSlot, i, dir, files)
+		}
+	}
+}
+
+func TestCommitLogFilesForTime(t *testing.T) {
+	iter := 20
+	perSlot := 3
+	dir := createCommitLogFiles(t, iter, perSlot)
+	defer os.RemoveAll(dir)
+
+	cutoffIter := 8
+	cutoff := time.Unix(0, int64(cutoffIter))
+	commitLogsDir := CommitLogsDirPath(dir)
+	files, err := CommitLogFilesForTime(commitLogsDir, cutoff)
+	require.NoError(t, err)
+
+	for j := 0; j < perSlot; j++ {
+		validateCommitLogFiles(t, cutoffIter, j, perSlot, 0, dir, files)
+	}
+}
+
 func TestCommitLogFiles(t *testing.T) {
 	iter := 20
 	perSlot := 3
@@ -280,13 +373,10 @@ func TestCommitLogFiles(t *testing.T) {
 	files, err := CommitLogFiles(CommitLogsDirPath(dir))
 	require.NoError(t, err)
 	require.Equal(t, iter*perSlot, len(files))
+
 	for i := 0; i < iter; i++ {
 		for j := 0; j < perSlot; j++ {
-			entry := fmt.Sprintf("%d%s%d", i, separator, j)
-			fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
-
-			x := (i * perSlot) + j
-			require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
+			validateCommitLogFiles(t, i, j, perSlot, i, dir, files)
 		}
 	}
 }

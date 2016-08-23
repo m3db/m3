@@ -59,18 +59,20 @@ var (
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database       database       // storage database
-	opts           Options        // storage options
-	newBootstrapFn NewBootstrapFn // function to create a new bootstrap process
-	state          bootstrapState // bootstrap state
+	database       database                  // storage database
+	opts           Options                   // storage options
+	newBootstrapFn NewBootstrapFn            // function to create a new bootstrap process
+	state          bootstrapState            // bootstrap state
+	fsm            databaseFileSystemManager // file system manager
 }
 
-func newBootstrapManager(database database) databaseBootstrapManager {
+func newBootstrapManager(database database, fsm databaseFileSystemManager) databaseBootstrapManager {
 	opts := database.Options()
 	return &bootstrapManager{
 		database:       database,
 		opts:           opts,
 		newBootstrapFn: opts.GetNewBootstrapFn(),
+		fsm:            fsm,
 	}
 }
 
@@ -87,18 +89,6 @@ func (bsm *bootstrapManager) IsBootstrapped() bool {
 func (bsm *bootstrapManager) cutoverTime(writeStart time.Time) time.Time {
 	bufferFuture := bsm.opts.GetRetentionOptions().GetBufferFuture()
 	return writeStart.Add(bufferFuture)
-}
-
-// flushTime determines the time we can flush data for after the bootstrap
-// process is finished (i.e., all the shards have bootstrapped).
-func (bsm *bootstrapManager) flushTime(writeStart time.Time) time.Time {
-	// NB(xichen): when bootstrap process is finished, we should have bootstrapped
-	// everything until writeStart + bufferFuture, which means the current time is
-	// at least writeStart + bufferFuture + bufferPast.
-	rops := bsm.opts.GetRetentionOptions()
-	bufferPast := rops.GetBufferPast()
-	bufferFuture := rops.GetBufferFuture()
-	return writeStart.Add(bufferFuture).Add(bufferPast)
 }
 
 // NB(xichen): Bootstrap must be called after the server starts accepting writes.
@@ -128,8 +118,11 @@ func (bsm *bootstrapManager) Bootstrap() error {
 		multiErr = multiErr.Add(err)
 	}
 
-	flushTime := bsm.flushTime(writeStart)
-	bsm.database.flush(flushTime, false)
+	// At this point we have bootstrapped everything between now - retentionPeriod
+	// and now, so we should run the filesystem manager to clean up files and flush
+	// all the data we bootstrapped.
+	now := bsm.opts.GetClockOptions().GetNowFn()()
+	bsm.fsm.Run(now, false)
 
 	bsm.Lock()
 	bsm.state = bootstrapped

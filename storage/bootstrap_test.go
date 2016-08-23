@@ -59,7 +59,9 @@ func TestDatabaseBootstrapWithError(t *testing.T) {
 	}
 
 	db := &mockDatabase{shards: shards, opts: opts}
-	bsm := newBootstrapManager(db).(*bootstrapManager)
+	fsm := NewMockdatabaseFileSystemManager(ctrl)
+	fsm.EXPECT().Run(now, false)
+	bsm := newBootstrapManager(db, fsm).(*bootstrapManager)
 	err := bsm.Bootstrap()
 
 	require.NotNil(t, err)

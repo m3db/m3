@@ -34,9 +34,11 @@ const (
 	commitLogFilePrefix  = "commitlog"
 	fileSuffix           = ".db"
 
-	separator            = "-"
-	infoFilePattern      = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
-	commitLogFilePattern = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
+	separator                    = "-"
+	infoFilePattern              = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
+	filesetFilePattern           = filesetFilePrefix + separator + "[0-9]*" + separator + "[a-z]*" + fileSuffix
+	commitLogFilePattern         = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
+	commitLogFileForTimeTemplate = commitLogFilePrefix + separator + "%d" + separator + "[0-9]*" + fileSuffix
 
 	// Index ID is int64
 	idxLen = 8
