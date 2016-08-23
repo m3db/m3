@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package watch
+package xwatch
 
 import (
 	"errors"
@@ -28,8 +28,20 @@ import (
 
 	"github.com/m3db/m3x/log"
 	"github.com/stretchr/testify/assert"
-	"sync/atomic"
 )
+
+func TestInitialized(t *testing.T) {
+	s := NewSource(&testSourceInput{callCount: 0, errAfter: 0, closeAfter: 10}, xlog.SimpleLogger)
+	s.Close()
+	assert.False(t, s.(*source).initialized)
+
+	ch := s.WaitInit()
+	select {
+	case _ = <-ch:
+		assert.Fail(t, "initialized channel should be blocked")
+	case <-time.After(10 * time.Millisecond):
+	}
+}
 
 func TestSource(t *testing.T) {
 	testSource(t, 30, 25, 20)
@@ -40,30 +52,28 @@ func TestSource(t *testing.T) {
 	testSource(t, 13, 15, 20)
 }
 
-func testSource(t *testing.T, inputErrAfter int, closeAfter int32, watchNum int) {
-	var callCount int32
-	input := testPollFn(inputErrAfter, &callCount)
-	s := NewSource(input, xlog.SimpleLogger)
+func testSource(t *testing.T, errAfter int32, closeAfter int32, watchNum int) {
+	s := NewSource(&testSourceInput{callCount: 0, errAfter: errAfter, closeAfter: closeAfter}, xlog.SimpleLogger)
 
 	var wg sync.WaitGroup
 
 	// create a few watches
 	for i := 0; i < watchNum; i++ {
 		wg.Add(1)
-		_, o, err := s.Watch()
+		_, w, err := s.Watch()
 		assert.NoError(t, err)
 
 		i := i
 		go func() {
 			var v interface{}
 			count := 0
-			for _ = range o.C() {
+			for _ = range w.C() {
 				if v != nil {
-					assert.True(t, o.Get().(int64) >= v.(int64))
+					assert.True(t, w.Get().(int64) >= v.(int64))
 				}
-				v = o.Get()
+				v = w.Get()
 				if count > i {
-					o.Close()
+					w.Close()
 				}
 				count++
 			}
@@ -74,11 +84,16 @@ func testSource(t *testing.T, inputErrAfter int, closeAfter int32, watchNum int)
 	// schedule a thread to close Source
 	wg.Add(1)
 	go func() {
-		for atomic.LoadInt32(&callCount) < closeAfter {
-			time.Sleep(1 * time.Millisecond)
+		for !s.(*source).isClosed() {
+			time.Sleep(time.Millisecond)
 		}
-		s.Close()
-		assert.True(t, s.(*source).isClosed())
+		ch := s.WaitInit()
+		ok := true
+		select {
+		case _, ok = <-ch:
+		}
+		assert.False(t, ok, "initialized channel should be closed")
+
 		// test Close again
 		s.Close()
 		assert.True(t, s.(*source).isClosed())
@@ -88,14 +103,19 @@ func testSource(t *testing.T, inputErrAfter int, closeAfter int32, watchNum int)
 	wg.Wait()
 }
 
-func testPollFn(errAfter int, callCount *int32) (SourcePollFn) {
-	return func() (interface{}, error) {
-		atomic.AddInt32(callCount, 1)
-		time.Sleep(time.Millisecond)
-		if errAfter > 0 {
-			errAfter--
-			return time.Now().Unix(), nil
-		}
-		return nil, errors.New("mock error")
+type testSourceInput struct {
+	callCount, errAfter, closeAfter int32
+}
+
+func (i *testSourceInput) Poll() (interface{}, error) {
+	if i.callCount >= i.closeAfter {
+		return nil, ErrSourceClosed
 	}
+	i.callCount++
+	time.Sleep(time.Millisecond)
+	if i.errAfter > 0 {
+		i.errAfter--
+		return time.Now().Unix(), nil
+	}
+	return nil, errors.New("mock error")
 }
