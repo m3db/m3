@@ -11,9 +11,10 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3x
-  version: e2b14f459e5e9a96ec30af5d59d09911e24b48e7
+  version: df2d32d7c103a4ae2ed727eb50f1208bd825802f
   subpackages:
   - log
+  - watch
 - name: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
