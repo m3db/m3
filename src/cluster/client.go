@@ -80,7 +80,7 @@ type Services interface {
 	QueryInstances(service string, opts QueryOptions) ([]ServiceInstance, error)
 
 	// WatchInstances returns a watch on instances updates for a given service
-	WatchInstances(service string, opts QueryOptions) (watch.Watch, error)
+	WatchInstances(service string, opts QueryOptions) (xwatch.Watch, error)
 }
 
 // Client is the base interface into the cluster management system, providing
