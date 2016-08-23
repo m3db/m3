@@ -21,11 +21,15 @@
 package topology
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3db/sharding"
 )
 
 // Host is a container of a host in a topology
 type Host interface {
+	fmt.Stringer
+
 	// ID is the identifier of the host
 	ID() string
 

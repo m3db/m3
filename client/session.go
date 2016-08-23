@@ -23,7 +23,10 @@ package client
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -33,9 +36,16 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
@@ -47,33 +57,42 @@ var (
 	// ensuring at least each partition has an up node with a connection to it
 	ErrClusterConnectTimeout = errors.New("timed out establishing min connections to cluster")
 
-	errSessionStateNotInitial = errors.New("session not in initial state")
-	errSessionStateNotOpen    = errors.New("session not in open state")
+	errSessionStateNotInitial        = errors.New("session not in initial state")
+	errSessionStateNotOpen           = errors.New("session not in open state")
+	errSessionBadBlockResultFromPeer = errors.New("session fetched bad block result from peer")
+	errSessionBadBlocksSelection     = errors.New("session encountered bad blocks selection from peers")
 )
 
 type session struct {
 	sync.RWMutex
 
-	opts                            Options
-	level                           topology.ConsistencyLevel
-	nowFn                           clock.NowFn
-	newHostQueueFn                  newHostQueueFn
-	topo                            topology.Topology
-	topoMap                         topology.Map
-	topoMapCh                       chan topology.Map
-	replicas                        int
-	majority                        int
-	queues                          []hostQueue
-	state                           state
-	writeOpPool                     writeOpPool
-	fetchBatchOpPool                fetchBatchOpPool
-	fetchBatchOpArrayArrayPool      fetchBatchOpArrayArrayPool
-	iteratorArrayPool               encoding.IteratorArrayPool
-	readerSliceOfSlicesIteratorPool readerSliceOfSlicesIteratorPool
-	multiReaderIteratorPool         encoding.MultiReaderIteratorPool
-	seriesIteratorPool              encoding.SeriesIteratorPool
-	seriesIteratorsPool             encoding.MutableSeriesIteratorsPool
-	fetchBatchSize                  int
+	opts                             Options
+	nowFn                            clock.NowFn
+	log                              xlog.Logger
+	level                            topology.ConsistencyLevel
+	newHostQueueFn                   newHostQueueFn
+	topo                             topology.Topology
+	topoMap                          topology.Map
+	topoMapCh                        chan topology.Map
+	replicas                         int
+	majority                         int
+	queues                           []hostQueue
+	state                            state
+	writeOpPool                      writeOpPool
+	fetchBatchOpPool                 fetchBatchOpPool
+	fetchBatchOpArrayArrayPool       fetchBatchOpArrayArrayPool
+	iteratorArrayPool                encoding.IteratorArrayPool
+	readerSliceOfSlicesIteratorPool  readerSliceOfSlicesIteratorPool
+	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
+	seriesIteratorPool               encoding.SeriesIteratorPool
+	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
+	fetchBatchSize                   int
+	origin                           topology.Host
+	streamBlocksWorkers              pool.WorkerPool
+	streamBlocksReattemptWorkers     pool.WorkerPool
+	streamBlocksBatchSize            int
+	streamBlocksMetadataBatchTimeout time.Duration
+	streamBlocksBatchTimeout         time.Duration
 }
 
 type newHostQueueFn func(
@@ -89,15 +108,29 @@ func newSession(opts Options) (clientSession, error) {
 		return nil, err
 	}
 
-	return &session{
+	s := &session{
 		opts:           opts,
-		level:          opts.GetConsistencyLevel(),
 		nowFn:          opts.GetClockOptions().GetNowFn(),
+		log:            opts.GetInstrumentOptions().GetLogger(),
+		level:          opts.GetConsistencyLevel(),
 		newHostQueueFn: newHostQueue,
 		topo:           topo,
 		topoMapCh:      make(chan topology.Map),
 		fetchBatchSize: opts.GetFetchBatchSize(),
-	}, nil
+	}
+
+	if opts, ok := opts.(AdminOptions); ok {
+		s.origin = opts.GetOrigin()
+		s.streamBlocksWorkers = pool.NewWorkerPool(opts.GetFetchSeriesBlocksBatchConcurrency())
+		s.streamBlocksWorkers.Init()
+		s.streamBlocksReattemptWorkers = pool.NewWorkerPool(opts.GetFetchSeriesBlocksBatchConcurrency())
+		s.streamBlocksReattemptWorkers.Init()
+		s.streamBlocksBatchSize = opts.GetFetchSeriesBlocksBatchSize()
+		s.streamBlocksMetadataBatchTimeout = opts.GetFetchSeriesBlocksMetadataBatchTimeout()
+		s.streamBlocksBatchTimeout = opts.GetFetchSeriesBlocksBatchTimeout()
+	}
+
+	return s, nil
 }
 
 func (s *session) Open() error {
@@ -502,7 +535,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 	s.RUnlock()
 
 	if enqueueErr != nil {
-		s.opts.GetInstrumentOptions().GetLogger().Errorf("failed to enqueue fetch: %v", enqueueErr)
+		s.log.Errorf("failed to enqueue fetch: %v", enqueueErr)
 		return nil, enqueueErr
 	}
 
@@ -562,4 +595,937 @@ func (s *session) Close() error {
 
 	close(s.topoMapCh)
 	return s.topo.Close()
+}
+
+func (s *session) FetchBootstrapBlocksFromPeers(
+	shard uint32,
+	start, end time.Time,
+	opts bootstrap.Options,
+) (bootstrap.ShardResult, error) {
+	var (
+		result = newBlocksResult(s.opts, opts)
+		doneCh = make(chan error, 1)
+		onDone = func(err error) {
+			select {
+			case doneCh <- err:
+			default:
+			}
+		}
+		waitDone = func() error {
+			return <-doneCh
+		}
+	)
+
+	s.RLock()
+	var peers []hostQueue
+	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
+		if s.origin != nil && s.origin.ID() == host.ID() {
+			// Don't include the origin host
+			return
+		}
+		peers = append(peers, s.queues[idx])
+	})
+	s.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+
+	// Begin pulling metadata, if one or multiple peers fail no error will
+	// be returned from this routine as long as one peer succeeds completely
+	metadataCh := make(chan blocksMetadata, 4096)
+	go func() {
+		err := s.streamBlocksMetadataFromPeers(shard, peers, metadataCh)
+		close(metadataCh)
+		if err != nil {
+			// Bail early
+			onDone(err)
+		}
+	}()
+
+	// Begin consuming metadata and making requests
+	go func() {
+		err := s.streamBlocksFromPeers(shard, peers, metadataCh, result)
+		onDone(err)
+	}()
+
+	if err := waitDone(); err != nil {
+		return nil, err
+	}
+	return result.result, nil
+}
+
+func (s *session) streamBlocksMetadataFromPeers(
+	shard uint32,
+	peers []hostQueue,
+	ch chan<- blocksMetadata,
+) error {
+	var (
+		wg       sync.WaitGroup
+		errLock  sync.RWMutex
+		errLen   int
+		multiErr = xerrors.NewMultiError()
+	)
+	for _, peer := range peers {
+		peer := peer
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := s.streamBlocksMetadataFromPeer(shard, peer, ch)
+			if err != nil {
+				errLock.Lock()
+				defer errLock.Unlock()
+				errLen++
+				multiErr.Add(err)
+				s.log.Warnf("failed to stream blocks metadata from peer %v for shard %d: %v", peer.Host().String(), shard, err)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	errLock.RLock()
+	defer errLock.RUnlock()
+
+	if errLen == len(peers) {
+		s.log.Errorf("failed to complete streaming blocks from all peers for shard %d", shard)
+		return multiErr
+	}
+	return nil
+}
+
+func (s *session) streamBlocksMetadataFromPeer(
+	shard uint32,
+	peer hostQueue,
+	ch chan<- blocksMetadata,
+) error {
+	var (
+		pageToken *int64
+		retrier   = xretry.NewRetrier(xretry.NewOptions().
+				BackoffFactor(2).
+				Max(3).
+				InitialBackoff(time.Second).
+				Jitter(true))
+		optionIncludeSizes = true
+		moreResults        = true
+	)
+	// Declare before loop to avoid redeclaring each iteration
+	attemptFn := func() error {
+		client, err := peer.GetConnectionPool().NextClient()
+		if err != nil {
+			return err
+		}
+
+		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
+		req := rpc.NewFetchBlocksMetadataRequest()
+		req.Shard = int32(shard)
+		req.Limit = int64(s.streamBlocksBatchSize)
+		req.PageToken = pageToken
+		req.IncludeSizes = &optionIncludeSizes
+
+		result, err := client.FetchBlocksMetadata(tctx, req)
+		if err != nil {
+			return err
+		}
+
+		if result.NextPageToken != nil {
+			// Create space on the heap for the page token and take it's
+			// address to avoid having to keep the entire result around just
+			// for the page token
+			resultPageToken := *result.NextPageToken
+			pageToken = &resultPageToken
+		} else {
+			// No further results
+			moreResults = false
+		}
+
+		for _, elem := range result.Elements {
+			blocks := make([]blockMetadata, len(elem.Blocks))
+			for i, b := range elem.Blocks {
+				var (
+					start = time.Unix(0, b.Start)
+					size  = int64(0)
+				)
+				if b.Size != nil {
+					size = *b.Size
+				} else {
+					s.log.
+						WithFields(
+						xlog.NewLogField("id", elem.ID),
+						xlog.NewLogField("start", start),
+					).Warnf("requested for block size and returned no size")
+				}
+				blocks[i].start = start
+				blocks[i].size = size
+			}
+			ch <- blocksMetadata{
+				peer:   peer,
+				id:     elem.ID,
+				blocks: blocks,
+			}
+		}
+
+		return nil
+	}
+	for moreResults {
+		if err := retrier.Attempt(attemptFn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *session) streamBlocksFromPeers(
+	shard uint32,
+	peers []hostQueue,
+	ch <-chan blocksMetadata,
+	result *blocksResult,
+) error {
+	var (
+		retrier = xretry.NewRetrier(xretry.NewOptions().
+			BackoffFactor(2).
+			Max(3).
+			InitialBackoff(time.Second).
+			Jitter(true))
+		enqueueCh           = newEnqueueChannel()
+		peerBlocksBatchSize = s.streamBlocksBatchSize
+	)
+
+	// Consume the incoming metadata and enqueue to the ready channel
+	go func() {
+		s.streamCollectedBlocksMetadata(len(peers), ch, enqueueCh)
+		// Begin assessing the queue and how much is processed, once queue
+		// is entirely processed then we can close the enqueue channel
+		enqueueCh.closeOnAllProcessed()
+	}()
+
+	// Fetch blocks from peers as results become ready
+	peerQueues := make(peerBlocksQueues, 0, len(peers))
+	for _, peer := range peers {
+		peer := peer
+		size := peerBlocksBatchSize
+		workers := s.streamBlocksWorkers
+		drainEvery := 100 * time.Millisecond
+		queue := newPeerBlocksQueue(peer, size, drainEvery, workers, func(batch []*blocksMetadata) {
+			s.streamBlocksBatchFromPeer(retrier, peer, batch, result, enqueueCh)
+		})
+		peerQueues = append(peerQueues, queue)
+	}
+
+	var (
+		currStart, currEligible []*blocksMetadata
+		blocksMetadataQueues    []blocksMetadataQueue
+	)
+	for perPeerBlocksMetadata := range enqueueCh.get() {
+		// Filter and select which blocks to retrieve from which peers
+		if err := s.selectBlocksForSeriesFromPeerBlocksMetadata(
+			perPeerBlocksMetadata, peerQueues,
+			currStart, currEligible, blocksMetadataQueues,
+		); err != nil {
+			enqueueCh.trackProcessed(1)
+			continue
+		}
+
+		// Insert work into peer queues
+		var wg sync.WaitGroup
+		for _, peerBlocksMetadata := range perPeerBlocksMetadata {
+			if len(peerBlocksMetadata.blocks) == 0 {
+				// No blocks assigned
+				continue
+			}
+			queue := peerQueues.findQueue(peerBlocksMetadata.peer)
+			wg.Add(1)
+			queue.enqueue(peerBlocksMetadata, wg.Done)
+		}
+		// Launch asynchronous waiter to mark completion
+		go func() {
+			wg.Wait()
+			enqueueCh.trackProcessed(1)
+		}()
+	}
+
+	// Close all queues
+	peerQueues.closeAll()
+
+	return nil
+}
+
+func (s *session) streamCollectedBlocksMetadata(
+	peersLen int,
+	ch <-chan blocksMetadata,
+	enqueueCh *enqueueChannel,
+) {
+	metadata := make(map[string]*receivedBlocks)
+
+	// Receive off of metadata channel
+	for {
+		m, ok := <-ch
+		if !ok {
+			break
+		}
+
+		received, ok := metadata[m.id]
+		if !ok {
+			received = &receivedBlocks{
+				results: make([]*blocksMetadata, 0, peersLen),
+			}
+			metadata[m.id] = received
+		}
+		if received.submitted {
+			// Already submitted to enqueue channel
+			continue
+		}
+
+		received.results = append(received.results, &m)
+
+		if len(received.results) == peersLen {
+			enqueueCh.enqueue(received.results)
+			received.submitted = true
+		}
+	}
+
+	// Enqueue all unsubmitted received metadata
+	for _, received := range metadata {
+		if received.submitted {
+			continue
+		}
+		enqueueCh.enqueue(received.results)
+	}
+}
+
+func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
+	perPeerBlocksMetadata []*blocksMetadata,
+	peerQueues peerBlocksQueues,
+	pooledCurrStart, pooledCurrEligible []*blocksMetadata,
+	pooledBlocksMetadataQueues []blocksMetadataQueue,
+) error {
+	// Use pooled arrays
+	var (
+		currStart            = pooledCurrStart[:0]
+		currEligible         = pooledCurrEligible[:0]
+		blocksMetadataQueues = pooledBlocksMetadataQueues[:0]
+	)
+
+	// Sort the per peer metadatas by peer ID for consistent results
+	sort.Sort(peerBlocksMetadata(perPeerBlocksMetadata))
+
+	// Sort the metadatas per peer by time and reset the selection index
+	for _, blocksMetadata := range perPeerBlocksMetadata {
+		sort.Sort(blockMetadatasByTime(blocksMetadata.blocks))
+		// Reset the selection index
+		blocksMetadata.idx = 0
+	}
+
+	// Select blocks from peers
+	for {
+		// Find the earliest start time
+		var earliestStart time.Time
+		for _, blocksMetadata := range perPeerBlocksMetadata {
+			if len(blocksMetadata.unselectedBlocks()) == 0 {
+				// No unselected blocks
+				continue
+			}
+			unselected := blocksMetadata.unselectedBlocks()
+			if earliestStart.Equal(time.Time{}) ||
+				unselected[0].start.Before(earliestStart) {
+				earliestStart = unselected[0].start
+			}
+		}
+
+		// Find all with the earliest start time,
+		// ordered by time so must be first of each
+		currStart = currStart[:0]
+		for _, blocksMetadata := range perPeerBlocksMetadata {
+			if len(blocksMetadata.unselectedBlocks()) == 0 {
+				// No unselected blocks
+				continue
+			}
+
+			unselected := blocksMetadata.unselectedBlocks()
+			if !unselected[0].start.Equal(earliestStart) {
+				// Not the same block
+				continue
+			}
+
+			currStart = append(currStart, blocksMetadata)
+		}
+
+		if len(currStart) == 0 {
+			// No more blocks to select from any peers
+			break
+		}
+
+		// Only select from peers not already attempted
+		currEligible = currStart[:]
+		currID := currStart[0].id
+		for i := len(currEligible) - 1; i >= 0; i-- {
+			unselected := currEligible[i].unselectedBlocks()
+			if unselected[0].reattempt.attempt == 0 {
+				// Not attempted yet
+				continue
+			}
+
+			// Check if eligible
+			if unselected[0].reattempt.hasAttemptedPeer(currEligible[i].peer) {
+				// Swap current entry to tail
+				blocksMetadatas(currEligible).swap(i, len(currEligible)-1)
+				// Trim newly last entry
+				currEligible = currEligible[:len(currEligible)-1]
+				continue
+			}
+		}
+
+		if len(currEligible) == 0 {
+			// No current eligible peers to select from
+			s.log.WithFields(
+				xlog.NewLogField("id", currID),
+				xlog.NewLogField("start", earliestStart),
+				xlog.NewLogField("attempted", currStart[0].unselectedBlocks()[0].reattempt.attempt),
+			).Error("retries failed for streaming blocks from peers")
+
+			// Remove the block from all peers
+			for i := range currStart {
+				blocksLen := len(currStart[i].blocks)
+				idx := currStart[i].idx
+				tailIdx := blocksLen - 1
+				currStart[i].blocks[idx], currStart[i].blocks[tailIdx] = currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
+				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
+			}
+			continue
+		}
+
+		// Determine maximum size
+		currMaxSize := int64(math.MinInt64)
+		for i := 0; i < len(currEligible); i++ {
+			unselected := currEligible[i].unselectedBlocks()
+			// Track maximum size
+			if unselected[0].size > currMaxSize {
+				currMaxSize = unselected[0].size
+			}
+		}
+
+		// Only select from those with the maximum size
+		for i := len(currEligible) - 1; i >= 0; i-- {
+			unselected := currEligible[i].unselectedBlocks()
+			if unselected[0].size < currMaxSize {
+				// Swap current entry to tail
+				blocksMetadatas(currEligible).swap(i, len(currEligible)-1)
+				// Trim newly last entry
+				currEligible = currEligible[:len(currEligible)-1]
+			}
+		}
+
+		// Order by least outstanding blocks being fetched
+		blocksMetadataQueues = blocksMetadataQueues[:0]
+		for i := range currEligible {
+			insert := blocksMetadataQueue{
+				blocksMetadata: currEligible[i],
+				queue:          peerQueues.findQueue(currEligible[i].peer),
+			}
+			blocksMetadataQueues = append(blocksMetadataQueues, insert)
+		}
+		sort.Stable(blocksMetadatasQueuesByOutstanding(blocksMetadataQueues))
+
+		// Select the best peer
+		bestPeerBlocksQueue := blocksMetadataQueues[0].queue
+		blocksMetadataQueues = blocksMetadataQueues[:0]
+
+		// Prepare the reattempt peers metadata
+		peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
+		for i := range currStart {
+			unselected := currStart[i].unselectedBlocks()
+			metadata := blockMetadataReattemptPeerMetadata{
+				peer:  currStart[i].peer,
+				start: unselected[0].start,
+				size:  unselected[0].size,
+			}
+			peersMetadata = append(peersMetadata, metadata)
+		}
+
+		// Remove the block from all other peers and increment index for selected peer
+		for i := range currStart {
+			peer := currStart[i].peer
+			if peer == bestPeerBlocksQueue.peer {
+				// Select this block
+				idx := currStart[i].idx
+				currStart[i].idx = idx + 1
+
+				// Set the reattempt metadata
+				time.Sleep(time.Millisecond)
+				currStart[i].blocks[idx].reattempt.attempt++
+				currStart[i].blocks[idx].reattempt.attempted =
+					append(currStart[i].blocks[idx].reattempt.attempted, peer)
+				currStart[i].blocks[idx].reattempt.peersMetadata = peersMetadata
+
+				// Leave the block in the current peers blocks list
+				continue
+			}
+
+			// Removing this block
+			blocksLen := len(currStart[i].blocks)
+			idx := currStart[i].idx
+			tailIdx := blocksLen - 1
+			currStart[i].blocks[idx], currStart[i].blocks[tailIdx] = currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
+			currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
+		}
+	}
+
+	return nil
+}
+
+func (s *session) streamBlocksBatchFromPeer(
+	retrier xretry.Retrier,
+	peer hostQueue,
+	batch []*blocksMetadata,
+	blocksResult *blocksResult,
+	enqueueCh *enqueueChannel,
+) {
+	// Prepare request
+	var (
+		req    = rpc.NewFetchBlocksRequest()
+		result *rpc.FetchBlocksResult_
+	)
+	for i := range batch {
+		var starts []int64
+		for j := range batch[i].blocks {
+			starts = append(starts, batch[i].blocks[j].start.UnixNano())
+		}
+		req.Elements = append(req.Elements, &rpc.FetchBlocksParam{
+			ID:     batch[i].id,
+			Starts: starts,
+		})
+	}
+
+	// Attempt request
+	if err := retrier.Attempt(func() error {
+		client, err := peer.GetConnectionPool().NextClient()
+		if err != nil {
+			return err
+		}
+
+		tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
+		result, err = client.FetchBlocks(tctx, req)
+		return err
+	}); err != nil {
+		for i := range batch {
+			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
+		}
+		return
+	}
+
+	// Parse and act on result
+	for i := range result.Elements {
+		if i >= len(batch) {
+			s.log.Errorf("stream blocks response from peer %v returned more IDs than expected", peer.Host().String())
+			break
+		}
+
+		id := result.Elements[i].ID
+		if id != batch[i].id {
+			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
+			s.log.WithFields(
+				xlog.NewLogField("expectedID", batch[i].id),
+				xlog.NewLogField("actualID", id),
+				xlog.NewLogField("indexID", i),
+			).Errorf("stream blocks response from peer %v returned mismatched ID", peer.Host().String())
+			continue
+		}
+
+		for j := range result.Elements[i].Blocks {
+			if j >= len(batch[i].blocks) {
+				s.log.Errorf("stream blocks response from peer %v returned more blocks than expected", peer.Host().String())
+				break
+			}
+
+			block := result.Elements[i].Blocks[j]
+			if block.Start != batch[i].blocks[j].start.UnixNano() {
+				failed := []blockMetadata{batch[i].blocks[j]}
+				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
+				s.log.WithFields(
+					xlog.NewLogField("id", id),
+					xlog.NewLogField("expectedStart", batch[i].blocks[j].start.UnixNano()),
+					xlog.NewLogField("actualStart", block.Start),
+					xlog.NewLogField("indexID", i),
+					xlog.NewLogField("indexBlock", j),
+				).Errorf("stream blocks response from peer %v returned mismatched ID", peer.Host().String())
+				continue
+			}
+
+			if block.Err != nil {
+				failed := []blockMetadata{batch[i].blocks[j]}
+				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
+				s.log.WithFields(
+					xlog.NewLogField("id", id),
+					xlog.NewLogField("expectedStart", batch[i].blocks[j].start.UnixNano()),
+					xlog.NewLogField("actualStart", block.Start),
+					xlog.NewLogField("indexID", i),
+					xlog.NewLogField("indexBlock", j),
+				).Errorf("stream blocks response from peer %v returned mismatched block start", peer.Host().String())
+				continue
+			}
+
+			blocksResult.addBlockFromPeer(id, block)
+		}
+	}
+}
+
+func (s *session) streamBlocksReattemptFromPeers(
+	blocks []blockMetadata,
+	enqueueCh *enqueueChannel,
+) {
+	// Must do this asynchronously or else could get into a deadlock scenario
+	// where cannot enqueue into the reattempt channel because no more work is
+	// getting done because new attempts are blocked on existing attempts completing
+	// and existing attempts are trying to enqueue into a full reattempt channel
+	enqueue := enqueueCh.enqueueDelayed()
+	s.streamBlocksReattemptWorkers.Go(func() {
+		for i := range blocks {
+			// Reconstruct peers metadata for reattempt
+			peersLen := len(blocks[i].reattempt.peersMetadata)
+			reattemptBlocksMetadata := make([]*blocksMetadata, peersLen)
+			for j := range reattemptBlocksMetadata {
+				reattemptBlocksMetadata[j] = &blocksMetadata{
+					peer: blocks[i].reattempt.peersMetadata[j].peer,
+					id:   blocks[i].reattempt.id,
+					blocks: []blockMetadata{blockMetadata{
+						start:     blocks[i].reattempt.peersMetadata[j].start,
+						size:      blocks[i].reattempt.peersMetadata[j].size,
+						reattempt: blocks[i].reattempt,
+					}},
+				}
+			}
+			// Re-enqueue the block to be fetched
+			enqueue(reattemptBlocksMetadata)
+		}
+	})
+}
+
+type blocksResult struct {
+	sync.RWMutex
+	opts        Options
+	blockOpts   block.Options
+	encoderPool encoding.EncoderPool
+	bytesPool   pool.BytesPool
+	result      bootstrap.ShardResult
+}
+
+func newBlocksResult(opts Options, bootstrapOpts bootstrap.Options) *blocksResult {
+	blockOpts := bootstrapOpts.GetDatabaseBlockOptions()
+	return &blocksResult{
+		opts:        opts,
+		blockOpts:   blockOpts,
+		encoderPool: blockOpts.GetEncoderPool(),
+		bytesPool:   blockOpts.GetBytesPool(),
+		result:      bootstrap.NewShardResult(bootstrapOpts),
+	}
+}
+
+func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
+	var (
+		start    = time.Unix(0, block.Start)
+		segments = block.Segments
+		result   = r.blockOpts.GetDatabaseBlockPool().Get()
+	)
+
+	if segments.Merged != nil {
+		size := len(segments.Merged.Head) + len(segments.Merged.Tail)
+		data := r.bytesPool.Get(size)[:size]
+		n := copy(data, segments.Merged.Head)
+		copy(data[n:], segments.Merged.Tail)
+		encoder := r.encoderPool.Get()
+		// TODO(r): Unseal data
+		encoder.ResetSetData(start, data, false)
+		result.Reset(start, encoder)
+
+	} else if segments.Unmerged != nil {
+		// Must merge to provide a single block
+		readers := make([]io.Reader, len(segments.Unmerged))
+		for i := range segments.Unmerged {
+			readers[i] = xio.NewSegmentReader(ts.Segment{
+				Head: segments.Unmerged[i].Head,
+				Tail: segments.Unmerged[i].Tail,
+			})
+		}
+
+		alloc := r.opts.GetReaderIteratorAllocate()
+		iter := encoding.NewMultiReaderIterator(alloc, nil)
+		iter.Reset(readers)
+
+		encoder := r.encoderPool.Get()
+		for iter.Next() {
+			dp, unit, annotation := iter.Current()
+			encoder.Encode(dp, unit, annotation)
+		}
+		if err := iter.Err(); err != nil {
+			return err
+		}
+
+		result.Reset(start, encoder)
+
+	} else {
+		return errSessionBadBlockResultFromPeer
+
+	}
+
+	r.Lock()
+	r.result.AddBlock(id, result)
+	r.Unlock()
+
+	return nil
+}
+
+type enqueueChannel struct {
+	enqueued        uint64
+	processed       uint64
+	peersMetadataCh chan []*blocksMetadata
+}
+
+func newEnqueueChannel() *enqueueChannel {
+	return &enqueueChannel{
+		peersMetadataCh: make(chan []*blocksMetadata, 4096),
+	}
+}
+
+func (c *enqueueChannel) enqueue(peersMetadata []*blocksMetadata) {
+	atomic.AddUint64(&c.enqueued, 1)
+	c.peersMetadataCh <- peersMetadata
+}
+
+func (c *enqueueChannel) enqueueDelayed() func([]*blocksMetadata) {
+	atomic.AddUint64(&c.enqueued, 1)
+	return func(peersMetadata []*blocksMetadata) {
+		c.peersMetadataCh <- peersMetadata
+	}
+}
+
+func (c *enqueueChannel) get() <-chan []*blocksMetadata {
+	return c.peersMetadataCh
+}
+
+func (c *enqueueChannel) trackProcessed(amount int) {
+	atomic.AddUint64(&c.processed, uint64(amount))
+}
+
+func (c *enqueueChannel) unprocessedLen() int {
+	return int(atomic.LoadUint64(&c.enqueued) - atomic.LoadUint64(&c.processed))
+}
+
+func (c *enqueueChannel) closeOnAllProcessed() {
+	for {
+		if c.unprocessedLen() == 0 {
+			// Will only ever be zero after all is processed if called
+			// after enqueueing the desired set of entries as long as
+			// the guarentee that reattempts are enqueued before the
+			// failed attempt is marked as processed is upheld
+			close(c.peersMetadataCh)
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+type receivedBlocks struct {
+	submitted bool
+	results   []*blocksMetadata
+}
+
+type processFn func(batch []*blocksMetadata)
+
+type peerBlocksQueue struct {
+	sync.RWMutex
+	closed       bool
+	peer         hostQueue
+	queue        []*blocksMetadata
+	doneFns      []func()
+	assigned     uint64
+	completed    uint64
+	maxQueueSize int
+	workers      pool.WorkerPool
+	processFn    processFn
+}
+
+func newPeerBlocksQueue(
+	peer hostQueue,
+	maxQueueSize int,
+	interval time.Duration,
+	workers pool.WorkerPool,
+	processFn processFn,
+) *peerBlocksQueue {
+	q := &peerBlocksQueue{
+		peer:         peer,
+		maxQueueSize: maxQueueSize,
+		workers:      workers,
+		processFn:    processFn,
+	}
+	go q.drainEvery(interval)
+	return q
+}
+
+func (q *peerBlocksQueue) drainEvery(interval time.Duration) {
+	for {
+		q.Lock()
+		if q.closed {
+			q.Unlock()
+			return
+		}
+		q.drainWithLock()
+		q.Unlock()
+		time.Sleep(interval)
+	}
+}
+
+func (q *peerBlocksQueue) close() {
+	q.Lock()
+	defer q.Unlock()
+	q.closed = true
+}
+
+func (q *peerBlocksQueue) trackAssigned(amount int) {
+	atomic.AddUint64(&q.assigned, uint64(amount))
+}
+
+func (q *peerBlocksQueue) trackCompleted(amount int) {
+	atomic.AddUint64(&q.completed, uint64(amount))
+}
+
+func (q *peerBlocksQueue) enqueue(bm *blocksMetadata, doneFn func()) {
+	q.Lock()
+
+	if len(q.queue) == 0 && cap(q.queue) < q.maxQueueSize {
+		// Lazy initialize queue
+		q.queue = make([]*blocksMetadata, 0, q.maxQueueSize)
+	}
+	q.queue = append(q.queue, bm)
+	if doneFn != nil {
+		q.doneFns = append(q.doneFns, doneFn)
+	}
+	q.trackAssigned(len(bm.blocks))
+
+	// Determine if should drain immediately
+	if len(q.queue) < q.maxQueueSize {
+		// Require more to fill up block
+		q.Unlock()
+		return
+	}
+	q.drainWithLock()
+
+	q.Unlock()
+}
+
+func (q *peerBlocksQueue) drainWithLock() {
+	if len(q.queue) == 0 {
+		// None to drain
+		return
+	}
+	enqueued := q.queue
+	doneFns := q.doneFns
+	q.queue = nil
+	q.doneFns = nil
+	q.workers.Go(func() {
+		q.processFn(enqueued)
+		// Call done callbacks
+		for i := range doneFns {
+			doneFns[i]()
+		}
+		// Track completed blocks
+		completed := 0
+		for i := range enqueued {
+			completed += len(enqueued[i].blocks)
+		}
+		q.trackCompleted(completed)
+	})
+}
+
+type peerBlocksQueues []*peerBlocksQueue
+
+func (qs peerBlocksQueues) findQueue(peer hostQueue) *peerBlocksQueue {
+	for _, q := range qs {
+		if q.peer == peer {
+			return q
+		}
+	}
+	return nil
+}
+
+func (qs peerBlocksQueues) closeAll() {
+	for _, q := range qs {
+		q.close()
+	}
+}
+
+type blocksMetadata struct {
+	peer   hostQueue
+	id     string
+	blocks []blockMetadata
+	idx    int
+}
+
+func (b blocksMetadata) unselectedBlocks() []blockMetadata {
+	if b.idx == len(b.blocks) {
+		return nil
+	}
+	return b.blocks[b.idx:]
+}
+
+type blocksMetadatas []*blocksMetadata
+
+func (arr blocksMetadatas) swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
+
+type peerBlocksMetadata []*blocksMetadata
+
+func (arr peerBlocksMetadata) Len() int      { return len(arr) }
+func (arr peerBlocksMetadata) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
+func (arr peerBlocksMetadata) Less(i, j int) bool {
+	return strings.Compare(arr[i].peer.Host().ID(), arr[j].peer.Host().ID()) < 0
+}
+
+type blocksMetadataQueue struct {
+	blocksMetadata *blocksMetadata
+	queue          *peerBlocksQueue
+}
+
+type blocksMetadatasQueuesByOutstanding []blocksMetadataQueue
+
+func (arr blocksMetadatasQueuesByOutstanding) Len() int      { return len(arr) }
+func (arr blocksMetadatasQueuesByOutstanding) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
+func (arr blocksMetadatasQueuesByOutstanding) Less(i, j int) bool {
+	outstandingFirst := atomic.LoadUint64(&arr[i].queue.assigned) - atomic.LoadUint64(&arr[i].queue.completed)
+	outstandingSecond := atomic.LoadUint64(&arr[j].queue.assigned) - atomic.LoadUint64(&arr[j].queue.completed)
+	return outstandingFirst < outstandingSecond
+}
+
+type blockMetadata struct {
+	start     time.Time
+	size      int64
+	reattempt blockMetadataReattempt
+}
+
+type blockMetadataReattempt struct {
+	attempt       int
+	id            string
+	attempted     []hostQueue
+	peersMetadata []blockMetadataReattemptPeerMetadata
+}
+
+type blockMetadataReattemptPeerMetadata struct {
+	peer  hostQueue
+	start time.Time
+	size  int64
+}
+
+func (b blockMetadataReattempt) hasAttemptedPeer(peer hostQueue) bool {
+	for i := range b.attempted {
+		if b.attempted[i] == peer {
+			return true
+		}
+	}
+	return false
+}
+
+type blockMetadatasByTime []blockMetadata
+
+func (b blockMetadatasByTime) Len() int      { return len(b) }
+func (b blockMetadatasByTime) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b blockMetadatasByTime) Less(i, j int) bool {
+	return b[i].start.Before(b[j].start)
 }

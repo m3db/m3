@@ -18,47 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package peers
 
-type client struct {
-	opts         Options
-	newSessionFn newSessionFn
+import (
+	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
+)
+
+const (
+	// PeersBootstrapperName is the name of the peers bootstrapper
+	PeersBootstrapperName = "peers"
+)
+
+type peersBootstrapper struct {
+	bootstrap.Bootstrapper
 }
 
-type newSessionFn func(opts Options) (clientSession, error)
-
-// NewClient creates a new client
-func NewClient(opts Options) (Client, error) {
-	return newClient(opts)
-}
-
-// NewAdminClient creates a new administrative client
-func NewAdminClient(opts AdminOptions) (AdminClient, error) {
-	return newClient(opts)
-}
-
-func newClient(opts Options) (*client, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
+// NewPeersBootstrapper creates a new bootstrapper to bootstrap from peers
+func NewPeersBootstrapper(
+	opts Options,
+	next bootstrap.Bootstrapper,
+) bootstrap.Bootstrapper {
+	src := newPeersSource(opts)
+	return &peersBootstrapper{
+		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts.GetBootstrapOptions(), next),
 	}
-	return &client{opts: opts, newSessionFn: newSession}, nil
 }
 
-func (c *client) newSession() (AdminSession, error) {
-	session, err := c.newSessionFn(c.opts)
-	if err != nil {
-		return nil, err
-	}
-	if err := session.Open(); err != nil {
-		return nil, err
-	}
-	return session, nil
-}
-
-func (c *client) NewSession() (Session, error) {
-	return c.newSession()
-}
-
-func (c *client) NewAdminSession() (AdminSession, error) {
-	return c.newSession()
+func (*peersBootstrapper) String() string {
+	return PeersBootstrapperName
 }

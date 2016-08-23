@@ -95,6 +95,18 @@ const (
 
 	// defaultSeriesIteratorPoolSize is the default size of the series iterator pools
 	defaultSeriesIteratorPoolSize = 100000
+
+	// defaultFetchSeriesBlocksBatchSize is the default fetch series blocks batch size
+	defaultFetchSeriesBlocksBatchSize = 128
+
+	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks metadata fetch timeout
+	defaultFetchSeriesBlocksMetadataBatchTimeout = 5 * time.Second
+
+	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
+	defaultFetchSeriesBlocksBatchTimeout = 30 * time.Second
+
+	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
+	defaultFetchSeriesBlocksBatchConcurrency = 64
 )
 
 var (
@@ -106,62 +118,80 @@ var (
 )
 
 type options struct {
-	clockOpts                      clock.Options
-	instrumentOpts                 instrument.Options
-	topologyType                   topology.Type
-	consistencyLevel               topology.ConsistencyLevel
-	channelOptions                 *tchannel.ChannelOptions
-	maxConnectionCount             int
-	minConnectionCount             int
-	hostConnectTimeout             time.Duration
-	clusterConnectTimeout          time.Duration
-	clusterConnectConsistencyLevel topology.ConsistencyLevel
-	writeRequestTimeout            time.Duration
-	fetchRequestTimeout            time.Duration
-	backgroundConnectInterval      time.Duration
-	backgroundConnectStutter       time.Duration
-	backgroundHealthCheckInterval  time.Duration
-	backgroundHealthCheckStutter   time.Duration
-	readerIteratorAllocate         encoding.ReaderIteratorAllocate
-	writeOpPoolSize                int
-	fetchBatchOpPoolSize           int
-	writeBatchSize                 int
-	fetchBatchSize                 int
-	hostQueueOpsFlushSize          int
-	hostQueueOpsFlushInterval      time.Duration
-	hostQueueOpsArrayPoolSize      int
-	seriesIteratorPoolSize         int
-	seriesIteratorArrayPoolBuckets []pool.Bucket
+	clockOpts                             clock.Options
+	instrumentOpts                        instrument.Options
+	topologyType                          topology.Type
+	consistencyLevel                      topology.ConsistencyLevel
+	channelOptions                        *tchannel.ChannelOptions
+	maxConnectionCount                    int
+	minConnectionCount                    int
+	hostConnectTimeout                    time.Duration
+	clusterConnectTimeout                 time.Duration
+	clusterConnectConsistencyLevel        topology.ConsistencyLevel
+	writeRequestTimeout                   time.Duration
+	fetchRequestTimeout                   time.Duration
+	backgroundConnectInterval             time.Duration
+	backgroundConnectStutter              time.Duration
+	backgroundHealthCheckInterval         time.Duration
+	backgroundHealthCheckStutter          time.Duration
+	readerIteratorAllocate                encoding.ReaderIteratorAllocate
+	writeOpPoolSize                       int
+	fetchBatchOpPoolSize                  int
+	writeBatchSize                        int
+	fetchBatchSize                        int
+	hostQueueOpsFlushSize                 int
+	hostQueueOpsFlushInterval             time.Duration
+	hostQueueOpsArrayPoolSize             int
+	seriesIteratorPoolSize                int
+	seriesIteratorArrayPoolBuckets        []pool.Bucket
+	origin                                topology.Host
+	fetchSeriesBlocksBatchSize            int
+	fetchSeriesBlocksMetadataBatchTimeout time.Duration
+	fetchSeriesBlocksBatchTimeout         time.Duration
+	fetchSeriesBlocksBatchConcurrency     int
 }
 
 // NewOptions creates a new set of client options with defaults
 func NewOptions() Options {
+	return newOptions()
+}
+
+// NewAdminOptions creates a new set of administration client options with defaults
+func NewAdminOptions() AdminOptions {
+	return newOptions()
+}
+
+func newOptions() *options {
 	opts := &options{
-		clockOpts:                      clock.NewOptions(),
-		instrumentOpts:                 instrument.NewOptions(),
-		consistencyLevel:               defaultConsistencyLevel,
-		maxConnectionCount:             defaultMaxConnectionCount,
-		minConnectionCount:             defaultMinConnectionCount,
-		hostConnectTimeout:             defaultHostConnectTimeout,
-		clusterConnectTimeout:          defaultClusterConnectTimeout,
-		clusterConnectConsistencyLevel: defaultClusterConnectConsistencyLevel,
-		writeRequestTimeout:            defaultWriteRequestTimeout,
-		fetchRequestTimeout:            defaultFetchRequestTimeout,
-		backgroundConnectInterval:      defaultBackgroundConnectInterval,
-		backgroundConnectStutter:       defaultBackgroundConnectStutter,
-		backgroundHealthCheckInterval:  defaultBackgroundHealthCheckInterval,
-		backgroundHealthCheckStutter:   defaultBackgroundHealthCheckStutter,
-		writeOpPoolSize:                defaultWriteOpPoolSize,
-		fetchBatchOpPoolSize:           defaultFetchBatchOpPoolSize,
-		writeBatchSize:                 defaultWriteBatchSize,
-		fetchBatchSize:                 defaultFetchBatchSize,
-		hostQueueOpsFlushSize:          defaultHostQueueOpsFlushSize,
-		hostQueueOpsFlushInterval:      defaultHostQueueOpsFlushInterval,
-		hostQueueOpsArrayPoolSize:      defaultHostQueueOpsArrayPoolSize,
-		seriesIteratorPoolSize:         defaultSeriesIteratorPoolSize,
-		seriesIteratorArrayPoolBuckets: defaultSeriesIteratorArrayPoolBuckets,
+		clockOpts:                             clock.NewOptions(),
+		instrumentOpts:                        instrument.NewOptions(),
+		consistencyLevel:                      defaultConsistencyLevel,
+		maxConnectionCount:                    defaultMaxConnectionCount,
+		minConnectionCount:                    defaultMinConnectionCount,
+		hostConnectTimeout:                    defaultHostConnectTimeout,
+		clusterConnectTimeout:                 defaultClusterConnectTimeout,
+		clusterConnectConsistencyLevel:        defaultClusterConnectConsistencyLevel,
+		writeRequestTimeout:                   defaultWriteRequestTimeout,
+		fetchRequestTimeout:                   defaultFetchRequestTimeout,
+		backgroundConnectInterval:             defaultBackgroundConnectInterval,
+		backgroundConnectStutter:              defaultBackgroundConnectStutter,
+		backgroundHealthCheckInterval:         defaultBackgroundHealthCheckInterval,
+		backgroundHealthCheckStutter:          defaultBackgroundHealthCheckStutter,
+		writeOpPoolSize:                       defaultWriteOpPoolSize,
+		fetchBatchOpPoolSize:                  defaultFetchBatchOpPoolSize,
+		writeBatchSize:                        defaultWriteBatchSize,
+		fetchBatchSize:                        defaultFetchBatchSize,
+		hostQueueOpsFlushSize:                 defaultHostQueueOpsFlushSize,
+		hostQueueOpsFlushInterval:             defaultHostQueueOpsFlushInterval,
+		hostQueueOpsArrayPoolSize:             defaultHostQueueOpsArrayPoolSize,
+		seriesIteratorPoolSize:                defaultSeriesIteratorPoolSize,
+		seriesIteratorArrayPoolBuckets:        defaultSeriesIteratorArrayPoolBuckets,
+		fetchSeriesBlocksBatchSize:            defaultFetchSeriesBlocksBatchSize,
+		fetchSeriesBlocksMetadataBatchTimeout: defaultFetchSeriesBlocksMetadataBatchTimeout,
+		fetchSeriesBlocksBatchTimeout:         defaultFetchSeriesBlocksBatchTimeout,
+		fetchSeriesBlocksBatchConcurrency:     defaultFetchSeriesBlocksBatchConcurrency,
 	}
-	return opts.EncodingM3TSZ()
+	return opts.EncodingM3TSZ().(*options)
 }
 
 func (o *options) Validate() error {
@@ -440,4 +470,54 @@ func (o *options) ReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) 
 
 func (o *options) GetReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
 	return o.readerIteratorAllocate
+}
+
+func (o *options) Origin(value topology.Host) AdminOptions {
+	opts := *o
+	opts.origin = value
+	return &opts
+}
+
+func (o *options) GetOrigin() topology.Host {
+	return o.origin
+}
+
+func (o *options) FetchSeriesBlocksBatchSize(value int) AdminOptions {
+	opts := *o
+	opts.fetchSeriesBlocksBatchSize = value
+	return &opts
+}
+
+func (o *options) GetFetchSeriesBlocksBatchSize() int {
+	return o.fetchSeriesBlocksBatchSize
+}
+
+func (o *options) FetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions {
+	opts := *o
+	opts.fetchSeriesBlocksMetadataBatchTimeout = value
+	return &opts
+}
+
+func (o *options) GetFetchSeriesBlocksMetadataBatchTimeout() time.Duration {
+	return o.fetchSeriesBlocksMetadataBatchTimeout
+}
+
+func (o *options) FetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {
+	opts := *o
+	opts.fetchSeriesBlocksBatchTimeout = value
+	return &opts
+}
+
+func (o *options) GetFetchSeriesBlocksBatchTimeout() time.Duration {
+	return o.fetchSeriesBlocksBatchTimeout
+}
+
+func (o *options) FetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
+	opts := *o
+	opts.fetchSeriesBlocksBatchConcurrency = value
+	return &opts
+}
+
+func (o *options) GetFetchSeriesBlocksBatchConcurrency() int {
+	return o.fetchSeriesBlocksBatchConcurrency
 }

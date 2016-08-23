@@ -347,8 +347,16 @@ func (q *queue) Enqueue(o op) error {
 	return nil
 }
 
+func (q *queue) Host() topology.Host {
+	return q.host
+}
+
 func (q *queue) GetConnectionCount() int {
 	return q.connPool.GetConnectionCount()
+}
+
+func (q *queue) GetConnectionPool() connectionPool {
+	return q.connPool
 }
 
 func (q *queue) Close() {
