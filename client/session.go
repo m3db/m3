@@ -60,7 +60,6 @@ var (
 	errSessionStateNotInitial        = errors.New("session not in initial state")
 	errSessionStateNotOpen           = errors.New("session not in open state")
 	errSessionBadBlockResultFromPeer = errors.New("session fetched bad block result from peer")
-	errSessionBadBlocksSelection     = errors.New("session encountered bad blocks selection from peers")
 )
 
 type session struct {
