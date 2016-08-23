@@ -1085,9 +1085,9 @@ func (s *session) streamBlocksBatchFromPeer(
 		result *rpc.FetchBlocksResult_
 	)
 	for i := range batch {
-		var starts []int64
+		starts := make([]int64, len(batch[i].blocks))
 		for j := range batch[i].blocks {
-			starts = append(starts, batch[i].blocks[j].start.UnixNano())
+			starts[j] = batch[i].blocks[j].start.UnixNano()
 		}
 		req.Elements = append(req.Elements, &rpc.FetchBlocksParam{
 			ID:     batch[i].id,
@@ -1146,7 +1146,7 @@ func (s *session) streamBlocksBatchFromPeer(
 					xlog.NewLogField("actualStart", block.Start),
 					xlog.NewLogField("indexID", i),
 					xlog.NewLogField("indexBlock", j),
-				).Errorf("stream blocks response from peer %v returned mismatched ID", peer.Host().String())
+				).Errorf("stream blocks response from peer %v returned mismatched block start", peer.Host().String())
 				continue
 			}
 
@@ -1155,11 +1155,12 @@ func (s *session) streamBlocksBatchFromPeer(
 				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
 				s.log.WithFields(
 					xlog.NewLogField("id", id),
-					xlog.NewLogField("expectedStart", batch[i].blocks[j].start.UnixNano()),
-					xlog.NewLogField("actualStart", block.Start),
+					xlog.NewLogField("start", block.Start),
+					xlog.NewLogField("errorType", block.Err.Type),
+					xlog.NewLogField("errorMessage", block.Err.Message),
 					xlog.NewLogField("indexID", i),
 					xlog.NewLogField("indexBlock", j),
-				).Errorf("stream blocks response from peer %v returned mismatched block start", peer.Host().String())
+				).Errorf("stream blocks response from peer %v returned block error", peer.Host().String())
 				continue
 			}
 
@@ -1180,8 +1181,8 @@ func (s *session) streamBlocksReattemptFromPeers(
 	s.streamBlocksReattemptWorkers.Go(func() {
 		for i := range blocks {
 			// Reconstruct peers metadata for reattempt
-			peersLen := len(blocks[i].reattempt.peersMetadata)
-			reattemptBlocksMetadata := make([]*blocksMetadata, peersLen)
+			reattemptBlocksMetadata :=
+				make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
 			for j := range reattemptBlocksMetadata {
 				reattemptBlocksMetadata[j] = &blocksMetadata{
 					peer: blocks[i].reattempt.peersMetadata[j].peer,
@@ -1251,6 +1252,8 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 		iter.Reset(readers)
 
 		encoder := r.encoderPool.Get()
+		defer encoder.Close()
+
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
 			encoder.Encode(dp, unit, annotation)
@@ -1393,6 +1396,10 @@ func (q *peerBlocksQueue) enqueue(bm *blocksMetadata, doneFn func()) {
 	if len(q.queue) == 0 && cap(q.queue) < q.maxQueueSize {
 		// Lazy initialize queue
 		q.queue = make([]*blocksMetadata, 0, q.maxQueueSize)
+	}
+	if len(q.doneFns) == 0 && cap(q.doneFns) < q.maxQueueSize {
+		// Lazy initialize doneFns
+		q.doneFns = make([]func(), 0, q.maxQueueSize)
 	}
 	q.queue = append(q.queue, bm)
 	if doneFn != nil {
