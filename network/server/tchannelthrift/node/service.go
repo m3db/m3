@@ -209,6 +209,7 @@ func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksM
 			blockMetadata := rpc.NewBlockMetadata()
 			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start())
 			blockMetadata.Size = fetchedMetadataBlock.Size()
+			blockMetadata.Err = fetchedMetadataBlock.Err()
 			blocksMetadata.Blocks[j] = blockMetadata
 		}
 		result.Elements[i] = blocksMetadata
