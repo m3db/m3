@@ -64,64 +64,82 @@ func (d *mockDatabase) FetchBlocksMetadata(context.Context, uint32, int64, int64
 	return nil, nil, nil
 }
 
-func TestNeedFlushDuringBootstrap(t *testing.T) {
+func TestFlushManagerHasFlushed(t *testing.T) {
 	database := newMockDatabase()
-	fm := newFlushManager(database)
-	now := database.Options().GetClockOptions().GetNowFn()()
-	require.False(t, fm.NeedsFlush(now))
-	database.bs = bootstrapped
-	require.True(t, fm.NeedsFlush(now))
-}
-
-func TestNeedFlushWhileFlushing(t *testing.T) {
-	database := newMockDatabase()
-	database.bs = bootstrapped
 	fm := newFlushManager(database).(*flushManager)
-	now := database.Options().GetClockOptions().GetNowFn()()
-	require.True(t, fm.NeedsFlush(now))
-	fm.fs = flushInProgress
-	require.False(t, fm.NeedsFlush(now))
+
+	now := time.Now()
+	require.False(t, fm.HasFlushed(now))
+
+	fm.flushStates[now] = fileOpState{Status: fileOpFailed}
+	require.False(t, fm.HasFlushed(now))
+
+	fm.flushStates[now] = fileOpState{Status: fileOpSuccess}
+	require.True(t, fm.HasFlushed(now))
 }
 
-func TestNeedFlushAttemptedBefore(t *testing.T) {
+func TestFlushManagerNeedsFlush(t *testing.T) {
 	database := newMockDatabase()
-	database.bs = bootstrapped
 	fm := newFlushManager(database).(*flushManager)
-	now := database.Options().GetClockOptions().GetNowFn()()
-	require.True(t, fm.NeedsFlush(now))
-	firstBlockStart := now.Add(-2 * time.Hour).Add(-10 * time.Minute).Truncate(2 * time.Hour)
-	fm.flushAttempted[firstBlockStart] = flushState{Status: flushInProgress}
-	require.False(t, fm.NeedsFlush(now))
+
+	now := time.Now()
+	maxFlushRetries := database.opts.GetMaxFlushRetries()
+	require.True(t, fm.needsFlushWithLock(now))
+
+	fm.flushStates[now] = fileOpState{Status: fileOpFailed, NumFailures: maxFlushRetries - 1}
+	require.True(t, fm.needsFlushWithLock(now))
+
+	fm.flushStates[now] = fileOpState{Status: fileOpFailed, NumFailures: maxFlushRetries}
+	require.False(t, fm.needsFlushWithLock(now))
+
+	fm.flushStates[now] = fileOpState{Status: fileOpSuccess}
+	require.False(t, fm.needsFlushWithLock(now))
 }
 
-func TestGetFirstBlockStart(t *testing.T) {
+func TestFlushManagerFlushTimeStart(t *testing.T) {
 	inputs := []struct {
-		tickStart time.Time
-		expected  time.Time
+		ts       time.Time
+		expected time.Time
 	}{
-		{time.Unix(14900, 0), time.Unix(0, 0)},
-		{time.Unix(15000, 0), time.Unix(7200, 0)},
-		{time.Unix(15100, 0), time.Unix(7200, 0)},
+		{time.Unix(86400*2, 0), time.Unix(0, 0)},
+		{time.Unix(86400*2+7200, 0), time.Unix(7200, 0)},
+		{time.Unix(86400*2+10800, 0), time.Unix(7200, 0)},
 	}
 	database := newMockDatabase()
 	fm := newFlushManager(database).(*flushManager)
 	for _, input := range inputs {
-		require.Equal(t, input.expected, fm.getFirstBlockStart(input.tickStart))
+		require.Equal(t, input.expected, fm.FlushTimeStart(input.ts))
 	}
 }
 
-func TestFlush(t *testing.T) {
+func TestFlushManagerFlushTimeEnd(t *testing.T) {
+	inputs := []struct {
+		ts       time.Time
+		expected time.Time
+	}{
+		{time.Unix(7800, 0), time.Unix(0, 0)},
+		{time.Unix(8000, 0), time.Unix(0, 0)},
+		{time.Unix(15200, 0), time.Unix(7200, 0)},
+	}
+	database := newMockDatabase()
+	fm := newFlushManager(database).(*flushManager)
+	for _, input := range inputs {
+		require.Equal(t, input.expected, fm.FlushTimeEnd(input.ts))
+	}
+}
+
+func TestFlushManagerFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	inputTimes := []struct {
 		bs time.Time
-		fs flushState
+		fs fileOpState
 	}{
-		{time.Unix(21600, 0), flushState{flushFailed, 2}},
-		{time.Unix(28800, 0), flushState{flushFailed, 3}},
-		{time.Unix(36000, 0), flushState{flushInProgress, 0}},
-		{time.Unix(43200, 0), flushState{flushSuccess, 1}},
+		{time.Unix(14400, 0), fileOpState{fileOpFailed, 2}},
+		{time.Unix(28800, 0), fileOpState{fileOpFailed, 3}},
+		{time.Unix(36000, 0), fileOpState{fileOpInProgress, 0}},
+		{time.Unix(43200, 0), fileOpState{fileOpSuccess, 1}},
 	}
 	notFlushed := make(map[time.Time]struct{})
 	for i := 1; i < 4; i++ {
@@ -132,13 +150,13 @@ func TestFlush(t *testing.T) {
 	database := newMockDatabase()
 	fm := newFlushManager(database).(*flushManager)
 	for _, input := range inputTimes {
-		fm.flushAttempted[input.bs] = input.fs
+		fm.flushStates[input.bs] = input.fs
 	}
 	endTime := time.Unix(0, 0).Add(2 * 24 * time.Hour)
 	for shard := 0; shard < 2; shard++ {
 		m := NewMockdatabaseShard(ctrl)
 		database.shards = append(database.shards, m)
-		m.EXPECT().ShardNum().Return(uint32(shard))
+		m.EXPECT().ID().Return(uint32(shard))
 		cur := inputTimes[0].bs
 		for !cur.After(endTime) {
 			if _, excluded := notFlushed[cur]; !excluded {
@@ -149,7 +167,7 @@ func TestFlush(t *testing.T) {
 		m.EXPECT().Flush(gomock.Any(), cur, fm.pm).Return(errors.New("some errors"))
 	}
 
-	fm.Flush(tickStart, false)
+	err := fm.Flush(tickStart)
 
 	j := 0
 	for i := 0; i < 19; i++ {
@@ -157,46 +175,45 @@ func TestFlush(t *testing.T) {
 			j += 3
 		}
 		expectedTime := time.Unix(int64(21600+j*7200), 0)
-		require.Equal(t, flushSuccess, fm.flushAttempted[expectedTime].Status)
+		require.Equal(t, fileOpSuccess, fm.flushStates[expectedTime].Status)
 		j++
 	}
 	expectedTime := time.Unix(int64(180000), 0)
-	require.Equal(t, flushFailed, fm.flushAttempted[expectedTime].Status)
-	require.Equal(t, 1, fm.flushAttempted[expectedTime].NumFailures)
-	require.Equal(t, flushNotStarted, fm.fs)
+	require.Equal(t, fileOpFailed, fm.flushStates[expectedTime].Status)
+	require.Equal(t, 1, fm.flushStates[expectedTime].NumFailures)
+	require.Error(t, err)
 }
 
-func TestGetTimesToFlush(t *testing.T) {
+func TestFlushManagerFlushTimes(t *testing.T) {
 	inputTimes := []struct {
 		bs time.Time
-		fs flushState
+		fs fileOpState
 	}{
-		{time.Unix(21600, 0), flushState{flushFailed, 2}},
-		{time.Unix(28800, 0), flushState{flushFailed, 3}},
-		{time.Unix(36000, 0), flushState{flushInProgress, 0}},
-		{time.Unix(43200, 0), flushState{flushSuccess, 1}},
+		{time.Unix(14400, 0), fileOpState{fileOpFailed, 2}},
+		{time.Unix(28800, 0), fileOpState{fileOpFailed, 3}},
+		{time.Unix(36000, 0), fileOpState{fileOpInProgress, 0}},
+		{time.Unix(43200, 0), fileOpState{fileOpSuccess, 1}},
 	}
 	database := newMockDatabase()
 	fm := newFlushManager(database).(*flushManager)
 	for _, input := range inputTimes {
-		fm.flushAttempted[input.bs] = input.fs
+		fm.flushStates[input.bs] = input.fs
 	}
 	tickStart := time.Unix(188000, 0)
-	res := fm.getTimesToFlush(tickStart)
-	require.Equal(t, 20, len(res))
+	res := fm.flushTimes(tickStart)
+	require.Equal(t, 21, len(res))
 	j := 0
-	for i := 0; i < 20; i++ {
-		if i == 1 {
+	for i := 0; i < len(res); i++ {
+		if i == 2 {
 			j += 3
 		}
-		expectedTime := time.Unix(int64(21600+j*7200), 0)
-		require.Equal(t, expectedTime, res[19-i])
-		require.Equal(t, flushInProgress, fm.flushAttempted[expectedTime].Status)
+		expectedTime := time.Unix(int64(14400+j*7200), 0)
+		require.Equal(t, expectedTime, res[20-i])
 		j++
 	}
 }
 
-func TestFlushWithTimes(t *testing.T) {
+func TestFlushManagerFlushWithTimes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -211,7 +228,7 @@ func TestFlushWithTimes(t *testing.T) {
 		database.shards = append(database.shards, m)
 		m.EXPECT().Flush(ctx, flushTime, fm.pm).Return(nil)
 	}
-	require.True(t, fm.flushWithTime(ctx, flushTime))
+	require.NoError(t, fm.flushWithTime(ctx, flushTime))
 
 	m := NewMockdatabaseShard(ctrl)
 	database.shards[0] = m
@@ -220,7 +237,7 @@ func TestFlushWithTimes(t *testing.T) {
 	m = NewMockdatabaseShard(ctrl)
 	database.shards[1] = m
 	m.EXPECT().Flush(ctx, flushTime, fm.pm).Return(errors.New("some errors"))
-	m.EXPECT().ShardNum().Return(uint32(1))
+	m.EXPECT().ID().Return(uint32(1))
 
-	require.False(t, fm.flushWithTime(ctx, flushTime))
+	require.Error(t, fm.flushWithTime(ctx, flushTime))
 }

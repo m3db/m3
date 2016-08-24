@@ -51,7 +51,7 @@ func waitUntilDataFlushed(
 		for timestamp, dm := range dataMaps {
 			for id := range dm {
 				shard := shardSet.Shard(id)
-				if !fs.FileExistsAt(filePathPrefix, shard, timestamp) {
+				if !fs.FilesetExistsAt(filePathPrefix, shard, timestamp) {
 					return false
 				}
 			}

@@ -59,7 +59,7 @@ func testDatabase(t *testing.T, bs bootstrapState) *db {
 	database, err := NewDatabase(ss, opts)
 	require.NoError(t, err)
 	d := database.(*db)
-	bsm := newBootstrapManager(d).(*bootstrapManager)
+	bsm := newBootstrapManager(d, nil).(*bootstrapManager)
 	bsm.state = bs
 	d.bsm = bsm
 	return d

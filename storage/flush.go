@@ -21,157 +21,133 @@
 package storage
 
 import (
-	"math"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3x/errors"
 )
-
-type flushStatus byte
-
-const (
-	flushNotStarted flushStatus = iota
-	flushInProgress
-	flushSuccess
-	flushFailed
-)
-
-type flushState struct {
-	Status      flushStatus
-	NumFailures int
-}
 
 type flushManager struct {
 	sync.RWMutex
 
-	opts           Options         // storage options
-	database       database        // storage database
-	pm             persist.Manager // persistence manager
-	fs             flushStatus
-	flushAttempted map[time.Time]flushState
-	flushTimes     []time.Time
+	database    database
+	opts        Options
+	blockSize   time.Duration
+	pm          persist.Manager
+	flushStates map[time.Time]fileOpState
 }
 
 func newFlushManager(database database) databaseFlushManager {
 	opts := database.Options()
+	blockSize := opts.GetRetentionOptions().GetBlockSize()
 	pm := opts.GetNewPersistManagerFn()()
-	rops := opts.GetRetentionOptions()
-	numSlots := int(math.Ceil(float64(rops.GetRetentionPeriod()) / float64(rops.GetBlockSize())))
 
 	return &flushManager{
-		database:       database,
-		pm:             pm,
-		opts:           opts,
-		fs:             flushNotStarted,
-		flushAttempted: make(map[time.Time]flushState),
-		flushTimes:     make([]time.Time, 0, numSlots),
+		database:    database,
+		opts:        opts,
+		blockSize:   blockSize,
+		pm:          pm,
+		flushStates: map[time.Time]fileOpState{},
 	}
 }
 
-func (fm *flushManager) NeedsFlush(t time.Time) bool {
-	// If we haven't bootstrapped yet, don't flush.
-	if !fm.database.IsBootstrapped() {
-		return false
-	}
+func (m *flushManager) HasFlushed(t time.Time) bool {
+	m.RLock()
+	defer m.RUnlock()
 
-	firstBlockStart := fm.getFirstBlockStart(t)
-	fm.RLock()
-	defer fm.RUnlock()
-	// If we are in the middle of flushing data, don't flush.
-	if fm.fs == flushInProgress {
+	flushState, exists := m.flushStates[t]
+	if !exists {
 		return false
 	}
-	// If we have already tried flushing for this block start time, don't try again.
-	if _, exists := fm.flushAttempted[firstBlockStart]; exists {
-		return false
-	}
-	return true
+	return flushState.Status == fileOpSuccess
 }
 
-func (fm *flushManager) getFirstBlockStart(t time.Time) time.Time {
-	rops := fm.opts.GetRetentionOptions()
-	bufferPast := rops.GetBufferPast()
-	blockSize := rops.GetBlockSize()
-	return t.Add(-bufferPast).Add(-blockSize).Truncate(blockSize)
+func (m *flushManager) FlushTimeStart(t time.Time) time.Time {
+	retentionPeriod := m.opts.GetRetentionOptions().GetRetentionPeriod()
+	return t.Add(-retentionPeriod).Truncate(m.blockSize)
 }
 
-func (fm *flushManager) Flush(t time.Time, async bool) {
-	timesToFlush := fm.getTimesToFlush(t)
+func (m *flushManager) FlushTimeEnd(t time.Time) time.Time {
+	bufferPast := m.opts.GetRetentionOptions().GetBufferPast()
+	return t.Add(-bufferPast).Add(-m.blockSize).Truncate(m.blockSize)
+}
+
+func (m *flushManager) Flush(t time.Time) error {
+	timesToFlush := m.flushTimes(t)
 	if len(timesToFlush) == 0 {
-		return
+		return nil
 	}
+	ctx := m.opts.GetContextPool().Get()
+	defer ctx.Close()
 
-	fm.Lock()
-	if fm.fs == flushInProgress {
-		fm.Unlock()
-		return
-	}
-	fm.fs = flushInProgress
-	fm.Unlock()
-
-	flushFn := func() {
-		ctx := fm.opts.GetContextPool().Get()
-		defer ctx.Close()
-
-		for _, flushTime := range timesToFlush {
-			success := fm.flushWithTime(ctx, flushTime)
-			fm.Lock()
-			flushState := fm.flushAttempted[flushTime]
-			if success {
-				flushState.Status = flushSuccess
-			} else {
-				flushState.Status = flushFailed
-				flushState.NumFailures++
-			}
-			fm.flushAttempted[flushTime] = flushState
-			fm.Unlock()
+	multiErr := xerrors.NewMultiError()
+	for _, flushTime := range timesToFlush {
+		m.Lock()
+		if !m.needsFlushWithLock(flushTime) {
+			m.Unlock()
+			continue
 		}
+		flushState := m.flushStates[flushTime]
+		flushState.Status = fileOpInProgress
+		m.flushStates[flushTime] = flushState
+		m.Unlock()
 
-		fm.Lock()
-		fm.fs = flushNotStarted
-		fm.Unlock()
-	}
+		flushErr := m.flushWithTime(ctx, flushTime)
 
-	if !async {
-		flushFn()
-	} else {
-		go flushFn()
+		m.Lock()
+		flushState = m.flushStates[flushTime]
+		if flushErr == nil {
+			flushState.Status = fileOpSuccess
+		} else {
+			flushState.Status = fileOpFailed
+			flushState.NumFailures++
+			multiErr = multiErr.Add(flushErr)
+		}
+		m.flushStates[flushTime] = flushState
+		m.Unlock()
 	}
+	return multiErr.FinalError()
 }
 
-func (fm *flushManager) getTimesToFlush(t time.Time) []time.Time {
-	rops := fm.opts.GetRetentionOptions()
-	blockSize := rops.GetBlockSize()
-	maxFlushRetries := fm.opts.GetMaxFlushRetries()
-	firstBlockStart := fm.getFirstBlockStart(t)
-	earliestTime := t.Add(-1 * rops.GetRetentionPeriod())
+// flushTimes returns a list of times we need to flush data blocks for.
+func (m *flushManager) flushTimes(t time.Time) []time.Time {
+	earliest, latest := m.FlushTimeStart(t), m.FlushTimeEnd(t)
 
-	fm.Lock()
-	defer fm.Unlock()
-	fm.flushTimes = fm.flushTimes[:0]
-	for flushTime := firstBlockStart; !flushTime.Before(earliestTime); flushTime = flushTime.Add(-blockSize) {
-		if flushState, exists := fm.flushAttempted[flushTime]; !exists || (flushState.Status == flushFailed && flushState.NumFailures < maxFlushRetries) {
-			flushState.Status = flushInProgress
-			fm.flushTimes = append(fm.flushTimes, flushTime)
-			fm.flushAttempted[flushTime] = flushState
+	// NB(xichen): could preallocate slice here.
+	var flushTimes []time.Time
+	m.RLock()
+	for flushTime := latest; !flushTime.Before(earliest); flushTime = flushTime.Add(-m.blockSize) {
+		if m.needsFlushWithLock(flushTime) {
+			flushTimes = append(flushTimes, flushTime)
 		}
 	}
-	return fm.flushTimes
+	m.RUnlock()
+
+	return flushTimes
 }
 
-func (fm *flushManager) flushWithTime(ctx context.Context, t time.Time) bool {
-	allShardsSucceeded := true
-	log := fm.opts.GetInstrumentOptions().GetLogger()
-	shards := fm.database.getOwnedShards()
+// needsFlushWithLock returns true if we need to flush data for a given time.
+func (m *flushManager) needsFlushWithLock(t time.Time) bool {
+	flushState, exists := m.flushStates[t]
+	if !exists {
+		return true
+	}
+	return flushState.Status == fileOpFailed && flushState.NumFailures < m.opts.GetMaxFlushRetries()
+}
+
+func (m *flushManager) flushWithTime(ctx context.Context, t time.Time) error {
+	multiErr := xerrors.NewMultiError()
+	shards := m.database.getOwnedShards()
 	for _, shard := range shards {
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(ctx, t, fm.pm); err != nil {
-			log.Errorf("shard %d failed to flush data: %v", shard.ShardNum(), err)
-			allShardsSucceeded = false
+		if err := shard.Flush(ctx, t, m.pm); err != nil {
+			detailedErr := fmt.Errorf("shard %d failed to flush data: %v", shard.ID(), err)
+			multiErr = multiErr.Add(detailedErr)
 		}
 	}
-	return allShardsSucceeded
+	return multiErr.FinalError()
 }

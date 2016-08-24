@@ -125,7 +125,7 @@ type Database interface {
 }
 
 type databaseShard interface {
-	ShardNum() uint32
+	ID() uint32
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
 	Tick()
@@ -239,13 +239,37 @@ type databaseBootstrapManager interface {
 	Bootstrap() error
 }
 
-// databaseFlushManager manages the data flushing process.
+// databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
-	// NeedsFlush determines whether we need to flush in-memory data blocks given a timestamp.
-	NeedsFlush(t time.Time) bool
+	// HasFlushed returns true if the data for a given time have been flushed.
+	HasFlushed(t time.Time) bool
 
-	// Flush flushes the in-memory data blocks.
-	Flush(t time.Time, async bool)
+	// FlushTimeStart is the earliest flushable time.
+	FlushTimeStart(t time.Time) time.Time
+
+	// FlushTimeEnd is the latest flushable time.
+	FlushTimeEnd(t time.Time) time.Time
+
+	// Flush flushes in-memory data to persistent storage.
+	Flush(t time.Time) error
+}
+
+// databaseCleanupManager manages cleaning up persistent storage space.
+type databaseCleanupManager interface {
+	// Cleanup cleans up data not needed in the persistent storage.
+	Cleanup(t time.Time) error
+}
+
+// databaseFileSystemManager manages the database related filesystem activities.
+type databaseFileSystemManager interface {
+	databaseFlushManager
+	databaseCleanupManager
+
+	// ShouldRun determines if any file operations are needed for time t
+	ShouldRun(t time.Time) bool
+
+	// Run performs all filesystem-related operations
+	Run(t time.Time, async bool)
 }
 
 // NewBootstrapFn creates a new bootstrap

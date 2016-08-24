@@ -69,9 +69,6 @@ type database interface {
 
 	// getOwnedShards returns the shards this database owns.
 	getOwnedShards() []databaseShard
-
-	// flush flushes in-memory data given a start time.
-	flush(t time.Time, async bool)
 }
 
 // increasingIndex provides a monotonically increasing index for new series
@@ -96,7 +93,7 @@ type db struct {
 	writeCommitLogFn writeCommitLogFn
 	state            databaseState
 	bsm              databaseBootstrapManager
-	fm               databaseFlushManager
+	fsm              databaseFileSystemManager
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -118,8 +115,8 @@ func NewDatabase(shardSet sharding.ShardSet, opts Options) (Database, error) {
 		tickDeadline: opts.GetRetentionOptions().GetBufferDrain(),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
-	d.bsm = newBootstrapManager(d)
-	d.fm = newFlushManager(d)
+	d.fsm = newFileSystemManager(d)
+	d.bsm = newBootstrapManager(d, d.fsm)
 
 	d.commitLog = commitlog.NewCommitLog(opts.GetCommitLogOptions())
 	if err := d.commitLog.Open(); err != nil {
@@ -283,10 +280,6 @@ func (d *db) getOwnedShards() []databaseShard {
 	return databaseShards
 }
 
-func (d *db) flush(t time.Time, async bool) {
-	d.fm.Flush(t, async)
-}
-
 func (d *db) ongoingTick() {
 	for {
 		select {
@@ -325,8 +318,8 @@ func (d *db) splayedTick() {
 
 	wg.Wait()
 
-	if d.fm.NeedsFlush(start) {
-		d.fm.Flush(start, true)
+	if d.fsm.ShouldRun(start) {
+		d.fsm.Run(start, true)
 	}
 
 	end := d.nowFn()

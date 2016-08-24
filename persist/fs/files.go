@@ -84,6 +84,19 @@ func closeAll(closers ...xclose.Closer) error {
 	return multiErr.FinalError()
 }
 
+// DeleteFiles delete a set of files, returning all the errors encountered during
+// the deletion process.
+func DeleteFiles(filePaths []string) error {
+	multiErr := xerrors.NewMultiError()
+	for _, file := range filePaths {
+		if err := os.Remove(file); err != nil {
+			detailedErr := fmt.Errorf("failed to remove file %s: %v", file, err)
+			multiErr = multiErr.Add(detailedErr)
+		}
+	}
+	return multiErr.FinalError()
+}
+
 // byTimeAscending sorts files by their block start times in ascending order.
 // If the files do not have block start times in their names, the result is undefined.
 type byTimeAscending []string
@@ -149,13 +162,12 @@ type infoFileFn func(fname string, infoData []byte)
 
 // ForEachInfoFile iterates over each valid info file and applies the function passed in.
 func ForEachInfoFile(filePathPrefix string, shard uint32, readerBufferSize int, fn infoFileFn) {
-	shardDir := ShardDirPath(filePathPrefix, shard)
-	matched, err := filepath.Glob(path.Join(shardDir, infoFilePattern))
+	matched, err := filesetFiles(filePathPrefix, shard, infoFilePattern)
 	if err != nil {
 		return
 	}
 
-	sort.Sort(byTimeAscending(matched))
+	shardDir := ShardDirPath(filePathPrefix, shard)
 	digestBuf := digest.NewBuffer()
 	for i := range matched {
 		t, err := TimeFromFileName(matched[i])
@@ -204,14 +216,84 @@ func ReadInfoFiles(filePathPrefix string, shard uint32, readerBufferSize int) []
 	return indexEntries
 }
 
-// CommitLogFiles returns all the commit log files in the commit logs directory.
-func CommitLogFiles(commitLogsDir string) ([]string, error) {
-	matched, err := filepath.Glob(path.Join(commitLogsDir, commitLogFilePattern))
+// FilesetBefore returns all the fileset files whose timestamps are earlier than a given time.
+func FilesetBefore(filePathPrefix string, shard uint32, t time.Time) ([]string, error) {
+	matched, err := filesetFiles(filePathPrefix, shard, filesetFilePattern)
 	if err != nil {
 		return nil, err
 	}
-	sort.Sort(byTimeAndIndexAscending(matched))
-	return matched, err
+	return filesBefore(matched, t)
+}
+
+// CommitLogFiles returns all the commit log files in the commit logs directory.
+func CommitLogFiles(commitLogsDir string) ([]string, error) {
+	return commitlogFiles(commitLogsDir, commitLogFilePattern)
+}
+
+// CommitLogFilesForTime returns all the commit log files for a given time.
+func CommitLogFilesForTime(commitLogsDir string, t time.Time) ([]string, error) {
+	commitLogFileForTimePattern := fmt.Sprintf(commitLogFileForTimeTemplate, t.UnixNano())
+	return commitlogFiles(commitLogsDir, commitLogFileForTimePattern)
+}
+
+// CommitLogFilesBefore returns all the commit log files whose timestamps are earlier than a given time.
+func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
+	var multiErr xerrors.MultiError
+
+	commitLogs, err := CommitLogFiles(commitLogsDir)
+	if err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	res, err := filesBefore(commitLogs, t)
+	if err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	return res, multiErr.FinalError()
+}
+
+type toSortableFn func(files []string) sort.Interface
+
+func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error) {
+	matched, err := filepath.Glob(path.Join(fileDir, pattern))
+	if err != nil {
+		return nil, err
+	}
+	sort.Sort(fn(matched))
+	return matched, nil
+}
+
+func filesetFiles(filePathPrefix string, shard uint32, pattern string) ([]string, error) {
+	shardDir := ShardDirPath(filePathPrefix, shard)
+	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
+		return byTimeAscending(files)
+	})
+}
+
+func commitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
+	return findFiles(commitLogsDir, pattern, func(files []string) sort.Interface {
+		return byTimeAndIndexAscending(files)
+	})
+}
+
+func filesBefore(files []string, t time.Time) ([]string, error) {
+	var (
+		j        int
+		multiErr xerrors.MultiError
+	)
+	// Matched files are sorted by their timestamps in ascending order.
+	for i := range files {
+		ft, err := TimeFromFileName(files[i])
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+		if !ft.Before(t) {
+			break
+		}
+		files[j] = files[i]
+		j++
+	}
+	return files[:j], multiErr.FinalError()
 }
 
 // readInfo reads the data stored in the info file and returns an index entry.
@@ -252,8 +334,8 @@ func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
 }
 
-// FileExistsAt determines whether a data file exists for the given shard and block start time.
-func FileExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
+// FilesetExistsAt determines whether a data file exists for the given shard and block start time.
+func FilesetExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
 	shardDir := ShardDirPath(prefix, shard)
 	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	return FileExists(checkpointFile)
