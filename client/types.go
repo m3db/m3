@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	xtime "github.com/m3db/m3x/time"
 
@@ -55,8 +56,29 @@ type Session interface {
 	Close() error
 }
 
-type clientSession interface {
+// AdminClient can create administration sessions
+type AdminClient interface {
+	Client
+
+	// NewSession creates a new session
+	NewAdminSession() (AdminSession, error)
+}
+
+// AdminSession can perform administrative and node-to-node operations
+type AdminSession interface {
 	Session
+
+	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
+	// for each series in a best effort method from available peers
+	FetchBootstrapBlocksFromPeers(
+		shard uint32,
+		start, end time.Time,
+		opts bootstrap.Options,
+	) (bootstrap.ShardResult, error)
+}
+
+type clientSession interface {
+	AdminSession
 
 	// Open the client session
 	Open() error
@@ -72,8 +94,14 @@ type hostQueue interface {
 	// Enqueue an operation
 	Enqueue(op op) error
 
+	// Host gets the host
+	Host() topology.Host
+
 	// GetConnectionCount gets the current open connection count
 	GetConnectionCount() int
+
+	// GetConnectionPool gets the connection pool
+	GetConnectionPool() connectionPool
 
 	// Close the host queue, will flush any operations still pending
 	Close()
@@ -278,4 +306,39 @@ type Options interface {
 
 	// GetReaderIteratorAllocate returns the readerIteratorAllocate
 	GetReaderIteratorAllocate() encoding.ReaderIteratorAllocate
+}
+
+// AdminOptions is a set of administration client options
+type AdminOptions interface {
+	Options
+
+	// Origin sets the current host originating requests from
+	Origin(value topology.Host) AdminOptions
+
+	// GetOrigin gets the current host originating requests from
+	GetOrigin() topology.Host
+
+	// FetchSeriesBlocksBatchSize sets the batch size for fetching series blocks in batch
+	FetchSeriesBlocksBatchSize(value int) AdminOptions
+
+	// GetFetchSeriesBlocksBatchSize gets the batch size for fetching series blocks in batch
+	GetFetchSeriesBlocksBatchSize() int
+
+	// FetchSeriesBlocksMetadataBatchTimeout sets the timeout for fetching series blocks metadata in batch
+	FetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions
+
+	// GetFetchSeriesBlocksMetadataBatchTimeout gets the timeout for fetching series blocks metadata in batch
+	GetFetchSeriesBlocksMetadataBatchTimeout() time.Duration
+
+	// FetchSeriesBlocksBatchTimeout sets the timeout for fetching series blocks in batch
+	FetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions
+
+	// GetFetchSeriesBlocksBatchTimeout gets the timeout for fetching series blocks in batch
+	GetFetchSeriesBlocksBatchTimeout() time.Duration
+
+	// FetchSeriesBlocksBatchConcurrency sets the concurrency for fetching series blocks in batch
+	FetchSeriesBlocksBatchConcurrency(value int) AdminOptions
+
+	// GetFetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch
+	GetFetchSeriesBlocksBatchConcurrency() int
 }

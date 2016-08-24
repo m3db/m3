@@ -18,47 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package peers
 
-type client struct {
-	opts         Options
-	newSessionFn newSessionFn
+import (
+	"time"
+
+	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3x/time"
+)
+
+// peersSource is a source for bootstrap data from peers
+type peersSource struct {
+	opts Options
 }
 
-type newSessionFn func(opts Options) (clientSession, error)
-
-// NewClient creates a new client
-func NewClient(opts Options) (Client, error) {
-	return newClient(opts)
+// newPeersSource creates a source for bootstrap data from peers
+func newPeersSource(opts Options) bootstrap.Source {
+	return &peersSource{opts: opts}
 }
 
-// NewAdminClient creates a new administrative client
-func NewAdminClient(opts AdminOptions) (AdminClient, error) {
-	return newClient(opts)
+// GetAvailability returns what time ranges are available for a given shard
+func (s *peersSource) GetAvailability(shard uint32, targetRangesForShard xtime.Ranges) xtime.Ranges {
+	return targetRangesForShard
 }
 
-func newClient(opts Options) (*client, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
+// ReadData returns raw series for a given shard within certain time ranges
+func (s *peersSource) ReadData(shard uint32, tr xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
+	if xtime.IsEmpty(tr) {
+		return nil, tr
 	}
-	return &client{opts: opts, newSessionFn: newSession}, nil
-}
 
-func (c *client) newSession() (AdminSession, error) {
-	session, err := c.newSessionFn(c.opts)
+	bopts := s.opts.GetBootstrapOptions()
+	blockSize := bopts.GetRetentionOptions().GetBlockSize()
+	session := s.opts.GetAdminSession()
+	result, err := session.FetchBootstrapBlocksFromPeers(shard, time.Time{}, time.Now().Add(blockSize), bopts)
 	if err != nil {
-		return nil, err
+		return nil, tr
 	}
-	if err := session.Open(); err != nil {
-		return nil, err
-	}
-	return session, nil
-}
 
-func (c *client) NewSession() (Session, error) {
-	return c.newSession()
-}
-
-func (c *client) NewAdminSession() (AdminSession, error) {
-	return c.newSession()
+	return result, nil
 }

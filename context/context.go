@@ -120,6 +120,13 @@ func (c *ctx) Close() {
 	c.returnToPool()
 }
 
+func (c *ctx) IsClosed() bool {
+	c.RLock()
+	closed := c.closed
+	c.RUnlock()
+	return closed
+}
+
 func (c *ctx) Reset() {
 	c.Lock()
 	c.closed = false

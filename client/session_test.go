@@ -49,6 +49,10 @@ const (
 type testEnqueueFn func(idx int, op op)
 
 func newSessionTestOptions() Options {
+	return applySessionTestOptions(NewOptions())
+}
+
+func applySessionTestOptions(opts Options) Options {
 	var shards []uint32
 	for i := uint32(0); i < uint32(sessionTestShards); i++ {
 		shards = append(shards, i)
@@ -67,7 +71,7 @@ func newSessionTestOptions() Options {
 		hostShardSets = append(hostShardSets, topology.NewHostShardSet(host, shardSet))
 	}
 
-	return NewOptions().
+	return opts.
 		SeriesIteratorPoolSize(0).
 		SeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		WriteOpPoolSize(0).

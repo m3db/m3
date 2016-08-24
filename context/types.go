@@ -32,8 +32,11 @@ type Context interface {
 	// must complete first before closers can be called
 	DependsOn(blocker Context)
 
-	// Close will close the current context
+	// Close will close the context
 	Close()
+
+	// IsClosed returns whether the context is closed
+	IsClosed() bool
 
 	// Reset will reset the context for reuse
 	Reset()

@@ -21,6 +21,7 @@
 package topology
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/m3db/m3db/sharding"
@@ -41,6 +42,10 @@ func (h *host) ID() string {
 
 func (h *host) Address() string {
 	return h.address
+}
+
+func (h *host) String() string {
+	return fmt.Sprintf("Host<ID=%s, Address=%s>", h.id, h.address)
 }
 
 // NewHost creates a new host

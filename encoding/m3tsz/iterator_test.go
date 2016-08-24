@@ -22,7 +22,6 @@ package m3tsz
 
 import (
 	"bytes"
-	"errors"
 	"testing"
 	"time"
 
@@ -343,6 +342,5 @@ func TestReaderIteratorNextWithUnexpectedTimeUnit(t *testing.T) {
 	}
 	it := getTestReaderIterator(rawBytes)
 	require.False(t, it.Next())
-	expectedErr := errors.New("time encoding scheme for time unit 9 doesn't exist")
-	require.Equal(t, expectedErr, it.Err())
+	require.Error(t, it.Err())
 }

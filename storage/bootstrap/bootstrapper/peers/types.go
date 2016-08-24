@@ -18,47 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package peers
 
-type client struct {
-	opts         Options
-	newSessionFn newSessionFn
-}
+import (
+	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/storage/bootstrap"
+)
 
-type newSessionFn func(opts Options) (clientSession, error)
+// Options represents the options for bootstrapping from peers
+type Options interface {
+	// BootstrapOptions sets the instrumentation options
+	BootstrapOptions(value bootstrap.Options) Options
 
-// NewClient creates a new client
-func NewClient(opts Options) (Client, error) {
-	return newClient(opts)
-}
+	// GetBootstrapOptions returns the instrumentation options
+	GetBootstrapOptions() bootstrap.Options
 
-// NewAdminClient creates a new administrative client
-func NewAdminClient(opts AdminOptions) (AdminClient, error) {
-	return newClient(opts)
-}
+	// AdminSession sets the admin session
+	AdminSession(value client.AdminSession) Options
 
-func newClient(opts Options) (*client, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-	return &client{opts: opts, newSessionFn: newSession}, nil
-}
-
-func (c *client) newSession() (AdminSession, error) {
-	session, err := c.newSessionFn(c.opts)
-	if err != nil {
-		return nil, err
-	}
-	if err := session.Open(); err != nil {
-		return nil, err
-	}
-	return session, nil
-}
-
-func (c *client) NewSession() (Session, error) {
-	return c.newSession()
-}
-
-func (c *client) NewAdminSession() (AdminSession, error) {
-	return c.newSession()
+	// GetAdminSession returns the admin session
+	GetAdminSession() client.AdminSession
 }
