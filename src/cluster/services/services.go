@@ -18,25 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cluster
+package services
 
 import (
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3x/watch"
+	"github.com/m3db/m3cluster/shard"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 // A ServiceInstance is a single instance of a service
 type ServiceInstance interface {
-	Service() string                      // the service implemented by the instance
-	SetService(s string) ServiceInstance  // sets the service implemented by the instance
-	ID() string                           // ID of the instance
-	SetID(id string) ServiceInstance      // sets the ID of the instance
-	Zone() string                         // Zone in which the instance resides
-	SetZone(z string) ServiceInstance     // sets the zone in which the instance resides
-	Endpoint() string                     // Endpoint address for contacting the instance
-	SetEndpoint(e string) ServiceInstance // sets the endpoint address for the instance
-	Shards() Shards                       // Shards owned by the instance
-	SetShards(s Shards) ServiceInstance   // sets the Shards assigned to the instance
+	Service() string                          // the service implemented by the instance
+	SetService(s string) ServiceInstance      // sets the service implemented by the instance
+	ID() string                               // ID of the instance
+	SetID(id string) ServiceInstance          // sets the ID of the instance
+	Zone() string                             // Zone in which the instance resides
+	SetZone(z string) ServiceInstance         // sets the zone in which the instance resides
+	Endpoint() string                         // Endpoint address for contacting the instance
+	SetEndpoint(e string) ServiceInstance     // sets the endpoint address for the instance
+	Shards() shard.Shards                     // Shards owned by the instance
+	SetShards(s shard.Shards) ServiceInstance // sets the Shards assigned to the instance
 }
 
 // NewServiceInstance creates a new ServiceInstance
@@ -83,34 +83,24 @@ type Services interface {
 	WatchInstances(service string, opts QueryOptions) (xwatch.Watch, error)
 }
 
-// Client is the base interface into the cluster management system, providing
-// access to cluster services
-type Client interface {
-	// Services returns access to the set of services
-	Services() Services
-
-	// KV returns access to the distributed configuration store
-	KV() kv.Store
-}
-
 type serviceInstance struct {
 	id       string
 	service  string
 	zone     string
 	endpoint string
-	shards   Shards
+	shards   shard.Shards
 }
 
-func (i *serviceInstance) Service() string                      { return i.service }
-func (i *serviceInstance) ID() string                           { return i.id }
-func (i *serviceInstance) Zone() string                         { return i.zone }
-func (i *serviceInstance) Endpoint() string                     { return i.endpoint }
-func (i *serviceInstance) Shards() Shards                       { return i.shards }
-func (i *serviceInstance) SetService(s string) ServiceInstance  { i.service = s; return i }
-func (i *serviceInstance) SetID(id string) ServiceInstance      { i.id = id; return i }
-func (i *serviceInstance) SetZone(z string) ServiceInstance     { i.zone = z; return i }
-func (i *serviceInstance) SetEndpoint(e string) ServiceInstance { i.endpoint = e; return i }
-func (i *serviceInstance) SetShards(s Shards) ServiceInstance   { i.shards = s; return i }
+func (i *serviceInstance) Service() string                          { return i.service }
+func (i *serviceInstance) ID() string                               { return i.id }
+func (i *serviceInstance) Zone() string                             { return i.zone }
+func (i *serviceInstance) Endpoint() string                         { return i.endpoint }
+func (i *serviceInstance) Shards() shard.Shards                     { return i.shards }
+func (i *serviceInstance) SetService(s string) ServiceInstance      { i.service = s; return i }
+func (i *serviceInstance) SetID(id string) ServiceInstance          { i.id = id; return i }
+func (i *serviceInstance) SetZone(z string) ServiceInstance         { i.zone = z; return i }
+func (i *serviceInstance) SetEndpoint(e string) ServiceInstance     { i.endpoint = e; return i }
+func (i *serviceInstance) SetShards(s shard.Shards) ServiceInstance { i.shards = s; return i }
 
 type advertisement struct {
 	id       string
