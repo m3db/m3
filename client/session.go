@@ -660,7 +660,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 ) error {
 	var (
 		wg       sync.WaitGroup
-		errLock  sync.RWMutex
+		errLock  sync.Mutex
 		errLen   int
 		multiErr = xerrors.NewMultiError()
 	)
@@ -672,19 +672,17 @@ func (s *session) streamBlocksMetadataFromPeers(
 			defer wg.Done()
 			err := s.streamBlocksMetadataFromPeer(shard, peer, ch)
 			if err != nil {
+				s.log.Warnf("failed to stream blocks metadata from peer %s for shard %d: %v", peer.Host().String(), shard, err)
+
 				errLock.Lock()
 				defer errLock.Unlock()
 				errLen++
 				multiErr.Add(err)
-				s.log.Warnf("failed to stream blocks metadata from peer %v for shard %d: %v", peer.Host().String(), shard, err)
 			}
 		}()
 	}
 
 	wg.Wait()
-
-	errLock.RLock()
-	defer errLock.RUnlock()
 
 	if errLen == len(peers) {
 		s.log.Errorf("failed to complete streaming blocks from all peers for shard %d", shard)
@@ -1117,7 +1115,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Parse and act on result
 	for i := range result.Elements {
 		if i >= len(batch) {
-			s.log.Errorf("stream blocks response from peer %v returned more IDs than expected", peer.Host().String())
+			s.log.Errorf("stream blocks response from peer %s returned more IDs than expected", peer.Host().String())
 			break
 		}
 
@@ -1128,13 +1126,13 @@ func (s *session) streamBlocksBatchFromPeer(
 				xlog.NewLogField("expectedID", batch[i].id),
 				xlog.NewLogField("actualID", id),
 				xlog.NewLogField("indexID", i),
-			).Errorf("stream blocks response from peer %v returned mismatched ID", peer.Host().String())
+			).Errorf("stream blocks response from peer %s returned mismatched ID", peer.Host().String())
 			continue
 		}
 
 		for j := range result.Elements[i].Blocks {
 			if j >= len(batch[i].blocks) {
-				s.log.Errorf("stream blocks response from peer %v returned more blocks than expected", peer.Host().String())
+				s.log.Errorf("stream blocks response from peer %s returned more blocks than expected", peer.Host().String())
 				break
 			}
 
@@ -1148,7 +1146,7 @@ func (s *session) streamBlocksBatchFromPeer(
 					xlog.NewLogField("actualStart", block.Start),
 					xlog.NewLogField("indexID", i),
 					xlog.NewLogField("indexBlock", j),
-				).Errorf("stream blocks response from peer %v returned mismatched block start", peer.Host().String())
+				).Errorf("stream blocks response from peer %s returned mismatched block start", peer.Host().String())
 				continue
 			}
 
@@ -1162,7 +1160,7 @@ func (s *session) streamBlocksBatchFromPeer(
 					xlog.NewLogField("errorMessage", block.Err.Message),
 					xlog.NewLogField("indexID", i),
 					xlog.NewLogField("indexBlock", j),
-				).Errorf("stream blocks response from peer %v returned block error", peer.Host().String())
+				).Errorf("stream blocks response from peer %s returned block error", peer.Host().String())
 				continue
 			}
 
