@@ -21,30 +21,24 @@
 package encoding
 
 import (
-	"time"
+	"testing"
 
-	"github.com/m3db/m3db/ts"
-	xio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/time"
+	"github.com/stretchr/testify/require"
 )
 
-type nullEncoder struct {
-	data []byte
-}
+func TestSchemeTrimEndOfStreamSuccess(t *testing.T) {
+	s := defaultMarkerEncodingScheme.(*markerEncodingScheme)
 
-// NewNullEncoder returns a new encoder that performs no operations
-func NewNullEncoder() Encoder {
-	return &nullEncoder{}
+	head := []byte{0x1, 0x2}
+	for i := 0; i < 256; i++ {
+		for j := 0; j < 8; j++ {
+			encoded := append(head, s.tails[i][j]...)
+			trimmed, pos, err := s.TrimEndOfStream(encoded)
+			require.NoError(t, err)
+			require.Equal(t, len(head)+1, len(trimmed))
+			require.Equal(t, head, trimmed[:len(head)])
+			require.Equal(t, j+1, pos)
+			require.Equal(t, byte(i)>>uint(7-j), trimmed[len(trimmed)-1]>>uint(8-pos))
+		}
+	}
 }
-
-func (e *nullEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error {
-	return nil
-}
-func (e *nullEncoder) Stream() xio.SegmentReader {
-	return xio.NewSegmentReader(ts.Segment{Head: e.data})
-}
-func (e *nullEncoder) Seal()                                                {}
-func (e *nullEncoder) Unseal() error                                        { return nil }
-func (e *nullEncoder) Reset(t time.Time, capacity int)                      {}
-func (e *nullEncoder) ResetSetData(t time.Time, data []byte, writable bool) { e.data = data }
-func (e *nullEncoder) Close()                                               {}
