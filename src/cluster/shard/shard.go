@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cluster
+package shard
 
 // A Shard represents a piece of data owned by the service
 type Shard interface {

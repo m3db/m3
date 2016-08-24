@@ -18,11 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// mockgen rules for generating mocks using reflection mode
-//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/mock_client.go $PACKAGE/client Client"
+package client
 
-// mockgen rules for generating mocks using file mode
-//go:generate sh -c "mockgen -package=services -destination=$GOPATH/src/$PACKAGE/services/mock_services.go -source=$GOPATH/src/$PACKAGE/services/services.go"
-//go:generate sh -c "mockgen -package=kv -destination=$GOPATH/src/$PACKAGE/kv/mock_store.go -source=$GOPATH/src/$PACKAGE/kv/store.go"
+import (
+	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/services"
+)
 
-package mocks
+// Client is the base interface into the cluster management system, providing
+// access to cluster services
+type Client interface {
+	// Services returns access to the set of services
+	Services() services.Services
+
+	// KV returns access to the distributed configuration store
+	KV() kv.Store
+}
