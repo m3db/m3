@@ -95,7 +95,7 @@ func newDatabaseShard(
 	}
 }
 
-func (s *dbShard) ShardNum() uint32 {
+func (s *dbShard) ID() uint32 {
 	return s.shard
 }
 
@@ -406,7 +406,7 @@ func (s *dbShard) Flush(ctx context.Context, blockStart time.Time, pm persist.Ma
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
-	prepared, err := pm.Prepare(s.ShardNum(), blockStart)
+	prepared, err := pm.Prepare(s.ID(), blockStart)
 	multiErr = multiErr.Add(err)
 
 	if prepared.Persist == nil {

@@ -66,7 +66,7 @@ func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time
 
 func waitUntilDataCleanedUp(filePathPrefix string, shard uint32, toDelete time.Time, timeout time.Duration) error {
 	dataCleanedUp := func() bool {
-		if fs.FilesetFileExistsAt(filePathPrefix, shard, toDelete) {
+		if fs.FilesetExistsAt(filePathPrefix, shard, toDelete) {
 			return false
 		}
 		_, index := fs.NextCommitLogsFile(filePathPrefix, toDelete)

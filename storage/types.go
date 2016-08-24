@@ -125,7 +125,7 @@ type Database interface {
 }
 
 type databaseShard interface {
-	ShardNum() uint32
+	ID() uint32
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
 	Tick()

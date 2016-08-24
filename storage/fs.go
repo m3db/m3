@@ -65,62 +65,62 @@ func newFileSystemManager(database database) databaseFileSystemManager {
 	}
 }
 
-func (mgr *fileSystemManager) ShouldRun(t time.Time) bool {
+func (m *fileSystemManager) ShouldRun(t time.Time) bool {
 	// If we haven't bootstrapped yet, no actions necessary.
-	if !mgr.database.IsBootstrapped() {
+	if !m.database.IsBootstrapped() {
 		return false
 	}
 
-	mgr.RLock()
-	defer mgr.RUnlock()
+	m.RLock()
+	defer m.RUnlock()
 
 	// If we are in the middle of performing file operations, bail early.
-	if mgr.status == fileOpInProgress {
+	if m.status == fileOpInProgress {
 		return false
 	}
 
 	// If we have processed this ID before, do nothing.
-	id := mgr.timeID(t)
-	if _, exists := mgr.processed[id]; exists {
+	id := m.timeID(t)
+	if _, exists := m.processed[id]; exists {
 		return false
 	}
 
 	return true
 }
 
-func (mgr *fileSystemManager) Run(t time.Time, async bool) {
-	mgr.Lock()
+func (m *fileSystemManager) Run(t time.Time, async bool) {
+	m.Lock()
 
-	if mgr.status == fileOpInProgress {
-		mgr.Unlock()
+	if m.status == fileOpInProgress {
+		m.Unlock()
 		return
 	}
 
-	id := mgr.timeID(t)
-	if _, exists := mgr.processed[id]; exists {
-		mgr.Unlock()
+	id := m.timeID(t)
+	if _, exists := m.processed[id]; exists {
+		m.Unlock()
 		return
 	}
 
-	mgr.status = fileOpInProgress
-	mgr.processed[id] = struct{}{}
+	m.status = fileOpInProgress
+	m.processed[id] = struct{}{}
 
-	mgr.Unlock()
+	m.Unlock()
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
-		log := mgr.opts.GetInstrumentOptions().GetLogger()
-		if err := mgr.Cleanup(t); err != nil {
+		log := m.opts.GetInstrumentOptions().GetLogger()
+		if err := m.Cleanup(t); err != nil {
 			log.Errorf("encountered errors when cleaning up data for time %v: %v", t, err)
 		}
 
-		if err := mgr.Flush(t); err != nil {
+		if err := m.Flush(t); err != nil {
 			log.Errorf("encountered errors when flushing data for time %v: %v", t, err)
 		}
 
-		mgr.Lock()
-		mgr.status = fileOpNotStarted
-		mgr.Unlock()
+		m.Lock()
+		m.status = fileOpNotStarted
+		m.Unlock()
 	}
 
 	if !async {
@@ -135,6 +135,6 @@ func (mgr *fileSystemManager) Run(t time.Time, async bool) {
 // size period and can flush the data as early as possible. If we need to retry
 // flushing or cleanup more frequently, can make the ID time-based (e.g., every
 // 10 minutes).
-func (mgr *fileSystemManager) timeID(t time.Time) time.Time {
-	return mgr.FlushTimeEnd(t)
+func (m *fileSystemManager) timeID(t time.Time) time.Time {
+	return m.FlushTimeEnd(t)
 }

@@ -62,39 +62,39 @@ func newCleanupManager(database database, fm databaseFlushManager) databaseClean
 		filePathPrefix:          filePathPrefix,
 		commitLogsDir:           commitLogsDir,
 		fm:                      fm,
-		filesetFilesBeforeFn:    fs.FilesetFilesBefore,
+		filesetFilesBeforeFn:    fs.FilesetBefore,
 		commitLogFilesBeforeFn:  fs.CommitLogFilesBefore,
 		commitLogFilesForTimeFn: fs.CommitLogFilesForTime,
 		deleteFilesFn:           fs.DeleteFiles,
 	}
 }
 
-func (mgr *cleanupManager) Cleanup(t time.Time) error {
+func (m *cleanupManager) Cleanup(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
-	filesetFilesStart := mgr.fm.FlushTimeStart(t)
-	if err := mgr.cleanupFilesetFiles(filesetFilesStart); err != nil {
+	filesetFilesStart := m.fm.FlushTimeStart(t)
+	if err := m.cleanupFilesetFiles(filesetFilesStart); err != nil {
 		detailedErr := fmt.Errorf("encountered errors when cleaning up fileset files for %v: %v", filesetFilesStart, err)
 		multiErr = multiErr.Add(detailedErr)
 	}
-	commitLogStart, commitLogTimes := mgr.commitLogTimes(t)
-	if err := mgr.cleanupCommitLogs(commitLogStart, commitLogTimes); err != nil {
+	commitLogStart, commitLogTimes := m.commitLogTimes(t)
+	if err := m.cleanupCommitLogs(commitLogStart, commitLogTimes); err != nil {
 		detailedErr := fmt.Errorf("encountered errors when cleaning up commit logs for commitLogStart %v commitLogTimes %v: %v", commitLogStart, commitLogTimes, err)
 		multiErr = multiErr.Add(detailedErr)
 	}
 	return multiErr.FinalError()
 }
 
-func (mgr *cleanupManager) cleanupFilesetFiles(earliestToRetain time.Time) error {
+func (m *cleanupManager) cleanupFilesetFiles(earliestToRetain time.Time) error {
 	multiErr := xerrors.NewMultiError()
-	shards := mgr.database.getOwnedShards()
+	shards := m.database.getOwnedShards()
 	for _, shard := range shards {
-		shardID := shard.ShardNum()
-		expired, err := mgr.filesetFilesBeforeFn(mgr.filePathPrefix, shardID, earliestToRetain)
+		shardID := shard.ID()
+		expired, err := m.filesetFilesBeforeFn(m.filePathPrefix, shardID, earliestToRetain)
 		if err != nil {
-			detailedErr := fmt.Errorf("encountered errors when getting fileset files for prefix %s shard %d: %v", mgr.filePathPrefix, shardID, err)
+			detailedErr := fmt.Errorf("encountered errors when getting fileset files for prefix %s shard %d: %v", m.filePathPrefix, shardID, err)
 			multiErr = multiErr.Add(detailedErr)
 		}
-		if err := mgr.deleteFilesFn(expired); err != nil {
+		if err := m.deleteFilesFn(expired); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -106,24 +106,24 @@ func (mgr *cleanupManager) cleanupFilesetFiles(earliestToRetain time.Time) error
 // its own block size period but also its left and right block neighbors due to past
 // writes and future writes, we need to shift flush time range by block size as the
 // time range for commit log files we need to check.
-func (mgr *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) {
-	flushStart, flushEnd := mgr.fm.FlushTimeStart(t), mgr.fm.FlushTimeEnd(t)
-	return flushStart.Add(-mgr.blockSize), flushEnd.Add(-mgr.blockSize)
+func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) {
+	flushStart, flushEnd := m.fm.FlushTimeStart(t), m.fm.FlushTimeEnd(t)
+	return flushStart.Add(-m.blockSize), flushEnd.Add(-m.blockSize)
 }
 
 // commitLogTimes returns the earliest time before which the commit logs are expired,
 // as well as a list of times we need to clean up commit log files for.
-func (mgr *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
-	earliest, latest := mgr.commitLogTimeRange(t)
+func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
+	earliest, latest := m.commitLogTimeRange(t)
 
 	// TODO(xichen): preallocate the slice here
 	var commitLogTimes []time.Time
-	for commitLogTime := latest; !commitLogTime.Before(earliest); commitLogTime = commitLogTime.Add(-mgr.blockSize) {
+	for commitLogTime := latest; !commitLogTime.Before(earliest); commitLogTime = commitLogTime.Add(-m.blockSize) {
 		hasFlushedAll := true
-		leftBlockStart := commitLogTime.Add(-mgr.blockSize)
-		rightBlockStart := commitLogTime.Add(mgr.blockSize)
-		for blockStart := leftBlockStart; !blockStart.After(rightBlockStart); blockStart = blockStart.Add(mgr.blockSize) {
-			if !mgr.fm.HasFlushed(blockStart) {
+		leftBlockStart := commitLogTime.Add(-m.blockSize)
+		rightBlockStart := commitLogTime.Add(m.blockSize)
+		for blockStart := leftBlockStart; !blockStart.After(rightBlockStart); blockStart = blockStart.Add(m.blockSize) {
+			if !m.fm.HasFlushed(blockStart) {
 				hasFlushedAll = false
 				break
 			}
@@ -136,22 +136,22 @@ func (mgr *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) 
 	return earliest, commitLogTimes
 }
 
-func (mgr *cleanupManager) cleanupCommitLogs(earliestToRetain time.Time, cleanupTimes []time.Time) error {
+func (m *cleanupManager) cleanupCommitLogs(earliestToRetain time.Time, cleanupTimes []time.Time) error {
 	multiErr := xerrors.NewMultiError()
-	toCleanup, err := mgr.commitLogFilesBeforeFn(mgr.commitLogsDir, earliestToRetain)
+	toCleanup, err := m.commitLogFilesBeforeFn(m.commitLogsDir, earliestToRetain)
 	if err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
 	for _, t := range cleanupTimes {
-		files, err := mgr.commitLogFilesForTimeFn(mgr.commitLogsDir, t)
+		files, err := m.commitLogFilesForTimeFn(m.commitLogsDir, t)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
 		toCleanup = append(toCleanup, files...)
 	}
 
-	if err := mgr.deleteFilesFn(toCleanup); err != nil {
+	if err := m.deleteFilesFn(toCleanup); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 

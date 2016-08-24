@@ -319,14 +319,14 @@ func (_m *MockdatabaseShard) EXPECT() *_MockdatabaseShardRecorder {
 	return _m.recorder
 }
 
-func (_m *MockdatabaseShard) ShardNum() uint32 {
-	ret := _m.ctrl.Call(_m, "ShardNum")
+func (_m *MockdatabaseShard) ID() uint32 {
+	ret := _m.ctrl.Call(_m, "ID")
 	ret0, _ := ret[0].(uint32)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) ShardNum() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardNum")
+func (_mr *_MockdatabaseShardRecorder) ID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
 }
 
 func (_m *MockdatabaseShard) Tick() {

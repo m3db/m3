@@ -84,16 +84,16 @@ func TestFlushManagerNeedsFlush(t *testing.T) {
 
 	now := time.Now()
 	maxFlushRetries := database.opts.GetMaxFlushRetries()
-	require.True(t, fm.needsFlush(now))
+	require.True(t, fm.needsFlushWithLock(now))
 
 	fm.flushStates[now] = fileOpState{Status: fileOpFailed, NumFailures: maxFlushRetries - 1}
-	require.True(t, fm.needsFlush(now))
+	require.True(t, fm.needsFlushWithLock(now))
 
 	fm.flushStates[now] = fileOpState{Status: fileOpFailed, NumFailures: maxFlushRetries}
-	require.False(t, fm.needsFlush(now))
+	require.False(t, fm.needsFlushWithLock(now))
 
 	fm.flushStates[now] = fileOpState{Status: fileOpSuccess}
-	require.False(t, fm.needsFlush(now))
+	require.False(t, fm.needsFlushWithLock(now))
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {
@@ -156,7 +156,7 @@ func TestFlushManagerFlush(t *testing.T) {
 	for shard := 0; shard < 2; shard++ {
 		m := NewMockdatabaseShard(ctrl)
 		database.shards = append(database.shards, m)
-		m.EXPECT().ShardNum().Return(uint32(shard))
+		m.EXPECT().ID().Return(uint32(shard))
 		cur := inputTimes[0].bs
 		for !cur.After(endTime) {
 			if _, excluded := notFlushed[cur]; !excluded {
@@ -237,7 +237,7 @@ func TestFlushManagerFlushWithTimes(t *testing.T) {
 	m = NewMockdatabaseShard(ctrl)
 	database.shards[1] = m
 	m.EXPECT().Flush(ctx, flushTime, fm.pm).Return(errors.New("some errors"))
-	m.EXPECT().ShardNum().Return(uint32(1))
+	m.EXPECT().ID().Return(uint32(1))
 
 	require.Error(t, fm.flushWithTime(ctx, flushTime))
 }

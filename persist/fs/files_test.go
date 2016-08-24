@@ -271,12 +271,12 @@ func TestFileExists(t *testing.T) {
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, FileExists(infoFilePath))
-	require.False(t, FilesetFileExistsAt(shardDir, uint32(shard), start))
+	require.False(t, FilesetExistsAt(shardDir, uint32(shard), start))
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	require.False(t, FilesetFileExistsAt(shardDir, uint32(shard), start))
+	require.False(t, FilesetExistsAt(shardDir, uint32(shard), start))
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))
@@ -313,7 +313,7 @@ func TestFilesetFilesBefore(t *testing.T) {
 	shardDir := path.Join(dir, dataDirName, strconv.Itoa(int(shard)))
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
-	res, err := FilesetFilesBefore(dir, shard, cutoff)
+	res, err := FilesetBefore(dir, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 

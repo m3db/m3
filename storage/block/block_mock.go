@@ -24,8 +24,6 @@
 package block
 
 import (
-	time "time"
-
 	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
@@ -33,6 +31,7 @@ import (
 	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
 	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of DatabaseBlock interface

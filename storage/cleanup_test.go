@@ -71,8 +71,8 @@ func TestCleanupManagerCleanup(t *testing.T) {
 
 	gomock.InOrder(
 		fm.EXPECT().FlushTimeStart(ts).Return(start),
-		shard0.EXPECT().ShardNum().Return(uint32(0)),
-		shard1.EXPECT().ShardNum().Return(uint32(1)),
+		shard0.EXPECT().ID().Return(uint32(0)),
+		shard1.EXPECT().ID().Return(uint32(1)),
 		fm.EXPECT().FlushTimeStart(ts).Return(start),
 		fm.EXPECT().FlushTimeEnd(ts).Return(end),
 		fm.EXPECT().HasFlushed(time.Unix(14400, 0)).Return(true),

@@ -54,50 +54,51 @@ func newFlushManager(database database) databaseFlushManager {
 	}
 }
 
-func (mgr *flushManager) HasFlushed(t time.Time) bool {
-	mgr.RLock()
-	defer mgr.RUnlock()
+func (m *flushManager) HasFlushed(t time.Time) bool {
+	m.RLock()
+	defer m.RUnlock()
 
-	flushState, exists := mgr.flushStates[t]
+	flushState, exists := m.flushStates[t]
 	if !exists {
 		return false
 	}
 	return flushState.Status == fileOpSuccess
 }
 
-func (mgr *flushManager) FlushTimeStart(t time.Time) time.Time {
-	retentionPeriod := mgr.opts.GetRetentionOptions().GetRetentionPeriod()
-	return t.Add(-retentionPeriod).Truncate(mgr.blockSize)
+func (m *flushManager) FlushTimeStart(t time.Time) time.Time {
+	retentionPeriod := m.opts.GetRetentionOptions().GetRetentionPeriod()
+	return t.Add(-retentionPeriod).Truncate(m.blockSize)
 }
 
-func (mgr *flushManager) FlushTimeEnd(t time.Time) time.Time {
-	bufferPast := mgr.opts.GetRetentionOptions().GetBufferPast()
-	return t.Add(-bufferPast).Add(-mgr.blockSize).Truncate(mgr.blockSize)
+func (m *flushManager) FlushTimeEnd(t time.Time) time.Time {
+	bufferPast := m.opts.GetRetentionOptions().GetBufferPast()
+	return t.Add(-bufferPast).Add(-m.blockSize).Truncate(m.blockSize)
 }
 
-func (mgr *flushManager) Flush(t time.Time) error {
-	timesToFlush := mgr.flushTimes(t)
+func (m *flushManager) Flush(t time.Time) error {
+	timesToFlush := m.flushTimes(t)
 	if len(timesToFlush) == 0 {
 		return nil
 	}
-	ctx := mgr.opts.GetContextPool().Get()
+	ctx := m.opts.GetContextPool().Get()
 	defer ctx.Close()
 
 	multiErr := xerrors.NewMultiError()
 	for _, flushTime := range timesToFlush {
-		mgr.Lock()
-		if !mgr.needsFlush(flushTime) {
+		m.Lock()
+		if !m.needsFlushWithLock(flushTime) {
+			m.Unlock()
 			continue
 		}
-		flushState := mgr.flushStates[flushTime]
+		flushState := m.flushStates[flushTime]
 		flushState.Status = fileOpInProgress
-		mgr.flushStates[flushTime] = flushState
-		mgr.Unlock()
+		m.flushStates[flushTime] = flushState
+		m.Unlock()
 
-		flushErr := mgr.flushWithTime(ctx, flushTime)
+		flushErr := m.flushWithTime(ctx, flushTime)
 
-		mgr.Lock()
-		flushState = mgr.flushStates[flushTime]
+		m.Lock()
+		flushState = m.flushStates[flushTime]
 		if flushErr == nil {
 			flushState.Status = fileOpSuccess
 		} else {
@@ -105,46 +106,46 @@ func (mgr *flushManager) Flush(t time.Time) error {
 			flushState.NumFailures++
 			multiErr = multiErr.Add(flushErr)
 		}
-		mgr.flushStates[flushTime] = flushState
-		mgr.Unlock()
+		m.flushStates[flushTime] = flushState
+		m.Unlock()
 	}
 	return multiErr.FinalError()
 }
 
 // flushTimes returns a list of times we need to flush data blocks for.
-func (mgr *flushManager) flushTimes(t time.Time) []time.Time {
-	earliest, latest := mgr.FlushTimeStart(t), mgr.FlushTimeEnd(t)
+func (m *flushManager) flushTimes(t time.Time) []time.Time {
+	earliest, latest := m.FlushTimeStart(t), m.FlushTimeEnd(t)
 
 	// NB(xichen): could preallocate slice here.
 	var flushTimes []time.Time
-	mgr.RLock()
-	for flushTime := latest; !flushTime.Before(earliest); flushTime = flushTime.Add(-mgr.blockSize) {
-		if mgr.needsFlush(flushTime) {
+	m.RLock()
+	for flushTime := latest; !flushTime.Before(earliest); flushTime = flushTime.Add(-m.blockSize) {
+		if m.needsFlushWithLock(flushTime) {
 			flushTimes = append(flushTimes, flushTime)
 		}
 	}
-	mgr.RUnlock()
+	m.RUnlock()
 
 	return flushTimes
 }
 
-// needsFlush returns true if we need to flush data for a given time.
-func (mgr *flushManager) needsFlush(t time.Time) bool {
-	flushState, exists := mgr.flushStates[t]
+// needsFlushWithLock returns true if we need to flush data for a given time.
+func (m *flushManager) needsFlushWithLock(t time.Time) bool {
+	flushState, exists := m.flushStates[t]
 	if !exists {
 		return true
 	}
-	return flushState.Status == fileOpFailed && flushState.NumFailures < mgr.opts.GetMaxFlushRetries()
+	return flushState.Status == fileOpFailed && flushState.NumFailures < m.opts.GetMaxFlushRetries()
 }
 
-func (mgr *flushManager) flushWithTime(ctx context.Context, t time.Time) error {
+func (m *flushManager) flushWithTime(ctx context.Context, t time.Time) error {
 	multiErr := xerrors.NewMultiError()
-	shards := mgr.database.getOwnedShards()
+	shards := m.database.getOwnedShards()
 	for _, shard := range shards {
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(ctx, t, mgr.pm); err != nil {
-			detailedErr := fmt.Errorf("shard %d failed to flush data: %v", shard.ShardNum(), err)
+		if err := shard.Flush(ctx, t, m.pm); err != nil {
+			detailedErr := fmt.Errorf("shard %d failed to flush data: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}

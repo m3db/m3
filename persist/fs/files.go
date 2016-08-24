@@ -216,8 +216,8 @@ func ReadInfoFiles(filePathPrefix string, shard uint32, readerBufferSize int) []
 	return indexEntries
 }
 
-// FilesetFilesBefore returns all the fileset files whose timestamps are earlier than a given time.
-func FilesetFilesBefore(filePathPrefix string, shard uint32, t time.Time) ([]string, error) {
+// FilesetBefore returns all the fileset files whose timestamps are earlier than a given time.
+func FilesetBefore(filePathPrefix string, shard uint32, t time.Time) ([]string, error) {
 	matched, err := filesetFiles(filePathPrefix, shard, filesetFilePattern)
 	if err != nil {
 		return nil, err
@@ -334,8 +334,8 @@ func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
 }
 
-// FilesetFileExistsAt determines whether a data file exists for the given shard and block start time.
-func FilesetFileExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
+// FilesetExistsAt determines whether a data file exists for the given shard and block start time.
+func FilesetExistsAt(prefix string, shard uint32, blockStart time.Time) bool {
 	shardDir := ShardDirPath(prefix, shard)
 	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	return FileExists(checkpointFile)
