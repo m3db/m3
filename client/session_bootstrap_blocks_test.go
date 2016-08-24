@@ -504,6 +504,21 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
 
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var qs []*peerBlocksQueue
+	session.newPeerBlocksQueueFn = func(
+		peer hostQueue,
+		maxQueueSize int,
+		_ time.Duration,
+		workers pool.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+
 	assert.NoError(t, session.Open())
 
 	batchSize := opts.GetFetchSeriesBlocksBatchSize()
@@ -564,6 +579,22 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	}
 
 	// Fetch blocks
+	go func() {
+		// Trigger peer queues to drain explicitly when all work enqueued
+		for {
+			assigned := 0
+			for _, q := range qs {
+				assigned += int(atomic.LoadUint64(&q.assigned))
+			}
+			if assigned == len(blocks) {
+				for _, q := range qs {
+					q.drain()
+				}
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
 	bootstrapOpts := newBootstrapTestOptions()

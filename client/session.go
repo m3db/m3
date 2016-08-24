@@ -86,6 +86,7 @@ type session struct {
 	seriesIteratorPool               encoding.SeriesIteratorPool
 	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
 	fetchBatchSize                   int
+	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	origin                           topology.Host
 	streamBlocksWorkers              pool.WorkerPool
 	streamBlocksReattemptWorkers     pool.WorkerPool
@@ -108,14 +109,15 @@ func newSession(opts Options) (clientSession, error) {
 	}
 
 	s := &session{
-		opts:           opts,
-		nowFn:          opts.GetClockOptions().GetNowFn(),
-		log:            opts.GetInstrumentOptions().GetLogger(),
-		level:          opts.GetConsistencyLevel(),
-		newHostQueueFn: newHostQueue,
-		topo:           topo,
-		topoMapCh:      make(chan topology.Map),
-		fetchBatchSize: opts.GetFetchBatchSize(),
+		opts:                 opts,
+		nowFn:                opts.GetClockOptions().GetNowFn(),
+		log:                  opts.GetInstrumentOptions().GetLogger(),
+		level:                opts.GetConsistencyLevel(),
+		newHostQueueFn:       newHostQueue,
+		topo:                 topo,
+		topoMapCh:            make(chan topology.Map),
+		fetchBatchSize:       opts.GetFetchBatchSize(),
+		newPeerBlocksQueueFn: newPeerBlocksQueue,
 	}
 
 	if opts, ok := opts.(AdminOptions); ok {
@@ -805,7 +807,7 @@ func (s *session) streamBlocksFromPeers(
 		size := peerBlocksBatchSize
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
-		queue := newPeerBlocksQueue(peer, size, drainEvery, workers, func(batch []*blocksMetadata) {
+		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, func(batch []*blocksMetadata) {
 			s.streamBlocksBatchFromPeer(shard, peer, batch, result, enqueueCh, retrier)
 		})
 		peerQueues = append(peerQueues, queue)
@@ -1344,6 +1346,14 @@ type peerBlocksQueue struct {
 	processFn    processFn
 }
 
+type newPeerBlocksQueueFn func(
+	peer hostQueue,
+	maxQueueSize int,
+	interval time.Duration,
+	workers pool.WorkerPool,
+	processFn processFn,
+) *peerBlocksQueue
+
 func newPeerBlocksQueue(
 	peer hostQueue,
 	maxQueueSize int,
@@ -1357,7 +1367,9 @@ func newPeerBlocksQueue(
 		workers:      workers,
 		processFn:    processFn,
 	}
-	go q.drainEvery(interval)
+	if interval > 0 {
+		go q.drainEvery(interval)
+	}
 	return q
 }
 
@@ -1413,6 +1425,12 @@ func (q *peerBlocksQueue) enqueue(bm *blocksMetadata, doneFn func()) {
 	}
 	q.drainWithLock()
 
+	q.Unlock()
+}
+
+func (q *peerBlocksQueue) drain() {
+	q.Lock()
+	q.drainWithLock()
 	q.Unlock()
 }
 
