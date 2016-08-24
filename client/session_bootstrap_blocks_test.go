@@ -484,7 +484,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	client.EXPECT().FetchBlocks(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("an error")).Times(2)
 
 	// Attempt stream blocks
-	session.streamBlocksBatchFromPeer(retrier, peer, batch, nil, enqueueCh)
+	session.streamBlocksBatchFromPeer(0, peer, batch, nil, enqueueCh, retrier)
 
 	// Assert result
 	assertEnqueueChannel(t, append(batch[0].blocks, batch[1].blocks...), enqueueCh)

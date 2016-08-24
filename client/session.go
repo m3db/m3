@@ -806,7 +806,7 @@ func (s *session) streamBlocksFromPeers(
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
 		queue := newPeerBlocksQueue(peer, size, drainEvery, workers, func(batch []*blocksMetadata) {
-			s.streamBlocksBatchFromPeer(retrier, peer, batch, result, enqueueCh)
+			s.streamBlocksBatchFromPeer(shard, peer, batch, result, enqueueCh, retrier)
 		})
 		peerQueues = append(peerQueues, queue)
 	}
@@ -817,13 +817,9 @@ func (s *session) streamBlocksFromPeers(
 	)
 	for perPeerBlocksMetadata := range enqueueCh.get() {
 		// Filter and select which blocks to retrieve from which peers
-		if err := s.selectBlocksForSeriesFromPeerBlocksMetadata(
+		s.selectBlocksForSeriesFromPeerBlocksMetadata(
 			perPeerBlocksMetadata, peerQueues,
-			currStart, currEligible, blocksMetadataQueues,
-		); err != nil {
-			enqueueCh.trackProcessed(1)
-			continue
-		}
+			currStart, currEligible, blocksMetadataQueues)
 
 		// Insert work into peer queues
 		var wg sync.WaitGroup
@@ -872,6 +868,8 @@ func (s *session) streamCollectedBlocksMetadata(
 		}
 		if received.submitted {
 			// Already submitted to enqueue channel
+			s.log.WithFields(xlog.NewLogField("id", m.id)).
+				Warnf("received blocks metadata for already collected blocks metadata")
 			continue
 		}
 
@@ -897,7 +895,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 	peerQueues peerBlocksQueues,
 	pooledCurrStart, pooledCurrEligible []*blocksMetadata,
 	pooledBlocksMetadataQueues []blocksMetadataQueue,
-) error {
+) {
 	// Use pooled arrays
 	var (
 		currStart            = pooledCurrStart[:0]
@@ -906,7 +904,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 	)
 
 	// Sort the per peer metadatas by peer ID for consistent results
-	sort.Sort(peerBlocksMetadata(perPeerBlocksMetadata))
+	sort.Sort(peerBlocksMetadataByID(perPeerBlocksMetadata))
 
 	// Sort the metadatas per peer by time and reset the selection index
 	for _, blocksMetadata := range perPeerBlocksMetadata {
@@ -925,7 +923,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				continue
 			}
 			unselected := blocksMetadata.unselectedBlocks()
-			if earliestStart.Equal(time.Time{}) ||
+			if earliestStart.IsZero() ||
 				unselected[0].start.Before(earliestStart) {
 				earliestStart = unselected[0].start
 			}
@@ -1023,11 +1021,10 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			}
 			blocksMetadataQueues = append(blocksMetadataQueues, insert)
 		}
-		sort.Stable(blocksMetadatasQueuesByOutstanding(blocksMetadataQueues))
+		sort.Stable(blocksMetadatasQueuesByOutstandingAsc(blocksMetadataQueues))
 
 		// Select the best peer
 		bestPeerBlocksQueue := blocksMetadataQueues[0].queue
-		blocksMetadataQueues = blocksMetadataQueues[:0]
 
 		// Prepare the reattempt peers metadata
 		peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
@@ -1050,7 +1047,6 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				currStart[i].idx = idx + 1
 
 				// Set the reattempt metadata
-				time.Sleep(time.Millisecond)
 				currStart[i].blocks[idx].reattempt.attempt++
 				currStart[i].blocks[idx].reattempt.attempted =
 					append(currStart[i].blocks[idx].reattempt.attempted, peer)
@@ -1068,31 +1064,32 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 		}
 	}
-
-	return nil
 }
 
 func (s *session) streamBlocksBatchFromPeer(
-	retrier xretry.Retrier,
+	shard uint32,
 	peer hostQueue,
 	batch []*blocksMetadata,
 	blocksResult *blocksResult,
 	enqueueCh *enqueueChannel,
+	retrier xretry.Retrier,
 ) {
 	// Prepare request
 	var (
 		req    = rpc.NewFetchBlocksRequest()
 		result *rpc.FetchBlocksResult_
 	)
+	req.Shard = int32(shard)
+	req.Elements = make([]*rpc.FetchBlocksParam, len(batch))
 	for i := range batch {
 		starts := make([]int64, len(batch[i].blocks))
 		for j := range batch[i].blocks {
 			starts[j] = batch[i].blocks[j].start.UnixNano()
 		}
-		req.Elements = append(req.Elements, &rpc.FetchBlocksParam{
+		req.Elements[i] = &rpc.FetchBlocksParam{
 			ID:     batch[i].id,
 			Starts: starts,
-		})
+		}
 	}
 
 	// Attempt request
@@ -1250,6 +1247,7 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 		alloc := r.opts.GetReaderIteratorAllocate()
 		iter := encoding.NewMultiReaderIterator(alloc, nil)
 		iter.Reset(readers)
+		defer iter.Close()
 
 		encoder := r.encoderPool.Get()
 		defer encoder.Close()
@@ -1477,11 +1475,11 @@ type blocksMetadatas []*blocksMetadata
 
 func (arr blocksMetadatas) swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
 
-type peerBlocksMetadata []*blocksMetadata
+type peerBlocksMetadataByID []*blocksMetadata
 
-func (arr peerBlocksMetadata) Len() int      { return len(arr) }
-func (arr peerBlocksMetadata) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
-func (arr peerBlocksMetadata) Less(i, j int) bool {
+func (arr peerBlocksMetadataByID) Len() int      { return len(arr) }
+func (arr peerBlocksMetadataByID) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
+func (arr peerBlocksMetadataByID) Less(i, j int) bool {
 	return strings.Compare(arr[i].peer.Host().ID(), arr[j].peer.Host().ID()) < 0
 }
 
@@ -1490,11 +1488,11 @@ type blocksMetadataQueue struct {
 	queue          *peerBlocksQueue
 }
 
-type blocksMetadatasQueuesByOutstanding []blocksMetadataQueue
+type blocksMetadatasQueuesByOutstandingAsc []blocksMetadataQueue
 
-func (arr blocksMetadatasQueuesByOutstanding) Len() int      { return len(arr) }
-func (arr blocksMetadatasQueuesByOutstanding) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
-func (arr blocksMetadatasQueuesByOutstanding) Less(i, j int) bool {
+func (arr blocksMetadatasQueuesByOutstandingAsc) Len() int      { return len(arr) }
+func (arr blocksMetadatasQueuesByOutstandingAsc) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
+func (arr blocksMetadatasQueuesByOutstandingAsc) Less(i, j int) bool {
 	outstandingFirst := atomic.LoadUint64(&arr[i].queue.assigned) - atomic.LoadUint64(&arr[i].queue.completed)
 	outstandingSecond := atomic.LoadUint64(&arr[j].queue.assigned) - atomic.LoadUint64(&arr[j].queue.completed)
 	return outstandingFirst < outstandingSecond
