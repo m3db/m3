@@ -34,6 +34,7 @@ func TestInitialized(t *testing.T) {
 	s := NewSource(&testSourceInput{callCount: 0, errAfter: 0, closeAfter: 10}, xlog.SimpleLogger)
 	s.Close()
 	assert.False(t, s.(*source).initialized)
+	assert.Nil(t, s.Get())
 
 	ch := s.WaitInit()
 	select {
@@ -93,10 +94,12 @@ func testSource(t *testing.T, errAfter int32, closeAfter int32, watchNum int) {
 		case _, ok = <-ch:
 		}
 		assert.False(t, ok, "initialized channel should be closed")
-
+		v := s.Get()
+		assert.NotNil(t, v)
 		// test Close again
 		s.Close()
 		assert.True(t, s.(*source).isClosed())
+		assert.Equal(t, v, s.Get())
 		wg.Done()
 	}()
 

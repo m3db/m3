@@ -43,6 +43,8 @@ type Source interface {
 
 	// WaitInit returns a channel that blocks until the Source was initialized
 	WaitInit() <-chan struct{}
+	// Get returns the latest value
+	Get() interface{}
 	// Watch returns the value and an Watch
 	Watch() (interface{}, Watch, error)
 }
@@ -111,6 +113,10 @@ func (s *source) Close() {
 	}
 	s.closed = true
 	s.w.Close()
+}
+
+func (s *source) Get() interface{} {
+	return s.w.Get()
 }
 
 func (s *source) Watch() (interface{}, Watch, error) {
