@@ -1,6 +1,6 @@
 ## WARNING: This is Alpha software and not intended for use until a stable release.
 
-# M3X [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
+# M3Cluster [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
 
 Cluster management interfaces used by M3 components
 
