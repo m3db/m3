@@ -373,3 +373,64 @@ func TestEncoderResets(t *testing.T) {
 	enc.Seal()
 	enc.Close()
 }
+
+func TestEncoderUnsealClosed(t *testing.T) {
+	enc := getTestEncoder(testStartTime)
+	defer enc.Close()
+
+	enc.closed = true
+	require.Equal(t, errEncoderAlreadyClosed, enc.Unseal())
+}
+
+func TestEncoderUnsealWritable(t *testing.T) {
+	enc := getTestEncoder(testStartTime)
+	defer enc.Close()
+
+	enc.writable = true
+	require.NoError(t, enc.Unseal())
+}
+
+func TestEncoderUnsealEndOfStreamNotFound(t *testing.T) {
+	enc := getTestEncoder(testStartTime)
+	defer enc.Close()
+
+	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
+	enc.writable = false
+	require.Error(t, enc.Unseal())
+}
+
+func TestEncoderUnsealSealed(t *testing.T) {
+	enc := getTestEncoder(testStartTime)
+	defer enc.Close()
+
+	dec := NewDecoder(false, nil)
+	iter := 256
+	for i := 0; i < iter; i++ {
+		enc.ResetSetData(testStartTime, nil, true)
+		dp1 := ts.Datapoint{testStartTime, float64(i)}
+		require.NoError(t, enc.Encode(dp1, xtime.Second, nil))
+
+		// Seal the encoder and verify it's no longer writable
+		enc.Seal()
+		require.False(t, enc.writable)
+		require.Error(t, enc.Encode(dp1, xtime.Second, nil))
+
+		// Unseal the encoder and verify it's writable again
+		require.NoError(t, enc.Unseal())
+		require.True(t, enc.writable)
+		dp2 := ts.Datapoint{testStartTime, float64(i + 1)}
+		require.NoError(t, enc.Encode(dp2, xtime.Second, nil))
+
+		// Decode the encoded stream and verify the decoded datapoints match expectation
+		iter := dec.Decode(enc.Stream())
+		var datapoints []ts.Datapoint
+		for iter.Next() {
+			dp, _, _ := iter.Current()
+			datapoints = append(datapoints, dp)
+		}
+		iter.Close()
+		require.NoError(t, iter.Err())
+		require.Equal(t, 2, len(datapoints))
+		require.Equal(t, []ts.Datapoint{dp1, dp2}, datapoints)
+	}
+}

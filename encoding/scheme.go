@@ -21,6 +21,9 @@
 package encoding
 
 import (
+	"bytes"
+	"errors"
+
 	"github.com/m3db/m3x/time"
 )
 
@@ -59,6 +62,10 @@ var (
 		defaultAnnotationMarker,
 		defaultTimeUnitMarker,
 	)
+
+	// errEndOfStreamMarkerNotFound raised when trying to trim the end of stream marker
+	// from an encoded byte stream but couldn't find the marker
+	errEndOfStreamMarkerNotFound = errors.New("end of stream marker not found")
 )
 
 // TimeBucket represents a bucket for encoding time values.
@@ -181,6 +188,10 @@ type MarkerEncodingScheme interface {
 	// Tail will return the tail portion of a stream including the relevant bits
 	// in the last byte along with the end of stream marker.
 	Tail(streamLastByte byte, streamCurrentPosition int) []byte
+
+	// TrimEndOfStream will trim the end of stream marker if any and return the
+	// trimmed stream and the number of used bits.
+	TrimEndOfStream(encoded []byte) ([]byte, int, error)
 }
 
 type markerEncodingScheme struct {
@@ -239,3 +250,22 @@ func (mes *markerEncodingScheme) EndOfStream() Marker         { return mes.endOf
 func (mes *markerEncodingScheme) Annotation() Marker          { return mes.annotation }
 func (mes *markerEncodingScheme) TimeUnit() Marker            { return mes.timeUnit }
 func (mes *markerEncodingScheme) Tail(b byte, pos int) []byte { return mes.tails[int(b)][pos-1] }
+
+func (mes *markerEncodingScheme) TrimEndOfStream(encoded []byte) ([]byte, int, error) {
+	numEncodedBytes := len(encoded)
+	for i := range mes.tails {
+		for j := range mes.tails[i] {
+			numTailBytes := len(mes.tails[i][j])
+			if numEncodedBytes < numTailBytes {
+				continue
+			}
+			tailIdx := numEncodedBytes - numTailBytes
+			tailBytes := encoded[tailIdx:]
+			if bytes.Equal(mes.tails[i][j], tailBytes) {
+				encoded[tailIdx] = byte(i)
+				return encoded[:tailIdx+1], j + 1, nil
+			}
+		}
+	}
+	return nil, 0, errEndOfStreamMarkerNotFound
+}

@@ -1149,6 +1149,11 @@ func (e *testEncoder) Seal() {
 	e.sealed = true
 }
 
+func (e *testEncoder) Unseal() error {
+	e.sealed = false
+	return nil
+}
+
 func (e *testEncoder) Reset(t time.Time, capacity int) {
 	e.start = t
 	e.data = nil
