@@ -379,7 +379,7 @@ func TestEncoderUnsealClosed(t *testing.T) {
 	defer enc.Close()
 
 	enc.closed = true
-	require.NoError(t, enc.Unseal())
+	require.Equal(t, errEncoderAlreadyClosed, enc.Unseal())
 }
 
 func TestEncoderUnsealWritable(t *testing.T) {

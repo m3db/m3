@@ -39,7 +39,8 @@ const (
 )
 
 var (
-	errEncoderNotWritable = errors.New("encoder is not writable")
+	errEncoderNotWritable   = errors.New("encoder is not writable")
+	errEncoderAlreadyClosed = errors.New("encoder is already closed")
 )
 
 type encoder struct {
@@ -554,9 +555,10 @@ func (enc *encoder) Seal() {
 }
 
 func (enc *encoder) Unseal() error {
-	if enc.closed || enc.writable {
-		// If the encoder is already closed, or the encoder is already writable,
-		// no action is necessary.
+	if enc.closed {
+		return errEncoderAlreadyClosed
+	}
+	if enc.writable {
 		return nil
 	}
 
