@@ -97,8 +97,7 @@ install-thrift-bin: install-vendor install-glide
 	go get $(thrift_gen_package) && cd $(GOPATH)/src/$(thrift_gen_package) && glide install
 	go install $(thrift_gen_package)/thrift/thrift-gen
 
-# mock-gen depends on thrift-gen because one of mocks generated is for the tchannel rpc interfaces
-mock-gen: install-mockgen install-license-bin thrift-gen
+mock-gen: install-mockgen install-license-bin
 	@echo Generating mocks
 	$(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
