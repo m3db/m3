@@ -148,6 +148,8 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 	// the case when writes stall for a considerable time
 	var sleepForOverride time.Duration
 	for {
+		l.metrics.IncCounter("writes.queued", int64(len(l.writes)))
+
 		sleepFor := interval
 		if sleepForOverride > 0 {
 			sleepFor = sleepForOverride
