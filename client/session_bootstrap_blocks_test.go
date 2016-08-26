@@ -23,6 +23,7 @@ package client
 import (
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -67,6 +69,131 @@ func newBootstrapTestOptions() bootstrap.Options {
 	})
 	return opts.DatabaseBlockOptions(opts.GetDatabaseBlockOptions().
 		EncoderPool(encoderPool))
+}
+
+func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var (
+		qs      []*peerBlocksQueue
+		qsMutex sync.RWMutex
+	)
+	session.newPeerBlocksQueueFn = func(
+		peer hostQueue,
+		maxQueueSize int,
+		_ time.Duration,
+		workers pool.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		qsMutex.Lock()
+		defer qsMutex.Unlock()
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+
+	assert.NoError(t, session.Open())
+
+	batchSize := opts.GetFetchSeriesBlocksBatchSize()
+	blockSize := 2 * time.Hour
+
+	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+
+	blocks := []testBlocks{
+		{
+			id: "foo",
+			blocks: []testBlock{
+				{
+					start: start.Add(blockSize * 1),
+					segments: &testBlockSegments{merged: &testBlockSegment{
+						head: []byte{1, 2},
+						tail: []byte{3},
+					}},
+				},
+			},
+		},
+		{
+			id: "bar",
+			blocks: []testBlock{
+				{
+					start: start.Add(blockSize * 2),
+					segments: &testBlockSegments{merged: &testBlockSegment{
+						head: []byte{4, 5},
+						tail: []byte{6},
+					}},
+				},
+			},
+		},
+		{
+			id: "baz",
+			blocks: []testBlock{
+				{
+					start: start.Add(blockSize * 3),
+					segments: &testBlockSegments{merged: &testBlockSegment{
+						head: []byte{7, 8},
+						tail: []byte{9},
+					}},
+				},
+			},
+		},
+	}
+
+	// Expect the fetch metadata calls
+	metadataResult := resultMetadataFromBlocks(blocks)
+	// Skip the first client which is the client for the origin
+	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts)
+
+	// Expect the fetch blocks calls
+	participating := len(mockClients) - 1
+	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(blocks, batchSize, participating)
+	// Skip the first client which is the client for the origin
+	for i, client := range mockClients[1:] {
+		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
+	}
+
+	// Fetch blocks
+	go func() {
+		// Trigger peer queues to drain explicitly when all work enqueued
+		for {
+			qsMutex.RLock()
+			assigned := 0
+			for _, q := range qs {
+				assigned += int(atomic.LoadUint64(&q.assigned))
+			}
+			qsMutex.RUnlock()
+			if assigned == len(blocks) {
+				qsMutex.Lock()
+				defer qsMutex.Unlock()
+				for _, q := range qs {
+					q.drain()
+				}
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	rangeStart := start
+	rangeEnd := start.Add(blockSize * (24 - 1))
+	bootstrapOpts := newBootstrapTestOptions()
+	result, err := session.FetchBootstrapBlocksFromPeers(0, rangeStart, rangeEnd, bootstrapOpts)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	// Assert result
+	assertFetchBootstrapBlocksResult(t, blocks, result)
+
+	assert.NoError(t, session.Close())
 }
 
 func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T) {
@@ -493,129 +620,151 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	assert.NoError(t, session.Close())
 }
 
-func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
+	opts := newSessionTestAdminOptions()
+	bopts := newBootstrapTestOptions()
+
+	start := time.Now()
+
+	bl := &rpc.Block{
+		Start: start.UnixNano(),
+		Segments: &rpc.Segments{Merged: &rpc.Segment{
+			Head: []byte{1, 2},
+			Tail: []byte{3},
+		}},
+	}
+
+	r := newBlocksResult(opts, bopts)
+	r.addBlockFromPeer("foo", bl)
+
+	series := r.result.GetAllSeries()
+	assert.Equal(t, 1, len(series))
+
+	blocks, ok := series["foo"]
+	assert.True(t, ok)
+	assert.Equal(t, 1, blocks.Len())
+	result, ok := blocks.GetBlockAt(start)
+	assert.True(t, ok)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	stream, err := result.Stream(ctx)
+	assert.NoError(t, err)
+
+	seg := stream.Segment()
+	assert.Equal(t, []byte{1, 2, 3}, seg.Head)
+	assert.Equal(t, []byte(nil), seg.Tail)
+}
+
+func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
+	eops := encoding.NewOptions()
+	intopt := true
+
+	encoderPool := encoding.NewEncoderPool(0)
+	encoderPool.Init(func() encoding.Encoder {
+		return m3tsz.NewEncoder(time.Time{}, nil, intopt, eops)
+	})
 
 	opts := newSessionTestAdminOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	session := s.(*session)
+	bopts := bootstrap.NewOptions()
+	bopts = bopts.DatabaseBlockOptions(bopts.GetDatabaseBlockOptions().
+		EncoderPool(encoderPool))
 
-	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
-	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+	start := time.Now()
 
-	// Don't drain the peer blocks queue, explicitly drain ourselves to
-	// avoid unpredictable batches being retrieved from peers
-	var (
-		qs      []*peerBlocksQueue
-		qsMutex sync.RWMutex
-	)
-	session.newPeerBlocksQueueFn = func(
-		peer hostQueue,
-		maxQueueSize int,
-		_ time.Duration,
-		workers pool.WorkerPool,
-		processFn processFn,
-	) *peerBlocksQueue {
-		qsMutex.Lock()
-		defer qsMutex.Unlock()
-		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
-		qs = append(qs, q)
-		return q
+	vals0 := []testValue{
+		{1.0, start, xtime.Second, []byte{1, 2, 3}},
+		{4.0, start.Add(3 * time.Second), xtime.Second, nil},
 	}
 
-	assert.NoError(t, session.Open())
-
-	batchSize := opts.GetFetchSeriesBlocksBatchSize()
-	blockSize := 2 * time.Hour
-
-	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-
-	blocks := []testBlocks{
-		{
-			id: "foo",
-			blocks: []testBlock{
-				{
-					start: start.Add(blockSize * 1),
-					segments: &testBlockSegments{merged: &testBlockSegment{
-						head: []byte{1, 2},
-						tail: []byte{3},
-					}},
-				},
-			},
-		},
-		{
-			id: "bar",
-			blocks: []testBlock{
-				{
-					start: start.Add(blockSize * 2),
-					segments: &testBlockSegments{merged: &testBlockSegment{
-						head: []byte{4, 5},
-						tail: []byte{6},
-					}},
-				},
-			},
-		},
-		{
-			id: "baz",
-			blocks: []testBlock{
-				{
-					start: start.Add(blockSize * 3),
-					segments: &testBlockSegments{merged: &testBlockSegment{
-						head: []byte{7, 8},
-						tail: []byte{9},
-					}},
-				},
-			},
-		},
+	vals1 := []testValue{
+		{2.0, start.Add(1 * time.Second), xtime.Second, []byte{4, 5, 6}},
 	}
 
-	// Expect the fetch metadata calls
-	metadataResult := resultMetadataFromBlocks(blocks)
-	// Skip the first client which is the client for the origin
-	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts)
-
-	// Expect the fetch blocks calls
-	participating := len(mockClients) - 1
-	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(blocks, batchSize, participating)
-	// Skip the first client which is the client for the origin
-	for i, client := range mockClients[1:] {
-		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
+	vals2 := []testValue{
+		{3.0, start.Add(2 * time.Second), xtime.Second, []byte{7, 8, 9}},
 	}
 
-	// Fetch blocks
-	go func() {
-		// Trigger peer queues to drain explicitly when all work enqueued
-		for {
-			qsMutex.RLock()
-			assigned := 0
-			for _, q := range qs {
-				assigned += int(atomic.LoadUint64(&q.assigned))
-			}
-			qsMutex.RUnlock()
-			if assigned == len(blocks) {
-				qsMutex.Lock()
-				defer qsMutex.Unlock()
-				for _, q := range qs {
-					q.drain()
-				}
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
+	var all []testValue
+	bl := &rpc.Block{
+		Start:    start.UnixNano(),
+		Segments: &rpc.Segments{},
+	}
+	for _, vals := range [][]testValue{vals0, vals1, vals2} {
+		encoder := encoderPool.Get()
+		encoder.Reset(start, 0)
+		for _, val := range vals {
+			dp := ts.Datapoint{Timestamp: val.t, Value: val.value}
+			assert.NoError(t, encoder.Encode(dp, val.unit, val.annotation))
+			all = append(all, val)
 		}
-	}()
-	rangeStart := start
-	rangeEnd := start.Add(blockSize * (24 - 1))
-	bootstrapOpts := newBootstrapTestOptions()
-	result, err := session.FetchBootstrapBlocksFromPeers(0, rangeStart, rangeEnd, bootstrapOpts)
+		result := encoder.Stream().Segment()
+		seg := &rpc.Segment{Head: result.Head, Tail: result.Tail}
+		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
+	}
+
+	r := newBlocksResult(opts, bopts)
+	r.addBlockFromPeer("foo", bl)
+
+	series := r.result.GetAllSeries()
+	assert.Equal(t, 1, len(series))
+
+	blocks, ok := series["foo"]
+	assert.True(t, ok)
+	assert.Equal(t, 1, blocks.Len())
+	result, ok := blocks.GetBlockAt(start)
+	assert.True(t, ok)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	stream, err := result.Stream(ctx)
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
 
-	// Assert result
-	assertFetchBootstrapBlocksResult(t, blocks, result)
+	// Sort the test values
+	sort.Sort(testValuesByTime(all))
 
-	assert.NoError(t, session.Close())
+	// Assert test values sorted match the block values
+	iter := m3tsz.NewReaderIterator(stream, intopt, eops)
+	defer iter.Close()
+
+	asserted := 0
+	for iter.Next() {
+		idx := asserted
+		dp, unit, annotation := iter.Current()
+		assert.Equal(t, all[idx].value, dp.Value)
+		assert.Equal(t, all[idx].t, dp.Timestamp)
+		assert.Equal(t, all[idx].unit, unit)
+		assert.Equal(t, all[idx].annotation, []byte(annotation))
+		asserted++
+	}
+	assert.Equal(t, len(all), asserted)
+
+	// TODO(r): assert no error once the not reading last value cleanly bug is fixed
+	// assert.NoError(t, iter.Err())
+}
+
+func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
+	opts := newSessionTestAdminOptions()
+	bopts := bootstrap.NewOptions()
+	r := newBlocksResult(opts, bopts)
+
+	bl := &rpc.Block{Start: time.Now().UnixNano()}
+	err := r.addBlockFromPeer("foo", bl)
+	assert.Error(t, err)
+	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
+}
+
+func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
+	opts := newSessionTestAdminOptions()
+	bopts := bootstrap.NewOptions()
+	r := newBlocksResult(opts, bopts)
+
+	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
+	err := r.addBlockFromPeer("foo", bl)
+	assert.Error(t, err)
+	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
 
 func mockPeerBlocksQueues(peers []hostQueue, opts AdminOptions) peerBlocksQueues {
@@ -1151,6 +1300,7 @@ func (e *testEncoder) Seal() {
 
 func (e *testEncoder) Unseal() error {
 	e.sealed = false
+	e.writable = true
 	return nil
 }
 
