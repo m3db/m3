@@ -65,6 +65,14 @@ type testValue struct {
 	annotation []byte
 }
 
+type testValuesByTime []testValue
+
+func (v testValuesByTime) Len() int      { return len(v) }
+func (v testValuesByTime) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
+func (v testValuesByTime) Less(i, j int) bool {
+	return v[i].t.Before(v[j].t)
+}
+
 type testFetchResultsAssertion struct {
 	trimToTimeRange int
 }

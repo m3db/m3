@@ -824,21 +824,24 @@ func (s *session) streamBlocksFromPeers(
 			currStart, currEligible, blocksMetadataQueues)
 
 		// Insert work into peer queues
-		var wg sync.WaitGroup
+		var (
+			completed = uint32(0)
+			queues    = uint32(blocksMetadatas(perPeerBlocksMetadata).hasBlocksLen())
+			onDone    = func() {
+				// Mark completion of work from the enqueue channel when all queues drained
+				if atomic.AddUint32(&completed, 1) != queues {
+					return
+				}
+				enqueueCh.trackProcessed(1)
+			}
+		)
 		for _, peerBlocksMetadata := range perPeerBlocksMetadata {
 			if len(peerBlocksMetadata.blocks) == 0 {
-				// No blocks assigned
-				continue
+				continue // No blocks to enqueue
 			}
 			queue := peerQueues.findQueue(peerBlocksMetadata.peer)
-			wg.Add(1)
-			queue.enqueue(peerBlocksMetadata, wg.Done)
+			queue.enqueue(peerBlocksMetadata, onDone)
 		}
-		// Launch asynchronous waiter to mark completion
-		go func() {
-			wg.Wait()
-			enqueueCh.trackProcessed(1)
-		}()
 	}
 
 	// Close all queues
@@ -1201,21 +1204,23 @@ func (s *session) streamBlocksReattemptFromPeers(
 
 type blocksResult struct {
 	sync.RWMutex
-	opts        Options
-	blockOpts   block.Options
-	encoderPool encoding.EncoderPool
-	bytesPool   pool.BytesPool
-	result      bootstrap.ShardResult
+	opts           Options
+	blockOpts      block.Options
+	blockAllocSize int
+	encoderPool    encoding.EncoderPool
+	bytesPool      pool.BytesPool
+	result         bootstrap.ShardResult
 }
 
 func newBlocksResult(opts Options, bootstrapOpts bootstrap.Options) *blocksResult {
 	blockOpts := bootstrapOpts.GetDatabaseBlockOptions()
 	return &blocksResult{
-		opts:        opts,
-		blockOpts:   blockOpts,
-		encoderPool: blockOpts.GetEncoderPool(),
-		bytesPool:   blockOpts.GetBytesPool(),
-		result:      bootstrap.NewShardResult(bootstrapOpts),
+		opts:           opts,
+		blockOpts:      blockOpts,
+		blockAllocSize: blockOpts.GetDatabaseBlockAllocSize(),
+		encoderPool:    blockOpts.GetEncoderPool(),
+		bytesPool:      blockOpts.GetBytesPool(),
+		result:         bootstrap.NewShardResult(bootstrapOpts),
 	}
 }
 
@@ -1226,17 +1231,23 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 		result   = r.blockOpts.GetDatabaseBlockPool().Get()
 	)
 
-	if segments.Merged != nil {
+	if segments == nil {
+		return errSessionBadBlockResultFromPeer
+	}
+
+	switch {
+	case segments.Merged != nil:
 		size := len(segments.Merged.Head) + len(segments.Merged.Tail)
 		data := r.bytesPool.Get(size)[:size]
 		n := copy(data, segments.Merged.Head)
 		copy(data[n:], segments.Merged.Tail)
 		encoder := r.encoderPool.Get()
-		// TODO(r): Unseal data
 		encoder.ResetSetData(start, data, false)
+		if err := encoder.Unseal(); err != nil {
+			return err
+		}
 		result.Reset(start, encoder)
-
-	} else if segments.Unmerged != nil {
+	case segments.Unmerged != nil:
 		// Must merge to provide a single block
 		readers := make([]io.Reader, len(segments.Unmerged))
 		for i := range segments.Unmerged {
@@ -1252,7 +1263,7 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 		defer iter.Close()
 
 		encoder := r.encoderPool.Get()
-		defer encoder.Close()
+		encoder.Reset(start, r.blockAllocSize)
 
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
@@ -1263,10 +1274,8 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 		}
 
 		result.Reset(start, encoder)
-
-	} else {
+	default:
 		return errSessionBadBlockResultFromPeer
-
 	}
 
 	r.Lock()
@@ -1492,6 +1501,15 @@ func (b blocksMetadata) unselectedBlocks() []blockMetadata {
 type blocksMetadatas []*blocksMetadata
 
 func (arr blocksMetadatas) swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
+func (arr blocksMetadatas) hasBlocksLen() int {
+	count := 0
+	for i := range arr {
+		if arr[i] != nil && len(arr[i].blocks) > 0 {
+			count++
+		}
+	}
+	return count
+}
 
 type peerBlocksMetadataByID []*blocksMetadata
 
