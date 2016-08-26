@@ -769,9 +769,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		asserted++
 	}
 	assert.Equal(t, len(all), asserted)
-
-	// TODO(r): assert no error once the not reading last value cleanly bug is fixed
-	// assert.NoError(t, iter.Err())
+	assert.NoError(t, iter.Err())
 
 	// Ensure not sealed
 	assert.False(t, mergeEncoder.sealed)
