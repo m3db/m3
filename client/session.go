@@ -1264,7 +1264,6 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 
 		encoder := r.encoderPool.Get()
 		encoder.Reset(start, r.blockAllocSize)
-		defer encoder.Close()
 
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
@@ -1505,7 +1504,7 @@ func (arr blocksMetadatas) swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
 func (arr blocksMetadatas) hasBlocksLen() int {
 	count := 0
 	for i := range arr {
-		if len(arr[i].blocks) > 0 {
+		if arr[i] != nil && len(arr[i].blocks) > 0 {
 			count++
 		}
 	}
