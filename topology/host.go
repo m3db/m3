@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/sharding"
 )
 
@@ -61,6 +62,18 @@ type hostShardSet struct {
 // NewHostShardSet creates a new host shard set
 func NewHostShardSet(host Host, shardSet sharding.ShardSet) HostShardSet {
 	return &hostShardSet{host, shardSet}
+}
+
+func newHostShardSetFromServiceInstance(si services.ServiceInstance, fn sharding.HashFn) (HostShardSet, error) {
+	shards := make([]uint32, 0, si.Shards().ShardsLen())
+	for _, s := range si.Shards().Shards() {
+		shards = append(shards, s.ID())
+	}
+	shardSet, err := sharding.NewShardSet(shards, fn)
+	if err != nil {
+		return nil, err
+	}
+	return &hostShardSet{host: NewHost(si.ID(), si.Endpoint()), shardSet: shardSet}, nil
 }
 
 func (h *hostShardSet) Host() Host {

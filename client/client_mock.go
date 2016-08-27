@@ -600,24 +600,24 @@ func (_mr *_MockOptionsRecorder) EncodingM3TSZ() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TSZ")
 }
 
-func (_m *MockOptions) TopologyType(value topology.Type) Options {
-	ret := _m.ctrl.Call(_m, "TopologyType", value)
+func (_m *MockOptions) TopologyInitializer(value topology.Initializer) Options {
+	ret := _m.ctrl.Call(_m, "TopologyInitializer", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) TopologyType(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyType", arg0)
+func (_mr *_MockOptionsRecorder) TopologyInitializer(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer", arg0)
 }
 
-func (_m *MockOptions) GetTopologyType() topology.Type {
-	ret := _m.ctrl.Call(_m, "GetTopologyType")
-	ret0, _ := ret[0].(topology.Type)
+func (_m *MockOptions) GetTopologyInitializer() topology.Initializer {
+	ret := _m.ctrl.Call(_m, "GetTopologyInitializer")
+	ret0, _ := ret[0].(topology.Initializer)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetTopologyType() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTopologyType")
+func (_mr *_MockOptionsRecorder) GetTopologyInitializer() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTopologyInitializer")
 }
 
 func (_m *MockOptions) ConsistencyLevel(value topology.ConsistencyLevel) Options {
@@ -1161,24 +1161,24 @@ func (_mr *_MockAdminOptionsRecorder) EncodingM3TSZ() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TSZ")
 }
 
-func (_m *MockAdminOptions) TopologyType(value topology.Type) Options {
-	ret := _m.ctrl.Call(_m, "TopologyType", value)
+func (_m *MockAdminOptions) TopologyInitializer(value topology.Initializer) Options {
+	ret := _m.ctrl.Call(_m, "TopologyInitializer", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) TopologyType(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyType", arg0)
+func (_mr *_MockAdminOptionsRecorder) TopologyInitializer(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer", arg0)
 }
 
-func (_m *MockAdminOptions) GetTopologyType() topology.Type {
-	ret := _m.ctrl.Call(_m, "GetTopologyType")
-	ret0, _ := ret[0].(topology.Type)
+func (_m *MockAdminOptions) GetTopologyInitializer() topology.Initializer {
+	ret := _m.ctrl.Call(_m, "GetTopologyInitializer")
+	ret0, _ := ret[0].(topology.Initializer)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetTopologyType() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTopologyType")
+func (_mr *_MockAdminOptionsRecorder) GetTopologyInitializer() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTopologyInitializer")
 }
 
 func (_m *MockAdminOptions) ConsistencyLevel(value topology.ConsistencyLevel) Options {

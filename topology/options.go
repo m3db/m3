@@ -23,26 +23,39 @@ package topology
 import (
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3x/retry"
+)
+
+const (
+	defaultServiceName = "m3db"
+	defaultInitTimeout = 10 * time.Second
 )
 
 var (
+	errNoConfigServiceClient   = errors.New("no config service client")
+	errNoServiceDiscoverClient = errors.New("no service discover client")
+	errNoHashGen               = errors.New("no hash gen function defined")
 	errInvalidReplicas = errors.New("replicas must be equal to or greater than 1")
 )
 
-type staticTypeOptions struct {
+type staticOptions struct {
 	shardSet      sharding.ShardSet
 	replicas      int
 	hostShardSets []HostShardSet
 }
 
-// NewStaticTypeOptions creates a new set of static topology type options
-func NewStaticTypeOptions() TypeOptions {
-	return &staticTypeOptions{}
+// NewStaticOptions creates a new set of static topology options
+func NewStaticOptions() StaticOptions {
+	return &staticOptions{}
 }
 
-func (o *staticTypeOptions) Validate() error {
+func (o *staticOptions) Validate() error {
 	if o.replicas < 1 {
 		return errInvalidReplicas
 	}
@@ -62,7 +75,6 @@ func (o *staticTypeOptions) Validate() error {
 			hostAddressesByShard[shard][hostAddress] = struct{}{}
 		}
 	}
-
 	for shard, hosts := range hostAddressesByShard {
 		if len(hosts) < o.replicas {
 			errorFmt := "shard %d has %d replicas, less than the required %d replicas"
@@ -73,32 +85,130 @@ func (o *staticTypeOptions) Validate() error {
 	return nil
 }
 
-func (o *staticTypeOptions) ShardSet(value sharding.ShardSet) TypeOptions {
+func (o *staticOptions) ShardSet(value sharding.ShardSet) StaticOptions {
 	opts := *o
 	opts.shardSet = value
 	return &opts
 }
 
-func (o *staticTypeOptions) GetShardSet() sharding.ShardSet {
+func (o *staticOptions) GetShardSet() sharding.ShardSet {
 	return o.shardSet
 }
 
-func (o *staticTypeOptions) Replicas(value int) TypeOptions {
+func (o *staticOptions) Replicas(value int) StaticOptions {
 	opts := *o
 	opts.replicas = value
 	return &opts
 }
 
-func (o *staticTypeOptions) GetReplicas() int {
+func (o *staticOptions) GetReplicas() int {
 	return o.replicas
 }
 
-func (o *staticTypeOptions) HostShardSets(value []HostShardSet) TypeOptions {
+func (o *staticOptions) HostShardSets(value []HostShardSet) StaticOptions {
 	opts := *o
 	opts.hostShardSets = value
 	return &opts
 }
 
-func (o *staticTypeOptions) GetHostShardSets() []HostShardSet {
+func (o *staticOptions) GetHostShardSets() []HostShardSet {
 	return o.hostShardSets
+}
+
+type dynamicOptions struct {
+	configServiceClient client.Client
+	service             string
+	queryOptions        services.QueryOptions
+	retryOptions        xretry.Options
+	instrumentOptions   instrument.Options
+	initTimeout         time.Duration
+	hashGen             sharding.HashGen
+}
+
+// NewDynamicOptions creates a new set of dynamic topology options
+func NewDynamicOptions() DynamicOptions {
+	return &dynamicOptions{
+		service:           defaultServiceName,
+		queryOptions:      services.NewQueryOptions(),
+		retryOptions:      xretry.NewOptions(),
+		instrumentOptions: instrument.NewOptions(),
+		initTimeout:       defaultInitTimeout,
+		hashGen:           sharding.DefaultHashGen,
+	}
+}
+
+func (o *dynamicOptions) Validate() error {
+	if o.GetConfigServiceClient() == nil {
+		return errNoConfigServiceClient
+	}
+	if o.GetConfigServiceClient().Services() == nil {
+		return errNoServiceDiscoverClient
+	}
+	if o.GetHashGen() == nil {
+		return errNoHashGen
+	}
+	return nil
+}
+
+func (o *dynamicOptions) ConfigServiceClient(c client.Client) DynamicOptions {
+	o.configServiceClient = c
+	return o
+}
+
+func (o *dynamicOptions) GetConfigServiceClient() client.Client {
+	return o.configServiceClient
+}
+
+func (o *dynamicOptions) Service(s string) DynamicOptions {
+	o.service = s
+	return o
+}
+
+func (o *dynamicOptions) GetService() string {
+	return o.service
+}
+
+func (o *dynamicOptions) QueryOptions(qo services.QueryOptions) DynamicOptions {
+	o.queryOptions = qo
+	return o
+}
+
+func (o *dynamicOptions) GetQueryOptions() services.QueryOptions {
+	return o.queryOptions
+}
+
+func (o *dynamicOptions) RetryOptions(ro xretry.Options) DynamicOptions {
+	o.retryOptions = ro
+	return o
+}
+
+func (o *dynamicOptions) GetRetryOptions() xretry.Options {
+	return o.retryOptions
+}
+
+func (o *dynamicOptions) InstrumentOptions(io instrument.Options) DynamicOptions {
+	o.instrumentOptions = io
+	return o
+}
+
+func (o *dynamicOptions) GetInstrumentOptions() instrument.Options {
+	return o.instrumentOptions
+}
+
+func (o *dynamicOptions) InitTimeout(value time.Duration) DynamicOptions {
+	o.initTimeout = value
+	return o
+}
+
+func (o *dynamicOptions) GetInitTimeout() time.Duration {
+	return o.initTimeout
+}
+
+func (o *dynamicOptions) HashGen(h sharding.HashGen) DynamicOptions {
+	o.hashGen = h
+	return o
+}
+
+func (o *dynamicOptions) GetHashGen() sharding.HashGen {
+	return o.hashGen
 }

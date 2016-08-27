@@ -20,6 +20,10 @@
 
 package sharding
 
+
+// HashGen generates HashFn
+type HashGen func(l uint32) HashFn
+
 // HashFn is a sharding hash function
 type HashFn func(identifer string) uint32
 
