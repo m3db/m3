@@ -29,6 +29,119 @@ import (
 	watch "github.com/m3db/m3x/watch"
 )
 
+// Mock of Service interface
+type MockService struct {
+	ctrl     *gomock.Controller
+	recorder *_MockServiceRecorder
+}
+
+// Recorder for MockService (not exported)
+type _MockServiceRecorder struct {
+	mock *MockService
+}
+
+func NewMockService(ctrl *gomock.Controller) *MockService {
+	mock := &MockService{ctrl: ctrl}
+	mock.recorder = &_MockServiceRecorder{mock}
+	return mock
+}
+
+func (_m *MockService) EXPECT() *_MockServiceRecorder {
+	return _m.recorder
+}
+
+func (_m *MockService) Instances() []ServiceInstance {
+	ret := _m.ctrl.Call(_m, "Instances")
+	ret0, _ := ret[0].([]ServiceInstance)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) Instances() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Instances")
+}
+
+func (_m *MockService) Replication() ServiceReplication {
+	ret := _m.ctrl.Call(_m, "Replication")
+	ret0, _ := ret[0].(ServiceReplication)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) Replication() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Replication")
+}
+
+func (_m *MockService) Sharding() ServiceSharding {
+	ret := _m.ctrl.Call(_m, "Sharding")
+	ret0, _ := ret[0].(ServiceSharding)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) Sharding() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Sharding")
+}
+
+// Mock of ServiceReplication interface
+type MockServiceReplication struct {
+	ctrl     *gomock.Controller
+	recorder *_MockServiceReplicationRecorder
+}
+
+// Recorder for MockServiceReplication (not exported)
+type _MockServiceReplicationRecorder struct {
+	mock *MockServiceReplication
+}
+
+func NewMockServiceReplication(ctrl *gomock.Controller) *MockServiceReplication {
+	mock := &MockServiceReplication{ctrl: ctrl}
+	mock.recorder = &_MockServiceReplicationRecorder{mock}
+	return mock
+}
+
+func (_m *MockServiceReplication) EXPECT() *_MockServiceReplicationRecorder {
+	return _m.recorder
+}
+
+func (_m *MockServiceReplication) Replicas() int {
+	ret := _m.ctrl.Call(_m, "Replicas")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockServiceReplicationRecorder) Replicas() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Replicas")
+}
+
+// Mock of ServiceSharding interface
+type MockServiceSharding struct {
+	ctrl     *gomock.Controller
+	recorder *_MockServiceShardingRecorder
+}
+
+// Recorder for MockServiceSharding (not exported)
+type _MockServiceShardingRecorder struct {
+	mock *MockServiceSharding
+}
+
+func NewMockServiceSharding(ctrl *gomock.Controller) *MockServiceSharding {
+	mock := &MockServiceSharding{ctrl: ctrl}
+	mock.recorder = &_MockServiceShardingRecorder{mock}
+	return mock
+}
+
+func (_m *MockServiceSharding) EXPECT() *_MockServiceShardingRecorder {
+	return _m.recorder
+}
+
+func (_m *MockServiceSharding) Len() int {
+	ret := _m.ctrl.Call(_m, "Len")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockServiceShardingRecorder) Len() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Len")
+}
+
 // Mock of ServiceInstance interface
 type MockServiceInstance struct {
 	ctrl     *gomock.Controller
@@ -353,24 +466,24 @@ func (_mr *_MockServicesRecorder) Unadvertise(arg0, arg1 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Unadvertise", arg0, arg1)
 }
 
-func (_m *MockServices) QueryInstances(service string, opts QueryOptions) ([]ServiceInstance, error) {
-	ret := _m.ctrl.Call(_m, "QueryInstances", service, opts)
-	ret0, _ := ret[0].([]ServiceInstance)
+func (_m *MockServices) Query(service string, opts QueryOptions) (Service, error) {
+	ret := _m.ctrl.Call(_m, "Query", service, opts)
+	ret0, _ := ret[0].(Service)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockServicesRecorder) QueryInstances(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "QueryInstances", arg0, arg1)
+func (_mr *_MockServicesRecorder) Query(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Query", arg0, arg1)
 }
 
-func (_m *MockServices) WatchInstances(service string, opts QueryOptions) (watch.Watch, error) {
-	ret := _m.ctrl.Call(_m, "WatchInstances", service, opts)
+func (_m *MockServices) Watch(service string, opts QueryOptions) (watch.Watch, error) {
+	ret := _m.ctrl.Call(_m, "Watch", service, opts)
 	ret0, _ := ret[0].(watch.Watch)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockServicesRecorder) WatchInstances(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WatchInstances", arg0, arg1)
+func (_mr *_MockServicesRecorder) Watch(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Watch", arg0, arg1)
 }
