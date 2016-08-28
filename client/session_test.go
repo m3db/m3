@@ -26,10 +26,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/topology"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 

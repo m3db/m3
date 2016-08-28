@@ -21,12 +21,15 @@
 package topology
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/sharding"
 )
+
+var errInstanceHasNoShardsAssignment = errors.New("invalid instance with no shards assigned")
 
 func majority(replicas int) int {
 	return int(math.Ceil(0.5 * float64(replicas+1)))
@@ -65,6 +68,9 @@ func NewHostShardSet(host Host, shardSet sharding.ShardSet) HostShardSet {
 }
 
 func newHostShardSetFromServiceInstance(si services.ServiceInstance, fn sharding.HashFn) (HostShardSet, error) {
+	if si.Shards() == nil {
+		return nil, errInstanceHasNoShardsAssignment
+	}
 	shards := make([]uint32, 0, si.Shards().ShardsLen())
 	for _, s := range si.Shards().Shards() {
 		shards = append(shards, s.ID())
@@ -73,7 +79,7 @@ func newHostShardSetFromServiceInstance(si services.ServiceInstance, fn sharding
 	if err != nil {
 		return nil, err
 	}
-	return &hostShardSet{host: NewHost(si.ID(), si.Endpoint()), shardSet: shardSet}, nil
+	return NewHostShardSet(NewHost(si.ID(), si.Endpoint()), shardSet), nil
 }
 
 func (h *hostShardSet) Host() Host {

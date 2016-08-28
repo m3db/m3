@@ -140,6 +140,12 @@ func (s *session) Open() error {
 		s.Unlock()
 		return errSessionStateNotInitial
 	}
+
+	currTopologyMap, topologyWatch, err := s.topo.GetAndSubscribe()
+	if err != nil {
+		s.Unlock()
+		return err
+	}
 	s.state = stateOpen
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
@@ -153,10 +159,6 @@ func (s *session) Open() error {
 	s.seriesIteratorsPool.Init()
 	s.Unlock()
 
-	currTopologyMap, topologyWatch, err := s.topo.GetAndSubscribe()
-	if err != nil {
-		return err
-	}
 	if err := s.setTopologyMap(currTopologyMap); err != nil {
 		s.Lock()
 		s.state = stateNotOpen

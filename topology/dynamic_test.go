@@ -130,9 +130,14 @@ func TestGetAndSubscribe(t *testing.T) {
 }
 
 func TestGetUniqueShardsAndReplicas(t *testing.T) {
-	shards, replica := uniqueShardsAndReplicas(goodCase)
+	shards, replica, err := uniqueShardsAndReplicas(goodCase)
+	assert.NoError(t, err)
 	assert.Equal(t, 3, len(shards))
 	assert.Equal(t, 2, replica)
+
+	goodCase[0].SetShards(nil)
+	shards, replica, err = uniqueShardsAndReplicas(goodCase)
+	assert.Equal(t, errInstanceHasNoShardsAssignment, err)
 }
 
 type testWatch struct {

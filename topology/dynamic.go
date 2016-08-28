@@ -141,7 +141,7 @@ func newServiceTopologyInput(w xwatch.Watch, h sharding.HashGen, opts xretry.Opt
 
 func (s *serviceTopologyInput) Poll() (interface{}, error) {
 	var m Map
-	if attemptErr := s.retrier.Attempt(func() error {
+	if finalErr := s.retrier.Attempt(func() error {
 		if s.poll > 0 {
 			// for normal attempts (from 2nd attempt on), block on the notification channel
 			if _, ok := <-s.w.C(); !ok {
@@ -154,8 +154,8 @@ func (s *serviceTopologyInput) Poll() (interface{}, error) {
 		var err error
 		m, err = newMapFromServiceInstances(s.w.Get(), s.hashGen)
 		return err
-	}); attemptErr != nil {
-		return nil, attemptErr
+	}); finalErr != nil {
+		return nil, finalErr
 	}
 
 	return m, nil
@@ -177,8 +177,10 @@ func newMapFromServiceInstances(data interface{}, hashGen sharding.HashGen) (Map
 }
 
 func newMapOptionsFromServiceInstances(instances []services.ServiceInstance, hashGen sharding.HashGen) (StaticOptions, error) {
-	allShards, r := uniqueShardsAndReplicas(instances)
-
+	allShards, r, err := uniqueShardsAndReplicas(instances)
+	if err != nil {
+		return nil, err
+	}
 	fn := hashGen(uint32(len(allShards)))
 
 	allShardSet, err := sharding.NewShardSet(allShards, fn)
@@ -201,9 +203,12 @@ func newMapOptionsFromServiceInstances(instances []services.ServiceInstance, has
 		HostShardSets(hostShardSets), nil
 }
 
-func uniqueShardsAndReplicas(instances []services.ServiceInstance) ([]uint32, int) {
+func uniqueShardsAndReplicas(instances []services.ServiceInstance) ([]uint32, int, error) {
 	m := make(map[uint32]int)
 	for _, i := range instances {
+		if i.Shards() == nil {
+			return nil, 0, errInstanceHasNoShardsAssignment
+		}
 		for _, s := range i.Shards().Shards() {
 			m[s.ID()] = m[s.ID()] + 1
 		}
@@ -218,5 +223,5 @@ func uniqueShardsAndReplicas(instances []services.ServiceInstance) ([]uint32, in
 			r = v
 		}
 	}
-	return s, r
+	return s, r, nil
 }
