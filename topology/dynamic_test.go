@@ -38,9 +38,9 @@ func testSetup(ctrl *gomock.Controller) (DynamicOptions, xwatch.Watch) {
 	opts := NewDynamicOptions()
 	opts = opts.RetryOptions(xretry.NewOptions().InitialBackoff(time.Millisecond))
 
-	watch := newTestWatch(time.Millisecond, time.Millisecond, 10, 10)
+	watch := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
 	mockCSServices := services.NewMockServices(ctrl)
-	mockCSServices.EXPECT().WatchInstances(opts.GetService(), opts.GetQueryOptions()).Return(watch, nil)
+	mockCSServices.EXPECT().Watch(opts.GetService(), opts.GetQueryOptions()).Return(watch, nil)
 
 	mockCSClient := client.NewMockClient(ctrl)
 	mockCSClient.EXPECT().Services().Return(mockCSServices)
@@ -74,22 +74,25 @@ func TestInitNoTimeout(t *testing.T) {
 }
 
 func TestBackoffPoll(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	opts := NewDynamicOptions().RetryOptions(xretry.NewOptions().InitialBackoff(time.Millisecond))
-	w := newTestWatch(time.Millisecond, time.Millisecond, 10, 10)
+	w := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
 	close(w.(*testWatch).ch)
 	input := newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions())
 	data, err := input.Poll()
 	assert.Equal(t, xwatch.ErrSourceClosed, err)
 	assert.Nil(t, data)
 
-	w = newTestWatch(time.Millisecond, time.Millisecond, 0, 10)
+	w = newTestWatch(ctrl, time.Millisecond, time.Millisecond, 0, 10)
 	go w.(*testWatch).run()
 	input = newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions())
 	data, err = input.Poll()
 	assert.Error(t, err)
 	assert.Nil(t, data)
 
-	w = newTestWatch(time.Millisecond, time.Millisecond, 10, 10)
+	w = newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
 	go w.(*testWatch).run()
 	input = newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions())
 	data, err = input.Poll()
@@ -130,19 +133,48 @@ func TestGetAndSubscribe(t *testing.T) {
 }
 
 func TestGetUniqueShardsAndReplicas(t *testing.T) {
-	shards, replica, err := uniqueShardsAndReplicas(goodCase)
+	shards, err := validateInstances(goodInstances, 2, 3)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(shards))
-	assert.Equal(t, 2, replica)
 
-	goodCase[0].SetShards(nil)
-	shards, replica, err = uniqueShardsAndReplicas(goodCase)
+	goodInstances[0].SetShards(nil)
+	shards, err = validateInstances(goodInstances, 2, 3)
 	assert.Equal(t, errInstanceHasNoShardsAssignment, err)
+
+	goodInstances[0].SetShards(shard.NewShards(
+		[]shard.Shard{
+			shard.NewShard(0),
+			shard.NewShard(1),
+			shard.NewShard(3),
+		}))
+	shards, err = validateInstances(goodInstances, 2, 3)
+	assert.Equal(t, errUnexpectedShard, err)
+
+	// got h1: 1, h2: 1, 2, h3 0,2, missing a replica for 1
+	goodInstances[0].SetShards(shard.NewShards(
+		[]shard.Shard{
+			shard.NewShard(1),
+		}))
+	shards, err = validateInstances(goodInstances, 2, 3)
+	assert.Equal(t, errNotEnoughReplicasForShard, err)
+
+	goodInstances[0].SetShards(shard.NewShards(
+		[]shard.Shard{
+			shard.NewShard(0),
+		}))
+	goodInstances[1].SetShards(shard.NewShards(
+		[]shard.Shard{
+			shard.NewShard(2),
+		}))
+	shards, err = validateInstances(goodInstances, 2, 3)
+	// got h1:0, h2: 2, h3 0,2, missing 1
+	assert.Equal(t, errMissingShard, err)
 }
 
 type testWatch struct {
 	sync.RWMutex
 
+	ctrl                  *gomock.Controller
 	data                  interface{}
 	firstDelay, nextDelay time.Duration
 	errAfter, closeAfter  int
@@ -151,8 +183,8 @@ type testWatch struct {
 	closed                bool
 }
 
-func newTestWatch(firstDelay, nextDelay time.Duration, errAfter, closeAfter int) xwatch.Watch {
-	w := testWatch{firstDelay: firstDelay, nextDelay: nextDelay, errAfter: errAfter, closeAfter: closeAfter}
+func newTestWatch(ctrl *gomock.Controller, firstDelay, nextDelay time.Duration, errAfter, closeAfter int) xwatch.Watch {
+	w := testWatch{ctrl: ctrl, firstDelay: firstDelay, nextDelay: nextDelay, errAfter: errAfter, closeAfter: closeAfter}
 	w.ch = make(chan struct{})
 	return &w
 }
@@ -171,7 +203,7 @@ func (w *testWatch) update() {
 	w.Lock()
 	defer w.Unlock()
 	if w.currentCalled < w.errAfter {
-		w.data = goodCase
+		w.data = getMockService(w.ctrl)
 	} else {
 		w.data = nil
 	}
@@ -190,6 +222,22 @@ func (w *testWatch) Get() interface{} {
 
 func (w *testWatch) C() <-chan struct{} {
 	return w.ch
+}
+
+func getMockService(ctrl *gomock.Controller) services.Service {
+	mockService := services.NewMockService(ctrl)
+
+	mockReplication := services.NewMockServiceReplication(ctrl)
+	mockReplication.EXPECT().Replicas().Return(2).AnyTimes()
+	mockService.EXPECT().Replication().Return(mockReplication).AnyTimes()
+
+	mockSharding := services.NewMockServiceSharding(ctrl)
+	mockSharding.EXPECT().Len().Return(3).AnyTimes()
+	mockService.EXPECT().Sharding().Return(mockSharding).AnyTimes()
+
+	mockService.EXPECT().Instances().Return(goodInstances).AnyTimes()
+
+	return mockService
 }
 
 var (
@@ -211,5 +259,5 @@ var (
 			shard.NewShard(0),
 		})).SetID("h3").SetEndpoint("h3:9000")
 
-	goodCase = []services.ServiceInstance{i1, i2, i3}
+	goodInstances = []services.ServiceInstance{i1, i2, i3}
 )

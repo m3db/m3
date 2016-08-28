@@ -43,7 +43,7 @@ func DefaultShardSet() (sharding.ShardSet, error) {
 		shards = append(shards, i)
 	}
 
-	return sharding.NewShardSet(shards, sharding.DefaultHashGen(shardsLen))
+	return sharding.NewShardSet(shards, sharding.DefaultHashGen(1024))
 }
 
 // DefaultClientOptions creates a default m3db client options.

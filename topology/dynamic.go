@@ -22,7 +22,6 @@ package topology
 
 import (
 	"errors"
-	"math"
 	"sync"
 	"time"
 
@@ -34,8 +33,12 @@ import (
 )
 
 var (
-	errInitTimeOut     = errors.New("timed out initializing source")
-	errInvalidTopology = errors.New("could not parse latest topology update")
+	errInitTimeOut               = errors.New("timed out initializing source")
+	errInvalidService            = errors.New("service topology is invalid")
+	errUnexpectedShard           = errors.New("shard is unexpected")
+	errMissingShard              = errors.New("shard is missing")
+	errNotEnoughReplicasForShard = errors.New("replicas of shard is less than expected")
+	errInvalidTopology           = errors.New("could not parse latest topology update")
 )
 
 type dynamicInitializer struct {
@@ -70,7 +73,7 @@ func newDynamicTopology(opts DynamicOptions) (Topology, error) {
 		w   xwatch.Watch
 		err error
 	)
-	if w, err = services.WatchInstances(opts.GetService(), opts.GetQueryOptions()); err != nil {
+	if w, err = services.Watch(opts.GetService(), opts.GetQueryOptions()); err != nil {
 		return nil, err
 	}
 
@@ -165,11 +168,11 @@ func (s *serviceTopologyInput) Poll() (interface{}, error) {
 }
 
 func newMapFromServiceInstances(data interface{}, hashGen sharding.HashGen) (Map, error) {
-	si, ok := data.([]services.ServiceInstance)
+	service, ok := data.(services.Service)
 	if !ok {
 		return nil, errInvalidTopology
 	}
-	to, err := newMapOptionsFromServiceInstances(si, hashGen)
+	to, err := newMapOptionsFromServiceInstances(service, hashGen)
 	if err != nil {
 		return nil, err
 	}
@@ -179,13 +182,20 @@ func newMapFromServiceInstances(data interface{}, hashGen sharding.HashGen) (Map
 	return newStaticMap(to), nil
 }
 
-func newMapOptionsFromServiceInstances(instances []services.ServiceInstance, hashGen sharding.HashGen) (StaticOptions, error) {
-	allShards, r, err := uniqueShardsAndReplicas(instances)
+func newMapOptionsFromServiceInstances(service services.Service, hashGen sharding.HashGen) (StaticOptions, error) {
+	if service.Replication() == nil || service.Sharding() == nil || service.Instances() == nil {
+		return nil, errInvalidService
+	}
+	replicas := service.Replication().Replicas()
+	instances := service.Instances()
+	shardLen := service.Sharding().Len()
+
+	allShards, err := validateInstances(instances, replicas, shardLen)
 	if err != nil {
 		return nil, err
 	}
-	fn := hashGen(uint32(len(allShards)))
 
+	fn := hashGen(shardLen)
 	allShardSet, err := sharding.NewShardSet(allShards, fn)
 	if err != nil {
 		return nil, err
@@ -201,30 +211,37 @@ func newMapOptionsFromServiceInstances(instances []services.ServiceInstance, has
 	}
 
 	return NewStaticOptions().
-		Replicas(r).
+		Replicas(replicas).
 		ShardSet(allShardSet).
 		HostShardSets(hostShardSets), nil
 }
 
-func uniqueShardsAndReplicas(instances []services.ServiceInstance) ([]uint32, int, error) {
+func validateInstances(instances []services.ServiceInstance, replicas, shardingLen int) ([]uint32, error) {
 	m := make(map[uint32]int)
 	for _, i := range instances {
 		if i.Shards() == nil {
-			return nil, 0, errInstanceHasNoShardsAssignment
+			return nil, errInstanceHasNoShardsAssignment
 		}
 		for _, s := range i.Shards().Shards() {
 			m[s.ID()] = m[s.ID()] + 1
 		}
 	}
-	r := math.MaxUint32
-	s := make([]uint32, 0, len(m))
-
-	// NB(chaowang): We allow different replicas for a shard in case cluster is changing capacity
-	for k, v := range m {
-		s = append(s, k)
-		if r > v {
-			r = v
+	s := make([]uint32, shardingLen)
+	for i := range s {
+		expectShard := uint32(i)
+		count, exist := m[expectShard]
+		if !exist {
+			return nil, errMissingShard
 		}
+		if count < replicas {
+			return nil, errNotEnoughReplicasForShard
+		}
+		delete(m, expectShard)
+		s[i] = expectShard
 	}
-	return s, r, nil
+
+	if len(m) > 0 {
+		return nil, errUnexpectedShard
+	}
+	return s, nil
 }

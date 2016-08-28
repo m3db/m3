@@ -94,8 +94,8 @@ func validateShards(shards []uint32) error {
 }
 
 // DefaultHashGen generates a HashFn based on murmur32
-func DefaultHashGen(l uint32) HashFn {
+func DefaultHashGen(length int) HashFn {
 	return func(id string) uint32 {
-		return murmur3.Sum32([]byte(id)) % l
+		return murmur3.Sum32([]byte(id)) % uint32(length)
 	}
 }
