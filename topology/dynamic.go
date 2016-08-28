@@ -94,7 +94,10 @@ func (t *dynamicTopology) Get() Map {
 
 func (t *dynamicTopology) GetAndSubscribe() (Map, xwatch.Watch, error) {
 	m, w, err := t.s.Watch()
-	return m.(Map), w, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return m.(Map), w, nil
 }
 
 func (t *dynamicTopology) Close() {
