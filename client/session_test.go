@@ -52,14 +52,17 @@ func newSessionTestOptions() Options {
 	return applySessionTestOptions(NewOptions())
 }
 
-func applySessionTestOptions(opts Options) Options {
+func sessionTestShardSet() sharding.ShardSet {
 	var shards []uint32
 	for i := uint32(0); i < uint32(sessionTestShards); i++ {
 		shards = append(shards, i)
 	}
 
 	shardSet, _ := sharding.NewShardSet(shards, func(id string) uint32 { return 0 })
+	return shardSet
+}
 
+func sessionTestHostAndShards(shardSet sharding.ShardSet) []topology.HostShardSet {
 	var hosts []topology.Host
 	for i := 0; i < sessionTestReplicas; i++ {
 		id := fmt.Sprintf("testhost%d", i)
@@ -70,17 +73,28 @@ func applySessionTestOptions(opts Options) Options {
 	for _, host := range hosts {
 		hostShardSets = append(hostShardSets, topology.NewHostShardSet(host, shardSet))
 	}
+	return hostShardSets
+}
 
+func applySessionTestOptions(opts Options) Options {
+	shardSet := sessionTestShardSet()
 	return opts.
 		SeriesIteratorPoolSize(0).
 		SeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		WriteOpPoolSize(0).
 		FetchBatchOpPoolSize(0).
-		TopologyType(topology.NewStaticType(
-		topology.NewStaticTypeOptions().
-			Replicas(sessionTestReplicas).
-			ShardSet(shardSet).
-			HostShardSets(hostShardSets)))
+		TopologyInitializer(topology.NewStaticInitializer(
+			topology.NewStaticOptions().
+				Replicas(sessionTestReplicas).
+				ShardSet(shardSet).
+				HostShardSets(sessionTestHostAndShards(shardSet))))
+}
+
+func TestSessionCreationFailure(t *testing.T) {
+	opt := newSessionTestOptions()
+	opt = opt.TopologyInitializer(topology.NewDynamicInitializer(topology.NewDynamicOptions()))
+	_, err := newSession(opt)
+	assert.Error(t, err)
 }
 
 func TestSessionClusterConnectConsistencyLevelAll(t *testing.T) {

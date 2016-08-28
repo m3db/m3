@@ -21,51 +21,28 @@
 package topology
 
 import (
-	"errors"
+	"testing"
 
-	"github.com/m3db/m3x/watch"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/sharding"
+	"github.com/stretchr/testify/assert"
 )
 
-var (
-	errUnownedShard = errors.New("unowned shard")
-)
-
-type staticInitializer struct {
-	opts StaticOptions
-}
-
-// NewStaticInitializer returns a topology initializer
-func NewStaticInitializer(opts StaticOptions) Initializer {
-	return staticInitializer{opts}
-}
-
-func (i staticInitializer) Init() (Topology, error) {
-	if err := i.opts.Validate(); err != nil {
-		return nil, err
-	}
-	return newStaticTopology(i.opts), nil
-}
-
-type staticTopology struct {
-	w xwatch.Watchable
-}
-
-func newStaticTopology(opts StaticOptions) Topology {
-	w := xwatch.NewWatchable()
-	w.Update(newStaticMap(opts))
-	return &staticTopology{w: w}
-}
-
-func (t *staticTopology) Get() Map {
-	return t.w.Get().(Map)
-}
-
-func (t *staticTopology) GetAndSubscribe() (Map, xwatch.Watch, error) {
-	// Topology is static, the returned watch will not receive any updates
-	m, w, err := t.w.Watch()
-	return m.(Map), w, err
-}
-
-func (t *staticTopology) Close() {
-	return
+func TestNewHostShardSetFromServiceInstance(t *testing.T) {
+	i1 := services.NewServiceInstance().
+		SetID("h1").
+		SetEndpoint("h1:9000").
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1),
+			shard.NewShard(2),
+			shard.NewShard(3),
+		}))
+	hash := sharding.DefaultHashGen(3)
+	host, err := newHostShardSetFromServiceInstance(i1, hash)
+	assert.NoError(t, err)
+	assert.Equal(t, "h1:9000", host.Host().Address())
+	assert.Equal(t, "h1", host.Host().ID())
+	assert.Equal(t, []uint32{1, 2, 3}, host.ShardSet().Shards())
+	assert.Equal(t, host.ShardSet().Shard("id"), hash("id"))
 }

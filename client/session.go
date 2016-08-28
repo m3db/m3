@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3x/watch"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -72,7 +73,7 @@ type session struct {
 	newHostQueueFn                   newHostQueueFn
 	topo                             topology.Topology
 	topoMap                          topology.Map
-	topoMapCh                        chan topology.Map
+	topoWatch                        xwatch.Watch
 	replicas                         int
 	majority                         int
 	queues                           []hostQueue
@@ -103,7 +104,7 @@ type newHostQueueFn func(
 ) hostQueue
 
 func newSession(opts Options) (clientSession, error) {
-	topo, err := opts.GetTopologyType().Create()
+	topo, err := opts.GetTopologyInitializer().Init()
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +116,6 @@ func newSession(opts Options) (clientSession, error) {
 		level:                opts.GetConsistencyLevel(),
 		newHostQueueFn:       newHostQueue,
 		topo:                 topo,
-		topoMapCh:            make(chan topology.Map),
 		fetchBatchSize:       opts.GetFetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 	}
@@ -140,7 +140,21 @@ func (s *session) Open() error {
 		s.Unlock()
 		return errSessionStateNotInitial
 	}
-	s.state = stateOpen
+
+	initMap, topologyWatch, err := s.topo.GetAndSubscribe()
+	if err != nil {
+		s.Unlock()
+		return err
+	}
+
+	queues, replicas, majority, err := s.initHostQueues(initMap)
+	if err != nil {
+		s.Unlock()
+		return err
+	}
+	s.setTopologyWithLock(initMap, queues, replicas, majority)
+	s.topoWatch = topologyWatch
+
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
 	s.writeOpPool = newWriteOpPool(s.opts.GetWriteOpPoolSize())
@@ -151,29 +165,33 @@ func (s *session) Open() error {
 	s.seriesIteratorPool.Init()
 	s.seriesIteratorsPool = encoding.NewMutableSeriesIteratorsPool(s.opts.GetSeriesIteratorArrayPoolBuckets())
 	s.seriesIteratorsPool.Init()
+	s.state = stateOpen
 	s.Unlock()
-
-	currTopologyMap := s.topo.GetAndSubscribe(s.topoMapCh)
-	if err := s.setTopologyMap(currTopologyMap); err != nil {
-		s.Lock()
-		s.state = stateNotOpen
-		s.Unlock()
-		return err
-	}
 
 	go func() {
 		log := s.opts.GetInstrumentOptions().GetLogger()
-		for value := range s.topoMapCh {
-			if err := s.setTopologyMap(value); err != nil {
-				log.Errorf("could not update topology map: %v", err)
+		for _ = range s.topoWatch.C() {
+			m, ok := s.topoWatch.Get().(topology.Map)
+			if !ok {
+				log.Errorf("received invalid update for topology map")
+				continue
 			}
+
+			queues, replicas, majority, err := s.initHostQueues(m)
+			if err != nil {
+				log.Errorf("could not update topology map: %v", err)
+				continue
+			}
+			s.Lock()
+			s.setTopologyWithLock(m, queues, replicas, majority)
+			s.Unlock()
 		}
 	}()
 
 	return nil
 }
 
-func (s *session) setTopologyMap(topologyMap topology.Map) error {
+func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, int, error) {
 	// NB(r): we leave existing writes in the host queues to finish
 	// as they are already enroute to their destination, this is ok
 	// as part of adding a host is to add another replica for the
@@ -196,7 +214,7 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 			for i := range queues {
 				queues[i].Close()
 			}
-			return ErrClusterConnectTimeout
+			return nil, 0, 0, ErrClusterConnectTimeout
 		}
 		// Be optimistic
 		clusterAvailable := true
@@ -208,7 +226,7 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 				}
 			})
 			if routeErr != nil {
-				return routeErr
+				return nil, 0, 0, routeErr
 			}
 			var clusterAvailableForShard bool
 			switch connectConsistencyLevel {
@@ -231,7 +249,10 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 		time.Sleep(clusterConnectWaitInterval)
 	}
 
-	s.Lock()
+	return queues, replicas, majority, nil
+}
+
+func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQueue, replicas, majority int) {
 	prev := s.queues
 	s.queues = queues
 	s.topoMap = topologyMap
@@ -268,7 +289,6 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(size)
 		s.multiReaderIteratorPool.Init(s.opts.GetReaderIteratorAllocate())
 	}
-	s.Unlock()
 
 	// Asynchronously close the previous set of host queues
 	go func() {
@@ -276,8 +296,6 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 			prev[i].Close()
 		}
 	}()
-
-	return nil
 }
 
 func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hostQueue {
@@ -594,8 +612,9 @@ func (s *session) Close() error {
 		q.Close()
 	}
 
-	close(s.topoMapCh)
-	return s.topo.Close()
+	s.topoWatch.Close()
+	s.topo.Close()
+	return nil
 }
 
 func (s *session) FetchBootstrapBlocksFromPeers(
@@ -751,9 +770,9 @@ func (s *session) streamBlocksMetadataFromPeer(
 				if b.Size == nil {
 					s.log.
 						WithFields(
-						xlog.NewLogField("id", elem.ID),
-						xlog.NewLogField("start", blocks[i].start),
-					).Warnf("stream blocks metadata requested block size and not returned")
+							xlog.NewLogField("id", elem.ID),
+							xlog.NewLogField("start", blocks[i].start),
+						).Warnf("stream blocks metadata requested block size and not returned")
 					continue
 				}
 

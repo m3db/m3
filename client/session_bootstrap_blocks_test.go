@@ -51,7 +51,7 @@ var (
 
 func newSessionTestAdminOptions() AdminOptions {
 	opts := applySessionTestOptions(NewAdminOptions()).(AdminOptions)
-	hostShardSets := opts.GetTopologyType().Options().GetHostShardSets()
+	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
 	host := hostShardSets[0].Host()
 	return opts.
 		Origin(host).
@@ -856,10 +856,10 @@ func mockHostQueuesAndClientsForFetchBootstrapBlocks(
 	opts AdminOptions,
 ) (MockHostQueues, MockTChanNodes) {
 	var (
-		hostQueues    MockHostQueues
-		clients       MockTChanNodes
-		hostShardSets = opts.GetTopologyType().Options().GetHostShardSets()
+		hostQueues MockHostQueues
+		clients    MockTChanNodes
 	)
+	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
 	for i := 0; i < len(hostShardSets); i++ {
 		host := hostShardSets[i].Host()
 		client := rpc.NewMockTChanNode(ctrl)

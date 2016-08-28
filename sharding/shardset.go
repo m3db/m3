@@ -23,6 +23,8 @@ package sharding
 import (
 	"errors"
 	"math"
+
+	"github.com/spaolacci/murmur3"
 )
 
 var (
@@ -89,4 +91,11 @@ func validateShards(shards []uint32) error {
 		uniqueShards[s] = struct{}{}
 	}
 	return nil
+}
+
+// DefaultHashGen generates a HashFn based on murmur32
+func DefaultHashGen(length int) HashFn {
+	return func(id string) uint32 {
+		return murmur3.Sum32([]byte(id)) % uint32(length)
+	}
 }

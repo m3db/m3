@@ -22,8 +22,15 @@ package topology
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3x/close"
+	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/watch"
 )
 
 // Host is a container of a host in a topology
@@ -46,25 +53,20 @@ type HostShardSet interface {
 	ShardSet() sharding.ShardSet
 }
 
-// Type is a type of topology that can create new instances of it's type
-type Type interface {
-	// Create will return a new topology of the topology type
-	Create() (Topology, error)
-
-	// Options will return the topology options associated with the topology type
-	Options() TypeOptions
+// Initializer can init new instances of Topology
+type Initializer interface {
+	// Init will return a new topology
+	Init() (Topology, error)
 }
 
 // Topology is a container of a topology map and disseminates topology map changes
 type Topology interface {
+	xclose.SimpleCloser
+
 	// Get the topology map
 	Get() Map
-
 	// Get and subscribe to updates for the topology map
-	GetAndSubscribe(ch chan<- Map) Map
-
-	// Close will close the topology
-	Close() error
+	GetAndSubscribe() (Map, xwatch.Watch, error)
 }
 
 // Map describes a topology
@@ -134,26 +136,74 @@ func (l ConsistencyLevel) String() string {
 	return "ConsistencyLevelNone"
 }
 
-// TypeOptions is a set of static topology type options
-type TypeOptions interface {
+// StaticOptions is a set of options for static topology
+type StaticOptions interface {
 	// Validate validates the options
 	Validate() error
 
 	// ShardSet sets the ShardSet
-	ShardSet(value sharding.ShardSet) TypeOptions
+	ShardSet(value sharding.ShardSet) StaticOptions
 
 	// GetShardSet returns the ShardSet
 	GetShardSet() sharding.ShardSet
 
 	// Replicas sets the replicas
-	Replicas(value int) TypeOptions
+	Replicas(value int) StaticOptions
 
 	// GetReplicas returns the replicas
 	GetReplicas() int
 
 	// HostShardSets sets the hostShardSets
-	HostShardSets(value []HostShardSet) TypeOptions
+	HostShardSets(value []HostShardSet) StaticOptions
 
 	// GetHostShardSets returns the hostShardSets
 	GetHostShardSets() []HostShardSet
+}
+
+// DynamicOptions is a set of options for dynamic topology
+type DynamicOptions interface {
+	// Validate validates the options
+	Validate() error
+
+	// ConfigServiceClient sets the client of ConfigService
+	ConfigServiceClient(c client.Client) DynamicOptions
+
+	// GetConfigServiceClient returns the client of ConfigService
+	GetConfigServiceClient() client.Client
+
+	// Service returns the service name to query ConfigService
+	Service(s string) DynamicOptions
+
+	// GetService returns the service name to query ConfigService
+	GetService() string
+
+	// QueryOptions returns the ConfigService query options
+	QueryOptions(value services.QueryOptions) DynamicOptions
+
+	// GetQueryOptions returns the ConfigService query options
+	GetQueryOptions() services.QueryOptions
+
+	// RetryOptions sets the retry options
+	RetryOptions(value xretry.Options) DynamicOptions
+
+	// GetRetryOptions returns the retry options
+	GetRetryOptions() xretry.Options
+
+	// InstrumentOptions sets the instrumentation options
+	InstrumentOptions(value instrument.Options) DynamicOptions
+
+	// GetInstrumentOptions returns the instrumentation options
+	GetInstrumentOptions() instrument.Options
+
+	// InitTimeout sets the waiting time for dynamic topology to be initialized
+	InitTimeout(value time.Duration) DynamicOptions
+
+	// GetInitTimeout returns the waiting time for dynamic topology to be initialized
+	GetInitTimeout() time.Duration
+
+	// HashGen sets the HashGen function
+	HashGen(h sharding.HashGen) DynamicOptions
+
+	// GetHashGen returns HashGen function
+	GetHashGen() sharding.HashGen
 }
