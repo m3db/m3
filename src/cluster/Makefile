@@ -19,7 +19,7 @@ protoc_go_package := github.com/golang/protobuf/protoc-gen-go
 proto_output_dir := generated/proto
 proto_rules_dir := generated/proto
 auto_gen := .ci/auto-gen.sh
-license_dir := $(vendor_prefix)/github.com/uber/uber-licence
+license_dir := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 
 BUILD := $(abspath ./bin)

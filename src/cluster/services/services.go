@@ -25,7 +25,40 @@ import (
 	xwatch "github.com/m3db/m3x/watch"
 )
 
-// A ServiceInstance is a single instance of a service
+// Service describes the metadata and instances of a service
+type Service interface {
+	// Instances returns the service instances
+	Instances() []ServiceInstance
+
+	// Replication returns the service replication description or nil if none
+	Replication() ServiceReplication
+
+	// Sharding returns the service sharding description or nil if none
+	Sharding() ServiceSharding
+}
+
+// NewService creates a new Service
+func NewService() Service { return new(service) }
+
+// ServiceReplication describes the replication of a service
+type ServiceReplication interface {
+	// Replicas is the count of replicas
+	Replicas() int
+}
+
+// NewServiceReplication creates a new ServiceReplication
+func NewServiceReplication() ServiceReplication { return new(serviceReplication) }
+
+// ServiceSharding describes the sharding of a service
+type ServiceSharding interface {
+	// Len is the count of shards to use as the sharding range
+	Len() int
+}
+
+// NewServiceSharding creates a new ServiceSharding
+func NewServiceSharding() ServiceSharding { return new(serviceSharding) }
+
+// ServiceInstance is a single instance of a service
 type ServiceInstance interface {
 	Service() string                          // the service implemented by the instance
 	SetService(s string) ServiceInstance      // sets the service implemented by the instance
@@ -76,12 +109,39 @@ type Services interface {
 	// Unadvertise indicates a given instance is no longer available
 	Unadvertise(service, id string) error
 
-	// QueryInstances returns the list of available instances for a given service
-	QueryInstances(service string, opts QueryOptions) ([]ServiceInstance, error)
+	// Query returns metadata and a list of available instances for a given service
+	Query(service string, opts QueryOptions) (Service, error)
 
-	// WatchInstances returns a watch on instances updates for a given service
-	WatchInstances(service string, opts QueryOptions) (xwatch.Watch, error)
+	// Watch returns a watch on metadata and a list of available instances for a given service
+	Watch(service string, opts QueryOptions) (xwatch.Watch, error)
 }
+
+type service struct {
+	instances   []ServiceInstance
+	replication ServiceReplication
+	sharding    ServiceSharding
+}
+
+func (s *service) Instances() []ServiceInstance                 { return s.instances }
+func (s *service) Replication() ServiceReplication              { return s.replication }
+func (s *service) Sharding() ServiceSharding                    { return s.sharding }
+func (s *service) SetInstances(insts []ServiceInstance) Service { s.instances = insts; return s }
+func (s *service) SetReplication(r ServiceReplication) Service  { s.replication = r; return s }
+func (s *service) SetSharding(ss ServiceSharding) Service       { s.sharding = ss; return s }
+
+type serviceReplication struct {
+	replicas int
+}
+
+func (r *serviceReplication) Replicas() int                          { return r.replicas }
+func (r *serviceReplication) SetReplicas(rep int) ServiceReplication { r.replicas = rep; return r }
+
+type serviceSharding struct {
+	length int
+}
+
+func (s *serviceSharding) Len() int                     { return s.length }
+func (s *serviceSharding) SetLen(l int) ServiceSharding { s.length = l; return s }
 
 type serviceInstance struct {
 	id       string
