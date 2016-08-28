@@ -55,7 +55,7 @@ func NewSource(input SourceInput, logger xlog.Logger) Source {
 		input:  input,
 		w:      NewWatchable(),
 		logger: logger,
-		initCh:     make(chan struct{}),
+		initCh: make(chan struct{}),
 	}
 
 	go s.run()
@@ -77,12 +77,12 @@ func (s *source) run() {
 	for !s.isClosed() {
 		data, err := s.input.Poll()
 		if err == ErrSourceClosed {
-			s.logger.Errorf("Upstream source is closed")
+			s.logger.Errorf("watch source upstream is closed")
 			s.Close()
 			return
 		}
 		if err != nil {
-			s.logger.Errorf("Error polling input source: %v", err)
+			s.logger.Errorf("watch source poll error: %v", err)
 			continue
 		}
 
