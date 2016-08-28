@@ -141,12 +141,20 @@ func (s *session) Open() error {
 		return errSessionStateNotInitial
 	}
 
-	currTopologyMap, topologyWatch, err := s.topo.GetAndSubscribe()
+	initMap, topologyWatch, err := s.topo.GetAndSubscribe()
 	if err != nil {
 		s.Unlock()
 		return err
 	}
-	s.state = stateOpen
+
+	queues, replicas, majority, err := s.validateMap(initMap)
+	if err != nil {
+		s.Unlock()
+		return err
+	}
+	s.setTopologyWithLock(initMap, queues, replicas, majority)
+	s.topoWatch = topologyWatch
+
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
 	s.writeOpPool = newWriteOpPool(s.opts.GetWriteOpPoolSize())
@@ -157,15 +165,8 @@ func (s *session) Open() error {
 	s.seriesIteratorPool.Init()
 	s.seriesIteratorsPool = encoding.NewMutableSeriesIteratorsPool(s.opts.GetSeriesIteratorArrayPoolBuckets())
 	s.seriesIteratorsPool.Init()
+	s.state = stateOpen
 	s.Unlock()
-
-	if err := s.setTopologyMap(currTopologyMap); err != nil {
-		s.Lock()
-		s.state = stateNotOpen
-		s.Unlock()
-		return err
-	}
-	s.topoWatch = topologyWatch
 
 	go func() {
 		log := s.opts.GetInstrumentOptions().GetLogger()
@@ -175,16 +176,22 @@ func (s *session) Open() error {
 				log.Errorf("received invalid update for topology map")
 				continue
 			}
-			if err = s.setTopologyMap(m); err != nil {
+
+			queues, replicas, majority, err := s.validateMap(m)
+			if err != nil {
 				log.Errorf("could not update topology map: %v", err)
+				continue
 			}
+			s.Lock()
+			s.setTopologyWithLock(m, queues, replicas, majority)
+			s.Unlock()
 		}
 	}()
 
 	return nil
 }
 
-func (s *session) setTopologyMap(topologyMap topology.Map) error {
+func (s *session) validateMap(topologyMap topology.Map) ([]hostQueue, int, int, error) {
 	// NB(r): we leave existing writes in the host queues to finish
 	// as they are already enroute to their destination, this is ok
 	// as part of adding a host is to add another replica for the
@@ -207,7 +214,7 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 			for i := range queues {
 				queues[i].Close()
 			}
-			return ErrClusterConnectTimeout
+			return nil, 0, 0, ErrClusterConnectTimeout
 		}
 		// Be optimistic
 		clusterAvailable := true
@@ -219,7 +226,7 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 				}
 			})
 			if routeErr != nil {
-				return routeErr
+				return nil, 0, 0, routeErr
 			}
 			var clusterAvailableForShard bool
 			switch connectConsistencyLevel {
@@ -242,7 +249,10 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 		time.Sleep(clusterConnectWaitInterval)
 	}
 
-	s.Lock()
+	return queues, replicas, majority, nil
+}
+
+func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQueue, replicas, majority int) {
 	prev := s.queues
 	s.queues = queues
 	s.topoMap = topologyMap
@@ -279,7 +289,6 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(size)
 		s.multiReaderIteratorPool.Init(s.opts.GetReaderIteratorAllocate())
 	}
-	s.Unlock()
 
 	// Asynchronously close the previous set of host queues
 	go func() {
@@ -287,8 +296,6 @@ func (s *session) setTopologyMap(topologyMap topology.Map) error {
 			prev[i].Close()
 		}
 	}()
-
-	return nil
 }
 
 func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hostQueue {
