@@ -147,7 +147,7 @@ func (s *session) Open() error {
 		return err
 	}
 
-	queues, replicas, majority, err := s.validateMap(initMap)
+	queues, replicas, majority, err := s.initHostQueues(initMap)
 	if err != nil {
 		s.Unlock()
 		return err
@@ -177,7 +177,7 @@ func (s *session) Open() error {
 				continue
 			}
 
-			queues, replicas, majority, err := s.validateMap(m)
+			queues, replicas, majority, err := s.initHostQueues(m)
 			if err != nil {
 				log.Errorf("could not update topology map: %v", err)
 				continue
@@ -191,7 +191,7 @@ func (s *session) Open() error {
 	return nil
 }
 
-func (s *session) validateMap(topologyMap topology.Map) ([]hostQueue, int, int, error) {
+func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, int, error) {
 	// NB(r): we leave existing writes in the host queues to finish
 	// as they are already enroute to their destination, this is ok
 	// as part of adding a host is to add another replica for the
