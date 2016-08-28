@@ -60,6 +60,16 @@ func (_mr *_MockServiceRecorder) Instances() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Instances")
 }
 
+func (_m *MockService) SetInstances(insts []ServiceInstance) Service {
+	ret := _m.ctrl.Call(_m, "SetInstances", insts)
+	ret0, _ := ret[0].(Service)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) SetInstances(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstances", arg0)
+}
+
 func (_m *MockService) Replication() ServiceReplication {
 	ret := _m.ctrl.Call(_m, "Replication")
 	ret0, _ := ret[0].(ServiceReplication)
@@ -70,6 +80,16 @@ func (_mr *_MockServiceRecorder) Replication() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Replication")
 }
 
+func (_m *MockService) SetReplication(r ServiceReplication) Service {
+	ret := _m.ctrl.Call(_m, "SetReplication", r)
+	ret0, _ := ret[0].(Service)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) SetReplication(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetReplication", arg0)
+}
+
 func (_m *MockService) Sharding() ServiceSharding {
 	ret := _m.ctrl.Call(_m, "Sharding")
 	ret0, _ := ret[0].(ServiceSharding)
@@ -78,6 +98,16 @@ func (_m *MockService) Sharding() ServiceSharding {
 
 func (_mr *_MockServiceRecorder) Sharding() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Sharding")
+}
+
+func (_m *MockService) SetSharding(s ServiceSharding) Service {
+	ret := _m.ctrl.Call(_m, "SetSharding", s)
+	ret0, _ := ret[0].(Service)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) SetSharding(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSharding", arg0)
 }
 
 // Mock of ServiceReplication interface
@@ -111,6 +141,16 @@ func (_mr *_MockServiceReplicationRecorder) Replicas() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Replicas")
 }
 
+func (_m *MockServiceReplication) SetReplicas(r int) ServiceReplication {
+	ret := _m.ctrl.Call(_m, "SetReplicas", r)
+	ret0, _ := ret[0].(ServiceReplication)
+	return ret0
+}
+
+func (_mr *_MockServiceReplicationRecorder) SetReplicas(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetReplicas", arg0)
+}
+
 // Mock of ServiceSharding interface
 type MockServiceSharding struct {
 	ctrl     *gomock.Controller
@@ -140,6 +180,16 @@ func (_m *MockServiceSharding) Len() int {
 
 func (_mr *_MockServiceShardingRecorder) Len() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Len")
+}
+
+func (_m *MockServiceSharding) SetLen(l int) ServiceSharding {
+	ret := _m.ctrl.Call(_m, "SetLen", l)
+	ret0, _ := ret[0].(ServiceSharding)
+	return ret0
+}
+
+func (_mr *_MockServiceShardingRecorder) SetLen(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetLen", arg0)
 }
 
 // Mock of ServiceInstance interface
