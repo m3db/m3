@@ -172,24 +172,24 @@ func (_m *MockServiceSharding) EXPECT() *_MockServiceShardingRecorder {
 	return _m.recorder
 }
 
-func (_m *MockServiceSharding) Len() int {
-	ret := _m.ctrl.Call(_m, "Len")
+func (_m *MockServiceSharding) NumShards() int {
+	ret := _m.ctrl.Call(_m, "NumShards")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockServiceShardingRecorder) Len() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Len")
+func (_mr *_MockServiceShardingRecorder) NumShards() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NumShards")
 }
 
-func (_m *MockServiceSharding) SetLen(l int) ServiceSharding {
-	ret := _m.ctrl.Call(_m, "SetLen", l)
+func (_m *MockServiceSharding) SetNumShards(n int) ServiceSharding {
+	ret := _m.ctrl.Call(_m, "SetNumShards", n)
 	ret0, _ := ret[0].(ServiceSharding)
 	return ret0
 }
 
-func (_mr *_MockServiceShardingRecorder) SetLen(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetLen", arg0)
+func (_mr *_MockServiceShardingRecorder) SetNumShards(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNumShards", arg0)
 }
 
 // Mock of ServiceInstance interface
