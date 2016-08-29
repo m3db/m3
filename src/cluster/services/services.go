@@ -27,6 +27,9 @@ import (
 
 // Service describes the metadata and instances of a service
 type Service interface {
+	// Instance returns the service instance with the instance id
+	Instance(instanceID string) (ServiceInstance, error)
+
 	// Instances returns the service instances
 	Instances() []ServiceInstance
 
