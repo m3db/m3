@@ -188,7 +188,7 @@ func newMapOptionsFromServiceInstances(service services.Service, hashGen shardin
 	}
 	replicas := service.Replication().Replicas()
 	instances := service.Instances()
-	shardLen := service.Sharding().Len()
+	shardLen := service.Sharding().NumShards()
 
 	allShards, err := validateInstances(instances, replicas, shardLen)
 	if err != nil {
