@@ -21,9 +21,13 @@
 package services
 
 import (
+	"errors"
+
 	"github.com/m3db/m3cluster/shard"
 	xwatch "github.com/m3db/m3x/watch"
 )
+
+var errInstanceNotFound = errors.New("instance not found")
 
 // Service describes the metadata and instances of a service
 type Service interface {
@@ -140,6 +144,14 @@ type service struct {
 	sharding    ServiceSharding
 }
 
+func (s *service) Instance(instanceID string) (ServiceInstance, error) {
+	for _, instance := range s.instances {
+		if instance.ID() == instanceID {
+			return instance, nil
+		}
+	}
+	return nil, errInstanceNotFound
+}
 func (s *service) Instances() []ServiceInstance                 { return s.instances }
 func (s *service) Replication() ServiceReplication              { return s.replication }
 func (s *service) Sharding() ServiceSharding                    { return s.sharding }
