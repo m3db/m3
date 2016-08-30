@@ -50,6 +50,17 @@ func (_m *MockService) EXPECT() *_MockServiceRecorder {
 	return _m.recorder
 }
 
+func (_m *MockService) Instance(instanceID string) (ServiceInstance, error) {
+	ret := _m.ctrl.Call(_m, "Instance", instanceID)
+	ret0, _ := ret[0].(ServiceInstance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockServiceRecorder) Instance(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Instance", arg0)
+}
+
 func (_m *MockService) Instances() []ServiceInstance {
 	ret := _m.ctrl.Call(_m, "Instances")
 	ret0, _ := ret[0].([]ServiceInstance)
