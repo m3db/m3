@@ -232,7 +232,7 @@ func getMockService(ctrl *gomock.Controller) services.Service {
 	mockService.EXPECT().Replication().Return(mockReplication).AnyTimes()
 
 	mockSharding := services.NewMockServiceSharding(ctrl)
-	mockSharding.EXPECT().Len().Return(3).AnyTimes()
+	mockSharding.EXPECT().NumShards().Return(3).AnyTimes()
 	mockService.EXPECT().Sharding().Return(mockSharding).AnyTimes()
 
 	mockService.EXPECT().Instances().Return(goodInstances).AnyTimes()
