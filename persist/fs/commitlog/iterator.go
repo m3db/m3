@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/metrics"
 	"github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -37,9 +37,14 @@ var (
 	errIndexDoesNotMatch    = errors.New("commit log file index does not match filename")
 )
 
+type iteratorMetrics struct {
+	readsErrors tally.Counter
+}
+
 type iterator struct {
 	opts    Options
-	metrics xmetrics.Scope
+	scope   tally.Scope
+	metrics iteratorMetrics
 	log     xlog.Logger
 	files   []string
 	reader  commitLogReader
@@ -65,11 +70,15 @@ func NewIterator(opts Options) (Iterator, error) {
 	if err != nil {
 		return nil, err
 	}
+	scope := iops.GetMetricsScope()
 	return &iterator{
-		opts:    opts,
-		metrics: iops.GetMetricsScope(),
-		log:     iops.GetLogger(),
-		files:   files,
+		opts:  opts,
+		scope: scope,
+		metrics: iteratorMetrics{
+			readsErrors: scope.Counter("reads.errors"),
+		},
+		log:   iops.GetLogger(),
+		files: files,
 	}, nil
 }
 
@@ -91,7 +100,7 @@ func (i *iterator) Next() bool {
 	}
 	if err != nil {
 		// Try the next reader, this enables restoring with best effort from commit logs
-		i.metrics.IncCounter("reads.errors", 1)
+		i.metrics.readsErrors.Inc(1)
 		i.log.Errorf("commit log reader returned error, iterator moving to next file: %v", err)
 		return i.Next()
 	}

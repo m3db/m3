@@ -22,7 +22,7 @@ package instrument
 
 import (
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/metrics"
+	"github.com/uber-go/tally"
 )
 
 // Options represents the options for instrumentation
@@ -34,8 +34,8 @@ type Options interface {
 	GetLogger() xlog.Logger
 
 	// MetricsScope sets the metricsScope
-	MetricsScope(value xmetrics.Scope) Options
+	MetricsScope(value tally.Scope) Options
 
 	// GetMetricsScope returns the metricsScope
-	GetMetricsScope() xmetrics.Scope
+	GetMetricsScope() tally.Scope
 }

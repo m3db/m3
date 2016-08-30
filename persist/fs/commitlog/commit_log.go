@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/metrics"
 	"github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -50,8 +50,10 @@ type commitLog struct {
 	sync.RWMutex
 	opts    Options
 	nowFn   clock.NowFn
-	metrics xmetrics.Scope
-	log     xlog.Logger
+	scope   tally.Scope
+	metrics commitLogMetrics
+
+	log xlog.Logger
 
 	newCommitLogWriterFn newCommitLogWriterFn
 	commitLogFailFn      commitLogFailFn
@@ -69,6 +71,15 @@ type commitLog struct {
 	writerExpireAt time.Time
 	closed         bool
 	closeErr       chan error
+}
+
+type commitLogMetrics struct {
+	queued      tally.Gauge
+	success     tally.Counter
+	errors      tally.Counter
+	openErrors  tally.Counter
+	closeErrors tally.Counter
+	flushErrors tally.Counter
 }
 
 type valueType int
@@ -92,15 +103,26 @@ type commitLogWrite struct {
 func NewCommitLog(opts Options) CommitLog {
 	iops := opts.GetInstrumentOptions()
 	iops = iops.MetricsScope(iops.GetMetricsScope().SubScope("commitlog"))
-	return &commitLog{
-		opts:                 opts,
-		nowFn:                opts.GetClockOptions().GetNowFn(),
-		metrics:              iops.GetMetricsScope(),
+	scope := iops.GetMetricsScope()
+	commitLog := &commitLog{
+		opts:  opts,
+		nowFn: opts.GetClockOptions().GetNowFn(),
+		scope: scope,
+		metrics: commitLogMetrics{
+			queued:      scope.Gauge("writes.queued"),
+			success:     scope.Counter("writes.success"),
+			errors:      scope.Counter("writes.errors"),
+			openErrors:  scope.Counter("writes.open-errors"),
+			closeErrors: scope.Counter("writes.close-errors"),
+			flushErrors: scope.Counter("writes.flush-errors"),
+		},
 		log:                  iops.GetLogger(),
 		newCommitLogWriterFn: newCommitLogWriter,
 		writes:               make(chan commitLogWrite, opts.GetBacklogQueueSize()),
 		closeErr:             make(chan error),
 	}
+
+	return commitLog
 }
 
 func (l *commitLog) Open() error {
@@ -148,8 +170,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 	// the case when writes stall for a considerable time
 	var sleepForOverride time.Duration
 	for {
-		l.metrics.UpdateGauge("writes.queued", int64(len(l.writes)))
-
+		l.metrics.queued.Update(int64(len(l.writes)))
 		sleepFor := interval
 		if sleepForOverride > 0 {
 			sleepFor = sleepForOverride
@@ -205,8 +226,8 @@ func (l *commitLog) write() {
 		now := l.nowFn()
 		if !now.Before(l.writerExpireAt) {
 			if err = l.openWriter(now); err != nil {
-				l.metrics.IncCounter("writes.errors", 1)
-				l.metrics.IncCounter("writes.open-errors", 1)
+				l.metrics.errors.Inc(1)
+				l.metrics.openErrors.Inc(1)
 				l.log.Errorf("failed to open commit log: %v", err)
 				if l.commitLogFailFn != nil {
 					l.commitLogFailFn(err)
@@ -217,7 +238,7 @@ func (l *commitLog) write() {
 
 		err = l.writer.Write(write.series, write.datapoint, write.unit, write.annotation)
 		if err != nil {
-			l.metrics.IncCounter("writes.errors", 1)
+			l.metrics.errors.Inc(1)
 			l.log.Errorf("failed to write to commit log: %v", err)
 			if l.commitLogFailFn != nil {
 				l.commitLogFailFn(err)
@@ -225,7 +246,7 @@ func (l *commitLog) write() {
 			continue
 		}
 
-		l.metrics.IncCounter("writes.success", 1)
+		l.metrics.success.Inc(1)
 	}
 
 	l.Lock()
@@ -242,8 +263,8 @@ func (l *commitLog) onFlush(err error) {
 	l.flushMutex.Unlock()
 
 	if err != nil {
-		l.metrics.IncCounter("writes.errors", 1)
-		l.metrics.IncCounter("writes.flush-errors", 1)
+		l.metrics.errors.Inc(1)
+		l.metrics.flushErrors.Inc(1)
 		l.log.Errorf("failed to flush commit log: %v", err)
 		if l.commitLogFailFn != nil {
 			l.commitLogFailFn(err)
@@ -268,7 +289,7 @@ func (l *commitLog) onFlush(err error) {
 func (l *commitLog) openWriter(now time.Time) error {
 	if l.writer != nil {
 		if err := l.writer.Close(); err != nil {
-			l.metrics.IncCounter("writes.close-errors", 1)
+			l.metrics.closeErrors.Inc(1)
 			l.log.Errorf("failed to close commit log: %v", err)
 			// If we failed to close then create a new commit log writer
 			l.writer = nil
