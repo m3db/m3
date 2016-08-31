@@ -36,6 +36,7 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -56,7 +57,7 @@ var (
 )
 
 const (
-	dbOngoingTasks = 1
+	dbOngoingTasks = 2
 )
 
 type databaseState int
@@ -102,15 +103,65 @@ type db struct {
 	created          uint64
 	tickDeadline     time.Duration
 
+	scope   tally.Scope
+	metrics databaseMetrics
+
 	doneCh chan struct{}
+}
+
+type databaseMetrics struct {
+	bootstrapStatus tally.Gauge
+	tickStatus      tally.Gauge
+
+	tickDeadlineMissed tally.Counter
+	tickDeadlineMet    tally.Counter
+
+	write               methodMetrics
+	read                methodMetrics
+	fetchBlocks         methodMetrics
+	fetchBlocksMetadata methodMetrics
+}
+
+type methodMetrics struct {
+	error   tally.Counter
+	success tally.Counter
+	latency tally.Timer
+}
+
+func newMethodMetrics(scope tally.Scope, name string) methodMetrics {
+	return methodMetrics{
+		error:   scope.Counter(name + ".error"),
+		success: scope.Counter(name + ".success"),
+		latency: scope.Timer(name + ".latency"),
+	}
+}
+
+func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
+	return databaseMetrics{
+		bootstrapStatus: scope.Gauge("bootstrapped"),
+		tickStatus:      scope.Gauge("tick"),
+
+		tickDeadlineMissed: scope.Counter("tick.deadline.missed"),
+		tickDeadlineMet:    scope.Counter("tick.deadline.met"),
+
+		write:               newMethodMetrics(scope, "write"),
+		read:                newMethodMetrics(scope, "read"),
+		fetchBlocks:         newMethodMetrics(scope, "fetchBlocks"),
+		fetchBlocksMetadata: newMethodMetrics(scope, "write"),
+	}
 }
 
 // NewDatabase creates a new database
 func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, opts Options) (Database, error) {
+	iops := opts.GetInstrumentOptions()
+	scope := iops.GetMetricsScope().SubScope("database")
+
 	d := &db{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		tickDeadline: opts.RetentionOptions().BufferDrain(),
+		scope:        scope,
+		metrics:      newDatabaseMetrics(scope),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
 
@@ -160,6 +211,7 @@ func (d *db) Open() error {
 	d.state = databaseOpen
 
 	// All goroutines must be accounted for with dbOngoingTasks to receive done signal
+	go d.reportLoop()
 	go d.ongoingTick()
 	return nil
 }
@@ -196,15 +248,21 @@ func (d *db) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	sw := d.metrics.write.latency.Start()
 	d.RLock()
 	n, exists := d.namespaces[namespace]
 	d.RUnlock()
 
 	if !exists {
+		d.metrics.write.error.Inc(1)
+		d.metrics.write.latency.Stop(sw)
 		return fmt.Errorf("no such namespace %s", namespace)
 	}
 
-	return n.Write(ctx, id, timestamp, value, unit, annotation)
+	err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	d.metrics.write.success.Inc(1)
+	d.metrics.write.latency.Stop(sw)
+	return err
 }
 
 func (d *db) ReadEncoded(
@@ -213,11 +271,19 @@ func (d *db) ReadEncoded(
 	id string,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
+	sw := d.metrics.read.latency.Start()
 	n, err := d.readableNamespace(namespace)
+
 	if err != nil {
+		d.metrics.read.error.Inc(1)
+		d.metrics.read.latency.Stop(sw)
 		return nil, err
 	}
-	return n.ReadEncoded(ctx, id, start, end)
+
+	res, err := n.ReadEncoded(ctx, id, start, end)
+	d.metrics.read.success.Inc(1)
+	d.metrics.read.latency.Stop(sw)
+	return res, err
 }
 
 func (d *db) FetchBlocks(
@@ -227,11 +293,20 @@ func (d *db) FetchBlocks(
 	id string,
 	starts []time.Time,
 ) ([]FetchBlockResult, error) {
+	sw := d.metrics.fetchBlocks.latency.Start()
 	n, err := d.readableNamespace(namespace)
+
 	if err != nil {
-		return nil, xerrors.NewInvalidParamsError(err)
+		res := xerrors.NewInvalidParamsError(err)
+		d.metrics.fetchBlocks.error.Inc(1)
+		d.metrics.fetchBlocks.latency.Stop(sw)
+		return nil, res
 	}
-	return n.FetchBlocks(ctx, shardID, id, starts)
+
+	res, err := n.FetchBlocks(ctx, shardID, id, starts)
+	d.metrics.fetchBlocks.success.Inc(1)
+	d.metrics.fetchBlocks.latency.Stop(sw)
+	return res, err
 }
 
 func (d *db) FetchBlocksMetadata(
@@ -242,11 +317,20 @@ func (d *db) FetchBlocksMetadata(
 	pageToken int64,
 	includeSizes bool,
 ) ([]FetchBlocksMetadataResult, *int64, error) {
+	sw := d.metrics.fetchBlocksMetadata.latency.Start()
 	n, err := d.readableNamespace(namespace)
+
 	if err != nil {
-		return nil, nil, xerrors.NewInvalidParamsError(err)
+		res := xerrors.NewInvalidParamsError(err)
+		d.metrics.fetchBlocksMetadata.error.Inc(1)
+		d.metrics.fetchBlocksMetadata.latency.Stop(sw)
+		return nil, nil, res
 	}
-	return n.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes)
+
+	res, ptr, err := n.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes)
+	d.metrics.fetchBlocksMetadata.success.Inc(1)
+	d.metrics.fetchBlocksMetadata.latency.Stop(sw)
+	return res, ptr, err
 }
 
 func (d *db) Bootstrap() error {
@@ -290,6 +374,24 @@ func (d *db) getOwnedNamespaces() []databaseNamespace {
 	return namespaces
 }
 
+func (d *db) reportLoop() {
+	t := time.Tick(time.Second) // TODO: Make this an option, what is a good default
+
+	for {
+		select {
+		case <-t:
+			if d.IsBootstrapped() {
+				d.metrics.bootstrapStatus.Update(1)
+			} else {
+				d.metrics.bootstrapStatus.Update(0)
+			}
+
+		case <-d.doneCh:
+			return
+		}
+	}
+}
+
 func (d *db) ongoingTick() {
 	for {
 		select {
@@ -321,9 +423,9 @@ func (d *db) splayedTick() {
 	duration := end.Sub(start)
 	// TODO(r): instrument duration of tick
 	if duration > d.tickDeadline {
-		// TODO(r): log an error and/or increment counter
-		_ = "todo"
+		d.metrics.tickDeadlineMissed.Inc(1)
 	} else {
+		d.metrics.tickDeadlineMet.Inc(1)
 		// throttle to reduce locking overhead during ticking
 		time.Sleep(d.tickDeadline - duration)
 	}

@@ -56,6 +56,8 @@ type testStatsReporter struct {
 	timers   map[string]time.Duration
 }
 
+func (r *testStatsReporter) Flush() {}
+
 func (r *testStatsReporter) ReportCounter(name string, tags map[string]string, value int64) {
 	r.m.Lock()
 	r.counters[name] += value
@@ -73,8 +75,6 @@ func (r *testStatsReporter) ReportTimer(name string, tags map[string]string, int
 	r.timers[name] = interval
 	r.m.Unlock()
 }
-
-func (r *testStatsReporter) Flush() {}
 
 // newTestStatsReporter returns a new TestStatsReporter
 func newTestStatsReporter() *testStatsReporter {
