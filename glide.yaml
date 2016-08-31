@@ -1,0 +1,52 @@
+package: github.com/m3db/m3db
+import:
+
+- package: github.com/apache/thrift
+  version: ~0.9.3
+  subpackages:
+  - lib/go/thrift
+  
+- package: github.com/golang/mock
+  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  subpackages:
+  - gomock
+
+- package: github.com/golang/protobuf
+  version: bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
+  subpackages:
+  - proto
+  
+- package: github.com/spaolacci/murmur3
+  version: 0d12bf811670bf6a1a63828dfbd003eded177fce
+  
+- package: github.com/stretchr/testify
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
+  subpackages:
+  - require
+    
+- package: github.com/uber/tchannel-go
+  version: 521248db9bf9eb98e86f0d5334e56a890b6a559b
+  subpackages:
+  - thrift
+  
+- package: github.com/willf/bitset
+  version: 2e6e8094ef4745224150c88c16191c7dceaad16f
+
+- package: github.com/uber-go/tally
+  version: 13a01a2a0dd2ade06c307ccc0ca4e83196c88422
+
+- package: github.com/m3db/m3cluster
+  version: 6b455e628db9157a5e90e500a055e2395da437ef
+  subpackages:
+  - client
+  - services
+  
+- package: github.com/m3db/m3x
+  version: 90e51d6e6c6e648af2f048654390f66034e49dc5
+  subpackages:
+  - close
+  - errors
+  - log
+  - retry
+  - time
+  - watch

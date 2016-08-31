@@ -30,7 +30,7 @@ VENDOR_ENV := GO15VENDOREXPERIMENT=1
 
 SERVICES := \
 	m3dbnode
-	
+
 TOOLS := 
 
 setup:
@@ -69,9 +69,9 @@ tools-linux-amd64:
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
-install-vendor: .gitmodules
-	@echo Updating submodules
-	git submodule update --init --recursive
+install-vendor: install-glide
+	@echo Installing glide deps
+	glide install
 
 install-license-bin: install-vendor
 	@echo Installing node modules
