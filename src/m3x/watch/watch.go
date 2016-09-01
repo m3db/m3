@@ -82,6 +82,10 @@ func (w *watchable) Watch() (interface{}, Watch, error) {
 	}
 
 	c := make(chan struct{}, 1)
+	if w.value != nil {
+		c <- struct{}{}
+	}
+
 	w.active = append(w.active, c)
 	closeFn := w.closeFunc(c)
 	w.Unlock()

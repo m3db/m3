@@ -95,6 +95,24 @@ func TestWatch(t *testing.T) {
 	_, ok = <-s.C()
 	assert.False(t, ok)
 	assert.Equal(t, 0, WatchLen(p.(*watchable)))
+
+	// second watch has initial update
+	p = NewWatchable()
+	_, first, err := p.Watch()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(first.C()))
+
+	p.Update(get)
+	<-first.C()
+	assert.Equal(t, get, first.Get())
+	assert.Equal(t, 0, len(first.C()))
+
+	_, second, err := p.Watch()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(first.C()))
+	<-second.C()
+	assert.Equal(t, get, second.Get())
+	assert.Equal(t, 0, len(second.C()))
 }
 
 func TestMultiWatch(t *testing.T) {
