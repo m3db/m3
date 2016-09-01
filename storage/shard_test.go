@@ -30,8 +30,6 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -65,41 +63,6 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id string, index uin
 	series := NewMockdatabaseSeries(ctrl)
 	shard.lookup[id] = shard.list.PushBack(&dbShardEntry{series: series, index: index})
 	return series
-}
-
-func TestShardBootstrapWithError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	writeStart := time.Now()
-	cutover := time.Now().Add(-time.Minute)
-	opts := testDatabaseOptions()
-	s := testDatabaseShard(opts)
-	fooSeries := NewMockdatabaseSeries(ctrl)
-	fooSeries.EXPECT().ID().Return("foo")
-	barSeries := NewMockdatabaseSeries(ctrl)
-	barSeries.EXPECT().ID().Return("bar")
-	s.lookup["foo"] = s.list.PushBack(&dbShardEntry{series: fooSeries})
-	s.lookup["bar"] = s.list.PushBack(&dbShardEntry{series: barSeries})
-
-	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	fooSeries.EXPECT().Bootstrap(fooBlocks, cutover).Return(nil)
-	barSeries.EXPECT().Bootstrap(barBlocks, cutover).Return(errors.New("series error"))
-	bootstrappedSeries := map[string]block.DatabaseSeriesBlocks{
-		"foo": fooBlocks,
-		"bar": barBlocks,
-	}
-	shardResult := bootstrap.NewMockShardResult(ctrl)
-	shardResult.EXPECT().AllSeries().Return(bootstrappedSeries)
-
-	bs := bootstrap.NewMockBootstrap(ctrl)
-	bs.EXPECT().Run(writeStart, s.shard).Return(shardResult, errors.New("bootstrap error"))
-	err := s.Bootstrap(bs, writeStart, cutover)
-
-	require.NotNil(t, err)
-	require.Equal(t, "error occurred bootstrapping shard 0 from external sources: bootstrap error\nseries error", err.Error())
-	require.Equal(t, bootstrapped, s.bs)
 }
 
 func TestShardFlushDuringBootstrap(t *testing.T) {
@@ -166,8 +129,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		series.EXPECT().
 			Flush(nil, blockStart, gomock.Any()).
 			Do(func(context.Context, time.Time, persist.Fn) {
-				flushed[i] = struct{}{}
-			}).
+			flushed[i] = struct{}{}
+		}).
 			Return(expectedErr)
 		s.list.PushBack(&dbShardEntry{series: series})
 	}

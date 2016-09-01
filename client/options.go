@@ -113,14 +113,14 @@ var (
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
 	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
 
-	errNoTopologyTypeSet           = errors.New("no topology type set")
+	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
 
 type options struct {
 	clockOpts                             clock.Options
 	instrumentOpts                        instrument.Options
-	topologyType                          topology.Type
+	topologyInitializer                   topology.Initializer
 	consistencyLevel                      topology.ConsistencyLevel
 	channelOptions                        *tchannel.ChannelOptions
 	maxConnectionCount                    int
@@ -195,8 +195,8 @@ func newOptions() *options {
 }
 
 func (o *options) Validate() error {
-	if o.topologyType == nil {
-		return errNoTopologyTypeSet
+	if o.topologyInitializer == nil {
+		return errNoTopologyInitializerSet
 	}
 	if o.readerIteratorAllocate == nil {
 		return errNoReaderIteratorAllocateSet
@@ -232,14 +232,14 @@ func (o *options) EncodingM3TSZ() Options {
 	return &opts
 }
 
-func (o *options) TopologyType(value topology.Type) Options {
+func (o *options) TopologyInitializer(value topology.Initializer) Options {
 	opts := *o
-	opts.topologyType = value
+	opts.topologyInitializer = value
 	return &opts
 }
 
-func (o *options) GetTopologyType() topology.Type {
-	return o.topologyType
+func (o *options) GetTopologyInitializer() topology.Initializer {
+	return o.topologyInitializer
 }
 
 func (o *options) ConsistencyLevel(value topology.ConsistencyLevel) Options {

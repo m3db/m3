@@ -157,11 +157,11 @@ type Options interface {
 	// EncodingM3TSZ sets m3tsz encoding
 	EncodingM3TSZ() Options
 
-	// TopologyType sets the topologyType
-	TopologyType(value topology.Type) Options
+	// TopologyInitializer sets the TopologyInitializer
+	TopologyInitializer(value topology.Initializer) Options
 
-	// GetTopologyType returns the topologyType
-	GetTopologyType() topology.Type
+	// GetTopologyInitializer returns the TopologyInitializer
+	GetTopologyInitializer() topology.Initializer
 
 	// ConsistencyLevel sets the consistencyLevel
 	ConsistencyLevel(value topology.ConsistencyLevel) Options

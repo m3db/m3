@@ -37,3 +37,9 @@
 [submodule "vendor/github.com/willf/bitset"]
 	path = vendor/github.com/willf/bitset
 	url = https://github.com/willf/bitset
+[submodule "vendor/github.com/m3db/m3cluster"]
+	path = vendor/github.com/m3db/m3cluster
+	url = https://github.com/m3db/m3cluster
+[submodule "vendor/github.com/uber-go/tally"]
+	path = vendor/github.com/uber-go/tally
+	url = https://github.com/uber-go/tally

@@ -124,14 +124,9 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	bs := bsm.newBootstrapFn()
 	result, err := bs.Run(writeStart, shardIDs)
 	if err != nil {
-		bsm.log.Errorf("fatal bootstrap error: %v", err)
+		bsm.log.Errorf("bootstrap aborted due to error: %v", err)
 		multiErr = multiErr.Add(err)
 	} else {
-		if len(result.Unfulfilled()) > 0 {
-			str := result.Unfulfilled().String()
-			bsm.log.Errorf("bootstrap finished with unfulfilled time ranges: %s", str)
-		}
-
 		cutover := bsm.cutoverTime(writeStart)
 		results := result.ShardResults()
 		for _, shard := range shards {
@@ -142,6 +137,11 @@ func (bsm *bootstrapManager) Bootstrap() error {
 
 			err := shard.Bootstrap(bootstrappedSeries, writeStart, cutover)
 			multiErr = multiErr.Add(err)
+		}
+
+		if len(result.Unfulfilled()) > 0 {
+			str := result.Unfulfilled().String()
+			bsm.log.Errorf("bootstrap finished with unfulfilled time ranges: %s", str)
 		}
 	}
 

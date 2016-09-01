@@ -33,8 +33,6 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/topology"
-
-	"github.com/spaolacci/murmur3"
 )
 
 // DefaultShardSet creates a default shard set.
@@ -45,9 +43,7 @@ func DefaultShardSet() (sharding.ShardSet, error) {
 		shards = append(shards, i)
 	}
 
-	return sharding.NewShardSet(shards, func(id string) uint32 {
-		return murmur3.Sum32([]byte(id)) % shardsLen
-	})
+	return sharding.NewShardSet(shards, sharding.DefaultHashGen(1024))
 }
 
 // DefaultClientOptions creates a default m3db client options.
@@ -60,11 +56,12 @@ func DefaultClientOptions(id, tchannelNodeAddr string, shardSet sharding.ShardSe
 	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
 
 	hostShardSet := topology.NewHostShardSet(topology.NewHost(id, localNodeAddr), shardSet)
-	topologyOptions := topology.NewStaticTypeOptions().
+	staticOptions := topology.NewStaticOptions().
 		ShardSet(shardSet).
 		Replicas(1).
 		HostShardSets([]topology.HostShardSet{hostShardSet})
-	return client.NewOptions().TopologyType(topology.NewStaticType(topologyOptions)), nil
+
+	return client.NewOptions().TopologyInitializer(topology.NewStaticInitializer(staticOptions)), nil
 }
 
 // Serve starts up the tchannel server as well as the http server.
@@ -78,7 +75,10 @@ func Serve(
 	doneCh chan struct{},
 ) error {
 	log := storageOpts.GetInstrumentOptions().GetLogger()
-	shardSet := clientOpts.GetTopologyType().Options().GetShardSet()
+	shardSet, err := DefaultShardSet()
+	if err != nil {
+		return err
+	}
 	db, err := storage.NewDatabase(shardSet, storageOpts)
 	if err != nil {
 		return err

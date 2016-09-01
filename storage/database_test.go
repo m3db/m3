@@ -30,14 +30,11 @@ import (
 	"github.com/m3db/m3x/errors"
 
 	"github.com/golang/mock/gomock"
-	"github.com/spaolacci/murmur3"
 	"github.com/stretchr/testify/require"
 )
 
 func testShardSet(t *testing.T) sharding.ShardSet {
-	shardSet, err := sharding.NewShardSet([]uint32{397}, func(id string) uint32 {
-		return murmur3.Sum32([]byte(id)) % 1024
-	})
+	shardSet, err := sharding.NewShardSet([]uint32{397}, sharding.DefaultHashGen(1024))
 	require.NoError(t, err)
 	return shardSet
 }
