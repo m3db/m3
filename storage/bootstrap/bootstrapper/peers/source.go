@@ -40,9 +40,7 @@ func newPeersSource(opts Options) bootstrap.Source {
 
 func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 	switch strategy {
-	case bootstrap.BootstrapParallel:
-		return true
-	case bootstrap.BootstrapSequential:
+	case bootstrap.BootstrapParallel, bootstrap.BootstrapSequential:
 		return true
 	}
 	return false

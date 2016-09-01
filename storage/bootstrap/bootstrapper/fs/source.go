@@ -51,9 +51,7 @@ func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 
 func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
 	switch strategy {
-	case bootstrap.BootstrapParallel:
-		return true
-	case bootstrap.BootstrapSequential:
+	case bootstrap.BootstrapParallel, bootstrap.BootstrapSequential:
 		return true
 	}
 	return false
