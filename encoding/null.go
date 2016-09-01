@@ -21,6 +21,8 @@
 package encoding
 
 import (
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/m3db/m3db/ts"
@@ -48,3 +50,18 @@ func (e *nullEncoder) Unseal() error                                        { re
 func (e *nullEncoder) Reset(t time.Time, capacity int)                      {}
 func (e *nullEncoder) ResetSetData(t time.Time, data []byte, writable bool) { e.data = data }
 func (e *nullEncoder) Close()                                               {}
+
+type nullReaderIterator struct{}
+
+// NewNullReaderIterator returns a new reader iterator that performs no operations
+func NewNullReaderIterator() ReaderIterator {
+	return &nullReaderIterator{}
+}
+
+func (r *nullReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+	return ts.Datapoint{}, xtime.Unit(0), nil
+}
+func (r *nullReaderIterator) Next() bool             { return false }
+func (r *nullReaderIterator) Err() error             { return fmt.Errorf("not implemented") }
+func (r *nullReaderIterator) Close()                 {}
+func (r *nullReaderIterator) Reset(reader io.Reader) {}

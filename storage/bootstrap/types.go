@@ -21,6 +21,8 @@
 package bootstrap
 
 import (
+	"bytes"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/instrument"
@@ -32,11 +34,31 @@ import (
 // NewBootstrapFn creates a new bootstrap processor.
 type NewBootstrapFn func() Bootstrap
 
+// Result is the result of a bootstrap.
+type Result interface {
+	// ShardResults is the results of all shards for the bootstrap.
+	ShardResults() ShardResults
+
+	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
+	Unfulfilled() ShardTimeRanges
+
+	// AddShardResult adds a shard result with any unfulfilled time ranges.
+	AddShardResult(shard uint32, result ShardResult, unfulfilled xtime.Ranges)
+
+	// SetUnfulfilled sets the current unfulfilled shard time ranges.
+	SetUnfulfilled(unfulfilled ShardTimeRanges)
+
+	// AddResult adds a result.
+	AddResult(other Result)
+}
+
 // ShardResult returns the bootstrap result for a shard.
 type ShardResult interface {
-
 	// IsEmpty returns whether the result is empty.
 	IsEmpty() bool
+
+	// AllSeries returns all series of blocks.
+	AllSeries() map[string]block.DatabaseSeriesBlocks
 
 	// AddBlock adds a data block.
 	AddBlock(id string, block block.DatabaseBlock)
@@ -50,34 +72,143 @@ type ShardResult interface {
 	// RemoveSeries removes a single series of blocks.
 	RemoveSeries(id string)
 
-	// GetAllSeries returns all series of blocks.
-	GetAllSeries() map[string]block.DatabaseSeriesBlocks
-
 	// Close closes a shard result.
 	Close()
+}
+
+// ShardResults is a map of shards to shard results.
+type ShardResults map[uint32]ShardResult
+
+// AddResults adds other shard results to the current shard results.
+func (r ShardResults) AddResults(other ShardResults) {
+	for shard, result := range other {
+		if existing, ok := r[shard]; ok {
+			existing.AddResult(result)
+		} else {
+			r[shard] = result
+		}
+	}
+}
+
+// ShardTimeRanges is a map of shards to time ranges.
+type ShardTimeRanges map[uint32]xtime.Ranges
+
+// IsEmpty returns whether the shard time ranges is empty or not.
+func (r ShardTimeRanges) IsEmpty() bool {
+	for _, ranges := range r {
+		if !xtime.IsEmpty(ranges) {
+			return false
+		}
+	}
+	return true
+}
+
+// Equal returns whether two shard time ranges are equal.
+func (r ShardTimeRanges) Equal(other ShardTimeRanges) bool {
+	if len(r) != len(other) {
+		return false
+	}
+	for shard, ranges := range r {
+		otherRanges, ok := other[shard]
+		if !ok {
+			return false
+		}
+		matched := 0
+		it := ranges.Iter()
+		otherIt := otherRanges.Iter()
+		if it.Next() && otherIt.Next() {
+			value := it.Value()
+			otherValue := otherIt.Value()
+			if !value.Start.Equal(otherValue.Start) ||
+				!value.End.Equal(otherValue.End) {
+				return false
+			}
+			matched++
+		}
+		if matched != ranges.Len() {
+			return false
+		}
+	}
+	return true
+}
+
+// AddRanges adds other shard time ranges to the current shard time ranges.
+func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
+	for shard, ranges := range other {
+		if xtime.IsEmpty(ranges) {
+			continue
+		}
+		if existing, ok := r[shard]; ok {
+			r[shard] = existing.AddRanges(ranges)
+		} else {
+			r[shard] = ranges
+		}
+	}
+}
+
+// ToUnfulfilledResult will return a result that is comprised of wholly
+// unfufilled time ranges from the set of shard time ranges.
+func (r ShardTimeRanges) ToUnfulfilledResult() Result {
+	result := NewResult()
+	for shard, ranges := range r {
+		result.AddShardResult(shard, nil, ranges)
+	}
+	return result
+}
+
+// String returns a description of the time ranges
+func (r ShardTimeRanges) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("{")
+	hasPrev := false
+	for shard, ranges := range r {
+		buf.WriteString(fmt.Sprintf("%d: %s", shard, ranges.String()))
+		if hasPrev {
+			buf.WriteString(", ")
+		}
+		hasPrev = true
+	}
+	buf.WriteString("}")
+	return buf.String()
 }
 
 // Bootstrap represents the bootstrap process.
 type Bootstrap interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(writeStart time.Time, shard uint32) (ShardResult, error)
+	Run(writeStart time.Time, shards []uint32) (Result, error)
 }
+
+// Strategy describes a bootstrap strategy.
+type Strategy int
+
+const (
+	// BootstrapSequential describes whether a bootstrap can use the sequential bootstrap strategy.
+	BootstrapSequential Strategy = iota
+	// BootstrapParallel describes whether a bootstrap can use the parallel bootstrap strategy.
+	BootstrapParallel
+)
 
 // Bootstrapper is the interface for different bootstrapping mechanisms.
 type Bootstrapper interface {
+	// Can returns whether a specific bootstrapper strategy can be applied.
+	Can(strategy Strategy) bool
+
 	// Bootstrap performs bootstrapping for the given time ranges, returning the bootstrapped
-	// series data, the time ranges it's unable to fulfill, and any critical errors during bootstrapping.
-	Bootstrap(shard uint32, timeRanges xtime.Ranges) (ShardResult, xtime.Ranges)
+	// series data and the time ranges it's unable to fulfill in parallel.
+	Bootstrap(shardsTimeRanges ShardTimeRanges) (Result, error)
 }
 
-// Source is the data source for bootstrapping a node.
+// Source represents a bootstrap source.
 type Source interface {
-	// GetAvailability returns what time ranges are available for a given shard.
-	GetAvailability(shard uint32, targetRanges xtime.Ranges) xtime.Ranges
+	// Can returns whether a specific bootstrapper strategy can be applied.
+	Can(strategy Strategy) bool
 
-	// ReadData returns raw series for a given shard within certain time ranges,
-	// the time ranges it's unable to fulfill, and any critical errors during bootstrapping.
-	ReadData(shard uint32, tr xtime.Ranges) (ShardResult, xtime.Ranges)
+	// Available returns what time ranges are available for a given set of shards.
+	Available(shardsTimeRanges ShardTimeRanges) ShardTimeRanges
+
+	// Read returns raw series for a given set of shards & specified time ranges and
+	// the time ranges it's unable to fulfill.
+	Read(shardsTimeRanges ShardTimeRanges) (Result, error)
 }
 
 // Options represents the options for bootstrapping
@@ -99,16 +230,4 @@ type Options interface {
 
 	// GetDatabaseBlockOptions returns the database block options
 	GetDatabaseBlockOptions() block.Options
-
-	// ThrottlePeriod sets how long we wait till the next iteration of bootstrap starts by default
-	ThrottlePeriod(value time.Duration) Options
-
-	// GetThrottlePeriod returns how long we wait till the next iteration of bootstrap starts by default
-	GetThrottlePeriod() time.Duration
-
-	// MaxRetries is the maximum number of bootstrap retries
-	MaxRetries(value int) Options
-
-	// GetMaxRetries returns the maximum number of bootstrap retries
-	GetMaxRetries() int
 }

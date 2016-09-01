@@ -30,5 +30,6 @@
 //go:generate sh -c "mockgen -package=block -destination=$GOPATH/src/$PACKAGE/storage/block/block_mock.go -source=$GOPATH/src/$PACKAGE/storage/block/types.go"
 //go:generate sh -c "mockgen -package=rpc -destination=$GOPATH/src/$PACKAGE/generated/thrift/rpc/rpc_mock.go -source=$GOPATH/src/$PACKAGE/generated/thrift/rpc/tchan-rpc.go"
 //go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/client_mock.go -source=$GOPATH/src/$PACKAGE/client/types.go"
+//go:generate sh -c "mockgen -package=commitlog -destination=$GOPATH/src/$PACKAGE/persist/fs/commitlog/commit_log_mock.go -source=$GOPATH/src/$PACKAGE/persist/fs/commitlog/types.go"
 
 package mocks

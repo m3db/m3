@@ -21,70 +21,211 @@
 package commitlog
 
 import (
+	"fmt"
+	"io"
+	"time"
+
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
 
-// commitLogSource provides information about commit log data stored on disk.
+type newIteratorFn func(opts commitlog.Options) (commitlog.Iterator, error)
+
 type commitLogSource struct {
-	opts Options
+	opts          Options
+	log           xlog.Logger
+	newIteratorFn newIteratorFn
 }
 
-// newCommitLogSource creates a new commit log based database.
+type encoder struct {
+	lastWriteAt time.Time
+	enc         encoding.Encoder
+}
+
 func newCommitLogSource(opts Options) bootstrap.Source {
-	return &commitLogSource{opts: opts}
+	return &commitLogSource{
+		opts:          opts,
+		log:           opts.GetBootstrapOptions().GetInstrumentOptions().GetLogger(),
+		newIteratorFn: commitlog.NewIterator,
+	}
 }
 
-// GetAvailability returns what time ranges are available for a given shard.
-func (s *commitLogSource) GetAvailability(shard uint32, targetRangesForShard xtime.Ranges) xtime.Ranges {
-	return targetRangesForShard
+func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
+	switch strategy {
+	case bootstrap.BootstrapSequential:
+		return true
+	}
+	return false
 }
 
-// ReadData returns raw series for a given shard within certain time ranges.
-func (s *commitLogSource) ReadData(shard uint32, tr xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
-	bopts := s.opts.GetBootstrapOptions()
-	log := bopts.GetInstrumentOptions().GetLogger()
+func (s *commitLogSource) Available(shardsTimeRanges bootstrap.ShardTimeRanges) bootstrap.ShardTimeRanges {
+	// Commit log bootstrapper is a last ditch effort, so fulfill all
+	// time ranges requested even if not enough data, just to succeed
+	// the bootstrap
+	return shardsTimeRanges
+}
 
-	if xtime.IsEmpty(tr) {
-		return nil, tr
+func (s *commitLogSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
+	if shardsTimeRanges.IsEmpty() {
+		return nil, nil
 	}
 
-	iter, err := commitlog.NewIterator(s.opts.GetCommitLogOptions())
+	iter, err := s.newIteratorFn(s.opts.GetCommitLogOptions())
 	if err != nil {
-		log.Errorf("unable to create commit log iterator: %v", err)
-		return nil, tr
+		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
 
 	defer iter.Close()
 
-	seriesMap := bootstrap.NewShardResult(bopts)
-	blockSize := bopts.GetRetentionOptions().GetBlockSize()
-	errs := 0
+	var (
+		unmerged    = make(map[uint32]map[string]map[time.Time][]encoder)
+		bopts       = s.opts.GetBootstrapOptions()
+		blopts      = bopts.GetDatabaseBlockOptions()
+		blockSize   = bopts.GetRetentionOptions().GetBlockSize()
+		encoderPool = bopts.GetDatabaseBlockOptions().GetEncoderPool()
+		errs        = 0
+	)
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if series.Shard != shard {
+
+		blockStart := dp.Timestamp.Truncate(blockSize)
+		blockEnd := blockStart.Add(blockSize)
+		blockRange := xtime.Range{
+			Start: blockStart,
+			End:   blockEnd,
+		}
+
+		ranges, ok := shardsTimeRanges[series.Shard]
+		if !ok {
+			// Not bootstrapping this shard
+			continue
+		}
+		if !ranges.Overlaps(blockRange) {
+			// Data in this block does not match the requested ranges
 			continue
 		}
 
-		blocks, ok := seriesMap.GetAllSeries()[series.ID]
+		unmergedShard, ok := unmerged[series.Shard]
 		if !ok {
-			blocks = block.NewDatabaseSeriesBlocks(bopts.GetDatabaseBlockOptions())
-			seriesMap.AddSeries(series.ID, blocks)
+			unmergedShard = make(map[string]map[time.Time][]encoder)
+			unmerged[series.Shard] = unmergedShard
 		}
 
-		block := blocks.GetBlockOrAdd(dp.Timestamp.Truncate(blockSize))
-		if err := block.Write(dp.Timestamp, dp.Value, unit, annotation); err != nil {
+		unmergedSeries, ok := unmergedShard[series.ID]
+		if !ok {
+			unmergedSeries = make(map[time.Time][]encoder)
+			unmergedShard[series.ID] = unmergedSeries
+		}
+
+		var (
+			err           error
+			unmergedBlock = unmergedSeries[blockStart]
+			wroteExisting = false
+		)
+		for i := range unmergedBlock {
+			if unmergedBlock[i].lastWriteAt.Before(dp.Timestamp) {
+				unmergedBlock[i].lastWriteAt = dp.Timestamp
+				err = unmergedBlock[i].enc.Encode(dp, unit, annotation)
+				wroteExisting = true
+				break
+			}
+		}
+		if !wroteExisting {
+			enc := encoderPool.Get()
+			enc.Reset(blockStart, blopts.GetDatabaseBlockAllocSize())
+
+			err = enc.Encode(dp, unit, annotation)
+			if err == nil {
+				unmergedBlock = append(unmergedBlock, encoder{
+					lastWriteAt: dp.Timestamp,
+					enc:         enc,
+				})
+				unmergedSeries[blockStart] = unmergedBlock
+			}
+		}
+		if err != nil {
 			errs++
 		}
 	}
 	if errs > 0 {
-		log.Errorf("error bootstrapping from commit log: %d block encode errors", errs)
+		s.log.Errorf("error bootstrapping from commit log: %d block encode errors", errs)
 	}
 	if err := iter.Err(); err != nil {
-		log.Errorf("error reading commit log: %v", err)
+		s.log.Errorf("error reading commit log: %v", err)
 	}
 
-	return seriesMap, tr
+	errs = 0
+	emptyErrs := 0
+	result := bootstrap.NewResult()
+	blocksPool := bopts.GetDatabaseBlockOptions().GetDatabaseBlockPool()
+	multiReaderIteratorPool := blopts.GetMultiReaderIteratorPool()
+	for shard, unmergedShard := range unmerged {
+		shardResult := bootstrap.NewShardResult(s.opts.GetBootstrapOptions())
+		for id, unmergedBlocks := range unmergedShard {
+			blocks := block.NewDatabaseSeriesBlocks(blopts)
+			for start, unmergedBlock := range unmergedBlocks {
+				block := blocksPool.Get()
+				if len(unmergedBlock) == 0 {
+					emptyErrs++
+					continue
+				} else if len(unmergedBlock) == 1 {
+					block.Reset(start, unmergedBlock[0].enc)
+				} else {
+					readers := make([]io.Reader, len(unmergedBlock))
+					for i := range unmergedBlock {
+						readers[i] = unmergedBlock[i].enc.Stream()
+					}
+
+					iter := multiReaderIteratorPool.Get()
+					iter.Reset(readers)
+
+					var err error
+					enc := encoderPool.Get()
+					enc.Reset(start, blopts.GetDatabaseBlockAllocSize())
+					for iter.Next() {
+						dp, unit, annotation := iter.Current()
+						encodeErr := enc.Encode(dp, unit, annotation)
+						if encodeErr != nil {
+							err = encodeErr
+							errs++
+							break
+						}
+					}
+					if err != nil {
+						err = iter.Err()
+					}
+
+					iter.Close()
+					for i := range unmergedBlock {
+						unmergedBlock[i].enc.Close()
+					}
+
+					if err != nil {
+						continue
+					}
+
+					block.Reset(start, enc)
+				}
+				blocks.AddBlock(block)
+			}
+			if blocks.Len() > 0 {
+				shardResult.AddSeries(id, blocks)
+			}
+		}
+		if len(shardResult.AllSeries()) > 0 {
+			result.AddShardResult(shard, shardResult, nil)
+		}
+	}
+	if errs > 0 {
+		s.log.Errorf("error bootstrapping from commit log: %d merge out of order errors", errs)
+	}
+	if emptyErrs > 0 {
+		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrs)
+	}
+
+	return result, nil
 }

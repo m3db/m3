@@ -648,7 +648,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	r := newBlocksResult(opts, bopts)
 	r.addBlockFromPeer("foo", bl)
 
-	series := r.result.GetAllSeries()
+	series := r.result.AllSeries()
 	assert.Equal(t, 1, len(series))
 
 	blocks, ok := series["foo"]
@@ -736,7 +736,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	r := newBlocksResult(opts, bopts)
 	r.addBlockFromPeer("foo", bl)
 
-	series := r.result.GetAllSeries()
+	series := r.result.AllSeries()
 	assert.Equal(t, 1, len(series))
 
 	blocks, ok := series["foo"]
@@ -1199,7 +1199,7 @@ func assertFetchBootstrapBlocksResult(
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	series := actual.GetAllSeries()
+	series := actual.AllSeries()
 	assert.Equal(t, len(expected), len(series))
 
 	for i := range expected {

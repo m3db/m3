@@ -91,7 +91,7 @@ func TestShardBootstrapWithError(t *testing.T) {
 		"bar": barBlocks,
 	}
 	shardResult := bootstrap.NewMockShardResult(ctrl)
-	shardResult.EXPECT().GetAllSeries().Return(bootstrappedSeries)
+	shardResult.EXPECT().AllSeries().Return(bootstrappedSeries)
 
 	bs := bootstrap.NewMockBootstrap(ctrl)
 	bs.EXPECT().Run(writeStart, s.shard).Return(shardResult, errors.New("bootstrap error"))

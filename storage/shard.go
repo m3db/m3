@@ -22,7 +22,6 @@ package storage
 
 import (
 	"container/list"
-	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -32,7 +31,6 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
@@ -335,7 +333,11 @@ func (s *dbShard) FetchBlocksMetadata(
 	return res, pNextPageToken
 }
 
-func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error {
+func (s *dbShard) Bootstrap(
+	bootstrappedSeries map[string]block.DatabaseSeriesBlocks,
+	writeStart time.Time,
+	cutover time.Time,
+) error {
 	s.Lock()
 	if s.bs == bootstrapped {
 		s.Unlock()
@@ -349,22 +351,11 @@ func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutove
 	s.Unlock()
 
 	multiErr := xerrors.NewMultiError()
-	sr, err := bs.Run(writeStart, s.shard)
-	if err != nil {
-		renamedErr := fmt.Errorf("error occurred bootstrapping shard %d from external sources: %v", s.shard, err)
-		err = xerrors.NewRenamedError(err, renamedErr)
+	for id, dbBlocks := range bootstrappedSeries {
+		series, _, completionFn := s.writableSeries(id)
+		err := series.Bootstrap(dbBlocks, cutover)
+		completionFn()
 		multiErr = multiErr.Add(err)
-	}
-
-	var bootstrappedSeries map[string]block.DatabaseSeriesBlocks
-	if sr != nil {
-		bootstrappedSeries = sr.GetAllSeries()
-		for id, dbBlocks := range bootstrappedSeries {
-			series, _, completionFn := s.writableSeries(id)
-			err := series.Bootstrap(dbBlocks, cutover)
-			completionFn()
-			multiErr = multiErr.Add(err)
-		}
 	}
 
 	// From this point onwards, all newly created series that aren't in

@@ -50,7 +50,7 @@ const (
 var (
 	// defaultNewBootstrapFn is the default function for creating a new bootstrap
 	defaultNewBootstrapFn = func() bootstrap.Bootstrap {
-		return bootstrap.NewNoOpBootstrapProcess(bootstrap.NewOptions())
+		return bootstrap.NewNoOpBootstrapProcess()
 	}
 
 	// defaultNewPersistManagerFn is the default function for creating a new persist manager
@@ -198,7 +198,11 @@ func (o *options) EncodingM3TSZPooled() Options {
 	})
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
-	opts.blockOpts = opts.blockOpts.EncoderPool(encoderPool)
+	opts.blockOpts = opts.blockOpts.
+		EncoderPool(encoderPool).
+		ReaderIteratorPool(readerIteratorPool).
+		MultiReaderIteratorPool(multiReaderIteratorPool)
+
 	return (&opts).encodingM3TSZ()
 }
 

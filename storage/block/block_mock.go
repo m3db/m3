@@ -382,6 +382,46 @@ func (_mr *_MockOptionsRecorder) GetEncoderPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetEncoderPool")
 }
 
+func (_m *MockOptions) ReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
+	ret := _m.ctrl.Call(_m, "ReaderIteratorPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ReaderIteratorPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderIteratorPool", arg0)
+}
+
+func (_m *MockOptions) GetReaderIteratorPool() encoding.ReaderIteratorPool {
+	ret := _m.ctrl.Call(_m, "GetReaderIteratorPool")
+	ret0, _ := ret[0].(encoding.ReaderIteratorPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) GetReaderIteratorPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetReaderIteratorPool")
+}
+
+func (_m *MockOptions) MultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
+	ret := _m.ctrl.Call(_m, "MultiReaderIteratorPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) MultiReaderIteratorPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MultiReaderIteratorPool", arg0)
+}
+
+func (_m *MockOptions) GetMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
+	ret := _m.ctrl.Call(_m, "GetMultiReaderIteratorPool")
+	ret0, _ := ret[0].(encoding.MultiReaderIteratorPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) GetMultiReaderIteratorPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMultiReaderIteratorPool")
+}
+
 func (_m *MockOptions) SegmentReaderPool(value io.SegmentReaderPool) Options {
 	ret := _m.ctrl.Call(_m, "SegmentReaderPool", value)
 	ret0, _ := ret[0].(Options)

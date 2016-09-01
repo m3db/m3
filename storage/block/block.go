@@ -192,6 +192,10 @@ func NewDatabaseSeriesBlocks(opts Options) DatabaseSeriesBlocks {
 	}
 }
 
+func (dbb *databaseSeriesBlocks) Options() Options {
+	return dbb.opts
+}
+
 func (dbb *databaseSeriesBlocks) Len() int {
 	return len(dbb.elems)
 }

@@ -20,19 +20,15 @@
 
 package bootstrap
 
-import (
-	"time"
-)
+import "time"
 
-type noOpBootstrapProcess struct {
-	opts Options
-}
+type noOpBootstrapProcess struct{}
 
 // NewNoOpBootstrapProcess creates a no-op bootstrap process.
-func NewNoOpBootstrapProcess(opts Options) Bootstrap {
-	return &noOpBootstrapProcess{opts: opts}
+func NewNoOpBootstrapProcess() Bootstrap {
+	return &noOpBootstrapProcess{}
 }
 
-func (b *noOpBootstrapProcess) Run(writeStart time.Time, shard uint32) (ShardResult, error) {
-	return NewShardResult(b.opts), nil
+func (b *noOpBootstrapProcess) Run(writeStart time.Time, shards []uint32) (Result, error) {
+	return NewResult(), nil
 }

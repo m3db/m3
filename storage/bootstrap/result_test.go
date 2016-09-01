@@ -60,7 +60,7 @@ func TestAddBlockToResult(t *testing.T) {
 		block.Reset(input.timestamp, nil)
 		sr.AddBlock(input.id, block)
 	}
-	allSeries := sr.GetAllSeries()
+	allSeries := sr.AllSeries()
 	require.Len(t, allSeries, 2)
 	require.Equal(t, 2, allSeries["foo"].Len())
 	require.Equal(t, 1, allSeries["bar"].Len())
@@ -85,7 +85,7 @@ func TestAddSeriesToResult(t *testing.T) {
 	block.Reset(start, nil)
 	moreSeries.AddBlock(block)
 	sr.AddSeries("foo", moreSeries)
-	allSeries := sr.GetAllSeries()
+	allSeries := sr.AllSeries()
 	require.Len(t, allSeries, 2)
 	require.Equal(t, 1, allSeries["foo"].Len())
 	require.Equal(t, 0, allSeries["bar"].Len())
@@ -100,7 +100,7 @@ func TestAddResultToResult(t *testing.T) {
 	other.AddSeries("foo", block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions()))
 	other.AddSeries("bar", block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions()))
 	sr.AddResult(other)
-	require.Len(t, sr.GetAllSeries(), 2)
+	require.Len(t, sr.AllSeries(), 2)
 }
 
 func TestRemoveSeriesFromResult(t *testing.T) {
@@ -116,9 +116,9 @@ func TestRemoveSeriesFromResult(t *testing.T) {
 	for _, input := range inputs {
 		sr.AddSeries(input.id, input.series)
 	}
-	require.Equal(t, 2, len(sr.GetAllSeries()))
+	require.Equal(t, 2, len(sr.AllSeries()))
 	sr.RemoveSeries("bar")
-	require.Equal(t, 1, len(sr.GetAllSeries()))
+	require.Equal(t, 1, len(sr.AllSeries()))
 	sr.RemoveSeries("nonexistent")
-	require.Equal(t, 1, len(sr.GetAllSeries()))
+	require.Equal(t, 1, len(sr.AllSeries()))
 }

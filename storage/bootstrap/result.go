@@ -22,14 +22,57 @@ package bootstrap
 
 import (
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3x/time"
 )
+
+type result struct {
+	results     ShardResults
+	unfulfilled ShardTimeRanges
+}
+
+// NewResult creates a new result.
+func NewResult() Result {
+	return &result{
+		results:     make(ShardResults),
+		unfulfilled: make(ShardTimeRanges),
+	}
+}
+
+func (r *result) ShardResults() ShardResults {
+	return r.results
+}
+
+func (r *result) Unfulfilled() ShardTimeRanges {
+	return r.unfulfilled
+}
+
+func (r *result) AddShardResult(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
+	if result != nil && len(result.AllSeries()) > 0 {
+		r.results[shard] = result
+	}
+	if unfulfilled != nil && !unfulfilled.IsEmpty() {
+		r.unfulfilled[shard] = unfulfilled
+	}
+}
+
+func (r *result) SetUnfulfilled(unfulfilled ShardTimeRanges) {
+	r.unfulfilled = unfulfilled
+}
+
+func (r *result) AddResult(other Result) {
+	if other == nil {
+		return
+	}
+	r.results.AddResults(other.ShardResults())
+	r.unfulfilled.AddRanges(other.Unfulfilled())
+}
 
 type shardResult struct {
 	opts   Options
 	blocks map[string]block.DatabaseSeriesBlocks
 }
 
-// NewShardResult creates a new TSMap instance.
+// NewShardResult creates a new shard result.
 func NewShardResult(opts Options) ShardResult {
 	return &shardResult{
 		opts:   opts,
@@ -67,7 +110,7 @@ func (sr *shardResult) AddResult(other ShardResult) {
 	if other == nil {
 		return
 	}
-	otherSeries := other.GetAllSeries()
+	otherSeries := other.AllSeries()
 	for id, rawSeries := range otherSeries {
 		sr.AddSeries(id, rawSeries)
 	}
@@ -78,8 +121,8 @@ func (sr *shardResult) RemoveSeries(id string) {
 	delete(sr.blocks, id)
 }
 
-// GetAllSeries returns all series in the map.
-func (sr *shardResult) GetAllSeries() map[string]block.DatabaseSeriesBlocks {
+// AllSeries returns all series in the map.
+func (sr *shardResult) AllSeries() map[string]block.DatabaseSeriesBlocks {
 	return sr.blocks
 }
 

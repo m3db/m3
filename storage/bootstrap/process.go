@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	errMaxRetriesExceeded = errors.New("max retries exceeded")
+	errUnfulfilledRanges = errors.New("bootstrap finished with unfulfilled ranges")
 )
 
 // bootstrapProcess represents the bootstrapping process.
@@ -68,26 +68,35 @@ func (b *bootstrapProcess) initTimeRanges(writeStart time.Time) xtime.Ranges {
 }
 
 // bootstrap returns the bootstrapped results for a given shard time ranges.
-func (b *bootstrapProcess) bootstrap(shard uint32, timeRanges xtime.Ranges) (ShardResult, error) {
-	results := NewShardResult(b.opts)
-	for i := 0; i < b.opts.GetMaxRetries(); i++ {
-		res, unfulfilled := b.bootstrapper.Bootstrap(shard, timeRanges)
-		results.AddResult(res)
-		if xtime.IsEmpty(unfulfilled) {
-			return results, nil
+func (b *bootstrapProcess) bootstrap(timeRanges xtime.Ranges, shards []uint32) (Result, error) {
+	result := NewResult()
+
+	it := timeRanges.Iter()
+	for it.Next() {
+		shardsTimeRanges := make(map[uint32]xtime.Ranges, len(shards))
+
+		r := xtime.NewRanges()
+		r.AddRange(it.Value())
+		for _, s := range shards {
+			shardsTimeRanges[s] = r
 		}
-		// If there are still unfulfilled time ranges, sleep for a while and retry.
-		time.Sleep(b.opts.GetThrottlePeriod())
+
+		res, err := b.bootstrapper.Bootstrap(shardsTimeRanges)
+		if err != nil {
+			return nil, err
+		}
+		result.AddResult(res)
 	}
-	return results, errMaxRetriesExceeded
+
+	return result, nil
 }
 
 // Run initiates the bootstrap process, where writeStart is when we start
 // accepting incoming writes.
-func (b *bootstrapProcess) Run(writeStart time.Time, shard uint32) (ShardResult, error) {
+func (b *bootstrapProcess) Run(writeStart time.Time, shards []uint32) (Result, error) {
 
-	// initializes the target range we'd like to bootstrap
+	// Initialize the target range we'd like to bootstrap
 	unfulfilledRanges := b.initTimeRanges(writeStart)
 
-	return b.bootstrap(shard, unfulfilledRanges)
+	return b.bootstrap(unfulfilledRanges, shards)
 }

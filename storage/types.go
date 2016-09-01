@@ -160,7 +160,11 @@ type databaseShard interface {
 		includeSizes bool,
 	) ([]FetchBlocksMetadataResult, *int64)
 
-	Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error
+	Bootstrap(
+		bootstrappedSeries map[string]block.DatabaseSeriesBlocks,
+		writeStart time.Time,
+		cutover time.Time,
+	) error
 
 	// Flush flushes the series in this shard.
 	Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error

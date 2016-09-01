@@ -25,7 +25,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/log"
 )
 
 type bootstrapState int
@@ -61,6 +63,7 @@ type bootstrapManager struct {
 
 	database       database                  // storage database
 	opts           Options                   // storage options
+	log            xlog.Logger               // logger
 	newBootstrapFn NewBootstrapFn            // function to create a new bootstrap process
 	state          bootstrapState            // bootstrap state
 	fsm            databaseFileSystemManager // file system manager
@@ -71,6 +74,7 @@ func newBootstrapManager(database database, fsm databaseFileSystemManager) datab
 	return &bootstrapManager{
 		database:       database,
 		opts:           opts,
+		log:            opts.GetInstrumentOptions().GetLogger(),
 		newBootstrapFn: opts.GetNewBootstrapFn(),
 		fsm:            fsm,
 	}
@@ -110,12 +114,35 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
-	cutover := bsm.cutoverTime(writeStart)
+
 	shards := bsm.database.getOwnedShards()
+	shardIDs := make([]uint32, len(shards))
+	for i, shard := range shards {
+		shardIDs[i] = shard.ID()
+	}
+
 	bs := bsm.newBootstrapFn()
-	for _, shard := range shards {
-		err := shard.Bootstrap(bs, writeStart, cutover)
+	result, err := bs.Run(writeStart, shardIDs)
+	if err != nil {
+		bsm.log.Errorf("fatal bootstrap error: %v", err)
 		multiErr = multiErr.Add(err)
+	} else {
+		if len(result.Unfulfilled()) > 0 {
+			str := result.Unfulfilled().String()
+			bsm.log.Errorf("bootstrap finished with unfulfilled time ranges: %s", str)
+		}
+
+		cutover := bsm.cutoverTime(writeStart)
+		results := result.ShardResults()
+		for _, shard := range shards {
+			var bootstrappedSeries map[string]block.DatabaseSeriesBlocks
+			if result, ok := results[shard.ID()]; ok {
+				bootstrappedSeries = result.AllSeries()
+			}
+
+			err := shard.Bootstrap(bootstrappedSeries, writeStart, cutover)
+			multiErr = multiErr.Add(err)
+		}
 	}
 
 	// At this point we have bootstrapped everything between now - retentionPeriod
