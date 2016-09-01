@@ -65,8 +65,9 @@ type Store interface {
 	// Get retrieves the value for the given key
 	Get(key string) (Value, error)
 
-	// Watch adds a watch for value updates for given key. Initial value
-	// will be available via ValueWatch.Get()
+	// Watch adds a watch for value updates for given key. This is a non-blocking
+	// call - a notification will be sent to ValueWatch.C() once a value is
+	// available
 	Watch(key string) (ValueWatch, error)
 
 	// Set stores the value for the given key

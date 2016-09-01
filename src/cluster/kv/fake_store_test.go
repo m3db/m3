@@ -124,11 +124,13 @@ func TestFakeStoreWatch(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, fooWatch1)
 
+	<-fooWatch1.C()
 	var foo kvtest.Foo
 	require.NoError(t, fooWatch1.Get().Unmarshal(&foo))
 	require.Equal(t, "first", foo.Msg)
 
 	fooWatch2, err := kv.Watch("foo")
+	<-fooWatch2.C()
 	require.NoError(t, fooWatch2.Get().Unmarshal(&foo))
 	require.Equal(t, "first", foo.Msg)
 
