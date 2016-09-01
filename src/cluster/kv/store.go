@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/m3db/m3x/watch"
 )
 
 var (
@@ -49,10 +50,24 @@ type Value interface {
 	Version() int
 }
 
+// ValueWatch provides updates to a Value
+type ValueWatch interface {
+	// C returns the notification channel
+	C() <-chan struct{}
+	// Get returns the latest version of the value
+	Get() Value
+	// Close stops watching for value updates
+	Close()
+}
+
 // Store provides access to the configuration store
 type Store interface {
 	// Get retrieves the value for the given key
 	Get(key string) (Value, error)
+
+	// Watch adds a watch for value updates for given key. Initial value
+	// will be available via ValueWatch.Get()
+	Watch(key string) (ValueWatch, error)
 
 	// Set stores the value for the given key
 	Set(key string, v proto.Message) (int, error)
@@ -64,4 +79,25 @@ type Store interface {
 	// CheckAndSet stores the value for the given key if the current version
 	// matches the provided version
 	CheckAndSet(key string, version int, v proto.Message) (int, error)
+}
+
+type valueWatch struct {
+	w xwatch.Watch
+}
+
+// NewValueWatch creates a new valueWatch
+func NewValueWatch(w xwatch.Watch) ValueWatch {
+	return &valueWatch{w: w}
+}
+
+func (v *valueWatch) Close() {
+	v.w.Close()
+}
+
+func (v *valueWatch) C() <-chan struct{} {
+	return v.w.C()
+}
+
+func (v *valueWatch) Get() Value {
+	return v.w.Get().(Value)
 }
