@@ -21,6 +21,10 @@
 package bootstrap
 
 import (
+	"bytes"
+	"fmt"
+	"time"
+
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3x/time"
 )
@@ -48,7 +52,11 @@ func (r *result) Unfulfilled() ShardTimeRanges {
 
 func (r *result) AddShardResult(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
 	if result != nil && len(result.AllSeries()) > 0 {
-		r.results[shard] = result
+		if existing, ok := r.results[shard]; ok {
+			existing.AddResult(result)
+		} else {
+			r.results[shard] = result
+		}
 	}
 	if unfulfilled != nil && !unfulfilled.IsEmpty() {
 		r.unfulfilled[shard] = unfulfilled
@@ -131,4 +139,144 @@ func (sr *shardResult) Close() {
 	for _, series := range sr.blocks {
 		series.Close()
 	}
+}
+
+// AddResults adds other shard results to the current shard results.
+func (r ShardResults) AddResults(other ShardResults) {
+	for shard, result := range other {
+		if existing, ok := r[shard]; ok {
+			existing.AddResult(result)
+		} else {
+			r[shard] = result
+		}
+	}
+}
+
+// IsEmpty returns whether the shard time ranges is empty or not.
+func (r ShardTimeRanges) IsEmpty() bool {
+	for _, ranges := range r {
+		if !xtime.IsEmpty(ranges) {
+			return false
+		}
+	}
+	return true
+}
+
+// Equal returns whether two shard time ranges are equal.
+func (r ShardTimeRanges) Equal(other ShardTimeRanges) bool {
+	if len(r) != len(other) {
+		return false
+	}
+	for shard, ranges := range r {
+		otherRanges, ok := other[shard]
+		if !ok {
+			return false
+		}
+		if ranges.Len() != otherRanges.Len() {
+			return false
+		}
+		it := ranges.Iter()
+		otherIt := otherRanges.Iter()
+		if it.Next() && otherIt.Next() {
+			value := it.Value()
+			otherValue := otherIt.Value()
+			if !value.Start.Equal(otherValue.Start) ||
+				!value.End.Equal(otherValue.End) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// Copy will return a copy of the current shard time ranges.
+func (r ShardTimeRanges) Copy() ShardTimeRanges {
+	result := make(map[uint32]xtime.Ranges, len(r))
+	for shard, ranges := range r {
+		result[shard] = xtime.NewRanges().AddRanges(ranges)
+	}
+	return result
+}
+
+// AddRanges adds other shard time ranges to the current shard time ranges.
+func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
+	for shard, ranges := range other {
+		if xtime.IsEmpty(ranges) {
+			continue
+		}
+		if existing, ok := r[shard]; ok {
+			r[shard] = existing.AddRanges(ranges)
+		} else {
+			r[shard] = ranges
+		}
+	}
+}
+
+// ToUnfulfilledResult will return a result that is comprised of wholly
+// unfufilled time ranges from the set of shard time ranges.
+func (r ShardTimeRanges) ToUnfulfilledResult() Result {
+	result := NewResult()
+	for shard, ranges := range r {
+		result.AddShardResult(shard, nil, ranges)
+	}
+	return result
+}
+
+// Subtract will subtract another range from the current range.
+func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
+	for shard, ranges := range r {
+		otherRanges, ok := other[shard]
+		if !ok {
+			continue
+		}
+
+		subtractedRanges := ranges.RemoveRanges(otherRanges)
+		if subtractedRanges.IsEmpty() {
+			delete(r, shard)
+		} else {
+			r[shard] = subtractedRanges
+		}
+	}
+}
+
+// String returns a description of the time ranges
+func (r ShardTimeRanges) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("{")
+	hasPrev := false
+	for shard, ranges := range r {
+		buf.WriteString(fmt.Sprintf("%d: %s", shard, ranges.String()))
+		if hasPrev {
+			buf.WriteString(", ")
+		}
+		hasPrev = true
+		buf.WriteString(fmt.Sprintf("%d: %s", shard, ranges.String()))
+	}
+	buf.WriteString("}")
+	return buf.String()
+}
+
+// SummaryString returns a summary description of the time ranges
+func (r ShardTimeRanges) SummaryString() string {
+	var buf bytes.Buffer
+	buf.WriteString("{")
+	hasPrev := false
+	for shard, ranges := range r {
+		if hasPrev {
+			buf.WriteString(", ")
+		}
+		hasPrev = true
+
+		var (
+			duration time.Duration
+			it       = ranges.Iter()
+		)
+		for it.Next() {
+			curr := it.Value()
+			duration += curr.End.Sub(curr.Start)
+		}
+		buf.WriteString(fmt.Sprintf("%d: %s", shard, duration.String()))
+	}
+	buf.WriteString("}")
+	return buf.String()
 }

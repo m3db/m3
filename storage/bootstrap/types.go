@@ -21,8 +21,6 @@
 package bootstrap
 
 import (
-	"bytes"
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/instrument"
@@ -79,150 +77,8 @@ type ShardResult interface {
 // ShardResults is a map of shards to shard results.
 type ShardResults map[uint32]ShardResult
 
-// AddResults adds other shard results to the current shard results.
-func (r ShardResults) AddResults(other ShardResults) {
-	for shard, result := range other {
-		if existing, ok := r[shard]; ok {
-			existing.AddResult(result)
-		} else {
-			r[shard] = result
-		}
-	}
-}
-
 // ShardTimeRanges is a map of shards to time ranges.
 type ShardTimeRanges map[uint32]xtime.Ranges
-
-// IsEmpty returns whether the shard time ranges is empty or not.
-func (r ShardTimeRanges) IsEmpty() bool {
-	for _, ranges := range r {
-		if !xtime.IsEmpty(ranges) {
-			return false
-		}
-	}
-	return true
-}
-
-// Equal returns whether two shard time ranges are equal.
-func (r ShardTimeRanges) Equal(other ShardTimeRanges) bool {
-	if len(r) != len(other) {
-		return false
-	}
-	for shard, ranges := range r {
-		otherRanges, ok := other[shard]
-		if !ok {
-			return false
-		}
-		matched := 0
-		it := ranges.Iter()
-		otherIt := otherRanges.Iter()
-		if it.Next() && otherIt.Next() {
-			value := it.Value()
-			otherValue := otherIt.Value()
-			if !value.Start.Equal(otherValue.Start) ||
-				!value.End.Equal(otherValue.End) {
-				return false
-			}
-			matched++
-		}
-		if matched != ranges.Len() {
-			return false
-		}
-	}
-	return true
-}
-
-// Copy will return a copy of the current shard time ranges.
-func (r ShardTimeRanges) Copy() ShardTimeRanges {
-	result := make(map[uint32]xtime.Ranges, len(r))
-	for shard, ranges := range r {
-		result[shard] = xtime.NewRanges().AddRanges(ranges)
-	}
-	return result
-}
-
-// AddRanges adds other shard time ranges to the current shard time ranges.
-func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
-	for shard, ranges := range other {
-		if xtime.IsEmpty(ranges) {
-			continue
-		}
-		if existing, ok := r[shard]; ok {
-			r[shard] = existing.AddRanges(ranges)
-		} else {
-			r[shard] = ranges
-		}
-	}
-}
-
-// ToUnfulfilledResult will return a result that is comprised of wholly
-// unfufilled time ranges from the set of shard time ranges.
-func (r ShardTimeRanges) ToUnfulfilledResult() Result {
-	result := NewResult()
-	for shard, ranges := range r {
-		result.AddShardResult(shard, nil, ranges)
-	}
-	return result
-}
-
-// Subtract will subtract another range from the current range.
-func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
-	for shard, ranges := range r {
-		otherRanges, ok := other[shard]
-		if !ok {
-			continue
-		}
-
-		subtractedRanges := ranges.RemoveRanges(otherRanges)
-		if subtractedRanges.IsEmpty() {
-			delete(r, shard)
-		} else {
-			r[shard] = subtractedRanges
-		}
-	}
-}
-
-// String returns a description of the time ranges
-func (r ShardTimeRanges) String() string {
-	var buf bytes.Buffer
-	buf.WriteString("{")
-	hasPrev := false
-	for shard, ranges := range r {
-		buf.WriteString(fmt.Sprintf("%d: %s", shard, ranges.String()))
-		if hasPrev {
-			buf.WriteString(", ")
-		}
-		hasPrev = true
-		buf.WriteString(fmt.Sprintf("%d: %s", shard, ranges.String()))
-	}
-	buf.WriteString("}")
-	return buf.String()
-}
-
-// SummaryString returns a summary description of the time ranges
-func (r ShardTimeRanges) SummaryString() string {
-	var buf bytes.Buffer
-	buf.WriteString("{")
-	hasPrev := false
-	for shard, ranges := range r {
-		if hasPrev {
-			buf.WriteString(", ")
-		}
-		hasPrev = true
-
-		var (
-			duration time.Duration
-			it       = ranges.Iter()
-		)
-		for it.Next() {
-			curr := it.Value()
-			duration += curr.End.Sub(curr.Start)
-		}
-		buf.WriteString(fmt.Sprintf("%d: %s", shard, duration.String()))
-	}
-	buf.WriteString("}")
-	return buf.String()
-}
 
 // Bootstrap represents the bootstrap process.
 type Bootstrap interface {
@@ -246,7 +102,9 @@ type Bootstrapper interface {
 	Can(strategy Strategy) bool
 
 	// Bootstrap performs bootstrapping for the given time ranges, returning the bootstrapped
-	// series data and the time ranges it's unable to fulfill in parallel.
+	// series data and the time ranges it's unable to fulfill in parallel. A bootstrapper
+	// should only return an error should it want to entirely cancel the bootstrapping of the
+	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
 	Bootstrap(shardsTimeRanges ShardTimeRanges) (Result, error)
 }
 
@@ -259,7 +117,9 @@ type Source interface {
 	Available(shardsTimeRanges ShardTimeRanges) ShardTimeRanges
 
 	// Read returns raw series for a given set of shards & specified time ranges and
-	// the time ranges it's unable to fulfill.
+	// the time ranges it's unable to fulfill. A bootstrapper source should only return
+	// an error should it want to entirely cancel the bootstrapping of the node,
+	// i.e. non-recoverable situation like not being able to read from the filesystem.
 	Read(shardsTimeRanges ShardTimeRanges) (Result, error)
 }
 
