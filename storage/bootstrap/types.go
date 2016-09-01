@@ -167,6 +167,32 @@ func (r ShardTimeRanges) String() string {
 			buf.WriteString(", ")
 		}
 		hasPrev = true
+		buf.WriteString(fmt.Sprintf("%d: %s", shard, ranges.String()))
+	}
+	buf.WriteString("}")
+	return buf.String()
+}
+
+// SummaryString returns a summary description of the time ranges
+func (r ShardTimeRanges) SummaryString() string {
+	var buf bytes.Buffer
+	buf.WriteString("{")
+	hasPrev := false
+	for shard, ranges := range r {
+		if hasPrev {
+			buf.WriteString(", ")
+		}
+		hasPrev = true
+
+		var (
+			duration time.Duration
+			it       = ranges.Iter()
+		)
+		for it.Next() {
+			curr := it.Value()
+			duration += curr.End.Sub(curr.Start)
+		}
+		buf.WriteString(fmt.Sprintf("%d: %s", shard, duration.String()))
 	}
 	buf.WriteString("}")
 	return buf.String()

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
 
@@ -34,6 +35,7 @@ var (
 // bootstrapProcess represents the bootstrapping process.
 type bootstrapProcess struct {
 	opts         Options
+	log          xlog.Logger
 	bootstrapper Bootstrapper
 }
 
@@ -44,6 +46,7 @@ func NewBootstrapProcess(
 ) Bootstrap {
 	return &bootstrapProcess{
 		opts:         opts,
+		log:          opts.GetInstrumentOptions().GetLogger(),
 		bootstrapper: bootstrapper,
 	}
 }
@@ -73,13 +76,21 @@ func (b *bootstrapProcess) bootstrap(timeRanges xtime.Ranges, shards []uint32) (
 
 	it := timeRanges.Iter()
 	for it.Next() {
-		shardsTimeRanges := make(map[uint32]xtime.Ranges, len(shards))
+		shardsTimeRanges := make(ShardTimeRanges, len(shards))
 
-		r := xtime.NewRanges()
-		r.AddRange(it.Value())
+		window := it.Value()
+
+		r := xtime.NewRanges().AddRange(window)
 		for _, s := range shards {
 			shardsTimeRanges[s] = r
 		}
+
+		b.log.WithFields(
+			xlog.NewLogField("shardsLen", len(shards)),
+			xlog.NewLogField("from", window.Start.String()),
+			xlog.NewLogField("to", window.End.String()),
+			xlog.NewLogField("length", window.End.Sub(window.Start).String()),
+		).Infof("bootstrapping shards for range")
 
 		res, err := b.bootstrapper.Bootstrap(shardsTimeRanges)
 		if err != nil {

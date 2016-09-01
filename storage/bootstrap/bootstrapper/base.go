@@ -127,19 +127,21 @@ func (b *baseBootstrapper) Bootstrap(shardsTimeRanges bootstrap.ShardTimeRanges)
 			return nil, nextErr
 		}
 
-		// Union the results
-		mergedResult.ShardResults().AddResults(nextResult.ShardResults())
+		if nextResult != nil {
+			// Union the results
+			mergedResult.ShardResults().AddResults(nextResult.ShardResults())
 
-		// Set the unfulfilled ranges and don't use a union considering the
-		// next bootstrapper was asked to fulfill all outstanding ranges of
-		// the current bootstrapper
-		mergedResult.SetUnfulfilled(nextResult.Unfulfilled())
-
-		// However make sure to add any unfulfilled time ranges from the
-		// first time the next bootstrapper was asked to execute if it was
-		// executed in parallel
-		mergedResult.Unfulfilled().AddRanges(firstNextUnfulfilled)
+			// Set the unfulfilled ranges and don't use a union considering the
+			// next bootstrapper was asked to fulfill all outstanding ranges of
+			// the current bootstrapper
+			mergedResult.SetUnfulfilled(nextResult.Unfulfilled())
+		}
 	}
+
+	// Make sure to add any unfulfilled time ranges from the
+	// first time the next bootstrapper was asked to execute if it was
+	// executed in parallel
+	mergedResult.Unfulfilled().AddRanges(firstNextUnfulfilled)
 
 	return mergedResult, nil
 }

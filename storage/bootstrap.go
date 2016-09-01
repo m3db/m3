@@ -140,7 +140,7 @@ func (bsm *bootstrapManager) Bootstrap() error {
 		}
 
 		if len(result.Unfulfilled()) > 0 {
-			str := result.Unfulfilled().String()
+			str := result.Unfulfilled().SummaryString()
 			bsm.log.Errorf("bootstrap finished with unfulfilled time ranges: %s", str)
 		}
 	}
