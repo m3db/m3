@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/time"
 )
 
 const (
@@ -62,20 +61,8 @@ func (b *baseBootstrapper) Bootstrap(shardsTimeRanges bootstrap.ShardTimeRanges)
 	}
 
 	available := b.src.Available(shardsTimeRanges)
-
-	remaining := make(map[uint32]xtime.Ranges)
-	for shard, ranges := range shardsTimeRanges {
-		availableRanges, ok := available[shard]
-		if !ok {
-			remaining[shard] = ranges
-			continue
-		}
-
-		remainingRanges := ranges.RemoveRanges(availableRanges)
-		if !remainingRanges.IsEmpty() {
-			remaining[shard] = remainingRanges
-		}
-	}
+	remaining := shardsTimeRanges.Copy()
+	remaining.Subtract(available)
 
 	var (
 		wg                     sync.WaitGroup

@@ -767,9 +767,9 @@ func (s *session) streamBlocksMetadataFromPeer(
 			for _, b := range elem.Blocks {
 				var (
 					blockStart = time.Unix(0, b.Start)
-					blockEnd   = start.Add(blockSize)
+					blockEnd   = blockStart.Add(blockSize)
 				)
-				if start.After(blockEnd) || !blockStart.Before(end) {
+				if !start.Before(blockEnd) || !blockStart.Before(end) {
 					continue
 				}
 

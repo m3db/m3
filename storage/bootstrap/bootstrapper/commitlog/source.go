@@ -91,18 +91,17 @@ func (s *commitLogSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (boot
 	)
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
+		ranges, ok := shardsTimeRanges[series.Shard]
+		if !ok {
+			// Not bootstrapping this shard
+			continue
+		}
 
 		blockStart := dp.Timestamp.Truncate(blockSize)
 		blockEnd := blockStart.Add(blockSize)
 		blockRange := xtime.Range{
 			Start: blockStart,
 			End:   blockEnd,
-		}
-
-		ranges, ok := shardsTimeRanges[series.Shard]
-		if !ok {
-			// Not bootstrapping this shard
-			continue
 		}
 		if !ranges.Overlaps(blockRange) {
 			// Data in this block does not match the requested ranges
@@ -195,8 +194,11 @@ func (s *commitLogSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (boot
 							break
 						}
 					}
-					if err != nil {
-						err = iter.Err()
+					if iterErr := iter.Err(); iterErr != nil {
+						if err == nil {
+							err = iter.Err()
+						}
+						errs++
 					}
 
 					iter.Close()

@@ -132,6 +132,15 @@ func (r ShardTimeRanges) Equal(other ShardTimeRanges) bool {
 	return true
 }
 
+// Copy will return a copy of the current shard time ranges.
+func (r ShardTimeRanges) Copy() ShardTimeRanges {
+	result := make(map[uint32]xtime.Ranges, len(r))
+	for shard, ranges := range r {
+		result[shard] = xtime.NewRanges().AddRanges(ranges)
+	}
+	return result
+}
+
 // AddRanges adds other shard time ranges to the current shard time ranges.
 func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
 	for shard, ranges := range other {
@@ -154,6 +163,23 @@ func (r ShardTimeRanges) ToUnfulfilledResult() Result {
 		result.AddShardResult(shard, nil, ranges)
 	}
 	return result
+}
+
+// Subtract will subtract another range from the current range.
+func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
+	for shard, ranges := range r {
+		otherRanges, ok := other[shard]
+		if !ok {
+			continue
+		}
+
+		subtractedRanges := ranges.RemoveRanges(otherRanges)
+		if subtractedRanges.IsEmpty() {
+			delete(r, shard)
+		} else {
+			r[shard] = subtractedRanges
+		}
+	}
 }
 
 // String returns a description of the time ranges
