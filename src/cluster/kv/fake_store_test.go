@@ -181,7 +181,4 @@ func TestFakeStoreErrors(t *testing.T) {
 
 	_, err = kv.CheckAndSet("foo", 1, nil)
 	require.Error(t, err)
-
-	_, err = kv.Watch("foo")
-	require.Equal(t, err, ErrNotFound)
 }

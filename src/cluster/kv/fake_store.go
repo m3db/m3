@@ -79,16 +79,16 @@ func (kv *fakeStore) Get(key string) (Value, error) {
 
 func (kv *fakeStore) Watch(key string) (ValueWatch, error) {
 	kv.Lock()
-	defer kv.Unlock()
-	val, ok := kv.values[key]
-	if !ok {
-		return nil, ErrNotFound
-	}
+	val := kv.values[key]
 
 	watchable, ok := kv.watchables[key]
 	if !ok {
 		watchable = xwatch.NewWatchable()
 		kv.watchables[key] = watchable
+	}
+	kv.Unlock()
+
+	if !ok && val != nil {
 		watchable.Update(val)
 	}
 
