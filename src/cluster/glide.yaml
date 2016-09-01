@@ -9,8 +9,8 @@ import:
   version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
   subpackages:
   - proto
-- name: github.com/m3db/m3x
-  version: df2d32d7c103a4ae2ed727eb50f1208bd825802f
+- package: github.com/m3db/m3x
+  version: bafb005b9448e769f5c565ae86270146917cc89b
   subpackages:
   - log
   - watch
