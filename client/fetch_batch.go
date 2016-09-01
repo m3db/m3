@@ -25,6 +25,10 @@ import (
 	"github.com/m3db/m3db/pool"
 )
 
+var (
+	emptyIDWithNamespace = rpc.IDWithNamespace{}
+)
+
 type fetchBatchOp struct {
 	request       rpc.FetchRawBatchRequest
 	completionFns []completionFn
@@ -33,17 +37,17 @@ type fetchBatchOp struct {
 func (f *fetchBatchOp) reset() {
 	f.request.RangeStart = 0
 	f.request.RangeEnd = 0
-	f.request.Ids = f.request.Ids[:0]
+	f.request.IdsWithNamespace = f.request.IdsWithNamespace[:0]
 	f.completionFns = f.completionFns[:0]
 }
 
-func (f *fetchBatchOp) append(id string, completionFn completionFn) {
-	f.request.Ids = append(f.request.Ids, id)
+func (f *fetchBatchOp) append(idn *rpc.IDWithNamespace, completionFn completionFn) {
+	f.request.IdsWithNamespace = append(f.request.IdsWithNamespace, idn)
 	f.completionFns = append(f.completionFns, completionFn)
 }
 
 func (f *fetchBatchOp) Size() int {
-	return len(f.request.Ids)
+	return len(f.request.IdsWithNamespace)
 }
 
 func (f *fetchBatchOp) GetCompletionFn() completionFn {
@@ -67,40 +71,56 @@ type fetchBatchOpPool interface {
 	// Get a fetch op
 	Get() *fetchBatchOp
 
+	// GetIDWithNamespace returns an IDWithNamespace object
+	GetIDWithNamespace() *rpc.IDWithNamespace
+
 	// Put a fetch op
 	Put(f *fetchBatchOp)
 }
 
 type poolOfFetchBatchOp struct {
-	pool     pool.ObjectPool
-	capacity int
+	batchOpPool pool.ObjectPool
+	idnPool     pool.ObjectPool
+	capacity    int
 }
 
 func newFetchBatchOpPool(size int, capacity int) fetchBatchOpPool {
-	p := pool.NewObjectPool(size)
-	return &poolOfFetchBatchOp{p, capacity}
+	batchOpPool := pool.NewObjectPool(size)
+	idnPool := pool.NewObjectPool(size * capacity)
+	return &poolOfFetchBatchOp{batchOpPool, idnPool, capacity}
 }
 
 func (p *poolOfFetchBatchOp) Init() {
-	p.pool.Init(func() interface{} {
+	p.batchOpPool.Init(func() interface{} {
 		f := &fetchBatchOp{}
-		f.request.Ids = make([]string, 0, p.capacity)
+		f.request.IdsWithNamespace = make([]*rpc.IDWithNamespace, 0, p.capacity)
 		f.completionFns = make([]completionFn, 0, p.capacity)
 		f.reset()
 		return f
 	})
+	p.idnPool.Init(func() interface{} {
+		return rpc.NewIDWithNamespace()
+	})
 }
 
 func (p *poolOfFetchBatchOp) Get() *fetchBatchOp {
-	f := p.pool.Get().(*fetchBatchOp)
+	f := p.batchOpPool.Get().(*fetchBatchOp)
 	return f
 }
 
+func (p *poolOfFetchBatchOp) GetIDWithNamespace() *rpc.IDWithNamespace {
+	return p.idnPool.Get().(*rpc.IDWithNamespace)
+}
+
 func (p *poolOfFetchBatchOp) Put(f *fetchBatchOp) {
-	if cap(f.request.Ids) != p.capacity || cap(f.completionFns) != p.capacity {
+	for _, idn := range f.request.IdsWithNamespace {
+		*idn = emptyIDWithNamespace
+		p.idnPool.Put(idn)
+	}
+	if cap(f.request.IdsWithNamespace) != p.capacity || cap(f.completionFns) != p.capacity {
 		// Grew outside capacity, do not return to pool
 		return
 	}
 	f.reset()
-	p.pool.Put(f)
+	p.batchOpPool.Put(f)
 }

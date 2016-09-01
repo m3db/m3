@@ -38,12 +38,20 @@ func newPeersSource(opts Options) bootstrap.Source {
 }
 
 // GetAvailability returns what time ranges are available for a given shard
-func (s *peersSource) GetAvailability(shard uint32, targetRangesForShard xtime.Ranges) xtime.Ranges {
+func (s *peersSource) GetAvailability(
+	namespace string,
+	shard uint32,
+	targetRangesForShard xtime.Ranges,
+) xtime.Ranges {
 	return targetRangesForShard
 }
 
 // ReadData returns raw series for a given shard within certain time ranges
-func (s *peersSource) ReadData(shard uint32, tr xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
+func (s *peersSource) ReadData(
+	namespace string,
+	shard uint32,
+	tr xtime.Ranges,
+) (bootstrap.ShardResult, xtime.Ranges) {
 	if xtime.IsEmpty(tr) {
 		return nil, tr
 	}
@@ -51,7 +59,7 @@ func (s *peersSource) ReadData(shard uint32, tr xtime.Ranges) (bootstrap.ShardRe
 	bopts := s.opts.GetBootstrapOptions()
 	blockSize := bopts.GetRetentionOptions().GetBlockSize()
 	session := s.opts.GetAdminSession()
-	result, err := session.FetchBootstrapBlocksFromPeers(shard, time.Time{}, time.Now().Add(blockSize), bopts)
+	result, err := session.FetchBootstrapBlocksFromPeers(namespace, shard, time.Time{}, time.Now().Add(blockSize), bopts)
 	if err != nil {
 		return nil, tr
 	}

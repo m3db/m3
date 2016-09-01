@@ -41,16 +41,25 @@ type Client interface {
 	NewSession() (Session, error)
 }
 
+// iDWithNamespace captures an id along with the owning namespace
+type idWithNamespace struct {
+	// ID returns the id of a series
+	ID string
+
+	// Namespace returns the namespace the id belongs to
+	Namespace string
+}
+
 // Session can write and read to a cluster
 type Session interface {
 	// Write value to the database for an ID
-	Write(id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	Write(namespace string, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// Fetch values from the database for an ID
-	Fetch(id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
+	Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
 
 	// FetchAll values from the database for a set of IDs
-	FetchAll(ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+	FetchAll(idns []idWithNamespace, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// Close the session
 	Close() error
@@ -68,9 +77,13 @@ type AdminClient interface {
 type AdminSession interface {
 	Session
 
+	// TruncateNamespace will truncate the namespace for a given shard
+	TruncateNamespace(namespace string, shard uint32) error
+
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
 	// for each series in a best effort method from available peers
 	FetchBootstrapBlocksFromPeers(
+		namespace string,
 		shard uint32,
 		start, end time.Time,
 		opts bootstrap.Options,
@@ -216,6 +229,12 @@ type Options interface {
 
 	// GetFetchRequestTimeout returns the fetchRequestTimeout
 	GetFetchRequestTimeout() time.Duration
+
+	// TruncateRequestTimeout sets the truncateRequestTimeout
+	TruncateRequestTimeout(value time.Duration) Options
+
+	// GetTruncateRequestTimeout returns the truncateRequestTimeout
+	GetTruncateRequestTimeout() time.Duration
 
 	// BackgroundConnectInterval sets the backgroundConnectInterval
 	BackgroundConnectInterval(value time.Duration) Options

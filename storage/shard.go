@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -43,6 +44,8 @@ const (
 	shardIterateBatchPercent = 0.05
 )
 
+type filesetBeforeFn func(filePathPrefix string, namespace string, shardID uint32, t time.Time) ([]string, error)
+
 type dbShard struct {
 	sync.RWMutex
 	opts                  Options
@@ -53,6 +56,8 @@ type dbShard struct {
 	list                  *list.List
 	bs                    bootstrapState
 	newSeriesBootstrapped bool
+	filesetBeforeFn       filesetBeforeFn
+	deleteFilesFn         deleteFilesFn
 }
 
 type dbShardEntry struct {
@@ -92,6 +97,8 @@ func newDatabaseShard(
 		writeCommitLogFn: writeCommitLogFn,
 		lookup:           make(map[string]*list.Element),
 		list:             list.New(),
+		filesetBeforeFn:  fs.FilesetBefore,
+		deleteFilesFn:    fs.DeleteFiles,
 	}
 }
 
@@ -335,7 +342,12 @@ func (s *dbShard) FetchBlocksMetadata(
 	return res, pNextPageToken
 }
 
-func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error {
+func (s *dbShard) Bootstrap(
+	bs bootstrap.Bootstrap,
+	namespace string,
+	writeStart time.Time,
+	cutover time.Time,
+) error {
 	s.Lock()
 	if s.bs == bootstrapped {
 		s.Unlock()
@@ -349,7 +361,7 @@ func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutove
 	s.Unlock()
 
 	multiErr := xerrors.NewMultiError()
-	sr, err := bs.Run(writeStart, s.shard)
+	sr, err := bs.Run(writeStart, namespace, s.shard)
 	if err != nil {
 		renamedErr := fmt.Errorf("error occurred bootstrapping shard %d from external sources: %v", s.shard, err)
 		err = xerrors.NewRenamedError(err, renamedErr)
@@ -396,7 +408,12 @@ func (s *dbShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutove
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error {
+func (s *dbShard) Flush(
+	ctx context.Context,
+	namespace string,
+	blockStart time.Time,
+	pm persist.Manager,
+) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bs != bootstrapped {
@@ -406,7 +423,7 @@ func (s *dbShard) Flush(ctx context.Context, blockStart time.Time, pm persist.Ma
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
-	prepared, err := pm.Prepare(s.ID(), blockStart)
+	prepared, err := pm.Prepare(namespace, s.ID(), blockStart)
 	multiErr = multiErr.Add(err)
 
 	if prepared.Persist == nil {
@@ -423,5 +440,19 @@ func (s *dbShard) Flush(ctx context.Context, blockStart time.Time, pm persist.Ma
 		return err
 	}, nil)
 
+	return multiErr.FinalError()
+}
+
+func (s *dbShard) CleanupFileset(namespace string, earliestToRetain time.Time) error {
+	filePathPrefix := s.opts.GetCommitLogOptions().GetFilesystemOptions().GetFilePathPrefix()
+	multiErr := xerrors.NewMultiError()
+	expired, err := s.filesetBeforeFn(filePathPrefix, namespace, s.ID(), earliestToRetain)
+	if err != nil {
+		detailedErr := fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v", filePathPrefix, namespace, s.ID(), err)
+		multiErr = multiErr.Add(detailedErr)
+	}
+	if err := s.deleteFilesFn(expired); err != nil {
+		multiErr = multiErr.Add(err)
+	}
 	return multiErr.FinalError()
 }

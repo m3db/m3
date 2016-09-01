@@ -44,16 +44,23 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	start := time.Unix(14400, 0)
 	end := time.Unix(28800, 0)
 	db, fm, mgr := testCleanupManager(ctrl)
-	shard0 := NewMockdatabaseShard(ctrl)
-	shard1 := NewMockdatabaseShard(ctrl)
-	db.shards = []databaseShard{shard0, shard1}
 
-	mgr.filesetFilesBeforeFn = func(_ string, shardID uint32, t time.Time) ([]string, error) {
-		if shardID == 0 {
-			return nil, errors.New("foo")
-		}
-		return []string{strconv.Itoa(int(shardID))}, nil
+	inputs := []struct {
+		name string
+		err  error
+	}{
+		{"foo", errors.New("some error")},
+		{"bar", errors.New("some other error")},
+		{"baz", nil},
 	}
+	namespaces := make(map[string]databaseNamespace)
+	for _, input := range inputs {
+		ns := NewMockdatabaseNamespace(ctrl)
+		ns.EXPECT().CleanupFileset(start).Return(input.err)
+		namespaces[input.name] = ns
+	}
+	db.namespaces = namespaces
+
 	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
 		return []string{"foo", "bar"}, errors.New("error1")
 	}
@@ -71,8 +78,6 @@ func TestCleanupManagerCleanup(t *testing.T) {
 
 	gomock.InOrder(
 		fm.EXPECT().FlushTimeStart(ts).Return(start),
-		shard0.EXPECT().ID().Return(uint32(0)),
-		shard1.EXPECT().ID().Return(uint32(1)),
 		fm.EXPECT().FlushTimeStart(ts).Return(start),
 		fm.EXPECT().FlushTimeEnd(ts).Return(end),
 		fm.EXPECT().HasFlushed(time.Unix(14400, 0)).Return(true),
@@ -85,7 +90,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	)
 
 	require.Error(t, mgr.Cleanup(ts))
-	require.Equal(t, []string{"1", "foo", "bar", "baz"}, deletedFiles)
+	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
 }
 
 func TestCleanupManagerCommitLogTimeRange(t *testing.T) {

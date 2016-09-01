@@ -45,26 +45,27 @@ func TestDatabaseBootstrapWithError(t *testing.T) {
 		return now
 	}))
 
-	errs := []error{
-		errors.New("some error"),
-		errors.New("some other error"),
-		nil,
+	inputs := []struct {
+		name string
+		err  error
+	}{
+		{"foo", errors.New("some error")},
+		{"bar", errors.New("some other error")},
+		{"baz", nil},
 	}
 
-	var shards []databaseShard
-	for _, err := range errs {
-		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Bootstrap(bs, now, cutover).Return(err)
-		shards = append(shards, shard)
+	namespaces := make(map[string]databaseNamespace)
+	for _, input := range inputs {
+		ns := NewMockdatabaseNamespace(ctrl)
+		ns.EXPECT().Bootstrap(bs, now, cutover).Return(input.err)
+		namespaces[input.name] = ns
 	}
 
-	db := &mockDatabase{shards: shards, opts: opts}
+	db := &mockDatabase{namespaces: namespaces, opts: opts}
 	fsm := NewMockdatabaseFileSystemManager(ctrl)
 	fsm.EXPECT().Run(now, false)
 	bsm := newBootstrapManager(db, fsm).(*bootstrapManager)
-	err := bsm.Bootstrap()
 
-	require.NotNil(t, err)
-	require.Equal(t, "some error\nsome other error", err.Error())
+	require.Error(t, bsm.Bootstrap())
 	require.Equal(t, bootstrapped, bsm.state)
 }

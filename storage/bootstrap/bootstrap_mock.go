@@ -134,15 +134,15 @@ func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(writeStart time.Time, shard uint32) (ShardResult, error) {
-	ret := _m.ctrl.Call(_m, "Run", writeStart, shard)
+func (_m *MockBootstrap) Run(writeStart time.Time, namespace string, shard uint32) (ShardResult, error) {
+	ret := _m.ctrl.Call(_m, "Run", writeStart, namespace, shard)
 	ret0, _ := ret[0].(ShardResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockBootstrapRecorder) Run(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1)
+func (_mr *_MockBootstrapRecorder) Run(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1, arg2)
 }
 
 // Mock of Bootstrapper interface
@@ -166,15 +166,15 @@ func (_m *MockBootstrapper) EXPECT() *_MockBootstrapperRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrapper) Bootstrap(shard uint32, timeRanges time0.Ranges) (ShardResult, time0.Ranges) {
-	ret := _m.ctrl.Call(_m, "Bootstrap", shard, timeRanges)
+func (_m *MockBootstrapper) Bootstrap(namespace string, shard uint32, timeRanges time0.Ranges) (ShardResult, time0.Ranges) {
+	ret := _m.ctrl.Call(_m, "Bootstrap", namespace, shard, timeRanges)
 	ret0, _ := ret[0].(ShardResult)
 	ret1, _ := ret[1].(time0.Ranges)
 	return ret0, ret1
 }
 
-func (_mr *_MockBootstrapperRecorder) Bootstrap(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1)
+func (_mr *_MockBootstrapperRecorder) Bootstrap(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2)
 }
 
 // Mock of Source interface
@@ -198,25 +198,25 @@ func (_m *MockSource) EXPECT() *_MockSourceRecorder {
 	return _m.recorder
 }
 
-func (_m *MockSource) GetAvailability(shard uint32, targetRanges time0.Ranges) time0.Ranges {
-	ret := _m.ctrl.Call(_m, "GetAvailability", shard, targetRanges)
+func (_m *MockSource) GetAvailability(namespace string, shard uint32, targetRanges time0.Ranges) time0.Ranges {
+	ret := _m.ctrl.Call(_m, "GetAvailability", namespace, shard, targetRanges)
 	ret0, _ := ret[0].(time0.Ranges)
 	return ret0
 }
 
-func (_mr *_MockSourceRecorder) GetAvailability(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetAvailability", arg0, arg1)
+func (_mr *_MockSourceRecorder) GetAvailability(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetAvailability", arg0, arg1, arg2)
 }
 
-func (_m *MockSource) ReadData(shard uint32, tr time0.Ranges) (ShardResult, time0.Ranges) {
-	ret := _m.ctrl.Call(_m, "ReadData", shard, tr)
+func (_m *MockSource) ReadData(namespace string, shard uint32, tr time0.Ranges) (ShardResult, time0.Ranges) {
+	ret := _m.ctrl.Call(_m, "ReadData", namespace, shard, tr)
 	ret0, _ := ret[0].(ShardResult)
 	ret1, _ := ret[1].(time0.Ranges)
 	return ret0, ret1
 }
 
-func (_mr *_MockSourceRecorder) ReadData(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadData", arg0, arg1)
+func (_mr *_MockSourceRecorder) ReadData(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadData", arg0, arg1, arg2)
 }
 
 // Mock of Options interface

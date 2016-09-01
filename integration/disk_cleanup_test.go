@@ -48,10 +48,10 @@ func createWriter(storageOpts storage.Options) fs.FileSetWriter {
 	return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 }
 
-func createFilesetFiles(t *testing.T, storageOpts storage.Options, shard uint32, fileTimes []time.Time) {
+func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace string, shard uint32, fileTimes []time.Time) {
 	writer := createWriter(storageOpts)
 	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(shard, start))
+		require.NoError(t, writer.Open(namespace, shard, start))
 		require.NoError(t, writer.Close())
 	}
 }
@@ -64,9 +64,9 @@ func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time
 	}
 }
 
-func waitUntilDataCleanedUp(filePathPrefix string, shard uint32, toDelete time.Time, timeout time.Duration) error {
+func waitUntilDataCleanedUp(filePathPrefix string, namespace string, shard uint32, toDelete time.Time, timeout time.Duration) error {
 	dataCleanedUp := func() bool {
-		if fs.FilesetExistsAt(filePathPrefix, shard, toDelete) {
+		if fs.FilesetExistsAt(filePathPrefix, namespace, shard, toDelete) {
 			return false
 		}
 		_, index := fs.NextCommitLogsFile(filePathPrefix, toDelete)
@@ -117,7 +117,7 @@ func TestDiskCleanup(t *testing.T) {
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
-	createFilesetFiles(t, testSetup.storageOpts, shard, fileTimes)
+	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes)
 	createCommitLogs(t, filePathPrefix, fileTimes)
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
@@ -127,5 +127,5 @@ func TestDiskCleanup(t *testing.T) {
 
 	// Check if files have been deleted
 	waitTimeout := testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 4
-	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, shard, now, waitTimeout))
+	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
 }

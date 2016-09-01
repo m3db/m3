@@ -49,12 +49,16 @@ func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 }
 
 // GetAvailability returns what time ranges are available for a given shard
-func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard xtime.Ranges) xtime.Ranges {
+func (fss *fileSystemSource) GetAvailability(
+	namespace string,
+	shard uint32,
+	targetRangesForShard xtime.Ranges,
+) xtime.Ranges {
 	if targetRangesForShard == nil {
 		return nil
 	}
 
-	entries := fs.ReadInfoFiles(fss.filePathPrefix, shard, fss.readerBufferSize)
+	entries := fs.ReadInfoFiles(fss.filePathPrefix, namespace, shard, fss.readerBufferSize)
 	if len(entries) == 0 {
 		return nil
 	}
@@ -73,13 +77,13 @@ func (fss *fileSystemSource) GetAvailability(shard uint32, targetRangesForShard 
 }
 
 // ReadData returns raw series for a given shard within certain time ranges
-func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
+func (fss *fileSystemSource) ReadData(namespace string, shard uint32, tr xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
 	if xtime.IsEmpty(tr) {
 		return nil, tr
 	}
 
 	var files []string
-	fs.ForEachInfoFile(fss.filePathPrefix, shard, fss.readerBufferSize, func(fname string, _ []byte) {
+	fs.ForEachInfoFile(fss.filePathPrefix, namespace, shard, fss.readerBufferSize, func(fname string, _ []byte) {
 		files = append(files, fname)
 	})
 	if len(files) == 0 {
@@ -96,7 +100,7 @@ func (fss *fileSystemSource) ReadData(shard uint32, tr xtime.Ranges) (bootstrap.
 			log.Errorf("unable to get time from info file name %s: %v", files[i], err)
 			continue
 		}
-		if err := r.Open(shard, t); err != nil {
+		if err := r.Open(namespace, shard, t); err != nil {
 			log.Errorf("unable to open info file for shard %d time %v: %v", shard, t, err)
 			continue
 		}

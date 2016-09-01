@@ -26,8 +26,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testNamespaceName = "testNamespace"
+
 func TestGetAvailabilityEmptyRangeError(t *testing.T) {
 	src := newCommitLogSource(NewOptions())
-	res := src.GetAvailability(0, nil)
+	res := src.GetAvailability(testNamespaceName, 0, nil)
 	require.Nil(t, res)
 }

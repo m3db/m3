@@ -18,25 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrap
+package namespace
 
-import (
-	"time"
-)
-
-type noOpBootstrapProcess struct {
+type metadata struct {
+	name string
 	opts Options
 }
 
-// NewNoOpBootstrapProcess creates a no-op bootstrap process.
-func NewNoOpBootstrapProcess(opts Options) Bootstrap {
-	return &noOpBootstrapProcess{opts: opts}
+// NewMetadata creates a new namespace metadata
+func NewMetadata(name string, opts Options) Metadata {
+	return metadata{name: name, opts: opts}
 }
 
-func (b *noOpBootstrapProcess) Run(
-	writeStart time.Time,
-	namespace string,
-	shard uint32,
-) (ShardResult, error) {
-	return NewShardResult(b.opts), nil
+func (m metadata) Name() string {
+	return m.name
+}
+
+func (m metadata) Options() Options {
+	return m.opts
 }

@@ -176,6 +176,7 @@ func (w *writer) Write(
 		// yet we need to include series metadata
 		w.metadata = schema.CommitLogMetadata{}
 		w.metadata.Id = series.ID
+		w.metadata.Namespace = series.Namespace
 		w.metadata.Shard = series.Shard
 
 		w.metadataBuffer.Reset()

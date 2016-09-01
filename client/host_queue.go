@@ -200,6 +200,8 @@ func (q *queue) drain() {
 				}
 			case *fetchBatchOp:
 				q.asyncFetch(wgAll, v)
+			case *truncateOp:
+				q.asyncTruncate(wgAll, v)
 			default:
 				completionFn := ops[i].GetCompletionFn()
 				completionFn(nil, errQueueUnknownOperation)
@@ -315,6 +317,29 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 			op.complete(i, result.Elements[i].Segments, nil)
 		}
 		cleanup()
+	}()
+}
+
+func (q *queue) asyncTruncate(wg *sync.WaitGroup, op *truncateOp) {
+	wg.Add(1)
+
+	go func() {
+		client, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available
+			op.completionFn(nil, err)
+			wg.Done()
+			return
+		}
+
+		ctx, _ := thrift.NewContext(q.opts.GetTruncateRequestTimeout())
+		if err := client.TruncateNamespace(ctx, &op.request); err != nil {
+			op.completionFn(nil, err)
+		} else {
+			op.completionFn(nil, nil)
+		}
+
+		wg.Done()
 	}()
 }
 

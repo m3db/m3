@@ -46,6 +46,7 @@ type TChanNode interface {
 	FetchBlocksMetadata(ctx thrift.Context, req *FetchBlocksMetadataRequest) (*FetchBlocksMetadataResult_, error)
 	FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRequest) (*FetchRawBatchResult_, error)
 	Health(ctx thrift.Context) (*HealthResult_, error)
+	TruncateNamespace(ctx thrift.Context, req *TruncateNamespaceRequest) error
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteBatch(ctx thrift.Context, req *WriteBatchRequest) error
 }
@@ -323,6 +324,21 @@ func (c *tchanNodeClient) Health(ctx thrift.Context) (*HealthResult_, error) {
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) TruncateNamespace(ctx thrift.Context, req *TruncateNamespaceRequest) error {
+	var resp NodeTruncateNamespaceResult
+	args := NodeTruncateNamespaceArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "truncateNamespace", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return err
+}
+
 func (c *tchanNodeClient) Write(ctx thrift.Context, req *WriteRequest) error {
 	var resp NodeWriteResult
 	args := NodeWriteArgs{
@@ -376,6 +392,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"fetchBlocksMetadata",
 		"fetchRawBatch",
 		"health",
+		"truncateNamespace",
 		"write",
 		"writeBatch",
 	}
@@ -393,6 +410,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleFetchRawBatch(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
+	case "truncateNamespace":
+		return s.handleTruncateNamespace(ctx, protocol)
 	case "write":
 		return s.handleWrite(ctx, protocol)
 	case "writeBatch":
@@ -538,6 +557,33 @@ func (s *tchanNodeServer) handleHealth(ctx thrift.Context, protocol athrift.TPro
 		}
 	} else {
 		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleTruncateNamespace(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeTruncateNamespaceArgs
+	var res NodeTruncateNamespaceResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	err :=
+		s.handler.TruncateNamespace(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
 	}
 
 	return err == nil, &res, nil

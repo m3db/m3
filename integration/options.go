@@ -37,6 +37,9 @@ const (
 	// defaultWriteRequestTimeout is the default write request timeout.
 	defaultWriteRequestTimeout = 2 * time.Second
 
+	// defaultTruncateRequestTimeout is the default truncate request timeout.
+	defaultTruncateRequestTimeout = 2 * time.Second
+
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
@@ -72,6 +75,12 @@ type testOptions interface {
 	// GetWriteRequestTimeout returns the write request timeout.
 	GetWriteRequestTimeout() time.Duration
 
+	// TruncateRequestTimeout sets the truncate request timeout.
+	TruncateRequestTimeout(value time.Duration) testOptions
+
+	// GetTruncateRequestTimeout returns the truncate request timeout.
+	GetTruncateRequestTimeout() time.Duration
+
 	// WorkerPoolSize sets the number of workers in the worker pool.
 	WorkerPoolSize(value int) testOptions
 
@@ -96,6 +105,7 @@ type options struct {
 	clusterConnectionTimeout    time.Duration
 	readRequestTimeout          time.Duration
 	writeRequestTimeout         time.Duration
+	truncateRequestTimeout      time.Duration
 	workerPoolSize              int
 	useTChannelClientForReading bool
 	useTChannelClientForWriting bool
@@ -107,6 +117,7 @@ func newTestOptions() testOptions {
 		clusterConnectionTimeout:    defaultClusterConnectionTimeout,
 		readRequestTimeout:          defaultReadRequestTimeout,
 		writeRequestTimeout:         defaultWriteRequestTimeout,
+		truncateRequestTimeout:      defaultTruncateRequestTimeout,
 		workerPoolSize:              defaultWorkerPoolSize,
 		useTChannelClientForReading: defaultUseTChannelClientForReading,
 		useTChannelClientForWriting: defaultUseTChannelClientForWriting,
@@ -151,6 +162,16 @@ func (o *options) WriteRequestTimeout(value time.Duration) testOptions {
 
 func (o *options) GetWriteRequestTimeout() time.Duration {
 	return o.writeRequestTimeout
+}
+
+func (o *options) TruncateRequestTimeout(value time.Duration) testOptions {
+	opts := *o
+	opts.truncateRequestTimeout = value
+	return &opts
+}
+
+func (o *options) GetTruncateRequestTimeout() time.Duration {
+	return o.truncateRequestTimeout
 }
 
 func (o *options) WorkerPoolSize(value int) testOptions {

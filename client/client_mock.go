@@ -32,9 +32,9 @@ import (
 	pool "github.com/m3db/m3db/pool"
 	bootstrap "github.com/m3db/m3db/storage/bootstrap"
 	topology "github.com/m3db/m3db/topology"
-	time0 "github.com/m3db/m3x/time"
+	time "github.com/m3db/m3x/time"
 	tchannel_go "github.com/uber/tchannel-go"
-	time "time"
+	time0 "time"
 )
 
 // Mock of Client interface
@@ -90,29 +90,29 @@ func (_m *MockSession) EXPECT() *_MockSessionRecorder {
 	return _m.recorder
 }
 
-func (_m *MockSession) Write(id string, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", id, t, value, unit, annotation)
+func (_m *MockSession) Write(namespace string, id string, t time0.Time, value float64, unit time.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", namespace, id, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockSessionRecorder) Write(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
+func (_mr *_MockSessionRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockSession) Fetch(id string, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterator, error) {
-	ret := _m.ctrl.Call(_m, "Fetch", id, startInclusive, endExclusive)
+func (_m *MockSession) Fetch(namespace string, id string, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterator, error) {
+	ret := _m.ctrl.Call(_m, "Fetch", namespace, id, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockSessionRecorder) Fetch(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2)
+func (_mr *_MockSessionRecorder) Fetch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockSession) FetchAll(ids []string, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchAll", ids, startInclusive, endExclusive)
+func (_m *MockSession) FetchAll(idns []idWithNamespace, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterators, error) {
+	ret := _m.ctrl.Call(_m, "FetchAll", idns, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -196,29 +196,29 @@ func (_m *MockAdminSession) EXPECT() *_MockAdminSessionRecorder {
 	return _m.recorder
 }
 
-func (_m *MockAdminSession) Write(id string, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", id, t, value, unit, annotation)
+func (_m *MockAdminSession) Write(namespace string, id string, t time0.Time, value float64, unit time.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", namespace, id, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockAdminSessionRecorder) Write(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
+func (_mr *_MockAdminSessionRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockAdminSession) Fetch(id string, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterator, error) {
-	ret := _m.ctrl.Call(_m, "Fetch", id, startInclusive, endExclusive)
+func (_m *MockAdminSession) Fetch(namespace string, id string, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterator, error) {
+	ret := _m.ctrl.Call(_m, "Fetch", namespace, id, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockAdminSessionRecorder) Fetch(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2)
+func (_mr *_MockAdminSessionRecorder) Fetch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockAdminSession) FetchAll(ids []string, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchAll", ids, startInclusive, endExclusive)
+func (_m *MockAdminSession) FetchAll(idns []idWithNamespace, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterators, error) {
+	ret := _m.ctrl.Call(_m, "FetchAll", idns, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -238,15 +238,25 @@ func (_mr *_MockAdminSessionRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(shard uint32, start time.Time, end time.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
-	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", shard, start, end, opts)
+func (_m *MockAdminSession) TruncateNamespace(namespace string, shard uint32) error {
+	ret := _m.ctrl.Call(_m, "TruncateNamespace", namespace, shard)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockAdminSessionRecorder) TruncateNamespace(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateNamespace", arg0, arg1)
+}
+
+func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace string, shard uint32, start time0.Time, end time0.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
+	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts)
 	ret0, _ := ret[0].(bootstrap.ShardResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockAdminSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3)
+func (_mr *_MockAdminSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
 }
 
 // Mock of clientSession interface
@@ -270,29 +280,29 @@ func (_m *MockclientSession) EXPECT() *_MockclientSessionRecorder {
 	return _m.recorder
 }
 
-func (_m *MockclientSession) Write(id string, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", id, t, value, unit, annotation)
+func (_m *MockclientSession) Write(namespace string, id string, t time0.Time, value float64, unit time.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", namespace, id, t, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockclientSessionRecorder) Write(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
+func (_mr *_MockclientSessionRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockclientSession) Fetch(id string, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterator, error) {
-	ret := _m.ctrl.Call(_m, "Fetch", id, startInclusive, endExclusive)
+func (_m *MockclientSession) Fetch(namespace string, id string, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterator, error) {
+	ret := _m.ctrl.Call(_m, "Fetch", namespace, id, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockclientSessionRecorder) Fetch(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2)
+func (_mr *_MockclientSessionRecorder) Fetch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockclientSession) FetchAll(ids []string, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchAll", ids, startInclusive, endExclusive)
+func (_m *MockclientSession) FetchAll(idns []idWithNamespace, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterators, error) {
+	ret := _m.ctrl.Call(_m, "FetchAll", idns, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -312,15 +322,25 @@ func (_mr *_MockclientSessionRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(shard uint32, start time.Time, end time.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
-	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", shard, start, end, opts)
+func (_m *MockclientSession) TruncateNamespace(namespace string, shard uint32) error {
+	ret := _m.ctrl.Call(_m, "TruncateNamespace", namespace, shard)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockclientSessionRecorder) TruncateNamespace(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateNamespace", arg0, arg1)
+}
+
+func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace string, shard uint32, start time0.Time, end time0.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
+	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts)
 	ret0, _ := ret[0].(bootstrap.ShardResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockclientSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3)
+func (_mr *_MockclientSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
 }
 
 func (_m *MockclientSession) Open() error {
@@ -700,7 +720,7 @@ func (_mr *_MockOptionsRecorder) GetMinConnectionCount() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMinConnectionCount")
 }
 
-func (_m *MockOptions) HostConnectTimeout(value time.Duration) Options {
+func (_m *MockOptions) HostConnectTimeout(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "HostConnectTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -710,9 +730,9 @@ func (_mr *_MockOptionsRecorder) HostConnectTimeout(arg0 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostConnectTimeout", arg0)
 }
 
-func (_m *MockOptions) GetHostConnectTimeout() time.Duration {
+func (_m *MockOptions) GetHostConnectTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetHostConnectTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -720,7 +740,7 @@ func (_mr *_MockOptionsRecorder) GetHostConnectTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostConnectTimeout")
 }
 
-func (_m *MockOptions) ClusterConnectTimeout(value time.Duration) Options {
+func (_m *MockOptions) ClusterConnectTimeout(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -730,9 +750,9 @@ func (_mr *_MockOptionsRecorder) ClusterConnectTimeout(arg0 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout", arg0)
 }
 
-func (_m *MockOptions) GetClusterConnectTimeout() time.Duration {
+func (_m *MockOptions) GetClusterConnectTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetClusterConnectTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -760,7 +780,7 @@ func (_mr *_MockOptionsRecorder) GetClusterConnectConsistencyLevel() *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClusterConnectConsistencyLevel")
 }
 
-func (_m *MockOptions) WriteRequestTimeout(value time.Duration) Options {
+func (_m *MockOptions) WriteRequestTimeout(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "WriteRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -770,9 +790,9 @@ func (_mr *_MockOptionsRecorder) WriteRequestTimeout(arg0 interface{}) *gomock.C
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteRequestTimeout", arg0)
 }
 
-func (_m *MockOptions) GetWriteRequestTimeout() time.Duration {
+func (_m *MockOptions) GetWriteRequestTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetWriteRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -780,7 +800,7 @@ func (_mr *_MockOptionsRecorder) GetWriteRequestTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteRequestTimeout")
 }
 
-func (_m *MockOptions) FetchRequestTimeout(value time.Duration) Options {
+func (_m *MockOptions) FetchRequestTimeout(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "FetchRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -790,9 +810,9 @@ func (_mr *_MockOptionsRecorder) FetchRequestTimeout(arg0 interface{}) *gomock.C
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRequestTimeout", arg0)
 }
 
-func (_m *MockOptions) GetFetchRequestTimeout() time.Duration {
+func (_m *MockOptions) GetFetchRequestTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetFetchRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -800,7 +820,27 @@ func (_mr *_MockOptionsRecorder) GetFetchRequestTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchRequestTimeout")
 }
 
-func (_m *MockOptions) BackgroundConnectInterval(value time.Duration) Options {
+func (_m *MockOptions) TruncateRequestTimeout(value time0.Duration) Options {
+	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) TruncateRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateRequestTimeout", arg0)
+}
+
+func (_m *MockOptions) GetTruncateRequestTimeout() time0.Duration {
+	ret := _m.ctrl.Call(_m, "GetTruncateRequestTimeout")
+	ret0, _ := ret[0].(time0.Duration)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) GetTruncateRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTruncateRequestTimeout")
+}
+
+func (_m *MockOptions) BackgroundConnectInterval(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -810,9 +850,9 @@ func (_mr *_MockOptionsRecorder) BackgroundConnectInterval(arg0 interface{}) *go
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectInterval", arg0)
 }
 
-func (_m *MockOptions) GetBackgroundConnectInterval() time.Duration {
+func (_m *MockOptions) GetBackgroundConnectInterval() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetBackgroundConnectInterval")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -820,7 +860,7 @@ func (_mr *_MockOptionsRecorder) GetBackgroundConnectInterval() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundConnectInterval")
 }
 
-func (_m *MockOptions) BackgroundConnectStutter(value time.Duration) Options {
+func (_m *MockOptions) BackgroundConnectStutter(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -830,9 +870,9 @@ func (_mr *_MockOptionsRecorder) BackgroundConnectStutter(arg0 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectStutter", arg0)
 }
 
-func (_m *MockOptions) GetBackgroundConnectStutter() time.Duration {
+func (_m *MockOptions) GetBackgroundConnectStutter() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetBackgroundConnectStutter")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -840,7 +880,7 @@ func (_mr *_MockOptionsRecorder) GetBackgroundConnectStutter() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundConnectStutter")
 }
 
-func (_m *MockOptions) BackgroundHealthCheckInterval(value time.Duration) Options {
+func (_m *MockOptions) BackgroundHealthCheckInterval(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -850,9 +890,9 @@ func (_mr *_MockOptionsRecorder) BackgroundHealthCheckInterval(arg0 interface{})
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckInterval", arg0)
 }
 
-func (_m *MockOptions) GetBackgroundHealthCheckInterval() time.Duration {
+func (_m *MockOptions) GetBackgroundHealthCheckInterval() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetBackgroundHealthCheckInterval")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -860,7 +900,7 @@ func (_mr *_MockOptionsRecorder) GetBackgroundHealthCheckInterval() *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundHealthCheckInterval")
 }
 
-func (_m *MockOptions) BackgroundHealthCheckStutter(value time.Duration) Options {
+func (_m *MockOptions) BackgroundHealthCheckStutter(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -870,9 +910,9 @@ func (_mr *_MockOptionsRecorder) BackgroundHealthCheckStutter(arg0 interface{}) 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckStutter", arg0)
 }
 
-func (_m *MockOptions) GetBackgroundHealthCheckStutter() time.Duration {
+func (_m *MockOptions) GetBackgroundHealthCheckStutter() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetBackgroundHealthCheckStutter")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -980,7 +1020,7 @@ func (_mr *_MockOptionsRecorder) GetHostQueueOpsFlushSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostQueueOpsFlushSize")
 }
 
-func (_m *MockOptions) HostQueueOpsFlushInterval(value time.Duration) Options {
+func (_m *MockOptions) HostQueueOpsFlushInterval(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -990,9 +1030,9 @@ func (_mr *_MockOptionsRecorder) HostQueueOpsFlushInterval(arg0 interface{}) *go
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushInterval", arg0)
 }
 
-func (_m *MockOptions) GetHostQueueOpsFlushInterval() time.Duration {
+func (_m *MockOptions) GetHostQueueOpsFlushInterval() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetHostQueueOpsFlushInterval")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1261,7 +1301,7 @@ func (_mr *_MockAdminOptionsRecorder) GetMinConnectionCount() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMinConnectionCount")
 }
 
-func (_m *MockAdminOptions) HostConnectTimeout(value time.Duration) Options {
+func (_m *MockAdminOptions) HostConnectTimeout(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "HostConnectTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1271,9 +1311,9 @@ func (_mr *_MockAdminOptionsRecorder) HostConnectTimeout(arg0 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostConnectTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetHostConnectTimeout() time.Duration {
+func (_m *MockAdminOptions) GetHostConnectTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetHostConnectTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1281,7 +1321,7 @@ func (_mr *_MockAdminOptionsRecorder) GetHostConnectTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostConnectTimeout")
 }
 
-func (_m *MockAdminOptions) ClusterConnectTimeout(value time.Duration) Options {
+func (_m *MockAdminOptions) ClusterConnectTimeout(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1291,9 +1331,9 @@ func (_mr *_MockAdminOptionsRecorder) ClusterConnectTimeout(arg0 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetClusterConnectTimeout() time.Duration {
+func (_m *MockAdminOptions) GetClusterConnectTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetClusterConnectTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1321,7 +1361,7 @@ func (_mr *_MockAdminOptionsRecorder) GetClusterConnectConsistencyLevel() *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClusterConnectConsistencyLevel")
 }
 
-func (_m *MockAdminOptions) WriteRequestTimeout(value time.Duration) Options {
+func (_m *MockAdminOptions) WriteRequestTimeout(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "WriteRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1331,9 +1371,9 @@ func (_mr *_MockAdminOptionsRecorder) WriteRequestTimeout(arg0 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteRequestTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetWriteRequestTimeout() time.Duration {
+func (_m *MockAdminOptions) GetWriteRequestTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetWriteRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1341,7 +1381,7 @@ func (_mr *_MockAdminOptionsRecorder) GetWriteRequestTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteRequestTimeout")
 }
 
-func (_m *MockAdminOptions) FetchRequestTimeout(value time.Duration) Options {
+func (_m *MockAdminOptions) FetchRequestTimeout(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "FetchRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1351,9 +1391,9 @@ func (_mr *_MockAdminOptionsRecorder) FetchRequestTimeout(arg0 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRequestTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchRequestTimeout() time.Duration {
+func (_m *MockAdminOptions) GetFetchRequestTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetFetchRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1361,7 +1401,27 @@ func (_mr *_MockAdminOptionsRecorder) GetFetchRequestTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchRequestTimeout")
 }
 
-func (_m *MockAdminOptions) BackgroundConnectInterval(value time.Duration) Options {
+func (_m *MockAdminOptions) TruncateRequestTimeout(value time0.Duration) Options {
+	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) TruncateRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateRequestTimeout", arg0)
+}
+
+func (_m *MockAdminOptions) GetTruncateRequestTimeout() time0.Duration {
+	ret := _m.ctrl.Call(_m, "GetTruncateRequestTimeout")
+	ret0, _ := ret[0].(time0.Duration)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) GetTruncateRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTruncateRequestTimeout")
+}
+
+func (_m *MockAdminOptions) BackgroundConnectInterval(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1371,9 +1431,9 @@ func (_mr *_MockAdminOptionsRecorder) BackgroundConnectInterval(arg0 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectInterval", arg0)
 }
 
-func (_m *MockAdminOptions) GetBackgroundConnectInterval() time.Duration {
+func (_m *MockAdminOptions) GetBackgroundConnectInterval() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetBackgroundConnectInterval")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1381,7 +1441,7 @@ func (_mr *_MockAdminOptionsRecorder) GetBackgroundConnectInterval() *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundConnectInterval")
 }
 
-func (_m *MockAdminOptions) BackgroundConnectStutter(value time.Duration) Options {
+func (_m *MockAdminOptions) BackgroundConnectStutter(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1391,9 +1451,9 @@ func (_mr *_MockAdminOptionsRecorder) BackgroundConnectStutter(arg0 interface{})
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectStutter", arg0)
 }
 
-func (_m *MockAdminOptions) GetBackgroundConnectStutter() time.Duration {
+func (_m *MockAdminOptions) GetBackgroundConnectStutter() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetBackgroundConnectStutter")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1401,7 +1461,7 @@ func (_mr *_MockAdminOptionsRecorder) GetBackgroundConnectStutter() *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundConnectStutter")
 }
 
-func (_m *MockAdminOptions) BackgroundHealthCheckInterval(value time.Duration) Options {
+func (_m *MockAdminOptions) BackgroundHealthCheckInterval(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1411,9 +1471,9 @@ func (_mr *_MockAdminOptionsRecorder) BackgroundHealthCheckInterval(arg0 interfa
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckInterval", arg0)
 }
 
-func (_m *MockAdminOptions) GetBackgroundHealthCheckInterval() time.Duration {
+func (_m *MockAdminOptions) GetBackgroundHealthCheckInterval() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetBackgroundHealthCheckInterval")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1421,7 +1481,7 @@ func (_mr *_MockAdminOptionsRecorder) GetBackgroundHealthCheckInterval() *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundHealthCheckInterval")
 }
 
-func (_m *MockAdminOptions) BackgroundHealthCheckStutter(value time.Duration) Options {
+func (_m *MockAdminOptions) BackgroundHealthCheckStutter(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1431,9 +1491,9 @@ func (_mr *_MockAdminOptionsRecorder) BackgroundHealthCheckStutter(arg0 interfac
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckStutter", arg0)
 }
 
-func (_m *MockAdminOptions) GetBackgroundHealthCheckStutter() time.Duration {
+func (_m *MockAdminOptions) GetBackgroundHealthCheckStutter() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetBackgroundHealthCheckStutter")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1541,7 +1601,7 @@ func (_mr *_MockAdminOptionsRecorder) GetHostQueueOpsFlushSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostQueueOpsFlushSize")
 }
 
-func (_m *MockAdminOptions) HostQueueOpsFlushInterval(value time.Duration) Options {
+func (_m *MockAdminOptions) HostQueueOpsFlushInterval(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1551,9 +1611,9 @@ func (_mr *_MockAdminOptionsRecorder) HostQueueOpsFlushInterval(arg0 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushInterval", arg0)
 }
 
-func (_m *MockAdminOptions) GetHostQueueOpsFlushInterval() time.Duration {
+func (_m *MockAdminOptions) GetHostQueueOpsFlushInterval() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetHostQueueOpsFlushInterval")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1681,7 +1741,7 @@ func (_mr *_MockAdminOptionsRecorder) GetFetchSeriesBlocksBatchSize() *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchSeriesBlocksBatchSize")
 }
 
-func (_m *MockAdminOptions) FetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions {
+func (_m *MockAdminOptions) FetchSeriesBlocksMetadataBatchTimeout(value time0.Duration) AdminOptions {
 	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksMetadataBatchTimeout", value)
 	ret0, _ := ret[0].(AdminOptions)
 	return ret0
@@ -1691,9 +1751,9 @@ func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksMetadataBatchTimeout(arg0
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksMetadataBatchTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchSeriesBlocksMetadataBatchTimeout() time.Duration {
+func (_m *MockAdminOptions) GetFetchSeriesBlocksMetadataBatchTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetFetchSeriesBlocksMetadataBatchTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -1701,7 +1761,7 @@ func (_mr *_MockAdminOptionsRecorder) GetFetchSeriesBlocksMetadataBatchTimeout()
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchSeriesBlocksMetadataBatchTimeout")
 }
 
-func (_m *MockAdminOptions) FetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {
+func (_m *MockAdminOptions) FetchSeriesBlocksBatchTimeout(value time0.Duration) AdminOptions {
 	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchTimeout", value)
 	ret0, _ := ret[0].(AdminOptions)
 	return ret0
@@ -1711,9 +1771,9 @@ func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksBatchTimeout(arg0 interfa
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksBatchTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchSeriesBlocksBatchTimeout() time.Duration {
+func (_m *MockAdminOptions) GetFetchSeriesBlocksBatchTimeout() time0.Duration {
 	ret := _m.ctrl.Call(_m, "GetFetchSeriesBlocksBatchTimeout")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 

@@ -32,8 +32,11 @@ import (
 	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 )
+
+const defaultNamespaceName = "default"
 
 // DefaultShardSet creates a default shard set.
 func DefaultShardSet() (sharding.ShardSet, error) {
@@ -44,6 +47,14 @@ func DefaultShardSet() (sharding.ShardSet, error) {
 	}
 
 	return sharding.NewShardSet(shards, sharding.DefaultHashGen(1024))
+}
+
+// DefaultNamespaces creates a list of default namespaces.
+func DefaultNamespaces() []namespace.Metadata {
+	opts := namespace.NewOptions()
+	return []namespace.Metadata{
+		namespace.NewMetadata(defaultNamespaceName, opts),
+	}
 }
 
 // DefaultClientOptions creates a default m3db client options.
@@ -70,6 +81,7 @@ func Serve(
 	tchannelClusterAddr string,
 	httpNodeAddr string,
 	tchannelNodeAddr string,
+	namespaces []namespace.Metadata,
 	clientOpts client.Options,
 	storageOpts storage.Options,
 	doneCh chan struct{},
@@ -79,7 +91,7 @@ func Serve(
 	if err != nil {
 		return err
 	}
-	db, err := storage.NewDatabase(shardSet, storageOpts)
+	db, err := storage.NewDatabase(namespaces, shardSet, storageOpts)
 	if err != nil {
 		return err
 	}

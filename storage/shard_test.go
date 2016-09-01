@@ -23,13 +23,13 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
-	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
@@ -38,15 +38,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
-
-var noopWriteCommitLogFn = func(
-	series commitlog.Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
-) error {
-	return nil
-}
 
 type testIncreasingIndex struct {
 	created uint64
@@ -58,7 +49,7 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 }
 
 func testDatabaseShard(opts Options) *dbShard {
-	return newDatabaseShard(0, &testIncreasingIndex{}, noopWriteCommitLogFn, opts).(*dbShard)
+	return newDatabaseShard(0, &testIncreasingIndex{}, commitLogWriteNoOp, opts).(*dbShard)
 }
 
 func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id string, index uint64) *MockdatabaseSeries {
@@ -94,8 +85,8 @@ func TestShardBootstrapWithError(t *testing.T) {
 	shardResult.EXPECT().GetAllSeries().Return(bootstrappedSeries)
 
 	bs := bootstrap.NewMockBootstrap(ctrl)
-	bs.EXPECT().Run(writeStart, s.shard).Return(shardResult, errors.New("bootstrap error"))
-	err := s.Bootstrap(bs, writeStart, cutover)
+	bs.EXPECT().Run(writeStart, testNamespaceName, s.shard).Return(shardResult, errors.New("bootstrap error"))
+	err := s.Bootstrap(bs, testNamespaceName, writeStart, cutover)
 
 	require.NotNil(t, err)
 	require.Equal(t, "error occurred bootstrapping shard 0 from external sources: bootstrap error\nseries error", err.Error())
@@ -105,7 +96,7 @@ func TestShardBootstrapWithError(t *testing.T) {
 func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapping
-	err := s.Flush(nil, time.Now(), nil)
+	err := s.Flush(nil, testNamespaceName, time.Now(), nil)
 	require.Equal(t, err, errShardNotBootstrapped)
 }
 
@@ -118,8 +109,8 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	blockStart := time.Unix(21600, 0)
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{}
-	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, nil)
-	require.Nil(t, s.Flush(nil, blockStart, pm))
+	pm.EXPECT().Prepare(testNamespaceName, s.shard, blockStart).Return(prepared, nil)
+	require.Nil(t, s.Flush(nil, testNamespaceName, blockStart, pm))
 }
 
 func TestShardFlushNoPersistFuncWithError(t *testing.T) {
@@ -132,8 +123,8 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
-	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, expectedErr)
-	actualErr := s.Flush(nil, blockStart, pm)
+	pm.EXPECT().Prepare(testNamespaceName, s.shard, blockStart).Return(prepared, expectedErr)
+	actualErr := s.Flush(nil, testNamespaceName, blockStart, pm)
 	require.NotNil(t, actualErr)
 	require.Equal(t, "some error", actualErr.Error())
 }
@@ -153,7 +144,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Close:   func() { closed = true },
 	}
 	expectedErr := errors.New("error foo")
-	pm.EXPECT().Prepare(s.shard, blockStart).Return(prepared, expectedErr)
+	pm.EXPECT().Prepare(testNamespaceName, s.shard, blockStart).Return(prepared, expectedErr)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -171,7 +162,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 			Return(expectedErr)
 		s.list.PushBack(&dbShardEntry{series: series})
 	}
-	err := s.Flush(nil, blockStart, pm)
+	err := s.Flush(nil, testNamespaceName, blockStart, pm)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -340,4 +331,19 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	for i := 0; i < len(res); i++ {
 		require.Equal(t, ids[i], res[i].ID())
 	}
+}
+
+func TestShardCleanupFileset(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(opts)
+	shard.filesetBeforeFn = func(_ string, namespace string, shardID uint32, t time.Time) ([]string, error) {
+		return []string{namespace, strconv.Itoa(int(shardID))}, nil
+	}
+	var deletedFiles []string
+	shard.deleteFilesFn = func(files []string) error {
+		deletedFiles = append(deletedFiles, files...)
+		return nil
+	}
+	require.NoError(t, shard.CleanupFileset(testNamespaceName, time.Now()))
+	require.Equal(t, []string{testNamespaceName, "0"}, deletedFiles)
 }

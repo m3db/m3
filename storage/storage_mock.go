@@ -234,48 +234,48 @@ func (_mr *_MockDatabaseRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockDatabase) Write(ctx context.Context, id string, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", ctx, id, timestamp, value, unit, annotation)
+func (_m *MockDatabase) Write(ctx context.Context, namespace string, id string, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockDatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
+func (_mr *_MockDatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-func (_m *MockDatabase) ReadEncoded(ctx context.Context, id string, start time.Time, end time.Time) ([][]io.SegmentReader, error) {
-	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end)
+func (_m *MockDatabase) ReadEncoded(ctx context.Context, namespace string, id string, start time.Time, end time.Time) ([][]io.SegmentReader, error) {
+	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, namespace, id, start, end)
 	ret0, _ := ret[0].([][]io.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockDatabaseRecorder) ReadEncoded(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2, arg3)
+func (_mr *_MockDatabaseRecorder) ReadEncoded(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockDatabase) FetchBlocks(ctx context.Context, shard uint32, id string, starts []time.Time) ([]FetchBlockResult, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocks", ctx, shard, id, starts)
+func (_m *MockDatabase) FetchBlocks(ctx context.Context, namespace string, shard uint32, id string, starts []time.Time) ([]FetchBlockResult, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocks", ctx, namespace, shard, id, starts)
 	ret0, _ := ret[0].([]FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockDatabaseRecorder) FetchBlocks(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2, arg3)
+func (_mr *_MockDatabaseRecorder) FetchBlocks(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockDatabase) FetchBlocksMetadata(ctx context.Context, shardID uint32, limit int64, pageToken int64, includeSizes bool) ([]FetchBlocksMetadataResult, *int64, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, shardID, limit, pageToken, includeSizes)
+func (_m *MockDatabase) FetchBlocksMetadata(ctx context.Context, namespace string, shard uint32, limit int64, pageToken int64, includeSizes bool) ([]FetchBlocksMetadataResult, *int64, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, namespace, shard, limit, pageToken, includeSizes)
 	ret0, _ := ret[0].([]FetchBlocksMetadataResult)
 	ret1, _ := ret[1].(*int64)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-func (_mr *_MockDatabaseRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4)
+func (_mr *_MockDatabaseRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 func (_m *MockDatabase) Bootstrap() error {
@@ -296,6 +296,137 @@ func (_m *MockDatabase) IsBootstrapped() bool {
 
 func (_mr *_MockDatabaseRecorder) IsBootstrapped() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBootstrapped")
+}
+
+func (_m *MockDatabase) TruncateNamespace(namespace string) error {
+	ret := _m.ctrl.Call(_m, "TruncateNamespace", namespace)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDatabaseRecorder) TruncateNamespace(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateNamespace", arg0)
+}
+
+// Mock of databaseNamespace interface
+type MockdatabaseNamespace struct {
+	ctrl     *gomock.Controller
+	recorder *_MockdatabaseNamespaceRecorder
+}
+
+// Recorder for MockdatabaseNamespace (not exported)
+type _MockdatabaseNamespaceRecorder struct {
+	mock *MockdatabaseNamespace
+}
+
+func NewMockdatabaseNamespace(ctrl *gomock.Controller) *MockdatabaseNamespace {
+	mock := &MockdatabaseNamespace{ctrl: ctrl}
+	mock.recorder = &_MockdatabaseNamespaceRecorder{mock}
+	return mock
+}
+
+func (_m *MockdatabaseNamespace) EXPECT() *_MockdatabaseNamespaceRecorder {
+	return _m.recorder
+}
+
+func (_m *MockdatabaseNamespace) Name() string {
+	ret := _m.ctrl.Call(_m, "Name")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) Name() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Name")
+}
+
+func (_m *MockdatabaseNamespace) Tick() {
+	_m.ctrl.Call(_m, "Tick")
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) Tick() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick")
+}
+
+func (_m *MockdatabaseNamespace) Write(ctx context.Context, id string, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", ctx, id, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+func (_m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id string, start time.Time, end time.Time) ([][]io.SegmentReader, error) {
+	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end)
+	ret0, _ := ret[0].([][]io.SegmentReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) ReadEncoded(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2, arg3)
+}
+
+func (_m *MockdatabaseNamespace) FetchBlocks(ctx context.Context, shardID uint32, id string, starts []time.Time) ([]FetchBlockResult, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocks", ctx, shardID, id, starts)
+	ret0, _ := ret[0].([]FetchBlockResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocks(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2, arg3)
+}
+
+func (_m *MockdatabaseNamespace) FetchBlocksMetadata(ctx context.Context, shardID uint32, limit int64, pageToken int64, includeSizes bool) ([]FetchBlocksMetadataResult, *int64, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, shardID, limit, pageToken, includeSizes)
+	ret0, _ := ret[0].([]FetchBlocksMetadataResult)
+	ret1, _ := ret[1].(*int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4)
+}
+
+func (_m *MockdatabaseNamespace) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", bs, writeStart, cutover)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) Bootstrap(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2)
+}
+
+func (_m *MockdatabaseNamespace) Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error {
+	ret := _m.ctrl.Call(_m, "Flush", ctx, blockStart, pm)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) Flush(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1, arg2)
+}
+
+func (_m *MockdatabaseNamespace) CleanupFileset(earliestToRetain time.Time) error {
+	ret := _m.ctrl.Call(_m, "CleanupFileset", earliestToRetain)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) CleanupFileset(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0)
+}
+
+func (_m *MockdatabaseNamespace) Truncate() {
+	_m.ctrl.Call(_m, "Truncate")
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) Truncate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate")
 }
 
 // Mock of databaseShard interface
@@ -379,24 +510,34 @@ func (_mr *_MockdatabaseShardRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockdatabaseShard) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error {
-	ret := _m.ctrl.Call(_m, "Bootstrap", bs, writeStart, cutover)
+func (_m *MockdatabaseShard) Bootstrap(bs bootstrap.Bootstrap, namespace string, writeStart time.Time, cutover time.Time) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", bs, namespace, writeStart, cutover)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2)
+func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockdatabaseShard) Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error {
-	ret := _m.ctrl.Call(_m, "Flush", ctx, blockStart, pm)
+func (_m *MockdatabaseShard) Flush(ctx context.Context, namespace string, blockStart time.Time, pm persist.Manager) error {
+	ret := _m.ctrl.Call(_m, "Flush", ctx, namespace, blockStart, pm)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) Flush(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1, arg2)
+func (_mr *_MockdatabaseShardRecorder) Flush(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1, arg2, arg3)
+}
+
+func (_m *MockdatabaseShard) CleanupFileset(namespace string, earliestToRetain time.Time) error {
+	ret := _m.ctrl.Call(_m, "CleanupFileset", namespace, earliestToRetain)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseShardRecorder) CleanupFileset(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0, arg1)
 }
 
 // Mock of databaseSeries interface

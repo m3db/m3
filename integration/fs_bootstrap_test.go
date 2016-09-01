@@ -42,34 +42,41 @@ func writeToDisk(
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
-	dm dataMap,
+	dm seriesList,
 ) error {
-	idsPerShard := make(map[uint32][]string)
-	for id := range dm {
-		shard := shardSet.Shard(id)
-		idsPerShard[shard] = append(idsPerShard[shard], id)
+	idsPerNamespacePerShard := make(map[string]map[uint32][]series)
+	for _, s := range dm {
+		namespace, exists := idsPerNamespacePerShard[s.namespace]
+		if !exists {
+			namespace = make(map[uint32][]series)
+			idsPerNamespacePerShard[s.namespace] = namespace
+		}
+		shard := shardSet.Shard(s.id)
+		namespace[shard] = append(namespace[shard], s)
 	}
 	segmentHolder := make([][]byte, 2)
-	for shard, ids := range idsPerShard {
-		if err := writer.Open(shard, start); err != nil {
-			return err
-		}
-		for _, id := range ids {
-			encoder.Reset(start, 0)
-			for _, dp := range dm[id] {
-				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
+	for name, namespace := range idsPerNamespacePerShard {
+		for shard, series := range namespace {
+			if err := writer.Open(name, shard, start); err != nil {
+				return err
+			}
+			for _, s := range series {
+				encoder.Reset(start, 0)
+				for _, dp := range s.data {
+					if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
+						return err
+					}
+				}
+				segment := encoder.Stream().Segment()
+				segmentHolder[0] = segment.Head
+				segmentHolder[1] = segment.Tail
+				if err := writer.WriteAll(s.id, segmentHolder); err != nil {
 					return err
 				}
 			}
-			segment := encoder.Stream().Segment()
-			segmentHolder[0] = segment.Head
-			segmentHolder[1] = segment.Tail
-			if err := writer.WriteAll(id, segmentHolder); err != nil {
+			if err := writer.Close(); err != nil {
 				return err
 			}
-		}
-		if err := writer.Close(); err != nil {
-			return err
 		}
 	}
 	return nil
@@ -102,7 +109,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	newDirectoryMode := fsOpts.GetNewDirectoryMode()
 	writer := fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 	encoder := testSetup.storageOpts.GetEncoderPool().Get()
-	dataMaps := make(map[time.Time]dataMap)
+	dataMaps := make(map[time.Time]seriesList)
 
 	// Write test data
 	now := testSetup.getNowFn()
@@ -115,7 +122,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 		{[]string{"foo", "baz"}, 50, now},
 	}
 	for _, input := range inputData {
-		testData := generateTestData(input.metricNames, input.numPoints, input.start)
+		testData := generateTestData(testNamespaces[0], input.metricNames, input.numPoints, input.start)
 		dataMaps[input.start] = testData
 		require.NoError(t, writeToDisk(writer, testSetup.shardSet, encoder, input.start, testData))
 	}

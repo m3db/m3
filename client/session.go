@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/watch"
+
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -320,7 +321,7 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	return hostQueue
 }
 
-func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+func (s *session) Write(namespace string, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	var (
 		wg            sync.WaitGroup
 		enqueueErr    error
@@ -342,7 +343,8 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 	}
 
 	w := s.writeOpPool.Get()
-	w.request.ID = id
+	w.request.IdWithNamespace.ID = id
+	w.request.IdWithNamespace.Ns = namespace
 	w.datapoint.Value = value
 	w.datapoint.Timestamp = ts
 	w.datapoint.TimestampType = timeType
@@ -390,8 +392,8 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 	return s.consistencyResult(majority, enqueued, resultErrs, resultErr)
 }
 
-func (s *session) Fetch(id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
-	results, err := s.FetchAll([]string{id}, startInclusive, endExclusive)
+func (s *session) Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
+	results, err := s.FetchAll([]idWithNamespace{{ID: id, Namespace: namespace}}, startInclusive, endExclusive)
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +406,7 @@ func (s *session) Fetch(id string, startInclusive, endExclusive time.Time) (enco
 	return iter, nil
 }
 
-func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+func (s *session) FetchAll(idns []idWithNamespace, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
 	var (
 		wg                     sync.WaitGroup
 		routeErr               error
@@ -426,8 +428,8 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 		return nil, tsErr
 	}
 
-	iters := s.seriesIteratorsPool.Get(len(ids))
-	iters.Reset(len(ids))
+	iters := s.seriesIteratorsPool.Get(len(idns))
+	iters.Reset(len(idns))
 
 	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
 
@@ -446,7 +448,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 
 	s.RLock()
 	majority = s.majority
-	for idx := range ids {
+	for idx := range idns {
 		idx := idx
 
 		var (
@@ -492,7 +494,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 			} else {
 				// This is the final result, its safe to load "success" now without atomic operation
 				iter := s.seriesIteratorPool.Get()
-				iter.Reset(ids[idx], startInclusive, endExclusive, results[:success])
+				iter.Reset(idns[idx].ID, startInclusive, endExclusive, results[:success])
 				iters.SetAt(idx, iter)
 			}
 			wg.Done()
@@ -501,7 +503,7 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 			s.iteratorArrayPool.Put(results)
 		}
 
-		if err := s.topoMap.RouteForEach(ids[idx], func(hostIdx int, host topology.Host) {
+		if err := s.topoMap.RouteForEach(idns[idx].ID, func(hostIdx int, host topology.Host) {
 			// Inc safely as this for each is sequential
 			enqueued++
 			pending++
@@ -522,8 +524,11 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				f.request.RangeType = rpc.TimeType_UNIX_NANOSECONDS
 			}
 
-			// Append ID to this request
-			f.append(ids[idx], completionFn)
+			// Append IDWithNamespace to this request
+			idn := s.fetchBatchOpPool.GetIDWithNamespace()
+			idn.ID = idns[idx].ID
+			idn.Ns = idns[idx].Namespace
+			f.append(idn, completionFn)
 		}); err != nil {
 			routeErr = err
 			break
@@ -617,7 +622,54 @@ func (s *session) Close() error {
 	return nil
 }
 
+func (s *session) TruncateNamespace(namespace string, shard uint32) error {
+	var (
+		wg            sync.WaitGroup
+		enqueueErr    xerrors.MultiError
+		resultErrLock sync.Mutex
+		resultErr     xerrors.MultiError
+	)
+
+	t := &truncateOp{}
+	t.request.Ns = namespace
+	t.completionFn = func(result interface{}, err error) {
+		if err != nil {
+			resultErrLock.Lock()
+			resultErr = resultErr.Add(err)
+			resultErrLock.Unlock()
+		}
+		wg.Done()
+	}
+
+	log := s.opts.GetInstrumentOptions().GetLogger()
+
+	s.RLock()
+	if routeErr := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
+		wg.Add(1)
+		if err := s.queues[idx].Enqueue(t); err != nil {
+			wg.Done()
+			enqueueErr = enqueueErr.Add(err)
+		}
+	}); routeErr != nil {
+		s.RUnlock()
+		log.Errorf("failed to route request: %v", routeErr)
+		return routeErr
+	}
+	s.RUnlock()
+
+	if err := enqueueErr.FinalError(); err != nil {
+		log.Errorf("failed to enqueue request: %v", err)
+		return err
+	}
+
+	// Wait for namespace to be truncated on all replicas
+	wg.Wait()
+
+	return resultErr.FinalError()
+}
+
 func (s *session) FetchBootstrapBlocksFromPeers(
+	namespace string,
 	shard uint32,
 	start, end time.Time,
 	opts bootstrap.Options,
@@ -654,7 +706,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// be returned from this routine as long as one peer succeeds completely
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
-		err := s.streamBlocksMetadataFromPeers(shard, peers, metadataCh)
+		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers, metadataCh)
 		close(metadataCh)
 		if err != nil {
 			// Bail early
@@ -664,7 +716,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 
 	// Begin consuming metadata and making requests
 	go func() {
-		err := s.streamBlocksFromPeers(shard, peers, metadataCh, result)
+		err := s.streamBlocksFromPeers(namespace, shard, peers, metadataCh, result)
 		onDone(err)
 	}()
 
@@ -675,6 +727,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 }
 
 func (s *session) streamBlocksMetadataFromPeers(
+	namespace string,
 	shard uint32,
 	peers []hostQueue,
 	ch chan<- blocksMetadata,
@@ -691,10 +744,9 @@ func (s *session) streamBlocksMetadataFromPeers(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := s.streamBlocksMetadataFromPeer(shard, peer, ch)
+			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer, ch)
 			if err != nil {
-				s.log.Warnf("failed to stream blocks metadata from peer %s for shard %d: %v", peer.Host().String(), shard, err)
-
+				s.log.Warnf("failed to stream blocks metadata from peer %s for namespace %s shard %d: %v", peer.Host().String(), namespace, shard, err)
 				errLock.Lock()
 				defer errLock.Unlock()
 				errLen++
@@ -706,13 +758,14 @@ func (s *session) streamBlocksMetadataFromPeers(
 	wg.Wait()
 
 	if errLen == len(peers) {
-		s.log.Errorf("failed to complete streaming blocks from all peers for shard %d", shard)
+		s.log.Errorf("failed to complete streaming blocks from all peers for namespace %s shard %d", namespace, shard)
 		return multiErr
 	}
 	return nil
 }
 
 func (s *session) streamBlocksMetadataFromPeer(
+	namespace string,
 	shard uint32,
 	peer hostQueue,
 	ch chan<- blocksMetadata,
@@ -736,6 +789,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
 		req := rpc.NewFetchBlocksMetadataRequest()
+		req.Ns = namespace
 		req.Shard = int32(shard)
 		req.Limit = int64(s.streamBlocksBatchSize)
 		req.PageToken = pageToken
@@ -796,6 +850,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 }
 
 func (s *session) streamBlocksFromPeers(
+	namespace string,
 	shard uint32,
 	peers []hostQueue,
 	ch <-chan blocksMetadata,
@@ -827,7 +882,7 @@ func (s *session) streamBlocksFromPeers(
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
 		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, func(batch []*blocksMetadata) {
-			s.streamBlocksBatchFromPeer(shard, peer, batch, result, enqueueCh, retrier)
+			s.streamBlocksBatchFromPeer(namespace, shard, peer, batch, result, enqueueCh, retrier)
 		})
 		peerQueues = append(peerQueues, queue)
 	}
@@ -1091,6 +1146,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 }
 
 func (s *session) streamBlocksBatchFromPeer(
+	namespace string,
 	shard uint32,
 	peer hostQueue,
 	batch []*blocksMetadata,
@@ -1103,6 +1159,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		req    = rpc.NewFetchBlocksRequest()
 		result *rpc.FetchBlocksResult_
 	)
+	req.Ns = namespace
 	req.Shard = int32(shard)
 	req.Elements = make([]*rpc.FetchBlocksParam, len(batch))
 	for i := range batch {

@@ -44,5 +44,5 @@ type Manager interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
-	Prepare(shard uint32, blockStart time.Time) (PreparedPersist, error)
+	Prepare(namespace string, shard uint32, blockStart time.Time) (PreparedPersist, error)
 }

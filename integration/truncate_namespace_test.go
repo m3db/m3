@@ -26,10 +26,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3x/time"
+
 	"github.com/stretchr/testify/require"
 )
 
-func TestRoundtrip(t *testing.T) {
+func TestTruncateNamespace(t *testing.T) {
 	// Test setup
 	testSetup, err := newTestSetup(newTestOptions())
 	require.NoError(t, err)
@@ -43,7 +46,7 @@ func TestRoundtrip(t *testing.T) {
 
 	// Start the server
 	log := testSetup.storageOpts.GetInstrumentOptions().GetLogger()
-	log.Debug("round trip test")
+	log.Debug("truncate namespace test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
 
@@ -57,28 +60,64 @@ func TestRoundtrip(t *testing.T) {
 	now := testSetup.getNowFn()
 	dataMaps := make(map[time.Time]seriesList)
 	inputData := []struct {
-		metricNames []string
-		numPoints   int
-		start       time.Time
+		namespace string
+		ids       []string
+		numPoints int
+		start     time.Time
 	}{
-		{[]string{"foo", "bar"}, 100, now},
-		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
+		{testNamespaces[0], []string{"foo"}, 100, now},
+		{testNamespaces[1], []string{"bar"}, 50, now.Add(blockSize)},
 	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.start)
-		testData := generateTestData(testNamespaces[0], input.metricNames, input.numPoints, input.start)
+		testData := generateTestData(input.namespace, input.ids, input.numPoints, input.start)
 		dataMaps[input.start] = testData
 		require.NoError(t, testSetup.writeBatch(testData))
 	}
 	log.Debug("test data is now written")
 
-	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
-	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	time.Sleep(testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 4)
+	fetchReq := rpc.NewFetchRequest()
+	fetchReq.IdWithNamespace = rpc.NewIDWithNamespace()
+	fetchReq.IdWithNamespace.ID = "foo"
+	fetchReq.IdWithNamespace.Ns = testNamespaces[1]
+	fetchReq.RangeStart = xtime.ToNormalizedTime(now, time.Second)
+	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
+	fetchReq.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 
-	// Verify in-memory data match what we've written
-	verifyDataMaps(t, testSetup, dataMaps)
+	log.Debug("fetching data from nonexistent namespace")
+	fetchReq.IdWithNamespace.Ns = "nonexistent"
+	_, err = testSetup.fetch(fetchReq)
+	require.Error(t, err)
 
-	// Verify in-memory data again just to be sure the data can be read multiple times without issues
-	verifyDataMaps(t, testSetup, dataMaps)
+	log.Debug("fetching data from wrong namespace")
+	fetchReq.IdWithNamespace.Ns = testNamespaces[1]
+	res, err := testSetup.fetch(fetchReq)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(res))
+
+	log.Debugf("fetching data from namespace %s", testNamespaces[0])
+	fetchReq.IdWithNamespace.Ns = testNamespaces[0]
+	res, err = testSetup.fetch(fetchReq)
+	require.NoError(t, err)
+	require.Equal(t, 100, len(res))
+
+	log.Debugf("truncate namespace %s", testNamespaces[0])
+	truncateReq := rpc.NewTruncateNamespaceRequest()
+	truncateReq.Ns = testNamespaces[0]
+	err = testSetup.truncate(truncateReq)
+	require.NoError(t, err)
+
+	log.Debugf("fetching data from namespace %s again", testNamespaces[0])
+	res, err = testSetup.fetch(fetchReq)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(res))
+
+	log.Debugf("fetching data from a different namespace %s", testNamespaces[1])
+	fetchReq.IdWithNamespace.ID = "bar"
+	fetchReq.IdWithNamespace.Ns = testNamespaces[1]
+	fetchReq.RangeStart = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
+	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize*2), time.Second)
+	res, err = testSetup.fetch(fetchReq)
+	require.NoError(t, err)
+	require.Equal(t, 50, len(res))
 }

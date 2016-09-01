@@ -47,12 +47,12 @@ func tchannelClient(address string) (*tchannel.Channel, rpc.TChanNode, error) {
 }
 
 // tchannelClientWriteBatch writes a data map using a tchannel client.
-func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, dm dataMap) error {
+func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, dm seriesList) error {
 	var elems []*rpc.WriteRequest
-	for name, datapoints := range dm {
-		for _, dp := range datapoints {
+	for _, series := range dm {
+		for _, dp := range series.data {
 			req := &rpc.WriteRequest{
-				ID: name,
+				IdWithNamespace: &rpc.IDWithNamespace{ID: series.id, Ns: series.namespace},
 				Datapoint: &rpc.Datapoint{
 					Timestamp:     xtime.ToNormalizedTime(dp.Timestamp, time.Second),
 					Value:         dp.Value,
@@ -78,12 +78,18 @@ func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.F
 	return toDatapoints(fetched), nil
 }
 
+// tchannelClientTruncateNamespace fulfills a namespace truncation request using a tchannel client.
+func tchannelClientTruncateNamespace(client rpc.TChanNode, timeout time.Duration, req *rpc.TruncateNamespaceRequest) error {
+	ctx, _ := thrift.NewContext(timeout)
+	return client.TruncateNamespace(ctx, req)
+}
+
 func m3dbClient(opts client.Options) (client.Client, error) {
 	return client.NewClient(opts)
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
-func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, dm dataMap) error {
+func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, dm seriesList) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -95,14 +101,14 @@ func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, dm d
 		wg    sync.WaitGroup
 	)
 
-	for name, datapoints := range dm {
-		for _, dp := range datapoints {
+	for _, series := range dm {
+		for _, dp := range series.data {
 			wg.Add(1)
-			n, d := name, dp
+			ns, id, d := series.namespace, series.id, dp
 			workerPool.Go(func() {
 				defer wg.Done()
 
-				if err := session.Write(n, d.Timestamp, d.Value, xtime.Second, nil); err != nil {
+				if err := session.Write(ns, id, d.Timestamp, d.Value, xtime.Second, nil); err != nil {
 					select {
 					case errCh <- err:
 					default:
@@ -130,7 +136,8 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoin
 	defer session.Close()
 
 	iter, err := session.Fetch(
-		req.ID,
+		req.IdWithNamespace.Ns,
+		req.IdWithNamespace.ID,
 		xtime.FromNormalizedTime(req.RangeStart, time.Second),
 		xtime.FromNormalizedTime(req.RangeEnd, time.Second),
 	)

@@ -107,10 +107,10 @@ func TestHostQueueWriteBatches(t *testing.T) {
 
 	// Prepare writes
 	writes := []*writeOp{
-		testWriteOp("foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
-		testWriteOp("bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
-		testWriteOp("baz", 3.0, 3000, rpc.TimeType_UNIX_SECONDS, callback),
-		testWriteOp("qux", 4.0, 4000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs1", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs2", "bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs3", "baz", 3.0, 3000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs4", "qux", 4.0, 4000, rpc.TimeType_UNIX_SECONDS, callback),
 	}
 	wg.Add(len(writes))
 
@@ -182,7 +182,7 @@ func TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 		assert.Equal(t, nextClientErr, err)
 		wg.Done()
 	}
-	assert.NoError(t, queue.Enqueue(testWriteOp("foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback)))
+	assert.NoError(t, queue.Enqueue(testWriteOp("testNs", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback)))
 
 	// Wait for background flush
 	wg.Wait()
@@ -217,7 +217,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	var wg sync.WaitGroup
 	writeErr := "a write error"
 	writes := []*writeOp{
-		testWriteOp("foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, func(r interface{}, err error) {
+		testWriteOp("testNs1", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, func(r interface{}, err error) {
 			assert.Error(t, err)
 			rpcErr, ok := err.(*rpc.Error)
 			assert.True(t, ok)
@@ -225,7 +225,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 			assert.Equal(t, writeErr, rpcErr.Message)
 			wg.Done()
 		}),
-		testWriteOp("bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, func(r interface{}, err error) {
+		testWriteOp("testNs2", "bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, func(r interface{}, err error) {
 			assert.NoError(t, err)
 			wg.Done()
 		}),
@@ -291,8 +291,8 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 		wg.Done()
 	}
 	writes := []*writeOp{
-		testWriteOp("foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
-		testWriteOp("bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs1", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs2", "bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
 	}
 	wg.Add(len(writes))
 
@@ -325,7 +325,12 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 }
 
 func TestHostQueueFetchBatches(t *testing.T) {
-	ids := []string{"foo", "bar", "baz", "qux"}
+	ids := []idWithNamespace{
+		{"foo", "testNs1"},
+		{"bar", "testNs2"},
+		{"baz", "testNs3"},
+		{"qux", "testNs4"},
+	}
 	result := &rpc.FetchRawBatchResult_{}
 	for _ = range ids {
 		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
@@ -340,7 +345,12 @@ func TestHostQueueFetchBatches(t *testing.T) {
 }
 
 func TestHostQueueFetchBatchesErrorOnNextClientUnavailable(t *testing.T) {
-	ids := []string{"foo", "bar", "baz", "qux"}
+	ids := []idWithNamespace{
+		{"foo", "testNs1"},
+		{"bar", "testNs2"},
+		{"baz", "testNs3"},
+		{"qux", "testNs4"},
+	}
 	expectedErr := fmt.Errorf("an error")
 	var expected []hostQueueResult
 	for _ = range ids {
@@ -355,7 +365,12 @@ func TestHostQueueFetchBatchesErrorOnNextClientUnavailable(t *testing.T) {
 }
 
 func TestHostQueueFetchBatchesErrorOnFetchRawBatchError(t *testing.T) {
-	ids := []string{"foo", "bar", "baz", "qux"}
+	ids := []idWithNamespace{
+		{"foo", "testNs1"},
+		{"bar", "testNs2"},
+		{"baz", "testNs3"},
+		{"qux", "testNs4"},
+	}
 	expectedErr := fmt.Errorf("an error")
 	var expected []hostQueueResult
 	for _ = range ids {
@@ -370,7 +385,12 @@ func TestHostQueueFetchBatchesErrorOnFetchRawBatchError(t *testing.T) {
 }
 
 func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
-	ids := []string{"foo", "bar", "baz", "qux"}
+	ids := []idWithNamespace{
+		{"foo", "testNs1"},
+		{"bar", "testNs2"},
+		{"baz", "testNs3"},
+		{"qux", "testNs4"},
+	}
 	result := &rpc.FetchRawBatchResult_{}
 	for _ = range ids[:len(ids)-1] {
 		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
@@ -386,7 +406,12 @@ func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
 }
 
 func TestHostQueueFetchBatchesErrorOnResultError(t *testing.T) {
-	ids := []string{"foo", "bar", "baz", "qux"}
+	ids := []idWithNamespace{
+		{"foo", "testNs1"},
+		{"bar", "testNs2"},
+		{"baz", "testNs3"},
+		{"qux", "testNs4"},
+	}
 	anError := &rpc.Error{Type: rpc.ErrorType_INTERNAL_ERROR, Message: "an error"}
 	result := &rpc.FetchRawBatchResult_{}
 	for _ = range ids[:len(ids)-1] {
@@ -413,7 +438,7 @@ type testHostQueueFetchBatchesOptions struct {
 
 func testHostQueueFetchBatches(
 	t *testing.T,
-	ids []string,
+	idns []idWithNamespace,
 	result *rpc.FetchRawBatchResult_,
 	expected []hostQueueResult,
 	testOpts *testHostQueueFetchBatchesOptions,
@@ -443,18 +468,25 @@ func testHostQueueFetchBatches(
 		wg.Done()
 	}
 
+	idsWithNamespace := make([]*rpc.IDWithNamespace, len(idns))
+	for i := range idns {
+		idsWithNamespace[i] = rpc.NewIDWithNamespace()
+		idsWithNamespace[i].ID = idns[i].ID
+		idsWithNamespace[i].Ns = idns[i].Namespace
+	}
+
 	// Prepare fetch batch op
 	fetchBatch := &fetchBatchOp{
 		request: rpc.FetchRawBatchRequest{
-			RangeStart: 0,
-			RangeEnd:   1,
-			Ids:        ids,
+			RangeStart:       0,
+			RangeEnd:         1,
+			IdsWithNamespace: idsWithNamespace,
 		},
 	}
-	for _ = range fetchBatch.request.Ids {
+	for _ = range fetchBatch.request.IdsWithNamespace {
 		fetchBatch.completionFns = append(fetchBatch.completionFns, callback)
 	}
-	wg.Add(len(fetchBatch.request.Ids))
+	wg.Add(len(fetchBatch.request.IdsWithNamespace))
 
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
@@ -502,6 +534,7 @@ func testHostQueueFetchBatches(
 }
 
 func testWriteOp(
+	namespace string,
 	id string,
 	value float64,
 	timestamp int64,
@@ -510,7 +543,8 @@ func testWriteOp(
 ) *writeOp {
 	w := &writeOp{}
 	w.reset()
-	w.request.ID = id
+	w.request.IdWithNamespace.ID = id
+	w.request.IdWithNamespace.Ns = namespace
 	w.datapoint = rpc.Datapoint{
 		Value:         value,
 		Timestamp:     timestamp,

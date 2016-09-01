@@ -45,12 +45,14 @@ func TestSessionWrite(t *testing.T) {
 	session := s.(*session)
 
 	w := struct {
+		ns         string
 		id         string
 		value      float64
 		t          time.Time
 		unit       xtime.Unit
 		annotation []byte
 	}{
+		ns:         "testNs",
 		id:         "foo",
 		value:      1.0,
 		t:          time.Now(),
@@ -63,7 +65,7 @@ func TestSessionWrite(t *testing.T) {
 		completionFn = op.GetCompletionFn()
 		write, ok := op.(*writeOp)
 		assert.True(t, ok)
-		assert.Equal(t, w.id, write.request.ID)
+		assert.Equal(t, w.id, write.request.IdWithNamespace.ID)
 		assert.Equal(t, &write.datapoint, write.request.Datapoint)
 		assert.Equal(t, w.value, write.datapoint.Value)
 		assert.Equal(t, w.t.Unix(), write.datapoint.Timestamp)
@@ -83,7 +85,7 @@ func TestSessionWrite(t *testing.T) {
 	var writeWg sync.WaitGroup
 	writeWg.Add(1)
 	go func() {
-		resultErr = session.Write(w.id, w.t, w.value, w.unit, w.annotation)
+		resultErr = session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
 
@@ -110,12 +112,14 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 	session := s.(*session)
 
 	w := struct {
+		ns         string
 		id         string
 		value      float64
 		t          time.Time
 		unit       xtime.Unit
 		annotation []byte
 	}{
+		ns:         "testNs",
 		id:         "foo",
 		value:      1.0,
 		t:          time.Now(),
@@ -127,7 +131,7 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	assert.Error(t, session.Write(w.id, w.t, w.value, w.unit, w.annotation))
+	assert.Error(t, session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation))
 
 	assert.NoError(t, session.Close())
 }
@@ -181,12 +185,14 @@ func testWriteConsistencyLevel(
 	session := s.(*session)
 
 	w := struct {
+		ns         string
 		id         string
 		value      float64
 		t          time.Time
 		unit       xtime.Unit
 		annotation []byte
 	}{
+		ns:         "testNs",
 		id:         "foo",
 		value:      1.0,
 		t:          time.Now(),
@@ -206,7 +212,7 @@ func testWriteConsistencyLevel(
 	var writeWg sync.WaitGroup
 	writeWg.Add(1)
 	go func() {
-		resultErr = session.Write(w.id, w.t, w.value, w.unit, w.annotation)
+		resultErr = session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
 

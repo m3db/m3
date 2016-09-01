@@ -52,12 +52,16 @@ func NewBaseBootstrapper(
 }
 
 // Bootstrap performs bootstrapping for the given shards and the associated time ranges.
-func (bsb *baseBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
+func (bsb *baseBootstrapper) Bootstrap(
+	namespace string,
+	shard uint32,
+	targetRanges xtime.Ranges,
+) (bootstrap.ShardResult, xtime.Ranges) {
 	if xtime.IsEmpty(targetRanges) {
 		return nil, nil
 	}
 
-	availableRanges := bsb.s.GetAvailability(shard, targetRanges)
+	availableRanges := bsb.s.GetAvailability(namespace, shard, targetRanges)
 	remainingRanges := targetRanges.RemoveRanges(availableRanges)
 
 	var (
@@ -69,10 +73,10 @@ func (bsb *baseBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		nextResult, nextUnfulfilled = bsb.next.Bootstrap(shard, remainingRanges)
+		nextResult, nextUnfulfilled = bsb.next.Bootstrap(namespace, shard, remainingRanges)
 	}()
 
-	curResult, curUnfulfilled = bsb.s.ReadData(shard, availableRanges)
+	curResult, curUnfulfilled = bsb.s.ReadData(namespace, shard, availableRanges)
 	wg.Wait()
 
 	mergedResults := bsb.mergeResults(curResult, nextResult)
@@ -80,7 +84,7 @@ func (bsb *baseBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) 
 	// If there are some time ranges the current bootstrapper can't fulfill,
 	// pass it along to the next bootstrapper.
 	if !xtime.IsEmpty(curUnfulfilled) {
-		curResult, curUnfulfilled = bsb.next.Bootstrap(shard, curUnfulfilled)
+		curResult, curUnfulfilled = bsb.next.Bootstrap(namespace, shard, curUnfulfilled)
 		mergedResults = bsb.mergeResults(mergedResults, curResult)
 	}
 

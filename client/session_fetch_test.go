@@ -44,16 +44,17 @@ var (
 )
 
 type testFetch struct {
+	ns     string
 	id     string
 	values []testValue
 }
 
 type testFetches []testFetch
 
-func (f testFetches) IDs() []string {
-	var ids []string
+func (f testFetches) IDsWithNamespace() []idWithNamespace {
+	var ids []idWithNamespace
 	for i := range f {
-		ids = append(ids, f[i].id)
+		ids = append(ids, idWithNamespace{ID: f[i].id, Namespace: f[i].ns})
 	}
 	return ids
 }
@@ -90,17 +91,17 @@ func TestSessionFetchAll(t *testing.T) {
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
-		{"foo", []testValue{
+		{"testns1", "foo", []testValue{
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 		}},
-		{"bar", []testValue{
+		{"testns2", "bar", []testValue{
 			{4.0, start.Add(1 * time.Second), xtime.Second, []byte{4, 5, 6}},
 			{5.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{6.0, start.Add(3 * time.Second), xtime.Second, nil},
 		}},
-		{"baz", []testValue{
+		{"testns3", "baz", []testValue{
 			{7.0, start.Add(1 * time.Minute), xtime.Second, []byte{7, 8, 9}},
 			{8.0, start.Add(2 * time.Minute), xtime.Second, nil},
 			{9.0, start.Add(3 * time.Minute), xtime.Second, nil},
@@ -117,7 +118,7 @@ func TestSessionFetchAll(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchAll(fetches.IDs(), start, end)
+	results, err := session.FetchAll(fetches.IDsWithNamespace(), start, end)
 	assert.NoError(t, err)
 	assertFetchResults(t, start, end, fetches, results)
 
@@ -137,7 +138,7 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
-		{"foo", []testValue{
+		{"testNs", "foo", []testValue{
 			{0.0, start.Add(-1 * time.Second), xtime.Second, nil},
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
@@ -156,7 +157,7 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	result, err := session.Fetch(fetches[0].id, start, end)
+	result, err := session.Fetch(fetches[0].ns, fetches[0].id, start, end)
 	assert.NoError(t, err)
 	assertion := assertFetchResults(t, start, end, fetches, seriesIterators(result))
 	assert.Equal(t, 2, assertion.trimToTimeRange)
@@ -214,7 +215,7 @@ func testFetchConsistencyLevel(
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
-		{"foo", []testValue{
+		{"testNs", "foo", []testValue{
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
@@ -231,7 +232,7 @@ func testFetchConsistencyLevel(
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchAll(fetches.IDs(), start, end)
+	results, err := session.FetchAll(fetches.IDsWithNamespace(), start, end)
 	if expected == outcomeSuccess {
 		assert.NoError(t, err)
 		assertFetchResults(t, start, end, fetches, results)
@@ -281,10 +282,13 @@ func fulfillTszFetchBatchOps(
 	}
 
 	for _, op := range fetchBatchOps {
-		for i, id := range op.request.Ids {
+		for i, idn := range op.request.IdsWithNamespace {
 			calledCompletionFn := false
 			for _, f := range fetches {
-				if f.id != id {
+				if f.id != idn.ID {
+					continue
+				}
+				if f.ns != idn.Ns {
 					continue
 				}
 
@@ -314,7 +318,7 @@ func fulfillTszFetchBatchOps(
 				calledCompletionFn = true
 				break
 			}
-			assert.True(t, calledCompletionFn, "must call completion for ID", id)
+			assert.True(t, calledCompletionFn)
 		}
 	}
 }

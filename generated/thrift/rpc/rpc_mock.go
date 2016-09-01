@@ -157,6 +157,16 @@ func (_mr *_MockTChanNodeRecorder) Health(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Health", arg0)
 }
 
+func (_m *MockTChanNode) TruncateNamespace(ctx thrift.Context, req *TruncateNamespaceRequest) error {
+	ret := _m.ctrl.Call(_m, "TruncateNamespace", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockTChanNodeRecorder) TruncateNamespace(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateNamespace", arg0, arg1)
+}
+
 func (_m *MockTChanNode) Write(ctx thrift.Context, req *WriteRequest) error {
 	ret := _m.ctrl.Call(_m, "Write", ctx, req)
 	ret0, _ := ret[0].(error)

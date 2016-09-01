@@ -31,12 +31,14 @@ var (
 
 type writeOp struct {
 	request      rpc.WriteRequest
+	idn          rpc.IDWithNamespace
 	datapoint    rpc.Datapoint
 	completionFn completionFn
 }
 
 func (w *writeOp) reset() {
 	*w = writeOpZeroed
+	w.request.IdWithNamespace = &w.idn
 	w.request.Datapoint = &w.datapoint
 }
 

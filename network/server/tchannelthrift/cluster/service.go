@@ -107,7 +107,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	it, err := session.Fetch(req.ID, start, end)
+	it, err := session.Fetch(req.IdWithNamespace.Ns, req.IdWithNamespace.ID, start, end)
 	if err != nil {
 		if client.IsBadRequestError(err) {
 			return nil, tterrors.NewBadRequestError(err)
@@ -158,7 +158,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		return tterrors.NewBadRequestError(err)
 	}
 	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
-	err = session.Write(req.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
+	err = session.Write(req.IdWithNamespace.Ns, req.IdWithNamespace.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
 	if err != nil {
 		if client.IsBadRequestError(err) {
 			return tterrors.NewBadRequestError(err)

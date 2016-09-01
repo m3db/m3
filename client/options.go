@@ -60,6 +60,9 @@ const (
 	// defaultFetchRequestTimeout is the default fetch request timeout
 	defaultFetchRequestTimeout = 15 * time.Second
 
+	// defaultTruncateRequestTimeout is the default truncate request timeout
+	defaultTruncateRequestTimeout = 15 * time.Second
+
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 1000000
 
@@ -130,6 +133,7 @@ type options struct {
 	clusterConnectConsistencyLevel        topology.ConsistencyLevel
 	writeRequestTimeout                   time.Duration
 	fetchRequestTimeout                   time.Duration
+	truncateRequestTimeout                time.Duration
 	backgroundConnectInterval             time.Duration
 	backgroundConnectStutter              time.Duration
 	backgroundHealthCheckInterval         time.Duration
@@ -173,6 +177,7 @@ func newOptions() *options {
 		clusterConnectConsistencyLevel:        defaultClusterConnectConsistencyLevel,
 		writeRequestTimeout:                   defaultWriteRequestTimeout,
 		fetchRequestTimeout:                   defaultFetchRequestTimeout,
+		truncateRequestTimeout:                defaultTruncateRequestTimeout,
 		backgroundConnectInterval:             defaultBackgroundConnectInterval,
 		backgroundConnectStutter:              defaultBackgroundConnectStutter,
 		backgroundHealthCheckInterval:         defaultBackgroundHealthCheckInterval,
@@ -330,6 +335,16 @@ func (o *options) FetchRequestTimeout(value time.Duration) Options {
 
 func (o *options) GetFetchRequestTimeout() time.Duration {
 	return o.fetchRequestTimeout
+}
+
+func (o *options) TruncateRequestTimeout(value time.Duration) Options {
+	opts := *o
+	opts.truncateRequestTimeout = value
+	return &opts
+}
+
+func (o *options) GetTruncateRequestTimeout() time.Duration {
+	return o.truncateRequestTimeout
 }
 
 func (o *options) BackgroundConnectInterval(value time.Duration) Options {
