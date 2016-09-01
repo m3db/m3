@@ -24,12 +24,14 @@ import (
 	"sync"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/m3db/m3x/watch"
 )
 
 // NewFakeStore returns a new in-process store that can be used for testing
 func NewFakeStore() Store {
 	return &fakeStore{
-		values: make(map[string]*fakeValue),
+		values:     make(map[string]*fakeValue),
+		watchables: make(map[string]xwatch.Watchable),
 	}
 }
 
@@ -60,7 +62,8 @@ func (v fakeValue) Unmarshal(msg proto.Message) error { return proto.Unmarshal(v
 
 type fakeStore struct {
 	sync.RWMutex
-	values map[string]*fakeValue
+	values     map[string]*fakeValue
+	watchables map[string]xwatch.Watchable
 }
 
 func (kv *fakeStore) Get(key string) (Value, error) {
@@ -72,6 +75,25 @@ func (kv *fakeStore) Get(key string) (Value, error) {
 	}
 
 	return nil, ErrNotFound
+}
+
+func (kv *fakeStore) Watch(key string) (ValueWatch, error) {
+	kv.Lock()
+	defer kv.Unlock()
+	val, ok := kv.values[key]
+	if !ok {
+		return nil, ErrNotFound
+	}
+
+	watchable, ok := kv.watchables[key]
+	if !ok {
+		watchable = xwatch.NewWatchable()
+		kv.watchables[key] = watchable
+		watchable.Update(val)
+	}
+
+	_, watch, _ := watchable.Watch()
+	return NewValueWatch(watch), nil
 }
 
 func (kv *fakeStore) Set(key string, val proto.Message) (int, error) {
@@ -89,10 +111,12 @@ func (kv *fakeStore) Set(key string, val proto.Message) (int, error) {
 	}
 
 	newVersion := lastVersion + 1
-	kv.values[key] = &fakeValue{
+	fv := &fakeValue{
 		version: newVersion,
 		data:    data,
 	}
+	kv.values[key] = fv
+	kv.updateWatchable(key, fv)
 
 	return newVersion, nil
 }
@@ -110,10 +134,12 @@ func (kv *fakeStore) SetIfNotExists(key string, val proto.Message) (int, error) 
 		return 0, ErrAlreadyExists
 	}
 
-	kv.values[key] = &fakeValue{
+	fv := &fakeValue{
 		version: 1,
 		data:    data,
 	}
+	kv.values[key] = fv
+	kv.updateWatchable(key, fv)
 
 	return 1, nil
 }
@@ -134,10 +160,20 @@ func (kv *fakeStore) CheckAndSet(key string, version int, val proto.Message) (in
 	}
 
 	newVersion := version + 1
-	kv.values[key] = &fakeValue{
+	fv := &fakeValue{
 		version: newVersion,
 		data:    data,
 	}
+	kv.values[key] = fv
+	kv.updateWatchable(key, fv)
 
 	return newVersion, nil
+}
+
+// updateWatchable updates all subscriptions for the given key. It assumes
+// the fakeStore write lock is acquired outside of this call
+func (kv *fakeStore) updateWatchable(key string, newVal Value) {
+	if watchable, ok := kv.watchables[key]; ok {
+		watchable.Update(newVal)
+	}
 }
