@@ -74,6 +74,8 @@ func (r *testStatsReporter) ReportTimer(name string, tags map[string]string, int
 	r.m.Unlock()
 }
 
+func (r *testStatsReporter) Flush() {}
+
 // newTestStatsReporter returns a new TestStatsReporter
 func newTestStatsReporter() *testStatsReporter {
 	return &testStatsReporter{

@@ -11,7 +11,7 @@ lint_check := .ci/lint.sh
 m3db_package := github.com/m3db/m3db
 gopath_prefix := $(GOPATH)/src
 vendor_prefix := vendor
-license_dir := $(vendor_prefix)/github.com/uber/uber-licence
+license_dir := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 auto_gen := .ci/auto-gen.sh
 mockgen_package := github.com/golang/mock/mockgen
@@ -30,7 +30,7 @@ VENDOR_ENV := GO15VENDOREXPERIMENT=1
 
 SERVICES := \
 	m3dbnode
-	
+
 TOOLS := 
 
 setup:
@@ -69,12 +69,13 @@ tools-linux-amd64:
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
-install-vendor: .gitmodules
-	@echo Updating submodules
-	git submodule update --init --recursive
+install-vendor: install-glide
+	@echo Installing glide deps
+	glide install
 
 install-license-bin: install-vendor
 	@echo Installing node modules
+	git submodule update --init --recursive
 	[ -d $(license_node_modules) ] || (cd $(license_dir) && npm install)
 
 install-mockgen: install-vendor

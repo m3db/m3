@@ -11,6 +11,9 @@
 *.html
 test.log
 
+# glide manages this
+vendor/
+
 # Build binaries
 bin/
 
