@@ -241,6 +241,10 @@ func (n *dbNamespace) Truncate() (int64, error) {
 	}
 	n.RUnlock()
 
+	// For now we are simply dropping all the objects (e.g., shards, series, blocks etc) owned by the
+	// namespace, which means the memory will be reclaimed the next time GC kicks in and returns the
+	// reclaimed memory to the OS. In the future, we might investigate whether it's worth returning
+	// the pooled objects to the pools if the pool is low and needs replenishing.
 	n.initShards()
 
 	// NB(xichen): possibly also clean up disk files and force a GC here to reclaim memory immediately

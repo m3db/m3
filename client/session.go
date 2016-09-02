@@ -819,8 +819,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 				}
 
 				if b.Size == nil {
-					s.log.
-						WithFields(
+					s.log.WithFields(
 						xlog.NewLogField("id", elem.ID),
 						xlog.NewLogField("start", blocks[i].start),
 					).Warnf("stream blocks metadata requested block size and not returned")

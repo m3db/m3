@@ -154,6 +154,83 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	closeWg.Wait()
 }
 
+func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConnPool := NewMockconnectionPool(ctrl)
+
+	opts := newHostQueueTestOptions()
+	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
+	queue.connPool = mockConnPool
+
+	// Open
+	mockConnPool.EXPECT().Open()
+	queue.Open()
+	assert.Equal(t, stateOpen, queue.state)
+
+	// Prepare callback for writes
+	var (
+		results     []hostQueueResult
+		resultsLock sync.Mutex
+		wg          sync.WaitGroup
+	)
+	callback := func(r interface{}, err error) {
+		resultsLock.Lock()
+		results = append(results, hostQueueResult{r, err})
+		resultsLock.Unlock()
+		wg.Done()
+	}
+
+	// Prepare writes
+	writes := []*writeOp{
+		testWriteOp("testNs1", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs1", "bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs1", "baz", 3.0, 3000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs2", "qux", 4.0, 4000, rpc.TimeType_UNIX_SECONDS, callback),
+	}
+	wg.Add(len(writes))
+
+	// Prepare mocks for flush
+	mockClient := rpc.NewMockTChanNode(ctrl)
+	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRequest) {
+		var writesForNamespace []*writeOp
+		if req.NameSpace == "testNs1" {
+			writesForNamespace = writes[:3]
+		} else {
+			writesForNamespace = writes[3:]
+		}
+		assert.Equal(t, len(writesForNamespace), len(req.Elements))
+		for i, write := range writesForNamespace {
+			assert.Equal(t, *req.Elements[i], *write.request.IdDatapoint)
+		}
+	}
+
+	// Assert the writes will be handled in two batches
+	mockClient.EXPECT().WriteBatch(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil).MinTimes(2).MaxTimes(2)
+	mockConnPool.EXPECT().NextClient().Return(mockClient, nil).MinTimes(2).MaxTimes(2)
+
+	for _, write := range writes {
+		assert.NoError(t, queue.Enqueue(write))
+	}
+
+	// Wait for all writes
+	wg.Wait()
+
+	// Assert writes successful
+	success := []hostQueueResult{{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}}
+	assert.Equal(t, success, results)
+
+	// Close
+	var closeWg sync.WaitGroup
+	closeWg.Add(1)
+	mockConnPool.EXPECT().Close().Do(func() {
+		closeWg.Done()
+	})
+	queue.Close()
+	closeWg.Wait()
+}
+
 func TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

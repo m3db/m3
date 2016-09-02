@@ -50,7 +50,7 @@ const (
 	defaultUseTChannelClientForWriting = false
 
 	// defaultUseTChannelClientForTruncation determines whether we use the tchannel client for truncation by default.
-	defaultUseTChannelClientForTruncation = false
+	defaultUseTChannelClientForTruncation = true
 )
 
 type testOptions interface {
