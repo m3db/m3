@@ -22,47 +22,13 @@ package storage
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 	"time"
-
-	"github.com/m3db/m3db/context"
-	xio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
-
-type mockDatabase struct {
-	opts   Options
-	shards []databaseShard
-	bs     bootstrapState
-}
-
-func newMockDatabase() *mockDatabase                    { return &mockDatabase{opts: testDatabaseOptions()} }
-func (d *mockDatabase) Options() Options                { return d.opts }
-func (d *mockDatabase) Open() error                     { return nil }
-func (d *mockDatabase) Close() error                    { return nil }
-func (d *mockDatabase) Bootstrap() error                { return nil }
-func (d *mockDatabase) IsBootstrapped() bool            { return d.bs == bootstrapped }
-func (d *mockDatabase) getOwnedShards() []databaseShard { return d.shards }
-func (d *mockDatabase) flush(t time.Time, async bool)   {}
-
-func (d *mockDatabase) Write(context.Context, string, time.Time, float64, xtime.Unit, []byte) error {
-	return nil
-}
-
-func (d *mockDatabase) ReadEncoded(context.Context, string, time.Time, time.Time) ([][]xio.SegmentReader, error) {
-	return nil, nil
-}
-
-func (d *mockDatabase) FetchBlocks(context.Context, uint32, string, []time.Time) ([]FetchBlockResult, error) {
-	return nil, nil
-}
-
-func (d *mockDatabase) FetchBlocksMetadata(context.Context, uint32, int64, int64, bool) ([]FetchBlocksMetadataResult, *int64, error) {
-	return nil, nil, nil
-}
 
 func TestFlushManagerHasFlushed(t *testing.T) {
 	database := newMockDatabase()
@@ -153,19 +119,23 @@ func TestFlushManagerFlush(t *testing.T) {
 		fm.flushStates[input.bs] = input.fs
 	}
 	endTime := time.Unix(0, 0).Add(2 * 24 * time.Hour)
-	for shard := 0; shard < 2; shard++ {
-		m := NewMockdatabaseShard(ctrl)
-		database.shards = append(database.shards, m)
-		m.EXPECT().ID().Return(uint32(shard))
+
+	namespaces := make(map[string]databaseNamespace)
+	for i := 0; i < 2; i++ {
+		name := strconv.Itoa(i)
+		ns := NewMockdatabaseNamespace(ctrl)
+		ns.EXPECT().Name().Return(name)
 		cur := inputTimes[0].bs
 		for !cur.After(endTime) {
 			if _, excluded := notFlushed[cur]; !excluded {
-				m.EXPECT().Flush(gomock.Any(), cur, fm.pm).Return(nil)
+				ns.EXPECT().Flush(gomock.Any(), cur, fm.pm).Return(nil)
 			}
 			cur = cur.Add(2 * time.Hour)
 		}
-		m.EXPECT().Flush(gomock.Any(), cur, fm.pm).Return(errors.New("some errors"))
+		ns.EXPECT().Flush(gomock.Any(), cur, fm.pm).Return(errors.New("some errors"))
+		namespaces[name] = ns
 	}
+	database.namespaces = namespaces
 
 	err := fm.Flush(tickStart)
 
@@ -217,27 +187,30 @@ func TestFlushManagerFlushWithTimes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	flushTime := time.Unix(7200, 0)
 	database := newMockDatabase()
 	fm := newFlushManager(database).(*flushManager)
 	ctx := fm.opts.GetContextPool().Get()
 	defer ctx.Close()
 
-	flushTime := time.Unix(7200, 0)
-	for i := 0; i < 2; i++ {
-		m := NewMockdatabaseShard(ctrl)
-		database.shards = append(database.shards, m)
-		m.EXPECT().Flush(ctx, flushTime, fm.pm).Return(nil)
+	inputs := []struct {
+		name string
+		err  error
+	}{
+		{"foo", errors.New("some error")},
+		{"bar", errors.New("some other error")},
+		{"baz", nil},
 	}
-	require.NoError(t, fm.flushWithTime(ctx, flushTime))
-
-	m := NewMockdatabaseShard(ctrl)
-	database.shards[0] = m
-	m.EXPECT().Flush(ctx, flushTime, fm.pm).Return(nil)
-
-	m = NewMockdatabaseShard(ctrl)
-	database.shards[1] = m
-	m.EXPECT().Flush(ctx, flushTime, fm.pm).Return(errors.New("some errors"))
-	m.EXPECT().ID().Return(uint32(1))
+	namespaces := make(map[string]databaseNamespace)
+	for _, input := range inputs {
+		ns := NewMockdatabaseNamespace(ctrl)
+		ns.EXPECT().Flush(ctx, flushTime, fm.pm).Return(input.err)
+		if input.err != nil {
+			ns.EXPECT().Name().Return(input.name)
+		}
+		namespaces[input.name] = ns
+	}
+	database.namespaces = namespaces
 
 	require.Error(t, fm.flushWithTime(ctx, flushTime))
 }

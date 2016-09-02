@@ -84,6 +84,7 @@ type Database interface {
 	// Write value to the database for an ID
 	Write(
 		ctx context.Context,
+		namespace string,
 		id string,
 		timestamp time.Time,
 		value float64,
@@ -94,6 +95,7 @@ type Database interface {
 	// ReadEncoded retrieves encoded segments for an ID
 	ReadEncoded(
 		ctx context.Context,
+		namespace string,
 		id string,
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
@@ -101,6 +103,7 @@ type Database interface {
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
+		namespace string,
 		shard uint32,
 		id string,
 		starts []time.Time,
@@ -111,7 +114,8 @@ type Database interface {
 	// If we have fetched all the block metadata, we return nil as the next page token.
 	FetchBlocksMetadata(
 		ctx context.Context,
-		shardID uint32,
+		namespace string,
+		shard uint32,
 		limit int64,
 		pageToken int64,
 		includeSizes bool,
@@ -122,10 +126,69 @@ type Database interface {
 
 	// IsBootstrapped determines whether the database is bootstrapped.
 	IsBootstrapped() bool
+
+	// Truncate truncates data for the given namespace
+	Truncate(namespace string) (int64, error)
+}
+
+type databaseNamespace interface {
+	// Name is the name of the namespace
+	Name() string
+
+	// Tick performs any regular maintenance operations
+	Tick()
+
+	// Write writes a data point
+	Write(
+		ctx context.Context,
+		id string,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
+
+	// ReadEncoded reads data for given id within [start, end)
+	ReadEncoded(
+		ctx context.Context,
+		id string,
+		start, end time.Time,
+	) ([][]xio.SegmentReader, error)
+
+	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
+	FetchBlocks(
+		ctx context.Context,
+		shardID uint32,
+		id string,
+		starts []time.Time,
+	) ([]FetchBlockResult, error)
+
+	// FetchBlocksMetadata retrieves the blocks metadata.
+	FetchBlocksMetadata(
+		ctx context.Context,
+		shardID uint32,
+		limit int64,
+		pageToken int64,
+		includeSizes bool,
+	) ([]FetchBlocksMetadataResult, *int64, error)
+
+	// Bootstrap performs bootstrapping
+	Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error
+
+	// Flush flushes in-memory data
+	Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error
+
+	// CleanupFileset cleans up fileset files
+	CleanupFileset(earliestToRetain time.Time) error
+
+	// Truncate truncates the in-memory data for this namespace
+	Truncate() (int64, error)
 }
 
 type databaseShard interface {
 	ID() uint32
+
+	NumSeries() int64
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
 	Tick()
@@ -160,10 +223,23 @@ type databaseShard interface {
 		includeSizes bool,
 	) ([]FetchBlocksMetadataResult, *int64)
 
-	Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error
+	Bootstrap(
+		bs bootstrap.Bootstrap,
+		namespace string,
+		writeStart time.Time,
+		cutover time.Time,
+	) error
 
 	// Flush flushes the series in this shard.
-	Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error
+	Flush(
+		ctx context.Context,
+		namespace string,
+		blockStart time.Time,
+		pm persist.Manager,
+	) error
+
+	// CleanupFileset cleans up fileset files
+	CleanupFileset(namespace string, earliestToRetain time.Time) error
 }
 
 type databaseSeries interface {

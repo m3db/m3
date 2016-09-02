@@ -194,7 +194,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
 	bootstrapOpts := newBootstrapTestOptions()
-	result, err := session.FetchBootstrapBlocksFromPeers(0, rangeStart, rangeEnd, bootstrapOpts)
+	result, err := session.FetchBootstrapBlocksFromPeers("testNs1", 0, rangeStart, rangeEnd, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -620,7 +620,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	client.EXPECT().FetchBlocks(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("an error")).Times(2)
 
 	// Attempt stream blocks
-	session.streamBlocksBatchFromPeer(0, peer, batch, nil, enqueueCh, retrier)
+	session.streamBlocksBatchFromPeer("testNs1", 0, peer, batch, nil, enqueueCh, retrier)
 
 	// Assert result
 	assertEnqueueChannel(t, append(batch[0].blocks, batch[1].blocks...), enqueueCh)
@@ -833,7 +833,7 @@ func (qs MockHostQueues) newHostQueueFn() newHostQueueFn {
 	return func(
 		host topology.Host,
 		writeBatchRequestPool writeBatchRequestPool,
-		writeRequestArrayPool writeRequestArrayPool,
+		idDatapointArrayPool idDatapointArrayPool,
 		opts Options,
 	) hostQueue {
 		return qs[atomic.AddUint64(&idx, 1)-1]

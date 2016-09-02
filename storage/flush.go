@@ -138,14 +138,16 @@ func (m *flushManager) needsFlushWithLock(t time.Time) bool {
 	return flushState.Status == fileOpFailed && flushState.NumFailures < m.opts.GetMaxFlushRetries()
 }
 
+// flushWithTime flushes in-memory data across all namespaces for a given time, returning any
+// error encountered during flushing
 func (m *flushManager) flushWithTime(ctx context.Context, t time.Time) error {
 	multiErr := xerrors.NewMultiError()
-	shards := m.database.getOwnedShards()
-	for _, shard := range shards {
-		// NB(xichen): we still want to proceed if a shard fails to flush its data.
+	namespaces := m.database.getOwnedNamespaces()
+	for _, n := range namespaces {
+		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(ctx, t, m.pm); err != nil {
-			detailedErr := fmt.Errorf("shard %d failed to flush data: %v", shard.ID(), err)
+		if err := n.Flush(ctx, t, m.pm); err != nil {
+			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v", n.Name(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}

@@ -33,8 +33,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createShardDir(t *testing.T, prefix string, shard uint32) string {
-	shardDirPath := ShardDirPath(prefix, shard)
+func createShardDir(t *testing.T, prefix string, namespace string, shard uint32) string {
+	shardDirPath := ShardDirPath(prefix, namespace, shard)
 	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
 	require.Nil(t, err)
 	return shardDirPath
@@ -67,13 +67,13 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	shardDir := createShardDir(t, pm.filePathPrefix, shard)
+	shardDir := createShardDir(t, pm.filePathPrefix, testNamespaceName, shard)
 	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	f, err := os.Create(checkpointFilePath)
 	require.NoError(t, err)
 	f.Close()
 
-	prepared, err := pm.Prepare(shard, blockStart)
+	prepared, err := pm.Prepare(testNamespaceName, shard, blockStart)
 	require.NoError(t, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -89,9 +89,9 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	expectedErr := errors.New("foo")
-	writer.EXPECT().Open(shard, blockStart).Return(expectedErr)
+	writer.EXPECT().Open(testNamespaceName, shard, blockStart).Return(expectedErr)
 
-	prepared, err := pm.Prepare(shard, blockStart)
+	prepared, err := pm.Prepare(testNamespaceName, shard, blockStart)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -106,14 +106,14 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(shard, blockStart).Return(nil)
+	writer.EXPECT().Open(testNamespaceName, shard, blockStart).Return(nil)
 
 	id := "foo"
 	segment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
 	writer.EXPECT().WriteAll(id, gomock.Any()).Return(nil)
 	writer.EXPECT().Close()
 
-	prepared, err := pm.Prepare(shard, blockStart)
+	prepared, err := pm.Prepare(testNamespaceName, shard, blockStart)
 	require.Nil(t, err)
 
 	defer prepared.Close()

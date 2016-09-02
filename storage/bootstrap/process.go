@@ -68,10 +68,14 @@ func (b *bootstrapProcess) initTimeRanges(writeStart time.Time) xtime.Ranges {
 }
 
 // bootstrap returns the bootstrapped results for a given shard time ranges.
-func (b *bootstrapProcess) bootstrap(shard uint32, timeRanges xtime.Ranges) (ShardResult, error) {
+func (b *bootstrapProcess) bootstrap(
+	namespace string,
+	shard uint32,
+	timeRanges xtime.Ranges,
+) (ShardResult, error) {
 	results := NewShardResult(b.opts)
 	for i := 0; i < b.opts.GetMaxRetries(); i++ {
-		res, unfulfilled := b.bootstrapper.Bootstrap(shard, timeRanges)
+		res, unfulfilled := b.bootstrapper.Bootstrap(namespace, shard, timeRanges)
 		results.AddResult(res)
 		if xtime.IsEmpty(unfulfilled) {
 			return results, nil
@@ -84,10 +88,14 @@ func (b *bootstrapProcess) bootstrap(shard uint32, timeRanges xtime.Ranges) (Sha
 
 // Run initiates the bootstrap process, where writeStart is when we start
 // accepting incoming writes.
-func (b *bootstrapProcess) Run(writeStart time.Time, shard uint32) (ShardResult, error) {
+func (b *bootstrapProcess) Run(
+	writeStart time.Time,
+	namespace string,
+	shard uint32,
+) (ShardResult, error) {
 
 	// initializes the target range we'd like to bootstrap
 	unfulfilledRanges := b.initTimeRanges(writeStart)
 
-	return b.bootstrap(shard, unfulfilledRanges)
+	return b.bootstrap(namespace, shard, unfulfilledRanges)
 }

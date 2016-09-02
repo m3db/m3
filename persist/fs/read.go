@@ -94,9 +94,9 @@ func NewReader(filePathPrefix string, bufferSize int) FileSetReader {
 	}
 }
 
-func (r *reader) Open(shard uint32, blockStart time.Time) error {
+func (r *reader) Open(namespace string, shard uint32, blockStart time.Time) error {
 	// If there is no checkpoint file, don't read the data files.
-	shardDir := ShardDirPath(r.filePathPrefix, shard)
+	shardDir := ShardDirPath(r.filePathPrefix, namespace, shard)
 	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
 		return err
 	}

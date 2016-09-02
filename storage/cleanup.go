@@ -28,8 +28,6 @@ import (
 	"github.com/m3db/m3x/errors"
 )
 
-type filesetFilesBeforeFn func(filePathPrefix string, shardID uint32, t time.Time) ([]string, error)
-
 type commitLogFilesBeforeFn func(commitLogsDir string, t time.Time) ([]string, error)
 
 type commitLogFilesForTimeFn func(commitLogsDir string, t time.Time) ([]string, error)
@@ -43,7 +41,6 @@ type cleanupManager struct {
 	filePathPrefix          string
 	commitLogsDir           string
 	fm                      databaseFlushManager
-	filesetFilesBeforeFn    filesetFilesBeforeFn
 	commitLogFilesBeforeFn  commitLogFilesBeforeFn
 	commitLogFilesForTimeFn commitLogFilesForTimeFn
 	deleteFilesFn           deleteFilesFn
@@ -56,13 +53,12 @@ func newCleanupManager(database database, fm databaseFlushManager) databaseClean
 	commitLogsDir := fs.CommitLogsDirPath(filePathPrefix)
 
 	return &cleanupManager{
-		database:                database,
-		opts:                    opts,
-		blockSize:               blockSize,
-		filePathPrefix:          filePathPrefix,
-		commitLogsDir:           commitLogsDir,
-		fm:                      fm,
-		filesetFilesBeforeFn:    fs.FilesetBefore,
+		database:       database,
+		opts:           opts,
+		blockSize:      blockSize,
+		filePathPrefix: filePathPrefix,
+		commitLogsDir:  commitLogsDir,
+		fm:             fm,
 		commitLogFilesBeforeFn:  fs.CommitLogFilesBefore,
 		commitLogFilesForTimeFn: fs.CommitLogFilesForTime,
 		deleteFilesFn:           fs.DeleteFiles,
@@ -86,15 +82,10 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 
 func (m *cleanupManager) cleanupFilesetFiles(earliestToRetain time.Time) error {
 	multiErr := xerrors.NewMultiError()
-	shards := m.database.getOwnedShards()
-	for _, shard := range shards {
-		shardID := shard.ID()
-		expired, err := m.filesetFilesBeforeFn(m.filePathPrefix, shardID, earliestToRetain)
-		if err != nil {
-			detailedErr := fmt.Errorf("encountered errors when getting fileset files for prefix %s shard %d: %v", m.filePathPrefix, shardID, err)
-			multiErr = multiErr.Add(detailedErr)
-		}
-		if err := m.deleteFilesFn(expired); err != nil {
+
+	namespaces := m.database.getOwnedNamespaces()
+	for _, n := range namespaces {
+		if err := n.CleanupFileset(earliestToRetain); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}

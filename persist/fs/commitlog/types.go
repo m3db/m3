@@ -97,6 +97,9 @@ type Series struct {
 	// ID is the series identifier
 	ID string
 
+	// Namespace is the namespace the series belongs to
+	Namespace string
+
 	// Shard is the shard the series belongs to
 	Shard uint32
 }

@@ -43,6 +43,12 @@ var (
 	// errDatabaseNotBootstrapped raised when trying to query a database that's not yet bootstrapped.
 	errDatabaseNotBootstrapped = errors.New("database is not yet bootstrapped")
 
+	// errNamespaceIsBootstrapping raised when trying to bootstrap a namespace that's being bootstrapped.
+	errNamespaceIsBootstrapping = errors.New("namespace is bootstrapping")
+
+	// errNamespaceNotBootstrapped raised when trying to flush data for a namespace that's not yet bootstrapped.
+	errNamespaceNotBootstrapped = errors.New("namespace is not yet bootstrapped")
+
 	// errShardIsBootstrapping raised when trying to bootstrap a shard that's being bootstrapped.
 	errShardIsBootstrapping = errors.New("shard is bootstrapping")
 
@@ -111,10 +117,10 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
 	cutover := bsm.cutoverTime(writeStart)
-	shards := bsm.database.getOwnedShards()
+	namespaces := bsm.database.getOwnedNamespaces()
 	bs := bsm.newBootstrapFn()
-	for _, shard := range shards {
-		err := shard.Bootstrap(bs, writeStart, cutover)
+	for _, namespace := range namespaces {
+		err := namespace.Bootstrap(bs, writeStart, cutover)
 		multiErr = multiErr.Add(err)
 	}
 

@@ -18,25 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrap
+package client
 
 import (
-	"time"
+	"github.com/m3db/m3db/generated/thrift/rpc"
 )
 
-type noOpBootstrapProcess struct {
-	opts Options
+type truncateOp struct {
+	request      rpc.TruncateRequest
+	completionFn completionFn
 }
 
-// NewNoOpBootstrapProcess creates a no-op bootstrap process.
-func NewNoOpBootstrapProcess(opts Options) Bootstrap {
-	return &noOpBootstrapProcess{opts: opts}
+func (t *truncateOp) Size() int {
+	// Truncate is always a single op
+	return 1
 }
 
-func (b *noOpBootstrapProcess) Run(
-	writeStart time.Time,
-	namespace string,
-	shard uint32,
-) (ShardResult, error) {
-	return NewShardResult(b.opts), nil
+func (t *truncateOp) GetCompletionFn() completionFn {
+	return t.completionFn
 }

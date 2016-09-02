@@ -38,12 +38,20 @@ func newCommitLogSource(opts Options) bootstrap.Source {
 }
 
 // GetAvailability returns what time ranges are available for a given shard.
-func (s *commitLogSource) GetAvailability(shard uint32, targetRangesForShard xtime.Ranges) xtime.Ranges {
+func (s *commitLogSource) GetAvailability(
+	namespace string,
+	shard uint32,
+	targetRangesForShard xtime.Ranges,
+) xtime.Ranges {
 	return targetRangesForShard
 }
 
 // ReadData returns raw series for a given shard within certain time ranges.
-func (s *commitLogSource) ReadData(shard uint32, tr xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
+func (s *commitLogSource) ReadData(
+	namespace string,
+	shard uint32,
+	tr xtime.Ranges,
+) (bootstrap.ShardResult, xtime.Ranges) {
 	bopts := s.opts.GetBootstrapOptions()
 	log := bopts.GetInstrumentOptions().GetLogger()
 
@@ -64,7 +72,7 @@ func (s *commitLogSource) ReadData(shard uint32, tr xtime.Ranges) (bootstrap.Sha
 	errs := 0
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if series.Shard != shard {
+		if series.Namespace != namespace || series.Shard != shard {
 			continue
 		}
 

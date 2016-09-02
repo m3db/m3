@@ -47,7 +47,7 @@ type queue struct {
 	host                  topology.Host
 	connPool              connectionPool
 	writeBatchRequestPool writeBatchRequestPool
-	writeRequestArrayPool writeRequestArrayPool
+	idDatapointArrayPool  idDatapointArrayPool
 	size                  int
 	ops                   []op
 	opsSumSize            int
@@ -60,7 +60,7 @@ type queue struct {
 func newHostQueue(
 	host topology.Host,
 	writeBatchRequestPool writeBatchRequestPool,
-	writeRequestArrayPool writeRequestArrayPool,
+	idDatapointArrayPool idDatapointArrayPool,
 	opts Options,
 ) hostQueue {
 	size := opts.GetHostQueueOpsFlushSize()
@@ -75,10 +75,10 @@ func newHostQueue(
 		host:                  host,
 		connPool:              newConnectionPool(host, opts),
 		writeBatchRequestPool: writeBatchRequestPool,
-		writeRequestArrayPool: writeRequestArrayPool,
-		size:         size,
-		ops:          opArrayPool.Get(),
-		opsArrayPool: opArrayPool,
+		idDatapointArrayPool:  idDatapointArrayPool,
+		size:                  size,
+		ops:                   opArrayPool.Get(),
+		opsArrayPool:          opArrayPool,
 		// NB(r): specifically use non-buffered queue for single flush at a time
 		drainIn: make(chan []op),
 	}
@@ -169,37 +169,49 @@ func (q *queue) rotateOpsWithLock() []op {
 }
 
 func (q *queue) drain() {
-	wgAll := &sync.WaitGroup{}
+	var (
+		wgAll                       = &sync.WaitGroup{}
+		currWriteOpsByNamespace     = make(map[string][]op)
+		currIDDatapointsByNamespace = make(map[string][]*rpc.IDDatapoint)
+		writeBatchSize              = q.opts.GetWriteBatchSize()
+	)
+
 	for {
 		ops, ok := <-q.drainIn
 		if !ok {
 			break
 		}
 		var (
-			currWriteOps      []op
-			currWriteRequests []*rpc.WriteRequest
-			writeBatchSize    = q.opts.GetWriteBatchSize()
-			opsLen            = len(ops)
+			currWriteOps     []op
+			currIDDatapoints []*rpc.IDDatapoint
+			opsLen           = len(ops)
 		)
 		for i := 0; i < opsLen; i++ {
 			switch v := ops[i].(type) {
 			case *writeOp:
+				namespace := v.request.NameSpace
+				currWriteOps = currWriteOpsByNamespace[namespace]
+				currIDDatapoints = currIDDatapointsByNamespace[namespace]
 				if currWriteOps == nil {
 					currWriteOps = q.opsArrayPool.Get()
-					currWriteRequests = q.writeRequestArrayPool.Get()
+					currIDDatapoints = q.idDatapointArrayPool.Get()
 				}
 
 				currWriteOps = append(currWriteOps, ops[i])
-				currWriteRequests = append(currWriteRequests, &v.request)
+				currIDDatapoints = append(currIDDatapoints, v.request.IdDatapoint)
+				currWriteOpsByNamespace[namespace] = currWriteOps
+				currIDDatapointsByNamespace[namespace] = currIDDatapoints
 
 				if len(currWriteOps) == writeBatchSize {
 					// Reached write batch limit, write async and reset
-					q.asyncWrite(wgAll, currWriteOps, currWriteRequests)
-					currWriteOps = nil
-					currWriteRequests = nil
+					q.asyncWrite(wgAll, namespace, currWriteOps, currIDDatapoints)
+					currWriteOpsByNamespace[namespace] = nil
+					currIDDatapointsByNamespace[namespace] = nil
 				}
 			case *fetchBatchOp:
 				q.asyncFetch(wgAll, v)
+			case *truncateOp:
+				q.asyncTruncate(wgAll, v)
 			default:
 				completionFn := ops[i].GetCompletionFn()
 				completionFn(nil, errQueueUnknownOperation)
@@ -207,8 +219,12 @@ func (q *queue) drain() {
 		}
 
 		// If any outstanding write ops, async write
-		if len(currWriteOps) > 0 {
-			q.asyncWrite(wgAll, currWriteOps, currWriteRequests)
+		for namespace, writeOps := range currWriteOpsByNamespace {
+			if len(writeOps) > 0 {
+				q.asyncWrite(wgAll, namespace, writeOps, currIDDatapointsByNamespace[namespace])
+				currWriteOpsByNamespace[namespace] = nil
+				currIDDatapointsByNamespace[namespace] = nil
+			}
 		}
 
 		if ops != nil {
@@ -221,17 +237,18 @@ func (q *queue) drain() {
 	q.connPool.Close()
 }
 
-func (q *queue) asyncWrite(wg *sync.WaitGroup, ops []op, elems []*rpc.WriteRequest) {
+func (q *queue) asyncWrite(wg *sync.WaitGroup, namespace string, ops []op, elems []*rpc.IDDatapoint) {
 	wg.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
 		req := q.writeBatchRequestPool.Get()
+		req.NameSpace = namespace
 		req.Elements = elems
 
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			q.writeBatchRequestPool.Put(req)
-			q.writeRequestArrayPool.Put(elems)
+			q.idDatapointArrayPool.Put(elems)
 			q.opsArrayPool.Put(ops)
 			wg.Done()
 		}
@@ -315,6 +332,29 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 			op.complete(i, result.Elements[i].Segments, nil)
 		}
 		cleanup()
+	}()
+}
+
+func (q *queue) asyncTruncate(wg *sync.WaitGroup, op *truncateOp) {
+	wg.Add(1)
+
+	go func() {
+		client, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available
+			op.completionFn(nil, err)
+			wg.Done()
+			return
+		}
+
+		ctx, _ := thrift.NewContext(q.opts.GetTruncateRequestTimeout())
+		if res, err := client.Truncate(ctx, &op.request); err != nil {
+			op.completionFn(nil, err)
+		} else {
+			op.completionFn(res, nil)
+		}
+
+		wg.Done()
 	}()
 }
 

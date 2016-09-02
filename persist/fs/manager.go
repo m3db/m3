@@ -65,16 +65,16 @@ func (pm *persistManager) close() {
 	pm.writer.Close()
 }
 
-func (pm *persistManager) Prepare(shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
+func (pm *persistManager) Prepare(namespace string, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
 	var prepared persist.PreparedPersist
 
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 	// This allows us to retry failed flushing attempts because they wouldn't
 	// have created the checkpoint file.
-	if FilesetExistsAt(pm.filePathPrefix, shard, blockStart) {
+	if FilesetExistsAt(pm.filePathPrefix, namespace, shard, blockStart) {
 		return prepared, nil
 	}
-	if err := pm.writer.Open(shard, blockStart); err != nil {
+	if err := pm.writer.Open(namespace, shard, blockStart); err != nil {
 		return prepared, err
 	}
 

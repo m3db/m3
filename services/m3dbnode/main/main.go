@@ -77,6 +77,8 @@ func main() {
 		log.Fatalf("could not create client options: %v", err)
 	}
 
+	namespaces := server.DefaultNamespaces()
+
 	doneCh := make(chan struct{})
 	closedCh := make(chan struct{})
 	go func() {
@@ -85,6 +87,7 @@ func main() {
 			tchannelClusterAddr,
 			httpNodeAddr,
 			tchannelNodeAddr,
+			namespaces,
 			clientOpts,
 			storageOpts,
 			doneCh,

@@ -47,7 +47,11 @@ func NewNoOpNoneBootstrapper() bootstrap.Bootstrapper {
 	return defaultNoOpNoneBootstrapper
 }
 
-func (noop *noOpNoneBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
+func (noop *noOpNoneBootstrapper) Bootstrap(
+	namespace string,
+	shard uint32,
+	targetRanges xtime.Ranges,
+) (bootstrap.ShardResult, xtime.Ranges) {
 	return nil, targetRanges
 }
 
@@ -64,7 +68,11 @@ func NewNoOpAllBootstrapper() bootstrap.Bootstrapper {
 	return defaultNoOpAllBootstrapper
 }
 
-func (noop *noOpAllBootstrapper) Bootstrap(shard uint32, targetRanges xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
+func (noop *noOpAllBootstrapper) Bootstrap(
+	namespace string,
+	shard uint32,
+	targetRanges xtime.Ranges,
+) (bootstrap.ShardResult, xtime.Ranges) {
 	return nil, nil
 }
 

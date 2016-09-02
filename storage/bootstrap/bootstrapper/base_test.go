@@ -32,6 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testNamespaceName = "testNamespace"
+
 var (
 	testTargetStart = time.Now()
 	testShard       = uint32(0)
@@ -120,12 +122,12 @@ func TestBaseBootstrapperEmptyRange(t *testing.T) {
 
 	// Test non-nil empty range
 	targetRanges := xtime.NewRanges()
-	res, tr := base.Bootstrap(0, targetRanges)
+	res, tr := base.Bootstrap(testNamespaceName, 0, targetRanges)
 	require.Nil(t, res)
 	require.Nil(t, tr)
 
 	targetRanges = nil
-	res, tr = base.Bootstrap(0, targetRanges)
+	res, tr = base.Bootstrap(testNamespaceName, 0, targetRanges)
 	require.Nil(t, res)
 	require.Nil(t, tr)
 }
@@ -140,11 +142,11 @@ func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
 	curResult := testShardResult(testBlockEntry{"foo", testTargetStart})
 	curUnfulfilled := xtime.NewRanges()
 
-	source.EXPECT().GetAvailability(testShard, targetRanges).Return(targetRanges)
-	source.EXPECT().ReadData(testShard, targetRanges).Return(curResult, curUnfulfilled)
-	next.EXPECT().Bootstrap(testShard, remainingRanges).Return(nil, nil)
+	source.EXPECT().GetAvailability(testNamespaceName, testShard, targetRanges).Return(targetRanges)
+	source.EXPECT().ReadData(testNamespaceName, testShard, targetRanges).Return(curResult, curUnfulfilled)
+	next.EXPECT().Bootstrap(testNamespaceName, testShard, remainingRanges).Return(nil, nil)
 
-	res, tr := base.Bootstrap(testShard, targetRanges)
+	res, tr := base.Bootstrap(testNamespaceName, testShard, targetRanges)
 	validateResult(t, curResult, res)
 	validateRanges(t, curUnfulfilled, tr)
 }
@@ -165,12 +167,12 @@ func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 	curUnfulfilled := xtime.NewRanges().AddRange(xtime.Range{Start: testTargetStart, End: testTargetStart.Add(time.Hour)})
 	nextResult := testShardResult(entries[1:]...)
 
-	source.EXPECT().GetAvailability(testShard, targetRanges).Return(targetRanges)
-	source.EXPECT().ReadData(testShard, targetRanges).Return(curResult, curUnfulfilled)
-	next.EXPECT().Bootstrap(testShard, remainingRanges).Return(nil, nil)
-	next.EXPECT().Bootstrap(testShard, curUnfulfilled).Return(nextResult, nil)
+	source.EXPECT().GetAvailability(testNamespaceName, testShard, targetRanges).Return(targetRanges)
+	source.EXPECT().ReadData(testNamespaceName, testShard, targetRanges).Return(curResult, curUnfulfilled)
+	next.EXPECT().Bootstrap(testNamespaceName, testShard, remainingRanges).Return(nil, nil)
+	next.EXPECT().Bootstrap(testNamespaceName, testShard, curUnfulfilled).Return(nextResult, nil)
 
-	res, tr := base.Bootstrap(testShard, targetRanges)
+	res, tr := base.Bootstrap(testNamespaceName, testShard, targetRanges)
 	expectedRanges := xtime.NewRanges()
 	expectedResult := testShardResult(entries...)
 
@@ -186,11 +188,11 @@ func testBasebootstrapperNext(t *testing.T, nextUnfulfilled xtime.Ranges) {
 	targetRanges := testTargetRanges()
 	nextResult := testShardResult(testBlockEntry{"foo", testTargetStart})
 
-	source.EXPECT().GetAvailability(testShard, targetRanges).Return(nil)
-	source.EXPECT().ReadData(testShard, nil).Return(nil, nil)
-	next.EXPECT().Bootstrap(testShard, targetRanges).Return(nextResult, nextUnfulfilled)
+	source.EXPECT().GetAvailability(testNamespaceName, testShard, targetRanges).Return(nil)
+	source.EXPECT().ReadData(testNamespaceName, testShard, nil).Return(nil, nil)
+	next.EXPECT().Bootstrap(testNamespaceName, testShard, targetRanges).Return(nextResult, nextUnfulfilled)
 
-	res, tr := base.Bootstrap(testShard, targetRanges)
+	res, tr := base.Bootstrap(testNamespaceName, testShard, targetRanges)
 	validateResult(t, nextResult, res)
 	validateRanges(t, nextUnfulfilled, tr)
 }
@@ -234,12 +236,12 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 	fallBackResult := testShardResult(entries[3])
 	fallBackUnfulfilled := xtime.NewRanges().AddRange(ranges[4])
 
-	source.EXPECT().GetAvailability(testShard, targetRanges).Return(availableRanges)
-	source.EXPECT().ReadData(testShard, availableRanges).Return(curResult, curUnfulfilled)
-	next.EXPECT().Bootstrap(testShard, remainingRanges).Return(nextResult, nextUnfulfilled)
-	next.EXPECT().Bootstrap(testShard, curUnfulfilled).Return(fallBackResult, fallBackUnfulfilled)
+	source.EXPECT().GetAvailability(testNamespaceName, testShard, targetRanges).Return(availableRanges)
+	source.EXPECT().ReadData(testNamespaceName, testShard, availableRanges).Return(curResult, curUnfulfilled)
+	next.EXPECT().Bootstrap(testNamespaceName, testShard, remainingRanges).Return(nextResult, nextUnfulfilled)
+	next.EXPECT().Bootstrap(testNamespaceName, testShard, curUnfulfilled).Return(fallBackResult, fallBackUnfulfilled)
 
-	res, tr := base.Bootstrap(testShard, targetRanges)
+	res, tr := base.Bootstrap(testNamespaceName, testShard, targetRanges)
 	expectedRanges := xtime.NewRanges().AddRange(ranges[3]).AddRange(ranges[4])
 	expectedResult := testShardResult(entries...)
 

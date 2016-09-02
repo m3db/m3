@@ -49,13 +49,13 @@ func (_m *MockManager) EXPECT() *_MockManagerRecorder {
 	return _m.recorder
 }
 
-func (_m *MockManager) Prepare(shard uint32, blockStart time.Time) (PreparedPersist, error) {
-	ret := _m.ctrl.Call(_m, "Prepare", shard, blockStart)
+func (_m *MockManager) Prepare(namespace string, shard uint32, blockStart time.Time) (PreparedPersist, error) {
+	ret := _m.ctrl.Call(_m, "Prepare", namespace, shard, blockStart)
 	ret0, _ := ret[0].(PreparedPersist)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockManagerRecorder) Prepare(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Prepare", arg0, arg1)
+func (_mr *_MockManagerRecorder) Prepare(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Prepare", arg0, arg1, arg2)
 }
