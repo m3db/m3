@@ -1,0 +1,65 @@
+hash: f1b931ad59e05145c8c92f1f7c8e82e60a876b149d09a28d93ca0ee8906526aa
+updated: 2016-08-31T10:20:21.301485049-04:00
+imports:
+- name: github.com/apache/thrift
+  version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
+  subpackages:
+  - lib/go/thrift
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
+- name: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/golang/mock
+  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  subpackages:
+  - gomock
+- name: github.com/golang/protobuf
+  version: bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
+  subpackages:
+  - proto
+- name: github.com/m3db/m3cluster
+  version: 6b455e628db9157a5e90e500a055e2395da437ef
+  subpackages:
+  - client
+  - services
+  - kv
+  - shard
+- name: github.com/m3db/m3x
+  version: 90e51d6e6c6e648af2f048654390f66034e49dc5
+  subpackages:
+  - close
+  - errors
+  - log
+  - retry
+  - time
+  - watch
+- name: github.com/pmezard/go-difflib
+  version: e8554b8641db39598be7f6342874b958f12ae1d4
+  subpackages:
+  - difflib
+- name: github.com/spaolacci/murmur3
+  version: 0d12bf811670bf6a1a63828dfbd003eded177fce
+- name: github.com/stretchr/testify
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
+  subpackages:
+  - require
+  - assert
+- name: github.com/uber-go/tally
+  version: 13a01a2a0dd2ade06c307ccc0ca4e83196c88422
+- name: github.com/uber/tchannel-go
+  version: 521248db9bf9eb98e86f0d5334e56a890b6a559b
+  subpackages:
+  - thrift
+  - atomic
+  - tnet
+  - typed
+  - thrift/gen-go/meta
+- name: github.com/willf/bitset
+  version: 2e6e8094ef4745224150c88c16191c7dceaad16f
+- name: golang.org/x/net
+  version: 07b51741c1d6423d4a6abab1c49940ec09cb1aaf
+  subpackages:
+  - context
+devImports: []
