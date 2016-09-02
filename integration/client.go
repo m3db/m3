@@ -21,6 +21,7 @@
 package integration
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
-	"code.uber.internal/infra/statsdex/x/errors"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
