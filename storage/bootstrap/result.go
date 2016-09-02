@@ -137,7 +137,7 @@ func (sr *shardResult) Close() {
 // AddResults adds other shard results to the current shard results.
 func (r ShardResults) AddResults(other ShardResults) {
 	for shard, result := range other {
-		if result == nil {
+		if result == nil || len(result.AllSeries()) == 0 {
 			continue
 		}
 		if existing, ok := r[shard]; ok {

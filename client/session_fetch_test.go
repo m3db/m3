@@ -39,6 +39,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testNamespaceName = "testNs"
+)
+
 var (
 	fetchFailureErrStr = "a specific fetch error"
 )
@@ -117,7 +121,7 @@ func TestSessionFetchAll(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchAll(fetches.IDs(), start, end)
+	results, err := session.FetchAll(testNamespaceName, fetches.IDs(), start, end)
 	assert.NoError(t, err)
 	assertFetchResults(t, start, end, fetches, results)
 
@@ -156,7 +160,7 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	result, err := session.Fetch(fetches[0].id, start, end)
+	result, err := session.Fetch(testNamespaceName, fetches[0].id, start, end)
 	assert.NoError(t, err)
 	assertion := assertFetchResults(t, start, end, fetches, seriesIterators(result))
 	assert.Equal(t, 2, assertion.trimToTimeRange)
@@ -231,7 +235,7 @@ func testFetchConsistencyLevel(
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchAll(fetches.IDs(), start, end)
+	results, err := session.FetchAll(testNamespaceName, fetches.IDs(), start, end)
 	if expected == outcomeSuccess {
 		assert.NoError(t, err)
 		assertFetchResults(t, start, end, fetches, results)
@@ -314,7 +318,7 @@ func fulfillTszFetchBatchOps(
 				calledCompletionFn = true
 				break
 			}
-			assert.True(t, calledCompletionFn, "must call completion for ID", id)
+			assert.True(t, calledCompletionFn)
 		}
 	}
 }

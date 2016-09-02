@@ -31,13 +31,15 @@ var (
 
 type writeOp struct {
 	request      rpc.WriteRequest
+	idDatapoint  rpc.IDDatapoint
 	datapoint    rpc.Datapoint
 	completionFn completionFn
 }
 
 func (w *writeOp) reset() {
 	*w = writeOpZeroed
-	w.request.Datapoint = &w.datapoint
+	w.idDatapoint.Datapoint = &w.datapoint
+	w.request.IdDatapoint = &w.idDatapoint
 }
 
 func (w *writeOp) Size() int {

@@ -33,11 +33,13 @@ type fetchBatchOp struct {
 func (f *fetchBatchOp) reset() {
 	f.request.RangeStart = 0
 	f.request.RangeEnd = 0
+	f.request.NameSpace = ""
 	f.request.Ids = f.request.Ids[:0]
 	f.completionFns = f.completionFns[:0]
 }
 
-func (f *fetchBatchOp) append(id string, completionFn completionFn) {
+func (f *fetchBatchOp) append(namespace string, id string, completionFn completionFn) {
+	f.request.NameSpace = namespace
 	f.request.Ids = append(f.request.Ids, id)
 	f.completionFns = append(f.completionFns, completionFn)
 }

@@ -30,8 +30,8 @@ import (
 	fs "github.com/m3db/m3db/persist/fs"
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
-	time "github.com/m3db/m3x/time"
-	time0 "time"
+	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of CommitLog interface
@@ -65,7 +65,7 @@ func (_mr *_MockCommitLogRecorder) Open() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
 }
 
-func (_m *MockCommitLog) Write(series Series, datapoint ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
+func (_m *MockCommitLog) Write(series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
 	ret := _m.ctrl.Call(_m, "Write", series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -75,7 +75,7 @@ func (_mr *_MockCommitLogRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *go
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockCommitLog) WriteBehind(series Series, datapoint ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
+func (_m *MockCommitLog) WriteBehind(series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
 	ret := _m.ctrl.Call(_m, "WriteBehind", series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -137,11 +137,11 @@ func (_mr *_MockIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockIterator) Current() (Series, ts.Datapoint, time.Unit, ts.Annotation) {
+func (_m *MockIterator) Current() (Series, ts.Datapoint, time0.Unit, ts.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(Series)
 	ret1, _ := ret[1].(ts.Datapoint)
-	ret2, _ := ret[2].(time.Unit)
+	ret2, _ := ret[2].(time0.Unit)
 	ret3, _ := ret[3].(ts.Annotation)
 	return ret0, ret1, ret2, ret3
 }
@@ -309,7 +309,7 @@ func (_mr *_MockOptionsRecorder) GetStrategy() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetStrategy")
 }
 
-func (_m *MockOptions) FlushInterval(value time0.Duration) Options {
+func (_m *MockOptions) FlushInterval(value time.Duration) Options {
 	ret := _m.ctrl.Call(_m, "FlushInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -319,9 +319,9 @@ func (_mr *_MockOptionsRecorder) FlushInterval(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushInterval", arg0)
 }
 
-func (_m *MockOptions) GetFlushInterval() time0.Duration {
+func (_m *MockOptions) GetFlushInterval() time.Duration {
 	ret := _m.ctrl.Call(_m, "GetFlushInterval")
-	ret0, _ := ret[0].(time0.Duration)
+	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 

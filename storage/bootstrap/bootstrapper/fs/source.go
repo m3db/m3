@@ -57,20 +57,27 @@ func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-func (s *fileSystemSource) Available(shardsTimeRanges bootstrap.ShardTimeRanges) bootstrap.ShardTimeRanges {
+func (s *fileSystemSource) Available(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) bootstrap.ShardTimeRanges {
 	result := make(map[uint32]xtime.Ranges)
 	for shard, ranges := range shardsTimeRanges {
-		result[shard] = s.shardAvailability(shard, ranges)
+		result[shard] = s.shardAvailability(namespace, shard, ranges)
 	}
 	return result
 }
 
-func (s *fileSystemSource) shardAvailability(shard uint32, targetRangesForShard xtime.Ranges) xtime.Ranges {
+func (s *fileSystemSource) shardAvailability(
+	namespace string,
+	shard uint32,
+	targetRangesForShard xtime.Ranges,
+) xtime.Ranges {
 	if targetRangesForShard == nil {
 		return nil
 	}
 
-	entries := fs.ReadInfoFiles(s.filePathPrefix, shard, s.readerBufferSize)
+	entries := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
 	if len(entries) == 0 {
 		return nil
 	}
@@ -88,7 +95,10 @@ func (s *fileSystemSource) shardAvailability(shard uint32, targetRangesForShard 
 	return tr
 }
 
-func (s *fileSystemSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
+func (s *fileSystemSource) Read(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -96,7 +106,7 @@ func (s *fileSystemSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (boo
 	result := bootstrap.NewResult()
 	for shard, tr := range shardsTimeRanges {
 		var files []string
-		fs.ForEachInfoFile(s.filePathPrefix, shard, s.readerBufferSize, func(fname string, _ []byte) {
+		fs.ForEachInfoFile(s.filePathPrefix, namespace, shard, s.readerBufferSize, func(fname string, _ []byte) {
 			files = append(files, fname)
 		})
 		if len(files) == 0 {
@@ -113,7 +123,7 @@ func (s *fileSystemSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (boo
 				s.log.Errorf("unable to get time from info file name %s: %v", files[i], err)
 				continue
 			}
-			if err := r.Open(shard, t); err != nil {
+			if err := r.Open(namespace, shard, t); err != nil {
 				s.log.Errorf("unable to open info file for shard %d time %v: %v", shard, t, err)
 				continue
 			}

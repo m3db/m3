@@ -25,11 +25,12 @@ package bootstrap
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	clock "github.com/m3db/m3db/clock"
 	instrument "github.com/m3db/m3db/instrument"
 	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
-	time0 "github.com/m3db/m3x/time"
-	time "time"
+	time "github.com/m3db/m3x/time"
+	time0 "time"
 )
 
 // Mock of Result interface
@@ -73,7 +74,7 @@ func (_mr *_MockResultRecorder) Unfulfilled() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Unfulfilled")
 }
 
-func (_m *MockResult) Add(shard uint32, result ShardResult, unfulfilled time0.Ranges) {
+func (_m *MockResult) Add(shard uint32, result ShardResult, unfulfilled time.Ranges) {
 	_m.ctrl.Call(_m, "Add", shard, result, unfulfilled)
 }
 
@@ -199,15 +200,15 @@ func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(writeStart time.Time, shards []uint32) (Result, error) {
-	ret := _m.ctrl.Call(_m, "Run", writeStart, shards)
+func (_m *MockBootstrap) Run(writeStart time0.Time, namespace string, shards []uint32) (Result, error) {
+	ret := _m.ctrl.Call(_m, "Run", writeStart, namespace, shards)
 	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockBootstrapRecorder) Run(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1)
+func (_mr *_MockBootstrapRecorder) Run(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1, arg2)
 }
 
 // Mock of Bootstrapper interface
@@ -241,15 +242,15 @@ func (_mr *_MockBootstrapperRecorder) Can(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Can", arg0)
 }
 
-func (_m *MockBootstrapper) Bootstrap(shardsTimeRanges ShardTimeRanges) (Result, error) {
-	ret := _m.ctrl.Call(_m, "Bootstrap", shardsTimeRanges)
+func (_m *MockBootstrapper) Bootstrap(namespace string, shardsTimeRanges ShardTimeRanges) (Result, error) {
+	ret := _m.ctrl.Call(_m, "Bootstrap", namespace, shardsTimeRanges)
 	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockBootstrapperRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
+func (_mr *_MockBootstrapperRecorder) Bootstrap(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1)
 }
 
 // Mock of Source interface
@@ -283,25 +284,25 @@ func (_mr *_MockSourceRecorder) Can(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Can", arg0)
 }
 
-func (_m *MockSource) Available(shardsTimeRanges ShardTimeRanges) ShardTimeRanges {
-	ret := _m.ctrl.Call(_m, "Available", shardsTimeRanges)
+func (_m *MockSource) Available(namespace string, shardsTimeRanges ShardTimeRanges) ShardTimeRanges {
+	ret := _m.ctrl.Call(_m, "Available", namespace, shardsTimeRanges)
 	ret0, _ := ret[0].(ShardTimeRanges)
 	return ret0
 }
 
-func (_mr *_MockSourceRecorder) Available(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Available", arg0)
+func (_mr *_MockSourceRecorder) Available(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Available", arg0, arg1)
 }
 
-func (_m *MockSource) Read(shardsTimeRanges ShardTimeRanges) (Result, error) {
-	ret := _m.ctrl.Call(_m, "Read", shardsTimeRanges)
+func (_m *MockSource) Read(namespace string, shardsTimeRanges ShardTimeRanges) (Result, error) {
+	ret := _m.ctrl.Call(_m, "Read", namespace, shardsTimeRanges)
 	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockSourceRecorder) Read(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read", arg0)
+func (_mr *_MockSourceRecorder) Read(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read", arg0, arg1)
 }
 
 // Mock of Options interface
@@ -323,6 +324,26 @@ func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
 
 func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
+}
+
+func (_m *MockOptions) ClockOptions(value clock.Options) Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions", arg0)
+}
+
+func (_m *MockOptions) GetClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "GetClockOptions")
+	ret0, _ := ret[0].(clock.Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) GetClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClockOptions")
 }
 
 func (_m *MockOptions) InstrumentOptions(value instrument.Options) Options {

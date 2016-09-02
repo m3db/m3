@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/watch"
+
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -99,7 +100,7 @@ type session struct {
 type newHostQueueFn func(
 	host topology.Host,
 	writeBatchRequestPool writeBatchRequestPool,
-	writeRequestArrayPool writeRequestArrayPool,
+	idDatapointArrayPool idDatapointArrayPool,
 	opts Options,
 ) hostQueue
 
@@ -313,14 +314,14 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
 	writeBatchRequestPool := newWriteBatchRequestPool(hostBatches)
 	writeBatchRequestPool.Init()
-	writeRequestArrayPool := newWriteRequestArrayPool(hostBatches, s.opts.GetWriteBatchSize())
-	writeRequestArrayPool.Init()
-	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, writeRequestArrayPool, s.opts)
+	idDatapointArrayPool := newIDDatapointArrayPool(hostBatches, s.opts.GetWriteBatchSize())
+	idDatapointArrayPool.Init()
+	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, idDatapointArrayPool, s.opts)
 	hostQueue.Open()
 	return hostQueue
 }
 
-func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+func (s *session) Write(namespace string, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	var (
 		wg            sync.WaitGroup
 		enqueueErr    error
@@ -342,7 +343,8 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 	}
 
 	w := s.writeOpPool.Get()
-	w.request.ID = id
+	w.request.NameSpace = namespace
+	w.idDatapoint.ID = id
 	w.datapoint.Value = value
 	w.datapoint.Timestamp = ts
 	w.datapoint.TimestampType = timeType
@@ -390,8 +392,8 @@ func (s *session) Write(id string, t time.Time, value float64, unit xtime.Unit, 
 	return s.consistencyResult(majority, enqueued, resultErrs, resultErr)
 }
 
-func (s *session) Fetch(id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
-	results, err := s.FetchAll([]string{id}, startInclusive, endExclusive)
+func (s *session) Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
+	results, err := s.FetchAll(namespace, []string{id}, startInclusive, endExclusive)
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +406,7 @@ func (s *session) Fetch(id string, startInclusive, endExclusive time.Time) (enco
 	return iter, nil
 }
 
-func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+func (s *session) FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
 	var (
 		wg                     sync.WaitGroup
 		routeErr               error
@@ -522,8 +524,8 @@ func (s *session) FetchAll(ids []string, startInclusive, endExclusive time.Time)
 				f.request.RangeType = rpc.TimeType_UNIX_NANOSECONDS
 			}
 
-			// Append ID to this request
-			f.append(ids[idx], completionFn)
+			// Append IDWithNamespace to this request
+			f.append(namespace, ids[idx], completionFn)
 		}); err != nil {
 			routeErr = err
 			break
@@ -617,7 +619,54 @@ func (s *session) Close() error {
 	return nil
 }
 
+func (s *session) Truncate(namespace string) (int64, error) {
+	var (
+		wg            sync.WaitGroup
+		enqueueErr    xerrors.MultiError
+		resultErrLock sync.Mutex
+		resultErr     xerrors.MultiError
+		truncated     int64
+	)
+
+	t := &truncateOp{}
+	t.request.NameSpace = namespace
+	t.completionFn = func(result interface{}, err error) {
+		if err != nil {
+			resultErrLock.Lock()
+			resultErr = resultErr.Add(err)
+			resultErrLock.Unlock()
+		} else {
+			res := result.(*rpc.TruncateResult_)
+			atomic.AddInt64(&truncated, res.NumSeries)
+		}
+		wg.Done()
+	}
+
+	log := s.opts.GetInstrumentOptions().GetLogger()
+
+	s.RLock()
+	for idx := range s.queues {
+		wg.Add(1)
+		if err := s.queues[idx].Enqueue(t); err != nil {
+			wg.Done()
+			enqueueErr = enqueueErr.Add(err)
+		}
+	}
+	s.RUnlock()
+
+	if err := enqueueErr.FinalError(); err != nil {
+		log.Errorf("failed to enqueue request: %v", err)
+		return 0, err
+	}
+
+	// Wait for namespace to be truncated on all replicas
+	wg.Wait()
+
+	return truncated, resultErr.FinalError()
+}
+
 func (s *session) FetchBootstrapBlocksFromPeers(
+	namespace string,
 	shard uint32,
 	start, end time.Time,
 	opts bootstrap.Options,
@@ -655,7 +704,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
 		blockSize := opts.GetRetentionOptions().GetBlockSize()
-		err := s.streamBlocksMetadataFromPeers(shard, peers, start, end, blockSize, metadataCh)
+		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers, start, end, blockSize, metadataCh)
+
 		close(metadataCh)
 		if err != nil {
 			// Bail early
@@ -665,7 +715,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 
 	// Begin consuming metadata and making requests
 	go func() {
-		err := s.streamBlocksFromPeers(shard, peers, metadataCh, result)
+		err := s.streamBlocksFromPeers(namespace, shard, peers, metadataCh, result)
 		onDone(err)
 	}()
 
@@ -676,6 +726,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 }
 
 func (s *session) streamBlocksMetadataFromPeers(
+	namespace string,
 	shard uint32,
 	peers []hostQueue,
 	start, end time.Time,
@@ -694,10 +745,9 @@ func (s *session) streamBlocksMetadataFromPeers(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := s.streamBlocksMetadataFromPeer(shard, peer, start, end, blockSize, ch)
+			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer, start, end, blockSize, ch)
 			if err != nil {
-				s.log.Warnf("failed to stream blocks metadata from peer %s for shard %d: %v", peer.Host().String(), shard, err)
-
+				s.log.Warnf("failed to stream blocks metadata from peer %s for namespace %s shard %d: %v", peer.Host().String(), namespace, shard, err)
 				errLock.Lock()
 				defer errLock.Unlock()
 				errLen++
@@ -709,13 +759,14 @@ func (s *session) streamBlocksMetadataFromPeers(
 	wg.Wait()
 
 	if errLen == len(peers) {
-		s.log.Errorf("failed to complete streaming blocks from all peers for shard %d", shard)
+		s.log.Errorf("failed to complete streaming blocks from all peers for namespace %s shard %d", namespace, shard)
 		return multiErr
 	}
 	return nil
 }
 
 func (s *session) streamBlocksMetadataFromPeer(
+	namespace string,
 	shard uint32,
 	peer hostQueue,
 	start, end time.Time,
@@ -741,6 +792,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
 		req := rpc.NewFetchBlocksMetadataRequest()
+		req.NameSpace = namespace
 		req.Shard = int32(shard)
 		req.Limit = int64(s.streamBlocksBatchSize)
 		req.PageToken = pageToken
@@ -784,7 +836,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 				if b.Size == nil {
 					s.log.WithFields(
 						xlog.NewLogField("id", elem.ID),
-						xlog.NewLogField("start", start),
+						xlog.NewLogField("start", blockStart),
 					).Warnf("stream blocks metadata requested block size and not returned")
 					continue
 				}
@@ -812,6 +864,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 }
 
 func (s *session) streamBlocksFromPeers(
+	namespace string,
 	shard uint32,
 	peers []hostQueue,
 	ch <-chan blocksMetadata,
@@ -843,7 +896,7 @@ func (s *session) streamBlocksFromPeers(
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
 		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, func(batch []*blocksMetadata) {
-			s.streamBlocksBatchFromPeer(shard, peer, batch, result, enqueueCh, retrier)
+			s.streamBlocksBatchFromPeer(namespace, shard, peer, batch, result, enqueueCh, retrier)
 		})
 		peerQueues = append(peerQueues, queue)
 	}
@@ -1107,6 +1160,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 }
 
 func (s *session) streamBlocksBatchFromPeer(
+	namespace string,
 	shard uint32,
 	peer hostQueue,
 	batch []*blocksMetadata,
@@ -1119,6 +1173,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		req    = rpc.NewFetchBlocksRequest()
 		result *rpc.FetchBlocksResult_
 	)
+	req.NameSpace = namespace
 	req.Shard = int32(shard)
 	req.Elements = make([]*rpc.FetchBlocksParam, len(batch))
 	for i := range batch {

@@ -71,6 +71,17 @@ func (_mr *_MockTChanClusterRecorder) Health(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Health", arg0)
 }
 
+func (_m *MockTChanCluster) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
+	ret := _m.ctrl.Call(_m, "Truncate", ctx, req)
+	ret0, _ := ret[0].(*TruncateResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanClusterRecorder) Truncate(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0, arg1)
+}
+
 func (_m *MockTChanCluster) Write(ctx thrift.Context, req *WriteRequest) error {
 	ret := _m.ctrl.Call(_m, "Write", ctx, req)
 	ret0, _ := ret[0].(error)
@@ -155,6 +166,17 @@ func (_m *MockTChanNode) Health(ctx thrift.Context) (*HealthResult_, error) {
 
 func (_mr *_MockTChanNodeRecorder) Health(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Health", arg0)
+}
+
+func (_m *MockTChanNode) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
+	ret := _m.ctrl.Call(_m, "Truncate", ctx, req)
+	ret0, _ := ret[0].(*TruncateResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) Truncate(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0, arg1)
 }
 
 func (_m *MockTChanNode) Write(ctx thrift.Context, req *WriteRequest) error {

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
@@ -46,6 +47,9 @@ var (
 
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
+
+	// errDuplicateNamespace raised when trying to create a database with duplicate namespaces
+	errDuplicateNamespaces = errors.New("database contains duplicate namespaces")
 
 	// errCommitLogStrategyUnknown raised when trying to use an unknown commit log strategy
 	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
@@ -67,8 +71,8 @@ const (
 type database interface {
 	Database
 
-	// getOwnedShards returns the shards this database owns.
-	getOwnedShards() []databaseShard
+	// getOwnedNamespaces returns the namespaces this database owns.
+	getOwnedNamespaces() []databaseNamespace
 }
 
 // increasingIndex provides a monotonically increasing index for new series
@@ -86,35 +90,30 @@ type writeCommitLogFn func(
 
 type db struct {
 	sync.RWMutex
-	opts             Options
-	nowFn            clock.NowFn
-	shardSet         sharding.ShardSet
+	opts  Options
+	nowFn clock.NowFn
+
+	namespaces       map[string]databaseNamespace
 	commitLog        commitlog.CommitLog
 	writeCommitLogFn writeCommitLogFn
 	state            databaseState
 	bsm              databaseBootstrapManager
 	fsm              databaseFileSystemManager
-
-	// Contains an entry to all shards for fast shard lookup, an
-	// entry will be nil when this shard does not belong to current database
-	shards []databaseShard
-
-	created      uint64
-	tickDeadline time.Duration
+	created          uint64
+	tickDeadline     time.Duration
 
 	doneCh chan struct{}
 }
 
 // NewDatabase creates a new database
-func NewDatabase(shardSet sharding.ShardSet, opts Options) (Database, error) {
+func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, opts Options) (Database, error) {
 	d := &db{
 		opts:         opts,
-		shardSet:     shardSet,
-		shards:       make([]databaseShard, shardSet.Max()+1),
 		nowFn:        opts.GetClockOptions().GetNowFn(),
 		tickDeadline: opts.GetRetentionOptions().GetBufferDrain(),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
+
 	d.fsm = newFileSystemManager(d)
 	d.bsm = newBootstrapManager(d, d.fsm)
 
@@ -134,6 +133,17 @@ func NewDatabase(shardSet sharding.ShardSet, opts Options) (Database, error) {
 		return nil, errCommitLogStrategyUnknown
 	}
 
+	ns := make(map[string]databaseNamespace, len(namespaces))
+	for _, n := range namespaces {
+		if _, exists := ns[n.Name()]; exists {
+			return nil, errDuplicateNamespaces
+		}
+		// NB(xichen): shardSet is used only for reads but not writes once created
+		// so can be shared by different namespaces
+		ns[n.Name()] = newDatabaseNamespace(n, shardSet, d, d.writeCommitLogFn, d.opts)
+	}
+	d.namespaces = ns
+
 	return d, nil
 }
 
@@ -148,11 +158,6 @@ func (d *db) Open() error {
 		return errDatabaseAlreadyOpen
 	}
 	d.state = databaseOpen
-
-	// Initialize shards
-	for _, x := range d.shardSet.Shards() {
-		d.shards[x] = newDatabaseShard(x, d, d.writeCommitLogFn, d.opts)
-	}
 
 	// All goroutines must be accounted for with dbOngoingTasks to receive done signal
 	go d.ongoingTick()
@@ -170,20 +175,21 @@ func (d *db) Close() error {
 	}
 	d.state = databaseClosed
 
-	// For now just remove all shards, in future this could be made more explicit.  However
+	// For now just remove all namespaces, in future this could be made more explicit.  However
 	// this is nice as we do not need to do any other branching now in write/read methods.
-	for i := range d.shards {
-		d.shards[i] = nil
-	}
+	d.namespaces = nil
+
 	for i := 0; i < dbOngoingTasks; i++ {
 		d.doneCh <- struct{}{}
 	}
+
 	// Finally close the commit log
 	return d.commitLog.Close()
 }
 
 func (d *db) Write(
 	ctx context.Context,
+	namespace string,
 	id string,
 	timestamp time.Time,
 	value float64,
@@ -191,69 +197,56 @@ func (d *db) Write(
 	annotation []byte,
 ) error {
 	d.RLock()
-	shardID := d.shardSet.Shard(id)
-	shard := d.shards[shardID]
+	n, exists := d.namespaces[namespace]
 	d.RUnlock()
 
-	if shard == nil {
-		return fmt.Errorf("not responsible for shard %d", shardID)
+	if !exists {
+		return fmt.Errorf("no such namespace %s", namespace)
 	}
-	return shard.Write(ctx, id, timestamp, value, unit, annotation)
-}
 
-func (d *db) readableShard(shardID uint32) (databaseShard, error) {
-	d.RLock()
-	if !d.bsm.IsBootstrapped() {
-		d.RUnlock()
-		return nil, errDatabaseNotBootstrapped
-	}
-	shard := d.shards[shardID]
-	d.RUnlock()
-	if shard == nil {
-		return nil, fmt.Errorf("not responsible for shard %d", shardID)
-	}
-	return shard, nil
+	return n.Write(ctx, id, timestamp, value, unit, annotation)
 }
 
 func (d *db) ReadEncoded(
 	ctx context.Context,
+	namespace string,
 	id string,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
-	shardID := d.shardSet.Shard(id)
-	shard, err := d.readableShard(shardID)
+	n, err := d.readableNamespace(namespace)
 	if err != nil {
 		return nil, err
 	}
-	return shard.ReadEncoded(ctx, id, start, end)
+	return n.ReadEncoded(ctx, id, start, end)
 }
 
 func (d *db) FetchBlocks(
 	ctx context.Context,
+	namespace string,
 	shardID uint32,
 	id string,
 	starts []time.Time,
 ) ([]FetchBlockResult, error) {
-	shard, err := d.readableShard(shardID)
+	n, err := d.readableNamespace(namespace)
 	if err != nil {
 		return nil, xerrors.NewInvalidParamsError(err)
 	}
-	return shard.FetchBlocks(ctx, id, starts), nil
+	return n.FetchBlocks(ctx, shardID, id, starts)
 }
 
 func (d *db) FetchBlocksMetadata(
 	ctx context.Context,
+	namespace string,
 	shardID uint32,
 	limit int64,
 	pageToken int64,
 	includeSizes bool,
 ) ([]FetchBlocksMetadataResult, *int64, error) {
-	shard, err := d.readableShard(shardID)
+	n, err := d.readableNamespace(namespace)
 	if err != nil {
 		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, limit, pageToken, includeSizes)
-	return res, nextPageToken, nil
+	return n.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes)
 }
 
 func (d *db) Bootstrap() error {
@@ -264,20 +257,37 @@ func (d *db) IsBootstrapped() bool {
 	return d.bsm.IsBootstrapped()
 }
 
-func (d *db) getOwnedShards() []databaseShard {
-	d.RLock()
-	// If the database is not open, don't return anything.
-	if d.state != databaseOpen {
-		d.RUnlock()
-		return nil
+func (d *db) Truncate(namespace string) (int64, error) {
+	n, err := d.readableNamespace(namespace)
+	if err != nil {
+		return 0, err
 	}
-	shards := d.shardSet.Shards()
-	databaseShards := make([]databaseShard, len(shards))
-	for i, shard := range shards {
-		databaseShards[i] = d.shards[shard]
+	return n.Truncate()
+}
+
+func (d *db) readableNamespace(namespace string) (databaseNamespace, error) {
+	d.RLock()
+	if !d.bsm.IsBootstrapped() {
+		d.RUnlock()
+		return nil, errDatabaseNotBootstrapped
+	}
+	n, exists := d.namespaces[namespace]
+	d.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("no such namespace %s", namespace)
+	}
+	return n, nil
+}
+
+func (d *db) getOwnedNamespaces() []databaseNamespace {
+	d.RLock()
+	namespaces := make([]databaseNamespace, 0, len(d.namespaces))
+	for _, n := range d.namespaces {
+		namespaces = append(namespaces, n)
 	}
 	d.RUnlock()
-	return databaseShards
+	return namespaces
 }
 
 func (d *db) ongoingTick() {
@@ -292,32 +302,17 @@ func (d *db) ongoingTick() {
 }
 
 func (d *db) splayedTick() {
-	shards := d.getOwnedShards()
-	if len(shards) == 0 {
+	namespaces := d.getOwnedNamespaces()
+	if len(namespaces) == 0 {
 		return
 	}
 
-	splayApart := d.tickDeadline / time.Duration(len(shards))
-
 	start := d.nowFn()
 
-	var wg sync.WaitGroup
-	for i, shard := range shards {
-		i := i
-		shard := shard
-		if i > 0 {
-			time.Sleep(splayApart)
-		}
-		wg.Add(1)
-		go func() {
-			// TODO(r): instrument timing of this tick
-			shard.Tick()
-			wg.Done()
-		}()
+	for _, n := range namespaces {
+		// TODO(xichen): sleep during two consecutive ticks
+		n.Tick()
 	}
-
-	wg.Wait()
-
 	if d.fsm.ShouldRun(start) {
 		d.fsm.Run(start, true)
 	}

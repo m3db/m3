@@ -34,8 +34,8 @@ import (
 type FileSetWriter interface {
 	io.Closer
 
-	// Open opens the files for writing data to the given shard
-	Open(shard uint32, start time.Time) error
+	// Open opens the files for writing data to the given shard in the given namespace
+	Open(namespace string, shard uint32, start time.Time) error
 
 	// Write will write the key and data pair and returns an error on a write error
 	Write(key string, data []byte) error
@@ -49,7 +49,7 @@ type FileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(shard uint32, start time.Time) error
+	Open(namespace string, shard uint32, start time.Time) error
 
 	// Read returns the next key and data pair or error, will return io.EOF at end of volume
 	Read() (key string, data []byte, err error)

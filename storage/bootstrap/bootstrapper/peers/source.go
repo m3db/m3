@@ -53,12 +53,18 @@ func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-func (s *peersSource) Available(shardsTimeRanges bootstrap.ShardTimeRanges) bootstrap.ShardTimeRanges {
+func (s *peersSource) Available(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) bootstrap.ShardTimeRanges {
 	// Peers should be able to fulfill all data
 	return shardsTimeRanges
 }
 
-func (s *peersSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
+func (s *peersSource) Read(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -82,7 +88,7 @@ func (s *peersSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (bootstra
 			currRange := it.Value()
 			start := currRange.Start
 			end := currRange.End
-			shardResult, err := session.FetchBootstrapBlocksFromPeers(shard, start, end, bopts)
+			shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace, shard, start, end, bopts)
 			if err == nil {
 				result.Add(shard, shardResult, nil)
 			} else {

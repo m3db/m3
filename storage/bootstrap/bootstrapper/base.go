@@ -55,12 +55,15 @@ func (b *baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return b.src.Can(strategy)
 }
 
-func (b *baseBootstrapper) Bootstrap(shardsTimeRanges bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
+func (b *baseBootstrapper) Bootstrap(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
 
-	available := b.src.Available(shardsTimeRanges)
+	available := b.src.Available(namespace, shardsTimeRanges)
 	remaining := shardsTimeRanges.Copy()
 	remaining.Subtract(available)
 
@@ -76,11 +79,11 @@ func (b *baseBootstrapper) Bootstrap(shardsTimeRanges bootstrap.ShardTimeRanges)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			nextResult, nextErr = b.next.Bootstrap(remaining)
+			nextResult, nextErr = b.next.Bootstrap(namespace, remaining)
 		}()
 	}
 
-	currResult, currErr = b.src.Read(available)
+	currResult, currErr = b.src.Read(namespace, available)
 
 	wg.Wait()
 	if err := xerrors.FirstError(currErr, nextErr); err != nil {
@@ -109,7 +112,7 @@ func (b *baseBootstrapper) Bootstrap(shardsTimeRanges bootstrap.ShardTimeRanges)
 	// If there are some time ranges the current bootstrapper could not fulfill,
 	// pass it along to the next bootstrapper
 	if len(currUnfulfilled) > 0 {
-		nextResult, nextErr = b.next.Bootstrap(currUnfulfilled)
+		nextResult, nextErr = b.next.Bootstrap(namespace, currUnfulfilled)
 		if nextErr != nil {
 			return nil, nextErr
 		}

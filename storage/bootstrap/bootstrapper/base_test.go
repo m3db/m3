@@ -32,6 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testNamespaceName = "testNamespace"
+
 var (
 	testTargetStart = time.Now()
 	testShard       = uint32(0)
@@ -203,11 +205,11 @@ func TestBaseBootstrapperEmptyRange(t *testing.T) {
 	_, _, base := testBaseBootstrapper(t, ctrl)
 
 	// Test non-nil empty range
-	res, err := base.Bootstrap(map[uint32]xtime.Ranges{})
+	res, err := base.Bootstrap(testNamespaceName, map[uint32]xtime.Ranges{})
 	require.NoError(t, err)
 	require.Nil(t, res)
 
-	res, err = base.Bootstrap(nil)
+	res, err = base.Bootstrap(testNamespaceName, nil)
 	require.NoError(t, err)
 	require.Nil(t, res)
 }
@@ -222,10 +224,10 @@ func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
 		testShard: {result: shardResult(testBlockEntry{"foo", testTargetStart})},
 	})
 
-	source.EXPECT().Available(targetRanges).Return(targetRanges)
-	source.EXPECT().Read(targetRanges).Return(result, nil)
+	source.EXPECT().Available(testNamespaceName, targetRanges).Return(targetRanges)
+	source.EXPECT().Read(testNamespaceName, targetRanges).Return(result, nil)
 
-	res, err := base.Bootstrap(targetRanges)
+	res, err := base.Bootstrap(testNamespaceName, targetRanges)
 	require.NoError(t, err)
 	validateResult(t, result, res)
 }
@@ -255,15 +257,15 @@ func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 		testShard: {result: shardResult(entries[1:]...)},
 	})
 
-	source.EXPECT().Available(targetRanges).Return(targetRanges)
-	source.EXPECT().Read(targetRanges).Return(currResult, nil)
-	next.EXPECT().Bootstrap(shardTimeRangesMatcher{nextTargetRanges}).Return(nextResult, nil)
+	source.EXPECT().Available(testNamespaceName, targetRanges).Return(targetRanges)
+	source.EXPECT().Read(testNamespaceName, targetRanges).Return(currResult, nil)
+	next.EXPECT().Bootstrap(testNamespaceName, shardTimeRangesMatcher{nextTargetRanges}).Return(nextResult, nil)
 
 	expectedResult := testResult(map[uint32]testShardResult{
 		testShard: {result: shardResult(entries...)},
 	})
 
-	res, err := base.Bootstrap(targetRanges)
+	res, err := base.Bootstrap(testNamespaceName, targetRanges)
 	require.NoError(t, err)
 	validateResult(t, expectedResult, res)
 }
@@ -281,11 +283,11 @@ func testBasebootstrapperNext(t *testing.T, nextUnfulfilled bootstrap.ShardTimeR
 		testShard: {result: shardResult(testBlockEntry{"foo", testTargetStart})},
 	})
 
-	source.EXPECT().Available(targetRanges).Return(nil)
-	source.EXPECT().Read(shardTimeRangesMatcher{nil}).Return(nil, nil)
-	next.EXPECT().Bootstrap(shardTimeRangesMatcher{targetRanges}).Return(nextResult, nil)
+	source.EXPECT().Available(testNamespaceName, targetRanges).Return(nil)
+	source.EXPECT().Read(testNamespaceName, shardTimeRangesMatcher{nil}).Return(nil, nil)
+	next.EXPECT().Bootstrap(testNamespaceName, shardTimeRangesMatcher{targetRanges}).Return(nextResult, nil)
 
-	res, err := base.Bootstrap(targetRanges)
+	res, err := base.Bootstrap(testNamespaceName, targetRanges)
 	require.NoError(t, err)
 	validateResult(t, nextResult, res)
 }
@@ -349,13 +351,13 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 	})
 
 	source.EXPECT().Can(bootstrap.BootstrapParallel).Return(true)
-	source.EXPECT().Available(targetRanges).Return(availableRanges)
-	source.EXPECT().Read(shardTimeRangesMatcher{availableRanges}).Return(currResult, nil)
+	source.EXPECT().Available(testNamespaceName, targetRanges).Return(availableRanges)
+	source.EXPECT().Read(testNamespaceName, shardTimeRangesMatcher{availableRanges}).Return(currResult, nil)
 	next.EXPECT().Can(bootstrap.BootstrapParallel).Return(true)
-	next.EXPECT().Bootstrap(shardTimeRangesMatcher{remainingRanges}).Return(nextResult, nil)
-	next.EXPECT().Bootstrap(shardTimeRangesMatcher{currResult.Unfulfilled()}).Return(fallBackResult, nil)
+	next.EXPECT().Bootstrap(testNamespaceName, shardTimeRangesMatcher{remainingRanges}).Return(nextResult, nil)
+	next.EXPECT().Bootstrap(testNamespaceName, shardTimeRangesMatcher{currResult.Unfulfilled()}).Return(fallBackResult, nil)
 
-	res, err := base.Bootstrap(targetRanges)
+	res, err := base.Bootstrap(testNamespaceName, targetRanges)
 	require.NoError(t, err)
 
 	expectedResult := testResult(map[uint32]testShardResult{

@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 )
@@ -44,6 +44,12 @@ var (
 
 	// errDatabaseNotBootstrapped raised when trying to query a database that's not yet bootstrapped.
 	errDatabaseNotBootstrapped = errors.New("database is not yet bootstrapped")
+
+	// errNamespaceIsBootstrapping raised when trying to bootstrap a namespace that's being bootstrapped.
+	errNamespaceIsBootstrapping = errors.New("namespace is bootstrapping")
+
+	// errNamespaceNotBootstrapped raised when trying to flush data for a namespace that's not yet bootstrapped.
+	errNamespaceNotBootstrapped = errors.New("namespace is not yet bootstrapped")
 
 	// errShardIsBootstrapping raised when trying to bootstrap a shard that's being bootstrapped.
 	errShardIsBootstrapping = errors.New("shard is bootstrapping")
@@ -64,6 +70,7 @@ type bootstrapManager struct {
 	database       database                  // storage database
 	opts           Options                   // storage options
 	log            xlog.Logger               // logger
+	nowFn          clock.NowFn               // now fn
 	newBootstrapFn NewBootstrapFn            // function to create a new bootstrap process
 	state          bootstrapState            // bootstrap state
 	fsm            databaseFileSystemManager // file system manager
@@ -75,6 +82,7 @@ func newBootstrapManager(database database, fsm databaseFileSystemManager) datab
 		database:       database,
 		opts:           opts,
 		log:            opts.GetInstrumentOptions().GetLogger(),
+		nowFn:          opts.GetClockOptions().GetNowFn(),
 		newBootstrapFn: opts.GetNewBootstrapFn(),
 		fsm:            fsm,
 	}
@@ -97,7 +105,8 @@ func (bsm *bootstrapManager) cutoverTime(writeStart time.Time) time.Time {
 
 // NB(xichen): Bootstrap must be called after the server starts accepting writes.
 func (bsm *bootstrapManager) Bootstrap() error {
-	writeStart := bsm.opts.GetClockOptions().GetNowFn()()
+	writeStart := bsm.nowFn()
+	cutover := bsm.cutoverTime(writeStart)
 
 	bsm.Lock()
 	if bsm.state == bootstrapped {
@@ -115,41 +124,17 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
 
-	shards := bsm.database.getOwnedShards()
-	shardIDs := make([]uint32, len(shards))
-	for i, shard := range shards {
-		shardIDs[i] = shard.ID()
-	}
-
-	bs := bsm.newBootstrapFn()
-	result, err := bs.Run(writeStart, shardIDs)
-	if err != nil {
-		bsm.log.Errorf("bootstrap aborted due to error: %v", err)
-		multiErr = multiErr.Add(err)
-	} else {
-		cutover := bsm.cutoverTime(writeStart)
-		results := result.ShardResults()
-		for _, shard := range shards {
-			var bootstrappedSeries map[string]block.DatabaseSeriesBlocks
-			if result, ok := results[shard.ID()]; ok {
-				bootstrappedSeries = result.AllSeries()
-			}
-
-			err := shard.Bootstrap(bootstrappedSeries, writeStart, cutover)
+	for _, namespace := range bsm.database.getOwnedNamespaces() {
+		bs := bsm.newBootstrapFn()
+		if err := namespace.Bootstrap(bs, writeStart, cutover); err != nil {
 			multiErr = multiErr.Add(err)
-		}
-
-		if len(result.Unfulfilled()) > 0 {
-			str := result.Unfulfilled().SummaryString()
-			bsm.log.Errorf("bootstrap finished with unfulfilled time ranges: %s", str)
 		}
 	}
 
 	// At this point we have bootstrapped everything between now - retentionPeriod
 	// and now, so we should run the filesystem manager to clean up files and flush
 	// all the data we bootstrapped.
-	now := bsm.opts.GetClockOptions().GetNowFn()()
-	bsm.fsm.Run(now, false)
+	bsm.fsm.Run(bsm.nowFn(), false)
 
 	bsm.Lock()
 	bsm.state = bootstrapped

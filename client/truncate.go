@@ -18,46 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package client
 
 import (
-	"fmt"
-	"testing"
-	"time"
-
-	"github.com/m3db/m3db/storage/bootstrap"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3db/generated/thrift/rpc"
 )
 
-func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+type truncateOp struct {
+	request      rpc.TruncateRequest
+	completionFn completionFn
+}
 
-	opts := testDatabaseOptions()
-	now := time.Now()
-	cutover := now.Add(opts.GetRetentionOptions().GetBufferFuture())
-	opts = opts.NewBootstrapFn(func() bootstrap.Bootstrap {
-		return nil
-	}).ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
-		return now
-	}))
+func (t *truncateOp) Size() int {
+	// Truncate is always a single op
+	return 1
+}
 
-	namespace := NewMockdatabaseNamespace(ctrl)
-	namespace.EXPECT().Bootstrap(nil, now, cutover).Return(fmt.Errorf("an error"))
-
-	namespaces := map[string]databaseNamespace{
-		"test": namespace,
-	}
-
-	db := &mockDatabase{namespaces: namespaces, opts: opts}
-	fsm := NewMockdatabaseFileSystemManager(ctrl)
-	fsm.EXPECT().Run(now, false)
-	bsm := newBootstrapManager(db, fsm).(*bootstrapManager)
-	err := bsm.Bootstrap()
-
-	require.NotNil(t, err)
-	require.Equal(t, "an error", err.Error())
-	require.Equal(t, bootstrapped, bsm.state)
+func (t *truncateOp) GetCompletionFn() completionFn {
+	return t.completionFn
 }

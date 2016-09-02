@@ -42,21 +42,22 @@ func writeToDisk(
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
-	dm dataMap,
+	namespace string,
+	seriesList seriesList,
 ) error {
-	idsPerShard := make(map[uint32][]string)
-	for id := range dm {
-		shard := shardSet.Shard(id)
-		idsPerShard[shard] = append(idsPerShard[shard], id)
+	seriesPerShard := make(map[uint32][]series)
+	for _, s := range seriesList {
+		shard := shardSet.Shard(s.id)
+		seriesPerShard[shard] = append(seriesPerShard[shard], s)
 	}
 	segmentHolder := make([][]byte, 2)
-	for shard, ids := range idsPerShard {
-		if err := writer.Open(shard, start); err != nil {
+	for shard, seriesList := range seriesPerShard {
+		if err := writer.Open(namespace, shard, start); err != nil {
 			return err
 		}
-		for _, id := range ids {
+		for _, series := range seriesList {
 			encoder.Reset(start, 0)
-			for _, dp := range dm[id] {
+			for _, dp := range series.data {
 				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
 					return err
 				}
@@ -64,7 +65,7 @@ func writeToDisk(
 			segment := encoder.Stream().Segment()
 			segmentHolder[0] = segment.Head
 			segmentHolder[1] = segment.Tail
-			if err := writer.WriteAll(id, segmentHolder); err != nil {
+			if err := writer.WriteAll(series.id, segmentHolder); err != nil {
 				return err
 			}
 		}
@@ -72,6 +73,7 @@ func writeToDisk(
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -102,7 +104,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	newDirectoryMode := fsOpts.GetNewDirectoryMode()
 	writer := fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 	encoder := testSetup.storageOpts.GetEncoderPool().Get()
-	dataMaps := make(map[time.Time]dataMap)
+	seriesMaps := make(map[time.Time]seriesList)
 
 	// Write test data
 	now := testSetup.getNowFn()
@@ -116,8 +118,8 @@ func TestFilesystemBootstrap(t *testing.T) {
 	}
 	for _, input := range inputData {
 		testData := generateTestData(input.metricNames, input.numPoints, input.start)
-		dataMaps[input.start] = testData
-		require.NoError(t, writeToDisk(writer, testSetup.shardSet, encoder, input.start, testData))
+		seriesMaps[input.start] = testData
+		require.NoError(t, writeToDisk(writer, testSetup.shardSet, encoder, input.start, testNamespaces[0], testData))
 	}
 
 	// Start the server with filesystem bootstrapper
@@ -133,5 +135,5 @@ func TestFilesystemBootstrap(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect
-	verifyDataMaps(t, testSetup, dataMaps)
+	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
 }

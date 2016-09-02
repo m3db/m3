@@ -32,6 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testNamespaceName = "testNs"
+
 func testPersistManager(
 	ctrl *gomock.Controller,
 ) (*persistManager, *persist.MockManager, *persist.MockManager) {
@@ -61,10 +63,10 @@ func TestPersistManagerPrepare(t *testing.T) {
 	}
 	expectedErr := errors.New("foo")
 	prepared := persist.PreparedPersist{Persist: persistFn, Close: closer}
-	m1.EXPECT().Prepare(shard, blockStart).Return(prepared, nil)
-	m2.EXPECT().Prepare(shard, blockStart).Return(persist.PreparedPersist{}, expectedErr)
+	m1.EXPECT().Prepare(testNamespaceName, shard, blockStart).Return(prepared, nil)
+	m2.EXPECT().Prepare(testNamespaceName, shard, blockStart).Return(persist.PreparedPersist{}, expectedErr)
 
-	res, err := pm.Prepare(shard, blockStart)
+	res, err := pm.Prepare(testNamespaceName, shard, blockStart)
 	require.NotNil(t, res.Persist)
 	require.NotNil(t, res.Close)
 	require.NotNil(t, err)

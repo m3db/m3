@@ -26,7 +26,7 @@ import (
 
 const (
 	// defaultServerStateChangeTimeout is the default time we wait for a server to change its state.
-	defaultServerStateChangeTimeout = 30 * time.Second
+	defaultServerStateChangeTimeout = time.Minute
 
 	// defaultClusterConnectionTimeout is the default time we wait for cluster connections to be established.
 	defaultClusterConnectionTimeout = 2 * time.Second
@@ -37,6 +37,9 @@ const (
 	// defaultWriteRequestTimeout is the default write request timeout.
 	defaultWriteRequestTimeout = 2 * time.Second
 
+	// defaultTruncateRequestTimeout is the default truncate request timeout.
+	defaultTruncateRequestTimeout = 2 * time.Second
+
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
@@ -45,6 +48,9 @@ const (
 
 	// defaultUseTChannelClientForWriting determines whether we use the tchannel client for writing by default.
 	defaultUseTChannelClientForWriting = false
+
+	// defaultUseTChannelClientForTruncation determines whether we use the tchannel client for truncation by default.
+	defaultUseTChannelClientForTruncation = true
 )
 
 type testOptions interface {
@@ -72,6 +78,12 @@ type testOptions interface {
 	// GetWriteRequestTimeout returns the write request timeout.
 	GetWriteRequestTimeout() time.Duration
 
+	// TruncateRequestTimeout sets the truncate request timeout.
+	TruncateRequestTimeout(value time.Duration) testOptions
+
+	// GetTruncateRequestTimeout returns the truncate request timeout.
+	GetTruncateRequestTimeout() time.Duration
+
 	// WorkerPoolSize sets the number of workers in the worker pool.
 	WorkerPoolSize(value int) testOptions
 
@@ -89,27 +101,37 @@ type testOptions interface {
 
 	// GetUseTChannelClientForWriting returns whether we use the tchannel client for writing.
 	GetUseTChannelClientForWriting() bool
+
+	// UseTChannelClientForTruncation sets whether we use the tchannel client for truncation.
+	UseTChannelClientForTruncation(value bool) testOptions
+
+	// GetUseTChannelClientForTruncation returns whether we use the tchannel client for truncation.
+	GetUseTChannelClientForTruncation() bool
 }
 
 type options struct {
-	serverStateChangeTimeout    time.Duration
-	clusterConnectionTimeout    time.Duration
-	readRequestTimeout          time.Duration
-	writeRequestTimeout         time.Duration
-	workerPoolSize              int
-	useTChannelClientForReading bool
-	useTChannelClientForWriting bool
+	serverStateChangeTimeout       time.Duration
+	clusterConnectionTimeout       time.Duration
+	readRequestTimeout             time.Duration
+	writeRequestTimeout            time.Duration
+	truncateRequestTimeout         time.Duration
+	workerPoolSize                 int
+	useTChannelClientForReading    bool
+	useTChannelClientForWriting    bool
+	useTChannelClientForTruncation bool
 }
 
 func newTestOptions() testOptions {
 	return &options{
-		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
-		clusterConnectionTimeout:    defaultClusterConnectionTimeout,
-		readRequestTimeout:          defaultReadRequestTimeout,
-		writeRequestTimeout:         defaultWriteRequestTimeout,
-		workerPoolSize:              defaultWorkerPoolSize,
-		useTChannelClientForReading: defaultUseTChannelClientForReading,
-		useTChannelClientForWriting: defaultUseTChannelClientForWriting,
+		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
+		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
+		readRequestTimeout:             defaultReadRequestTimeout,
+		writeRequestTimeout:            defaultWriteRequestTimeout,
+		truncateRequestTimeout:         defaultTruncateRequestTimeout,
+		workerPoolSize:                 defaultWorkerPoolSize,
+		useTChannelClientForReading:    defaultUseTChannelClientForReading,
+		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
+		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 	}
 }
 
@@ -153,6 +175,16 @@ func (o *options) GetWriteRequestTimeout() time.Duration {
 	return o.writeRequestTimeout
 }
 
+func (o *options) TruncateRequestTimeout(value time.Duration) testOptions {
+	opts := *o
+	opts.truncateRequestTimeout = value
+	return &opts
+}
+
+func (o *options) GetTruncateRequestTimeout() time.Duration {
+	return o.truncateRequestTimeout
+}
+
 func (o *options) WorkerPoolSize(value int) testOptions {
 	opts := *o
 	opts.workerPoolSize = value
@@ -181,4 +213,14 @@ func (o *options) UseTChannelClientForWriting(value bool) testOptions {
 
 func (o *options) GetUseTChannelClientForWriting() bool {
 	return o.useTChannelClientForWriting
+}
+
+func (o *options) UseTChannelClientForTruncation(value bool) testOptions {
+	opts := *o
+	opts.useTChannelClientForTruncation = value
+	return &opts
+}
+
+func (o *options) GetUseTChannelClientForTruncation() bool {
+	return o.useTChannelClientForTruncation
 }

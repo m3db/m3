@@ -83,8 +83,8 @@ func NewWriter(
 // Open initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
-func (w *writer) Open(shard uint32, blockStart time.Time) error {
-	shardDir := ShardDirPath(w.filePathPrefix, shard)
+func (w *writer) Open(namespace string, shard uint32, blockStart time.Time) error {
+	shardDir := ShardDirPath(w.filePathPrefix, namespace, shard)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
 	}

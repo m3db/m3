@@ -53,7 +53,6 @@ func newCommitLogSource(opts Options) bootstrap.Source {
 		newIteratorFn: commitlog.NewIterator,
 	}
 }
-
 func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 	switch strategy {
 	case bootstrap.BootstrapSequential:
@@ -62,14 +61,20 @@ func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-func (s *commitLogSource) Available(shardsTimeRanges bootstrap.ShardTimeRanges) bootstrap.ShardTimeRanges {
+func (s *commitLogSource) Available(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) bootstrap.ShardTimeRanges {
 	// Commit log bootstrapper is a last ditch effort, so fulfill all
 	// time ranges requested even if not enough data, just to succeed
 	// the bootstrap
 	return shardsTimeRanges
 }
 
-func (s *commitLogSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
+func (s *commitLogSource) Read(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}

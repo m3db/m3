@@ -60,14 +60,14 @@ func (_mr *_MockFileSetWriterRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockFileSetWriter) Open(_param0 uint32, _param1 time.Time) error {
-	ret := _m.ctrl.Call(_m, "Open", _param0, _param1)
+func (_m *MockFileSetWriter) Open(_param0 string, _param1 uint32, _param2 time.Time) error {
+	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileSetWriterRecorder) Open(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1)
+func (_mr *_MockFileSetWriterRecorder) Open(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1, arg2)
 }
 
 func (_m *MockFileSetWriter) Write(_param0 string, _param1 []byte) error {
@@ -141,14 +141,14 @@ func (_mr *_MockFileSetReaderRecorder) EntriesRead() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EntriesRead")
 }
 
-func (_m *MockFileSetReader) Open(_param0 uint32, _param1 time.Time) error {
-	ret := _m.ctrl.Call(_m, "Open", _param0, _param1)
+func (_m *MockFileSetReader) Open(_param0 string, _param1 uint32, _param2 time.Time) error {
+	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileSetReaderRecorder) Open(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1)
+func (_mr *_MockFileSetReaderRecorder) Open(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1, arg2)
 }
 
 func (_m *MockFileSetReader) Range() time0.Range {

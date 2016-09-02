@@ -84,7 +84,7 @@ type ShardTimeRanges map[uint32]xtime.Ranges
 // Bootstrap represents the bootstrap process.
 type Bootstrap interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(writeStart time.Time, shards []uint32) (Result, error)
+	Run(writeStart time.Time, namespace string, shards []uint32) (Result, error)
 }
 
 // Strategy describes a bootstrap strategy.
@@ -106,7 +106,7 @@ type Bootstrapper interface {
 	// series data and the time ranges it's unable to fulfill in parallel. A bootstrapper
 	// should only return an error should it want to entirely cancel the bootstrapping of the
 	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
-	Bootstrap(shardsTimeRanges ShardTimeRanges) (Result, error)
+	Bootstrap(namespace string, shardsTimeRanges ShardTimeRanges) (Result, error)
 }
 
 // Source represents a bootstrap source.
@@ -115,13 +115,13 @@ type Source interface {
 	Can(strategy Strategy) bool
 
 	// Available returns what time ranges are available for a given set of shards.
-	Available(shardsTimeRanges ShardTimeRanges) ShardTimeRanges
+	Available(namespace string, shardsTimeRanges ShardTimeRanges) ShardTimeRanges
 
 	// Read returns raw series for a given set of shards & specified time ranges and
 	// the time ranges it's unable to fulfill. A bootstrapper source should only return
 	// an error should it want to entirely cancel the bootstrapping of the node,
 	// i.e. non-recoverable situation like not being able to read from the filesystem.
-	Read(shardsTimeRanges ShardTimeRanges) (Result, error)
+	Read(namespace string, shardsTimeRanges ShardTimeRanges) (Result, error)
 }
 
 // Options represents the options for bootstrapping

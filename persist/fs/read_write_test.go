@@ -45,7 +45,7 @@ func newTestWriter(filePathPrefix string) FileSetWriter {
 }
 
 func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := w.Open(shard, timestamp)
+	err := w.Open(testNamespaceName, shard, timestamp)
 	assert.NoError(t, err)
 
 	for i := range entries {
@@ -55,7 +55,7 @@ func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.T
 }
 
 func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := r.Open(0, timestamp)
+	err := r.Open(testNamespaceName, 0, timestamp)
 	assert.NoError(t, err)
 
 	assert.Equal(t, len(entries), r.Entries())
@@ -130,7 +130,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	}
 	w := newTestWriter(filePathPrefix)
 	shard := uint32(0)
-	require.NoError(t, w.Open(shard, testWriterStart))
+	require.NoError(t, w.Open(testNamespaceName, shard, testWriterStart))
 	require.NoError(t, w.Write(entries[0].key, entries[0].data))
 
 	// Intentionally force a writer error.
@@ -139,7 +139,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w.Close()
 
 	r := newTestReader(filePathPrefix)
-	require.Equal(t, errCheckpointFileNotFound, r.Open(shard, testWriterStart))
+	require.Equal(t, errCheckpointFileNotFound, r.Open(testNamespaceName, shard, testWriterStart))
 
 	// Now reuse the writer and validate the data are written as expected.
 	writeTestData(t, w, shard, testWriterStart, entries)

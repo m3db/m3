@@ -29,6 +29,10 @@ func NewNoOpBootstrapProcess() Bootstrap {
 	return &noOpBootstrapProcess{}
 }
 
-func (b *noOpBootstrapProcess) Run(writeStart time.Time, shards []uint32) (Result, error) {
+func (b *noOpBootstrapProcess) Run(
+	writeStart time.Time,
+	namespace string,
+	shards []uint32,
+) (Result, error) {
 	return NewResult(), nil
 }

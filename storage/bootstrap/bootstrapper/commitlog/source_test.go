@@ -37,6 +37,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testNamespaceName = "testNamespace"
+
 func testOptions() Options {
 	opts := NewOptions()
 	bopts := opts.GetBootstrapOptions()
@@ -65,7 +67,7 @@ func testOptions() Options {
 func TestAvailableEmptyRangeError(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts)
-	res := src.Available(bootstrap.ShardTimeRanges{})
+	res := src.Available(testNamespaceName, bootstrap.ShardTimeRanges{})
 	require.True(t, bootstrap.ShardTimeRanges{}.Equal(res))
 }
 
@@ -74,7 +76,7 @@ func TestReadEmpty(t *testing.T) {
 
 	src := newCommitLogSource(opts)
 
-	res, err := src.Read(bootstrap.ShardTimeRanges{})
+	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{})
 	require.Nil(t, res)
 	require.Nil(t, err)
 }
@@ -92,7 +94,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		Start: time.Now(),
 		End:   time.Now().Add(time.Hour),
 	})
-	res, err := src.Read(bootstrap.ShardTimeRanges{0: ranges})
+	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{0: ranges})
 	require.Error(t, err)
 	require.Nil(t, res)
 }
@@ -131,7 +133,7 @@ func TestReadOrderedValues(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
+	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -170,7 +172,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
+	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -208,7 +210,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
+	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))

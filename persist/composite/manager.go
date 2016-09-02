@@ -123,7 +123,7 @@ func (pm *persistManager) createPreparedWithError(multiErr xerrors.MultiError) (
 	return prepared, multiErr.FinalError()
 }
 
-func (pm *persistManager) Prepare(shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
+func (pm *persistManager) Prepare(namespace string, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
 	pm.fns = pm.fns[:0]
 	pm.closers = pm.closers[:0]
 
@@ -132,7 +132,7 @@ func (pm *persistManager) Prepare(shard uint32, blockStart time.Time) (persist.P
 	var multiErr xerrors.MultiError
 	if !pm.hasMultiple() {
 		for i := range pm.managers {
-			pp, err := pm.managers[i].Prepare(shard, blockStart)
+			pp, err := pm.managers[i].Prepare(namespace, shard, blockStart)
 			multiErr = multiErr.Add(err)
 			if pp.Persist != nil {
 				pm.fns = append(pm.fns, pp.Persist)
@@ -158,7 +158,7 @@ func (pm *persistManager) Prepare(shard uint32, blockStart time.Time) (persist.P
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			pp, err := manager.Prepare(shard, blockStart)
+			pp, err := manager.Prepare(namespace, shard, blockStart)
 			ppCh <- pp
 			errCh <- err
 		}()
