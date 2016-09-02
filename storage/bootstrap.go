@@ -124,8 +124,8 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
 
+	bs := bsm.newBootstrapFn()
 	for _, namespace := range bsm.database.getOwnedNamespaces() {
-		bs := bsm.newBootstrapFn()
 		if err := namespace.Bootstrap(bs, writeStart, cutover); err != nil {
 			multiErr = multiErr.Add(err)
 		}
