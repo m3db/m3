@@ -23,6 +23,7 @@ package bootstrap
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3db/storage/block"
@@ -51,13 +52,7 @@ func (r *result) Unfulfilled() ShardTimeRanges {
 }
 
 func (r *result) AddShardResult(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
-	if result != nil && len(result.AllSeries()) > 0 {
-		if existing, ok := r.results[shard]; ok {
-			existing.AddResult(result)
-		} else {
-			r.results[shard] = result
-		}
-	}
+	r.results.AddResults(ShardResults{shard: result})
 	if unfulfilled != nil && !unfulfilled.IsEmpty() {
 		r.unfulfilled[shard] = unfulfilled
 	}
@@ -144,12 +139,53 @@ func (sr *shardResult) Close() {
 // AddResults adds other shard results to the current shard results.
 func (r ShardResults) AddResults(other ShardResults) {
 	for shard, result := range other {
+		if result == nil {
+			continue
+		}
 		if existing, ok := r[shard]; ok {
 			existing.AddResult(result)
 		} else {
 			r[shard] = result
 		}
 	}
+}
+
+// Equal returns whether another shard results is equal to the current shard results,
+// will not perform a deep equal only a shallow equal of series and their block addresses.
+func (r ShardResults) Equal(other ShardResults) bool {
+	for shard, result := range r {
+		otherResult, ok := r[shard]
+		if !ok {
+			return false
+		}
+		allSeries := result.AllSeries()
+		otherAllSeries := otherResult.AllSeries()
+		if len(allSeries) != len(otherAllSeries) {
+			return false
+		}
+		for id, blocks := range allSeries {
+			otherBlocks, ok := otherAllSeries[id]
+			if !ok {
+				return false
+			}
+			allBlocks := blocks.GetAllBlocks()
+			otherAllBlocks := otherBlocks.GetAllBlocks()
+			if len(allBlocks) != len(otherAllBlocks) {
+				return false
+			}
+			for start, block := range allBlocks {
+				otherBlock, ok := otherAllBlocks[start]
+				if !ok {
+					return false
+				}
+				// Just performing shallow equals so simply compare block addresses
+				if block != otherBlock {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
 
 // IsEmpty returns whether the shard time ranges is empty or not.
@@ -241,27 +277,46 @@ func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
 
 // String returns a description of the time ranges
 func (r ShardTimeRanges) String() string {
-	var buf bytes.Buffer
-	buf.WriteString("{")
-	hasPrev := false
+	var (
+		buf    bytes.Buffer
+		values []shardTimeRanges
+	)
 	for shard, ranges := range r {
-		buf.WriteString(fmt.Sprintf("%d: %s", shard, ranges.String()))
+		values = append(values, shardTimeRanges{shard: shard, value: ranges})
+	}
+
+	sort.Sort(shardTimeRangesByShard(values))
+	hasPrev := false
+	buf.WriteString("{")
+	for _, v := range values {
+		shard, ranges := v.shard, v.value
 		if hasPrev {
 			buf.WriteString(", ")
 		}
 		hasPrev = true
+
 		buf.WriteString(fmt.Sprintf("%d: %s", shard, ranges.String()))
 	}
 	buf.WriteString("}")
+
 	return buf.String()
 }
 
 // SummaryString returns a summary description of the time ranges
 func (r ShardTimeRanges) SummaryString() string {
-	var buf bytes.Buffer
-	buf.WriteString("{")
-	hasPrev := false
+	var (
+		buf    bytes.Buffer
+		values []shardTimeRanges
+	)
 	for shard, ranges := range r {
+		values = append(values, shardTimeRanges{shard: shard, value: ranges})
+	}
+
+	sort.Sort(shardTimeRangesByShard(values))
+	hasPrev := false
+	buf.WriteString("{")
+	for _, v := range values {
+		shard, ranges := v.shard, v.value
 		if hasPrev {
 			buf.WriteString(", ")
 		}
@@ -278,5 +333,19 @@ func (r ShardTimeRanges) SummaryString() string {
 		buf.WriteString(fmt.Sprintf("%d: %s", shard, duration.String()))
 	}
 	buf.WriteString("}")
+
 	return buf.String()
+}
+
+type shardTimeRanges struct {
+	shard uint32
+	value xtime.Ranges
+}
+
+type shardTimeRangesByShard []shardTimeRanges
+
+func (str shardTimeRangesByShard) Len() int      { return len(str) }
+func (str shardTimeRangesByShard) Swap(i, j int) { str[i], str[j] = str[j], str[i] }
+func (str shardTimeRangesByShard) Less(i, j int) bool {
+	return str[i].shard < str[j].shard
 }
