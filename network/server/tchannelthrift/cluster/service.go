@@ -21,6 +21,7 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 
-	"code.uber.internal/infra/statsdex/x/errors"
 	"github.com/uber/tchannel-go/thrift"
 )
 
