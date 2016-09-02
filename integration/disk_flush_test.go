@@ -44,6 +44,7 @@ var (
 func waitUntilDataFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
+	namespace string,
 	testData map[time.Time]seriesList,
 	timeout time.Duration,
 ) error {
@@ -51,7 +52,7 @@ func waitUntilDataFlushed(
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
 				shard := shardSet.Shard(series.id)
-				if !fs.FilesetExistsAt(filePathPrefix, series.namespace, shard, timestamp) {
+				if !fs.FilesetExistsAt(filePathPrefix, namespace, shard, timestamp) {
 					return false
 				}
 			}
@@ -70,42 +71,36 @@ func verifyForTime(
 	shardSet sharding.ShardSet,
 	decoder encoding.Decoder,
 	timestamp time.Time,
+	namespace string,
 	expected seriesList,
 ) {
-	namespaces := make(map[string]map[uint32]struct{})
+	shards := make(map[uint32]struct{})
 	for _, series := range expected {
-		namespace, exists := namespaces[series.namespace]
-		if !exists {
-			namespace = make(map[uint32]struct{})
-			namespaces[series.namespace] = namespace
-		}
 		shard := shardSet.Shard(series.id)
-		namespace[shard] = struct{}{}
+		shards[shard] = struct{}{}
 	}
 	actual := make(seriesList, 0, len(expected))
-	for name, namespace := range namespaces {
-		for shard := range namespace {
-			require.NoError(t, reader.Open(name, shard, timestamp))
-			for i := 0; i < reader.Entries(); i++ {
-				id, data, err := reader.Read()
-				require.NoError(t, err)
+	for shard := range shards {
+		require.NoError(t, reader.Open(namespace, shard, timestamp))
+		for i := 0; i < reader.Entries(); i++ {
+			id, data, err := reader.Read()
+			require.NoError(t, err)
 
-				var datapoints []ts.Datapoint
-				it := decoder.Decode(bytes.NewReader(data))
-				for it.Next() {
-					dp, _, _ := it.Current()
-					datapoints = append(datapoints, dp)
-				}
-				require.NoError(t, it.Err())
-				actual = append(actual, series{
-					namespace: name,
-					id:        id,
-					data:      datapoints,
-				})
+			var datapoints []ts.Datapoint
+			it := decoder.Decode(bytes.NewReader(data))
+			for it.Next() {
+				dp, _, _ := it.Current()
+				datapoints = append(datapoints, dp)
 			}
-			require.NoError(t, reader.Close())
+			require.NoError(t, it.Err())
+			actual = append(actual, series{
+				id:   id,
+				data: datapoints,
+			})
 		}
+		require.NoError(t, reader.Close())
 	}
+
 	compareSeriesList(t, expected, actual)
 }
 
@@ -113,14 +108,15 @@ func verifyFlushed(
 	t *testing.T,
 	shardSet sharding.ShardSet,
 	opts storage.Options,
-	dataMaps map[time.Time]seriesList,
+	namespace string,
+	seriesMaps map[time.Time]seriesList,
 ) {
 	fsOpts := opts.GetCommitLogOptions().GetFilesystemOptions()
 	reader := fs.NewReader(fsOpts.GetFilePathPrefix(), fsOpts.GetReaderBufferSize())
 	newDecoderFn := opts.GetNewDecoderFn()
 	decoder := newDecoderFn()
-	for timestamp, dm := range dataMaps {
-		verifyForTime(t, reader, shardSet, decoder, timestamp, dm)
+	for timestamp, seriesList := range seriesMaps {
+		verifyForTime(t, reader, shardSet, decoder, timestamp, namespace, seriesList)
 	}
 }
 
@@ -153,7 +149,7 @@ func TestDiskFlush(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	dataMaps := make(map[time.Time]seriesList)
+	seriesMaps := make(map[time.Time]seriesList)
 	inputData := []struct {
 		metricNames []string
 		numPoints   int
@@ -164,9 +160,9 @@ func TestDiskFlush(t *testing.T) {
 	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.start)
-		testData := generateTestData(testNamespaces[0], input.metricNames, input.numPoints, input.start)
-		dataMaps[input.start] = testData
-		require.NoError(t, testSetup.writeBatch(testData))
+		testData := generateTestData(input.metricNames, input.numPoints, input.start)
+		seriesMaps[input.start] = testData
+		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
 
@@ -175,8 +171,8 @@ func TestDiskFlush(t *testing.T) {
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
 	waitTimeout := testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 4
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, dataMaps, waitTimeout))
+	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, waitTimeout))
 
 	// Verify on-disk data match what we expect
-	verifyFlushed(t, testSetup.shardSet, testSetup.storageOpts, dataMaps)
+	verifyFlushed(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], seriesMaps)
 }

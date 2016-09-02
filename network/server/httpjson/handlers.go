@@ -62,7 +62,6 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 		// - methodName(RequestObject) error
 		// - methodName(RequestObject) (ResultObject, error)
 
-		// TODO(xichen): make HTTP server understand truncate method.
 		// TODO(r): make the following work so that health endpoint is registered,
 		// also perhaps make these GET?
 		// - methodName() error

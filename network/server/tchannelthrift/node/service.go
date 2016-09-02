@@ -70,7 +70,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	encoded, err := s.db.ReadEncoded(ctx, req.IdWithNamespace.Ns, req.IdWithNamespace.ID, start, end)
+	encoded, err := s.db.ReadEncoded(ctx, req.NameSpace, req.ID, start, end)
 	if err != nil {
 		rpcErr := convert.ToRPCError(err)
 		return nil, rpcErr
@@ -83,7 +83,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	multiIt := s.db.Options().GetMultiReaderIteratorPool().Get()
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
-	it := encoding.NewSeriesIterator(req.IdWithNamespace.ID, start, end, []encoding.Iterator{multiIt}, nil)
+	it := encoding.NewSeriesIterator(req.ID, start, end, []encoding.Iterator{multiIt}, nil)
 	defer it.Close()
 	for it.Next() {
 		dp, _, annotation := it.Current()
@@ -116,11 +116,11 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 	}
 
 	result := rpc.NewFetchRawBatchResult_()
-	for i := range req.IdsWithNamespace {
+	for i := range req.Ids {
 		rawResult := rpc.NewFetchRawResult_()
 		result.Elements = append(result.Elements, rawResult)
 
-		encoded, err := s.db.ReadEncoded(ctx, req.IdsWithNamespace[i].Ns, req.IdsWithNamespace[i].ID, start, end)
+		encoded, err := s.db.ReadEncoded(ctx, req.NameSpace, req.Ids[i], start, end)
 		if err != nil {
 			rawResult.Err = convert.ToRPCError(err)
 			continue
@@ -144,7 +144,7 @@ func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) 
 
 	var blockStarts []time.Time
 
-	ns, shardID := req.Ns, uint32(req.Shard)
+	ns, shardID := req.NameSpace, uint32(req.Shard)
 	res := rpc.NewFetchBlocksResult_()
 	res.Elements = make([]*rpc.Blocks, len(req.Elements))
 	for i, request := range req.Elements {
@@ -194,7 +194,7 @@ func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksM
 	}
 
 	result := rpc.NewFetchBlocksMetadataResult_()
-	ns, shardID := req.Ns, uint32(req.Shard)
+	ns, shardID := req.NameSpace, uint32(req.Shard)
 	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, ns, shardID, req.Limit, pageToken, includeSizes)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
@@ -225,10 +225,12 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	ctx := s.db.Options().GetContextPool().Get()
 	defer ctx.Close()
 
-	if req.Datapoint == nil {
+	if req.IdDatapoint == nil || req.IdDatapoint.Datapoint == nil {
 		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
 	}
-	unit, unitErr := convert.ToUnit(req.Datapoint.TimestampType)
+	id := req.IdDatapoint.ID
+	dp := req.IdDatapoint.Datapoint
+	unit, unitErr := convert.ToUnit(dp.TimestampType)
 	if unitErr != nil {
 		return tterrors.NewBadRequestError(unitErr)
 	}
@@ -236,8 +238,8 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	if err != nil {
 		return tterrors.NewBadRequestError(err)
 	}
-	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
-	err = s.db.Write(ctx, req.IdWithNamespace.Ns, req.IdWithNamespace.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
+	ts := xtime.FromNormalizedTime(dp.Timestamp, d)
+	err = s.db.Write(ctx, req.NameSpace, id, ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
@@ -261,7 +263,7 @@ func (s *service) WriteBatch(tctx thrift.Context, req *rpc.WriteBatchRequest) er
 			continue
 		}
 		ts := xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d)
-		err = s.db.Write(ctx, elem.IdWithNamespace.Ns, elem.IdWithNamespace.ID, ts, elem.Datapoint.Value, unit, elem.Datapoint.Annotation)
+		err = s.db.Write(ctx, req.NameSpace, elem.ID, ts, elem.Datapoint.Value, unit, elem.Datapoint.Annotation)
 		if err != nil {
 			if xerrors.IsInvalidParams(err) {
 				errs = append(errs, tterrors.NewBadRequestWriteBatchError(i, err))
@@ -279,7 +281,12 @@ func (s *service) WriteBatch(tctx thrift.Context, req *rpc.WriteBatchRequest) er
 	return nil
 }
 
-func (s *service) TruncateNamespace(tctx thrift.Context, req *rpc.TruncateNamespaceRequest) error {
-	s.db.TruncateNamespace(req.Ns)
-	return nil
+func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
+	truncated, err := s.db.Truncate(req.NameSpace)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+	res := rpc.NewTruncateResult_()
+	res.NumSeries = truncated
+	return res, nil
 }

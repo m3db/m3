@@ -111,15 +111,15 @@ func (_mr *_MockSessionRecorder) Fetch(arg0, arg1, arg2, arg3 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockSession) FetchAll(idns []idWithNamespace, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchAll", idns, startInclusive, endExclusive)
+func (_m *MockSession) FetchAll(namespace string, ids []string, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterators, error) {
+	ret := _m.ctrl.Call(_m, "FetchAll", namespace, ids, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockSessionRecorder) FetchAll(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2)
+func (_mr *_MockSessionRecorder) FetchAll(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockSession) Close() error {
@@ -217,15 +217,15 @@ func (_mr *_MockAdminSessionRecorder) Fetch(arg0, arg1, arg2, arg3 interface{}) 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockAdminSession) FetchAll(idns []idWithNamespace, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchAll", idns, startInclusive, endExclusive)
+func (_m *MockAdminSession) FetchAll(namespace string, ids []string, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterators, error) {
+	ret := _m.ctrl.Call(_m, "FetchAll", namespace, ids, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockAdminSessionRecorder) FetchAll(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2)
+func (_mr *_MockAdminSessionRecorder) FetchAll(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockAdminSession) Close() error {
@@ -238,14 +238,15 @@ func (_mr *_MockAdminSessionRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockAdminSession) TruncateNamespace(namespace string, shard uint32) error {
-	ret := _m.ctrl.Call(_m, "TruncateNamespace", namespace, shard)
-	ret0, _ := ret[0].(error)
-	return ret0
+func (_m *MockAdminSession) Truncate(namespace string) (int64, error) {
+	ret := _m.ctrl.Call(_m, "Truncate", namespace)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-func (_mr *_MockAdminSessionRecorder) TruncateNamespace(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateNamespace", arg0, arg1)
+func (_mr *_MockAdminSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
 func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace string, shard uint32, start time0.Time, end time0.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
@@ -301,15 +302,15 @@ func (_mr *_MockclientSessionRecorder) Fetch(arg0, arg1, arg2, arg3 interface{})
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockclientSession) FetchAll(idns []idWithNamespace, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchAll", idns, startInclusive, endExclusive)
+func (_m *MockclientSession) FetchAll(namespace string, ids []string, startInclusive time0.Time, endExclusive time0.Time) (encoding.SeriesIterators, error) {
+	ret := _m.ctrl.Call(_m, "FetchAll", namespace, ids, startInclusive, endExclusive)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockclientSessionRecorder) FetchAll(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2)
+func (_mr *_MockclientSessionRecorder) FetchAll(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockclientSession) Close() error {
@@ -322,14 +323,15 @@ func (_mr *_MockclientSessionRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockclientSession) TruncateNamespace(namespace string, shard uint32) error {
-	ret := _m.ctrl.Call(_m, "TruncateNamespace", namespace, shard)
-	ret0, _ := ret[0].(error)
-	return ret0
+func (_m *MockclientSession) Truncate(namespace string) (int64, error) {
+	ret := _m.ctrl.Call(_m, "Truncate", namespace)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-func (_mr *_MockclientSessionRecorder) TruncateNamespace(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateNamespace", arg0, arg1)
+func (_mr *_MockclientSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
 func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace string, shard uint32, start time0.Time, end time0.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {

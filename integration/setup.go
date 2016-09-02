@@ -175,9 +175,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 func (ts *testSetup) fakeRequest() *rpc.FetchRequest {
 	req := rpc.NewFetchRequest()
-	req.IdWithNamespace = rpc.NewIDWithNamespace()
-	req.IdWithNamespace.ID = "testid"
-	req.IdWithNamespace.Ns = testNamespaces[0]
+	req.NameSpace = testNamespaces[0]
 	return req
 }
 
@@ -244,11 +242,11 @@ func (ts *testSetup) stopServer() error {
 	return nil
 }
 
-func (ts *testSetup) writeBatch(dm seriesList) error {
+func (ts *testSetup) writeBatch(namespace string, seriesList seriesList) error {
 	if ts.opts.GetUseTChannelClientForWriting() {
-		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.GetWriteRequestTimeout(), dm)
+		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.GetWriteRequestTimeout(), namespace, seriesList)
 	}
-	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, dm)
+	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, namespace, seriesList)
 }
 
 func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]ts.Datapoint, error) {
@@ -258,8 +256,11 @@ func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]ts.Datapoint, error) {
 	return m3dbClientFetch(ts.m3dbClient, req)
 }
 
-func (ts *testSetup) truncate(req *rpc.TruncateNamespaceRequest) error {
-	return tchannelClientTruncateNamespace(ts.tchannelClient, ts.opts.GetTruncateRequestTimeout(), req)
+func (ts *testSetup) truncate(req *rpc.TruncateRequest) (int64, error) {
+	if ts.opts.GetUseTChannelClientForTruncation() {
+		return tchannelClientTruncate(ts.tchannelClient, ts.opts.GetTruncateRequestTimeout(), req)
+	}
+	return m3dbClientTruncate(ts.m3dbClient, req)
 }
 
 func (ts *testSetup) close() {

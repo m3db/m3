@@ -833,7 +833,7 @@ func (qs MockHostQueues) newHostQueueFn() newHostQueueFn {
 	return func(
 		host topology.Host,
 		writeBatchRequestPool writeBatchRequestPool,
-		writeRequestArrayPool writeRequestArrayPool,
+		idDatapointArrayPool idDatapointArrayPool,
 		opts Options,
 	) hostQueue {
 		return qs[atomic.AddUint64(&idx, 1)-1]

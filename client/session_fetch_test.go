@@ -39,22 +39,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testNamespaceName = "testNs"
+)
+
 var (
 	fetchFailureErrStr = "a specific fetch error"
 )
 
 type testFetch struct {
-	ns     string
 	id     string
 	values []testValue
 }
 
 type testFetches []testFetch
 
-func (f testFetches) IDsWithNamespace() []idWithNamespace {
-	var ids []idWithNamespace
+func (f testFetches) IDs() []string {
+	var ids []string
 	for i := range f {
-		ids = append(ids, idWithNamespace{ID: f[i].id, Namespace: f[i].ns})
+		ids = append(ids, f[i].id)
 	}
 	return ids
 }
@@ -91,17 +94,17 @@ func TestSessionFetchAll(t *testing.T) {
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
-		{"testns1", "foo", []testValue{
+		{"foo", []testValue{
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 		}},
-		{"testns2", "bar", []testValue{
+		{"bar", []testValue{
 			{4.0, start.Add(1 * time.Second), xtime.Second, []byte{4, 5, 6}},
 			{5.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{6.0, start.Add(3 * time.Second), xtime.Second, nil},
 		}},
-		{"testns3", "baz", []testValue{
+		{"baz", []testValue{
 			{7.0, start.Add(1 * time.Minute), xtime.Second, []byte{7, 8, 9}},
 			{8.0, start.Add(2 * time.Minute), xtime.Second, nil},
 			{9.0, start.Add(3 * time.Minute), xtime.Second, nil},
@@ -118,7 +121,7 @@ func TestSessionFetchAll(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchAll(fetches.IDsWithNamespace(), start, end)
+	results, err := session.FetchAll(testNamespaceName, fetches.IDs(), start, end)
 	assert.NoError(t, err)
 	assertFetchResults(t, start, end, fetches, results)
 
@@ -138,7 +141,7 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
-		{"testNs", "foo", []testValue{
+		{"foo", []testValue{
 			{0.0, start.Add(-1 * time.Second), xtime.Second, nil},
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
@@ -157,7 +160,7 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	result, err := session.Fetch(fetches[0].ns, fetches[0].id, start, end)
+	result, err := session.Fetch(testNamespaceName, fetches[0].id, start, end)
 	assert.NoError(t, err)
 	assertion := assertFetchResults(t, start, end, fetches, seriesIterators(result))
 	assert.Equal(t, 2, assertion.trimToTimeRange)
@@ -215,7 +218,7 @@ func testFetchConsistencyLevel(
 	end := start.Add(2 * time.Hour)
 
 	fetches := testFetches([]testFetch{
-		{"testNs", "foo", []testValue{
+		{"foo", []testValue{
 			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
@@ -232,7 +235,7 @@ func testFetchConsistencyLevel(
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchAll(fetches.IDsWithNamespace(), start, end)
+	results, err := session.FetchAll(testNamespaceName, fetches.IDs(), start, end)
 	if expected == outcomeSuccess {
 		assert.NoError(t, err)
 		assertFetchResults(t, start, end, fetches, results)
@@ -282,13 +285,10 @@ func fulfillTszFetchBatchOps(
 	}
 
 	for _, op := range fetchBatchOps {
-		for i, idn := range op.request.IdsWithNamespace {
+		for i, id := range op.request.Ids {
 			calledCompletionFn := false
 			for _, f := range fetches {
-				if f.id != idn.ID {
-					continue
-				}
-				if f.ns != idn.Ns {
+				if f.id != id {
 					continue
 				}
 

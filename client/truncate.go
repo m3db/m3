@@ -25,7 +25,7 @@ import (
 )
 
 type truncateOp struct {
-	request rpc.TruncateNamespaceRequest
+	request      rpc.TruncateRequest
 	completionFn completionFn
 }
 

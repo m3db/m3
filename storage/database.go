@@ -201,7 +201,7 @@ func (d *db) Write(
 	d.RUnlock()
 
 	if !exists {
-		return fmt.Errorf("not responsible for namespace %s", namespace)
+		return fmt.Errorf("no such namespace %s", namespace)
 	}
 
 	return n.Write(ctx, id, timestamp, value, unit, annotation)
@@ -257,13 +257,12 @@ func (d *db) IsBootstrapped() bool {
 	return d.bsm.IsBootstrapped()
 }
 
-func (d *db) TruncateNamespace(namespace string) error {
+func (d *db) Truncate(namespace string) (int64, error) {
 	n, err := d.readableNamespace(namespace)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	n.Truncate()
-	return nil
+	return n.Truncate()
 }
 
 func (d *db) readableNamespace(namespace string) (databaseNamespace, error) {
@@ -276,7 +275,7 @@ func (d *db) readableNamespace(namespace string) (databaseNamespace, error) {
 	d.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("not responsible for namespace %s", namespace)
+		return nil, fmt.Errorf("no such namespace %s", namespace)
 	}
 	return n, nil
 }

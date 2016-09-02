@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 
+	"code.uber.internal/infra/statsdex/x/errors"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -107,7 +108,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	it, err := session.Fetch(req.IdWithNamespace.Ns, req.IdWithNamespace.ID, start, end)
+	it, err := session.Fetch(req.NameSpace, req.ID, start, end)
 	if err != nil {
 		if client.IsBadRequestError(err) {
 			return nil, tterrors.NewBadRequestError(err)
@@ -146,10 +147,12 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	if err != nil {
 		return tterrors.NewInternalError(err)
 	}
-	if req.Datapoint == nil {
+	if req.IdDatapoint == nil || req.IdDatapoint.Datapoint == nil {
 		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
 	}
-	unit, unitErr := convert.ToUnit(req.Datapoint.TimestampType)
+	id := req.IdDatapoint.ID
+	dp := req.IdDatapoint.Datapoint
+	unit, unitErr := convert.ToUnit(dp.TimestampType)
 	if unitErr != nil {
 		return tterrors.NewBadRequestError(unitErr)
 	}
@@ -157,8 +160,8 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	if err != nil {
 		return tterrors.NewBadRequestError(err)
 	}
-	ts := xtime.FromNormalizedTime(req.Datapoint.Timestamp, d)
-	err = session.Write(req.IdWithNamespace.Ns, req.IdWithNamespace.ID, ts, req.Datapoint.Value, unit, req.Datapoint.Annotation)
+	ts := xtime.FromNormalizedTime(dp.Timestamp, d)
+	err = session.Write(req.NameSpace, id, ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
 		if client.IsBadRequestError(err) {
 			return tterrors.NewBadRequestError(err)
@@ -166,4 +169,22 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		return tterrors.NewInternalError(err)
 	}
 	return nil
+}
+
+func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
+	session, err := s.session()
+	if err != nil {
+		return nil, tterrors.NewInternalError(err)
+	}
+	adminSession, ok := session.(client.AdminSession)
+	if !ok {
+		return nil, tterrors.NewInternalError(errors.New("unable to get an admin session"))
+	}
+	truncated, err := adminSession.Truncate(req.NameSpace)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+	res := rpc.NewTruncateResult_()
+	res.NumSeries = truncated
+	return res, nil
 }

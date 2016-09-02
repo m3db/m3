@@ -127,8 +127,8 @@ type Database interface {
 	// IsBootstrapped determines whether the database is bootstrapped.
 	IsBootstrapped() bool
 
-	// TruncateNamespace truncates data for the given namespace
-	TruncateNamespace(namespace string) error
+	// Truncate truncates data for the given namespace
+	Truncate(namespace string) (int64, error)
 }
 
 type databaseNamespace interface {
@@ -182,11 +182,13 @@ type databaseNamespace interface {
 	CleanupFileset(earliestToRetain time.Time) error
 
 	// Truncate truncates the in-memory data for this namespace
-	Truncate()
+	Truncate() (int64, error)
 }
 
 type databaseShard interface {
 	ID() uint32
+
+	NumSeries() int64
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
 	Tick()

@@ -33,7 +33,7 @@ type dbNamespace struct {
 	name     string
 	shardSet sharding.ShardSet
 	nopts    namespace.Options
-	dopts    Options
+	sopts    Options
 	nowFn    clock.NowFn
 	bs       bootstrapState
 
@@ -50,7 +50,7 @@ func newDatabaseNamespace(
 	shardSet sharding.ShardSet,
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
-	dopts Options,
+	sopts Options,
 ) databaseNamespace {
 	name := metadata.Name()
 	nopts := metadata.Options()
@@ -63,8 +63,8 @@ func newDatabaseNamespace(
 		name:             name,
 		shardSet:         shardSet,
 		nopts:            nopts,
-		dopts:            dopts,
-		nowFn:            dopts.GetClockOptions().GetNowFn(),
+		sopts:            sopts,
+		nowFn:            sopts.GetClockOptions().GetNowFn(),
 		increasingIndex:  increasingIndex,
 		writeCommitLogFn: fn,
 	}
@@ -231,10 +231,20 @@ func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
 	return multiErr.FinalError()
 }
 
-func (n *dbNamespace) Truncate() {
+func (n *dbNamespace) Truncate() (int64, error) {
+	var totalNumSeries int64
+
+	n.RLock()
+	shards := n.shardSet.Shards()
+	for _, shard := range shards {
+		totalNumSeries += n.shards[shard].NumSeries()
+	}
+	n.RUnlock()
+
 	n.initShards()
 
 	// NB(xichen): possibly also clean up disk files and force a GC here to reclaim memory immediately
+	return totalNumSeries, nil
 }
 
 func (n *dbNamespace) getOwnedShards() []databaseShard {
@@ -262,7 +272,7 @@ func (n *dbNamespace) initShards() {
 	shards := n.shardSet.Shards()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
-		dbShards[shard] = newDatabaseShard(shard, n.increasingIndex, n.writeCommitLogFn, n.dopts)
+		dbShards[shard] = newDatabaseShard(shard, n.increasingIndex, n.writeCommitLogFn, n.sopts)
 	}
 	n.Lock()
 	n.shards = dbShards

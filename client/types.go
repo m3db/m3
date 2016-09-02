@@ -59,7 +59,7 @@ type Session interface {
 	Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
 
 	// FetchAll values from the database for a set of IDs
-	FetchAll(idns []idWithNamespace, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+	FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// Close the session
 	Close() error
@@ -77,8 +77,8 @@ type AdminClient interface {
 type AdminSession interface {
 	Session
 
-	// TruncateNamespace will truncate the namespace for a given shard
-	TruncateNamespace(namespace string, shard uint32) error
+	// Truncate will truncate the namespace for a given shard
+	Truncate(namespace string) (int64, error)
 
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
 	// for each series in a best effort method from available peers

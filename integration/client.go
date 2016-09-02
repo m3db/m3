@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
+	"code.uber.internal/infra/statsdex/x/errors"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -47,19 +48,19 @@ func tchannelClient(address string) (*tchannel.Channel, rpc.TChanNode, error) {
 }
 
 // tchannelClientWriteBatch writes a data map using a tchannel client.
-func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, dm seriesList) error {
-	var elems []*rpc.WriteRequest
-	for _, series := range dm {
+func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, namespace string, seriesList seriesList) error {
+	var elems []*rpc.IDDatapoint
+	for _, series := range seriesList {
 		for _, dp := range series.data {
-			req := &rpc.WriteRequest{
-				IdWithNamespace: &rpc.IDWithNamespace{ID: series.id, Ns: series.namespace},
+			elem := &rpc.IDDatapoint{
+				ID: series.id,
 				Datapoint: &rpc.Datapoint{
 					Timestamp:     xtime.ToNormalizedTime(dp.Timestamp, time.Second),
 					Value:         dp.Value,
 					TimestampType: rpc.TimeType_UNIX_SECONDS,
 				},
 			}
-			elems = append(elems, req)
+			elems = append(elems, elem)
 		}
 	}
 
@@ -78,10 +79,14 @@ func tchannelClientFetch(client rpc.TChanNode, timeout time.Duration, req *rpc.F
 	return toDatapoints(fetched), nil
 }
 
-// tchannelClientTruncateNamespace fulfills a namespace truncation request using a tchannel client.
-func tchannelClientTruncateNamespace(client rpc.TChanNode, timeout time.Duration, req *rpc.TruncateNamespaceRequest) error {
+// tchannelClientTruncate fulfills a namespace truncation request using a tchannel client.
+func tchannelClientTruncate(client rpc.TChanNode, timeout time.Duration, req *rpc.TruncateRequest) (int64, error) {
 	ctx, _ := thrift.NewContext(timeout)
-	return client.TruncateNamespace(ctx, req)
+	truncated, err := client.Truncate(ctx, req)
+	if err != nil {
+		return 0, err
+	}
+	return truncated.NumSeries, nil
 }
 
 func m3dbClient(opts client.Options) (client.Client, error) {
@@ -89,7 +94,7 @@ func m3dbClient(opts client.Options) (client.Client, error) {
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
-func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, dm seriesList) error {
+func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, namespace string, seriesList seriesList) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -101,14 +106,14 @@ func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, dm s
 		wg    sync.WaitGroup
 	)
 
-	for _, series := range dm {
+	for _, series := range seriesList {
 		for _, dp := range series.data {
 			wg.Add(1)
-			ns, id, d := series.namespace, series.id, dp
+			id, d := series.id, dp
 			workerPool.Go(func() {
 				defer wg.Done()
 
-				if err := session.Write(ns, id, d.Timestamp, d.Value, xtime.Second, nil); err != nil {
+				if err := session.Write(namespace, id, d.Timestamp, d.Value, xtime.Second, nil); err != nil {
 					select {
 					case errCh <- err:
 					default:
@@ -136,8 +141,8 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoin
 	defer session.Close()
 
 	iter, err := session.Fetch(
-		req.IdWithNamespace.Ns,
-		req.IdWithNamespace.ID,
+		req.NameSpace,
+		req.ID,
 		xtime.FromNormalizedTime(req.RangeStart, time.Second),
 		xtime.FromNormalizedTime(req.RangeEnd, time.Second),
 	)
@@ -155,4 +160,20 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoin
 		return nil, err
 	}
 	return datapoints, nil
+}
+
+// m3dbClientTruncate fulfills a truncation request using an m3db client.
+func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error) {
+	session, err := c.NewSession()
+	if err != nil {
+		return 0, err
+	}
+	defer session.Close()
+
+	adminSession, ok := session.(client.AdminSession)
+	if !ok {
+		return 0, errors.New("unable to get an admin session")
+	}
+
+	return adminSession.Truncate(req.NameSpace)
 }

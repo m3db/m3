@@ -36,6 +36,7 @@ import (
 type TChanCluster interface {
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
 	Health(ctx thrift.Context) (*HealthResult_, error)
+	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 }
 
@@ -46,7 +47,7 @@ type TChanNode interface {
 	FetchBlocksMetadata(ctx thrift.Context, req *FetchBlocksMetadataRequest) (*FetchBlocksMetadataResult_, error)
 	FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRequest) (*FetchRawBatchResult_, error)
 	Health(ctx thrift.Context) (*HealthResult_, error)
-	TruncateNamespace(ctx thrift.Context, req *TruncateNamespaceRequest) error
+	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteBatch(ctx thrift.Context, req *WriteBatchRequest) error
 }
@@ -98,6 +99,21 @@ func (c *tchanClusterClient) Health(ctx thrift.Context) (*HealthResult_, error) 
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanClusterClient) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
+	var resp ClusterTruncateResult
+	args := ClusterTruncateArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "truncate", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanClusterClient) Write(ctx thrift.Context, req *WriteRequest) error {
 	var resp ClusterWriteResult
 	args := ClusterWriteArgs{
@@ -133,6 +149,7 @@ func (s *tchanClusterServer) Methods() []string {
 	return []string{
 		"fetch",
 		"health",
+		"truncate",
 		"write",
 	}
 }
@@ -143,6 +160,8 @@ func (s *tchanClusterServer) Handle(ctx thrift.Context, methodName string, proto
 		return s.handleFetch(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
+	case "truncate":
+		return s.handleTruncate(ctx, protocol)
 	case "write":
 		return s.handleWrite(ctx, protocol)
 
@@ -189,6 +208,34 @@ func (s *tchanClusterServer) handleHealth(ctx thrift.Context, protocol athrift.T
 
 	r, err :=
 		s.handler.Health(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanClusterServer) handleTruncate(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req ClusterTruncateArgs
+	var res ClusterTruncateResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.Truncate(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -324,19 +371,19 @@ func (c *tchanNodeClient) Health(ctx thrift.Context) (*HealthResult_, error) {
 	return resp.GetSuccess(), err
 }
 
-func (c *tchanNodeClient) TruncateNamespace(ctx thrift.Context, req *TruncateNamespaceRequest) error {
-	var resp NodeTruncateNamespaceResult
-	args := NodeTruncateNamespaceArgs{
+func (c *tchanNodeClient) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
+	var resp NodeTruncateResult
+	args := NodeTruncateArgs{
 		Req: req,
 	}
-	success, err := c.client.Call(ctx, c.thriftService, "truncateNamespace", &args, &resp)
+	success, err := c.client.Call(ctx, c.thriftService, "truncate", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
 		}
 	}
 
-	return err
+	return resp.GetSuccess(), err
 }
 
 func (c *tchanNodeClient) Write(ctx thrift.Context, req *WriteRequest) error {
@@ -392,7 +439,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"fetchBlocksMetadata",
 		"fetchRawBatch",
 		"health",
-		"truncateNamespace",
+		"truncate",
 		"write",
 		"writeBatch",
 	}
@@ -410,8 +457,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleFetchRawBatch(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
-	case "truncateNamespace":
-		return s.handleTruncateNamespace(ctx, protocol)
+	case "truncate":
+		return s.handleTruncate(ctx, protocol)
 	case "write":
 		return s.handleWrite(ctx, protocol)
 	case "writeBatch":
@@ -562,16 +609,16 @@ func (s *tchanNodeServer) handleHealth(ctx thrift.Context, protocol athrift.TPro
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleTruncateNamespace(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req NodeTruncateNamespaceArgs
-	var res NodeTruncateNamespaceResult
+func (s *tchanNodeServer) handleTruncate(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeTruncateArgs
+	var res NodeTruncateResult
 
 	if err := req.Read(protocol); err != nil {
 		return false, nil, err
 	}
 
-	err :=
-		s.handler.TruncateNamespace(ctx, req.Req)
+	r, err :=
+		s.handler.Truncate(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -584,6 +631,7 @@ func (s *tchanNodeServer) handleTruncateNamespace(ctx thrift.Context, protocol a
 			return false, nil, err
 		}
 	} else {
+		res.Success = r
 	}
 
 	return err == nil, &res, nil

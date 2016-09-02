@@ -36,9 +36,8 @@ import (
 )
 
 type series struct {
-	namespace string
-	id        string
-	data      []ts.Datapoint
+	id   string
+	data []ts.Datapoint
 }
 
 type seriesList []series
@@ -46,11 +45,10 @@ type seriesList []series
 func (l seriesList) Len() int      { return len(l) }
 func (l seriesList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l seriesList) Less(i, j int) bool {
-	nsComp := strings.Compare(l[i].namespace, l[j].namespace)
-	return nsComp < 0 || (nsComp == 0 && strings.Compare(l[i].id, l[j].id) < 0)
+	return strings.Compare(l[i].id, l[j].id) < 0
 }
 
-func generateTestData(namespace string, names []string, numPoints int, start time.Time) seriesList {
+func generateTestData(names []string, numPoints int, start time.Time) seriesList {
 	if numPoints <= 0 {
 		return nil
 	}
@@ -67,9 +65,8 @@ func generateTestData(namespace string, names []string, numPoints int, start tim
 			})
 		}
 		testData[i] = series{
-			namespace: namespace,
-			id:        name,
-			data:      datapoints,
+			id:   name,
+			data: datapoints,
 		}
 	}
 
@@ -87,41 +84,41 @@ func toDatapoints(fetched *rpc.FetchResult_) []ts.Datapoint {
 	return converted
 }
 
-func verifyDataMapForRange(
+func verifySeriesMapForRange(
 	t *testing.T,
 	ts *testSetup,
 	start, end time.Time,
+	namespace string,
 	expected seriesList,
 ) {
 	actual := make(seriesList, len(expected))
 	req := rpc.NewFetchRequest()
 	for i, s := range expected {
-		req.IdWithNamespace = rpc.NewIDWithNamespace()
-		req.IdWithNamespace.ID = s.id
-		req.IdWithNamespace.Ns = s.namespace
+		req.NameSpace = namespace
+		req.ID = s.id
 		req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
 		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
 		require.NoError(t, err)
 		actual[i] = series{
-			namespace: s.namespace,
-			id:        s.id,
-			data:      fetched,
+			id:   s.id,
+			data: fetched,
 		}
 	}
 	require.Equal(t, expected, actual)
 }
 
-func verifyDataMaps(
+func verifySeriesMaps(
 	t *testing.T,
 	ts *testSetup,
-	dataMaps map[time.Time]seriesList,
+	namespace string,
+	seriesMaps map[time.Time]seriesList,
 ) {
-	for timestamp, dm := range dataMaps {
+	for timestamp, sm := range seriesMaps {
 		start := timestamp
 		end := timestamp.Add(ts.storageOpts.GetRetentionOptions().GetBlockSize())
-		verifyDataMapForRange(t, ts, start, end, dm)
+		verifySeriesMapForRange(t, ts, start, end, namespace, sm)
 	}
 }
 

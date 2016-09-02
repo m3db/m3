@@ -58,7 +58,7 @@ func TestTruncateNamespace(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	dataMaps := make(map[time.Time]seriesList)
+	seriesMaps := make(map[time.Time]seriesList)
 	inputData := []struct {
 		namespace string
 		ids       []string
@@ -70,42 +70,42 @@ func TestTruncateNamespace(t *testing.T) {
 	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.start)
-		testData := generateTestData(input.namespace, input.ids, input.numPoints, input.start)
-		dataMaps[input.start] = testData
-		require.NoError(t, testSetup.writeBatch(testData))
+		testData := generateTestData(input.ids, input.numPoints, input.start)
+		seriesMaps[input.start] = testData
+		require.NoError(t, testSetup.writeBatch(input.namespace, testData))
 	}
 	log.Debug("test data is now written")
 
 	fetchReq := rpc.NewFetchRequest()
-	fetchReq.IdWithNamespace = rpc.NewIDWithNamespace()
-	fetchReq.IdWithNamespace.ID = "foo"
-	fetchReq.IdWithNamespace.Ns = testNamespaces[1]
+	fetchReq.ID = "foo"
+	fetchReq.NameSpace = testNamespaces[1]
 	fetchReq.RangeStart = xtime.ToNormalizedTime(now, time.Second)
 	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
 	fetchReq.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 
 	log.Debug("fetching data from nonexistent namespace")
-	fetchReq.IdWithNamespace.Ns = "nonexistent"
+	fetchReq.NameSpace = "nonexistent"
 	_, err = testSetup.fetch(fetchReq)
 	require.Error(t, err)
 
 	log.Debug("fetching data from wrong namespace")
-	fetchReq.IdWithNamespace.Ns = testNamespaces[1]
+	fetchReq.NameSpace = testNamespaces[1]
 	res, err := testSetup.fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(res))
 
 	log.Debugf("fetching data from namespace %s", testNamespaces[0])
-	fetchReq.IdWithNamespace.Ns = testNamespaces[0]
+	fetchReq.NameSpace = testNamespaces[0]
 	res, err = testSetup.fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 100, len(res))
 
 	log.Debugf("truncate namespace %s", testNamespaces[0])
-	truncateReq := rpc.NewTruncateNamespaceRequest()
-	truncateReq.Ns = testNamespaces[0]
-	err = testSetup.truncate(truncateReq)
+	truncateReq := rpc.NewTruncateRequest()
+	truncateReq.NameSpace = testNamespaces[0]
+	truncated, err := testSetup.truncate(truncateReq)
 	require.NoError(t, err)
+	require.Equal(t, int64(1), truncated)
 
 	log.Debugf("fetching data from namespace %s again", testNamespaces[0])
 	res, err = testSetup.fetch(fetchReq)
@@ -113,8 +113,8 @@ func TestTruncateNamespace(t *testing.T) {
 	require.Equal(t, 0, len(res))
 
 	log.Debugf("fetching data from a different namespace %s", testNamespaces[1])
-	fetchReq.IdWithNamespace.ID = "bar"
-	fetchReq.IdWithNamespace.Ns = testNamespaces[1]
+	fetchReq.ID = "bar"
+	fetchReq.NameSpace = testNamespaces[1]
 	fetchReq.RangeStart = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
 	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize*2), time.Second)
 	res, err = testSetup.fetch(fetchReq)

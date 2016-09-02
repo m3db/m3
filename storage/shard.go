@@ -106,6 +106,13 @@ func (s *dbShard) ID() uint32 {
 	return s.shard
 }
 
+func (s *dbShard) NumSeries() int64 {
+	s.RLock()
+	n := s.list.Len()
+	s.RUnlock()
+	return int64(n)
+}
+
 func (s *dbShard) forEachShardEntry(continueOnError bool, entryFn dbShardEntryWorkFn, stopIterFn dbShardEntryConditionFn) error {
 	// NB(r): consider using a lockless list for ticking
 	s.RLock()

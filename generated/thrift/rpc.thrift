@@ -49,16 +49,20 @@ service Node {
 	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req) throws (1: Error err)
 	FetchBlocksResult fetchBlocks(1: FetchBlocksRequest req) throws (1: Error err)
 	FetchBlocksMetadataResult fetchBlocksMetadata(1: FetchBlocksMetadataRequest req) throws (1: Error err)
-	void truncateNamespace(1: TruncateNamespaceRequest req) throws (1: Error err)
+	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 }
 
-struct TruncateNamespaceRequest {
-    1: required string ns
+struct TruncateRequest {
+    1: required string nameSpace
+}
+
+struct TruncateResult {
+    1: required i64 numSeries
 }
 
 struct FetchBlocksRequest {
-    1: required string ns
-	2: required i32 shard
+    1: required string nameSpace
+    2: required i32 shard
 	3: required list<FetchBlocksParam> elements
 }
 
@@ -83,7 +87,7 @@ struct Block {
 }
 
 struct FetchBlocksMetadataRequest {
-    1: required string ns
+    1: required string nameSpace
 	2: required i32 shard
 	3: required i64 limit
 	4: optional i64 pageToken
@@ -111,31 +115,33 @@ struct HealthResult {
 	2: required string status
 }
 
-struct IDWithNamespace {
-    1: required string ns
-    2: required string id
+struct IDDatapoint {
+    1: required string id
+    2: required Datapoint datapoint
 }
 
 struct WriteRequest {
-    1: required IDWithNamespace idWithNamespace
-	2: required Datapoint datapoint
+    1: required string nameSpace
+    2: required IDDatapoint idDatapoint
 }
 
 struct WriteBatchRequest {
-	1: required list<WriteRequest> elements
+    1: required string nameSpace
+	2: required list<IDDatapoint> elements
 }
 
 struct WriteBatchError {
-	1: required i64 index
+    1: required i64 index
 	2: required Error err
 }
 
 struct FetchRequest {
 	1: required i64 rangeStart
 	2: required i64 rangeEnd
-	3: required IDWithNamespace idWithNamespace
-	4: optional TimeType rangeType = TimeType.UNIX_SECONDS
-	5: optional TimeType resultTimeType = TimeType.UNIX_SECONDS
+	3: required string nameSpace
+	4: required string id
+	5: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	6: optional TimeType resultTimeType = TimeType.UNIX_SECONDS
 }
 
 struct FetchResult {
@@ -152,8 +158,9 @@ struct Datapoint {
 struct FetchRawBatchRequest {
 	1: required i64 rangeStart
 	2: required i64 rangeEnd
-	3: required list<IDWithNamespace> idsWithNamespace
-	4: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	3: required string nameSpace
+	4: required list<string> ids
+	5: optional TimeType rangeType = TimeType.UNIX_SECONDS
 }
 
 struct FetchRawBatchResult {
@@ -179,4 +186,5 @@ service Cluster {
 	HealthResult health() throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
+	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 }

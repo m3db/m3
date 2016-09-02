@@ -48,6 +48,9 @@ const (
 
 	// defaultUseTChannelClientForWriting determines whether we use the tchannel client for writing by default.
 	defaultUseTChannelClientForWriting = false
+
+	// defaultUseTChannelClientForTruncation determines whether we use the tchannel client for truncation by default.
+	defaultUseTChannelClientForTruncation = false
 )
 
 type testOptions interface {
@@ -98,29 +101,37 @@ type testOptions interface {
 
 	// GetUseTChannelClientForWriting returns whether we use the tchannel client for writing.
 	GetUseTChannelClientForWriting() bool
+
+	// UseTChannelClientForTruncation sets whether we use the tchannel client for truncation.
+	UseTChannelClientForTruncation(value bool) testOptions
+
+	// GetUseTChannelClientForTruncation returns whether we use the tchannel client for truncation.
+	GetUseTChannelClientForTruncation() bool
 }
 
 type options struct {
-	serverStateChangeTimeout    time.Duration
-	clusterConnectionTimeout    time.Duration
-	readRequestTimeout          time.Duration
-	writeRequestTimeout         time.Duration
-	truncateRequestTimeout      time.Duration
-	workerPoolSize              int
-	useTChannelClientForReading bool
-	useTChannelClientForWriting bool
+	serverStateChangeTimeout       time.Duration
+	clusterConnectionTimeout       time.Duration
+	readRequestTimeout             time.Duration
+	writeRequestTimeout            time.Duration
+	truncateRequestTimeout         time.Duration
+	workerPoolSize                 int
+	useTChannelClientForReading    bool
+	useTChannelClientForWriting    bool
+	useTChannelClientForTruncation bool
 }
 
 func newTestOptions() testOptions {
 	return &options{
-		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
-		clusterConnectionTimeout:    defaultClusterConnectionTimeout,
-		readRequestTimeout:          defaultReadRequestTimeout,
-		writeRequestTimeout:         defaultWriteRequestTimeout,
-		truncateRequestTimeout:      defaultTruncateRequestTimeout,
-		workerPoolSize:              defaultWorkerPoolSize,
-		useTChannelClientForReading: defaultUseTChannelClientForReading,
-		useTChannelClientForWriting: defaultUseTChannelClientForWriting,
+		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
+		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
+		readRequestTimeout:             defaultReadRequestTimeout,
+		writeRequestTimeout:            defaultWriteRequestTimeout,
+		truncateRequestTimeout:         defaultTruncateRequestTimeout,
+		workerPoolSize:                 defaultWorkerPoolSize,
+		useTChannelClientForReading:    defaultUseTChannelClientForReading,
+		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
+		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 	}
 }
 
@@ -202,4 +213,14 @@ func (o *options) UseTChannelClientForWriting(value bool) testOptions {
 
 func (o *options) GetUseTChannelClientForWriting() bool {
 	return o.useTChannelClientForWriting
+}
+
+func (o *options) UseTChannelClientForTruncation(value bool) testOptions {
+	opts := *o
+	opts.useTChannelClientForTruncation = value
+	return &opts
+}
+
+func (o *options) GetUseTChannelClientForTruncation() bool {
+	return o.useTChannelClientForTruncation
 }

@@ -46,7 +46,7 @@ func (d *mockDatabase) Open() error                              { return nil }
 func (d *mockDatabase) Close() error                             { return nil }
 func (d *mockDatabase) Bootstrap() error                         { return nil }
 func (d *mockDatabase) IsBootstrapped() bool                     { return d.bs == bootstrapped }
-func (d *mockDatabase) TruncateNamespace(namespace string) error { return nil }
+func (d *mockDatabase) Truncate(namespace string) (int64, error) { return 0, nil }
 func (d *mockDatabase) flush(t time.Time, async bool)            {}
 
 func (d *mockDatabase) getOwnedNamespaces() []databaseNamespace {
@@ -77,11 +77,11 @@ func testDatabaseOptions() Options {
 	return NewOptions().
 		MaxFlushRetries(3).
 		RetentionOptions(retention.NewOptions().
-			BufferFuture(10 * time.Minute).
-			BufferPast(10 * time.Minute).
-			BufferDrain(10 * time.Minute).
-			BlockSize(2 * time.Hour).
-			RetentionPeriod(2 * 24 * time.Hour))
+		BufferFuture(10 * time.Minute).
+		BufferPast(10 * time.Minute).
+		BufferDrain(10 * time.Minute).
+		BlockSize(2 * time.Hour).
+		RetentionPeriod(2 * 24 * time.Hour))
 }
 
 func testDatabase(t *testing.T, bs bootstrapState) *db {
@@ -124,7 +124,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 
 	d := testDatabase(t, bootstrapped)
 	_, err := d.ReadEncoded(ctx, "nonexistent", "foo", time.Now(), time.Now())
-	require.Equal(t, "not responsible for namespace nonexistent", err.Error())
+	require.Equal(t, "no such namespace nonexistent", err.Error())
 	require.Panics(t, func() { d.RUnlock() }, "shouldn't be able to unlock the read lock")
 }
 

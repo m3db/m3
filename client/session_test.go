@@ -84,10 +84,10 @@ func applySessionTestOptions(opts Options) Options {
 		WriteOpPoolSize(0).
 		FetchBatchOpPoolSize(0).
 		TopologyInitializer(topology.NewStaticInitializer(
-			topology.NewStaticOptions().
-				Replicas(sessionTestReplicas).
-				ShardSet(shardSet).
-				HostShardSets(sessionTestHostAndShards(shardSet))))
+		topology.NewStaticOptions().
+			Replicas(sessionTestReplicas).
+			ShardSet(shardSet).
+			HostShardSets(sessionTestHostAndShards(shardSet))))
 }
 
 func TestSessionCreationFailure(t *testing.T) {
@@ -150,7 +150,7 @@ func testSessionClusterConnectConsistencyLevel(
 	session.newHostQueueFn = func(
 		host topology.Host,
 		writeBatchRequestPool writeBatchRequestPool,
-		writeRequestArrayPool writeRequestArrayPool,
+		idDatapointArrayPool idDatapointArrayPool,
 		opts Options,
 	) hostQueue {
 		hostQueue := NewMockhostQueue(ctrl)
@@ -187,7 +187,7 @@ func mockHostQueues(
 	s.newHostQueueFn = func(
 		host topology.Host,
 		writeBatchRequestPool writeBatchRequestPool,
-		writeRequestArrayPool writeRequestArrayPool,
+		writeRequestArrayPool idDatapointArrayPool,
 		opts Options,
 	) hostQueue {
 		// Make a copy of the enqueue fns for each host

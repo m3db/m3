@@ -296,8 +296,18 @@ func TestNamespaceCleanupFilesetAllShards(t *testing.T) {
 }
 
 func TestNamespaceTruncate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	ns := testNamespace(t)
-	require.Nil(t, ns.shards[testShardIDs[0]])
-	ns.Truncate()
+	for _, shard := range testShardIDs {
+		mockShard := NewMockdatabaseShard(ctrl)
+		mockShard.EXPECT().NumSeries().Return(int64(shard))
+		ns.shards[shard] = mockShard
+	}
+
+	res, err := ns.Truncate()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), res)
 	require.NotNil(t, ns.shards[testShardIDs[0]])
 }

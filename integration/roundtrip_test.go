@@ -55,7 +55,7 @@ func TestRoundtrip(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	dataMaps := make(map[time.Time]seriesList)
+	seriesMaps := make(map[time.Time]seriesList)
 	inputData := []struct {
 		metricNames []string
 		numPoints   int
@@ -66,9 +66,9 @@ func TestRoundtrip(t *testing.T) {
 	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.start)
-		testData := generateTestData(testNamespaces[0], input.metricNames, input.numPoints, input.start)
-		dataMaps[input.start] = testData
-		require.NoError(t, testSetup.writeBatch(testData))
+		testData := generateTestData(input.metricNames, input.numPoints, input.start)
+		seriesMaps[input.start] = testData
+		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
 
@@ -77,8 +77,8 @@ func TestRoundtrip(t *testing.T) {
 	time.Sleep(testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 4)
 
 	// Verify in-memory data match what we've written
-	verifyDataMaps(t, testSetup, dataMaps)
+	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
 
 	// Verify in-memory data again just to be sure the data can be read multiple times without issues
-	verifyDataMaps(t, testSetup, dataMaps)
+	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
 }
