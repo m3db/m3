@@ -91,7 +91,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	assert.Equal(t, false, series.buffer.NeedsDrain())
 
-	blocks := series.blocks.GetAllBlocks()
+	blocks := series.blocks.AllBlocks()
 	assert.Len(t, blocks, 1)
 
 	block, ok := series.blocks.GetBlockAt(start)
@@ -244,7 +244,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, series.blocks.Len())
 	require.Equal(t, curr, series.blocks.GetMinTime())
-	_, exists := series.blocks.GetAllBlocks()[curr]
+	_, exists := series.blocks.AllBlocks()[curr]
 	require.True(t, exists)
 }
 
@@ -409,7 +409,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 
 	series := newDatabaseSeries("bar", bootstrapped, opts).(*dbSeries)
 	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	mockBlocks.EXPECT().GetAllBlocks().Return(blocks)
+	mockBlocks.EXPECT().AllBlocks().Return(blocks)
 	series.blocks = mockBlocks
 	series.buffer = buffer
 

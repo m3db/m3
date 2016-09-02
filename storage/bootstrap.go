@@ -25,7 +25,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/log"
 )
 
 type bootstrapState int
@@ -67,6 +69,8 @@ type bootstrapManager struct {
 
 	database       database                  // storage database
 	opts           Options                   // storage options
+	log            xlog.Logger               // logger
+	nowFn          clock.NowFn               // now fn
 	newBootstrapFn NewBootstrapFn            // function to create a new bootstrap process
 	state          bootstrapState            // bootstrap state
 	fsm            databaseFileSystemManager // file system manager
@@ -77,6 +81,8 @@ func newBootstrapManager(database database, fsm databaseFileSystemManager) datab
 	return &bootstrapManager{
 		database:       database,
 		opts:           opts,
+		log:            opts.GetInstrumentOptions().GetLogger(),
+		nowFn:          opts.GetClockOptions().GetNowFn(),
 		newBootstrapFn: opts.GetNewBootstrapFn(),
 		fsm:            fsm,
 	}
@@ -99,7 +105,8 @@ func (bsm *bootstrapManager) cutoverTime(writeStart time.Time) time.Time {
 
 // NB(xichen): Bootstrap must be called after the server starts accepting writes.
 func (bsm *bootstrapManager) Bootstrap() error {
-	writeStart := bsm.opts.GetClockOptions().GetNowFn()()
+	writeStart := bsm.nowFn()
+	cutover := bsm.cutoverTime(writeStart)
 
 	bsm.Lock()
 	if bsm.state == bootstrapped {
@@ -116,19 +123,18 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
-	cutover := bsm.cutoverTime(writeStart)
-	namespaces := bsm.database.getOwnedNamespaces()
+
 	bs := bsm.newBootstrapFn()
-	for _, namespace := range namespaces {
-		err := namespace.Bootstrap(bs, writeStart, cutover)
-		multiErr = multiErr.Add(err)
+	for _, namespace := range bsm.database.getOwnedNamespaces() {
+		if err := namespace.Bootstrap(bs, writeStart, cutover); err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
 
 	// At this point we have bootstrapped everything between now - retentionPeriod
 	// and now, so we should run the filesystem manager to clean up files and flush
 	// all the data we bootstrapped.
-	now := bsm.opts.GetClockOptions().GetNowFn()()
-	bsm.fsm.Run(now, false)
+	bsm.fsm.Run(bsm.nowFn(), false)
 
 	bsm.Lock()
 	bsm.state = bootstrapped

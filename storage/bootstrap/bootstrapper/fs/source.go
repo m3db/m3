@@ -25,31 +25,50 @@ import (
 
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
 
 type newFileSetReaderFn func(filePathPrefix string, readerBufferSize int) fs.FileSetReader
 
-// fileSystemSource provides information about TSDB data stored on disk
 type fileSystemSource struct {
 	opts             Options
+	log              xlog.Logger
 	filePathPrefix   string
 	readerBufferSize int
 	newReaderFn      newFileSetReaderFn
 }
 
-// newFileSystemSource creates a new filesystem based database
 func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 	return &fileSystemSource{
 		opts:             opts,
+		log:              opts.GetBootstrapOptions().GetInstrumentOptions().GetLogger(),
 		filePathPrefix:   prefix,
 		readerBufferSize: opts.GetFilesystemOptions().GetReaderBufferSize(),
 		newReaderFn:      fs.NewReader,
 	}
 }
 
-// GetAvailability returns what time ranges are available for a given shard
-func (fss *fileSystemSource) GetAvailability(
+func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
+	switch strategy {
+	case bootstrap.BootstrapParallel, bootstrap.BootstrapSequential:
+		return true
+	}
+	return false
+}
+
+func (s *fileSystemSource) Available(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) bootstrap.ShardTimeRanges {
+	result := make(map[uint32]xtime.Ranges)
+	for shard, ranges := range shardsTimeRanges {
+		result[shard] = s.shardAvailability(namespace, shard, ranges)
+	}
+	return result
+}
+
+func (s *fileSystemSource) shardAvailability(
 	namespace string,
 	shard uint32,
 	targetRangesForShard xtime.Ranges,
@@ -58,7 +77,7 @@ func (fss *fileSystemSource) GetAvailability(
 		return nil
 	}
 
-	entries := fs.ReadInfoFiles(fss.filePathPrefix, namespace, shard, fss.readerBufferSize)
+	entries := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
 	if len(entries) == 0 {
 		return nil
 	}
@@ -68,76 +87,84 @@ func (fss *fileSystemSource) GetAvailability(
 		info := entries[i]
 		t := xtime.FromNanoseconds(info.Start)
 		w := time.Duration(info.BlockSize)
-		curRange := xtime.Range{t, t.Add(w)}
-		if targetRangesForShard.Overlaps(curRange) {
-			tr = tr.AddRange(curRange)
+		currRange := xtime.Range{Start: t, End: t.Add(w)}
+		if targetRangesForShard.Overlaps(currRange) {
+			tr = tr.AddRange(currRange)
 		}
 	}
 	return tr
 }
 
-// ReadData returns raw series for a given shard within certain time ranges
-func (fss *fileSystemSource) ReadData(namespace string, shard uint32, tr xtime.Ranges) (bootstrap.ShardResult, xtime.Ranges) {
-	if xtime.IsEmpty(tr) {
-		return nil, tr
+func (s *fileSystemSource) Read(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) (bootstrap.Result, error) {
+	if shardsTimeRanges.IsEmpty() {
+		return nil, nil
 	}
 
-	var files []string
-	fs.ForEachInfoFile(fss.filePathPrefix, namespace, shard, fss.readerBufferSize, func(fname string, _ []byte) {
-		files = append(files, fname)
-	})
-	if len(files) == 0 {
-		return nil, tr
-	}
+	result := bootstrap.NewResult()
+	for shard, tr := range shardsTimeRanges {
+		var files []string
+		fs.ForEachInfoFile(s.filePathPrefix, namespace, shard, s.readerBufferSize, func(fname string, _ []byte) {
+			files = append(files, fname)
+		})
+		if len(files) == 0 {
+			result.Add(shard, nil, tr)
+			continue
+		}
 
-	bopts := fss.opts.GetBootstrapOptions()
-	log := bopts.GetInstrumentOptions().GetLogger()
-	seriesMap := bootstrap.NewShardResult(bopts)
-	r := fss.newReaderFn(fss.filePathPrefix, fss.readerBufferSize)
-	for i := 0; i < len(files); i++ {
-		t, err := fs.TimeFromFileName(files[i])
-		if err != nil {
-			log.Errorf("unable to get time from info file name %s: %v", files[i], err)
-			continue
-		}
-		if err := r.Open(namespace, shard, t); err != nil {
-			log.Errorf("unable to open info file for shard %d time %v: %v", shard, t, err)
-			continue
-		}
-		timeRange := r.Range()
-		if !tr.Overlaps(timeRange) {
-			r.Close()
-			continue
-		}
-		hasError := false
-		curMap := bootstrap.NewShardResult(bopts)
-		for i := 0; i < r.Entries(); i++ {
-			id, data, err := r.Read()
+		bopts := s.opts.GetBootstrapOptions()
+		seriesMap := bootstrap.NewShardResult(bopts)
+		r := s.newReaderFn(s.filePathPrefix, s.readerBufferSize)
+		for i := 0; i < len(files); i++ {
+			t, err := fs.TimeFromFileName(files[i])
 			if err != nil {
-				log.Errorf("error reading data file for shard %d time %v: %v", shard, t, err)
-				hasError = true
-				break
+				s.log.Errorf("unable to get time from info file name %s: %v", files[i], err)
+				continue
 			}
-			encoder := bopts.GetDatabaseBlockOptions().GetEncoderPool().Get()
-			encoder.ResetSetData(timeRange.Start, data, false)
-			block := bopts.GetDatabaseBlockOptions().GetDatabaseBlockPool().Get()
-			block.Reset(timeRange.Start, encoder)
-			curMap.AddBlock(id, block)
-		}
-		if !hasError {
-			if err := r.Validate(); err != nil {
-				hasError = true
-				log.Errorf("data validation failed for shard %d time %v: %v", shard, t, err)
+			if err := r.Open(namespace, shard, t); err != nil {
+				s.log.Errorf("unable to open info file for shard %d time %v: %v", shard, t, err)
+				continue
 			}
-		}
-		r.Close()
+			timeRange := r.Range()
+			if !tr.Overlaps(timeRange) {
+				r.Close()
+				continue
+			}
+			hasError := false
+			curMap := bootstrap.NewShardResult(bopts)
+			for i := 0; i < r.Entries(); i++ {
+				id, data, err := r.Read()
+				if err != nil {
+					s.log.Errorf("error reading data file for shard %d time %v: %v", shard, t, err)
+					hasError = true
+					break
+				}
+				encoder := bopts.GetDatabaseBlockOptions().GetEncoderPool().Get()
+				encoder.ResetSetData(timeRange.Start, data, false)
+				block := bopts.GetDatabaseBlockOptions().GetDatabaseBlockPool().Get()
+				block.Reset(timeRange.Start, encoder)
+				curMap.AddBlock(id, block)
+			}
+			if !hasError {
+				if err := r.Validate(); err != nil {
+					hasError = true
+					s.log.Errorf("data validation failed for shard %d time %v: %v", shard, t, err)
+				}
+			}
+			r.Close()
 
-		if !hasError {
-			seriesMap.AddResult(curMap)
-			tr = tr.RemoveRange(timeRange)
-		} else {
-			curMap.Close()
+			if !hasError {
+				seriesMap.AddResult(curMap)
+				tr = tr.RemoveRange(timeRange)
+			} else {
+				curMap.Close()
+			}
 		}
+
+		result.Add(shard, seriesMap, tr)
 	}
-	return seriesMap, tr
+
+	return result, nil
 }

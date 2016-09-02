@@ -192,6 +192,10 @@ func NewDatabaseSeriesBlocks(opts Options) DatabaseSeriesBlocks {
 	}
 }
 
+func (dbb *databaseSeriesBlocks) Options() Options {
+	return dbb.opts
+}
+
 func (dbb *databaseSeriesBlocks) Len() int {
 	return len(dbb.elems)
 }
@@ -211,7 +215,7 @@ func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
 	if other == nil {
 		return
 	}
-	blocks := other.GetAllBlocks()
+	blocks := other.AllBlocks()
 	for _, b := range blocks {
 		dbb.AddBlock(b)
 	}
@@ -245,7 +249,7 @@ func (dbb *databaseSeriesBlocks) GetBlockOrAdd(t time.Time) DatabaseBlock {
 	return newBlock
 }
 
-func (dbb *databaseSeriesBlocks) GetAllBlocks() map[time.Time]DatabaseBlock {
+func (dbb *databaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {
 	return dbb.elems
 }
 

@@ -21,7 +21,6 @@
 package commitlog
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -29,7 +28,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 )
 
 // Strategy describes the commit log writing strategy
@@ -49,8 +48,6 @@ const (
 
 // CommitLog provides a synchronized commit log
 type CommitLog interface {
-	io.Closer
-
 	// Open the commit log
 	Open() error
 
@@ -72,6 +69,9 @@ type CommitLog interface {
 
 	// Iter returns an iterator for accessing commit logs
 	Iter() (Iterator, error)
+
+	// Close the commit log
+	Close() error
 }
 
 // Iterator provides an iterator for commit logs

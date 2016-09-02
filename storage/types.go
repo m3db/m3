@@ -224,8 +224,7 @@ type databaseShard interface {
 	) ([]FetchBlocksMetadataResult, *int64)
 
 	Bootstrap(
-		bs bootstrap.Bootstrap,
-		namespace string,
+		bootstrappedSeries map[string]block.DatabaseSeriesBlocks,
 		writeStart time.Time,
 		cutover time.Time,
 	) error

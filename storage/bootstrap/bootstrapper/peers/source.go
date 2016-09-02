@@ -23,45 +23,78 @@ package peers
 import (
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
 
-// peersSource is a source for bootstrap data from peers
 type peersSource struct {
-	opts Options
+	opts    Options
+	log     xlog.Logger
+	nowFn   clock.NowFn
+	sleepFn func(t time.Duration)
 }
 
-// newPeersSource creates a source for bootstrap data from peers
 func newPeersSource(opts Options) bootstrap.Source {
-	return &peersSource{opts: opts}
+	return &peersSource{
+		opts:    opts,
+		log:     opts.GetBootstrapOptions().GetInstrumentOptions().GetLogger(),
+		nowFn:   opts.GetBootstrapOptions().GetClockOptions().GetNowFn(),
+		sleepFn: time.Sleep,
+	}
 }
 
-// GetAvailability returns what time ranges are available for a given shard
-func (s *peersSource) GetAvailability(
-	namespace string,
-	shard uint32,
-	targetRangesForShard xtime.Ranges,
-) xtime.Ranges {
-	return targetRangesForShard
+func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
+	switch strategy {
+	case bootstrap.BootstrapParallel, bootstrap.BootstrapSequential:
+		return true
+	}
+	return false
 }
 
-// ReadData returns raw series for a given shard within certain time ranges
-func (s *peersSource) ReadData(
+func (s *peersSource) Available(
 	namespace string,
-	shard uint32,
-	tr xtime.Ranges,
-) (bootstrap.ShardResult, xtime.Ranges) {
-	if xtime.IsEmpty(tr) {
-		return nil, tr
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) bootstrap.ShardTimeRanges {
+	// Peers should be able to fulfill all data
+	return shardsTimeRanges
+}
+
+func (s *peersSource) Read(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) (bootstrap.Result, error) {
+	if shardsTimeRanges.IsEmpty() {
+		return nil, nil
 	}
 
-	bopts := s.opts.GetBootstrapOptions()
-	blockSize := bopts.GetRetentionOptions().GetBlockSize()
-	session := s.opts.GetAdminSession()
-	result, err := session.FetchBootstrapBlocksFromPeers(namespace, shard, time.Time{}, time.Now().Add(blockSize), bopts)
-	if err != nil {
-		return nil, tr
+	// Wait for data to be available from peers if required
+	now := s.nowFn()
+	_, max := shardsTimeRanges.MinMax()
+	for max.After(now) {
+		s.sleepFn(max.Sub(now))
+		now = s.nowFn()
+	}
+
+	var (
+		bopts   = s.opts.GetBootstrapOptions()
+		session = s.opts.GetAdminSession()
+		result  = bootstrap.NewResult()
+	)
+	for shard, ranges := range shardsTimeRanges {
+		it := ranges.Iter()
+		for it.Next() {
+			currRange := it.Value()
+			start := currRange.Start
+			end := currRange.End
+			shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace, shard, start, end, bopts)
+			if err == nil {
+				result.Add(shard, shardResult, nil)
+			} else {
+				result.Add(shard, nil, xtime.NewRanges().AddRange(currRange))
+			}
+		}
 	}
 
 	return result, nil

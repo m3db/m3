@@ -24,16 +24,18 @@ import (
 	"errors"
 	"time"
 
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
 
 var (
-	errMaxRetriesExceeded = errors.New("max retries exceeded")
+	errUnfulfilledRanges = errors.New("bootstrap finished with unfulfilled ranges")
 )
 
 // bootstrapProcess represents the bootstrapping process.
 type bootstrapProcess struct {
 	opts         Options
+	log          xlog.Logger
 	bootstrapper Bootstrapper
 }
 
@@ -44,20 +46,16 @@ func NewBootstrapProcess(
 ) Bootstrap {
 	return &bootstrapProcess{
 		opts:         opts,
+		log:          opts.GetInstrumentOptions().GetLogger(),
 		bootstrapper: bootstrapper,
 	}
 }
 
-// initTimeRanges initializes the target time ranges.
+// targetRanges calculates the the target time ranges.
 // NB(xichen): bootstrapping is now a two-step process: we bootstrap the data between
 // [writeStart - retentionPeriod, writeStart - bufferPast) in the first step, and the
 // data between [writeStart - bufferPast, writeStart + bufferFuture) in the second step.
-// The reason why this is necessary is because writers can write data in the past or in
-// the future, and as a result, future writes between [writeStart - bufferFuture, writeStart)
-// are lost, which means the data buffered between [writeStart, writeStart + bufferFuture)
-// cannot be trusted and therefore need to be bootstrapped as well, which means in the worst
-// case we need to wait till writeStart + bufferPast + bufferFuture before bootstrap can complete.
-func (b *bootstrapProcess) initTimeRanges(writeStart time.Time) xtime.Ranges {
+func (b *bootstrapProcess) targetRanges(writeStart time.Time) xtime.Ranges {
 	start := writeStart.Add(-b.opts.GetRetentionOptions().GetRetentionPeriod())
 	midPoint := writeStart.Add(-b.opts.GetRetentionOptions().GetBufferPast())
 	end := writeStart.Add(b.opts.GetRetentionOptions().GetBufferFuture())
@@ -67,35 +65,41 @@ func (b *bootstrapProcess) initTimeRanges(writeStart time.Time) xtime.Ranges {
 		AddRange(xtime.Range{Start: midPoint, End: end})
 }
 
-// bootstrap returns the bootstrapped results for a given shard time ranges.
-func (b *bootstrapProcess) bootstrap(
-	namespace string,
-	shard uint32,
-	timeRanges xtime.Ranges,
-) (ShardResult, error) {
-	results := NewShardResult(b.opts)
-	for i := 0; i < b.opts.GetMaxRetries(); i++ {
-		res, unfulfilled := b.bootstrapper.Bootstrap(namespace, shard, timeRanges)
-		results.AddResult(res)
-		if xtime.IsEmpty(unfulfilled) {
-			return results, nil
-		}
-		// If there are still unfulfilled time ranges, sleep for a while and retry.
-		time.Sleep(b.opts.GetThrottlePeriod())
-	}
-	return results, errMaxRetriesExceeded
-}
-
 // Run initiates the bootstrap process, where writeStart is when we start
 // accepting incoming writes.
 func (b *bootstrapProcess) Run(
 	writeStart time.Time,
 	namespace string,
-	shard uint32,
-) (ShardResult, error) {
+	shards []uint32,
+) (Result, error) {
+	// Initialize the target ranges we'd like to bootstrap
+	targetRanges := b.targetRanges(writeStart)
 
-	// initializes the target range we'd like to bootstrap
-	unfulfilledRanges := b.initTimeRanges(writeStart)
+	result := NewResult()
+	it := targetRanges.Iter()
+	for it.Next() {
+		shardsTimeRanges := make(ShardTimeRanges, len(shards))
 
-	return b.bootstrap(namespace, shard, unfulfilledRanges)
+		window := it.Value()
+
+		r := xtime.NewRanges().AddRange(window)
+		for _, s := range shards {
+			shardsTimeRanges[s] = r
+		}
+
+		b.log.WithFields(
+			xlog.NewLogField("shardsLen", len(shards)),
+			xlog.NewLogField("from", window.Start.String()),
+			xlog.NewLogField("to", window.End.String()),
+			xlog.NewLogField("length", window.End.Sub(window.Start).String()),
+		).Infof("bootstrapping shards for range")
+
+		res, err := b.bootstrapper.Bootstrap(namespace, shardsTimeRanges)
+		if err != nil {
+			return nil, err
+		}
+		result.AddResult(res)
+	}
+
+	return result, nil
 }

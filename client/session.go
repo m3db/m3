@@ -703,7 +703,9 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// be returned from this routine as long as one peer succeeds completely
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
-		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers, metadataCh)
+		blockSize := opts.GetRetentionOptions().GetBlockSize()
+		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers, start, end, blockSize, metadataCh)
+
 		close(metadataCh)
 		if err != nil {
 			// Bail early
@@ -727,6 +729,8 @@ func (s *session) streamBlocksMetadataFromPeers(
 	namespace string,
 	shard uint32,
 	peers []hostQueue,
+	start, end time.Time,
+	blockSize time.Duration,
 	ch chan<- blocksMetadata,
 ) error {
 	var (
@@ -741,7 +745,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer, ch)
+			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer, start, end, blockSize, ch)
 			if err != nil {
 				s.log.Warnf("failed to stream blocks metadata from peer %s for namespace %s shard %d: %v", peer.Host().String(), namespace, shard, err)
 				errLock.Lock()
@@ -765,6 +769,8 @@ func (s *session) streamBlocksMetadataFromPeer(
 	namespace string,
 	shard uint32,
 	peer hostQueue,
+	start, end time.Time,
+	blockSize time.Duration,
 	ch chan<- blocksMetadata,
 ) error {
 	var (
@@ -809,29 +815,41 @@ func (s *session) streamBlocksMetadataFromPeer(
 		}
 
 		for _, elem := range result.Elements {
-			blocks := make([]blockMetadata, len(elem.Blocks))
-			for i, b := range elem.Blocks {
-				blocks[i].start = time.Unix(0, b.Start)
+			blockMetas := make([]blockMetadata, 0, len(elem.Blocks))
+			for _, b := range elem.Blocks {
+				var (
+					blockStart = time.Unix(0, b.Start)
+					blockEnd   = blockStart.Add(blockSize)
+				)
+				if !start.Before(blockEnd) || !blockStart.Before(end) {
+					continue
+				}
 
 				if b.Err != nil {
 					// Error occurred retrieving block metadata, use default values
+					blockMetas = append(blockMetas, blockMetadata{
+						start: blockStart,
+					})
 					continue
 				}
 
 				if b.Size == nil {
 					s.log.WithFields(
 						xlog.NewLogField("id", elem.ID),
-						xlog.NewLogField("start", blocks[i].start),
+						xlog.NewLogField("start", blockStart),
 					).Warnf("stream blocks metadata requested block size and not returned")
 					continue
 				}
 
-				blocks[i].size = *b.Size
+				blockMetas = append(blockMetas, blockMetadata{
+					start: blockStart,
+					size:  *b.Size,
+				})
 			}
 			ch <- blocksMetadata{
 				peer:   peer,
 				id:     elem.ID,
-				blocks: blocks,
+				blocks: blockMetas,
 			}
 		}
 

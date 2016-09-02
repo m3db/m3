@@ -21,38 +21,37 @@
 package bootstrap
 
 import (
-	"time"
-
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 )
 
-const (
-	// defaultThrottlePeriod is how long we wait till the next iteration of bootstrap starts by default.
-	defaultThrottlePeriod = 10 * time.Second
-
-	// defaultMaxRetries is the maximum number of bootstrap retries by default.
-	defaultMaxRetries = 3
-)
-
 type options struct {
+	clockOpts      clock.Options
 	instrumentOpts instrument.Options
 	retentionOpts  retention.Options
 	blockOpts      block.Options
-	throttlePeriod time.Duration
-	maxRetries     int
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
+		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
 		retentionOpts:  retention.NewOptions(),
 		blockOpts:      block.NewOptions(),
-		throttlePeriod: defaultThrottlePeriod,
-		maxRetries:     defaultMaxRetries,
 	}
+}
+
+func (o *options) ClockOptions(value clock.Options) Options {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *options) GetClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *options) InstrumentOptions(value instrument.Options) Options {
@@ -83,24 +82,4 @@ func (o *options) DatabaseBlockOptions(value block.Options) Options {
 
 func (o *options) GetDatabaseBlockOptions() block.Options {
 	return o.blockOpts
-}
-
-func (o *options) ThrottlePeriod(value time.Duration) Options {
-	opts := *o
-	opts.throttlePeriod = value
-	return &opts
-}
-
-func (o *options) GetThrottlePeriod() time.Duration {
-	return o.throttlePeriod
-}
-
-func (o *options) MaxRetries(value int) Options {
-	opts := *o
-	opts.maxRetries = value
-	return &opts
-}
-
-func (o *options) GetMaxRetries() int {
-	return o.maxRetries
 }

@@ -20,10 +20,7 @@
 
 package bootstrapper
 
-import (
-	"github.com/m3db/m3db/storage/bootstrap"
-	"github.com/m3db/m3x/time"
-)
+import "github.com/m3db/m3db/storage/bootstrap"
 
 const (
 	// NoOpNoneBootstrapperName is the name of the noOpNoneBootstrapper
@@ -47,12 +44,12 @@ func NewNoOpNoneBootstrapper() bootstrap.Bootstrapper {
 	return defaultNoOpNoneBootstrapper
 }
 
-func (noop *noOpNoneBootstrapper) Bootstrap(
-	namespace string,
-	shard uint32,
-	targetRanges xtime.Ranges,
-) (bootstrap.ShardResult, xtime.Ranges) {
-	return nil, targetRanges
+func (noop *noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
+	return true
+}
+
+func (noop *noOpNoneBootstrapper) Bootstrap(_ string, str bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
+	return str.ToUnfulfilledResult(), nil
 }
 
 func (noop *noOpNoneBootstrapper) String() string {
@@ -68,11 +65,11 @@ func NewNoOpAllBootstrapper() bootstrap.Bootstrapper {
 	return defaultNoOpAllBootstrapper
 }
 
-func (noop *noOpAllBootstrapper) Bootstrap(
-	namespace string,
-	shard uint32,
-	targetRanges xtime.Ranges,
-) (bootstrap.ShardResult, xtime.Ranges) {
+func (noop *noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
+	return true
+}
+
+func (noop *noOpAllBootstrapper) Bootstrap(_ string, _ bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
 	return nil, nil
 }
 

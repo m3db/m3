@@ -60,7 +60,10 @@ type DatabaseBlock interface {
 
 // DatabaseSeriesBlocks represents a collection of data blocks.
 type DatabaseSeriesBlocks interface {
-	// Number of blocks contained in the collection.
+	// Options returns the blocks options.
+	Options() Options
+
+	// Len returns the number of blocks contained in the collection.
 	Len() int
 
 	// AddBlock adds a data block.
@@ -81,8 +84,8 @@ type DatabaseSeriesBlocks interface {
 	// GetBlockAt returns the block at a given time, add it if it doesn't exist.
 	GetBlockOrAdd(t time.Time) DatabaseBlock
 
-	// GetAllBlocks returns all the blocks in the series.
-	GetAllBlocks() map[time.Time]DatabaseBlock
+	// AllBlocks returns all the blocks in the series.
+	AllBlocks() map[time.Time]DatabaseBlock
 
 	// RemoveBlockAt removes the block at a given time if any.
 	RemoveBlockAt(t time.Time)
@@ -131,6 +134,18 @@ type Options interface {
 
 	// GetEncoderPool returns the contextPool
 	GetEncoderPool() encoding.EncoderPool
+
+	// ReaderIteratorPool sets the readerIteratorPool
+	ReaderIteratorPool(value encoding.ReaderIteratorPool) Options
+
+	// GetReaderIteratorPool returns the readerIteratorPool
+	GetReaderIteratorPool() encoding.ReaderIteratorPool
+
+	// MultiReaderIteratorPool sets the multiReaderIteratorPool
+	MultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options
+
+	// GetMultiReaderIteratorPool returns the multiReaderIteratorPool
+	GetMultiReaderIteratorPool() encoding.MultiReaderIteratorPool
 
 	// SegmentReaderPool sets the contextPool
 	SegmentReaderPool(value xio.SegmentReaderPool) Options

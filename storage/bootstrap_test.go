@@ -21,7 +21,7 @@
 package storage
 
 import (
-	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -31,41 +31,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDatabaseBootstrapWithError(t *testing.T) {
+func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
 	now := time.Now()
 	cutover := now.Add(opts.GetRetentionOptions().GetBufferFuture())
-	bs := bootstrap.NewMockBootstrap(ctrl)
 	opts = opts.NewBootstrapFn(func() bootstrap.Bootstrap {
-		return bs
+		return nil
 	}).ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
 		return now
 	}))
 
-	inputs := []struct {
-		name string
-		err  error
-	}{
-		{"foo", errors.New("some error")},
-		{"bar", errors.New("some other error")},
-		{"baz", nil},
-	}
+	namespace := NewMockdatabaseNamespace(ctrl)
+	namespace.EXPECT().Bootstrap(nil, now, cutover).Return(fmt.Errorf("an error"))
 
-	namespaces := make(map[string]databaseNamespace)
-	for _, input := range inputs {
-		ns := NewMockdatabaseNamespace(ctrl)
-		ns.EXPECT().Bootstrap(bs, now, cutover).Return(input.err)
-		namespaces[input.name] = ns
+	namespaces := map[string]databaseNamespace{
+		"test": namespace,
 	}
 
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
 	fsm := NewMockdatabaseFileSystemManager(ctrl)
 	fsm.EXPECT().Run(now, false)
 	bsm := newBootstrapManager(db, fsm).(*bootstrapManager)
+	err := bsm.Bootstrap()
 
-	require.Error(t, bsm.Bootstrap())
+	require.NotNil(t, err)
+	require.Equal(t, "an error", err.Error())
 	require.Equal(t, bootstrapped, bsm.state)
 }

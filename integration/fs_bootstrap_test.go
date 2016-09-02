@@ -88,16 +88,16 @@ func TestFilesystemBootstrap(t *testing.T) {
 	filePathPrefix := fsOpts.GetFilePathPrefix()
 	testSetup.storageOpts = testSetup.storageOpts.
 		RetentionOptions(testSetup.storageOpts.GetRetentionOptions().
-			RetentionPeriod(2 * time.Hour)).
+		RetentionPeriod(2 * time.Hour)).
 		NewBootstrapFn(func() bootstrap.Bootstrap {
-			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-			bsOpts := bootstrap.NewOptions()
-			bfsOpts := bfs.NewOptions().
-				BootstrapOptions(bsOpts).
-				FilesystemOptions(fsOpts)
-			bs := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-			return bootstrap.NewBootstrapProcess(bsOpts, bs)
-		})
+		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+		bsOpts := bootstrap.NewOptions()
+		bfsOpts := bfs.NewOptions().
+			BootstrapOptions(bsOpts).
+			FilesystemOptions(fsOpts)
+		bs := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+		return bootstrap.NewBootstrapProcess(bsOpts, bs)
+	})
 
 	writerBufferSize := fsOpts.GetWriterBufferSize()
 	newFileMode := fsOpts.GetNewFileMode()

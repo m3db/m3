@@ -30,8 +30,8 @@ import (
 	pool "github.com/m3db/m3db/pool"
 	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
-	time "github.com/m3db/m3x/time"
-	time0 "time"
+	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of DatabaseBlock interface
@@ -55,9 +55,9 @@ func (_m *MockDatabaseBlock) EXPECT() *_MockDatabaseBlockRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDatabaseBlock) StartTime() time0.Time {
+func (_m *MockDatabaseBlock) StartTime() time.Time {
 	ret := _m.ctrl.Call(_m, "StartTime")
-	ret0, _ := ret[0].(time0.Time)
+	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
@@ -75,7 +75,7 @@ func (_mr *_MockDatabaseBlockRecorder) IsSealed() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsSealed")
 }
 
-func (_m *MockDatabaseBlock) Write(timestamp time0.Time, value float64, unit time.Unit, annotation ts.Annotation) error {
+func (_m *MockDatabaseBlock) Write(timestamp time.Time, value float64, unit time0.Unit, annotation ts.Annotation) error {
 	ret := _m.ctrl.Call(_m, "Write", timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -96,7 +96,7 @@ func (_mr *_MockDatabaseBlockRecorder) Stream(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0)
 }
 
-func (_m *MockDatabaseBlock) Reset(startTime time0.Time, encoder encoding.Encoder) {
+func (_m *MockDatabaseBlock) Reset(startTime time.Time, encoder encoding.Encoder) {
 	_m.ctrl.Call(_m, "Reset", startTime, encoder)
 }
 
@@ -141,6 +141,16 @@ func (_m *MockDatabaseSeriesBlocks) EXPECT() *_MockDatabaseSeriesBlocksRecorder 
 	return _m.recorder
 }
 
+func (_m *MockDatabaseSeriesBlocks) Options() Options {
+	ret := _m.ctrl.Call(_m, "Options")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockDatabaseSeriesBlocksRecorder) Options() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Options")
+}
+
 func (_m *MockDatabaseSeriesBlocks) Len() int {
 	ret := _m.ctrl.Call(_m, "Len")
 	ret0, _ := ret[0].(int)
@@ -167,9 +177,9 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) AddSeries(arg0 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddSeries", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) GetMinTime() time0.Time {
+func (_m *MockDatabaseSeriesBlocks) GetMinTime() time.Time {
 	ret := _m.ctrl.Call(_m, "GetMinTime")
-	ret0, _ := ret[0].(time0.Time)
+	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
@@ -177,9 +187,9 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) GetMinTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMinTime")
 }
 
-func (_m *MockDatabaseSeriesBlocks) GetMaxTime() time0.Time {
+func (_m *MockDatabaseSeriesBlocks) GetMaxTime() time.Time {
 	ret := _m.ctrl.Call(_m, "GetMaxTime")
-	ret0, _ := ret[0].(time0.Time)
+	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
@@ -187,7 +197,7 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) GetMaxTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMaxTime")
 }
 
-func (_m *MockDatabaseSeriesBlocks) GetBlockAt(t time0.Time) (DatabaseBlock, bool) {
+func (_m *MockDatabaseSeriesBlocks) GetBlockAt(t time.Time) (DatabaseBlock, bool) {
 	ret := _m.ctrl.Call(_m, "GetBlockAt", t)
 	ret0, _ := ret[0].(DatabaseBlock)
 	ret1, _ := ret[1].(bool)
@@ -198,7 +208,7 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) GetBlockAt(arg0 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBlockAt", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) GetBlockOrAdd(t time0.Time) DatabaseBlock {
+func (_m *MockDatabaseSeriesBlocks) GetBlockOrAdd(t time.Time) DatabaseBlock {
 	ret := _m.ctrl.Call(_m, "GetBlockOrAdd", t)
 	ret0, _ := ret[0].(DatabaseBlock)
 	return ret0
@@ -208,17 +218,17 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) GetBlockOrAdd(arg0 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBlockOrAdd", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) GetAllBlocks() map[time0.Time]DatabaseBlock {
-	ret := _m.ctrl.Call(_m, "GetAllBlocks")
-	ret0, _ := ret[0].(map[time0.Time]DatabaseBlock)
+func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {
+	ret := _m.ctrl.Call(_m, "AllBlocks")
+	ret0, _ := ret[0].(map[time.Time]DatabaseBlock)
 	return ret0
 }
 
-func (_mr *_MockDatabaseSeriesBlocksRecorder) GetAllBlocks() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetAllBlocks")
+func (_mr *_MockDatabaseSeriesBlocksRecorder) AllBlocks() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "AllBlocks")
 }
 
-func (_m *MockDatabaseSeriesBlocks) RemoveBlockAt(t time0.Time) {
+func (_m *MockDatabaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 	_m.ctrl.Call(_m, "RemoveBlockAt", t)
 }
 
@@ -380,6 +390,46 @@ func (_m *MockOptions) GetEncoderPool() encoding.EncoderPool {
 
 func (_mr *_MockOptionsRecorder) GetEncoderPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetEncoderPool")
+}
+
+func (_m *MockOptions) ReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
+	ret := _m.ctrl.Call(_m, "ReaderIteratorPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ReaderIteratorPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderIteratorPool", arg0)
+}
+
+func (_m *MockOptions) GetReaderIteratorPool() encoding.ReaderIteratorPool {
+	ret := _m.ctrl.Call(_m, "GetReaderIteratorPool")
+	ret0, _ := ret[0].(encoding.ReaderIteratorPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) GetReaderIteratorPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetReaderIteratorPool")
+}
+
+func (_m *MockOptions) MultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
+	ret := _m.ctrl.Call(_m, "MultiReaderIteratorPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) MultiReaderIteratorPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MultiReaderIteratorPool", arg0)
+}
+
+func (_m *MockOptions) GetMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
+	ret := _m.ctrl.Call(_m, "GetMultiReaderIteratorPool")
+	ret0, _ := ret[0].(encoding.MultiReaderIteratorPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) GetMultiReaderIteratorPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMultiReaderIteratorPool")
 }
 
 func (_m *MockOptions) SegmentReaderPool(value io.SegmentReaderPool) Options {

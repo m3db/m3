@@ -524,14 +524,14 @@ func (_mr *_MockdatabaseShardRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockdatabaseShard) Bootstrap(bs bootstrap.Bootstrap, namespace string, writeStart time0.Time, cutover time0.Time) error {
-	ret := _m.ctrl.Call(_m, "Bootstrap", bs, namespace, writeStart, cutover)
+func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries map[string]block.DatabaseSeriesBlocks, writeStart time0.Time, cutover time0.Time) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", bootstrappedSeries, writeStart, cutover)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2, arg3)
+func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2)
 }
 
 func (_m *MockdatabaseShard) Flush(ctx context.Context, namespace string, blockStart time0.Time, pm persist.Manager) error {

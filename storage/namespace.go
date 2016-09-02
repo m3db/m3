@@ -10,11 +10,13 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
 
@@ -35,6 +37,7 @@ type dbNamespace struct {
 	nopts    namespace.Options
 	sopts    Options
 	nowFn    clock.NowFn
+	log      xlog.Logger
 	bs       bootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
@@ -65,6 +68,7 @@ func newDatabaseNamespace(
 		nopts:            nopts,
 		sopts:            sopts,
 		nowFn:            sopts.GetClockOptions().GetNowFn(),
+		log:              sopts.GetInstrumentOptions().GetLogger(),
 		increasingIndex:  increasingIndex,
 		writeCommitLogFn: fn,
 	}
@@ -164,23 +168,44 @@ func (n *dbNamespace) Bootstrap(
 	n.bs = bootstrapping
 	n.Unlock()
 
-	if !n.nopts.GetNeedsBootstrap() {
+	defer func() {
 		n.Lock()
 		n.bs = bootstrapped
 		n.Unlock()
+	}()
+
+	if !n.nopts.GetNeedsBootstrap() {
 		return nil
 	}
 
-	multiErr := xerrors.NewMultiError()
 	shards := n.getOwnedShards()
+	shardIDs := make([]uint32, len(shards))
+	for i, shard := range shards {
+		shardIDs[i] = shard.ID()
+	}
+
+	result, err := bs.Run(writeStart, n.name, shardIDs)
+	if err != nil {
+		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v", n.name, err)
+		return err
+	}
+
+	multiErr := xerrors.NewMultiError()
+	results := result.ShardResults()
 	for _, shard := range shards {
-		err := shard.Bootstrap(bs, n.name, writeStart, cutover)
+		var bootstrappedSeries map[string]block.DatabaseSeriesBlocks
+		if result, ok := results[shard.ID()]; ok {
+			bootstrappedSeries = result.AllSeries()
+		}
+
+		err := shard.Bootstrap(bootstrappedSeries, writeStart, cutover)
 		multiErr = multiErr.Add(err)
 	}
 
-	n.Lock()
-	n.bs = bootstrapped
-	n.Unlock()
+	if len(result.Unfulfilled()) > 0 {
+		str := result.Unfulfilled().SummaryString()
+		n.log.Errorf("bootstrap for namespace %s completed with unfulfilled ranges: %s", n.name, str)
+	}
 
 	return multiErr.FinalError()
 }

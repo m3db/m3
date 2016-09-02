@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -81,15 +80,11 @@ func TestShardBootstrapWithError(t *testing.T) {
 		"foo": fooBlocks,
 		"bar": barBlocks,
 	}
-	shardResult := bootstrap.NewMockShardResult(ctrl)
-	shardResult.EXPECT().GetAllSeries().Return(bootstrappedSeries)
 
-	bs := bootstrap.NewMockBootstrap(ctrl)
-	bs.EXPECT().Run(writeStart, testNamespaceName, s.shard).Return(shardResult, errors.New("bootstrap error"))
-	err := s.Bootstrap(bs, testNamespaceName, writeStart, cutover)
+	err := s.Bootstrap(bootstrappedSeries, writeStart, cutover)
 
 	require.NotNil(t, err)
-	require.Equal(t, "error occurred bootstrapping shard 0 from external sources: bootstrap error\nseries error", err.Error())
+	require.Equal(t, "series error", err.Error())
 	require.Equal(t, bootstrapped, s.bs)
 }
 
@@ -157,8 +152,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		series.EXPECT().
 			Flush(nil, blockStart, gomock.Any()).
 			Do(func(context.Context, time.Time, persist.Fn) {
-				flushed[i] = struct{}{}
-			}).
+			flushed[i] = struct{}{}
+		}).
 			Return(expectedErr)
 		s.list.PushBack(&dbShardEntry{series: series})
 	}

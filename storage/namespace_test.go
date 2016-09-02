@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
@@ -216,13 +217,16 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 
 	ns := testNamespace(t)
 	errs := []error{nil, errors.New("foo")}
+	bs := bootstrap.NewMockBootstrap(ctrl)
+	bs.EXPECT().Run(writeStart, ns.Name(), testShardIDs).Return(bootstrap.NewResult(), nil)
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Bootstrap(nil, testNamespaceName, writeStart, cutover).Return(errs[i])
+		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
+		shard.EXPECT().Bootstrap(nil, writeStart, cutover).Return(errs[i])
 		ns.shards[testShardIDs[i]] = shard
 	}
 
-	require.Equal(t, "foo", ns.Bootstrap(nil, writeStart, cutover).Error())
+	require.Equal(t, "foo", ns.Bootstrap(bs, writeStart, cutover).Error())
 	require.Equal(t, bootstrapped, ns.bs)
 }
 

@@ -24,7 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3db/storage/bootstrap"
-	"github.com/m3db/m3x/time"
+	"github.com/m3db/m3x/errors"
 )
 
 const (
@@ -34,13 +34,13 @@ const (
 // baseBootstrapper provides a skeleton for the interface methods.
 type baseBootstrapper struct {
 	opts bootstrap.Options
-	s    bootstrap.Source
+	src  bootstrap.Source
 	next bootstrap.Bootstrapper
 }
 
 // NewBaseBootstrapper creates a new base bootstrapper.
 func NewBaseBootstrapper(
-	s bootstrap.Source,
+	src bootstrap.Source,
 	opts bootstrap.Options,
 	next bootstrap.Bootstrapper,
 ) bootstrap.Bootstrapper {
@@ -48,67 +48,95 @@ func NewBaseBootstrapper(
 	if next == nil {
 		bs = NewNoOpNoneBootstrapper()
 	}
-	return &baseBootstrapper{opts: opts, s: s, next: bs}
+	return &baseBootstrapper{opts: opts, src: src, next: bs}
 }
 
-// Bootstrap performs bootstrapping for the given shards and the associated time ranges.
-func (bsb *baseBootstrapper) Bootstrap(
+func (b *baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
+	return b.src.Can(strategy)
+}
+
+func (b *baseBootstrapper) Bootstrap(
 	namespace string,
-	shard uint32,
-	targetRanges xtime.Ranges,
-) (bootstrap.ShardResult, xtime.Ranges) {
-	if xtime.IsEmpty(targetRanges) {
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+) (bootstrap.Result, error) {
+	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
 
-	availableRanges := bsb.s.GetAvailability(namespace, shard, targetRanges)
-	remainingRanges := targetRanges.RemoveRanges(availableRanges)
+	available := b.src.Available(namespace, shardsTimeRanges)
+	remaining := shardsTimeRanges.Copy()
+	remaining.Subtract(available)
 
 	var (
-		wg                              sync.WaitGroup
-		curResult, nextResult           bootstrap.ShardResult
-		curUnfulfilled, nextUnfulfilled xtime.Ranges
+		wg                     sync.WaitGroup
+		currResult, nextResult bootstrap.Result
+		currErr, nextErr       error
 	)
+	if len(remaining) > 0 &&
+		b.Can(bootstrap.BootstrapParallel) &&
+		b.next.Can(bootstrap.BootstrapParallel) {
+		// If ranges can be bootstrapped now from the next source then begin attempt now
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			nextResult, nextErr = b.next.Bootstrap(namespace, remaining)
+		}()
+	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		nextResult, nextUnfulfilled = bsb.next.Bootstrap(namespace, shard, remainingRanges)
-	}()
+	currResult, currErr = b.src.Read(namespace, available)
 
-	curResult, curUnfulfilled = bsb.s.ReadData(namespace, shard, availableRanges)
 	wg.Wait()
-
-	mergedResults := bsb.mergeResults(curResult, nextResult)
-
-	// If there are some time ranges the current bootstrapper can't fulfill,
-	// pass it along to the next bootstrapper.
-	if !xtime.IsEmpty(curUnfulfilled) {
-		curResult, curUnfulfilled = bsb.next.Bootstrap(namespace, shard, curUnfulfilled)
-		mergedResults = bsb.mergeResults(mergedResults, curResult)
+	if err := xerrors.FirstError(currErr, nextErr); err != nil {
+		return nil, err
 	}
 
-	mergedUnfulfilled := mergeTimeRanges(curUnfulfilled, nextUnfulfilled)
-	return mergedResults, mergedUnfulfilled
-}
-
-func (bsb *baseBootstrapper) mergeResults(results ...bootstrap.ShardResult) bootstrap.ShardResult {
-	final := bootstrap.NewShardResult(bsb.opts)
-	for _, result := range results {
-		final.AddResult(result)
+	if currResult == nil {
+		currResult = bootstrap.NewResult()
 	}
-	return final
-}
 
-func mergeTimeRanges(ranges ...xtime.Ranges) xtime.Ranges {
-	final := xtime.NewRanges()
-	for _, tr := range ranges {
-		final = final.AddRanges(tr)
+	var (
+		mergedResult         = currResult
+		currUnfulfilled      = currResult.Unfulfilled()
+		firstNextUnfulfilled bootstrap.ShardTimeRanges
+	)
+	if nextResult != nil {
+		// Union the results
+		mergedResult.ShardResults().AddResults(nextResult.ShardResults())
+		// Save the first next unfulfilled time ranges
+		firstNextUnfulfilled = nextResult.Unfulfilled()
+	} else {
+		// Union just the unfulfilled ranges from current and the remaining ranges
+		currUnfulfilled.AddRanges(remaining)
 	}
-	return final
+
+	// If there are some time ranges the current bootstrapper could not fulfill,
+	// pass it along to the next bootstrapper
+	if len(currUnfulfilled) > 0 {
+		nextResult, nextErr = b.next.Bootstrap(namespace, currUnfulfilled)
+		if nextErr != nil {
+			return nil, nextErr
+		}
+
+		if nextResult != nil {
+			// Union the results
+			mergedResult.ShardResults().AddResults(nextResult.ShardResults())
+
+			// Set the unfulfilled ranges and don't use a union considering the
+			// next bootstrapper was asked to fulfill all outstanding ranges of
+			// the current bootstrapper
+			mergedResult.SetUnfulfilled(nextResult.Unfulfilled())
+		}
+	}
+
+	// Make sure to add any unfulfilled time ranges from the
+	// first time the next bootstrapper was asked to execute if it was
+	// executed in parallel
+	mergedResult.Unfulfilled().AddRanges(firstNextUnfulfilled)
+
+	return mergedResult, nil
 }
 
 // String returns the name of the bootstrapper.
-func (bsb *baseBootstrapper) String() string {
+func (b *baseBootstrapper) String() string {
 	return baseBootstrapperName
 }
