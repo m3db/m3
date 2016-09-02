@@ -21,20 +21,27 @@
 package peers
 
 import (
+	"time"
+
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
 
 type peersSource struct {
-	opts Options
-	log  xlog.Logger
+	opts    Options
+	log     xlog.Logger
+	nowFn   clock.NowFn
+	sleepFn func(t time.Duration)
 }
 
 func newPeersSource(opts Options) bootstrap.Source {
 	return &peersSource{
-		opts: opts,
-		log:  opts.GetBootstrapOptions().GetInstrumentOptions().GetLogger(),
+		opts:    opts,
+		log:     opts.GetBootstrapOptions().GetInstrumentOptions().GetLogger(),
+		nowFn:   opts.GetBootstrapOptions().GetClockOptions().GetNowFn(),
+		sleepFn: time.Sleep,
 	}
 }
 
@@ -54,6 +61,14 @@ func (s *peersSource) Available(shardsTimeRanges bootstrap.ShardTimeRanges) boot
 func (s *peersSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
+	}
+
+	// Wait for data to be available from peers if required
+	now := s.nowFn()
+	_, max := shardsTimeRanges.MinMax()
+	for max.After(now) {
+		s.sleepFn(max.Sub(now))
+		now = s.nowFn()
 	}
 
 	var (

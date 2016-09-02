@@ -23,6 +23,7 @@ package bootstrap
 import (
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
@@ -125,6 +126,12 @@ type Source interface {
 
 // Options represents the options for bootstrapping
 type Options interface {
+	// ClockOptions sets the clock options
+	ClockOptions(value clock.Options) Options
+
+	// GetClockOptions returns the clock options
+	GetClockOptions() clock.Options
+
 	// InstrumentOptions sets the instrumentation options
 	InstrumentOptions(value instrument.Options) Options
 

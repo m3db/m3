@@ -21,12 +21,14 @@
 package bootstrap
 
 import (
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 )
 
 type options struct {
+	clockOpts      clock.Options
 	instrumentOpts instrument.Options
 	retentionOpts  retention.Options
 	blockOpts      block.Options
@@ -35,10 +37,21 @@ type options struct {
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
+		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
 		retentionOpts:  retention.NewOptions(),
 		blockOpts:      block.NewOptions(),
 	}
+}
+
+func (o *options) ClockOptions(value clock.Options) Options {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *options) GetClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *options) InstrumentOptions(value instrument.Options) Options {

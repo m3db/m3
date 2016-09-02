@@ -273,6 +273,25 @@ func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
 	}
 }
 
+// MinMax will return the very minimum time as a start and the
+// maximum time as an end in the ranges.
+func (r ShardTimeRanges) MinMax() (time.Time, time.Time) {
+	min, max := time.Time{}, time.Time{}
+	for _, ranges := range r {
+		it := ranges.Iter()
+		for it.Next() {
+			curr := it.Value()
+			if min.IsZero() || curr.Start.Before(min) {
+				min = curr.Start
+			}
+			if max.IsZero() || curr.End.After(max) {
+				max = curr.End
+			}
+		}
+	}
+	return min, max
+}
+
 // String returns a description of the time ranges
 func (r ShardTimeRanges) String() string {
 	var (

@@ -365,6 +365,29 @@ func TestShardTimeRangesSubtract(t *testing.T) {
 	}))
 }
 
+func TestShardTimeRangesMinMax(t *testing.T) {
+	opts := testResultOptions()
+
+	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	start := time.Now().Truncate(blockSize)
+
+	str := ShardTimeRanges{
+		0: xtime.NewRanges().AddRange(xtime.Range{
+			Start: start,
+			End:   start.Add(blockSize),
+		}),
+		1: xtime.NewRanges().AddRange(xtime.Range{
+			Start: start.Add(blockSize),
+			End:   start.Add(2 * blockSize),
+		}),
+	}
+
+	min, max := str.MinMax()
+
+	assert.True(t, min.Equal(start))
+	assert.True(t, max.Equal(start.Add(2*blockSize)))
+}
+
 func TestShardTimeRangesString(t *testing.T) {
 	opts := testResultOptions()
 
