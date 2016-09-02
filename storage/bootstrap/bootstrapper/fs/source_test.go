@@ -296,7 +296,7 @@ func validateReadResults(t *testing.T, src bootstrap.Source, dir string, shard u
 	}
 	times := []time.Time{testStart, testStart.Add(10 * time.Hour)}
 	for i, id := range ids {
-		allBlocks := allSeries[id].GetAllBlocks()
+		allBlocks := allSeries[id].AllBlocks()
 		require.Equal(t, 1, len(allBlocks))
 		block := allBlocks[times[i]]
 		stream, err := block.Stream(nil)

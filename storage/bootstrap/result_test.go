@@ -36,9 +36,7 @@ func testResultOptions() Options {
 	return NewOptions()
 }
 
-// todo: GetAllBlocks() rename to AllBlocks()
-
-func TestResultAddShardResultsMergesExistingShardResults(t *testing.T) {
+func TestResultAddMergesExistingShardResults(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.GetDatabaseBlockOptions()
 
@@ -62,8 +60,8 @@ func TestResultAddShardResultsMergesExistingShardResults(t *testing.T) {
 	srs[1].AddBlock("bar", blocks[2])
 
 	r := NewResult()
-	r.AddShardResult(0, srs[0], nil)
-	r.AddShardResult(0, srs[1], nil)
+	r.Add(0, srs[0], nil)
+	r.Add(0, srs[1], nil)
 
 	srMerged := NewShardResult(opts)
 	srMerged.AddBlock("foo", blocks[0])
@@ -71,12 +69,12 @@ func TestResultAddShardResultsMergesExistingShardResults(t *testing.T) {
 	srMerged.AddBlock("bar", blocks[2])
 
 	merged := NewResult()
-	merged.AddShardResult(0, srMerged, nil)
+	merged.Add(0, srMerged, nil)
 
 	assert.True(t, r.ShardResults().Equal(merged.ShardResults()))
 }
 
-func TestResultAddShardResultsOverwritesUnfulfilled(t *testing.T) {
+func TestResultAddMergesUnfulfilled(t *testing.T) {
 	opts := testResultOptions()
 
 	blockSize := opts.GetRetentionOptions().GetBlockSize()
@@ -84,25 +82,22 @@ func TestResultAddShardResultsOverwritesUnfulfilled(t *testing.T) {
 
 	r := NewResult()
 
-	r.AddShardResult(0, nil, xtime.NewRanges().AddRange(xtime.Range{
+	r.Add(0, nil, xtime.NewRanges().AddRange(xtime.Range{
 		Start: start,
 		End:   start.Add(8 * blockSize),
 	}))
 
-	r.AddShardResult(0, nil, xtime.NewRanges().AddRange(xtime.Range{
+	r.Add(0, nil, xtime.NewRanges().AddRange(xtime.Range{
 		Start: start,
 		End:   start.Add(2 * blockSize),
 	}).AddRange(xtime.Range{
 		Start: start.Add(6 * blockSize),
-		End:   start.Add(8 * blockSize),
+		End:   start.Add(10 * blockSize),
 	}))
 
 	expected := ShardTimeRanges{0: xtime.NewRanges().AddRange(xtime.Range{
 		Start: start,
-		End:   start.Add(2 * blockSize),
-	}).AddRange(xtime.Range{
-		Start: start.Add(6 * blockSize),
-		End:   start.Add(8 * blockSize),
+		End:   start.Add(10 * blockSize),
 	})}
 
 	assert.True(t, r.Unfulfilled().Equal(expected))
@@ -168,12 +163,12 @@ func TestResultAddResult(t *testing.T) {
 		NewResult(),
 	}
 
-	rs[0].AddShardResult(0, srs[0], xtime.NewRanges().AddRange(xtime.Range{
+	rs[0].Add(0, srs[0], xtime.NewRanges().AddRange(xtime.Range{
 		Start: start.Add(4 * blockSize),
 		End:   start.Add(6 * blockSize),
 	}))
 
-	rs[1].AddShardResult(0, srs[1], xtime.NewRanges().AddRange(xtime.Range{
+	rs[1].Add(0, srs[1], xtime.NewRanges().AddRange(xtime.Range{
 		Start: start.Add(6 * blockSize),
 		End:   start.Add(8 * blockSize),
 	}))
@@ -376,25 +371,29 @@ func TestShardTimeRangesString(t *testing.T) {
 	blockSize := opts.GetRetentionOptions().GetBlockSize()
 	start := time.Unix(1472824800, 0)
 
+	ts := [][]time.Time{
+		[]time.Time{start, start.Add(blockSize)},
+		[]time.Time{start.Add(2 * blockSize), start.Add(4 * blockSize)},
+		[]time.Time{start, start.Add(2 * blockSize)},
+	}
+
 	str := ShardTimeRanges{
 		0: xtime.NewRanges().AddRange(xtime.Range{
-			Start: start,
-			End:   start.Add(blockSize),
+			Start: ts[0][0],
+			End:   ts[0][1],
 		}).AddRange(xtime.Range{
-			Start: start.Add(2 * blockSize),
-			End:   start.Add(4 * blockSize),
+			Start: ts[1][0],
+			End:   ts[1][1],
 		}),
 		1: xtime.NewRanges().AddRange(xtime.Range{
-			Start: start,
-			End:   start.Add(2 * blockSize),
+			Start: ts[2][0],
+			End:   ts[2][1],
 		}),
 	}
 
-	expected := "{0: " +
-		"[(2016-09-02 10:00:00 -0400 EDT,2016-09-02 12:00:00 -0400 EDT)," +
-		"(2016-09-02 14:00:00 -0400 EDT,2016-09-02 18:00:00 -0400 EDT)]" +
-		", 1: " +
-		"[(2016-09-02 10:00:00 -0400 EDT,2016-09-02 14:00:00 -0400 EDT)]" +
+	expected := "{" +
+		fmt.Sprintf("0: [(%v,%v),(%v,%v)], ", ts[0][0], ts[0][1], ts[1][0], ts[1][1]) +
+		fmt.Sprintf("1: [(%v,%v)]", ts[2][0], ts[2][1]) +
 		"}"
 
 	assert.Equal(t, expected, str.String())

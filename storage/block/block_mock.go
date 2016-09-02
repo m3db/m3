@@ -218,14 +218,14 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) GetBlockOrAdd(arg0 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBlockOrAdd", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) GetAllBlocks() map[time.Time]DatabaseBlock {
-	ret := _m.ctrl.Call(_m, "GetAllBlocks")
+func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {
+	ret := _m.ctrl.Call(_m, "AllBlocks")
 	ret0, _ := ret[0].(map[time.Time]DatabaseBlock)
 	return ret0
 }
 
-func (_mr *_MockDatabaseSeriesBlocksRecorder) GetAllBlocks() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetAllBlocks")
+func (_mr *_MockDatabaseSeriesBlocksRecorder) AllBlocks() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "AllBlocks")
 }
 
 func (_m *MockDatabaseSeriesBlocks) RemoveBlockAt(t time.Time) {

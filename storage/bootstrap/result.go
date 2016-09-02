@@ -51,11 +51,9 @@ func (r *result) Unfulfilled() ShardTimeRanges {
 	return r.unfulfilled
 }
 
-func (r *result) AddShardResult(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
+func (r *result) Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
 	r.results.AddResults(ShardResults{shard: result})
-	if unfulfilled != nil && !unfulfilled.IsEmpty() {
-		r.unfulfilled[shard] = unfulfilled
-	}
+	r.unfulfilled.AddRanges(ShardTimeRanges{shard: unfulfilled})
 }
 
 func (r *result) SetUnfulfilled(unfulfilled ShardTimeRanges) {
@@ -168,8 +166,8 @@ func (r ShardResults) Equal(other ShardResults) bool {
 			if !ok {
 				return false
 			}
-			allBlocks := blocks.GetAllBlocks()
-			otherAllBlocks := otherBlocks.GetAllBlocks()
+			allBlocks := blocks.AllBlocks()
+			otherAllBlocks := otherBlocks.AllBlocks()
 			if len(allBlocks) != len(otherAllBlocks) {
 				return false
 			}
@@ -253,7 +251,7 @@ func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
 func (r ShardTimeRanges) ToUnfulfilledResult() Result {
 	result := NewResult()
 	for shard, ranges := range r {
-		result.AddShardResult(shard, nil, ranges)
+		result.Add(shard, nil, ranges)
 	}
 	return result
 }

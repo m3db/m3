@@ -94,8 +94,8 @@ func validateSeries(t *testing.T, expectedSeries, actualSeries block.DatabaseSer
 		require.Nil(t, actualSeries)
 		return
 	}
-	eb := expectedSeries.GetAllBlocks()
-	ab := actualSeries.GetAllBlocks()
+	eb := expectedSeries.AllBlocks()
+	ab := actualSeries.AllBlocks()
 	require.Equal(t, len(eb), len(ab))
 	for id, expectedBlock := range eb {
 		actualBlock, exists := ab[id]

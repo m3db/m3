@@ -269,8 +269,8 @@ func requireShardResults(
 			otherBlocks, ok := otherSeries[id]
 			require.True(t, ok)
 
-			allBlocks := blocks.GetAllBlocks()
-			otherAllBlocks := otherBlocks.GetAllBlocks()
+			allBlocks := blocks.AllBlocks()
+			otherAllBlocks := otherBlocks.AllBlocks()
 			require.Equal(t, len(allBlocks), len(otherAllBlocks))
 
 			blopts := blocks.Options()

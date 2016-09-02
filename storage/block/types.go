@@ -84,8 +84,8 @@ type DatabaseSeriesBlocks interface {
 	// GetBlockAt returns the block at a given time, add it if it doesn't exist.
 	GetBlockOrAdd(t time.Time) DatabaseBlock
 
-	// GetAllBlocks returns all the blocks in the series.
-	GetAllBlocks() map[time.Time]DatabaseBlock
+	// AllBlocks returns all the blocks in the series.
+	AllBlocks() map[time.Time]DatabaseBlock
 
 	// RemoveBlockAt removes the block at a given time if any.
 	RemoveBlockAt(t time.Time)

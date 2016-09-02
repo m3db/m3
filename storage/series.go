@@ -114,7 +114,7 @@ func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 
 	// If one or more blocks need to be sealed, we should update
 	// the blocks.
-	allBlocks := s.blocks.GetAllBlocks()
+	allBlocks := s.blocks.AllBlocks()
 	for blockStart, block := range allBlocks {
 		if s.shouldSeal(now, blockStart, block) {
 			return true
@@ -132,7 +132,7 @@ func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
 
 func (s *dbSeries) updateBlocksWithLock() {
 	now := s.opts.GetClockOptions().GetNowFn()()
-	allBlocks := s.blocks.GetAllBlocks()
+	allBlocks := s.blocks.AllBlocks()
 	for blockStart, block := range allBlocks {
 		if s.shouldExpire(now, blockStart) {
 			s.blocks.RemoveBlockAt(blockStart)
@@ -269,7 +269,7 @@ func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) F
 	s.RLock()
 
 	// Iterate over the data blocks
-	blocks := s.blocks.GetAllBlocks()
+	blocks := s.blocks.AllBlocks()
 	for t, b := range blocks {
 		reader, err := b.Stream(ctx)
 		// If we failed to read some blocks, skip this block and continue to get

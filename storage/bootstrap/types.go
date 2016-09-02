@@ -40,8 +40,8 @@ type Result interface {
 	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
 	Unfulfilled() ShardTimeRanges
 
-	// AddShardResult adds a shard result with any unfulfilled time ranges.
-	AddShardResult(shard uint32, result ShardResult, unfulfilled xtime.Ranges)
+	// Add adds a shard result with any unfulfilled time ranges.
+	Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges)
 
 	// SetUnfulfilled sets the current unfulfilled shard time ranges.
 	SetUnfulfilled(unfulfilled ShardTimeRanges)
