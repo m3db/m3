@@ -69,9 +69,9 @@ func (s *peersSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (bootstra
 			end := currRange.End
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(shard, start, end, bopts)
 			if err == nil {
-				result.AddShardResult(shard, shardResult, nil)
+				result.Add(shard, shardResult, nil)
 			} else {
-				result.AddShardResult(shard, nil, xtime.NewRanges().AddRange(currRange))
+				result.Add(shard, nil, xtime.NewRanges().AddRange(currRange))
 			}
 		}
 	}

@@ -100,7 +100,7 @@ func (s *fileSystemSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (boo
 			files = append(files, fname)
 		})
 		if len(files) == 0 {
-			result.AddShardResult(shard, nil, tr)
+			result.Add(shard, nil, tr)
 			continue
 		}
 
@@ -153,7 +153,7 @@ func (s *fileSystemSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (boo
 			}
 		}
 
-		result.AddShardResult(shard, seriesMap, tr)
+		result.Add(shard, seriesMap, tr)
 	}
 
 	return result, nil

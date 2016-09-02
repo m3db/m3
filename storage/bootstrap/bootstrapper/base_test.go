@@ -76,7 +76,7 @@ func shardResult(entries ...testBlockEntry) bootstrap.ShardResult {
 func testResult(results map[uint32]testShardResult) bootstrap.Result {
 	result := bootstrap.NewResult()
 	for shard, entry := range results {
-		result.AddShardResult(shard, entry.result, entry.unfulfilled)
+		result.Add(shard, entry.result, entry.unfulfilled)
 	}
 	return result
 }

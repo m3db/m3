@@ -73,12 +73,12 @@ func (_mr *_MockResultRecorder) Unfulfilled() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Unfulfilled")
 }
 
-func (_m *MockResult) AddShardResult(shard uint32, result ShardResult, unfulfilled time0.Ranges) {
-	_m.ctrl.Call(_m, "AddShardResult", shard, result, unfulfilled)
+func (_m *MockResult) Add(shard uint32, result ShardResult, unfulfilled time0.Ranges) {
+	_m.ctrl.Call(_m, "Add", shard, result, unfulfilled)
 }
 
-func (_mr *_MockResultRecorder) AddShardResult(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddShardResult", arg0, arg1, arg2)
+func (_mr *_MockResultRecorder) Add(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Add", arg0, arg1, arg2)
 }
 
 func (_m *MockResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {

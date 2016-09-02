@@ -219,7 +219,7 @@ func (s *commitLogSource) Read(shardsTimeRanges bootstrap.ShardTimeRanges) (boot
 			}
 		}
 		if len(shardResult.AllSeries()) > 0 {
-			result.AddShardResult(shard, shardResult, nil)
+			result.Add(shard, shardResult, nil)
 		}
 	}
 	if errs > 0 {

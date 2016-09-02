@@ -94,7 +94,7 @@ func TestDatabaseBootstrapWithBootstrapShardError(t *testing.T) {
 		allSeries := map[string]block.DatabaseSeriesBlocks{}
 		result := bootstrap.NewMockShardResult(ctrl)
 		result.EXPECT().AllSeries().Return(allSeries)
-		bsResult.AddShardResult(i, result, nil)
+		bsResult.Add(i, result, nil)
 		shard.EXPECT().Bootstrap(gomock.Any(), now, cutover).Return(err)
 		shards = append(shards, shard)
 		i++
