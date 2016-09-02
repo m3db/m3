@@ -26,7 +26,7 @@ import (
 
 const (
 	// defaultServerStateChangeTimeout is the default time we wait for a server to change its state.
-	defaultServerStateChangeTimeout = 30 * time.Second
+	defaultServerStateChangeTimeout = time.Minute
 
 	// defaultClusterConnectionTimeout is the default time we wait for cluster connections to be established.
 	defaultClusterConnectionTimeout = 2 * time.Second
