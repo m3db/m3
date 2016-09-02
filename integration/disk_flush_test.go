@@ -129,8 +129,8 @@ func TestDiskFlush(t *testing.T) {
 	testSetup.storageOpts =
 		testSetup.storageOpts.
 			RetentionOptions(testSetup.storageOpts.GetRetentionOptions().
-				BufferDrain(3 * time.Second).
-				RetentionPeriod(6 * time.Hour))
+			BufferDrain(3 * time.Second).
+			RetentionPeriod(6 * time.Hour))
 
 	blockSize := testSetup.storageOpts.GetRetentionOptions().GetBlockSize()
 	filePathPrefix := testSetup.storageOpts.GetCommitLogOptions().GetFilesystemOptions().GetFilePathPrefix()
@@ -170,7 +170,7 @@ func TestDiskFlush(t *testing.T) {
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	waitTimeout := testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 4
+	waitTimeout := testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 10
 	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, waitTimeout))
 
 	// Verify on-disk data match what we expect
