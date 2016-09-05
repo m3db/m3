@@ -1,27 +1,23 @@
-hash: 66a93b2dee96b63dd10a73969dfcf06cffb16a54b6191e4d2df029b72186b41c
-updated: 2016-08-23T12:23:34.92850492-04:00
+hash: 886ae72d9ea0b32af162291a3c348d30c4a2d19ee70100da29e53dce05c7c2a7
+updated: 2016-09-05T13:02:39.60792998-04:00
 imports:
-- name: github.com/cactus/go-statsd-client
-  version: 91c326c3f7bd20f0226d3d1c289dd9f8ce28d33d
-  subpackages:
-  - statsd
-- name: github.com/caio/go-tdigest
-  version: 06ac75a2a647414eb85fe839b5d340e0691dfa81
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
-- name: github.com/jessevdk/go-flags
-  version: f2785f5820ec967043de79c8be97edfc464ca745
 - name: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
   - assert
   - require
-- name: golang.org/x/crypto
-  version: 1f83de14df312a49980cf0b48d13101190615af6
-- name: golang.org/x/net
-  version: 07b51741c1d6423d4a6abab1c49940ec09cb1aaf
-- name: golang.org/x/text
-  version: d69c40b4be55797923cec7457fac7a244d91a9b6
-devImports: []
+- name: github.com/uber-go/tally
+  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+testImports:
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
+- name: github.com/pmezard/go-difflib
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  subpackages:
+  - difflib

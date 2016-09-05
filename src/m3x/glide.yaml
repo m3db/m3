@@ -1,25 +1,14 @@
 package: github.com/m3db/m3x
 import:
-- package: github.com/cactus/go-statsd-client
-  version: 91c326c3f7bd20f0226d3d1c289dd9f8ce28d33d
-  subpackages:
-  - statsd
-- package: github.com/caio/go-tdigest
-  version: 06ac75a2a647414eb85fe839b5d340e0691dfa81
 - package: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - package: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
-- package: github.com/jessevdk/go-flags
-  version: f2785f5820ec967043de79c8be97edfc464ca745
 - package: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
   - assert
   - require
-- package: golang.org/x/crypto
-  version: 1f83de14df312a49980cf0b48d13101190615af6
-- package: golang.org/x/net
-  version: 07b51741c1d6423d4a6abab1c49940ec09cb1aaf
-- package: golang.org/x/text
-  version: d69c40b4be55797923cec7457fac7a244d91a9b6
+- package: github.com/uber-go/tally
+  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+
