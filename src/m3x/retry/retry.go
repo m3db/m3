@@ -102,12 +102,16 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 		return ErrWhileConditionFalse
 	}
 
+	start := time.Now()
 	err := fn()
+	duration := time.Now().Sub(start)
 	attempt++
 	if err == nil {
+		r.metrics.successLatency.Record(duration)
 		r.metrics.success.Inc(1)
 		return nil
 	}
+	r.metrics.errorsLatency.Record(duration)
 	if xerrors.IsNonRetryableError(err) {
 		r.metrics.errorsNotRetryable.Inc(1)
 		return err
@@ -127,12 +131,16 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 		}
 
 		r.metrics.retries.Inc(1)
+		start := time.Now()
 		err = fn()
+		duration := time.Now().Sub(start)
 		attempt++
 		if err == nil {
+			r.metrics.successLatency.Record(duration)
 			r.metrics.success.Inc(1)
 			return nil
 		}
+		r.metrics.errorsLatency.Record(duration)
 		if xerrors.IsNonRetryableError(err) {
 			r.metrics.errorsNotRetryable.Inc(1)
 			return err
