@@ -109,33 +109,33 @@ func GetInnerInvalidParamsError(err error) error {
 	return nil
 }
 
-type retriableError struct {
+type retryableError struct {
 	containedError
 }
 
-// NewRetriableError creates a new retriable error
-func NewRetriableError(inner error) error {
-	return retriableError{containedError{inner}}
+// NewRetryableError creates a new retryable error
+func NewRetryableError(inner error) error {
+	return retryableError{containedError{inner}}
 }
 
-func (e retriableError) Error() string {
+func (e retryableError) Error() string {
 	return e.inner.Error()
 }
 
-func (e retriableError) innerError() error {
+func (e retryableError) innerError() error {
 	return e.inner
 }
 
-// IsRetriableError returns true if this is a retriable error
-func IsRetriableError(err error) bool {
-	return GetInnerRetriableError(err) != nil
+// IsRetryableError returns true if this is a retryable error
+func IsRetryableError(err error) bool {
+	return GetInnerRetryableError(err) != nil
 }
 
-// GetInnerRetriableError returns an inner retriable error
+// GetInnerRetryableError returns an inner retryable error
 // if contained by this error, nil otherwise
-func GetInnerRetriableError(err error) error {
+func GetInnerRetryableError(err error) error {
 	for err != nil {
-		if _, ok := err.(retriableError); ok {
+		if _, ok := err.(retryableError); ok {
 			return InnerError(err)
 		}
 		err = InnerError(err)
@@ -143,33 +143,33 @@ func GetInnerRetriableError(err error) error {
 	return nil
 }
 
-type nonRetriableError struct {
+type nonRetryableError struct {
 	containedError
 }
 
-// NewNonRetriableError creates a new non-retriable error
-func NewNonRetriableError(inner error) error {
-	return nonRetriableError{containedError{inner}}
+// NewNonRetryableError creates a new non-retryable error
+func NewNonRetryableError(inner error) error {
+	return nonRetryableError{containedError{inner}}
 }
 
-func (e nonRetriableError) Error() string {
+func (e nonRetryableError) Error() string {
 	return e.inner.Error()
 }
 
-func (e nonRetriableError) innerError() error {
+func (e nonRetryableError) innerError() error {
 	return e.inner
 }
 
-// IsNonRetriableError returns true if this is a non-retriable error
-func IsNonRetriableError(err error) bool {
-	return GetInnerNonRetriableError(err) != nil
+// IsNonRetryableError returns true if this is a non-retryable error
+func IsNonRetryableError(err error) bool {
+	return GetInnerNonRetryableError(err) != nil
 }
 
-// GetInnerNonRetriableError returns an inner non-retriable error
+// GetInnerNonRetryableError returns an inner non-retryable error
 // if contained by this error, nil otherwise
-func GetInnerNonRetriableError(err error) error {
+func GetInnerNonRetryableError(err error) error {
 	for err != nil {
-		if _, ok := err.(nonRetriableError); ok {
+		if _, ok := err.(nonRetryableError); ok {
 			return InnerError(err)
 		}
 		err = InnerError(err)

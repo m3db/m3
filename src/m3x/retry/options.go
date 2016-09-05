@@ -20,7 +20,11 @@
 
 package xretry
 
-import "time"
+import (
+	"time"
+
+	"github.com/uber-go/tally"
+)
 
 const (
 	defaultInitialBackoff = time.Second
@@ -30,6 +34,7 @@ const (
 )
 
 type options struct {
+	scope          tally.Scope
 	initialBackoff time.Duration
 	backoffFactor  float64
 	max            int
@@ -39,11 +44,22 @@ type options struct {
 // NewOptions creates new retry options
 func NewOptions() Options {
 	return &options{
+		scope:          tally.NoopScope,
 		initialBackoff: defaultInitialBackoff,
 		backoffFactor:  defaultBackoffFactor,
 		max:            defaultMax,
 		jitter:         defaultJitter,
 	}
+}
+
+func (o *options) MetricsScope(value tally.Scope) Options {
+	opts := *o
+	opts.scope = value
+	return &opts
+}
+
+func (o *options) GetMetricsScope() tally.Scope {
+	return o.scope
 }
 
 func (o *options) InitialBackoff(value time.Duration) Options {

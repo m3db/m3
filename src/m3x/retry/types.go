@@ -24,16 +24,18 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/errors"
+
+	"github.com/uber-go/tally"
 )
 
-// RetriableError returns a retriable error
-func RetriableError(err error) error {
-	return xerrors.NewRetriableError(err)
+// RetryableError returns a retryable error
+func RetryableError(err error) error {
+	return xerrors.NewRetryableError(err)
 }
 
-// NonRetriableError returns a non-retriable error
-func NonRetriableError(err error) error {
-	return xerrors.NewNonRetriableError(err)
+// NonRetryableError returns a non-retryable error
+func NonRetryableError(err error) error {
+	return xerrors.NewNonRetryableError(err)
 }
 
 // Fn is a function that can be retried
@@ -53,6 +55,12 @@ type Retrier interface {
 
 // Options is a set of retry options
 type Options interface {
+	// MetricsScope sets the metrics scope
+	MetricsScope(value tally.Scope) Options
+
+	// GetMetricsScope returns the metrics scope
+	GetMetricsScope() tally.Scope
+
 	// InitialBackoff sets the initial delay duration
 	InitialBackoff(value time.Duration) Options
 

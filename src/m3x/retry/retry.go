@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/errors"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -40,16 +42,48 @@ type retrier struct {
 	max            int
 	jitter         bool
 	sleepFn        func(t time.Duration)
+	metrics        retrierMetrics
+}
+
+type retrierMetrics struct {
+	success            tally.Counter
+	successLatency     tally.Timer
+	errors             tally.Counter
+	errorsNotRetryable tally.Counter
+	errorsFinal        tally.Counter
+	errorsLatency      tally.Timer
+	retries            tally.Counter
 }
 
 // NewRetrier creates a new retrier
 func NewRetrier(opts Options) Retrier {
+	scope := opts.GetMetricsScope()
+	errorTags := struct {
+		retryable    map[string]string
+		notRetryable map[string]string
+	}{
+		map[string]string{
+			"type": "retryable",
+		},
+		map[string]string{
+			"type": "not-retryable",
+		},
+	}
 	return &retrier{
 		initialBackoff: opts.GetInitialBackoff(),
 		backoffFactor:  opts.GetBackoffFactor(),
 		max:            opts.GetMax(),
 		jitter:         opts.GetJitter(),
 		sleepFn:        time.Sleep,
+		metrics: retrierMetrics{
+			success:            scope.Counter("success"),
+			successLatency:     scope.Timer("success-latency"),
+			errors:             scope.Tagged(errorTags.retryable).Counter("errors"),
+			errorsNotRetryable: scope.Tagged(errorTags.notRetryable).Counter("errors"),
+			errorsFinal:        scope.Counter("errors-final"),
+			errorsLatency:      scope.Timer("errors-latency"),
+			retries:            scope.Counter("retries"),
+		},
 	}
 }
 
@@ -71,11 +105,14 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 	err := fn()
 	attempt++
 	if err == nil {
+		r.metrics.success.Inc(1)
 		return nil
 	}
-	if xerrors.IsNonRetriableError(err) {
+	if xerrors.IsNonRetryableError(err) {
+		r.metrics.errorsNotRetryable.Inc(1)
 		return err
 	}
+	r.metrics.errors.Inc(1)
 
 	for i := 0; i < r.max; i++ {
 		curr := r.initialBackoff.Nanoseconds() * int64(math.Pow(r.backoffFactor, float64(i)))
@@ -89,15 +126,20 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 			return ErrWhileConditionFalse
 		}
 
+		r.metrics.retries.Inc(1)
 		err = fn()
 		attempt++
 		if err == nil {
+			r.metrics.success.Inc(1)
 			return nil
 		}
-		if xerrors.IsNonRetriableError(err) {
+		if xerrors.IsNonRetryableError(err) {
+			r.metrics.errorsNotRetryable.Inc(1)
 			return err
 		}
+		r.metrics.errors.Inc(1)
 	}
+	r.metrics.errorsFinal.Inc(1)
 
 	return err
 }

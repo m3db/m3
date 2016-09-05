@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	errTestFn = RetriableError(errors.New("an error"))
+	errTestFn = RetryableError(errors.New("an error"))
 )
 
 type testFnOpts struct {
@@ -134,25 +134,25 @@ func TestRetrierExponentialBackOffJitter(t *testing.T) {
 	assert.True(t, 500*time.Millisecond <= slept && slept < time.Second)
 }
 
-func TestRetrierExponentialBackOffNonRetriableErrorImmediate(t *testing.T) {
+func TestRetrierExponentialBackOffNonRetryableErrorImmediate(t *testing.T) {
 	slept := time.Duration(0)
 	r := NewRetrier(testOptions()).(*retrier)
 	r.sleepFn = func(t time.Duration) {
 		slept += t
 	}
-	expectedErr := NonRetriableError(fmt.Errorf("an error"))
+	expectedErr := NonRetryableError(fmt.Errorf("an error"))
 	err := r.Attempt(newTestFn(testFnOpts{errs: []error{expectedErr}}))
 	assert.Equal(t, expectedErr, err)
 	assert.Equal(t, time.Duration(0), slept)
 }
 
-func TestRetrierExponentialBackOffNonRetriableErrorSecondAttempt(t *testing.T) {
+func TestRetrierExponentialBackOffNonRetryableErrorSecondAttempt(t *testing.T) {
 	slept := time.Duration(0)
 	r := NewRetrier(testOptions()).(*retrier)
 	r.sleepFn = func(t time.Duration) {
 		slept += t
 	}
-	expectedErr := NonRetriableError(fmt.Errorf("an error"))
+	expectedErr := NonRetryableError(fmt.Errorf("an error"))
 	err := r.Attempt(newTestFn(testFnOpts{errs: []error{errTestFn, expectedErr}}))
 	assert.Equal(t, expectedErr, err)
 	assert.Equal(t, time.Second, slept)
