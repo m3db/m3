@@ -138,7 +138,6 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 			var in interface{}
 			if reqIn != nil {
 				in = reflect.New(reqIn.Elem()).Interface()
-				defer r.Body.Close()
 				if err := json.NewDecoder(r.Body).Decode(in); err != nil {
 					writeError(w, errInvalidRequestBody)
 					return
