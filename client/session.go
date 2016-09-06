@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/m3db/m3x/watch"
 
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -74,7 +73,7 @@ type session struct {
 	newHostQueueFn                   newHostQueueFn
 	topo                             topology.Topology
 	topoMap                          topology.Map
-	topoWatch                        xwatch.Watch
+	topoWatch                        topology.MapWatch
 	replicas                         int
 	majority                         int
 	queues                           []hostQueue
@@ -142,18 +141,23 @@ func (s *session) Open() error {
 		return errSessionStateNotInitial
 	}
 
-	initMap, topologyWatch, err := s.topo.GetAndSubscribe()
+	topologyWatch, err := s.topo.Watch()
 	if err != nil {
 		s.Unlock()
 		return err
 	}
 
-	queues, replicas, majority, err := s.initHostQueues(initMap)
+	// Wait for the topology to be available
+	<-topologyWatch.C()
+
+	topologyMap := topologyWatch.Get()
+
+	queues, replicas, majority, err := s.initHostQueues(topologyMap)
 	if err != nil {
 		s.Unlock()
 		return err
 	}
-	s.setTopologyWithLock(initMap, queues, replicas, majority)
+	s.setTopologyWithLock(topologyMap, queues, replicas, majority)
 	s.topoWatch = topologyWatch
 
 	// NB(r): Alloc pools that can take some time in Open, expectation
@@ -170,21 +174,15 @@ func (s *session) Open() error {
 	s.Unlock()
 
 	go func() {
-		log := s.opts.GetInstrumentOptions().GetLogger()
-		for _ = range s.topoWatch.C() {
-			m, ok := s.topoWatch.Get().(topology.Map)
-			if !ok {
-				log.Errorf("received invalid update for topology map")
-				continue
-			}
-
-			queues, replicas, majority, err := s.initHostQueues(m)
+		for range s.topoWatch.C() {
+			topologyMap := s.topoWatch.Get()
+			queues, replicas, majority, err := s.initHostQueues(topologyMap)
 			if err != nil {
-				log.Errorf("could not update topology map: %v", err)
+				s.log.Errorf("could not update topology map: %v", err)
 				continue
 			}
 			s.Lock()
-			s.setTopologyWithLock(m, queues, replicas, majority)
+			s.setTopologyWithLock(topologyMap, queues, replicas, majority)
 			s.Unlock()
 		}
 	}()
@@ -642,8 +640,6 @@ func (s *session) Truncate(namespace string) (int64, error) {
 		wg.Done()
 	}
 
-	log := s.opts.GetInstrumentOptions().GetLogger()
-
 	s.RLock()
 	for idx := range s.queues {
 		wg.Add(1)
@@ -655,7 +651,7 @@ func (s *session) Truncate(namespace string) (int64, error) {
 	s.RUnlock()
 
 	if err := enqueueErr.FinalError(); err != nil {
-		log.Errorf("failed to enqueue request: %v", err)
+		s.log.Errorf("failed to enqueue request: %v", err)
 		return 0, err
 	}
 

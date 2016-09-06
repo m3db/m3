@@ -20,7 +20,10 @@
 
 package topology
 
-import "github.com/m3db/m3db/sharding"
+import (
+	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3x/watch"
+)
 
 type staticMap struct {
 	shardSet            sharding.ShardSet
@@ -111,4 +114,28 @@ func (t *staticMap) Replicas() int {
 
 func (t *staticMap) MajorityReplicas() int {
 	return t.majority
+}
+
+type mapWatch struct {
+	xwatch.Watch
+}
+
+func newMapWatch(w xwatch.Watch) MapWatch {
+	return &mapWatch{w}
+}
+
+func (w *mapWatch) C() <-chan struct{} {
+	return w.Watch.C()
+}
+
+func (w *mapWatch) Get() Map {
+	value := w.Watch.Get()
+	if value == nil {
+		return nil
+	}
+	return value.(Map)
+}
+
+func (w *mapWatch) Close() {
+	w.Watch.Close()
 }

@@ -95,12 +95,12 @@ func (t *dynamicTopology) Get() Map {
 	return t.s.Get().(Map)
 }
 
-func (t *dynamicTopology) GetAndSubscribe() (Map, xwatch.Watch, error) {
-	m, w, err := t.s.Watch()
+func (t *dynamicTopology) Watch() (MapWatch, error) {
+	_, w, err := t.s.Watch()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return m.(Map), w, nil
+	return newMapWatch(w), err
 }
 
 func (t *dynamicTopology) Close() {

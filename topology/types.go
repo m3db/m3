@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/watch"
 )
 
 // Host is a container of a host in a topology
@@ -65,8 +64,21 @@ type Topology interface {
 
 	// Get the topology map
 	Get() Map
-	// Get and subscribe to updates for the topology map
-	GetAndSubscribe() (Map, xwatch.Watch, error)
+
+	// Watch for the topology map
+	Watch() (MapWatch, error)
+}
+
+// MapWatch is a watch on a topology map
+type MapWatch interface {
+	// C is the notification channel for when a value becomes available
+	C() <-chan struct{}
+
+	// Get the current topology map
+	Get() Map
+
+	// Close the watch on the topology map
+	Close()
 }
 
 // Map describes a topology
