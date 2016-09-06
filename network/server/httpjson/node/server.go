@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/m3db/m3db/context"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3db/network/server/httpjson"
 	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
@@ -40,11 +41,15 @@ type server struct {
 func NewServer(
 	db storage.Database,
 	address string,
+	contextPool context.Pool,
 	opts httpjson.ServerOptions,
 ) ns.NetworkService {
 	if opts == nil {
 		opts = httpjson.NewServerOptions()
 	}
+	opts = opts.
+		ContextFn(httpjson.NewDefaultContextFn(contextPool)).
+		PostResponseFn(httpjson.DefaulPostResponseFn)
 	return &server{
 		address: address,
 		db:      db,

@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/storage"
@@ -61,8 +62,7 @@ func (s *service) Health(ctx thrift.Context) (*rpc.HealthResult_, error) {
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	ctx := s.db.Options().GetContextPool().Get()
-	defer ctx.Close()
+	ctx := tchannelthrift.Context(tctx)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
@@ -106,8 +106,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 }
 
 func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchRequest) (*rpc.FetchRawBatchResult_, error) {
-	ctx := s.db.Options().GetContextPool().Get()
-	defer ctx.Close()
+	ctx := tchannelthrift.Context(tctx)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
@@ -139,8 +138,7 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 }
 
 func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) (*rpc.FetchBlocksResult_, error) {
-	ctx := s.db.Options().GetContextPool().Get()
-	defer ctx.Close()
+	ctx := tchannelthrift.Context(tctx)
 
 	var blockStarts []time.Time
 
@@ -176,8 +174,7 @@ func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) 
 }
 
 func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksMetadataRequest) (*rpc.FetchBlocksMetadataResult_, error) {
-	ctx := s.db.Options().GetContextPool().Get()
-	defer ctx.Close()
+	ctx := tchannelthrift.Context(tctx)
 
 	if req.Limit <= 0 {
 		return nil, nil
@@ -222,8 +219,7 @@ func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksM
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
-	ctx := s.db.Options().GetContextPool().Get()
-	defer ctx.Close()
+	ctx := tchannelthrift.Context(tctx)
 
 	if req.IdDatapoint == nil || req.IdDatapoint.Datapoint == nil {
 		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
@@ -247,8 +243,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteBatch(tctx thrift.Context, req *rpc.WriteBatchRequest) error {
-	ctx := s.db.Options().GetContextPool().Get()
-	defer ctx.Close()
+	ctx := tchannelthrift.Context(tctx)
 
 	var errs []*rpc.WriteBatchError
 	for i, elem := range req.Elements {

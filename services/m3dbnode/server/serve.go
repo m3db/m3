@@ -104,27 +104,29 @@ func Serve(
 		return fmt.Errorf("could not create cluster client: %v", err)
 	}
 
-	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, nil).ListenAndServe()
+	contextPool := storageOpts.GetContextPool()
+
+	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelNodeAddr, err)
 	}
 	defer nativeNodeClose()
 	log.Infof("node tchannelthrift: listening on %v", tchannelNodeAddr)
 
-	httpjsonNodeClose, err := hjnode.NewServer(db, httpNodeAddr, nil).ListenAndServe()
+	httpjsonNodeClose, err := hjnode.NewServer(db, httpNodeAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open httpjson interface %s: %v", httpNodeAddr, err)
 	}
 	defer httpjsonNodeClose()
 	log.Infof("node httpjson: listening on %v", httpNodeAddr)
 
-	nativeClusterClose, err := ttcluster.NewServer(client, tchannelClusterAddr, nil).ListenAndServe()
+	nativeClusterClose, err := ttcluster.NewServer(client, tchannelClusterAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelClusterAddr, err)
 	}
 	defer nativeClusterClose()
 	log.Infof("cluster tchannelthrift: listening on %v", tchannelClusterAddr)
-	httpjsonClusterClose, err := hjcluster.NewServer(client, httpClusterAddr, nil).ListenAndServe()
+	httpjsonClusterClose, err := hjcluster.NewServer(client, httpClusterAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open httpjson interface %s: %v", httpClusterAddr, err)
 	}

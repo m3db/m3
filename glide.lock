@@ -1,12 +1,12 @@
-hash: f1b931ad59e05145c8c92f1f7c8e82e60a876b149d09a28d93ca0ee8906526aa
-updated: 2016-08-31T10:20:21.301485049-04:00
+hash: f9889bbaf1ce135733dba4395698b76655e753b84cc1aa81adb9a441407f2eaf
+updated: 2016-09-06T09:32:11.33430323-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
 - name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  version: 6cf5744a041a0022271cefed95ba843f6d87fd51
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
@@ -24,8 +24,8 @@ imports:
   subpackages:
   - client
   - services
-  - kv
   - shard
+  - kv
 - name: github.com/m3db/m3x
   version: 90e51d6e6c6e648af2f048654390f66034e49dc5
   subpackages:
@@ -35,8 +35,12 @@ imports:
   - retry
   - time
   - watch
+- name: github.com/opentracing/opentracing-go
+  version: 77a31d686003349e89c89e58408aafcd20003f41
+  subpackages:
+  - ext
 - name: github.com/pmezard/go-difflib
-  version: e8554b8641db39598be7f6342874b958f12ae1d4
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
 - name: github.com/spaolacci/murmur3
@@ -46,14 +50,17 @@ imports:
   subpackages:
   - require
   - assert
+- name: github.com/uber-go/atomic
+  version: 0c9e689d64f004564b79d9a663634756df322902
 - name: github.com/uber-go/tally
   version: 13a01a2a0dd2ade06c307ccc0ca4e83196c88422
 - name: github.com/uber/tchannel-go
-  version: 521248db9bf9eb98e86f0d5334e56a890b6a559b
+  version: 1a0e35378f6f721bc07f6c4466bc9701ed70b506
   subpackages:
   - thrift
-  - atomic
+  - relay
   - tnet
+  - trand
   - typed
   - thrift/gen-go/meta
 - name: github.com/willf/bitset
@@ -62,4 +69,4 @@ imports:
   version: 07b51741c1d6423d4a6abab1c49940ec09cb1aaf
   subpackages:
   - context
-devImports: []
+testImports: []

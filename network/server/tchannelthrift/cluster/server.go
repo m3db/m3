@@ -22,12 +22,13 @@ package cluster
 
 import (
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	ns "github.com/m3db/m3db/network/server"
+	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3x/close"
 
 	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
@@ -36,15 +37,17 @@ const (
 )
 
 type server struct {
-	client  client.Client
-	address string
-	opts    *tchannel.ChannelOptions
+	client      client.Client
+	address     string
+	contextPool context.Pool
+	opts        *tchannel.ChannelOptions
 }
 
 // NewServer creates a new cluster TChannel Thrift network service
 func NewServer(
 	client client.Client,
 	address string,
+	contextPool context.Pool,
 	opts *tchannel.ChannelOptions,
 ) ns.NetworkService {
 	// Make the opts immutable on the way in
@@ -53,9 +56,10 @@ func NewServer(
 		opts = &immutableOpts
 	}
 	return &server{
-		address: address,
-		client:  client,
-		opts:    opts,
+		address:     address,
+		client:      client,
+		contextPool: contextPool,
+		opts:        opts,
 	}
 }
 
@@ -66,9 +70,7 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 	}
 
 	service := NewService(s.client)
-
-	server := thrift.NewServer(channel)
-	server.Register(rpc.NewTChanClusterServer(service))
+	tchannelthrift.RegisterServer(channel, rpc.NewTChanClusterServer(service), s.contextPool)
 
 	channel.ListenAndServe(s.address)
 

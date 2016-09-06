@@ -18,60 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package node
+package tchannelthrift
 
 import (
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/generated/thrift/rpc"
-	ns "github.com/m3db/m3db/network/server"
-	"github.com/m3db/m3db/network/server/tchannelthrift"
-	"github.com/m3db/m3db/storage"
 
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
+	xnetcontext "golang.org/x/net/context"
 )
 
 const (
-	// ChannelName is the TChannel channel name the node service is exposed on
-	ChannelName = "Node"
+	contextKey = "m3dbcontext"
 )
 
-type server struct {
-	db          storage.Database
-	address     string
-	contextPool context.Pool
-	opts        *tchannel.ChannelOptions
+// RegisterServer will register a tchannel thrift server and create and close M3DB contexts per request
+func RegisterServer(channel *tchannel.Channel, service thrift.TChanServer, contextPool context.Pool) {
+	server := thrift.NewServer(channel)
+	server.Register(service, thrift.OptPostResponse(postResponseFn))
+	server.SetContextFn(func(ctx xnetcontext.Context, method string, headers map[string]string) thrift.Context {
+		ctxWithValue := xnetcontext.WithValue(ctx, contextKey, contextPool.Get())
+		return thrift.WithHeaders(ctxWithValue, headers)
+	})
 }
 
-// NewServer creates a new node TChannel Thrift network service
-func NewServer(
-	db storage.Database,
-	address string,
-	contextPool context.Pool,
-	opts *tchannel.ChannelOptions,
-) ns.NetworkService {
-	// Make the opts immutable on the way in
-	if opts != nil {
-		immutableOpts := *opts
-		opts = &immutableOpts
-	}
-	return &server{
-		db:          db,
-		address:     address,
-		contextPool: contextPool,
-		opts:        opts,
-	}
+// Context returns an M3DB context from the thrift context
+func Context(ctx thrift.Context) context.Context {
+	return ctx.Value(contextKey).(context.Context)
 }
 
-func (s *server) ListenAndServe() (ns.Close, error) {
-	channel, err := tchannel.NewChannel(ChannelName, s.opts)
-	if err != nil {
-		return nil, err
-	}
-
-	service := NewService(s.db)
-	tchannelthrift.RegisterServer(channel, rpc.NewTChanNodeServer(service), s.contextPool)
-
-	channel.ListenAndServe(s.address)
-
-	return channel.Close, nil
+func postResponseFn(ctx xnetcontext.Context, method string, response apachethrift.TStruct) {
+	value := ctx.Value(contextKey)
+	inner := value.(context.Context)
+	inner.Close()
 }
