@@ -25,7 +25,7 @@ import:
   - require
     
 - package: github.com/uber/tchannel-go
-  version: 521248db9bf9eb98e86f0d5334e56a890b6a559b
+  version: 1a0e35378f6f721bc07f6c4466bc9701ed70b506
   subpackages:
   - thrift
   
@@ -50,3 +50,4 @@ import:
   - retry
   - time
   - watch
+

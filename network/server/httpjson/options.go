@@ -22,6 +22,10 @@ package httpjson
 
 import (
 	"time"
+
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/uber/tchannel-go/thrift"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -30,31 +34,52 @@ const (
 	defaultRequestTimeout = 60 * time.Second
 )
 
+// ContextFn is a function that sets the context for all service
+// methods derived from the incoming request context
+type ContextFn func(ctx context.Context, method string, headers map[string]string) thrift.Context
+
+// PostResponseFn is a function that is called at the end of a request
+type PostResponseFn func(ctx context.Context, method string, response apachethrift.TStruct)
+
 // ServerOptions is a set of server options
 type ServerOptions interface {
-	// ReadTimeout sets the readTimeout and returns a new ServerOptions
+	// ReadTimeout sets the read timeout and returns a new ServerOptions
 	ReadTimeout(value time.Duration) ServerOptions
 
-	// GetReadTimeout returns the readTimeout
+	// GetReadTimeout returns the read timeout
 	GetReadTimeout() time.Duration
 
-	// WriteTimeout sets the writeTimeout and returns a new ServerOptions
+	// WriteTimeout sets the write timeout and returns a new ServerOptions
 	WriteTimeout(value time.Duration) ServerOptions
 
-	// GetWriteTimeout returns the writeTimeout
+	// GetWriteTimeout returns the write timeout
 	GetWriteTimeout() time.Duration
 
-	// RequestTimeout sets the requestTimeout and returns a new ServerOptions
+	// RequestTimeout sets the request timeout and returns a new ServerOptions
 	RequestTimeout(value time.Duration) ServerOptions
 
-	// GetRequestTimeout returns the requestTimeout
+	// GetRequestTimeout returns the request timeout
 	GetRequestTimeout() time.Duration
+
+	// ContextFn sets the context fn and returns a new ServerOptions
+	ContextFn(value ContextFn) ServerOptions
+
+	// GetContextFn returns the context fn
+	GetContextFn() ContextFn
+
+	// PostResponseFn sets the post response fn and returns a new ServerOptions
+	PostResponseFn(value PostResponseFn) ServerOptions
+
+	// GetPostResponseFn returns the post response fn
+	GetPostResponseFn() PostResponseFn
 }
 
 type serverOptions struct {
 	readTimeout    time.Duration
 	writeTimeout   time.Duration
 	requestTimeout time.Duration
+	contextFn      ContextFn
+	postResponseFn PostResponseFn
 }
 
 // NewServerOptions creates a new set of server options with defaults
@@ -94,4 +119,24 @@ func (o *serverOptions) RequestTimeout(value time.Duration) ServerOptions {
 
 func (o *serverOptions) GetRequestTimeout() time.Duration {
 	return o.requestTimeout
+}
+
+func (o *serverOptions) ContextFn(value ContextFn) ServerOptions {
+	opts := *o
+	opts.contextFn = value
+	return &opts
+}
+
+func (o *serverOptions) GetContextFn() ContextFn {
+	return o.contextFn
+}
+
+func (o *serverOptions) PostResponseFn(value PostResponseFn) ServerOptions {
+	opts := *o
+	opts.postResponseFn = value
+	return &opts
+}
+
+func (o *serverOptions) GetPostResponseFn() PostResponseFn {
+	return o.postResponseFn
 }

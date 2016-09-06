@@ -25,6 +25,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/context"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3db/network/server/httpjson"
 	ttcluster "github.com/m3db/m3db/network/server/tchannelthrift/cluster"
@@ -41,11 +42,15 @@ type server struct {
 func NewServer(
 	client client.Client,
 	address string,
+	contextPool context.Pool,
 	opts httpjson.ServerOptions,
 ) ns.NetworkService {
 	if opts == nil {
 		opts = httpjson.NewServerOptions()
 	}
+	opts = opts.
+		ContextFn(httpjson.NewDefaultContextFn(contextPool)).
+		PostResponseFn(httpjson.DefaulPostResponseFn)
 	return &server{
 		client:  client,
 		address: address,
