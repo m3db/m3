@@ -28,17 +28,16 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/watch"
 )
 
 var (
-	errInitTimeOut               = errors.New("timed out initializing source")
+	errInitTimeOut               = errors.New("timed out waiting for initial value")
 	errInvalidService            = errors.New("service topology is invalid")
 	errUnexpectedShard           = errors.New("shard is unexpected")
 	errMissingShard              = errors.New("shard is missing")
 	errNotEnoughReplicasForShard = errors.New("replicas of shard is less than expected")
-	errInvalidTopology           = errors.New("could not parse latest topology update")
+	errInvalidTopology           = errors.New("could not parse latest topology from config service")
 )
 
 type dynamicInitializer struct {
@@ -58,45 +57,76 @@ func (i dynamicInitializer) Init() (Topology, error) {
 }
 
 type dynamicTopology struct {
-	sync.Mutex
+	sync.RWMutex
 
-	s      xwatch.Source
-	w      xwatch.Watch
-	closed bool
-	logger xlog.Logger
+	watch     xwatch.Watch
+	watchable xwatch.Watchable
+	closed    bool
+	hashGen   sharding.HashGen
+	logger    xlog.Logger
 }
 
 func newDynamicTopology(opts DynamicOptions) (Topology, error) {
 	services := opts.GetConfigServiceClient().Services()
 
 	var (
-		w   xwatch.Watch
-		err error
+		watch xwatch.Watch
+		err   error
 	)
-	if w, err = services.Watch(opts.GetService(), opts.GetQueryOptions()); err != nil {
+	if watch, err = services.Watch(opts.GetService(), opts.GetQueryOptions()); err != nil {
 		return nil, err
 	}
 
-	s := xwatch.NewSource(
-		newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions()),
-		opts.GetInstrumentOptions().GetLogger(),
-	)
+	logger := opts.GetInstrumentOptions().GetLogger()
 
-	// wait on source to be ready
-	if err = waitOnInit(s, opts.GetInitTimeout()); err != nil {
+	if err := waitOnInit(watch, opts.GetInitTimeout()); err != nil {
+		logger.Errorf("dynamic topology init timed out in %s: %v", opts.GetInitTimeout().String(), err)
 		return nil, err
 	}
 
-	dt := &dynamicTopology{w: w, s: s, logger: opts.GetInstrumentOptions().GetLogger()}
+	m, err := mapFromServiceInstances(watch.Get(), opts.GetHashGen())
+	if err != nil {
+		logger.Errorf("dynamic topology received invalid initial value: %v", err)
+		return nil, err
+	}
+
+	watchable := xwatch.NewWatchable()
+	watchable.Update(m)
+
+	dt := &dynamicTopology{watch: watch, watchable: watchable, hashGen: opts.GetHashGen(), logger: logger}
+	go dt.run()
 	return dt, nil
 }
 
+func (t *dynamicTopology) isClosed() bool {
+	t.RLock()
+	closed := t.closed
+	t.RUnlock()
+	return closed
+}
+
+func (t *dynamicTopology) run() {
+	for !t.isClosed() {
+		if _, ok := <-t.watch.C(); !ok {
+			t.Close()
+			break
+		}
+
+		m, err := mapFromServiceInstances(t.watch.Get(), t.hashGen)
+		if err != nil {
+			t.logger.Warnf("dynamic topology received invalid update: %v", err)
+			continue
+		}
+		t.watchable.Update(m)
+	}
+}
+
 func (t *dynamicTopology) Get() Map {
-	return t.s.Get().(Map)
+	return t.watchable.Get().(Map)
 }
 
 func (t *dynamicTopology) Watch() (MapWatch, error) {
-	_, w, err := t.s.Watch()
+	_, w, err := t.watchable.Watch()
 	if err != nil {
 		return nil, err
 	}
@@ -113,66 +143,28 @@ func (t *dynamicTopology) Close() {
 
 	t.closed = true
 
-	t.w.Close()
-	t.s.Close()
+	t.watch.Close()
+	t.watchable.Close()
 }
 
-func waitOnInit(t xwatch.Source, d time.Duration) error {
+func waitOnInit(w xwatch.Watch, d time.Duration) error {
 	if d <= 0 {
 		return nil
 	}
 	select {
-	case <-t.WaitInit():
+	case <-w.C():
 		return nil
 	case <-time.After(d):
 		return errInitTimeOut
 	}
 }
 
-// serviceTopologyInput implements xwatch.SourceInput with retry
-type serviceTopologyInput struct {
-	w       xwatch.Watch
-	retrier xretry.Retrier
-	hashGen sharding.HashGen
-	closed  bool
-	// NB(chaowang) the watch may be initiated and not get any updates on its channel any time soon,
-	// so we should try whatever value the watch has as first poll to avoid source init time out.
-	// If the value the watch has is invalid, the source is still not initiated
-	poll int
-}
-
-func newServiceTopologyInput(w xwatch.Watch, h sharding.HashGen, opts xretry.Options) xwatch.SourceInput {
-	return &serviceTopologyInput{w: w, hashGen: h, retrier: xretry.NewRetrier(opts)}
-}
-
-func (s *serviceTopologyInput) Poll() (interface{}, error) {
-	var m Map
-	if finalErr := s.retrier.Attempt(func() error {
-		if s.poll > 0 {
-			// for normal attempts (from 2nd attempt on), block on the notification channel
-			if _, ok := <-s.w.C(); !ok {
-				s.closed = true
-				return xwatch.ErrSourceClosed
-			}
-		}
-		s.poll++
-
-		var err error
-		m, err = newMapFromServiceInstances(s.w.Get(), s.hashGen)
-		return err
-	}); finalErr != nil {
-		return nil, finalErr
-	}
-
-	return m, nil
-}
-
-func newMapFromServiceInstances(data interface{}, hashGen sharding.HashGen) (Map, error) {
+func mapFromServiceInstances(data interface{}, hashGen sharding.HashGen) (Map, error) {
 	service, ok := data.(services.Service)
 	if !ok {
 		return nil, errInvalidTopology
 	}
-	to, err := newMapOptionsFromServiceInstances(service, hashGen)
+	to, err := staticOptionsFromServiceInstances(service, hashGen)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +174,7 @@ func newMapFromServiceInstances(data interface{}, hashGen sharding.HashGen) (Map
 	return newStaticMap(to), nil
 }
 
-func newMapOptionsFromServiceInstances(service services.Service, hashGen sharding.HashGen) (StaticOptions, error) {
+func staticOptionsFromServiceInstances(service services.Service, hashGen sharding.HashGen) (StaticOptions, error) {
 	if service.Replication() == nil || service.Sharding() == nil || service.Instances() == nil {
 		return nil, errInvalidService
 	}

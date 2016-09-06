@@ -73,34 +73,6 @@ func TestInitNoTimeout(t *testing.T) {
 	topo.Close()
 }
 
-func TestBackoffPoll(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := NewDynamicOptions().RetryOptions(xretry.NewOptions().InitialBackoff(time.Millisecond))
-	w := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
-	close(w.(*testWatch).ch)
-	input := newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions())
-	data, err := input.Poll()
-	assert.Equal(t, xwatch.ErrSourceClosed, err)
-	assert.Nil(t, data)
-
-	w = newTestWatch(ctrl, time.Millisecond, time.Millisecond, 0, 10)
-	go w.(*testWatch).run()
-	input = newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions())
-	data, err = input.Poll()
-	assert.Error(t, err)
-	assert.Nil(t, data)
-
-	w = newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
-	go w.(*testWatch).run()
-	input = newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions())
-	data, err = input.Poll()
-	assert.NoError(t, err)
-	assert.Equal(t, 2, data.(Map).Replicas())
-	assert.Equal(t, 3, data.(Map).HostsLen())
-}
-
 func TestGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
