@@ -114,7 +114,7 @@ func TestGet(t *testing.T) {
 	assert.Equal(t, 2, m.Replicas())
 }
 
-func TestGetAndSubscribe(t *testing.T) {
+func TestWatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -123,12 +123,14 @@ func TestGetAndSubscribe(t *testing.T) {
 	topo, err := newDynamicTopology(opts)
 	assert.NoError(t, err)
 
-	m, w, err := topo.GetAndSubscribe()
+	w, err := topo.Watch()
+	<-w.C()
+	m := w.Get()
 	assert.Equal(t, 2, m.Replicas())
-	assert.Equal(t, 2, w.Get().(Map).Replicas())
+	assert.Equal(t, 2, w.Get().Replicas())
 
 	for _ = range w.C() {
-		assert.Equal(t, 2, w.Get().(Map).Replicas())
+		assert.Equal(t, 2, w.Get().Replicas())
 	}
 }
 
