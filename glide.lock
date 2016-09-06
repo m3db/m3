@@ -1,5 +1,5 @@
-hash: f9889bbaf1ce135733dba4395698b76655e753b84cc1aa81adb9a441407f2eaf
-updated: 2016-09-06T09:32:11.33430323-04:00
+hash: 88beb49856b502f15da51a6c57b957d6de22cca410ade986c5c4fdd5bfa9cc20
+updated: 2016-09-06T16:59:16.270419599-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -27,7 +27,7 @@ imports:
   - shard
   - kv
 - name: github.com/m3db/m3x
-  version: 90e51d6e6c6e648af2f048654390f66034e49dc5
+  version: 1416f3857858900ac93ebf5354b68706bb33c3a0
   subpackages:
   - close
   - errors
@@ -66,7 +66,7 @@ imports:
 - name: github.com/willf/bitset
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
 - name: golang.org/x/net
-  version: 07b51741c1d6423d4a6abab1c49940ec09cb1aaf
+  version: 1358eff22f0dd0c54fc521042cc607f6ff4b531a
   subpackages:
   - context
 testImports: []

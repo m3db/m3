@@ -60,10 +60,13 @@ func (t *staticTopology) Get() Map {
 	return t.w.Get().(Map)
 }
 
-func (t *staticTopology) GetAndSubscribe() (Map, xwatch.Watch, error) {
+func (t *staticTopology) Watch() (MapWatch, error) {
 	// Topology is static, the returned watch will not receive any updates
-	m, w, err := t.w.Watch()
-	return m.(Map), w, err
+	_, w, err := t.w.Watch()
+	if err != nil {
+		return nil, err
+	}
+	return newMapWatch(w), nil
 }
 
 func (t *staticTopology) Close() {
