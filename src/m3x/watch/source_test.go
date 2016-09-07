@@ -30,20 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInitialized(t *testing.T) {
-	s := NewSource(&testSourceInput{callCount: 0, errAfter: 0, closeAfter: 10}, xlog.SimpleLogger)
-	s.Close()
-	assert.False(t, s.(*source).initialized)
-	assert.Nil(t, s.Get())
-
-	ch := s.WaitInit()
-	select {
-	case _ = <-ch:
-		assert.Fail(t, "initialized channel should be blocked")
-	case <-time.After(10 * time.Millisecond):
-	}
-}
-
 func TestSource(t *testing.T) {
 	testSource(t, 30, 25, 20)
 	testSource(t, 22, 18, 20)
@@ -88,12 +74,8 @@ func testSource(t *testing.T, errAfter int32, closeAfter int32, watchNum int) {
 		for !s.(*source).isClosed() {
 			time.Sleep(time.Millisecond)
 		}
-		ch := s.WaitInit()
-		ok := true
-		select {
-		case _, ok = <-ch:
-		}
-		assert.False(t, ok, "initialized channel should be closed")
+		_, _, err := s.Watch()
+		assert.Error(t, err)
 		v := s.Get()
 		assert.NotNil(t, v)
 		// test Close again
