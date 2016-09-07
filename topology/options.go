@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3x/retry"
 )
 
 const (
@@ -41,7 +40,7 @@ var (
 	errNoConfigServiceClient   = errors.New("no config service client")
 	errNoServiceDiscoverClient = errors.New("no service discover client")
 	errNoHashGen               = errors.New("no hash gen function defined")
-	errInvalidReplicas = errors.New("replicas must be equal to or greater than 1")
+	errInvalidReplicas         = errors.New("replicas must be equal to or greater than 1")
 )
 
 type staticOptions struct {
@@ -119,7 +118,6 @@ type dynamicOptions struct {
 	configServiceClient client.Client
 	service             string
 	queryOptions        services.QueryOptions
-	retryOptions        xretry.Options
 	instrumentOptions   instrument.Options
 	initTimeout         time.Duration
 	hashGen             sharding.HashGen
@@ -130,7 +128,6 @@ func NewDynamicOptions() DynamicOptions {
 	return &dynamicOptions{
 		service:           defaultServiceName,
 		queryOptions:      services.NewQueryOptions(),
-		retryOptions:      xretry.NewOptions(),
 		instrumentOptions: instrument.NewOptions(),
 		initTimeout:       defaultInitTimeout,
 		hashGen:           sharding.DefaultHashGen,
@@ -175,15 +172,6 @@ func (o *dynamicOptions) QueryOptions(qo services.QueryOptions) DynamicOptions {
 
 func (o *dynamicOptions) GetQueryOptions() services.QueryOptions {
 	return o.queryOptions
-}
-
-func (o *dynamicOptions) RetryOptions(ro xretry.Options) DynamicOptions {
-	o.retryOptions = ro
-	return o
-}
-
-func (o *dynamicOptions) GetRetryOptions() xretry.Options {
-	return o.retryOptions
 }
 
 func (o *dynamicOptions) InstrumentOptions(io instrument.Options) DynamicOptions {

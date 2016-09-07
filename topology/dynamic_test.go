@@ -29,14 +29,12 @@ import (
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/watch"
 	"github.com/stretchr/testify/assert"
 )
 
 func testSetup(ctrl *gomock.Controller) (DynamicOptions, xwatch.Watch) {
 	opts := NewDynamicOptions()
-	opts = opts.RetryOptions(xretry.NewOptions().InitialBackoff(time.Millisecond))
 
 	watch := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
 	mockCSServices := services.NewMockServices(ctrl)
@@ -73,32 +71,23 @@ func TestInitNoTimeout(t *testing.T) {
 	topo.Close()
 }
 
-func TestBackoffPoll(t *testing.T) {
+func TestBack(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := NewDynamicOptions().RetryOptions(xretry.NewOptions().InitialBackoff(time.Millisecond))
-	w := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
-	close(w.(*testWatch).ch)
-	input := newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions())
-	data, err := input.Poll()
-	assert.Equal(t, xwatch.ErrSourceClosed, err)
-	assert.Nil(t, data)
-
-	w = newTestWatch(ctrl, time.Millisecond, time.Millisecond, 0, 10)
+	opts, w := testSetup(ctrl)
 	go w.(*testWatch).run()
-	input = newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions())
-	data, err = input.Poll()
-	assert.Error(t, err)
-	assert.Nil(t, data)
-
-	w = newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
-	go w.(*testWatch).run()
-	input = newServiceTopologyInput(w, opts.GetHashGen(), opts.GetRetryOptions())
-	data, err = input.Poll()
+	topo, err := newDynamicTopology(opts)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, data.(Map).Replicas())
-	assert.Equal(t, 3, data.(Map).HostsLen())
+	mw, err := topo.Watch()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, mw.Get().Replicas())
+	assert.Equal(t, 3, mw.Get().HostsLen())
+
+	opts, w = testSetup(ctrl)
+	close(w.(*testWatch).ch)
+	topo, err = newDynamicTopology(opts)
+	assert.Error(t, err)
 }
 
 func TestGet(t *testing.T) {
