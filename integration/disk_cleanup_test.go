@@ -38,12 +38,12 @@ var (
 )
 
 func createWriter(storageOpts storage.Options) fs.FileSetWriter {
-	fsOpts := storageOpts.GetCommitLogOptions().GetFilesystemOptions()
-	blockSize := storageOpts.GetRetentionOptions().GetBlockSize()
-	filePathPrefix := fsOpts.GetFilePathPrefix()
-	writerBufferSize := fsOpts.GetWriterBufferSize()
-	newFileMode := fsOpts.GetNewFileMode()
-	newDirectoryMode := fsOpts.GetNewDirectoryMode()
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	blockSize := storageOpts.RetentionOptions().BlockSize()
+	filePathPrefix := fsOpts.FilePathPrefix()
+	writerBufferSize := fsOpts.WriterBufferSize()
+	newFileMode := fsOpts.NewFileMode()
+	newDirectoryMode := fsOpts.NewDirectoryMode()
 	return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 }
 
@@ -88,16 +88,16 @@ func TestDiskCleanup(t *testing.T) {
 
 	testSetup.storageOpts =
 		testSetup.storageOpts.
-			RetentionOptions(testSetup.storageOpts.GetRetentionOptions().
-				BufferDrain(3 * time.Second).
-				RetentionPeriod(6 * time.Hour))
+			SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
+				SetBufferDrain(3 * time.Second).
+				SetRetentionPeriod(6 * time.Hour))
 
-	blockSize := testSetup.storageOpts.GetRetentionOptions().GetBlockSize()
-	filePathPrefix := testSetup.storageOpts.GetCommitLogOptions().GetFilesystemOptions().GetFilePathPrefix()
-	retentionPeriod := testSetup.storageOpts.GetRetentionOptions().GetRetentionPeriod()
+	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	retentionPeriod := testSetup.storageOpts.RetentionOptions().RetentionPeriod()
 
 	// Start the server
-	log := testSetup.storageOpts.GetInstrumentOptions().GetLogger()
+	log := testSetup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("disk cleanup test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
@@ -125,6 +125,6 @@ func TestDiskCleanup(t *testing.T) {
 	testSetup.setNowFn(newNow)
 
 	// Check if files have been deleted
-	waitTimeout := testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 4
+	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 4
 	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
 }

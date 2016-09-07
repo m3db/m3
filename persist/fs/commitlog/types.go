@@ -106,51 +106,51 @@ type Series struct {
 
 // Options represents the options for the commit log
 type Options interface {
-	// ClockOptions sets the clock options
-	ClockOptions(value clock.Options) Options
+	// SetClockOptions sets the clock options
+	SetClockOptions(value clock.Options) Options
 
-	// GetClockOptions returns the clock options
-	GetClockOptions() clock.Options
+	// ClockOptions returns the clock options
+	ClockOptions() clock.Options
 
-	// InstrumentOptions sets the instrumentation options
-	InstrumentOptions(value instrument.Options) Options
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) Options
 
-	// GetInstrumentOptions returns the instrumentation options
-	GetInstrumentOptions() instrument.Options
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
 
-	// RetentionOptions sets the retention options
-	RetentionOptions(value retention.Options) Options
+	// SetRetentionOptions sets the retention options
+	SetRetentionOptions(value retention.Options) Options
 
-	// GetRetentionOptions returns the retention options
-	GetRetentionOptions() retention.Options
+	// RetentionOptions returns the retention options
+	RetentionOptions() retention.Options
 
-	// FilesystemOptions sets the filesystem options
-	FilesystemOptions(value fs.Options) Options
+	// SetFilesystemOptions sets the filesystem options
+	SetFilesystemOptions(value fs.Options) Options
 
-	// GetFilesystemOptions returns the filesystem options
-	GetFilesystemOptions() fs.Options
+	// FilesystemOptions returns the filesystem options
+	FilesystemOptions() fs.Options
 
-	// FlushSize sets the flush size
-	FlushSize(value int) Options
+	// SetFlushSize sets the flush size
+	SetFlushSize(value int) Options
 
-	// GetFlushSize returns the flush size
-	GetFlushSize() int
+	// FlushSize returns the flush size
+	FlushSize() int
 
-	// Strategy sets the strategy
-	Strategy(value Strategy) Options
+	// SetStrategy sets the strategy
+	SetStrategy(value Strategy) Options
 
-	// GetStrategy returns the strategy
-	GetStrategy() Strategy
+	// Strategy returns the strategy
+	Strategy() Strategy
 
-	// FlushInterval sets the flush interval
-	FlushInterval(value time.Duration) Options
+	// SetFlushInterval sets the flush interval
+	SetFlushInterval(value time.Duration) Options
 
-	// GetFlushInterval returns the flush interval
-	GetFlushInterval() time.Duration
+	// FlushInterval returns the flush interval
+	FlushInterval() time.Duration
 
-	// BacklogQueueSize sets the backlog queue size
-	BacklogQueueSize(value int) Options
+	// SetBacklogQueueSize sets the backlog queue size
+	SetBacklogQueueSize(value int) Options
 
-	// GetBacklogQueueSize returns the backlog queue size
-	GetBacklogQueueSize() int
+	// BacklogQueueSize returns the backlog queue size
+	BacklogQueueSize() int
 }

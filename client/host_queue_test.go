@@ -52,11 +52,11 @@ type hostQueueResult struct {
 
 func newHostQueueTestOptions() Options {
 	return NewOptions().
-		HostQueueOpsFlushSize(4).
-		HostQueueOpsArrayPoolSize(4).
-		WriteBatchSize(4).
-		FetchBatchSize(4).
-		HostQueueOpsFlushInterval(0)
+		SetHostQueueOpsFlushSize(4).
+		SetHostQueueOpsArrayPoolSize(4).
+		SetWriteBatchSize(4).
+		SetFetchBatchSize(4).
+		SetHostQueueOpsFlushInterval(0)
 }
 
 func TestHostQueueWriteErrorBeforeOpen(t *testing.T) {
@@ -238,7 +238,7 @@ func TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	opts = opts.HostQueueOpsFlushInterval(time.Millisecond)
+	opts = opts.SetHostQueueOpsFlushInterval(time.Millisecond)
 	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
 	queue.connPool = mockConnPool
 
@@ -281,7 +281,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	opts = opts.HostQueueOpsFlushSize(2)
+	opts = opts.SetHostQueueOpsFlushSize(2)
 	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
 	queue.connPool = mockConnPool
 
@@ -350,7 +350,7 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	opts = opts.HostQueueOpsFlushSize(2)
+	opts = opts.SetHostQueueOpsFlushSize(2)
 	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
 	queue.connPool = mockConnPool
 

@@ -29,9 +29,9 @@ type NowFn func() time.Time
 
 // Options represents the options for the clock
 type Options interface {
-	// NowFn sets the nowFn
-	NowFn(value NowFn) Options
+	// SetNowFn sets the nowFn
+	SetNowFn(value NowFn) Options
 
-	// GetNowFn returns the nowFn
-	GetNowFn() NowFn
+	// NowFn returns the nowFn
+	NowFn() NowFn
 }

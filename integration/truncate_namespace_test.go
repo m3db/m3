@@ -39,13 +39,13 @@ func TestTruncateNamespace(t *testing.T) {
 	defer testSetup.close()
 
 	testSetup.storageOpts =
-		testSetup.storageOpts.RetentionOptions(testSetup.storageOpts.GetRetentionOptions().
-			BufferDrain(time.Second).
-			RetentionPeriod(6 * time.Hour))
-	blockSize := testSetup.storageOpts.GetRetentionOptions().GetBlockSize()
+		testSetup.storageOpts.SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
+			SetBufferDrain(time.Second).
+			SetRetentionPeriod(6 * time.Hour))
+	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
 
 	// Start the server
-	log := testSetup.storageOpts.GetInstrumentOptions().GetLogger()
+	log := testSetup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("truncate namespace test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")

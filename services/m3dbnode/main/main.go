@@ -59,7 +59,7 @@ func main() {
 
 	storageOpts := storage.NewOptions()
 
-	log := storageOpts.GetInstrumentOptions().GetLogger()
+	log := storageOpts.InstrumentOptions().Logger()
 	shardSet, err := server.DefaultShardSet()
 	if err != nil {
 		log.Fatalf("could not create sharding scheme: %v", err)

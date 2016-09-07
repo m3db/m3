@@ -75,13 +75,13 @@ func (d *mockDatabase) FetchBlocksMetadata(context.Context, string, uint32, int6
 
 func testDatabaseOptions() Options {
 	return NewOptions().
-		MaxFlushRetries(3).
-		RetentionOptions(retention.NewOptions().
-		BufferFuture(10 * time.Minute).
-		BufferPast(10 * time.Minute).
-		BufferDrain(10 * time.Minute).
-		BlockSize(2 * time.Hour).
-		RetentionPeriod(2 * 24 * time.Hour))
+		SetMaxFlushRetries(3).
+		SetRetentionOptions(retention.NewOptions().
+			SetBufferFuture(10 * time.Minute).
+			SetBufferPast(10 * time.Minute).
+			SetBufferDrain(10 * time.Minute).
+			SetBlockSize(2 * time.Hour).
+			SetRetentionPeriod(2 * 24 * time.Hour))
 }
 
 func testDatabase(t *testing.T, bs bootstrapState) *db {

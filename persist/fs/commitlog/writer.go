@@ -103,13 +103,13 @@ func newCommitLogWriter(
 	opts Options,
 ) commitLogWriter {
 	return &writer{
-		filePathPrefix:     opts.GetFilesystemOptions().GetFilePathPrefix(),
-		newFileMode:        opts.GetFilesystemOptions().GetNewFileMode(),
-		newDirectoryMode:   opts.GetFilesystemOptions().GetNewDirectoryMode(),
-		nowFn:              opts.GetClockOptions().GetNowFn(),
+		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
+		newFileMode:        opts.FilesystemOptions().NewFileMode(),
+		newDirectoryMode:   opts.FilesystemOptions().NewDirectoryMode(),
+		nowFn:              opts.ClockOptions().NowFn(),
 		chunkWriter:        newChunkWriter(flushFn),
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
-		buffer:             bufio.NewWriterSize(nil, opts.GetFlushSize()),
+		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
 		bitset:             newBitset(),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		infoBuffer:         proto.NewBuffer(nil),

@@ -81,9 +81,9 @@ func newBootstrapManager(database database, fsm databaseFileSystemManager) datab
 	return &bootstrapManager{
 		database:       database,
 		opts:           opts,
-		log:            opts.GetInstrumentOptions().GetLogger(),
-		nowFn:          opts.GetClockOptions().GetNowFn(),
-		newBootstrapFn: opts.GetNewBootstrapFn(),
+		log:            opts.InstrumentOptions().Logger(),
+		nowFn:          opts.ClockOptions().NowFn(),
+		newBootstrapFn: opts.NewBootstrapFn(),
 		fsm:            fsm,
 	}
 }
@@ -99,7 +99,7 @@ func (bsm *bootstrapManager) IsBootstrapped() bool {
 // Data points accumulated before cut-over time are ignored because future writes before
 // server starts accepting writes are lost.
 func (bsm *bootstrapManager) cutoverTime(writeStart time.Time) time.Time {
-	bufferFuture := bsm.opts.GetRetentionOptions().GetBufferFuture()
+	bufferFuture := bsm.opts.RetentionOptions().BufferFuture()
 	return writeStart.Add(bufferFuture)
 }
 

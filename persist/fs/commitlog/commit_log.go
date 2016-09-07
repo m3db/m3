@@ -101,12 +101,12 @@ type commitLogWrite struct {
 
 // NewCommitLog creates a new commit log
 func NewCommitLog(opts Options) CommitLog {
-	iops := opts.GetInstrumentOptions()
-	iops = iops.MetricsScope(iops.GetMetricsScope().SubScope("commitlog"))
-	scope := iops.GetMetricsScope()
+	iops := opts.InstrumentOptions()
+	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("commitlog"))
+	scope := iops.MetricsScope()
 	commitLog := &commitLog{
 		opts:  opts,
-		nowFn: opts.GetClockOptions().GetNowFn(),
+		nowFn: opts.ClockOptions().NowFn(),
 		scope: scope,
 		metrics: commitLogMetrics{
 			queued:      scope.Gauge("writes.queued"),
@@ -116,9 +116,9 @@ func NewCommitLog(opts Options) CommitLog {
 			closeErrors: scope.Counter("writes.close-errors"),
 			flushErrors: scope.Counter("writes.flush-errors"),
 		},
-		log:                  iops.GetLogger(),
+		log:                  iops.Logger(),
 		newCommitLogWriterFn: newCommitLogWriter,
-		writes:               make(chan commitLogWrite, opts.GetBacklogQueueSize()),
+		writes:               make(chan commitLogWrite, opts.BacklogQueueSize()),
 		closeErr:             make(chan error),
 	}
 
@@ -156,7 +156,7 @@ func (l *commitLog) Open() error {
 	// Asynchronously write
 	go l.write()
 
-	flushInterval := l.opts.GetFlushInterval()
+	flushInterval := l.opts.FlushInterval()
 	if flushInterval > 0 {
 		// Continually flush the commit log at given interval if set
 		go l.flushEvery(flushInterval)
@@ -299,7 +299,7 @@ func (l *commitLog) openWriter(now time.Time) error {
 		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
-	blockSize := l.opts.GetRetentionOptions().GetBlockSize()
+	blockSize := l.opts.RetentionOptions().BlockSize()
 	start := now.Truncate(blockSize)
 	if err := l.writer.Open(start, blockSize); err != nil {
 		return err

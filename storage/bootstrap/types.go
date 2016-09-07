@@ -126,27 +126,27 @@ type Source interface {
 
 // Options represents the options for bootstrapping
 type Options interface {
-	// ClockOptions sets the clock options
-	ClockOptions(value clock.Options) Options
+	// SetClockOptions sets the clock options
+	SetClockOptions(value clock.Options) Options
 
-	// GetClockOptions returns the clock options
-	GetClockOptions() clock.Options
+	// ClockOptions returns the clock options
+	ClockOptions() clock.Options
 
-	// InstrumentOptions sets the instrumentation options
-	InstrumentOptions(value instrument.Options) Options
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) Options
 
-	// GetInstrumentOptions returns the instrumentation options
-	GetInstrumentOptions() instrument.Options
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
 
-	// RetentionOptions sets the retention options
-	RetentionOptions(value retention.Options) Options
+	// SetRetentionOptions sets the retention options
+	SetRetentionOptions(value retention.Options) Options
 
-	// GetRetentionOptions returns the retention options
-	GetRetentionOptions() retention.Options
+	// RetentionOptions returns the retention options
+	RetentionOptions() retention.Options
 
-	// DatabaseBlockOptions sets the database block options
-	DatabaseBlockOptions(value block.Options) Options
+	// SetDatabaseBlockOptions sets the database block options
+	SetDatabaseBlockOptions(value block.Options) Options
 
-	// GetDatabaseBlockOptions returns the database block options
-	GetDatabaseBlockOptions() block.Options
+	// DatabaseBlockOptions returns the database block options
+	DatabaseBlockOptions() block.Options
 }

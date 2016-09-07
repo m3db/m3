@@ -83,27 +83,27 @@ func TestFilesystemBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	fsOpts := testSetup.storageOpts.GetCommitLogOptions().GetFilesystemOptions()
-	blockSize := testSetup.storageOpts.GetRetentionOptions().GetBlockSize()
-	filePathPrefix := fsOpts.GetFilePathPrefix()
+	fsOpts := testSetup.storageOpts.CommitLogOptions().FilesystemOptions()
+	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	filePathPrefix := fsOpts.FilePathPrefix()
 	testSetup.storageOpts = testSetup.storageOpts.
-		RetentionOptions(testSetup.storageOpts.GetRetentionOptions().
-		RetentionPeriod(2 * time.Hour)).
-		NewBootstrapFn(func() bootstrap.Bootstrap {
-		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-		bsOpts := bootstrap.NewOptions()
-		bfsOpts := bfs.NewOptions().
-			BootstrapOptions(bsOpts).
-			FilesystemOptions(fsOpts)
-		bs := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-		return bootstrap.NewBootstrapProcess(bsOpts, bs)
-	})
+		SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
+			SetRetentionPeriod(2 * time.Hour)).
+		SetNewBootstrapFn(func() bootstrap.Bootstrap {
+			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+			bsOpts := bootstrap.NewOptions()
+			bfsOpts := bfs.NewOptions().
+				SetBootstrapOptions(bsOpts).
+				SetFilesystemOptions(fsOpts)
+			bs := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+			return bootstrap.NewBootstrapProcess(bsOpts, bs)
+		})
 
-	writerBufferSize := fsOpts.GetWriterBufferSize()
-	newFileMode := fsOpts.GetNewFileMode()
-	newDirectoryMode := fsOpts.GetNewDirectoryMode()
+	writerBufferSize := fsOpts.WriterBufferSize()
+	newFileMode := fsOpts.NewFileMode()
+	newDirectoryMode := fsOpts.NewDirectoryMode()
 	writer := fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-	encoder := testSetup.storageOpts.GetEncoderPool().Get()
+	encoder := testSetup.storageOpts.EncoderPool().Get()
 	seriesMaps := make(map[time.Time]seriesList)
 
 	// Write test data
@@ -123,7 +123,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	}
 
 	// Start the server with filesystem bootstrapper
-	log := testSetup.storageOpts.GetInstrumentOptions().GetLogger()
+	log := testSetup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("filesystem bootstrap test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")

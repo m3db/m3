@@ -26,33 +26,33 @@ import (
 
 // Options represents the options for retention
 type Options interface {
-	// RetentionPeriod sets how long we intend to keep data in memory
-	RetentionPeriod(value time.Duration) Options
+	// SetRetentionPeriod sets how long we intend to keep data in memory
+	SetRetentionPeriod(value time.Duration) Options
 
 	// RetentionPeriod returns how long we intend to keep data in memory
-	GetRetentionPeriod() time.Duration
+	RetentionPeriod() time.Duration
 
-	// BlockSize sets the blockSize
-	BlockSize(value time.Duration) Options
+	// SetBlockSize sets the blockSize
+	SetBlockSize(value time.Duration) Options
 
-	// GetBlockSize returns the blockSize
-	GetBlockSize() time.Duration
+	// BlockSize returns the blockSize
+	BlockSize() time.Duration
 
-	// BufferFuture sets the bufferFuture
-	BufferFuture(value time.Duration) Options
+	// SetBufferFuture sets the bufferFuture
+	SetBufferFuture(value time.Duration) Options
 
-	// GetBufferFuture returns the bufferFuture
-	GetBufferFuture() time.Duration
+	// BufferFuture returns the bufferFuture
+	BufferFuture() time.Duration
 
-	// BufferPast sets the bufferPast
-	BufferPast(value time.Duration) Options
+	// SetBufferPast sets the bufferPast
+	SetBufferPast(value time.Duration) Options
 
-	// GetBufferPast returns the bufferPast
-	GetBufferPast() time.Duration
+	// BufferPast returns the bufferPast
+	BufferPast() time.Duration
 
-	// BufferDrain sets the bufferDrain
-	BufferDrain(value time.Duration) Options
+	// SetBufferDrain sets the bufferDrain
+	SetBufferDrain(value time.Duration) Options
 
-	// GetBufferDrain returns the bufferDrain
-	GetBufferDrain() time.Duration
+	// BufferDrain returns the bufferDrain
+	BufferDrain() time.Duration
 }

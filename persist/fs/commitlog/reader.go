@@ -67,7 +67,7 @@ type reader struct {
 func newCommitLogReader(opts Options) commitLogReader {
 	return &reader{
 		opts:           opts,
-		chunkReader:    newChunkReader(opts.GetFlushSize()),
+		chunkReader:    newChunkReader(opts.FlushSize()),
 		sizeBuffer:     make([]byte, binary.MaxVarintLen64),
 		metadataLookup: make(map[uint64]Series),
 	}

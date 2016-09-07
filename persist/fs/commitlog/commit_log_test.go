@@ -105,27 +105,27 @@ func newTestOptions(
 	stats := newTestStatsReporter()
 
 	opts := NewOptions().
-		ClockOptions(clock.NewOptions().NowFn(c.Now)).
-		InstrumentOptions(instrument.NewOptions().MetricsScope(tally.NewRootScope("", nil, stats, 0))).
-		FilesystemOptions(fs.NewOptions().FilePathPrefix(dir)).
-		RetentionOptions(retention.NewOptions().BlockSize(2 * time.Hour)).
-		FlushSize(4096).
-		FlushInterval(100 * time.Millisecond).
-		BacklogQueueSize(1024)
+		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(tally.NewRootScope("", nil, stats, 0))).
+		SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir)).
+		SetRetentionOptions(retention.NewOptions().SetBlockSize(2 * time.Hour)).
+		SetFlushSize(4096).
+		SetFlushInterval(100 * time.Millisecond).
+		SetBacklogQueueSize(1024)
 
 	if overrides.flushInterval != nil {
-		opts = opts.FlushInterval(*overrides.flushInterval)
+		opts = opts.SetFlushInterval(*overrides.flushInterval)
 	}
 
 	if overrides.backlogQueueSize != nil {
-		opts = opts.BacklogQueueSize(*overrides.backlogQueueSize)
+		opts = opts.SetBacklogQueueSize(*overrides.backlogQueueSize)
 	}
 
 	return opts, stats
 }
 
 func cleanup(t *testing.T, opts Options) {
-	filePathPrefix := opts.GetFilesystemOptions().GetFilePathPrefix()
+	filePathPrefix := opts.FilesystemOptions().FilePathPrefix()
 	assert.NoError(t, os.RemoveAll(filePathPrefix))
 }
 
@@ -216,8 +216,8 @@ func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 	assert.NoError(t, commitLog.Open())
 
 	// Ensure files present
-	fsopts := opts.GetFilesystemOptions()
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.GetFilePathPrefix()))
+	fsopts := opts.FilesystemOptions()
+	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	assert.NoError(t, err)
 	assert.True(t, len(files) == 1)
 
@@ -463,7 +463,7 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 	scope := commitLog.scope
 
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	blockSize := opts.RetentionOptions().BlockSize()
 	alignedStart := clock.Now().Truncate(blockSize)
 
 	// Writes spaced apart by block size
@@ -485,8 +485,8 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 	}
 
 	// Ensure files present for each block size time window
-	fsopts := opts.GetFilesystemOptions()
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.GetFilePathPrefix()))
+	fsopts := opts.FilesystemOptions()
+	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	assert.NoError(t, err)
 	assert.True(t, len(files) == len(writes))
 

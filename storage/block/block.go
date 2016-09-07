@@ -59,7 +59,7 @@ func NewDatabaseBlock(start time.Time, encoder encoding.Encoder, opts Options) D
 		opts:     opts,
 		start:    start,
 		encoder:  encoder,
-		ctx:      opts.GetContextPool().Get(),
+		ctx:      opts.ContextPool().Get(),
 		closed:   false,
 		writable: true,
 	}
@@ -98,7 +98,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	if b.segment.Head == nil && b.segment.Tail == nil {
 		return nil, nil
 	}
-	s := b.opts.GetSegmentReaderPool().Get()
+	s := b.opts.SegmentReaderPool().Get()
 	s.Reset(b.segment)
 	return s, nil
 }
@@ -129,7 +129,7 @@ func (b *dbBlock) close() {
 
 	// Otherwise, we need to return bytes to the bytes pool.
 	segment := b.segment
-	bytesPool := b.opts.GetBytesPool()
+	bytesPool := b.opts.BytesPool()
 	b.ctx.RegisterCloser(func() {
 		if segment.Head != nil && !segment.HeadShared {
 			bytesPool.Put(segment.Head)
@@ -146,7 +146,7 @@ func (b *dbBlock) Reset(startTime time.Time, encoder encoding.Encoder) {
 	b.start = startTime
 	b.encoder = encoder
 	b.segment = ts.Segment{}
-	b.ctx = b.opts.GetContextPool().Get()
+	b.ctx = b.opts.ContextPool().Get()
 	b.closed = false
 	b.writable = true
 }
@@ -157,7 +157,7 @@ func (b *dbBlock) Close() {
 	}
 	b.closed = true
 	b.close()
-	if pool := b.opts.GetDatabaseBlockPool(); pool != nil {
+	if pool := b.opts.DatabaseBlockPool(); pool != nil {
 		pool.Put(b)
 	}
 }
@@ -221,29 +221,29 @@ func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
 	}
 }
 
-// GetMinTime returns the min time of the blocks contained.
-func (dbb *databaseSeriesBlocks) GetMinTime() time.Time {
+// MinTime returns the min time of the blocks contained.
+func (dbb *databaseSeriesBlocks) MinTime() time.Time {
 	return dbb.min
 }
 
-// GetMaxTime returns the max time of the blocks contained.
-func (dbb *databaseSeriesBlocks) GetMaxTime() time.Time {
+// MaxTime returns the max time of the blocks contained.
+func (dbb *databaseSeriesBlocks) MaxTime() time.Time {
 	return dbb.max
 }
 
-func (dbb *databaseSeriesBlocks) GetBlockAt(t time.Time) (DatabaseBlock, bool) {
+func (dbb *databaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
 	b, ok := dbb.elems[t]
 	return b, ok
 }
 
-func (dbb *databaseSeriesBlocks) GetBlockOrAdd(t time.Time) DatabaseBlock {
+func (dbb *databaseSeriesBlocks) BlockOrAdd(t time.Time) DatabaseBlock {
 	b, ok := dbb.elems[t]
 	if ok {
 		return b
 	}
-	encoder := dbb.opts.GetEncoderPool().Get()
-	encoder.Reset(t, dbb.opts.GetDatabaseBlockAllocSize())
-	newBlock := dbb.opts.GetDatabaseBlockPool().Get()
+	encoder := dbb.opts.EncoderPool().Get()
+	encoder.Reset(t, dbb.opts.DatabaseBlockAllocSize())
+	newBlock := dbb.opts.DatabaseBlockPool().Get()
 	newBlock.Reset(t, encoder)
 	dbb.AddBlock(newBlock)
 	return newBlock

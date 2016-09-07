@@ -329,7 +329,7 @@ func (s *dbShard) FetchBlocksMetadata(
 
 		// Create a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching the metadata for this series.
-		tmpCtx := s.opts.GetContextPool().Get()
+		tmpCtx := s.opts.ContextPool().Get()
 		blocksMetadata := entry.series.FetchBlocksMetadata(tmpCtx, includeSizes)
 		tmpCtx.Close()
 		res = append(res, blocksMetadata)
@@ -438,7 +438,7 @@ func (s *dbShard) Flush(
 }
 
 func (s *dbShard) CleanupFileset(namespace string, earliestToRetain time.Time) error {
-	filePathPrefix := s.opts.GetCommitLogOptions().GetFilesystemOptions().GetFilePathPrefix()
+	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
 	expired, err := s.filesetBeforeFn(filePathPrefix, namespace, s.ID(), earliestToRetain)
 	if err != nil {

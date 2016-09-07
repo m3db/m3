@@ -59,7 +59,7 @@ func newDatabaseSeries(id string, bs bootstrapState, opts Options) databaseSerie
 	series := &dbSeries{
 		opts:     opts,
 		seriesID: id,
-		blocks:   block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions()),
+		blocks:   block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions()),
 		bs:       bs,
 	}
 	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
@@ -106,8 +106,8 @@ func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 
 	// If the earliest block is not within the retention period,
 	// we should expire the blocks.
-	now := s.opts.GetClockOptions().GetNowFn()()
-	minBlockStart := s.blocks.GetMinTime()
+	now := s.opts.ClockOptions().NowFn()()
+	minBlockStart := s.blocks.MinTime()
 	if s.shouldExpire(now, minBlockStart) {
 		return true
 	}
@@ -125,13 +125,13 @@ func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 }
 
 func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
-	rops := s.opts.GetRetentionOptions()
-	cutoff := now.Add(-rops.GetRetentionPeriod()).Truncate(rops.GetBlockSize())
+	rops := s.opts.RetentionOptions()
+	cutoff := now.Add(-rops.RetentionPeriod()).Truncate(rops.BlockSize())
 	return blockStart.Before(cutoff)
 }
 
 func (s *dbSeries) updateBlocksWithLock() {
-	now := s.opts.GetClockOptions().GetNowFn()()
+	now := s.opts.ClockOptions().NowFn()()
 	allBlocks := s.blocks.AllBlocks()
 	for blockStart, block := range allBlocks {
 		if s.shouldExpire(now, blockStart) {
@@ -147,9 +147,9 @@ func (s *dbSeries) shouldSeal(now, blockStart time.Time, block block.DatabaseBlo
 	if block.IsSealed() {
 		return false
 	}
-	rops := s.opts.GetRetentionOptions()
-	blockSize := rops.GetBlockSize()
-	cutoff := now.Add(-rops.GetBufferPast()).Add(-blockSize).Truncate(blockSize)
+	rops := s.opts.RetentionOptions()
+	blockSize := rops.BlockSize()
+	cutoff := now.Add(-rops.BufferPast()).Add(-blockSize).Truncate(blockSize)
 	return blockStart.Before(cutoff)
 }
 
@@ -192,7 +192,7 @@ func (s *dbSeries) ReadEncoded(
 	// TODO(r): pool these results arrays
 	var results [][]xio.SegmentReader
 
-	blockSize := s.opts.GetRetentionOptions().GetBlockSize()
+	blockSize := s.opts.RetentionOptions().BlockSize()
 	alignedStart := start.Truncate(blockSize)
 	alignedEnd := end.Truncate(blockSize)
 	if alignedEnd.Equal(end) {
@@ -204,14 +204,14 @@ func (s *dbSeries) ReadEncoded(
 
 	if s.blocks.Len() > 0 {
 		// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
-		if s.blocks.GetMinTime().After(alignedStart) {
-			alignedStart = s.blocks.GetMinTime()
+		if s.blocks.MinTime().After(alignedStart) {
+			alignedStart = s.blocks.MinTime()
 		}
-		if s.blocks.GetMaxTime().Before(alignedEnd) {
-			alignedEnd = s.blocks.GetMaxTime()
+		if s.blocks.MaxTime().Before(alignedEnd) {
+			alignedEnd = s.blocks.MaxTime()
 		}
 		for blockAt := alignedStart; !blockAt.After(alignedEnd); blockAt = blockAt.Add(blockSize) {
-			if block, ok := s.blocks.GetBlockAt(blockAt); ok {
+			if block, ok := s.blocks.BlockAt(blockAt); ok {
 				stream, err := block.Stream(ctx)
 				if err != nil {
 					return nil, err
@@ -239,7 +239,7 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []FetchB
 	s.RLock()
 
 	for _, start := range starts {
-		if b, exists := s.blocks.GetBlockAt(start); exists {
+		if b, exists := s.blocks.BlockAt(start); exists {
 			stream, err := b.Stream(ctx)
 			if err != nil {
 				detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, start, err)
@@ -315,9 +315,9 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
 		return
 	}
 
-	if _, ok := s.blocks.GetBlockAt(start); !ok {
+	if _, ok := s.blocks.BlockAt(start); !ok {
 		// New completed block
-		newBlock := s.opts.GetDatabaseBlockOptions().GetDatabaseBlockPool().Get()
+		newBlock := s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		newBlock.Reset(start, encoder)
 		s.blocks.AddBlock(newBlock)
 		return
@@ -331,7 +331,7 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
 }
 
 func (s *dbSeries) drainStream(blocks block.DatabaseSeriesBlocks, stream io.Reader, cutover time.Time) error {
-	iter := s.opts.GetReaderIteratorPool().Get()
+	iter := s.opts.ReaderIteratorPool().Get()
 	iter.Reset(stream)
 
 	// Close the iterator and return to pool when done
@@ -343,8 +343,8 @@ func (s *dbSeries) drainStream(blocks block.DatabaseSeriesBlocks, stream io.Read
 		if dp.Timestamp.Before(cutover) {
 			continue
 		}
-		blockStart := dp.Timestamp.Truncate(s.opts.GetRetentionOptions().GetBlockSize())
-		block := blocks.GetBlockOrAdd(blockStart)
+		blockStart := dp.Timestamp.Truncate(s.opts.RetentionOptions().BlockSize())
+		block := blocks.BlockOrAdd(blockStart)
 
 		if err := block.Write(dp.Timestamp, dp.Value, unit, annotation); err != nil {
 			return err
@@ -374,7 +374,7 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) e
 	s.bs = bootstrapping
 
 	if rs == nil {
-		rs = block.NewDatabaseSeriesBlocks(s.opts.GetDatabaseBlockOptions())
+		rs = block.NewDatabaseSeriesBlocks(s.opts.DatabaseBlockOptions())
 	}
 
 	// Force the in-memory buffer to drain and reset so we can merge the in-memory
@@ -391,7 +391,7 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) e
 		stream.Close()
 		if err != nil {
 			rs.Close()
-			rs = block.NewDatabaseSeriesBlocks(s.opts.GetDatabaseBlockOptions())
+			rs = block.NewDatabaseSeriesBlocks(s.opts.DatabaseBlockOptions())
 			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.seriesID, err))
 			multiErr = multiErr.Add(err)
 		}
@@ -411,7 +411,7 @@ func (s *dbSeries) Flush(ctx context.Context, blockStart time.Time, persistFn pe
 		s.RUnlock()
 		return errSeriesNotBootstrapped
 	}
-	b, exists := s.blocks.GetBlockAt(blockStart)
+	b, exists := s.blocks.BlockAt(blockStart)
 	if !exists {
 		s.RUnlock()
 		return nil

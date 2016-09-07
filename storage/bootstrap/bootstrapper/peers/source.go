@@ -39,8 +39,8 @@ type peersSource struct {
 func newPeersSource(opts Options) bootstrap.Source {
 	return &peersSource{
 		opts:    opts,
-		log:     opts.GetBootstrapOptions().GetInstrumentOptions().GetLogger(),
-		nowFn:   opts.GetBootstrapOptions().GetClockOptions().GetNowFn(),
+		log:     opts.BootstrapOptions().InstrumentOptions().Logger(),
+		nowFn:   opts.BootstrapOptions().ClockOptions().NowFn(),
 		sleepFn: time.Sleep,
 	}
 }
@@ -78,8 +78,8 @@ func (s *peersSource) Read(
 	}
 
 	var (
-		bopts   = s.opts.GetBootstrapOptions()
-		session = s.opts.GetAdminSession()
+		bopts   = s.opts.BootstrapOptions()
+		session = s.opts.AdminSession()
 		result  = bootstrap.NewResult()
 	)
 	for shard, ranges := range shardsTimeRanges {

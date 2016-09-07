@@ -72,17 +72,17 @@ type DatabaseSeriesBlocks interface {
 	// AddSeries adds a raw series.
 	AddSeries(other DatabaseSeriesBlocks)
 
-	// GetMinTime returns the min time of the blocks contained.
-	GetMinTime() time.Time
+	// MinTime returns the min time of the blocks contained.
+	MinTime() time.Time
 
-	// GetMaxTime returns the max time of the blocks contained.
-	GetMaxTime() time.Time
+	// MaxTime returns the max time of the blocks contained.
+	MaxTime() time.Time
 
-	// GetBlockAt returns the block at a given time if any.
-	GetBlockAt(t time.Time) (DatabaseBlock, bool)
+	// BlockAt returns the block at a given time if any.
+	BlockAt(t time.Time) (DatabaseBlock, bool)
 
-	// GetBlockAt returns the block at a given time, add it if it doesn't exist.
-	GetBlockOrAdd(t time.Time) DatabaseBlock
+	// BlockOrAdd returns the block at a given time, add it if it doesn't exist.
+	BlockOrAdd(t time.Time) DatabaseBlock
 
 	// AllBlocks returns all the blocks in the series.
 	AllBlocks() map[time.Time]DatabaseBlock
@@ -111,51 +111,51 @@ type DatabaseBlockPool interface {
 
 // Options represents the options for a database block
 type Options interface {
-	// DatabaseBlockAllocSize sets the databaseBlockAllocSize
-	DatabaseBlockAllocSize(value int) Options
+	// SetDatabaseBlockAllocSize sets the databaseBlockAllocSize
+	SetDatabaseBlockAllocSize(value int) Options
 
-	// GetDatabaseBlockAllocSize returns the databaseBlockAllocSize
-	GetDatabaseBlockAllocSize() int
+	// DatabaseBlockAllocSize returns the databaseBlockAllocSize
+	DatabaseBlockAllocSize() int
 
-	// DatabaseBlockPool sets the databaseBlockPool
-	DatabaseBlockPool(value DatabaseBlockPool) Options
+	// SetDatabaseBlockPool sets the databaseBlockPool
+	SetDatabaseBlockPool(value DatabaseBlockPool) Options
 
-	// GetDatabaseBlockPool returns the databaseBlockPool
-	GetDatabaseBlockPool() DatabaseBlockPool
+	// DatabaseBlockPool returns the databaseBlockPool
+	DatabaseBlockPool() DatabaseBlockPool
 
-	// ContextPool sets the contextPool
-	ContextPool(value context.Pool) Options
+	// SetContextPool sets the contextPool
+	SetContextPool(value context.Pool) Options
 
-	// GetContextPool returns the contextPool
-	GetContextPool() context.Pool
+	// ContextPool returns the contextPool
+	ContextPool() context.Pool
 
-	// EncoderPool sets the contextPool
-	EncoderPool(value encoding.EncoderPool) Options
+	// SetEncoderPool sets the contextPool
+	SetEncoderPool(value encoding.EncoderPool) Options
 
-	// GetEncoderPool returns the contextPool
-	GetEncoderPool() encoding.EncoderPool
+	// EncoderPool returns the contextPool
+	EncoderPool() encoding.EncoderPool
 
-	// ReaderIteratorPool sets the readerIteratorPool
-	ReaderIteratorPool(value encoding.ReaderIteratorPool) Options
+	// SetReaderIteratorPool sets the readerIteratorPool
+	SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options
 
-	// GetReaderIteratorPool returns the readerIteratorPool
-	GetReaderIteratorPool() encoding.ReaderIteratorPool
+	// ReaderIteratorPool returns the readerIteratorPool
+	ReaderIteratorPool() encoding.ReaderIteratorPool
 
-	// MultiReaderIteratorPool sets the multiReaderIteratorPool
-	MultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options
+	// SetMultiReaderIteratorPool sets the multiReaderIteratorPool
+	SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options
 
-	// GetMultiReaderIteratorPool returns the multiReaderIteratorPool
-	GetMultiReaderIteratorPool() encoding.MultiReaderIteratorPool
+	// MultiReaderIteratorPool returns the multiReaderIteratorPool
+	MultiReaderIteratorPool() encoding.MultiReaderIteratorPool
 
-	// SegmentReaderPool sets the contextPool
-	SegmentReaderPool(value xio.SegmentReaderPool) Options
+	// SetSegmentReaderPool sets the contextPool
+	SetSegmentReaderPool(value xio.SegmentReaderPool) Options
 
-	// GetSegmentReaderPool returns the contextPool
-	GetSegmentReaderPool() xio.SegmentReaderPool
+	// SegmentReaderPool returns the contextPool
+	SegmentReaderPool() xio.SegmentReaderPool
 
-	// BytesPool sets the bytesPool
-	BytesPool(value pool.BytesPool) Options
+	// SetBytesPool sets the bytesPool
+	SetBytesPool(value pool.BytesPool) Options
 
-	// GetBytesPool returns the bytesPool
-	GetBytesPool() pool.BytesPool
+	// BytesPool returns the bytesPool
+	BytesPool() pool.BytesPool
 }

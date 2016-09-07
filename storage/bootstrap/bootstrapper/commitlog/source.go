@@ -49,7 +49,7 @@ type encoder struct {
 func newCommitLogSource(opts Options) bootstrap.Source {
 	return &commitLogSource{
 		opts:          opts,
-		log:           opts.GetBootstrapOptions().GetInstrumentOptions().GetLogger(),
+		log:           opts.BootstrapOptions().InstrumentOptions().Logger(),
 		newIteratorFn: commitlog.NewIterator,
 	}
 }
@@ -79,7 +79,7 @@ func (s *commitLogSource) Read(
 		return nil, nil
 	}
 
-	iter, err := s.newIteratorFn(s.opts.GetCommitLogOptions())
+	iter, err := s.newIteratorFn(s.opts.CommitLogOptions())
 	if err != nil {
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
@@ -88,10 +88,10 @@ func (s *commitLogSource) Read(
 
 	var (
 		unmerged    = make(map[uint32]map[string]map[time.Time][]encoder)
-		bopts       = s.opts.GetBootstrapOptions()
-		blopts      = bopts.GetDatabaseBlockOptions()
-		blockSize   = bopts.GetRetentionOptions().GetBlockSize()
-		encoderPool = bopts.GetDatabaseBlockOptions().GetEncoderPool()
+		bopts       = s.opts.BootstrapOptions()
+		blopts      = bopts.DatabaseBlockOptions()
+		blockSize   = bopts.RetentionOptions().BlockSize()
+		encoderPool = bopts.DatabaseBlockOptions().EncoderPool()
 		errs        = 0
 	)
 	for iter.Next() {
@@ -140,7 +140,7 @@ func (s *commitLogSource) Read(
 		}
 		if !wroteExisting {
 			enc := encoderPool.Get()
-			enc.Reset(blockStart, blopts.GetDatabaseBlockAllocSize())
+			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
 
 			err = enc.Encode(dp, unit, annotation)
 			if err == nil {
@@ -165,10 +165,10 @@ func (s *commitLogSource) Read(
 	errs = 0
 	emptyErrs := 0
 	result := bootstrap.NewResult()
-	blocksPool := bopts.GetDatabaseBlockOptions().GetDatabaseBlockPool()
-	multiReaderIteratorPool := blopts.GetMultiReaderIteratorPool()
+	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
+	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
 	for shard, unmergedShard := range unmerged {
-		shardResult := bootstrap.NewShardResult(s.opts.GetBootstrapOptions())
+		shardResult := bootstrap.NewShardResult(s.opts.BootstrapOptions())
 		for id, unmergedBlocks := range unmergedShard {
 			blocks := block.NewDatabaseSeriesBlocks(blopts)
 			for start, unmergedBlock := range unmergedBlocks {
@@ -189,7 +189,7 @@ func (s *commitLogSource) Read(
 
 					var err error
 					enc := encoderPool.Get()
-					enc.Reset(start, blopts.GetDatabaseBlockAllocSize())
+					enc.Reset(start, blopts.DatabaseBlockAllocSize())
 					for iter.Next() {
 						dp, unit, annotation := iter.Current()
 						encodeErr := enc.Encode(dp, unit, annotation)

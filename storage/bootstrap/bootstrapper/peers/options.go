@@ -37,22 +37,22 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) BootstrapOptions(value bootstrap.Options) Options {
+func (o *options) SetBootstrapOptions(value bootstrap.Options) Options {
 	opts := *o
 	opts.bootstrapOpts = value
 	return &opts
 }
 
-func (o *options) GetBootstrapOptions() bootstrap.Options {
+func (o *options) BootstrapOptions() bootstrap.Options {
 	return o.bootstrapOpts
 }
 
-func (o *options) AdminSession(value client.AdminSession) Options {
+func (o *options) SetAdminSession(value client.AdminSession) Options {
 	opts := *o
 	opts.session = value
 	return &opts
 }
 
-func (o *options) GetAdminSession() client.AdminSession {
+func (o *options) AdminSession() client.AdminSession {
 	return o.session
 }

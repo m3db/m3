@@ -38,22 +38,22 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) BootstrapOptions(value bootstrap.Options) Options {
+func (o *options) SetBootstrapOptions(value bootstrap.Options) Options {
 	opts := *o
 	opts.bootstrapOpts = value
 	return &opts
 }
 
-func (o *options) GetBootstrapOptions() bootstrap.Options {
+func (o *options) BootstrapOptions() bootstrap.Options {
 	return o.bootstrapOpts
 }
 
-func (o *options) CommitLogOptions(value commitlog.Options) Options {
+func (o *options) SetCommitLogOptions(value commitlog.Options) Options {
 	opts := *o
 	opts.commitLogOpts = value
 	return &opts
 }
 
-func (o *options) GetCommitLogOptions() commitlog.Options {
+func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
 }

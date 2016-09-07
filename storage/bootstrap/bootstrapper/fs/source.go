@@ -42,9 +42,9 @@ type fileSystemSource struct {
 func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 	return &fileSystemSource{
 		opts:             opts,
-		log:              opts.GetBootstrapOptions().GetInstrumentOptions().GetLogger(),
+		log:              opts.BootstrapOptions().InstrumentOptions().Logger(),
 		filePathPrefix:   prefix,
-		readerBufferSize: opts.GetFilesystemOptions().GetReaderBufferSize(),
+		readerBufferSize: opts.FilesystemOptions().ReaderBufferSize(),
 		newReaderFn:      fs.NewReader,
 	}
 }
@@ -114,7 +114,7 @@ func (s *fileSystemSource) Read(
 			continue
 		}
 
-		bopts := s.opts.GetBootstrapOptions()
+		bopts := s.opts.BootstrapOptions()
 		seriesMap := bootstrap.NewShardResult(bopts)
 		r := s.newReaderFn(s.filePathPrefix, s.readerBufferSize)
 		for i := 0; i < len(files); i++ {
@@ -141,9 +141,9 @@ func (s *fileSystemSource) Read(
 					hasError = true
 					break
 				}
-				encoder := bopts.GetDatabaseBlockOptions().GetEncoderPool().Get()
+				encoder := bopts.DatabaseBlockOptions().EncoderPool().Get()
 				encoder.ResetSetData(timeRange.Start, data, false)
-				block := bopts.GetDatabaseBlockOptions().GetDatabaseBlockPool().Get()
+				block := bopts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 				block.Reset(timeRange.Start, encoder)
 				curMap.AddBlock(id, block)
 			}

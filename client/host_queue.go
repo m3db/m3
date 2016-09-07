@@ -63,15 +63,15 @@ func newHostQueue(
 	idDatapointArrayPool idDatapointArrayPool,
 	opts Options,
 ) hostQueue {
-	size := opts.GetHostQueueOpsFlushSize()
+	size := opts.HostQueueOpsFlushSize()
 
-	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.GetWriteBatchSize())))
-	opArrayPool := newOpArrayPool(opts.GetHostQueueOpsArrayPoolSize(), opArrayPoolCapacity)
+	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.WriteBatchSize())))
+	opArrayPool := newOpArrayPool(opts.HostQueueOpsArrayPoolSize(), opArrayPoolCapacity)
 	opArrayPool.Init()
 
 	return &queue{
 		opts:                  opts,
-		nowFn:                 opts.GetClockOptions().GetNowFn(),
+		nowFn:                 opts.ClockOptions().NowFn(),
 		host:                  host,
 		connPool:              newConnectionPool(host, opts),
 		writeBatchRequestPool: writeBatchRequestPool,
@@ -100,7 +100,7 @@ func (q *queue) Open() {
 	// Continually drain the queue until closed
 	go q.drain()
 
-	flushInterval := q.opts.GetHostQueueOpsFlushInterval()
+	flushInterval := q.opts.HostQueueOpsFlushInterval()
 	if flushInterval > 0 {
 		// Continually flush the queue at given interval if set
 		go q.flushEvery(flushInterval)
@@ -173,7 +173,7 @@ func (q *queue) drain() {
 		wgAll                       = &sync.WaitGroup{}
 		currWriteOpsByNamespace     = make(map[string][]op)
 		currIDDatapointsByNamespace = make(map[string][]*rpc.IDDatapoint)
-		writeBatchSize              = q.opts.GetWriteBatchSize()
+		writeBatchSize              = q.opts.WriteBatchSize()
 	)
 
 	for {
@@ -213,7 +213,7 @@ func (q *queue) drain() {
 			case *truncateOp:
 				q.asyncTruncate(wgAll, v)
 			default:
-				completionFn := ops[i].GetCompletionFn()
+				completionFn := ops[i].CompletionFn()
 				completionFn(nil, errQueueUnknownOperation)
 			}
 		}
@@ -261,7 +261,7 @@ func (q *queue) asyncWrite(wg *sync.WaitGroup, namespace string, ops []op, elems
 			return
 		}
 
-		ctx, _ := thrift.NewContext(q.opts.GetWriteRequestTimeout())
+		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
 		err = client.WriteBatch(ctx, req)
 		if err == nil {
 			// All succeeded
@@ -275,14 +275,14 @@ func (q *queue) asyncWrite(wg *sync.WaitGroup, namespace string, ops []op, elems
 			hasErr := make(map[int]struct{})
 			for _, batchErr := range batchErrs.Errors {
 				op := ops[batchErr.Index]
-				op.GetCompletionFn()(nil, batchErr.Err)
+				op.CompletionFn()(nil, batchErr.Err)
 				hasErr[int(batchErr.Index)] = struct{}{}
 			}
 			// Callback all writes with no errors
 			for i := range ops {
 				if _, ok := hasErr[i]; !ok {
 					// No error
-					ops[i].GetCompletionFn()(nil, nil)
+					ops[i].CompletionFn()(nil, nil)
 				}
 			}
 			cleanup()
@@ -310,7 +310,7 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 			return
 		}
 
-		ctx, _ := thrift.NewContext(q.opts.GetFetchRequestTimeout())
+		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
 		result, err := client.FetchRawBatch(ctx, &op.request)
 		if err != nil {
 			op.completeAll(nil, err)
@@ -347,7 +347,7 @@ func (q *queue) asyncTruncate(wg *sync.WaitGroup, op *truncateOp) {
 			return
 		}
 
-		ctx, _ := thrift.NewContext(q.opts.GetTruncateRequestTimeout())
+		ctx, _ := thrift.NewContext(q.opts.TruncateRequestTimeout())
 		if res, err := client.Truncate(ctx, &op.request); err != nil {
 			op.completionFn(nil, err)
 		} else {
@@ -391,11 +391,11 @@ func (q *queue) Host() topology.Host {
 	return q.host
 }
 
-func (q *queue) GetConnectionCount() int {
-	return q.connPool.GetConnectionCount()
+func (q *queue) ConnectionCount() int {
+	return q.connPool.ConnectionCount()
 }
 
-func (q *queue) GetConnectionPool() connectionPool {
+func (q *queue) ConnectionPool() connectionPool {
 	return q.connPool
 }
 

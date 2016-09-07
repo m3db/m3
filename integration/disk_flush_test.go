@@ -111,9 +111,9 @@ func verifyFlushed(
 	namespace string,
 	seriesMaps map[time.Time]seriesList,
 ) {
-	fsOpts := opts.GetCommitLogOptions().GetFilesystemOptions()
-	reader := fs.NewReader(fsOpts.GetFilePathPrefix(), fsOpts.GetReaderBufferSize())
-	newDecoderFn := opts.GetNewDecoderFn()
+	fsOpts := opts.CommitLogOptions().FilesystemOptions()
+	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.ReaderBufferSize())
+	newDecoderFn := opts.NewDecoderFn()
 	decoder := newDecoderFn()
 	for timestamp, seriesList := range seriesMaps {
 		verifyForTime(t, reader, shardSet, decoder, timestamp, namespace, seriesList)
@@ -128,15 +128,15 @@ func TestDiskFlush(t *testing.T) {
 
 	testSetup.storageOpts =
 		testSetup.storageOpts.
-			RetentionOptions(testSetup.storageOpts.GetRetentionOptions().
-			BufferDrain(3 * time.Second).
-			RetentionPeriod(6 * time.Hour))
+			SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
+				SetBufferDrain(3 * time.Second).
+				SetRetentionPeriod(6 * time.Hour))
 
-	blockSize := testSetup.storageOpts.GetRetentionOptions().GetBlockSize()
-	filePathPrefix := testSetup.storageOpts.GetCommitLogOptions().GetFilesystemOptions().GetFilePathPrefix()
+	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
-	log := testSetup.storageOpts.GetInstrumentOptions().GetLogger()
+	log := testSetup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("disk flush test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
@@ -170,7 +170,7 @@ func TestDiskFlush(t *testing.T) {
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	waitTimeout := testSetup.storageOpts.GetRetentionOptions().GetBufferDrain() * 10
+	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 10
 	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, waitTimeout))
 
 	// Verify on-disk data match what we expect

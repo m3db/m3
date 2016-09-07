@@ -41,7 +41,7 @@ func NewCommitLogBootstrapper(
 ) bootstrap.Bootstrapper {
 	src := newCommitLogSource(opts)
 	return &commitLogBootstrapper{
-		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts.GetBootstrapOptions(), next),
+		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts.BootstrapOptions(), next),
 	}
 }
 

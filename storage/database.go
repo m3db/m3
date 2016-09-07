@@ -109,22 +109,22 @@ type db struct {
 func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, opts Options) (Database, error) {
 	d := &db{
 		opts:         opts,
-		nowFn:        opts.GetClockOptions().GetNowFn(),
-		tickDeadline: opts.GetRetentionOptions().GetBufferDrain(),
+		nowFn:        opts.ClockOptions().NowFn(),
+		tickDeadline: opts.RetentionOptions().BufferDrain(),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
 
 	d.fsm = newFileSystemManager(d)
 	d.bsm = newBootstrapManager(d, d.fsm)
 
-	d.commitLog = commitlog.NewCommitLog(opts.GetCommitLogOptions())
+	d.commitLog = commitlog.NewCommitLog(opts.CommitLogOptions())
 	if err := d.commitLog.Open(); err != nil {
 		return nil, err
 	}
 
 	// TODO(r): instead of binding the method here simply bind the method
 	// in the commit log itself and just call "Write()" always
-	switch opts.GetCommitLogOptions().GetStrategy() {
+	switch opts.CommitLogOptions().Strategy() {
 	case commitlog.StrategyWriteWait:
 		d.writeCommitLogFn = d.commitLog.Write
 	case commitlog.StrategyWriteBehind:

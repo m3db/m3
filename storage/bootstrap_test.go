@@ -37,10 +37,10 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	now := time.Now()
-	cutover := now.Add(opts.GetRetentionOptions().GetBufferFuture())
-	opts = opts.NewBootstrapFn(func() bootstrap.Bootstrap {
+	cutover := now.Add(opts.RetentionOptions().BufferFuture())
+	opts = opts.SetNewBootstrapFn(func() bootstrap.Bootstrap {
 		return nil
-	}).ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	}).SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return now
 	}))
 

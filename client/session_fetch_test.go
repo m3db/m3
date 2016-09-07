@@ -85,7 +85,7 @@ func TestSessionFetchAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions().FetchBatchSize(2)
+	opts := newSessionTestOptions().SetFetchBatchSize(2)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -132,7 +132,7 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions().FetchBatchSize(2)
+	opts := newSessionTestOptions().SetFetchBatchSize(2)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -208,7 +208,7 @@ func testFetchConsistencyLevel(
 	expected outcome,
 ) {
 	opts := newSessionTestOptions()
-	opts = opts.ConsistencyLevel(level)
+	opts = opts.SetConsistencyLevel(level)
 
 	s, err := newSession(opts)
 	assert.NoError(t, err)
@@ -265,7 +265,7 @@ func prepareEnqueues(
 	}
 
 	var enqueueFns []testEnqueueFn
-	fetchBatchSize := session.opts.GetFetchBatchSize()
+	fetchBatchSize := session.opts.FetchBatchSize()
 	for i := 0; i < int(math.Ceil(float64(len(fetches))/float64(fetchBatchSize))); i++ {
 		enqueueFns = append(enqueueFns, enqueueFn)
 	}

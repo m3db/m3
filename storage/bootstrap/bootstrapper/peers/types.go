@@ -27,15 +27,15 @@ import (
 
 // Options represents the options for bootstrapping from peers
 type Options interface {
-	// BootstrapOptions sets the instrumentation options
-	BootstrapOptions(value bootstrap.Options) Options
+	// SetBootstrapOptions sets the instrumentation options
+	SetBootstrapOptions(value bootstrap.Options) Options
 
-	// GetBootstrapOptions returns the instrumentation options
-	GetBootstrapOptions() bootstrap.Options
+	// BootstrapOptions returns the instrumentation options
+	BootstrapOptions() bootstrap.Options
 
-	// AdminSession sets the admin session
-	AdminSession(value client.AdminSession) Options
+	// SetAdminSession sets the admin session
+	SetAdminSession(value client.AdminSession) Options
 
-	// GetAdminSession returns the admin session
-	GetAdminSession() client.AdminSession
+	// AdminSession returns the admin session
+	AdminSession() client.AdminSession
 }

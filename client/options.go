@@ -196,7 +196,7 @@ func newOptions() *options {
 		fetchSeriesBlocksBatchTimeout:         defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:     defaultFetchSeriesBlocksBatchConcurrency,
 	}
-	return opts.EncodingM3TSZ().(*options)
+	return opts.SetEncodingM3TSZ().(*options)
 }
 
 func (o *options) Validate() error {
@@ -209,27 +209,27 @@ func (o *options) Validate() error {
 	return nil
 }
 
-func (o *options) ClockOptions(value clock.Options) Options {
+func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
 	return &opts
 }
 
-func (o *options) GetClockOptions() clock.Options {
+func (o *options) ClockOptions() clock.Options {
 	return o.clockOpts
 }
 
-func (o *options) InstrumentOptions(value instrument.Options) Options {
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	opts.instrumentOpts = value
 	return &opts
 }
 
-func (o *options) GetInstrumentOptions() instrument.Options {
+func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) EncodingM3TSZ() Options {
+func (o *options) SetEncodingM3TSZ() Options {
 	opts := *o
 	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
@@ -237,302 +237,302 @@ func (o *options) EncodingM3TSZ() Options {
 	return &opts
 }
 
-func (o *options) TopologyInitializer(value topology.Initializer) Options {
+func (o *options) SetTopologyInitializer(value topology.Initializer) Options {
 	opts := *o
 	opts.topologyInitializer = value
 	return &opts
 }
 
-func (o *options) GetTopologyInitializer() topology.Initializer {
+func (o *options) TopologyInitializer() topology.Initializer {
 	return o.topologyInitializer
 }
 
-func (o *options) ConsistencyLevel(value topology.ConsistencyLevel) Options {
+func (o *options) SetConsistencyLevel(value topology.ConsistencyLevel) Options {
 	opts := *o
 	opts.consistencyLevel = value
 	return &opts
 }
 
-func (o *options) GetConsistencyLevel() topology.ConsistencyLevel {
+func (o *options) ConsistencyLevel() topology.ConsistencyLevel {
 	return o.consistencyLevel
 }
 
-func (o *options) ChannelOptions(value *tchannel.ChannelOptions) Options {
+func (o *options) SetChannelOptions(value *tchannel.ChannelOptions) Options {
 	opts := *o
 	opts.channelOptions = value
 	return &opts
 }
 
-func (o *options) GetChannelOptions() *tchannel.ChannelOptions {
+func (o *options) ChannelOptions() *tchannel.ChannelOptions {
 	return o.channelOptions
 }
 
-func (o *options) MaxConnectionCount(value int) Options {
+func (o *options) SetMaxConnectionCount(value int) Options {
 	opts := *o
 	opts.maxConnectionCount = value
 	return &opts
 }
 
-func (o *options) GetMaxConnectionCount() int {
+func (o *options) MaxConnectionCount() int {
 	return o.maxConnectionCount
 }
 
-func (o *options) MinConnectionCount(value int) Options {
+func (o *options) SetMinConnectionCount(value int) Options {
 	opts := *o
 	opts.minConnectionCount = value
 	return &opts
 }
 
-func (o *options) GetMinConnectionCount() int {
+func (o *options) MinConnectionCount() int {
 	return o.minConnectionCount
 }
 
-func (o *options) HostConnectTimeout(value time.Duration) Options {
+func (o *options) SetHostConnectTimeout(value time.Duration) Options {
 	opts := *o
 	opts.hostConnectTimeout = value
 	return &opts
 }
 
-func (o *options) GetHostConnectTimeout() time.Duration {
+func (o *options) HostConnectTimeout() time.Duration {
 	return o.hostConnectTimeout
 }
 
-func (o *options) ClusterConnectTimeout(value time.Duration) Options {
+func (o *options) SetClusterConnectTimeout(value time.Duration) Options {
 	opts := *o
 	opts.clusterConnectTimeout = value
 	return &opts
 }
 
-func (o *options) GetClusterConnectTimeout() time.Duration {
+func (o *options) ClusterConnectTimeout() time.Duration {
 	return o.clusterConnectTimeout
 }
 
-func (o *options) ClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options {
+func (o *options) SetClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options {
 	opts := *o
 	opts.clusterConnectConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) GetClusterConnectConsistencyLevel() topology.ConsistencyLevel {
+func (o *options) ClusterConnectConsistencyLevel() topology.ConsistencyLevel {
 	return o.clusterConnectConsistencyLevel
 }
 
-func (o *options) WriteRequestTimeout(value time.Duration) Options {
+func (o *options) SetWriteRequestTimeout(value time.Duration) Options {
 	opts := *o
 	opts.writeRequestTimeout = value
 	return &opts
 }
 
-func (o *options) GetWriteRequestTimeout() time.Duration {
+func (o *options) WriteRequestTimeout() time.Duration {
 	return o.writeRequestTimeout
 }
 
-func (o *options) FetchRequestTimeout(value time.Duration) Options {
+func (o *options) SetFetchRequestTimeout(value time.Duration) Options {
 	opts := *o
 	opts.fetchRequestTimeout = value
 	return &opts
 }
 
-func (o *options) GetFetchRequestTimeout() time.Duration {
+func (o *options) FetchRequestTimeout() time.Duration {
 	return o.fetchRequestTimeout
 }
 
-func (o *options) TruncateRequestTimeout(value time.Duration) Options {
+func (o *options) SetTruncateRequestTimeout(value time.Duration) Options {
 	opts := *o
 	opts.truncateRequestTimeout = value
 	return &opts
 }
 
-func (o *options) GetTruncateRequestTimeout() time.Duration {
+func (o *options) TruncateRequestTimeout() time.Duration {
 	return o.truncateRequestTimeout
 }
 
-func (o *options) BackgroundConnectInterval(value time.Duration) Options {
+func (o *options) SetBackgroundConnectInterval(value time.Duration) Options {
 	opts := *o
 	opts.backgroundConnectInterval = value
 	return &opts
 }
 
-func (o *options) GetBackgroundConnectInterval() time.Duration {
+func (o *options) BackgroundConnectInterval() time.Duration {
 	return o.writeRequestTimeout
 }
 
-func (o *options) BackgroundConnectStutter(value time.Duration) Options {
+func (o *options) SetBackgroundConnectStutter(value time.Duration) Options {
 	opts := *o
 	opts.backgroundConnectStutter = value
 	return &opts
 }
 
-func (o *options) GetBackgroundConnectStutter() time.Duration {
+func (o *options) BackgroundConnectStutter() time.Duration {
 	return o.backgroundConnectStutter
 }
 
-func (o *options) BackgroundHealthCheckInterval(value time.Duration) Options {
+func (o *options) SetBackgroundHealthCheckInterval(value time.Duration) Options {
 	opts := *o
 	opts.backgroundHealthCheckInterval = value
 	return &opts
 }
 
-func (o *options) GetBackgroundHealthCheckInterval() time.Duration {
+func (o *options) BackgroundHealthCheckInterval() time.Duration {
 	return o.backgroundHealthCheckInterval
 }
 
-func (o *options) BackgroundHealthCheckStutter(value time.Duration) Options {
+func (o *options) SetBackgroundHealthCheckStutter(value time.Duration) Options {
 	opts := *o
 	opts.backgroundHealthCheckStutter = value
 	return &opts
 }
 
-func (o *options) GetBackgroundHealthCheckStutter() time.Duration {
+func (o *options) BackgroundHealthCheckStutter() time.Duration {
 	return o.backgroundHealthCheckStutter
 }
 
-func (o *options) WriteOpPoolSize(value int) Options {
+func (o *options) SetWriteOpPoolSize(value int) Options {
 	opts := *o
 	opts.writeOpPoolSize = value
 	return &opts
 }
 
-func (o *options) GetWriteOpPoolSize() int {
+func (o *options) WriteOpPoolSize() int {
 	return o.writeOpPoolSize
 }
 
-func (o *options) FetchBatchOpPoolSize(value int) Options {
+func (o *options) SetFetchBatchOpPoolSize(value int) Options {
 	opts := *o
 	opts.fetchBatchOpPoolSize = value
 	return &opts
 }
 
-func (o *options) GetFetchBatchOpPoolSize() int {
+func (o *options) FetchBatchOpPoolSize() int {
 	return o.fetchBatchOpPoolSize
 }
 
-func (o *options) WriteBatchSize(value int) Options {
+func (o *options) SetWriteBatchSize(value int) Options {
 	opts := *o
 	opts.writeBatchSize = value
 	return &opts
 }
 
-func (o *options) GetWriteBatchSize() int {
+func (o *options) WriteBatchSize() int {
 	return o.writeBatchSize
 }
 
-func (o *options) FetchBatchSize(value int) Options {
+func (o *options) SetFetchBatchSize(value int) Options {
 	opts := *o
 	opts.fetchBatchSize = value
 	return &opts
 }
 
-func (o *options) GetFetchBatchSize() int {
+func (o *options) FetchBatchSize() int {
 	return o.fetchBatchSize
 }
 
-func (o *options) HostQueueOpsFlushSize(value int) Options {
+func (o *options) SetHostQueueOpsFlushSize(value int) Options {
 	opts := *o
 	opts.hostQueueOpsFlushSize = value
 	return &opts
 }
 
-func (o *options) GetHostQueueOpsFlushSize() int {
+func (o *options) HostQueueOpsFlushSize() int {
 	return o.hostQueueOpsFlushSize
 }
 
-func (o *options) HostQueueOpsFlushInterval(value time.Duration) Options {
+func (o *options) SetHostQueueOpsFlushInterval(value time.Duration) Options {
 	opts := *o
 	opts.hostQueueOpsFlushInterval = value
 	return &opts
 }
 
-func (o *options) GetHostQueueOpsFlushInterval() time.Duration {
+func (o *options) HostQueueOpsFlushInterval() time.Duration {
 	return o.hostQueueOpsFlushInterval
 }
 
-func (o *options) HostQueueOpsArrayPoolSize(value int) Options {
+func (o *options) SetHostQueueOpsArrayPoolSize(value int) Options {
 	opts := *o
 	opts.hostQueueOpsArrayPoolSize = value
 	return &opts
 }
 
-func (o *options) GetHostQueueOpsArrayPoolSize() int {
+func (o *options) HostQueueOpsArrayPoolSize() int {
 	return o.hostQueueOpsArrayPoolSize
 }
 
-func (o *options) SeriesIteratorPoolSize(value int) Options {
+func (o *options) SetSeriesIteratorPoolSize(value int) Options {
 	opts := *o
 	opts.seriesIteratorPoolSize = value
 	return &opts
 }
 
-func (o *options) GetSeriesIteratorPoolSize() int {
+func (o *options) SeriesIteratorPoolSize() int {
 	return o.seriesIteratorPoolSize
 }
 
-func (o *options) SeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
+func (o *options) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
 	opts := *o
 	opts.seriesIteratorArrayPoolBuckets = value
 	return &opts
 }
 
-func (o *options) GetSeriesIteratorArrayPoolBuckets() []pool.Bucket {
+func (o *options) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
 	return o.seriesIteratorArrayPoolBuckets
 }
 
-func (o *options) ReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
+func (o *options) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
 	opts := *o
 	opts.readerIteratorAllocate = value
 	return &opts
 }
 
-func (o *options) GetReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
+func (o *options) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
 	return o.readerIteratorAllocate
 }
 
-func (o *options) Origin(value topology.Host) AdminOptions {
+func (o *options) SetOrigin(value topology.Host) AdminOptions {
 	opts := *o
 	opts.origin = value
 	return &opts
 }
 
-func (o *options) GetOrigin() topology.Host {
+func (o *options) Origin() topology.Host {
 	return o.origin
 }
 
-func (o *options) FetchSeriesBlocksBatchSize(value int) AdminOptions {
+func (o *options) SetFetchSeriesBlocksBatchSize(value int) AdminOptions {
 	opts := *o
 	opts.fetchSeriesBlocksBatchSize = value
 	return &opts
 }
 
-func (o *options) GetFetchSeriesBlocksBatchSize() int {
+func (o *options) FetchSeriesBlocksBatchSize() int {
 	return o.fetchSeriesBlocksBatchSize
 }
 
-func (o *options) FetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions {
+func (o *options) SetFetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions {
 	opts := *o
 	opts.fetchSeriesBlocksMetadataBatchTimeout = value
 	return &opts
 }
 
-func (o *options) GetFetchSeriesBlocksMetadataBatchTimeout() time.Duration {
+func (o *options) FetchSeriesBlocksMetadataBatchTimeout() time.Duration {
 	return o.fetchSeriesBlocksMetadataBatchTimeout
 }
 
-func (o *options) FetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {
+func (o *options) SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {
 	opts := *o
 	opts.fetchSeriesBlocksBatchTimeout = value
 	return &opts
 }
 
-func (o *options) GetFetchSeriesBlocksBatchTimeout() time.Duration {
+func (o *options) FetchSeriesBlocksBatchTimeout() time.Duration {
 	return o.fetchSeriesBlocksBatchTimeout
 }
 
-func (o *options) FetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
+func (o *options) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
 	opts := *o
 	opts.fetchSeriesBlocksBatchConcurrency = value
 	return &opts
 }
 
-func (o *options) GetFetchSeriesBlocksBatchConcurrency() int {
+func (o *options) FetchSeriesBlocksBatchConcurrency() int {
 	return o.fetchSeriesBlocksBatchConcurrency
 }

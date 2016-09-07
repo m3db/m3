@@ -68,11 +68,11 @@ func DefaultClientOptions(id, tchannelNodeAddr string, shardSet sharding.ShardSe
 
 	hostShardSet := topology.NewHostShardSet(topology.NewHost(id, localNodeAddr), shardSet)
 	staticOptions := topology.NewStaticOptions().
-		ShardSet(shardSet).
-		Replicas(1).
-		HostShardSets([]topology.HostShardSet{hostShardSet})
+		SetShardSet(shardSet).
+		SetReplicas(1).
+		SetHostShardSets([]topology.HostShardSet{hostShardSet})
 
-	return client.NewOptions().TopologyInitializer(topology.NewStaticInitializer(staticOptions)), nil
+	return client.NewOptions().SetTopologyInitializer(topology.NewStaticInitializer(staticOptions)), nil
 }
 
 // Serve starts up the tchannel server as well as the http server.
@@ -86,7 +86,7 @@ func Serve(
 	storageOpts storage.Options,
 	doneCh chan struct{},
 ) error {
-	log := storageOpts.GetInstrumentOptions().GetLogger()
+	log := storageOpts.InstrumentOptions().Logger()
 	shardSet, err := DefaultShardSet()
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ func Serve(
 		return fmt.Errorf("could not create cluster client: %v", err)
 	}
 
-	contextPool := storageOpts.GetContextPool()
+	contextPool := storageOpts.ContextPool()
 
 	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, contextPool, nil).ListenAndServe()
 	if err != nil {

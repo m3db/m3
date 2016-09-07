@@ -998,342 +998,342 @@ func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOptions) ClockOptions(value clock.Options) Options {
-	ret := _m.ctrl.Call(_m, "ClockOptions", value)
+func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ClockOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClockOptions", arg0)
 }
 
-func (_m *MockOptions) GetClockOptions() clock.Options {
-	ret := _m.ctrl.Call(_m, "GetClockOptions")
+func (_m *MockOptions) ClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions")
 	ret0, _ := ret[0].(clock.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetClockOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClockOptions")
+func (_mr *_MockOptionsRecorder) ClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions")
 }
 
-func (_m *MockOptions) InstrumentOptions(value instrument.Options) Options {
-	ret := _m.ctrl.Call(_m, "InstrumentOptions", value)
+func (_m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) InstrumentOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
 }
 
-func (_m *MockOptions) GetInstrumentOptions() instrument.Options {
-	ret := _m.ctrl.Call(_m, "GetInstrumentOptions")
+func (_m *MockOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetInstrumentOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetInstrumentOptions")
+func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
 }
 
-func (_m *MockOptions) RetentionOptions(value retention.Options) Options {
-	ret := _m.ctrl.Call(_m, "RetentionOptions", value)
+func (_m *MockOptions) SetRetentionOptions(value retention.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetRetentionOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) RetentionOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetRetentionOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRetentionOptions", arg0)
 }
 
-func (_m *MockOptions) GetRetentionOptions() retention.Options {
-	ret := _m.ctrl.Call(_m, "GetRetentionOptions")
+func (_m *MockOptions) RetentionOptions() retention.Options {
+	ret := _m.ctrl.Call(_m, "RetentionOptions")
 	ret0, _ := ret[0].(retention.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetRetentionOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetRetentionOptions")
+func (_mr *_MockOptionsRecorder) RetentionOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionOptions")
 }
 
-func (_m *MockOptions) DatabaseBlockOptions(value block.Options) Options {
-	ret := _m.ctrl.Call(_m, "DatabaseBlockOptions", value)
+func (_m *MockOptions) SetDatabaseBlockOptions(value block.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetDatabaseBlockOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) DatabaseBlockOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseBlockOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetDatabaseBlockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetDatabaseBlockOptions", arg0)
 }
 
-func (_m *MockOptions) GetDatabaseBlockOptions() block.Options {
-	ret := _m.ctrl.Call(_m, "GetDatabaseBlockOptions")
+func (_m *MockOptions) DatabaseBlockOptions() block.Options {
+	ret := _m.ctrl.Call(_m, "DatabaseBlockOptions")
 	ret0, _ := ret[0].(block.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetDatabaseBlockOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetDatabaseBlockOptions")
+func (_mr *_MockOptionsRecorder) DatabaseBlockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseBlockOptions")
 }
 
-func (_m *MockOptions) CommitLogOptions(value commitlog.Options) Options {
-	ret := _m.ctrl.Call(_m, "CommitLogOptions", value)
+func (_m *MockOptions) SetCommitLogOptions(value commitlog.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetCommitLogOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) CommitLogOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetCommitLogOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetCommitLogOptions", arg0)
 }
 
-func (_m *MockOptions) GetCommitLogOptions() commitlog.Options {
-	ret := _m.ctrl.Call(_m, "GetCommitLogOptions")
+func (_m *MockOptions) CommitLogOptions() commitlog.Options {
+	ret := _m.ctrl.Call(_m, "CommitLogOptions")
 	ret0, _ := ret[0].(commitlog.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetCommitLogOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCommitLogOptions")
+func (_mr *_MockOptionsRecorder) CommitLogOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogOptions")
 }
 
-func (_m *MockOptions) EncodingM3TSZPooled() Options {
-	ret := _m.ctrl.Call(_m, "EncodingM3TSZPooled")
+func (_m *MockOptions) SetEncodingM3TSZPooled() Options {
+	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZPooled")
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) EncodingM3TSZPooled() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TSZPooled")
+func (_mr *_MockOptionsRecorder) SetEncodingM3TSZPooled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZPooled")
 }
 
-func (_m *MockOptions) EncodingM3TSZ() Options {
-	ret := _m.ctrl.Call(_m, "EncodingM3TSZ")
+func (_m *MockOptions) SetEncodingM3TSZ() Options {
+	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) EncodingM3TSZ() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TSZ")
+func (_mr *_MockOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
 }
 
-func (_m *MockOptions) NewEncoderFn(value encoding.NewEncoderFn) Options {
-	ret := _m.ctrl.Call(_m, "NewEncoderFn", value)
+func (_m *MockOptions) SetNewEncoderFn(value encoding.NewEncoderFn) Options {
+	ret := _m.ctrl.Call(_m, "SetNewEncoderFn", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) NewEncoderFn(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewEncoderFn", arg0)
+func (_mr *_MockOptionsRecorder) SetNewEncoderFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNewEncoderFn", arg0)
 }
 
-func (_m *MockOptions) GetNewEncoderFn() encoding.NewEncoderFn {
-	ret := _m.ctrl.Call(_m, "GetNewEncoderFn")
+func (_m *MockOptions) NewEncoderFn() encoding.NewEncoderFn {
+	ret := _m.ctrl.Call(_m, "NewEncoderFn")
 	ret0, _ := ret[0].(encoding.NewEncoderFn)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetNewEncoderFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetNewEncoderFn")
+func (_mr *_MockOptionsRecorder) NewEncoderFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewEncoderFn")
 }
 
-func (_m *MockOptions) NewDecoderFn(value encoding.NewDecoderFn) Options {
-	ret := _m.ctrl.Call(_m, "NewDecoderFn", value)
+func (_m *MockOptions) SetNewDecoderFn(value encoding.NewDecoderFn) Options {
+	ret := _m.ctrl.Call(_m, "SetNewDecoderFn", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) NewDecoderFn(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoderFn", arg0)
+func (_mr *_MockOptionsRecorder) SetNewDecoderFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNewDecoderFn", arg0)
 }
 
-func (_m *MockOptions) GetNewDecoderFn() encoding.NewDecoderFn {
-	ret := _m.ctrl.Call(_m, "GetNewDecoderFn")
+func (_m *MockOptions) NewDecoderFn() encoding.NewDecoderFn {
+	ret := _m.ctrl.Call(_m, "NewDecoderFn")
 	ret0, _ := ret[0].(encoding.NewDecoderFn)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetNewDecoderFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetNewDecoderFn")
+func (_mr *_MockOptionsRecorder) NewDecoderFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoderFn")
 }
 
-func (_m *MockOptions) NewBootstrapFn(value NewBootstrapFn) Options {
-	ret := _m.ctrl.Call(_m, "NewBootstrapFn", value)
+func (_m *MockOptions) SetNewBootstrapFn(value NewBootstrapFn) Options {
+	ret := _m.ctrl.Call(_m, "SetNewBootstrapFn", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) NewBootstrapFn(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewBootstrapFn", arg0)
+func (_mr *_MockOptionsRecorder) SetNewBootstrapFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNewBootstrapFn", arg0)
 }
 
-func (_m *MockOptions) GetNewBootstrapFn() NewBootstrapFn {
-	ret := _m.ctrl.Call(_m, "GetNewBootstrapFn")
+func (_m *MockOptions) NewBootstrapFn() NewBootstrapFn {
+	ret := _m.ctrl.Call(_m, "NewBootstrapFn")
 	ret0, _ := ret[0].(NewBootstrapFn)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetNewBootstrapFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetNewBootstrapFn")
+func (_mr *_MockOptionsRecorder) NewBootstrapFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewBootstrapFn")
 }
 
-func (_m *MockOptions) NewPersistManagerFn(value NewPersistManagerFn) Options {
-	ret := _m.ctrl.Call(_m, "NewPersistManagerFn", value)
+func (_m *MockOptions) SetNewPersistManagerFn(value NewPersistManagerFn) Options {
+	ret := _m.ctrl.Call(_m, "SetNewPersistManagerFn", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) NewPersistManagerFn(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewPersistManagerFn", arg0)
+func (_mr *_MockOptionsRecorder) SetNewPersistManagerFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNewPersistManagerFn", arg0)
 }
 
-func (_m *MockOptions) GetNewPersistManagerFn() NewPersistManagerFn {
-	ret := _m.ctrl.Call(_m, "GetNewPersistManagerFn")
+func (_m *MockOptions) NewPersistManagerFn() NewPersistManagerFn {
+	ret := _m.ctrl.Call(_m, "NewPersistManagerFn")
 	ret0, _ := ret[0].(NewPersistManagerFn)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetNewPersistManagerFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetNewPersistManagerFn")
+func (_mr *_MockOptionsRecorder) NewPersistManagerFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewPersistManagerFn")
 }
 
-func (_m *MockOptions) MaxFlushRetries(value int) Options {
-	ret := _m.ctrl.Call(_m, "MaxFlushRetries", value)
+func (_m *MockOptions) SetMaxFlushRetries(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetMaxFlushRetries", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) MaxFlushRetries(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxFlushRetries", arg0)
+func (_mr *_MockOptionsRecorder) SetMaxFlushRetries(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMaxFlushRetries", arg0)
 }
 
-func (_m *MockOptions) GetMaxFlushRetries() int {
-	ret := _m.ctrl.Call(_m, "GetMaxFlushRetries")
+func (_m *MockOptions) MaxFlushRetries() int {
+	ret := _m.ctrl.Call(_m, "MaxFlushRetries")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetMaxFlushRetries() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMaxFlushRetries")
+func (_mr *_MockOptionsRecorder) MaxFlushRetries() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxFlushRetries")
 }
 
-func (_m *MockOptions) ContextPool(value context.Pool) Options {
-	ret := _m.ctrl.Call(_m, "ContextPool", value)
+func (_m *MockOptions) SetContextPool(value context.Pool) Options {
+	ret := _m.ctrl.Call(_m, "SetContextPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ContextPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool", arg0)
+func (_mr *_MockOptionsRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetContextPool", arg0)
 }
 
-func (_m *MockOptions) GetContextPool() context.Pool {
-	ret := _m.ctrl.Call(_m, "GetContextPool")
+func (_m *MockOptions) ContextPool() context.Pool {
+	ret := _m.ctrl.Call(_m, "ContextPool")
 	ret0, _ := ret[0].(context.Pool)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetContextPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetContextPool")
+func (_mr *_MockOptionsRecorder) ContextPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
 }
 
-func (_m *MockOptions) BytesPool(value pool.BytesPool) Options {
-	ret := _m.ctrl.Call(_m, "BytesPool", value)
+func (_m *MockOptions) SetBytesPool(value pool.BytesPool) Options {
+	ret := _m.ctrl.Call(_m, "SetBytesPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) BytesPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BytesPool", arg0)
+func (_mr *_MockOptionsRecorder) SetBytesPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBytesPool", arg0)
 }
 
-func (_m *MockOptions) GetBytesPool() pool.BytesPool {
-	ret := _m.ctrl.Call(_m, "GetBytesPool")
+func (_m *MockOptions) BytesPool() pool.BytesPool {
+	ret := _m.ctrl.Call(_m, "BytesPool")
 	ret0, _ := ret[0].(pool.BytesPool)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetBytesPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBytesPool")
+func (_mr *_MockOptionsRecorder) BytesPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BytesPool")
 }
 
-func (_m *MockOptions) EncoderPool(value encoding.EncoderPool) Options {
-	ret := _m.ctrl.Call(_m, "EncoderPool", value)
+func (_m *MockOptions) SetEncoderPool(value encoding.EncoderPool) Options {
+	ret := _m.ctrl.Call(_m, "SetEncoderPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) EncoderPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncoderPool", arg0)
+func (_mr *_MockOptionsRecorder) SetEncoderPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncoderPool", arg0)
 }
 
-func (_m *MockOptions) GetEncoderPool() encoding.EncoderPool {
-	ret := _m.ctrl.Call(_m, "GetEncoderPool")
+func (_m *MockOptions) EncoderPool() encoding.EncoderPool {
+	ret := _m.ctrl.Call(_m, "EncoderPool")
 	ret0, _ := ret[0].(encoding.EncoderPool)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetEncoderPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetEncoderPool")
+func (_mr *_MockOptionsRecorder) EncoderPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncoderPool")
 }
 
-func (_m *MockOptions) SegmentReaderPool(value io.SegmentReaderPool) Options {
-	ret := _m.ctrl.Call(_m, "SegmentReaderPool", value)
+func (_m *MockOptions) SetSegmentReaderPool(value io.SegmentReaderPool) Options {
+	ret := _m.ctrl.Call(_m, "SetSegmentReaderPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SegmentReaderPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SegmentReaderPool", arg0)
+func (_mr *_MockOptionsRecorder) SetSegmentReaderPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSegmentReaderPool", arg0)
 }
 
-func (_m *MockOptions) GetSegmentReaderPool() io.SegmentReaderPool {
-	ret := _m.ctrl.Call(_m, "GetSegmentReaderPool")
+func (_m *MockOptions) SegmentReaderPool() io.SegmentReaderPool {
+	ret := _m.ctrl.Call(_m, "SegmentReaderPool")
 	ret0, _ := ret[0].(io.SegmentReaderPool)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetSegmentReaderPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetSegmentReaderPool")
+func (_mr *_MockOptionsRecorder) SegmentReaderPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SegmentReaderPool")
 }
 
-func (_m *MockOptions) ReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
-	ret := _m.ctrl.Call(_m, "ReaderIteratorPool", value)
+func (_m *MockOptions) SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
+	ret := _m.ctrl.Call(_m, "SetReaderIteratorPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ReaderIteratorPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderIteratorPool", arg0)
+func (_mr *_MockOptionsRecorder) SetReaderIteratorPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetReaderIteratorPool", arg0)
 }
 
-func (_m *MockOptions) GetReaderIteratorPool() encoding.ReaderIteratorPool {
-	ret := _m.ctrl.Call(_m, "GetReaderIteratorPool")
+func (_m *MockOptions) ReaderIteratorPool() encoding.ReaderIteratorPool {
+	ret := _m.ctrl.Call(_m, "ReaderIteratorPool")
 	ret0, _ := ret[0].(encoding.ReaderIteratorPool)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetReaderIteratorPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetReaderIteratorPool")
+func (_mr *_MockOptionsRecorder) ReaderIteratorPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderIteratorPool")
 }
 
-func (_m *MockOptions) MultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
-	ret := _m.ctrl.Call(_m, "MultiReaderIteratorPool", value)
+func (_m *MockOptions) SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
+	ret := _m.ctrl.Call(_m, "SetMultiReaderIteratorPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) MultiReaderIteratorPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "MultiReaderIteratorPool", arg0)
+func (_mr *_MockOptionsRecorder) SetMultiReaderIteratorPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMultiReaderIteratorPool", arg0)
 }
 
-func (_m *MockOptions) GetMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
-	ret := _m.ctrl.Call(_m, "GetMultiReaderIteratorPool")
+func (_m *MockOptions) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
+	ret := _m.ctrl.Call(_m, "MultiReaderIteratorPool")
 	ret0, _ := ret[0].(encoding.MultiReaderIteratorPool)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetMultiReaderIteratorPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMultiReaderIteratorPool")
+func (_mr *_MockOptionsRecorder) MultiReaderIteratorPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MultiReaderIteratorPool")
 }

@@ -60,52 +60,52 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) RetentionPeriod(value time.Duration) Options {
+func (o *options) SetRetentionPeriod(value time.Duration) Options {
 	opts := *o
 	opts.retentionPeriod = value
 	return &opts
 }
 
-func (o *options) GetRetentionPeriod() time.Duration {
+func (o *options) RetentionPeriod() time.Duration {
 	return o.retentionPeriod
 }
 
-func (o *options) BlockSize(value time.Duration) Options {
+func (o *options) SetBlockSize(value time.Duration) Options {
 	opts := *o
 	opts.blockSize = value
 	return &opts
 }
 
-func (o *options) GetBlockSize() time.Duration {
+func (o *options) BlockSize() time.Duration {
 	return o.blockSize
 }
 
-func (o *options) BufferFuture(value time.Duration) Options {
+func (o *options) SetBufferFuture(value time.Duration) Options {
 	opts := *o
 	opts.bufferFuture = value
 	return &opts
 }
 
-func (o *options) GetBufferFuture() time.Duration {
+func (o *options) BufferFuture() time.Duration {
 	return o.bufferFuture
 }
 
-func (o *options) BufferPast(value time.Duration) Options {
+func (o *options) SetBufferPast(value time.Duration) Options {
 	opts := *o
 	opts.bufferPast = value
 	return &opts
 }
 
-func (o *options) GetBufferPast() time.Duration {
+func (o *options) BufferPast() time.Duration {
 	return o.bufferPast
 }
 
-func (o *options) BufferDrain(value time.Duration) Options {
+func (o *options) SetBufferDrain(value time.Duration) Options {
 	opts := *o
 	opts.bufferDrain = value
 	return &opts
 }
 
-func (o *options) GetBufferDrain() time.Duration {
+func (o *options) BufferDrain() time.Duration {
 	return o.bufferDrain
 }

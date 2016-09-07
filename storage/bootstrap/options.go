@@ -44,42 +44,42 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) ClockOptions(value clock.Options) Options {
+func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
 	return &opts
 }
 
-func (o *options) GetClockOptions() clock.Options {
+func (o *options) ClockOptions() clock.Options {
 	return o.clockOpts
 }
 
-func (o *options) InstrumentOptions(value instrument.Options) Options {
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	opts.instrumentOpts = value
 	return &opts
 }
 
-func (o *options) GetInstrumentOptions() instrument.Options {
+func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) RetentionOptions(value retention.Options) Options {
+func (o *options) SetRetentionOptions(value retention.Options) Options {
 	opts := *o
 	opts.retentionOpts = value
 	return &opts
 }
 
-func (o *options) GetRetentionOptions() retention.Options {
+func (o *options) RetentionOptions() retention.Options {
 	return o.retentionOpts
 }
 
-func (o *options) DatabaseBlockOptions(value block.Options) Options {
+func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 	opts := *o
 	opts.blockOpts = value
 	return &opts
 }
 
-func (o *options) GetDatabaseBlockOptions() block.Options {
+func (o *options) DatabaseBlockOptions() block.Options {
 	return o.blockOpts
 }

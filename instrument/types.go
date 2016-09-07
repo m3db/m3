@@ -27,15 +27,15 @@ import (
 
 // Options represents the options for instrumentation
 type Options interface {
-	// Logger sets the logger
-	Logger(value xlog.Logger) Options
+	// SetLogger sets the logger
+	SetLogger(value xlog.Logger) Options
 
-	// GetLogger returns the logger
-	GetLogger() xlog.Logger
+	// Logger returns the logger
+	Logger() xlog.Logger
 
-	// MetricsScope sets the metricsScope
-	MetricsScope(value tally.Scope) Options
+	// SetMetricsScope sets the metricsScope
+	SetMetricsScope(value tally.Scope) Options
 
-	// GetMetricsScope returns the metricsScope
-	GetMetricsScope() tally.Scope
+	// MetricsScope returns the metricsScope
+	MetricsScope() tally.Scope
 }

@@ -38,22 +38,22 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) BootstrapOptions(value bootstrap.Options) Options {
+func (o *options) SetBootstrapOptions(value bootstrap.Options) Options {
 	opts := *o
 	opts.bootstrapOpts = value
 	return &opts
 }
 
-func (o *options) GetBootstrapOptions() bootstrap.Options {
+func (o *options) BootstrapOptions() bootstrap.Options {
 	return o.bootstrapOpts
 }
 
-func (o *options) FilesystemOptions(value fs.Options) Options {
+func (o *options) SetFilesystemOptions(value fs.Options) Options {
 	opts := *o
 	opts.fsOpts = value
 	return &opts
 }
 
-func (o *options) GetFilesystemOptions() fs.Options {
+func (o *options) FilesystemOptions() fs.Options {
 	return o.fsOpts
 }

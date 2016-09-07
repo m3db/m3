@@ -64,72 +64,72 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) InstrumentOptions(value instrument.Options) Options {
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	opts.instrumentOpts = value
 	return &opts
 }
 
-func (o *options) GetInstrumentOptions() instrument.Options {
+func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) RetentionOptions(value retention.Options) Options {
+func (o *options) SetRetentionOptions(value retention.Options) Options {
 	opts := *o
 	opts.retentionOpts = value
 	return &opts
 }
 
-func (o *options) GetRetentionOptions() retention.Options {
+func (o *options) RetentionOptions() retention.Options {
 	return o.retentionOpts
 }
 
-func (o *options) FilePathPrefix(value string) Options {
+func (o *options) SetFilePathPrefix(value string) Options {
 	opts := *o
 	opts.filePathPrefix = value
 	return &opts
 }
 
-func (o *options) GetFilePathPrefix() string {
+func (o *options) FilePathPrefix() string {
 	return o.filePathPrefix
 }
 
-func (o *options) NewFileMode(value os.FileMode) Options {
+func (o *options) SetNewFileMode(value os.FileMode) Options {
 	opts := *o
 	opts.newFileMode = value
 	return &opts
 }
 
-func (o *options) GetNewFileMode() os.FileMode {
+func (o *options) NewFileMode() os.FileMode {
 	return o.newFileMode
 }
 
-func (o *options) NewDirectoryMode(value os.FileMode) Options {
+func (o *options) SetNewDirectoryMode(value os.FileMode) Options {
 	opts := *o
 	opts.newDirectoryMode = value
 	return &opts
 }
 
-func (o *options) GetNewDirectoryMode() os.FileMode {
+func (o *options) NewDirectoryMode() os.FileMode {
 	return o.newDirectoryMode
 }
 
-func (o *options) WriterBufferSize(value int) Options {
+func (o *options) SetWriterBufferSize(value int) Options {
 	opts := *o
 	opts.writerBufferSize = value
 	return &opts
 }
 
-func (o *options) GetWriterBufferSize() int {
+func (o *options) WriterBufferSize() int {
 	return o.writerBufferSize
 }
 
-func (o *options) ReaderBufferSize(value int) Options {
+func (o *options) SetReaderBufferSize(value int) Options {
 	opts := *o
 	opts.readerBufferSize = value
 	return &opts
 }
 
-func (o *options) GetReaderBufferSize() int {
+func (o *options) ReaderBufferSize() int {
 	return o.readerBufferSize
 }

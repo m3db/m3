@@ -38,11 +38,11 @@ func testSetup(ctrl *gomock.Controller) (DynamicOptions, xwatch.Watch) {
 
 	watch := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
 	mockCSServices := services.NewMockServices(ctrl)
-	mockCSServices.EXPECT().Watch(opts.GetService(), opts.GetQueryOptions()).Return(watch, nil)
+	mockCSServices.EXPECT().Watch(opts.Service(), opts.QueryOptions()).Return(watch, nil)
 
 	mockCSClient := client.NewMockClient(ctrl)
 	mockCSClient.EXPECT().Services().Return(mockCSServices)
-	opts = opts.ConfigServiceClient(mockCSClient)
+	opts = opts.SetConfigServiceClient(mockCSClient)
 	return opts, watch
 }
 
@@ -51,7 +51,7 @@ func TestInitTimeout(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts, _ := testSetup(ctrl)
-	topo, err := newDynamicTopology(opts.InitTimeout(10 * time.Millisecond))
+	topo, err := newDynamicTopology(opts.SetInitTimeout(10 * time.Millisecond))
 	assert.Equal(t, errInitTimeOut, err)
 	assert.Nil(t, topo)
 }

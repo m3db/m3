@@ -62,7 +62,7 @@ func TestSessionWrite(t *testing.T) {
 
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
-		completionFn = op.GetCompletionFn()
+		completionFn = op.CompletionFn()
 		write, ok := op.(*writeOp)
 		assert.True(t, ok)
 		assert.Equal(t, w.id, write.request.IdDatapoint.ID)
@@ -179,7 +179,7 @@ func testWriteConsistencyLevel(
 	expected outcome,
 ) {
 	opts := newSessionTestOptions()
-	opts = opts.ConsistencyLevel(level)
+	opts = opts.SetConsistencyLevel(level)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -202,7 +202,7 @@ func testWriteConsistencyLevel(
 
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
-		completionFn = op.GetCompletionFn()
+		completionFn = op.CompletionFn()
 	}})
 
 	assert.NoError(t, session.Open())

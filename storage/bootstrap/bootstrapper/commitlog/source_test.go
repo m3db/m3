@@ -41,8 +41,8 @@ const testNamespaceName = "testNamespace"
 
 func testOptions() Options {
 	opts := NewOptions()
-	bopts := opts.GetBootstrapOptions()
-	blopts := opts.GetBootstrapOptions().GetDatabaseBlockOptions()
+	bopts := opts.BootstrapOptions()
+	blopts := opts.BootstrapOptions().DatabaseBlockOptions()
 	eopts := encoding.NewOptions()
 	encoderPool := encoding.NewEncoderPool(0)
 	encoderPool.Init(func() encoding.Encoder {
@@ -58,10 +58,10 @@ func testOptions() Options {
 		it.Reset(reader)
 		return it
 	})
-	return opts.BootstrapOptions(bopts.DatabaseBlockOptions(blopts.
-		EncoderPool(encoderPool).
-		ReaderIteratorPool(readerIteratorPool).
-		MultiReaderIteratorPool(multiReaderIteratorPool)))
+	return opts.SetBootstrapOptions(bopts.SetDatabaseBlockOptions(blopts.
+		SetEncoderPool(encoderPool).
+		SetReaderIteratorPool(readerIteratorPool).
+		SetMultiReaderIteratorPool(multiReaderIteratorPool)))
 }
 
 func TestAvailableEmptyRangeError(t *testing.T) {
@@ -103,7 +103,7 @@ func TestReadOrderedValues(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.GetBootstrapOptions().GetRetentionOptions().GetBlockSize()
+	blockSize := opts.BootstrapOptions().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -145,7 +145,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.GetBootstrapOptions().GetRetentionOptions().GetBlockSize()
+	blockSize := opts.BootstrapOptions().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -184,7 +184,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.GetBootstrapOptions().GetRetentionOptions().GetBlockSize()
+	blockSize := opts.BootstrapOptions().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -233,9 +233,9 @@ func requireShardResults(
 	opts Options,
 ) {
 	// First create what result should be constructed for test values
-	bopts := opts.GetBootstrapOptions()
-	ropts := bopts.GetRetentionOptions()
-	blockSize := ropts.GetBlockSize()
+	bopts := opts.BootstrapOptions()
+	ropts := bopts.RetentionOptions()
+	blockSize := ropts.BlockSize()
 
 	expected := bootstrap.ShardResults{}
 
@@ -252,7 +252,7 @@ func requireShardResults(
 
 		blocks := result.AllSeries()[v.s.ID]
 		blockStart := v.t.Truncate(blockSize)
-		block := blocks.GetBlockOrAdd(blockStart)
+		block := blocks.BlockOrAdd(blockStart)
 		err := block.Write(v.t, v.v, v.u, v.a)
 		require.NoError(t, err)
 	}
@@ -276,12 +276,12 @@ func requireShardResults(
 			require.Equal(t, len(allBlocks), len(otherAllBlocks))
 
 			blopts := blocks.Options()
-			readerIteratorPool := blopts.GetReaderIteratorPool()
+			readerIteratorPool := blopts.ReaderIteratorPool()
 			for start, block := range allBlocks {
 				otherBlock, ok := otherAllBlocks[start]
 				require.True(t, ok)
 
-				ctx := blopts.GetContextPool().Get()
+				ctx := blopts.ContextPool().Get()
 				defer ctx.Close()
 
 				stream, streamErr := block.Stream(ctx)

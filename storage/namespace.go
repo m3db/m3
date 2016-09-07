@@ -67,8 +67,8 @@ func newDatabaseNamespace(
 		shardSet:         shardSet,
 		nopts:            nopts,
 		sopts:            sopts,
-		nowFn:            sopts.GetClockOptions().GetNowFn(),
-		log:              sopts.GetInstrumentOptions().GetLogger(),
+		nowFn:            sopts.ClockOptions().NowFn(),
+		log:              sopts.InstrumentOptions().Logger(),
 		increasingIndex:  increasingIndex,
 		writeCommitLogFn: fn,
 	}

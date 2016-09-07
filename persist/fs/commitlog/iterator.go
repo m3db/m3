@@ -63,21 +63,21 @@ type iteratorRead struct {
 
 // NewIterator creates a new commit log iterator
 func NewIterator(opts Options) (Iterator, error) {
-	iops := opts.GetInstrumentOptions()
-	iops = iops.MetricsScope(iops.GetMetricsScope().SubScope("iterator"))
-	fsopts := opts.GetFilesystemOptions()
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.GetFilePathPrefix()))
+	iops := opts.InstrumentOptions()
+	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
+	fsopts := opts.FilesystemOptions()
+	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	if err != nil {
 		return nil, err
 	}
-	scope := iops.GetMetricsScope()
+	scope := iops.MetricsScope()
 	return &iterator{
 		opts:  opts,
 		scope: scope,
 		metrics: iteratorMetrics{
 			readsErrors: scope.Counter("reads.errors"),
 		},
-		log:   iops.GetLogger(),
+		log:   iops.Logger(),
 		files: files,
 	}, nil
 }
@@ -164,7 +164,7 @@ func (i *iterator) nextReader() bool {
 		i.err = errStartDoesNotMatch
 		return false
 	}
-	if duration != i.opts.GetRetentionOptions().GetBlockSize() {
+	if duration != i.opts.RetentionOptions().BlockSize() {
 		i.err = errDurationDoesNotMatch
 		return false
 	}

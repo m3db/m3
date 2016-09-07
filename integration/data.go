@@ -117,7 +117,7 @@ func verifySeriesMaps(
 ) {
 	for timestamp, sm := range seriesMaps {
 		start := timestamp
-		end := timestamp.Add(ts.storageOpts.GetRetentionOptions().GetBlockSize())
+		end := timestamp.Add(ts.storageOpts.RetentionOptions().BlockSize())
 		verifySeriesMapForRange(t, ts, start, end, namespace, sm)
 	}
 }

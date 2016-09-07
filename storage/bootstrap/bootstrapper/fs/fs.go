@@ -42,7 +42,7 @@ func NewFileSystemBootstrapper(
 ) bootstrap.Bootstrapper {
 	src := newFileSystemSource(prefix, opts)
 	return &fileSystemBootstrapper{
-		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts.GetBootstrapOptions(), next),
+		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts.BootstrapOptions(), next),
 	}
 }
 

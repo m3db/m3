@@ -49,7 +49,7 @@ func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks 
 	opts := NewOptions()
 	blocks := testDatabaseSeriesBlocks()
 	for _, timestamp := range times {
-		block := opts.GetDatabaseBlockPool().Get()
+		block := opts.DatabaseBlockPool().Get()
 		block.Reset(timestamp, nil)
 		blocks.AddBlock(block)
 	}
@@ -57,8 +57,8 @@ func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks 
 }
 
 func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime time.Time, expectedTimes []time.Time) {
-	require.Equal(t, minTime, blocks.GetMinTime())
-	require.Equal(t, maxTime, blocks.GetMaxTime())
+	require.Equal(t, minTime, blocks.MinTime())
+	require.Equal(t, maxTime, blocks.MaxTime())
 	allBlocks := blocks.elems
 	require.Equal(t, len(expectedTimes), len(allBlocks))
 	for _, timestamp := range expectedTimes {
@@ -138,7 +138,7 @@ func testDatabaseBlockWithDependentContext(
 	defer ctrl.Finish()
 
 	block, encoder := testDatabaseBlock(ctrl)
-	depCtx := block.opts.GetContextPool().Get()
+	depCtx := block.opts.ContextPool().Get()
 
 	// register a dependent context here
 	encoder.EXPECT().Stream().Return(nil)
@@ -220,24 +220,24 @@ func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
 	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(-time.Hour)}
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
 	for _, bt := range blockTimes {
-		_, exists := blocks.GetBlockAt(bt)
+		_, exists := blocks.BlockAt(bt)
 		require.True(t, exists)
 	}
-	_, exists := blocks.GetBlockAt(now.Add(time.Minute))
+	_, exists := blocks.BlockAt(now.Add(time.Minute))
 	require.False(t, exists)
 }
 
 func TestDatabaseSeriesBlocksGetBlockOrAdd(t *testing.T) {
 	opts := NewOptions()
 	blocks := testDatabaseSeriesBlocks()
-	block := opts.GetDatabaseBlockPool().Get()
+	block := opts.DatabaseBlockPool().Get()
 	now := time.Now()
 	block.Reset(now, nil)
 	blocks.AddBlock(block)
-	res := blocks.GetBlockOrAdd(now)
+	res := blocks.BlockOrAdd(now)
 	require.True(t, res == block)
 	blockStart := now.Add(time.Hour)
-	blocks.GetBlockOrAdd(blockStart)
+	blocks.BlockOrAdd(blockStart)
 	validateBlocks(t, blocks, now, blockStart, []time.Time{now, blockStart})
 }
 
