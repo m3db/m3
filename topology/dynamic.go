@@ -84,7 +84,7 @@ func newDynamicTopology(opts DynamicOptions) (Topology, error) {
 		return nil, err
 	}
 
-	m, err := mapFromServiceInstances(watch.Get(), opts.GetHashGen())
+	m, err := getMapFromUpdate(watch.Get(), opts.GetHashGen())
 	if err != nil {
 		logger.Errorf("dynamic topology received invalid initial value: %v", err)
 		return nil, err
@@ -112,7 +112,7 @@ func (t *dynamicTopology) run() {
 			break
 		}
 
-		m, err := mapFromServiceInstances(t.watch.Get(), t.hashGen)
+		m, err := getMapFromUpdate(t.watch.Get(), t.hashGen)
 		if err != nil {
 			t.logger.Warnf("dynamic topology received invalid update: %v", err)
 			continue
@@ -159,12 +159,12 @@ func waitOnInit(w xwatch.Watch, d time.Duration) error {
 	}
 }
 
-func mapFromServiceInstances(data interface{}, hashGen sharding.HashGen) (Map, error) {
+func getMapFromUpdate(data interface{}, hashGen sharding.HashGen) (Map, error) {
 	service, ok := data.(services.Service)
 	if !ok {
 		return nil, errInvalidTopology
 	}
-	to, err := staticOptionsFromServiceInstances(service, hashGen)
+	to, err := getStaticOptions(service, hashGen)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func mapFromServiceInstances(data interface{}, hashGen sharding.HashGen) (Map, e
 	return newStaticMap(to), nil
 }
 
-func staticOptionsFromServiceInstances(service services.Service, hashGen sharding.HashGen) (StaticOptions, error) {
+func getStaticOptions(service services.Service, hashGen sharding.HashGen) (StaticOptions, error) {
 	if service.Replication() == nil || service.Sharding() == nil || service.Instances() == nil {
 		return nil, errInvalidService
 	}
