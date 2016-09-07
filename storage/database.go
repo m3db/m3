@@ -363,7 +363,7 @@ func (d *db) getOwnedNamespaces() []databaseNamespace {
 }
 
 func (d *db) reportLoop() {
-	interval := d.opts.GetInstrumentOptions().GetGaugeInterval()
+	interval := d.opts.GetInstrumentOptions().GetReportInterval()
 	t := time.Tick(interval)
 
 	for {

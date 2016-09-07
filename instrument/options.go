@@ -28,17 +28,17 @@ import (
 )
 
 type options struct {
-	logger        xlog.Logger
-	scope         tally.Scope
-	gaugeInterval time.Duration
+	logger         xlog.Logger
+	scope          tally.Scope
+	reportInterval time.Duration
 }
 
 // NewOptions creates new instrument options
 func NewOptions() Options {
 	return &options{
-		logger:        xlog.SimpleLogger,
-		scope:         tally.NoopScope,
-		gaugeInterval: time.Second,
+		logger:         xlog.SimpleLogger,
+		scope:          tally.NoopScope,
+		reportInterval: time.Second,
 	}
 }
 
@@ -62,6 +62,12 @@ func (o *options) MetricsScope() tally.Scope {
 	return o.scope
 }
 
-func (o *options) GetGaugeInterval() time.Duration {
-	return o.gaugeInterval
+func (o *options) ReportInterval(value time.Duration) Options {
+	opts := *o
+	o.reportInterval = value
+	return &opts
+}
+
+func (o *options) GetReportInterval() time.Duration {
+	return o.reportInterval
 }
