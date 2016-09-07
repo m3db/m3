@@ -30,8 +30,8 @@ import (
 	fs "github.com/m3db/m3db/persist/fs"
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
-	time0 "github.com/m3db/m3x/time"
-	time "time"
+	time "github.com/m3db/m3x/time"
+	time0 "time"
 )
 
 // Mock of CommitLog interface
@@ -65,7 +65,7 @@ func (_mr *_MockCommitLogRecorder) Open() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
 }
 
-func (_m *MockCommitLog) Write(series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
+func (_m *MockCommitLog) Write(series Series, datapoint ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
 	ret := _m.ctrl.Call(_m, "Write", series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -75,7 +75,7 @@ func (_mr *_MockCommitLogRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *go
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockCommitLog) WriteBehind(series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
+func (_m *MockCommitLog) WriteBehind(series Series, datapoint ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
 	ret := _m.ctrl.Call(_m, "WriteBehind", series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -137,11 +137,11 @@ func (_mr *_MockIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockIterator) Current() (Series, ts.Datapoint, time0.Unit, ts.Annotation) {
+func (_m *MockIterator) Current() (Series, ts.Datapoint, time.Unit, ts.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(Series)
 	ret1, _ := ret[1].(ts.Datapoint)
-	ret2, _ := ret[2].(time0.Unit)
+	ret2, _ := ret[2].(time.Unit)
 	ret3, _ := ret[3].(ts.Annotation)
 	return ret0, ret1, ret2, ret3
 }
@@ -189,162 +189,162 @@ func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOptions) ClockOptions(value clock.Options) Options {
-	ret := _m.ctrl.Call(_m, "ClockOptions", value)
+func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ClockOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClockOptions", arg0)
 }
 
-func (_m *MockOptions) GetClockOptions() clock.Options {
-	ret := _m.ctrl.Call(_m, "GetClockOptions")
+func (_m *MockOptions) ClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions")
 	ret0, _ := ret[0].(clock.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetClockOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClockOptions")
+func (_mr *_MockOptionsRecorder) ClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions")
 }
 
-func (_m *MockOptions) InstrumentOptions(value instrument.Options) Options {
-	ret := _m.ctrl.Call(_m, "InstrumentOptions", value)
+func (_m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) InstrumentOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
 }
 
-func (_m *MockOptions) GetInstrumentOptions() instrument.Options {
-	ret := _m.ctrl.Call(_m, "GetInstrumentOptions")
+func (_m *MockOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetInstrumentOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetInstrumentOptions")
+func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
 }
 
-func (_m *MockOptions) RetentionOptions(value retention.Options) Options {
-	ret := _m.ctrl.Call(_m, "RetentionOptions", value)
+func (_m *MockOptions) SetRetentionOptions(value retention.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetRetentionOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) RetentionOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetRetentionOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRetentionOptions", arg0)
 }
 
-func (_m *MockOptions) GetRetentionOptions() retention.Options {
-	ret := _m.ctrl.Call(_m, "GetRetentionOptions")
+func (_m *MockOptions) RetentionOptions() retention.Options {
+	ret := _m.ctrl.Call(_m, "RetentionOptions")
 	ret0, _ := ret[0].(retention.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetRetentionOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetRetentionOptions")
+func (_mr *_MockOptionsRecorder) RetentionOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionOptions")
 }
 
-func (_m *MockOptions) FilesystemOptions(value fs.Options) Options {
-	ret := _m.ctrl.Call(_m, "FilesystemOptions", value)
+func (_m *MockOptions) SetFilesystemOptions(value fs.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetFilesystemOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) FilesystemOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FilesystemOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetFilesystemOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFilesystemOptions", arg0)
 }
 
-func (_m *MockOptions) GetFilesystemOptions() fs.Options {
-	ret := _m.ctrl.Call(_m, "GetFilesystemOptions")
+func (_m *MockOptions) FilesystemOptions() fs.Options {
+	ret := _m.ctrl.Call(_m, "FilesystemOptions")
 	ret0, _ := ret[0].(fs.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetFilesystemOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFilesystemOptions")
+func (_mr *_MockOptionsRecorder) FilesystemOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FilesystemOptions")
 }
 
-func (_m *MockOptions) FlushSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "FlushSize", value)
+func (_m *MockOptions) SetFlushSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFlushSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) FlushSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushSize", arg0)
+func (_mr *_MockOptionsRecorder) SetFlushSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFlushSize", arg0)
 }
 
-func (_m *MockOptions) GetFlushSize() int {
-	ret := _m.ctrl.Call(_m, "GetFlushSize")
+func (_m *MockOptions) FlushSize() int {
+	ret := _m.ctrl.Call(_m, "FlushSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetFlushSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFlushSize")
+func (_mr *_MockOptionsRecorder) FlushSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushSize")
 }
 
-func (_m *MockOptions) Strategy(value Strategy) Options {
-	ret := _m.ctrl.Call(_m, "Strategy", value)
+func (_m *MockOptions) SetStrategy(value Strategy) Options {
+	ret := _m.ctrl.Call(_m, "SetStrategy", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) Strategy(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Strategy", arg0)
+func (_mr *_MockOptionsRecorder) SetStrategy(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetStrategy", arg0)
 }
 
-func (_m *MockOptions) GetStrategy() Strategy {
-	ret := _m.ctrl.Call(_m, "GetStrategy")
+func (_m *MockOptions) Strategy() Strategy {
+	ret := _m.ctrl.Call(_m, "Strategy")
 	ret0, _ := ret[0].(Strategy)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetStrategy() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetStrategy")
+func (_mr *_MockOptionsRecorder) Strategy() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Strategy")
 }
 
-func (_m *MockOptions) FlushInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "FlushInterval", value)
+func (_m *MockOptions) SetFlushInterval(value time0.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetFlushInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) FlushInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushInterval", arg0)
+func (_mr *_MockOptionsRecorder) SetFlushInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFlushInterval", arg0)
 }
 
-func (_m *MockOptions) GetFlushInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetFlushInterval")
-	ret0, _ := ret[0].(time.Duration)
+func (_m *MockOptions) FlushInterval() time0.Duration {
+	ret := _m.ctrl.Call(_m, "FlushInterval")
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetFlushInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFlushInterval")
+func (_mr *_MockOptionsRecorder) FlushInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushInterval")
 }
 
-func (_m *MockOptions) BacklogQueueSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "BacklogQueueSize", value)
+func (_m *MockOptions) SetBacklogQueueSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetBacklogQueueSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) BacklogQueueSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BacklogQueueSize", arg0)
+func (_mr *_MockOptionsRecorder) SetBacklogQueueSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBacklogQueueSize", arg0)
 }
 
-func (_m *MockOptions) GetBacklogQueueSize() int {
-	ret := _m.ctrl.Call(_m, "GetBacklogQueueSize")
+func (_m *MockOptions) BacklogQueueSize() int {
+	ret := _m.ctrl.Call(_m, "BacklogQueueSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetBacklogQueueSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBacklogQueueSize")
+func (_mr *_MockOptionsRecorder) BacklogQueueSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BacklogQueueSize")
 }

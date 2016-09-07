@@ -49,7 +49,7 @@ func TestFlushManagerNeedsFlush(t *testing.T) {
 	fm := newFlushManager(database).(*flushManager)
 
 	now := time.Now()
-	maxFlushRetries := database.opts.GetMaxFlushRetries()
+	maxFlushRetries := database.opts.MaxFlushRetries()
 	require.True(t, fm.needsFlushWithLock(now))
 
 	fm.flushStates[now] = fileOpState{Status: fileOpFailed, NumFailures: maxFlushRetries - 1}
@@ -190,7 +190,7 @@ func TestFlushManagerFlushWithTimes(t *testing.T) {
 	flushTime := time.Unix(7200, 0)
 	database := newMockDatabase()
 	fm := newFlushManager(database).(*flushManager)
-	ctx := fm.opts.GetContextPool().Get()
+	ctx := fm.opts.ContextPool().Get()
 	defer ctx.Close()
 
 	inputs := []struct {

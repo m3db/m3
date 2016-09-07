@@ -355,105 +355,105 @@ type NewPersistManagerFn func() persist.Manager
 
 // Options represents the options for storage
 type Options interface {
-	// ClockOptions sets the clock options
-	ClockOptions(value clock.Options) Options
+	// SetClockOptions sets the clock options
+	SetClockOptions(value clock.Options) Options
 
-	// GetClockOptions returns the clock options
-	GetClockOptions() clock.Options
+	// ClockOptions returns the clock options
+	ClockOptions() clock.Options
 
-	// InstrumentOptions sets the instrumentation options
-	InstrumentOptions(value instrument.Options) Options
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) Options
 
-	// GetInstrumentOptions returns the instrumentation options
-	GetInstrumentOptions() instrument.Options
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
 
-	// RetentionOptions sets the retention options
-	RetentionOptions(value retention.Options) Options
+	// SetRetentionOptions sets the retention options
+	SetRetentionOptions(value retention.Options) Options
 
-	// GetRetentionOptions returns the retention options
-	GetRetentionOptions() retention.Options
+	// RetentionOptions returns the retention options
+	RetentionOptions() retention.Options
 
-	// DatabaseBlockOptions sets the database block options
-	DatabaseBlockOptions(value block.Options) Options
+	// SetDatabaseBlockOptions sets the database block options
+	SetDatabaseBlockOptions(value block.Options) Options
 
-	// GetDatabaseBlockOptions returns the database block options
-	GetDatabaseBlockOptions() block.Options
+	// DatabaseBlockOptions returns the database block options
+	DatabaseBlockOptions() block.Options
 
-	// CommitLogOptions sets the commit log options
-	CommitLogOptions(value commitlog.Options) Options
+	// SetCommitLogOptions sets the commit log options
+	SetCommitLogOptions(value commitlog.Options) Options
 
-	// GetCommitLogOptions returns the commit log options
-	GetCommitLogOptions() commitlog.Options
+	// CommitLogOptions returns the commit log options
+	CommitLogOptions() commitlog.Options
 
-	// EncodingM3TSZPooled sets m3tsz encoding with pooling
-	EncodingM3TSZPooled() Options
+	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
+	SetEncodingM3TSZPooled() Options
 
-	// EncodingM3TSZ sets m3tsz encoding
-	EncodingM3TSZ() Options
+	// SetEncodingM3TSZ sets m3tsz encoding
+	SetEncodingM3TSZ() Options
 
-	// NewEncoderFn sets the newEncoderFn
-	NewEncoderFn(value encoding.NewEncoderFn) Options
+	// SetNewEncoderFn sets the newEncoderFn
+	SetNewEncoderFn(value encoding.NewEncoderFn) Options
 
-	// GetNewEncoderFn returns the newEncoderFn
-	GetNewEncoderFn() encoding.NewEncoderFn
+	// NewEncoderFn returns the newEncoderFn
+	NewEncoderFn() encoding.NewEncoderFn
 
-	// NewDecoderFn sets the newDecoderFn
-	NewDecoderFn(value encoding.NewDecoderFn) Options
+	// SetNewDecoderFn sets the newDecoderFn
+	SetNewDecoderFn(value encoding.NewDecoderFn) Options
 
-	// GetNewDecoderFn returns the newDecoderFn
-	GetNewDecoderFn() encoding.NewDecoderFn
+	// NewDecoderFn returns the newDecoderFn
+	NewDecoderFn() encoding.NewDecoderFn
 
-	// NewBootstrapFn sets the newBootstrapFn
-	NewBootstrapFn(value NewBootstrapFn) Options
+	// SetNewBootstrapFn sets the newBootstrapFn
+	SetNewBootstrapFn(value NewBootstrapFn) Options
 
-	// GetNewBootstrapFn returns the newBootstrapFn
-	GetNewBootstrapFn() NewBootstrapFn
+	// NewBootstrapFn returns the newBootstrapFn
+	NewBootstrapFn() NewBootstrapFn
 
-	// NewPersistManagerFn sets the function for creating a new persistence manager
-	NewPersistManagerFn(value NewPersistManagerFn) Options
+	// SetNewPersistManagerFn sets the function for creating a new persistence manager
+	SetNewPersistManagerFn(value NewPersistManagerFn) Options
 
-	// GetNewPersistManagerFn returns the function for creating a new persistence manager
-	GetNewPersistManagerFn() NewPersistManagerFn
+	// NewPersistManagerFn returns the function for creating a new persistence manager
+	NewPersistManagerFn() NewPersistManagerFn
 
-	// MaxFlushRetries sets the maximum number of retries when data flushing fails
-	MaxFlushRetries(value int) Options
+	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails
+	SetMaxFlushRetries(value int) Options
 
-	// GetMaxFlushRetries returns the maximum number of retries when data flushing fails
-	GetMaxFlushRetries() int
+	// MaxFlushRetries returns the maximum number of retries when data flushing fails
+	MaxFlushRetries() int
 
-	// ContextPool sets the contextPool
-	ContextPool(value context.Pool) Options
+	// SetContextPool sets the contextPool
+	SetContextPool(value context.Pool) Options
 
-	// GetContextPool returns the contextPool
-	GetContextPool() context.Pool
+	// ContextPool returns the contextPool
+	ContextPool() context.Pool
 
-	// BytesPool sets the bytesPool
-	BytesPool(value pool.BytesPool) Options
+	// SetBytesPool sets the bytesPool
+	SetBytesPool(value pool.BytesPool) Options
 
-	// GetBytesPool returns the bytesPool
-	GetBytesPool() pool.BytesPool
+	// BytesPool returns the bytesPool
+	BytesPool() pool.BytesPool
 
-	// EncoderPool sets the contextPool
-	EncoderPool(value encoding.EncoderPool) Options
+	// SetEncoderPool sets the contextPool
+	SetEncoderPool(value encoding.EncoderPool) Options
 
-	// GetEncoderPool returns the contextPool
-	GetEncoderPool() encoding.EncoderPool
+	// EncoderPool returns the contextPool
+	EncoderPool() encoding.EncoderPool
 
-	// SegmentReaderPool sets the contextPool
-	SegmentReaderPool(value xio.SegmentReaderPool) Options
+	// SetSegmentReaderPool sets the contextPool
+	SetSegmentReaderPool(value xio.SegmentReaderPool) Options
 
-	// GetSegmentReaderPool returns the contextPool
-	GetSegmentReaderPool() xio.SegmentReaderPool
+	// SegmentReaderPool returns the contextPool
+	SegmentReaderPool() xio.SegmentReaderPool
 
-	// ReaderIteratorPool sets the readerIteratorPool
-	ReaderIteratorPool(value encoding.ReaderIteratorPool) Options
+	// SetReaderIteratorPool sets the readerIteratorPool
+	SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options
 
-	// GetReaderIteratorPool returns the readerIteratorPool
-	GetReaderIteratorPool() encoding.ReaderIteratorPool
+	// ReaderIteratorPool returns the readerIteratorPool
+	ReaderIteratorPool() encoding.ReaderIteratorPool
 
-	// MultiReaderIteratorPool sets the multiReaderIteratorPool
-	MultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options
+	// SetMultiReaderIteratorPool sets the multiReaderIteratorPool
+	SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options
 
-	// GetMultiReaderIteratorPool returns the multiReaderIteratorPool
-	GetMultiReaderIteratorPool() encoding.MultiReaderIteratorPool
+	// MultiReaderIteratorPool returns the multiReaderIteratorPool
+	MultiReaderIteratorPool() encoding.MultiReaderIteratorPool
 }

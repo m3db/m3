@@ -326,82 +326,82 @@ func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOptions) ClockOptions(value clock.Options) Options {
-	ret := _m.ctrl.Call(_m, "ClockOptions", value)
+func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ClockOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClockOptions", arg0)
 }
 
-func (_m *MockOptions) GetClockOptions() clock.Options {
-	ret := _m.ctrl.Call(_m, "GetClockOptions")
+func (_m *MockOptions) ClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions")
 	ret0, _ := ret[0].(clock.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetClockOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClockOptions")
+func (_mr *_MockOptionsRecorder) ClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions")
 }
 
-func (_m *MockOptions) InstrumentOptions(value instrument.Options) Options {
-	ret := _m.ctrl.Call(_m, "InstrumentOptions", value)
+func (_m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) InstrumentOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
 }
 
-func (_m *MockOptions) GetInstrumentOptions() instrument.Options {
-	ret := _m.ctrl.Call(_m, "GetInstrumentOptions")
+func (_m *MockOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetInstrumentOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetInstrumentOptions")
+func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
 }
 
-func (_m *MockOptions) RetentionOptions(value retention.Options) Options {
-	ret := _m.ctrl.Call(_m, "RetentionOptions", value)
+func (_m *MockOptions) SetRetentionOptions(value retention.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetRetentionOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) RetentionOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetRetentionOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRetentionOptions", arg0)
 }
 
-func (_m *MockOptions) GetRetentionOptions() retention.Options {
-	ret := _m.ctrl.Call(_m, "GetRetentionOptions")
+func (_m *MockOptions) RetentionOptions() retention.Options {
+	ret := _m.ctrl.Call(_m, "RetentionOptions")
 	ret0, _ := ret[0].(retention.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetRetentionOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetRetentionOptions")
+func (_mr *_MockOptionsRecorder) RetentionOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionOptions")
 }
 
-func (_m *MockOptions) DatabaseBlockOptions(value block.Options) Options {
-	ret := _m.ctrl.Call(_m, "DatabaseBlockOptions", value)
+func (_m *MockOptions) SetDatabaseBlockOptions(value block.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetDatabaseBlockOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) DatabaseBlockOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseBlockOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetDatabaseBlockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetDatabaseBlockOptions", arg0)
 }
 
-func (_m *MockOptions) GetDatabaseBlockOptions() block.Options {
-	ret := _m.ctrl.Call(_m, "GetDatabaseBlockOptions")
+func (_m *MockOptions) DatabaseBlockOptions() block.Options {
+	ret := _m.ctrl.Call(_m, "DatabaseBlockOptions")
 	ret0, _ := ret[0].(block.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetDatabaseBlockOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetDatabaseBlockOptions")
+func (_mr *_MockOptionsRecorder) DatabaseBlockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseBlockOptions")
 }

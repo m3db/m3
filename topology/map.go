@@ -35,15 +35,15 @@ type staticMap struct {
 }
 
 func newStaticMap(opts StaticOptions) Map {
-	totalShards := len(opts.GetShardSet().Shards())
-	hostShardSets := opts.GetHostShardSets()
+	totalShards := len(opts.ShardSet().Shards())
+	hostShardSets := opts.HostShardSets()
 	topoMap := staticMap{
-		shardSet:            opts.GetShardSet(),
+		shardSet:            opts.ShardSet(),
 		orderedHosts:        make([]Host, 0, len(hostShardSets)),
 		hostsByShard:        make([][]Host, totalShards),
 		orderedHostsByShard: make([][]orderedHost, totalShards),
-		replicas:            opts.GetReplicas(),
-		majority:            majority(opts.GetReplicas()),
+		replicas:            opts.Replicas(),
+		majority:            majority(opts.Replicas()),
 	}
 
 	for idx, hostShardSet := range hostShardSets {

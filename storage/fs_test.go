@@ -32,7 +32,7 @@ import (
 func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 	database := newMockDatabase()
 	mgr := newFileSystemManager(database)
-	now := database.Options().GetClockOptions().GetNowFn()()
+	now := database.Options().ClockOptions().NowFn()()
 	require.False(t, mgr.ShouldRun(now))
 	database.bs = bootstrapped
 	require.True(t, mgr.ShouldRun(now))
@@ -42,7 +42,7 @@ func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 	database := newMockDatabase()
 	database.bs = bootstrapped
 	mgr := newFileSystemManager(database).(*fileSystemManager)
-	now := database.Options().GetClockOptions().GetNowFn()()
+	now := database.Options().ClockOptions().NowFn()()
 	require.True(t, mgr.ShouldRun(now))
 	mgr.status = fileOpInProgress
 	require.False(t, mgr.ShouldRun(now))
@@ -58,7 +58,7 @@ func TestFileSystemManagerShouldRunAttemptedBefore(t *testing.T) {
 	mgr := newFileSystemManager(database).(*fileSystemManager)
 	mgr.databaseFlushManager = fm
 
-	now := database.Options().GetClockOptions().GetNowFn()()
+	now := database.Options().ClockOptions().NowFn()()
 	fm.EXPECT().FlushTimeEnd(now).Return(now)
 	require.True(t, mgr.ShouldRun(now))
 

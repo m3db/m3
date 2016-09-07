@@ -38,22 +38,22 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) Logger(value xlog.Logger) Options {
+func (o *options) SetLogger(value xlog.Logger) Options {
 	opts := *o
 	opts.logger = value
 	return &opts
 }
 
-func (o *options) GetLogger() xlog.Logger {
+func (o *options) Logger() xlog.Logger {
 	return o.logger
 }
 
-func (o *options) MetricsScope(value tally.Scope) Options {
+func (o *options) SetMetricsScope(value tally.Scope) Options {
 	opts := *o
 	opts.scope = value
 	return &opts
 }
 
-func (o *options) GetMetricsScope() tally.Scope {
+func (o *options) MetricsScope() tally.Scope {
 	return o.scope
 }

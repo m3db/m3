@@ -42,8 +42,8 @@ type flushManager struct {
 
 func newFlushManager(database database) databaseFlushManager {
 	opts := database.Options()
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
-	pm := opts.GetNewPersistManagerFn()()
+	blockSize := opts.RetentionOptions().BlockSize()
+	pm := opts.NewPersistManagerFn()()
 
 	return &flushManager{
 		database:    database,
@@ -66,12 +66,12 @@ func (m *flushManager) HasFlushed(t time.Time) bool {
 }
 
 func (m *flushManager) FlushTimeStart(t time.Time) time.Time {
-	retentionPeriod := m.opts.GetRetentionOptions().GetRetentionPeriod()
+	retentionPeriod := m.opts.RetentionOptions().RetentionPeriod()
 	return t.Add(-retentionPeriod).Truncate(m.blockSize)
 }
 
 func (m *flushManager) FlushTimeEnd(t time.Time) time.Time {
-	bufferPast := m.opts.GetRetentionOptions().GetBufferPast()
+	bufferPast := m.opts.RetentionOptions().BufferPast()
 	return t.Add(-bufferPast).Add(-m.blockSize).Truncate(m.blockSize)
 }
 
@@ -80,7 +80,7 @@ func (m *flushManager) Flush(t time.Time) error {
 	if len(timesToFlush) == 0 {
 		return nil
 	}
-	ctx := m.opts.GetContextPool().Get()
+	ctx := m.opts.ContextPool().Get()
 	defer ctx.Close()
 
 	multiErr := xerrors.NewMultiError()
@@ -135,7 +135,7 @@ func (m *flushManager) needsFlushWithLock(t time.Time) bool {
 	if !exists {
 		return true
 	}
-	return flushState.Status == fileOpFailed && flushState.NumFailures < m.opts.GetMaxFlushRetries()
+	return flushState.Status == fileOpFailed && flushState.NumFailures < m.opts.MaxFlushRetries()
 }
 
 // flushWithTime flushes in-memory data across all namespaces for a given time, returning any

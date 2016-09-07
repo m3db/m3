@@ -42,10 +42,10 @@ var (
 
 func newConnectionPoolTestOptions() Options {
 	return NewOptions().
-		BackgroundConnectInterval(5 * time.Millisecond).
-		BackgroundConnectStutter(2 * time.Millisecond).
-		BackgroundHealthCheckInterval(5 * time.Millisecond).
-		BackgroundHealthCheckStutter(2 * time.Millisecond)
+		SetBackgroundConnectInterval(5 * time.Millisecond).
+		SetBackgroundConnectStutter(2 * time.Millisecond).
+		SetBackgroundHealthCheckInterval(5 * time.Millisecond).
+		SetBackgroundHealthCheckStutter(2 * time.Millisecond)
 }
 
 func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
@@ -75,7 +75,7 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 	doneWg.Add(1)
 
 	opts := newConnectionPoolTestOptions()
-	opts = opts.MaxConnectionCount(4)
+	opts = opts.SetMaxConnectionCount(4)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
 		attempt := int(atomic.AddInt32(&attempts, 1))
@@ -112,23 +112,23 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	assert.Equal(t, 0, conns.GetConnectionCount())
+	assert.Equal(t, 0, conns.ConnectionCount())
 
 	conns.Open()
 
 	// Wait for first round, should've created all conns except first
 	sleepWgs[0].Wait()
-	assert.Equal(t, 3, conns.GetConnectionCount())
+	assert.Equal(t, 3, conns.ConnectionCount())
 	proceedSleepWgs[0].Done()
 
 	// Wait for second round, all attempts should succeed but all fail health checks
 	sleepWgs[1].Wait()
-	assert.Equal(t, 3, conns.GetConnectionCount())
+	assert.Equal(t, 3, conns.ConnectionCount())
 	proceedSleepWgs[1].Done()
 
 	// Wait for third round, now should succeed and all connections accounted for
 	sleepWgs[2].Wait()
-	assert.Equal(t, 4, conns.GetConnectionCount())
+	assert.Equal(t, 4, conns.ConnectionCount())
 	doneAll := attempts
 	proceedSleepWgs[2].Done()
 
@@ -197,7 +197,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	}
 
 	opts := newConnectionPoolTestOptions()
-	opts = opts.MaxConnectionCount(2)
+	opts = opts.SetMaxConnectionCount(2)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
@@ -231,7 +231,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	assert.Equal(t, 0, conns.GetConnectionCount())
+	assert.Equal(t, 0, conns.ConnectionCount())
 
 	conns.Open()
 
@@ -240,7 +240,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	assert.Equal(t, 2, conns.GetConnectionCount())
+	assert.Equal(t, 2, conns.ConnectionCount())
 
 	// Fail client1 health check
 	pushFailClientOverride(client1)
@@ -249,7 +249,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	failsDoneWg[0].Wait()
 
 	// Verify only 1 connection and its client2
-	assert.Equal(t, 1, conns.GetConnectionCount())
+	assert.Equal(t, 1, conns.ConnectionCount())
 	for i := 0; i < 2; i++ {
 		nextClient, err := conns.NextClient()
 		assert.NoError(t, err)
@@ -261,7 +261,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 
 	// Wait for health check round to take action
 	failsDoneWg[1].Wait()
-	assert.Equal(t, 0, conns.GetConnectionCount())
+	assert.Equal(t, 0, conns.ConnectionCount())
 	nextClient, err := conns.NextClient()
 	assert.Nil(t, nextClient)
 	assert.Equal(t, errConnectionPoolHasNoConnections, err)

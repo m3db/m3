@@ -39,24 +39,24 @@ import (
 func newBufferTestOptions() Options {
 	opts := NewOptions()
 	opts = opts.
-		RetentionOptions(opts.GetRetentionOptions().
-			BlockSize(2 * time.Minute).
-			BufferFuture(10 * time.Second).
-			BufferPast(10 * time.Second).
-			BufferDrain(30 * time.Second)).
-		DatabaseBlockOptions(opts.GetDatabaseBlockOptions().
-			ContextPool(opts.GetContextPool()).
-			EncoderPool(opts.GetEncoderPool()).
-			SegmentReaderPool(opts.GetSegmentReaderPool()).
-			BytesPool(opts.GetBytesPool()))
+		SetRetentionOptions(opts.RetentionOptions().
+			SetBlockSize(2 * time.Minute).
+			SetBufferFuture(10 * time.Second).
+			SetBufferPast(10 * time.Second).
+			SetBufferDrain(30 * time.Second)).
+		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
+			SetContextPool(opts.ContextPool()).
+			SetEncoderPool(opts.EncoderPool()).
+			SetSegmentReaderPool(opts.SegmentReaderPool()).
+			SetBytesPool(opts.BytesPool()))
 	return opts
 }
 
 func TestBufferWriteTooFuture(t *testing.T) {
 	opts := newBufferTestOptions()
-	rops := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(rops.GetBlockSize())
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
@@ -64,16 +64,16 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err := buffer.Write(ctx, curr.Add(rops.GetBufferFuture()), 1, xtime.Second, nil)
+	err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1, xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestBufferWriteTooPast(t *testing.T) {
 	opts := newBufferTestOptions()
-	rops := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(rops.GetBlockSize())
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
@@ -81,16 +81,16 @@ func TestBufferWriteTooPast(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err := buffer.Write(ctx, curr.Add(-1*rops.GetBufferPast()), 1, xtime.Second, nil)
+	err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second, nil)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestBufferWriteRead(t *testing.T) {
 	opts := newBufferTestOptions()
-	rops := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(rops.GetBlockSize())
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
@@ -118,10 +118,10 @@ func TestBufferWriteRead(t *testing.T) {
 
 func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	opts := newBufferTestOptions()
-	rops := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(rops.GetBlockSize())
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
 	start := curr
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
@@ -163,9 +163,9 @@ func TestBufferDrain(t *testing.T) {
 	}
 
 	opts := newBufferTestOptions()
-	rops := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(rops.GetBlockSize())
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	buffer := newDatabaseBuffer(drainFn, opts).(*dbBuffer)
@@ -213,9 +213,9 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	}
 
 	opts := newBufferTestOptions()
-	rops := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(rops.GetBlockSize())
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	buffer := newDatabaseBuffer(drainFn, opts).(*dbBuffer)
@@ -252,9 +252,9 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 
 func TestBufferWriteOutOfOrder(t *testing.T) {
 	opts := newBufferTestOptions()
-	rops := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(rops.GetBlockSize())
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
@@ -274,7 +274,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		ctx.Close()
 	}
 
-	bucketIdx := (curr.UnixNano() / int64(rops.GetBlockSize())) % bucketsLen
+	bucketIdx := (curr.UnixNano() / int64(rops.BlockSize())) % bucketsLen
 	assert.Equal(t, 2, len(buffer.buckets[bucketIdx].encoders))
 	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].lastWriteAt)
 	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].encoders[0].lastWriteAt)
@@ -310,8 +310,8 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 
 func initializeTestBufferBucket() (*dbBufferBucket, Options, []value) {
 	opts := newBufferTestOptions()
-	rops := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(rops.GetBlockSize())
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
 	b := &dbBufferBucket{opts: opts, start: curr, outOfOrder: true}
 	data := [][]value{
 		{
@@ -335,7 +335,7 @@ func initializeTestBufferBucket() (*dbBufferBucket, Options, []value) {
 
 	var expected []value
 	for i, d := range data {
-		encoder := opts.GetEncoderPool().Get()
+		encoder := opts.EncoderPool().Get()
 		encoder.Reset(curr, 0)
 		for _, v := range data[i] {
 			encoder.Encode(ts.Datapoint{v.timestamp, v.value}, v.unit, v.annotation)
@@ -362,7 +362,7 @@ func TestBufferBucketSort(t *testing.T) {
 
 func TestBufferFetchBlocks(t *testing.T) {
 	b, opts, expected := initializeTestBufferBucket()
-	ctx := opts.GetContextPool().Get()
+	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
@@ -385,7 +385,7 @@ func TestBufferFetchBlocks(t *testing.T) {
 
 func TestBufferFetchBlocksMetadata(t *testing.T) {
 	b, opts, _ := initializeTestBufferBucket()
-	ctx := opts.GetContextPool().Get()
+	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)

@@ -35,12 +35,12 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) NowFn(value NowFn) Options {
+func (o *options) SetNowFn(value NowFn) Options {
 	opts := *o
 	opts.nowFn = value
 	return &opts
 }
 
-func (o *options) GetNowFn() NowFn {
+func (o *options) NowFn() NowFn {
 	return o.nowFn
 }

@@ -41,7 +41,7 @@ func NewPeersBootstrapper(
 ) bootstrap.Bootstrapper {
 	src := newPeersSource(opts)
 	return &peersBootstrapper{
-		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts.GetBootstrapOptions(), next),
+		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts.BootstrapOptions(), next),
 	}
 }
 

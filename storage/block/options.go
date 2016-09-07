@@ -78,82 +78,82 @@ func NewOptions() Options {
 	return o
 }
 
-func (o *options) DatabaseBlockAllocSize(value int) Options {
+func (o *options) SetDatabaseBlockAllocSize(value int) Options {
 	opts := *o
 	opts.databaseBlockAllocSize = value
 	return &opts
 }
 
-func (o *options) GetDatabaseBlockAllocSize() int {
+func (o *options) DatabaseBlockAllocSize() int {
 	return o.databaseBlockAllocSize
 }
 
-func (o *options) DatabaseBlockPool(value DatabaseBlockPool) Options {
+func (o *options) SetDatabaseBlockPool(value DatabaseBlockPool) Options {
 	opts := *o
 	opts.databaseBlockPool = value
 	return &opts
 }
 
-func (o *options) GetDatabaseBlockPool() DatabaseBlockPool {
+func (o *options) DatabaseBlockPool() DatabaseBlockPool {
 	return o.databaseBlockPool
 }
 
-func (o *options) ContextPool(value context.Pool) Options {
+func (o *options) SetContextPool(value context.Pool) Options {
 	opts := *o
 	opts.contextPool = value
 	return &opts
 }
 
-func (o *options) GetContextPool() context.Pool {
+func (o *options) ContextPool() context.Pool {
 	return o.contextPool
 }
 
-func (o *options) EncoderPool(value encoding.EncoderPool) Options {
+func (o *options) SetEncoderPool(value encoding.EncoderPool) Options {
 	opts := *o
 	opts.encoderPool = value
 	return &opts
 }
 
-func (o *options) GetEncoderPool() encoding.EncoderPool {
+func (o *options) EncoderPool() encoding.EncoderPool {
 	return o.encoderPool
 }
 
-func (o *options) ReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
+func (o *options) SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
 	opts := *o
 	opts.readerIteratorPool = value
 	return &opts
 }
 
-func (o *options) GetReaderIteratorPool() encoding.ReaderIteratorPool {
+func (o *options) ReaderIteratorPool() encoding.ReaderIteratorPool {
 	return o.readerIteratorPool
 }
 
-func (o *options) MultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
+func (o *options) SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
 	opts := *o
 	opts.multiReaderIteratorPool = value
 	return &opts
 }
 
-func (o *options) GetMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
+func (o *options) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	return o.multiReaderIteratorPool
 }
 
-func (o *options) SegmentReaderPool(value xio.SegmentReaderPool) Options {
+func (o *options) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
 	opts := *o
 	opts.segmentReaderPool = value
 	return &opts
 }
 
-func (o *options) GetSegmentReaderPool() xio.SegmentReaderPool {
+func (o *options) SegmentReaderPool() xio.SegmentReaderPool {
 	return o.segmentReaderPool
 }
 
-func (o *options) BytesPool(value pool.BytesPool) Options {
+func (o *options) SetBytesPool(value pool.BytesPool) Options {
 	opts := *o
 	opts.bytesPool = value
 	return &opts
 }
 
-func (o *options) GetBytesPool() pool.BytesPool {
+func (o *options) BytesPool() pool.BytesPool {
 	return o.bytesPool
 }

@@ -41,11 +41,11 @@ type persistManager struct {
 
 // NewPersistManager creates a new filesystem persist manager
 func NewPersistManager(opts Options) persist.Manager {
-	filePathPrefix := opts.GetFilePathPrefix()
-	writerBufferSize := opts.GetWriterBufferSize()
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
-	newFileMode := opts.GetNewFileMode()
-	newDirectoryMode := opts.GetNewDirectoryMode()
+	filePathPrefix := opts.FilePathPrefix()
+	writerBufferSize := opts.WriterBufferSize()
+	blockSize := opts.RetentionOptions().BlockSize()
+	newFileMode := opts.NewFileMode()
+	newDirectoryMode := opts.NewDirectoryMode()
 	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 	return &persistManager{
 		opts:           opts,

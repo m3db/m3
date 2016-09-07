@@ -54,11 +54,11 @@ func newSessionTestAdminOptions() AdminOptions {
 	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
 	host := hostShardSets[0].Host()
 	return opts.
-		Origin(host).
-		FetchSeriesBlocksBatchSize(2).
-		FetchSeriesBlocksMetadataBatchTimeout(time.Second).
-		FetchSeriesBlocksBatchTimeout(time.Second).
-		FetchSeriesBlocksBatchConcurrency(4)
+		SetOrigin(host).
+		SetFetchSeriesBlocksBatchSize(2).
+		SetFetchSeriesBlocksMetadataBatchTimeout(time.Second).
+		SetFetchSeriesBlocksBatchTimeout(time.Second).
+		SetFetchSeriesBlocksBatchConcurrency(4)
 }
 
 func newBootstrapTestOptions() bootstrap.Options {
@@ -75,8 +75,8 @@ func newBootstrapTestOptionsWithEncoderCallback(fn func(e *testEncoder)) bootstr
 		}
 		return enc
 	})
-	return opts.DatabaseBlockOptions(opts.GetDatabaseBlockOptions().
-		EncoderPool(encoderPool))
+	return opts.SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
+		SetEncoderPool(encoderPool))
 }
 
 func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
@@ -113,7 +113,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	batchSize := opts.GetFetchSeriesBlocksBatchSize()
+	batchSize := opts.FetchSeriesBlocksBatchSize()
 	blockSize := 2 * time.Hour
 
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
@@ -654,7 +654,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	blocks, ok := series["foo"]
 	assert.True(t, ok)
 	assert.Equal(t, 1, blocks.Len())
-	result, ok := blocks.GetBlockAt(start)
+	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
 
 	ctx := context.NewContext()
@@ -690,8 +690,8 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 
 	opts := newSessionTestAdminOptions()
 	bopts := bootstrap.NewOptions()
-	bopts = bopts.DatabaseBlockOptions(bopts.GetDatabaseBlockOptions().
-		EncoderPool(encoderPool))
+	bopts = bopts.SetDatabaseBlockOptions(bopts.DatabaseBlockOptions().
+		SetEncoderPool(encoderPool))
 
 	start := time.Now()
 
@@ -742,7 +742,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	blocks, ok := series["foo"]
 	assert.True(t, ok)
 	assert.Equal(t, 1, blocks.Len())
-	result, ok := blocks.GetBlockAt(start)
+	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
 
 	ctx := context.NewContext()
@@ -802,10 +802,10 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 func mockPeerBlocksQueues(peers []hostQueue, opts AdminOptions) peerBlocksQueues {
 	var (
 		peerQueues peerBlocksQueues
-		workers    = pool.NewWorkerPool(opts.GetFetchSeriesBlocksBatchConcurrency())
+		workers    = pool.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 	)
 	for _, peer := range peers {
-		size := opts.GetFetchSeriesBlocksBatchSize()
+		size := opts.FetchSeriesBlocksBatchSize()
 		drainEvery := 100 * time.Millisecond
 		queue := newPeerBlocksQueue(peer, size, drainEvery, workers, func(batch []*blocksMetadata) {
 			// No-op
@@ -868,8 +868,8 @@ func mockHostQueuesAndClientsForFetchBootstrapBlocks(
 		hostQueue := NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open()
 		hostQueue.EXPECT().Host().Return(host).AnyTimes()
-		hostQueue.EXPECT().GetConnectionCount().Return(opts.GetMinConnectionCount()).Times(sessionTestShards)
-		hostQueue.EXPECT().GetConnectionPool().Return(connectionPool).AnyTimes()
+		hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
+		hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
 		hostQueue.EXPECT().Close()
 		hostQueues = append(hostQueues, hostQueue)
 		clients = append(clients, client)
@@ -964,7 +964,7 @@ func expectFetchMetadataAndReturn(
 	result []testBlocksMetadata,
 	opts AdminOptions,
 ) {
-	batchSize := opts.GetFetchSeriesBlocksBatchSize()
+	batchSize := opts.FetchSeriesBlocksBatchSize()
 	totalCalls := int(math.Ceil(float64(len(result)) / float64(batchSize)))
 	includeSizes := true
 
@@ -1220,7 +1220,7 @@ func assertFetchBootstrapBlocksResult(
 		assert.Equal(t, expectedLen, entry.Len())
 
 		for _, block := range expected[i].blocks {
-			actualBlock, ok := entry.GetBlockAt(block.start)
+			actualBlock, ok := entry.BlockAt(block.start)
 			if !ok {
 				assert.Fail(t, fmt.Sprintf("block for series '%s' start %v not present", id, block.start))
 				continue

@@ -47,7 +47,7 @@ func (w *writeOp) Size() int {
 	return 1
 }
 
-func (w *writeOp) GetCompletionFn() completionFn {
+func (w *writeOp) CompletionFn() completionFn {
 	return w.completionFn
 }
 

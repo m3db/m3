@@ -83,7 +83,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 	p := &connPool{
 		opts:               opts,
 		host:               host,
-		pool:               make([]conn, 0, opts.GetMaxConnectionCount()),
+		pool:               make([]conn, 0, opts.MaxConnectionCount()),
 		poolLen:            0,
 		connectRand:        rand.NewSource(seed),
 		healthCheckRand:    rand.NewSource(seed + 1),
@@ -107,16 +107,16 @@ func (p *connPool) Open() {
 
 	p.state = stateOpen
 
-	connectEvery := p.opts.GetBackgroundConnectInterval()
-	connectStutter := p.opts.GetBackgroundConnectStutter()
+	connectEvery := p.opts.BackgroundConnectInterval()
+	connectStutter := p.opts.BackgroundConnectStutter()
 	go p.connectEvery(connectEvery, connectStutter)
 
-	healthCheckEvery := p.opts.GetBackgroundHealthCheckInterval()
-	healthCheckStutter := p.opts.GetBackgroundHealthCheckStutter()
+	healthCheckEvery := p.opts.BackgroundHealthCheckInterval()
+	healthCheckStutter := p.opts.BackgroundHealthCheckStutter()
 	go p.healthCheckEvery(healthCheckEvery, healthCheckStutter)
 }
 
-func (p *connPool) GetConnectionCount() int {
+func (p *connPool) ConnectionCount() int {
 	p.RLock()
 	poolLen := p.poolLen
 	p.RUnlock()
@@ -154,8 +154,8 @@ func (p *connPool) Close() {
 }
 
 func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
-	log := p.opts.GetInstrumentOptions().GetLogger()
-	target := p.opts.GetMaxConnectionCount()
+	log := p.opts.InstrumentOptions().Logger()
+	target := p.opts.MaxConnectionCount()
 
 	for {
 		p.RLock()
@@ -203,8 +203,8 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 }
 
 func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duration) {
-	log := p.opts.GetInstrumentOptions().GetLogger()
-	nowFn := p.opts.GetClockOptions().GetNowFn()
+	log := p.opts.InstrumentOptions().Logger()
+	nowFn := p.opts.ClockOptions().NowFn()
 
 	for {
 		p.RLock()
@@ -268,7 +268,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 }
 
 func newConn(channelName string, address string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
-	channel, err := tchannel.NewChannel(channelName, opts.GetChannelOptions())
+	channel, err := tchannel.NewChannel(channelName, opts.ChannelOptions())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -279,7 +279,7 @@ func newConn(channelName string, address string, opts Options) (xclose.SimpleClo
 }
 
 func healthCheck(client rpc.TChanNode, opts Options) error {
-	tctx, _ := thrift.NewContext(opts.GetHostConnectTimeout())
+	tctx, _ := thrift.NewContext(opts.HostConnectTimeout())
 	result, err := client.Health(tctx)
 	if err != nil {
 		return err

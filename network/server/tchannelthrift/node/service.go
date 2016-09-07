@@ -81,7 +81,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
-	multiIt := s.db.Options().GetMultiReaderIteratorPool().Get()
+	multiIt := s.db.Options().MultiReaderIteratorPool().Get()
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
 	it := encoding.NewSeriesIterator(req.ID, start, end, []encoding.Iterator{multiIt}, nil)
 	defer it.Close()

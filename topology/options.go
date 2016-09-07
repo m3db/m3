@@ -84,33 +84,33 @@ func (o *staticOptions) Validate() error {
 	return nil
 }
 
-func (o *staticOptions) ShardSet(value sharding.ShardSet) StaticOptions {
+func (o *staticOptions) SetShardSet(value sharding.ShardSet) StaticOptions {
 	opts := *o
 	opts.shardSet = value
 	return &opts
 }
 
-func (o *staticOptions) GetShardSet() sharding.ShardSet {
+func (o *staticOptions) ShardSet() sharding.ShardSet {
 	return o.shardSet
 }
 
-func (o *staticOptions) Replicas(value int) StaticOptions {
+func (o *staticOptions) SetReplicas(value int) StaticOptions {
 	opts := *o
 	opts.replicas = value
 	return &opts
 }
 
-func (o *staticOptions) GetReplicas() int {
+func (o *staticOptions) Replicas() int {
 	return o.replicas
 }
 
-func (o *staticOptions) HostShardSets(value []HostShardSet) StaticOptions {
+func (o *staticOptions) SetHostShardSets(value []HostShardSet) StaticOptions {
 	opts := *o
 	opts.hostShardSets = value
 	return &opts
 }
 
-func (o *staticOptions) GetHostShardSets() []HostShardSet {
+func (o *staticOptions) HostShardSets() []HostShardSet {
 	return o.hostShardSets
 }
 
@@ -135,68 +135,68 @@ func NewDynamicOptions() DynamicOptions {
 }
 
 func (o *dynamicOptions) Validate() error {
-	if o.GetConfigServiceClient() == nil {
+	if o.ConfigServiceClient() == nil {
 		return errNoConfigServiceClient
 	}
-	if o.GetConfigServiceClient().Services() == nil {
+	if o.ConfigServiceClient().Services() == nil {
 		return errNoServiceDiscoverClient
 	}
-	if o.GetHashGen() == nil {
+	if o.HashGen() == nil {
 		return errNoHashGen
 	}
 	return nil
 }
 
-func (o *dynamicOptions) ConfigServiceClient(c client.Client) DynamicOptions {
+func (o *dynamicOptions) SetConfigServiceClient(c client.Client) DynamicOptions {
 	o.configServiceClient = c
 	return o
 }
 
-func (o *dynamicOptions) GetConfigServiceClient() client.Client {
+func (o *dynamicOptions) ConfigServiceClient() client.Client {
 	return o.configServiceClient
 }
 
-func (o *dynamicOptions) Service(s string) DynamicOptions {
+func (o *dynamicOptions) SetService(s string) DynamicOptions {
 	o.service = s
 	return o
 }
 
-func (o *dynamicOptions) GetService() string {
+func (o *dynamicOptions) Service() string {
 	return o.service
 }
 
-func (o *dynamicOptions) QueryOptions(qo services.QueryOptions) DynamicOptions {
+func (o *dynamicOptions) SetQueryOptions(qo services.QueryOptions) DynamicOptions {
 	o.queryOptions = qo
 	return o
 }
 
-func (o *dynamicOptions) GetQueryOptions() services.QueryOptions {
+func (o *dynamicOptions) QueryOptions() services.QueryOptions {
 	return o.queryOptions
 }
 
-func (o *dynamicOptions) InstrumentOptions(io instrument.Options) DynamicOptions {
+func (o *dynamicOptions) SetInstrumentOptions(io instrument.Options) DynamicOptions {
 	o.instrumentOptions = io
 	return o
 }
 
-func (o *dynamicOptions) GetInstrumentOptions() instrument.Options {
+func (o *dynamicOptions) InstrumentOptions() instrument.Options {
 	return o.instrumentOptions
 }
 
-func (o *dynamicOptions) InitTimeout(value time.Duration) DynamicOptions {
+func (o *dynamicOptions) SetInitTimeout(value time.Duration) DynamicOptions {
 	o.initTimeout = value
 	return o
 }
 
-func (o *dynamicOptions) GetInitTimeout() time.Duration {
+func (o *dynamicOptions) InitTimeout() time.Duration {
 	return o.initTimeout
 }
 
-func (o *dynamicOptions) HashGen(h sharding.HashGen) DynamicOptions {
+func (o *dynamicOptions) SetHashGen(h sharding.HashGen) DynamicOptions {
 	o.hashGen = h
 	return o
 }
 
-func (o *dynamicOptions) GetHashGen() sharding.HashGen {
+func (o *dynamicOptions) HashGen() sharding.HashGen {
 	return o.hashGen
 }

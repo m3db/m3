@@ -48,7 +48,7 @@ func (f *fetchBatchOp) Size() int {
 	return len(f.request.Ids)
 }
 
-func (f *fetchBatchOp) GetCompletionFn() completionFn {
+func (f *fetchBatchOp) CompletionFn() completionFn {
 	return f.completeAll
 }
 

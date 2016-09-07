@@ -152,23 +152,23 @@ type StaticOptions interface {
 	// Validate validates the options
 	Validate() error
 
-	// ShardSet sets the ShardSet
-	ShardSet(value sharding.ShardSet) StaticOptions
+	// SetShardSet sets the ShardSet
+	SetShardSet(value sharding.ShardSet) StaticOptions
 
-	// GetShardSet returns the ShardSet
-	GetShardSet() sharding.ShardSet
+	// ShardSet returns the ShardSet
+	ShardSet() sharding.ShardSet
 
-	// Replicas sets the replicas
-	Replicas(value int) StaticOptions
+	// SetReplicas sets the replicas
+	SetReplicas(value int) StaticOptions
 
-	// GetReplicas returns the replicas
-	GetReplicas() int
+	// Replicas returns the replicas
+	Replicas() int
 
-	// HostShardSets sets the hostShardSets
-	HostShardSets(value []HostShardSet) StaticOptions
+	// SetHostShardSets sets the hostShardSets
+	SetHostShardSets(value []HostShardSet) StaticOptions
 
-	// GetHostShardSets returns the hostShardSets
-	GetHostShardSets() []HostShardSet
+	// HostShardSets returns the hostShardSets
+	HostShardSets() []HostShardSet
 }
 
 // DynamicOptions is a set of options for dynamic topology
@@ -176,39 +176,39 @@ type DynamicOptions interface {
 	// Validate validates the options
 	Validate() error
 
-	// ConfigServiceClient sets the client of ConfigService
-	ConfigServiceClient(c client.Client) DynamicOptions
+	// SetConfigServiceClient sets the client of ConfigService
+	SetConfigServiceClient(c client.Client) DynamicOptions
 
-	// GetConfigServiceClient returns the client of ConfigService
-	GetConfigServiceClient() client.Client
+	// ConfigServiceClient returns the client of ConfigService
+	ConfigServiceClient() client.Client
+
+	// SetService returns the service name to query ConfigService
+	SetService(s string) DynamicOptions
 
 	// Service returns the service name to query ConfigService
-	Service(s string) DynamicOptions
+	Service() string
 
-	// GetService returns the service name to query ConfigService
-	GetService() string
+	// SetQueryOptions returns the ConfigService query options
+	SetQueryOptions(value services.QueryOptions) DynamicOptions
 
 	// QueryOptions returns the ConfigService query options
-	QueryOptions(value services.QueryOptions) DynamicOptions
+	QueryOptions() services.QueryOptions
 
-	// GetQueryOptions returns the ConfigService query options
-	GetQueryOptions() services.QueryOptions
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) DynamicOptions
 
-	// InstrumentOptions sets the instrumentation options
-	InstrumentOptions(value instrument.Options) DynamicOptions
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
 
-	// GetInstrumentOptions returns the instrumentation options
-	GetInstrumentOptions() instrument.Options
+	// SetInitTimeout sets the waiting time for dynamic topology to be initialized
+	SetInitTimeout(value time.Duration) DynamicOptions
 
-	// InitTimeout sets the waiting time for dynamic topology to be initialized
-	InitTimeout(value time.Duration) DynamicOptions
+	// InitTimeout returns the waiting time for dynamic topology to be initialized
+	InitTimeout() time.Duration
 
-	// GetInitTimeout returns the waiting time for dynamic topology to be initialized
-	GetInitTimeout() time.Duration
+	// SetHashGen sets the HashGen function
+	SetHashGen(h sharding.HashGen) DynamicOptions
 
-	// HashGen sets the HashGen function
-	HashGen(h sharding.HashGen) DynamicOptions
-
-	// GetHashGen returns HashGen function
-	GetHashGen() sharding.HashGen
+	// HashGen returns HashGen function
+	HashGen() sharding.HashGen
 }

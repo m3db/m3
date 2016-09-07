@@ -414,24 +414,24 @@ func (_mr *_MockhostQueueRecorder) Host() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Host")
 }
 
-func (_m *MockhostQueue) GetConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "GetConnectionCount")
+func (_m *MockhostQueue) ConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "ConnectionCount")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockhostQueueRecorder) GetConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetConnectionCount")
+func (_mr *_MockhostQueueRecorder) ConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionCount")
 }
 
-func (_m *MockhostQueue) GetConnectionPool() connectionPool {
-	ret := _m.ctrl.Call(_m, "GetConnectionPool")
+func (_m *MockhostQueue) ConnectionPool() connectionPool {
+	ret := _m.ctrl.Call(_m, "ConnectionPool")
 	ret0, _ := ret[0].(connectionPool)
 	return ret0
 }
 
-func (_mr *_MockhostQueueRecorder) GetConnectionPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetConnectionPool")
+func (_mr *_MockhostQueueRecorder) ConnectionPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionPool")
 }
 
 func (_m *MockhostQueue) Close() {
@@ -471,14 +471,14 @@ func (_mr *_MockconnectionPoolRecorder) Open() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
 }
 
-func (_m *MockconnectionPool) GetConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "GetConnectionCount")
+func (_m *MockconnectionPool) ConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "ConnectionCount")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockconnectionPoolRecorder) GetConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetConnectionCount")
+func (_mr *_MockconnectionPoolRecorder) ConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionCount")
 }
 
 func (_m *MockconnectionPool) NextClient() (rpc.TChanNode, error) {
@@ -531,14 +531,14 @@ func (_mr *_MockopRecorder) Size() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Size")
 }
 
-func (_m *Mockop) GetCompletionFn() completionFn {
-	ret := _m.ctrl.Call(_m, "GetCompletionFn")
+func (_m *Mockop) CompletionFn() completionFn {
+	ret := _m.ctrl.Call(_m, "CompletionFn")
 	ret0, _ := ret[0].(completionFn)
 	return ret0
 }
 
-func (_mr *_MockopRecorder) GetCompletionFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetCompletionFn")
+func (_mr *_MockopRecorder) CompletionFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CompletionFn")
 }
 
 // Mock of Options interface
@@ -572,554 +572,554 @@ func (_mr *_MockOptionsRecorder) Validate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
-func (_m *MockOptions) ClockOptions(value clock.Options) Options {
-	ret := _m.ctrl.Call(_m, "ClockOptions", value)
+func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ClockOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClockOptions", arg0)
 }
 
-func (_m *MockOptions) GetClockOptions() clock.Options {
-	ret := _m.ctrl.Call(_m, "GetClockOptions")
+func (_m *MockOptions) ClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions")
 	ret0, _ := ret[0].(clock.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetClockOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClockOptions")
+func (_mr *_MockOptionsRecorder) ClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions")
 }
 
-func (_m *MockOptions) InstrumentOptions(value instrument.Options) Options {
-	ret := _m.ctrl.Call(_m, "InstrumentOptions", value)
+func (_m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) InstrumentOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
 }
 
-func (_m *MockOptions) GetInstrumentOptions() instrument.Options {
-	ret := _m.ctrl.Call(_m, "GetInstrumentOptions")
+func (_m *MockOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetInstrumentOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetInstrumentOptions")
+func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
 }
 
-func (_m *MockOptions) EncodingM3TSZ() Options {
-	ret := _m.ctrl.Call(_m, "EncodingM3TSZ")
+func (_m *MockOptions) SetEncodingM3TSZ() Options {
+	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) EncodingM3TSZ() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TSZ")
+func (_mr *_MockOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
 }
 
-func (_m *MockOptions) TopologyInitializer(value topology.Initializer) Options {
-	ret := _m.ctrl.Call(_m, "TopologyInitializer", value)
+func (_m *MockOptions) SetTopologyInitializer(value topology.Initializer) Options {
+	ret := _m.ctrl.Call(_m, "SetTopologyInitializer", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) TopologyInitializer(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer", arg0)
+func (_mr *_MockOptionsRecorder) SetTopologyInitializer(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTopologyInitializer", arg0)
 }
 
-func (_m *MockOptions) GetTopologyInitializer() topology.Initializer {
-	ret := _m.ctrl.Call(_m, "GetTopologyInitializer")
+func (_m *MockOptions) TopologyInitializer() topology.Initializer {
+	ret := _m.ctrl.Call(_m, "TopologyInitializer")
 	ret0, _ := ret[0].(topology.Initializer)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetTopologyInitializer() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTopologyInitializer")
+func (_mr *_MockOptionsRecorder) TopologyInitializer() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer")
 }
 
-func (_m *MockOptions) ConsistencyLevel(value topology.ConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "ConsistencyLevel", value)
+func (_m *MockOptions) SetConsistencyLevel(value topology.ConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConsistencyLevel", arg0)
+func (_mr *_MockOptionsRecorder) SetConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetConsistencyLevel", arg0)
 }
 
-func (_m *MockOptions) GetConsistencyLevel() topology.ConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "GetConsistencyLevel")
+func (_m *MockOptions) ConsistencyLevel() topology.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ConsistencyLevel")
 	ret0, _ := ret[0].(topology.ConsistencyLevel)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetConsistencyLevel")
+func (_mr *_MockOptionsRecorder) ConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConsistencyLevel")
 }
 
-func (_m *MockOptions) ChannelOptions(value *tchannel_go.ChannelOptions) Options {
-	ret := _m.ctrl.Call(_m, "ChannelOptions", value)
+func (_m *MockOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetChannelOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ChannelOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ChannelOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetChannelOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetChannelOptions", arg0)
 }
 
-func (_m *MockOptions) GetChannelOptions() *tchannel_go.ChannelOptions {
-	ret := _m.ctrl.Call(_m, "GetChannelOptions")
+func (_m *MockOptions) ChannelOptions() *tchannel_go.ChannelOptions {
+	ret := _m.ctrl.Call(_m, "ChannelOptions")
 	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetChannelOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetChannelOptions")
+func (_mr *_MockOptionsRecorder) ChannelOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ChannelOptions")
 }
 
-func (_m *MockOptions) MaxConnectionCount(value int) Options {
-	ret := _m.ctrl.Call(_m, "MaxConnectionCount", value)
+func (_m *MockOptions) SetMaxConnectionCount(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetMaxConnectionCount", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) MaxConnectionCount(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxConnectionCount", arg0)
+func (_mr *_MockOptionsRecorder) SetMaxConnectionCount(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMaxConnectionCount", arg0)
 }
 
-func (_m *MockOptions) GetMaxConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "GetMaxConnectionCount")
+func (_m *MockOptions) MaxConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "MaxConnectionCount")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetMaxConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMaxConnectionCount")
+func (_mr *_MockOptionsRecorder) MaxConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxConnectionCount")
 }
 
-func (_m *MockOptions) MinConnectionCount(value int) Options {
-	ret := _m.ctrl.Call(_m, "MinConnectionCount", value)
+func (_m *MockOptions) SetMinConnectionCount(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetMinConnectionCount", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) MinConnectionCount(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "MinConnectionCount", arg0)
+func (_mr *_MockOptionsRecorder) SetMinConnectionCount(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMinConnectionCount", arg0)
 }
 
-func (_m *MockOptions) GetMinConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "GetMinConnectionCount")
+func (_m *MockOptions) MinConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "MinConnectionCount")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetMinConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMinConnectionCount")
+func (_mr *_MockOptionsRecorder) MinConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MinConnectionCount")
 }
 
-func (_m *MockOptions) HostConnectTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "HostConnectTimeout", value)
+func (_m *MockOptions) SetHostConnectTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetHostConnectTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) HostConnectTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostConnectTimeout", arg0)
+func (_mr *_MockOptionsRecorder) SetHostConnectTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostConnectTimeout", arg0)
 }
 
-func (_m *MockOptions) GetHostConnectTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetHostConnectTimeout")
+func (_m *MockOptions) HostConnectTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "HostConnectTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetHostConnectTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostConnectTimeout")
+func (_mr *_MockOptionsRecorder) HostConnectTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostConnectTimeout")
 }
 
-func (_m *MockOptions) ClusterConnectTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout", value)
+func (_m *MockOptions) SetClusterConnectTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetClusterConnectTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ClusterConnectTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout", arg0)
+func (_mr *_MockOptionsRecorder) SetClusterConnectTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClusterConnectTimeout", arg0)
 }
 
-func (_m *MockOptions) GetClusterConnectTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetClusterConnectTimeout")
+func (_m *MockOptions) ClusterConnectTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetClusterConnectTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClusterConnectTimeout")
+func (_mr *_MockOptionsRecorder) ClusterConnectTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout")
 }
 
-func (_m *MockOptions) ClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel", value)
+func (_m *MockOptions) SetClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ClusterConnectConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectConsistencyLevel", arg0)
+func (_mr *_MockOptionsRecorder) SetClusterConnectConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClusterConnectConsistencyLevel", arg0)
 }
 
-func (_m *MockOptions) GetClusterConnectConsistencyLevel() topology.ConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "GetClusterConnectConsistencyLevel")
+func (_m *MockOptions) ClusterConnectConsistencyLevel() topology.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
 	ret0, _ := ret[0].(topology.ConsistencyLevel)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetClusterConnectConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClusterConnectConsistencyLevel")
+func (_mr *_MockOptionsRecorder) ClusterConnectConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectConsistencyLevel")
 }
 
-func (_m *MockOptions) WriteRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "WriteRequestTimeout", value)
+func (_m *MockOptions) SetWriteRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) WriteRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteRequestTimeout", arg0)
+func (_mr *_MockOptionsRecorder) SetWriteRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteRequestTimeout", arg0)
 }
 
-func (_m *MockOptions) GetWriteRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetWriteRequestTimeout")
+func (_m *MockOptions) WriteRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "WriteRequestTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetWriteRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteRequestTimeout")
+func (_mr *_MockOptionsRecorder) WriteRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteRequestTimeout")
 }
 
-func (_m *MockOptions) FetchRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "FetchRequestTimeout", value)
+func (_m *MockOptions) SetFetchRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) FetchRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRequestTimeout", arg0)
+func (_mr *_MockOptionsRecorder) SetFetchRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchRequestTimeout", arg0)
 }
 
-func (_m *MockOptions) GetFetchRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetFetchRequestTimeout")
+func (_m *MockOptions) FetchRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "FetchRequestTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetFetchRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchRequestTimeout")
+func (_mr *_MockOptionsRecorder) FetchRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRequestTimeout")
 }
 
-func (_m *MockOptions) TruncateRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout", value)
+func (_m *MockOptions) SetTruncateRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetTruncateRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) TruncateRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateRequestTimeout", arg0)
+func (_mr *_MockOptionsRecorder) SetTruncateRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTruncateRequestTimeout", arg0)
 }
 
-func (_m *MockOptions) GetTruncateRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetTruncateRequestTimeout")
+func (_m *MockOptions) TruncateRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetTruncateRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTruncateRequestTimeout")
+func (_mr *_MockOptionsRecorder) TruncateRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateRequestTimeout")
 }
 
-func (_m *MockOptions) BackgroundConnectInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval", value)
+func (_m *MockOptions) SetBackgroundConnectInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundConnectInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) BackgroundConnectInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectInterval", arg0)
+func (_mr *_MockOptionsRecorder) SetBackgroundConnectInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBackgroundConnectInterval", arg0)
 }
 
-func (_m *MockOptions) GetBackgroundConnectInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetBackgroundConnectInterval")
+func (_m *MockOptions) BackgroundConnectInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetBackgroundConnectInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundConnectInterval")
+func (_mr *_MockOptionsRecorder) BackgroundConnectInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectInterval")
 }
 
-func (_m *MockOptions) BackgroundConnectStutter(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter", value)
+func (_m *MockOptions) SetBackgroundConnectStutter(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundConnectStutter", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) BackgroundConnectStutter(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectStutter", arg0)
+func (_mr *_MockOptionsRecorder) SetBackgroundConnectStutter(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBackgroundConnectStutter", arg0)
 }
 
-func (_m *MockOptions) GetBackgroundConnectStutter() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetBackgroundConnectStutter")
+func (_m *MockOptions) BackgroundConnectStutter() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetBackgroundConnectStutter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundConnectStutter")
+func (_mr *_MockOptionsRecorder) BackgroundConnectStutter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectStutter")
 }
 
-func (_m *MockOptions) BackgroundHealthCheckInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval", value)
+func (_m *MockOptions) SetBackgroundHealthCheckInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) BackgroundHealthCheckInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckInterval", arg0)
+func (_mr *_MockOptionsRecorder) SetBackgroundHealthCheckInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBackgroundHealthCheckInterval", arg0)
 }
 
-func (_m *MockOptions) GetBackgroundHealthCheckInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetBackgroundHealthCheckInterval")
+func (_m *MockOptions) BackgroundHealthCheckInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetBackgroundHealthCheckInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundHealthCheckInterval")
+func (_mr *_MockOptionsRecorder) BackgroundHealthCheckInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckInterval")
 }
 
-func (_m *MockOptions) BackgroundHealthCheckStutter(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter", value)
+func (_m *MockOptions) SetBackgroundHealthCheckStutter(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckStutter", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) BackgroundHealthCheckStutter(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckStutter", arg0)
+func (_mr *_MockOptionsRecorder) SetBackgroundHealthCheckStutter(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBackgroundHealthCheckStutter", arg0)
 }
 
-func (_m *MockOptions) GetBackgroundHealthCheckStutter() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetBackgroundHealthCheckStutter")
+func (_m *MockOptions) BackgroundHealthCheckStutter() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetBackgroundHealthCheckStutter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundHealthCheckStutter")
+func (_mr *_MockOptionsRecorder) BackgroundHealthCheckStutter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckStutter")
 }
 
-func (_m *MockOptions) WriteOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "WriteOpPoolSize", value)
+func (_m *MockOptions) SetWriteOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) WriteOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteOpPoolSize", arg0)
+func (_mr *_MockOptionsRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteOpPoolSize", arg0)
 }
 
-func (_m *MockOptions) GetWriteOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "GetWriteOpPoolSize")
+func (_m *MockOptions) WriteOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetWriteOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteOpPoolSize")
+func (_mr *_MockOptionsRecorder) WriteOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteOpPoolSize")
 }
 
-func (_m *MockOptions) FetchBatchOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize", value)
+func (_m *MockOptions) SetFetchBatchOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) FetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize", arg0)
+func (_mr *_MockOptionsRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBatchOpPoolSize", arg0)
 }
 
-func (_m *MockOptions) GetFetchBatchOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "GetFetchBatchOpPoolSize")
+func (_m *MockOptions) FetchBatchOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetFetchBatchOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchBatchOpPoolSize")
+func (_mr *_MockOptionsRecorder) FetchBatchOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize")
 }
 
-func (_m *MockOptions) WriteBatchSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "WriteBatchSize", value)
+func (_m *MockOptions) SetWriteBatchSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) WriteBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBatchSize", arg0)
+func (_mr *_MockOptionsRecorder) SetWriteBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteBatchSize", arg0)
 }
 
-func (_m *MockOptions) GetWriteBatchSize() int {
-	ret := _m.ctrl.Call(_m, "GetWriteBatchSize")
+func (_m *MockOptions) WriteBatchSize() int {
+	ret := _m.ctrl.Call(_m, "WriteBatchSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetWriteBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteBatchSize")
+func (_mr *_MockOptionsRecorder) WriteBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBatchSize")
 }
 
-func (_m *MockOptions) FetchBatchSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "FetchBatchSize", value)
+func (_m *MockOptions) SetFetchBatchSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) FetchBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchSize", arg0)
+func (_mr *_MockOptionsRecorder) SetFetchBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBatchSize", arg0)
 }
 
-func (_m *MockOptions) GetFetchBatchSize() int {
-	ret := _m.ctrl.Call(_m, "GetFetchBatchSize")
+func (_m *MockOptions) FetchBatchSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetFetchBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchBatchSize")
+func (_mr *_MockOptionsRecorder) FetchBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchSize")
 }
 
-func (_m *MockOptions) HostQueueOpsFlushSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushSize", value)
+func (_m *MockOptions) SetHostQueueOpsFlushSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) HostQueueOpsFlushSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushSize", arg0)
+func (_mr *_MockOptionsRecorder) SetHostQueueOpsFlushSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostQueueOpsFlushSize", arg0)
 }
 
-func (_m *MockOptions) GetHostQueueOpsFlushSize() int {
-	ret := _m.ctrl.Call(_m, "GetHostQueueOpsFlushSize")
+func (_m *MockOptions) HostQueueOpsFlushSize() int {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetHostQueueOpsFlushSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostQueueOpsFlushSize")
+func (_mr *_MockOptionsRecorder) HostQueueOpsFlushSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushSize")
 }
 
-func (_m *MockOptions) HostQueueOpsFlushInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval", value)
+func (_m *MockOptions) SetHostQueueOpsFlushInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) HostQueueOpsFlushInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushInterval", arg0)
+func (_mr *_MockOptionsRecorder) SetHostQueueOpsFlushInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostQueueOpsFlushInterval", arg0)
 }
 
-func (_m *MockOptions) GetHostQueueOpsFlushInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetHostQueueOpsFlushInterval")
+func (_m *MockOptions) HostQueueOpsFlushInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetHostQueueOpsFlushInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostQueueOpsFlushInterval")
+func (_mr *_MockOptionsRecorder) HostQueueOpsFlushInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushInterval")
 }
 
-func (_m *MockOptions) HostQueueOpsArrayPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsArrayPoolSize", value)
+func (_m *MockOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsArrayPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) HostQueueOpsArrayPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsArrayPoolSize", arg0)
+func (_mr *_MockOptionsRecorder) SetHostQueueOpsArrayPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostQueueOpsArrayPoolSize", arg0)
 }
 
-func (_m *MockOptions) GetHostQueueOpsArrayPoolSize() int {
-	ret := _m.ctrl.Call(_m, "GetHostQueueOpsArrayPoolSize")
+func (_m *MockOptions) HostQueueOpsArrayPoolSize() int {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsArrayPoolSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetHostQueueOpsArrayPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostQueueOpsArrayPoolSize")
+func (_mr *_MockOptionsRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsArrayPoolSize")
 }
 
-func (_m *MockOptions) SeriesIteratorPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SeriesIteratorPoolSize", value)
+func (_m *MockOptions) SetSeriesIteratorPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesIteratorPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SeriesIteratorPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesIteratorPoolSize", arg0)
+func (_mr *_MockOptionsRecorder) SetSeriesIteratorPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSeriesIteratorPoolSize", arg0)
 }
 
-func (_m *MockOptions) GetSeriesIteratorPoolSize() int {
-	ret := _m.ctrl.Call(_m, "GetSeriesIteratorPoolSize")
+func (_m *MockOptions) SeriesIteratorPoolSize() int {
+	ret := _m.ctrl.Call(_m, "SeriesIteratorPoolSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetSeriesIteratorPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetSeriesIteratorPoolSize")
+func (_mr *_MockOptionsRecorder) SeriesIteratorPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesIteratorPoolSize")
 }
 
-func (_m *MockOptions) SeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
-	ret := _m.ctrl.Call(_m, "SeriesIteratorArrayPoolBuckets", value)
+func (_m *MockOptions) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesIteratorArrayPoolBuckets", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SeriesIteratorArrayPoolBuckets(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesIteratorArrayPoolBuckets", arg0)
+func (_mr *_MockOptionsRecorder) SetSeriesIteratorArrayPoolBuckets(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSeriesIteratorArrayPoolBuckets", arg0)
 }
 
-func (_m *MockOptions) GetSeriesIteratorArrayPoolBuckets() []pool.Bucket {
-	ret := _m.ctrl.Call(_m, "GetSeriesIteratorArrayPoolBuckets")
+func (_m *MockOptions) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
+	ret := _m.ctrl.Call(_m, "SeriesIteratorArrayPoolBuckets")
 	ret0, _ := ret[0].([]pool.Bucket)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetSeriesIteratorArrayPoolBuckets() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetSeriesIteratorArrayPoolBuckets")
+func (_mr *_MockOptionsRecorder) SeriesIteratorArrayPoolBuckets() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesIteratorArrayPoolBuckets")
 }
 
-func (_m *MockOptions) ReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
-	ret := _m.ctrl.Call(_m, "ReaderIteratorAllocate", value)
+func (_m *MockOptions) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
+	ret := _m.ctrl.Call(_m, "SetReaderIteratorAllocate", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ReaderIteratorAllocate(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderIteratorAllocate", arg0)
+func (_mr *_MockOptionsRecorder) SetReaderIteratorAllocate(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetReaderIteratorAllocate", arg0)
 }
 
-func (_m *MockOptions) GetReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
-	ret := _m.ctrl.Call(_m, "GetReaderIteratorAllocate")
+func (_m *MockOptions) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
+	ret := _m.ctrl.Call(_m, "ReaderIteratorAllocate")
 	ret0, _ := ret[0].(encoding.ReaderIteratorAllocate)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) GetReaderIteratorAllocate() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetReaderIteratorAllocate")
+func (_mr *_MockOptionsRecorder) ReaderIteratorAllocate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderIteratorAllocate")
 }
 
 // Mock of AdminOptions interface
@@ -1153,652 +1153,652 @@ func (_mr *_MockAdminOptionsRecorder) Validate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
-func (_m *MockAdminOptions) ClockOptions(value clock.Options) Options {
-	ret := _m.ctrl.Call(_m, "ClockOptions", value)
+func (_m *MockAdminOptions) SetClockOptions(value clock.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) ClockOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClockOptions", arg0)
 }
 
-func (_m *MockAdminOptions) GetClockOptions() clock.Options {
-	ret := _m.ctrl.Call(_m, "GetClockOptions")
+func (_m *MockAdminOptions) ClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions")
 	ret0, _ := ret[0].(clock.Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetClockOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClockOptions")
+func (_mr *_MockAdminOptionsRecorder) ClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions")
 }
 
-func (_m *MockAdminOptions) InstrumentOptions(value instrument.Options) Options {
-	ret := _m.ctrl.Call(_m, "InstrumentOptions", value)
+func (_m *MockAdminOptions) SetInstrumentOptions(value instrument.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) InstrumentOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
 }
 
-func (_m *MockAdminOptions) GetInstrumentOptions() instrument.Options {
-	ret := _m.ctrl.Call(_m, "GetInstrumentOptions")
+func (_m *MockAdminOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetInstrumentOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetInstrumentOptions")
+func (_mr *_MockAdminOptionsRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
 }
 
-func (_m *MockAdminOptions) EncodingM3TSZ() Options {
-	ret := _m.ctrl.Call(_m, "EncodingM3TSZ")
+func (_m *MockAdminOptions) SetEncodingM3TSZ() Options {
+	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) EncodingM3TSZ() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncodingM3TSZ")
+func (_mr *_MockAdminOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
 }
 
-func (_m *MockAdminOptions) TopologyInitializer(value topology.Initializer) Options {
-	ret := _m.ctrl.Call(_m, "TopologyInitializer", value)
+func (_m *MockAdminOptions) SetTopologyInitializer(value topology.Initializer) Options {
+	ret := _m.ctrl.Call(_m, "SetTopologyInitializer", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) TopologyInitializer(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetTopologyInitializer(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTopologyInitializer", arg0)
 }
 
-func (_m *MockAdminOptions) GetTopologyInitializer() topology.Initializer {
-	ret := _m.ctrl.Call(_m, "GetTopologyInitializer")
+func (_m *MockAdminOptions) TopologyInitializer() topology.Initializer {
+	ret := _m.ctrl.Call(_m, "TopologyInitializer")
 	ret0, _ := ret[0].(topology.Initializer)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetTopologyInitializer() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTopologyInitializer")
+func (_mr *_MockAdminOptionsRecorder) TopologyInitializer() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer")
 }
 
-func (_m *MockAdminOptions) ConsistencyLevel(value topology.ConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "ConsistencyLevel", value)
+func (_m *MockAdminOptions) SetConsistencyLevel(value topology.ConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) ConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConsistencyLevel", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetConsistencyLevel", arg0)
 }
 
-func (_m *MockAdminOptions) GetConsistencyLevel() topology.ConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "GetConsistencyLevel")
+func (_m *MockAdminOptions) ConsistencyLevel() topology.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ConsistencyLevel")
 	ret0, _ := ret[0].(topology.ConsistencyLevel)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetConsistencyLevel")
+func (_mr *_MockAdminOptionsRecorder) ConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConsistencyLevel")
 }
 
-func (_m *MockAdminOptions) ChannelOptions(value *tchannel_go.ChannelOptions) Options {
-	ret := _m.ctrl.Call(_m, "ChannelOptions", value)
+func (_m *MockAdminOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetChannelOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) ChannelOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ChannelOptions", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetChannelOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetChannelOptions", arg0)
 }
 
-func (_m *MockAdminOptions) GetChannelOptions() *tchannel_go.ChannelOptions {
-	ret := _m.ctrl.Call(_m, "GetChannelOptions")
+func (_m *MockAdminOptions) ChannelOptions() *tchannel_go.ChannelOptions {
+	ret := _m.ctrl.Call(_m, "ChannelOptions")
 	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetChannelOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetChannelOptions")
+func (_mr *_MockAdminOptionsRecorder) ChannelOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ChannelOptions")
 }
 
-func (_m *MockAdminOptions) MaxConnectionCount(value int) Options {
-	ret := _m.ctrl.Call(_m, "MaxConnectionCount", value)
+func (_m *MockAdminOptions) SetMaxConnectionCount(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetMaxConnectionCount", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) MaxConnectionCount(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxConnectionCount", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetMaxConnectionCount(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMaxConnectionCount", arg0)
 }
 
-func (_m *MockAdminOptions) GetMaxConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "GetMaxConnectionCount")
+func (_m *MockAdminOptions) MaxConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "MaxConnectionCount")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetMaxConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMaxConnectionCount")
+func (_mr *_MockAdminOptionsRecorder) MaxConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxConnectionCount")
 }
 
-func (_m *MockAdminOptions) MinConnectionCount(value int) Options {
-	ret := _m.ctrl.Call(_m, "MinConnectionCount", value)
+func (_m *MockAdminOptions) SetMinConnectionCount(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetMinConnectionCount", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) MinConnectionCount(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "MinConnectionCount", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetMinConnectionCount(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMinConnectionCount", arg0)
 }
 
-func (_m *MockAdminOptions) GetMinConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "GetMinConnectionCount")
+func (_m *MockAdminOptions) MinConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "MinConnectionCount")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetMinConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMinConnectionCount")
+func (_mr *_MockAdminOptionsRecorder) MinConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MinConnectionCount")
 }
 
-func (_m *MockAdminOptions) HostConnectTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "HostConnectTimeout", value)
+func (_m *MockAdminOptions) SetHostConnectTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetHostConnectTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) HostConnectTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostConnectTimeout", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetHostConnectTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostConnectTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetHostConnectTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetHostConnectTimeout")
+func (_m *MockAdminOptions) HostConnectTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "HostConnectTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetHostConnectTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostConnectTimeout")
+func (_mr *_MockAdminOptionsRecorder) HostConnectTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostConnectTimeout")
 }
 
-func (_m *MockAdminOptions) ClusterConnectTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout", value)
+func (_m *MockAdminOptions) SetClusterConnectTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetClusterConnectTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) ClusterConnectTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetClusterConnectTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClusterConnectTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetClusterConnectTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetClusterConnectTimeout")
+func (_m *MockAdminOptions) ClusterConnectTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetClusterConnectTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClusterConnectTimeout")
+func (_mr *_MockAdminOptionsRecorder) ClusterConnectTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout")
 }
 
-func (_m *MockAdminOptions) ClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel", value)
+func (_m *MockAdminOptions) SetClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) ClusterConnectConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectConsistencyLevel", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetClusterConnectConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClusterConnectConsistencyLevel", arg0)
 }
 
-func (_m *MockAdminOptions) GetClusterConnectConsistencyLevel() topology.ConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "GetClusterConnectConsistencyLevel")
+func (_m *MockAdminOptions) ClusterConnectConsistencyLevel() topology.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
 	ret0, _ := ret[0].(topology.ConsistencyLevel)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetClusterConnectConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetClusterConnectConsistencyLevel")
+func (_mr *_MockAdminOptionsRecorder) ClusterConnectConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectConsistencyLevel")
 }
 
-func (_m *MockAdminOptions) WriteRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "WriteRequestTimeout", value)
+func (_m *MockAdminOptions) SetWriteRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) WriteRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteRequestTimeout", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetWriteRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteRequestTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetWriteRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetWriteRequestTimeout")
+func (_m *MockAdminOptions) WriteRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "WriteRequestTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetWriteRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteRequestTimeout")
+func (_mr *_MockAdminOptionsRecorder) WriteRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteRequestTimeout")
 }
 
-func (_m *MockAdminOptions) FetchRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "FetchRequestTimeout", value)
+func (_m *MockAdminOptions) SetFetchRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) FetchRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRequestTimeout", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetFetchRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchRequestTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetFetchRequestTimeout")
+func (_m *MockAdminOptions) FetchRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "FetchRequestTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetFetchRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchRequestTimeout")
+func (_mr *_MockAdminOptionsRecorder) FetchRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRequestTimeout")
 }
 
-func (_m *MockAdminOptions) TruncateRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout", value)
+func (_m *MockAdminOptions) SetTruncateRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetTruncateRequestTimeout", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) TruncateRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateRequestTimeout", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetTruncateRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTruncateRequestTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetTruncateRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetTruncateRequestTimeout")
+func (_m *MockAdminOptions) TruncateRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetTruncateRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetTruncateRequestTimeout")
+func (_mr *_MockAdminOptionsRecorder) TruncateRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TruncateRequestTimeout")
 }
 
-func (_m *MockAdminOptions) BackgroundConnectInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval", value)
+func (_m *MockAdminOptions) SetBackgroundConnectInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundConnectInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) BackgroundConnectInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectInterval", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetBackgroundConnectInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBackgroundConnectInterval", arg0)
 }
 
-func (_m *MockAdminOptions) GetBackgroundConnectInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetBackgroundConnectInterval")
+func (_m *MockAdminOptions) BackgroundConnectInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetBackgroundConnectInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundConnectInterval")
+func (_mr *_MockAdminOptionsRecorder) BackgroundConnectInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectInterval")
 }
 
-func (_m *MockAdminOptions) BackgroundConnectStutter(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter", value)
+func (_m *MockAdminOptions) SetBackgroundConnectStutter(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundConnectStutter", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) BackgroundConnectStutter(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectStutter", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetBackgroundConnectStutter(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBackgroundConnectStutter", arg0)
 }
 
-func (_m *MockAdminOptions) GetBackgroundConnectStutter() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetBackgroundConnectStutter")
+func (_m *MockAdminOptions) BackgroundConnectStutter() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetBackgroundConnectStutter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundConnectStutter")
+func (_mr *_MockAdminOptionsRecorder) BackgroundConnectStutter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundConnectStutter")
 }
 
-func (_m *MockAdminOptions) BackgroundHealthCheckInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval", value)
+func (_m *MockAdminOptions) SetBackgroundHealthCheckInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) BackgroundHealthCheckInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckInterval", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetBackgroundHealthCheckInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBackgroundHealthCheckInterval", arg0)
 }
 
-func (_m *MockAdminOptions) GetBackgroundHealthCheckInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetBackgroundHealthCheckInterval")
+func (_m *MockAdminOptions) BackgroundHealthCheckInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetBackgroundHealthCheckInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundHealthCheckInterval")
+func (_mr *_MockAdminOptionsRecorder) BackgroundHealthCheckInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckInterval")
 }
 
-func (_m *MockAdminOptions) BackgroundHealthCheckStutter(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter", value)
+func (_m *MockAdminOptions) SetBackgroundHealthCheckStutter(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckStutter", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) BackgroundHealthCheckStutter(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckStutter", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetBackgroundHealthCheckStutter(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBackgroundHealthCheckStutter", arg0)
 }
 
-func (_m *MockAdminOptions) GetBackgroundHealthCheckStutter() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetBackgroundHealthCheckStutter")
+func (_m *MockAdminOptions) BackgroundHealthCheckStutter() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetBackgroundHealthCheckStutter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetBackgroundHealthCheckStutter")
+func (_mr *_MockAdminOptionsRecorder) BackgroundHealthCheckStutter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckStutter")
 }
 
-func (_m *MockAdminOptions) WriteOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "WriteOpPoolSize", value)
+func (_m *MockAdminOptions) SetWriteOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) WriteOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteOpPoolSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteOpPoolSize", arg0)
 }
 
-func (_m *MockAdminOptions) GetWriteOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "GetWriteOpPoolSize")
+func (_m *MockAdminOptions) WriteOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetWriteOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteOpPoolSize")
+func (_mr *_MockAdminOptionsRecorder) WriteOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteOpPoolSize")
 }
 
-func (_m *MockAdminOptions) FetchBatchOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize", value)
+func (_m *MockAdminOptions) SetFetchBatchOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) FetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBatchOpPoolSize", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchBatchOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "GetFetchBatchOpPoolSize")
+func (_m *MockAdminOptions) FetchBatchOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetFetchBatchOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchBatchOpPoolSize")
+func (_mr *_MockAdminOptionsRecorder) FetchBatchOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize")
 }
 
-func (_m *MockAdminOptions) WriteBatchSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "WriteBatchSize", value)
+func (_m *MockAdminOptions) SetWriteBatchSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) WriteBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBatchSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetWriteBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteBatchSize", arg0)
 }
 
-func (_m *MockAdminOptions) GetWriteBatchSize() int {
-	ret := _m.ctrl.Call(_m, "GetWriteBatchSize")
+func (_m *MockAdminOptions) WriteBatchSize() int {
+	ret := _m.ctrl.Call(_m, "WriteBatchSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetWriteBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteBatchSize")
+func (_mr *_MockAdminOptionsRecorder) WriteBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBatchSize")
 }
 
-func (_m *MockAdminOptions) FetchBatchSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "FetchBatchSize", value)
+func (_m *MockAdminOptions) SetFetchBatchSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) FetchBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetFetchBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBatchSize", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchBatchSize() int {
-	ret := _m.ctrl.Call(_m, "GetFetchBatchSize")
+func (_m *MockAdminOptions) FetchBatchSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetFetchBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchBatchSize")
+func (_mr *_MockAdminOptionsRecorder) FetchBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchSize")
 }
 
-func (_m *MockAdminOptions) HostQueueOpsFlushSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushSize", value)
+func (_m *MockAdminOptions) SetHostQueueOpsFlushSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) HostQueueOpsFlushSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetHostQueueOpsFlushSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostQueueOpsFlushSize", arg0)
 }
 
-func (_m *MockAdminOptions) GetHostQueueOpsFlushSize() int {
-	ret := _m.ctrl.Call(_m, "GetHostQueueOpsFlushSize")
+func (_m *MockAdminOptions) HostQueueOpsFlushSize() int {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetHostQueueOpsFlushSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostQueueOpsFlushSize")
+func (_mr *_MockAdminOptionsRecorder) HostQueueOpsFlushSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushSize")
 }
 
-func (_m *MockAdminOptions) HostQueueOpsFlushInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval", value)
+func (_m *MockAdminOptions) SetHostQueueOpsFlushInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) HostQueueOpsFlushInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushInterval", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetHostQueueOpsFlushInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostQueueOpsFlushInterval", arg0)
 }
 
-func (_m *MockAdminOptions) GetHostQueueOpsFlushInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetHostQueueOpsFlushInterval")
+func (_m *MockAdminOptions) HostQueueOpsFlushInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetHostQueueOpsFlushInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostQueueOpsFlushInterval")
+func (_mr *_MockAdminOptionsRecorder) HostQueueOpsFlushInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushInterval")
 }
 
-func (_m *MockAdminOptions) HostQueueOpsArrayPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsArrayPoolSize", value)
+func (_m *MockAdminOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsArrayPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) HostQueueOpsArrayPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsArrayPoolSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetHostQueueOpsArrayPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostQueueOpsArrayPoolSize", arg0)
 }
 
-func (_m *MockAdminOptions) GetHostQueueOpsArrayPoolSize() int {
-	ret := _m.ctrl.Call(_m, "GetHostQueueOpsArrayPoolSize")
+func (_m *MockAdminOptions) HostQueueOpsArrayPoolSize() int {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsArrayPoolSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetHostQueueOpsArrayPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetHostQueueOpsArrayPoolSize")
+func (_mr *_MockAdminOptionsRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsArrayPoolSize")
 }
 
-func (_m *MockAdminOptions) SeriesIteratorPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SeriesIteratorPoolSize", value)
+func (_m *MockAdminOptions) SetSeriesIteratorPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesIteratorPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) SeriesIteratorPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesIteratorPoolSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetSeriesIteratorPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSeriesIteratorPoolSize", arg0)
 }
 
-func (_m *MockAdminOptions) GetSeriesIteratorPoolSize() int {
-	ret := _m.ctrl.Call(_m, "GetSeriesIteratorPoolSize")
+func (_m *MockAdminOptions) SeriesIteratorPoolSize() int {
+	ret := _m.ctrl.Call(_m, "SeriesIteratorPoolSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetSeriesIteratorPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetSeriesIteratorPoolSize")
+func (_mr *_MockAdminOptionsRecorder) SeriesIteratorPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesIteratorPoolSize")
 }
 
-func (_m *MockAdminOptions) SeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
-	ret := _m.ctrl.Call(_m, "SeriesIteratorArrayPoolBuckets", value)
+func (_m *MockAdminOptions) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesIteratorArrayPoolBuckets", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) SeriesIteratorArrayPoolBuckets(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesIteratorArrayPoolBuckets", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetSeriesIteratorArrayPoolBuckets(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSeriesIteratorArrayPoolBuckets", arg0)
 }
 
-func (_m *MockAdminOptions) GetSeriesIteratorArrayPoolBuckets() []pool.Bucket {
-	ret := _m.ctrl.Call(_m, "GetSeriesIteratorArrayPoolBuckets")
+func (_m *MockAdminOptions) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
+	ret := _m.ctrl.Call(_m, "SeriesIteratorArrayPoolBuckets")
 	ret0, _ := ret[0].([]pool.Bucket)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetSeriesIteratorArrayPoolBuckets() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetSeriesIteratorArrayPoolBuckets")
+func (_mr *_MockAdminOptionsRecorder) SeriesIteratorArrayPoolBuckets() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesIteratorArrayPoolBuckets")
 }
 
-func (_m *MockAdminOptions) ReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
-	ret := _m.ctrl.Call(_m, "ReaderIteratorAllocate", value)
+func (_m *MockAdminOptions) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
+	ret := _m.ctrl.Call(_m, "SetReaderIteratorAllocate", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) ReaderIteratorAllocate(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderIteratorAllocate", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetReaderIteratorAllocate(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetReaderIteratorAllocate", arg0)
 }
 
-func (_m *MockAdminOptions) GetReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
-	ret := _m.ctrl.Call(_m, "GetReaderIteratorAllocate")
+func (_m *MockAdminOptions) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
+	ret := _m.ctrl.Call(_m, "ReaderIteratorAllocate")
 	ret0, _ := ret[0].(encoding.ReaderIteratorAllocate)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetReaderIteratorAllocate() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetReaderIteratorAllocate")
+func (_mr *_MockAdminOptionsRecorder) ReaderIteratorAllocate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderIteratorAllocate")
 }
 
-func (_m *MockAdminOptions) Origin(value topology.Host) AdminOptions {
-	ret := _m.ctrl.Call(_m, "Origin", value)
+func (_m *MockAdminOptions) SetOrigin(value topology.Host) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetOrigin", value)
 	ret0, _ := ret[0].(AdminOptions)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) Origin(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Origin", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetOrigin(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetOrigin", arg0)
 }
 
-func (_m *MockAdminOptions) GetOrigin() topology.Host {
-	ret := _m.ctrl.Call(_m, "GetOrigin")
+func (_m *MockAdminOptions) Origin() topology.Host {
+	ret := _m.ctrl.Call(_m, "Origin")
 	ret0, _ := ret[0].(topology.Host)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetOrigin() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOrigin")
+func (_mr *_MockAdminOptionsRecorder) Origin() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Origin")
 }
 
-func (_m *MockAdminOptions) FetchSeriesBlocksBatchSize(value int) AdminOptions {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchSize", value)
+func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchSize(value int) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksBatchSize", value)
 	ret0, _ := ret[0].(AdminOptions)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksBatchSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetFetchSeriesBlocksBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchSeriesBlocksBatchSize", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchSeriesBlocksBatchSize() int {
-	ret := _m.ctrl.Call(_m, "GetFetchSeriesBlocksBatchSize")
+func (_m *MockAdminOptions) FetchSeriesBlocksBatchSize() int {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchSize")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetFetchSeriesBlocksBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchSeriesBlocksBatchSize")
+func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksBatchSize")
 }
 
-func (_m *MockAdminOptions) FetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksMetadataBatchTimeout", value)
+func (_m *MockAdminOptions) SetFetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksMetadataBatchTimeout", value)
 	ret0, _ := ret[0].(AdminOptions)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksMetadataBatchTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksMetadataBatchTimeout", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetFetchSeriesBlocksMetadataBatchTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchSeriesBlocksMetadataBatchTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchSeriesBlocksMetadataBatchTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetFetchSeriesBlocksMetadataBatchTimeout")
+func (_m *MockAdminOptions) FetchSeriesBlocksMetadataBatchTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksMetadataBatchTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetFetchSeriesBlocksMetadataBatchTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchSeriesBlocksMetadataBatchTimeout")
+func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksMetadataBatchTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksMetadataBatchTimeout")
 }
 
-func (_m *MockAdminOptions) FetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchTimeout", value)
+func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksBatchTimeout", value)
 	ret0, _ := ret[0].(AdminOptions)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksBatchTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksBatchTimeout", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetFetchSeriesBlocksBatchTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchSeriesBlocksBatchTimeout", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchSeriesBlocksBatchTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "GetFetchSeriesBlocksBatchTimeout")
+func (_m *MockAdminOptions) FetchSeriesBlocksBatchTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetFetchSeriesBlocksBatchTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchSeriesBlocksBatchTimeout")
+func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksBatchTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksBatchTimeout")
 }
 
-func (_m *MockAdminOptions) FetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchConcurrency", value)
+func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksBatchConcurrency", value)
 	ret0, _ := ret[0].(AdminOptions)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksBatchConcurrency(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksBatchConcurrency", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetFetchSeriesBlocksBatchConcurrency(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchSeriesBlocksBatchConcurrency", arg0)
 }
 
-func (_m *MockAdminOptions) GetFetchSeriesBlocksBatchConcurrency() int {
-	ret := _m.ctrl.Call(_m, "GetFetchSeriesBlocksBatchConcurrency")
+func (_m *MockAdminOptions) FetchSeriesBlocksBatchConcurrency() int {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchConcurrency")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) GetFetchSeriesBlocksBatchConcurrency() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetFetchSeriesBlocksBatchConcurrency")
+func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksBatchConcurrency() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksBatchConcurrency")
 }

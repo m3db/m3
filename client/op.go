@@ -24,6 +24,6 @@ type completionFn func(result interface{}, err error)
 
 func callAllCompletionFns(ops []op, result interface{}, err error) {
 	for i := range ops {
-		ops[i].GetCompletionFn()(result, err)
+		ops[i].CompletionFn()(result, err)
 	}
 }

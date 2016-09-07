@@ -61,15 +61,15 @@ type dbBuffer struct {
 type databaseBufferDrainFn func(start time.Time, encoder encoding.Encoder)
 
 func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuffer {
-	nowFn := opts.GetClockOptions().GetNowFn()
+	nowFn := opts.ClockOptions().NowFn()
 
 	b := &dbBuffer{
 		opts:         opts,
 		nowFn:        nowFn,
 		drainFn:      drainFn,
-		blockSize:    opts.GetRetentionOptions().GetBlockSize(),
-		bufferPast:   opts.GetRetentionOptions().GetBufferPast(),
-		bufferFuture: opts.GetRetentionOptions().GetBufferFuture(),
+		blockSize:    opts.RetentionOptions().BlockSize(),
+		bufferPast:   opts.RetentionOptions().BufferPast(),
+		bufferFuture: opts.RetentionOptions().BufferFuture(),
 	}
 	b.forEachBucketAsc(nowFn(), func(bucket *dbBufferBucket, start time.Time) {
 		bucket.opts = opts
@@ -297,9 +297,9 @@ type inOrderEncoder struct {
 }
 
 func (b *dbBufferBucket) resetTo(start time.Time) {
-	bopts := b.opts.GetDatabaseBlockOptions()
-	encoder := bopts.GetEncoderPool().Get()
-	encoder.Reset(start, bopts.GetDatabaseBlockAllocSize())
+	bopts := b.opts.DatabaseBlockOptions()
+	encoder := bopts.EncoderPool().Get()
+	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
 	first := inOrderEncoder{
 		lastWriteAt: timeZero,
 		encoder:     encoder,
@@ -329,10 +329,10 @@ func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Un
 		}
 	}
 	if target == nil {
-		bopts := b.opts.GetDatabaseBlockOptions()
-		blockSize := b.opts.GetRetentionOptions().GetBlockSize()
-		encoder := bopts.GetEncoderPool().Get()
-		encoder.Reset(timestamp.Truncate(blockSize), bopts.GetDatabaseBlockAllocSize())
+		bopts := b.opts.DatabaseBlockOptions()
+		blockSize := b.opts.RetentionOptions().BlockSize()
+		encoder := bopts.EncoderPool().Get()
+		encoder.Reset(timestamp.Truncate(blockSize), bopts.DatabaseBlockAllocSize())
 		next := inOrderEncoder{encoder: encoder}
 		b.encoders = append(b.encoders, next)
 		target = &b.encoders[len(b.encoders)-1]
@@ -355,16 +355,16 @@ func (b *dbBufferBucket) sort() {
 		return
 	}
 
-	bopts := b.opts.GetDatabaseBlockOptions()
-	encoder := bopts.GetEncoderPool().Get()
-	encoder.Reset(b.start, bopts.GetDatabaseBlockAllocSize())
+	bopts := b.opts.DatabaseBlockOptions()
+	encoder := bopts.EncoderPool().Get()
+	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
 	readers := make([]io.Reader, len(b.encoders))
 	for i := range b.encoders {
 		readers[i] = b.encoders[i].encoder.Stream()
 	}
 
-	iter := b.opts.GetMultiReaderIteratorPool().Get()
+	iter := b.opts.MultiReaderIteratorPool().Get()
 	iter.Reset(readers)
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()

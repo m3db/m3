@@ -41,17 +41,17 @@ import (
 func newSeriesTestOptions() Options {
 	opts := NewOptions()
 	opts = opts.
-		RetentionOptions(opts.GetRetentionOptions().
-			BlockSize(2 * time.Minute).
-			BufferFuture(10 * time.Second).
-			BufferPast(10 * time.Second).
-			BufferDrain(30 * time.Second).
-			RetentionPeriod(time.Hour)).
-		DatabaseBlockOptions(opts.GetDatabaseBlockOptions().
-			ContextPool(opts.GetContextPool()).
-			EncoderPool(opts.GetEncoderPool()).
-			SegmentReaderPool(opts.GetSegmentReaderPool()).
-			BytesPool(opts.GetBytesPool()))
+		SetRetentionOptions(opts.RetentionOptions().
+			SetBlockSize(2 * time.Minute).
+			SetBufferFuture(10 * time.Second).
+			SetBufferPast(10 * time.Second).
+			SetBufferDrain(30 * time.Second).
+			SetRetentionPeriod(time.Hour)).
+		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
+			SetContextPool(opts.ContextPool()).
+			SetEncoderPool(opts.EncoderPool()).
+			SetSegmentReaderPool(opts.SegmentReaderPool()).
+			SetBytesPool(opts.BytesPool()))
 	return opts
 }
 
@@ -63,9 +63,9 @@ func TestSeriesEmpty(t *testing.T) {
 
 func TestSeriesWriteFlush(t *testing.T) {
 	opts := newSeriesTestOptions()
-	curr := time.Now().Truncate(opts.GetRetentionOptions().GetBlockSize())
+	curr := time.Now().Truncate(opts.RetentionOptions().BlockSize())
 	start := curr
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
@@ -94,7 +94,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 	blocks := series.blocks.AllBlocks()
 	assert.Len(t, blocks, 1)
 
-	block, ok := series.blocks.GetBlockAt(start)
+	block, ok := series.blocks.BlockAt(start)
 	assert.Equal(t, true, ok)
 
 	stream, err := block.Stream(nil)
@@ -106,9 +106,9 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 func TestSeriesWriteFlushRead(t *testing.T) {
 	opts := newSeriesTestOptions()
-	curr := time.Now().Truncate(opts.GetRetentionOptions().GetBlockSize())
+	curr := time.Now().Truncate(opts.RetentionOptions().BlockSize())
 	start := curr
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
@@ -180,7 +180,7 @@ func TestSeriesFlush(t *testing.T) {
 	encoder.EXPECT().Stream().Return(reader).Times(2)
 	reader.EXPECT().Segment().Return(ts.Segment{Head: head, Tail: tail}).Times(2)
 
-	block := opts.GetDatabaseBlockOptions().GetDatabaseBlockPool().Get()
+	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(flushTime, encoder)
 	series.blocks.AddBlock(block)
 
@@ -219,13 +219,13 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
-	ropts := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(ropts.GetBlockSize())
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
-	blockStart := curr.Add(-ropts.GetRetentionPeriod()).Add(-ropts.GetBlockSize())
+	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
 	b.EXPECT().Close()
@@ -234,7 +234,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().IsSealed().Return(false)
 	series.blocks.AddBlock(b)
-	require.Equal(t, blockStart, series.blocks.GetMinTime())
+	require.Equal(t, blockStart, series.blocks.MinTime())
 	require.Equal(t, 2, series.blocks.Len())
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
@@ -243,7 +243,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	err := series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 1, series.blocks.Len())
-	require.Equal(t, curr, series.blocks.GetMinTime())
+	require.Equal(t, curr, series.blocks.MinTime())
 	_, exists := series.blocks.AllBlocks()[curr]
 	require.True(t, exists)
 }
@@ -253,9 +253,9 @@ func TestSeriesTickNeedsBlockSeal(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
-	ropts := opts.GetRetentionOptions()
-	curr := time.Now().Truncate(ropts.GetBlockSize())
-	opts = opts.ClockOptions(opts.GetClockOptions().NowFn(func() time.Time {
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
@@ -263,7 +263,7 @@ func TestSeriesTickNeedsBlockSeal(t *testing.T) {
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().IsSealed().Return(false).MinTimes(1).MaxTimes(2)
 	series.blocks.AddBlock(b)
-	blockStart := curr.Add(-ropts.GetBufferPast()).Add(-2 * ropts.GetBlockSize())
+	blockStart := curr.Add(-ropts.BufferPast()).Add(-2 * ropts.BlockSize())
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
 	b.EXPECT().IsSealed().Return(false).Times(2)
@@ -287,7 +287,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	buffer.EXPECT().DrainAndReset(true)
 	series.buffer = buffer
 
-	faultyEncoder := opts.GetEncoderPool().Get()
+	faultyEncoder := opts.EncoderPool().Get()
 	faultyEncoder.ResetSetData(time.Now(), []byte{0x1, 0x2, 0x3}, true)
 	series.pendingBootstrap = []pendingBootstrapDrain{pendingBootstrapDrain{encoder: faultyEncoder}}
 	err := series.Bootstrap(nil, time.Now())
@@ -300,11 +300,11 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 
 func TestShouldExpire(t *testing.T) {
 	opts := newSeriesTestOptions()
-	ropts := opts.GetRetentionOptions()
+	ropts := opts.RetentionOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	now := time.Now()
 	require.False(t, series.shouldExpire(now, now))
-	require.True(t, series.shouldExpire(now, now.Add(-ropts.GetRetentionPeriod()).Add(-ropts.GetBlockSize())))
+	require.True(t, series.shouldExpire(now, now.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())))
 }
 
 func TestShouldSeal(t *testing.T) {
@@ -312,7 +312,7 @@ func TestShouldSeal(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
-	ropts := opts.GetRetentionOptions()
+	ropts := opts.RetentionOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	now := time.Now()
 	inputs := []struct {
@@ -322,8 +322,8 @@ func TestShouldSeal(t *testing.T) {
 	}{
 		{now, true, false},
 		{now, false, false},
-		{now.Add(-ropts.GetBufferPast()).Add(-2 * ropts.GetBlockSize()), false, true},
-		{now.Add(-ropts.GetBufferPast()).Add(-2 * ropts.GetBlockSize()), true, false},
+		{now.Add(-ropts.BufferPast()).Add(-2 * ropts.BlockSize()), false, true},
+		{now.Add(-ropts.BufferPast()).Add(-2 * ropts.BlockSize()), true, false},
 	}
 
 	for _, input := range inputs {
@@ -338,7 +338,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
-	ctx := opts.GetContextPool().Get()
+	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	now := time.Now()
@@ -348,11 +348,11 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	// Set up the blocks
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().Stream(ctx).Return(xio.NewSegmentReader(ts.Segment{}), nil)
-	blocks.EXPECT().GetBlockAt(starts[0]).Return(b, true)
+	blocks.EXPECT().BlockAt(starts[0]).Return(b, true)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().Stream(ctx).Return(nil, errors.New("bar"))
-	blocks.EXPECT().GetBlockAt(starts[1]).Return(b, true)
-	blocks.EXPECT().GetBlockAt(starts[2]).Return(nil, false)
+	blocks.EXPECT().BlockAt(starts[1]).Return(b, true)
+	blocks.EXPECT().BlockAt(starts[2]).Return(nil, false)
 
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
@@ -386,7 +386,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
-	ctx := opts.GetContextPool().Get()
+	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	now := time.Now()

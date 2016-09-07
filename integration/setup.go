@@ -101,7 +101,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	if err != nil {
 		return nil, err
 	}
-	clientOpts = clientOpts.ClusterConnectTimeout(opts.GetClusterConnectionTimeout())
+	clientOpts = clientOpts.SetClusterConnectTimeout(opts.GetClusterConnectionTimeout())
 
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(*tchannelNodeAddr)
@@ -121,7 +121,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	// Set up getter and setter for now
 	var lock sync.RWMutex
-	now := time.Now().Truncate(storageOpts.GetRetentionOptions().GetBlockSize())
+	now := time.Now().Truncate(storageOpts.RetentionOptions().BlockSize())
 	getNowFn := func() time.Time {
 		lock.RLock()
 		t := now
@@ -133,7 +133,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		now = t
 		lock.Unlock()
 	}
-	storageOpts = storageOpts.ClockOptions(storageOpts.GetClockOptions().NowFn(getNowFn))
+	storageOpts = storageOpts.SetClockOptions(storageOpts.ClockOptions().SetNowFn(getNowFn))
 
 	// Set up file path prefix
 	filePathPrefix, err := ioutil.TempDir("", "integration-test")
@@ -146,12 +146,12 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		namespaces = append(namespaces, namespace.NewMetadata(ns, namespace.NewOptions()))
 	}
 
-	fsOpts := fs.NewOptions().FilePathPrefix(filePathPrefix)
+	fsOpts := fs.NewOptions().SetFilePathPrefix(filePathPrefix)
 
-	storageOpts = storageOpts.CommitLogOptions(storageOpts.GetCommitLogOptions().FilesystemOptions(fsOpts))
+	storageOpts = storageOpts.SetCommitLogOptions(storageOpts.CommitLogOptions().SetFilesystemOptions(fsOpts))
 
 	// Set up persistence manager
-	storageOpts = storageOpts.NewPersistManagerFn(func() persist.Manager {
+	storageOpts = storageOpts.SetNewPersistManagerFn(func() persist.Manager {
 		return fs.NewPersistManager(fsOpts)
 	})
 

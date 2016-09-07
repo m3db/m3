@@ -69,45 +69,45 @@ type FileSetReader interface {
 
 // Options represents the options for bootstrapping
 type Options interface {
-	// InstrumentOptions sets the instrumentation options
-	InstrumentOptions(value instrument.Options) Options
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) Options
 
-	// GetInstrumentOptions returns the instrumentation options
-	GetInstrumentOptions() instrument.Options
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
 
-	// RetentionOptions sets the retention options
-	RetentionOptions(value retention.Options) Options
+	// SetRetentionOptions sets the retention options
+	SetRetentionOptions(value retention.Options) Options
 
-	// GetRetentionOptions returns the retention options
-	GetRetentionOptions() retention.Options
+	// RetentionOptions returns the retention options
+	RetentionOptions() retention.Options
 
-	// FilePathPrefix sets the file path prefix for sharded TSDB files
-	FilePathPrefix(value string) Options
+	// SetFilePathPrefix sets the file path prefix for sharded TSDB files
+	SetFilePathPrefix(value string) Options
 
-	// GetFilePathPrefix returns the file path prefix for sharded TSDB files
-	GetFilePathPrefix() string
+	// FilePathPrefix returns the file path prefix for sharded TSDB files
+	FilePathPrefix() string
 
-	// NewFileMode sets the new file mode
-	NewFileMode(value os.FileMode) Options
+	// SetNewFileMode sets the new file mode
+	SetNewFileMode(value os.FileMode) Options
 
-	// GetNewFileMode returns the new file mode
-	GetNewFileMode() os.FileMode
+	// NewFileMode returns the new file mode
+	NewFileMode() os.FileMode
 
-	// NewDirectoryMode sets the new directory mode
-	NewDirectoryMode(value os.FileMode) Options
+	// SetNewDirectoryMode sets the new directory mode
+	SetNewDirectoryMode(value os.FileMode) Options
 
-	// GetNewDirectoryMode returns the new directory mode
-	GetNewDirectoryMode() os.FileMode
+	// NewDirectoryMode returns the new directory mode
+	NewDirectoryMode() os.FileMode
 
-	// WriterBufferSize sets the buffer size for writing TSDB files
-	WriterBufferSize(value int) Options
+	// SetWriterBufferSize sets the buffer size for writing TSDB files
+	SetWriterBufferSize(value int) Options
 
-	// GetWriterBufferSize returns the buffer size for writing TSDB files
-	GetWriterBufferSize() int
+	// WriterBufferSize returns the buffer size for writing TSDB files
+	WriterBufferSize() int
 
-	// ReaderBufferSize sets the buffer size for reading TSDB files
-	ReaderBufferSize(value int) Options
+	// SetReaderBufferSize sets the buffer size for reading TSDB files
+	SetReaderBufferSize(value int) Options
 
-	// GetReaderBufferSize returns the buffer size for reading TSDB files
-	GetReaderBufferSize() int
+	// ReaderBufferSize returns the buffer size for reading TSDB files
+	ReaderBufferSize() int
 }

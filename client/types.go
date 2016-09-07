@@ -110,11 +110,11 @@ type hostQueue interface {
 	// Host gets the host
 	Host() topology.Host
 
-	// GetConnectionCount gets the current open connection count
-	GetConnectionCount() int
+	// ConnectionCount gets the current open connection count
+	ConnectionCount() int
 
-	// GetConnectionPool gets the connection pool
-	GetConnectionPool() connectionPool
+	// ConnectionPool gets the connection pool
+	ConnectionPool() connectionPool
 
 	// Close the host queue, will flush any operations still pending
 	Close()
@@ -124,8 +124,8 @@ type connectionPool interface {
 	// Open starts the connection pool connecting and health checking
 	Open()
 
-	// GetConnectionCount gets the current open connection count
-	GetConnectionCount() int
+	// ConnectionCount gets the current open connection count
+	ConnectionCount() int
 
 	// NextClient gets the next client for use by the connection pool
 	NextClient() (rpc.TChanNode, error)
@@ -146,8 +146,8 @@ type op interface {
 	// Size returns the effective size of inner operations
 	Size() int
 
-	// GetCompletionFn gets the completion function for the operation
-	GetCompletionFn() completionFn
+	// CompletionFn gets the completion function for the operation
+	CompletionFn() completionFn
 }
 
 // Options is a set of client options
@@ -155,209 +155,209 @@ type Options interface {
 	// Validate validates the options
 	Validate() error
 
-	// ClockOptions sets the clock options
-	ClockOptions(value clock.Options) Options
+	// SetClockOptions sets the clock options
+	SetClockOptions(value clock.Options) Options
 
-	// GetClockOptions returns the clock options
-	GetClockOptions() clock.Options
+	// ClockOptions returns the clock options
+	ClockOptions() clock.Options
 
-	// InstrumentOptions sets the instrumentation options
-	InstrumentOptions(value instrument.Options) Options
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) Options
 
-	// GetInstrumentOptions returns the instrumentation options
-	GetInstrumentOptions() instrument.Options
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
 
-	// EncodingM3TSZ sets m3tsz encoding
-	EncodingM3TSZ() Options
+	// SetEncodingM3TSZ sets m3tsz encoding
+	SetEncodingM3TSZ() Options
 
-	// TopologyInitializer sets the TopologyInitializer
-	TopologyInitializer(value topology.Initializer) Options
+	// SetTopologyInitializer sets the TopologyInitializer
+	SetTopologyInitializer(value topology.Initializer) Options
 
-	// GetTopologyInitializer returns the TopologyInitializer
-	GetTopologyInitializer() topology.Initializer
+	// TopologyInitializer returns the TopologyInitializer
+	TopologyInitializer() topology.Initializer
 
-	// ConsistencyLevel sets the consistencyLevel
-	ConsistencyLevel(value topology.ConsistencyLevel) Options
+	// SetConsistencyLevel sets the consistencyLevel
+	SetConsistencyLevel(value topology.ConsistencyLevel) Options
 
-	// GetConsistencyLevel returns the consistencyLevel
-	GetConsistencyLevel() topology.ConsistencyLevel
+	// ConsistencyLevel returns the consistencyLevel
+	ConsistencyLevel() topology.ConsistencyLevel
 
-	// ChannelOptions sets the channelOptions
-	ChannelOptions(value *tchannel.ChannelOptions) Options
+	// SetChannelOptions sets the channelOptions
+	SetChannelOptions(value *tchannel.ChannelOptions) Options
 
-	// GetChannelOptions returns the channelOptions
-	GetChannelOptions() *tchannel.ChannelOptions
+	// ChannelOptions returns the channelOptions
+	ChannelOptions() *tchannel.ChannelOptions
 
-	// MaxConnectionCount sets the maxConnectionCount
-	MaxConnectionCount(value int) Options
+	// SetMaxConnectionCount sets the maxConnectionCount
+	SetMaxConnectionCount(value int) Options
 
-	// GetMaxConnectionCount returns the maxConnectionCount
-	GetMaxConnectionCount() int
+	// MaxConnectionCount returns the maxConnectionCount
+	MaxConnectionCount() int
 
-	// MinConnectionCount sets the minConnectionCount
-	MinConnectionCount(value int) Options
+	// SetMinConnectionCount sets the minConnectionCount
+	SetMinConnectionCount(value int) Options
 
-	// GetMinConnectionCount returns the minConnectionCount
-	GetMinConnectionCount() int
+	// MinConnectionCount returns the minConnectionCount
+	MinConnectionCount() int
 
-	// HostConnectTimeout sets the hostConnectTimeout
-	HostConnectTimeout(value time.Duration) Options
+	// SetHostConnectTimeout sets the hostConnectTimeout
+	SetHostConnectTimeout(value time.Duration) Options
 
-	// GetHostConnectTimeout returns the hostConnectTimeout
-	GetHostConnectTimeout() time.Duration
+	// HostConnectTimeout returns the hostConnectTimeout
+	HostConnectTimeout() time.Duration
 
-	// ClusterConnectTimeout sets the clusterConnectTimeout
-	ClusterConnectTimeout(value time.Duration) Options
+	// SetClusterConnectTimeout sets the clusterConnectTimeout
+	SetClusterConnectTimeout(value time.Duration) Options
 
-	// GetClusterConnectTimeout returns the clusterConnectTimeout
-	GetClusterConnectTimeout() time.Duration
+	// ClusterConnectTimeout returns the clusterConnectTimeout
+	ClusterConnectTimeout() time.Duration
 
-	// ClusterConnectConsistencyLevel sets the clusterConnectConsistencyLevel
-	ClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options
+	// SetClusterConnectConsistencyLevel sets the clusterConnectConsistencyLevel
+	SetClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options
 
-	// GetClusterConnectConsistencyLevel returns the clusterConnectConsistencyLevel
-	GetClusterConnectConsistencyLevel() topology.ConsistencyLevel
+	// ClusterConnectConsistencyLevel returns the clusterConnectConsistencyLevel
+	ClusterConnectConsistencyLevel() topology.ConsistencyLevel
 
-	// WriteRequestTimeout sets the writeRequestTimeout
-	WriteRequestTimeout(value time.Duration) Options
+	// SetWriteRequestTimeout sets the writeRequestTimeout
+	SetWriteRequestTimeout(value time.Duration) Options
 
-	// GetWriteRequestTimeout returns the writeRequestTimeout
-	GetWriteRequestTimeout() time.Duration
+	// WriteRequestTimeout returns the writeRequestTimeout
+	WriteRequestTimeout() time.Duration
 
-	// FetchRequestTimeout sets the fetchRequestTimeout
-	FetchRequestTimeout(value time.Duration) Options
+	// SetFetchRequestTimeout sets the fetchRequestTimeout
+	SetFetchRequestTimeout(value time.Duration) Options
 
-	// GetFetchRequestTimeout returns the fetchRequestTimeout
-	GetFetchRequestTimeout() time.Duration
+	// FetchRequestTimeout returns the fetchRequestTimeout
+	FetchRequestTimeout() time.Duration
 
-	// TruncateRequestTimeout sets the truncateRequestTimeout
-	TruncateRequestTimeout(value time.Duration) Options
+	// SetTruncateRequestTimeout sets the truncateRequestTimeout
+	SetTruncateRequestTimeout(value time.Duration) Options
 
-	// GetTruncateRequestTimeout returns the truncateRequestTimeout
-	GetTruncateRequestTimeout() time.Duration
+	// TruncateRequestTimeout returns the truncateRequestTimeout
+	TruncateRequestTimeout() time.Duration
 
-	// BackgroundConnectInterval sets the backgroundConnectInterval
-	BackgroundConnectInterval(value time.Duration) Options
+	// SetBackgroundConnectInterval sets the backgroundConnectInterval
+	SetBackgroundConnectInterval(value time.Duration) Options
 
-	// GetBackgroundConnectInterval returns the backgroundConnectInterval
-	GetBackgroundConnectInterval() time.Duration
+	// BackgroundConnectInterval returns the backgroundConnectInterval
+	BackgroundConnectInterval() time.Duration
 
-	// BackgroundConnectStutter sets the backgroundConnectStutter
-	BackgroundConnectStutter(value time.Duration) Options
+	// SetBackgroundConnectStutter sets the backgroundConnectStutter
+	SetBackgroundConnectStutter(value time.Duration) Options
 
-	// GetBackgroundConnectStutter returns the backgroundConnectStutter
-	GetBackgroundConnectStutter() time.Duration
+	// BackgroundConnectStutter returns the backgroundConnectStutter
+	BackgroundConnectStutter() time.Duration
 
-	// BackgroundHealthCheckInterval sets the backgroundHealthCheckInterval
-	BackgroundHealthCheckInterval(value time.Duration) Options
+	// SetBackgroundHealthCheckInterval sets the backgroundHealthCheckInterval
+	SetBackgroundHealthCheckInterval(value time.Duration) Options
 
-	// GetBackgroundHealthCheckInterval returns the backgroundHealthCheckInterval
-	GetBackgroundHealthCheckInterval() time.Duration
+	// BackgroundHealthCheckInterval returns the backgroundHealthCheckInterval
+	BackgroundHealthCheckInterval() time.Duration
 
-	// BackgroundHealthCheckStutter sets the backgroundHealthCheckStutter
-	BackgroundHealthCheckStutter(value time.Duration) Options
+	// SetBackgroundHealthCheckStutter sets the backgroundHealthCheckStutter
+	SetBackgroundHealthCheckStutter(value time.Duration) Options
 
-	// GetBackgroundHealthCheckStutter returns the backgroundHealthCheckStutter
-	GetBackgroundHealthCheckStutter() time.Duration
+	// BackgroundHealthCheckStutter returns the backgroundHealthCheckStutter
+	BackgroundHealthCheckStutter() time.Duration
 
-	// WriteOpPoolSize sets the writeOpPoolSize
-	WriteOpPoolSize(value int) Options
+	// SetWriteOpPoolSize sets the writeOpPoolSize
+	SetWriteOpPoolSize(value int) Options
 
-	// GetWriteOpPoolSize returns the writeOpPoolSize
-	GetWriteOpPoolSize() int
+	// WriteOpPoolSize returns the writeOpPoolSize
+	WriteOpPoolSize() int
 
-	// FetchBatchOpPoolSize sets the fetchBatchOpPoolSize
-	FetchBatchOpPoolSize(value int) Options
+	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize
+	SetFetchBatchOpPoolSize(value int) Options
 
-	// GetFetchBatchOpPoolSize returns the fetchBatchOpPoolSize
-	GetFetchBatchOpPoolSize() int
+	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize
+	FetchBatchOpPoolSize() int
 
-	// WriteBatchSize sets the writeBatchSize
+	// SetWriteBatchSize sets the writeBatchSize
 	// NB(r): for a write only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
 	// fit the entire flushed write ops into a single batch.
-	WriteBatchSize(value int) Options
+	SetWriteBatchSize(value int) Options
 
-	// GetWriteBatchSize returns the writeBatchSize
-	GetWriteBatchSize() int
+	// WriteBatchSize returns the writeBatchSize
+	WriteBatchSize() int
 
-	// FetchBatchSize sets the fetchBatchSize
+	// SetFetchBatchSize sets the fetchBatchSize
 	// NB(r): for a fetch only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
 	// fit the entire flushed fetch ops into a single batch.
-	FetchBatchSize(value int) Options
+	SetFetchBatchSize(value int) Options
 
-	// GetFetchBatchSize returns the fetchBatchSize
-	GetFetchBatchSize() int
+	// FetchBatchSize returns the fetchBatchSize
+	FetchBatchSize() int
 
-	// HostQueueOpsFlushSize sets the hostQueueOpsFlushSize
-	HostQueueOpsFlushSize(value int) Options
+	// SetHostQueueOpsFlushSize sets the hostQueueOpsFlushSize
+	SetHostQueueOpsFlushSize(value int) Options
 
-	// GetHostQueueOpsFlushSize returns the hostQueueOpsFlushSize
-	GetHostQueueOpsFlushSize() int
+	// HostQueueOpsFlushSize returns the hostQueueOpsFlushSize
+	HostQueueOpsFlushSize() int
 
-	// HostQueueOpsFlushInterval sets the hostQueueOpsFlushInterval
-	HostQueueOpsFlushInterval(value time.Duration) Options
+	// SetHostQueueOpsFlushInterval sets the hostQueueOpsFlushInterval
+	SetHostQueueOpsFlushInterval(value time.Duration) Options
 
-	// GetHostQueueOpsFlushInterval returns the hostQueueOpsFlushInterval
-	GetHostQueueOpsFlushInterval() time.Duration
+	// HostQueueOpsFlushInterval returns the hostQueueOpsFlushInterval
+	HostQueueOpsFlushInterval() time.Duration
 
 	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize
-	HostQueueOpsArrayPoolSize(value int) Options
+	SetHostQueueOpsArrayPoolSize(value int) Options
 
-	// GetHostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize
-	GetHostQueueOpsArrayPoolSize() int
+	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize
+	HostQueueOpsArrayPoolSize() int
 
-	// SeriesIteratorPoolSize sets the seriesIteratorPoolSize
-	SeriesIteratorPoolSize(value int) Options
+	// SetSeriesIteratorPoolSize sets the seriesIteratorPoolSize
+	SetSeriesIteratorPoolSize(value int) Options
 
-	// GetSeriesIteratorPoolSize returns the seriesIteratorPoolSize
-	GetSeriesIteratorPoolSize() int
+	// SeriesIteratorPoolSize returns the seriesIteratorPoolSize
+	SeriesIteratorPoolSize() int
 
-	// SeriesIteratorArrayPoolBuckets sets the seriesIteratorArrayPoolBuckets
-	SeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options
+	// SetSeriesIteratorArrayPoolBuckets sets the seriesIteratorArrayPoolBuckets
+	SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options
 
-	// GetSeriesIteratorArrayPoolBuckets returns the seriesIteratorArrayPoolBuckets
-	GetSeriesIteratorArrayPoolBuckets() []pool.Bucket
+	// SeriesIteratorArrayPoolBuckets returns the seriesIteratorArrayPoolBuckets
+	SeriesIteratorArrayPoolBuckets() []pool.Bucket
 
-	// ReaderIteratorAllocate sets the readerIteratorAllocate
-	ReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options
+	// SetReaderIteratorAllocate sets the readerIteratorAllocate
+	SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options
 
-	// GetReaderIteratorAllocate returns the readerIteratorAllocate
-	GetReaderIteratorAllocate() encoding.ReaderIteratorAllocate
+	// ReaderIteratorAllocate returns the readerIteratorAllocate
+	ReaderIteratorAllocate() encoding.ReaderIteratorAllocate
 }
 
 // AdminOptions is a set of administration client options
 type AdminOptions interface {
 	Options
 
-	// Origin sets the current host originating requests from
-	Origin(value topology.Host) AdminOptions
+	// SetOrigin sets the current host originating requests from
+	SetOrigin(value topology.Host) AdminOptions
 
-	// GetOrigin gets the current host originating requests from
-	GetOrigin() topology.Host
+	// Origin gets the current host originating requests from
+	Origin() topology.Host
 
-	// FetchSeriesBlocksBatchSize sets the batch size for fetching series blocks in batch
-	FetchSeriesBlocksBatchSize(value int) AdminOptions
+	// SetFetchSeriesBlocksBatchSize sets the batch size for fetching series blocks in batch
+	SetFetchSeriesBlocksBatchSize(value int) AdminOptions
 
-	// GetFetchSeriesBlocksBatchSize gets the batch size for fetching series blocks in batch
-	GetFetchSeriesBlocksBatchSize() int
+	// FetchSeriesBlocksBatchSize gets the batch size for fetching series blocks in batch
+	FetchSeriesBlocksBatchSize() int
 
-	// FetchSeriesBlocksMetadataBatchTimeout sets the timeout for fetching series blocks metadata in batch
-	FetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions
+	// SetFetchSeriesBlocksMetadataBatchTimeout sets the timeout for fetching series blocks metadata in batch
+	SetFetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions
 
-	// GetFetchSeriesBlocksMetadataBatchTimeout gets the timeout for fetching series blocks metadata in batch
-	GetFetchSeriesBlocksMetadataBatchTimeout() time.Duration
+	// FetchSeriesBlocksMetadataBatchTimeout gets the timeout for fetching series blocks metadata in batch
+	FetchSeriesBlocksMetadataBatchTimeout() time.Duration
 
-	// FetchSeriesBlocksBatchTimeout sets the timeout for fetching series blocks in batch
-	FetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions
+	// SetFetchSeriesBlocksBatchTimeout sets the timeout for fetching series blocks in batch
+	SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions
 
-	// GetFetchSeriesBlocksBatchTimeout gets the timeout for fetching series blocks in batch
-	GetFetchSeriesBlocksBatchTimeout() time.Duration
+	// FetchSeriesBlocksBatchTimeout gets the timeout for fetching series blocks in batch
+	FetchSeriesBlocksBatchTimeout() time.Duration
 
-	// FetchSeriesBlocksBatchConcurrency sets the concurrency for fetching series blocks in batch
-	FetchSeriesBlocksBatchConcurrency(value int) AdminOptions
+	// SetFetchSeriesBlocksBatchConcurrency sets the concurrency for fetching series blocks in batch
+	SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions
 
-	// GetFetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch
-	GetFetchSeriesBlocksBatchConcurrency() int
+	// FetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch
+	FetchSeriesBlocksBatchConcurrency() int
 }

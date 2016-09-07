@@ -46,7 +46,7 @@ func NewBootstrapProcess(
 ) Bootstrap {
 	return &bootstrapProcess{
 		opts:         opts,
-		log:          opts.GetInstrumentOptions().GetLogger(),
+		log:          opts.InstrumentOptions().Logger(),
 		bootstrapper: bootstrapper,
 	}
 }
@@ -56,9 +56,9 @@ func NewBootstrapProcess(
 // [writeStart - retentionPeriod, writeStart - bufferPast) in the first step, and the
 // data between [writeStart - bufferPast, writeStart + bufferFuture) in the second step.
 func (b *bootstrapProcess) targetRanges(writeStart time.Time) xtime.Ranges {
-	start := writeStart.Add(-b.opts.GetRetentionOptions().GetRetentionPeriod())
-	midPoint := writeStart.Add(-b.opts.GetRetentionOptions().GetBufferPast())
-	end := writeStart.Add(b.opts.GetRetentionOptions().GetBufferFuture())
+	start := writeStart.Add(-b.opts.RetentionOptions().RetentionPeriod())
+	midPoint := writeStart.Add(-b.opts.RetentionOptions().BufferPast())
+	end := writeStart.Add(b.opts.RetentionOptions().BufferFuture())
 
 	return xtime.NewRanges().
 		AddRange(xtime.Range{Start: start, End: midPoint}).

@@ -79,20 +79,20 @@ func sessionTestHostAndShards(shardSet sharding.ShardSet) []topology.HostShardSe
 func applySessionTestOptions(opts Options) Options {
 	shardSet := sessionTestShardSet()
 	return opts.
-		SeriesIteratorPoolSize(0).
-		SeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
-		WriteOpPoolSize(0).
-		FetchBatchOpPoolSize(0).
-		TopologyInitializer(topology.NewStaticInitializer(
-		topology.NewStaticOptions().
-			Replicas(sessionTestReplicas).
-			ShardSet(shardSet).
-			HostShardSets(sessionTestHostAndShards(shardSet))))
+		SetSeriesIteratorPoolSize(0).
+		SetSeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
+		SetWriteOpPoolSize(0).
+		SetFetchBatchOpPoolSize(0).
+		SetTopologyInitializer(topology.NewStaticInitializer(
+			topology.NewStaticOptions().
+				SetReplicas(sessionTestReplicas).
+				SetShardSet(shardSet).
+				SetHostShardSets(sessionTestHostAndShards(shardSet))))
 }
 
 func TestSessionCreationFailure(t *testing.T) {
 	opt := newSessionTestOptions()
-	opt = opt.TopologyInitializer(topology.NewDynamicInitializer(topology.NewDynamicOptions()))
+	opt = opt.SetTopologyInitializer(topology.NewDynamicInitializer(topology.NewDynamicOptions()))
 	_, err := newSession(opt)
 	assert.Error(t, err)
 }
@@ -140,8 +140,8 @@ func testSessionClusterConnectConsistencyLevel(
 	expected outcome,
 ) {
 	opts := newSessionTestOptions()
-	opts = opts.ClusterConnectTimeout(3 * clusterConnectWaitInterval)
-	opts = opts.ClusterConnectConsistencyLevel(level)
+	opts = opts.SetClusterConnectTimeout(3 * clusterConnectWaitInterval)
+	opts = opts.SetClusterConnectConsistencyLevel(level)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -156,10 +156,10 @@ func testSessionClusterConnectConsistencyLevel(
 		hostQueue := NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open().Times(1)
 		if atomic.AddInt32(&failingConns, 1) <= int32(failures) {
-			hostQueue.EXPECT().GetConnectionCount().Return(0).AnyTimes()
+			hostQueue.EXPECT().ConnectionCount().Return(0).AnyTimes()
 		} else {
-			min := opts.GetMinConnectionCount()
-			hostQueue.EXPECT().GetConnectionCount().Return(min).AnyTimes()
+			min := opts.MinConnectionCount()
+			hostQueue.EXPECT().ConnectionCount().Return(min).AnyTimes()
 		}
 		hostQueue.EXPECT().Close().AnyTimes()
 		return hostQueue
@@ -198,8 +198,8 @@ func mockHostQueues(
 		hostQueue := NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open()
 		// Take two attempts to establish min connection count
-		hostQueue.EXPECT().GetConnectionCount().Return(0).Times(sessionTestShards)
-		hostQueue.EXPECT().GetConnectionCount().Return(opts.GetMinConnectionCount()).Times(sessionTestShards)
+		hostQueue.EXPECT().ConnectionCount().Return(0).Times(sessionTestShards)
+		hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
 		var expectNextEnqueueFn func(fns []testEnqueueFn)
 		expectNextEnqueueFn = func(fns []testEnqueueFn) {
 			fn := fns[0]

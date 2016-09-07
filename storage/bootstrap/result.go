@@ -90,7 +90,7 @@ func (sr *shardResult) IsEmpty() bool {
 func (sr *shardResult) AddBlock(id string, b block.DatabaseBlock) {
 	curSeries, exists := sr.blocks[id]
 	if !exists {
-		curSeries = block.NewDatabaseSeriesBlocks(sr.opts.GetDatabaseBlockOptions())
+		curSeries = block.NewDatabaseSeriesBlocks(sr.opts.DatabaseBlockOptions())
 		sr.blocks[id] = curSeries
 	}
 	curSeries.AddBlock(b)
@@ -100,7 +100,7 @@ func (sr *shardResult) AddBlock(id string, b block.DatabaseBlock) {
 func (sr *shardResult) AddSeries(id string, rawSeries block.DatabaseSeriesBlocks) {
 	curSeries, exists := sr.blocks[id]
 	if !exists {
-		curSeries = block.NewDatabaseSeriesBlocks(sr.opts.GetDatabaseBlockOptions())
+		curSeries = block.NewDatabaseSeriesBlocks(sr.opts.DatabaseBlockOptions())
 		sr.blocks[id] = curSeries
 	}
 	curSeries.AddSeries(rawSeries)

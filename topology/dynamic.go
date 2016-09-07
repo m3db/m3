@@ -67,24 +67,24 @@ type dynamicTopology struct {
 }
 
 func newDynamicTopology(opts DynamicOptions) (Topology, error) {
-	services := opts.GetConfigServiceClient().Services()
+	services := opts.ConfigServiceClient().Services()
 
 	var (
 		watch xwatch.Watch
 		err   error
 	)
-	if watch, err = services.Watch(opts.GetService(), opts.GetQueryOptions()); err != nil {
+	if watch, err = services.Watch(opts.Service(), opts.QueryOptions()); err != nil {
 		return nil, err
 	}
 
-	logger := opts.GetInstrumentOptions().GetLogger()
+	logger := opts.InstrumentOptions().Logger()
 
-	if err := waitOnInit(watch, opts.GetInitTimeout()); err != nil {
-		logger.Errorf("dynamic topology init timed out in %s: %v", opts.GetInitTimeout().String(), err)
+	if err = waitOnInit(watch, opts.InitTimeout()); err != nil {
+		logger.Errorf("dynamic topology init timed out in %s: %v", opts.InitTimeout().String(), err)
 		return nil, err
 	}
 
-	m, err := getMapFromUpdate(watch.Get(), opts.GetHashGen())
+	m, err := getMapFromUpdate(watch.Get(), opts.HashGen())
 	if err != nil {
 		logger.Errorf("dynamic topology received invalid initial value: %v", err)
 		return nil, err
@@ -93,7 +93,7 @@ func newDynamicTopology(opts DynamicOptions) (Topology, error) {
 	watchable := xwatch.NewWatchable()
 	watchable.Update(m)
 
-	dt := &dynamicTopology{watch: watch, watchable: watchable, hashGen: opts.GetHashGen(), logger: logger}
+	dt := &dynamicTopology{watch: watch, watchable: watchable, hashGen: opts.HashGen(), logger: logger}
 	go dt.run()
 	return dt, nil
 }
@@ -203,9 +203,9 @@ func getStaticOptions(service services.Service, hashGen sharding.HashGen) (Stati
 	}
 
 	return NewStaticOptions().
-		Replicas(replicas).
-		ShardSet(allShardSet).
-		HostShardSets(hostShardSets), nil
+		SetReplicas(replicas).
+		SetShardSet(allShardSet).
+		SetHostShardSets(hostShardSets), nil
 }
 
 func validateInstances(instances []services.ServiceInstance, replicas, shardingLen int) ([]uint32, error) {

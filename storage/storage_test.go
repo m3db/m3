@@ -95,7 +95,7 @@ func (v decodedValuesByTime) Swap(lhs, rhs int) {
 
 func decodedValues(results [][]xio.SegmentReader, opts Options) ([]decodedValue, error) {
 	slicesIter := xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(results)
-	iter := opts.GetMultiReaderIteratorPool().Get()
+	iter := opts.MultiReaderIteratorPool().Get()
 	iter.ResetSliceOfSlices(slicesIter)
 	defer iter.Close()
 

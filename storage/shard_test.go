@@ -192,8 +192,8 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
-	ctx := opts.GetContextPool().Get()
-	nowFn := opts.GetClockOptions().GetNowFn()
+	ctx := opts.ContextPool().Get()
+	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
 	expired := shard.tickForEachSeries()
 	require.Len(t, expired, 0)
@@ -212,8 +212,8 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	expired := shard.tickForEachSeries()
 	require.Len(t, expired, 1)
 
-	ctx := opts.GetContextPool().Get()
-	nowFn := opts.GetClockOptions().GetNowFn()
+	ctx := opts.ContextPool().Get()
+	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
 	require.False(t, series.Empty())
 
@@ -234,8 +234,8 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	expired := shard.tickForEachSeries()
 	require.Len(t, expired, 1)
 
-	ctx := opts.GetContextPool().Get()
-	nowFn := opts.GetClockOptions().GetNowFn()
+	ctx := opts.ContextPool().Get()
+	nowFn := opts.ClockOptions().NowFn()
 	series, _, completionFn := shard.writableSeries("foo")
 	shard.purgeExpiredSeries(expired)
 	series.Write(ctx, nowFn(), 1.0, xtime.Second, nil)
@@ -275,7 +275,7 @@ func TestForEachShardEntry(t *testing.T) {
 
 func TestShardFetchBlocksIDNotExists(t *testing.T) {
 	opts := testDatabaseOptions()
-	ctx := opts.GetContextPool().Get()
+	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(opts)
@@ -287,7 +287,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
-	ctx := opts.GetContextPool().Get()
+	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(opts)
@@ -306,7 +306,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
-	ctx := opts.GetContextPool().Get()
+	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	shard := testDatabaseShard(opts)

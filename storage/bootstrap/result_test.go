@@ -38,9 +38,9 @@ func testResultOptions() Options {
 
 func TestResultAddMergesExistingShardResults(t *testing.T) {
 	opts := testResultOptions()
-	blopts := opts.GetDatabaseBlockOptions()
+	blopts := opts.DatabaseBlockOptions()
 
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Now().Truncate(blockSize)
 
 	blocks := []block.DatabaseBlock{
@@ -77,7 +77,7 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 func TestResultAddMergesUnfulfilled(t *testing.T) {
 	opts := testResultOptions()
 
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Now().Truncate(blockSize)
 
 	r := NewResult()
@@ -106,7 +106,7 @@ func TestResultAddMergesUnfulfilled(t *testing.T) {
 func TestResultSetUnfulfilled(t *testing.T) {
 	opts := testResultOptions()
 
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Now().Truncate(blockSize)
 
 	r := NewResult()
@@ -137,9 +137,9 @@ func TestResultSetUnfulfilled(t *testing.T) {
 
 func TestResultAddResult(t *testing.T) {
 	opts := testResultOptions()
-	blopts := opts.GetDatabaseBlockOptions()
+	blopts := opts.DatabaseBlockOptions()
 
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Now().Truncate(blockSize)
 
 	blocks := []block.DatabaseBlock{
@@ -203,7 +203,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 	opts := testResultOptions()
 	sr := NewShardResult(opts)
 	require.True(t, sr.IsEmpty())
-	block := opts.GetDatabaseBlockOptions().GetDatabaseBlockPool().Get()
+	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(time.Now(), nil)
 	sr.AddBlock("foo", block)
 	require.False(t, sr.IsEmpty())
@@ -222,7 +222,7 @@ func TestShardResultAddBlock(t *testing.T) {
 		{"bar", start},
 	}
 	for _, input := range inputs {
-		block := opts.GetDatabaseBlockOptions().GetDatabaseBlockPool().Get()
+		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		block.Reset(input.timestamp, nil)
 		sr.AddBlock(input.id, block)
 	}
@@ -240,14 +240,14 @@ func TestShardResultAddSeries(t *testing.T) {
 		id     string
 		series block.DatabaseSeriesBlocks
 	}{
-		{"foo", block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions())},
-		{"bar", block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions())},
+		{"foo", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())},
+		{"bar", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())},
 	}
 	for _, input := range inputs {
 		sr.AddSeries(input.id, input.series)
 	}
-	moreSeries := block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions())
-	block := opts.GetDatabaseBlockOptions().GetDatabaseBlockPool().Get()
+	moreSeries := block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())
+	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(start, nil)
 	moreSeries.AddBlock(block)
 	sr.AddSeries("foo", moreSeries)
@@ -263,8 +263,8 @@ func TestShardResultAddResult(t *testing.T) {
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
 	other := NewShardResult(opts)
-	other.AddSeries("foo", block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions()))
-	other.AddSeries("bar", block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions()))
+	other.AddSeries("foo", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions()))
+	other.AddSeries("bar", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions()))
 	sr.AddResult(other)
 	require.Len(t, sr.AllSeries(), 2)
 }
@@ -276,8 +276,8 @@ func TestShardResultRemoveSeries(t *testing.T) {
 		id     string
 		series block.DatabaseSeriesBlocks
 	}{
-		{"foo", block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions())},
-		{"bar", block.NewDatabaseSeriesBlocks(opts.GetDatabaseBlockOptions())},
+		{"foo", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())},
+		{"bar", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())},
 	}
 	for _, input := range inputs {
 		sr.AddSeries(input.id, input.series)
@@ -329,7 +329,7 @@ func TestShardTimeRangesToUnfulfilledResult(t *testing.T) {
 func TestShardTimeRangesSubtract(t *testing.T) {
 	opts := testResultOptions()
 
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Now().Truncate(blockSize)
 
 	str := ShardTimeRanges{
@@ -368,7 +368,7 @@ func TestShardTimeRangesSubtract(t *testing.T) {
 func TestShardTimeRangesMinMax(t *testing.T) {
 	opts := testResultOptions()
 
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Now().Truncate(blockSize)
 
 	str := ShardTimeRanges{
@@ -391,7 +391,7 @@ func TestShardTimeRangesMinMax(t *testing.T) {
 func TestShardTimeRangesString(t *testing.T) {
 	opts := testResultOptions()
 
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Unix(1472824800, 0)
 
 	ts := [][]time.Time{
@@ -425,7 +425,7 @@ func TestShardTimeRangesString(t *testing.T) {
 func TestShardTimeRangesSummaryString(t *testing.T) {
 	opts := testResultOptions()
 
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
+	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Unix(1472824800, 0)
 
 	str := ShardTimeRanges{

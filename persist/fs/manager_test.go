@@ -44,11 +44,11 @@ func testManager(t *testing.T, ctrl *gomock.Controller) (*persistManager, *MockF
 	dir := createTempDir(t)
 
 	opts := NewOptions().
-		FilePathPrefix(dir).
-		WriterBufferSize(10).
-		RetentionOptions(
+		SetFilePathPrefix(dir).
+		SetWriterBufferSize(10).
+		SetRetentionOptions(
 			retention.NewOptions().
-				BlockSize(2 * time.Hour))
+				SetBlockSize(2 * time.Hour))
 
 	writer := NewMockFileSetWriter(ctrl)
 

@@ -48,8 +48,8 @@ type cleanupManager struct {
 
 func newCleanupManager(database database, fm databaseFlushManager) databaseCleanupManager {
 	opts := database.Options()
-	blockSize := opts.GetRetentionOptions().GetBlockSize()
-	filePathPrefix := opts.GetCommitLogOptions().GetFilesystemOptions().GetFilePathPrefix()
+	blockSize := opts.RetentionOptions().BlockSize()
+	filePathPrefix := opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	commitLogsDir := fs.CommitLogsDirPath(filePathPrefix)
 
 	return &cleanupManager{

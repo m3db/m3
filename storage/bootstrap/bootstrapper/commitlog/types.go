@@ -27,15 +27,15 @@ import (
 
 // Options represents the options for bootstrapping from commit logs
 type Options interface {
-	// BootstrapOptions sets the instrumentation options
-	BootstrapOptions(value bootstrap.Options) Options
+	// SetBootstrapOptions sets the instrumentation options
+	SetBootstrapOptions(value bootstrap.Options) Options
 
-	// GetBootstrapOptions returns the instrumentation options
-	GetBootstrapOptions() bootstrap.Options
+	// BootstrapOptions returns the instrumentation options
+	BootstrapOptions() bootstrap.Options
 
-	// CommitLogOptions sets the commit log options
-	CommitLogOptions(value commitlog.Options) Options
+	// SetCommitLogOptions sets the commit log options
+	SetCommitLogOptions(value commitlog.Options) Options
 
-	// GetCommitLogOptions returns the commit log options
-	GetCommitLogOptions() commitlog.Options
+	// CommitLogOptions returns the commit log options
+	CommitLogOptions() commitlog.Options
 }

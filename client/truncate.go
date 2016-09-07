@@ -34,6 +34,6 @@ func (t *truncateOp) Size() int {
 	return 1
 }
 
-func (t *truncateOp) GetCompletionFn() completionFn {
+func (t *truncateOp) CompletionFn() completionFn {
 	return t.completionFn
 }

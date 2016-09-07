@@ -27,15 +27,15 @@ import (
 
 // Options represents the options for bootstrapping from the filesystem
 type Options interface {
-	// BootstrapOptions sets the instrumentation options
-	BootstrapOptions(value bootstrap.Options) Options
+	// SetBootstrapOptions sets the instrumentation options
+	SetBootstrapOptions(value bootstrap.Options) Options
 
-	// GetBootstrapOptions returns the instrumentation options
-	GetBootstrapOptions() bootstrap.Options
+	// BootstrapOptions returns the instrumentation options
+	BootstrapOptions() bootstrap.Options
 
-	// FilesystemOptions sets the filesystem options
-	FilesystemOptions(value fs.Options) Options
+	// SetFilesystemOptions sets the filesystem options
+	SetFilesystemOptions(value fs.Options) Options
 
 	// GetFilesystemOptions returns the filesystem options
-	GetFilesystemOptions() fs.Options
+	FilesystemOptions() fs.Options
 }

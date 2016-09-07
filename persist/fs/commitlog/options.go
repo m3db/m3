@@ -71,82 +71,82 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) ClockOptions(value clock.Options) Options {
+func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
 	return &opts
 }
 
-func (o *options) GetClockOptions() clock.Options {
+func (o *options) ClockOptions() clock.Options {
 	return o.clockOpts
 }
 
-func (o *options) InstrumentOptions(value instrument.Options) Options {
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	opts.instrumentOpts = value
 	return &opts
 }
 
-func (o *options) GetInstrumentOptions() instrument.Options {
+func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) RetentionOptions(value retention.Options) Options {
+func (o *options) SetRetentionOptions(value retention.Options) Options {
 	opts := *o
 	opts.retentionOpts = value
 	return &opts
 }
 
-func (o *options) GetRetentionOptions() retention.Options {
+func (o *options) RetentionOptions() retention.Options {
 	return o.retentionOpts
 }
 
-func (o *options) FilesystemOptions(value fs.Options) Options {
+func (o *options) SetFilesystemOptions(value fs.Options) Options {
 	opts := *o
 	opts.fsOpts = value
 	return &opts
 }
 
-func (o *options) GetFilesystemOptions() fs.Options {
+func (o *options) FilesystemOptions() fs.Options {
 	return o.fsOpts
 }
 
-func (o *options) Strategy(value Strategy) Options {
+func (o *options) SetStrategy(value Strategy) Options {
 	opts := *o
 	opts.strategy = value
 	return &opts
 }
 
-func (o *options) GetStrategy() Strategy {
+func (o *options) Strategy() Strategy {
 	return o.strategy
 }
 
-func (o *options) FlushSize(value int) Options {
+func (o *options) SetFlushSize(value int) Options {
 	opts := *o
 	opts.flushSize = value
 	return &opts
 }
 
-func (o *options) GetFlushSize() int {
+func (o *options) FlushSize() int {
 	return o.flushSize
 }
 
-func (o *options) FlushInterval(value time.Duration) Options {
+func (o *options) SetFlushInterval(value time.Duration) Options {
 	opts := *o
 	opts.flushInterval = value
 	return &opts
 }
 
-func (o *options) GetFlushInterval() time.Duration {
+func (o *options) FlushInterval() time.Duration {
 	return o.flushInterval
 }
 
-func (o *options) BacklogQueueSize(value int) Options {
+func (o *options) SetBacklogQueueSize(value int) Options {
 	opts := *o
 	opts.backlogQueueSize = value
 	return &opts
 }
 
-func (o *options) GetBacklogQueueSize() int {
+func (o *options) BacklogQueueSize() int {
 	return o.backlogQueueSize
 }

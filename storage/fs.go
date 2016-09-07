@@ -109,7 +109,7 @@ func (m *fileSystemManager) Run(t time.Time, async bool) {
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
-		log := m.opts.GetInstrumentOptions().GetLogger()
+		log := m.opts.InstrumentOptions().Logger()
 		if err := m.Cleanup(t); err != nil {
 			log.Errorf("encountered errors when cleaning up data for time %v: %v", t, err)
 		}

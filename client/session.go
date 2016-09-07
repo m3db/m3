@@ -104,31 +104,31 @@ type newHostQueueFn func(
 ) hostQueue
 
 func newSession(opts Options) (clientSession, error) {
-	topo, err := opts.GetTopologyInitializer().Init()
+	topo, err := opts.TopologyInitializer().Init()
 	if err != nil {
 		return nil, err
 	}
 
 	s := &session{
 		opts:                 opts,
-		nowFn:                opts.GetClockOptions().GetNowFn(),
-		log:                  opts.GetInstrumentOptions().GetLogger(),
-		level:                opts.GetConsistencyLevel(),
+		nowFn:                opts.ClockOptions().NowFn(),
+		log:                  opts.InstrumentOptions().Logger(),
+		level:                opts.ConsistencyLevel(),
 		newHostQueueFn:       newHostQueue,
 		topo:                 topo,
-		fetchBatchSize:       opts.GetFetchBatchSize(),
+		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 	}
 
 	if opts, ok := opts.(AdminOptions); ok {
-		s.origin = opts.GetOrigin()
-		s.streamBlocksWorkers = pool.NewWorkerPool(opts.GetFetchSeriesBlocksBatchConcurrency())
+		s.origin = opts.Origin()
+		s.streamBlocksWorkers = pool.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksWorkers.Init()
-		s.streamBlocksReattemptWorkers = pool.NewWorkerPool(opts.GetFetchSeriesBlocksBatchConcurrency())
+		s.streamBlocksReattemptWorkers = pool.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksReattemptWorkers.Init()
-		s.streamBlocksBatchSize = opts.GetFetchSeriesBlocksBatchSize()
-		s.streamBlocksMetadataBatchTimeout = opts.GetFetchSeriesBlocksMetadataBatchTimeout()
-		s.streamBlocksBatchTimeout = opts.GetFetchSeriesBlocksBatchTimeout()
+		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
+		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
+		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
 	}
 
 	return s, nil
@@ -162,13 +162,13 @@ func (s *session) Open() error {
 
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
-	s.writeOpPool = newWriteOpPool(s.opts.GetWriteOpPoolSize())
+	s.writeOpPool = newWriteOpPool(s.opts.WriteOpPoolSize())
 	s.writeOpPool.Init()
-	s.fetchBatchOpPool = newFetchBatchOpPool(s.opts.GetFetchBatchOpPoolSize(), s.fetchBatchSize)
+	s.fetchBatchOpPool = newFetchBatchOpPool(s.opts.FetchBatchOpPoolSize(), s.fetchBatchSize)
 	s.fetchBatchOpPool.Init()
-	s.seriesIteratorPool = encoding.NewSeriesIteratorPool(s.opts.GetSeriesIteratorPoolSize())
+	s.seriesIteratorPool = encoding.NewSeriesIteratorPool(s.opts.SeriesIteratorPoolSize())
 	s.seriesIteratorPool.Init()
-	s.seriesIteratorsPool = encoding.NewMutableSeriesIteratorsPool(s.opts.GetSeriesIteratorArrayPoolBuckets())
+	s.seriesIteratorsPool = encoding.NewMutableSeriesIteratorsPool(s.opts.SeriesIteratorArrayPoolBuckets())
 	s.seriesIteratorsPool.Init()
 	s.state = stateOpen
 	s.Unlock()
@@ -204,12 +204,12 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 	}
 
 	shards := topologyMap.ShardSet().Shards()
-	minConnectionCount := s.opts.GetMinConnectionCount()
+	minConnectionCount := s.opts.MinConnectionCount()
 	replicas := topologyMap.Replicas()
 	majority := topologyMap.MajorityReplicas()
-	connectConsistencyLevel := s.opts.GetClusterConnectConsistencyLevel()
+	connectConsistencyLevel := s.opts.ClusterConnectConsistencyLevel()
 	for {
-		if s.nowFn().Sub(start) >= s.opts.GetClusterConnectTimeout() {
+		if s.nowFn().Sub(start) >= s.opts.ClusterConnectTimeout() {
 			for i := range queues {
 				queues[i].Close()
 			}
@@ -220,7 +220,7 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 		for _, shard := range shards {
 			shardReplicasAvailable := 0
 			routeErr := topologyMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
-				if queues[idx].GetConnectionCount() >= minConnectionCount {
+				if queues[idx].ConnectionCount() >= minConnectionCount {
 					shardReplicasAvailable++
 				}
 			})
@@ -261,9 +261,9 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	if s.fetchBatchOpArrayArrayPool == nil ||
 		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
 		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
-			s.opts.GetFetchBatchOpPoolSize(),
+			s.opts.FetchBatchOpPoolSize(),
 			len(queues),
-			s.opts.GetFetchBatchOpPoolSize()/len(queues))
+			s.opts.FetchBatchOpPoolSize()/len(queues))
 		s.fetchBatchOpArrayArrayPool.Init()
 	}
 	if s.iteratorArrayPool == nil ||
@@ -271,22 +271,22 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		s.iteratorArrayPool = encoding.NewIteratorArrayPool([]pool.Bucket{
 			pool.Bucket{
 				Capacity: s.replicas,
-				Count:    s.opts.GetSeriesIteratorPoolSize(),
+				Count:    s.opts.SeriesIteratorPoolSize(),
 			},
 		})
 		s.iteratorArrayPool.Init()
 	}
 	if s.readerSliceOfSlicesIteratorPool == nil ||
 		prevReplicas != s.replicas {
-		size := s.replicas * s.opts.GetSeriesIteratorPoolSize()
+		size := s.replicas * s.opts.SeriesIteratorPoolSize()
 		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(size)
 		s.readerSliceOfSlicesIteratorPool.Init()
 	}
 	if s.multiReaderIteratorPool == nil ||
 		prevReplicas != s.replicas {
-		size := s.replicas * s.opts.GetSeriesIteratorPoolSize()
+		size := s.replicas * s.opts.SeriesIteratorPoolSize()
 		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(size)
-		s.multiReaderIteratorPool.Init(s.opts.GetReaderIteratorAllocate())
+		s.multiReaderIteratorPool.Init(s.opts.ReaderIteratorAllocate())
 	}
 
 	// Asynchronously close the previous set of host queues
@@ -308,11 +308,11 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	// represents the number of ops to pool not including replication, this is due
 	// to the fact that the ops are shared between the different host queue replicas.
 	totalBatches := topologyMap.Replicas() *
-		int(math.Ceil(float64(s.opts.GetWriteOpPoolSize())/float64(s.opts.GetWriteBatchSize())))
+		int(math.Ceil(float64(s.opts.WriteOpPoolSize())/float64(s.opts.WriteBatchSize())))
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
 	writeBatchRequestPool := newWriteBatchRequestPool(hostBatches)
 	writeBatchRequestPool.Init()
-	idDatapointArrayPool := newIDDatapointArrayPool(hostBatches, s.opts.GetWriteBatchSize())
+	idDatapointArrayPool := newIDDatapointArrayPool(hostBatches, s.opts.WriteBatchSize())
 	idDatapointArrayPool.Init()
 	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, idDatapointArrayPool, s.opts)
 	hostQueue.Open()
@@ -377,7 +377,7 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 	}
 
 	if enqueueErr != nil {
-		s.opts.GetInstrumentOptions().GetLogger().Errorf("failed to enqueue write: %v", enqueueErr)
+		s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", enqueueErr)
 		return enqueueErr
 	}
 
@@ -699,7 +699,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// be returned from this routine as long as one peer succeeds completely
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
-		blockSize := opts.GetRetentionOptions().GetBlockSize()
+		blockSize := opts.RetentionOptions().BlockSize()
 		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers, start, end, blockSize, metadataCh)
 
 		close(metadataCh)
@@ -781,7 +781,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	)
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func() error {
-		client, err := peer.GetConnectionPool().NextClient()
+		client, err := peer.ConnectionPool().NextClient()
 		if err != nil {
 			return err
 		}
@@ -1185,7 +1185,7 @@ func (s *session) streamBlocksBatchFromPeer(
 
 	// Attempt request
 	if err := retrier.Attempt(func() error {
-		client, err := peer.GetConnectionPool().NextClient()
+		client, err := peer.ConnectionPool().NextClient()
 		if err != nil {
 			return err
 		}
@@ -1299,13 +1299,13 @@ type blocksResult struct {
 }
 
 func newBlocksResult(opts Options, bootstrapOpts bootstrap.Options) *blocksResult {
-	blockOpts := bootstrapOpts.GetDatabaseBlockOptions()
+	blockOpts := bootstrapOpts.DatabaseBlockOptions()
 	return &blocksResult{
 		opts:           opts,
 		blockOpts:      blockOpts,
-		blockAllocSize: blockOpts.GetDatabaseBlockAllocSize(),
-		encoderPool:    blockOpts.GetEncoderPool(),
-		bytesPool:      blockOpts.GetBytesPool(),
+		blockAllocSize: blockOpts.DatabaseBlockAllocSize(),
+		encoderPool:    blockOpts.EncoderPool(),
+		bytesPool:      blockOpts.BytesPool(),
 		result:         bootstrap.NewShardResult(bootstrapOpts),
 	}
 }
@@ -1314,7 +1314,7 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 	var (
 		start    = time.Unix(0, block.Start)
 		segments = block.Segments
-		result   = r.blockOpts.GetDatabaseBlockPool().Get()
+		result   = r.blockOpts.DatabaseBlockPool().Get()
 	)
 
 	if segments == nil {
@@ -1343,7 +1343,7 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 			})
 		}
 
-		alloc := r.opts.GetReaderIteratorAllocate()
+		alloc := r.opts.ReaderIteratorAllocate()
 		iter := encoding.NewMultiReaderIterator(alloc, nil)
 		iter.Reset(readers)
 		defer iter.Close()
