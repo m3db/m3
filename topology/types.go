@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3x/close"
-	"github.com/m3db/m3x/retry"
 )
 
 // Host is a container of a host in a topology
@@ -194,12 +193,6 @@ type DynamicOptions interface {
 
 	// GetQueryOptions returns the ConfigService query options
 	GetQueryOptions() services.QueryOptions
-
-	// RetryOptions sets the retry options
-	RetryOptions(value xretry.Options) DynamicOptions
-
-	// GetRetryOptions returns the retry options
-	GetRetryOptions() xretry.Options
 
 	// InstrumentOptions sets the instrumentation options
 	InstrumentOptions(value instrument.Options) DynamicOptions

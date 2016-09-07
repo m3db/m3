@@ -37,7 +37,7 @@ var (
 	errUnexpectedShard           = errors.New("shard is unexpected")
 	errMissingShard              = errors.New("shard is missing")
 	errNotEnoughReplicasForShard = errors.New("replicas of shard is less than expected")
-	errInvalidTopology           = errors.New("could not parse latest topology from config service")
+	errInvalidTopology           = errors.New("could not parse latest value from config service")
 )
 
 type dynamicInitializer struct {
