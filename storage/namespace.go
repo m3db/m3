@@ -7,6 +7,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
@@ -53,15 +54,15 @@ type dbNamespace struct {
 }
 
 type databaseNamespaceMetrics struct {
-	bootstrap   methodMetrics
-	flush       methodMetrics
+	bootstrap   instrument.MethodMetrics
+	flush       instrument.MethodMetrics
 	unfulfilled tally.Counter
 }
 
 func newDatabaseNamespaceMetrics(scope tally.Scope) databaseNamespaceMetrics {
 	return databaseNamespaceMetrics{
-		bootstrap:   newMethodMetrics(scope, "bootstrap"),
-		flush:       newMethodMetrics(scope, "flush"),
+		bootstrap:   instrument.NewMethodMetrics(scope, "bootstrap"),
+		flush:       instrument.NewMethodMetrics(scope, "flush"),
 		unfulfilled: scope.Counter("bootstrap.unfulfilled"),
 	}
 }
@@ -209,10 +210,10 @@ func (n *dbNamespace) Bootstrap(
 	result, err := bs.Run(writeStart, n.name, shardIDs)
 	if err != nil {
 		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v", n.name, err)
-		n.metrics.bootstrap.error.Inc(1)
+		n.metrics.bootstrap.Error.Inc(1)
 		return err
 	}
-	n.metrics.bootstrap.success.Inc(1)
+	n.metrics.bootstrap.Success.Inc(1)
 
 	multiErr := xerrors.NewMultiError()
 	results := result.ShardResults()
@@ -267,10 +268,10 @@ func (n *dbNamespace) Flush(
 	// if nil, succeeded
 
 	if res := multiErr.FinalError(); res != nil {
-		n.metrics.flush.error.Inc(1)
+		n.metrics.flush.Error.Inc(1)
 		return res
 	}
-	n.metrics.flush.success.Inc(1)
+	n.metrics.flush.Success.Inc(1)
 	return nil
 }
 

@@ -21,20 +21,24 @@
 package instrument
 
 import (
+	"time"
+
 	"github.com/m3db/m3x/log"
 	"github.com/uber-go/tally"
 )
 
 type options struct {
-	logger xlog.Logger
-	scope  tally.Scope
+	logger        xlog.Logger
+	scope         tally.Scope
+	gaugeInterval time.Duration
 }
 
 // NewOptions creates new instrument options
 func NewOptions() Options {
 	return &options{
-		logger: xlog.SimpleLogger,
-		scope:  tally.NoopScope,
+		logger:        xlog.SimpleLogger,
+		scope:         tally.NoopScope,
+		gaugeInterval: time.Second,
 	}
 }
 
@@ -56,4 +60,8 @@ func (o *options) SetMetricsScope(value tally.Scope) Options {
 
 func (o *options) MetricsScope() tally.Scope {
 	return o.scope
+}
+
+func (o *options) GetGaugeInterval() time.Duration {
+	return o.gaugeInterval
 }

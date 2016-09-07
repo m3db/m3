@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/namespace"
@@ -36,6 +37,7 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
+
 	"github.com/uber-go/tally"
 )
 
@@ -116,24 +118,10 @@ type databaseMetrics struct {
 	tickDeadlineMissed tally.Counter
 	tickDeadlineMet    tally.Counter
 
-	write               methodMetrics
-	read                methodMetrics
-	fetchBlocks         methodMetrics
-	fetchBlocksMetadata methodMetrics
-}
-
-type methodMetrics struct {
-	error   tally.Counter
-	success tally.Counter
-	latency tally.Timer
-}
-
-func newMethodMetrics(scope tally.Scope, name string) methodMetrics {
-	return methodMetrics{
-		error:   scope.Counter(name + ".error"),
-		success: scope.Counter(name + ".success"),
-		latency: scope.Timer(name + ".latency"),
-	}
+	write               instrument.MethodMetrics
+	read                instrument.MethodMetrics
+	fetchBlocks         instrument.MethodMetrics
+	fetchBlocksMetadata instrument.MethodMetrics
 }
 
 func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
@@ -144,10 +132,10 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		tickDeadlineMissed: scope.Counter("tick.deadline.missed"),
 		tickDeadlineMet:    scope.Counter("tick.deadline.met"),
 
-		write:               newMethodMetrics(scope, "write"),
-		read:                newMethodMetrics(scope, "read"),
-		fetchBlocks:         newMethodMetrics(scope, "fetchBlocks"),
-		fetchBlocksMetadata: newMethodMetrics(scope, "write"),
+		write:               instrument.NewMethodMetrics(scope, "write"),
+		read:                instrument.NewMethodMetrics(scope, "read"),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks"),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "write"),
 	}
 }
 
@@ -248,20 +236,20 @@ func (d *db) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	sw := d.metrics.write.latency.Start()
+	sw := d.metrics.write.Latency.Start()
 	d.RLock()
 	n, exists := d.namespaces[namespace]
 	d.RUnlock()
 
 	if !exists {
-		d.metrics.write.error.Inc(1)
-		d.metrics.write.latency.Stop(sw)
+		d.metrics.write.Error.Inc(1)
+		d.metrics.write.Latency.Stop(sw)
 		return fmt.Errorf("no such namespace %s", namespace)
 	}
 
 	err := n.Write(ctx, id, timestamp, value, unit, annotation)
-	d.metrics.write.success.Inc(1)
-	d.metrics.write.latency.Stop(sw)
+	d.metrics.write.ReportSuccessOrFailure(err)
+	d.metrics.write.Latency.Stop(sw)
 	return err
 }
 
@@ -271,18 +259,18 @@ func (d *db) ReadEncoded(
 	id string,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
-	sw := d.metrics.read.latency.Start()
+	sw := d.metrics.read.Latency.Start()
 	n, err := d.readableNamespace(namespace)
 
 	if err != nil {
-		d.metrics.read.error.Inc(1)
-		d.metrics.read.latency.Stop(sw)
+		d.metrics.read.Error.Inc(1)
+		d.metrics.read.Latency.Stop(sw)
 		return nil, err
 	}
 
 	res, err := n.ReadEncoded(ctx, id, start, end)
-	d.metrics.read.success.Inc(1)
-	d.metrics.read.latency.Stop(sw)
+	d.metrics.read.ReportSuccessOrFailure(err)
+	d.metrics.read.Latency.Stop(sw)
 	return res, err
 }
 
@@ -293,19 +281,19 @@ func (d *db) FetchBlocks(
 	id string,
 	starts []time.Time,
 ) ([]FetchBlockResult, error) {
-	sw := d.metrics.fetchBlocks.latency.Start()
+	sw := d.metrics.fetchBlocks.Latency.Start()
 	n, err := d.readableNamespace(namespace)
 
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
-		d.metrics.fetchBlocks.error.Inc(1)
-		d.metrics.fetchBlocks.latency.Stop(sw)
+		d.metrics.fetchBlocks.Error.Inc(1)
+		d.metrics.fetchBlocks.Latency.Stop(sw)
 		return nil, res
 	}
 
 	res, err := n.FetchBlocks(ctx, shardID, id, starts)
-	d.metrics.fetchBlocks.success.Inc(1)
-	d.metrics.fetchBlocks.latency.Stop(sw)
+	d.metrics.fetchBlocks.ReportSuccessOrFailure(err)
+	d.metrics.fetchBlocks.Latency.Stop(sw)
 	return res, err
 }
 
@@ -317,19 +305,19 @@ func (d *db) FetchBlocksMetadata(
 	pageToken int64,
 	includeSizes bool,
 ) ([]FetchBlocksMetadataResult, *int64, error) {
-	sw := d.metrics.fetchBlocksMetadata.latency.Start()
+	sw := d.metrics.fetchBlocksMetadata.Latency.Start()
 	n, err := d.readableNamespace(namespace)
 
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
-		d.metrics.fetchBlocksMetadata.error.Inc(1)
-		d.metrics.fetchBlocksMetadata.latency.Stop(sw)
+		d.metrics.fetchBlocksMetadata.Error.Inc(1)
+		d.metrics.fetchBlocksMetadata.Latency.Stop(sw)
 		return nil, nil, res
 	}
 
 	res, ptr, err := n.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes)
-	d.metrics.fetchBlocksMetadata.success.Inc(1)
-	d.metrics.fetchBlocksMetadata.latency.Stop(sw)
+	d.metrics.fetchBlocksMetadata.ReportSuccessOrFailure(err)
+	d.metrics.fetchBlocksMetadata.Latency.Stop(sw)
 	return res, ptr, err
 }
 
@@ -375,7 +363,8 @@ func (d *db) getOwnedNamespaces() []databaseNamespace {
 }
 
 func (d *db) reportLoop() {
-	t := time.Tick(time.Second) // TODO: Make this an option, what is a good default
+	interval := d.opts.GetInstrumentOptions().GetGaugeInterval()
+	t := time.Tick(interval)
 
 	for {
 		select {
