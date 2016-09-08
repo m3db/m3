@@ -101,7 +101,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	if err != nil {
 		return nil, err
 	}
-	clientOpts = clientOpts.SetClusterConnectTimeout(opts.GetClusterConnectionTimeout())
+	clientOpts = clientOpts.SetClusterConnectTimeout(opts.ClusterConnectionTimeout())
 
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(*tchannelNodeAddr)
@@ -116,7 +116,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up worker pool
-	workerPool := pool.NewWorkerPool(opts.GetWorkerPoolSize())
+	workerPool := pool.NewWorkerPool(opts.WorkerPoolSize())
 	workerPool.Init()
 
 	// Set up getter and setter for now
@@ -182,7 +182,7 @@ func (ts *testSetup) fakeRequest() *rpc.FetchRequest {
 func (ts *testSetup) waitUntilServerIsUp() error {
 	fakeRequest := ts.fakeRequest()
 	serverIsUp := func() bool { _, err := ts.fetch(fakeRequest); return err == nil }
-	if waitUntil(serverIsUp, ts.opts.GetServerStateChangeTimeout()) {
+	if waitUntil(serverIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStartTimedOut
@@ -191,7 +191,7 @@ func (ts *testSetup) waitUntilServerIsUp() error {
 func (ts *testSetup) waitUntilServerIsDown() error {
 	fakeRequest := ts.fakeRequest()
 	serverIsDown := func() bool { _, err := ts.fetch(fakeRequest); return err != nil }
-	if waitUntil(serverIsDown, ts.opts.GetServerStateChangeTimeout()) {
+	if waitUntil(serverIsDown, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStopTimedOut
@@ -243,22 +243,22 @@ func (ts *testSetup) stopServer() error {
 }
 
 func (ts *testSetup) writeBatch(namespace string, seriesList seriesList) error {
-	if ts.opts.GetUseTChannelClientForWriting() {
-		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.GetWriteRequestTimeout(), namespace, seriesList)
+	if ts.opts.UseTChannelClientForWriting() {
+		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.WriteRequestTimeout(), namespace, seriesList)
 	}
 	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, namespace, seriesList)
 }
 
 func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]ts.Datapoint, error) {
-	if ts.opts.GetUseTChannelClientForReading() {
-		return tchannelClientFetch(ts.tchannelClient, ts.opts.GetReadRequestTimeout(), req)
+	if ts.opts.UseTChannelClientForReading() {
+		return tchannelClientFetch(ts.tchannelClient, ts.opts.ReadRequestTimeout(), req)
 	}
 	return m3dbClientFetch(ts.m3dbClient, req)
 }
 
 func (ts *testSetup) truncate(req *rpc.TruncateRequest) (int64, error) {
-	if ts.opts.GetUseTChannelClientForTruncation() {
-		return tchannelClientTruncate(ts.tchannelClient, ts.opts.GetTruncateRequestTimeout(), req)
+	if ts.opts.UseTChannelClientForTruncation() {
+		return tchannelClientTruncate(ts.tchannelClient, ts.opts.TruncateRequestTimeout(), req)
 	}
 	return m3dbClientTruncate(ts.m3dbClient, req)
 }

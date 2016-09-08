@@ -59,72 +59,72 @@ func NewOptions() Options {
 	return defaultOptions
 }
 
-func (o *options) DefaultTimeUnit(value xtime.Unit) Options {
+func (o *options) SetDefaultTimeUnit(value xtime.Unit) Options {
 	opts := *o
 	opts.defaultTimeUnit = value
 	return &opts
 }
 
-func (o *options) GetDefaultTimeUnit() xtime.Unit {
+func (o *options) DefaultTimeUnit() xtime.Unit {
 	return o.defaultTimeUnit
 }
 
-func (o *options) TimeEncodingSchemes(value TimeEncodingSchemes) Options {
+func (o *options) SetTimeEncodingSchemes(value TimeEncodingSchemes) Options {
 	opts := *o
 	opts.timeEncodingSchemes = value
 	return &opts
 }
 
-func (o *options) GetTimeEncodingSchemes() TimeEncodingSchemes {
+func (o *options) TimeEncodingSchemes() TimeEncodingSchemes {
 	return o.timeEncodingSchemes
 }
 
-func (o *options) MarkerEncodingScheme(value MarkerEncodingScheme) Options {
+func (o *options) SetMarkerEncodingScheme(value MarkerEncodingScheme) Options {
 	opts := *o
 	opts.markerEncodingScheme = value
 	return &opts
 }
 
-func (o *options) GetMarkerEncodingScheme() MarkerEncodingScheme {
+func (o *options) MarkerEncodingScheme() MarkerEncodingScheme {
 	return o.markerEncodingScheme
 }
 
-func (o *options) EncoderPool(value EncoderPool) Options {
+func (o *options) SetEncoderPool(value EncoderPool) Options {
 	opts := *o
 	opts.encoderPool = value
 	return &opts
 }
 
-func (o *options) GetEncoderPool() EncoderPool {
+func (o *options) EncoderPool() EncoderPool {
 	return o.encoderPool
 }
 
-func (o *options) ReaderIteratorPool(value ReaderIteratorPool) Options {
+func (o *options) SetReaderIteratorPool(value ReaderIteratorPool) Options {
 	opts := *o
 	opts.readerIteratorPool = value
 	return &opts
 }
 
-func (o *options) GetReaderIteratorPool() ReaderIteratorPool {
+func (o *options) ReaderIteratorPool() ReaderIteratorPool {
 	return o.readerIteratorPool
 }
 
-func (o *options) BytesPool(value pool.BytesPool) Options {
+func (o *options) SetBytesPool(value pool.BytesPool) Options {
 	opts := *o
 	opts.bytesPool = value
 	return &opts
 }
 
-func (o *options) GetBytesPool() pool.BytesPool {
+func (o *options) BytesPool() pool.BytesPool {
 	return o.bytesPool
 }
 
-func (o *options) SegmentReaderPool(value xio.SegmentReaderPool) Options {
+func (o *options) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
 	opts := *o
 	opts.segmentReaderPool = value
 	return &opts
 }
 
-func (o *options) GetSegmentReaderPool() xio.SegmentReaderPool {
+func (o *options) SegmentReaderPool() xio.SegmentReaderPool {
 	return o.segmentReaderPool
 }

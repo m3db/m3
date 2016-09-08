@@ -22,29 +22,29 @@ package namespace
 
 // Options controls namespace behavior
 type Options interface {
-	// NeedsBootstrap sets whether this namespace requires bootstrapping
-	NeedsBootstrap(value bool) Options
+	// SetNeedsBootstrap sets whether this namespace requires bootstrapping
+	SetNeedsBootstrap(value bool) Options
 
-	// GetNeedsBootstrap returns whether this namespace requires bootstrapping
-	GetNeedsBootstrap() bool
+	// NeedsBootstrap returns whether this namespace requires bootstrapping
+	NeedsBootstrap() bool
 
-	// NeedsFlush sets whether the in-memory data for this namespace needs to be flushed
-	NeedsFlush(value bool) Options
+	// SetNeedsFlush sets whether the in-memory data for this namespace needs to be flushed
+	SetNeedsFlush(value bool) Options
 
-	// GetNeedsFlush returns whether the in-memory data for this namespace needs to be flushed
-	GetNeedsFlush() bool
+	// NeedsFlush returns whether the in-memory data for this namespace needs to be flushed
+	NeedsFlush() bool
 
-	// WritesToCommitLog sets whether writes for series in this namespace need to go to commit log
-	WritesToCommitLog(value bool) Options
+	// SetWritesToCommitLog sets whether writes for series in this namespace need to go to commit log
+	SetWritesToCommitLog(value bool) Options
 
-	// GetWritesToCommitLog returns whether writes for series in this namespace need to go to commit log
-	GetWritesToCommitLog() bool
+	// WritesToCommitLog returns whether writes for series in this namespace need to go to commit log
+	WritesToCommitLog() bool
 
-	// NeedsFilesetCleanup sets whether this namespace requires cleaning up fileset files
-	NeedsFilesetCleanup(value bool) Options
+	// SetNeedsFilesetCleanup sets whether this namespace requires cleaning up fileset files
+	SetNeedsFilesetCleanup(value bool) Options
 
-	// GetNeedsFilesetCleanup returns whether this namespace requires cleaning up fileset files
-	GetNeedsFilesetCleanup() bool
+	// NeedsFilesetCleanup returns whether this namespace requires cleaning up fileset files
+	NeedsFilesetCleanup() bool
 }
 
 // Metadata represents namespace metadata information

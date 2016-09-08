@@ -58,7 +58,7 @@ func newDatabaseNamespace(
 	name := metadata.Name()
 	nopts := metadata.Options()
 	fn := writeCommitLogFn
-	if !nopts.GetWritesToCommitLog() {
+	if !nopts.WritesToCommitLog() {
 		fn = commitLogWriteNoOp
 	}
 
@@ -174,7 +174,7 @@ func (n *dbNamespace) Bootstrap(
 		n.Unlock()
 	}()
 
-	if !n.nopts.GetNeedsBootstrap() {
+	if !n.nopts.NeedsBootstrap() {
 		return nil
 	}
 
@@ -222,7 +222,7 @@ func (n *dbNamespace) Flush(
 	}
 	n.RUnlock()
 
-	if !n.nopts.GetNeedsFlush() {
+	if !n.nopts.NeedsFlush() {
 		return nil
 	}
 
@@ -241,7 +241,7 @@ func (n *dbNamespace) Flush(
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
-	if !n.nopts.GetNeedsFilesetCleanup() {
+	if !n.nopts.NeedsFilesetCleanup() {
 		return nil
 	}
 

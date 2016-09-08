@@ -43,35 +43,35 @@ type PostResponseFn func(ctx context.Context, method string, response apachethri
 
 // ServerOptions is a set of server options
 type ServerOptions interface {
-	// ReadTimeout sets the read timeout and returns a new ServerOptions
-	ReadTimeout(value time.Duration) ServerOptions
+	// SetReadTimeout sets the read timeout and returns a new ServerOptions
+	SetReadTimeout(value time.Duration) ServerOptions
 
-	// GetReadTimeout returns the read timeout
-	GetReadTimeout() time.Duration
+	// ReadTimeout returns the read timeout
+	ReadTimeout() time.Duration
 
-	// WriteTimeout sets the write timeout and returns a new ServerOptions
-	WriteTimeout(value time.Duration) ServerOptions
+	// SetWriteTimeout sets the write timeout and returns a new ServerOptions
+	SetWriteTimeout(value time.Duration) ServerOptions
 
-	// GetWriteTimeout returns the write timeout
-	GetWriteTimeout() time.Duration
+	// WriteTimeout returns the write timeout
+	WriteTimeout() time.Duration
 
-	// RequestTimeout sets the request timeout and returns a new ServerOptions
-	RequestTimeout(value time.Duration) ServerOptions
+	// SetRequestTimeout sets the request timeout and returns a new ServerOptions
+	SetRequestTimeout(value time.Duration) ServerOptions
 
-	// GetRequestTimeout returns the request timeout
-	GetRequestTimeout() time.Duration
+	// RequestTimeout returns the request timeout
+	RequestTimeout() time.Duration
 
-	// ContextFn sets the context fn and returns a new ServerOptions
-	ContextFn(value ContextFn) ServerOptions
+	// SetContextFn sets the context fn and returns a new ServerOptions
+	SetContextFn(value ContextFn) ServerOptions
 
-	// GetContextFn returns the context fn
-	GetContextFn() ContextFn
+	// ContextFn returns the context fn
+	ContextFn() ContextFn
 
-	// PostResponseFn sets the post response fn and returns a new ServerOptions
-	PostResponseFn(value PostResponseFn) ServerOptions
+	// SetPostResponseFn sets the post response fn and returns a new ServerOptions
+	SetPostResponseFn(value PostResponseFn) ServerOptions
 
-	// GetPostResponseFn returns the post response fn
-	GetPostResponseFn() PostResponseFn
+	// PostResponseFn returns the post response fn
+	PostResponseFn() PostResponseFn
 }
 
 type serverOptions struct {
@@ -91,52 +91,52 @@ func NewServerOptions() ServerOptions {
 	}
 }
 
-func (o *serverOptions) ReadTimeout(value time.Duration) ServerOptions {
+func (o *serverOptions) SetReadTimeout(value time.Duration) ServerOptions {
 	opts := *o
 	opts.readTimeout = value
 	return &opts
 }
 
-func (o *serverOptions) GetReadTimeout() time.Duration {
+func (o *serverOptions) ReadTimeout() time.Duration {
 	return o.readTimeout
 }
 
-func (o *serverOptions) WriteTimeout(value time.Duration) ServerOptions {
+func (o *serverOptions) SetWriteTimeout(value time.Duration) ServerOptions {
 	opts := *o
 	opts.writeTimeout = value
 	return &opts
 }
 
-func (o *serverOptions) GetWriteTimeout() time.Duration {
+func (o *serverOptions) WriteTimeout() time.Duration {
 	return o.writeTimeout
 }
 
-func (o *serverOptions) RequestTimeout(value time.Duration) ServerOptions {
+func (o *serverOptions) SetRequestTimeout(value time.Duration) ServerOptions {
 	opts := *o
 	opts.requestTimeout = value
 	return &opts
 }
 
-func (o *serverOptions) GetRequestTimeout() time.Duration {
+func (o *serverOptions) RequestTimeout() time.Duration {
 	return o.requestTimeout
 }
 
-func (o *serverOptions) ContextFn(value ContextFn) ServerOptions {
+func (o *serverOptions) SetContextFn(value ContextFn) ServerOptions {
 	opts := *o
 	opts.contextFn = value
 	return &opts
 }
 
-func (o *serverOptions) GetContextFn() ContextFn {
+func (o *serverOptions) ContextFn() ContextFn {
 	return o.contextFn
 }
 
-func (o *serverOptions) PostResponseFn(value PostResponseFn) ServerOptions {
+func (o *serverOptions) SetPostResponseFn(value PostResponseFn) ServerOptions {
 	opts := *o
 	opts.postResponseFn = value
 	return &opts
 }
 
-func (o *serverOptions) GetPostResponseFn() PostResponseFn {
+func (o *serverOptions) PostResponseFn() PostResponseFn {
 	return o.postResponseFn
 }

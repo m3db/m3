@@ -54,59 +54,59 @@ const (
 )
 
 type testOptions interface {
-	// ServerStateChangeTimeout sets the server state change timeout.
-	ServerStateChangeTimeout(value time.Duration) testOptions
+	// SetServerStateChangeTimeout sets the server state change timeout.
+	SetServerStateChangeTimeout(value time.Duration) testOptions
 
-	// GetServerStateChangeTimeout returns the server state change timeout.
-	GetServerStateChangeTimeout() time.Duration
+	// ServerStateChangeTimeout returns the server state change timeout.
+	ServerStateChangeTimeout() time.Duration
 
-	// ClusterConnectionTimeout sets the cluster connection timeout.
-	ClusterConnectionTimeout(value time.Duration) testOptions
+	// SetClusterConnectionTimeout sets the cluster connection timeout.
+	SetClusterConnectionTimeout(value time.Duration) testOptions
 
-	// GetClusterConnectionTimeout returns the cluster connection timeout.
-	GetClusterConnectionTimeout() time.Duration
+	// ClusterConnectionTimeout returns the cluster connection timeout.
+	ClusterConnectionTimeout() time.Duration
 
-	// ReadRequestTimeout sets the read request timeout.
-	ReadRequestTimeout(value time.Duration) testOptions
+	// SetReadRequestTimeout sets the read request timeout.
+	SetReadRequestTimeout(value time.Duration) testOptions
 
-	// GetReadRequestTimeout returns the read request timeout.
-	GetReadRequestTimeout() time.Duration
+	// ReadRequestTimeout returns the read request timeout.
+	ReadRequestTimeout() time.Duration
 
-	// WriteRequestTimeout sets the write request timeout.
-	WriteRequestTimeout(value time.Duration) testOptions
+	// SetWriteRequestTimeout sets the write request timeout.
+	SetWriteRequestTimeout(value time.Duration) testOptions
 
-	// GetWriteRequestTimeout returns the write request timeout.
-	GetWriteRequestTimeout() time.Duration
+	// WriteRequestTimeout returns the write request timeout.
+	WriteRequestTimeout() time.Duration
 
-	// TruncateRequestTimeout sets the truncate request timeout.
-	TruncateRequestTimeout(value time.Duration) testOptions
+	// SetTruncateRequestTimeout sets the truncate request timeout.
+	SetTruncateRequestTimeout(value time.Duration) testOptions
 
-	// GetTruncateRequestTimeout returns the truncate request timeout.
-	GetTruncateRequestTimeout() time.Duration
+	// TruncateRequestTimeout returns the truncate request timeout.
+	TruncateRequestTimeout() time.Duration
 
-	// WorkerPoolSize sets the number of workers in the worker pool.
-	WorkerPoolSize(value int) testOptions
+	// SetWorkerPoolSize sets the number of workers in the worker pool.
+	SetWorkerPoolSize(value int) testOptions
 
-	// GetWorkerPoolSize returns the number of workers in the worker pool.
-	GetWorkerPoolSize() int
+	// WorkerPoolSize returns the number of workers in the worker pool.
+	WorkerPoolSize() int
 
-	// UseTChannelClientForReading sets whether we use the tchannel client for reading.
-	UseTChannelClientForReading(value bool) testOptions
+	// SetUseTChannelClientForReading sets whether we use the tchannel client for reading.
+	SetUseTChannelClientForReading(value bool) testOptions
 
-	// GetUseTChannelClientForReading returns whether we use the tchannel client for reading.
-	GetUseTChannelClientForReading() bool
+	// UseTChannelClientForReading returns whether we use the tchannel client for reading.
+	UseTChannelClientForReading() bool
 
-	// UseTChannelClientForWriting sets whether we use the tchannel client for writing.
-	UseTChannelClientForWriting(value bool) testOptions
+	// SetUseTChannelClientForWriting sets whether we use the tchannel client for writing.
+	SetUseTChannelClientForWriting(value bool) testOptions
 
-	// GetUseTChannelClientForWriting returns whether we use the tchannel client for writing.
-	GetUseTChannelClientForWriting() bool
+	// UseTChannelClientForWriting returns whether we use the tchannel client for writing.
+	UseTChannelClientForWriting() bool
 
-	// UseTChannelClientForTruncation sets whether we use the tchannel client for truncation.
-	UseTChannelClientForTruncation(value bool) testOptions
+	// SetUseTChannelClientForTruncation sets whether we use the tchannel client for truncation.
+	SetUseTChannelClientForTruncation(value bool) testOptions
 
-	// GetUseTChannelClientForTruncation returns whether we use the tchannel client for truncation.
-	GetUseTChannelClientForTruncation() bool
+	// UseTChannelClientForTruncation returns whether we use the tchannel client for truncation.
+	UseTChannelClientForTruncation() bool
 }
 
 type options struct {
@@ -135,92 +135,92 @@ func newTestOptions() testOptions {
 	}
 }
 
-func (o *options) ServerStateChangeTimeout(value time.Duration) testOptions {
+func (o *options) SetServerStateChangeTimeout(value time.Duration) testOptions {
 	opts := *o
 	opts.serverStateChangeTimeout = value
 	return &opts
 }
 
-func (o *options) GetServerStateChangeTimeout() time.Duration {
+func (o *options) ServerStateChangeTimeout() time.Duration {
 	return o.serverStateChangeTimeout
 }
 
-func (o *options) ClusterConnectionTimeout(value time.Duration) testOptions {
+func (o *options) SetClusterConnectionTimeout(value time.Duration) testOptions {
 	opts := *o
 	opts.clusterConnectionTimeout = value
 	return &opts
 }
 
-func (o *options) GetClusterConnectionTimeout() time.Duration {
+func (o *options) ClusterConnectionTimeout() time.Duration {
 	return o.clusterConnectionTimeout
 }
 
-func (o *options) ReadRequestTimeout(value time.Duration) testOptions {
+func (o *options) SetReadRequestTimeout(value time.Duration) testOptions {
 	opts := *o
 	opts.readRequestTimeout = value
 	return &opts
 }
 
-func (o *options) GetReadRequestTimeout() time.Duration {
+func (o *options) ReadRequestTimeout() time.Duration {
 	return o.readRequestTimeout
 }
 
-func (o *options) WriteRequestTimeout(value time.Duration) testOptions {
+func (o *options) SetWriteRequestTimeout(value time.Duration) testOptions {
 	opts := *o
 	opts.writeRequestTimeout = value
 	return &opts
 }
 
-func (o *options) GetWriteRequestTimeout() time.Duration {
+func (o *options) WriteRequestTimeout() time.Duration {
 	return o.writeRequestTimeout
 }
 
-func (o *options) TruncateRequestTimeout(value time.Duration) testOptions {
+func (o *options) SetTruncateRequestTimeout(value time.Duration) testOptions {
 	opts := *o
 	opts.truncateRequestTimeout = value
 	return &opts
 }
 
-func (o *options) GetTruncateRequestTimeout() time.Duration {
+func (o *options) TruncateRequestTimeout() time.Duration {
 	return o.truncateRequestTimeout
 }
 
-func (o *options) WorkerPoolSize(value int) testOptions {
+func (o *options) SetWorkerPoolSize(value int) testOptions {
 	opts := *o
 	opts.workerPoolSize = value
 	return &opts
 }
 
-func (o *options) GetWorkerPoolSize() int {
+func (o *options) WorkerPoolSize() int {
 	return o.workerPoolSize
 }
 
-func (o *options) UseTChannelClientForReading(value bool) testOptions {
+func (o *options) SetUseTChannelClientForReading(value bool) testOptions {
 	opts := *o
 	opts.useTChannelClientForReading = value
 	return &opts
 }
 
-func (o *options) GetUseTChannelClientForReading() bool {
+func (o *options) UseTChannelClientForReading() bool {
 	return o.useTChannelClientForReading
 }
 
-func (o *options) UseTChannelClientForWriting(value bool) testOptions {
+func (o *options) SetUseTChannelClientForWriting(value bool) testOptions {
 	opts := *o
 	opts.useTChannelClientForWriting = value
 	return &opts
 }
 
-func (o *options) GetUseTChannelClientForWriting() bool {
+func (o *options) UseTChannelClientForWriting() bool {
 	return o.useTChannelClientForWriting
 }
 
-func (o *options) UseTChannelClientForTruncation(value bool) testOptions {
+func (o *options) SetUseTChannelClientForTruncation(value bool) testOptions {
 	opts := *o
 	opts.useTChannelClientForTruncation = value
 	return &opts
 }
 
-func (o *options) GetUseTChannelClientForTruncation() bool {
+func (o *options) UseTChannelClientForTruncation() bool {
 	return o.useTChannelClientForTruncation
 }
