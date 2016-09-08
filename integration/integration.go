@@ -119,9 +119,9 @@ func newBootstrappableTestSetup(
 	setup, err := newTestSetup(opts)
 	require.NoError(t, err)
 
-	setup.storageOpts = setup.storageOpts.SetRetentionOptions(retentionOpts)
-	setup.storageOpts = setup.storageOpts.SetNewBootstrapFn(newBootstrapFn)
-
+	setup.storageOpts = setup.storageOpts.
+		SetRetentionOptions(retentionOpts).
+		SetNewBootstrapFn(newBootstrapFn)
 	return setup
 }
 
