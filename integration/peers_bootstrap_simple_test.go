@@ -39,13 +39,22 @@ import (
 )
 
 func TestPeersBootstrapSimple(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
 	// Test setups
 	var (
-		replicas = 2
-		namesp   = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-		log      = xlog.NewLogger(os.Stdout)
-		setups   testSetups
+		replicas   = 2
+		namesp     = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
+		log        = xlog.NewLogger(os.Stdout)
+		setups     testSetups
+		cleanupFns []func()
 	)
+	defer func() {
+		for _, fn := range cleanupFns {
+			fn()
+		}
+	}()
 	opts := newTestOptions().
 		SetNamespaces([]namespace.Metadata{namesp})
 	retentionOpts := retention.NewOptions().
@@ -74,6 +83,10 @@ func TestPeersBootstrapSimple(t *testing.T) {
 				SetAdminSession(session)
 			peersBootstrapper := peers.NewPeersBootstrapper(peersOpts, noOpAll)
 
+			cleanupFns = append(cleanupFns, func() {
+				session.Close()
+			})
+
 			fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 			filePathPrefix := fsOpts.FilePathPrefix()
 
@@ -94,9 +107,11 @@ func TestPeersBootstrapSimple(t *testing.T) {
 		logger = logger.WithFields(xlog.NewLogField("instance", i))
 		iopts := setup.storageOpts.InstrumentOptions().SetLogger(logger)
 		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(iopts)
-		defer setup.close()
 
 		setups = append(setups, setup)
+		cleanupFns = append(cleanupFns, func() {
+			setup.close()
+		})
 	}
 
 	// Write test data for first node
