@@ -209,17 +209,25 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 	minConnectionCount := s.opts.MinConnectionCount()
 	replicas := topologyMap.Replicas()
 	majority := topologyMap.MajorityReplicas()
+
 	firstConnectConsistencyLevel := s.opts.ClusterConnectConsistencyLevel()
+	if firstConnectConsistencyLevel == ConnectConsistencyLevelNone {
+		// Return immediately if no connect consistency required
+		return queues, replicas, majority, nil
+	}
+
 	connectConsistencyLevel := firstConnectConsistencyLevel
 	if connectConsistencyLevel == ConnectConsistencyLevelAny {
 		// If level any specified, first attempt all then proceed lowering requirement
 		connectConsistencyLevel = ConnectConsistencyLevelAll
 	}
+
 	abort := func() {
 		for i := range queues {
 			queues[i].Close()
 		}
 	}
+
 	for {
 		if now := s.nowFn(); now.Sub(start) >= s.opts.ClusterConnectTimeout() {
 			switch firstConnectConsistencyLevel {

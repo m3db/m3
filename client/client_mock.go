@@ -762,7 +762,7 @@ func (_mr *_MockOptionsRecorder) ClusterConnectTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout")
 }
 
-func (_m *MockOptions) SetClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options {
+func (_m *MockOptions) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -772,9 +772,9 @@ func (_mr *_MockOptionsRecorder) SetClusterConnectConsistencyLevel(arg0 interfac
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClusterConnectConsistencyLevel", arg0)
 }
 
-func (_m *MockOptions) ClusterConnectConsistencyLevel() topology.ConsistencyLevel {
+func (_m *MockOptions) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
 	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
-	ret0, _ := ret[0].(topology.ConsistencyLevel)
+	ret0, _ := ret[0].(ConnectConsistencyLevel)
 	return ret0
 }
 
@@ -1343,7 +1343,7 @@ func (_mr *_MockAdminOptionsRecorder) ClusterConnectTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout")
 }
 
-func (_m *MockAdminOptions) SetClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options {
+func (_m *MockAdminOptions) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1353,9 +1353,9 @@ func (_mr *_MockAdminOptionsRecorder) SetClusterConnectConsistencyLevel(arg0 int
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClusterConnectConsistencyLevel", arg0)
 }
 
-func (_m *MockAdminOptions) ClusterConnectConsistencyLevel() topology.ConsistencyLevel {
+func (_m *MockAdminOptions) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
 	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
-	ret0, _ := ret[0].(topology.ConsistencyLevel)
+	ret0, _ := ret[0].(ConnectConsistencyLevel)
 	return ret0
 }
 
