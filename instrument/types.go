@@ -21,6 +21,8 @@
 package instrument
 
 import (
+	"time"
+
 	"github.com/m3db/m3x/log"
 	"github.com/uber-go/tally"
 )
@@ -38,4 +40,10 @@ type Options interface {
 
 	// MetricsScope returns the metricsScope
 	MetricsScope() tally.Scope
+
+	// ReportInterval sets time between reporting many metrics within the system
+	SetReportInterval(time.Duration) Options
+
+	// GetReportInterval returns the time between reporting many metrics within the system
+	ReportInterval() time.Duration
 }

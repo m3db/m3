@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
+
 	"github.com/uber-go/tally"
 )
 
@@ -80,6 +81,7 @@ type commitLogMetrics struct {
 	openErrors  tally.Counter
 	closeErrors tally.Counter
 	flushErrors tally.Counter
+	flushDone   tally.Counter
 }
 
 type valueType int
@@ -115,6 +117,7 @@ func NewCommitLog(opts Options) CommitLog {
 			openErrors:  scope.Counter("writes.open-errors"),
 			closeErrors: scope.Counter("writes.close-errors"),
 			flushErrors: scope.Counter("writes.flush-errors"),
+			flushDone:   scope.Counter("writes.flush-done"),
 		},
 		log:                  iops.Logger(),
 		newCommitLogWriterFn: newCommitLogWriter,
@@ -276,6 +279,7 @@ func (l *commitLog) onFlush(err error) {
 	// accessors of "pendingFlushFns" so it is safe to read and mutate
 	// without a lock here
 	if len(l.pendingFlushFns) == 0 {
+		l.metrics.flushDone.Inc(1)
 		return
 	}
 
@@ -284,6 +288,7 @@ func (l *commitLog) onFlush(err error) {
 	}
 
 	l.pendingFlushFns = l.pendingFlushFns[:0]
+	l.metrics.flushDone.Inc(1)
 }
 
 func (l *commitLog) openWriter(now time.Time) error {

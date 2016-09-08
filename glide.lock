@@ -1,12 +1,12 @@
-hash: 08fb207b00600dec7bae9ae4ac212204e11f82886fab14521940dd052d74751c
-updated: 2016-09-08T09:16:06.625892674-04:00
+hash: aed309315307683029dd7c9ef44c1a9df117d7b059937423f0a6b6668866bfdb
+updated: 2016-09-08T10:27:54.627415428-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
 - name: github.com/davecgh/go-spew
-  version: 66f99a29a08158b999b0dc2e7ccacf1131d4e0b4
+  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
@@ -23,8 +23,8 @@ imports:
   version: 6b455e628db9157a5e90e500a055e2395da437ef
   subpackages:
   - client
-  - kv
   - services
+  - kv
   - shard
 - name: github.com/m3db/m3x
   version: 061fa69eb3dfc2a4fb1202f018039875654a2434
@@ -36,7 +36,7 @@ imports:
   - time
   - watch
 - name: github.com/opentracing/opentracing-go
-  version: 77a31d686003349e89c89e58408aafcd20003f41
+  version: ca4c9c0010bd9155b6d067b33865d849fe533628
   subpackages:
   - ext
 - name: github.com/pmezard/go-difflib
@@ -48,25 +48,25 @@ imports:
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
-  - assert
   - require
+  - assert
 - name: github.com/uber-go/atomic
   version: 0c9e689d64f004564b79d9a663634756df322902
 - name: github.com/uber-go/tally
-  version: 13a01a2a0dd2ade06c307ccc0ca4e83196c88422
+  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
 - name: github.com/uber/tchannel-go
   version: 1a0e35378f6f721bc07f6c4466bc9701ed70b506
   subpackages:
-  - relay
   - thrift
-  - thrift/gen-go/meta
+  - relay
   - tnet
   - trand
   - typed
+  - thrift/gen-go/meta
 - name: github.com/willf/bitset
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
 - name: golang.org/x/net
   version: 9313baa13d9262e49d07b20ed57dceafcd7240cc
   subpackages:
   - context
-testImports: []
+devImports: []

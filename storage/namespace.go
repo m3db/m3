@@ -7,6 +7,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
@@ -18,6 +19,8 @@ import (
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
+
+	"github.com/uber-go/tally"
 )
 
 func commitLogWriteNoOp(
@@ -46,6 +49,22 @@ type dbNamespace struct {
 
 	increasingIndex  increasingIndex
 	writeCommitLogFn writeCommitLogFn
+
+	metrics databaseNamespaceMetrics
+}
+
+type databaseNamespaceMetrics struct {
+	bootstrap   instrument.MethodMetrics
+	flush       instrument.MethodMetrics
+	unfulfilled tally.Counter
+}
+
+func newDatabaseNamespaceMetrics(scope tally.Scope) databaseNamespaceMetrics {
+	return databaseNamespaceMetrics{
+		bootstrap:   instrument.NewMethodMetrics(scope, "bootstrap"),
+		flush:       instrument.NewMethodMetrics(scope, "flush"),
+		unfulfilled: scope.Counter("bootstrap.unfulfilled"),
+	}
 }
 
 func newDatabaseNamespace(
@@ -62,6 +81,9 @@ func newDatabaseNamespace(
 		fn = commitLogWriteNoOp
 	}
 
+	iops := sopts.InstrumentOptions()
+	scope := iops.MetricsScope().SubScope("database").Tagged(map[string]string{"namespace": name})
+
 	n := &dbNamespace{
 		name:             name,
 		shardSet:         shardSet,
@@ -71,6 +93,7 @@ func newDatabaseNamespace(
 		log:              sopts.InstrumentOptions().Logger(),
 		increasingIndex:  increasingIndex,
 		writeCommitLogFn: fn,
+		metrics:          newDatabaseNamespaceMetrics(scope),
 	}
 
 	n.initShards()
@@ -187,8 +210,10 @@ func (n *dbNamespace) Bootstrap(
 	result, err := bs.Run(writeStart, n.name, shardIDs)
 	if err != nil {
 		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v", n.name, err)
+		n.metrics.bootstrap.Error.Inc(1)
 		return err
 	}
+	n.metrics.bootstrap.Success.Inc(1)
 
 	multiErr := xerrors.NewMultiError()
 	results := result.ShardResults()
@@ -202,7 +227,10 @@ func (n *dbNamespace) Bootstrap(
 		multiErr = multiErr.Add(err)
 	}
 
-	if len(result.Unfulfilled()) > 0 {
+	// Counter, tag this with namespace
+	unfulfilled := int64(len(result.Unfulfilled()))
+	n.metrics.unfulfilled.Inc(unfulfilled)
+	if unfulfilled > 0 {
 		str := result.Unfulfilled().SummaryString()
 		n.log.Errorf("bootstrap for namespace %s completed with unfulfilled ranges: %s", n.name, str)
 	}
@@ -237,7 +265,14 @@ func (n *dbNamespace) Flush(
 		}
 	}
 
-	return multiErr.FinalError()
+	// if nil, succeeded
+
+	if res := multiErr.FinalError(); res != nil {
+		n.metrics.flush.Error.Inc(1)
+		return res
+	}
+	n.metrics.flush.Success.Inc(1)
+	return nil
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {

@@ -20,54 +20,29 @@
 
 package instrument
 
-import (
-	"time"
+import "github.com/uber-go/tally"
 
-	"github.com/m3db/m3x/log"
-	"github.com/uber-go/tally"
-)
-
-type options struct {
-	logger         xlog.Logger
-	scope          tally.Scope
-	reportInterval time.Duration
+// MethodMetrics is a bundle of common metrics with a uniform naming scheme
+type MethodMetrics struct {
+	Error   tally.Counter
+	Success tally.Counter
+	Latency tally.Timer
 }
 
-// NewOptions creates new instrument options
-func NewOptions() Options {
-	return &options{
-		logger:         xlog.SimpleLogger,
-		scope:          tally.NoopScope,
-		reportInterval: time.Second,
+// ReportSuccessOrFailure increments Error/Success counter dependant on the error
+func (m *MethodMetrics) ReportSuccessOrFailure(e error) {
+	if e != nil {
+		m.Error.Inc(1)
+	} else {
+		m.Success.Inc(1)
 	}
 }
 
-func (o *options) SetLogger(value xlog.Logger) Options {
-	opts := *o
-	opts.logger = value
-	return &opts
-}
-
-func (o *options) Logger() xlog.Logger {
-	return o.logger
-}
-
-func (o *options) SetMetricsScope(value tally.Scope) Options {
-	opts := *o
-	opts.scope = value
-	return &opts
-}
-
-func (o *options) MetricsScope() tally.Scope {
-	return o.scope
-}
-
-func (o *options) SetReportInterval(value time.Duration) Options {
-	opts := *o
-	o.reportInterval = value
-	return &opts
-}
-
-func (o *options) ReportInterval() time.Duration {
-	return o.reportInterval
+// NewMethodMetrics returns a new Method metrics for the given method name
+func NewMethodMetrics(scope tally.Scope, methodName string) MethodMetrics {
+	return MethodMetrics{
+		Error:   scope.Counter(methodName + ".error"),
+		Success: scope.Counter(methodName + ".success"),
+		Latency: scope.Timer(methodName + ".latency"),
+	}
 }
