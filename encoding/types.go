@@ -59,47 +59,47 @@ type NewEncoderFn func(start time.Time, bytes []byte) Encoder
 
 // Options represents different options for encoding time as well as markers.
 type Options interface {
-	// DefaultTimeUnit sets the default time unit for the encoder.
-	DefaultTimeUnit(tu xtime.Unit) Options
+	// SetDefaultTimeUnit sets the default time unit for the encoder.
+	SetDefaultTimeUnit(tu xtime.Unit) Options
 
-	// GetDefaultTimeUnit returns the default time unit for the encoder.
-	GetDefaultTimeUnit() xtime.Unit
+	// DefaultTimeUnit returns the default time unit for the encoder.
+	DefaultTimeUnit() xtime.Unit
 
-	// TimeEncodingSchemes sets the time encoding schemes for different time units.
-	TimeEncodingSchemes(value TimeEncodingSchemes) Options
+	// SetTimeEncodingSchemes sets the time encoding schemes for different time units.
+	SetTimeEncodingSchemes(value TimeEncodingSchemes) Options
 
-	// GetTimeEncodingSchemes returns the time encoding schemes for different time units.
-	GetTimeEncodingSchemes() TimeEncodingSchemes
+	// TimeEncodingSchemes returns the time encoding schemes for different time units.
+	TimeEncodingSchemes() TimeEncodingSchemes
 
-	// MarkerEncodingScheme sets the marker encoding scheme.
-	MarkerEncodingScheme(value MarkerEncodingScheme) Options
+	// SetMarkerEncodingScheme sets the marker encoding scheme.
+	SetMarkerEncodingScheme(value MarkerEncodingScheme) Options
 
-	// GetMarkerEncodingScheme returns the marker encoding scheme.
-	GetMarkerEncodingScheme() MarkerEncodingScheme
+	// MarkerEncodingScheme returns the marker encoding scheme.
+	MarkerEncodingScheme() MarkerEncodingScheme
 
-	// EncoderPool sets the encoder pool.
-	EncoderPool(value EncoderPool) Options
+	// SetEncoderPool sets the encoder pool.
+	SetEncoderPool(value EncoderPool) Options
 
-	// GetEncoderPool returns the encoder pool.
-	GetEncoderPool() EncoderPool
+	// EncoderPool returns the encoder pool.
+	EncoderPool() EncoderPool
 
-	// ReaderIteratorPool sets the ReaderIteratorPool.
-	ReaderIteratorPool(value ReaderIteratorPool) Options
+	// SetReaderIteratorPool sets the ReaderIteratorPool.
+	SetReaderIteratorPool(value ReaderIteratorPool) Options
 
-	// GetReaderIteratorPool returns the ReaderIteratorPool
-	GetReaderIteratorPool() ReaderIteratorPool
+	// ReaderIteratorPool returns the ReaderIteratorPool.
+	ReaderIteratorPool() ReaderIteratorPool
 
-	// BytesPool sets the bytes pool.
-	BytesPool(value pool.BytesPool) Options
+	// SetBytesPool sets the bytes pool.
+	SetBytesPool(value pool.BytesPool) Options
 
-	// GetBytesPool returns the bytes pool.
-	GetBytesPool() pool.BytesPool
+	// BytesPool returns the bytes pool.
+	BytesPool() pool.BytesPool
 
-	// SegmentReaderPool sets the segment reader pool.
-	SegmentReaderPool(value xio.SegmentReaderPool) Options
+	// SetSegmentReaderPool sets the segment reader pool.
+	SetSegmentReaderPool(value xio.SegmentReaderPool) Options
 
-	// GetSegmentReaderPool returns the segment reader pool.
-	GetSegmentReaderPool() xio.SegmentReaderPool
+	// SegmentReaderPool returns the segment reader pool.
+	SegmentReaderPool() xio.SegmentReaderPool
 }
 
 // Iterator is the generic interface for iterating over encoded data.

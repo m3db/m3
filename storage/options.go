@@ -175,10 +175,10 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(0)
 
 	encodingOpts := encoding.NewOptions().
-		BytesPool(bytesPool).
-		EncoderPool(encoderPool).
-		ReaderIteratorPool(readerIteratorPool).
-		SegmentReaderPool(segmentReaderPool)
+		SetBytesPool(bytesPool).
+		SetEncoderPool(encoderPool).
+		SetReaderIteratorPool(readerIteratorPool).
+		SetSegmentReaderPool(segmentReaderPool)
 
 	// initialize encoder pool
 	encoderPool.Init(func() encoding.Encoder {
@@ -199,9 +199,9 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.multiReaderIteratorPool = multiReaderIteratorPool
 
 	opts.blockOpts = opts.blockOpts.
-	SetEncoderPool(encoderPool).
-	SetReaderIteratorPool(readerIteratorPool).
-	SetMultiReaderIteratorPool(multiReaderIteratorPool)
+		SetEncoderPool(encoderPool).
+		SetReaderIteratorPool(readerIteratorPool).
+		SetMultiReaderIteratorPool(multiReaderIteratorPool)
 
 	return (&opts).encodingM3TSZ()
 }

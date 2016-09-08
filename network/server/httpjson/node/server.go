@@ -48,8 +48,8 @@ func NewServer(
 		opts = httpjson.NewServerOptions()
 	}
 	opts = opts.
-		ContextFn(httpjson.NewDefaultContextFn(contextPool)).
-		PostResponseFn(httpjson.DefaulPostResponseFn)
+		SetContextFn(httpjson.NewDefaultContextFn(contextPool)).
+		SetPostResponseFn(httpjson.DefaulPostResponseFn)
 	return &server{
 		address: address,
 		db:      db,
@@ -70,8 +70,8 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 
 	server := http.Server{
 		Handler:      mux,
-		ReadTimeout:  s.opts.GetReadTimeout(),
-		WriteTimeout: s.opts.GetWriteTimeout(),
+		ReadTimeout:  s.opts.ReadTimeout(),
+		WriteTimeout: s.opts.WriteTimeout(),
 	}
 
 	go func() {

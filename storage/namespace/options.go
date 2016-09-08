@@ -51,42 +51,42 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) NeedsBootstrap(value bool) Options {
+func (o *options) SetNeedsBootstrap(value bool) Options {
 	opts := *o
 	opts.needsBootstrap = value
 	return &opts
 }
 
-func (o *options) GetNeedsBootstrap() bool {
+func (o *options) NeedsBootstrap() bool {
 	return o.needsBootstrap
 }
 
-func (o *options) NeedsFlush(value bool) Options {
+func (o *options) SetNeedsFlush(value bool) Options {
 	opts := *o
 	opts.needsFlush = value
 	return &opts
 }
 
-func (o *options) GetNeedsFlush() bool {
+func (o *options) NeedsFlush() bool {
 	return o.needsFlush
 }
 
-func (o *options) WritesToCommitLog(value bool) Options {
+func (o *options) SetWritesToCommitLog(value bool) Options {
 	opts := *o
 	opts.writesToCommitLog = value
 	return &opts
 }
 
-func (o *options) GetWritesToCommitLog() bool {
+func (o *options) WritesToCommitLog() bool {
 	return o.writesToCommitLog
 }
 
-func (o *options) NeedsFilesetCleanup(value bool) Options {
+func (o *options) SetNeedsFilesetCleanup(value bool) Options {
 	opts := *o
 	opts.needsFilesetCleanup = value
 	return &opts
 }
 
-func (o *options) GetNeedsFilesetCleanup() bool {
+func (o *options) NeedsFilesetCleanup() bool {
 	return o.needsFilesetCleanup
 }

@@ -65,8 +65,8 @@ func NewReaderIterator(reader io.Reader, intOptimized bool, opts encoding.Option
 	return &readerIterator{
 		is:           encoding.NewIStream(reader),
 		opts:         opts,
-		tess:         opts.GetTimeEncodingSchemes(),
-		mes:          opts.GetMarkerEncodingScheme(),
+		tess:         opts.TimeEncodingSchemes(),
+		mes:          opts.MarkerEncodingScheme(),
 		intOptimized: intOptimized,
 	}
 }
@@ -97,7 +97,7 @@ func (it *readerIterator) readFirstTimestamp() {
 	nt := int64(it.readBits(64))
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
 	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
-	it.tu = initialTimeUnit(st, it.opts.GetDefaultTimeUnit())
+	it.tu = initialTimeUnit(st, it.opts.DefaultTimeUnit())
 	it.readNextTimestamp()
 	it.t = st.Add(it.dt)
 }
@@ -399,7 +399,7 @@ func (it *readerIterator) Close() {
 		return
 	}
 	it.closed = true
-	pool := it.opts.GetReaderIteratorPool()
+	pool := it.opts.ReaderIteratorPool()
 	if pool != nil {
 		pool.Put(it)
 	}

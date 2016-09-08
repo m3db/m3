@@ -76,8 +76,8 @@ func NewEncoder(start time.Time, bytes []byte, intOptimized bool, opts encoding.
 	// NB(r): only perform an initial allocation if there is no pool that
 	// will be used for this encoder.  If a pool is being used alloc when the
 	// `Reset` method is called.
-	initAllocIfEmpty := opts.GetEncoderPool() == nil
-	tu := initialTimeUnit(start, opts.GetDefaultTimeUnit())
+	initAllocIfEmpty := opts.EncoderPool() == nil
+	tu := initialTimeUnit(start, opts.DefaultTimeUnit())
 	return &encoder{
 		os:           encoding.NewOStream(bytes, initAllocIfEmpty),
 		opts:         opts,
@@ -157,7 +157,7 @@ func (enc *encoder) writeAnnotation(ant ts.Annotation) {
 	if !enc.shouldWriteAnnotation(ant) {
 		return
 	}
-	scheme := enc.opts.GetMarkerEncodingScheme()
+	scheme := enc.opts.MarkerEncodingScheme()
 	encoding.WriteSpecialMarker(enc.os, scheme, scheme.Annotation())
 
 	var buf [binary.MaxVarintLen32]byte
@@ -183,7 +183,7 @@ func (enc *encoder) writeTimeUnit(tu xtime.Unit) bool {
 	if !enc.shouldWriteTimeUnit(tu) {
 		return false
 	}
-	scheme := enc.opts.GetMarkerEncodingScheme()
+	scheme := enc.opts.MarkerEncodingScheme()
 	encoding.WriteSpecialMarker(enc.os, scheme, scheme.TimeUnit())
 	enc.os.WriteByte(byte(tu))
 	enc.tu = tu
@@ -231,7 +231,7 @@ func (enc *encoder) writeDeltaOfDeltaTimeUnitUnchanged(prevDelta, curDelta time.
 		return err
 	}
 	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
-	tes, exists := enc.opts.GetTimeEncodingSchemes()[tu]
+	tes, exists := enc.opts.TimeEncodingSchemes()[tu]
 	if !exists {
 		return fmt.Errorf("time encoding scheme for time unit %v doesn't exist", tu)
 	}
@@ -473,7 +473,7 @@ func (enc *encoder) trackNewSig(numSig uint8) uint8 {
 
 func (enc *encoder) Reset(start time.Time, capacity int) {
 	var newBuffer []byte
-	bytesPool := enc.opts.GetBytesPool()
+	bytesPool := enc.opts.BytesPool()
 	if bytesPool != nil {
 		newBuffer = bytesPool.Get(capacity)
 	} else {
@@ -495,7 +495,7 @@ func (enc *encoder) ResetSetData(start time.Time, data []byte, writable bool) {
 	enc.curHighestLowerSig = 0
 	enc.numLowerSig = 0
 	enc.ant = nil
-	enc.tu = initialTimeUnit(start, enc.opts.GetDefaultTimeUnit())
+	enc.tu = initialTimeUnit(start, enc.opts.DefaultTimeUnit())
 	enc.closed = false
 	enc.writable = writable
 }
@@ -515,12 +515,12 @@ func (enc *encoder) Stream() xio.SegmentReader {
 		// stream by `Done`.
 		head = b[:blen-1]
 
-		scheme := enc.opts.GetMarkerEncodingScheme()
+		scheme := enc.opts.MarkerEncodingScheme()
 		tail = scheme.Tail(b[blen-1], pos)
 	}
 
 	segment := ts.Segment{Head: head, Tail: tail, TailShared: true}
-	readerPool := enc.opts.GetSegmentReaderPool()
+	readerPool := enc.opts.SegmentReaderPool()
 	if readerPool != nil {
 		reader := readerPool.Get()
 		reader.Reset(segment)
@@ -544,7 +544,7 @@ func (enc *encoder) Seal() {
 	b, pos := enc.os.Rawbytes()
 	blen := len(b)
 
-	scheme := enc.opts.GetMarkerEncodingScheme()
+	scheme := enc.opts.MarkerEncodingScheme()
 	tail := scheme.Tail(b[blen-1], pos)
 
 	// Trim to before last byte
@@ -563,7 +563,7 @@ func (enc *encoder) Unseal() error {
 	}
 
 	b, _ := enc.os.Rawbytes()
-	scheme := enc.opts.GetMarkerEncodingScheme()
+	scheme := enc.opts.MarkerEncodingScheme()
 	trimmed, usedBits, err := scheme.TrimEndOfStream(b)
 	if err != nil {
 		return err
@@ -588,7 +588,7 @@ func (enc *encoder) Close() {
 	enc.writable = false
 	enc.closed = true
 
-	bytesPool := enc.opts.GetBytesPool()
+	bytesPool := enc.opts.BytesPool()
 	if bytesPool != nil {
 		buffer, _ := enc.os.Rawbytes()
 
@@ -599,7 +599,7 @@ func (enc *encoder) Close() {
 		bytesPool.Put(buffer)
 	}
 
-	pool := enc.opts.GetEncoderPool()
+	pool := enc.opts.EncoderPool()
 	if pool != nil {
 		pool.Put(enc)
 	}

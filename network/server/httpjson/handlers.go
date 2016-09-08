@@ -58,8 +58,8 @@ type respError struct {
 func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOptions) error {
 	v := reflect.ValueOf(service)
 	t := v.Type()
-	contextFn := opts.GetContextFn()
-	postResponseFn := opts.GetPostResponseFn()
+	contextFn := opts.ContextFn()
+	postResponseFn := opts.PostResponseFn()
 	for i := 0; i < t.NumMethod(); i++ {
 		method := t.Method(i)
 
@@ -145,7 +145,7 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 			}
 
 			// Prepare the call context
-			callContext, _ := thrift.NewContext(opts.GetRequestTimeout())
+			callContext, _ := thrift.NewContext(opts.RequestTimeout())
 			if contextFn != nil {
 				// Allow derivation of context if context fn is set
 				callContext = contextFn(callContext, method.Name, headers)
