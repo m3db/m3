@@ -57,11 +57,17 @@ var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
 	// ensuring at least each partition has an up node with a connection to it
 	ErrClusterConnectTimeout = errors.New("timed out establishing min connections to cluster")
-
-	errSessionStateNotInitial        = errors.New("session not in initial state")
-	errSessionStateNotOpen           = errors.New("session not in open state")
+	// errSessionStateNotInitial is raised when trying to open a session and
+	// its not in the initial clean state
+	errSessionStateNotInitial = errors.New("session not in initial state")
+	// errSessionStateNotOpen is raised when operations are requested when the
+	// session is not in the open state
+	errSessionStateNotOpen = errors.New("session not in open state")
+	// errSessionBadBlockResultFromPeer is raised when there is a bad block
+	// return from a peer when fetching blocks from peers
 	errSessionBadBlockResultFromPeer = errors.New("session fetched bad block result from peer")
-
+	// errSessionInvalidConnectClusterConnectConsistencyLevel is raised when
+	// the connect consistency level specified is not recognized
 	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New("session has invalid connect consistency level specified")
 )
 
