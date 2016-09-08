@@ -57,10 +57,10 @@ func newTestFn(opts testFnOpts) Fn {
 
 func testOptions() Options {
 	return NewOptions().
-		InitialBackoff(time.Second).
-		BackoffFactor(2).
-		Max(2).
-		Jitter(false)
+		SetInitialBackoff(time.Second).
+		SetBackoffFactor(2).
+		SetMax(2).
+		SetJitter(false)
 }
 
 func TestRetrierExponentialBackOffSuccess(t *testing.T) {
@@ -123,7 +123,7 @@ func TestRetrierExponentialBackOffBreakWhileSecondAttempt(t *testing.T) {
 func TestRetrierExponentialBackOffJitter(t *testing.T) {
 	succeedAfter := 1
 	slept := time.Duration(0)
-	r := NewRetrier(testOptions().Jitter(true)).(*retrier)
+	r := NewRetrier(testOptions().SetJitter(true)).(*retrier)
 	r.sleepFn = func(t time.Duration) {
 		slept += t
 	}

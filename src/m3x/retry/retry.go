@@ -57,7 +57,7 @@ type retrierMetrics struct {
 
 // NewRetrier creates a new retrier
 func NewRetrier(opts Options) Retrier {
-	scope := opts.GetMetricsScope()
+	scope := opts.MetricsScope()
 	errorTags := struct {
 		retryable    map[string]string
 		notRetryable map[string]string
@@ -70,10 +70,10 @@ func NewRetrier(opts Options) Retrier {
 		},
 	}
 	return &retrier{
-		initialBackoff: opts.GetInitialBackoff(),
-		backoffFactor:  opts.GetBackoffFactor(),
-		max:            opts.GetMax(),
-		jitter:         opts.GetJitter(),
+		initialBackoff: opts.InitialBackoff(),
+		backoffFactor:  opts.BackoffFactor(),
+		max:            opts.Max(),
+		jitter:         opts.Jitter(),
 		sleepFn:        time.Sleep,
 		metrics: retrierMetrics{
 			success:            scope.Counter("success"),

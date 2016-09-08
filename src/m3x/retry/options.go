@@ -52,52 +52,52 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) MetricsScope(value tally.Scope) Options {
+func (o *options) SetMetricsScope(value tally.Scope) Options {
 	opts := *o
 	opts.scope = value
 	return &opts
 }
 
-func (o *options) GetMetricsScope() tally.Scope {
+func (o *options) MetricsScope() tally.Scope {
 	return o.scope
 }
 
-func (o *options) InitialBackoff(value time.Duration) Options {
+func (o *options) SetInitialBackoff(value time.Duration) Options {
 	opts := *o
 	opts.initialBackoff = value
 	return &opts
 }
 
-func (o *options) GetInitialBackoff() time.Duration {
+func (o *options) InitialBackoff() time.Duration {
 	return o.initialBackoff
 }
 
-func (o *options) BackoffFactor(value float64) Options {
+func (o *options) SetBackoffFactor(value float64) Options {
 	opts := *o
 	opts.backoffFactor = value
 	return &opts
 }
 
-func (o *options) GetBackoffFactor() float64 {
+func (o *options) BackoffFactor() float64 {
 	return o.backoffFactor
 }
 
-func (o *options) Max(value int) Options {
+func (o *options) SetMax(value int) Options {
 	opts := *o
 	opts.max = value
 	return &opts
 }
 
-func (o *options) GetMax() int {
+func (o *options) Max() int {
 	return o.max
 }
 
-func (o *options) Jitter(value bool) Options {
+func (o *options) SetJitter(value bool) Options {
 	opts := *o
 	opts.jitter = value
 	return &opts
 }
 
-func (o *options) GetJitter() bool {
+func (o *options) Jitter() bool {
 	return o.jitter
 }
