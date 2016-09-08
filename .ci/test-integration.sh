@@ -7,7 +7,7 @@ TAGS="integration"
 DIR="integration"
 
 # compile the integration test binary
-go test -test.c -test.tags=integration ./integration
+go test -test.c -test.tags=${TAGS} ./${DIR}
 
 # list the tests
 TESTS=$(./integration.test -test.v -test.short | grep RUN | tr -s " " | cut -d ' ' -f 3)
