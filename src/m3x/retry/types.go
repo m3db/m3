@@ -55,35 +55,35 @@ type Retrier interface {
 
 // Options is a set of retry options
 type Options interface {
-	// MetricsScope sets the metrics scope
-	MetricsScope(value tally.Scope) Options
+	// SetMetricsScope sets the metrics scope
+	SetMetricsScope(value tally.Scope) Options
 
-	// GetMetricsScope returns the metrics scope
-	GetMetricsScope() tally.Scope
+	// MetricsScope returns the metrics scope
+	MetricsScope() tally.Scope
 
-	// InitialBackoff sets the initial delay duration
-	InitialBackoff(value time.Duration) Options
+	// SetInitialBackoff sets the initial delay duration
+	SetInitialBackoff(value time.Duration) Options
 
-	// GetInitialBackoff gets the initial delay duration
-	GetInitialBackoff() time.Duration
+	// InitialBackoff gets the initial delay duration
+	InitialBackoff() time.Duration
 
-	// BackoffFactor sets the backoff factor multiplier when moving to next attempt
-	BackoffFactor(value float64) Options
+	// SetBackoffFactor sets the backoff factor multiplier when moving to next attempt
+	SetBackoffFactor(value float64) Options
 
-	// GetBackoffFactor gets the backoff factor multiplier when moving to next attempt
-	GetBackoffFactor() float64
+	// BackoffFactor gets the backoff factor multiplier when moving to next attempt
+	BackoffFactor() float64
 
-	// Max sets the maximum retry attempts
-	Max(value int) Options
+	// SetMax sets the maximum retry attempts
+	SetMax(value int) Options
 
-	// GetMax gets the maximum retry attempts
-	GetMax() int
+	// Max gets the maximum retry attempts
+	Max() int
 
-	// Jitter sets whether to jitter between the current backoff and the next
+	// SetJitter sets whether to jitter between the current backoff and the next
 	// backoff when moving to next attempt
-	Jitter(value bool) Options
+	SetJitter(value bool) Options
 
-	// GetJitter gets whether to jitter between the current backoff and the next
+	// Jitter gets whether to jitter between the current backoff and the next
 	// backoff when moving to next attempt
-	GetJitter() bool
+	Jitter() bool
 }
