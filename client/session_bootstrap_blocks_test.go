@@ -579,7 +579,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	var (
 		blockSize = 2 * time.Hour
 		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-		retrier   = xretry.NewRetrier(xretry.NewOptions().Max(1).InitialBackoff(time.Millisecond))
+		retrier   = xretry.NewRetrier(xretry.NewOptions().SetMax(1).SetInitialBackoff(time.Millisecond))
 		peerIdx   = len(mockHostQueues) - 1
 		peer      = mockHostQueues[peerIdx]
 		client    = mockClients[peerIdx]
