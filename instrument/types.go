@@ -42,8 +42,8 @@ type Options interface {
 	MetricsScope() tally.Scope
 
 	// ReportInterval sets time between reporting many metrics within the system
-	ReportInterval(time.Duration) Options
+	SetReportInterval(time.Duration) Options
 
 	// GetReportInterval returns the time between reporting many metrics within the system
-	GetReportInterval() time.Duration
+	ReportInterval() time.Duration
 }

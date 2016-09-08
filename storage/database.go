@@ -141,8 +141,8 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 
 // NewDatabase creates a new database
 func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, opts Options) (Database, error) {
-	iops := opts.GetInstrumentOptions()
-	scope := iops.GetMetricsScope().SubScope("database")
+	iops := opts.InstrumentOptions()
+	scope := iops.MetricsScope().SubScope("database")
 
 	d := &db{
 		opts:         opts,
@@ -363,7 +363,7 @@ func (d *db) getOwnedNamespaces() []databaseNamespace {
 }
 
 func (d *db) reportLoop() {
-	interval := d.opts.GetInstrumentOptions().GetReportInterval()
+	interval := d.opts.InstrumentOptions().ReportInterval()
 	t := time.Tick(interval)
 
 	for {

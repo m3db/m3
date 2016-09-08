@@ -62,12 +62,12 @@ func (o *options) MetricsScope() tally.Scope {
 	return o.scope
 }
 
-func (o *options) ReportInterval(value time.Duration) Options {
+func (o *options) SetReportInterval(value time.Duration) Options {
 	opts := *o
 	o.reportInterval = value
 	return &opts
 }
 
-func (o *options) GetReportInterval() time.Duration {
+func (o *options) ReportInterval() time.Duration {
 	return o.reportInterval
 }

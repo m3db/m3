@@ -81,8 +81,8 @@ func newDatabaseNamespace(
 		fn = commitLogWriteNoOp
 	}
 
-	iops := sopts.GetInstrumentOptions()
-	scope := iops.GetMetricsScope().SubScope("database").Tagged(map[string]string{"namespace": name})
+	iops := sopts.InstrumentOptions()
+	scope := iops.MetricsScope().SubScope("database").Tagged(map[string]string{"namespace": name})
 
 	n := &dbNamespace{
 		name:             name,
