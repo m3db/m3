@@ -61,6 +61,8 @@ var (
 	errSessionStateNotInitial        = errors.New("session not in initial state")
 	errSessionStateNotOpen           = errors.New("session not in open state")
 	errSessionBadBlockResultFromPeer = errors.New("session fetched bad block result from peer")
+
+	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New("session has invalid connect consistency level specified")
 )
 
 type session struct {
@@ -207,13 +209,35 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 	minConnectionCount := s.opts.MinConnectionCount()
 	replicas := topologyMap.Replicas()
 	majority := topologyMap.MajorityReplicas()
-	connectConsistencyLevel := s.opts.ClusterConnectConsistencyLevel()
+	firstConnectConsistencyLevel := s.opts.ClusterConnectConsistencyLevel()
+	connectConsistencyLevel := firstConnectConsistencyLevel
+	if connectConsistencyLevel == ConnectConsistencyLevelAny {
+		// If level any specified, first attempt all then proceed lowering requirement
+		connectConsistencyLevel = ConnectConsistencyLevelAll
+	}
+	abort := func() {
+		for i := range queues {
+			queues[i].Close()
+		}
+	}
 	for {
-		if s.nowFn().Sub(start) >= s.opts.ClusterConnectTimeout() {
-			for i := range queues {
-				queues[i].Close()
+		if now := s.nowFn(); now.Sub(start) >= s.opts.ClusterConnectTimeout() {
+			switch firstConnectConsistencyLevel {
+			case ConnectConsistencyLevelAny:
+				// If connecting with connect any strategy then keep
+				// trying but lower consistency requirement
+				start = now
+				connectConsistencyLevel--
+				if connectConsistencyLevel == ConnectConsistencyLevelNone {
+					// Already tried to resolve all consistency requirements, just
+					// return successfully at this point
+					return queues, replicas, majority, nil
+				}
+			default:
+				// Timed out connecting to a specific consistency requirement
+				abort()
+				return nil, 0, 0, ErrClusterConnectTimeout
 			}
-			return nil, 0, 0, ErrClusterConnectTimeout
 		}
 		// Be optimistic
 		clusterAvailable := true
@@ -229,12 +253,15 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 			}
 			var clusterAvailableForShard bool
 			switch connectConsistencyLevel {
-			case topology.ConsistencyLevelAll:
+			case ConnectConsistencyLevelAll:
 				clusterAvailableForShard = shardReplicasAvailable == replicas
-			case topology.ConsistencyLevelMajority:
+			case ConnectConsistencyLevelMajority:
 				clusterAvailableForShard = shardReplicasAvailable >= majority
-			case topology.ConsistencyLevelOne:
+			case ConnectConsistencyLevelOne:
 				clusterAvailableForShard = shardReplicasAvailable > 0
+			default:
+				abort()
+				return nil, 0, 0, errSessionInvalidConnectClusterConnectConsistencyLevel
 			}
 			if !clusterAvailableForShard {
 				clusterAvailable = false
@@ -743,7 +770,6 @@ func (s *session) streamBlocksMetadataFromPeers(
 			defer wg.Done()
 			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer, start, end, blockSize, ch)
 			if err != nil {
-				s.log.Warnf("failed to stream blocks metadata from peer %s for namespace %s shard %d: %v", peer.Host().String(), namespace, shard, err)
 				errLock.Lock()
 				defer errLock.Unlock()
 				errLen++
@@ -755,7 +781,6 @@ func (s *session) streamBlocksMetadataFromPeers(
 	wg.Wait()
 
 	if errLen == len(peers) {
-		s.log.Errorf("failed to complete streaming blocks from all peers for namespace %s shard %d", namespace, shard)
 		return multiErr
 	}
 	return nil
@@ -1252,7 +1277,18 @@ func (s *session) streamBlocksBatchFromPeer(
 				continue
 			}
 
-			blocksResult.addBlockFromPeer(id, block)
+			err := blocksResult.addBlockFromPeer(id, block)
+			if err != nil {
+				failed := []blockMetadata{batch[i].blocks[j]}
+				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
+				s.log.WithFields(
+					xlog.NewLogField("id", id),
+					xlog.NewLogField("start", block.Start),
+					xlog.NewLogField("error", err),
+					xlog.NewLogField("indexID", i),
+					xlog.NewLogField("indexBlock", j),
+				).Errorf("stream blocks response from peer %s bad block response", peer.Host().String())
+			}
 		}
 	}
 }

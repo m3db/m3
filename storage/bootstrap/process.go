@@ -88,6 +88,7 @@ func (b *bootstrapProcess) Run(
 		}
 
 		b.log.WithFields(
+			xlog.NewLogField("namespace", namespace),
 			xlog.NewLogField("shardsLen", len(shards)),
 			xlog.NewLogField("from", window.Start.String()),
 			xlog.NewLogField("to", window.End.String()),

@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/log"
 )
 
 const (
@@ -34,6 +35,7 @@ const (
 // baseBootstrapper provides a skeleton for the interface methods.
 type baseBootstrapper struct {
 	opts bootstrap.Options
+	log  xlog.Logger
 	src  bootstrap.Source
 	next bootstrap.Bootstrapper
 }
@@ -48,7 +50,12 @@ func NewBaseBootstrapper(
 	if next == nil {
 		bs = NewNoOpNoneBootstrapper()
 	}
-	return &baseBootstrapper{opts: opts, src: src, next: bs}
+	return &baseBootstrapper{
+		opts: opts,
+		log:  opts.InstrumentOptions().Logger(),
+		src:  src,
+		next: bs,
+	}
 }
 
 func (b *baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
@@ -72,7 +79,7 @@ func (b *baseBootstrapper) Bootstrap(
 		currResult, nextResult bootstrap.Result
 		currErr, nextErr       error
 	)
-	if len(remaining) > 0 &&
+	if !remaining.IsEmpty() &&
 		b.Can(bootstrap.BootstrapParallel) &&
 		b.next.Can(bootstrap.BootstrapParallel) {
 		// If ranges can be bootstrapped now from the next source then begin attempt now
@@ -111,7 +118,7 @@ func (b *baseBootstrapper) Bootstrap(
 
 	// If there are some time ranges the current bootstrapper could not fulfill,
 	// pass it along to the next bootstrapper
-	if len(currUnfulfilled) > 0 {
+	if !currUnfulfilled.IsEmpty() {
 		nextResult, nextErr = b.next.Bootstrap(namespace, currUnfulfilled)
 		if nextErr != nil {
 			return nil, nextErr
@@ -128,10 +135,12 @@ func (b *baseBootstrapper) Bootstrap(
 		}
 	}
 
-	// Make sure to add any unfulfilled time ranges from the
-	// first time the next bootstrapper was asked to execute if it was
-	// executed in parallel
-	mergedResult.Unfulfilled().AddRanges(firstNextUnfulfilled)
+	if nextResult != nil {
+		// Make sure to add any unfulfilled time ranges from the
+		// first time the next bootstrapper was asked to execute if it was
+		// executed in parallel
+		mergedResult.Unfulfilled().AddRanges(firstNextUnfulfilled)
+	}
 
 	return mergedResult, nil
 }

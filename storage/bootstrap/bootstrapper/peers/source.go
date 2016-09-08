@@ -21,6 +21,7 @@
 package peers
 
 import (
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -81,21 +82,32 @@ func (s *peersSource) Read(
 		bopts   = s.opts.BootstrapOptions()
 		session = s.opts.AdminSession()
 		result  = bootstrap.NewResult()
+		lock    sync.Mutex
+		wg      sync.WaitGroup
 	)
 	for shard, ranges := range shardsTimeRanges {
 		it := ranges.Iter()
 		for it.Next() {
 			currRange := it.Value()
-			start := currRange.Start
-			end := currRange.End
-			shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace, shard, start, end, bopts)
-			if err == nil {
-				result.Add(shard, shardResult, nil)
-			} else {
-				result.Add(shard, nil, xtime.NewRanges().AddRange(currRange))
-			}
+			// We fetch all results in parallel and the underlying session will
+			// rate limit the total throughput with a single worker pool that
+			// is defined by the fetch series blocks batch concurrency option
+			wg.Add(1)
+			go func(shard uint32, start, end time.Time) {
+				shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace, shard, start, end, bopts)
+				lock.Lock()
+				if err == nil {
+					result.Add(shard, shardResult, nil)
+				} else {
+					result.Add(shard, nil, xtime.NewRanges().AddRange(currRange))
+				}
+				lock.Unlock()
+				wg.Done()
+			}(shard, currRange.Start, currRange.End)
 		}
 	}
+
+	wg.Wait()
 
 	return result, nil
 }

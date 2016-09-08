@@ -26,114 +26,57 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
-	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3x/time"
+	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 
 	"github.com/stretchr/testify/require"
 )
 
-func writeToDisk(
-	writer fs.FileSetWriter,
-	shardSet sharding.ShardSet,
-	encoder encoding.Encoder,
-	start time.Time,
-	namespace string,
-	seriesList seriesList,
-) error {
-	seriesPerShard := make(map[uint32][]series)
-	for _, s := range seriesList {
-		shard := shardSet.Shard(s.id)
-		seriesPerShard[shard] = append(seriesPerShard[shard], s)
-	}
-	segmentHolder := make([][]byte, 2)
-	for shard, seriesList := range seriesPerShard {
-		if err := writer.Open(namespace, shard, start); err != nil {
-			return err
-		}
-		for _, series := range seriesList {
-			encoder.Reset(start, 0)
-			for _, dp := range series.data {
-				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
-					return err
-				}
-			}
-			segment := encoder.Stream().Segment()
-			segmentHolder[0] = segment.Head
-			segmentHolder[1] = segment.Tail
-			if err := writer.WriteAll(series.id, segmentHolder); err != nil {
-				return err
-			}
-		}
-		if err := writer.Close(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func TestFilesystemBootstrap(t *testing.T) {
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
-	require.NoError(t, err)
-	defer testSetup.close()
-
-	fsOpts := testSetup.storageOpts.CommitLogOptions().FilesystemOptions()
-	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
-	filePathPrefix := fsOpts.FilePathPrefix()
-	testSetup.storageOpts = testSetup.storageOpts.
-		SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-			SetRetentionPeriod(2 * time.Hour)).
-		SetNewBootstrapFn(func() bootstrap.Bootstrap {
-			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-			bsOpts := bootstrap.NewOptions()
-			bfsOpts := bfs.NewOptions().
-				SetBootstrapOptions(bsOpts).
-				SetFilesystemOptions(fsOpts)
-			bs := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-			return bootstrap.NewBootstrapProcess(bsOpts, bs)
-		})
-
-	writerBufferSize := fsOpts.WriterBufferSize()
-	newFileMode := fsOpts.NewFileMode()
-	newDirectoryMode := fsOpts.NewDirectoryMode()
-	writer := fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-	encoder := testSetup.storageOpts.EncoderPool().Get()
-	seriesMaps := make(map[time.Time]seriesList)
+	var (
+		opts  = newTestOptions()
+		setup *testSetup
+	)
+	retentionOpts := retention.NewOptions().
+		SetRetentionPeriod(2 * time.Hour)
+	setup = newBootstrappableTestSetup(t, opts, retentionOpts, func() bootstrap.Bootstrap {
+		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix := fsOpts.FilePathPrefix()
+		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+		bsOpts := bootstrap.NewOptions().
+			SetRetentionOptions(setup.storageOpts.RetentionOptions())
+		bfsOpts := fs.NewOptions().
+			SetBootstrapOptions(bsOpts).
+			SetFilesystemOptions(fsOpts)
+		bs := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+		return bootstrap.NewBootstrapProcess(bsOpts, bs)
+	})
+	defer setup.close()
 
 	// Write test data
-	now := testSetup.getNowFn()
-	inputData := []struct {
-		metricNames []string
-		numPoints   int
-		start       time.Time
-	}{
-		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
-		{[]string{"foo", "baz"}, 50, now},
-	}
-	for _, input := range inputData {
-		testData := generateTestData(input.metricNames, input.numPoints, input.start)
-		seriesMaps[input.start] = testData
-		require.NoError(t, writeToDisk(writer, testSetup.shardSet, encoder, input.start, testNamespaces[0], testData))
-	}
+	now := setup.getNowFn()
+	blockSize := setup.storageOpts.RetentionOptions().BlockSize()
+	seriesMaps, err := writeTestDataToDisk(testNamespaces[0], setup, []testData{
+		{ids: []string{"foo", "bar"}, numPoints: 100, start: now.Add(-blockSize)},
+		{ids: []string{"foo", "baz"}, numPoints: 50, start: now},
+	})
+	require.NoError(t, err)
 
 	// Start the server with filesystem bootstrapper
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("filesystem bootstrap test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, setup.startServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, setup.stopServer())
 		log.Debug("server is now down")
 	}()
 
 	// Verify in-memory data match what we expect
-	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
+	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
 }
