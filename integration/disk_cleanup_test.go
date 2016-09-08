@@ -81,6 +81,9 @@ func waitUntilDataCleanedUp(filePathPrefix string, namespace string, shard uint3
 }
 
 func TestDiskCleanup(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
 	// Test setup
 	testSetup, err := newTestSetup(newTestOptions())
 	require.NoError(t, err)
@@ -89,8 +92,8 @@ func TestDiskCleanup(t *testing.T) {
 	testSetup.storageOpts =
 		testSetup.storageOpts.
 			SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-				SetBufferDrain(3 * time.Second).
-				SetRetentionPeriod(6 * time.Hour))
+			SetBufferDrain(3 * time.Second).
+			SetRetentionPeriod(6 * time.Hour))
 
 	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()

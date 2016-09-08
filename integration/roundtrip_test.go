@@ -30,6 +30,9 @@ import (
 )
 
 func TestRoundtrip(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
 	// Test setup
 	testSetup, err := newTestSetup(newTestOptions())
 	require.NoError(t, err)

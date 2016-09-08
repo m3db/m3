@@ -23,9 +23,11 @@ package integration
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/client"
@@ -53,6 +55,8 @@ var (
 	errServerStartTimedOut = errors.New("server took too long to start")
 	errServerStopTimedOut  = errors.New("server took too long to stop")
 	testNamespaces         = []string{"testNs1", "testNs2"}
+
+	created = uint64(0)
 )
 
 // nowSetterFn is the function that sets the current time
@@ -97,14 +101,19 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		id = "testhost"
 	}
 
-	clientOpts, err := server.DefaultClientOptions(id, *tchannelNodeAddr, shardSet)
+	tchannelNodeAddr := *tchannelNodeAddr
+	if addr := opts.TChannelNodeAddr(); addr != "" {
+		tchannelNodeAddr = addr
+	}
+
+	clientOpts, err := server.DefaultClientOptions(id, tchannelNodeAddr, shardSet)
 	if err != nil {
 		return nil, err
 	}
 	clientOpts = clientOpts.SetClusterConnectTimeout(opts.ClusterConnectionTimeout())
 
 	// Set up tchannel client
-	channel, tc, err := tchannelClient(*tchannelNodeAddr)
+	channel, tc, err := tchannelClient(tchannelNodeAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -136,14 +145,10 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	storageOpts = storageOpts.SetClockOptions(storageOpts.ClockOptions().SetNowFn(getNowFn))
 
 	// Set up file path prefix
-	filePathPrefix, err := ioutil.TempDir("", "integration-test")
+	idx := atomic.AddUint64(&created, 1) - 1
+	filePathPrefix, err := ioutil.TempDir("", fmt.Sprintf("integration-test-%d", idx))
 	if err != nil {
 		return nil, err
-	}
-
-	var namespaces []namespace.Metadata
-	for _, ns := range testNamespaces {
-		namespaces = append(namespaces, namespace.NewMetadata(ns, namespace.NewOptions()))
 	}
 
 	fsOpts := fs.NewOptions().SetFilePathPrefix(filePathPrefix)
@@ -167,7 +172,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		workerPool:     workerPool,
 		channel:        channel,
 		filePathPrefix: filePathPrefix,
-		namespaces:     namespaces,
+		namespaces:     opts.Namespaces(),
 		doneCh:         make(chan struct{}),
 		closedCh:       make(chan struct{}),
 	}, nil
@@ -200,12 +205,32 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 func (ts *testSetup) startServer() error {
 	resultCh := make(chan error, 1)
 
+	httpClusterAddr := *httpClusterAddr
+	if addr := ts.opts.HTTPClusterAddr(); addr != "" {
+		httpClusterAddr = addr
+	}
+
+	tchannelClusterAddr := *tchannelClusterAddr
+	if addr := ts.opts.TChannelClusterAddr(); addr != "" {
+		tchannelClusterAddr = addr
+	}
+
+	httpNodeAddr := *httpNodeAddr
+	if addr := ts.opts.HTTPNodeAddr(); addr != "" {
+		httpNodeAddr = addr
+	}
+
+	tchannelNodeAddr := *tchannelNodeAddr
+	if addr := ts.opts.TChannelNodeAddr(); addr != "" {
+		tchannelNodeAddr = addr
+	}
+
 	go func() {
 		err := server.Serve(
-			*httpClusterAddr,
-			*tchannelClusterAddr,
-			*httpNodeAddr,
-			*tchannelNodeAddr,
+			httpClusterAddr,
+			tchannelClusterAddr,
+			httpNodeAddr,
+			tchannelNodeAddr,
 			ts.namespaces,
 			ts.clientOpts,
 			ts.storageOpts,
@@ -270,4 +295,19 @@ func (ts *testSetup) close() {
 	if ts.filePathPrefix != "" {
 		os.RemoveAll(ts.filePathPrefix)
 	}
+}
+
+type testSetups []*testSetup
+
+func (ts testSetups) forEachParallel(fn func(s *testSetup)) {
+	var wg sync.WaitGroup
+	for _, setup := range ts {
+		setup := setup
+		wg.Add(1)
+		go func() {
+			fn(setup)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }

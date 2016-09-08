@@ -35,6 +35,27 @@ import (
 	tchannel "github.com/uber/tchannel-go"
 )
 
+// ConnectConsistencyLevel is the consistency level for connecting to a cluster
+type ConnectConsistencyLevel int
+
+const (
+	// ConnectConsistencyLevelAny corresponds to connecting to any number of nodes for a given shard
+	// set, this strategy will attempt to connect to all, then the majority, then one and then none.
+	ConnectConsistencyLevelAny ConnectConsistencyLevel = iota
+
+	// ConnectConsistencyLevelNone corresponds to connecting to no nodes for a given shard set
+	ConnectConsistencyLevelNone
+
+	// ConnectConsistencyLevelOne corresponds to connecting to a single node for a given shard set
+	ConnectConsistencyLevelOne
+
+	// ConnectConsistencyLevelMajority corresponds to connecting to the majority of nodes for a given shard set
+	ConnectConsistencyLevelMajority
+
+	// ConnectConsistencyLevelAll corresponds to connecting to all of the nodes for a given shard set
+	ConnectConsistencyLevelAll
+)
+
 // Client can create sessions to write and read to a cluster
 type Client interface {
 	// NewSession creates a new session
@@ -213,10 +234,10 @@ type Options interface {
 	ClusterConnectTimeout() time.Duration
 
 	// SetClusterConnectConsistencyLevel sets the clusterConnectConsistencyLevel
-	SetClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options
+	SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options
 
 	// ClusterConnectConsistencyLevel returns the clusterConnectConsistencyLevel
-	ClusterConnectConsistencyLevel() topology.ConsistencyLevel
+	ClusterConnectConsistencyLevel() ConnectConsistencyLevel
 
 	// SetWriteRequestTimeout sets the writeRequestTimeout
 	SetWriteRequestTimeout(value time.Duration) Options

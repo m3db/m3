@@ -84,10 +84,10 @@ func applySessionTestOptions(opts Options) Options {
 		SetWriteOpPoolSize(0).
 		SetFetchBatchOpPoolSize(0).
 		SetTopologyInitializer(topology.NewStaticInitializer(
-			topology.NewStaticOptions().
-				SetReplicas(sessionTestReplicas).
-				SetShardSet(shardSet).
-				SetHostShardSets(sessionTestHostAndShards(shardSet))))
+		topology.NewStaticOptions().
+			SetReplicas(sessionTestReplicas).
+			SetShardSet(shardSet).
+			SetHostShardSets(sessionTestHostAndShards(shardSet))))
 }
 
 func TestSessionCreationFailure(t *testing.T) {
@@ -101,7 +101,7 @@ func TestSessionClusterConnectConsistencyLevelAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := topology.ConsistencyLevelAll
+	level := ConnectConsistencyLevelAll
 	testSessionClusterConnectConsistencyLevel(t, ctrl, level, 0, outcomeSuccess)
 	for i := 1; i <= 3; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeFail)
@@ -112,7 +112,7 @@ func TestSessionClusterConnectConsistencyLevelMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := topology.ConsistencyLevelMajority
+	level := ConnectConsistencyLevelMajority
 	for i := 0; i <= 1; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
@@ -125,17 +125,37 @@ func TestSessionClusterConnectConsistencyLevelOne(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := topology.ConsistencyLevelOne
+	level := ConnectConsistencyLevelOne
 	for i := 0; i <= 2; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
 	testSessionClusterConnectConsistencyLevel(t, ctrl, level, 3, outcomeFail)
 }
 
+func TestSessionClusterConnectConsistencyLevelNone(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	level := ConnectConsistencyLevelNone
+	for i := 0; i <= 3; i++ {
+		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
+	}
+}
+
+func TestSessionClusterConnectConsistencyLevelAny(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	level := ConnectConsistencyLevelAny
+	for i := 0; i <= 3; i++ {
+		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
+	}
+}
+
 func testSessionClusterConnectConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
-	level topology.ConsistencyLevel,
+	level ConnectConsistencyLevel,
 	failures int,
 	expected outcome,
 ) {

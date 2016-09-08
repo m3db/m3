@@ -2,6 +2,7 @@ SHELL=/bin/bash -o pipefail
 
 html_report := coverage.html
 test := .ci/test-cover.sh
+test_ci_integration := .ci/test-integration.sh
 convert-test-data := .ci/convert-test-data.sh
 coverfile := cover.out
 coverage_xml := coverage.xml
@@ -142,6 +143,9 @@ install-ci:
 test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
+
+test-ci-integration:
+	@$(VENDOR_ENV) $(test_ci_integration)
 
 clean:
 	@rm -f *.html *.xml *.out *.test

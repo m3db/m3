@@ -22,6 +22,8 @@ package integration
 
 import (
 	"time"
+
+	"github.com/m3db/m3db/storage/namespace"
 )
 
 const (
@@ -54,6 +56,36 @@ const (
 )
 
 type testOptions interface {
+	// SetNamespaces sets the namespaces.
+	SetNamespaces(value []namespace.Metadata) testOptions
+
+	// Namespaces returns the namespaces.
+	Namespaces() []namespace.Metadata
+
+	// SetHTTPClusterAddr sets the http cluster address.
+	SetHTTPClusterAddr(value string) testOptions
+
+	// HTTPClusterAddr returns the http cluster address.
+	HTTPClusterAddr() string
+
+	// SetTChannelClusterAddr sets the tchannel cluster address.
+	SetTChannelClusterAddr(value string) testOptions
+
+	// TChannelClusterAddr returns the tchannel cluster address.
+	TChannelClusterAddr() string
+
+	// SetHTTPNodeAddr sets the http node address.
+	SetHTTPNodeAddr(value string) testOptions
+
+	// HTTPNodeAddr returns the http node address.
+	HTTPNodeAddr() string
+
+	// SetTChannelNodeAddr sets the tchannel node address.
+	SetTChannelNodeAddr(value string) testOptions
+
+	// TChannelNodeAddr returns the tchannel node address.
+	TChannelNodeAddr() string
+
 	// SetServerStateChangeTimeout sets the server state change timeout.
 	SetServerStateChangeTimeout(value time.Duration) testOptions
 
@@ -110,6 +142,11 @@ type testOptions interface {
 }
 
 type options struct {
+	namespaces                     []namespace.Metadata
+	httpClusterAddr                string
+	tchannelClusterAddr            string
+	httpNodeAddr                   string
+	tchannelNodeAddr               string
 	serverStateChangeTimeout       time.Duration
 	clusterConnectionTimeout       time.Duration
 	readRequestTimeout             time.Duration
@@ -122,7 +159,12 @@ type options struct {
 }
 
 func newTestOptions() testOptions {
+	var namespaces []namespace.Metadata
+	for _, ns := range testNamespaces {
+		namespaces = append(namespaces, namespace.NewMetadata(ns, namespace.NewOptions()))
+	}
 	return &options{
+		namespaces:                     namespaces,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
 		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
 		readRequestTimeout:             defaultReadRequestTimeout,
@@ -133,6 +175,56 @@ func newTestOptions() testOptions {
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 	}
+}
+
+func (o *options) SetNamespaces(value []namespace.Metadata) testOptions {
+	opts := *o
+	opts.namespaces = value
+	return &opts
+}
+
+func (o *options) Namespaces() []namespace.Metadata {
+	return o.namespaces
+}
+
+func (o *options) SetHTTPClusterAddr(value string) testOptions {
+	opts := *o
+	opts.httpClusterAddr = value
+	return &opts
+}
+
+func (o *options) HTTPClusterAddr() string {
+	return o.httpClusterAddr
+}
+
+func (o *options) SetTChannelClusterAddr(value string) testOptions {
+	opts := *o
+	opts.tchannelClusterAddr = value
+	return &opts
+}
+
+func (o *options) TChannelClusterAddr() string {
+	return o.tchannelClusterAddr
+}
+
+func (o *options) SetHTTPNodeAddr(value string) testOptions {
+	opts := *o
+	opts.httpNodeAddr = value
+	return &opts
+}
+
+func (o *options) HTTPNodeAddr() string {
+	return o.httpNodeAddr
+}
+
+func (o *options) SetTChannelNodeAddr(value string) testOptions {
+	opts := *o
+	opts.tchannelNodeAddr = value
+	return &opts
+}
+
+func (o *options) TChannelNodeAddr() string {
+	return o.tchannelNodeAddr
 }
 
 func (o *options) SetServerStateChangeTimeout(value time.Duration) testOptions {

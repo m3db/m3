@@ -57,8 +57,8 @@ func generateTestData(names []string, numPoints int, start time.Time) seriesList
 	testData := make(seriesList, len(names))
 	for i, name := range names {
 		datapoints := make([]ts.Datapoint, 0, numPoints)
-		for i := 0; i < numPoints; i++ {
-			timestamp := start.Add(time.Duration(i) * time.Second)
+		for j := 0; j < numPoints; j++ {
+			timestamp := start.Add(time.Duration(j) * time.Second)
 			datapoints = append(datapoints, ts.Datapoint{
 				Timestamp: timestamp,
 				Value:     testgen.GenerateFloatVal(r, 3, 1),

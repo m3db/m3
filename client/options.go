@@ -52,7 +52,7 @@ const (
 	defaultClusterConnectTimeout = 30 * time.Second
 
 	// defaultClusterConnectConsistencyLevel is the default cluster connect consistency level
-	defaultClusterConnectConsistencyLevel = topology.ConsistencyLevelMajority
+	defaultClusterConnectConsistencyLevel = ConnectConsistencyLevelMajority
 
 	// defaultWriteRequestTimeout is the default write request timeout
 	defaultWriteRequestTimeout = 5 * time.Second
@@ -109,7 +109,7 @@ const (
 	defaultFetchSeriesBlocksBatchTimeout = 30 * time.Second
 
 	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
-	defaultFetchSeriesBlocksBatchConcurrency = 64
+	defaultFetchSeriesBlocksBatchConcurrency = 1024
 )
 
 var (
@@ -130,7 +130,7 @@ type options struct {
 	minConnectionCount                    int
 	hostConnectTimeout                    time.Duration
 	clusterConnectTimeout                 time.Duration
-	clusterConnectConsistencyLevel        topology.ConsistencyLevel
+	clusterConnectConsistencyLevel        ConnectConsistencyLevel
 	writeRequestTimeout                   time.Duration
 	fetchRequestTimeout                   time.Duration
 	truncateRequestTimeout                time.Duration
@@ -307,13 +307,13 @@ func (o *options) ClusterConnectTimeout() time.Duration {
 	return o.clusterConnectTimeout
 }
 
-func (o *options) SetClusterConnectConsistencyLevel(value topology.ConsistencyLevel) Options {
+func (o *options) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
 	opts := *o
 	opts.clusterConnectConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) ClusterConnectConsistencyLevel() topology.ConsistencyLevel {
+func (o *options) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
 	return o.clusterConnectConsistencyLevel
 }
 
