@@ -772,10 +772,10 @@ func (s *session) streamBlocksMetadataFromPeer(
 	var (
 		pageToken *int64
 		retrier   = xretry.NewRetrier(xretry.NewOptions().
-				BackoffFactor(2).
-				Max(3).
-				InitialBackoff(time.Second).
-				Jitter(true))
+				SetBackoffFactor(2).
+				SetMax(3).
+				SetInitialBackoff(time.Second).
+				SetJitter(true))
 		optionIncludeSizes = true
 		moreResults        = true
 	)
@@ -868,10 +868,10 @@ func (s *session) streamBlocksFromPeers(
 ) error {
 	var (
 		retrier = xretry.NewRetrier(xretry.NewOptions().
-			BackoffFactor(2).
-			Max(3).
-			InitialBackoff(time.Second).
-			Jitter(true))
+			SetBackoffFactor(2).
+			SetMax(3).
+			SetInitialBackoff(time.Second).
+			SetJitter(true))
 		enqueueCh           = newEnqueueChannel()
 		peerBlocksBatchSize = s.streamBlocksBatchSize
 	)
