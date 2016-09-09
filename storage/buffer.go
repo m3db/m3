@@ -108,7 +108,7 @@ func (b *dbBuffer) Write(
 	return bucket.write(timestamp, value, unit, annotation)
 }
 
-func (b *dbBuffer) Empty() bool {
+func (b *dbBuffer) IsEmpty() bool {
 	now := b.nowFn()
 	canReadAny := false
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {

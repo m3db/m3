@@ -71,7 +71,7 @@ func (s *dbSeries) ID() string {
 }
 
 func (s *dbSeries) Tick() error {
-	if s.Empty() {
+	if s.IsEmpty() {
 		return errSeriesAllDatapointsExpired
 	}
 
@@ -153,15 +153,22 @@ func (s *dbSeries) shouldSeal(now, blockStart time.Time, block block.DatabaseBlo
 	return blockStart.Before(cutoff)
 }
 
-func (s *dbSeries) Empty() bool {
+func (s *dbSeries) IsEmpty() bool {
 	s.RLock()
 	blocksLen := s.blocks.Len()
-	bufferEmpty := s.buffer.Empty()
+	bufferEmpty := s.buffer.IsEmpty()
 	s.RUnlock()
 	if blocksLen == 0 && bufferEmpty {
 		return true
 	}
 	return false
+}
+
+func (s *dbSeries) IsBootstrapped() bool {
+	s.RLock()
+	state := s.bs
+	s.RUnlock()
+	return state == bootstrapped
 }
 
 func (s *dbSeries) Write(
@@ -250,7 +257,7 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []FetchB
 		}
 	}
 
-	if !s.buffer.Empty() {
+	if !s.buffer.IsEmpty() {
 		bufferResults := s.buffer.FetchBlocks(ctx, starts)
 		res = append(res, bufferResults...)
 	}
@@ -293,7 +300,7 @@ func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) F
 	}
 
 	// Iterate over the encoders in the database buffer
-	if !s.buffer.Empty() {
+	if !s.buffer.IsEmpty() {
 		bufferResult := s.buffer.FetchBlocksMetadata(ctx, includeSizes)
 		res = append(res, bufferResult...)
 	}

@@ -62,10 +62,11 @@ func TestFilesystemBootstrap(t *testing.T) {
 	// Write test data
 	now := setup.getNowFn()
 	blockSize := setup.storageOpts.RetentionOptions().BlockSize()
-	seriesMaps, err := writeTestDataToDisk(testNamespaces[0], setup, []testData{
+	seriesMaps := generateTestDataByStart([]testData{
 		{ids: []string{"foo", "bar"}, numPoints: 100, start: now.Add(-blockSize)},
 		{ids: []string{"foo", "baz"}, numPoints: 50, start: now},
 	})
+	err := writeTestDataToDisk(testNamespaces[0], setup, seriesMaps)
 	require.NoError(t, err)
 
 	// Start the server with filesystem bootstrapper

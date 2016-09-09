@@ -266,7 +266,11 @@ type databaseSeries interface {
 	// FetchBlocksMetadata retrieves the blocks metadata.
 	FetchBlocksMetadata(ctx context.Context, includeSizes bool) FetchBlocksMetadataResult
 
-	Empty() bool
+	// IsEmpty returns whether series is empty
+	IsEmpty() bool
+
+	// IsBootstrapped returns whether the series is bootstrapped or not
+	IsBootstrapped() bool
 
 	// Bootstrap merges the raw series bootstrapped along with the buffered data.
 	Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) error
@@ -297,7 +301,7 @@ type databaseBuffer interface {
 	// FetchBlocksMetadata retrieves the blocks metadata.
 	FetchBlocksMetadata(ctx context.Context, includeSizes bool) []FetchBlockMetadataResult
 
-	Empty() bool
+	IsEmpty() bool
 
 	NeedsDrain() bool
 

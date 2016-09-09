@@ -195,7 +195,7 @@ func (s *dbShard) purgeExpiredSeries(expired []databaseSeries) {
 		}
 		// If there have been datapoints written to the series since its
 		// last empty check, we don't remove it.
-		if !series.Empty() {
+		if !series.IsEmpty() {
 			continue
 		}
 		// NB(xichen): if we get here, we are guaranteed that there can be
@@ -385,10 +385,8 @@ func (s *dbShard) Bootstrap(
 	// after this will be marked as bootstrapped.
 	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
 		series := entry.series
-		if bootstrappedSeries != nil {
-			if _, exists := bootstrappedSeries[series.ID()]; exists {
-				return nil
-			}
+		if series.IsBootstrapped() {
+			return nil
 		}
 		err := series.Bootstrap(nil, cutover)
 		multiErr = multiErr.Add(err)

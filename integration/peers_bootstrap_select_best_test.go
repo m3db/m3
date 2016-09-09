@@ -29,12 +29,12 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
-
 	"github.com/stretchr/testify/require"
 )
 
-func TestPeersBootstrapSimple(t *testing.T) {
+func TestPeersBootstrapSelectBest(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -52,23 +52,50 @@ func TestPeersBootstrapSimple(t *testing.T) {
 		SetBufferFuture(2 * time.Minute)
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
+		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false, sleepFn: testSleepFn},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
 
-	// Write test data for first node
+	// Write test data alternating missing data for left/right nodes
 	now := setups[0].getNowFn()
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
 	seriesMaps := generateTestDataByStart([]testData{
 		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-blockSize)},
 		{ids: []string{"foo", "baz"}, numPoints: 90, start: now},
 	})
-	err := writeTestDataToDisk(namesp.Name(), setups[0], seriesMaps)
-	require.NoError(t, err)
+	left := make(map[time.Time]seriesList)
+	right := make(map[time.Time]seriesList)
+	shouldMissData := false
+	appendSeries := func(target map[time.Time]seriesList, start time.Time, s series) {
+		if shouldMissData {
+			var dataWithMissing []ts.Datapoint
+			for i := range s.data {
+				if i%2 != 0 {
+					continue
+				}
+				dataWithMissing = append(dataWithMissing, s.data[i])
+			}
+			target[start] = append(target[start], series{id: s.id, data: dataWithMissing})
+		} else {
+			target[start] = append(target[start], s)
+		}
+		shouldMissData = !shouldMissData
+	}
+	for start, data := range seriesMaps {
+		for _, series := range data {
+			appendSeries(left, start, series)
+			appendSeries(right, start, series)
+		}
+	}
+	require.NoError(t, writeTestDataToDisk(namesp.Name(), setups[0], left))
+	require.NoError(t, writeTestDataToDisk(namesp.Name(), setups[1], right))
 
-	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	// Start the first two servers with filesystem bootstrappers
+	setups[:2].parallel(func(s *testSetup) {
+		require.NoError(t, s.startServer())
+	})
 
 	// Start the last server with peers and filesystem bootstrappers
 	setSleepFn(func(d time.Duration) {
@@ -76,9 +103,9 @@ func TestPeersBootstrapSimple(t *testing.T) {
 		newNow := now.
 			Add(retentionOpts.BufferFuture()).
 			Add(retentionOpts.BufferPast())
-		setups[1].setNowFn(newNow)
+		setups[2].setNowFn(newNow)
 	})
-	require.NoError(t, setups[1].startServer())
+	require.NoError(t, setups[2].startServer())
 	log.Debug("servers are now up")
 
 	// Stop the server
@@ -90,7 +117,7 @@ func TestPeersBootstrapSimple(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect
-	for _, setup := range setups {
-		verifySeriesMaps(t, setup, namesp.Name(), seriesMaps)
-	}
+	verifySeriesMaps(t, setups[0], namesp.Name(), left)
+	verifySeriesMaps(t, setups[1], namesp.Name(), right)
+	verifySeriesMaps(t, setups[2], namesp.Name(), seriesMaps)
 }

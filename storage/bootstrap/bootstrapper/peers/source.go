@@ -42,7 +42,7 @@ func newPeersSource(opts Options) bootstrap.Source {
 		opts:    opts,
 		log:     opts.BootstrapOptions().InstrumentOptions().Logger(),
 		nowFn:   opts.BootstrapOptions().ClockOptions().NowFn(),
-		sleepFn: time.Sleep,
+		sleepFn: opts.SleepFn(),
 	}
 }
 
