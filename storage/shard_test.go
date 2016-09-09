@@ -66,16 +66,16 @@ func TestShardBootstrapWithError(t *testing.T) {
 	opts := testDatabaseOptions()
 	s := testDatabaseShard(opts)
 	fooSeries := NewMockdatabaseSeries(ctrl)
-	fooSeries.EXPECT().ID().Return("foo")
 	barSeries := NewMockdatabaseSeries(ctrl)
-	barSeries.EXPECT().ID().Return("bar")
 	s.lookup["foo"] = s.list.PushBack(&dbShardEntry{series: fooSeries})
 	s.lookup["bar"] = s.list.PushBack(&dbShardEntry{series: barSeries})
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	fooSeries.EXPECT().Bootstrap(fooBlocks, cutover).Return(nil)
+	fooSeries.EXPECT().IsBootstrapped().Return(true)
 	barSeries.EXPECT().Bootstrap(barBlocks, cutover).Return(errors.New("series error"))
+	barSeries.EXPECT().IsBootstrapped().Return(true)
 	bootstrappedSeries := map[string]block.DatabaseSeriesBlocks{
 		"foo": fooBlocks,
 		"bar": barBlocks,
@@ -215,7 +215,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
-	require.False(t, series.Empty())
+	require.False(t, series.IsEmpty())
 
 	shard.purgeExpiredSeries(expired)
 	require.Equal(t, 1, len(shard.lookup))
@@ -241,7 +241,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	series.Write(ctx, nowFn(), 1.0, xtime.Second, nil)
 	completionFn()
 
-	require.False(t, series.Empty())
+	require.False(t, series.IsEmpty())
 	require.Equal(t, 1, len(shard.lookup))
 }
 

@@ -21,9 +21,14 @@
 package peers
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/bootstrap"
 )
+
+// SleepFn is a fn that will sleep the current goroutine
+type SleepFn func(d time.Duration)
 
 // Options represents the options for bootstrapping from peers
 type Options interface {
@@ -38,4 +43,10 @@ type Options interface {
 
 	// AdminSession returns the admin session
 	AdminSession() client.AdminSession
+
+	// SetSleepFn sets the sleep fn
+	SetSleepFn(value SleepFn) Options
+
+	// SleepFn returns the sleep fn
+	SleepFn() SleepFn
 }

@@ -299,7 +299,7 @@ func (ts *testSetup) close() {
 
 type testSetups []*testSetup
 
-func (ts testSetups) forEachParallel(fn func(s *testSetup)) {
+func (ts testSetups) parallel(fn func(s *testSetup)) {
 	var wg sync.WaitGroup
 	for _, setup := range ts {
 		setup := setup

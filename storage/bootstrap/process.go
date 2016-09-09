@@ -22,7 +22,6 @@ package bootstrap
 
 import (
 	"errors"
-	"time"
 
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -51,30 +50,11 @@ func NewBootstrapProcess(
 	}
 }
 
-// targetRanges calculates the the target time ranges.
-// NB(xichen): bootstrapping is now a two-step process: we bootstrap the data between
-// [writeStart - retentionPeriod, writeStart - bufferPast) in the first step, and the
-// data between [writeStart - bufferPast, writeStart + bufferFuture) in the second step.
-func (b *bootstrapProcess) targetRanges(writeStart time.Time) xtime.Ranges {
-	start := writeStart.Add(-b.opts.RetentionOptions().RetentionPeriod())
-	midPoint := writeStart.Add(-b.opts.RetentionOptions().BufferPast())
-	end := writeStart.Add(b.opts.RetentionOptions().BufferFuture())
-
-	return xtime.NewRanges().
-		AddRange(xtime.Range{Start: start, End: midPoint}).
-		AddRange(xtime.Range{Start: midPoint, End: end})
-}
-
-// Run initiates the bootstrap process, where writeStart is when we start
-// accepting incoming writes.
 func (b *bootstrapProcess) Run(
-	writeStart time.Time,
+	targetRanges xtime.Ranges,
 	namespace string,
 	shards []uint32,
 ) (Result, error) {
-	// Initialize the target ranges we'd like to bootstrap
-	targetRanges := b.targetRanges(writeStart)
-
 	result := NewResult()
 	it := targetRanges.Iter()
 	for it.Next() {
@@ -89,7 +69,7 @@ func (b *bootstrapProcess) Run(
 
 		b.log.WithFields(
 			xlog.NewLogField("namespace", namespace),
-			xlog.NewLogField("shardsLen", len(shards)),
+			xlog.NewLogField("numShards", len(shards)),
 			xlog.NewLogField("from", window.Start.String()),
 			xlog.NewLogField("to", window.End.String()),
 			xlog.NewLogField("length", window.End.Sub(window.Start).String()),

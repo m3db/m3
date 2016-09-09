@@ -52,7 +52,6 @@ func generateTestData(names []string, numPoints int, start time.Time) seriesList
 	if numPoints <= 0 {
 		return nil
 	}
-
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	testData := make(seriesList, len(names))
 	for i, name := range names {
@@ -69,8 +68,16 @@ func generateTestData(names []string, numPoints int, start time.Time) seriesList
 			data: datapoints,
 		}
 	}
-
 	return testData
+}
+
+func generateTestDataByStart(input []testData) map[time.Time]seriesList {
+	seriesMaps := make(map[time.Time]seriesList)
+	for _, data := range input {
+		generated := generateTestData(data.ids, data.numPoints, data.start)
+		seriesMaps[data.start] = generated
+	}
+	return seriesMaps
 }
 
 func toDatapoints(fetched *rpc.FetchResult_) []ts.Datapoint {

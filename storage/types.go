@@ -173,7 +173,11 @@ type databaseNamespace interface {
 	) ([]FetchBlocksMetadataResult, *int64, error)
 
 	// Bootstrap performs bootstrapping
-	Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error
+	Bootstrap(
+		bs bootstrap.Bootstrap,
+		targetRanges xtime.Ranges,
+		writeStart, cutover time.Time,
+	) error
 
 	// Flush flushes in-memory data
 	Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error
@@ -266,7 +270,11 @@ type databaseSeries interface {
 	// FetchBlocksMetadata retrieves the blocks metadata.
 	FetchBlocksMetadata(ctx context.Context, includeSizes bool) FetchBlocksMetadataResult
 
-	Empty() bool
+	// IsEmpty returns whether series is empty
+	IsEmpty() bool
+
+	// IsBootstrapped returns whether the series is bootstrapped or not
+	IsBootstrapped() bool
 
 	// Bootstrap merges the raw series bootstrapped along with the buffered data.
 	Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) error
@@ -297,7 +305,7 @@ type databaseBuffer interface {
 	// FetchBlocksMetadata retrieves the blocks metadata.
 	FetchBlocksMetadata(ctx context.Context, includeSizes bool) []FetchBlockMetadataResult
 
-	Empty() bool
+	IsEmpty() bool
 
 	NeedsDrain() bool
 

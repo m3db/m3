@@ -176,6 +176,7 @@ func (n *dbNamespace) FetchBlocksMetadata(
 
 func (n *dbNamespace) Bootstrap(
 	bs bootstrap.Bootstrap,
+	targetRanges xtime.Ranges,
 	writeStart time.Time,
 	cutover time.Time,
 ) error {
@@ -207,7 +208,7 @@ func (n *dbNamespace) Bootstrap(
 		shardIDs[i] = shard.ID()
 	}
 
-	result, err := bs.Run(writeStart, n.name, shardIDs)
+	result, err := bs.Run(targetRanges, n.name, shardIDs)
 	if err != nil {
 		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v", n.name, err)
 		n.metrics.bootstrap.Error.Inc(1)

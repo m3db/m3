@@ -392,14 +392,14 @@ func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocksMetadata(arg0, arg1, arg2,
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockdatabaseNamespace) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error {
-	ret := _m.ctrl.Call(_m, "Bootstrap", bs, writeStart, cutover)
+func (_m *MockdatabaseNamespace) Bootstrap(bs bootstrap.Bootstrap, targetRanges time0.Ranges, writeStart time.Time, cutover time.Time) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", bs, targetRanges, writeStart, cutover)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseNamespaceRecorder) Bootstrap(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2)
+func (_mr *_MockdatabaseNamespaceRecorder) Bootstrap(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockdatabaseNamespace) Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error {
@@ -636,14 +636,24 @@ func (_mr *_MockdatabaseSeriesRecorder) FetchBlocksMetadata(arg0, arg1 interface
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1)
 }
 
-func (_m *MockdatabaseSeries) Empty() bool {
-	ret := _m.ctrl.Call(_m, "Empty")
+func (_m *MockdatabaseSeries) IsEmpty() bool {
+	ret := _m.ctrl.Call(_m, "IsEmpty")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockdatabaseSeriesRecorder) Empty() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Empty")
+func (_mr *_MockdatabaseSeriesRecorder) IsEmpty() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
+}
+
+func (_m *MockdatabaseSeries) IsBootstrapped() bool {
+	ret := _m.ctrl.Call(_m, "IsBootstrapped")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockdatabaseSeriesRecorder) IsBootstrapped() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBootstrapped")
 }
 
 func (_m *MockdatabaseSeries) Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) error {
@@ -727,14 +737,14 @@ func (_mr *_MockdatabaseBufferRecorder) FetchBlocksMetadata(arg0, arg1 interface
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1)
 }
 
-func (_m *MockdatabaseBuffer) Empty() bool {
-	ret := _m.ctrl.Call(_m, "Empty")
+func (_m *MockdatabaseBuffer) IsEmpty() bool {
+	ret := _m.ctrl.Call(_m, "IsEmpty")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockdatabaseBufferRecorder) Empty() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Empty")
+func (_mr *_MockdatabaseBufferRecorder) IsEmpty() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
 }
 
 func (_m *MockdatabaseBuffer) NeedsDrain() bool {

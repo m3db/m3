@@ -22,6 +22,7 @@ package integration
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,7 +33,12 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
+	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -56,7 +62,21 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 	return false
 }
 
-func multiAddrTestOptions(opts testOptions, instance int) testOptions {
+func newTestSleepFn() (func(d time.Duration), func(overrideFn func(d time.Duration))) {
+	var mutex sync.RWMutex
+	sleepFn := time.Sleep
+	return func(d time.Duration) {
+			mutex.RLock()
+			defer mutex.RUnlock()
+			sleepFn(d)
+		}, func(fn func(d time.Duration)) {
+			mutex.Lock()
+			defer mutex.Unlock()
+			sleepFn = fn
+		}
+}
+
+func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 	bind := "0.0.0.0"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
 	return opts.
@@ -125,6 +145,100 @@ func newBootstrappableTestSetup(
 	return setup
 }
 
+type bootstrappableTestSetupOptions struct {
+	disablePeersBootstrapper bool
+	sleepFn                  peers.SleepFn
+}
+
+type closeFn func()
+
+func newDefaultBootstrappableTestSetups(
+	t *testing.T,
+	opts testOptions,
+	retentionOpts retention.Options,
+	setupOpts []bootstrappableTestSetupOptions,
+) (testSetups, closeFn) {
+	var (
+		replicas        = len(setupOpts)
+		setups          []*testSetup
+		cleanupFns      []func()
+		cleanupFnsMutex sync.RWMutex
+	)
+	appendCleanupFn := func(fn func()) {
+		cleanupFnsMutex.Lock()
+		defer cleanupFnsMutex.Unlock()
+		cleanupFns = append(cleanupFns, fn)
+	}
+	for i := 0; i < replicas; i++ {
+		var (
+			instance              = i
+			usingPeersBoostrapper = !setupOpts[i].disablePeersBootstrapper
+			sleepFn               = setupOpts[i].sleepFn
+			instanceOpts          = newMultiAddrTestOptions(opts, instance)
+			setup                 *testSetup
+		)
+		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
+			instrumentOpts := setup.storageOpts.InstrumentOptions()
+
+			bsOpts := bootstrap.NewOptions().
+				SetClockOptions(setup.storageOpts.ClockOptions()).
+				SetRetentionOptions(setup.storageOpts.RetentionOptions()).
+				SetInstrumentOptions(instrumentOpts)
+
+			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+
+			var session client.AdminSession
+			if usingPeersBoostrapper {
+				session = newMultiAddrAdminSession(t, instrumentOpts, setup.shardSet, replicas, instance)
+				appendCleanupFn(func() {
+					session.Close()
+				})
+			}
+
+			peersOpts := peers.NewOptions().
+				SetBootstrapOptions(bsOpts).
+				SetAdminSession(session)
+			if sleepFn != nil {
+				peersOpts = peersOpts.SetSleepFn(sleepFn)
+			}
+			peersBootstrapper := peers.NewPeersBootstrapper(peersOpts, noOpAll)
+
+			fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+			filePathPrefix := fsOpts.FilePathPrefix()
+
+			bfsOpts := bfs.NewOptions().
+				SetBootstrapOptions(bsOpts).
+				SetFilesystemOptions(fsOpts)
+
+			var fsBootstrapper bootstrap.Bootstrapper
+			if usingPeersBoostrapper {
+				fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
+			} else {
+				fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+			}
+
+			return bootstrap.NewBootstrapProcess(bsOpts, fsBootstrapper)
+		})
+		logger := setup.storageOpts.InstrumentOptions().Logger()
+		logger = logger.WithFields(xlog.NewLogField("instance", instance))
+		iopts := setup.storageOpts.InstrumentOptions().SetLogger(logger)
+		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(iopts)
+
+		setups = append(setups, setup)
+		appendCleanupFn(func() {
+			setup.close()
+		})
+	}
+
+	return setups, func() {
+		cleanupFnsMutex.RLock()
+		defer cleanupFnsMutex.RUnlock()
+		for _, fn := range cleanupFns {
+			fn()
+		}
+	}
+}
+
 type testData struct {
 	ids       []string
 	numPoints int
@@ -133,31 +247,48 @@ type testData struct {
 
 func writeTestDataToDisk(
 	namespace string,
-	testSetup *testSetup,
-	input []testData,
-) (map[time.Time]seriesList, error) {
-	storageOpts := testSetup.storageOpts
+	setup *testSetup,
+	seriesMaps map[time.Time]seriesList,
+) error {
+	storageOpts := setup.storageOpts
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	writerBufferSize := fsOpts.WriterBufferSize()
 	blockSize := storageOpts.RetentionOptions().BlockSize()
+	retentionPeriod := storageOpts.RetentionOptions().RetentionPeriod()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	newFileMode := fsOpts.NewFileMode()
 	newDirectoryMode := fsOpts.NewDirectoryMode()
 	writer := fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 	encoder := storageOpts.EncoderPool().Get()
 
-	seriesMaps := make(map[time.Time]seriesList)
-	for _, data := range input {
-		generated := generateTestData(data.ids, data.numPoints, data.start)
-		seriesMaps[data.start] = generated
+	currStart := setup.getNowFn().Truncate(blockSize)
+	retentionStart := currStart.Add(-retentionPeriod)
+	isValidStart := func(start time.Time) bool {
+		return start.Equal(retentionStart) || start.After(retentionStart)
+	}
 
-		err := writeToDisk(writer, testSetup.shardSet, encoder, data.start, namespace, generated)
+	starts := make(map[time.Time]struct{})
+	for start := currStart; isValidStart(start); start = start.Add(-blockSize) {
+		starts[start] = struct{}{}
+	}
+
+	for start, data := range seriesMaps {
+		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, data)
 		if err != nil {
-			return nil, err
+			return err
+		}
+		delete(starts, start)
+	}
+
+	// Write remaining files even for empty start periods to avoid unfulfilled ranges
+	for start := range starts {
+		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, nil)
+		if err != nil {
+			return err
 		}
 	}
 
-	return seriesMaps, nil
+	return nil
 }
 
 func writeToDisk(
@@ -169,6 +300,10 @@ func writeToDisk(
 	seriesList seriesList,
 ) error {
 	seriesPerShard := make(map[uint32][]series)
+	for _, shard := range shardSet.Shards() {
+		// Ensure we write out block files for each shard even if there's no data
+		seriesPerShard[shard] = make([]series, 0)
+	}
 	for _, s := range seriesList {
 		shard := shardSet.Shard(s.id)
 		seriesPerShard[shard] = append(seriesPerShard[shard], s)

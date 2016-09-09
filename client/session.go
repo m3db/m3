@@ -947,17 +947,22 @@ func (s *session) streamBlocksFromPeers(
 			currStart, currEligible, blocksMetadataQueues)
 
 		// Insert work into peer queues
-		var (
-			completed = uint32(0)
-			queues    = uint32(blocksMetadatas(perPeerBlocksMetadata).hasBlocksLen())
-			onDone    = func() {
-				// Mark completion of work from the enqueue channel when all queues drained
-				if atomic.AddUint32(&completed, 1) != queues {
-					return
-				}
-				enqueueCh.trackProcessed(1)
+		queues := uint32(blocksMetadatas(perPeerBlocksMetadata).hasBlocksLen())
+		if queues == 0 {
+			// No blocks at all available from any peers, series may have just expired
+			enqueueCh.trackProcessed(1)
+			continue
+		}
+
+		completed := uint32(0)
+		onDone := func() {
+			// Mark completion of work from the enqueue channel when all queues drained
+			if atomic.AddUint32(&completed, 1) != queues {
+				return
 			}
-		)
+			enqueueCh.trackProcessed(1)
+		}
+
 		for _, peerBlocksMetadata := range perPeerBlocksMetadata {
 			if len(peerBlocksMetadata.blocks) == 0 {
 				continue // No blocks to enqueue

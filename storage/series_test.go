@@ -42,23 +42,23 @@ func newSeriesTestOptions() Options {
 	opts := NewOptions()
 	opts = opts.
 		SetRetentionOptions(opts.RetentionOptions().
-			SetBlockSize(2 * time.Minute).
-			SetBufferFuture(10 * time.Second).
-			SetBufferPast(10 * time.Second).
-			SetBufferDrain(30 * time.Second).
-			SetRetentionPeriod(time.Hour)).
+		SetBlockSize(2 * time.Minute).
+		SetBufferFuture(10 * time.Second).
+		SetBufferPast(10 * time.Second).
+		SetBufferDrain(30 * time.Second).
+		SetRetentionPeriod(time.Hour)).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
-			SetContextPool(opts.ContextPool()).
-			SetEncoderPool(opts.EncoderPool()).
-			SetSegmentReaderPool(opts.SegmentReaderPool()).
-			SetBytesPool(opts.BytesPool()))
+		SetContextPool(opts.ContextPool()).
+		SetEncoderPool(opts.EncoderPool()).
+		SetSegmentReaderPool(opts.SegmentReaderPool()).
+		SetBytesPool(opts.BytesPool()))
 	return opts
 }
 
 func TestSeriesEmpty(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
-	assert.True(t, series.Empty())
+	assert.True(t, series.IsEmpty())
 }
 
 func TestSeriesWriteFlush(t *testing.T) {
@@ -207,7 +207,7 @@ func TestSeriesTickNeedsDrain(t *testing.T) {
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Empty().Return(false)
+	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().NeedsDrain().Return(true)
 	buffer.EXPECT().DrainAndReset(false)
 	err := series.Tick()
@@ -238,7 +238,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.Equal(t, 2, series.blocks.Len())
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Empty().Return(true)
+	buffer.EXPECT().IsEmpty().Return(true)
 	buffer.EXPECT().NeedsDrain().Return(false)
 	err := series.Tick()
 	require.NoError(t, err)
@@ -271,7 +271,7 @@ func TestSeriesTickNeedsBlockSeal(t *testing.T) {
 	series.blocks.AddBlock(b)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().Empty().Return(true)
+	buffer.EXPECT().IsEmpty().Return(true)
 	buffer.EXPECT().NeedsDrain().Return(false)
 	err := series.Tick()
 	require.NoError(t, err)
@@ -356,7 +356,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
-	buffer.EXPECT().Empty().Return(false)
+	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().FetchBlocks(ctx, starts).Return([]FetchBlockResult{newFetchBlockResult(starts[2], nil, nil)})
 
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
@@ -404,7 +404,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
-	buffer.EXPECT().Empty().Return(false)
+	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().FetchBlocksMetadata(ctx, true).Return([]FetchBlockMetadataResult{newFetchBlockMetadataResult(starts[2], new(int64), nil)})
 
 	series := newDatabaseSeries("bar", bootstrapped, opts).(*dbSeries)

@@ -21,6 +21,8 @@
 package peers
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/bootstrap"
 )
@@ -28,12 +30,14 @@ import (
 type options struct {
 	bootstrapOpts bootstrap.Options
 	session       client.AdminSession
+	sleepFn       SleepFn
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
 		bootstrapOpts: bootstrap.NewOptions(),
+		sleepFn:       time.Sleep,
 	}
 }
 
@@ -55,4 +59,14 @@ func (o *options) SetAdminSession(value client.AdminSession) Options {
 
 func (o *options) AdminSession() client.AdminSession {
 	return o.session
+}
+
+func (o *options) SetSleepFn(value SleepFn) Options {
+	opts := *o
+	opts.sleepFn = value
+	return &opts
+}
+
+func (o *options) SleepFn() SleepFn {
+	return o.sleepFn
 }
