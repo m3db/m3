@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,7 +109,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	require.NoError(t, setups[2].startServer())
 	log.Debug("servers are now up")
 
-	// Stop the server
+	// Stop the servers
 	defer func() {
 		setups.parallel(func(s *testSetup) {
 			require.NoError(t, s.stopServer())

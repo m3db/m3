@@ -34,7 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPeersBootstrapSimple(t *testing.T) {
+func TestPeersBootstrapNodeDown(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -51,6 +51,7 @@ func TestPeersBootstrapSimple(t *testing.T) {
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
 	setupOpts := []bootstrappableTestSetupOptions{
+		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false, sleepFn: testSleepFn},
 	}
@@ -70,27 +71,28 @@ func TestPeersBootstrapSimple(t *testing.T) {
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
 
-	// Start the last server with peers and filesystem bootstrappers
+	// Leave second node down, start the last server with peers and filesystem bootstrappers
 	setSleepFn(func(d time.Duration) {
 		// When the peer bootstrapper sleeps we want to progress time
 		newNow := now.
 			Add(retentionOpts.BufferFuture()).
 			Add(retentionOpts.BufferPast())
-		setups[1].setNowFn(newNow)
+		setups[2].setNowFn(newNow)
 	})
-	require.NoError(t, setups[1].startServer())
-	log.Debug("servers are now up")
+	require.NoError(t, setups[2].startServer())
+	log.Debug("first and third servers are now up")
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
+		testSetups{setups[0], setups[2]}.parallel(func(s *testSetup) {
 			require.NoError(t, s.stopServer())
 		})
 		log.Debug("servers are now down")
 	}()
 
 	// Verify in-memory data match what we expect
-	for _, setup := range setups {
+	expect := testSetups{setups[0], setups[2]}
+	for _, setup := range expect {
 		verifySeriesMaps(t, setup, namesp.Name(), seriesMaps)
 	}
 }

@@ -247,21 +247,42 @@ type testData struct {
 
 func writeTestDataToDisk(
 	namespace string,
-	testSetup *testSetup,
+	setup *testSetup,
 	seriesMaps map[time.Time]seriesList,
 ) error {
-	storageOpts := testSetup.storageOpts
+	storageOpts := setup.storageOpts
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	writerBufferSize := fsOpts.WriterBufferSize()
 	blockSize := storageOpts.RetentionOptions().BlockSize()
+	retentionPeriod := storageOpts.RetentionOptions().RetentionPeriod()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	newFileMode := fsOpts.NewFileMode()
 	newDirectoryMode := fsOpts.NewDirectoryMode()
 	writer := fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 	encoder := storageOpts.EncoderPool().Get()
 
+	currStart := setup.getNowFn().Truncate(blockSize)
+	retentionStart := currStart.Add(-retentionPeriod)
+	isValidStart := func(start time.Time) bool {
+		return start.Equal(retentionStart) || start.After(retentionStart)
+	}
+
+	starts := make(map[time.Time]struct{})
+	for start := currStart; isValidStart(start); start = start.Add(-blockSize) {
+		starts[start] = struct{}{}
+	}
+
 	for start, data := range seriesMaps {
-		err := writeToDisk(writer, testSetup.shardSet, encoder, start, namespace, data)
+		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, data)
+		if err != nil {
+			return err
+		}
+		delete(starts, start)
+	}
+
+	// Write remaining files even for empty start periods to avoid unfulfilled ranges
+	for start := range starts {
+		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, nil)
 		if err != nil {
 			return err
 		}
@@ -279,6 +300,10 @@ func writeToDisk(
 	seriesList seriesList,
 ) error {
 	seriesPerShard := make(map[uint32][]series)
+	for _, shard := range shardSet.Shards() {
+		// Ensure we write out block files for each shard even if there's no data
+		seriesPerShard[shard] = make([]series, 0)
+	}
 	for _, s := range seriesList {
 		shard := shardSet.Shard(s.id)
 		seriesPerShard[shard] = append(seriesPerShard[shard], s)
