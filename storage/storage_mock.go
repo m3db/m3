@@ -392,14 +392,14 @@ func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocksMetadata(arg0, arg1, arg2,
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockdatabaseNamespace) Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error {
-	ret := _m.ctrl.Call(_m, "Bootstrap", bs, writeStart, cutover)
+func (_m *MockdatabaseNamespace) Bootstrap(bs bootstrap.Bootstrap, targetRanges time0.Ranges, writeStart time.Time, cutover time.Time) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", bs, targetRanges, writeStart, cutover)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseNamespaceRecorder) Bootstrap(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2)
+func (_mr *_MockdatabaseNamespaceRecorder) Bootstrap(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockdatabaseNamespace) Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error {

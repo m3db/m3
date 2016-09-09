@@ -173,7 +173,11 @@ type databaseNamespace interface {
 	) ([]FetchBlocksMetadataResult, *int64, error)
 
 	// Bootstrap performs bootstrapping
-	Bootstrap(bs bootstrap.Bootstrap, writeStart time.Time, cutover time.Time) error
+	Bootstrap(
+		bs bootstrap.Bootstrap,
+		targetRanges xtime.Ranges,
+		writeStart, cutover time.Time,
+	) error
 
 	// Flush flushes in-memory data
 	Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error

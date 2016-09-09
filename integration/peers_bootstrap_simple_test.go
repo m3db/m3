@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/log"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,11 +73,11 @@ func TestPeersBootstrapSimple(t *testing.T) {
 
 	// Start the last server with peers and filesystem bootstrappers
 	setSleepFn(func(d time.Duration) {
+		mustWaitFor := retentionOpts.BufferFuture() + retentionOpts.BufferPast()
+		// Assert that we want to sleep buffer future + buffer past
+		assert.Equal(t, mustWaitFor, d)
 		// When the peer bootstrapper sleeps we want to progress time
-		newNow := now.
-			Add(retentionOpts.BufferFuture()).
-			Add(retentionOpts.BufferPast())
-		setups[1].setNowFn(newNow)
+		setups[1].setNowFn(now.Add(mustWaitFor))
 	})
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")

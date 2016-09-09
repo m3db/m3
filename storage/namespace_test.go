@@ -192,19 +192,19 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 func TestNamespaceBootstrapAlreadyBootstrapped(t *testing.T) {
 	ns := testNamespace(t)
 	ns.bs = bootstrapped
-	require.NoError(t, ns.Bootstrap(nil, time.Now(), time.Now()))
+	require.NoError(t, ns.Bootstrap(nil, nil, time.Now(), time.Now()))
 }
 
 func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 	ns := testNamespace(t)
 	ns.bs = bootstrapping
-	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(nil, time.Now(), time.Now()))
+	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(nil, nil, time.Now(), time.Now()))
 }
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 	ns := testNamespace(t)
 	ns.nopts = ns.nopts.SetNeedsBootstrap(false)
-	require.NoError(t, ns.Bootstrap(nil, time.Now(), time.Now()))
+	require.NoError(t, ns.Bootstrap(nil, nil, time.Now(), time.Now()))
 	require.Equal(t, bootstrapped, ns.bs)
 }
 
@@ -213,12 +213,19 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	defer ctrl.Finish()
 
 	writeStart := time.Now()
-	cutover := writeStart.Add(time.Minute)
+	cutover := writeStart.Add(2 * time.Minute)
+	ranges := xtime.NewRanges().AddRange(xtime.Range{
+		Start: writeStart.Add(-time.Hour),
+		End:   writeStart.Add(-10 * time.Minute),
+	}).AddRange(xtime.Range{
+		Start: writeStart.Add(-10 * time.Minute),
+		End:   cutover,
+	})
 
 	ns := testNamespace(t)
 	errs := []error{nil, errors.New("foo")}
 	bs := bootstrap.NewMockBootstrap(ctrl)
-	bs.EXPECT().Run(writeStart, ns.Name(), testShardIDs).Return(bootstrap.NewResult(), nil)
+	bs.EXPECT().Run(ranges, ns.Name(), testShardIDs).Return(bootstrap.NewResult(), nil)
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
@@ -226,7 +233,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		ns.shards[testShardIDs[i]] = shard
 	}
 
-	require.Equal(t, "foo", ns.Bootstrap(bs, writeStart, cutover).Error())
+	require.Equal(t, "foo", ns.Bootstrap(bs, ranges, writeStart, cutover).Error())
 	require.Equal(t, bootstrapped, ns.bs)
 }
 

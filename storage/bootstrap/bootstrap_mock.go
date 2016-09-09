@@ -30,7 +30,6 @@ import (
 	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
 	time "github.com/m3db/m3x/time"
-	time0 "time"
 )
 
 // Mock of Result interface
@@ -200,8 +199,8 @@ func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(writeStart time0.Time, namespace string, shards []uint32) (Result, error) {
-	ret := _m.ctrl.Call(_m, "Run", writeStart, namespace, shards)
+func (_m *MockBootstrap) Run(targetRanges time.Ranges, namespace string, shards []uint32) (Result, error) {
+	ret := _m.ctrl.Call(_m, "Run", targetRanges, namespace, shards)
 	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1

@@ -21,8 +21,6 @@
 package bootstrap
 
 import (
-	"time"
-
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
@@ -84,7 +82,7 @@ type ShardTimeRanges map[uint32]xtime.Ranges
 // Bootstrap represents the bootstrap process.
 type Bootstrap interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(writeStart time.Time, namespace string, shards []uint32) (Result, error)
+	Run(targetRanges xtime.Ranges, namespace string, shards []uint32) (Result, error)
 }
 
 // Strategy describes a bootstrap strategy.

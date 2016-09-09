@@ -22,7 +22,6 @@ package bootstrap
 
 import (
 	"errors"
-	"time"
 
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -51,32 +50,11 @@ func NewBootstrapProcess(
 	}
 }
 
-// targetRanges calculates the the target time ranges.
-// NB(xichen): bootstrapping is now a two-step process: we bootstrap the data between
-// [writeStart - retentionPeriod, writeStart - bufferPast) in the first step, and the
-// data between [writeStart - bufferPast, writeStart + bufferPast + bufferFuture) in
-// the second step.
-func (b *bootstrapProcess) targetRanges(writeStart time.Time) xtime.Ranges {
-	ropts := b.opts.RetentionOptions()
-	start := writeStart.Add(-ropts.RetentionPeriod())
-	midPoint := writeStart.Add(-ropts.BufferPast())
-	end := writeStart.Add(ropts.BufferPast()).Add(ropts.BufferFuture())
-
-	return xtime.NewRanges().
-		AddRange(xtime.Range{Start: start, End: midPoint}).
-		AddRange(xtime.Range{Start: midPoint, End: end})
-}
-
-// Run initiates the bootstrap process, where writeStart is when we start
-// accepting incoming writes.
 func (b *bootstrapProcess) Run(
-	writeStart time.Time,
+	targetRanges xtime.Ranges,
 	namespace string,
 	shards []uint32,
 ) (Result, error) {
-	// Initialize the target ranges we'd like to bootstrap
-	targetRanges := b.targetRanges(writeStart)
-
 	result := NewResult()
 	it := targetRanges.Iter()
 	for it.Next() {

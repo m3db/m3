@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/time"
 )
 
 type bootstrapState int
@@ -67,16 +68,19 @@ var (
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database       database                  // storage database
-	opts           Options                   // storage options
-	log            xlog.Logger               // logger
-	nowFn          clock.NowFn               // now fn
-	newBootstrapFn NewBootstrapFn            // function to create a new bootstrap process
-	state          bootstrapState            // bootstrap state
-	fsm            databaseFileSystemManager // file system manager
+	database       database
+	opts           Options
+	log            xlog.Logger
+	nowFn          clock.NowFn
+	newBootstrapFn NewBootstrapFn
+	state          bootstrapState
+	fsManager      databaseFileSystemManager
 }
 
-func newBootstrapManager(database database, fsm databaseFileSystemManager) databaseBootstrapManager {
+func newBootstrapManager(
+	database database,
+	fsManager databaseFileSystemManager,
+) databaseBootstrapManager {
 	opts := database.Options()
 	return &bootstrapManager{
 		database:       database,
@@ -84,49 +88,58 @@ func newBootstrapManager(database database, fsm databaseFileSystemManager) datab
 		log:            opts.InstrumentOptions().Logger(),
 		nowFn:          opts.ClockOptions().NowFn(),
 		newBootstrapFn: opts.NewBootstrapFn(),
-		fsm:            fsm,
+		fsManager:      fsManager,
 	}
 }
 
-func (bsm *bootstrapManager) IsBootstrapped() bool {
-	bsm.RLock()
-	state := bsm.state
-	bsm.RUnlock()
+func (m *bootstrapManager) IsBootstrapped() bool {
+	m.RLock()
+	state := m.state
+	m.RUnlock()
 	return state == bootstrapped
 }
 
-// cutoverTime is when we should cut over to the in-memory data during bootstrapping.
-// Data points accumulated before cut-over time are ignored because future writes before
-// server starts accepting writes are lost.
-func (bsm *bootstrapManager) cutoverTime(writeStart time.Time) time.Time {
-	bufferFuture := bsm.opts.RetentionOptions().BufferFuture()
-	return writeStart.Add(bufferFuture)
+// targetRanges calculates the the target time ranges.
+// NB(xichen): bootstrapping is now a two-step process: we bootstrap the data between
+// [writeStart - retentionPeriod, writeStart - bufferPast) in the first step, and the
+// data between [writeStart - bufferPast, writeStart + bufferFuture) in the second step.
+func (m *bootstrapManager) targetRanges(writeStart time.Time) (xtime.Ranges, time.Time) {
+	ropts := m.opts.RetentionOptions()
+	start := writeStart.Add(-ropts.RetentionPeriod())
+	midPoint := writeStart.Add(-ropts.BufferPast())
+	cutover := writeStart.Add(ropts.BufferFuture())
+
+	ranges := xtime.NewRanges().
+		AddRange(xtime.Range{Start: start, End: midPoint}).
+		AddRange(xtime.Range{Start: midPoint, End: cutover})
+
+	return ranges, cutover
 }
 
 // NB(xichen): Bootstrap must be called after the server starts accepting writes.
-func (bsm *bootstrapManager) Bootstrap() error {
-	writeStart := bsm.nowFn()
-	cutover := bsm.cutoverTime(writeStart)
+func (m *bootstrapManager) Bootstrap() error {
+	writeStart := m.nowFn()
+	targetRanges, cutover := m.targetRanges(writeStart)
 
-	bsm.Lock()
-	if bsm.state == bootstrapped {
-		bsm.Unlock()
+	m.Lock()
+	if m.state == bootstrapped {
+		m.Unlock()
 		return nil
 	}
-	if bsm.state == bootstrapping {
-		bsm.Unlock()
+	if m.state == bootstrapping {
+		m.Unlock()
 		return errDatabaseIsBootstrapping
 	}
-	bsm.state = bootstrapping
-	bsm.Unlock()
+	m.state = bootstrapping
+	m.Unlock()
 
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
 
-	bs := bsm.newBootstrapFn()
-	for _, namespace := range bsm.database.getOwnedNamespaces() {
-		if err := namespace.Bootstrap(bs, writeStart, cutover); err != nil {
+	bs := m.newBootstrapFn()
+	for _, namespace := range m.database.getOwnedNamespaces() {
+		if err := namespace.Bootstrap(bs, targetRanges, writeStart, cutover); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -134,11 +147,11 @@ func (bsm *bootstrapManager) Bootstrap() error {
 	// At this point we have bootstrapped everything between now - retentionPeriod
 	// and now, so we should run the filesystem manager to clean up files and flush
 	// all the data we bootstrapped.
-	bsm.fsm.Run(bsm.nowFn(), false)
+	m.fsManager.Run(m.nowFn(), false)
 
-	bsm.Lock()
-	bsm.state = bootstrapped
-	bsm.Unlock()
+	m.Lock()
+	m.state = bootstrapped
+	m.Unlock()
 
 	return multiErr.FinalError()
 }

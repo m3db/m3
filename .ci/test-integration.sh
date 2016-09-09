@@ -22,3 +22,5 @@ for TEST in $TESTS; do
   fi
   sleep 0.1
 done
+
+echo "PASS all integrations tests"
