@@ -88,11 +88,16 @@ func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 
 func newMultiAddrAdminSession(
 	t *testing.T,
+	adminOpts client.AdminOptions,
 	instrumentOpts instrument.Options,
 	shardSet sharding.ShardSet,
 	replicas int,
 	instance int,
 ) client.AdminSession {
+	if adminOpts == nil {
+		adminOpts = client.NewAdminOptions()
+	}
+
 	var (
 		start         = multiAddrPortStart
 		hostShardSets []topology.HostShardSet
@@ -114,14 +119,14 @@ func newMultiAddrAdminSession(
 		SetReplicas(replicas).
 		SetHostShardSets(hostShardSets)
 
-	opts := client.NewAdminOptions().
+	clientOpts := adminOpts.
 		SetOrigin(origin).
 		SetInstrumentOptions(instrumentOpts).
 		SetTopologyInitializer(topology.NewStaticInitializer(staticOptions)).
 		SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelAny).
 		SetClusterConnectTimeout(time.Second)
 
-	adminClient, err := client.NewAdminClient(opts.(client.AdminOptions))
+	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
 	require.NoError(t, err)
 
 	session, err := adminClient.NewAdminSession()
@@ -146,8 +151,10 @@ func newBootstrappableTestSetup(
 }
 
 type bootstrappableTestSetupOptions struct {
-	disablePeersBootstrapper bool
-	sleepFn                  peers.SleepFn
+	disablePeersBootstrapper   bool
+	bootstrapBlocksBatchSize   int
+	bootstrapBlocksConcurrency int
+	sleepFn                    peers.SleepFn
 }
 
 type closeFn func()
@@ -171,11 +178,13 @@ func newDefaultBootstrappableTestSetups(
 	}
 	for i := 0; i < replicas; i++ {
 		var (
-			instance              = i
-			usingPeersBoostrapper = !setupOpts[i].disablePeersBootstrapper
-			sleepFn               = setupOpts[i].sleepFn
-			instanceOpts          = newMultiAddrTestOptions(opts, instance)
-			setup                 *testSetup
+			instance                   = i
+			usingPeersBoostrapper      = !setupOpts[i].disablePeersBootstrapper
+			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
+			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
+			sleepFn                    = setupOpts[i].sleepFn
+			instanceOpts               = newMultiAddrTestOptions(opts, instance)
+			setup                      *testSetup
 		)
 		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
 			instrumentOpts := setup.storageOpts.InstrumentOptions()
@@ -189,7 +198,15 @@ func newDefaultBootstrappableTestSetups(
 
 			var session client.AdminSession
 			if usingPeersBoostrapper {
-				session = newMultiAddrAdminSession(t, instrumentOpts, setup.shardSet, replicas, instance)
+				adminOpts := client.NewAdminOptions()
+				if bootstrapBlocksBatchSize > 0 {
+					adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
+				}
+				if bootstrapBlocksConcurrency > 0 {
+					adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
+				}
+				session = newMultiAddrAdminSession(
+					t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 				appendCleanupFn(func() {
 					session.Close()
 				})
