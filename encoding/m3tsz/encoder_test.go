@@ -21,7 +21,9 @@
 package m3tsz
 
 import (
+	"fmt"
 	"io"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -407,19 +409,30 @@ func TestEncoderUnsealSealed(t *testing.T) {
 	iter := 256
 	for i := 0; i < iter; i++ {
 		enc.ResetSetData(testStartTime, nil, true)
-		dp1 := ts.Datapoint{testStartTime, float64(i)}
-		require.NoError(t, enc.Encode(dp1, xtime.Second, nil))
+
+		var initial []ts.Datapoint
+		var dp ts.Datapoint
+		currTime := testStartTime
+		for j := 0; j < 32; j++ {
+			dp = ts.Datapoint{Timestamp: currTime, Value: randValue()}
+			currTime = randNextTime(currTime)
+			initial = append(initial, dp)
+		}
+		for _, dp := range initial {
+			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
+		}
 
 		// Seal the encoder and verify it's no longer writable
 		enc.Seal()
 		require.False(t, enc.writable)
-		require.Error(t, enc.Encode(dp1, xtime.Second, nil))
+		dp = ts.Datapoint{Timestamp: currTime, Value: randValue()}
+		require.Error(t, enc.Encode(dp, xtime.Second, nil))
 
 		// Unseal the encoder and verify it's writable again
 		require.NoError(t, enc.Unseal())
 		require.True(t, enc.writable)
-		dp2 := ts.Datapoint{testStartTime, float64(i + 1)}
-		require.NoError(t, enc.Encode(dp2, xtime.Second, nil))
+		dp = ts.Datapoint{Timestamp: currTime, Value: randValue()}
+		require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 
 		// Decode the encoded stream and verify the decoded datapoints match expectation
 		iter := dec.Decode(enc.Stream())
@@ -429,8 +442,19 @@ func TestEncoderUnsealSealed(t *testing.T) {
 			datapoints = append(datapoints, dp)
 		}
 		iter.Close()
-		require.NoError(t, iter.Err())
-		require.Equal(t, 2, len(datapoints))
-		require.Equal(t, []ts.Datapoint{dp1, dp2}, datapoints)
+
+		msg := fmt.Sprintf("mismatch at iteration %d", i)
+		require.NoError(t, iter.Err(), msg)
+		require.Equal(t, len(initial)+1, len(datapoints), msg)
+		require.Equal(t, append(initial, dp), datapoints, msg)
 	}
+}
+
+func randNextTime(curr time.Time) time.Time {
+	duration := time.Duration(rand.Int63n(10)+1) * time.Second
+	return curr.Add(duration)
+}
+
+func randValue() float64 {
+	return float64(rand.Int63n(100000))
 }
