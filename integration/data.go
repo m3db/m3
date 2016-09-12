@@ -155,25 +155,9 @@ func verifySeriesMaps(
 	namespace string,
 	seriesMaps map[time.Time]seriesList,
 ) {
-	var (
-		debugFilePathPrefix   = ts.opts.VerifySeriesDebugFilePathPrefix()
-		expectedDebugFilePath string
-		actualDebugFilePath   string
-	)
-	if debugFilePathPrefix != "" {
-		for _, entry := range []struct {
-			suffix   string
-			filePath *string
-		}{
-			{"expected.log", &expectedDebugFilePath},
-			{"actual.log", &actualDebugFilePath},
-		} {
-			*entry.filePath = debugFilePathPrefix + "_" + entry.suffix
-			w, err := os.Create(*entry.filePath)
-			require.NoError(t, err)
-			require.NoError(t, w.Close())
-		}
-	}
+	debugFilePathPrefix := ts.opts.VerifySeriesDebugFilePathPrefix()
+	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, "expected.log")
+	actualDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, "actual.log")
 
 	for timestamp, sm := range seriesMaps {
 		start := timestamp
@@ -182,6 +166,17 @@ func verifySeriesMaps(
 			t, ts, start, end, namespace, sm,
 			expectedDebugFilePath, actualDebugFilePath)
 	}
+}
+
+func createFileIfPrefixSet(t *testing.T, prefix, suffix string) string {
+	if len(prefix) == 0 {
+		return ""
+	}
+	filePath := prefix + "_" + suffix
+	w, err := os.Create(filePath)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	return filePath
 }
 
 func compareSeriesList(
