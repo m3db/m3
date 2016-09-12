@@ -29,11 +29,10 @@ import (
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3x/watch"
 	"github.com/stretchr/testify/assert"
 )
 
-func testSetup(ctrl *gomock.Controller) (DynamicOptions, xwatch.Watch) {
+func testSetup(ctrl *gomock.Controller) (DynamicOptions, *testWatch) {
 	opts := NewDynamicOptions()
 
 	watch := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
@@ -46,11 +45,18 @@ func testSetup(ctrl *gomock.Controller) (DynamicOptions, xwatch.Watch) {
 	return opts, watch
 }
 
+func testFinish(ctrl *gomock.Controller, watch *testWatch) {
+	watch.Lock()
+	defer watch.Unlock()
+	// Ensure only single writers to gomock.Controller
+	ctrl.Finish()
+}
+
 func TestInitTimeout(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	opts, w := testSetup(ctrl)
+	defer testFinish(ctrl, w)
 
-	opts, _ := testSetup(ctrl)
 	topo, err := newDynamicTopology(opts.SetInitTimeout(10 * time.Millisecond))
 	assert.Equal(t, errInitTimeOut, err)
 	assert.Nil(t, topo)
@@ -58,10 +64,10 @@ func TestInitTimeout(t *testing.T) {
 
 func TestInitNoTimeout(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	opts, w := testSetup(ctrl)
+	defer testFinish(ctrl, w)
 
-	opts, watch := testSetup(ctrl)
-	go watch.(*testWatch).run()
+	go w.run()
 	topo, err := newDynamicTopology(opts)
 
 	assert.NoError(t, err)
@@ -73,10 +79,10 @@ func TestInitNoTimeout(t *testing.T) {
 
 func TestBack(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	opts, w := testSetup(ctrl)
-	go w.(*testWatch).run()
+	defer testFinish(ctrl, w)
+
+	go w.run()
 	topo, err := newDynamicTopology(opts)
 	assert.NoError(t, err)
 	mw, err := topo.Watch()
@@ -85,17 +91,17 @@ func TestBack(t *testing.T) {
 	assert.Equal(t, 3, mw.Get().HostsLen())
 
 	opts, w = testSetup(ctrl)
-	close(w.(*testWatch).ch)
+	close(w.ch)
 	topo, err = newDynamicTopology(opts)
 	assert.Error(t, err)
 }
 
 func TestGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	opts, w := testSetup(ctrl)
+	defer testFinish(ctrl, w)
 
-	opts, watch := testSetup(ctrl)
-	go watch.(*testWatch).run()
+	go w.run()
 	topo, err := newDynamicTopology(opts)
 	assert.NoError(t, err)
 
@@ -105,10 +111,10 @@ func TestGet(t *testing.T) {
 
 func TestWatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	opts, watch := testSetup(ctrl)
-	go watch.(*testWatch).run()
+	defer testFinish(ctrl, watch)
+
+	go watch.run()
 	topo, err := newDynamicTopology(opts)
 	assert.NoError(t, err)
 
@@ -124,6 +130,8 @@ func TestWatch(t *testing.T) {
 }
 
 func TestGetUniqueShardsAndReplicas(t *testing.T) {
+	goodInstances := goodInstances()
+
 	shards, err := validateInstances(goodInstances, 2, 3)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(shards))
@@ -174,7 +182,7 @@ type testWatch struct {
 	closed                bool
 }
 
-func newTestWatch(ctrl *gomock.Controller, firstDelay, nextDelay time.Duration, errAfter, closeAfter int) xwatch.Watch {
+func newTestWatch(ctrl *gomock.Controller, firstDelay, nextDelay time.Duration, errAfter, closeAfter int) *testWatch {
 	w := testWatch{ctrl: ctrl, firstDelay: firstDelay, nextDelay: nextDelay, errAfter: errAfter, closeAfter: closeAfter}
 	w.ch = make(chan struct{})
 	return &w
@@ -226,29 +234,29 @@ func getMockService(ctrl *gomock.Controller) services.Service {
 	mockSharding.EXPECT().NumShards().Return(3).AnyTimes()
 	mockService.EXPECT().Sharding().Return(mockSharding).AnyTimes()
 
-	mockService.EXPECT().Instances().Return(goodInstances).AnyTimes()
+	mockService.EXPECT().Instances().Return(goodInstances()).AnyTimes()
 
 	return mockService
 }
 
-var (
-	i1 = services.NewServiceInstance().SetShards(shard.NewShards(
+func goodInstances() []services.ServiceInstance {
+	i1 := services.NewServiceInstance().SetShards(shard.NewShards(
 		[]shard.Shard{
 			shard.NewShard(0),
 			shard.NewShard(1),
 		})).SetID("h1").SetEndpoint("h1:9000")
 
-	i2 = services.NewServiceInstance().SetShards(shard.NewShards(
+	i2 := services.NewServiceInstance().SetShards(shard.NewShards(
 		[]shard.Shard{
 			shard.NewShard(1),
 			shard.NewShard(2),
 		})).SetID("h2").SetEndpoint("h2:9000")
 
-	i3 = services.NewServiceInstance().SetShards(shard.NewShards(
+	i3 := services.NewServiceInstance().SetShards(shard.NewShards(
 		[]shard.Shard{
 			shard.NewShard(2),
 			shard.NewShard(0),
 		})).SetID("h3").SetEndpoint("h3:9000")
 
-	goodInstances = []services.ServiceInstance{i1, i2, i3}
-)
+	return []services.ServiceInstance{i1, i2, i3}
+}
