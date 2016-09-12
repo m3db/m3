@@ -100,7 +100,8 @@ func verifySeriesMapForRange(
 ) {
 	actual := make(seriesList, len(expected))
 	req := rpc.NewFetchRequest()
-	for i, s := range expected {
+	for i := range expected {
+		s := &expected[i]
 		req.NameSpace = namespace
 		req.ID = s.id
 		req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
