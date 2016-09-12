@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -73,9 +74,6 @@ func (s *peersSource) Read(
 	// Wait for data to be available from peers if required
 	now := s.nowFn()
 	_, max := shardsTimeRanges.MinMax()
-	// Max will only be available in a complete form after waiting
-	// for t + bufferPast as the window is still mutable until such time
-	max = max.Add(s.opts.BootstrapOptions().RetentionOptions().BufferPast())
 	for max.After(now) {
 		s.sleepFn(max.Sub(now))
 		now = s.nowFn()

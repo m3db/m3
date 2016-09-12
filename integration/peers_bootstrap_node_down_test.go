@@ -74,8 +74,8 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 
 	// Leave second node down, start the last server with peers and filesystem bootstrappers
 	setSleepFn(func(d time.Duration) {
-		mustWaitFor := retentionOpts.BufferFuture() + retentionOpts.BufferPast()
-		// Assert that we want to sleep buffer future + buffer past
+		mustWaitFor := retentionOpts.BufferFuture()
+		// Assert that we want to sleep buffer future
 		assert.Equal(t, mustWaitFor, d)
 		// When the peer bootstrapper sleeps we want to progress time
 		setups[2].setNowFn(now.Add(mustWaitFor))

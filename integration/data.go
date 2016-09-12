@@ -21,7 +21,9 @@
 package integration
 
 import (
+	"encoding/json"
 	"math/rand"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -36,8 +38,8 @@ import (
 )
 
 type series struct {
-	id   string
-	data []ts.Datapoint
+	ID   string
+	Data []ts.Datapoint
 }
 
 type seriesList []series
@@ -45,7 +47,7 @@ type seriesList []series
 func (l seriesList) Len() int      { return len(l) }
 func (l seriesList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l seriesList) Less(i, j int) bool {
-	return strings.Compare(l[i].id, l[j].id) < 0
+	return strings.Compare(l[i].ID, l[j].ID) < 0
 }
 
 func generateTestData(names []string, numPoints int, start time.Time) seriesList {
@@ -64,8 +66,8 @@ func generateTestData(names []string, numPoints int, start time.Time) seriesList
 			})
 		}
 		testData[i] = series{
-			id:   name,
-			data: datapoints,
+			ID:   name,
+			Data: datapoints,
 		}
 	}
 	return testData
@@ -97,24 +99,54 @@ func verifySeriesMapForRange(
 	start, end time.Time,
 	namespace string,
 	expected seriesList,
+	expectedDebugFilePath string,
+	actualDebugFilePath string,
 ) {
 	actual := make(seriesList, len(expected))
 	req := rpc.NewFetchRequest()
 	for i := range expected {
 		s := &expected[i]
 		req.NameSpace = namespace
-		req.ID = s.id
+		req.ID = s.ID
 		req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
 		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
 		require.NoError(t, err)
 		actual[i] = series{
-			id:   s.id,
-			data: fetched,
+			ID:   s.ID,
+			Data: fetched,
 		}
 	}
+
+	if len(expectedDebugFilePath) > 0 {
+		writeVerifyDebugOutput(t, expectedDebugFilePath, start, end, expected)
+	}
+	if len(actualDebugFilePath) > 0 {
+		writeVerifyDebugOutput(t, actualDebugFilePath, start, end, actual)
+	}
+
 	require.Equal(t, expected, actual)
+}
+
+func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time, series seriesList) {
+	w, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+	require.NoError(t, err)
+
+	data, err := json.MarshalIndent(struct {
+		Start  time.Time
+		End    time.Time
+		Series seriesList
+	}{
+		Start:  start,
+		End:    end,
+		Series: series,
+	}, "", "    ")
+	require.NoError(t, err)
+
+	_, err = w.Write(data)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
 }
 
 func verifySeriesMaps(
@@ -123,10 +155,32 @@ func verifySeriesMaps(
 	namespace string,
 	seriesMaps map[time.Time]seriesList,
 ) {
+	var (
+		debugFilePathPrefix   = ts.opts.VerifySeriesDebugFilePathPrefix()
+		expectedDebugFilePath string
+		actualDebugFilePath   string
+	)
+	if debugFilePathPrefix != "" {
+		for _, entry := range []struct {
+			suffix   string
+			filePath *string
+		}{
+			{"expected.log", &expectedDebugFilePath},
+			{"actual.log", &actualDebugFilePath},
+		} {
+			*entry.filePath = debugFilePathPrefix + "_" + entry.suffix
+			w, err := os.Create(*entry.filePath)
+			require.NoError(t, err)
+			require.NoError(t, w.Close())
+		}
+	}
+
 	for timestamp, sm := range seriesMaps {
 		start := timestamp
 		end := timestamp.Add(ts.storageOpts.RetentionOptions().BlockSize())
-		verifySeriesMapForRange(t, ts, start, end, namespace, sm)
+		verifySeriesMapForRange(
+			t, ts, start, end, namespace, sm,
+			expectedDebugFilePath, actualDebugFilePath)
 	}
 }
 

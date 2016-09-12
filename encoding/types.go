@@ -41,9 +41,6 @@ type Encoder interface {
 	// Seal will append any end of stream marker and ensure the encoder cannot be written to anymore.
 	Seal()
 
-	// Unseal will strip any end of stream marker and ensure the encoder is writable.
-	Unseal() error
-
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)
 

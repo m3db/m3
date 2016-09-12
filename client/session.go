@@ -1378,16 +1378,17 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 
 	switch {
 	case segments.Merged != nil:
+		// Unmerged, can insert directly into a single block
 		size := len(segments.Merged.Head) + len(segments.Merged.Tail)
 		data := r.bytesPool.Get(size)[:size]
 		n := copy(data, segments.Merged.Head)
 		copy(data[n:], segments.Merged.Tail)
+
 		encoder := r.encoderPool.Get()
 		encoder.ResetSetData(start, data, false)
-		if err := encoder.Unseal(); err != nil {
-			return err
-		}
+
 		result.Reset(start, encoder)
+
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
 		readers := make([]io.Reader, len(segments.Unmerged))
@@ -1415,9 +1416,14 @@ func (r *blocksResult) addBlockFromPeer(id string, block *rpc.Block) error {
 		}
 
 		result.Reset(start, encoder)
+
 	default:
 		return errSessionBadBlockResultFromPeer
+
 	}
+
+	// No longer need the encoder, seal the block
+	result.Seal()
 
 	r.Lock()
 	r.result.AddBlock(id, result)

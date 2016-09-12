@@ -73,13 +73,13 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	appendSeries := func(target map[time.Time]seriesList, start time.Time, s series) {
 		if shouldMissData {
 			var dataWithMissing []ts.Datapoint
-			for i := range s.data {
+			for i := range s.Data {
 				if i%2 != 0 {
 					continue
 				}
-				dataWithMissing = append(dataWithMissing, s.data[i])
+				dataWithMissing = append(dataWithMissing, s.Data[i])
 			}
-			target[start] = append(target[start], series{id: s.id, data: dataWithMissing})
+			target[start] = append(target[start], series{ID: s.ID, Data: dataWithMissing})
 		} else {
 			target[start] = append(target[start], s)
 		}
@@ -101,8 +101,8 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 
 	// Start the last server with peers and filesystem bootstrappers
 	setSleepFn(func(d time.Duration) {
-		mustWaitFor := retentionOpts.BufferFuture() + retentionOpts.BufferPast()
-		// Assert that we want to sleep buffer future + buffer past
+		mustWaitFor := retentionOpts.BufferFuture()
+		// Assert that we want to sleep buffer future
 		assert.Equal(t, mustWaitFor, d)
 		// When the peer bootstrapper sleeps we want to progress time
 		setups[2].setNowFn(now.Add(mustWaitFor))

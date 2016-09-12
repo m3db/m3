@@ -62,18 +62,10 @@ func newSessionTestAdminOptions() AdminOptions {
 }
 
 func newBootstrapTestOptions() bootstrap.Options {
-	return newBootstrapTestOptionsWithEncoderCallback(nil)
-}
-
-func newBootstrapTestOptionsWithEncoderCallback(fn func(e *testEncoder)) bootstrap.Options {
 	opts := bootstrap.NewOptions()
 	encoderPool := encoding.NewEncoderPool(0)
 	encoderPool.Init(func() encoding.Encoder {
-		enc := &testEncoder{}
-		if fn != nil {
-			fn(enc)
-		}
-		return enc
+		return &testEncoder{}
 	})
 	return opts.SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
 		SetEncoderPool(encoderPool))
@@ -629,11 +621,8 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 }
 
 func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
-	var encoders []*testEncoder
 	opts := newSessionTestAdminOptions()
-	bopts := newBootstrapTestOptionsWithEncoderCallback(func(enc *testEncoder) {
-		encoders = append(encoders, enc)
-	})
+	bopts := newBootstrapTestOptions()
 
 	start := time.Now()
 
@@ -664,14 +653,12 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, stream)
 
-	// Assert encoder has data
-	assert.Equal(t, 1, len(encoders))
-	assert.Equal(t, []byte{1, 2, 3}, encoders[0].data)
+	// Assert block has data
+	assert.Equal(t, []byte{1, 2, 3}, stream.Segment().Head)
+	assert.Equal(t, []byte(nil), stream.Segment().Tail)
 
-	// Ensure not sealed
-	assert.False(t, encoders[0].sealed)
-	assert.True(t, encoders[0].writable)
-	assert.False(t, encoders[0].closed)
+	// Ensure sealed
+	assert.True(t, result.IsSealed())
 }
 
 func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
@@ -726,13 +713,6 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
-	// Intercept encoder creation and wrap with a test encoder to introspect state
-	var mergeEncoder *testPassthroughEncoder
-	wrapEncoderFn = func(enc encoding.Encoder) encoding.Encoder {
-		mergeEncoder = &testPassthroughEncoder{encoder: enc}
-		return mergeEncoder
-	}
-
 	r := newBlocksResult(opts, bopts)
 	r.addBlockFromPeer("foo", bl)
 
@@ -771,10 +751,8 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	assert.Equal(t, len(all), asserted)
 	assert.NoError(t, iter.Err())
 
-	// Ensure not sealed
-	assert.False(t, mergeEncoder.sealed)
-	assert.True(t, mergeEncoder.writable)
-	assert.False(t, mergeEncoder.closed)
+	// Ensure block sealed
+	assert.True(t, result.IsSealed())
 }
 
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
@@ -1330,12 +1308,6 @@ func (e *testEncoder) Seal() {
 	e.sealed = true
 }
 
-func (e *testEncoder) Unseal() error {
-	e.sealed = false
-	e.writable = true
-	return nil
-}
-
 func (e *testEncoder) Reset(t time.Time, capacity int) {
 	e.start = t
 	e.data = nil
@@ -1349,53 +1321,6 @@ func (e *testEncoder) ResetSetData(t time.Time, data []byte, writable bool) {
 }
 
 func (e *testEncoder) Close() {
-	e.closed = true
-}
-
-type testPassthroughEncoder struct {
-	encoder   encoding.Encoder
-	start     time.Time
-	resetData []byte
-	writable  bool
-	sealed    bool
-	closed    bool
-}
-
-func (e *testPassthroughEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error {
-	return e.encoder.Encode(dp, timeUnit, annotation)
-}
-
-func (e *testPassthroughEncoder) Stream() xio.SegmentReader {
-	return e.encoder.Stream()
-}
-
-func (e *testPassthroughEncoder) Seal() {
-	e.encoder.Seal()
-	e.sealed = true
-}
-
-func (e *testPassthroughEncoder) Unseal() error {
-	e.sealed = false
-	e.writable = true
-	return e.encoder.Unseal()
-}
-
-func (e *testPassthroughEncoder) Reset(t time.Time, capacity int) {
-	e.encoder.Reset(t, capacity)
-	e.start = t
-	e.resetData = nil
-	e.writable = true
-}
-
-func (e *testPassthroughEncoder) ResetSetData(t time.Time, data []byte, writable bool) {
-	e.encoder.ResetSetData(t, data, writable)
-	e.start = t
-	e.resetData = data
-	e.writable = writable
-}
-
-func (e *testPassthroughEncoder) Close() {
-	e.encoder.Close()
 	e.closed = true
 }
 
