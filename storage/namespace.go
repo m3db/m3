@@ -231,18 +231,18 @@ func (n *dbNamespace) Bootstrap(
 		shard := shard
 		wg.Add(1)
 		workers.Go(func() {
-			defer wg.Done()
-
-			var bootstrappedSeries map[string]block.DatabaseSeriesBlocks
+			var bootstrapped map[string]block.DatabaseSeriesBlocks
 			if result, ok := results[shard.ID()]; ok {
-				bootstrappedSeries = result.AllSeries()
+				bootstrapped = result.AllSeries()
 			}
 
-			err := shard.Bootstrap(bootstrappedSeries, writeStart, cutover)
+			err := shard.Bootstrap(bootstrapped, writeStart, cutover)
 
 			mutex.Lock()
-			defer mutex.Unlock()
 			multiErr = multiErr.Add(err)
+			mutex.Unlock()
+
+			wg.Done()
 		})
 	}
 
