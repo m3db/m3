@@ -152,8 +152,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		series.EXPECT().
 			Flush(nil, blockStart, gomock.Any()).
 			Do(func(context.Context, time.Time, persist.Fn) {
-			flushed[i] = struct{}{}
-		}).
+				flushed[i] = struct{}{}
+			}).
 			Return(expectedErr)
 		s.list.PushBack(&dbShardEntry{series: series})
 	}
@@ -295,7 +295,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	series := addMockSeries(ctrl, shard, id, 0)
 	now := time.Now()
 	starts := []time.Time{now}
-	expected := []FetchBlockResult{newFetchBlockResult(now, nil, nil)}
+	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil)}
 	series.EXPECT().FetchBlocks(ctx, starts).Return(expected)
 	res := shard.FetchBlocks(ctx, id, starts)
 	require.Equal(t, expected, res)
@@ -316,11 +316,11 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 		series := addMockSeries(ctrl, shard, id, uint64(i))
 		if i >= 2 && i < 7 {
 			ids = append(ids, id)
-			series.EXPECT().FetchBlocksMetadata(ctx, true).Return(newFetchBlocksMetadataResult(id, nil))
+			series.EXPECT().FetchBlocksMetadata(ctx, true, true).Return(block.NewFetchBlocksMetadataResult(id, nil))
 		}
 	}
 
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, 5, 2, true)
+	res, nextPageToken := shard.FetchBlocksMetadata(ctx, 5, 2, true, true)
 	require.Equal(t, len(ids), len(res))
 	require.Equal(t, int64(7), *nextPageToken)
 	for i := 0; i < len(res); i++ {

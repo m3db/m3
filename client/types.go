@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	xtime "github.com/m3db/m3x/time"
@@ -62,15 +63,6 @@ type Client interface {
 	NewSession() (Session, error)
 }
 
-// iDWithNamespace captures an id along with the owning namespace
-type idWithNamespace struct {
-	// ID returns the id of a series
-	ID string
-
-	// Namespace returns the namespace the id belongs to
-	Namespace string
-}
-
 // Session can write and read to a cluster
 type Session interface {
 	// Write value to the database for an ID
@@ -94,12 +86,44 @@ type AdminClient interface {
 	NewAdminSession() (AdminSession, error)
 }
 
+// PeerBlocksMetadataIter iterates over a collection of
+// blocks metadata from peers
+type PeerBlocksMetadataIter interface {
+	// Next returns whether there are more items in the collection
+	Next() bool
+
+	// Current returns the host and blocks metadata, which remain
+	// valid until Next() is called again.
+	Current() (topology.Host, block.BlocksMetadata)
+
+	// Err returns any error encountered
+	Err() error
+}
+
+// NewAdminSessionFn creates a new admin session
+type NewAdminSessionFn func() (AdminSession, error)
+
 // AdminSession can perform administrative and node-to-node operations
 type AdminSession interface {
 	Session
 
+	// Origin returns the host that initiated the session
+	Origin() topology.Host
+
+	// Replicas returns the replication factor
+	Replicas() int
+
 	// Truncate will truncate the namespace for a given shard
 	Truncate(namespace string) (int64, error)
+
+	// FetchBlocksMetadataFromPeers will fetch the blocks metadata from
+	// available peers
+	FetchBlocksMetadataFromPeers(
+		namespace string,
+		shard uint32,
+		start, end time.Time,
+		blockSize time.Duration,
+	) (PeerBlocksMetadataIter, error)
 
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
 	// for each series in a best effort method from available peers

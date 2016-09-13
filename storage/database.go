@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -99,11 +100,14 @@ type db struct {
 	namespaces       map[string]databaseNamespace
 	commitLog        commitlog.CommitLog
 	writeCommitLogFn writeCommitLogFn
-	state            databaseState
-	bsm              databaseBootstrapManager
-	fsm              databaseFileSystemManager
-	created          uint64
-	tickDeadline     time.Duration
+
+	state    databaseState
+	bsm      databaseBootstrapManager
+	fsm      databaseFileSystemManager
+	repairer databaseRepairer
+
+	created      uint64
+	tickDeadline time.Duration
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -153,9 +157,6 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
 
-	d.fsm = newFileSystemManager(d)
-	d.bsm = newBootstrapManager(d, d.fsm)
-
 	d.commitLog = commitlog.NewCommitLog(opts.CommitLogOptions())
 	if err := d.commitLog.Open(); err != nil {
 		return nil, err
@@ -183,6 +184,15 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 	}
 	d.namespaces = ns
 
+	d.fsm = newFileSystemManager(d)
+	d.bsm = newBootstrapManager(d, d.fsm)
+
+	repairer, err := newDatabaseRepairer(d)
+	if err != nil {
+		return nil, err
+	}
+	d.repairer = repairer
+
 	return d, nil
 }
 
@@ -201,6 +211,8 @@ func (d *db) Open() error {
 	// All goroutines must be accounted for with dbOngoingTasks to receive done signal
 	go d.reportLoop()
 	go d.ongoingTick()
+	go d.repairer.Start()
+
 	return nil
 }
 
@@ -222,6 +234,8 @@ func (d *db) Close() error {
 	for i := 0; i < dbOngoingTasks; i++ {
 		d.doneCh <- struct{}{}
 	}
+
+	d.repairer.Stop()
 
 	// Finally close the commit log
 	return d.commitLog.Close()
@@ -280,7 +294,7 @@ func (d *db) FetchBlocks(
 	shardID uint32,
 	id string,
 	starts []time.Time,
-) ([]FetchBlockResult, error) {
+) ([]block.FetchBlockResult, error) {
 	sw := d.metrics.fetchBlocks.Latency.Start()
 	n, err := d.readableNamespace(namespace)
 
@@ -304,7 +318,8 @@ func (d *db) FetchBlocksMetadata(
 	limit int64,
 	pageToken int64,
 	includeSizes bool,
-) ([]FetchBlocksMetadataResult, *int64, error) {
+	includeChecksums bool,
+) ([]block.FetchBlocksMetadataResult, *int64, error) {
 	sw := d.metrics.fetchBlocksMetadata.Latency.Start()
 	n, err := d.readableNamespace(namespace)
 
@@ -315,7 +330,7 @@ func (d *db) FetchBlocksMetadata(
 		return nil, nil, res
 	}
 
-	res, ptr, err := n.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes)
+	res, ptr, err := n.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes, includeChecksums)
 	d.metrics.fetchBlocksMetadata.ReportSuccessOrFailure(err)
 	d.metrics.fetchBlocksMetadata.Latency.Stop(sw)
 	return res, ptr, err

@@ -242,8 +242,8 @@ func (s *dbSeries) ReadEncoded(
 	return results, nil
 }
 
-func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult {
-	res := make([]FetchBlockResult, 0, len(starts)+1)
+func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
+	res := make([]block.FetchBlockResult, 0, len(starts)+1)
 
 	s.RLock()
 
@@ -252,9 +252,9 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []FetchB
 			stream, err := b.Stream(ctx)
 			if err != nil {
 				detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, start, err)
-				res = append(res, newFetchBlockResult(start, nil, detailedErr))
+				res = append(res, block.NewFetchBlockResult(start, nil, detailedErr))
 			} else if stream != nil {
-				res = append(res, newFetchBlockResult(start, []xio.SegmentReader{stream}, nil))
+				res = append(res, block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil))
 			}
 		}
 	}
@@ -266,14 +266,18 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []FetchB
 
 	s.RUnlock()
 
-	sortFetchBlockResultByTimeAscending(res)
+	block.SortFetchBlockResultByTimeAscending(res)
 
 	return res
 }
 
-func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) FetchBlocksMetadataResult {
+func (s *dbSeries) FetchBlocksMetadata(
+	ctx context.Context,
+	includeSizes bool,
+	includeChecksums bool,
+) block.FetchBlocksMetadataResult {
 	// TODO(xichen): pool these if this method is called frequently (e.g., for background repairs)
-	var res []FetchBlockMetadataResult
+	var res []block.FetchBlockMetadataResult
 
 	s.RLock()
 
@@ -285,33 +289,39 @@ func (s *dbSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool) F
 		// the metadata for the rest of the blocks.
 		if err != nil {
 			detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, t, err)
-			res = append(res, newFetchBlockMetadataResult(t, nil, detailedErr))
+			res = append(res, block.NewFetchBlockMetadataResult(t, nil, nil, detailedErr))
 			continue
 		}
 		// If there are no datapoints in the block, continue and don't append it to the result.
 		if reader == nil {
 			continue
 		}
-		var pSize *int64
+		var (
+			pSize     *int64
+			pChecksum *uint32
+		)
 		if includeSizes {
 			segment := reader.Segment()
 			size := int64(len(segment.Head) + len(segment.Tail))
 			pSize = &size
 		}
-		res = append(res, newFetchBlockMetadataResult(t, pSize, nil))
+		if includeChecksums {
+			pChecksum = b.Checksum()
+		}
+		res = append(res, block.NewFetchBlockMetadataResult(t, pSize, pChecksum, nil))
 	}
 
 	// Iterate over the encoders in the database buffer
 	if !s.buffer.IsEmpty() {
-		bufferResult := s.buffer.FetchBlocksMetadata(ctx, includeSizes)
+		bufferResult := s.buffer.FetchBlocksMetadata(ctx, includeSizes, includeChecksums)
 		res = append(res, bufferResult...)
 	}
 
 	s.RUnlock()
 
-	sortFetchBlockMetadataResultByTimeAscending(res)
+	block.SortFetchBlockMetadataResultByTimeAscending(res)
 
-	return newFetchBlocksMetadataResult(s.seriesID, res)
+	return block.NewFetchBlocksMetadataResult(s.seriesID, res)
 }
 
 func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {

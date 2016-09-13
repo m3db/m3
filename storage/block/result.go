@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package block
 
 import (
 	"sort"
@@ -33,7 +33,8 @@ type fetchBlockResult struct {
 	err     error
 }
 
-func newFetchBlockResult(start time.Time, readers []xio.SegmentReader, err error) FetchBlockResult {
+// NewFetchBlockResult creates a new fetch block result
+func NewFetchBlockResult(start time.Time, readers []xio.SegmentReader, err error) FetchBlockResult {
 	return fetchBlockResult{start: start, readers: readers, err: err}
 }
 
@@ -47,28 +48,37 @@ func (e fetchBlockResultByTimeAscending) Len() int           { return len(e) }
 func (e fetchBlockResultByTimeAscending) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 func (e fetchBlockResultByTimeAscending) Less(i, j int) bool { return e[i].Start().Before(e[j].Start()) }
 
-func sortFetchBlockResultByTimeAscending(results []FetchBlockResult) {
+// SortFetchBlockResultByTimeAscending sorts fetch block results in time ascending order
+func SortFetchBlockResultByTimeAscending(results []FetchBlockResult) {
 	sort.Sort(fetchBlockResultByTimeAscending(results))
 }
 
 type fetchBlockMetadataResult struct {
-	start time.Time
-	size  *int64
-	err   error
+	start    time.Time
+	size     *int64
+	checksum *uint32
+	err      error
 }
 
-// newFetchBlockMetadataResult creates a new fetch block metadata result.
-func newFetchBlockMetadataResult(start time.Time, size *int64, err error) fetchBlockMetadataResult {
+// NewFetchBlockMetadataResult creates a new fetch block metadata result.
+func NewFetchBlockMetadataResult(
+	start time.Time,
+	size *int64,
+	checksum *uint32,
+	err error,
+) FetchBlockMetadataResult {
 	return fetchBlockMetadataResult{
-		start: start,
-		size:  size,
-		err:   err,
+		start:    start,
+		size:     size,
+		checksum: checksum,
+		err:      err,
 	}
 }
 
-func (r fetchBlockMetadataResult) Start() time.Time { return r.start }
-func (r fetchBlockMetadataResult) Size() *int64     { return r.size }
-func (r fetchBlockMetadataResult) Err() error       { return r.err }
+func (r fetchBlockMetadataResult) Start() time.Time  { return r.start }
+func (r fetchBlockMetadataResult) Size() *int64      { return r.size }
+func (r fetchBlockMetadataResult) Checksum() *uint32 { return r.checksum }
+func (r fetchBlockMetadataResult) Err() error        { return r.err }
 
 type fetchBlockMetadataResultByTimeAscending []FetchBlockMetadataResult
 
@@ -78,8 +88,8 @@ func (a fetchBlockMetadataResultByTimeAscending) Less(i, j int) bool {
 	return a[i].Start().Before(a[j].Start())
 }
 
-// sortFetchBlockMetadataResultByTimeAscending sorts fetch block metadata result array in time ascending order
-func sortFetchBlockMetadataResultByTimeAscending(metadata []FetchBlockMetadataResult) {
+// SortFetchBlockMetadataResultByTimeAscending sorts fetch block metadata result array in time ascending order
+func SortFetchBlockMetadataResultByTimeAscending(metadata []FetchBlockMetadataResult) {
 	sort.Sort(fetchBlockMetadataResultByTimeAscending(metadata))
 }
 
@@ -88,10 +98,78 @@ type fetchBlocksMetadataResult struct {
 	blocks []FetchBlockMetadataResult
 }
 
-// newFetchBlocksMetadataResult creates new database blocks metadata
-func newFetchBlocksMetadataResult(id string, blocks []FetchBlockMetadataResult) FetchBlocksMetadataResult {
+// NewFetchBlocksMetadataResult creates new database blocks metadata
+func NewFetchBlocksMetadataResult(id string, blocks []FetchBlockMetadataResult) FetchBlocksMetadataResult {
 	return fetchBlocksMetadataResult{id: id, blocks: blocks}
 }
 
 func (m fetchBlocksMetadataResult) ID() string                         { return m.id }
 func (m fetchBlocksMetadataResult) Blocks() []FetchBlockMetadataResult { return m.blocks }
+
+type filteredBlocksMetadataIter struct {
+	start     time.Time
+	end       time.Time
+	blockSize time.Duration
+	res       []FetchBlocksMetadataResult
+
+	id       string
+	metadata Metadata
+	ri       int
+	bi       int
+}
+
+// NewFilteredBlocksMetadataIter creates a new filtered blocks metadata iterator
+func NewFilteredBlocksMetadataIter(
+	start time.Time,
+	end time.Time,
+	blockSize time.Duration,
+	res []FetchBlocksMetadataResult,
+) FilteredBlocksMetadataIter {
+	return &filteredBlocksMetadataIter{
+		start:     start,
+		end:       end,
+		blockSize: blockSize,
+		res:       res,
+	}
+}
+
+func (it *filteredBlocksMetadataIter) Next() bool {
+	if it.ri >= len(it.res) {
+		return false
+	}
+	blocks := it.res[it.ri].Blocks()
+	for it.bi < len(blocks) {
+		block := blocks[it.bi]
+		if block.Err() != nil {
+			it.bi++
+			continue
+		}
+		var (
+			blockStart = block.Start()
+			blockEnd   = blockStart.Add(it.blockSize)
+		)
+		if !it.start.Before(blockEnd) || !blockStart.Before(it.end) {
+			it.bi++
+			continue
+		}
+		break
+	}
+	if it.bi >= len(blocks) {
+		it.ri++
+		it.bi = 0
+		return it.Next()
+	}
+	it.id = it.res[it.ri].ID()
+	block := blocks[it.bi]
+	size := int64(0)
+	if block.Size() != nil {
+		size = *block.Size()
+	}
+	it.metadata = NewMetadata(block.Start(), size, block.Checksum())
+	it.bi++
+	return true
+}
+
+func (it *filteredBlocksMetadataIter) Current() (string, Metadata) {
+	return it.id, it.metadata
+}

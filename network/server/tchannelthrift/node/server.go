@@ -25,14 +25,10 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
+	"github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/storage"
 
 	"github.com/uber/tchannel-go"
-)
-
-const (
-	// ChannelName is the TChannel channel name the node service is exposed on
-	ChannelName = "Node"
 )
 
 type server struct {
@@ -63,7 +59,7 @@ func NewServer(
 }
 
 func (s *server) ListenAndServe() (ns.Close, error) {
-	channel, err := tchannel.NewChannel(ChannelName, s.opts)
+	channel, err := tchannel.NewChannel(channel.ChannelName, s.opts)
 	if err != nil {
 		return nil, err
 	}

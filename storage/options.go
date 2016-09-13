@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/repair"
 	xio "github.com/m3db/m3db/x/io"
 )
 
@@ -67,6 +68,7 @@ type options struct {
 	retentionOpts           retention.Options
 	blockOpts               block.Options
 	commitLogOpts           commitlog.Options
+	repairOpts              repair.Options
 	newEncoderFn            encoding.NewEncoderFn
 	newDecoderFn            encoding.NewDecoderFn
 	newBootstrapFn          NewBootstrapFn
@@ -90,6 +92,7 @@ func NewOptions() Options {
 		retentionOpts:           retention.NewOptions(),
 		blockOpts:               block.NewOptions(),
 		commitLogOpts:           commitlog.NewOptions(),
+		repairOpts:              repair.NewOptions(),
 		newBootstrapFn:          defaultNewBootstrapFn,
 		newPersistManagerFn:     defaultNewPersistManagerFn,
 		maxFlushRetries:         defaultMaxFlushRetries,
@@ -151,6 +154,16 @@ func (o *options) SetCommitLogOptions(value commitlog.Options) Options {
 
 func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
+}
+
+func (o *options) SetRepairOptions(value repair.Options) Options {
+	opts := *o
+	opts.repairOpts = value
+	return &opts
+}
+
+func (o *options) RepairOptions() repair.Options {
+	return o.repairOpts
 }
 
 func (o *options) SetEncodingM3TSZPooled() Options {

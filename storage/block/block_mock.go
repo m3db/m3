@@ -34,6 +34,293 @@ import (
 	time "time"
 )
 
+// Mock of Metadata interface
+type MockMetadata struct {
+	ctrl     *gomock.Controller
+	recorder *_MockMetadataRecorder
+}
+
+// Recorder for MockMetadata (not exported)
+type _MockMetadataRecorder struct {
+	mock *MockMetadata
+}
+
+func NewMockMetadata(ctrl *gomock.Controller) *MockMetadata {
+	mock := &MockMetadata{ctrl: ctrl}
+	mock.recorder = &_MockMetadataRecorder{mock}
+	return mock
+}
+
+func (_m *MockMetadata) EXPECT() *_MockMetadataRecorder {
+	return _m.recorder
+}
+
+func (_m *MockMetadata) Start() time.Time {
+	ret := _m.ctrl.Call(_m, "Start")
+	ret0, _ := ret[0].(time.Time)
+	return ret0
+}
+
+func (_mr *_MockMetadataRecorder) Start() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
+}
+
+func (_m *MockMetadata) Size() int64 {
+	ret := _m.ctrl.Call(_m, "Size")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+func (_mr *_MockMetadataRecorder) Size() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Size")
+}
+
+func (_m *MockMetadata) Checksum() *uint32 {
+	ret := _m.ctrl.Call(_m, "Checksum")
+	ret0, _ := ret[0].(*uint32)
+	return ret0
+}
+
+func (_mr *_MockMetadataRecorder) Checksum() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
+}
+
+// Mock of BlocksMetadata interface
+type MockBlocksMetadata struct {
+	ctrl     *gomock.Controller
+	recorder *_MockBlocksMetadataRecorder
+}
+
+// Recorder for MockBlocksMetadata (not exported)
+type _MockBlocksMetadataRecorder struct {
+	mock *MockBlocksMetadata
+}
+
+func NewMockBlocksMetadata(ctrl *gomock.Controller) *MockBlocksMetadata {
+	mock := &MockBlocksMetadata{ctrl: ctrl}
+	mock.recorder = &_MockBlocksMetadataRecorder{mock}
+	return mock
+}
+
+func (_m *MockBlocksMetadata) EXPECT() *_MockBlocksMetadataRecorder {
+	return _m.recorder
+}
+
+func (_m *MockBlocksMetadata) ID() string {
+	ret := _m.ctrl.Call(_m, "ID")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockBlocksMetadataRecorder) ID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
+}
+
+func (_m *MockBlocksMetadata) Blocks() []Metadata {
+	ret := _m.ctrl.Call(_m, "Blocks")
+	ret0, _ := ret[0].([]Metadata)
+	return ret0
+}
+
+func (_mr *_MockBlocksMetadataRecorder) Blocks() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Blocks")
+}
+
+// Mock of FetchBlockMetadataResult interface
+type MockFetchBlockMetadataResult struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFetchBlockMetadataResultRecorder
+}
+
+// Recorder for MockFetchBlockMetadataResult (not exported)
+type _MockFetchBlockMetadataResultRecorder struct {
+	mock *MockFetchBlockMetadataResult
+}
+
+func NewMockFetchBlockMetadataResult(ctrl *gomock.Controller) *MockFetchBlockMetadataResult {
+	mock := &MockFetchBlockMetadataResult{ctrl: ctrl}
+	mock.recorder = &_MockFetchBlockMetadataResultRecorder{mock}
+	return mock
+}
+
+func (_m *MockFetchBlockMetadataResult) EXPECT() *_MockFetchBlockMetadataResultRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFetchBlockMetadataResult) Start() time.Time {
+	ret := _m.ctrl.Call(_m, "Start")
+	ret0, _ := ret[0].(time.Time)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockMetadataResultRecorder) Start() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
+}
+
+func (_m *MockFetchBlockMetadataResult) Size() *int64 {
+	ret := _m.ctrl.Call(_m, "Size")
+	ret0, _ := ret[0].(*int64)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockMetadataResultRecorder) Size() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Size")
+}
+
+func (_m *MockFetchBlockMetadataResult) Checksum() *uint32 {
+	ret := _m.ctrl.Call(_m, "Checksum")
+	ret0, _ := ret[0].(*uint32)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockMetadataResultRecorder) Checksum() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
+}
+
+func (_m *MockFetchBlockMetadataResult) Err() error {
+	ret := _m.ctrl.Call(_m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockMetadataResultRecorder) Err() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
+}
+
+// Mock of FetchBlocksMetadataResult interface
+type MockFetchBlocksMetadataResult struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFetchBlocksMetadataResultRecorder
+}
+
+// Recorder for MockFetchBlocksMetadataResult (not exported)
+type _MockFetchBlocksMetadataResultRecorder struct {
+	mock *MockFetchBlocksMetadataResult
+}
+
+func NewMockFetchBlocksMetadataResult(ctrl *gomock.Controller) *MockFetchBlocksMetadataResult {
+	mock := &MockFetchBlocksMetadataResult{ctrl: ctrl}
+	mock.recorder = &_MockFetchBlocksMetadataResultRecorder{mock}
+	return mock
+}
+
+func (_m *MockFetchBlocksMetadataResult) EXPECT() *_MockFetchBlocksMetadataResultRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFetchBlocksMetadataResult) ID() string {
+	ret := _m.ctrl.Call(_m, "ID")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockFetchBlocksMetadataResultRecorder) ID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
+}
+
+func (_m *MockFetchBlocksMetadataResult) Blocks() []FetchBlockMetadataResult {
+	ret := _m.ctrl.Call(_m, "Blocks")
+	ret0, _ := ret[0].([]FetchBlockMetadataResult)
+	return ret0
+}
+
+func (_mr *_MockFetchBlocksMetadataResultRecorder) Blocks() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Blocks")
+}
+
+// Mock of FilteredBlocksMetadataIter interface
+type MockFilteredBlocksMetadataIter struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFilteredBlocksMetadataIterRecorder
+}
+
+// Recorder for MockFilteredBlocksMetadataIter (not exported)
+type _MockFilteredBlocksMetadataIterRecorder struct {
+	mock *MockFilteredBlocksMetadataIter
+}
+
+func NewMockFilteredBlocksMetadataIter(ctrl *gomock.Controller) *MockFilteredBlocksMetadataIter {
+	mock := &MockFilteredBlocksMetadataIter{ctrl: ctrl}
+	mock.recorder = &_MockFilteredBlocksMetadataIterRecorder{mock}
+	return mock
+}
+
+func (_m *MockFilteredBlocksMetadataIter) EXPECT() *_MockFilteredBlocksMetadataIterRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFilteredBlocksMetadataIter) Next() bool {
+	ret := _m.ctrl.Call(_m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockFilteredBlocksMetadataIterRecorder) Next() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
+}
+
+func (_m *MockFilteredBlocksMetadataIter) Current() (string, Metadata) {
+	ret := _m.ctrl.Call(_m, "Current")
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(Metadata)
+	return ret0, ret1
+}
+
+func (_mr *_MockFilteredBlocksMetadataIterRecorder) Current() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Current")
+}
+
+// Mock of FetchBlockResult interface
+type MockFetchBlockResult struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFetchBlockResultRecorder
+}
+
+// Recorder for MockFetchBlockResult (not exported)
+type _MockFetchBlockResultRecorder struct {
+	mock *MockFetchBlockResult
+}
+
+func NewMockFetchBlockResult(ctrl *gomock.Controller) *MockFetchBlockResult {
+	mock := &MockFetchBlockResult{ctrl: ctrl}
+	mock.recorder = &_MockFetchBlockResultRecorder{mock}
+	return mock
+}
+
+func (_m *MockFetchBlockResult) EXPECT() *_MockFetchBlockResultRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFetchBlockResult) Start() time.Time {
+	ret := _m.ctrl.Call(_m, "Start")
+	ret0, _ := ret[0].(time.Time)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockResultRecorder) Start() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
+}
+
+func (_m *MockFetchBlockResult) Readers() []io.SegmentReader {
+	ret := _m.ctrl.Call(_m, "Readers")
+	ret0, _ := ret[0].([]io.SegmentReader)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockResultRecorder) Readers() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Readers")
+}
+
+func (_m *MockFetchBlockResult) Err() error {
+	ret := _m.ctrl.Call(_m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockResultRecorder) Err() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
+}
+
 // Mock of DatabaseBlock interface
 type MockDatabaseBlock struct {
 	ctrl     *gomock.Controller
@@ -55,6 +342,16 @@ func (_m *MockDatabaseBlock) EXPECT() *_MockDatabaseBlockRecorder {
 	return _m.recorder
 }
 
+func (_m *MockDatabaseBlock) IsSealed() bool {
+	ret := _m.ctrl.Call(_m, "IsSealed")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockDatabaseBlockRecorder) IsSealed() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsSealed")
+}
+
 func (_m *MockDatabaseBlock) StartTime() time.Time {
 	ret := _m.ctrl.Call(_m, "StartTime")
 	ret0, _ := ret[0].(time.Time)
@@ -65,14 +362,14 @@ func (_mr *_MockDatabaseBlockRecorder) StartTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "StartTime")
 }
 
-func (_m *MockDatabaseBlock) IsSealed() bool {
-	ret := _m.ctrl.Call(_m, "IsSealed")
-	ret0, _ := ret[0].(bool)
+func (_m *MockDatabaseBlock) Checksum() *uint32 {
+	ret := _m.ctrl.Call(_m, "Checksum")
+	ret0, _ := ret[0].(*uint32)
 	return ret0
 }
 
-func (_mr *_MockDatabaseBlockRecorder) IsSealed() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsSealed")
+func (_mr *_MockDatabaseBlockRecorder) Checksum() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
 }
 
 func (_m *MockDatabaseBlock) Write(timestamp time.Time, value float64, unit time0.Unit, annotation ts.Annotation) error {

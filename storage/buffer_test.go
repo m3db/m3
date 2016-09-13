@@ -396,8 +396,9 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 		expectedSize += int64(len(segment.Head) + len(segment.Tail))
 	}
 
-	res := buffer.FetchBlocksMetadata(ctx, true)
+	res := buffer.FetchBlocksMetadata(ctx, true, true)
 	require.Equal(t, 1, len(res))
 	require.Equal(t, b.start, res[0].Start())
 	require.Equal(t, expectedSize, *res[0].Size())
+	require.Nil(t, res[0].Checksum())
 }

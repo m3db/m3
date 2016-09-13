@@ -24,8 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/repair"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
@@ -40,7 +44,8 @@ type mockDatabase struct {
 	bs         bootstrapState
 }
 
-func newMockDatabase() *mockDatabase                             { return &mockDatabase{opts: testDatabaseOptions()} }
+func newMockDatabase() *mockDatabase { return &mockDatabase{opts: testDatabaseOptions()} }
+
 func (d *mockDatabase) Options() Options                         { return d.opts }
 func (d *mockDatabase) Open() error                              { return nil }
 func (d *mockDatabase) Close() error                             { return nil }
@@ -65,11 +70,11 @@ func (d *mockDatabase) ReadEncoded(context.Context, string, string, time.Time, t
 	return nil, nil
 }
 
-func (d *mockDatabase) FetchBlocks(context.Context, string, uint32, string, []time.Time) ([]FetchBlockResult, error) {
+func (d *mockDatabase) FetchBlocks(context.Context, string, uint32, string, []time.Time) ([]block.FetchBlockResult, error) {
 	return nil, nil
 }
 
-func (d *mockDatabase) FetchBlocksMetadata(context.Context, string, uint32, int64, int64, bool) ([]FetchBlocksMetadataResult, *int64, error) {
+func (d *mockDatabase) FetchBlocksMetadata(context.Context, string, uint32, int64, int64, bool, bool) ([]block.FetchBlocksMetadataResult, *int64, error) {
 	return nil, nil, nil
 }
 
@@ -84,8 +89,26 @@ func testDatabaseOptions() Options {
 			SetRetentionPeriod(2 * 24 * time.Hour))
 }
 
+func testNewAdminSessionFn(t *testing.T) client.NewAdminSessionFn {
+	return func() (client.AdminSession, error) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		session := client.NewMockAdminSession(ctrl)
+		session.EXPECT().Origin().Return(topology.NewHost("0", "addr0"))
+		session.EXPECT().Replicas().Return(2)
+
+		return session, nil
+	}
+}
+
 func testDatabase(t *testing.T, bs bootstrapState) *db {
 	opts := testDatabaseOptions()
+	opts = opts.SetRepairOptions(repair.NewOptions().
+		SetNewAdminSessionFn(testNewAdminSessionFn(t)).
+		SetRepairInterval(time.Duration(0)).
+		SetRepairCheckInterval(time.Duration(0)))
+
 	database, err := NewDatabase(nil, nil, opts)
 	require.NoError(t, err)
 	d := database.(*db)
@@ -96,7 +119,15 @@ func testDatabase(t *testing.T, bs bootstrapState) *db {
 }
 
 func TestDatabaseOpen(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	d := testDatabase(t, bootstrapNotStarted)
+	repairer := NewMockdatabaseRepairer(ctrl)
+	repairer.EXPECT().Start()
+	repairer.EXPECT().Stop()
+	d.repairer = repairer
+
 	require.NoError(t, d.Open())
 	require.Equal(t, errDatabaseAlreadyOpen, d.Open())
 	require.NoError(t, d.Close())
@@ -104,6 +135,7 @@ func TestDatabaseOpen(t *testing.T) {
 
 func TestDatabaseClose(t *testing.T) {
 	d := testDatabase(t, bootstrapped)
+
 	require.NoError(t, d.Open())
 	require.NoError(t, d.Close())
 	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
@@ -175,7 +207,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	shardID := uint32(0)
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
-	expected := []FetchBlockResult{newFetchBlockResult(starts[0], nil, nil)}
+	expected := []block.FetchBlockResult{block.NewFetchBlockResult(starts[0], nil, nil)}
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchBlocks(ctx, shardID, id, starts).Return(expected, nil)
 	d.namespaces[ns] = mockNamespace
@@ -190,8 +222,8 @@ func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
 	defer ctx.Close()
 
 	d := testDatabase(t, bootstrapped)
-	ns, shardID, limit, pageToken, includeSizes := "testns1", uint32(0), int64(100), int64(0), true
-	res, nextPageToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, limit, pageToken, includeSizes)
+	ns, shardID, limit, pageToken, includeSizes, includeChecksums := "testns1", uint32(0), int64(100), int64(0), true, true
+	res, nextPageToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, limit, pageToken, includeSizes, includeChecksums)
 	require.Nil(t, res)
 	require.Nil(t, nextPageToken)
 	require.Error(t, err)
@@ -205,14 +237,14 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 	defer ctx.Close()
 
 	d := testDatabase(t, bootstrapped)
-	ns, shardID, limit, pageToken, includeSizes := "testns1", uint32(397), int64(100), int64(0), true
-	expectedBlocks := []FetchBlocksMetadataResult{newFetchBlocksMetadataResult("bar", nil)}
+	ns, shardID, limit, pageToken, includeSizes, includeChecksums := "testns1", uint32(397), int64(100), int64(0), true, true
+	expectedBlocks := []block.FetchBlocksMetadataResult{block.NewFetchBlocksMetadataResult("bar", nil)}
 	expectedToken := new(int64)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes).Return(expectedBlocks, expectedToken, nil)
+	mockNamespace.EXPECT().FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes, includeChecksums).Return(expectedBlocks, expectedToken, nil)
 	d.namespaces[ns] = mockNamespace
 
-	res, nextToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, limit, pageToken, includeSizes)
+	res, nextToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, limit, pageToken, includeSizes, includeChecksums)
 	require.Equal(t, expectedBlocks, res)
 	require.Equal(t, expectedToken, nextToken)
 	require.Nil(t, err)

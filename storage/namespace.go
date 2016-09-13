@@ -154,7 +154,7 @@ func (n *dbNamespace) FetchBlocks(
 	shardID uint32,
 	id string,
 	starts []time.Time,
-) ([]FetchBlockResult, error) {
+) ([]block.FetchBlockResult, error) {
 	shard, err := n.shardAt(shardID)
 	if err != nil {
 		return nil, xerrors.NewInvalidParamsError(err)
@@ -168,12 +168,13 @@ func (n *dbNamespace) FetchBlocksMetadata(
 	limit int64,
 	pageToken int64,
 	includeSizes bool,
-) ([]FetchBlocksMetadataResult, *int64, error) {
+	includeChecksums bool,
+) ([]block.FetchBlocksMetadataResult, *int64, error) {
 	shard, err := n.shardAt(shardID)
 	if err != nil {
 		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, limit, pageToken, includeSizes)
+	res, nextPageToken := shard.FetchBlocksMetadata(ctx, limit, pageToken, includeSizes, includeChecksums)
 	return res, nextPageToken, nil
 }
 
@@ -332,6 +333,18 @@ func (n *dbNamespace) Truncate() (int64, error) {
 
 	// NB(xichen): possibly also clean up disk files and force a GC here to reclaim memory immediately
 	return totalNumSeries, nil
+}
+
+func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
+	multiErr := xerrors.NewMultiError()
+	shards := n.getOwnedShards()
+	for _, shard := range shards {
+		if err := shard.Repair(n.name, repairer); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
 }
 
 func (n *dbNamespace) getOwnedShards() []databaseShard {

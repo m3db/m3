@@ -18,36 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package channel
 
-import (
-	"sort"
-	"testing"
-	"time"
-
-	"github.com/stretchr/testify/require"
+const (
+	// ChannelName is the TChannel channel name the node service is exposed on
+	ChannelName = "Node"
 )
-
-func TestSortFetchBlockResultByTimeAscending(t *testing.T) {
-	now := time.Now()
-	input := []FetchBlockResult{
-		newFetchBlockResult(now, nil, nil),
-		newFetchBlockResult(now.Add(time.Second), nil, nil),
-		newFetchBlockResult(now.Add(-time.Second), nil, nil),
-	}
-	expected := []FetchBlockResult{input[2], input[0], input[1]}
-	sort.Sort(fetchBlockResultByTimeAscending(input))
-	require.Equal(t, expected, input)
-}
-
-func TestSortFetchBlockMetadataResultByTimeAscending(t *testing.T) {
-	now := time.Now()
-	input := []FetchBlockMetadataResult{
-		newFetchBlockMetadataResult(now, nil, nil),
-		newFetchBlockMetadataResult(now.Add(time.Second), nil, nil),
-		newFetchBlockMetadataResult(now.Add(-time.Second), nil, nil),
-	}
-	expected := []FetchBlockMetadataResult{input[2], input[0], input[1]}
-	sortFetchBlockMetadataResultByTimeAscending(input)
-	require.Equal(t, expected, input)
-}

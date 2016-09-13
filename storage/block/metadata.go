@@ -18,30 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package digest
+package block
 
-import (
-	"hash"
-	"hash/adler32"
+import "time"
 
-	"github.com/m3db/m3db/ts"
-)
-
-// NewDigest creates a new digest.
-// The default 32-bit hashing algorithm is adler32.
-func NewDigest() hash.Hash32 {
-	return adler32.New()
+type metadata struct {
+	start    time.Time
+	size     int64
+	checksum *uint32
 }
 
-// Checksum returns the 32-bit data checksum.
-func Checksum(data []byte) uint32 {
-	return adler32.Checksum(data)
+// NewMetadata creates a new block metadata
+func NewMetadata(start time.Time, size int64, checksum *uint32) Metadata {
+	return metadata{
+		start:    start,
+		size:     size,
+		checksum: checksum,
+	}
 }
 
-// SegmentChecksum returns the 32-bit checksum for a segment.
-func SegmentChecksum(segment ts.Segment) uint32 {
-	d := NewDigest()
-	d.Write(segment.Head)
-	d.Write(segment.Tail)
-	return d.Sum32()
+func (m metadata) Start() time.Time  { return m.start }
+func (m metadata) Size() int64       { return m.size }
+func (m metadata) Checksum() *uint32 { return m.checksum }
+
+type blocksMetadata struct {
+	id     string
+	blocks []Metadata
 }
+
+// NewBlocksMetadata creates a new blocks metadata
+func NewBlocksMetadata(id string, blocks []Metadata) BlocksMetadata {
+	return blocksMetadata{id: id, blocks: blocks}
+}
+
+func (m blocksMetadata) ID() string         { return m.id }
+func (m blocksMetadata) Blocks() []Metadata { return m.blocks }

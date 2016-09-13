@@ -33,42 +33,10 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/repair"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
 )
-
-// FetchBlockResult captures the block start time, the readers for the underlying streams, and any errors encountered.
-type FetchBlockResult interface {
-	// Start returns the start time of an encoded block
-	Start() time.Time
-
-	// Readers returns the readers for the underlying streams.
-	Readers() []xio.SegmentReader
-
-	// Err returns the error encountered when fetching the block.
-	Err() error
-}
-
-// FetchBlocksMetadataResult captures the fetch results for multiple database blocks.
-type FetchBlocksMetadataResult interface {
-	// ID returns id of the series containing the blocks
-	ID() string
-
-	// Blocks returns the metadata of series blocks
-	Blocks() []FetchBlockMetadataResult
-}
-
-// FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered
-type FetchBlockMetadataResult interface {
-	// Start return the start time of a database block
-	Start() time.Time
-
-	// Size returns the size of the block, or nil if not available.
-	Size() *int64
-
-	// Err returns the error encountered if any
-	Err() error
-}
 
 // Database is a time series database
 type Database interface {
@@ -107,7 +75,7 @@ type Database interface {
 		shard uint32,
 		id string,
 		starts []time.Time,
-	) ([]FetchBlockResult, error)
+	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata retrieves blocks metadata for a given shard, returns the
 	// fetched block metadata results, the next page token, and any error encountered.
@@ -119,7 +87,8 @@ type Database interface {
 		limit int64,
 		pageToken int64,
 		includeSizes bool,
-	) ([]FetchBlocksMetadataResult, *int64, error)
+		includeChecksums bool,
+	) ([]block.FetchBlocksMetadataResult, *int64, error)
 
 	// Bootstrap bootstraps the database.
 	Bootstrap() error
@@ -161,7 +130,7 @@ type databaseNamespace interface {
 		shardID uint32,
 		id string,
 		starts []time.Time,
-	) ([]FetchBlockResult, error)
+	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata retrieves the blocks metadata.
 	FetchBlocksMetadata(
@@ -170,7 +139,8 @@ type databaseNamespace interface {
 		limit int64,
 		pageToken int64,
 		includeSizes bool,
-	) ([]FetchBlocksMetadataResult, *int64, error)
+		includeChecksums bool,
+	) ([]block.FetchBlocksMetadataResult, *int64, error)
 
 	// Bootstrap performs bootstrapping
 	Bootstrap(
@@ -187,6 +157,9 @@ type databaseNamespace interface {
 
 	// Truncate truncates the in-memory data for this namespace
 	Truncate() (int64, error)
+
+	// Repair repairs the namespace data
+	Repair(repairer databaseShardRepairer) error
 }
 
 type databaseShard interface {
@@ -217,7 +190,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id string,
 		starts []time.Time,
-	) []FetchBlockResult
+	) []block.FetchBlockResult
 
 	// FetchBlocksMetadata retrieves the blocks metadata.
 	FetchBlocksMetadata(
@@ -225,7 +198,8 @@ type databaseShard interface {
 		limit int64,
 		pageToken int64,
 		includeSizes bool,
-	) ([]FetchBlocksMetadataResult, *int64)
+		includeChecksums bool,
+	) ([]block.FetchBlocksMetadataResult, *int64)
 
 	Bootstrap(
 		bootstrappedSeries map[string]block.DatabaseSeriesBlocks,
@@ -243,6 +217,9 @@ type databaseShard interface {
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(namespace string, earliestToRetain time.Time) error
+
+	// Repair repairs the shard data
+	Repair(namespace string, repairer databaseShardRepairer) error
 }
 
 type databaseSeries interface {
@@ -265,10 +242,14 @@ type databaseSeries interface {
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks given a list of block start times.
-	FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult
+	FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult
 
 	// FetchBlocksMetadata retrieves the blocks metadata.
-	FetchBlocksMetadata(ctx context.Context, includeSizes bool) FetchBlocksMetadataResult
+	FetchBlocksMetadata(
+		ctx context.Context,
+		includeSizes bool,
+		includeChecksums bool,
+	) block.FetchBlocksMetadataResult
 
 	// IsEmpty returns whether series is empty
 	IsEmpty() bool
@@ -300,10 +281,14 @@ type databaseBuffer interface {
 	) [][]xio.SegmentReader
 
 	// FetchBlocks retrieves data blocks given a list of block start times.
-	FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult
+	FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult
 
 	// FetchBlocksMetadata retrieves the blocks metadata.
-	FetchBlocksMetadata(ctx context.Context, includeSizes bool) []FetchBlockMetadataResult
+	FetchBlocksMetadata(
+		ctx context.Context,
+		includeSizes bool,
+		includeChecksums bool,
+	) []block.FetchBlockMetadataResult
 
 	IsEmpty() bool
 
@@ -355,6 +340,24 @@ type databaseFileSystemManager interface {
 	Run(t time.Time, async bool)
 }
 
+// databaseShardRepairer repairs in-memory data for a shard
+type databaseShardRepairer interface {
+	// Repair repairs the data for a given namespace and shard
+	Repair(namespace string, shard databaseShard) error
+}
+
+// databaseRepairer repairs in-memory database data
+type databaseRepairer interface {
+	// Start starts the repair process
+	Start()
+
+	// Stop stops the repair process
+	Stop()
+
+	// Repair repairs in-memory data
+	Repair() error
+}
+
 // NewBootstrapFn creates a new bootstrap
 type NewBootstrapFn func() bootstrap.Bootstrap
 
@@ -392,6 +395,12 @@ type Options interface {
 
 	// CommitLogOptions returns the commit log options
 	CommitLogOptions() commitlog.Options
+
+	// SetRepairOptions sets the repair options
+	SetRepairOptions(value repair.Options) Options
+
+	// RepairOptions returns the repair options
+	RepairOptions() repair.Options
 
 	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
 	SetEncodingM3TSZPooled() Options

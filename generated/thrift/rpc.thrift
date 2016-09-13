@@ -92,6 +92,7 @@ struct FetchBlocksMetadataRequest {
 	3: required i64 limit
 	4: optional i64 pageToken
 	5: optional bool includeSizes
+	6: optional bool includeChecksums
 }
 
 struct FetchBlocksMetadataResult {
@@ -107,7 +108,8 @@ struct BlocksMetadata {
 struct BlockMetadata {
 	1: required i64 start
 	2: optional i64 size
-	3: optional Error err
+	3: optional i64 checksum
+	4: optional Error err
 }
 
 struct HealthResult {

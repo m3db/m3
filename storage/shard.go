@@ -302,7 +302,7 @@ func (s *dbShard) FetchBlocks(
 	ctx context.Context,
 	id string,
 	starts []time.Time,
-) []FetchBlockResult {
+) []block.FetchBlockResult {
 	s.RLock()
 	entry, _, exists := s.getEntryWithLock(id)
 	s.RUnlock()
@@ -317,9 +317,10 @@ func (s *dbShard) FetchBlocksMetadata(
 	limit int64,
 	pageToken int64,
 	includeSizes bool,
-) ([]FetchBlocksMetadataResult, *int64) {
+	includeChecksums bool,
+) ([]block.FetchBlocksMetadataResult, *int64) {
 	var (
-		res            = make([]FetchBlocksMetadataResult, 0, limit)
+		res            = make([]block.FetchBlocksMetadataResult, 0, int(math.Min(float64(1024), float64(limit))))
 		pNextPageToken *int64
 	)
 	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
@@ -330,7 +331,7 @@ func (s *dbShard) FetchBlocksMetadata(
 		// Create a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching the metadata for this series.
 		tmpCtx := s.opts.ContextPool().Get()
-		blocksMetadata := entry.series.FetchBlocksMetadata(tmpCtx, includeSizes)
+		blocksMetadata := entry.series.FetchBlocksMetadata(tmpCtx, includeSizes, includeChecksums)
 		tmpCtx.Close()
 		res = append(res, blocksMetadata)
 
@@ -447,4 +448,8 @@ func (s *dbShard) CleanupFileset(namespace string, earliestToRetain time.Time) e
 		multiErr = multiErr.Add(err)
 	}
 	return multiErr.FinalError()
+}
+
+func (s *dbShard) Repair(namespace string, repairer databaseShardRepairer) error {
+	return repairer.Repair(namespace, s)
 }

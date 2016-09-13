@@ -162,7 +162,7 @@ func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {
 	defer ctx.Close()
 
 	ns := testNamespace(t)
-	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], 100, 0, true)
+	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], 100, 0, true, true)
 	require.True(t, xerrors.IsInvalidParams(err))
 }
 
@@ -173,17 +173,20 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	limit := int64(100)
-	pageToken := int64(0)
-	includeSizes := true
-	nextPageToken := int64(100)
+	var (
+		limit            = int64(100)
+		pageToken        = int64(0)
+		includeSizes     = true
+		includeChecksums = true
+		nextPageToken    = int64(100)
+	)
 
 	ns := testNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchBlocksMetadata(ctx, limit, pageToken, includeSizes).Return(nil, &nextPageToken)
+	shard.EXPECT().FetchBlocksMetadata(ctx, limit, pageToken, includeSizes, includeChecksums).Return(nil, &nextPageToken)
 	ns.shards[testShardIDs[0]] = shard
 
-	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], limit, pageToken, includeSizes)
+	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], limit, pageToken, includeSizes, includeChecksums)
 	require.Nil(t, res)
 	require.Equal(t, npt, &nextPageToken)
 	require.NoError(t, err)
@@ -321,4 +324,19 @@ func TestNamespaceTruncate(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), res)
 	require.NotNil(t, ns.shards[testShardIDs[0]])
+}
+
+func TestNamespaceRepair(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ns := testNamespace(t)
+	errs := []error{nil, errors.New("foo")}
+	for i := range errs {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().Repair(testNamespaceName, nil).Return(errs[i])
+		ns.shards[testShardIDs[i]] = shard
+	}
+
+	require.Equal(t, "foo", ns.Repair(nil).Error())
 }

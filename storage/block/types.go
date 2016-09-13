@@ -31,16 +31,85 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// Metadata captures block metadata
+type Metadata interface {
+	// Start is the block start time
+	Start() time.Time
+
+	// Size is the block size
+	Size() int64
+
+	// Checksum is the block checksum if available
+	Checksum() *uint32
+}
+
+// BlocksMetadata contains blocks metadata from a peer
+type BlocksMetadata interface {
+	// ID associated with the blocks
+	ID() string
+
+	// Blocks returns the metadata for blocks
+	Blocks() []Metadata
+}
+
+// FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered
+type FetchBlockMetadataResult interface {
+	// Start returns the start time of a block
+	Start() time.Time
+
+	// Size returns the size of the block, or nil if not available.
+	Size() *int64
+
+	// Checksum returns the checksum of the block, or nil if not available.
+	Checksum() *uint32
+
+	// Err returns the error encountered if any
+	Err() error
+}
+
+// FetchBlocksMetadataResult captures the fetch results for multiple blocks.
+type FetchBlocksMetadataResult interface {
+	// ID returns id associated with the blocks
+	ID() string
+
+	// Blocks returns the metadata fetch result of blocks
+	Blocks() []FetchBlockMetadataResult
+}
+
+// FilteredBlocksMetadataIter iterates over a list of blocks metadata results with filtering applied
+type FilteredBlocksMetadataIter interface {
+	// Next returns the next item if available
+	Next() bool
+
+	// Current returns the current id and block metadata
+	Current() (string, Metadata)
+}
+
+// FetchBlockResult captures the block start time, the readers for the underlying streams, and any errors encountered.
+type FetchBlockResult interface {
+	// Start returns the start time of an encoded block
+	Start() time.Time
+
+	// Readers returns the readers for the underlying streams.
+	Readers() []xio.SegmentReader
+
+	// Err returns the error encountered when fetching the block.
+	Err() error
+}
+
 // NewDatabaseBlockFn creates a new database block.
 type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock represents a data block.
 type DatabaseBlock interface {
+	// IsSealed returns whether the block is sealed.
+	IsSealed() bool
+
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
-	// IsSealed returns whether the block is sealed.
-	IsSealed() bool
+	// Checksum returns the block checksum if available
+	Checksum() *uint32
 
 	// Write writes a datapoint to the block along with time unit and annotation.
 	Write(timestamp time.Time, value float64, unit xtime.Unit, annotation ts.Annotation) error

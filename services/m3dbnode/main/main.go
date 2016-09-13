@@ -21,6 +21,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	_ "net/http/pprof"
@@ -28,6 +29,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage"
 )
@@ -77,6 +79,20 @@ func main() {
 		log.Fatalf("could not create client options: %v", err)
 	}
 
+	c, err := client.NewClient(clientOpts)
+	if err != nil {
+		log.Fatalf("could not create cluster client: %v", err)
+	}
+
+	newSessionFn := func() (client.AdminSession, error) {
+		adminClient, ok := c.(client.AdminClient)
+		if !ok {
+			return nil, errors.New("could not convert client to an admin client")
+		}
+		return adminClient.NewAdminSession()
+	}
+	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetNewAdminSessionFn(newSessionFn))
+
 	namespaces := server.DefaultNamespaces()
 
 	doneCh := make(chan struct{})
@@ -88,7 +104,7 @@ func main() {
 			httpNodeAddr,
 			tchannelNodeAddr,
 			namespaces,
-			clientOpts,
+			c,
 			storageOpts,
 			doneCh,
 		); err != nil {

@@ -190,9 +190,14 @@ func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksM
 		includeSizes = *req.IncludeSizes
 	}
 
+	var includeChecksums bool
+	if req.IncludeChecksums != nil {
+		includeChecksums = *req.IncludeChecksums
+	}
+
 	result := rpc.NewFetchBlocksMetadataResult_()
 	ns, shardID := req.NameSpace, uint32(req.Shard)
-	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, ns, shardID, req.Limit, pageToken, includeSizes)
+	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, ns, shardID, req.Limit, pageToken, includeSizes, includeChecksums)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
@@ -207,6 +212,10 @@ func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksM
 			blockMetadata := rpc.NewBlockMetadata()
 			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start())
 			blockMetadata.Size = fetchedMetadataBlock.Size()
+			if checksum := fetchedMetadataBlock.Checksum(); checksum != nil {
+				cksum := int64(*checksum)
+				blockMetadata.Checksum = &cksum
+			}
 			if err := fetchedMetadataBlock.Err(); err != nil {
 				blockMetadata.Err = convert.ToRPCError(err)
 			}
