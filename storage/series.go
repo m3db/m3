@@ -368,15 +368,22 @@ func (s *dbSeries) drainStreamWithLock(
 	encoder := s.opts.EncoderPool().Get()
 	encoder.Reset(blockStart, blopts.DatabaseBlockAllocSize())
 
+	abort := func() {
+		// Return encoder to the pool if we abort draining the stream
+		encoder.Close()
+	}
+
 	for multiIter.Next() {
 		dp, unit, annotation := multiIter.Current()
 
 		err := encoder.Encode(dp, unit, annotation)
 		if err != nil {
+			abort()
 			return err
 		}
 	}
 	if err := multiIter.Err(); err != nil {
+		abort()
 		return err
 	}
 
