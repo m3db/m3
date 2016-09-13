@@ -139,23 +139,30 @@ type testOptions interface {
 
 	// UseTChannelClientForTruncation returns whether we use the tchannel client for truncation.
 	UseTChannelClientForTruncation() bool
+
+	// SetVerifySeriesDebugFilePathPrefix sets the file path prefix for writing a debug file of series comparisons.
+	SetVerifySeriesDebugFilePathPrefix(value string) testOptions
+
+	// VerifySeriesDebugFilePathPrefix returns the file path prefix for writing a debug file of series comparisons.
+	VerifySeriesDebugFilePathPrefix() string
 }
 
 type options struct {
-	namespaces                     []namespace.Metadata
-	httpClusterAddr                string
-	tchannelClusterAddr            string
-	httpNodeAddr                   string
-	tchannelNodeAddr               string
-	serverStateChangeTimeout       time.Duration
-	clusterConnectionTimeout       time.Duration
-	readRequestTimeout             time.Duration
-	writeRequestTimeout            time.Duration
-	truncateRequestTimeout         time.Duration
-	workerPoolSize                 int
-	useTChannelClientForReading    bool
-	useTChannelClientForWriting    bool
-	useTChannelClientForTruncation bool
+	namespaces                      []namespace.Metadata
+	httpClusterAddr                 string
+	tchannelClusterAddr             string
+	httpNodeAddr                    string
+	tchannelNodeAddr                string
+	serverStateChangeTimeout        time.Duration
+	clusterConnectionTimeout        time.Duration
+	readRequestTimeout              time.Duration
+	writeRequestTimeout             time.Duration
+	truncateRequestTimeout          time.Duration
+	workerPoolSize                  int
+	useTChannelClientForReading     bool
+	useTChannelClientForWriting     bool
+	useTChannelClientForTruncation  bool
+	verifySeriesDebugFilePathPrefix string
 }
 
 func newTestOptions() testOptions {
@@ -315,4 +322,14 @@ func (o *options) SetUseTChannelClientForTruncation(value bool) testOptions {
 
 func (o *options) UseTChannelClientForTruncation() bool {
 	return o.useTChannelClientForTruncation
+}
+
+func (o *options) SetVerifySeriesDebugFilePathPrefix(value string) testOptions {
+	opts := *o
+	opts.verifySeriesDebugFilePathPrefix = value
+	return &opts
+}
+
+func (o *options) VerifySeriesDebugFilePathPrefix() string {
+	return o.verifySeriesDebugFilePathPrefix
 }

@@ -2,6 +2,8 @@ package storage
 
 import (
 	"fmt"
+	"math"
+	"runtime"
 	"sync"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -216,17 +219,36 @@ func (n *dbNamespace) Bootstrap(
 	}
 	n.metrics.bootstrap.Success.Inc(1)
 
-	multiErr := xerrors.NewMultiError()
-	results := result.ShardResults()
-	for _, shard := range shards {
-		var bootstrappedSeries map[string]block.DatabaseSeriesBlocks
-		if result, ok := results[shard.ID()]; ok {
-			bootstrappedSeries = result.AllSeries()
-		}
+	// Bootstrap shards using at least half the CPUs available
+	workers := pool.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
+	workers.Init()
 
-		err := shard.Bootstrap(bootstrappedSeries, writeStart, cutover)
-		multiErr = multiErr.Add(err)
+	var (
+		multiErr = xerrors.NewMultiError()
+		results  = result.ShardResults()
+		mutex    sync.Mutex
+		wg       sync.WaitGroup
+	)
+	for _, shard := range shards {
+		shard := shard
+		wg.Add(1)
+		workers.Go(func() {
+			var bootstrapped map[string]block.DatabaseSeriesBlocks
+			if result, ok := results[shard.ID()]; ok {
+				bootstrapped = result.AllSeries()
+			}
+
+			err := shard.Bootstrap(bootstrapped, writeStart, cutover)
+
+			mutex.Lock()
+			multiErr = multiErr.Add(err)
+			mutex.Unlock()
+
+			wg.Done()
+		})
 	}
+
+	wg.Wait()
 
 	// Counter, tag this with namespace
 	unfulfilled := int64(len(result.Unfulfilled()))

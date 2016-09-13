@@ -39,6 +39,7 @@ import (
 var (
 	errInvalidRange               = errors.New("invalid time range specified")
 	errSeriesAllDatapointsExpired = errors.New("all series datapoints expired")
+	errSeriesDrainEmptyStream     = errors.New("series attempted to drain an empty stream")
 )
 
 type dbSeries struct {
@@ -52,6 +53,7 @@ type dbSeries struct {
 }
 
 type pendingBootstrapDrain struct {
+	start   time.Time
 	encoder encoding.Encoder
 }
 
@@ -318,7 +320,10 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
 	// buffer needs to drain or if tick is called and series explicitly asks
 	// the buffer to drain ready buckets.
 	if s.bs != bootstrapped {
-		s.pendingBootstrap = append(s.pendingBootstrap, pendingBootstrapDrain{encoder})
+		s.pendingBootstrap = append(s.pendingBootstrap, pendingBootstrapDrain{
+			start:   start,
+			encoder: encoder,
+		})
 		return
 	}
 
@@ -333,33 +338,61 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
 	// NB(r): this will occur if after bootstrap we have a partial
 	// block and now the buffer is passing the rest of that block
 	stream := encoder.Stream()
-	s.drainStream(s.blocks, stream, timeZero)
+	s.drainStreamWithLock(s.blocks, start, stream)
 	stream.Close()
 }
 
-func (s *dbSeries) drainStream(blocks block.DatabaseSeriesBlocks, stream io.Reader, cutover time.Time) error {
-	iter := s.opts.ReaderIteratorPool().Get()
-	iter.Reset(stream)
-
-	// Close the iterator and return to pool when done
-	defer iter.Close()
-
-	for iter.Next() {
-		dp, unit, annotation := iter.Current()
-		// If the datapoint timestamp is before the cutover, skip it.
-		if dp.Timestamp.Before(cutover) {
-			continue
+func (s *dbSeries) drainStreamWithLock(
+	blocks block.DatabaseSeriesBlocks,
+	blockStart time.Time,
+	stream xio.SegmentReader,
+) error {
+	readers := make([]io.Reader, 0, 2)
+	if block, ok := blocks.BlockAt(blockStart); ok {
+		ctx := s.opts.ContextPool().Get()
+		defer ctx.Close()
+		reader, err := block.Stream(ctx)
+		if err != nil {
+			return err
 		}
-		blockStart := dp.Timestamp.Truncate(s.opts.RetentionOptions().BlockSize())
-		block := blocks.BlockOrAdd(blockStart)
+		readers = append(readers, reader)
+	}
 
-		if err := block.Write(dp.Timestamp, dp.Value, unit, annotation); err != nil {
+	readers = append(readers, stream)
+
+	multiIter := s.opts.MultiReaderIteratorPool().Get()
+	multiIter.Reset(readers)
+	defer multiIter.Close()
+
+	blopts := s.opts.DatabaseBlockOptions()
+	encoder := s.opts.EncoderPool().Get()
+	encoder.Reset(blockStart, blopts.DatabaseBlockAllocSize())
+
+	abort := func() {
+		// Return encoder to the pool if we abort draining the stream
+		encoder.Close()
+	}
+
+	for multiIter.Next() {
+		dp, unit, annotation := multiIter.Current()
+
+		err := encoder.Encode(dp, unit, annotation)
+		if err != nil {
+			abort()
 			return err
 		}
 	}
-	if err := iter.Err(); err != nil {
+	if err := multiIter.Err(); err != nil {
+		abort()
 		return err
 	}
+
+	block := blopts.DatabaseBlockPool().Get()
+	block.Reset(blockStart, encoder)
+	block.Seal()
+
+	blocks.AddBlock(block)
+
 	return nil
 }
 
@@ -394,7 +427,7 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) e
 	multiErr := xerrors.NewMultiError()
 	for i := range s.pendingBootstrap {
 		stream := s.pendingBootstrap[i].encoder.Stream()
-		err := s.drainStream(rs, stream, cutover)
+		err := s.drainStreamWithLock(rs, s.pendingBootstrap[i].start, stream)
 		stream.Close()
 		if err != nil {
 			rs.Close()

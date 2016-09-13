@@ -191,8 +191,9 @@ func newDefaultBootstrappableTestSetups(
 
 			bsOpts := bootstrap.NewOptions().
 				SetClockOptions(setup.storageOpts.ClockOptions()).
+				SetInstrumentOptions(instrumentOpts).
 				SetRetentionOptions(setup.storageOpts.RetentionOptions()).
-				SetInstrumentOptions(instrumentOpts)
+				SetDatabaseBlockOptions(setup.storageOpts.DatabaseBlockOptions())
 
 			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
 
@@ -322,7 +323,7 @@ func writeToDisk(
 		seriesPerShard[shard] = make([]series, 0)
 	}
 	for _, s := range seriesList {
-		shard := shardSet.Shard(s.id)
+		shard := shardSet.Shard(s.ID)
 		seriesPerShard[shard] = append(seriesPerShard[shard], s)
 	}
 	segmentHolder := make([][]byte, 2)
@@ -332,7 +333,7 @@ func writeToDisk(
 		}
 		for _, series := range seriesList {
 			encoder.Reset(start, 0)
-			for _, dp := range series.data {
+			for _, dp := range series.Data {
 				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
 					return err
 				}
@@ -340,7 +341,7 @@ func writeToDisk(
 			segment := encoder.Stream().Segment()
 			segmentHolder[0] = segment.Head
 			segmentHolder[1] = segment.Tail
-			if err := writer.WriteAll(series.id, segmentHolder); err != nil {
+			if err := writer.WriteAll(series.ID, segmentHolder); err != nil {
 				return err
 			}
 		}

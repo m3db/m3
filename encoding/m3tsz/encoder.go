@@ -554,33 +554,6 @@ func (enc *encoder) Seal() {
 	enc.os.WriteBytes(tail)
 }
 
-func (enc *encoder) Unseal() error {
-	if enc.closed {
-		return errEncoderAlreadyClosed
-	}
-	if enc.writable {
-		return nil
-	}
-
-	b, _ := enc.os.Rawbytes()
-	scheme := enc.opts.MarkerEncodingScheme()
-	trimmed, usedBits, err := scheme.TrimEndOfStream(b)
-	if err != nil {
-		return err
-	}
-
-	// Reset the underlying stream to before the last byte
-	numBytes := len(trimmed)
-	enc.os.Reset(trimmed[:numBytes-1])
-
-	// Append the tail to include the last byte
-	enc.os.WriteBits(uint64(trimmed[numBytes-1]), usedBits)
-
-	enc.writable = true
-
-	return nil
-}
-
 func (enc *encoder) Close() {
 	if enc.closed {
 		return

@@ -73,9 +73,6 @@ func (s *peersSource) Read(
 	// Wait for data to be available from peers if required
 	now := s.nowFn()
 	_, max := shardsTimeRanges.MinMax()
-	// Max will only be available in a complete form after waiting
-	// for t + bufferPast as the window is still mutable until such time
-	max = max.Add(s.opts.BootstrapOptions().RetentionOptions().BufferPast())
 	for max.After(now) {
 		s.sleepFn(max.Sub(now))
 		now = s.nowFn()

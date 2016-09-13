@@ -51,9 +51,9 @@ func tchannelClient(address string) (*tchannel.Channel, rpc.TChanNode, error) {
 func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, namespace string, seriesList seriesList) error {
 	var elems []*rpc.IDDatapoint
 	for _, series := range seriesList {
-		for _, dp := range series.data {
+		for _, dp := range series.Data {
 			elem := &rpc.IDDatapoint{
-				ID: series.id,
+				ID: series.ID,
 				Datapoint: &rpc.Datapoint{
 					Timestamp:     xtime.ToNormalizedTime(dp.Timestamp, time.Second),
 					Value:         dp.Value,
@@ -107,9 +107,9 @@ func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, name
 	)
 
 	for _, series := range seriesList {
-		for _, dp := range series.data {
+		for _, dp := range series.Data {
 			wg.Add(1)
-			id, d := series.id, dp
+			id, d := series.ID, dp
 			workerPool.Go(func() {
 				defer wg.Done()
 
