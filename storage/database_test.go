@@ -123,11 +123,6 @@ func TestDatabaseOpen(t *testing.T) {
 	defer ctrl.Finish()
 
 	d := testDatabase(t, bootstrapNotStarted)
-	repairer := NewMockdatabaseRepairer(ctrl)
-	repairer.EXPECT().Start()
-	repairer.EXPECT().Stop()
-	d.repairer = repairer
-
 	require.NoError(t, d.Open())
 	require.Equal(t, errDatabaseAlreadyOpen, d.Open())
 	require.NoError(t, d.Close())
