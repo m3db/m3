@@ -122,6 +122,29 @@ func TestDatabaseBlockReadFromSealedBlock(t *testing.T) {
 	require.Equal(t, segment, r.Segment())
 }
 
+func TestDatabaseBlockChecksumUnsealed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	block, _ := testDatabaseBlock(ctrl)
+	block.writable = true
+	segment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
+	block.segment = segment
+
+	require.Nil(t, block.Checksum())
+}
+
+func TestDatabaseBlockChecksumSealed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	block, _ := testDatabaseBlock(ctrl)
+	block.writable = false
+	block.checksum = uint32(10)
+
+	require.Equal(t, block.checksum, *block.Checksum())
+}
+
 type testDatabaseBlockFn func(block *dbBlock)
 
 type testDatabaseBlockExpectedFn func(encoder *encoding.MockEncoder)
