@@ -223,10 +223,12 @@ func (n *dbNamespace) Bootstrap(
 	workers := pool.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	workers.Init()
 
-	multiErr := xerrors.NewMultiError()
-	mutex := sync.Mutex{}
-	wg := sync.WaitGroup{}
-	results := result.ShardResults()
+	var (
+		multiErr = xerrors.NewMultiError()
+		results  = result.ShardResults()
+		mutex    sync.Mutex
+		wg       sync.WaitGroup
+	)
 	for _, shard := range shards {
 		shard := shard
 		wg.Add(1)
