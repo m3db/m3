@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
@@ -203,8 +204,8 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 	return results
 }
 
-func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []FetchBlockResult {
-	var res []FetchBlockResult
+func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
+	var res []block.FetchBlockResult
 
 	now := b.nowFn()
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
@@ -224,14 +225,18 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []FetchB
 		b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
 			readers = append(readers, stream)
 		})
-		res = append(res, newFetchBlockResult(bucket.start, readers, nil))
+		res = append(res, block.NewFetchBlockResult(bucket.start, readers, nil))
 	})
 
 	return res
 }
 
-func (b *dbBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool) []FetchBlockMetadataResult {
-	var res []FetchBlockMetadataResult
+func (b *dbBuffer) FetchBlocksMetadata(
+	ctx context.Context,
+	includeSizes bool,
+	includeChecksums bool,
+) []block.FetchBlockMetadataResult {
+	var res []block.FetchBlockMetadataResult
 
 	now := b.nowFn()
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
@@ -248,7 +253,9 @@ func (b *dbBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool) [
 		if includeSizes {
 			pSize = &size
 		}
-		res = append(res, newFetchBlockMetadataResult(bucket.start, pSize, nil))
+		// NB(xichen): intentionally returning nil checksums for buckets
+		// because they haven't been flushed yet
+		res = append(res, block.NewFetchBlockMetadataResult(bucket.start, pSize, nil, nil))
 	})
 
 	return res

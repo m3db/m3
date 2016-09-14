@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -51,6 +52,7 @@ type dbBlock struct {
 	ctx      context.Context
 	closed   bool
 	writable bool
+	checksum uint32
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
@@ -65,12 +67,20 @@ func NewDatabaseBlock(start time.Time, encoder encoding.Encoder, opts Options) D
 	}
 }
 
+func (b *dbBlock) IsSealed() bool {
+	return !b.writable
+}
+
 func (b *dbBlock) StartTime() time.Time {
 	return b.start
 }
 
-func (b *dbBlock) IsSealed() bool {
-	return !b.writable
+func (b *dbBlock) Checksum() *uint32 {
+	if !b.IsSealed() {
+		return nil
+	}
+	cksum := b.checksum
+	return &cksum
 }
 
 func (b *dbBlock) Write(timestamp time.Time, value float64, unit xtime.Unit, annotation ts.Annotation) error {
@@ -146,6 +156,7 @@ func (b *dbBlock) Reset(startTime time.Time, encoder encoding.Encoder) {
 	b.start = startTime
 	b.encoder = encoder
 	b.segment = ts.Segment{}
+	b.checksum = 0
 	b.ctx = b.opts.ContextPool().Get()
 	b.closed = false
 	b.writable = true
@@ -169,6 +180,7 @@ func (b *dbBlock) Seal() {
 	b.writable = false
 	if stream := b.encoder.Stream(); stream != nil {
 		b.segment = stream.Segment()
+		b.checksum = digest.SegmentChecksum(b.segment)
 	}
 	// Reset encoder to prevent the byte stream inside the encoder
 	// from being returned to the bytes pool.

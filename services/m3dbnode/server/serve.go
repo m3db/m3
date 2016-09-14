@@ -82,7 +82,7 @@ func Serve(
 	httpNodeAddr string,
 	tchannelNodeAddr string,
 	namespaces []namespace.Metadata,
-	clientOpts client.Options,
+	client client.Client,
 	storageOpts storage.Options,
 	doneCh chan struct{},
 ) error {
@@ -97,11 +97,6 @@ func Serve(
 	}
 	if err := db.Open(); err != nil {
 		return fmt.Errorf("could not open database: %v", err)
-	}
-
-	client, err := client.NewClient(clientOpts)
-	if err != nil {
-		return fmt.Errorf("could not create cluster client: %v", err)
 	}
 
 	contextPool := storageOpts.ContextPool()

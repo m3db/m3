@@ -64,7 +64,6 @@ type nowSetterFn func(t time.Time)
 
 type testSetup struct {
 	opts           testOptions
-	clientOpts     client.Options
 	storageOpts    storage.Options
 	shardSet       sharding.ShardSet
 	getNowFn       clock.NowFn
@@ -160,9 +159,11 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return fs.NewPersistManager(fsOpts)
 	})
 
+	// Set up repair options
+	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(mc.(client.AdminClient)))
+
 	return &testSetup{
 		opts:           opts,
-		clientOpts:     clientOpts,
 		storageOpts:    storageOpts,
 		shardSet:       shardSet,
 		getNowFn:       getNowFn,
@@ -232,7 +233,7 @@ func (ts *testSetup) startServer() error {
 			httpNodeAddr,
 			tchannelNodeAddr,
 			ts.namespaces,
-			ts.clientOpts,
+			ts.m3dbClient,
 			ts.storageOpts,
 			ts.doneCh)
 		if err != nil {

@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/network/server/tchannelthrift/node"
+	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/close"
 
@@ -273,7 +273,7 @@ func newConn(channelName string, address string, opts Options) (xclose.SimpleClo
 		return nil, nil, err
 	}
 	endpoint := &thrift.ClientOptions{HostPort: address}
-	thriftClient := thrift.NewClient(channel, node.ChannelName, endpoint)
+	thriftClient := thrift.NewClient(channel, nchannel.ChannelName, endpoint)
 	client := rpc.NewTChanNodeClient(thriftClient)
 	return channel, client, nil
 }

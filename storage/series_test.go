@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
@@ -41,17 +42,19 @@ import (
 func newSeriesTestOptions() Options {
 	opts := NewOptions()
 	opts = opts.
-		SetRetentionOptions(opts.RetentionOptions().
-		SetBlockSize(2 * time.Minute).
-		SetBufferFuture(10 * time.Second).
-		SetBufferPast(10 * time.Second).
-		SetBufferDrain(30 * time.Second).
-		SetRetentionPeriod(time.Hour)).
-		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
-		SetContextPool(opts.ContextPool()).
-		SetEncoderPool(opts.EncoderPool()).
-		SetSegmentReaderPool(opts.SegmentReaderPool()).
-		SetBytesPool(opts.BytesPool()))
+		SetRetentionOptions(opts.
+			RetentionOptions().
+			SetBlockSize(2 * time.Minute).
+			SetBufferFuture(10 * time.Second).
+			SetBufferPast(10 * time.Second).
+			SetBufferDrain(30 * time.Second).
+			SetRetentionPeriod(time.Hour)).
+		SetDatabaseBlockOptions(opts.
+			DatabaseBlockOptions().
+			SetContextPool(opts.ContextPool()).
+			SetEncoderPool(opts.EncoderPool()).
+			SetSegmentReaderPool(opts.SegmentReaderPool()).
+			SetBytesPool(opts.BytesPool()))
 	return opts
 }
 
@@ -357,7 +360,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
 	buffer.EXPECT().IsEmpty().Return(false)
-	buffer.EXPECT().FetchBlocks(ctx, starts).Return([]FetchBlockResult{newFetchBlockResult(starts[2], nil, nil)})
+	buffer.EXPECT().FetchBlocks(ctx, starts).Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil)})
 
 	series := newDatabaseSeries("foo", bootstrapped, opts).(*dbSeries)
 	series.blocks = blocks
@@ -396,6 +399,8 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	expectedSegment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
 	b.EXPECT().Stream(ctx).Return(xio.NewSegmentReader(expectedSegment), nil)
+	expectedChecksum := digest.SegmentChecksum(expectedSegment)
+	b.EXPECT().Checksum().Return(&expectedChecksum)
 	blocks[starts[0]] = b
 
 	b = block.NewMockDatabaseBlock(ctrl)
@@ -405,7 +410,9 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
 	buffer.EXPECT().IsEmpty().Return(false)
-	buffer.EXPECT().FetchBlocksMetadata(ctx, true).Return([]FetchBlockMetadataResult{newFetchBlockMetadataResult(starts[2], new(int64), nil)})
+	buffer.EXPECT().
+		FetchBlocksMetadata(ctx, true, true).
+		Return([]block.FetchBlockMetadataResult{block.NewFetchBlockMetadataResult(starts[2], new(int64), nil, nil)})
 
 	series := newDatabaseSeries("bar", bootstrapped, opts).(*dbSeries)
 	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
@@ -413,21 +420,21 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	series.blocks = mockBlocks
 	series.buffer = buffer
 
-	res := series.FetchBlocksMetadata(ctx, true)
+	res := series.FetchBlocksMetadata(ctx, true, true)
 	require.Equal(t, "bar", res.ID())
+
 	metadata := res.Blocks()
+	expectedSize := int64(4)
 	expected := []struct {
 		t        time.Time
 		s        *int64
+		c        *uint32
 		hasError bool
 	}{
-		{starts[2], nil, false},
-		{starts[0], nil, false},
-		{starts[1], nil, true},
+		{starts[2], new(int64), nil, false},
+		{starts[0], &expectedSize, &expectedChecksum, false},
+		{starts[1], nil, nil, true},
 	}
-	expected[0].s = new(int64)
-	tmp := int64(4)
-	expected[1].s = &tmp
 	require.Equal(t, len(expected), len(metadata))
 	for i := 0; i < len(expected); i++ {
 		require.Equal(t, expected[i].t, metadata[i].Start())
@@ -435,6 +442,11 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 			require.Nil(t, metadata[i].Size())
 		} else {
 			require.Equal(t, *expected[i].s, *metadata[i].Size())
+		}
+		if expected[i].c == nil {
+			require.Nil(t, metadata[i].Checksum())
+		} else {
+			require.Equal(t, *expected[i].c, *metadata[i].Checksum())
 		}
 		if expected[i].hasError {
 			require.Error(t, metadata[i].Err())

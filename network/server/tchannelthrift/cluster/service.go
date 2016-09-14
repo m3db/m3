@@ -68,7 +68,7 @@ func (s *service) session() (client.Session, error) {
 		s.Unlock()
 		return session, nil
 	}
-	session, err := s.client.NewSession()
+	session, err := s.client.DefaultSession()
 	if err != nil {
 		s.Unlock()
 		return nil, err

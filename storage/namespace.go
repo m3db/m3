@@ -154,7 +154,7 @@ func (n *dbNamespace) FetchBlocks(
 	shardID uint32,
 	id string,
 	starts []time.Time,
-) ([]FetchBlockResult, error) {
+) ([]block.FetchBlockResult, error) {
 	shard, err := n.shardAt(shardID)
 	if err != nil {
 		return nil, xerrors.NewInvalidParamsError(err)
@@ -168,12 +168,13 @@ func (n *dbNamespace) FetchBlocksMetadata(
 	limit int64,
 	pageToken int64,
 	includeSizes bool,
-) ([]FetchBlocksMetadataResult, *int64, error) {
+	includeChecksums bool,
+) ([]block.FetchBlocksMetadataResult, *int64, error) {
 	shard, err := n.shardAt(shardID)
 	if err != nil {
 		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, limit, pageToken, includeSizes)
+	res, nextPageToken := shard.FetchBlocksMetadata(ctx, limit, pageToken, includeSizes, includeChecksums)
 	return res, nextPageToken, nil
 }
 
@@ -332,6 +333,50 @@ func (n *dbNamespace) Truncate() (int64, error) {
 
 	// NB(xichen): possibly also clean up disk files and force a GC here to reclaim memory immediately
 	return totalNumSeries, nil
+}
+
+func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
+	var (
+		numShardsRepaired     int
+		numTotalSeries        int64
+		numTotalBlocks        int64
+		numSizeDiffSeries     int64
+		numSizeDiffBlocks     int64
+		numChecksumDiffSeries int64
+		numChecksumDiffBlocks int64
+	)
+
+	multiErr := xerrors.NewMultiError()
+	shards := n.getOwnedShards()
+
+	for _, shard := range shards {
+		metadataRes, err := shard.Repair(n.name, repairer)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		} else {
+			numShardsRepaired++
+			numTotalSeries += metadataRes.NumSeries
+			numTotalBlocks += metadataRes.NumBlocks
+			numSizeDiffSeries += metadataRes.SizeDifferences.NumSeries()
+			numSizeDiffBlocks += metadataRes.SizeDifferences.NumBlocks()
+			numChecksumDiffSeries += metadataRes.ChecksumDifferences.NumSeries()
+			numChecksumDiffBlocks += metadataRes.ChecksumDifferences.NumBlocks()
+		}
+	}
+
+	n.log.WithFields(
+		xlog.NewLogField("namespace", n.name),
+		xlog.NewLogField("numTotalShards", len(shards)),
+		xlog.NewLogField("numShardsRepaired", numShardsRepaired),
+		xlog.NewLogField("numTotalSeries", numTotalSeries),
+		xlog.NewLogField("numTotalBlocks", numTotalBlocks),
+		xlog.NewLogField("numSizeDiffSeries", numSizeDiffSeries),
+		xlog.NewLogField("numSizeDiffBlocks", numSizeDiffBlocks),
+		xlog.NewLogField("numChecksumDiffSeries", numChecksumDiffSeries),
+		xlog.NewLogField("numChecksumDiffBlocks", numChecksumDiffBlocks),
+	).Infof("repair result")
+
+	return multiErr.FinalError()
 }
 
 func (n *dbNamespace) getOwnedShards() []databaseShard {

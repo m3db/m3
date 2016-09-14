@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage"
 )
@@ -77,6 +78,13 @@ func main() {
 		log.Fatalf("could not create client options: %v", err)
 	}
 
+	c, err := client.NewClient(clientOpts)
+	if err != nil {
+		log.Fatalf("could not create cluster client: %v", err)
+	}
+
+	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(c.(client.AdminClient)))
+
 	namespaces := server.DefaultNamespaces()
 
 	doneCh := make(chan struct{})
@@ -88,7 +96,7 @@ func main() {
 			httpNodeAddr,
 			tchannelNodeAddr,
 			namespaces,
-			clientOpts,
+			c,
 			storageOpts,
 			doneCh,
 		); err != nil {

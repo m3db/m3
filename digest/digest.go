@@ -23,6 +23,8 @@ package digest
 import (
 	"hash"
 	"hash/adler32"
+
+	"github.com/m3db/m3db/ts"
 )
 
 // NewDigest creates a new digest.
@@ -34,4 +36,12 @@ func NewDigest() hash.Hash32 {
 // Checksum returns the 32-bit data checksum.
 func Checksum(data []byte) uint32 {
 	return adler32.Checksum(data)
+}
+
+// SegmentChecksum returns the 32-bit checksum for a segment.
+func SegmentChecksum(segment ts.Segment) uint32 {
+	d := NewDigest()
+	d.Write(segment.Head)
+	d.Write(segment.Tail)
+	return d.Sum32()
 }

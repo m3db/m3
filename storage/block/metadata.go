@@ -18,35 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package peers
+package block
 
-import (
-	"time"
+import "time"
 
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage/bootstrap"
-)
-
-// SleepFn is a fn that will sleep the current goroutine
-type SleepFn func(d time.Duration)
-
-// Options represents the options for bootstrapping from peers
-type Options interface {
-	// SetBootstrapOptions sets the instrumentation options
-	SetBootstrapOptions(value bootstrap.Options) Options
-
-	// BootstrapOptions returns the instrumentation options
-	BootstrapOptions() bootstrap.Options
-
-	// SetAdminClient sets the admin client
-	SetAdminClient(value client.AdminClient) Options
-
-	// AdminClient returns the admin client
-	AdminClient() client.AdminClient
-
-	// SetSleepFn sets the sleep fn
-	SetSleepFn(value SleepFn) Options
-
-	// SleepFn returns the sleep fn
-	SleepFn() SleepFn
+type metadata struct {
+	start    time.Time
+	size     int64
+	checksum *uint32
 }
+
+// NewMetadata creates a new block metadata
+func NewMetadata(start time.Time, size int64, checksum *uint32) Metadata {
+	return metadata{
+		start:    start,
+		size:     size,
+		checksum: checksum,
+	}
+}
+
+func (m metadata) Start() time.Time  { return m.start }
+func (m metadata) Size() int64       { return m.size }
+func (m metadata) Checksum() *uint32 { return m.checksum }
+
+type blocksMetadata struct {
+	id     string
+	blocks []Metadata
+}
+
+// NewBlocksMetadata creates a new blocks metadata
+func NewBlocksMetadata(id string, blocks []Metadata) BlocksMetadata {
+	return blocksMetadata{id: id, blocks: blocks}
+}
+
+func (m blocksMetadata) ID() string         { return m.id }
+func (m blocksMetadata) Blocks() []Metadata { return m.blocks }

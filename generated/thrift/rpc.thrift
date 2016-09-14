@@ -53,16 +53,16 @@ service Node {
 }
 
 struct TruncateRequest {
-    1: required string nameSpace
+	1: required string nameSpace
 }
 
 struct TruncateResult {
-    1: required i64 numSeries
+	1: required i64 numSeries
 }
 
 struct FetchBlocksRequest {
-    1: required string nameSpace
-    2: required i32 shard
+	1: required string nameSpace
+	2: required i32 shard
 	3: required list<FetchBlocksParam> elements
 }
 
@@ -87,11 +87,12 @@ struct Block {
 }
 
 struct FetchBlocksMetadataRequest {
-    1: required string nameSpace
+	1: required string nameSpace
 	2: required i32 shard
 	3: required i64 limit
 	4: optional i64 pageToken
 	5: optional bool includeSizes
+	6: optional bool includeChecksums
 }
 
 struct FetchBlocksMetadataResult {
@@ -105,9 +106,10 @@ struct BlocksMetadata {
 }
 
 struct BlockMetadata {
-	1: required i64 start
-	2: optional i64 size
-	3: optional Error err
+	1: optional Error err
+	2: required i64 start
+	3: optional i64 size
+	4: optional i64 checksum
 }
 
 struct HealthResult {
@@ -116,22 +118,22 @@ struct HealthResult {
 }
 
 struct IDDatapoint {
-    1: required string id
-    2: required Datapoint datapoint
+	1: required string id
+	2: required Datapoint datapoint
 }
 
 struct WriteRequest {
-    1: required string nameSpace
-    2: required IDDatapoint idDatapoint
+	1: required string nameSpace
+	2: required IDDatapoint idDatapoint
 }
 
 struct WriteBatchRequest {
-    1: required string nameSpace
+	1: required string nameSpace
 	2: required list<IDDatapoint> elements
 }
 
 struct WriteBatchError {
-    1: required i64 index
+	1: required i64 index
 	2: required Error err
 }
 
@@ -168,8 +170,8 @@ struct FetchRawBatchResult {
 }
 
 struct Segment {
-    1: required binary head
-    2: required binary tail
+	1: required binary head
+	2: required binary tail
 }
 
 struct Segments {

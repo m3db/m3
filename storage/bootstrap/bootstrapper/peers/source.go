@@ -70,6 +70,14 @@ func (s *peersSource) Read(
 		return nil, nil
 	}
 
+	result := bootstrap.NewResult()
+	session, err := s.opts.AdminClient().DefaultAdminSession()
+	if err != nil {
+		s.log.Errorf("unable to get the default admin session: %v", err)
+		result.SetUnfulfilled(shardsTimeRanges)
+		return result, nil
+	}
+
 	// Wait for data to be available from peers if required
 	now := s.nowFn()
 	_, max := shardsTimeRanges.MinMax()
@@ -79,11 +87,9 @@ func (s *peersSource) Read(
 	}
 
 	var (
-		bopts   = s.opts.BootstrapOptions()
-		session = s.opts.AdminSession()
-		result  = bootstrap.NewResult()
-		lock    sync.Mutex
-		wg      sync.WaitGroup
+		bopts = s.opts.BootstrapOptions()
+		lock  sync.Mutex
+		wg    sync.WaitGroup
 	)
 	for shard, ranges := range shardsTimeRanges {
 		it := ranges.Iter()
