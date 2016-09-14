@@ -321,10 +321,14 @@ func (s *dbShard) FetchBlocksMetadata(
 	includeSizes bool,
 	includeChecksums bool,
 ) ([]block.FetchBlocksMetadataResult, *int64) {
+	// Restrict the maximum capacity so we don't over allocate or panic if
+	// someone passes in a very large limit
+	resCapacity := int(limit)
+	if resCapacity > blocksMetadataResultMaxInitialCapacity {
+		resCapacity = blocksMetadataResultMaxInitialCapacity
+	}
+
 	var (
-		// Restrict the maximum capacity so we don't over allocate or panic if
-		// someone passes in a very large limit
-		resCapacity    = int(math.Min(float64(blocksMetadataResultMaxInitialCapacity), float64(limit)))
 		res            = make([]block.FetchBlocksMetadataResult, 0, resCapacity)
 		pNextPageToken *int64
 	)

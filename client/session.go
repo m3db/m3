@@ -50,8 +50,9 @@ import (
 )
 
 const (
-	clusterConnectWaitInterval    = 10 * time.Millisecond
-	blocksMetadataInitialCapacity = 64
+	clusterConnectWaitInterval           = 10 * time.Millisecond
+	blocksMetadataInitialCapacity        = 64
+	blocksMetadataChannelInitialCapacity = 4096
 )
 
 var (
@@ -716,7 +717,7 @@ func (s *session) Truncate(namespace string) (int64, error) {
 
 func (s *session) peersForShard(shard uint32) ([]hostQueue, error) {
 	s.RLock()
-	peers := make([]hostQueue, 0, s.topoMap.Replicas())
+	peers := make([]hostQueue, 0, s.topoMap.Replicas()-1)
 	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
 		if s.origin != nil && s.origin.ID() == host.ID() {
 			// Don't include the origin host
@@ -743,7 +744,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	}
 
 	var (
-		metadataCh = make(chan blocksMetadata, 4096)
+		metadataCh = make(chan blocksMetadata, blocksMetadataChannelInitialCapacity)
 		errCh      = make(chan error, 1)
 	)
 

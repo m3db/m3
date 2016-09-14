@@ -65,6 +65,7 @@ func (m replicaBlocksMetadata) GetOrAdd(start time.Time) ReplicaBlockMetadata {
 	return block
 }
 
+// NB(xichen): replicaSeriesMetadata is not thread-safe
 type replicaSeriesMetadata map[string]ReplicaBlocksMetadata
 
 // NewReplicaSeriesMetadata creates a new replica series metadata
