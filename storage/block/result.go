@@ -111,17 +111,15 @@ type filteredBlocksMetadataIter struct {
 	end       time.Time
 	blockSize time.Duration
 	res       []FetchBlocksMetadataResult
-
-	id       string
-	metadata Metadata
-	ri       int
-	bi       int
+	id        string
+	metadata  Metadata
+	resIdx    int
+	blockIdx  int
 }
 
 // NewFilteredBlocksMetadataIter creates a new filtered blocks metadata iterator
 func NewFilteredBlocksMetadataIter(
-	start time.Time,
-	end time.Time,
+	start, end time.Time,
 	blockSize time.Duration,
 	res []FetchBlocksMetadataResult,
 ) FilteredBlocksMetadataIter {
@@ -134,14 +132,14 @@ func NewFilteredBlocksMetadataIter(
 }
 
 func (it *filteredBlocksMetadataIter) Next() bool {
-	if it.ri >= len(it.res) {
+	if it.resIdx >= len(it.res) {
 		return false
 	}
-	blocks := it.res[it.ri].Blocks()
-	for it.bi < len(blocks) {
-		block := blocks[it.bi]
+	blocks := it.res[it.resIdx].Blocks()
+	for it.blockIdx < len(blocks) {
+		block := blocks[it.blockIdx]
 		if block.Err() != nil {
-			it.bi++
+			it.blockIdx++
 			continue
 		}
 		var (
@@ -149,24 +147,24 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 			blockEnd   = blockStart.Add(it.blockSize)
 		)
 		if !it.start.Before(blockEnd) || !blockStart.Before(it.end) {
-			it.bi++
+			it.blockIdx++
 			continue
 		}
 		break
 	}
-	if it.bi >= len(blocks) {
-		it.ri++
-		it.bi = 0
+	if it.blockIdx >= len(blocks) {
+		it.resIdx++
+		it.blockIdx = 0
 		return it.Next()
 	}
-	it.id = it.res[it.ri].ID()
-	block := blocks[it.bi]
+	it.id = it.res[it.resIdx].ID()
+	block := blocks[it.blockIdx]
 	size := int64(0)
 	if block.Size() != nil {
 		size = *block.Size()
 	}
 	it.metadata = NewMetadata(block.Start(), size, block.Checksum())
-	it.bi++
+	it.blockIdx++
 	return true
 }
 

@@ -20,9 +20,14 @@
 
 package client
 
+import "sync"
+
 type client struct {
-	opts         Options
-	newSessionFn newSessionFn
+	sync.Mutex
+
+	opts           Options
+	newSessionFn   newSessionFn
+	defaultSession AdminSession
 }
 
 type newSessionFn func(opts Options) (clientSession, error)
@@ -55,10 +60,44 @@ func (c *client) newSession() (AdminSession, error) {
 	return session, nil
 }
 
+func (c *client) getOrCreateDefaultSession() (AdminSession, error) {
+	c.Lock()
+	if c.defaultSession != nil {
+		session := c.defaultSession
+		c.Unlock()
+		return session, nil
+	}
+	c.Unlock()
+
+	session, err := c.newSession()
+	if err != nil {
+		return nil, err
+	}
+
+	c.Lock()
+	if c.defaultSession != nil {
+		session := c.defaultSession
+		c.Unlock()
+		return session, nil
+	}
+	c.defaultSession = session
+	c.Unlock()
+
+	return session, nil
+}
+
 func (c *client) NewSession() (Session, error) {
 	return c.newSession()
 }
 
+func (c *client) DefaultSession() (Session, error) {
+	return c.getOrCreateDefaultSession()
+}
+
 func (c *client) NewAdminSession() (AdminSession, error) {
 	return c.newSession()
+}
+
+func (c *client) DefaultAdminSession() (AdminSession, error) {
+	return c.getOrCreateDefaultSession()
 }

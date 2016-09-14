@@ -29,7 +29,7 @@ import (
 
 type options struct {
 	bootstrapOpts bootstrap.Options
-	session       client.AdminSession
+	client        client.AdminClient
 	sleepFn       SleepFn
 }
 
@@ -51,14 +51,14 @@ func (o *options) BootstrapOptions() bootstrap.Options {
 	return o.bootstrapOpts
 }
 
-func (o *options) SetAdminSession(value client.AdminSession) Options {
+func (o *options) SetAdminClient(value client.AdminClient) Options {
 	opts := *o
-	opts.session = value
+	opts.client = value
 	return &opts
 }
 
-func (o *options) AdminSession() client.AdminSession {
-	return o.session
+func (o *options) AdminClient() client.AdminClient {
+	return o.client
 }
 
 func (o *options) SetSleepFn(value SleepFn) Options {

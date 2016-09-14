@@ -97,17 +97,23 @@ type MetadataComparisonResult struct {
 
 // Options are the repair options
 type Options interface {
-	// SetNewAdminSessionFn sets the new admin session function
-	SetNewAdminSessionFn(value client.NewAdminSessionFn) Options
+	// SetAdminClient sets the admin client
+	SetAdminClient(value client.AdminClient) Options
 
-	// NewAdminSessionFn returns the new admin session function
-	NewAdminSessionFn() client.NewAdminSessionFn
+	// AdminClient returns the admin client
+	AdminClient() client.AdminClient
 
 	// SetRepairInterval sets the repair interval
 	SetRepairInterval(value time.Duration) Options
 
 	// RepairInterval returns the repair interval
 	RepairInterval() time.Duration
+
+	// SetRepairTimeOffset sets the repair time offset
+	SetRepairTimeOffset(value time.Duration) Options
+
+	// RepairTimeOffset returns the repair time offset
+	RepairTimeOffset() time.Duration
 
 	// SetRepairCheckInterval sets the repair check interval
 	SetRepairCheckInterval(value time.Duration) Options

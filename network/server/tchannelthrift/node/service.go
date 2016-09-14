@@ -213,8 +213,8 @@ func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksM
 			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start())
 			blockMetadata.Size = fetchedMetadataBlock.Size()
 			if checksum := fetchedMetadataBlock.Checksum(); checksum != nil {
-				cksum := int64(*checksum)
-				blockMetadata.Checksum = &cksum
+				value := int64(*checksum)
+				blockMetadata.Checksum = &value
 			}
 			if err := fetchedMetadataBlock.Err(); err != nil {
 				blockMetadata.Err = convert.ToRPCError(err)

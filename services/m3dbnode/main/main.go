@@ -21,7 +21,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	_ "net/http/pprof"
@@ -84,14 +83,7 @@ func main() {
 		log.Fatalf("could not create cluster client: %v", err)
 	}
 
-	newSessionFn := func() (client.AdminSession, error) {
-		adminClient, ok := c.(client.AdminClient)
-		if !ok {
-			return nil, errors.New("could not convert client to an admin client")
-		}
-		return adminClient.NewAdminSession()
-	}
-	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetNewAdminSessionFn(newSessionFn))
+	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(c.(client.AdminClient)))
 
 	namespaces := server.DefaultNamespaces()
 

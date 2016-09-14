@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
-	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
@@ -89,24 +88,15 @@ func testDatabaseOptions() Options {
 			SetRetentionPeriod(2 * 24 * time.Hour))
 }
 
-func testNewAdminSessionFn(t *testing.T) client.NewAdminSessionFn {
-	return func() (client.AdminSession, error) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		session := client.NewMockAdminSession(ctrl)
-		session.EXPECT().Origin().Return(topology.NewHost("0", "addr0"))
-		session.EXPECT().Replicas().Return(2)
-
-		return session, nil
-	}
-}
-
 func testDatabase(t *testing.T, bs bootstrapState) *db {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	opts := testDatabaseOptions()
 	opts = opts.SetRepairOptions(repair.NewOptions().
-		SetNewAdminSessionFn(testNewAdminSessionFn(t)).
+		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetRepairInterval(time.Duration(0)).
+		SetRepairTimeOffset(time.Duration(0)).
 		SetRepairCheckInterval(time.Duration(0)))
 
 	database, err := NewDatabase(nil, nil, opts)

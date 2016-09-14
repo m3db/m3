@@ -86,14 +86,14 @@ func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 		SetHTTPClusterAddr(fmt.Sprintf("%s:%d", bind, start+3))
 }
 
-func newMultiAddrAdminSession(
+func newMultiAddrAdminClient(
 	t *testing.T,
 	adminOpts client.AdminOptions,
 	instrumentOpts instrument.Options,
 	shardSet sharding.ShardSet,
 	replicas int,
 	instance int,
-) client.AdminSession {
+) client.AdminClient {
 	if adminOpts == nil {
 		adminOpts = client.NewAdminOptions()
 	}
@@ -129,10 +129,7 @@ func newMultiAddrAdminSession(
 	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
 	require.NoError(t, err)
 
-	session, err := adminClient.NewAdminSession()
-	require.NoError(t, err)
-
-	return session
+	return adminClient
 }
 
 func newBootstrappableTestSetup(
@@ -197,7 +194,7 @@ func newDefaultBootstrappableTestSetups(
 
 			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
 
-			var session client.AdminSession
+			var adminClient client.AdminClient
 			if usingPeersBoostrapper {
 				adminOpts := client.NewAdminOptions()
 				if bootstrapBlocksBatchSize > 0 {
@@ -206,16 +203,13 @@ func newDefaultBootstrappableTestSetups(
 				if bootstrapBlocksConcurrency > 0 {
 					adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 				}
-				session = newMultiAddrAdminSession(
+				adminClient = newMultiAddrAdminClient(
 					t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
-				appendCleanupFn(func() {
-					session.Close()
-				})
 			}
 
 			peersOpts := peers.NewOptions().
 				SetBootstrapOptions(bsOpts).
-				SetAdminSession(session)
+				SetAdminClient(adminClient)
 			if sleepFn != nil {
 				peersOpts = peersOpts.SetSleepFn(sleepFn)
 			}

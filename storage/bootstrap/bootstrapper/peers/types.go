@@ -38,11 +38,11 @@ type Options interface {
 	// BootstrapOptions returns the instrumentation options
 	BootstrapOptions() bootstrap.Options
 
-	// SetAdminSession sets the admin session
-	SetAdminSession(value client.AdminSession) Options
+	// SetAdminClient sets the admin client
+	SetAdminClient(value client.AdminClient) Options
 
-	// AdminSession returns the admin session
-	AdminSession() client.AdminSession
+	// AdminClient returns the admin client
+	AdminClient() client.AdminClient
 
 	// SetSleepFn sets the sleep fn
 	SetSleepFn(value SleepFn) Options

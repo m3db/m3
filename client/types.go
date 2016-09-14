@@ -61,6 +61,9 @@ const (
 type Client interface {
 	// NewSession creates a new session
 	NewSession() (Session, error)
+
+	// DefaultSession creates a default session that gets reused
+	DefaultSession() (Session, error)
 }
 
 // Session can write and read to a cluster
@@ -84,6 +87,9 @@ type AdminClient interface {
 
 	// NewSession creates a new session
 	NewAdminSession() (AdminSession, error)
+
+	// DefaultAdminSession creates a default admin session that gets reused
+	DefaultAdminSession() (AdminSession, error)
 }
 
 // PeerBlocksMetadataIter iterates over a collection of
@@ -99,9 +105,6 @@ type PeerBlocksMetadataIter interface {
 	// Err returns any error encountered
 	Err() error
 }
-
-// NewAdminSessionFn creates a new admin session
-type NewAdminSessionFn func() (AdminSession, error)
 
 // AdminSession can perform administrative and node-to-node operations
 type AdminSession interface {

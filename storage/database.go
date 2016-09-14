@@ -208,9 +208,12 @@ func (d *db) Open() error {
 	}
 	d.state = databaseOpen
 
-	// All goroutines must be accounted for with dbOngoingTasks to receive done signal
+	// Goroutines must be accounted for with dbOngoingTasks in order to receive done signal
 	go d.reportLoop()
 	go d.ongoingTick()
+
+	// Explicitly start the repairer in Open and stop it in Close so there is no need to
+	// register this goroutine with dbOngoingTasks
 	go d.repairer.Start()
 
 	return nil

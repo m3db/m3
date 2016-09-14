@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
-	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 
@@ -47,65 +46,61 @@ var (
 type recordFn func(namespace string, shard databaseShard, diffRes repair.MetadataComparisonResult)
 
 type shardRepairer struct {
-	opts    Options
-	rtOpts  retention.Options
-	session client.AdminSession
-
+	opts      Options
+	rtopts    retention.Options
+	client    client.AdminClient
 	recordFn  recordFn
 	logger    xlog.Logger
 	scope     tally.Scope
 	nowFn     clock.NowFn
 	blockSize time.Duration
-	origin    topology.Host
-	replicas  int
 }
 
-func newShardRepairer(opts Options, rpOpts repair.Options) (databaseShardRepairer, error) {
-	newSessionFn := rpOpts.NewAdminSessionFn()
-	session, err := newSessionFn()
-	if err != nil {
-		return nil, err
-	}
-
-	iOpts := opts.InstrumentOptions()
-	rtOpts := opts.RetentionOptions()
+func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer {
+	iopts := opts.InstrumentOptions()
+	rtopts := opts.RetentionOptions()
+	client := rpopts.AdminClient()
 
 	r := shardRepairer{
-		opts:    opts,
-		rtOpts:  rtOpts,
-		session: session,
-
-		logger:    iOpts.Logger(),
-		scope:     iOpts.MetricsScope().SubScope("database"),
+		opts:      opts,
+		rtopts:    rtopts,
+		client:    client,
+		logger:    iopts.Logger(),
+		scope:     iopts.MetricsScope().SubScope("database.repair"),
 		nowFn:     opts.ClockOptions().NowFn(),
-		blockSize: rtOpts.BlockSize(),
-		origin:    session.Origin(),
-		replicas:  session.Replicas(),
+		blockSize: rtopts.BlockSize(),
 	}
 	r.recordFn = r.recordDifferences
 
-	return r, nil
+	return r
 }
 
 func (r shardRepairer) Repair(namespace string, shard databaseShard) error {
 	ctx := r.opts.ContextPool().Get()
 	defer ctx.Close()
 
+	session, err := r.client.DefaultAdminSession()
+	if err != nil {
+		return err
+	}
+
 	var (
-		now   = r.nowFn()
-		start = now.Add(-r.rtOpts.RetentionPeriod()).Truncate(r.blockSize)
-		end   = now.Add(-r.rtOpts.BufferPast()).Add(-r.blockSize).Truncate(r.blockSize)
+		now      = r.nowFn()
+		start    = now.Add(-r.rtopts.RetentionPeriod())
+		end      = now.Add(-r.rtopts.BufferPast()).Add(-r.blockSize)
+		origin   = session.Origin()
+		replicas = session.Replicas()
 	)
 
-	metadata := repair.NewReplicaMetadataComparer(r.replicas)
+	metadata := repair.NewReplicaMetadataComparer(replicas)
 
 	// Add local metadata
 	localMetadata, _ := shard.FetchBlocksMetadata(ctx, math.MaxInt64, 0, true, true)
 	localIter := block.NewFilteredBlocksMetadataIter(start, end, r.blockSize, localMetadata)
-	metadata.AddLocalMetadata(r.origin, localIter)
+	metadata.AddLocalMetadata(origin, localIter)
 
 	// Add peer metadata
-	peerIter, err := r.session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end, r.blockSize)
+	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end, r.blockSize)
 	if err != nil {
 		return err
 	}
@@ -136,13 +131,14 @@ func (r shardRepairer) recordDifferences(
 	)
 
 	// Record total number of series and total number of blocks
-	totalScope.Counter("repair.series").Inc(diffRes.NumSeries)
-	totalScope.Counter("repair.blocks").Inc(diffRes.NumBlocks)
+	totalScope.Counter("series").Inc(diffRes.NumSeries)
+	totalScope.Counter("blocks").Inc(diffRes.NumBlocks)
 	r.logger.WithFields(
 		xlog.NewLogField("namespace", namespace),
 		xlog.NewLogField("shard", shard.ID()),
-		xlog.NewLogField("resultType", "total"),
-	).Infof("numSeries=%d, numBlocks=%d", diffRes.NumSeries, diffRes.NumBlocks)
+		xlog.NewLogField("numSeries", diffRes.NumSeries),
+		xlog.NewLogField("numBlocks", diffRes.NumBlocks),
+	).Infof("repair total count")
 
 	// Record size differences
 	sizeDiffSeries := diffRes.SizeDifferences.Series()
@@ -150,13 +146,14 @@ func (r shardRepairer) recordDifferences(
 	for _, series := range sizeDiffSeries {
 		numBlocks += len(series.Blocks())
 	}
-	sizeDiffScope.Counter("repair.series").Inc(int64(len(sizeDiffSeries)))
-	sizeDiffScope.Counter("repair.blocks").Inc(int64(numBlocks))
+	sizeDiffScope.Counter("series").Inc(int64(len(sizeDiffSeries)))
+	sizeDiffScope.Counter("blocks").Inc(int64(numBlocks))
 	r.logger.WithFields(
 		xlog.NewLogField("namespace", namespace),
 		xlog.NewLogField("shard", shard.ID()),
-		xlog.NewLogField("resultType", "sizeDiff"),
-	).Infof("numSeries=%d, numBlocks=%d", len(sizeDiffSeries), numBlocks)
+		xlog.NewLogField("numSeries", len(sizeDiffSeries)),
+		xlog.NewLogField("numBlocks", numBlocks),
+	).Infof("repair size difference count")
 
 	// Record checksum differences
 	checksumDiffSeries := diffRes.ChecksumDifferences.Series()
@@ -164,19 +161,22 @@ func (r shardRepairer) recordDifferences(
 	for _, series := range checksumDiffSeries {
 		numBlocks += len(series.Blocks())
 	}
-	checksumDiffScope.Counter("repair.series").Inc(int64(len(checksumDiffSeries)))
-	checksumDiffScope.Counter("repair.blocks").Inc(int64(numBlocks))
+	checksumDiffScope.Counter("series").Inc(int64(len(checksumDiffSeries)))
+	checksumDiffScope.Counter("blocks").Inc(int64(numBlocks))
 	r.logger.WithFields(
 		xlog.NewLogField("namespace", namespace),
 		xlog.NewLogField("shard", shard.ID()),
-		xlog.NewLogField("resultType", "checksumDiff"),
-	).Infof("numSeries=%d, numBlocks=%d", len(checksumDiffSeries), numBlocks)
+		xlog.NewLogField("numSeries", len(checksumDiffSeries)),
+		xlog.NewLogField("numBlocks", numBlocks),
+	).Infof("repair checksum difference count")
 }
 
 type repairFn func() error
 
+type sleepFn func(d time.Duration)
+
 type dbRepairer struct {
-	sync.RWMutex
+	sync.Mutex
 
 	database      database
 	opts          Options
@@ -184,9 +184,11 @@ type dbRepairer struct {
 	shardRepairer databaseShardRepairer
 
 	repairFn            repairFn
+	sleepFn             sleepFn
 	nowFn               clock.NowFn
 	logger              xlog.Logger
 	repairInterval      time.Duration
+	repairTimeOffset    time.Duration
 	repairCheckInterval time.Duration
 	closed              bool
 }
@@ -205,9 +207,12 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 		database:            database,
 		opts:                opts,
 		ropts:               ropts,
+		shardRepairer:       newShardRepairer(opts, ropts),
+		sleepFn:             time.Sleep,
 		nowFn:               opts.ClockOptions().NowFn(),
 		logger:              opts.InstrumentOptions().Logger(),
 		repairInterval:      ropts.RepairInterval(),
+		repairTimeOffset:    ropts.RepairTimeOffset(),
 		repairCheckInterval: ropts.RepairCheckInterval(),
 	}
 	r.repairFn = r.Repair
@@ -220,27 +225,36 @@ func (r *dbRepairer) Start() {
 		return
 	}
 
-	start := r.nowFn()
+	var curIntervalStart time.Time
+
 	for {
-		r.RLock()
+		r.Lock()
 		closed := r.closed
-		r.RUnlock()
+		r.Unlock()
 
 		if closed {
 			break
 		}
 
-		end := r.nowFn()
-		if end.Sub(start) < r.repairInterval {
-			time.Sleep(r.repairCheckInterval)
+		r.sleepFn(r.repairCheckInterval)
+
+		now := r.nowFn()
+		intervalStart := now.Truncate(r.repairInterval)
+
+		// If we haven't reached the offset yet, skip
+		if now.Sub(intervalStart) < r.repairTimeOffset {
 			continue
 		}
 
+		// If we are in the same interval, we must have already repaired, skip
+		if intervalStart == curIntervalStart {
+			continue
+		}
+
+		curIntervalStart = intervalStart
 		if err := r.repairFn(); err != nil {
 			r.logger.Errorf("error repairing database: %v", err)
 		}
-
-		start = r.nowFn()
 	}
 }
 
@@ -254,15 +268,6 @@ func (r *dbRepairer) Repair() error {
 	// Don't attempt a repair if the database is not bootstrapped yet
 	if !r.database.IsBootstrapped() {
 		return nil
-	}
-
-	// Lazily create the shard repairer
-	if r.shardRepairer == nil {
-		repairer, err := newShardRepairer(r.opts, r.ropts)
-		if err != nil {
-			return err
-		}
-		r.shardRepairer = repairer
 	}
 
 	multiErr := xerrors.NewMultiError()

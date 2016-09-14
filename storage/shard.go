@@ -40,7 +40,8 @@ import (
 )
 
 const (
-	shardIterateBatchPercent = 0.05
+	shardIterateBatchPercent               = 0.05
+	blocksMetadataResultMaxInitialCapacity = 1024
 )
 
 type filesetBeforeFn func(filePathPrefix string, namespace string, shardID uint32, t time.Time) ([]string, error)
@@ -320,7 +321,10 @@ func (s *dbShard) FetchBlocksMetadata(
 	includeChecksums bool,
 ) ([]block.FetchBlocksMetadataResult, *int64) {
 	var (
-		res            = make([]block.FetchBlocksMetadataResult, 0, int(math.Min(float64(1024), float64(limit))))
+		// Restrict the maximum capacity so we don't over allocate or panic if
+		// someone passes in a very large limit
+		resCapacity    = int(math.Min(float64(blocksMetadataResultMaxInitialCapacity), float64(limit)))
+		res            = make([]block.FetchBlocksMetadataResult, 0, resCapacity)
 		pNextPageToken *int64
 	)
 	s.forEachShardEntry(true, func(entry *dbShardEntry) error {

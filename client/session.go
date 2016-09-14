@@ -50,7 +50,8 @@ import (
 )
 
 const (
-	clusterConnectWaitInterval = 10 * time.Millisecond
+	clusterConnectWaitInterval    = 10 * time.Millisecond
+	blocksMetadataInitialCapacity = 64
 )
 
 var (
@@ -713,7 +714,7 @@ func (s *session) Truncate(namespace string) (int64, error) {
 	return truncated, resultErr.FinalError()
 }
 
-func (s *session) getPeersForShard(shard uint32) ([]hostQueue, error) {
+func (s *session) peersForShard(shard uint32) ([]hostQueue, error) {
 	s.RLock()
 	peers := make([]hostQueue, 0, s.topoMap.Replicas())
 	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
@@ -730,59 +731,13 @@ func (s *session) getPeersForShard(shard uint32) ([]hostQueue, error) {
 	return peers, nil
 }
 
-type metadataIter struct {
-	inputCh  <-chan blocksMetadata
-	errCh    <-chan error
-	host     topology.Host
-	blocks   []block.Metadata
-	metadata block.BlocksMetadata
-	done     bool
-	err      error
-}
-
-func newMetadataIter(inputCh <-chan blocksMetadata, errCh <-chan error) PeerBlocksMetadataIter {
-	return &metadataIter{
-		inputCh: inputCh,
-		errCh:   errCh,
-		blocks:  make([]block.Metadata, 0, 64),
-	}
-}
-
-func (it *metadataIter) Next() bool {
-	if it.done || it.err != nil {
-		return false
-	}
-	m, more := <-it.inputCh
-	if !more {
-		it.err = <-it.errCh
-		it.done = true
-		return false
-	}
-	it.host = m.peer.Host()
-	it.blocks = it.blocks[:0]
-	for _, b := range m.blocks {
-		bm := block.NewMetadata(b.start, b.size, b.checksum)
-		it.blocks = append(it.blocks, bm)
-	}
-	it.metadata = block.NewBlocksMetadata(m.id, it.blocks)
-	return true
-}
-
-func (it *metadataIter) Current() (topology.Host, block.BlocksMetadata) {
-	return it.host, it.metadata
-}
-
-func (it *metadataIter) Err() error {
-	return it.err
-}
-
 func (s *session) FetchBlocksMetadataFromPeers(
 	namespace string,
 	shard uint32,
 	start, end time.Time,
 	blockSize time.Duration,
 ) (PeerBlocksMetadataIter, error) {
-	peers, err := s.getPeersForShard(shard)
+	peers, err := s.peersForShard(shard)
 	if err != nil {
 		return nil, err
 	}
@@ -821,7 +776,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		}
 	)
 
-	peers, err := s.getPeersForShard(shard)
+	peers, err := s.peersForShard(shard)
 	if err != nil {
 		return nil, err
 	}
@@ -970,8 +925,8 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 				var pChecksum *uint32
 				if b.Checksum != nil {
-					cksum := uint32(*b.Checksum)
-					pChecksum = &cksum
+					value := uint32(*b.Checksum)
+					pChecksum = &value
 				}
 
 				blockMetas = append(blockMetas, blockMetadata{
@@ -1818,4 +1773,50 @@ func (b blockMetadatasByTime) Len() int      { return len(b) }
 func (b blockMetadatasByTime) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
 func (b blockMetadatasByTime) Less(i, j int) bool {
 	return b[i].start.Before(b[j].start)
+}
+
+type metadataIter struct {
+	inputCh  <-chan blocksMetadata
+	errCh    <-chan error
+	host     topology.Host
+	blocks   []block.Metadata
+	metadata block.BlocksMetadata
+	done     bool
+	err      error
+}
+
+func newMetadataIter(inputCh <-chan blocksMetadata, errCh <-chan error) PeerBlocksMetadataIter {
+	return &metadataIter{
+		inputCh: inputCh,
+		errCh:   errCh,
+		blocks:  make([]block.Metadata, 0, blocksMetadataInitialCapacity),
+	}
+}
+
+func (it *metadataIter) Next() bool {
+	if it.done || it.err != nil {
+		return false
+	}
+	m, more := <-it.inputCh
+	if !more {
+		it.err = <-it.errCh
+		it.done = true
+		return false
+	}
+	it.host = m.peer.Host()
+	it.blocks = it.blocks[:0]
+	for _, b := range m.blocks {
+		bm := block.NewMetadata(b.start, b.size, b.checksum)
+		it.blocks = append(it.blocks, bm)
+	}
+	it.metadata = block.NewBlocksMetadata(m.id, it.blocks)
+	return true
+}
+
+func (it *metadataIter) Current() (topology.Host, block.BlocksMetadata) {
+	return it.host, it.metadata
+}
+
+func (it *metadataIter) Err() error {
+	return it.err
 }

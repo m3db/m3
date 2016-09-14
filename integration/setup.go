@@ -160,14 +160,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	})
 
 	// Set up repair options
-	newSessionFn := func() (client.AdminSession, error) {
-		adminClient, ok := mc.(client.AdminClient)
-		if !ok {
-			return nil, errors.New("could not convert client to an admin client")
-		}
-		return adminClient.NewAdminSession()
-	}
-	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetNewAdminSessionFn(newSessionFn))
+	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(mc.(client.AdminClient)))
 
 	return &testSetup{
 		opts:           opts,

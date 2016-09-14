@@ -70,6 +70,17 @@ func (_mr *_MockClientRecorder) NewSession() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewSession")
 }
 
+func (_m *MockClient) DefaultSession() (Session, error) {
+	ret := _m.ctrl.Call(_m, "DefaultSession")
+	ret0, _ := ret[0].(Session)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockClientRecorder) DefaultSession() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DefaultSession")
+}
+
 // Mock of Session interface
 type MockSession struct {
 	ctrl     *gomock.Controller
@@ -165,6 +176,17 @@ func (_mr *_MockAdminClientRecorder) NewSession() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewSession")
 }
 
+func (_m *MockAdminClient) DefaultSession() (Session, error) {
+	ret := _m.ctrl.Call(_m, "DefaultSession")
+	ret0, _ := ret[0].(Session)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockAdminClientRecorder) DefaultSession() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DefaultSession")
+}
+
 func (_m *MockAdminClient) NewAdminSession() (AdminSession, error) {
 	ret := _m.ctrl.Call(_m, "NewAdminSession")
 	ret0, _ := ret[0].(AdminSession)
@@ -174,6 +196,17 @@ func (_m *MockAdminClient) NewAdminSession() (AdminSession, error) {
 
 func (_mr *_MockAdminClientRecorder) NewAdminSession() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewAdminSession")
+}
+
+func (_m *MockAdminClient) DefaultAdminSession() (AdminSession, error) {
+	ret := _m.ctrl.Call(_m, "DefaultAdminSession")
+	ret0, _ := ret[0].(AdminSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockAdminClientRecorder) DefaultAdminSession() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DefaultAdminSession")
 }
 
 // Mock of PeerBlocksMetadataIter interface

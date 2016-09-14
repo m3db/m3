@@ -36,10 +36,12 @@ import (
 )
 
 func getRepairer(t *testing.T, ctrl *gomock.Controller) (*dbRepairer, *mockDatabase) {
+
 	mockDatabase := newMockDatabase()
 	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(repair.NewOptions().
-		SetNewAdminSessionFn(testNewAdminSessionFn(t)).
-		SetRepairInterval(500 * time.Millisecond).
+		SetAdminClient(client.NewMockAdminClient(ctrl)).
+		SetRepairInterval(time.Second).
+		SetRepairTimeOffset(500 * time.Millisecond).
 		SetRepairCheckInterval(100 * time.Millisecond))
 
 	repairer, err := newDatabaseRepairer(mockDatabase)
@@ -80,9 +82,9 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 	repairer.Stop()
 	for {
 		// Wait for the repairer to stop
-		repairer.RLock()
+		repairer.Lock()
 		closed := repairer.closed
-		repairer.RUnlock()
+		repairer.Unlock()
 		if closed {
 			break
 		}
@@ -107,9 +109,13 @@ func TestShardRepairerRepair(t *testing.T) {
 	session.EXPECT().Origin().Return(topology.NewHost("0", "addr0"))
 	session.EXPECT().Replicas().Return(2)
 
+	mockClient := client.NewMockAdminClient(ctrl)
+	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
+
 	rpOpts := repair.NewOptions().
-		SetNewAdminSessionFn(func() (client.AdminSession, error) { return session, nil }).
-		SetRepairInterval(500 * time.Millisecond).
+		SetAdminClient(mockClient).
+		SetRepairInterval(time.Second).
+		SetRepairTimeOffset(500 * time.Millisecond).
 		SetRepairCheckInterval(100 * time.Millisecond)
 
 	now := time.Now()
@@ -124,8 +130,8 @@ func TestShardRepairerRepair(t *testing.T) {
 
 	var (
 		namespace = "testNamespace"
-		start     = now.Add(-rtopts.RetentionPeriod()).Truncate(rtopts.BlockSize())
-		end       = now.Add(-rtopts.BufferPast()).Add(-rtopts.BlockSize()).Truncate(rtopts.BlockSize())
+		start     = now.Add(-rtopts.RetentionPeriod())
+		end       = now.Add(-rtopts.BufferPast()).Add(-rtopts.BlockSize())
 	)
 
 	sizes := []int64{1, 2, 3}
@@ -178,9 +184,7 @@ func TestShardRepairerRepair(t *testing.T) {
 		resDiff      repair.MetadataComparisonResult
 	)
 
-	dbShardRepairer, err := newShardRepairer(opts, rpOpts)
-	require.NoError(t, err)
-	repairer := dbShardRepairer.(shardRepairer)
+	repairer := newShardRepairer(opts, rpOpts).(shardRepairer)
 	repairer.recordFn = func(namespace string, shard databaseShard, diffRes repair.MetadataComparisonResult) {
 		resNamespace = namespace
 		resShard = shard
