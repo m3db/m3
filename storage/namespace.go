@@ -336,13 +336,45 @@ func (n *dbNamespace) Truncate() (int64, error) {
 }
 
 func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
+	var (
+		numShardsRepaired     int
+		numTotalSeries        int64
+		numTotalBlocks        int64
+		numSizeDiffSeries     int64
+		numSizeDiffBlocks     int64
+		numChecksumDiffSeries int64
+		numChecksumDiffBlocks int64
+	)
+
 	multiErr := xerrors.NewMultiError()
 	shards := n.getOwnedShards()
+
 	for _, shard := range shards {
-		if err := shard.Repair(n.name, repairer); err != nil {
+		metadataRes, err := shard.Repair(n.name, repairer)
+		if err != nil {
 			multiErr = multiErr.Add(err)
+		} else {
+			numShardsRepaired++
+			numTotalSeries += metadataRes.NumSeries
+			numTotalBlocks += metadataRes.NumBlocks
+			numSizeDiffSeries += metadataRes.SizeDifferences.NumSeries()
+			numSizeDiffBlocks += metadataRes.SizeDifferences.NumBlocks()
+			numChecksumDiffSeries += metadataRes.ChecksumDifferences.NumSeries()
+			numChecksumDiffBlocks += metadataRes.ChecksumDifferences.NumBlocks()
 		}
 	}
+
+	n.log.WithFields(
+		xlog.NewLogField("namespace", n.name),
+		xlog.NewLogField("numTotalShards", len(shards)),
+		xlog.NewLogField("numShardsRepaired", numShardsRepaired),
+		xlog.NewLogField("numTotalSeries", numTotalSeries),
+		xlog.NewLogField("numTotalBlocks", numTotalBlocks),
+		xlog.NewLogField("numSizeDiffSeries", numSizeDiffSeries),
+		xlog.NewLogField("numSizeDiffBlocks", numSizeDiffBlocks),
+		xlog.NewLogField("numChecksumDiffSeries", numChecksumDiffSeries),
+		xlog.NewLogField("numChecksumDiffBlocks", numChecksumDiffBlocks),
+	).Infof("repair result")
 
 	return multiErr.FinalError()
 }

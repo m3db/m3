@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -56,8 +57,14 @@ type shardRepairer struct {
 	blockSize time.Duration
 }
 
-func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer {
+func newShardRepairer(opts Options, rpopts repair.Options) (databaseShardRepairer, error) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
+
 	iopts := opts.InstrumentOptions()
+	scope := iopts.MetricsScope().SubScope("database.repair").Tagged(map[string]string{"host": hostname})
 	rtopts := opts.RetentionOptions()
 	client := rpopts.AdminClient()
 
@@ -66,22 +73,22 @@ func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer
 		rtopts:    rtopts,
 		client:    client,
 		logger:    iopts.Logger(),
-		scope:     iopts.MetricsScope().SubScope("database.repair"),
+		scope:     scope,
 		nowFn:     opts.ClockOptions().NowFn(),
 		blockSize: rtopts.BlockSize(),
 	}
 	r.recordFn = r.recordDifferences
 
-	return r
+	return r, nil
 }
 
-func (r shardRepairer) Repair(namespace string, shard databaseShard) error {
+func (r shardRepairer) Repair(namespace string, shard databaseShard) (repair.MetadataComparisonResult, error) {
 	ctx := r.opts.ContextPool().Get()
 	defer ctx.Close()
 
 	session, err := r.client.DefaultAdminSession()
 	if err != nil {
-		return err
+		return repair.MetadataComparisonResult{}, err
 	}
 
 	var (
@@ -102,16 +109,18 @@ func (r shardRepairer) Repair(namespace string, shard databaseShard) error {
 	// Add peer metadata
 	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end, r.blockSize)
 	if err != nil {
-		return err
+		return repair.MetadataComparisonResult{}, err
 	}
 	if err := metadata.AddPeerMetadata(peerIter); err != nil {
-		return err
+		return repair.MetadataComparisonResult{}, err
 	}
 
-	// NB(xichen): only record the differences for now
-	r.recordFn(namespace, shard, metadata.Compare())
+	metadataRes := metadata.Compare()
 
-	return nil
+	// NB(xichen): only record the differences for now
+	r.recordFn(namespace, shard, metadataRes)
+
+	return metadataRes, nil
 }
 
 // TODO(xichen): log the actual differences once we have an idea of the magnitude of discrepancies
@@ -133,42 +142,14 @@ func (r shardRepairer) recordDifferences(
 	// Record total number of series and total number of blocks
 	totalScope.Counter("series").Inc(diffRes.NumSeries)
 	totalScope.Counter("blocks").Inc(diffRes.NumBlocks)
-	r.logger.WithFields(
-		xlog.NewLogField("namespace", namespace),
-		xlog.NewLogField("shard", shard.ID()),
-		xlog.NewLogField("numSeries", diffRes.NumSeries),
-		xlog.NewLogField("numBlocks", diffRes.NumBlocks),
-	).Infof("repair total count")
 
 	// Record size differences
-	sizeDiffSeries := diffRes.SizeDifferences.Series()
-	numBlocks := 0
-	for _, series := range sizeDiffSeries {
-		numBlocks += len(series.Blocks())
-	}
-	sizeDiffScope.Counter("series").Inc(int64(len(sizeDiffSeries)))
-	sizeDiffScope.Counter("blocks").Inc(int64(numBlocks))
-	r.logger.WithFields(
-		xlog.NewLogField("namespace", namespace),
-		xlog.NewLogField("shard", shard.ID()),
-		xlog.NewLogField("numSeries", len(sizeDiffSeries)),
-		xlog.NewLogField("numBlocks", numBlocks),
-	).Infof("repair size difference count")
+	sizeDiffScope.Counter("series").Inc(diffRes.SizeDifferences.NumSeries())
+	sizeDiffScope.Counter("blocks").Inc(diffRes.SizeDifferences.NumBlocks())
 
 	// Record checksum differences
-	checksumDiffSeries := diffRes.ChecksumDifferences.Series()
-	numBlocks = 0
-	for _, series := range checksumDiffSeries {
-		numBlocks += len(series.Blocks())
-	}
-	checksumDiffScope.Counter("series").Inc(int64(len(checksumDiffSeries)))
-	checksumDiffScope.Counter("blocks").Inc(int64(numBlocks))
-	r.logger.WithFields(
-		xlog.NewLogField("namespace", namespace),
-		xlog.NewLogField("shard", shard.ID()),
-		xlog.NewLogField("numSeries", len(checksumDiffSeries)),
-		xlog.NewLogField("numBlocks", numBlocks),
-	).Infof("repair checksum difference count")
+	checksumDiffScope.Counter("series").Inc(diffRes.ChecksumDifferences.NumSeries())
+	checksumDiffScope.Counter("blocks").Inc(diffRes.ChecksumDifferences.NumBlocks())
 }
 
 type repairFn func() error
@@ -203,11 +184,16 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 		return nil, err
 	}
 
+	shardRepairer, err := newShardRepairer(opts, ropts)
+	if err != nil {
+		return nil, err
+	}
+
 	r := &dbRepairer{
 		database:            database,
 		opts:                opts,
 		ropts:               ropts,
-		shardRepairer:       newShardRepairer(opts, ropts),
+		shardRepairer:       shardRepairer,
 		sleepFn:             time.Sleep,
 		nowFn:               opts.ClockOptions().NowFn(),
 		logger:              opts.InstrumentOptions().Logger(),
@@ -220,11 +206,7 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 	return r, nil
 }
 
-func (r *dbRepairer) Start() {
-	if r.repairInterval <= 0 {
-		return
-	}
-
+func (r *dbRepairer) run() {
 	var curIntervalStart time.Time
 
 	for {
@@ -256,6 +238,14 @@ func (r *dbRepairer) Start() {
 			r.logger.Errorf("error repairing database: %v", err)
 		}
 	}
+}
+
+func (r *dbRepairer) Start() {
+	if r.repairInterval <= 0 {
+		return
+	}
+
+	go r.run()
 }
 
 func (r *dbRepairer) Stop() {

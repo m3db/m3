@@ -66,7 +66,7 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 		return nil
 	}
 
-	go repairer.Start()
+	repairer.Start()
 
 	for {
 		// Wait for repair to be called
@@ -130,7 +130,7 @@ func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
 		numIter++
 	}
 
-	repairer.Start()
+	repairer.run()
 	require.Equal(t, 1, numIter)
 	require.False(t, repaired)
 }
@@ -185,7 +185,7 @@ func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
 		numIter++
 	}
 
-	repairer.Start()
+	repairer.run()
 	require.Equal(t, 4, numIter)
 	require.Equal(t, 2, numRepairs)
 }
@@ -284,7 +284,9 @@ func TestShardRepairerRepair(t *testing.T) {
 		resDiff      repair.MetadataComparisonResult
 	)
 
-	repairer := newShardRepairer(opts, rpOpts).(shardRepairer)
+	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
+	require.NoError(t, err)
+	repairer := databaseShardRepairer.(shardRepairer)
 	repairer.recordFn = func(namespace string, shard databaseShard, diffRes repair.MetadataComparisonResult) {
 		resNamespace = namespace
 		resShard = shard

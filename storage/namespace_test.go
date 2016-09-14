@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 
@@ -334,7 +335,16 @@ func TestNamespaceRepair(t *testing.T) {
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Repair(testNamespaceName, nil).Return(errs[i])
+		var res repair.MetadataComparisonResult
+		if errs[i] == nil {
+			res = repair.MetadataComparisonResult{
+				NumSeries:           1,
+				NumBlocks:           2,
+				SizeDifferences:     repair.NewReplicaSeriesMetadata(),
+				ChecksumDifferences: repair.NewReplicaSeriesMetadata(),
+			}
+		}
+		shard.EXPECT().Repair(testNamespaceName, nil).Return(res, errs[i])
 		ns.shards[testShardIDs[i]] = shard
 	}
 

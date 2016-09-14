@@ -49,6 +49,9 @@ type ReplicaBlockMetadata interface {
 
 // ReplicaBlocksMetadata captures the blocks metadata from hosts in a shard replica set
 type ReplicaBlocksMetadata interface {
+	// NumBlocks returns the total number of blocks
+	NumBlocks() int64
+
 	// Blocks returns the blocks metadata
 	Blocks() map[time.Time]ReplicaBlockMetadata
 
@@ -61,6 +64,12 @@ type ReplicaBlocksMetadata interface {
 
 // ReplicaSeriesMetadata captures the metadata for a list of series from hosts in a shard replica set
 type ReplicaSeriesMetadata interface {
+	// NumSeries returns the total number of series
+	NumSeries() int64
+
+	// NumBlocks returns the total number of blocks
+	NumBlocks() int64
+
 	// Series returns the series metadata
 	Series() map[string]ReplicaBlocksMetadata
 

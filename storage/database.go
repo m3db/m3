@@ -214,7 +214,7 @@ func (d *db) Open() error {
 
 	// Explicitly start the repairer in Open and stop it in Close so there is no need to
 	// register this goroutine with dbOngoingTasks
-	go d.repairer.Start()
+	d.repairer.Start()
 
 	return nil
 }

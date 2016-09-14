@@ -50,7 +50,7 @@ func TestReplicaBlockMetadataAdd(t *testing.T) {
 func TestReplicaBlocksMetadataAdd(t *testing.T) {
 	now := time.Now()
 	block := NewReplicaBlockMetadata(now)
-	m := newReplicaBlocksMetadata()
+	m := NewReplicaBlocksMetadata()
 	m.Add(block)
 
 	blocks := m.Blocks()
@@ -63,7 +63,7 @@ func TestReplicaBlocksMetadataAdd(t *testing.T) {
 
 func TestReplicaBlocksMetadataGetOrAdd(t *testing.T) {
 	now := time.Now()
-	m := newReplicaBlocksMetadata()
+	m := NewReplicaBlocksMetadata()
 	require.Equal(t, 0, len(m.Blocks()))
 
 	// Add a block
@@ -81,7 +81,7 @@ func TestReplicaBlocksMetadataGetOrAdd(t *testing.T) {
 }
 
 func TestReplicaSeriesMetadataGetOrAdd(t *testing.T) {
-	m := newReplicaSeriesMetadata()
+	m := NewReplicaSeriesMetadata()
 
 	// Add a series
 	m.GetOrAdd("foo")
@@ -102,11 +102,7 @@ type testBlock struct {
 }
 
 func assertEqual(t *testing.T, expected []testBlock, actual ReplicaSeriesMetadata) {
-	numBlocks := 0
-	for _, series := range actual.Series() {
-		numBlocks += len(series.Blocks())
-	}
-	require.Equal(t, len(expected), numBlocks)
+	require.Equal(t, len(expected), int(actual.NumBlocks()))
 
 	for _, b := range expected {
 		series := actual.Series()[b.id]
@@ -206,7 +202,7 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 		hosts = []topology.Host{topology.NewHost("foo", "foo"), topology.NewHost("bar", "bar")}
 	)
 
-	metadata := newReplicaSeriesMetadata()
+	metadata := NewReplicaSeriesMetadata()
 	inputs := []struct {
 		host        topology.Host
 		id          string

@@ -219,7 +219,7 @@ type databaseShard interface {
 	CleanupFileset(namespace string, earliestToRetain time.Time) error
 
 	// Repair repairs the shard data
-	Repair(namespace string, repairer databaseShardRepairer) error
+	Repair(namespace string, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error)
 }
 
 type databaseSeries interface {
@@ -343,7 +343,7 @@ type databaseFileSystemManager interface {
 // databaseShardRepairer repairs in-memory data for a shard
 type databaseShardRepairer interface {
 	// Repair repairs the data for a given namespace and shard
-	Repair(namespace string, shard databaseShard) error
+	Repair(namespace string, shard databaseShard) (repair.MetadataComparisonResult, error)
 }
 
 // databaseRepairer repairs in-memory database data

@@ -46,10 +46,12 @@ func (m *replicaBlockMetadata) Add(metadata HostBlockMetadata) {
 
 type replicaBlocksMetadata map[time.Time]ReplicaBlockMetadata
 
-func newReplicaBlocksMetadata() ReplicaBlocksMetadata {
+// NewReplicaBlocksMetadata creates a new replica blocks metadata
+func NewReplicaBlocksMetadata() ReplicaBlocksMetadata {
 	return make(replicaBlocksMetadata)
 }
 
+func (m replicaBlocksMetadata) NumBlocks() int64                           { return int64(len(m)) }
 func (m replicaBlocksMetadata) Blocks() map[time.Time]ReplicaBlockMetadata { return m }
 func (m replicaBlocksMetadata) Add(block ReplicaBlockMetadata)             { m[block.Start()] = block }
 
@@ -65,18 +67,28 @@ func (m replicaBlocksMetadata) GetOrAdd(start time.Time) ReplicaBlockMetadata {
 
 type replicaSeriesMetadata map[string]ReplicaBlocksMetadata
 
-func newReplicaSeriesMetadata() ReplicaSeriesMetadata {
+// NewReplicaSeriesMetadata creates a new replica series metadata
+func NewReplicaSeriesMetadata() ReplicaSeriesMetadata {
 	return make(replicaSeriesMetadata)
 }
 
+func (m replicaSeriesMetadata) NumSeries() int64                         { return int64(len(m)) }
 func (m replicaSeriesMetadata) Series() map[string]ReplicaBlocksMetadata { return m }
+
+func (m replicaSeriesMetadata) NumBlocks() int64 {
+	var numBlocks int64
+	for _, series := range m {
+		numBlocks += series.NumBlocks()
+	}
+	return numBlocks
+}
 
 func (m replicaSeriesMetadata) GetOrAdd(id string) ReplicaBlocksMetadata {
 	blocks, exists := m[id]
 	if exists {
 		return blocks
 	}
-	blocks = newReplicaBlocksMetadata()
+	blocks = NewReplicaBlocksMetadata()
 	m[id] = blocks
 	return blocks
 }
@@ -90,7 +102,7 @@ type replicaMetadataComparer struct {
 func NewReplicaMetadataComparer(replicas int) ReplicaMetadataComparer {
 	return replicaMetadataComparer{
 		replicas: replicas,
-		metadata: newReplicaSeriesMetadata(),
+		metadata: NewReplicaSeriesMetadata(),
 	}
 }
 
@@ -124,18 +136,12 @@ func (m replicaMetadataComparer) AddPeerMetadata(peerIter client.PeerBlocksMetad
 
 func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 	var (
-		numSeries    int64
-		numBlocks    int64
-		sizeDiff     = newReplicaSeriesMetadata()
-		checkSumDiff = newReplicaSeriesMetadata()
+		sizeDiff     = NewReplicaSeriesMetadata()
+		checkSumDiff = NewReplicaSeriesMetadata()
 	)
 
-	allSeries := m.metadata.Series()
-	numSeries = int64(len(allSeries))
-	for id, series := range allSeries {
-		blocks := series.Blocks()
-		numBlocks += int64(len(blocks))
-		for _, b := range blocks {
+	for id, series := range m.metadata.Series() {
+		for _, b := range series.Blocks() {
 			bm := b.Metadata()
 
 			var (
@@ -188,8 +194,8 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 	}
 
 	return MetadataComparisonResult{
-		NumSeries:           numSeries,
-		NumBlocks:           numBlocks,
+		NumSeries:           m.metadata.NumSeries(),
+		NumBlocks:           m.metadata.NumBlocks(),
 		SizeDifferences:     sizeDiff,
 		ChecksumDifferences: checkSumDiff,
 	}

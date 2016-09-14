@@ -422,10 +422,11 @@ func (_mr *_MockdatabaseShardRecorder) CleanupFileset(arg0, arg1 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0, arg1)
 }
 
-func (_m *MockdatabaseShard) Repair(namespace string, repairer databaseShardRepairer) error {
+func (_m *MockdatabaseShard) Repair(namespace string, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
 	ret := _m.ctrl.Call(_m, "Repair", namespace, repairer)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(repair.MetadataComparisonResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockdatabaseShardRecorder) Repair(arg0, arg1 interface{}) *gomock.Call {
@@ -886,10 +887,11 @@ func (_m *MockdatabaseShardRepairer) EXPECT() *_MockdatabaseShardRepairerRecorde
 	return _m.recorder
 }
 
-func (_m *MockdatabaseShardRepairer) Repair(namespace string, shard databaseShard) error {
+func (_m *MockdatabaseShardRepairer) Repair(namespace string, shard databaseShard) (repair.MetadataComparisonResult, error) {
 	ret := _m.ctrl.Call(_m, "Repair", namespace, shard)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(repair.MetadataComparisonResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockdatabaseShardRepairerRecorder) Repair(arg0, arg1 interface{}) *gomock.Call {

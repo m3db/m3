@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
@@ -454,6 +455,6 @@ func (s *dbShard) CleanupFileset(namespace string, earliestToRetain time.Time) e
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Repair(namespace string, repairer databaseShardRepairer) error {
+func (s *dbShard) Repair(namespace string, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
 	return repairer.Repair(namespace, s)
 }
