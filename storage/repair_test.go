@@ -35,25 +35,24 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func getRepairer(t *testing.T, ctrl *gomock.Controller) (*dbRepairer, *mockDatabase) {
-
-	mockDatabase := newMockDatabase()
-	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(repair.NewOptions().
+func testRepairOptions(ctrl *gomock.Controller) repair.Options {
+	return repair.NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetRepairInterval(time.Second).
 		SetRepairTimeOffset(500 * time.Millisecond).
-		SetRepairCheckInterval(100 * time.Millisecond))
-
-	repairer, err := newDatabaseRepairer(mockDatabase)
-	require.NoError(t, err)
-	return repairer.(*dbRepairer), mockDatabase
+		SetRepairCheckInterval(100 * time.Millisecond)
 }
 
 func TestDatabaseRepairerStartStop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	repairer, _ := getRepairer(t, ctrl)
+	mockDatabase := newMockDatabase()
+	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
+
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
+	require.NoError(t, err)
+	repairer := databaseRepairer.(*dbRepairer)
 
 	var (
 		repaired bool
@@ -68,6 +67,7 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 	}
 
 	go repairer.Start()
+
 	for {
 		// Wait for repair to be called
 		lock.RLock()
@@ -92,11 +92,115 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 	}
 }
 
+func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		repairInterval   = 2 * time.Hour
+		repairTimeOffset = time.Hour
+		now              = time.Now().Truncate(repairInterval).Add(30 * time.Minute)
+		repaired         = false
+		numIter          = 0
+	)
+
+	nowFn := func() time.Time { return now }
+	mockDatabase := newMockDatabase()
+	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
+	repairOpts := testRepairOptions(ctrl).
+		SetRepairInterval(repairInterval).
+		SetRepairTimeOffset(repairTimeOffset)
+	mockDatabase.opts = mockDatabase.opts.
+		SetClockOptions(clockOpts.SetNowFn(nowFn)).
+		SetRepairOptions(repairOpts)
+
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
+	require.NoError(t, err)
+	repairer := databaseRepairer.(*dbRepairer)
+
+	repairer.repairFn = func() error {
+		repaired = true
+		return nil
+	}
+
+	repairer.sleepFn = func(_ time.Duration) {
+		if numIter == 0 {
+			repairer.closed = true
+		}
+		numIter++
+	}
+
+	repairer.Start()
+	require.Equal(t, 1, numIter)
+	require.False(t, repaired)
+}
+
+func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		repairInterval   = 2 * time.Hour
+		repairTimeOffset = time.Hour
+		now              = time.Now().Truncate(repairInterval).Add(90 * time.Minute)
+		numRepairs       = 0
+		numIter          = 0
+	)
+
+	nowFn := func() time.Time {
+		switch numIter {
+		case 0:
+			return now
+		case 1:
+			return now.Add(time.Minute)
+		case 2:
+			return now.Add(time.Hour)
+		default:
+			return now.Add(2 * time.Hour)
+		}
+	}
+
+	mockDatabase := newMockDatabase()
+	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
+	repairOpts := testRepairOptions(ctrl).
+		SetRepairInterval(repairInterval).
+		SetRepairTimeOffset(repairTimeOffset)
+	mockDatabase.opts = mockDatabase.opts.
+		SetClockOptions(clockOpts.SetNowFn(nowFn)).
+		SetRepairOptions(repairOpts)
+
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
+	require.NoError(t, err)
+	repairer := databaseRepairer.(*dbRepairer)
+
+	repairer.repairFn = func() error {
+		numRepairs++
+		return nil
+	}
+
+	repairer.sleepFn = func(_ time.Duration) {
+		if numIter == 3 {
+			repairer.closed = true
+		}
+		numIter++
+	}
+
+	repairer.Start()
+	require.Equal(t, 4, numIter)
+	require.Equal(t, 2, numRepairs)
+}
+
 func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	repairer, mockDatabase := getRepairer(t, ctrl)
+	mockDatabase := newMockDatabase()
+	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
+
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
+	require.NoError(t, err)
+	repairer := databaseRepairer.(*dbRepairer)
+
 	mockDatabase.bs = bootstrapNotStarted
 	require.Nil(t, repairer.Repair())
 }
@@ -112,11 +216,7 @@ func TestShardRepairerRepair(t *testing.T) {
 	mockClient := client.NewMockAdminClient(ctrl)
 	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
 
-	rpOpts := repair.NewOptions().
-		SetAdminClient(mockClient).
-		SetRepairInterval(time.Second).
-		SetRepairTimeOffset(500 * time.Millisecond).
-		SetRepairCheckInterval(100 * time.Millisecond)
+	rpOpts := testRepairOptions(ctrl).SetAdminClient(mockClient)
 
 	now := time.Now()
 	nowFn := func() time.Time { return now }

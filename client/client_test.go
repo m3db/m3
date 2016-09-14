@@ -26,12 +26,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+
+	"errors"
+	"sync"
 )
 
-func TestClientNewClientValidatesOptions(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
+func testClient(t *testing.T, ctrl *gomock.Controller) Client {
 	opts := NewMockOptions(ctrl)
 	opts.EXPECT().Validate().Return(nil)
 
@@ -39,11 +39,20 @@ func TestClientNewClientValidatesOptions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
 
+	return client
+}
+
+func TestClientNewClientValidatesOptions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testClient(t, ctrl)
+
 	anError := fmt.Errorf("an error")
-	opts = NewMockOptions(ctrl)
+	opts := NewMockOptions(ctrl)
 	opts.EXPECT().Validate().Return(anError)
 
-	_, err = NewClient(opts)
+	_, err := NewClient(opts)
 	assert.Error(t, err)
 	assert.Equal(t, anError, err)
 }
@@ -52,14 +61,8 @@ func TestClientNewSessionOpensSession(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := NewMockOptions(ctrl)
-	opts.EXPECT().Validate().Return(nil)
-
-	cli, err := NewClient(opts)
-	assert.NoError(t, err)
-
 	var mockSession Session
-	client := cli.(*client)
+	client := testClient(t, ctrl).(*client)
 	client.newSessionFn = func(opts Options) (clientSession, error) {
 		session := NewMockclientSession(ctrl)
 		session.EXPECT().Open().Return(nil)
@@ -76,13 +79,7 @@ func TestClientNewSessionFailCreateReturnsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := NewMockOptions(ctrl)
-	opts.EXPECT().Validate().Return(nil)
-
-	cli, err := NewClient(opts)
-	assert.NoError(t, err)
-
-	client := cli.(*client)
+	client := testClient(t, ctrl).(*client)
 	anError := fmt.Errorf("an error")
 	client.newSessionFn = func(opts Options) (clientSession, error) {
 		return nil, anError
@@ -98,13 +95,7 @@ func TestClientNewSessionFailOpenReturnsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := NewMockOptions(ctrl)
-	opts.EXPECT().Validate().Return(nil)
-
-	cli, err := NewClient(opts)
-	assert.NoError(t, err)
-
-	client := cli.(*client)
+	client := testClient(t, ctrl).(*client)
 	anError := fmt.Errorf("an error")
 	client.newSessionFn = func(opts Options) (clientSession, error) {
 		session := NewMockclientSession(ctrl)
@@ -116,4 +107,84 @@ func TestClientNewSessionFailOpenReturnsError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, anError, err)
 	assert.Nil(t, session)
+}
+
+func TestClientDefaultSessionAlreadyCreated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := testClient(t, ctrl).(*client)
+	session := NewMockAdminSession(ctrl)
+	client.session = session
+
+	defaultSession, err := client.DefaultSession()
+	assert.NoError(t, err)
+	assert.Equal(t, session, defaultSession)
+}
+
+func TestClientDefaultSessionNotCreatedNoError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := testClient(t, ctrl).(*client)
+	session := NewMockclientSession(ctrl)
+	session.EXPECT().Open().Return(nil)
+	client.newSessionFn = func(opts Options) (clientSession, error) {
+		return session, nil
+	}
+
+	defaultSession, err := client.DefaultSession()
+	assert.NoError(t, err)
+	assert.Equal(t, session, defaultSession)
+}
+
+func TestClientDefaultSessionNotCreatedWithError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := testClient(t, ctrl).(*client)
+	expectedErr := errors.New("foo")
+	client.newSessionFn = func(opts Options) (clientSession, error) {
+		return nil, expectedErr
+	}
+
+	defaultSession, err := client.DefaultSession()
+	assert.Equal(t, expectedErr, err)
+	assert.Nil(t, defaultSession)
+}
+
+func TestClientDefaultSessionMultipleSimultaneousRequests(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		lock           sync.Mutex
+		defaultSession AdminSession
+		wg             sync.WaitGroup
+	)
+
+	client := testClient(t, ctrl).(*client)
+	client.newSessionFn = func(opts Options) (clientSession, error) {
+		session := NewMockclientSession(ctrl)
+		session.EXPECT().Open().Return(nil)
+		lock.Lock()
+		if defaultSession == nil {
+			defaultSession = session
+		}
+		lock.Unlock()
+		return session, nil
+	}
+
+	numRequests := 10
+	for i := 0; i < numRequests; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sess, err := client.DefaultSession()
+			assert.NoError(t, err)
+			assert.Equal(t, defaultSession, sess)
+		}()
+	}
+
+	wg.Wait()
 }
