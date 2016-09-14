@@ -21,14 +21,13 @@
 package client
 
 import (
+	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-
-	"errors"
-	"sync"
 )
 
 func testClient(t *testing.T, ctrl *gomock.Controller) Client {
