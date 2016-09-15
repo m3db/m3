@@ -70,7 +70,7 @@ func (noop *noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (noop *noOpAllBootstrapper) Bootstrap(_ string, _ bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
-	return nil, nil
+	return bootstrap.NewResult(), nil
 }
 
 func (noop *noOpAllBootstrapper) String() string {
