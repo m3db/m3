@@ -833,7 +833,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 				errLock.Lock()
 				defer errLock.Unlock()
 				errLen++
-				multiErr.Add(err)
+				multiErr = multiErr.Add(err)
 			}
 		}()
 	}
@@ -841,7 +841,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	wg.Wait()
 
 	if errLen == len(peers) {
-		return multiErr
+		return multiErr.FinalError()
 	}
 	return nil
 }
