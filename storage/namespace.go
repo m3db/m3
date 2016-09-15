@@ -404,7 +404,7 @@ func (n *dbNamespace) initShards() {
 	shards := n.shardSet.Shards()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
-		dbShards[shard] = newDatabaseShard(shard, n.increasingIndex, n.writeCommitLogFn, n.sopts)
+		dbShards[shard] = newDatabaseShard(shard, n.increasingIndex, n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.sopts)
 	}
 	n.Lock()
 	n.shards = dbShards
