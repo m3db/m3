@@ -48,13 +48,20 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 }
 
 func testDatabaseShard(opts Options) *dbShard {
-	return newDatabaseShard(0, &testIncreasingIndex{}, commitLogWriteNoOp, opts).(*dbShard)
+	return newDatabaseShard(0, &testIncreasingIndex{}, commitLogWriteNoOp, true, opts).(*dbShard)
 }
 
 func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id string, index uint64) *MockdatabaseSeries {
 	series := NewMockdatabaseSeries(ctrl)
 	shard.lookup[id] = shard.list.PushBack(&dbShardEntry{series: series, index: index})
 	return series
+}
+
+func TestShardDontNeedBootstrap(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := newDatabaseShard(0, &testIncreasingIndex{}, commitLogWriteNoOp, false, opts).(*dbShard)
+	require.Equal(t, bootstrapped, shard.bs)
+	require.True(t, shard.newSeriesBootstrapped)
 }
 
 func TestShardBootstrapWithError(t *testing.T) {

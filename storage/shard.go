@@ -89,9 +89,10 @@ func newDatabaseShard(
 	shard uint32,
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
+	needsBootstrap bool,
 	opts Options,
 ) databaseShard {
-	return &dbShard{
+	d := &dbShard{
 		opts:             opts,
 		shard:            shard,
 		increasingIndex:  increasingIndex,
@@ -101,6 +102,11 @@ func newDatabaseShard(
 		filesetBeforeFn:  fs.FilesetBefore,
 		deleteFilesFn:    fs.DeleteFiles,
 	}
+	if !needsBootstrap {
+		d.bs = bootstrapped
+		d.newSeriesBootstrapped = true
+	}
+	return d
 }
 
 func (s *dbShard) ID() uint32 {
