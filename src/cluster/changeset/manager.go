@@ -57,35 +57,35 @@ var (
 // ManagerOptions are options used in creating a new ChangeSet Manager
 type ManagerOptions interface {
 	// KV is the KVStore holding the configuration
-	KV(kv kv.Store) ManagerOptions
-	GetKV() kv.Store
+	SetKV(kv kv.Store) ManagerOptions
+	KV() kv.Store
 
 	// ConfigKey is the key holding the configuration object
-	ConfigKey(key string) ManagerOptions
-	GetConfigKey() string
+	SetConfigKey(key string) ManagerOptions
+	ConfigKey() string
 
 	// Logger is the logger to use
-	Logger(logger xlog.Logger) ManagerOptions
-	GetLogger() xlog.Logger
+	SetLogger(logger xlog.Logger) ManagerOptions
+	Logger() xlog.Logger
 
 	// ConfigType is a proto.Message defining the structure of the configuration
 	// object.  Clones of this proto will be used to unmarshal configuration
 	// instances
-	ConfigType(config proto.Message) ManagerOptions
-	GetConfigType() proto.Message
+	SetConfigType(config proto.Message) ManagerOptions
+	ConfigType() proto.Message
 
 	// ChangesType is a proto.Message defining the structure of the changes
 	// object.  Clones of this protol will be used to unmarshal change list
 	// instances.
-	ChangesType(changes proto.Message) ManagerOptions
-	GetChangesType() proto.Message
+	SetChangesType(changes proto.Message) ManagerOptions
+	ChangesType() proto.Message
 
 	// Validate validates the options
 	Validate() error
 }
 
 // NewManagerOptions creates an empty ManagerOptions
-func NewManagerOptions() ManagerOptions { return new(managerOptions) }
+func NewManagerOptions() ManagerOptions { return managerOptions{} }
 
 // A ChangeFn adds a change to an existing set of changes
 type ChangeFn func(config, changes proto.Message) error
@@ -127,16 +127,16 @@ func NewManager(opts ManagerOptions) (Manager, error) {
 		return nil, err
 	}
 
-	logger := opts.GetLogger()
+	logger := opts.Logger()
 	if logger == nil {
 		logger = xlog.NullLogger
 	}
 
 	return manager{
-		key:         opts.GetConfigKey(),
-		kv:          opts.GetKV(),
-		configType:  proto.Clone(opts.GetConfigType()),
-		changesType: proto.Clone(opts.GetChangesType()),
+		key:         opts.ConfigKey(),
+		kv:          opts.KV(),
+		configType:  proto.Clone(opts.ConfigType()),
+		changesType: proto.Clone(opts.ChangesType()),
 		log:         logger,
 	}, nil
 }
@@ -363,47 +363,47 @@ type managerOptions struct {
 	changesType proto.Message
 }
 
-func (opts *managerOptions) GetKV() kv.Store               { return opts.kv }
-func (opts *managerOptions) GetLogger() xlog.Logger        { return opts.logger }
-func (opts *managerOptions) GetConfigKey() string          { return opts.configKey }
-func (opts *managerOptions) GetConfigType() proto.Message  { return opts.configType }
-func (opts *managerOptions) GetChangesType() proto.Message { return opts.changesType }
+func (opts managerOptions) KV() kv.Store               { return opts.kv }
+func (opts managerOptions) Logger() xlog.Logger        { return opts.logger }
+func (opts managerOptions) ConfigKey() string          { return opts.configKey }
+func (opts managerOptions) ConfigType() proto.Message  { return opts.configType }
+func (opts managerOptions) ChangesType() proto.Message { return opts.changesType }
 
-func (opts *managerOptions) KV(kv kv.Store) ManagerOptions {
+func (opts managerOptions) SetKV(kv kv.Store) ManagerOptions {
 	opts.kv = kv
 	return opts
 }
-func (opts *managerOptions) Logger(logger xlog.Logger) ManagerOptions {
+func (opts managerOptions) SetLogger(logger xlog.Logger) ManagerOptions {
 	opts.logger = logger
 	return opts
 }
-func (opts *managerOptions) ConfigKey(k string) ManagerOptions {
+func (opts managerOptions) SetConfigKey(k string) ManagerOptions {
 	opts.configKey = k
 	return opts
 }
-func (opts *managerOptions) ConfigType(ct proto.Message) ManagerOptions {
+func (opts managerOptions) SetConfigType(ct proto.Message) ManagerOptions {
 	opts.configType = ct
 	return opts
 }
-func (opts *managerOptions) ChangesType(ct proto.Message) ManagerOptions {
+func (opts managerOptions) SetChangesType(ct proto.Message) ManagerOptions {
 	opts.changesType = ct
 	return opts
 }
 
-func (opts *managerOptions) Validate() error {
-	if opts.GetConfigKey() == "" {
+func (opts managerOptions) Validate() error {
+	if opts.ConfigKey() == "" {
 		return errConfigKeyNotSet
 	}
 
-	if opts.GetKV() == nil {
+	if opts.KV() == nil {
 		return errKVNotSet
 	}
 
-	if opts.GetConfigType() == nil {
+	if opts.ConfigType() == nil {
 		return errConfigTypeNotSet
 	}
 
-	if opts.GetChangesType() == nil {
+	if opts.ChangesType() == nil {
 		return errChangeTypeNotSet
 	}
 

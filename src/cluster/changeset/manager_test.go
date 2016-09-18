@@ -746,24 +746,24 @@ func TestManagerOptions_Validate(t *testing.T) {
 		opts ManagerOptions
 	}{
 		{errConfigKeyNotSet, NewManagerOptions().
-			ConfigType(&changesettest.Config{}).
-			ChangesType(&changesettest.Changes{}).
-			KV(kv.NewFakeStore())},
+			SetConfigType(&changesettest.Config{}).
+			SetChangesType(&changesettest.Changes{}).
+			SetKV(kv.NewFakeStore())},
 
 		{errConfigTypeNotSet, NewManagerOptions().
-			ConfigKey("foozle").
-			ChangesType(&changesettest.Changes{}).
-			KV(kv.NewFakeStore())},
+			SetConfigKey("foozle").
+			SetChangesType(&changesettest.Changes{}).
+			SetKV(kv.NewFakeStore())},
 
 		{errChangeTypeNotSet, NewManagerOptions().
-			ConfigKey("bazzle").
-			ConfigType(&changesettest.Config{}).
-			KV(kv.NewFakeStore())},
+			SetConfigKey("bazzle").
+			SetConfigType(&changesettest.Config{}).
+			SetKV(kv.NewFakeStore())},
 
 		{errKVNotSet, NewManagerOptions().
-			ConfigKey("muzzle").
-			ConfigType(&changesettest.Config{}).
-			ChangesType(&changesettest.Changes{})},
+			SetConfigKey("muzzle").
+			SetConfigType(&changesettest.Config{}).
+			SetChangesType(&changesettest.Changes{})},
 	}
 
 	for _, test := range tests {
@@ -824,10 +824,10 @@ func newTestSuite(t *testing.T) *testSuite {
 	kvStore := kv.NewMockStore(mc)
 	configKey := "config"
 	mgr, err := NewManager(NewManagerOptions().
-		KV(kvStore).
-		ConfigType(&changesettest.Config{}).
-		ChangesType(&changesettest.Changes{}).
-		ConfigKey(configKey))
+		SetKV(kvStore).
+		SetConfigType(&changesettest.Config{}).
+		SetChangesType(&changesettest.Changes{}).
+		SetConfigKey(configKey))
 
 	require.NoError(t, err)
 
