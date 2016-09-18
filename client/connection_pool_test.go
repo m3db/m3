@@ -295,7 +295,7 @@ func (*nullNodeClient) FetchBlocksMetadata(ctx thrift.Context, req *rpc.FetchBlo
 	return nil, nil
 }
 
-func (*nullNodeClient) Health(ctx thrift.Context) (*rpc.HealthResult_, error) {
+func (*nullNodeClient) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	return nil, nil
 }
 

@@ -43,21 +43,37 @@ type service struct {
 	sync.RWMutex
 
 	db     storage.Database
-	health *rpc.HealthResult_
+	health *rpc.NodeHealthResult_
 }
 
 // NewService creates a new node TChannel Thrift service
 func NewService(db storage.Database) rpc.TChanNode {
 	return &service{
 		db:     db,
-		health: &rpc.HealthResult_{Ok: true, Status: "up"},
+		health: &rpc.NodeHealthResult_{Ok: true, Status: "up", Bootstrapped: false},
 	}
 }
 
-func (s *service) Health(ctx thrift.Context) (*rpc.HealthResult_, error) {
+func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	s.RLock()
 	health := s.health
 	s.RUnlock()
+
+	// Update bootstrapped field if not up to date
+	bootstrapped := s.db.IsBootstrapped()
+	if health.Bootstrapped != bootstrapped {
+		newHealth := &rpc.NodeHealthResult_{}
+		*newHealth = *health
+		newHealth.Bootstrapped = bootstrapped
+
+		s.Lock()
+		s.health = newHealth
+		s.Unlock()
+
+		// Update response
+		health = newHealth
+	}
+
 	return health, nil
 }
 

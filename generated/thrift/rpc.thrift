@@ -42,7 +42,7 @@ exception WriteBatchErrors {
 }
 
 service Node {
-	HealthResult health() throws (1: Error err)
+	NodeHealthResult health() throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
 	void writeBatch(1: WriteBatchRequest req) throws (1: WriteBatchErrors err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
@@ -115,6 +115,12 @@ struct BlockMetadata {
 struct HealthResult {
 	1: required bool ok
 	2: required string status
+}
+
+struct NodeHealthResult {
+	1: required bool ok
+	2: required string status
+	3: required bool bootstrapped
 }
 
 struct IDDatapoint {

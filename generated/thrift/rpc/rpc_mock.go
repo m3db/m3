@@ -157,9 +157,9 @@ func (_mr *_MockTChanNodeRecorder) FetchRawBatch(arg0, arg1 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRawBatch", arg0, arg1)
 }
 
-func (_m *MockTChanNode) Health(ctx thrift.Context) (*HealthResult_, error) {
+func (_m *MockTChanNode) Health(ctx thrift.Context) (*NodeHealthResult_, error) {
 	ret := _m.ctrl.Call(_m, "Health", ctx)
-	ret0, _ := ret[0].(*HealthResult_)
+	ret0, _ := ret[0].(*NodeHealthResult_)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -2470,6 +2470,185 @@ func (p *HealthResult_) String() string {
 }
 
 // Attributes:
+//  - Ok
+//  - Status
+//  - Bootstrapped
+type NodeHealthResult_ struct {
+	Ok           bool   `thrift:"ok,1,required" db:"ok" json:"ok"`
+	Status       string `thrift:"status,2,required" db:"status" json:"status"`
+	Bootstrapped bool   `thrift:"bootstrapped,3,required" db:"bootstrapped" json:"bootstrapped"`
+}
+
+func NewNodeHealthResult_() *NodeHealthResult_ {
+	return &NodeHealthResult_{}
+}
+
+func (p *NodeHealthResult_) GetOk() bool {
+	return p.Ok
+}
+
+func (p *NodeHealthResult_) GetStatus() string {
+	return p.Status
+}
+
+func (p *NodeHealthResult_) GetBootstrapped() bool {
+	return p.Bootstrapped
+}
+func (p *NodeHealthResult_) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetOk bool = false
+	var issetStatus bool = false
+	var issetBootstrapped bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetOk = true
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+			issetStatus = true
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
+			issetBootstrapped = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetOk {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Ok is not set"))
+	}
+	if !issetStatus {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Status is not set"))
+	}
+	if !issetBootstrapped {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Bootstrapped is not set"))
+	}
+	return nil
+}
+
+func (p *NodeHealthResult_) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.Ok = v
+	}
+	return nil
+}
+
+func (p *NodeHealthResult_) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadString(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		p.Status = v
+	}
+	return nil
+}
+
+func (p *NodeHealthResult_) ReadField3(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 3: ", err)
+	} else {
+		p.Bootstrapped = v
+	}
+	return nil
+}
+
+func (p *NodeHealthResult_) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeHealthResult"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeHealthResult_) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("ok", thrift.BOOL, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:ok: ", p), err)
+	}
+	if err := oprot.WriteBool(bool(p.Ok)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.ok (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:ok: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeHealthResult_) writeField2(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("status", thrift.STRING, 2); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:status: ", p), err)
+	}
+	if err := oprot.WriteString(string(p.Status)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.status (2) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:status: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeHealthResult_) writeField3(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("bootstrapped", thrift.BOOL, 3); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:bootstrapped: ", p), err)
+	}
+	if err := oprot.WriteBool(bool(p.Bootstrapped)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.bootstrapped (3) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:bootstrapped: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeHealthResult_) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeHealthResult_(%+v)", *p)
+}
+
+// Attributes:
 //  - ID
 //  - Datapoint
 type IDDatapoint struct {
@@ -4605,7 +4784,7 @@ func (p *FetchRawResult_) String() string {
 }
 
 type Node interface {
-	Health() (r *HealthResult_, err error)
+	Health() (r *NodeHealthResult_, err error)
 	// Parameters:
 	//  - Req
 	Write(req *WriteRequest) (err error)
@@ -4655,7 +4834,7 @@ func NewNodeClientProtocol(t thrift.TTransport, iprot thrift.TProtocol, oprot th
 	}
 }
 
-func (p *NodeClient) Health() (r *HealthResult_, err error) {
+func (p *NodeClient) Health() (r *NodeHealthResult_, err error) {
 	if err = p.sendHealth(); err != nil {
 		return
 	}
@@ -4682,7 +4861,7 @@ func (p *NodeClient) sendHealth() (err error) {
 	return oprot.Flush()
 }
 
-func (p *NodeClient) recvHealth() (value *HealthResult_, err error) {
+func (p *NodeClient) recvHealth() (value *NodeHealthResult_, err error) {
 	iprot := p.InputProtocol
 	if iprot == nil {
 		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
@@ -5366,7 +5545,7 @@ func (p *nodeProcessorHealth) Process(seqId int32, iprot, oprot thrift.TProtocol
 
 	iprot.ReadMessageEnd()
 	result := NodeHealthResult{}
-	var retval *HealthResult_
+	var retval *NodeHealthResult_
 	var err2 error
 	if retval, err2 = p.handler.Health(); err2 != nil {
 		switch v := err2.(type) {
@@ -5827,17 +6006,17 @@ func (p *NodeHealthArgs) String() string {
 //  - Success
 //  - Err
 type NodeHealthResult struct {
-	Success *HealthResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
-	Err     *Error         `thrift:"err,1" db:"err" json:"err,omitempty"`
+	Success *NodeHealthResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error             `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
 
 func NewNodeHealthResult() *NodeHealthResult {
 	return &NodeHealthResult{}
 }
 
-var NodeHealthResult_Success_DEFAULT *HealthResult_
+var NodeHealthResult_Success_DEFAULT *NodeHealthResult_
 
-func (p *NodeHealthResult) GetSuccess() *HealthResult_ {
+func (p *NodeHealthResult) GetSuccess() *NodeHealthResult_ {
 	if !p.IsSetSuccess() {
 		return NodeHealthResult_Success_DEFAULT
 	}
@@ -5898,7 +6077,7 @@ func (p *NodeHealthResult) Read(iprot thrift.TProtocol) error {
 }
 
 func (p *NodeHealthResult) ReadField0(iprot thrift.TProtocol) error {
-	p.Success = &HealthResult_{}
+	p.Success = &NodeHealthResult_{}
 	if err := p.Success.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
 	}
