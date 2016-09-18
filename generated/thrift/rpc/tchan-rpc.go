@@ -46,7 +46,7 @@ type TChanNode interface {
 	FetchBlocks(ctx thrift.Context, req *FetchBlocksRequest) (*FetchBlocksResult_, error)
 	FetchBlocksMetadata(ctx thrift.Context, req *FetchBlocksMetadataRequest) (*FetchBlocksMetadataResult_, error)
 	FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRequest) (*FetchRawBatchResult_, error)
-	Health(ctx thrift.Context) (*HealthResult_, error)
+	Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteBatch(ctx thrift.Context, req *WriteBatchRequest) error
@@ -358,7 +358,7 @@ func (c *tchanNodeClient) FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRe
 	return resp.GetSuccess(), err
 }
 
-func (c *tchanNodeClient) Health(ctx thrift.Context) (*HealthResult_, error) {
+func (c *tchanNodeClient) Health(ctx thrift.Context) (*NodeHealthResult_, error) {
 	var resp NodeHealthResult
 	args := NodeHealthArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "health", &args, &resp)
