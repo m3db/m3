@@ -62,10 +62,10 @@ type databaseNamespaceMetrics struct {
 	unfulfilled tally.Counter
 }
 
-func newDatabaseNamespaceMetrics(scope tally.Scope) databaseNamespaceMetrics {
+func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
 	return databaseNamespaceMetrics{
-		bootstrap:   instrument.NewMethodMetrics(scope, "bootstrap"),
-		flush:       instrument.NewMethodMetrics(scope, "flush"),
+		bootstrap:   instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
+		flush:       instrument.NewMethodMetrics(scope, "flush", samplingRate),
 		unfulfilled: scope.Counter("bootstrap.unfulfilled"),
 	}
 }
@@ -96,7 +96,7 @@ func newDatabaseNamespace(
 		log:              sopts.InstrumentOptions().Logger(),
 		increasingIndex:  increasingIndex,
 		writeCommitLogFn: fn,
-		metrics:          newDatabaseNamespaceMetrics(scope),
+		metrics:          newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
 	n.initShards()

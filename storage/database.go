@@ -128,7 +128,7 @@ type databaseMetrics struct {
 	fetchBlocksMetadata instrument.MethodMetrics
 }
 
-func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
+func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics {
 	return databaseMetrics{
 		bootstrapStatus: scope.Gauge("bootstrapped"),
 		tickStatus:      scope.Gauge("tick"),
@@ -136,10 +136,10 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		tickDeadlineMissed: scope.Counter("tick.deadline.missed"),
 		tickDeadlineMet:    scope.Counter("tick.deadline.met"),
 
-		write:               instrument.NewMethodMetrics(scope, "write"),
-		read:                instrument.NewMethodMetrics(scope, "read"),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks"),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata"),
+		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
+		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
 	}
 }
 
@@ -153,7 +153,7 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 		nowFn:        opts.ClockOptions().NowFn(),
 		tickDeadline: opts.RetentionOptions().BufferDrain(),
 		scope:        scope,
-		metrics:      newDatabaseMetrics(scope),
+		metrics:      newDatabaseMetrics(scope, iops.MetricsSamplingRate()),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
 

@@ -41,6 +41,12 @@ type Options interface {
 	// MetricsScope returns the metricsScope
 	MetricsScope() tally.Scope
 
+	// SetMetricsSamplingRate sets the metrics sampling rate
+	SetMetricsSamplingRate(value float64) Options
+
+	// SetMetricsSamplingRate returns the metrics sampling rate
+	MetricsSamplingRate() float64
+
 	// ReportInterval sets time between reporting many metrics within the system
 	SetReportInterval(time.Duration) Options
 
