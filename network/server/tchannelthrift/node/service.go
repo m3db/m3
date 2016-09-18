@@ -69,6 +69,9 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 		s.Lock()
 		s.health = newHealth
 		s.Unlock()
+
+		// Update response
+		health = newHealth
 	}
 
 	return health, nil
