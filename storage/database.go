@@ -139,7 +139,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		write:               instrument.NewMethodMetrics(scope, "write"),
 		read:                instrument.NewMethodMetrics(scope, "read"),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks"),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "write"),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata"),
 	}
 }
 
