@@ -65,8 +65,9 @@ func newHostQueue(
 ) hostQueue {
 	size := opts.HostQueueOpsFlushSize()
 
+	opsArraysLen := opts.HostQueueOpsArrayPoolSize()
 	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.WriteBatchSize())))
-	opArrayPool := newOpArrayPool(opts.HostQueueOpsArrayPoolSize(), opArrayPoolCapacity)
+	opArrayPool := newOpArrayPool(opsArraysLen, opArrayPoolCapacity)
 	opArrayPool.Init()
 
 	return &queue{
@@ -79,8 +80,7 @@ func newHostQueue(
 		size:                  size,
 		ops:                   opArrayPool.Get(),
 		opsArrayPool:          opArrayPool,
-		// NB(r): specifically use non-buffered queue for single flush at a time
-		drainIn: make(chan []op),
+		drainIn:               make(chan []op, opsArraysLen),
 	}
 }
 
