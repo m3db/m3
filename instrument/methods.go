@@ -27,6 +27,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
+var (
+	nullStopWatchStart tally.StopwatchStart
+)
+
 // sampledTimer is a sampled timer that implements the tally timer interface
 // NB(xichen): the sampling logic should eventually be implemented in tally
 type sampledTimer struct {
@@ -52,11 +56,18 @@ func (t *sampledTimer) shouldSample() bool {
 }
 
 func (t *sampledTimer) Start() tally.StopwatchStart {
-	return tally.StopwatchStart(time.Now())
+	if !t.shouldSample() {
+		return nullStopWatchStart
+	}
+	return t.Timer.Start()
 }
 
 func (t *sampledTimer) Stop(startTime tally.StopwatchStart) {
-	t.Record(time.Since(time.Time(startTime)))
+	if startTime == nullStopWatchStart {
+		// If startTime is nullStopWatchStart, do nothing
+		return
+	}
+	t.Timer.Stop(startTime)
 }
 
 func (t *sampledTimer) Record(d time.Duration) {
