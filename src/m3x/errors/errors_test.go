@@ -31,6 +31,7 @@ func TestMultiErrorNoError(t *testing.T) {
 	err := NewMultiError()
 	require.Nil(t, err.FinalError())
 	require.Equal(t, "", err.Error())
+	require.True(t, err.Empty())
 }
 
 func TestMultiErrorOneError(t *testing.T) {
@@ -39,6 +40,7 @@ func TestMultiErrorOneError(t *testing.T) {
 	final := err.FinalError()
 	require.NotNil(t, final)
 	require.Equal(t, "foo", final.Error())
+	require.False(t, err.Empty())
 }
 
 func TestMultiErrorMultipleErrors(t *testing.T) {
@@ -50,4 +52,5 @@ func TestMultiErrorMultipleErrors(t *testing.T) {
 	final := err.FinalError()
 	require.NotNil(t, final)
 	require.Equal(t, final.Error(), "foo\nbar\nbaz")
+	require.False(t, err.Empty())
 }
