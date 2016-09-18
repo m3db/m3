@@ -189,6 +189,11 @@ func NewMultiError() MultiError {
 	return MultiError{}
 }
 
+// Empty returns true if the MultiError has no errors
+func (e MultiError) Empty() bool {
+	return e.err == nil && len(e.errors) == 0
+}
+
 func (e MultiError) Error() string {
 	if e.err == nil {
 		return ""
