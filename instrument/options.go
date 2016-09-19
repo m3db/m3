@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	defaultSamplingRate   = 0.01
+	defaultSamplingRate   = 1.0
 	defaultReportInterval = time.Second
 )
 

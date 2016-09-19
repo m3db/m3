@@ -79,25 +79,39 @@ func (t *sampledTimer) Record(d time.Duration) {
 
 // MethodMetrics is a bundle of common metrics with a uniform naming scheme
 type MethodMetrics struct {
-	Error   tally.Counter
-	Success tally.Counter
-	Latency tally.Timer
+	Errors         tally.Counter
+	Success        tally.Counter
+	ErrorsLatency  tally.Timer
+	SuccessLatency tally.Timer
 }
 
-// ReportSuccessOrFailure increments Error/Success counter dependant on the error
-func (m *MethodMetrics) ReportSuccessOrFailure(e error) {
+// ReportSuccess reports a success
+func (m *MethodMetrics) ReportSuccess(d time.Duration) {
+	m.Success.Inc(1)
+	m.SuccessLatency.Record(d)
+}
+
+// ReportError reports an error
+func (m *MethodMetrics) ReportError(d time.Duration) {
+	m.Errors.Inc(1)
+	m.ErrorsLatency.Record(d)
+}
+
+// ReportSuccessOrError increments Error/Success counter dependent on the error
+func (m *MethodMetrics) ReportSuccessOrError(e error, d time.Duration) {
 	if e != nil {
-		m.Error.Inc(1)
+		m.ReportError(d)
 	} else {
-		m.Success.Inc(1)
+		m.ReportSuccess(d)
 	}
 }
 
 // NewMethodMetrics returns a new Method metrics for the given method name
 func NewMethodMetrics(scope tally.Scope, methodName string, samplingRate float64) MethodMetrics {
 	return MethodMetrics{
-		Error:   scope.Counter(methodName + ".error"),
-		Success: scope.Counter(methodName + ".success"),
-		Latency: newSampledTimer(scope.Timer(methodName+".latency"), samplingRate),
+		Errors:         scope.Counter(methodName + ".errors"),
+		Success:        scope.Counter(methodName + ".success"),
+		ErrorsLatency:  newSampledTimer(scope.Timer(methodName+".errors-latency"), samplingRate),
+		SuccessLatency: newSampledTimer(scope.Timer(methodName+".success-latency"), samplingRate),
 	}
 }
