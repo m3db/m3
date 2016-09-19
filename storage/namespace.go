@@ -62,10 +62,10 @@ type databaseNamespaceMetrics struct {
 	unfulfilled tally.Counter
 }
 
-func newDatabaseNamespaceMetrics(scope tally.Scope) databaseNamespaceMetrics {
+func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
 	return databaseNamespaceMetrics{
-		bootstrap:   instrument.NewMethodMetrics(scope, "bootstrap"),
-		flush:       instrument.NewMethodMetrics(scope, "flush"),
+		bootstrap:   instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
+		flush:       instrument.NewMethodMetrics(scope, "flush", samplingRate),
 		unfulfilled: scope.Counter("bootstrap.unfulfilled"),
 	}
 }
@@ -96,7 +96,7 @@ func newDatabaseNamespace(
 		log:              sopts.InstrumentOptions().Logger(),
 		increasingIndex:  increasingIndex,
 		writeCommitLogFn: fn,
-		metrics:          newDatabaseNamespaceMetrics(scope),
+		metrics:          newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
 	n.initShards()
@@ -184,13 +184,17 @@ func (n *dbNamespace) Bootstrap(
 	writeStart time.Time,
 	cutover time.Time,
 ) error {
+	callStart := n.nowFn()
+
 	n.Lock()
 	if n.bs == bootstrapped {
 		n.Unlock()
+		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 	if n.bs == bootstrapping {
 		n.Unlock()
+		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceIsBootstrapping
 	}
 	n.bs = bootstrapping
@@ -203,6 +207,7 @@ func (n *dbNamespace) Bootstrap(
 	}()
 
 	if !n.nopts.NeedsBootstrap() {
+		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
@@ -215,7 +220,7 @@ func (n *dbNamespace) Bootstrap(
 	result, err := bs.Run(targetRanges, n.name, shardIDs)
 	if err != nil {
 		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v", n.name, err)
-		n.metrics.bootstrap.Error.Inc(1)
+		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
 	n.metrics.bootstrap.Success.Inc(1)
@@ -259,7 +264,9 @@ func (n *dbNamespace) Bootstrap(
 		n.log.Errorf("bootstrap for namespace %s completed with unfulfilled ranges: %s", n.name, str)
 	}
 
-	return multiErr.FinalError()
+	err = multiErr.FinalError()
+	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return err
 }
 
 func (n *dbNamespace) Flush(
@@ -267,14 +274,18 @@ func (n *dbNamespace) Flush(
 	blockStart time.Time,
 	pm persist.Manager,
 ) error {
+	callStart := n.nowFn()
+
 	n.RLock()
 	if n.bs != bootstrapped {
 		n.RUnlock()
+		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
 	n.RUnlock()
 
 	if !n.nopts.NeedsFlush() {
+		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
@@ -292,10 +303,10 @@ func (n *dbNamespace) Flush(
 	// if nil, succeeded
 
 	if res := multiErr.FinalError(); res != nil {
-		n.metrics.flush.Error.Inc(1)
+		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
 		return res
 	}
-	n.metrics.flush.Success.Inc(1)
+	n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
 	return nil
 }
 

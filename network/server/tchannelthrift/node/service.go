@@ -25,8 +25,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
@@ -35,22 +37,53 @@ import (
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 
+	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 )
+
+type serviceMetrics struct {
+	fetch               instrument.MethodMetrics
+	fetchRawBatch       instrument.MethodMetrics
+	write               instrument.MethodMetrics
+	writeBatch          instrument.MethodMetrics
+	fetchBlocks         instrument.MethodMetrics
+	fetchBlocksMetadata instrument.MethodMetrics
+	truncate            instrument.MethodMetrics
+}
+
+func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
+	return serviceMetrics{
+		fetch:               instrument.NewMethodMetrics(scope, "fetch", samplingRate),
+		fetchRawBatch:       instrument.NewMethodMetrics(scope, "fetchRawBatch", samplingRate),
+		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
+		writeBatch:          instrument.NewMethodMetrics(scope, "writeBatch", samplingRate),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
+		truncate:            instrument.NewMethodMetrics(scope, "truncate", samplingRate),
+	}
+}
 
 // TODO(r): server side pooling for all return types from service methods
 type service struct {
 	sync.RWMutex
 
-	db     storage.Database
-	health *rpc.NodeHealthResult_
+	db      storage.Database
+	nowFn   clock.NowFn
+	metrics serviceMetrics
+	health  *rpc.NodeHealthResult_
 }
 
 // NewService creates a new node TChannel Thrift service
 func NewService(db storage.Database) rpc.TChanNode {
+	opts := db.Options()
+	iops := opts.InstrumentOptions()
+	scope := iops.MetricsScope().SubScope("service").Tagged(map[string]string{"serviceName": "node"})
+
 	return &service{
-		db:     db,
-		health: &rpc.NodeHealthResult_{Ok: true, Status: "up", Bootstrapped: false},
+		db:      db,
+		nowFn:   opts.ClockOptions().NowFn(),
+		metrics: newServiceMetrics(scope, iops.MetricsSamplingRate()),
+		health:  &rpc.NodeHealthResult_{Ok: true, Status: "up", Bootstrapped: false},
 	}
 }
 
@@ -78,16 +111,19 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
+	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
+		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
 	encoded, err := s.db.ReadEncoded(ctx, req.NameSpace, req.ID, start, end)
 	if err != nil {
+		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		rpcErr := convert.ToRPCError(err)
 		return nil, rpcErr
 	}
@@ -105,6 +141,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		dp, _, annotation := it.Current()
 		ts, tsErr := convert.ToValue(dp.Timestamp, req.ResultTimeType)
 		if tsErr != nil {
+			s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 			return nil, tterrors.NewBadRequestError(tsErr)
 		}
 
@@ -115,18 +152,22 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		result.Datapoints = append(result.Datapoints, datapoint)
 	}
 	if err := it.Err(); err != nil {
+		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewInternalError(err)
 	}
 
+	s.metrics.fetch.ReportSuccess(s.nowFn().Sub(callStart))
 	return result, nil
 }
 
 func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchRequest) (*rpc.FetchRawBatchResult_, error) {
+	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	if rangeStartErr != nil || rangeEndErr != nil {
+		s.metrics.fetchRawBatch.ReportError(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
@@ -150,10 +191,12 @@ func (s *service) FetchRawBatch(tctx thrift.Context, req *rpc.FetchRawBatchReque
 		rawResult.Segments = segments
 	}
 
+	s.metrics.fetchRawBatch.ReportSuccess(s.nowFn().Sub(callStart))
 	return result, nil
 }
 
 func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) (*rpc.FetchBlocksResult_, error) {
+	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
 	var blockStarts []time.Time
@@ -169,6 +212,7 @@ func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) 
 		}
 		fetched, err := s.db.FetchBlocks(ctx, ns, shardID, id, blockStarts)
 		if err != nil {
+			s.metrics.fetchBlocks.ReportError(s.nowFn().Sub(callStart))
 			return nil, convert.ToRPCError(err)
 		}
 		blocks := rpc.NewBlocks()
@@ -186,13 +230,17 @@ func (s *service) FetchBlocks(tctx thrift.Context, req *rpc.FetchBlocksRequest) 
 		}
 		res.Elements[i] = blocks
 	}
+
+	s.metrics.fetchBlocks.ReportSuccess(s.nowFn().Sub(callStart))
 	return res, nil
 }
 
 func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksMetadataRequest) (*rpc.FetchBlocksMetadataResult_, error) {
+	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
 	if req.Limit <= 0 {
+		s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
 		return nil, nil
 	}
 
@@ -215,6 +263,7 @@ func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksM
 	ns, shardID := req.NameSpace, uint32(req.Shard)
 	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, ns, shardID, req.Limit, pageToken, includeSizes, includeChecksums)
 	if err != nil {
+		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
 	result.NextPageToken = nextPageToken
@@ -240,34 +289,42 @@ func (s *service) FetchBlocksMetadata(tctx thrift.Context, req *rpc.FetchBlocksM
 		result.Elements[i] = blocksMetadata
 	}
 
+	s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
 	return result, nil
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
+	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
 	if req.IdDatapoint == nil || req.IdDatapoint.Datapoint == nil {
+		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
 	}
 	id := req.IdDatapoint.ID
 	dp := req.IdDatapoint.Datapoint
 	unit, unitErr := convert.ToUnit(dp.TimestampType)
 	if unitErr != nil {
+		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return tterrors.NewBadRequestError(unitErr)
 	}
 	d, err := unit.Value()
 	if err != nil {
+		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return tterrors.NewBadRequestError(err)
 	}
 	ts := xtime.FromNormalizedTime(dp.Timestamp, d)
 	err = s.db.Write(ctx, req.NameSpace, id, ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
+		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
 	}
+	s.metrics.write.ReportSuccess(s.nowFn().Sub(callStart))
 	return nil
 }
 
 func (s *service) WriteBatch(tctx thrift.Context, req *rpc.WriteBatchRequest) error {
+	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
 	var errs []*rpc.WriteBatchError
@@ -294,18 +351,25 @@ func (s *service) WriteBatch(tctx thrift.Context, req *rpc.WriteBatchRequest) er
 	}
 
 	if len(errs) > 0 {
+		s.metrics.writeBatch.ReportError(s.nowFn().Sub(callStart))
 		batchErrs := rpc.NewWriteBatchErrors()
 		batchErrs.Errors = errs
 		return batchErrs
 	}
+
+	s.metrics.writeBatch.ReportSuccess(s.nowFn().Sub(callStart))
 	return nil
 }
 
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
+	callStart := s.nowFn()
 	truncated, err := s.db.Truncate(req.NameSpace)
 	if err != nil {
+		s.metrics.truncate.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
+
+	s.metrics.truncate.ReportSuccess(s.nowFn().Sub(callStart))
 	res := rpc.NewTruncateResult_()
 	res.NumSeries = truncated
 	return res, nil

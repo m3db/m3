@@ -128,7 +128,7 @@ type databaseMetrics struct {
 	fetchBlocksMetadata instrument.MethodMetrics
 }
 
-func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
+func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics {
 	return databaseMetrics{
 		bootstrapStatus: scope.Gauge("bootstrapped"),
 		tickStatus:      scope.Gauge("tick"),
@@ -136,10 +136,10 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		tickDeadlineMissed: scope.Counter("tick.deadline.missed"),
 		tickDeadlineMet:    scope.Counter("tick.deadline.met"),
 
-		write:               instrument.NewMethodMetrics(scope, "write"),
-		read:                instrument.NewMethodMetrics(scope, "read"),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks"),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata"),
+		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
+		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
 	}
 }
 
@@ -153,7 +153,7 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 		nowFn:        opts.ClockOptions().NowFn(),
 		tickDeadline: opts.RetentionOptions().BufferDrain(),
 		scope:        scope,
-		metrics:      newDatabaseMetrics(scope),
+		metrics:      newDatabaseMetrics(scope, iops.MetricsSamplingRate()),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
 
@@ -253,20 +253,18 @@ func (d *db) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	sw := d.metrics.write.Latency.Start()
+	callStart := d.nowFn()
 	d.RLock()
 	n, exists := d.namespaces[namespace]
 	d.RUnlock()
 
 	if !exists {
-		d.metrics.write.Error.Inc(1)
-		d.metrics.write.Latency.Stop(sw)
+		d.metrics.write.ReportError(d.nowFn().Sub(callStart))
 		return fmt.Errorf("no such namespace %s", namespace)
 	}
 
 	err := n.Write(ctx, id, timestamp, value, unit, annotation)
-	d.metrics.write.ReportSuccessOrFailure(err)
-	d.metrics.write.Latency.Stop(sw)
+	d.metrics.write.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
 	return err
 }
 
@@ -276,18 +274,16 @@ func (d *db) ReadEncoded(
 	id string,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
-	sw := d.metrics.read.Latency.Start()
+	callStart := d.nowFn()
 	n, err := d.readableNamespace(namespace)
 
 	if err != nil {
-		d.metrics.read.Error.Inc(1)
-		d.metrics.read.Latency.Stop(sw)
+		d.metrics.read.ReportError(d.nowFn().Sub(callStart))
 		return nil, err
 	}
 
 	res, err := n.ReadEncoded(ctx, id, start, end)
-	d.metrics.read.ReportSuccessOrFailure(err)
-	d.metrics.read.Latency.Stop(sw)
+	d.metrics.read.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
 	return res, err
 }
 
@@ -298,19 +294,17 @@ func (d *db) FetchBlocks(
 	id string,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
-	sw := d.metrics.fetchBlocks.Latency.Start()
+	callStart := d.nowFn()
 	n, err := d.readableNamespace(namespace)
 
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
-		d.metrics.fetchBlocks.Error.Inc(1)
-		d.metrics.fetchBlocks.Latency.Stop(sw)
+		d.metrics.fetchBlocks.ReportError(d.nowFn().Sub(callStart))
 		return nil, res
 	}
 
 	res, err := n.FetchBlocks(ctx, shardID, id, starts)
-	d.metrics.fetchBlocks.ReportSuccessOrFailure(err)
-	d.metrics.fetchBlocks.Latency.Stop(sw)
+	d.metrics.fetchBlocks.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
 	return res, err
 }
 
@@ -323,19 +317,17 @@ func (d *db) FetchBlocksMetadata(
 	includeSizes bool,
 	includeChecksums bool,
 ) ([]block.FetchBlocksMetadataResult, *int64, error) {
-	sw := d.metrics.fetchBlocksMetadata.Latency.Start()
+	callStart := d.nowFn()
 	n, err := d.readableNamespace(namespace)
 
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
-		d.metrics.fetchBlocksMetadata.Error.Inc(1)
-		d.metrics.fetchBlocksMetadata.Latency.Stop(sw)
+		d.metrics.fetchBlocksMetadata.ReportError(d.nowFn().Sub(callStart))
 		return nil, nil, res
 	}
 
 	res, ptr, err := n.FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes, includeChecksums)
-	d.metrics.fetchBlocksMetadata.ReportSuccessOrFailure(err)
-	d.metrics.fetchBlocksMetadata.Latency.Stop(sw)
+	d.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
 	return res, ptr, err
 }
 
