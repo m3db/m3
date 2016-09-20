@@ -5,7 +5,7 @@ import:
   version: ~0.9.3
   subpackages:
   - lib/go/thrift
-  
+
 - package: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
   subpackages:
@@ -15,20 +15,20 @@ import:
   version: bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
   subpackages:
   - proto
-  
+
 - package: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
-  
+
 - package: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - require
-    
+
 - package: github.com/uber/tchannel-go
-  version: 1a0e35378f6f721bc07f6c4466bc9701ed70b506
+  version: 9701a0d5a8bfab135c6366a7c123a9b1df76421c
   subpackages:
   - thrift
-  
+
 - package: github.com/willf/bitset
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
 
@@ -40,7 +40,7 @@ import:
   subpackages:
   - client
   - services
-  
+
 - package: github.com/m3db/m3x
   version: 061fa69eb3dfc2a4fb1202f018039875654a2434
   subpackages:
