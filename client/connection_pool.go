@@ -236,10 +236,12 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 					p.Unlock()
 					return
 				}
+				unhealthy := p.pool[i]
 				p.pool[i], p.pool[p.poolLen-1] = p.pool[p.poolLen-1], p.pool[i]
 				p.pool = p.pool[:p.poolLen-1]
 				p.poolLen = int64(len(p.pool))
 				p.Unlock()
+				unhealthy.channel.Close()
 
 				// Retry with the element we just swapped in
 				i--
