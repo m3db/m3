@@ -184,6 +184,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				// Health check the connection
 				if err := p.healthCheckNewConn(client, p.opts); err != nil {
 					log.Warnf("could not connect to %s: failed health check: %v", address, err)
+					channel.Close()
 					return
 				}
 
