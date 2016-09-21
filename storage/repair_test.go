@@ -40,6 +40,7 @@ func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetRepairInterval(time.Second).
 		SetRepairTimeOffset(500 * time.Millisecond).
+		SetRepairTimeJitter(300 * time.Millisecond).
 		SetRepairCheckInterval(100 * time.Millisecond)
 }
 

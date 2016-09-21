@@ -124,11 +124,23 @@ type Options interface {
 	// RepairTimeOffset returns the repair time offset
 	RepairTimeOffset() time.Duration
 
+	// SetRepairJitter sets the repair time jitter
+	SetRepairTimeJitter(value time.Duration) Options
+
+	// RepairTimeJitter returns the repair time jitter
+	RepairTimeJitter() time.Duration
+
 	// SetRepairCheckInterval sets the repair check interval
 	SetRepairCheckInterval(value time.Duration) Options
 
 	// RepairCheckInterval returns the repair check interval
 	RepairCheckInterval() time.Duration
+
+	// SetRepairShardThrottle sets the repair shard throttle
+	SetRepairShardThrottle(value time.Duration) Options
+
+	// RepairShardThrottle returns the repair shard throttle
+	RepairShardThrottle() time.Duration
 
 	// Validate checks if the options are valid
 	Validate() error

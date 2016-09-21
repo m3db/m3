@@ -887,6 +887,16 @@ func (_m *MockdatabaseShardRepairer) EXPECT() *_MockdatabaseShardRepairerRecorde
 	return _m.recorder
 }
 
+func (_m *MockdatabaseShardRepairer) Options() repair.Options {
+	ret := _m.ctrl.Call(_m, "Options")
+	ret0, _ := ret[0].(repair.Options)
+	return ret0
+}
+
+func (_mr *_MockdatabaseShardRepairerRecorder) Options() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Options")
+}
+
 func (_m *MockdatabaseShardRepairer) Repair(namespace string, shard databaseShard) (repair.MetadataComparisonResult, error) {
 	ret := _m.ctrl.Call(_m, "Repair", namespace, shard)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)

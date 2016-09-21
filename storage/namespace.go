@@ -359,6 +359,7 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
 
 	multiErr := xerrors.NewMultiError()
 	shards := n.getOwnedShards()
+	throttle := repairer.Options().RepairShardThrottle()
 
 	for _, shard := range shards {
 		metadataRes, err := shard.Repair(n.name, repairer)
@@ -372,6 +373,9 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
 			numSizeDiffBlocks += metadataRes.SizeDifferences.NumBlocks()
 			numChecksumDiffSeries += metadataRes.ChecksumDifferences.NumSeries()
 			numChecksumDiffBlocks += metadataRes.ChecksumDifferences.NumBlocks()
+		}
+		if throttle > 0 {
+			time.Sleep(throttle)
 		}
 	}
 
