@@ -79,7 +79,7 @@ func (ph *placementHelper) MoveShard(shard uint32, from, to placement.HostShards
 }
 
 func (ph placementHelper) PlaceShards(shards []uint32, from placement.HostShards) error {
-	shardSet := placement.ConvertShardSliceToSet(shards)
+	shardSet := placement.ConvertShardSliceToMap(shards)
 	var tried []placement.HostShards
 
 	if from != nil {
@@ -288,7 +288,7 @@ func (ph placementHelper) removeShardFromHost(shard uint32, from placement.HostS
 
 // placeToRacksOtherThanOrigin move shards from a host to the rest of the cluster
 // the goal of this function is to assign "some" of the shards to the hosts in other racks
-func (ph placementHelper) placeToRacksOtherThanOrigin(shards map[uint32]struct{}, from placement.HostShards) {
+func (ph placementHelper) placeToRacksOtherThanOrigin(shards map[uint32]int, from placement.HostShards) {
 	var sameRack []placement.HostShards
 	var triedHosts []placement.HostShards
 	for ph.hostHeap.Len() > 0 {
