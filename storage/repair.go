@@ -183,6 +183,7 @@ type dbRepairer struct {
 
 func newDatabaseRepairer(database database) (databaseRepairer, error) {
 	opts := database.Options()
+	nowFn := opts.ClockOptions().NowFn()
 	ropts := opts.RepairOptions()
 	if ropts == nil {
 		return nil, errNoRepairOptions
@@ -198,6 +199,7 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 
 	var jitter time.Duration
 	if repairJitter := ropts.RepairTimeJitter(); repairJitter > 0 {
+		rand.Seed(nowFn().UnixNano())
 		jitter = time.Duration(rand.Int63n(int64(repairJitter)))
 	}
 
@@ -207,7 +209,7 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 		ropts:               ropts,
 		shardRepairer:       shardRepairer,
 		sleepFn:             time.Sleep,
-		nowFn:               opts.ClockOptions().NowFn(),
+		nowFn:               nowFn,
 		logger:              opts.InstrumentOptions().Logger(),
 		repairInterval:      ropts.RepairInterval(),
 		repairTimeOffset:    ropts.RepairTimeOffset(),

@@ -32,7 +32,7 @@ const (
 	defaultRepairTimeOffset    = 30 * time.Minute
 	defaultRepairTimeJitter    = time.Hour
 	defaultRepairCheckInterval = time.Minute
-	defaultRepairShardThrottle = 3 * time.Second
+	defaultRepairShardThrottle = 2 * time.Second
 )
 
 var (
