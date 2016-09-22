@@ -136,11 +136,11 @@ type Options interface {
 	// RepairCheckInterval returns the repair check interval
 	RepairCheckInterval() time.Duration
 
-	// SetRepairShardThrottle sets the repair shard throttle
-	SetRepairShardThrottle(value time.Duration) Options
+	// SetRepairThrottle sets the repair throttle
+	SetRepairThrottle(value time.Duration) Options
 
-	// RepairShardThrottle returns the repair shard throttle
-	RepairShardThrottle() time.Duration
+	// RepairThrottle returns the repair throttle
+	RepairThrottle() time.Duration
 
 	// Validate checks if the options are valid
 	Validate() error

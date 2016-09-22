@@ -32,7 +32,7 @@ const (
 	defaultRepairTimeOffset    = 30 * time.Minute
 	defaultRepairTimeJitter    = time.Hour
 	defaultRepairCheckInterval = time.Minute
-	defaultRepairShardThrottle = 2 * time.Second
+	defaultRepairThrottle      = 90 * time.Second
 )
 
 var (
@@ -43,7 +43,7 @@ var (
 	errTimeOffsetOrJitterTooBig   = errors.New("repair time offset plus jitter should be no more than repair interval")
 	errInvalidRepairCheckInterval = errors.New("invalid repair check interval in repair options")
 	errRepairCheckIntervalTooBig  = errors.New("repair check interval too big in repair options")
-	errInvalidRepairShardThrottle = errors.New("invalid repair shard throttle in repair options")
+	errInvalidRepairThrottle      = errors.New("invalid repair throttle in repair options")
 )
 
 type options struct {
@@ -52,7 +52,7 @@ type options struct {
 	repairTimeOffset    time.Duration
 	repairTimeJitter    time.Duration
 	repairCheckInterval time.Duration
-	repairShardThrottle time.Duration
+	repairThrottle      time.Duration
 }
 
 // NewOptions creates new bootstrap options
@@ -62,7 +62,7 @@ func NewOptions() Options {
 		repairTimeOffset:    defaultRepairTimeOffset,
 		repairTimeJitter:    defaultRepairTimeJitter,
 		repairCheckInterval: defaultRepairCheckInterval,
-		repairShardThrottle: defaultRepairShardThrottle,
+		repairThrottle:      defaultRepairThrottle,
 	}
 }
 
@@ -116,14 +116,14 @@ func (o *options) RepairCheckInterval() time.Duration {
 	return o.repairCheckInterval
 }
 
-func (o *options) SetRepairShardThrottle(value time.Duration) Options {
+func (o *options) SetRepairThrottle(value time.Duration) Options {
 	opts := *o
-	opts.repairShardThrottle = value
+	opts.repairThrottle = value
 	return &opts
 }
 
-func (o *options) RepairShardThrottle() time.Duration {
-	return o.repairShardThrottle
+func (o *options) RepairThrottle() time.Duration {
+	return o.repairThrottle
 }
 
 func (o *options) Validate() error {
@@ -148,8 +148,8 @@ func (o *options) Validate() error {
 	if o.repairCheckInterval > o.repairInterval {
 		return errRepairCheckIntervalTooBig
 	}
-	if o.repairShardThrottle < 0 {
-		return errInvalidRepairShardThrottle
+	if o.repairThrottle < 0 {
+		return errInvalidRepairThrottle
 	}
 	return nil
 }
