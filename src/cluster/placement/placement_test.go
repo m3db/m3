@@ -28,32 +28,32 @@ import (
 )
 
 func TestSnapshot(t *testing.T) {
-	h1 := NewEmptyHostShards("r1h1", "r1")
+	h1 := NewEmptyHostShards("r1h1", "r1", "z1")
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	h2 := NewEmptyHostShards("r2h2", "r2")
+	h2 := NewEmptyHostShards("r2h2", "r2", "z1")
 	h2.AddShard(4)
 	h2.AddShard(5)
 	h2.AddShard(6)
 
-	h3 := NewEmptyHostShards("r3h3", "r3")
+	h3 := NewEmptyHostShards("r3h3", "r3", "z1")
 	h3.AddShard(1)
 	h3.AddShard(3)
 	h3.AddShard(5)
 
-	h4 := NewEmptyHostShards("r4h4", "r4")
+	h4 := NewEmptyHostShards("r4h4", "r4", "z1")
 	h4.AddShard(2)
 	h4.AddShard(4)
 	h4.AddShard(6)
 
-	h5 := NewEmptyHostShards("r5h5", "r5")
+	h5 := NewEmptyHostShards("r5h5", "r5", "z1")
 	h5.AddShard(5)
 	h5.AddShard(6)
 	h5.AddShard(1)
 
-	h6 := NewEmptyHostShards("r6h6", "r6")
+	h6 := NewEmptyHostShards("r6h6", "r6", "z1")
 	h6.AddShard(2)
 	h6.AddShard(3)
 	h6.AddShard(4)
@@ -75,7 +75,7 @@ func TestSnapshot(t *testing.T) {
 	assert.Equal(t, ids, s.Shards())
 	assert.Equal(t, hss, s.HostShards())
 
-	s = NewEmptyPlacementSnapshot([]Host{NewHost("h1", "r1"), NewHost("h2", "r2")}, ids)
+	s = NewEmptyPlacementSnapshot([]Host{NewHost("h1", "r1", "z1"), NewHost("h2", "r2", "z1")}, ids)
 	assert.Equal(t, 0, s.Replicas())
 	assert.Equal(t, ids, s.Shards())
 	assert.NoError(t, s.Validate())
@@ -84,12 +84,12 @@ func TestSnapshot(t *testing.T) {
 func TestValidate(t *testing.T) {
 	ids := []uint32{1, 2, 3, 4, 5, 6}
 
-	h1 := NewEmptyHostShards("r1h1", "r1")
+	h1 := NewEmptyHostShards("r1h1", "r1", "z1")
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	h2 := NewEmptyHostShards("r2h2", "r2")
+	h2 := NewEmptyHostShards("r2h2", "r2", "z1")
 	h2.AddShard(4)
 	h2.AddShard(5)
 	h2.AddShard(6)
@@ -101,9 +101,10 @@ func TestValidate(t *testing.T) {
 	// mismatch shards
 	s = NewPlacementSnapshot(hss, append(ids, 7), 1)
 	assert.Error(t, s.Validate())
+	assert.Error(t, s.Validate())
 
 	// host missing a shard
-	h1 = NewEmptyHostShards("r1h1", "r1")
+	h1 = NewEmptyHostShards("r1h1", "r1", "z1")
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
@@ -111,7 +112,7 @@ func TestValidate(t *testing.T) {
 	h1.AddShard(5)
 	h1.AddShard(6)
 
-	h2 = NewEmptyHostShards("r2h2", "r2")
+	h2 = NewEmptyHostShards("r2h2", "r2", "z1")
 	h2.AddShard(2)
 	h2.AddShard(3)
 	h2.AddShard(4)
@@ -121,9 +122,10 @@ func TestValidate(t *testing.T) {
 	hss = []HostShards{h1, h2}
 	s = NewPlacementSnapshot(hss, ids, 2)
 	assert.Error(t, s.Validate())
+	assert.Equal(t, errTotalShardsMismatch, s.Validate())
 
-	// host contains shard that's not supposed to be in snapshot
-	h1 = NewEmptyHostShards("r1h1", "r1")
+	// host contains shard that's unexpected to be in snapshot
+	h1 = NewEmptyHostShards("r1h1", "r1", "z1")
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
@@ -132,7 +134,7 @@ func TestValidate(t *testing.T) {
 	h1.AddShard(6)
 	h1.AddShard(7)
 
-	h2 = NewEmptyHostShards("r2h2", "r2")
+	h2 = NewEmptyHostShards("r2h2", "r2", "z1")
 	h2.AddShard(2)
 	h2.AddShard(3)
 	h2.AddShard(4)
@@ -142,20 +144,41 @@ func TestValidate(t *testing.T) {
 	hss = []HostShards{h1, h2}
 	s = NewPlacementSnapshot(hss, ids, 2)
 	assert.Error(t, s.Validate())
+	assert.Equal(t, errUnexpectedShards, s.Validate())
 
 	// duplicated shards
-	h1 = NewEmptyHostShards("r1h1", "r1")
+	h1 = NewEmptyHostShards("r1h1", "r1", "z1")
 	h1.AddShard(2)
 	h1.AddShard(3)
 	h1.AddShard(4)
 
-	h2 = NewEmptyHostShards("r2h2", "r2")
+	h2 = NewEmptyHostShards("r2h2", "r2", "z1")
 	h2.AddShard(4)
 	h2.AddShard(5)
 	h2.AddShard(6)
 
 	hss = []HostShards{h1, h2}
 	s = NewPlacementSnapshot(hss, []uint32{2, 3, 4, 4, 5, 6}, 1)
+	assert.Error(t, s.Validate())
+	assert.Equal(t, errDuplicatedShards, s.Validate())
+
+	// three shard 2 and only one shard 4
+	h1 = NewEmptyHostShards("r1h1", "r1", "z1")
+	h1.AddShard(1)
+	h1.AddShard(2)
+	h1.AddShard(3)
+
+	h2 = NewEmptyHostShards("r2h2", "r2", "z1")
+	h2.AddShard(2)
+	h2.AddShard(3)
+	h2.AddShard(4)
+
+	h3 := NewEmptyHostShards("r3h3", "r3", "z1")
+	h3.AddShard(1)
+	h3.AddShard(2)
+
+	hss = []HostShards{h1, h2, h3}
+	s = NewPlacementSnapshot(hss, []uint32{1, 2, 3, 4}, 2)
 	assert.Error(t, s.Validate())
 }
 
@@ -198,7 +221,7 @@ func TestSnapshotMarshalling(t *testing.T) {
 	}`
 	data = []byte(invalidPlacementJSON)
 	ps, err = NewPlacementFromJSON(data)
-	assert.Equal(t, err, errShardsWithDifferentReplicas)
+	assert.Equal(t, err, errInvalidShardsCount)
 	assert.Nil(t, ps)
 
 	// an extra replica for shard 0 on r1h1
@@ -218,12 +241,12 @@ func TestSnapshotMarshalling(t *testing.T) {
 }
 
 func TestHostShards(t *testing.T) {
-	h1 := NewEmptyHostShards("r1h1", "r1")
+	h1 := NewEmptyHostShards("r1h1", "r1", "z1")
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	assert.Equal(t, "[id:r1h1, rack:r1]", h1.Host().String())
+	assert.Equal(t, "[id:r1h1, rack:r1, zone:z1]", h1.Host().String())
 
 	assert.True(t, h1.ContainsShard(1))
 	assert.False(t, h1.ContainsShard(100))
@@ -244,6 +267,8 @@ func TestOptions(t *testing.T) {
 	assert.False(t, o.LooseRackCheck())
 	o = o.SetLooseRackCheck(true)
 	assert.True(t, o.LooseRackCheck())
+	o = o.SetAcrossZones(true)
+	assert.True(t, o.AcrossZones())
 }
 
 func testSnapshotJSONRoundTrip(t *testing.T, s Snapshot) {

@@ -85,6 +85,7 @@ type Host interface {
 	fmt.Stringer
 	ID() string
 	Rack() string
+	Zone() string
 }
 
 // Service handles the placement related operations for registered services
@@ -108,8 +109,12 @@ type SnapshotStorage interface {
 
 // Options is the interface for placement options
 type Options interface {
-	// looseRackCheck enables the placement to loose the rack check
+	// LooseRackCheck enables the placement to loose the rack check
 	// during host replacement to achieve full ownership transfer
 	LooseRackCheck() bool
 	SetLooseRackCheck(looseRackCheck bool) Options
+
+	// AcrossZone enables the placement have hosts across zones
+	AcrossZones() bool
+	SetAcrossZones(acrossZones bool) Options
 }

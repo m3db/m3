@@ -29,15 +29,15 @@ import (
 )
 
 func TestGoodCase(t *testing.T) {
-	h1 := placement.NewHost("r1h1", "r1")
-	h2 := placement.NewHost("r1h2", "r1")
-	h3 := placement.NewHost("r2h3", "r2")
-	h4 := placement.NewHost("r2h4", "r2")
-	h5 := placement.NewHost("r3h5", "r3")
-	h6 := placement.NewHost("r4h6", "r4")
-	h7 := placement.NewHost("r5h7", "r5")
-	h8 := placement.NewHost("r6h8", "r6")
-	h9 := placement.NewHost("r7h9", "r7")
+	h1 := placement.NewHost("r1h1", "r1", "z1")
+	h2 := placement.NewHost("r1h2", "r1", "z1")
+	h3 := placement.NewHost("r2h3", "r2", "z1")
+	h4 := placement.NewHost("r2h4", "r2", "z1")
+	h5 := placement.NewHost("r3h5", "r3", "z1")
+	h6 := placement.NewHost("r4h6", "r4", "z1")
+	h7 := placement.NewHost("r5h7", "r5", "z1")
+	h8 := placement.NewHost("r6h8", "r6", "z1")
+	h9 := placement.NewHost("r7h9", "r7", "z1")
 
 	hosts := []placement.Host{h1, h2, h3, h4, h5, h6, h7, h8, h9}
 
@@ -51,7 +51,7 @@ func TestGoodCase(t *testing.T) {
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "good case1 replica 1")
 
-	p, err = a.AddHost(p, placement.NewHost("r6h21", "r6"))
+	p, err = a.AddHost(p, placement.NewHost("r6h21", "r6", "z1"))
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "good case1 add 1")
 
@@ -59,7 +59,7 @@ func TestGoodCase(t *testing.T) {
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "good case1 remove 1")
 
-	h12 := placement.NewHost("r3h12", "r3")
+	h12 := placement.NewHost("r3h12", "r3", "z1")
 	p, err = a.ReplaceHost(p, h5, h12)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "good case1 add 1")
@@ -76,17 +76,17 @@ func TestGoodCase(t *testing.T) {
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "good case1 replica 3")
 
-	h10 := placement.NewHost("r4h10", "r4")
+	h10 := placement.NewHost("r4h10", "r4", "z1")
 	p, err = a.AddHost(p, h10)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "good case1 add 1")
 
-	h11 := placement.NewHost("r7h11", "r7")
+	h11 := placement.NewHost("r7h11", "r7", "z1")
 	p, err = a.AddHost(p, h11)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "good case1 add 2")
 
-	h13 := placement.NewHost("r5h13", "r5")
+	h13 := placement.NewHost("r5h13", "r5", "z1")
 	p, err = a.ReplaceHost(p, h3, h13)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "good case1 replace 1")
@@ -97,19 +97,19 @@ func TestGoodCase(t *testing.T) {
 }
 
 func TestOverSizedRack(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
-	r1h6 := placement.NewHost("r1h6", "r1")
-	r1h7 := placement.NewHost("r1h7", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
+	r1h6 := placement.NewHost("r1h6", "r1", "z1")
+	r1h7 := placement.NewHost("r1h7", "r1", "z1")
 
-	r2h2 := placement.NewHost("r2h2", "r2")
-	r2h3 := placement.NewHost("r2h3", "r2")
+	r2h2 := placement.NewHost("r2h2", "r2", "z1")
+	r2h3 := placement.NewHost("r2h3", "r2", "z1")
 
-	r3h4 := placement.NewHost("r3h4", "r3")
-	r3h8 := placement.NewHost("r3h8", "r3")
+	r3h4 := placement.NewHost("r3h4", "r3", "z1")
+	r3h8 := placement.NewHost("r3h8", "r3", "z1")
 
-	r4h5 := placement.NewHost("r4h5", "r4")
+	r4h5 := placement.NewHost("r4h5", "r4", "z1")
 
-	r5h9 := placement.NewHost("r5h9", "r5")
+	r5h9 := placement.NewHost("r5h9", "r5", "z1")
 
 	hosts := []placement.Host{r1h1, r2h2, r2h3, r3h4, r4h5, r1h6, r1h7, r3h8, r5h9}
 
@@ -131,19 +131,19 @@ func TestOverSizedRack(t *testing.T) {
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestOverSizedRack replica 3")
 
-	r4h10 := placement.NewHost("r4h10", "r4")
+	r4h10 := placement.NewHost("r4h10", "r4", "z1")
 	p, err = a.ReplaceHost(p, r3h8, r4h10)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestOverSizedRack replace 1")
 
 	// At this point, r1 has 4 hosts to share a copy of 1024 partitions
-	r1h11 := placement.NewHost("r1h11", "r1")
+	r1h11 := placement.NewHost("r1h11", "r1", "z1")
 	p, err = a.ReplaceHost(p, r2h2, r1h11)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.22, "TestOverSizedRack replace 2")
 
 	// adding a new host to relieve the load on the hot hosts
-	r4h12 := placement.NewHost("r4h12", "r4")
+	r4h12 := placement.NewHost("r4h12", "r4", "z1")
 	p, err = a.AddHost(p, r4h12)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.15, "TestOverSizedRack add 1")
@@ -164,8 +164,8 @@ func TestInitPlacementOn0Host(t *testing.T) {
 }
 
 func TestOneRack(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
-	r1h2 := placement.NewHost("r1h2", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
+	r1h2 := placement.NewHost("r1h2", "r1", "z1")
 
 	hosts := []placement.Host{r1h1, r1h2}
 
@@ -179,7 +179,7 @@ func TestOneRack(t *testing.T) {
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestOneRack replica 1")
 
-	r1h6 := placement.NewHost("r1h6", "r1")
+	r1h6 := placement.NewHost("r1h6", "r1", "z1")
 
 	p, err = a.AddHost(p, r1h6)
 	assert.NoError(t, err)
@@ -187,11 +187,11 @@ func TestOneRack(t *testing.T) {
 }
 
 func TestRFGreaterThanRackLen(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
-	r1h6 := placement.NewHost("r1h6", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
+	r1h6 := placement.NewHost("r1h6", "r1", "z1")
 
-	r2h2 := placement.NewHost("r2h2", "r2")
-	r2h3 := placement.NewHost("r2h3", "r2")
+	r2h2 := placement.NewHost("r2h2", "r2", "z1")
+	r2h3 := placement.NewHost("r2h3", "r2", "z1")
 
 	hosts := []placement.Host{r1h1, r2h2, r2h3, r1h6}
 
@@ -216,9 +216,9 @@ func TestRFGreaterThanRackLen(t *testing.T) {
 }
 
 func TestRFGreaterThanRackLenAfterHostRemoval(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
 
-	r2h2 := placement.NewHost("r2h2", "r2")
+	r2h2 := placement.NewHost("r2h2", "r2", "z1")
 
 	hosts := []placement.Host{r1h1, r2h2}
 
@@ -243,9 +243,9 @@ func TestRFGreaterThanRackLenAfterHostRemoval(t *testing.T) {
 }
 
 func TestRFGreaterThanRackLenAfterHostReplace(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
 
-	r2h2 := placement.NewHost("r2h2", "r2")
+	r2h2 := placement.NewHost("r2h2", "r2", "z1")
 
 	hosts := []placement.Host{r1h1, r2h2}
 
@@ -263,7 +263,7 @@ func TestRFGreaterThanRackLenAfterHostReplace(t *testing.T) {
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLenAfterHostRemoval replica 2")
 
-	r1h3 := placement.NewHost("r1h3", "r1")
+	r1h3 := placement.NewHost("r1h3", "r1", "z1")
 	p1, err := a.ReplaceHost(p, r2h2, r1h3)
 	assert.Equal(t, errNotEnoughRacks, err)
 	assert.Nil(t, p1)
@@ -271,9 +271,9 @@ func TestRFGreaterThanRackLenAfterHostReplace(t *testing.T) {
 }
 
 func TestLooseRackCheckAlgorithm(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
 
-	r2h2 := placement.NewHost("r2h2", "r2")
+	r2h2 := placement.NewHost("r2h2", "r2", "z1")
 
 	hosts := []placement.Host{r1h1, r2h2}
 
@@ -296,7 +296,7 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 	assert.Nil(t, p1)
 	assert.NoError(t, p.Validate())
 
-	r2h4 := placement.NewHost("r2h4", "r2")
+	r2h4 := placement.NewHost("r2h4", "r2", "z1")
 	p, err = a.AddHost(p, r2h4)
 	assert.NoError(t, err)
 	assert.NoError(t, p.Validate())
@@ -308,7 +308,7 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 
 	b := NewRackAwarePlacementAlgorithm(placement.NewOptions().SetLooseRackCheck(true))
 	// different with normal algo, which would return error here
-	r1h3 := placement.NewHost("r1h3", "r1")
+	r1h3 := placement.NewHost("r1h3", "r1", "z1")
 	p, err = b.ReplaceHost(p, r2h2, r1h3)
 	assert.NoError(t, err)
 	assert.NoError(t, p.Validate())
@@ -322,7 +322,7 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, p.Validate())
 
-	r3h5 := placement.NewHost("r3h5", "r3")
+	r3h5 := placement.NewHost("r3h5", "r3", "z1")
 	p, err = b.AddHost(p, r3h5)
 	assert.NoError(t, err)
 	assert.NoError(t, p.Validate())
@@ -333,7 +333,7 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 }
 
 func TestAddHostCouldNotReachTargetLoad(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
 
 	ids := make([]uint32, 1024)
 	for i := 0; i < len(ids); i++ {
@@ -352,9 +352,9 @@ func TestAddHostCouldNotReachTargetLoad(t *testing.T) {
 }
 
 func TestAddExistHost(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
 
-	r2h2 := placement.NewHost("r2h2", "r2")
+	r2h2 := placement.NewHost("r2h2", "r2", "z1")
 
 	hosts := []placement.Host{r1h1, r2h2}
 
@@ -375,9 +375,9 @@ func TestAddExistHost(t *testing.T) {
 }
 
 func TestRemoveAbsentHost(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
 
-	r2h2 := placement.NewHost("r2h2", "r2")
+	r2h2 := placement.NewHost("r2h2", "r2", "z1")
 
 	hosts := []placement.Host{r1h1, r2h2}
 
@@ -391,7 +391,7 @@ func TestRemoveAbsentHost(t *testing.T) {
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestRemoveAbsentHost replica 1")
 
-	r3h3 := placement.NewHost("r3h3", "r3")
+	r3h3 := placement.NewHost("r3h3", "r3", "z1")
 
 	p1, err := a.RemoveHost(p, r3h3)
 	assert.Error(t, err)
@@ -400,9 +400,9 @@ func TestRemoveAbsentHost(t *testing.T) {
 }
 
 func TestReplaceAbsentHost(t *testing.T) {
-	r1h1 := placement.NewHost("r1h1", "r1")
+	r1h1 := placement.NewHost("r1h1", "r1", "z1")
 
-	r2h2 := placement.NewHost("r2h2", "r2")
+	r2h2 := placement.NewHost("r2h2", "r2", "z1")
 
 	hosts := []placement.Host{r1h1, r2h2}
 
@@ -416,8 +416,8 @@ func TestReplaceAbsentHost(t *testing.T) {
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestReplaceAbsentHost replica 1")
 
-	r3h3 := placement.NewHost("r3h3", "r3")
-	r4h4 := placement.NewHost("r4h4", "r4")
+	r3h3 := placement.NewHost("r3h3", "r3", "z1")
+	r4h4 := placement.NewHost("r4h4", "r4", "z1")
 
 	p1, err := a.ReplaceHost(p, r3h3, r4h4)
 	assert.Error(t, err)
@@ -426,32 +426,32 @@ func TestReplaceAbsentHost(t *testing.T) {
 }
 
 func TestCanAssignHost(t *testing.T) {
-	h1 := placement.NewEmptyHostShards("r1h1", "r1")
+	h1 := placement.NewEmptyHostShards("r1h1", "r1", "z1")
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	h2 := placement.NewEmptyHostShards("r1h2", "r1")
+	h2 := placement.NewEmptyHostShards("r1h2", "r1", "z1")
 	h2.AddShard(4)
 	h2.AddShard(5)
 	h2.AddShard(6)
 
-	h3 := placement.NewEmptyHostShards("r2h3", "r2")
+	h3 := placement.NewEmptyHostShards("r2h3", "r2", "z1")
 	h3.AddShard(1)
 	h3.AddShard(3)
 	h3.AddShard(5)
 
-	h4 := placement.NewEmptyHostShards("r2h4", "r2")
+	h4 := placement.NewEmptyHostShards("r2h4", "r2", "z1")
 	h4.AddShard(2)
 	h4.AddShard(4)
 	h4.AddShard(6)
 
-	h5 := placement.NewEmptyHostShards("r3h5", "r3")
+	h5 := placement.NewEmptyHostShards("r3h5", "r3", "z1")
 	h5.AddShard(5)
 	h5.AddShard(6)
 	h5.AddShard(1)
 
-	h6 := placement.NewEmptyHostShards("r4h6", "r4")
+	h6 := placement.NewEmptyHostShards("r4h6", "r4", "z1")
 	h6.AddShard(2)
 	h6.AddShard(3)
 	h6.AddShard(4)

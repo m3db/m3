@@ -29,9 +29,11 @@ import (
 )
 
 var (
-	errInvalidShardLen = errors.New("shardLen should be greater than zero")
-	errHostAbsent      = errors.New("could not remove or replace a host that does not exist")
-	errNoValidHost     = errors.New("no valid host in the candidate list")
+	errInvalidShardLen    = errors.New("shardLen should be greater than zero")
+	errHostAbsent         = errors.New("could not remove or replace a host that does not exist")
+	errNoValidHost        = errors.New("no valid host in the candidate list")
+	errDisableAcrossZones = errors.New("could not disable across zones on a placement that contains multi zones")
+	errHostsAcrossZones   = errors.New("could not init placement on hosts across zones with acrossZones disabled")
 )
 
 type placementService struct {
@@ -51,13 +53,17 @@ func (ps placementService) BuildInitialPlacement(service string, hosts []placeme
 		return errInvalidShardLen
 	}
 
+	var err error
+	if err = ps.validateInitHosts(hosts); err != nil {
+		return err
+	}
+
 	ids := make([]uint32, shardLen)
 	for i := 0; i < shardLen; i++ {
 		ids[i] = uint32(i)
 	}
 
 	var s placement.Snapshot
-	var err error
 	for i := 0; i < rf; i++ {
 		if i == 0 {
 			s, err = ps.algo.BuildInitialPlacement(hosts, ids)
@@ -68,6 +74,7 @@ func (ps placementService) BuildInitialPlacement(service string, hosts []placeme
 			return err
 		}
 	}
+
 	return ps.ss.SaveSnapshotForService(service, s)
 }
 
@@ -91,7 +98,7 @@ func (ps placementService) AddHost(service string, candidateHosts []placement.Ho
 		return err
 	}
 	var addingHost placement.Host
-	if addingHost, err = findAddingHost(s, candidateHosts); err != nil {
+	if addingHost, err = ps.findAddingHost(s, candidateHosts); err != nil {
 		return err
 	}
 
@@ -174,10 +181,14 @@ func (rls rackLens) Swap(i, j int) {
 	rls[i], rls[j] = rls[j], rls[i]
 }
 
-func findAddingHost(s placement.Snapshot, candidateHosts []placement.Host) (placement.Host, error) {
+func (ps placementService) findAddingHost(s placement.Snapshot, candidateHosts []placement.Host) (placement.Host, error) {
 	// filter out already existing hosts
 	candidateHosts = getNewHostsToPlacement(s, candidateHosts)
 
+	candidateHosts, err := filterZones(s, ps.options, candidateHosts)
+	if err != nil {
+		return nil, err
+	}
 	// build rack-host map for candidate hosts
 	candidateRackHostMap := buildRackHostMap(candidateHosts)
 
@@ -213,6 +224,11 @@ func (ps placementService) findReplaceHost(s placement.Snapshot, candidateHosts 
 	// filter out already existing hosts
 	candidateHosts = getNewHostsToPlacement(s, candidateHosts)
 
+	candidateHosts, err := filterZones(s, ps.options, candidateHosts)
+	if err != nil {
+		return nil, err
+	}
+
 	if len(candidateHosts) == 0 {
 		return nil, errNoValidHost
 	}
@@ -224,10 +240,10 @@ func (ps placementService) findReplaceHost(s placement.Snapshot, candidateHosts 
 		return hs[0], nil
 	}
 
-	return ps.findHostWithRackConflictCheck(s, candidateRackHostMap, leaving)
+	return ps.findHostWithRackCheck(s, candidateRackHostMap, leaving)
 }
 
-func (ps placementService) findHostWithRackConflictCheck(p placement.Snapshot, rackHostMap map[string][]placement.Host, leaving placement.HostShards) (placement.Host, error) {
+func (ps placementService) findHostWithRackCheck(p placement.Snapshot, rackHostMap map[string][]placement.Host, leaving placement.HostShards) (placement.Host, error) {
 	// otherwise sort the candidate hosts by the number of conflicts
 	ph := algo.NewPlacementHelper(ps.options, p)
 
@@ -244,7 +260,7 @@ func (ps placementService) findHostWithRackConflictCheck(p placement.Snapshot, r
 	}
 	sort.Sort(rackLens)
 	if !ps.options.LooseRackCheck() {
-		rackLens = getNoConflictRacks(rackLens)
+		rackLens = filterConflictRacks(rackLens)
 	}
 	if len(rackLens) > 0 {
 		return rackHostMap[rackLens[0].rack][0], nil
@@ -252,7 +268,32 @@ func (ps placementService) findHostWithRackConflictCheck(p placement.Snapshot, r
 	return nil, errNoValidHost
 }
 
-func getNoConflictRacks(rls rackLens) rackLens {
+func filterZones(p placement.Snapshot, opts placement.Options, candidateHosts []placement.Host) ([]placement.Host, error) {
+	if opts.AcrossZones() {
+		return candidateHosts, nil
+	}
+
+	var validZone string
+	for _, hostShards := range p.HostShards() {
+		if validZone == "" {
+			validZone = hostShards.Host().Zone()
+			continue
+		}
+		if validZone != hostShards.Host().Zone() {
+			return nil, errDisableAcrossZones
+		}
+	}
+
+	validHosts := make([]placement.Host, 0, len(candidateHosts))
+	for _, host := range candidateHosts {
+		if validZone == host.Zone() {
+			validHosts = append(validHosts, host)
+		}
+	}
+	return validHosts, nil
+}
+
+func filterConflictRacks(rls rackLens) rackLens {
 	for i, r := range rls {
 		if r.len > 0 {
 			return rls[:i]
@@ -278,4 +319,22 @@ func buildRackHostMapFromHostShards(hosts []placement.HostShards) map[string][]p
 		hs[i] = host.Host()
 	}
 	return buildRackHostMap(hs)
+}
+
+func (ps placementService) validateInitHosts(hosts []placement.Host) error {
+	if ps.options.AcrossZones() {
+		return nil
+	}
+
+	var zone string
+	for _, hostShards := range hosts {
+		if zone == "" {
+			zone = hostShards.Zone()
+			continue
+		}
+		if zone != hostShards.Zone() {
+			return errHostsAcrossZones
+		}
+	}
+	return nil
 }
