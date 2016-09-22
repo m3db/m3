@@ -29,24 +29,30 @@ import (
 
 const (
 	defaultRepairInterval      = 2 * time.Hour
-	defaultRepairTimeOffset    = time.Hour
+	defaultRepairTimeOffset    = 30 * time.Minute
+	defaultRepairTimeJitter    = time.Hour
 	defaultRepairCheckInterval = time.Minute
+	defaultRepairThrottle      = 90 * time.Second
 )
 
 var (
 	errNoAdminClient              = errors.New("no admin client in repair options")
 	errInvalidRepairInterval      = errors.New("invalid repair interval in repair options")
 	errInvalidRepairTimeOffset    = errors.New("invalid repair time offset in repair options")
-	errRepairTimeOffsetTooBig     = errors.New("repair time offset too big in repair options")
+	errInvalidRepairTimeJitter    = errors.New("invalid repair time jitter in repair options")
+	errTimeOffsetOrJitterTooBig   = errors.New("repair time offset plus jitter should be no more than repair interval")
 	errInvalidRepairCheckInterval = errors.New("invalid repair check interval in repair options")
 	errRepairCheckIntervalTooBig  = errors.New("repair check interval too big in repair options")
+	errInvalidRepairThrottle      = errors.New("invalid repair throttle in repair options")
 )
 
 type options struct {
 	adminClient         client.AdminClient
 	repairInterval      time.Duration
 	repairTimeOffset    time.Duration
+	repairTimeJitter    time.Duration
 	repairCheckInterval time.Duration
+	repairThrottle      time.Duration
 }
 
 // NewOptions creates new bootstrap options
@@ -54,7 +60,9 @@ func NewOptions() Options {
 	return &options{
 		repairInterval:      defaultRepairInterval,
 		repairTimeOffset:    defaultRepairTimeOffset,
+		repairTimeJitter:    defaultRepairTimeJitter,
 		repairCheckInterval: defaultRepairCheckInterval,
+		repairThrottle:      defaultRepairThrottle,
 	}
 }
 
@@ -88,6 +96,16 @@ func (o *options) RepairTimeOffset() time.Duration {
 	return o.repairTimeOffset
 }
 
+func (o *options) SetRepairTimeJitter(value time.Duration) Options {
+	opts := *o
+	opts.repairTimeJitter = value
+	return &opts
+}
+
+func (o *options) RepairTimeJitter() time.Duration {
+	return o.repairTimeJitter
+}
+
 func (o *options) SetRepairCheckInterval(value time.Duration) Options {
 	opts := *o
 	opts.repairCheckInterval = value
@@ -96,6 +114,16 @@ func (o *options) SetRepairCheckInterval(value time.Duration) Options {
 
 func (o *options) RepairCheckInterval() time.Duration {
 	return o.repairCheckInterval
+}
+
+func (o *options) SetRepairThrottle(value time.Duration) Options {
+	opts := *o
+	opts.repairThrottle = value
+	return &opts
+}
+
+func (o *options) RepairThrottle() time.Duration {
+	return o.repairThrottle
 }
 
 func (o *options) Validate() error {
@@ -108,14 +136,20 @@ func (o *options) Validate() error {
 	if o.repairTimeOffset < 0 {
 		return errInvalidRepairTimeOffset
 	}
-	if o.repairTimeOffset > o.repairInterval {
-		return errRepairTimeOffsetTooBig
+	if o.repairTimeJitter < 0 {
+		return errInvalidRepairTimeJitter
+	}
+	if o.repairTimeOffset+o.repairTimeJitter > o.repairInterval {
+		return errTimeOffsetOrJitterTooBig
 	}
 	if o.repairCheckInterval < 0 {
 		return errInvalidRepairCheckInterval
 	}
 	if o.repairCheckInterval > o.repairInterval {
 		return errRepairCheckIntervalTooBig
+	}
+	if o.repairThrottle < 0 {
+		return errInvalidRepairThrottle
 	}
 	return nil
 }

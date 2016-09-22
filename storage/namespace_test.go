@@ -332,6 +332,10 @@ func TestNamespaceRepair(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns := testNamespace(t)
+	opts := repair.NewOptions().SetRepairThrottle(time.Duration(0))
+	repairer := NewMockdatabaseShardRepairer(ctrl)
+	repairer.EXPECT().Options().Return(opts)
+
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
@@ -344,9 +348,9 @@ func TestNamespaceRepair(t *testing.T) {
 				ChecksumDifferences: repair.NewReplicaSeriesMetadata(),
 			}
 		}
-		shard.EXPECT().Repair(testNamespaceName, nil).Return(res, errs[i])
+		shard.EXPECT().Repair(testNamespaceName, repairer).Return(res, errs[i])
 		ns.shards[testShardIDs[i]] = shard
 	}
 
-	require.Equal(t, "foo", ns.Repair(nil).Error())
+	require.Equal(t, "foo", ns.Repair(repairer).Error())
 }

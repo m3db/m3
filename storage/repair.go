@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"strconv"
 	"sync"
@@ -48,6 +49,7 @@ type recordFn func(namespace string, shard databaseShard, diffRes repair.Metadat
 
 type shardRepairer struct {
 	opts      Options
+	rpopts    repair.Options
 	rtopts    retention.Options
 	client    client.AdminClient
 	recordFn  recordFn
@@ -66,12 +68,12 @@ func newShardRepairer(opts Options, rpopts repair.Options) (databaseShardRepaire
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database.repair").Tagged(map[string]string{"host": hostname})
 	rtopts := opts.RetentionOptions()
-	client := rpopts.AdminClient()
 
 	r := shardRepairer{
 		opts:      opts,
+		rpopts:    rpopts,
 		rtopts:    rtopts,
-		client:    client,
+		client:    rpopts.AdminClient(),
 		logger:    iopts.Logger(),
 		scope:     scope,
 		nowFn:     opts.ClockOptions().NowFn(),
@@ -80,6 +82,10 @@ func newShardRepairer(opts Options, rpopts repair.Options) (databaseShardRepaire
 	r.recordFn = r.recordDifferences
 
 	return r, nil
+}
+
+func (r shardRepairer) Options() repair.Options {
+	return r.rpopts
 }
 
 func (r shardRepairer) Repair(namespace string, shard databaseShard) (repair.MetadataComparisonResult, error) {
@@ -170,12 +176,14 @@ type dbRepairer struct {
 	logger              xlog.Logger
 	repairInterval      time.Duration
 	repairTimeOffset    time.Duration
+	repairTimeJitter    time.Duration
 	repairCheckInterval time.Duration
 	closed              bool
 }
 
 func newDatabaseRepairer(database database) (databaseRepairer, error) {
 	opts := database.Options()
+	nowFn := opts.ClockOptions().NowFn()
 	ropts := opts.RepairOptions()
 	if ropts == nil {
 		return nil, errNoRepairOptions
@@ -189,16 +197,23 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 		return nil, err
 	}
 
+	var jitter time.Duration
+	if repairJitter := ropts.RepairTimeJitter(); repairJitter > 0 {
+		rand.Seed(nowFn().UnixNano())
+		jitter = time.Duration(rand.Int63n(int64(repairJitter)))
+	}
+
 	r := &dbRepairer{
 		database:            database,
 		opts:                opts,
 		ropts:               ropts,
 		shardRepairer:       shardRepairer,
 		sleepFn:             time.Sleep,
-		nowFn:               opts.ClockOptions().NowFn(),
+		nowFn:               nowFn,
 		logger:              opts.InstrumentOptions().Logger(),
 		repairInterval:      ropts.RepairInterval(),
 		repairTimeOffset:    ropts.RepairTimeOffset(),
+		repairTimeJitter:    jitter,
 		repairCheckInterval: ropts.RepairCheckInterval(),
 	}
 	r.repairFn = r.Repair
@@ -224,7 +239,8 @@ func (r *dbRepairer) run() {
 		intervalStart := now.Truncate(r.repairInterval)
 
 		// If we haven't reached the offset yet, skip
-		if now.Sub(intervalStart) < r.repairTimeOffset {
+		target := intervalStart.Add(r.repairTimeOffset + r.repairTimeJitter)
+		if now.Before(target) {
 			continue
 		}
 

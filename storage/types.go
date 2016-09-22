@@ -342,6 +342,9 @@ type databaseFileSystemManager interface {
 
 // databaseShardRepairer repairs in-memory data for a shard
 type databaseShardRepairer interface {
+	// Options returns the repair options
+	Options() repair.Options
+
 	// Repair repairs the data for a given namespace and shard
 	Repair(namespace string, shard databaseShard) (repair.MetadataComparisonResult, error)
 }

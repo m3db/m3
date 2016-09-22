@@ -124,11 +124,23 @@ type Options interface {
 	// RepairTimeOffset returns the repair time offset
 	RepairTimeOffset() time.Duration
 
+	// SetRepairJitter sets the repair time jitter
+	SetRepairTimeJitter(value time.Duration) Options
+
+	// RepairTimeJitter returns the repair time jitter
+	RepairTimeJitter() time.Duration
+
 	// SetRepairCheckInterval sets the repair check interval
 	SetRepairCheckInterval(value time.Duration) Options
 
 	// RepairCheckInterval returns the repair check interval
 	RepairCheckInterval() time.Duration
+
+	// SetRepairThrottle sets the repair throttle
+	SetRepairThrottle(value time.Duration) Options
+
+	// RepairThrottle returns the repair throttle
+	RepairThrottle() time.Duration
 
 	// Validate checks if the options are valid
 	Validate() error
