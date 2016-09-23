@@ -21,7 +21,6 @@
 package commitlog
 
 import (
-	"runtime"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -43,7 +42,7 @@ const (
 
 var (
 	// defaultBacklogQueueSize is the default commit log backlog queue size
-	defaultBacklogQueueSize = 1024 * runtime.NumCPU()
+	defaultBacklogQueueSize = 500 * 1000
 )
 
 type options struct {
