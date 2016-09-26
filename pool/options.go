@@ -28,9 +28,10 @@ const (
 )
 
 type objectPoolOptions struct {
-	size               int
-	refillLowWatermark int
-	scope              tally.Scope
+	size                int
+	refillLowWatermark  float64
+	refillHighWatermark float64
+	scope               tally.Scope
 }
 
 // NewObjectPoolOptions creates a new set of object pool options
@@ -52,14 +53,24 @@ func (o *objectPoolOptions) Size() int {
 	return o.size
 }
 
-func (o *objectPoolOptions) SetRefillLowWatermark(value int) ObjectPoolOptions {
+func (o *objectPoolOptions) SetRefillLowWatermark(value float64) ObjectPoolOptions {
 	opts := *o
 	opts.refillLowWatermark = value
 	return &opts
 }
 
-func (o *objectPoolOptions) RefillLowWatermark() int {
+func (o *objectPoolOptions) RefillLowWatermark() float64 {
 	return o.refillLowWatermark
+}
+
+func (o *objectPoolOptions) SetRefillHighWatermark(value float64) ObjectPoolOptions {
+	opts := *o
+	opts.refillHighWatermark = value
+	return &opts
+}
+
+func (o *objectPoolOptions) RefillHighWatermark() float64 {
+	return o.refillHighWatermark
 }
 
 func (o *objectPoolOptions) SetMetricsScope(value tally.Scope) ObjectPoolOptions {

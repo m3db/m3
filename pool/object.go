@@ -21,6 +21,7 @@
 package pool
 
 import (
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -33,13 +34,14 @@ const (
 )
 
 type objectPool struct {
-	opts               ObjectPoolOptions
-	values             chan interface{}
-	alloc              Allocator
-	size               int
-	refillLowWatermark int
-	filling            int64
-	metrics            objectPoolMetrics
+	opts                ObjectPoolOptions
+	values              chan interface{}
+	alloc               Allocator
+	size                int
+	refillLowWatermark  int
+	refillHighWatermark int
+	filling             int64
+	metrics             objectPoolMetrics
 }
 
 type objectPoolMetrics struct {
@@ -54,11 +56,14 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 	if opts == nil {
 		opts = NewObjectPoolOptions()
 	}
+	lowWatermark := int(math.Ceil(float64(opts.RefillLowWatermark()) * float64(opts.Size())))
+	highWatermark := int(math.Ceil(float64(opts.RefillHighWatermark()) * float64(opts.Size())))
 	p := &objectPool{
-		opts:               opts,
-		values:             make(chan interface{}, opts.Size()),
-		size:               opts.Size(),
-		refillLowWatermark: opts.RefillLowWatermark(),
+		opts:                opts,
+		values:              make(chan interface{}, opts.Size()),
+		size:                opts.Size(),
+		refillLowWatermark:  lowWatermark,
+		refillHighWatermark: highWatermark,
 		metrics: objectPoolMetrics{
 			free:       opts.MetricsScope().Gauge("free"),
 			total:      opts.MetricsScope().Gauge("total"),
@@ -79,33 +84,30 @@ func (p *objectPool) Init(alloc Allocator) {
 }
 
 func (p *objectPool) Get() interface{} {
+	var v interface{}
 	select {
-	case v := <-p.values:
-		p.trySetGauges()
-		if p.refillLowWatermark > 0 && len(p.values) < p.refillLowWatermark {
-			p.tryFill()
-		}
-		return v
+	case v = <-p.values:
 	default:
-		p.trySetGauges()
-		if p.refillLowWatermark > 0 {
-			p.tryFill()
-		}
+		v = p.alloc()
 		p.metrics.getOnEmpty.Inc(1)
-		return p.alloc()
 	}
+
+	p.trySetGauges()
+	if p.refillLowWatermark > 0 && len(p.values) <= p.refillLowWatermark {
+		p.tryFill()
+	}
+
+	return v
 }
 
 func (p *objectPool) Put(obj interface{}) {
 	select {
 	case p.values <- obj:
-		p.trySetGauges()
-		return
 	default:
-		p.trySetGauges()
 		p.metrics.putOnFull.Inc(1)
-		return
 	}
+
+	p.trySetGauges()
 }
 
 func (p *objectPool) trySetGauges() {
@@ -124,12 +126,11 @@ func (p *objectPool) tryFill() {
 		return
 	}
 	go func() {
-		full := false
-		for !full {
+		for len(p.values) < p.refillHighWatermark {
 			select {
 			case p.values <- p.alloc():
 			default:
-				full = true
+				break
 			}
 		}
 		atomic.StoreInt64(&p.filling, 0)

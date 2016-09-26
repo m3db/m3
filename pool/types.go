@@ -48,11 +48,21 @@ type ObjectPoolOptions interface {
 	// Size returns the size of the object pool
 	Size() int
 
-	// SetRefillLowWatermark sets the refill low watermark value, if less than 1 no refills occur
-	SetRefillLowWatermark(value int) ObjectPoolOptions
+	// SetRefillLowWatermark sets the refill low watermark value between [0, 1),
+	// if zero then no refills occur
+	SetRefillLowWatermark(value float64) ObjectPoolOptions
 
-	// RefillLowWatermark returns the refill low watermark value, if less than 1 no refills occur
-	RefillLowWatermark() int
+	// RefillLowWatermark returns the refill low watermark value between [0, 1),
+	// if zero then no refills occur
+	RefillLowWatermark() float64
+
+	// SetRefillHighWatermark sets the refill high watermark value between [0, 1),
+	// if less or equal to low watermark then no refills occur
+	SetRefillHighWatermark(value float64) ObjectPoolOptions
+
+	// RefillLowWatermark returns the refill low watermark value between [0, 1),
+	// if less or equal to low watermark then no refills occur
+	RefillHighWatermark() float64
 
 	// SetMetricsScope sets the metrics scope
 	SetMetricsScope(value tally.Scope) ObjectPoolOptions
