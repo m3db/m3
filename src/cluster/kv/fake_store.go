@@ -24,14 +24,13 @@ import (
 	"sync"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/m3db/m3x/watch"
 )
 
 // NewFakeStore returns a new in-process store that can be used for testing
 func NewFakeStore() Store {
 	return &fakeStore{
 		values:     make(map[string]*fakeValue),
-		watchables: make(map[string]xwatch.Watchable),
+		watchables: make(map[string]ValueWatchable),
 	}
 }
 
@@ -63,7 +62,7 @@ func (v fakeValue) Unmarshal(msg proto.Message) error { return proto.Unmarshal(v
 type fakeStore struct {
 	sync.RWMutex
 	values     map[string]*fakeValue
-	watchables map[string]xwatch.Watchable
+	watchables map[string]ValueWatchable
 }
 
 func (kv *fakeStore) Get(key string) (Value, error) {
@@ -83,7 +82,7 @@ func (kv *fakeStore) Watch(key string) (ValueWatch, error) {
 
 	watchable, ok := kv.watchables[key]
 	if !ok {
-		watchable = xwatch.NewWatchable()
+		watchable = NewValueWatchable()
 		kv.watchables[key] = watchable
 	}
 	kv.Unlock()
@@ -93,7 +92,7 @@ func (kv *fakeStore) Watch(key string) (ValueWatch, error) {
 	}
 
 	_, watch, _ := watchable.Watch()
-	return NewValueWatch(watch), nil
+	return watch, nil
 }
 
 func (kv *fakeStore) Set(key string, val proto.Message) (int, error) {

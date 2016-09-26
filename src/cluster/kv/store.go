@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/watch"
 )
 
@@ -60,6 +61,18 @@ type ValueWatch interface {
 	Close()
 }
 
+// ValueWatchable can be watched for Value changes
+type ValueWatchable interface {
+	xclose.SimpleCloser
+
+	// Get returns the latest Value
+	Get() Value
+	// Watch returns the Value and a ValueWatch that will be notified on updates
+	Watch() (Value, ValueWatch, error)
+	// Update sets the Value and notify Watches
+	Update(Value) error
+}
+
 // Store provides access to the configuration store
 type Store interface {
 	// Get retrieves the value for the given key
@@ -86,8 +99,8 @@ type valueWatch struct {
 	w xwatch.Watch
 }
 
-// NewValueWatch creates a new valueWatch
-func NewValueWatch(w xwatch.Watch) ValueWatch {
+// newValueWatch creates a new ValueWatch
+func newValueWatch(w xwatch.Watch) ValueWatch {
 	return &valueWatch{w: w}
 }
 
@@ -101,4 +114,33 @@ func (v *valueWatch) C() <-chan struct{} {
 
 func (v *valueWatch) Get() Value {
 	return v.w.Get().(Value)
+}
+
+type valueWatchable struct {
+	w xwatch.Watchable
+}
+
+// NewValueWatchable creates a new ValueWatchable
+func NewValueWatchable() ValueWatchable {
+	return &valueWatchable{w: xwatch.NewWatchable()}
+}
+
+func (w *valueWatchable) Close() {
+	w.w.Close()
+}
+
+func (w *valueWatchable) Get() Value {
+	return w.w.Get().(Value)
+}
+
+func (w *valueWatchable) Watch() (Value, ValueWatch, error) {
+	value, watch, err := w.w.Watch()
+	if err != nil {
+		return nil, nil, err
+	}
+	return value.(Value), newValueWatch(watch), nil
+}
+
+func (w *valueWatchable) Update(v Value) error {
+	return w.w.Update(v)
 }
