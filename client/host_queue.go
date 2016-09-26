@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/topology"
 
 	"github.com/uber/tchannel-go/thrift"
@@ -63,11 +64,23 @@ func newHostQueue(
 	idDatapointArrayPool idDatapointArrayPool,
 	opts Options,
 ) hostQueue {
+	scope := opts.InstrumentOptions().MetricsScope().
+		SubScope("hostqueue").
+		Tagged(map[string]string{
+			"hostID": host.ID(),
+		})
+
+	opts = opts.SetInstrumentOptions(
+		opts.InstrumentOptions().SetMetricsScope(scope))
+
 	size := opts.HostQueueOpsFlushSize()
 
 	opsArraysLen := opts.HostQueueOpsArrayPoolSize()
+	opArrayPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opsArraysLen).
+		SetMetricsScope(scope.SubScope("op-array-pool"))
 	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.WriteBatchSize())))
-	opArrayPool := newOpArrayPool(opsArraysLen, opArrayPoolCapacity)
+	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolCapacity)
 	opArrayPool.Init()
 
 	return &queue{

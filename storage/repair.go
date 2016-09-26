@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
@@ -89,7 +90,12 @@ func (r shardRepairer) Options() repair.Options {
 }
 
 func (r shardRepairer) Repair(namespace string, shard databaseShard) (repair.MetadataComparisonResult, error) {
-	ctx := r.opts.ContextPool().Get()
+	// NB(r): Explicitly use a new context here as ctx may receive
+	// a lot of DependsOn calls which could mean it creates a long
+	// array of dependencies, since pooled contexts keep this array
+	// around for later use it's best to create a non-pooled context
+	// here to avoid returning a very large array to the pool.
+	ctx := context.NewContext()
 	defer ctx.Close()
 
 	session, err := r.client.DefaultAdminSession()

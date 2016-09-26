@@ -46,6 +46,12 @@ const (
 
 	// defaultMaxFlushRetries is the default number of retries when flush fails
 	defaultMaxFlushRetries = 3
+
+	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket
+	defaultBytesPoolBucketCapacity = 256
+
+	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket
+	defaultBytesPoolBucketCount = 4096
 )
 
 var (
@@ -96,12 +102,12 @@ func NewOptions() Options {
 		newBootstrapFn:          defaultNewBootstrapFn,
 		newPersistManagerFn:     defaultNewPersistManagerFn,
 		maxFlushRetries:         defaultMaxFlushRetries,
-		contextPool:             context.NewPool(0),
+		contextPool:             context.NewPool(nil),
 		bytesPool:               pool.NewBytesPool(nil),
-		encoderPool:             encoding.NewEncoderPool(0),
-		segmentReaderPool:       xio.NewSegmentReaderPool(0),
-		readerIteratorPool:      encoding.NewReaderIteratorPool(0),
-		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(0),
+		encoderPool:             encoding.NewEncoderPool(nil),
+		segmentReaderPool:       xio.NewSegmentReaderPool(nil),
+		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
+		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -169,23 +175,25 @@ func (o *options) RepairOptions() repair.Options {
 func (o *options) SetEncodingM3TSZPooled() Options {
 	opts := *o
 
-	// NB(r): don't enable pooling just yet
-	buckets := []pool.Bucket{}
+	buckets := []pool.Bucket{{
+		Capacity: defaultBytesPoolBucketCapacity,
+		Count:    defaultBytesPoolBucketCount,
+	}}
 	bytesPool := pool.NewBytesPool(buckets)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 
 	// initialize context pool
-	contextPool := context.NewPool(0)
+	contextPool := context.NewPool(nil)
 	opts.contextPool = contextPool
 
 	// initialize segment reader pool
-	segmentReaderPool := xio.NewSegmentReaderPool(0)
+	segmentReaderPool := xio.NewSegmentReaderPool(nil)
 	opts.segmentReaderPool = segmentReaderPool
 
-	encoderPool := encoding.NewEncoderPool(0)
-	readerIteratorPool := encoding.NewReaderIteratorPool(0)
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(0)
+	encoderPool := encoding.NewEncoderPool(nil)
+	readerIteratorPool := encoding.NewReaderIteratorPool(nil)
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
 
 	encodingOpts := encoding.NewOptions().
 		SetBytesPool(bytesPool).

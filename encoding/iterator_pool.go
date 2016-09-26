@@ -27,8 +27,8 @@ type readerIteratorPool struct {
 }
 
 // NewReaderIteratorPool creates a new pool for ReaderIterators.
-func NewReaderIteratorPool(size int) ReaderIteratorPool {
-	return &readerIteratorPool{pool: pool.NewObjectPool(size)}
+func NewReaderIteratorPool(opts pool.ObjectPoolOptions) ReaderIteratorPool {
+	return &readerIteratorPool{pool: pool.NewObjectPool(opts)}
 }
 
 func (p *readerIteratorPool) Init(alloc ReaderIteratorAllocate) {
@@ -50,8 +50,8 @@ type multiReaderIteratorPool struct {
 }
 
 // NewMultiReaderIteratorPool creates a new pool for MultiReaderIterators.
-func NewMultiReaderIteratorPool(size int) MultiReaderIteratorPool {
-	return &multiReaderIteratorPool{pool: pool.NewObjectPool(size)}
+func NewMultiReaderIteratorPool(opts pool.ObjectPoolOptions) MultiReaderIteratorPool {
+	return &multiReaderIteratorPool{pool: pool.NewObjectPool(opts)}
 }
 
 func (p *multiReaderIteratorPool) Init(alloc ReaderIteratorAllocate) {

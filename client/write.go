@@ -66,8 +66,8 @@ type poolOfWriteOp struct {
 	pool pool.ObjectPool
 }
 
-func newWriteOpPool(size int) writeOpPool {
-	p := pool.NewObjectPool(size)
+func newWriteOpPool(opts pool.ObjectPoolOptions) writeOpPool {
+	p := pool.NewObjectPool(opts)
 	return &poolOfWriteOp{p}
 }
 

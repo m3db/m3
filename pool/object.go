@@ -20,15 +20,54 @@
 
 package pool
 
-// TODO(r): instrument this to tune pooling
+import (
+	"sync/atomic"
+	"time"
+
+	"github.com/uber-go/tally"
+)
+
+const (
+	// TODO(r): Use tally sampling when available
+	sampleObjectPoolLengthEvery = 100
+)
+
 type objectPool struct {
-	values chan interface{}
-	alloc  Allocator
+	opts               ObjectPoolOptions
+	values             chan interface{}
+	alloc              Allocator
+	size               int
+	refillLowWatermark int
+	filling            int64
+	metrics            objectPoolMetrics
+}
+
+type objectPoolMetrics struct {
+	free       tally.Gauge
+	total      tally.Gauge
+	getOnEmpty tally.Counter
+	putOnFull  tally.Counter
 }
 
 // NewObjectPool creates a new pool
-func NewObjectPool(size int) ObjectPool {
-	return &objectPool{values: make(chan interface{}, size)}
+func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
+	if opts == nil {
+		opts = NewObjectPoolOptions()
+	}
+	p := &objectPool{
+		opts:               opts,
+		values:             make(chan interface{}, opts.Size()),
+		size:               opts.Size(),
+		refillLowWatermark: opts.RefillLowWatermark(),
+		metrics: objectPoolMetrics{
+			free:       opts.MetricsScope().Gauge("free"),
+			total:      opts.MetricsScope().Gauge("total"),
+			getOnEmpty: opts.MetricsScope().Counter("get-on-empty"),
+			putOnFull:  opts.MetricsScope().Counter("put-on-full"),
+		},
+	}
+	p.setGauges()
+	return p
 }
 
 func (p *objectPool) Init(alloc Allocator) {
@@ -42,8 +81,17 @@ func (p *objectPool) Init(alloc Allocator) {
 func (p *objectPool) Get() interface{} {
 	select {
 	case v := <-p.values:
+		p.trySetGauges()
+		if p.refillLowWatermark > 0 && len(p.values) < p.refillLowWatermark {
+			p.tryFill()
+		}
 		return v
 	default:
+		p.trySetGauges()
+		if p.refillLowWatermark > 0 {
+			p.tryFill()
+		}
+		p.metrics.getOnEmpty.Inc(1)
 		return p.alloc()
 	}
 }
@@ -51,8 +99,39 @@ func (p *objectPool) Get() interface{} {
 func (p *objectPool) Put(obj interface{}) {
 	select {
 	case p.values <- obj:
+		p.trySetGauges()
 		return
 	default:
+		p.trySetGauges()
+		p.metrics.putOnFull.Inc(1)
 		return
 	}
+}
+
+func (p *objectPool) trySetGauges() {
+	if time.Now().UnixNano()%sampleObjectPoolLengthEvery == 0 {
+		p.setGauges()
+	}
+}
+
+func (p *objectPool) setGauges() {
+	p.metrics.free.Update(int64(len(p.values)))
+	p.metrics.total.Update(int64(p.size))
+}
+
+func (p *objectPool) tryFill() {
+	if !atomic.CompareAndSwapInt64(&p.filling, 0, 1) {
+		return
+	}
+	go func() {
+		full := false
+		for !full {
+			select {
+			case p.values <- p.alloc():
+			default:
+				full = true
+			}
+		}
+		atomic.StoreInt64(&p.filling, 0)
+	}()
 }

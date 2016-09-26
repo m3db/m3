@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3x/errors"
 )
@@ -80,8 +79,6 @@ func (m *flushManager) Flush(t time.Time) error {
 	if len(timesToFlush) == 0 {
 		return nil
 	}
-	ctx := m.opts.ContextPool().Get()
-	defer ctx.Close()
 
 	multiErr := xerrors.NewMultiError()
 	for _, flushTime := range timesToFlush {
@@ -95,7 +92,7 @@ func (m *flushManager) Flush(t time.Time) error {
 		m.flushStates[flushTime] = flushState
 		m.Unlock()
 
-		flushErr := m.flushWithTime(ctx, flushTime)
+		flushErr := m.flushWithTime(flushTime)
 
 		m.Lock()
 		flushState = m.flushStates[flushTime]
@@ -140,13 +137,13 @@ func (m *flushManager) needsFlushWithLock(t time.Time) bool {
 
 // flushWithTime flushes in-memory data across all namespaces for a given time, returning any
 // error encountered during flushing
-func (m *flushManager) flushWithTime(ctx context.Context, t time.Time) error {
+func (m *flushManager) flushWithTime(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	namespaces := m.database.getOwnedNamespaces()
 	for _, n := range namespaces {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := n.Flush(ctx, t, m.pm); err != nil {
+		if err := n.Flush(t, m.pm); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v", n.Name(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}

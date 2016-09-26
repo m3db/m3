@@ -44,15 +44,15 @@ func testOptions() Options {
 	bopts := opts.BootstrapOptions()
 	blopts := opts.BootstrapOptions().DatabaseBlockOptions()
 	eopts := encoding.NewOptions()
-	encoderPool := encoding.NewEncoderPool(0)
+	encoderPool := encoding.NewEncoderPool(nil)
 	encoderPool.Init(func() encoding.Encoder {
 		return m3tsz.NewEncoder(time.Time{}, nil, true, eopts)
 	})
-	readerIteratorPool := encoding.NewReaderIteratorPool(0)
+	readerIteratorPool := encoding.NewReaderIteratorPool(nil)
 	readerIteratorPool.Init(func(reader io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(reader, true, eopts)
 	})
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(0)
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
 	multiReaderIteratorPool.Init(func(reader io.Reader) encoding.ReaderIterator {
 		it := readerIteratorPool.Get()
 		it.Reset(reader)

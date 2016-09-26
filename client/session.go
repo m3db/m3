@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -77,6 +78,7 @@ type session struct {
 	sync.RWMutex
 
 	opts                             Options
+	scope                            tally.Scope
 	nowFn                            clock.NowFn
 	log                              xlog.Logger
 	level                            topology.ConsistencyLevel
@@ -121,6 +123,7 @@ func newSession(opts Options) (clientSession, error) {
 
 	s := &session{
 		opts:                 opts,
+		scope:                opts.InstrumentOptions().MetricsScope(),
 		nowFn:                opts.ClockOptions().NowFn(),
 		log:                  opts.InstrumentOptions().Logger(),
 		level:                opts.ConsistencyLevel(),
@@ -172,11 +175,20 @@ func (s *session) Open() error {
 
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
-	s.writeOpPool = newWriteOpPool(s.opts.WriteOpPoolSize())
+	writeOpPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.WriteOpPoolSize()).
+		SetMetricsScope(s.scope.SubScope("write-op-pool"))
+	s.writeOpPool = newWriteOpPool(writeOpPoolOpts)
 	s.writeOpPool.Init()
-	s.fetchBatchOpPool = newFetchBatchOpPool(s.opts.FetchBatchOpPoolSize(), s.fetchBatchSize)
+	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetMetricsScope(s.scope.SubScope("fetch-batch-op-pool"))
+	s.fetchBatchOpPool = newFetchBatchOpPool(fetchBatchOpPoolOpts, s.fetchBatchSize)
 	s.fetchBatchOpPool.Init()
-	s.seriesIteratorPool = encoding.NewSeriesIteratorPool(s.opts.SeriesIteratorPoolSize())
+	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.SeriesIteratorPoolSize()).
+		SetMetricsScope(s.scope.SubScope("series-iterator-pool"))
+	s.seriesIteratorPool = encoding.NewSeriesIteratorPool(seriesIteratorPoolOpts)
 	s.seriesIteratorPool.Init()
 	s.seriesIteratorsPool = encoding.NewMutableSeriesIteratorsPool(s.opts.SeriesIteratorArrayPoolBuckets())
 	s.seriesIteratorsPool.Init()
@@ -303,8 +315,11 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	s.majority = majority
 	if s.fetchBatchOpArrayArrayPool == nil ||
 		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
+		poolOpts := pool.NewObjectPoolOptions().
+			SetSize(s.opts.FetchBatchOpPoolSize()).
+			SetMetricsScope(s.scope.SubScope("fetch-batch-op-array-array-pool"))
 		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
-			s.opts.FetchBatchOpPoolSize(),
+			poolOpts,
 			len(queues),
 			s.opts.FetchBatchOpPoolSize()/len(queues))
 		s.fetchBatchOpArrayArrayPool.Init()
@@ -322,13 +337,19 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	if s.readerSliceOfSlicesIteratorPool == nil ||
 		prevReplicas != s.replicas {
 		size := s.replicas * s.opts.SeriesIteratorPoolSize()
-		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(size)
+		poolOpts := pool.NewObjectPoolOptions().
+			SetSize(size).
+			SetMetricsScope(s.scope.SubScope("reader-slice-of-slices-iterator-pool"))
+		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(poolOpts)
 		s.readerSliceOfSlicesIteratorPool.Init()
 	}
 	if s.multiReaderIteratorPool == nil ||
 		prevReplicas != s.replicas {
 		size := s.replicas * s.opts.SeriesIteratorPoolSize()
-		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(size)
+		poolOpts := pool.NewObjectPoolOptions().
+			SetSize(size).
+			SetMetricsScope(s.scope.SubScope("multi-reader-iterator-pool"))
+		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(poolOpts)
 		s.multiReaderIteratorPool.Init(s.opts.ReaderIteratorAllocate())
 	}
 
@@ -353,9 +374,15 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	totalBatches := topologyMap.Replicas() *
 		int(math.Ceil(float64(s.opts.WriteOpPoolSize())/float64(s.opts.WriteBatchSize())))
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
-	writeBatchRequestPool := newWriteBatchRequestPool(hostBatches)
+	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetMetricsScope(s.scope.SubScope("write-batch-request-pool"))
+	writeBatchRequestPool := newWriteBatchRequestPool(writeBatchRequestPoolOpts)
 	writeBatchRequestPool.Init()
-	idDatapointArrayPool := newIDDatapointArrayPool(hostBatches, s.opts.WriteBatchSize())
+	idDatapointArrayPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetMetricsScope(s.scope.SubScope("id-datapoint-array-pool"))
+	idDatapointArrayPool := newIDDatapointArrayPool(idDatapointArrayPoolOpts, s.opts.WriteBatchSize())
 	idDatapointArrayPool.Init()
 	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, idDatapointArrayPool, s.opts)
 	hostQueue.Open()

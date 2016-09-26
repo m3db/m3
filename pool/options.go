@@ -18,30 +18,56 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xio
+package pool
 
-import (
-	"github.com/m3db/m3db/pool"
-	"github.com/m3db/m3db/ts"
+import "github.com/uber-go/tally"
+
+const (
+	defaultSize               = 4096
+	defaultRefillLowWatermark = 0
 )
 
-type segmentReaderPool struct {
-	pool pool.ObjectPool
+type objectPoolOptions struct {
+	size               int
+	refillLowWatermark int
+	scope              tally.Scope
 }
 
-// NewSegmentReaderPool creates a new pool
-func NewSegmentReaderPool(opts pool.ObjectPoolOptions) SegmentReaderPool {
-	p := &segmentReaderPool{pool: pool.NewObjectPool(opts)}
-	p.pool.Init(func() interface{} {
-		return NewPooledSegmentReader(ts.Segment{}, p)
-	})
-	return p
+// NewObjectPoolOptions creates a new set of object pool options
+func NewObjectPoolOptions() ObjectPoolOptions {
+	return &objectPoolOptions{
+		size:               defaultSize,
+		refillLowWatermark: defaultRefillLowWatermark,
+		scope:              tally.NoopScope,
+	}
 }
 
-func (p *segmentReaderPool) Get() SegmentReader {
-	return p.pool.Get().(SegmentReader)
+func (o *objectPoolOptions) SetSize(value int) ObjectPoolOptions {
+	opts := *o
+	opts.size = value
+	return &opts
 }
 
-func (p *segmentReaderPool) Put(reader SegmentReader) {
-	p.pool.Put(reader)
+func (o *objectPoolOptions) Size() int {
+	return o.size
+}
+
+func (o *objectPoolOptions) SetRefillLowWatermark(value int) ObjectPoolOptions {
+	opts := *o
+	opts.refillLowWatermark = value
+	return &opts
+}
+
+func (o *objectPoolOptions) RefillLowWatermark() int {
+	return o.refillLowWatermark
+}
+
+func (o *objectPoolOptions) SetMetricsScope(value tally.Scope) ObjectPoolOptions {
+	opts := *o
+	opts.scope = value
+	return &opts
+}
+
+func (o *objectPoolOptions) MetricsScope() tally.Scope {
+	return o.scope
 }

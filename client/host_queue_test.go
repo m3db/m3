@@ -39,9 +39,9 @@ var (
 )
 
 func init() {
-	testWriteBatchPool = newWriteBatchRequestPool(0)
+	testWriteBatchPool = newWriteBatchRequestPool(nil)
 	testWriteBatchPool.Init()
-	testWriteArrayPool = newIDDatapointArrayPool(0, 0)
+	testWriteArrayPool = newIDDatapointArrayPool(nil, 0)
 	testWriteArrayPool.Init()
 }
 

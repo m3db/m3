@@ -39,8 +39,8 @@ type poolOfReaderSliceOfSlicesIterator struct {
 	pool pool.ObjectPool
 }
 
-func newReaderSliceOfSlicesIteratorPool(size int) readerSliceOfSlicesIteratorPool {
-	p := pool.NewObjectPool(size)
+func newReaderSliceOfSlicesIteratorPool(opts pool.ObjectPoolOptions) readerSliceOfSlicesIteratorPool {
+	p := pool.NewObjectPool(opts)
 	return &poolOfReaderSliceOfSlicesIterator{p}
 }
 

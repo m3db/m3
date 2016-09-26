@@ -150,7 +150,7 @@ type databaseNamespace interface {
 	) error
 
 	// Flush flushes in-memory data
-	Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error
+	Flush(blockStart time.Time, pm persist.Manager) error
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error
@@ -209,7 +209,6 @@ type databaseShard interface {
 
 	// Flush flushes the series in this shard.
 	Flush(
-		ctx context.Context,
 		namespace string,
 		blockStart time.Time,
 		pm persist.Manager,

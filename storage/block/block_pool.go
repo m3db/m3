@@ -29,8 +29,8 @@ type databaseBlockPool struct {
 }
 
 // NewDatabaseBlockPool creates a new pool for database blocks.
-func NewDatabaseBlockPool(size int) DatabaseBlockPool {
-	return &databaseBlockPool{pool: pool.NewObjectPool(size)}
+func NewDatabaseBlockPool(opts pool.ObjectPoolOptions) DatabaseBlockPool {
+	return &databaseBlockPool{pool: pool.NewObjectPool(opts)}
 }
 
 func (p *databaseBlockPool) Init(alloc DatabaseBlockAllocate) {
