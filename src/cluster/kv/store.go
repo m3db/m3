@@ -113,7 +113,7 @@ func (v *valueWatch) C() <-chan struct{} {
 }
 
 func (v *valueWatch) Get() Value {
-	return v.w.Get().(Value)
+	return valueFromWatch(v.w.Get())
 }
 
 type valueWatchable struct {
@@ -130,7 +130,7 @@ func (w *valueWatchable) Close() {
 }
 
 func (w *valueWatchable) Get() Value {
-	return w.w.Get().(Value)
+	return valueFromWatch(w.w.Get())
 }
 
 func (w *valueWatchable) Watch() (Value, ValueWatch, error) {
@@ -138,9 +138,18 @@ func (w *valueWatchable) Watch() (Value, ValueWatch, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return value.(Value), newValueWatch(watch), nil
+
+	return valueFromWatch(value), newValueWatch(watch), nil
 }
 
 func (w *valueWatchable) Update(v Value) error {
 	return w.w.Update(v)
+}
+
+func valueFromWatch(value interface{}) Value {
+	if value != nil {
+		return value.(Value)
+	}
+
+	return nil
 }
