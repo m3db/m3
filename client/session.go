@@ -45,8 +45,8 @@ import (
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/uber-go/tally"
 
+	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 )
 
