@@ -242,21 +242,15 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 }
 
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
-	ctx := context.NewContext()
-	defer ctx.Close()
-
 	ns := testNamespace(t)
-	require.Equal(t, errNamespaceNotBootstrapped, ns.Flush(ctx, time.Now(), nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Flush(time.Now(), nil))
 }
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
-	ctx := context.NewContext()
-	defer ctx.Close()
-
 	ns := testNamespace(t)
 	ns.bs = bootstrapped
 	ns.nopts = ns.nopts.SetNeedsFlush(false)
-	require.NoError(t, ns.Flush(ctx, time.Now(), nil))
+	require.NoError(t, ns.Flush(time.Now(), nil))
 }
 
 func TestNamespaceFlushAllShards(t *testing.T) {
@@ -273,14 +267,14 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Flush(ctx, testNamespaceName, blockStart, nil).Return(errs[i])
+		shard.EXPECT().Flush(testNamespaceName, blockStart, nil).Return(errs[i])
 		if errs[i] != nil {
 			shard.EXPECT().ID().Return(testShardIDs[i])
 		}
 		ns.shards[testShardIDs[i]] = shard
 	}
 
-	require.Error(t, ns.Flush(ctx, blockStart, nil))
+	require.Error(t, ns.Flush(blockStart, nil))
 }
 
 func TestNamespaceCleanupFilesetDontNeedCleanup(t *testing.T) {

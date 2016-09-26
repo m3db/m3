@@ -40,8 +40,8 @@ type poolOfOpArray struct {
 	capacity int
 }
 
-func newOpArrayPool(size int, capacity int) opArrayPool {
-	p := pool.NewObjectPool(size)
+func newOpArrayPool(opts pool.ObjectPoolOptions, capacity int) opArrayPool {
+	p := pool.NewObjectPool(opts)
 	return &poolOfOpArray{p, capacity}
 }
 
@@ -83,8 +83,8 @@ type poolOfFetchBatchOpArrayArray struct {
 	capacity int
 }
 
-func newFetchBatchOpArrayArrayPool(size int, entries int, capacity int) fetchBatchOpArrayArrayPool {
-	p := pool.NewObjectPool(size)
+func newFetchBatchOpArrayArrayPool(opts pool.ObjectPoolOptions, entries int, capacity int) fetchBatchOpArrayArrayPool {
+	p := pool.NewObjectPool(opts)
 	return &poolOfFetchBatchOpArrayArray{p, entries, capacity}
 }
 

@@ -18,30 +18,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xio
+package pool
 
 import (
-	"github.com/m3db/m3db/pool"
-	"github.com/m3db/m3db/ts"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type segmentReaderPool struct {
-	pool pool.ObjectPool
-}
+func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
+	opts := NewObjectPoolOptions().
+		SetSize(100).
+		SetRefillLowWatermark(0.25).
+		SetRefillHighWatermark(0.75)
 
-// NewSegmentReaderPool creates a new pool
-func NewSegmentReaderPool(opts pool.ObjectPoolOptions) SegmentReaderPool {
-	p := &segmentReaderPool{pool: pool.NewObjectPool(opts)}
-	p.pool.Init(func() interface{} {
-		return NewPooledSegmentReader(ts.Segment{}, p)
+	pool := NewObjectPool(opts).(*objectPool)
+	pool.Init(func() interface{} {
+		return 1
 	})
-	return p
-}
 
-func (p *segmentReaderPool) Get() SegmentReader {
-	return p.pool.Get().(SegmentReader)
-}
+	assert.Equal(t, 100, len(pool.values))
 
-func (p *segmentReaderPool) Put(reader SegmentReader) {
-	p.pool.Put(reader)
+	for i := 0; i < 74; i++ {
+		pool.Get()
+	}
+
+	assert.Equal(t, 26, len(pool.values))
+
+	// This should trigger a refill
+	pool.Get()
+
+	start := time.Now()
+	for time.Now().Sub(start) < 10*time.Second {
+		if len(pool.values) == 75 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	// Assert refilled
+	assert.Equal(t, 75, len(pool.values))
 }

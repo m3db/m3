@@ -63,7 +63,7 @@ func newSessionTestAdminOptions() AdminOptions {
 
 func newBootstrapTestOptions() bootstrap.Options {
 	opts := bootstrap.NewOptions()
-	encoderPool := encoding.NewEncoderPool(0)
+	encoderPool := encoding.NewEncoderPool(nil)
 	encoderPool.Init(func() encoding.Encoder {
 		return &testEncoder{}
 	})
@@ -666,7 +666,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	eops := encoding.NewOptions()
 	intopt := true
 
-	encoderPool := encoding.NewEncoderPool(0)
+	encoderPool := encoding.NewEncoderPool(nil)
 	encoderPool.Init(func() encoding.Encoder {
 		enc := m3tsz.NewEncoder(time.Time{}, nil, intopt, eops)
 		if wrapEncoderFn != nil {

@@ -41,8 +41,8 @@ type poolOfIDDatapointArray struct {
 	capacity int
 }
 
-func newIDDatapointArrayPool(size int, capacity int) idDatapointArrayPool {
-	p := pool.NewObjectPool(size)
+func newIDDatapointArrayPool(opts pool.ObjectPoolOptions, capacity int) idDatapointArrayPool {
+	p := pool.NewObjectPool(opts)
 	return &poolOfIDDatapointArray{p, capacity}
 }
 

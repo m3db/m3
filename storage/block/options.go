@@ -51,12 +51,12 @@ type options struct {
 func NewOptions() Options {
 	o := &options{
 		databaseBlockAllocSize:  defaultDatabaseBlockAllocSize,
-		databaseBlockPool:       NewDatabaseBlockPool(0),
-		contextPool:             context.NewPool(0),
-		encoderPool:             encoding.NewEncoderPool(0),
-		readerIteratorPool:      encoding.NewReaderIteratorPool(0),
-		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(0),
-		segmentReaderPool:       xio.NewSegmentReaderPool(0),
+		databaseBlockPool:       NewDatabaseBlockPool(nil),
+		contextPool:             context.NewPool(nil),
+		encoderPool:             encoding.NewEncoderPool(nil),
+		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
+		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
+		segmentReaderPool:       xio.NewSegmentReaderPool(nil),
 		bytesPool:               pool.NewBytesPool(nil),
 	}
 	o.databaseBlockPool.Init(func() DatabaseBlock {

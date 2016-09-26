@@ -128,11 +128,11 @@ func TestFlushManagerFlush(t *testing.T) {
 		cur := inputTimes[0].bs
 		for !cur.After(endTime) {
 			if _, excluded := notFlushed[cur]; !excluded {
-				ns.EXPECT().Flush(gomock.Any(), cur, fm.pm).Return(nil)
+				ns.EXPECT().Flush(cur, fm.pm).Return(nil)
 			}
 			cur = cur.Add(2 * time.Hour)
 		}
-		ns.EXPECT().Flush(gomock.Any(), cur, fm.pm).Return(errors.New("some errors"))
+		ns.EXPECT().Flush(cur, fm.pm).Return(errors.New("some errors"))
 		namespaces[name] = ns
 	}
 	database.namespaces = namespaces
@@ -190,8 +190,6 @@ func TestFlushManagerFlushWithTimes(t *testing.T) {
 	flushTime := time.Unix(7200, 0)
 	database := newMockDatabase()
 	fm := newFlushManager(database).(*flushManager)
-	ctx := fm.opts.ContextPool().Get()
-	defer ctx.Close()
 
 	inputs := []struct {
 		name string
@@ -204,7 +202,7 @@ func TestFlushManagerFlushWithTimes(t *testing.T) {
 	namespaces := make(map[string]databaseNamespace)
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
-		ns.EXPECT().Flush(ctx, flushTime, fm.pm).Return(input.err)
+		ns.EXPECT().Flush(flushTime, fm.pm).Return(input.err)
 		if input.err != nil {
 			ns.EXPECT().Name().Return(input.name)
 		}
@@ -212,5 +210,5 @@ func TestFlushManagerFlushWithTimes(t *testing.T) {
 	}
 	database.namespaces = namespaces
 
-	require.Error(t, fm.flushWithTime(ctx, flushTime))
+	require.Error(t, fm.flushWithTime(flushTime))
 }

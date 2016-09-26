@@ -98,7 +98,7 @@ func TestShardBootstrapWithError(t *testing.T) {
 func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapping
-	err := s.Flush(nil, testNamespaceName, time.Now(), nil)
+	err := s.Flush(testNamespaceName, time.Now(), nil)
 	require.Equal(t, err, errShardNotBootstrapped)
 }
 
@@ -112,7 +112,7 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{}
 	pm.EXPECT().Prepare(testNamespaceName, s.shard, blockStart).Return(prepared, nil)
-	require.Nil(t, s.Flush(nil, testNamespaceName, blockStart, pm))
+	require.Nil(t, s.Flush(testNamespaceName, blockStart, pm))
 }
 
 func TestShardFlushNoPersistFuncWithError(t *testing.T) {
@@ -126,7 +126,7 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
 	pm.EXPECT().Prepare(testNamespaceName, s.shard, blockStart).Return(prepared, expectedErr)
-	actualErr := s.Flush(nil, testNamespaceName, blockStart, pm)
+	actualErr := s.Flush(testNamespaceName, blockStart, pm)
 	require.NotNil(t, actualErr)
 	require.Equal(t, "some error", actualErr.Error())
 }
@@ -157,14 +157,14 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		}
 		series := NewMockdatabaseSeries(ctrl)
 		series.EXPECT().
-			Flush(nil, blockStart, gomock.Any()).
+			Flush(gomock.Any(), blockStart, gomock.Any()).
 			Do(func(context.Context, time.Time, persist.Fn) {
 				flushed[i] = struct{}{}
 			}).
 			Return(expectedErr)
 		s.list.PushBack(&dbShardEntry{series: series})
 	}
-	err := s.Flush(nil, testNamespaceName, blockStart, pm)
+	err := s.Flush(testNamespaceName, blockStart, pm)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -202,8 +202,8 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
-	expired := shard.tickForEachSeries()
-	require.Len(t, expired, 0)
+	expired := shard.tickAndExpire()
+	require.Equal(t, 0, expired)
 }
 
 // This tests the scenario where a series is empty when series.Tick() is called,
@@ -215,16 +215,21 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
-	series := addTestSeries(shard, "foo")
-	expired := shard.tickForEachSeries()
-	require.Len(t, expired, 1)
+	series := addMockSeries(ctrl, shard, "foo", 0)
+	series.EXPECT().ID().Return("foo")
+	series.EXPECT().Tick().Do(func() {
+		// Emulate a write taking place just after tick for this series
+		series.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
-	ctx := opts.ContextPool().Get()
-	nowFn := opts.ClockOptions().NowFn()
-	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
-	require.False(t, series.IsEmpty())
+		ctx := opts.ContextPool().Get()
+		nowFn := opts.ClockOptions().NowFn()
+		shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
 
-	shard.purgeExpiredSeries(expired)
+		series.EXPECT().IsEmpty().Return(false)
+	}).Return(errSeriesAllDatapointsExpired)
+
+	expired := shard.tickAndExpire()
+	require.Equal(t, 1, expired)
 	require.Equal(t, 1, len(shard.lookup))
 }
 
@@ -235,20 +240,22 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	var writeCompletionFn func()
+
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
-	addTestSeries(shard, "foo")
-	expired := shard.tickForEachSeries()
-	require.Len(t, expired, 1)
+	series := addMockSeries(ctrl, shard, "foo", 0)
+	series.EXPECT().ID().Return("foo")
+	series.EXPECT().Tick().Do(func() {
+		// Emulate a write taking place and staying open just after tick for this series
+		_, _, writeCompletionFn = shard.writableSeries("foo")
+	}).Return(errSeriesAllDatapointsExpired)
 
-	ctx := opts.ContextPool().Get()
-	nowFn := opts.ClockOptions().NowFn()
-	series, _, completionFn := shard.writableSeries("foo")
-	shard.purgeExpiredSeries(expired)
-	series.Write(ctx, nowFn(), 1.0, xtime.Second, nil)
-	completionFn()
+	expired := shard.tickAndExpire()
+	require.Equal(t, 1, expired)
+	require.Equal(t, 1, len(shard.lookup))
 
-	require.False(t, series.IsEmpty())
+	writeCompletionFn()
 	require.Equal(t, 1, len(shard.lookup))
 }
 

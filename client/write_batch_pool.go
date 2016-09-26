@@ -44,8 +44,8 @@ type poolOfWriteBatchRequest struct {
 	pool pool.ObjectPool
 }
 
-func newWriteBatchRequestPool(size int) writeBatchRequestPool {
-	p := pool.NewObjectPool(size)
+func newWriteBatchRequestPool(opts pool.ObjectPoolOptions) writeBatchRequestPool {
+	p := pool.NewObjectPool(opts)
 	return &poolOfWriteBatchRequest{p}
 }
 

@@ -78,8 +78,8 @@ type poolOfFetchBatchOp struct {
 	capacity int
 }
 
-func newFetchBatchOpPool(size int, capacity int) fetchBatchOpPool {
-	p := pool.NewObjectPool(size)
+func newFetchBatchOpPool(opts pool.ObjectPoolOptions, capacity int) fetchBatchOpPool {
+	p := pool.NewObjectPool(opts)
 	return &poolOfFetchBatchOp{p, capacity}
 }
 

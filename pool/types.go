@@ -20,6 +20,8 @@
 
 package pool
 
+import "github.com/uber-go/tally"
+
 // Allocator allocates an object for a pool.
 type Allocator func() interface{}
 
@@ -36,6 +38,37 @@ type ObjectPool interface {
 
 	// Put returns an object to the pool
 	Put(obj interface{})
+}
+
+// ObjectPoolOptions provides options for an object pool
+type ObjectPoolOptions interface {
+	// SetSize sets the size of the object pool
+	SetSize(value int) ObjectPoolOptions
+
+	// Size returns the size of the object pool
+	Size() int
+
+	// SetRefillLowWatermark sets the refill low watermark value between [0, 1),
+	// if zero then no refills occur
+	SetRefillLowWatermark(value float64) ObjectPoolOptions
+
+	// RefillLowWatermark returns the refill low watermark value between [0, 1),
+	// if zero then no refills occur
+	RefillLowWatermark() float64
+
+	// SetRefillHighWatermark sets the refill high watermark value between [0, 1),
+	// if less or equal to low watermark then no refills occur
+	SetRefillHighWatermark(value float64) ObjectPoolOptions
+
+	// RefillLowWatermark returns the refill low watermark value between [0, 1),
+	// if less or equal to low watermark then no refills occur
+	RefillHighWatermark() float64
+
+	// SetMetricsScope sets the metrics scope
+	SetMetricsScope(value tally.Scope) ObjectPoolOptions
+
+	// MetricsScope returns the metrics scope
+	MetricsScope() tally.Scope
 }
 
 // Bucket specifies a pool bucket
@@ -64,7 +97,7 @@ func (x BucketByCapacity) Less(i, j int) bool {
 
 // BytesPool provides a pool for variable size buffers
 type BytesPool interface {
-	// Init initializes the pool.
+	// Init initializes the pool
 	Init()
 
 	// Get provides a buffer from the pool
@@ -76,13 +109,13 @@ type BytesPool interface {
 
 // WorkerPool provides a pool for goroutines.
 type WorkerPool interface {
-	// Init initializes the pool.
+	// Init initializes the pool
 	Init()
 
-	// Go waits until the next worker becomes available and executes it.
+	// Go waits until the next worker becomes available and executes it
 	Go(work Work)
 
 	// GoIfAvailable performs the work inside a worker if one is available and returns true,
-	// or false otherwise.
+	// or false otherwise
 	GoIfAvailable(work Work) bool
 }

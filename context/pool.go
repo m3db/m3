@@ -29,8 +29,8 @@ type contextPool struct {
 }
 
 // NewPool creates a new pool
-func NewPool(size int) Pool {
-	p := &contextPool{pool: pool.NewObjectPool(size)}
+func NewPool(opts pool.ObjectPoolOptions) Pool {
+	p := &contextPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
 		return NewPooledContext(p)
 	})

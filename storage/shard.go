@@ -42,6 +42,7 @@ import (
 
 const (
 	shardIterateBatchPercent               = 0.05
+	expireBatchLength                      = 1024
 	blocksMetadataResultMaxInitialCapacity = 1024
 )
 
@@ -163,31 +164,45 @@ func (s *dbShard) forBatchWithLock(
 	return nextElem
 }
 
-// tickForEachSeries ticks through each series in the shard and
-// returns a list of series that might have expired.
-func (s *dbShard) tickForEachSeries() []databaseSeries {
-	// TODO(xichen): pool this.
-	var expired []databaseSeries
+func (s *dbShard) Tick() {
+	s.tickAndExpire()
+}
 
+func (s *dbShard) tickAndExpire() int {
+	var (
+		expired []databaseSeries
+		total   int
+	)
 	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
 		series := entry.series
 		err := series.Tick()
 		if err == errSeriesAllDatapointsExpired {
 			expired = append(expired, series)
+			if len(expired) >= expireBatchLength {
+				// Purge when reaching max batch size to avoid large array growth
+				// and ensure smooth rate of elements being returned to pools.
+				// This method does not run using a lock so this is safe to
+				// perform inline.
+				s.purgeExpiredSeries(expired)
+				total += len(expired)
+				expired = expired[:0]
+			}
 		} else if err != nil {
 			// TODO(r): log error and increment counter
 		}
 		return err
 	}, nil)
 
-	return expired
+	if len(expired) > 0 {
+		// Purge any series that still haven't been purged yet
+		s.purgeExpiredSeries(expired)
+		total += len(expired)
+	}
+
+	return total
 }
 
 func (s *dbShard) purgeExpiredSeries(expired []databaseSeries) {
-	if len(expired) == 0 {
-		return
-	}
-
 	// Remove all expired series from lookup and list.
 	s.Lock()
 	for _, series := range expired {
@@ -213,11 +228,6 @@ func (s *dbShard) purgeExpiredSeries(expired []databaseSeries) {
 		delete(s.lookup, id)
 	}
 	s.Unlock()
-}
-
-func (s *dbShard) Tick() {
-	expired := s.tickForEachSeries()
-	s.purgeExpiredSeries(expired)
 }
 
 func (s *dbShard) Write(
@@ -417,7 +427,6 @@ func (s *dbShard) Bootstrap(
 }
 
 func (s *dbShard) Flush(
-	ctx context.Context,
 	namespace string,
 	blockStart time.Time,
 	pm persist.Manager,
@@ -443,7 +452,11 @@ func (s *dbShard) Flush(
 	// If we encounter an error when persisting a series, we continue regardless.
 	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
 		series := entry.series
-		err := series.Flush(ctx, blockStart, prepared.Persist)
+		// Create a temporary context here so the stream readers can be returned to
+		// pool after we finish fetching flushing the series
+		tmpCtx := s.opts.ContextPool().Get()
+		err := series.Flush(tmpCtx, blockStart, prepared.Persist)
+		tmpCtx.Close()
 		multiErr = multiErr.Add(err)
 		return err
 	}, nil)

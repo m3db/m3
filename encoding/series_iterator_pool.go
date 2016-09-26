@@ -30,14 +30,13 @@ var (
 	timeZero time.Time
 )
 
-// TODO(r): instrument this to tune pooling
 type seriesIteratorPool struct {
 	pool pool.ObjectPool
 }
 
 // NewSeriesIteratorPool creates a new pool for SeriesIterators.
-func NewSeriesIteratorPool(size int) SeriesIteratorPool {
-	return &seriesIteratorPool{pool: pool.NewObjectPool(size)}
+func NewSeriesIteratorPool(opts pool.ObjectPoolOptions) SeriesIteratorPool {
+	return &seriesIteratorPool{pool: pool.NewObjectPool(opts)}
 }
 
 func (p *seriesIteratorPool) Init() {

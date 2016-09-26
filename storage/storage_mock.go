@@ -260,14 +260,14 @@ func (_mr *_MockdatabaseNamespaceRecorder) Bootstrap(arg0, arg1, arg2, arg3 inte
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockdatabaseNamespace) Flush(ctx context.Context, blockStart time.Time, pm persist.Manager) error {
-	ret := _m.ctrl.Call(_m, "Flush", ctx, blockStart, pm)
+func (_m *MockdatabaseNamespace) Flush(blockStart time.Time, pm persist.Manager) error {
+	ret := _m.ctrl.Call(_m, "Flush", blockStart, pm)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseNamespaceRecorder) Flush(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1, arg2)
+func (_mr *_MockdatabaseNamespaceRecorder) Flush(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1)
 }
 
 func (_m *MockdatabaseNamespace) CleanupFileset(earliestToRetain time.Time) error {
@@ -402,14 +402,14 @@ func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0, arg1, arg2 interface{}) *
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2)
 }
 
-func (_m *MockdatabaseShard) Flush(ctx context.Context, namespace string, blockStart time.Time, pm persist.Manager) error {
-	ret := _m.ctrl.Call(_m, "Flush", ctx, namespace, blockStart, pm)
+func (_m *MockdatabaseShard) Flush(namespace string, blockStart time.Time, pm persist.Manager) error {
+	ret := _m.ctrl.Call(_m, "Flush", namespace, blockStart, pm)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) Flush(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1, arg2, arg3)
+func (_mr *_MockdatabaseShardRecorder) Flush(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1, arg2)
 }
 
 func (_m *MockdatabaseShard) CleanupFileset(namespace string, earliestToRetain time.Time) error {
