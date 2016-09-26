@@ -114,15 +114,16 @@ func TestFakeStore(t *testing.T) {
 func TestFakeStoreWatch(t *testing.T) {
 	kv := NewFakeStore()
 
+	fooWatch1, err := kv.Watch("foo")
+	require.NoError(t, err)
+	require.NotNil(t, fooWatch1)
+	require.Nil(t, fooWatch1.Get())
+
 	version, err := kv.SetIfNotExists("foo", &kvtest.Foo{
 		Msg: "first",
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, version)
-
-	fooWatch1, err := kv.Watch("foo")
-	require.NoError(t, err)
-	require.NotNil(t, fooWatch1)
 
 	<-fooWatch1.C()
 	var foo kvtest.Foo
