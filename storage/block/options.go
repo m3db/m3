@@ -57,7 +57,7 @@ func NewOptions() Options {
 		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
 		segmentReaderPool:       xio.NewSegmentReaderPool(nil),
-		bytesPool:               pool.NewBytesPool(nil),
+		bytesPool:               pool.NewBytesPool(nil, nil),
 	}
 	o.databaseBlockPool.Init(func() DatabaseBlock {
 		return NewDatabaseBlock(timeZero, nil, o)

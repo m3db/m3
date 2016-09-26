@@ -103,7 +103,7 @@ func NewOptions() Options {
 		newPersistManagerFn:     defaultNewPersistManagerFn,
 		maxFlushRetries:         defaultMaxFlushRetries,
 		contextPool:             context.NewPool(nil),
-		bytesPool:               pool.NewBytesPool(nil),
+		bytesPool:               pool.NewBytesPool(nil, nil),
 		encoderPool:             encoding.NewEncoderPool(nil),
 		segmentReaderPool:       xio.NewSegmentReaderPool(nil),
 		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
@@ -179,7 +179,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		Capacity: defaultBytesPoolBucketCapacity,
 		Count:    defaultBytesPoolBucketCount,
 	}}
-	bytesPool := pool.NewBytesPool(buckets)
+	bytesPool := pool.NewBytesPool(buckets, nil)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 

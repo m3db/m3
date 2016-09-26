@@ -21,11 +21,14 @@
 package pool
 
 import (
+	"fmt"
 	"sort"
+
+	"github.com/uber-go/tally"
 )
 
-// TODO(r): instrument this to tune pooling
 type bytesPool struct {
+	scope             tally.Scope
 	sizesAsc          []Bucket
 	buckets           []bytesBucket
 	maxBucketCapacity int
@@ -33,11 +36,11 @@ type bytesPool struct {
 
 type bytesBucket struct {
 	capacity int
-	values   chan []byte
+	pool     ObjectPool
 }
 
 // NewBytesPool creates a new pool
-func NewBytesPool(sizes []Bucket) BytesPool {
+func NewBytesPool(sizes []Bucket, scope tally.Scope) BytesPool {
 	sizesAsc := make([]Bucket, len(sizes))
 	copy(sizesAsc, sizes)
 	sort.Sort(BucketByCapacity(sizesAsc))
@@ -45,7 +48,11 @@ func NewBytesPool(sizes []Bucket) BytesPool {
 	if len(sizesAsc) != 0 {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity
 	}
-	return &bytesPool{sizesAsc: sizesAsc, maxBucketCapacity: maxBucketCapacity}
+	return &bytesPool{
+		scope:             scope,
+		sizesAsc:          sizesAsc,
+		maxBucketCapacity: maxBucketCapacity,
+	}
 }
 
 func (p *bytesPool) alloc(capacity int) []byte {
@@ -55,11 +62,21 @@ func (p *bytesPool) alloc(capacity int) []byte {
 func (p *bytesPool) Init() {
 	buckets := make([]bytesBucket, len(p.sizesAsc))
 	for i := range p.sizesAsc {
-		buckets[i].capacity = p.sizesAsc[i].Capacity
-		buckets[i].values = make(chan []byte, p.sizesAsc[i].Count)
-		for j := 0; j < p.sizesAsc[i].Count; j++ {
-			buckets[i].values <- p.alloc(p.sizesAsc[i].Capacity)
+		size := p.sizesAsc[i].Count
+		capacity := p.sizesAsc[i].Capacity
+
+		opts := NewObjectPoolOptions().SetSize(size)
+		if p.scope != nil {
+			opts = opts.SetMetricsScope(p.scope.Tagged(map[string]string{
+				"bucket-capacity": fmt.Sprintf("%d", capacity),
+			}))
 		}
+
+		buckets[i].capacity = capacity
+		buckets[i].pool = NewObjectPool(opts)
+		buckets[i].pool.Init(func() interface{} {
+			return p.alloc(capacity)
+		})
 	}
 	p.buckets = buckets
 }
@@ -70,14 +87,7 @@ func (p *bytesPool) Get(capacity int) []byte {
 	}
 	for i := range p.buckets {
 		if p.buckets[i].capacity >= capacity {
-			select {
-			case b := <-p.buckets[i].values:
-				return b
-			default:
-				// NB(r): use the bucket's capacity so can potentially
-				// be returned to pool when it's finished with.
-				return p.alloc(p.buckets[i].capacity)
-			}
+			return p.buckets[i].pool.Get().([]byte)
 		}
 	}
 	return p.alloc(capacity)
@@ -92,12 +102,8 @@ func (p *bytesPool) Put(buffer []byte) {
 	buffer = buffer[:0]
 	for i := range p.buckets {
 		if p.buckets[i].capacity >= capacity {
-			select {
-			case p.buckets[i].values <- buffer:
-				return
-			default:
-				return
-			}
+			p.buckets[i].pool.Put(buffer)
+			return
 		}
 	}
 }
