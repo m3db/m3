@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/topology"
 
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
 
@@ -38,6 +39,8 @@ var (
 	errQueueNotOpen          = errors.New("host operation queue not open")
 	errQueueUnknownOperation = errors.New("host operation queue received unknown operation")
 	errQueueFetchNoResponse  = errors.New("host operation queue did not receive response for given fetch")
+
+	retryOpts = &tchannel.RetryOptions{MaxAttempts: 1}
 )
 
 type queue struct {
@@ -274,8 +277,8 @@ func (q *queue) asyncWrite(wg *sync.WaitGroup, namespace string, ops []op, elems
 			return
 		}
 
-		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		err = client.WriteBatch(ctx, req)
+		ctx, _ := tchannel.NewContextBuilder(q.opts.WriteRequestTimeout()).SetRetryOptions(retryOpts).Build()
+		err = client.WriteBatch(thrift.Wrap(ctx), req)
 		if err == nil {
 			// All succeeded
 			callAllCompletionFns(ops, nil, nil)
