@@ -30,6 +30,7 @@ import (
 	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
 	time "github.com/m3db/m3x/time"
+	time0 "time"
 )
 
 // Mock of Result interface
@@ -160,6 +161,14 @@ func (_m *MockShardResult) AddResult(other ShardResult) {
 
 func (_mr *_MockShardResultRecorder) AddResult(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddResult", arg0)
+}
+
+func (_m *MockShardResult) RemoveBlockAt(id string, t time0.Time) {
+	_m.ctrl.Call(_m, "RemoveBlockAt", id, t)
+}
+
+func (_mr *_MockShardResultRecorder) RemoveBlockAt(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveBlockAt", arg0, arg1)
 }
 
 func (_m *MockShardResult) RemoveSeries(id string) {
@@ -403,4 +412,24 @@ func (_m *MockOptions) DatabaseBlockOptions() block.Options {
 
 func (_mr *_MockOptionsRecorder) DatabaseBlockOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseBlockOptions")
+}
+
+func (_m *MockOptions) SetInitialShardResultCapacity(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetInitialShardResultCapacity", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetInitialShardResultCapacity(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInitialShardResultCapacity", arg0)
+}
+
+func (_m *MockOptions) InitialShardResultCapacity() int {
+	ret := _m.ctrl.Call(_m, "InitialShardResultCapacity")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) InitialShardResultCapacity() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InitialShardResultCapacity")
 }

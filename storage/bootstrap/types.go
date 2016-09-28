@@ -21,6 +21,8 @@
 package bootstrap
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
@@ -65,6 +67,9 @@ type ShardResult interface {
 
 	// AddResult adds a shard result.
 	AddResult(other ShardResult)
+
+	// RemoveBlockAt removes a data block at a given timestamp
+	RemoveBlockAt(id string, t time.Time)
 
 	// RemoveSeries removes a single series of blocks.
 	RemoveSeries(id string)
@@ -147,4 +152,10 @@ type Options interface {
 
 	// DatabaseBlockOptions returns the database block options
 	DatabaseBlockOptions() block.Options
+
+	// SetInitialShardResultCapacity sets the initial shard result capacity
+	SetInitialShardResultCapacity(value int) Options
+
+	// InitialShardResultCapacity returns the initial shard result capacity
+	InitialShardResultCapacity() int
 }

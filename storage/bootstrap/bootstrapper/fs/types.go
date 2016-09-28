@@ -38,4 +38,16 @@ type Options interface {
 
 	// GetFilesystemOptions returns the filesystem options
 	FilesystemOptions() fs.Options
+
+	// SetNumIOWorkers sets the number of I/O workers
+	SetNumIOWorkers(value int) Options
+
+	// NumIOWorkers returns the number of I/O workers
+	NumIOWorkers() int
+
+	// SetNumProcessors sets the number of processors for CPU-bound work
+	SetNumProcessors(value int) Options
+
+	// NumProcessors returns the number of processors for CPU-bound work
+	NumProcessors() int
 }

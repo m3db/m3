@@ -211,6 +211,10 @@ func (n *dbNamespace) Bootstrap(
 		return nil
 	}
 
+	start := n.nowFn()
+	namespaceLogField := xlog.NewLogField("namespace", n.name)
+	n.log.WithFields(namespaceLogField).Info("start bootstrapping")
+
 	shards := n.getOwnedShards()
 	shardIDs := make([]uint32, len(shards))
 	for i, shard := range shards {
@@ -224,6 +228,8 @@ func (n *dbNamespace) Bootstrap(
 		return err
 	}
 	n.metrics.bootstrap.Success.Inc(1)
+
+	n.log.WithFields(namespaceLogField).Info("finished reading external data")
 
 	// Bootstrap shards using at least half the CPUs available
 	workers := pool.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
@@ -266,6 +272,13 @@ func (n *dbNamespace) Bootstrap(
 
 	err = multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+
+	end := n.nowFn()
+	n.log.WithFields(
+		namespaceLogField,
+		xlog.NewLogField("duration", end.Sub(start).String()),
+	).Info("finished bootstrapping")
+
 	return err
 }
 
