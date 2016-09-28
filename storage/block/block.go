@@ -61,7 +61,6 @@ func NewDatabaseBlock(start time.Time, encoder encoding.Encoder, opts Options) D
 		opts:     opts,
 		start:    start,
 		encoder:  encoder,
-		ctx:      opts.ContextPool().Get(),
 		closed:   false,
 		writable: true,
 	}
@@ -98,6 +97,9 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		return nil, errReadFromClosedBlock
 	}
 	if blocker != nil {
+		if b.ctx == nil {
+			b.ctx = b.opts.ContextPool().Get()
+		}
 		b.ctx.DependsOn(blocker)
 	}
 	if b.writable {
@@ -157,7 +159,6 @@ func (b *dbBlock) Reset(startTime time.Time, encoder encoding.Encoder) {
 	b.encoder = encoder
 	b.segment = ts.Segment{}
 	b.checksum = 0
-	b.ctx = b.opts.ContextPool().Get()
 	b.closed = false
 	b.writable = true
 }
