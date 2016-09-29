@@ -102,6 +102,9 @@ const (
 
 // Bootstrapper is the interface for different bootstrapping mechanisms.
 type Bootstrapper interface {
+	// String returns the name of the bootstrapper
+	String() string
+
 	// Can returns whether a specific bootstrapper strategy can be applied.
 	Can(strategy Strategy) bool
 

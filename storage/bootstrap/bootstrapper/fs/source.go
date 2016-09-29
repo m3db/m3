@@ -279,24 +279,7 @@ func (s *fileSystemSource) Read(
 		return nil, nil
 	}
 
-	start := time.Now()
-	s.log.WithFields(
-		xlog.NewLogField("namespace", namespace),
-		xlog.NewLogField("numShards", len(shardsTimeRanges)),
-	).Info("started reading data from filesystem for bootstrapping")
-
 	readersCh := make(chan shardReaders)
-
 	go s.enqueueReaders(namespace, shardsTimeRanges, readersCh)
-	result := s.bootstrapFromReaders(readersCh)
-
-	end := time.Now()
-
-	s.log.WithFields(
-		xlog.NewLogField("namespace", namespace),
-		xlog.NewLogField("numShards", len(shardsTimeRanges)),
-		xlog.NewLogField("duration", end.Sub(start).String()),
-	).Info("finished reading data from filesystem for bootstrapping")
-
-	return result, nil
+	return s.bootstrapFromReaders(readersCh), nil
 }

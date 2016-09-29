@@ -139,9 +139,15 @@ func (m *bootstrapManager) Bootstrap() error {
 
 	bs := m.newBootstrapFn()
 	for _, namespace := range m.database.getOwnedNamespaces() {
+		start := m.nowFn()
 		if err := namespace.Bootstrap(bs, targetRanges, writeStart, cutover); err != nil {
 			multiErr = multiErr.Add(err)
 		}
+		end := m.nowFn()
+		m.log.WithFields(
+			xlog.NewLogField("namespace", namespace.Name()),
+			xlog.NewLogField("duration", end.Sub(start).String()),
+		).Info("bootstrap finished")
 	}
 
 	// At this point we have bootstrapped everything between now - retentionPeriod

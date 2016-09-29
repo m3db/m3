@@ -68,6 +68,7 @@ func (b *bootstrapProcess) Run(
 		}
 
 		logFields := []xlog.LogField{
+			xlog.NewLogField("bootstrapper", b.bootstrapper.String()),
 			xlog.NewLogField("namespace", namespace),
 			xlog.NewLogField("numShards", len(shards)),
 			xlog.NewLogField("from", window.Start.String()),
