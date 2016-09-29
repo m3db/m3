@@ -21,13 +21,26 @@
 package fs
 
 import (
+	"math"
+	"runtime"
+
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
+)
+
+const (
+	defaultNumIOWorkers = 1
+)
+
+var (
+	defaultNumProcessors = int(math.Ceil(float64(runtime.NumCPU()) / 2))
 )
 
 type options struct {
 	bootstrapOpts bootstrap.Options
 	fsOpts        fs.Options
+	numIOWorkers  int
+	numProcessors int
 }
 
 // NewOptions creates new bootstrap options
@@ -35,6 +48,8 @@ func NewOptions() Options {
 	return &options{
 		bootstrapOpts: bootstrap.NewOptions(),
 		fsOpts:        fs.NewOptions(),
+		numIOWorkers:  defaultNumIOWorkers,
+		numProcessors: defaultNumProcessors,
 	}
 }
 
@@ -56,4 +71,24 @@ func (o *options) SetFilesystemOptions(value fs.Options) Options {
 
 func (o *options) FilesystemOptions() fs.Options {
 	return o.fsOpts
+}
+
+func (o *options) SetNumIOWorkers(value int) Options {
+	opts := *o
+	opts.numIOWorkers = value
+	return &opts
+}
+
+func (o *options) NumIOWorkers() int {
+	return o.numIOWorkers
+}
+
+func (o *options) SetNumProcessors(value int) Options {
+	opts := *o
+	opts.numProcessors = value
+	return &opts
+}
+
+func (o *options) NumProcessors() int {
+	return o.numProcessors
 }

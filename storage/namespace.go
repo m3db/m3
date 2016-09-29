@@ -266,6 +266,7 @@ func (n *dbNamespace) Bootstrap(
 
 	err = multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+
 	return err
 }
 

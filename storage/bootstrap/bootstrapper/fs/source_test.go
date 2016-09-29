@@ -350,10 +350,50 @@ func TestReadValidateError(t *testing.T) {
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNamespaceName, shard, testStart, "foo", []byte{0x1})
 	reader.EXPECT().Open(testNamespaceName, shard, testStart).Return(nil)
-	reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)})
-	reader.EXPECT().Entries().Return(0)
+	reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}).Times(2)
+	reader.EXPECT().Entries().Return(0).Times(2)
 	reader.EXPECT().Validate().Return(errors.New("foo"))
 	reader.EXPECT().Close().Return(nil)
+
+	res, err := src.Read(testNamespaceName, testShardTimeRanges())
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, 0, len(res.ShardResults()))
+	require.NotNil(t, res.Unfulfilled())
+	require.NotNil(t, res.Unfulfilled()[testShard])
+
+	expected := []xtime.Range{
+		{Start: testStart, End: testStart.Add(11 * time.Hour)},
+	}
+	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
+}
+
+func TestReadDeleteOnError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	reader := fs.NewMockFileSetReader(ctrl)
+	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
+	src.newReaderFn = func(filePathPrefix string, readerBufferSize int) fs.FileSetReader {
+		return reader
+	}
+
+	shard := uint32(0)
+	writeTSDBFiles(t, dir, testNamespaceName, shard, testStart, "foo", []byte{0x1})
+
+	gomock.InOrder(
+		reader.EXPECT().Open(testNamespaceName, shard, testStart).Return(nil),
+		reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}),
+		reader.EXPECT().Entries().Return(2),
+		reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}),
+		reader.EXPECT().Entries().Return(2),
+		reader.EXPECT().Read().Return("foo", nil, nil),
+		reader.EXPECT().Read().Return("foo", nil, errors.New("foo")),
+		reader.EXPECT().Close().Return(nil),
+	)
 
 	res, err := src.Read(testNamespaceName, testShardTimeRanges())
 	require.NoError(t, err)

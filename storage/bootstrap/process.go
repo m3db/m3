@@ -67,18 +67,23 @@ func (b *bootstrapProcess) Run(
 			shardsTimeRanges[s] = r
 		}
 
-		b.log.WithFields(
+		logFields := []xlog.LogField{
+			xlog.NewLogField("bootstrapper", b.bootstrapper.String()),
 			xlog.NewLogField("namespace", namespace),
 			xlog.NewLogField("numShards", len(shards)),
 			xlog.NewLogField("from", window.Start.String()),
 			xlog.NewLogField("to", window.End.String()),
 			xlog.NewLogField("length", window.End.Sub(window.Start).String()),
-		).Infof("bootstrapping shards for range")
+		}
+
+		b.log.WithFields(logFields...).Infof("start bootstrapping shards for range")
 
 		res, err := b.bootstrapper.Bootstrap(namespace, shardsTimeRanges)
 		if err != nil {
 			return nil, err
 		}
+
+		b.log.WithFields(logFields...).Infof("finished bootstrapping shards for range")
 		result.AddResult(res)
 	}
 

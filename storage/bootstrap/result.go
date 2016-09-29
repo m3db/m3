@@ -77,7 +77,7 @@ type shardResult struct {
 func NewShardResult(opts Options) ShardResult {
 	return &shardResult{
 		opts:   opts,
-		blocks: make(map[string]block.DatabaseSeriesBlocks),
+		blocks: make(map[string]block.DatabaseSeriesBlocks, opts.InitialShardResultCapacity()),
 	}
 }
 
@@ -115,6 +115,15 @@ func (sr *shardResult) AddResult(other ShardResult) {
 	for id, rawSeries := range otherSeries {
 		sr.AddSeries(id, rawSeries)
 	}
+}
+
+// RemoveBlockAt removes a data block at a given timestamp
+func (sr *shardResult) RemoveBlockAt(id string, t time.Time) {
+	curSeries, exists := sr.blocks[id]
+	if !exists {
+		return
+	}
+	curSeries.RemoveBlockAt(t)
 }
 
 // RemoveSeries removes a single series of blocks.

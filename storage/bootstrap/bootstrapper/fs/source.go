@@ -21,9 +21,11 @@
 package fs
 
 import (
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -37,15 +39,25 @@ type fileSystemSource struct {
 	filePathPrefix   string
 	readerBufferSize int
 	newReaderFn      newFileSetReaderFn
+	ioWorkers        pool.WorkerPool
+	processors       pool.WorkerPool
 }
 
 func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
+	ioWorkers := pool.NewWorkerPool(opts.NumIOWorkers())
+	ioWorkers.Init()
+
+	processors := pool.NewWorkerPool(opts.NumProcessors())
+	processors.Init()
+
 	return &fileSystemSource{
 		opts:             opts,
 		log:              opts.BootstrapOptions().InstrumentOptions().Logger(),
 		filePathPrefix:   prefix,
 		readerBufferSize: opts.FilesystemOptions().ReaderBufferSize(),
 		newReaderFn:      fs.NewReader,
+		ioWorkers:        ioWorkers,
+		processors:       processors,
 	}
 }
 
@@ -95,6 +107,170 @@ func (s *fileSystemSource) shardAvailability(
 	return tr
 }
 
+type shardReaders struct {
+	shard   uint32
+	tr      xtime.Ranges
+	readers []fs.FileSetReader
+}
+
+func (s *fileSystemSource) enqueueReaders(
+	namespace string,
+	shardsTimeRanges bootstrap.ShardTimeRanges,
+	readersCh chan<- shardReaders,
+) {
+	var wg sync.WaitGroup
+
+	for shard, tr := range shardsTimeRanges {
+		shard, tr := shard, tr
+		wg.Add(1)
+		s.ioWorkers.Go(func() {
+			defer wg.Done()
+
+			var files []string
+			fs.ForEachInfoFile(s.filePathPrefix, namespace, shard, s.readerBufferSize, func(fname string, _ []byte) {
+				files = append(files, fname)
+			})
+
+			if len(files) == 0 {
+				// Use default readers value to indicate no readers for this shard
+				readersCh <- shardReaders{shard: shard, tr: tr}
+				return
+			}
+
+			readers := make([]fs.FileSetReader, 0, len(files))
+			for i := 0; i < len(files); i++ {
+				t, err := fs.TimeFromFileName(files[i])
+				if err != nil {
+					s.log.WithFields(
+						xlog.NewLogField("shard", shard),
+						xlog.NewLogField("file", files[i]),
+						xlog.NewLogField("error", err),
+					).Error("unable to get time from info file")
+					continue
+				}
+				r := s.newReaderFn(s.filePathPrefix, s.readerBufferSize)
+				if err := r.Open(namespace, shard, t); err != nil {
+					s.log.WithFields(
+						xlog.NewLogField("shard", shard),
+						xlog.NewLogField("time", t.String()),
+						xlog.NewLogField("error", err),
+					).Error("unable to open fileset files")
+					continue
+				}
+				timeRange := r.Range()
+				if !tr.Overlaps(timeRange) {
+					r.Close()
+					continue
+				}
+				readers = append(readers, r)
+			}
+			readersCh <- shardReaders{shard: shard, tr: tr, readers: readers}
+		})
+	}
+
+	wg.Wait()
+	close(readersCh)
+}
+
+func (s *fileSystemSource) bootstrapFromReaders(readersCh <-chan shardReaders) bootstrap.Result {
+	var (
+		wg         sync.WaitGroup
+		resultLock sync.Mutex
+		result     = bootstrap.NewResult()
+		bopts      = s.opts.BootstrapOptions()
+	)
+
+	for shardReaders := range readersCh {
+		shardReaders := shardReaders
+		wg.Add(1)
+		s.processors.Go(func() {
+			defer wg.Done()
+
+			var (
+				seriesMap       bootstrap.ShardResult
+				timesWithErrors []time.Time
+			)
+
+			shard, tr, readers := shardReaders.shard, shardReaders.tr, shardReaders.readers
+			for _, r := range readers {
+				if seriesMap == nil {
+					// Delay initializing seriesMap until we have a good idea of its capacity
+					seriesMap = bootstrap.NewShardResult(bopts.SetInitialShardResultCapacity(r.Entries()))
+				}
+
+				var (
+					timeRange  = r.Range()
+					hasError   = false
+					numEntries = r.Entries()
+				)
+
+				for i := 0; i < numEntries; i++ {
+					id, data, err := r.Read()
+					if err != nil {
+						s.log.WithFields(
+							xlog.NewLogField("shard", shard),
+							xlog.NewLogField("error", err),
+						).Error("reading data file failed")
+						hasError = true
+						break
+					}
+
+					encoder := bopts.DatabaseBlockOptions().EncoderPool().Get()
+					encoder.ResetSetData(timeRange.Start, data, false)
+					block := bopts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+					block.Reset(timeRange.Start, encoder)
+					seriesMap.AddBlock(id, block)
+				}
+				if !hasError {
+					if err := r.Validate(); err != nil {
+						s.log.WithFields(
+							xlog.NewLogField("shard", shard),
+							xlog.NewLogField("error", err),
+						).Error("data validation failed")
+						hasError = true
+					}
+				}
+				r.Close()
+				if !hasError {
+					tr = tr.RemoveRange(timeRange)
+				} else {
+					timesWithErrors = append(timesWithErrors, timeRange.Start)
+				}
+			}
+
+			// NB(xichen): this is the exceptional case where we encountered errors due to files
+			// being corrupted, which should be fairly rare so we can live with the overhead. We
+			// experimented with adding the series to a temporary map and only adding the temporary map
+			// to the final result but adding series to large map with string keys is expensive, and
+			// the current implementation saves the extra overhead of merging temporary map with the
+			// final result.
+			if seriesMap != nil && len(timesWithErrors) > 0 {
+				s.log.WithFields(
+					xlog.NewLogField("shard", shard),
+					xlog.NewLogField("timesWithErrors", timesWithErrors),
+				).Info("deleting entries from results for times with errors")
+
+				allSeries := seriesMap.AllSeries()
+				for id, series := range allSeries {
+					for _, t := range timesWithErrors {
+						series.RemoveBlockAt(t)
+					}
+					if series.Len() == 0 {
+						delete(allSeries, id)
+					}
+				}
+			}
+
+			resultLock.Lock()
+			result.Add(shard, seriesMap, tr)
+			resultLock.Unlock()
+		})
+	}
+
+	wg.Wait()
+	return result
+}
+
 func (s *fileSystemSource) Read(
 	namespace string,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
@@ -103,68 +279,7 @@ func (s *fileSystemSource) Read(
 		return nil, nil
 	}
 
-	result := bootstrap.NewResult()
-	for shard, tr := range shardsTimeRanges {
-		var files []string
-		fs.ForEachInfoFile(s.filePathPrefix, namespace, shard, s.readerBufferSize, func(fname string, _ []byte) {
-			files = append(files, fname)
-		})
-		if len(files) == 0 {
-			result.Add(shard, nil, tr)
-			continue
-		}
-
-		bopts := s.opts.BootstrapOptions()
-		seriesMap := bootstrap.NewShardResult(bopts)
-		r := s.newReaderFn(s.filePathPrefix, s.readerBufferSize)
-		for i := 0; i < len(files); i++ {
-			t, err := fs.TimeFromFileName(files[i])
-			if err != nil {
-				s.log.Errorf("unable to get time from info file name %s: %v", files[i], err)
-				continue
-			}
-			if err := r.Open(namespace, shard, t); err != nil {
-				s.log.Errorf("unable to open info file for shard %d time %v: %v", shard, t, err)
-				continue
-			}
-			timeRange := r.Range()
-			if !tr.Overlaps(timeRange) {
-				r.Close()
-				continue
-			}
-			hasError := false
-			curMap := bootstrap.NewShardResult(bopts)
-			for i := 0; i < r.Entries(); i++ {
-				id, data, err := r.Read()
-				if err != nil {
-					s.log.Errorf("error reading data file for shard %d time %v: %v", shard, t, err)
-					hasError = true
-					break
-				}
-				encoder := bopts.DatabaseBlockOptions().EncoderPool().Get()
-				encoder.ResetSetData(timeRange.Start, data, false)
-				block := bopts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-				block.Reset(timeRange.Start, encoder)
-				curMap.AddBlock(id, block)
-			}
-			if !hasError {
-				if err := r.Validate(); err != nil {
-					hasError = true
-					s.log.Errorf("data validation failed for shard %d time %v: %v", shard, t, err)
-				}
-			}
-			r.Close()
-
-			if !hasError {
-				seriesMap.AddResult(curMap)
-				tr = tr.RemoveRange(timeRange)
-			} else {
-				curMap.Close()
-			}
-		}
-
-		result.Add(shard, seriesMap, tr)
-	}
-
-	return result, nil
+	readersCh := make(chan shardReaders)
+	go s.enqueueReaders(namespace, shardsTimeRanges, readersCh)
+	return s.bootstrapFromReaders(readersCh), nil
 }
