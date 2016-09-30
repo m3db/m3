@@ -347,10 +347,10 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
 
 	// NB(r): this will occur if after bootstrap we have a partial
 	// block and now the buffer is passing the rest of that block
-	s.drainStreamWithLock(s.blocks, start, encoder)
+	s.drainBufferedEncoderWithLock(s.blocks, start, encoder)
 }
 
-func (s *dbSeries) drainStreamWithLock(
+func (s *dbSeries) drainBufferedEncoderWithLock(
 	blocks block.DatabaseSeriesBlocks,
 	blockStart time.Time,
 	enc encoding.Encoder,
@@ -450,7 +450,7 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
 	// in the hope that the other replicas will provide data for this series.
 	multiErr := xerrors.NewMultiError()
 	for i := range s.pendingBootstrap {
-		if err := s.drainStreamWithLock(rs, s.pendingBootstrap[i].start, s.pendingBootstrap[i].encoder); err != nil {
+		if err := s.drainBufferedEncoderWithLock(rs, s.pendingBootstrap[i].start, s.pendingBootstrap[i].encoder); err != nil {
 			rs.Close()
 			rs = block.NewDatabaseSeriesBlocks(s.opts.DatabaseBlockOptions())
 			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.seriesID, err))
