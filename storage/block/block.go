@@ -22,6 +22,7 @@ package block
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/context"
@@ -50,6 +51,7 @@ type dbBlock struct {
 	encoder  encoding.Encoder
 	segment  ts.Segment
 	ctx      context.Context
+	ctxLock  sync.RWMutex
 	closed   bool
 	writable bool
 	checksum uint32
@@ -113,10 +115,24 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 }
 
 func (b *dbBlock) context() context.Context {
-	if b.ctx == nil {
-		b.ctx = b.opts.ContextPool().Get()
+	b.ctxLock.RLock()
+	ctx := b.ctx
+	b.ctxLock.RUnlock()
+	if ctx != nil {
+		return ctx
 	}
-	return b.ctx
+
+	b.ctxLock.Lock()
+	if ctx = b.ctx; ctx != nil {
+		b.ctxLock.Unlock()
+		return ctx
+	}
+
+	ctx = b.opts.ContextPool().Get()
+	b.ctx = ctx
+	b.ctxLock.Unlock()
+
+	return ctx
 }
 
 // close closes internal context and returns encoder and stream to pool.
