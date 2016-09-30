@@ -347,34 +347,49 @@ func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
 
 	// NB(r): this will occur if after bootstrap we have a partial
 	// block and now the buffer is passing the rest of that block
-	stream := encoder.Stream()
-	s.drainStreamWithLock(s.blocks, start, stream)
-	stream.Close()
+	s.drainStreamWithLock(s.blocks, start, encoder)
 }
 
 func (s *dbSeries) drainStreamWithLock(
 	blocks block.DatabaseSeriesBlocks,
 	blockStart time.Time,
-	stream xio.SegmentReader,
+	enc encoding.Encoder,
 ) error {
-	readers := make([]io.Reader, 0, 2)
-	if block, ok := blocks.BlockAt(blockStart); ok {
-		ctx := s.opts.ContextPool().Get()
-		defer ctx.Close()
-		reader, err := block.Stream(ctx)
-		if err != nil {
-			return err
-		}
-		readers = append(readers, reader)
+	// If enc is empty, do nothing
+	stream := enc.Stream()
+	if stream == nil {
+		return nil
+	}
+	defer stream.Close()
+
+	// If we don't have an existing block, grab a block from the pool
+	// and reset its encoder
+	blopts := s.opts.DatabaseBlockOptions()
+	existing, ok := blocks.BlockAt(blockStart)
+	if !ok {
+		block := blopts.DatabaseBlockPool().Get()
+		block.Reset(blockStart, enc)
+		block.Seal()
+		blocks.AddBlock(block)
+
+		return nil
 	}
 
-	readers = append(readers, stream)
+	var readers [2]io.Reader
+	readers[0] = stream
+
+	ctx := s.opts.ContextPool().Get()
+	defer ctx.Close()
+	reader, err := existing.Stream(ctx)
+	if err != nil {
+		return err
+	}
+	readers[1] = reader
 
 	multiIter := s.opts.MultiReaderIteratorPool().Get()
-	multiIter.Reset(readers)
+	multiIter.Reset(readers[:])
 	defer multiIter.Close()
 
-	blopts := s.opts.DatabaseBlockOptions()
 	encoder := s.opts.EncoderPool().Get()
 	encoder.Reset(blockStart, blopts.DatabaseBlockAllocSize())
 
@@ -400,7 +415,6 @@ func (s *dbSeries) drainStreamWithLock(
 	block := blopts.DatabaseBlockPool().Get()
 	block.Reset(blockStart, encoder)
 	block.Seal()
-
 	blocks.AddBlock(block)
 
 	return nil
@@ -436,10 +450,7 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
 	// in the hope that the other replicas will provide data for this series.
 	multiErr := xerrors.NewMultiError()
 	for i := range s.pendingBootstrap {
-		stream := s.pendingBootstrap[i].encoder.Stream()
-		err := s.drainStreamWithLock(rs, s.pendingBootstrap[i].start, stream)
-		stream.Close()
-		if err != nil {
+		if err := s.drainStreamWithLock(rs, s.pendingBootstrap[i].start, s.pendingBootstrap[i].encoder); err != nil {
 			rs.Close()
 			rs = block.NewDatabaseSeriesBlocks(s.opts.DatabaseBlockOptions())
 			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.seriesID, err))
