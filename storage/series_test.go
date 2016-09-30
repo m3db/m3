@@ -290,13 +290,22 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	buffer.EXPECT().DrainAndReset(true)
 	series.buffer = buffer
 
+	blockStart := time.Now()
+	blopts := opts.DatabaseBlockOptions()
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(blockStart)
+	b.EXPECT().Stream(gomock.Any()).Return(nil, errors.New("bar"))
+	b.EXPECT().Close()
+	blocks := block.NewDatabaseSeriesBlocks(blopts)
+	blocks.AddBlock(b)
+
 	faultyEncoder := opts.EncoderPool().Get()
-	faultyEncoder.ResetSetData(time.Now(), []byte{0x1, 0x2, 0x3}, true)
-	series.pendingBootstrap = []pendingBootstrapDrain{pendingBootstrapDrain{encoder: faultyEncoder}}
-	err := series.Bootstrap(nil)
+	faultyEncoder.ResetSetData(blockStart, []byte{0x0}, true)
+	series.pendingBootstrap = []pendingBootstrapDrain{pendingBootstrapDrain{start: blockStart, encoder: faultyEncoder}}
+	err := series.Bootstrap(blocks)
 
 	require.NotNil(t, err)
-	require.Equal(t, "error occurred bootstrapping series foo: EOF", err.Error())
+	require.Equal(t, "error occurred bootstrapping series foo: bar", err.Error())
 	require.Equal(t, bootstrapped, series.bs)
 	require.Equal(t, 0, series.blocks.Len())
 }
