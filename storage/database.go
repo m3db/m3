@@ -415,13 +415,6 @@ func (d *db) splayedTick() {
 		return
 	}
 
-	// Cleanup and/or flush if required to cleanup files and/or flush blocks to disk
-	if now := d.nowFn(); d.fsm.ShouldRun(now) {
-		atomic.StoreInt64(&d.flushing, 1)
-		d.fsm.Run(now, true)
-		atomic.StoreInt64(&d.flushing, 0)
-	}
-
 	// Begin ticking
 	start := d.nowFn()
 	atomic.StoreInt64(&d.ticking, 1)
@@ -449,6 +442,16 @@ func (d *db) splayedTick() {
 		d.metrics.tickDeadlineMet.Inc(1)
 		// Throttle to reduce locking overhead during ticking
 		time.Sleep(d.tickDeadline - duration)
+	}
+
+	// NB(r): Cleanup and/or flush if required to cleanup files and/or
+	// flush blocks to disk. Note this has to run after the tick as
+	// blocks may only have just become available during a tick beginning
+	// from the tick begin marker.
+	if d.fsm.ShouldRun(start) {
+		atomic.StoreInt64(&d.flushing, 1)
+		d.fsm.Run(start, true)
+		atomic.StoreInt64(&d.flushing, 0)
 	}
 }
 
