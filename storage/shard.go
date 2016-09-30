@@ -178,10 +178,13 @@ func (s *dbShard) Tick(softDeadline time.Duration) {
 
 func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
 	var (
-		perEntrySoftDeadline = softDeadline / time.Duration(s.NumSeries())
+		perEntrySoftDeadline time.Duration
 		expired              []databaseSeries
 		i, total             int
 	)
+	if size := s.NumSeries(); size > 0 {
+		perEntrySoftDeadline = softDeadline / time.Duration(size)
+	}
 	start := s.nowFn()
 	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
 		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
