@@ -69,7 +69,6 @@ func TestShardBootstrapWithError(t *testing.T) {
 	defer ctrl.Finish()
 
 	writeStart := time.Now()
-	cutover := time.Now().Add(-time.Minute)
 	opts := testDatabaseOptions()
 	s := testDatabaseShard(opts)
 	fooSeries := NewMockdatabaseSeries(ctrl)
@@ -79,16 +78,16 @@ func TestShardBootstrapWithError(t *testing.T) {
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	fooSeries.EXPECT().Bootstrap(fooBlocks, cutover).Return(nil)
+	fooSeries.EXPECT().Bootstrap(fooBlocks).Return(nil)
 	fooSeries.EXPECT().IsBootstrapped().Return(true)
-	barSeries.EXPECT().Bootstrap(barBlocks, cutover).Return(errors.New("series error"))
+	barSeries.EXPECT().Bootstrap(barBlocks).Return(errors.New("series error"))
 	barSeries.EXPECT().IsBootstrapped().Return(true)
 	bootstrappedSeries := map[string]block.DatabaseSeriesBlocks{
 		"foo": fooBlocks,
 		"bar": barBlocks,
 	}
 
-	err := s.Bootstrap(bootstrappedSeries, writeStart, cutover)
+	err := s.Bootstrap(bootstrappedSeries, writeStart)
 
 	require.NotNil(t, err)
 	require.Equal(t, "series error", err.Error())

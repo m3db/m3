@@ -377,7 +377,6 @@ func (s *dbShard) FetchBlocksMetadata(
 func (s *dbShard) Bootstrap(
 	bootstrappedSeries map[string]block.DatabaseSeriesBlocks,
 	writeStart time.Time,
-	cutover time.Time,
 ) error {
 	s.Lock()
 	if s.bs == bootstrapped {
@@ -394,7 +393,7 @@ func (s *dbShard) Bootstrap(
 	multiErr := xerrors.NewMultiError()
 	for id, dbBlocks := range bootstrappedSeries {
 		series, _, completionFn := s.writableSeries(id)
-		err := series.Bootstrap(dbBlocks, cutover)
+		err := series.Bootstrap(dbBlocks)
 		completionFn()
 		multiErr = multiErr.Add(err)
 	}
@@ -414,7 +413,7 @@ func (s *dbShard) Bootstrap(
 		if series.IsBootstrapped() {
 			return nil
 		}
-		err := series.Bootstrap(nil, cutover)
+		err := series.Bootstrap(nil)
 		multiErr = multiErr.Add(err)
 		return err
 	}, nil)

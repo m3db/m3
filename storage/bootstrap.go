@@ -103,23 +103,21 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 // NB(xichen): bootstrapping is now a two-step process: we bootstrap the data between
 // [writeStart - retentionPeriod, writeStart - bufferPast) in the first step, and the
 // data between [writeStart - bufferPast, writeStart + bufferFuture) in the second step.
-func (m *bootstrapManager) targetRanges(writeStart time.Time) (xtime.Ranges, time.Time) {
+func (m *bootstrapManager) targetRanges(writeStart time.Time) xtime.Ranges {
 	ropts := m.opts.RetentionOptions()
 	start := writeStart.Add(-ropts.RetentionPeriod())
 	midPoint := writeStart.Add(-ropts.BufferPast())
 	cutover := writeStart.Add(ropts.BufferFuture())
 
-	ranges := xtime.NewRanges().
+	return xtime.NewRanges().
 		AddRange(xtime.Range{Start: start, End: midPoint}).
 		AddRange(xtime.Range{Start: midPoint, End: cutover})
-
-	return ranges, cutover
 }
 
 // NB(xichen): Bootstrap must be called after the server starts accepting writes.
 func (m *bootstrapManager) Bootstrap() error {
 	writeStart := m.nowFn()
-	targetRanges, cutover := m.targetRanges(writeStart)
+	targetRanges := m.targetRanges(writeStart)
 
 	m.Lock()
 	if m.state == bootstrapped {
@@ -140,7 +138,7 @@ func (m *bootstrapManager) Bootstrap() error {
 	bs := m.newBootstrapFn()
 	for _, namespace := range m.database.getOwnedNamespaces() {
 		start := m.nowFn()
-		if err := namespace.Bootstrap(bs, targetRanges, writeStart, cutover); err != nil {
+		if err := namespace.Bootstrap(bs, targetRanges, writeStart); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 		end := m.nowFn()

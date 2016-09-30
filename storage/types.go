@@ -146,7 +146,7 @@ type databaseNamespace interface {
 	Bootstrap(
 		bs bootstrap.Bootstrap,
 		targetRanges xtime.Ranges,
-		writeStart, cutover time.Time,
+		writeStart time.Time,
 	) error
 
 	// Flush flushes in-memory data
@@ -204,7 +204,6 @@ type databaseShard interface {
 	Bootstrap(
 		bootstrappedSeries map[string]block.DatabaseSeriesBlocks,
 		writeStart time.Time,
-		cutover time.Time,
 	) error
 
 	// Flush flushes the series in this shard.
@@ -257,7 +256,7 @@ type databaseSeries interface {
 	IsBootstrapped() bool
 
 	// Bootstrap merges the raw series bootstrapped along with the buffered data.
-	Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) error
+	Bootstrap(rs block.DatabaseSeriesBlocks) error
 
 	// Flush flushes the data blocks of this series for a given start time.
 	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
