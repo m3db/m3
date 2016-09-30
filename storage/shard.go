@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
@@ -41,9 +42,10 @@ import (
 )
 
 const (
-	shardIterateBatchPercent               = 0.05
+	shardIterateBatchPercent               = 0.01
 	expireBatchLength                      = 1024
 	blocksMetadataResultMaxInitialCapacity = 1024
+	defaultTickSleepIfAheadEvery           = 128
 )
 
 type filesetBeforeFn func(filePathPrefix string, namespace string, shardID uint32, t time.Time) ([]string, error)
@@ -51,6 +53,7 @@ type filesetBeforeFn func(filePathPrefix string, namespace string, shardID uint3
 type dbShard struct {
 	sync.RWMutex
 	opts                  Options
+	nowFn                 clock.NowFn
 	shard                 uint32
 	increasingIndex       increasingIndex
 	writeCommitLogFn      writeCommitLogFn
@@ -60,6 +63,8 @@ type dbShard struct {
 	newSeriesBootstrapped bool
 	filesetBeforeFn       filesetBeforeFn
 	deleteFilesFn         deleteFilesFn
+	tickSleepIfAheadEvery int
+	sleepFn               func(time.Duration)
 }
 
 type dbShardEntry struct {
@@ -94,14 +99,17 @@ func newDatabaseShard(
 	opts Options,
 ) databaseShard {
 	d := &dbShard{
-		opts:             opts,
-		shard:            shard,
-		increasingIndex:  increasingIndex,
-		writeCommitLogFn: writeCommitLogFn,
-		lookup:           make(map[string]*list.Element),
-		list:             list.New(),
-		filesetBeforeFn:  fs.FilesetBefore,
-		deleteFilesFn:    fs.DeleteFiles,
+		opts:                  opts,
+		nowFn:                 opts.ClockOptions().NowFn(),
+		shard:                 shard,
+		increasingIndex:       increasingIndex,
+		writeCommitLogFn:      writeCommitLogFn,
+		lookup:                make(map[string]*list.Element),
+		list:                  list.New(),
+		filesetBeforeFn:       fs.FilesetBefore,
+		deleteFilesFn:         fs.DeleteFiles,
+		tickSleepIfAheadEvery: defaultTickSleepIfAheadEvery,
+		sleepFn:               time.Sleep,
 	}
 	if !needsBootstrap {
 		d.bs = bootstrapped
@@ -164,16 +172,25 @@ func (s *dbShard) forBatchWithLock(
 	return nextElem
 }
 
-func (s *dbShard) Tick() {
-	s.tickAndExpire()
+func (s *dbShard) Tick(softDeadline time.Duration) {
+	s.tickAndExpire(softDeadline)
 }
 
-func (s *dbShard) tickAndExpire() int {
+func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
 	var (
-		expired []databaseSeries
-		total   int
+		perEntrySoftDeadline = softDeadline / time.Duration(s.NumSeries())
+		expired              []databaseSeries
+		i, total             int
 	)
+	start := s.nowFn()
 	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
+		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
+			// If we are ahead of our our deadline then throttle tick
+			prevEntryDeadline := start.Add(time.Duration(i) * perEntrySoftDeadline)
+			if now := s.nowFn(); now.Before(prevEntryDeadline) {
+				s.sleepFn(prevEntryDeadline.Sub(now))
+			}
+		}
 		series := entry.series
 		err := series.Tick()
 		if err == errSeriesAllDatapointsExpired {
@@ -190,6 +207,7 @@ func (s *dbShard) tickAndExpire() int {
 		} else if err != nil {
 			// TODO(r): log error and increment counter
 		}
+		i++
 		return err
 	}, nil)
 

@@ -101,11 +101,14 @@ type Database interface {
 }
 
 type databaseNamespace interface {
-	// Name is the name of the namespace
+	// Name returns the name of the namespace
 	Name() string
 
+	// NumSeries returns the number of series in the namespace
+	NumSeries() int64
+
 	// Tick performs any regular maintenance operations
-	Tick()
+	Tick(softDeadline time.Duration)
 
 	// Write writes a data point
 	Write(
@@ -168,7 +171,7 @@ type databaseShard interface {
 	NumSeries() int64
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
-	Tick()
+	Tick(softDeadline time.Duration)
 
 	Write(
 		ctx context.Context,

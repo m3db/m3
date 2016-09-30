@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -182,6 +183,44 @@ func addTestSeries(shard *dbShard, id string) databaseSeries {
 	return series
 }
 
+func TestShardTick(t *testing.T) {
+	now := time.Now()
+	nowLock := sync.RWMutex{}
+	nowFn := func() time.Time {
+		nowLock.RLock()
+		value := now
+		nowLock.RUnlock()
+		return value
+	}
+	setNow := func(t time.Time) {
+		nowLock.Lock()
+		now = t
+		nowLock.Unlock()
+	}
+
+	opts := testDatabaseOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+	shard := testDatabaseShard(opts)
+
+	var slept time.Duration
+	shard.sleepFn = func(t time.Duration) {
+		slept += t
+		setNow(nowFn().Add(t))
+	}
+	shard.tickSleepIfAheadEvery = 1
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
+	shard.Write(ctx, "bar", nowFn(), 2.0, xtime.Second, nil)
+	shard.Write(ctx, "baz", nowFn(), 3.0, xtime.Second, nil)
+	expired := shard.tickAndExpire(6 * time.Millisecond)
+
+	require.Equal(t, 0, expired)
+	require.Equal(t, 4*time.Millisecond, slept)
+}
+
 // This tests the scenario where an empty series is expired.
 func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -190,7 +229,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
 	addTestSeries(shard, "foo")
-	shard.Tick()
+	shard.Tick(0)
 	require.Equal(t, 0, len(shard.lookup))
 }
 
@@ -201,7 +240,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
-	expired := shard.tickAndExpire()
+	expired := shard.tickAndExpire(0)
 	require.Equal(t, 0, expired)
 }
 
@@ -227,7 +266,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		series.EXPECT().IsEmpty().Return(false)
 	}).Return(errSeriesAllDatapointsExpired)
 
-	expired := shard.tickAndExpire()
+	expired := shard.tickAndExpire(0)
 	require.Equal(t, 1, expired)
 	require.Equal(t, 1, len(shard.lookup))
 }
@@ -250,7 +289,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 		_, _, writeCompletionFn = shard.writableSeries("foo")
 	}).Return(errSeriesAllDatapointsExpired)
 
-	expired := shard.tickAndExpire()
+	expired := shard.tickAndExpire(0)
 	require.Equal(t, 1, expired)
 	require.Equal(t, 1, len(shard.lookup))
 

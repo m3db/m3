@@ -108,6 +108,8 @@ type db struct {
 
 	created      uint64
 	tickDeadline time.Duration
+	ticking      int64
+	flushing     int64
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -118,7 +120,9 @@ type db struct {
 type databaseMetrics struct {
 	bootstrapStatus tally.Gauge
 	tickStatus      tally.Gauge
+	flushStatus     tally.Gauge
 
+	tickDuration       tally.Timer
 	tickDeadlineMissed tally.Counter
 	tickDeadlineMet    tally.Counter
 
@@ -132,7 +136,9 @@ func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics
 	return databaseMetrics{
 		bootstrapStatus: scope.Gauge("bootstrapped"),
 		tickStatus:      scope.Gauge("tick"),
+		flushStatus:     scope.Gauge("flush"),
 
+		tickDuration:       scope.Timer("tick.duration"),
 		tickDeadlineMissed: scope.Counter("tick.deadline.missed"),
 		tickDeadlineMet:    scope.Counter("tick.deadline.met"),
 
@@ -384,7 +390,8 @@ func (d *db) reportLoop() {
 			} else {
 				d.metrics.bootstrapStatus.Update(0)
 			}
-
+			d.metrics.tickStatus.Update(atomic.LoadInt64(&d.ticking))
+			d.metrics.flushStatus.Update(atomic.LoadInt64(&d.flushing))
 		case <-d.doneCh:
 			return
 		}
@@ -408,24 +415,39 @@ func (d *db) splayedTick() {
 		return
 	}
 
-	start := d.nowFn()
-
-	for _, n := range namespaces {
-		// TODO(xichen): sleep during two consecutive ticks
-		n.Tick()
+	// Cleanup and/or flush if required to cleanup files and/or flush blocks to disk
+	if now := d.nowFn(); d.fsm.ShouldRun(now) {
+		atomic.StoreInt64(&d.flushing, 1)
+		d.fsm.Run(now, true)
+		atomic.StoreInt64(&d.flushing, 0)
 	}
-	if d.fsm.ShouldRun(start) {
-		d.fsm.Run(start, true)
+
+	// Begin ticking
+	start := d.nowFn()
+	atomic.StoreInt64(&d.ticking, 1)
+
+	sizes := make([]int64, 0, len(namespaces))
+	totalSize := int64(0)
+	for _, n := range namespaces {
+		size := n.NumSeries()
+		sizes = append(sizes, size)
+		totalSize += size
+	}
+	for i, n := range namespaces {
+		deadline := float64(d.tickDeadline) * (float64(sizes[i]) / float64(totalSize))
+		n.Tick(time.Duration(deadline))
 	}
 
 	end := d.nowFn()
 	duration := end.Sub(start)
-	// TODO(r): instrument duration of tick
+	atomic.StoreInt64(&d.ticking, 0)
+	d.metrics.tickDuration.Record(duration)
+
 	if duration > d.tickDeadline {
 		d.metrics.tickDeadlineMissed.Inc(1)
 	} else {
 		d.metrics.tickDeadlineMet.Inc(1)
-		// throttle to reduce locking overhead during ticking
+		// Throttle to reduce locking overhead during ticking
 		time.Sleep(d.tickDeadline - duration)
 	}
 }

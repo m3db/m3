@@ -108,15 +108,24 @@ func (n *dbNamespace) Name() string {
 	return n.name
 }
 
-func (n *dbNamespace) Tick() {
+func (n *dbNamespace) NumSeries() int64 {
+	var count int64
+	for _, shard := range n.getOwnedShards() {
+		count += shard.NumSeries()
+	}
+	return count
+}
+
+func (n *dbNamespace) Tick(softDeadline time.Duration) {
 	shards := n.getOwnedShards()
 	if len(shards) == 0 {
 		return
 	}
 
 	// Tick through the shards sequentially to avoid parallel data flushes
+	perShardDeadline := softDeadline / time.Duration(len(shards))
 	for _, shard := range shards {
-		shard.Tick()
+		shard.Tick(perShardDeadline)
 	}
 }
 
