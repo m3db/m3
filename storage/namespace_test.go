@@ -196,19 +196,19 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 func TestNamespaceBootstrapAlreadyBootstrapped(t *testing.T) {
 	ns := testNamespace(t)
 	ns.bs = bootstrapped
-	require.NoError(t, ns.Bootstrap(nil, nil, time.Now(), time.Now()))
+	require.NoError(t, ns.Bootstrap(nil, nil, time.Now()))
 }
 
 func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 	ns := testNamespace(t)
 	ns.bs = bootstrapping
-	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(nil, nil, time.Now(), time.Now()))
+	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(nil, nil, time.Now()))
 }
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 	ns := testNamespace(t)
 	ns.nopts = ns.nopts.SetNeedsBootstrap(false)
-	require.NoError(t, ns.Bootstrap(nil, nil, time.Now(), time.Now()))
+	require.NoError(t, ns.Bootstrap(nil, nil, time.Now()))
 	require.Equal(t, bootstrapped, ns.bs)
 }
 
@@ -217,13 +217,12 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	defer ctrl.Finish()
 
 	writeStart := time.Now()
-	cutover := writeStart.Add(2 * time.Minute)
 	ranges := xtime.NewRanges().AddRange(xtime.Range{
 		Start: writeStart.Add(-time.Hour),
 		End:   writeStart.Add(-10 * time.Minute),
 	}).AddRange(xtime.Range{
 		Start: writeStart.Add(-10 * time.Minute),
-		End:   cutover,
+		End:   writeStart.Add(2 * time.Minute),
 	})
 
 	ns := testNamespace(t)
@@ -233,11 +232,11 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
-		shard.EXPECT().Bootstrap(nil, writeStart, cutover).Return(errs[i])
+		shard.EXPECT().Bootstrap(nil, writeStart).Return(errs[i])
 		ns.shards[testShardIDs[i]] = shard
 	}
 
-	require.Equal(t, "foo", ns.Bootstrap(bs, ranges, writeStart, cutover).Error())
+	require.Equal(t, "foo", ns.Bootstrap(bs, ranges, writeStart).Error())
 	require.Equal(t, bootstrapped, ns.bs)
 }
 

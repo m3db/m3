@@ -182,7 +182,6 @@ func (n *dbNamespace) Bootstrap(
 	bs bootstrap.Bootstrap,
 	targetRanges xtime.Ranges,
 	writeStart time.Time,
-	cutover time.Time,
 ) error {
 	callStart := n.nowFn()
 
@@ -244,7 +243,7 @@ func (n *dbNamespace) Bootstrap(
 				bootstrapped = result.AllSeries()
 			}
 
-			err := shard.Bootstrap(bootstrapped, writeStart, cutover)
+			err := shard.Bootstrap(bootstrapped, writeStart)
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)

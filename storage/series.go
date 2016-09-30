@@ -411,7 +411,7 @@ func (s *dbSeries) drainStreamWithLock(
 // data in memory during bootstrapping. If that becomes a problem, we could
 // bootstrap in batches, e.g., drain and reset the buffer, drain the streams,
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
-func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks, cutover time.Time) error {
+func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
 	s.Lock()
 	if s.bs == bootstrapped {
 		s.Unlock()

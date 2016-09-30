@@ -37,7 +37,6 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	now := time.Now()
-	cutover := now.Add(opts.RetentionOptions().BufferFuture())
 	opts = opts.SetNewBootstrapFn(func() bootstrap.Bootstrap {
 		return nil
 	}).SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
@@ -45,7 +44,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	}))
 
 	namespace := NewMockdatabaseNamespace(ctrl)
-	namespace.EXPECT().Bootstrap(nil, gomock.Any(), now, cutover).Return(fmt.Errorf("an error"))
+	namespace.EXPECT().Bootstrap(nil, gomock.Any(), now).Return(fmt.Errorf("an error"))
 	namespace.EXPECT().Name().Return("test")
 
 	namespaces := map[string]databaseNamespace{

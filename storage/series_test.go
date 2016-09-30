@@ -293,7 +293,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	faultyEncoder := opts.EncoderPool().Get()
 	faultyEncoder.ResetSetData(time.Now(), []byte{0x1, 0x2, 0x3}, true)
 	series.pendingBootstrap = []pendingBootstrapDrain{pendingBootstrapDrain{encoder: faultyEncoder}}
-	err := series.Bootstrap(nil, time.Now())
+	err := series.Bootstrap(nil)
 
 	require.NotNil(t, err)
 	require.Equal(t, "error occurred bootstrapping series foo: EOF", err.Error())
