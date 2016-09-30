@@ -38,7 +38,7 @@ const (
 	defaultBufferPast = 10 * time.Minute
 
 	// defaultBufferDrain is the default buffer drain
-	defaultBufferDrain = 1 * time.Minute
+	defaultBufferDrain = 2 * time.Minute
 )
 
 type options struct {
