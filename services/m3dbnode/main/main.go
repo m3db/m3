@@ -108,12 +108,29 @@ func main() {
 	}()
 
 	// Handle interrupt
-	log.Infof("interrupt: %v", interrupt())
+	log.Warnf("interrupt: %v", interrupt())
 
 	// Attempt graceful server close
-	doneCh <- struct{}{}
-	<-closedCh
-	log.Infof("server closed")
+	cleanCloseTimeout := 10 * time.Second
+
+	select {
+	case doneCh <- struct{}{}:
+	default:
+		// Currently bootstrapping, cannot send close clean signal
+		log.Warnf("abort bootstrap")
+		go func() {
+			db.Close()
+			closedCh <- struct{}{}
+		}()
+	}
+
+	// Wait then close or hard close
+	select {
+	case <-closedCh:
+		log.Infof("server closed clean")
+	case <-time.After(cleanCloseTimeout):
+		log.Errorf("server closed due to %s timeout", cleanCloseTimeout.String())
+	}
 }
 
 func interrupt() error {
