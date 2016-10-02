@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	contextKey = "m3dbcontext"
+	contextKey string = "m3dbcontext"
 )
 
 // NewDefaultContextFn returns a function that will create M3DB contexts per request
