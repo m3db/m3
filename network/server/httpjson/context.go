@@ -29,13 +29,13 @@ import (
 )
 
 const (
-	contextKey string = "m3dbcontext"
+	contextKey = "m3dbcontext"
 )
 
 // NewDefaultContextFn returns a function that will create M3DB contexts per request
 func NewDefaultContextFn(contextPool m3dbcontext.Pool) ContextFn {
 	return func(ctx context.Context, method string, headers map[string]string) thrift.Context {
-		ctxWithValue := context.WithValue(ctx, contextKey, contextPool.Get())
+		ctxWithValue := context.WithValue(ctx, interface{}(contextKey), contextPool.Get())
 		return thrift.WithHeaders(ctxWithValue, headers)
 	}
 }
