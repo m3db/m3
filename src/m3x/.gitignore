@@ -15,7 +15,6 @@ test.log
 bin/
 
 # Debug binaries
-debug
 debug.test
 
 # Glide
