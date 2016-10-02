@@ -29,7 +29,7 @@ import (
 
 const (
 	defaultRepairInterval      = 2 * time.Hour
-	defaultRepairTimeOffset    = 30 * time.Minute
+	defaultRepairTimeOffset    = 45 * time.Minute
 	defaultRepairTimeJitter    = time.Hour
 	defaultRepairCheckInterval = time.Minute
 	defaultRepairThrottle      = 90 * time.Second

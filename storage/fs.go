@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -46,6 +47,7 @@ type fileSystemManager struct {
 
 	database  database               // storage database
 	opts      Options                // database options
+	jitter    time.Duration          // file operation jitter
 	status    fileOpStatus           // current file operation status
 	processed map[time.Time]struct{} // times we have already processed
 }
@@ -55,11 +57,19 @@ func newFileSystemManager(database database) databaseFileSystemManager {
 	fm := newFlushManager(database)
 	cm := newCleanupManager(database, fm)
 
+	var jitter time.Duration
+	if maxJitter := opts.FileOpOptions().Jitter(); maxJitter > 0 {
+		nowFn := opts.ClockOptions().NowFn()
+		rand.Seed(nowFn().UnixNano())
+		jitter = time.Duration(rand.Int63n(int64(maxJitter)))
+	}
+
 	return &fileSystemManager{
 		databaseFlushManager:   fm,
 		databaseCleanupManager: cm,
 		database:               database,
 		opts:                   opts,
+		jitter:                 jitter,
 		status:                 fileOpNotStarted,
 		processed:              map[time.Time]struct{}{},
 	}
@@ -136,5 +146,5 @@ func (m *fileSystemManager) Run(t time.Time, async bool) {
 // flushing or cleanup more frequently, can make the ID time-based (e.g., every
 // 10 minutes).
 func (m *fileSystemManager) timeID(t time.Time) time.Time {
-	return m.FlushTimeEnd(t)
+	return m.FlushTimeEnd(t.Add(-m.jitter))
 }
