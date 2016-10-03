@@ -24,7 +24,6 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 )
 
@@ -34,6 +33,9 @@ var (
 
 	// errCheckSumMismatch returned when the calculated checksum doesn't match the stored checksum
 	errCheckSumMismatch = errors.New("calculated checksum doesn't match stored checksum")
+
+	// errBufferSizeMismatch returned when ReadAllAndValidate called without well sized buffer
+	errBufferSizeMismatch = errors.New("buffer passed is not an exact fit for contents")
 )
 
 // FdWithDigestReader provides a buffered reader for reading from the underlying file.
@@ -45,7 +47,9 @@ type FdWithDigestReader interface {
 
 	// ReadAllAndValidate reads everything in the underlying file and validates
 	// it against the expected digest, returning an error if they don't match.
-	ReadAllAndValidate(expectedDigest uint32) ([]byte, error)
+	// Note: the buffer "b" must be an exact match for how long the contents being
+	// read is, the signature is structured this way to allow for buffer reuse.
+	ReadAllAndValidate(b []byte, expectedDigest uint32) (int, error)
 
 	// Validate compares the current digest against the expected digest and returns
 	// an error if they don't match.
@@ -103,18 +107,23 @@ func (r *fdWithDigestReader) ReadBytes(b []byte) (int, error) {
 	return n, nil
 }
 
-func (r *fdWithDigestReader) ReadAllAndValidate(expectedDigest uint32) ([]byte, error) {
-	b, err := ioutil.ReadAll(r.reader)
+func (r *fdWithDigestReader) ReadAllAndValidate(b []byte, expectedDigest uint32) (int, error) {
+	n, err := r.readBytes(b)
 	if err != nil {
-		return nil, err
+		return n, err
 	}
+	_, err = r.reader.ReadByte()
+	if err != io.EOF {
+		return 0, errBufferSizeMismatch
+	}
+	err = nil
 	if _, err := r.FdWithDigest.Digest().Write(b); err != nil {
-		return nil, err
+		return n, err
 	}
 	if err := r.Validate(expectedDigest); err != nil {
-		return nil, err
+		return n, err
 	}
-	return b, nil
+	return n, nil
 }
 
 func (r *fdWithDigestReader) Validate(expectedDigest uint32) error {

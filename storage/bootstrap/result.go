@@ -74,11 +74,16 @@ type shardResult struct {
 }
 
 // NewShardResult creates a new shard result.
-func NewShardResult(opts Options) ShardResult {
+func NewShardResult(capacity int, opts Options) ShardResult {
 	return &shardResult{
 		opts:   opts,
-		blocks: make(map[string]block.DatabaseSeriesBlocks, opts.InitialShardResultCapacity()),
+		blocks: make(map[string]block.DatabaseSeriesBlocks, capacity),
 	}
+}
+
+func (sr *shardResult) newBlocksLen() int {
+	ropts := sr.opts.RetentionOptions()
+	return int(ropts.RetentionPeriod() / ropts.BlockSize())
 }
 
 // IsEmpty returns whether the result is empty.
@@ -90,7 +95,7 @@ func (sr *shardResult) IsEmpty() bool {
 func (sr *shardResult) AddBlock(id string, b block.DatabaseBlock) {
 	curSeries, exists := sr.blocks[id]
 	if !exists {
-		curSeries = block.NewDatabaseSeriesBlocks(sr.opts.DatabaseBlockOptions())
+		curSeries = block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions())
 		sr.blocks[id] = curSeries
 	}
 	curSeries.AddBlock(b)
@@ -100,7 +105,7 @@ func (sr *shardResult) AddBlock(id string, b block.DatabaseBlock) {
 func (sr *shardResult) AddSeries(id string, rawSeries block.DatabaseSeriesBlocks) {
 	curSeries, exists := sr.blocks[id]
 	if !exists {
-		curSeries = block.NewDatabaseSeriesBlocks(sr.opts.DatabaseBlockOptions())
+		curSeries = block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions())
 		sr.blocks[id] = curSeries
 	}
 	curSeries.AddSeries(rawSeries)

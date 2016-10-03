@@ -312,7 +312,19 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, uint64, writeComple
 		s.RUnlock()
 		return entry.series, entry.index, entry.decrementWriterCount
 	}
+	bs := bootstrapNotStarted
+	if s.newSeriesBootstrapped {
+		bs = bootstrapped
+	}
 	s.RUnlock()
+
+	// Create the entry out of any locks to avoid any possible expensive
+	// allocations during the newDatabaseSeries(...) blocking other writers
+	entry := &dbShardEntry{
+		series:     newDatabaseSeries(id, bs, s.opts),
+		index:      s.increasingIndex.nextIndex(),
+		curWriters: 1,
+	}
 
 	s.Lock()
 	if entry, _, exists := s.getEntryWithLock(id); exists {
@@ -321,14 +333,9 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, uint64, writeComple
 		// During Rlock -> Wlock promotion the entry was inserted
 		return entry.series, entry.index, entry.decrementWriterCount
 	}
-	bs := bootstrapNotStarted
-	if s.newSeriesBootstrapped {
-		bs = bootstrapped
-	}
-	entry := &dbShardEntry{
-		series:     newDatabaseSeries(id, bs, s.opts),
-		index:      s.increasingIndex.nextIndex(),
-		curWriters: 1,
+	if s.newSeriesBootstrapped && bs != bootstrapped {
+		// Transitioned to new series being bootstrapped
+		entry.series.Bootstrap(nil)
 	}
 	elem := s.list.PushBack(entry)
 	s.lookup[id] = elem

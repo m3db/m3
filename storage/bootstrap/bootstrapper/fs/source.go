@@ -107,15 +107,10 @@ func (s *fileSystemSource) shardAvailability(
 	return tr
 }
 
-type shardReaders struct {
-	shard   uint32
-	tr      xtime.Ranges
-	readers []fs.FileSetReader
-}
-
 func (s *fileSystemSource) enqueueReaders(
 	namespace string,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
+	readerPool *readerPool,
 	readersCh chan<- shardReaders,
 ) {
 	var wg sync.WaitGroup
@@ -144,24 +139,27 @@ func (s *fileSystemSource) enqueueReaders(
 					s.log.WithFields(
 						xlog.NewLogField("shard", shard),
 						xlog.NewLogField("file", files[i]),
-						xlog.NewLogField("error", err),
+						xlog.NewLogField("error", err.Error()),
 					).Error("unable to get time from info file")
 					continue
 				}
-				r := s.newReaderFn(s.filePathPrefix, s.readerBufferSize)
+				r := readerPool.get()
 				if err := r.Open(namespace, shard, t); err != nil {
 					s.log.WithFields(
 						xlog.NewLogField("shard", shard),
 						xlog.NewLogField("time", t.String()),
-						xlog.NewLogField("error", err),
+						xlog.NewLogField("error", err.Error()),
 					).Error("unable to open fileset files")
+					readerPool.put(r)
 					continue
 				}
 				timeRange := r.Range()
 				if !tr.Overlaps(timeRange) {
 					r.Close()
+					readerPool.put(r)
 					continue
 				}
+				s.log.Infof("add reader for shard %d time %v", shard, t.String())
 				readers = append(readers, r)
 			}
 			readersCh <- shardReaders{shard: shard, tr: tr, readers: readers}
@@ -172,7 +170,10 @@ func (s *fileSystemSource) enqueueReaders(
 	close(readersCh)
 }
 
-func (s *fileSystemSource) bootstrapFromReaders(readersCh <-chan shardReaders) bootstrap.Result {
+func (s *fileSystemSource) bootstrapFromReaders(
+	readerPool *readerPool,
+	readersCh <-chan shardReaders,
+) bootstrap.Result {
 	var (
 		wg         sync.WaitGroup
 		resultLock sync.Mutex
@@ -195,7 +196,7 @@ func (s *fileSystemSource) bootstrapFromReaders(readersCh <-chan shardReaders) b
 			for _, r := range readers {
 				if seriesMap == nil {
 					// Delay initializing seriesMap until we have a good idea of its capacity
-					seriesMap = bootstrap.NewShardResult(bopts.SetInitialShardResultCapacity(r.Entries()))
+					seriesMap = bootstrap.NewShardResult(r.Entries(), bopts)
 				}
 
 				var (
@@ -230,12 +231,15 @@ func (s *fileSystemSource) bootstrapFromReaders(readersCh <-chan shardReaders) b
 						hasError = true
 					}
 				}
-				r.Close()
 				if !hasError {
 					tr = tr.RemoveRange(timeRange)
 				} else {
 					timesWithErrors = append(timesWithErrors, timeRange.Start)
 				}
+			}
+			for _, r := range readers {
+				r.Close()
+				readerPool.put(r)
 			}
 
 			// NB(xichen): this is the exceptional case where we encountered errors due to files
@@ -279,7 +283,49 @@ func (s *fileSystemSource) Read(
 		return nil, nil
 	}
 
+	readerPool := newReaderPool(func() fs.FileSetReader {
+		return s.newReaderFn(s.filePathPrefix, s.readerBufferSize)
+	})
 	readersCh := make(chan shardReaders)
-	go s.enqueueReaders(namespace, shardsTimeRanges, readersCh)
-	return s.bootstrapFromReaders(readersCh), nil
+	go s.enqueueReaders(namespace, shardsTimeRanges, readerPool, readersCh)
+	return s.bootstrapFromReaders(readerPool, readersCh), nil
+}
+
+type shardReaders struct {
+	shard   uint32
+	tr      xtime.Ranges
+	readers []fs.FileSetReader
+}
+
+// readerPool is a lean pool that does not allocate
+// instances up front and is used per bootstrap call
+type readerPool struct {
+	sync.RWMutex
+	alloc  readerPoolAllocFn
+	values []fs.FileSetReader
+}
+
+type readerPoolAllocFn func() fs.FileSetReader
+
+func newReaderPool(alloc readerPoolAllocFn) *readerPool {
+	return &readerPool{alloc: alloc}
+}
+
+func (p *readerPool) get() fs.FileSetReader {
+	p.Lock()
+	if len(p.values) == 0 {
+		p.Unlock()
+		return p.alloc()
+	}
+	length := len(p.values)
+	value := p.values[length-1]
+	p.values = p.values[:length-1]
+	p.Unlock()
+	return value
+}
+
+func (p *readerPool) put(r fs.FileSetReader) {
+	p.Lock()
+	p.values = append(p.values, r)
+	p.Unlock()
 }

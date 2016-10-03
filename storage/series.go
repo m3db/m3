@@ -58,10 +58,12 @@ type pendingBootstrapDrain struct {
 }
 
 func newDatabaseSeries(id string, bs bootstrapState, opts Options) databaseSeries {
+	ropts := opts.RetentionOptions()
+	blocksLen := int(ropts.RetentionPeriod() / ropts.BlockSize())
 	series := &dbSeries{
 		opts:     opts,
 		seriesID: id,
-		blocks:   block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions()),
+		blocks:   block.NewDatabaseSeriesBlocks(blocksLen, opts.DatabaseBlockOptions()),
 		bs:       bs,
 	}
 	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
@@ -369,9 +371,7 @@ func (s *dbSeries) drainBufferedEncoderWithLock(
 	if !ok {
 		block := blopts.DatabaseBlockPool().Get()
 		block.Reset(blockStart, enc)
-		block.Seal()
 		blocks.AddBlock(block)
-
 		return nil
 	}
 
@@ -414,7 +414,6 @@ func (s *dbSeries) drainBufferedEncoderWithLock(
 
 	block := blopts.DatabaseBlockPool().Get()
 	block.Reset(blockStart, encoder)
-	block.Seal()
 	blocks.AddBlock(block)
 
 	return nil
@@ -438,11 +437,12 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
 	s.bs = bootstrapping
 
 	if rs == nil {
-		rs = block.NewDatabaseSeriesBlocks(s.opts.DatabaseBlockOptions())
+		// If no data to bootstrap from then fallback to the empty blocks map.
+		rs = s.blocks
 	}
 
-	// Force the in-memory buffer to drain and reset so we can merge the in-memory
-	// data accumulated during bootstrapping.
+	// Force the in-memory buffer to drain and reset so we can merge the
+	// in-memory data accumulated during bootstrapping.
 	s.buffer.DrainAndReset(true)
 
 	// NB(xichen): if an error occurred during series bootstrap, we close
@@ -452,7 +452,10 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
 	for i := range s.pendingBootstrap {
 		if err := s.drainBufferedEncoderWithLock(rs, s.pendingBootstrap[i].start, s.pendingBootstrap[i].encoder); err != nil {
 			rs.Close()
-			rs = block.NewDatabaseSeriesBlocks(s.opts.DatabaseBlockOptions())
+
+			ropts := s.opts.RetentionOptions()
+			blocksLen := int(ropts.RetentionPeriod() / ropts.BlockSize())
+			rs = block.NewDatabaseSeriesBlocks(blocksLen, s.opts.DatabaseBlockOptions())
 			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.seriesID, err))
 			multiErr = multiErr.Add(err)
 		}

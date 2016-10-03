@@ -42,7 +42,7 @@ func testDatabaseBlock(ctrl *gomock.Controller) (*dbBlock, *encoding.MockEncoder
 
 func testDatabaseSeriesBlocks() *databaseSeriesBlocks {
 	opts := NewOptions()
-	return NewDatabaseSeriesBlocks(opts).(*databaseSeriesBlocks)
+	return NewDatabaseSeriesBlocks(0, opts).(*databaseSeriesBlocks)
 }
 
 func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks {

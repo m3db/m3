@@ -27,26 +27,20 @@ import (
 	"github.com/m3db/m3db/storage/block"
 )
 
-const (
-	defaultInitialShardResultCapacity = 256
-)
-
 type options struct {
-	clockOpts             clock.Options
-	instrumentOpts        instrument.Options
-	retentionOpts         retention.Options
-	blockOpts             block.Options
-	initialResultCapacity int
+	clockOpts      clock.Options
+	instrumentOpts instrument.Options
+	retentionOpts  retention.Options
+	blockOpts      block.Options
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		clockOpts:             clock.NewOptions(),
-		instrumentOpts:        instrument.NewOptions(),
-		retentionOpts:         retention.NewOptions(),
-		blockOpts:             block.NewOptions(),
-		initialResultCapacity: defaultInitialShardResultCapacity,
+		clockOpts:      clock.NewOptions(),
+		instrumentOpts: instrument.NewOptions(),
+		retentionOpts:  retention.NewOptions(),
+		blockOpts:      block.NewOptions(),
 	}
 }
 
@@ -88,14 +82,4 @@ func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 
 func (o *options) DatabaseBlockOptions() block.Options {
 	return o.blockOpts
-}
-
-func (o *options) SetInitialShardResultCapacity(value int) Options {
-	opts := *o
-	opts.initialResultCapacity = value
-	return &opts
-}
-
-func (o *options) InitialShardResultCapacity() int {
-	return o.initialResultCapacity
 }

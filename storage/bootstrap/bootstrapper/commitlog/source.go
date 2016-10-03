@@ -168,9 +168,9 @@ func (s *commitLogSource) Read(
 	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
 	for shard, unmergedShard := range unmerged {
-		shardResult := bootstrap.NewShardResult(s.opts.BootstrapOptions())
+		shardResult := bootstrap.NewShardResult(len(unmergedShard), s.opts.BootstrapOptions())
 		for id, unmergedBlocks := range unmergedShard {
-			blocks := block.NewDatabaseSeriesBlocks(blopts)
+			blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks), blopts)
 			for start, unmergedBlock := range unmergedBlocks {
 				block := blocksPool.Get()
 				if len(unmergedBlock) == 0 {

@@ -218,10 +218,10 @@ type databaseSeriesBlocks struct {
 }
 
 // NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
-func NewDatabaseSeriesBlocks(opts Options) DatabaseSeriesBlocks {
+func NewDatabaseSeriesBlocks(capacity int, opts Options) DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
 		opts:  opts,
-		elems: make(map[time.Time]DatabaseBlock),
+		elems: make(map[time.Time]DatabaseBlock, capacity),
 	}
 }
 

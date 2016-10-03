@@ -296,7 +296,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	b.EXPECT().StartTime().Return(blockStart)
 	b.EXPECT().Stream(gomock.Any()).Return(nil, errors.New("bar"))
 	b.EXPECT().Close()
-	blocks := block.NewDatabaseSeriesBlocks(blopts)
+	blocks := block.NewDatabaseSeriesBlocks(0, blopts)
 	blocks.AddBlock(b)
 
 	faultyEncoder := opts.EncoderPool().Get()
