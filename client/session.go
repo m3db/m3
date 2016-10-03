@@ -1445,7 +1445,7 @@ func newBlocksResult(opts Options, bootstrapOpts bootstrap.Options) *blocksResul
 		blockAllocSize: blockOpts.DatabaseBlockAllocSize(),
 		encoderPool:    blockOpts.EncoderPool(),
 		bytesPool:      blockOpts.BytesPool(),
-		result:         bootstrap.NewShardResult(bootstrapOpts),
+		result:         bootstrap.NewShardResult(4096, bootstrapOpts),
 	}
 }
 

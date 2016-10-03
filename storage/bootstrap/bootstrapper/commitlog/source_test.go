@@ -244,7 +244,7 @@ func requireShardResults(
 	for _, v := range values {
 		result, ok := expected[v.s.Shard]
 		if !ok {
-			result = bootstrap.NewShardResult(bopts)
+			result = bootstrap.NewShardResult(0, bopts)
 			// Trigger blocks to be created for series
 			result.AddSeries(v.s.ID, nil)
 			expected[v.s.Shard] = result

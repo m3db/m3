@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
@@ -56,6 +57,7 @@ type dbShard struct {
 	nowFn                 clock.NowFn
 	shard                 uint32
 	increasingIndex       increasingIndex
+	seriesPool            series.DatabaseSeriesPool
 	writeCommitLogFn      writeCommitLogFn
 	lookup                map[string]*list.Element
 	list                  *list.List
@@ -68,7 +70,7 @@ type dbShard struct {
 }
 
 type dbShardEntry struct {
-	series     databaseSeries
+	series     series.DatabaseSeries
 	index      uint64
 	curWriters int32
 }
@@ -103,6 +105,7 @@ func newDatabaseShard(
 		nowFn:                 opts.ClockOptions().NowFn(),
 		shard:                 shard,
 		increasingIndex:       increasingIndex,
+		seriesPool:            opts.DatabaseSeriesPool(),
 		writeCommitLogFn:      writeCommitLogFn,
 		lookup:                make(map[string]*list.Element),
 		list:                  list.New(),
@@ -179,7 +182,7 @@ func (s *dbShard) Tick(softDeadline time.Duration) {
 func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
 	var (
 		perEntrySoftDeadline time.Duration
-		expired              []databaseSeries
+		expired              []series.DatabaseSeries
 		i, total             int
 	)
 	if size := s.NumSeries(); size > 0 {
@@ -194,10 +197,9 @@ func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
 				s.sleepFn(prevEntryDeadline.Sub(now))
 			}
 		}
-		series := entry.series
-		err := series.Tick()
-		if err == errSeriesAllDatapointsExpired {
-			expired = append(expired, series)
+		err := entry.series.Tick()
+		if err == series.ErrSeriesAllDatapointsExpired {
+			expired = append(expired, entry.series)
 			if len(expired) >= expireBatchLength {
 				// Purge when reaching max batch size to avoid large array growth
 				// and ensure smooth rate of elements being returned to pools.
@@ -223,7 +225,7 @@ func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
 	return total
 }
 
-func (s *dbShard) purgeExpiredSeries(expired []databaseSeries) {
+func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 	// Remove all expired series from lookup and list.
 	s.Lock()
 	for _, series := range expired {
@@ -245,6 +247,7 @@ func (s *dbShard) purgeExpiredSeries(expired []databaseSeries) {
 		// NB(xichen): if we get here, we are guaranteed that there can be
 		// no more writes to this series while the lock is held, so it's
 		// safe to remove it.
+		series.Close()
 		s.list.Remove(elem)
 		delete(s.lookup, id)
 	}
@@ -305,7 +308,7 @@ func (s *dbShard) getEntryWithLock(id string) (*dbShardEntry, *list.Element, boo
 	return elem.Value.(*dbShardEntry), elem, true
 }
 
-func (s *dbShard) writableSeries(id string) (databaseSeries, uint64, writeCompletionFn) {
+func (s *dbShard) writableSeries(id string) (series.DatabaseSeries, uint64, writeCompletionFn) {
 	s.RLock()
 	if entry, _, exists := s.getEntryWithLock(id); exists {
 		entry.incrementWriterCount()
@@ -314,6 +317,17 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, uint64, writeComple
 	}
 	s.RUnlock()
 
+	// Retrieve the entry out of any locks to avoid any possible expensive
+	// allocations during any unpooled gets blocking other writers
+	series := s.seriesPool.Get()
+	series.Reset(id)
+
+	entry := &dbShardEntry{
+		series:     series,
+		index:      s.increasingIndex.nextIndex(),
+		curWriters: 1,
+	}
+
 	s.Lock()
 	if entry, _, exists := s.getEntryWithLock(id); exists {
 		entry.incrementWriterCount()
@@ -321,14 +335,9 @@ func (s *dbShard) writableSeries(id string) (databaseSeries, uint64, writeComple
 		// During Rlock -> Wlock promotion the entry was inserted
 		return entry.series, entry.index, entry.decrementWriterCount
 	}
-	bs := bootstrapNotStarted
 	if s.newSeriesBootstrapped {
-		bs = bootstrapped
-	}
-	entry := &dbShardEntry{
-		series:     newDatabaseSeries(id, bs, s.opts),
-		index:      s.increasingIndex.nextIndex(),
-		curWriters: 1,
+		// Transitioned to new series being bootstrapped
+		entry.series.Bootstrap(nil)
 	}
 	elem := s.list.PushBack(entry)
 	s.lookup[id] = elem

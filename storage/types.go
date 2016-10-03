@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/repair"
+	"github.com/m3db/m3db/storage/series"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -223,81 +224,6 @@ type databaseShard interface {
 	Repair(namespace string, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error)
 }
 
-type databaseSeries interface {
-	ID() string
-
-	// Tick performs any updates to ensure buffer drains, blocks are flushed, etc
-	Tick() error
-
-	Write(
-		ctx context.Context,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	) error
-
-	ReadEncoded(
-		ctx context.Context,
-		start, end time.Time,
-	) ([][]xio.SegmentReader, error)
-
-	// FetchBlocks retrieves data blocks given a list of block start times.
-	FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult
-
-	// FetchBlocksMetadata retrieves the blocks metadata.
-	FetchBlocksMetadata(
-		ctx context.Context,
-		includeSizes bool,
-		includeChecksums bool,
-	) block.FetchBlocksMetadataResult
-
-	// IsEmpty returns whether series is empty
-	IsEmpty() bool
-
-	// IsBootstrapped returns whether the series is bootstrapped or not
-	IsBootstrapped() bool
-
-	// Bootstrap merges the raw series bootstrapped along with the buffered data.
-	Bootstrap(rs block.DatabaseSeriesBlocks) error
-
-	// Flush flushes the data blocks of this series for a given start time.
-	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
-}
-
-type databaseBuffer interface {
-	Write(
-		ctx context.Context,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	) error
-
-	// ReadEncoded will return the full buffer's data as encoded segments
-	// if start and end intersects the buffer at all, nil otherwise
-	ReadEncoded(
-		ctx context.Context,
-		start, end time.Time,
-	) [][]xio.SegmentReader
-
-	// FetchBlocks retrieves data blocks given a list of block start times.
-	FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult
-
-	// FetchBlocksMetadata retrieves the blocks metadata.
-	FetchBlocksMetadata(
-		ctx context.Context,
-		includeSizes bool,
-		includeChecksums bool,
-	) []block.FetchBlockMetadataResult
-
-	IsEmpty() bool
-
-	NeedsDrain() bool
-
-	DrainAndReset(forced bool)
-}
-
 // databaseBootstrapManager manages the bootstrap process.
 type databaseBootstrapManager interface {
 	// IsBootstrapped returns whether the database is already bootstrapped.
@@ -447,6 +373,12 @@ type Options interface {
 
 	// ContextPool returns the contextPool
 	ContextPool() context.Pool
+
+	// SetDatabaseSeriesPool sets the database series pool
+	SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options
+
+	// DatabaseSeriesPool returns the database series pool
+	DatabaseSeriesPool() series.DatabaseSeriesPool
 
 	// SetBytesPool sets the bytesPool
 	SetBytesPool(value pool.BytesPool) Options

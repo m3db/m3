@@ -423,23 +423,3 @@ func (_m *MockOptions) DatabaseBlockOptions() block.Options {
 func (_mr *_MockOptionsRecorder) DatabaseBlockOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseBlockOptions")
 }
-
-func (_m *MockOptions) SetInitialShardResultCapacity(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetInitialShardResultCapacity", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetInitialShardResultCapacity(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInitialShardResultCapacity", arg0)
-}
-
-func (_m *MockOptions) InitialShardResultCapacity() int {
-	ret := _m.ctrl.Call(_m, "InitialShardResultCapacity")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) InitialShardResultCapacity() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "InitialShardResultCapacity")
-}

@@ -74,6 +74,7 @@ type reader struct {
 	expectedDataDigest         uint32
 	expectedDigestOfDigest     uint32
 
+	unreadBuf   []byte
 	entries     int
 	entriesRead int
 	indexUnread []byte
@@ -114,21 +115,35 @@ func (r *reader) Open(namespace string, shard uint32, blockStart time.Time) erro
 	r.dataFdWithDigest.Reset(dataFd)
 	r.digestFdWithDigestContents.Reset(digestFd)
 	if err := r.readDigest(); err != nil {
-		// Try to close if failed to read digest
+		// Try to close if failed to read
 		r.Close()
 		return err
 	}
-	if err := r.readInfo(); err != nil {
-		// Try to close if failed to read info
+	infoStat, err := infoFd.Stat()
+	if err != nil {
 		r.Close()
 		return err
 	}
-	if err := r.readIndex(); err != nil {
-		// Try to close if failed to read index
+	indexStat, err := indexFd.Stat()
+	if err != nil {
+		r.Close()
+		return err
+	}
+	if err := r.readInfo(int(infoStat.Size())); err != nil {
+		r.Close()
+		return err
+	}
+	if err := r.readIndex(int(indexStat.Size())); err != nil {
 		r.Close()
 		return err
 	}
 	return nil
+}
+
+func (r *reader) prepareUnreadBuf(size int) {
+	if len(r.unreadBuf) < size {
+		r.unreadBuf = make([]byte, size)
+	}
 }
 
 func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error {
@@ -163,12 +178,13 @@ func (r *reader) readDigest() error {
 	return r.digestFdWithDigestContents.Validate(r.expectedDigestOfDigest)
 }
 
-func (r *reader) readInfo() error {
-	data, err := r.infoFdWithDigest.ReadAllAndValidate(r.expectedInfoDigest)
+func (r *reader) readInfo(size int) error {
+	r.prepareUnreadBuf(size)
+	n, err := r.infoFdWithDigest.ReadAllAndValidate(r.unreadBuf[:size], r.expectedInfoDigest)
 	if err != nil {
 		return err
 	}
-	info, err := readInfo(data)
+	info, err := readInfo(r.unreadBuf[:n])
 	if err != nil {
 		return err
 	}
@@ -179,14 +195,15 @@ func (r *reader) readInfo() error {
 	return nil
 }
 
-func (r *reader) readIndex() error {
-	// NB(r): use a bytes.NewReader if/when protobuf library supports buffered reading
-	data, err := r.indexFdWithDigest.ReadAllAndValidate(r.expectedIndexDigest)
+func (r *reader) readIndex(size int) error {
+	// NB(r): need to entirely consume index file so we don't stripe
+	// between index and data contents as we read the data contents.
+	r.prepareUnreadBuf(size)
+	n, err := r.indexFdWithDigest.ReadAllAndValidate(r.unreadBuf[:size], r.expectedIndexDigest)
 	if err != nil {
 		return err
 	}
-	r.indexUnread = data
-
+	r.indexUnread = r.unreadBuf[:n][:]
 	return nil
 }
 

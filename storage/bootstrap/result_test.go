@@ -50,8 +50,8 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	}
 
 	srs := []ShardResult{
-		NewShardResult(opts),
-		NewShardResult(opts),
+		NewShardResult(0, opts),
+		NewShardResult(0, opts),
 	}
 
 	srs[0].AddBlock("foo", blocks[0])
@@ -63,7 +63,7 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	r.Add(0, srs[0], nil)
 	r.Add(0, srs[1], nil)
 
-	srMerged := NewShardResult(opts)
+	srMerged := NewShardResult(0, opts)
 	srMerged.AddBlock("foo", blocks[0])
 	srMerged.AddBlock("foo", blocks[1])
 	srMerged.AddBlock("bar", blocks[2])
@@ -149,8 +149,8 @@ func TestResultAddResult(t *testing.T) {
 	}
 
 	srs := []ShardResult{
-		NewShardResult(opts),
-		NewShardResult(opts),
+		NewShardResult(0, opts),
+		NewShardResult(0, opts),
 	}
 
 	srs[0].AddBlock("foo", blocks[0])
@@ -176,7 +176,7 @@ func TestResultAddResult(t *testing.T) {
 	r := rs[0]
 	r.AddResult(rs[1])
 
-	srMerged := NewShardResult(opts)
+	srMerged := NewShardResult(0, opts)
 	srMerged.AddBlock("foo", blocks[0])
 	srMerged.AddBlock("foo", blocks[1])
 	srMerged.AddBlock("bar", blocks[2])
@@ -201,7 +201,7 @@ func TestResultAddResult(t *testing.T) {
 
 func TestShardResultIsEmpty(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(opts)
+	sr := NewShardResult(0, opts)
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(time.Now(), nil)
@@ -211,7 +211,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 
 func TestShardResultAddBlock(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(opts)
+	sr := NewShardResult(0, opts)
 	start := time.Now()
 	inputs := []struct {
 		id        string
@@ -234,19 +234,19 @@ func TestShardResultAddBlock(t *testing.T) {
 
 func TestShardResultAddSeries(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(opts)
+	sr := NewShardResult(0, opts)
 	start := time.Now()
 	inputs := []struct {
 		id     string
 		series block.DatabaseSeriesBlocks
 	}{
-		{"foo", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())},
-		{"bar", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())},
+		{"foo", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
+		{"bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
 	}
 	for _, input := range inputs {
 		sr.AddSeries(input.id, input.series)
 	}
-	moreSeries := block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())
+	moreSeries := block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(start, nil)
 	moreSeries.AddBlock(block)
@@ -259,25 +259,25 @@ func TestShardResultAddSeries(t *testing.T) {
 
 func TestShardResultAddResult(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(opts)
+	sr := NewShardResult(0, opts)
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
-	other := NewShardResult(opts)
-	other.AddSeries("foo", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions()))
-	other.AddSeries("bar", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions()))
+	other := NewShardResult(0, opts)
+	other.AddSeries("foo", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
+	other.AddSeries("bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
 	sr.AddResult(other)
 	require.Len(t, sr.AllSeries(), 2)
 }
 
 func TestShardResultRemoveSeries(t *testing.T) {
 	opts := testResultOptions()
-	sr := NewShardResult(opts)
+	sr := NewShardResult(0, opts)
 	inputs := []struct {
 		id     string
 		series block.DatabaseSeriesBlocks
 	}{
-		{"foo", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())},
-		{"bar", block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions())},
+		{"foo", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
+		{"bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
 	}
 	for _, input := range inputs {
 		sr.AddSeries(input.id, input.series)

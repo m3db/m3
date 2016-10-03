@@ -49,6 +49,13 @@ func createTestFdWithDigestContentsReader(t *testing.T) (*fdWithDigestContentsRe
 	return reader, fd, md
 }
 
+func bufferFor(t *testing.T, fd *os.File) []byte {
+	stat, err := fd.Stat()
+	require.NoError(t, err)
+	size := int(stat.Size())
+	return make([]byte, size)
+}
+
 func TestFdWithDigestReaderReset(t *testing.T) {
 	reader, _, _ := createTestFdWithDigestReader(t)
 	require.NotNil(t, reader.Fd())
@@ -134,7 +141,8 @@ func TestFdWithDigestReadAllFileReadError(t *testing.T) {
 	}()
 
 	reader.Reset(nil)
-	_, err := reader.ReadAllAndValidate(0)
+	buf := bufferFor(t, fd)
+	_, err := reader.ReadAllAndValidate(buf, 0)
 	require.Error(t, err)
 }
 
@@ -150,7 +158,8 @@ func testFdWithDigestReadAllValidation(t *testing.T, expectedDigest uint32, expe
 	fd.Seek(-1, 1)
 
 	md.digest = 1
-	_, err := reader.ReadAllAndValidate(expectedDigest)
+	buf := bufferFor(t, fd)
+	_, err := reader.ReadAllAndValidate(buf, expectedDigest)
 	require.Equal(t, expectedErr, err)
 }
 

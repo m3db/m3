@@ -57,12 +57,6 @@ var (
 
 	// errShardNotBootstrapped raised when trying to flush data for a shard that's not yet bootstrapped.
 	errShardNotBootstrapped = errors.New("shard is not yet bootstrapped")
-
-	// errSeriesIsBootstrapping raised when trying to bootstrap a series that's being bootstrapped.
-	errSeriesIsBootstrapping = errors.New("series is bootstrapping")
-
-	// errSeriesNotBootstrapped raised when trying to flush data for a series that's not yet bootstrapped.
-	errSeriesNotBootstrapped = errors.New("series is not yet bootstrapped")
 )
 
 type bootstrapManager struct {

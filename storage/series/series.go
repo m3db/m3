@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package series
 
 import (
 	"errors"
@@ -36,10 +36,22 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+type bootstrapState int
+
+const (
+	bootstrapNotStarted bootstrapState = iota
+	bootstrapping
+	bootstrapped
+)
+
 var (
-	errInvalidRange               = errors.New("invalid time range specified")
-	errSeriesAllDatapointsExpired = errors.New("all series datapoints expired")
-	errSeriesDrainEmptyStream     = errors.New("series attempted to drain an empty stream")
+	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
+	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
+
+	errSeriesReadInvalidRange = errors.New("series invalid time range read argument specified")
+	errSeriesDrainEmptyStream = errors.New("series attempted to drain an empty stream")
+	errSeriesIsBootstrapping  = errors.New("series is bootstrapping")
+	errSeriesNotBootstrapped  = errors.New("series is not yet bootstrapped")
 )
 
 type dbSeries struct {
@@ -50,6 +62,7 @@ type dbSeries struct {
 	blocks           block.DatabaseSeriesBlocks
 	pendingBootstrap []pendingBootstrapDrain
 	bs               bootstrapState
+	pool             DatabaseSeriesPool
 }
 
 type pendingBootstrapDrain struct {
@@ -57,12 +70,26 @@ type pendingBootstrapDrain struct {
 	encoder encoding.Encoder
 }
 
-func newDatabaseSeries(id string, bs bootstrapState, opts Options) databaseSeries {
+// NewDatabaseSeries creates a new database series
+func NewDatabaseSeries(id string, opts Options) DatabaseSeries {
+	return newDatabaseSeries(id, opts)
+}
+
+// NewPooledDatabaseSeries creates a new pooled database series
+func NewPooledDatabaseSeries(id string, pool DatabaseSeriesPool, opts Options) DatabaseSeries {
+	series := newDatabaseSeries(id, opts)
+	series.pool = pool
+	return series
+}
+
+func newDatabaseSeries(id string, opts Options) *dbSeries {
+	ropts := opts.RetentionOptions()
+	blocksLen := int(ropts.RetentionPeriod() / ropts.BlockSize())
 	series := &dbSeries{
 		opts:     opts,
 		seriesID: id,
-		blocks:   block.NewDatabaseSeriesBlocks(opts.DatabaseBlockOptions()),
-		bs:       bs,
+		blocks:   block.NewDatabaseSeriesBlocks(blocksLen, opts.DatabaseBlockOptions()),
+		bs:       bootstrapNotStarted,
 	}
 	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
 	return series
@@ -74,7 +101,7 @@ func (s *dbSeries) ID() string {
 
 func (s *dbSeries) Tick() error {
 	if s.IsEmpty() {
-		return errSeriesAllDatapointsExpired
+		return ErrSeriesAllDatapointsExpired
 	}
 
 	// In best case when explicitly asked to drain may have no
@@ -195,7 +222,7 @@ func (s *dbSeries) ReadEncoded(
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	if end.Before(start) {
-		return nil, xerrors.NewInvalidParamsError(errInvalidRange)
+		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
 	}
 
 	// TODO(r): pool these results arrays
@@ -369,9 +396,7 @@ func (s *dbSeries) drainBufferedEncoderWithLock(
 	if !ok {
 		block := blopts.DatabaseBlockPool().Get()
 		block.Reset(blockStart, enc)
-		block.Seal()
 		blocks.AddBlock(block)
-
 		return nil
 	}
 
@@ -414,7 +439,6 @@ func (s *dbSeries) drainBufferedEncoderWithLock(
 
 	block := blopts.DatabaseBlockPool().Get()
 	block.Reset(blockStart, encoder)
-	block.Seal()
 	blocks.AddBlock(block)
 
 	return nil
@@ -438,11 +462,12 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
 	s.bs = bootstrapping
 
 	if rs == nil {
-		rs = block.NewDatabaseSeriesBlocks(s.opts.DatabaseBlockOptions())
+		// If no data to bootstrap from then fallback to the empty blocks map.
+		rs = s.blocks
 	}
 
-	// Force the in-memory buffer to drain and reset so we can merge the in-memory
-	// data accumulated during bootstrapping.
+	// Force the in-memory buffer to drain and reset so we can merge the
+	// in-memory data accumulated during bootstrapping.
 	s.buffer.DrainAndReset(true)
 
 	// NB(xichen): if an error occurred during series bootstrap, we close
@@ -452,7 +477,10 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
 	for i := range s.pendingBootstrap {
 		if err := s.drainBufferedEncoderWithLock(rs, s.pendingBootstrap[i].start, s.pendingBootstrap[i].encoder); err != nil {
 			rs.Close()
-			rs = block.NewDatabaseSeriesBlocks(s.opts.DatabaseBlockOptions())
+
+			ropts := s.opts.RetentionOptions()
+			blocksLen := int(ropts.RetentionPeriod() / ropts.BlockSize())
+			rs = block.NewDatabaseSeriesBlocks(blocksLen, s.opts.DatabaseBlockOptions())
 			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.seriesID, err))
 			multiErr = multiErr.Add(err)
 		}
@@ -488,4 +516,25 @@ func (s *dbSeries) Flush(ctx context.Context, blockStart time.Time, persistFn pe
 	}
 	segment := sr.Segment()
 	return persistFn(s.seriesID, segment)
+}
+
+func (s *dbSeries) Close() {
+	s.Lock()
+	s.buffer.Reset()
+	s.blocks.Close()
+	s.pendingBootstrap = nil
+	s.Unlock()
+	if s.pool != nil {
+		s.pool.Put(s)
+	}
+}
+
+func (s *dbSeries) Reset(id string) {
+	s.Lock()
+	s.seriesID = id
+	s.buffer.Reset()
+	s.blocks.RemoveAll()
+	s.pendingBootstrap = nil
+	s.bs = bootstrapNotStarted
+	s.Unlock()
 }

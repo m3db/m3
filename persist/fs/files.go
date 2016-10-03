@@ -319,9 +319,21 @@ func readAndValidate(
 	}
 	defer fd.Close()
 
+	stat, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	size := int(stat.Size())
+	buf := make([]byte, size)
+
 	fwd := digest.NewFdWithDigestReader(readerBufferSize)
 	fwd.Reset(fd)
-	return fwd.ReadAllAndValidate(expectedDigest)
+	n, err := fwd.ReadAllAndValidate(buf, expectedDigest)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
 }
 
 // ShardDirPath returns the path to a given shard.

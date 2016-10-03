@@ -27,6 +27,7 @@
 //go:generate sh -c "mockgen -package=bootstrap -destination=$GOPATH/src/$PACKAGE/storage/bootstrap/bootstrap_mock.go -source=$GOPATH/src/$PACKAGE/storage/bootstrap/types.go"
 //go:generate sh -c "mockgen -package=persist -destination=$GOPATH/src/$PACKAGE/persist/persist_mock.go -source=$GOPATH/src/$PACKAGE/persist/types.go"
 //go:generate sh -c "mockgen -package=storage -destination=$GOPATH/src/$PACKAGE/storage/storage_mock.go -source=$GOPATH/src/$PACKAGE/storage/types.go"
+//go:generate sh -c "mockgen -package=series -destination=$GOPATH/src/$PACKAGE/storage/series/series_mock.go -source=$GOPATH/src/$PACKAGE/storage/series/types.go"
 //go:generate sh -c "mockgen -package=block -destination=$GOPATH/src/$PACKAGE/storage/block/block_mock.go -source=$GOPATH/src/$PACKAGE/storage/block/types.go"
 //go:generate sh -c "mockgen -package=rpc -destination=$GOPATH/src/$PACKAGE/generated/thrift/rpc/rpc_mock.go -source=$GOPATH/src/$PACKAGE/generated/thrift/rpc/tchan-rpc.go"
 //go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/client_mock.go -source=$GOPATH/src/$PACKAGE/client/types.go"

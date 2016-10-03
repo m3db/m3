@@ -155,10 +155,4 @@ type Options interface {
 
 	// DatabaseBlockOptions returns the database block options
 	DatabaseBlockOptions() block.Options
-
-	// SetInitialShardResultCapacity sets the initial shard result capacity
-	SetInitialShardResultCapacity(value int) Options
-
-	// InitialShardResultCapacity returns the initial shard result capacity
-	InitialShardResultCapacity() int
 }

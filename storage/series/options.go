@@ -18,29 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrap
+package series
 
 import (
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 )
 
 type options struct {
-	clockOpts      clock.Options
-	instrumentOpts instrument.Options
-	retentionOpts  retention.Options
-	blockOpts      block.Options
+	clockOpts               clock.Options
+	instrumentOpts          instrument.Options
+	retentionOpts           retention.Options
+	blockOpts               block.Options
+	contextPool             context.Pool
+	encoderPool             encoding.EncoderPool
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool
 }
 
-// NewOptions creates new bootstrap options
+// NewOptions creates new database series options
 func NewOptions() Options {
 	return &options{
-		clockOpts:      clock.NewOptions(),
-		instrumentOpts: instrument.NewOptions(),
-		retentionOpts:  retention.NewOptions(),
-		blockOpts:      block.NewOptions(),
+		clockOpts:               clock.NewOptions(),
+		instrumentOpts:          instrument.NewOptions(),
+		retentionOpts:           retention.NewOptions(),
+		blockOpts:               block.NewOptions(),
+		contextPool:             context.NewPool(nil),
+		encoderPool:             encoding.NewEncoderPool(nil),
+		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
 	}
 }
 
@@ -82,4 +90,34 @@ func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 
 func (o *options) DatabaseBlockOptions() block.Options {
 	return o.blockOpts
+}
+
+func (o *options) SetContextPool(value context.Pool) Options {
+	opts := *o
+	opts.contextPool = value
+	return &opts
+}
+
+func (o *options) ContextPool() context.Pool {
+	return o.contextPool
+}
+
+func (o *options) SetEncoderPool(value encoding.EncoderPool) Options {
+	opts := *o
+	opts.encoderPool = value
+	return &opts
+}
+
+func (o *options) EncoderPool() encoding.EncoderPool {
+	return o.encoderPool
+}
+
+func (o *options) SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
+	opts := *o
+	opts.multiReaderIteratorPool = value
+	return &opts
+}
+
+func (o *options) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
+	return o.multiReaderIteratorPool
 }

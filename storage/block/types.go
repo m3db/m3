@@ -159,6 +159,9 @@ type DatabaseSeriesBlocks interface {
 	// RemoveBlockAt removes the block at a given time if any.
 	RemoveBlockAt(t time.Time)
 
+	// RemoveAll removes all blocks.
+	RemoveAll()
+
 	// Close closes all the blocks.
 	Close()
 }
