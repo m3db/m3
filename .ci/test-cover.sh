@@ -19,6 +19,16 @@ do
 done
 
 NPROC=$(getconf _NPROCESSORS_ONLN)
+
+if [ "$TRAVIS" = "true" ]; then
+  # Use half CPUs, Travis CI OOMs when using all during compilation sometimes...
+  NPROC=$(expr `getconf _NPROCESSORS_ONLN` / 2)
+  if [ "$NPROC" = "0" ]; then
+    NPROC="1"
+  fi
+fi 
+
+echo "test-cover begin: concurrency $NPROC"
 go run .ci/gotestcover/gotestcover.go -race -covermode=atomic -coverprofile=profile.tmp -v -parallelpackages $NPROC $DIRS | tee $LOG
 
 TEST_EXIT=${PIPESTATUS[0]}
