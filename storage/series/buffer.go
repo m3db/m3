@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package series
 
 import (
 	"errors"
@@ -38,6 +38,7 @@ import (
 var (
 	errTooFuture = errors.New("datapoint is too far in the future")
 	errTooPast   = errors.New("datapoint is too far in the past")
+	timeZero     time.Time
 )
 
 const (
@@ -62,21 +63,23 @@ type dbBuffer struct {
 type databaseBufferDrainFn func(start time.Time, encoder encoding.Encoder)
 
 func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuffer {
-	nowFn := opts.ClockOptions().NowFn()
-
 	b := &dbBuffer{
 		opts:         opts,
-		nowFn:        nowFn,
+		nowFn:        opts.ClockOptions().NowFn(),
 		drainFn:      drainFn,
 		blockSize:    opts.RetentionOptions().BlockSize(),
 		bufferPast:   opts.RetentionOptions().BufferPast(),
 		bufferFuture: opts.RetentionOptions().BufferFuture(),
 	}
-	b.forEachBucketAsc(nowFn(), func(bucket *dbBufferBucket, start time.Time) {
-		bucket.opts = opts
+	b.Reset()
+	return b
+}
+
+func (b *dbBuffer) Reset() {
+	b.forEachBucketAsc(b.nowFn(), func(bucket *dbBufferBucket, start time.Time) {
+		bucket.opts = b.opts
 		bucket.resetTo(start)
 	})
-	return b
 }
 
 func (b *dbBuffer) Write(

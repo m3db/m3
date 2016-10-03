@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package series
 
 import (
 	"testing"
@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3db/encoding"
 	xio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 )

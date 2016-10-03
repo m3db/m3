@@ -533,6 +533,14 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) RemoveBlockAt(arg0 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveBlockAt", arg0)
 }
 
+func (_m *MockDatabaseSeriesBlocks) RemoveAll() {
+	_m.ctrl.Call(_m, "RemoveAll")
+}
+
+func (_mr *_MockDatabaseSeriesBlocksRecorder) RemoveAll() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveAll")
+}
+
 func (_m *MockDatabaseSeriesBlocks) Close() {
 	_m.ctrl.Call(_m, "Close")
 }

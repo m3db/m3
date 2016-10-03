@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -52,8 +53,8 @@ func testDatabaseShard(opts Options) *dbShard {
 	return newDatabaseShard(0, &testIncreasingIndex{}, commitLogWriteNoOp, true, opts).(*dbShard)
 }
 
-func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id string, index uint64) *MockdatabaseSeries {
-	series := NewMockdatabaseSeries(ctrl)
+func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id string, index uint64) *series.MockDatabaseSeries {
+	series := series.NewMockDatabaseSeries(ctrl)
 	shard.lookup[id] = shard.list.PushBack(&dbShardEntry{series: series, index: index})
 	return series
 }
@@ -72,8 +73,8 @@ func TestShardBootstrapWithError(t *testing.T) {
 	writeStart := time.Now()
 	opts := testDatabaseOptions()
 	s := testDatabaseShard(opts)
-	fooSeries := NewMockdatabaseSeries(ctrl)
-	barSeries := NewMockdatabaseSeries(ctrl)
+	fooSeries := series.NewMockDatabaseSeries(ctrl)
+	barSeries := series.NewMockDatabaseSeries(ctrl)
 	s.lookup["foo"] = s.list.PushBack(&dbShardEntry{series: fooSeries})
 	s.lookup["bar"] = s.list.PushBack(&dbShardEntry{series: barSeries})
 
@@ -155,7 +156,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		if i == 1 {
 			expectedErr = errors.New("error bar")
 		}
-		series := NewMockdatabaseSeries(ctrl)
+		series := series.NewMockDatabaseSeries(ctrl)
 		series.EXPECT().
 			Flush(gomock.Any(), blockStart, gomock.Any()).
 			Do(func(context.Context, time.Time, persist.Fn) {
@@ -177,8 +178,9 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	require.Equal(t, "error foo\nerror bar", err.Error())
 }
 
-func addTestSeries(shard *dbShard, id string) databaseSeries {
-	series := newDatabaseSeries(id, bootstrapped, shard.opts)
+func addTestSeries(shard *dbShard, id string) series.DatabaseSeries {
+	series := series.NewDatabaseSeries(id, NewSeriesOptionsFromOptions(shard.opts))
+	series.Bootstrap(nil)
 	shard.lookup[id] = shard.list.PushBack(&dbShardEntry{series: series})
 	return series
 }
@@ -253,18 +255,18 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
-	series := addMockSeries(ctrl, shard, "foo", 0)
-	series.EXPECT().ID().Return("foo")
-	series.EXPECT().Tick().Do(func() {
+	s := addMockSeries(ctrl, shard, "foo", 0)
+	s.EXPECT().ID().Return("foo")
+	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place just after tick for this series
-		series.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
 		shard.Write(ctx, "foo", nowFn(), 1.0, xtime.Second, nil)
 
-		series.EXPECT().IsEmpty().Return(false)
-	}).Return(errSeriesAllDatapointsExpired)
+		s.EXPECT().IsEmpty().Return(false)
+	}).Return(series.ErrSeriesAllDatapointsExpired)
 
 	expired := shard.tickAndExpire(0)
 	require.Equal(t, 1, expired)
@@ -282,12 +284,12 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
-	series := addMockSeries(ctrl, shard, "foo", 0)
-	series.EXPECT().ID().Return("foo")
-	series.EXPECT().Tick().Do(func() {
+	s := addMockSeries(ctrl, shard, "foo", 0)
+	s.EXPECT().ID().Return("foo")
+	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place and staying open just after tick for this series
 		_, _, writeCompletionFn = shard.writableSeries("foo")
-	}).Return(errSeriesAllDatapointsExpired)
+	}).Return(series.ErrSeriesAllDatapointsExpired)
 
 	expired := shard.tickAndExpire(0)
 	require.Equal(t, 1, expired)

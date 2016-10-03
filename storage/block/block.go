@@ -305,6 +305,13 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 	}
 }
 
+func (dbb *databaseSeriesBlocks) RemoveAll() {
+	for t, block := range dbb.elems {
+		block.Close()
+		delete(dbb.elems, t)
+	}
+}
+
 func (dbb *databaseSeriesBlocks) Close() {
 	for _, block := range dbb.elems {
 		block.Close()

@@ -18,26 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package series
 
 import (
+	"io"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func newBufferTestOptions() Options {
-	opts := NewOptions()
+	encoderPool := encoding.NewEncoderPool(nil)
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
+
+	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
+
+	encoderPool.Init(func() encoding.Encoder {
+		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+	})
+	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+	})
+
+	opts := NewOptions().
+		SetEncoderPool(encoderPool).
+		SetMultiReaderIteratorPool(multiReaderIteratorPool)
 	opts = opts.
 		SetRetentionOptions(opts.RetentionOptions().
 			SetBlockSize(2 * time.Minute).
@@ -46,9 +62,7 @@ func newBufferTestOptions() Options {
 			SetBufferDrain(30 * time.Second)).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
 			SetContextPool(opts.ContextPool()).
-			SetEncoderPool(opts.EncoderPool()).
-			SetSegmentReaderPool(opts.SegmentReaderPool()).
-			SetBytesPool(opts.BytesPool()))
+			SetEncoderPool(opts.EncoderPool()))
 	return opts
 }
 

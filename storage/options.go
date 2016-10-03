@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/repair"
+	"github.com/m3db/m3db/storage/series"
 	xio "github.com/m3db/m3db/x/io"
 )
 
@@ -68,6 +69,18 @@ var (
 	timeZero time.Time
 )
 
+// NewSeriesOptionsFromOptions creates a new set of database series options from options
+func NewSeriesOptionsFromOptions(opts Options) series.Options {
+	return series.NewOptions().
+		SetClockOptions(opts.ClockOptions()).
+		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetRetentionOptions(opts.RetentionOptions()).
+		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
+		SetContextPool(opts.ContextPool()).
+		SetEncoderPool(opts.EncoderPool()).
+		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool())
+}
+
 type options struct {
 	clockOpts               clock.Options
 	instrumentOpts          instrument.Options
@@ -81,6 +94,7 @@ type options struct {
 	newPersistManagerFn     NewPersistManagerFn
 	maxFlushRetries         int
 	contextPool             context.Pool
+	seriesPool              series.DatabaseSeriesPool
 	bytesPool               pool.BytesPool
 	encoderPool             encoding.EncoderPool
 	segmentReaderPool       xio.SegmentReaderPool
@@ -103,6 +117,7 @@ func NewOptions() Options {
 		newPersistManagerFn:     defaultNewPersistManagerFn,
 		maxFlushRetries:         defaultMaxFlushRetries,
 		contextPool:             context.NewPool(nil),
+		seriesPool:              series.NewDatabaseSeriesPool(series.NewOptions(), nil),
 		bytesPool:               pool.NewBytesPool(nil, nil),
 		encoderPool:             encoding.NewEncoderPool(nil),
 		segmentReaderPool:       xio.NewSegmentReaderPool(nil),
@@ -115,6 +130,8 @@ func NewOptions() Options {
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
+	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
+	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
 	return &opts
 }
 
@@ -125,6 +142,8 @@ func (o *options) ClockOptions() clock.Options {
 func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	opts.instrumentOpts = value
+	opts.commitLogOpts = opts.commitLogOpts.SetInstrumentOptions(value)
+	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
 	return &opts
 }
 
@@ -135,6 +154,8 @@ func (o *options) InstrumentOptions() instrument.Options {
 func (o *options) SetRetentionOptions(value retention.Options) Options {
 	opts := *o
 	opts.retentionOpts = value
+	opts.commitLogOpts = opts.commitLogOpts.SetRetentionOptions(value)
+	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
 	return &opts
 }
 
@@ -145,6 +166,7 @@ func (o *options) RetentionOptions() retention.Options {
 func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 	opts := *o
 	opts.blockOpts = value
+	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
 	return &opts
 }
 
@@ -223,6 +245,17 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).
 		SetMultiReaderIteratorPool(multiReaderIteratorPool)
+
+	seriesOpts := series.NewOptions().
+		SetClockOptions(opts.ClockOptions()).
+		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetRetentionOptions(opts.RetentionOptions()).
+		SetDatabaseBlockOptions(opts.blockOpts).
+		SetContextPool(contextPool).
+		SetEncoderPool(encoderPool).
+		SetMultiReaderIteratorPool(multiReaderIteratorPool)
+
+	opts.seriesPool = series.NewDatabaseSeriesPool(seriesOpts, nil)
 
 	return (&opts).encodingM3TSZ()
 }
@@ -306,6 +339,16 @@ func (o *options) SetContextPool(value context.Pool) Options {
 
 func (o *options) ContextPool() context.Pool {
 	return o.contextPool
+}
+
+func (o *options) SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options {
+	opts := *o
+	opts.seriesPool = value
+	return &opts
+}
+
+func (o *options) DatabaseSeriesPool() series.DatabaseSeriesPool {
+	return o.seriesPool
 }
 
 func (o *options) SetBytesPool(value pool.BytesPool) Options {
