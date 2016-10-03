@@ -101,14 +101,10 @@ func (r *reader) Open(namespace string, shard uint32, blockStart time.Time) erro
 	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
 		return err
 	}
-	var (
-		infoFd, indexFd, dataFd, digestFd *os.File
-		infoFilePath                      = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
-		indexFilePath                     = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
-	)
+	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		infoFilePath:  &infoFd,
-		indexFilePath: &indexFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
 		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
 		filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
 	}); err != nil {
@@ -119,25 +115,25 @@ func (r *reader) Open(namespace string, shard uint32, blockStart time.Time) erro
 	r.dataFdWithDigest.Reset(dataFd)
 	r.digestFdWithDigestContents.Reset(digestFd)
 	if err := r.readDigest(); err != nil {
-		// Try to close if failed to read digest
+		// Try to close if failed to read
 		r.Close()
 		return err
 	}
-	infoStat, err := os.Stat(infoFilePath)
+	infoStat, err := infoFd.Stat()
 	if err != nil {
+		r.Close()
 		return err
 	}
-	indexStat, err := os.Stat(indexFilePath)
+	indexStat, err := indexFd.Stat()
 	if err != nil {
+		r.Close()
 		return err
 	}
 	if err := r.readInfo(int(infoStat.Size())); err != nil {
-		// Try to close if failed to read info
 		r.Close()
 		return err
 	}
 	if err := r.readIndex(int(indexStat.Size())); err != nil {
-		// Try to close if failed to read index
 		r.Close()
 		return err
 	}

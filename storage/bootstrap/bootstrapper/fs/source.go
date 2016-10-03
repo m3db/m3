@@ -159,7 +159,6 @@ func (s *fileSystemSource) enqueueReaders(
 					readerPool.put(r)
 					continue
 				}
-				s.log.Infof("add reader for shard %d time %v", shard, t.String())
 				readers = append(readers, r)
 			}
 			readersCh <- shardReaders{shard: shard, tr: tr, readers: readers}
