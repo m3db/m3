@@ -131,17 +131,18 @@ func (c *ctx) Reset() {
 	c.Lock()
 	c.closed = false
 	if c.dep != nil {
-		c.dep.closers = c.dep.closers[:0]
+		if len(c.dep.closers) > defaultClosersCapacity {
+			// Free any large arrays that are created
+			c.dep.closers = nil
+		} else {
+			c.dep.closers = c.dep.closers[:0]
+		}
 		c.dep.dependencies = sync.WaitGroup{}
 	}
 	c.Unlock()
 }
 
 func (c *ctx) returnToPool() {
-	if c.dep != nil && len(c.dep.closers) > defaultClosersCapacity {
-		// Free any large arrays that are created
-		c.dep.closers = nil
-	}
 	if c.pool != nil {
 		c.Reset()
 		c.pool.Put(c)
