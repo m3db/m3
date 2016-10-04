@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultClosersCapacity = 4
+	defaultClosersCapacity = 32
 )
 
 type dependency struct {
@@ -131,7 +131,12 @@ func (c *ctx) Reset() {
 	c.Lock()
 	c.closed = false
 	if c.dep != nil {
-		c.dep.closers = c.dep.closers[:0]
+		if len(c.dep.closers) > defaultClosersCapacity {
+			// Free any large arrays that are created
+			c.dep.closers = nil
+		} else {
+			c.dep.closers = c.dep.closers[:0]
+		}
 		c.dep.dependencies = sync.WaitGroup{}
 	}
 	c.Unlock()
