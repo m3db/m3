@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultClosersCapacity = 4
+	defaultClosersCapacity = 32
 )
 
 type dependency struct {
@@ -138,6 +138,10 @@ func (c *ctx) Reset() {
 }
 
 func (c *ctx) returnToPool() {
+	if c.dep != nil && len(c.dep.closers) > defaultClosersCapacity {
+		// Free any large arrays that are created
+		c.dep.closers = nil
+	}
 	if c.pool != nil {
 		c.Reset()
 		c.pool.Put(c)
