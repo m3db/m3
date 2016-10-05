@@ -120,7 +120,7 @@ func (p *bytesPool) Put(buffer []byte) {
 // BytesPool if the slice is at capacity
 func AppendByte(bytes []byte, b byte, pool BytesPool) []byte {
 	if len(bytes) == cap(bytes) {
-		newBytes := pool.Get((cap(bytes) + 1) * 2) // +1 in case cap(s) == 0
+		newBytes := pool.Get(cap(bytes) * 2)
 		n := copy(newBytes[:len(bytes)], bytes)
 		pool.Put(bytes)
 		bytes = newBytes[:n]
