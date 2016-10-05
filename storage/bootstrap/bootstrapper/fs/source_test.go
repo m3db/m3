@@ -31,6 +31,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3x/time"
 
@@ -343,7 +344,7 @@ func TestReadValidateError(t *testing.T) {
 
 	reader := fs.NewMockFileSetReader(ctrl)
 	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
-	src.newReaderFn = func(filePathPrefix string, readerBufferSize int) fs.FileSetReader {
+	src.newReaderFn = func(filePathPrefix string, readerBufferSize int, b pool.BytesPool) fs.FileSetReader {
 		return reader
 	}
 
@@ -377,7 +378,7 @@ func TestReadDeleteOnError(t *testing.T) {
 
 	reader := fs.NewMockFileSetReader(ctrl)
 	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
-	src.newReaderFn = func(filePathPrefix string, readerBufferSize int) fs.FileSetReader {
+	src.newReaderFn = func(filePathPrefix string, readerBufferSize int, b pool.BytesPool) fs.FileSetReader {
 		return reader
 	}
 

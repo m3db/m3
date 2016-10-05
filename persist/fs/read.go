@@ -27,8 +27,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -229,11 +229,11 @@ func (r *reader) Read() (string, []byte, error) {
 	expectedSize := markerLen + idxLen + int(entry.Size)
 	var data []byte
 	if r.bytesPool != nil {
-		data = r.bytesPool.Get(expectedSize)
+		data = r.bytesPool.Get(expectedSize)[:expectedSize]
 	} else {
 		data = make([]byte, expectedSize)
 	}
-	
+
 	n, err := r.dataFdWithDigest.ReadBytes(data)
 	if err != nil {
 		return none, nil, err

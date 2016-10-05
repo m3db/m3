@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/pool"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,8 @@ var (
 )
 
 func newTestReader(filePathPrefix string) FileSetReader {
-	return NewReader(filePathPrefix, testReaderBufferSize, nil)
+	return NewReader(filePathPrefix, testReaderBufferSize,
+		pool.NewBytesPool([]pool.Bucket{pool.Bucket{Capacity: 1024, Count: 10}}, nil))
 }
 
 func TestReadEmptyIndexUnreadData(t *testing.T) {
