@@ -108,8 +108,8 @@ func (p *bytesPool) Put(buffer []byte) {
 	}
 
 	buffer = buffer[:0]
-	for i := range p.buckets {
-		if p.buckets[i].capacity >= capacity {
+	for i := len(p.buckets) - 1; i >= 0; i-- {
+		if capacity >= p.buckets[i].capacity {
 			p.buckets[i].pool.Put(buffer)
 			return
 		}
