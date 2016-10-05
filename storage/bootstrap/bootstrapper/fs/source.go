@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
-type newFileSetReaderFn func(filePathPrefix string, readerBufferSize int) fs.FileSetReader
+type newFileSetReaderFn func(filePathPrefix string, readerBufferSize int, bytesPool pool.BytesPool) fs.FileSetReader
 
 type fileSystemSource struct {
 	opts             Options
@@ -284,7 +284,8 @@ func (s *fileSystemSource) Read(
 	}
 
 	readerPool := newReaderPool(func() fs.FileSetReader {
-		return s.newReaderFn(s.filePathPrefix, s.readerBufferSize)
+		return s.newReaderFn(s.filePathPrefix, s.readerBufferSize, s.opts.BootstrapOptions().
+			DatabaseBlockOptions().BytesPool())
 	})
 	readersCh := make(chan shardReaders)
 	go s.enqueueReaders(namespace, shardsTimeRanges, readerPool, readersCh)

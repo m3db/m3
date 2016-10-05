@@ -92,8 +92,8 @@ func TestDiskCleanup(t *testing.T) {
 	testSetup.storageOpts =
 		testSetup.storageOpts.
 			SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-			SetBufferDrain(3 * time.Second).
-			SetRetentionPeriod(6 * time.Hour))
+				SetBufferDrain(3 * time.Second).
+				SetRetentionPeriod(6 * time.Hour))
 
 	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()

@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/pool"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,8 @@ var (
 )
 
 func newTestReader(filePathPrefix string) FileSetReader {
-	return NewReader(filePathPrefix, testReaderBufferSize)
+	return NewReader(filePathPrefix, testReaderBufferSize,
+		pool.NewBytesPool([]pool.Bucket{pool.Bucket{Capacity: 1024, Count: 10}}, nil))
 }
 
 func TestReadEmptyIndexUnreadData(t *testing.T) {
@@ -255,7 +257,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	require.True(t, FileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
-	r := NewReader(filePathPrefix, testReaderBufferSize)
+	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
 	err = r.Open(testNamespaceName, shard, testWriterStart)
 	require.Equal(t, errCheckpointFileNotFound, err)
 }
@@ -282,7 +284,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		fd.Close()
 	}
 
-	r := NewReader(filePathPrefix, testReaderBufferSize)
+	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
 	require.Error(t, r.Open(testNamespaceName, shard, time.Unix(1000, 0)))
 }
 
