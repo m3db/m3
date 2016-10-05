@@ -46,7 +46,7 @@ var (
 )
 
 func newTestReader(filePathPrefix string) FileSetReader {
-	return NewReader(filePathPrefix, testReaderBufferSize)
+	return NewReader(filePathPrefix, testReaderBufferSize, nil)
 }
 
 func TestReadEmptyIndexUnreadData(t *testing.T) {
@@ -255,7 +255,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	require.True(t, FileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
-	r := NewReader(filePathPrefix, testReaderBufferSize)
+	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
 	err = r.Open(testNamespaceName, shard, testWriterStart)
 	require.Equal(t, errCheckpointFileNotFound, err)
 }
@@ -282,7 +282,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		fd.Close()
 	}
 
-	r := NewReader(filePathPrefix, testReaderBufferSize)
+	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
 	require.Error(t, r.Open(testNamespaceName, shard, time.Unix(1000, 0)))
 }
 

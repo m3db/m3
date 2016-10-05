@@ -27,6 +27,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3x/time"
 
@@ -80,11 +81,12 @@ type reader struct {
 	indexUnread []byte
 	currEntry   schema.IndexEntry
 	digestBuf   digest.Buffer
+	bytesPool   pool.BytesPool
 }
 
 // NewReader returns a new reader for a filePathPrefix, expects all files to exist.  Will
 // read the index info.
-func NewReader(filePathPrefix string, bufferSize int) FileSetReader {
+func NewReader(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) FileSetReader {
 	return &reader{
 		filePathPrefix:             filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
@@ -92,6 +94,7 @@ func NewReader(filePathPrefix string, bufferSize int) FileSetReader {
 		dataFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
 		digestBuf:                  digest.NewBuffer(),
+		bytesPool:                  bytesPool,
 	}
 }
 
@@ -224,7 +227,13 @@ func (r *reader) Read() (string, []byte, error) {
 	r.indexUnread = r.indexUnread[size:]
 
 	expectedSize := markerLen + idxLen + int(entry.Size)
-	data := make([]byte, expectedSize)
+	var data []byte
+	if r.bytesPool != nil {
+		data = r.bytesPool.Get(expectedSize)
+	} else {
+		data = make([]byte, expectedSize)
+	}
+	
 	n, err := r.dataFdWithDigest.ReadBytes(data)
 	if err != nil {
 		return none, nil, err
