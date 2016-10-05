@@ -202,6 +202,7 @@ func (b *dbBlock) Seal() {
 	if stream := b.encoder.Stream(); stream != nil {
 		b.segment = stream.Segment()
 		b.checksum = digest.SegmentChecksum(b.segment)
+		stream.Close()
 	}
 	// Reset encoder to prevent the byte stream inside the encoder
 	// from being returned to the bytes pool.

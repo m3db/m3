@@ -220,6 +220,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					block := bopts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 					block.Reset(timeRange.Start, encoder)
 					seriesMap.AddBlock(id, block)
+					block.Seal()
 				}
 				if !hasError {
 					if err := r.Validate(); err != nil {
