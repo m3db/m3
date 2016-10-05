@@ -303,13 +303,11 @@ func (s *dbSeries) FetchBlocksMetadata(
 	includeSizes bool,
 	includeChecksums bool,
 ) block.FetchBlocksMetadataResult {
-	// TODO(xichen): pool these if this method is called frequently (e.g., for background repairs)
-	var res []block.FetchBlockMetadataResult
-
 	s.RLock()
-
-	// Iterate over the data blocks
 	blocks := s.blocks.AllBlocks()
+	// TODO(xichen): pool these if this method is called frequently (e.g., for background repairs)
+	res := make([]block.FetchBlockMetadataResult, 0, len(blocks))
+	// Iterate over the data blocks
 	for t, b := range blocks {
 		reader, err := b.Stream(ctx)
 		// If we failed to read some blocks, skip this block and continue to get
@@ -336,6 +334,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 			pChecksum = b.Checksum()
 		}
 		res = append(res, block.NewFetchBlockMetadataResult(t, pSize, pChecksum, nil))
+		reader.Close()
 	}
 
 	// Iterate over the encoders in the database buffer
