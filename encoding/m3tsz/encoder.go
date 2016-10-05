@@ -79,7 +79,7 @@ func NewEncoder(start time.Time, bytes []byte, intOptimized bool, opts encoding.
 	initAllocIfEmpty := opts.EncoderPool() == nil
 	tu := initialTimeUnit(start, opts.DefaultTimeUnit())
 	return &encoder{
-		os:           encoding.NewOStream(bytes, initAllocIfEmpty),
+		os:           encoding.NewOStream(bytes, initAllocIfEmpty, opts.BytesPool()),
 		opts:         opts,
 		t:            start,
 		tu:           tu,
