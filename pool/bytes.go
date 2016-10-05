@@ -115,3 +115,16 @@ func (p *bytesPool) Put(buffer []byte) {
 		}
 	}
 }
+
+// AppendByte appends a byte to a byte slice getting a new slice from the
+// BytesPool if the slice is at capacity
+func AppendByte(bytes []byte, b byte, pool BytesPool) []byte {
+	if len(bytes) == cap(bytes) {
+		newBytes := pool.Get(cap(bytes) * 2)
+		n := copy(newBytes[:len(bytes)], bytes)
+		pool.Put(bytes)
+		bytes = newBytes[:n]
+	}
+
+	return append(bytes, b)
+}

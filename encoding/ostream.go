@@ -20,6 +20,10 @@
 
 package encoding
 
+import (
+	"github.com/m3db/m3db/pool"
+)
+
 const (
 	initAllocSize = 1024
 )
@@ -28,21 +32,22 @@ const (
 type ostream struct {
 	rawBuffer []byte // raw bytes
 	pos       int    // how many bits have been used in the last byte
+	bytesPool pool.BytesPool
 }
 
 // NewOStream creates a new Ostream
-func NewOStream(bytes []byte, initAllocIfEmpty bool) OStream {
+func NewOStream(bytes []byte, initAllocIfEmpty bool, bytesPool pool.BytesPool) OStream {
 	if cap(bytes) == 0 && initAllocIfEmpty {
 		bytes = make([]byte, 0, initAllocSize)
 	}
-	stream := &ostream{}
+	stream := &ostream{bytesPool: bytesPool}
 	stream.Reset(bytes)
 	return stream
 }
 
 // Clone creates a copy of the Ostream
 func (os *ostream) Clone() OStream {
-	return &ostream{os.rawBuffer, os.pos}
+	return &ostream{os.rawBuffer, os.pos, os.bytesPool}
 }
 
 // Len returns the length of the Ostream
@@ -65,7 +70,12 @@ func (os *ostream) hasUnusedBits() bool {
 
 // grow appends the last byte of v to rawBuffer and sets pos to np.
 func (os *ostream) grow(v byte, np int) {
-	os.rawBuffer = append(os.rawBuffer, v)
+	if os.bytesPool != nil {
+		os.rawBuffer = pool.AppendByte(os.rawBuffer, v, os.bytesPool)
+	} else {
+		os.rawBuffer = append(os.rawBuffer, v)
+	}
+
 	os.pos = np
 }
 

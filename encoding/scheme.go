@@ -226,7 +226,7 @@ func newMarkerEncodingScheme(
 	for i := range scheme.tails {
 		for j := range scheme.tails[i] {
 			pos := j + 1
-			tmp := NewOStream(nil, false)
+			tmp := NewOStream(nil, false, nil)
 			tmp.WriteBits(uint64(i)>>uint(8-pos), pos)
 			WriteSpecialMarker(tmp, scheme, endOfStream)
 			tail, _ := tmp.Rawbytes()
