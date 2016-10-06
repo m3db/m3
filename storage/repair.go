@@ -290,7 +290,7 @@ func (r *dbRepairer) Repair() error {
 	}
 
 	defer func() {
-		atomic.StoreInt32(&r.running, 1)
+		atomic.StoreInt32(&r.running, 0)
 	}()
 
 	multiErr := xerrors.NewMultiError()
