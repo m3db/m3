@@ -43,14 +43,14 @@ type TChanCluster interface {
 // TChanNode is the interface that defines the server handler and client interface.
 type TChanNode interface {
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
-	FetchBlocks(ctx thrift.Context, req *FetchBlocksRequest) (*FetchBlocksResult_, error)
-	FetchBlocksMetadata(ctx thrift.Context, req *FetchBlocksMetadataRequest) (*FetchBlocksMetadataResult_, error)
-	FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRequest) (*FetchRawBatchResult_, error)
+	FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error)
+	FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchBlocksMetadataRawRequest) (*FetchBlocksMetadataRawResult_, error)
+	FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error)
 	Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	Repair(ctx thrift.Context) error
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
-	WriteBatch(ctx thrift.Context, req *WriteBatchRequest) error
+	WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRequest) error
 }
 
 // Implementation of a client and service handler.
@@ -314,12 +314,12 @@ func (c *tchanNodeClient) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchRe
 	return resp.GetSuccess(), err
 }
 
-func (c *tchanNodeClient) FetchBlocks(ctx thrift.Context, req *FetchBlocksRequest) (*FetchBlocksResult_, error) {
-	var resp NodeFetchBlocksResult
-	args := NodeFetchBlocksArgs{
+func (c *tchanNodeClient) FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error) {
+	var resp NodeFetchBatchRawResult
+	args := NodeFetchBatchRawArgs{
 		Req: req,
 	}
-	success, err := c.client.Call(ctx, c.thriftService, "fetchBlocks", &args, &resp)
+	success, err := c.client.Call(ctx, c.thriftService, "fetchBatchRaw", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
@@ -329,12 +329,12 @@ func (c *tchanNodeClient) FetchBlocks(ctx thrift.Context, req *FetchBlocksReques
 	return resp.GetSuccess(), err
 }
 
-func (c *tchanNodeClient) FetchBlocksMetadata(ctx thrift.Context, req *FetchBlocksMetadataRequest) (*FetchBlocksMetadataResult_, error) {
-	var resp NodeFetchBlocksMetadataResult
-	args := NodeFetchBlocksMetadataArgs{
+func (c *tchanNodeClient) FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchBlocksMetadataRawRequest) (*FetchBlocksMetadataRawResult_, error) {
+	var resp NodeFetchBlocksMetadataRawResult
+	args := NodeFetchBlocksMetadataRawArgs{
 		Req: req,
 	}
-	success, err := c.client.Call(ctx, c.thriftService, "fetchBlocksMetadata", &args, &resp)
+	success, err := c.client.Call(ctx, c.thriftService, "fetchBlocksMetadataRaw", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
@@ -344,12 +344,12 @@ func (c *tchanNodeClient) FetchBlocksMetadata(ctx thrift.Context, req *FetchBloc
 	return resp.GetSuccess(), err
 }
 
-func (c *tchanNodeClient) FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRequest) (*FetchRawBatchResult_, error) {
-	var resp NodeFetchRawBatchResult
-	args := NodeFetchRawBatchArgs{
+func (c *tchanNodeClient) FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error) {
+	var resp NodeFetchBlocksRawResult
+	args := NodeFetchBlocksRawArgs{
 		Req: req,
 	}
-	success, err := c.client.Call(ctx, c.thriftService, "fetchRawBatch", &args, &resp)
+	success, err := c.client.Call(ctx, c.thriftService, "fetchBlocksRaw", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
@@ -415,12 +415,12 @@ func (c *tchanNodeClient) Write(ctx thrift.Context, req *WriteRequest) error {
 	return err
 }
 
-func (c *tchanNodeClient) WriteBatch(ctx thrift.Context, req *WriteBatchRequest) error {
-	var resp NodeWriteBatchResult
-	args := NodeWriteBatchArgs{
+func (c *tchanNodeClient) WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRequest) error {
+	var resp NodeWriteBatchRawResult
+	args := NodeWriteBatchRawArgs{
 		Req: req,
 	}
-	success, err := c.client.Call(ctx, c.thriftService, "writeBatch", &args, &resp)
+	success, err := c.client.Call(ctx, c.thriftService, "writeBatchRaw", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
@@ -449,14 +449,14 @@ func (s *tchanNodeServer) Service() string {
 func (s *tchanNodeServer) Methods() []string {
 	return []string{
 		"fetch",
-		"fetchBlocks",
-		"fetchBlocksMetadata",
-		"fetchRawBatch",
+		"fetchBatchRaw",
+		"fetchBlocksMetadataRaw",
+		"fetchBlocksRaw",
 		"health",
 		"repair",
 		"truncate",
 		"write",
-		"writeBatch",
+		"writeBatchRaw",
 	}
 }
 
@@ -464,12 +464,12 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 	switch methodName {
 	case "fetch":
 		return s.handleFetch(ctx, protocol)
-	case "fetchBlocks":
-		return s.handleFetchBlocks(ctx, protocol)
-	case "fetchBlocksMetadata":
-		return s.handleFetchBlocksMetadata(ctx, protocol)
-	case "fetchRawBatch":
-		return s.handleFetchRawBatch(ctx, protocol)
+	case "fetchBatchRaw":
+		return s.handleFetchBatchRaw(ctx, protocol)
+	case "fetchBlocksMetadataRaw":
+		return s.handleFetchBlocksMetadataRaw(ctx, protocol)
+	case "fetchBlocksRaw":
+		return s.handleFetchBlocksRaw(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
 	case "repair":
@@ -478,8 +478,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleTruncate(ctx, protocol)
 	case "write":
 		return s.handleWrite(ctx, protocol)
-	case "writeBatch":
-		return s.handleWriteBatch(ctx, protocol)
+	case "writeBatchRaw":
+		return s.handleWriteBatchRaw(ctx, protocol)
 
 	default:
 		return false, nil, fmt.Errorf("method %v not found in service %v", methodName, s.Service())
@@ -514,16 +514,16 @@ func (s *tchanNodeServer) handleFetch(ctx thrift.Context, protocol athrift.TProt
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleFetchBlocks(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req NodeFetchBlocksArgs
-	var res NodeFetchBlocksResult
+func (s *tchanNodeServer) handleFetchBatchRaw(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeFetchBatchRawArgs
+	var res NodeFetchBatchRawResult
 
 	if err := req.Read(protocol); err != nil {
 		return false, nil, err
 	}
 
 	r, err :=
-		s.handler.FetchBlocks(ctx, req.Req)
+		s.handler.FetchBatchRaw(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -542,16 +542,16 @@ func (s *tchanNodeServer) handleFetchBlocks(ctx thrift.Context, protocol athrift
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleFetchBlocksMetadata(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req NodeFetchBlocksMetadataArgs
-	var res NodeFetchBlocksMetadataResult
+func (s *tchanNodeServer) handleFetchBlocksMetadataRaw(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeFetchBlocksMetadataRawArgs
+	var res NodeFetchBlocksMetadataRawResult
 
 	if err := req.Read(protocol); err != nil {
 		return false, nil, err
 	}
 
 	r, err :=
-		s.handler.FetchBlocksMetadata(ctx, req.Req)
+		s.handler.FetchBlocksMetadataRaw(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -570,16 +570,16 @@ func (s *tchanNodeServer) handleFetchBlocksMetadata(ctx thrift.Context, protocol
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleFetchRawBatch(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req NodeFetchRawBatchArgs
-	var res NodeFetchRawBatchResult
+func (s *tchanNodeServer) handleFetchBlocksRaw(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeFetchBlocksRawArgs
+	var res NodeFetchBlocksRawResult
 
 	if err := req.Read(protocol); err != nil {
 		return false, nil, err
 	}
 
 	r, err :=
-		s.handler.FetchRawBatch(ctx, req.Req)
+		s.handler.FetchBlocksRaw(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -708,22 +708,22 @@ func (s *tchanNodeServer) handleWrite(ctx thrift.Context, protocol athrift.TProt
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleWriteBatch(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req NodeWriteBatchArgs
-	var res NodeWriteBatchResult
+func (s *tchanNodeServer) handleWriteBatchRaw(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeWriteBatchRawArgs
+	var res NodeWriteBatchRawResult
 
 	if err := req.Read(protocol); err != nil {
 		return false, nil, err
 	}
 
 	err :=
-		s.handler.WriteBatch(ctx, req.Req)
+		s.handler.WriteBatchRaw(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
-		case *WriteBatchErrors:
+		case *WriteBatchRawErrors:
 			if v == nil {
-				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *WriteBatchErrors but nil value")
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *WriteBatchRawErrors but nil value")
 			}
 			res.Err = v
 		default:

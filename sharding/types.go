@@ -20,17 +20,21 @@
 
 package sharding
 
+import (
+	"github.com/m3db/m3db/ts"
+)
 
 // HashGen generates HashFn based on the length of shards
 type HashGen func(length int) HashFn
 
 // HashFn is a sharding hash function
-type HashFn func(identifer string) uint32
+type HashFn func(id ts.ID) uint32
 
-// ShardSet contains a sharding function and a set of shards, this interface allows for potentially out of order shard sets
+// ShardSet contains a sharding function and a set of shards, this interface
+// allows for potentially out of order shard sets
 type ShardSet interface {
 	// Shard will return a shard for a given identifier
-	Shard(identifer string) uint32
+	Shard(id ts.ID) uint32
 
 	// Shards returns a slice to the shards in this set
 	Shards() []uint32

@@ -37,111 +37,22 @@ exception Error {
 	2: required string message
 }
 
-exception WriteBatchErrors {
-	1: required list<WriteBatchError> errors
+exception WriteBatchRawErrors {
+	1: required list<WriteBatchRawError> errors
 }
 
 service Node {
-	NodeHealthResult health() throws (1: Error err)
-	void write(1: WriteRequest req) throws (1: Error err)
-	void writeBatch(1: WriteBatchRequest req) throws (1: WriteBatchErrors err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
-	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req) throws (1: Error err)
-	FetchBlocksResult fetchBlocks(1: FetchBlocksRequest req) throws (1: Error err)
-	FetchBlocksMetadataResult fetchBlocksMetadata(1: FetchBlocksMetadataRequest req) throws (1: Error err)
+	void write(1: WriteRequest req) throws (1: Error err)
+
+	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
+	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
+	FetchBlocksMetadataRawResult fetchBlocksMetadataRaw(1: FetchBlocksMetadataRawRequest req) throws (1: Error err)
+	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
-}
 
-struct TruncateRequest {
-	1: required string nameSpace
-}
-
-struct TruncateResult {
-	1: required i64 numSeries
-}
-
-struct FetchBlocksRequest {
-	1: required string nameSpace
-	2: required i32 shard
-	3: required list<FetchBlocksParam> elements
-}
-
-struct FetchBlocksParam {
-	1: required string id
-	2: required list<i64> starts
-}
-
-struct FetchBlocksResult {
-	1: required list<Blocks> elements
-}
-
-struct Blocks {
-	1: required string id
-	2: required list<Block> blocks
-}
-
-struct Block {
-	1: required i64 start
-	2: optional Segments segments
-	3: optional Error err
-}
-
-struct FetchBlocksMetadataRequest {
-	1: required string nameSpace
-	2: required i32 shard
-	3: required i64 limit
-	4: optional i64 pageToken
-	5: optional bool includeSizes
-	6: optional bool includeChecksums
-}
-
-struct FetchBlocksMetadataResult {
-	1: required list<BlocksMetadata> elements
-	2: optional i64 nextPageToken
-}
-
-struct BlocksMetadata {
-	1: required string id
-	2: required list<BlockMetadata> blocks
-}
-
-struct BlockMetadata {
-	1: optional Error err
-	2: required i64 start
-	3: optional i64 size
-	4: optional i64 checksum
-}
-
-struct HealthResult {
-	1: required bool ok
-	2: required string status
-}
-
-struct NodeHealthResult {
-	1: required bool ok
-	2: required string status
-	3: required bool bootstrapped
-}
-
-struct IDDatapoint {
-	1: required string id
-	2: required Datapoint datapoint
-}
-
-struct WriteRequest {
-	1: required string nameSpace
-	2: required IDDatapoint idDatapoint
-}
-
-struct WriteBatchRequest {
-	1: required string nameSpace
-	2: required list<IDDatapoint> elements
-}
-
-struct WriteBatchError {
-	1: required i64 index
-	2: required Error err
+	NodeHealthResult health() throws (1: Error err)
 }
 
 struct FetchRequest {
@@ -164,26 +75,22 @@ struct Datapoint {
 	4: optional TimeType timestampType = TimeType.UNIX_SECONDS
 }
 
-struct FetchRawBatchRequest {
+struct WriteRequest {
+	1: required string nameSpace
+	2: required string id
+	3: required Datapoint datapoint
+}
+
+struct FetchBatchRawRequest {
 	1: required i64 rangeStart
 	2: required i64 rangeEnd
-	3: required string nameSpace
-	4: required list<string> ids
+	3: required binary nameSpace
+	4: required list<binary> ids
 	5: optional TimeType rangeType = TimeType.UNIX_SECONDS
 }
 
-struct FetchRawBatchResult {
+struct FetchBatchRawResult {
 	1: required list<FetchRawResult> elements
-}
-
-struct Segment {
-	1: required binary head
-	2: required binary tail
-}
-
-struct Segments {
-	1: optional Segment merged
-	2: optional list<Segment> unmerged
 }
 
 struct FetchRawResult {
@@ -191,9 +98,105 @@ struct FetchRawResult {
 	2: optional Error err
 }
 
+struct Segments {
+	1: optional Segment merged
+	2: optional list<Segment> unmerged
+}
+
+struct Segment {
+	1: required binary head
+	2: required binary tail
+}
+
+struct FetchBlocksRawRequest {
+	1: required binary nameSpace
+	2: required i32 shard
+	3: required list<FetchBlocksRawRequestElement> elements
+}
+
+struct FetchBlocksRawRequestElement {
+	1: required binary id
+	2: required list<i64> starts
+}
+
+struct FetchBlocksRawResult {
+	1: required list<Blocks> elements
+}
+
+struct Blocks {
+	1: required binary id
+	2: required list<Block> blocks
+}
+
+struct Block {
+	1: required i64 start
+	2: optional Segments segments
+	3: optional Error err
+}
+
+struct FetchBlocksMetadataRawRequest {
+	1: required binary nameSpace
+	2: required i32 shard
+	3: required i64 limit
+	4: optional i64 pageToken
+	5: optional bool includeSizes
+	6: optional bool includeChecksums
+}
+
+struct FetchBlocksMetadataRawResult {
+	1: required list<BlocksMetadata> elements
+	2: optional i64 nextPageToken
+}
+
+struct BlocksMetadata {
+	1: required binary id
+	2: required list<BlockMetadata> blocks
+}
+
+struct BlockMetadata {
+	1: optional Error err
+	2: required i64 start
+	3: optional i64 size
+	4: optional i64 checksum
+}
+
+struct WriteBatchRawRequest {
+	1: required binary nameSpace
+	2: required list<WriteBatchRawRequestElement> elements
+}
+
+struct WriteBatchRawRequestElement {
+	1: required binary id
+	2: required Datapoint datapoint
+}
+
+struct WriteBatchRawError {
+	1: required i64 index
+	2: required Error err
+}
+
+struct TruncateRequest {
+	1: required binary nameSpace
+}
+
+struct TruncateResult {
+	1: required i64 numSeries
+}
+
+struct NodeHealthResult {
+	1: required bool ok
+	2: required string status
+	3: required bool bootstrapped
+}
+
 service Cluster {
 	HealthResult health() throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
+}
+
+struct HealthResult {
+	1: required bool ok
+	2: required string status
 }

@@ -26,13 +26,14 @@ import (
 
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-const testNamespaceName = "testNamespace"
+var testNamespaceID = ts.StringID("testNamespace")
 
 var (
 	testTargetStart = time.Now()
@@ -70,7 +71,7 @@ func shardResult(entries ...testBlockEntry) bootstrap.ShardResult {
 	for _, entry := range entries {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		block.Reset(entry.t, nil)
-		res.AddBlock(entry.id, block)
+		res.AddBlock(ts.StringID(entry.id), block)
 	}
 	return res
 }
@@ -126,7 +127,7 @@ func validateResult(t *testing.T, expected, actual bootstrap.Result) {
 		for id, expectedSeries := range es {
 			actualSeries, exists := as[id]
 			require.True(t, exists)
-			validateSeries(t, expectedSeries, actualSeries)
+			validateSeries(t, expectedSeries.Blocks, actualSeries.Blocks)
 		}
 	}
 
@@ -205,11 +206,11 @@ func TestBaseBootstrapperEmptyRange(t *testing.T) {
 	_, _, base := testBaseBootstrapper(t, ctrl)
 
 	// Test non-nil empty range
-	res, err := base.Bootstrap(testNamespaceName, map[uint32]xtime.Ranges{})
+	res, err := base.Bootstrap(testNamespaceID, map[uint32]xtime.Ranges{})
 	require.NoError(t, err)
 	require.Nil(t, res)
 
-	res, err = base.Bootstrap(testNamespaceName, nil)
+	res, err = base.Bootstrap(testNamespaceID, nil)
 	require.NoError(t, err)
 	require.Nil(t, res)
 }
@@ -224,10 +225,10 @@ func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
 		testShard: {result: shardResult(testBlockEntry{"foo", testTargetStart})},
 	})
 
-	source.EXPECT().Available(testNamespaceName, targetRanges).Return(targetRanges)
-	source.EXPECT().Read(testNamespaceName, targetRanges).Return(result, nil)
+	source.EXPECT().Available(testNamespaceID, targetRanges).Return(targetRanges)
+	source.EXPECT().Read(testNamespaceID, targetRanges).Return(result, nil)
 
-	res, err := base.Bootstrap(testNamespaceName, targetRanges)
+	res, err := base.Bootstrap(testNamespaceID, targetRanges)
 	require.NoError(t, err)
 	validateResult(t, result, res)
 }
@@ -257,15 +258,15 @@ func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 		testShard: {result: shardResult(entries[1:]...)},
 	})
 
-	source.EXPECT().Available(testNamespaceName, targetRanges).Return(targetRanges)
-	source.EXPECT().Read(testNamespaceName, targetRanges).Return(currResult, nil)
-	next.EXPECT().Bootstrap(testNamespaceName, shardTimeRangesMatcher{nextTargetRanges}).Return(nextResult, nil)
+	source.EXPECT().Available(testNamespaceID, targetRanges).Return(targetRanges)
+	source.EXPECT().Read(testNamespaceID, targetRanges).Return(currResult, nil)
+	next.EXPECT().Bootstrap(testNamespaceID, shardTimeRangesMatcher{nextTargetRanges}).Return(nextResult, nil)
 
 	expectedResult := testResult(map[uint32]testShardResult{
 		testShard: {result: shardResult(entries...)},
 	})
 
-	res, err := base.Bootstrap(testNamespaceName, targetRanges)
+	res, err := base.Bootstrap(testNamespaceID, targetRanges)
 	require.NoError(t, err)
 	validateResult(t, expectedResult, res)
 }
@@ -283,11 +284,11 @@ func testBasebootstrapperNext(t *testing.T, nextUnfulfilled bootstrap.ShardTimeR
 		testShard: {result: shardResult(testBlockEntry{"foo", testTargetStart})},
 	})
 
-	source.EXPECT().Available(testNamespaceName, targetRanges).Return(nil)
-	source.EXPECT().Read(testNamespaceName, shardTimeRangesMatcher{nil}).Return(nil, nil)
-	next.EXPECT().Bootstrap(testNamespaceName, shardTimeRangesMatcher{targetRanges}).Return(nextResult, nil)
+	source.EXPECT().Available(testNamespaceID, targetRanges).Return(nil)
+	source.EXPECT().Read(testNamespaceID, shardTimeRangesMatcher{nil}).Return(nil, nil)
+	next.EXPECT().Bootstrap(testNamespaceID, shardTimeRangesMatcher{targetRanges}).Return(nextResult, nil)
 
-	res, err := base.Bootstrap(testNamespaceName, targetRanges)
+	res, err := base.Bootstrap(testNamespaceID, targetRanges)
 	require.NoError(t, err)
 	validateResult(t, nextResult, res)
 }
@@ -351,13 +352,13 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 	})
 
 	source.EXPECT().Can(bootstrap.BootstrapParallel).Return(true)
-	source.EXPECT().Available(testNamespaceName, targetRanges).Return(availableRanges)
-	source.EXPECT().Read(testNamespaceName, shardTimeRangesMatcher{availableRanges}).Return(currResult, nil)
+	source.EXPECT().Available(testNamespaceID, targetRanges).Return(availableRanges)
+	source.EXPECT().Read(testNamespaceID, shardTimeRangesMatcher{availableRanges}).Return(currResult, nil)
 	next.EXPECT().Can(bootstrap.BootstrapParallel).Return(true)
-	next.EXPECT().Bootstrap(testNamespaceName, shardTimeRangesMatcher{remainingRanges}).Return(nextResult, nil)
-	next.EXPECT().Bootstrap(testNamespaceName, shardTimeRangesMatcher{currResult.Unfulfilled()}).Return(fallBackResult, nil)
+	next.EXPECT().Bootstrap(testNamespaceID, shardTimeRangesMatcher{remainingRanges}).Return(nextResult, nil)
+	next.EXPECT().Bootstrap(testNamespaceID, shardTimeRangesMatcher{currResult.Unfulfilled()}).Return(fallBackResult, nil)
 
-	res, err := base.Bootstrap(testNamespaceName, targetRanges)
+	res, err := base.Bootstrap(testNamespaceID, targetRanges)
 	require.NoError(t, err)
 
 	expectedResult := testResult(map[uint32]testShardResult{

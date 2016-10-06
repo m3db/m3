@@ -43,17 +43,17 @@ func NewBadRequestError(err error) *rpc.Error {
 	return newError(rpc.ErrorType_BAD_REQUEST, err)
 }
 
-// NewWriteBatchError creates a new write batch error
-func NewWriteBatchError(index int, err error) *rpc.WriteBatchError {
-	batchErr := rpc.NewWriteBatchError()
+// NewWriteBatchRawError creates a new write batch error
+func NewWriteBatchRawError(index int, err error) *rpc.WriteBatchRawError {
+	batchErr := rpc.NewWriteBatchRawError()
 	batchErr.Index = int64(index)
 	batchErr.Err = NewInternalError(err)
 	return batchErr
 }
 
-// NewBadRequestWriteBatchError creates a new bad request write batch error
-func NewBadRequestWriteBatchError(index int, err error) *rpc.WriteBatchError {
-	batchErr := rpc.NewWriteBatchError()
+// NewBadRequestWriteBatchRawError creates a new bad request write batch error
+func NewBadRequestWriteBatchRawError(index int, err error) *rpc.WriteBatchRawError {
+	batchErr := rpc.NewWriteBatchRawError()
 	batchErr.Index = int64(index)
 	batchErr.Err = NewBadRequestError(err)
 	return batchErr

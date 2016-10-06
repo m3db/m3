@@ -54,7 +54,7 @@ var (
 
 	errServerStartTimedOut = errors.New("server took too long to start")
 	errServerStopTimedOut  = errors.New("server took too long to stop")
-	testNamespaces         = []string{"testNs1", "testNs2"}
+	testNamespaces         = []ts.ID{ts.StringID("testNs1"), ts.StringID("testNs2")}
 
 	created = uint64(0)
 )
@@ -181,7 +181,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 func (ts *testSetup) fakeRequest() *rpc.FetchRequest {
 	req := rpc.NewFetchRequest()
-	req.NameSpace = testNamespaces[0]
+	req.NameSpace = testNamespaces[0].String()
 	return req
 }
 
@@ -268,7 +268,7 @@ func (ts *testSetup) stopServer() error {
 	return nil
 }
 
-func (ts *testSetup) writeBatch(namespace string, seriesList seriesList) error {
+func (ts *testSetup) writeBatch(namespace ts.ID, seriesList seriesList) error {
 	if ts.opts.UseTChannelClientForWriting() {
 		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.WriteRequestTimeout(), namespace, seriesList)
 	}

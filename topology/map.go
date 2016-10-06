@@ -22,6 +22,7 @@ package topology
 
 import (
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/watch"
 )
 
@@ -78,7 +79,7 @@ func (t *staticMap) ShardSet() sharding.ShardSet {
 	return t.shardSet
 }
 
-func (t *staticMap) Route(id string) (uint32, []Host, error) {
+func (t *staticMap) Route(id ts.ID) (uint32, []Host, error) {
 	shard := t.shardSet.Shard(id)
 	if int(shard) >= len(t.hostsByShard) {
 		return shard, nil, errUnownedShard
@@ -86,7 +87,7 @@ func (t *staticMap) Route(id string) (uint32, []Host, error) {
 	return shard, t.hostsByShard[shard], nil
 }
 
-func (t *staticMap) RouteForEach(id string, forEachFn RouteForEachFn) error {
+func (t *staticMap) RouteForEach(id ts.ID, forEachFn RouteForEachFn) error {
 	return t.RouteShardForEach(t.shardSet.Shard(id), forEachFn)
 }
 

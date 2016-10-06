@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -60,12 +61,12 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceName, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceName, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	_, _, err = r.Read()
@@ -84,13 +85,13 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceName, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
-	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
+	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceName, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	reader := r.(*reader)
@@ -110,14 +111,14 @@ func TestReadDataError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceName, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
-	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
+	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceName, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart)
 
 	// Close out the dataFd and expect an error on next read
 	reader := r.(*reader)
@@ -143,17 +144,17 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceName, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
-	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
+	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
 	// Truncate one bye
 	assert.NoError(t, os.Truncate(dataFile, 1))
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceName, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	_, _, err = r.Read()
@@ -172,7 +173,7 @@ func TestReadBadMarker(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceName, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	// Copy the marker out
@@ -182,7 +183,7 @@ func TestReadBadMarker(t *testing.T) {
 	// Mess up the marker
 	marker[0] = marker[0] + 1
 
-	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
+	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
 
 	// Reset the marker
 	marker = actualMarker
@@ -190,7 +191,7 @@ func TestReadBadMarker(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceName, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	_, _, err = r.Read()
@@ -209,17 +210,17 @@ func TestReadWrongIdx(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceName, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
-	assert.NoError(t, w.Write("foo", []byte{1, 2, 3}))
+	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceName, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	// Replace the expected idx with 123
-	entry := &schema.IndexEntry{Idx: 123}
+	entry := &schema.IndexEntry{Index: 123}
 	b, err := proto.Marshal(entry)
 	assert.NoError(t, err)
 	b = append(proto.EncodeVarint(uint64(len(b))), b...)
@@ -248,17 +249,17 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	w := newTestWriter(filePathPrefix)
 	shard := uint32(0)
-	err := w.Open(testNamespaceName, shard, testWriterStart)
+	err := w.Open(testNamespaceID, shard, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
-	shardDir := ShardDirPath(filePathPrefix, testNamespaceName, shard)
+	shardDir := ShardDirPath(filePathPrefix, testNamespaceID, shard)
 	checkpointFile := filesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
 	require.True(t, FileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
 	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
-	err = r.Open(testNamespaceName, shard, testWriterStart)
+	err = r.Open(testNamespaceID, shard, testWriterStart)
 	require.Equal(t, errCheckpointFileNotFound, err)
 }
 
@@ -268,11 +269,11 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 
 	shard := uint32(0)
 	start := time.Unix(1000, 0)
-	shardDir := ShardDirPath(filePathPrefix, testNamespaceName, shard)
+	shardDir := ShardDirPath(filePathPrefix, testNamespaceID, shard)
 
 	w := newTestWriter(filePathPrefix)
-	assert.NoError(t, w.Open(testNamespaceName, uint32(shard), start))
-	assert.NoError(t, w.Write("foo", []byte{0x1}))
+	assert.NoError(t, w.Open(testNamespaceID, uint32(shard), start))
+	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{0x1}))
 	assert.NoError(t, w.Close())
 
 	for suffix, data := range fileData {
@@ -285,7 +286,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	}
 
 	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
-	require.Error(t, r.Open(testNamespaceName, shard, time.Unix(1000, 0)))
+	require.Error(t, r.Open(testNamespaceID, shard, time.Unix(1000, 0)))
 }
 
 func TestReadOpenDigestOfDigestMismatch(t *testing.T) {
@@ -350,12 +351,12 @@ func TestReadValidate(t *testing.T) {
 	shard := uint32(0)
 	start := time.Unix(1000, 0)
 	w := newTestWriter(filePathPrefix)
-	require.NoError(t, w.Open(testNamespaceName, shard, start))
-	require.NoError(t, w.Write("foo", []byte{0x1}))
+	require.NoError(t, w.Open(testNamespaceID, shard, start))
+	require.NoError(t, w.Write(ts.StringID("foo"), []byte{0x1}))
 	require.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	require.NoError(t, r.Open(testNamespaceName, shard, start))
+	require.NoError(t, r.Open(testNamespaceID, shard, start))
 	_, _, err := r.Read()
 	require.NoError(t, err)
 

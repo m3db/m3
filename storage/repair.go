@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 
@@ -48,7 +49,7 @@ var (
 	errRepairInProgress = errors.New("repair already in progress")
 )
 
-type recordFn func(namespace string, shard databaseShard, diffRes repair.MetadataComparisonResult)
+type recordFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult)
 
 type shardRepairer struct {
 	opts      Options
@@ -91,7 +92,7 @@ func (r shardRepairer) Options() repair.Options {
 	return r.rpopts
 }
 
-func (r shardRepairer) Repair(namespace string, shard databaseShard) (repair.MetadataComparisonResult, error) {
+func (r shardRepairer) Repair(namespace ts.ID, shard databaseShard) (repair.MetadataComparisonResult, error) {
 	// NB(r): Explicitly use a new context here as ctx may receive
 	// a lot of DependsOn calls which could mean it creates a long
 	// array of dependencies, since pooled contexts keep this array
@@ -139,13 +140,13 @@ func (r shardRepairer) Repair(namespace string, shard databaseShard) (repair.Met
 
 // TODO(xichen): log the actual differences once we have an idea of the magnitude of discrepancies
 func (r shardRepairer) recordDifferences(
-	namespace string,
+	namespace ts.ID,
 	shard databaseShard,
 	diffRes repair.MetadataComparisonResult,
 ) {
 	var (
 		shardScope = r.scope.Tagged(map[string]string{
-			"namespace": namespace,
+			"namespace": namespace.String(),
 			"shard":     strconv.Itoa(int(shard.ID())),
 		})
 		totalScope        = shardScope.Tagged(map[string]string{"resultType": "total"})
@@ -297,7 +298,7 @@ func (r *dbRepairer) Repair() error {
 	namespaces := r.database.getOwnedNamespaces()
 	for _, n := range namespaces {
 		if err := n.Repair(r.shardRepairer); err != nil {
-			detailedErr := fmt.Errorf("namespace %s failed to repair: %v", n.Name(), err)
+			detailedErr := fmt.Errorf("namespace %s failed to repair: %v", n.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}

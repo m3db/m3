@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -58,7 +59,7 @@ func sessionTestShardSet() sharding.ShardSet {
 		shards = append(shards, i)
 	}
 
-	shardSet, _ := sharding.NewShardSet(shards, func(id string) uint32 { return 0 })
+	shardSet, _ := sharding.NewShardSet(shards, func(id ts.ID) uint32 { return 0 })
 	return shardSet
 }
 
@@ -84,10 +85,10 @@ func applySessionTestOptions(opts Options) Options {
 		SetWriteOpPoolSize(0).
 		SetFetchBatchOpPoolSize(0).
 		SetTopologyInitializer(topology.NewStaticInitializer(
-		topology.NewStaticOptions().
-			SetReplicas(sessionTestReplicas).
-			SetShardSet(shardSet).
-			SetHostShardSets(sessionTestHostAndShards(shardSet))))
+			topology.NewStaticOptions().
+				SetReplicas(sessionTestReplicas).
+				SetShardSet(shardSet).
+				SetHostShardSets(sessionTestHostAndShards(shardSet))))
 }
 
 func TestSessionCreationFailure(t *testing.T) {
@@ -169,8 +170,8 @@ func testSessionClusterConnectConsistencyLevel(
 	var failingConns int32
 	session.newHostQueueFn = func(
 		host topology.Host,
-		writeBatchRequestPool writeBatchRequestPool,
-		idDatapointArrayPool idDatapointArrayPool,
+		writeBatchRawRequestPool writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
 		opts Options,
 	) hostQueue {
 		hostQueue := NewMockhostQueue(ctrl)
@@ -206,8 +207,8 @@ func mockHostQueues(
 	idx := 0
 	s.newHostQueueFn = func(
 		host topology.Host,
-		writeBatchRequestPool writeBatchRequestPool,
-		writeRequestArrayPool idDatapointArrayPool,
+		writeBatchRawRequestPool writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
 		opts Options,
 	) hostQueue {
 		// Make a copy of the enqueue fns for each host

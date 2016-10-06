@@ -46,7 +46,7 @@ type Metadata interface {
 // BlocksMetadata contains blocks metadata from a peer
 type BlocksMetadata interface {
 	// ID associated with the blocks
-	ID() string
+	ID() ts.ID
 
 	// Blocks returns the metadata for blocks
 	Blocks() []Metadata
@@ -70,7 +70,7 @@ type FetchBlockMetadataResult interface {
 // FetchBlocksMetadataResult captures the fetch results for multiple blocks.
 type FetchBlocksMetadataResult interface {
 	// ID returns id associated with the blocks
-	ID() string
+	ID() ts.ID
 
 	// Blocks returns the metadata fetch result of blocks
 	Blocks() []FetchBlockMetadataResult
@@ -82,7 +82,7 @@ type FilteredBlocksMetadataIter interface {
 	Next() bool
 
 	// Current returns the current id and block metadata
-	Current() (string, Metadata)
+	Current() (ts.ID, Metadata)
 }
 
 // FetchBlockResult captures the block start time, the readers for the underlying streams, and any errors encountered.

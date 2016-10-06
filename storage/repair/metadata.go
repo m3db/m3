@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 )
 
 type replicaBlockMetadata struct {
@@ -66,32 +67,35 @@ func (m replicaBlocksMetadata) GetOrAdd(start time.Time) ReplicaBlockMetadata {
 }
 
 // NB(xichen): replicaSeriesMetadata is not thread-safe
-type replicaSeriesMetadata map[string]ReplicaBlocksMetadata
+type replicaSeriesMetadata map[ts.Hash]ReplicaBlocksMetadataWrapper
 
 // NewReplicaSeriesMetadata creates a new replica series metadata
 func NewReplicaSeriesMetadata() ReplicaSeriesMetadata {
 	return make(replicaSeriesMetadata)
 }
 
-func (m replicaSeriesMetadata) NumSeries() int64                         { return int64(len(m)) }
-func (m replicaSeriesMetadata) Series() map[string]ReplicaBlocksMetadata { return m }
+func (m replicaSeriesMetadata) NumSeries() int64                                 { return int64(len(m)) }
+func (m replicaSeriesMetadata) Series() map[ts.Hash]ReplicaBlocksMetadataWrapper { return m }
 
 func (m replicaSeriesMetadata) NumBlocks() int64 {
 	var numBlocks int64
 	for _, series := range m {
-		numBlocks += series.NumBlocks()
+		numBlocks += series.Metadata.NumBlocks()
 	}
 	return numBlocks
 }
 
-func (m replicaSeriesMetadata) GetOrAdd(id string) ReplicaBlocksMetadata {
-	blocks, exists := m[id]
+func (m replicaSeriesMetadata) GetOrAdd(id ts.ID) ReplicaBlocksMetadata {
+	blocks, exists := m[id.Hash()]
 	if exists {
-		return blocks
+		return blocks.Metadata
 	}
-	blocks = NewReplicaBlocksMetadata()
-	m[id] = blocks
-	return blocks
+	blocks = ReplicaBlocksMetadataWrapper{
+		ID:       id,
+		Metadata: NewReplicaBlocksMetadata(),
+	}
+	m[id.Hash()] = blocks
+	return blocks.Metadata
 }
 
 type replicaMetadataComparer struct {
@@ -141,8 +145,8 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 		checkSumDiff = NewReplicaSeriesMetadata()
 	)
 
-	for id, series := range m.metadata.Series() {
-		for _, b := range series.Blocks() {
+	for _, series := range m.metadata.Series() {
+		for _, b := range series.Metadata.Blocks() {
 			bm := b.Metadata()
 
 			var (
@@ -183,13 +187,13 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 			// If only a subset of hosts in the replica set have sizes, or the sizes differ,
 			// we record this block
 			if !(numHostsWithSize == m.replicas && sameSize) {
-				sizeDiff.GetOrAdd(id).Add(b)
+				sizeDiff.GetOrAdd(series.ID).Add(b)
 			}
 
 			// If only a subset of hosts in the replica set have checksums, or the checksums
 			// differ, we record this block
 			if !(numHostsWithChecksum == m.replicas && sameChecksum) {
-				checkSumDiff.GetOrAdd(id).Add(b)
+				checkSumDiff.GetOrAdd(series.ID).Add(b)
 			}
 		}
 	}

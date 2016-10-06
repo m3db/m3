@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
@@ -55,7 +56,7 @@ func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (s *peersSource) Available(
-	namespace string,
+	namespace ts.ID,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
 ) bootstrap.ShardTimeRanges {
 	// Peers should be able to fulfill all data
@@ -63,7 +64,7 @@ func (s *peersSource) Available(
 }
 
 func (s *peersSource) Read(
-	namespace string,
+	namespace ts.ID,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
 ) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {

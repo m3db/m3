@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -63,7 +64,7 @@ func TestTruncateNamespace(t *testing.T) {
 	now := testSetup.getNowFn()
 	seriesMaps := make(map[time.Time]seriesList)
 	inputData := []struct {
-		namespace string
+		namespace ts.ID
 		ids       []string
 		numPoints int
 		start     time.Time
@@ -81,7 +82,7 @@ func TestTruncateNamespace(t *testing.T) {
 
 	fetchReq := rpc.NewFetchRequest()
 	fetchReq.ID = "foo"
-	fetchReq.NameSpace = testNamespaces[1]
+	fetchReq.NameSpace = testNamespaces[1].String()
 	fetchReq.RangeStart = xtime.ToNormalizedTime(now, time.Second)
 	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
 	fetchReq.ResultTimeType = rpc.TimeType_UNIX_SECONDS
@@ -92,20 +93,20 @@ func TestTruncateNamespace(t *testing.T) {
 	require.Error(t, err)
 
 	log.Debug("fetching data from wrong namespace")
-	fetchReq.NameSpace = testNamespaces[1]
+	fetchReq.NameSpace = testNamespaces[1].String()
 	res, err := testSetup.fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(res))
 
 	log.Debugf("fetching data from namespace %s", testNamespaces[0])
-	fetchReq.NameSpace = testNamespaces[0]
+	fetchReq.NameSpace = testNamespaces[0].String()
 	res, err = testSetup.fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 100, len(res))
 
 	log.Debugf("truncate namespace %s", testNamespaces[0])
 	truncateReq := rpc.NewTruncateRequest()
-	truncateReq.NameSpace = testNamespaces[0]
+	truncateReq.NameSpace = testNamespaces[0].Data()
 	truncated, err := testSetup.truncate(truncateReq)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), truncated)
@@ -117,7 +118,7 @@ func TestTruncateNamespace(t *testing.T) {
 
 	log.Debugf("fetching data from a different namespace %s", testNamespaces[1])
 	fetchReq.ID = "bar"
-	fetchReq.NameSpace = testNamespaces[1]
+	fetchReq.NameSpace = testNamespaces[1].String()
 	fetchReq.RangeStart = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
 	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize*2), time.Second)
 	res, err = testSetup.fetch(fetchReq)

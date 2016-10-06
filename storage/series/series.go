@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
@@ -57,7 +58,7 @@ var (
 type dbSeries struct {
 	sync.RWMutex
 	opts             Options
-	seriesID         string
+	id               ts.ID
 	buffer           databaseBuffer
 	blocks           block.DatabaseSeriesBlocks
 	pendingBootstrap []pendingBootstrapDrain
@@ -71,32 +72,32 @@ type pendingBootstrapDrain struct {
 }
 
 // NewDatabaseSeries creates a new database series
-func NewDatabaseSeries(id string, opts Options) DatabaseSeries {
+func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
 	return newDatabaseSeries(id, opts)
 }
 
 // NewPooledDatabaseSeries creates a new pooled database series
-func NewPooledDatabaseSeries(id string, pool DatabaseSeriesPool, opts Options) DatabaseSeries {
+func NewPooledDatabaseSeries(id ts.ID, pool DatabaseSeriesPool, opts Options) DatabaseSeries {
 	series := newDatabaseSeries(id, opts)
 	series.pool = pool
 	return series
 }
 
-func newDatabaseSeries(id string, opts Options) *dbSeries {
+func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
 	ropts := opts.RetentionOptions()
 	blocksLen := int(ropts.RetentionPeriod() / ropts.BlockSize())
 	series := &dbSeries{
-		opts:     opts,
-		seriesID: id,
-		blocks:   block.NewDatabaseSeriesBlocks(blocksLen, opts.DatabaseBlockOptions()),
-		bs:       bootstrapNotStarted,
+		opts:   opts,
+		id:     id,
+		blocks: block.NewDatabaseSeriesBlocks(blocksLen, opts.DatabaseBlockOptions()),
+		bs:     bootstrapNotStarted,
 	}
 	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
 	return series
 }
 
-func (s *dbSeries) ID() string {
-	return s.seriesID
+func (s *dbSeries) ID() ts.ID {
+	return s.id
 }
 
 func (s *dbSeries) Tick() error {
@@ -278,7 +279,7 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 		if b, exists := s.blocks.BlockAt(start); exists {
 			stream, err := b.Stream(ctx)
 			if err != nil {
-				detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, start, err)
+				detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.id.String(), start, err)
 				res = append(res, block.NewFetchBlockResult(start, nil, detailedErr))
 			} else if stream != nil {
 				res = append(res, block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil))
@@ -313,7 +314,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 		// If we failed to read some blocks, skip this block and continue to get
 		// the metadata for the rest of the blocks.
 		if err != nil {
-			detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.seriesID, t, err)
+			detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.id.String(), t, err)
 			res = append(res, block.NewFetchBlockMetadataResult(t, nil, nil, detailedErr))
 			continue
 		}
@@ -347,7 +348,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 
 	block.SortFetchBlockMetadataResultByTimeAscending(res)
 
-	return block.NewFetchBlocksMetadataResult(s.seriesID, res)
+	return block.NewFetchBlocksMetadataResult(s.id, res)
 }
 
 func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
@@ -480,7 +481,7 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
 			ropts := s.opts.RetentionOptions()
 			blocksLen := int(ropts.RetentionPeriod() / ropts.BlockSize())
 			rs = block.NewDatabaseSeriesBlocks(blocksLen, s.opts.DatabaseBlockOptions())
-			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.seriesID, err))
+			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.id.String(), err))
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -514,7 +515,7 @@ func (s *dbSeries) Flush(ctx context.Context, blockStart time.Time, persistFn pe
 		return nil
 	}
 	segment := sr.Segment()
-	return persistFn(s.seriesID, segment)
+	return persistFn(s.id, segment)
 }
 
 func (s *dbSeries) Close() {
@@ -528,9 +529,9 @@ func (s *dbSeries) Close() {
 	}
 }
 
-func (s *dbSeries) Reset(id string) {
+func (s *dbSeries) Reset(id ts.ID) {
 	s.Lock()
-	s.seriesID = id
+	s.id = id
 	s.buffer.Reset()
 	s.blocks.RemoveAll()
 	s.pendingBootstrap = nil

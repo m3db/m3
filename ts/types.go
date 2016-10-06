@@ -21,8 +21,62 @@
 package ts
 
 import (
+	"bytes"
+	"crypto/md5"
+	"fmt"
 	"time"
 )
+
+// ID represents an immutable identifier for a timeseries
+type ID interface {
+	fmt.Stringer
+
+	Data() []byte
+	Equal(value ID) bool
+	Hash() Hash
+}
+
+// Hash represents a form of ID suitable to be used as map keys
+type Hash [md5.Size]byte
+
+type id struct {
+	data []byte
+	hash Hash
+}
+
+// Data returns the binary representation of an ID
+func (id *id) Data() []byte {
+	return id.data
+}
+
+func (id *id) Equal(value ID) bool {
+	return bytes.Equal(id.Data(), value.Data())
+}
+
+var null = Hash{}
+
+// Hash returns (and calculates, if needed) the hash for an ID
+func (id *id) Hash() Hash {
+	if bytes.Equal(id.hash[:], null[:]) {
+		id.hash = md5.Sum(id.data)
+	}
+
+	return Hash(id.hash)
+}
+
+func (id *id) String() string {
+	return string(id.data)
+}
+
+// BinaryID constructs a new ID based on a binary blob
+func BinaryID(v []byte) ID {
+	return &id{data: v}
+}
+
+// StringID constructs a new ID based on a string
+func StringID(v string) ID {
+	return BinaryID([]byte(v))
+}
 
 // A Datapoint is a single data value reported at a given time
 type Datapoint struct {
@@ -30,5 +84,5 @@ type Datapoint struct {
 	Value     float64
 }
 
-// Annotation represents information used to annotate datapoints.
+// Annotation represents information used to annotate datapoints
 type Annotation []byte

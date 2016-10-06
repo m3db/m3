@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	namespace := NewMockdatabaseNamespace(ctrl)
 	namespace.EXPECT().Bootstrap(nil, gomock.Any(), now).Return(fmt.Errorf("an error"))
-	namespace.EXPECT().Name().Return("test")
+	namespace.EXPECT().ID().Return(ts.StringID("test"))
 
 	namespaces := map[string]databaseNamespace{
 		"test": namespace,

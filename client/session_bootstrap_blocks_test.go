@@ -47,6 +47,10 @@ import (
 
 var (
 	timeZero = time.Time{}
+	nsID     = ts.StringID("testNs1")
+	fooID    = ts.StringID("foo")
+	barID    = ts.StringID("bar")
+	bazID    = ts.StringID("baz")
 )
 
 func newSessionTestAdminOptions() AdminOptions {
@@ -112,7 +116,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 
 	blocks := []testBlocks{
 		{
-			id: "foo",
+			id: fooID,
 			blocks: []testBlock{
 				{
 					start: start.Add(blockSize * 1),
@@ -124,7 +128,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 			},
 		},
 		{
-			id: "bar",
+			id: barID,
 			blocks: []testBlock{
 				{
 					start: start.Add(blockSize * 2),
@@ -136,7 +140,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 			},
 		},
 		{
-			id: "baz",
+			id: bazID,
 			blocks: []testBlock{
 				{
 					start: start.Add(blockSize * 3),
@@ -186,7 +190,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
 	bootstrapOpts := newBootstrapTestOptions()
-	result, err := session.FetchBootstrapBlocksFromPeers("testNs1", 0, rangeStart, rangeEnd, bootstrapOpts)
+	result, err := session.FetchBootstrapBlocksFromPeers(nsID, 0, rangeStart, rangeEnd, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -220,14 +224,14 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 		perPeer                 = []*blocksMetadata{
 			&blocksMetadata{
 				peer: peerA,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2},
 				},
 			},
 			&blocksMetadata{
 				peer: peerB,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2},
 				},
@@ -277,7 +281,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 		perPeer                 = []*blocksMetadata{
 			&blocksMetadata{
 				peer: peerA,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2},
 					{start: start.Add(time.Hour * 2), size: 1},
@@ -285,7 +289,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 			},
 			&blocksMetadata{
 				peer: peerB,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 1},
 					{start: start.Add(time.Hour * 2), size: 2},
@@ -343,21 +347,21 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 		perPeer                 = []*blocksMetadata{
 			&blocksMetadata{
 				peer: peerA,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2},
 				},
 			},
 			&blocksMetadata{
 				peer: peerB,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start.Add(time.Hour * 2), size: 2},
 				},
 			},
 			&blocksMetadata{
 				peer: peerC,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start.Add(time.Hour * 4), size: 2},
 				},
@@ -422,27 +426,27 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 		start                   = timeZero
 		reattempt               = blockMetadataReattempt{
 			attempt:   1,
-			id:        "foo",
+			id:        fooID,
 			attempted: []hostQueue{peerA},
 		}
 		perPeer = []*blocksMetadata{
 			&blocksMetadata{
 				peer: peerA,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2, reattempt: reattempt},
 				},
 			},
 			&blocksMetadata{
 				peer: peerB,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2, reattempt: reattempt},
 				},
 			},
 			&blocksMetadata{
 				peer: peerC,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2, reattempt: reattempt},
 				},
@@ -500,13 +504,13 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 		start                   = timeZero
 		reattempt               = blockMetadataReattempt{
 			attempt:   3,
-			id:        "foo",
+			id:        fooID,
 			attempted: []hostQueue{peerA, peerB, peerC},
 		}
 		perPeer = []*blocksMetadata{
 			&blocksMetadata{
 				peer: peerA,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2},
 					{start: start.Add(time.Hour * 2), size: 2, reattempt: reattempt},
@@ -514,7 +518,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 			},
 			&blocksMetadata{
 				peer: peerB,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2},
 					{start: start.Add(time.Hour * 2), size: 2, reattempt: reattempt},
@@ -522,7 +526,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 			},
 			&blocksMetadata{
 				peer: peerC,
-				id:   "foo",
+				id:   fooID,
 				blocks: []blockMetadata{
 					{start: start, size: 2},
 					{start: start.Add(time.Hour * 2), size: 2, reattempt: reattempt},
@@ -577,29 +581,29 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		client    = mockClients[peerIdx]
 		enqueueCh = newEnqueueChannel()
 		batch     = []*blocksMetadata{
-			&blocksMetadata{id: "foo", blocks: []blockMetadata{
+			&blocksMetadata{id: fooID, blocks: []blockMetadata{
 				{start: start, size: 2, reattempt: blockMetadataReattempt{
-					id: "foo",
+					id: fooID,
 					peersMetadata: []blockMetadataReattemptPeerMetadata{
 						{start: start, size: 2},
 					},
 				}},
 				{start: start.Add(blockSize), size: 2, reattempt: blockMetadataReattempt{
-					id: "foo",
+					id: fooID,
 					peersMetadata: []blockMetadataReattemptPeerMetadata{
 						{start: start.Add(blockSize), size: 2},
 					},
 				}},
 			}},
-			&blocksMetadata{id: "bar", blocks: []blockMetadata{
+			&blocksMetadata{id: barID, blocks: []blockMetadata{
 				{start: start, size: 2, reattempt: blockMetadataReattempt{
-					id: "foo",
+					id: fooID,
 					peersMetadata: []blockMetadataReattemptPeerMetadata{
 						{start: start, size: 2},
 					},
 				}},
 				{start: start.Add(blockSize), size: 2, reattempt: blockMetadataReattempt{
-					id: "foo",
+					id: fooID,
 					peersMetadata: []blockMetadataReattemptPeerMetadata{
 						{start: start.Add(blockSize), size: 2},
 					},
@@ -609,10 +613,10 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	)
 
 	// Fail the call twice due to retry
-	client.EXPECT().FetchBlocks(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("an error")).Times(2)
+	client.EXPECT().FetchBlocksRaw(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("an error")).Times(2)
 
 	// Attempt stream blocks
-	session.streamBlocksBatchFromPeer("testNs1", 0, peer, batch, nil, enqueueCh, retrier)
+	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, nil, enqueueCh, retrier)
 
 	// Assert result
 	assertEnqueueChannel(t, append(batch[0].blocks, batch[1].blocks...), enqueueCh)
@@ -635,13 +639,14 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	}
 
 	r := newBlocksResult(opts, bopts)
-	r.addBlockFromPeer("foo", bl)
+	r.addBlockFromPeer(fooID, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, len(series))
 
-	blocks, ok := series["foo"]
+	sl, ok := series[fooID.Hash()]
 	assert.True(t, ok)
+	blocks := sl.Blocks
 	assert.Equal(t, 1, blocks.Len())
 	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
@@ -714,13 +719,14 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	}
 
 	r := newBlocksResult(opts, bopts)
-	r.addBlockFromPeer("foo", bl)
+	r.addBlockFromPeer(fooID, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, len(series))
 
-	blocks, ok := series["foo"]
+	sl, ok := series[fooID.Hash()]
 	assert.True(t, ok)
+	blocks := sl.Blocks
 	assert.Equal(t, 1, blocks.Len())
 	result, ok := blocks.BlockAt(start)
 	assert.True(t, ok)
@@ -761,7 +767,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	r := newBlocksResult(opts, bopts)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
-	err := r.addBlockFromPeer("foo", bl)
+	err := r.addBlockFromPeer(fooID, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
@@ -772,7 +778,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	r := newBlocksResult(opts, bopts)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
-	err := r.addBlockFromPeer("foo", bl)
+	err := r.addBlockFromPeer(fooID, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
@@ -810,8 +816,8 @@ func (qs MockHostQueues) newHostQueueFn() newHostQueueFn {
 	idx := uint64(0)
 	return func(
 		host topology.Host,
-		writeBatchRequestPool writeBatchRequestPool,
-		idDatapointArrayPool idDatapointArrayPool,
+		writeBatchRawRequestPool writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
 		opts Options,
 	) hostQueue {
 		return qs[atomic.AddUint64(&idx, 1)-1]
@@ -949,13 +955,13 @@ func expectFetchMetadataAndReturn(
 	var calls []*gomock.Call
 	for i := 0; i < totalCalls; i++ {
 		var (
-			ret      = &rpc.FetchBlocksMetadataResult_{}
+			ret      = &rpc.FetchBlocksMetadataRawResult_{}
 			beginIdx = i * batchSize
 			nextIdx  = int64(0)
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
 			elem := &rpc.BlocksMetadata{}
-			elem.ID = result[j].id
+			elem.ID = result[j].id.Data()
 			for k := 0; k < len(result[j].blocks); k++ {
 				bl := &rpc.BlockMetadata{}
 				bl.Start = result[j].blocks[k].start.UnixNano()
@@ -980,7 +986,7 @@ func expectFetchMetadataAndReturn(
 			matcher.pageToken = &expectPageToken
 		}
 
-		call := client.EXPECT().FetchBlocksMetadata(gomock.Any(), matcher).Return(ret, nil)
+		call := client.EXPECT().FetchBlocksMetadataRaw(gomock.Any(), matcher).Return(ret, nil)
 		calls = append(calls, call)
 	}
 
@@ -995,7 +1001,7 @@ type fetchMetadataReqMatcher struct {
 }
 
 func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
-	req, ok := x.(*rpc.FetchBlocksMetadataRequest)
+	req, ok := x.(*rpc.FetchBlocksMetadataRawRequest)
 	if !ok {
 		return false
 	}
@@ -1049,10 +1055,10 @@ func expectFetchBlocksAndReturn(
 	var calls []*gomock.Call
 	for i := 0; i < len(expect); i++ {
 		matcher := &fetchBlocksReqMatcher{req: expect[i]}
-		ret := &rpc.FetchBlocksResult_{}
+		ret := &rpc.FetchBlocksRawResult_{}
 		for _, res := range result[i] {
 			blocks := &rpc.Blocks{}
-			blocks.ID = res.id
+			blocks.ID = res.id.Data()
 			for j := range res.blocks {
 				bl := &rpc.Block{}
 				bl.Start = res.blocks[j].start.UnixNano()
@@ -1081,7 +1087,7 @@ func expectFetchBlocksAndReturn(
 			}
 			ret.Elements = append(ret.Elements, blocks)
 		}
-		call := client.EXPECT().FetchBlocks(gomock.Any(), matcher).Return(ret, nil)
+		call := client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Return(ret, nil)
 		calls = append(calls, call)
 	}
 
@@ -1093,7 +1099,7 @@ type fetchBlocksReqMatcher struct {
 }
 
 func (m *fetchBlocksReqMatcher) Matches(x interface{}) bool {
-	req, ok := x.(*rpc.FetchBlocksRequest)
+	req, ok := x.(*rpc.FetchBlocksRawRequest)
 	if !ok {
 		return false
 	}
@@ -1104,7 +1110,7 @@ func (m *fetchBlocksReqMatcher) Matches(x interface{}) bool {
 	}
 
 	for i := range params {
-		if params[i].id != req.Elements[i].ID {
+		if !params[i].id.Equal(ts.BinaryID(req.Elements[i].ID)) {
 			return false
 		}
 		if len(params[i].starts) != len(req.Elements[i].Starts) {
@@ -1129,12 +1135,12 @@ type fetchBlocksReq struct {
 }
 
 type fetchBlocksReqParam struct {
-	id     string
+	id     ts.ID
 	starts []time.Time
 }
 
 type testBlocksMetadata struct {
-	id     string
+	id     ts.ID
 	blocks []testBlockMetadata
 }
 
@@ -1144,7 +1150,7 @@ type testBlockMetadata struct {
 }
 
 type testBlocks struct {
-	id     string
+	id     ts.ID
 	blocks []testBlock
 }
 
@@ -1182,9 +1188,9 @@ func assertFetchBootstrapBlocksResult(
 
 	for i := range expected {
 		id := expected[i].id
-		entry, ok := series[id]
+		entry, ok := series[id.Hash()]
 		if !ok {
-			assert.Fail(t, fmt.Sprintf("blocks for series '%s' not present", id))
+			assert.Fail(t, fmt.Sprintf("blocks for series '%s' not present", id.String()))
 			continue
 		}
 
@@ -1195,12 +1201,12 @@ func assertFetchBootstrapBlocksResult(
 			}
 			expectedLen++
 		}
-		assert.Equal(t, expectedLen, entry.Len())
+		assert.Equal(t, expectedLen, entry.Blocks.Len())
 
 		for _, block := range expected[i].blocks {
-			actualBlock, ok := entry.BlockAt(block.start)
+			actualBlock, ok := entry.Blocks.BlockAt(block.start)
 			if !ok {
-				assert.Fail(t, fmt.Sprintf("block for series '%s' start %v not present", id, block.start))
+				assert.Fail(t, fmt.Sprintf("block for series '%s' start %v not present", id.String(), block.start))
 				continue
 			}
 

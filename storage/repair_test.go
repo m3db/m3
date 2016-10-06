@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -230,7 +231,7 @@ func TestShardRepairerRepair(t *testing.T) {
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
 
 	var (
-		namespace = "testNamespace"
+		namespace = ts.StringID("testNamespace")
 		start     = now.Add(-rtopts.RetentionPeriod())
 		end       = now.Add(-rtopts.BufferPast()).Add(-rtopts.BlockSize())
 	)
@@ -243,11 +244,11 @@ func TestShardRepairerRepair(t *testing.T) {
 	shard.EXPECT().
 		FetchBlocksMetadata(gomock.Any(), gomock.Any(), int64(0), true, true).
 		Return([]block.FetchBlocksMetadataResult{
-			block.NewFetchBlocksMetadataResult("foo", []block.FetchBlockMetadataResult{
+			block.NewFetchBlocksMetadataResult(ts.StringID("foo"), []block.FetchBlockMetadataResult{
 				block.NewFetchBlockMetadataResult(now.Add(-4*time.Hour), &sizes[0], &checksums[0], nil),
 				block.NewFetchBlockMetadataResult(now.Add(-6*time.Hour), &sizes[1], &checksums[1], nil),
 			}),
-			block.NewFetchBlocksMetadataResult("bar", []block.FetchBlockMetadataResult{
+			block.NewFetchBlocksMetadataResult(ts.StringID("bar"), []block.FetchBlockMetadataResult{
 				block.NewFetchBlockMetadataResult(now.Add(-4*time.Hour), &sizes[2], &checksums[2], nil),
 			}),
 		}, nil)
@@ -258,11 +259,11 @@ func TestShardRepairerRepair(t *testing.T) {
 		host topology.Host
 		meta block.BlocksMetadata
 	}{
-		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata("foo", []block.Metadata{
+		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{
 			block.NewMetadata(now.Add(-4*time.Hour), sizes[0], &checksums[0]),
 			block.NewMetadata(now.Add(-6*time.Hour), sizes[0], &checksums[1]),
 		})},
-		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata("bar", []block.Metadata{
+		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ts.StringID("bar"), []block.Metadata{
 			block.NewMetadata(now.Add(-4*time.Hour), sizes[2], &checksums[2]),
 		})},
 	}
@@ -280,7 +281,7 @@ func TestShardRepairerRepair(t *testing.T) {
 		Return(peerIter, nil)
 
 	var (
-		resNamespace string
+		resNamespace ts.ID
 		resShard     databaseShard
 		resDiff      repair.MetadataComparisonResult
 	)
@@ -288,7 +289,7 @@ func TestShardRepairerRepair(t *testing.T) {
 	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
 	require.NoError(t, err)
 	repairer := databaseShardRepairer.(shardRepairer)
-	repairer.recordFn = func(namespace string, shard databaseShard, diffRes repair.MetadataComparisonResult) {
+	repairer.recordFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
 		resNamespace = namespace
 		resShard = shard
 		resDiff = diffRes
@@ -302,9 +303,9 @@ func TestShardRepairerRepair(t *testing.T) {
 	require.Equal(t, 0, len(resDiff.ChecksumDifferences.Series()))
 	sizeDiffSeries := resDiff.SizeDifferences.Series()
 	require.Equal(t, 1, len(sizeDiffSeries))
-	series, exists := sizeDiffSeries["foo"]
+	series, exists := sizeDiffSeries[ts.StringID("foo").Hash()]
 	require.True(t, exists)
-	blocks := series.Blocks()
+	blocks := series.Metadata.Blocks()
 	require.Equal(t, 1, len(blocks))
 	block, exists := blocks[now.Add(-6*time.Hour)]
 	require.True(t, exists)

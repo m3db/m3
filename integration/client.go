@@ -48,12 +48,12 @@ func tchannelClient(address string) (*tchannel.Channel, rpc.TChanNode, error) {
 }
 
 // tchannelClientWriteBatch writes a data map using a tchannel client.
-func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, namespace string, seriesList seriesList) error {
-	var elems []*rpc.IDDatapoint
+func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, namespace ts.ID, seriesList seriesList) error {
+	var elems []*rpc.WriteBatchRawRequestElement
 	for _, series := range seriesList {
 		for _, dp := range series.Data {
-			elem := &rpc.IDDatapoint{
-				ID: series.ID,
+			elem := &rpc.WriteBatchRawRequestElement{
+				ID: series.ID.Data(),
 				Datapoint: &rpc.Datapoint{
 					Timestamp:     xtime.ToNormalizedTime(dp.Timestamp, time.Second),
 					Value:         dp.Value,
@@ -65,8 +65,8 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 	}
 
 	ctx, _ := thrift.NewContext(timeout)
-	batchReq := &rpc.WriteBatchRequest{Elements: elems}
-	return client.WriteBatch(ctx, batchReq)
+	batchReq := &rpc.WriteBatchRawRequest{NameSpace: namespace.Data(), Elements: elems}
+	return client.WriteBatchRaw(ctx, batchReq)
 }
 
 // tchannelClientFetch fulfills a fetch request using a tchannel client.
@@ -94,7 +94,7 @@ func m3dbClient(opts client.Options) (client.Client, error) {
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
-func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, namespace string, seriesList seriesList) error {
+func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, namespace ts.ID, seriesList seriesList) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -113,7 +113,8 @@ func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, name
 			workerPool.Go(func() {
 				defer wg.Done()
 
-				if err := session.Write(namespace, id, d.Timestamp, d.Value, xtime.Second, nil); err != nil {
+				if err := session.Write(
+					namespace.String(), id.String(), d.Timestamp, d.Value, xtime.Second, nil); err != nil {
 					select {
 					case errCh <- err:
 					default:
@@ -175,5 +176,5 @@ func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error
 		return 0, errors.New("unable to get an admin session")
 	}
 
-	return adminSession.Truncate(req.NameSpace)
+	return adminSession.Truncate(ts.BinaryID(req.NameSpace))
 }

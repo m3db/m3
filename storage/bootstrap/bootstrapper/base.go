@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 )
@@ -63,7 +64,7 @@ func (b *baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (b *baseBootstrapper) Bootstrap(
-	namespace string,
+	namespace ts.ID,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
 ) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {

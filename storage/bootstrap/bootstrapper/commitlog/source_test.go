@@ -37,7 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testNamespaceName = "testNamespace"
+var testNamespaceID = ts.StringID("testNamespace")
 
 func testOptions() Options {
 	opts := NewOptions()
@@ -67,7 +67,7 @@ func testOptions() Options {
 func TestAvailableEmptyRangeError(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts)
-	res := src.Available(testNamespaceName, bootstrap.ShardTimeRanges{})
+	res := src.Available(testNamespaceID, bootstrap.ShardTimeRanges{})
 	require.True(t, bootstrap.ShardTimeRanges{}.Equal(res))
 }
 
@@ -76,7 +76,7 @@ func TestReadEmpty(t *testing.T) {
 
 	src := newCommitLogSource(opts)
 
-	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{})
+	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{})
 	require.Nil(t, res)
 	require.Nil(t, err)
 }
@@ -94,7 +94,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		Start: time.Now(),
 		End:   time.Now().Add(time.Hour),
 	})
-	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{0: ranges})
+	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{0: ranges})
 	require.Error(t, err)
 	require.Nil(t, res)
 }
@@ -117,9 +117,9 @@ func TestReadOrderedValues(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Shard: 0, ID: "foo"}
-	bar := commitlog.Series{Shard: 1, ID: "bar"}
-	baz := commitlog.Series{Shard: 2, ID: "baz"}
+	foo := commitlog.Series{Shard: 0, ID: ts.StringID("foo")}
+	bar := commitlog.Series{Shard: 1, ID: ts.StringID("bar")}
+	baz := commitlog.Series{Shard: 2, ID: ts.StringID("baz")}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -133,7 +133,7 @@ func TestReadOrderedValues(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
+	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -159,7 +159,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Shard: 0, ID: "foo"}
+	foo := commitlog.Series{Shard: 0, ID: ts.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
@@ -172,7 +172,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
+	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -198,7 +198,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Shard: 0, ID: "foo"}
+	foo := commitlog.Series{Shard: 0, ID: ts.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},
@@ -210,7 +210,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(testNamespaceName, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
+	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -250,7 +250,7 @@ func requireShardResults(
 			expected[v.s.Shard] = result
 		}
 
-		blocks := result.AllSeries()[v.s.ID]
+		blocks := result.AllSeries()[v.s.ID.Hash()].Blocks
 		blockStart := v.t.Truncate(blockSize)
 		block := blocks.BlockOrAdd(blockStart)
 		err := block.Write(v.t, v.v, v.u, v.a)
@@ -271,11 +271,11 @@ func requireShardResults(
 			otherBlocks, ok := otherSeries[id]
 			require.True(t, ok)
 
-			allBlocks := blocks.AllBlocks()
-			otherAllBlocks := otherBlocks.AllBlocks()
+			allBlocks := blocks.Blocks.AllBlocks()
+			otherAllBlocks := otherBlocks.Blocks.AllBlocks()
 			require.Equal(t, len(allBlocks), len(otherAllBlocks))
 
-			blopts := blocks.Options()
+			blopts := blocks.Blocks.Options()
 			readerIteratorPool := blopts.ReaderIteratorPool()
 			for start, block := range allBlocks {
 				otherBlock, ok := otherAllBlocks[start]

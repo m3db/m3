@@ -94,11 +94,11 @@ type Series struct {
 	// UniqueIndex is the unique index assigned to this series
 	UniqueIndex uint64
 
-	// ID is the series identifier
-	ID string
-
 	// Namespace is the namespace the series belongs to
-	Namespace string
+	Namespace ts.ID
+
+	// ID is the series identifier
+	ID ts.ID
 
 	// Shard is the shard the series belongs to
 	Shard uint32

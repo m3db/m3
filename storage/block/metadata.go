@@ -20,7 +20,11 @@
 
 package block
 
-import "time"
+import (
+	"time"
+
+	"github.com/m3db/m3db/ts"
+)
 
 type metadata struct {
 	start    time.Time
@@ -42,14 +46,14 @@ func (m metadata) Size() int64       { return m.size }
 func (m metadata) Checksum() *uint32 { return m.checksum }
 
 type blocksMetadata struct {
-	id     string
+	id     ts.ID
 	blocks []Metadata
 }
 
 // NewBlocksMetadata creates a new blocks metadata
-func NewBlocksMetadata(id string, blocks []Metadata) BlocksMetadata {
+func NewBlocksMetadata(id ts.ID, blocks []Metadata) BlocksMetadata {
 	return blocksMetadata{id: id, blocks: blocks}
 }
 
-func (m blocksMetadata) ID() string         { return m.id }
+func (m blocksMetadata) ID() ts.ID          { return m.id }
 func (m blocksMetadata) Blocks() []Metadata { return m.blocks }

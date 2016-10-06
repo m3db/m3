@@ -168,15 +168,15 @@ func (w *writer) Write(
 ) error {
 	w.log = schema.CommitLog{}
 	w.log.Created = w.nowFn().UnixNano()
-	w.log.Idx = series.UniqueIndex
+	w.log.Index = series.UniqueIndex
 
-	seen := w.bitset.has(w.log.Idx)
+	seen := w.bitset.has(w.log.Index)
 	if !seen {
 		// If "idx" hasn't been written to commit log
 		// yet we need to include series metadata
 		w.metadata = schema.CommitLogMetadata{}
-		w.metadata.Id = series.ID
-		w.metadata.Namespace = series.Namespace
+		w.metadata.Id = series.ID.Data()
+		w.metadata.Namespace = series.Namespace.Data()
 		w.metadata.Shard = series.Shard
 
 		w.metadataBuffer.Reset()
@@ -201,7 +201,7 @@ func (w *writer) Write(
 
 	if !seen {
 		// Record we have seen this series
-		w.bitset.set(w.log.Idx)
+		w.bitset.set(w.log.Index)
 	}
 	return nil
 }

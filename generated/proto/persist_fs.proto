@@ -8,8 +8,8 @@ message IndexInfo {
 }
 
 message IndexEntry {
-	int64 idx = 1;
-	string key = 2;
+	int64 index = 1;
+	bytes id = 2;
 	int64 size = 3;
 	int64 offset = 4;
 }

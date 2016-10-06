@@ -46,7 +46,7 @@ type commitLogReader interface {
 	// Open opens the commit log for reading
 	Open(filePath string) (time.Time, time.Duration, int, error)
 
-	// Read returns the next key and data pair or error, will return io.EOF at end of volume
+	// Read returns the next id and data pair or error, will return io.EOF at end of volume
 	Read() (Series, ts.Datapoint, xtime.Unit, ts.Annotation, error)
 
 	// Close the reader
@@ -113,15 +113,15 @@ func (r *reader) Read() (
 			resultErr = err
 			return
 		}
-		r.metadataLookup[r.log.Idx] = Series{
-			UniqueIndex: r.log.Idx,
-			ID:          r.metadata.Id,
-			Namespace:   r.metadata.Namespace,
+		r.metadataLookup[r.log.Index] = Series{
+			UniqueIndex: r.log.Index,
+			ID:          ts.BinaryID(r.metadata.Id),
+			Namespace:   ts.BinaryID(r.metadata.Namespace),
 			Shard:       r.metadata.Shard,
 		}
 	}
 
-	metadata, ok := r.metadataLookup[r.log.Idx]
+	metadata, ok := r.metadataLookup[r.log.Index]
 	if !ok {
 		resultErr = errCommitLogReaderMissingLogMetadata
 		return

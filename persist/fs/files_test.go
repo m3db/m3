@@ -32,12 +32,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const testNamespaceName = "testNs"
+var testNamespaceID = ts.StringID("testNs")
 
 func createTempFile(t *testing.T) *os.File {
 	fd, err := ioutil.TempFile("", "testfile")
@@ -67,9 +68,9 @@ func createFile(t *testing.T, filePath string, b []byte) {
 	fd.Close()
 }
 
-func createInfoFiles(t *testing.T, namespace string, shard uint32, iter int) string {
+func createInfoFiles(t *testing.T, namespace ts.ID, shard uint32, iter int) string {
 	dir := createTempDir(t)
-	shardDir := path.Join(dir, dataDirName, namespace, strconv.Itoa(int(shard)))
+	shardDir := path.Join(dir, dataDirName, namespace.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	for i := 0; i < iter; i++ {
 		ts := time.Unix(0, int64(i))
@@ -158,7 +159,7 @@ func TestForEachInfoFile(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	shardDir := ShardDirPath(dir, testNamespaceName, shard)
+	shardDir := ShardDirPath(dir, testNamespaceID, shard)
 	require.NoError(t, os.MkdirAll(shardDir, os.ModeDir|os.FileMode(0755)))
 
 	blockStart := time.Unix(0, 0)
@@ -207,7 +208,7 @@ func TestForEachInfoFile(t *testing.T) {
 
 	var fnames []string
 	var res []byte
-	ForEachInfoFile(dir, testNamespaceName, shard, testReaderBufferSize, func(fname string, data []byte) {
+	ForEachInfoFile(dir, testNamespaceID, shard, testReaderBufferSize, func(fname string, data []byte) {
 		fnames = append(fnames, fname)
 		res = append(res, data...)
 	})
@@ -266,27 +267,27 @@ func TestFileExists(t *testing.T) {
 
 	shard := uint32(10)
 	start := time.Now()
-	shardDir := ShardDirPath(dir, testNamespaceName, shard)
+	shardDir := ShardDirPath(dir, testNamespaceID, shard)
 	err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 	require.NoError(t, err)
 
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, FileExists(infoFilePath))
-	require.False(t, FilesetExistsAt(dir, testNamespaceName, uint32(shard), start))
+	require.False(t, FilesetExistsAt(dir, testNamespaceID, uint32(shard), start))
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	require.True(t, FilesetExistsAt(dir, testNamespaceName, uint32(shard), start))
+	require.True(t, FilesetExistsAt(dir, testNamespaceID, uint32(shard), start))
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))
 }
 
 func TestShardDirPath(t *testing.T) {
-	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar", testNamespaceName, 12))
-	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar/", testNamespaceName, 12))
+	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar", testNamespaceID, 12))
+	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar/", testNamespaceID, 12))
 }
 
 func TestFilePathFromTime(t *testing.T) {
@@ -309,16 +310,16 @@ func TestFilePathFromTime(t *testing.T) {
 
 func TestFilesetFilesBefore(t *testing.T) {
 	shard := uint32(0)
-	dir := createInfoFiles(t, testNamespaceName, shard, 20)
+	dir := createInfoFiles(t, testNamespaceID, shard, 20)
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
-	res, err := FilesetBefore(dir, testNamespaceName, shard, cutoff)
+	res, err := FilesetBefore(dir, testNamespaceID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
-	shardDir := path.Join(dir, dataDirName, testNamespaceName, strconv.Itoa(int(shard)))
+	shardDir := path.Join(dir, dataDirName, testNamespaceID.String(), strconv.Itoa(int(shard)))
 	for i := 0; i < len(res); i++ {
 		ts := time.Unix(0, int64(i))
 		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])

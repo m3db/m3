@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -83,7 +84,7 @@ func NewWriter(
 // Open initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
-func (w *writer) Open(namespace string, shard uint32, blockStart time.Time) error {
+func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(w.filePathPrefix, namespace, shard)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
@@ -127,23 +128,23 @@ func (w *writer) writeData(data []byte) error {
 	return nil
 }
 
-func (w *writer) Write(key string, data []byte) error {
-	return w.WriteAll(key, [][]byte{data})
+func (w *writer) Write(id ts.ID, data []byte) error {
+	return w.WriteAll(id, [][]byte{data})
 }
 
-func (w *writer) WriteAll(key string, data [][]byte) error {
+func (w *writer) WriteAll(id ts.ID, data [][]byte) error {
 	if w.err != nil {
 		return w.err
 	}
 
-	if err := w.writeAll(key, data); err != nil {
+	if err := w.writeAll(id, data); err != nil {
 		w.err = err
 		return err
 	}
 	return nil
 }
 
-func (w *writer) writeAll(key string, data [][]byte) error {
+func (w *writer) writeAll(id ts.ID, data [][]byte) error {
 	var size int64
 	for _, d := range data {
 		size += int64(len(d))
@@ -154,9 +155,9 @@ func (w *writer) writeAll(key string, data [][]byte) error {
 
 	entry := &w.currEntry
 	entry.Reset()
-	entry.Idx = w.currIdx
+	entry.Index = w.currIdx
 	entry.Size = size
-	entry.Key = key
+	entry.Id = id.Data()
 	entry.Offset = w.currOffset
 
 	w.indexBuffer.Reset()

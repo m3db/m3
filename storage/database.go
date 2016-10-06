@@ -97,7 +97,7 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
-	namespaces       map[string]databaseNamespace
+	namespaces       map[ts.Hash]databaseNamespace
 	commitLog        commitlog.CommitLog
 	writeCommitLogFn writeCommitLogFn
 
@@ -181,14 +181,14 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 		return nil, errCommitLogStrategyUnknown
 	}
 
-	ns := make(map[string]databaseNamespace, len(namespaces))
+	ns := make(map[ts.Hash]databaseNamespace, len(namespaces))
 	for _, n := range namespaces {
-		if _, exists := ns[n.Name()]; exists {
+		if _, exists := ns[n.ID().Hash()]; exists {
 			return nil, errDuplicateNamespaces
 		}
 		// NB(xichen): shardSet is used only for reads but not writes once created
 		// so can be shared by different namespaces
-		ns[n.Name()] = newDatabaseNamespace(n, shardSet, d, d.writeCommitLogFn, d.opts)
+		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet, d, d.writeCommitLogFn, d.opts)
 	}
 	d.namespaces = ns
 
@@ -254,8 +254,8 @@ func (d *db) Close() error {
 
 func (d *db) Write(
 	ctx context.Context,
-	namespace string,
-	id string,
+	namespace ts.ID,
+	id ts.ID,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -263,7 +263,7 @@ func (d *db) Write(
 ) error {
 	callStart := d.nowFn()
 	d.RLock()
-	n, exists := d.namespaces[namespace]
+	n, exists := d.namespaces[namespace.Hash()]
 	d.RUnlock()
 
 	if !exists {
@@ -278,8 +278,8 @@ func (d *db) Write(
 
 func (d *db) ReadEncoded(
 	ctx context.Context,
-	namespace string,
-	id string,
+	namespace ts.ID,
+	id ts.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	callStart := d.nowFn()
@@ -297,9 +297,9 @@ func (d *db) ReadEncoded(
 
 func (d *db) FetchBlocks(
 	ctx context.Context,
-	namespace string,
+	namespace ts.ID,
 	shardID uint32,
-	id string,
+	id ts.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := d.nowFn()
@@ -318,7 +318,7 @@ func (d *db) FetchBlocks(
 
 func (d *db) FetchBlocksMetadata(
 	ctx context.Context,
-	namespace string,
+	namespace ts.ID,
 	shardID uint32,
 	limit int64,
 	pageToken int64,
@@ -351,7 +351,7 @@ func (d *db) Repair() error {
 	return d.repairer.Repair()
 }
 
-func (d *db) Truncate(namespace string) (int64, error) {
+func (d *db) Truncate(namespace ts.ID) (int64, error) {
 	n, err := d.readableNamespace(namespace)
 	if err != nil {
 		return 0, err
@@ -359,13 +359,13 @@ func (d *db) Truncate(namespace string) (int64, error) {
 	return n.Truncate()
 }
 
-func (d *db) readableNamespace(namespace string) (databaseNamespace, error) {
+func (d *db) readableNamespace(namespace ts.ID) (databaseNamespace, error) {
 	d.RLock()
 	if !d.bsm.IsBootstrapped() {
 		d.RUnlock()
 		return nil, errDatabaseNotBootstrapped
 	}
-	n, exists := d.namespaces[namespace]
+	n, exists := d.namespaces[namespace.Hash()]
 	d.RUnlock()
 
 	if !exists {

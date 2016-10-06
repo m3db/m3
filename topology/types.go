@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/close"
 )
 
@@ -92,11 +93,11 @@ type Map interface {
 	ShardSet() sharding.ShardSet
 
 	// Route will route a given ID to a shard and a set of hosts
-	Route(id string) (uint32, []Host, error)
+	Route(id ts.ID) (uint32, []Host, error)
 
 	// RouteForEach will route a given ID to a shard then execute a
 	// function for each host in the set of routed hosts
-	RouteForEach(id string, forEachFn RouteForEachFn) error
+	RouteForEach(id ts.ID, forEachFn RouteForEachFn) error
 
 	// RouteShard will route a given shard to a set of hosts
 	RouteShard(shard uint32) ([]Host, error)

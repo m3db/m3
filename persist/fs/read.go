@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -98,7 +99,7 @@ func NewReader(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) 
 	}
 }
 
-func (r *reader) Open(namespace string, shard uint32, blockStart time.Time) error {
+func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	// If there is no checkpoint file, don't read the data files.
 	shardDir := ShardDirPath(r.filePathPrefix, namespace, shard)
 	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
@@ -210,8 +211,8 @@ func (r *reader) readIndex(size int) error {
 	return nil
 }
 
-func (r *reader) Read() (string, []byte, error) {
-	var none string
+func (r *reader) Read() (ts.ID, []byte, error) {
+	var none ts.ID
 	entry := &r.currEntry
 	entry.Reset()
 
@@ -247,13 +248,13 @@ func (r *reader) Read() (string, []byte, error) {
 	}
 
 	idx := int64(endianness.Uint64(data[markerLen : markerLen+idxLen]))
-	if idx != entry.Idx {
-		return none, nil, ErrReadWrongIdx{ExpectedIdx: entry.Idx, ActualIdx: idx}
+	if idx != entry.Index {
+		return none, nil, ErrReadWrongIdx{ExpectedIdx: entry.Index, ActualIdx: idx}
 	}
 
 	r.entriesRead++
 
-	return entry.Key, data[markerLen+idxLen:], nil
+	return ts.BinaryID(entry.Id), data[markerLen+idxLen:], nil
 }
 
 // NB(xichen): Validate should be called after all data are read because the

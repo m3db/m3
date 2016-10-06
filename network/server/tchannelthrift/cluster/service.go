@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 
@@ -147,11 +148,10 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	if err != nil {
 		return tterrors.NewInternalError(err)
 	}
-	if req.IdDatapoint == nil || req.IdDatapoint.Datapoint == nil {
+	if req.Datapoint == nil {
 		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
 	}
-	id := req.IdDatapoint.ID
-	dp := req.IdDatapoint.Datapoint
+	dp := req.Datapoint
 	unit, unitErr := convert.ToUnit(dp.TimestampType)
 	if unitErr != nil {
 		return tterrors.NewBadRequestError(unitErr)
@@ -161,7 +161,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		return tterrors.NewBadRequestError(err)
 	}
 	ts := xtime.FromNormalizedTime(dp.Timestamp, d)
-	err = session.Write(req.NameSpace, id, ts, dp.Value, unit, dp.Annotation)
+	err = session.Write(req.NameSpace, req.ID, ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
 		if client.IsBadRequestError(err) {
 			return tterrors.NewBadRequestError(err)
@@ -180,7 +180,7 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.
 	if !ok {
 		return nil, tterrors.NewInternalError(errors.New("unable to get an admin session"))
 	}
-	truncated, err := adminSession.Truncate(req.NameSpace)
+	truncated, err := adminSession.Truncate(ts.BinaryID(req.NameSpace))
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}

@@ -38,6 +38,7 @@ import (
 	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 
@@ -258,7 +259,7 @@ type testData struct {
 }
 
 func writeTestDataToDisk(
-	namespace string,
+	namespace ts.ID,
 	setup *testSetup,
 	seriesMaps map[time.Time]seriesList,
 ) error {
@@ -308,7 +309,7 @@ func writeToDisk(
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
-	namespace string,
+	namespace ts.ID,
 	seriesList seriesList,
 ) error {
 	seriesPerShard := make(map[uint32][]series)

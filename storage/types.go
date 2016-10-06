@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
+	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -53,8 +54,8 @@ type Database interface {
 	// Write value to the database for an ID
 	Write(
 		ctx context.Context,
-		namespace string,
-		id string,
+		namespace ts.ID,
+		id ts.ID,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -64,17 +65,17 @@ type Database interface {
 	// ReadEncoded retrieves encoded segments for an ID
 	ReadEncoded(
 		ctx context.Context,
-		namespace string,
-		id string,
+		namespace ts.ID,
+		id ts.ID,
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
-		namespace string,
+		namespace ts.ID,
 		shard uint32,
-		id string,
+		id ts.ID,
 		starts []time.Time,
 	) ([]block.FetchBlockResult, error)
 
@@ -83,7 +84,7 @@ type Database interface {
 	// If we have fetched all the block metadata, we return nil as the next page token.
 	FetchBlocksMetadata(
 		ctx context.Context,
-		namespace string,
+		namespace ts.ID,
 		shard uint32,
 		limit int64,
 		pageToken int64,
@@ -101,12 +102,12 @@ type Database interface {
 	Repair() error
 
 	// Truncate truncates data for the given namespace
-	Truncate(namespace string) (int64, error)
+	Truncate(namespace ts.ID) (int64, error)
 }
 
 type databaseNamespace interface {
-	// Name returns the name of the namespace
-	Name() string
+	// ID returns the ID of the namespace
+	ID() ts.ID
 
 	// NumSeries returns the number of series in the namespace
 	NumSeries() int64
@@ -117,7 +118,7 @@ type databaseNamespace interface {
 	// Write writes a data point
 	Write(
 		ctx context.Context,
-		id string,
+		id ts.ID,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -127,7 +128,7 @@ type databaseNamespace interface {
 	// ReadEncoded reads data for given id within [start, end)
 	ReadEncoded(
 		ctx context.Context,
-		id string,
+		id ts.ID,
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
 
@@ -135,7 +136,7 @@ type databaseNamespace interface {
 	FetchBlocks(
 		ctx context.Context,
 		shardID uint32,
-		id string,
+		id ts.ID,
 		starts []time.Time,
 	) ([]block.FetchBlockResult, error)
 
@@ -179,7 +180,7 @@ type databaseShard interface {
 
 	Write(
 		ctx context.Context,
-		id string,
+		id ts.ID,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -188,14 +189,14 @@ type databaseShard interface {
 
 	ReadEncoded(
 		ctx context.Context,
-		id string,
+		id ts.ID,
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
-		id string,
+		id ts.ID,
 		starts []time.Time,
 	) []block.FetchBlockResult
 
@@ -209,22 +210,22 @@ type databaseShard interface {
 	) ([]block.FetchBlocksMetadataResult, *int64)
 
 	Bootstrap(
-		bootstrappedSeries map[string]block.DatabaseSeriesBlocks,
+		bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocksWrapper,
 		writeStart time.Time,
 	) error
 
 	// Flush flushes the series in this shard.
 	Flush(
-		namespace string,
+		namespace ts.ID,
 		blockStart time.Time,
 		pm persist.Manager,
 	) error
 
 	// CleanupFileset cleans up fileset files
-	CleanupFileset(namespace string, earliestToRetain time.Time) error
+	CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error
 
 	// Repair repairs the shard data
-	Repair(namespace string, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error)
+	Repair(namespace ts.ID, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.
@@ -276,7 +277,7 @@ type databaseShardRepairer interface {
 	Options() repair.Options
 
 	// Repair repairs the data for a given namespace and shard
-	Repair(namespace string, shard databaseShard) (repair.MetadataComparisonResult, error)
+	Repair(namespace ts.ID, shard databaseShard) (repair.MetadataComparisonResult, error)
 }
 
 // databaseRepairer repairs in-memory database data

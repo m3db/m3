@@ -137,7 +137,7 @@ func (m *bootstrapManager) Bootstrap() error {
 		}
 		end := m.nowFn()
 		m.log.WithFields(
-			xlog.NewLogField("namespace", namespace.Name()),
+			xlog.NewLogField("namespace", namespace.ID().String()),
 			xlog.NewLogField("duration", end.Sub(start).String()),
 		).Info("bootstrap finished")
 	}

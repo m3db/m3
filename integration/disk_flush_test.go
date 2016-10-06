@@ -44,7 +44,7 @@ var (
 func waitUntilDataFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
-	namespace string,
+	namespace ts.ID,
 	testData map[time.Time]seriesList,
 	timeout time.Duration,
 ) error {
@@ -71,7 +71,7 @@ func verifyForTime(
 	shardSet sharding.ShardSet,
 	decoder encoding.Decoder,
 	timestamp time.Time,
-	namespace string,
+	namespace ts.ID,
 	expected seriesList,
 ) {
 	shards := make(map[uint32]struct{})
@@ -108,7 +108,7 @@ func verifyFlushed(
 	t *testing.T,
 	shardSet sharding.ShardSet,
 	opts storage.Options,
-	namespace string,
+	namespace ts.ID,
 	seriesMaps map[time.Time]seriesList,
 ) {
 	fsOpts := opts.CommitLogOptions().FilesystemOptions()

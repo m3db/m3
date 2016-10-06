@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,12 +67,12 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 	sizes := []int64{1, 2, 3, 4, 5}
 	checksums := []uint32{6, 7, 8, 9, 10}
 	res := []FetchBlocksMetadataResult{
-		NewFetchBlocksMetadataResult("foo", []FetchBlockMetadataResult{
+		NewFetchBlocksMetadataResult(ts.StringID("foo"), []FetchBlockMetadataResult{
 			NewFetchBlockMetadataResult(now.Add(-time.Second), &sizes[0], &checksums[0], nil),
 			NewFetchBlockMetadataResult(now.Add(-4*time.Hour), &sizes[1], &checksums[1], nil),
 			NewFetchBlockMetadataResult(now.Add(4*time.Hour), &sizes[2], &checksums[2], nil),
 		}),
-		NewFetchBlocksMetadataResult("bar", []FetchBlockMetadataResult{
+		NewFetchBlocksMetadataResult(ts.StringID("bar"), []FetchBlockMetadataResult{
 			NewFetchBlockMetadataResult(now, &sizes[3], &checksums[3], nil),
 			NewFetchBlockMetadataResult(now.Add(time.Second), &sizes[4], &checksums[4], errors.New("foo")),
 			NewFetchBlockMetadataResult(now.Add(2*time.Second), nil, nil, nil),
@@ -81,7 +82,7 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 	var actual []testValue
 	for iter.Next() {
 		id, metadata := iter.Current()
-		actual = append(actual, testValue{id, metadata})
+		actual = append(actual, testValue{id.String(), metadata})
 	}
 	expected := []testValue{
 		{"foo", NewMetadata(now.Add(-time.Second), sizes[0], &checksums[0])},

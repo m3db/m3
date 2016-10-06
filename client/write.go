@@ -23,6 +23,7 @@ package client
 import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/ts"
 )
 
 var (
@@ -30,16 +31,15 @@ var (
 )
 
 type writeOp struct {
-	request      rpc.WriteRequest
-	idDatapoint  rpc.IDDatapoint
+	namespace    ts.ID
+	request      rpc.WriteBatchRawRequestElement
 	datapoint    rpc.Datapoint
 	completionFn completionFn
 }
 
 func (w *writeOp) reset() {
 	*w = writeOpZeroed
-	w.idDatapoint.Datapoint = &w.datapoint
-	w.request.IdDatapoint = &w.idDatapoint
+	w.request.Datapoint = &w.datapoint
 }
 
 func (w *writeOp) Size() int {

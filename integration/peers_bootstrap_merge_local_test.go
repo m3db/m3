@@ -103,28 +103,28 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	require.Equal(t, 2, len(firstNodeSeriesMaps))
 
 	require.Equal(t, 2, firstNodeSeriesMaps[now.Add(-blockSize)].Len())
-	require.Equal(t, "foo", firstNodeSeriesMaps[now.Add(-blockSize)][0].ID)
+	require.Equal(t, "foo", firstNodeSeriesMaps[now.Add(-blockSize)][0].ID.String())
 	require.Equal(t, 180, len(firstNodeSeriesMaps[now.Add(-blockSize)][0].Data))
-	require.Equal(t, "bar", firstNodeSeriesMaps[now.Add(-blockSize)][1].ID)
+	require.Equal(t, "bar", firstNodeSeriesMaps[now.Add(-blockSize)][1].ID.String())
 	require.Equal(t, 180, len(firstNodeSeriesMaps[now.Add(-blockSize)][1].Data))
 
 	require.Equal(t, 2, firstNodeSeriesMaps[now].Len())
-	require.Equal(t, "foo", firstNodeSeriesMaps[now][0].ID)
+	require.Equal(t, "foo", firstNodeSeriesMaps[now][0].ID.String())
 	require.Equal(t, 60, len(firstNodeSeriesMaps[now][0].Data))
-	require.Equal(t, "baz", firstNodeSeriesMaps[now][1].ID)
+	require.Equal(t, "baz", firstNodeSeriesMaps[now][1].ID.String())
 	require.Equal(t, 60, len(firstNodeSeriesMaps[now][1].Data))
 
 	// Assert test data for direct writes is correct
 	require.Equal(t, 1, len(directWritesSeriesMaps))
 
 	require.Equal(t, 2, directWritesSeriesMaps[now].Len())
-	require.Equal(t, "foo", directWritesSeriesMaps[now][0].ID)
+	require.Equal(t, "foo", directWritesSeriesMaps[now][0].ID.String())
 	require.Equal(t, 120, len(directWritesSeriesMaps[now][0].Data))
-	require.Equal(t, "baz", directWritesSeriesMaps[now][1].ID)
+	require.Equal(t, "baz", directWritesSeriesMaps[now][1].ID.String())
 	require.Equal(t, 120, len(directWritesSeriesMaps[now][1].Data))
 
 	// Write data to first node
-	err := writeTestDataToDisk(namesp.Name(), setups[0], firstNodeSeriesMaps)
+	err := writeTestDataToDisk(namesp.ID(), setups[0], firstNodeSeriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper
@@ -141,7 +141,7 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		setups[1].setNowFn(completeAt)
 
 		// Write data that "arrives" at the second node directly
-		require.NoError(t, setups[1].writeBatch(namesp.Name(), directWritesSeriesMaps[now]))
+		require.NoError(t, setups[1].writeBatch(namesp.ID(), directWritesSeriesMaps[now]))
 	})
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
@@ -155,6 +155,6 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect
-	verifySeriesMaps(t, setups[0], namesp.Name(), firstNodeSeriesMaps)
-	verifySeriesMaps(t, setups[1], namesp.Name(), seriesMaps)
+	verifySeriesMaps(t, setups[0], namesp.ID(), firstNodeSeriesMaps)
+	verifySeriesMaps(t, setups[1], namesp.ID(), seriesMaps)
 }

@@ -25,38 +25,40 @@ import (
 	"github.com/m3db/m3db/pool"
 )
 
-type idDatapointArrayPool interface {
+type writeBatchRawRequestElementArrayPool interface {
 	// Init pool
 	Init()
 
-	// Get an array of idDatapoint objects
-	Get() []*rpc.IDDatapoint
+	// Get an array of WriteBatchRawRequestElement objects
+	Get() []*rpc.WriteBatchRawRequestElement
 
-	// Put an array of idDatapoint objects
-	Put(w []*rpc.IDDatapoint)
+	// Put an array of WriteBatchRawRequestElement objects
+	Put(w []*rpc.WriteBatchRawRequestElement)
 }
 
-type poolOfIDDatapointArray struct {
+type poolOfWriteBatchRawRequestElementArray struct {
 	pool     pool.ObjectPool
 	capacity int
 }
 
-func newIDDatapointArrayPool(opts pool.ObjectPoolOptions, capacity int) idDatapointArrayPool {
+func newWriteBatchRawRequestElementArrayPool(
+	opts pool.ObjectPoolOptions, capacity int) writeBatchRawRequestElementArrayPool {
+
 	p := pool.NewObjectPool(opts)
-	return &poolOfIDDatapointArray{p, capacity}
+	return &poolOfWriteBatchRawRequestElementArray{p, capacity}
 }
 
-func (p *poolOfIDDatapointArray) Init() {
+func (p *poolOfWriteBatchRawRequestElementArray) Init() {
 	p.pool.Init(func() interface{} {
-		return make([]*rpc.IDDatapoint, 0, p.capacity)
+		return make([]*rpc.WriteBatchRawRequestElement, 0, p.capacity)
 	})
 }
 
-func (p *poolOfIDDatapointArray) Get() []*rpc.IDDatapoint {
-	return p.pool.Get().([]*rpc.IDDatapoint)
+func (p *poolOfWriteBatchRawRequestElementArray) Get() []*rpc.WriteBatchRawRequestElement {
+	return p.pool.Get().([]*rpc.WriteBatchRawRequestElement)
 }
 
-func (p *poolOfIDDatapointArray) Put(w []*rpc.IDDatapoint) {
+func (p *poolOfWriteBatchRawRequestElementArray) Put(w []*rpc.WriteBatchRawRequestElement) {
 	w = w[:0]
 	p.pool.Put(w)
 }
