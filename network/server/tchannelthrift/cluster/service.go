@@ -171,7 +171,22 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	return nil
 }
 
-func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
+func (s *service) Repair(tctx thrift.Context) error {
+	session, err := s.session()
+	if err != nil {
+		return tterrors.NewInternalError(err)
+	}
+	adminSession, ok := session.(client.AdminSession)
+	if !ok {
+		return tterrors.NewInternalError(errors.New("unable to get an admin session"))
+	}
+	if err := adminSession.Repair(); err != nil {
+		return tterrors.NewInternalError(err)
+	}
+	return nil
+}
+
+func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.TruncateResult_, error) {
 	session, err := s.session()
 	if err != nil {
 		return nil, tterrors.NewInternalError(err)

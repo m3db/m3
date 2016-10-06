@@ -28,6 +28,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/client"
@@ -43,7 +44,8 @@ import (
 )
 
 var (
-	errNoRepairOptions = errors.New("no repair options")
+	errNoRepairOptions  = errors.New("no repair options")
+	errRepairInProgress = errors.New("repair already in progress")
 )
 
 type recordFn func(namespace string, shard databaseShard, diffRes repair.MetadataComparisonResult)
@@ -185,6 +187,7 @@ type dbRepairer struct {
 	repairTimeJitter    time.Duration
 	repairCheckInterval time.Duration
 	closed              bool
+	running             int32
 }
 
 func newDatabaseRepairer(database database) (databaseRepairer, error) {
@@ -282,6 +285,14 @@ func (r *dbRepairer) Repair() error {
 		return nil
 	}
 
+	if !atomic.CompareAndSwapInt32(&r.running, 0, 1) {
+		return errRepairInProgress
+	}
+
+	defer func() {
+		atomic.StoreInt32(&r.running, 1)
+	}()
+
 	multiErr := xerrors.NewMultiError()
 	namespaces := r.database.getOwnedNamespaces()
 	for _, n := range namespaces {
@@ -292,4 +303,8 @@ func (r *dbRepairer) Repair() error {
 	}
 
 	return multiErr.FinalError()
+}
+
+func (r *dbRepairer) IsRepairing() bool {
+	return atomic.LoadInt32(&r.running) == 1
 }

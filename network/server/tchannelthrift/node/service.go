@@ -48,6 +48,7 @@ type serviceMetrics struct {
 	writeBatch          instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
+	repair              instrument.MethodMetrics
 	truncate            instrument.MethodMetrics
 }
 
@@ -59,6 +60,7 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 		writeBatch:          instrument.NewMethodMetrics(scope, "writeBatch", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
+		repair:              instrument.NewMethodMetrics(scope, "repair", samplingRate),
 		truncate:            instrument.NewMethodMetrics(scope, "truncate", samplingRate),
 	}
 }
@@ -358,6 +360,17 @@ func (s *service) WriteBatch(tctx thrift.Context, req *rpc.WriteBatchRequest) er
 	}
 
 	s.metrics.writeBatch.ReportSuccess(s.nowFn().Sub(callStart))
+	return nil
+}
+
+func (s *service) Repair(tctx thrift.Context) error {
+	callStart := s.nowFn()
+	err := s.db.Repair()
+	if err != nil {
+		s.metrics.repair.ReportError(s.nowFn().Sub(callStart))
+		return convert.ToRPCError(err)
+	}
+	s.metrics.repair.ReportSuccess(s.nowFn().Sub(callStart))
 	return nil
 }
 

@@ -698,6 +698,45 @@ func (s *session) Replicas() int {
 	return replicas
 }
 
+func (s *session) Repair() error {
+	var (
+		wg            sync.WaitGroup
+		enqueueErr    xerrors.MultiError
+		resultErrLock sync.Mutex
+		resultErr     xerrors.MultiError
+	)
+
+	t := &repairOp{}
+	t.completionFn = func(result interface{}, err error) {
+		if err != nil {
+			resultErrLock.Lock()
+			resultErr = resultErr.Add(err)
+			resultErrLock.Unlock()
+		}
+		wg.Done()
+	}
+
+	s.RLock()
+	for idx := range s.queues {
+		wg.Add(1)
+		if err := s.queues[idx].Enqueue(t); err != nil {
+			wg.Done()
+			enqueueErr = enqueueErr.Add(err)
+		}
+	}
+	s.RUnlock()
+
+	if err := enqueueErr.FinalError(); err != nil {
+		s.log.Errorf("failed to enqueue request: %v", err)
+		return err
+	}
+
+	// Wait for namespace to be truncated on all replicas
+	wg.Wait()
+
+	return resultErr.FinalError()
+}
+
 func (s *session) Truncate(namespace string) (int64, error) {
 	var (
 		wg            sync.WaitGroup

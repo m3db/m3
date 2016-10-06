@@ -36,6 +36,7 @@ import (
 type TChanCluster interface {
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
 	Health(ctx thrift.Context) (*HealthResult_, error)
+	Repair(ctx thrift.Context) error
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 }
@@ -47,6 +48,7 @@ type TChanNode interface {
 	FetchBlocksMetadata(ctx thrift.Context, req *FetchBlocksMetadataRequest) (*FetchBlocksMetadataResult_, error)
 	FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRequest) (*FetchRawBatchResult_, error)
 	Health(ctx thrift.Context) (*NodeHealthResult_, error)
+	Repair(ctx thrift.Context) error
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteBatch(ctx thrift.Context, req *WriteBatchRequest) error
@@ -99,6 +101,19 @@ func (c *tchanClusterClient) Health(ctx thrift.Context) (*HealthResult_, error) 
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanClusterClient) Repair(ctx thrift.Context) error {
+	var resp ClusterRepairResult
+	args := ClusterRepairArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "repair", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return err
+}
+
 func (c *tchanClusterClient) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
 	var resp ClusterTruncateResult
 	args := ClusterTruncateArgs{
@@ -149,6 +164,7 @@ func (s *tchanClusterServer) Methods() []string {
 	return []string{
 		"fetch",
 		"health",
+		"repair",
 		"truncate",
 		"write",
 	}
@@ -160,6 +176,8 @@ func (s *tchanClusterServer) Handle(ctx thrift.Context, methodName string, proto
 		return s.handleFetch(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
+	case "repair":
+		return s.handleRepair(ctx, protocol)
 	case "truncate":
 		return s.handleTruncate(ctx, protocol)
 	case "write":
@@ -221,6 +239,33 @@ func (s *tchanClusterServer) handleHealth(ctx thrift.Context, protocol athrift.T
 		}
 	} else {
 		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanClusterServer) handleRepair(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req ClusterRepairArgs
+	var res ClusterRepairResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	err :=
+		s.handler.Repair(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
 	}
 
 	return err == nil, &res, nil
@@ -371,6 +416,19 @@ func (c *tchanNodeClient) Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) Repair(ctx thrift.Context) error {
+	var resp NodeRepairResult
+	args := NodeRepairArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "repair", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return err
+}
+
 func (c *tchanNodeClient) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
 	var resp NodeTruncateResult
 	args := NodeTruncateArgs{
@@ -439,6 +497,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"fetchBlocksMetadata",
 		"fetchRawBatch",
 		"health",
+		"repair",
 		"truncate",
 		"write",
 		"writeBatch",
@@ -457,6 +516,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleFetchRawBatch(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
+	case "repair":
+		return s.handleRepair(ctx, protocol)
 	case "truncate":
 		return s.handleTruncate(ctx, protocol)
 	case "write":
@@ -604,6 +665,33 @@ func (s *tchanNodeServer) handleHealth(ctx thrift.Context, protocol athrift.TPro
 		}
 	} else {
 		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleRepair(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeRepairArgs
+	var res NodeRepairResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	err :=
+		s.handler.Repair(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
 	}
 
 	return err == nil, &res, nil

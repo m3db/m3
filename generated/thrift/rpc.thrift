@@ -49,6 +49,7 @@ service Node {
 	FetchRawBatchResult fetchRawBatch(1: FetchRawBatchRequest req) throws (1: Error err)
 	FetchBlocksResult fetchBlocks(1: FetchBlocksRequest req) throws (1: Error err)
 	FetchBlocksMetadataResult fetchBlocksMetadata(1: FetchBlocksMetadataRequest req) throws (1: Error err)
+	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 }
 
@@ -194,5 +195,6 @@ service Cluster {
 	HealthResult health() throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
+	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 }
