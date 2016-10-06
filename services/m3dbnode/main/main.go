@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/services/m3dbnode/server"
@@ -117,11 +118,7 @@ func main() {
 	case doneCh <- struct{}{}:
 	default:
 		// Currently bootstrapping, cannot send close clean signal
-		log.Warnf("abort bootstrap")
-		go func() {
-			db.Close()
-			closedCh <- struct{}{}
-		}()
+		closedCh <- struct{}{}
 	}
 
 	// Wait then close or hard close

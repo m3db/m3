@@ -97,6 +97,9 @@ type Database interface {
 	// IsBootstrapped determines whether the database is bootstrapped.
 	IsBootstrapped() bool
 
+	// Repair will issue a repair and return nil on success or error on error.
+	Repair() error
+
 	// Truncate truncates data for the given namespace
 	Truncate(namespace string) (int64, error)
 }
@@ -286,6 +289,9 @@ type databaseRepairer interface {
 
 	// Repair repairs in-memory data
 	Repair() error
+
+	// IsRepairing returns whether the repairer is running or not
+	IsRepairing() bool
 }
 
 // NewBootstrapFn creates a new bootstrap

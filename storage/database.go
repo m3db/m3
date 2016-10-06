@@ -121,6 +121,7 @@ type databaseMetrics struct {
 	bootstrapStatus tally.Gauge
 	tickStatus      tally.Gauge
 	flushStatus     tally.Gauge
+	repairStatus    tally.Gauge
 
 	tickDuration       tally.Timer
 	tickDeadlineMissed tally.Counter
@@ -137,6 +138,7 @@ func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics
 		bootstrapStatus: scope.Gauge("bootstrapped"),
 		tickStatus:      scope.Gauge("tick"),
 		flushStatus:     scope.Gauge("flush"),
+		repairStatus:    scope.Gauge("repair"),
 
 		tickDuration:       scope.Timer("tick.duration"),
 		tickDeadlineMissed: scope.Counter("tick.deadline.missed"),
@@ -345,6 +347,10 @@ func (d *db) IsBootstrapped() bool {
 	return d.bsm.IsBootstrapped()
 }
 
+func (d *db) Repair() error {
+	return d.repairer.Repair()
+}
+
 func (d *db) Truncate(namespace string) (int64, error) {
 	n, err := d.readableNamespace(namespace)
 	if err != nil {
@@ -389,6 +395,11 @@ func (d *db) reportLoop() {
 				d.metrics.bootstrapStatus.Update(1)
 			} else {
 				d.metrics.bootstrapStatus.Update(0)
+			}
+			if d.repairer.IsRepairing() {
+				d.metrics.repairStatus.Update(1)
+			} else {
+				d.metrics.repairStatus.Update(0)
 			}
 			d.metrics.tickStatus.Update(atomic.LoadInt64(&d.ticking))
 			d.metrics.flushStatus.Update(atomic.LoadInt64(&d.flushing))

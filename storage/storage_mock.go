@@ -157,6 +157,16 @@ func (_mr *_MockDatabaseRecorder) IsBootstrapped() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBootstrapped")
 }
 
+func (_m *MockDatabase) Repair() error {
+	ret := _m.ctrl.Call(_m, "Repair")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDatabaseRecorder) Repair() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair")
+}
+
 func (_m *MockDatabase) Truncate(namespace string) (int64, error) {
 	ret := _m.ctrl.Call(_m, "Truncate", namespace)
 	ret0, _ := ret[0].(int64)
@@ -753,6 +763,16 @@ func (_m *MockdatabaseRepairer) Repair() error {
 
 func (_mr *_MockdatabaseRepairerRecorder) Repair() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair")
+}
+
+func (_m *MockdatabaseRepairer) IsRepairing() bool {
+	ret := _m.ctrl.Call(_m, "IsRepairing")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockdatabaseRepairerRecorder) IsRepairing() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsRepairing")
 }
 
 // Mock of Options interface

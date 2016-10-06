@@ -171,7 +171,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	return nil
 }
 
-func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
+func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.TruncateResult_, error) {
 	session, err := s.session()
 	if err != nil {
 		return nil, tterrors.NewInternalError(err)

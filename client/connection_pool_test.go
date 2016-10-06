@@ -307,6 +307,10 @@ func (*nullNodeClient) WriteBatch(ctx thrift.Context, req *rpc.WriteBatchRequest
 	return nil
 }
 
+func (*nullNodeClient) Repair(ctx thrift.Context) error {
+	return nil
+}
+
 func (*nullNodeClient) Truncate(ctx thrift.Context, req *rpc.TruncateRequest) (*rpc.TruncateResult_, error) {
 	return nil, nil
 }

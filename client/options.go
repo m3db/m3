@@ -61,7 +61,7 @@ const (
 	defaultFetchRequestTimeout = 15 * time.Second
 
 	// defaultTruncateRequestTimeout is the default truncate request timeout
-	defaultTruncateRequestTimeout = 15 * time.Second
+	defaultTruncateRequestTimeout = 60 * time.Second
 
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 1000000
