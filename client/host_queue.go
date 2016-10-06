@@ -223,8 +223,6 @@ func (q *queue) drain() {
 				}
 			case *fetchBatchOp:
 				q.asyncFetch(wgAll, v)
-			case *repairOp:
-				q.asyncRepair(wgAll, v)
 			case *truncateOp:
 				q.asyncTruncate(wgAll, v)
 			default:
@@ -347,26 +345,6 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 			op.complete(i, result.Elements[i].Segments, nil)
 		}
 		cleanup()
-	}()
-}
-
-func (q *queue) asyncRepair(wg *sync.WaitGroup, op *repairOp) {
-	wg.Add(1)
-
-	go func() {
-		client, err := q.connPool.NextClient()
-		if err != nil {
-			// No client available
-			op.completionFn(nil, err)
-			wg.Done()
-			return
-		}
-
-		ctx, _ := thrift.NewContext(q.opts.RepairRequestTimeout())
-		err = client.Repair(ctx)
-		op.completionFn(nil, err)
-
-		wg.Done()
 	}()
 }
 

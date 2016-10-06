@@ -8119,7 +8119,6 @@ type Cluster interface {
 	// Parameters:
 	//  - Req
 	Fetch(req *FetchRequest) (r *FetchResult_, err error)
-	Repair() (err error)
 	// Parameters:
 	//  - Req
 	Truncate(req *TruncateRequest) (r *TruncateResult_, err error)
@@ -8389,82 +8388,6 @@ func (p *ClusterClient) recvFetch() (value *FetchResult_, err error) {
 	return
 }
 
-func (p *ClusterClient) Repair() (err error) {
-	if err = p.sendRepair(); err != nil {
-		return
-	}
-	return p.recvRepair()
-}
-
-func (p *ClusterClient) sendRepair() (err error) {
-	oprot := p.OutputProtocol
-	if oprot == nil {
-		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
-		p.OutputProtocol = oprot
-	}
-	p.SeqId++
-	if err = oprot.WriteMessageBegin("repair", thrift.CALL, p.SeqId); err != nil {
-		return
-	}
-	args := ClusterRepairArgs{}
-	if err = args.Write(oprot); err != nil {
-		return
-	}
-	if err = oprot.WriteMessageEnd(); err != nil {
-		return
-	}
-	return oprot.Flush()
-}
-
-func (p *ClusterClient) recvRepair() (err error) {
-	iprot := p.InputProtocol
-	if iprot == nil {
-		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
-		p.InputProtocol = iprot
-	}
-	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
-	if err != nil {
-		return
-	}
-	if method != "repair" {
-		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "repair failed: wrong method name")
-		return
-	}
-	if p.SeqId != seqId {
-		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "repair failed: out of sequence response")
-		return
-	}
-	if mTypeId == thrift.EXCEPTION {
-		error81 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error82 error
-		error82, err = error81.Read(iprot)
-		if err != nil {
-			return
-		}
-		if err = iprot.ReadMessageEnd(); err != nil {
-			return
-		}
-		err = error82
-		return
-	}
-	if mTypeId != thrift.REPLY {
-		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "repair failed: invalid message type")
-		return
-	}
-	result := ClusterRepairResult{}
-	if err = result.Read(iprot); err != nil {
-		return
-	}
-	if err = iprot.ReadMessageEnd(); err != nil {
-		return
-	}
-	if result.Err != nil {
-		err = result.Err
-		return
-	}
-	return
-}
-
 // Parameters:
 //  - Req
 func (p *ClusterClient) Truncate(req *TruncateRequest) (r *TruncateResult_, err error) {
@@ -8515,16 +8438,16 @@ func (p *ClusterClient) recvTruncate() (value *TruncateResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error83 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error84 error
-		error84, err = error83.Read(iprot)
+		error81 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error82 error
+		error82, err = error81.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error84
+		err = error82
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -8566,13 +8489,12 @@ func (p *ClusterProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewClusterProcessor(handler Cluster) *ClusterProcessor {
 
-	self85 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self85.processorMap["health"] = &clusterProcessorHealth{handler: handler}
-	self85.processorMap["write"] = &clusterProcessorWrite{handler: handler}
-	self85.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
-	self85.processorMap["repair"] = &clusterProcessorRepair{handler: handler}
-	self85.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
-	return self85
+	self83 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self83.processorMap["health"] = &clusterProcessorHealth{handler: handler}
+	self83.processorMap["write"] = &clusterProcessorWrite{handler: handler}
+	self83.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
+	self83.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
+	return self83
 }
 
 func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -8585,12 +8507,12 @@ func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool,
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x86 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x84 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x86.Write(oprot)
+	x84.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x86
+	return false, x84
 
 }
 
@@ -8733,56 +8655,6 @@ func (p *clusterProcessorFetch) Process(seqId int32, iprot, oprot thrift.TProtoc
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("fetch", thrift.REPLY, seqId); err2 != nil {
-		err = err2
-	}
-	if err2 = result.Write(oprot); err == nil && err2 != nil {
-		err = err2
-	}
-	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
-		err = err2
-	}
-	if err2 = oprot.Flush(); err == nil && err2 != nil {
-		err = err2
-	}
-	if err != nil {
-		return
-	}
-	return true, err
-}
-
-type clusterProcessorRepair struct {
-	handler Cluster
-}
-
-func (p *clusterProcessorRepair) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := ClusterRepairArgs{}
-	if err = args.Read(iprot); err != nil {
-		iprot.ReadMessageEnd()
-		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("repair", thrift.EXCEPTION, seqId)
-		x.Write(oprot)
-		oprot.WriteMessageEnd()
-		oprot.Flush()
-		return false, err
-	}
-
-	iprot.ReadMessageEnd()
-	result := ClusterRepairResult{}
-	var err2 error
-	if err2 = p.handler.Repair(); err2 != nil {
-		switch v := err2.(type) {
-		case *Error:
-			result.Err = v
-		default:
-			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing repair: "+err2.Error())
-			oprot.WriteMessageBegin("repair", thrift.EXCEPTION, seqId)
-			x.Write(oprot)
-			oprot.WriteMessageEnd()
-			oprot.Flush()
-			return true, err2
-		}
-	}
-	if err2 = oprot.WriteMessageBegin("repair", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -9519,166 +9391,6 @@ func (p *ClusterFetchResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("ClusterFetchResult(%+v)", *p)
-}
-
-type ClusterRepairArgs struct {
-}
-
-func NewClusterRepairArgs() *ClusterRepairArgs {
-	return &ClusterRepairArgs{}
-}
-
-func (p *ClusterRepairArgs) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		if err := iprot.Skip(fieldTypeId); err != nil {
-			return err
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	return nil
-}
-
-func (p *ClusterRepairArgs) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("repair_args"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *ClusterRepairArgs) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("ClusterRepairArgs(%+v)", *p)
-}
-
-// Attributes:
-//  - Err
-type ClusterRepairResult struct {
-	Err *Error `thrift:"err,1" db:"err" json:"err,omitempty"`
-}
-
-func NewClusterRepairResult() *ClusterRepairResult {
-	return &ClusterRepairResult{}
-}
-
-var ClusterRepairResult_Err_DEFAULT *Error
-
-func (p *ClusterRepairResult) GetErr() *Error {
-	if !p.IsSetErr() {
-		return ClusterRepairResult_Err_DEFAULT
-	}
-	return p.Err
-}
-func (p *ClusterRepairResult) IsSetErr() bool {
-	return p.Err != nil
-}
-
-func (p *ClusterRepairResult) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		switch fieldId {
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	return nil
-}
-
-func (p *ClusterRepairResult) ReadField1(iprot thrift.TProtocol) error {
-	p.Err = &Error{
-		Type: 0,
-	}
-	if err := p.Err.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
-	}
-	return nil
-}
-
-func (p *ClusterRepairResult) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("repair_result"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *ClusterRepairResult) writeField1(oprot thrift.TProtocol) (err error) {
-	if p.IsSetErr() {
-		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
-		}
-		if err := p.Err.Write(oprot); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *ClusterRepairResult) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("ClusterRepairResult(%+v)", *p)
 }
 
 // Attributes:

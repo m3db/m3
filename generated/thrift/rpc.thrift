@@ -195,6 +195,5 @@ service Cluster {
 	HealthResult health() throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
-	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 }

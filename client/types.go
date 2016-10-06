@@ -116,9 +116,6 @@ type AdminSession interface {
 	// Replicas returns the replication factor
 	Replicas() int
 
-	// Repair will repair the database by exchanging checksums with peers
-	Repair() error
-
 	// Truncate will truncate the namespace for a given shard
 	Truncate(namespace string) (int64, error)
 
@@ -280,12 +277,6 @@ type Options interface {
 
 	// FetchRequestTimeout returns the fetchRequestTimeout
 	FetchRequestTimeout() time.Duration
-
-	// SetRepairRequestTimeout sets the repairRequestTimeout
-	SetRepairRequestTimeout(value time.Duration) Options
-
-	// RepairRequestTimeout returns the repairRequestTimeout
-	RepairRequestTimeout() time.Duration
 
 	// SetTruncateRequestTimeout sets the truncateRequestTimeout
 	SetTruncateRequestTimeout(value time.Duration) Options

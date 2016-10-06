@@ -71,16 +71,6 @@ func (_mr *_MockTChanClusterRecorder) Health(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Health", arg0)
 }
 
-func (_m *MockTChanCluster) Repair(ctx thrift.Context) error {
-	ret := _m.ctrl.Call(_m, "Repair", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockTChanClusterRecorder) Repair(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0)
-}
-
 func (_m *MockTChanCluster) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
 	ret := _m.ctrl.Call(_m, "Truncate", ctx, req)
 	ret0, _ := ret[0].(*TruncateResult_)
