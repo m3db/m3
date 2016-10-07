@@ -399,8 +399,8 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 		enqueued      int32
 		pending       int32
 		resultErrLock sync.RWMutex
-		resultErr     error
 		resultErrs    int32
+		errors        []error
 		majority      int32
 		success       int32
 	)
@@ -431,9 +431,7 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 		if err != nil {
 			atomic.AddInt32(&resultErrs, 1)
 			resultErrLock.Lock()
-			if resultErr == nil {
-				resultErr = err
-			}
+			errors = append(errors, err)
 			resultErrLock.Unlock()
 		} else {
 			snapshotSuccess = atomic.AddInt32(&success, 1)
@@ -497,10 +495,15 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 	// Wait for writes to complete
 	wg.Wait()
 
-	resultErrLock.RLock()
-	consistencyResult := s.consistencyResult(majority, enqueued, atomic.LoadInt32(&resultErrs), resultErr)
-	resultErrLock.RUnlock()
-	return consistencyResult
+	var reportErrors []error
+	errsLen := atomic.LoadInt32(&resultErrs)
+	if errsLen > 0 {
+		resultErrLock.RLock()
+		reportErrors = errors[:]
+		resultErrLock.RUnlock()
+	}
+	responded := enqueued - atomic.LoadInt32(&pending)
+	return s.consistencyResult(majority, enqueued, responded, errsLen, reportErrors)
 }
 
 func (s *session) Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
@@ -557,20 +560,21 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 			enqueued int32
 			pending  int32
 			success  int32
-			firstErr error
+			errors   []error
 			errs     int32
 		)
 
 		wg.Add(1)
 		allCompletionFn := func() {
-			var reportErr error
+			var reportErrors []error
 			errsLen := atomic.LoadInt32(&errs)
 			if errsLen > 0 {
 				resultErrLock.RLock()
-				reportErr = firstErr
+				reportErrors = errors[:]
 				resultErrLock.RUnlock()
 			}
-			if err := s.consistencyResult(majority, enqueued, errsLen, reportErr); err != nil {
+			responded := enqueued - atomic.LoadInt32(&pending)
+			if err := s.consistencyResult(majority, enqueued, responded, errsLen, reportErrors); err != nil {
 				resultErrLock.Lock()
 				if resultErr == nil {
 					resultErr = err
@@ -596,7 +600,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 					// or GC pressure if ends up on heap which is likely due to naive
 					// escape analysis.
 					resultErrLock.Lock()
-					firstErr = err
+					errors = append(errors, err)
 					resultErrLock.Unlock()
 				}
 			} else {
@@ -717,7 +721,10 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 	return iters, nil
 }
 
-func (s *session) consistencyResult(majority, enqueued, resultErrs int32, resultErr error) error {
+func (s *session) consistencyResult(
+	majority, enqueued, responded, resultErrs int32,
+	errors []error,
+) error {
 	if resultErrs == 0 {
 		return nil
 	}
@@ -725,9 +732,9 @@ func (s *session) consistencyResult(majority, enqueued, resultErrs int32, result
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
 	reportErr := func() error {
-		return xerrors.NewRenamedError(resultErr, fmt.Errorf(
-			"failed to meet %s with %d/%d success, first error: %v",
-			s.level.String(), success, enqueued, resultErr))
+		return xerrors.NewRenamedError(errors[0], fmt.Errorf(
+			"failed to meet %s with %d/%d success, %d nodes responded, errors: %v",
+			s.level.String(), success, enqueued, responded, errors))
 	}
 
 	switch s.level {
