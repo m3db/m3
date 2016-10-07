@@ -139,13 +139,19 @@ func (b *dbBlock) context() context.Context {
 func (b *dbBlock) close() {
 	// If the context is nil (e.g., when it's just obtained from the pool),
 	// we return immediately.
-	if b.ctx == nil {
+	b.ctxLock.RLock()
+	ctx := b.ctx
+	b.ctxLock.RUnlock()
+
+	if ctx == nil {
 		return
 	}
 
 	cleanUp := func() {
-		b.ctx.Close()
+		ctx.Close()
+		b.ctxLock.Lock()
 		b.ctx = nil
+		b.ctxLock.Unlock()
 		b.encoder = nil
 		b.segment = ts.Segment{}
 	}
@@ -154,7 +160,7 @@ func (b *dbBlock) close() {
 	if b.writable {
 		// If the block is not sealed, we need to close the encoder.
 		if encoder := b.encoder; encoder != nil {
-			b.ctx.RegisterCloser(encoder.Close)
+			ctx.RegisterCloser(encoder.Close)
 		}
 		return
 	}
@@ -162,7 +168,7 @@ func (b *dbBlock) close() {
 	// Otherwise, we need to return bytes to the bytes pool.
 	segment := b.segment
 	bytesPool := b.opts.BytesPool()
-	b.ctx.RegisterCloser(func() {
+	ctx.RegisterCloser(func() {
 		if segment.Head != nil && !segment.HeadShared {
 			bytesPool.Put(segment.Head)
 		}
