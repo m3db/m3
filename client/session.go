@@ -86,8 +86,8 @@ type session struct {
 	topo                             topology.Topology
 	topoMap                          topology.Map
 	topoWatch                        topology.MapWatch
-	replicas                         int
-	majority                         int
+	replicas                         int32
+	majority                         int32
 	queues                           []hostQueue
 	state                            state
 	writeOpPool                      writeOpPool
@@ -310,9 +310,11 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	prev := s.queues
 	s.queues = queues
 	s.topoMap = topologyMap
-	prevReplicas := s.replicas
-	s.replicas = replicas
-	s.majority = majority
+
+	prevReplicas := atomic.LoadInt32(&s.replicas)
+	atomic.StoreInt32(&s.replicas, int32(replicas))
+	atomic.StoreInt32(&s.majority, int32(majority))
+
 	if s.fetchBatchOpArrayArrayPool == nil ||
 		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
 		poolOpts := pool.NewObjectPoolOptions().
@@ -328,7 +330,7 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		prevReplicas != s.replicas {
 		s.iteratorArrayPool = encoding.NewIteratorArrayPool([]pool.Bucket{
 			pool.Bucket{
-				Capacity: s.replicas,
+				Capacity: replicas,
 				Count:    s.opts.SeriesIteratorPoolSize(),
 			},
 		})
@@ -336,7 +338,7 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	}
 	if s.readerSliceOfSlicesIteratorPool == nil ||
 		prevReplicas != s.replicas {
-		size := s.replicas * s.opts.SeriesIteratorPoolSize()
+		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
 			SetMetricsScope(s.scope.SubScope("reader-slice-of-slices-iterator-pool"))
@@ -345,7 +347,7 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	}
 	if s.multiReaderIteratorPool == nil ||
 		prevReplicas != s.replicas {
-		size := s.replicas * s.opts.SeriesIteratorPoolSize()
+		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
 			SetMetricsScope(s.scope.SubScope("multi-reader-iterator-pool"))
@@ -413,6 +415,10 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 		return tsErr
 	}
 
+	wg.Add(1)
+
+	majority = atomic.LoadInt32(&s.majority)
+
 	w := s.writeOpPool.Get()
 	w.request.NameSpace = namespace
 	w.idDatapoint.ID = id
@@ -420,11 +426,6 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 	w.datapoint.Timestamp = ts
 	w.datapoint.TimestampType = timeType
 	w.datapoint.Annotation = annotation
-
-	wg.Add(1)
-
-	s.RLock()
-	majority = int32(s.majority)
 	w.completionFn = func(result interface{}, err error) {
 		var snapshotSuccess int32
 		if err != nil {
@@ -461,6 +462,8 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 			s.writeOpPool.Put(w)
 		}
 	}
+
+	s.RLock()
 	routeErr := s.topoMap.RouteForEach(id, func(idx int, host topology.Host) {
 		// First count all the pending write requests to ensure
 		// we count the amount we're going to be waiting for
@@ -542,8 +545,9 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 
 	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
 
+	majority = atomic.LoadInt32(&s.majority)
+
 	s.RLock()
-	majority = int32(s.majority)
 	for idx := range ids {
 		idx := idx
 
@@ -574,9 +578,9 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				resultErrs++
 				resultErrLock.Unlock()
 			} else {
-				// This is the final result, its safe to load "success" now without atomic operation
+				snapshotSuccess := atomic.LoadInt32(&success)
 				iter := s.seriesIteratorPool.Get()
-				iter.Reset(ids[idx], startInclusive, endExclusive, results[:atomic.LoadInt32(&success)])
+				iter.Reset(ids[idx], startInclusive, endExclusive, results[:snapshotSuccess])
 				iters.SetAt(idx, iter)
 			}
 			wg.Done()
@@ -769,10 +773,7 @@ func (s *session) Origin() topology.Host {
 }
 
 func (s *session) Replicas() int {
-	s.RLock()
-	replicas := s.replicas
-	s.RUnlock()
-	return replicas
+	return int(atomic.LoadInt32(&s.replicas))
 }
 
 func (s *session) Truncate(namespace string) (int64, error) {
