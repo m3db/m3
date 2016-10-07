@@ -79,14 +79,11 @@ func (c *ctx) DependsOn(blocker Context) {
 	if !closed {
 		c.ensureDependencies()
 		c.dep.dependencies.Add(1)
-	}
-	c.Unlock()
-
-	if !closed {
 		blocker.RegisterCloser(func() {
 			c.dep.dependencies.Done()
 		})
 	}
+	c.Unlock()
 }
 
 func (c *ctx) Close() {
@@ -107,6 +104,7 @@ func (c *ctx) Close() {
 		// NB(xichen): might be worth using a worker pool for the go routines.
 		go func() {
 			// Wait for dependencies
+
 			c.dep.dependencies.Wait()
 			// Now call closers
 			for _, closer := range closers {
