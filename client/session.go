@@ -86,8 +86,8 @@ type session struct {
 	topo                             topology.Topology
 	topoMap                          topology.Map
 	topoWatch                        topology.MapWatch
-	replicas                         int
-	majority                         int
+	replicas                         int32
+	majority                         int32
 	queues                           []hostQueue
 	state                            state
 	writeOpPool                      writeOpPool
@@ -310,9 +310,11 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	prev := s.queues
 	s.queues = queues
 	s.topoMap = topologyMap
-	prevReplicas := s.replicas
-	s.replicas = replicas
-	s.majority = majority
+
+	prevReplicas := atomic.LoadInt32(&s.replicas)
+	atomic.StoreInt32(&s.replicas, int32(replicas))
+	atomic.StoreInt32(&s.majority, int32(majority))
+
 	if s.fetchBatchOpArrayArrayPool == nil ||
 		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
 		poolOpts := pool.NewObjectPoolOptions().
@@ -328,7 +330,7 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		prevReplicas != s.replicas {
 		s.iteratorArrayPool = encoding.NewIteratorArrayPool([]pool.Bucket{
 			pool.Bucket{
-				Capacity: s.replicas,
+				Capacity: replicas,
 				Count:    s.opts.SeriesIteratorPoolSize(),
 			},
 		})
@@ -336,7 +338,7 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	}
 	if s.readerSliceOfSlicesIteratorPool == nil ||
 		prevReplicas != s.replicas {
-		size := s.replicas * s.opts.SeriesIteratorPoolSize()
+		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
 			SetMetricsScope(s.scope.SubScope("reader-slice-of-slices-iterator-pool"))
@@ -345,7 +347,7 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	}
 	if s.multiReaderIteratorPool == nil ||
 		prevReplicas != s.replicas {
-		size := s.replicas * s.opts.SeriesIteratorPoolSize()
+		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
 			SetMetricsScope(s.scope.SubScope("multi-reader-iterator-pool"))
@@ -392,12 +394,15 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 func (s *session) Write(namespace string, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	var (
 		wg            sync.WaitGroup
+		wgIsDone      int32
 		enqueueErr    error
-		enqueued      int
-		resultErrLock sync.Mutex
+		enqueued      int32
+		pending       int32
+		resultErrLock sync.RWMutex
 		resultErr     error
-		resultErrs    int
-		majority      int
+		resultErrs    int32
+		majority      int32
+		success       int32
 	)
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
@@ -410,6 +415,10 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 		return tsErr
 	}
 
+	wg.Add(1)
+
+	majority = atomic.LoadInt32(&s.majority)
+
 	w := s.writeOpPool.Get()
 	w.request.NameSpace = namespace
 	w.idDatapoint.ID = id
@@ -418,28 +427,62 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 	w.datapoint.TimestampType = timeType
 	w.datapoint.Annotation = annotation
 	w.completionFn = func(result interface{}, err error) {
+		var snapshotSuccess int32
 		if err != nil {
+			atomic.AddInt32(&resultErrs, 1)
 			resultErrLock.Lock()
 			if resultErr == nil {
 				resultErr = err
 			}
-			resultErrs++
 			resultErrLock.Unlock()
+		} else {
+			snapshotSuccess = atomic.AddInt32(&success, 1)
 		}
-		wg.Done()
+		remaining := atomic.AddInt32(&pending, -1)
+		doneAll := remaining == 0
+		switch s.level {
+		case topology.ConsistencyLevelOne:
+			complete := snapshotSuccess > 0 || doneAll
+			if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
+				wg.Done()
+			}
+		case topology.ConsistencyLevelMajority:
+			complete := snapshotSuccess >= majority || doneAll
+			if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
+				wg.Done()
+			}
+		case topology.ConsistencyLevelAll:
+			if doneAll && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
+				wg.Done()
+			}
+		}
+		// Finalize resources that can be returned
+		if doneAll {
+			// Return write to pool
+			s.writeOpPool.Put(w)
+		}
 	}
 
 	s.RLock()
-	majority = s.majority
 	routeErr := s.topoMap.RouteForEach(id, func(idx int, host topology.Host) {
-		wg.Add(1)
-		enqueued++
-		if err := s.queues[idx].Enqueue(w); err != nil && enqueueErr == nil {
-			// NB(r): if this ever happens we have a code bug, once we are in the read lock
-			// the current queues we are using should never be closed
-			enqueueErr = err
-		}
+		// First count all the pending write requests to ensure
+		// we count the amount we're going to be waiting for
+		// before we enqueue the completion fns that rely on having
+		// an accurate number of the pending requests when they execute
+		pending++
 	})
+	if routeErr == nil {
+		// Now enqueue the write requests
+		routeErr = s.topoMap.RouteForEach(id, func(idx int, host topology.Host) {
+			enqueued++
+			if err := s.queues[idx].Enqueue(w); err != nil && enqueueErr == nil {
+				// NB(r): if this ever happens we have a code bug, once we
+				// are in the read lock the current queues we are using should
+				// never be closed
+				enqueueErr = err
+			}
+		})
+	}
 	s.RUnlock()
 
 	if routeErr != nil {
@@ -454,10 +497,10 @@ func (s *session) Write(namespace string, id string, t time.Time, value float64,
 	// Wait for writes to complete
 	wg.Wait()
 
-	// Return write to pool
-	s.writeOpPool.Put(w)
-
-	return s.consistencyResult(majority, enqueued, resultErrs, resultErr)
+	resultErrLock.RLock()
+	consistencyResult := s.consistencyResult(majority, enqueued, atomic.LoadInt32(&resultErrs), resultErr)
+	resultErrLock.RUnlock()
+	return consistencyResult
 }
 
 func (s *session) Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
@@ -477,12 +520,13 @@ func (s *session) Fetch(namespace string, id string, startInclusive, endExclusiv
 func (s *session) FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
 	var (
 		wg                     sync.WaitGroup
+		allPending             int32
 		routeErr               error
 		enqueueErr             error
-		resultErrLock          sync.Mutex
+		resultErrLock          sync.RWMutex
 		resultErr              error
-		resultErrs             int
-		majority               int
+		resultErrs             int32
+		majority               int32
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 	)
 
@@ -501,27 +545,16 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 
 	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
 
-	// Defer cleanup
-	defer func() {
-		// Return fetch ops to pool
-		for _, ops := range fetchBatchOpsByHostIdx {
-			for _, op := range ops {
-				s.fetchBatchOpPool.Put(op)
-			}
-		}
-
-		// Return fetch ops array array to pool
-		s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
-	}()
+	majority = atomic.LoadInt32(&s.majority)
 
 	s.RLock()
-	majority = s.majority
 	for idx := range ids {
 		idx := idx
 
 		var (
+			wgIsDone int32
 			results  []encoding.Iterator
-			enqueued int
+			enqueued int32
 			pending  int32
 			success  int32
 			firstErr error
@@ -529,30 +562,15 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 		)
 
 		wg.Add(1)
-		completionFn := func(result interface{}, err error) {
-			if err != nil {
-				n := atomic.AddInt32(&errs, 1)
-				if n == 1 {
-					firstErr = err
-				}
-			} else {
-				slicesIter := s.readerSliceOfSlicesIteratorPool.Get()
-				slicesIter.Reset(result.([]*rpc.Segments))
-				multiIter := s.multiReaderIteratorPool.Get()
-				multiIter.ResetSliceOfSlices(slicesIter)
-				// Results is pre-allocated after creating fetch ops for this ID below
-				iterIdx := atomic.AddInt32(&success, 1) - 1
-				results[iterIdx] = multiIter
+		allCompletionFn := func() {
+			var reportErr error
+			errsLen := atomic.LoadInt32(&errs)
+			if errsLen > 0 {
+				resultErrLock.RLock()
+				reportErr = firstErr
+				resultErrLock.RUnlock()
 			}
-			// NB(xichen): decrementing pending and checking remaining against zero must
-			// come after incrementing success, otherwise we might end up passing results[:success]
-			// to iter.Reset down below before setting the iterator in the results array,
-			// which would cause a nil pointer exception.
-			if remaining := atomic.AddInt32(&pending, -1); remaining != 0 {
-				// Requests still pending
-				return
-			}
-			if err := s.consistencyResult(majority, enqueued, int(errs), firstErr); err != nil {
+			if err := s.consistencyResult(majority, enqueued, errsLen, reportErr); err != nil {
 				resultErrLock.Lock()
 				if resultErr == nil {
 					resultErr = err
@@ -560,21 +578,81 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				resultErrs++
 				resultErrLock.Unlock()
 			} else {
-				// This is the final result, its safe to load "success" now without atomic operation
+				snapshotSuccess := atomic.LoadInt32(&success)
 				iter := s.seriesIteratorPool.Get()
-				iter.Reset(ids[idx], startInclusive, endExclusive, results[:success])
+				iter.Reset(ids[idx], startInclusive, endExclusive, results[:snapshotSuccess])
 				iters.SetAt(idx, iter)
 			}
 			wg.Done()
-
-			// SeriesIterator has taken its own references to the results array after Reset
-			s.iteratorArrayPool.Put(results)
+		}
+		completionFn := func(result interface{}, err error) {
+			var snapshotSuccess int32
+			if err != nil {
+				n := atomic.AddInt32(&errs, 1)
+				if n == 1 {
+					// NB(r): reuse the error lock here as we do not want to create
+					// a whole lot of locks for every single ID fetched due to size
+					// of mutex being non-trivial and likely to cause more stack growth
+					// or GC pressure if ends up on heap which is likely due to naive
+					// escape analysis.
+					resultErrLock.Lock()
+					firstErr = err
+					resultErrLock.Unlock()
+				}
+			} else {
+				slicesIter := s.readerSliceOfSlicesIteratorPool.Get()
+				slicesIter.Reset(result.([]*rpc.Segments))
+				multiIter := s.multiReaderIteratorPool.Get()
+				multiIter.ResetSliceOfSlices(slicesIter)
+				// Results is pre-allocated after creating fetch ops for this ID below
+				snapshotSuccess = atomic.AddInt32(&success, 1)
+				iterIdx := snapshotSuccess - 1
+				results[iterIdx] = multiIter
+			}
+			// NB(xichen): decrementing pending and checking remaining against zero must
+			// come after incrementing success, otherwise we might end up passing results[:success]
+			// to iter.Reset down below before setting the iterator in the results array,
+			// which would cause a nil pointer exception.
+			remaining := atomic.AddInt32(&pending, -1)
+			doneAll := remaining == 0
+			switch s.level {
+			case topology.ConsistencyLevelOne:
+				complete := snapshotSuccess > 0 || doneAll
+				if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
+					allCompletionFn()
+				}
+			case topology.ConsistencyLevelMajority:
+				complete := snapshotSuccess >= majority || doneAll
+				if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
+					allCompletionFn()
+				}
+			case topology.ConsistencyLevelAll:
+				if doneAll && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
+					allCompletionFn()
+				}
+			}
+			if doneAll {
+				// SeriesIterator has taken its own references to the results array after Reset
+				s.iteratorArrayPool.Put(results)
+			}
+			allRemaining := atomic.AddInt32(&allPending, -1)
+			if allRemaining == 0 {
+				// Return fetch ops to pool
+				for _, ops := range fetchBatchOpsByHostIdx {
+					for _, op := range ops {
+						s.fetchBatchOpPool.Put(op)
+					}
+				}
+				// Return fetch ops array array to pool
+				s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
+			}
 		}
 
 		if err := s.topoMap.RouteForEach(ids[idx], func(hostIdx int, host topology.Host) {
 			// Inc safely as this for each is sequential
 			enqueued++
 			pending++
+			allPending++
 
 			ops := fetchBatchOpsByHostIdx[hostIdx]
 
@@ -600,7 +678,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 		}
 
 		// Once we've enqueued we know how many to expect so retrieve and set length
-		results = s.iteratorArrayPool.Get(enqueued)
+		results = s.iteratorArrayPool.Get(int(enqueued))
 		results = results[:enqueued]
 	}
 
@@ -630,13 +708,16 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 
 	wg.Wait()
 
-	if resultErr != nil {
-		return nil, resultErr
+	resultErrLock.RLock()
+	retErr := resultErr
+	resultErrLock.RUnlock()
+	if retErr != nil {
+		return nil, retErr
 	}
 	return iters, nil
 }
 
-func (s *session) consistencyResult(majority, enqueued, resultErrs int, resultErr error) error {
+func (s *session) consistencyResult(majority, enqueued, resultErrs int32, resultErr error) error {
 	if resultErrs == 0 {
 		return nil
 	}
@@ -692,10 +773,7 @@ func (s *session) Origin() topology.Host {
 }
 
 func (s *session) Replicas() int {
-	s.RLock()
-	replicas := s.replicas
-	s.RUnlock()
-	return replicas
+	return int(atomic.LoadInt32(&s.replicas))
 }
 
 func (s *session) Truncate(namespace string) (int64, error) {
