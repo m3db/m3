@@ -11,4 +11,5 @@ script:
  - make lint
  - make test-ci-unit
  - make test-ci-integration
+ - make m3dbnode
 
