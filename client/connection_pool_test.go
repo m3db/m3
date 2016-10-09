@@ -162,10 +162,12 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		client2        = &nullNodeClient{}
 		overrides      = []healthCheckFn{}
 		overridesMut   sync.RWMutex
-		pushOverride   = func(fn healthCheckFn) {
+		pushOverride   = func(fn healthCheckFn, count int) {
 			overridesMut.Lock()
 			defer overridesMut.Unlock()
-			overrides = append(overrides, fn)
+			for i := 0; i < count; i++ {
+				overrides = append(overrides, fn)
+			}
 		}
 		popOverride = func() healthCheckFn {
 			overridesMut.Lock()
@@ -185,10 +187,10 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 					return fmt.Errorf("fail client")
 				}
 				// Not failing this client, re-enqueue
-				pushOverride(failOverride)
+				pushOverride(failOverride, 1)
 				return nil
 			}
-			pushOverride(failOverride)
+			pushOverride(failOverride, healthCheckFall)
 		}
 		failsDoneWg [2]sync.WaitGroup
 	)
@@ -223,9 +225,9 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	}
 	conns.sleepHealth = func(t time.Duration) {
 		atomic.AddInt32(&healthRounds, 1)
-		if atomic.LoadInt32(&invokeFail) == 1 {
+		if atomic.LoadInt32(&invokeFail) == 1*healthCheckFall {
 			failsDoneWg[0].Done()
-		} else if atomic.LoadInt32(&invokeFail) == 2 {
+		} else if atomic.LoadInt32(&invokeFail) == 2*healthCheckFall {
 			failsDoneWg[1].Done()
 		}
 		time.Sleep(time.Millisecond)
