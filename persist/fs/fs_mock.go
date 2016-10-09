@@ -25,6 +25,7 @@ package fs
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	ts "github.com/m3db/m3db/ts"
 	time0 "github.com/m3db/m3x/time"
 	time "time"
 )
@@ -60,7 +61,7 @@ func (_mr *_MockFileSetWriterRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockFileSetWriter) Open(_param0 string, _param1 uint32, _param2 time.Time) error {
+func (_m *MockFileSetWriter) Open(_param0 ts.ID, _param1 uint32, _param2 time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -70,7 +71,7 @@ func (_mr *_MockFileSetWriterRecorder) Open(arg0, arg1, arg2 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1, arg2)
 }
 
-func (_m *MockFileSetWriter) Write(_param0 string, _param1 []byte) error {
+func (_m *MockFileSetWriter) Write(_param0 ts.ID, _param1 []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", _param0, _param1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -80,7 +81,7 @@ func (_mr *_MockFileSetWriterRecorder) Write(arg0, arg1 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1)
 }
 
-func (_m *MockFileSetWriter) WriteAll(_param0 string, _param1 [][]byte) error {
+func (_m *MockFileSetWriter) WriteAll(_param0 ts.ID, _param1 [][]byte) error {
 	ret := _m.ctrl.Call(_m, "WriteAll", _param0, _param1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -141,7 +142,7 @@ func (_mr *_MockFileSetReaderRecorder) EntriesRead() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EntriesRead")
 }
 
-func (_m *MockFileSetReader) Open(_param0 string, _param1 uint32, _param2 time.Time) error {
+func (_m *MockFileSetReader) Open(_param0 ts.ID, _param1 uint32, _param2 time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -161,9 +162,9 @@ func (_mr *_MockFileSetReaderRecorder) Range() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Range")
 }
 
-func (_m *MockFileSetReader) Read() (string, []byte, error) {
+func (_m *MockFileSetReader) Read() (ts.ID, []byte, error) {
 	ret := _m.ctrl.Call(_m, "Read")
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].(ts.ID)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2

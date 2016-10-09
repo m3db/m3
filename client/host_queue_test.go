@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -34,14 +35,14 @@ import (
 )
 
 var (
-	testWriteBatchPool writeBatchRequestPool
-	testWriteArrayPool idDatapointArrayPool
+	testWriteBatchRawPool writeBatchRawRequestPool
+	testWriteArrayPool    writeBatchRawRequestElementArrayPool
 )
 
 func init() {
-	testWriteBatchPool = newWriteBatchRequestPool(nil)
-	testWriteBatchPool.Init()
-	testWriteArrayPool = newIDDatapointArrayPool(nil, 0)
+	testWriteBatchRawPool = newWriteBatchRawRequestPool(nil)
+	testWriteBatchRawPool.Init()
+	testWriteArrayPool = newWriteBatchRawRequestElementArrayPool(nil, 0)
 	testWriteArrayPool.Init()
 }
 
@@ -61,7 +62,7 @@ func newHostQueueTestOptions() Options {
 
 func TestHostQueueWriteErrorBeforeOpen(t *testing.T) {
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts)
+	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts)
 
 	err := queue.Enqueue(&writeOp{})
 	assert.Error(t, err)
@@ -70,7 +71,7 @@ func TestHostQueueWriteErrorBeforeOpen(t *testing.T) {
 
 func TestHostQueueWriteErrorAfterClose(t *testing.T) {
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts)
+	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts)
 
 	queue.Open()
 	queue.Close()
@@ -87,7 +88,7 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
+	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts).(*queue)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -124,12 +125,13 @@ func TestHostQueueWriteBatches(t *testing.T) {
 
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
-	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRequest) {
+	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRawRequest) {
 		for i, write := range writes {
-			assert.Equal(t, *req.Elements[i], *write.request.IdDatapoint)
+			assert.Equal(t, req.Elements[i].ID, write.request.ID)
+			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
 		}
 	}
-	mockClient.EXPECT().WriteBatch(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil)
+	mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil)
 
 	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
 
@@ -161,7 +163,7 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
+	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts).(*queue)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -193,21 +195,22 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
-	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRequest) {
+	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRawRequest) {
 		var writesForNamespace []*writeOp
-		if req.NameSpace == "testNs1" {
+		if string(req.NameSpace) == "testNs1" {
 			writesForNamespace = writes[:3]
 		} else {
 			writesForNamespace = writes[3:]
 		}
 		assert.Equal(t, len(writesForNamespace), len(req.Elements))
 		for i, write := range writesForNamespace {
-			assert.Equal(t, *req.Elements[i], *write.request.IdDatapoint)
+			assert.Equal(t, req.Elements[i].ID, write.request.ID)
+			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
 		}
 	}
 
 	// Assert the writes will be handled in two batches
-	mockClient.EXPECT().WriteBatch(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil).MinTimes(2).MaxTimes(2)
+	mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil).MinTimes(2).MaxTimes(2)
 	mockConnPool.EXPECT().NextClient().Return(mockClient, nil).MinTimes(2).MaxTimes(2)
 
 	for _, write := range writes {
@@ -239,7 +242,7 @@ func TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 
 	opts := newHostQueueTestOptions()
 	opts = opts.SetHostQueueOpsFlushInterval(time.Millisecond)
-	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
+	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts).(*queue)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -282,7 +285,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 
 	opts := newHostQueueTestOptions()
 	opts = opts.SetHostQueueOpsFlushSize(2)
-	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
+	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts).(*queue)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -311,18 +314,19 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
-	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRequest) {
+	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRawRequest) {
 		for i, write := range writes {
-			assert.Equal(t, *req.Elements[i], *write.request.IdDatapoint)
+			assert.Equal(t, req.Elements[i].ID, write.request.ID)
+			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
 		}
 	}
-	batchErrs := &rpc.WriteBatchErrors{Errors: []*rpc.WriteBatchError{
-		&rpc.WriteBatchError{Index: 0, Err: &rpc.Error{
+	batchErrs := &rpc.WriteBatchRawErrors{Errors: []*rpc.WriteBatchRawError{
+		&rpc.WriteBatchRawError{Index: 0, Err: &rpc.Error{
 			Type:    rpc.ErrorType_INTERNAL_ERROR,
 			Message: writeErr,
 		}},
 	}}
-	mockClient.EXPECT().WriteBatch(gomock.Any(), gomock.Any()).Do(writeBatch).Return(batchErrs)
+	mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(batchErrs)
 	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
 
 	// Perform writes
@@ -351,7 +355,7 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 
 	opts := newHostQueueTestOptions()
 	opts = opts.SetHostQueueOpsFlushSize(2)
-	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
+	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts).(*queue)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -375,12 +379,13 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
-	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRequest) {
+	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRawRequest) {
 		for i, write := range writes {
-			assert.Equal(t, *req.Elements[i], *write.request.IdDatapoint)
+			assert.Equal(t, req.Elements[i].ID, write.request.ID)
+			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
 		}
 	}
-	mockClient.EXPECT().WriteBatch(gomock.Any(), gomock.Any()).Do(writeBatch).Return(writeErr)
+	mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(writeErr)
 	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
 
 	// Perform writes
@@ -404,7 +409,7 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 func TestHostQueueFetchBatches(t *testing.T) {
 	namespace := "testNs"
 	ids := []string{"foo", "bar", "baz", "qux"}
-	result := &rpc.FetchRawBatchResult_{}
+	result := &rpc.FetchBatchRawResult_{}
 	for _ = range ids {
 		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
 	}
@@ -452,7 +457,7 @@ func TestHostQueueFetchBatchesErrorOnFetchRawBatchError(t *testing.T) {
 func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
 	namespace := "testNs"
 	ids := []string{"foo", "bar", "baz", "qux"}
-	result := &rpc.FetchRawBatchResult_{}
+	result := &rpc.FetchBatchRawResult_{}
 	for _ = range ids[:len(ids)-1] {
 		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
 	}
@@ -470,7 +475,7 @@ func TestHostQueueFetchBatchesErrorOnResultError(t *testing.T) {
 	namespace := "testNs"
 	ids := []string{"foo", "bar", "baz", "qux"}
 	anError := &rpc.Error{Type: rpc.ErrorType_INTERNAL_ERROR, Message: "an error"}
-	result := &rpc.FetchRawBatchResult_{}
+	result := &rpc.FetchBatchRawResult_{}
 	for _ = range ids[:len(ids)-1] {
 		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
 	}
@@ -497,7 +502,7 @@ func testHostQueueFetchBatches(
 	t *testing.T,
 	namespace string,
 	ids []string,
-	result *rpc.FetchRawBatchResult_,
+	result *rpc.FetchBatchRawResult_,
 	expected []hostQueueResult,
 	testOpts *testHostQueueFetchBatchesOptions,
 	assertion func(results []hostQueueResult),
@@ -508,7 +513,7 @@ func testHostQueueFetchBatches(
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchPool, testWriteArrayPool, opts).(*queue)
+	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts).(*queue)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -526,13 +531,19 @@ func testHostQueueFetchBatches(
 		wg.Done()
 	}
 
+	rawIDs := make([][]byte, len(ids))
+
+	for i, id := range ids {
+		rawIDs[i] = []byte(id)
+	}
+
 	// Prepare fetch batch op
 	fetchBatch := &fetchBatchOp{
-		request: rpc.FetchRawBatchRequest{
+		request: rpc.FetchBatchRawRequest{
 			RangeStart: 0,
 			RangeEnd:   1,
-			NameSpace:  namespace,
-			Ids:        ids,
+			NameSpace:  []byte(namespace),
+			Ids:        rawIDs,
 		},
 	}
 	for _ = range fetchBatch.request.Ids {
@@ -545,22 +556,22 @@ func testHostQueueFetchBatches(
 	if testOpts != nil && testOpts.nextClientErr != nil {
 		mockConnPool.EXPECT().NextClient().Return(nil, testOpts.nextClientErr)
 	} else if testOpts != nil && testOpts.fetchRawBatchErr != nil {
-		fetchRawBatch := func(ctx thrift.Context, req *rpc.FetchRawBatchRequest) {
+		fetchBatchRaw := func(ctx thrift.Context, req *rpc.FetchBatchRawRequest) {
 			assert.Equal(t, &fetchBatch.request, req)
 		}
 		mockClient.EXPECT().
-			FetchRawBatch(gomock.Any(), gomock.Any()).
-			Do(fetchRawBatch).
+			FetchBatchRaw(gomock.Any(), gomock.Any()).
+			Do(fetchBatchRaw).
 			Return(nil, testOpts.fetchRawBatchErr)
 
 		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
 	} else {
-		fetchRawBatch := func(ctx thrift.Context, req *rpc.FetchRawBatchRequest) {
+		fetchBatchRaw := func(ctx thrift.Context, req *rpc.FetchBatchRawRequest) {
 			assert.Equal(t, &fetchBatch.request, req)
 		}
 		mockClient.EXPECT().
-			FetchRawBatch(gomock.Any(), gomock.Any()).
-			Do(fetchRawBatch).
+			FetchBatchRaw(gomock.Any(), gomock.Any()).
+			Do(fetchBatchRaw).
 			Return(result, nil)
 
 		mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
@@ -595,9 +606,9 @@ func testWriteOp(
 ) *writeOp {
 	w := &writeOp{}
 	w.reset()
-	w.request.NameSpace = namespace
-	w.idDatapoint.ID = id
-	w.datapoint = rpc.Datapoint{
+	w.namespace = ts.StringID(namespace)
+	w.request.ID = []byte(id)
+	w.request.Datapoint = &rpc.Datapoint{
 		Value:         value,
 		Timestamp:     timestamp,
 		TimestampType: timeType,

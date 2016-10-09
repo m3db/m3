@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 
 	tchannel "github.com/uber/tchannel-go"
@@ -117,12 +118,12 @@ type AdminSession interface {
 	Replicas() int
 
 	// Truncate will truncate the namespace for a given shard
-	Truncate(namespace string) (int64, error)
+	Truncate(namespace ts.ID) (int64, error)
 
 	// FetchBlocksMetadataFromPeers will fetch the blocks metadata from
 	// available peers
 	FetchBlocksMetadataFromPeers(
-		namespace string,
+		namespace ts.ID,
 		shard uint32,
 		start, end time.Time,
 		blockSize time.Duration,
@@ -131,7 +132,7 @@ type AdminSession interface {
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
 	// for each series in a best effort method from available peers
 	FetchBootstrapBlocksFromPeers(
-		namespace string,
+		namespace ts.ID,
 		shard uint32,
 		start, end time.Time,
 		opts bootstrap.Options,

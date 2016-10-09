@@ -144,7 +144,7 @@ func (m *flushManager) flushWithTime(t time.Time) error {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
 		if err := n.Flush(t, m.pm); err != nil {
-			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v", n.Name(), err)
+			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v", n.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}

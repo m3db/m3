@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 )
 
 // HostBlockMetadata contains a host along with block metadata from that host
@@ -71,10 +72,16 @@ type ReplicaSeriesMetadata interface {
 	NumBlocks() int64
 
 	// Series returns the series metadata
-	Series() map[string]ReplicaBlocksMetadata
+	Series() map[ts.Hash]ReplicaBlocksMetadataWrapper
 
 	// GetOrAdd returns the series metadata for an id, creating one if it doesn't exist
-	GetOrAdd(id string) ReplicaBlocksMetadata
+	GetOrAdd(id ts.ID) ReplicaBlocksMetadata
+}
+
+// ReplicaBlocksMetadataWrapper represents series metadata and an associated ID.
+type ReplicaBlocksMetadataWrapper struct {
+	ID       ts.ID
+	Metadata ReplicaBlocksMetadata
 }
 
 // ReplicaMetadataComparer compares metadata from hosts in a replica set

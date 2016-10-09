@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
@@ -45,14 +46,14 @@ type mockDatabase struct {
 
 func newMockDatabase() *mockDatabase { return &mockDatabase{opts: testDatabaseOptions()} }
 
-func (d *mockDatabase) Options() Options                         { return d.opts }
-func (d *mockDatabase) Open() error                              { return nil }
-func (d *mockDatabase) Close() error                             { return nil }
-func (d *mockDatabase) Bootstrap() error                         { return nil }
-func (d *mockDatabase) IsBootstrapped() bool                     { return d.bs == bootstrapped }
-func (d *mockDatabase) Repair() error                            { return nil }
-func (d *mockDatabase) Truncate(namespace string) (int64, error) { return 0, nil }
-func (d *mockDatabase) flush(t time.Time, async bool)            {}
+func (d *mockDatabase) Options() Options                        { return d.opts }
+func (d *mockDatabase) Open() error                             { return nil }
+func (d *mockDatabase) Close() error                            { return nil }
+func (d *mockDatabase) Bootstrap() error                        { return nil }
+func (d *mockDatabase) IsBootstrapped() bool                    { return d.bs == bootstrapped }
+func (d *mockDatabase) Repair() error                           { return nil }
+func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error) { return 0, nil }
+func (d *mockDatabase) flush(t time.Time, async bool)           {}
 
 func (d *mockDatabase) getOwnedNamespaces() []databaseNamespace {
 	namespaces := make([]databaseNamespace, 0, len(d.namespaces))
@@ -62,19 +63,19 @@ func (d *mockDatabase) getOwnedNamespaces() []databaseNamespace {
 	return namespaces
 }
 
-func (d *mockDatabase) Write(context.Context, string, string, time.Time, float64, xtime.Unit, []byte) error {
+func (d *mockDatabase) Write(context.Context, ts.ID, ts.ID, time.Time, float64, xtime.Unit, []byte) error {
 	return nil
 }
 
-func (d *mockDatabase) ReadEncoded(context.Context, string, string, time.Time, time.Time) ([][]xio.SegmentReader, error) {
+func (d *mockDatabase) ReadEncoded(context.Context, ts.ID, ts.ID, time.Time, time.Time) ([][]xio.SegmentReader, error) {
 	return nil, nil
 }
 
-func (d *mockDatabase) FetchBlocks(context.Context, string, uint32, string, []time.Time) ([]block.FetchBlockResult, error) {
+func (d *mockDatabase) FetchBlocks(context.Context, ts.ID, uint32, ts.ID, []time.Time) ([]block.FetchBlockResult, error) {
 	return nil, nil
 }
 
-func (d *mockDatabase) FetchBlocksMetadata(context.Context, string, uint32, int64, int64, bool, bool) ([]block.FetchBlocksMetadataResult, *int64, error) {
+func (d *mockDatabase) FetchBlocksMetadata(context.Context, ts.ID, uint32, int64, int64, bool, bool) ([]block.FetchBlocksMetadataResult, *int64, error) {
 	return nil, nil, nil
 }
 
@@ -133,7 +134,7 @@ func TestDatabaseReadEncodedNotBootstrapped(t *testing.T) {
 	defer ctx.Close()
 
 	d := testDatabase(t, bootstrapNotStarted)
-	_, err := d.ReadEncoded(ctx, "testns1", "foo", time.Now(), time.Now())
+	_, err := d.ReadEncoded(ctx, ts.StringID("testns1"), ts.StringID("foo"), time.Now(), time.Now())
 	require.Equal(t, errDatabaseNotBootstrapped, err)
 }
 
@@ -142,7 +143,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	defer ctx.Close()
 
 	d := testDatabase(t, bootstrapped)
-	_, err := d.ReadEncoded(ctx, "nonexistent", "foo", time.Now(), time.Now())
+	_, err := d.ReadEncoded(ctx, ts.StringID("nonexistent"), ts.StringID("foo"), time.Now(), time.Now())
 	require.Equal(t, "no such namespace nonexistent", err.Error())
 	require.Panics(t, func() { d.RUnlock() }, "shouldn't be able to unlock the read lock")
 }
@@ -155,13 +156,13 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	defer ctx.Close()
 
 	d := testDatabase(t, bootstrapped)
-	ns := "testns1"
-	id := "bar"
+	ns := ts.StringID("testns1")
+	id := ts.StringID("bar")
 	end := time.Now()
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
-	d.namespaces[ns] = mockNamespace
+	d.namespaces[ns.Hash()] = mockNamespace
 
 	res, err := d.ReadEncoded(ctx, ns, id, start, end)
 	require.Nil(t, res)
@@ -176,7 +177,7 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 	d := testDatabase(t, bootstrapped)
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
-	res, err := d.FetchBlocks(ctx, "testns1", 0, "foo", starts)
+	res, err := d.FetchBlocks(ctx, ts.StringID("testns1"), 0, ts.StringID("foo"), starts)
 	require.Nil(t, res)
 	require.True(t, xerrors.IsInvalidParams(err))
 }
@@ -189,15 +190,15 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	defer ctx.Close()
 
 	d := testDatabase(t, bootstrapped)
-	ns := "testns1"
-	id := "bar"
+	ns := ts.StringID("testns1")
+	id := ts.StringID("bar")
 	shardID := uint32(0)
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(starts[0], nil, nil)}
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchBlocks(ctx, shardID, id, starts).Return(expected, nil)
-	d.namespaces[ns] = mockNamespace
+	d.namespaces[ns.Hash()] = mockNamespace
 
 	res, err := d.FetchBlocks(ctx, ns, shardID, id, starts)
 	require.Equal(t, expected, res)
@@ -209,7 +210,7 @@ func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
 	defer ctx.Close()
 
 	d := testDatabase(t, bootstrapped)
-	ns, shardID, limit, pageToken, includeSizes, includeChecksums := "testns1", uint32(0), int64(100), int64(0), true, true
+	ns, shardID, limit, pageToken, includeSizes, includeChecksums := ts.StringID("testns1"), uint32(0), int64(100), int64(0), true, true
 	res, nextPageToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, limit, pageToken, includeSizes, includeChecksums)
 	require.Nil(t, res)
 	require.Nil(t, nextPageToken)
@@ -224,12 +225,12 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 	defer ctx.Close()
 
 	d := testDatabase(t, bootstrapped)
-	ns, shardID, limit, pageToken, includeSizes, includeChecksums := "testns1", uint32(397), int64(100), int64(0), true, true
-	expectedBlocks := []block.FetchBlocksMetadataResult{block.NewFetchBlocksMetadataResult("bar", nil)}
+	ns, shardID, limit, pageToken, includeSizes, includeChecksums := ts.StringID("testns1"), uint32(397), int64(100), int64(0), true, true
+	expectedBlocks := []block.FetchBlocksMetadataResult{block.NewFetchBlocksMetadataResult(ts.StringID("bar"), nil)}
 	expectedToken := new(int64)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes, includeChecksums).Return(expectedBlocks, expectedToken, nil)
-	d.namespaces[ns] = mockNamespace
+	d.namespaces[ns.Hash()] = mockNamespace
 
 	res, nextToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, limit, pageToken, includeSizes, includeChecksums)
 	require.Equal(t, expectedBlocks, res)

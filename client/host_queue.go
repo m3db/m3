@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -43,25 +44,25 @@ var (
 type queue struct {
 	sync.RWMutex
 
-	opts                  Options
-	nowFn                 clock.NowFn
-	host                  topology.Host
-	connPool              connectionPool
-	writeBatchRequestPool writeBatchRequestPool
-	idDatapointArrayPool  idDatapointArrayPool
-	size                  int
-	ops                   []op
-	opsSumSize            int
-	opsLastRotatedAt      time.Time
-	opsArrayPool          opArrayPool
-	drainIn               chan []op
-	state                 state
+	opts                                 Options
+	nowFn                                clock.NowFn
+	host                                 topology.Host
+	connPool                             connectionPool
+	writeBatchRawRequestPool             writeBatchRawRequestPool
+	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool
+	size                                 int
+	ops                                  []op
+	opsSumSize                           int
+	opsLastRotatedAt                     time.Time
+	opsArrayPool                         opArrayPool
+	drainIn                              chan []op
+	state                                state
 }
 
 func newHostQueue(
 	host topology.Host,
-	writeBatchRequestPool writeBatchRequestPool,
-	idDatapointArrayPool idDatapointArrayPool,
+	writeBatchRawRequestPool writeBatchRawRequestPool,
+	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
 	opts Options,
 ) hostQueue {
 	scope := opts.InstrumentOptions().MetricsScope().
@@ -84,16 +85,16 @@ func newHostQueue(
 	opArrayPool.Init()
 
 	return &queue{
-		opts:                  opts,
-		nowFn:                 opts.ClockOptions().NowFn(),
-		host:                  host,
-		connPool:              newConnectionPool(host, opts),
-		writeBatchRequestPool: writeBatchRequestPool,
-		idDatapointArrayPool:  idDatapointArrayPool,
-		size:                  size,
-		ops:                   opArrayPool.Get(),
-		opsArrayPool:          opArrayPool,
-		drainIn:               make(chan []op, opsArraysLen),
+		opts:                                 opts,
+		nowFn:                                opts.ClockOptions().NowFn(),
+		host:                                 host,
+		connPool:                             newConnectionPool(host, opts),
+		writeBatchRawRequestPool:             writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool: writeBatchRawRequestElementArrayPool,
+		size:         size,
+		ops:          opArrayPool.Get(),
+		opsArrayPool: opArrayPool,
+		drainIn:      make(chan []op, opsArraysLen),
 	}
 }
 
@@ -183,10 +184,10 @@ func (q *queue) rotateOpsWithLock() []op {
 
 func (q *queue) drain() {
 	var (
-		wgAll                       = &sync.WaitGroup{}
-		currWriteOpsByNamespace     = make(map[string][]op)
-		currIDDatapointsByNamespace = make(map[string][]*rpc.IDDatapoint)
-		writeBatchSize              = q.opts.WriteBatchSize()
+		wgAll                        = &sync.WaitGroup{}
+		currWriteOpsByNamespace      = make(map[ts.Hash][]op)
+		currBatchElementsByNamespace = make(map[ts.Hash][]*rpc.WriteBatchRawRequestElement)
+		writeBatchSize               = q.opts.WriteBatchSize()
 	)
 
 	for {
@@ -195,31 +196,31 @@ func (q *queue) drain() {
 			break
 		}
 		var (
-			currWriteOps     []op
-			currIDDatapoints []*rpc.IDDatapoint
-			opsLen           = len(ops)
+			currWriteOps      []op
+			currBatchElements []*rpc.WriteBatchRawRequestElement
+			opsLen            = len(ops)
 		)
 		for i := 0; i < opsLen; i++ {
 			switch v := ops[i].(type) {
 			case *writeOp:
-				namespace := v.request.NameSpace
-				currWriteOps = currWriteOpsByNamespace[namespace]
-				currIDDatapoints = currIDDatapointsByNamespace[namespace]
+				namespace := v.namespace
+				currWriteOps = currWriteOpsByNamespace[namespace.Hash()]
+				currBatchElements = currBatchElementsByNamespace[namespace.Hash()]
 				if currWriteOps == nil {
 					currWriteOps = q.opsArrayPool.Get()
-					currIDDatapoints = q.idDatapointArrayPool.Get()
+					currBatchElements = q.writeBatchRawRequestElementArrayPool.Get()
 				}
 
 				currWriteOps = append(currWriteOps, ops[i])
-				currIDDatapoints = append(currIDDatapoints, v.request.IdDatapoint)
-				currWriteOpsByNamespace[namespace] = currWriteOps
-				currIDDatapointsByNamespace[namespace] = currIDDatapoints
+				currBatchElements = append(currBatchElements, &v.request)
+				currWriteOpsByNamespace[namespace.Hash()] = currWriteOps
+				currBatchElementsByNamespace[namespace.Hash()] = currBatchElements
 
 				if len(currWriteOps) == writeBatchSize {
 					// Reached write batch limit, write async and reset
-					q.asyncWrite(wgAll, namespace, currWriteOps, currIDDatapoints)
-					currWriteOpsByNamespace[namespace] = nil
-					currIDDatapointsByNamespace[namespace] = nil
+					q.asyncWrite(wgAll, namespace, currWriteOps, currBatchElements)
+					currWriteOpsByNamespace[namespace.Hash()] = nil
+					currBatchElementsByNamespace[namespace.Hash()] = nil
 				}
 			case *fetchBatchOp:
 				q.asyncFetch(wgAll, v)
@@ -232,11 +233,12 @@ func (q *queue) drain() {
 		}
 
 		// If any outstanding write ops, async write
-		for namespace, writeOps := range currWriteOpsByNamespace {
+		for _, writeOps := range currWriteOpsByNamespace {
 			if len(writeOps) > 0 {
-				q.asyncWrite(wgAll, namespace, writeOps, currIDDatapointsByNamespace[namespace])
-				currWriteOpsByNamespace[namespace] = nil
-				currIDDatapointsByNamespace[namespace] = nil
+				namespace := writeOps[0].(*writeOp).namespace
+				q.asyncWrite(wgAll, namespace, writeOps, currBatchElementsByNamespace[namespace.Hash()])
+				currWriteOpsByNamespace[namespace.Hash()] = nil
+				currBatchElementsByNamespace[namespace.Hash()] = nil
 			}
 		}
 
@@ -250,18 +252,20 @@ func (q *queue) drain() {
 	q.connPool.Close()
 }
 
-func (q *queue) asyncWrite(wg *sync.WaitGroup, namespace string, ops []op, elems []*rpc.IDDatapoint) {
+func (q *queue) asyncWrite(
+	wg *sync.WaitGroup, namespace ts.ID, ops []op, elems []*rpc.WriteBatchRawRequestElement) {
+
 	wg.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
-		req := q.writeBatchRequestPool.Get()
-		req.NameSpace = namespace
+		req := q.writeBatchRawRequestPool.Get()
+		req.NameSpace = namespace.Data()
 		req.Elements = elems
 
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
-			q.writeBatchRequestPool.Put(req)
-			q.idDatapointArrayPool.Put(elems)
+			q.writeBatchRawRequestPool.Put(req)
+			q.writeBatchRawRequestElementArrayPool.Put(elems)
 			q.opsArrayPool.Put(ops)
 			wg.Done()
 		}
@@ -275,7 +279,7 @@ func (q *queue) asyncWrite(wg *sync.WaitGroup, namespace string, ops []op, elems
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
-		err = client.WriteBatch(ctx, req)
+		err = client.WriteBatchRaw(ctx, req)
 		if err == nil {
 			// All succeeded
 			callAllCompletionFns(ops, nil, nil)
@@ -283,7 +287,7 @@ func (q *queue) asyncWrite(wg *sync.WaitGroup, namespace string, ops []op, elems
 			return
 		}
 
-		if batchErrs, ok := err.(*rpc.WriteBatchErrors); ok {
+		if batchErrs, ok := err.(*rpc.WriteBatchRawErrors); ok {
 			// Callback all writes with errors
 			hasErr := make(map[int]struct{})
 			for _, batchErr := range batchErrs.Errors {
@@ -324,7 +328,7 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
-		result, err := client.FetchRawBatch(ctx, &op.request)
+		result, err := client.FetchBatchRaw(ctx, &op.request)
 		if err != nil {
 			op.completeAll(nil, err)
 			cleanup()

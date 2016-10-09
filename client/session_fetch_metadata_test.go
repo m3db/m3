@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/stretchr/testify/require"
 )
@@ -48,14 +49,14 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 	now := time.Now()
 	checksums := []uint32{1, 2, 3}
 	inputs := []blocksMetadata{
-		{peer: peer, id: "foo", blocks: []blockMetadata{
+		{peer: peer, id: ts.StringID("foo"), blocks: []blockMetadata{
 			{start: now, size: int64(1), checksum: &checksums[0]},
 			{start: now.Add(time.Second), size: int64(2), checksum: &checksums[1]},
 		}},
-		{peer: peer, id: "bar", blocks: []blockMetadata{
+		{peer: peer, id: ts.StringID("bar"), blocks: []blockMetadata{
 			{start: now, size: int64(3), checksum: &checksums[2]},
 		}},
-		{peer: peer, id: "baz", blocks: []blockMetadata{
+		{peer: peer, id: ts.StringID("baz"), blocks: []blockMetadata{
 			{start: now, size: int64(4), checksum: nil},
 		}},
 	}
@@ -81,14 +82,14 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 	}
 
 	expected := []testHostBlocks{
-		{h, block.NewBlocksMetadata("foo", []block.Metadata{
+		{h, block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{
 			block.NewMetadata(inputs[0].blocks[0].start, inputs[0].blocks[0].size, inputs[0].blocks[0].checksum),
 			block.NewMetadata(inputs[0].blocks[1].start, inputs[0].blocks[1].size, inputs[0].blocks[1].checksum),
 		})},
-		{h, block.NewBlocksMetadata("bar", []block.Metadata{
+		{h, block.NewBlocksMetadata(ts.StringID("bar"), []block.Metadata{
 			block.NewMetadata(inputs[1].blocks[0].start, inputs[1].blocks[0].size, inputs[1].blocks[0].checksum),
 		})},
-		{h, block.NewBlocksMetadata("baz", []block.Metadata{
+		{h, block.NewBlocksMetadata(ts.StringID("baz"), []block.Metadata{
 			block.NewMetadata(inputs[2].blocks[0].start, inputs[2].blocks[0].size, inputs[2].blocks[0].checksum),
 		})},
 	}

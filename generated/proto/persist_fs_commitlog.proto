@@ -10,8 +10,8 @@ message CommitLogInfo {
 message CommitLog {
 	int64 created = 1;
 
-	uint64 idx = 2;
-	bytes metadata = 3; 
+	uint64 index = 2;
+	bytes metadata = 3;
 
 	int64 timestamp = 4;
 	double value = 5;
@@ -20,7 +20,7 @@ message CommitLog {
 }
 
 message CommitLogMetadata {
-	string id = 1;
-	string namespace = 2;
+	bytes id = 1;
+	bytes namespace = 2;
 	uint32 shard = 3;
 }

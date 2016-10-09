@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
@@ -44,6 +45,11 @@ type commitLogSource struct {
 type encoder struct {
 	lastWriteAt time.Time
 	enc         encoding.Encoder
+}
+
+type encoderMap struct {
+	id       ts.ID
+	encoders map[time.Time][]encoder
 }
 
 func newCommitLogSource(opts Options) bootstrap.Source {
@@ -62,7 +68,7 @@ func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (s *commitLogSource) Available(
-	namespace string,
+	namespace ts.ID,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
 ) bootstrap.ShardTimeRanges {
 	// Commit log bootstrapper is a last ditch effort, so fulfill all
@@ -72,7 +78,7 @@ func (s *commitLogSource) Available(
 }
 
 func (s *commitLogSource) Read(
-	namespace string,
+	namespace ts.ID,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
 ) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
@@ -87,7 +93,7 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		unmerged    = make(map[uint32]map[string]map[time.Time][]encoder)
+		unmerged    = make(map[uint32]map[ts.Hash]encoderMap)
 		bopts       = s.opts.BootstrapOptions()
 		blopts      = bopts.DatabaseBlockOptions()
 		blockSize   = bopts.RetentionOptions().BlockSize()
@@ -115,19 +121,21 @@ func (s *commitLogSource) Read(
 
 		unmergedShard, ok := unmerged[series.Shard]
 		if !ok {
-			unmergedShard = make(map[string]map[time.Time][]encoder)
+			unmergedShard = make(map[ts.Hash]encoderMap)
 			unmerged[series.Shard] = unmergedShard
 		}
 
-		unmergedSeries, ok := unmergedShard[series.ID]
+		unmergedSeries, ok := unmergedShard[series.ID.Hash()]
 		if !ok {
-			unmergedSeries = make(map[time.Time][]encoder)
-			unmergedShard[series.ID] = unmergedSeries
+			unmergedSeries = encoderMap{
+				id:       series.ID,
+				encoders: make(map[time.Time][]encoder)}
+			unmergedShard[series.ID.Hash()] = unmergedSeries
 		}
 
 		var (
 			err           error
-			unmergedBlock = unmergedSeries[blockStart]
+			unmergedBlock = unmergedSeries.encoders[blockStart]
 			wroteExisting = false
 		)
 		for i := range unmergedBlock {
@@ -148,7 +156,7 @@ func (s *commitLogSource) Read(
 					lastWriteAt: dp.Timestamp,
 					enc:         enc,
 				})
-				unmergedSeries[blockStart] = unmergedBlock
+				unmergedSeries.encoders[blockStart] = unmergedBlock
 			}
 		}
 		if err != nil {
@@ -169,9 +177,9 @@ func (s *commitLogSource) Read(
 	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
 	for shard, unmergedShard := range unmerged {
 		shardResult := bootstrap.NewShardResult(len(unmergedShard), s.opts.BootstrapOptions())
-		for id, unmergedBlocks := range unmergedShard {
-			blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks), blopts)
-			for start, unmergedBlock := range unmergedBlocks {
+		for _, unmergedBlocks := range unmergedShard {
+			blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders), blopts)
+			for start, unmergedBlock := range unmergedBlocks.encoders {
 				block := blocksPool.Get()
 				if len(unmergedBlock) == 0 {
 					emptyErrs++
@@ -220,7 +228,7 @@ func (s *commitLogSource) Read(
 				blocks.AddBlock(block)
 			}
 			if blocks.Len() > 0 {
-				shardResult.AddSeries(id, blocks)
+				shardResult.AddSeries(unmergedBlocks.id, blocks)
 			}
 		}
 		if len(shardResult.AllSeries()) > 0 {

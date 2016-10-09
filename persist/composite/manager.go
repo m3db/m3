@@ -50,7 +50,7 @@ func (pm *persistManager) hasMultiple() bool {
 	return len(pm.managers) > 1
 }
 
-func (pm *persistManager) persist(id string, segment ts.Segment) error {
+func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
 	if !pm.hasMultiple() {
 		var multiErr xerrors.MultiError
 		for i := range pm.fns {
@@ -123,7 +123,7 @@ func (pm *persistManager) createPreparedWithError(multiErr xerrors.MultiError) (
 	return prepared, multiErr.FinalError()
 }
 
-func (pm *persistManager) Prepare(namespace string, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
+func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
 	pm.fns = pm.fns[:0]
 	pm.closers = pm.closers[:0]
 

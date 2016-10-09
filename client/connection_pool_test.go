@@ -283,15 +283,15 @@ func (*nullNodeClient) Fetch(ctx thrift.Context, req *rpc.FetchRequest) (*rpc.Fe
 	return nil, nil
 }
 
-func (*nullNodeClient) FetchRawBatch(ctx thrift.Context, req *rpc.FetchRawBatchRequest) (*rpc.FetchRawBatchResult_, error) {
+func (*nullNodeClient) FetchBatchRaw(ctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
 	return nil, nil
 }
 
-func (*nullNodeClient) FetchBlocks(ctx thrift.Context, req *rpc.FetchBlocksRequest) (*rpc.FetchBlocksResult_, error) {
+func (*nullNodeClient) FetchBlocksRaw(ctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
 	return nil, nil
 }
 
-func (*nullNodeClient) FetchBlocksMetadata(ctx thrift.Context, req *rpc.FetchBlocksMetadataRequest) (*rpc.FetchBlocksMetadataResult_, error) {
+func (*nullNodeClient) FetchBlocksMetadataRaw(ctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
 	return nil, nil
 }
 
@@ -303,7 +303,7 @@ func (*nullNodeClient) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
 	return nil
 }
 
-func (*nullNodeClient) WriteBatch(ctx thrift.Context, req *rpc.WriteBatchRequest) error {
+func (*nullNodeClient) WriteBatchRaw(ctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
 	return nil
 }
 

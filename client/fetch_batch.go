@@ -26,19 +26,19 @@ import (
 )
 
 type fetchBatchOp struct {
-	request       rpc.FetchRawBatchRequest
+	request       rpc.FetchBatchRawRequest
 	completionFns []completionFn
 }
 
 func (f *fetchBatchOp) reset() {
 	f.request.RangeStart = 0
 	f.request.RangeEnd = 0
-	f.request.NameSpace = ""
+	f.request.NameSpace = nil
 	f.request.Ids = f.request.Ids[:0]
 	f.completionFns = f.completionFns[:0]
 }
 
-func (f *fetchBatchOp) append(namespace string, id string, completionFn completionFn) {
+func (f *fetchBatchOp) append(namespace, id []byte, completionFn completionFn) {
 	f.request.NameSpace = namespace
 	f.request.Ids = append(f.request.Ids, id)
 	f.completionFns = append(f.completionFns, completionFn)
@@ -86,7 +86,7 @@ func newFetchBatchOpPool(opts pool.ObjectPoolOptions, capacity int) fetchBatchOp
 func (p *poolOfFetchBatchOp) Init() {
 	p.pool.Init(func() interface{} {
 		f := &fetchBatchOp{}
-		f.request.Ids = make([]string, 0, p.capacity)
+		f.request.Ids = make([][]byte, 0, p.capacity)
 		f.completionFns = make([]completionFn, 0, p.capacity)
 		f.reset()
 		return f

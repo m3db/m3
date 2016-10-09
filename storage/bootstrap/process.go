@@ -23,6 +23,7 @@ package bootstrap
 import (
 	"errors"
 
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
@@ -52,7 +53,7 @@ func NewBootstrapProcess(
 
 func (b *bootstrapProcess) Run(
 	targetRanges xtime.Ranges,
-	namespace string,
+	namespace ts.ID,
 	shards []uint32,
 ) (Result, error) {
 	result := NewResult()
@@ -69,7 +70,7 @@ func (b *bootstrapProcess) Run(
 
 		logFields := []xlog.LogField{
 			xlog.NewLogField("bootstrapper", b.bootstrapper.String()),
-			xlog.NewLogField("namespace", namespace),
+			xlog.NewLogField("namespace", namespace.String()),
 			xlog.NewLogField("numShards", len(shards)),
 			xlog.NewLogField("from", window.Start.String()),
 			xlog.NewLogField("to", window.End.String()),

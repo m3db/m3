@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 )
 
@@ -70,14 +71,14 @@ func (r *result) AddResult(other Result) {
 
 type shardResult struct {
 	opts   Options
-	blocks map[string]block.DatabaseSeriesBlocks
+	blocks map[ts.Hash]DatabaseSeriesBlocksWrapper
 }
 
 // NewShardResult creates a new shard result.
 func NewShardResult(capacity int, opts Options) ShardResult {
 	return &shardResult{
 		opts:   opts,
-		blocks: make(map[string]block.DatabaseSeriesBlocks, capacity),
+		blocks: make(map[ts.Hash]DatabaseSeriesBlocksWrapper, capacity),
 	}
 }
 
@@ -92,23 +93,29 @@ func (sr *shardResult) IsEmpty() bool {
 }
 
 // AddBlock adds a data block.
-func (sr *shardResult) AddBlock(id string, b block.DatabaseBlock) {
-	curSeries, exists := sr.blocks[id]
+func (sr *shardResult) AddBlock(id ts.ID, b block.DatabaseBlock) {
+	curSeries, exists := sr.blocks[id.Hash()]
 	if !exists {
-		curSeries = block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions())
-		sr.blocks[id] = curSeries
+		curSeries = DatabaseSeriesBlocksWrapper{
+			ID:     id,
+			Blocks: block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions()),
+		}
+		sr.blocks[id.Hash()] = curSeries
 	}
-	curSeries.AddBlock(b)
+	curSeries.Blocks.AddBlock(b)
 }
 
 // AddSeries adds a single series.
-func (sr *shardResult) AddSeries(id string, rawSeries block.DatabaseSeriesBlocks) {
-	curSeries, exists := sr.blocks[id]
+func (sr *shardResult) AddSeries(id ts.ID, rawSeries block.DatabaseSeriesBlocks) {
+	curSeries, exists := sr.blocks[id.Hash()]
 	if !exists {
-		curSeries = block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions())
-		sr.blocks[id] = curSeries
+		curSeries = DatabaseSeriesBlocksWrapper{
+			ID:     id,
+			Blocks: block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions()),
+		}
+		sr.blocks[id.Hash()] = curSeries
 	}
-	curSeries.AddSeries(rawSeries)
+	curSeries.Blocks.AddSeries(rawSeries)
 }
 
 // AddResult adds a shard result.
@@ -117,34 +124,34 @@ func (sr *shardResult) AddResult(other ShardResult) {
 		return
 	}
 	otherSeries := other.AllSeries()
-	for id, rawSeries := range otherSeries {
-		sr.AddSeries(id, rawSeries)
+	for _, series := range otherSeries {
+		sr.AddSeries(series.ID, series.Blocks)
 	}
 }
 
 // RemoveBlockAt removes a data block at a given timestamp
-func (sr *shardResult) RemoveBlockAt(id string, t time.Time) {
-	curSeries, exists := sr.blocks[id]
+func (sr *shardResult) RemoveBlockAt(id ts.ID, t time.Time) {
+	curSeries, exists := sr.blocks[id.Hash()]
 	if !exists {
 		return
 	}
-	curSeries.RemoveBlockAt(t)
+	curSeries.Blocks.RemoveBlockAt(t)
 }
 
 // RemoveSeries removes a single series of blocks.
-func (sr *shardResult) RemoveSeries(id string) {
-	delete(sr.blocks, id)
+func (sr *shardResult) RemoveSeries(id ts.ID) {
+	delete(sr.blocks, id.Hash())
 }
 
 // AllSeries returns all series in the map.
-func (sr *shardResult) AllSeries() map[string]block.DatabaseSeriesBlocks {
+func (sr *shardResult) AllSeries() map[ts.Hash]DatabaseSeriesBlocksWrapper {
 	return sr.blocks
 }
 
 // Close closes a shard result.
 func (sr *shardResult) Close() {
 	for _, series := range sr.blocks {
-		series.Close()
+		series.Blocks.Close()
 	}
 }
 
@@ -175,13 +182,13 @@ func (r ShardResults) Equal(other ShardResults) bool {
 		if len(allSeries) != len(otherAllSeries) {
 			return false
 		}
-		for id, blocks := range allSeries {
-			otherBlocks, ok := otherAllSeries[id]
+		for id, series := range allSeries {
+			otherSeries, ok := otherAllSeries[id]
 			if !ok {
 				return false
 			}
-			allBlocks := blocks.AllBlocks()
-			otherAllBlocks := otherBlocks.AllBlocks()
+			allBlocks := series.Blocks.AllBlocks()
+			otherAllBlocks := otherSeries.Blocks.AllBlocks()
 			if len(allBlocks) != len(otherAllBlocks) {
 				return false
 			}

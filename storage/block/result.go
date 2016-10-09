@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 )
 
@@ -94,16 +95,16 @@ func SortFetchBlockMetadataResultByTimeAscending(metadata []FetchBlockMetadataRe
 }
 
 type fetchBlocksMetadataResult struct {
-	id     string
+	id     ts.ID
 	blocks []FetchBlockMetadataResult
 }
 
 // NewFetchBlocksMetadataResult creates new database blocks metadata
-func NewFetchBlocksMetadataResult(id string, blocks []FetchBlockMetadataResult) FetchBlocksMetadataResult {
+func NewFetchBlocksMetadataResult(id ts.ID, blocks []FetchBlockMetadataResult) FetchBlocksMetadataResult {
 	return fetchBlocksMetadataResult{id: id, blocks: blocks}
 }
 
-func (m fetchBlocksMetadataResult) ID() string                         { return m.id }
+func (m fetchBlocksMetadataResult) ID() ts.ID                          { return m.id }
 func (m fetchBlocksMetadataResult) Blocks() []FetchBlockMetadataResult { return m.blocks }
 
 type filteredBlocksMetadataIter struct {
@@ -111,7 +112,7 @@ type filteredBlocksMetadataIter struct {
 	end       time.Time
 	blockSize time.Duration
 	res       []FetchBlocksMetadataResult
-	id        string
+	id        ts.ID
 	metadata  Metadata
 	resIdx    int
 	blockIdx  int
@@ -168,6 +169,6 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 	return true
 }
 
-func (it *filteredBlocksMetadataIter) Current() (string, Metadata) {
+func (it *filteredBlocksMetadataIter) Current() (ts.ID, Metadata) {
 	return it.id, it.metadata
 }

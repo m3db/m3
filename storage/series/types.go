@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -37,7 +38,7 @@ import (
 // DatabaseSeries is a series in the database
 type DatabaseSeries interface {
 	// ID returns the ID of the series
-	ID() string
+	ID() ts.ID
 
 	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc
 	Tick() error
@@ -83,7 +84,7 @@ type DatabaseSeries interface {
 	Close()
 
 	// Reset resets the series for reuse
-	Reset(id string)
+	Reset(id ts.ID)
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool

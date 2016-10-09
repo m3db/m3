@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -124,7 +125,7 @@ func TestFlushManagerFlush(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		name := strconv.Itoa(i)
 		ns := NewMockdatabaseNamespace(ctrl)
-		ns.EXPECT().Name().Return(name)
+		ns.EXPECT().ID().Return(ts.StringID(name))
 		cur := inputTimes[0].bs
 		for !cur.After(endTime) {
 			if _, excluded := notFlushed[cur]; !excluded {
@@ -204,7 +205,7 @@ func TestFlushManagerFlushWithTimes(t *testing.T) {
 		ns := NewMockdatabaseNamespace(ctrl)
 		ns.EXPECT().Flush(flushTime, fm.pm).Return(input.err)
 		if input.err != nil {
-			ns.EXPECT().Name().Return(input.name)
+			ns.EXPECT().ID().Return(ts.StringID(input.name))
 		}
 		namespaces[input.name] = ns
 	}

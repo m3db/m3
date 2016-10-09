@@ -124,37 +124,37 @@ func (_mr *_MockTChanNodeRecorder) Fetch(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1)
 }
 
-func (_m *MockTChanNode) FetchBlocks(ctx thrift.Context, req *FetchBlocksRequest) (*FetchBlocksResult_, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocks", ctx, req)
-	ret0, _ := ret[0].(*FetchBlocksResult_)
+func (_m *MockTChanNode) FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error) {
+	ret := _m.ctrl.Call(_m, "FetchBatchRaw", ctx, req)
+	ret0, _ := ret[0].(*FetchBatchRawResult_)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockTChanNodeRecorder) FetchBlocks(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1)
+func (_mr *_MockTChanNodeRecorder) FetchBatchRaw(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchRaw", arg0, arg1)
 }
 
-func (_m *MockTChanNode) FetchBlocksMetadata(ctx thrift.Context, req *FetchBlocksMetadataRequest) (*FetchBlocksMetadataResult_, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, req)
-	ret0, _ := ret[0].(*FetchBlocksMetadataResult_)
+func (_m *MockTChanNode) FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchBlocksMetadataRawRequest) (*FetchBlocksMetadataRawResult_, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataRaw", ctx, req)
+	ret0, _ := ret[0].(*FetchBlocksMetadataRawResult_)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockTChanNodeRecorder) FetchBlocksMetadata(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1)
+func (_mr *_MockTChanNodeRecorder) FetchBlocksMetadataRaw(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataRaw", arg0, arg1)
 }
 
-func (_m *MockTChanNode) FetchRawBatch(ctx thrift.Context, req *FetchRawBatchRequest) (*FetchRawBatchResult_, error) {
-	ret := _m.ctrl.Call(_m, "FetchRawBatch", ctx, req)
-	ret0, _ := ret[0].(*FetchRawBatchResult_)
+func (_m *MockTChanNode) FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksRaw", ctx, req)
+	ret0, _ := ret[0].(*FetchBlocksRawResult_)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockTChanNodeRecorder) FetchRawBatch(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRawBatch", arg0, arg1)
+func (_mr *_MockTChanNodeRecorder) FetchBlocksRaw(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksRaw", arg0, arg1)
 }
 
 func (_m *MockTChanNode) Health(ctx thrift.Context) (*NodeHealthResult_, error) {
@@ -199,12 +199,12 @@ func (_mr *_MockTChanNodeRecorder) Write(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1)
 }
 
-func (_m *MockTChanNode) WriteBatch(ctx thrift.Context, req *WriteBatchRequest) error {
-	ret := _m.ctrl.Call(_m, "WriteBatch", ctx, req)
+func (_m *MockTChanNode) WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRequest) error {
+	ret := _m.ctrl.Call(_m, "WriteBatchRaw", ctx, req)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockTChanNodeRecorder) WriteBatch(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBatch", arg0, arg1)
+func (_mr *_MockTChanNodeRecorder) WriteBatchRaw(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBatchRaw", arg0, arg1)
 }

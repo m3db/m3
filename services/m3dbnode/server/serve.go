@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 )
 
 const defaultNamespaceName = "default"
@@ -53,7 +54,7 @@ func DefaultShardSet() (sharding.ShardSet, error) {
 func DefaultNamespaces() []namespace.Metadata {
 	opts := namespace.NewOptions()
 	return []namespace.Metadata{
-		namespace.NewMetadata(defaultNamespaceName, opts),
+		namespace.NewMetadata(ts.StringID(defaultNamespaceName), opts),
 	}
 }
 

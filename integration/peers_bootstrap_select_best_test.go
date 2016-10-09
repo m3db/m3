@@ -91,8 +91,8 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 			appendSeries(right, start, series)
 		}
 	}
-	require.NoError(t, writeTestDataToDisk(namesp.Name(), setups[0], left))
-	require.NoError(t, writeTestDataToDisk(namesp.Name(), setups[1], right))
+	require.NoError(t, writeTestDataToDisk(namesp.ID(), setups[0], left))
+	require.NoError(t, writeTestDataToDisk(namesp.ID(), setups[1], right))
 
 	// Start the first two servers with filesystem bootstrappers
 	setups[:2].parallel(func(s *testSetup) {
@@ -119,7 +119,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect
-	verifySeriesMaps(t, setups[0], namesp.Name(), left)
-	verifySeriesMaps(t, setups[1], namesp.Name(), right)
-	verifySeriesMaps(t, setups[2], namesp.Name(), seriesMaps)
+	verifySeriesMaps(t, setups[0], namesp.ID(), left)
+	verifySeriesMaps(t, setups[1], namesp.ID(), right)
+	verifySeriesMaps(t, setups[2], namesp.ID(), seriesMaps)
 }

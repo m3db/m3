@@ -32,6 +32,7 @@ import (
 	persist "github.com/m3db/m3db/persist"
 	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
+	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
 	time0 "github.com/m3db/m3x/time"
 	time "time"
@@ -58,9 +59,9 @@ func (_m *MockDatabaseSeries) EXPECT() *_MockDatabaseSeriesRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDatabaseSeries) ID() string {
+func (_m *MockDatabaseSeries) ID() ts.ID {
 	ret := _m.ctrl.Call(_m, "ID")
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].(ts.ID)
 	return ret0
 }
 
@@ -167,7 +168,7 @@ func (_mr *_MockDatabaseSeriesRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockDatabaseSeries) Reset(id string) {
+func (_m *MockDatabaseSeries) Reset(id ts.ID) {
 	_m.ctrl.Call(_m, "Reset", id)
 }
 

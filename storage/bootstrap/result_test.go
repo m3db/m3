@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -54,19 +55,18 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 		NewShardResult(0, opts),
 	}
 
-	srs[0].AddBlock("foo", blocks[0])
-	srs[0].AddBlock("foo", blocks[1])
-
-	srs[1].AddBlock("bar", blocks[2])
+	srs[0].AddBlock(ts.StringID("foo"), blocks[0])
+	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
+	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
 
 	r := NewResult()
 	r.Add(0, srs[0], nil)
 	r.Add(0, srs[1], nil)
 
 	srMerged := NewShardResult(0, opts)
-	srMerged.AddBlock("foo", blocks[0])
-	srMerged.AddBlock("foo", blocks[1])
-	srMerged.AddBlock("bar", blocks[2])
+	srMerged.AddBlock(ts.StringID("foo"), blocks[0])
+	srMerged.AddBlock(ts.StringID("foo"), blocks[1])
+	srMerged.AddBlock(ts.StringID("bar"), blocks[2])
 
 	merged := NewResult()
 	merged.Add(0, srMerged, nil)
@@ -153,10 +153,9 @@ func TestResultAddResult(t *testing.T) {
 		NewShardResult(0, opts),
 	}
 
-	srs[0].AddBlock("foo", blocks[0])
-	srs[0].AddBlock("foo", blocks[1])
-
-	srs[1].AddBlock("bar", blocks[2])
+	srs[0].AddBlock(ts.StringID("foo"), blocks[0])
+	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
+	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
 
 	rs := []Result{
 		NewResult(),
@@ -177,9 +176,9 @@ func TestResultAddResult(t *testing.T) {
 	r.AddResult(rs[1])
 
 	srMerged := NewShardResult(0, opts)
-	srMerged.AddBlock("foo", blocks[0])
-	srMerged.AddBlock("foo", blocks[1])
-	srMerged.AddBlock("bar", blocks[2])
+	srMerged.AddBlock(ts.StringID("foo"), blocks[0])
+	srMerged.AddBlock(ts.StringID("foo"), blocks[1])
+	srMerged.AddBlock(ts.StringID("bar"), blocks[2])
 
 	expected := struct {
 		shardResults ShardResults
@@ -205,7 +204,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(time.Now(), nil)
-	sr.AddBlock("foo", block)
+	sr.AddBlock(ts.StringID("foo"), block)
 	require.False(t, sr.IsEmpty())
 }
 
@@ -224,12 +223,12 @@ func TestShardResultAddBlock(t *testing.T) {
 	for _, input := range inputs {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		block.Reset(input.timestamp, nil)
-		sr.AddBlock(input.id, block)
+		sr.AddBlock(ts.StringID(input.id), block)
 	}
 	allSeries := sr.AllSeries()
 	require.Len(t, allSeries, 2)
-	require.Equal(t, 2, allSeries["foo"].Len())
-	require.Equal(t, 1, allSeries["bar"].Len())
+	require.Equal(t, 2, allSeries[ts.StringID("foo").Hash()].Blocks.Len())
+	require.Equal(t, 1, allSeries[ts.StringID("bar").Hash()].Blocks.Len())
 }
 
 func TestShardResultAddSeries(t *testing.T) {
@@ -244,17 +243,17 @@ func TestShardResultAddSeries(t *testing.T) {
 		{"bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
 	}
 	for _, input := range inputs {
-		sr.AddSeries(input.id, input.series)
+		sr.AddSeries(ts.StringID(input.id), input.series)
 	}
 	moreSeries := block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(start, nil)
 	moreSeries.AddBlock(block)
-	sr.AddSeries("foo", moreSeries)
+	sr.AddSeries(ts.StringID("foo"), moreSeries)
 	allSeries := sr.AllSeries()
 	require.Len(t, allSeries, 2)
-	require.Equal(t, 1, allSeries["foo"].Len())
-	require.Equal(t, 0, allSeries["bar"].Len())
+	require.Equal(t, 1, allSeries[ts.StringID("foo").Hash()].Blocks.Len())
+	require.Equal(t, 0, allSeries[ts.StringID("bar").Hash()].Blocks.Len())
 }
 
 func TestShardResultAddResult(t *testing.T) {
@@ -263,8 +262,8 @@ func TestShardResultAddResult(t *testing.T) {
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
 	other := NewShardResult(0, opts)
-	other.AddSeries("foo", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
-	other.AddSeries("bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
+	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
+	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
 	sr.AddResult(other)
 	require.Len(t, sr.AllSeries(), 2)
 }
@@ -280,12 +279,12 @@ func TestShardResultRemoveSeries(t *testing.T) {
 		{"bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
 	}
 	for _, input := range inputs {
-		sr.AddSeries(input.id, input.series)
+		sr.AddSeries(ts.StringID(input.id), input.series)
 	}
 	require.Equal(t, 2, len(sr.AllSeries()))
-	sr.RemoveSeries("bar")
+	sr.RemoveSeries(ts.StringID("foo"))
 	require.Equal(t, 1, len(sr.AllSeries()))
-	sr.RemoveSeries("nonexistent")
+	sr.RemoveSeries(ts.StringID("nonexistent"))
 	require.Equal(t, 1, len(sr.AllSeries()))
 }
 

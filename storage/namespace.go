@@ -38,7 +38,7 @@ func commitLogWriteNoOp(
 type dbNamespace struct {
 	sync.RWMutex
 
-	name     string
+	id       ts.ID
 	shardSet sharding.ShardSet
 	nopts    namespace.Options
 	sopts    Options
@@ -77,7 +77,7 @@ func newDatabaseNamespace(
 	writeCommitLogFn writeCommitLogFn,
 	sopts Options,
 ) databaseNamespace {
-	name := metadata.Name()
+	id := metadata.ID()
 	nopts := metadata.Options()
 	fn := writeCommitLogFn
 	if !nopts.WritesToCommitLog() {
@@ -85,10 +85,10 @@ func newDatabaseNamespace(
 	}
 
 	iops := sopts.InstrumentOptions()
-	scope := iops.MetricsScope().SubScope("database").Tagged(map[string]string{"namespace": name})
+	scope := iops.MetricsScope().SubScope("database").Tagged(map[string]string{"namespace": id.String()})
 
 	n := &dbNamespace{
-		name:             name,
+		id:               id,
 		shardSet:         shardSet,
 		nopts:            nopts,
 		sopts:            sopts,
@@ -104,8 +104,8 @@ func newDatabaseNamespace(
 	return n
 }
 
-func (n *dbNamespace) Name() string {
-	return n.name
+func (n *dbNamespace) ID() ts.ID {
+	return n.id
 }
 
 func (n *dbNamespace) NumSeries() int64 {
@@ -131,7 +131,7 @@ func (n *dbNamespace) Tick(softDeadline time.Duration) {
 
 func (n *dbNamespace) Write(
 	ctx context.Context,
-	id string,
+	id ts.ID,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -147,7 +147,7 @@ func (n *dbNamespace) Write(
 
 func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
-	id string,
+	id ts.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	shardID := n.shardSet.Shard(id)
@@ -161,7 +161,7 @@ func (n *dbNamespace) ReadEncoded(
 func (n *dbNamespace) FetchBlocks(
 	ctx context.Context,
 	shardID uint32,
-	id string,
+	id ts.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	shard, err := n.shardAt(shardID)
@@ -225,9 +225,9 @@ func (n *dbNamespace) Bootstrap(
 		shardIDs[i] = shard.ID()
 	}
 
-	result, err := bs.Run(targetRanges, n.name, shardIDs)
+	result, err := bs.Run(targetRanges, n.id, shardIDs)
 	if err != nil {
-		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v", n.name, err)
+		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v", n.id.String(), err)
 		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
@@ -247,7 +247,7 @@ func (n *dbNamespace) Bootstrap(
 		shard := shard
 		wg.Add(1)
 		workers.Go(func() {
-			var bootstrapped map[string]block.DatabaseSeriesBlocks
+			var bootstrapped map[ts.Hash]bootstrap.DatabaseSeriesBlocksWrapper
 			if result, ok := results[shard.ID()]; ok {
 				bootstrapped = result.AllSeries()
 			}
@@ -269,7 +269,7 @@ func (n *dbNamespace) Bootstrap(
 	n.metrics.unfulfilled.Inc(unfulfilled)
 	if unfulfilled > 0 {
 		str := result.Unfulfilled().SummaryString()
-		n.log.Errorf("bootstrap for namespace %s completed with unfulfilled ranges: %s", n.name, str)
+		n.log.Errorf("bootstrap for namespace %s completed with unfulfilled ranges: %s", n.id.String(), str)
 	}
 
 	err = multiErr.FinalError()
@@ -302,7 +302,7 @@ func (n *dbNamespace) Flush(
 	for _, shard := range shards {
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(n.name, blockStart, pm); err != nil {
+		if err := shard.Flush(n.id, blockStart, pm); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
@@ -326,7 +326,7 @@ func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	shards := n.getOwnedShards()
 	for _, shard := range shards {
-		if err := shard.CleanupFileset(n.name, earliestToRetain); err != nil {
+		if err := shard.CleanupFileset(n.id, earliestToRetain); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -374,7 +374,7 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
 	}
 
 	for _, shard := range shards {
-		metadataRes, err := shard.Repair(n.name, repairer)
+		metadataRes, err := shard.Repair(n.id, repairer)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		} else {
@@ -392,7 +392,7 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
 	}
 
 	n.log.WithFields(
-		xlog.NewLogField("namespace", n.name),
+		xlog.NewLogField("namespace", n.id.String()),
 		xlog.NewLogField("numTotalShards", len(shards)),
 		xlog.NewLogField("numShardsRepaired", numShardsRepaired),
 		xlog.NewLogField("numTotalSeries", numTotalSeries),
@@ -431,7 +431,7 @@ func (n *dbNamespace) initShards() {
 	shards := n.shardSet.Shards()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
-		dbShards[shard] = newDatabaseShard(shard, n.increasingIndex, n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.sopts)
+		dbShards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex, n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.sopts)
 	}
 	n.Lock()
 	n.shards = dbShards

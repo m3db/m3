@@ -288,7 +288,7 @@ func fulfillTszFetchBatchOps(
 		for i, id := range op.request.Ids {
 			calledCompletionFn := false
 			for _, f := range fetches {
-				if f.id != id {
+				if f.id != string(id) {
 					continue
 				}
 

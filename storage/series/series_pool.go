@@ -22,10 +22,11 @@ package series
 
 import (
 	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/ts"
 )
 
-const (
-	nilID = ""
+var (
+	nilID = ts.BinaryID(nil)
 )
 
 type databaseSeriesPool struct {

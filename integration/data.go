@@ -21,11 +21,11 @@
 package integration
 
 import (
+	"bytes"
 	"encoding/json"
 	"math/rand"
 	"os"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -38,7 +38,7 @@ import (
 )
 
 type series struct {
-	ID   string
+	ID   ts.ID
 	Data []ts.Datapoint
 }
 
@@ -47,7 +47,7 @@ type seriesList []series
 func (l seriesList) Len() int      { return len(l) }
 func (l seriesList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l seriesList) Less(i, j int) bool {
-	return strings.Compare(l[i].ID, l[j].ID) < 0
+	return bytes.Compare(l[i].ID.Data(), l[j].ID.Data()) < 0
 }
 
 func generateTestData(names []string, numPoints int, start time.Time) seriesList {
@@ -66,7 +66,7 @@ func generateTestData(names []string, numPoints int, start time.Time) seriesList
 			})
 		}
 		testData[i] = series{
-			ID:   name,
+			ID:   ts.StringID(name),
 			Data: datapoints,
 		}
 	}
@@ -97,7 +97,7 @@ func verifySeriesMapForRange(
 	t *testing.T,
 	ts *testSetup,
 	start, end time.Time,
-	namespace string,
+	namespace ts.ID,
 	expected seriesList,
 	expectedDebugFilePath string,
 	actualDebugFilePath string,
@@ -106,8 +106,8 @@ func verifySeriesMapForRange(
 	req := rpc.NewFetchRequest()
 	for i := range expected {
 		s := &expected[i]
-		req.NameSpace = namespace
-		req.ID = s.ID
+		req.NameSpace = namespace.String()
+		req.ID = s.ID.String()
 		req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
 		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
@@ -152,7 +152,7 @@ func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time,
 func verifySeriesMaps(
 	t *testing.T,
 	ts *testSetup,
-	namespace string,
+	namespace ts.ID,
 	seriesMaps map[time.Time]seriesList,
 ) {
 	debugFilePathPrefix := ts.opts.VerifySeriesDebugFilePathPrefix()
@@ -186,5 +186,11 @@ func compareSeriesList(
 ) {
 	sort.Sort(expected)
 	sort.Sort(actual)
-	require.Equal(t, expected, actual)
+
+	require.Equal(t, len(expected), len(actual))
+
+	for i := range expected {
+		require.Equal(t, expected[i].ID.Data(), actual[i].ID.Data())
+		require.Equal(t, expected[i].Data, expected[i].Data)
+	}
 }

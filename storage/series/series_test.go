@@ -74,7 +74,7 @@ func newSeriesTestOptions() Options {
 
 func TestSeriesEmpty(t *testing.T) {
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	assert.True(t, series.IsEmpty())
 }
@@ -86,7 +86,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 
 	data := []value{
@@ -130,7 +130,7 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 
 	data := []value{
@@ -166,7 +166,7 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 
 func TestSeriesReadEndBeforeStart(t *testing.T) {
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 
 	ctx := context.NewContext()
@@ -180,7 +180,7 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 
 func TestSeriesFlushNoBlock(t *testing.T) {
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	flushTime := time.Unix(7200, 0)
 	err := series.Flush(nil, flushTime, nil)
@@ -192,7 +192,7 @@ func TestSeriesFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	flushTime := time.Unix(7200, 0)
 	head := []byte{0x1, 0x2}
@@ -209,7 +209,7 @@ func TestSeriesFlush(t *testing.T) {
 
 	inputs := []error{errors.New("some error"), nil}
 	for _, input := range inputs {
-		persistFn := func(id string, segment ts.Segment) error { return input }
+		persistFn := func(id ts.ID, segment ts.Segment) error { return input }
 		err := series.Flush(nil, flushTime, persistFn)
 		require.Equal(t, input, err)
 	}
@@ -217,7 +217,7 @@ func TestSeriesFlush(t *testing.T) {
 
 func TestSeriesTickEmptySeries(t *testing.T) {
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	err := series.Tick()
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
@@ -228,7 +228,7 @@ func TestSeriesTickNeedsDrain(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
@@ -249,7 +249,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
@@ -284,7 +284,7 @@ func TestSeriesTickNeedsBlockSeal(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
@@ -309,7 +309,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	buffer := NewMockdatabaseBuffer(ctrl)
 	buffer.EXPECT().DrainAndReset(true)
 	series.buffer = buffer
@@ -337,7 +337,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 func TestShouldExpire(t *testing.T) {
 	opts := newSeriesTestOptions()
 	ropts := opts.RetentionOptions()
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	now := time.Now()
 	require.False(t, series.shouldExpire(now, now))
@@ -350,7 +350,7 @@ func TestShouldSeal(t *testing.T) {
 
 	opts := newSeriesTestOptions()
 	ropts := opts.RetentionOptions()
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	now := time.Now()
 	inputs := []struct {
@@ -397,7 +397,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().FetchBlocks(ctx, starts).Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil)})
 
-	series := NewDatabaseSeries("foo", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	series.blocks = blocks
 	series.buffer = buffer
@@ -450,7 +450,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 		FetchBlocksMetadata(ctx, true, true).
 		Return([]block.FetchBlockMetadataResult{block.NewFetchBlockMetadataResult(starts[2], new(int64), nil, nil)})
 
-	series := NewDatabaseSeries("bar", opts).(*dbSeries)
+	series := NewDatabaseSeries(ts.StringID("bar"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	mockBlocks.EXPECT().AllBlocks().Return(blocks)
@@ -458,7 +458,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	series.buffer = buffer
 
 	res := series.FetchBlocksMetadata(ctx, true, true)
-	require.Equal(t, "bar", res.ID())
+	require.Equal(t, "bar", res.ID().String())
 
 	metadata := res.Blocks()
 	expectedSize := int64(4)

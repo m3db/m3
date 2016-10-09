@@ -24,6 +24,7 @@ import (
 	"errors"
 	"math"
 
+	"github.com/m3db/m3db/ts"
 	"github.com/spaolacci/murmur3"
 )
 
@@ -47,8 +48,8 @@ func NewShardSet(shards []uint32, fn HashFn) (ShardSet, error) {
 	return &shardSet{shards, fn}, nil
 }
 
-func (s *shardSet) Shard(identifer string) uint32 {
-	return s.fn(identifer)
+func (s *shardSet) Shard(identifier ts.ID) uint32 {
+	return s.fn(identifier)
 }
 
 func (s *shardSet) Shards() []uint32 {
@@ -95,7 +96,7 @@ func validateShards(shards []uint32) error {
 
 // DefaultHashGen generates a HashFn based on murmur32
 func DefaultHashGen(length int) HashFn {
-	return func(id string) uint32 {
-		return murmur3.Sum32([]byte(id)) % uint32(length)
+	return func(id ts.ID) uint32 {
+		return murmur3.Sum32(id.Data()) % uint32(length)
 	}
 }

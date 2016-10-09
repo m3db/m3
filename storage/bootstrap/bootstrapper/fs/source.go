@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
@@ -70,7 +71,7 @@ func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (s *fileSystemSource) Available(
-	namespace string,
+	namespace ts.ID,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
 ) bootstrap.ShardTimeRanges {
 	result := make(map[uint32]xtime.Ranges)
@@ -81,7 +82,7 @@ func (s *fileSystemSource) Available(
 }
 
 func (s *fileSystemSource) shardAvailability(
-	namespace string,
+	namespace ts.ID,
 	shard uint32,
 	targetRangesForShard xtime.Ranges,
 ) xtime.Ranges {
@@ -108,7 +109,7 @@ func (s *fileSystemSource) shardAvailability(
 }
 
 func (s *fileSystemSource) enqueueReaders(
-	namespace string,
+	namespace ts.ID,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
 	readerPool *readerPool,
 	readersCh chan<- shardReaders,
@@ -257,9 +258,9 @@ func (s *fileSystemSource) bootstrapFromReaders(
 				allSeries := seriesMap.AllSeries()
 				for id, series := range allSeries {
 					for _, t := range timesWithErrors {
-						series.RemoveBlockAt(t)
+						series.Blocks.RemoveBlockAt(t)
 					}
-					if series.Len() == 0 {
+					if series.Blocks.Len() == 0 {
 						delete(allSeries, id)
 					}
 				}
@@ -276,7 +277,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 }
 
 func (s *fileSystemSource) Read(
-	namespace string,
+	namespace ts.ID,
 	shardsTimeRanges bootstrap.ShardTimeRanges,
 ) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {

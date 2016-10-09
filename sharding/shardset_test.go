@@ -23,27 +23,28 @@ package sharding
 import (
 	"testing"
 
+	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/require"
 )
 
 func TestShardSet(t *testing.T) {
-	ss, err := NewShardSet([]uint32{}, func(id string) uint32 { return 0 })
+	ss, err := NewShardSet([]uint32{}, func(id ts.ID) uint32 { return 0 })
 	require.Equal(t, ErrNoShards, err)
 	require.Nil(t, ss)
 
-	ss, err = NewShardSet([]uint32{1, 1}, func(id string) uint32 { return 0 })
+	ss, err = NewShardSet([]uint32{1, 1}, func(id ts.ID) uint32 { return 0 })
 	require.Equal(t, ErrDuplicateShards, err)
 	require.Nil(t, ss)
 
 	staticShard := uint32(1)
-	ss, err = NewShardSet([]uint32{1, 5, 3}, func(id string) uint32 { return staticShard })
+	ss, err = NewShardSet([]uint32{1, 5, 3}, func(id ts.ID) uint32 { return staticShard })
 	require.NoError(t, err)
 	require.NotNil(t, ss)
 	require.Equal(t, []uint32{1, 5, 3}, ss.Shards())
 	require.Equal(t, uint32(1), ss.Min())
 	require.Equal(t, uint32(5), ss.Max())
 
-	id := "bla"
+	id := ts.StringID("bla")
 	s := ss.Shard(id)
 	require.Equal(t, staticShard, s)
 	fn := ss.HashFn()

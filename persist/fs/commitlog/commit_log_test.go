@@ -145,7 +145,8 @@ func testSeries(
 ) Series {
 	return Series{
 		UniqueIndex: uniqueIndex,
-		ID:          id,
+		Namespace:   ts.StringID("testNS"),
+		ID:          ts.StringID(id),
 		Shard:       shard,
 	}
 }

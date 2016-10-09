@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 )
 
@@ -35,13 +36,13 @@ type FileSetWriter interface {
 	io.Closer
 
 	// Open opens the files for writing data to the given shard in the given namespace
-	Open(namespace string, shard uint32, start time.Time) error
+	Open(namespace ts.ID, shard uint32, start time.Time) error
 
-	// Write will write the key and data pair and returns an error on a write error
-	Write(key string, data []byte) error
+	// Write will write the id and data pair and returns an error on a write error
+	Write(id ts.ID, data []byte) error
 
-	// WriteAll will write the key and all byte slices and returns an error on a write error
-	WriteAll(key string, data [][]byte) error
+	// WriteAll will write the id and all byte slices and returns an error on a write error
+	WriteAll(id ts.ID, data [][]byte) error
 }
 
 // FileSetReader provides an unsynchronized reader for a TSDB file set
@@ -49,10 +50,10 @@ type FileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(namespace string, shard uint32, start time.Time) error
+	Open(namespace ts.ID, shard uint32, start time.Time) error
 
-	// Read returns the next key and data pair or error, will return io.EOF at end of volume
-	Read() (key string, data []byte, err error)
+	// Read returns the next id and data pair or error, will return io.EOF at end of volume
+	Read() (id ts.ID, data []byte, err error)
 
 	// Validate validates the data and returns an error if the data are corrupted
 	Validate() error

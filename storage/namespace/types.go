@@ -20,6 +20,8 @@
 
 package namespace
 
+import "github.com/m3db/m3db/ts"
+
 // Options controls namespace behavior
 type Options interface {
 	// SetNeedsBootstrap sets whether this namespace requires bootstrapping
@@ -49,8 +51,8 @@ type Options interface {
 
 // Metadata represents namespace metadata information
 type Metadata interface {
-	// Name is the name of the namespace
-	Name() string
+	// ID is the ID of the namespace
+	ID() ts.ID
 
 	// Options is the namespace options
 	Options() Options

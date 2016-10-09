@@ -20,18 +20,20 @@
 
 package namespace
 
+import "github.com/m3db/m3db/ts"
+
 type metadata struct {
-	name string
+	id   ts.ID
 	opts Options
 }
 
 // NewMetadata creates a new namespace metadata
-func NewMetadata(name string, opts Options) Metadata {
-	return metadata{name: name, opts: opts}
+func NewMetadata(id ts.ID, opts Options) Metadata {
+	return metadata{id: id, opts: opts}
 }
 
-func (m metadata) Name() string {
-	return m.name
+func (m metadata) ID() ts.ID {
+	return m.id
 }
 
 func (m metadata) Options() Options {

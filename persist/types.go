@@ -27,7 +27,7 @@ import (
 )
 
 // Fn is a function that persists a m3db segment for a given ID
-type Fn func(id string, segment ts.Segment) error
+type Fn func(id ts.ID, segment ts.Segment) error
 
 // Closer is a function that performs cleanup after persisting the data
 // blocks for a (shard, blockStart) combination
@@ -44,5 +44,5 @@ type Manager interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
-	Prepare(namespace string, shard uint32, blockStart time.Time) (PreparedPersist, error)
+	Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error)
 }

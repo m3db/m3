@@ -26,40 +26,40 @@ import (
 )
 
 var (
-	writeBatchRequestZeroed rpc.WriteBatchRequest
+	writeBatchRawRequestZeroed rpc.WriteBatchRawRequest
 )
 
-type writeBatchRequestPool interface {
+type writeBatchRawRequestPool interface {
 	// Init pool
 	Init()
 
 	// Get a write batch request
-	Get() *rpc.WriteBatchRequest
+	Get() *rpc.WriteBatchRawRequest
 
 	// Put a write batch request
-	Put(w *rpc.WriteBatchRequest)
+	Put(w *rpc.WriteBatchRawRequest)
 }
 
-type poolOfWriteBatchRequest struct {
+type poolOfWriteBatchRawRequest struct {
 	pool pool.ObjectPool
 }
 
-func newWriteBatchRequestPool(opts pool.ObjectPoolOptions) writeBatchRequestPool {
+func newWriteBatchRawRequestPool(opts pool.ObjectPoolOptions) writeBatchRawRequestPool {
 	p := pool.NewObjectPool(opts)
-	return &poolOfWriteBatchRequest{p}
+	return &poolOfWriteBatchRawRequest{p}
 }
 
-func (p *poolOfWriteBatchRequest) Init() {
+func (p *poolOfWriteBatchRawRequest) Init() {
 	p.pool.Init(func() interface{} {
-		return &rpc.WriteBatchRequest{}
+		return &rpc.WriteBatchRawRequest{}
 	})
 }
 
-func (p *poolOfWriteBatchRequest) Get() *rpc.WriteBatchRequest {
-	return p.pool.Get().(*rpc.WriteBatchRequest)
+func (p *poolOfWriteBatchRawRequest) Get() *rpc.WriteBatchRawRequest {
+	return p.pool.Get().(*rpc.WriteBatchRawRequest)
 }
 
-func (p *poolOfWriteBatchRequest) Put(w *rpc.WriteBatchRequest) {
-	*w = writeBatchRequestZeroed
+func (p *poolOfWriteBatchRawRequest) Put(w *rpc.WriteBatchRawRequest) {
+	*w = writeBatchRawRequestZeroed
 	p.pool.Put(w)
 }

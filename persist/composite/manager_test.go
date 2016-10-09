@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testNamespaceName = "testNs"
+var testNamespaceID = ts.StringID("testNs")
 
 func testPersistManager(
 	ctrl *gomock.Controller,
@@ -54,7 +54,7 @@ func TestPersistManagerPrepare(t *testing.T) {
 		persisted bool
 		closed    bool
 	)
-	persistFn := func(id string, segment ts.Segment) error {
+	persistFn := func(id ts.ID, segment ts.Segment) error {
 		persisted = true
 		return nil
 	}
@@ -63,16 +63,16 @@ func TestPersistManagerPrepare(t *testing.T) {
 	}
 	expectedErr := errors.New("foo")
 	prepared := persist.PreparedPersist{Persist: persistFn, Close: closer}
-	m1.EXPECT().Prepare(testNamespaceName, shard, blockStart).Return(prepared, nil)
-	m2.EXPECT().Prepare(testNamespaceName, shard, blockStart).Return(persist.PreparedPersist{}, expectedErr)
+	m1.EXPECT().Prepare(testNamespaceID, shard, blockStart).Return(prepared, nil)
+	m2.EXPECT().Prepare(testNamespaceID, shard, blockStart).Return(persist.PreparedPersist{}, expectedErr)
 
-	res, err := pm.Prepare(testNamespaceName, shard, blockStart)
+	res, err := pm.Prepare(testNamespaceID, shard, blockStart)
 	require.NotNil(t, res.Persist)
 	require.NotNil(t, res.Close)
 	require.NotNil(t, err)
 	require.Equal(t, "foo", err.Error())
 
-	id := "bar"
+	id := ts.StringID("bar")
 	segment := ts.Segment{Head: []byte{0x1}, Tail: []byte{0x2}}
 	defer func() {
 		res.Close()

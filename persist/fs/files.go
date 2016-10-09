@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/errors"
 
@@ -161,7 +162,7 @@ func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
 type infoFileFn func(fname string, infoData []byte)
 
 // ForEachInfoFile iterates over each valid info file and applies the function passed in.
-func ForEachInfoFile(filePathPrefix string, namespace string, shard uint32, readerBufferSize int, fn infoFileFn) {
+func ForEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int, fn infoFileFn) {
 	matched, err := filesetFiles(filePathPrefix, namespace, shard, infoFilePattern)
 	if err != nil {
 		return
@@ -204,7 +205,7 @@ func ForEachInfoFile(filePathPrefix string, namespace string, shard uint32, read
 }
 
 // ReadInfoFiles reads all the valid info entries.
-func ReadInfoFiles(filePathPrefix string, namespace string, shard uint32, readerBufferSize int) []*schema.IndexInfo {
+func ReadInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int) []*schema.IndexInfo {
 	var indexEntries []*schema.IndexInfo
 	ForEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
 		info, err := readInfo(data)
@@ -217,7 +218,7 @@ func ReadInfoFiles(filePathPrefix string, namespace string, shard uint32, reader
 }
 
 // FilesetBefore returns all the fileset files whose timestamps are earlier than a given time.
-func FilesetBefore(filePathPrefix string, namespace string, shard uint32, t time.Time) ([]string, error) {
+func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.Time) ([]string, error) {
 	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
 	if err != nil {
 		return nil, err
@@ -262,7 +263,7 @@ func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error
 	return matched, nil
 }
 
-func filesetFiles(filePathPrefix string, namespace string, shard uint32, pattern string) ([]string, error) {
+func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, pattern string) ([]string, error) {
 	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
 	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
 		return byTimeAscending(files)
@@ -337,8 +338,8 @@ func readAndValidate(
 }
 
 // ShardDirPath returns the path to a given shard.
-func ShardDirPath(prefix string, namespace string, shard uint32) string {
-	return path.Join(prefix, dataDirName, namespace, strconv.Itoa(int(shard)))
+func ShardDirPath(prefix string, namespace ts.ID, shard uint32) string {
+	return path.Join(prefix, dataDirName, namespace.String(), strconv.Itoa(int(shard)))
 }
 
 // CommitLogsDirPath returns the path to commit logs.
@@ -347,7 +348,7 @@ func CommitLogsDirPath(prefix string) string {
 }
 
 // FilesetExistsAt determines whether a data file exists for the given namespace, shard, and block start time.
-func FilesetExistsAt(prefix string, namespace string, shard uint32, blockStart time.Time) bool {
+func FilesetExistsAt(prefix string, namespace ts.ID, shard uint32, blockStart time.Time) bool {
 	shardDir := ShardDirPath(prefix, namespace, shard)
 	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	return FileExists(checkpointFile)

@@ -28,12 +28,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type testEntry struct {
-	key  string
+	id   string
 	data []byte
 }
 
@@ -45,26 +46,26 @@ func newTestWriter(filePathPrefix string) FileSetWriter {
 }
 
 func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := w.Open(testNamespaceName, shard, timestamp)
+	err := w.Open(testNamespaceID, shard, timestamp)
 	assert.NoError(t, err)
 
 	for i := range entries {
-		assert.NoError(t, w.Write(entries[i].key, entries[i].data))
+		assert.NoError(t, w.Write(ts.StringID(entries[i].id), entries[i].data))
 	}
 	assert.NoError(t, w.Close())
 }
 
 func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := r.Open(testNamespaceName, 0, timestamp)
+	err := r.Open(testNamespaceID, 0, timestamp)
 	assert.NoError(t, err)
 
 	assert.Equal(t, len(entries), r.Entries())
 	assert.Equal(t, 0, r.EntriesRead())
 
 	for i := 0; i < r.Entries(); i++ {
-		key, data, err := r.Read()
+		id, data, err := r.Read()
 		assert.NoError(t, err)
-		assert.Equal(t, entries[i].key, key)
+		assert.Equal(t, entries[i].id, id.String())
 		assert.True(t, bytes.Equal(entries[i].data, data))
 
 		assert.Equal(t, i+1, r.EntriesRead())
@@ -130,16 +131,16 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	}
 	w := newTestWriter(filePathPrefix)
 	shard := uint32(0)
-	require.NoError(t, w.Open(testNamespaceName, shard, testWriterStart))
-	require.NoError(t, w.Write(entries[0].key, entries[0].data))
+	require.NoError(t, w.Open(testNamespaceID, shard, testWriterStart))
+	require.NoError(t, w.Write(ts.StringID(entries[0].id), entries[0].data))
 
 	// Intentionally force a writer error.
 	w.(*writer).err = errors.New("foo")
-	require.Equal(t, "foo", w.Write(entries[1].key, entries[1].data).Error())
+	require.Equal(t, "foo", w.Write(ts.StringID(entries[1].id), entries[1].data).Error())
 	w.Close()
 
 	r := newTestReader(filePathPrefix)
-	require.Equal(t, errCheckpointFileNotFound, r.Open(testNamespaceName, shard, testWriterStart))
+	require.Equal(t, errCheckpointFileNotFound, r.Open(testNamespaceID, shard, testWriterStart))
 
 	// Now reuse the writer and validate the data are written as expected.
 	writeTestData(t, w, shard, testWriterStart, entries)

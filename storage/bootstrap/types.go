@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -57,25 +58,31 @@ type ShardResult interface {
 	IsEmpty() bool
 
 	// AllSeries returns all series of blocks.
-	AllSeries() map[string]block.DatabaseSeriesBlocks
+	AllSeries() map[ts.Hash]DatabaseSeriesBlocksWrapper
 
 	// AddBlock adds a data block.
-	AddBlock(id string, block block.DatabaseBlock)
+	AddBlock(id ts.ID, block block.DatabaseBlock)
 
 	// AddSeries adds a single series of blocks.
-	AddSeries(id string, rawSeries block.DatabaseSeriesBlocks)
+	AddSeries(id ts.ID, rawSeries block.DatabaseSeriesBlocks)
 
 	// AddResult adds a shard result.
 	AddResult(other ShardResult)
 
 	// RemoveBlockAt removes a data block at a given timestamp
-	RemoveBlockAt(id string, t time.Time)
+	RemoveBlockAt(id ts.ID, t time.Time)
 
 	// RemoveSeries removes a single series of blocks.
-	RemoveSeries(id string)
+	RemoveSeries(id ts.ID)
 
 	// Close closes a shard result.
 	Close()
+}
+
+// DatabaseSeriesBlocksWrapper represents a series of blocks and a associated series ID.
+type DatabaseSeriesBlocksWrapper struct {
+	ID     ts.ID
+	Blocks block.DatabaseSeriesBlocks
 }
 
 // ShardResults is a map of shards to shard results.
@@ -87,7 +94,7 @@ type ShardTimeRanges map[uint32]xtime.Ranges
 // Bootstrap represents the bootstrap process.
 type Bootstrap interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(targetRanges xtime.Ranges, namespace string, shards []uint32) (Result, error)
+	Run(targetRanges xtime.Ranges, namespace ts.ID, shards []uint32) (Result, error)
 }
 
 // Strategy describes a bootstrap strategy.
@@ -112,7 +119,7 @@ type Bootstrapper interface {
 	// series data and the time ranges it's unable to fulfill in parallel. A bootstrapper
 	// should only return an error should it want to entirely cancel the bootstrapping of the
 	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
-	Bootstrap(namespace string, shardsTimeRanges ShardTimeRanges) (Result, error)
+	Bootstrap(namespace ts.ID, shardsTimeRanges ShardTimeRanges) (Result, error)
 }
 
 // Source represents a bootstrap source.
@@ -121,13 +128,13 @@ type Source interface {
 	Can(strategy Strategy) bool
 
 	// Available returns what time ranges are available for a given set of shards.
-	Available(namespace string, shardsTimeRanges ShardTimeRanges) ShardTimeRanges
+	Available(namespace ts.ID, shardsTimeRanges ShardTimeRanges) ShardTimeRanges
 
 	// Read returns raw series for a given set of shards & specified time ranges and
 	// the time ranges it's unable to fulfill. A bootstrapper source should only return
 	// an error should it want to entirely cancel the bootstrapping of the node,
 	// i.e. non-recoverable situation like not being able to read from the filesystem.
-	Read(namespace string, shardsTimeRanges ShardTimeRanges) (Result, error)
+	Read(namespace ts.ID, shardsTimeRanges ShardTimeRanges) (Result, error)
 }
 
 // Options represents the options for bootstrapping

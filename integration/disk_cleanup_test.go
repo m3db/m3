@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +48,7 @@ func createWriter(storageOpts storage.Options) fs.FileSetWriter {
 	return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 }
 
-func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace string, shard uint32, fileTimes []time.Time) {
+func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
 	writer := createWriter(storageOpts)
 	for _, start := range fileTimes {
 		require.NoError(t, writer.Open(namespace, shard, start))
@@ -63,7 +64,7 @@ func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time
 	}
 }
 
-func waitUntilDataCleanedUp(filePathPrefix string, namespace string, shard uint32, toDelete time.Time, timeout time.Duration) error {
+func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		if fs.FilesetExistsAt(filePathPrefix, namespace, shard, toDelete) {
 			return false

@@ -55,7 +55,7 @@ func NewPersistManager(opts Options) persist.Manager {
 	}
 }
 
-func (pm *persistManager) persist(id string, segment ts.Segment) error {
+func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
 	pm.segmentHolder[0] = segment.Head
 	pm.segmentHolder[1] = segment.Tail
 	return pm.writer.WriteAll(id, pm.segmentHolder)
@@ -65,7 +65,7 @@ func (pm *persistManager) close() {
 	pm.writer.Close()
 }
 
-func (pm *persistManager) Prepare(namespace string, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
+func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
 	var prepared persist.PreparedPersist
 
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.

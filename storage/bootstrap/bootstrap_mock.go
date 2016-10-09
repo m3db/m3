@@ -29,8 +29,9 @@ import (
 	instrument "github.com/m3db/m3db/instrument"
 	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
-	time "github.com/m3db/m3x/time"
-	time0 "time"
+	ts "github.com/m3db/m3db/ts"
+	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of Result interface
@@ -74,7 +75,7 @@ func (_mr *_MockResultRecorder) Unfulfilled() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Unfulfilled")
 }
 
-func (_m *MockResult) Add(shard uint32, result ShardResult, unfulfilled time.Ranges) {
+func (_m *MockResult) Add(shard uint32, result ShardResult, unfulfilled time0.Ranges) {
 	_m.ctrl.Call(_m, "Add", shard, result, unfulfilled)
 }
 
@@ -129,9 +130,9 @@ func (_mr *_MockShardResultRecorder) IsEmpty() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
 }
 
-func (_m *MockShardResult) AllSeries() map[string]block.DatabaseSeriesBlocks {
+func (_m *MockShardResult) AllSeries() map[ts.Hash]DatabaseSeriesBlocksWrapper {
 	ret := _m.ctrl.Call(_m, "AllSeries")
-	ret0, _ := ret[0].(map[string]block.DatabaseSeriesBlocks)
+	ret0, _ := ret[0].(map[ts.Hash]DatabaseSeriesBlocksWrapper)
 	return ret0
 }
 
@@ -139,7 +140,7 @@ func (_mr *_MockShardResultRecorder) AllSeries() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AllSeries")
 }
 
-func (_m *MockShardResult) AddBlock(id string, block block.DatabaseBlock) {
+func (_m *MockShardResult) AddBlock(id ts.ID, block block.DatabaseBlock) {
 	_m.ctrl.Call(_m, "AddBlock", id, block)
 }
 
@@ -147,7 +148,7 @@ func (_mr *_MockShardResultRecorder) AddBlock(arg0, arg1 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddBlock", arg0, arg1)
 }
 
-func (_m *MockShardResult) AddSeries(id string, rawSeries block.DatabaseSeriesBlocks) {
+func (_m *MockShardResult) AddSeries(id ts.ID, rawSeries block.DatabaseSeriesBlocks) {
 	_m.ctrl.Call(_m, "AddSeries", id, rawSeries)
 }
 
@@ -163,7 +164,7 @@ func (_mr *_MockShardResultRecorder) AddResult(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddResult", arg0)
 }
 
-func (_m *MockShardResult) RemoveBlockAt(id string, t time0.Time) {
+func (_m *MockShardResult) RemoveBlockAt(id ts.ID, t time.Time) {
 	_m.ctrl.Call(_m, "RemoveBlockAt", id, t)
 }
 
@@ -171,7 +172,7 @@ func (_mr *_MockShardResultRecorder) RemoveBlockAt(arg0, arg1 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveBlockAt", arg0, arg1)
 }
 
-func (_m *MockShardResult) RemoveSeries(id string) {
+func (_m *MockShardResult) RemoveSeries(id ts.ID) {
 	_m.ctrl.Call(_m, "RemoveSeries", id)
 }
 
@@ -208,7 +209,7 @@ func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(targetRanges time.Ranges, namespace string, shards []uint32) (Result, error) {
+func (_m *MockBootstrap) Run(targetRanges time0.Ranges, namespace ts.ID, shards []uint32) (Result, error) {
 	ret := _m.ctrl.Call(_m, "Run", targetRanges, namespace, shards)
 	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)
@@ -260,7 +261,7 @@ func (_mr *_MockBootstrapperRecorder) Can(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Can", arg0)
 }
 
-func (_m *MockBootstrapper) Bootstrap(namespace string, shardsTimeRanges ShardTimeRanges) (Result, error) {
+func (_m *MockBootstrapper) Bootstrap(namespace ts.ID, shardsTimeRanges ShardTimeRanges) (Result, error) {
 	ret := _m.ctrl.Call(_m, "Bootstrap", namespace, shardsTimeRanges)
 	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)
@@ -302,7 +303,7 @@ func (_mr *_MockSourceRecorder) Can(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Can", arg0)
 }
 
-func (_m *MockSource) Available(namespace string, shardsTimeRanges ShardTimeRanges) ShardTimeRanges {
+func (_m *MockSource) Available(namespace ts.ID, shardsTimeRanges ShardTimeRanges) ShardTimeRanges {
 	ret := _m.ctrl.Call(_m, "Available", namespace, shardsTimeRanges)
 	ret0, _ := ret[0].(ShardTimeRanges)
 	return ret0
@@ -312,7 +313,7 @@ func (_mr *_MockSourceRecorder) Available(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Available", arg0, arg1)
 }
 
-func (_m *MockSource) Read(namespace string, shardsTimeRanges ShardTimeRanges) (Result, error) {
+func (_m *MockSource) Read(namespace ts.ID, shardsTimeRanges ShardTimeRanges) (Result, error) {
 	ret := _m.ctrl.Call(_m, "Read", namespace, shardsTimeRanges)
 	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)

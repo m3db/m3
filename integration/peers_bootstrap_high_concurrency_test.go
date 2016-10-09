@@ -83,7 +83,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		{ids: shardIDs, numPoints: 3, start: now.Add(-blockSize)},
 		{ids: shardIDs, numPoints: 3, start: now},
 	})
-	err := writeTestDataToDisk(namesp.Name(), setups[0], seriesMaps)
+	err := writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper
@@ -110,6 +110,6 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 
 	// Verify in-memory data match what we expect
 	for _, setup := range setups {
-		verifySeriesMaps(t, setup, namesp.Name(), seriesMaps)
+		verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
 	}
 }

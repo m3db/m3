@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -49,17 +50,18 @@ const (
 	defaultTickSleepIfAheadEvery           = 128
 )
 
-type filesetBeforeFn func(filePathPrefix string, namespace string, shardID uint32, t time.Time) ([]string, error)
+type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
 
 type dbShard struct {
 	sync.RWMutex
 	opts                  Options
 	nowFn                 clock.NowFn
+	namespace             ts.ID
 	shard                 uint32
 	increasingIndex       increasingIndex
 	seriesPool            series.DatabaseSeriesPool
 	writeCommitLogFn      writeCommitLogFn
-	lookup                map[string]*list.Element
+	lookup                map[ts.Hash]*list.Element
 	list                  *list.List
 	bs                    bootstrapState
 	newSeriesBootstrapped bool
@@ -94,6 +96,7 @@ type dbShardEntryWorkFn func(entry *dbShardEntry) error
 type dbShardEntryConditionFn func(entry *dbShardEntry) bool
 
 func newDatabaseShard(
+	namespace ts.ID,
 	shard uint32,
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
@@ -103,11 +106,12 @@ func newDatabaseShard(
 	d := &dbShard{
 		opts:                  opts,
 		nowFn:                 opts.ClockOptions().NowFn(),
+		namespace:             namespace,
 		shard:                 shard,
 		increasingIndex:       increasingIndex,
 		seriesPool:            opts.DatabaseSeriesPool(),
 		writeCommitLogFn:      writeCommitLogFn,
-		lookup:                make(map[string]*list.Element),
+		lookup:                make(map[ts.Hash]*list.Element),
 		list:                  list.New(),
 		filesetBeforeFn:       fs.FilesetBefore,
 		deleteFilesFn:         fs.DeleteFiles,
@@ -249,14 +253,14 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 		// safe to remove it.
 		series.Close()
 		s.list.Remove(elem)
-		delete(s.lookup, id)
+		delete(s.lookup, id.Hash())
 	}
 	s.Unlock()
 }
 
 func (s *dbShard) Write(
 	ctx context.Context,
-	id string,
+	id ts.ID,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -275,6 +279,7 @@ func (s *dbShard) Write(
 	// Write commit log
 	info := commitlog.Series{
 		UniqueIndex: idx,
+		Namespace:   s.namespace,
 		ID:          id,
 		Shard:       s.shard,
 	}
@@ -287,7 +292,7 @@ func (s *dbShard) Write(
 
 func (s *dbShard) ReadEncoded(
 	ctx context.Context,
-	id string,
+	id ts.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
@@ -300,15 +305,15 @@ func (s *dbShard) ReadEncoded(
 }
 
 // getEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
-func (s *dbShard) getEntryWithLock(id string) (*dbShardEntry, *list.Element, bool) {
-	elem, exists := s.lookup[id]
+func (s *dbShard) getEntryWithLock(id ts.ID) (*dbShardEntry, *list.Element, bool) {
+	elem, exists := s.lookup[id.Hash()]
 	if !exists {
 		return nil, nil, false
 	}
 	return elem.Value.(*dbShardEntry), elem, true
 }
 
-func (s *dbShard) writableSeries(id string) (series.DatabaseSeries, uint64, writeCompletionFn) {
+func (s *dbShard) writableSeries(id ts.ID) (series.DatabaseSeries, uint64, writeCompletionFn) {
 	s.RLock()
 	if entry, _, exists := s.getEntryWithLock(id); exists {
 		entry.incrementWriterCount()
@@ -340,7 +345,7 @@ func (s *dbShard) writableSeries(id string) (series.DatabaseSeries, uint64, writ
 		entry.series.Bootstrap(nil)
 	}
 	elem := s.list.PushBack(entry)
-	s.lookup[id] = elem
+	s.lookup[id.Hash()] = elem
 	s.Unlock()
 
 	return entry.series, entry.index, entry.decrementWriterCount
@@ -348,7 +353,7 @@ func (s *dbShard) writableSeries(id string) (series.DatabaseSeries, uint64, writ
 
 func (s *dbShard) FetchBlocks(
 	ctx context.Context,
-	id string,
+	id ts.ID,
 	starts []time.Time,
 ) []block.FetchBlockResult {
 	s.RLock()
@@ -405,7 +410,7 @@ func (s *dbShard) FetchBlocksMetadata(
 }
 
 func (s *dbShard) Bootstrap(
-	bootstrappedSeries map[string]block.DatabaseSeriesBlocks,
+	bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocksWrapper,
 	writeStart time.Time,
 ) error {
 	s.Lock()
@@ -421,9 +426,9 @@ func (s *dbShard) Bootstrap(
 	s.Unlock()
 
 	multiErr := xerrors.NewMultiError()
-	for id, dbBlocks := range bootstrappedSeries {
-		series, _, completionFn := s.writableSeries(id)
-		err := series.Bootstrap(dbBlocks)
+	for _, dbBlocks := range bootstrappedSeries {
+		series, _, completionFn := s.writableSeries(dbBlocks.ID)
+		err := series.Bootstrap(dbBlocks.Blocks)
 		completionFn()
 		multiErr = multiErr.Add(err)
 	}
@@ -456,7 +461,7 @@ func (s *dbShard) Bootstrap(
 }
 
 func (s *dbShard) Flush(
-	namespace string,
+	namespace ts.ID,
 	blockStart time.Time,
 	pm persist.Manager,
 ) error {
@@ -493,7 +498,7 @@ func (s *dbShard) Flush(
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) CleanupFileset(namespace string, earliestToRetain time.Time) error {
+func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
 	expired, err := s.filesetBeforeFn(filePathPrefix, namespace, s.ID(), earliestToRetain)
@@ -507,6 +512,6 @@ func (s *dbShard) CleanupFileset(namespace string, earliestToRetain time.Time) e
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Repair(namespace string, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
+func (s *dbShard) Repair(namespace ts.ID, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
 	return repairer.Repair(namespace, s)
 }
