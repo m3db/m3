@@ -82,6 +82,7 @@ func (d *mockDatabase) FetchBlocksMetadata(context.Context, ts.ID, uint32, int64
 func testDatabaseOptions() Options {
 	return NewOptions().
 		SetMaxFlushRetries(3).
+		SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
 		SetRetentionOptions(retention.NewOptions().
 			SetBufferFuture(10 * time.Minute).
 			SetBufferPast(10 * time.Minute).
