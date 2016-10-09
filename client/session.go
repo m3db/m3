@@ -1354,6 +1354,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				currStart[i].idx = idx + 1
 
 				// Set the reattempt metadata
+				currStart[i].blocks[idx].reattempt.id = currID
 				currStart[i].blocks[idx].reattempt.attempt++
 				currStart[i].blocks[idx].reattempt.attempted =
 					append(currStart[i].blocks[idx].reattempt.attempted, peer)
@@ -1392,6 +1393,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, len(batch))
 	for i := range batch {
 		starts := make([]int64, len(batch[i].blocks))
+		sort.Sort(blockMetadatasByTime(batch[i].blocks))
 		for j := range batch[i].blocks {
 			starts[j] = batch[i].blocks[j].start.UnixNano()
 		}
@@ -1437,20 +1439,27 @@ func (s *session) streamBlocksBatchFromPeer(
 			continue
 		}
 
+		missed := 0
 		for j := range result.Elements[i].Blocks {
 			if j >= len(batch[i].blocks) {
 				s.log.Errorf("stream blocks response from peer %s returned more blocks than expected", peer.Host().String())
 				break
 			}
 
-			block := result.Elements[i].Blocks[j]
+			// Index of the received block could be offset by missed blocks
+			block := result.Elements[i].Blocks[j-missed]
+
 			if block.Start != batch[i].blocks[j].start.UnixNano() {
+				missed++
+
 				failed := []blockMetadata{batch[i].blocks[j]}
 				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
 				s.log.WithFields(
 					xlog.NewLogField("id", id.String()),
 					xlog.NewLogField("expectedStart", batch[i].blocks[j].start.UnixNano()),
 					xlog.NewLogField("actualStart", block.Start),
+					xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
+					xlog.NewLogField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
 					xlog.NewLogField("indexID", i),
 					xlog.NewLogField("indexBlock", j),
 				).Errorf("stream blocks response from peer %s returned mismatched block start", peer.Host().String())
@@ -1893,6 +1902,22 @@ func (b blockMetadatasByTime) Len() int      { return len(b) }
 func (b blockMetadatasByTime) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
 func (b blockMetadatasByTime) Less(i, j int) bool {
 	return b[i].start.Before(b[j].start)
+}
+
+func newTimesByUnixNanos(values []int64) []time.Time {
+	result := make([]time.Time, len(values))
+	for i := range values {
+		result[i] = time.Unix(0, values[i])
+	}
+	return result
+}
+
+func newTimesByRPCBlocks(values []*rpc.Block) []time.Time {
+	result := make([]time.Time, len(values))
+	for i := range values {
+		result[i] = time.Unix(0, values[i].Start)
+	}
+	return result
 }
 
 type metadataIter struct {

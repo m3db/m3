@@ -189,6 +189,10 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 	// TODO(r): pool these results arrays
 	var results [][]xio.SegmentReader
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
+		shouldRead, _, _ := b.bucketState(now, bucket, current)
+		if !shouldRead {
+			return
+		}
 		if !start.Before(bucket.start.Add(b.blockSize)) {
 			return
 		}
@@ -212,6 +216,10 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 
 	now := b.nowFn()
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
+		shouldRead, _, _ := b.bucketState(now, bucket, current)
+		if !shouldRead {
+			return
+		}
 		found := false
 		// starts have only a few items, linear search should be okay time-wise to
 		// avoid allocating a map here.
@@ -243,6 +251,10 @@ func (b *dbBuffer) FetchBlocksMetadata(
 
 	now := b.nowFn()
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
+		shouldRead, _, _ := b.bucketState(now, bucket, current)
+		if !shouldRead {
+			return
+		}
 		var size int64
 		b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
 			segment := stream.Segment()
@@ -272,12 +284,6 @@ func (b *dbBuffer) readBucketStreams(
 	now, current time.Time,
 	streamFn dbBufferBucketStreamFn,
 ) {
-	shouldRead, _, _ := b.bucketState(now, bucket, current)
-	if !shouldRead {
-		// Requires reset and drained already or not written to
-		return
-	}
-
 	for i := range bucket.encoders {
 		stream := bucket.encoders[i].encoder.Stream()
 		if stream == nil {
