@@ -562,6 +562,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 			results  []encoding.Iterator
 			enqueued int32
 			pending  int32
+			next     int32
 			success  int32
 			errors   []error
 			errs     int32
@@ -612,9 +613,9 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				multiIter := s.multiReaderIteratorPool.Get()
 				multiIter.ResetSliceOfSlices(slicesIter)
 				// Results is pre-allocated after creating fetch ops for this ID below
-				snapshotSuccess = atomic.AddInt32(&success, 1)
-				iterIdx := snapshotSuccess - 1
+				iterIdx := atomic.AddInt32(&next, 1) - 1
 				results[iterIdx] = multiIter
+				snapshotSuccess = atomic.AddInt32(&success, 1)
 			}
 			// NB(xichen): decrementing pending and checking remaining against zero must
 			// come after incrementing success, otherwise we might end up passing results[:success]
