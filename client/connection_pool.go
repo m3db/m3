@@ -240,10 +240,10 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 					if err := p.healthCheck(client, p.opts); err != nil {
 						checkErr = err
 						failed++
-					} else {
-						// Healthy
-						break
+						continue
 					}
+					// Healthy
+					break
 				}
 
 				healthy := failed < attempts
