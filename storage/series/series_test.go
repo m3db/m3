@@ -205,6 +205,7 @@ func TestSeriesFlush(t *testing.T) {
 	reader := xio.NewMockSegmentReader(ctrl)
 	encoder.EXPECT().Stream().Return(reader).Times(2)
 	reader.EXPECT().Segment().Return(ts.Segment{Head: head, Tail: tail}).Times(2)
+	reader.EXPECT().Close().Times(2)
 
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(flushTime, encoder)
@@ -214,8 +215,8 @@ func TestSeriesFlush(t *testing.T) {
 	for _, input := range inputs {
 		persistFn := func(id ts.ID, segment ts.Segment) error { return input }
 		ctx := context.NewContext()
-		defer ctx.Close()
 		err := series.Flush(ctx, flushTime, persistFn)
+		ctx.BlockingClose()
 		require.Equal(t, input, err)
 	}
 }
