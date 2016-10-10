@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
@@ -70,7 +71,7 @@ func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime
 func closeTestDatabaseBlock(t *testing.T, block *dbBlock) {
 	var finished uint32
 	block.ctx = block.opts.ContextPool().Get()
-	block.ctx.RegisterCloser(func() { atomic.StoreUint32(&finished, 1) })
+	block.ctx.RegisterCloser(context.CloserFn(func() { atomic.StoreUint32(&finished, 1) }))
 	block.Close()
 	// waiting for the goroutine that closes context to finish
 	for atomic.LoadUint32(&finished) == 0 {
@@ -103,10 +104,13 @@ func TestDatabaseBlockReadFromClosedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	block, encoder := testDatabaseBlock(ctrl)
 	encoder.EXPECT().Close()
 	closeTestDatabaseBlock(t, block)
-	_, err := block.Stream(nil)
+	_, err := block.Stream(ctx)
 	require.Equal(t, errReadFromClosedBlock, err)
 }
 
@@ -114,11 +118,14 @@ func TestDatabaseBlockReadFromSealedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	block, _ := testDatabaseBlock(ctrl)
 	block.writable = false
 	segment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
 	block.segment = segment
-	r, err := block.Stream(nil)
+	r, err := block.Stream(ctx)
 	require.NoError(t, err)
 	require.Equal(t, segment, r.Segment())
 }
@@ -170,7 +177,7 @@ func testDatabaseBlockWithDependentContext(
 	require.NoError(t, err)
 
 	var finished uint32
-	block.ctx.RegisterCloser(func() { atomic.StoreUint32(&finished, 1) })
+	block.ctx.RegisterCloser(context.CloserFn(func() { atomic.StoreUint32(&finished, 1) }))
 	f(block)
 
 	// sleep a bit to let the goroutine run
