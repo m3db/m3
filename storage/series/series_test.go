@@ -116,7 +116,10 @@ func TestSeriesWriteFlush(t *testing.T) {
 	block, ok := series.blocks.BlockAt(start)
 	assert.Equal(t, true, ok)
 
-	stream, err := block.Stream(nil)
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	stream, err := block.Stream(ctx)
 	require.NoError(t, err)
 	assertValuesEqual(t, data[:2], [][]xio.SegmentReader{[]xio.SegmentReader{
 		stream,
