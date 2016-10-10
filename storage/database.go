@@ -192,7 +192,12 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 	}
 	d.namespaces = ns
 
-	d.fsm = newFileSystemManager(d)
+	fsm, err := newFileSystemManager(d)
+	if err != nil {
+		return nil, err
+	}
+	d.fsm = fsm
+
 	d.bsm = newBootstrapManager(d, d.fsm)
 
 	repairer, err := newDatabaseRepairer(d)

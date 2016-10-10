@@ -20,21 +20,41 @@
 
 package storage
 
-import "time"
+import (
+	"errors"
+	"time"
+
+	"github.com/m3db/m3db/retention"
+)
 
 var (
+	errNoRetentionOptions = errors.New("no retention options in file op options")
+	errJitterTooBig       = errors.New("file op jitter is not smaller than block size")
+
 	defaultFileOpJitter = 5 * time.Minute
 )
 
 type fileOpOptions struct {
-	jitter time.Duration
+	retentionOpts retention.Options
+	jitter        time.Duration
 }
 
 // NewFileOpOptions creates a new file op options
 func NewFileOpOptions() FileOpOptions {
 	return &fileOpOptions{
-		jitter: defaultFileOpJitter,
+		retentionOpts: retention.NewOptions(),
+		jitter:        defaultFileOpJitter,
 	}
+}
+
+func (o *fileOpOptions) SetRetentionOptions(value retention.Options) FileOpOptions {
+	opts := *o
+	opts.retentionOpts = value
+	return &opts
+}
+
+func (o *fileOpOptions) RetentionOptions() retention.Options {
+	return o.retentionOpts
 }
 
 func (o *fileOpOptions) SetJitter(value time.Duration) FileOpOptions {
@@ -45,4 +65,14 @@ func (o *fileOpOptions) SetJitter(value time.Duration) FileOpOptions {
 
 func (o *fileOpOptions) Jitter() time.Duration {
 	return o.jitter
+}
+
+func (o *fileOpOptions) Validate() error {
+	if o.retentionOpts == nil {
+		return errNoRetentionOptions
+	}
+	if o.jitter >= o.retentionOpts.BlockSize() {
+		return errJitterTooBig
+	}
+	return nil
 }

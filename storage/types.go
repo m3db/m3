@@ -261,11 +261,20 @@ type databaseCleanupManager interface {
 
 // FileOpOptions control the database file operations behavior
 type FileOpOptions interface {
+	// SetRetentionOptions sets the retention options
+	SetRetentionOptions(value retention.Options) FileOpOptions
+
+	// RetentionOptions returns the retention options
+	RetentionOptions() retention.Options
+
 	// SetJitter sets the jitter for database file operations
 	SetJitter(value time.Duration) FileOpOptions
 
 	// Jitter returns the jitter for database file operations
 	Jitter() time.Duration
+
+	// Validate validates the options
+	Validate() error
 }
 
 // databaseFileSystemManager manages the database related filesystem activities.
