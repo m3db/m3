@@ -24,10 +24,6 @@ import (
 	"sync"
 )
 
-const (
-	defaultClosersCapacity = 32
-)
-
 type dependency struct {
 	closers      []Closer
 	dependencies sync.WaitGroup
@@ -36,29 +32,33 @@ type dependency struct {
 // NB(r): using golang.org/x/net/context is too GC expensive
 type ctx struct {
 	sync.RWMutex
-	pool   Pool
+	pool   contextPool
 	closed bool
 	dep    *dependency
 }
 
 // NewContext creates a new context
 func NewContext() Context {
-	return NewPooledContext(nil)
+	return newPooledContext(nil)
 }
 
 // NewPooledContext returns a new context that is returned to a pool when closed
-func NewPooledContext(pool Pool) Context {
+func newPooledContext(pool contextPool) Context {
 	return &ctx{pool: pool}
 }
 
-func (c *ctx) ensureDependencies() {
+func (c *ctx) ensureDependencies(initClosers bool) {
 	if c.dep != nil {
 		return
 	}
-	// TODO(r): return these to a pool on reset, otherwise over time
-	// all contexts in a shared pool will acquire a dependency object
-	c.dep = &dependency{
-		closers: make([]Closer, 0, defaultClosersCapacity),
+	c.dep = &dependency{}
+	if !initClosers {
+		return
+	}
+	if c.pool != nil {
+		c.dep.closers = c.pool.GetClosers()
+	} else {
+		c.dep.closers = createClosers()
 	}
 }
 
@@ -68,7 +68,7 @@ func (c *ctx) RegisterCloser(closer Closer) {
 		c.Unlock()
 		return
 	}
-	c.ensureDependencies()
+	c.ensureDependencies(true)
 	c.dep.closers = append(c.dep.closers, closer)
 	c.Unlock()
 }
@@ -77,7 +77,7 @@ func (c *ctx) DependsOn(blocker Context) {
 	c.Lock()
 	closed := c.closed
 	if !closed {
-		c.ensureDependencies()
+		c.ensureDependencies(false)
 		c.dep.dependencies.Add(1)
 		blocker.RegisterCloser(c)
 	}
@@ -144,16 +144,10 @@ func (c *ctx) Reset() {
 	c.Lock()
 	c.closed = false
 	if c.dep != nil {
-		if len(c.dep.closers) > defaultClosersCapacity {
-			// Free any large arrays that are created
-			c.dep.closers = nil
-		} else {
-			for i := range c.dep.closers {
-				// Free values from collection
-				c.dep.closers[i] = nil
-			}
-			c.dep.closers = c.dep.closers[:0]
+		if c.pool != nil {
+			c.pool.PutClosers(c.dep.closers)
 		}
+		c.dep.closers = nil
 		c.dep.dependencies = sync.WaitGroup{}
 	}
 	c.Unlock()
