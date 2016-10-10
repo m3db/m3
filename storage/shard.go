@@ -262,27 +262,30 @@ func (s *dbShard) Write(
 	annotation []byte,
 ) error {
 	// Prepare write
-	series, idx, completionFn := s.writableSeries(id)
+	entry := s.writableSeries(id)
 
 	// Perform write
-	err := series.Write(ctx, timestamp, value, unit, annotation)
-	completionFn()
+	err := entry.series.Write(ctx, timestamp, value, unit, annotation)
+	entry.decrementWriterCount()
+
 	if err != nil {
 		return err
 	}
 
 	// Write commit log
 	info := commitlog.Series{
-		UniqueIndex: idx,
+		UniqueIndex: entry.index,
 		Namespace:   s.namespace,
-		ID:          id,
+		ID:          ts.BinaryID(id.Data()),
 		Shard:       s.shard,
 	}
+
 	datapoint := ts.Datapoint{
 		Timestamp: timestamp,
 		Value:     value,
 	}
-	return s.writeCommitLogFn(info, datapoint, unit, annotation)
+
+	return s.writeCommitLogFn(ctx, info, datapoint, unit, annotation)
 }
 
 func (s *dbShard) ReadEncoded(
@@ -308,12 +311,12 @@ func (s *dbShard) getEntryWithLock(id ts.ID) (*dbShardEntry, *list.Element, bool
 	return elem.Value.(*dbShardEntry), elem, true
 }
 
-func (s *dbShard) writableSeries(id ts.ID) (series.DatabaseSeries, uint64, writeCompletionFn) {
+func (s *dbShard) writableSeries(id ts.ID) *dbShardEntry {
 	s.RLock()
 	if entry, _, exists := s.getEntryWithLock(id); exists {
 		entry.incrementWriterCount()
 		s.RUnlock()
-		return entry.series, entry.index, entry.decrementWriterCount
+		return entry
 	}
 	s.RUnlock()
 
@@ -332,7 +335,7 @@ func (s *dbShard) writableSeries(id ts.ID) (series.DatabaseSeries, uint64, write
 		entry.incrementWriterCount()
 		s.Unlock()
 		// During Rlock -> Wlock promotion the entry was inserted
-		return entry.series, entry.index, entry.decrementWriterCount
+		return entry
 	}
 	// Must set the index inside the write lock to ensure ID indexes are ascending in order
 	entry.index = s.increasingIndex.nextIndex()
@@ -344,7 +347,7 @@ func (s *dbShard) writableSeries(id ts.ID) (series.DatabaseSeries, uint64, write
 	s.lookup[id.Hash()] = elem
 	s.Unlock()
 
-	return entry.series, entry.index, entry.decrementWriterCount
+	return entry
 }
 
 func (s *dbShard) FetchBlocks(
@@ -424,9 +427,9 @@ func (s *dbShard) Bootstrap(
 
 	multiErr := xerrors.NewMultiError()
 	for _, dbBlocks := range bootstrappedSeries {
-		series, _, completionFn := s.writableSeries(dbBlocks.ID)
-		err := series.Bootstrap(dbBlocks.Blocks)
-		completionFn()
+		entry := s.writableSeries(dbBlocks.ID)
+		err := entry.series.Bootstrap(dbBlocks.Blocks)
+		entry.decrementWriterCount()
 		multiErr = multiErr.Add(err)
 	}
 

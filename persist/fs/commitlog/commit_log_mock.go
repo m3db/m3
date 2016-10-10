@@ -26,6 +26,7 @@ package commitlog
 import (
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
+	context "github.com/m3db/m3db/context"
 	instrument "github.com/m3db/m3db/instrument"
 	fs "github.com/m3db/m3db/persist/fs"
 	retention "github.com/m3db/m3db/retention"
@@ -65,24 +66,24 @@ func (_mr *_MockCommitLogRecorder) Open() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
 }
 
-func (_m *MockCommitLog) Write(series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
-	ret := _m.ctrl.Call(_m, "Write", series, datapoint, unit, annotation)
+func (_m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
+	ret := _m.ctrl.Call(_m, "Write", ctx, series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockCommitLogRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3)
+func (_mr *_MockCommitLogRecorder) Write(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockCommitLog) WriteBehind(series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
-	ret := _m.ctrl.Call(_m, "WriteBehind", series, datapoint, unit, annotation)
+func (_m *MockCommitLog) WriteBehind(ctx context.Context, series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
+	ret := _m.ctrl.Call(_m, "WriteBehind", ctx, series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockCommitLogRecorder) WriteBehind(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBehind", arg0, arg1, arg2, arg3)
+func (_mr *_MockCommitLogRecorder) WriteBehind(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBehind", arg0, arg1, arg2, arg3, arg4)
 }
 
 func (_m *MockCommitLog) Iter() (Iterator, error) {

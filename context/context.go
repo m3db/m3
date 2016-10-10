@@ -74,8 +74,7 @@ func (c *ctx) RegisterCloser(closer Closer) {
 
 func (c *ctx) DependsOn(blocker Context) {
 	c.Lock()
-	closed := c.closed
-	if !closed {
+	if !c.closed {
 		c.ensureDependencies(false)
 		c.dep.dependencies.Add(1)
 		blocker.RegisterCloser(c)
@@ -110,25 +109,25 @@ func (c *ctx) close(blocking bool) {
 	}
 	c.Unlock()
 
-	if len(closers) > 0 {
-		// NB(xichen): might be worth using a worker pool for the go routines.
-		finalize := func() {
-			// Wait for dependencies
-			c.dep.dependencies.Wait()
-			// Now call closers
-			for _, closer := range closers {
-				closer.OnClose()
-			}
-			c.returnToPool()
-		}
-		if blocking {
-			finalize()
-		} else {
-			go finalize()
-		}
+	if len(closers) == 0 {
+		c.returnToPool()
 		return
 	}
 
+	if blocking {
+		c.finalize(closers)
+	} else {
+		go c.finalize(closers)
+	}
+}
+
+func (c *ctx) finalize(closers []Closer) {
+	// Wait for dependencies
+	c.dep.dependencies.Wait()
+	// Now call closers
+	for i := range closers {
+		closers[i].OnClose()
+	}
 	c.returnToPool()
 }
 

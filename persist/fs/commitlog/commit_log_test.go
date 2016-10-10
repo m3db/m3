@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
@@ -226,6 +227,7 @@ func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 }
 
 type writeCommitLogFn func(
+	ctx context.Context,
 	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
@@ -236,6 +238,7 @@ func writeCommitLogs(
 	t *testing.T,
 	scope tally.Scope,
 	stats *testStatsReporter,
+	ctx context.Context,
 	writeFn writeCommitLogFn,
 	writes []testWrite,
 ) *sync.WaitGroup {
@@ -264,7 +267,7 @@ func writeCommitLogs(
 			defer wg.Done()
 			datapoint := ts.Datapoint{Timestamp: write.t, Value: write.v}
 
-			err := writeFn(write.series, datapoint, write.u, write.a)
+			err := writeFn(ctx, write.series, datapoint, write.u, write.a)
 			if write.expectedErr != nil {
 				assert.True(t, strings.Contains(fmt.Sprintf("%v", err), fmt.Sprintf("%v", write.expectedErr)))
 			} else {
@@ -361,8 +364,11 @@ func TestCommitLogWrite(t *testing.T) {
 		{testSeries(1, "foo.baz", 150), time.Now(), 456.789, xtime.Second, nil, nil},
 	}
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	// Call write sync
-	writeCommitLogs(t, scope, stats, commitLog.Write, writes).Wait()
+	writeCommitLogs(t, scope, stats, ctx, commitLog.Write, writes).Wait()
 
 	// Wait for flush
 	waitForFlush(commitLog)
@@ -387,8 +393,11 @@ func TestCommitLogWriteBehind(t *testing.T) {
 		{testSeries(2, "foo.qux", 291), time.Now(), 789.123, xtime.Millisecond, nil, nil},
 	}
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	// Call write behind
-	writeCommitLogs(t, scope, stats, commitLog.WriteBehind, writes)
+	writeCommitLogs(t, scope, stats, ctx, commitLog.WriteBehind, writes)
 
 	// Wait for flush
 	waitForFlush(commitLog)
@@ -410,11 +419,14 @@ func TestCommitLogWriteErrorOnClosed(t *testing.T) {
 	series := testSeries(0, "foo.bar", 127)
 	datapoint := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
 
-	err := commitLog.Write(series, datapoint, xtime.Millisecond, nil)
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	err := commitLog.Write(ctx, series, datapoint, xtime.Millisecond, nil)
 	assert.Error(t, err)
 	assert.Equal(t, errCommitLogClosed, err)
 
-	err = commitLog.WriteBehind(series, datapoint, xtime.Millisecond, nil)
+	err = commitLog.WriteBehind(ctx, series, datapoint, xtime.Millisecond, nil)
 	assert.Error(t, err)
 	assert.Equal(t, errCommitLogClosed, err)
 }
@@ -436,8 +448,12 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	series := testSeries(0, "foo.bar", 127)
 	dp := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
 	unit := xtime.Millisecond
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	for {
-		if err := commitLog.WriteBehind(series, dp, unit, nil); err != nil {
+		if err := commitLog.WriteBehind(ctx, series, dp, unit, nil); err != nil {
 			// Ensure queue full error
 			assert.Equal(t, errCommitLogQueueFull, err)
 			break
@@ -474,12 +490,15 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 		{testSeries(2, "foo.qux", 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
 	}
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	for _, write := range writes {
 		// Set clock to align with the write
 		clock.Add(write.t.Sub(clock.Now()))
 
 		// Write entry
-		wg := writeCommitLogs(t, scope, stats, commitLog.Write, []testWrite{write})
+		wg := writeCommitLogs(t, scope, stats, ctx, commitLog.Write, []testWrite{write})
 
 		// Flush until finished, this is required as timed flusher not active when clock is mocked
 		flushUntilDone(commitLog, wg)
@@ -537,7 +556,11 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	writes := []testWrite{
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
-	writeCommitLogs(t, scope, stats, commitLog.WriteBehind, writes)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	writeCommitLogs(t, scope, stats, ctx, commitLog.WriteBehind, writes)
 
 	wg.Wait()
 
@@ -590,7 +613,11 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	writes := []testWrite{
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
-	writeCommitLogs(t, scope, stats, commitLog.WriteBehind, writes)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	writeCommitLogs(t, scope, stats, ctx, commitLog.WriteBehind, writes)
 
 	wg.Wait()
 
@@ -634,7 +661,11 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	writes := []testWrite{
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
-	writeCommitLogs(t, scope, stats, commitLog.WriteBehind, writes)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	writeCommitLogs(t, scope, stats, ctx, commitLog.WriteBehind, writes)
 
 	wg.Wait()
 

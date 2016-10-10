@@ -21,36 +21,32 @@
 package ts
 
 import (
-	"crypto/md5"
-	"time"
-
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/pool"
 )
 
-// ID represents an immutable identifier for a timeseries
-type ID interface {
-	context.Closer
-
-	Data() []byte
-	Equal(value ID) bool
-	Hash() Hash
-	String() string
+type identifierPool struct {
+	pool pool.ObjectPool
 }
 
-// IdentifierPool represents an automatic pool of IDs
-type IdentifierPool interface {
-	GetBinaryID(context.Context, []byte) ID
-	GetStringID(context.Context, string) ID
+// NewIdentifierPool constructs a new Pool
+func NewIdentifierPool(options pool.ObjectPoolOptions) IdentifierPool {
+	p := pool.NewObjectPool(options)
+	p.Init(func() interface{} { return &id{pool: p} })
+
+	return &identifierPool{pool: p}
 }
 
-// Hash represents a form of ID suitable to be used as map keys
-type Hash [md5.Size]byte
+// GetBinaryID returns a new ID based on a binary blob
+func (p *identifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
+	id := p.pool.Get().(*id)
+	id.data = v
+	ctx.RegisterCloser(id)
 
-// A Datapoint is a single data value reported at a given time
-type Datapoint struct {
-	Timestamp time.Time
-	Value     float64
+	return id
 }
 
-// Annotation represents information used to annotate datapoints
-type Annotation []byte
+// GetStringID returns a new ID based on a string value
+func (p *identifierPool) GetStringID(ctx context.Context, v string) ID {
+	return p.GetBinaryID(ctx, []byte(v))
+}

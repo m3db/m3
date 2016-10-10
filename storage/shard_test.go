@@ -286,7 +286,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var writeCompletionFn func()
+	var entry *dbShardEntry
 
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
@@ -295,14 +295,14 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	s.EXPECT().ID().Return(id)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place and staying open just after tick for this series
-		_, _, writeCompletionFn = shard.writableSeries(id)
+		entry = shard.writableSeries(id)
 	}).Return(series.ErrSeriesAllDatapointsExpired)
 
 	expired := shard.tickAndExpire(0)
 	require.Equal(t, 1, expired)
 	require.Equal(t, 1, len(shard.lookup))
 
-	writeCompletionFn()
+	entry.decrementWriterCount()
 	require.Equal(t, 1, len(shard.lookup))
 }
 

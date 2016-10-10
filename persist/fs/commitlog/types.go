@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
@@ -53,6 +54,7 @@ type CommitLog interface {
 
 	// Write will write an entry in the commit log for a given series
 	Write(
+		ctx context.Context,
 		series Series,
 		datapoint ts.Datapoint,
 		unit xtime.Unit,
@@ -61,6 +63,7 @@ type CommitLog interface {
 
 	// WriteBehind will write an entry in the commit log for a given series without waiting for completion
 	WriteBehind(
+		ctx context.Context,
 		series Series,
 		datapoint ts.Datapoint,
 		unit xtime.Unit,

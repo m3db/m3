@@ -86,6 +86,7 @@ type increasingIndex interface {
 
 // writeCommitLogFn is a method for writing to the commit log
 type writeCommitLogFn func(
+	ctx context.Context,
 	series commitlog.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
@@ -153,15 +154,15 @@ func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics
 
 // NewDatabase creates a new database
 func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, opts Options) (Database, error) {
-	iops := opts.InstrumentOptions()
-	scope := iops.MetricsScope().SubScope("database")
+	iopts := opts.InstrumentOptions()
+	scope := iopts.MetricsScope().SubScope("database")
 
 	d := &db{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		tickDeadline: opts.RetentionOptions().BufferDrain(),
 		scope:        scope,
-		metrics:      newDatabaseMetrics(scope, iops.MetricsSamplingRate()),
+		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
 		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
 

@@ -87,8 +87,8 @@ func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
 	ropts := opts.RetentionOptions()
 	blocksLen := int(ropts.RetentionPeriod() / ropts.BlockSize())
 	series := &dbSeries{
+		id:     ts.BinaryID(id.Data()),
 		opts:   opts,
-		id:     id,
 		blocks: block.NewDatabaseSeriesBlocks(blocksLen, opts.DatabaseBlockOptions()),
 		bs:     bootstrapNotStarted,
 	}
@@ -530,7 +530,7 @@ func (s *dbSeries) Close() {
 
 func (s *dbSeries) Reset(id ts.ID) {
 	s.Lock()
-	s.id = id
+	s.id = ts.BinaryID(id.Data())
 	s.buffer.Reset()
 	s.blocks.RemoveAll()
 	s.pendingBootstrap = nil

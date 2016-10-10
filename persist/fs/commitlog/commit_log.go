@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -315,6 +316,7 @@ func (l *commitLog) openWriter(now time.Time) error {
 }
 
 func (l *commitLog) Write(
+	ctx context.Context,
 	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
@@ -331,22 +333,24 @@ func (l *commitLog) Write(
 		wg     sync.WaitGroup
 		result error
 	)
+
 	wg.Add(1)
+
 	completion := func(err error) {
 		result = err
 		wg.Done()
 	}
 
-	var (
-		write = commitLogWrite{
-			series:       series,
-			datapoint:    datapoint,
-			unit:         unit,
-			annotation:   annotation,
-			completionFn: completion,
-		}
-		enqueued = false
-	)
+	write := commitLogWrite{
+		series:       series,
+		datapoint:    datapoint,
+		unit:         unit,
+		annotation:   annotation,
+		completionFn: completion,
+	}
+
+	enqueued := false
+
 	select {
 	case l.writes <- write:
 		enqueued = true
@@ -366,6 +370,7 @@ func (l *commitLog) Write(
 }
 
 func (l *commitLog) WriteBehind(
+	ctx context.Context,
 	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
@@ -378,15 +383,15 @@ func (l *commitLog) WriteBehind(
 		return errCommitLogClosed
 	}
 
-	var (
-		write = commitLogWrite{
-			series:     series,
-			datapoint:  datapoint,
-			unit:       unit,
-			annotation: annotation,
-		}
-		enqueued = false
-	)
+	write := commitLogWrite{
+		series:     series,
+		datapoint:  datapoint,
+		unit:       unit,
+		annotation: annotation,
+	}
+
+	enqueued := false
+
 	select {
 	case l.writes <- write:
 		enqueued = true
