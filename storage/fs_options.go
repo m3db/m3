@@ -23,7 +23,7 @@ package storage
 import "time"
 
 var (
-	defaultFileOpJitter = 30 * time.Minute
+	defaultFileOpJitter = 5 * time.Minute
 )
 
 type fileOpOptions struct {

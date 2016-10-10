@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"math"
 	"math/rand"
 	"sync"
 	"time"
@@ -60,8 +61,8 @@ func newFileSystemManager(database database) databaseFileSystemManager {
 	var jitter time.Duration
 	if maxJitter := opts.FileOpOptions().Jitter(); maxJitter > 0 {
 		nowFn := opts.ClockOptions().NowFn()
-		rand.Seed(nowFn().UnixNano())
-		jitter = time.Duration(rand.Int63n(int64(maxJitter)))
+		src := rand.NewSource(nowFn().UnixNano())
+		jitter = time.Duration(float64(maxJitter) * (float64(src.Int63()) / float64(math.MaxInt64)))
 	}
 
 	return &fileSystemManager{
