@@ -209,8 +209,8 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 
 	var jitter time.Duration
 	if repairJitter := ropts.RepairTimeJitter(); repairJitter > 0 {
-		rand.Seed(nowFn().UnixNano())
-		jitter = time.Duration(rand.Int63n(int64(repairJitter)))
+		src := rand.NewSource(nowFn().UnixNano())
+		jitter = time.Duration(float64(repairJitter) * (float64(src.Int63()) / float64(math.MaxInt64)))
 	}
 
 	r := &dbRepairer{

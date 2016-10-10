@@ -88,6 +88,7 @@ type options struct {
 	blockOpts               block.Options
 	commitLogOpts           commitlog.Options
 	repairOpts              repair.Options
+	fileOpOpts              FileOpOptions
 	newEncoderFn            encoding.NewEncoderFn
 	newDecoderFn            encoding.NewDecoderFn
 	newBootstrapFn          NewBootstrapFn
@@ -113,6 +114,7 @@ func NewOptions() Options {
 		blockOpts:               block.NewOptions(),
 		commitLogOpts:           commitlog.NewOptions(),
 		repairOpts:              repair.NewOptions(),
+		fileOpOpts:              NewFileOpOptions(),
 		newBootstrapFn:          defaultNewBootstrapFn,
 		newPersistManagerFn:     defaultNewPersistManagerFn,
 		maxFlushRetries:         defaultMaxFlushRetries,
@@ -192,6 +194,16 @@ func (o *options) SetRepairOptions(value repair.Options) Options {
 
 func (o *options) RepairOptions() repair.Options {
 	return o.repairOpts
+}
+
+func (o *options) SetFileOpOptions(value FileOpOptions) Options {
+	opts := *o
+	opts.fileOpOpts = value
+	return &opts
+}
+
+func (o *options) FileOpOptions() FileOpOptions {
+	return o.fileOpOpts
 }
 
 func (o *options) SetEncodingM3TSZPooled() Options {

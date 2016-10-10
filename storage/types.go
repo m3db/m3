@@ -259,6 +259,24 @@ type databaseCleanupManager interface {
 	Cleanup(t time.Time) error
 }
 
+// FileOpOptions control the database file operations behavior
+type FileOpOptions interface {
+	// SetRetentionOptions sets the retention options
+	SetRetentionOptions(value retention.Options) FileOpOptions
+
+	// RetentionOptions returns the retention options
+	RetentionOptions() retention.Options
+
+	// SetJitter sets the jitter for database file operations
+	SetJitter(value time.Duration) FileOpOptions
+
+	// Jitter returns the jitter for database file operations
+	Jitter() time.Duration
+
+	// Validate validates the options
+	Validate() error
+}
+
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
 	databaseFlushManager
@@ -338,6 +356,12 @@ type Options interface {
 
 	// RepairOptions returns the repair options
 	RepairOptions() repair.Options
+
+	// SetFileOpOptions sets the file op options
+	SetFileOpOptions(value FileOpOptions) Options
+
+	// FileOpOptions returns the repair options
+	FileOpOptions() FileOpOptions
 
 	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
 	SetEncodingM3TSZPooled() Options
