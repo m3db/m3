@@ -60,6 +60,7 @@ func main() {
 	tchannelNodeAddr := *tchannelNodeAddrArg
 
 	storageOpts := storage.NewOptions()
+	storageOpts = storageOpts.SetFileOpOptions(storageOpts.FileOpOptions().SetRetentionOptions(storageOpts.RetentionOptions()))
 
 	log := storageOpts.InstrumentOptions().Logger()
 	shardSet, err := server.DefaultShardSet()
