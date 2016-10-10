@@ -41,6 +41,16 @@ import (
 
 const (
 	channelName = "Client"
+
+	// healthCheckFailLimit is the count of health checks to fail to discard a
+	// connection from the connection pool.
+	healthCheckFailLimit = 2
+
+	// healthCheckFailThrottleFactor is the throttle factor to apply when
+	// calculating how long to wait between a failed health check and a
+	// retry attempt. It is applied by multiplying against the host connect
+	// timeout to produce a throttle sleep value.
+	healthCheckFailThrottleFactor = 0.2
 )
 
 var (
@@ -63,6 +73,7 @@ type connPool struct {
 	healthCheck        healthCheckFn
 	sleepConnect       sleepFn
 	sleepHealth        sleepFn
+	sleepHealthRetry   sleepFn
 	state              state
 }
 
@@ -92,6 +103,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		healthCheck:        healthCheck,
 		sleepConnect:       time.Sleep,
 		sleepHealth:        time.Sleep,
+		sleepHealthRetry:   time.Sleep,
 	}
 
 	return p
@@ -210,54 +222,73 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 	for {
 		p.RLock()
 		state := p.state
-		poolLen := int(p.poolLen)
 		p.RUnlock()
 		if state != stateOpen {
 			return
 		}
 
-		start := nowFn()
-		deadline := start.Add(interval + randStutter(p.healthCheckRand, stutter))
-		// As this is the only loop that removes connections it is safe to loop upwards
-		for i := 0; i < poolLen; i++ {
-			p.RLock()
-			client := p.pool[i].client
-			p.RUnlock()
+		var (
+			wg       sync.WaitGroup
+			start    = nowFn()
+			deadline = start.Add(interval + randStutter(p.healthCheckRand, stutter))
+		)
 
-			healthy := true
-			if err := p.healthCheck(client, p.opts); err != nil {
-				healthy = false
-				log.Warnf("health check failed to %s: %v", p.host.Address(), err)
-			}
+		p.RLock()
+		for i := int64(0); i < p.poolLen; i++ {
+			wg.Add(1)
+			go func(client rpc.TChanNode) {
+				defer wg.Done()
 
-			if !healthy {
-				// Swap with tail, decrement pool size, decrement "i" to try next in line
-				p.Lock()
-				if p.state != stateOpen {
-					p.Unlock()
-					return
+				var (
+					attempts = healthCheckFailLimit
+					failed   = 0
+					checkErr error
+				)
+				for j := 0; j < attempts; j++ {
+					if err := p.healthCheck(client, p.opts); err != nil {
+						checkErr = err
+						failed++
+						throttleDuration := time.Duration(math.Max(
+							float64(time.Second),
+							healthCheckFailThrottleFactor*float64(p.opts.HostConnectTimeout())))
+						p.sleepHealthRetry(throttleDuration)
+						continue
+					}
+					// Healthy
+					break
 				}
-				unhealthy := p.pool[i]
-				p.pool[i], p.pool[p.poolLen-1] = p.pool[p.poolLen-1], p.pool[i]
-				p.pool = p.pool[:p.poolLen-1]
-				p.poolLen = int64(len(p.pool))
-				p.Unlock()
-				unhealthy.channel.Close()
 
-				// Retry with the element we just swapped in
-				i--
-			}
+				healthy := failed < attempts
+				if !healthy {
+					// Log health check error
+					log.Warnf("health check failed to %s: %v", p.host.Address(), checkErr)
 
-			// Bail early if closed, reset poolLen in case we decremented or conns got added
-			p.RLock()
-			state := p.state
-			poolLen = int(p.poolLen)
-			p.RUnlock()
+					// Swap with tail and decrement pool size
+					p.Lock()
+					if p.state != stateOpen {
+						p.Unlock()
+						return
+					}
+					var c conn
+					for j := int64(0); j < p.poolLen; j++ {
+						if client == p.pool[j].client {
+							c = p.pool[j]
+							p.pool[j] = p.pool[p.poolLen-1]
+							p.pool = p.pool[:p.poolLen-1]
+							p.poolLen = int64(len(p.pool))
+							break
+						}
+					}
+					p.Unlock()
 
-			if state != stateOpen {
-				return
-			}
+					// Close the client's channel
+					c.channel.Close()
+				}
+			}(p.pool[i].client)
 		}
+		p.RUnlock()
+
+		wg.Wait()
 
 		now := nowFn()
 		if !now.Before(deadline) {
