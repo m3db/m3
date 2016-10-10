@@ -213,7 +213,9 @@ func TestSeriesFlush(t *testing.T) {
 	inputs := []error{errors.New("some error"), nil}
 	for _, input := range inputs {
 		persistFn := func(id ts.ID, segment ts.Segment) error { return input }
-		err := series.Flush(nil, flushTime, persistFn)
+		ctx := context.NewContext()
+		defer ctx.Close()
+		err := series.Flush(ctx, flushTime, persistFn)
 		require.Equal(t, input, err)
 	}
 }
