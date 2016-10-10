@@ -158,8 +158,8 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		connectRounds  int32
 		healthRounds   int32
 		invokeFail     int32
-		client1        = &nullNodeClient{}
-		client2        = &nullNodeClient{}
+		client1        = rpc.TChanNode(&nullNodeClient{index: 0})
+		client2        = rpc.TChanNode(&nullNodeClient{index: 1})
 		overrides      = []healthCheckFn{}
 		overridesMut   sync.RWMutex
 		pushOverride   = func(fn healthCheckFn, count int) {
@@ -190,9 +190,27 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 				pushOverride(failOverride, 1)
 				return nil
 			}
-			pushOverride(failOverride, healthCheckFall)
+			pushOverride(failOverride, healthCheckFailLimit)
+		}
+		onNextSleepHealth     []func()
+		onNextSleepHealthMut  sync.RWMutex
+		pushOnNextSleepHealth = func(fn func()) {
+			onNextSleepHealthMut.Lock()
+			defer onNextSleepHealthMut.Unlock()
+			onNextSleepHealth = append(onNextSleepHealth, fn)
+		}
+		popOnNextSleepHealth = func() func() {
+			onNextSleepHealthMut.Lock()
+			defer onNextSleepHealthMut.Unlock()
+			if len(onNextSleepHealth) == 0 {
+				return nil
+			}
+			next := onNextSleepHealth[0]
+			onNextSleepHealth = onNextSleepHealth[1:]
+			return next
 		}
 		failsDoneWg [2]sync.WaitGroup
+		failsDone   [2]int32
 	)
 	for i := range failsDoneWg {
 		failsDoneWg[i].Add(1)
@@ -200,6 +218,7 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 
 	opts := newConnectionPoolTestOptions()
 	opts = opts.SetMaxConnectionCount(2)
+	opts = opts.SetHostConnectTimeout(10 * time.Second)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
@@ -219,18 +238,27 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		}
 		return nil
 	}
-	conns.sleepConnect = func(t time.Duration) {
+	conns.sleepConnect = func(d time.Duration) {
 		atomic.AddInt32(&connectRounds, 1)
 		time.Sleep(time.Millisecond)
 	}
-	conns.sleepHealth = func(t time.Duration) {
+	conns.sleepHealth = func(d time.Duration) {
 		atomic.AddInt32(&healthRounds, 1)
-		if atomic.LoadInt32(&invokeFail) == 1*healthCheckFall {
+		if atomic.LoadInt32(&invokeFail) == 1*healthCheckFailLimit &&
+			atomic.CompareAndSwapInt32(&failsDone[0], 0, 1) {
 			failsDoneWg[0].Done()
-		} else if atomic.LoadInt32(&invokeFail) == 2*healthCheckFall {
+		} else if atomic.LoadInt32(&invokeFail) == 2*healthCheckFailLimit &&
+			atomic.CompareAndSwapInt32(&failsDone[1], 0, 1) {
 			failsDoneWg[1].Done()
 		}
 		time.Sleep(time.Millisecond)
+		if fn := popOnNextSleepHealth(); fn != nil {
+			fn()
+		}
+	}
+	conns.sleepHealthRetry = func(d time.Duration) {
+		expected := healthCheckFailThrottleFactor * float64(opts.HostConnectTimeout())
+		assert.Equal(t, time.Duration(expected), d)
 	}
 
 	assert.Equal(t, 0, conns.ConnectionCount())
@@ -245,7 +273,9 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	assert.Equal(t, 2, conns.ConnectionCount())
 
 	// Fail client1 health check
-	pushFailClientOverride(client1)
+	pushOnNextSleepHealth(func() {
+		pushFailClientOverride(client1)
+	})
 
 	// Wait for health check round to take action
 	failsDoneWg[0].Wait()
@@ -259,7 +289,9 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	}
 
 	// Fail client2 health check
-	pushFailClientOverride(client2)
+	pushOnNextSleepHealth(func() {
+		pushFailClientOverride(client2)
+	})
 
 	// Wait for health check round to take action
 	failsDoneWg[1].Wait()
@@ -279,7 +311,9 @@ type nullChannel struct{}
 
 func (*nullChannel) Close() {}
 
-type nullNodeClient struct{}
+type nullNodeClient struct {
+	index int // To differentiate the clients
+}
 
 func (*nullNodeClient) Fetch(ctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 	return nil, nil

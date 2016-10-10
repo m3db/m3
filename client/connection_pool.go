@@ -42,9 +42,15 @@ import (
 const (
 	channelName = "Client"
 
-	// healthCheckFall is the count of health checks to fail to discard a
+	// healthCheckFailLimit is the count of health checks to fail to discard a
 	// connection from the connection pool.
-	healthCheckFall = 2
+	healthCheckFailLimit = 2
+
+	// healthCheckFailThrottleFactor is the throttle factor to apply when
+	// calculating how long to wait between a failed health check and a
+	// retry attempt. It is applied by multiplying against the host connect
+	// timeout to produce a throttle sleep value.
+	healthCheckFailThrottleFactor = 0.2
 )
 
 var (
@@ -67,6 +73,7 @@ type connPool struct {
 	healthCheck        healthCheckFn
 	sleepConnect       sleepFn
 	sleepHealth        sleepFn
+	sleepHealthRetry   sleepFn
 	state              state
 }
 
@@ -96,6 +103,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		healthCheck:        healthCheck,
 		sleepConnect:       time.Sleep,
 		sleepHealth:        time.Sleep,
+		sleepHealthRetry:   time.Sleep,
 	}
 
 	return p
@@ -232,7 +240,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 				defer wg.Done()
 
 				var (
-					attempts = healthCheckFall
+					attempts = healthCheckFailLimit
 					failed   = 0
 					checkErr error
 				)
@@ -240,6 +248,10 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 					if err := p.healthCheck(client, p.opts); err != nil {
 						checkErr = err
 						failed++
+						throttleDuration := time.Duration(math.Max(
+							float64(time.Second),
+							healthCheckFailThrottleFactor*float64(p.opts.HostConnectTimeout())))
+						p.sleepHealthRetry(throttleDuration)
 						continue
 					}
 					// Healthy
