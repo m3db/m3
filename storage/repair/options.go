@@ -22,6 +22,8 @@ package repair
 
 import (
 	"errors"
+	"math"
+	"runtime"
 	"time"
 
 	"github.com/m3db/m3db/client"
@@ -36,6 +38,8 @@ const (
 )
 
 var (
+	defaultRepairShardConcurrency = int(math.Min(2, float64(runtime.NumCPU())))
+
 	errNoAdminClient              = errors.New("no admin client in repair options")
 	errInvalidRepairInterval      = errors.New("invalid repair interval in repair options")
 	errInvalidRepairTimeOffset    = errors.New("invalid repair time offset in repair options")
@@ -47,22 +51,24 @@ var (
 )
 
 type options struct {
-	adminClient         client.AdminClient
-	repairInterval      time.Duration
-	repairTimeOffset    time.Duration
-	repairTimeJitter    time.Duration
-	repairCheckInterval time.Duration
-	repairThrottle      time.Duration
+	adminClient            client.AdminClient
+	repairShardConcurrency int
+	repairInterval         time.Duration
+	repairTimeOffset       time.Duration
+	repairTimeJitter       time.Duration
+	repairCheckInterval    time.Duration
+	repairThrottle         time.Duration
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		repairInterval:      defaultRepairInterval,
-		repairTimeOffset:    defaultRepairTimeOffset,
-		repairTimeJitter:    defaultRepairTimeJitter,
-		repairCheckInterval: defaultRepairCheckInterval,
-		repairThrottle:      defaultRepairThrottle,
+		repairShardConcurrency: defaultRepairShardConcurrency,
+		repairInterval:         defaultRepairInterval,
+		repairTimeOffset:       defaultRepairTimeOffset,
+		repairTimeJitter:       defaultRepairTimeJitter,
+		repairCheckInterval:    defaultRepairCheckInterval,
+		repairThrottle:         defaultRepairThrottle,
 	}
 }
 
@@ -74,6 +80,16 @@ func (o *options) SetAdminClient(value client.AdminClient) Options {
 
 func (o *options) AdminClient() client.AdminClient {
 	return o.adminClient
+}
+
+func (o *options) SetRepairShardConcurrency(value int) Options {
+	opts := *o
+	opts.repairShardConcurrency = value
+	return &opts
+}
+
+func (o *options) RepairShardConcurrency() int {
+	return o.repairShardConcurrency
 }
 
 func (o *options) SetRepairInterval(value time.Duration) Options {

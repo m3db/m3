@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -304,10 +305,12 @@ func validateReadResults(t *testing.T, src bootstrap.Source, dir string, shard u
 		allBlocks := allSeries[id].Blocks.AllBlocks()
 		require.Equal(t, 1, len(allBlocks))
 		block := allBlocks[times[i]]
-		stream, err := block.Stream(nil)
+		ctx := context.NewContext()
+		stream, err := block.Stream(ctx)
 		require.NoError(t, err)
 		var b [100]byte
 		n, err := stream.Read(b[:])
+		ctx.Close()
 		require.NoError(t, err)
 		require.Equal(t, data[i], b[:n])
 	}

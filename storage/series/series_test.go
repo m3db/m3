@@ -116,7 +116,10 @@ func TestSeriesWriteFlush(t *testing.T) {
 	block, ok := series.blocks.BlockAt(start)
 	assert.Equal(t, true, ok)
 
-	stream, err := block.Stream(nil)
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	stream, err := block.Stream(ctx)
 	require.NoError(t, err)
 	assertValuesEqual(t, data[:2], [][]xio.SegmentReader{[]xio.SegmentReader{
 		stream,
@@ -202,6 +205,7 @@ func TestSeriesFlush(t *testing.T) {
 	reader := xio.NewMockSegmentReader(ctrl)
 	encoder.EXPECT().Stream().Return(reader).Times(2)
 	reader.EXPECT().Segment().Return(ts.Segment{Head: head, Tail: tail}).Times(2)
+	reader.EXPECT().Close().Times(2)
 
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(flushTime, encoder)
@@ -210,7 +214,9 @@ func TestSeriesFlush(t *testing.T) {
 	inputs := []error{errors.New("some error"), nil}
 	for _, input := range inputs {
 		persistFn := func(id ts.ID, segment ts.Segment) error { return input }
-		err := series.Flush(nil, flushTime, persistFn)
+		ctx := context.NewContext()
+		err := series.Flush(ctx, flushTime, persistFn)
+		ctx.BlockingClose()
 		require.Equal(t, input, err)
 	}
 }

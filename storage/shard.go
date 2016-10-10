@@ -46,7 +46,7 @@ import (
 const (
 	shardIterateBatchPercent               = 0.01
 	expireBatchLength                      = 1024
-	blocksMetadataResultMaxInitialCapacity = 1024
+	blocksMetadataResultMaxInitialCapacity = 4096
 	defaultTickSleepIfAheadEvery           = 128
 )
 
@@ -91,9 +91,7 @@ func (entry *dbShardEntry) decrementWriterCount() {
 
 type writeCompletionFn func()
 
-type dbShardEntryWorkFn func(entry *dbShardEntry) error
-
-type dbShardEntryConditionFn func(entry *dbShardEntry) bool
+type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
 func newDatabaseShard(
 	namespace ts.ID,
@@ -136,7 +134,7 @@ func (s *dbShard) NumSeries() int64 {
 	return int64(n)
 }
 
-func (s *dbShard) forEachShardEntry(continueOnError bool, entryFn dbShardEntryWorkFn, stopIterFn dbShardEntryConditionFn) error {
+func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 	// NB(r): consider using a lockless list for ticking
 	s.RLock()
 	elemsLen := s.list.Len()
@@ -148,11 +146,11 @@ func (s *dbShard) forEachShardEntry(continueOnError bool, entryFn dbShardEntryWo
 	currEntries := make([]*dbShardEntry, 0, batchSize)
 	for nextElem != nil {
 		s.RLock()
-		nextElem = s.forBatchWithLock(nextElem, &currEntries, batchSize, stopIterFn)
+		nextElem = s.forBatchWithLock(nextElem, &currEntries, batchSize)
 		s.RUnlock()
 		for _, entry := range currEntries {
-			if err := entryFn(entry); err != nil && !continueOnError {
-				return err
+			if continueForEach := entryFn(entry); !continueForEach {
+				return nil
 			}
 		}
 	}
@@ -163,16 +161,12 @@ func (s *dbShard) forBatchWithLock(
 	elem *list.Element,
 	curEntries *[]*dbShardEntry,
 	batchSize int,
-	stopIterFn dbShardEntryConditionFn,
 ) *list.Element {
 	var nextElem *list.Element
 	*curEntries = (*curEntries)[:0]
 	for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
 		nextElem = elem.Next()
 		entry := elem.Value.(*dbShardEntry)
-		if stopIterFn != nil && stopIterFn(entry) {
-			return nil
-		}
 		*curEntries = append(*curEntries, entry)
 		elem = nextElem
 	}
@@ -193,7 +187,7 @@ func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
 		perEntrySoftDeadline = softDeadline / time.Duration(size)
 	}
 	start := s.nowFn()
-	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
+	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
 			// If we are ahead of our our deadline then throttle tick
 			prevEntryDeadline := start.Add(time.Duration(i) * perEntrySoftDeadline)
@@ -217,8 +211,9 @@ func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
 			// TODO(r): log error and increment counter
 		}
 		i++
-		return err
-	}, nil)
+		// Continue
+		return true
+	})
 
 	if len(expired) > 0 {
 		// Purge any series that still haven't been purged yet
@@ -329,7 +324,6 @@ func (s *dbShard) writableSeries(id ts.ID) (series.DatabaseSeries, uint64, write
 
 	entry := &dbShardEntry{
 		series:     series,
-		index:      s.increasingIndex.nextIndex(),
 		curWriters: 1,
 	}
 
@@ -340,6 +334,8 @@ func (s *dbShard) writableSeries(id ts.ID) (series.DatabaseSeries, uint64, write
 		// During Rlock -> Wlock promotion the entry was inserted
 		return entry.series, entry.index, entry.decrementWriterCount
 	}
+	// Must set the index inside the write lock to ensure ID indexes are ascending in order
+	entry.index = s.increasingIndex.nextIndex()
 	if s.newSeriesBootstrapped {
 		// Transitioned to new series being bootstrapped
 		entry.series.Bootstrap(nil)
@@ -381,28 +377,29 @@ func (s *dbShard) FetchBlocksMetadata(
 
 	var (
 		res            = make([]block.FetchBlocksMetadataResult, 0, resCapacity)
+		tmpCtx         = context.NewContext()
 		pNextPageToken *int64
 	)
-	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
-		if int64(entry.index) < pageToken {
-			return nil
-		}
-
-		// Create a temporary context here so the stream readers can be returned to
-		// pool after we finish fetching the metadata for this series.
-		tmpCtx := s.opts.ContextPool().Get()
-		blocksMetadata := entry.series.FetchBlocksMetadata(tmpCtx, includeSizes, includeChecksums)
-		tmpCtx.Close()
-		res = append(res, blocksMetadata)
-
-		return nil
-	}, func(entry *dbShardEntry) bool {
+	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		// Break out of the iteration loop once we've accumulated enough entries.
-		if int64(len(res)) < limit {
+		if int64(len(res)) >= limit {
+			nextPageToken := int64(entry.index)
+			pNextPageToken = &nextPageToken
 			return false
 		}
-		nextPageToken := int64(entry.index)
-		pNextPageToken = &nextPageToken
+
+		// Fast forward past indexes lower than page token
+		if int64(entry.index) < pageToken {
+			return true
+		}
+
+		// Use a temporary context here so the stream readers can be returned to
+		// pool after we finish fetching the metadata for this series.
+		tmpCtx.Reset()
+		blocksMetadata := entry.series.FetchBlocksMetadata(tmpCtx, includeSizes, includeChecksums)
+		tmpCtx.BlockingClose()
+		res = append(res, blocksMetadata)
+
 		return true
 	})
 
@@ -443,15 +440,15 @@ func (s *dbShard) Bootstrap(
 	// Find the series with no data within the retention period but has
 	// buffered data points since server start. Any new series added
 	// after this will be marked as bootstrapped.
-	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
+	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		series := entry.series
 		if series.IsBootstrapped() {
-			return nil
+			return true
 		}
 		err := series.Bootstrap(nil)
 		multiErr = multiErr.Add(err)
-		return err
-	}, nil)
+		return true
+	})
 
 	s.Lock()
 	s.bs = bootstrapped
@@ -484,16 +481,17 @@ func (s *dbShard) Flush(
 	defer prepared.Close()
 
 	// If we encounter an error when persisting a series, we continue regardless.
-	s.forEachShardEntry(true, func(entry *dbShardEntry) error {
+	tmpCtx := context.NewContext()
+	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		series := entry.series
-		// Create a temporary context here so the stream readers can be returned to
+		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
-		tmpCtx := s.opts.ContextPool().Get()
+		tmpCtx.Reset()
 		err := series.Flush(tmpCtx, blockStart, prepared.Persist)
-		tmpCtx.Close()
+		tmpCtx.BlockingClose()
 		multiErr = multiErr.Add(err)
-		return err
-	}, nil)
+		return true
+	})
 
 	return multiErr.FinalError()
 }

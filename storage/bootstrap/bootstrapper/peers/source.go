@@ -101,7 +101,8 @@ func (s *peersSource) Read(
 			// is defined by the fetch series blocks batch concurrency option
 			wg.Add(1)
 			go func(shard uint32, start, end time.Time) {
-				shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace, shard, start, end, bopts)
+				shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace,
+					shard, start, end, bopts)
 				lock.Lock()
 				if err == nil {
 					result.Add(shard, shardResult, nil)

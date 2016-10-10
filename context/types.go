@@ -21,7 +21,18 @@
 package context
 
 // Closer closes a resource
-type Closer func()
+type Closer interface {
+	// OnClose is called on close
+	OnClose()
+}
+
+// CloserFn is a function literal that is a closer
+type CloserFn func()
+
+// OnClose will call the function literal as a closer
+func (fn CloserFn) OnClose() {
+	fn()
+}
 
 // Context provides context to an operation
 type Context interface {
@@ -34,6 +45,12 @@ type Context interface {
 
 	// Close will close the context
 	Close()
+
+	// BlockingClose will close the context and call the
+	// registered closers in a blocking manner after waiting
+	// for any dependent contexts to close. After calling
+	// the context becomes safe to reset and reuse again.
+	BlockingClose()
 
 	// IsClosed returns whether the context is closed
 	IsClosed() bool

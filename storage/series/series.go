@@ -335,7 +335,6 @@ func (s *dbSeries) FetchBlocksMetadata(
 			pChecksum = b.Checksum()
 		}
 		res = append(res, block.NewFetchBlockMetadataResult(t, pSize, pChecksum, nil))
-		reader.Close()
 	}
 
 	// Iterate over the encoders in the database buffer

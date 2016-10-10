@@ -119,6 +119,12 @@ type Options interface {
 	// AdminClient returns the admin client
 	AdminClient() client.AdminClient
 
+	// SetRepairShardConcurrency sets the concurrency in which to repair shards with
+	SetRepairShardConcurrency(value int) Options
+
+	// RepairShardConcurrency returns the concurrency in which to repair shards with
+	RepairShardConcurrency() int
+
 	// SetRepairInterval sets the repair interval
 	SetRepairInterval(value time.Duration) Options
 

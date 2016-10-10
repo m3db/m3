@@ -36,10 +36,10 @@ func TestRegisterCloser(t *testing.T) {
 	ctx := NewContext()
 
 	wg.Add(1)
-	ctx.RegisterCloser(func() {
+	ctx.RegisterCloser(CloserFn(func() {
 		closed = true
 		wg.Done()
-	})
+	}))
 
 	ctx.Close()
 
@@ -51,7 +51,7 @@ func TestRegisterCloser(t *testing.T) {
 func TestDoesNotRegisterCloserWhenClosed(t *testing.T) {
 	ctx := NewContext().(*ctx)
 	ctx.Close()
-	ctx.RegisterCloser(func() {})
+	ctx.RegisterCloser(CloserFn(func() {}))
 
 	assert.Nil(t, ctx.dep)
 }
@@ -60,9 +60,9 @@ func TestDoesNotCloseTwice(t *testing.T) {
 	ctx := NewContext().(*ctx)
 
 	var closed int32
-	ctx.RegisterCloser(func() {
+	ctx.RegisterCloser(CloserFn(func() {
 		atomic.AddInt32(&closed, 1)
-	})
+	}))
 
 	ctx.Close()
 	ctx.Close()
@@ -91,10 +91,10 @@ func testDependsOn(c *ctx, t *testing.T) {
 	other := NewContext().(*ctx)
 
 	wg.Add(1)
-	c.RegisterCloser(func() {
+	c.RegisterCloser(CloserFn(func() {
 		atomic.AddInt32(&closed, 1)
 		wg.Done()
-	})
+	}))
 
 	c.DependsOn(other)
 	c.Close()
