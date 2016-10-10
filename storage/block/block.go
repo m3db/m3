@@ -102,7 +102,11 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		b.context().DependsOn(blocker)
 	}
 	if b.writable {
-		return b.encoder.Stream(), nil
+		stream := b.encoder.Stream()
+		if stream != nil {
+			blocker.RegisterCloser(context.CloserFn(stream.Close))
+		}
+		return stream, nil
 	}
 	// If the block is not writable, and the segment is empty, it means
 	// there are no data encoded in this block, so we return a nil reader.
@@ -111,6 +115,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	}
 	s := b.opts.SegmentReaderPool().Get()
 	s.Reset(b.segment)
+	blocker.RegisterCloser(context.CloserFn(s.Close))
 	return s, nil
 }
 
@@ -160,7 +165,7 @@ func (b *dbBlock) close() {
 	if b.writable {
 		// If the block is not sealed, we need to close the encoder.
 		if encoder := b.encoder; encoder != nil {
-			ctx.RegisterCloser(encoder.Close)
+			ctx.RegisterCloser(context.CloserFn(encoder.Close))
 		}
 		return
 	}
@@ -168,14 +173,14 @@ func (b *dbBlock) close() {
 	// Otherwise, we need to return bytes to the bytes pool.
 	segment := b.segment
 	bytesPool := b.opts.BytesPool()
-	ctx.RegisterCloser(func() {
+	ctx.RegisterCloser(context.CloserFn(func() {
 		if segment.Head != nil && !segment.HeadShared {
 			bytesPool.Put(segment.Head)
 		}
 		if segment.Tail != nil && !segment.TailShared {
 			bytesPool.Put(segment.Tail)
 		}
-	})
+	}))
 }
 
 // Reset resets the block start time and the encoder.

@@ -79,11 +79,14 @@ func (c *ctx) DependsOn(blocker Context) {
 	if !closed {
 		c.ensureDependencies()
 		c.dep.dependencies.Add(1)
-		blocker.RegisterCloser(func() {
-			c.dep.dependencies.Done()
-		})
+		blocker.RegisterCloser(c)
 	}
 	c.Unlock()
+}
+
+// OnClose handles a call from another context that was depended upon closing
+func (c *ctx) OnClose() {
+	c.dep.dependencies.Done()
 }
 
 func (c *ctx) Close() {
@@ -115,7 +118,7 @@ func (c *ctx) close(blocking bool) {
 			c.dep.dependencies.Wait()
 			// Now call closers
 			for _, closer := range closers {
-				closer()
+				closer.OnClose()
 			}
 			c.returnToPool()
 		}
@@ -145,6 +148,10 @@ func (c *ctx) Reset() {
 			// Free any large arrays that are created
 			c.dep.closers = nil
 		} else {
+			for i := range c.dep.closers {
+				// Free values from collection
+				c.dep.closers[i] = nil
+			}
 			c.dep.closers = c.dep.closers[:0]
 		}
 		c.dep.dependencies = sync.WaitGroup{}

@@ -292,7 +292,7 @@ func (b *dbBuffer) readBucketStreams(
 			continue
 		}
 
-		ctx.RegisterCloser(stream.Close)
+		ctx.RegisterCloser(context.CloserFn(stream.Close))
 
 		streamFn(stream)
 	}
