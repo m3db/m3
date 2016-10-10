@@ -47,6 +47,12 @@ type Options interface {
 
 	// NeedsFilesetCleanup returns whether this namespace requires cleaning up fileset files
 	NeedsFilesetCleanup() bool
+
+	// SetNeedsRepair sets whether the data for this namespace needs to be repaired
+	SetNeedsRepair(value bool) Options
+
+	// NeedsRepair returns whether the data for this namespace needs to be repaired
+	NeedsRepair() bool
 }
 
 // Metadata represents namespace metadata information

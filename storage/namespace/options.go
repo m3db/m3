@@ -32,6 +32,9 @@ const (
 
 	// Namespace requires fileset cleanup by default
 	defaultNeedsFilesetCleanup = true
+
+	// Namespace requires repair by default
+	defaultNeedsRepair = true
 )
 
 type options struct {
@@ -39,6 +42,7 @@ type options struct {
 	needsFlush          bool
 	writesToCommitLog   bool
 	needsFilesetCleanup bool
+	needsRepair         bool
 }
 
 // NewOptions creates a new namespace options
@@ -48,6 +52,7 @@ func NewOptions() Options {
 		needsFlush:          defaultNeedsFlush,
 		writesToCommitLog:   defaultWritesToCommitLog,
 		needsFilesetCleanup: defaultNeedsFilesetCleanup,
+		needsRepair:         defaultNeedsRepair,
 	}
 }
 
@@ -89,4 +94,14 @@ func (o *options) SetNeedsFilesetCleanup(value bool) Options {
 
 func (o *options) NeedsFilesetCleanup() bool {
 	return o.needsFilesetCleanup
+}
+
+func (o *options) SetNeedsRepair(value bool) Options {
+	opts := *o
+	opts.needsRepair = value
+	return &opts
+}
+
+func (o *options) NeedsRepair() bool {
+	return o.needsRepair
 }

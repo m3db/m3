@@ -100,7 +100,7 @@ const (
 	defaultSeriesIteratorPoolSize = 100000
 
 	// defaultFetchSeriesBlocksBatchSize is the default fetch series blocks batch size
-	defaultFetchSeriesBlocksBatchSize = 128
+	defaultFetchSeriesBlocksBatchSize = 4096
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks metadata fetch timeout
 	defaultFetchSeriesBlocksMetadataBatchTimeout = 5 * time.Second

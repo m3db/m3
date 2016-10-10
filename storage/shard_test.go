@@ -314,24 +314,17 @@ func TestForEachShardEntry(t *testing.T) {
 	}
 
 	count := 0
-	entryFn := func(entry *dbShardEntry) error {
-		count++
-		if entry.series.ID().String() == "foo.5" {
-			return errors.New("foo")
+	entryFn := func(entry *dbShardEntry) bool {
+		if entry.series.ID().String() == "foo.8" {
+			return false
 		}
-		return nil
+
+		count++
+		return true
 	}
 
-	stopIterFn := func(entry *dbShardEntry) bool {
-		return entry.series.ID().String() == "foo.8"
-	}
-
-	shard.forEachShardEntry(true, entryFn, stopIterFn)
+	shard.forEachShardEntry(entryFn)
 	require.Equal(t, 8, count)
-
-	count = 0
-	shard.forEachShardEntry(false, entryFn, stopIterFn)
-	require.Equal(t, 6, count)
 }
 
 func TestShardFetchBlocksIDNotExists(t *testing.T) {
@@ -377,7 +370,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 		series := addMockSeries(ctrl, shard, id, uint64(i))
 		if i >= 2 && i < 7 {
 			ids = append(ids, id)
-			series.EXPECT().FetchBlocksMetadata(ctx, true, true).Return(block.NewFetchBlocksMetadataResult(id, nil))
+			series.EXPECT().FetchBlocksMetadata(gomock.Not(nil), true, true).Return(block.NewFetchBlocksMetadataResult(id, nil))
 		}
 	}
 

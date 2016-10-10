@@ -35,6 +35,12 @@ type Context interface {
 	// Close will close the context
 	Close()
 
+	// BlockingClose will close the context and call the
+	// registered closers in a blocking manner after waiting
+	// for any dependent contexts to close. After calling
+	// the context becomes safe to reset and reuse again.
+	BlockingClose()
+
 	// IsClosed returns whether the context is closed
 	IsClosed() bool
 

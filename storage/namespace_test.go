@@ -330,7 +330,7 @@ func TestNamespaceRepair(t *testing.T) {
 	ns := newTestNamespace(t)
 	opts := repair.NewOptions().SetRepairThrottle(time.Duration(0))
 	repairer := NewMockdatabaseShardRepairer(ctrl)
-	repairer.EXPECT().Options().Return(opts)
+	repairer.EXPECT().Options().Return(opts).AnyTimes()
 
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {

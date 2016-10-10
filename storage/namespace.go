@@ -355,7 +355,13 @@ func (n *dbNamespace) Truncate() (int64, error) {
 }
 
 func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
+	if !n.nopts.NeedsRepair() {
+		return nil
+	}
+
 	var (
+		wg                    sync.WaitGroup
+		mutex                 sync.Mutex
 		numShardsRepaired     int
 		numTotalSeries        int64
 		numTotalBlocks        int64
@@ -373,23 +379,38 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
 		throttlePerShard = time.Duration(int64(repairer.Options().RepairThrottle()) / int64(numShards))
 	}
 
+	workers := pool.NewWorkerPool(repairer.Options().RepairShardConcurrency())
+	workers.Init()
 	for _, shard := range shards {
-		metadataRes, err := shard.Repair(n.id, repairer)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-		} else {
-			numShardsRepaired++
-			numTotalSeries += metadataRes.NumSeries
-			numTotalBlocks += metadataRes.NumBlocks
-			numSizeDiffSeries += metadataRes.SizeDifferences.NumSeries()
-			numSizeDiffBlocks += metadataRes.SizeDifferences.NumBlocks()
-			numChecksumDiffSeries += metadataRes.ChecksumDifferences.NumSeries()
-			numChecksumDiffBlocks += metadataRes.ChecksumDifferences.NumBlocks()
-		}
-		if throttlePerShard > 0 {
-			time.Sleep(throttlePerShard)
-		}
+		shard := shard
+
+		wg.Add(1)
+		workers.Go(func() {
+			defer wg.Done()
+
+			metadataRes, err := shard.Repair(n.id, repairer)
+
+			mutex.Lock()
+			if err != nil {
+				multiErr = multiErr.Add(err)
+			} else {
+				numShardsRepaired++
+				numTotalSeries += metadataRes.NumSeries
+				numTotalBlocks += metadataRes.NumBlocks
+				numSizeDiffSeries += metadataRes.SizeDifferences.NumSeries()
+				numSizeDiffBlocks += metadataRes.SizeDifferences.NumBlocks()
+				numChecksumDiffSeries += metadataRes.ChecksumDifferences.NumSeries()
+				numChecksumDiffBlocks += metadataRes.ChecksumDifferences.NumBlocks()
+			}
+			mutex.Unlock()
+
+			if throttlePerShard > 0 {
+				time.Sleep(throttlePerShard)
+			}
+		})
 	}
+
+	wg.Wait()
 
 	n.log.WithFields(
 		xlog.NewLogField("namespace", n.id.String()),

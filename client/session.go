@@ -1174,8 +1174,6 @@ func (s *session) streamCollectedBlocksMetadata(
 		}
 		if received.submitted {
 			// Already submitted to enqueue channel
-			s.log.WithFields(xlog.NewLogField("id", m.id)).
-				Warnf("received blocks metadata for already collected blocks metadata")
 			continue
 		}
 
