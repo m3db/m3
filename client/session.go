@@ -598,10 +598,10 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				iter.Reset(ids[idx], startInclusive, endExclusive, successIters)
 				iters.SetAt(idx, iter)
 			}
-			wg.Done()
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
 				s.iteratorArrayPool.Put(results)
 			}
+			wg.Done()
 		}
 		completionFn := func(result interface{}, err error) {
 			var snapshotSuccess int32
