@@ -45,7 +45,7 @@ type poolOfClosers struct {
 func newClosersPool(opts pool.ObjectPoolOptions) closersPool {
 	p := &poolOfClosers{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
-		return createClosers()
+		return allocateClosers()
 	})
 	return p
 }
@@ -99,6 +99,6 @@ func (p *poolOfContexts) PutClosers(closers []Closer) {
 	p.closersPool.Put(closers)
 }
 
-func createClosers() []Closer {
+func allocateClosers() []Closer {
 	return make([]Closer, 0, defaultClosersCapacity)
 }

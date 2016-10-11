@@ -58,7 +58,7 @@ func (c *ctx) ensureDependencies(initClosers bool) {
 	if c.pool != nil {
 		c.dep.closers = c.pool.GetClosers()
 	} else {
-		c.dep.closers = createClosers()
+		c.dep.closers = allocateClosers()
 	}
 }
 
