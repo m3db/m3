@@ -560,10 +560,10 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 		var (
 			wgIsDone        int32
 			allCompletionWg sync.WaitGroup
+			resultsLock     sync.RWMutex
 			results         []encoding.Iterator
 			enqueued        int32
 			pending         int32
-			next            int32
 			success         int32
 			errors          []error
 			errs            int32
@@ -589,9 +589,11 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				resultErrs++
 				resultErrLock.Unlock()
 			} else {
-				snapshotSuccess := atomic.LoadInt32(&success)
+				resultsLock.RLock()
+				successIters := results[:success]
+				resultsLock.RUnlock()
 				iter := s.seriesIteratorPool.Get()
-				iter.Reset(ids[idx], startInclusive, endExclusive, results[:snapshotSuccess])
+				iter.Reset(ids[idx], startInclusive, endExclusive, successIters)
 				iters.SetAt(idx, iter)
 			}
 			wg.Done()
@@ -617,9 +619,11 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				multiIter := s.multiReaderIteratorPool.Get()
 				multiIter.ResetSliceOfSlices(slicesIter)
 				// Results is pre-allocated after creating fetch ops for this ID below
-				iterIdx := atomic.AddInt32(&next, 1) - 1
-				results[iterIdx] = multiIter
-				snapshotSuccess = atomic.AddInt32(&success, 1)
+				resultsLock.Lock()
+				results[success] = multiIter
+				success++
+				snapshotSuccess = success
+				resultsLock.Unlock()
 			}
 			// NB(xichen): decrementing pending and checking remaining against zero must
 			// come after incrementing success, otherwise we might end up passing results[:success]
