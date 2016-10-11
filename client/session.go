@@ -558,20 +558,22 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 		idx := idx
 
 		var (
-			wgIsDone        int32
-			allCompletionWg sync.WaitGroup
-			resultsLock     sync.RWMutex
-			results         []encoding.Iterator
-			enqueued        int32
-			pending         int32
-			success         int32
-			errors          []error
-			errs            int32
+			wgIsDone int32
+			// NB(xichen): resultsAccessors gets initialized to number of replicas + 1 before enqueuing
+			// (incremented when iterating over the replicas for this ID), and gets decremented for each
+			// replica as well as inside the allCompletionFn so we know when resultsAccessors is 0,
+			// results are no longer accessed and it's safe to return results to the pool.
+			resultsAccessors int32 = 1
+			resultsLock      sync.RWMutex
+			results          []encoding.Iterator
+			enqueued         int32
+			pending          int32
+			success          int32
+			errors           []error
+			errs             int32
 		)
 
 		wg.Add(1)
-		allCompletionWg.Add(1)
-
 		allCompletionFn := func() {
 			var reportErrors []error
 			errsLen := atomic.LoadInt32(&errs)
@@ -597,7 +599,9 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				iters.SetAt(idx, iter)
 			}
 			wg.Done()
-			allCompletionWg.Done()
+			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
+				s.iteratorArrayPool.Put(results)
+			}
 		}
 		completionFn := func(result interface{}, err error) {
 			var snapshotSuccess int32
@@ -648,13 +652,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				}
 			}
 
-			if doneAll {
-				// NB(xichen): wait for allCompletionFn to run so we can safely return results to
-				// pool, otherwise we might end up in a situation where results are returned to
-				// pool even though allCompletionFn still accesses results.
-				allCompletionWg.Wait()
-
-				// SeriesIterator has taken its own references to the results array after Reset
+			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
 				s.iteratorArrayPool.Put(results)
 			}
 
@@ -679,6 +677,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 			enqueued++
 			pending++
 			allPending++
+			resultsAccessors++
 
 			ops := fetchBatchOpsByHostIdx[hostIdx]
 
