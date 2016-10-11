@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	errNotEnoughRacks          = errors.New("not enough racks to take shards, please make sure RF <= number of racks")
+	errNotEnoughRacks          = errors.New("not enough racks to take shards, please make sure RF is less than number of racks")
 	errHostAbsent              = errors.New("could not remove or replace a host that does not exist")
 	errAddingHostAlreadyExist  = errors.New("the adding host is already in the placement")
 	errCouldNotReachTargetLoad = errors.New("new host could not reach target load")
