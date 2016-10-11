@@ -52,7 +52,7 @@ func NewOptions() Options {
 	o := &options{
 		databaseBlockAllocSize:  defaultDatabaseBlockAllocSize,
 		databaseBlockPool:       NewDatabaseBlockPool(nil),
-		contextPool:             context.NewPool(nil),
+		contextPool:             context.NewPool(nil, nil),
 		encoderPool:             encoding.NewEncoderPool(nil),
 		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),

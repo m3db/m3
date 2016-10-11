@@ -46,7 +46,7 @@ func NewOptions() Options {
 		instrumentOpts:          instrument.NewOptions(),
 		retentionOpts:           retention.NewOptions(),
 		blockOpts:               block.NewOptions(),
-		contextPool:             context.NewPool(nil),
+		contextPool:             context.NewPool(nil, nil),
 		encoderPool:             encoding.NewEncoderPool(nil),
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
 	}

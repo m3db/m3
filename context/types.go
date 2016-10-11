@@ -67,3 +67,14 @@ type Pool interface {
 	// Put returns a context to the pool
 	Put(ctx Context)
 }
+
+// contextPool is the internal pool interface for contexts
+type contextPool interface {
+	Pool
+
+	// GetClosers provides a closer slice from the pool
+	GetClosers() []Closer
+
+	// PutClosers returns the closers to pool
+	PutClosers(closers []Closer)
+}

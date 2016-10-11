@@ -24,23 +24,81 @@ import (
 	"github.com/m3db/m3db/pool"
 )
 
-type contextPool struct {
+const (
+	defaultClosersCapacity = 4
+)
+
+// closersPool provides a pool for closer slices
+type closersPool interface {
+	// Get provides a pre-allocated slice to store closers
+	Get() []Closer
+
+	// Put returns a closer slice to the pool
+	Put(closers []Closer)
+}
+
+type poolOfClosers struct {
 	pool pool.ObjectPool
 }
 
-// NewPool creates a new pool
-func NewPool(opts pool.ObjectPoolOptions) Pool {
-	p := &contextPool{pool: pool.NewObjectPool(opts)}
+// newClosersPool creates a new closers pool
+func newClosersPool(opts pool.ObjectPoolOptions) closersPool {
+	p := &poolOfClosers{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
-		return NewPooledContext(p)
+		return allocateClosers()
 	})
 	return p
 }
 
-func (p *contextPool) Get() Context {
-	return p.pool.Get().(Context)
+func (p *poolOfClosers) Get() []Closer {
+	return p.pool.Get().([]Closer)
 }
 
-func (p *contextPool) Put(context Context) {
-	p.pool.Put(context)
+func (p *poolOfClosers) Put(closers []Closer) {
+	for i := range closers {
+		// Free values from collection
+		closers[i] = nil
+	}
+	if len(closers) > defaultClosersCapacity {
+		// Free any large arrays that are created
+		return
+	}
+	p.pool.Put(closers[:0])
+}
+
+type poolOfContexts struct {
+	ctxPool     pool.ObjectPool
+	closersPool closersPool
+}
+
+// NewPool creates a new context pool
+func NewPool(opts pool.ObjectPoolOptions, copts pool.ObjectPoolOptions) Pool {
+	p := &poolOfContexts{
+		ctxPool:     pool.NewObjectPool(opts),
+		closersPool: newClosersPool(copts),
+	}
+	p.ctxPool.Init(func() interface{} {
+		return newPooledContext(p)
+	})
+	return p
+}
+
+func (p *poolOfContexts) Get() Context {
+	return p.ctxPool.Get().(Context)
+}
+
+func (p *poolOfContexts) Put(context Context) {
+	p.ctxPool.Put(context)
+}
+
+func (p *poolOfContexts) GetClosers() []Closer {
+	return p.closersPool.Get()
+}
+
+func (p *poolOfContexts) PutClosers(closers []Closer) {
+	p.closersPool.Put(closers)
+}
+
+func allocateClosers() []Closer {
+	return make([]Closer, 0, defaultClosersCapacity)
 }

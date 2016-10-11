@@ -118,7 +118,7 @@ func NewOptions() Options {
 		newBootstrapFn:          defaultNewBootstrapFn,
 		newPersistManagerFn:     defaultNewPersistManagerFn,
 		maxFlushRetries:         defaultMaxFlushRetries,
-		contextPool:             context.NewPool(nil),
+		contextPool:             context.NewPool(nil, nil),
 		seriesPool:              series.NewDatabaseSeriesPool(series.NewOptions(), nil),
 		bytesPool:               pool.NewBytesPool(nil, nil),
 		encoderPool:             encoding.NewEncoderPool(nil),
@@ -218,7 +218,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.bytesPool = bytesPool
 
 	// initialize context pool
-	contextPool := context.NewPool(nil)
+	contextPool := context.NewPool(nil, nil)
 	opts.contextPool = contextPool
 
 	// initialize segment reader pool
