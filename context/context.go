@@ -48,11 +48,10 @@ func newPooledContext(pool contextPool) Context {
 }
 
 func (c *ctx) ensureDependencies(initClosers bool) {
-	if c.dep != nil {
-		return
+	if c.dep == nil {
+		c.dep = &dependency{}
 	}
-	c.dep = &dependency{}
-	if !initClosers {
+	if !initClosers || c.dep.closers != nil {
 		return
 	}
 	if c.pool != nil {
