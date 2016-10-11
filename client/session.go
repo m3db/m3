@@ -558,17 +558,20 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 		idx := idx
 
 		var (
-			wgIsDone int32
-			results  []encoding.Iterator
-			enqueued int32
-			pending  int32
-			next     int32
-			success  int32
-			errors   []error
-			errs     int32
+			wgIsDone        int32
+			allCompletionWg sync.WaitGroup
+			results         []encoding.Iterator
+			enqueued        int32
+			pending         int32
+			next            int32
+			success         int32
+			errors          []error
+			errs            int32
 		)
 
 		wg.Add(1)
+		allCompletionWg.Add(1)
+
 		allCompletionFn := func() {
 			var reportErrors []error
 			errsLen := atomic.LoadInt32(&errs)
@@ -592,6 +595,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				iters.SetAt(idx, iter)
 			}
 			wg.Done()
+			allCompletionWg.Done()
 		}
 		completionFn := func(result interface{}, err error) {
 			var snapshotSuccess int32
@@ -639,10 +643,17 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 					allCompletionFn()
 				}
 			}
+
 			if doneAll {
+				// NB(xichen): wait for allCompletionFn to run so we can safely return results to
+				// pool, otherwise we might end up in a situation where results are returned to
+				// pool even though allCompletionFn still accesses results.
+				allCompletionWg.Wait()
+
 				// SeriesIterator has taken its own references to the results array after Reset
 				s.iteratorArrayPool.Put(results)
 			}
+
 			allRemaining := atomic.AddInt32(&allPending, -1)
 			if allRemaining == 0 {
 				// Return fetch ops to pool
@@ -651,6 +662,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 						s.fetchBatchOpPool.Put(op)
 					}
 				}
+
 				// Return fetch ops array array to pool
 				s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
 			}
