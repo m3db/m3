@@ -23,6 +23,8 @@ package planner
 import (
 	"testing"
 
+	"sort"
+
 	"github.com/m3db/m3cluster/placement"
 	"github.com/stretchr/testify/assert"
 )
@@ -136,4 +138,17 @@ func TestRemoveHostShards(t *testing.T) {
 
 	left = removeHostShards(hss, placement.NewEmptyHostShards("r5h5", "r5", "z1"))
 	assert.Equal(t, 4, len(left))
+}
+
+func TestSort(t *testing.T) {
+	var steps sortableSteps
+	steps = append(steps, []placement.HostShards{placement.NewEmptyHostShards("", "", ""), placement.NewEmptyHostShards("", "", "")})
+	steps = append(steps, []placement.HostShards{placement.NewEmptyHostShards("", "", ""), placement.NewEmptyHostShards("", "", ""), placement.NewEmptyHostShards("", "", "")})
+	steps = append(steps, []placement.HostShards{placement.NewEmptyHostShards("", "", "")})
+	sort.Sort(steps)
+
+	assert.Equal(t, 3, len(steps))
+	assert.Equal(t, 3, len(steps[0]))
+	assert.Equal(t, 2, len(steps[1]))
+	assert.Equal(t, 1, len(steps[2]))
 }

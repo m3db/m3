@@ -20,11 +20,29 @@
 
 package planner
 
-import "github.com/m3db/m3cluster/placement"
+import (
+	"sort"
+
+	"github.com/m3db/m3cluster/placement"
+)
 
 // shardAwareDeploymentPlanner plans the deployment so that as many hosts can be deployed
 // at the same time without making more than 1 replica of any shard unavailable
 type shardAwareDeploymentPlanner struct {
+}
+
+type sortableSteps [][]placement.HostShards
+
+func (s sortableSteps) Len() int {
+	return len(s)
+}
+
+func (s sortableSteps) Less(i, j int) bool {
+	return len(s[i]) > len(s[j])
+}
+
+func (s sortableSteps) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }
 
 // NewShardAwareDeploymentPlanner returns a deployment planner
@@ -35,12 +53,13 @@ func NewShardAwareDeploymentPlanner() placement.DeploymentPlanner {
 func (dp shardAwareDeploymentPlanner) DeploymentSteps(ps placement.Snapshot) [][]placement.HostShards {
 	//ph := newReplicaPlacementHelper(ps, ps.Replicas())
 	hss := ps.HostShards()
-	var steps [][]placement.HostShards
+	var steps sortableSteps
 	for len(hss) > 0 {
 		step := getDeployStep(hss)
 		steps = append(steps, step)
 		hss = getLeftHostShards(hss, step)
 	}
+	sort.Sort(steps)
 	return steps
 }
 

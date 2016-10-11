@@ -100,11 +100,12 @@ func (ps snapshot) Validate() error {
 	actualTotal := 0
 	for _, hs := range ps.hostShards {
 		for _, id := range hs.Shards() {
-			if count, exist := shardCountMap[id]; !exist {
-				return errUnexpectedShards
-			} else {
+			if count, exist := shardCountMap[id]; exist {
 				shardCountMap[id] = count + 1
+				continue
 			}
+
+			return errUnexpectedShards
 		}
 		actualTotal += hs.ShardsLen()
 	}
@@ -275,7 +276,7 @@ func (h hostShards) ShardsLen() int {
 	return len(h.shardsSet)
 }
 
-// ConvertShardSliceToSet is an util function that converts a slice of shards to a map
+// ConvertShardSliceToMap is an util function that converts a slice of shards to a map
 func ConvertShardSliceToMap(ids []uint32) map[uint32]int {
 	shardCounts := make(map[uint32]int)
 	for _, id := range ids {
