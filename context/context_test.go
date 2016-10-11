@@ -29,6 +29,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestEnsureDependencyNoAllocThenAlloc(t *testing.T) {
+	ctx := NewContext().(*ctx)
+
+	// Ensure dependencies without allocating closers
+	ctx.ensureDependencies(false)
+	assert.NotNil(t, ctx.dep)
+	assert.Nil(t, ctx.dep.closers)
+
+	ctx.ensureDependencies(true)
+	assert.NotNil(t, ctx.dep)
+	assert.NotNil(t, ctx.dep.closers)
+}
+
 func TestRegisterCloser(t *testing.T) {
 	var wg sync.WaitGroup
 	closed := false
