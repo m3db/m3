@@ -33,13 +33,15 @@ func TestRegisterCloser(t *testing.T) {
 	var wg sync.WaitGroup
 	closed := false
 
-	ctx := NewContext()
+	ctx := NewContext().(*ctx)
 
 	wg.Add(1)
 	ctx.RegisterCloser(CloserFn(func() {
 		closed = true
 		wg.Done()
 	}))
+
+	assert.Equal(t, 1, len(ctx.dep.closers))
 
 	ctx.Close()
 
@@ -71,6 +73,12 @@ func TestDoesNotCloseTwice(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	assert.Equal(t, int32(1), atomic.LoadInt32(&closed))
+}
+
+func TestDependsOnNoCloserAllocation(t *testing.T) {
+	ctx := NewContext().(*ctx)
+	ctx.DependsOn(NewContext())
+	assert.Nil(t, ctx.dep.closers)
 }
 
 func TestDependsOnWithReset(t *testing.T) {

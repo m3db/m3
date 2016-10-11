@@ -26,7 +26,6 @@ import (
 
 const (
 	defaultClosersCapacity = 4
-	numClosersPerContext   = 0.05
 )
 
 // closersPool provides a pool for closer slices
@@ -73,14 +72,7 @@ type poolOfContexts struct {
 }
 
 // NewPool creates a new context pool
-func NewPool(opts pool.ObjectPoolOptions) Pool {
-	if opts == nil {
-		opts = pool.NewObjectPoolOptions()
-	}
-	copts := opts.
-		SetSize(int(float64(opts.Size()) * numClosersPerContext)).
-		SetMetricsScope(opts.MetricsScope().SubScope("closers"))
-
+func NewPool(opts pool.ObjectPoolOptions, copts pool.ObjectPoolOptions) Pool {
 	p := &poolOfContexts{
 		ctxPool:     pool.NewObjectPool(opts),
 		closersPool: newClosersPool(copts),
