@@ -27,6 +27,7 @@ import (
 )
 
 func commitLogWriteNoOp(
+	ctx context.Context,
 	series commitlog.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,

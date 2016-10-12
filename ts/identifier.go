@@ -21,36 +21,57 @@
 package ts
 
 import (
+	"bytes"
 	"crypto/md5"
-	"time"
 
-	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/pool"
 )
 
-// ID represents an immutable identifier for a timeseries
-type ID interface {
-	context.Closer
-
-	Data() []byte
-	Equal(value ID) bool
-	Hash() Hash
-	String() string
+// BinaryID constructs a new ID based on a binary blob
+func BinaryID(v []byte) ID {
+	return &id{data: v}
 }
 
-// IdentifierPool represents an automatic pool of IDs
-type IdentifierPool interface {
-	GetBinaryID(context.Context, []byte) ID
-	GetStringID(context.Context, string) ID
+// StringID constructs a new ID based on a string value
+func StringID(v string) ID {
+	return BinaryID([]byte(v))
 }
 
-// Hash represents a form of ID suitable to be used as map keys
-type Hash [md5.Size]byte
-
-// A Datapoint is a single data value reported at a given time
-type Datapoint struct {
-	Timestamp time.Time
-	Value     float64
+type id struct {
+	data []byte
+	hash Hash
+	pool pool.ObjectPool
 }
 
-// Annotation represents information used to annotate datapoints
-type Annotation []byte
+// Data returns the binary representation of an ID
+func (v *id) Data() []byte {
+	return v.data
+}
+
+func (v *id) Equal(value ID) bool {
+	return bytes.Equal(v.Data(), value.Data())
+}
+
+var null = Hash{}
+
+// Hash returns (and calculates, if needed) the hash for an ID
+func (v *id) Hash() Hash {
+	if bytes.Equal(v.hash[:], null[:]) {
+		v.hash = md5.Sum(v.data)
+	}
+
+	return Hash(v.hash)
+}
+
+func (v *id) OnClose() {
+	if v.pool == nil {
+		return
+	}
+
+	v.data, v.hash = nil, null
+	v.pool.Put(v)
+}
+
+func (v *id) String() string {
+	return string(v.data)
+}

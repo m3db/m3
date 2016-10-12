@@ -440,4 +440,10 @@ type Options interface {
 
 	// MultiReaderIteratorPool returns the multiReaderIteratorPool
 	MultiReaderIteratorPool() encoding.MultiReaderIteratorPool
+
+	// SetIDPool sets the ID pool.
+	SetIdentifierPool(value ts.IdentifierPool) Options
+
+	// IDPool returns the ID pool.
+	IdentifierPool() ts.IdentifierPool
 }

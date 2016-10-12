@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
+	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 )
 
@@ -101,6 +102,7 @@ type options struct {
 	segmentReaderPool       xio.SegmentReaderPool
 	readerIteratorPool      encoding.ReaderIteratorPool
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
+	identifierPool          ts.IdentifierPool
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -125,6 +127,7 @@ func NewOptions() Options {
 		segmentReaderPool:       xio.NewSegmentReaderPool(nil),
 		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
+		identifierPool:          ts.NewIdentifierPool(nil),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -411,4 +414,14 @@ func (o *options) SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorP
 
 func (o *options) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	return o.multiReaderIteratorPool
+}
+
+func (o *options) SetIdentifierPool(value ts.IdentifierPool) Options {
+	opts := *o
+	opts.identifierPool = value
+	return &opts
+}
+
+func (o *options) IdentifierPool() ts.IdentifierPool {
+	return o.identifierPool
 }

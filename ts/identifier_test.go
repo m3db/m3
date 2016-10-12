@@ -21,36 +21,67 @@
 package ts
 
 import (
-	"crypto/md5"
-	"time"
+	"testing"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/pool"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// ID represents an immutable identifier for a timeseries
-type ID interface {
-	context.Closer
+func TestConstructorEquality(t *testing.T) {
+	a := StringID("abc")
+	b := BinaryID([]byte{'a', 'b', 'c'})
 
-	Data() []byte
-	Equal(value ID) bool
-	Hash() Hash
-	String() string
+	require.Equal(t, a.String(), "abc")
+
+	assert.True(t, a.Equal(b))
+	assert.Equal(t, a.String(), b.String())
+	assert.Equal(t, a.Data(), b.Data())
+	assert.Equal(t, a.Hash(), b.Hash())
 }
 
-// IdentifierPool represents an automatic pool of IDs
-type IdentifierPool interface {
-	GetBinaryID(context.Context, []byte) ID
-	GetStringID(context.Context, string) ID
+func TestPooling(t *testing.T) {
+	p := NewIdentifierPool(pool.NewObjectPoolOptions())
+	ctx := context.NewContext()
+
+	a := p.GetStringID(ctx, "abc")
+	a.Hash()
+
+	ctx.BlockingClose()
+
+	require.Empty(t, a.Data())
 }
 
-// Hash represents a form of ID suitable to be used as map keys
-type Hash [md5.Size]byte
+func BenchmarkHashing(b *testing.B) {
+	v := []byte{}
 
-// A Datapoint is a single data value reported at a given time
-type Datapoint struct {
-	Timestamp time.Time
-	Value     float64
+	for i := 0; i < b.N; i++ {
+		id := BinaryID(v)
+		id.Hash()
+	}
 }
 
-// Annotation represents information used to annotate datapoints
-type Annotation []byte
+func BenchmarkHashCaching(b *testing.B) {
+	v := []byte{}
+
+	for i := 0; i < b.N; i++ {
+		id := BinaryID(v)
+		id.Hash()
+		id.Hash()
+	}
+}
+
+func BenchmarkPooling(b *testing.B) {
+	p := NewIdentifierPool(pool.NewObjectPoolOptions())
+	ctx := context.NewContext()
+
+	v := []byte{}
+
+	for i := 0; i < b.N; i++ {
+		id := p.GetBinaryID(ctx, v)
+		id.Hash()
+		id.OnClose()
+	}
+}
