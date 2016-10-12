@@ -374,6 +374,22 @@ func TestBufferBucketSort(t *testing.T) {
 	}}, opts)
 }
 
+func TestBufferBucketWriteDuplicate(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	b := &dbBufferBucket{opts: opts, start: curr, outOfOrder: false}
+	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
+	require.Equal(t, 1, len(b.encoders))
+	require.False(t, b.outOfOrder)
+
+	encoded := b.encoders[0].encoder.Stream().Segment()
+	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
+	require.Equal(t, 1, len(b.encoders))
+	require.False(t, b.outOfOrder)
+	require.Equal(t, encoded, b.encoders[0].encoder.Stream().Segment())
+}
+
 func TestBufferFetchBlocks(t *testing.T) {
 	b, opts, expected := initializeTestBufferBucket()
 	ctx := opts.ContextPool().Get()
