@@ -339,7 +339,12 @@ func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Un
 
 	var target *inOrderEncoder
 	for i := range b.encoders {
-		if !timestamp.Before(b.encoders[i].lastWriteAt) {
+		if timestamp == b.encoders[i].lastWriteAt {
+			// NB(xichen): we discard datapoints with the same timestamps as the ones we've
+			// already encoded.
+			return nil
+		}
+		if timestamp.After(b.encoders[i].lastWriteAt) {
 			target = &b.encoders[i]
 			break
 		}
