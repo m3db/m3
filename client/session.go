@@ -197,6 +197,7 @@ func (s *session) Open() error {
 
 	go func() {
 		for range s.topoWatch.C() {
+			s.log.Info("received update for topology")
 			topologyMap := s.topoWatch.Get()
 			queues, replicas, majority, err := s.initHostQueues(topologyMap)
 			if err != nil {
@@ -364,6 +365,8 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 			prev[i].Close()
 		}
 	}()
+
+	s.log.Infof("successfully updated topology to %d hosts", topologyMap.HostsLen())
 }
 
 func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hostQueue {
