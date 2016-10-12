@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3db/pool"
 )
 
-// BinaryID constructs a new ID based on a binary blob
+// BinaryID constructs a new ID based on a binary value
 func BinaryID(v []byte) ID {
 	return &id{data: v}
 }
@@ -43,7 +43,7 @@ type id struct {
 	pool pool.ObjectPool
 }
 
-// Data returns the binary representation of an ID
+// Data returns the binary value of an ID
 func (v *id) Data() []byte {
 	return v.data
 }
@@ -54,7 +54,7 @@ func (v *id) Equal(value ID) bool {
 
 var null = Hash{}
 
-// Hash returns (and calculates, if needed) the hash for an ID
+// Hash calculates and returns the hash of an ID
 func (v *id) Hash() Hash {
 	if bytes.Equal(v.hash[:], null[:]) {
 		v.hash = md5.Sum(v.data)

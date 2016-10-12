@@ -29,7 +29,7 @@ type identifierPool struct {
 	pool pool.ObjectPool
 }
 
-// NewIdentifierPool constructs a new Pool
+// NewIdentifierPool constructs a new IdentifierPool
 func NewIdentifierPool(options pool.ObjectPoolOptions) IdentifierPool {
 	p := pool.NewObjectPool(options)
 	p.Init(func() interface{} { return &id{pool: p} })
@@ -37,7 +37,7 @@ func NewIdentifierPool(options pool.ObjectPoolOptions) IdentifierPool {
 	return &identifierPool{pool: p}
 }
 
-// GetBinaryID returns a new ID based on a binary blob
+// GetBinaryID returns a new ID based on a binary value
 func (p *identifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
 	id := p.pool.Get().(*id)
 	id.data = v
