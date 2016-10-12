@@ -242,11 +242,15 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 		connectConsistencyLevel = ConnectConsistencyLevelAll
 	}
 
-	abort := func() {
-		for i := range queues {
-			queues[i].Close()
+	// Abort if we do not connect
+	connected := false
+	defer func() {
+		if !connected {
+			for i := range queues {
+				queues[i].Close()
+			}
 		}
-	}
+	}()
 
 	for {
 		if now := s.nowFn(); now.Sub(start) >= s.opts.ClusterConnectTimeout() {
@@ -263,7 +267,6 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 				}
 			default:
 				// Timed out connecting to a specific consistency requirement
-				abort()
 				return nil, 0, 0, ErrClusterConnectTimeout
 			}
 		}
@@ -288,7 +291,6 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 			case ConnectConsistencyLevelOne:
 				clusterAvailableForShard = shardReplicasAvailable > 0
 			default:
-				abort()
 				return nil, 0, 0, errSessionInvalidConnectClusterConnectConsistencyLevel
 			}
 			if !clusterAvailableForShard {
@@ -303,6 +305,7 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 		time.Sleep(clusterConnectWaitInterval)
 	}
 
+	connected = true
 	return queues, replicas, majority, nil
 }
 
