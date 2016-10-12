@@ -363,7 +363,7 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		}
 	}()
 
-	s.log.Infof("successully updated topology to %v hosts", topologyMap.HostsLen())
+	s.log.Infof("successfully updated topology to %d hosts", topologyMap.HostsLen())
 }
 
 func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hostQueue {
