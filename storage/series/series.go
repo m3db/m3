@@ -178,7 +178,7 @@ func (s *dbSeries) shouldSeal(now, blockStart time.Time, block block.DatabaseBlo
 	rops := s.opts.RetentionOptions()
 	blockSize := rops.BlockSize()
 	cutoff := now.Add(-rops.BufferPast()).Add(-blockSize).Truncate(blockSize)
-	return blockStart.Before(cutoff)
+	return !blockStart.After(cutoff)
 }
 
 func (s *dbSeries) IsEmpty() bool {

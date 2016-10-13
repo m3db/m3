@@ -416,6 +416,8 @@ func TestShouldSeal(t *testing.T) {
 
 	opts := newSeriesTestOptions()
 	ropts := opts.RetentionOptions()
+	blockSize := ropts.BlockSize()
+	bufferPast := ropts.BufferPast()
 	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	now := time.Now()
@@ -424,7 +426,8 @@ func TestShouldSeal(t *testing.T) {
 		expectedResult bool
 	}{
 		{now, false},
-		{now.Add(-ropts.BufferPast()).Add(-2 * ropts.BlockSize()), true},
+		{now.Add(-bufferPast).Add(-blockSize).Truncate(blockSize), true},
+		{now.Add(-bufferPast).Add(-2 * blockSize), true},
 	}
 
 	for _, input := range inputs {
