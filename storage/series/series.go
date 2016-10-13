@@ -142,16 +142,7 @@ func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 		return true
 	}
 
-	// If one or more blocks need to be sealed, we should update
-	// the blocks.
-	allBlocks := s.blocks.AllBlocks()
-	for blockStart, block := range allBlocks {
-		if s.shouldSeal(now, blockStart, block) {
-			return true
-		}
-	}
-
-	return false
+	return !s.blocks.IsSealed()
 }
 
 func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
@@ -161,22 +152,29 @@ func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
 }
 
 func (s *dbSeries) updateBlocksWithLock() {
-	now := s.opts.ClockOptions().NowFn()()
-	allBlocks := s.blocks.AllBlocks()
+	var (
+		now             = s.opts.ClockOptions().NowFn()()
+		allBlocks       = s.blocks.AllBlocks()
+		allBlocksSealed = true
+	)
 	for blockStart, block := range allBlocks {
 		if s.shouldExpire(now, blockStart) {
 			s.blocks.RemoveBlockAt(blockStart)
 			block.Close()
+		} else if block.IsSealed() {
+			continue
 		} else if s.shouldSeal(now, blockStart, block) {
 			block.Seal()
+		} else {
+			allBlocksSealed = false
 		}
+	}
+	if allBlocksSealed {
+		s.blocks.MarkSealed()
 	}
 }
 
 func (s *dbSeries) shouldSeal(now, blockStart time.Time, block block.DatabaseBlock) bool {
-	if block.IsSealed() {
-		return false
-	}
 	rops := s.opts.RetentionOptions()
 	blockSize := rops.BlockSize()
 	cutoff := now.Add(-rops.BufferPast()).Add(-blockSize).Truncate(blockSize)
