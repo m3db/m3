@@ -112,7 +112,7 @@ type session struct {
 
 type sessionMetrics struct {
 	sync.RWMutex
-	streamFromPeersMetrics map[uint32]*streamFromPeersMetrics
+	streamFromPeersMetrics map[uint32]streamFromPeersMetrics
 }
 
 type streamFromPeersMetrics struct {
@@ -149,7 +149,7 @@ func newSession(opts Options) (clientSession, error) {
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		metrics: sessionMetrics{
-			streamFromPeersMetrics: make(map[uint32]*streamFromPeersMetrics),
+			streamFromPeersMetrics: make(map[uint32]streamFromPeersMetrics),
 		},
 	}
 
@@ -173,7 +173,7 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 	s.metrics.RUnlock()
 
 	if ok {
-		return m
+		return &m
 	}
 
 	scope := s.opts.InstrumentOptions().MetricsScope()
@@ -182,12 +182,12 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 	m, ok = s.metrics.streamFromPeersMetrics[shard]
 	if ok {
 		s.metrics.Unlock()
-		return m
+		return &m
 	}
 	scope = scope.SubScope("stream-from-peers").Tagged(map[string]string{
 		"shard": fmt.Sprintf("%d", shard),
 	})
-	m = &streamFromPeersMetrics{
+	m = streamFromPeersMetrics{
 		fetchBlocksFromPeers:      scope.Gauge("fetch-blocks-inprogress"),
 		metadataFetches:           scope.Gauge("fetch-metadata-peers-inprogress"),
 		metadataFetchBatchCall:    scope.Counter("fetch-metadata-peers-batch-call"),
@@ -198,7 +198,7 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 	}
 	s.metrics.streamFromPeersMetrics[shard] = m
 	s.metrics.Unlock()
-	return m
+	return &m
 }
 
 func (s *session) Open() error {
