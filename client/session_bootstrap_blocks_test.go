@@ -579,7 +579,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		peerIdx   = len(mockHostQueues) - 1
 		peer      = mockHostQueues[peerIdx]
 		client    = mockClients[peerIdx]
-		enqueueCh = newEnqueueChannel()
+		enqueueCh = newEnqueueChannel(session.streamFromPeersMetricsForShard(0))
 		batch     = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
 				{start: start, size: 2, reattempt: blockMetadataReattempt{
