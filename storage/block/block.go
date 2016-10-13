@@ -251,7 +251,13 @@ func (dbb *databaseSeriesBlocks) IsSealed() bool {
 	return dbb.sealed
 }
 
-func (dbb *databaseSeriesBlocks) MarkSealed() {
+func (dbb *databaseSeriesBlocks) Seal() {
+	if dbb.sealed {
+		return
+	}
+	for _, block := range dbb.elems {
+		block.Seal()
+	}
 	dbb.sealed = true
 }
 

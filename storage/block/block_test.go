@@ -223,14 +223,14 @@ func TestDatabaseBlockCloseSealedWithDependentContext(t *testing.T) {
 	testDatabaseBlockWithDependentContext(t, f, ef, af)
 }
 
-func TestDatabaseSeriesBlocksMarkSealed(t *testing.T) {
+func TestDatabaseSeriesBlocksSeal(t *testing.T) {
 	blocks := testDatabaseSeriesBlocksWithTimes(nil)
 	require.True(t, blocks.IsSealed())
 
 	blocks.sealed = false
 	require.False(t, blocks.IsSealed())
 
-	blocks.MarkSealed()
+	blocks.Seal()
 	require.True(t, blocks.IsSealed())
 }
 

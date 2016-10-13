@@ -170,7 +170,7 @@ func (s *dbSeries) updateBlocksWithLock() {
 		}
 	}
 	if allBlocksSealed {
-		s.blocks.MarkSealed()
+		s.blocks.Seal()
 	}
 }
 

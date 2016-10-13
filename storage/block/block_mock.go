@@ -468,12 +468,12 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) IsSealed() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsSealed")
 }
 
-func (_m *MockDatabaseSeriesBlocks) MarkSealed() {
-	_m.ctrl.Call(_m, "MarkSealed")
+func (_m *MockDatabaseSeriesBlocks) Seal() {
+	_m.ctrl.Call(_m, "Seal")
 }
 
-func (_mr *_MockDatabaseSeriesBlocksRecorder) MarkSealed() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkSealed")
+func (_mr *_MockDatabaseSeriesBlocksRecorder) Seal() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Seal")
 }
 
 func (_m *MockDatabaseSeriesBlocks) AddBlock(block DatabaseBlock) {

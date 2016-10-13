@@ -356,7 +356,7 @@ func TestSeriesTickSealAll(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
 	b.EXPECT().IsSealed().Return(false).AnyTimes()
-	b.EXPECT().Seal()
+	b.EXPECT().Seal().AnyTimes()
 	series.blocks.AddBlock(b)
 
 	buffer := NewMockdatabaseBuffer(ctrl)

@@ -138,8 +138,8 @@ type DatabaseSeriesBlocks interface {
 	// IsSealed returns whether all the blocks are sealed
 	IsSealed() bool
 
-	// MarkSealed marks the series as sealed
-	MarkSealed()
+	// Seal seals all the blocks
+	Seal()
 
 	// AddBlock adds a data block.
 	AddBlock(block DatabaseBlock)
