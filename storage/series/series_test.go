@@ -240,7 +240,7 @@ func TestSeriesTickNeedsDrain(t *testing.T) {
 	series.buffer = buffer
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().NeedsDrain().Return(true)
-	buffer.EXPECT().DrainAndReset(false)
+	buffer.EXPECT().DrainAndReset()
 	err := series.Tick()
 	require.NoError(t, err)
 }
@@ -317,7 +317,8 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	buffer := NewMockdatabaseBuffer(ctrl)
-	buffer.EXPECT().DrainAndReset(true)
+	buffer.EXPECT().DrainAndReset()
+	buffer.EXPECT().MinMax().Return(time.Now().Add(2*time.Hour), time.Now().Add(6*time.Hour))
 	series.buffer = buffer
 
 	blockStart := time.Now()
@@ -325,19 +326,21 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
 	b.EXPECT().Stream(gomock.Any()).Return(nil, errors.New("bar"))
-	b.EXPECT().Close()
 	blocks := block.NewDatabaseSeriesBlocks(0, blopts)
 	blocks.AddBlock(b)
 
 	faultyEncoder := opts.EncoderPool().Get()
 	faultyEncoder.ResetSetData(blockStart, []byte{0x0}, true)
-	series.pendingBootstrap = []pendingBootstrapDrain{pendingBootstrapDrain{start: blockStart, encoder: faultyEncoder}}
+	series.pendingBootstrap = []pendingBootstrapDrain{pendingBootstrapDrain{
+		start:   blockStart,
+		encoder: faultyEncoder,
+	}}
 	err := series.Bootstrap(blocks)
 
 	require.NotNil(t, err)
-	require.Equal(t, "error occurred bootstrapping series foo: bar", err.Error())
+	require.Equal(t, "bootstrap series error occurred for foo: bar", err.Error())
 	require.Equal(t, bootstrapped, series.bs)
-	require.Equal(t, 0, series.blocks.Len())
+	require.Equal(t, 1, series.blocks.Len())
 }
 
 func TestShouldExpire(t *testing.T) {

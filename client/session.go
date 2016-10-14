@@ -1005,7 +1005,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 
 	// Begin consuming metadata and making requests
 	go func() {
-		err := s.streamBlocksFromPeers(namespace, shard, peers, metadataCh, result, m)
+		err := s.streamBlocksFromPeers(namespace, shard, peers,
+			metadataCh, opts, result, m)
 		onDone(err)
 	}()
 
@@ -1178,6 +1179,7 @@ func (s *session) streamBlocksFromPeers(
 	shard uint32,
 	peers []hostQueue,
 	ch <-chan blocksMetadata,
+	opts bootstrap.Options,
 	result *blocksResult,
 	m *streamFromPeersMetrics,
 ) error {
@@ -1206,9 +1208,11 @@ func (s *session) streamBlocksFromPeers(
 		size := peerBlocksBatchSize
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
-		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, func(batch []*blocksMetadata) {
-			s.streamBlocksBatchFromPeer(namespace, shard, peer, batch, result, enqueueCh, retrier)
-		})
+		processFn := func(batch []*blocksMetadata) {
+			s.streamBlocksBatchFromPeer(namespace, shard, peer, batch, opts,
+				result, enqueueCh, retrier)
+		}
+		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, processFn)
 		peerQueues = append(peerQueues, queue)
 	}
 
@@ -1480,6 +1484,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	shard uint32,
 	peer hostQueue,
 	batch []*blocksMetadata,
+	opts bootstrap.Options,
 	blocksResult *blocksResult,
 	enqueueCh *enqueueChannel,
 	retrier xretry.Retrier,
@@ -1488,15 +1493,25 @@ func (s *session) streamBlocksBatchFromPeer(
 	var (
 		req    = rpc.NewFetchBlocksRawRequest()
 		result *rpc.FetchBlocksRawResult_
+
+		nowFn              = opts.ClockOptions().NowFn()
+		ropts              = opts.RetentionOptions()
+		blockSize          = ropts.BlockSize()
+		retention          = ropts.RetentionPeriod()
+		earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
 	)
 	req.NameSpace = namespace.Data()
 	req.Shard = int32(shard)
 	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, len(batch))
 	for i := range batch {
-		starts := make([]int64, len(batch[i].blocks))
+		starts := make([]int64, 0, len(batch[i].blocks))
 		sort.Sort(blockMetadatasByTime(batch[i].blocks))
 		for j := range batch[i].blocks {
-			starts[j] = batch[i].blocks[j].start.UnixNano()
+			blockStart := batch[i].blocks[j].start
+			if blockStart.Before(earliestBlockStart) {
+				continue // Fell out of retention while we were streaming blocks
+			}
+			starts = append(starts, blockStart.UnixNano())
 		}
 		req.Elements[i] = &rpc.FetchBlocksRawRequestElement{
 			ID:     batch[i].id.Data(),
@@ -1521,6 +1536,9 @@ func (s *session) streamBlocksBatchFromPeer(
 		}
 		return
 	}
+
+	// Calculate earliest block start as of end of request
+	earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
 
 	// Parse and act on result
 	for i := range result.Elements {
@@ -1558,17 +1576,20 @@ func (s *session) streamBlocksBatchFromPeer(
 			if block.Start != batch[i].blocks[j].start.UnixNano() {
 				missed++
 
-				failed := []blockMetadata{batch[i].blocks[j]}
-				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
-				s.log.WithFields(
-					xlog.NewLogField("id", id.String()),
-					xlog.NewLogField("expectedStart", batch[i].blocks[j].start.UnixNano()),
-					xlog.NewLogField("actualStart", block.Start),
-					xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
-					xlog.NewLogField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
-					xlog.NewLogField("indexID", i),
-					xlog.NewLogField("indexBlock", j),
-				).Errorf("stream blocks response from peer %s returned mismatched block start", peer.Host().String())
+				// If fell out of retention during request this is healthy, otherwise an error
+				if !time.Unix(0, block.Start).Before(earliestBlockStart) {
+					failed := []blockMetadata{batch[i].blocks[j]}
+					s.streamBlocksReattemptFromPeers(failed, enqueueCh)
+					s.log.WithFields(
+						xlog.NewLogField("id", id.String()),
+						xlog.NewLogField("expectedStart", batch[i].blocks[j].start.UnixNano()),
+						xlog.NewLogField("actualStart", block.Start),
+						xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
+						xlog.NewLogField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
+						xlog.NewLogField("indexID", i),
+						xlog.NewLogField("indexBlock", j),
+					).Errorf("stream blocks response from peer %s returned mismatched block start", peer.Host().String())
+				}
 				continue
 			}
 

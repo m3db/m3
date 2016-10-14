@@ -98,9 +98,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	if b.closed {
 		return nil, errReadFromClosedBlock
 	}
-	if blocker != nil {
-		b.context().DependsOn(blocker)
-	}
+	b.context().DependsOn(blocker)
 	if b.writable {
 		stream := b.encoder.Stream()
 		if stream != nil {
