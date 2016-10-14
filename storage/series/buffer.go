@@ -381,8 +381,6 @@ func (b *dbBufferBucket) readStreams(
 	for i := range b.encoders {
 		stream := b.encoders[i].encoder.Stream()
 		if stream == nil {
-			// TODO(r): log an error and emit a metric, this is pretty bad as this
-			// encoder should have values if "shouldRead" returned true
 			continue
 		}
 
