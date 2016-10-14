@@ -69,6 +69,7 @@ type dbShard struct {
 	deleteFilesFn         deleteFilesFn
 	tickSleepIfAheadEvery int
 	sleepFn               func(time.Duration)
+	identifierPool        ts.IdentifierPool
 }
 
 type dbShardEntry struct {
@@ -115,6 +116,7 @@ func newDatabaseShard(
 		deleteFilesFn:         fs.DeleteFiles,
 		tickSleepIfAheadEvery: defaultTickSleepIfAheadEvery,
 		sleepFn:               time.Sleep,
+		identifierPool:        opts.IdentifierPool(),
 	}
 	if !needsBootstrap {
 		d.bs = bootstrapped
@@ -276,7 +278,7 @@ func (s *dbShard) Write(
 	info := commitlog.Series{
 		UniqueIndex: entry.index,
 		Namespace:   s.namespace,
-		ID:          ts.BinaryID(id.Data()),
+		ID:          s.identifierPool.Clone(id),
 		Shard:       s.shard,
 	}
 

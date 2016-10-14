@@ -54,6 +54,15 @@ func TestPooling(t *testing.T) {
 	require.Empty(t, a.Data())
 }
 
+func TestCloning(t *testing.T) {
+	a := StringID("abc")
+
+	p := NewIdentifierPool(pool.NewObjectPoolOptions())
+	b := p.Clone(a)
+
+	require.True(t, a.Equal(b))
+}
+
 func BenchmarkHashing(b *testing.B) {
 	v := []byte{}
 
