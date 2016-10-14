@@ -144,16 +144,7 @@ func (l *commitLog) Open() error {
 	// similar to Cassandra's "stop", for example see:
 	// https://github.com/apache/cassandra/blob/6dfc1e7eeba539774784dfd650d3e1de6785c938/conf/cassandra.yaml#L232
 	// Right now it is a large amount of coordination to implement something similiar.
-	var fails int64
 	l.commitLogFailFn = func(err error) {
-		currFails := atomic.AddInt64(&fails, 1)
-		if currFails < 3 {
-			go func() {
-				time.Sleep(time.Second)
-				atomic.AddInt64(&fails, -1)
-			}()
-			return
-		}
 		l.log.Fatalf("fatal commit log error: %v", err)
 	}
 
