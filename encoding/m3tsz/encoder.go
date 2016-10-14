@@ -529,12 +529,8 @@ func (enc *encoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(segment)
 }
 
-func (enc *encoder) IsSealed() bool {
-	return enc.closed || !enc.writable
-}
-
 func (enc *encoder) Seal() {
-	if enc.IsSealed() {
+	if enc.closed || !enc.writable {
 		// If the encoder is already closed, or we've already written the tail,
 		// no action is necessary.
 		return

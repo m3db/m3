@@ -47,7 +47,6 @@ func (e *nullEncoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(ts.Segment{Head: e.data})
 }
 func (e *nullEncoder) Seal()                                                { e.sealed = true }
-func (e *nullEncoder) IsSealed() bool                                       { return e.sealed }
 func (e *nullEncoder) Reset(t time.Time, capacity int)                      {}
 func (e *nullEncoder) ResetSetData(t time.Time, data []byte, writable bool) { e.data = data }
 func (e *nullEncoder) Close()                                               {}

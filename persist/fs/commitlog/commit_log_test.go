@@ -235,10 +235,10 @@ type writeCommitLogFn func(
 ) error
 
 func writeCommitLogs(
+	ctx context.Context,
 	t *testing.T,
 	scope tally.Scope,
 	stats *testStatsReporter,
-	ctx context.Context,
 	writeFn writeCommitLogFn,
 	writes []testWrite,
 ) *sync.WaitGroup {
@@ -368,7 +368,7 @@ func TestCommitLogWrite(t *testing.T) {
 	defer ctx.Close()
 
 	// Call write sync
-	writeCommitLogs(t, scope, stats, ctx, commitLog.Write, writes).Wait()
+	writeCommitLogs(ctx, t, scope, stats, commitLog.Write, writes).Wait()
 
 	// Wait for flush
 	waitForFlush(commitLog)
@@ -397,7 +397,7 @@ func TestCommitLogWriteBehind(t *testing.T) {
 	defer ctx.Close()
 
 	// Call write behind
-	writeCommitLogs(t, scope, stats, ctx, commitLog.WriteBehind, writes)
+	writeCommitLogs(ctx, t, scope, stats, commitLog.WriteBehind, writes)
 
 	// Wait for flush
 	waitForFlush(commitLog)
@@ -498,7 +498,7 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 		clock.Add(write.t.Sub(clock.Now()))
 
 		// Write entry
-		wg := writeCommitLogs(t, scope, stats, ctx, commitLog.Write, []testWrite{write})
+		wg := writeCommitLogs(ctx, t, scope, stats, commitLog.Write, []testWrite{write})
 
 		// Flush until finished, this is required as timed flusher not active when clock is mocked
 		flushUntilDone(commitLog, wg)
@@ -560,7 +560,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	writeCommitLogs(t, scope, stats, ctx, commitLog.WriteBehind, writes)
+	writeCommitLogs(ctx, t, scope, stats, commitLog.WriteBehind, writes)
 
 	wg.Wait()
 
@@ -617,7 +617,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	writeCommitLogs(t, scope, stats, ctx, commitLog.WriteBehind, writes)
+	writeCommitLogs(ctx, t, scope, stats, commitLog.WriteBehind, writes)
 
 	wg.Wait()
 
@@ -665,7 +665,7 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	writeCommitLogs(t, scope, stats, ctx, commitLog.WriteBehind, writes)
+	writeCommitLogs(ctx, t, scope, stats, commitLog.WriteBehind, writes)
 
 	wg.Wait()
 
