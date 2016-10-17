@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/context"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3db/network/server/httpjson"
+	"github.com/m3db/m3db/network/server/tchannelthrift"
 	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/storage"
 )
@@ -35,6 +36,7 @@ type server struct {
 	address string
 	db      storage.Database
 	opts    httpjson.ServerOptions
+	ttopts  tchannelthrift.Options
 }
 
 // NewServer creates a node HTTP network service
@@ -43,9 +45,13 @@ func NewServer(
 	address string,
 	contextPool context.Pool,
 	opts httpjson.ServerOptions,
+	ttopts tchannelthrift.Options,
 ) ns.NetworkService {
 	if opts == nil {
 		opts = httpjson.NewServerOptions()
+	}
+	if ttopts == nil {
+		ttopts = tchannelthrift.NewOptions()
 	}
 	opts = opts.
 		SetContextFn(httpjson.NewDefaultContextFn(contextPool)).
@@ -54,12 +60,13 @@ func NewServer(
 		address: address,
 		db:      db,
 		opts:    opts,
+		ttopts:  ttopts,
 	}
 }
 
 func (s *server) ListenAndServe() (ns.Close, error) {
 	mux := http.NewServeMux()
-	if err := httpjson.RegisterHandlers(mux, ttnode.NewService(s.db, nil), s.opts); err != nil {
+	if err := httpjson.RegisterHandlers(mux, ttnode.NewService(s.db, s.ttopts), s.opts); err != nil {
 		return nil, err
 	}
 

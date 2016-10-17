@@ -36,6 +36,7 @@ type server struct {
 	address     string
 	contextPool context.Pool
 	opts        *tchannel.ChannelOptions
+	ttopts      tchannelthrift.Options
 }
 
 // NewServer creates a new node TChannel Thrift network service
@@ -44,17 +45,22 @@ func NewServer(
 	address string,
 	contextPool context.Pool,
 	opts *tchannel.ChannelOptions,
+	ttopts tchannelthrift.Options,
 ) ns.NetworkService {
 	// Make the opts immutable on the way in
 	if opts != nil {
 		immutableOpts := *opts
 		opts = &immutableOpts
 	}
+	if ttopts == nil {
+		ttopts = tchannelthrift.NewOptions()
+	}
 	return &server{
 		db:          db,
 		address:     address,
 		contextPool: contextPool,
 		opts:        opts,
+		ttopts:      ttopts,
 	}
 }
 
@@ -64,7 +70,7 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 		return nil, err
 	}
 
-	service := NewService(s.db, tchannelthrift.NewOptions())
+	service := NewService(s.db, s.ttopts)
 	tchannelthrift.RegisterServer(channel, rpc.NewTChanNodeServer(service), s.contextPool)
 
 	channel.ListenAndServe(s.address)
