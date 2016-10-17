@@ -53,23 +53,23 @@ type dbBlock struct {
 	ctx      context.Context
 	ctxLock  sync.RWMutex
 	closed   bool
-	writable bool
+	sealed   bool
 	checksum uint32
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(start time.Time, encoder encoding.Encoder, opts Options) DatabaseBlock {
 	return &dbBlock{
-		opts:     opts,
-		start:    start,
-		encoder:  encoder,
-		closed:   false,
-		writable: true,
+		opts:    opts,
+		start:   start,
+		encoder: encoder,
+		closed:  false,
+		sealed:  false,
 	}
 }
 
 func (b *dbBlock) IsSealed() bool {
-	return !b.writable
+	return b.sealed
 }
 
 func (b *dbBlock) StartTime() time.Time {
@@ -88,7 +88,7 @@ func (b *dbBlock) Write(timestamp time.Time, value float64, unit xtime.Unit, ann
 	if b.closed {
 		return errWriteToClosedBlock
 	}
-	if !b.writable {
+	if b.sealed {
 		return errWriteToSealedBlock
 	}
 	return b.encoder.Encode(ts.Datapoint{Timestamp: timestamp, Value: value}, unit, annotation)
@@ -101,7 +101,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	if blocker != nil {
 		b.context().DependsOn(blocker)
 	}
-	if b.writable {
+	if !b.sealed {
 		stream := b.encoder.Stream()
 		if stream != nil {
 			blocker.RegisterCloser(context.CloserFn(stream.Close))
@@ -162,7 +162,7 @@ func (b *dbBlock) close() {
 	}
 	defer cleanUp()
 
-	if b.writable {
+	if !b.sealed {
 		// If the block is not sealed, we need to close the encoder.
 		if encoder := b.encoder; encoder != nil {
 			ctx.RegisterCloser(context.CloserFn(encoder.Close))
@@ -191,7 +191,7 @@ func (b *dbBlock) Reset(startTime time.Time, encoder encoding.Encoder) {
 	b.segment = ts.Segment{}
 	b.checksum = 0
 	b.closed = false
-	b.writable = true
+	b.sealed = false
 }
 
 func (b *dbBlock) Close() {
@@ -206,10 +206,10 @@ func (b *dbBlock) Close() {
 }
 
 func (b *dbBlock) Seal() {
-	if b.closed || !b.writable {
+	if b.closed || b.sealed {
 		return
 	}
-	b.writable = false
+	b.sealed = true
 	if stream := b.encoder.Stream(); stream != nil {
 		b.segment = stream.Segment()
 		b.checksum = digest.SegmentChecksum(b.segment)
@@ -223,17 +223,19 @@ func (b *dbBlock) Seal() {
 }
 
 type databaseSeriesBlocks struct {
-	opts  Options
-	elems map[time.Time]DatabaseBlock
-	min   time.Time
-	max   time.Time
+	opts   Options
+	elems  map[time.Time]DatabaseBlock
+	min    time.Time
+	max    time.Time
+	sealed bool
 }
 
 // NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
 func NewDatabaseSeriesBlocks(capacity int, opts Options) DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
-		opts:  opts,
-		elems: make(map[time.Time]DatabaseBlock, capacity),
+		opts:   opts,
+		elems:  make(map[time.Time]DatabaseBlock, capacity),
+		sealed: true,
 	}
 }
 
@@ -245,6 +247,20 @@ func (dbb *databaseSeriesBlocks) Len() int {
 	return len(dbb.elems)
 }
 
+func (dbb *databaseSeriesBlocks) IsSealed() bool {
+	return dbb.sealed
+}
+
+func (dbb *databaseSeriesBlocks) Seal() {
+	if dbb.sealed {
+		return
+	}
+	for _, block := range dbb.elems {
+		block.Seal()
+	}
+	dbb.sealed = true
+}
+
 func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	start := block.StartTime()
 	if dbb.min.Equal(timeZero) || start.Before(dbb.min) {
@@ -254,6 +270,7 @@ func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 		dbb.max = start
 	}
 	dbb.elems[start] = block
+	dbb.sealed = dbb.sealed && block.IsSealed()
 }
 
 func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
@@ -307,6 +324,10 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 		return
 	}
 	dbb.min, dbb.max = timeZero, timeZero
+	if len(dbb.elems) == 0 {
+		dbb.sealed = true
+		return
+	}
 	for k := range dbb.elems {
 		if dbb.min == timeZero || dbb.min.After(k) {
 			dbb.min = k
@@ -322,6 +343,7 @@ func (dbb *databaseSeriesBlocks) RemoveAll() {
 		block.Close()
 		delete(dbb.elems, t)
 	}
+	dbb.sealed = true
 }
 
 func (dbb *databaseSeriesBlocks) Close() {

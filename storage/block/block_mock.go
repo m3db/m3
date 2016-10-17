@@ -458,6 +458,24 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) Len() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Len")
 }
 
+func (_m *MockDatabaseSeriesBlocks) IsSealed() bool {
+	ret := _m.ctrl.Call(_m, "IsSealed")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockDatabaseSeriesBlocksRecorder) IsSealed() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsSealed")
+}
+
+func (_m *MockDatabaseSeriesBlocks) Seal() {
+	_m.ctrl.Call(_m, "Seal")
+}
+
+func (_mr *_MockDatabaseSeriesBlocksRecorder) Seal() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Seal")
+}
+
 func (_m *MockDatabaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	_m.ctrl.Call(_m, "AddBlock", block)
 }

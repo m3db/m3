@@ -260,11 +260,12 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
+	b.EXPECT().IsSealed().Return(false)
 	b.EXPECT().Close()
 	series.blocks.AddBlock(b)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsSealed().Return(false)
+	b.EXPECT().IsSealed().Return(false).AnyTimes()
 	series.blocks.AddBlock(b)
 	require.Equal(t, blockStart, series.blocks.MinTime())
 	require.Equal(t, 2, series.blocks.Len())
@@ -280,7 +281,34 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.True(t, exists)
 }
 
-func TestSeriesTickNeedsBlockSeal(t *testing.T) {
+func TestSeriesTickAllBlocksSealed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
+	assert.NoError(t, series.Bootstrap(nil))
+
+	blocks := block.NewMockDatabaseSeriesBlocks(ctrl)
+	blocks.EXPECT().Len().Return(1).AnyTimes()
+	blocks.EXPECT().MinTime().Return(curr)
+	blocks.EXPECT().IsSealed().Return(true)
+	series.blocks = blocks
+
+	buffer := NewMockdatabaseBuffer(ctrl)
+	series.buffer = buffer
+	buffer.EXPECT().IsEmpty().Return(true)
+	buffer.EXPECT().NeedsDrain().Return(false)
+	err := series.Tick()
+	require.NoError(t, err)
+}
+
+func TestSeriesTickSealOne(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -294,12 +322,12 @@ func TestSeriesTickNeedsBlockSeal(t *testing.T) {
 	assert.NoError(t, series.Bootstrap(nil))
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsSealed().Return(false).MinTimes(1).MaxTimes(2)
+	b.EXPECT().IsSealed().Return(false).AnyTimes()
 	series.blocks.AddBlock(b)
 	blockStart := curr.Add(-ropts.BufferPast()).Add(-2 * ropts.BlockSize())
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
-	b.EXPECT().IsSealed().Return(false).Times(2)
+	b.EXPECT().IsSealed().Return(false).AnyTimes()
 	b.EXPECT().Seal()
 	series.blocks.AddBlock(b)
 	buffer := NewMockdatabaseBuffer(ctrl)
@@ -308,6 +336,37 @@ func TestSeriesTickNeedsBlockSeal(t *testing.T) {
 	buffer.EXPECT().NeedsDrain().Return(false)
 	err := series.Tick()
 	require.NoError(t, err)
+	require.False(t, series.blocks.IsSealed())
+}
+
+func TestSeriesTickSealAll(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
+	assert.NoError(t, series.Bootstrap(nil))
+
+	blockStart := curr.Add(-ropts.BufferPast()).Add(-2 * ropts.BlockSize())
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(blockStart)
+	b.EXPECT().IsSealed().Return(false).AnyTimes()
+	b.EXPECT().Seal().AnyTimes()
+	series.blocks.AddBlock(b)
+
+	buffer := NewMockdatabaseBuffer(ctrl)
+	series.buffer = buffer
+	buffer.EXPECT().IsEmpty().Return(true)
+	buffer.EXPECT().NeedsDrain().Return(false)
+
+	err := series.Tick()
+	require.NoError(t, err)
+	require.True(t, series.blocks.IsSealed())
 }
 
 func TestSeriesBootstrapWithError(t *testing.T) {
@@ -324,6 +383,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	blopts := opts.DatabaseBlockOptions()
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
+	b.EXPECT().IsSealed().Return(false)
 	b.EXPECT().Stream(gomock.Any()).Return(nil, errors.New("bar"))
 	b.EXPECT().Close()
 	blocks := block.NewDatabaseSeriesBlocks(0, blopts)
@@ -356,23 +416,22 @@ func TestShouldSeal(t *testing.T) {
 
 	opts := newSeriesTestOptions()
 	ropts := opts.RetentionOptions()
+	blockSize := ropts.BlockSize()
+	bufferPast := ropts.BufferPast()
 	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	now := time.Now()
 	inputs := []struct {
 		blockStart     time.Time
-		expectedSeal   bool
 		expectedResult bool
 	}{
-		{now, true, false},
-		{now, false, false},
-		{now.Add(-ropts.BufferPast()).Add(-2 * ropts.BlockSize()), false, true},
-		{now.Add(-ropts.BufferPast()).Add(-2 * ropts.BlockSize()), true, false},
+		{now, false},
+		{now.Add(-bufferPast).Add(-blockSize).Truncate(blockSize), true},
+		{now.Add(-bufferPast).Add(-2 * blockSize), true},
 	}
 
 	for _, input := range inputs {
 		block := block.NewMockDatabaseBlock(ctrl)
-		block.EXPECT().IsSealed().Return(input.expectedSeal)
 		require.Equal(t, input.expectedResult, series.shouldSeal(now, input.blockStart, block))
 	}
 }
