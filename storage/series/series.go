@@ -302,21 +302,25 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 
 func (s *dbSeries) FetchBlocksMetadata(
 	ctx context.Context,
+	start, end time.Time,
 	includeSizes bool,
 	includeChecksums bool,
 ) block.FetchBlocksMetadataResult {
+	blockSize := s.opts.RetentionOptions().BlockSize()
 	s.RLock()
 	blocks := s.blocks.AllBlocks()
-	// TODO(xichen): pool these if this method is called frequently (e.g., for background repairs)
-	res := make([]block.FetchBlockMetadataResult, 0, len(blocks))
+	res := s.opts.FetchBlockMetadataResultsPool().Get()
 	// Iterate over the data blocks
 	for t, b := range blocks {
+		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
+			continue
+		}
 		reader, err := b.Stream(ctx)
 		// If we failed to read some blocks, skip this block and continue to get
 		// the metadata for the rest of the blocks.
 		if err != nil {
 			detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.id.String(), t, err)
-			res = append(res, block.NewFetchBlockMetadataResult(t, nil, nil, detailedErr))
+			res.Add(block.NewFetchBlockMetadataResult(t, nil, nil, detailedErr))
 			continue
 		}
 		// If there are no datapoints in the block, continue and don't append it to the result.
@@ -335,18 +339,21 @@ func (s *dbSeries) FetchBlocksMetadata(
 		if includeChecksums {
 			pChecksum = b.Checksum()
 		}
-		res = append(res, block.NewFetchBlockMetadataResult(t, pSize, pChecksum, nil))
+		res.Add(block.NewFetchBlockMetadataResult(t, pSize, pChecksum, nil))
 	}
 
 	// Iterate over the encoders in the database buffer
 	if !s.buffer.IsEmpty() {
-		bufferResult := s.buffer.FetchBlocksMetadata(ctx, includeSizes, includeChecksums)
-		res = append(res, bufferResult...)
+		bufferResults := s.buffer.FetchBlocksMetadata(ctx, start, end, includeSizes, includeChecksums)
+		for _, result := range bufferResults.Results() {
+			res.Add(result)
+		}
+		bufferResults.Close()
 	}
 
 	s.RUnlock()
 
-	block.SortFetchBlockMetadataResultByTimeAscending(res)
+	res.Sort()
 
 	return block.NewFetchBlocksMetadataResult(s.id, res)
 }

@@ -110,14 +110,14 @@ func (_mr *_MockDatabaseSeriesRecorder) FetchBlocks(arg0, arg1 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1)
 }
 
-func (_m *MockDatabaseSeries) FetchBlocksMetadata(ctx context.Context, includeSizes bool, includeChecksums bool) block.FetchBlocksMetadataResult {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, includeSizes, includeChecksums)
+func (_m *MockDatabaseSeries) FetchBlocksMetadata(ctx context.Context, start time.Time, end time.Time, includeSizes bool, includeChecksums bool) block.FetchBlocksMetadataResult {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, start, end, includeSizes, includeChecksums)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResult)
 	return ret0
 }
 
-func (_mr *_MockDatabaseSeriesRecorder) FetchBlocksMetadata(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2)
+func (_mr *_MockDatabaseSeriesRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4)
 }
 
 func (_m *MockDatabaseSeries) IsEmpty() bool {
@@ -266,14 +266,14 @@ func (_mr *_MockdatabaseBufferRecorder) FetchBlocks(arg0, arg1 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1)
 }
 
-func (_m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, includeSizes bool, includeChecksums bool) []block.FetchBlockMetadataResult {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, includeSizes, includeChecksums)
-	ret0, _ := ret[0].([]block.FetchBlockMetadataResult)
+func (_m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, start time.Time, end time.Time, includeSizes bool, includeChecksums bool) block.FetchBlockMetadataResults {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, start, end, includeSizes, includeChecksums)
+	ret0, _ := ret[0].(block.FetchBlockMetadataResults)
 	return ret0
 }
 
-func (_mr *_MockdatabaseBufferRecorder) FetchBlocksMetadata(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2)
+func (_mr *_MockdatabaseBufferRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4)
 }
 
 func (_m *MockdatabaseBuffer) IsEmpty() bool {
@@ -492,4 +492,24 @@ func (_m *MockOptions) MultiReaderIteratorPool() encoding.MultiReaderIteratorPoo
 
 func (_mr *_MockOptionsRecorder) MultiReaderIteratorPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MultiReaderIteratorPool")
+}
+
+func (_m *MockOptions) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBlockMetadataResultsPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetFetchBlockMetadataResultsPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBlockMetadataResultsPool", arg0)
+}
+
+func (_m *MockOptions) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool {
+	ret := _m.ctrl.Call(_m, "FetchBlockMetadataResultsPool")
+	ret0, _ := ret[0].(block.FetchBlockMetadataResultsPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) FetchBlockMetadataResultsPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlockMetadataResultsPool")
 }

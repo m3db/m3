@@ -92,37 +92,43 @@ func (r shardRepairer) Options() repair.Options {
 	return r.rpopts
 }
 
-func (r shardRepairer) Repair(namespace ts.ID, shard databaseShard) (repair.MetadataComparisonResult, error) {
-	// NB(r): Explicitly use a new context here as ctx may receive
-	// a lot of DependsOn calls which could mean it creates a long
-	// array of dependencies, since pooled contexts keep this array
-	// around for later use it's best to create a non-pooled context
-	// here to avoid returning a very large array to the pool.
-	ctx := context.NewContext()
-	defer ctx.Close()
-
+func (r shardRepairer) Repair(
+	ctx context.Context,
+	namespace ts.ID,
+	t time.Time,
+	shard databaseShard,
+) (repair.MetadataComparisonResult, error) {
 	session, err := r.client.DefaultAdminSession()
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
 
 	var (
-		now      = r.nowFn()
-		start    = now.Add(-r.rtopts.RetentionPeriod())
-		end      = now.Add(-r.rtopts.BufferPast()).Add(-r.blockSize)
+		start    = t
+		end      = t.Add(r.blockSize)
 		origin   = session.Origin()
 		replicas = session.Replicas()
 	)
 
-	metadata := repair.NewReplicaMetadataComparer(replicas)
+	metadata := repair.NewReplicaMetadataComparer(replicas, r.rpopts)
+	ctx.RegisterCloser(metadata)
+
+	// NB(r): Explicitly use a new context here as ctx may receive
+	// a lot of DependsOn calls which could mean it creates a long
+	// array of dependencies, since pooled contexts keep this array
+	// around for later use it's best to create a non-pooled context
+	// here to avoid returning a very large array to the pool.
+	fetchCtx := context.NewContext()
+	defer fetchCtx.Close()
 
 	// Add local metadata
-	localMetadata, _ := shard.FetchBlocksMetadata(ctx, math.MaxInt64, 0, true, true)
-	localIter := block.NewFilteredBlocksMetadataIter(start, end, r.blockSize, localMetadata)
+	localMetadata, _ := shard.FetchBlocksMetadata(fetchCtx, start, end, math.MaxInt64, 0, true, true)
+	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
 	metadata.AddLocalMetadata(origin, localIter)
+	localMetadata.Close()
 
 	// Add peer metadata
-	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end, r.blockSize)
+	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
@@ -132,13 +138,11 @@ func (r shardRepairer) Repair(namespace ts.ID, shard databaseShard) (repair.Meta
 
 	metadataRes := metadata.Compare()
 
-	// NB(xichen): only record the differences for now
 	r.recordFn(namespace, shard, metadataRes)
 
 	return metadataRes, nil
 }
 
-// TODO(xichen): log the actual differences once we have an idea of the magnitude of discrepancies
 func (r shardRepairer) recordDifferences(
 	namespace ts.ID,
 	shard databaseShard,
@@ -171,13 +175,27 @@ type repairFn func() error
 
 type sleepFn func(d time.Duration)
 
+type repairStatus int
+
+const (
+	repairNotStarted repairStatus = iota
+	repairSuccess
+	repairFailed
+)
+
+type repairState struct {
+	Status      repairStatus
+	NumFailures int
+}
+
 type dbRepairer struct {
 	sync.Mutex
 
 	database      database
-	opts          Options
 	ropts         repair.Options
+	rtopts        retention.Options
 	shardRepairer databaseShardRepairer
+	repairStates  map[time.Time]repairState
 
 	repairFn            repairFn
 	sleepFn             sleepFn
@@ -187,6 +205,7 @@ type dbRepairer struct {
 	repairTimeOffset    time.Duration
 	repairTimeJitter    time.Duration
 	repairCheckInterval time.Duration
+	repairMaxRetries    int
 	closed              bool
 	running             int32
 }
@@ -215,9 +234,10 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 
 	r := &dbRepairer{
 		database:            database,
-		opts:                opts,
 		ropts:               ropts,
+		rtopts:              opts.RetentionOptions(),
 		shardRepairer:       shardRepairer,
+		repairStates:        make(map[time.Time]repairState),
 		sleepFn:             time.Sleep,
 		nowFn:               nowFn,
 		logger:              opts.InstrumentOptions().Logger(),
@@ -225,6 +245,7 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 		repairTimeOffset:    ropts.RepairTimeOffset(),
 		repairTimeJitter:    jitter,
 		repairCheckInterval: ropts.RepairCheckInterval(),
+		repairMaxRetries:    ropts.RepairMaxRetries(),
 	}
 	r.repairFn = r.Repair
 
@@ -266,6 +287,32 @@ func (r *dbRepairer) run() {
 	}
 }
 
+func (r *dbRepairer) repairTimes() []time.Time {
+	var (
+		now       = r.nowFn()
+		blockSize = r.rtopts.BlockSize()
+		start     = now.Add(-r.rtopts.RetentionPeriod()).Truncate(blockSize)
+		end       = now.Add(-r.rtopts.BufferPast()).Add(-blockSize).Truncate(blockSize)
+	)
+
+	repairTimes := make([]time.Time, 0, int(float64(end.Sub(start))/float64(blockSize)))
+	for t := end; !t.Before(start); t = t.Add(-blockSize) {
+		if r.needsRepair(t) {
+			repairTimes = append(repairTimes, t)
+		}
+	}
+
+	return repairTimes
+}
+
+func (r *dbRepairer) needsRepair(t time.Time) bool {
+	repairState, exists := r.repairStates[t]
+	if !exists {
+		return true
+	}
+	return repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries
+}
+
 func (r *dbRepairer) Start() {
 	if r.repairInterval <= 0 {
 		return
@@ -295,14 +342,32 @@ func (r *dbRepairer) Repair() error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
+	repairTimes := r.repairTimes()
+	for _, repairTime := range repairTimes {
+		err := r.repairWithTime(repairTime)
+		repairState := r.repairStates[repairTime]
+		if err == nil {
+			repairState.Status = repairSuccess
+		} else {
+			repairState.Status = repairFailed
+			repairState.NumFailures++
+			multiErr = multiErr.Add(err)
+		}
+		r.repairStates[repairTime] = repairState
+	}
+
+	return multiErr.FinalError()
+}
+
+func (r *dbRepairer) repairWithTime(t time.Time) error {
+	multiErr := xerrors.NewMultiError()
 	namespaces := r.database.getOwnedNamespaces()
 	for _, n := range namespaces {
-		if err := n.Repair(r.shardRepairer); err != nil {
-			detailedErr := fmt.Errorf("namespace %s failed to repair: %v", n.ID().String(), err)
+		if err := n.Repair(r.shardRepairer, t); err != nil {
+			detailedErr := fmt.Errorf("namespace %s failed to repair time %v: %v", n.ID().String(), t, err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}
-
 	return multiErr.FinalError()
 }
 

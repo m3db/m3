@@ -938,7 +938,6 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	namespace ts.ID,
 	shard uint32,
 	start, end time.Time,
-	blockSize time.Duration,
 ) (PeerBlocksMetadataIter, error) {
 	peers, err := s.peersForShard(shard)
 	if err != nil {
@@ -953,7 +952,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard, peers,
-			start, end, blockSize, metadataCh, m)
+			start, end, metadataCh, m)
 		close(metadataCh)
 		close(errCh)
 	}()
@@ -1001,9 +1000,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// be returned from this routine as long as one peer succeeds completely
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
-		blockSize := opts.RetentionOptions().BlockSize()
 		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers,
-			start, end, blockSize, metadataCh, m)
+			start, end, metadataCh, m)
 
 		close(metadataCh)
 		if err != nil {
@@ -1030,7 +1028,6 @@ func (s *session) streamBlocksMetadataFromPeers(
 	shard uint32,
 	peers []hostQueue,
 	start, end time.Time,
-	blockSize time.Duration,
 	ch chan<- blocksMetadata,
 	m *streamFromPeersMetrics,
 ) error {
@@ -1051,7 +1048,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 		go func() {
 			defer wg.Done()
 			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer,
-				start, end, blockSize, ch, m)
+				start, end, ch, m)
 			if err != nil {
 				errLock.Lock()
 				defer errLock.Unlock()
@@ -1075,7 +1072,6 @@ func (s *session) streamBlocksMetadataFromPeer(
 	shard uint32,
 	peer hostQueue,
 	start, end time.Time,
-	blockSize time.Duration,
 	ch chan<- blocksMetadata,
 	m *streamFromPeersMetrics,
 ) error {
@@ -1101,6 +1097,8 @@ func (s *session) streamBlocksMetadataFromPeer(
 		req := rpc.NewFetchBlocksMetadataRawRequest()
 		req.NameSpace = namespace.Data()
 		req.Shard = int32(shard)
+		req.RangeStart = start.UnixNano()
+		req.RangeEnd = end.UnixNano()
 		req.Limit = int64(s.streamBlocksBatchSize)
 		req.PageToken = pageToken
 		req.IncludeSizes = &optionIncludeSizes
@@ -1130,13 +1128,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		for _, elem := range result.Elements {
 			blockMetas := make([]blockMetadata, 0, len(elem.Blocks))
 			for _, b := range elem.Blocks {
-				var (
-					blockStart = time.Unix(0, b.Start)
-					blockEnd   = blockStart.Add(blockSize)
-				)
-				if !start.Before(blockEnd) || !blockStart.Before(end) {
-					continue
-				}
+				blockStart := time.Unix(0, b.Start)
 
 				if b.Err != nil {
 					// Error occurred retrieving block metadata, use default values

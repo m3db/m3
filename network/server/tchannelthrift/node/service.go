@@ -70,15 +70,24 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 type service struct {
 	sync.RWMutex
 
-	db      storage.Database
-	nowFn   clock.NowFn
-	metrics serviceMetrics
-	health  *rpc.NodeHealthResult_
-	pool    ts.IdentifierPool
+	db                      storage.Database
+	opts                    tchannelthrift.Options
+	nowFn                   clock.NowFn
+	metrics                 serviceMetrics
+	idPool                  ts.IdentifierPool
+	blockMetadataPool       tchannelthrift.BlockMetadataPool
+	blockMetadataSlicePool  tchannelthrift.BlockMetadataSlicePool
+	blocksMetadataPool      tchannelthrift.BlocksMetadataPool
+	blocksMetadataSlicePool tchannelthrift.BlocksMetadataSlicePool
+	health                  *rpc.NodeHealthResult_
 }
 
 // NewService creates a new node TChannel Thrift service
-func NewService(db storage.Database) rpc.TChanNode {
+func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode {
+	if opts == nil {
+		opts = tchannelthrift.NewOptions()
+	}
+
 	iopts := db.Options().InstrumentOptions()
 
 	scope := iopts.MetricsScope().SubScope("service").Tagged(
@@ -86,15 +95,20 @@ func NewService(db storage.Database) rpc.TChanNode {
 	)
 
 	return &service{
-		db:      db,
-		nowFn:   db.Options().ClockOptions().NowFn(),
-		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
+		db:                      db,
+		opts:                    opts,
+		nowFn:                   db.Options().ClockOptions().NowFn(),
+		metrics:                 newServiceMetrics(scope, iopts.MetricsSamplingRate()),
+		idPool:                  db.Options().IdentifierPool(),
+		blockMetadataPool:       opts.BlockMetadataPool(),
+		blockMetadataSlicePool:  opts.BlockMetadataSlicePool(),
+		blocksMetadataPool:      opts.BlocksMetadataPool(),
+		blocksMetadataSlicePool: opts.BlocksMetadataSlicePool(),
 		health: &rpc.NodeHealthResult_{
 			Ok:           true,
 			Status:       "up",
 			Bootstrapped: false,
 		},
-		pool: db.Options().IdentifierPool(),
 	}
 }
 
@@ -135,7 +149,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	}
 
 	encoded, err := s.db.ReadEncoded(
-		ctx, s.pool.GetStringID(ctx, req.NameSpace), s.pool.GetStringID(ctx, req.ID), start, end)
+		ctx, s.idPool.GetStringID(ctx, req.NameSpace), s.idPool.GetStringID(ctx, req.ID), start, end)
 	if err != nil {
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		rpcErr := convert.ToRPCError(err)
@@ -191,14 +205,14 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	nsID := s.pool.GetBinaryID(ctx, req.NameSpace)
+	nsID := s.idPool.GetBinaryID(ctx, req.NameSpace)
 	result := rpc.NewFetchBatchRawResult_()
 
 	for i := range req.Ids {
 		rawResult := rpc.NewFetchRawResult_()
 		result.Elements = append(result.Elements, rawResult)
 
-		encoded, err := s.db.ReadEncoded(ctx, nsID, s.pool.GetBinaryID(ctx, req.Ids[i]), start, end)
+		encoded, err := s.db.ReadEncoded(ctx, nsID, s.idPool.GetBinaryID(ctx, req.Ids[i]), start, end)
 		if err != nil {
 			rawResult.Err = convert.ToRPCError(err)
 			continue
@@ -224,7 +238,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
-	nsID := s.pool.GetBinaryID(ctx, req.NameSpace)
+	nsID := s.idPool.GetBinaryID(ctx, req.NameSpace)
 	res := rpc.NewFetchBlocksRawResult_()
 	res.Elements = make([]*rpc.Blocks, len(req.Elements))
 
@@ -238,7 +252,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 		}
 
 		fetched, err := s.db.FetchBlocks(
-			ctx, nsID, uint32(req.Shard), s.pool.GetBinaryID(ctx, request.ID), blockStarts)
+			ctx, nsID, uint32(req.Shard), s.idPool.GetBinaryID(ctx, request.ID), blockStarts)
 		if err != nil {
 			s.metrics.fetchBlocks.ReportError(s.nowFn().Sub(callStart))
 			return nil, convert.ToRPCError(err)
@@ -269,9 +283,32 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	return res, nil
 }
 
+type closeableMetadataResult struct {
+	s      *service
+	result *rpc.FetchBlocksMetadataRawResult_
+}
+
+func (s *service) newCloseableMetadataResult(res *rpc.FetchBlocksMetadataRawResult_) closeableMetadataResult {
+	return closeableMetadataResult{s: s, result: res}
+}
+
+func (c closeableMetadataResult) OnClose() {
+	for _, blocksMetadata := range c.result.Elements {
+		for _, blockMetadata := range blocksMetadata.Blocks {
+			c.s.blockMetadataPool.Put(blockMetadata)
+		}
+		c.s.blockMetadataSlicePool.Put(blocksMetadata.Blocks)
+		c.s.blocksMetadataPool.Put(blocksMetadata)
+	}
+	c.s.blocksMetadataSlicePool.Put(c.result.Elements)
+}
+
 func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
+
+	start := time.Unix(0, req.RangeStart)
+	end := time.Unix(0, req.RangeEnd)
 
 	if req.Limit <= 0 {
 		s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
@@ -294,42 +331,49 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 	}
 
 	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(
-		ctx, s.pool.GetBinaryID(ctx, req.NameSpace), uint32(req.Shard),
-		req.Limit, pageToken, includeSizes, includeChecksums)
+		ctx, s.idPool.GetBinaryID(ctx, req.NameSpace), uint32(req.Shard),
+		start, end, req.Limit, pageToken, includeSizes, includeChecksums)
 	if err != nil {
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
 
+	fetchedResults := fetched.Results()
 	result := rpc.NewFetchBlocksMetadataRawResult_()
 	result.NextPageToken = nextPageToken
-	result.Elements = make([]*rpc.BlocksMetadata, len(fetched))
+	result.Elements = s.blocksMetadataSlicePool.Get()
 
-	for i, fetchedMetadata := range fetched {
-		blocksMetadata := rpc.NewBlocksMetadata()
-		blocksMetadata.ID = fetchedMetadata.ID().Data()
-		fetchedMetadataBlocks := fetchedMetadata.Blocks()
-		blocksMetadata.Blocks = make([]*rpc.BlockMetadata, len(fetchedMetadataBlocks))
+	// NB(xichen): register a closer with context so objects are returned to pool
+	// when we are done using them
+	ctx.RegisterCloser(s.newCloseableMetadataResult(result))
 
-		for j, fetchedMetadataBlock := range fetchedMetadataBlocks {
-			blockMetadata := rpc.NewBlockMetadata()
-			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start())
-			blockMetadata.Size = fetchedMetadataBlock.Size()
+	for _, fetchedMetadata := range fetchedResults {
+		blocksMetadata := s.blocksMetadataPool.Get()
+		blocksMetadata.ID = fetchedMetadata.ID.Data()
+		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
+		blocksMetadata.Blocks = s.blockMetadataSlicePool.Get()
 
-			if checksum := fetchedMetadataBlock.Checksum(); checksum != nil {
+		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
+			blockMetadata := s.blockMetadataPool.Get()
+			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start)
+			blockMetadata.Size = fetchedMetadataBlock.Size
+
+			if checksum := fetchedMetadataBlock.Checksum; checksum != nil {
 				value := int64(*checksum)
 				blockMetadata.Checksum = &value
 			}
 
-			if err := fetchedMetadataBlock.Err(); err != nil {
+			if err := fetchedMetadataBlock.Err; err != nil {
 				blockMetadata.Err = convert.ToRPCError(err)
 			}
 
-			blocksMetadata.Blocks[j] = blockMetadata
+			blocksMetadata.Blocks = append(blocksMetadata.Blocks, blockMetadata)
 		}
 
-		result.Elements[i] = blocksMetadata
+		result.Elements = append(result.Elements, blocksMetadata)
 	}
+
+	fetched.Close()
 
 	s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
 
@@ -360,7 +404,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	}
 
 	if err = s.db.Write(
-		ctx, s.pool.GetStringID(ctx, req.NameSpace), s.pool.GetStringID(ctx, req.ID),
+		ctx, s.idPool.GetStringID(ctx, req.NameSpace), s.idPool.GetStringID(ctx, req.ID),
 		xtime.FromNormalizedTime(dp.Timestamp, d), dp.Value, unit, dp.Annotation,
 	); err != nil {
 		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
@@ -375,7 +419,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
-	nsID := s.pool.GetBinaryID(ctx, req.NameSpace)
+	nsID := s.idPool.GetBinaryID(ctx, req.NameSpace)
 
 	var errs []*rpc.WriteBatchRawError
 
@@ -393,7 +437,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		}
 
 		if err = s.db.Write(
-			ctx, nsID, s.pool.GetBinaryID(ctx, elem.ID),
+			ctx, nsID, s.idPool.GetBinaryID(ctx, elem.ID),
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
 		); err != nil && xerrors.IsInvalidParams(err) {
@@ -431,7 +475,7 @@ func (s *service) Repair(tctx thrift.Context) error {
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
-	truncated, err := s.db.Truncate(s.pool.GetBinaryID(ctx, req.NameSpace))
+	truncated, err := s.db.Truncate(s.idPool.GetBinaryID(ctx, req.NameSpace))
 
 	if err != nil {
 		s.metrics.truncate.ReportError(s.nowFn().Sub(callStart))

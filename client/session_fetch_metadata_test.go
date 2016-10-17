@@ -74,10 +74,10 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 	for it.Next() {
 		host, blocks := it.Current()
 		var m []block.Metadata
-		for _, b := range blocks.Blocks() {
-			m = append(m, block.NewMetadata(b.Start(), b.Size(), b.Checksum()))
+		for _, b := range blocks.Blocks {
+			m = append(m, block.NewMetadata(b.Start, b.Size, b.Checksum))
 		}
-		actualBlocks := block.NewBlocksMetadata(blocks.ID(), m)
+		actualBlocks := block.NewBlocksMetadata(blocks.ID, m)
 		actual = append(actual, testHostBlocks{host, actualBlocks})
 	}
 

@@ -59,7 +59,7 @@ func NewServer(
 
 func (s *server) ListenAndServe() (ns.Close, error) {
 	mux := http.NewServeMux()
-	if err := httpjson.RegisterHandlers(mux, ttnode.NewService(s.db), s.opts); err != nil {
+	if err := httpjson.RegisterHandlers(mux, ttnode.NewService(s.db, nil), s.opts); err != nil {
 		return nil, err
 	}
 

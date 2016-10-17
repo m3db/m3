@@ -54,13 +54,6 @@ func SortFetchBlockResultByTimeAscending(results []FetchBlockResult) {
 	sort.Sort(fetchBlockResultByTimeAscending(results))
 }
 
-type fetchBlockMetadataResult struct {
-	start    time.Time
-	size     *int64
-	checksum *uint32
-	err      error
-}
-
 // NewFetchBlockMetadataResult creates a new fetch block metadata result.
 func NewFetchBlockMetadataResult(
 	start time.Time,
@@ -68,86 +61,125 @@ func NewFetchBlockMetadataResult(
 	checksum *uint32,
 	err error,
 ) FetchBlockMetadataResult {
-	return fetchBlockMetadataResult{
-		start:    start,
-		size:     size,
-		checksum: checksum,
-		err:      err,
+	return FetchBlockMetadataResult{
+		Start:    start,
+		Size:     size,
+		Checksum: checksum,
+		Err:      err,
 	}
 }
-
-func (r fetchBlockMetadataResult) Start() time.Time  { return r.start }
-func (r fetchBlockMetadataResult) Size() *int64      { return r.size }
-func (r fetchBlockMetadataResult) Checksum() *uint32 { return r.checksum }
-func (r fetchBlockMetadataResult) Err() error        { return r.err }
 
 type fetchBlockMetadataResultByTimeAscending []FetchBlockMetadataResult
 
 func (a fetchBlockMetadataResultByTimeAscending) Len() int      { return len(a) }
 func (a fetchBlockMetadataResultByTimeAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a fetchBlockMetadataResultByTimeAscending) Less(i, j int) bool {
-	return a[i].Start().Before(a[j].Start())
+	return a[i].Start.Before(a[j].Start)
 }
 
-// SortFetchBlockMetadataResultByTimeAscending sorts fetch block metadata result array in time ascending order
-func SortFetchBlockMetadataResultByTimeAscending(metadata []FetchBlockMetadataResult) {
-	sort.Sort(fetchBlockMetadataResultByTimeAscending(metadata))
+type fetchBlockMetadataResults struct {
+	results []FetchBlockMetadataResult
+	pool    FetchBlockMetadataResultsPool
 }
 
-type fetchBlocksMetadataResult struct {
-	id     ts.ID
-	blocks []FetchBlockMetadataResult
+// NewFetchBlockMetadataResults creates a non-pooled fetchBlockMetadataResults
+func NewFetchBlockMetadataResults() FetchBlockMetadataResults {
+	return &fetchBlockMetadataResults{}
+}
+
+func newPooledFetchBlockMetadataResults(
+	results []FetchBlockMetadataResult,
+	pool FetchBlockMetadataResultsPool,
+) FetchBlockMetadataResults {
+	return &fetchBlockMetadataResults{results: results, pool: pool}
+}
+
+func (s *fetchBlockMetadataResults) Add(res FetchBlockMetadataResult) {
+	s.results = append(s.results, res)
+}
+
+func (s *fetchBlockMetadataResults) Results() []FetchBlockMetadataResult {
+	return s.results
+}
+
+func (s *fetchBlockMetadataResults) Sort() {
+	sort.Sort(fetchBlockMetadataResultByTimeAscending(s.results))
+}
+
+func (s *fetchBlockMetadataResults) Reset() {
+	s.results = s.results[:0]
+}
+
+func (s *fetchBlockMetadataResults) Close() {
+	if s.pool != nil {
+		s.pool.Put(s)
+	}
 }
 
 // NewFetchBlocksMetadataResult creates new database blocks metadata
-func NewFetchBlocksMetadataResult(id ts.ID, blocks []FetchBlockMetadataResult) FetchBlocksMetadataResult {
-	return fetchBlocksMetadataResult{id: id, blocks: blocks}
+func NewFetchBlocksMetadataResult(id ts.ID, blocks FetchBlockMetadataResults) FetchBlocksMetadataResult {
+	return FetchBlocksMetadataResult{ID: id, Blocks: blocks}
 }
 
-func (m fetchBlocksMetadataResult) ID() ts.ID                          { return m.id }
-func (m fetchBlocksMetadataResult) Blocks() []FetchBlockMetadataResult { return m.blocks }
+type fetchBlocksMetadataResults struct {
+	results []FetchBlocksMetadataResult
+	pool    FetchBlocksMetadataResultsPool
+}
+
+// NewFetchBlocksMetadataResults creates a non-pooled FetchBlocksMetadataResults
+func NewFetchBlocksMetadataResults() FetchBlocksMetadataResults {
+	return &fetchBlocksMetadataResults{}
+}
+
+func newPooledFetchBlocksMetadataResults(
+	results []FetchBlocksMetadataResult,
+	pool FetchBlocksMetadataResultsPool,
+) FetchBlocksMetadataResults {
+	return &fetchBlocksMetadataResults{results: results, pool: pool}
+}
+
+func (s *fetchBlocksMetadataResults) Add(res FetchBlocksMetadataResult) {
+	s.results = append(s.results, res)
+}
+
+func (s *fetchBlocksMetadataResults) Results() []FetchBlocksMetadataResult {
+	return s.results
+}
+
+func (s *fetchBlocksMetadataResults) Reset() {
+	s.results = s.results[:0]
+}
+
+func (s *fetchBlocksMetadataResults) Close() {
+	for _, res := range s.results {
+		res.Blocks.Close()
+	}
+	if s.pool != nil {
+		s.pool.Put(s)
+	}
+}
 
 type filteredBlocksMetadataIter struct {
-	start     time.Time
-	end       time.Time
-	blockSize time.Duration
-	res       []FetchBlocksMetadataResult
-	id        ts.ID
-	metadata  Metadata
-	resIdx    int
-	blockIdx  int
+	res      []FetchBlocksMetadataResult
+	id       ts.ID
+	metadata Metadata
+	resIdx   int
+	blockIdx int
 }
 
 // NewFilteredBlocksMetadataIter creates a new filtered blocks metadata iterator
-func NewFilteredBlocksMetadataIter(
-	start, end time.Time,
-	blockSize time.Duration,
-	res []FetchBlocksMetadataResult,
-) FilteredBlocksMetadataIter {
-	return &filteredBlocksMetadataIter{
-		start:     start,
-		end:       end,
-		blockSize: blockSize,
-		res:       res,
-	}
+func NewFilteredBlocksMetadataIter(res FetchBlocksMetadataResults) FilteredBlocksMetadataIter {
+	return &filteredBlocksMetadataIter{res: res.Results()}
 }
 
 func (it *filteredBlocksMetadataIter) Next() bool {
 	if it.resIdx >= len(it.res) {
 		return false
 	}
-	blocks := it.res[it.resIdx].Blocks()
+	blocks := it.res[it.resIdx].Blocks.Results()
 	for it.blockIdx < len(blocks) {
 		block := blocks[it.blockIdx]
-		if block.Err() != nil {
-			it.blockIdx++
-			continue
-		}
-		var (
-			blockStart = block.Start()
-			blockEnd   = blockStart.Add(it.blockSize)
-		)
-		if !it.start.Before(blockEnd) || !blockStart.Before(it.end) {
+		if block.Err != nil {
 			it.blockIdx++
 			continue
 		}
@@ -158,13 +190,13 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 		it.blockIdx = 0
 		return it.Next()
 	}
-	it.id = it.res[it.resIdx].ID()
+	it.id = it.res[it.resIdx].ID
 	block := blocks[it.blockIdx]
 	size := int64(0)
-	if block.Size() != nil {
-		size = *block.Size()
+	if block.Size != nil {
+		size = *block.Size
 	}
-	it.metadata = NewMetadata(block.Start(), size, block.Checksum())
+	it.metadata = NewMetadata(block.Start, size, block.Checksum)
 	it.blockIdx++
 	return true
 }

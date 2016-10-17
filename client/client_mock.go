@@ -356,15 +356,20 @@ func (_mr *_MockAdminSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
+<<<<<<< c3a8e8832aa36cabb9d90d6ffbd4987e2b8bb43a
 func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, blockSize time.Duration) (PeerBlocksMetadataIter, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, blockSize)
+=======
+func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time) (PeerBlocksMetadataIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end)
+>>>>>>> Make repair incremental, filter results by time when fetching blocks metadata, and add pooling for metadata results and host metadata to reduce CPU and network usage
 	ret0, _ := ret[0].(PeerBlocksMetadataIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockAdminSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3, arg4)
+func (_mr *_MockAdminSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
@@ -472,15 +477,20 @@ func (_mr *_MockclientSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
+<<<<<<< c3a8e8832aa36cabb9d90d6ffbd4987e2b8bb43a
 func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, blockSize time.Duration) (PeerBlocksMetadataIter, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, blockSize)
+=======
+func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time) (PeerBlocksMetadataIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end)
+>>>>>>> Make repair incremental, filter results by time when fetching blocks metadata, and add pooling for metadata results and host metadata to reduce CPU and network usage
 	ret0, _ := ret[0].(PeerBlocksMetadataIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockclientSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3, arg4)
+func (_mr *_MockclientSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {

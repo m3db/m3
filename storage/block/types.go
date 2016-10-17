@@ -32,48 +32,16 @@ import (
 )
 
 // Metadata captures block metadata
-type Metadata interface {
-	// Start is the block start time
-	Start() time.Time
-
-	// Size is the block size
-	Size() int64
-
-	// Checksum is the block checksum if available
-	Checksum() *uint32
+type Metadata struct {
+	Start    time.Time
+	Size     int64
+	Checksum *uint32
 }
 
 // BlocksMetadata contains blocks metadata from a peer
-type BlocksMetadata interface {
-	// ID associated with the blocks
-	ID() ts.ID
-
-	// Blocks returns the metadata for blocks
-	Blocks() []Metadata
-}
-
-// FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered
-type FetchBlockMetadataResult interface {
-	// Start returns the start time of a block
-	Start() time.Time
-
-	// Size returns the size of the block, or nil if not available.
-	Size() *int64
-
-	// Checksum returns the checksum of the block, or nil if not available.
-	Checksum() *uint32
-
-	// Err returns the error encountered if any
-	Err() error
-}
-
-// FetchBlocksMetadataResult captures the fetch results for multiple blocks.
-type FetchBlocksMetadataResult interface {
-	// ID returns id associated with the blocks
-	ID() ts.ID
-
-	// Blocks returns the metadata fetch result of blocks
-	Blocks() []FetchBlockMetadataResult
+type BlocksMetadata struct {
+	ID     ts.ID
+	Blocks []Metadata
 }
 
 // FilteredBlocksMetadataIter iterates over a list of blocks metadata results with filtering applied
@@ -95,6 +63,53 @@ type FetchBlockResult interface {
 
 	// Err returns the error encountered when fetching the block.
 	Err() error
+}
+
+// FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered
+type FetchBlockMetadataResult struct {
+	Start    time.Time
+	Size     *int64
+	Checksum *uint32
+	Err      error
+}
+
+// FetchBlockMetadataResults captures a collection of FetchBlockMetadataResult
+type FetchBlockMetadataResults interface {
+	// Add adds a result to the slice
+	Add(res FetchBlockMetadataResult)
+
+	// Results returns the result slice
+	Results() []FetchBlockMetadataResult
+
+	// SortByTimeAscending sorts the results in time ascending order
+	Sort()
+
+	// Reset resets the results
+	Reset()
+
+	// Close performs cleanup
+	Close()
+}
+
+// FetchBlocksMetadataResult captures the fetch results for multiple blocks.
+type FetchBlocksMetadataResult struct {
+	ID     ts.ID
+	Blocks FetchBlockMetadataResults
+}
+
+// FetchBlocksMetadataResults captures a collection of FetchBlocksMetadataResult
+type FetchBlocksMetadataResults interface {
+	// Add adds a result to the slice
+	Add(res FetchBlocksMetadataResult)
+
+	// Results returns the result slice
+	Results() []FetchBlocksMetadataResult
+
+	// Reset resets the results
+	Reset()
+
+	// Close performs cleanup
+	Close()
 }
 
 // NewDatabaseBlockFn creates a new database block.
@@ -185,6 +200,24 @@ type DatabaseBlockPool interface {
 
 	// Put returns a database block to the pool.
 	Put(block DatabaseBlock)
+}
+
+// FetchBlockMetadataResultsPool provides a pool for fetchBlockMetadataResults
+type FetchBlockMetadataResultsPool interface {
+	// Get returns an FetchBlockMetadataResults
+	Get() FetchBlockMetadataResults
+
+	// Put puts an FetchBlockMetadataResults back to pool
+	Put(res FetchBlockMetadataResults)
+}
+
+// FetchBlocksMetadataResultsPool provides a pool for fetchBlocksMetadataResults
+type FetchBlocksMetadataResultsPool interface {
+	// Get returns an fetchBlocksMetadataResults
+	Get() FetchBlocksMetadataResults
+
+	// Put puts an fetchBlocksMetadataResults back to pool
+	Put(res FetchBlocksMetadataResults)
 }
 
 // Options represents the options for a database block

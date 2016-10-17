@@ -166,7 +166,9 @@ func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {
 	defer ctx.Close()
 
 	ns := newTestNamespace(t)
-	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], 100, 0, true, true)
+	start := time.Now()
+	end := start.Add(time.Hour)
+	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], start, end, 100, 0, true, true)
 	require.True(t, xerrors.IsInvalidParams(err))
 }
 
@@ -178,6 +180,8 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 	defer ctx.Close()
 
 	var (
+		start            = time.Now()
+		end              = start.Add(time.Hour)
 		limit            = int64(100)
 		pageToken        = int64(0)
 		includeSizes     = true
@@ -187,10 +191,10 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchBlocksMetadata(ctx, limit, pageToken, includeSizes, includeChecksums).Return(nil, &nextPageToken)
+	shard.EXPECT().FetchBlocksMetadata(ctx, start, end, limit, pageToken, includeSizes, includeChecksums).Return(nil, &nextPageToken)
 	ns.shards[testShardIDs[0]] = shard
 
-	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], limit, pageToken, includeSizes, includeChecksums)
+	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], start, end, limit, pageToken, includeSizes, includeChecksums)
 	require.Nil(t, res)
 	require.Equal(t, npt, &nextPageToken)
 	require.NoError(t, err)
@@ -328,6 +332,7 @@ func TestNamespaceRepair(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns := newTestNamespace(t)
+	repairTime := time.Now()
 	opts := repair.NewOptions().SetRepairThrottle(time.Duration(0))
 	repairer := NewMockdatabaseShardRepairer(ctrl)
 	repairer.EXPECT().Options().Return(opts).AnyTimes()
@@ -344,11 +349,11 @@ func TestNamespaceRepair(t *testing.T) {
 				ChecksumDifferences: repair.NewReplicaSeriesMetadata(),
 			}
 		}
-		shard.EXPECT().Repair(testNamespaceID, repairer).Return(res, errs[i])
+		shard.EXPECT().Repair(gomock.Any(), testNamespaceID, repairTime, repairer).Return(res, errs[i])
 		ns.shards[testShardIDs[i]] = shard
 	}
 
-	require.Equal(t, "foo", ns.Repair(repairer).Error())
+	require.Equal(t, "foo", ns.Repair(repairer, repairTime).Error())
 }
 
 func TestNamespaceShardAt(t *testing.T) {

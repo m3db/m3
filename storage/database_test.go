@@ -75,7 +75,7 @@ func (d *mockDatabase) FetchBlocks(context.Context, ts.ID, uint32, ts.ID, []time
 	return nil, nil
 }
 
-func (d *mockDatabase) FetchBlocksMetadata(context.Context, ts.ID, uint32, int64, int64, bool, bool) ([]block.FetchBlocksMetadataResult, *int64, error) {
+func (d *mockDatabase) FetchBlocksMetadata(context.Context, ts.ID, uint32, time.Time, time.Time, int64, int64, bool, bool) (block.FetchBlocksMetadataResults, *int64, error) {
 	return nil, nil, nil
 }
 
@@ -210,9 +210,18 @@ func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
+	var (
+		ns               = ts.StringID("testns1")
+		shardID          = uint32(0)
+		start            = time.Now()
+		end              = start.Add(time.Hour)
+		limit            = int64(100)
+		pageToken        = int64(0)
+		includeSizes     = true
+		includeChecksums = true
+	)
 	d := testDatabase(t, bootstrapped)
-	ns, shardID, limit, pageToken, includeSizes, includeChecksums := ts.StringID("testns1"), uint32(0), int64(100), int64(0), true, true
-	res, nextPageToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, limit, pageToken, includeSizes, includeChecksums)
+	res, nextPageToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, start, end, limit, pageToken, includeSizes, includeChecksums)
 	require.Nil(t, res)
 	require.Nil(t, nextPageToken)
 	require.Error(t, err)
@@ -225,15 +234,29 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
+	var (
+		ns               = ts.StringID("testns1")
+		shardID          = uint32(397)
+		start            = time.Now()
+		end              = start.Add(time.Hour)
+		limit            = int64(100)
+		pageToken        = int64(0)
+		includeSizes     = true
+		includeChecksums = true
+	)
+
 	d := testDatabase(t, bootstrapped)
-	ns, shardID, limit, pageToken, includeSizes, includeChecksums := ts.StringID("testns1"), uint32(397), int64(100), int64(0), true, true
-	expectedBlocks := []block.FetchBlocksMetadataResult{block.NewFetchBlocksMetadataResult(ts.StringID("bar"), nil)}
+	expectedBlocks := block.NewFetchBlocksMetadataResults()
+	expectedBlocks.Add(block.NewFetchBlocksMetadataResult(ts.StringID("bar"), nil))
 	expectedToken := new(int64)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().FetchBlocksMetadata(ctx, shardID, limit, pageToken, includeSizes, includeChecksums).Return(expectedBlocks, expectedToken, nil)
+	mockNamespace.
+		EXPECT().
+		FetchBlocksMetadata(ctx, shardID, start, end, limit, pageToken, includeSizes, includeChecksums).
+		Return(expectedBlocks, expectedToken, nil)
 	d.namespaces[ns.Hash()] = mockNamespace
 
-	res, nextToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, limit, pageToken, includeSizes, includeChecksums)
+	res, nextToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, start, end, limit, pageToken, includeSizes, includeChecksums)
 	require.Equal(t, expectedBlocks, res)
 	require.Equal(t, expectedToken, nextToken)
 	require.Nil(t, err)

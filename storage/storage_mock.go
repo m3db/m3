@@ -126,16 +126,16 @@ func (_mr *_MockDatabaseRecorder) FetchBlocks(arg0, arg1, arg2, arg3, arg4 inter
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockDatabase) FetchBlocksMetadata(ctx context.Context, namespace ts.ID, shard uint32, limit int64, pageToken int64, includeSizes bool, includeChecksums bool) ([]block.FetchBlocksMetadataResult, *int64, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, namespace, shard, limit, pageToken, includeSizes, includeChecksums)
-	ret0, _ := ret[0].([]block.FetchBlocksMetadataResult)
+func (_m *MockDatabase) FetchBlocksMetadata(ctx context.Context, namespace ts.ID, shard uint32, start time0.Time, end time0.Time, limit int64, pageToken int64, includeSizes bool, includeChecksums bool) (block.FetchBlocksMetadataResults, *int64, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, namespace, shard, start, end, limit, pageToken, includeSizes, includeChecksums)
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
 	ret1, _ := ret[1].(*int64)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-func (_mr *_MockDatabaseRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+func (_mr *_MockDatabaseRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
 }
 
 func (_m *MockDatabase) Bootstrap() error {
@@ -260,16 +260,16 @@ func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocks(arg0, arg1, arg2, arg3 in
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockdatabaseNamespace) FetchBlocksMetadata(ctx context.Context, shardID uint32, limit int64, pageToken int64, includeSizes bool, includeChecksums bool) ([]block.FetchBlocksMetadataResult, *int64, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, shardID, limit, pageToken, includeSizes, includeChecksums)
-	ret0, _ := ret[0].([]block.FetchBlocksMetadataResult)
+func (_m *MockdatabaseNamespace) FetchBlocksMetadata(ctx context.Context, shardID uint32, start time0.Time, end time0.Time, limit int64, pageToken int64, includeSizes bool, includeChecksums bool) (block.FetchBlocksMetadataResults, *int64, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, shardID, start, end, limit, pageToken, includeSizes, includeChecksums)
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
 	ret1, _ := ret[1].(*int64)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5)
+func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 }
 
 func (_m *MockdatabaseNamespace) Bootstrap(bs bootstrap.Bootstrap, targetRanges time.Ranges, writeStart time0.Time) error {
@@ -313,14 +313,14 @@ func (_mr *_MockdatabaseNamespaceRecorder) Truncate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate")
 }
 
-func (_m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer) error {
-	ret := _m.ctrl.Call(_m, "Repair", repairer)
+func (_m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, t time0.Time) error {
+	ret := _m.ctrl.Call(_m, "Repair", repairer, t)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseNamespaceRecorder) Repair(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0)
+func (_mr *_MockdatabaseNamespaceRecorder) Repair(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1)
 }
 
 // Mock of databaseShard interface
@@ -403,15 +403,15 @@ func (_mr *_MockdatabaseShardRecorder) FetchBlocks(arg0, arg1, arg2 interface{})
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2)
 }
 
-func (_m *MockdatabaseShard) FetchBlocksMetadata(ctx context.Context, limit int64, pageToken int64, includeSizes bool, includeChecksums bool) ([]block.FetchBlocksMetadataResult, *int64) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, limit, pageToken, includeSizes, includeChecksums)
-	ret0, _ := ret[0].([]block.FetchBlocksMetadataResult)
+func (_m *MockdatabaseShard) FetchBlocksMetadata(ctx context.Context, start time0.Time, end time0.Time, limit int64, pageToken int64, includeSizes bool, includeChecksums bool) (block.FetchBlocksMetadataResults, *int64) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, start, end, limit, pageToken, includeSizes, includeChecksums)
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
 	ret1, _ := ret[1].(*int64)
 	return ret0, ret1
 }
 
-func (_mr *_MockdatabaseShardRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4)
+func (_mr *_MockdatabaseShardRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocksWrapper, writeStart time0.Time) error {
@@ -444,15 +444,15 @@ func (_mr *_MockdatabaseShardRecorder) CleanupFileset(arg0, arg1 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0, arg1)
 }
 
-func (_m *MockdatabaseShard) Repair(namespace ts.ID, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
-	ret := _m.ctrl.Call(_m, "Repair", namespace, repairer)
+func (_m *MockdatabaseShard) Repair(ctx context.Context, namespace ts.ID, t time0.Time, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
+	ret := _m.ctrl.Call(_m, "Repair", ctx, namespace, t, repairer)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockdatabaseShardRecorder) Repair(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1)
+func (_mr *_MockdatabaseShardRecorder) Repair(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1, arg2, arg3)
 }
 
 // Mock of databaseBootstrapManager interface
@@ -779,15 +779,15 @@ func (_mr *_MockdatabaseShardRepairerRecorder) Options() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Options")
 }
 
-func (_m *MockdatabaseShardRepairer) Repair(namespace ts.ID, shard databaseShard) (repair.MetadataComparisonResult, error) {
-	ret := _m.ctrl.Call(_m, "Repair", namespace, shard)
+func (_m *MockdatabaseShardRepairer) Repair(ctx context.Context, namespace ts.ID, t time0.Time, shard databaseShard) (repair.MetadataComparisonResult, error) {
+	ret := _m.ctrl.Call(_m, "Repair", ctx, namespace, t, shard)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockdatabaseShardRepairerRecorder) Repair(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1)
+func (_mr *_MockdatabaseShardRepairerRecorder) Repair(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1, arg2, arg3)
 }
 
 // Mock of databaseRepairer interface
@@ -1287,3 +1287,46 @@ func (_m *MockOptions) IdentifierPool() ts.IdentifierPool {
 func (_mr *_MockOptionsRecorder) IdentifierPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IdentifierPool")
 }
+<<<<<<< c3a8e8832aa36cabb9d90d6ffbd4987e2b8bb43a
+=======
+
+func (_m *MockOptions) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBlockMetadataResultsPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetFetchBlockMetadataResultsPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBlockMetadataResultsPool", arg0)
+}
+
+func (_m *MockOptions) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool {
+	ret := _m.ctrl.Call(_m, "FetchBlockMetadataResultsPool")
+	ret0, _ := ret[0].(block.FetchBlockMetadataResultsPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) FetchBlockMetadataResultsPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlockMetadataResultsPool")
+}
+
+func (_m *MockOptions) SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetadataResultsPool) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBlocksMetadataResultsPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetFetchBlocksMetadataResultsPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBlocksMetadataResultsPool", arg0)
+}
+
+func (_m *MockOptions) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataResultsPool")
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResultsPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) FetchBlocksMetadataResultsPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataResultsPool")
+}
+>>>>>>> Make repair incremental, filter results by time when fetching blocks metadata, and add pooling for metadata results and host metadata to reduce CPU and network usage

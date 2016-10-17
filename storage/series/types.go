@@ -64,6 +64,7 @@ type DatabaseSeries interface {
 	// FetchBlocksMetadata returns the blocks metadata
 	FetchBlocksMetadata(
 		ctx context.Context,
+		start, end time.Time,
 		includeSizes bool,
 		includeChecksums bool,
 	) block.FetchBlocksMetadataResult
@@ -117,9 +118,10 @@ type databaseBuffer interface {
 
 	FetchBlocksMetadata(
 		ctx context.Context,
+		start, end time.Time,
 		includeSizes bool,
 		includeChecksums bool,
-	) []block.FetchBlockMetadataResult
+	) block.FetchBlockMetadataResults
 
 	IsEmpty() bool
 
@@ -177,4 +179,10 @@ type Options interface {
 
 	// MultiReaderIteratorPool returns the multiReaderIteratorPool
 	MultiReaderIteratorPool() encoding.MultiReaderIteratorPool
+
+	// SetFetchBlockMetadataResultsPool sets the fetchBlockMetadataResultsPool
+	SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options
+
+	// FetchBlockMetadataResultsPool returns the fetchBlockMetadataResultsPool
+	FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool
 }

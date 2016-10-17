@@ -449,6 +449,8 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
+	start := b.start.Add(-time.Second)
+	end := b.start.Add(time.Second)
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
 	buffer.buckets[0] = *b
 	var expectedSize int64
@@ -457,9 +459,8 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 		expectedSize += int64(len(segment.Head) + len(segment.Tail))
 	}
 
-	res := buffer.FetchBlocksMetadata(ctx, true, true)
+	res := buffer.FetchBlocksMetadata(ctx, start, end, true, true).Results()
 	require.Equal(t, 1, len(res))
-	require.Equal(t, b.start, res[0].Start())
-	require.Equal(t, expectedSize, *res[0].Size())
-	require.Nil(t, res[0].Checksum())
+	require.Equal(t, b.start, res[0].Start)
+	require.Equal(t, expectedSize, *res[0].Size)
 }

@@ -29,41 +29,82 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
+const (
+	defaultReplicaBlocksMetadataCapacity = 1
+	defaultReplicaSeriesMetadataCapacity = 4096
+)
+
+type hostBlockMetadataSlice struct {
+	metadata []HostBlockMetadata
+	pool     HostBlockMetadataSlicePool
+}
+
+func newHostBlockMetadataSlice() HostBlockMetadataSlice {
+	return &hostBlockMetadataSlice{}
+}
+
+func newPooledHostBlockMetadataSlice(metadata []HostBlockMetadata, pool HostBlockMetadataSlicePool) HostBlockMetadataSlice {
+	return &hostBlockMetadataSlice{metadata: metadata, pool: pool}
+}
+
+func (s *hostBlockMetadataSlice) Add(metadata HostBlockMetadata) {
+	s.metadata = append(s.metadata, metadata)
+}
+
+func (s *hostBlockMetadataSlice) Metadata() []HostBlockMetadata {
+	return s.metadata
+}
+
+func (s *hostBlockMetadataSlice) Reset() {
+	s.metadata = s.metadata[:0]
+}
+
+func (s *hostBlockMetadataSlice) Close() {
+	if s.pool != nil {
+		s.pool.Put(s)
+	}
+}
+
 type replicaBlockMetadata struct {
 	start    time.Time
-	metadata []HostBlockMetadata
+	metadata HostBlockMetadataSlice
 }
 
 // NewReplicaBlockMetadata creates a new replica block metadata
-func NewReplicaBlockMetadata(start time.Time) ReplicaBlockMetadata {
-	return &replicaBlockMetadata{start: start}
+func NewReplicaBlockMetadata(start time.Time, p HostBlockMetadataSlice) ReplicaBlockMetadata {
+	return replicaBlockMetadata{start: start, metadata: p}
 }
 
-func (m *replicaBlockMetadata) Start() time.Time              { return m.start }
-func (m *replicaBlockMetadata) Metadata() []HostBlockMetadata { return m.metadata }
-func (m *replicaBlockMetadata) Add(metadata HostBlockMetadata) {
-	m.metadata = append(m.metadata, metadata)
-}
+func (m replicaBlockMetadata) Start() time.Time               { return m.start }
+func (m replicaBlockMetadata) Metadata() []HostBlockMetadata  { return m.metadata.Metadata() }
+func (m replicaBlockMetadata) Add(metadata HostBlockMetadata) { m.metadata.Add(metadata) }
+func (m replicaBlockMetadata) Close()                         { m.metadata.Close() }
 
 type replicaBlocksMetadata map[time.Time]ReplicaBlockMetadata
 
 // NewReplicaBlocksMetadata creates a new replica blocks metadata
 func NewReplicaBlocksMetadata() ReplicaBlocksMetadata {
-	return make(replicaBlocksMetadata)
+	return make(replicaBlocksMetadata, defaultReplicaBlocksMetadataCapacity)
 }
 
 func (m replicaBlocksMetadata) NumBlocks() int64                           { return int64(len(m)) }
 func (m replicaBlocksMetadata) Blocks() map[time.Time]ReplicaBlockMetadata { return m }
 func (m replicaBlocksMetadata) Add(block ReplicaBlockMetadata)             { m[block.Start()] = block }
 
-func (m replicaBlocksMetadata) GetOrAdd(start time.Time) ReplicaBlockMetadata {
+func (m replicaBlocksMetadata) GetOrAdd(start time.Time, p HostBlockMetadataSlicePool) ReplicaBlockMetadata {
 	block, exists := m[start]
 	if exists {
 		return block
 	}
-	block = NewReplicaBlockMetadata(start)
+	block = NewReplicaBlockMetadata(start, p.Get())
 	m[start] = block
 	return block
+}
+
+func (m replicaBlocksMetadata) Close() {
+	for _, b := range m {
+		b.Close()
+	}
 }
 
 // NB(xichen): replicaSeriesMetadata is not thread-safe
@@ -71,7 +112,7 @@ type replicaSeriesMetadata map[ts.Hash]ReplicaBlocksMetadataWrapper
 
 // NewReplicaSeriesMetadata creates a new replica series metadata
 func NewReplicaSeriesMetadata() ReplicaSeriesMetadata {
-	return make(replicaSeriesMetadata)
+	return make(replicaSeriesMetadata, defaultReplicaSeriesMetadataCapacity)
 }
 
 func (m replicaSeriesMetadata) NumSeries() int64                                 { return int64(len(m)) }
@@ -98,16 +139,24 @@ func (m replicaSeriesMetadata) GetOrAdd(id ts.ID) ReplicaBlocksMetadata {
 	return blocks.Metadata
 }
 
+func (m replicaSeriesMetadata) Close() {
+	for _, series := range m {
+		series.Metadata.Close()
+	}
+}
+
 type replicaMetadataComparer struct {
-	replicas int
-	metadata ReplicaSeriesMetadata
+	replicas                   int
+	metadata                   ReplicaSeriesMetadata
+	hostBlockMetadataSlicePool HostBlockMetadataSlicePool
 }
 
 // NewReplicaMetadataComparer creates a new replica metadata comparer
-func NewReplicaMetadataComparer(replicas int) ReplicaMetadataComparer {
+func NewReplicaMetadataComparer(replicas int, opts Options) ReplicaMetadataComparer {
 	return replicaMetadataComparer{
-		replicas: replicas,
-		metadata: NewReplicaSeriesMetadata(),
+		replicas:                   replicas,
+		metadata:                   NewReplicaSeriesMetadata(),
+		hostBlockMetadataSlicePool: opts.HostBlockMetadataSlicePool(),
 	}
 }
 
@@ -115,10 +164,10 @@ func (m replicaMetadataComparer) AddLocalMetadata(origin topology.Host, localIte
 	for localIter.Next() {
 		id, block := localIter.Current()
 		blocks := m.metadata.GetOrAdd(id)
-		blocks.GetOrAdd(block.Start()).Add(HostBlockMetadata{
+		blocks.GetOrAdd(block.Start, m.hostBlockMetadataSlicePool).Add(HostBlockMetadata{
 			Host:     origin,
-			Size:     block.Size(),
-			Checksum: block.Checksum(),
+			Size:     block.Size,
+			Checksum: block.Checksum,
 		})
 	}
 }
@@ -126,12 +175,12 @@ func (m replicaMetadataComparer) AddLocalMetadata(origin topology.Host, localIte
 func (m replicaMetadataComparer) AddPeerMetadata(peerIter client.PeerBlocksMetadataIter) error {
 	for peerIter.Next() {
 		peer, peerBlocks := peerIter.Current()
-		blocks := m.metadata.GetOrAdd(peerBlocks.ID())
-		for _, pb := range peerBlocks.Blocks() {
-			blocks.GetOrAdd(pb.Start()).Add(HostBlockMetadata{
+		blocks := m.metadata.GetOrAdd(peerBlocks.ID)
+		for _, pb := range peerBlocks.Blocks {
+			blocks.GetOrAdd(pb.Start, m.hostBlockMetadataSlicePool).Add(HostBlockMetadata{
 				Host:     peer,
-				Size:     pb.Size(),
-				Checksum: pb.Checksum(),
+				Size:     pb.Size,
+				Checksum: pb.Checksum,
 			})
 		}
 	}
@@ -204,4 +253,8 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 		SizeDifferences:     sizeDiff,
 		ChecksumDifferences: checkSumDiff,
 	}
+}
+
+func (m replicaMetadataComparer) OnClose() {
+	m.metadata.Close()
 }
