@@ -43,10 +43,4 @@ type Options interface {
 
 	// AdminClient returns the admin client
 	AdminClient() client.AdminClient
-
-	// SetSleepFn sets the sleep fn
-	SetSleepFn(value SleepFn) Options
-
-	// SleepFn returns the sleep fn
-	SleepFn() SleepFn
 }

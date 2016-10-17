@@ -44,6 +44,13 @@ type series struct {
 
 type seriesList []series
 
+type readableSeries struct {
+	ID   string
+	Data []ts.Datapoint
+}
+
+type readableSeriesList []readableSeries
+
 func (l seriesList) Len() int      { return len(l) }
 func (l seriesList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l seriesList) Less(i, j int) bool {
@@ -133,14 +140,19 @@ func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time,
 	w, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 	require.NoError(t, err)
 
+	list := make(readableSeriesList, 0, len(series))
+	for i := range series {
+		list = append(list, readableSeries{ID: series[i].ID.String(), Data: series[i].Data})
+	}
+
 	data, err := json.MarshalIndent(struct {
 		Start  time.Time
 		End    time.Time
-		Series seriesList
+		Series readableSeriesList
 	}{
 		Start:  start,
 		End:    end,
-		Series: series,
+		Series: list,
 	}, "", "    ")
 	require.NoError(t, err)
 

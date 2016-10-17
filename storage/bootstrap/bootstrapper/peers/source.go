@@ -32,18 +32,16 @@ import (
 )
 
 type peersSource struct {
-	opts    Options
-	log     xlog.Logger
-	nowFn   clock.NowFn
-	sleepFn func(t time.Duration)
+	opts  Options
+	log   xlog.Logger
+	nowFn clock.NowFn
 }
 
 func newPeersSource(opts Options) bootstrap.Source {
 	return &peersSource{
-		opts:    opts,
-		log:     opts.BootstrapOptions().InstrumentOptions().Logger(),
-		nowFn:   opts.BootstrapOptions().ClockOptions().NowFn(),
-		sleepFn: opts.SleepFn(),
+		opts:  opts,
+		log:   opts.BootstrapOptions().InstrumentOptions().Logger(),
+		nowFn: opts.BootstrapOptions().ClockOptions().NowFn(),
 	}
 }
 

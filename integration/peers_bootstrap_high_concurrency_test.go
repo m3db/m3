@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/log"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +45,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
 		SetNamespaces([]namespace.Metadata{namesp})
-	testSleepFn, setSleepFn := newTestSleepFn()
+
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -62,7 +61,6 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 			disablePeersBootstrapper:   false,
 			bootstrapBlocksBatchSize:   batchSize,
 			bootstrapBlocksConcurrency: concurrency,
-			sleepFn:                    testSleepFn,
 		},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
@@ -90,13 +88,6 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	require.NoError(t, setups[0].startServer())
 
 	// Start the last server with peers and filesystem bootstrappers
-	setSleepFn(func(d time.Duration) {
-		mustWaitFor := retentionOpts.BufferFuture()
-		// Assert that we want to sleep buffer future
-		assert.Equal(t, mustWaitFor, d)
-		// When the peer bootstrapper sleeps we want to progress time
-		setups[1].setNowFn(now.Add(mustWaitFor))
-	})
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
 

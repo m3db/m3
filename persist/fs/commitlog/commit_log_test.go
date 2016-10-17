@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
@@ -49,49 +50,12 @@ type overrides struct {
 	backlogQueueSize *int
 }
 
-// testStatsReporter should probably be moved to the tally project for better testing
-type testStatsReporter struct {
-	m        sync.Mutex
-	counters map[string]int64
-	gauges   map[string]int64
-	timers   map[string]time.Duration
-}
-
-func (r *testStatsReporter) Flush() {}
-
-func (r *testStatsReporter) ReportCounter(name string, tags map[string]string, value int64) {
-	r.m.Lock()
-	r.counters[name] += value
-	r.m.Unlock()
-}
-
-func (r *testStatsReporter) ReportGauge(name string, tags map[string]string, value int64) {
-	r.m.Lock()
-	r.gauges[name] = value
-	r.m.Unlock()
-}
-
-func (r *testStatsReporter) ReportTimer(name string, tags map[string]string, interval time.Duration) {
-	r.m.Lock()
-	r.timers[name] = interval
-	r.m.Unlock()
-}
-
-// newTestStatsReporter returns a new TestStatsReporter
-func newTestStatsReporter() *testStatsReporter {
-	return &testStatsReporter{
-		counters: make(map[string]int64),
-		gauges:   make(map[string]int64),
-		timers:   make(map[string]time.Duration),
-	}
-}
-
 func newTestOptions(
 	t *testing.T,
 	overrides overrides,
 ) (
 	Options,
-	*testStatsReporter,
+	xmetrics.TestStatsReporter,
 ) {
 	dir, err := ioutil.TempDir("", "foo")
 	assert.NoError(t, err)
@@ -103,7 +67,7 @@ func newTestOptions(
 		c = mclock.New()
 	}
 
-	stats := newTestStatsReporter()
+	stats := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 
 	opts := NewOptions().
 		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
@@ -238,17 +202,16 @@ func writeCommitLogs(
 	ctx context.Context,
 	t *testing.T,
 	scope tally.Scope,
-	stats *testStatsReporter,
+	stats xmetrics.TestStatsReporter,
 	writeFn writeCommitLogFn,
 	writes []testWrite,
 ) *sync.WaitGroup {
 	wg := sync.WaitGroup{}
 	getAllWrites := func() int {
 		scope.Report(stats)
-		stats.m.Lock()
-		result := stats.counters["commitlog.writes.success"] +
-			stats.counters["commitlog.writes.errors"]
-		stats.m.Unlock()
+		counters := stats.Counters()
+		result := counters["commitlog.writes.success"] +
+			counters["commitlog.writes.errors"]
 		return int(result)
 	}
 
@@ -566,9 +529,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 
 	// Check stats
 	scope.Report(stats)
-	stats.m.Lock()
-	assert.Equal(t, int64(1), stats.counters["commitlog.writes.errors"])
-	stats.m.Unlock()
+	assert.Equal(t, int64(1), stats.Counters()["commitlog.writes.errors"])
 }
 
 func TestCommitLogFailOnOpenError(t *testing.T) {
@@ -623,10 +584,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 
 	// Check stats
 	scope.Report(stats)
-	stats.m.Lock()
-	assert.Equal(t, int64(1), stats.counters["commitlog.writes.errors"])
-	assert.Equal(t, int64(1), stats.counters["commitlog.writes.open-errors"])
-	stats.m.Unlock()
+	counters := stats.Counters()
+	assert.Equal(t, int64(1), counters["commitlog.writes.errors"])
+	assert.Equal(t, int64(1), counters["commitlog.writes.open-errors"])
 }
 
 func TestCommitLogFailOnFlushError(t *testing.T) {
@@ -671,8 +631,7 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 
 	// Check stats
 	scope.Report(stats)
-	stats.m.Lock()
-	assert.Equal(t, int64(1), stats.counters["commitlog.writes.errors"])
-	assert.Equal(t, int64(1), stats.counters["commitlog.writes.flush-errors"])
-	stats.m.Unlock()
+	counters := stats.Counters()
+	assert.Equal(t, int64(1), counters["commitlog.writes.errors"])
+	assert.Equal(t, int64(1), counters["commitlog.writes.flush-errors"])
 }

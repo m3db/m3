@@ -39,8 +39,10 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/stretchr/testify/require"
 )
@@ -152,7 +154,7 @@ type bootstrappableTestSetupOptions struct {
 	disablePeersBootstrapper   bool
 	bootstrapBlocksBatchSize   int
 	bootstrapBlocksConcurrency int
-	sleepFn                    peers.SleepFn
+	testStatsReporter          xmetrics.TestStatsReporter
 }
 
 type closeFn func()
@@ -180,7 +182,7 @@ func newDefaultBootstrappableTestSetups(
 			usingPeersBoostrapper      = !setupOpts[i].disablePeersBootstrapper
 			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
 			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
-			sleepFn                    = setupOpts[i].sleepFn
+			testStatsReporter          = setupOpts[i].testStatsReporter
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
 			setup                      *testSetup
 		)
@@ -211,9 +213,7 @@ func newDefaultBootstrappableTestSetups(
 			peersOpts := peers.NewOptions().
 				SetBootstrapOptions(bsOpts).
 				SetAdminClient(adminClient)
-			if sleepFn != nil {
-				peersOpts = peersOpts.SetSleepFn(sleepFn)
-			}
+
 			peersBootstrapper := peers.NewPeersBootstrapper(peersOpts, noOpAll)
 
 			fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
@@ -235,6 +235,10 @@ func newDefaultBootstrappableTestSetups(
 		logger := setup.storageOpts.InstrumentOptions().Logger()
 		logger = logger.WithFields(xlog.NewLogField("instance", instance))
 		iopts := setup.storageOpts.InstrumentOptions().SetLogger(logger)
+		if testStatsReporter != nil {
+			scope := tally.NewRootScope("", nil, testStatsReporter, 100*time.Millisecond)
+			iopts = iopts.SetMetricsScope(scope)
+		}
 		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(iopts)
 
 		setups = append(setups, setup)

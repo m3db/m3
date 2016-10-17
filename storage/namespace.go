@@ -58,16 +58,20 @@ type dbNamespace struct {
 }
 
 type databaseNamespaceMetrics struct {
-	bootstrap   instrument.MethodMetrics
-	flush       instrument.MethodMetrics
-	unfulfilled tally.Counter
+	bootstrap      instrument.MethodMetrics
+	flush          instrument.MethodMetrics
+	unfulfilled    tally.Counter
+	bootstrapStart tally.Counter
+	bootstrapEnd   tally.Counter
 }
 
 func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
 	return databaseNamespaceMetrics{
-		bootstrap:   instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
-		flush:       instrument.NewMethodMetrics(scope, "flush", samplingRate),
-		unfulfilled: scope.Counter("bootstrap.unfulfilled"),
+		bootstrap:      instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
+		flush:          instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		unfulfilled:    scope.Counter("bootstrap.unfulfilled"),
+		bootstrapStart: scope.Counter("bootstrap.start"),
+		bootstrapEnd:   scope.Counter("bootstrap.end"),
 	}
 }
 
@@ -86,7 +90,10 @@ func newDatabaseNamespace(
 	}
 
 	iops := sopts.InstrumentOptions()
-	scope := iops.MetricsScope().SubScope("database").Tagged(map[string]string{"namespace": id.String()})
+	scope := iops.MetricsScope().SubScope("database").
+		Tagged(map[string]string{
+			"namespace": id.String(),
+		})
 
 	n := &dbNamespace{
 		id:               id,
@@ -209,10 +216,13 @@ func (n *dbNamespace) Bootstrap(
 	n.bs = bootstrapping
 	n.Unlock()
 
+	n.metrics.bootstrapStart.Inc(1)
+
 	defer func() {
 		n.Lock()
 		n.bs = bootstrapped
 		n.Unlock()
+		n.metrics.bootstrapEnd.Inc(1)
 	}()
 
 	if !n.nopts.NeedsBootstrap() {

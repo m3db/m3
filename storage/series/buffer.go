@@ -328,7 +328,7 @@ func (b *dbBufferBucket) resetTo(start time.Time) {
 
 	b.start = start
 	b.encoders = append(b.encoders[:0], first)
-	b.bootstrapped = b.bootstrapped[:0]
+	b.bootstrapped = nil
 	b.empty = true
 	b.drained = false
 }
@@ -378,21 +378,16 @@ func (b *dbBufferBucket) readStreams(
 	now, current time.Time,
 	streamFn dbBufferBucketStreamFn,
 ) {
-	for i := range b.encoders {
-		stream := b.encoders[i].encoder.Stream()
-		if stream == nil {
-			continue
-		}
-
-		ctx.RegisterCloser(context.CloserFn(stream.Close))
-
-		streamFn(stream)
-	}
 	for i := range b.bootstrapped {
-		stream, err := b.bootstrapped[i].Stream(ctx)
-		if err == nil && stream != nil {
+		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s != nil {
 			// NB(r): block stream method will register the stream closer already
-			streamFn(stream)
+			streamFn(s)
+		}
+	}
+	for i := range b.encoders {
+		if s := b.encoders[i].encoder.Stream(); s != nil {
+			ctx.RegisterCloser(context.CloserFn(s.Close))
+			streamFn(s)
 		}
 	}
 }
@@ -411,9 +406,9 @@ func (b *dbBufferBucket) merge() {
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
-	readers := make([]io.Reader, len(b.encoders)+len(b.bootstrapped))
+	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
 	for i := range b.encoders {
-		readers[i] = b.encoders[i].encoder.Stream()
+		readers = append(readers, b.encoders[i].encoder.Stream())
 	}
 
 	var ctx context.Context
@@ -445,6 +440,7 @@ func (b *dbBufferBucket) merge() {
 		lastWriteAt: lastWriteAt,
 		encoder:     encoder,
 	})
+	b.bootstrapped = nil
 
 	if ctx != nil {
 		ctx.Close()

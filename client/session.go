@@ -813,7 +813,16 @@ func (s *session) consistencyResult(
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
 	reportErr := func() error {
-		return xerrors.NewRenamedError(errors[0], fmt.Errorf(
+		// NB(r): if any errors are bad request errors, encapsulate that error
+		// to ensure the error itself is wholly classified as a bad request error.
+		topLevelErr := errors[0]
+		for i := 1; i < len(errors); i++ {
+			if IsBadRequestError(errors[i]) {
+				topLevelErr = errors[i]
+				break
+			}
+		}
+		return xerrors.NewRenamedError(topLevelErr, fmt.Errorf(
 			"failed to meet %s with %d/%d success, %d nodes responded, errors: %v",
 			s.level.String(), success, enqueued, responded, errors))
 	}
