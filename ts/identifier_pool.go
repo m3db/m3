@@ -50,3 +50,11 @@ func (p *identifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
 func (p *identifierPool) GetStringID(ctx context.Context, v string) ID {
 	return p.GetBinaryID(ctx, []byte(v))
 }
+
+// Clone replicates given ID into a new ID from the pool
+func (p *identifierPool) Clone(other ID) ID {
+	id := p.pool.Get().(*id)
+	id.data = other.Data()
+
+	return id
+}

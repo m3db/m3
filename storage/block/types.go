@@ -135,6 +135,12 @@ type DatabaseSeriesBlocks interface {
 	// Len returns the number of blocks contained in the collection.
 	Len() int
 
+	// IsSealed returns whether all the blocks are sealed
+	IsSealed() bool
+
+	// Seal seals all the blocks
+	Seal()
+
 	// AddBlock adds a data block.
 	AddBlock(block DatabaseBlock)
 

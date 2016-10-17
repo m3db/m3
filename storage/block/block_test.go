@@ -95,7 +95,7 @@ func TestDatabaseBlockWriteToSealedBlock(t *testing.T) {
 	defer ctrl.Finish()
 
 	block, _ := testDatabaseBlock(ctrl)
-	block.writable = false
+	block.sealed = true
 	err := block.Write(time.Now(), 1.0, xtime.Second, nil)
 	require.Equal(t, errWriteToSealedBlock, err)
 }
@@ -122,7 +122,7 @@ func TestDatabaseBlockReadFromSealedBlock(t *testing.T) {
 	defer ctx.Close()
 
 	block, _ := testDatabaseBlock(ctrl)
-	block.writable = false
+	block.sealed = true
 	segment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
 	block.segment = segment
 	r, err := block.Stream(ctx)
@@ -135,7 +135,7 @@ func TestDatabaseBlockChecksumUnsealed(t *testing.T) {
 	defer ctrl.Finish()
 
 	block, _ := testDatabaseBlock(ctrl)
-	block.writable = true
+	block.sealed = false
 	segment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
 	block.segment = segment
 
@@ -147,7 +147,7 @@ func TestDatabaseBlockChecksumSealed(t *testing.T) {
 	defer ctrl.Finish()
 
 	block, _ := testDatabaseBlock(ctrl)
-	block.writable = false
+	block.sealed = true
 	block.checksum = uint32(10)
 
 	require.Equal(t, block.checksum, *block.Checksum())
@@ -203,7 +203,7 @@ func TestDatabaseBlockResetNormalWithDependentContext(t *testing.T) {
 }
 
 func TestDatabaseBlockResetSealedWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.writable = false; block.Reset(time.Now(), nil) }
+	f := func(block *dbBlock) { block.sealed = true; block.Reset(time.Now(), nil) }
 	ef := func(encoder *encoding.MockEncoder) {}
 	af := func(t *testing.T, block *dbBlock) { require.False(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, ef, af)
@@ -217,10 +217,21 @@ func TestDatabaseBlockCloseNormalWithDependentContext(t *testing.T) {
 }
 
 func TestDatabaseBlockCloseSealedWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.writable = false; block.Close() }
+	f := func(block *dbBlock) { block.sealed = true; block.Close() }
 	ef := func(encoder *encoding.MockEncoder) {}
 	af := func(t *testing.T, block *dbBlock) { require.True(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, ef, af)
+}
+
+func TestDatabaseSeriesBlocksSeal(t *testing.T) {
+	blocks := testDatabaseSeriesBlocksWithTimes(nil)
+	require.True(t, blocks.IsSealed())
+
+	blocks.sealed = false
+	require.False(t, blocks.IsSealed())
+
+	blocks.Seal()
+	require.True(t, blocks.IsSealed())
 }
 
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
@@ -228,6 +239,7 @@ func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
 	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)}
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
 	validateBlocks(t, blocks, blockTimes[4], blockTimes[2], blockTimes)
+	require.False(t, blocks.IsSealed())
 }
 
 func TestDatabaseSeriesBlocksAddSeries(t *testing.T) {
@@ -292,4 +304,14 @@ func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
 		blocks.RemoveBlockAt(bt)
 		validateBlocks(t, blocks, expected[i].min, expected[i].max, expected[i].allTimes)
 	}
+}
+
+func TestDatabaseSeriesBlocksRemoveAll(t *testing.T) {
+	now := time.Now()
+	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	require.False(t, blocks.IsSealed())
+
+	blocks.RemoveAll()
+	require.True(t, blocks.IsSealed())
 }

@@ -350,3 +350,19 @@ func TestNamespaceRepair(t *testing.T) {
 
 	require.Equal(t, "foo", ns.Repair(repairer).Error())
 }
+
+func TestNamespaceShardAt(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ns := newTestNamespace(t)
+	ns.shards[0] = NewMockdatabaseShard(ctrl)
+	ns.shards[1] = NewMockdatabaseShard(ctrl)
+
+	_, err := ns.shardAt(0)
+	require.NoError(t, err)
+	_, err = ns.shardAt(1)
+	require.NoError(t, err)
+	_, err = ns.shardAt(2)
+	require.Error(t, err)
+}
