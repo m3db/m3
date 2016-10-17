@@ -54,7 +54,7 @@ func testBaseBootstrapper(t *testing.T, ctrl *gomock.Controller) (*bootstrap.Moc
 	source := bootstrap.NewMockSource(ctrl)
 	opts := bootstrap.NewOptions()
 	next := bootstrap.NewMockBootstrapper(ctrl)
-	return source, next, NewBaseBootstrapper(source, opts, next).(*baseBootstrapper)
+	return source, next, NewBaseBootstrapper("mock", source, opts, next).(*baseBootstrapper)
 }
 
 func testTargetRanges() xtime.Ranges {
