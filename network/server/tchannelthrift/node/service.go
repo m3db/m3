@@ -283,24 +283,8 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	return res, nil
 }
 
-type closeableMetadataResult struct {
-	s      *service
-	result *rpc.FetchBlocksMetadataRawResult_
-}
-
 func (s *service) newCloseableMetadataResult(res *rpc.FetchBlocksMetadataRawResult_) closeableMetadataResult {
 	return closeableMetadataResult{s: s, result: res}
-}
-
-func (c closeableMetadataResult) OnClose() {
-	for _, blocksMetadata := range c.result.Elements {
-		for _, blockMetadata := range blocksMetadata.Blocks {
-			c.s.blockMetadataPool.Put(blockMetadata)
-		}
-		c.s.blockMetadataSlicePool.Put(blocksMetadata.Blocks)
-		c.s.blocksMetadataPool.Put(blocksMetadata)
-	}
-	c.s.blocksMetadataSlicePool.Put(c.result.Elements)
 }
 
 func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
@@ -488,4 +472,20 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rp
 	s.metrics.truncate.ReportSuccess(s.nowFn().Sub(callStart))
 
 	return res, nil
+}
+
+type closeableMetadataResult struct {
+	s      *service
+	result *rpc.FetchBlocksMetadataRawResult_
+}
+
+func (c closeableMetadataResult) OnClose() {
+	for _, blocksMetadata := range c.result.Elements {
+		for _, blockMetadata := range blocksMetadata.Blocks {
+			c.s.blockMetadataPool.Put(blockMetadata)
+		}
+		c.s.blockMetadataSlicePool.Put(blocksMetadata.Blocks)
+		c.s.blocksMetadataPool.Put(blocksMetadata)
+	}
+	c.s.blocksMetadataSlicePool.Put(c.result.Elements)
 }

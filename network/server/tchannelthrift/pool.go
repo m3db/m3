@@ -109,6 +109,10 @@ func (p *blockMetadataSlicePool) Get() []*rpc.BlockMetadata {
 }
 
 func (p *blockMetadataSlicePool) Put(res []*rpc.BlockMetadata) {
+	if res == nil || cap(res) > p.capacity {
+		// Don't return nil or large slices back to pool
+		return
+	}
 	res = res[:0]
 	p.pool.Put(res)
 }
@@ -156,6 +160,10 @@ func (p *blocksMetadataSlicePool) Get() []*rpc.BlocksMetadata {
 }
 
 func (p *blocksMetadataSlicePool) Put(res []*rpc.BlocksMetadata) {
+	if res == nil || cap(res) > p.capacity {
+		// Don't return nil or large slices back to pool
+		return
+	}
 	res = res[:0]
 	p.pool.Put(res)
 }
