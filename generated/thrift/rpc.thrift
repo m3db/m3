@@ -137,10 +137,12 @@ struct Block {
 struct FetchBlocksMetadataRawRequest {
 	1: required binary nameSpace
 	2: required i32 shard
-	3: required i64 limit
-	4: optional i64 pageToken
-	5: optional bool includeSizes
-	6: optional bool includeChecksums
+	3: required i64 rangeStart
+	4: required i64 rangeEnd
+	5: required i64 limit
+	6: optional i64 pageToken
+	7: optional bool includeSizes
+	8: optional bool includeChecksums
 }
 
 struct FetchBlocksMetadataRawResult {

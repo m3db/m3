@@ -83,26 +83,28 @@ func NewSeriesOptionsFromOptions(opts Options) series.Options {
 }
 
 type options struct {
-	clockOpts               clock.Options
-	instrumentOpts          instrument.Options
-	retentionOpts           retention.Options
-	blockOpts               block.Options
-	commitLogOpts           commitlog.Options
-	repairOpts              repair.Options
-	fileOpOpts              FileOpOptions
-	newEncoderFn            encoding.NewEncoderFn
-	newDecoderFn            encoding.NewDecoderFn
-	newBootstrapFn          NewBootstrapFn
-	newPersistManagerFn     NewPersistManagerFn
-	maxFlushRetries         int
-	contextPool             context.Pool
-	seriesPool              series.DatabaseSeriesPool
-	bytesPool               pool.BytesPool
-	encoderPool             encoding.EncoderPool
-	segmentReaderPool       xio.SegmentReaderPool
-	readerIteratorPool      encoding.ReaderIteratorPool
-	multiReaderIteratorPool encoding.MultiReaderIteratorPool
-	identifierPool          ts.IdentifierPool
+	clockOpts                      clock.Options
+	instrumentOpts                 instrument.Options
+	retentionOpts                  retention.Options
+	blockOpts                      block.Options
+	commitLogOpts                  commitlog.Options
+	repairOpts                     repair.Options
+	fileOpOpts                     FileOpOptions
+	newEncoderFn                   encoding.NewEncoderFn
+	newDecoderFn                   encoding.NewDecoderFn
+	newBootstrapFn                 NewBootstrapFn
+	newPersistManagerFn            NewPersistManagerFn
+	maxFlushRetries                int
+	contextPool                    context.Pool
+	seriesPool                     series.DatabaseSeriesPool
+	bytesPool                      pool.BytesPool
+	encoderPool                    encoding.EncoderPool
+	segmentReaderPool              xio.SegmentReaderPool
+	readerIteratorPool             encoding.ReaderIteratorPool
+	multiReaderIteratorPool        encoding.MultiReaderIteratorPool
+	identifierPool                 ts.IdentifierPool
+	fetchBlockMetadataResultsPool  block.FetchBlockMetadataResultsPool
+	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -110,24 +112,26 @@ type options struct {
 // less than blocksize and check when opening database
 func NewOptions() Options {
 	o := &options{
-		clockOpts:               clock.NewOptions(),
-		instrumentOpts:          instrument.NewOptions(),
-		retentionOpts:           retention.NewOptions(),
-		blockOpts:               block.NewOptions(),
-		commitLogOpts:           commitlog.NewOptions(),
-		repairOpts:              repair.NewOptions(),
-		fileOpOpts:              NewFileOpOptions(),
-		newBootstrapFn:          defaultNewBootstrapFn,
-		newPersistManagerFn:     defaultNewPersistManagerFn,
-		maxFlushRetries:         defaultMaxFlushRetries,
-		contextPool:             context.NewPool(nil, nil),
-		seriesPool:              series.NewDatabaseSeriesPool(series.NewOptions(), nil),
-		bytesPool:               pool.NewBytesPool(nil, nil),
-		encoderPool:             encoding.NewEncoderPool(nil),
-		segmentReaderPool:       xio.NewSegmentReaderPool(nil),
-		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
-		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
-		identifierPool:          ts.NewIdentifierPool(nil),
+		clockOpts:                      clock.NewOptions(),
+		instrumentOpts:                 instrument.NewOptions(),
+		retentionOpts:                  retention.NewOptions(),
+		blockOpts:                      block.NewOptions(),
+		commitLogOpts:                  commitlog.NewOptions(),
+		repairOpts:                     repair.NewOptions(),
+		fileOpOpts:                     NewFileOpOptions(),
+		newBootstrapFn:                 defaultNewBootstrapFn,
+		newPersistManagerFn:            defaultNewPersistManagerFn,
+		maxFlushRetries:                defaultMaxFlushRetries,
+		contextPool:                    context.NewPool(nil, nil),
+		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
+		bytesPool:                      pool.NewBytesPool(nil, nil),
+		encoderPool:                    encoding.NewEncoderPool(nil),
+		segmentReaderPool:              xio.NewSegmentReaderPool(nil),
+		readerIteratorPool:             encoding.NewReaderIteratorPool(nil),
+		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(nil),
+		identifierPool:                 ts.NewIdentifierPool(nil),
+		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(nil, 0),
+		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(nil, 0),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -424,4 +428,24 @@ func (o *options) SetIdentifierPool(value ts.IdentifierPool) Options {
 
 func (o *options) IdentifierPool() ts.IdentifierPool {
 	return o.identifierPool
+}
+
+func (o *options) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options {
+	opts := *o
+	opts.fetchBlockMetadataResultsPool = value
+	return &opts
+}
+
+func (o *options) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool {
+	return o.fetchBlockMetadataResultsPool
+}
+
+func (o *options) SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetadataResultsPool) Options {
+	opts := *o
+	opts.fetchBlocksMetadataResultsPool = value
+	return &opts
+}
+
+func (o *options) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool {
+	return o.fetchBlocksMetadataResultsPool
 }

@@ -44,14 +44,18 @@ func TestSortFetchBlockResultByTimeAscending(t *testing.T) {
 
 func TestSortFetchBlockMetadataResultByTimeAscending(t *testing.T) {
 	now := time.Now()
-	input := []FetchBlockMetadataResult{
+	inputs := []FetchBlockMetadataResult{
 		NewFetchBlockMetadataResult(now, nil, nil, nil),
 		NewFetchBlockMetadataResult(now.Add(time.Second), nil, nil, nil),
 		NewFetchBlockMetadataResult(now.Add(-time.Second), nil, nil, nil),
 	}
-	expected := []FetchBlockMetadataResult{input[2], input[0], input[1]}
-	SortFetchBlockMetadataResultByTimeAscending(input)
-	require.Equal(t, expected, input)
+	expected := []FetchBlockMetadataResult{inputs[2], inputs[0], inputs[1]}
+	res := newPooledFetchBlockMetadataResults(nil, nil)
+	for _, input := range inputs {
+		res.Add(input)
+	}
+	res.Sort()
+	require.Equal(t, expected, res.Results())
 }
 
 type testValue struct {
@@ -61,24 +65,25 @@ type testValue struct {
 
 func TestFilteredBlocksMetadataIter(t *testing.T) {
 	now := time.Now()
-	start := now.Add(-time.Hour)
-	end := now.Add(time.Hour)
-	blockSize := 2 * time.Hour
-	sizes := []int64{1, 2, 3, 4, 5}
-	checksums := []uint32{6, 7, 8, 9, 10}
-	res := []FetchBlocksMetadataResult{
-		NewFetchBlocksMetadataResult(ts.StringID("foo"), []FetchBlockMetadataResult{
-			NewFetchBlockMetadataResult(now.Add(-time.Second), &sizes[0], &checksums[0], nil),
-			NewFetchBlockMetadataResult(now.Add(-4*time.Hour), &sizes[1], &checksums[1], nil),
-			NewFetchBlockMetadataResult(now.Add(4*time.Hour), &sizes[2], &checksums[2], nil),
-		}),
-		NewFetchBlocksMetadataResult(ts.StringID("bar"), []FetchBlockMetadataResult{
-			NewFetchBlockMetadataResult(now, &sizes[3], &checksums[3], nil),
-			NewFetchBlockMetadataResult(now.Add(time.Second), &sizes[4], &checksums[4], errors.New("foo")),
-			NewFetchBlockMetadataResult(now.Add(2*time.Second), nil, nil, nil),
-		}),
+	sizes := []int64{1, 2, 3}
+	checksums := []uint32{6, 7, 8}
+	inputs := []FetchBlocksMetadataResult{
+		NewFetchBlocksMetadataResult(ts.StringID("foo"), newPooledFetchBlockMetadataResults(
+			[]FetchBlockMetadataResult{
+				NewFetchBlockMetadataResult(now.Add(-time.Second), &sizes[0], &checksums[0], nil),
+			}, nil)),
+		NewFetchBlocksMetadataResult(ts.StringID("bar"), newPooledFetchBlockMetadataResults(
+			[]FetchBlockMetadataResult{
+				NewFetchBlockMetadataResult(now, &sizes[1], &checksums[1], nil),
+				NewFetchBlockMetadataResult(now.Add(time.Second), &sizes[2], &checksums[2], errors.New("foo")),
+				NewFetchBlockMetadataResult(now.Add(2*time.Second), nil, nil, nil),
+			}, nil)),
 	}
-	iter := NewFilteredBlocksMetadataIter(start, end, blockSize, res)
+	res := newPooledFetchBlocksMetadataResults(nil, nil)
+	for _, input := range inputs {
+		res.Add(input)
+	}
+	iter := NewFilteredBlocksMetadataIter(res)
 	var actual []testValue
 	for iter.Next() {
 		id, metadata := iter.Current()
@@ -86,7 +91,7 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 	}
 	expected := []testValue{
 		{"foo", NewMetadata(now.Add(-time.Second), sizes[0], &checksums[0])},
-		{"bar", NewMetadata(now, sizes[3], &checksums[3])},
+		{"bar", NewMetadata(now, sizes[1], &checksums[1])},
 		{"bar", NewMetadata(now.Add(2*time.Second), int64(0), nil)},
 	}
 	require.Equal(t, expected, actual)

@@ -34,200 +34,6 @@ import (
 	time "time"
 )
 
-// Mock of Metadata interface
-type MockMetadata struct {
-	ctrl     *gomock.Controller
-	recorder *_MockMetadataRecorder
-}
-
-// Recorder for MockMetadata (not exported)
-type _MockMetadataRecorder struct {
-	mock *MockMetadata
-}
-
-func NewMockMetadata(ctrl *gomock.Controller) *MockMetadata {
-	mock := &MockMetadata{ctrl: ctrl}
-	mock.recorder = &_MockMetadataRecorder{mock}
-	return mock
-}
-
-func (_m *MockMetadata) EXPECT() *_MockMetadataRecorder {
-	return _m.recorder
-}
-
-func (_m *MockMetadata) Start() time.Time {
-	ret := _m.ctrl.Call(_m, "Start")
-	ret0, _ := ret[0].(time.Time)
-	return ret0
-}
-
-func (_mr *_MockMetadataRecorder) Start() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
-}
-
-func (_m *MockMetadata) Size() int64 {
-	ret := _m.ctrl.Call(_m, "Size")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-func (_mr *_MockMetadataRecorder) Size() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Size")
-}
-
-func (_m *MockMetadata) Checksum() *uint32 {
-	ret := _m.ctrl.Call(_m, "Checksum")
-	ret0, _ := ret[0].(*uint32)
-	return ret0
-}
-
-func (_mr *_MockMetadataRecorder) Checksum() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
-}
-
-// Mock of BlocksMetadata interface
-type MockBlocksMetadata struct {
-	ctrl     *gomock.Controller
-	recorder *_MockBlocksMetadataRecorder
-}
-
-// Recorder for MockBlocksMetadata (not exported)
-type _MockBlocksMetadataRecorder struct {
-	mock *MockBlocksMetadata
-}
-
-func NewMockBlocksMetadata(ctrl *gomock.Controller) *MockBlocksMetadata {
-	mock := &MockBlocksMetadata{ctrl: ctrl}
-	mock.recorder = &_MockBlocksMetadataRecorder{mock}
-	return mock
-}
-
-func (_m *MockBlocksMetadata) EXPECT() *_MockBlocksMetadataRecorder {
-	return _m.recorder
-}
-
-func (_m *MockBlocksMetadata) ID() ts.ID {
-	ret := _m.ctrl.Call(_m, "ID")
-	ret0, _ := ret[0].(ts.ID)
-	return ret0
-}
-
-func (_mr *_MockBlocksMetadataRecorder) ID() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
-}
-
-func (_m *MockBlocksMetadata) Blocks() []Metadata {
-	ret := _m.ctrl.Call(_m, "Blocks")
-	ret0, _ := ret[0].([]Metadata)
-	return ret0
-}
-
-func (_mr *_MockBlocksMetadataRecorder) Blocks() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Blocks")
-}
-
-// Mock of FetchBlockMetadataResult interface
-type MockFetchBlockMetadataResult struct {
-	ctrl     *gomock.Controller
-	recorder *_MockFetchBlockMetadataResultRecorder
-}
-
-// Recorder for MockFetchBlockMetadataResult (not exported)
-type _MockFetchBlockMetadataResultRecorder struct {
-	mock *MockFetchBlockMetadataResult
-}
-
-func NewMockFetchBlockMetadataResult(ctrl *gomock.Controller) *MockFetchBlockMetadataResult {
-	mock := &MockFetchBlockMetadataResult{ctrl: ctrl}
-	mock.recorder = &_MockFetchBlockMetadataResultRecorder{mock}
-	return mock
-}
-
-func (_m *MockFetchBlockMetadataResult) EXPECT() *_MockFetchBlockMetadataResultRecorder {
-	return _m.recorder
-}
-
-func (_m *MockFetchBlockMetadataResult) Start() time.Time {
-	ret := _m.ctrl.Call(_m, "Start")
-	ret0, _ := ret[0].(time.Time)
-	return ret0
-}
-
-func (_mr *_MockFetchBlockMetadataResultRecorder) Start() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
-}
-
-func (_m *MockFetchBlockMetadataResult) Size() *int64 {
-	ret := _m.ctrl.Call(_m, "Size")
-	ret0, _ := ret[0].(*int64)
-	return ret0
-}
-
-func (_mr *_MockFetchBlockMetadataResultRecorder) Size() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Size")
-}
-
-func (_m *MockFetchBlockMetadataResult) Checksum() *uint32 {
-	ret := _m.ctrl.Call(_m, "Checksum")
-	ret0, _ := ret[0].(*uint32)
-	return ret0
-}
-
-func (_mr *_MockFetchBlockMetadataResultRecorder) Checksum() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
-}
-
-func (_m *MockFetchBlockMetadataResult) Err() error {
-	ret := _m.ctrl.Call(_m, "Err")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockFetchBlockMetadataResultRecorder) Err() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
-}
-
-// Mock of FetchBlocksMetadataResult interface
-type MockFetchBlocksMetadataResult struct {
-	ctrl     *gomock.Controller
-	recorder *_MockFetchBlocksMetadataResultRecorder
-}
-
-// Recorder for MockFetchBlocksMetadataResult (not exported)
-type _MockFetchBlocksMetadataResultRecorder struct {
-	mock *MockFetchBlocksMetadataResult
-}
-
-func NewMockFetchBlocksMetadataResult(ctrl *gomock.Controller) *MockFetchBlocksMetadataResult {
-	mock := &MockFetchBlocksMetadataResult{ctrl: ctrl}
-	mock.recorder = &_MockFetchBlocksMetadataResultRecorder{mock}
-	return mock
-}
-
-func (_m *MockFetchBlocksMetadataResult) EXPECT() *_MockFetchBlocksMetadataResultRecorder {
-	return _m.recorder
-}
-
-func (_m *MockFetchBlocksMetadataResult) ID() ts.ID {
-	ret := _m.ctrl.Call(_m, "ID")
-	ret0, _ := ret[0].(ts.ID)
-	return ret0
-}
-
-func (_mr *_MockFetchBlocksMetadataResultRecorder) ID() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
-}
-
-func (_m *MockFetchBlocksMetadataResult) Blocks() []FetchBlockMetadataResult {
-	ret := _m.ctrl.Call(_m, "Blocks")
-	ret0, _ := ret[0].([]FetchBlockMetadataResult)
-	return ret0
-}
-
-func (_mr *_MockFetchBlocksMetadataResultRecorder) Blocks() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Blocks")
-}
-
 // Mock of FilteredBlocksMetadataIter interface
 type MockFilteredBlocksMetadataIter struct {
 	ctrl     *gomock.Controller
@@ -319,6 +125,124 @@ func (_m *MockFetchBlockResult) Err() error {
 
 func (_mr *_MockFetchBlockResultRecorder) Err() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
+}
+
+// Mock of FetchBlockMetadataResults interface
+type MockFetchBlockMetadataResults struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFetchBlockMetadataResultsRecorder
+}
+
+// Recorder for MockFetchBlockMetadataResults (not exported)
+type _MockFetchBlockMetadataResultsRecorder struct {
+	mock *MockFetchBlockMetadataResults
+}
+
+func NewMockFetchBlockMetadataResults(ctrl *gomock.Controller) *MockFetchBlockMetadataResults {
+	mock := &MockFetchBlockMetadataResults{ctrl: ctrl}
+	mock.recorder = &_MockFetchBlockMetadataResultsRecorder{mock}
+	return mock
+}
+
+func (_m *MockFetchBlockMetadataResults) EXPECT() *_MockFetchBlockMetadataResultsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFetchBlockMetadataResults) Add(res FetchBlockMetadataResult) {
+	_m.ctrl.Call(_m, "Add", res)
+}
+
+func (_mr *_MockFetchBlockMetadataResultsRecorder) Add(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Add", arg0)
+}
+
+func (_m *MockFetchBlockMetadataResults) Results() []FetchBlockMetadataResult {
+	ret := _m.ctrl.Call(_m, "Results")
+	ret0, _ := ret[0].([]FetchBlockMetadataResult)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockMetadataResultsRecorder) Results() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Results")
+}
+
+func (_m *MockFetchBlockMetadataResults) Sort() {
+	_m.ctrl.Call(_m, "Sort")
+}
+
+func (_mr *_MockFetchBlockMetadataResultsRecorder) Sort() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Sort")
+}
+
+func (_m *MockFetchBlockMetadataResults) Reset() {
+	_m.ctrl.Call(_m, "Reset")
+}
+
+func (_mr *_MockFetchBlockMetadataResultsRecorder) Reset() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset")
+}
+
+func (_m *MockFetchBlockMetadataResults) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+func (_mr *_MockFetchBlockMetadataResultsRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+// Mock of FetchBlocksMetadataResults interface
+type MockFetchBlocksMetadataResults struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFetchBlocksMetadataResultsRecorder
+}
+
+// Recorder for MockFetchBlocksMetadataResults (not exported)
+type _MockFetchBlocksMetadataResultsRecorder struct {
+	mock *MockFetchBlocksMetadataResults
+}
+
+func NewMockFetchBlocksMetadataResults(ctrl *gomock.Controller) *MockFetchBlocksMetadataResults {
+	mock := &MockFetchBlocksMetadataResults{ctrl: ctrl}
+	mock.recorder = &_MockFetchBlocksMetadataResultsRecorder{mock}
+	return mock
+}
+
+func (_m *MockFetchBlocksMetadataResults) EXPECT() *_MockFetchBlocksMetadataResultsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFetchBlocksMetadataResults) Add(res FetchBlocksMetadataResult) {
+	_m.ctrl.Call(_m, "Add", res)
+}
+
+func (_mr *_MockFetchBlocksMetadataResultsRecorder) Add(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Add", arg0)
+}
+
+func (_m *MockFetchBlocksMetadataResults) Results() []FetchBlocksMetadataResult {
+	ret := _m.ctrl.Call(_m, "Results")
+	ret0, _ := ret[0].([]FetchBlocksMetadataResult)
+	return ret0
+}
+
+func (_mr *_MockFetchBlocksMetadataResultsRecorder) Results() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Results")
+}
+
+func (_m *MockFetchBlocksMetadataResults) Reset() {
+	_m.ctrl.Call(_m, "Reset")
+}
+
+func (_mr *_MockFetchBlocksMetadataResultsRecorder) Reset() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset")
+}
+
+func (_m *MockFetchBlocksMetadataResults) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+func (_mr *_MockFetchBlocksMetadataResultsRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
 // Mock of DatabaseBlock interface
@@ -611,6 +535,84 @@ func (_m *MockDatabaseBlockPool) Put(block DatabaseBlock) {
 }
 
 func (_mr *_MockDatabaseBlockPoolRecorder) Put(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Put", arg0)
+}
+
+// Mock of FetchBlockMetadataResultsPool interface
+type MockFetchBlockMetadataResultsPool struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFetchBlockMetadataResultsPoolRecorder
+}
+
+// Recorder for MockFetchBlockMetadataResultsPool (not exported)
+type _MockFetchBlockMetadataResultsPoolRecorder struct {
+	mock *MockFetchBlockMetadataResultsPool
+}
+
+func NewMockFetchBlockMetadataResultsPool(ctrl *gomock.Controller) *MockFetchBlockMetadataResultsPool {
+	mock := &MockFetchBlockMetadataResultsPool{ctrl: ctrl}
+	mock.recorder = &_MockFetchBlockMetadataResultsPoolRecorder{mock}
+	return mock
+}
+
+func (_m *MockFetchBlockMetadataResultsPool) EXPECT() *_MockFetchBlockMetadataResultsPoolRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFetchBlockMetadataResultsPool) Get() FetchBlockMetadataResults {
+	ret := _m.ctrl.Call(_m, "Get")
+	ret0, _ := ret[0].(FetchBlockMetadataResults)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockMetadataResultsPoolRecorder) Get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get")
+}
+
+func (_m *MockFetchBlockMetadataResultsPool) Put(res FetchBlockMetadataResults) {
+	_m.ctrl.Call(_m, "Put", res)
+}
+
+func (_mr *_MockFetchBlockMetadataResultsPoolRecorder) Put(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Put", arg0)
+}
+
+// Mock of FetchBlocksMetadataResultsPool interface
+type MockFetchBlocksMetadataResultsPool struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFetchBlocksMetadataResultsPoolRecorder
+}
+
+// Recorder for MockFetchBlocksMetadataResultsPool (not exported)
+type _MockFetchBlocksMetadataResultsPoolRecorder struct {
+	mock *MockFetchBlocksMetadataResultsPool
+}
+
+func NewMockFetchBlocksMetadataResultsPool(ctrl *gomock.Controller) *MockFetchBlocksMetadataResultsPool {
+	mock := &MockFetchBlocksMetadataResultsPool{ctrl: ctrl}
+	mock.recorder = &_MockFetchBlocksMetadataResultsPoolRecorder{mock}
+	return mock
+}
+
+func (_m *MockFetchBlocksMetadataResultsPool) EXPECT() *_MockFetchBlocksMetadataResultsPoolRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFetchBlocksMetadataResultsPool) Get() FetchBlocksMetadataResults {
+	ret := _m.ctrl.Call(_m, "Get")
+	ret0, _ := ret[0].(FetchBlocksMetadataResults)
+	return ret0
+}
+
+func (_mr *_MockFetchBlocksMetadataResultsPoolRecorder) Get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get")
+}
+
+func (_m *MockFetchBlocksMetadataResultsPool) Put(res FetchBlocksMetadataResults) {
+	_m.ctrl.Call(_m, "Put", res)
+}
+
+func (_mr *_MockFetchBlocksMetadataResultsPoolRecorder) Put(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Put", arg0)
 }
 

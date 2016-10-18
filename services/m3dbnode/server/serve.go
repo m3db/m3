@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/client"
 	hjcluster "github.com/m3db/m3db/network/server/httpjson/cluster"
 	hjnode "github.com/m3db/m3db/network/server/httpjson/node"
+	"github.com/m3db/m3db/network/server/tchannelthrift"
 	ttcluster "github.com/m3db/m3db/network/server/tchannelthrift/cluster"
 	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/sharding"
@@ -101,15 +102,15 @@ func Serve(
 	}
 
 	contextPool := storageOpts.ContextPool()
-
-	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, contextPool, nil).ListenAndServe()
+	ttopts := tchannelthrift.NewOptions()
+	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, contextPool, nil, ttopts).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelNodeAddr, err)
 	}
 	defer nativeNodeClose()
 	log.Infof("node tchannelthrift: listening on %v", tchannelNodeAddr)
 
-	httpjsonNodeClose, err := hjnode.NewServer(db, httpNodeAddr, contextPool, nil).ListenAndServe()
+	httpjsonNodeClose, err := hjnode.NewServer(db, httpNodeAddr, contextPool, nil, ttopts).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open httpjson interface %s: %v", httpNodeAddr, err)
 	}

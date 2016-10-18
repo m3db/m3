@@ -497,7 +497,9 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	defer ctx.Close()
 
 	now := time.Now()
-	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
+	start := now.Add(-time.Hour)
+	end := now.Add(time.Hour)
+	starts := []time.Time{now.Add(-time.Hour), now, now.Add(time.Second), now.Add(time.Hour)}
 
 	blocks := map[time.Time]block.DatabaseBlock{}
 	b := block.NewMockDatabaseBlock(ctrl)
@@ -511,12 +513,16 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	b.EXPECT().Stream(ctx).Return(nil, errors.New("foo"))
 	blocks[starts[1]] = b
 
+	blocks[starts[3]] = nil
+
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
+	expectedResults := block.NewFetchBlockMetadataResults()
+	expectedResults.Add(block.NewFetchBlockMetadataResult(starts[2], new(int64), nil, nil))
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().
-		FetchBlocksMetadata(ctx, true, true).
-		Return([]block.FetchBlockMetadataResult{block.NewFetchBlockMetadataResult(starts[2], new(int64), nil, nil)})
+		FetchBlocksMetadata(ctx, start, end, true, true).
+		Return(expectedResults)
 
 	series := NewDatabaseSeries(ts.StringID("bar"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
@@ -525,10 +531,10 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	series.blocks = mockBlocks
 	series.buffer = buffer
 
-	res := series.FetchBlocksMetadata(ctx, true, true)
-	require.Equal(t, "bar", res.ID().String())
+	res := series.FetchBlocksMetadata(ctx, start, end, true, true)
+	require.Equal(t, "bar", res.ID.String())
 
-	metadata := res.Blocks()
+	metadata := res.Blocks.Results()
 	expectedSize := int64(4)
 	expected := []struct {
 		t        time.Time
@@ -536,27 +542,27 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 		c        *uint32
 		hasError bool
 	}{
-		{starts[2], new(int64), nil, false},
 		{starts[0], &expectedSize, &expectedChecksum, false},
 		{starts[1], nil, nil, true},
+		{starts[2], new(int64), nil, false},
 	}
 	require.Equal(t, len(expected), len(metadata))
 	for i := 0; i < len(expected); i++ {
-		require.Equal(t, expected[i].t, metadata[i].Start())
+		require.Equal(t, expected[i].t, metadata[i].Start)
 		if expected[i].s == nil {
-			require.Nil(t, metadata[i].Size())
+			require.Nil(t, metadata[i].Size)
 		} else {
-			require.Equal(t, *expected[i].s, *metadata[i].Size())
+			require.Equal(t, *expected[i].s, *metadata[i].Size)
 		}
 		if expected[i].c == nil {
-			require.Nil(t, metadata[i].Checksum())
+			require.Nil(t, metadata[i].Checksum)
 		} else {
-			require.Equal(t, *expected[i].c, *metadata[i].Checksum())
+			require.Equal(t, *expected[i].c, *metadata[i].Checksum)
 		}
 		if expected[i].hasError {
-			require.Error(t, metadata[i].Err())
+			require.Error(t, metadata[i].Err)
 		} else {
-			require.NoError(t, metadata[i].Err())
+			require.NoError(t, metadata[i].Err)
 		}
 	}
 }

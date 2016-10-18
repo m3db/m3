@@ -368,26 +368,21 @@ func (s *dbShard) FetchBlocks(
 
 func (s *dbShard) FetchBlocksMetadata(
 	ctx context.Context,
+	start, end time.Time,
 	limit int64,
 	pageToken int64,
 	includeSizes bool,
 	includeChecksums bool,
-) ([]block.FetchBlocksMetadataResult, *int64) {
-	// Restrict the maximum capacity so we don't over allocate or panic if
-	// someone passes in a very large limit
-	resCapacity := int(limit)
-	if resCapacity > blocksMetadataResultMaxInitialCapacity {
-		resCapacity = blocksMetadataResultMaxInitialCapacity
-	}
-
+) (block.FetchBlocksMetadataResults, *int64) {
 	var (
-		res            = make([]block.FetchBlocksMetadataResult, 0, resCapacity)
+		res            = s.opts.FetchBlocksMetadataResultsPool().Get()
 		tmpCtx         = context.NewContext()
 		pNextPageToken *int64
 	)
+
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		// Break out of the iteration loop once we've accumulated enough entries.
-		if int64(len(res)) >= limit {
+		if int64(len(res.Results())) >= limit {
 			nextPageToken := int64(entry.index)
 			pNextPageToken = &nextPageToken
 			return false
@@ -401,9 +396,18 @@ func (s *dbShard) FetchBlocksMetadata(
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching the metadata for this series.
 		tmpCtx.Reset()
-		blocksMetadata := entry.series.FetchBlocksMetadata(tmpCtx, includeSizes, includeChecksums)
+		blocksMetadata := entry.series.FetchBlocksMetadata(tmpCtx, start, end, includeSizes, includeChecksums)
 		tmpCtx.BlockingClose()
-		res = append(res, blocksMetadata)
+
+		// If the blocksMetadata is empty, the series have no data within the specified
+		// time range so we don't return it to the client
+		if len(blocksMetadata.Blocks.Results()) == 0 {
+			blocksMetadata.Blocks.Close()
+			return true
+		}
+
+		// Otherwise add it to the result which takes care of closing the metadata
+		res.Add(blocksMetadata)
 
 		return true
 	})
@@ -515,6 +519,11 @@ func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) er
 	return multiErr.FinalError()
 }
 
-func (s *dbShard) Repair(namespace ts.ID, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
-	return repairer.Repair(namespace, s)
+func (s *dbShard) Repair(
+	ctx context.Context,
+	namespace ts.ID,
+	t time.Time,
+	repairer databaseShardRepairer,
+) (repair.MetadataComparisonResult, error) {
+	return repairer.Repair(ctx, namespace, t, s)
 }

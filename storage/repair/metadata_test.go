@@ -34,9 +34,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func testHostBlockMetadataSlicePool() HostBlockMetadataSlicePool {
+	return NewHostBlockMetadataSlicePool(nil, 0)
+}
+
+func testRepairOptions() Options {
+	return NewOptions()
+}
+
 func TestReplicaBlockMetadataAdd(t *testing.T) {
 	now := time.Now()
-	m := NewReplicaBlockMetadata(now)
+	m := NewReplicaBlockMetadata(now, newHostBlockMetadataSlice())
 	inputs := []HostBlockMetadata{
 		{topology.NewHost("foo", "addrFoo"), 1, nil},
 		{topology.NewHost("bar", "addrBar"), 2, new(uint32)},
@@ -50,7 +58,7 @@ func TestReplicaBlockMetadataAdd(t *testing.T) {
 
 func TestReplicaBlocksMetadataAdd(t *testing.T) {
 	now := time.Now()
-	block := NewReplicaBlockMetadata(now)
+	block := NewReplicaBlockMetadata(now, newHostBlockMetadataSlice())
 	m := NewReplicaBlocksMetadata()
 	m.Add(block)
 
@@ -68,7 +76,7 @@ func TestReplicaBlocksMetadataGetOrAdd(t *testing.T) {
 	require.Equal(t, 0, len(m.Blocks()))
 
 	// Add a block
-	b := m.GetOrAdd(now)
+	b := m.GetOrAdd(now, testHostBlockMetadataSlicePool())
 	require.Equal(t, now, b.Start())
 	blocks := m.Blocks()
 	require.Equal(t, 1, len(blocks))
@@ -77,7 +85,7 @@ func TestReplicaBlocksMetadataGetOrAdd(t *testing.T) {
 	require.Equal(t, now, block.Start())
 
 	// Add the same block and check we don't add new blocks
-	m.GetOrAdd(now)
+	m.GetOrAdd(now, testHostBlockMetadataSlicePool())
 	require.Equal(t, 1, len(m.Blocks()))
 }
 
@@ -138,13 +146,13 @@ func TestReplicaMetadataComparerAddLocalMetadata(t *testing.T) {
 		localIter.EXPECT().Next().Return(false),
 	)
 
-	m := NewReplicaMetadataComparer(3).(replicaMetadataComparer)
+	m := NewReplicaMetadataComparer(3, testRepairOptions()).(replicaMetadataComparer)
 	m.AddLocalMetadata(origin, localIter)
 
 	expected := []testBlock{
-		{inputBlocks[0].id, inputBlocks[0].meta.Start(), []HostBlockMetadata{{origin, inputBlocks[0].meta.Size(), inputBlocks[0].meta.Checksum()}}},
-		{inputBlocks[1].id, inputBlocks[1].meta.Start(), []HostBlockMetadata{{origin, inputBlocks[1].meta.Size(), inputBlocks[1].meta.Checksum()}}},
-		{inputBlocks[2].id, inputBlocks[2].meta.Start(), []HostBlockMetadata{{origin, inputBlocks[2].meta.Size(), inputBlocks[2].meta.Checksum()}}},
+		{inputBlocks[0].id, inputBlocks[0].meta.Start, []HostBlockMetadata{{origin, inputBlocks[0].meta.Size, inputBlocks[0].meta.Checksum}}},
+		{inputBlocks[1].id, inputBlocks[1].meta.Start, []HostBlockMetadata{{origin, inputBlocks[1].meta.Size, inputBlocks[1].meta.Checksum}}},
+		{inputBlocks[2].id, inputBlocks[2].meta.Start, []HostBlockMetadata{{origin, inputBlocks[2].meta.Size, inputBlocks[2].meta.Checksum}}},
 	}
 	assertEqual(t, expected, m.metadata)
 }
@@ -179,19 +187,19 @@ func TestReplicaMetadataComparerAddPeerMetadata(t *testing.T) {
 		peerIter.EXPECT().Err().Return(expectedErr),
 	)
 
-	m := NewReplicaMetadataComparer(3).(replicaMetadataComparer)
+	m := NewReplicaMetadataComparer(3, testRepairOptions()).(replicaMetadataComparer)
 	require.Equal(t, expectedErr, m.AddPeerMetadata(peerIter))
 
 	expected := []testBlock{
-		{ts.StringID("foo"), inputBlocks[0].meta.Blocks()[0].Start(), []HostBlockMetadata{
-			{inputBlocks[0].host, inputBlocks[0].meta.Blocks()[0].Size(), inputBlocks[0].meta.Blocks()[0].Checksum()},
-			{inputBlocks[2].host, inputBlocks[2].meta.Blocks()[0].Size(), inputBlocks[2].meta.Blocks()[0].Checksum()},
+		{ts.StringID("foo"), inputBlocks[0].meta.Blocks[0].Start, []HostBlockMetadata{
+			{inputBlocks[0].host, inputBlocks[0].meta.Blocks[0].Size, inputBlocks[0].meta.Blocks[0].Checksum},
+			{inputBlocks[2].host, inputBlocks[2].meta.Blocks[0].Size, inputBlocks[2].meta.Blocks[0].Checksum},
 		}},
-		{ts.StringID("foo"), inputBlocks[1].meta.Blocks()[0].Start(), []HostBlockMetadata{
-			{inputBlocks[1].host, inputBlocks[1].meta.Blocks()[0].Size(), inputBlocks[1].meta.Blocks()[0].Checksum()},
+		{ts.StringID("foo"), inputBlocks[1].meta.Blocks[0].Start, []HostBlockMetadata{
+			{inputBlocks[1].host, inputBlocks[1].meta.Blocks[0].Size, inputBlocks[1].meta.Blocks[0].Checksum},
 		}},
-		{ts.StringID("bar"), inputBlocks[3].meta.Blocks()[0].Start(), []HostBlockMetadata{
-			{inputBlocks[3].host, inputBlocks[3].meta.Blocks()[0].Size(), inputBlocks[3].meta.Blocks()[0].Checksum()},
+		{ts.StringID("bar"), inputBlocks[3].meta.Blocks[0].Start, []HostBlockMetadata{
+			{inputBlocks[3].host, inputBlocks[3].meta.Blocks[0].Size, inputBlocks[3].meta.Blocks[0].Checksum},
 		}},
 	}
 	assertEqual(t, expected, m.metadata)
@@ -226,7 +234,7 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 			ckSum := input.checksum
 			checkSum = &ckSum
 		}
-		metadata.GetOrAdd(ts.StringID(input.id)).GetOrAdd(input.ts).Add(HostBlockMetadata{
+		metadata.GetOrAdd(ts.StringID(input.id)).GetOrAdd(input.ts, testHostBlockMetadataSlicePool()).Add(HostBlockMetadata{
 			Host:     input.host,
 			Size:     input.size,
 			Checksum: checkSum,
@@ -253,7 +261,7 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 		}},
 	}
 
-	m := NewReplicaMetadataComparer(2).(replicaMetadataComparer)
+	m := NewReplicaMetadataComparer(2, testRepairOptions()).(replicaMetadataComparer)
 	m.metadata = metadata
 
 	res := m.Compare()

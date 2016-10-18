@@ -182,16 +182,17 @@ func (n *dbNamespace) FetchBlocks(
 func (n *dbNamespace) FetchBlocksMetadata(
 	ctx context.Context,
 	shardID uint32,
+	start, end time.Time,
 	limit int64,
 	pageToken int64,
 	includeSizes bool,
 	includeChecksums bool,
-) ([]block.FetchBlocksMetadataResult, *int64, error) {
+) (block.FetchBlocksMetadataResults, *int64, error) {
 	shard, err := n.shardAt(shardID)
 	if err != nil {
 		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, limit, pageToken, includeSizes, includeChecksums)
+	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, limit, pageToken, includeSizes, includeChecksums)
 	return res, nextPageToken, nil
 }
 
@@ -365,7 +366,7 @@ func (n *dbNamespace) Truncate() (int64, error) {
 	return totalNumSeries, nil
 }
 
-func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
+func (n *dbNamespace) Repair(repairer databaseShardRepairer, t time.Time) error {
 	if !n.nopts.NeedsRepair() {
 		return nil
 	}
@@ -399,7 +400,10 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
 		workers.Go(func() {
 			defer wg.Done()
 
-			metadataRes, err := shard.Repair(n.id, repairer)
+			ctx := n.sopts.ContextPool().Get()
+			defer ctx.Close()
+
+			metadataRes, err := shard.Repair(ctx, n.id, t, repairer)
 
 			mutex.Lock()
 			if err != nil {
@@ -425,6 +429,7 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer) error {
 
 	n.log.WithFields(
 		xlog.NewLogField("namespace", n.id.String()),
+		xlog.NewLogField("repairTime", t.String()),
 		xlog.NewLogField("numTotalShards", len(shards)),
 		xlog.NewLogField("numShardsRepaired", numShardsRepaired),
 		xlog.NewLogField("numTotalSeries", numTotalSeries),

@@ -36,6 +36,30 @@ type HostBlockMetadata struct {
 	Checksum *uint32
 }
 
+// HostBlockMetadataSlice captures a slice of hostBlockMetadata
+type HostBlockMetadataSlice interface {
+	// Add adds the metadata to the slice
+	Add(metadata HostBlockMetadata)
+
+	// Metadata returns the metadata slice
+	Metadata() []HostBlockMetadata
+
+	// Reset resets the metadata slice
+	Reset()
+
+	// Close performs cleanup
+	Close()
+}
+
+// HostBlockMetadataSlicePool provides a pool for hostBlockMetadata slices
+type HostBlockMetadataSlicePool interface {
+	// Get returns a hostBlockMetadata slice
+	Get() HostBlockMetadataSlice
+
+	// Put puts a hostBlockMetadata slice back to pool
+	Put(m HostBlockMetadataSlice)
+}
+
 // ReplicaBlockMetadata captures the block metadata from hosts in a shard replica set
 type ReplicaBlockMetadata interface {
 	// Start is the start time of a block
@@ -46,6 +70,9 @@ type ReplicaBlockMetadata interface {
 
 	// Add adds a metadata from a host
 	Add(metadata HostBlockMetadata)
+
+	// Close performs cleanup
+	Close()
 }
 
 // ReplicaBlocksMetadata captures the blocks metadata from hosts in a shard replica set
@@ -60,7 +87,10 @@ type ReplicaBlocksMetadata interface {
 	Add(block ReplicaBlockMetadata)
 
 	// GetOrAdd returns the blocks metadata for a start time, creating one if it doesn't exist
-	GetOrAdd(start time.Time) ReplicaBlockMetadata
+	GetOrAdd(start time.Time, p HostBlockMetadataSlicePool) ReplicaBlockMetadata
+
+	// Close performs cleanup
+	Close()
 }
 
 // ReplicaSeriesMetadata captures the metadata for a list of series from hosts in a shard replica set
@@ -76,6 +106,9 @@ type ReplicaSeriesMetadata interface {
 
 	// GetOrAdd returns the series metadata for an id, creating one if it doesn't exist
 	GetOrAdd(id ts.ID) ReplicaBlocksMetadata
+
+	// Close performs cleanup
+	Close()
 }
 
 // ReplicaBlocksMetadataWrapper represents series metadata and an associated ID.
@@ -94,6 +127,9 @@ type ReplicaMetadataComparer interface {
 
 	// Compare returns the metadata differences between local host and peers
 	Compare() MetadataComparisonResult
+
+	// OnClose performs cleanup during close
+	OnClose()
 }
 
 // MetadataComparisonResult captures metadata comparison results
@@ -154,6 +190,18 @@ type Options interface {
 
 	// RepairThrottle returns the repair throttle
 	RepairThrottle() time.Duration
+
+	// SetRepairMaxRetries sets the max number of retries for a block start
+	SetRepairMaxRetries(value int) Options
+
+	// MaxRepairRetries returns the max number of retries for a block start
+	RepairMaxRetries() int
+
+	// SetHostBlockMetadataSlicePool sets the hostBlockMetadataSlice pool
+	SetHostBlockMetadataSlicePool(value HostBlockMetadataSlicePool) Options
+
+	// HostBlockMetadataSlicePool returns the hostBlockMetadataSlice pool
+	HostBlockMetadataSlicePool() HostBlockMetadataSlicePool
 
 	// Validate checks if the options are valid
 	Validate() error

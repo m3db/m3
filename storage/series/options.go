@@ -30,25 +30,27 @@ import (
 )
 
 type options struct {
-	clockOpts               clock.Options
-	instrumentOpts          instrument.Options
-	retentionOpts           retention.Options
-	blockOpts               block.Options
-	contextPool             context.Pool
-	encoderPool             encoding.EncoderPool
-	multiReaderIteratorPool encoding.MultiReaderIteratorPool
+	clockOpts                     clock.Options
+	instrumentOpts                instrument.Options
+	retentionOpts                 retention.Options
+	blockOpts                     block.Options
+	contextPool                   context.Pool
+	encoderPool                   encoding.EncoderPool
+	multiReaderIteratorPool       encoding.MultiReaderIteratorPool
+	fetchBlockMetadataResultsPool block.FetchBlockMetadataResultsPool
 }
 
 // NewOptions creates new database series options
 func NewOptions() Options {
 	return &options{
-		clockOpts:               clock.NewOptions(),
-		instrumentOpts:          instrument.NewOptions(),
-		retentionOpts:           retention.NewOptions(),
-		blockOpts:               block.NewOptions(),
-		contextPool:             context.NewPool(nil, nil),
-		encoderPool:             encoding.NewEncoderPool(nil),
-		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
+		clockOpts:                     clock.NewOptions(),
+		instrumentOpts:                instrument.NewOptions(),
+		retentionOpts:                 retention.NewOptions(),
+		blockOpts:                     block.NewOptions(),
+		contextPool:                   context.NewPool(nil, nil),
+		encoderPool:                   encoding.NewEncoderPool(nil),
+		multiReaderIteratorPool:       encoding.NewMultiReaderIteratorPool(nil),
+		fetchBlockMetadataResultsPool: block.NewFetchBlockMetadataResultsPool(nil, 0),
 	}
 }
 
@@ -120,4 +122,14 @@ func (o *options) SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorP
 
 func (o *options) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	return o.multiReaderIteratorPool
+}
+
+func (o *options) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options {
+	opts := *o
+	opts.fetchBlockMetadataResultsPool = value
+	return &opts
+}
+
+func (o *options) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool {
+	return o.fetchBlockMetadataResultsPool
 }

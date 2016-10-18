@@ -269,15 +269,19 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 
 func (b *dbBuffer) FetchBlocksMetadata(
 	ctx context.Context,
+	start, end time.Time,
 	includeSizes bool,
 	includeChecksums bool,
-) []block.FetchBlockMetadataResult {
-	var res []block.FetchBlockMetadataResult
-
+) block.FetchBlockMetadataResults {
+	blockSize := b.opts.RetentionOptions().BlockSize()
+	res := b.opts.FetchBlockMetadataResultsPool().Get()
 	now := b.nowFn()
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
 		shouldRead, _, _ := b.bucketState(now, bucket, current)
 		if !shouldRead {
+			return
+		}
+		if !start.Before(bucket.start.Add(blockSize)) || !bucket.start.Before(end) {
 			return
 		}
 		var size int64
@@ -295,7 +299,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		}
 		// NB(xichen): intentionally returning nil checksums for buckets
 		// because they haven't been flushed yet
-		res = append(res, block.NewFetchBlockMetadataResult(bucket.start, pSize, nil, nil))
+		res.Add(block.NewFetchBlockMetadataResult(bucket.start, pSize, nil, nil))
 	})
 
 	return res

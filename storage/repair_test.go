@@ -21,11 +21,13 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/topology"
@@ -207,7 +209,7 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	require.Nil(t, repairer.Repair())
 }
 
-func TestShardRepairerRepair(t *testing.T) {
+func TestDatabaseShardRepairerRepair(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -232,8 +234,8 @@ func TestShardRepairerRepair(t *testing.T) {
 
 	var (
 		namespace = ts.StringID("testNamespace")
-		start     = now.Add(-rtopts.RetentionPeriod())
-		end       = now.Add(-rtopts.BufferPast()).Add(-rtopts.BlockSize())
+		start     = now
+		end       = now.Add(rtopts.BlockSize())
 	)
 
 	sizes := []int64{1, 2, 3}
@@ -241,17 +243,17 @@ func TestShardRepairerRepair(t *testing.T) {
 	shardID := uint32(0)
 	shard := NewMockdatabaseShard(ctrl)
 
+	expectedResults := block.NewFetchBlocksMetadataResults()
+	results := block.NewFetchBlockMetadataResults()
+	results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute), &sizes[0], &checksums[0], nil))
+	results.Add(block.NewFetchBlockMetadataResult(now.Add(time.Hour), &sizes[1], &checksums[1], nil))
+	expectedResults.Add(block.NewFetchBlocksMetadataResult(ts.StringID("foo"), results))
+	results = block.NewFetchBlockMetadataResults()
+	results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute), &sizes[2], &checksums[2], nil))
+	expectedResults.Add(block.NewFetchBlocksMetadataResult(ts.StringID("bar"), results))
 	shard.EXPECT().
-		FetchBlocksMetadata(gomock.Any(), gomock.Any(), int64(0), true, true).
-		Return([]block.FetchBlocksMetadataResult{
-			block.NewFetchBlocksMetadataResult(ts.StringID("foo"), []block.FetchBlockMetadataResult{
-				block.NewFetchBlockMetadataResult(now.Add(-4*time.Hour), &sizes[0], &checksums[0], nil),
-				block.NewFetchBlockMetadataResult(now.Add(-6*time.Hour), &sizes[1], &checksums[1], nil),
-			}),
-			block.NewFetchBlocksMetadataResult(ts.StringID("bar"), []block.FetchBlockMetadataResult{
-				block.NewFetchBlockMetadataResult(now.Add(-4*time.Hour), &sizes[2], &checksums[2], nil),
-			}),
-		}, nil)
+		FetchBlocksMetadata(gomock.Any(), start, end, gomock.Any(), int64(0), true, true).
+		Return(expectedResults, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
 
 	peerIter := client.NewMockPeerBlocksMetadataIter(ctrl)
@@ -260,11 +262,11 @@ func TestShardRepairerRepair(t *testing.T) {
 		meta block.BlocksMetadata
 	}{
 		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{
-			block.NewMetadata(now.Add(-4*time.Hour), sizes[0], &checksums[0]),
-			block.NewMetadata(now.Add(-6*time.Hour), sizes[0], &checksums[1]),
+			block.NewMetadata(now.Add(30*time.Minute), sizes[0], &checksums[0]),
+			block.NewMetadata(now.Add(time.Hour), sizes[0], &checksums[1]),
 		})},
 		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ts.StringID("bar"), []block.Metadata{
-			block.NewMetadata(now.Add(-4*time.Hour), sizes[2], &checksums[2]),
+			block.NewMetadata(now.Add(30*time.Minute), sizes[2], &checksums[2]),
 		})},
 	}
 
@@ -277,7 +279,7 @@ func TestShardRepairerRepair(t *testing.T) {
 		peerIter.EXPECT().Err().Return(nil),
 	)
 	session.EXPECT().
-		FetchBlocksMetadataFromPeers(namespace, shardID, start, end, rtopts.BlockSize()).
+		FetchBlocksMetadataFromPeers(namespace, shardID, start, end).
 		Return(peerIter, nil)
 
 	var (
@@ -295,7 +297,8 @@ func TestShardRepairerRepair(t *testing.T) {
 		resDiff = diffRes
 	}
 
-	repairer.Repair(namespace, shard)
+	ctx := context.NewContext()
+	repairer.Repair(ctx, namespace, now, shard)
 	require.Equal(t, namespace, resNamespace)
 	require.Equal(t, resShard, shard)
 	require.Equal(t, int64(2), resDiff.NumSeries)
@@ -307,12 +310,83 @@ func TestShardRepairerRepair(t *testing.T) {
 	require.True(t, exists)
 	blocks := series.Metadata.Blocks()
 	require.Equal(t, 1, len(blocks))
-	block, exists := blocks[now.Add(-6*time.Hour)]
+	block, exists := blocks[now.Add(time.Hour)]
 	require.True(t, exists)
-	require.Equal(t, now.Add(-6*time.Hour), block.Start())
+	require.Equal(t, now.Add(time.Hour), block.Start())
 	expected := []repair.HostBlockMetadata{
-		{topology.NewHost("0", "addr0"), sizes[1], &checksums[1]},
-		{topology.NewHost("1", "addr1"), sizes[0], &checksums[1]},
+		{Host: topology.NewHost("0", "addr0"), Size: sizes[1], Checksum: &checksums[1]},
+		{Host: topology.NewHost("1", "addr1"), Size: sizes[0], Checksum: &checksums[1]},
 	}
 	require.Equal(t, expected, block.Metadata())
+}
+
+func TestRepairerRepairTimes(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	database := newMockDatabase()
+	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
+	now := time.Unix(188000, 0)
+	clockOpts := database.opts.ClockOptions()
+	database.opts = database.opts.SetClockOptions(clockOpts.SetNowFn(func() time.Time { return now }))
+
+	inputTimes := []struct {
+		bs time.Time
+		rs repairState
+	}{
+		{time.Unix(14400, 0), repairState{repairFailed, 2}},
+		{time.Unix(28800, 0), repairState{repairFailed, 3}},
+		{time.Unix(36000, 0), repairState{repairNotStarted, 0}},
+		{time.Unix(43200, 0), repairState{repairSuccess, 1}},
+	}
+	repairer, err := newDatabaseRepairer(database)
+	require.NoError(t, err)
+	r := repairer.(*dbRepairer)
+	for _, input := range inputTimes {
+		r.repairStates[input.bs] = input.rs
+	}
+	res := r.repairTimes()
+	require.Equal(t, 21, len(res))
+	j := 0
+	for i := 0; i < len(res); i++ {
+		if i == 2 {
+			j += 3
+		}
+		expectedTime := time.Unix(int64(14400+j*7200), 0)
+		require.Equal(t, expectedTime, res[20-i])
+		j++
+	}
+}
+
+func TestRepairerRepairWithTime(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	repairTime := time.Unix(7200, 0)
+	database := newMockDatabase()
+	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
+	repairer, err := newDatabaseRepairer(database)
+	require.NoError(t, err)
+	r := repairer.(*dbRepairer)
+
+	inputs := []struct {
+		name string
+		err  error
+	}{
+		{"foo", errors.New("some error")},
+		{"bar", errors.New("some other error")},
+		{"baz", nil},
+	}
+	namespaces := make(map[string]databaseNamespace)
+	for _, input := range inputs {
+		ns := NewMockdatabaseNamespace(ctrl)
+		ns.EXPECT().Repair(gomock.Not(nil), repairTime).Return(input.err)
+		if input.err != nil {
+			ns.EXPECT().ID().Return(ts.StringID(input.name))
+		}
+		namespaces[input.name] = ns
+	}
+	database.namespaces = namespaces
+
+	require.Error(t, r.repairWithTime(repairTime))
 }

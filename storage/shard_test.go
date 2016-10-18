@@ -364,21 +364,31 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	defer ctx.Close()
 
 	shard := testDatabaseShard(opts)
+	start := time.Now()
+	end := start.Add(opts.RetentionOptions().BlockSize())
 	ids := make([]ts.ID, 0, 5)
 	for i := 0; i < 10; i++ {
 		id := ts.StringID(fmt.Sprintf("foo.%d", i))
 		series := addMockSeries(ctrl, shard, id, uint64(i))
-		if i >= 2 && i < 7 {
+		if i == 2 {
+			series.EXPECT().
+				FetchBlocksMetadata(gomock.Not(nil), start, end, true, true).
+				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()))
+		} else if i > 2 && i <= 7 {
 			ids = append(ids, id)
-			series.EXPECT().FetchBlocksMetadata(gomock.Not(nil), true, true).Return(block.NewFetchBlocksMetadataResult(id, nil))
+			blocks := block.NewFetchBlockMetadataResults()
+			blocks.Add(block.NewFetchBlockMetadataResult(start.Add(time.Duration(i)), nil, nil, nil))
+			series.EXPECT().
+				FetchBlocksMetadata(gomock.Not(nil), start, end, true, true).
+				Return(block.NewFetchBlocksMetadataResult(id, blocks))
 		}
 	}
 
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, 5, 2, true, true)
-	require.Equal(t, len(ids), len(res))
-	require.Equal(t, int64(7), *nextPageToken)
-	for i := 0; i < len(res); i++ {
-		require.Equal(t, ids[i], res[i].ID())
+	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, 5, 2, true, true)
+	require.Equal(t, len(ids), len(res.Results()))
+	require.Equal(t, int64(8), *nextPageToken)
+	for i := 0; i < len(res.Results()); i++ {
+		require.Equal(t, ids[i], res.Results()[i].ID)
 	}
 }
 

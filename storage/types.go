@@ -86,11 +86,12 @@ type Database interface {
 		ctx context.Context,
 		namespace ts.ID,
 		shard uint32,
+		start, end time.Time,
 		limit int64,
 		pageToken int64,
 		includeSizes bool,
 		includeChecksums bool,
-	) ([]block.FetchBlocksMetadataResult, *int64, error)
+	) (block.FetchBlocksMetadataResults, *int64, error)
 
 	// Bootstrap bootstraps the database.
 	Bootstrap() error
@@ -144,11 +145,12 @@ type databaseNamespace interface {
 	FetchBlocksMetadata(
 		ctx context.Context,
 		shardID uint32,
+		start, end time.Time,
 		limit int64,
 		pageToken int64,
 		includeSizes bool,
 		includeChecksums bool,
-	) ([]block.FetchBlocksMetadataResult, *int64, error)
+	) (block.FetchBlocksMetadataResults, *int64, error)
 
 	// Bootstrap performs bootstrapping
 	Bootstrap(
@@ -166,8 +168,8 @@ type databaseNamespace interface {
 	// Truncate truncates the in-memory data for this namespace
 	Truncate() (int64, error)
 
-	// Repair repairs the namespace data
-	Repair(repairer databaseShardRepairer) error
+	// Repair repairs the namespace data for a given time
+	Repair(repairer databaseShardRepairer, t time.Time) error
 }
 
 type databaseShard interface {
@@ -203,11 +205,12 @@ type databaseShard interface {
 	// FetchBlocksMetadata retrieves the blocks metadata.
 	FetchBlocksMetadata(
 		ctx context.Context,
+		start, end time.Time,
 		limit int64,
 		pageToken int64,
 		includeSizes bool,
 		includeChecksums bool,
-	) ([]block.FetchBlocksMetadataResult, *int64)
+	) (block.FetchBlocksMetadataResults, *int64)
 
 	Bootstrap(
 		bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocksWrapper,
@@ -224,8 +227,13 @@ type databaseShard interface {
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error
 
-	// Repair repairs the shard data
-	Repair(namespace ts.ID, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error)
+	// Repair repairs the shard data for a given time
+	Repair(
+		ctx context.Context,
+		namespace ts.ID,
+		t time.Time,
+		repairer databaseShardRepairer,
+	) (repair.MetadataComparisonResult, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.
@@ -295,7 +303,12 @@ type databaseShardRepairer interface {
 	Options() repair.Options
 
 	// Repair repairs the data for a given namespace and shard
-	Repair(namespace ts.ID, shard databaseShard) (repair.MetadataComparisonResult, error)
+	Repair(
+		ctx context.Context,
+		namespace ts.ID,
+		t time.Time,
+		shard databaseShard,
+	) (repair.MetadataComparisonResult, error)
 }
 
 // databaseRepairer repairs in-memory database data
@@ -446,4 +459,16 @@ type Options interface {
 
 	// IDPool returns the ID pool.
 	IdentifierPool() ts.IdentifierPool
+
+	// SetFetchBlockMetadataResultsPool sets the fetchBlockMetadataResultsPool
+	SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options
+
+	// FetchBlockMetadataResultsPool returns the fetchBlockMetadataResultsPool
+	FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool
+
+	// SetFetchBlocksMetadataResultsPool sets the fetchBlocksMetadataResultsPool
+	SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetadataResultsPool) Options
+
+	// FetchBlocksMetadataResultsPool returns the fetchBlocksMetadataResultsPool
+	FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool
 }

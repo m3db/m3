@@ -26,34 +26,16 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-type metadata struct {
-	start    time.Time
-	size     int64
-	checksum *uint32
-}
-
 // NewMetadata creates a new block metadata
 func NewMetadata(start time.Time, size int64, checksum *uint32) Metadata {
-	return metadata{
-		start:    start,
-		size:     size,
-		checksum: checksum,
+	return Metadata{
+		Start:    start,
+		Size:     size,
+		Checksum: checksum,
 	}
-}
-
-func (m metadata) Start() time.Time  { return m.start }
-func (m metadata) Size() int64       { return m.size }
-func (m metadata) Checksum() *uint32 { return m.checksum }
-
-type blocksMetadata struct {
-	id     ts.ID
-	blocks []Metadata
 }
 
 // NewBlocksMetadata creates a new blocks metadata
 func NewBlocksMetadata(id ts.ID, blocks []Metadata) BlocksMetadata {
-	return blocksMetadata{id: id, blocks: blocks}
+	return BlocksMetadata{ID: id, Blocks: blocks}
 }
-
-func (m blocksMetadata) ID() ts.ID          { return m.id }
-func (m blocksMetadata) Blocks() []Metadata { return m.blocks }
