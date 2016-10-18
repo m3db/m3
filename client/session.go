@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
@@ -1759,14 +1760,18 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	// No longer need the encoder, seal the block
 	result.Seal()
 
-	resultReader, err := result.Stream(nil)
+	resultCtx := context.NewContext()
+	defer resultCtx.Close()
+
+	resultReader, err := result.Stream(resultCtx)
 	if err != nil {
 		return err
 	}
 	if resultReader == nil {
 		return nil
 	}
-	defer resultReader.Close()
+
+	var tmpCtx context.Context
 
 	for {
 		r.Lock()
@@ -1784,7 +1789,13 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 
 		// If we've already received data for this block, merge them
 		// with the new block if possible
-		currReader, err := currBlock.Stream(nil)
+		if tmpCtx == nil {
+			tmpCtx = context.NewContext()
+		} else {
+			tmpCtx.Reset()
+		}
+
+		currReader, err := currBlock.Stream(tmpCtx)
 		if err != nil {
 			return err
 		}
@@ -1797,7 +1808,8 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 
 		readers := []io.Reader{currReader, resultReader}
 		encoder, err := r.mergeReaders(start, readers)
-		currReader.Close()
+		tmpCtx.BlockingClose()
+
 		if err != nil {
 			return err
 		}
