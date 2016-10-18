@@ -140,8 +140,8 @@ func (_mr *_MockDatabaseSeriesRecorder) IsBootstrapped() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBootstrapped")
 }
 
-func (_m *MockDatabaseSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
-	ret := _m.ctrl.Call(_m, "Bootstrap", rs)
+func (_m *MockDatabaseSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", blocks)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
@@ -286,6 +286,17 @@ func (_mr *_MockdatabaseBufferRecorder) IsEmpty() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
 }
 
+func (_m *MockdatabaseBuffer) MinMax() (time.Time, time.Time) {
+	ret := _m.ctrl.Call(_m, "MinMax")
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(time.Time)
+	return ret0, ret1
+}
+
+func (_mr *_MockdatabaseBufferRecorder) MinMax() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MinMax")
+}
+
 func (_m *MockdatabaseBuffer) NeedsDrain() bool {
 	ret := _m.ctrl.Call(_m, "NeedsDrain")
 	ret0, _ := ret[0].(bool)
@@ -296,12 +307,22 @@ func (_mr *_MockdatabaseBufferRecorder) NeedsDrain() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NeedsDrain")
 }
 
-func (_m *MockdatabaseBuffer) DrainAndReset(forced bool) {
-	_m.ctrl.Call(_m, "DrainAndReset", forced)
+func (_m *MockdatabaseBuffer) DrainAndReset() {
+	_m.ctrl.Call(_m, "DrainAndReset")
 }
 
-func (_mr *_MockdatabaseBufferRecorder) DrainAndReset(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DrainAndReset", arg0)
+func (_mr *_MockdatabaseBufferRecorder) DrainAndReset() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DrainAndReset")
+}
+
+func (_m *MockdatabaseBuffer) Bootstrap(bl block.DatabaseBlock) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", bl)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseBufferRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
 }
 
 func (_m *MockdatabaseBuffer) Reset() {

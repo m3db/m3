@@ -22,6 +22,7 @@ package series
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -82,6 +83,19 @@ func (b *dbBuffer) Reset() {
 	})
 }
 
+func (b *dbBuffer) MinMax() (time.Time, time.Time) {
+	var min, max time.Time
+	b.forEachBucketAsc(b.nowFn(), func(bucket *dbBufferBucket, start time.Time) {
+		if min.IsZero() || start.Before(min) {
+			min = start
+		}
+		if max.IsZero() || start.After(max) {
+			max = start
+		}
+	})
+	return min, max
+}
+
 func (b *dbBuffer) Write(
 	ctx context.Context,
 	timestamp time.Time,
@@ -106,7 +120,7 @@ func (b *dbBuffer) Write(
 	_, _, needsReset := b.bucketState(now, bucket, bucketStart)
 	if needsReset {
 		// Needs reset
-		b.DrainAndReset(false)
+		b.DrainAndReset()
 	}
 
 	return bucket.write(timestamp, value, unit, annotation)
@@ -139,7 +153,7 @@ func (b *dbBuffer) bucketState(
 	bucket *dbBufferBucket,
 	bucketStart time.Time,
 ) (bool, bool, bool) {
-	notDrainedHasValues := !bucket.drained && !bucket.lastWriteAt.IsZero()
+	notDrainedHasValues := !bucket.drained && !bucket.empty
 
 	shouldRead := notDrainedHasValues
 	needsReset := !bucket.start.Equal(bucketStart)
@@ -149,18 +163,14 @@ func (b *dbBuffer) bucketState(
 	return shouldRead, needsDrain, needsReset
 }
 
-func (b *dbBuffer) DrainAndReset(forced bool) {
+func (b *dbBuffer) DrainAndReset() {
 	now := b.nowFn()
 	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
 		_, needsDrain, needsReset := b.bucketState(now, bucket, current)
-		if forced && !bucket.drained && !bucket.lastWriteAt.IsZero() {
-			// If the bucket is not empty and hasn't been drained, force it to drain.
-			needsDrain, needsReset = true, true
-		}
 		if needsDrain {
-			bucket.sort()
+			bucket.merge()
 
-			// After we sort there is always only a single encoder
+			// After we merge there is always only a single encoder with all the data
 			encoder := bucket.encoders[0].encoder
 			encoder.Seal()
 			b.drainFn(bucket.start, encoder)
@@ -172,6 +182,21 @@ func (b *dbBuffer) DrainAndReset(forced bool) {
 			bucket.resetTo(current)
 		}
 	})
+}
+
+func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
+	blockStart := bl.StartTime()
+	bootstrapped := false
+	b.forEachBucketAsc(b.nowFn(), func(bucket *dbBufferBucket, start time.Time) {
+		if start.Equal(blockStart) {
+			bucket.bootstrap(bl)
+			bootstrapped = true
+		}
+	})
+	if !bootstrapped {
+		return fmt.Errorf("block at %s not contained by buffer", blockStart.String())
+	}
+	return nil
 }
 
 func (b *dbBuffer) forEachBucketAsc(now time.Time, fn func(*dbBufferBucket, time.Time)) {
@@ -201,7 +226,7 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 		}
 
 		unmerged := make([]xio.SegmentReader, 0, len(bucket.encoders))
-		b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
+		bucket.readStreams(ctx, now, current, func(stream xio.SegmentReader) {
 			unmerged = append(unmerged, stream)
 		})
 
@@ -233,7 +258,7 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 			return
 		}
 		readers := make([]xio.SegmentReader, 0, len(bucket.encoders))
-		b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
+		bucket.readStreams(ctx, now, current, func(stream xio.SegmentReader) {
 			readers = append(readers, stream)
 		})
 		res = append(res, block.NewFetchBlockResult(bucket.start, readers, nil))
@@ -256,7 +281,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 			return
 		}
 		var size int64
-		b.readBucketStreams(ctx, bucket, now, current, func(stream xio.SegmentReader) {
+		bucket.readStreams(ctx, now, current, func(stream xio.SegmentReader) {
 			segment := stream.Segment()
 			size += int64(len(segment.Head) + len(segment.Tail))
 		})
@@ -278,33 +303,13 @@ func (b *dbBuffer) FetchBlocksMetadata(
 
 type dbBufferBucketStreamFn func(stream xio.SegmentReader)
 
-func (b *dbBuffer) readBucketStreams(
-	ctx context.Context,
-	bucket *dbBufferBucket,
-	now, current time.Time,
-	streamFn dbBufferBucketStreamFn,
-) {
-	for i := range bucket.encoders {
-		stream := bucket.encoders[i].encoder.Stream()
-		if stream == nil {
-			// TODO(r): log an error and emit a metric, this is pretty bad as this
-			// encoder should have values if "shouldRead" returned true
-			continue
-		}
-
-		ctx.RegisterCloser(context.CloserFn(stream.Close))
-
-		streamFn(stream)
-	}
-}
-
 type dbBufferBucket struct {
-	opts        Options
-	start       time.Time
-	encoders    []inOrderEncoder
-	lastWriteAt time.Time
-	outOfOrder  bool
-	drained     bool
+	opts         Options
+	start        time.Time
+	encoders     []inOrderEncoder
+	bootstrapped []block.DatabaseBlock
+	empty        bool
+	drained      bool
 }
 
 type inOrderEncoder struct {
@@ -323,20 +328,17 @@ func (b *dbBufferBucket) resetTo(start time.Time) {
 
 	b.start = start
 	b.encoders = append(b.encoders[:0], first)
-	b.lastWriteAt = timeZero
-	b.outOfOrder = false
+	b.bootstrapped = nil
+	b.empty = true
 	b.drained = false
 }
 
-func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
-	if !b.outOfOrder && timestamp.Before(b.lastWriteAt) {
-		// Can never revert from out of order until reset or sorted
-		b.outOfOrder = true
-	}
-	if timestamp.After(b.lastWriteAt) {
-		b.lastWriteAt = timestamp
-	}
+func (b *dbBufferBucket) bootstrap(bl block.DatabaseBlock) {
+	b.empty = false
+	b.bootstrapped = append(b.bootstrapped, bl)
+}
 
+func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	var target *inOrderEncoder
 	for i := range b.encoders {
 		if timestamp == b.encoders[i].lastWriteAt {
@@ -367,12 +369,36 @@ func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Un
 		return err
 	}
 	target.lastWriteAt = timestamp
+	b.empty = false
 	return nil
 }
 
-func (b *dbBufferBucket) sort() {
-	if !b.outOfOrder {
-		// Already sorted
+func (b *dbBufferBucket) readStreams(
+	ctx context.Context,
+	now, current time.Time,
+	streamFn dbBufferBucketStreamFn,
+) {
+	for i := range b.bootstrapped {
+		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s != nil {
+			// NB(r): block stream method will register the stream closer already
+			streamFn(s)
+		}
+	}
+	for i := range b.encoders {
+		if s := b.encoders[i].encoder.Stream(); s != nil {
+			ctx.RegisterCloser(context.CloserFn(s.Close))
+			streamFn(s)
+		}
+	}
+}
+
+func (b *dbBufferBucket) merged() bool {
+	return len(b.encoders) == 1 && len(b.bootstrapped) == 0
+}
+
+func (b *dbBufferBucket) merge() {
+	if b.merged() {
+		// Already merged
 		return
 	}
 
@@ -380,16 +406,28 @@ func (b *dbBufferBucket) sort() {
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
-	readers := make([]io.Reader, len(b.encoders))
+	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
 	for i := range b.encoders {
-		readers[i] = b.encoders[i].encoder.Stream()
+		readers = append(readers, b.encoders[i].encoder.Stream())
 	}
 
+	var ctx context.Context
+	for i := range b.bootstrapped {
+		if ctx == nil {
+			ctx = bopts.ContextPool().Get()
+		}
+		stream, err := b.bootstrapped[i].Stream(ctx)
+		if err == nil && stream != nil {
+			readers = append(readers, stream)
+		}
+	}
+
+	var lastWriteAt time.Time
 	iter := b.opts.MultiReaderIteratorPool().Get()
 	iter.Reset(readers)
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
-		b.lastWriteAt = dp.Timestamp
+		lastWriteAt = dp.Timestamp
 		encoder.Encode(dp, unit, annotation)
 	}
 	iter.Close()
@@ -399,8 +437,12 @@ func (b *dbBufferBucket) sort() {
 	}
 
 	b.encoders = append(b.encoders[:0], inOrderEncoder{
-		lastWriteAt: b.lastWriteAt,
+		lastWriteAt: lastWriteAt,
 		encoder:     encoder,
 	})
-	b.outOfOrder = false
+	b.bootstrapped = nil
+
+	if ctx != nil {
+		ctx.Close()
+	}
 }

@@ -37,12 +37,14 @@ const (
 type baseBootstrapper struct {
 	opts bootstrap.Options
 	log  xlog.Logger
+	name string
 	src  bootstrap.Source
 	next bootstrap.Bootstrapper
 }
 
 // NewBaseBootstrapper creates a new base bootstrapper.
 func NewBaseBootstrapper(
+	name string,
 	src bootstrap.Source,
 	opts bootstrap.Options,
 	next bootstrap.Bootstrapper,
@@ -54,6 +56,7 @@ func NewBaseBootstrapper(
 	return &baseBootstrapper{
 		opts: opts,
 		log:  opts.InstrumentOptions().Logger(),
+		name: name,
 		src:  src,
 		next: bs,
 	}
@@ -91,7 +94,28 @@ func (b *baseBootstrapper) Bootstrap(
 		}()
 	}
 
+	min, max := available.MinMax()
+	logFields := []xlog.LogField{
+		xlog.NewLogField("source", b.name),
+		xlog.NewLogField("from", min),
+		xlog.NewLogField("to", max),
+		xlog.NewLogField("range", max.Sub(min).String()),
+		xlog.NewLogField("shards", len(available)),
+	}
+	b.log.WithFields(logFields...).Infof("bootstrapping from source starting")
+
+	nowFn := b.opts.ClockOptions().NowFn()
+	begin := nowFn()
+
 	currResult, currErr = b.src.Read(namespace, available)
+
+	logFields = append(logFields, xlog.NewLogField("took", nowFn().Sub(begin).String()))
+	if currErr != nil {
+		logFields = append(logFields, xlog.NewLogField("error", currErr.Error()))
+		b.log.WithFields(logFields...).Infof("bootstrapping from source completed with error")
+	} else {
+		b.log.WithFields(logFields...).Infof("bootstrapping from source completed successfully")
+	}
 
 	wg.Wait()
 	if err := xerrors.FirstError(currErr, nextErr); err != nil {

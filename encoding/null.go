@@ -31,7 +31,8 @@ import (
 )
 
 type nullEncoder struct {
-	data []byte
+	data   []byte
+	sealed bool
 }
 
 // NewNullEncoder returns a new encoder that performs no operations
@@ -45,8 +46,7 @@ func (e *nullEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 func (e *nullEncoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(ts.Segment{Head: e.data})
 }
-func (e *nullEncoder) Seal()                                                {}
-func (e *nullEncoder) Unseal() error                                        { return nil }
+func (e *nullEncoder) Seal()                                                { e.sealed = true }
 func (e *nullEncoder) Reset(t time.Time, capacity int)                      {}
 func (e *nullEncoder) ResetSetData(t time.Time, data []byte, writable bool) { e.data = data }
 func (e *nullEncoder) Close()                                               {}

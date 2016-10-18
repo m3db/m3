@@ -32,18 +32,16 @@ import (
 )
 
 type peersSource struct {
-	opts    Options
-	log     xlog.Logger
-	nowFn   clock.NowFn
-	sleepFn func(t time.Duration)
+	opts  Options
+	log   xlog.Logger
+	nowFn clock.NowFn
 }
 
 func newPeersSource(opts Options) bootstrap.Source {
 	return &peersSource{
-		opts:    opts,
-		log:     opts.BootstrapOptions().InstrumentOptions().Logger(),
-		nowFn:   opts.BootstrapOptions().ClockOptions().NowFn(),
-		sleepFn: opts.SleepFn(),
+		opts:  opts,
+		log:   opts.BootstrapOptions().InstrumentOptions().Logger(),
+		nowFn: opts.BootstrapOptions().ClockOptions().NowFn(),
 	}
 }
 
@@ -74,19 +72,12 @@ func (s *peersSource) Read(
 	result := bootstrap.NewResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
-		s.log.Errorf("unable to get the default admin session: %v", err)
+		s.log.Errorf("peers bootstrapper cannot get default admin session: %v", err)
 		result.SetUnfulfilled(shardsTimeRanges)
 		return result, nil
 	}
 
-	// Wait for data to be available from peers if required
-	now := s.nowFn()
-	_, max := shardsTimeRanges.MinMax()
-	for max.After(now) {
-		s.sleepFn(max.Sub(now))
-		now = s.nowFn()
-	}
-
+	s.log.Infof("peers bootstrapper starting to bootstrap shards in parallel")
 	var (
 		bopts = s.opts.BootstrapOptions()
 		lock  sync.Mutex

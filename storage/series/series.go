@@ -118,7 +118,7 @@ func (s *dbSeries) Tick() error {
 
 	s.Lock()
 	if needsDrain {
-		s.buffer.DrainAndReset(false)
+		s.buffer.DrainAndReset()
 	}
 
 	if needsBlockUpdate {
@@ -269,7 +269,7 @@ func (s *dbSeries) ReadEncoded(
 }
 
 func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
-	res := make([]block.FetchBlockResult, 0, len(starts)+1)
+	res := make([]block.FetchBlockResult, 0, len(starts))
 
 	s.RLock()
 
@@ -277,10 +277,13 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 		if b, exists := s.blocks.BlockAt(start); exists {
 			stream, err := b.Stream(ctx)
 			if err != nil {
-				detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.id.String(), start, err)
-				res = append(res, block.NewFetchBlockResult(start, nil, detailedErr))
+				r := block.NewFetchBlockResult(start, nil,
+					fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
+						s.id.String(), start, err))
+				res = append(res, r)
 			} else if stream != nil {
-				res = append(res, block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil))
+				r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil)
+				res = append(res, r)
 			}
 		}
 	}
@@ -446,7 +449,7 @@ func (s *dbSeries) drainBufferedEncoderWithLock(
 // data in memory during bootstrapping. If that becomes a problem, we could
 // bootstrap in batches, e.g., drain and reset the buffer, drain the streams,
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
-func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
+func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 	s.Lock()
 	if s.bs == bootstrapped {
 		s.Unlock()
@@ -456,34 +459,45 @@ func (s *dbSeries) Bootstrap(rs block.DatabaseSeriesBlocks) error {
 		s.Unlock()
 		return errSeriesIsBootstrapping
 	}
+
 	s.bs = bootstrapping
 
-	if rs == nil {
-		// If no data to bootstrap from then fallback to the empty blocks map.
-		rs = s.blocks
+	multiErr := xerrors.NewMultiError()
+	if blocks == nil {
+		// If no data to bootstrap from then fallback to the empty blocks map
+		blocks = s.blocks
+	} else {
+		// Request the in-memory buffer to drain and reset so that the start times
+		// of the blocks in the buckets are set to the latest valid times
+		s.buffer.DrainAndReset()
+
+		// If any received data falls within the buffer then we emplace it there
+		min, _ := s.buffer.MinMax()
+		for t, block := range blocks.AllBlocks() {
+			if !t.Before(min) {
+				if err := s.buffer.Bootstrap(block); err != nil {
+					err = xerrors.NewRenamedError(err, fmt.Errorf(
+						"bootstrap series error occurred for %s: %v", s.id.String(), err))
+					multiErr = multiErr.Add(err)
+				}
+				blocks.RemoveBlockAt(t)
+			}
+		}
 	}
 
-	// Force the in-memory buffer to drain and reset so we can merge the
-	// in-memory data accumulated during bootstrapping.
-	s.buffer.DrainAndReset(true)
-
-	// NB(xichen): if an error occurred during series bootstrap, we close
-	// the database series blocks and mark the series bootstrapped regardless
-	// in the hope that the other replicas will provide data for this series.
-	multiErr := xerrors.NewMultiError()
 	for i := range s.pendingBootstrap {
-		if err := s.drainBufferedEncoderWithLock(rs, s.pendingBootstrap[i].start, s.pendingBootstrap[i].encoder); err != nil {
-			rs.Close()
-
-			ropts := s.opts.RetentionOptions()
-			blocksLen := int(ropts.RetentionPeriod() / ropts.BlockSize())
-			rs = block.NewDatabaseSeriesBlocks(blocksLen, s.opts.DatabaseBlockOptions())
-			err = xerrors.NewRenamedError(err, fmt.Errorf("error occurred bootstrapping series %s: %v", s.id.String(), err))
+		if err := s.drainBufferedEncoderWithLock(
+			blocks,
+			s.pendingBootstrap[i].start,
+			s.pendingBootstrap[i].encoder,
+		); err != nil {
+			err = xerrors.NewRenamedError(err, fmt.Errorf(
+				"bootstrap series error occurred for %s: %v", s.id.String(), err))
 			multiErr = multiErr.Add(err)
 		}
 	}
 
-	s.blocks = rs
+	s.blocks = blocks
 	s.pendingBootstrap = nil
 	s.bs = bootstrapped
 	s.Unlock()

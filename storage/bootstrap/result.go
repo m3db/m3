@@ -299,6 +299,9 @@ func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
 func (r ShardTimeRanges) MinMax() (time.Time, time.Time) {
 	min, max := time.Time{}, time.Time{}
 	for _, ranges := range r {
+		if xtime.IsEmpty(ranges) {
+			continue
+		}
 		it := ranges.Iter()
 		for it.Next() {
 			curr := it.Value()

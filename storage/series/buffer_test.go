@@ -201,12 +201,12 @@ func TestBufferDrain(t *testing.T) {
 	}
 
 	assert.Equal(t, true, buffer.NeedsDrain())
-	assert.Len(t, drained, 0)
+	assert.Equal(t, 0, len(drained))
 
-	buffer.DrainAndReset(false)
+	buffer.DrainAndReset()
 
 	assert.Equal(t, false, buffer.NeedsDrain())
-	assert.Len(t, drained, 1)
+	assert.Equal(t, 1, len(drained))
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -290,7 +290,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 
 	bucketIdx := (curr.UnixNano() / int64(rops.BlockSize())) % bucketsLen
 	assert.Equal(t, 2, len(buffer.buckets[bucketIdx].encoders))
-	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].lastWriteAt)
+	assert.False(t, buffer.buckets[bucketIdx].empty)
 	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].encoders[0].lastWriteAt)
 	assert.Equal(t, data[2].timestamp, buffer.buckets[bucketIdx].encoders[1].lastWriteAt)
 
@@ -305,9 +305,9 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 
 	assertValuesEqual(t, data, results, opts)
 
-	// Explicitly sort
+	// Explicitly merge
 	for i := range buffer.buckets {
-		buffer.buckets[i].sort()
+		buffer.buckets[i].merge()
 	}
 
 	// Ensure compacted encoders
@@ -326,7 +326,7 @@ func initializeTestBufferBucket() (*dbBufferBucket, Options, []value) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
-	b := &dbBufferBucket{opts: opts, start: curr, outOfOrder: true}
+	b := &dbBufferBucket{opts: opts, start: curr, empty: false}
 	data := [][]value{
 		{
 			{curr, 1, xtime.Second, nil},
@@ -352,23 +352,26 @@ func initializeTestBufferBucket() (*dbBufferBucket, Options, []value) {
 		encoder := opts.EncoderPool().Get()
 		encoder.Reset(curr, 0)
 		for _, v := range data[i] {
-			encoder.Encode(ts.Datapoint{v.timestamp, v.value}, v.unit, v.annotation)
+			dp := ts.Datapoint{
+				Timestamp: v.timestamp,
+				Value:     v.value,
+			}
+			encoder.Encode(dp, v.unit, v.annotation)
 		}
 		b.encoders = append(b.encoders, inOrderEncoder{encoder: encoder})
 		expected = append(expected, d...)
 	}
-	b.lastWriteAt = curr.Add(secs(70))
 	sort.Sort(valuesByTime(expected))
 	return b, opts, expected
 }
 
-func TestBufferBucketSort(t *testing.T) {
+func TestBufferBucketMerge(t *testing.T) {
 	b, opts, expected := initializeTestBufferBucket()
 
-	b.sort()
+	b.merge()
 
 	assert.Len(t, b.encoders, 1)
-	assert.Equal(t, b.lastWriteAt, expected[len(expected)-1].timestamp)
+	assert.False(t, b.empty)
 	assertValuesEqual(t, expected, [][]xio.SegmentReader{[]xio.SegmentReader{
 		b.encoders[0].encoder.Stream(),
 	}}, opts)
@@ -378,15 +381,16 @@ func TestBufferBucketWriteDuplicate(t *testing.T) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
-	b := &dbBufferBucket{opts: opts, start: curr, outOfOrder: false}
+
+	b := &dbBufferBucket{opts: opts, start: curr, empty: true}
 	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
-	require.False(t, b.outOfOrder)
+	require.False(t, b.empty)
 
 	encoded := b.encoders[0].encoder.Stream().Segment()
 	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
-	require.False(t, b.outOfOrder)
+	require.True(t, b.merged())
 	require.Equal(t, encoded, b.encoders[0].encoder.Stream().Segment())
 }
 
@@ -401,9 +405,9 @@ func TestBufferFetchBlocks(t *testing.T) {
 	for i := 1; i < 3; i++ {
 		newBucketStart := b.start.Add(time.Duration(i) * time.Minute)
 		buffer.buckets[i] = dbBufferBucket{
-			start:       newBucketStart,
-			lastWriteAt: newBucketStart,
-			encoders:    []inOrderEncoder{{newBucketStart, nil}},
+			start:    newBucketStart,
+			empty:    true,
+			encoders: []inOrderEncoder{{newBucketStart, nil}},
 		}
 	}
 

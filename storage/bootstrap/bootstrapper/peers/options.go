@@ -60,13 +60,3 @@ func (o *options) SetAdminClient(value client.AdminClient) Options {
 func (o *options) AdminClient() client.AdminClient {
 	return o.client
 }
-
-func (o *options) SetSleepFn(value SleepFn) Options {
-	opts := *o
-	opts.sleepFn = value
-	return &opts
-}
-
-func (o *options) SleepFn() SleepFn {
-	return o.sleepFn
-}

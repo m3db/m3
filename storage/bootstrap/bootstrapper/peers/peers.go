@@ -40,9 +40,10 @@ func NewPeersBootstrapper(
 	next bootstrap.Bootstrapper,
 ) bootstrap.Bootstrapper {
 	src := newPeersSource(opts)
-	return &peersBootstrapper{
-		Bootstrapper: bootstrapper.NewBaseBootstrapper(src, opts.BootstrapOptions(), next),
-	}
+	b := &peersBootstrapper{}
+	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
+		src, opts.BootstrapOptions(), next)
+	return b
 }
 
 func (*peersBootstrapper) String() string {

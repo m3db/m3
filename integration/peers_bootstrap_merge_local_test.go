@@ -29,9 +29,9 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/log"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,8 +44,10 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	log := xlog.NewLogger(os.Stdout)
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
-		SetNamespaces([]namespace.Metadata{namesp})
-	testSleepFn, setSleepFn := newTestSleepFn()
+		SetNamespaces([]namespace.Metadata{namesp}).SetVerifySeriesDebugFilePathPrefix("/tmp/")
+
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -53,7 +55,7 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		SetBufferFuture(2 * time.Minute)
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false, sleepFn: testSleepFn},
+		{disablePeersBootstrapper: false, testStatsReporter: reporter},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
@@ -130,19 +132,20 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
 
-	// Start the last server with peers and filesystem bootstrappers
-	setSleepFn(func(d time.Duration) {
-		mustWaitFor := retentionOpts.BufferFuture()
-
-		// Assert that we want to sleep buffer future
-		assert.Equal(t, mustWaitFor, d)
+	go func() {
+		// Wait for bootstrapping to occur
+		for reporter.Counters()["database.bootstrap.start"] == 0 {
+			time.Sleep(10 * time.Millisecond)
+		}
 
 		// Progress time before writing data directly to second node
 		setups[1].setNowFn(completeAt)
 
 		// Write data that "arrives" at the second node directly
 		require.NoError(t, setups[1].writeBatch(namesp.ID(), directWritesSeriesMaps[now]))
-	})
+	}()
+
+	// Start the last server with peers and filesystem bootstrappers
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
 

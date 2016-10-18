@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +45,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
 		SetNamespaces([]namespace.Metadata{namesp})
-	testSleepFn, setSleepFn := newTestSleepFn()
+
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -55,7 +54,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false, sleepFn: testSleepFn},
+		{disablePeersBootstrapper: false},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
@@ -100,13 +99,6 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	})
 
 	// Start the last server with peers and filesystem bootstrappers
-	setSleepFn(func(d time.Duration) {
-		mustWaitFor := retentionOpts.BufferFuture()
-		// Assert that we want to sleep buffer future
-		assert.Equal(t, mustWaitFor, d)
-		// When the peer bootstrapper sleeps we want to progress time
-		setups[2].setNowFn(now.Add(mustWaitFor))
-	})
 	require.NoError(t, setups[2].startServer())
 	log.Debug("servers are now up")
 
