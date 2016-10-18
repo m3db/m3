@@ -82,7 +82,9 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	defer ctx.Close()
 
 	ns := newTestNamespace(t)
-	require.Error(t, ns.Write(ctx, ts.StringID("foo"), time.Now(), 0.0, xtime.Second, nil))
+	err := ns.Write(ctx, ts.StringID("foo"), time.Now(), 0.0, xtime.Second, nil)
+	require.Error(t, err)
+	require.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestNamespaceWriteShardOwned(t *testing.T) {
