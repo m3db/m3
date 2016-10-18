@@ -1403,79 +1403,113 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			continue
 		}
 
-		// Determine maximum size
-		currMaxSize := int64(math.MinInt64)
+		var (
+			sameNonNilChecksum = true
+			curChecksum        *uint32
+		)
+
 		for i := 0; i < len(currEligible); i++ {
 			unselected := currEligible[i].unselectedBlocks()
-			// Track maximum size
-			if unselected[0].size > currMaxSize {
-				currMaxSize = unselected[0].size
+			// If any peer has a nil checksum, this might be the most recent block
+			// and therefore not sealed so we want to merge from all peers
+			if unselected[0].checksum == nil {
+				sameNonNilChecksum = false
+				break
+			}
+			if curChecksum == nil {
+				curChecksum = unselected[0].checksum
+			} else if *curChecksum != *unselected[0].checksum {
+				sameNonNilChecksum = false
+				break
 			}
 		}
 
-		// Only select from those with the maximum size
-		for i := len(currEligible) - 1; i >= 0; i-- {
-			unselected := currEligible[i].unselectedBlocks()
-			if unselected[0].size < currMaxSize {
-				// Swap current entry to tail
-				blocksMetadatas(currEligible).swap(i, len(currEligible)-1)
-				// Trim newly last entry
-				currEligible = currEligible[:len(currEligible)-1]
+		// If all the peers have the same non-nil checksum, we pick the peer with the
+		// fewest outstanding requests
+		if sameNonNilChecksum {
+			// Order by least outstanding blocks being fetched
+			blocksMetadataQueues = blocksMetadataQueues[:0]
+			for i := range currEligible {
+				insert := blocksMetadataQueue{
+					blocksMetadata: currEligible[i],
+					queue:          peerQueues.findQueue(currEligible[i].peer),
+				}
+				blocksMetadataQueues = append(blocksMetadataQueues, insert)
 			}
-		}
+			sort.Stable(blocksMetadatasQueuesByOutstandingAsc(blocksMetadataQueues))
 
-		// Order by least outstanding blocks being fetched
-		blocksMetadataQueues = blocksMetadataQueues[:0]
-		for i := range currEligible {
-			insert := blocksMetadataQueue{
-				blocksMetadata: currEligible[i],
-				queue:          peerQueues.findQueue(currEligible[i].peer),
+			// Select the best peer
+			bestPeerBlocksQueue := blocksMetadataQueues[0].queue
+
+			// Prepare the reattempt peers metadata
+			peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
+			for i := range currStart {
+				unselected := currStart[i].unselectedBlocks()
+				metadata := blockMetadataReattemptPeerMetadata{
+					peer:     currStart[i].peer,
+					start:    unselected[0].start,
+					size:     unselected[0].size,
+					checksum: unselected[0].checksum,
+				}
+				peersMetadata = append(peersMetadata, metadata)
 			}
-			blocksMetadataQueues = append(blocksMetadataQueues, insert)
-		}
-		sort.Stable(blocksMetadatasQueuesByOutstandingAsc(blocksMetadataQueues))
 
-		// Select the best peer
-		bestPeerBlocksQueue := blocksMetadataQueues[0].queue
+			// Remove the block from all other peers and increment index for selected peer
+			for i := range currStart {
+				peer := currStart[i].peer
+				if peer == bestPeerBlocksQueue.peer {
+					// Select this block
+					idx := currStart[i].idx
+					currStart[i].idx = idx + 1
 
-		// Prepare the reattempt peers metadata
-		peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
-		for i := range currStart {
-			unselected := currStart[i].unselectedBlocks()
-			metadata := blockMetadataReattemptPeerMetadata{
-				peer:     currStart[i].peer,
-				start:    unselected[0].start,
-				size:     unselected[0].size,
-				checksum: unselected[0].checksum,
+					// Set the reattempt metadata
+					currStart[i].blocks[idx].reattempt.id = currID
+					currStart[i].blocks[idx].reattempt.attempt++
+					currStart[i].blocks[idx].reattempt.attempted =
+						append(currStart[i].blocks[idx].reattempt.attempted, peer)
+					currStart[i].blocks[idx].reattempt.peersMetadata = peersMetadata
+
+					// Leave the block in the current peers blocks list
+					continue
+				}
+
+				// Removing this block
+				blocksLen := len(currStart[i].blocks)
+				idx := currStart[i].idx
+				tailIdx := blocksLen - 1
+				currStart[i].blocks[idx], currStart[i].blocks[tailIdx] = currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
+				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 			}
-			peersMetadata = append(peersMetadata, metadata)
-		}
+		} else {
+			// Prepare the reattempt peers metadata
+			peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
+			for i := range currStart {
+				unselected := currStart[i].unselectedBlocks()
+				metadata := blockMetadataReattemptPeerMetadata{
+					peer:     currStart[i].peer,
+					start:    unselected[0].start,
+					size:     unselected[0].size,
+					checksum: unselected[0].checksum,
+				}
+				peersMetadata = append(peersMetadata, metadata)
+			}
 
-		// Remove the block from all other peers and increment index for selected peer
-		for i := range currStart {
-			peer := currStart[i].peer
-			if peer == bestPeerBlocksQueue.peer {
+			for i := range currStart {
 				// Select this block
 				idx := currStart[i].idx
 				currStart[i].idx = idx + 1
 
 				// Set the reattempt metadata
 				currStart[i].blocks[idx].reattempt.id = currID
-				currStart[i].blocks[idx].reattempt.attempt++
-				currStart[i].blocks[idx].reattempt.attempted =
-					append(currStart[i].blocks[idx].reattempt.attempted, peer)
 				currStart[i].blocks[idx].reattempt.peersMetadata = peersMetadata
 
-				// Leave the block in the current peers blocks list
-				continue
+				// Each block now has attempted multiple peers
+				for j := range currStart {
+					currStart[i].blocks[idx].reattempt.attempt++
+					currStart[i].blocks[idx].reattempt.attempted =
+						append(currStart[i].blocks[idx].reattempt.attempted, currStart[j].peer)
+				}
 			}
-
-			// Removing this block
-			blocksLen := len(currStart[i].blocks)
-			idx := currStart[i].idx
-			tailIdx := blocksLen - 1
-			currStart[i].blocks[idx], currStart[i].blocks[tailIdx] = currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
-			currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 		}
 	}
 }
@@ -1711,23 +1745,10 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 				Tail: segments.Unmerged[i].Tail,
 			})
 		}
-
-		alloc := r.opts.ReaderIteratorAllocate()
-		iter := encoding.NewMultiReaderIterator(alloc, nil)
-		iter.Reset(readers)
-		defer iter.Close()
-
-		encoder := r.encoderPool.Get()
-		encoder.Reset(start, r.blockAllocSize)
-
-		for iter.Next() {
-			dp, unit, annotation := iter.Current()
-			encoder.Encode(dp, unit, annotation)
-		}
-		if err := iter.Err(); err != nil {
+		encoder, err := r.mergeReaders(start, readers)
+		if err != nil {
 			return err
 		}
-
 		result.Reset(start, encoder)
 
 	default:
@@ -1738,11 +1759,65 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	// No longer need the encoder, seal the block
 	result.Seal()
 
+	resultReader, err := result.Stream(nil)
+	if err != nil {
+		return err
+	}
+	if resultReader == nil {
+		return nil
+	}
+	defer resultReader.Close()
+
 	r.Lock()
+	defer r.Unlock()
+
+	currBlock, exists := r.result.BlockAt(id, start)
+	if exists {
+		// If we've already received data for this block, merge them
+		// with the new block if possible
+		currReader, err := currBlock.Stream(nil)
+		if err != nil {
+			return err
+		}
+		if currReader == nil {
+			r.result.AddBlock(id, result)
+			return nil
+		}
+		defer currReader.Close()
+
+		readers := []io.Reader{currReader, resultReader}
+		encoder, err := r.mergeReaders(start, readers)
+		if err != nil {
+			return err
+		}
+		result.Reset(start, encoder)
+		result.Seal()
+	}
+
 	r.result.AddBlock(id, result)
-	r.Unlock()
 
 	return nil
+}
+
+func (r *blocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
+	alloc := r.opts.ReaderIteratorAllocate()
+	iter := encoding.NewMultiReaderIterator(alloc, nil)
+	iter.Reset(readers)
+	defer iter.Close()
+
+	encoder := r.encoderPool.Get()
+	encoder.Reset(start, r.blockAllocSize)
+
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		encoder.Encode(dp, unit, annotation)
+	}
+	if err := iter.Err(); err != nil {
+		encoder.Close()
+		return nil, err
+	}
+
+	return encoder, nil
 }
 
 type enqueueChannel struct {

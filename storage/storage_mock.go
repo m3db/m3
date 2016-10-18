@@ -1287,6 +1287,7 @@ func (_m *MockOptions) IdentifierPool() ts.IdentifierPool {
 func (_mr *_MockOptionsRecorder) IdentifierPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IdentifierPool")
 }
+<<<<<<< 86de194e4b355e16437d011d8b70083ca8acf9ed
 
 func (_m *MockOptions) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options {
 	ret := _m.ctrl.Call(_m, "SetFetchBlockMetadataResultsPool", value)
@@ -1327,3 +1328,5 @@ func (_m *MockOptions) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadat
 func (_mr *_MockOptionsRecorder) FetchBlocksMetadataResultsPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataResultsPool")
 }
+=======
+>>>>>>> Merge blocks from peers with different or nil checksums during peer bootstrapping

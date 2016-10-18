@@ -130,6 +130,17 @@ func (_mr *_MockShardResultRecorder) IsEmpty() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
 }
 
+func (_m *MockShardResult) BlockAt(id ts.ID, t time0.Time) (block.DatabaseBlock, bool) {
+	ret := _m.ctrl.Call(_m, "BlockAt", id, t)
+	ret0, _ := ret[0].(block.DatabaseBlock)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+func (_mr *_MockShardResultRecorder) BlockAt(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockAt", arg0, arg1)
+}
+
 func (_m *MockShardResult) AllSeries() map[ts.Hash]DatabaseSeriesBlocksWrapper {
 	ret := _m.ctrl.Call(_m, "AllSeries")
 	ret0, _ := ret[0].(map[ts.Hash]DatabaseSeriesBlocksWrapper)

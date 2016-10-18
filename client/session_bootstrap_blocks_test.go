@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
@@ -38,7 +39,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/time"
 
@@ -222,19 +223,20 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 		currStart, currEligible []*blocksMetadata
 		blocksMetadataQueues    []blocksMetadataQueue
 		start                   = timeZero
+		checksum                = uint32(1)
 		perPeer                 = []*blocksMetadata{
 			&blocksMetadata{
 				peer: peerA,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2},
+					{start: start, size: 2, checksum: &checksum},
 				},
 			},
 			&blocksMetadata{
 				peer: peerB,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2},
+					{start: start, size: 2, checksum: &checksum},
 				},
 			},
 		}
@@ -250,6 +252,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 
 	assert.Equal(t, start, perPeer[0].blocks[0].start)
 	assert.Equal(t, int64(2), perPeer[0].blocks[0].size)
+	assert.Equal(t, &checksum, perPeer[0].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[0].blocks[0].reattempt.attempt)
 	assert.Equal(t, []hostQueue{peerA}, perPeer[0].blocks[0].reattempt.attempted)
@@ -279,21 +282,22 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 		currStart, currEligible []*blocksMetadata
 		blocksMetadataQueues    []blocksMetadataQueue
 		start                   = timeZero
+		checksums               = []uint32{1, 2}
 		perPeer                 = []*blocksMetadata{
 			&blocksMetadata{
 				peer: peerA,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2},
-					{start: start.Add(time.Hour * 2), size: 1},
+					{start: start, size: 2, checksum: &checksums[1]},
+					{start: start.Add(time.Hour * 2), size: 1, checksum: &checksums[0]},
 				},
 			},
 			&blocksMetadata{
 				peer: peerB,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 1},
-					{start: start.Add(time.Hour * 2), size: 2},
+					{start: start, size: 1, checksum: &checksums[0]},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksums[1]},
 				},
 			},
 		}
@@ -305,22 +309,38 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 		currStart, currEligible, blocksMetadataQueues)
 
 	// Assert selection first peer
-	assert.Equal(t, 1, len(perPeer[0].blocks))
+	assert.Equal(t, 2, len(perPeer[0].blocks))
 
 	assert.Equal(t, start, perPeer[0].blocks[0].start)
 	assert.Equal(t, int64(2), perPeer[0].blocks[0].size)
+	assert.Equal(t, &checksums[1], perPeer[0].blocks[0].checksum)
 
-	assert.Equal(t, 1, perPeer[0].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA}, perPeer[0].blocks[0].reattempt.attempted)
+	assert.Equal(t, 2, perPeer[0].blocks[0].reattempt.attempt)
+	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[0].blocks[0].reattempt.attempted)
+
+	assert.Equal(t, start.Add(time.Hour*2), perPeer[0].blocks[1].start)
+	assert.Equal(t, int64(1), perPeer[0].blocks[1].size)
+	assert.Equal(t, &checksums[0], perPeer[0].blocks[1].checksum)
+
+	assert.Equal(t, 2, perPeer[0].blocks[1].reattempt.attempt)
+	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[0].blocks[1].reattempt.attempted)
 
 	// Assert selection second peer
-	assert.Equal(t, 1, len(perPeer[1].blocks))
+	assert.Equal(t, 2, len(perPeer[1].blocks))
 
-	assert.Equal(t, start.Add(time.Hour*2), perPeer[1].blocks[0].start)
-	assert.Equal(t, int64(2), perPeer[1].blocks[0].size)
+	assert.Equal(t, start, perPeer[1].blocks[0].start)
+	assert.Equal(t, int64(1), perPeer[1].blocks[0].size)
+	assert.Equal(t, &checksums[0], perPeer[1].blocks[0].checksum)
 
-	assert.Equal(t, 1, perPeer[1].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA}, perPeer[1].blocks[0].reattempt.attempted)
+	assert.Equal(t, 2, perPeer[1].blocks[0].reattempt.attempt)
+	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[1].blocks[0].reattempt.attempted)
+
+	assert.Equal(t, start.Add(time.Hour*2), perPeer[1].blocks[1].start)
+	assert.Equal(t, int64(2), perPeer[1].blocks[1].size)
+	assert.Equal(t, &checksums[1], perPeer[1].blocks[1].checksum)
+
+	assert.Equal(t, 2, perPeer[1].blocks[1].reattempt.attempt)
+	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[1].blocks[1].reattempt.attempted)
 }
 
 func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testing.T) {
@@ -345,26 +365,27 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 		currStart, currEligible []*blocksMetadata
 		blocksMetadataQueues    []blocksMetadataQueue
 		start                   = timeZero
+		checksum                = uint32(2)
 		perPeer                 = []*blocksMetadata{
 			&blocksMetadata{
 				peer: peerA,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2},
+					{start: start, size: 2, checksum: &checksum},
 				},
 			},
 			&blocksMetadata{
 				peer: peerB,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start.Add(time.Hour * 2), size: 2},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum},
 				},
 			},
 			&blocksMetadata{
 				peer: peerC,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start.Add(time.Hour * 4), size: 2},
+					{start: start.Add(time.Hour * 4), size: 2, checksum: &checksum},
 				},
 			},
 		}
@@ -380,6 +401,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 
 	assert.Equal(t, start, perPeer[0].blocks[0].start)
 	assert.Equal(t, int64(2), perPeer[0].blocks[0].size)
+	assert.Equal(t, &checksum, perPeer[0].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[0].blocks[0].reattempt.attempt)
 	assert.Equal(t, []hostQueue{peerA}, perPeer[0].blocks[0].reattempt.attempted)
@@ -389,6 +411,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 
 	assert.Equal(t, start.Add(time.Hour*2), perPeer[1].blocks[0].start)
 	assert.Equal(t, int64(2), perPeer[1].blocks[0].size)
+	assert.Equal(t, &checksum, perPeer[1].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[1].blocks[0].reattempt.attempt)
 	assert.Equal(t, []hostQueue{peerB}, perPeer[1].blocks[0].reattempt.attempted)
@@ -398,6 +421,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 
 	assert.Equal(t, start.Add(time.Hour*4), perPeer[2].blocks[0].start)
 	assert.Equal(t, int64(2), perPeer[2].blocks[0].size)
+	assert.Equal(t, &checksum, perPeer[2].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[2].blocks[0].reattempt.attempt)
 	assert.Equal(t, []hostQueue{peerC}, perPeer[2].blocks[0].reattempt.attempted)
@@ -425,6 +449,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 		currStart, currEligible []*blocksMetadata
 		blocksMetadataQueues    []blocksMetadataQueue
 		start                   = timeZero
+		checksum                = uint32(2)
 		reattempt               = blockMetadataReattempt{
 			attempt:   1,
 			id:        fooID,
@@ -435,21 +460,21 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 				peer: peerA,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2, reattempt: reattempt},
+					{start: start, size: 2, checksum: &checksum, reattempt: reattempt},
 				},
 			},
 			&blocksMetadata{
 				peer: peerB,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2, reattempt: reattempt},
+					{start: start, size: 2, checksum: &checksum, reattempt: reattempt},
 				},
 			},
 			&blocksMetadata{
 				peer: peerC,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2, reattempt: reattempt},
+					{start: start, size: 2, checksum: &checksum, reattempt: reattempt},
 				},
 			},
 		}
@@ -473,6 +498,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 
 	assert.Equal(t, start, perPeer[1].blocks[0].start)
 	assert.Equal(t, int64(2), perPeer[1].blocks[0].size)
+	assert.Equal(t, &checksum, perPeer[1].blocks[0].checksum)
 
 	assert.Equal(t, 2, perPeer[1].blocks[0].reattempt.attempt)
 	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[1].blocks[0].reattempt.attempted)
@@ -503,6 +529,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 		currStart, currEligible []*blocksMetadata
 		blocksMetadataQueues    []blocksMetadataQueue
 		start                   = timeZero
+		checksum                = uint32(2)
 		reattempt               = blockMetadataReattempt{
 			attempt:   3,
 			id:        fooID,
@@ -513,24 +540,24 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 				peer: peerA,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2},
-					{start: start.Add(time.Hour * 2), size: 2, reattempt: reattempt},
+					{start: start, size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum, reattempt: reattempt},
 				},
 			},
 			&blocksMetadata{
 				peer: peerB,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2},
-					{start: start.Add(time.Hour * 2), size: 2, reattempt: reattempt},
+					{start: start, size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum, reattempt: reattempt},
 				},
 			},
 			&blocksMetadata{
 				peer: peerC,
 				id:   fooID,
 				blocks: []blockMetadata{
-					{start: start, size: 2},
-					{start: start.Add(time.Hour * 2), size: 2, reattempt: reattempt},
+					{start: start, size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum, reattempt: reattempt},
 				},
 			},
 		}
@@ -546,6 +573,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 
 	assert.Equal(t, start, perPeer[0].blocks[0].start)
 	assert.Equal(t, int64(2), perPeer[0].blocks[0].size)
+	assert.Equal(t, &checksum, perPeer[0].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[0].blocks[0].reattempt.attempt)
 	assert.Equal(t, []hostQueue{peerA}, perPeer[0].blocks[0].reattempt.attempted)
@@ -872,15 +900,22 @@ func resultMetadataFromBlocks(
 		bm := []testBlockMetadata{}
 		for _, bl := range b.blocks {
 			size := int64(0)
+			d := digest.NewDigest()
 			if merged := bl.segments.merged; merged != nil {
 				size += int64(len(merged.head) + len(merged.tail))
+				d.Write(merged.head)
+				d.Write(merged.tail)
 			}
 			for _, unmerged := range bl.segments.unmerged {
 				size += int64(len(unmerged.head) + len(unmerged.tail))
+				d.Write(unmerged.head)
+				d.Write(unmerged.tail)
 			}
+			checksum := d.Sum32()
 			m := testBlockMetadata{
-				start: bl.start,
-				size:  &size,
+				start:    bl.start,
+				size:     &size,
+				checksum: &checksum,
 			}
 			bm = append(bm, m)
 		}
@@ -969,6 +1004,10 @@ func expectFetchMetadataAndReturn(
 				bl := &rpc.BlockMetadata{}
 				bl.Start = result[j].blocks[k].start.UnixNano()
 				bl.Size = result[j].blocks[k].size
+				if result[j].blocks[k].checksum != nil {
+					checksum := int64(*result[j].blocks[k].checksum)
+					bl.Checksum = &checksum
+				}
 				elem.Blocks = append(elem.Blocks, bl)
 			}
 			ret.Elements = append(ret.Elements, elem)
@@ -1148,8 +1187,9 @@ type testBlocksMetadata struct {
 }
 
 type testBlockMetadata struct {
-	start time.Time
-	size  *int64
+	start    time.Time
+	size     *int64
+	checksum *uint32
 }
 
 type testBlocks struct {

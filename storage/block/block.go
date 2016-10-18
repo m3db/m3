@@ -113,7 +113,9 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	}
 	s := b.opts.SegmentReaderPool().Get()
 	s.Reset(b.segment)
-	blocker.RegisterCloser(context.CloserFn(s.Close))
+	if blocker != nil {
+		blocker.RegisterCloser(context.CloserFn(s.Close))
+	}
 	return s, nil
 }
 
