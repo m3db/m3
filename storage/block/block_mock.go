@@ -559,14 +559,6 @@ func (_m *MockFetchBlockMetadataResultsPool) EXPECT() *_MockFetchBlockMetadataRe
 	return _m.recorder
 }
 
-func (_m *MockFetchBlockMetadataResultsPool) Init() {
-	_m.ctrl.Call(_m, "Init")
-}
-
-func (_mr *_MockFetchBlockMetadataResultsPoolRecorder) Init() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Init")
-}
-
 func (_m *MockFetchBlockMetadataResultsPool) Get() FetchBlockMetadataResults {
 	ret := _m.ctrl.Call(_m, "Get")
 	ret0, _ := ret[0].(FetchBlockMetadataResults)
@@ -604,14 +596,6 @@ func NewMockFetchBlocksMetadataResultsPool(ctrl *gomock.Controller) *MockFetchBl
 
 func (_m *MockFetchBlocksMetadataResultsPool) EXPECT() *_MockFetchBlocksMetadataResultsPoolRecorder {
 	return _m.recorder
-}
-
-func (_m *MockFetchBlocksMetadataResultsPool) Init() {
-	_m.ctrl.Call(_m, "Init")
-}
-
-func (_mr *_MockFetchBlocksMetadataResultsPoolRecorder) Init() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Init")
 }
 
 func (_m *MockFetchBlocksMetadataResultsPool) Get() FetchBlocksMetadataResults {
