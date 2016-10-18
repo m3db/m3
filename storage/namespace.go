@@ -453,12 +453,12 @@ func (n *dbNamespace) shardAt(shardID uint32) (databaseShard, error) {
 	n.RLock()
 	if int(shardID) >= len(n.shards) {
 		n.RUnlock()
-		return nil, fmt.Errorf("not responsible for shard %d", shardID)
+		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("not responsible for shard %d", shardID))
 	}
 	shard := n.shards[shardID]
 	n.RUnlock()
 	if shard == nil {
-		return nil, fmt.Errorf("not responsible for shard %d", shardID)
+		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("not responsible for shard %d", shardID))
 	}
 	return shard, nil
 }
