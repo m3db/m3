@@ -1768,33 +1768,43 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	}
 	defer resultReader.Close()
 
-	r.Lock()
-	defer r.Unlock()
+	for {
+		r.Lock()
+		currBlock, exists := r.result.BlockAt(id, start)
+		if !exists {
+			r.result.AddBlock(id, result)
+			r.Unlock()
+			break
+		}
 
-	currBlock, exists := r.result.BlockAt(id, start)
-	if exists {
+		// Remove the existing block from the result so it doesn't get
+		// merged again
+		r.result.RemoveBlockAt(id, start)
+		r.Unlock()
+
 		// If we've already received data for this block, merge them
 		// with the new block if possible
 		currReader, err := currBlock.Stream(nil)
 		if err != nil {
 			return err
 		}
+
+		// If there are no data in the current block, there is no
+		// need to merge
 		if currReader == nil {
-			r.result.AddBlock(id, result)
-			return nil
+			continue
 		}
-		defer currReader.Close()
 
 		readers := []io.Reader{currReader, resultReader}
 		encoder, err := r.mergeReaders(start, readers)
+		currReader.Close()
 		if err != nil {
 			return err
 		}
+
 		result.Reset(start, encoder)
 		result.Seal()
 	}
-
-	r.result.AddBlock(id, result)
 
 	return nil
 }
