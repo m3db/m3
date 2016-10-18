@@ -28,6 +28,7 @@ import (
 
 type staticMap struct {
 	shardSet            sharding.ShardSet
+	hostShardSets       []HostShardSet
 	orderedHosts        []Host
 	hostsByShard        [][]Host
 	orderedHostsByShard [][]orderedHost
@@ -40,6 +41,7 @@ func newStaticMap(opts StaticOptions) Map {
 	hostShardSets := opts.HostShardSets()
 	topoMap := staticMap{
 		shardSet:            opts.ShardSet(),
+		hostShardSets:       hostShardSets,
 		orderedHosts:        make([]Host, 0, len(hostShardSets)),
 		hostsByShard:        make([][]Host, totalShards),
 		orderedHostsByShard: make([][]orderedHost, totalShards),
@@ -69,6 +71,10 @@ type orderedHost struct {
 
 func (t *staticMap) Hosts() []Host {
 	return t.orderedHosts
+}
+
+func (t *staticMap) HostShardSets() []HostShardSet {
+	return t.hostShardSets
 }
 
 func (t *staticMap) HostsLen() int {

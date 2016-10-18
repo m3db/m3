@@ -86,6 +86,9 @@ type Map interface {
 	// Hosts returns all hosts in the map
 	Hosts() []Host
 
+	// Hosts returns all HostShardSets in the map
+	HostShardSets() []HostShardSet
+
 	// HostsLen returns the length of all hosts in the map
 	HostsLen() int
 
