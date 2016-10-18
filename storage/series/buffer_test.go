@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
@@ -375,6 +376,32 @@ func TestBufferBucketMerge(t *testing.T) {
 	assertValuesEqual(t, expected, [][]xio.SegmentReader{[]xio.SegmentReader{
 		b.encoders[0].encoder.Stream(),
 	}}, opts)
+}
+
+func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+
+	b := &dbBufferBucket{opts: opts, start: curr, empty: true}
+	emptyEncoder := opts.EncoderPool().Get()
+	emptyEncoder.Reset(curr, 0)
+	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
+	require.Nil(t, b.encoders[0].encoder.Stream())
+
+	nonEmptyEncoder := opts.EncoderPool().Get()
+	nonEmptyEncoder.Reset(curr, 0)
+	require.NoError(t, nonEmptyEncoder.Encode(ts.Datapoint{Timestamp: curr, Value: 1.0}, xtime.Second, nil))
+	b.bootstrapped = append(b.bootstrapped, block.NewDatabaseBlock(curr, nonEmptyEncoder, opts.DatabaseBlockOptions()))
+	ctx := opts.ContextPool().Get()
+	stream, err := b.bootstrapped[0].Stream(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	b.merge()
+
+	require.Equal(t, 1, len(b.encoders))
+	require.Nil(t, b.bootstrapped)
 }
 
 func TestBufferBucketWriteDuplicate(t *testing.T) {

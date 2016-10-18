@@ -408,7 +408,9 @@ func (b *dbBufferBucket) merge() {
 
 	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
 	for i := range b.encoders {
-		readers = append(readers, b.encoders[i].encoder.Stream())
+		if stream := b.encoders[i].encoder.Stream(); stream != nil {
+			readers = append(readers, stream)
+		}
 	}
 
 	var ctx context.Context
