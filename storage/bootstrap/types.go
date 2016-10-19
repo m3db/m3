@@ -57,6 +57,10 @@ type ShardResult interface {
 	// IsEmpty returns whether the result is empty.
 	IsEmpty() bool
 
+	// BlockAt returns the block at a given time for a given id,
+	// or nil if there is no such block.
+	BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool)
+
 	// AllSeries returns all series of blocks.
 	AllSeries() map[ts.Hash]DatabaseSeriesBlocksWrapper
 

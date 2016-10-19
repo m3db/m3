@@ -23,9 +23,12 @@ package client
 import (
 	"errors"
 	"io"
+	"math"
+	"runtime"
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/instrument"
@@ -107,12 +110,12 @@ const (
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
 	defaultFetchSeriesBlocksBatchTimeout = 30 * time.Second
-
-	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
-	defaultFetchSeriesBlocksBatchConcurrency = 1024
 )
 
 var (
+	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
+	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(float64(runtime.NumCPU()*3/4), 1))
+
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
 	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
 
@@ -148,6 +151,7 @@ type options struct {
 	hostQueueOpsArrayPoolSize             int
 	seriesIteratorPoolSize                int
 	seriesIteratorArrayPoolBuckets        []pool.Bucket
+	contextPool                           context.Pool
 	origin                                topology.Host
 	fetchSeriesBlocksBatchSize            int
 	fetchSeriesBlocksMetadataBatchTimeout time.Duration
@@ -191,6 +195,7 @@ func newOptions() *options {
 		hostQueueOpsArrayPoolSize:             defaultHostQueueOpsArrayPoolSize,
 		seriesIteratorPoolSize:                defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:        defaultSeriesIteratorArrayPoolBuckets,
+		contextPool:                           context.NewPool(nil, nil),
 		fetchSeriesBlocksBatchSize:            defaultFetchSeriesBlocksBatchSize,
 		fetchSeriesBlocksMetadataBatchTimeout: defaultFetchSeriesBlocksMetadataBatchTimeout,
 		fetchSeriesBlocksBatchTimeout:         defaultFetchSeriesBlocksBatchTimeout,
@@ -405,6 +410,16 @@ func (o *options) SetFetchBatchOpPoolSize(value int) Options {
 
 func (o *options) FetchBatchOpPoolSize() int {
 	return o.fetchBatchOpPoolSize
+}
+
+func (o *options) SetContextPool(value context.Pool) Options {
+	opts := *o
+	opts.contextPool = value
+	return &opts
+}
+
+func (o *options) ContextPool() context.Pool {
+	return o.contextPool
 }
 
 func (o *options) SetWriteBatchSize(value int) Options {

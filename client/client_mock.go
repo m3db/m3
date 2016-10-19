@@ -26,6 +26,7 @@ package client
 import (
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
+	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
 	rpc "github.com/m3db/m3db/generated/thrift/rpc"
 	instrument "github.com/m3db/m3db/instrument"
@@ -1111,6 +1112,26 @@ func (_mr *_MockOptionsRecorder) FetchBatchOpPoolSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize")
 }
 
+func (_m *MockOptions) SetContextPool(value context.Pool) Options {
+	ret := _m.ctrl.Call(_m, "SetContextPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetContextPool", arg0)
+}
+
+func (_m *MockOptions) ContextPool() context.Pool {
+	ret := _m.ctrl.Call(_m, "ContextPool")
+	ret0, _ := ret[0].(context.Pool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ContextPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
+}
+
 func (_m *MockOptions) SetWriteBatchSize(value int) Options {
 	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
 	ret0, _ := ret[0].(Options)
@@ -1690,6 +1711,26 @@ func (_m *MockAdminOptions) FetchBatchOpPoolSize() int {
 
 func (_mr *_MockAdminOptionsRecorder) FetchBatchOpPoolSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize")
+}
+
+func (_m *MockAdminOptions) SetContextPool(value context.Pool) Options {
+	ret := _m.ctrl.Call(_m, "SetContextPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetContextPool", arg0)
+}
+
+func (_m *MockAdminOptions) ContextPool() context.Pool {
+	ret := _m.ctrl.Call(_m, "ContextPool")
+	ret0, _ := ret[0].(context.Pool)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) ContextPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
 }
 
 func (_m *MockAdminOptions) SetWriteBatchSize(value int) Options {

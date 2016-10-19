@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
@@ -967,7 +968,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts bootstrap.Options,
 ) (bootstrap.ShardResult, error) {
 	var (
-		result   = newBlocksResult(s.opts, opts)
+		result   = newBlocksResult(s.opts, opts, s.multiReaderIteratorPool)
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		onDone   = func(err error) {
@@ -1403,41 +1404,6 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			continue
 		}
 
-		// Determine maximum size
-		currMaxSize := int64(math.MinInt64)
-		for i := 0; i < len(currEligible); i++ {
-			unselected := currEligible[i].unselectedBlocks()
-			// Track maximum size
-			if unselected[0].size > currMaxSize {
-				currMaxSize = unselected[0].size
-			}
-		}
-
-		// Only select from those with the maximum size
-		for i := len(currEligible) - 1; i >= 0; i-- {
-			unselected := currEligible[i].unselectedBlocks()
-			if unselected[0].size < currMaxSize {
-				// Swap current entry to tail
-				blocksMetadatas(currEligible).swap(i, len(currEligible)-1)
-				// Trim newly last entry
-				currEligible = currEligible[:len(currEligible)-1]
-			}
-		}
-
-		// Order by least outstanding blocks being fetched
-		blocksMetadataQueues = blocksMetadataQueues[:0]
-		for i := range currEligible {
-			insert := blocksMetadataQueue{
-				blocksMetadata: currEligible[i],
-				queue:          peerQueues.findQueue(currEligible[i].peer),
-			}
-			blocksMetadataQueues = append(blocksMetadataQueues, insert)
-		}
-		sort.Stable(blocksMetadatasQueuesByOutstandingAsc(blocksMetadataQueues))
-
-		// Select the best peer
-		bestPeerBlocksQueue := blocksMetadataQueues[0].queue
-
 		// Prepare the reattempt peers metadata
 		peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
 		for i := range currStart {
@@ -1451,31 +1417,87 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			peersMetadata = append(peersMetadata, metadata)
 		}
 
-		// Remove the block from all other peers and increment index for selected peer
-		for i := range currStart {
-			peer := currStart[i].peer
-			if peer == bestPeerBlocksQueue.peer {
+		var (
+			sameNonNilChecksum = true
+			curChecksum        *uint32
+		)
+
+		for i := 0; i < len(currEligible); i++ {
+			unselected := currEligible[i].unselectedBlocks()
+			// If any peer has a nil checksum, this might be the most recent block
+			// and therefore not sealed so we want to merge from all peers
+			if unselected[0].checksum == nil {
+				sameNonNilChecksum = false
+				break
+			}
+			if curChecksum == nil {
+				curChecksum = unselected[0].checksum
+			} else if *curChecksum != *unselected[0].checksum {
+				sameNonNilChecksum = false
+				break
+			}
+		}
+
+		// If all the peers have the same non-nil checksum, we pick the peer with the
+		// fewest outstanding requests
+		if sameNonNilChecksum {
+			// Order by least outstanding blocks being fetched
+			blocksMetadataQueues = blocksMetadataQueues[:0]
+			for i := range currEligible {
+				insert := blocksMetadataQueue{
+					blocksMetadata: currEligible[i],
+					queue:          peerQueues.findQueue(currEligible[i].peer),
+				}
+				blocksMetadataQueues = append(blocksMetadataQueues, insert)
+			}
+			sort.Stable(blocksMetadatasQueuesByOutstandingAsc(blocksMetadataQueues))
+
+			// Select the best peer
+			bestPeerBlocksQueue := blocksMetadataQueues[0].queue
+
+			// Remove the block from all other peers and increment index for selected peer
+			for i := range currStart {
+				peer := currStart[i].peer
+				if peer == bestPeerBlocksQueue.peer {
+					// Select this block
+					idx := currStart[i].idx
+					currStart[i].idx = idx + 1
+
+					// Set the reattempt metadata
+					currStart[i].blocks[idx].reattempt.id = currID
+					currStart[i].blocks[idx].reattempt.attempt++
+					currStart[i].blocks[idx].reattempt.attempted =
+						append(currStart[i].blocks[idx].reattempt.attempted, peer)
+					currStart[i].blocks[idx].reattempt.peersMetadata = peersMetadata
+
+					// Leave the block in the current peers blocks list
+					continue
+				}
+
+				// Removing this block
+				blocksLen := len(currStart[i].blocks)
+				idx := currStart[i].idx
+				tailIdx := blocksLen - 1
+				currStart[i].blocks[idx], currStart[i].blocks[tailIdx] = currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
+				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
+			}
+		} else {
+			for i := range currStart {
 				// Select this block
 				idx := currStart[i].idx
 				currStart[i].idx = idx + 1
 
 				// Set the reattempt metadata
 				currStart[i].blocks[idx].reattempt.id = currID
-				currStart[i].blocks[idx].reattempt.attempt++
-				currStart[i].blocks[idx].reattempt.attempted =
-					append(currStart[i].blocks[idx].reattempt.attempted, peer)
 				currStart[i].blocks[idx].reattempt.peersMetadata = peersMetadata
 
-				// Leave the block in the current peers blocks list
-				continue
+				// Each block now has attempted multiple peers
+				for j := range currStart {
+					currStart[i].blocks[idx].reattempt.attempt++
+					currStart[i].blocks[idx].reattempt.attempted =
+						append(currStart[i].blocks[idx].reattempt.attempted, currStart[j].peer)
+				}
 			}
-
-			// Removing this block
-			blocksLen := len(currStart[i].blocks)
-			idx := currStart[i].idx
-			tailIdx := blocksLen - 1
-			currStart[i].blocks[idx], currStart[i].blocks[tailIdx] = currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
-			currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 		}
 	}
 }
@@ -1658,23 +1680,31 @@ func (s *session) streamBlocksReattemptFromPeers(
 
 type blocksResult struct {
 	sync.RWMutex
-	opts           Options
-	blockOpts      block.Options
-	blockAllocSize int
-	encoderPool    encoding.EncoderPool
-	bytesPool      pool.BytesPool
-	result         bootstrap.ShardResult
+	opts                    Options
+	blockOpts               block.Options
+	blockAllocSize          int
+	contextPool             context.Pool
+	encoderPool             encoding.EncoderPool
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool
+	bytesPool               pool.BytesPool
+	result                  bootstrap.ShardResult
 }
 
-func newBlocksResult(opts Options, bootstrapOpts bootstrap.Options) *blocksResult {
+func newBlocksResult(
+	opts Options,
+	bootstrapOpts bootstrap.Options,
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
+) *blocksResult {
 	blockOpts := bootstrapOpts.DatabaseBlockOptions()
 	return &blocksResult{
-		opts:           opts,
-		blockOpts:      blockOpts,
-		blockAllocSize: blockOpts.DatabaseBlockAllocSize(),
-		encoderPool:    blockOpts.EncoderPool(),
-		bytesPool:      blockOpts.BytesPool(),
-		result:         bootstrap.NewShardResult(4096, bootstrapOpts),
+		opts:                    opts,
+		blockOpts:               blockOpts,
+		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
+		contextPool:             opts.ContextPool(),
+		encoderPool:             blockOpts.EncoderPool(),
+		multiReaderIteratorPool: multiReaderIteratorPool,
+		bytesPool:               blockOpts.BytesPool(),
+		result:                  bootstrap.NewShardResult(4096, bootstrapOpts),
 	}
 }
 
@@ -1711,23 +1741,10 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 				Tail: segments.Unmerged[i].Tail,
 			})
 		}
-
-		alloc := r.opts.ReaderIteratorAllocate()
-		iter := encoding.NewMultiReaderIterator(alloc, nil)
-		iter.Reset(readers)
-		defer iter.Close()
-
-		encoder := r.encoderPool.Get()
-		encoder.Reset(start, r.blockAllocSize)
-
-		for iter.Next() {
-			dp, unit, annotation := iter.Current()
-			encoder.Encode(dp, unit, annotation)
-		}
-		if err := iter.Err(); err != nil {
+		encoder, err := r.mergeReaders(start, readers)
+		if err != nil {
 			return err
 		}
-
 		result.Reset(start, encoder)
 
 	default:
@@ -1738,11 +1755,88 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	// No longer need the encoder, seal the block
 	result.Seal()
 
-	r.Lock()
-	r.result.AddBlock(id, result)
-	r.Unlock()
+	resultCtx := r.contextPool.Get()
+	defer resultCtx.Close()
+
+	resultReader, err := result.Stream(resultCtx)
+	if err != nil {
+		return err
+	}
+	if resultReader == nil {
+		return nil
+	}
+
+	var tmpCtx context.Context
+
+	for {
+		r.Lock()
+		currBlock, exists := r.result.BlockAt(id, start)
+		if !exists {
+			r.result.AddBlock(id, result)
+			r.Unlock()
+			break
+		}
+
+		// Remove the existing block from the result so it doesn't get
+		// merged again
+		r.result.RemoveBlockAt(id, start)
+		r.Unlock()
+
+		// If we've already received data for this block, merge them
+		// with the new block if possible
+		if tmpCtx == nil {
+			tmpCtx = r.contextPool.Get()
+		} else {
+			tmpCtx.Reset()
+		}
+
+		currReader, err := currBlock.Stream(tmpCtx)
+		if err != nil {
+			return err
+		}
+
+		// If there are no data in the current block, there is no
+		// need to merge
+		if currReader == nil {
+			continue
+		}
+
+		readers := []io.Reader{currReader, resultReader}
+		encoder, err := r.mergeReaders(start, readers)
+		tmpCtx.BlockingClose()
+
+		if err != nil {
+			return err
+		}
+
+		result.Reset(start, encoder)
+		result.Seal()
+	}
 
 	return nil
+}
+
+func (r *blocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
+	iter := r.multiReaderIteratorPool.Get()
+	iter.Reset(readers)
+	defer iter.Close()
+
+	encoder := r.encoderPool.Get()
+	encoder.Reset(start, r.blockAllocSize)
+
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		if err := encoder.Encode(dp, unit, annotation); err != nil {
+			encoder.Close()
+			return nil, err
+		}
+	}
+	if err := iter.Err(); err != nil {
+		encoder.Close()
+		return nil, err
+	}
+
+	return encoder, nil
 }
 
 type enqueueChannel struct {
