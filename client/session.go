@@ -968,7 +968,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts bootstrap.Options,
 ) (bootstrap.ShardResult, error) {
 	var (
-		result   = newBlocksResult(s.opts, opts)
+		result   = newBlocksResult(s.opts, opts, s.multiReaderIteratorPool)
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		onDone   = func(err error) {
@@ -1693,23 +1693,31 @@ func (s *session) streamBlocksReattemptFromPeers(
 
 type blocksResult struct {
 	sync.RWMutex
-	opts           Options
-	blockOpts      block.Options
-	blockAllocSize int
-	encoderPool    encoding.EncoderPool
-	bytesPool      pool.BytesPool
-	result         bootstrap.ShardResult
+	opts                    Options
+	blockOpts               block.Options
+	blockAllocSize          int
+	contextPool             context.Pool
+	encoderPool             encoding.EncoderPool
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool
+	bytesPool               pool.BytesPool
+	result                  bootstrap.ShardResult
 }
 
-func newBlocksResult(opts Options, bootstrapOpts bootstrap.Options) *blocksResult {
+func newBlocksResult(
+	opts Options,
+	bootstrapOpts bootstrap.Options,
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
+) *blocksResult {
 	blockOpts := bootstrapOpts.DatabaseBlockOptions()
 	return &blocksResult{
-		opts:           opts,
-		blockOpts:      blockOpts,
-		blockAllocSize: blockOpts.DatabaseBlockAllocSize(),
-		encoderPool:    blockOpts.EncoderPool(),
-		bytesPool:      blockOpts.BytesPool(),
-		result:         bootstrap.NewShardResult(4096, bootstrapOpts),
+		opts:                    opts,
+		blockOpts:               blockOpts,
+		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
+		contextPool:             opts.ContextPool(),
+		encoderPool:             blockOpts.EncoderPool(),
+		multiReaderIteratorPool: multiReaderIteratorPool,
+		bytesPool:               blockOpts.BytesPool(),
+		result:                  bootstrap.NewShardResult(4096, bootstrapOpts),
 	}
 }
 
@@ -1760,7 +1768,7 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	// No longer need the encoder, seal the block
 	result.Seal()
 
-	resultCtx := context.NewContext()
+	resultCtx := r.contextPool.Get()
 	defer resultCtx.Close()
 
 	resultReader, err := result.Stream(resultCtx)
@@ -1790,7 +1798,7 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 		// If we've already received data for this block, merge them
 		// with the new block if possible
 		if tmpCtx == nil {
-			tmpCtx = context.NewContext()
+			tmpCtx = r.contextPool.Get()
 		} else {
 			tmpCtx.Reset()
 		}
@@ -1822,8 +1830,7 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 }
 
 func (r *blocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
-	alloc := r.opts.ReaderIteratorAllocate()
-	iter := encoding.NewMultiReaderIterator(alloc, nil)
+	iter := r.multiReaderIteratorPool.Get()
 	iter.Reset(readers)
 	defer iter.Close()
 
@@ -1832,7 +1839,10 @@ func (r *blocksResult) mergeReaders(start time.Time, readers []io.Reader) (encod
 
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
-		encoder.Encode(dp, unit, annotation)
+		if err := encoder.Encode(dp, unit, annotation); err != nil {
+			encoder.Close()
+			return nil, err
+		}
 	}
 	if err := iter.Err(); err != nil {
 		encoder.Close()

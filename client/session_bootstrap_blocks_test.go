@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"sync"
@@ -54,6 +55,14 @@ var (
 	barID    = ts.StringID("bar")
 	bazID    = ts.StringID("baz")
 )
+
+func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
+	p := encoding.NewMultiReaderIteratorPool(nil)
+	p.Init(func(r io.Reader) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+	})
+	return p
+}
 
 func newSessionTestAdminOptions() AdminOptions {
 	opts := applySessionTestOptions(NewAdminOptions()).(AdminOptions)
@@ -669,7 +678,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 		}},
 	}
 
-	r := newBlocksResult(opts, bopts)
+	r := newBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
 	r.addBlockFromPeer(fooID, bl)
 
 	series := r.result.AllSeries()
@@ -749,7 +758,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
-	r := newBlocksResult(opts, bopts)
+	r := newBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
 	r.addBlockFromPeer(fooID, bl)
 
 	series := r.result.AllSeries()
@@ -795,7 +804,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := bootstrap.NewOptions()
-	r := newBlocksResult(opts, bopts)
+	r := newBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
 	err := r.addBlockFromPeer(fooID, bl)
@@ -806,7 +815,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := bootstrap.NewOptions()
-	r := newBlocksResult(opts, bopts)
+	r := newBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
 	err := r.addBlockFromPeer(fooID, bl)

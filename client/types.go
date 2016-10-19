@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/instrument"
@@ -319,6 +320,12 @@ type Options interface {
 
 	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize
 	FetchBatchOpPoolSize() int
+
+	// SetContextPool sets the contextPool
+	SetContextPool(value context.Pool) Options
+
+	// ContextPool returns the contextPool
+	ContextPool() context.Pool
 
 	// SetWriteBatchSize sets the writeBatchSize
 	// NB(r): for a write only application load this should match the host
