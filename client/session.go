@@ -1404,6 +1404,19 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			continue
 		}
 
+		// Prepare the reattempt peers metadata
+		peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
+		for i := range currStart {
+			unselected := currStart[i].unselectedBlocks()
+			metadata := blockMetadataReattemptPeerMetadata{
+				peer:     currStart[i].peer,
+				start:    unselected[0].start,
+				size:     unselected[0].size,
+				checksum: unselected[0].checksum,
+			}
+			peersMetadata = append(peersMetadata, metadata)
+		}
+
 		var (
 			sameNonNilChecksum = true
 			curChecksum        *uint32
@@ -1442,19 +1455,6 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			// Select the best peer
 			bestPeerBlocksQueue := blocksMetadataQueues[0].queue
 
-			// Prepare the reattempt peers metadata
-			peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
-			for i := range currStart {
-				unselected := currStart[i].unselectedBlocks()
-				metadata := blockMetadataReattemptPeerMetadata{
-					peer:     currStart[i].peer,
-					start:    unselected[0].start,
-					size:     unselected[0].size,
-					checksum: unselected[0].checksum,
-				}
-				peersMetadata = append(peersMetadata, metadata)
-			}
-
 			// Remove the block from all other peers and increment index for selected peer
 			for i := range currStart {
 				peer := currStart[i].peer
@@ -1482,19 +1482,6 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 			}
 		} else {
-			// Prepare the reattempt peers metadata
-			peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
-			for i := range currStart {
-				unselected := currStart[i].unselectedBlocks()
-				metadata := blockMetadataReattemptPeerMetadata{
-					peer:     currStart[i].peer,
-					start:    unselected[0].start,
-					size:     unselected[0].size,
-					checksum: unselected[0].checksum,
-				}
-				peersMetadata = append(peersMetadata, metadata)
-			}
-
 			for i := range currStart {
 				// Select this block
 				idx := currStart[i].idx

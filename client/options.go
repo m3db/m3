@@ -23,6 +23,8 @@ package client
 import (
 	"errors"
 	"io"
+	"math"
+	"runtime"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -108,12 +110,12 @@ const (
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
 	defaultFetchSeriesBlocksBatchTimeout = 30 * time.Second
-
-	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
-	defaultFetchSeriesBlocksBatchConcurrency = 1024
 )
 
 var (
+	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
+	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(float64(runtime.NumCPU()*3/4), 1))
+
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
 	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
 
