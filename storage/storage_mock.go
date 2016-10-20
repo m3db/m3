@@ -313,8 +313,8 @@ func (_mr *_MockdatabaseNamespaceRecorder) Truncate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate")
 }
 
-func (_m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, t time0.Time) error {
-	ret := _m.ctrl.Call(_m, "Repair", repairer, t)
+func (_m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, tr time.Range) error {
+	ret := _m.ctrl.Call(_m, "Repair", repairer, tr)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
@@ -444,8 +444,8 @@ func (_mr *_MockdatabaseShardRecorder) CleanupFileset(arg0, arg1 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0, arg1)
 }
 
-func (_m *MockdatabaseShard) Repair(ctx context.Context, namespace ts.ID, t time0.Time, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
-	ret := _m.ctrl.Call(_m, "Repair", ctx, namespace, t, repairer)
+func (_m *MockdatabaseShard) Repair(ctx context.Context, namespace ts.ID, tr time.Range, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
+	ret := _m.ctrl.Call(_m, "Repair", ctx, namespace, tr, repairer)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -779,8 +779,8 @@ func (_mr *_MockdatabaseShardRepairerRecorder) Options() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Options")
 }
 
-func (_m *MockdatabaseShardRepairer) Repair(ctx context.Context, namespace ts.ID, t time0.Time, shard databaseShard) (repair.MetadataComparisonResult, error) {
-	ret := _m.ctrl.Call(_m, "Repair", ctx, namespace, t, shard)
+func (_m *MockdatabaseShardRepairer) Repair(ctx context.Context, namespace ts.ID, tr time.Range, shard databaseShard) (repair.MetadataComparisonResult, error) {
+	ret := _m.ctrl.Call(_m, "Repair", ctx, namespace, tr, shard)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1

@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -233,9 +234,10 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
 
 	var (
-		namespace = ts.StringID("testNamespace")
-		start     = now
-		end       = now.Add(rtopts.BlockSize())
+		namespace       = ts.StringID("testNamespace")
+		start           = now
+		end             = now.Add(rtopts.BlockSize())
+		repairTimeRange = xtime.Range{Start: start, End: end}
 	)
 
 	sizes := []int64{1, 2, 3}
@@ -298,7 +300,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	}
 
 	ctx := context.NewContext()
-	repairer.Repair(ctx, namespace, now, shard)
+	repairer.Repair(ctx, namespace, repairTimeRange, shard)
 	require.Equal(t, namespace, resNamespace)
 	require.Equal(t, resShard, shard)
 	require.Equal(t, int64(2), resDiff.NumSeries)
@@ -345,24 +347,19 @@ func TestRepairerRepairTimes(t *testing.T) {
 	for _, input := range inputTimes {
 		r.repairStates[input.bs] = input.rs
 	}
-	res := r.repairTimes()
-	require.Equal(t, 21, len(res))
-	j := 0
-	for i := 0; i < len(res); i++ {
-		if i == 2 {
-			j += 3
-		}
-		expectedTime := time.Unix(int64(14400+j*7200), 0)
-		require.Equal(t, expectedTime, res[20-i])
-		j++
-	}
+
+	res := r.repairTimeRanges()
+	expectedRanges := xtime.NewRanges().
+		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
+		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(187200, 0)})
+	require.Equal(t, expectedRanges, res)
 }
 
 func TestRepairerRepairWithTime(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	repairTime := time.Unix(7200, 0)
+	repairTimeRange := xtime.Range{Start: time.Unix(7200, 0), End: time.Unix(14400, 0)}
 	database := newMockDatabase()
 	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
 	repairer, err := newDatabaseRepairer(database)
@@ -380,7 +377,7 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	namespaces := make(map[string]databaseNamespace)
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
-		ns.EXPECT().Repair(gomock.Not(nil), repairTime).Return(input.err)
+		ns.EXPECT().Repair(gomock.Not(nil), repairTimeRange).Return(input.err)
 		if input.err != nil {
 			ns.EXPECT().ID().Return(ts.StringID(input.name))
 		}
@@ -388,5 +385,5 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	}
 	database.namespaces = namespaces
 
-	require.Error(t, r.repairWithTime(repairTime))
+	require.Error(t, r.repairWithTimeRange(repairTimeRange))
 }

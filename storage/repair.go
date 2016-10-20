@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -95,7 +96,7 @@ func (r shardRepairer) Options() repair.Options {
 func (r shardRepairer) Repair(
 	ctx context.Context,
 	namespace ts.ID,
-	t time.Time,
+	tr xtime.Range,
 	shard databaseShard,
 ) (repair.MetadataComparisonResult, error) {
 	session, err := r.client.DefaultAdminSession()
@@ -104,8 +105,8 @@ func (r shardRepairer) Repair(
 	}
 
 	var (
-		start    = t
-		end      = t.Add(r.blockSize)
+		start    = tr.Start
+		end      = tr.End
 		origin   = session.Origin()
 		replicas = session.Replicas()
 	)
@@ -287,22 +288,22 @@ func (r *dbRepairer) run() {
 	}
 }
 
-func (r *dbRepairer) repairTimes() []time.Time {
+func (r *dbRepairer) repairTimeRanges() xtime.Ranges {
 	var (
 		now       = r.nowFn()
 		blockSize = r.rtopts.BlockSize()
 		start     = now.Add(-r.rtopts.RetentionPeriod()).Truncate(blockSize)
-		end       = now.Add(-r.rtopts.BufferPast()).Add(-blockSize).Truncate(blockSize)
+		end       = now.Add(-r.rtopts.BufferPast()).Truncate(blockSize)
 	)
 
-	repairTimes := make([]time.Time, 0, int(float64(end.Sub(start))/float64(blockSize)))
-	for t := end; !t.Before(start); t = t.Add(-blockSize) {
-		if r.needsRepair(t) {
-			repairTimes = append(repairTimes, t)
+	targetRanges := xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end})
+	for t := range r.repairStates {
+		if !r.needsRepair(t) {
+			targetRanges = targetRanges.RemoveRange(xtime.Range{Start: t, End: t.Add(blockSize)})
 		}
 	}
 
-	return repairTimes
+	return targetRanges
 }
 
 func (r *dbRepairer) needsRepair(t time.Time) bool {
@@ -342,29 +343,33 @@ func (r *dbRepairer) Repair() error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	repairTimes := r.repairTimes()
-	for _, repairTime := range repairTimes {
-		err := r.repairWithTime(repairTime)
-		repairState := r.repairStates[repairTime]
-		if err == nil {
-			repairState.Status = repairSuccess
-		} else {
-			repairState.Status = repairFailed
-			repairState.NumFailures++
-			multiErr = multiErr.Add(err)
+	blockSize := r.rtopts.BlockSize()
+	iter := r.repairTimeRanges().Iter()
+	for iter.Next() {
+		tr := iter.Value()
+		err := r.repairWithTimeRange(tr)
+		for t := tr.Start; t.Before(tr.End); t = t.Add(blockSize) {
+			repairState := r.repairStates[t]
+			if err == nil {
+				repairState.Status = repairSuccess
+			} else {
+				repairState.Status = repairFailed
+				repairState.NumFailures++
+			}
+			r.repairStates[t] = repairState
 		}
-		r.repairStates[repairTime] = repairState
+		multiErr = multiErr.Add(err)
 	}
 
 	return multiErr.FinalError()
 }
 
-func (r *dbRepairer) repairWithTime(t time.Time) error {
+func (r *dbRepairer) repairWithTimeRange(tr xtime.Range) error {
 	multiErr := xerrors.NewMultiError()
 	namespaces := r.database.getOwnedNamespaces()
 	for _, n := range namespaces {
-		if err := n.Repair(r.shardRepairer, t); err != nil {
-			detailedErr := fmt.Errorf("namespace %s failed to repair time %v: %v", n.ID().String(), t, err)
+		if err := n.Repair(r.shardRepairer, tr); err != nil {
+			detailedErr := fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}
