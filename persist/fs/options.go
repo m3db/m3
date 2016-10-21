@@ -168,12 +168,12 @@ func (o *options) ThroughputCheckInterval() time.Duration {
 	return o.throughputCheckInterval
 }
 
-func (o *options) SetThroughutLimitMbps(value float64) Options {
+func (o *options) SetThroughputLimitMbps(value float64) Options {
 	opts := *o
 	opts.throughputLimitMbps = value
 	return &opts
 }
 
-func (o *options) ThroughutLimitMbps() float64 {
+func (o *options) ThroughputLimitMbps() float64 {
 	return o.throughputLimitMbps
 }

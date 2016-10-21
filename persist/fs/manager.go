@@ -29,11 +29,7 @@ import (
 )
 
 const (
-	bytesPerMb = 1024 * 1024 / 8
-)
-
-var (
-	zeroTime time.Time
+	bytesPerMegabit = 1024 * 1024 / 8
 )
 
 type sleepFn func(time.Duration)
@@ -70,7 +66,7 @@ func NewPersistManager(opts Options) persist.Manager {
 		opts:                    opts,
 		filePathPrefix:          filePathPrefix,
 		throughputCheckInterval: opts.ThroughputCheckInterval(),
-		throughputLimitMbps:     opts.ThroughutLimitMbps(),
+		throughputLimitMbps:     opts.ThroughputLimitMbps(),
 		nowFn:                   opts.ClockOptions().NowFn(),
 		sleepFn:                 time.Sleep,
 		writer:                  writer,
@@ -86,7 +82,7 @@ func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
 			pm.lastCheck = now
 		} else if now.Sub(pm.lastCheck) >= pm.throughputCheckInterval {
 			pm.lastCheck = now
-			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / float64(pm.throughputLimitMbps*bytesPerMb))
+			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / float64(pm.throughputLimitMbps*bytesPerMegabit))
 			if elapsed := now.Sub(pm.start); elapsed < target {
 				pm.sleepFn(target - elapsed)
 			}
@@ -107,8 +103,8 @@ func (pm *persistManager) close() {
 }
 
 func (pm *persistManager) reset() {
-	pm.start = zeroTime
-	pm.lastCheck = zeroTime
+	pm.start = timeZero
+	pm.lastCheck = timeZero
 	pm.bytesWritten = 0
 }
 

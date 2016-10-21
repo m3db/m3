@@ -125,9 +125,9 @@ type Options interface {
 	// ThroughputCheckInterval returns the filesystem throughput check interval
 	ThroughputCheckInterval() time.Duration
 
-	// SetThroughutLimitMbps sets the filesystem throughput limit
-	SetThroughutLimitMbps(value float64) Options
+	// SetThroughputLimitMbps sets the filesystem throughput limit
+	SetThroughputLimitMbps(value float64) Options
 
-	// ThroughutLimitMbps returns the filesystem throughput limit
-	ThroughutLimitMbps() float64
+	// ThroughputLimitMbps returns the filesystem throughput limit
+	ThroughputLimitMbps() float64
 }
