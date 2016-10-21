@@ -522,8 +522,8 @@ func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) er
 func (s *dbShard) Repair(
 	ctx context.Context,
 	namespace ts.ID,
-	t time.Time,
+	tr xtime.Range,
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
-	return repairer.Repair(ctx, namespace, t, s)
+	return repairer.Repair(ctx, namespace, tr, s)
 }

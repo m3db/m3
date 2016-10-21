@@ -334,7 +334,8 @@ func TestNamespaceRepair(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns := newTestNamespace(t)
-	repairTime := time.Now()
+	now := time.Now()
+	repairTimeRange := xtime.Range{Start: now, End: now.Add(time.Hour)}
 	opts := repair.NewOptions().SetRepairThrottle(time.Duration(0))
 	repairer := NewMockdatabaseShardRepairer(ctrl)
 	repairer.EXPECT().Options().Return(opts).AnyTimes()
@@ -351,11 +352,11 @@ func TestNamespaceRepair(t *testing.T) {
 				ChecksumDifferences: repair.NewReplicaSeriesMetadata(),
 			}
 		}
-		shard.EXPECT().Repair(gomock.Any(), testNamespaceID, repairTime, repairer).Return(res, errs[i])
+		shard.EXPECT().Repair(gomock.Any(), testNamespaceID, repairTimeRange, repairer).Return(res, errs[i])
 		ns.shards[testShardIDs[i]] = shard
 	}
 
-	require.Equal(t, "foo", ns.Repair(repairer, repairTime).Error())
+	require.Equal(t, "foo", ns.Repair(repairer, repairTimeRange).Error())
 }
 
 func TestNamespaceShardAt(t *testing.T) {

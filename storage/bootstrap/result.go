@@ -148,6 +148,14 @@ func (sr *shardResult) AllSeries() map[ts.Hash]DatabaseSeriesBlocksWrapper {
 	return sr.blocks
 }
 
+func (sr *shardResult) BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool) {
+	series, exists := sr.blocks[id.Hash()]
+	if !exists {
+		return nil, false
+	}
+	return series.Blocks.BlockAt(t)
+}
+
 // Close closes a shard result.
 func (sr *shardResult) Close() {
 	for _, series := range sr.blocks {

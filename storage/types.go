@@ -168,8 +168,8 @@ type databaseNamespace interface {
 	// Truncate truncates the in-memory data for this namespace
 	Truncate() (int64, error)
 
-	// Repair repairs the namespace data for a given time
-	Repair(repairer databaseShardRepairer, t time.Time) error
+	// Repair repairs the namespace data for a given time range
+	Repair(repairer databaseShardRepairer, tr xtime.Range) error
 }
 
 type databaseShard interface {
@@ -231,7 +231,7 @@ type databaseShard interface {
 	Repair(
 		ctx context.Context,
 		namespace ts.ID,
-		t time.Time,
+		tr xtime.Range,
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
 }
@@ -306,7 +306,7 @@ type databaseShardRepairer interface {
 	Repair(
 		ctx context.Context,
 		namespace ts.ID,
-		t time.Time,
+		tr xtime.Range,
 		shard databaseShard,
 	) (repair.MetadataComparisonResult, error)
 }

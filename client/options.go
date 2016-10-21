@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/instrument"
@@ -153,6 +154,7 @@ type options struct {
 	hostQueueOpsArrayPoolSize             int
 	seriesIteratorPoolSize                int
 	seriesIteratorArrayPoolBuckets        []pool.Bucket
+	contextPool                           context.Pool
 	origin                                topology.Host
 	fetchSeriesBlocksBatchSize            int
 	fetchSeriesBlocksMetadataBatchTimeout time.Duration
@@ -197,6 +199,7 @@ func newOptions() *options {
 		hostQueueOpsArrayPoolSize:             defaultHostQueueOpsArrayPoolSize,
 		seriesIteratorPoolSize:                defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:        defaultSeriesIteratorArrayPoolBuckets,
+		contextPool:                           context.NewPool(nil, nil),
 		fetchSeriesBlocksBatchSize:            defaultFetchSeriesBlocksBatchSize,
 		fetchSeriesBlocksMetadataBatchTimeout: defaultFetchSeriesBlocksMetadataBatchTimeout,
 		fetchSeriesBlocksBatchTimeout:         defaultFetchSeriesBlocksBatchTimeout,
@@ -412,6 +415,16 @@ func (o *options) SetFetchBatchOpPoolSize(value int) Options {
 
 func (o *options) FetchBatchOpPoolSize() int {
 	return o.fetchBatchOpPoolSize
+}
+
+func (o *options) SetContextPool(value context.Pool) Options {
+	opts := *o
+	opts.contextPool = value
+	return &opts
+}
+
+func (o *options) ContextPool() context.Pool {
+	return o.contextPool
 }
 
 func (o *options) SetWriteBatchSize(value int) Options {

@@ -366,7 +366,7 @@ func (n *dbNamespace) Truncate() (int64, error) {
 	return totalNumSeries, nil
 }
 
-func (n *dbNamespace) Repair(repairer databaseShardRepairer, t time.Time) error {
+func (n *dbNamespace) Repair(repairer databaseShardRepairer, tr xtime.Range) error {
 	if !n.nopts.NeedsRepair() {
 		return nil
 	}
@@ -403,7 +403,7 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer, t time.Time) error 
 			ctx := n.sopts.ContextPool().Get()
 			defer ctx.Close()
 
-			metadataRes, err := shard.Repair(ctx, n.id, t, repairer)
+			metadataRes, err := shard.Repair(ctx, n.id, tr, repairer)
 
 			mutex.Lock()
 			if err != nil {
@@ -429,7 +429,7 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer, t time.Time) error 
 
 	n.log.WithFields(
 		xlog.NewLogField("namespace", n.id.String()),
-		xlog.NewLogField("repairTime", t.String()),
+		xlog.NewLogField("repairTimeRange", tr.String()),
 		xlog.NewLogField("numTotalShards", len(shards)),
 		xlog.NewLogField("numShardsRepaired", numShardsRepaired),
 		xlog.NewLogField("numTotalSeries", numTotalSeries),
