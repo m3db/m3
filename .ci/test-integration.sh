@@ -10,11 +10,11 @@ DIR="integration"
 go test -test.c -test.tags=${TAGS} ./${DIR}
 
 # list the tests
-TESTS=$(./integration.test -test.v -test.race -test.short | grep RUN | tr -s " " | cut -d ' ' -f 3)
+TESTS=$(./integration.test -test.v -test.short | grep RUN | tr -s " " | cut -d ' ' -f 3)
 
 # execute tests one by one for isolation
 for TEST in $TESTS; do
-  ./integration.test -test.v -test.run $TEST ./integration
+  ./integration.test -test.v -test.race -test.run $TEST ./integration
   TEST_EXIT=$?
   if [ "$TEST_EXIT" != "0" ]; then
     echo "$TEST failed"
