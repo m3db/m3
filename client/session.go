@@ -162,6 +162,14 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksReattemptWorkers = pool.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksReattemptWorkers.Init()
 		processors := opts.FetchSeriesBlocksResultsProcessors()
+		// NB(r): We use a list of tokens here instead of a worker pool for bounding
+		// the stream blocks results processors as we require the processing of the
+		// response to be synchronous in relation to the caller, which is the peer
+		// queue. This is required because after executing the stream blocks batch request,
+		// which is triggered from the peer queue, we decrement the outstanding work
+		// and we cannot let this fall to zero until there is absolutely no work left.
+		// This is because we sample the queue length and if it's ever zero we consider
+		// streaming blocks to be finished.
 		s.streamBlocksResultsProcessors = make(chan struct{}, processors)
 		for i := 0; i < processors; i++ {
 			s.streamBlocksResultsProcessors <- struct{}{}
@@ -1569,7 +1577,11 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Calculate earliest block start as of end of request
 	earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
 
-	// Wait for token to process the results to bound the amount of CPU of collecting results
+	// NB(r): As discussed in the new session constructor this processing needs to happen
+	// synchronously so that our outstanding work is calculated correctly, however we do
+	// not want to steal all the CPUs on the machine to avoid dropping incoming writes so
+	// we reduce the amount of processors in this critical section by checking out a token.
+	// Wait for token to process the results to bound the amount of CPU of collecting results.
 	token := <-s.streamBlocksResultsProcessors
 
 	// Parse and act on result
