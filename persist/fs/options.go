@@ -39,8 +39,8 @@ const (
 	// defaultThroughputCheckInterval is the default throughput check interval
 	defaultThroughputCheckInterval = 100 * time.Millisecond
 
-	// defaultThroughputLimitMBPerSecond is the default throughput limit in MB/s
-	defaultThroughputLimitMBPerSecond = 5.0
+	// defaultThroughputLimitMbps is the default throughput limit in Mb/s
+	defaultThroughputLimitMbps = 50.0
 )
 
 var (
@@ -50,31 +50,31 @@ var (
 )
 
 type options struct {
-	clockOpts                  clock.Options
-	instrumentOpts             instrument.Options
-	retentionOpts              retention.Options
-	filePathPrefix             string
-	newFileMode                os.FileMode
-	newDirectoryMode           os.FileMode
-	writerBufferSize           int
-	readerBufferSize           int
-	throughputCheckInterval    time.Duration
-	throughputLimitMBPerSecond float64
+	clockOpts               clock.Options
+	instrumentOpts          instrument.Options
+	retentionOpts           retention.Options
+	filePathPrefix          string
+	newFileMode             os.FileMode
+	newDirectoryMode        os.FileMode
+	writerBufferSize        int
+	readerBufferSize        int
+	throughputCheckInterval time.Duration
+	throughputLimitMbps     float64
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
 	return &options{
-		clockOpts:                  clock.NewOptions(),
-		instrumentOpts:             instrument.NewOptions(),
-		retentionOpts:              retention.NewOptions(),
-		filePathPrefix:             defaultFilePathPrefix,
-		newFileMode:                defaultNewFileMode,
-		newDirectoryMode:           defaultNewDirectoryMode,
-		writerBufferSize:           defaultWriterBufferSize,
-		readerBufferSize:           defaultReaderBufferSize,
-		throughputCheckInterval:    defaultThroughputCheckInterval,
-		throughputLimitMBPerSecond: defaultThroughputLimitMBPerSecond,
+		clockOpts:               clock.NewOptions(),
+		instrumentOpts:          instrument.NewOptions(),
+		retentionOpts:           retention.NewOptions(),
+		filePathPrefix:          defaultFilePathPrefix,
+		newFileMode:             defaultNewFileMode,
+		newDirectoryMode:        defaultNewDirectoryMode,
+		writerBufferSize:        defaultWriterBufferSize,
+		readerBufferSize:        defaultReaderBufferSize,
+		throughputCheckInterval: defaultThroughputCheckInterval,
+		throughputLimitMbps:     defaultThroughputLimitMbps,
 	}
 }
 
@@ -168,12 +168,12 @@ func (o *options) ThroughputCheckInterval() time.Duration {
 	return o.throughputCheckInterval
 }
 
-func (o *options) SetThroughutLimitMBPerSecond(value float64) Options {
+func (o *options) SetThroughutLimitMbps(value float64) Options {
 	opts := *o
-	opts.throughputLimitMBPerSecond = value
+	opts.throughputLimitMbps = value
 	return &opts
 }
 
-func (o *options) ThroughutLimitMBPerSecond() float64 {
-	return o.throughputLimitMBPerSecond
+func (o *options) ThroughutLimitMbps() float64 {
+	return o.throughputLimitMbps
 }

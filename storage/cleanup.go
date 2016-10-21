@@ -22,6 +22,7 @@ package storage
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -39,6 +40,8 @@ type commitLogFilesForTimeFn func(commitLogsDir string, t time.Time) ([]string, 
 type deleteFilesFn func(files []string) error
 
 type cleanupManager struct {
+	sync.RWMutex
+
 	database                database
 	opts                    Options
 	nowFn                   clock.NowFn
@@ -75,12 +78,26 @@ func newCleanupManager(database database, fm databaseFlushManager, scope tally.S
 }
 
 func (m *cleanupManager) IsCleaningUp() bool {
-	return m.cleanupInProgress
+	m.RLock()
+	cleanupInProgress := m.cleanupInProgress
+	m.RUnlock()
+
+	return cleanupInProgress
 }
 
 func (m *cleanupManager) Cleanup(t time.Time) error {
 	callStart := m.nowFn()
+
+	m.Lock()
 	m.cleanupInProgress = true
+	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.cleanupInProgress = false
+		m.Unlock()
+	}()
+
 	multiErr := xerrors.NewMultiError()
 	filesetFilesStart := m.fm.FlushTimeStart(t)
 	if err := m.cleanupFilesetFiles(filesetFilesStart); err != nil {
@@ -92,7 +109,7 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 		detailedErr := fmt.Errorf("encountered errors when cleaning up commit logs for commitLogStart %v commitLogTimes %v: %v", commitLogStart, commitLogTimes, err)
 		multiErr = multiErr.Add(detailedErr)
 	}
-	m.cleanupInProgress = false
+
 	d := m.nowFn().Sub(callStart)
 	if err := multiErr.FinalError(); err != nil {
 		m.metrics.ReportError(d)

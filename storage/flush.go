@@ -63,7 +63,10 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 }
 
 func (m *flushManager) IsFlushing() bool {
-	return m.flushInProgress
+	m.RLock()
+	flushInProgress := m.flushInProgress
+	m.RUnlock()
+	return flushInProgress
 }
 
 func (m *flushManager) HasFlushed(t time.Time) bool {
@@ -89,10 +92,19 @@ func (m *flushManager) FlushTimeEnd(t time.Time) time.Time {
 
 func (m *flushManager) Flush(t time.Time) error {
 	callStart := m.nowFn()
+
+	m.Lock()
 	m.flushInProgress = true
+	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.flushInProgress = false
+		m.Unlock()
+	}()
+
 	timesToFlush := m.flushTimes(t)
 	if len(timesToFlush) == 0 {
-		m.flushInProgress = false
 		m.metrics.ReportSuccess(m.nowFn().Sub(callStart))
 		return nil
 	}
@@ -123,7 +135,7 @@ func (m *flushManager) Flush(t time.Time) error {
 		m.flushStates[flushTime] = flushState
 		m.Unlock()
 	}
-	m.flushInProgress = false
+
 	d := m.nowFn().Sub(callStart)
 	if err := multiErr.FinalError(); err != nil {
 		m.metrics.ReportError(d)
