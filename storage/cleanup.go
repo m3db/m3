@@ -22,10 +22,15 @@ package storage
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/errors"
+
+	"github.com/uber-go/tally"
 )
 
 type commitLogFilesBeforeFn func(commitLogsDir string, t time.Time) ([]string, error)
@@ -35,8 +40,11 @@ type commitLogFilesForTimeFn func(commitLogsDir string, t time.Time) ([]string, 
 type deleteFilesFn func(files []string) error
 
 type cleanupManager struct {
+	sync.RWMutex
+
 	database                database
 	opts                    Options
+	nowFn                   clock.NowFn
 	blockSize               time.Duration
 	filePathPrefix          string
 	commitLogsDir           string
@@ -44,9 +52,11 @@ type cleanupManager struct {
 	commitLogFilesBeforeFn  commitLogFilesBeforeFn
 	commitLogFilesForTimeFn commitLogFilesForTimeFn
 	deleteFilesFn           deleteFilesFn
+	cleanupInProgress       bool
+	metrics                 instrument.MethodMetrics
 }
 
-func newCleanupManager(database database, fm databaseFlushManager) databaseCleanupManager {
+func newCleanupManager(database database, fm databaseFlushManager, scope tally.Scope) databaseCleanupManager {
 	opts := database.Options()
 	blockSize := opts.RetentionOptions().BlockSize()
 	filePathPrefix := opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
@@ -55,6 +65,7 @@ func newCleanupManager(database database, fm databaseFlushManager) databaseClean
 	return &cleanupManager{
 		database:       database,
 		opts:           opts,
+		nowFn:          opts.ClockOptions().NowFn(),
 		blockSize:      blockSize,
 		filePathPrefix: filePathPrefix,
 		commitLogsDir:  commitLogsDir,
@@ -62,10 +73,31 @@ func newCleanupManager(database database, fm databaseFlushManager) databaseClean
 		commitLogFilesBeforeFn:  fs.CommitLogFilesBefore,
 		commitLogFilesForTimeFn: fs.CommitLogFilesForTime,
 		deleteFilesFn:           fs.DeleteFiles,
+		metrics:                 instrument.NewMethodMetrics(scope, "cleanup", 1.0),
 	}
 }
 
+func (m *cleanupManager) IsCleaningUp() bool {
+	m.RLock()
+	cleanupInProgress := m.cleanupInProgress
+	m.RUnlock()
+
+	return cleanupInProgress
+}
+
 func (m *cleanupManager) Cleanup(t time.Time) error {
+	callStart := m.nowFn()
+
+	m.Lock()
+	m.cleanupInProgress = true
+	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.cleanupInProgress = false
+		m.Unlock()
+	}()
+
 	multiErr := xerrors.NewMultiError()
 	filesetFilesStart := m.fm.FlushTimeStart(t)
 	if err := m.cleanupFilesetFiles(filesetFilesStart); err != nil {
@@ -77,7 +109,15 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 		detailedErr := fmt.Errorf("encountered errors when cleaning up commit logs for commitLogStart %v commitLogTimes %v: %v", commitLogStart, commitLogTimes, err)
 		multiErr = multiErr.Add(detailedErr)
 	}
-	return multiErr.FinalError()
+
+	d := m.nowFn().Sub(callStart)
+	if err := multiErr.FinalError(); err != nil {
+		m.metrics.ReportError(d)
+		return err
+	}
+	m.metrics.ReportSuccess(d)
+
+	return nil
 }
 
 func (m *cleanupManager) cleanupFilesetFiles(earliestToRetain time.Time) error {

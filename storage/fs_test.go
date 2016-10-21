@@ -27,11 +27,13 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/uber-go/tally"
 )
 
 func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 	database := newMockDatabase()
-	mgr, err := newFileSystemManager(database)
+	mgr, err := newFileSystemManager(database, tally.NoopScope)
 	require.NoError(t, err)
 	now := database.Options().ClockOptions().NowFn()()
 	require.False(t, mgr.ShouldRun(now))
@@ -42,7 +44,7 @@ func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 	database := newMockDatabase()
 	database.bs = bootstrapped
-	fsm, err := newFileSystemManager(database)
+	fsm, err := newFileSystemManager(database, tally.NoopScope)
 	require.NoError(t, err)
 	mgr := fsm.(*fileSystemManager)
 	now := database.Options().ClockOptions().NowFn()()
@@ -58,7 +60,7 @@ func TestFileSystemManagerShouldRunAttemptedBefore(t *testing.T) {
 	database := newMockDatabase()
 	database.bs = bootstrapped
 	fm := NewMockdatabaseFlushManager(ctrl)
-	fsm, err := newFileSystemManager(database)
+	fsm, err := newFileSystemManager(database, tally.NoopScope)
 	require.NoError(t, err)
 	mgr := fsm.(*fileSystemManager)
 	mgr.databaseFlushManager = fm
@@ -80,7 +82,7 @@ func TestFileSystemManagerRun(t *testing.T) {
 	database.bs = bootstrapped
 	fm := NewMockdatabaseFlushManager(ctrl)
 	cm := NewMockdatabaseCleanupManager(ctrl)
-	fsm, err := newFileSystemManager(database)
+	fsm, err := newFileSystemManager(database, tally.NoopScope)
 	require.NoError(t, err)
 	mgr := fsm.(*fileSystemManager)
 	mgr.databaseFlushManager = fm

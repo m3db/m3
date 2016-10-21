@@ -110,7 +110,6 @@ type db struct {
 	created      uint64
 	tickDeadline time.Duration
 	ticking      int64
-	flushing     int64
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -121,6 +120,7 @@ type db struct {
 type databaseMetrics struct {
 	bootstrapStatus tally.Gauge
 	tickStatus      tally.Gauge
+	cleanupStatus   tally.Gauge
 	flushStatus     tally.Gauge
 	repairStatus    tally.Gauge
 
@@ -138,6 +138,7 @@ func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics
 	return databaseMetrics{
 		bootstrapStatus: scope.Gauge("bootstrapped"),
 		tickStatus:      scope.Gauge("tick"),
+		cleanupStatus:   scope.Gauge("cleanup"),
 		flushStatus:     scope.Gauge("flush"),
 		repairStatus:    scope.Gauge("repair"),
 
@@ -193,7 +194,7 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 	}
 	d.namespaces = ns
 
-	fsm, err := newFileSystemManager(d)
+	fsm, err := newFileSystemManager(d, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +410,16 @@ func (d *db) reportLoop() {
 				d.metrics.repairStatus.Update(0)
 			}
 			d.metrics.tickStatus.Update(atomic.LoadInt64(&d.ticking))
-			d.metrics.flushStatus.Update(atomic.LoadInt64(&d.flushing))
+			if d.fsm.IsCleaningUp() {
+				d.metrics.cleanupStatus.Update(1)
+			} else {
+				d.metrics.cleanupStatus.Update(0)
+			}
+			if d.fsm.IsFlushing() {
+				d.metrics.flushStatus.Update(1)
+			} else {
+				d.metrics.flushStatus.Update(0)
+			}
 		case <-d.doneCh:
 			return
 		}
@@ -467,9 +477,7 @@ func (d *db) splayedTick() {
 	// blocks may only have just become available during a tick beginning
 	// from the tick begin marker.
 	if d.fsm.ShouldRun(start) {
-		atomic.StoreInt64(&d.flushing, 1)
 		d.fsm.Run(start, true)
-		atomic.StoreInt64(&d.flushing, 0)
 	}
 }
 

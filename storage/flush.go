@@ -25,21 +25,28 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3x/errors"
+
+	"github.com/uber-go/tally"
 )
 
 type flushManager struct {
 	sync.RWMutex
 
-	database    database
-	opts        Options
-	blockSize   time.Duration
-	pm          persist.Manager
-	flushStates map[time.Time]fileOpState
+	database        database
+	opts            Options
+	nowFn           clock.NowFn
+	blockSize       time.Duration
+	pm              persist.Manager
+	flushStates     map[time.Time]fileOpState
+	flushInProgress bool
+	metrics         instrument.MethodMetrics
 }
 
-func newFlushManager(database database) databaseFlushManager {
+func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
 	opts := database.Options()
 	blockSize := opts.RetentionOptions().BlockSize()
 	pm := opts.NewPersistManagerFn()()
@@ -47,10 +54,19 @@ func newFlushManager(database database) databaseFlushManager {
 	return &flushManager{
 		database:    database,
 		opts:        opts,
+		nowFn:       opts.ClockOptions().NowFn(),
 		blockSize:   blockSize,
 		pm:          pm,
 		flushStates: map[time.Time]fileOpState{},
+		metrics:     instrument.NewMethodMetrics(scope, "flush", 1.0),
 	}
+}
+
+func (m *flushManager) IsFlushing() bool {
+	m.RLock()
+	flushInProgress := m.flushInProgress
+	m.RUnlock()
+	return flushInProgress
 }
 
 func (m *flushManager) HasFlushed(t time.Time) bool {
@@ -75,8 +91,21 @@ func (m *flushManager) FlushTimeEnd(t time.Time) time.Time {
 }
 
 func (m *flushManager) Flush(t time.Time) error {
+	callStart := m.nowFn()
+
+	m.Lock()
+	m.flushInProgress = true
+	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.flushInProgress = false
+		m.Unlock()
+	}()
+
 	timesToFlush := m.flushTimes(t)
 	if len(timesToFlush) == 0 {
+		m.metrics.ReportSuccess(m.nowFn().Sub(callStart))
 		return nil
 	}
 
@@ -106,7 +135,14 @@ func (m *flushManager) Flush(t time.Time) error {
 		m.flushStates[flushTime] = flushState
 		m.Unlock()
 	}
-	return multiErr.FinalError()
+
+	d := m.nowFn().Sub(callStart)
+	if err := multiErr.FinalError(); err != nil {
+		m.metrics.ReportError(d)
+		return err
+	}
+	m.metrics.ReportSuccess(d)
+	return nil
 }
 
 // flushTimes returns a list of times we need to flush data blocks for.

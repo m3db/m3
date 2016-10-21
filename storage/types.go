@@ -248,6 +248,9 @@ type databaseBootstrapManager interface {
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
+	// IsFlushing returns whether flush is in progress
+	IsFlushing() bool
+
 	// HasFlushed returns true if the data for a given time have been flushed.
 	HasFlushed(t time.Time) bool
 
@@ -263,6 +266,9 @@ type databaseFlushManager interface {
 
 // databaseCleanupManager manages cleaning up persistent storage space.
 type databaseCleanupManager interface {
+	// IsCleaningUp returns whether cleanup is in progress
+	IsCleaningUp() bool
+
 	// Cleanup cleans up data not needed in the persistent storage.
 	Cleanup(t time.Time) error
 }

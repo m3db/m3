@@ -28,12 +28,13 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func testCleanupManager(ctrl *gomock.Controller) (*mockDatabase, *MockdatabaseFlushManager, *cleanupManager) {
 	db := newMockDatabase()
 	fm := NewMockdatabaseFlushManager(ctrl)
-	return db, fm, newCleanupManager(db, fm).(*cleanupManager)
+	return db, fm, newCleanupManager(db, fm, tally.NoopScope).(*cleanupManager)
 }
 
 func TestCleanupManagerCleanup(t *testing.T) {

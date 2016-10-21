@@ -29,11 +29,12 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestFlushManagerHasFlushed(t *testing.T) {
 	database := newMockDatabase()
-	fm := newFlushManager(database).(*flushManager)
+	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 
 	now := time.Now()
 	require.False(t, fm.HasFlushed(now))
@@ -47,7 +48,7 @@ func TestFlushManagerHasFlushed(t *testing.T) {
 
 func TestFlushManagerNeedsFlush(t *testing.T) {
 	database := newMockDatabase()
-	fm := newFlushManager(database).(*flushManager)
+	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 
 	now := time.Now()
 	maxFlushRetries := database.opts.MaxFlushRetries()
@@ -73,7 +74,7 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 		{time.Unix(86400*2+10800, 0), time.Unix(7200, 0)},
 	}
 	database := newMockDatabase()
-	fm := newFlushManager(database).(*flushManager)
+	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputs {
 		require.Equal(t, input.expected, fm.FlushTimeStart(input.ts))
 	}
@@ -89,7 +90,7 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 		{time.Unix(15200, 0), time.Unix(7200, 0)},
 	}
 	database := newMockDatabase()
-	fm := newFlushManager(database).(*flushManager)
+	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputs {
 		require.Equal(t, input.expected, fm.FlushTimeEnd(input.ts))
 	}
@@ -115,7 +116,7 @@ func TestFlushManagerFlush(t *testing.T) {
 
 	tickStart := time.Unix(188000, 0)
 	database := newMockDatabase()
-	fm := newFlushManager(database).(*flushManager)
+	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputTimes {
 		fm.flushStates[input.bs] = input.fs
 	}
@@ -166,7 +167,7 @@ func TestFlushManagerFlushTimes(t *testing.T) {
 		{time.Unix(43200, 0), fileOpState{fileOpSuccess, 1}},
 	}
 	database := newMockDatabase()
-	fm := newFlushManager(database).(*flushManager)
+	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputTimes {
 		fm.flushStates[input.bs] = input.fs
 	}
@@ -190,7 +191,7 @@ func TestFlushManagerFlushWithTimes(t *testing.T) {
 
 	flushTime := time.Unix(7200, 0)
 	database := newMockDatabase()
-	fm := newFlushManager(database).(*flushManager)
+	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 
 	inputs := []struct {
 		name string
