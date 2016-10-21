@@ -22,7 +22,9 @@ package fs
 
 import (
 	"os"
+	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
 )
@@ -33,6 +35,12 @@ const (
 
 	// defaultReaderBufferSize is the default buffer size for reading TSDB files
 	defaultReaderBufferSize = 65536
+
+	// defaultThroughputCheckInterval is the default throughput check interval
+	defaultThroughputCheckInterval = 100 * time.Millisecond
+
+	// defaultThroughputLimitMBPerSecond is the default throughput limit in MB/s
+	defaultThroughputLimitMBPerSecond = 5.0
 )
 
 var (
@@ -42,26 +50,42 @@ var (
 )
 
 type options struct {
-	instrumentOpts   instrument.Options
-	retentionOpts    retention.Options
-	filePathPrefix   string
-	newFileMode      os.FileMode
-	newDirectoryMode os.FileMode
-	writerBufferSize int
-	readerBufferSize int
+	clockOpts                  clock.Options
+	instrumentOpts             instrument.Options
+	retentionOpts              retention.Options
+	filePathPrefix             string
+	newFileMode                os.FileMode
+	newDirectoryMode           os.FileMode
+	writerBufferSize           int
+	readerBufferSize           int
+	throughputCheckInterval    time.Duration
+	throughputLimitMBPerSecond float64
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
 	return &options{
-		instrumentOpts:   instrument.NewOptions(),
-		retentionOpts:    retention.NewOptions(),
-		filePathPrefix:   defaultFilePathPrefix,
-		newFileMode:      defaultNewFileMode,
-		newDirectoryMode: defaultNewDirectoryMode,
-		writerBufferSize: defaultWriterBufferSize,
-		readerBufferSize: defaultReaderBufferSize,
+		clockOpts:                  clock.NewOptions(),
+		instrumentOpts:             instrument.NewOptions(),
+		retentionOpts:              retention.NewOptions(),
+		filePathPrefix:             defaultFilePathPrefix,
+		newFileMode:                defaultNewFileMode,
+		newDirectoryMode:           defaultNewDirectoryMode,
+		writerBufferSize:           defaultWriterBufferSize,
+		readerBufferSize:           defaultReaderBufferSize,
+		throughputCheckInterval:    defaultThroughputCheckInterval,
+		throughputLimitMBPerSecond: defaultThroughputLimitMBPerSecond,
 	}
+}
+
+func (o *options) SetClockOptions(value clock.Options) Options {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *options) ClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *options) SetInstrumentOptions(value instrument.Options) Options {
@@ -132,4 +156,24 @@ func (o *options) SetReaderBufferSize(value int) Options {
 
 func (o *options) ReaderBufferSize() int {
 	return o.readerBufferSize
+}
+
+func (o *options) SetThroughputCheckInterval(value time.Duration) Options {
+	opts := *o
+	opts.throughputCheckInterval = value
+	return &opts
+}
+
+func (o *options) ThroughputCheckInterval() time.Duration {
+	return o.throughputCheckInterval
+}
+
+func (o *options) SetThroughutLimitMBPerSecond(value float64) Options {
+	opts := *o
+	opts.throughputLimitMBPerSecond = value
+	return &opts
+}
+
+func (o *options) ThroughutLimitMBPerSecond() float64 {
+	return o.throughputLimitMBPerSecond
 }

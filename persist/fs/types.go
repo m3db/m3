@@ -25,6 +25,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
@@ -68,8 +69,14 @@ type FileSetReader interface {
 	EntriesRead() int
 }
 
-// Options represents the options for bootstrapping
+// Options represents the options for filesystem persistence
 type Options interface {
+	// SetClockOptions sets the clock options
+	SetClockOptions(value clock.Options) Options
+
+	// ClockOptions returns the clock options
+	ClockOptions() clock.Options
+
 	// SetInstrumentOptions sets the instrumentation options
 	SetInstrumentOptions(value instrument.Options) Options
 
@@ -111,4 +118,16 @@ type Options interface {
 
 	// ReaderBufferSize returns the buffer size for reading TSDB files
 	ReaderBufferSize() int
+
+	// SetThroughputCheckInterval sets the filesystem throughput check interval
+	SetThroughputCheckInterval(value time.Duration) Options
+
+	// ThroughputCheckInterval returns the filesystem throughput check interval
+	ThroughputCheckInterval() time.Duration
+
+	// SetThroughutLimitMBPerSecond sets the filesystem throughput limit
+	SetThroughutLimitMBPerSecond(value float64) Options
+
+	// ThroughutLimitMBPerSecond returns the filesystem throughput limit
+	ThroughutLimitMBPerSecond() float64
 }

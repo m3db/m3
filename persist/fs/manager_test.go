@@ -119,3 +119,109 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	defer prepared.Close()
 	require.Nil(t, prepared.Persist(id, segment))
 }
+
+func TestPersistenceManagerClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, writer := testManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	now := time.Now()
+	pm.start = now
+	pm.lastCheck = now
+	pm.bytesWritten = 100
+
+	writer.EXPECT().Close()
+	pm.close()
+
+	require.True(t, pm.start.IsZero())
+	require.True(t, pm.lastCheck.IsZero())
+	require.Equal(t, int64(0), pm.bytesWritten)
+}
+
+func TestPersistenceManagerNoThroughputLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, writer := testManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	var (
+		now     time.Time
+		slept   time.Duration
+		id      = ts.StringID("foo")
+		segment = ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3}}
+	)
+
+	pm.nowFn = func() time.Time { return now }
+	pm.sleepFn = func(d time.Duration) { slept += d }
+	writer.EXPECT().WriteAll(id, pm.segmentHolder).Return(nil).Times(2)
+
+	// Disable throughput limiting
+	pm.throughputLimitMBPerSecond = 0.0
+
+	// Start persistence
+	now = time.Now()
+	require.NoError(t, pm.persist(id, segment))
+
+	// Advance time and write again
+	now = now.Add(time.Millisecond)
+	require.NoError(t, pm.persist(id, segment))
+
+	// Check there is no rate limiting
+	require.Equal(t, time.Duration(0), slept)
+	require.Equal(t, int64(6), pm.bytesWritten)
+}
+
+func TestPersistenceManagerWithThroughputLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, writer := testManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	var (
+		now     time.Time
+		slept   time.Duration
+		iter    = 2
+		id      = ts.StringID("foo")
+		segment = ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3}}
+	)
+
+	pm.nowFn = func() time.Time { return now }
+	pm.sleepFn = func(d time.Duration) { slept += d }
+	writer.EXPECT().WriteAll(id, pm.segmentHolder).Return(nil).AnyTimes()
+	writer.EXPECT().Close().Times(iter)
+
+	// Enable throughput limiting
+	pm.throughputCheckInterval = time.Microsecond
+	pm.throughputLimitMBPerSecond = 2.0
+
+	for i := 0; i < iter; i++ {
+		// Start persistence
+		now = time.Now()
+		require.NoError(t, pm.persist(id, segment))
+
+		// Advance time and check we don't rate limit if it's not check interval yet
+		now = now.Add(time.Nanosecond)
+		require.NoError(t, pm.persist(id, segment))
+		require.Equal(t, time.Duration(0), slept)
+
+		// Advance time and check we rate limit if the disk throughput exceeds the limit
+		now = now.Add(time.Microsecond - time.Nanosecond)
+		require.NoError(t, pm.persist(id, segment))
+		require.Equal(t, time.Duration(1861), slept)
+
+		// Advance time and check we don't rate limit if the disk throughput is below the limit
+		now = now.Add(time.Second - time.Microsecond)
+		require.NoError(t, pm.persist(id, segment))
+		require.Equal(t, time.Duration(1861), slept)
+
+		require.Equal(t, int64(12), pm.bytesWritten)
+
+		// Reset
+		slept = time.Duration(0)
+		pm.close()
+	}
+}

@@ -23,15 +23,34 @@ package fs
 import (
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ts"
 )
 
-// persistManager is responsible for persisting series segments onto local filesystem
+const (
+	bytesPerMB = 1024 * 1024
+)
+
+var (
+	zeroTime time.Time
+)
+
+type sleepFn func(time.Duration)
+
+// persistManager is responsible for persisting series segments onto local filesystem.
+// It is not thread-safe.
 type persistManager struct {
-	opts           Options
-	filePathPrefix string
-	writer         FileSetWriter
+	opts                       Options
+	filePathPrefix             string
+	throughputCheckInterval    time.Duration
+	throughputLimitMBPerSecond float64
+	nowFn                      clock.NowFn
+	sleepFn                    sleepFn
+	writer                     FileSetWriter
+	start                      time.Time
+	lastCheck                  time.Time
+	bytesWritten               int64
 
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
 	// head and the tail of each segment so we don't need to allocate memory
@@ -48,21 +67,49 @@ func NewPersistManager(opts Options) persist.Manager {
 	newDirectoryMode := opts.NewDirectoryMode()
 	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 	return &persistManager{
-		opts:           opts,
-		filePathPrefix: filePathPrefix,
-		writer:         writer,
-		segmentHolder:  make([][]byte, 2),
+		opts:                       opts,
+		filePathPrefix:             filePathPrefix,
+		throughputCheckInterval:    opts.ThroughputCheckInterval(),
+		throughputLimitMBPerSecond: opts.ThroughutLimitMBPerSecond(),
+		nowFn:         opts.ClockOptions().NowFn(),
+		sleepFn:       time.Sleep,
+		writer:        writer,
+		segmentHolder: make([][]byte, 2),
 	}
 }
 
 func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
+	if pm.throughputLimitMBPerSecond > 0.0 {
+		now := pm.nowFn()
+		if pm.lastCheck.IsZero() {
+			pm.start = now
+			pm.lastCheck = now
+		} else if now.Sub(pm.lastCheck) >= pm.throughputCheckInterval {
+			pm.lastCheck = now
+			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / float64(pm.throughputLimitMBPerSecond*bytesPerMB))
+			if elapsed := now.Sub(pm.start); elapsed < target {
+				pm.sleepFn(target - elapsed)
+			}
+		}
+	}
+
 	pm.segmentHolder[0] = segment.Head
 	pm.segmentHolder[1] = segment.Tail
-	return pm.writer.WriteAll(id, pm.segmentHolder)
+	err := pm.writer.WriteAll(id, pm.segmentHolder)
+	pm.bytesWritten += int64(len(segment.Head) + len(segment.Tail))
+
+	return err
 }
 
 func (pm *persistManager) close() {
 	pm.writer.Close()
+	pm.reset()
+}
+
+func (pm *persistManager) reset() {
+	pm.start = zeroTime
+	pm.lastCheck = zeroTime
+	pm.bytesWritten = 0
 }
 
 func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
