@@ -93,14 +93,13 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	return state == bootstrapped
 }
 
-// targetRanges calculates the the target time ranges.
-// NB(xichen): bootstrapping is now a two-step process: we bootstrap the data between
-// [writeStart - retentionPeriod, writeStart - bufferPast) in the first step, and the
-// data between [writeStart - bufferPast, writeStart + bufferFuture) in the second step.
 func (m *bootstrapManager) targetRanges(writeStart time.Time) xtime.Ranges {
 	ropts := m.opts.RetentionOptions()
 	start := writeStart.Add(-ropts.RetentionPeriod())
-	midPoint := writeStart.Add(-ropts.BufferPast())
+	midPoint := writeStart.
+		Add(-ropts.BlockSize()).
+		Add(-ropts.BufferPast()).
+		Truncate(ropts.BlockSize())
 	cutover := writeStart.Add(ropts.BufferFuture())
 
 	return xtime.NewRanges().

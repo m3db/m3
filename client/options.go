@@ -110,14 +110,17 @@ const (
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
 	defaultFetchSeriesBlocksBatchTimeout = 30 * time.Second
+
+	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
+	defaultFetchSeriesBlocksBatchConcurrency = defaultMaxConnectionCount
 )
 
 var (
-	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
-	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(float64(runtime.NumCPU()*3/4), 1))
-
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
 	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
+
+	// defaultFetchSeriesBlocksResultsProcessors is the default concurrency for processing results when fetching series blocks
+	defaultFetchSeriesBlocksResultsProcessors = int(math.Min(float64(2), float64(runtime.NumCPU())))
 
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
@@ -157,6 +160,7 @@ type options struct {
 	fetchSeriesBlocksMetadataBatchTimeout time.Duration
 	fetchSeriesBlocksBatchTimeout         time.Duration
 	fetchSeriesBlocksBatchConcurrency     int
+	fetchSeriesBlocksResultsProcessors    int
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -200,6 +204,7 @@ func newOptions() *options {
 		fetchSeriesBlocksMetadataBatchTimeout: defaultFetchSeriesBlocksMetadataBatchTimeout,
 		fetchSeriesBlocksBatchTimeout:         defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:     defaultFetchSeriesBlocksBatchConcurrency,
+		fetchSeriesBlocksResultsProcessors:    defaultFetchSeriesBlocksResultsProcessors,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -550,4 +555,14 @@ func (o *options) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
 
 func (o *options) FetchSeriesBlocksBatchConcurrency() int {
 	return o.fetchSeriesBlocksBatchConcurrency
+}
+
+func (o *options) SetFetchSeriesBlocksResultsProcessors(value int) AdminOptions {
+	opts := *o
+	opts.fetchSeriesBlocksResultsProcessors = value
+	return &opts
+}
+
+func (o *options) FetchSeriesBlocksResultsProcessors() int {
+	return o.fetchSeriesBlocksResultsProcessors
 }

@@ -415,4 +415,10 @@ type AdminOptions interface {
 
 	// FetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch
 	FetchSeriesBlocksBatchConcurrency() int
+
+	// SetFetchSeriesBlocksResultsProcessors sets the concurrency for processing results when fetching series blocks
+	SetFetchSeriesBlocksResultsProcessors(value int) AdminOptions
+
+	// FetchSeriesBlocksResultsProcessors gets the concurrency for processing results when fetching series blocks
+	FetchSeriesBlocksResultsProcessors() int
 }
