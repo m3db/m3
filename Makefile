@@ -122,7 +122,7 @@ test-internal:
 	@$(VENDOR_ENV) $(test) $(coverfile) | tee $(test_log)
 
 test-integration:
-	@$(VENDOR_ENV) go test -v -race -tags=integration ./integration
+	@$(VENDOR_ENV) go test -v -tags=integration ./integration
 
 test-xml: test-internal
 	go-junit-report < $(test_log) > $(junit_xml)

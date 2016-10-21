@@ -14,7 +14,7 @@ TESTS=$(./integration.test -test.v -test.short | grep RUN | tr -s " " | cut -d '
 
 # execute tests one by one for isolation
 for TEST in $TESTS; do
-  ./integration.test -test.v -test.race -test.run $TEST ./integration
+  ./integration.test -test.v -test.run $TEST ./integration
   TEST_EXIT=$?
   if [ "$TEST_EXIT" != "0" ]; then
     echo "$TEST failed"
