@@ -25,6 +25,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/uber-go/tally"
 )
 
 type fileOpStatus int
@@ -53,14 +55,15 @@ type fileSystemManager struct {
 	processed map[time.Time]struct{} // times we have already processed
 }
 
-func newFileSystemManager(database database) (databaseFileSystemManager, error) {
+func newFileSystemManager(database database, scope tally.Scope) (databaseFileSystemManager, error) {
 	opts := database.Options()
 	fileOpts := opts.FileOpOptions()
 	if err := fileOpts.Validate(); err != nil {
 		return nil, err
 	}
-	fm := newFlushManager(database)
-	cm := newCleanupManager(database, fm)
+	scope = scope.SubScope("fs")
+	fm := newFlushManager(database, scope)
+	cm := newCleanupManager(database, fm, scope)
 
 	var jitter time.Duration
 	if maxJitter := fileOpts.Jitter(); maxJitter > 0 {
