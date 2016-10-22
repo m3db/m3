@@ -112,7 +112,7 @@ const (
 	defaultFetchSeriesBlocksBatchTimeout = 30 * time.Second
 
 	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
-	defaultFetchSeriesBlocksBatchConcurrency = defaultMaxConnectionCount
+	defaultFetchSeriesBlocksBatchConcurrency = 1024
 )
 
 var (
@@ -120,7 +120,7 @@ var (
 	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
 
 	// defaultFetchSeriesBlocksResultsProcessors is the default concurrency for processing results when fetching series blocks
-	defaultFetchSeriesBlocksResultsProcessors = int(math.Min(float64(2), float64(runtime.NumCPU())))
+	defaultFetchSeriesBlocksResultsProcessors = int(math.Max(float64(1), float64(runtime.NumCPU())*0.5))
 
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
