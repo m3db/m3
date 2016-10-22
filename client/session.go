@@ -1108,12 +1108,16 @@ func (s *session) streamBlocksMetadataFromPeer(
 			return err
 		}
 
+		var (
+			startInNs = start.UnixNano()
+			endInNs   = end.UnixNano()
+		)
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
 		req := rpc.NewFetchBlocksMetadataRawRequest()
 		req.NameSpace = namespace.Data()
 		req.Shard = int32(shard)
-		req.RangeStart = start.UnixNano()
-		req.RangeEnd = end.UnixNano()
+		req.RangeStart = &startInNs
+		req.RangeEnd = &endInNs
 		req.Limit = int64(s.streamBlocksBatchSize)
 		req.PageToken = pageToken
 		req.IncludeSizes = &optionIncludeSizes
@@ -1143,7 +1147,13 @@ func (s *session) streamBlocksMetadataFromPeer(
 		for _, elem := range result.Elements {
 			blockMetas := make([]blockMetadata, 0, len(elem.Blocks))
 			for _, b := range elem.Blocks {
-				blockStart := time.Unix(0, b.Start)
+				var (
+					blockStart = time.Unix(0, b.Start)
+					blockEnd   = blockStart.Add(2 * time.Hour)
+				)
+				if !start.Before(blockEnd) || !blockStart.Before(end) {
+					continue
+				}
 
 				if b.Err != nil {
 					// Error occurred retrieving block metadata, use default values
