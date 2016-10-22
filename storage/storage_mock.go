@@ -364,8 +364,10 @@ func (_mr *_MockdatabaseShardRecorder) NumSeries() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NumSeries")
 }
 
-func (_m *MockdatabaseShard) Tick(softDeadline time.Duration) {
-	_m.ctrl.Call(_m, "Tick", softDeadline)
+func (_m *MockdatabaseShard) Tick(softDeadline time.Duration) tickResult {
+	ret := _m.ctrl.Call(_m, "Tick", softDeadline)
+	ret0, _ := ret[0].(tickResult)
+	return ret0
 }
 
 func (_mr *_MockdatabaseShardRecorder) Tick(arg0 interface{}) *gomock.Call {

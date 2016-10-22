@@ -222,9 +222,10 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
-	expired := shard.tickAndExpire(6 * time.Millisecond)
 
-	require.Equal(t, 0, expired)
+	r := shard.tickAndExpire(6 * time.Millisecond)
+	require.Equal(t, 3, r.activeSeries)
+	require.Equal(t, 0, r.expiredSeries)
 	require.Equal(t, 4*time.Millisecond, slept)
 }
 
@@ -247,8 +248,9 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	expired := shard.tickAndExpire(0)
-	require.Equal(t, 0, expired)
+	r := shard.tickAndExpire(0)
+	require.Equal(t, 1, r.activeSeries)
+	require.Equal(t, 0, r.expiredSeries)
 }
 
 // This tests the scenario where a series is empty when series.Tick() is called,
@@ -272,10 +274,11 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil)
 
 		s.EXPECT().IsEmpty().Return(false)
-	}).Return(series.ErrSeriesAllDatapointsExpired)
+	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	expired := shard.tickAndExpire(0)
-	require.Equal(t, 1, expired)
+	r := shard.tickAndExpire(0)
+	require.Equal(t, 0, r.activeSeries)
+	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
 }
 
@@ -296,10 +299,11 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place and staying open just after tick for this series
 		entry = shard.writableSeries(id)
-	}).Return(series.ErrSeriesAllDatapointsExpired)
+	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	expired := shard.tickAndExpire(0)
-	require.Equal(t, 1, expired)
+	r := shard.tickAndExpire(0)
+	require.Equal(t, 0, r.activeSeries)
+	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
 
 	entry.decrementWriterCount()
