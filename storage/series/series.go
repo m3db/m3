@@ -71,6 +71,11 @@ type pendingBootstrapDrain struct {
 	encoder encoding.Encoder
 }
 
+type updateBlocksResult struct {
+	expired int
+	sealed  int
+}
+
 // NewDatabaseSeries creates a new database series
 func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
 	return newDatabaseSeries(id, opts)
@@ -100,9 +105,11 @@ func (s *dbSeries) ID() ts.ID {
 	return s.id
 }
 
-func (s *dbSeries) Tick() error {
+func (s *dbSeries) Tick() (TickResult, error) {
+	r := TickResult{}
+
 	if s.IsEmpty() {
-		return ErrSeriesAllDatapointsExpired
+		return r, ErrSeriesAllDatapointsExpired
 	}
 
 	// In best case when explicitly asked to drain may have no
@@ -110,23 +117,26 @@ func (s *dbSeries) Tick() error {
 	s.RLock()
 	needsDrain := s.buffer.NeedsDrain()
 	needsBlockUpdate := s.needsBlockUpdateWithRLock()
+	r.ActiveBlocks = s.blocks.Len()
 	s.RUnlock()
 
 	if !needsDrain && !needsBlockUpdate {
-		return nil
+		return r, nil
 	}
 
 	s.Lock()
 	if needsDrain {
 		s.buffer.DrainAndReset()
 	}
-
 	if needsBlockUpdate {
-		s.updateBlocksWithLock()
+		update := s.updateBlocksWithLock()
+		r.ExpiredBlocks = update.expired
+		r.SealedBlocks = update.sealed
 	}
+	r.ActiveBlocks = s.blocks.Len()
 	s.Unlock()
 
-	return nil
+	return r, nil
 }
 
 func (s *dbSeries) needsBlockUpdateWithRLock() bool {
@@ -151,8 +161,9 @@ func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
 	return blockStart.Before(cutoff)
 }
 
-func (s *dbSeries) updateBlocksWithLock() {
+func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 	var (
+		r               updateBlocksResult
 		now             = s.opts.ClockOptions().NowFn()()
 		allBlocks       = s.blocks.AllBlocks()
 		allBlocksSealed = true
@@ -161,10 +172,12 @@ func (s *dbSeries) updateBlocksWithLock() {
 		if s.shouldExpire(now, blockStart) {
 			s.blocks.RemoveBlockAt(blockStart)
 			block.Close()
+			r.expired++
 		} else if block.IsSealed() {
 			continue
 		} else if s.shouldSeal(now, blockStart, block) {
 			block.Seal()
+			r.sealed++
 		} else {
 			allBlocksSealed = false
 		}
@@ -172,6 +185,7 @@ func (s *dbSeries) updateBlocksWithLock() {
 	if allBlocksSealed {
 		s.blocks.Seal()
 	}
+	return r
 }
 
 func (s *dbSeries) shouldSeal(now, blockStart time.Time, block block.DatabaseBlock) bool {

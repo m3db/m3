@@ -41,7 +41,7 @@ type DatabaseSeries interface {
 	ID() ts.ID
 
 	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc
-	Tick() error
+	Tick() (TickResult, error)
 
 	// Write writes a new value
 	Write(
@@ -86,6 +86,13 @@ type DatabaseSeries interface {
 
 	// Reset resets the series for reuse
 	Reset(id ts.ID)
+}
+
+// TickResult is a set of results from a tick
+type TickResult struct {
+	ActiveBlocks  int
+	ExpiredBlocks int
+	SealedBlocks  int
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool
