@@ -106,8 +106,7 @@ func (s *dbSeries) ID() ts.ID {
 }
 
 func (s *dbSeries) Tick() (TickResult, error) {
-	r := TickResult{}
-
+	var r TickResult
 	if s.IsEmpty() {
 		return r, ErrSeriesAllDatapointsExpired
 	}
