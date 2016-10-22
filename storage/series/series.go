@@ -128,9 +128,9 @@ func (s *dbSeries) Tick() (TickResult, error) {
 		s.buffer.DrainAndReset()
 	}
 	if needsBlockUpdate {
-		update := s.updateBlocksWithLock()
-		r.ExpiredBlocks = update.expired
-		r.SealedBlocks = update.sealed
+		updateResult := s.updateBlocksWithLock()
+		r.ExpiredBlocks = updateResult.expired
+		r.SealedBlocks = updateResult.sealed
 	}
 	r.ActiveBlocks = s.blocks.Len()
 	s.Unlock()
