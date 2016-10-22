@@ -175,15 +175,16 @@ func (s *dbShard) forBatchWithLock(
 	return nextElem
 }
 
-func (s *dbShard) Tick(softDeadline time.Duration) {
-	s.tickAndExpire(softDeadline)
+func (s *dbShard) Tick(softDeadline time.Duration) tickResult {
+	return s.tickAndExpire(softDeadline)
 }
 
-func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
+func (s *dbShard) tickAndExpire(softDeadline time.Duration) tickResult {
 	var (
+		r                    tickResult
 		perEntrySoftDeadline time.Duration
 		expired              []series.DatabaseSeries
-		i, total             int
+		i                    int
 	)
 	if size := s.NumSeries(); size > 0 {
 		perEntrySoftDeadline = softDeadline / time.Duration(size)
@@ -197,21 +198,27 @@ func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
 				s.sleepFn(prevEntryDeadline.Sub(now))
 			}
 		}
-		err := entry.series.Tick()
+		result, err := entry.series.Tick()
 		if err == series.ErrSeriesAllDatapointsExpired {
 			expired = append(expired, entry.series)
+			r.expiredSeries++
 			if len(expired) >= expireBatchLength {
 				// Purge when reaching max batch size to avoid large array growth
 				// and ensure smooth rate of elements being returned to pools.
 				// This method does not run using a lock so this is safe to
 				// perform inline.
 				s.purgeExpiredSeries(expired)
-				total += len(expired)
 				expired = expired[:0]
 			}
-		} else if err != nil {
-			// TODO(r): log error and increment counter
+		} else {
+			r.activeSeries++
+			if err != nil {
+				r.errors++
+			}
 		}
+		r.activeBlocks += result.ActiveBlocks
+		r.expiredBlocks += result.ExpiredBlocks
+		r.sealedBlocks += result.SealedBlocks
 		i++
 		// Continue
 		return true
@@ -220,10 +227,9 @@ func (s *dbShard) tickAndExpire(softDeadline time.Duration) int {
 	if len(expired) > 0 {
 		// Purge any series that still haven't been purged yet
 		s.purgeExpiredSeries(expired)
-		total += len(expired)
 	}
 
-	return total
+	return r
 }
 
 func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {

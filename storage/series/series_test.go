@@ -106,7 +106,8 @@ func TestSeriesWriteFlush(t *testing.T) {
 	assert.Equal(t, true, series.buffer.NeedsDrain())
 
 	// Tick the series which should cause a drain
-	assert.NoError(t, series.Tick())
+	_, err := series.Tick()
+	assert.NoError(t, err)
 
 	assert.Equal(t, false, series.buffer.NeedsDrain())
 
@@ -225,7 +226,7 @@ func TestSeriesTickEmptySeries(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
-	err := series.Tick()
+	_, err := series.Tick()
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
 }
 
@@ -241,7 +242,7 @@ func TestSeriesTickNeedsDrain(t *testing.T) {
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().NeedsDrain().Return(true)
 	buffer.EXPECT().DrainAndReset()
-	err := series.Tick()
+	_, err := series.Tick()
 	require.NoError(t, err)
 }
 
@@ -273,8 +274,10 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	series.buffer = buffer
 	buffer.EXPECT().IsEmpty().Return(true)
 	buffer.EXPECT().NeedsDrain().Return(false)
-	err := series.Tick()
+	r, err := series.Tick()
 	require.NoError(t, err)
+	require.Equal(t, 1, r.ActiveBlocks)
+	require.Equal(t, 1, r.ExpiredBlocks)
 	require.Equal(t, 1, series.blocks.Len())
 	require.Equal(t, curr, series.blocks.MinTime())
 	_, exists := series.blocks.AllBlocks()[curr]
@@ -304,8 +307,10 @@ func TestSeriesTickAllBlocksSealed(t *testing.T) {
 	series.buffer = buffer
 	buffer.EXPECT().IsEmpty().Return(true)
 	buffer.EXPECT().NeedsDrain().Return(false)
-	err := series.Tick()
+	r, err := series.Tick()
 	require.NoError(t, err)
+	require.Equal(t, 1, r.ActiveBlocks)
+	require.Equal(t, 0, r.SealedBlocks)
 }
 
 func TestSeriesTickSealOne(t *testing.T) {
@@ -334,8 +339,10 @@ func TestSeriesTickSealOne(t *testing.T) {
 	series.buffer = buffer
 	buffer.EXPECT().IsEmpty().Return(true)
 	buffer.EXPECT().NeedsDrain().Return(false)
-	err := series.Tick()
+	r, err := series.Tick()
 	require.NoError(t, err)
+	require.Equal(t, 2, r.ActiveBlocks)
+	require.Equal(t, 1, r.SealedBlocks)
 	require.False(t, series.blocks.IsSealed())
 }
 
@@ -364,8 +371,10 @@ func TestSeriesTickSealAll(t *testing.T) {
 	buffer.EXPECT().IsEmpty().Return(true)
 	buffer.EXPECT().NeedsDrain().Return(false)
 
-	err := series.Tick()
+	r, err := series.Tick()
 	require.NoError(t, err)
+	require.Equal(t, 1, r.ActiveBlocks)
+	require.Equal(t, 1, r.SealedBlocks)
 	require.True(t, series.blocks.IsSealed())
 }
 

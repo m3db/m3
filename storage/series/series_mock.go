@@ -69,10 +69,11 @@ func (_mr *_MockDatabaseSeriesRecorder) ID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
 }
 
-func (_m *MockDatabaseSeries) Tick() error {
+func (_m *MockDatabaseSeries) Tick() (TickResult, error) {
 	ret := _m.ctrl.Call(_m, "Tick")
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(TickResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockDatabaseSeriesRecorder) Tick() *gomock.Call {

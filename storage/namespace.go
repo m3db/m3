@@ -63,15 +63,34 @@ type databaseNamespaceMetrics struct {
 	unfulfilled    tally.Counter
 	bootstrapStart tally.Counter
 	bootstrapEnd   tally.Counter
+	tick           databaseNamespaceTickMetrics
+}
+
+type databaseNamespaceTickMetrics struct {
+	activeSeries  tally.Gauge
+	expiredSeries tally.Counter
+	activeBlocks  tally.Gauge
+	expiredBlocks tally.Counter
+	sealedBlocks  tally.Counter
+	errors        tally.Counter
 }
 
 func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
+	tickScope := scope.SubScope("tick")
 	return databaseNamespaceMetrics{
 		bootstrap:      instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
 		flush:          instrument.NewMethodMetrics(scope, "flush", samplingRate),
 		unfulfilled:    scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart: scope.Counter("bootstrap.start"),
 		bootstrapEnd:   scope.Counter("bootstrap.end"),
+		tick: databaseNamespaceTickMetrics{
+			activeSeries:  tickScope.Gauge("active-series"),
+			expiredSeries: tickScope.Counter("expired-series"),
+			activeBlocks:  tickScope.Gauge("active-blocks"),
+			expiredBlocks: tickScope.Counter("expired-blocks"),
+			sealedBlocks:  tickScope.Counter("sealed-blocks"),
+			errors:        tickScope.Counter("errors"),
+		},
 	}
 }
 
@@ -126,15 +145,24 @@ func (n *dbNamespace) NumSeries() int64 {
 
 func (n *dbNamespace) Tick(softDeadline time.Duration) {
 	shards := n.getOwnedShards()
+
 	if len(shards) == 0 {
 		return
 	}
 
 	// Tick through the shards sequentially to avoid parallel data flushes
+	var r tickResult
 	perShardDeadline := softDeadline / time.Duration(len(shards))
 	for _, shard := range shards {
-		shard.Tick(perShardDeadline)
+		r = r.merge(shard.Tick(perShardDeadline))
 	}
+
+	n.metrics.tick.activeSeries.Update(int64(r.activeSeries))
+	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
+	n.metrics.tick.activeBlocks.Update(int64(r.activeBlocks))
+	n.metrics.tick.expiredBlocks.Inc(int64(r.expiredBlocks))
+	n.metrics.tick.sealedBlocks.Inc(int64(r.sealedBlocks))
+	n.metrics.tick.errors.Inc(int64(r.errors))
 }
 
 func (n *dbNamespace) Write(
