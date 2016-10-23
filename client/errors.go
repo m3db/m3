@@ -21,11 +21,13 @@
 package client
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3x/errors"
 )
 
-// IsInternalServerError determines if the error is an internal server error.
+// IsInternalServerError determines if the error is an internal server error
 func IsInternalServerError(err error) bool {
 	errType := rpc.ErrorType_INTERNAL_ERROR
 	for err != nil {
@@ -37,7 +39,7 @@ func IsInternalServerError(err error) bool {
 	return false
 }
 
-// IsBadRequestError determines if the error is a bad request error.
+// IsBadRequestError determines if the error is a bad request error
 func IsBadRequestError(err error) bool {
 	errType := rpc.ErrorType_BAD_REQUEST
 	for err != nil {
@@ -47,4 +49,97 @@ func IsBadRequestError(err error) bool {
 		err = xerrors.InnerError(err)
 	}
 	return false
+}
+
+// NumResponded returns how many nodes responded for a given error
+func NumResponded(err error) int {
+	for err != nil {
+		if e, ok := err.(consistencyResultError); ok {
+			return e.numResponded()
+		}
+		err = xerrors.InnerError(err)
+	}
+	return 0
+}
+
+// NumSuccess returns how many nodes responded with success for a given error
+func NumSuccess(err error) int {
+	for err != nil {
+		if e, ok := err.(consistencyResultError); ok {
+			return e.numSuccess()
+		}
+		err = xerrors.InnerError(err)
+	}
+	return 0
+}
+
+// NumError returns how many nodes responded with error for a given error
+func NumError(err error) int {
+	for err != nil {
+		if e, ok := err.(consistencyResultError); ok {
+			return e.numResponded() -
+				e.numSuccess()
+		}
+		err = xerrors.InnerError(err)
+	}
+	return 0
+}
+
+type consistencyResultError interface {
+	error
+
+	InnerError() error
+	numResponded() int
+	numSuccess() int
+}
+
+type consistencyResultErr struct {
+	level       fmt.Stringer
+	success     int
+	enqueued    int
+	responded   int
+	topLevelErr error
+	errs        []error
+}
+
+func newConsistencyResultError(
+	level fmt.Stringer,
+	enqueued, responded int,
+	errs []error,
+) consistencyResultError {
+	// NB(r): if any errors are bad request errors, encapsulate that error
+	// to ensure the error itself is wholly classified as a bad request error
+	topLevelErr := errs[0]
+	for i := 1; i < len(errs); i++ {
+		if IsBadRequestError(errs[i]) {
+			topLevelErr = errs[i]
+			break
+		}
+	}
+	return consistencyResultErr{
+		level:       level,
+		success:     enqueued - len(errs),
+		enqueued:    enqueued,
+		responded:   responded,
+		topLevelErr: topLevelErr,
+		errs:        errs,
+	}
+}
+
+func (e consistencyResultErr) InnerError() error {
+	return e.topLevelErr
+}
+
+func (e consistencyResultErr) Error() string {
+	return fmt.Sprintf(
+		"failed to meet %s with %d/%d success, %d nodes responded, errors: %v",
+		e.level.String(), e.success, e.enqueued, e.responded, e.errs)
+}
+
+func (e consistencyResultErr) numResponded() int {
+	return int(e.responded)
+}
+
+func (e consistencyResultErr) numSuccess() int {
+	return int(e.success)
 }
