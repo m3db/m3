@@ -40,21 +40,22 @@ func (e containedError) Error() string {
 	return e.inner.Error()
 }
 
-func (e containedError) innerError() error {
+func (e containedError) InnerError() error {
 	return e.inner
 }
 
-type containedErr interface {
-	innerError() error
+// ContainedError is an error with a contained error
+type ContainedError interface {
+	InnerError() error
 }
 
 // InnerError returns the packaged inner error if this is an error that contains another
 func InnerError(err error) error {
-	contained, ok := err.(containedErr)
+	contained, ok := err.(ContainedError)
 	if !ok {
 		return nil
 	}
-	return contained.innerError()
+	return contained.InnerError()
 }
 
 type renamedError struct {
@@ -71,7 +72,7 @@ func (e renamedError) Error() string {
 	return e.renamed.Error()
 }
 
-func (e renamedError) innerError() error {
+func (e renamedError) InnerError() error {
 	return e.inner
 }
 
@@ -88,7 +89,7 @@ func (e invalidParamsError) Error() string {
 	return e.inner.Error()
 }
 
-func (e invalidParamsError) innerError() error {
+func (e invalidParamsError) InnerError() error {
 	return e.inner
 }
 
@@ -122,7 +123,7 @@ func (e retryableError) Error() string {
 	return e.inner.Error()
 }
 
-func (e retryableError) innerError() error {
+func (e retryableError) InnerError() error {
 	return e.inner
 }
 
@@ -156,7 +157,7 @@ func (e nonRetryableError) Error() string {
 	return e.inner.Error()
 }
 
-func (e nonRetryableError) innerError() error {
+func (e nonRetryableError) InnerError() error {
 	return e.inner
 }
 
