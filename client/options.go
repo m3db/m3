@@ -106,10 +106,10 @@ const (
 	defaultFetchSeriesBlocksBatchSize = 4096
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks metadata fetch timeout
-	defaultFetchSeriesBlocksMetadataBatchTimeout = 5 * time.Second
+	defaultFetchSeriesBlocksMetadataBatchTimeout = 60 * time.Second
 
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
-	defaultFetchSeriesBlocksBatchTimeout = 30 * time.Second
+	defaultFetchSeriesBlocksBatchTimeout = 60 * time.Second
 
 	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
 	defaultFetchSeriesBlocksBatchConcurrency = 1024
