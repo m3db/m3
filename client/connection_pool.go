@@ -189,13 +189,13 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				// Create connection
 				channel, client, err := p.newConn(channelName, address, p.opts)
 				if err != nil {
-					log.Warnf("could not connect to %s: %v", address, err)
+					log.Debugf("could not connect to %s: %v", address, err)
 					return
 				}
 
 				// Health check the connection
 				if err := p.healthCheckNewConn(client, p.opts); err != nil {
-					log.Warnf("could not connect to %s: failed health check: %v", address, err)
+					log.Debugf("could not connect to %s: failed health check: %v", address, err)
 					channel.Close()
 					return
 				}
@@ -261,7 +261,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 				healthy := failed < attempts
 				if !healthy {
 					// Log health check error
-					log.Warnf("health check failed to %s: %v", p.host.Address(), checkErr)
+					log.Debugf("health check failed to %s: %v", p.host.Address(), checkErr)
 
 					// Swap with tail and decrement pool size
 					p.Lock()
