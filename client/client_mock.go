@@ -792,24 +792,24 @@ func (_mr *_MockOptionsRecorder) TopologyInitializer() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer")
 }
 
-func (_m *MockOptions) SetConsistencyLevel(value topology.ConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetConsistencyLevel", value)
+func (_m *MockOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SetConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetConsistencyLevel", arg0)
+func (_mr *_MockOptionsRecorder) SetWriteConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteConsistencyLevel", arg0)
 }
 
-func (_m *MockOptions) ConsistencyLevel() topology.ConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "ConsistencyLevel")
+func (_m *MockOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "WriteConsistencyLevel")
 	ret0, _ := ret[0].(topology.ConsistencyLevel)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) ConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConsistencyLevel")
+func (_mr *_MockOptionsRecorder) WriteConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteConsistencyLevel")
 }
 
 func (_m *MockOptions) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
@@ -1413,24 +1413,24 @@ func (_mr *_MockAdminOptionsRecorder) TopologyInitializer() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer")
 }
 
-func (_m *MockAdminOptions) SetConsistencyLevel(value topology.ConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetConsistencyLevel", value)
+func (_m *MockAdminOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) SetConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetConsistencyLevel", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetWriteConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteConsistencyLevel", arg0)
 }
 
-func (_m *MockAdminOptions) ConsistencyLevel() topology.ConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "ConsistencyLevel")
+func (_m *MockAdminOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "WriteConsistencyLevel")
 	ret0, _ := ret[0].(topology.ConsistencyLevel)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) ConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConsistencyLevel")
+func (_mr *_MockAdminOptionsRecorder) WriteConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteConsistencyLevel")
 }
 
 func (_m *MockAdminOptions) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {

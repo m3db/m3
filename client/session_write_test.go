@@ -178,7 +178,7 @@ func testWriteConsistencyLevel(
 	expected outcome,
 ) {
 	opts := newSessionTestOptions()
-	opts = opts.SetConsistencyLevel(level)
+	opts = opts.SetWriteConsistencyLevel(level)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)

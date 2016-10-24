@@ -73,7 +73,7 @@ func (l ConnectConsistencyLevel) String() string {
 	case ConnectConsistencyLevelAll:
 		return "ConnectConsistencyLevelAll"
 	}
-	return ""
+	return "ConnectConsistencyLevelUnknown"
 }
 
 // ReadConsistencyLevel is the consistency level for reading from a cluster
@@ -107,7 +107,7 @@ func (l ReadConsistencyLevel) String() string {
 	case ReadConsistencyLevelAll:
 		return "ReadConsistencyLevelAll"
 	}
-	return ""
+	return "ReadConsistencyLevelUnknown"
 }
 
 // Client can create sessions to write and read to a cluster
@@ -276,11 +276,11 @@ type Options interface {
 	// TopologyInitializer returns the TopologyInitializer
 	TopologyInitializer() topology.Initializer
 
-	// SetConsistencyLevel sets the consistency level
-	SetConsistencyLevel(value topology.ConsistencyLevel) Options
+	// SetWriteConsistencyLevel sets the write consistency level
+	SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options
 
-	// ConsistencyLevel returns the consistency level
-	ConsistencyLevel() topology.ConsistencyLevel
+	// WriteConsistencyLevel returns the write consistency level
+	WriteConsistencyLevel() topology.ConsistencyLevel
 
 	// SetReadConsistencyLevel sets the read consistency level
 	SetReadConsistencyLevel(value ReadConsistencyLevel) Options

@@ -39,8 +39,8 @@ import (
 )
 
 const (
-	// defaultConsistencyLevel is the default consistency level
-	defaultConsistencyLevel = topology.ConsistencyLevelMajority
+	// defaultWriteConsistencyLevel is the default write consistency level
+	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
 
 	// defaultReadConsistencyLevel is the default read consistency level
 	defaultReadConsistencyLevel = ReadConsistencyLevelMajority
@@ -133,7 +133,7 @@ type options struct {
 	clockOpts                             clock.Options
 	instrumentOpts                        instrument.Options
 	topologyInitializer                   topology.Initializer
-	consistencyLevel                      topology.ConsistencyLevel
+	writeConsistencyLevel                 topology.ConsistencyLevel
 	readConsistencyLevel                  ReadConsistencyLevel
 	channelOptions                        *tchannel.ChannelOptions
 	maxConnectionCount                    int
@@ -181,7 +181,7 @@ func newOptions() *options {
 	opts := &options{
 		clockOpts:                             clock.NewOptions(),
 		instrumentOpts:                        instrument.NewOptions(),
-		consistencyLevel:                      defaultConsistencyLevel,
+		writeConsistencyLevel:                 defaultWriteConsistencyLevel,
 		readConsistencyLevel:                  defaultReadConsistencyLevel,
 		maxConnectionCount:                    defaultMaxConnectionCount,
 		minConnectionCount:                    defaultMinConnectionCount,
@@ -262,14 +262,14 @@ func (o *options) TopologyInitializer() topology.Initializer {
 	return o.topologyInitializer
 }
 
-func (o *options) SetConsistencyLevel(value topology.ConsistencyLevel) Options {
+func (o *options) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
 	opts := *o
-	opts.consistencyLevel = value
+	opts.writeConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) ConsistencyLevel() topology.ConsistencyLevel {
-	return o.consistencyLevel
+func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {
+	return o.writeConsistencyLevel
 }
 
 func (o *options) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {

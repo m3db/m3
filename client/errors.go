@@ -109,8 +109,12 @@ func newConsistencyResultError(
 ) consistencyResultError {
 	// NB(r): if any errors are bad request errors, encapsulate that error
 	// to ensure the error itself is wholly classified as a bad request error
-	topLevelErr := errs[0]
-	for i := 1; i < len(errs); i++ {
+	var topLevelErr error
+	for i := 0; i < len(errs); i++ {
+		if topLevelErr == nil {
+			topLevelErr = errs[i]
+			continue
+		}
 		if IsBadRequestError(errs[i]) {
 			topLevelErr = errs[i]
 			break
@@ -137,9 +141,9 @@ func (e consistencyResultErr) Error() string {
 }
 
 func (e consistencyResultErr) numResponded() int {
-	return int(e.responded)
+	return e.responded
 }
 
 func (e consistencyResultErr) numSuccess() int {
-	return int(e.success)
+	return e.success
 }
