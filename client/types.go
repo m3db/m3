@@ -59,6 +59,57 @@ const (
 	ConnectConsistencyLevelAll
 )
 
+// String returns the consistency level as a string
+func (l ConnectConsistencyLevel) String() string {
+	switch l {
+	case ConnectConsistencyLevelAny:
+		return "ConnectConsistencyLevelAny"
+	case ConnectConsistencyLevelNone:
+		return "ConnectConsistencyLevelNone"
+	case ConnectConsistencyLevelOne:
+		return "ConnectConsistencyLevelOne"
+	case ConnectConsistencyLevelMajority:
+		return "ConnectConsistencyLevelMajority"
+	case ConnectConsistencyLevelAll:
+		return "ConnectConsistencyLevelAll"
+	}
+	return "ConnectConsistencyLevelUnknown"
+}
+
+// ReadConsistencyLevel is the consistency level for reading from a cluster
+type ReadConsistencyLevel int
+
+const (
+	// ReadConsistencyLevelOne corresponds to reading from a single node
+	ReadConsistencyLevelOne ReadConsistencyLevel = iota
+
+	// ReadConsistencyLevelUnstrictMajority corresponds to reading from the majority of nodes
+	// but relaxing the constraint when it cannot be met, falling back to returning success when
+	// reading from at least a single node after attempting reading from the majority of nodes
+	ReadConsistencyLevelUnstrictMajority
+
+	// ReadConsistencyLevelMajority corresponds to reading from the majority of nodes
+	ReadConsistencyLevelMajority
+
+	// ReadConsistencyLevelAll corresponds to reading from all of the nodes
+	ReadConsistencyLevelAll
+)
+
+// String returns the consistency level as a string
+func (l ReadConsistencyLevel) String() string {
+	switch l {
+	case ReadConsistencyLevelOne:
+		return "ReadConsistencyLevelOne"
+	case ReadConsistencyLevelUnstrictMajority:
+		return "ReadConsistencyLevelUnstrictMajority"
+	case ReadConsistencyLevelMajority:
+		return "ReadConsistencyLevelMajority"
+	case ReadConsistencyLevelAll:
+		return "ReadConsistencyLevelAll"
+	}
+	return "ReadConsistencyLevelUnknown"
+}
+
 // Client can create sessions to write and read to a cluster
 type Client interface {
 	// NewSession creates a new session
@@ -225,11 +276,17 @@ type Options interface {
 	// TopologyInitializer returns the TopologyInitializer
 	TopologyInitializer() topology.Initializer
 
-	// SetConsistencyLevel sets the consistencyLevel
-	SetConsistencyLevel(value topology.ConsistencyLevel) Options
+	// SetWriteConsistencyLevel sets the write consistency level
+	SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options
 
-	// ConsistencyLevel returns the consistencyLevel
-	ConsistencyLevel() topology.ConsistencyLevel
+	// WriteConsistencyLevel returns the write consistency level
+	WriteConsistencyLevel() topology.ConsistencyLevel
+
+	// SetReadConsistencyLevel sets the read consistency level
+	SetReadConsistencyLevel(value ReadConsistencyLevel) Options
+
+	// ReadConsistencyLevel returns the read consistency level
+	ReadConsistencyLevel() ReadConsistencyLevel
 
 	// SetChannelOptions sets the channelOptions
 	SetChannelOptions(value *tchannel.ChannelOptions) Options

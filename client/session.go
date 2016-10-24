@@ -83,7 +83,8 @@ type session struct {
 	scope                            tally.Scope
 	nowFn                            clock.NowFn
 	log                              xlog.Logger
-	level                            topology.ConsistencyLevel
+	writeLevel                       topology.ConsistencyLevel
+	readLevel                        ReadConsistencyLevel
 	newHostQueueFn                   newHostQueueFn
 	topo                             topology.Topology
 	topoMap                          topology.Map
@@ -145,7 +146,8 @@ func newSession(opts Options) (clientSession, error) {
 		scope:                opts.InstrumentOptions().MetricsScope(),
 		nowFn:                opts.ClockOptions().NowFn(),
 		log:                  opts.InstrumentOptions().Logger(),
-		level:                opts.ConsistencyLevel(),
+		writeLevel:           opts.WriteConsistencyLevel(),
+		readLevel:            opts.ReadConsistencyLevel(),
 		newHostQueueFn:       newHostQueue,
 		topo:                 topo,
 		fetchBatchSize:       opts.FetchBatchSize(),
@@ -515,7 +517,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		}
 		remaining := atomic.AddInt32(&pending, -1)
 		doneAll := remaining == 0
-		switch s.level {
+		switch s.writeLevel {
 		case topology.ConsistencyLevelOne:
 			complete := snapshotSuccess > 0 || doneAll
 			if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
@@ -580,7 +582,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		resultErrLock.RUnlock()
 	}
 	responded := enqueued - atomic.LoadInt32(&pending)
-	return s.consistencyResult(majority, enqueued, responded, errsLen, reportErrors)
+	return s.writeConsistencyResult(majority, enqueued, responded, errsLen, reportErrors)
 }
 
 func (s *session) Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
@@ -658,7 +660,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				resultErrLock.RUnlock()
 			}
 			responded := enqueued - atomic.LoadInt32(&pending)
-			if err := s.consistencyResult(majority, enqueued, responded, errsLen, reportErrors); err != nil {
+			if err := s.readConsistencyResult(majority, enqueued, responded, errsLen, reportErrors); err != nil {
 				resultErrLock.Lock()
 				if resultErr == nil {
 					resultErr = err
@@ -710,18 +712,18 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 			// which would cause a nil pointer exception.
 			remaining := atomic.AddInt32(&pending, -1)
 			doneAll := remaining == 0
-			switch s.level {
-			case topology.ConsistencyLevelOne:
+			switch s.readLevel {
+			case ReadConsistencyLevelOne:
 				complete := snapshotSuccess > 0 || doneAll
 				if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
 					allCompletionFn()
 				}
-			case topology.ConsistencyLevelMajority:
+			case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
 				complete := snapshotSuccess >= majority || doneAll
 				if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
 					allCompletionFn()
 				}
-			case topology.ConsistencyLevelAll:
+			case ReadConsistencyLevelAll:
 				if doneAll && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
 					allCompletionFn()
 				}
@@ -817,9 +819,9 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 	return iters, nil
 }
 
-func (s *session) consistencyResult(
+func (s *session) writeConsistencyResult(
 	majority, enqueued, responded, resultErrs int32,
-	errors []error,
+	errs []error,
 ) error {
 	if resultErrs == 0 {
 		return nil
@@ -827,36 +829,51 @@ func (s *session) consistencyResult(
 
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
-	reportErr := func() error {
-		// NB(r): if any errors are bad request errors, encapsulate that error
-		// to ensure the error itself is wholly classified as a bad request error.
-		topLevelErr := errors[0]
-		for i := 1; i < len(errors); i++ {
-			if IsBadRequestError(errors[i]) {
-				topLevelErr = errors[i]
-				break
-			}
-		}
-		return xerrors.NewRenamedError(topLevelErr, fmt.Errorf(
-			"failed to meet %s with %d/%d success, %d nodes responded, errors: %v",
-			s.level.String(), success, enqueued, responded, errors))
-	}
-
-	switch s.level {
+	switch s.writeLevel {
 	case topology.ConsistencyLevelAll:
-		return reportErr()
+		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
 	case topology.ConsistencyLevelMajority:
 		if success >= majority {
 			// Meets majority
 			break
 		}
-		return reportErr()
+		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
 	case topology.ConsistencyLevelOne:
 		if success > 0 {
 			// Meets one
 			break
 		}
-		return reportErr()
+		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
+	}
+
+	return nil
+}
+
+func (s *session) readConsistencyResult(
+	majority, enqueued, responded, resultErrs int32,
+	errs []error,
+) error {
+	if resultErrs == 0 {
+		return nil
+	}
+
+	// Check consistency level satisfied
+	success := enqueued - resultErrs
+	switch s.readLevel {
+	case ReadConsistencyLevelAll:
+		return newConsistencyResultError(s.readLevel, int(enqueued), int(responded), errs)
+	case ReadConsistencyLevelMajority:
+		if success >= majority {
+			// Meets majority
+			break
+		}
+		return newConsistencyResultError(s.readLevel, int(enqueued), int(responded), errs)
+	case ReadConsistencyLevelOne, ReadConsistencyLevelUnstrictMajority:
+		if success > 0 {
+			// Meets one
+			break
+		}
+		return newConsistencyResultError(s.readLevel, int(enqueued), int(responded), errs)
 	}
 
 	return nil

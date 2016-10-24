@@ -1,5 +1,5 @@
-hash: cbfce3b0de92acf41febe3b03182575cacd87489d76fd7d2258e2100f78be60a
-updated: 2016-09-20T17:50:32.917022273-04:00
+hash: b538a6470832b44af2caadd974c0e56472a47f38fdc8ec79fa2244363a1cdfde
+updated: 2016-10-23T18:44:48.176277065-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -7,6 +7,7 @@ imports:
   - lib/go/thrift
 - name: github.com/davecgh/go-spew
   version: 66f99a29a08158b999b0dc2e7ccacf1131d4e0b4
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
@@ -27,7 +28,7 @@ imports:
   - services
   - shard
 - name: github.com/m3db/m3x
-  version: 061fa69eb3dfc2a4fb1202f018039875654a2434
+  version: 87afcb5f1b6e2040d7b6843c51d15e02e67319bb
   subpackages:
   - close
   - errors
@@ -67,6 +68,7 @@ imports:
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
 - name: golang.org/x/net
   version: 9313baa13d9262e49d07b20ed57dceafcd7240cc
+  version: de35ec43e7a9aabd6a9c54d2898220ea7e44de7d
   subpackages:
   - context
 testImports: []
