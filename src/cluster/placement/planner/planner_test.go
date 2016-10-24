@@ -30,32 +30,32 @@ import (
 )
 
 func TestDeployment(t *testing.T) {
-	h1 := placement.NewEmptyHostShards("r1h1", "r1", "z1")
+	h1 := placement.NewHostShards(placement.NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	h2 := placement.NewEmptyHostShards("r2h2", "r2", "z1")
+	h2 := placement.NewHostShards(placement.NewHost("r2h2", "r2", "z1", 1))
 	h2.AddShard(4)
 	h2.AddShard(5)
 	h2.AddShard(6)
 
-	h3 := placement.NewEmptyHostShards("r3h3", "r3", "z1")
+	h3 := placement.NewHostShards(placement.NewHost("r3h3", "r3", "z1", 1))
 	h3.AddShard(1)
 	h3.AddShard(3)
 	h3.AddShard(5)
 
-	h4 := placement.NewEmptyHostShards("r4h4", "r4", "z1")
+	h4 := placement.NewHostShards(placement.NewHost("r4h4", "r4", "z1", 1))
 	h4.AddShard(2)
 	h4.AddShard(4)
 	h4.AddShard(6)
 
-	h5 := placement.NewEmptyHostShards("r5h5", "r5", "z1")
+	h5 := placement.NewHostShards(placement.NewHost("r5h5", "r5", "z1", 1))
 	h5.AddShard(5)
 	h5.AddShard(6)
 	h5.AddShard(1)
 
-	h6 := placement.NewEmptyHostShards("r6h6", "r6", "z1")
+	h6 := placement.NewHostShards(placement.NewHost("r6h6", "r6", "z1", 1))
 	h6.AddShard(2)
 	h6.AddShard(3)
 	h6.AddShard(4)
@@ -75,39 +75,39 @@ func TestDeployment(t *testing.T) {
 }
 
 func TestDeploymentWithThreeReplica(t *testing.T) {
-	h1 := placement.NewEmptyHostShards("r1h1", "r1", "z1")
+	h1 := placement.NewHostShards(placement.NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 
-	h2 := placement.NewEmptyHostShards("r2h2", "r2", "z1")
+	h2 := placement.NewHostShards(placement.NewHost("r2h2", "r2", "z1", 1))
 	h2.AddShard(3)
 	h2.AddShard(4)
 
-	h3 := placement.NewEmptyHostShards("r3h3", "r3", "z1")
+	h3 := placement.NewHostShards(placement.NewHost("r3h3", "r3", "z1", 1))
 	h3.AddShard(5)
 	h3.AddShard(6)
 
-	h4 := placement.NewEmptyHostShards("r4h4", "r4", "z1")
+	h4 := placement.NewHostShards(placement.NewHost("r4h4", "r4", "z1", 1))
 	h4.AddShard(1)
 	h4.AddShard(3)
 
-	h5 := placement.NewEmptyHostShards("r5h5", "r5", "z1")
+	h5 := placement.NewHostShards(placement.NewHost("r5h5", "r5", "z1", 1))
 	h5.AddShard(4)
 	h5.AddShard(6)
 
-	h6 := placement.NewEmptyHostShards("r6h6", "r6", "z1")
+	h6 := placement.NewHostShards(placement.NewHost("r6h6", "r6", "z1", 1))
 	h6.AddShard(2)
 	h6.AddShard(5)
 
-	h7 := placement.NewEmptyHostShards("r7h7", "r7", "z1")
+	h7 := placement.NewHostShards(placement.NewHost("r7h7", "r7", "z1", 1))
 	h7.AddShard(2)
 	h7.AddShard(3)
 
-	h8 := placement.NewEmptyHostShards("r8h8", "r8", "z1")
+	h8 := placement.NewHostShards(placement.NewHost("r8h8", "r8", "z1", 1))
 	h8.AddShard(4)
 	h8.AddShard(5)
 
-	h9 := placement.NewEmptyHostShards("r9h9", "r9", "z1")
+	h9 := placement.NewHostShards(placement.NewHost("r9h9", "r9", "z1", 1))
 	h9.AddShard(6)
 	h9.AddShard(1)
 
@@ -126,25 +126,31 @@ func TestDeploymentWithThreeReplica(t *testing.T) {
 }
 
 func TestRemoveHostShards(t *testing.T) {
-	h1 := placement.NewEmptyHostShards("r1h1", "r1", "z1")
-	h2 := placement.NewEmptyHostShards("r2h2", "r2", "z1")
-	h3 := placement.NewEmptyHostShards("r3h3", "r3", "z1")
-	h4 := placement.NewEmptyHostShards("r4h4", "r4", "z1")
+	h1 := placement.NewHostShards(placement.NewHost("r1h1", "r1", "z1", 1))
+	h2 := placement.NewHostShards(placement.NewHost("r2h2", "r2", "z1", 1))
+	h3 := placement.NewHostShards(placement.NewHost("r3h3", "r3", "z1", 1))
+	h4 := placement.NewHostShards(placement.NewHost("r4h4", "r4", "z1", 1))
 
 	hss := []placement.HostShards{h1, h2, h3, h4}
 
 	left := removeHostShards(hss, h4)
 	assert.Equal(t, 3, len(left))
 
-	left = removeHostShards(hss, placement.NewEmptyHostShards("r5h5", "r5", "z1"))
+	left = removeHostShards(hss, placement.NewHostShards(placement.NewHost("r5h5", "r5", "z1", 1)))
 	assert.Equal(t, 4, len(left))
 }
 
 func TestSort(t *testing.T) {
 	var steps sortableSteps
-	steps = append(steps, []placement.HostShards{placement.NewEmptyHostShards("", "", ""), placement.NewEmptyHostShards("", "", "")})
-	steps = append(steps, []placement.HostShards{placement.NewEmptyHostShards("", "", ""), placement.NewEmptyHostShards("", "", ""), placement.NewEmptyHostShards("", "", "")})
-	steps = append(steps, []placement.HostShards{placement.NewEmptyHostShards("", "", "")})
+	steps = append(steps, []placement.HostShards{
+		placement.NewHostShards(placement.NewHost("", "", "", 1)),
+		placement.NewHostShards(placement.NewHost("", "", "", 1))})
+	steps = append(steps, []placement.HostShards{
+		placement.NewHostShards(placement.NewHost("", "", "", 1)),
+		placement.NewHostShards(placement.NewHost("", "", "", 1)),
+		placement.NewHostShards(placement.NewHost("", "", "", 1))})
+	steps = append(steps, []placement.HostShards{
+		placement.NewHostShards(placement.NewHost("", "", "", 1))})
 	sort.Sort(steps)
 
 	assert.Equal(t, 3, len(steps))
