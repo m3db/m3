@@ -22,6 +22,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/m3db/m3cluster/placement"
@@ -137,12 +138,12 @@ func (ps placementService) ReplaceHost(service string, leavingHost placement.Hos
 		return errHostAbsent
 	}
 
-	var addingHost placement.Host
-	if addingHost, err = ps.findReplaceHost(s, candidateHosts, leavingHostShard); err != nil {
+	addingHosts, err := ps.findReplaceHost(s, candidateHosts, leavingHostShard)
+	if err != nil {
 		return err
 	}
 
-	if s, err = ps.algo.ReplaceHost(s, leavingHost, addingHost); err != nil {
+	if s, err = ps.algo.ReplaceHost(s, leavingHost, addingHosts); err != nil {
 		return err
 	}
 	return ps.ss.SaveSnapshotForService(service, s)
@@ -160,25 +161,6 @@ func getNewHostsToPlacement(s placement.Snapshot, hosts []placement.Host) []plac
 		}
 	}
 	return hs
-}
-
-type rackLen struct {
-	rack string
-	len  int
-}
-
-type rackLens []rackLen
-
-func (rls rackLens) Len() int {
-	return len(rls)
-}
-
-func (rls rackLens) Less(i, j int) bool {
-	return rls[i].len < rls[j].len
-}
-
-func (rls rackLens) Swap(i, j int) {
-	rls[i], rls[j] = rls[j], rls[i]
 }
 
 func (ps placementService) findAddingHost(s placement.Snapshot, candidateHosts []placement.Host) (placement.Host, error) {
@@ -203,14 +185,18 @@ func (ps placementService) findAddingHost(s placement.Snapshot, candidateHosts [
 	}
 
 	// otherwise sort the racks in the current placement by capacity and find a host from least sized rack
-	rackLens := make(rackLens, 0, len(placementRackHostMap))
+	racks := make(sortableThings, 0, len(placementRackHostMap))
 	for rack, hss := range placementRackHostMap {
-		rackLens = append(rackLens, rackLen{rack: rack, len: len(hss)})
+		weight := 0
+		for _, hs := range hss {
+			weight += int(hs.Weight())
+		}
+		racks = append(racks, sortableValue{value: rack, weight: weight})
 	}
-	sort.Sort(rackLens)
+	sort.Sort(racks)
 
-	for _, rackLen := range rackLens {
-		if hs, exist := candidateRackHostMap[rackLen.rack]; exist {
+	for _, rackLen := range racks {
+		if hs, exist := candidateRackHostMap[rackLen.value.(string)]; exist {
 			for _, host := range hs {
 				return host, nil
 			}
@@ -220,10 +206,13 @@ func (ps placementService) findAddingHost(s placement.Snapshot, candidateHosts [
 	return nil, errNoValidHost
 }
 
-func (ps placementService) findReplaceHost(s placement.Snapshot, candidateHosts []placement.Host, leaving placement.HostShards) (placement.Host, error) {
+func (ps placementService) findReplaceHost(
+	s placement.Snapshot,
+	candidateHosts []placement.Host,
+	leaving placement.HostShards,
+) ([]placement.Host, error) {
 	// filter out already existing hosts
 	candidateHosts = getNewHostsToPlacement(s, candidateHosts)
-
 	candidateHosts, err := filterZones(s, ps.options, candidateHosts)
 	if err != nil {
 		return nil, err
@@ -233,39 +222,114 @@ func (ps placementService) findReplaceHost(s placement.Snapshot, candidateHosts 
 		return nil, errNoValidHost
 	}
 	// build rackHostMap from candidate hosts
-	candidateRackHostMap := buildRackHostMap(candidateHosts)
+	rackHostMap := buildRackHostMap(candidateHosts)
 
-	// if there is a host from the same rack can be added, return it.
-	if hs, exist := candidateRackHostMap[leaving.Host().Rack()]; exist {
-		return hs[0], nil
-	}
-
-	return ps.findHostWithRackCheck(s, candidateRackHostMap, leaving)
-}
-
-func (ps placementService) findHostWithRackCheck(p placement.Snapshot, rackHostMap map[string][]placement.Host, leaving placement.HostShards) (placement.Host, error) {
 	// otherwise sort the candidate hosts by the number of conflicts
-	ph := algo.NewPlacementHelper(ps.options, p)
-
-	rackLens := make(rackLens, 0, len(rackHostMap))
-	for rack := range rackHostMap {
-		rackConflicts := 0
+	ph := algo.NewPlacementHelper(s, ps.options)
+	hosts := make([]sortableValue, 0, len(rackHostMap))
+	for rack, hostsInRack := range rackHostMap {
+		conflicts := 0
 		for _, shard := range leaving.Shards() {
 			if !ph.HasNoRackConflict(shard, leaving, rack) {
-				rackConflicts++
+				conflicts++
 			}
 		}
+		for _, host := range hostsInRack {
+			hosts = append(hosts, sortableValue{value: host, weight: conflicts})
+		}
+	}
 
-		rackLens = append(rackLens, rackLen{rack: rack, len: rackConflicts})
+	groups := groupHostsByConflict(hosts, ps.options.LooseRackCheck())
+	if len(groups) == 0 {
+		return nil, errNoValidHost
 	}
-	sort.Sort(rackLens)
-	if !ps.options.LooseRackCheck() {
-		rackLens = filterConflictRacks(rackLens)
+
+	result, leftWeight := fillWeight(groups, int(leaving.Host().Weight()))
+
+	if leftWeight > 0 {
+		return nil, fmt.Errorf("could not find enough host to replace %s, %v weight could not be replaced",
+			leaving.Host().String(), leftWeight)
 	}
-	if len(rackLens) > 0 {
-		return rackHostMap[rackLens[0].rack][0], nil
+	return result, nil
+}
+
+func groupHostsByConflict(hostsSortedByConflicts []sortableValue, allowConflict bool) [][]placement.Host {
+	sort.Sort(sortableThings(hostsSortedByConflicts))
+	var groups [][]placement.Host
+	lastSeenConflict := -1
+	for _, host := range hostsSortedByConflicts {
+		if !allowConflict && host.weight > 0 {
+			break
+		}
+		if host.weight > lastSeenConflict {
+			lastSeenConflict = host.weight
+			groups = append(groups, []placement.Host{})
+		}
+		if lastSeenConflict == host.weight {
+			groups[len(groups)-1] = append(groups[len(groups)-1], host.value.(placement.Host))
+		}
 	}
-	return nil, errNoValidHost
+	return groups
+}
+
+func fillWeight(groups [][]placement.Host, targetWeight int) ([]placement.Host, int) {
+	var (
+		result       []placement.Host
+		hostsInGroup []placement.Host
+	)
+	for _, group := range groups {
+		hostsInGroup, targetWeight = knapsack(group, targetWeight)
+		result = append(result, hostsInGroup...)
+		if targetWeight <= 0 {
+			break
+		}
+
+	}
+	return result, targetWeight
+}
+
+func knapsack(hosts []placement.Host, targetWeight int) ([]placement.Host, int) {
+	totalWeight := 0
+	for _, host := range hosts {
+		totalWeight += int(host.Weight())
+	}
+	if totalWeight <= targetWeight {
+		return hosts[:], targetWeight - totalWeight
+	}
+	// totalWeight > targetWeight, there is a combination of hosts to meet targetWeight for sure
+	// we do dp until totalWeight rather than targetWeight here because we need to cover the targetWeight
+	// which is a little bit different than the knapsack problem that goes
+	weights := make([]int, totalWeight+1)
+	combination := make([][]placement.Host, totalWeight+1)
+
+	// dp: weights[i][j] = max(weights[i-1][j], weights[i-1][j-host.Weight] + host.Weight)
+	// when there are multiple combination to reach a target weight, we prefer the one with less hosts
+	for i := range hosts {
+		// this loop needs to go from len to 1 because updating weights[] is being updated in place
+		for j := totalWeight; j >= 1; j-- {
+			weight := int(hosts[i].Weight())
+			if j-weight < 0 {
+				continue
+			}
+			newWeight := weights[j-weight] + weight
+			if newWeight > weights[j] {
+				weights[j] = weights[j-weight] + weight
+				combination[j] = append(combination[j-weight], hosts[i])
+			} else if newWeight == weights[j] {
+				// if can reach same weight, find a combination with less hosts
+				if len(combination[j-weight])+1 < len(combination[j]) {
+					combination[j] = append(combination[j-weight], hosts[i])
+				}
+			}
+		}
+	}
+	for i := targetWeight; i <= totalWeight; i++ {
+		if weights[i] >= targetWeight {
+			return combination[i], targetWeight - weights[i]
+		}
+	}
+
+	panic("should never reach here")
 }
 
 func filterZones(p placement.Snapshot, opts placement.Options, candidateHosts []placement.Host) ([]placement.Host, error) {
@@ -291,15 +355,6 @@ func filterZones(p placement.Snapshot, opts placement.Options, candidateHosts []
 		}
 	}
 	return validHosts, nil
-}
-
-func filterConflictRacks(rls rackLens) rackLens {
-	for i, r := range rls {
-		if r.len > 0 {
-			return rls[:i]
-		}
-	}
-	return rls
 }
 
 func buildRackHostMap(candidateHosts []placement.Host) map[string][]placement.Host {
@@ -337,4 +392,23 @@ func (ps placementService) validateInitHosts(hosts []placement.Host) error {
 		}
 	}
 	return nil
+}
+
+type sortableValue struct {
+	value  interface{}
+	weight int
+}
+
+type sortableThings []sortableValue
+
+func (things sortableThings) Len() int {
+	return len(things)
+}
+
+func (things sortableThings) Less(i, j int) bool {
+	return things[i].weight < things[j].weight
+}
+
+func (things sortableThings) Swap(i, j int) {
+	things[i], things[j] = things[j], things[i]
 }

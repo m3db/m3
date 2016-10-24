@@ -46,13 +46,13 @@ type snapshot struct {
 func NewEmptyPlacementSnapshot(hosts []Host, ids []uint32) Snapshot {
 	hostShards := make([]HostShards, len(hosts), len(hosts))
 	for i, ph := range hosts {
-		hostShards[i] = NewEmptyHostShardsFromHost(ph)
+		hostShards[i] = NewHostShards(ph)
 	}
 
 	return snapshot{hostShards: hostShards, shards: ids, rf: 0}
 }
 
-// NewPlacementSnapshot returns a placement
+// NewPlacementSnapshot returns a placement snapshot
 func NewPlacementSnapshot(hss []HostShards, shards []uint32, rf int) Snapshot {
 	return snapshot{hostShards: hss, rf: rf, shards: shards}
 }
@@ -122,6 +122,19 @@ func (ps snapshot) Validate() error {
 	return nil
 }
 
+// Copy copies a snapshot
+func (ps snapshot) Copy() Snapshot {
+	return snapshot{hostShards: copyHostShards(ps.HostShards()), rf: ps.Replicas(), shards: ps.Shards()}
+}
+
+func copyHostShards(hss []HostShards) []HostShards {
+	copied := make([]HostShards, len(hss))
+	for i, hs := range hss {
+		copied[i] = newHostShards(hs.Host(), hs.Shards())
+	}
+	return copied
+}
+
 // NewPlacementFromJSON creates a Snapshot from JSON
 func NewPlacementFromJSON(data []byte) (Snapshot, error) {
 	var ps snapshot
@@ -163,6 +176,7 @@ func newHostShardsJSON(hs HostShards) hostShardsJSON {
 		ID:     hs.Host().ID(),
 		Rack:   hs.Host().Rack(),
 		Zone:   hs.Host().Zone(),
+		Weight: hs.Host().Weight(),
 		Shards: shards,
 	}
 }
@@ -214,11 +228,12 @@ type hostShardsJSON struct {
 	ID     string   `json:"id"`
 	Rack   string   `json:"rack"`
 	Zone   string   `json:"zone"`
+	Weight uint32   `json:"weight"`
 	Shards []uint32 `json:"shards"`
 }
 
 func hostShardsFromJSON(hsj hostShardsJSON) (HostShards, error) {
-	hs := NewEmptyHostShards(hsj.ID, hsj.Rack, hsj.Zone)
+	hs := NewHostShards(NewHost(hsj.ID, hsj.Rack, hsj.Zone, hsj.Weight))
 	for _, shard := range hsj.Shards {
 		hs.AddShard(shard)
 	}
@@ -234,15 +249,18 @@ type hostShards struct {
 	shardsSet map[uint32]struct{}
 }
 
-// NewEmptyHostShardsFromHost returns a HostShards with no shards assigned
-func NewEmptyHostShardsFromHost(host Host) HostShards {
-	m := make(map[uint32]struct{})
-	return &hostShards{host: host, shardsSet: m}
+// NewHostShards returns a HostShards with no shards assigned
+func NewHostShards(host Host) HostShards {
+	return newHostShards(host, nil)
 }
 
-// NewEmptyHostShards returns a HostShards with no shards assigned
-func NewEmptyHostShards(id, rack, zone string) HostShards {
-	return NewEmptyHostShardsFromHost(NewHost(id, rack, zone))
+// newHostShards returns a HostShards with shards
+func newHostShards(host Host, shards []uint32) HostShards {
+	m := make(map[uint32]struct{}, len(shards))
+	for _, s := range shards {
+		m[s] = struct{}{}
+	}
+	return &hostShards{host: host, shardsSet: m}
 }
 
 func (h hostShards) Host() Host {
@@ -286,14 +304,15 @@ func ConvertShardSliceToMap(ids []uint32) map[uint32]int {
 }
 
 // NewHost returns a Host
-func NewHost(id, rack, zone string) Host {
-	return host{id: id, rack: rack, zone: zone}
+func NewHost(id, rack, zone string, weight uint32) Host {
+	return host{id: id, rack: rack, zone: zone, weight: weight}
 }
 
 type host struct {
-	id   string
-	rack string
-	zone string
+	id     string
+	rack   string
+	zone   string
+	weight uint32
 }
 
 func (h host) ID() string {
@@ -308,8 +327,12 @@ func (h host) Zone() string {
 	return h.zone
 }
 
+func (h host) Weight() uint32 {
+	return h.weight
+}
+
 func (h host) String() string {
-	return fmt.Sprintf("[id:%s, rack:%s, zone:%s]", h.id, h.rack, h.zone)
+	return fmt.Sprintf("[id:%s, rack:%s, zone:%s, weight:%v]", h.id, h.rack, h.zone, h.weight)
 }
 
 // NewOptions returns an Options instance
@@ -318,8 +341,9 @@ func NewOptions() Options {
 }
 
 type options struct {
-	looseRackCheck bool
-	acrossZones    bool
+	looseRackCheck      bool
+	acrossZones         bool
+	allowPartialReplace bool
 }
 
 func (o options) LooseRackCheck() bool {
@@ -337,5 +361,14 @@ func (o options) AcrossZones() bool {
 
 func (o options) SetAcrossZones(acrossZones bool) Options {
 	o.acrossZones = acrossZones
+	return o
+}
+
+func (o options) AllowPartialReplace() bool {
+	return o.allowPartialReplace
+}
+
+func (o options) SetAllowPartialReplace(allowPartialReplace bool) Options {
+	o.allowPartialReplace = allowPartialReplace
 	return o
 }

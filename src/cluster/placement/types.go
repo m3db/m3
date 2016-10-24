@@ -36,8 +36,8 @@ type Algorithm interface {
 	// RemoveHost removes a host from the cluster
 	RemoveHost(p Snapshot, h Host) (Snapshot, error)
 
-	// ReplaceHost replace a host with a new host
-	ReplaceHost(p Snapshot, leavingHost, addingHost Host) (Snapshot, error)
+	// ReplaceHost replace a host with new hosts
+	ReplaceHost(p Snapshot, leavingHost Host, addingHosts []Host) (Snapshot, error)
 }
 
 // DeploymentPlanner generates deployment steps for a placement
@@ -68,6 +68,9 @@ type Snapshot interface {
 
 	// Validate checks if the snapshot is valid
 	Validate() error
+
+	// Copy copies the Snapshot
+	Copy() Snapshot
 }
 
 // HostShards represents a host and its assigned shards
@@ -80,12 +83,13 @@ type HostShards interface {
 	ContainsShard(shard uint32) bool
 }
 
-// Host contains the information needed for placement
+// Host represents a weighted host
 type Host interface {
 	fmt.Stringer
 	ID() string
 	Rack() string
 	Zone() string
+	Weight() uint32
 }
 
 // Service handles the placement related operations for registered services
@@ -117,4 +121,9 @@ type Options interface {
 	// AcrossZone enables the placement have hosts across zones
 	AcrossZones() bool
 	SetAcrossZones(acrossZones bool) Options
+
+	// AllowPartialReplace allows shards from the leaving host to be
+	// placed on hosts other than the new hosts in a replace operation
+	AllowPartialReplace() bool
+	SetAllowPartialReplace(allowPartialReplace bool) Options
 }
