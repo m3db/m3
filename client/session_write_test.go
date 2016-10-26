@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -29,11 +30,27 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestSessionWriteNotOpenError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+
+	err = s.Write("namespace", "foo", time.Now(), 1.337, xtime.Second, nil)
+	assert.Error(t, err)
+	assert.Equal(t, errSessionStateNotOpen, err)
+}
 
 func TestSessionWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -179,6 +196,14 @@ func testWriteConsistencyLevel(
 ) {
 	opts := newSessionTestOptions()
 	opts = opts.SetWriteConsistencyLevel(level)
+
+	reporterOpts := xmetrics.NewTestStatsReporterOptions().
+		SetCaptureEvents(true)
+	reporter := xmetrics.NewTestStatsReporter(reporterOpts)
+	scope := tally.NewRootScope("", nil, reporter, time.Millisecond)
+	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
+		SetMetricsScope(scope))
+
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -240,4 +265,28 @@ func testWriteConsistencyLevel(
 	}
 
 	assert.NoError(t, session.Close())
+
+	counters := reporter.Counters()
+	for counters["write.success"] == 0 && counters["write.errors"] == 0 {
+		time.Sleep(time.Millisecond)
+		counters = reporter.Counters()
+	}
+	if expected == outcomeSuccess {
+		assert.Equal(t, 1, int(counters["write.success"]))
+		assert.Equal(t, 0, int(counters["write.errors"]))
+	} else {
+		assert.Equal(t, 0, int(counters["write.success"]))
+		assert.Equal(t, 1, int(counters["write.errors"]))
+	}
+	if failures > 0 {
+		for _, event := range reporter.Events() {
+			if event.Name() == "write.nodes-responding-error" {
+				nodesFailing, convErr := strconv.Atoi(event.Tags()["nodes"])
+				require.NoError(t, convErr)
+				assert.True(t, 0 < nodesFailing && nodesFailing <= failures)
+				assert.Equal(t, int64(1), event.Value())
+				break
+			}
+		}
+	}
 }

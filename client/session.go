@@ -115,7 +115,23 @@ type session struct {
 
 type sessionMetrics struct {
 	sync.RWMutex
-	streamFromPeersMetrics map[uint32]streamFromPeersMetrics
+	writeSuccess               tally.Counter
+	writeErrors                tally.Counter
+	writeNodesRespondingErrors []tally.Counter
+	fetchSuccess               tally.Counter
+	fetchErrors                tally.Counter
+	fetchNodesRespondingErrors []tally.Counter
+	streamFromPeersMetrics     map[uint32]streamFromPeersMetrics
+}
+
+func newSessionMetrics(scope tally.Scope) sessionMetrics {
+	return sessionMetrics{
+		writeSuccess:           scope.Counter("write.success"),
+		writeErrors:            scope.Counter("write.errors"),
+		fetchSuccess:           scope.Counter("fetch.success"),
+		fetchErrors:            scope.Counter("fetch.errors"),
+		streamFromPeersMetrics: make(map[uint32]streamFromPeersMetrics),
+	}
 }
 
 type streamFromPeersMetrics struct {
@@ -141,9 +157,11 @@ func newSession(opts Options) (clientSession, error) {
 		return nil, err
 	}
 
+	scope := opts.InstrumentOptions().MetricsScope()
+
 	s := &session{
 		opts:                 opts,
-		scope:                opts.InstrumentOptions().MetricsScope(),
+		scope:                scope,
 		nowFn:                opts.ClockOptions().NowFn(),
 		log:                  opts.InstrumentOptions().Logger(),
 		writeLevel:           opts.WriteConsistencyLevel(),
@@ -152,9 +170,7 @@ func newSession(opts Options) (clientSession, error) {
 		topo:                 topo,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
-		metrics: sessionMetrics{
-			streamFromPeersMetrics: make(map[uint32]streamFromPeersMetrics),
-		},
+		metrics:              newSessionMetrics(scope),
 	}
 
 	if opts, ok := opts.(AdminOptions); ok {
@@ -182,6 +198,17 @@ func newSession(opts Options) (clientSession, error) {
 	}
 
 	return s, nil
+}
+
+func (s *session) ShardID(id string) (uint32, error) {
+	s.RLock()
+	if s.state != stateOpen {
+		s.RUnlock()
+		return 0, errSessionStateNotOpen
+	}
+	value := s.topoMap.ShardSet().Shard(ts.StringID(id))
+	s.RUnlock()
+	return value, nil
 }
 
 func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersMetrics {
@@ -216,6 +243,40 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 	s.metrics.streamFromPeersMetrics[shard] = m
 	s.metrics.Unlock()
 	return &m
+}
+
+func (s *session) incWriteMetrics(consistencyResultErr error, respErrs int32) {
+	if idx := s.nodesRespondingErrorsMetricIndex(respErrs); idx >= 0 {
+		s.metrics.writeNodesRespondingErrors[idx].Inc(1)
+	}
+	if consistencyResultErr == nil {
+		s.metrics.writeSuccess.Inc(1)
+	} else {
+		s.metrics.writeErrors.Inc(1)
+	}
+}
+
+func (s *session) incFetchMetrics(consistencyResultErr error, respErrs int32) {
+	if idx := s.nodesRespondingErrorsMetricIndex(respErrs); idx >= 0 {
+		s.metrics.fetchNodesRespondingErrors[idx].Inc(1)
+	}
+	if consistencyResultErr == nil {
+		s.metrics.fetchSuccess.Inc(1)
+	} else {
+		s.metrics.fetchErrors.Inc(1)
+	}
+}
+
+func (s *session) nodesRespondingErrorsMetricIndex(respErrs int32) int32 {
+	idx := respErrs - 1
+	replicas := int32(s.Replicas())
+	if respErrs > replicas {
+		// Cap to the max replicas, we might get more errors
+		// when a node is initializing a shard causing replicas + 1
+		// nodes to respond to operations
+		idx = replicas - 1
+	}
+	return idx
 }
 
 func (s *session) Open() error {
@@ -429,6 +490,24 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(poolOpts)
 		s.multiReaderIteratorPool.Init(s.opts.ReaderIteratorAllocate())
 	}
+	if replicas > len(s.metrics.writeNodesRespondingErrors) {
+		curr := len(s.metrics.writeNodesRespondingErrors)
+		for i := curr; i < replicas; i++ {
+			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
+			counter := s.scope.Tagged(tags).Counter("write.nodes-responding-error")
+			s.metrics.writeNodesRespondingErrors =
+				append(s.metrics.writeNodesRespondingErrors, counter)
+		}
+	}
+	if replicas > len(s.metrics.fetchNodesRespondingErrors) {
+		curr := len(s.metrics.fetchNodesRespondingErrors)
+		for i := curr; i < replicas; i++ {
+			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
+			counter := s.scope.Tagged(tags).Counter("fetch.nodes-responding-error")
+			s.metrics.fetchNodesRespondingErrors =
+				append(s.metrics.fetchNodesRespondingErrors, counter)
+		}
+	}
 
 	// Asynchronously close the previous set of host queues
 	go func() {
@@ -483,6 +562,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		success       int32
 		tsID          = ts.StringID(id)
 	)
+	wg.Add(1)
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
@@ -494,7 +574,11 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		return timestampErr
 	}
 
-	wg.Add(1)
+	s.RLock()
+	if s.state != stateOpen {
+		s.RUnlock()
+		return errSessionStateNotOpen
+	}
 
 	majority = atomic.LoadInt32(&s.majority)
 
@@ -540,7 +624,6 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		}
 	}
 
-	s.RLock()
 	routeErr := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// First count all the pending write requests to ensure
 		// we count the amount we're going to be waiting for
@@ -582,7 +665,9 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		resultErrLock.RUnlock()
 	}
 	responded := enqueued - atomic.LoadInt32(&pending)
-	return s.writeConsistencyResult(majority, enqueued, responded, errsLen, reportErrors)
+	err := s.writeConsistencyResult(majority, enqueued, responded, errsLen, reportErrors)
+	s.incWriteMetrics(err, errsLen)
+	return err
 }
 
 func (s *session) Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
@@ -623,6 +708,12 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 		return nil, tsErr
 	}
 
+	s.RLock()
+	if s.state != stateOpen {
+		s.RUnlock()
+		return nil, errSessionStateNotOpen
+	}
+
 	iters := s.seriesIteratorsPool.Get(len(ids))
 	iters.Reset(len(ids))
 
@@ -630,7 +721,6 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 
 	majority = atomic.LoadInt32(&s.majority)
 
-	s.RLock()
 	for idx := range ids {
 		idx := idx
 
@@ -660,7 +750,9 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				resultErrLock.RUnlock()
 			}
 			responded := enqueued - atomic.LoadInt32(&pending)
-			if err := s.readConsistencyResult(majority, enqueued, responded, errsLen, reportErrors); err != nil {
+			err := s.readConsistencyResult(majority, enqueued, responded, errsLen, reportErrors)
+			s.incFetchMetrics(err, errsLen)
+			if err != nil {
 				resultErrLock.Lock()
 				if resultErr == nil {
 					resultErr = err

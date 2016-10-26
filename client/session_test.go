@@ -33,6 +33,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -96,6 +97,30 @@ func TestSessionCreationFailure(t *testing.T) {
 	opt = opt.SetTopologyInitializer(topology.NewDynamicInitializer(topology.NewDynamicOptions()))
 	_, err := newSession(opt)
 	assert.Error(t, err)
+}
+
+func TestSessionShardID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+
+	_, err = s.ShardID("foo")
+	assert.Error(t, err)
+	assert.Equal(t, errSessionStateNotOpen, err)
+
+	mockHostQueues(ctrl, s.(*session), sessionTestReplicas, nil)
+
+	require.NoError(t, s.Open())
+
+	// The shard set we create in newSessionTestOptions always hashes to uint32
+	shard, err := s.ShardID("foo")
+	require.NoError(t, err)
+	assert.Equal(t, uint32(0), shard)
+
+	assert.NoError(t, s.Close())
 }
 
 func TestSessionClusterConnectConsistencyLevelAll(t *testing.T) {
