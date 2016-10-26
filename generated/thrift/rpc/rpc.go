@@ -2988,8 +2988,8 @@ func (p *Block) String() string {
 type FetchBlocksMetadataRawRequest struct {
 	NameSpace        []byte `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Shard            int32  `thrift:"shard,2,required" db:"shard" json:"shard"`
-	RangeStart       *int64 `thrift:"rangeStart,3" db:"rangeStart" json:"rangeStart,omitempty"`
-	RangeEnd         *int64 `thrift:"rangeEnd,4" db:"rangeEnd" json:"rangeEnd,omitempty"`
+	RangeStart       int64  `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
+	RangeEnd         int64  `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
 	Limit            int64  `thrift:"limit,5,required" db:"limit" json:"limit"`
 	PageToken        *int64 `thrift:"pageToken,6" db:"pageToken" json:"pageToken,omitempty"`
 	IncludeSizes     *bool  `thrift:"includeSizes,7" db:"includeSizes" json:"includeSizes,omitempty"`
@@ -3008,22 +3008,12 @@ func (p *FetchBlocksMetadataRawRequest) GetShard() int32 {
 	return p.Shard
 }
 
-var FetchBlocksMetadataRawRequest_RangeStart_DEFAULT int64
-
 func (p *FetchBlocksMetadataRawRequest) GetRangeStart() int64 {
-	if !p.IsSetRangeStart() {
-		return FetchBlocksMetadataRawRequest_RangeStart_DEFAULT
-	}
-	return *p.RangeStart
+	return p.RangeStart
 }
 
-var FetchBlocksMetadataRawRequest_RangeEnd_DEFAULT int64
-
 func (p *FetchBlocksMetadataRawRequest) GetRangeEnd() int64 {
-	if !p.IsSetRangeEnd() {
-		return FetchBlocksMetadataRawRequest_RangeEnd_DEFAULT
-	}
-	return *p.RangeEnd
+	return p.RangeEnd
 }
 
 func (p *FetchBlocksMetadataRawRequest) GetLimit() int64 {
@@ -3056,14 +3046,6 @@ func (p *FetchBlocksMetadataRawRequest) GetIncludeChecksums() bool {
 	}
 	return *p.IncludeChecksums
 }
-func (p *FetchBlocksMetadataRawRequest) IsSetRangeStart() bool {
-	return p.RangeStart != nil
-}
-
-func (p *FetchBlocksMetadataRawRequest) IsSetRangeEnd() bool {
-	return p.RangeEnd != nil
-}
-
 func (p *FetchBlocksMetadataRawRequest) IsSetPageToken() bool {
 	return p.PageToken != nil
 }
@@ -3083,6 +3065,8 @@ func (p *FetchBlocksMetadataRawRequest) Read(iprot thrift.TProtocol) error {
 
 	var issetNameSpace bool = false
 	var issetShard bool = false
+	var issetRangeStart bool = false
+	var issetRangeEnd bool = false
 	var issetLimit bool = false
 
 	for {
@@ -3108,10 +3092,12 @@ func (p *FetchBlocksMetadataRawRequest) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField3(iprot); err != nil {
 				return err
 			}
+			issetRangeStart = true
 		case 4:
 			if err := p.ReadField4(iprot); err != nil {
 				return err
 			}
+			issetRangeEnd = true
 		case 5:
 			if err := p.ReadField5(iprot); err != nil {
 				return err
@@ -3147,6 +3133,12 @@ func (p *FetchBlocksMetadataRawRequest) Read(iprot thrift.TProtocol) error {
 	if !issetShard {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Shard is not set"))
 	}
+	if !issetRangeStart {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field RangeStart is not set"))
+	}
+	if !issetRangeEnd {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field RangeEnd is not set"))
+	}
 	if !issetLimit {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Limit is not set"))
 	}
@@ -3175,7 +3167,7 @@ func (p *FetchBlocksMetadataRawRequest) ReadField3(iprot thrift.TProtocol) error
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 3: ", err)
 	} else {
-		p.RangeStart = &v
+		p.RangeStart = v
 	}
 	return nil
 }
@@ -3184,7 +3176,7 @@ func (p *FetchBlocksMetadataRawRequest) ReadField4(iprot thrift.TProtocol) error
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 4: ", err)
 	} else {
-		p.RangeEnd = &v
+		p.RangeEnd = v
 	}
 	return nil
 }
@@ -3291,31 +3283,27 @@ func (p *FetchBlocksMetadataRawRequest) writeField2(oprot thrift.TProtocol) (err
 }
 
 func (p *FetchBlocksMetadataRawRequest) writeField3(oprot thrift.TProtocol) (err error) {
-	if p.IsSetRangeStart() {
-		if err := oprot.WriteFieldBegin("rangeStart", thrift.I64, 3); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:rangeStart: ", p), err)
-		}
-		if err := oprot.WriteI64(int64(*p.RangeStart)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeStart (3) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:rangeStart: ", p), err)
-		}
+	if err := oprot.WriteFieldBegin("rangeStart", thrift.I64, 3); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:rangeStart: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.RangeStart)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.rangeStart (3) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:rangeStart: ", p), err)
 	}
 	return err
 }
 
 func (p *FetchBlocksMetadataRawRequest) writeField4(oprot thrift.TProtocol) (err error) {
-	if p.IsSetRangeEnd() {
-		if err := oprot.WriteFieldBegin("rangeEnd", thrift.I64, 4); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:rangeEnd: ", p), err)
-		}
-		if err := oprot.WriteI64(int64(*p.RangeEnd)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeEnd (4) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:rangeEnd: ", p), err)
-		}
+	if err := oprot.WriteFieldBegin("rangeEnd", thrift.I64, 4); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:rangeEnd: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.RangeEnd)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.rangeEnd (4) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 4:rangeEnd: ", p), err)
 	}
 	return err
 }

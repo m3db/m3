@@ -22,7 +22,6 @@ package node
 
 import (
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -309,15 +308,8 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
-	var start time.Time
-	if req.RangeStart != nil {
-		start = time.Unix(0, *req.RangeStart)
-	}
-
-	end := time.Unix(0, math.MaxInt64)
-	if req.RangeEnd != nil {
-		end = time.Unix(0, *req.RangeEnd)
-	}
+	start := time.Unix(0, req.RangeStart)
+	end := time.Unix(0, req.RangeEnd)
 
 	if req.Limit <= 0 {
 		s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
