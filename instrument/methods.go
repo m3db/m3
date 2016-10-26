@@ -115,3 +115,45 @@ func NewMethodMetrics(scope tally.Scope, methodName string, samplingRate float64
 		SuccessLatency: newSampledTimer(scope.Timer(methodName+".success-latency"), samplingRate),
 	}
 }
+
+// BatchMethodMetrics is a bundle of common metrics for methods with batch semantics
+type BatchMethodMetrics struct {
+	RetryableErrors    tally.Counter
+	NonRetryableErrors tally.Counter
+	Success            tally.Counter
+	Latency            tally.Timer
+}
+
+// NewBatchMethodMetrics creates new batch method metrics
+func NewBatchMethodMetrics(
+	scope tally.Scope,
+	methodName string,
+	samplingRate float64,
+) BatchMethodMetrics {
+	return BatchMethodMetrics{
+		RetryableErrors:    scope.Counter(methodName + ".retryable-errors"),
+		NonRetryableErrors: scope.Counter(methodName + ".non-retryable-errors"),
+		Success:            scope.Counter(methodName + ".success"),
+		Latency:            newSampledTimer(scope.Timer(methodName+".latency"), samplingRate),
+	}
+}
+
+// ReportSuccess reports successess
+func (m *BatchMethodMetrics) ReportSuccess(n int) {
+	m.Success.Inc(int64(n))
+}
+
+// ReportRetryableErrors reports retryable errors
+func (m *BatchMethodMetrics) ReportRetryableErrors(n int) {
+	m.RetryableErrors.Inc(int64(n))
+}
+
+// ReportNonRetryableErrors reports non-retryable errors
+func (m *BatchMethodMetrics) ReportNonRetryableErrors(n int) {
+	m.NonRetryableErrors.Inc(int64(n))
+}
+
+// ReportLatency reports latency
+func (m *BatchMethodMetrics) ReportLatency(d time.Duration) {
+	m.Latency.Record(d)
+}
