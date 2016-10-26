@@ -278,19 +278,15 @@ func testWriteConsistencyLevel(
 		assert.Equal(t, 0, int(counters["write.success"]))
 		assert.Equal(t, 1, int(counters["write.errors"]))
 	}
-	// NB(r): don't check for majority consistency level as it may return early
-	if failures > 0 && level != topology.ConsistencyLevelMajority {
-		checkNodesRespondingErrorsMetric := false
+	if failures > 0 {
 		for _, event := range reporter.Events() {
 			if event.Name() == "write.nodes-responding-error" {
 				nodesFailing, convErr := strconv.Atoi(event.Tags()["nodes"])
 				require.NoError(t, convErr)
 				assert.True(t, 0 < nodesFailing && nodesFailing <= failures)
 				assert.Equal(t, int64(1), event.Value())
-				checkNodesRespondingErrorsMetric = true
 				break
 			}
 		}
-		assert.True(t, checkNodesRespondingErrorsMetric)
 	}
 }
