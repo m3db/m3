@@ -49,14 +49,14 @@ func NewPlacementService(options placement.Options, ss placement.SnapshotStorage
 	return placementService{algo: algo.NewRackAwarePlacementAlgorithm(options), ss: ss, options: options}
 }
 
-func (ps placementService) BuildInitialPlacement(service string, hosts []placement.Host, shardLen int, rf int) error {
+func (ps placementService) BuildInitialPlacement(service string, hosts []placement.Host, shardLen int, rf int) (placement.Snapshot, error) {
 	if shardLen <= 0 {
-		return errInvalidShardLen
+		return nil, errInvalidShardLen
 	}
 
 	var err error
 	if err = ps.validateInitHosts(hosts); err != nil {
-		return err
+		return nil, err
 	}
 
 	ids := make([]uint32, shardLen)
@@ -72,81 +72,105 @@ func (ps placementService) BuildInitialPlacement(service string, hosts []placeme
 			s, err = ps.algo.AddReplica(s)
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return ps.ss.SaveSnapshotForService(service, s)
+	if err = ps.ss.SaveSnapshotForService(service, s); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
-func (ps placementService) AddReplica(service string) error {
+func (ps placementService) AddReplica(service string) (placement.Snapshot, error) {
 	var s placement.Snapshot
 	var err error
 	if s, err = ps.Snapshot(service); err != nil {
-		return err
+		return nil, err
 	}
 
 	if s, err = ps.algo.AddReplica(s); err != nil {
-		return err
+		return nil, err
 	}
-	return ps.ss.SaveSnapshotForService(service, s)
+
+	if err = ps.ss.SaveSnapshotForService(service, s); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
-func (ps placementService) AddHost(service string, candidateHosts []placement.Host) error {
+func (ps placementService) AddHost(service string, candidateHosts []placement.Host) (placement.Snapshot, error) {
 	var s placement.Snapshot
 	var err error
 	if s, err = ps.Snapshot(service); err != nil {
-		return err
+		return nil, err
 	}
 	var addingHost placement.Host
 	if addingHost, err = ps.findAddingHost(s, candidateHosts); err != nil {
-		return err
+		return nil, err
 	}
 
 	if s, err = ps.algo.AddHost(s, addingHost); err != nil {
-		return err
+		return nil, err
 	}
-	return ps.ss.SaveSnapshotForService(service, s)
+
+	if err = ps.ss.SaveSnapshotForService(service, s); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
-func (ps placementService) RemoveHost(service string, host placement.Host) error {
+func (ps placementService) RemoveHost(service string, host placement.Host) (placement.Snapshot, error) {
 	var s placement.Snapshot
 	var err error
 	if s, err = ps.Snapshot(service); err != nil {
-		return err
+		return nil, err
 	}
 
 	if s.HostShard(host.ID()) == nil {
-		return errHostAbsent
+		return nil, errHostAbsent
 	}
 
 	if s, err = ps.algo.RemoveHost(s, host); err != nil {
-		return err
+		return nil, err
 	}
-	return ps.ss.SaveSnapshotForService(service, s)
+
+	if err = ps.ss.SaveSnapshotForService(service, s); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
-func (ps placementService) ReplaceHost(service string, leavingHost placement.Host, candidateHosts []placement.Host) error {
+func (ps placementService) ReplaceHost(service string, leavingHost placement.Host, candidateHosts []placement.Host) (placement.Snapshot, error) {
 	var s placement.Snapshot
 	var err error
 	if s, err = ps.Snapshot(service); err != nil {
-		return err
+		return nil, err
 	}
 
 	leavingHostShard := s.HostShard(leavingHost.ID())
 	if leavingHostShard == nil {
-		return errHostAbsent
+		return nil, errHostAbsent
 	}
 
 	addingHosts, err := ps.findReplaceHost(s, candidateHosts, leavingHostShard)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if s, err = ps.algo.ReplaceHost(s, leavingHost, addingHosts); err != nil {
-		return err
+		return nil, err
 	}
-	return ps.ss.SaveSnapshotForService(service, s)
+
+	if err = ps.ss.SaveSnapshotForService(service, s); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
 func (ps placementService) Snapshot(service string) (placement.Snapshot, error) {
