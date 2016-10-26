@@ -34,6 +34,18 @@ type TestStatsReporter interface {
 	Counters() map[string]int64
 	Gauges() map[string]int64
 	Timers() map[string][]time.Duration
+	Events() []TestStatsReporterEvent
+}
+
+// TestStatsReporterEvent is an event that was reported to the test reporter
+type TestStatsReporterEvent interface {
+	Name() string
+	Tags() map[string]string
+	IsCount() bool
+	IsGauge() bool
+	IsTimer() bool
+	Value() int64
+	TimerValue() time.Duration
 }
 
 // testStatsReporter should probably be moved to the tally project for better testing
@@ -42,7 +54,9 @@ type testStatsReporter struct {
 	counters       map[string]int64
 	gauges         map[string]int64
 	timers         map[string][]time.Duration
+	events         []*event
 	timersDisabled bool
+	captureEvents  bool
 }
 
 // NewTestStatsReporter returns a new TestStatsReporter
@@ -52,6 +66,7 @@ func NewTestStatsReporter(opts TestStatsReporterOptions) TestStatsReporter {
 		gauges:         make(map[string]int64),
 		timers:         make(map[string][]time.Duration),
 		timersDisabled: opts.TimersDisabled(),
+		captureEvents:  opts.CaptureEvents(),
 	}
 }
 
@@ -60,20 +75,45 @@ func (r *testStatsReporter) Flush() {}
 func (r *testStatsReporter) ReportCounter(name string, tags map[string]string, value int64) {
 	r.Lock()
 	r.counters[name] += value
+	if r.captureEvents {
+		r.events = append(r.events, &event{
+			eventType: eventTypeCount,
+			name:      name,
+			tags:      tags,
+			value:     value,
+		})
+	}
 	r.Unlock()
 }
 
 func (r *testStatsReporter) ReportGauge(name string, tags map[string]string, value int64) {
 	r.Lock()
 	r.gauges[name] = value
+	if r.captureEvents {
+		r.events = append(r.events, &event{
+			eventType: eventTypeGauge,
+			name:      name,
+			tags:      tags,
+			value:     value,
+		})
+	}
 	r.Unlock()
 }
 
 func (r *testStatsReporter) ReportTimer(name string, tags map[string]string, interval time.Duration) {
+	r.Lock()
+	if r.captureEvents {
+		r.events = append(r.events, &event{
+			eventType:  eventTypeTimer,
+			name:       name,
+			tags:       tags,
+			timerValue: interval,
+		})
+	}
 	if r.timersDisabled {
+		r.Unlock()
 		return
 	}
-	r.Lock()
 	if _, ok := r.timers[name]; !ok {
 		r.timers[name] = make([]time.Duration, 0, 1)
 	}
@@ -111,6 +151,60 @@ func (r *testStatsReporter) Timers() map[string][]time.Duration {
 	return result
 }
 
+func (r *testStatsReporter) Events() []TestStatsReporterEvent {
+	r.RLock()
+	events := make([]TestStatsReporterEvent, len(r.events))
+	for i := range r.events {
+		events[i] = r.events[i]
+	}
+	r.RUnlock()
+	return events
+}
+
+type event struct {
+	eventType  eventType
+	name       string
+	tags       map[string]string
+	value      int64
+	timerValue time.Duration
+}
+
+type eventType int
+
+const (
+	eventTypeCount eventType = iota
+	eventTypeGauge
+	eventTypeTimer
+)
+
+func (e *event) Name() string {
+	return e.name
+}
+
+func (e *event) Tags() map[string]string {
+	return e.tags
+}
+
+func (e *event) IsCount() bool {
+	return e.eventType == eventTypeCount
+}
+
+func (e *event) IsGauge() bool {
+	return e.eventType == eventTypeGauge
+}
+
+func (e *event) IsTimer() bool {
+	return e.eventType == eventTypeTimer
+}
+
+func (e *event) Value() int64 {
+	return e.value
+}
+
+func (e *event) TimerValue() time.Duration {
+	return e.timerValue
+}
+
 // TestStatsReporterOptions is a set of options for a test stats reporter
 type TestStatsReporterOptions interface {
 	// SetTimersDisable sets whether to disable timers
@@ -118,16 +212,24 @@ type TestStatsReporterOptions interface {
 
 	// SetTimersDisable returns whether to disable timers
 	TimersDisabled() bool
+
+	// SetCaptureEvents sets whether to capture each event
+	SetCaptureEvents(value bool) TestStatsReporterOptions
+
+	// SetCaptureEvents returns whether to capture each event
+	CaptureEvents() bool
 }
 
 type testStatsReporterOptions struct {
 	timersDisabled bool
+	captureEvents  bool
 }
 
 // NewTestStatsReporterOptions creates a new set of options for a test stats reporter
 func NewTestStatsReporterOptions() TestStatsReporterOptions {
 	return &testStatsReporterOptions{
 		timersDisabled: true,
+		captureEvents:  false,
 	}
 }
 
@@ -139,4 +241,14 @@ func (o *testStatsReporterOptions) SetTimersDisable(value bool) TestStatsReporte
 
 func (o *testStatsReporterOptions) TimersDisabled() bool {
 	return o.timersDisabled
+}
+
+func (o *testStatsReporterOptions) SetCaptureEvents(value bool) TestStatsReporterOptions {
+	opts := *o
+	opts.captureEvents = value
+	return &opts
+}
+
+func (o *testStatsReporterOptions) CaptureEvents() bool {
+	return o.captureEvents
 }

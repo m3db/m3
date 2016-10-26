@@ -23,6 +23,7 @@ package client
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -32,10 +33,13 @@ import (
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -219,6 +223,13 @@ func testFetchConsistencyLevel(
 	opts := newSessionTestOptions()
 	opts = opts.SetReadConsistencyLevel(level)
 
+	reporterOpts := xmetrics.NewTestStatsReporterOptions().
+		SetCaptureEvents(true)
+	reporter := xmetrics.NewTestStatsReporter(reporterOpts)
+	scope := tally.NewRootScope("", nil, reporter, time.Millisecond)
+	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
+		SetMetricsScope(scope))
+
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -253,13 +264,38 @@ func testFetchConsistencyLevel(
 		assert.True(t, IsInternalServerError(err))
 		assert.False(t, IsBadRequestError(err))
 		resultErrStr := fmt.Sprintf("%v", err)
-		fmt.Println("resultErrStr")
-		fmt.Println(resultErrStr)
 		assert.True(t, strings.Contains(resultErrStr, fmt.Sprintf("failed to meet %s", level.String())))
 		assert.True(t, strings.Contains(resultErrStr, fetchFailureErrStr))
 	}
 
 	assert.NoError(t, session.Close())
+
+	counters := reporter.Counters()
+	for counters["fetch.success"] == 0 && counters["fetch.error"] == 0 {
+		time.Sleep(time.Millisecond)
+		counters = reporter.Counters()
+	}
+	if expected == outcomeSuccess {
+		assert.Equal(t, 1, int(counters["fetch.success"]))
+		assert.Equal(t, 0, int(counters["fetch.error"]))
+	} else {
+		assert.Equal(t, 0, int(counters["fetch.success"]))
+		assert.Equal(t, 1, int(counters["fetch.error"]))
+	}
+	if failures > 0 {
+		checkNodesRespondingErrorsMetric := false
+		for _, event := range reporter.Events() {
+			if event.Name() == "fetch.nodes-responding-error" {
+				nodesFailing, convErr := strconv.Atoi(event.Tags()["nodes"])
+				require.NoError(t, convErr)
+				assert.True(t, 0 < nodesFailing && nodesFailing <= failures)
+				assert.Equal(t, int64(1), event.Value())
+				checkNodesRespondingErrorsMetric = true
+				break
+			}
+		}
+		assert.True(t, checkNodesRespondingErrorsMetric)
+	}
 }
 
 func prepareEnqueues(

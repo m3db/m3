@@ -130,6 +130,11 @@ type Session interface {
 	// FetchAll values from the database for a set of IDs
 	FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
+	// ShardID returns the given shard for an ID for callers
+	// to easily discern what is failing operations for a given ID
+	// begins failing
+	ShardID(id string) uint32
+
 	// Close the session
 	Close() error
 }
