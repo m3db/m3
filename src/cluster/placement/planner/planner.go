@@ -29,33 +29,19 @@ import (
 // shardAwareDeploymentPlanner plans the deployment so that as many hosts can be deployed
 // at the same time without making more than 1 replica of any shard unavailable
 type shardAwareDeploymentPlanner struct {
-}
-
-type sortableSteps [][]placement.HostShards
-
-func (s sortableSteps) Len() int {
-	return len(s)
-}
-
-func (s sortableSteps) Less(i, j int) bool {
-	return len(s[i]) > len(s[j])
-}
-
-func (s sortableSteps) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
+	options placement.DeploymentOptions
 }
 
 // NewShardAwareDeploymentPlanner returns a deployment planner
-func NewShardAwareDeploymentPlanner() placement.DeploymentPlanner {
-	return shardAwareDeploymentPlanner{}
+func NewShardAwareDeploymentPlanner(options placement.DeploymentOptions) placement.DeploymentPlanner {
+	return shardAwareDeploymentPlanner{options: options}
 }
 
 func (dp shardAwareDeploymentPlanner) DeploymentSteps(ps placement.Snapshot) [][]placement.HostShards {
-	//ph := newReplicaPlacementHelper(ps, ps.Replicas())
 	hss := ps.HostShards()
 	var steps sortableSteps
 	for len(hss) > 0 {
-		step := getDeployStep(hss)
+		step := getDeployStep(hss, dp.options.MaxStepSize())
 		steps = append(steps, step)
 		hss = getLeftHostShards(hss, step)
 	}
@@ -63,10 +49,13 @@ func (dp shardAwareDeploymentPlanner) DeploymentSteps(ps placement.Snapshot) [][
 	return steps
 }
 
-func getDeployStep(hss []placement.HostShards) []placement.HostShards {
+func getDeployStep(hss []placement.HostShards, maxStepSize int) []placement.HostShards {
 	var parallel []placement.HostShards
 	shards := make(map[uint32]struct{})
 	for _, hs := range hss {
+		if len(parallel) >= maxStepSize {
+			break
+		}
 		if isSharingShard(shards, hs) {
 			continue
 		}
@@ -101,4 +90,18 @@ func removeHostShards(all []placement.HostShards, remove placement.HostShards) [
 		}
 	}
 	return all
+}
+
+type sortableSteps [][]placement.HostShards
+
+func (s sortableSteps) Len() int {
+	return len(s)
+}
+
+func (s sortableSteps) Less(i, j int) bool {
+	return len(s[i]) > len(s[j])
+}
+
+func (s sortableSteps) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }
