@@ -49,8 +49,8 @@ type serviceMetrics struct {
 	fetchBlocksMetadata instrument.MethodMetrics
 	repair              instrument.MethodMetrics
 	truncate            instrument.MethodMetrics
-	fetchRawBatch       instrument.BatchMethodMetrics
-	writeBatch          instrument.BatchMethodMetrics
+	fetchBatchRaw       instrument.BatchMethodMetrics
+	writeBatchRaw       instrument.BatchMethodMetrics
 }
 
 func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
@@ -61,8 +61,8 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
 		repair:              instrument.NewMethodMetrics(scope, "repair", samplingRate),
 		truncate:            instrument.NewMethodMetrics(scope, "truncate", samplingRate),
-		fetchRawBatch:       instrument.NewBatchMethodMetrics(scope, "fetchRawBatch", samplingRate),
-		writeBatch:          instrument.NewBatchMethodMetrics(scope, "writeBatch", samplingRate),
+		fetchBatchRaw:       instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
+		writeBatchRaw:       instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
 	}
 }
 
@@ -201,8 +201,8 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 
 	if rangeStartErr != nil || rangeEndErr != nil {
-		s.metrics.fetchRawBatch.ReportNonRetryableErrors(len(req.Ids))
-		s.metrics.fetchRawBatch.ReportLatency(s.nowFn().Sub(callStart))
+		s.metrics.fetchBatchRaw.ReportNonRetryableErrors(len(req.Ids))
+		s.metrics.fetchBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
@@ -243,10 +243,10 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		rawResult.Segments = segments
 	}
 
-	s.metrics.fetchRawBatch.ReportSuccess(success)
-	s.metrics.fetchRawBatch.ReportRetryableErrors(retryableErrors)
-	s.metrics.fetchRawBatch.ReportNonRetryableErrors(nonRetryableErrors)
-	s.metrics.fetchRawBatch.ReportLatency(s.nowFn().Sub(callStart))
+	s.metrics.fetchBatchRaw.ReportSuccess(success)
+	s.metrics.fetchBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.fetchBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.fetchBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
 
 	return result, nil
 }
@@ -459,10 +459,10 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		}
 	}
 
-	s.metrics.fetchRawBatch.ReportSuccess(success)
-	s.metrics.fetchRawBatch.ReportRetryableErrors(retryableErrors)
-	s.metrics.fetchRawBatch.ReportNonRetryableErrors(nonRetryableErrors)
-	s.metrics.fetchRawBatch.ReportLatency(s.nowFn().Sub(callStart))
+	s.metrics.writeBatchRaw.ReportSuccess(success)
+	s.metrics.writeBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.writeBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.writeBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
 
 	if len(errs) > 0 {
 		batchErrs := rpc.NewWriteBatchRawErrors()
