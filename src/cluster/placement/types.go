@@ -40,12 +40,6 @@ type Algorithm interface {
 	ReplaceHost(p Snapshot, leavingHost Host, addingHosts []Host) (Snapshot, error)
 }
 
-// DeploymentPlanner generates deployment steps for a placement
-type DeploymentPlanner interface {
-	// DeploymentSteps returns the deployment steps
-	DeploymentSteps(p Snapshot) [][]HostShards
-}
-
 // Snapshot describes how shards are placed on hosts
 type Snapshot interface {
 	// HostShards returns all HostShards in the placement
@@ -126,4 +120,17 @@ type Options interface {
 	// placed on hosts other than the new hosts in a replace operation
 	AllowPartialReplace() bool
 	SetAllowPartialReplace(allowPartialReplace bool) Options
+}
+
+// DeploymentOptions provides options for DeploymentPlanner
+type DeploymentOptions interface {
+	// MaxStepSize limits the number of hosts to be deployed in one step
+	MaxStepSize() int
+	SetMaxStepSize(stepSize int) DeploymentOptions
+}
+
+// DeploymentPlanner generates deployment steps for a placement
+type DeploymentPlanner interface {
+	// DeploymentSteps returns the deployment steps
+	DeploymentSteps(p Snapshot) [][]HostShards
 }

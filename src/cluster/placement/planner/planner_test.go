@@ -21,9 +21,8 @@
 package planner
 
 import (
-	"testing"
-
 	"sort"
+	"testing"
 
 	"github.com/m3db/m3cluster/placement"
 	"github.com/stretchr/testify/assert"
@@ -64,7 +63,7 @@ func TestDeployment(t *testing.T) {
 
 	mp := placement.NewPlacementSnapshot(hss, []uint32{1, 2, 3, 4, 5, 6}, 3)
 
-	dp := NewShardAwareDeploymentPlanner()
+	dp := NewShardAwareDeploymentPlanner(placement.NewDeploymentOptions())
 	steps := dp.DeploymentSteps(mp)
 	total := 0
 	for _, step := range steps {
@@ -115,7 +114,7 @@ func TestDeploymentWithThreeReplica(t *testing.T) {
 
 	mp := placement.NewPlacementSnapshot(hss, []uint32{1, 2, 3, 4, 5, 6}, 3)
 
-	dp := NewShardAwareDeploymentPlanner()
+	dp := NewShardAwareDeploymentPlanner(placement.NewDeploymentOptions())
 	steps := dp.DeploymentSteps(mp)
 	total := 0
 	for _, step := range steps {
@@ -123,6 +122,24 @@ func TestDeploymentWithThreeReplica(t *testing.T) {
 	}
 	assert.Equal(t, total, 9)
 	assert.True(t, len(steps) == 3)
+
+	dp = NewShardAwareDeploymentPlanner(placement.NewDeploymentOptions().SetMaxStepSize(2))
+	steps = dp.DeploymentSteps(mp)
+	total = 0
+	for _, step := range steps {
+		total += len(step)
+	}
+	assert.Equal(t, total, 9)
+	assert.True(t, len(steps) == 5)
+
+	dp = NewShardAwareDeploymentPlanner(placement.NewDeploymentOptions().SetMaxStepSize(1))
+	steps = dp.DeploymentSteps(mp)
+	total = 0
+	for _, step := range steps {
+		total += len(step)
+	}
+	assert.Equal(t, total, 9)
+	assert.True(t, len(steps) == 9)
 }
 
 func TestRemoveHostShards(t *testing.T) {
