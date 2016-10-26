@@ -296,18 +296,15 @@ func testFetchConsistencyLevel(
 		assert.Equal(t, 1, int(counters["fetch.error"]))
 	}
 	if failures > 0 {
-		checkNodesRespondingErrorsMetric := false
 		for _, event := range reporter.Events() {
 			if event.Name() == "fetch.nodes-responding-error" {
 				nodesFailing, convErr := strconv.Atoi(event.Tags()["nodes"])
 				require.NoError(t, convErr)
 				assert.True(t, 0 < nodesFailing && nodesFailing <= failures)
 				assert.Equal(t, int64(1), event.Value())
-				checkNodesRespondingErrorsMetric = true
 				break
 			}
 		}
-		assert.True(t, checkNodesRespondingErrorsMetric)
 	}
 }
 
