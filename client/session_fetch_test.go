@@ -284,27 +284,33 @@ func testFetchConsistencyLevel(
 	assert.NoError(t, session.Close())
 
 	counters := reporter.Counters()
-	for counters["fetch.success"] == 0 && counters["fetch.error"] == 0 {
+	for counters["fetch.success"] == 0 && counters["fetch.errors"] == 0 {
 		time.Sleep(time.Millisecond)
 		counters = reporter.Counters()
 	}
 	if expected == outcomeSuccess {
 		assert.Equal(t, 1, int(counters["fetch.success"]))
-		assert.Equal(t, 0, int(counters["fetch.error"]))
+		assert.Equal(t, 0, int(counters["fetch.errors"]))
 	} else {
 		assert.Equal(t, 0, int(counters["fetch.success"]))
-		assert.Equal(t, 1, int(counters["fetch.error"]))
+		assert.Equal(t, 1, int(counters["fetch.errors"]))
 	}
-	if failures > 0 {
+	// NB(r): don't check for majority consistency levels as they may return early
+	if failures > 0 &&
+		level != ReadConsistencyLevelMajority &&
+		level != ReadConsistencyLevelUnstrictMajority {
+		checkNodesRespondingErrorsMetric := false
 		for _, event := range reporter.Events() {
 			if event.Name() == "fetch.nodes-responding-error" {
 				nodesFailing, convErr := strconv.Atoi(event.Tags()["nodes"])
 				require.NoError(t, convErr)
 				assert.True(t, 0 < nodesFailing && nodesFailing <= failures)
 				assert.Equal(t, int64(1), event.Value())
+				checkNodesRespondingErrorsMetric = true
 				break
 			}
 		}
+		assert.True(t, checkNodesRespondingErrorsMetric)
 	}
 }
 

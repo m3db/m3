@@ -267,18 +267,19 @@ func testWriteConsistencyLevel(
 	assert.NoError(t, session.Close())
 
 	counters := reporter.Counters()
-	for counters["write.success"] == 0 && counters["write.error"] == 0 {
+	for counters["write.success"] == 0 && counters["write.errors"] == 0 {
 		time.Sleep(time.Millisecond)
 		counters = reporter.Counters()
 	}
 	if expected == outcomeSuccess {
 		assert.Equal(t, 1, int(counters["write.success"]))
-		assert.Equal(t, 0, int(counters["write.error"]))
+		assert.Equal(t, 0, int(counters["write.errors"]))
 	} else {
 		assert.Equal(t, 0, int(counters["write.success"]))
-		assert.Equal(t, 1, int(counters["write.error"]))
+		assert.Equal(t, 1, int(counters["write.errors"]))
 	}
-	if failures > 0 {
+	// NB(r): don't check for majority consistency level as it may return early
+	if failures > 0 && level != topology.ConsistencyLevelMajority {
 		checkNodesRespondingErrorsMetric := false
 		for _, event := range reporter.Events() {
 			if event.Name() == "write.nodes-responding-error" {

@@ -127,9 +127,9 @@ type sessionMetrics struct {
 func newSessionMetrics(scope tally.Scope) sessionMetrics {
 	return sessionMetrics{
 		writeSuccess:           scope.Counter("write.success"),
-		writeErrors:            scope.Counter("write.error"),
+		writeErrors:            scope.Counter("write.errors"),
 		fetchSuccess:           scope.Counter("fetch.success"),
-		fetchErrors:            scope.Counter("fetch.error"),
+		fetchErrors:            scope.Counter("fetch.errors"),
 		streamFromPeersMetrics: make(map[uint32]streamFromPeersMetrics),
 	}
 }
@@ -269,11 +269,12 @@ func (s *session) incFetchMetrics(consistencyResultErr error, respErrs int32) {
 
 func (s *session) nodesRespondingErrorsMetricIndex(respErrs int32) int32 {
 	idx := respErrs - 1
-	if respErrs > s.replicas {
+	replicas := int32(s.Replicas())
+	if respErrs > replicas {
 		// Cap to the max replicas, we might get more errors
 		// when a node is initializing a shard causing replicas + 1
 		// nodes to respond to operations
-		idx = s.replicas - 1
+		idx = replicas - 1
 	}
 	return idx
 }
@@ -492,7 +493,7 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	if replicas > len(s.metrics.writeNodesRespondingErrors) {
 		curr := len(s.metrics.writeNodesRespondingErrors)
 		for i := curr; i < replicas; i++ {
-			tags := map[string]string{"nodes": fmt.Sprintf("%d", curr+1)}
+			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
 			counter := s.scope.Tagged(tags).Counter("write.nodes-responding-error")
 			s.metrics.writeNodesRespondingErrors =
 				append(s.metrics.writeNodesRespondingErrors, counter)
@@ -501,7 +502,7 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 	if replicas > len(s.metrics.fetchNodesRespondingErrors) {
 		curr := len(s.metrics.fetchNodesRespondingErrors)
 		for i := curr; i < replicas; i++ {
-			tags := map[string]string{"nodes": fmt.Sprintf("%d", curr+1)}
+			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
 			counter := s.scope.Tagged(tags).Counter("fetch.nodes-responding-error")
 			s.metrics.fetchNodesRespondingErrors =
 				append(s.metrics.fetchNodesRespondingErrors, counter)

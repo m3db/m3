@@ -41,7 +41,7 @@ type TestStatsReporter interface {
 type TestStatsReporterEvent interface {
 	Name() string
 	Tags() map[string]string
-	IsCount() bool
+	IsCounter() bool
 	IsGauge() bool
 	IsTimer() bool
 	Value() int64
@@ -77,7 +77,7 @@ func (r *testStatsReporter) ReportCounter(name string, tags map[string]string, v
 	r.counters[name] += value
 	if r.captureEvents {
 		r.events = append(r.events, &event{
-			eventType: eventTypeCount,
+			eventType: eventTypeCounter,
 			name:      name,
 			tags:      tags,
 			value:     value,
@@ -172,7 +172,7 @@ type event struct {
 type eventType int
 
 const (
-	eventTypeCount eventType = iota
+	eventTypeCounter eventType = iota
 	eventTypeGauge
 	eventTypeTimer
 )
@@ -185,8 +185,8 @@ func (e *event) Tags() map[string]string {
 	return e.tags
 }
 
-func (e *event) IsCount() bool {
-	return e.eventType == eventTypeCount
+func (e *event) IsCounter() bool {
+	return e.eventType == eventTypeCounter
 }
 
 func (e *event) IsGauge() bool {
