@@ -107,12 +107,18 @@ func TestSessionShardID(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 
+	_, err = s.ShardID("foo")
+	assert.Error(t, err)
+	assert.Equal(t, errSessionStateNotOpen, err)
+
 	mockHostQueues(ctrl, s.(*session), sessionTestReplicas, nil)
 
 	require.NoError(t, s.Open())
 
 	// The shard set we create in newSessionTestOptions always hashes to uint32
-	assert.Equal(t, uint32(0), s.ShardID("foo"))
+	shard, err := s.ShardID("foo")
+	require.NoError(t, err)
+	assert.Equal(t, uint32(0), shard)
 
 	assert.NoError(t, s.Close())
 }

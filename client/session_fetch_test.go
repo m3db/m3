@@ -84,6 +84,19 @@ type testFetchResultsAssertion struct {
 	trimToTimeRange int
 }
 
+func TestSessionFetchNotOpenError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+
+	_, err = s.Fetch("namespace", "foo", time.Now().Add(-time.Hour), time.Now())
+	assert.Error(t, err)
+	assert.Equal(t, errSessionStateNotOpen, err)
+}
+
 func TestSessionFetchAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

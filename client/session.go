@@ -200,11 +200,15 @@ func newSession(opts Options) (clientSession, error) {
 	return s, nil
 }
 
-func (s *session) ShardID(id string) uint32 {
+func (s *session) ShardID(id string) (uint32, error) {
 	s.RLock()
+	if s.state != stateOpen {
+		s.RUnlock()
+		return 0, errSessionStateNotOpen
+	}
 	value := s.topoMap.ShardSet().Shard(ts.StringID(id))
 	s.RUnlock()
-	return value
+	return value, nil
 }
 
 func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersMetrics {
@@ -557,6 +561,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		success       int32
 		tsID          = ts.StringID(id)
 	)
+	wg.Add(1)
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
@@ -568,7 +573,11 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		return timestampErr
 	}
 
-	wg.Add(1)
+	s.RLock()
+	if s.state != stateOpen {
+		s.RUnlock()
+		return errSessionStateNotOpen
+	}
 
 	majority = atomic.LoadInt32(&s.majority)
 
@@ -614,7 +623,6 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		}
 	}
 
-	s.RLock()
 	routeErr := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// First count all the pending write requests to ensure
 		// we count the amount we're going to be waiting for
@@ -699,6 +707,12 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 		return nil, tsErr
 	}
 
+	s.RLock()
+	if s.state != stateOpen {
+		s.RUnlock()
+		return nil, errSessionStateNotOpen
+	}
+
 	iters := s.seriesIteratorsPool.Get(len(ids))
 	iters.Reset(len(ids))
 
@@ -706,7 +720,6 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 
 	majority = atomic.LoadInt32(&s.majority)
 
-	s.RLock()
 	for idx := range ids {
 		idx := idx
 

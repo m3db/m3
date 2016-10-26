@@ -136,10 +136,11 @@ func (_mr *_MockSessionRecorder) FetchAll(arg0, arg1, arg2, arg3 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockSession) ShardID(id string) uint32 {
+func (_m *MockSession) ShardID(id string) (uint32, error) {
 	ret := _m.ctrl.Call(_m, "ShardID", id)
 	ret0, _ := ret[0].(uint32)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockSessionRecorder) ShardID(arg0 interface{}) *gomock.Call {
@@ -326,10 +327,11 @@ func (_mr *_MockAdminSessionRecorder) FetchAll(arg0, arg1, arg2, arg3 interface{
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockAdminSession) ShardID(id string) uint32 {
+func (_m *MockAdminSession) ShardID(id string) (uint32, error) {
 	ret := _m.ctrl.Call(_m, "ShardID", id)
 	ret0, _ := ret[0].(uint32)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockAdminSessionRecorder) ShardID(arg0 interface{}) *gomock.Call {
@@ -452,10 +454,11 @@ func (_mr *_MockclientSessionRecorder) FetchAll(arg0, arg1, arg2, arg3 interface
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockclientSession) ShardID(id string) uint32 {
+func (_m *MockclientSession) ShardID(id string) (uint32, error) {
 	ret := _m.ctrl.Call(_m, "ShardID", id)
 	ret0, _ := ret[0].(uint32)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockclientSessionRecorder) ShardID(arg0 interface{}) *gomock.Call {

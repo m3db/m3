@@ -39,6 +39,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSessionWriteNotOpenError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+
+	err = s.Write("namespace", "foo", time.Now(), 1.337, xtime.Second, nil)
+	assert.Error(t, err)
+	assert.Equal(t, errSessionStateNotOpen, err)
+}
+
 func TestSessionWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
