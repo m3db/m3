@@ -33,6 +33,16 @@ func newError(errType rpc.ErrorType, err error) *rpc.Error {
 	return rpcErr
 }
 
+// IsInternalError returns whether the error is an internal error
+func IsInternalError(err *rpc.Error) bool {
+	return err != nil && err.Type == rpc.ErrorType_INTERNAL_ERROR
+}
+
+// IsBadRequestError returns whether the error is a bad request error
+func IsBadRequestError(err *rpc.Error) bool {
+	return err != nil && err.Type == rpc.ErrorType_BAD_REQUEST
+}
+
 // NewInternalError creates a new internal error
 func NewInternalError(err error) *rpc.Error {
 	return newError(rpc.ErrorType_INTERNAL_ERROR, err)

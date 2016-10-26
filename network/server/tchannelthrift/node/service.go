@@ -44,25 +44,25 @@ import (
 
 type serviceMetrics struct {
 	fetch               instrument.MethodMetrics
-	fetchRawBatch       instrument.MethodMetrics
 	write               instrument.MethodMetrics
-	writeBatch          instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
 	repair              instrument.MethodMetrics
 	truncate            instrument.MethodMetrics
+	fetchRawBatch       instrument.BatchMethodMetrics
+	writeBatch          instrument.BatchMethodMetrics
 }
 
 func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 	return serviceMetrics{
 		fetch:               instrument.NewMethodMetrics(scope, "fetch", samplingRate),
-		fetchRawBatch:       instrument.NewMethodMetrics(scope, "fetchRawBatch", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
-		writeBatch:          instrument.NewMethodMetrics(scope, "writeBatch", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
 		repair:              instrument.NewMethodMetrics(scope, "repair", samplingRate),
 		truncate:            instrument.NewMethodMetrics(scope, "truncate", samplingRate),
+		fetchRawBatch:       instrument.NewBatchMethodMetrics(scope, "fetchRawBatch", samplingRate),
+		writeBatch:          instrument.NewBatchMethodMetrics(scope, "writeBatch", samplingRate),
 	}
 }
 
@@ -201,12 +201,19 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 
 	if rangeStartErr != nil || rangeEndErr != nil {
-		s.metrics.fetchRawBatch.ReportError(s.nowFn().Sub(callStart))
+		s.metrics.fetchRawBatch.ReportNonRetryableErrors(len(req.Ids))
+		s.metrics.fetchRawBatch.ReportLatency(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
 	nsID := s.idPool.GetBinaryID(ctx, req.NameSpace)
 	result := rpc.NewFetchBatchRawResult_()
+
+	var (
+		success            int
+		retryableErrors    int
+		nonRetryableErrors int
+	)
 
 	for i := range req.Ids {
 		rawResult := rpc.NewFetchRawResult_()
@@ -215,8 +222,15 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		encoded, err := s.db.ReadEncoded(ctx, nsID, s.idPool.GetBinaryID(ctx, req.Ids[i]), start, end)
 		if err != nil {
 			rawResult.Err = convert.ToRPCError(err)
+			if tterrors.IsBadRequestError(rawResult.Err) {
+				nonRetryableErrors++
+			} else {
+				retryableErrors++
+			}
 			continue
 		}
+
+		success++
 
 		segments := make([]*rpc.Segments, 0, len(encoded))
 
@@ -229,7 +243,10 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		rawResult.Segments = segments
 	}
 
-	s.metrics.fetchRawBatch.ReportSuccess(s.nowFn().Sub(callStart))
+	s.metrics.fetchRawBatch.ReportSuccess(success)
+	s.metrics.fetchRawBatch.ReportRetryableErrors(retryableErrors)
+	s.metrics.fetchRawBatch.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.fetchRawBatch.ReportLatency(s.nowFn().Sub(callStart))
 
 	return result, nil
 }
@@ -405,17 +422,24 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	ctx := tchannelthrift.Context(tctx)
 	nsID := s.idPool.GetBinaryID(ctx, req.NameSpace)
 
-	var errs []*rpc.WriteBatchRawError
+	var (
+		errs               []*rpc.WriteBatchRawError
+		success            int
+		retryableErrors    int
+		nonRetryableErrors int
+	)
 
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampType)
 		if unitErr != nil {
+			nonRetryableErrors++
 			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
 			continue
 		}
 
 		d, err := unit.Value()
 		if err != nil {
+			nonRetryableErrors++
 			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
 			continue
 		}
@@ -425,20 +449,26 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
 		); err != nil && xerrors.IsInvalidParams(err) {
+			nonRetryableErrors++
 			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
 		} else if err != nil {
+			retryableErrors++
 			errs = append(errs, tterrors.NewWriteBatchRawError(i, err))
+		} else {
+			success++
 		}
 	}
 
+	s.metrics.fetchRawBatch.ReportSuccess(success)
+	s.metrics.fetchRawBatch.ReportRetryableErrors(retryableErrors)
+	s.metrics.fetchRawBatch.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.fetchRawBatch.ReportLatency(s.nowFn().Sub(callStart))
+
 	if len(errs) > 0 {
-		s.metrics.writeBatch.ReportError(s.nowFn().Sub(callStart))
 		batchErrs := rpc.NewWriteBatchRawErrors()
 		batchErrs.Errors = errs
 		return batchErrs
 	}
-
-	s.metrics.writeBatch.ReportSuccess(s.nowFn().Sub(callStart))
 
 	return nil
 }
