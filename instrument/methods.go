@@ -120,6 +120,7 @@ func NewMethodMetrics(scope tally.Scope, methodName string, samplingRate float64
 type BatchMethodMetrics struct {
 	RetryableErrors    tally.Counter
 	NonRetryableErrors tally.Counter
+	Errors             tally.Counter
 	Success            tally.Counter
 	Latency            tally.Timer
 }
@@ -133,6 +134,7 @@ func NewBatchMethodMetrics(
 	return BatchMethodMetrics{
 		RetryableErrors:    scope.Counter(methodName + ".retryable-errors"),
 		NonRetryableErrors: scope.Counter(methodName + ".non-retryable-errors"),
+		Errors:             scope.Counter(methodName + ".errors"),
 		Success:            scope.Counter(methodName + ".success"),
 		Latency:            newSampledTimer(scope.Timer(methodName+".latency"), samplingRate),
 	}
@@ -146,11 +148,13 @@ func (m *BatchMethodMetrics) ReportSuccess(n int) {
 // ReportRetryableErrors reports retryable errors
 func (m *BatchMethodMetrics) ReportRetryableErrors(n int) {
 	m.RetryableErrors.Inc(int64(n))
+	m.Errors.Inc(int64(n))
 }
 
 // ReportNonRetryableErrors reports non-retryable errors
 func (m *BatchMethodMetrics) ReportNonRetryableErrors(n int) {
 	m.NonRetryableErrors.Inc(int64(n))
+	m.Errors.Inc(int64(n))
 }
 
 // ReportLatency reports latency

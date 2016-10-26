@@ -22,14 +22,14 @@ package client
 
 import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3x/errors"
 )
 
 // IsInternalServerError determines if the error is an internal server error.
 func IsInternalServerError(err error) bool {
-	errType := rpc.ErrorType_INTERNAL_ERROR
 	for err != nil {
-		if e, ok := err.(*rpc.Error); ok && e.Type == errType {
+		if e, ok := err.(*rpc.Error); ok && tterrors.IsInternalError(e) {
 			return true
 		}
 		err = xerrors.InnerError(err)
@@ -39,9 +39,8 @@ func IsInternalServerError(err error) bool {
 
 // IsBadRequestError determines if the error is a bad request error.
 func IsBadRequestError(err error) bool {
-	errType := rpc.ErrorType_BAD_REQUEST
 	for err != nil {
-		if e, ok := err.(*rpc.Error); ok && e.Type == errType {
+		if e, ok := err.(*rpc.Error); ok && tterrors.IsBadRequestError(e) {
 			return true
 		}
 		err = xerrors.InnerError(err)
