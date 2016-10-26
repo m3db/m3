@@ -200,6 +200,13 @@ func newSession(opts Options) (clientSession, error) {
 	return s, nil
 }
 
+func (s *session) ShardID(id string) uint32 {
+	s.RLock()
+	value := s.topoMap.ShardSet().Shard(ts.StringID(id))
+	s.RUnlock()
+	return value
+}
+
 func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersMetrics {
 	s.metrics.RLock()
 	m, ok := s.metrics.streamFromPeersMetrics[shard]
