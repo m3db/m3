@@ -38,8 +38,9 @@ const (
 	// Namespace requires repair by default
 	defaultNeedsRepair = true
 
-	// Namespace retains data for 48 hours by default
-	defaultRetentionPeriod = 48 * time.Hour
+	// Namespace does not have retention period overrides and
+	// uses database-level retention period by default
+	defaultRetentionPeriod = 0
 )
 
 type options struct {
