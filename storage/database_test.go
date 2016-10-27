@@ -27,7 +27,9 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -260,4 +262,32 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 	require.Equal(t, expectedBlocks, res)
 	require.Equal(t, expectedToken, nextToken)
 	require.Nil(t, err)
+}
+
+func TestDatabaseNamespacesWithDifferentRetentionPeriods(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	opts = opts.SetRepairOptions(repair.NewOptions().
+		SetAdminClient(client.NewMockAdminClient(ctrl)).
+		SetRepairInterval(time.Duration(0)).
+		SetRepairTimeOffset(time.Duration(0)).
+		SetRepairTimeJitter(time.Duration(0)).
+		SetRepairCheckInterval(time.Duration(0)))
+
+	namespaces := []namespace.Metadata{
+		namespace.NewMetadata(ts.StringID("ns1"), namespace.NewOptions().SetRetentionPeriod(24*time.Hour)),
+		namespace.NewMetadata(ts.StringID("ns2"), namespace.NewOptions().SetRetentionPeriod(6*time.Hour)),
+	}
+	shardSet, err := sharding.NewShardSet([]uint32{1}, sharding.DefaultHashGen(1024))
+	require.NoError(t, err)
+
+	database, err := NewDatabase(namespaces, shardSet, opts)
+	require.NoError(t, err)
+	actualNamespaces := database.(*db).namespaces
+	for _, ns := range namespaces {
+		actual := actualNamespaces[ns.ID().Hash()].(*dbNamespace)
+		require.Equal(t, ns.Options().RetentionPeriod(), actual.sopts.RetentionOptions().RetentionPeriod())
+	}
 }

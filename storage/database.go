@@ -188,9 +188,16 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 		if _, exists := ns[n.ID().Hash()]; exists {
 			return nil, errDuplicateNamespaces
 		}
+
+		// NB(xichen): namespace-level retention period overrides database-level retention period
+		nsOpts := d.opts
+		if retentionPeriod := n.Options().RetentionPeriod(); retentionPeriod > 0 {
+			nsOpts = nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(retentionPeriod))
+		}
+
 		// NB(xichen): shardSet is used only for reads but not writes once created
 		// so can be shared by different namespaces
-		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet, d, d.writeCommitLogFn, d.opts)
+		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet, d, d.writeCommitLogFn, nsOpts)
 	}
 	d.namespaces = ns
 

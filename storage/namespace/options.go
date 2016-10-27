@@ -20,6 +20,8 @@
 
 package namespace
 
+import "time"
+
 const (
 	// Namespace requires bootstrapping by default
 	defaultNeedsBootstrap = true
@@ -35,6 +37,9 @@ const (
 
 	// Namespace requires repair by default
 	defaultNeedsRepair = true
+
+	// Namespace retains data for 48 hours by default
+	defaultRetentionPeriod = 48 * time.Hour
 )
 
 type options struct {
@@ -43,6 +48,7 @@ type options struct {
 	writesToCommitLog   bool
 	needsFilesetCleanup bool
 	needsRepair         bool
+	retentionPeriod     time.Duration
 }
 
 // NewOptions creates a new namespace options
@@ -53,6 +59,7 @@ func NewOptions() Options {
 		writesToCommitLog:   defaultWritesToCommitLog,
 		needsFilesetCleanup: defaultNeedsFilesetCleanup,
 		needsRepair:         defaultNeedsRepair,
+		retentionPeriod:     defaultRetentionPeriod,
 	}
 }
 
@@ -104,4 +111,14 @@ func (o *options) SetNeedsRepair(value bool) Options {
 
 func (o *options) NeedsRepair() bool {
 	return o.needsRepair
+}
+
+func (o *options) SetRetentionPeriod(value time.Duration) Options {
+	opts := *o
+	opts.retentionPeriod = value
+	return &opts
+}
+
+func (o *options) RetentionPeriod() time.Duration {
+	return o.retentionPeriod
 }

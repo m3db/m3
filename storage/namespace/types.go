@@ -20,7 +20,11 @@
 
 package namespace
 
-import "github.com/m3db/m3db/ts"
+import (
+	"time"
+
+	"github.com/m3db/m3db/ts"
+)
 
 // Options controls namespace behavior
 type Options interface {
@@ -53,6 +57,12 @@ type Options interface {
 
 	// NeedsRepair returns whether the data for this namespace needs to be repaired
 	NeedsRepair() bool
+
+	// SetRetentionPeriod sets the retention period
+	SetRetentionPeriod(value time.Duration) Options
+
+	// RetentionPeriod returns the retention period
+	RetentionPeriod() time.Duration
 }
 
 // Metadata represents namespace metadata information
