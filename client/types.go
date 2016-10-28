@@ -379,15 +379,15 @@ type Options interface {
 	// limit before connection is deemed unhealth
 	BackgroundHealthCheckFailLimit() int
 
-	// SetBackgroundHealthCheckFailLimit sets the throttle factor to apply when
-	// calculating how long to wait between a failed health check and a
-	// retry attempt. It is applied by multiplying against the host connect
+	// SetBackgroundHealthCheckFailThrottleFactor sets the throttle factor to
+	// apply when calculating how long to wait between a failed health check and
+	// a retry attempt. It is applied by multiplying against the host connect
 	// timeout to produce a throttle sleep value.
 	SetBackgroundHealthCheckFailThrottleFactor(value float64) Options
 
-	// SetBackgroundHealthCheckFailLimit returns the throttle factor to apply when
-	// calculating how long to wait between a failed health check and a
-	// retry attempt. It is applied by multiplying against the host connect
+	// BackgroundHealthCheckFailThrottleFactor returns the throttle factor to
+	// apply when calculating how long to wait between a failed health check and
+	// a retry attempt. It is applied by multiplying against the host connect
 	// timeout to produce a throttle sleep value.
 	BackgroundHealthCheckFailThrottleFactor() float64
 
