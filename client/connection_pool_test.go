@@ -152,6 +152,11 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	// > Take connection out
 	// 3. Round 2, fail conn 1 health checks
 	// > Take connection out
+	opts := newConnectionPoolTestOptions()
+	opts = opts.SetMaxConnectionCount(2)
+	opts = opts.SetHostConnectTimeout(10 * time.Second)
+	healthCheckFailLimit := opts.BackgroundHealthCheckFailLimit()
+	healthCheckFailThrottleFactor := opts.BackgroundHealthCheckFailThrottleFactor()
 
 	var (
 		newConnAttempt int32
@@ -216,9 +221,6 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		failsDoneWg[i].Add(1)
 	}
 
-	opts := newConnectionPoolTestOptions()
-	opts = opts.SetMaxConnectionCount(2)
-	opts = opts.SetHostConnectTimeout(10 * time.Second)
 	conns := newConnectionPool(h, opts).(*connPool)
 	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
@@ -244,10 +246,10 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 	}
 	conns.sleepHealth = func(d time.Duration) {
 		atomic.AddInt32(&healthRounds, 1)
-		if atomic.LoadInt32(&invokeFail) == 1*healthCheckFailLimit &&
+		if int(atomic.LoadInt32(&invokeFail)) == 1*healthCheckFailLimit &&
 			atomic.CompareAndSwapInt32(&failsDone[0], 0, 1) {
 			failsDoneWg[0].Done()
-		} else if atomic.LoadInt32(&invokeFail) == 2*healthCheckFailLimit &&
+		} else if int(atomic.LoadInt32(&invokeFail)) == 2*healthCheckFailLimit &&
 			atomic.CompareAndSwapInt32(&failsDone[1], 0, 1) {
 			failsDoneWg[1].Done()
 		}
