@@ -67,16 +67,16 @@ var (
 // applies to values where the next possible smaller or larger float changes
 // the integer component of the float
 func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool, error) {
-	if curMaxMult > maxMult {
-		return 0.0, 0, false, errInvalidMultiplier
-	}
-
 	if curMaxMult == 0 && v < maxInt {
 		// Quick check for vals that are already ints
 		i, r := math.Modf(v)
 		if r == 0 {
 			return i, 0, false, nil
 		}
+	}
+
+	if curMaxMult > maxMult {
+		return 0.0, 0, false, errInvalidMultiplier
 	}
 
 	val := v * multipliers[int(curMaxMult)]
