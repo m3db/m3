@@ -21,6 +21,7 @@
 package m3tsz
 
 import (
+	"errors"
 	"math"
 )
 
@@ -53,9 +54,10 @@ const (
 )
 
 var (
-	maxInt      = float64(math.MaxInt64)
-	maxOptInt   = math.Pow(10.0, 13) // Max int for int optimization
-	multipliers = createMultipliers()
+	maxInt               = float64(math.MaxInt64)
+	maxOptInt            = math.Pow(10.0, 13) // Max int for int optimization
+	multipliers          = createMultipliers()
+	errInvalidMultiplier = errors.New("supplied multiplier is invalid")
 )
 
 // convertToIntFloat takes a float64 val and the current max multiplier
@@ -64,12 +66,16 @@ var (
 // close to ints eg. 46.000000000000001 would be returned as 46. This only
 // applies to values where the next possible smaller or larger float changes
 // the integer component of the float
-func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool) {
+func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool, error) {
+	if curMaxMult > maxMult {
+		return 0.0, 0, false, errInvalidMultiplier
+	}
+
 	if curMaxMult == 0 && v < maxInt {
 		// Quick check for vals that are already ints
 		i, r := math.Modf(v)
 		if r == 0 {
-			return i, 0, false
+			return i, 0, false, nil
 		}
 	}
 
@@ -83,23 +89,23 @@ func convertToIntFloat(v float64, curMaxMult uint8) (float64, uint8, bool) {
 	for mult := curMaxMult; mult <= maxMult && val < maxOptInt; mult++ {
 		i, r := math.Modf(val)
 		if r == 0 {
-			return sign * i, mult, false
+			return sign * i, mult, false, nil
 		} else if r < 0.1 {
 			// Round down and check
 			if math.Nextafter(val, 0) <= i {
-				return sign * i, mult, false
+				return sign * i, mult, false, nil
 			}
 		} else if r > 0.9 {
 			// Round up and check
 			next := i + 1
 			if math.Nextafter(val, next) >= next {
-				return sign * next, mult, false
+				return sign * next, mult, false, nil
 			}
 		}
 		val = val * 10.0
 	}
 
-	return v, 0, true
+	return v, 0, true, nil
 }
 
 func convertFromIntFloat(val float64, mult uint8) float64 {

@@ -94,6 +94,11 @@ func TestInfNan(t *testing.T) {
 	validateConvertToIntFloat(t, math.NaN(), 6, math.NaN(), 0, true)
 }
 
+func TestInvalidMult(t *testing.T) {
+	_, _, _, err := convertToIntFloat(1.0, maxMult+1)
+	require.Error(t, err)
+}
+
 func testIntConversions(t *testing.T, numConv, numDig, numDec int) {
 	validateIntConversions(t, numConv, numDig, numDec, false)
 }
@@ -149,7 +154,8 @@ func testFloatConversions(t *testing.T, numConv, numDig, numDec int) {
 }
 
 func validateConvertToIntFloat(t *testing.T, val float64, curDec int, expectedVal float64, maxExpectedDec int, expectedFloat bool) {
-	iv, dec, isFloat := convertToIntFloat(val, uint8(curDec))
+	iv, dec, isFloat, err := convertToIntFloat(val, uint8(curDec))
+	require.NoError(t, err)
 	if math.IsNaN(val) {
 		require.True(t, math.IsNaN(iv))
 	} else {
@@ -161,7 +167,8 @@ func validateConvertToIntFloat(t *testing.T, val float64, curDec int, expectedVa
 }
 
 func validateConvertFloat(t *testing.T, val float64, curDec int) {
-	v, dec, isFloat := convertToIntFloat(val, uint8(curDec))
+	v, dec, isFloat, err := convertToIntFloat(val, uint8(curDec))
+	require.NoError(t, err)
 	if isFloat {
 		require.Equal(t, val, v)
 		require.Equal(t, uint8(0), dec)
