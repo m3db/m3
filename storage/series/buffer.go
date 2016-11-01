@@ -52,13 +52,14 @@ const (
 )
 
 type dbBuffer struct {
-	opts         Options
-	nowFn        clock.NowFn
-	drainFn      databaseBufferDrainFn
-	buckets      [bucketsLen]dbBufferBucket
-	blockSize    time.Duration
-	bufferPast   time.Duration
-	bufferFuture time.Duration
+	opts              Options
+	nowFn             clock.NowFn
+	drainFn           databaseBufferDrainFn
+	pastMostBucketIdx int
+	buckets           [bucketsLen]dbBufferBucket
+	blockSize         time.Duration
+	bufferPast        time.Duration
+	bufferFuture      time.Duration
 }
 
 type databaseBufferDrainFn func(start time.Time, encoder encoding.Encoder)
@@ -77,7 +78,7 @@ func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuff
 }
 
 func (b *dbBuffer) Reset() {
-	b.forEachBucketAsc(b.nowFn(), func(bucket *dbBufferBucket, start time.Time) {
+	b.pastMostBucketIdx = b.forEachBucketAscToDrainOrReset(b.nowFn(), func(bucket *dbBufferBucket, start time.Time) {
 		bucket.opts = b.opts
 		bucket.resetTo(start)
 	})
@@ -85,12 +86,12 @@ func (b *dbBuffer) Reset() {
 
 func (b *dbBuffer) MinMax() (time.Time, time.Time) {
 	var min, max time.Time
-	b.forEachBucketAsc(b.nowFn(), func(bucket *dbBufferBucket, start time.Time) {
-		if min.IsZero() || start.Before(min) {
-			min = start
+	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+		if min.IsZero() || bucket.start.Before(min) {
+			min = bucket.start
 		}
-		if max.IsZero() || start.After(max) {
-			max = start
+		if max.IsZero() || bucket.start.After(max) {
+			max = bucket.start
 		}
 	})
 	return min, max
@@ -117,8 +118,7 @@ func (b *dbBuffer) Write(
 	bucketIdx := (timestamp.UnixNano() / int64(b.blockSize)) % bucketsLen
 
 	bucket := &b.buckets[bucketIdx]
-	_, _, needsReset := b.bucketState(now, bucket, bucketStart)
-	if needsReset {
+	if bucket.needsReset(bucketStart) {
 		// Needs reset
 		b.DrainAndReset()
 	}
@@ -127,12 +127,9 @@ func (b *dbBuffer) Write(
 }
 
 func (b *dbBuffer) IsEmpty() bool {
-	now := b.nowFn()
 	canReadAny := false
-	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
-		if !canReadAny {
-			canReadAny, _, _ = b.bucketState(now, bucket, current)
-		}
+	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+		canReadAny = canReadAny || bucket.canRead()
 	})
 	return !canReadAny
 }
@@ -140,34 +137,16 @@ func (b *dbBuffer) IsEmpty() bool {
 func (b *dbBuffer) NeedsDrain() bool {
 	now := b.nowFn()
 	needsDrainAny := false
-	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
-		if !needsDrainAny {
-			_, needsDrainAny, _ = b.bucketState(now, bucket, current)
-		}
+	b.forEachBucketAscToDrainOrReset(now, func(bucket *dbBufferBucket, current time.Time) {
+		needsDrainAny = needsDrainAny || bucket.needsDrain(now, current)
 	})
 	return needsDrainAny
 }
 
-func (b *dbBuffer) bucketState(
-	now time.Time,
-	bucket *dbBufferBucket,
-	bucketStart time.Time,
-) (bool, bool, bool) {
-	notDrainedHasValues := !bucket.drained && !bucket.empty
-
-	shouldRead := notDrainedHasValues
-	needsReset := !bucket.start.Equal(bucketStart)
-	needsDrain := (notDrainedHasValues && needsReset) ||
-		(notDrainedHasValues && bucketStart.Add(b.blockSize).Before(now.Add(-1*b.bufferPast)))
-
-	return shouldRead, needsDrain, needsReset
-}
-
 func (b *dbBuffer) DrainAndReset() {
 	now := b.nowFn()
-	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
-		_, needsDrain, needsReset := b.bucketState(now, bucket, current)
-		if needsDrain {
+	b.pastMostBucketIdx = b.forEachBucketAscToDrainOrReset(now, func(bucket *dbBufferBucket, current time.Time) {
+		if bucket.needsDrain(now, current) {
 			bucket.merge()
 
 			// After we merge there is always only a single encoder with all the data
@@ -177,7 +156,7 @@ func (b *dbBuffer) DrainAndReset() {
 			bucket.drained = true
 		}
 
-		if needsReset {
+		if bucket.needsReset(current) {
 			// Reset bucket
 			bucket.resetTo(current)
 		}
@@ -187,8 +166,8 @@ func (b *dbBuffer) DrainAndReset() {
 func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 	blockStart := bl.StartTime()
 	bootstrapped := false
-	b.forEachBucketAsc(b.nowFn(), func(bucket *dbBufferBucket, start time.Time) {
-		if start.Equal(blockStart) {
+	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+		if bucket.start.Equal(blockStart) {
 			bucket.bootstrap(bl)
 			bootstrapped = true
 		}
@@ -199,23 +178,32 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 	return nil
 }
 
-func (b *dbBuffer) forEachBucketAsc(now time.Time, fn func(*dbBufferBucket, time.Time)) {
+// forEachBucketAsc iterates over the buckets in time ascending order
+// to read bucket data
+func (b *dbBuffer) forEachBucketAsc(fn func(*dbBufferBucket)) {
+	for i := 0; i < bucketsLen; i++ {
+		idx := (b.pastMostBucketIdx + i) % bucketsLen
+		fn(&b.buckets[idx])
+	}
+}
+
+// forEachBucketAscToDrainOrReset iterates over the buckets in time ascending order
+// to drain or reset the buckets and returns the past most bucket index
+func (b *dbBuffer) forEachBucketAscToDrainOrReset(now time.Time, fn func(*dbBufferBucket, time.Time)) int {
 	pastMostBucketStart := now.Truncate(b.blockSize).Add(-1 * b.blockSize)
 	bucketNum := (pastMostBucketStart.UnixNano() / int64(b.blockSize)) % bucketsLen
 	for i := int64(0); i < bucketsLen; i++ {
 		idx := int((bucketNum + i) % bucketsLen)
 		fn(&b.buckets[idx], pastMostBucketStart.Add(time.Duration(i)*b.blockSize))
 	}
+	return int(bucketNum)
 }
 
 func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.SegmentReader {
-	now := b.nowFn()
-
 	// TODO(r): pool these results arrays
 	var results [][]xio.SegmentReader
-	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
-		shouldRead, _, _ := b.bucketState(now, bucket, current)
-		if !shouldRead {
+	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+		if !bucket.canRead() {
 			return
 		}
 		if !start.Before(bucket.start.Add(b.blockSize)) {
@@ -226,7 +214,7 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 		}
 
 		unmerged := make([]xio.SegmentReader, 0, len(bucket.encoders))
-		bucket.readStreams(ctx, now, current, func(stream xio.SegmentReader) {
+		bucket.readStreams(ctx, func(stream xio.SegmentReader) {
 			unmerged = append(unmerged, stream)
 		})
 
@@ -239,10 +227,8 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
 	var res []block.FetchBlockResult
 
-	now := b.nowFn()
-	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
-		shouldRead, _, _ := b.bucketState(now, bucket, current)
-		if !shouldRead {
+	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+		if !bucket.canRead() {
 			return
 		}
 		found := false
@@ -258,7 +244,7 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 			return
 		}
 		readers := make([]xio.SegmentReader, 0, len(bucket.encoders))
-		bucket.readStreams(ctx, now, current, func(stream xio.SegmentReader) {
+		bucket.readStreams(ctx, func(stream xio.SegmentReader) {
 			readers = append(readers, stream)
 		})
 		res = append(res, block.NewFetchBlockResult(bucket.start, readers, nil))
@@ -275,17 +261,15 @@ func (b *dbBuffer) FetchBlocksMetadata(
 ) block.FetchBlockMetadataResults {
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
-	now := b.nowFn()
-	b.forEachBucketAsc(now, func(bucket *dbBufferBucket, current time.Time) {
-		shouldRead, _, _ := b.bucketState(now, bucket, current)
-		if !shouldRead {
+	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+		if !bucket.canRead() {
 			return
 		}
 		if !start.Before(bucket.start.Add(blockSize)) || !bucket.start.Before(end) {
 			return
 		}
 		var size int64
-		bucket.readStreams(ctx, now, current, func(stream xio.SegmentReader) {
+		bucket.readStreams(ctx, func(stream xio.SegmentReader) {
 			segment := stream.Segment()
 			size += int64(len(segment.Head) + len(segment.Tail))
 		})
@@ -337,6 +321,22 @@ func (b *dbBufferBucket) resetTo(start time.Time) {
 	b.drained = false
 }
 
+func (b *dbBufferBucket) canRead() bool {
+	return !b.drained && !b.empty
+}
+
+func (b *dbBufferBucket) needsReset(targetStart time.Time) bool {
+	return !b.start.Equal(targetStart)
+}
+
+func (b *dbBufferBucket) needsDrain(now time.Time, targetStart time.Time) bool {
+	retentionOpts := b.opts.RetentionOptions()
+	blockSize := retentionOpts.BlockSize()
+	bufferPast := retentionOpts.BufferPast()
+
+	return b.canRead() && (b.needsReset(targetStart) || b.start.Add(blockSize).Before(now.Add(-bufferPast)))
+}
+
 func (b *dbBufferBucket) bootstrap(bl block.DatabaseBlock) {
 	b.empty = false
 	b.bootstrapped = append(b.bootstrapped, bl)
@@ -379,7 +379,6 @@ func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Un
 
 func (b *dbBufferBucket) readStreams(
 	ctx context.Context,
-	now, current time.Time,
 	streamFn dbBufferBucketStreamFn,
 ) {
 	for i := range b.bootstrapped {
