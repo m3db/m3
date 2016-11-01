@@ -135,7 +135,7 @@ func benchMathConversion(b *testing.B, val float64) {
 func benchMathConstConversion(b *testing.B, val float64) {
 	var dec uint8
 	for n := 0; n < b.N; n++ {
-		_, dec, _ = convertToIntFloat(val, dec)
+		_, dec, _, _ = convertToIntFloat(val, dec)
 	}
 }
 

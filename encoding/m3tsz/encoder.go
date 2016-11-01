@@ -255,20 +255,24 @@ func (enc *encoder) writeDeltaOfDeltaTimeUnitUnchanged(prevDelta, curDelta time.
 	return nil
 }
 
-func (enc *encoder) writeFirstValue(v float64) {
+func (enc *encoder) writeFirstValue(v float64) error {
 	if !enc.intOptimized {
 		enc.writeFullFloatVal(math.Float64bits(v))
-		return
+		return nil
 	}
 
 	// Attempt to convert float to int for int optimization
-	val, mult, isFloat := convertToIntFloat(v, 0)
+	val, mult, isFloat, err := convertToIntFloat(v, 0)
+	if err != nil {
+		return err
+	}
+
 	if isFloat {
 		enc.os.WriteBit(opcodeFloatMode)
 		enc.writeFullFloatVal(math.Float64bits(val))
 		enc.isFloat = true
 		enc.maxMult = mult
-		return
+		return nil
 	}
 
 	// val can be converted to int
@@ -284,22 +288,28 @@ func (enc *encoder) writeFirstValue(v float64) {
 	numSig := encoding.NumSig(valBits)
 	enc.writeIntSigMult(numSig, mult, false)
 	enc.writeIntValDiff(valBits, negDiff)
+	return nil
 }
 
-func (enc *encoder) writeNextValue(v float64) {
+func (enc *encoder) writeNextValue(v float64) error {
 	if !enc.intOptimized {
 		enc.writeFloatXOR(math.Float64bits(v))
-		return
+		return nil
 	}
 
 	// Attempt to convert float to int for int optimization
-	val, mult, isFloat := convertToIntFloat(v, enc.maxMult)
+	val, mult, isFloat, err := convertToIntFloat(v, enc.maxMult)
+	if err != nil {
+		return err
+	}
+
 	if isFloat {
 		enc.writeFloatVal(math.Float64bits(val), mult)
-		return
+		return nil
 	}
 
 	enc.writeIntVal(val, mult, isFloat)
+	return nil
 }
 
 // writeFloatVal writes the value as XOR of the

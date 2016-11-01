@@ -243,6 +243,9 @@ func (it *readerIterator) readIntSigMult() {
 
 	if it.readBits(1) == opcodeUpdateMult {
 		it.mult = uint8(it.readBits(numMultBits))
+		if it.mult > maxMult {
+			it.err = errInvalidMultiplier
+		}
 	}
 }
 
