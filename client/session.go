@@ -101,6 +101,7 @@ type session struct {
 	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
 	seriesIteratorPool               encoding.SeriesIteratorPool
 	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
+	writeMonitorPool                 sync.Pool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	origin                           topology.Host
@@ -172,6 +173,12 @@ func newSession(opts Options) (clientSession, error) {
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		metrics:              newSessionMetrics(scope),
 	}
+
+	s.writeMonitorPool = sync.Pool{New: func() interface{} {
+		c := &writeMonitor{session: s}
+		c.condition = &sync.Cond{L: c}
+		return c
+	}}
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.origin = opts.Origin()
@@ -548,21 +555,73 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	return hostQueue
 }
 
+type writeMonitor struct {
+	sync.Mutex
+
+	session             *session
+	condition           *sync.Cond
+	op                  *writeOp
+	majority            int32
+	successful, pending int32
+	errors              []error
+}
+
+func (w *writeMonitor) reset(op *writeOp, majority int32) {
+	w.op, w.majority, w.successful, w.pending = op, majority, 0, 0
+	w.errors = w.errors[:]
+}
+
+func (w *writeMonitor) completionFn(result interface{}, err error) {
+	var (
+		successful int32
+		remaining  = atomic.AddInt32(&w.pending, -1)
+	)
+
+	if err != nil {
+		w.Lock()
+		w.errors = append(w.errors, err)
+		w.Unlock()
+	} else {
+		successful = atomic.AddInt32(&w.successful, 1)
+	}
+
+	switch w.session.writeLevel {
+	case topology.ConsistencyLevelOne:
+		if successful == 0 && remaining != 0 {
+			return
+		}
+	case topology.ConsistencyLevelMajority:
+		if successful < w.majority && remaining != 0 {
+			return
+		}
+	case topology.ConsistencyLevelAll:
+		if remaining != 0 {
+			return
+		}
+	}
+
+	w.Lock()
+	w.condition.Signal()
+	w.Unlock()
+
+	// Finalize resources that can be returned
+	if remaining == 0 {
+		w.release()
+	}
+}
+
+func (w *writeMonitor) release() {
+	w.session.writeOpPool.Put(w.op)
+	w.op = nil
+	w.session.writeMonitorPool.Put(w)
+}
+
 func (s *session) Write(namespace, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	var (
-		wg            sync.WaitGroup
-		wgIsDone      int32
-		enqueueErr    error
-		enqueued      int32
-		pending       int32
-		resultErrLock sync.RWMutex
-		resultErrs    int32
-		errors        []error
-		majority      int32
-		success       int32
-		tsID          = ts.StringID(id)
+		enqueued int32
+		majority = atomic.LoadInt32(&s.majority)
+		tsID     = ts.StringID(id)
 	)
-	wg.Add(1)
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
@@ -574,99 +633,63 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		return timestampErr
 	}
 
-	s.RLock()
-	if s.state != stateOpen {
+	if s.RLock(); s.state != stateOpen {
 		s.RUnlock()
 		return errSessionStateNotOpen
 	}
 
-	majority = atomic.LoadInt32(&s.majority)
+	c := s.writeMonitorPool.Get().(*writeMonitor)
+	c.reset(s.writeOpPool.Get(), majority)
 
-	w := s.writeOpPool.Get()
-	w.namespace = ts.StringID(namespace)
-	w.request.ID = tsID.Data()
-	w.request.Datapoint.Value = value
-	w.request.Datapoint.Timestamp = timestamp
-	w.request.Datapoint.TimestampType = timeType
-	w.request.Datapoint.Annotation = annotation
-	w.completionFn = func(result interface{}, err error) {
-		var snapshotSuccess int32
-		if err != nil {
-			atomic.AddInt32(&resultErrs, 1)
-			resultErrLock.Lock()
-			errors = append(errors, err)
-			resultErrLock.Unlock()
-		} else {
-			snapshotSuccess = atomic.AddInt32(&success, 1)
-		}
-		remaining := atomic.AddInt32(&pending, -1)
-		doneAll := remaining == 0
-		switch s.writeLevel {
-		case topology.ConsistencyLevelOne:
-			complete := snapshotSuccess > 0 || doneAll
-			if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
-				wg.Done()
-			}
-		case topology.ConsistencyLevelMajority:
-			complete := snapshotSuccess >= majority || doneAll
-			if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
-				wg.Done()
-			}
-		case topology.ConsistencyLevelAll:
-			if doneAll && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
-				wg.Done()
-			}
-		}
-		// Finalize resources that can be returned
-		if doneAll {
-			// Return write to pool
-			s.writeOpPool.Put(w)
-		}
-	}
+	c.op.namespace = ts.StringID(namespace)
+	c.op.request.ID = tsID.Data()
+	c.op.request.Datapoint.Value = value
+	c.op.request.Datapoint.Timestamp = timestamp
+	c.op.request.Datapoint.TimestampType = timeType
+	c.op.request.Datapoint.Annotation = annotation
+	c.op.completionFn = c.completionFn
 
-	routeErr := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
+	var queues []hostQueue
+
+	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// First count all the pending write requests to ensure
 		// we count the amount we're going to be waiting for
 		// before we enqueue the completion fns that rely on having
 		// an accurate number of the pending requests when they execute
-		pending++
-	})
-	if routeErr == nil {
-		// Now enqueue the write requests
-		routeErr = s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
-			enqueued++
-			if err := s.queues[idx].Enqueue(w); err != nil && enqueueErr == nil {
-				// NB(r): if this ever happens we have a code bug, once we
-				// are in the read lock the current queues we are using should
-				// never be closed
-				enqueueErr = err
-			}
-		})
-	}
-	s.RUnlock()
-
-	if routeErr != nil {
-		return routeErr
+		c.pending++
+		queues = append(queues, s.queues[idx])
+	}); err != nil {
+		c.release()
+		s.RUnlock()
+		return err
 	}
 
-	if enqueueErr != nil {
-		s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", enqueueErr)
-		return enqueueErr
+	c.Lock()
+
+	for i := range queues {
+		if err := queues[i].Enqueue(c.op); err != nil {
+			// NB(r): if this ever happens we have a code bug, once we
+			// are in the read lock the current queues we are using should
+			// never be closed
+			c.Unlock()
+			s.RUnlock()
+			s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", err)
+			return err
+		}
+
+		enqueued++
 	}
 
 	// Wait for writes to complete
-	wg.Wait()
+	s.RUnlock()
+	c.condition.Wait()
 
-	var reportErrors []error
-	errsLen := atomic.LoadInt32(&resultErrs)
-	if errsLen > 0 {
-		resultErrLock.RLock()
-		reportErrors = errors[:]
-		resultErrLock.RUnlock()
-	}
-	responded := enqueued - atomic.LoadInt32(&pending)
-	err := s.writeConsistencyResult(majority, enqueued, responded, errsLen, reportErrors)
-	s.incWriteMetrics(err, errsLen)
+	err := s.writeConsistencyResult(majority,
+		enqueued, enqueued-atomic.LoadInt32(&c.pending), int32(len(c.errors)), c.errors)
+	s.incWriteMetrics(err, int32(len(c.errors)))
+
+	c.Unlock()
+
 	return err
 }
 
