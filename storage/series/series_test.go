@@ -26,10 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -574,4 +576,70 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 			require.NoError(t, metadata[i].Err)
 		}
 	}
+}
+
+func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
+	now := time.Unix(1477929600, 0)
+	nowFn := func() time.Time { return now }
+	clockOpts := clock.NewOptions().SetNowFn(nowFn)
+	retentionOpts := retention.NewOptions()
+	opts := newSeriesTestOptions().
+		SetClockOptions(clockOpts).
+		SetRetentionOptions(retentionOpts)
+
+	var (
+		ctx        = context.NewContext()
+		id         = ts.StringID("foo")
+		startValue = 1.0
+		blockSize  = opts.RetentionOptions().BlockSize()
+		numPoints  = 10
+		numBlocks  = 7
+		qStart     = now
+		qEnd       = qStart.Add(time.Duration(numBlocks) * blockSize)
+		expected   []ts.Datapoint
+	)
+
+	series := NewDatabaseSeries(id, opts).(*dbSeries)
+	series.Reset(id)
+	series.bs = bootstrapped
+
+	for iter := 0; iter < numBlocks; iter++ {
+		start := now
+		value := startValue
+
+		for i := 0; i < numPoints; i++ {
+			require.NoError(t, series.Write(ctx, start, value, xtime.Second, nil))
+			expected = append(expected, ts.Datapoint{Timestamp: start, Value: value})
+			start = start.Add(10 * time.Second)
+			value = value + 1.0
+		}
+
+		// Perform out-of-order writes
+		start = now
+		value = startValue
+		for i := 0; i < numPoints/2; i++ {
+			require.NoError(t, series.Write(ctx, start, value, xtime.Second, nil))
+			start = start.Add(10 * time.Second)
+			value = value + 1.0
+		}
+
+		now = now.Add(blockSize)
+	}
+
+	encoded, err := series.ReadEncoded(ctx, qStart, qEnd)
+	require.NoError(t, err)
+
+	multiIt := opts.MultiReaderIteratorPool().Get()
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
+	it := encoding.NewSeriesIterator(id.String(), qStart, qEnd, []encoding.Iterator{multiIt}, nil)
+	defer it.Close()
+
+	var actual []ts.Datapoint
+	for it.Next() {
+		dp, _, _ := it.Current()
+		actual = append(actual, dp)
+	}
+
+	require.NoError(t, it.Err())
+	require.Equal(t, expected, actual)
 }
