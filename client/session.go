@@ -593,8 +593,8 @@ func (w *writeState) reset() {
 	w.session.writeOpPool.Put(w.op)
 
 	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
-	w.errors = w.errors[:]
-	w.queues = w.queues[:]
+	w.errors = w.errors[:0]
+	w.queues = w.queues[:0]
 
 	w.session.writeStatePool.Put(w)
 }
