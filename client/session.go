@@ -701,7 +701,8 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		enqueued++
 	}
 
-	// Wait for writes to complete
+	// Wait for writes to complete. We don't need to loop over Wait() since there
+	// are no spurious wakeups in Golang and the condition is one-way and binary.
 	s.RUnlock()
 	c.condition.Wait()
 
