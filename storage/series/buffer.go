@@ -51,6 +51,13 @@ const (
 	bucketsLen = 3
 )
 
+type computeBucketIdxOp int
+
+const (
+	computeBucketIdx computeBucketIdxOp = iota
+	computeAndResetBucketIdx
+)
+
 type dbBuffer struct {
 	opts              Options
 	nowFn             clock.NowFn
@@ -78,7 +85,7 @@ func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuff
 }
 
 func (b *dbBuffer) Reset() {
-	b.pastMostBucketIdx = b.forEachBucketAscToDrainOrReset(b.nowFn(), func(bucket *dbBufferBucket, start time.Time) {
+	b.computedForEachBucketAsc(b.nowFn(), computeAndResetBucketIdx, func(bucket *dbBufferBucket, start time.Time) {
 		bucket.opts = b.opts
 		bucket.resetTo(start)
 	})
@@ -137,7 +144,7 @@ func (b *dbBuffer) IsEmpty() bool {
 func (b *dbBuffer) NeedsDrain() bool {
 	now := b.nowFn()
 	needsDrainAny := false
-	b.forEachBucketAscToDrainOrReset(now, func(bucket *dbBufferBucket, current time.Time) {
+	b.computedForEachBucketAsc(now, computeBucketIdx, func(bucket *dbBufferBucket, current time.Time) {
 		needsDrainAny = needsDrainAny || bucket.needsDrain(now, current)
 	})
 	return needsDrainAny
@@ -145,7 +152,7 @@ func (b *dbBuffer) NeedsDrain() bool {
 
 func (b *dbBuffer) DrainAndReset() {
 	now := b.nowFn()
-	b.pastMostBucketIdx = b.forEachBucketAscToDrainOrReset(now, func(bucket *dbBufferBucket, current time.Time) {
+	b.computedForEachBucketAsc(now, computeAndResetBucketIdx, func(bucket *dbBufferBucket, current time.Time) {
 		if bucket.needsDrain(now, current) {
 			bucket.merge()
 
@@ -187,16 +194,17 @@ func (b *dbBuffer) forEachBucketAsc(fn func(*dbBufferBucket)) {
 	}
 }
 
-// forEachBucketAscToDrainOrReset iterates over the buckets in time ascending order
-// to drain or reset the buckets and returns the past most bucket index
-func (b *dbBuffer) forEachBucketAscToDrainOrReset(now time.Time, fn func(*dbBufferBucket, time.Time)) int {
+// computedForEachBucketAsc performs computation on the buckets in time ascending order
+func (b *dbBuffer) computedForEachBucketAsc(now time.Time, op computeBucketIdxOp, fn func(*dbBufferBucket, time.Time)) {
 	pastMostBucketStart := now.Truncate(b.blockSize).Add(-1 * b.blockSize)
 	bucketNum := (pastMostBucketStart.UnixNano() / int64(b.blockSize)) % bucketsLen
 	for i := int64(0); i < bucketsLen; i++ {
 		idx := int((bucketNum + i) % bucketsLen)
 		fn(&b.buckets[idx], pastMostBucketStart.Add(time.Duration(i)*b.blockSize))
 	}
-	return int(bucketNum)
+	if op == computeAndResetBucketIdx {
+		b.pastMostBucketIdx = int(bucketNum)
+	}
 }
 
 func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.SegmentReader {
