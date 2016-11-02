@@ -101,7 +101,7 @@ type session struct {
 	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
 	seriesIteratorPool               encoding.SeriesIteratorPool
 	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
-	writeMonitorPool                 sync.Pool
+	writeStatePool                   sync.Pool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	origin                           topology.Host
@@ -174,9 +174,10 @@ func newSession(opts Options) (clientSession, error) {
 		metrics:              newSessionMetrics(scope),
 	}
 
-	s.writeMonitorPool = sync.Pool{New: func() interface{} {
-		c := &writeMonitor{session: s}
-		c.condition = &sync.Cond{L: c}
+	s.writeStatePool = sync.Pool{New: func() interface{} {
+		c := &writeState{session: s}
+		c.d, c.condition.L = c.reset, c
+
 		return c
 	}}
 
@@ -555,23 +556,50 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	return hostQueue
 }
 
-type writeMonitor struct {
+type rc struct {
+	d func()
+	n int32
+}
+
+func (r *rc) incref() {
+	if atomic.AddInt32(&r.n, 1) <= 0 {
+		panic("invalid rc state")
+	}
+}
+
+func (r *rc) decref() {
+	if v := atomic.AddInt32(&r.n, -1); v == 0 {
+		r.d()
+	} else if v < 0 {
+		panic("invalid rc state")
+	}
+}
+
+type writeState struct {
 	sync.Mutex
+	rc
 
 	session             *session
-	condition           *sync.Cond
+	condition           sync.Cond
 	op                  *writeOp
 	majority            int32
 	successful, pending int32
 	errors              []error
+
+	queues []hostQueue
 }
 
-func (w *writeMonitor) reset(op *writeOp, majority int32) {
-	w.op, w.majority, w.successful, w.pending = op, majority, 0, 0
+func (w *writeState) reset() {
+	w.session.writeOpPool.Put(w.op)
+
+	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
 	w.errors = w.errors[:]
+	w.queues = w.queues[:]
+
+	w.session.writeStatePool.Put(w)
 }
 
-func (w *writeMonitor) completionFn(result interface{}, err error) {
+func (w *writeState) completionFn(result interface{}, err error) {
 	var (
 		successful int32
 		remaining  = atomic.AddInt32(&w.pending, -1)
@@ -585,35 +613,25 @@ func (w *writeMonitor) completionFn(result interface{}, err error) {
 		successful = atomic.AddInt32(&w.successful, 1)
 	}
 
+	w.Lock()
+
 	switch w.session.writeLevel {
 	case topology.ConsistencyLevelOne:
-		if successful == 0 && remaining != 0 {
-			return
+		if successful > 0 || remaining == 0 {
+			w.condition.Signal()
 		}
 	case topology.ConsistencyLevelMajority:
-		if successful < w.majority && remaining != 0 {
-			return
+		if successful >= w.majority || remaining == 0 {
+			w.condition.Signal()
 		}
 	case topology.ConsistencyLevelAll:
-		if remaining != 0 {
-			return
+		if remaining == 0 {
+			w.condition.Signal()
 		}
 	}
 
-	w.Lock()
-	w.condition.Signal()
 	w.Unlock()
-
-	// Finalize resources that can be returned
-	if remaining == 0 {
-		w.release()
-	}
-}
-
-func (w *writeMonitor) release() {
-	w.session.writeOpPool.Put(w.op)
-	w.op = nil
-	w.session.writeMonitorPool.Put(w)
+	w.decref()
 }
 
 func (s *session) Write(namespace, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
@@ -638,8 +656,10 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		return errSessionStateNotOpen
 	}
 
-	c := s.writeMonitorPool.Get().(*writeMonitor)
-	c.reset(s.writeOpPool.Get(), majority)
+	c := s.writeStatePool.Get().(*writeState)
+	c.incref()
+
+	c.op, c.majority = s.writeOpPool.Get(), majority
 
 	c.op.namespace = ts.StringID(namespace)
 	c.op.request.ID = tsID.Data()
@@ -649,34 +669,35 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	c.op.request.Datapoint.Annotation = annotation
 	c.op.completionFn = c.completionFn
 
-	var queues []hostQueue
-
 	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// First count all the pending write requests to ensure
 		// we count the amount we're going to be waiting for
 		// before we enqueue the completion fns that rely on having
 		// an accurate number of the pending requests when they execute
 		c.pending++
-		queues = append(queues, s.queues[idx])
+		c.queues = append(c.queues, s.queues[idx])
 	}); err != nil {
-		c.release()
+		c.decref()
 		s.RUnlock()
 		return err
 	}
 
 	c.Lock()
 
-	for i := range queues {
-		if err := queues[i].Enqueue(c.op); err != nil {
+	for i := range c.queues {
+		if err := c.queues[i].Enqueue(c.op); err != nil {
+			c.Unlock()
+			c.decref()
+
 			// NB(r): if this ever happens we have a code bug, once we
 			// are in the read lock the current queues we are using should
 			// never be closed
-			c.Unlock()
 			s.RUnlock()
 			s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", err)
 			return err
 		}
 
+		c.incref()
 		enqueued++
 	}
 
@@ -689,6 +710,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	s.incWriteMetrics(err, int32(len(c.errors)))
 
 	c.Unlock()
+	c.decref()
 
 	return err
 }
