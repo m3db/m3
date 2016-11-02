@@ -159,7 +159,7 @@ func TestPersistenceManagerNoThroughputLimit(t *testing.T) {
 	writer.EXPECT().WriteAll(id, pm.segmentHolder).Return(nil).Times(2)
 
 	// Disable throughput limiting
-	pm.throughputLimitMbps = 0.0
+	pm.throughputLimitOpts = pm.throughputLimitOpts.SetThroughputLimitEnabled(false)
 
 	// Start persistence
 	now = time.Now()
@@ -195,8 +195,10 @@ func TestPersistenceManagerWithThroughputLimit(t *testing.T) {
 	writer.EXPECT().Close().Times(iter)
 
 	// Enable throughput limiting
-	pm.throughputCheckInterval = time.Microsecond
-	pm.throughputLimitMbps = 16.0
+	pm.throughputLimitOpts = pm.throughputLimitOpts.
+		SetThroughputLimitEnabled(true).
+		SetThroughputCheckInterval(time.Microsecond).
+		SetThroughputLimitMbps(16.0)
 
 	for i := 0; i < iter; i++ {
 		// Start persistence

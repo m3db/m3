@@ -37,16 +37,15 @@ type sleepFn func(time.Duration)
 // persistManager is responsible for persisting series segments onto local filesystem.
 // It is not thread-safe.
 type persistManager struct {
-	opts                    Options
-	filePathPrefix          string
-	throughputCheckInterval time.Duration
-	throughputLimitMbps     float64
-	nowFn                   clock.NowFn
-	sleepFn                 sleepFn
-	writer                  FileSetWriter
-	start                   time.Time
-	lastCheck               time.Time
-	bytesWritten            int64
+	opts                Options
+	filePathPrefix      string
+	throughputLimitOpts persist.ThroughputLimitOptions
+	nowFn               clock.NowFn
+	sleepFn             sleepFn
+	writer              FileSetWriter
+	start               time.Time
+	lastCheck           time.Time
+	bytesWritten        int64
 
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
 	// head and the tail of each segment so we don't need to allocate memory
@@ -63,26 +62,26 @@ func NewPersistManager(opts Options) persist.Manager {
 	newDirectoryMode := opts.NewDirectoryMode()
 	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 	return &persistManager{
-		opts:                    opts,
-		filePathPrefix:          filePathPrefix,
-		throughputCheckInterval: opts.ThroughputCheckInterval(),
-		throughputLimitMbps:     opts.ThroughputLimitMbps(),
-		nowFn:                   opts.ClockOptions().NowFn(),
-		sleepFn:                 time.Sleep,
-		writer:                  writer,
-		segmentHolder:           make([][]byte, 2),
+		opts:                opts,
+		filePathPrefix:      filePathPrefix,
+		throughputLimitOpts: opts.ThroughputLimitOptions(),
+		nowFn:               opts.ClockOptions().NowFn(),
+		sleepFn:             time.Sleep,
+		writer:              writer,
+		segmentHolder:       make([][]byte, 2),
 	}
 }
 
 func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
-	if pm.throughputLimitMbps > 0.0 {
+	throughputLimitMbps := pm.throughputLimitOpts.ThroughputLimitMbps()
+	if pm.throughputLimitOpts.ThroughputLimitEnabled() && throughputLimitMbps > 0.0 {
 		now := pm.nowFn()
 		if pm.lastCheck.IsZero() {
 			pm.start = now
 			pm.lastCheck = now
-		} else if now.Sub(pm.lastCheck) >= pm.throughputCheckInterval {
+		} else if now.Sub(pm.lastCheck) >= pm.throughputLimitOpts.ThroughputCheckInterval() {
 			pm.lastCheck = now
-			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / float64(pm.throughputLimitMbps*bytesPerMegabit))
+			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / float64(throughputLimitMbps*bytesPerMegabit))
 			if elapsed := now.Sub(pm.start); elapsed < target {
 				pm.sleepFn(target - elapsed)
 			}
@@ -124,4 +123,12 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 	prepared.Persist = pm.persist
 	prepared.Close = pm.close
 	return prepared, nil
+}
+
+func (pm *persistManager) SetThroughputLimitOptions(value persist.ThroughputLimitOptions) {
+	pm.throughputLimitOpts = value
+}
+
+func (pm *persistManager) ThroughputLimitOptions() persist.ThroughputLimitOptions {
+	return pm.throughputLimitOpts
 }

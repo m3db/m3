@@ -262,6 +262,12 @@ type databaseFlushManager interface {
 
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
+
+	// SetThroughputLimitOptions sets the throughput limit options
+	SetThroughputLimitOptions(value persist.ThroughputLimitOptions)
+
+	// ThroughputLimitOptions returns the throughput limit options
+	ThroughputLimitOptions() persist.ThroughputLimitOptions
 }
 
 // databaseCleanupManager manages cleaning up persistent storage space.

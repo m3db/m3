@@ -45,4 +45,31 @@ type Manager interface {
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
 	Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error)
+
+	// SetThroughputLimitOptions sets the throughput limit options
+	SetThroughputLimitOptions(value ThroughputLimitOptions)
+
+	// ThroughputLimitOptions returns the throughput limit options
+	ThroughputLimitOptions() ThroughputLimitOptions
+}
+
+// ThroughputLimitOptions provides options for throughput limiting
+type ThroughputLimitOptions interface {
+	// SetThroughputLimitEnabled determines whether throughput limiting is enabled
+	SetThroughputLimitEnabled(value bool) ThroughputLimitOptions
+
+	// ThroughputLimitEnabled returns whether throughput limiting is enabled
+	ThroughputLimitEnabled() bool
+
+	// SetThroughputLimitMbps sets the filesystem throughput limit
+	SetThroughputLimitMbps(value float64) ThroughputLimitOptions
+
+	// ThroughputLimitMbps returns the filesystem throughput limit
+	ThroughputLimitMbps() float64
+
+	// SetThroughputCheckInterval sets the filesystem throughput check interval
+	SetThroughputCheckInterval(value time.Duration) ThroughputLimitOptions
+
+	// ThroughputCheckInterval returns the filesystem throughput check interval
+	ThroughputCheckInterval() time.Duration
 }

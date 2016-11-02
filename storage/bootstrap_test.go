@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 
@@ -53,8 +54,11 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	}
 
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
+	throughputLimitOpts := persist.NewThroughputLimitOptions()
 	fsm := NewMockdatabaseFileSystemManager(ctrl)
+	fsm.EXPECT().ThroughputLimitOptions().Return(throughputLimitOpts)
 	fsm.EXPECT().Run(now, false)
+	fsm.EXPECT().SetThroughputLimitOptions(gomock.Any()).Times(2)
 	bsm := newBootstrapManager(db, fsm).(*bootstrapManager)
 	err := bsm.Bootstrap()
 

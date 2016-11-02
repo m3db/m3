@@ -181,3 +181,16 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 
 	return pm.createPreparedWithError(multiErr)
 }
+
+func (pm *persistManager) SetThroughputLimitOptions(value persist.ThroughputLimitOptions) {
+	for i := range pm.managers {
+		pm.managers[i].SetThroughputLimitOptions(value)
+	}
+}
+
+func (pm *persistManager) ThroughputLimitOptions() persist.ThroughputLimitOptions {
+	for i := range pm.managers {
+		return pm.managers[i].ThroughputLimitOptions()
+	}
+	return nil
+}

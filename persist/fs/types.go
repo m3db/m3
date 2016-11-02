@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
@@ -89,6 +90,12 @@ type Options interface {
 	// RetentionOptions returns the retention options
 	RetentionOptions() retention.Options
 
+	// SetThroughputLimitOptions sets the throughput limit options
+	SetThroughputLimitOptions(value persist.ThroughputLimitOptions) Options
+
+	// ThroughputLimitOptions returns the throughput limit options
+	ThroughputLimitOptions() persist.ThroughputLimitOptions
+
 	// SetFilePathPrefix sets the file path prefix for sharded TSDB files
 	SetFilePathPrefix(value string) Options
 
@@ -118,16 +125,4 @@ type Options interface {
 
 	// ReaderBufferSize returns the buffer size for reading TSDB files
 	ReaderBufferSize() int
-
-	// SetThroughputCheckInterval sets the filesystem throughput check interval
-	SetThroughputCheckInterval(value time.Duration) Options
-
-	// ThroughputCheckInterval returns the filesystem throughput check interval
-	ThroughputCheckInterval() time.Duration
-
-	// SetThroughputLimitMbps sets the filesystem throughput limit
-	SetThroughputLimitMbps(value float64) Options
-
-	// ThroughputLimitMbps returns the filesystem throughput limit
-	ThroughputLimitMbps() float64
 }

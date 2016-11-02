@@ -145,6 +145,14 @@ func (m *flushManager) Flush(t time.Time) error {
 	return nil
 }
 
+func (m *flushManager) SetThroughputLimitOptions(value persist.ThroughputLimitOptions) {
+	m.pm.SetThroughputLimitOptions(value)
+}
+
+func (m *flushManager) ThroughputLimitOptions() persist.ThroughputLimitOptions {
+	return m.pm.ThroughputLimitOptions()
+}
+
 // flushTimes returns a list of times we need to flush data blocks for.
 func (m *flushManager) flushTimes(t time.Time) []time.Time {
 	earliest, latest := m.FlushTimeStart(t), m.FlushTimeEnd(t)
