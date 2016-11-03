@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
+	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 )
 
@@ -50,31 +51,29 @@ var (
 )
 
 type options struct {
-	clockOpts               clock.Options
-	instrumentOpts          instrument.Options
-	retentionOpts           retention.Options
-	filePathPrefix          string
-	newFileMode             os.FileMode
-	newDirectoryMode        os.FileMode
-	writerBufferSize        int
-	readerBufferSize        int
-	throughputCheckInterval time.Duration
-	throughputLimitMbps     float64
+	clockOpts        clock.Options
+	instrumentOpts   instrument.Options
+	retentionOpts    retention.Options
+	rateLimitOpts    ratelimit.Options
+	filePathPrefix   string
+	newFileMode      os.FileMode
+	newDirectoryMode os.FileMode
+	writerBufferSize int
+	readerBufferSize int
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
 	return &options{
-		clockOpts:               clock.NewOptions(),
-		instrumentOpts:          instrument.NewOptions(),
-		retentionOpts:           retention.NewOptions(),
-		filePathPrefix:          defaultFilePathPrefix,
-		newFileMode:             defaultNewFileMode,
-		newDirectoryMode:        defaultNewDirectoryMode,
-		writerBufferSize:        defaultWriterBufferSize,
-		readerBufferSize:        defaultReaderBufferSize,
-		throughputCheckInterval: defaultThroughputCheckInterval,
-		throughputLimitMbps:     defaultThroughputLimitMbps,
+		clockOpts:        clock.NewOptions(),
+		instrumentOpts:   instrument.NewOptions(),
+		retentionOpts:    retention.NewOptions(),
+		rateLimitOpts:    ratelimit.NewOptions(),
+		filePathPrefix:   defaultFilePathPrefix,
+		newFileMode:      defaultNewFileMode,
+		newDirectoryMode: defaultNewDirectoryMode,
+		writerBufferSize: defaultWriterBufferSize,
+		readerBufferSize: defaultReaderBufferSize,
 	}
 }
 
@@ -106,6 +105,16 @@ func (o *options) SetRetentionOptions(value retention.Options) Options {
 
 func (o *options) RetentionOptions() retention.Options {
 	return o.retentionOpts
+}
+
+func (o *options) SetRateLimitOptions(value ratelimit.Options) Options {
+	opts := *o
+	opts.rateLimitOpts = value
+	return &opts
+}
+
+func (o *options) RateLimitOptions() ratelimit.Options {
+	return o.rateLimitOpts
 }
 
 func (o *options) SetFilePathPrefix(value string) Options {
@@ -156,24 +165,4 @@ func (o *options) SetReaderBufferSize(value int) Options {
 
 func (o *options) ReaderBufferSize() int {
 	return o.readerBufferSize
-}
-
-func (o *options) SetThroughputCheckInterval(value time.Duration) Options {
-	opts := *o
-	opts.throughputCheckInterval = value
-	return &opts
-}
-
-func (o *options) ThroughputCheckInterval() time.Duration {
-	return o.throughputCheckInterval
-}
-
-func (o *options) SetThroughputLimitMbps(value float64) Options {
-	opts := *o
-	opts.throughputLimitMbps = value
-	return &opts
-}
-
-func (o *options) ThroughputLimitMbps() float64 {
-	return o.throughputLimitMbps
 }

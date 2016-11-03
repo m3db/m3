@@ -18,38 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package persist
+package ratelimit
 
-import (
-	"time"
+import "time"
 
-	"github.com/m3db/m3db/ratelimit"
-	"github.com/m3db/m3db/ts"
-)
+// Options provides options for rate limiting
+type Options interface {
+	// SetLimitEnabled determines whether rate limiting is enabled
+	SetLimitEnabled(value bool) Options
 
-// Fn is a function that persists a m3db segment for a given ID
-type Fn func(id ts.ID, segment ts.Segment) error
+	// LimitEnabled returns whether rate limiting is enabled
+	LimitEnabled() bool
 
-// Closer is a function that performs cleanup after persisting the data
-// blocks for a (shard, blockStart) combination
-type Closer func()
+	// SetLimitMbps sets the limit
+	SetLimitMbps(value float64) Options
 
-// PreparedPersist is an object that wraps holds a persist function and a closer
-type PreparedPersist struct {
-	Persist Fn
-	Close   Closer
-}
+	// LimitMbps returns the limit
+	LimitMbps() float64
 
-// Manager manages the internals of persisting data onto storage layer
-type Manager interface {
-	// Prepare prepares writing data for a given (shard, blockStart) combination,
-	// returning a PreparedPersist object and any error encountered during
-	// preparation if any.
-	Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error)
+	// SetLimitCheckInterval sets the limit check interval
+	SetLimitCheckInterval(value time.Duration) Options
 
-	// SetRateLimitOptions sets the rate limit options
-	SetRateLimitOptions(value ratelimit.Options)
-
-	// RateLimitOptions returns the rate limit options
-	RateLimitOptions() ratelimit.Options
+	// LimitCheckInterval returns the limit check interval
+	LimitCheckInterval() time.Duration
 }
