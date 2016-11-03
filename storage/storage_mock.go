@@ -32,6 +32,7 @@ import (
 	persist "github.com/m3db/m3db/persist"
 	commitlog "github.com/m3db/m3db/persist/fs/commitlog"
 	pool "github.com/m3db/m3db/pool"
+	ratelimit "github.com/m3db/m3db/ratelimit"
 	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
 	bootstrap "github.com/m3db/m3db/storage/bootstrap"
@@ -569,22 +570,22 @@ func (_mr *_MockdatabaseFlushManagerRecorder) Flush(arg0 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0)
 }
 
-func (_m *MockdatabaseFlushManager) SetThroughputLimitOptions(value persist.ThroughputLimitOptions) {
-	_m.ctrl.Call(_m, "SetThroughputLimitOptions", value)
+func (_m *MockdatabaseFlushManager) SetRateLimitOptions(value ratelimit.Options) {
+	_m.ctrl.Call(_m, "SetRateLimitOptions", value)
 }
 
-func (_mr *_MockdatabaseFlushManagerRecorder) SetThroughputLimitOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetThroughputLimitOptions", arg0)
+func (_mr *_MockdatabaseFlushManagerRecorder) SetRateLimitOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRateLimitOptions", arg0)
 }
 
-func (_m *MockdatabaseFlushManager) ThroughputLimitOptions() persist.ThroughputLimitOptions {
-	ret := _m.ctrl.Call(_m, "ThroughputLimitOptions")
-	ret0, _ := ret[0].(persist.ThroughputLimitOptions)
+func (_m *MockdatabaseFlushManager) RateLimitOptions() ratelimit.Options {
+	ret := _m.ctrl.Call(_m, "RateLimitOptions")
+	ret0, _ := ret[0].(ratelimit.Options)
 	return ret0
 }
 
-func (_mr *_MockdatabaseFlushManagerRecorder) ThroughputLimitOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ThroughputLimitOptions")
+func (_mr *_MockdatabaseFlushManagerRecorder) RateLimitOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RateLimitOptions")
 }
 
 // Mock of databaseCleanupManager interface
@@ -770,22 +771,22 @@ func (_mr *_MockdatabaseFileSystemManagerRecorder) Flush(arg0 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0)
 }
 
-func (_m *MockdatabaseFileSystemManager) SetThroughputLimitOptions(value persist.ThroughputLimitOptions) {
-	_m.ctrl.Call(_m, "SetThroughputLimitOptions", value)
+func (_m *MockdatabaseFileSystemManager) SetRateLimitOptions(value ratelimit.Options) {
+	_m.ctrl.Call(_m, "SetRateLimitOptions", value)
 }
 
-func (_mr *_MockdatabaseFileSystemManagerRecorder) SetThroughputLimitOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetThroughputLimitOptions", arg0)
+func (_mr *_MockdatabaseFileSystemManagerRecorder) SetRateLimitOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRateLimitOptions", arg0)
 }
 
-func (_m *MockdatabaseFileSystemManager) ThroughputLimitOptions() persist.ThroughputLimitOptions {
-	ret := _m.ctrl.Call(_m, "ThroughputLimitOptions")
-	ret0, _ := ret[0].(persist.ThroughputLimitOptions)
+func (_m *MockdatabaseFileSystemManager) RateLimitOptions() ratelimit.Options {
+	ret := _m.ctrl.Call(_m, "RateLimitOptions")
+	ret0, _ := ret[0].(ratelimit.Options)
 	return ret0
 }
 
-func (_mr *_MockdatabaseFileSystemManagerRecorder) ThroughputLimitOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ThroughputLimitOptions")
+func (_mr *_MockdatabaseFileSystemManagerRecorder) RateLimitOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RateLimitOptions")
 }
 
 func (_m *MockdatabaseFileSystemManager) IsCleaningUp() bool {

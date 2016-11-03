@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
-	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 )
 
@@ -51,29 +51,29 @@ var (
 )
 
 type options struct {
-	clockOpts           clock.Options
-	instrumentOpts      instrument.Options
-	retentionOpts       retention.Options
-	throughputLimitOpts persist.ThroughputLimitOptions
-	filePathPrefix      string
-	newFileMode         os.FileMode
-	newDirectoryMode    os.FileMode
-	writerBufferSize    int
-	readerBufferSize    int
+	clockOpts        clock.Options
+	instrumentOpts   instrument.Options
+	retentionOpts    retention.Options
+	rateLimitOpts    ratelimit.Options
+	filePathPrefix   string
+	newFileMode      os.FileMode
+	newDirectoryMode os.FileMode
+	writerBufferSize int
+	readerBufferSize int
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
 	return &options{
-		clockOpts:           clock.NewOptions(),
-		instrumentOpts:      instrument.NewOptions(),
-		retentionOpts:       retention.NewOptions(),
-		throughputLimitOpts: persist.NewThroughputLimitOptions(),
-		filePathPrefix:      defaultFilePathPrefix,
-		newFileMode:         defaultNewFileMode,
-		newDirectoryMode:    defaultNewDirectoryMode,
-		writerBufferSize:    defaultWriterBufferSize,
-		readerBufferSize:    defaultReaderBufferSize,
+		clockOpts:        clock.NewOptions(),
+		instrumentOpts:   instrument.NewOptions(),
+		retentionOpts:    retention.NewOptions(),
+		rateLimitOpts:    ratelimit.NewOptions(),
+		filePathPrefix:   defaultFilePathPrefix,
+		newFileMode:      defaultNewFileMode,
+		newDirectoryMode: defaultNewDirectoryMode,
+		writerBufferSize: defaultWriterBufferSize,
+		readerBufferSize: defaultReaderBufferSize,
 	}
 }
 
@@ -107,14 +107,14 @@ func (o *options) RetentionOptions() retention.Options {
 	return o.retentionOpts
 }
 
-func (o *options) SetThroughputLimitOptions(value persist.ThroughputLimitOptions) Options {
+func (o *options) SetRateLimitOptions(value ratelimit.Options) Options {
 	opts := *o
-	opts.throughputLimitOpts = value
+	opts.rateLimitOpts = value
 	return &opts
 }
 
-func (o *options) ThroughputLimitOptions() persist.ThroughputLimitOptions {
-	return o.throughputLimitOpts
+func (o *options) RateLimitOptions() ratelimit.Options {
+	return o.rateLimitOpts
 }
 
 func (o *options) SetFilePathPrefix(value string) Options {

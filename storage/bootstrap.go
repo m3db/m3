@@ -144,10 +144,10 @@ func (m *bootstrapManager) Bootstrap() error {
 	// At this point we have bootstrapped everything between now - retentionPeriod
 	// and now, so we should run the filesystem manager to clean up files and flush
 	// all the data we bootstrapped.
-	throughputLimitOpts := m.fsManager.ThroughputLimitOptions()
-	m.fsManager.SetThroughputLimitOptions(throughputLimitOpts.SetThroughputLimitEnabled(false))
+	rateLimitOpts := m.fsManager.RateLimitOptions()
+	m.fsManager.SetRateLimitOptions(rateLimitOpts.SetLimitEnabled(false))
 	m.fsManager.Run(m.nowFn(), false)
-	m.fsManager.SetThroughputLimitOptions(throughputLimitOpts)
+	m.fsManager.SetRateLimitOptions(rateLimitOpts)
 
 	m.Lock()
 	m.state = bootstrapped

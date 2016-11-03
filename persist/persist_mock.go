@@ -25,6 +25,7 @@ package persist
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	ratelimit "github.com/m3db/m3db/ratelimit"
 	ts "github.com/m3db/m3db/ts"
 	time "time"
 )
@@ -61,101 +62,20 @@ func (_mr *_MockManagerRecorder) Prepare(arg0, arg1, arg2 interface{}) *gomock.C
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Prepare", arg0, arg1, arg2)
 }
 
-func (_m *MockManager) SetThroughputLimitOptions(value ThroughputLimitOptions) {
-	_m.ctrl.Call(_m, "SetThroughputLimitOptions", value)
+func (_m *MockManager) SetRateLimitOptions(value ratelimit.Options) {
+	_m.ctrl.Call(_m, "SetRateLimitOptions", value)
 }
 
-func (_mr *_MockManagerRecorder) SetThroughputLimitOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetThroughputLimitOptions", arg0)
+func (_mr *_MockManagerRecorder) SetRateLimitOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRateLimitOptions", arg0)
 }
 
-func (_m *MockManager) ThroughputLimitOptions() ThroughputLimitOptions {
-	ret := _m.ctrl.Call(_m, "ThroughputLimitOptions")
-	ret0, _ := ret[0].(ThroughputLimitOptions)
+func (_m *MockManager) RateLimitOptions() ratelimit.Options {
+	ret := _m.ctrl.Call(_m, "RateLimitOptions")
+	ret0, _ := ret[0].(ratelimit.Options)
 	return ret0
 }
 
-func (_mr *_MockManagerRecorder) ThroughputLimitOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ThroughputLimitOptions")
-}
-
-// Mock of ThroughputLimitOptions interface
-type MockThroughputLimitOptions struct {
-	ctrl     *gomock.Controller
-	recorder *_MockThroughputLimitOptionsRecorder
-}
-
-// Recorder for MockThroughputLimitOptions (not exported)
-type _MockThroughputLimitOptionsRecorder struct {
-	mock *MockThroughputLimitOptions
-}
-
-func NewMockThroughputLimitOptions(ctrl *gomock.Controller) *MockThroughputLimitOptions {
-	mock := &MockThroughputLimitOptions{ctrl: ctrl}
-	mock.recorder = &_MockThroughputLimitOptionsRecorder{mock}
-	return mock
-}
-
-func (_m *MockThroughputLimitOptions) EXPECT() *_MockThroughputLimitOptionsRecorder {
-	return _m.recorder
-}
-
-func (_m *MockThroughputLimitOptions) SetThroughputLimitEnabled(value bool) ThroughputLimitOptions {
-	ret := _m.ctrl.Call(_m, "SetThroughputLimitEnabled", value)
-	ret0, _ := ret[0].(ThroughputLimitOptions)
-	return ret0
-}
-
-func (_mr *_MockThroughputLimitOptionsRecorder) SetThroughputLimitEnabled(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetThroughputLimitEnabled", arg0)
-}
-
-func (_m *MockThroughputLimitOptions) ThroughputLimitEnabled() bool {
-	ret := _m.ctrl.Call(_m, "ThroughputLimitEnabled")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-func (_mr *_MockThroughputLimitOptionsRecorder) ThroughputLimitEnabled() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ThroughputLimitEnabled")
-}
-
-func (_m *MockThroughputLimitOptions) SetThroughputLimitMbps(value float64) ThroughputLimitOptions {
-	ret := _m.ctrl.Call(_m, "SetThroughputLimitMbps", value)
-	ret0, _ := ret[0].(ThroughputLimitOptions)
-	return ret0
-}
-
-func (_mr *_MockThroughputLimitOptionsRecorder) SetThroughputLimitMbps(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetThroughputLimitMbps", arg0)
-}
-
-func (_m *MockThroughputLimitOptions) ThroughputLimitMbps() float64 {
-	ret := _m.ctrl.Call(_m, "ThroughputLimitMbps")
-	ret0, _ := ret[0].(float64)
-	return ret0
-}
-
-func (_mr *_MockThroughputLimitOptionsRecorder) ThroughputLimitMbps() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ThroughputLimitMbps")
-}
-
-func (_m *MockThroughputLimitOptions) SetThroughputCheckInterval(value time.Duration) ThroughputLimitOptions {
-	ret := _m.ctrl.Call(_m, "SetThroughputCheckInterval", value)
-	ret0, _ := ret[0].(ThroughputLimitOptions)
-	return ret0
-}
-
-func (_mr *_MockThroughputLimitOptionsRecorder) SetThroughputCheckInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetThroughputCheckInterval", arg0)
-}
-
-func (_m *MockThroughputLimitOptions) ThroughputCheckInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "ThroughputCheckInterval")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-func (_mr *_MockThroughputLimitOptionsRecorder) ThroughputCheckInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ThroughputCheckInterval")
+func (_mr *_MockManagerRecorder) RateLimitOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RateLimitOptions")
 }

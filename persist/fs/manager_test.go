@@ -140,7 +140,7 @@ func TestPersistenceManagerClose(t *testing.T) {
 	require.Equal(t, int64(0), pm.bytesWritten)
 }
 
-func TestPersistenceManagerNoThroughputLimit(t *testing.T) {
+func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -158,8 +158,8 @@ func TestPersistenceManagerNoThroughputLimit(t *testing.T) {
 	pm.sleepFn = func(d time.Duration) { slept += d }
 	writer.EXPECT().WriteAll(id, pm.segmentHolder).Return(nil).Times(2)
 
-	// Disable throughput limiting
-	pm.throughputLimitOpts = pm.throughputLimitOpts.SetThroughputLimitEnabled(false)
+	// Disable rate limiting
+	pm.rateLimitOpts = pm.rateLimitOpts.SetLimitEnabled(false)
 
 	// Start persistence
 	now = time.Now()
@@ -174,7 +174,7 @@ func TestPersistenceManagerNoThroughputLimit(t *testing.T) {
 	require.Equal(t, int64(6), pm.bytesWritten)
 }
 
-func TestPersistenceManagerWithThroughputLimit(t *testing.T) {
+func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -194,11 +194,11 @@ func TestPersistenceManagerWithThroughputLimit(t *testing.T) {
 	writer.EXPECT().WriteAll(id, pm.segmentHolder).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
-	// Enable throughput limiting
-	pm.throughputLimitOpts = pm.throughputLimitOpts.
-		SetThroughputLimitEnabled(true).
-		SetThroughputCheckInterval(time.Microsecond).
-		SetThroughputLimitMbps(16.0)
+	// Enable rate limiting
+	pm.rateLimitOpts = pm.rateLimitOpts.
+		SetLimitEnabled(true).
+		SetLimitCheckInterval(time.Microsecond).
+		SetLimitMbps(16.0)
 
 	for i := 0; i < iter; i++ {
 		// Start persistence

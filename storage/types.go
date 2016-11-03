@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -263,11 +264,11 @@ type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
 
-	// SetThroughputLimitOptions sets the throughput limit options
-	SetThroughputLimitOptions(value persist.ThroughputLimitOptions)
+	// SetRateLimitOptions sets the rate limit options
+	SetRateLimitOptions(value ratelimit.Options)
 
-	// ThroughputLimitOptions returns the throughput limit options
-	ThroughputLimitOptions() persist.ThroughputLimitOptions
+	// RateLimitOptions returns the rate limit options
+	RateLimitOptions() ratelimit.Options
 }
 
 // databaseCleanupManager manages cleaning up persistent storage space.

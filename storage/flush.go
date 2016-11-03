@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"
@@ -145,12 +146,12 @@ func (m *flushManager) Flush(t time.Time) error {
 	return nil
 }
 
-func (m *flushManager) SetThroughputLimitOptions(value persist.ThroughputLimitOptions) {
-	m.pm.SetThroughputLimitOptions(value)
+func (m *flushManager) SetRateLimitOptions(value ratelimit.Options) {
+	m.pm.SetRateLimitOptions(value)
 }
 
-func (m *flushManager) ThroughputLimitOptions() persist.ThroughputLimitOptions {
-	return m.pm.ThroughputLimitOptions()
+func (m *flushManager) RateLimitOptions() ratelimit.Options {
+	return m.pm.RateLimitOptions()
 }
 
 // flushTimes returns a list of times we need to flush data blocks for.
