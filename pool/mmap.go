@@ -18,59 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package pool
 
 import (
-	"bytes"
-	"crypto/md5"
+	"fmt"
+	"syscall"
 )
 
-// BinaryID constructs a new ID based on a binary value
-func BinaryID(v []byte) ID {
-	return &id{data: v}
-}
+const (
+	mmapRegionProtections = syscall.PROT_READ | syscall.PROT_WRITE
+	mmapFlags             = syscall.MAP_ANON | syscall.MAP_PRIVATE
+)
 
-// StringID constructs a new ID based on a string value
-func StringID(v string) ID {
-	return BinaryID([]byte(v))
-}
-
-type id struct {
-	data []byte
-	hash Hash
-	pool *identifierPool
-}
-
-// Data returns the binary value of an ID
-func (v *id) Data() []byte {
-	return v.data
-}
-
-func (v *id) Equal(value ID) bool {
-	return bytes.Equal(v.Data(), value.Data())
-}
-
-var null = Hash{}
-
-// Hash calculates and returns the hash of an ID
-func (v *id) Hash() Hash {
-	if bytes.Equal(v.hash[:], null[:]) {
-		v.hash = md5.Sum(v.data)
+func mmap(n int) []byte {
+	if r, err := syscall.Mmap(
+		0, 0, n, mmapRegionProtections, mmapFlags,
+	); err != nil {
+		panic(fmt.Errorf("off-heap arena acquire error: %v", err))
+	} else {
+		return r
 	}
-
-	return Hash(v.hash)
 }
 
-func (v *id) OnClose() {
-	if v.pool == nil {
-		return
+func munmap(p []byte) {
+	if err := syscall.Munmap(p); err != nil {
+		panic(fmt.Errorf("off-heap arena release error: %v", err))
 	}
-
-	v.pool.heap.Put(v.data)
-	v.data, v.hash = nil, null
-	v.pool.pool.Put(v)
-}
-
-func (v *id) String() string {
-	return string(v.data)
 }
