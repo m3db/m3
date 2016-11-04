@@ -22,6 +22,7 @@ package placement
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -296,6 +297,20 @@ func TestCopy(t *testing.T) {
 		hs.AddShard(100)
 		assert.NotEqual(t, copy.HostShard(hs.Host().ID()), hs)
 	}
+}
+
+func TestSortHostByID(t *testing.T) {
+	h1 := NewHost("h1", "", "", 1)
+	h2 := NewHost("h2", "", "", 1)
+	h3 := NewHost("h3", "", "", 1)
+	h4 := NewHost("h4", "", "", 1)
+	h5 := NewHost("h5", "", "", 1)
+	h6 := NewHost("h6", "", "", 1)
+
+	hs := []Host{h1, h6, h4, h2, h3, h5}
+	sort.Sort(ByIDAscending(hs))
+
+	assert.Equal(t, []Host{h1, h2, h3, h4, h5, h6}, hs)
 }
 
 func TestOptions(t *testing.T) {
