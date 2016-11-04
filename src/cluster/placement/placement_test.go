@@ -184,24 +184,24 @@ func TestValidate(t *testing.T) {
 }
 
 func TestSnapshotMarshalling(t *testing.T) {
-	invalidJSON := `{
+	invalidJSON := `{"hosts":{
 		"abc":{"ID":123,"Rack":"r1","Zone":"z1","Weight":50,"Shards":[0,7,11]}
-	}`
+	}}`
 	data := []byte(invalidJSON)
 	ps, err := NewPlacementFromJSON(data)
 	assert.Nil(t, ps)
 	assert.Error(t, err)
 
-	ps, err = NewPlacementFromJSON([]byte(`{
+	ps, err = NewPlacementFromJSON([]byte(`{"hosts":{
 		"h1":{"ID":"h1","Rack":"r1","Zone":"z1","Weight":50,"Shards":[0,7,11]}
-	}`))
+	}}`))
 	hs := ps.HostShard("h1")
 	assert.NotNil(t, hs)
 	assert.Equal(t, "[id:h1, rack:r1, zone:z1, weight:50]", hs.Host().String())
 	assert.Equal(t, 3, hs.ShardsLen())
 	assert.Equal(t, map[uint32]struct{}{0: struct{}{}, 7: struct{}{}, 11: struct{}{}}, hs.(*hostShards).shardsSet)
 
-	validJSON := `{
+	validJSON := `{"hosts":{
 		"r2h4": {"ID":"r2h4","Rack":"r2","Zone":"z1","Weight":50,"Shards":[6,13,15]},
 		"r3h5": {"ID":"r3h5","Rack":"r3","Zone":"z1","Weight":50,"Shards":[2,8,19]},
 		"r4h6": {"ID":"r4h6","Rack":"r4","Zone":"z1","Weight":50,"Shards":[3,9,18]},
@@ -209,7 +209,7 @@ func TestSnapshotMarshalling(t *testing.T) {
 		"r2h3": {"ID":"r2h3","Rack":"r2","Zone":"z1","Weight":50,"Shards":[1,4,12]},
 		"r5h7": {"ID":"r5h7","Rack":"r5","Zone":"z1","Weight":50,"Shards":[10,14]},
 		"r6h9": {"ID":"r6h9","Rack":"r6","Zone":"z1","Weight":50,"Shards":[5,16,17]}
-	}`
+	}}`
 	data = []byte(validJSON)
 	ps, err = NewPlacementFromJSON(data)
 	assert.NoError(t, err)
@@ -220,7 +220,7 @@ func TestSnapshotMarshalling(t *testing.T) {
 	testSnapshotJSONRoundTrip(t, ps)
 
 	// an extra replica for shard 1
-	invalidPlacementJSON := `{
+	invalidPlacementJSON := `{"hosts":{
 		"r1h1": {"ID":"r1h1","Rack":"r1","Zone":"z1","Weight":50,"Shards":[0,1,7,11]},
 		"r2h3": {"ID":"r2h3","Rack":"r2","Zone":"z1","Weight":50,"Shards":[1,4,12]},
 		"r2h4": {"ID":"r2h4","Rack":"r2","Zone":"z1","Weight":50,"Shards":[6,13,15]},
@@ -228,14 +228,14 @@ func TestSnapshotMarshalling(t *testing.T) {
 		"r4h6": {"ID":"r4h6","Rack":"r4","Zone":"z1","Weight":50,"Shards":[3,9,18]},
 		"r5h7": {"ID":"r5h7","Rack":"r5","Zone":"z1","Weight":50,"Shards":[10,14]},
 		"r6h9": {"ID":"r6h9","Rack":"r6","Zone":"z1","Weight":50,"Shards":[5,16,17]}
-	}`
+	}}`
 	data = []byte(invalidPlacementJSON)
 	ps, err = NewPlacementFromJSON(data)
 	assert.Equal(t, err, errInvalidShardsCount)
 	assert.Nil(t, ps)
 
 	// an extra replica for shard 0 on r1h1
-	invalidPlacementJSON = `{
+	invalidPlacementJSON = `{"hosts":{
 		"r1h1": {"ID":"r1h1","Rack":"r1","Zone":"z1","Weight":50,"Shards":[0,0,7,11]},
 		"r2h3": {"ID":"r2h3","Rack":"r2","Zone":"z1","Weight":50,"Shards":[1,4,12]},
 		"r2h4": {"ID":"r2h4","Rack":"r2","Zone":"z1","Weight":50,"Shards":[6,13,15]},
@@ -243,7 +243,7 @@ func TestSnapshotMarshalling(t *testing.T) {
 		"r4h6": {"ID":"r4h6","Rack":"r4","Zone":"z1","Weight":50,"Shards":[3,9,18]},
 		"r5h7": {"ID":"r5h7","Rack":"r5","Zone":"z1","Weight":50,"Shards":[10,14]},
 		"r6h9": {"ID":"r6h9","Rack":"r6","Zone":"z1","Weight":50,"Shards":[5,16,17]}
-	}`
+	}}`
 	data = []byte(invalidPlacementJSON)
 	ps, err = NewPlacementFromJSON(data)
 	assert.Equal(t, err, errInvalidHostShards)
@@ -316,14 +316,16 @@ func TestSortHostByID(t *testing.T) {
 func TestOptions(t *testing.T) {
 	o := NewOptions()
 	assert.False(t, o.LooseRackCheck())
-	assert.False(t, o.AcrossZones())
 	assert.False(t, o.AllowPartialReplace())
 	o = o.SetLooseRackCheck(true)
 	assert.True(t, o.LooseRackCheck())
-	o = o.SetAcrossZones(true)
-	assert.True(t, o.AcrossZones())
 	o = o.SetAllowPartialReplace(true)
 	assert.True(t, o.AllowPartialReplace())
+
+	dopts := NewDeploymentOptions()
+	assert.Equal(t, defaultMaxStepSize, dopts.MaxStepSize())
+	dopts = dopts.SetMaxStepSize(5)
+	assert.Equal(t, 5, dopts.MaxStepSize())
 }
 
 func testSnapshotJSONRoundTrip(t *testing.T, s Snapshot) {

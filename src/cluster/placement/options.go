@@ -47,7 +47,6 @@ func NewOptions() Options {
 
 type options struct {
 	looseRackCheck      bool
-	acrossZones         bool
 	allowPartialReplace bool
 }
 
@@ -57,15 +56,6 @@ func (o options) LooseRackCheck() bool {
 
 func (o options) SetLooseRackCheck(looseRackCheck bool) Options {
 	o.looseRackCheck = looseRackCheck
-	return o
-}
-
-func (o options) AcrossZones() bool {
-	return o.acrossZones
-}
-
-func (o options) SetAcrossZones(acrossZones bool) Options {
-	o.acrossZones = acrossZones
 	return o
 }
 
