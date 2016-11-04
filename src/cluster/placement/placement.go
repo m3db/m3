@@ -58,6 +58,15 @@ func NewPlacementSnapshot(hss []HostShards, shards []uint32, rf int) Snapshot {
 	return snapshot{hostShards: hss, rf: rf, shards: shards}
 }
 
+// NewPlacementFromJSON creates a Snapshot from JSON
+func NewPlacementFromJSON(data []byte) (Snapshot, error) {
+	var ps snapshot
+	if err := json.Unmarshal(data, &ps); err != nil {
+		return nil, err
+	}
+	return ps, nil
+}
+
 func (ps snapshot) HostShards() []HostShards {
 	result := make([]HostShards, ps.HostsLen())
 	for i, hs := range ps.hostShards {
@@ -136,37 +145,61 @@ func copyHostShards(hss []HostShards) []HostShards {
 	return copied
 }
 
-// NewPlacementFromJSON creates a Snapshot from JSON
-func NewPlacementFromJSON(data []byte) (Snapshot, error) {
-	var ps snapshot
-	if err := json.Unmarshal(data, &ps); err != nil {
-		return nil, err
-	}
-	return ps, nil
-}
-
 func (ps snapshot) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ps.placementSnapshotToJSON())
 }
 
 func (ps *snapshot) UnmarshalJSON(data []byte) error {
-	var m map[string]hostShardsJSON
+	var sj snapshotJSON
 	var err error
-	if err = json.Unmarshal(data, &m); err != nil {
+	if err = json.Unmarshal(data, &sj); err != nil {
 		return err
 	}
-	if *ps, err = convertJSONtoSnapshot(m); err != nil {
+	if *ps, err = convertJSONtoSnapshot(sj); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (ps snapshot) placementSnapshotToJSON() map[string]hostShardsJSON {
+type snapshotJSON struct {
+	Hosts map[string]hostShardsJSON `json:"hosts"`
+}
+
+func convertJSONtoSnapshot(sj snapshotJSON) (snapshot, error) {
+	var err error
+	hss := make([]HostShards, len(sj.Hosts))
+	shardsReplicaMap := make(map[uint32]int)
+	i := 0
+	for _, hsj := range sj.Hosts {
+		if hss[i], err = hostShardsFromJSON(hsj); err != nil {
+			return snapshot{}, err
+		}
+		for _, shard := range hss[i].Shards() {
+			shardsReplicaMap[shard] = shardsReplicaMap[shard] + 1
+		}
+		i++
+	}
+	shards := make([]uint32, 0, len(shardsReplicaMap))
+	snapshotReplica := -1
+	for shard, r := range shardsReplicaMap {
+		shards = append(shards, shard)
+		if snapshotReplica < 0 {
+			snapshotReplica = r
+			continue
+		}
+		if snapshotReplica != r {
+			return snapshot{}, errInvalidShardsCount
+		}
+	}
+	return snapshot{hostShards: hss, shards: shards, rf: snapshotReplica}, nil
+}
+
+func (ps snapshot) placementSnapshotToJSON() snapshotJSON {
 	m := make(map[string]hostShardsJSON, ps.HostsLen())
 	for _, hs := range ps.hostShards {
 		m[hs.Host().ID()] = newHostShardsJSON(hs)
 	}
-	return m
+	return snapshotJSON{Hosts: m}
 }
 
 func newHostShardsJSON(hs HostShards) hostShardsJSON {
@@ -194,35 +227,6 @@ func (su sortableUInt32) Less(i, j int) bool {
 
 func (su sortableUInt32) Swap(i, j int) {
 	su[i], su[j] = su[j], su[i]
-}
-
-func convertJSONtoSnapshot(m map[string]hostShardsJSON) (snapshot, error) {
-	var err error
-	hss := make([]HostShards, len(m))
-	shardsReplicaMap := make(map[uint32]int)
-	i := 0
-	for _, hsj := range m {
-		if hss[i], err = hostShardsFromJSON(hsj); err != nil {
-			return snapshot{}, err
-		}
-		for _, shard := range hss[i].Shards() {
-			shardsReplicaMap[shard] = shardsReplicaMap[shard] + 1
-		}
-		i++
-	}
-	shards := make([]uint32, 0, len(shardsReplicaMap))
-	snapshotReplica := -1
-	for shard, r := range shardsReplicaMap {
-		shards = append(shards, shard)
-		if snapshotReplica < 0 {
-			snapshotReplica = r
-			continue
-		}
-		if snapshotReplica != r {
-			return snapshot{}, errInvalidShardsCount
-		}
-	}
-	return snapshot{hostShards: hss, shards: shards, rf: snapshotReplica}, nil
 }
 
 type hostShardsJSON struct {

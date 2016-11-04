@@ -112,10 +112,6 @@ type Options interface {
 	LooseRackCheck() bool
 	SetLooseRackCheck(looseRackCheck bool) Options
 
-	// AcrossZone enables the placement have hosts across zones
-	AcrossZones() bool
-	SetAcrossZones(acrossZones bool) Options
-
 	// AllowPartialReplace allows shards from the leaving host to be
 	// placed on hosts other than the new hosts in a replace operation
 	AllowPartialReplace() bool

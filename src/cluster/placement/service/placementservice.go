@@ -30,11 +30,11 @@ import (
 )
 
 var (
-	errInvalidShardLen    = errors.New("shardLen should be greater than zero")
-	errHostAbsent         = errors.New("could not remove or replace a host that does not exist")
-	errNoValidHost        = errors.New("no valid host in the candidate list")
-	errDisableAcrossZones = errors.New("could not disable across zones on a placement that contains multi zones")
-	errHostsAcrossZones   = errors.New("could not init placement on hosts across zones with acrossZones disabled")
+	errInvalidShardLen      = errors.New("shardLen should be greater than zero")
+	errHostAbsent           = errors.New("could not remove or replace a host that does not exist")
+	errNoValidHost          = errors.New("no valid host in the candidate list")
+	errMultipleZones        = errors.New("could not init placement on hosts from multiple zones")
+	errSnapshotAlreadyExist = errors.New("could not init placement for service, there is already a placement")
 )
 
 type placementService struct {
@@ -50,6 +50,10 @@ func NewPlacementService(options placement.Options, ss placement.SnapshotStorage
 }
 
 func (ps placementService) BuildInitialPlacement(service string, hosts []placement.Host, shardLen int, rf int) (placement.Snapshot, error) {
+	if _, err := ps.Snapshot(service); err == nil {
+		return nil, errSnapshotAlreadyExist
+	}
+
 	if shardLen <= 0 {
 		return nil, errInvalidShardLen
 	}
@@ -177,24 +181,24 @@ func (ps placementService) Snapshot(service string) (placement.Snapshot, error) 
 	return ps.ss.ReadSnapshotForService(service)
 }
 
-func getNewHostsToPlacement(s placement.Snapshot, hosts []placement.Host) []placement.Host {
-	var hs []placement.Host
-	for _, h := range hosts {
-		if s.HostShard(h.ID()) == nil {
-			hs = append(hs, h)
+func (ps placementService) validateInitHosts(hosts []placement.Host) error {
+	var zone string
+	for _, hostShards := range hosts {
+		if zone == "" {
+			zone = hostShards.Zone()
+			continue
+		}
+		if zone != hostShards.Zone() {
+			return errMultipleZones
 		}
 	}
-	return hs
+	return nil
 }
 
 func (ps placementService) findAddingHost(s placement.Snapshot, candidateHosts []placement.Host) (placement.Host, error) {
 	// filter out already existing hosts
-	candidateHosts = getNewHostsToPlacement(s, candidateHosts)
+	candidateHosts = ps.getNewHostsToPlacement(s, candidateHosts)
 
-	candidateHosts, err := filterZones(s, ps.options, candidateHosts)
-	if err != nil {
-		return nil, err
-	}
 	// build rack-host map for candidate hosts
 	candidateRackHostMap := buildRackHostMap(candidateHosts)
 
@@ -236,11 +240,7 @@ func (ps placementService) findReplaceHost(
 	leaving placement.HostShards,
 ) ([]placement.Host, error) {
 	// filter out already existing hosts
-	candidateHosts = getNewHostsToPlacement(s, candidateHosts)
-	candidateHosts, err := filterZones(s, ps.options, candidateHosts)
-	if err != nil {
-		return nil, err
-	}
+	candidateHosts = ps.getNewHostsToPlacement(s, candidateHosts)
 
 	if len(candidateHosts) == 0 {
 		return nil, errNoValidHost
@@ -275,6 +275,34 @@ func (ps placementService) findReplaceHost(
 			leaving.Host().String(), leftWeight)
 	}
 	return result, nil
+}
+
+func (ps placementService) getNewHostsToPlacement(s placement.Snapshot, hosts []placement.Host) []placement.Host {
+	var hs []placement.Host
+	for _, h := range hosts {
+		if s.HostShard(h.ID()) == nil {
+			hs = append(hs, h)
+		}
+	}
+	return filterZones(s, ps.options, hs)
+}
+
+func filterZones(p placement.Snapshot, opts placement.Options, candidateHosts []placement.Host) []placement.Host {
+	var validZone string
+	for _, hostShards := range p.HostShards() {
+		if validZone == "" {
+			validZone = hostShards.Host().Zone()
+			break
+		}
+	}
+
+	validHosts := make([]placement.Host, 0, len(candidateHosts))
+	for _, host := range candidateHosts {
+		if validZone == host.Zone() {
+			validHosts = append(validHosts, host)
+		}
+	}
+	return validHosts
 }
 
 func groupHostsByConflict(hostsSortedByConflicts []sortableValue, allowConflict bool) [][]placement.Host {
@@ -356,31 +384,6 @@ func knapsack(hosts []placement.Host, targetWeight int) ([]placement.Host, int) 
 	panic("should never reach here")
 }
 
-func filterZones(p placement.Snapshot, opts placement.Options, candidateHosts []placement.Host) ([]placement.Host, error) {
-	if opts.AcrossZones() {
-		return candidateHosts, nil
-	}
-
-	var validZone string
-	for _, hostShards := range p.HostShards() {
-		if validZone == "" {
-			validZone = hostShards.Host().Zone()
-			continue
-		}
-		if validZone != hostShards.Host().Zone() {
-			return nil, errDisableAcrossZones
-		}
-	}
-
-	validHosts := make([]placement.Host, 0, len(candidateHosts))
-	for _, host := range candidateHosts {
-		if validZone == host.Zone() {
-			validHosts = append(validHosts, host)
-		}
-	}
-	return validHosts, nil
-}
-
 func buildRackHostMap(candidateHosts []placement.Host) map[string][]placement.Host {
 	result := make(map[string][]placement.Host, len(candidateHosts))
 	for _, host := range candidateHosts {
@@ -398,24 +401,6 @@ func buildRackHostMapFromHostShards(hosts []placement.HostShards) map[string][]p
 		hs[i] = host.Host()
 	}
 	return buildRackHostMap(hs)
-}
-
-func (ps placementService) validateInitHosts(hosts []placement.Host) error {
-	if ps.options.AcrossZones() {
-		return nil
-	}
-
-	var zone string
-	for _, hostShards := range hosts {
-		if zone == "" {
-			zone = hostShards.Zone()
-			continue
-		}
-		if zone != hostShards.Zone() {
-			return errHostsAcrossZones
-		}
-	}
-	return nil
 }
 
 type sortableValue struct {

@@ -23,9 +23,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"math/rand"
-	"os"
 	"sort"
 	"testing"
 
@@ -34,15 +32,14 @@ import (
 )
 
 func TestGoodWorkflow(t *testing.T) {
-	ms := NewMockStorage()
-	ps := NewPlacementService(placement.NewOptions(), ms)
-	testGoodWorkflow(t, ps, ms)
+	ps := NewPlacementService(placement.NewOptions(), NewMockStorage())
+	testGoodWorkflow(t, ps)
 
-	ps = NewPlacementService(placement.NewOptions().SetLooseRackCheck(true), ms)
-	testGoodWorkflow(t, ps, ms)
+	ps = NewPlacementService(placement.NewOptions().SetLooseRackCheck(true), NewMockStorage())
+	testGoodWorkflow(t, ps)
 }
 
-func testGoodWorkflow(t *testing.T, ps placement.Service, ms placement.SnapshotStorage) {
+func testGoodWorkflow(t *testing.T, ps placement.Service) {
 	h1 := placement.NewHost("r1h1", "r1", "z1", 2)
 	h2 := placement.NewHost("r2h2", "r2", "z1", 2)
 	h3 := placement.NewHost("r3h3", "r3", "z1", 2)
@@ -68,7 +65,7 @@ func testGoodWorkflow(t *testing.T, ps placement.Service, ms placement.SnapshotS
 		},
 	)
 	assert.NoError(t, err)
-	s, err := ms.ReadSnapshotForService("serviceA")
+	s, err := ps.Snapshot("serviceA")
 	assert.NoError(t, err)
 	assert.Equal(t, 3, s.HostsLen())
 	assert.NotNil(t, s.HostShard("h21"))
@@ -95,24 +92,16 @@ func testGoodWorkflow(t *testing.T, ps placement.Service, ms placement.SnapshotS
 	}
 	_, err = ps.AddHost("serviceA", hosts)
 	assert.NoError(t, err)
-	s, err = ms.ReadSnapshotForService("serviceA")
+	s, err = ps.Snapshot("serviceA")
 	assert.NoError(t, err)
 	assert.NotNil(t, s.HostShard("r4h41")) // host added from least weighted rack
-
-	cleanUpTestFiles(t, "serviceA")
 }
 
 func TestBadInitialPlacement(t *testing.T) {
 	ps := NewPlacementService(placement.NewOptions(), NewMockStorage())
 
-	_, err := ps.BuildInitialPlacement("serviceA", []placement.Host{
-		placement.NewHost("r1h1", "r1", "z1", 1),
-		placement.NewHost("r2h2", "r2", "z1", 1),
-	}, 100, 2)
-	assert.NoError(t, err)
-
 	// no shards
-	_, err = ps.BuildInitialPlacement("serviceA", []placement.Host{
+	_, err := ps.BuildInitialPlacement("serviceA", []placement.Host{
 		placement.NewHost("r1h1", "r1", "z1", 1),
 		placement.NewHost("r2h2", "r2", "z1", 1),
 	}, 0, 1)
@@ -135,7 +124,13 @@ func TestBadInitialPlacement(t *testing.T) {
 		placement.NewHost("r2h2", "r2", "z2", 1),
 	}, 100, 2)
 	assert.Error(t, err)
-	assert.Equal(t, errHostsAcrossZones, err)
+	assert.Equal(t, errMultipleZones, err)
+
+	_, err = ps.BuildInitialPlacement("serviceA", []placement.Host{
+		placement.NewHost("r1h1", "r1", "z1", 1),
+		placement.NewHost("r2h2", "r2", "z1", 1),
+	}, 100, 2)
+	assert.NoError(t, err)
 }
 
 func TestBadAddReplica(t *testing.T) {
@@ -151,12 +146,11 @@ func TestBadAddReplica(t *testing.T) {
 	// could not find snapshot for service
 	_, err = ps.AddReplica("badService")
 	assert.Error(t, err)
-
-	cleanUpTestFiles(t, "serviceA")
 }
 
 func TestBadAddHost(t *testing.T) {
-	ps := NewPlacementService(placement.NewOptions(), NewMockStorage())
+	ms := NewMockStorage()
+	ps := NewPlacementService(placement.NewOptions(), ms)
 
 	_, err := ps.BuildInitialPlacement("serviceA", []placement.Host{placement.NewHost("r1h1", "r1", "z1", 1)}, 10, 1)
 	assert.NoError(t, err)
@@ -171,7 +165,7 @@ func TestBadAddHost(t *testing.T) {
 	assert.Equal(t, errNoValidHost, err)
 
 	// algo error
-	psWithErrorAlgo := placementService{algo: errorAlgorithm{}, ss: NewMockStorage(), options: placement.NewOptions()}
+	psWithErrorAlgo := placementService{algo: errorAlgorithm{}, ss: ms, options: placement.NewOptions()}
 	_, err = psWithErrorAlgo.AddHost("serviceA", []placement.Host{placement.NewHost("r2h2", "r2", "z1", 1)})
 	assert.Error(t, err)
 
@@ -179,18 +173,9 @@ func TestBadAddHost(t *testing.T) {
 	_, err = ps.AddHost("badService", []placement.Host{placement.NewHost("r2h2", "r2", "z1", 1)})
 	assert.Error(t, err)
 
-	ps = NewPlacementService(placement.NewOptions().SetAcrossZones(true), NewMockStorage())
-	_, err = ps.BuildInitialPlacement("serviceA",
-		[]placement.Host{placement.NewHost("h1", "r1", "z1", 1), placement.NewHost("h2", "r2", "z2", 1)},
-		10,
-		1,
-	)
-	assert.NoError(t, err)
-	ps = NewPlacementService(placement.NewOptions().SetAcrossZones(false), NewMockStorage())
+	ps = NewPlacementService(placement.NewOptions(), ms)
 	_, err = ps.AddHost("serviceA", []placement.Host{placement.NewHost("r1h1", "r1", "z1", 1)})
 	assert.Error(t, err)
-	assert.Equal(t, errDisableAcrossZones, err)
-	cleanUpTestFiles(t, "serviceA")
 }
 
 func TestBadRemoveHost(t *testing.T) {
@@ -210,8 +195,6 @@ func TestBadRemoveHost(t *testing.T) {
 	// could not find snapshot for service
 	_, err = ps.RemoveHost("bad service", placement.NewHost("r1h1", "r1", "z1", 1))
 	assert.Error(t, err)
-
-	cleanUpTestFiles(t, "serviceA")
 }
 
 func TestBadReplaceHost(t *testing.T) {
@@ -265,8 +248,6 @@ func TestBadReplaceHost(t *testing.T) {
 		[]placement.Host{placement.NewHost("r2h2", "r2", "z1", 1)},
 	)
 	assert.Error(t, err)
-
-	cleanUpTestFiles(t, "serviceA")
 }
 
 func TestReplaceHostWithLooseRackCheck(t *testing.T) {
@@ -313,8 +294,6 @@ func TestReplaceHostWithLooseRackCheck(t *testing.T) {
 		[]placement.Host{placement.NewHost("r1h2", "r1", "z1", 1)},
 	)
 	assert.NoError(t, err)
-
-	cleanUpTestFiles(t, "serviceA")
 }
 
 func TestFindReplaceHost(t *testing.T) {
@@ -376,29 +355,6 @@ func TestFindReplaceHost(t *testing.T) {
 	// gonna prefer r1 because r1 would only conflict shard 2, r2 would conflict 7,8,9
 	assert.Equal(t, 1, len(hs))
 	assert.Equal(t, "r11", hs[0].Rack())
-
-	ps = NewPlacementService(placement.NewOptions().SetAcrossZones(true), NewMockStorage()).(placementService)
-	hs, err = ps.findReplaceHost(s, candidates, h4)
-	assert.NoError(t, err)
-	// gonna prefer r2 because across zone is allowed and r2 has no conflict
-	assert.Equal(t, 1, len(hs))
-	assert.Equal(t, "r22", hs[0].Rack())
-
-	h1 = placement.NewHostShards(placement.NewHost("h1", "r1", "z1", 1))
-	h1.AddShard(1)
-	h1.AddShard(2)
-
-	h2 = placement.NewHostShards(placement.NewHost("h2", "r2", "z2", 1))
-	h2.AddShard(3)
-	h2.AddShard(4)
-
-	ids = []uint32{1, 2, 3, 4}
-	s = placement.NewPlacementSnapshot([]placement.HostShards{h1, h2}, ids, 1)
-	ps = NewPlacementService(placement.NewOptions(), NewMockStorage()).(placementService)
-	hs, err = ps.findReplaceHost(s, candidates, h4)
-	assert.Error(t, err)
-	assert.Equal(t, errDisableAcrossZones, err)
-	assert.Nil(t, hs)
 }
 
 func TestGroupHostsByConflict(t *testing.T) {
@@ -581,13 +537,6 @@ func TestRackLenSort(t *testing.T) {
 	}
 }
 
-func cleanUpTestFiles(t *testing.T, service string) {
-	err := os.Remove(getSnapshotFileName(service))
-	if err != nil {
-		assert.FailNow(t, err.Error())
-	}
-}
-
 type errorAlgorithm struct{}
 
 func (errorAlgorithm) BuildInitialPlacement(hosts []placement.Host, ids []uint32) (placement.Snapshot, error) {
@@ -611,7 +560,9 @@ func (errorAlgorithm) ReplaceHost(p placement.Snapshot, leavingHost placement.Ho
 }
 
 // file based snapshot storage
-type mockStorage struct{}
+type mockStorage struct {
+	m map[string][]byte
+}
 
 const configFileSuffix = "_placement.json"
 
@@ -620,10 +571,10 @@ func getSnapshotFileName(service string) string {
 }
 
 func NewMockStorage() placement.SnapshotStorage {
-	return mockStorage{}
+	return &mockStorage{m: map[string][]byte{}}
 }
 
-func (ms mockStorage) SaveSnapshotForService(service string, p placement.Snapshot) error {
+func (ms *mockStorage) SaveSnapshotForService(service string, p placement.Snapshot) error {
 	var err error
 	if err = p.Validate(); err != nil {
 		return err
@@ -632,14 +583,13 @@ func (ms mockStorage) SaveSnapshotForService(service string, p placement.Snapsho
 	if data, err = json.Marshal(p); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(getSnapshotFileName(service), data, 0644)
+	ms.m[service] = data
+	return nil
 }
 
-func (ms mockStorage) ReadSnapshotForService(service string) (placement.Snapshot, error) {
-	var data []byte
-	var err error
-	if data, err = ioutil.ReadFile(getSnapshotFileName(service)); err != nil {
-		return nil, err
+func (ms *mockStorage) ReadSnapshotForService(service string) (placement.Snapshot, error) {
+	if data, exist := ms.m[service]; exist {
+		return placement.NewPlacementFromJSON(data)
 	}
-	return placement.NewPlacementFromJSON(data)
+	return nil, errors.New("could not find snapshot for service")
 }
