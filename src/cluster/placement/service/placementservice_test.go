@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"sort"
 	"testing"
@@ -525,6 +526,41 @@ func TestFillWeight(t *testing.T) {
 	res, leftWeight = fillWeight(groups, 50)
 	assert.Equal(t, 2, leftWeight)
 	assert.Equal(t, []placement.Host{h1, h2, h3, h4, h5, h6, h7}, res)
+}
+
+func TestFillWeightDeterministic(t *testing.T) {
+	h1 := placement.NewHost("h1", "", "", 1)
+	h2 := placement.NewHost("h2", "", "", 1)
+	h3 := placement.NewHost("h3", "", "", 1)
+	h4 := placement.NewHost("h4", "", "", 3)
+	h5 := placement.NewHost("h5", "", "", 4)
+
+	h6 := placement.NewHost("h6", "", "", 1)
+	h7 := placement.NewHost("h7", "", "", 1)
+	h8 := placement.NewHost("h8", "", "", 1)
+	h9 := placement.NewHost("h9", "", "", 2)
+	groups := [][]placement.Host{
+		[]placement.Host{h1, h2, h3, h4, h5},
+		[]placement.Host{h6, h7, h8, h9},
+	}
+
+	for i := 1; i < 17; i++ {
+		testResultDeterministic(t, groups, i)
+	}
+}
+
+func testResultDeterministic(t *testing.T, groups [][]placement.Host, targetWeight int) {
+	res, _ := fillWeight(groups, targetWeight)
+
+	// shuffle the order of of each group of hosts
+	for _, group := range groups {
+		for i := range group {
+			j := rand.Intn(i + 1)
+			group[i], group[j] = group[j], group[i]
+		}
+	}
+	res1, _ := fillWeight(groups, targetWeight)
+	assert.Equal(t, res, res1)
 }
 
 func TestRackLenSort(t *testing.T) {

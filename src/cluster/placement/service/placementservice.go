@@ -302,12 +302,12 @@ func fillWeight(groups [][]placement.Host, targetWeight int) ([]placement.Host, 
 		hostsInGroup []placement.Host
 	)
 	for _, group := range groups {
+		sort.Sort(placement.ByIDAscending(group))
 		hostsInGroup, targetWeight = knapsack(group, targetWeight)
 		result = append(result, hostsInGroup...)
 		if targetWeight <= 0 {
 			break
 		}
-
 	}
 	return result, targetWeight
 }
