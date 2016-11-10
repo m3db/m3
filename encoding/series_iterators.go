@@ -43,8 +43,11 @@ func (iters *seriesIterators) Close() {
 		return
 	}
 	iters.closed = true
-	for _, iter := range iters.iters {
-		iter.Close()
+	for i := range iters.iters {
+		if iters.iters[i] != nil {
+			iters.iters[i].Close()
+			iters.iters[i] = nil
+		}
 	}
 	if iters.pool != nil {
 		iters.pool.Put(iters)

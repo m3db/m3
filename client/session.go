@@ -696,6 +696,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 		majority               int32
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		nsID                   = []byte(namespace)
+		success                = false
 	)
 
 	rangeStart, tsErr := convert.ToValue(startInclusive, rpc.TimeType_UNIX_NANOSECONDS)
@@ -716,6 +717,14 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 
 	iters := s.seriesIteratorsPool.Get(len(ids))
 	iters.Reset(len(ids))
+
+	defer func() {
+		// NB(r): Ensure we cover all edge cases and close the iters in any case
+		// of an error being returned
+		if !success {
+			iters.Close()
+		}
+	}()
 
 	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
 
@@ -908,6 +917,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 	if retErr != nil {
 		return nil, retErr
 	}
+	success = true
 	return iters, nil
 }
 
