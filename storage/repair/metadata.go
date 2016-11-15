@@ -56,15 +56,14 @@ func (s *hostBlockMetadataSlice) Metadata() []HostBlockMetadata {
 }
 
 func (s *hostBlockMetadataSlice) Reset() {
-	s.metadata = s.metadata[:0]
-}
-
-func (s *hostBlockMetadataSlice) Close() {
 	var zeroed HostBlockMetadata
 	for i := range s.metadata {
 		s.metadata[i] = zeroed
 	}
 	s.metadata = s.metadata[:0]
+}
+
+func (s *hostBlockMetadataSlice) Close() {
 	if s.pool != nil {
 		s.pool.Put(s)
 	}
