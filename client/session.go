@@ -176,7 +176,7 @@ func newSession(opts Options) (clientSession, error) {
 
 	s.writeStatePool = sync.Pool{New: func() interface{} {
 		c := &writeState{session: s}
-		c.d, c.condition.L = c.reset, c
+		c.d, c.L = c.reset, c
 
 		return c
 	}}
@@ -556,84 +556,6 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	return hostQueue
 }
 
-type rc struct {
-	d func()
-	n int32
-}
-
-func (r *rc) incref() {
-	if atomic.AddInt32(&r.n, 1) <= 0 {
-		panic("invalid rc state")
-	}
-}
-
-func (r *rc) decref() {
-	if v := atomic.AddInt32(&r.n, -1); v == 0 {
-		r.d()
-	} else if v < 0 {
-		panic("invalid rc state")
-	}
-}
-
-type writeState struct {
-	sync.Mutex
-	rc
-
-	session             *session
-	condition           sync.Cond
-	op                  *writeOp
-	majority            int32
-	successful, pending int32
-	errors              []error
-
-	queues []hostQueue
-}
-
-func (w *writeState) reset() {
-	w.session.writeOpPool.Put(w.op)
-
-	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
-	w.errors = w.errors[:0]
-	w.queues = w.queues[:0]
-
-	w.session.writeStatePool.Put(w)
-}
-
-func (w *writeState) completionFn(result interface{}, err error) {
-	var (
-		successful int32
-		remaining  = atomic.AddInt32(&w.pending, -1)
-	)
-
-	if err != nil {
-		w.Lock()
-		w.errors = append(w.errors, err)
-		w.Unlock()
-	} else {
-		successful = atomic.AddInt32(&w.successful, 1)
-	}
-
-	w.Lock()
-
-	switch w.session.writeLevel {
-	case topology.ConsistencyLevelOne:
-		if successful > 0 || remaining == 0 {
-			w.condition.Signal()
-		}
-	case topology.ConsistencyLevelMajority:
-		if successful >= w.majority || remaining == 0 {
-			w.condition.Signal()
-		}
-	case topology.ConsistencyLevelAll:
-		if remaining == 0 {
-			w.condition.Signal()
-		}
-	}
-
-	w.Unlock()
-	w.decref()
-}
-
 func (s *session) Write(namespace, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	var (
 		enqueued int32
@@ -656,38 +578,38 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		return errSessionStateNotOpen
 	}
 
-	c := s.writeStatePool.Get().(*writeState)
-	c.incref()
+	state := s.writeStatePool.Get().(*writeState)
+	state.incref()
 
-	c.op, c.majority = s.writeOpPool.Get(), majority
+	state.op, state.majority = s.writeOpPool.Get(), majority
 
-	c.op.namespace = ts.StringID(namespace)
-	c.op.request.ID = tsID.Data()
-	c.op.request.Datapoint.Value = value
-	c.op.request.Datapoint.Timestamp = timestamp
-	c.op.request.Datapoint.TimestampType = timeType
-	c.op.request.Datapoint.Annotation = annotation
-	c.op.completionFn = c.completionFn
+	state.op.namespace = ts.StringID(namespace)
+	state.op.request.ID = tsID.Data()
+	state.op.request.Datapoint.Value = value
+	state.op.request.Datapoint.Timestamp = timestamp
+	state.op.request.Datapoint.TimestampType = timeType
+	state.op.request.Datapoint.Annotation = annotation
+	state.op.completionFn = state.completionFn
 
 	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// First count all the pending write requests to ensure
 		// we count the amount we're going to be waiting for
 		// before we enqueue the completion fns that rely on having
 		// an accurate number of the pending requests when they execute
-		c.pending++
-		c.queues = append(c.queues, s.queues[idx])
+		state.pending++
+		state.queues = append(state.queues, s.queues[idx])
 	}); err != nil {
-		c.decref()
+		state.decref()
 		s.RUnlock()
 		return err
 	}
 
-	c.Lock()
+	state.Lock()
 
-	for i := range c.queues {
-		if err := c.queues[i].Enqueue(c.op); err != nil {
-			c.Unlock()
-			c.decref()
+	for i := range state.queues {
+		if err := state.queues[i].Enqueue(state.op); err != nil {
+			state.Unlock()
+			state.decref()
 
 			// NB(r): if this ever happens we have a code bug, once we
 			// are in the read lock the current queues we are using should
@@ -697,21 +619,21 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 			return err
 		}
 
-		c.incref()
+		state.incref()
 		enqueued++
 	}
 
 	// Wait for writes to complete. We don't need to loop over Wait() since there
 	// are no spurious wakeups in Golang and the condition is one-way and binary.
 	s.RUnlock()
-	c.condition.Wait()
+	state.Wait()
 
-	err := s.writeConsistencyResult(majority,
-		enqueued, enqueued-atomic.LoadInt32(&c.pending), int32(len(c.errors)), c.errors)
-	s.incWriteMetrics(err, int32(len(c.errors)))
+	err := s.writeConsistencyResult(majority, enqueued,
+		enqueued-atomic.LoadInt32(&state.pending), int32(len(state.errors)), state.errors)
+	s.incWriteMetrics(err, int32(len(state.errors)))
 
-	c.Unlock()
-	c.decref()
+	state.Unlock()
+	state.decref()
 
 	return err
 }
