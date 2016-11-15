@@ -56,6 +56,10 @@ func (s *hostBlockMetadataSlice) Metadata() []HostBlockMetadata {
 }
 
 func (s *hostBlockMetadataSlice) Reset() {
+	var zeroed HostBlockMetadata
+	for i := range s.metadata {
+		s.metadata[i] = zeroed
+	}
 	s.metadata = s.metadata[:0]
 }
 

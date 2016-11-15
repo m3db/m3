@@ -98,6 +98,9 @@ func (p *iteratorArrayPool) Put(array []Iterator) {
 		return
 	}
 
+	for i := range array {
+		array[i] = nil
+	}
 	array = array[:0]
 	for i := range p.buckets {
 		if p.buckets[i].capacity >= capacity {

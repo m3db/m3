@@ -56,6 +56,9 @@ func (p *poolOfOpArray) Get() []op {
 }
 
 func (p *poolOfOpArray) Put(ops []op) {
+	for i := range ops {
+		ops[i] = nil
+	}
 	ops = ops[:0]
 	p.pool.Put(ops)
 }
@@ -104,6 +107,9 @@ func (p *poolOfFetchBatchOpArrayArray) Get() [][]*fetchBatchOp {
 
 func (p *poolOfFetchBatchOpArrayArray) Put(arr [][]*fetchBatchOp) {
 	for i := range arr {
+		for j := range arr[i] {
+			arr[i][j] = nil
+		}
 		arr[i] = arr[i][:0]
 	}
 	p.pool.Put(arr)

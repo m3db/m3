@@ -323,6 +323,10 @@ func (b *dbBufferBucket) resetTo(start time.Time) {
 	}
 
 	b.start = start
+	var zeroed inOrderEncoder
+	for i := range b.encoders {
+		b.encoders[i] = zeroed
+	}
 	b.encoders = append(b.encoders[:0], first)
 	b.bootstrapped = nil
 	b.empty = true
@@ -449,6 +453,10 @@ func (b *dbBufferBucket) merge() {
 		b.encoders[i].encoder.Close()
 	}
 
+	var zeroed inOrderEncoder
+	for i := range b.encoders {
+		b.encoders[i] = zeroed
+	}
 	b.encoders = append(b.encoders[:0], inOrderEncoder{
 		lastWriteAt: lastWriteAt,
 		encoder:     encoder,

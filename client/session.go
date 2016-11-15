@@ -1410,7 +1410,19 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 	pooledCurrStart, pooledCurrEligible []*blocksMetadata,
 	pooledBlocksMetadataQueues []blocksMetadataQueue,
 ) {
-	// Use pooled arrays
+	// Free any references the pool still has
+	for i := range pooledCurrStart {
+		pooledCurrStart[i] = nil
+	}
+	for i := range pooledCurrEligible {
+		pooledCurrEligible[i] = nil
+	}
+	var zeroed blocksMetadataQueue
+	for i := range pooledCurrEligible {
+		pooledBlocksMetadataQueues[i] = zeroed
+	}
+
+	// Get references to pooled arrays
 	var (
 		currStart            = pooledCurrStart[:0]
 		currEligible         = pooledCurrEligible[:0]
@@ -2296,6 +2308,10 @@ func (it *metadataIter) Next() bool {
 		return false
 	}
 	it.host = m.peer.Host()
+	var zeroed block.Metadata
+	for i := range it.blocks {
+		it.blocks[i] = zeroed
+	}
 	it.blocks = it.blocks[:0]
 	for _, b := range m.blocks {
 		bm := block.NewMetadata(b.start, b.size, b.checksum)

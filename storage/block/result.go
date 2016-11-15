@@ -107,6 +107,10 @@ func (s *fetchBlockMetadataResults) Sort() {
 }
 
 func (s *fetchBlockMetadataResults) Reset() {
+	var zeroed FetchBlockMetadataResult
+	for i := range s.results {
+		s.results[i] = zeroed
+	}
 	s.results = s.results[:0]
 }
 
@@ -147,12 +151,16 @@ func (s *fetchBlocksMetadataResults) Results() []FetchBlocksMetadataResult {
 }
 
 func (s *fetchBlocksMetadataResults) Reset() {
+	var zeroed FetchBlocksMetadataResult
+	for i := range s.results {
+		s.results[i] = zeroed
+	}
 	s.results = s.results[:0]
 }
 
 func (s *fetchBlocksMetadataResults) Close() {
-	for _, res := range s.results {
-		res.Blocks.Close()
+	for i := range s.results {
+		s.results[i].Blocks.Close()
 	}
 	if s.pool != nil {
 		s.pool.Put(s)
