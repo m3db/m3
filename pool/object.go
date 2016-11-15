@@ -56,14 +56,15 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 	if opts == nil {
 		opts = NewObjectPoolOptions()
 	}
-	lowWatermark := int(math.Ceil(float64(opts.RefillLowWatermark()) * float64(opts.Size())))
-	highWatermark := int(math.Ceil(float64(opts.RefillHighWatermark()) * float64(opts.Size())))
+
 	p := &objectPool{
-		opts:                opts,
-		values:              make(chan interface{}, opts.Size()),
-		size:                opts.Size(),
-		refillLowWatermark:  lowWatermark,
-		refillHighWatermark: highWatermark,
+		opts:   opts,
+		values: make(chan interface{}, opts.Size()),
+		size:   opts.Size(),
+		refillLowWatermark: int(math.Ceil(
+			float64(opts.RefillLowWatermark()) * float64(opts.Size()))),
+		refillHighWatermark: int(math.Ceil(
+			float64(opts.RefillHighWatermark()) * float64(opts.Size()))),
 		metrics: objectPoolMetrics{
 			free:       opts.MetricsScope().Gauge("free"),
 			total:      opts.MetricsScope().Gauge("total"),
@@ -71,20 +72,23 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 			putOnFull:  opts.MetricsScope().Counter("put-on-full"),
 		},
 	}
+
 	p.setGauges()
+
 	return p
 }
 
 func (p *objectPool) Init(alloc Allocator) {
-	capacity := cap(p.values)
-	for i := 0; i < capacity; i++ {
-		p.values <- alloc()
-	}
 	p.alloc = alloc
+
+	for i := 0; i < cap(p.values); i++ {
+		p.values <- p.alloc()
+	}
 }
 
 func (p *objectPool) Get() interface{} {
 	var v interface{}
+
 	select {
 	case v = <-p.values:
 	default:
@@ -93,6 +97,7 @@ func (p *objectPool) Get() interface{} {
 	}
 
 	p.trySetGauges()
+
 	if p.refillLowWatermark > 0 && len(p.values) <= p.refillLowWatermark {
 		p.tryFill()
 	}
@@ -125,14 +130,16 @@ func (p *objectPool) tryFill() {
 	if !atomic.CompareAndSwapInt64(&p.filling, 0, 1) {
 		return
 	}
+
 	go func() {
+		defer atomic.StoreInt64(&p.filling, 0)
+
 		for len(p.values) < p.refillHighWatermark {
 			select {
 			case p.values <- p.alloc():
 			default:
-				break
+				return
 			}
 		}
-		atomic.StoreInt64(&p.filling, 0)
 	}()
 }
