@@ -153,7 +153,7 @@ func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics
 	}
 }
 
-// NewDatabase creates a new database
+// NewDatabase creates a new time series database
 func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, opts Options) (Database, error) {
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")

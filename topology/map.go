@@ -29,6 +29,7 @@ import (
 type staticMap struct {
 	shardSet            sharding.ShardSet
 	hostShardSets       []HostShardSet
+	hostShardSetsByID   map[string]HostShardSet
 	orderedHosts        []Host
 	hostsByShard        [][]Host
 	orderedHostsByShard [][]orderedHost
@@ -42,6 +43,7 @@ func newStaticMap(opts StaticOptions) Map {
 	topoMap := staticMap{
 		shardSet:            opts.ShardSet(),
 		hostShardSets:       hostShardSets,
+		hostShardSetsByID:   make(map[string]HostShardSet),
 		orderedHosts:        make([]Host, 0, len(hostShardSets)),
 		hostsByShard:        make([][]Host, totalShards),
 		orderedHostsByShard: make([][]orderedHost, totalShards),
@@ -51,6 +53,7 @@ func newStaticMap(opts StaticOptions) Map {
 
 	for idx, hostShardSet := range hostShardSets {
 		host := hostShardSet.Host()
+		topoMap.hostShardSetsByID[host.ID()] = hostShardSet
 		topoMap.orderedHosts = append(topoMap.orderedHosts, host)
 		for _, shard := range hostShardSet.ShardSet().Shards() {
 			topoMap.hostsByShard[shard] = append(topoMap.hostsByShard[shard], host)
@@ -75,6 +78,11 @@ func (t *staticMap) Hosts() []Host {
 
 func (t *staticMap) HostShardSets() []HostShardSet {
 	return t.hostShardSets
+}
+
+func (t *staticMap) LookupHostShardSet(id string) (HostShardSet, bool) {
+	value, ok := t.hostShardSetsByID[id]
+	return value, ok
 }
 
 func (t *staticMap) HostsLen() int {

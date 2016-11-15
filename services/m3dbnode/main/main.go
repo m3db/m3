@@ -60,12 +60,15 @@ func main() {
 	tchannelNodeAddr := *tchannelNodeAddrArg
 
 	storageOpts := storage.NewOptions()
-	storageOpts = storageOpts.SetFileOpOptions(storageOpts.FileOpOptions().SetRetentionOptions(storageOpts.RetentionOptions()))
+	fileOpOpts := storageOpts.FileOpOptions().
+		SetRetentionOptions(storageOpts.RetentionOptions())
+	storageOpts = storageOpts.
+		SetFileOpOptions(fileOpOpts)
 
 	log := storageOpts.InstrumentOptions().Logger()
-	shardSet, err := server.DefaultShardSet()
+	topoInit, err := server.DefaultTopologyInitializer(id, tchannelNodeAddr)
 	if err != nil {
-		log.Fatalf("could not create sharding scheme: %v", err)
+		log.Fatalf("could not create topology initializer: %v", err)
 	}
 
 	if id == "" {
@@ -75,32 +78,24 @@ func main() {
 		}
 	}
 
-	clientOpts, err := server.DefaultClientOptions(id, tchannelNodeAddr, shardSet)
-	if err != nil {
-		log.Fatalf("could not create client options: %v", err)
-	}
-
-	c, err := client.NewClient(clientOpts)
+	cli, err := client.NewClient(server.DefaultClientOptions(topoInit))
 	if err != nil {
 		log.Fatalf("could not create cluster client: %v", err)
 	}
 
-	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(c.(client.AdminClient)))
+	repairOpts := storageOpts.RepairOptions().
+		SetAdminClient(cli.(client.AdminClient))
+	storageOpts = storageOpts.
+		SetRepairOptions(repairOpts)
 
 	namespaces := server.DefaultNamespaces()
 
-	doneCh := make(chan struct{})
-	closedCh := make(chan struct{})
+	doneCh := make(chan struct{}, 1)
+	closedCh := make(chan struct{}, 1)
 	go func() {
 		if err := server.Serve(
-			httpClusterAddr,
-			tchannelClusterAddr,
-			httpNodeAddr,
-			tchannelNodeAddr,
-			namespaces,
-			c,
-			storageOpts,
-			doneCh,
+			httpClusterAddr, tchannelClusterAddr, httpNodeAddr, tchannelNodeAddr,
+			namespaces, id, topoInit, cli, storageOpts, doneCh,
 		); err != nil {
 			log.Fatalf("server fatal error: %v", err)
 		}

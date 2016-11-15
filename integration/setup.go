@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 
 	"github.com/uber/tchannel-go"
@@ -65,6 +66,8 @@ type nowSetterFn func(t time.Time)
 type testSetup struct {
 	opts           testOptions
 	storageOpts    storage.Options
+	hostID         string
+	topoInit       topology.Initializer
 	shardSet       sharding.ShardSet
 	getNowFn       clock.NowFn
 	setNowFn       nowSetterFn
@@ -105,11 +108,13 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		tchannelNodeAddr = addr
 	}
 
-	clientOpts, err := server.DefaultClientOptions(id, tchannelNodeAddr, shardSet)
+	topoInit, err := server.DefaultTopologyInitializerForShardSet(id, tchannelNodeAddr, shardSet)
 	if err != nil {
 		return nil, err
 	}
-	clientOpts = clientOpts.SetClusterConnectTimeout(opts.ClusterConnectionTimeout())
+
+	clientOpts := server.DefaultClientOptions(topoInit).
+		SetClusterConnectTimeout(opts.ClusterConnectionTimeout())
 
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(tchannelNodeAddr)
@@ -165,6 +170,8 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	return &testSetup{
 		opts:           opts,
 		storageOpts:    storageOpts,
+		hostID:         id,
+		topoInit:       topoInit,
 		shardSet:       shardSet,
 		getNowFn:       getNowFn,
 		setNowFn:       setNowFn,
@@ -227,16 +234,11 @@ func (ts *testSetup) startServer() error {
 	}
 
 	go func() {
-		err := server.Serve(
-			httpClusterAddr,
-			tchannelClusterAddr,
-			httpNodeAddr,
-			tchannelNodeAddr,
-			ts.namespaces,
-			ts.m3dbClient,
-			ts.storageOpts,
-			ts.doneCh)
-		if err != nil {
+		if err := server.Serve(
+			httpClusterAddr, tchannelClusterAddr, httpNodeAddr, tchannelNodeAddr,
+			ts.namespaces, ts.hostID, ts.topoInit, ts.m3dbClient,
+			ts.storageOpts, ts.doneCh,
+		); err != nil {
 			select {
 			case resultCh <- err:
 			default:
