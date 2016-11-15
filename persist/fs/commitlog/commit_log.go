@@ -276,8 +276,8 @@ func (l *commitLog) onFlush(err error) {
 
 	for i := range l.pendingFlushFns {
 		l.pendingFlushFns[i](err)
+		l.pendingFlushFns[i] = nil
 	}
-
 	l.pendingFlushFns = l.pendingFlushFns[:0]
 	l.metrics.flushDone.Inc(1)
 }

@@ -111,6 +111,11 @@ func (s *fetchBlockMetadataResults) Reset() {
 }
 
 func (s *fetchBlockMetadataResults) Close() {
+	var zeroed FetchBlockMetadataResult
+	for i := range s.results {
+		s.results[i] = zeroed
+	}
+	s.results = s.results[:0]
 	if s.pool != nil {
 		s.pool.Put(s)
 	}
@@ -151,9 +156,12 @@ func (s *fetchBlocksMetadataResults) Reset() {
 }
 
 func (s *fetchBlocksMetadataResults) Close() {
-	for _, res := range s.results {
-		res.Blocks.Close()
+	var zeroed FetchBlocksMetadataResult
+	for i := range s.results {
+		s.results[i].Blocks.Close()
+		s.results[i] = zeroed
 	}
+	s.results = s.results[:0]
 	if s.pool != nil {
 		s.pool.Put(s)
 	}

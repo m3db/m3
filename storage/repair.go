@@ -114,16 +114,8 @@ func (r shardRepairer) Repair(
 	metadata := repair.NewReplicaMetadataComparer(replicas, r.rpopts)
 	ctx.RegisterCloser(metadata)
 
-	// NB(r): Explicitly use a new context here as ctx may receive
-	// a lot of DependsOn calls which could mean it creates a long
-	// array of dependencies, since pooled contexts keep this array
-	// around for later use it's best to create a non-pooled context
-	// here to avoid returning a very large array to the pool.
-	fetchCtx := context.NewContext()
-	defer fetchCtx.Close()
-
 	// Add local metadata
-	localMetadata, _ := shard.FetchBlocksMetadata(fetchCtx, start, end, math.MaxInt64, 0, true, true)
+	localMetadata, _ := shard.FetchBlocksMetadata(ctx, start, end, math.MaxInt64, 0, true, true)
 	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
 	metadata.AddLocalMetadata(origin, localIter)
 	localMetadata.Close()
