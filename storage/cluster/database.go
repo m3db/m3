@@ -86,4 +86,5 @@ func (d *clusterDB) Close() error {
 		return err
 	}
 	// todo: stop listening for reshards
+	return nil
 }
