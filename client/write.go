@@ -21,8 +21,12 @@
 package client
 
 import (
+	"sync"
+	"sync/atomic"
+
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 )
 
@@ -87,4 +91,63 @@ func (p *poolOfWriteOp) Get() *writeOp {
 func (p *poolOfWriteOp) Put(w *writeOp) {
 	w.reset()
 	p.pool.Put(w)
+}
+
+type writeState struct {
+	sync.Cond
+	sync.Mutex
+	rc
+
+	session             *session
+	op                  *writeOp
+	majority            int32
+	successful, pending int32
+	errors              []error
+
+	queues []hostQueue
+}
+
+func (w *writeState) reset() {
+	w.session.writeOpPool.Put(w.op)
+
+	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
+	w.errors = w.errors[:0]
+	w.queues = w.queues[:0]
+
+	w.session.writeStatePool.Put(w)
+}
+
+func (w *writeState) completionFn(result interface{}, err error) {
+	var (
+		successful int32
+		remaining  = atomic.AddInt32(&w.pending, -1)
+	)
+
+	if err != nil {
+		w.Lock()
+		w.errors = append(w.errors, err)
+		w.Unlock()
+	} else {
+		successful = atomic.AddInt32(&w.successful, 1)
+	}
+
+	w.Lock()
+
+	switch w.session.writeLevel {
+	case topology.ConsistencyLevelOne:
+		if successful > 0 || remaining == 0 {
+			w.Signal()
+		}
+	case topology.ConsistencyLevelMajority:
+		if successful >= w.majority || remaining == 0 {
+			w.Signal()
+		}
+	case topology.ConsistencyLevelAll:
+		if remaining == 0 {
+			w.Signal()
+		}
+	}
+
+	w.Unlock()
+	w.decref()
 }
