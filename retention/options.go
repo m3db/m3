@@ -39,14 +39,19 @@ const (
 
 	// defaultBufferDrain is the default buffer drain
 	defaultBufferDrain = 2 * time.Minute
+
+	// defaultDiskModeOn is the default bool for whether disk mode is on
+	defaultDiskModeOn = false
 )
 
 type options struct {
-	retentionPeriod time.Duration
-	blockSize       time.Duration
-	bufferFuture    time.Duration
-	bufferPast      time.Duration
-	bufferDrain     time.Duration
+	retentionPeriod     time.Duration
+	blockSize           time.Duration
+	bufferFuture        time.Duration
+	bufferPast          time.Duration
+	bufferDrain         time.Duration
+	diskModeOn          bool
+	diskModeInMemPeriod time.Duration
 }
 
 // NewOptions creates new retention options
@@ -57,6 +62,7 @@ func NewOptions() Options {
 		bufferFuture:    defaultBufferFuture,
 		bufferPast:      defaultBufferPast,
 		bufferDrain:     defaultBufferDrain,
+		diskModeOn:      defaultDiskModeOn,
 	}
 }
 
@@ -108,4 +114,24 @@ func (o *options) SetBufferDrain(value time.Duration) Options {
 
 func (o *options) BufferDrain() time.Duration {
 	return o.bufferDrain
+}
+
+func (o *options) SetDiskMode(diskModeOn bool) Options {
+	opts := *o
+	opts.diskModeOn = diskModeOn
+	return &opts
+}
+
+func (o *options) DiskMode() bool {
+	return o.diskModeOn
+}
+
+func (o *options) SetDiskModeInMemPeriod(period time.Duration) Options {
+	opts := *o
+	opts.diskModeInMemPeriod = period
+	return &opts
+}
+
+func (o *options) DiskModeInMemPeriod() time.Duration {
+	return o.diskModeInMemPeriod
 }
