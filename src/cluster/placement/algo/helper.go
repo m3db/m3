@@ -378,7 +378,7 @@ func addHostToPlacement(ps placement.Snapshot, addingHost placement.Host) (place
 	if ps.HostShard(addingHost.ID()) != nil {
 		return nil, nil, errAddingHostAlreadyExist
 	}
-	hss := placement.NewHostShards(addingHost)
+	hss := placement.NewEmptyHostShards(addingHost)
 	return placement.NewPlacementSnapshot(append(ps.HostShards(), hss), ps.Shards(), ps.Replicas()), hss, nil
 }
 

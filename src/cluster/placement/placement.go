@@ -47,7 +47,7 @@ type snapshot struct {
 func NewEmptyPlacementSnapshot(hosts []Host, ids []uint32) Snapshot {
 	hostShards := make([]HostShards, len(hosts), len(hosts))
 	for i, ph := range hosts {
-		hostShards[i] = NewHostShards(ph)
+		hostShards[i] = NewEmptyHostShards(ph)
 	}
 
 	return snapshot{hostShards: hostShards, shards: ids, rf: 0}
@@ -140,7 +140,7 @@ func (ps snapshot) Copy() Snapshot {
 func copyHostShards(hss []HostShards) []HostShards {
 	copied := make([]HostShards, len(hss))
 	for i, hs := range hss {
-		copied[i] = newHostShards(hs.Host(), hs.Shards())
+		copied[i] = NewHostShards(hs.Host(), hs.Shards())
 	}
 	return copied
 }
@@ -238,7 +238,7 @@ type hostShardsJSON struct {
 }
 
 func hostShardsFromJSON(hsj hostShardsJSON) (HostShards, error) {
-	hs := NewHostShards(NewHost(hsj.ID, hsj.Rack, hsj.Zone, hsj.Weight))
+	hs := NewEmptyHostShards(NewHost(hsj.ID, hsj.Rack, hsj.Zone, hsj.Weight))
 	for _, shard := range hsj.Shards {
 		hs.AddShard(shard)
 	}
@@ -254,13 +254,13 @@ type hostShards struct {
 	shardsSet map[uint32]struct{}
 }
 
-// NewHostShards returns a HostShards with no shards assigned
-func NewHostShards(host Host) HostShards {
-	return newHostShards(host, nil)
+// NewEmptyHostShards returns a HostShards with no shards assigned
+func NewEmptyHostShards(host Host) HostShards {
+	return NewHostShards(host, nil)
 }
 
-// newHostShards returns a HostShards with shards
-func newHostShards(host Host, shards []uint32) HostShards {
+// NewHostShards returns a HostShards with shards
+func NewHostShards(host Host, shards []uint32) HostShards {
 	m := make(map[uint32]struct{}, len(shards))
 	for _, s := range shards {
 		m[s] = struct{}{}

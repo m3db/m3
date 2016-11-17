@@ -29,32 +29,32 @@ import (
 )
 
 func TestSnapshot(t *testing.T) {
-	h1 := NewHostShards(NewHost("r1h1", "r1", "z1", 1))
+	h1 := NewEmptyHostShards(NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	h2 := NewHostShards(NewHost("r2h2", "r2", "z1", 1))
+	h2 := NewEmptyHostShards(NewHost("r2h2", "r2", "z1", 1))
 	h2.AddShard(4)
 	h2.AddShard(5)
 	h2.AddShard(6)
 
-	h3 := NewHostShards(NewHost("r3h3", "r3", "z1", 1))
+	h3 := NewEmptyHostShards(NewHost("r3h3", "r3", "z1", 1))
 	h3.AddShard(1)
 	h3.AddShard(3)
 	h3.AddShard(5)
 
-	h4 := NewHostShards(NewHost("r4h4", "r4", "z1", 1))
+	h4 := NewEmptyHostShards(NewHost("r4h4", "r4", "z1", 1))
 	h4.AddShard(2)
 	h4.AddShard(4)
 	h4.AddShard(6)
 
-	h5 := NewHostShards(NewHost("r5h5", "r5", "z1", 1))
+	h5 := NewEmptyHostShards(NewHost("r5h5", "r5", "z1", 1))
 	h5.AddShard(5)
 	h5.AddShard(6)
 	h5.AddShard(1)
 
-	h6 := NewHostShards(NewHost("r6h6", "r6", "z1", 1))
+	h6 := NewEmptyHostShards(NewHost("r6h6", "r6", "z1", 1))
 	h6.AddShard(2)
 	h6.AddShard(3)
 	h6.AddShard(4)
@@ -85,12 +85,12 @@ func TestSnapshot(t *testing.T) {
 func TestValidate(t *testing.T) {
 	ids := []uint32{1, 2, 3, 4, 5, 6}
 
-	h1 := NewHostShards(NewHost("r1h1", "r1", "z1", 1))
+	h1 := NewEmptyHostShards(NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	h2 := NewHostShards(NewHost("r2h2", "r2", "z1", 1))
+	h2 := NewEmptyHostShards(NewHost("r2h2", "r2", "z1", 1))
 	h2.AddShard(4)
 	h2.AddShard(5)
 	h2.AddShard(6)
@@ -105,7 +105,7 @@ func TestValidate(t *testing.T) {
 	assert.Error(t, s.Validate())
 
 	// host missing a shard
-	h1 = NewHostShards(NewHost("r1h1", "r1", "z1", 1))
+	h1 = NewEmptyHostShards(NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
@@ -113,7 +113,7 @@ func TestValidate(t *testing.T) {
 	h1.AddShard(5)
 	h1.AddShard(6)
 
-	h2 = NewHostShards(NewHost("r2h2", "r2", "z1", 1))
+	h2 = NewEmptyHostShards(NewHost("r2h2", "r2", "z1", 1))
 	h2.AddShard(2)
 	h2.AddShard(3)
 	h2.AddShard(4)
@@ -126,7 +126,7 @@ func TestValidate(t *testing.T) {
 	assert.Equal(t, errTotalShardsMismatch, s.Validate())
 
 	// host contains shard that's unexpected to be in snapshot
-	h1 = NewHostShards(NewHost("r1h1", "r1", "z1", 1))
+	h1 = NewEmptyHostShards(NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
@@ -135,7 +135,7 @@ func TestValidate(t *testing.T) {
 	h1.AddShard(6)
 	h1.AddShard(7)
 
-	h2 = NewHostShards(NewHost("r2h2", "r2", "z1", 1))
+	h2 = NewEmptyHostShards(NewHost("r2h2", "r2", "z1", 1))
 	h2.AddShard(2)
 	h2.AddShard(3)
 	h2.AddShard(4)
@@ -148,12 +148,12 @@ func TestValidate(t *testing.T) {
 	assert.Equal(t, errUnexpectedShards, s.Validate())
 
 	// duplicated shards
-	h1 = NewHostShards(NewHost("r1h1", "r1", "z1", 1))
+	h1 = NewEmptyHostShards(NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(2)
 	h1.AddShard(3)
 	h1.AddShard(4)
 
-	h2 = NewHostShards(NewHost("r2h2", "r2", "z1", 1))
+	h2 = NewEmptyHostShards(NewHost("r2h2", "r2", "z1", 1))
 	h2.AddShard(4)
 	h2.AddShard(5)
 	h2.AddShard(6)
@@ -164,17 +164,17 @@ func TestValidate(t *testing.T) {
 	assert.Equal(t, errDuplicatedShards, s.Validate())
 
 	// three shard 2 and only one shard 4
-	h1 = NewHostShards(NewHost("r1h1", "r1", "z1", 1))
+	h1 = NewEmptyHostShards(NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	h2 = NewHostShards(NewHost("r2h2", "r2", "z1", 1))
+	h2 = NewEmptyHostShards(NewHost("r2h2", "r2", "z1", 1))
 	h2.AddShard(2)
 	h2.AddShard(3)
 	h2.AddShard(4)
 
-	h3 := NewHostShards(NewHost("r3h3", "r3", "z1", 1))
+	h3 := NewEmptyHostShards(NewHost("r3h3", "r3", "z1", 1))
 	h3.AddShard(1)
 	h3.AddShard(2)
 
@@ -251,7 +251,7 @@ func TestSnapshotMarshalling(t *testing.T) {
 }
 
 func TestHostShards(t *testing.T) {
-	h1 := NewHostShards(NewHost("r1h1", "r1", "z1", 1))
+	h1 := NewEmptyHostShards(NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
@@ -273,12 +273,12 @@ func TestHostShards(t *testing.T) {
 }
 
 func TestCopy(t *testing.T) {
-	h1 := NewHostShards(NewHost("r1h1", "r1", "z1", 1))
+	h1 := NewEmptyHostShards(NewHost("r1h1", "r1", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	h2 := NewHostShards(NewHost("r2h2", "r2", "z1", 1))
+	h2 := NewEmptyHostShards(NewHost("r2h2", "r2", "z1", 1))
 	h2.AddShard(4)
 	h2.AddShard(5)
 	h2.AddShard(6)

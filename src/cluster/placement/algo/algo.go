@@ -77,7 +77,7 @@ func (a rackAwarePlacementAlgorithm) RemoveHost(ps placement.Snapshot, leavingHo
 
 func (a rackAwarePlacementAlgorithm) AddHost(ps placement.Snapshot, addingHost placement.Host) (placement.Snapshot, error) {
 	ps = ps.Copy()
-	return a.addHostShards(ps, placement.NewHostShards(addingHost))
+	return a.addHostShards(ps, placement.NewEmptyHostShards(addingHost))
 }
 
 func (a rackAwarePlacementAlgorithm) ReplaceHost(ps placement.Snapshot, leavingHost placement.Host, addingHosts []placement.Host) (placement.Snapshot, error) {

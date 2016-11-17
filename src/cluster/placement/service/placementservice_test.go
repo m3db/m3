@@ -297,29 +297,29 @@ func TestReplaceHostWithLooseRackCheck(t *testing.T) {
 }
 
 func TestFindReplaceHost(t *testing.T) {
-	h1 := placement.NewHostShards(placement.NewHost("r1h1", "r11", "z1", 1))
+	h1 := placement.NewEmptyHostShards(placement.NewHost("r1h1", "r11", "z1", 1))
 	h1.AddShard(1)
 	h1.AddShard(2)
 	h1.AddShard(3)
 
-	h10 := placement.NewHostShards(placement.NewHost("r1h10", "r11", "z1", 1))
+	h10 := placement.NewEmptyHostShards(placement.NewHost("r1h10", "r11", "z1", 1))
 	h10.AddShard(4)
 	h10.AddShard(5)
 
-	h2 := placement.NewHostShards(placement.NewHost("r2h2", "r12", "z1", 1))
+	h2 := placement.NewEmptyHostShards(placement.NewHost("r2h2", "r12", "z1", 1))
 	h2.AddShard(6)
 	h2.AddShard(7)
 	h2.AddShard(8)
 	h2.AddShard(9)
 
-	h3 := placement.NewHostShards(placement.NewHost("r3h3", "r13", "z1", 3))
+	h3 := placement.NewEmptyHostShards(placement.NewHost("r3h3", "r13", "z1", 3))
 	h3.AddShard(1)
 	h3.AddShard(3)
 	h3.AddShard(4)
 	h3.AddShard(5)
 	h3.AddShard(6)
 
-	h4 := placement.NewHostShards(placement.NewHost("r4h4", "r14", "z1", 1))
+	h4 := placement.NewEmptyHostShards(placement.NewHost("r4h4", "r14", "z1", 1))
 	h4.AddShard(2)
 	h4.AddShard(7)
 	h4.AddShard(8)
