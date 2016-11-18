@@ -21,7 +21,6 @@
 package service
 
 import (
-	"encoding/json"
 	"errors"
 	"math/rand"
 	"sort"
@@ -561,7 +560,7 @@ func (errorAlgorithm) ReplaceHost(p placement.Snapshot, leavingHost placement.Ho
 
 // file based snapshot storage
 type mockStorage struct {
-	m map[string][]byte
+	m map[string]placement.Snapshot
 }
 
 const configFileSuffix = "_placement.json"
@@ -571,7 +570,7 @@ func getSnapshotFileName(service string) string {
 }
 
 func NewMockStorage() placement.SnapshotStorage {
-	return &mockStorage{m: map[string][]byte{}}
+	return &mockStorage{m: map[string]placement.Snapshot{}}
 }
 
 func (ms *mockStorage) SaveSnapshotForService(service string, p placement.Snapshot) error {
@@ -579,17 +578,13 @@ func (ms *mockStorage) SaveSnapshotForService(service string, p placement.Snapsh
 	if err = p.Validate(); err != nil {
 		return err
 	}
-	var data []byte
-	if data, err = json.Marshal(p); err != nil {
-		return err
-	}
-	ms.m[service] = data
+	ms.m[service] = p
 	return nil
 }
 
 func (ms *mockStorage) ReadSnapshotForService(service string) (placement.Snapshot, error) {
-	if data, exist := ms.m[service]; exist {
-		return placement.NewPlacementFromJSON(data)
+	if p, exist := ms.m[service]; exist {
+		return p, nil
 	}
 	return nil, errors.New("could not find snapshot for service")
 }
