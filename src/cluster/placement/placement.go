@@ -21,10 +21,8 @@
 package placement
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -43,6 +41,11 @@ type snapshot struct {
 	shards     []uint32
 }
 
+// NewPlacementSnapshot returns a placement snapshot
+func NewPlacementSnapshot(hss []HostShards, ids []uint32, rf int) Snapshot {
+	return snapshot{hostShards: hss, rf: rf, shards: ids}
+}
+
 // NewEmptyPlacementSnapshot returns an empty placement
 func NewEmptyPlacementSnapshot(hosts []Host, ids []uint32) Snapshot {
 	hostShards := make([]HostShards, len(hosts), len(hosts))
@@ -51,20 +54,6 @@ func NewEmptyPlacementSnapshot(hosts []Host, ids []uint32) Snapshot {
 	}
 
 	return snapshot{hostShards: hostShards, shards: ids, rf: 0}
-}
-
-// NewPlacementSnapshot returns a placement snapshot
-func NewPlacementSnapshot(hss []HostShards, shards []uint32, rf int) Snapshot {
-	return snapshot{hostShards: hss, rf: rf, shards: shards}
-}
-
-// NewPlacementFromJSON creates a Snapshot from JSON
-func NewPlacementFromJSON(data []byte) (Snapshot, error) {
-	var ps snapshot
-	if err := json.Unmarshal(data, &ps); err != nil {
-		return nil, err
-	}
-	return ps, nil
 }
 
 func (ps snapshot) HostShards() []HostShards {
@@ -145,118 +134,19 @@ func copyHostShards(hss []HostShards) []HostShards {
 	return copied
 }
 
-func (ps snapshot) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ps.placementSnapshotToJSON())
-}
-
-func (ps *snapshot) UnmarshalJSON(data []byte) error {
-	var sj snapshotJSON
-	var err error
-	if err = json.Unmarshal(data, &sj); err != nil {
-		return err
+// ConvertShardSliceToMap is an util function that converts a slice of shards to a map
+func ConvertShardSliceToMap(ids []uint32) map[uint32]int {
+	shardCounts := make(map[uint32]int)
+	for _, id := range ids {
+		shardCounts[id] = 0
 	}
-	if *ps, err = convertJSONtoSnapshot(sj); err != nil {
-		return err
-	}
-	return nil
-}
-
-type snapshotJSON struct {
-	Hosts map[string]hostShardsJSON `json:"hosts"`
-}
-
-func convertJSONtoSnapshot(sj snapshotJSON) (snapshot, error) {
-	var err error
-	hss := make([]HostShards, len(sj.Hosts))
-	shardsReplicaMap := make(map[uint32]int)
-	i := 0
-	for _, hsj := range sj.Hosts {
-		if hss[i], err = hostShardsFromJSON(hsj); err != nil {
-			return snapshot{}, err
-		}
-		for _, shard := range hss[i].Shards() {
-			shardsReplicaMap[shard] = shardsReplicaMap[shard] + 1
-		}
-		i++
-	}
-	shards := make([]uint32, 0, len(shardsReplicaMap))
-	snapshotReplica := -1
-	for shard, r := range shardsReplicaMap {
-		shards = append(shards, shard)
-		if snapshotReplica < 0 {
-			snapshotReplica = r
-			continue
-		}
-		if snapshotReplica != r {
-			return snapshot{}, errInvalidShardsCount
-		}
-	}
-	return snapshot{hostShards: hss, shards: shards, rf: snapshotReplica}, nil
-}
-
-func (ps snapshot) placementSnapshotToJSON() snapshotJSON {
-	m := make(map[string]hostShardsJSON, ps.HostsLen())
-	for _, hs := range ps.hostShards {
-		m[hs.Host().ID()] = newHostShardsJSON(hs)
-	}
-	return snapshotJSON{Hosts: m}
-}
-
-func newHostShardsJSON(hs HostShards) hostShardsJSON {
-	shards := hs.Shards()
-	uintShards := sortableUInt32(shards)
-	sort.Sort(uintShards)
-	return hostShardsJSON{
-		ID:     hs.Host().ID(),
-		Rack:   hs.Host().Rack(),
-		Zone:   hs.Host().Zone(),
-		Weight: hs.Host().Weight(),
-		Shards: shards,
-	}
-}
-
-type sortableUInt32 []uint32
-
-func (su sortableUInt32) Len() int {
-	return len(su)
-}
-
-func (su sortableUInt32) Less(i, j int) bool {
-	return int(su[i]) < int(su[j])
-}
-
-func (su sortableUInt32) Swap(i, j int) {
-	su[i], su[j] = su[j], su[i]
-}
-
-type hostShardsJSON struct {
-	ID     string   `json:"id"`
-	Rack   string   `json:"rack"`
-	Zone   string   `json:"zone"`
-	Weight uint32   `json:"weight"`
-	Shards []uint32 `json:"shards"`
-}
-
-func hostShardsFromJSON(hsj hostShardsJSON) (HostShards, error) {
-	hs := NewEmptyHostShards(NewHost(hsj.ID, hsj.Rack, hsj.Zone, hsj.Weight))
-	for _, shard := range hsj.Shards {
-		hs.AddShard(shard)
-	}
-	if len(hsj.Shards) != hs.ShardsLen() {
-		return nil, errInvalidHostShards
-	}
-	return hs, nil
+	return shardCounts
 }
 
 // hostShards implements HostShards
 type hostShards struct {
 	host      Host
 	shardsSet map[uint32]struct{}
-}
-
-// NewEmptyHostShards returns a HostShards with no shards assigned
-func NewEmptyHostShards(host Host) HostShards {
-	return NewHostShards(host, nil)
 }
 
 // NewHostShards returns a HostShards with shards
@@ -266,6 +156,11 @@ func NewHostShards(host Host, shards []uint32) HostShards {
 		m[s] = struct{}{}
 	}
 	return &hostShards{host: host, shardsSet: m}
+}
+
+// NewEmptyHostShards returns a HostShards with no shards assigned
+func NewEmptyHostShards(host Host) HostShards {
+	return NewHostShards(host, nil)
 }
 
 func (h hostShards) Host() Host {
@@ -297,15 +192,6 @@ func (h hostShards) ContainsShard(shard uint32) bool {
 
 func (h hostShards) ShardsLen() int {
 	return len(h.shardsSet)
-}
-
-// ConvertShardSliceToMap is an util function that converts a slice of shards to a map
-func ConvertShardSliceToMap(ids []uint32) map[uint32]int {
-	shardCounts := make(map[uint32]int)
-	for _, id := range ids {
-		shardCounts[id] = 0
-	}
-	return shardCounts
 }
 
 // NewHost returns a Host
