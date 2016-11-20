@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// +build linux
+
 package pool
 
 import (
@@ -25,13 +27,15 @@ import (
 	"syscall"
 )
 
-const (
-	mmapRegionProtections = syscall.PROT_READ | syscall.PROT_WRITE
-	mmapFlags             = syscall.MAP_ANON | syscall.MAP_PRIVATE
-)
-
-func munmap(head []byte) {
-	if err := syscall.Munmap(head); err != nil {
-		panic(fmt.Errorf("off-heap arena release error: %v", err))
+func mmap(n int) []byte {
+	r, err := syscall.Mmap(-1, 0, n, mmapRegionProtections, mmapFlags)
+	if err != nil {
+		panic(fmt.Errorf("error while mapping arena: %v", err))
 	}
+
+	if err := syscall.Madvise(r, syscall.MADV_HUGEPAGE); err != nil {
+		fmt.Printf("error while marking hugepages for arena: %v", err)
+	}
+
+	return r
 }
