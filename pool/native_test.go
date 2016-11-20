@@ -37,7 +37,7 @@ type I interface {
 
 type T struct {
 	x I
-	y [4096]uint8
+	y [4096]byte
 	z int
 }
 

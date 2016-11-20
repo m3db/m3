@@ -32,7 +32,7 @@ const (
 
 func mmap(n int) []byte {
 	if r, err := syscall.Mmap(
-		0, 0, n, mmapRegionProtections, mmapFlags,
+		-1, 0, n, mmapRegionProtections, mmapFlags,
 	); err != nil {
 		panic(fmt.Errorf("off-heap arena acquire error: %v", err))
 	} else {

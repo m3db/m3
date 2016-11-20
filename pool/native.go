@@ -48,17 +48,21 @@ type OverflowFn func() interface{}
 
 // NewNativePool constructs a new NativePool.
 func NewNativePool(opts NativePoolOptions) NativePool {
-	if opts.Size == 0 {
+	p := &nativePool{
+		free: make(chan uint, opts.Size),
+		opts: opts,
+		// TODO(@kobolog): alignment & padding.
+		step: uint(hsz + opts.Type.Size())}
+
+	p.size = p.opts.Size * p.step
+
+	if p.size == 0 {
 		panic("native-pool: pool size is zero")
 	}
 
-	p := &nativePool{
-		free: make(chan uintptr, opts.Size),
-		opts: opts,
-		// TODO(@kobolog): alignment & padding.
-		step: hsz + opts.Type.Size()}
-
-	p.size = uintptr(p.opts.Size * uint(p.step))
+	if p.step%uint(p.opts.Type.Align()) != 0 {
+		panic("native-pool: invalid alignment")
+	}
 
 	if p.opts.Construct == nil {
 		p.opts.Construct = func(interface{}) {}
@@ -70,10 +74,10 @@ func NewNativePool(opts NativePoolOptions) NativePool {
 }
 
 type nativePool struct {
-	pool       []uint8
-	free       chan uintptr
+	pool       []byte
+	free       chan uint
 	opts       NativePoolOptions
-	step, size uintptr
+	step, size uint
 }
 
 func (p *nativePool) String() string {
@@ -84,7 +88,7 @@ func (p *nativePool) String() string {
 
 type hdr struct {
 	// Offset from the beginning of the arena to the object.
-	idx uintptr
+	idx uint
 }
 
 const (
@@ -92,13 +96,13 @@ const (
 )
 
 func (p *nativePool) init() {
-	// Heap is a slice of uint8 large enough to fit opts.Size objects
+	// Heap is a slice of bytes large enough to fit opts.Size objects
 	// of type struct { hdr; T }.
 	p.pool = mmap(int(p.size))
 
-	for i := uintptr(0); i < p.size; i += p.step {
+	for i := uint(0); i < p.size; i += p.step {
 		hdr := (*hdr)(unsafe.Pointer(&p.pool[i]))
-		hdr.idx = i + hsz
+		hdr.idx = i + uint(hsz)
 		ptr := unsafe.Pointer(&p.pool[hdr.idx])
 
 		p.opts.Construct(reflect.NewAt(p.opts.Type, ptr).Interface())
@@ -130,8 +134,7 @@ func (p *nativePool) GetOr(fn OverflowFn) interface{} {
 func (p *nativePool) Put(object interface{}) {
 	ptr := unsafe.Pointer(reflect.ValueOf(object).Pointer())
 
-	if (uintptr(ptr) < uintptr(unsafe.Pointer(&p.pool[0]))) ||
-		uintptr(ptr) > uintptr(unsafe.Pointer(&p.pool[p.size-1])) {
+	if !p.owns(ptr) {
 		return
 	}
 
@@ -140,13 +143,15 @@ func (p *nativePool) Put(object interface{}) {
 	p.free <- (*hdr)(unsafe.Pointer(uintptr(ptr) - hsz)).idx
 }
 
-func (p *nativePool) Owns(object interface{}) bool {
-	ptr := unsafe.Pointer(reflect.ValueOf(object).Pointer())
-
-	if (uintptr(ptr) < uintptr(unsafe.Pointer(&p.pool[0]))) ||
-		uintptr(ptr) > uintptr(unsafe.Pointer(&p.pool[p.size-1])) {
-		return false
+func (p *nativePool) owns(addr unsafe.Pointer) bool {
+	if (uintptr(addr) >= uintptr(unsafe.Pointer(&p.pool[0]))) &&
+		uintptr(addr) <= uintptr(unsafe.Pointer(&p.pool[p.size-1])) {
+		return true
 	}
 
-	return true
+	return false
+}
+
+func (p *nativePool) Owns(object interface{}) bool {
+	return p.owns(unsafe.Pointer(reflect.ValueOf(object).Pointer()))
 }
