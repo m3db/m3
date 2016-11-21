@@ -38,7 +38,7 @@ func (f *fetchBatchOp) reset() {
 		f.request.Ids[i] = nil
 	}
 	f.request.Ids = f.request.Ids[:0]
-	for i := range f.request.Ids {
+	for i := range f.completionFns {
 		f.completionFns[i] = nil
 	}
 	f.completionFns = f.completionFns[:0]
