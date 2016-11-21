@@ -1,0 +1,11 @@
+package: github.com/m3db/m3aggregator
+import:
+- package: github.com/m3db/m3db
+  subpackages:
+  - pool
+- package: github.com/uber-go/tally
+testImport:
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert
+  - require
