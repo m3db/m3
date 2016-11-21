@@ -27,10 +27,18 @@ import (
 	"syscall"
 )
 
+const (
+	mmapHugePageSize = 2 << 20
+)
+
 func mmap(n int) []byte {
 	r, err := syscall.Mmap(-1, 0, n, mmapRegionProtections, mmapFlags)
 	if err != nil {
 		panic(fmt.Errorf("error while mapping arena: %v", err))
+	}
+
+	if n < mmapHugePageSize {
+		return r
 	}
 
 	if err := syscall.Madvise(r, syscall.MADV_HUGEPAGE); err != nil {
