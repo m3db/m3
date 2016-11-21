@@ -32,9 +32,9 @@ const (
 )
 
 func mmap(n int) []byte {
-	r, err := syscall.Mmap(-1, 0, n, mmapRegionProtections, mmapFlags)
+	r, err := syscall.Mmap(-1, 0, n, mmapReadWriteAccess, mmapMemory)
 	if err != nil {
-		panic(fmt.Errorf("error while mapping arena: %v", err))
+		panic(fmt.Errorf("mmap(%d) error: %v", n, err))
 	}
 
 	if n < mmapHugePageSize {
@@ -42,7 +42,7 @@ func mmap(n int) []byte {
 	}
 
 	if err := syscall.Madvise(r, syscall.MADV_HUGEPAGE); err != nil {
-		fmt.Printf("error while marking hugepages for arena: %v", err)
+		fmt.Printf("madvise(%p, HUGEPAGE) error: %v\n", &r[0], err)
 	}
 
 	return r

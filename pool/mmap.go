@@ -26,12 +26,12 @@ import (
 )
 
 const (
-	mmapRegionProtections = syscall.PROT_READ | syscall.PROT_WRITE
-	mmapFlags             = syscall.MAP_ANON | syscall.MAP_PRIVATE
+	mmapReadWriteAccess = syscall.PROT_READ | syscall.PROT_WRITE
+	mmapMemory          = syscall.MAP_ANON | syscall.MAP_PRIVATE
 )
 
 func munmap(head []byte) {
 	if err := syscall.Munmap(head); err != nil {
-		panic(fmt.Errorf("off-heap arena release error: %v", err))
+		fmt.Printf("munmap(%p, %d) error: %v\n", &head[0], cap(head), err)
 	}
 }
