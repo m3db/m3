@@ -2,7 +2,9 @@
 
 # M3Aggregator [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
 
-A time series database.
+Metrics aggregation server. Supports multiple metric types including counters, gauges, and timers as
+well as efficient summary metrics for timer data. Supports dynamically changing sampling resolution
+as query and storage requirements change.
 
 <hr>
 This project is released under the [MIT License](LICENSE.md).
