@@ -20,6 +20,10 @@
 
 package placement
 
+import (
+	"github.com/m3db/m3cluster/services"
+)
+
 const defaultMaxStepSize = 3
 
 type deploymentOptions struct {
@@ -40,8 +44,8 @@ func (o deploymentOptions) SetMaxStepSize(stepSize int) DeploymentOptions {
 	return o
 }
 
-// NewOptions returns an Options instance
-func NewOptions() Options {
+// NewOptions returns a default PlacementOptions
+func NewOptions() services.PlacementOptions {
 	return options{}
 }
 
@@ -54,7 +58,7 @@ func (o options) LooseRackCheck() bool {
 	return o.looseRackCheck
 }
 
-func (o options) SetLooseRackCheck(looseRackCheck bool) Options {
+func (o options) SetLooseRackCheck(looseRackCheck bool) services.PlacementOptions {
 	o.looseRackCheck = looseRackCheck
 	return o
 }
@@ -63,7 +67,7 @@ func (o options) AllowPartialReplace() bool {
 	return o.allowPartialReplace
 }
 
-func (o options) SetAllowPartialReplace(allowPartialReplace bool) Options {
+func (o options) SetAllowPartialReplace(allowPartialReplace bool) services.PlacementOptions {
 	o.allowPartialReplace = allowPartialReplace
 	return o
 }

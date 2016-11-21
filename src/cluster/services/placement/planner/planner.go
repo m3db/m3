@@ -23,10 +23,11 @@ package planner
 import (
 	"sort"
 
-	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
 )
 
-// shardAwareDeploymentPlanner plans the deployment so that as many hosts can be deployed
+// shardAwareDeploymentPlanner plans the deployment so that as many instances can be deployed
 // at the same time without making more than 1 replica of any shard unavailable
 type shardAwareDeploymentPlanner struct {
 	options placement.DeploymentOptions
@@ -37,38 +38,38 @@ func NewShardAwareDeploymentPlanner(options placement.DeploymentOptions) placeme
 	return shardAwareDeploymentPlanner{options: options}
 }
 
-func (dp shardAwareDeploymentPlanner) DeploymentSteps(ps placement.Snapshot) [][]placement.HostShards {
-	hss := ps.HostShards()
+func (dp shardAwareDeploymentPlanner) DeploymentSteps(p services.ServicePlacement) [][]services.PlacementInstance {
+	instances := p.Instances()
 	var steps sortableSteps
-	for len(hss) > 0 {
-		step := getDeployStep(hss, dp.options.MaxStepSize())
+	for len(instances) > 0 {
+		step := getDeployStep(instances, dp.options.MaxStepSize())
 		steps = append(steps, step)
-		hss = getLeftHostShards(hss, step)
+		instances = getLeftInstances(instances, step)
 	}
 	sort.Sort(steps)
 	return steps
 }
 
-func getDeployStep(hss []placement.HostShards, maxStepSize int) []placement.HostShards {
-	var parallel []placement.HostShards
+func getDeployStep(instances []services.PlacementInstance, maxStepSize int) []services.PlacementInstance {
+	var parallel []services.PlacementInstance
 	shards := make(map[uint32]struct{})
-	for _, hs := range hss {
+	for _, instance := range instances {
 		if len(parallel) >= maxStepSize {
 			break
 		}
-		if isSharingShard(shards, hs) {
+		if isSharingShard(shards, instance) {
 			continue
 		}
-		parallel = append(parallel, hs)
-		for _, shard := range hs.Shards() {
+		parallel = append(parallel, instance)
+		for _, shard := range instance.Shards().ShardIDs() {
 			shards[shard] = struct{}{}
 		}
 	}
 	return parallel
 }
 
-func isSharingShard(shards map[uint32]struct{}, hs placement.HostShards) bool {
-	for _, shard := range hs.Shards() {
+func isSharingShard(shards map[uint32]struct{}, instance services.PlacementInstance) bool {
+	for _, shard := range instance.Shards().ShardIDs() {
 		if _, exist := shards[shard]; exist {
 			return true
 		}
@@ -76,23 +77,23 @@ func isSharingShard(shards map[uint32]struct{}, hs placement.HostShards) bool {
 	return false
 }
 
-func getLeftHostShards(all, toBeRemoved []placement.HostShards) []placement.HostShards {
-	for _, hs := range toBeRemoved {
-		all = removeHostShards(all, hs)
+func getLeftInstances(all, toBeRemoved []services.PlacementInstance) []services.PlacementInstance {
+	for _, instance := range toBeRemoved {
+		all = removeInstance(all, instance)
 	}
 	return all
 }
 
-func removeHostShards(all []placement.HostShards, remove placement.HostShards) []placement.HostShards {
-	for i, hs := range all {
-		if hs.Host().ID() == remove.Host().ID() {
+func removeInstance(all []services.PlacementInstance, remove services.PlacementInstance) []services.PlacementInstance {
+	for i, instance := range all {
+		if instance.ID() == remove.ID() {
 			return append(all[:i], all[i+1:]...)
 		}
 	}
 	return all
 }
 
-type sortableSteps [][]placement.HostShards
+type sortableSteps [][]services.PlacementInstance
 
 func (s sortableSteps) Len() int {
 	return len(s)

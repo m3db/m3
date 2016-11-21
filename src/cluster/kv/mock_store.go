@@ -118,6 +118,67 @@ func (_mr *_MockValueWatchRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
+// Mock of ValueWatchable interface
+type MockValueWatchable struct {
+	ctrl     *gomock.Controller
+	recorder *_MockValueWatchableRecorder
+}
+
+// Recorder for MockValueWatchable (not exported)
+type _MockValueWatchableRecorder struct {
+	mock *MockValueWatchable
+}
+
+func NewMockValueWatchable(ctrl *gomock.Controller) *MockValueWatchable {
+	mock := &MockValueWatchable{ctrl: ctrl}
+	mock.recorder = &_MockValueWatchableRecorder{mock}
+	return mock
+}
+
+func (_m *MockValueWatchable) EXPECT() *_MockValueWatchableRecorder {
+	return _m.recorder
+}
+
+func (_m *MockValueWatchable) Get() Value {
+	ret := _m.ctrl.Call(_m, "Get")
+	ret0, _ := ret[0].(Value)
+	return ret0
+}
+
+func (_mr *_MockValueWatchableRecorder) Get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get")
+}
+
+func (_m *MockValueWatchable) Watch() (Value, ValueWatch, error) {
+	ret := _m.ctrl.Call(_m, "Watch")
+	ret0, _ := ret[0].(Value)
+	ret1, _ := ret[1].(ValueWatch)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockValueWatchableRecorder) Watch() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Watch")
+}
+
+func (_m *MockValueWatchable) Update(_param0 Value) error {
+	ret := _m.ctrl.Call(_m, "Update", _param0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockValueWatchableRecorder) Update(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Update", arg0)
+}
+
+func (_m *MockValueWatchable) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+func (_mr *_MockValueWatchableRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
 // Mock of Store interface
 type MockStore struct {
 	ctrl     *gomock.Controller

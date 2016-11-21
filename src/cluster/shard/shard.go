@@ -29,6 +29,12 @@ type Shard interface {
 // NewShard returns a new Shard
 func NewShard(id uint32) Shard { return shard{id: id} }
 
+type shard struct {
+	id uint32
+}
+
+func (s shard) ID() uint32 { return s.id }
+
 // Shards is a collection of shards owned by one ServiceInstance
 type Shards interface {
 	// Shards returns the shards
@@ -39,27 +45,68 @@ type Shards interface {
 
 	// NumShards returns the number of the shards
 	NumShards() int
+
+	// AddShard adds a shard
+	AddShard(shard uint32)
+
+	// RemoveShard removes a shard
+	RemoveShard(shard uint32)
+
+	// ContainsShard checks if a shard exists
+	ContainsShard(shard uint32) bool
 }
 
-// NewShards returns a new instance of Shards
-func NewShards(ss []Shard) Shards { return shards{ss: ss} }
-
-type shard struct {
-	id uint32
+// NewShards creates a new instance of Shards
+func NewShards(ss []Shard) Shards {
+	shardMap := make(map[uint32]Shard, len(ss))
+	for _, s := range ss {
+		shardMap[s.ID()] = s
+	}
+	return shards{shardsMap: shardMap}
 }
 
-func (s shard) ID() uint32 { return s.id }
+// NewShardsWithIDs creates a new instance of Shards from ids
+func NewShardsWithIDs(ss []uint32) Shards {
+	shardMap := make(map[uint32]Shard, len(ss))
+	for _, s := range ss {
+		shardMap[s] = NewShard(s)
+	}
+	return shards{shardsMap: shardMap}
+}
 
 type shards struct {
-	ss []Shard
+	shardsMap map[uint32]Shard
 }
 
-func (s shards) Shards() []Shard { return s.ss }
-func (s shards) NumShards() int  { return len(s.ss) }
+func (s shards) Shards() []Shard {
+	ss := make([]Shard, 0, len(s.shardsMap))
+	for _, shard := range s.shardsMap {
+		ss = append(ss, shard)
+	}
+	return ss
+}
+
+func (s shards) NumShards() int {
+	return len(s.shardsMap)
+}
+
 func (s shards) ShardIDs() []uint32 {
-	r := make([]uint32, s.NumShards())
-	for i, s := range s.ss {
-		r[i] = s.ID()
+	r := make([]uint32, 0, s.NumShards())
+	for s := range s.shardsMap {
+		r = append(r, s)
 	}
 	return r
+}
+
+func (s shards) AddShard(shard uint32) {
+	s.shardsMap[shard] = NewShard(shard)
+}
+
+func (s shards) RemoveShard(shard uint32) {
+	delete(s.shardsMap, shard)
+}
+
+func (s shards) ContainsShard(shard uint32) bool {
+	_, ok := s.shardsMap[shard]
+	return ok
 }

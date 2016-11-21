@@ -39,7 +39,7 @@ type service struct {
 
 func (s *service) Instance(instanceID string) (ServiceInstance, error) {
 	for _, instance := range s.instances {
-		if instance.ID() == instanceID {
+		if instance.InstanceID() == instanceID {
 			return instance, nil
 		}
 	}
@@ -76,52 +76,66 @@ func (s *serviceSharding) SetNumShards(n int) ServiceSharding { s.numShards = n;
 func NewServiceInstance() ServiceInstance { return new(serviceInstance) }
 
 type serviceInstance struct {
+	service  ServiceID
 	id       string
-	service  string
-	zone     string
 	endpoint string
 	shards   shard.Shards
 }
 
-func (i *serviceInstance) Service() string                          { return i.service }
-func (i *serviceInstance) ID() string                               { return i.id }
-func (i *serviceInstance) Zone() string                             { return i.zone }
+func (i *serviceInstance) InstanceID() string                       { return i.id }
 func (i *serviceInstance) Endpoint() string                         { return i.endpoint }
 func (i *serviceInstance) Shards() shard.Shards                     { return i.shards }
-func (i *serviceInstance) SetService(s string) ServiceInstance      { i.service = s; return i }
-func (i *serviceInstance) SetID(id string) ServiceInstance          { i.id = id; return i }
-func (i *serviceInstance) SetZone(z string) ServiceInstance         { i.zone = z; return i }
+func (i *serviceInstance) ServiceID() ServiceID                     { return i.service }
+func (i *serviceInstance) SetInstanceID(id string) ServiceInstance  { i.id = id; return i }
 func (i *serviceInstance) SetEndpoint(e string) ServiceInstance     { i.endpoint = e; return i }
 func (i *serviceInstance) SetShards(s shard.Shards) ServiceInstance { i.shards = s; return i }
+
+func (i *serviceInstance) SetServiceID(service ServiceID) ServiceInstance {
+	i.service = service
+	return i
+}
 
 // NewAdvertisement creates a new Advertisement
 func NewAdvertisement() Advertisement { return new(advertisement) }
 
 type advertisement struct {
 	id       string
-	service  string
+	service  ServiceID
 	endpoint string
 	health   func() error
 }
 
-func (a *advertisement) ID() string                             { return a.id }
-func (a *advertisement) Service() string                        { return a.service }
+func (a *advertisement) InstanceID() string                     { return a.id }
+func (a *advertisement) ServiceID() ServiceID                   { return a.service }
 func (a *advertisement) Endpoint() string                       { return a.endpoint }
 func (a *advertisement) Health() func() error                   { return a.health }
-func (a *advertisement) SetID(id string) Advertisement          { a.id = id; return a }
-func (a *advertisement) SetService(s string) Advertisement      { a.service = s; return a }
+func (a *advertisement) SetInstanceID(id string) Advertisement  { a.id = id; return a }
+func (a *advertisement) SetServiceID(s ServiceID) Advertisement { a.service = s; return a }
 func (a *advertisement) SetEndpoint(e string) Advertisement     { a.endpoint = e; return a }
 func (a *advertisement) SetHealth(h func() error) Advertisement { a.health = h; return a }
+
+// NewServiceID creates new ServiceID
+func NewServiceID() ServiceID { return new(serviceID) }
+
+type serviceID struct {
+	name string
+	env  string
+	zone string
+}
+
+func (sq *serviceID) Name() string                      { return sq.name }
+func (sq *serviceID) Environment() string               { return sq.env }
+func (sq *serviceID) Zone() string                      { return sq.zone }
+func (sq *serviceID) SetName(n string) ServiceID        { sq.name = n; return sq }
+func (sq *serviceID) SetEnvironment(e string) ServiceID { sq.env = e; return sq }
+func (sq *serviceID) SetZone(z string) ServiceID        { sq.zone = z; return sq }
 
 // NewQueryOptions creates new QueryOptions
 func NewQueryOptions() QueryOptions { return new(queryOptions) }
 
 type queryOptions struct {
-	zones            []string
 	includeUnhealthy bool
 }
 
-func (qo *queryOptions) Zones() []string                         { return qo.zones }
 func (qo *queryOptions) IncludeUnhealthy() bool                  { return qo.includeUnhealthy }
-func (qo *queryOptions) SetZones(z []string) QueryOptions        { qo.zones = z; return qo }
 func (qo *queryOptions) SetIncludeUnhealthy(h bool) QueryOptions { qo.includeUnhealthy = h; return qo }

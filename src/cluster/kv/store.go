@@ -24,7 +24,6 @@ import (
 	"errors"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/watch"
 )
 
@@ -63,14 +62,14 @@ type ValueWatch interface {
 
 // ValueWatchable can be watched for Value changes
 type ValueWatchable interface {
-	xclose.SimpleCloser
-
 	// Get returns the latest Value
 	Get() Value
 	// Watch returns the Value and a ValueWatch that will be notified on updates
 	Watch() (Value, ValueWatch, error)
 	// Update sets the Value and notify Watches
 	Update(Value) error
+	// Close stops watching for value updates
+	Close()
 }
 
 // Store provides access to the configuration store
