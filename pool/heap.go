@@ -21,9 +21,9 @@
 package pool
 
 import (
-	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 	"unsafe"
@@ -50,7 +50,9 @@ func NewNativeHeap(b []Bucket, po ObjectPoolOptions) BytesPool {
 	}}
 
 	for _, cfg := range b {
-		m := m.SubScope(fmt.Sprintf("slot-%d", cfg.Capacity))
+		m := m.Tagged(map[string]string{
+			"class": strconv.Itoa(cfg.Capacity),
+		})
 
 		v := &slot{class: cfg.Capacity, opts: NativePoolOptions{
 			Size: uint(cfg.Count),
