@@ -32,7 +32,7 @@ import (
 
 func TestNewHostShardSetFromServiceInstance(t *testing.T) {
 	i1 := services.NewServiceInstance().
-		SetID("h1").
+		SetInstanceID("h1").
 		SetEndpoint("h1:9000").
 		SetShards(shard.NewShards([]shard.Shard{
 			shard.NewShard(1),
@@ -40,11 +40,13 @@ func TestNewHostShardSetFromServiceInstance(t *testing.T) {
 			shard.NewShard(3),
 		}))
 	hash := sharding.DefaultHashGen(3)
-	host, err := newHostShardSetFromServiceInstance(i1, hash)
+	host, err := NewHostShardSetFromServiceInstance(i1, hash)
 	assert.NoError(t, err)
 	assert.Equal(t, "h1:9000", host.Host().Address())
 	assert.Equal(t, "h1", host.Host().ID())
-	assert.Equal(t, []uint32{1, 2, 3}, host.ShardSet().Shards())
+	assert.Equal(t, 3, len(host.ShardSet().Shards()))
+	assert.Equal(t, uint32(1), host.ShardSet().Min())
+	assert.Equal(t, uint32(3), host.ShardSet().Max())
 
 	id := ts.StringID("id")
 	assert.Equal(t, host.ShardSet().Shard(id), hash(id))

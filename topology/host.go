@@ -67,7 +67,8 @@ func NewHostShardSet(host Host, shardSet sharding.ShardSet) HostShardSet {
 	return &hostShardSet{host, shardSet}
 }
 
-func newHostShardSetFromServiceInstance(si services.ServiceInstance, fn sharding.HashFn) (HostShardSet, error) {
+// NewHostShardSetFromServiceInstance creates a new host shard set from service instance
+func NewHostShardSetFromServiceInstance(si services.ServiceInstance, fn sharding.HashFn) (HostShardSet, error) {
 	if si.Shards() == nil {
 		return nil, errInstanceHasNoShardsAssignment
 	}
@@ -79,7 +80,7 @@ func newHostShardSetFromServiceInstance(si services.ServiceInstance, fn sharding
 	if err != nil {
 		return nil, err
 	}
-	return NewHostShardSet(NewHost(si.ID(), si.Endpoint()), shardSet), nil
+	return NewHostShardSet(NewHost(si.InstanceID(), si.Endpoint()), shardSet), nil
 }
 
 func (h *hostShardSet) Host() Host {

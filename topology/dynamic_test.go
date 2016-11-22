@@ -37,7 +37,7 @@ func testSetup(ctrl *gomock.Controller) (DynamicOptions, *testWatch) {
 
 	watch := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
 	mockCSServices := services.NewMockServices(ctrl)
-	mockCSServices.EXPECT().Watch(opts.Service(), opts.QueryOptions()).Return(watch, nil)
+	mockCSServices.EXPECT().Watch(opts.ServiceID(), opts.QueryOptions()).Return(watch, nil)
 
 	mockCSClient := client.NewMockClient(ctrl)
 	mockCSClient.EXPECT().Services().Return(mockCSServices)
@@ -244,19 +244,19 @@ func goodInstances() []services.ServiceInstance {
 		[]shard.Shard{
 			shard.NewShard(0),
 			shard.NewShard(1),
-		})).SetID("h1").SetEndpoint("h1:9000")
+		})).SetInstanceID("h1").SetEndpoint("h1:9000")
 
 	i2 := services.NewServiceInstance().SetShards(shard.NewShards(
 		[]shard.Shard{
 			shard.NewShard(1),
 			shard.NewShard(2),
-		})).SetID("h2").SetEndpoint("h2:9000")
+		})).SetInstanceID("h2").SetEndpoint("h2:9000")
 
 	i3 := services.NewServiceInstance().SetShards(shard.NewShards(
 		[]shard.Shard{
 			shard.NewShard(2),
 			shard.NewShard(0),
-		})).SetID("h3").SetEndpoint("h3:9000")
+		})).SetInstanceID("h3").SetEndpoint("h3:9000")
 
 	return []services.ServiceInstance{i1, i2, i3}
 }

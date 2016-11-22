@@ -116,7 +116,7 @@ func (o *staticOptions) HostShardSets() []HostShardSet {
 
 type dynamicOptions struct {
 	configServiceClient client.Client
-	service             string
+	serviceID           services.ServiceID
 	queryOptions        services.QueryOptions
 	instrumentOptions   instrument.Options
 	initTimeout         time.Duration
@@ -126,7 +126,7 @@ type dynamicOptions struct {
 // NewDynamicOptions creates a new set of dynamic topology options
 func NewDynamicOptions() DynamicOptions {
 	return &dynamicOptions{
-		service:           defaultServiceName,
+		serviceID:         services.NewServiceID(),
 		queryOptions:      services.NewQueryOptions(),
 		instrumentOptions: instrument.NewOptions(),
 		initTimeout:       defaultInitTimeout,
@@ -156,13 +156,13 @@ func (o *dynamicOptions) ConfigServiceClient() client.Client {
 	return o.configServiceClient
 }
 
-func (o *dynamicOptions) SetService(s string) DynamicOptions {
-	o.service = s
+func (o *dynamicOptions) SetServiceID(s services.ServiceID) DynamicOptions {
+	o.serviceID = s
 	return o
 }
 
-func (o *dynamicOptions) Service() string {
-	return o.service
+func (o *dynamicOptions) ServiceID() services.ServiceID {
+	return o.serviceID
 }
 
 func (o *dynamicOptions) SetQueryOptions(qo services.QueryOptions) DynamicOptions {
