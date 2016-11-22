@@ -220,7 +220,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		Capacity: defaultBytesPoolBucketCapacity,
 		Count:    defaultBytesPoolBucketCount,
 	}}
-	bytesPool := pool.NewNativeHeap(buckets)
+	bytesPool := pool.NewNativeHeap(buckets, nil)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 

@@ -31,7 +31,7 @@ func TestNativeHeapBasics(t *testing.T) {
 	heap := NewNativeHeap([]Bucket{
 		Bucket{Capacity: 128, Count: 4},
 		Bucket{Capacity: 256, Count: 4},
-	})
+	}, nil)
 
 	heap.Init()
 
@@ -49,7 +49,7 @@ func TestNativeHeapDirect(t *testing.T) {
 	heap := NewNativeHeap([]Bucket{
 		Bucket{Capacity: 128, Count: 4},
 		Bucket{Capacity: 256, Count: 4},
-	})
+	}, nil)
 
 	heap.Init()
 
@@ -62,7 +62,7 @@ func TestNativeHeapOverflow(t *testing.T) {
 	heap := NewNativeHeap([]Bucket{
 		Bucket{Capacity: 128, Count: 2},
 		Bucket{Capacity: 256, Count: 2},
-	})
+	}, nil)
 
 	heap.Init()
 
@@ -75,7 +75,7 @@ func BenchmarkNativeHeap(b *testing.B) {
 	heap := NewNativeHeap([]Bucket{
 		Bucket{Capacity: 128, Count: 4},
 		Bucket{Capacity: 256, Count: 4},
-	})
+	}, nil)
 
 	heap.Init()
 

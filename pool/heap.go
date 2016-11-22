@@ -21,39 +21,75 @@
 package pool
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 	"sync"
+	"time"
 	"unsafe"
+
+	"github.com/uber-go/tally"
 )
 
 // NewNativeHeap constructs a new BytesPool based on NativePool.
-func NewNativeHeap(sizes []Bucket) BytesPool {
-	var (
-		slots = make([]*slot, len(sizes))
-		T     = reflect.TypeOf((byte)(0))
-	)
-
-	sort.Sort(BucketByCapacity(sizes))
-
-	for i, cfg := range sizes {
-		ns := &slot{class: cfg.Capacity, cfg: NativePoolOptions{
-			Size: uint(cfg.Count),
-			Type: reflect.ArrayOf(cfg.Capacity, T)}}
-		slots[i] = ns
+func NewNativeHeap(b []Bucket, po ObjectPoolOptions) BytesPool {
+	if po == nil {
+		po = NewObjectPoolOptions()
 	}
 
-	return heap(slots)
+	var (
+		m        = po.MetricsScope()
+		ByteType = reflect.TypeOf((byte)(0))
+	)
+
+	sort.Sort(BucketByCapacity(b))
+
+	r := heap{m: heapMetrics{
+		overflows: m.Counter("overflows"),
+		misplaces: m.Counter("misplaces"),
+	}}
+
+	for _, cfg := range b {
+		m := m.SubScope(fmt.Sprintf("slot-%d", cfg.Capacity))
+
+		v := &slot{class: cfg.Capacity, opts: NativePoolOptions{
+			Size: uint(cfg.Count),
+			Type: reflect.ArrayOf(cfg.Capacity, ByteType),
+		}, m: slotMetrics{
+			used: m.Gauge("used"),
+			size: m.Gauge("size"),
+		}}
+
+		r.slots = append(r.slots, v)
+	}
+
+	return r
 }
 
-type heap []*slot
+type heap struct {
+	slots []*slot
+
+	m heapMetrics
+}
+
+type heapMetrics struct {
+	overflows tally.Counter
+	misplaces tally.Counter
+}
 
 type slot struct {
 	sync.RWMutex
 
 	class int
-	cfg   NativePoolOptions
+	opts  NativePoolOptions
 	pools []NativePool
+
+	m slotMetrics
+}
+
+type slotMetrics struct {
+	used tally.Gauge
+	size tally.Gauge
 }
 
 func (s *slot) get() interface{} {
@@ -67,7 +103,7 @@ func (s *slot) get() interface{} {
 	// then grow while holding an exclusive lock.
 	return s.getOr(s, func() interface{} {
 		s.pools = append(
-			[]NativePool{NewNativePool(s.cfg)}, s.pools...)
+			[]NativePool{NewNativePool(s.opts)}, s.pools...)
 		return s.pools[0].Get()
 	})
 }
@@ -82,6 +118,7 @@ func (s *slot) getOr(l sync.Locker, fn OverflowFn) interface{} {
 			return nil
 		}); segment != nil {
 			l.Unlock()
+			s.updateMetrics()
 			return segment
 		}
 	}
@@ -106,14 +143,37 @@ func (s *slot) put(segment interface{}) {
 	s.RUnlock()
 }
 
+func (s *slot) updateMetrics() {
+	// TODO(@kobolog): Use Dice.
+	if time.Now().UnixNano()%sampleObjectPoolLengthEvery != 0 {
+		return
+	}
+
+	var used, size int64
+
+	s.RLock()
+
+	for i := range s.pools {
+		a, b := s.pools[i].Size()
+
+		used += int64(a)
+		size += int64(b)
+	}
+
+	s.RUnlock()
+
+	s.m.used.Update(used)
+	s.m.size.Update(size)
+}
+
 func (p heap) Init() {
-	for _, slot := range p {
-		slot.pools = append(slot.pools, NewNativePool(slot.cfg))
+	for _, slot := range p.slots {
+		slot.pools = append(slot.pools, NewNativePool(slot.opts))
 	}
 }
 
 func (p heap) pick(class int, action func(*slot)) bool {
-	for _, slot := range p {
+	for _, slot := range p.slots {
 		if class <= slot.class {
 			action(slot)
 			return true
@@ -126,25 +186,31 @@ func (p heap) pick(class int, action func(*slot)) bool {
 func (p heap) Get(n int) []byte {
 	var head []byte
 
-	if !p.pick(n, func(slot *slot) {
+	if p.pick(n, func(slot *slot) {
 		head = *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 			Data: reflect.ValueOf(slot.get()).Pointer(),
 			Len:  0,
 			Cap:  slot.class}))
 	}) {
-		// Allocate a segment directly from the system heap.
-		head = mmap(n)[0:0:n]
+		return head
 	}
 
-	return head
+	p.m.overflows.Inc(1)
+
+	// Allocate a segment directly from the system heap.
+	return mmap(n)[:0:n]
 }
 
 func (p heap) Put(head []byte) {
-	if !p.pick(cap(head), func(slot *slot) {
+	if p.pick(cap(head), func(slot *slot) {
 		slot.put(unsafe.Pointer(
 			(*reflect.SliceHeader)(unsafe.Pointer(&head)).Data))
 	}) {
-		// Nothing fits so it must be a system heap segment.
-		munmap(head[:cap(head)])
+		return
+	}
+
+	// Nothing fits so it must be a system heap segment.
+	if err := munmap(head[:cap(head)]); err != nil {
+		p.m.misplaces.Inc(1)
 	}
 }

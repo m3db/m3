@@ -21,7 +21,6 @@
 package pool
 
 import (
-	"fmt"
 	"reflect"
 	"unsafe"
 )
@@ -39,8 +38,11 @@ type NativePool interface {
 	GetOr(OverflowFn) interface{}
 	Put(interface{})
 
-	// Determines if the object belongs to the pool.
+	// Owns determines if the object belongs to the pool.
 	Owns(interface{}) bool
+
+	// Size returns the used and the total capacity of the pool.
+	Size() (uint, uint)
 }
 
 // OverflowFn produces non-pooled objects.
@@ -80,10 +82,8 @@ type nativePool struct {
 	step, size uint
 }
 
-func (p *nativePool) String() string {
-	return fmt.Sprintf(
-		"NativePool[%d/%d: %s, %p-%p, %d]", len(p.free), cap(p.free),
-		p.opts.Type, &p.pool[0], &p.pool[p.size-1], p.size)
+func (p *nativePool) Size() (uint, uint) {
+	return p.size - uint(len(p.free))*p.step, uint(cap(p.free)) * p.step
 }
 
 type hdr struct {

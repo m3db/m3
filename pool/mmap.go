@@ -30,8 +30,11 @@ const (
 	mmapMemory          = syscall.MAP_ANON | syscall.MAP_PRIVATE
 )
 
-func munmap(head []byte) {
+func munmap(head []byte) error {
 	if err := syscall.Munmap(head); err != nil {
 		fmt.Printf("munmap(%p, %d) error: %v\n", &head[0], cap(head), err)
+		return err
 	}
+
+	return nil
 }

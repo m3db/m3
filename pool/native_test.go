@@ -23,9 +23,8 @@ package pool
 import (
 	"reflect"
 	"runtime"
-	"testing"
-
 	"sync"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 )
