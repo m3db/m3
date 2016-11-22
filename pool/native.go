@@ -42,7 +42,7 @@ type NativePool interface {
 	Owns(interface{}) bool
 
 	// Size returns the used and the total capacity of the pool.
-	Size() (uint, uint)
+	Size() (uint64, uint64)
 }
 
 // OverflowFn produces non-pooled objects.
@@ -51,18 +51,18 @@ type OverflowFn func() interface{}
 // NewNativePool constructs a new NativePool.
 func NewNativePool(opts NativePoolOptions) NativePool {
 	p := &nativePool{
-		free: make(chan uint, opts.Size),
+		free: make(chan uint64, opts.Size),
 		opts: opts,
 		// TODO(@kobolog): alignment & padding.
-		step: uint(hsz + opts.Type.Size())}
+		step: uint64(hsz + opts.Type.Size())}
 
-	p.size = p.opts.Size * p.step
+	p.size = uint64(p.opts.Size) * p.step
 
 	if p.size == 0 {
 		panic("native-pool: pool size is zero")
 	}
 
-	if p.step%uint(p.opts.Type.Align()) != 0 {
+	if p.step%uint64(p.opts.Type.Align()) != 0 {
 		panic("native-pool: invalid alignment")
 	}
 
@@ -77,18 +77,18 @@ func NewNativePool(opts NativePoolOptions) NativePool {
 
 type nativePool struct {
 	pool       []byte
-	free       chan uint
+	free       chan uint64
 	opts       NativePoolOptions
-	step, size uint
+	step, size uint64
 }
 
-func (p *nativePool) Size() (uint, uint) {
-	return p.size - uint(len(p.free))*p.step, uint(cap(p.free)) * p.step
+func (p *nativePool) Size() (uint64, uint64) {
+	return p.size - uint64(len(p.free))*p.step, uint64(cap(p.free)) * p.step
 }
 
 type hdr struct {
 	// Offset from the beginning of the arena to the object.
-	idx uint
+	idx uint64
 }
 
 const (
@@ -100,9 +100,9 @@ func (p *nativePool) init() {
 	// of type struct { hdr; T }.
 	p.pool = mmap(int(p.size))
 
-	for i := uint(0); i < p.size; i += p.step {
+	for i := uint64(0); i < p.size; i += p.step {
 		hdr := (*hdr)(unsafe.Pointer(&p.pool[i]))
-		hdr.idx = i + uint(hsz)
+		hdr.idx = i + uint64(hsz)
 		ptr := unsafe.Pointer(&p.pool[hdr.idx])
 
 		p.opts.Construct(reflect.NewAt(p.opts.Type, ptr).Interface())
