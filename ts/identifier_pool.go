@@ -54,7 +54,7 @@ func configureHeap(heap pool.BytesPool) pool.BytesPool {
 
 	return pool.NewNativeHeap([]pool.Bucket{
 		{Capacity: 128, Count: 4096},
-		{Capacity: 256, Count: 2048}})
+		{Capacity: 256, Count: 2048}}, nil)
 }
 
 func create() interface{} {
