@@ -41,7 +41,7 @@ type NativePool interface {
 	// Owns determines if the object belongs to the pool.
 	Owns(interface{}) bool
 
-	// Size returns the used and the total capacity of the pool.
+	// Size returns the available and the total capacity of the pool.
 	Size() (uint64, uint64)
 }
 
@@ -116,10 +116,7 @@ func (p *nativePool) init() {
 }
 
 func (p *nativePool) Size() (uint64, uint64) {
-	free := uint64(cap(p.free)) * p.step
-	used := p.size - uint64(len(p.free))*p.step
-
-	return used, free
+	return uint64(len(p.free)) * p.step, p.size
 }
 
 // Get provides an object from the pool.

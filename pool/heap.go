@@ -59,8 +59,8 @@ func NewNativeHeap(b []Bucket, po ObjectPoolOptions) BytesPool {
 			Size: uint(cfg.Count),
 			Type: reflect.ArrayOf(cfg.Capacity, ByteType),
 		}, m: slotMetrics{
-			used: m.Gauge("used"),
-			size: m.Gauge("size"),
+			free: m.Gauge("free"),
+			size: m.Gauge("total"),
 		}}
 
 		h.slots = append(h.slots, s)
@@ -92,7 +92,7 @@ type slot struct {
 }
 
 type slotMetrics struct {
-	used tally.Gauge
+	free tally.Gauge
 	size tally.Gauge
 }
 
@@ -158,20 +158,20 @@ func (s *slot) updateMetrics() {
 		return
 	}
 
-	var used, size int64
+	var free, size int64
 
 	s.RLock()
 
 	for i := range s.pools {
 		a, b := s.pools[i].Size()
 
-		used += int64(a)
+		free += int64(a)
 		size += int64(b)
 	}
 
 	s.RUnlock()
 
-	s.m.used.Update(used)
+	s.m.free.Update(free)
 	s.m.size.Update(size)
 }
 
