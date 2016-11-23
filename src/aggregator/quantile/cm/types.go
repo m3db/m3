@@ -20,10 +20,6 @@
 
 package cm
 
-import (
-	"github.com/m3db/m3aggregator/pool"
-)
-
 // Sample represents a sampled value
 type Sample struct {
 	value    float64 // sampled value
@@ -46,6 +42,18 @@ type SamplePool interface {
 
 	// Put returns a sample to the pool
 	Put(sample *Sample)
+}
+
+// FloatsPool provides a pool for variable-sized float64 slices
+type FloatsPool interface {
+	// Init initializes the pool
+	Init()
+
+	// Get provides an float64 slice from the pool
+	Get(capacity int) []float64
+
+	// Put returns an float64 slice to the pool
+	Put(value []float64)
 }
 
 // Stream represents a data sample stream for floating point numbers
@@ -87,10 +95,10 @@ type Options interface {
 	SamplePool() SamplePool
 
 	// SetFloatsPool sets the floats pool
-	SetFloatsPool(value pool.FloatsPool) Options
+	SetFloatsPool(value FloatsPool) Options
 
-	// FloatsPool returns the sample heap pool
-	FloatsPool() pool.FloatsPool
+	// FloatsPool returns the floats pool
+	FloatsPool() FloatsPool
 
 	// Validate validates the options
 	Validate() error

@@ -18,46 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package pool
+/*
 
-import (
-	"testing"
+Package tdigest implements the t-digest algorithm for accurate on-line accumulation
+of rank-based statistics such as quantiles from "Computing Extremely Accurate Quantiles
+Using t-Digests" and is based on Ted Dunning's implementation in Java:
+https://github.com/tdunning/t-digest/blob/master/src/main/java/com/tdunning/math/stats/
 
-	"github.com/stretchr/testify/assert"
-)
-
-func TestFloatsPool(t *testing.T) {
-	p := getFloatsPool(2, []int{5, 10})
-	p.Init()
-	assert.Equal(t, 2, len(p.buckets))
-
-	b1 := p.Get(1)
-	assert.Equal(t, 0, len(b1))
-	assert.Equal(t, 5, cap(b1))
-	b1 = append(b1, 1.0)
-
-	b2 := p.Get(3)
-	assert.Equal(t, 0, len(b2))
-	assert.Equal(t, 5, cap(b2))
-	b2 = append(b1, 2.0)
-	assert.NotEqual(t, b1, b2)
-	p.Put(b1)
-
-	b3 := p.Get(2)
-	assert.Equal(t, 0, len(b3))
-	assert.Equal(t, 5, cap(b3))
-	assert.Equal(t, b1, b3[:1])
-}
-
-func getFloatsPool(bucketSizes int, bucketCaps []int) *floatsPool {
-	buckets := make([]Bucket, len(bucketCaps))
-	for i, cap := range bucketCaps {
-		buckets[i] = Bucket{
-			Count:    bucketSizes,
-			Capacity: cap,
-		}
-	}
-
-	opts := NewBucketPoolOptions().SetBuckets(buckets)
-	return NewFloatsPool(opts).(*floatsPool)
-}
+*/
+package tdigest

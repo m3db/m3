@@ -65,33 +65,33 @@ func (o objectPoolOptions) MetricsScope() tally.Scope {
 	return o.scope
 }
 
-type bucketPoolOptions struct {
+type bucketizedObjectPoolOptions struct {
 	buckets []Bucket
 	scope   tally.Scope
 }
 
-// NewBucketPoolOptions creates a new set of bucket pool options
-func NewBucketPoolOptions() BucketPoolOptions {
-	return bucketPoolOptions{
+// NewBucketizedObjectPoolOptions creates a new set of bucket pool options
+func NewBucketizedObjectPoolOptions() BucketizedObjectPoolOptions {
+	return bucketizedObjectPoolOptions{
 		buckets: defaultBuckets,
 		scope:   tally.NoopScope,
 	}
 }
 
-func (o bucketPoolOptions) SetBuckets(buckets []Bucket) BucketPoolOptions {
+func (o bucketizedObjectPoolOptions) SetBuckets(buckets []Bucket) BucketizedObjectPoolOptions {
 	o.buckets = buckets
 	return o
 }
 
-func (o bucketPoolOptions) Buckets() []Bucket {
+func (o bucketizedObjectPoolOptions) Buckets() []Bucket {
 	return o.buckets
 }
 
-func (o bucketPoolOptions) SetMetricsScope(value tally.Scope) BucketPoolOptions {
+func (o bucketizedObjectPoolOptions) SetMetricsScope(value tally.Scope) BucketizedObjectPoolOptions {
 	o.scope = value
 	return o
 }
 
-func (o bucketPoolOptions) MetricsScope() tally.Scope {
+func (o bucketizedObjectPoolOptions) MetricsScope() tally.Scope {
 	return o.scope
 }

@@ -25,23 +25,24 @@ import (
 	"sort"
 )
 
-// TODO(xichen): switch to a native pool based implementation when ready
 type bucketPool struct {
 	capacity int
 	pool     ObjectPool
 }
 
-type floatsPool struct {
-	opts              BucketPoolOptions
+// TODO(xichen): switch to a native pool based implementation when ready
+type bucketizedObjectPool struct {
+	opts              BucketizedObjectPoolOptions
+	alloc             BucketizedAllocator
 	sizesAsc          []Bucket
 	buckets           []bucketPool
 	maxBucketCapacity int
 }
 
-// NewFloatsPool creates a float slice pool
-func NewFloatsPool(opts BucketPoolOptions) FloatsPool {
+// NewBucketizedObjectPool creates a bucketized object pool
+func NewBucketizedObjectPool(opts BucketizedObjectPoolOptions) BucketizedObjectPool {
 	if opts == nil {
-		opts = NewBucketPoolOptions()
+		opts = NewBucketizedObjectPoolOptions()
 	}
 	sizes := opts.Buckets()
 	sizesAsc := make([]Bucket, len(sizes))
@@ -52,18 +53,14 @@ func NewFloatsPool(opts BucketPoolOptions) FloatsPool {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity
 	}
 
-	return &floatsPool{
+	return &bucketizedObjectPool{
 		opts:              opts,
 		sizesAsc:          sizesAsc,
 		maxBucketCapacity: maxBucketCapacity,
 	}
 }
 
-func (p *floatsPool) alloc(capacity int) []float64 {
-	return make([]float64, 0, capacity)
-}
-
-func (p *floatsPool) Init() {
+func (p *bucketizedObjectPool) Init(alloc BucketizedAllocator) {
 	var (
 		opts    = NewObjectPoolOptions()
 		buckets = make([]bucketPool, len(p.sizesAsc))
@@ -82,13 +79,14 @@ func (p *floatsPool) Init() {
 		buckets[i].capacity = capacity
 		buckets[i].pool = NewObjectPool(o)
 		buckets[i].pool.Init(func() interface{} {
-			return p.alloc(capacity)
+			return alloc(capacity)
 		})
 	}
 	p.buckets = buckets
+	p.alloc = alloc
 }
 
-func (p *floatsPool) Get(capacity int) []float64 {
+func (p *bucketizedObjectPool) Get(capacity int) interface{} {
 	if capacity > p.maxBucketCapacity {
 		return p.alloc(capacity)
 	}
@@ -100,16 +98,14 @@ func (p *floatsPool) Get(capacity int) []float64 {
 	return p.alloc(capacity)
 }
 
-func (p *floatsPool) Put(buffer []float64) {
-	capacity := cap(buffer)
+func (p *bucketizedObjectPool) Put(obj interface{}, capacity int) {
 	if capacity > p.maxBucketCapacity {
 		return
 	}
 
-	buffer = buffer[:0]
 	for i := len(p.buckets) - 1; i >= 0; i-- {
 		if capacity >= p.buckets[i].capacity {
-			p.buckets[i].pool.Put(buffer)
+			p.buckets[i].pool.Put(obj)
 			return
 		}
 	}

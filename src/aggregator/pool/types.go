@@ -81,29 +81,32 @@ func (x BucketByCapacity) Less(i, j int) bool {
 	return x[i].Capacity < x[j].Capacity
 }
 
-// BucketPoolOptions provides options for a bucket-based pool
-type BucketPoolOptions interface {
+// BucketizedAllocator allocates an object for a bucket given its capacity
+type BucketizedAllocator func(capacity int) interface{}
+
+// BucketizedObjectPool is a bucketized pool of objects
+type BucketizedObjectPool interface {
+	// Init initializes the pool
+	Init(alloc BucketizedAllocator)
+
+	// Get provides an object from the pool
+	Get(capacity int) interface{}
+
+	// Put returns an object to the pool
+	Put(obj interface{}, capacity int)
+}
+
+// BucketizedObjectPoolOptions provides options for a bucketized pool
+type BucketizedObjectPoolOptions interface {
 	// SetBuckets sets the buckets of the pool
-	SetBuckets(buckets []Bucket) BucketPoolOptions
+	SetBuckets(buckets []Bucket) BucketizedObjectPoolOptions
 
 	// Buckets returns the buckets of the pool
 	Buckets() []Bucket
 
 	// SetMetricsScope sets the metrics scope
-	SetMetricsScope(value tally.Scope) BucketPoolOptions
+	SetMetricsScope(value tally.Scope) BucketizedObjectPoolOptions
 
 	// MetricsScope returns the metrics scope
 	MetricsScope() tally.Scope
-}
-
-// FloatsPool is a pool of variable-size float64 buffers
-type FloatsPool interface {
-	// Init initializes the pool
-	Init()
-
-	// Get provides a buffer from the pool
-	Get(capacity int) []float64
-
-	// Put returns a buffer to the pool
-	Put(buffer []float64)
 }

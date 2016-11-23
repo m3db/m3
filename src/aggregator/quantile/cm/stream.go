@@ -20,11 +20,7 @@
 
 package cm
 
-import (
-	"math"
-
-	"github.com/m3db/m3aggregator/pool"
-)
+import "math"
 
 const (
 	minSamplesToCompress = 3
@@ -32,11 +28,11 @@ const (
 
 // stream represents a data stream
 type stream struct {
-	capacity   int             // stream capacity
-	eps        float64         // desired epsilon for errors
-	quantiles  []float64       // sorted target quantiles
-	samplePool SamplePool      // pool of samples
-	floatsPool pool.FloatsPool // pool of float64 slices
+	capacity   int        // stream capacity
+	eps        float64    // desired epsilon for errors
+	quantiles  []float64  // sorted target quantiles
+	samplePool SamplePool // pool of samples
+	floatsPool FloatsPool // pool of float64 slices
 
 	closed          bool       // whether the stream is closed
 	numValues       int64      // number of values
@@ -50,6 +46,7 @@ type stream struct {
 
 // NewStream creates a new sample stream
 // TODO(xichen): the stream object itself should be pooled too
+// TODO(xichen): add metrics
 func NewStream(capacity int, opts Options) Stream {
 	samplePool := opts.SamplePool()
 	floatsPool := opts.FloatsPool()
@@ -107,6 +104,7 @@ func (s *stream) Quantile(q float64) float64 {
 }
 
 func (s *stream) Reset() {
+	s.closed = false
 	s.numValues = 0
 	s.bufLess = minHeap(s.floatsPool.Get(s.capacity))
 	s.bufMore = minHeap(s.floatsPool.Get(s.capacity))
@@ -272,9 +270,9 @@ func (s *stream) addToMinHeap(heap *minHeap, value float64) {
 	// and return the current heap to the pool
 	if len(curr) == cap(curr) {
 		newHeap := minHeap(s.floatsPool.Get(2 * len(curr)))
-		copy(newHeap, curr)
+		n := copy(newHeap, curr)
 		s.floatsPool.Put(curr)
-		*heap = newHeap[:len(curr)]
+		*heap = newHeap[:n]
 	}
 	heap.Push(value)
 }
