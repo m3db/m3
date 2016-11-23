@@ -24,7 +24,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"

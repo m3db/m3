@@ -35,13 +35,13 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -108,7 +108,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 		peer hostQueue,
 		maxQueueSize int,
 		_ time.Duration,
-		workers pool.WorkerPool,
+		workers xsync.WorkerPool,
 		processFn processFn,
 	) *peerBlocksQueue {
 		qsMutex.Lock()
@@ -826,7 +826,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 func mockPeerBlocksQueues(peers []hostQueue, opts AdminOptions) peerBlocksQueues {
 	var (
 		peerQueues peerBlocksQueues
-		workers    = pool.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
+		workers    = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 	)
 	for _, peer := range peers {
 		size := opts.FetchSeriesBlocksBatchSize()
@@ -1392,11 +1392,18 @@ func (s *synchronousWorkerPool) Init() {
 	// Noop
 }
 
-func (s *synchronousWorkerPool) Go(work pool.Work) {
+func (s *synchronousWorkerPool) Go(work xsync.Work) {
 	work()
 }
 
-func (s *synchronousWorkerPool) GoIfAvailable(work pool.Work) bool {
+func (s *synchronousWorkerPool) GoIfAvailable(work xsync.Work) bool {
+	work()
+	return true
+}
+
+func (s *synchronousWorkerPool) GoWithTimeout(
+	work xsync.Work, timeout time.Duration) bool {
+
 	work()
 	return true
 }

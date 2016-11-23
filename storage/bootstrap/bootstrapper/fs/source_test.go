@@ -32,9 +32,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"

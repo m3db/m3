@@ -21,7 +21,7 @@
 package client
 
 import (
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/pool"
 )
 
 type opArrayPool interface {

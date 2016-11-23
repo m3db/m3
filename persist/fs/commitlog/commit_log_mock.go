@@ -27,7 +27,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
-	instrument "github.com/m3db/m3db/instrument"
+	instrument "github.com/m3db/m3x/instrument"
 	fs "github.com/m3db/m3db/persist/fs"
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"

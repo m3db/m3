@@ -35,12 +35,12 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/sync"
 
 	"github.com/uber/tchannel-go"
 )
@@ -70,7 +70,7 @@ type testSetup struct {
 	setNowFn       nowSetterFn
 	tchannelClient rpc.TChanNode
 	m3dbClient     client.Client
-	workerPool     pool.WorkerPool
+	workerPool     xsync.WorkerPool
 
 	// things that need to be cleaned up
 	channel        *tchannel.Channel
@@ -124,7 +124,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up worker pool
-	workerPool := pool.NewWorkerPool(opts.WorkerPoolSize())
+	workerPool := xsync.NewWorkerPool(opts.WorkerPoolSize())
 	workerPool.Init()
 
 	// Set up getter and setter for now
