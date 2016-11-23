@@ -18,59 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package pool
 
-import (
-	"bytes"
-	"crypto/md5"
+import "syscall"
+
+const (
+	mmapReadWriteAccess = syscall.PROT_READ | syscall.PROT_WRITE
+	mmapMemory          = syscall.MAP_ANON | syscall.MAP_PRIVATE
 )
 
-// BinaryID constructs a new ID based on a binary value
-func BinaryID(v []byte) ID {
-	return &id{data: v}
-}
-
-// StringID constructs a new ID based on a string value
-func StringID(v string) ID {
-	return BinaryID([]byte(v))
-}
-
-type id struct {
-	data []byte
-	hash Hash
-	pool *identifierPool
-}
-
-// Data returns the binary value of an ID
-func (v *id) Data() []byte {
-	return v.data
-}
-
-func (v *id) Equal(value ID) bool {
-	return bytes.Equal(v.Data(), value.Data())
-}
-
-var null = Hash{}
-
-// Hash calculates and returns the hash of an ID
-func (v *id) Hash() Hash {
-	if bytes.Equal(v.hash[:], null[:]) {
-		v.hash = md5.Sum(v.data)
-	}
-
-	return Hash(v.hash)
-}
-
-func (v *id) OnClose() {
-	if v.pool == nil {
-		return
-	}
-
-	v.pool.heap.Put(v.data)
-	v.data, v.hash = nil, null
-	v.pool.pool.Put(v)
-}
-
-func (v *id) String() string {
-	return string(v.data)
+func munmap(head []byte) error {
+	return syscall.Munmap(head)
 }

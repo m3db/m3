@@ -57,6 +57,8 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 		opts = NewObjectPoolOptions()
 	}
 
+	m := opts.InstrumentOptions().MetricsScope()
+
 	p := &objectPool{
 		opts:   opts,
 		values: make(chan interface{}, opts.Size()),
@@ -66,10 +68,10 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 		refillHighWatermark: int(math.Ceil(
 			float64(opts.RefillHighWatermark()) * float64(opts.Size()))),
 		metrics: objectPoolMetrics{
-			free:       opts.MetricsScope().Gauge("free"),
-			total:      opts.MetricsScope().Gauge("total"),
-			getOnEmpty: opts.MetricsScope().Counter("get-on-empty"),
-			putOnFull:  opts.MetricsScope().Counter("put-on-full"),
+			free:       m.Gauge("free"),
+			total:      m.Gauge("total"),
+			getOnEmpty: m.Counter("get-on-empty"),
+			putOnFull:  m.Counter("put-on-full"),
 		},
 	}
 

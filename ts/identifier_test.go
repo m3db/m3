@@ -43,7 +43,7 @@ func TestConstructorEquality(t *testing.T) {
 }
 
 func TestPooling(t *testing.T) {
-	p := NewIdentifierPool(pool.NewObjectPoolOptions())
+	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
 	ctx := context.NewContext()
 
 	a := p.GetStringID(ctx, "abc")
@@ -56,8 +56,7 @@ func TestPooling(t *testing.T) {
 
 func TestCloning(t *testing.T) {
 	a := StringID("abc")
-
-	p := NewIdentifierPool(pool.NewObjectPoolOptions())
+	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
 	b := p.Clone(a)
 
 	require.True(t, a.Equal(b))
@@ -83,7 +82,7 @@ func BenchmarkHashCaching(b *testing.B) {
 }
 
 func BenchmarkPooling(b *testing.B) {
-	p := NewIdentifierPool(pool.NewObjectPoolOptions())
+	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
 	ctx := context.NewContext()
 
 	v := []byte{}

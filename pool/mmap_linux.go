@@ -18,59 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+// +build linux
 
-import (
-	"bytes"
-	"crypto/md5"
+package pool
+
+import "syscall"
+
+const (
+	mmapHugePageSize = 2 << 20
 )
 
-// BinaryID constructs a new ID based on a binary value
-func BinaryID(v []byte) ID {
-	return &id{data: v}
-}
-
-// StringID constructs a new ID based on a string value
-func StringID(v string) ID {
-	return BinaryID([]byte(v))
-}
-
-type id struct {
-	data []byte
-	hash Hash
-	pool *identifierPool
-}
-
-// Data returns the binary value of an ID
-func (v *id) Data() []byte {
-	return v.data
-}
-
-func (v *id) Equal(value ID) bool {
-	return bytes.Equal(v.Data(), value.Data())
-}
-
-var null = Hash{}
-
-// Hash calculates and returns the hash of an ID
-func (v *id) Hash() Hash {
-	if bytes.Equal(v.hash[:], null[:]) {
-		v.hash = md5.Sum(v.data)
+func mmap(n int) ([]byte, error) {
+	r, err := syscall.Mmap(-1, 0, n, mmapReadWriteAccess, mmapMemory)
+	if err != nil {
+		return nil, err
 	}
 
-	return Hash(v.hash)
-}
-
-func (v *id) OnClose() {
-	if v.pool == nil {
-		return
+	if n < mmapHugePageSize {
+		return r, nil
 	}
 
-	v.pool.heap.Put(v.data)
-	v.data, v.hash = nil, null
-	v.pool.pool.Put(v)
-}
+	if err := syscall.Madvise(r, syscall.MADV_HUGEPAGE); err != nil {
+		panic("madvise() error: " + err.Error())
+	}
 
-func (v *id) String() string {
-	return string(v.data)
+	return r, nil
 }
