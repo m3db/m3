@@ -22,16 +22,8 @@
 
 package pool
 
-import (
-	"fmt"
-	"syscall"
-)
+import "syscall"
 
-func mmap(n int) []byte {
-	r, err := syscall.Mmap(-1, 0, n, mmapReadWriteAccess, mmapMemory)
-	if err != nil {
-		panic(fmt.Errorf("mmap(%d) error: %v", n, err))
-	}
-
-	return r
+func mmap(n int) ([]byte, error) {
+	return syscall.Mmap(-1, 0, n, mmapReadWriteAccess, mmapMemory)
 }

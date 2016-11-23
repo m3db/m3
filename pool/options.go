@@ -20,7 +20,7 @@
 
 package pool
 
-import "github.com/uber-go/tally"
+import "github.com/m3db/m3db/instrument"
 
 const (
 	defaultSize               = 4096
@@ -31,7 +31,7 @@ type objectPoolOptions struct {
 	size                int
 	refillLowWatermark  float64
 	refillHighWatermark float64
-	scope               tally.Scope
+	instrumentOpts      instrument.Options
 }
 
 // NewObjectPoolOptions creates a new set of object pool options
@@ -39,7 +39,7 @@ func NewObjectPoolOptions() ObjectPoolOptions {
 	return &objectPoolOptions{
 		size:               defaultSize,
 		refillLowWatermark: defaultRefillLowWatermark,
-		scope:              tally.NoopScope,
+		instrumentOpts:     instrument.NewOptions(),
 	}
 }
 
@@ -73,12 +73,12 @@ func (o *objectPoolOptions) RefillHighWatermark() float64 {
 	return o.refillHighWatermark
 }
 
-func (o *objectPoolOptions) SetMetricsScope(value tally.Scope) ObjectPoolOptions {
+func (o *objectPoolOptions) SetInstrumentOptions(value instrument.Options) ObjectPoolOptions {
 	opts := *o
-	opts.scope = value
+	opts.instrumentOpts = value
 	return &opts
 }
 
-func (o *objectPoolOptions) MetricsScope() tally.Scope {
-	return o.scope
+func (o *objectPoolOptions) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
 }

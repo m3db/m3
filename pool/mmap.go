@@ -20,10 +20,7 @@
 
 package pool
 
-import (
-	"fmt"
-	"syscall"
-)
+import "syscall"
 
 const (
 	mmapReadWriteAccess = syscall.PROT_READ | syscall.PROT_WRITE
@@ -31,10 +28,5 @@ const (
 )
 
 func munmap(head []byte) error {
-	if err := syscall.Munmap(head); err != nil {
-		fmt.Printf("munmap(%p, %d) error: %v\n", &head[0], cap(head), err)
-		return err
-	}
-
-	return nil
+	return syscall.Munmap(head)
 }

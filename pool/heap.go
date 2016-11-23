@@ -28,6 +28,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/m3db/m3x/log"
 	"github.com/uber-go/tally"
 )
 
@@ -38,13 +39,13 @@ func NewNativeHeap(b []Bucket, po ObjectPoolOptions) BytesPool {
 	}
 
 	var (
-		m        = po.MetricsScope()
+		m        = po.InstrumentOptions().MetricsScope()
 		ByteType = reflect.TypeOf((byte)(0))
 	)
 
 	sort.Sort(BucketByCapacity(b))
 
-	h := heap{m: heapMetrics{
+	h := heap{l: po.InstrumentOptions().Logger(), m: heapMetrics{
 		overflows: m.Counter("overflows"),
 		misplaces: m.Counter("misplaces"),
 	}}
@@ -71,6 +72,7 @@ func NewNativeHeap(b []Bucket, po ObjectPoolOptions) BytesPool {
 type heap struct {
 	slots []*slot
 
+	l xlog.Logger
 	m heapMetrics
 }
 
@@ -205,11 +207,17 @@ func (p heap) Get(n int) []byte {
 	p.m.overflows.Inc(1)
 
 	// Allocate a segment directly from the system heap.
-	return mmap(n)[:0:n]
+	if r, err := mmap(n); err != nil {
+		panic("mmap() error: " + err.Error())
+	} else {
+		return r[0:0:n]
+	}
 }
 
 func (p heap) Put(head []byte) {
-	if p.pick(cap(head), func(s *slot) {
+	n := cap(head)
+
+	if p.pick(n, func(s *slot) {
 		s.put(unsafe.Pointer(
 			(*reflect.SliceHeader)(unsafe.Pointer(&head)).Data))
 	}) {
@@ -217,7 +225,8 @@ func (p heap) Put(head []byte) {
 	}
 
 	// Nothing fits so it must be a system heap segment.
-	if err := munmap(head[:cap(head)]); err != nil {
+	if err := munmap(head[0:n]); err != nil {
 		p.m.misplaces.Inc(1)
+		p.l.Warnf("misplaced segment: %p size=%d", &head[0], n)
 	}
 }

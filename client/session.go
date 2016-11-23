@@ -317,17 +317,23 @@ func (s *session) Open() error {
 	// is already that Open will take some time
 	writeOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
-		SetMetricsScope(s.scope.SubScope("write-op-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-op-pool"),
+		))
 	s.writeOpPool = newWriteOpPool(writeOpPoolOpts)
 	s.writeOpPool.Init()
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
-		SetMetricsScope(s.scope.SubScope("fetch-batch-op-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("fetch-batch-op-pool"),
+		))
 	s.fetchBatchOpPool = newFetchBatchOpPool(fetchBatchOpPoolOpts, s.fetchBatchSize)
 	s.fetchBatchOpPool.Init()
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.SeriesIteratorPoolSize()).
-		SetMetricsScope(s.scope.SubScope("series-iterator-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("series-iterator-pool"),
+		))
 	s.seriesIteratorPool = encoding.NewSeriesIteratorPool(seriesIteratorPoolOpts)
 	s.seriesIteratorPool.Init()
 	s.seriesIteratorsPool = encoding.NewMutableSeriesIteratorsPool(s.opts.SeriesIteratorArrayPoolBuckets())
@@ -463,7 +469,9 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(s.opts.FetchBatchOpPoolSize()).
-			SetMetricsScope(s.scope.SubScope("fetch-batch-op-array-array-pool"))
+			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+				s.scope.SubScope("fetch-batch-op-array-array-pool"),
+			))
 		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
 			poolOpts,
 			len(queues),
@@ -485,7 +493,9 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
-			SetMetricsScope(s.scope.SubScope("reader-slice-of-slices-iterator-pool"))
+			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+				s.scope.SubScope("reader-slice-of-slices-iterator-pool"),
+			))
 		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(poolOpts)
 		s.readerSliceOfSlicesIteratorPool.Init()
 	}
@@ -494,7 +504,9 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
-			SetMetricsScope(s.scope.SubScope("multi-reader-iterator-pool"))
+			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+				s.scope.SubScope("multi-reader-iterator-pool"),
+			))
 		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(poolOpts)
 		s.multiReaderIteratorPool.Init(s.opts.ReaderIteratorAllocate())
 	}
@@ -542,12 +554,16 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
 	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
-		SetMetricsScope(s.scope.SubScope("write-batch-request-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-batch-request-pool"),
+		))
 	writeBatchRequestPool := newWriteBatchRawRequestPool(writeBatchRequestPoolOpts)
 	writeBatchRequestPool.Init()
 	writeBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
-		SetMetricsScope(s.scope.SubScope("id-datapoint-array-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("id-datapoint-array-pool"),
+		))
 	writeBatchRawRequestElementArrayPool := newWriteBatchRawRequestElementArrayPool(
 		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeBatchRawRequestElementArrayPool.Init()

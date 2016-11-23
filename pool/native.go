@@ -95,7 +95,11 @@ type nativePool struct {
 func (p *nativePool) init() {
 	// Heap is a slice of bytes large enough to fit opts.Size objects
 	// of type struct { hdr; T }.
-	p.pool = mmap(int(p.size))
+	if r, err := mmap(int(p.size)); err != nil {
+		panic("mmap() error: " + err.Error())
+	} else {
+		p.pool = r
+	}
 
 	for i := uint64(0); i < p.size; i += p.step {
 		hdr := (*hdr)(unsafe.Pointer(&p.pool[i]))

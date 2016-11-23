@@ -34,16 +34,14 @@ const (
 func mmap(n int) []byte {
 	r, err := syscall.Mmap(-1, 0, n, mmapReadWriteAccess, mmapMemory)
 	if err != nil {
-		panic(fmt.Errorf("mmap(%d) error: %v", n, err))
+		return nil, err
 	}
 
 	if n < mmapHugePageSize {
-		return r
+		return r, nil
+	} else if err := syscall.Madvise(r, syscall.MADV_HUGEPAGE); err != nil {
+		fmt.Printf("unable to turn THP on for %p: %v\n", &r[0], err)
 	}
 
-	if err := syscall.Madvise(r, syscall.MADV_HUGEPAGE); err != nil {
-		fmt.Printf("madvise(%p, HUGEPAGE) error: %v\n", &r[0], err)
-	}
-
-	return r
+	return r, nil
 }
