@@ -76,7 +76,9 @@ func NewNativePool(opts NativePoolOptions) NativePool {
 }
 
 type hdr struct {
-	// Offset from the beginning of the arena to the object.
+	// Offset from the beginning of the arena to the object, we chose
+	// to use uint64 to address > 4GB and for the hdr structure to be
+	// aligned at the largest possible value.
 	idx uint64
 }
 
