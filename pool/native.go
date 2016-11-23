@@ -75,6 +75,11 @@ func NewNativePool(opts NativePoolOptions) NativePool {
 	return p
 }
 
+type hdr struct {
+	// Offset from the beginning of the arena to the object.
+	idx uint64
+}
+
 // Header size with padding, as determined by the compiler.
 const hsz = unsafe.Sizeof(*(*hdr)(nil))
 
@@ -83,11 +88,6 @@ type nativePool struct {
 	free       chan uint64
 	opts       NativePoolOptions
 	step, size uint64
-}
-
-type hdr struct {
-	// Offset from the beginning of the arena to the object.
-	idx uint64
 }
 
 func (p *nativePool) init() {
