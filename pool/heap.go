@@ -44,7 +44,7 @@ func NewNativeHeap(b []Bucket, po ObjectPoolOptions) BytesPool {
 
 	sort.Sort(BucketByCapacity(b))
 
-	r := heap{m: heapMetrics{
+	h := heap{m: heapMetrics{
 		overflows: m.Counter("overflows"),
 		misplaces: m.Counter("misplaces"),
 	}}
@@ -54,7 +54,7 @@ func NewNativeHeap(b []Bucket, po ObjectPoolOptions) BytesPool {
 			"class": strconv.Itoa(cfg.Capacity),
 		})
 
-		v := &slot{class: cfg.Capacity, opts: NativePoolOptions{
+		s := &slot{class: cfg.Capacity, opts: NativePoolOptions{
 			Size: uint(cfg.Count),
 			Type: reflect.ArrayOf(cfg.Capacity, ByteType),
 		}, m: slotMetrics{
@@ -62,10 +62,10 @@ func NewNativeHeap(b []Bucket, po ObjectPoolOptions) BytesPool {
 			size: m.Gauge("size"),
 		}}
 
-		r.slots = append(r.slots, v)
+		h.slots = append(h.slots, s)
 	}
 
-	return r
+	return h
 }
 
 type heap struct {
@@ -145,6 +145,11 @@ func (s *slot) put(segment interface{}) {
 	s.RUnlock()
 }
 
+func (s *slot) init() {
+	// Preallocate a pool for each sizeclass to save time later.
+	s.pools = []NativePool{NewNativePool(s.opts)}
+}
+
 func (s *slot) updateMetrics() {
 	// TODO(@kobolog): Use Dice.
 	if time.Now().UnixNano()%sampleObjectPoolLengthEvery != 0 {
@@ -169,8 +174,8 @@ func (s *slot) updateMetrics() {
 }
 
 func (p heap) Init() {
-	for _, slot := range p.slots {
-		slot.pools = append(slot.pools, NewNativePool(slot.opts))
+	for _, s := range p.slots {
+		s.init()
 	}
 }
 
@@ -188,11 +193,11 @@ func (p heap) pick(class int, action func(*slot)) bool {
 func (p heap) Get(n int) []byte {
 	var head []byte
 
-	if p.pick(n, func(slot *slot) {
+	if p.pick(n, func(s *slot) {
 		head = *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-			Data: reflect.ValueOf(slot.get()).Pointer(),
+			Data: reflect.ValueOf(s.get()).Pointer(),
 			Len:  0,
-			Cap:  slot.class}))
+			Cap:  s.class}))
 	}) {
 		return head
 	}
@@ -204,8 +209,8 @@ func (p heap) Get(n int) []byte {
 }
 
 func (p heap) Put(head []byte) {
-	if p.pick(cap(head), func(slot *slot) {
-		slot.put(unsafe.Pointer(
+	if p.pick(cap(head), func(s *slot) {
+		s.put(unsafe.Pointer(
 			(*reflect.SliceHeader)(unsafe.Pointer(&head)).Data))
 	}) {
 		return
