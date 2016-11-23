@@ -485,9 +485,6 @@ func (enc *encoder) Reset(start time.Time, capacity int) {
 	var newBuffer []byte
 	bytesPool := enc.opts.BytesPool()
 	if bytesPool != nil {
-		if b, _ := enc.os.Rawbytes(); b != nil {
-			bytesPool.Put(b)
-		}
 		newBuffer = bytesPool.Get(capacity)
 	} else {
 		newBuffer = make([]byte, 0, capacity)

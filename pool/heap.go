@@ -51,7 +51,7 @@ func NewNativeHeap(b []Bucket, po ObjectPoolOptions) BytesPool {
 
 	for _, cfg := range b {
 		m := m.Tagged(map[string]string{
-			"class": strconv.Itoa(cfg.Capacity),
+			"bucket-capacity": strconv.Itoa(cfg.Capacity),
 		})
 
 		s := &slot{class: cfg.Capacity, opts: NativePoolOptions{
