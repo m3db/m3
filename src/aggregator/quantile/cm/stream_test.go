@@ -98,7 +98,7 @@ func TestStreamWithDecreasingSamples(t *testing.T) {
 	numSamples := 100000
 	opts := testStreamOptions()
 	s := NewStream(0, opts)
-	for i := 0; i < numSamples; i++ {
+	for i := numSamples - 1; i >= 0; i-- {
 		s.Add(float64(i))
 	}
 	s.Flush()

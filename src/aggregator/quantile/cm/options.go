@@ -20,11 +20,7 @@
 
 package cm
 
-import (
-	"fmt"
-
-	"github.com/m3db/m3aggregator/pool"
-)
+import "fmt"
 
 const (
 	defaultEps  = 1e-3
@@ -44,7 +40,7 @@ type options struct {
 	eps        float64
 	quantiles  []float64
 	samplePool SamplePool
-	floatsPool pool.FloatsPool
+	floatsPool FloatsPool
 }
 
 // NewOptions creates a new options
@@ -52,7 +48,7 @@ func NewOptions() Options {
 	samplePool := NewSamplePool(nil)
 	samplePool.Init()
 
-	floatsPool := pool.NewFloatsPool(nil)
+	floatsPool := NewFloatsPool(nil)
 	floatsPool.Init()
 
 	return options{
@@ -63,8 +59,8 @@ func NewOptions() Options {
 	}
 }
 
-func (o options) SetEps(eps float64) Options {
-	o.eps = eps
+func (o options) SetEps(value float64) Options {
+	o.eps = value
 	return o
 }
 
@@ -90,12 +86,12 @@ func (o options) SamplePool() SamplePool {
 	return o.samplePool
 }
 
-func (o options) SetFloatsPool(value pool.FloatsPool) Options {
+func (o options) SetFloatsPool(value FloatsPool) Options {
 	o.floatsPool = value
 	return o
 }
 
-func (o options) FloatsPool() pool.FloatsPool {
+func (o options) FloatsPool() FloatsPool {
 	return o.floatsPool
 }
 
