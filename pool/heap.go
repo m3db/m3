@@ -106,9 +106,9 @@ func (s *slot) get() interface{} {
 	// Slow path - double-check that there are no segments left,
 	// then grow while holding an exclusive lock.
 	return s.getOr(s, func() interface{} {
-		s.pools = append(
-			[]NativePool{NewNativePool(s.opts)}, s.pools...)
-		return s.pools[0].Get()
+		p := NewNativePool(s.opts)
+		s.pools = append([]NativePool{p}, s.pools...)
+		return p.Get()
 	})
 }
 
