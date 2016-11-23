@@ -22,10 +22,7 @@
 
 package pool
 
-import (
-	"fmt"
-	"syscall"
-)
+import "syscall"
 
 const (
 	mmapHugePageSize = 2 << 20
@@ -39,8 +36,10 @@ func mmap(n int) ([]byte, error) {
 
 	if n < mmapHugePageSize {
 		return r, nil
-	} else if err := syscall.Madvise(r, syscall.MADV_HUGEPAGE); err != nil {
-		fmt.Printf("unable to turn THP on for %p: %v\n", &r[0], err)
+	}
+
+	if err := syscall.Madvise(r, syscall.MADV_HUGEPAGE); err != nil {
+		panic("madvise() error: " + err.Error())
 	}
 
 	return r, nil
