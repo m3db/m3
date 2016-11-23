@@ -75,6 +75,9 @@ func NewNativePool(opts NativePoolOptions) NativePool {
 	return p
 }
 
+// Header size with padding, as determined by the compiler.
+const hsz = unsafe.Sizeof(*(*hdr)(nil))
+
 type nativePool struct {
 	pool       []byte
 	free       chan uint64
@@ -82,18 +85,10 @@ type nativePool struct {
 	step, size uint64
 }
 
-func (p *nativePool) Size() (uint64, uint64) {
-	return p.size - uint64(len(p.free))*p.step, uint64(cap(p.free)) * p.step
-}
-
 type hdr struct {
 	// Offset from the beginning of the arena to the object.
 	idx uint64
 }
-
-const (
-	hsz = unsafe.Sizeof(*(*hdr)(nil))
-)
 
 func (p *nativePool) init() {
 	// Heap is a slice of bytes large enough to fit opts.Size objects
@@ -112,6 +107,13 @@ func (p *nativePool) init() {
 		// We aim to avoid allocating unnecessary GC-visible objects.
 		p.free <- hdr.idx
 	}
+}
+
+func (p *nativePool) Size() (uint64, uint64) {
+	free := uint64(cap(p.free)) * p.step
+	used := p.size - uint64(len(p.free))*p.step
+
+	return used, free
 }
 
 // Get provides an object from the pool.
