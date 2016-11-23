@@ -31,7 +31,7 @@ const (
 	mmapHugePageSize = 2 << 20
 )
 
-func mmap(n int) []byte {
+func mmap(n int) ([]byte, error) {
 	r, err := syscall.Mmap(-1, 0, n, mmapReadWriteAccess, mmapMemory)
 	if err != nil {
 		return nil, err
