@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3x/errors"
@@ -40,9 +39,6 @@ const (
 )
 
 var (
-	// errDatabaseIsBootstrapping raised when trying to bootstrap a database that's being bootstrapped.
-	errDatabaseIsBootstrapping = errors.New("database is bootstrapping")
-
 	// errDatabaseNotBootstrapped raised when trying to query a database that's not yet bootstrapped.
 	errDatabaseNotBootstrapped = errors.New("database is not yet bootstrapped")
 
@@ -57,6 +53,9 @@ var (
 
 	// errShardNotBootstrapped raised when trying to flush data for a shard that's not yet bootstrapped.
 	errShardNotBootstrapped = errors.New("shard is not yet bootstrapped")
+
+	// errBootstrapEnqueued raised when trying to bootstrap and bootstrap becomes enqueued.
+	errBootstrapEnqueued = errors.New("database bootstrapping enqueued bootstrap")
 )
 
 type bootstrapManager struct {
@@ -68,6 +67,7 @@ type bootstrapManager struct {
 	nowFn          clock.NowFn
 	newBootstrapFn NewBootstrapFn
 	state          bootstrapState
+	pending        bool
 	fsManager      databaseFileSystemManager
 }
 
@@ -86,6 +86,13 @@ func newBootstrapManager(
 	}
 }
 
+func (m *bootstrapManager) IsBootstrapping() bool {
+	m.RLock()
+	state := m.state
+	m.RUnlock()
+	return state == bootstrapping
+}
+
 func (m *bootstrapManager) IsBootstrapped() bool {
 	m.RLock()
 	state := m.state
@@ -93,36 +100,78 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	return state == bootstrapped
 }
 
-func (m *bootstrapManager) targetRanges(writeStart time.Time) xtime.Ranges {
+func (m *bootstrapManager) targetRanges() xtime.Ranges {
+	now := m.nowFn()
 	ropts := m.opts.RetentionOptions()
-	start := writeStart.Add(-ropts.RetentionPeriod())
-	midPoint := writeStart.
+	start := now.Add(-ropts.RetentionPeriod())
+	midPoint := now.
 		Add(-ropts.BlockSize()).
 		Add(-ropts.BufferPast()).
 		Truncate(ropts.BlockSize())
-	cutover := writeStart.Add(ropts.BufferFuture())
+	cutover := now.Add(ropts.BufferFuture())
 
 	return xtime.NewRanges().
 		AddRange(xtime.Range{Start: start, End: midPoint}).
 		AddRange(xtime.Range{Start: midPoint, End: cutover})
 }
 
-// NB(xichen): Bootstrap must be called after the server starts accepting writes.
 func (m *bootstrapManager) Bootstrap() error {
-	writeStart := m.nowFn()
-	targetRanges := m.targetRanges(writeStart)
-
+	var enqueued bool
 	m.Lock()
-	if m.state == bootstrapped {
-		m.Unlock()
-		return nil
+	switch m.state {
+	case bootstrapping:
+		// NB(r): Already bootstrapping, now a consequent bootstrap
+		// request comes in - we queue this up to bootstrap again
+		// once the current bootstrap has completed.
+		// This is an edge case that can occur if during either an
+		// initial bootstrap or a resharding bootstrap if a new
+		// reshard occurs and we need to bootstrap more shards.
+		m.pending = true
+		enqueued = true
+	default:
+		m.state = bootstrapping
 	}
-	if m.state == bootstrapping {
-		m.Unlock()
-		return errDatabaseIsBootstrapping
-	}
-	m.state = bootstrapping
 	m.Unlock()
+
+	if enqueued {
+		return errBootstrapEnqueued
+	}
+
+	return m.bootstrapUntilNonePending()
+}
+
+func (m *bootstrapManager) bootstrapUntilNonePending() error {
+	err := m.bootstrap()
+
+	var currPending bool
+	m.Lock()
+	currPending = m.pending
+	if currPending {
+		// New bootstrap calls should now enqueue another pending bootstrap
+		m.pending = false
+	} else {
+		m.state = bootstrapped
+	}
+	m.Unlock()
+
+	if !currPending {
+		// No bootstraps pending, return current result
+		return err
+	}
+
+	// Keep performing bootstraps until none pending
+	multiErr := xerrors.NewMultiError()
+	if err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	if err := m.bootstrapUntilNonePending(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	return multiErr.FinalError()
+}
+
+func (m *bootstrapManager) bootstrap() error {
+	targetRanges := m.targetRanges()
 
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
@@ -131,7 +180,7 @@ func (m *bootstrapManager) Bootstrap() error {
 	bs := m.newBootstrapFn()
 	for _, namespace := range m.database.getOwnedNamespaces() {
 		start := m.nowFn()
-		if err := namespace.Bootstrap(bs, targetRanges, writeStart); err != nil {
+		if err := namespace.Bootstrap(bs, targetRanges); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 		end := m.nowFn()
@@ -148,10 +197,6 @@ func (m *bootstrapManager) Bootstrap() error {
 	m.fsManager.SetRateLimitOptions(rateLimitOpts.SetLimitEnabled(false))
 	m.fsManager.Run(m.nowFn(), false)
 	m.fsManager.SetRateLimitOptions(rateLimitOpts)
-
-	m.Lock()
-	m.state = bootstrapped
-	m.Unlock()
 
 	return multiErr.FinalError()
 }

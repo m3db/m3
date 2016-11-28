@@ -154,7 +154,11 @@ func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics
 }
 
 // NewDatabase creates a new time series database
-func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, opts Options) (Database, error) {
+func NewDatabase(
+	namespaces []namespace.Metadata,
+	shardSet sharding.ShardSet,
+	opts Options,
+) (Database, error) {
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
 
@@ -188,8 +192,6 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 		if _, exists := ns[n.ID().Hash()]; exists {
 			return nil, errDuplicateNamespaces
 		}
-		// NB(xichen): shardSet is used only for reads but not writes once created
-		// so can be shared by different namespaces
 		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet, d, d.writeCommitLogFn, d.opts)
 	}
 	d.namespaces = ns
@@ -213,6 +215,20 @@ func NewDatabase(namespaces []namespace.Metadata, shardSet sharding.ShardSet, op
 
 func (d *db) Options() Options {
 	return d.opts
+}
+
+func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
+	d.RLock()
+	defer d.RUnlock()
+	for _, ns := range d.namespaces {
+		ns.AssignShardSet(shardSet)
+	}
+	if d.bsm.IsBootstrapping() || d.bsm.IsBootstrapped() {
+		// NB(r): Trigger another bootstrap, if already bootstrapping this will
+		// enqueue a new bootstrap to execute before the current bootstrap
+		// completes
+		go d.Bootstrap()
+	}
 }
 
 func (d *db) Open() error {

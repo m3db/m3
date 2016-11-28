@@ -71,7 +71,6 @@ func TestShardBootstrapWithError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	writeStart := time.Now()
 	opts := testDatabaseOptions()
 	s := testDatabaseShard(opts)
 	fooSeries := series.NewMockDatabaseSeries(ctrl)
@@ -89,12 +88,12 @@ func TestShardBootstrapWithError(t *testing.T) {
 	fooID := ts.StringID("foo")
 	barID := ts.StringID("bar")
 
-	bootstrappedSeries := map[ts.Hash]bootstrap.DatabaseSeriesBlocksWrapper{
-		fooID.Hash(): {fooID, fooBlocks},
-		barID.Hash(): {barID, barBlocks},
+	bootstrappedSeries := map[ts.Hash]bootstrap.DatabaseSeriesBlocks{
+		fooID.Hash(): {ID: fooID, Blocks: fooBlocks},
+		barID.Hash(): {ID: barID, Blocks: barBlocks},
 	}
 
-	err := s.Bootstrap(bootstrappedSeries, writeStart)
+	err := s.Bootstrap(bootstrappedSeries)
 
 	require.NotNil(t, err)
 	require.Equal(t, "series error", err.Error())
@@ -223,7 +222,7 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
-	r := shard.tickAndExpire(6 * time.Millisecond)
+	r := shard.tickAndExpire(6*time.Millisecond, tickPolicyRegular)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 	require.Equal(t, 4*time.Millisecond, slept)
@@ -248,7 +247,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	r := shard.tickAndExpire(0)
+	r := shard.tickAndExpire(0, tickPolicyRegular)
 	require.Equal(t, 1, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 }
@@ -276,7 +275,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		s.EXPECT().IsEmpty().Return(false)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(0)
+	r := shard.tickAndExpire(0, tickPolicyRegular)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
@@ -298,10 +297,12 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	s.EXPECT().ID().Return(id)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place and staying open just after tick for this series
-		entry = shard.writableSeries(id)
+		var err error
+		entry, err = shard.writableSeries(id)
+		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(0)
+	r := shard.tickAndExpire(0, tickPolicyRegular)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))

@@ -62,7 +62,7 @@ type ShardResult interface {
 	BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool)
 
 	// AllSeries returns all series of blocks.
-	AllSeries() map[ts.Hash]DatabaseSeriesBlocksWrapper
+	AllSeries() map[ts.Hash]DatabaseSeriesBlocks
 
 	// AddBlock adds a data block.
 	AddBlock(id ts.ID, block block.DatabaseBlock)
@@ -83,8 +83,8 @@ type ShardResult interface {
 	Close()
 }
 
-// DatabaseSeriesBlocksWrapper represents a series of blocks and a associated series ID.
-type DatabaseSeriesBlocksWrapper struct {
+// DatabaseSeriesBlocks represents a series of blocks and a associated series ID.
+type DatabaseSeriesBlocks struct {
 	ID     ts.ID
 	Blocks block.DatabaseSeriesBlocks
 }

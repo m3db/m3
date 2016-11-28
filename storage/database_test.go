@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
@@ -46,14 +47,15 @@ type mockDatabase struct {
 
 func newMockDatabase() *mockDatabase { return &mockDatabase{opts: testDatabaseOptions()} }
 
-func (d *mockDatabase) Options() Options                        { return d.opts }
-func (d *mockDatabase) Open() error                             { return nil }
-func (d *mockDatabase) Close() error                            { return nil }
-func (d *mockDatabase) Bootstrap() error                        { return nil }
-func (d *mockDatabase) IsBootstrapped() bool                    { return d.bs == bootstrapped }
-func (d *mockDatabase) Repair() error                           { return nil }
-func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error) { return 0, nil }
-func (d *mockDatabase) flush(t time.Time, async bool)           {}
+func (d *mockDatabase) Options() Options                          { return d.opts }
+func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
+func (d *mockDatabase) Open() error                               { return nil }
+func (d *mockDatabase) Close() error                              { return nil }
+func (d *mockDatabase) Bootstrap() error                          { return nil }
+func (d *mockDatabase) IsBootstrapped() bool                      { return d.bs == bootstrapped }
+func (d *mockDatabase) Repair() error                             { return nil }
+func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error)   { return 0, nil }
+func (d *mockDatabase) flush(t time.Time, async bool)             {}
 
 func (d *mockDatabase) getOwnedNamespaces() []databaseNamespace {
 	namespaces := make([]databaseNamespace, 0, len(d.namespaces))

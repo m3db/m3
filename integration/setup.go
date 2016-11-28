@@ -100,7 +100,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	id := *id
 	if id == "" {
-		id = "testhost"
+		id = opts.ID()
 	}
 
 	tchannelNodeAddr := *tchannelNodeAddr
@@ -108,9 +108,12 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		tchannelNodeAddr = addr
 	}
 
-	topoInit, err := server.DefaultTopologyInitializerForShardSet(id, tchannelNodeAddr, shardSet)
-	if err != nil {
-		return nil, err
+	topoInit := opts.ClusterDatabaseTopologyInitializer()
+	if topoInit == nil {
+		topoInit, err = server.DefaultTopologyInitializerForShardSet(id, tchannelNodeAddr, shardSet)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	clientOpts := server.DefaultClientOptions(topoInit).

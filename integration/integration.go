@@ -26,11 +26,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -83,6 +85,7 @@ func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 	bind := "0.0.0.0"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
 	return opts.
+		SetID(fmt.Sprintf("testhost%d", instance)).
 		SetTChannelNodeAddr(fmt.Sprintf("%s:%d", bind, start)).
 		SetTChannelClusterAddr(fmt.Sprintf("%s:%d", bind, start+1)).
 		SetHTTPNodeAddr(fmt.Sprintf("%s:%d", bind, start+2)).
@@ -107,7 +110,7 @@ func newMultiAddrAdminClient(
 		origin        topology.Host
 	)
 	for i := 0; i < replicas; i++ {
-		id := fmt.Sprintf("localhost%d", i)
+		id := fmt.Sprintf("testhost%d", i)
 		nodeAddr := fmt.Sprintf("127.0.0.1:%d", start+(i*multiAddrPortEach))
 		host := topology.NewHost(id, nodeAddr)
 		if i == instance {
@@ -154,6 +157,7 @@ type bootstrappableTestSetupOptions struct {
 	disablePeersBootstrapper   bool
 	bootstrapBlocksBatchSize   int
 	bootstrapBlocksConcurrency int
+	topologyInitializer        topology.Initializer
 	testStatsReporter          xmetrics.TestStatsReporter
 }
 
@@ -182,10 +186,15 @@ func newDefaultBootstrappableTestSetups(
 			usingPeersBoostrapper      = !setupOpts[i].disablePeersBootstrapper
 			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
 			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
+			topologyInitializer        = setupOpts[i].topologyInitializer
 			testStatsReporter          = setupOpts[i].testStatsReporter
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
 			setup                      *testSetup
 		)
+		if topologyInitializer != nil {
+			instanceOpts = instanceOpts.
+				SetClusterDatabaseTopologyInitializer(topologyInitializer)
+		}
 		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
 			instrumentOpts := setup.storageOpts.InstrumentOptions()
 
@@ -350,4 +359,91 @@ func writeToDisk(
 	}
 
 	return nil
+}
+
+type mockTopoOptions struct {
+	hostID string
+}
+
+func newMockClusterDBTopo(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	opts mockTopoOptions,
+) mockClusterDBTopology {
+	shardSet, err := server.DefaultShardSet()
+	require.NoError(t, err)
+
+	ch := make(chan struct{}, 1)
+	ch <- struct{}{}
+
+	m := topology.NewMockMap(ctrl)
+	m.EXPECT().LookupHostShardSet(opts.hostID).Return(
+		topology.NewHostShardSet(topology.NewHost(opts.hostID, ""), shardSet), true)
+
+	watch := topology.NewMockMapWatch(ctrl)
+	watch.EXPECT().C().Return(ch).AnyTimes()
+	watch.EXPECT().Get().Return(m)
+
+	topo := topology.NewMockTopology(ctrl)
+	topo.EXPECT().Watch().Return(watch, nil)
+
+	return mockClusterDBTopology{
+		topo:        topo,
+		topoWatch:   watch,
+		topoWatchCh: ch,
+		topoMap:     m,
+	}
+}
+
+type mockTopoInitOptions struct {
+	replicas int
+	cluster  mockTopoOptions
+}
+
+type mockClusterDBTopology struct {
+	topo        *topology.MockTopology
+	topoWatch   *topology.MockMapWatch
+	topoWatchCh chan struct{}
+	topoMap     *topology.MockMap
+}
+
+type mockTopologyInitializer struct {
+	initializer *topology.MockInitializer
+	cluster     mockClusterDBTopology
+}
+
+func newMockTopoInit(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	opts mockTopoInitOptions,
+) mockTopologyInitializer {
+	// Expect the first init call from the cluster database
+	mockClusterDBTopo := newMockClusterDBTopo(t, ctrl, opts.cluster)
+	topoInit := topology.NewMockInitializer(ctrl)
+	topoInit.EXPECT().Init().Do(func() {
+		// Expect the next init call from the client session, use a static topology
+		shardSet, err := server.DefaultShardSet()
+		require.NoError(t, err)
+
+		var hostShardSets []topology.HostShardSet
+		for i := 0; i < opts.replicas; i++ {
+			testOpts := newMultiAddrTestOptions(newTestOptions(), i)
+			host := topology.NewHost(testOpts.ID(), testOpts.TChannelNodeAddr())
+			hostShardSet := topology.NewHostShardSet(host, shardSet)
+			hostShardSets = append(hostShardSets, hostShardSet)
+		}
+
+		opts := topology.NewStaticOptions().
+			SetReplicas(2).
+			SetShardSet(shardSet).
+			SetHostShardSets(hostShardSets)
+		staticTopo := topology.NewStaticTopology(opts)
+
+		topoInit.EXPECT().Init().Return(staticTopo, nil).AnyTimes()
+	}).Return(mockClusterDBTopo.topo, nil)
+
+	return mockTopologyInitializer{
+		initializer: topoInit,
+		cluster:     mockClusterDBTopo,
+	}
 }

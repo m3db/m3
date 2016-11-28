@@ -71,14 +71,14 @@ func (r *result) AddResult(other Result) {
 
 type shardResult struct {
 	opts   Options
-	blocks map[ts.Hash]DatabaseSeriesBlocksWrapper
+	blocks map[ts.Hash]DatabaseSeriesBlocks
 }
 
 // NewShardResult creates a new shard result.
 func NewShardResult(capacity int, opts Options) ShardResult {
 	return &shardResult{
 		opts:   opts,
-		blocks: make(map[ts.Hash]DatabaseSeriesBlocksWrapper, capacity),
+		blocks: make(map[ts.Hash]DatabaseSeriesBlocks, capacity),
 	}
 }
 
@@ -96,7 +96,7 @@ func (sr *shardResult) IsEmpty() bool {
 func (sr *shardResult) AddBlock(id ts.ID, b block.DatabaseBlock) {
 	curSeries, exists := sr.blocks[id.Hash()]
 	if !exists {
-		curSeries = DatabaseSeriesBlocksWrapper{
+		curSeries = DatabaseSeriesBlocks{
 			ID:     id,
 			Blocks: block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions()),
 		}
@@ -109,7 +109,7 @@ func (sr *shardResult) AddBlock(id ts.ID, b block.DatabaseBlock) {
 func (sr *shardResult) AddSeries(id ts.ID, rawSeries block.DatabaseSeriesBlocks) {
 	curSeries, exists := sr.blocks[id.Hash()]
 	if !exists {
-		curSeries = DatabaseSeriesBlocksWrapper{
+		curSeries = DatabaseSeriesBlocks{
 			ID:     id,
 			Blocks: block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions()),
 		}
@@ -144,7 +144,7 @@ func (sr *shardResult) RemoveSeries(id ts.ID) {
 }
 
 // AllSeries returns all series in the map.
-func (sr *shardResult) AllSeries() map[ts.Hash]DatabaseSeriesBlocksWrapper {
+func (sr *shardResult) AllSeries() map[ts.Hash]DatabaseSeriesBlocks {
 	return sr.blocks
 }
 

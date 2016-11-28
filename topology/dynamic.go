@@ -171,7 +171,7 @@ func getMapFromUpdate(data interface{}, hashGen sharding.HashGen) (Map, error) {
 	if err := to.Validate(); err != nil {
 		return nil, err
 	}
-	return newStaticMap(to), nil
+	return NewStaticMap(to), nil
 }
 
 func getStaticOptions(service services.Service, hashGen sharding.HashGen) (StaticOptions, error) {

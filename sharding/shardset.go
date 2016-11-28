@@ -81,9 +81,6 @@ func (s *shardSet) HashFn() HashFn {
 }
 
 func validateShards(shards []uint32) error {
-	if len(shards) <= 0 {
-		return ErrNoShards
-	}
 	uniqueShards := make(map[uint32]struct{}, len(shards))
 	for _, s := range shards {
 		if _, exist := uniqueShards[s]; exist {

@@ -37,7 +37,7 @@ type staticMap struct {
 	majority            int
 }
 
-func newStaticMap(opts StaticOptions) Map {
+func NewStaticMap(opts StaticOptions) Map {
 	totalShards := len(opts.ShardSet().Shards())
 	hostShardSets := opts.HostShardSets()
 	topoMap := staticMap{

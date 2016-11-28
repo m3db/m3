@@ -34,7 +34,7 @@ type staticInitializer struct {
 	opts StaticOptions
 }
 
-// NewStaticInitializer returns a topology initializer
+// NewStaticInitializer creates a static topology initializer
 func NewStaticInitializer(opts StaticOptions) Initializer {
 	return staticInitializer{opts}
 }
@@ -43,16 +43,17 @@ func (i staticInitializer) Init() (Topology, error) {
 	if err := i.opts.Validate(); err != nil {
 		return nil, err
 	}
-	return newStaticTopology(i.opts), nil
+	return NewStaticTopology(i.opts), nil
 }
 
 type staticTopology struct {
 	w xwatch.Watchable
 }
 
-func newStaticTopology(opts StaticOptions) Topology {
+// NewStaticTopology creates a static topology
+func NewStaticTopology(opts StaticOptions) Topology {
 	w := xwatch.NewWatchable()
-	w.Update(newStaticMap(opts))
+	w.Update(NewStaticMap(opts))
 	return &staticTopology{w: w}
 }
 

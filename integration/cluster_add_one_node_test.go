@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -30,19 +31,32 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/log"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPeersBootstrapNodeDown(t *testing.T) {
+func TestClusterAddOneNode(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	// Test setups
 	log := xlog.SimpleLogger
+
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
 		SetNamespaces([]namespace.Metadata{namesp})
+
+	topos := make([]mockTopologyInitializer, 2)
+	for i := 0; i < len(topos); i++ {
+		topos[i] = newMockTopoInit(t, ctrl, mockTopoInitOptions{
+			replicas: 1,
+			cluster:  mockTopoOptions{hostID: fmt.Sprintf("testhost%d", i)},
+		})
+	}
 
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
@@ -50,9 +64,14 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
 	setupOpts := []bootstrappableTestSetupOptions{
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false},
+		{
+			disablePeersBootstrapper: true,
+			topologyInitializer:      topos[0].initializer,
+		},
+		{
+			disablePeersBootstrapper: false,
+			topologyInitializer:      topos[1].initializer,
+		},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
@@ -70,21 +89,20 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
 
-	// Leave second node down, start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[2].startServer())
-	log.Debug("first and third servers are now up")
+	// Start the last server with peers and filesystem bootstrappers
+	require.NoError(t, setups[1].startServer())
+	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
-		testSetups{setups[0], setups[2]}.parallel(func(s *testSetup) {
+		setups.parallel(func(s *testSetup) {
 			require.NoError(t, s.stopServer())
 		})
 		log.Debug("servers are now down")
 	}()
 
 	// Verify in-memory data match what we expect
-	expect := testSetups{setups[0], setups[2]}
-	for _, setup := range expect {
+	for _, setup := range setups {
 		verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
 	}
 }

@@ -21,7 +21,6 @@
 package topology
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3cluster/client"
@@ -29,18 +28,18 @@ import (
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/close"
 )
 
 // Host is a container of a host in a topology
 type Host interface {
-	fmt.Stringer
-
 	// ID is the identifier of the host
 	ID() string
 
 	// Address returns the address of the host
 	Address() string
+
+	// String returns a string representation of the host
+	String() string
 }
 
 // HostShardSet is a container for a host and corresponding shard set
@@ -60,13 +59,14 @@ type Initializer interface {
 
 // Topology is a container of a topology map and disseminates topology map changes
 type Topology interface {
-	xclose.SimpleCloser
-
 	// Get the topology map
 	Get() Map
 
 	// Watch for the topology map
 	Watch() (MapWatch, error)
+
+	// Close will close the topology map
+	Close()
 }
 
 // MapWatch is a watch on a topology map

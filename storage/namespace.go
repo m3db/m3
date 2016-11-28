@@ -143,6 +143,54 @@ func (n *dbNamespace) NumSeries() int64 {
 	return count
 }
 
+func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
+	var (
+		incoming = make(map[uint32]struct{})
+		existing []databaseShard
+		closing  []databaseShard
+	)
+	for _, shard := range shardSet.Shards() {
+		incoming[shard] = struct{}{}
+	}
+
+	n.Lock()
+	existing = n.shards
+	for _, shard := range existing {
+		if _, ok := incoming[shard.ID()]; !ok {
+			closing = append(closing, shard)
+		}
+	}
+	n.shardSet = shardSet
+	n.shards = make([]databaseShard, n.shardSet.Max()+1)
+	for _, shard := range n.shardSet.Shards() {
+		if int(shard) < len(existing) && existing[shard] != nil {
+			n.shards[shard] = existing[shard]
+		} else {
+			n.shards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex,
+				n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.sopts)
+		}
+	}
+	n.Unlock()
+
+	// NB(r): There is a shard close deadline that controls how fast each
+	// shard closes set in the options.  To make sure this is the single
+	// point of control for determining how impactful closing shards may
+	// be to performance, we let this be the single gate and simply spin
+	// up a goroutine per shard that we need to close and rely on the self
+	// throttling of each shard as determined by the close shard deadline to
+	// gate the impact.
+	for _, shard := range closing {
+		go func() {
+			if err := shard.Close(); err != nil {
+				n.log.WithFields(
+					xlog.NewLogField("namespace", n.id.String()),
+					xlog.NewLogField("shard", shard.ID()),
+				).Errorf("error occurred closing shard: %v", err)
+			}
+		}()
+	}
+}
+
 func (n *dbNamespace) Tick(softDeadline time.Duration) {
 	shards := n.getOwnedShards()
 
@@ -173,8 +221,7 @@ func (n *dbNamespace) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	shardID := n.shardSet.Shard(id)
-	shard, err := n.shardAt(shardID)
+	shard, err := n.shardFor(id)
 	if err != nil {
 		return err
 	}
@@ -186,8 +233,7 @@ func (n *dbNamespace) ReadEncoded(
 	id ts.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
-	shardID := n.shardSet.Shard(id)
-	shard, err := n.shardAt(shardID)
+	shard, err := n.shardFor(id)
 	if err != nil {
 		return nil, err
 	}
@@ -220,23 +266,18 @@ func (n *dbNamespace) FetchBlocksMetadata(
 	if err != nil {
 		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, limit, pageToken, includeSizes, includeChecksums)
+	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, limit,
+		pageToken, includeSizes, includeChecksums)
 	return res, nextPageToken, nil
 }
 
 func (n *dbNamespace) Bootstrap(
 	bs bootstrap.Bootstrap,
 	targetRanges xtime.Ranges,
-	writeStart time.Time,
 ) error {
 	callStart := n.nowFn()
 
 	n.Lock()
-	if n.bs == bootstrapped {
-		n.Unlock()
-		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
-		return nil
-	}
 	if n.bs == bootstrapping {
 		n.Unlock()
 		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
@@ -259,7 +300,20 @@ func (n *dbNamespace) Bootstrap(
 		return nil
 	}
 
-	shards := n.getOwnedShards()
+	var (
+		owned  = n.getOwnedShards()
+		shards = make([]databaseShard, 0, len(owned))
+	)
+	for _, shard := range owned {
+		if !shard.IsBootstrapped() {
+			shards = append(shards, shard)
+		}
+	}
+	if len(shards) == 0 {
+		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
+		return nil
+	}
+
 	shardIDs := make([]uint32, len(shards))
 	for i, shard := range shards {
 		shardIDs[i] = shard.ID()
@@ -267,8 +321,8 @@ func (n *dbNamespace) Bootstrap(
 
 	result, err := bs.Run(targetRanges, n.id, shardIDs)
 	if err != nil {
-		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v", n.id.String(), err)
-		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
+		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v",
+			n.id.String(), err)
 		return err
 	}
 	n.metrics.bootstrap.Success.Inc(1)
@@ -276,6 +330,16 @@ func (n *dbNamespace) Bootstrap(
 	// Bootstrap shards using at least half the CPUs available
 	workers := pool.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	workers.Init()
+
+	numSeries := 0
+	for _, r := range result.ShardResults() {
+		numSeries += len(r.AllSeries())
+	}
+	n.log.WithFields(
+		xlog.NewLogField("namespace", n.id.String()),
+		xlog.NewLogField("numShards", len(shards)),
+		xlog.NewLogField("numSeries", numSeries),
+	).Infof("bootstrap data fetched now initializing shards with series blocks")
 
 	var (
 		multiErr = xerrors.NewMultiError()
@@ -287,12 +351,12 @@ func (n *dbNamespace) Bootstrap(
 		shard := shard
 		wg.Add(1)
 		workers.Go(func() {
-			var bootstrapped map[ts.Hash]bootstrap.DatabaseSeriesBlocksWrapper
+			var bootstrapped map[ts.Hash]bootstrap.DatabaseSeriesBlocks
 			if result, ok := results[shard.ID()]; ok {
 				bootstrapped = result.AllSeries()
 			}
 
-			err := shard.Bootstrap(bootstrapped, writeStart)
+			err := shard.Bootstrap(bootstrapped)
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)
@@ -309,12 +373,13 @@ func (n *dbNamespace) Bootstrap(
 	n.metrics.unfulfilled.Inc(unfulfilled)
 	if unfulfilled > 0 {
 		str := result.Unfulfilled().SummaryString()
-		n.log.Errorf("bootstrap for namespace %s completed with unfulfilled ranges: %s", n.id.String(), str)
+		msgFmt := "bootstrap for namespace %s completed with unfulfilled ranges: %s"
+		multiErr = multiErr.Add(fmt.Errorf(msgFmt, n.id.String(), str))
+		n.log.Errorf(msgFmt, n.id.String(), str)
 	}
 
 	err = multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-
 	return err
 }
 
@@ -343,7 +408,8 @@ func (n *dbNamespace) Flush(
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
 		if err := shard.Flush(n.id, blockStart, pm); err != nil {
-			detailedErr := fmt.Errorf("shard %d failed to flush data: %v", shard.ID(), err)
+			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
+				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}
@@ -394,7 +460,10 @@ func (n *dbNamespace) Truncate() (int64, error) {
 	return totalNumSeries, nil
 }
 
-func (n *dbNamespace) Repair(repairer databaseShardRepairer, tr xtime.Range) error {
+func (n *dbNamespace) Repair(
+	repairer databaseShardRepairer,
+	tr xtime.Range,
+) error {
 	if !n.nopts.NeedsRepair() {
 		return nil
 	}
@@ -416,7 +485,8 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer, tr xtime.Range) err
 	shards := n.getOwnedShards()
 	numShards := len(shards)
 	if numShards > 0 {
-		throttlePerShard = time.Duration(int64(repairer.Options().RepairThrottle()) / int64(numShards))
+		throttlePerShard = time.Duration(
+			int64(repairer.Options().RepairThrottle()) / int64(numShards))
 	}
 
 	workers := pool.NewWorkerPool(repairer.Options().RepairShardConcurrency())
@@ -482,27 +552,42 @@ func (n *dbNamespace) getOwnedShards() []databaseShard {
 	return databaseShards
 }
 
+func (n *dbNamespace) shardFor(id ts.ID) (databaseShard, error) {
+	n.RLock()
+	shardID := n.shardSet.Shard(id)
+	shard, err := n.shardAtWithRLock(shardID)
+	n.RUnlock()
+	return shard, err
+}
+
 func (n *dbNamespace) shardAt(shardID uint32) (databaseShard, error) {
 	n.RLock()
+	shard, err := n.shardAtWithRLock(shardID)
+	n.RUnlock()
+	return shard, err
+}
+
+func (n *dbNamespace) shardAtWithRLock(shardID uint32) (databaseShard, error) {
 	if int(shardID) >= len(n.shards) {
-		n.RUnlock()
-		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("not responsible for shard %d", shardID))
+		return nil, xerrors.NewInvalidParamsError(
+			fmt.Errorf("not responsible for shard %d", shardID))
 	}
 	shard := n.shards[shardID]
-	n.RUnlock()
 	if shard == nil {
-		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("not responsible for shard %d", shardID))
+		return nil, xerrors.NewInvalidParamsError(
+			fmt.Errorf("not responsible for shard %d", shardID))
 	}
 	return shard, nil
 }
 
 func (n *dbNamespace) initShards() {
+	n.Lock()
 	shards := n.shardSet.Shards()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
-		dbShards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex, n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.sopts)
+		dbShards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex,
+			n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.sopts)
 	}
-	n.Lock()
 	n.shards = dbShards
 	n.Unlock()
 }

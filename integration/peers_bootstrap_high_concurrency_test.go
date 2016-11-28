@@ -24,7 +24,6 @@ package integration
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -41,7 +40,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	}
 
 	// Test setups
-	log := xlog.NewLogger(os.Stdout)
+	log := xlog.SimpleLogger
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
 		SetNamespaces([]namespace.Metadata{namesp})

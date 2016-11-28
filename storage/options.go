@@ -49,6 +49,12 @@ const (
 	// defaultMaxFlushRetries is the default number of retries when flush fails
 	defaultMaxFlushRetries = 3
 
+	// defaultShardCloseDeadline is the default soft deadline to give when closing shards,
+	// it is used to gate the impact of closing the shard on the performnace of the process.
+	// It by default is 2 minutes which aligns with the Go GC timer so it should at least be
+	// split across two GC cycles somewhat.
+	defaultShardCloseDeadline = 2 * time.Minute
+
 	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket
 	defaultBytesPoolBucketCapacity = 256
 
@@ -95,6 +101,7 @@ type options struct {
 	newBootstrapFn                 NewBootstrapFn
 	newPersistManagerFn            NewPersistManagerFn
 	maxFlushRetries                int
+	shardCloseDeadline             time.Duration
 	contextPool                    context.Pool
 	seriesPool                     series.DatabaseSeriesPool
 	bytesPool                      pool.BytesPool
@@ -348,6 +355,16 @@ func (o *options) SetMaxFlushRetries(value int) Options {
 
 func (o *options) MaxFlushRetries() int {
 	return o.maxFlushRetries
+}
+
+func (o *options) SetShardCloseDeadline(value time.Duration) Options {
+	opts := *o
+	opts.shardCloseDeadline = value
+	return &opts
+}
+
+func (o *options) ShardCloseDeadline() time.Duration {
+	return o.shardCloseDeadline
 }
 
 func (o *options) SetContextPool(value context.Pool) Options {

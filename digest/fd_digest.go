@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3x/close"
 )
 
-// FdWithDigest is a wrapper around a file descriptor alongside the digest for what's stored in the file.
+// FdWithDigest is a container for a file descriptor and the digest for the file contents.
 type FdWithDigest interface {
 	xclose.Closer
 

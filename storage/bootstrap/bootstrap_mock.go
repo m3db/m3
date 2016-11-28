@@ -141,9 +141,9 @@ func (_mr *_MockShardResultRecorder) BlockAt(arg0, arg1 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockAt", arg0, arg1)
 }
 
-func (_m *MockShardResult) AllSeries() map[ts.Hash]DatabaseSeriesBlocksWrapper {
+func (_m *MockShardResult) AllSeries() map[ts.Hash]DatabaseSeriesBlocks {
 	ret := _m.ctrl.Call(_m, "AllSeries")
-	ret0, _ := ret[0].(map[ts.Hash]DatabaseSeriesBlocksWrapper)
+	ret0, _ := ret[0].(map[ts.Hash]DatabaseSeriesBlocks)
 	return ret0
 }
 
