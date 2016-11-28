@@ -87,8 +87,9 @@ func (it *seriesIterator) Close() {
 		return
 	}
 	it.closed = true
-	for _, iter := range it.iters {
-		iter.Close()
+	for i := range it.iters {
+		it.iters[i].Close()
+		it.iters[i] = nil
 	}
 	it.iters = it.iters[:0]
 	if it.pool != nil {

@@ -18,36 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package topology
+package pool
 
-import (
-	"testing"
+import "syscall"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/ts"
-	"github.com/stretchr/testify/assert"
+const (
+	mmapReadWriteAccess = syscall.PROT_READ | syscall.PROT_WRITE
+	mmapMemory          = syscall.MAP_ANON | syscall.MAP_PRIVATE
 )
 
-func TestNewHostShardSetFromServiceInstance(t *testing.T) {
-	i1 := services.NewServiceInstance().
-		SetInstanceID("h1").
-		SetEndpoint("h1:9000").
-		SetShards(shard.NewShards([]shard.Shard{
-			shard.NewShard(1),
-			shard.NewShard(2),
-			shard.NewShard(3),
-		}))
-	hash := sharding.DefaultHashGen(3)
-	host, err := NewHostShardSetFromServiceInstance(i1, hash)
-	assert.NoError(t, err)
-	assert.Equal(t, "h1:9000", host.Host().Address())
-	assert.Equal(t, "h1", host.Host().ID())
-	assert.Equal(t, 3, len(host.ShardSet().Shards()))
-	assert.Equal(t, uint32(1), host.ShardSet().Min())
-	assert.Equal(t, uint32(3), host.ShardSet().Max())
-
-	id := ts.StringID("id")
-	assert.Equal(t, host.ShardSet().Shard(id), hash(id))
+func munmap(head []byte) error {
+	return syscall.Munmap(head)
 }

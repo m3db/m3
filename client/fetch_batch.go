@@ -34,7 +34,13 @@ func (f *fetchBatchOp) reset() {
 	f.request.RangeStart = 0
 	f.request.RangeEnd = 0
 	f.request.NameSpace = nil
+	for i := range f.request.Ids {
+		f.request.Ids[i] = nil
+	}
 	f.request.Ids = f.request.Ids[:0]
+	for i := range f.completionFns {
+		f.completionFns[i] = nil
+	}
 	f.completionFns = f.completionFns[:0]
 }
 

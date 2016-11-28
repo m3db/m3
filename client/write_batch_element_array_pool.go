@@ -59,6 +59,9 @@ func (p *poolOfWriteBatchRawRequestElementArray) Get() []*rpc.WriteBatchRawReque
 }
 
 func (p *poolOfWriteBatchRawRequestElementArray) Put(w []*rpc.WriteBatchRawRequestElement) {
+	for i := range w {
+		w[i] = nil
+	}
 	w = w[:0]
 	p.pool.Put(w)
 }

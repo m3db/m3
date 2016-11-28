@@ -190,21 +190,24 @@ func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 				return nil
 			}
 		}
+		for i := range currEntries {
+			currEntries[i] = nil
+		}
+		currEntries = currEntries[:0]
 	}
 	return nil
 }
 
 func (s *dbShard) forBatchWithLock(
 	elem *list.Element,
-	curEntries *[]*dbShardEntry,
+	currEntries *[]*dbShardEntry,
 	batchSize int,
 ) *list.Element {
 	var nextElem *list.Element
-	*curEntries = (*curEntries)[:0]
 	for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
 		nextElem = elem.Next()
 		entry := elem.Value.(*dbShardEntry)
-		*curEntries = append(*curEntries, entry)
+		*currEntries = append(*currEntries, entry)
 		elem = nextElem
 	}
 	return nextElem
@@ -294,6 +297,9 @@ func (s *dbShard) tickAndExpire(
 				// This method does not run using a lock so this is safe to
 				// perform inline.
 				s.purgeExpiredSeries(expired)
+				for i := range expired {
+					expired[i] = nil
+				}
 				expired = expired[:0]
 			}
 		} else {

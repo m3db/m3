@@ -23,8 +23,6 @@ package ts
 import (
 	"bytes"
 	"crypto/md5"
-
-	"github.com/m3db/m3db/pool"
 )
 
 // BinaryID constructs a new ID based on a binary value
@@ -40,7 +38,7 @@ func StringID(v string) ID {
 type id struct {
 	data []byte
 	hash Hash
-	pool pool.ObjectPool
+	pool *identifierPool
 }
 
 // Data returns the binary value of an ID
@@ -68,8 +66,9 @@ func (v *id) OnClose() {
 		return
 	}
 
+	v.pool.heap.Put(v.data)
 	v.data, v.hash = nil, null
-	v.pool.Put(v)
+	v.pool.pool.Put(v)
 }
 
 func (v *id) String() string {

@@ -20,7 +20,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 990340fade2fda1682efab7d34aa1b2dcac493f3
+  version: cf823a572f187ebc76df9a16150a4199f861f340
   subpackages:
   - client
   - kv

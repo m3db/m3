@@ -189,11 +189,11 @@ type DynamicOptions interface {
 	// ConfigServiceClient returns the client of ConfigService
 	ConfigServiceClient() client.Client
 
-	// SetService returns the service name to query ConfigService
-	SetService(s string) DynamicOptions
+	// SetServiceID sets the ServiceID for service discovery
+	SetServiceID(s services.ServiceID) DynamicOptions
 
-	// Service returns the service name to query ConfigService
-	Service() string
+	// ServiceID returns the ServiceID for service discovery
+	ServiceID() services.ServiceID
 
 	// SetQueryOptions returns the ConfigService query options
 	SetQueryOptions(value services.QueryOptions) DynamicOptions

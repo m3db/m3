@@ -150,15 +150,14 @@ func (b *dbBlock) close() {
 		return
 	}
 
-	cleanUp := func() {
+	defer func() {
 		ctx.Close()
 		b.ctxLock.Lock()
 		b.ctx = nil
 		b.ctxLock.Unlock()
 		b.encoder = nil
 		b.segment = ts.Segment{}
-	}
-	defer cleanUp()
+	}()
 
 	if !b.sealed {
 		// If the block is not sealed, we need to close the encoder.

@@ -79,7 +79,9 @@ func newHostQueue(
 	opsArraysLen := opts.HostQueueOpsArrayPoolSize()
 	opArrayPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opsArraysLen).
-		SetMetricsScope(scope.SubScope("op-array-pool"))
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("op-array-pool"),
+		))
 	opArrayPoolCapacity := int(math.Max(float64(size), float64(opts.WriteBatchSize())))
 	opArrayPool := newOpArrayPool(opArrayPoolOpts, opArrayPoolCapacity)
 	opArrayPool.Init()

@@ -101,6 +101,7 @@ type session struct {
 	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
 	seriesIteratorPool               encoding.SeriesIteratorPool
 	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
+	writeStatePool                   sync.Pool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	origin                           topology.Host
@@ -172,6 +173,13 @@ func newSession(opts Options) (clientSession, error) {
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		metrics:              newSessionMetrics(scope),
 	}
+
+	s.writeStatePool = sync.Pool{New: func() interface{} {
+		c := &writeState{session: s}
+		c.d, c.L = c.reset, c
+
+		return c
+	}}
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.origin = opts.Origin()
@@ -309,17 +317,23 @@ func (s *session) Open() error {
 	// is already that Open will take some time
 	writeOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
-		SetMetricsScope(s.scope.SubScope("write-op-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-op-pool"),
+		))
 	s.writeOpPool = newWriteOpPool(writeOpPoolOpts)
 	s.writeOpPool.Init()
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
-		SetMetricsScope(s.scope.SubScope("fetch-batch-op-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("fetch-batch-op-pool"),
+		))
 	s.fetchBatchOpPool = newFetchBatchOpPool(fetchBatchOpPoolOpts, s.fetchBatchSize)
 	s.fetchBatchOpPool.Init()
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.SeriesIteratorPoolSize()).
-		SetMetricsScope(s.scope.SubScope("series-iterator-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("series-iterator-pool"),
+		))
 	s.seriesIteratorPool = encoding.NewSeriesIteratorPool(seriesIteratorPoolOpts)
 	s.seriesIteratorPool.Init()
 	s.seriesIteratorsPool = encoding.NewMutableSeriesIteratorsPool(s.opts.SeriesIteratorArrayPoolBuckets())
@@ -455,7 +469,9 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(s.opts.FetchBatchOpPoolSize()).
-			SetMetricsScope(s.scope.SubScope("fetch-batch-op-array-array-pool"))
+			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+				s.scope.SubScope("fetch-batch-op-array-array-pool"),
+			))
 		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
 			poolOpts,
 			len(queues),
@@ -477,7 +493,9 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
-			SetMetricsScope(s.scope.SubScope("reader-slice-of-slices-iterator-pool"))
+			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+				s.scope.SubScope("reader-slice-of-slices-iterator-pool"),
+			))
 		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(poolOpts)
 		s.readerSliceOfSlicesIteratorPool.Init()
 	}
@@ -486,7 +504,9 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
-			SetMetricsScope(s.scope.SubScope("multi-reader-iterator-pool"))
+			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+				s.scope.SubScope("multi-reader-iterator-pool"),
+			))
 		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(poolOpts)
 		s.multiReaderIteratorPool.Init(s.opts.ReaderIteratorAllocate())
 	}
@@ -534,12 +554,16 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
 	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
-		SetMetricsScope(s.scope.SubScope("write-batch-request-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-batch-request-pool"),
+		))
 	writeBatchRequestPool := newWriteBatchRawRequestPool(writeBatchRequestPoolOpts)
 	writeBatchRequestPool.Init()
 	writeBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
-		SetMetricsScope(s.scope.SubScope("id-datapoint-array-pool"))
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("id-datapoint-array-pool"),
+		))
 	writeBatchRawRequestElementArrayPool := newWriteBatchRawRequestElementArrayPool(
 		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeBatchRawRequestElementArrayPool.Init()
@@ -550,19 +574,10 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 
 func (s *session) Write(namespace, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	var (
-		wg            sync.WaitGroup
-		wgIsDone      int32
-		enqueueErr    error
-		enqueued      int32
-		pending       int32
-		resultErrLock sync.RWMutex
-		resultErrs    int32
-		errors        []error
-		majority      int32
-		success       int32
-		tsID          = ts.StringID(id)
+		enqueued int32
+		majority = atomic.LoadInt32(&s.majority)
+		tsID     = ts.StringID(id)
 	)
-	wg.Add(1)
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
@@ -574,99 +589,68 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		return timestampErr
 	}
 
-	s.RLock()
-	if s.state != stateOpen {
+	if s.RLock(); s.state != stateOpen {
 		s.RUnlock()
 		return errSessionStateNotOpen
 	}
 
-	majority = atomic.LoadInt32(&s.majority)
+	state := s.writeStatePool.Get().(*writeState)
+	state.incref()
 
-	w := s.writeOpPool.Get()
-	w.namespace = ts.StringID(namespace)
-	w.request.ID = tsID.Data()
-	w.request.Datapoint.Value = value
-	w.request.Datapoint.Timestamp = timestamp
-	w.request.Datapoint.TimestampType = timeType
-	w.request.Datapoint.Annotation = annotation
-	w.completionFn = func(result interface{}, err error) {
-		var snapshotSuccess int32
-		if err != nil {
-			atomic.AddInt32(&resultErrs, 1)
-			resultErrLock.Lock()
-			errors = append(errors, err)
-			resultErrLock.Unlock()
-		} else {
-			snapshotSuccess = atomic.AddInt32(&success, 1)
-		}
-		remaining := atomic.AddInt32(&pending, -1)
-		doneAll := remaining == 0
-		switch s.writeLevel {
-		case topology.ConsistencyLevelOne:
-			complete := snapshotSuccess > 0 || doneAll
-			if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
-				wg.Done()
-			}
-		case topology.ConsistencyLevelMajority:
-			complete := snapshotSuccess >= majority || doneAll
-			if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
-				wg.Done()
-			}
-		case topology.ConsistencyLevelAll:
-			if doneAll && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
-				wg.Done()
-			}
-		}
-		// Finalize resources that can be returned
-		if doneAll {
-			// Return write to pool
-			s.writeOpPool.Put(w)
-		}
-	}
+	state.op, state.majority = s.writeOpPool.Get(), majority
 
-	routeErr := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
+	state.op.namespace = ts.StringID(namespace)
+	state.op.request.ID = tsID.Data()
+	state.op.request.Datapoint.Value = value
+	state.op.request.Datapoint.Timestamp = timestamp
+	state.op.request.Datapoint.TimestampType = timeType
+	state.op.request.Datapoint.Annotation = annotation
+	state.op.completionFn = state.completionFn
+
+	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// First count all the pending write requests to ensure
 		// we count the amount we're going to be waiting for
 		// before we enqueue the completion fns that rely on having
 		// an accurate number of the pending requests when they execute
-		pending++
-	})
-	if routeErr == nil {
-		// Now enqueue the write requests
-		routeErr = s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
-			enqueued++
-			if err := s.queues[idx].Enqueue(w); err != nil && enqueueErr == nil {
-				// NB(r): if this ever happens we have a code bug, once we
-				// are in the read lock the current queues we are using should
-				// never be closed
-				enqueueErr = err
-			}
-		})
+		state.pending++
+		state.queues = append(state.queues, s.queues[idx])
+	}); err != nil {
+		state.decref()
+		s.RUnlock()
+		return err
 	}
+
+	state.Lock()
+
+	for i := range state.queues {
+		if err := state.queues[i].Enqueue(state.op); err != nil {
+			state.Unlock()
+			state.decref()
+
+			// NB(r): if this ever happens we have a code bug, once we
+			// are in the read lock the current queues we are using should
+			// never be closed
+			s.RUnlock()
+			s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", err)
+			return err
+		}
+
+		state.incref()
+		enqueued++
+	}
+
+	// Wait for writes to complete. We don't need to loop over Wait() since there
+	// are no spurious wakeups in Golang and the condition is one-way and binary.
 	s.RUnlock()
+	state.Wait()
 
-	if routeErr != nil {
-		return routeErr
-	}
+	err := s.writeConsistencyResult(majority, enqueued,
+		enqueued-atomic.LoadInt32(&state.pending), int32(len(state.errors)), state.errors)
+	s.incWriteMetrics(err, int32(len(state.errors)))
 
-	if enqueueErr != nil {
-		s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", enqueueErr)
-		return enqueueErr
-	}
+	state.Unlock()
+	state.decref()
 
-	// Wait for writes to complete
-	wg.Wait()
-
-	var reportErrors []error
-	errsLen := atomic.LoadInt32(&resultErrs)
-	if errsLen > 0 {
-		resultErrLock.RLock()
-		reportErrors = errors[:]
-		resultErrLock.RUnlock()
-	}
-	responded := enqueued - atomic.LoadInt32(&pending)
-	err := s.writeConsistencyResult(majority, enqueued, responded, errsLen, reportErrors)
-	s.incWriteMetrics(err, errsLen)
 	return err
 }
 
@@ -1442,7 +1426,19 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 	pooledCurrStart, pooledCurrEligible []*blocksMetadata,
 	pooledBlocksMetadataQueues []blocksMetadataQueue,
 ) {
-	// Use pooled arrays
+	// Free any references the pool still has
+	for i := range pooledCurrStart {
+		pooledCurrStart[i] = nil
+	}
+	for i := range pooledCurrEligible {
+		pooledCurrEligible[i] = nil
+	}
+	var zeroed blocksMetadataQueue
+	for i := range pooledCurrEligible {
+		pooledBlocksMetadataQueues[i] = zeroed
+	}
+
+	// Get references to pooled arrays
 	var (
 		currStart            = pooledCurrStart[:0]
 		currEligible         = pooledCurrEligible[:0]
@@ -2328,6 +2324,10 @@ func (it *metadataIter) Next() bool {
 		return false
 	}
 	it.host = m.peer.Host()
+	var zeroed block.Metadata
+	for i := range it.blocks {
+		it.blocks[i] = zeroed
+	}
 	it.blocks = it.blocks[:0]
 	for _, b := range m.blocks {
 		bm := block.NewMetadata(b.start, b.size, b.checksum)

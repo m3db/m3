@@ -20,7 +20,7 @@
 
 package pool
 
-import "github.com/uber-go/tally"
+import "github.com/m3db/m3db/instrument"
 
 // Allocator allocates an object for a pool.
 type Allocator func() interface{}
@@ -64,11 +64,11 @@ type ObjectPoolOptions interface {
 	// if less or equal to low watermark then no refills occur
 	RefillHighWatermark() float64
 
-	// SetMetricsScope sets the metrics scope
-	SetMetricsScope(value tally.Scope) ObjectPoolOptions
+	// SetInstrumentOptions sets the instrument options
+	SetInstrumentOptions(value instrument.Options) ObjectPoolOptions
 
-	// MetricsScope returns the metrics scope
-	MetricsScope() tally.Scope
+	// InstrumentOptions returns the instrument options
+	InstrumentOptions() instrument.Options
 }
 
 // Bucket specifies a pool bucket

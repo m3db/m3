@@ -42,23 +42,26 @@ type bytesBucket struct {
 
 // NewBytesPool creates a new pool
 func NewBytesPool(sizes []Bucket, opts ObjectPoolOptions) BytesPool {
-	o := opts
-	if o == nil {
-		o = NewObjectPoolOptions()
+	if opts == nil {
+		opts = NewObjectPoolOptions()
 	}
+
 	sizesAsc := make([]Bucket, len(sizes))
 	copy(sizesAsc, sizes)
 	sort.Sort(BucketByCapacity(sizesAsc))
+
 	var maxBucketCapacity int
 	if len(sizesAsc) != 0 {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity
 	}
 
+	iopts := opts.InstrumentOptions()
+
 	return &bytesPool{
-		opts:              o,
+		opts:              opts,
 		sizesAsc:          sizesAsc,
 		maxBucketCapacity: maxBucketCapacity,
-		maxAlloc:          o.MetricsScope().Counter("alloc-max"),
+		maxAlloc:          iopts.MetricsScope().Counter("alloc-max"),
 	}
 }
 
@@ -73,10 +76,13 @@ func (p *bytesPool) Init() {
 		capacity := p.sizesAsc[i].Capacity
 
 		opts := p.opts.SetSize(size)
-		if opts.MetricsScope() != nil {
-			opts = opts.SetMetricsScope(opts.MetricsScope().Tagged(map[string]string{
-				"bucket-capacity": fmt.Sprintf("%d", capacity),
-			}))
+		iopts := opts.InstrumentOptions()
+
+		if iopts.MetricsScope() != nil {
+			opts = opts.SetInstrumentOptions(iopts.SetMetricsScope(
+				iopts.MetricsScope().Tagged(map[string]string{
+					"bucket-capacity": fmt.Sprintf("%d", capacity),
+				})))
 		}
 
 		buckets[i].capacity = capacity

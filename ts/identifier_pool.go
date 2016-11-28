@@ -21,26 +21,50 @@
 package ts
 
 import (
+	"reflect"
+
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/pool"
 )
 
 type identifierPool struct {
-	pool pool.ObjectPool
+	pool pool.NativePool
+	heap pool.BytesPool
 }
 
 // NewIdentifierPool constructs a new IdentifierPool
-func NewIdentifierPool(options pool.ObjectPoolOptions) IdentifierPool {
-	p := pool.NewObjectPool(options)
-	p.Init(func() interface{} { return &id{pool: p} })
+func NewIdentifierPool(
+	heap pool.BytesPool, options pool.ObjectPoolOptions) IdentifierPool {
 
-	return &identifierPool{pool: p}
+	if options == nil {
+		options = pool.NewObjectPoolOptions()
+	}
+
+	return &identifierPool{
+		pool: pool.NewNativePool(pool.NativePoolOptions{
+			Type: reflect.TypeOf(id{}),
+			Size: uint(options.Size()),
+		}), heap: configureHeap(heap)}
+}
+
+func configureHeap(heap pool.BytesPool) pool.BytesPool {
+	if heap != nil {
+		return heap
+	}
+
+	return pool.NewNativeHeap([]pool.Bucket{
+		{Capacity: 128, Count: 4096},
+		{Capacity: 256, Count: 2048}}, nil)
+}
+
+func create() interface{} {
+	return &id{}
 }
 
 // GetBinaryID returns a new ID based on a binary value
 func (p *identifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
-	id := p.pool.Get().(*id)
-	id.data = v
+	id := p.pool.GetOr(create).(*id)
+	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
 	ctx.RegisterCloser(id)
 
 	return id
@@ -52,9 +76,9 @@ func (p *identifierPool) GetStringID(ctx context.Context, v string) ID {
 }
 
 // Clone replicates given ID into a new ID from the pool
-func (p *identifierPool) Clone(other ID) ID {
-	id := p.pool.Get().(*id)
-	id.data = other.Data()
+func (p *identifierPool) Clone(v ID) ID {
+	id := p.pool.GetOr(create).(*id)
+	id.pool, id.data = p, append(p.heap.Get(len(v.Data())), v.Data()...)
 
 	return id
 }
