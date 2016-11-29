@@ -49,6 +49,7 @@ func newMockDatabase() *mockDatabase { return &mockDatabase{opts: testDatabaseOp
 
 func (d *mockDatabase) Options() Options                          { return d.opts }
 func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
+func (d *mockDatabase) Namespaces() []Namespace                   { return nil }
 func (d *mockDatabase) Open() error                               { return nil }
 func (d *mockDatabase) Close() error                              { return nil }
 func (d *mockDatabase) Bootstrap() error                          { return nil }

@@ -53,7 +53,8 @@ const (
 )
 
 var (
-	errShardClosed = errors.New("shard is now closed on this node")
+	errShardEntryNotFound = errors.New("shard entry not found")
+	errShardNotOpen       = errors.New("shard is not open")
 )
 
 type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
@@ -65,10 +66,19 @@ const (
 	tickPolicyForceExpiry
 )
 
+type dbShardState int
+
+const (
+	dbShardStateOpen dbShardState = iota
+	dbShardStateClosing
+	dbShardStateClosed
+)
+
 type dbShard struct {
 	sync.RWMutex
 	opts                  Options
 	nowFn                 clock.NowFn
+	state                 dbShardState
 	namespace             ts.ID
 	shard                 uint32
 	increasingIndex       increasingIndex
@@ -83,7 +93,6 @@ type dbShard struct {
 	tickSleepIfAheadEvery int
 	sleepFn               func(time.Duration)
 	identifierPool        ts.IdentifierPool
-	closed                bool
 	metrics               dbShardMetrics
 }
 
@@ -138,6 +147,7 @@ func newDatabaseShard(
 	d := &dbShard{
 		opts:                  opts,
 		nowFn:                 opts.ClockOptions().NowFn(),
+		state:                 dbShardStateOpen,
 		namespace:             namespace,
 		shard:                 shard,
 		increasingIndex:       increasingIndex,
@@ -229,11 +239,11 @@ func (s *dbShard) IsBootstrapped() bool {
 
 func (s *dbShard) Close() error {
 	s.Lock()
-	if s.closed {
+	if s.state != dbShardStateOpen {
 		s.Unlock()
-		return errShardClosed
+		return errShardNotOpen
 	}
-	s.closed = true
+	s.state = dbShardStateClosing
 	s.Unlock()
 
 	s.metrics.closeStart.Inc(1)
@@ -329,10 +339,11 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 	s.Lock()
 	for _, series := range expired {
 		id := series.ID()
-		entry, elem, exists, err := s.lookupEntryWithLock(id)
-		if err != nil || !exists {
+		elem, exists := s.lookup[id.Hash()]
+		if !exists {
 			continue
 		}
+		entry := elem.Value.(*dbShardEntry)
 		// If this series is currently being written to, we don't remove
 		// it even though it's empty in that it might become non-empty soon.
 		if entry.writerCount() > 0 {
@@ -396,40 +407,40 @@ func (s *dbShard) ReadEncoded(
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
-	entry, _, exists, err := s.lookupEntryWithLock(id)
+	entry, _, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
+	if err == errShardEntryNotFound {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
-	}
-	if !exists {
-		return nil, nil
 	}
 	return entry.series.ReadEncoded(ctx, start, end)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
-func (s *dbShard) lookupEntryWithLock(id ts.ID) (*dbShardEntry, *list.Element, bool, error) {
-	if s.closed {
-		// NB(r): Return an invalid params error here so upstream clients will not retry
-		//
-		return nil, nil, false, xerrors.NewInvalidParamsError(errShardClosed)
+func (s *dbShard) lookupEntryWithLock(id ts.ID) (*dbShardEntry, *list.Element, error) {
+	if s.state != dbShardStateOpen {
+		// NB(r): Return an invalid params error here so any upstream
+		// callers will not retry this operation
+		return nil, nil, xerrors.NewInvalidParamsError(errShardNotOpen)
 	}
 	elem, exists := s.lookup[id.Hash()]
 	if !exists {
-		return nil, nil, false, nil
+		return nil, nil, errShardEntryNotFound
 	}
-	return elem.Value.(*dbShardEntry), elem, true, nil
+	return elem.Value.(*dbShardEntry), elem, nil
 }
 
 func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	s.RLock()
-	if entry, _, exists, err := s.lookupEntryWithLock(id); err != nil {
-		s.RUnlock()
-		return nil, err
-	} else if exists {
+	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
 		entry.incrementWriterCount()
 		s.RUnlock()
 		return entry, nil
+	} else if err != errShardEntryNotFound {
+		s.RUnlock()
+		return nil, err
 	}
 	s.RUnlock()
 
@@ -444,15 +455,16 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	}
 
 	s.Lock()
-	if entry, _, exists, err := s.lookupEntryWithLock(id); err != nil {
-		s.RUnlock()
-		return nil, err
-	} else if exists {
+	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
 		entry.incrementWriterCount()
-		s.Unlock()
+		s.RUnlock()
 		// During Rlock -> Wlock promotion the entry was inserted
 		return entry, nil
+	} else if err != errShardEntryNotFound {
+		s.RUnlock()
+		return nil, err
 	}
+
 	// Must set the index inside the write lock to ensure ID indexes are ascending in order
 	entry.index = s.increasingIndex.nextIndex()
 	if s.newSeriesBootstrapped {
@@ -460,6 +472,7 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 		entry.series.Bootstrap(nil)
 	}
 	elem := s.list.PushBack(entry)
+
 	s.lookup[id.Hash()] = elem
 	s.Unlock()
 
@@ -472,9 +485,9 @@ func (s *dbShard) FetchBlocks(
 	starts []time.Time,
 ) []block.FetchBlockResult {
 	s.RLock()
-	entry, _, exists, err := s.lookupEntryWithLock(id)
+	entry, _, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
-	if err != nil || !exists {
+	if err != nil {
 		return nil
 	}
 	return entry.series.FetchBlocks(ctx, starts)

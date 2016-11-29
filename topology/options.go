@@ -126,7 +126,7 @@ type dynamicOptions struct {
 // NewDynamicOptions creates a new set of dynamic topology options
 func NewDynamicOptions() DynamicOptions {
 	return &dynamicOptions{
-		serviceID:         services.NewServiceID(),
+		serviceID:         services.NewServiceID().SetName(defaultServiceName),
 		queryOptions:      services.NewQueryOptions(),
 		instrumentOptions: instrument.NewOptions(),
 		initTimeout:       defaultInitTimeout,

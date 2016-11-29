@@ -89,6 +89,11 @@ func tchannelClientTruncate(client rpc.TChanNode, timeout time.Duration, req *rp
 	return truncated.NumSeries, nil
 }
 
+func tchannelClientHealth(client rpc.TChanNode) (*rpc.NodeHealthResult_, error) {
+	ctx, _ := thrift.NewContext(5 * time.Second)
+	return client.Health(ctx)
+}
+
 func m3dbClient(opts client.Options) (client.Client, error) {
 	return client.NewClient(opts)
 }

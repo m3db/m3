@@ -26,13 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -46,6 +44,7 @@ import (
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/require"
 )
 
@@ -361,89 +360,61 @@ func writeToDisk(
 	return nil
 }
 
-type mockTopoOptions struct {
-	hostID string
+func newShardsRange(from, to uint32) []uint32 {
+	var ids []uint32
+	for i := from; i <= to; i++ {
+		ids = append(ids, i)
+	}
+	return ids
 }
 
-func newMockClusterDBTopo(
-	t *testing.T,
-	ctrl *gomock.Controller,
-	opts mockTopoOptions,
-) mockClusterDBTopology {
-	shardSet, err := server.DefaultShardSet()
-	require.NoError(t, err)
+func newClusterShardsRange(from, to uint32) shard.Shards {
+	return shard.NewShardsWithIDs(newShardsRange(from, to))
+}
 
-	ch := make(chan struct{}, 1)
-	ch <- struct{}{}
+func newClusterEmptyShardsRange() shard.Shards {
+	return shard.NewShardsWithIDs(nil)
+}
 
-	m := topology.NewMockMap(ctrl)
-	m.EXPECT().LookupHostShardSet(opts.hostID).Return(
-		topology.NewHostShardSet(topology.NewHost(opts.hostID, ""), shardSet), true)
-
-	watch := topology.NewMockMapWatch(ctrl)
-	watch.EXPECT().C().Return(ch).AnyTimes()
-	watch.EXPECT().Get().Return(m)
-
-	topo := topology.NewMockTopology(ctrl)
-	topo.EXPECT().Watch().Return(watch, nil)
-
-	return mockClusterDBTopology{
-		topo:        topo,
-		topoWatch:   watch,
-		topoWatchCh: ch,
-		topoMap:     m,
+func waitUntilHasBootstrappedShardsExactly(
+	db storage.Database,
+	shards []uint32,
+) {
+	for {
+		if hasBootstrappedShardsExactly(db, shards) {
+			return
+		}
+		time.Sleep(time.Second)
 	}
 }
 
-type mockTopoInitOptions struct {
-	replicas int
-	cluster  mockTopoOptions
-}
-
-type mockClusterDBTopology struct {
-	topo        *topology.MockTopology
-	topoWatch   *topology.MockMapWatch
-	topoWatchCh chan struct{}
-	topoMap     *topology.MockMap
-}
-
-type mockTopologyInitializer struct {
-	initializer *topology.MockInitializer
-	cluster     mockClusterDBTopology
-}
-
-func newMockTopoInit(
-	t *testing.T,
-	ctrl *gomock.Controller,
-	opts mockTopoInitOptions,
-) mockTopologyInitializer {
-	// Expect the first init call from the cluster database
-	mockClusterDBTopo := newMockClusterDBTopo(t, ctrl, opts.cluster)
-	topoInit := topology.NewMockInitializer(ctrl)
-	topoInit.EXPECT().Init().Do(func() {
-		// Expect the next init call from the client session, use a static topology
-		shardSet, err := server.DefaultShardSet()
-		require.NoError(t, err)
-
-		var hostShardSets []topology.HostShardSet
-		for i := 0; i < opts.replicas; i++ {
-			testOpts := newMultiAddrTestOptions(newTestOptions(), i)
-			host := topology.NewHost(testOpts.ID(), testOpts.TChannelNodeAddr())
-			hostShardSet := topology.NewHostShardSet(host, shardSet)
-			hostShardSets = append(hostShardSets, hostShardSet)
+func hasBootstrappedShardsExactly(
+	db storage.Database,
+	shards []uint32,
+) bool {
+	for _, namespace := range db.Namespaces() {
+		expect := make(map[uint32]struct{})
+		pending := make(map[uint32]struct{})
+		for _, shard := range shards {
+			expect[shard] = struct{}{}
+			pending[shard] = struct{}{}
 		}
 
-		opts := topology.NewStaticOptions().
-			SetReplicas(2).
-			SetShardSet(shardSet).
-			SetHostShardSets(hostShardSets)
-		staticTopo := topology.NewStaticTopology(opts)
+		for _, shard := range namespace.Shards() {
+			if _, ok := expect[shard.ID()]; !ok {
+				// Not expecting shard
+				return false
+			}
+			if shard.IsBootstrapped() {
+				delete(pending, shard.ID())
+			}
+		}
 
-		topoInit.EXPECT().Init().Return(staticTopo, nil).AnyTimes()
-	}).Return(mockClusterDBTopo.topo, nil)
-
-	return mockTopologyInitializer{
-		initializer: topoInit,
-		cluster:     mockClusterDBTopo,
+		if len(pending) != 0 {
+			// Not all shards bootstrapped
+			return false
+		}
 	}
+
+	return true
 }

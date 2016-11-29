@@ -33,7 +33,6 @@ import (
 	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/cluster"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -100,24 +99,19 @@ func DefaultClientOptions(initializer topology.Initializer) client.Options {
 	return client.NewOptions().SetTopologyInitializer(initializer)
 }
 
-// Serve starts up the tchannel server as well as the http server
-func Serve(
+// OpenAndServe opens the database, starts up the RPC servers and bootstraps
+// the database for serving traffic
+func OpenAndServe(
 	httpClusterAddr string,
 	tchannelClusterAddr string,
 	httpNodeAddr string,
 	tchannelNodeAddr string,
-	namespaces []namespace.Metadata,
-	hostID string,
-	topoInit topology.Initializer,
+	db storage.Database,
 	client client.Client,
 	opts storage.Options,
 	doneCh chan struct{},
 ) error {
 	log := opts.InstrumentOptions().Logger()
-	db, err := cluster.NewDatabase(namespaces, hostID, topoInit, opts)
-	if err != nil {
-		return err
-	}
 	if err := db.Open(); err != nil {
 		return fmt.Errorf("could not open database: %v", err)
 	}

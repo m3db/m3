@@ -50,6 +50,9 @@ type Database interface {
 	// AssignShardSet sets the shard set assignment and returns immediately
 	AssignShardSet(shardSet sharding.ShardSet)
 
+	// Namespaces returns the namespaces
+	Namespaces() []Namespace
+
 	// Open will open the database for writing and reading
 	Open() error
 
@@ -111,12 +114,20 @@ type Database interface {
 	Truncate(namespace ts.ID) (int64, error)
 }
 
-type databaseNamespace interface {
+// Namespace is a time series database namespace
+type Namespace interface {
 	// ID returns the ID of the namespace
 	ID() ts.ID
 
 	// NumSeries returns the number of series in the namespace
 	NumSeries() int64
+
+	// Shards returns the shards
+	Shards() []Shard
+}
+
+type databaseNamespace interface {
+	Namespace
 
 	// AssignShardSet sets the shard set assignment and returns immediately
 	AssignShardSet(shardSet sharding.ShardSet)
@@ -179,9 +190,12 @@ type databaseNamespace interface {
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
 }
 
-type databaseShard interface {
+// Shard is a time series database shard
+type Shard interface {
+	// ID returns the ID of the shard
 	ID() uint32
 
+	// NumSeries returns the number of series in the shard
 	NumSeries() int64
 
 	// IsBootstrapped returns whether the shard is bootstrapping
@@ -189,6 +203,10 @@ type databaseShard interface {
 
 	// IsBootstrapped returns whether the shard is already bootstrapped
 	IsBootstrapped() bool
+}
+
+type databaseShard interface {
+	Shard
 
 	// Close will release the shard resources and close the shard
 	Close() error

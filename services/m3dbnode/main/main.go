@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/cluster"
 )
 
 var (
@@ -90,12 +91,17 @@ func main() {
 
 	namespaces := server.DefaultNamespaces()
 
+	db, err := cluster.NewDatabase(namespaces, id, topoInit, storageOpts)
+	if err != nil {
+		log.Fatalf("could not create database: %v", err)
+	}
 	doneCh := make(chan struct{}, 1)
 	closedCh := make(chan struct{}, 1)
 	go func() {
-		if err := server.Serve(
-			httpClusterAddr, tchannelClusterAddr, httpNodeAddr, tchannelNodeAddr,
-			namespaces, id, topoInit, cli, storageOpts, doneCh,
+		if err := server.OpenAndServe(
+			httpClusterAddr, tchannelClusterAddr,
+			httpNodeAddr, tchannelNodeAddr,
+			db, cli, storageOpts, doneCh,
 		); err != nil {
 			log.Fatalf("server fatal error: %v", err)
 		}

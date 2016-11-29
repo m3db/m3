@@ -231,6 +231,16 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 }
 
+func (d *db) Namespaces() []Namespace {
+	d.RLock()
+	defer d.RUnlock()
+	namespaces := make([]Namespace, 0, len(d.namespaces))
+	for _, elem := range d.namespaces {
+		namespaces = append(namespaces, elem)
+	}
+	return namespaces
+}
+
 func (d *db) Open() error {
 	d.Lock()
 	defer d.Unlock()

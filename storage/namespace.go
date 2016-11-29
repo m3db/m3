@@ -143,6 +143,17 @@ func (n *dbNamespace) NumSeries() int64 {
 	return count
 }
 
+func (n *dbNamespace) Shards() []Shard {
+	n.RLock()
+	shards := n.shardSet.Shards()
+	databaseShards := make([]Shard, len(shards))
+	for i, shard := range shards {
+		databaseShards[i] = n.shards[shard]
+	}
+	n.RUnlock()
+	return databaseShards
+}
+
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	var (
 		incoming = make(map[uint32]struct{})
@@ -156,6 +167,9 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	n.Lock()
 	existing = n.shards
 	for _, shard := range existing {
+		if shard == nil {
+			continue
+		}
 		if _, ok := incoming[shard.ID()]; !ok {
 			closing = append(closing, shard)
 		}
@@ -180,6 +194,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	// throttling of each shard as determined by the close shard deadline to
 	// gate the impact.
 	for _, shard := range closing {
+		shard := shard
 		go func() {
 			if err := shard.Close(); err != nil {
 				n.log.WithFields(

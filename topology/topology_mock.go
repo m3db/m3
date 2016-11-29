@@ -533,24 +533,24 @@ func (_mr *_MockDynamicOptionsRecorder) ConfigServiceClient() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConfigServiceClient")
 }
 
-func (_m *MockDynamicOptions) SetService(s string) DynamicOptions {
-	ret := _m.ctrl.Call(_m, "SetService", s)
+func (_m *MockDynamicOptions) SetServiceID(s services.ServiceID) DynamicOptions {
+	ret := _m.ctrl.Call(_m, "SetServiceID", s)
 	ret0, _ := ret[0].(DynamicOptions)
 	return ret0
 }
 
-func (_mr *_MockDynamicOptionsRecorder) SetService(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetService", arg0)
+func (_mr *_MockDynamicOptionsRecorder) SetServiceID(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetServiceID", arg0)
 }
 
-func (_m *MockDynamicOptions) Service() string {
-	ret := _m.ctrl.Call(_m, "Service")
-	ret0, _ := ret[0].(string)
+func (_m *MockDynamicOptions) ServiceID() services.ServiceID {
+	ret := _m.ctrl.Call(_m, "ServiceID")
+	ret0, _ := ret[0].(services.ServiceID)
 	return ret0
 }
 
-func (_mr *_MockDynamicOptionsRecorder) Service() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Service")
+func (_mr *_MockDynamicOptionsRecorder) ServiceID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ServiceID")
 }
 
 func (_m *MockDynamicOptions) SetQueryOptions(value services.QueryOptions) DynamicOptions {
