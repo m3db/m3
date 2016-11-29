@@ -129,6 +129,7 @@ func NewOptions() Options {
 		newBootstrapFn:                 defaultNewBootstrapFn,
 		newPersistManagerFn:            defaultNewPersistManagerFn,
 		maxFlushRetries:                defaultMaxFlushRetries,
+		shardCloseDeadline:             defaultShardCloseDeadline,
 		contextPool:                    context.NewPool(nil, nil),
 		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
 		bytesPool:                      pool.NewBytesPool(nil, nil),
