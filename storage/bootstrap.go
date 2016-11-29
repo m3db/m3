@@ -137,36 +137,29 @@ func (m *bootstrapManager) Bootstrap() error {
 		return errBootstrapEnqueued
 	}
 
-	return m.bootstrapUntilNonePending()
-}
-
-func (m *bootstrapManager) bootstrapUntilNonePending() error {
-	err := m.bootstrap()
-
-	var currPending bool
-	m.Lock()
-	currPending = m.pending
-	if currPending {
-		// New bootstrap calls should now enqueue another pending bootstrap
-		m.pending = false
-	} else {
-		m.state = bootstrapped
-	}
-	m.Unlock()
-
-	if !currPending {
-		// No bootstraps pending, return current result
-		return err
-	}
-
 	// Keep performing bootstraps until none pending
 	multiErr := xerrors.NewMultiError()
-	if err != nil {
-		multiErr = multiErr.Add(err)
+	for {
+		err := m.bootstrap()
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
+
+		m.Lock()
+		currPending := m.pending
+		if currPending {
+			// New bootstrap calls should now enqueue another pending bootstrap
+			m.pending = false
+		} else {
+			m.state = bootstrapped
+		}
+		m.Unlock()
+
+		if !currPending {
+			break
+		}
 	}
-	if err := m.bootstrapUntilNonePending(); err != nil {
-		multiErr = multiErr.Add(err)
-	}
+
 	return multiErr.FinalError()
 }
 
