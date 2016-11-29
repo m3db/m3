@@ -42,9 +42,9 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
+	xretry "github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
@@ -509,23 +509,19 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(poolOpts)
 		s.multiReaderIteratorPool.Init(s.opts.ReaderIteratorAllocate())
 	}
-	if replicas > len(s.metrics.writeNodesRespondingErrors) {
-		curr := len(s.metrics.writeNodesRespondingErrors)
-		for i := curr; i < replicas; i++ {
-			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
-			counter := s.scope.Tagged(tags).Counter("write.nodes-responding-error")
-			s.metrics.writeNodesRespondingErrors =
-				append(s.metrics.writeNodesRespondingErrors, counter)
-		}
+
+	for i := len(s.metrics.writeNodesRespondingErrors); i < replicas; i++ {
+		tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
+		counter := s.scope.Tagged(tags).Counter("write.nodes-responding-error")
+		s.metrics.writeNodesRespondingErrors =
+			append(s.metrics.writeNodesRespondingErrors, counter)
 	}
-	if replicas > len(s.metrics.fetchNodesRespondingErrors) {
-		curr := len(s.metrics.fetchNodesRespondingErrors)
-		for i := curr; i < replicas; i++ {
-			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
-			counter := s.scope.Tagged(tags).Counter("fetch.nodes-responding-error")
-			s.metrics.fetchNodesRespondingErrors =
-				append(s.metrics.fetchNodesRespondingErrors, counter)
-		}
+
+	for i := len(s.metrics.fetchNodesRespondingErrors); i < replicas; i++ {
+		tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
+		counter := s.scope.Tagged(tags).Counter("fetch.nodes-responding-error")
+		s.metrics.fetchNodesRespondingErrors =
+			append(s.metrics.fetchNodesRespondingErrors, counter)
 	}
 
 	// Asynchronously close the previous set of host queues
@@ -2103,8 +2099,8 @@ func (q *peerBlocksQueue) drainEvery(interval time.Duration) {
 
 func (q *peerBlocksQueue) close() {
 	q.Lock()
-	defer q.Unlock()
 	q.closed = true
+	q.Unlock()
 }
 
 func (q *peerBlocksQueue) trackAssigned(amount int) {
