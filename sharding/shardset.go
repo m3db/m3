@@ -29,8 +29,6 @@ import (
 )
 
 var (
-	// ErrNoShards returned when shard set is empty
-	ErrNoShards = errors.New("empty shard set")
 	// ErrDuplicateShards returned when shard set is empty
 	ErrDuplicateShards = errors.New("duplicate shards")
 )

@@ -37,6 +37,7 @@ type staticMap struct {
 	majority            int
 }
 
+// NewStaticMap creates a new static topology map
 func NewStaticMap(opts StaticOptions) Map {
 	totalShards := len(opts.ShardSet().Shards())
 	hostShardSets := opts.HostShardSets()

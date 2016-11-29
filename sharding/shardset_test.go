@@ -24,15 +24,12 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/ts"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestShardSet(t *testing.T) {
-	ss, err := NewShardSet([]uint32{}, func(id ts.ID) uint32 { return 0 })
-	require.Equal(t, ErrNoShards, err)
-	require.Nil(t, ss)
-
-	ss, err = NewShardSet([]uint32{1, 1}, func(id ts.ID) uint32 { return 0 })
+	ss, err := NewShardSet([]uint32{1, 1}, func(id ts.ID) uint32 { return 0 })
 	require.Equal(t, ErrDuplicateShards, err)
 	require.Nil(t, ss)
 
