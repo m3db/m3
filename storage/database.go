@@ -110,6 +110,7 @@ type db struct {
 	created      uint64
 	tickDeadline time.Duration
 	ticking      int64
+	bootstraps   int
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -223,7 +224,7 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	for _, ns := range d.namespaces {
 		ns.AssignShardSet(shardSet)
 	}
-	if d.bsm.IsBootstrapping() || d.bsm.IsBootstrapped() {
+	if d.bootstraps > 0 {
 		// NB(r): Trigger another bootstrap, if already bootstrapping this will
 		// enqueue a new bootstrap to execute before the current bootstrap
 		// completes
@@ -374,6 +375,9 @@ func (d *db) FetchBlocksMetadata(
 }
 
 func (d *db) Bootstrap() error {
+	d.Lock()
+	d.bootstraps++
+	d.Unlock()
 	return d.bsm.Bootstrap()
 }
 
