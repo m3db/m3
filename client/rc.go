@@ -2,20 +2,20 @@ package client
 
 import "sync/atomic"
 
-type rc struct {
-	d func()
-	n int32
+type refCounter struct {
+	doneFn func()
+	n      int32
 }
 
-func (r *rc) incref() {
+func (r *refCounter) incRef() {
 	if atomic.AddInt32(&r.n, 1) <= 0 {
 		panic("invalid rc state")
 	}
 }
 
-func (r *rc) decref() {
+func (r *refCounter) decRef() {
 	if v := atomic.AddInt32(&r.n, -1); v == 0 {
-		r.d()
+		r.doneFn()
 	} else if v < 0 {
 		panic("invalid rc state")
 	}

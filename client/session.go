@@ -173,12 +173,10 @@ func newSession(opts Options) (clientSession, error) {
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		metrics:              newSessionMetrics(scope),
 	}
-
 	s.writeStatePool = sync.Pool{New: func() interface{} {
-		c := &writeState{session: s}
-		c.d, c.L = c.reset, c
-
-		return c
+		w := &writeState{session: s}
+		w.reset()
+		return w
 	}}
 
 	if opts, ok := opts.(AdminOptions); ok {
@@ -595,7 +593,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	}
 
 	state := s.writeStatePool.Get().(*writeState)
-	state.incref()
+	state.incRef()
 
 	state.op, state.majority = s.writeOpPool.Get(), majority
 
@@ -615,7 +613,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		state.pending++
 		state.queues = append(state.queues, s.queues[idx])
 	}); err != nil {
-		state.decref()
+		state.decRef()
 		s.RUnlock()
 		return err
 	}
@@ -625,7 +623,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	for i := range state.queues {
 		if err := state.queues[i].Enqueue(state.op); err != nil {
 			state.Unlock()
-			state.decref()
+			state.decRef()
 
 			// NB(r): if this ever happens we have a code bug, once we
 			// are in the read lock the current queues we are using should
@@ -635,7 +633,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 			return err
 		}
 
-		state.incref()
+		state.incRef()
 		enqueued++
 	}
 
@@ -649,7 +647,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	s.incWriteMetrics(err, int32(len(state.errors)))
 
 	state.Unlock()
-	state.decref()
+	state.decRef()
 
 	return err
 }
