@@ -80,6 +80,7 @@ type reader struct {
 	entries     int
 	entriesRead int
 	indexUnread []byte
+	prologue    []byte
 	currEntry   schema.IndexEntry
 	digestBuf   digest.Buffer
 	bytesPool   pool.BytesPool
@@ -94,6 +95,7 @@ func NewReader(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) 
 		indexFdWithDigest:          digest.NewFdWithDigestReader(bufferSize),
 		dataFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
+		prologue:                   make([]byte, markerLen+idxLen),
 		digestBuf:                  digest.NewBuffer(),
 		bytesPool:                  bytesPool,
 	}
@@ -227,34 +229,38 @@ func (r *reader) Read() (ts.ID, []byte, error) {
 	}
 	r.indexUnread = r.indexUnread[size:]
 
-	expectedSize := markerLen + idxLen + int(entry.Size)
-	var data []byte
-	if r.bytesPool != nil {
-		data = r.bytesPool.Get(expectedSize)[:expectedSize]
-	} else {
-		data = make([]byte, expectedSize)
-	}
-
-	n, err := r.dataFdWithDigest.ReadBytes(data)
+	n, err := r.dataFdWithDigest.ReadBytes(r.prologue)
 	if err != nil {
 		return none, nil, err
 	}
-	if n != expectedSize {
+	if n != cap(r.prologue) {
 		return none, nil, errReadNotExpectedSize
-
 	}
-	if !bytes.Equal(data[:markerLen], marker) {
+	if !bytes.Equal(r.prologue[:markerLen], marker) {
 		return none, nil, errReadMarkerNotFound
 	}
-
-	idx := int64(endianness.Uint64(data[markerLen : markerLen+idxLen]))
+	idx := int64(endianness.Uint64(r.prologue[markerLen : markerLen+idxLen]))
 	if idx != entry.Index {
 		return none, nil, ErrReadWrongIdx{ExpectedIdx: entry.Index, ActualIdx: idx}
 	}
 
+	var data []byte
+	if r.bytesPool != nil {
+		data = r.bytesPool.Get(int(entry.Size))[:entry.Size]
+	} else {
+		data = make([]byte, entry.Size)
+	}
+	n, err = r.dataFdWithDigest.ReadBytes(data)
+	if err != nil {
+		return none, nil, err
+	}
+	if n != int(entry.Size) {
+		return none, nil, errReadNotExpectedSize
+	}
+
 	r.entriesRead++
 
-	return ts.BinaryID(entry.Id), data[markerLen+idxLen:], nil
+	return ts.BinaryID(entry.Id), data, nil
 }
 
 // NB(xichen): Validate should be called after all data are read because the
