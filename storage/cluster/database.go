@@ -21,6 +21,7 @@
 package cluster
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/m3db/m3db/sharding"
@@ -35,6 +36,9 @@ var (
 	// newStorageDatabase is the injected constructor to construct a database,
 	// useful for replacing which database constructor is called in tests
 	newStorageDatabase newStorageDatabaseFn = storage.NewDatabase
+
+	errAlreadyWatchingTopology = errors.New("cluster database is already watching topology")
+	errNotWatchingTopology     = errors.New("cluster database is already watching topology")
 )
 
 type newStorageDatabaseFn func(
@@ -110,8 +114,9 @@ func (d *clusterDB) Open() error {
 	if err := d.Database.Open(); err != nil {
 		return err
 	}
-
-	d.startActiveTopologyWatch()
+	if err := d.startActiveTopologyWatch(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -120,33 +125,36 @@ func (d *clusterDB) Close() error {
 	if err := d.Database.Close(); err != nil {
 		return err
 	}
-
-	d.stopActiveTopologyWatch()
-
+	if err := d.stopActiveTopologyWatch(); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (d *clusterDB) startActiveTopologyWatch() {
+func (d *clusterDB) startActiveTopologyWatch() error {
 	d.watchMutex.Lock()
 	defer d.watchMutex.Unlock()
 
 	if d.watching {
-		return
+		return errAlreadyWatchingTopology
 	}
 
 	d.watching = true
 
 	d.doneCh = make(chan struct{}, 1)
 	d.closedCh = make(chan struct{}, 1)
+
 	go d.activeTopologyWatch()
+
+	return nil
 }
 
-func (d *clusterDB) stopActiveTopologyWatch() {
+func (d *clusterDB) stopActiveTopologyWatch() error {
 	d.watchMutex.Lock()
 	defer d.watchMutex.Unlock()
 
 	if !d.watching {
-		return
+		return errNotWatchingTopology
 	}
 
 	d.watching = false
@@ -155,6 +163,8 @@ func (d *clusterDB) stopActiveTopologyWatch() {
 	close(d.doneCh)
 	<-d.closedCh
 	close(d.closedCh)
+
+	return nil
 }
 
 func (d *clusterDB) activeTopologyWatch() {

@@ -21,138 +21,15 @@
 package cluster
 
 import (
-	"fmt"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
-
-	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-var (
-	testNamespace = namespace.NewMetadata(ts.StringID("foo"),
-		namespace.NewOptions())
-	testNamespaces = []namespace.Metadata{testNamespace}
-	testHostID     = "testhost"
-	testOpts       = storage.NewOptions()
-)
-
-type restoreFn func()
-
-func mockNewStorageDatabase(
-	ctrl *gomock.Controller,
-) (*storage.MockDatabase, restoreFn) {
-	var (
-		mock                   *storage.MockDatabase
-		prevNewStorageDatabase = newStorageDatabase
-	)
-	if ctrl != nil {
-		mock = storage.NewMockDatabase(ctrl)
-	}
-	newStorageDatabase = func(
-		namespaces []namespace.Metadata,
-		shardSet sharding.ShardSet,
-		opts storage.Options,
-	) (storage.Database, error) {
-		if mock == nil {
-			return nil, fmt.Errorf("no injected storage database")
-		}
-		return mock, nil
-	}
-	return mock, func() {
-		newStorageDatabase = prevNewStorageDatabase
-	}
-}
-
-type topoView struct {
-	hashFn     sharding.HashFn
-	assignment map[string][]uint32
-	replicas   int
-}
-
-func newTopoView(
-	replicas int,
-	assignment map[string][]uint32,
-) topoView {
-	total := 0
-	for _, shards := range assignment {
-		total += len(shards)
-	}
-
-	return topoView{
-		hashFn:     sharding.DefaultHashGen(total / replicas),
-		assignment: assignment,
-		replicas:   replicas,
-	}
-}
-
-func (v topoView) newStaticMap() topology.Map {
-	var (
-		hostShardSets []topology.HostShardSet
-		shards        []uint32
-		unique        = make(map[uint32]struct{})
-	)
-
-	for hostID, hostShards := range v.assignment {
-		shardSet, _ := sharding.NewShardSet(hostShards, v.hashFn)
-		host := topology.NewHost(hostID, fmt.Sprintf("%s:9000", hostID))
-		hostShardSet := topology.NewHostShardSet(host, shardSet)
-		hostShardSets = append(hostShardSets, hostShardSet)
-		for _, shard := range hostShards {
-			if _, ok := unique[shard]; !ok {
-				unique[shard] = struct{}{}
-				shards = append(shards, shard)
-			}
-		}
-	}
-
-	shardSet, _ := sharding.NewShardSet(shards, v.hashFn)
-
-	opts := topology.NewStaticOptions().
-		SetHostShardSets(hostShardSets).
-		SetReplicas(v.replicas).
-		SetShardSet(shardSet)
-
-	return topology.NewStaticMap(opts)
-}
-
-func newMockTopoInit(
-	ctrl *gomock.Controller,
-	viewsCh chan topoView,
-) *topology.MockInitializer {
-	init := topology.NewMockInitializer(ctrl)
-
-	watch := topology.NewMockMapWatch(ctrl)
-
-	ch := make(chan struct{})
-	go func() {
-		for {
-			v, ok := <-viewsCh
-			if !ok {
-				break
-			}
-
-			watch.EXPECT().Get().Return(v.newStaticMap())
-
-			ch <- struct{}{}
-		}
-		close(ch)
-	}()
-
-	watch.EXPECT().C().Return(ch).AnyTimes()
-
-	topo := topology.NewMockTopology(ctrl)
-	topo.EXPECT().Watch().Return(watch, nil)
-
-	init.EXPECT().Init().Return(topo, nil)
-
-	return init
-}
 
 func TestDatabaseOpenClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -168,8 +45,10 @@ func TestDatabaseOpenClose(t *testing.T) {
 		"testhost": []uint32{0, 1, 2},
 	})
 
-	db, err := NewDatabase(testNamespaces, testHostID,
-		newMockTopoInit(ctrl, viewsCh), testOpts)
+	topoInit, _ := newMockTopoInit(ctrl, viewsCh)
+
+	db, err := NewDatabase(testNamespaces, "testhost",
+		topoInit, storage.NewOptions())
 	require.NoError(t, err)
 
 	mockStorageDB.EXPECT().Open().Return(nil)
@@ -178,5 +57,162 @@ func TestDatabaseOpenClose(t *testing.T) {
 
 	mockStorageDB.EXPECT().Close().Return(nil)
 	err = db.Close()
+	require.NoError(t, err)
+}
+
+func TestDatabaseOpenTwiceError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
+	defer restore()
+
+	viewsCh := make(chan topoView, 64)
+	defer close(viewsCh)
+
+	viewsCh <- newTopoView(1, map[string][]uint32{
+		"testhost": []uint32{0, 1, 2},
+	})
+
+	topoInit, _ := newMockTopoInit(ctrl, viewsCh)
+
+	db, err := NewDatabase(testNamespaces, "testhost",
+		topoInit, storage.NewOptions())
+	require.NoError(t, err)
+
+	mockStorageDB.EXPECT().Open().Return(nil).AnyTimes()
+
+	err = db.Open()
+	require.NoError(t, err)
+
+	err = db.Open()
+	require.Error(t, err)
+	assert.Equal(t, errAlreadyWatchingTopology, err)
+
+	mockStorageDB.EXPECT().Close().Return(nil)
+	err = db.Close()
+	require.NoError(t, err)
+}
+
+func TestDatabaseCloseTwiceError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
+	defer restore()
+
+	viewsCh := make(chan topoView, 64)
+	defer close(viewsCh)
+
+	viewsCh <- newTopoView(1, map[string][]uint32{
+		"testhost": []uint32{0, 1, 2},
+	})
+
+	topoInit, _ := newMockTopoInit(ctrl, viewsCh)
+
+	db, err := NewDatabase(testNamespaces, "testhost",
+		topoInit, storage.NewOptions())
+	require.NoError(t, err)
+
+	mockStorageDB.EXPECT().Open().Return(nil)
+
+	err = db.Open()
+	require.NoError(t, err)
+
+	mockStorageDB.EXPECT().Close().Return(nil).AnyTimes()
+	err = db.Close()
+	require.NoError(t, err)
+
+	err = db.Close()
+	require.Error(t, err)
+	assert.Equal(t, errNotWatchingTopology, err)
+}
+
+func TestDatabaseOpenUpdatesShardSetBeforeOpen(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
+	defer restore()
+
+	viewsCh := make(chan topoView, 64)
+	defer close(viewsCh)
+
+	viewsCh <- newTopoView(1, map[string][]uint32{
+		"testhost0": []uint32{0, 1, 2, 3},
+	})
+
+	topoInit, propogateViewsCh := newMockTopoInit(ctrl, viewsCh)
+
+	db, err := NewDatabase(testNamespaces, "testhost0",
+		topoInit, storage.NewOptions())
+	require.NoError(t, err)
+
+	updatedView := map[string][]uint32{
+		"testhost0": []uint32{0, 1},
+		"testhost1": []uint32{2, 3},
+	}
+
+	// Expect the assign shards call before open
+	mockStorageDB.EXPECT().AssignShardSet(gomock.Any()).Do(
+		func(shardSet sharding.ShardSet) {
+			// Ensure updated shard set is as expected
+			assert.Equal(t, 2, len(shardSet.Shards()))
+			assert.Equal(t, updatedView["testhost0"], shardSet.Shards())
+			// Now we can expect an open call
+			mockStorageDB.EXPECT().Open().Return(nil)
+		})
+
+	// Enqueue the update
+	viewsCh <- newTopoView(1, updatedView)
+
+	// Wait for the update to propogate, consume the first notification
+	// from the initial read and then the second that should come after
+	// enqueing the view just prior to this read
+	for i := 0; i < 2; i++ {
+		<-propogateViewsCh
+	}
+
+	// Now open the cluster database
+	err = db.Open()
+	require.NoError(t, err)
+
+	mockStorageDB.EXPECT().Close().Return(nil)
+	err = db.Close()
+	require.NoError(t, err)
+}
+
+func TestDatabaseEmptyShardSet(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	asserted := false
+	defer func() {
+		assert.True(t, asserted)
+	}()
+	restore := setNewStorageDatabase(func(
+		namespaces []namespace.Metadata,
+		shardSet sharding.ShardSet,
+		opts storage.Options,
+	) (storage.Database, error) {
+		assert.Equal(t, 0, len(shardSet.Shards()))
+		asserted = true
+		return nil, nil
+	})
+	defer restore()
+
+	viewsCh := make(chan topoView, 64)
+	defer close(viewsCh)
+
+	viewsCh <- newTopoView(1, map[string][]uint32{
+		"testhost0": []uint32{0},
+		"testhost1": []uint32{1},
+		"testhost2": []uint32{2},
+	})
+
+	topoInit, _ := newMockTopoInit(ctrl, viewsCh)
+
+	_, err := NewDatabase(testNamespaces, "testhost_not_in_placement",
+		topoInit, storage.NewOptions())
 	require.NoError(t, err)
 }
