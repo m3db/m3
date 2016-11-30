@@ -89,18 +89,18 @@ func TestClusterAddOneNode(t *testing.T) {
 		},
 	}
 
-	svc := topology.NewFakeM3ClusterService().
+	svc := NewFakeM3ClusterService().
 		SetInstances(instances.start).
 		SetReplication(services.NewServiceReplication().
 			SetReplicas(1)).
 		SetSharding(services.NewServiceSharding().
 			SetNumShards(1024))
 
-	svcs := topology.NewFakeM3ClusterServices()
+	svcs := NewFakeM3ClusterServices()
 	svcs.RegisterService("m3db", svc)
 
 	topoOpts := topology.NewDynamicOptions().
-		SetConfigServiceClient(topology.NewM3FakeClusterClient(svcs, nil))
+		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
