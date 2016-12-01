@@ -20,40 +20,78 @@
 
 package shard
 
+const (
+	// Initializing represents a shard newly assigned to an instance
+	Initializing State = iota
+
+	// Available represents a shard bootstraped and ready to serve
+	Available
+
+	// Leaving represents a shard that is intending to be removed
+	Leaving
+)
+
+// State represents the state of a shard
+type State int
+
 // A Shard represents a piece of data owned by the service
 type Shard interface {
 	// ID returns the ID of the shard
 	ID() uint32
+
+	// State returns the state of the shard
+	State() State
+
+	// SetState sets the state of the shard
+	SetState(s State) Shard
+
+	// Source returns the source of the shard
+	SourceID() string
+
+	// SetSource sets the source of the shard
+	SetSourceID(sourceID string) Shard
 }
 
 // NewShard returns a new Shard
-func NewShard(id uint32) Shard { return shard{id: id} }
+func NewShard(id uint32) Shard { return &shard{id: id, state: Initializing} }
 
 type shard struct {
-	id uint32
+	id       uint32
+	state    State
+	sourceID string
 }
 
-func (s shard) ID() uint32 { return s.id }
+func (s *shard) ID() uint32                        { return s.id }
+func (s *shard) State() State                      { return s.state }
+func (s *shard) SetState(state State) Shard        { s.state = state; return s }
+func (s *shard) SourceID() string                  { return s.sourceID }
+func (s *shard) SetSourceID(sourceID string) Shard { s.sourceID = sourceID; return s }
 
 // Shards is a collection of shards owned by one ServiceInstance
 type Shards interface {
 	// Shards returns the shards
-	Shards() []Shard
-
-	// ShardIDs returns the shard ids
-	ShardIDs() []uint32
+	All() []Shard
 
 	// NumShards returns the number of the shards
 	NumShards() int
 
-	// AddShard adds a shard
-	AddShard(shard uint32)
+	// ShardsForState returns the shards in a certain state
+	ShardsForState(state State) []Shard
 
-	// RemoveShard removes a shard
-	RemoveShard(shard uint32)
+	// NumShardsForState returns the number of shards in a certain state
+	NumShardsForState(state State) int
 
-	// ContainsShard checks if a shard exists
-	ContainsShard(shard uint32) bool
+	// Add adds a shard
+	Add(shard Shard)
+
+	// Remove removes a shard
+	Remove(shard uint32)
+
+	// Contains checks if a shard exists
+	Contains(shard uint32) bool
+
+	// Shard returns the shard for the id
+	Shard(id uint32) (Shard, bool)
 }
 
 // NewShards creates a new instance of Shards
@@ -65,20 +103,11 @@ func NewShards(ss []Shard) Shards {
 	return shards{shardsMap: shardMap}
 }
 
-// NewShardsWithIDs creates a new instance of Shards from ids
-func NewShardsWithIDs(ss []uint32) Shards {
-	shardMap := make(map[uint32]Shard, len(ss))
-	for _, s := range ss {
-		shardMap[s] = NewShard(s)
-	}
-	return shards{shardsMap: shardMap}
-}
-
 type shards struct {
 	shardsMap map[uint32]Shard
 }
 
-func (s shards) Shards() []Shard {
+func (s shards) All() []Shard {
 	ss := make([]Shard, 0, len(s.shardsMap))
 	for _, shard := range s.shardsMap {
 		ss = append(ss, shard)
@@ -90,23 +119,40 @@ func (s shards) NumShards() int {
 	return len(s.shardsMap)
 }
 
-func (s shards) ShardIDs() []uint32 {
-	r := make([]uint32, 0, s.NumShards())
-	for s := range s.shardsMap {
-		r = append(r, s)
-	}
-	return r
+func (s shards) Shard(id uint32) (Shard, bool) {
+	shard, ok := s.shardsMap[id]
+	return shard, ok
 }
 
-func (s shards) AddShard(shard uint32) {
-	s.shardsMap[shard] = NewShard(shard)
+func (s shards) Add(shard Shard) {
+	s.shardsMap[shard.ID()] = shard
 }
 
-func (s shards) RemoveShard(shard uint32) {
+func (s shards) Remove(shard uint32) {
 	delete(s.shardsMap, shard)
 }
 
-func (s shards) ContainsShard(shard uint32) bool {
+func (s shards) Contains(shard uint32) bool {
 	_, ok := s.shardsMap[shard]
 	return ok
+}
+
+func (s shards) NumShardsForState(state State) int {
+	count := 0
+	for _, s := range s.shardsMap {
+		if s.State() == state {
+			count++
+		}
+	}
+	return count
+}
+
+func (s shards) ShardsForState(state State) []Shard {
+	var r []Shard
+	for _, s := range s.shardsMap {
+		if s.State() == state {
+			r = append(r, s)
+		}
+	}
+	return r
 }

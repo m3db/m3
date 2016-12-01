@@ -26,39 +26,40 @@ import (
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDeployment(t *testing.T) {
 	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().AddShard(1)
-	h1.Shards().AddShard(2)
-	h1.Shards().AddShard(3)
+	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
 	h2 := placement.NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().AddShard(4)
-	h2.Shards().AddShard(5)
-	h2.Shards().AddShard(6)
+	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	h3 := placement.NewEmptyInstance("r3h3", "r3", "z1", 1)
-	h3.Shards().AddShard(1)
-	h3.Shards().AddShard(3)
-	h3.Shards().AddShard(5)
+	h3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
 	h4 := placement.NewEmptyInstance("r4h4", "r4", "z1", 1)
-	h4.Shards().AddShard(2)
-	h4.Shards().AddShard(4)
-	h4.Shards().AddShard(6)
+	h4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	h5 := placement.NewEmptyInstance("r5h5", "r5", "z1", 1)
-	h5.Shards().AddShard(5)
-	h5.Shards().AddShard(6)
-	h5.Shards().AddShard(1)
+	h5.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	h5.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 
 	h6 := placement.NewEmptyInstance("r6h6", "r6", "z1", 1)
-	h6.Shards().AddShard(2)
-	h6.Shards().AddShard(3)
-	h6.Shards().AddShard(4)
+	h6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h6.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h6.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 
 	instances := []services.PlacementInstance{h1, h2, h3, h4, h5, h6}
 
@@ -76,40 +77,40 @@ func TestDeployment(t *testing.T) {
 
 func TestDeploymentWithThreeReplica(t *testing.T) {
 	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().AddShard(1)
-	h1.Shards().AddShard(2)
+	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
 	h2 := placement.NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().AddShard(3)
-	h2.Shards().AddShard(4)
+	h2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 
 	h3 := placement.NewEmptyInstance("r3h3", "r3", "z1", 1)
-	h3.Shards().AddShard(5)
-	h3.Shards().AddShard(6)
+	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	h4 := placement.NewEmptyInstance("r4h4", "r4", "z1", 1)
-	h4.Shards().AddShard(1)
-	h4.Shards().AddShard(3)
+	h4.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h4.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
 	h5 := placement.NewEmptyInstance("r5h5", "r5", "z1", 1)
-	h5.Shards().AddShard(4)
-	h5.Shards().AddShard(6)
+	h5.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	h6 := placement.NewEmptyInstance("r6h6", "r6", "z1", 1)
-	h6.Shards().AddShard(2)
-	h6.Shards().AddShard(5)
+	h6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h6.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
 	h7 := placement.NewEmptyInstance("r7h7", "r7", "z1", 1)
-	h7.Shards().AddShard(2)
-	h7.Shards().AddShard(3)
+	h7.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h7.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
 	h8 := placement.NewEmptyInstance("r8h8", "r8", "z1", 1)
-	h8.Shards().AddShard(4)
-	h8.Shards().AddShard(5)
+	h8.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h8.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
 	h9 := placement.NewEmptyInstance("r9h9", "r9", "z1", 1)
-	h9.Shards().AddShard(6)
-	h9.Shards().AddShard(1)
+	h9.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	h9.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 
 	instances := []services.PlacementInstance{h1, h2, h3, h4, h5, h6, h7, h8, h9}
 

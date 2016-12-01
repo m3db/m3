@@ -20,16 +20,7 @@
 
 package placement
 
-import (
-	"errors"
-
-	"github.com/m3db/m3cluster/services"
-)
-
-var (
-	// ErrPlacementNotExist is returned when no placement was found from Storage
-	ErrPlacementNotExist = errors.New("placement not exist")
-)
+import "github.com/m3db/m3cluster/services"
 
 // Algorithm places shards on instances
 type Algorithm interface {
@@ -43,10 +34,10 @@ type Algorithm interface {
 	AddInstance(p services.ServicePlacement, i services.PlacementInstance) (services.ServicePlacement, error)
 
 	// RemoveInstance removes a instance from the placement
-	RemoveInstance(p services.ServicePlacement, i services.PlacementInstance) (services.ServicePlacement, error)
+	RemoveInstance(p services.ServicePlacement, leavingInstanceID string) (services.ServicePlacement, error)
 
 	// ReplaceInstance replace a instance with new instances
-	ReplaceInstance(p services.ServicePlacement, leavingInstance services.PlacementInstance, addingInstances []services.PlacementInstance) (services.ServicePlacement, error)
+	ReplaceInstance(p services.ServicePlacement, leavingInstanceID string, addingInstances []services.PlacementInstance) (services.ServicePlacement, error)
 }
 
 // DeploymentPlanner generates deployment steps for a placement
@@ -57,11 +48,14 @@ type DeploymentPlanner interface {
 
 // Storage provides read and write access to service placement
 type Storage interface {
-	// SetPlacement writes a placement for a service
-	SetPlacement(service services.ServiceID, p services.ServicePlacement) error
+	// CheckAndSet writes a placement for a service
+	CheckAndSet(service services.ServiceID, p services.ServicePlacement, version int) error
 
-	// Placement reads a placement for a service
-	Placement(service services.ServiceID) (services.ServicePlacement, error)
+	// SetIfNotExist writes a placement for a service
+	SetIfNotExist(service services.ServiceID, p services.ServicePlacement) error
+
+	// Placement reads placement and version for a service
+	Placement(service services.ServiceID) (services.ServicePlacement, int, error)
 }
 
 // DeploymentOptions provides options for DeploymentPlanner
