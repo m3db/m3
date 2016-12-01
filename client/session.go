@@ -59,14 +59,11 @@ var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
 	// ensuring at least each partition has an up node with a connection to it
 	ErrClusterConnectTimeout = errors.New("timed out establishing min connections to cluster")
-	// errSessionStateNotInitial is raised when trying to open a session and
-	// its not in the initial clean state
+	// errSessionStateNotInitial is raised when trying to open a session not in the initial clean state
 	errSessionStateNotInitial = errors.New("session not in initial state")
-	// errSessionStateNotOpen is raised when operations are requested when the
-	// session is not in the open state
+	// errSessionStateNotOpen is raised when operations are requested from a session not in the open state
 	errSessionStateNotOpen = errors.New("session not in open state")
-	// errSessionBadBlockResultFromPeer is raised when there is a bad block
-	// return from a peer when fetching blocks from peers
+	// errSessionBadBlockResultFromPeer is raised when there is a bad block return from a peer
 	errSessionBadBlockResultFromPeer = errors.New("session fetched bad block result from peer")
 	// errSessionInvalidConnectClusterConnectConsistencyLevel is raised when
 	// the connect consistency level specified is not recognized
@@ -286,8 +283,8 @@ func (s *session) initHostQueues(topoMap topology.Map) ([]hostQueue, int, int, e
 	connected := false
 	defer func() {
 		if !connected {
-			for i := range queues {
-				queues[i].Close()
+			for _, q := range queues {
+				q.Close()
 			}
 		}
 	}()
@@ -420,8 +417,8 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 
 	// Asynchronously close the previous set of host queues
 	go func() {
-		for i := range prev {
-			prev[i].Close()
+		for _, p := range prev {
+			p.Close()
 		}
 	}()
 
@@ -685,22 +682,19 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 			// to iter.Reset down below before setting the iterator in the results array,
 			// which would cause a nil pointer exception.
 			remaining := atomic.AddInt32(&pending, -1)
-			doneAll := remaining == 0
-			switch s.readLevel {
-			case ReadConsistencyLevelOne:
-				complete := snapshotSuccess > 0 || doneAll
-				if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
-					allCompletionFn()
+			complete := remaining == 0
+			if !complete {
+				switch s.readLevel {
+				case ReadConsistencyLevelOne:
+					complete = snapshotSuccess > 0
+				case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
+					complete = snapshotSuccess >= majority
+				case ReadConsistencyLevelAll:
 				}
-			case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
-				complete := snapshotSuccess >= majority || doneAll
-				if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
-					allCompletionFn()
-				}
-			case ReadConsistencyLevelAll:
-				if doneAll && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
-					allCompletionFn()
-				}
+			}
+
+			if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
+				allCompletionFn()
 			}
 
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
@@ -996,18 +990,19 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// be returned from this routine as long as one peer succeeds completely
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
-		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers,
-			start, end, metadataCh, m)
+		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers, start, end, metadataCh, m)
 
 		close(metadataCh)
-		if err != nil {
-			// Bail early
+		if err != nil { // Bail early
 			onDone(err)
 		}
 	}()
 
 	// Begin consuming metadata and making requests
-	go s.streamBlocksFromPeers(namespace, shard, peers, metadataCh, opts, result, m)
+	go func() {
+		s.streamBlocksFromPeers(namespace, shard, peers, metadataCh, opts, result, m)
+		onDone(nil)
+	}()
 
 	err = <-doneCh
 	m.fetchBlocksFromPeers.Update(0)
@@ -1197,7 +1192,6 @@ func (s *session) streamBlocksFromPeers(
 	// Consume the incoming metadata and enqueue to the ready channel
 	go func() {
 		s.streamCollectedBlocksMetadata(len(peers), ch, enqueueCh)
-		// todo@bl - notify enqueueCh that we can turn off now?
 	}()
 
 	// Fetch blocks from peers as results become ready
@@ -1207,8 +1201,7 @@ func (s *session) streamBlocksFromPeers(
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
 		processFn := func(batch []*blocksMetadata) {
-			s.streamBlocksBatchFromPeer(namespace, shard, peer, batch, opts,
-				result, enqueueCh, retrier)
+			s.streamBlocksBatchFromPeer(namespace, shard, peer, batch, opts, result, enqueueCh, retrier)
 		}
 		peerQueues[i] = s.newPeerBlocksQueueFn(peer, peerBlocksBatchSize, drainEvery, workers, processFn)
 	}
@@ -1235,10 +1228,9 @@ func (s *session) streamBlocksFromPeers(
 		completed := uint32(0)
 		onDone := func() {
 			// Mark completion of work from the enqueue channel when all queues drained
-			if atomic.AddUint32(&completed, 1) != queues {
-				return
+			if atomic.AddUint32(&completed, 1) == queues {
+				enqueueCh.done()
 			}
-			enqueueCh.done()
 		}
 
 		for _, peerBlocksMetadata := range perPeerBlocksMetadata {
@@ -1268,8 +1260,7 @@ func (s *session) streamCollectedBlocksMetadata(
 		if !ok {
 			received = &receivedBlocks{results: make([]*blocksMetadata, 0, peersLen)}
 			metadata[m.id.Hash()] = received
-		} else if received.submitted {
-			// Already submitted to enqueue channel
+		} else if received.submitted { // Already submitted to enqueue channel
 			continue
 		}
 
