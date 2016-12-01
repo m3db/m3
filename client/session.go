@@ -682,15 +682,15 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 			// to iter.Reset down below before setting the iterator in the results array,
 			// which would cause a nil pointer exception.
 			remaining := atomic.AddInt32(&pending, -1)
-			complete := remaining == 0
-			if !complete {
-				switch s.readLevel {
-				case ReadConsistencyLevelOne:
-					complete = snapshotSuccess > 0
-				case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
-					complete = snapshotSuccess >= majority
-				case ReadConsistencyLevelAll:
-				}
+			var complete bool
+
+			switch s.readLevel {
+			case ReadConsistencyLevelOne:
+				complete = remaining == 0 || snapshotSuccess > 0
+			case ReadConsistencyLevelMajority, ReadConsistencyLevelUnstrictMajority:
+				complete = remaining == 0 || snapshotSuccess >= majority
+			case ReadConsistencyLevelAll:
+				complete = remaining == 0
 			}
 
 			if complete && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {

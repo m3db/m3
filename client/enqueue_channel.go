@@ -23,12 +23,15 @@ package client
 import (
 	"sync/atomic"
 	"time"
+
+	"github.com/uber-go/tally"
 )
 
 type enqueueChannel struct {
 	enqueued        int32
 	peersMetadataCh chan []*blocksMetadata
 	closed          int32
+	qGauge          tally.Gauge
 }
 
 func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
@@ -37,15 +40,18 @@ func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
 		// give channel capacity for twice the total number of shards to prevent
 		// deadlock on re-enqueue
 		// todo@bl: can this be 4097 instead?
+		qGauge: m.blocksEnqueueChannel,
 	}
-	go func() {
-		for atomic.LoadInt32(&c.closed) == 0 {
-			m.blocksEnqueueChannel.Update(int64(len(c.peersMetadataCh)))
-			time.Sleep(gaugeReportInterval)
-		}
-		m.blocksEnqueueChannel.Update(0)
-	}()
+	go c.updateGauge()
+
 	return c
+}
+
+func (c *enqueueChannel) updateGauge() {
+	for atomic.LoadInt32(&c.closed) == 0 {
+		c.qGauge.Update(int64(len(c.peersMetadataCh)))
+		time.Sleep(gaugeReportInterval)
+	}
 }
 
 func (c *enqueueChannel) enqueue(peersMetadata []*blocksMetadata) {
@@ -61,5 +67,6 @@ func (c *enqueueChannel) done() {
 	if atomic.AddInt32(&c.enqueued, -1) == 0 {
 		close(c.peersMetadataCh)
 		atomic.StoreInt32(&c.closed, 1)
+		c.qGauge.Update(0)
 	}
 }
