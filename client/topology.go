@@ -219,3 +219,12 @@ func makeCounter(scope tally.Scope, i int, name string) tally.Counter {
 	tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
 	return scope.Tagged(tags).Counter(name)
 }
+
+func (s *session) updateTopology() {
+	for range s.topoWatch.C() {
+		s.log.Info("received update for topology")
+		if err := s.setTopologyWithLock(s.topoWatch.Get(), false); err != nil {
+			s.log.Errorf("could not update topology map: %v", err)
+		}
+	}
+}

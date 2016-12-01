@@ -227,14 +227,7 @@ func (s *session) Open() error {
 	s.state = stateOpen
 	s.Unlock()
 
-	go func() {
-		for range s.topoWatch.C() {
-			s.log.Info("received update for topology")
-			if err := s.setTopologyWithLock(s.topoWatch.Get(), false); err != nil {
-				s.log.Errorf("could not update topology map: %v", err)
-			}
-		}
-	}()
+	go updateTopology()
 
 	return nil
 }
