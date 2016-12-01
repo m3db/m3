@@ -22,6 +22,7 @@ package algo
 
 import (
 	"container/heap"
+	"fmt"
 	"math"
 
 	"github.com/m3db/m3cluster/services"
@@ -32,17 +33,23 @@ import (
 // PlacementHelper helps the algorithm to place shards
 type PlacementHelper interface {
 	// PlaceShards distributes shards to the instances in the helper, with aware of where are the shards coming from
-	PlaceShards(shards []uint32, from services.PlacementInstance) error
+	PlaceShards(shards []shard.Shard, from services.PlacementInstance) error
+
 	// GeneratePlacement generates a placement
 	GeneratePlacement() services.ServicePlacement
+
 	// TargetLoadForInstance returns the targe load for a instance
 	TargetLoadForInstance(id string) int
-	// MoveOneShard moves one shard between 2 instances
+
+	// MoveOneShard moves one shard between 2 instances, returns true if any shard is moved
 	MoveOneShard(from, to services.PlacementInstance) bool
-	// MoveShard moves a particular shard between 2 instances
-	MoveShard(shard uint32, from, to services.PlacementInstance) bool
+
+	// MoveShard moves a particular shard between 2 instances, returns true if the shard is moved
+	MoveShard(s shard.Shard, from, to services.PlacementInstance) bool
+
 	// HasNoRackConflict checks if the rack constraint is violated if the given shard is moved to the target rack
 	HasNoRackConflict(shard uint32, from services.PlacementInstance, toRack string) bool
+
 	// BuildInstanceHeap returns heap of instances sorted by available capacity
 	BuildInstanceHeap(instances []services.PlacementInstance, availableCapacityAscending bool) heap.Interface
 }
@@ -67,21 +74,41 @@ func (ph *placementHelper) MoveOneShard(from, to services.PlacementInstance) boo
 	if from == nil {
 		return false
 	}
-	for _, shard := range from.Shards().ShardIDs() {
-		if ph.MoveShard(shard, from, to) {
+	for _, s := range from.Shards().All() {
+		if s.State() != shard.Leaving && ph.MoveShard(s, from, to) {
 			return true
 		}
 	}
 	return false
 }
 
-func (ph *placementHelper) MoveShard(shard uint32, from, to services.PlacementInstance) bool {
-	if ph.canAssignInstance(shard, from, to) {
-		ph.assignShardToInstance(shard, to)
-		ph.removeShardFromInstance(shard, from)
-		return true
+func (ph *placementHelper) MoveShard(s shard.Shard, from, to services.PlacementInstance) bool {
+	if !ph.canAssignInstance(s.ID(), from, to) {
+		return false
 	}
-	return false
+
+	if s.State() == shard.Leaving {
+		// should not move a Leaving shard,
+		// Leaving shard will be removed when the Initializing shard is marked as Available
+		return false
+	}
+
+	if from != nil {
+		if s.State() == shard.Initializing {
+			from.Shards().Remove(s.ID())
+		} else if s.State() == shard.Available {
+			s.SetState(shard.Leaving)
+		}
+
+		delete(ph.shardToInstanceMap[s.ID()], from)
+	}
+
+	newShard := shard.NewShard(s.ID()).SetState(shard.Initializing)
+	if from != nil && s.State() != shard.Initializing {
+		newShard = newShard.SetSourceID(from.ID())
+	}
+	ph.assignShardToInstance(newShard, to)
+	return true
 }
 
 func (ph placementHelper) HasNoRackConflict(shard uint32, from services.PlacementInstance, toRack string) bool {
@@ -103,26 +130,35 @@ func (ph *placementHelper) BuildInstanceHeap(instances []services.PlacementInsta
 }
 
 func (ph *placementHelper) GeneratePlacement() services.ServicePlacement {
+	instancesWithLoad := make([]services.PlacementInstance, 0, len(ph.instances))
+	for _, instance := range ph.instances {
+		if loadOnInstance(instance) > 0 {
+			instancesWithLoad = append(instancesWithLoad, instance)
+		}
+	}
 	return placement.NewPlacement(ph.instances, ph.uniqueShards, ph.rf)
 }
 
-func (ph placementHelper) PlaceShards(shards []uint32, from services.PlacementInstance) error {
-	shardSet := placement.ConvertShardSliceToMap(shards)
+func (ph placementHelper) PlaceShards(shards []shard.Shard, from services.PlacementInstance) error {
+	shardSet := getShardMap(shards)
 	if from != nil {
 		// prefer to distribute "some" of the load to other racks first
 		// because the load from a leaving instance can always get assigned to a instance on the same rack
 		ph.placeToRacksOtherThanOrigin(shardSet, from)
 	}
 
-	instanceHeap := ph.BuildInstanceHeap(ph.instances, true)
+	instanceHeap := ph.BuildInstanceHeap(nonLeavingInstances(ph.instances), true)
 	// if there are shards left to be assigned, distribute them evenly
 	var triedInstances []services.PlacementInstance
-	for shard := range shardSet {
+	for _, s := range shardSet {
+		if s.State() == shard.Leaving {
+			continue
+		}
 		moved := false
 		for instanceHeap.Len() > 0 {
 			tryInstance := heap.Pop(instanceHeap).(services.PlacementInstance)
 			triedInstances = append(triedInstances, tryInstance)
-			if ph.MoveShard(shard, from, tryInstance) {
+			if ph.MoveShard(s, from, tryInstance) {
 				moved = true
 				break
 			}
@@ -141,7 +177,7 @@ func (ph placementHelper) PlaceShards(shards []uint32, from services.PlacementIn
 
 // placeToRacksOtherThanOrigin move shards from a instance to the rest of the cluster
 // the goal of this function is to assign "some" of the shards to the instances in other racks
-func (ph placementHelper) placeToRacksOtherThanOrigin(shardsSet map[uint32]int, from services.PlacementInstance) {
+func (ph placementHelper) placeToRacksOtherThanOrigin(shardsSet map[uint32]shard.Shard, from services.PlacementInstance) {
 	var otherRack []services.PlacementInstance
 	for rack, instances := range ph.rackToInstancesMap {
 		if rack == from.Rack() {
@@ -152,10 +188,10 @@ func (ph placementHelper) placeToRacksOtherThanOrigin(shardsSet map[uint32]int, 
 		}
 	}
 
-	instanceHeap := ph.BuildInstanceHeap(otherRack, true)
+	instanceHeap := ph.BuildInstanceHeap(nonLeavingInstances(otherRack), true)
 
 	var triedInstances []services.PlacementInstance
-	for shard := range shardsSet {
+	for shardID, s := range shardsSet {
 		for instanceHeap.Len() > 0 {
 			tryInstance := heap.Pop(instanceHeap).(services.PlacementInstance)
 			if ph.TargetLoadForInstance(tryInstance.ID())-tryInstance.Shards().NumShards() <= 0 {
@@ -164,8 +200,8 @@ func (ph placementHelper) placeToRacksOtherThanOrigin(shardsSet map[uint32]int, 
 				return
 			}
 			triedInstances = append(triedInstances, tryInstance)
-			if ph.MoveShard(shard, from, tryInstance) {
-				delete(shardsSet, shard)
+			if ph.MoveShard(s, from, tryInstance) {
+				delete(shardsSet, shardID)
 				break
 			}
 		}
@@ -198,10 +234,10 @@ func newAddInstanceHelper(p services.ServicePlacement, i services.PlacementInsta
 
 func newRemoveInstanceHelper(
 	p services.ServicePlacement,
-	i services.PlacementInstance,
+	instanceID string,
 	opts services.PlacementOptions,
 ) (PlacementHelper, services.PlacementInstance, error) {
-	p, leavingInstance, err := removeInstanceFromPlacement(p, i)
+	p, leavingInstance, err := removeInstanceFromPlacement(p, instanceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -210,18 +246,18 @@ func newRemoveInstanceHelper(
 
 func newReplaceInstanceHelper(
 	p services.ServicePlacement,
-	leavingInstance services.PlacementInstance,
+	instanceID string,
 	addingInstances []services.PlacementInstance,
 	opts services.PlacementOptions,
 ) (PlacementHelper, services.PlacementInstance, []services.PlacementInstance, error) {
-	p, leavingInstance, err := removeInstanceFromPlacement(p, leavingInstance)
+	p, leavingInstance, err := removeInstanceFromPlacement(p, instanceID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	newAddingInstances := make([]services.PlacementInstance, len(addingInstances))
 	for i, instance := range addingInstances {
-		p, newAddingInstances[i], err = addInstanceToPlacement(p, instance)
+		p, newAddingInstances[i], err = addInstanceToPlacement(p, instance, true)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -256,8 +292,8 @@ func (ph *placementHelper) scanCurrentLoad() {
 		ph.rackToWeightMap[h.Rack()] = ph.rackToWeightMap[h.Rack()] + h.Weight()
 		totalWeight += h.Weight()
 
-		for _, shard := range h.Shards().ShardIDs() {
-			ph.assignShardToInstance(shard, h)
+		for _, s := range h.Shards().All() {
+			ph.assignShardToInstance(s, h)
 		}
 	}
 	ph.totalWeight = totalWeight
@@ -296,32 +332,23 @@ func (ph placementHelper) getShardLen() int {
 }
 
 func (ph placementHelper) canAssignInstance(shard uint32, from, to services.PlacementInstance) bool {
-	if to.Shards().ContainsShard(shard) {
+	if to.Shards().Contains(shard) {
 		return false
 	}
 	return ph.opts.LooseRackCheck() || ph.HasNoRackConflict(shard, from, to.Rack())
 }
 
-func (ph placementHelper) assignShardToInstance(shard uint32, to services.PlacementInstance) {
+func (ph placementHelper) assignShardToInstance(s shard.Shard, to services.PlacementInstance) {
 	if to == nil {
 		return
 	}
 
-	to.Shards().AddShard(shard)
+	to.Shards().Add(s)
 
-	if _, exist := ph.shardToInstanceMap[shard]; !exist {
-		ph.shardToInstanceMap[shard] = make(map[services.PlacementInstance]struct{})
+	if _, exist := ph.shardToInstanceMap[s.ID()]; !exist {
+		ph.shardToInstanceMap[s.ID()] = make(map[services.PlacementInstance]struct{})
 	}
-	ph.shardToInstanceMap[shard][to] = struct{}{}
-}
-
-func (ph placementHelper) removeShardFromInstance(shard uint32, from services.PlacementInstance) {
-	if from == nil {
-		return
-	}
-
-	from.Shards().RemoveShard(shard)
-	delete(ph.shardToInstanceMap[shard], from)
+	ph.shardToInstanceMap[s.ID()][to] = struct{}{}
 }
 
 // instanceHeap provides an easy way to get best candidate instance to assign/steal a shard
@@ -338,9 +365,14 @@ func newHeap(
 	targetLoad map[string]int,
 	rackToWeightMap map[string]uint32,
 ) *instanceHeap {
-	hHeap := &instanceHeap{capacityAscending: capacityAscending, instances: instances, targetLoad: targetLoad, rackToWeightMap: rackToWeightMap}
-	heap.Init(hHeap)
-	return hHeap
+	h := &instanceHeap{
+		capacityAscending: capacityAscending,
+		instances:         instances,
+		targetLoad:        targetLoad,
+		rackToWeightMap:   rackToWeightMap,
+	}
+	heap.Init(h)
+	return h
 }
 
 func (h *instanceHeap) targetLoadForInstance(id string) int {
@@ -353,8 +385,8 @@ func (h *instanceHeap) Len() int {
 func (h *instanceHeap) Less(i, j int) bool {
 	instanceI := h.instances[i]
 	instanceJ := h.instances[j]
-	leftLoadOnI := h.targetLoadForInstance(instanceI.ID()) - instanceI.Shards().NumShards()
-	leftLoadOnJ := h.targetLoadForInstance(instanceJ.ID()) - instanceJ.Shards().NumShards()
+	leftLoadOnI := h.targetLoadForInstance(instanceI.ID()) - loadOnInstance(instanceI)
+	leftLoadOnJ := h.targetLoadForInstance(instanceJ.ID()) - loadOnInstance(instanceJ)
 	// if both instance has tokens to be filled, prefer the one on a bigger rack
 	// since it tends to be more picky in accepting shards
 	if leftLoadOnI > 0 && leftLoadOnJ > 0 {
@@ -385,16 +417,79 @@ func (h *instanceHeap) Pop() interface{} {
 	return instance
 }
 
-func addInstanceToPlacement(p services.ServicePlacement, i services.PlacementInstance) (services.ServicePlacement, services.PlacementInstance, error) {
+// MarkShardAvailable marks the state of a shard to available
+func MarkShardAvailable(p services.ServicePlacement, instanceID string, shardID uint32) (services.ServicePlacement, error) {
+	p = clonePlacement(p)
+	instance := p.Instance(instanceID)
+	if instance == nil {
+		return nil, fmt.Errorf("instance %s does not exist in placement", instanceID)
+	}
+
+	s, exist := instance.Shards().Shard(shardID)
+	if !exist {
+		return nil, fmt.Errorf("shard %d does not exist in instance %s", shardID, instanceID)
+	}
+
+	if s.State() != shard.Initializing {
+		return nil, fmt.Errorf("could not mark shard %d as available, it's not in Initializing state", s.ID())
+	}
+
+	sourceID := s.SourceID()
+	s.SetState(shard.Available).SetSourceID("")
+
+	// there could be no source for cases like initial placement
+	if sourceID == "" {
+		return p, nil
+	}
+
+	sourceInstance := p.Instance(sourceID)
+	if sourceInstance == nil {
+		return nil, fmt.Errorf("source instance %s for shard %d does not exist in placement", sourceID, shardID)
+	}
+
+	sourceShard, exist := sourceInstance.Shards().Shard(shardID)
+	if !exist {
+		return nil, fmt.Errorf("shard %d does not exist in source instance %s", shardID, sourceID)
+	}
+
+	if sourceShard.State() != shard.Leaving {
+		return nil, fmt.Errorf("shard %d is not leaving instance %s", shardID, sourceID)
+	}
+
+	sourceInstance.Shards().Remove(shardID)
+	if sourceInstance.Shards().NumShards() == 0 {
+		return placement.NewPlacement(
+			removeInstance(p.Instances(), sourceInstance.ID()),
+			p.Shards(),
+			p.ReplicaFactor(),
+		), nil
+	}
+	return p, nil
+}
+
+func removeInstance(list []services.PlacementInstance, instanceID string) []services.PlacementInstance {
+	for i, instance := range list {
+		if instance.ID() == instanceID {
+			return append(list[:i], list[i+1:]...)
+		}
+	}
+	return list
+}
+
+func addInstanceToPlacement(p services.ServicePlacement, i services.PlacementInstance, allowEmpty bool) (services.ServicePlacement, services.PlacementInstance, error) {
 	if p.Instance(i.ID()) != nil {
 		return nil, nil, errAddingInstanceAlreadyExist
 	}
-	instances := placement.NewEmptyInstance(i.ID(), i.Rack(), i.Zone(), i.Weight())
-	return placement.NewPlacement(append(p.Instances(), instances), p.Shards(), p.ReplicaFactor()), instances, nil
+	instance := cloneInstance(i)
+
+	if allowEmpty || instance.Shards().NumShards() > 0 {
+		p = placement.NewPlacement(append(p.Instances(), instance), p.Shards(), p.ReplicaFactor())
+	}
+	return p, instance, nil
 }
 
-func removeInstanceFromPlacement(p services.ServicePlacement, leavingInstance services.PlacementInstance) (services.ServicePlacement, services.PlacementInstance, error) {
-	leavingInstance = p.Instance(leavingInstance.ID())
+func removeInstanceFromPlacement(p services.ServicePlacement, id string) (services.ServicePlacement, services.PlacementInstance, error) {
+	leavingInstance := p.Instance(id)
 	if leavingInstance == nil {
 		return nil, nil, errInstanceAbsent
 	}
@@ -409,20 +504,78 @@ func removeInstanceFromPlacement(p services.ServicePlacement, leavingInstance se
 	return placement.NewPlacement(instances, p.Shards(), p.ReplicaFactor()), leavingInstance, nil
 }
 
-func copyPlacement(p services.ServicePlacement) services.ServicePlacement {
-	return placement.NewPlacement(copyInstances(p.Instances()), p.Shards(), p.ReplicaFactor())
+func clonePlacement(p services.ServicePlacement) services.ServicePlacement {
+	return placement.NewPlacement(cloneInstances(p.Instances()), p.Shards(), p.ReplicaFactor())
 }
 
-func copyInstances(instances []services.PlacementInstance) []services.PlacementInstance {
+func cloneInstances(instances []services.PlacementInstance) []services.PlacementInstance {
 	copied := make([]services.PlacementInstance, len(instances))
 	for i, instance := range instances {
-		copied[i] = placement.NewInstance().
-			SetID(instance.ID()).
-			SetRack(instance.Rack()).
-			SetZone(instance.Zone()).
-			SetWeight(instance.Weight()).
-			SetEndpoint(instance.Endpoint()).
-			SetShards(shard.NewShardsWithIDs(instance.Shards().ShardIDs()))
+		copied[i] = cloneInstance(instance)
 	}
 	return copied
+}
+
+func cloneInstance(instance services.PlacementInstance) services.PlacementInstance {
+	return placement.NewInstance().
+		SetID(instance.ID()).
+		SetRack(instance.Rack()).
+		SetZone(instance.Zone()).
+		SetWeight(instance.Weight()).
+		SetEndpoint(instance.Endpoint()).
+		SetShards(cloneShards(instance.Shards()))
+}
+
+func cloneShards(shards shard.Shards) shard.Shards {
+	newShards := make([]shard.Shard, shards.NumShards())
+	for i, s := range shards.All() {
+		newShards[i] = shard.NewShard(s.ID()).SetState(s.State()).SetSourceID(s.SourceID())
+	}
+
+	return shard.NewShards(newShards)
+}
+
+func getShardMap(shards []shard.Shard) map[uint32]shard.Shard {
+	r := make(map[uint32]shard.Shard, len(shards))
+
+	for _, s := range shards {
+		r[s.ID()] = s
+	}
+	return r
+}
+
+func loadOnInstance(instance services.PlacementInstance) int {
+	return instance.Shards().NumShards() - instance.Shards().NumShardsForState(shard.Leaving)
+}
+
+func nonLeavingInstances(instances []services.PlacementInstance) []services.PlacementInstance {
+	r := make([]services.PlacementInstance, 0, len(instances))
+	for _, instance := range instances {
+		if isInstanceLeaving(instance) {
+			continue
+		}
+		r = append(r, instance)
+	}
+
+	return r
+}
+
+func isInstanceLeaving(instance services.PlacementInstance) bool {
+	newInstance := true
+	for _, s := range instance.Shards().All() {
+		if s.State() != shard.Leaving {
+			return false
+		}
+		newInstance = false
+
+	}
+	return !newInstance
+}
+
+func newShards(shardIDs []uint32) []shard.Shard {
+	r := make([]shard.Shard, len(shardIDs))
+	for i, id := range shardIDs {
+		r[i] = shard.NewShard(id).SetState(shard.Initializing)
+	}
+	return r
 }

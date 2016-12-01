@@ -48,49 +48,58 @@ func NewRackAwarePlacementAlgorithm(opts services.PlacementOptions) placement.Al
 func (a rackAwarePlacementAlgorithm) InitialPlacement(instances []services.PlacementInstance, shards []uint32) (services.ServicePlacement, error) {
 	ph := newInitHelper(instances, shards, a.opts)
 
-	if err := ph.PlaceShards(shards, nil); err != nil {
+	if err := ph.PlaceShards(newShards(shards), nil); err != nil {
 		return nil, err
 	}
 	return ph.GeneratePlacement(), nil
 }
 
 func (a rackAwarePlacementAlgorithm) AddReplica(p services.ServicePlacement) (services.ServicePlacement, error) {
-	p = copyPlacement(p)
+	p = clonePlacement(p)
 	ph := newAddReplicaHelper(p, a.opts)
-	if err := ph.PlaceShards(p.Shards(), nil); err != nil {
+	if err := ph.PlaceShards(newShards(p.Shards()), nil); err != nil {
 		return nil, err
 	}
 	return ph.GeneratePlacement(), nil
 }
 
-func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.ServicePlacement, i services.PlacementInstance) (services.ServicePlacement, error) {
-	p = copyPlacement(p)
-	ph, leavingInstance, err := newRemoveInstanceHelper(p, i, a.opts)
+func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.ServicePlacement, instanceID string) (services.ServicePlacement, error) {
+	p = clonePlacement(p)
+	ph, leavingInstance, err := newRemoveInstanceHelper(p, instanceID, a.opts)
 	if err != nil {
 		return nil, err
 	}
 	// place the shards from the leaving instance to the rest of the cluster
-	if err := ph.PlaceShards(leavingInstance.Shards().ShardIDs(), leavingInstance); err != nil {
+	if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance); err != nil {
 		return nil, err
 	}
-	return ph.GeneratePlacement(), nil
+
+	result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, false)
+	return result, err
 }
 
-func (a rackAwarePlacementAlgorithm) AddInstance(p services.ServicePlacement, i services.PlacementInstance) (services.ServicePlacement, error) {
-	p = copyPlacement(p)
+func (a rackAwarePlacementAlgorithm) AddInstance(
+	p services.ServicePlacement,
+	i services.PlacementInstance,
+) (services.ServicePlacement, error) {
+	p = clonePlacement(p)
 	return a.addInstance(p, placement.NewEmptyInstance(i.ID(), i.Rack(), i.Zone(), i.Weight()))
 }
 
-func (a rackAwarePlacementAlgorithm) ReplaceInstance(p services.ServicePlacement, leavingInstance services.PlacementInstance, addingInstances []services.PlacementInstance) (services.ServicePlacement, error) {
-	p = copyPlacement(p)
-	ph, leavingInstance, addingInstances, err := newReplaceInstanceHelper(p, leavingInstance, addingInstances, a.opts)
+func (a rackAwarePlacementAlgorithm) ReplaceInstance(
+	p services.ServicePlacement,
+	instanceID string,
+	addingInstances []services.PlacementInstance,
+) (services.ServicePlacement, error) {
+	p = clonePlacement(p)
+	ph, leavingInstance, addingInstances, err := newReplaceInstanceHelper(p, instanceID, addingInstances, a.opts)
 	if err != nil {
 		return nil, err
 	}
 
 	// move shards from leaving instance to adding instance
 	instanceHeap := ph.BuildInstanceHeap(addingInstances, true)
-	for leavingInstance.Shards().NumShards() > 0 {
+	for loadOnInstance(leavingInstance) > 0 {
 		if instanceHeap.Len() == 0 {
 			break
 		}
@@ -100,34 +109,37 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(p services.ServicePlacement
 		}
 	}
 
-	if !a.opts.AllowPartialReplace() {
-		if leavingInstance.Shards().NumShards() > 0 {
-			return nil, fmt.Errorf("could not fully replace all shards from %s, %v shards left unassigned", leavingInstance.ID(), leavingInstance.Shards().NumShards())
-		}
-		return ph.GeneratePlacement(), nil
+	if loadOnInstance(leavingInstance) == 0 {
+		result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, false)
+		return result, err
 	}
 
-	if leavingInstance.Shards().NumShards() == 0 {
-		return ph.GeneratePlacement(), nil
+	if !a.opts.AllowPartialReplace() {
+		return nil, fmt.Errorf("could not fully replace all shards from %s, %v shards left unassigned", leavingInstance.ID(), leavingInstance.Shards().NumShards())
 	}
+
 	// place the shards from the leaving instance to the rest of the cluster
-	if err := ph.PlaceShards(leavingInstance.Shards().ShardIDs(), leavingInstance); err != nil {
+	if err := ph.PlaceShards(
+		leavingInstance.Shards().All(),
+		leavingInstance,
+	); err != nil {
 		return nil, err
 	}
 	// fill up to the target load for added instances if have not already done so
-	newP := ph.GeneratePlacement()
+	newPlacement := ph.GeneratePlacement()
 	for _, addingInstance := range addingInstances {
-		newP, leavingInstance, err = removeInstanceFromPlacement(newP, addingInstance)
+		newPlacement, addingInstance, err = removeInstanceFromPlacement(newPlacement, addingInstance.ID())
 		if err != nil {
 			return nil, err
 		}
-		newP, err = a.addInstance(newP, leavingInstance)
+		newPlacement, err = a.addInstance(newPlacement, addingInstance)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return newP, nil
+	result, _, err := addInstanceToPlacement(newPlacement, leavingInstance, false)
+	return result, err
 }
 
 func (a rackAwarePlacementAlgorithm) addInstance(p services.ServicePlacement, addingInstance services.PlacementInstance) (services.ServicePlacement, error) {
@@ -137,7 +149,7 @@ func (a rackAwarePlacementAlgorithm) addInstance(p services.ServicePlacement, ad
 	ph := newAddInstanceHelper(p, addingInstance, a.opts)
 	targetLoad := ph.TargetLoadForInstance(addingInstance.ID())
 	// try to take shards from the most loaded instances until the adding instance reaches target load
-	hh := ph.BuildInstanceHeap(p.Instances(), false)
+	hh := ph.BuildInstanceHeap(nonLeavingInstances(p.Instances()), false)
 	for addingInstance.Shards().NumShards() < targetLoad {
 		if hh.Len() == 0 {
 			return nil, errCouldNotReachTargetLoad

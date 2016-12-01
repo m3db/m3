@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/services/placement/algo"
+	"github.com/m3db/m3cluster/shard"
 )
 
 var (
@@ -54,15 +55,7 @@ func (ps placementService) BuildInitialPlacement(
 	shardLen int,
 	rf int,
 ) (services.ServicePlacement, error) {
-	_, err := ps.Placement()
-	if err == nil {
-		return nil, errPlacementAlreadyExist
-	}
-
-	if err != nil && err != placement.ErrPlacementNotExist {
-		return nil, err
-	}
-
+	var err error
 	if err = ps.validateInitInstances(instances); err != nil {
 		return nil, err
 	}
@@ -84,13 +77,22 @@ func (ps placementService) BuildInitialPlacement(
 		}
 	}
 
-	return p, ps.validateAndSaveSnapshot(p)
+	if err := placement.Validate(p); err != nil {
+		return nil, err
+	}
+
+	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
+	p, err = markAllShardsAsAvailable(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return p, ps.ss.SetIfNotExist(ps.service, p)
 }
 
 func (ps placementService) AddReplica() (services.ServicePlacement, error) {
-	var p services.ServicePlacement
-	var err error
-	if p, err = ps.Placement(); err != nil {
+	p, v, err := ps.ss.Placement(ps.service)
+	if err != nil {
 		return nil, err
 	}
 
@@ -98,15 +100,24 @@ func (ps placementService) AddReplica() (services.ServicePlacement, error) {
 		return nil, err
 	}
 
-	return p, ps.validateAndSaveSnapshot(p)
+	if err := placement.Validate(p); err != nil {
+		return nil, err
+	}
+
+	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
+	p, err = markAllShardsAsAvailable(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return p, ps.ss.CheckAndSet(ps.service, p, v)
 }
 
 func (ps placementService) AddInstance(
 	candidates []services.PlacementInstance,
 ) (services.ServicePlacement, error) {
-	var p services.ServicePlacement
-	var err error
-	if p, err = ps.Placement(); err != nil {
+	p, v, err := ps.ss.Placement(ps.service)
+	if err != nil {
 		return nil, err
 	}
 	var addingInstance services.PlacementInstance
@@ -118,40 +129,56 @@ func (ps placementService) AddInstance(
 		return nil, err
 	}
 
-	return p, ps.validateAndSaveSnapshot(p)
-}
-
-func (ps placementService) RemoveInstance(
-	instance services.PlacementInstance,
-) (services.ServicePlacement, error) {
-	var p services.ServicePlacement
-	var err error
-	if p, err = ps.Placement(); err != nil {
+	if err := placement.Validate(p); err != nil {
 		return nil, err
 	}
 
-	if p.Instance(instance.ID()) == nil {
+	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
+	p, err = markAllShardsAsAvailable(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return p, ps.ss.CheckAndSet(ps.service, p, v)
+}
+
+func (ps placementService) RemoveInstance(instanceID string) (services.ServicePlacement, error) {
+	p, v, err := ps.ss.Placement(ps.service)
+	if err != nil {
+		return nil, err
+	}
+
+	if p.Instance(instanceID) == nil {
 		return nil, errInstanceAbsent
 	}
 
-	if p, err = ps.algo.RemoveInstance(p, instance); err != nil {
+	if p, err = ps.algo.RemoveInstance(p, instanceID); err != nil {
 		return nil, err
 	}
 
-	return p, ps.validateAndSaveSnapshot(p)
+	if err := placement.Validate(p); err != nil {
+		return nil, err
+	}
+
+	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
+	p, err = markAllShardsAsAvailable(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return p, ps.ss.CheckAndSet(ps.service, p, v)
 }
 
 func (ps placementService) ReplaceInstance(
-	leavingInstance services.PlacementInstance,
+	leavingInstanceID string,
 	candidates []services.PlacementInstance,
 ) (services.ServicePlacement, error) {
-	var p services.ServicePlacement
-	var err error
-	if p, err = ps.Placement(); err != nil {
+	p, v, err := ps.ss.Placement(ps.service)
+	if err != nil {
 		return nil, err
 	}
 
-	leavingInstance = p.Instance(leavingInstance.ID())
+	leavingInstance := p.Instance(leavingInstanceID)
 	if leavingInstance == nil {
 		return nil, errInstanceAbsent
 	}
@@ -161,15 +188,68 @@ func (ps placementService) ReplaceInstance(
 		return nil, err
 	}
 
-	if p, err = ps.algo.ReplaceInstance(p, leavingInstance, addingInstances); err != nil {
+	if p, err = ps.algo.ReplaceInstance(p, leavingInstanceID, addingInstances); err != nil {
 		return nil, err
 	}
 
-	return p, ps.validateAndSaveSnapshot(p)
+	if err := placement.Validate(p); err != nil {
+		return nil, err
+	}
+
+	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
+	p, err = markAllShardsAsAvailable(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return p, ps.ss.CheckAndSet(ps.service, p, v)
+}
+
+func (ps placementService) MarkShardAvailable(instanceID string, shardID uint32) error {
+	p, v, err := ps.ss.Placement(ps.service)
+	if err != nil {
+		return err
+	}
+
+	p, err = algo.MarkShardAvailable(p, instanceID, shardID)
+	if err != nil {
+		return err
+	}
+
+	if err := placement.Validate(p); err != nil {
+		return err
+	}
+
+	return ps.ss.CheckAndSet(ps.service, p, v)
+}
+
+func (ps placementService) MarkInstanceAvailable(instanceID string) error {
+	p, v, err := ps.ss.Placement(ps.service)
+	if err != nil {
+		return err
+	}
+
+	instance := p.Instance(instanceID)
+	if instance == nil {
+		return fmt.Errorf("could not find instance %s in placement", instanceID)
+	}
+	for _, s := range instance.Shards().All() {
+		p, err = algo.MarkShardAvailable(p, instanceID, s.ID())
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := placement.Validate(p); err != nil {
+		return err
+	}
+
+	return ps.ss.CheckAndSet(ps.service, p, v)
 }
 
 func (ps placementService) Placement() (services.ServicePlacement, error) {
-	return ps.ss.Placement(ps.service)
+	p, _, err := ps.ss.Placement(ps.service)
+	return p, err
 }
 
 func (ps placementService) validateInitInstances(instances []services.PlacementInstance) error {
@@ -248,8 +328,8 @@ func (ps placementService) findReplaceInstance(
 	instances := make([]sortableValue, 0, len(rackMap))
 	for rack, instancesInRack := range rackMap {
 		conflicts := 0
-		for _, shard := range leaving.Shards().ShardIDs() {
-			if !ph.HasNoRackConflict(shard, leaving, rack) {
+		for _, s := range leaving.Shards().All() {
+			if !ph.HasNoRackConflict(s.ID(), leaving, rack) {
 				conflicts++
 			}
 		}
@@ -284,14 +364,6 @@ func (ps placementService) getNewInstancesToPlacement(
 		}
 	}
 	return filterZones(p, instances, opts)
-}
-
-func (ps placementService) validateAndSaveSnapshot(p services.ServicePlacement) error {
-	if err := placement.Validate(p); err != nil {
-		return err
-	}
-
-	return ps.ss.SetPlacement(ps.service, p)
 }
 
 func filterZones(
@@ -423,4 +495,19 @@ func (things sortableThings) Less(i, j int) bool {
 
 func (things sortableThings) Swap(i, j int) {
 	things[i], things[j] = things[j], things[i]
+}
+
+func markAllShardsAsAvailable(p services.ServicePlacement) (services.ServicePlacement, error) {
+	var err error
+	for _, instance := range p.Instances() {
+		for _, s := range instance.Shards().All() {
+			if s.State() == shard.Initializing {
+				p, err = algo.MarkShardAvailable(p, instance.ID(), s.ID())
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return p, nil
 }

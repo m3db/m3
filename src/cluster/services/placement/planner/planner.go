@@ -61,16 +61,16 @@ func getDeployStep(instances []services.PlacementInstance, maxStepSize int) []se
 			continue
 		}
 		parallel = append(parallel, instance)
-		for _, shard := range instance.Shards().ShardIDs() {
-			shards[shard] = struct{}{}
+		for _, s := range instance.Shards().All() {
+			shards[s.ID()] = struct{}{}
 		}
 	}
 	return parallel
 }
 
 func isSharingShard(shards map[uint32]struct{}, instance services.PlacementInstance) bool {
-	for _, shard := range instance.Shards().ShardIDs() {
-		if _, exist := shards[shard]; exist {
+	for _, s := range instance.Shards().All() {
+		if _, exist := shards[s.ID()]; exist {
 			return true
 		}
 	}

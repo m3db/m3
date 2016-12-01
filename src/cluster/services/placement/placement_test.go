@@ -25,39 +25,40 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPlacement(t *testing.T) {
 	h1 := NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().AddShard(1)
-	h1.Shards().AddShard(2)
-	h1.Shards().AddShard(3)
+	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
 	h2 := NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().AddShard(4)
-	h2.Shards().AddShard(5)
-	h2.Shards().AddShard(6)
+	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	h3 := NewEmptyInstance("r3h3", "r3", "z1", 1)
-	h3.Shards().AddShard(1)
-	h3.Shards().AddShard(3)
-	h3.Shards().AddShard(5)
+	h3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
 	h4 := NewEmptyInstance("r4h4", "r4", "z1", 1)
-	h4.Shards().AddShard(2)
-	h4.Shards().AddShard(4)
-	h4.Shards().AddShard(6)
+	h4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	h5 := NewEmptyInstance("r5h5", "r5", "z1", 1)
-	h5.Shards().AddShard(5)
-	h5.Shards().AddShard(6)
-	h5.Shards().AddShard(1)
+	h5.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	h5.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 
 	h6 := NewEmptyInstance("r6h6", "r6", "z1", 1)
-	h6.Shards().AddShard(2)
-	h6.Shards().AddShard(3)
-	h6.Shards().AddShard(4)
+	h6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h6.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h6.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 
 	instances := []services.PlacementInstance{h1, h2, h3, h4, h5, h6}
 
@@ -86,14 +87,14 @@ func TestValidate(t *testing.T) {
 	ids := []uint32{1, 2, 3, 4, 5, 6}
 
 	h1 := NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().AddShard(1)
-	h1.Shards().AddShard(2)
-	h1.Shards().AddShard(3)
+	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Initializing))
+	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
 	h2 := NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().AddShard(4)
-	h2.Shards().AddShard(5)
-	h2.Shards().AddShard(6)
+	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(6).SetState(shard.Initializing))
 
 	instances := []services.PlacementInstance{h1, h2}
 	p := NewPlacement(instances, ids, 1)
@@ -106,41 +107,42 @@ func TestValidate(t *testing.T) {
 
 	// missing a shard
 	h1 = NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().AddShard(1)
-	h1.Shards().AddShard(2)
-	h1.Shards().AddShard(3)
-	h1.Shards().AddShard(4)
-	h1.Shards().AddShard(5)
-	h1.Shards().AddShard(6)
+	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	h2 = NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().AddShard(2)
-	h2.Shards().AddShard(3)
-	h2.Shards().AddShard(4)
-	h2.Shards().AddShard(5)
-	h2.Shards().AddShard(6)
+	h2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	instances = []services.PlacementInstance{h1, h2}
 	p = NewPlacement(instances, ids, 2)
-	assert.Error(t, Validate(p))
-	assert.Equal(t, errTotalShardsMismatch, Validate(p))
+	err := Validate(p)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid number of available shards in placement")
 
 	// contains shard that's unexpected to be in placement
 	h1 = NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().AddShard(1)
-	h1.Shards().AddShard(2)
-	h1.Shards().AddShard(3)
-	h1.Shards().AddShard(4)
-	h1.Shards().AddShard(5)
-	h1.Shards().AddShard(6)
-	h1.Shards().AddShard(7)
+	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(7).SetState(shard.Available))
 
 	h2 = NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().AddShard(2)
-	h2.Shards().AddShard(3)
-	h2.Shards().AddShard(4)
-	h2.Shards().AddShard(5)
-	h2.Shards().AddShard(6)
+	h2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	instances = []services.PlacementInstance{h1, h2}
 	p = NewPlacement(instances, ids, 2)
@@ -149,14 +151,14 @@ func TestValidate(t *testing.T) {
 
 	// duplicated shards
 	h1 = NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().AddShard(2)
-	h1.Shards().AddShard(3)
-	h1.Shards().AddShard(4)
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 
 	h2 = NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().AddShard(4)
-	h2.Shards().AddShard(5)
-	h2.Shards().AddShard(6)
+	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
 	instances = []services.PlacementInstance{h1, h2}
 	p = NewPlacement(instances, []uint32{2, 3, 4, 4, 5, 6}, 1)
@@ -165,44 +167,84 @@ func TestValidate(t *testing.T) {
 
 	// three shard 2 and only one shard 4
 	h1 = NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().AddShard(1)
-	h1.Shards().AddShard(2)
-	h1.Shards().AddShard(3)
+	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
 	h2 = NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().AddShard(2)
-	h2.Shards().AddShard(3)
-	h2.Shards().AddShard(4)
+	h2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 
 	h3 := NewEmptyInstance("r3h3", "r3", "z1", 1)
-	h3.Shards().AddShard(1)
-	h3.Shards().AddShard(2)
+	h3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	h3.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
 	instances = []services.PlacementInstance{h1, h2, h3}
 	p = NewPlacement(instances, []uint32{1, 2, 3, 4}, 2)
 	assert.Error(t, Validate(p))
+
+	// missing a shard
+	h1 = NewEmptyInstance("r1h1", "r1", "z1", 1)
+	h1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Initializing))
+	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	h2 = NewEmptyInstance("r2h2", "r2", "z1", 1)
+	h2.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	h2.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
+	h2.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+
+	instances = []services.PlacementInstance{h1, h2}
+	p = NewPlacement(instances, ids, 1)
+	err = Validate(p)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "more than initializing")
+
+	// missing a shard
+	h1 = NewEmptyInstance("r1h1", "r1", "z1", 1)
+	h1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	h2 = NewEmptyInstance("r2h2", "r2", "z1", 1)
+	h2.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	h2.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
+	h2.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+
+	instances = []services.PlacementInstance{h1, h2}
+	p = NewPlacement(instances, ids, 2)
+	err = Validate(p)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "more than initializing")
 }
 
 func TestInstance(t *testing.T) {
-	h1 := NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().AddShard(1)
-	h1.Shards().AddShard(2)
-	h1.Shards().AddShard(3)
+	h1 := NewInstance().SetID("id").SetEndpoint("endpoint").SetRack("rack").SetWeight(1).SetZone("zone")
+	assert.NotNil(t, h1.Shards())
+	s := shard.NewShards([]shard.Shard{
+		shard.NewShard(1).SetState(shard.Available),
+		shard.NewShard(2).SetState(shard.Available),
+		shard.NewShard(3).SetState(shard.Available),
+	})
+	h1.SetShards(s)
+	assert.Equal(t, "[id:id, rack:rack, zone:zone, weight:1]", h1.String())
 
-	assert.Equal(t, "[id:r1h1, rack:r1, zone:z1, weight:1]", h1.String())
-
-	assert.True(t, h1.Shards().ContainsShard(1))
-	assert.False(t, h1.Shards().ContainsShard(100))
+	assert.True(t, h1.Shards().Contains(1))
+	assert.False(t, h1.Shards().Contains(100))
 	assert.Equal(t, 3, h1.Shards().NumShards())
-	assert.Equal(t, "r1h1", h1.ID())
-	assert.Equal(t, "r1", h1.Rack())
+	assert.Equal(t, "id", h1.ID())
+	assert.Equal(t, "endpoint", h1.Endpoint())
+	assert.Equal(t, uint32(1), h1.Weight())
+	assert.Equal(t, "zone", h1.Zone())
+	assert.Equal(t, "rack", h1.Rack())
 
-	h1.Shards().RemoveShard(1)
-	assert.False(t, h1.Shards().ContainsShard(1))
-	assert.False(t, h1.Shards().ContainsShard(100))
+	h1.Shards().Remove(1)
+	assert.False(t, h1.Shards().Contains(1))
+	assert.False(t, h1.Shards().Contains(100))
 	assert.Equal(t, 2, h1.Shards().NumShards())
-	assert.Equal(t, "r1h1", h1.ID())
-	assert.Equal(t, "r1", h1.Rack())
+	assert.Equal(t, "id", h1.ID())
+	assert.Equal(t, "rack", h1.Rack())
 }
 
 func TestSortInstanceByID(t *testing.T) {

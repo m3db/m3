@@ -30,11 +30,10 @@ import (
 )
 
 var (
-	errInvalidInstance     = errors.New("invalid shards assigned to an instance")
-	errDuplicatedShards    = errors.New("invalid placement, there are duplicated shards in one replica")
-	errUnexpectedShards    = errors.New("invalid placement, there are unexpected shard ids on instance")
-	errTotalShardsMismatch = errors.New("invalid placement, the total shards in the placement does not match expected number")
-	errInvalidShardsCount  = errors.New("invalid placement, the count for a shard does not match replica factor")
+	errInvalidInstance    = errors.New("invalid shards assigned to an instance")
+	errDuplicatedShards   = errors.New("invalid placement, there are duplicated shards in one replica")
+	errUnexpectedShards   = errors.New("invalid placement, there are unexpected shard ids on instance")
+	errInvalidShardsCount = errors.New("invalid placement, the count for a shard does not match replica factor")
 )
 
 // NewPlacement returns a ServicePlacement
@@ -83,27 +82,43 @@ func (p placement) NumShards() int {
 
 // Validate validates a placement
 func Validate(p services.ServicePlacement) error {
-	shardCountMap := ConvertShardSliceToMap(p.Shards())
+	shardCountMap := convertShardSliceToMap(p.Shards())
 	if len(shardCountMap) != len(p.Shards()) {
 		return errDuplicatedShards
 	}
 
 	expectedTotal := len(p.Shards()) * p.ReplicaFactor()
-	actualTotal := 0
+	totalCapacity := 0
+	totalLeaving := 0
+	totalInit := 0
 	for _, instance := range p.Instances() {
-		for _, id := range instance.Shards().ShardIDs() {
-			if count, exist := shardCountMap[id]; exist {
-				shardCountMap[id] = count + 1
-				continue
+		for _, s := range instance.Shards().All() {
+			count, exist := shardCountMap[s.ID()]
+			if !exist {
+				return errUnexpectedShards
 			}
-
-			return errUnexpectedShards
+			if s.State() == shard.Available {
+				shardCountMap[s.ID()] = count + 1
+				totalCapacity++
+			} else if s.State() == shard.Initializing {
+				totalInit++
+				shardCountMap[s.ID()] = count + 1
+				totalCapacity++
+			} else if s.State() == shard.Leaving {
+				totalLeaving++
+			} else {
+				return fmt.Errorf("invalid shard state %v for shard %d", s.State(), s.ID())
+			}
 		}
-		actualTotal += instance.Shards().NumShards()
 	}
 
-	if expectedTotal != actualTotal {
-		return errTotalShardsMismatch
+	// initializing could be more than leaving for cases like initial placement
+	if totalLeaving > totalInit {
+		return fmt.Errorf("invalid shards in placement, the total leaving shards in the placement is %d, more than initializing %d", totalLeaving, totalInit)
+	}
+
+	if expectedTotal != totalCapacity {
+		return fmt.Errorf("invalid number of available shards in placement, the total available shards in the placement is %d, expecting %d", totalCapacity, expectedTotal)
 	}
 
 	for shard, c := range shardCountMap {
@@ -112,6 +127,14 @@ func Validate(p services.ServicePlacement) error {
 		}
 	}
 	return nil
+}
+
+func convertShardSliceToMap(ids []uint32) map[uint32]int {
+	shardCounts := make(map[uint32]int)
+	for _, id := range ids {
+		shardCounts[id] = 0
+	}
+	return shardCounts
 }
 
 // NewInstance returns a new PlacementInstance
@@ -210,13 +233,4 @@ func (s ByIDAscending) Less(i, j int) bool {
 
 func (s ByIDAscending) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
-}
-
-// ConvertShardSliceToMap is an util function that converts a slice of shards to a map
-func ConvertShardSliceToMap(ids []uint32) map[uint32]int {
-	shardCounts := make(map[uint32]int)
-	for _, id := range ids {
-		shardCounts[id] = 0
-	}
-	return shardCounts
 }

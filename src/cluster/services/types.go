@@ -138,10 +138,16 @@ type PlacementService interface {
 	AddInstance(candidates []PlacementInstance) (ServicePlacement, error)
 
 	// RemoveInstance removes an instance from the placement
-	RemoveInstance(i PlacementInstance) (ServicePlacement, error)
+	RemoveInstance(leavingInstanceID string) (ServicePlacement, error)
 
 	// ReplaceInstance picks instances from the candidate list to replace an instance in current placement
-	ReplaceInstance(leavingInstance PlacementInstance, candidates []PlacementInstance) (ServicePlacement, error)
+	ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (ServicePlacement, error)
+
+	// MarkShardAvailable marks the state of a shard as available
+	MarkShardAvailable(instanceID string, shardID uint32) error
+
+	// MarkInstanceAvailable marks all the shards on a given instance as available
+	MarkInstanceAvailable(instanceID string) error
 
 	// Placement gets the persisted placement for service
 	Placement() (ServicePlacement, error)
