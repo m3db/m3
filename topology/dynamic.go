@@ -41,19 +41,35 @@ var (
 )
 
 type dynamicInitializer struct {
+	sync.Mutex
 	opts DynamicOptions
+	topo Topology
 }
 
 // NewDynamicInitializer returns a dynamic topology initializer
 func NewDynamicInitializer(opts DynamicOptions) Initializer {
-	return dynamicInitializer{opts}
+	return &dynamicInitializer{opts: opts}
 }
 
-func (i dynamicInitializer) Init() (Topology, error) {
+func (i *dynamicInitializer) Init() (Topology, error) {
+	i.Lock()
+	defer i.Unlock()
+
+	if i.topo != nil {
+		return i.topo, nil
+	}
+
 	if err := i.opts.Validate(); err != nil {
 		return nil, err
 	}
-	return newDynamicTopology(i.opts)
+
+	topo, err := newDynamicTopology(i.opts)
+	if err != nil {
+		return nil, err
+	}
+
+	i.topo = topo
+	return i.topo, nil
 }
 
 type dynamicTopology struct {
@@ -68,32 +84,34 @@ type dynamicTopology struct {
 
 func newDynamicTopology(opts DynamicOptions) (Topology, error) {
 	services := opts.ConfigServiceClient().Services()
-
-	var (
-		watch xwatch.Watch
-		err   error
-	)
-	if watch, err = services.Watch(opts.ServiceID(), opts.QueryOptions()); err != nil {
+	watch, err := services.Watch(opts.ServiceID(), opts.QueryOptions())
+	if err != nil {
 		return nil, err
 	}
 
 	logger := opts.InstrumentOptions().Logger()
-
 	if err = waitOnInit(watch, opts.InitTimeout()); err != nil {
-		logger.Errorf("dynamic topology init timed out in %s: %v", opts.InitTimeout().String(), err)
+		logger.Errorf("dynamic topology initialization timed out in %s: %v",
+			opts.InitTimeout().String(), err)
 		return nil, err
 	}
 
 	m, err := getMapFromUpdate(watch.Get(), opts.HashGen())
 	if err != nil {
-		logger.Errorf("dynamic topology received invalid initial value: %v", err)
+		logger.Errorf("dynamic topology received invalid initial value: %v",
+			err)
 		return nil, err
 	}
 
 	watchable := xwatch.NewWatchable()
 	watchable.Update(m)
 
-	dt := &dynamicTopology{watch: watch, watchable: watchable, hashGen: opts.HashGen(), logger: logger}
+	dt := &dynamicTopology{
+		watch:     watch,
+		watchable: watchable,
+		hashGen:   opts.HashGen(),
+		logger:    logger,
+	}
 	go dt.run()
 	return dt, nil
 }

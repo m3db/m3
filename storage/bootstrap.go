@@ -67,7 +67,7 @@ type bootstrapManager struct {
 	nowFn          clock.NowFn
 	newBootstrapFn NewBootstrapFn
 	state          bootstrapState
-	pending        bool
+	hasPending     bool
 	fsManager      databaseFileSystemManager
 }
 
@@ -126,7 +126,7 @@ func (m *bootstrapManager) Bootstrap() error {
 		// This is an edge case that can occur if during either an
 		// initial bootstrap or a resharding bootstrap if a new
 		// reshard occurs and we need to bootstrap more shards.
-		m.pending = true
+		m.hasPending = true
 		enqueued = true
 	default:
 		m.state = bootstrapping
@@ -146,10 +146,10 @@ func (m *bootstrapManager) Bootstrap() error {
 		}
 
 		m.Lock()
-		currPending := m.pending
+		currPending := m.hasPending
 		if currPending {
 			// New bootstrap calls should now enqueue another pending bootstrap
-			m.pending = false
+			m.hasPending = false
 		} else {
 			m.state = bootstrapped
 		}

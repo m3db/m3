@@ -38,7 +38,7 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-const defaultNamespaceName = "metrics"
+const defaultNamespaceName = "default"
 
 // DefaultShardSet creates a default shard set
 func DefaultShardSet() (sharding.ShardSet, error) {
