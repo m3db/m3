@@ -103,7 +103,6 @@ type session struct {
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	origin                           topology.Host
 	streamBlocksWorkers              xsync.WorkerPool
-	streamBlocksReattemptWorkers     xsync.WorkerPool
 	streamBlocksResultsProcessors    chan struct{}
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
@@ -1206,13 +1205,11 @@ func (s *session) streamBlocksFromPeers(
 		s.streamCollectedBlocksMetadata(len(peers), ch, enqueueCh)
 		// Begin assessing the queue and how much is processed, once queue
 		// is entirely processed then we can close the enqueue channel
-		enqueueCh.closeOnAllProcessed()
 	}()
 
 	// Fetch blocks from peers as results become ready
 	peerQueues := make(peerBlocksQueues, len(peers))
 	for i, peer := range peers {
-		i := i
 		peer := peer
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
@@ -1237,7 +1234,7 @@ func (s *session) streamBlocksFromPeers(
 		queues := uint32(blocksMetadatas(perPeerBlocksMetadata).hasBlocksLen())
 		if queues == 0 {
 			// No blocks at all available from any peers, series may have just expired
-			enqueueCh.trackProcessed(1)
+			enqueueCh.trackProcessed()
 			continue
 		}
 
@@ -1247,7 +1244,7 @@ func (s *session) streamBlocksFromPeers(
 			if atomic.AddUint32(&completed, 1) != queues {
 				return
 			}
-			enqueueCh.trackProcessed(1)
+			enqueueCh.trackProcessed()
 		}
 
 		for _, peerBlocksMetadata := range perPeerBlocksMetadata {
@@ -1273,17 +1270,11 @@ func (s *session) streamCollectedBlocksMetadata(
 	metadata := make(map[ts.Hash]*receivedBlocks)
 
 	// Receive off of metadata channel
-	for {
-		m, ok := <-ch
-		if !ok {
-			break
-		}
-
+	for m := range ch {
+		m := m
 		received, ok := metadata[m.id.Hash()]
 		if !ok {
-			received = &receivedBlocks{
-				results: make([]*blocksMetadata, 0, peersLen),
-			}
+			received = &receivedBlocks{results: make([]*blocksMetadata, 0, peersLen)}
 			metadata[m.id.Hash()] = received
 		}
 		if received.submitted {
@@ -1673,10 +1664,8 @@ func (s *session) streamBlocksBatchFromPeer(
 	s.streamBlocksResultsProcessors <- token
 }
 
-func (s *session) streamBlocksReattemptFromPeers(
-	blocks []blockMetadata,
-	enqueueCh *enqueueChannel,
-) {
+// todo@bl: can probably make this sync by increasing channel size (either +1 or *2)
+func (s *session) streamBlocksReattemptFromPeers(blocks []blockMetadata, enqueueCh *enqueueChannel) {
 	// Must do this asynchronously or else could get into a deadlock scenario
 	// where cannot enqueue into the reattempt channel because no more work is
 	// getting done because new attempts are blocked on existing attempts completing

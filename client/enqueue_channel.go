@@ -26,35 +26,34 @@ import (
 )
 
 type enqueueChannel struct {
-	enqueued        uint64
-	processed       uint64
+	enqueued        int32
 	peersMetadataCh chan []*blocksMetadata
-	closed          int64
+	closed          int32
 	metrics         *streamFromPeersMetrics
 }
 
 func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
 	c := &enqueueChannel{
 		peersMetadataCh: make(chan []*blocksMetadata, 4096),
-		closed:          0,
 		metrics:         m,
 	}
 	go func() {
-		for atomic.LoadInt64(&c.closed) == 0 {
+		for atomic.LoadInt32(&c.closed) == 0 {
 			m.blocksEnqueueChannel.Update(int64(len(c.peersMetadataCh)))
 			time.Sleep(gaugeReportInterval)
 		}
+		m.blocksEnqueueChannel.Update(0)
 	}()
 	return c
 }
 
 func (c *enqueueChannel) enqueue(peersMetadata []*blocksMetadata) {
-	atomic.AddUint64(&c.enqueued, 1)
+	atomic.AddInt32(&c.enqueued, 1)
 	c.peersMetadataCh <- peersMetadata
 }
 
 func (c *enqueueChannel) enqueueDelayed() func([]*blocksMetadata) {
-	atomic.AddUint64(&c.enqueued, 1)
+	atomic.AddInt32(&c.enqueued, 1)
 	return func(peersMetadata []*blocksMetadata) {
 		c.peersMetadataCh <- peersMetadata
 	}
@@ -64,27 +63,9 @@ func (c *enqueueChannel) get() <-chan []*blocksMetadata {
 	return c.peersMetadataCh
 }
 
-func (c *enqueueChannel) trackProcessed(amount int) {
-	atomic.AddUint64(&c.processed, uint64(amount))
-}
-
-func (c *enqueueChannel) unprocessedLen() int {
-	return int(atomic.LoadUint64(&c.enqueued) - atomic.LoadUint64(&c.processed))
-}
-
-func (c *enqueueChannel) closeOnAllProcessed() {
-	defer func() {
-		atomic.StoreInt64(&c.closed, 1)
-	}()
-	for {
-		if c.unprocessedLen() == 0 {
-			// Will only ever be zero after all is processed if called
-			// after enqueueing the desired set of entries as long as
-			// the guarentee that reattempts are enqueued before the
-			// failed attempt is marked as processed is upheld
-			close(c.peersMetadataCh)
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
+func (c *enqueueChannel) trackProcessed() {
+	if atomic.AddInt32(&c.enqueued, -1) == 0 {
+		close(c.peersMetadataCh)
+		atomic.StoreInt32(&c.closed, 1)
 	}
 }
