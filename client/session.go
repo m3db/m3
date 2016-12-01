@@ -193,18 +193,15 @@ func (s *session) Open() error {
 	// Wait for the topology to be available
 	<-watch.C()
 
-	topoMap := watch.Get()
-
-	queues, replicas, majority, err := s.initHostQueues(topoMap)
-	if err != nil {
+	if err := s.setTopologyWithLock(topologyWatch.Get(), true); err != nil {
 		s.Unlock()
 		return err
 	}
-	s.setTopologyWithLock(topoMap, queues, replicas, majority)
-	s.topoWatch = watch
+
+	s.topoWatch = topologyWatch
 
 	// NB(r): Alloc pools that can take some time in Open, expectation
-	// is already that Open will take some time
+	// is that Open will already take some time
 	writeOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -234,15 +231,9 @@ func (s *session) Open() error {
 	go func() {
 		for range s.topoWatch.C() {
 			s.log.Info("received update for topology")
-			topoMap := s.topoWatch.Get()
-			queues, replicas, majority, err := s.initHostQueues(topoMap)
-			if err != nil {
+			if err := s.setTopologyWithLock(s.topoWatch.Get(), false); err != nil {
 				s.log.Errorf("could not update topology map: %v", err)
-				continue
 			}
-			s.Lock()
-			s.setTopologyWithLock(topoMap, queues, replicas, majority)
-			s.Unlock()
 		}
 	}()
 
@@ -346,7 +337,17 @@ func (s *session) initHostQueues(topoMap topology.Map) ([]hostQueue, int, int, e
 	return queues, replicas, majority, nil
 }
 
-func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, replicas, majority int) {
+func (s *session) setTopologyWithLock(topologyMap topology.Map, hasLock bool) error {
+	queues, replicas, majority, err := s.initHostQueues(topologyMap)
+	if err != nil {
+		return err
+	}
+
+	if !hasLock {
+		s.Lock()
+		defer s.Unlock()
+	}
+
 	prev := s.queues
 	s.queues = queues
 	s.topoMap = topoMap
@@ -422,7 +423,8 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		}
 	}()
 
-	s.log.Infof("successfully updated topology to %d hosts", topoMap.HostsLen())
+	s.log.Infof("successfully updated topology to %d hosts", topologyMap.HostsLen())
+	return nil
 }
 
 func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQueue {
