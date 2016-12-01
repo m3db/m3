@@ -31,6 +31,36 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
+type blockMetadata struct {
+	start     time.Time
+	size      int64
+	checksum  *uint32
+	reattempt blockMetadataReattempt
+}
+
+type blockMetadataReattempt struct {
+	attempt       int
+	id            ts.ID
+	attempted     []hostQueue
+	peersMetadata []blockMetadataReattemptPeerMetadata
+}
+
+type blockMetadataReattemptPeerMetadata struct {
+	peer     hostQueue
+	start    time.Time
+	size     int64
+	checksum *uint32
+}
+
+func (b blockMetadataReattempt) hasAttemptedPeer(peer hostQueue) bool {
+	for i := range b.attempted {
+		if b.attempted[i] == peer {
+			return true
+		}
+	}
+	return false
+}
+
 type receivedBlocks struct {
 	submitted bool
 	results   []*blocksMetadata
@@ -50,6 +80,19 @@ func (b blocksMetadata) unselectedBlocks() []blockMetadata {
 		return nil
 	}
 	return b.blocks[b.idx:]
+}
+
+func copyBlocksMetadata(blocks []blockMetadata, i int, j int) *blocksMetadata {
+	return &blocksMetadata{
+		peer: blocks[i].reattempt.peersMetadata[j].peer,
+		id:   blocks[i].reattempt.id,
+		blocks: []blockMetadata{blockMetadata{
+			start:     blocks[i].reattempt.peersMetadata[j].start,
+			size:      blocks[i].reattempt.peersMetadata[j].size,
+			checksum:  blocks[i].reattempt.peersMetadata[j].checksum,
+			reattempt: blocks[i].reattempt,
+		}},
+	}
 }
 
 type blocksMetadatas []*blocksMetadata
@@ -86,36 +129,6 @@ func (arr blocksMetadatasQueuesByOutstandingAsc) Less(i, j int) bool {
 	outstandingFirst := atomic.LoadUint64(&arr[i].queue.assigned) - atomic.LoadUint64(&arr[i].queue.completed)
 	outstandingSecond := atomic.LoadUint64(&arr[j].queue.assigned) - atomic.LoadUint64(&arr[j].queue.completed)
 	return outstandingFirst < outstandingSecond
-}
-
-type blockMetadata struct {
-	start     time.Time
-	size      int64
-	checksum  *uint32
-	reattempt blockMetadataReattempt
-}
-
-type blockMetadataReattempt struct {
-	attempt       int
-	id            ts.ID
-	attempted     []hostQueue
-	peersMetadata []blockMetadataReattemptPeerMetadata
-}
-
-type blockMetadataReattemptPeerMetadata struct {
-	peer     hostQueue
-	start    time.Time
-	size     int64
-	checksum *uint32
-}
-
-func (b blockMetadataReattempt) hasAttemptedPeer(peer hostQueue) bool {
-	for i := range b.attempted {
-		if b.attempted[i] == peer {
-			return true
-		}
-	}
-	return false
 }
 
 type blockMetadatasByTime []blockMetadata

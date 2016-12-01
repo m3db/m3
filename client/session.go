@@ -1664,18 +1664,9 @@ func (s *session) streamBlocksReattemptFromPeers(blocks []blockMetadata, enqueue
 		// Reconstruct peers metadata for reattempt
 		reattemptBlocksMetadata := make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
 		for j := range reattemptBlocksMetadata {
-			reattemptBlocksMetadata[j] = &blocksMetadata{
-				peer: blocks[i].reattempt.peersMetadata[j].peer,
-				id:   blocks[i].reattempt.id,
-				blocks: []blockMetadata{blockMetadata{
-					start:     blocks[i].reattempt.peersMetadata[j].start,
-					size:      blocks[i].reattempt.peersMetadata[j].size,
-					checksum:  blocks[i].reattempt.peersMetadata[j].checksum,
-					reattempt: blocks[i].reattempt,
-				}},
-			}
+			reattemptBlocksMetadata[j] = copyBlocksMetadata(blocks, i, j)
 		}
-		// Re-enqueue the block to be fetched
-		enqueueCh.enqueue(reattemptBlocksMetadata)
+
+		enqueueCh.enqueue(reattemptBlocksMetadata) // Re-enqueue the block to be fetched
 	}
 }
