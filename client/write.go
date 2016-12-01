@@ -109,7 +109,7 @@ type writeState struct {
 
 func (w *writeState) reset() {
 	// Set refCounter completion as close
-	w.doneFn = w.close
+	w.destructorFn = w.close
 	// Set the embedded condition locker to the embedded mutex
 	w.L = w
 }
