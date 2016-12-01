@@ -192,7 +192,7 @@ func NewMultiError() MultiError {
 
 // Empty returns true if the MultiError has no errors
 func (e MultiError) Empty() bool {
-	return e.err == nil && len(e.errors) == 0
+	return e.err == nil
 }
 
 func (e MultiError) Error() string {
@@ -232,4 +232,12 @@ func (e MultiError) FinalError() error {
 		return nil
 	}
 	return e
+}
+
+// NumErrors returns the total number of errors.
+func (e MultiError) NumErrors() int {
+	if e.err == nil {
+		return 0
+	}
+	return len(e.errors) + 1
 }
