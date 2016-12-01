@@ -1660,15 +1660,9 @@ func (s *session) streamBlocksBatchFromPeer(
 }
 
 func (s *session) streamBlocksReattemptFromPeers(blocks []blockMetadata, enqueueCh *enqueueChannel) {
-	// Must do this asynchronously or else could get into a deadlock scenario
-	// where cannot enqueue into the reattempt channel because no more work is
-	// getting done because new attempts are blocked on existing attempts completing
-	// and existing attempts are trying to enqueue into a full reattempt channel
-
 	for i := range blocks {
 		// Reconstruct peers metadata for reattempt
-		reattemptBlocksMetadata :=
-			make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
+		reattemptBlocksMetadata := make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
 		for j := range reattemptBlocksMetadata {
 			reattemptBlocksMetadata[j] = &blocksMetadata{
 				peer: blocks[i].reattempt.peersMetadata[j].peer,

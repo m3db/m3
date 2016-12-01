@@ -33,7 +33,9 @@ type enqueueChannel struct {
 
 func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
 	c := &enqueueChannel{
-		peersMetadataCh: make(chan []*blocksMetadata, 2*4096),
+		peersMetadataCh: make(chan []*blocksMetadata, 4096),
+		// give channel capacity for twice the total number of shards to prevent
+		// deadlock on re-enqueue
 	}
 	go func() {
 		for atomic.LoadInt32(&c.closed) == 0 {
