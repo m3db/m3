@@ -24,6 +24,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/m3db/m3db/pool"
 )
 
 type peerBlocksQueue struct {
