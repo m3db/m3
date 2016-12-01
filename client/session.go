@@ -227,15 +227,15 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 		return &m
 	}
 
-	scope := s.opts.InstrumentOptions().MetricsScope()
-
 	s.metrics.Lock()
 	m, ok = s.metrics.streamFromPeersMetrics[shard]
 	if ok {
 		s.metrics.Unlock()
 		return &m
 	}
-	scope = scope.SubScope("stream-from-peers").Tagged(map[string]string{
+
+	scope := s.opts.InstrumentOptions().MetricsScope().
+		SubScope("stream-from-peers").Tagged(map[string]string{
 		"shard": fmt.Sprintf("%d", shard),
 	})
 	m = streamFromPeersMetrics{
@@ -1080,18 +1080,13 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts bootstrap.Options,
 ) (bootstrap.ShardResult, error) {
 	var (
-		result   = newBlocksResult(s.opts, opts, s.multiReaderIteratorPool)
-		complete = int64(0)
-		doneCh   = make(chan error, 1)
-		onDone   = func(err error) {
-			atomic.StoreInt64(&complete, 1)
+		result = newBlocksResult(s.opts, opts, s.multiReaderIteratorPool)
+		doneCh = make(chan error, 1)
+		onDone = func(err error) {
 			select {
 			case doneCh <- err:
 			default:
 			}
-		}
-		waitDone = func() error {
-			return <-doneCh
 		}
 		m = s.streamFromPeersMetricsForShard(shard)
 	)
@@ -1101,13 +1096,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		return nil, err
 	}
 
-	go func() {
-		for atomic.LoadInt64(&complete) == 0 {
-			m.fetchBlocksFromPeers.Update(1)
-			time.Sleep(gaugeReportInterval)
-		}
-		m.fetchBlocksFromPeers.Update(0)
-	}()
+	m.fetchBlocksFromPeers.Update(1)
 
 	// Begin pulling metadata, if one or multiple peers fail no error will
 	// be returned from this routine as long as one peer succeeds completely
@@ -1130,7 +1119,10 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		onDone(err)
 	}()
 
-	if err := waitDone(); err != nil {
+	err = <-doneCh
+	m.fetchBlocksFromPeers.Update(0)
+
+	if err != nil {
 		return nil, err
 	}
 	return result.result, nil
@@ -1147,37 +1139,52 @@ func (s *session) streamBlocksMetadataFromPeers(
 	var (
 		wg       sync.WaitGroup
 		errLock  sync.Mutex
-		errLen   int
-		pending  int64
 		multiErr = xerrors.NewMultiError()
 	)
 
-	pending = int64(len(peers))
+	pending := int64(len(peers))
 	m.metadataFetches.Update(pending)
 	for _, peer := range peers {
 		peer := peer
 
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
-			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer,
-				start, end, ch, m)
+			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer, start, end, ch, m)
 			if err != nil {
 				errLock.Lock()
-				defer errLock.Unlock()
-				errLen++
 				multiErr = multiErr.Add(err)
+				errLock.Unlock()
 			}
 			m.metadataFetches.Update(atomic.AddInt64(&pending, -1))
+			wg.Done()
 		}()
 	}
 
 	wg.Wait()
 
-	if errLen == len(peers) {
+	if multiErr.NumErrors() == len(peers) {
 		return multiErr.FinalError()
 	}
 	return nil
+}
+
+func (s *session) newFetchBlocksMetadataRawRequest(namespace ts.ID, shard uint32, start, end time.Time, pageToken *int64) *rpc.FetchBlocksMetadataRawRequest {
+	var (
+		optionIncludeSizes     = true
+		optionIncludeChecksums = true
+	)
+
+	req := rpc.NewFetchBlocksMetadataRawRequest()
+	req.NameSpace = namespace.Data()
+	req.Shard = int32(shard)
+	req.RangeStart = start.UnixNano()
+	req.RangeEnd = end.UnixNano()
+	req.Limit = int64(s.streamBlocksBatchSize)
+	req.PageToken = pageToken
+	req.IncludeSizes = &optionIncludeSizes
+	req.IncludeChecksums = &optionIncludeChecksums
+
+	return req
 }
 
 func (s *session) streamBlocksMetadataFromPeer(
@@ -1195,10 +1202,9 @@ func (s *session) streamBlocksMetadataFromPeer(
 				SetMax(3).
 				SetInitialBackoff(time.Second).
 				SetJitter(true))
-		optionIncludeSizes     = true
-		optionIncludeChecksums = true
-		moreResults            = true
+		moreResults = true
 	)
+
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func() error {
 		client, err := peer.ConnectionPool().NextClient()
@@ -1207,15 +1213,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		}
 
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
-		req := rpc.NewFetchBlocksMetadataRawRequest()
-		req.NameSpace = namespace.Data()
-		req.Shard = int32(shard)
-		req.RangeStart = start.UnixNano()
-		req.RangeEnd = end.UnixNano()
-		req.Limit = int64(s.streamBlocksBatchSize)
-		req.PageToken = pageToken
-		req.IncludeSizes = &optionIncludeSizes
-		req.IncludeChecksums = &optionIncludeChecksums
+		req := s.newFetchBlocksMetadataRawRequest(namespace, shard, start, end, pageToken)
 
 		m.metadataFetchBatchCall.Inc(1)
 		result, err := client.FetchBlocksMetadataRaw(tctx, req)
@@ -1228,7 +1226,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		m.metadataReceived.Inc(int64(len(result.Elements)))
 
 		if result.NextPageToken != nil {
-			// Create space on the heap for the page token and take it's
+			// Create space on the heap for the page token and take its
 			// address to avoid having to keep the entire result around just
 			// for the page token
 			resultPageToken := *result.NextPageToken
@@ -1245,9 +1243,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 				if b.Err != nil {
 					// Error occurred retrieving block metadata, use default values
-					blockMetas = append(blockMetas, blockMetadata{
-						start: blockStart,
-					})
+					blockMetas = append(blockMetas, blockMetadata{start: blockStart})
 					continue
 				}
 
@@ -1280,6 +1276,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 		return nil
 	}
+
 	for moreResults {
 		if err := retrier.Attempt(attemptFn); err != nil {
 			return err
@@ -1316,18 +1313,17 @@ func (s *session) streamBlocksFromPeers(
 	}()
 
 	// Fetch blocks from peers as results become ready
-	peerQueues := make(peerBlocksQueues, 0, len(peers))
-	for _, peer := range peers {
+	peerQueues := make(peerBlocksQueues, len(peers))
+	for i, peer := range peers {
+		i := i
 		peer := peer
-		size := peerBlocksBatchSize
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
 		processFn := func(batch []*blocksMetadata) {
 			s.streamBlocksBatchFromPeer(namespace, shard, peer, batch, opts,
 				result, enqueueCh, retrier)
 		}
-		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, processFn)
-		peerQueues = append(peerQueues, queue)
+		peerQueues[i] = s.newPeerBlocksQueueFn(peer, peerBlocksBatchSize, drainEvery, workers, processFn)
 	}
 
 	var (
@@ -1971,70 +1967,6 @@ func (r *blocksResult) mergeReaders(start time.Time, readers []io.Reader) (encod
 	}
 
 	return encoder, nil
-}
-
-type enqueueChannel struct {
-	enqueued        uint64
-	processed       uint64
-	peersMetadataCh chan []*blocksMetadata
-	closed          int64
-	metrics         *streamFromPeersMetrics
-}
-
-func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
-	c := &enqueueChannel{
-		peersMetadataCh: make(chan []*blocksMetadata, 4096),
-		closed:          0,
-		metrics:         m,
-	}
-	go func() {
-		for atomic.LoadInt64(&c.closed) == 0 {
-			m.blocksEnqueueChannel.Update(int64(len(c.peersMetadataCh)))
-			time.Sleep(gaugeReportInterval)
-		}
-	}()
-	return c
-}
-
-func (c *enqueueChannel) enqueue(peersMetadata []*blocksMetadata) {
-	atomic.AddUint64(&c.enqueued, 1)
-	c.peersMetadataCh <- peersMetadata
-}
-
-func (c *enqueueChannel) enqueueDelayed() func([]*blocksMetadata) {
-	atomic.AddUint64(&c.enqueued, 1)
-	return func(peersMetadata []*blocksMetadata) {
-		c.peersMetadataCh <- peersMetadata
-	}
-}
-
-func (c *enqueueChannel) get() <-chan []*blocksMetadata {
-	return c.peersMetadataCh
-}
-
-func (c *enqueueChannel) trackProcessed(amount int) {
-	atomic.AddUint64(&c.processed, uint64(amount))
-}
-
-func (c *enqueueChannel) unprocessedLen() int {
-	return int(atomic.LoadUint64(&c.enqueued) - atomic.LoadUint64(&c.processed))
-}
-
-func (c *enqueueChannel) closeOnAllProcessed() {
-	defer func() {
-		atomic.StoreInt64(&c.closed, 1)
-	}()
-	for {
-		if c.unprocessedLen() == 0 {
-			// Will only ever be zero after all is processed if called
-			// after enqueueing the desired set of entries as long as
-			// the guarentee that reattempts are enqueued before the
-			// failed attempt is marked as processed is upheld
-			close(c.peersMetadataCh)
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
 }
 
 type receivedBlocks struct {

@@ -414,12 +414,21 @@ func (d *db) readableNamespace(namespace ts.ID) (databaseNamespace, error) {
 
 func (d *db) getOwnedNamespaces() []databaseNamespace {
 	d.RLock()
-	namespaces := make([]databaseNamespace, 0, len(d.namespaces))
+	namespaces := make([]databaseNamespace, len(d.namespaces))
+	i := 0
 	for _, n := range d.namespaces {
-		namespaces = append(namespaces, n)
+		namespaces[i] = n
+		i++
 	}
 	d.RUnlock()
 	return namespaces
+}
+
+func boolToInt(b bool) int64 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func (d *db) reportLoop() {
@@ -429,27 +438,11 @@ func (d *db) reportLoop() {
 	for {
 		select {
 		case <-t:
-			if d.IsBootstrapped() {
-				d.metrics.bootstrapStatus.Update(1)
-			} else {
-				d.metrics.bootstrapStatus.Update(0)
-			}
-			if d.repairer.IsRepairing() {
-				d.metrics.repairStatus.Update(1)
-			} else {
-				d.metrics.repairStatus.Update(0)
-			}
+			d.metrics.bootstrapStatus.Update(boolToInt(d.IsBootstrapped()))
+			d.metrics.repairStatus.Update(boolToInt(d.IsRepairing()))
+			d.metrics.cleanupStatus.Update(boolToInt(d.fsm.IsCleaningUp()))
+			d.metrics.flushStatus.Update(boolToInt(d.fsm.IsFlushing()))
 			d.metrics.tickStatus.Update(atomic.LoadInt64(&d.ticking))
-			if d.fsm.IsCleaningUp() {
-				d.metrics.cleanupStatus.Update(1)
-			} else {
-				d.metrics.cleanupStatus.Update(0)
-			}
-			if d.fsm.IsFlushing() {
-				d.metrics.flushStatus.Update(1)
-			} else {
-				d.metrics.flushStatus.Update(0)
-			}
 		case <-d.doneCh:
 			return
 		}
@@ -477,13 +470,14 @@ func (d *db) splayedTick() {
 	start := d.nowFn()
 	atomic.StoreInt64(&d.ticking, 1)
 
-	sizes := make([]int64, 0, len(namespaces))
+	sizes := make([]int64, len(namespaces))
 	totalSize := int64(0)
-	for _, n := range namespaces {
-		size := n.NumSeries()
-		sizes = append(sizes, size)
-		totalSize += size
+
+	for i, n := range namespaces {
+		sizes[i] = n.NumSeries()
+		totalSize += sizes[i]
 	}
+
 	for i, n := range namespaces {
 		deadline := float64(d.tickDeadline) * (float64(sizes[i]) / float64(totalSize))
 		n.Tick(time.Duration(deadline))

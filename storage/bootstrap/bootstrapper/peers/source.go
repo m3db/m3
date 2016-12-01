@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/time"
+	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 )
 
 type peersSource struct {
@@ -46,25 +46,15 @@ func newPeersSource(opts Options) bootstrap.Source {
 }
 
 func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
-	switch strategy {
-	case bootstrap.BootstrapParallel, bootstrap.BootstrapSequential:
-		return true
-	}
-	return false
+	return strategy == bootstrap.BootstrapParallel || strategy == bootstrap.BootstrapSequential
 }
 
-func (s *peersSource) Available(
-	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
-) bootstrap.ShardTimeRanges {
+func (s *peersSource) Available(_ ts.ID, shardsTimeRanges bootstrap.ShardTimeRanges) bootstrap.ShardTimeRanges {
 	// Peers should be able to fulfill all data
 	return shardsTimeRanges
 }
 
-func (s *peersSource) Read(
-	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
-) (bootstrap.Result, error) {
+func (s *peersSource) Read(namespace ts.ID, shardsTimeRanges bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
