@@ -607,8 +607,6 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-	// Ensure work enqueued immediately so can test result of the reenqueue
-	session.streamBlocksReattemptWorkers = newSynchronousWorkerPool()
 
 	assert.NoError(t, session.Open())
 

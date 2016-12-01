@@ -29,13 +29,11 @@ type enqueueChannel struct {
 	enqueued        int32
 	peersMetadataCh chan []*blocksMetadata
 	closed          int32
-	metrics         *streamFromPeersMetrics
 }
 
 func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
 	c := &enqueueChannel{
-		peersMetadataCh: make(chan []*blocksMetadata, 4096),
-		metrics:         m,
+		peersMetadataCh: make(chan []*blocksMetadata, 2*4096),
 	}
 	go func() {
 		for atomic.LoadInt32(&c.closed) == 0 {
@@ -52,18 +50,11 @@ func (c *enqueueChannel) enqueue(peersMetadata []*blocksMetadata) {
 	c.peersMetadataCh <- peersMetadata
 }
 
-func (c *enqueueChannel) enqueueDelayed() func([]*blocksMetadata) {
-	atomic.AddInt32(&c.enqueued, 1)
-	return func(peersMetadata []*blocksMetadata) {
-		c.peersMetadataCh <- peersMetadata
-	}
-}
-
 func (c *enqueueChannel) get() <-chan []*blocksMetadata {
 	return c.peersMetadataCh
 }
 
-func (c *enqueueChannel) trackProcessed() {
+func (c *enqueueChannel) done() {
 	if atomic.AddInt32(&c.enqueued, -1) == 0 {
 		close(c.peersMetadataCh)
 		atomic.StoreInt32(&c.closed, 1)

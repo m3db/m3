@@ -148,8 +148,6 @@ func newSession(opts Options) (clientSession, error) {
 		s.origin = opts.Origin()
 		s.streamBlocksWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksWorkers.Init()
-		s.streamBlocksReattemptWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
-		s.streamBlocksReattemptWorkers.Init()
 		processors := opts.FetchSeriesBlocksResultsProcessors()
 		// NB(r): We use a list of tokens here instead of a worker pool for bounding
 		// the stream blocks results processors as we require the processing of the
@@ -1203,8 +1201,7 @@ func (s *session) streamBlocksFromPeers(
 	// Consume the incoming metadata and enqueue to the ready channel
 	go func() {
 		s.streamCollectedBlocksMetadata(len(peers), ch, enqueueCh)
-		// Begin assessing the queue and how much is processed, once queue
-		// is entirely processed then we can close the enqueue channel
+		// todo@bl - notify enqueueCh that we can turn off now?
 	}()
 
 	// Fetch blocks from peers as results become ready
@@ -1234,7 +1231,7 @@ func (s *session) streamBlocksFromPeers(
 		queues := uint32(blocksMetadatas(perPeerBlocksMetadata).hasBlocksLen())
 		if queues == 0 {
 			// No blocks at all available from any peers, series may have just expired
-			enqueueCh.trackProcessed()
+			enqueueCh.done()
 			continue
 		}
 
@@ -1244,7 +1241,7 @@ func (s *session) streamBlocksFromPeers(
 			if atomic.AddUint32(&completed, 1) != queues {
 				return
 			}
-			enqueueCh.trackProcessed()
+			enqueueCh.done()
 		}
 
 		for _, peerBlocksMetadata := range perPeerBlocksMetadata {
@@ -1276,8 +1273,7 @@ func (s *session) streamCollectedBlocksMetadata(
 		if !ok {
 			received = &receivedBlocks{results: make([]*blocksMetadata, 0, peersLen)}
 			metadata[m.id.Hash()] = received
-		}
-		if received.submitted {
+		} else if received.submitted {
 			// Already submitted to enqueue channel
 			continue
 		}
@@ -1292,10 +1288,9 @@ func (s *session) streamCollectedBlocksMetadata(
 
 	// Enqueue all unsubmitted received metadata
 	for _, received := range metadata {
-		if received.submitted {
-			continue
+		if !received.submitted {
+			enqueueCh.enqueue(received.results)
 		}
-		enqueueCh.enqueue(received.results)
 	}
 }
 
@@ -1664,32 +1659,29 @@ func (s *session) streamBlocksBatchFromPeer(
 	s.streamBlocksResultsProcessors <- token
 }
 
-// todo@bl: can probably make this sync by increasing channel size (either +1 or *2)
 func (s *session) streamBlocksReattemptFromPeers(blocks []blockMetadata, enqueueCh *enqueueChannel) {
 	// Must do this asynchronously or else could get into a deadlock scenario
 	// where cannot enqueue into the reattempt channel because no more work is
 	// getting done because new attempts are blocked on existing attempts completing
 	// and existing attempts are trying to enqueue into a full reattempt channel
-	enqueue := enqueueCh.enqueueDelayed()
-	s.streamBlocksReattemptWorkers.Go(func() {
-		for i := range blocks {
-			// Reconstruct peers metadata for reattempt
-			reattemptBlocksMetadata :=
-				make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
-			for j := range reattemptBlocksMetadata {
-				reattemptBlocksMetadata[j] = &blocksMetadata{
-					peer: blocks[i].reattempt.peersMetadata[j].peer,
-					id:   blocks[i].reattempt.id,
-					blocks: []blockMetadata{blockMetadata{
-						start:     blocks[i].reattempt.peersMetadata[j].start,
-						size:      blocks[i].reattempt.peersMetadata[j].size,
-						checksum:  blocks[i].reattempt.peersMetadata[j].checksum,
-						reattempt: blocks[i].reattempt,
-					}},
-				}
+
+	for i := range blocks {
+		// Reconstruct peers metadata for reattempt
+		reattemptBlocksMetadata :=
+			make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
+		for j := range reattemptBlocksMetadata {
+			reattemptBlocksMetadata[j] = &blocksMetadata{
+				peer: blocks[i].reattempt.peersMetadata[j].peer,
+				id:   blocks[i].reattempt.id,
+				blocks: []blockMetadata{blockMetadata{
+					start:     blocks[i].reattempt.peersMetadata[j].start,
+					size:      blocks[i].reattempt.peersMetadata[j].size,
+					checksum:  blocks[i].reattempt.peersMetadata[j].checksum,
+					reattempt: blocks[i].reattempt,
+				}},
 			}
-			// Re-enqueue the block to be fetched
-			enqueue(reattemptBlocksMetadata)
 		}
-	})
+		// Re-enqueue the block to be fetched
+		enqueueCh.enqueue(reattemptBlocksMetadata)
+	}
 }
