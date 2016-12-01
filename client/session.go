@@ -173,12 +173,10 @@ func newSession(opts Options) (clientSession, error) {
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		metrics:              newSessionMetrics(scope),
 	}
-
 	s.writeStatePool = sync.Pool{New: func() interface{} {
-		c := &writeState{session: s}
-		c.d, c.L = c.reset, c
-
-		return c
+		w := &writeState{session: s}
+		w.reset()
+		return w
 	}}
 
 	if opts, ok := opts.(AdminOptions); ok {
@@ -294,24 +292,24 @@ func (s *session) Open() error {
 		return errSessionStateNotInitial
 	}
 
-	topologyWatch, err := s.topo.Watch()
+	watch, err := s.topo.Watch()
 	if err != nil {
 		s.Unlock()
 		return err
 	}
 
 	// Wait for the topology to be available
-	<-topologyWatch.C()
+	<-watch.C()
 
-	topologyMap := topologyWatch.Get()
+	topoMap := watch.Get()
 
-	queues, replicas, majority, err := s.initHostQueues(topologyMap)
+	queues, replicas, majority, err := s.initHostQueues(topoMap)
 	if err != nil {
 		s.Unlock()
 		return err
 	}
-	s.setTopologyWithLock(topologyMap, queues, replicas, majority)
-	s.topoWatch = topologyWatch
+	s.setTopologyWithLock(topoMap, queues, replicas, majority)
+	s.topoWatch = watch
 
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
@@ -344,14 +342,14 @@ func (s *session) Open() error {
 	go func() {
 		for range s.topoWatch.C() {
 			s.log.Info("received update for topology")
-			topologyMap := s.topoWatch.Get()
-			queues, replicas, majority, err := s.initHostQueues(topologyMap)
+			topoMap := s.topoWatch.Get()
+			queues, replicas, majority, err := s.initHostQueues(topoMap)
 			if err != nil {
 				s.log.Errorf("could not update topology map: %v", err)
 				continue
 			}
 			s.Lock()
-			s.setTopologyWithLock(topologyMap, queues, replicas, majority)
+			s.setTopologyWithLock(topoMap, queues, replicas, majority)
 			s.Unlock()
 		}
 	}()
@@ -359,23 +357,23 @@ func (s *session) Open() error {
 	return nil
 }
 
-func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, int, error) {
+func (s *session) initHostQueues(topoMap topology.Map) ([]hostQueue, int, int, error) {
 	// NB(r): we leave existing writes in the host queues to finish
 	// as they are already enroute to their destination, this is ok
 	// as part of adding a host is to add another replica for the
 	// shard set and only once bootstrapped decomission the old node
 	start := s.nowFn()
 
-	hosts := topologyMap.Hosts()
+	hosts := topoMap.Hosts()
 	queues := make([]hostQueue, len(hosts))
 	for i := range queues {
-		queues[i] = s.newHostQueue(hosts[i], topologyMap)
+		queues[i] = s.newHostQueue(hosts[i], topoMap)
 	}
 
-	shards := topologyMap.ShardSet().Shards()
+	shards := topoMap.ShardSet().Shards()
 	minConnectionCount := s.opts.MinConnectionCount()
-	replicas := topologyMap.Replicas()
-	majority := topologyMap.MajorityReplicas()
+	replicas := topoMap.Replicas()
+	majority := topoMap.MajorityReplicas()
 
 	firstConnectConsistencyLevel := s.opts.ClusterConnectConsistencyLevel()
 	if firstConnectConsistencyLevel == ConnectConsistencyLevelNone {
@@ -421,7 +419,7 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 		clusterAvailable := true
 		for _, shard := range shards {
 			shardReplicasAvailable := 0
-			routeErr := topologyMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
+			routeErr := topoMap.RouteShardForEach(shard, func(idx int, _ topology.Host) {
 				if queues[idx].ConnectionCount() >= minConnectionCount {
 					shardReplicasAvailable++
 				}
@@ -456,10 +454,10 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 	return queues, replicas, majority, nil
 }
 
-func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQueue, replicas, majority int) {
+func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, replicas, majority int) {
 	prev := s.queues
 	s.queues = queues
-	s.topoMap = topologyMap
+	s.topoMap = topoMap
 
 	prevReplicas := atomic.LoadInt32(&s.replicas)
 	atomic.StoreInt32(&s.replicas, int32(replicas))
@@ -536,10 +534,10 @@ func (s *session) setTopologyWithLock(topologyMap topology.Map, queues []hostQue
 		}
 	}()
 
-	s.log.Infof("successfully updated topology to %d hosts", topologyMap.HostsLen())
+	s.log.Infof("successfully updated topology to %d hosts", topoMap.HostsLen())
 }
 
-func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hostQueue {
+func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQueue {
 	// NB(r): Due to hosts being replicas we have:
 	// = replica * numWrites
 	// = total writes to all hosts
@@ -549,9 +547,9 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	// For purposes of simplifying the options for pooling the write op pool size
 	// represents the number of ops to pool not including replication, this is due
 	// to the fact that the ops are shared between the different host queue replicas.
-	totalBatches := topologyMap.Replicas() *
+	totalBatches := topoMap.Replicas() *
 		int(math.Ceil(float64(s.opts.WriteOpPoolSize())/float64(s.opts.WriteBatchSize())))
-	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
+	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topoMap.HostsLen())))
 	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -595,7 +593,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	}
 
 	state := s.writeStatePool.Get().(*writeState)
-	state.incref()
+	state.incRef()
 
 	state.op, state.majority = s.writeOpPool.Get(), majority
 
@@ -615,7 +613,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		state.pending++
 		state.queues = append(state.queues, s.queues[idx])
 	}); err != nil {
-		state.decref()
+		state.decRef()
 		s.RUnlock()
 		return err
 	}
@@ -625,7 +623,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	for i := range state.queues {
 		if err := state.queues[i].Enqueue(state.op); err != nil {
 			state.Unlock()
-			state.decref()
+			state.decRef()
 
 			// NB(r): if this ever happens we have a code bug, once we
 			// are in the read lock the current queues we are using should
@@ -635,7 +633,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 			return err
 		}
 
-		state.incref()
+		state.incRef()
 		enqueued++
 	}
 
@@ -649,7 +647,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	s.incWriteMetrics(err, int32(len(state.errors)))
 
 	state.Unlock()
-	state.decref()
+	state.decRef()
 
 	return err
 }

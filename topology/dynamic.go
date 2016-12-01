@@ -232,7 +232,7 @@ func validateInstances(instances []services.ServiceInstance, replicas, numShards
 		if i.Shards() == nil {
 			return nil, errInstanceHasNoShardsAssignment
 		}
-		for _, s := range i.Shards().Shards() {
+		for _, s := range i.Shards().All() {
 			m[s.ID()] = m[s.ID()] + 1
 		}
 	}

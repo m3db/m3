@@ -73,7 +73,7 @@ func NewHostShardSetFromServiceInstance(si services.ServiceInstance, fn sharding
 		return nil, errInstanceHasNoShardsAssignment
 	}
 	shards := make([]uint32, 0, si.Shards().NumShards())
-	for _, s := range si.Shards().Shards() {
+	for _, s := range si.Shards().All() {
 		shards = append(shards, s.ID())
 	}
 	shardSet, err := sharding.NewShardSet(shards, fn)

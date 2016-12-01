@@ -1,5 +1,5 @@
-hash: a6e258743511594a214a33070ae5c68371dc2f75efb2f0d7fcc45c490f189d20
-updated: 2016-11-28T15:52:44.481464091-05:00
+hash: 2cbd8d8ed09ccb1dc72bd9c2857d4f3be33979d35c73e2d9cf5ab6f1c3c3a00a
+updated: 2016-12-01T11:47:42.403950106-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -20,7 +20,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: cf823a572f187ebc76df9a16150a4199f861f340
+  version: 583846cefcd1bbb2bb689ee9f48f4cf16b2e6883
   subpackages:
   - client
   - kv
