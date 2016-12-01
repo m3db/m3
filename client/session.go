@@ -1007,11 +1007,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	}()
 
 	// Begin consuming metadata and making requests
-	go func() {
-		err := s.streamBlocksFromPeers(namespace, shard, peers,
-			metadataCh, opts, result, m)
-		onDone(err)
-	}()
+	go s.streamBlocksFromPeers(namespace, shard, peers, metadataCh, opts, result, m)
 
 	err = <-doneCh
 	m.fetchBlocksFromPeers.Update(0)
@@ -1187,7 +1183,7 @@ func (s *session) streamBlocksFromPeers(
 	opts bootstrap.Options,
 	result *blocksResult,
 	m *streamFromPeersMetrics,
-) error {
+) {
 	var (
 		retrier = xretry.NewRetrier(xretry.NewOptions().
 			SetBackoffFactor(2).
@@ -1221,6 +1217,7 @@ func (s *session) streamBlocksFromPeers(
 		currStart, currEligible []*blocksMetadata
 		blocksMetadataQueues    []blocksMetadataQueue
 	)
+
 	for perPeerBlocksMetadata := range enqueueCh.get() {
 		// Filter and select which blocks to retrieve from which peers
 		s.selectBlocksForSeriesFromPeerBlocksMetadata(
@@ -1255,8 +1252,6 @@ func (s *session) streamBlocksFromPeers(
 
 	// Close all queues
 	peerQueues.closeAll()
-
-	return nil
 }
 
 func (s *session) streamCollectedBlocksMetadata(
@@ -1529,6 +1524,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	req.NameSpace = namespace.Data()
 	req.Shard = int32(shard)
 	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, len(batch))
+
 	for i := range batch {
 		starts := make([]int64, 0, len(batch[i].blocks))
 		sort.Sort(blockMetadatasByTime(batch[i].blocks))
