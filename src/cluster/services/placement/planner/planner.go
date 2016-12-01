@@ -40,6 +40,7 @@ func NewShardAwareDeploymentPlanner(options placement.DeploymentOptions) placeme
 
 func (dp shardAwareDeploymentPlanner) DeploymentSteps(p services.ServicePlacement) [][]services.PlacementInstance {
 	instances := p.Instances()
+	sort.Sort(placement.ByIDAscending(instances))
 	var steps sortableSteps
 	for len(instances) > 0 {
 		step := getDeployStep(instances, dp.options.MaxStepSize())
