@@ -146,7 +146,7 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksWorkers.Init()
 		processors := opts.FetchSeriesBlocksResultsProcessors()
-		// NB(r): We use a list of tokens here instead of a worker pool for bounding
+		// NB(r): We use a semaphore here instead of a worker pool for bounding
 		// the stream blocks results processors as we require the processing of the
 		// response to be synchronous in relation to the caller, which is the peer
 		// queue. This is required because after executing the stream blocks batch request,
@@ -1053,25 +1053,6 @@ func (s *session) streamBlocksMetadataFromPeers(
 	return nil
 }
 
-func (s *session) newFetchBlocksMetadataRawRequest(namespace ts.ID, shard uint32, start, end time.Time, pageToken *int64) *rpc.FetchBlocksMetadataRawRequest {
-	var (
-		optionIncludeSizes     = true
-		optionIncludeChecksums = true
-	)
-
-	req := rpc.NewFetchBlocksMetadataRawRequest()
-	req.NameSpace = namespace.Data()
-	req.Shard = int32(shard)
-	req.RangeStart = start.UnixNano()
-	req.RangeEnd = end.UnixNano()
-	req.Limit = int64(s.streamBlocksBatchSize)
-	req.PageToken = pageToken
-	req.IncludeSizes = &optionIncludeSizes
-	req.IncludeChecksums = &optionIncludeChecksums
-
-	return req
-}
-
 func (s *session) streamBlocksMetadataFromPeer(
 	namespace ts.ID,
 	shard uint32,
@@ -1503,7 +1484,7 @@ func (s *session) streamBlocksBatchFromPeer(
 ) {
 	// Prepare request
 	var (
-		req    = rpc.NewFetchBlocksRawRequest()
+		req    = newFetchBlocksRawRequest(namespace, shard, batch)
 		result *rpc.FetchBlocksRawResult_
 
 		nowFn              = opts.ClockOptions().NowFn()
@@ -1512,9 +1493,6 @@ func (s *session) streamBlocksBatchFromPeer(
 		retention          = ropts.RetentionPeriod()
 		earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
 	)
-	req.NameSpace = namespace.Data()
-	req.Shard = int32(shard)
-	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, len(batch))
 
 	for i := range batch {
 		starts := make([]int64, 0, len(batch[i].blocks))
@@ -1556,8 +1534,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// NB(r): As discussed in the new session constructor this processing needs to happen
 	// synchronously so that our outstanding work is calculated correctly, however we do
 	// not want to steal all the CPUs on the machine to avoid dropping incoming writes so
-	// we reduce the amount of processors in this critical section by checking out a token.
-	// Wait for token to process the results to bound the amount of CPU of collecting results.
+	// we reduce the amount of processors in this critical section with a semaphore.
 	token := <-s.streamBlocksResultsProcessors
 
 	// Parse and act on result
@@ -1647,8 +1624,7 @@ func (s *session) streamBlocksBatchFromPeer(
 }
 
 func (s *session) streamBlocksReattemptFromPeers(blocks []blockMetadata, enqueueCh *enqueueChannel) {
-	for i := range blocks {
-		// Reconstruct peers metadata for reattempt
+	for i := range blocks { // Reconstruct peers metadata for reattempt
 		reattemptBlocksMetadata := make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
 		for j := range reattemptBlocksMetadata {
 			reattemptBlocksMetadata[j] = copyBlocksMetadata(blocks, i, j)
