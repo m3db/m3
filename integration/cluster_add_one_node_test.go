@@ -34,6 +34,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,7 +62,7 @@ func TestClusterAddOneNode(t *testing.T) {
 			services.NewServiceInstance().
 				SetInstanceID("testhost0").
 				SetEndpoint("127.0.0.1:9000").
-				SetShards(newClusterShardsRange(0, 1023)),
+				SetShards(newClusterShardsRange(0, 1023, shard.Available)),
 			services.NewServiceInstance().
 				SetInstanceID("testhost1").
 				SetEndpoint("127.0.0.1:9004").
@@ -71,21 +72,23 @@ func TestClusterAddOneNode(t *testing.T) {
 			services.NewServiceInstance().
 				SetInstanceID("testhost0").
 				SetEndpoint("127.0.0.1:9000").
-				SetShards(newClusterShardsRange(0, 1023)),
+				SetShards(concatShards(
+					newClusterShardsRange(0, 511, shard.Available),
+					newClusterShardsRange(512, 1023, shard.Leaving))),
 			services.NewServiceInstance().
 				SetInstanceID("testhost1").
 				SetEndpoint("127.0.0.1:9004").
-				SetShards(newClusterShardsRange(512, 1023)),
+				SetShards(newClusterShardsRange(512, 1023, shard.Initializing)),
 		},
 		added: []services.ServiceInstance{
 			services.NewServiceInstance().
 				SetInstanceID("testhost0").
 				SetEndpoint("127.0.0.1:9000").
-				SetShards(newClusterShardsRange(0, 511)),
+				SetShards(newClusterShardsRange(0, 511, shard.Available)),
 			services.NewServiceInstance().
 				SetInstanceID("testhost1").
 				SetEndpoint("127.0.0.1:9004").
-				SetShards(newClusterShardsRange(512, 1023)),
+				SetShards(newClusterShardsRange(512, 1023, shard.Available)),
 		},
 	}
 

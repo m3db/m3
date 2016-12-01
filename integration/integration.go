@@ -360,6 +360,11 @@ func writeToDisk(
 	return nil
 }
 
+func concatShards(a, b shard.Shards) shard.Shards {
+	all := append(a.All(), b.All()...)
+	return shard.NewShards(all)
+}
+
 func newShardsRange(from, to uint32) []uint32 {
 	var ids []uint32
 	for i := from; i <= to; i++ {
@@ -368,12 +373,20 @@ func newShardsRange(from, to uint32) []uint32 {
 	return ids
 }
 
-func newClusterShardsRange(from, to uint32) shard.Shards {
-	return shard.NewShardsWithIDs(newShardsRange(from, to))
+func newClusterShards(ids []uint32, s shard.State) shard.Shards {
+	var shards []shard.Shard
+	for _, id := range ids {
+		shards = append(shards, shard.NewShard(id).SetState(s))
+	}
+	return shard.NewShards(shards)
+}
+
+func newClusterShardsRange(from, to uint32, s shard.State) shard.Shards {
+	return newClusterShards(newShardsRange(from, to), s)
 }
 
 func newClusterEmptyShardsRange() shard.Shards {
-	return shard.NewShardsWithIDs(nil)
+	return newClusterShards(nil, shard.Available)
 }
 
 func waitUntilHasBootstrappedShardsExactly(
