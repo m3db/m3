@@ -96,7 +96,7 @@ func (p *poolOfWriteOp) Put(w *writeOp) {
 type writeState struct {
 	sync.Cond
 	sync.Mutex
-	rc
+	refCounter
 
 	session             *session
 	op                  *writeOp
@@ -108,6 +108,13 @@ type writeState struct {
 }
 
 func (w *writeState) reset() {
+	// Set refCounter completion as close
+	w.destructorFn = w.close
+	// Set the embedded condition locker to the embedded mutex
+	w.L = w
+}
+
+func (w *writeState) close() {
 	w.session.writeOpPool.Put(w.op)
 
 	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
@@ -149,5 +156,5 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	}
 
 	w.Unlock()
-	w.decref()
+	w.decRef()
 }
