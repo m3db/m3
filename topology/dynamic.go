@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/watch"
@@ -74,7 +76,8 @@ func (i *dynamicInitializer) Init() (Topology, error) {
 
 type dynamicTopology struct {
 	sync.RWMutex
-
+	opts      DynamicOptions
+	services  services.Services
 	watch     xwatch.Watch
 	watchable xwatch.Watchable
 	closed    bool
@@ -82,7 +85,7 @@ type dynamicTopology struct {
 	logger    xlog.Logger
 }
 
-func newDynamicTopology(opts DynamicOptions) (Topology, error) {
+func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 	services := opts.ConfigServiceClient().Services()
 	watch, err := services.Watch(opts.ServiceID(), opts.QueryOptions())
 	if err != nil {
@@ -107,6 +110,8 @@ func newDynamicTopology(opts DynamicOptions) (Topology, error) {
 	watchable.Update(m)
 
 	dt := &dynamicTopology{
+		opts:      opts,
+		services:  services,
 		watch:     watch,
 		watchable: watchable,
 		hashGen:   opts.HashGen(),
@@ -148,7 +153,7 @@ func (t *dynamicTopology) Watch() (MapWatch, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newMapWatch(w), err
+	return NewMapWatch(w), err
 }
 
 func (t *dynamicTopology) Close() {
@@ -163,6 +168,18 @@ func (t *dynamicTopology) Close() {
 
 	t.watch.Close()
 	t.watchable.Close()
+}
+
+func (t *dynamicTopology) MarkShardAvailable(
+	instanceID string,
+	shardID uint32,
+) error {
+	opts := placement.NewOptions()
+	ps, err := t.services.PlacementService(t.opts.ServiceID(), opts)
+	if err != nil {
+		return err
+	}
+	return ps.MarkShardAvailable(instanceID, shardID)
 }
 
 func waitOnInit(w xwatch.Watch, d time.Duration) error {
@@ -200,9 +217,14 @@ func getStaticOptions(service services.Service, hashGen sharding.HashGen) (Stati
 	instances := service.Instances()
 	numShards := service.Sharding().NumShards()
 
-	allShards, err := validateInstances(instances, replicas, numShards)
+	allShardIDs, err := validateInstances(instances, replicas, numShards)
 	if err != nil {
 		return nil, err
+	}
+
+	allShards := make([]shard.Shard, len(allShardIDs))
+	for i, id := range allShardIDs {
+		allShards[i] = shard.NewShard(id).SetState(shard.Available)
 	}
 
 	fn := hashGen(numShards)
@@ -213,7 +235,7 @@ func getStaticOptions(service services.Service, hashGen sharding.HashGen) (Stati
 
 	hostShardSets := make([]HostShardSet, len(instances))
 	for i, instance := range instances {
-		hs, err := NewHostShardSetFromServiceInstance(instance, fn)
+		hs, err := newHostShardSetFromServiceInstance(instance, fn)
 		if err != nil {
 			return nil, err
 		}
@@ -226,7 +248,10 @@ func getStaticOptions(service services.Service, hashGen sharding.HashGen) (Stati
 		SetHostShardSets(hostShardSets), nil
 }
 
-func validateInstances(instances []services.ServiceInstance, replicas, numShards int) ([]uint32, error) {
+func validateInstances(
+	instances []services.ServiceInstance,
+	replicas, numShards int,
+) ([]uint32, error) {
 	m := make(map[uint32]int)
 	for _, i := range instances {
 		if i.Shards() == nil {

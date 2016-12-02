@@ -207,6 +207,66 @@ func (_mr *_MockTopologyRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
+// Mock of DynamicTopology interface
+type MockDynamicTopology struct {
+	ctrl     *gomock.Controller
+	recorder *_MockDynamicTopologyRecorder
+}
+
+// Recorder for MockDynamicTopology (not exported)
+type _MockDynamicTopologyRecorder struct {
+	mock *MockDynamicTopology
+}
+
+func NewMockDynamicTopology(ctrl *gomock.Controller) *MockDynamicTopology {
+	mock := &MockDynamicTopology{ctrl: ctrl}
+	mock.recorder = &_MockDynamicTopologyRecorder{mock}
+	return mock
+}
+
+func (_m *MockDynamicTopology) EXPECT() *_MockDynamicTopologyRecorder {
+	return _m.recorder
+}
+
+func (_m *MockDynamicTopology) Get() Map {
+	ret := _m.ctrl.Call(_m, "Get")
+	ret0, _ := ret[0].(Map)
+	return ret0
+}
+
+func (_mr *_MockDynamicTopologyRecorder) Get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get")
+}
+
+func (_m *MockDynamicTopology) Watch() (MapWatch, error) {
+	ret := _m.ctrl.Call(_m, "Watch")
+	ret0, _ := ret[0].(MapWatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockDynamicTopologyRecorder) Watch() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Watch")
+}
+
+func (_m *MockDynamicTopology) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+func (_mr *_MockDynamicTopologyRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+func (_m *MockDynamicTopology) MarkShardAvailable(instanceID string, shardID uint32) error {
+	ret := _m.ctrl.Call(_m, "MarkShardAvailable", instanceID, shardID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDynamicTopologyRecorder) MarkShardAvailable(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkShardAvailable", arg0, arg1)
+}
+
 // Mock of MapWatch interface
 type MockMapWatch struct {
 	ctrl     *gomock.Controller

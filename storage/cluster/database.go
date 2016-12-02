@@ -22,13 +22,17 @@ package cluster
 
 import (
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 
+	"code.uber.internal/go-common.git/x/log"
+
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-
 	"github.com/m3db/m3x/log"
 )
 
@@ -37,8 +41,8 @@ var (
 	// useful for replacing which database constructor is called in tests
 	newStorageDatabase newStorageDatabaseFn = storage.NewDatabase
 
-	errAlreadyWatchingTopology = errors.New("cluster database is already watching topology")
-	errNotWatchingTopology     = errors.New("cluster database is already watching topology")
+	errAlreadyWatchingTopology = errors.New("cluster db is already watching topology")
+	errNotWatchingTopology     = errors.New("cluster db is not watching topology")
 )
 
 type newStorageDatabaseFn func(
@@ -52,12 +56,16 @@ type clusterDB struct {
 
 	log    xlog.Logger
 	hostID string
+	topo   topology.Topology
 	watch  topology.MapWatch
 
 	watchMutex sync.Mutex
 	watching   bool
 	doneCh     chan struct{}
 	closedCh   chan struct{}
+
+	initializing   map[uint32]shard.Shard
+	bootstrapCount map[uint32]int
 }
 
 // NewDatabase creates a new clustered time series database
@@ -81,31 +89,29 @@ func NewDatabase(
 	// Wait for the topology to be available
 	<-watch.C()
 
-	shardSet, ok := hostOrEmptyShardSet(hostID, watch.Get())
-	if !ok {
-		log.Warnf("topology has no shard set for host ID: %s", hostID)
+	d := &clusterDB{
+		log:            log,
+		hostID:         hostID,
+		topo:           topo,
+		watch:          watch,
+		initializing:   make(map[uint32]shard.Shard),
+		bootstrapCount: make(map[uint32]int),
 	}
 
+	shardSet := d.hostOrEmptyShardSet(watch.Get())
 	db, err := newStorageDatabase(namespaces, shardSet, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return &clusterDB{
-		Database: db,
-		log:      log,
-		hostID:   hostID,
-		watch:    watch,
-	}, nil
+	d.Database = db
+	return d, nil
 }
 
 func (d *clusterDB) Open() error {
 	select {
 	case <-d.watch.C():
-		shardSet, ok := hostOrEmptyShardSet(d.hostID, d.watch.Get())
-		if !ok {
-			d.log.Warnf("topology has no shard set for host ID: %s", d.hostID)
-		}
+		shardSet := d.hostOrEmptyShardSet(d.watch.Get())
 		d.Database.AssignShardSet(shardSet)
 	default:
 		// No updates to the topology since cluster DB created
@@ -168,17 +174,113 @@ func (d *clusterDB) stopActiveTopologyWatch() error {
 }
 
 func (d *clusterDB) activeTopologyWatch() {
+	reportClosingCh := make(chan struct{}, 1)
+	reportClosedCh := make(chan struct{}, 1)
+	go func() {
+		for {
+			ticker := time.NewTicker(time.Second)
+			select {
+			case <-ticker.C:
+				d.analyzeAndReportShardStates()
+			case <-reportClosingCh:
+				ticker.Stop()
+				reportClosedCh <- struct{}{}
+				return
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-d.doneCh:
+			// Issue closing signal to report channel
+			reportClosingCh <- struct{}{}
+			// Wait for report channel to close
+			<-reportClosedCh
+			// Signal all closed
 			d.closedCh <- struct{}{}
 			return
 		case <-d.watch.C():
-			shardSet, ok := hostOrEmptyShardSet(d.hostID, d.watch.Get())
-			if !ok {
-			}
+			shardSet := d.hostOrEmptyShardSet(d.watch.Get())
 			d.Database.AssignShardSet(shardSet)
 		}
+	}
+}
+
+func (d *clusterDB) analyzeAndReportShardStates() {
+	entry, ok := d.watch.Get().LookupHostShardSet(d.hostID)
+	if !ok {
+		return
+	}
+
+	// Manage the reuseable vars
+	d.resetReuseable()
+	defer d.resetReuseable()
+
+	for _, s := range entry.ShardSet().All() {
+		if s.State() == shard.Initializing {
+			d.initializing[s.ID()] = s
+		}
+	}
+
+	if len(d.initializing) == 0 {
+		// No initializing shards
+		return
+	}
+
+	// To mark any initializing shards as available we need a
+	// dynamic topology, check if we have one and if not we will report
+	// that shards are initialzing and that we do not have a dynamic
+	// topology to mark them as available
+	topo, ok := d.topo.(topology.DynamicTopology)
+	if !ok {
+		err := fmt.Errorf("topology constructed is not a dynamic topology")
+		d.log.Errorf("cluster db cannot mark shard available: %v", err)
+		return
+	}
+
+	// Count if initializing shards have bootstrapped in all namespaces
+	namespaces := d.Database.Namespaces()
+	for _, n := range namespaces {
+		for _, s := range n.Shards() {
+			if _, ok := d.initializing[s.ID()]; !ok {
+				continue
+			}
+			if !s.IsBootstrapped() {
+				continue
+			}
+			d.bootstrapCount[s.ID()]++
+		}
+	}
+
+	for id := range d.initializing {
+		count := d.bootstrapCount[id]
+		if count != len(namespaces) {
+			continue
+		}
+
+		// Mark this shard as available
+		if err := topo.MarkShardAvailable(d.hostID, id); err != nil {
+			d.log.Errorf("cluster db failed marking shard %d available: %v",
+				id, err)
+		}
+	}
+}
+
+func (d *clusterDB) resetReuseable() {
+	d.resetInitializing()
+	d.resetBootstrapCount()
+}
+
+func (d *clusterDB) resetInitializing() {
+	for id := range d.initializing {
+		delete(d.initializing, id)
+	}
+}
+
+func (d *clusterDB) resetBootstrapCount() {
+	for id := range d.bootstrapCount {
+		delete(d.bootstrapCount, id)
 	}
 }
 
@@ -186,14 +288,12 @@ func (d *clusterDB) activeTopologyWatch() {
 // topology map and if none exists then an empty shard set. If successfully
 // found the shard set for the host the second parameter returns true,
 // otherwise false.
-func hostOrEmptyShardSet(
-	hostID string,
-	m topology.Map,
-) (sharding.ShardSet, bool) {
-	if hostShardSet, ok := m.LookupHostShardSet(hostID); ok {
-		return hostShardSet.ShardSet(), true
+func (d *clusterDB) hostOrEmptyShardSet(m topology.Map) sharding.ShardSet {
+	if hostShardSet, ok := m.LookupHostShardSet(d.hostID); ok {
+		return hostShardSet.ShardSet()
 	}
+	log.Warnf("topology has no shard set for host ID: %s", d.hostID)
 	allShardSet := m.ShardSet()
 	shardSet, _ := sharding.NewShardSet(nil, allShardSet.HashFn())
-	return shardSet, false
+	return shardSet
 }

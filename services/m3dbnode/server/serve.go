@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	hjcluster "github.com/m3db/m3db/network/server/httpjson/cluster"
 	hjnode "github.com/m3db/m3db/network/server/httpjson/node"
@@ -43,11 +44,12 @@ const defaultNamespaceName = "default"
 // DefaultShardSet creates a default shard set
 func DefaultShardSet() (sharding.ShardSet, error) {
 	shardsLen := uint32(1024)
-	var shards []uint32
+	var ids []uint32
 	for i := uint32(0); i < shardsLen; i++ {
-		shards = append(shards, i)
+		ids = append(ids, i)
 	}
 
+	shards := sharding.NewShards(ids, shard.Available)
 	return sharding.NewShardSet(shards, sharding.DefaultHashGen(1024))
 }
 

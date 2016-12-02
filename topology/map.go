@@ -39,7 +39,7 @@ type staticMap struct {
 
 // NewStaticMap creates a new static topology map
 func NewStaticMap(opts StaticOptions) Map {
-	totalShards := len(opts.ShardSet().Shards())
+	totalShards := len(opts.ShardSet().AllIDs())
 	hostShardSets := opts.HostShardSets()
 	topoMap := staticMap{
 		shardSet:            opts.ShardSet(),
@@ -56,7 +56,7 @@ func NewStaticMap(opts StaticOptions) Map {
 		host := hostShardSet.Host()
 		topoMap.hostShardSetsByID[host.ID()] = hostShardSet
 		topoMap.orderedHosts = append(topoMap.orderedHosts, host)
-		for _, shard := range hostShardSet.ShardSet().Shards() {
+		for _, shard := range hostShardSet.ShardSet().AllIDs() {
 			topoMap.hostsByShard[shard] = append(topoMap.hostsByShard[shard], host)
 			topoMap.orderedHostsByShard[shard] = append(topoMap.orderedHostsByShard[shard], orderedHost{
 				idx:  idx,
@@ -95,7 +95,7 @@ func (t *staticMap) ShardSet() sharding.ShardSet {
 }
 
 func (t *staticMap) Route(id ts.ID) (uint32, []Host, error) {
-	shard := t.shardSet.Shard(id)
+	shard := t.shardSet.Lookup(id)
 	if int(shard) >= len(t.hostsByShard) {
 		return shard, nil, errUnownedShard
 	}
@@ -103,7 +103,7 @@ func (t *staticMap) Route(id ts.ID) (uint32, []Host, error) {
 }
 
 func (t *staticMap) RouteForEach(id ts.ID, forEachFn RouteForEachFn) error {
-	return t.RouteShardForEach(t.shardSet.Shard(id), forEachFn)
+	return t.RouteShardForEach(t.shardSet.Lookup(id), forEachFn)
 }
 
 func (t *staticMap) RouteShard(shard uint32) ([]Host, error) {
@@ -136,7 +136,9 @@ type mapWatch struct {
 	xwatch.Watch
 }
 
-func newMapWatch(w xwatch.Watch) MapWatch {
+// NewMapWatch creates a new watch on a topology map
+// from a generic watch that watches a Map
+func NewMapWatch(w xwatch.Watch) MapWatch {
 	return &mapWatch{w}
 }
 

@@ -23,6 +23,7 @@ package topology
 import (
 	"testing"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
 
@@ -35,7 +36,8 @@ func newTestShardSet(
 	shards []uint32,
 	hashFn sharding.HashFn,
 ) sharding.ShardSet {
-	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	values := sharding.NewShards(shards, shard.Available)
+	shardSet, err := sharding.NewShardSet(values, hashFn)
 	require.NoError(t, err)
 	return shardSet
 }
@@ -91,7 +93,7 @@ func TestStaticMap(t *testing.T) {
 	for i, h := range hosts {
 		assert.Equal(t, h.id, m.HostShardSets()[i].Host().ID())
 		assert.Equal(t, h.addr, m.HostShardSets()[i].Host().Address())
-		assert.Equal(t, h.shards, m.HostShardSets()[i].ShardSet().Shards())
+		assert.Equal(t, h.shards, m.HostShardSets()[i].ShardSet().AllIDs())
 	}
 
 	shard, targetHosts, err := m.Route(ts.StringID("foo"))

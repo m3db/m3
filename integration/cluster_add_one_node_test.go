@@ -137,7 +137,7 @@ func TestClusterAddOneNode(t *testing.T) {
 	shardSet := topo.Get().ShardSet()
 	for _, id := range ids {
 		// Verify IDs will map to halves of the shard space
-		require.Equal(t, id.shard, shardSet.Shard(ts.StringID(id.str)))
+		require.Equal(t, id.shard, shardSet.Lookup(ts.StringID(id.str)))
 	}
 
 	now := setups[0].getNowFn()
@@ -159,7 +159,7 @@ func TestClusterAddOneNode(t *testing.T) {
 	for start, series := range seriesMaps {
 		list := make([]seriesList, 2)
 		for j := range series {
-			if shardSet.Shard(series[j].ID) < 512 {
+			if shardSet.Lookup(series[j].ID) < 512 {
 				list[0] = append(list[0], series[j])
 			} else {
 				list[1] = append(list[1], series[j])

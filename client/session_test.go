@@ -26,6 +26,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/topology"
@@ -55,25 +56,31 @@ func newSessionTestOptions() Options {
 }
 
 func sessionTestShardSet() sharding.ShardSet {
-	var shards []uint32
+	var ids []uint32
 	for i := uint32(0); i < uint32(sessionTestShards); i++ {
-		shards = append(shards, i)
+		ids = append(ids, i)
 	}
 
-	shardSet, _ := sharding.NewShardSet(shards, func(id ts.ID) uint32 { return 0 })
+	shards := sharding.NewShards(ids, shard.Available)
+	hashFn := func(id ts.ID) uint32 { return 0 }
+	shardSet, _ := sharding.NewShardSet(shards, hashFn)
 	return shardSet
 }
 
-func sessionTestHostAndShards(shardSet sharding.ShardSet) []topology.HostShardSet {
+func sessionTestHostAndShards(
+	shardSet sharding.ShardSet,
+) []topology.HostShardSet {
 	var hosts []topology.Host
 	for i := 0; i < sessionTestReplicas; i++ {
 		id := fmt.Sprintf("testhost%d", i)
-		hosts = append(hosts, topology.NewHost(id, fmt.Sprintf("%s:9000", id)))
+		host := topology.NewHost(id, fmt.Sprintf("%s:9000", id))
+		hosts = append(hosts, host)
 	}
 
 	var hostShardSets []topology.HostShardSet
 	for _, host := range hosts {
-		hostShardSets = append(hostShardSets, topology.NewHostShardSet(host, shardSet))
+		hostShardSet := topology.NewHostShardSet(host, shardSet)
+		hostShardSets = append(hostShardSets, hostShardSet)
 	}
 	return hostShardSets
 }
@@ -93,8 +100,9 @@ func applySessionTestOptions(opts Options) Options {
 }
 
 func TestSessionCreationFailure(t *testing.T) {
-	opt := newSessionTestOptions()
-	opt = opt.SetTopologyInitializer(topology.NewDynamicInitializer(topology.NewDynamicOptions()))
+	topoOpts := topology.NewDynamicOptions()
+	topoInit := topology.NewDynamicInitializer(topoOpts)
+	opt := newSessionTestOptions().SetTopologyInitializer(topoInit)
 	_, err := newSession(opt)
 	assert.Error(t, err)
 }

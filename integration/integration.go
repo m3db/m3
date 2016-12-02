@@ -325,12 +325,12 @@ func writeToDisk(
 	seriesList seriesList,
 ) error {
 	seriesPerShard := make(map[uint32][]series)
-	for _, shard := range shardSet.Shards() {
+	for _, shard := range shardSet.AllIDs() {
 		// Ensure we write out block files for each shard even if there's no data
 		seriesPerShard[shard] = make([]series, 0)
 	}
 	for _, s := range seriesList {
-		shard := shardSet.Shard(s.ID)
+		shard := shardSet.Lookup(s.ID)
 		seriesPerShard[shard] = append(seriesPerShard[shard], s)
 	}
 	segmentHolder := make([][]byte, 2)
@@ -413,13 +413,13 @@ func hasBootstrappedShardsExactly(
 			pending[shard] = struct{}{}
 		}
 
-		for _, shard := range namespace.Shards() {
-			if _, ok := expect[shard.ID()]; !ok {
+		for _, s := range namespace.Shards() {
+			if _, ok := expect[s.ID()]; !ok {
 				// Not expecting shard
 				return false
 			}
-			if shard.IsBootstrapped() {
-				delete(pending, shard.ID())
+			if s.IsBootstrapped() {
+				delete(pending, s.ID())
 			}
 		}
 

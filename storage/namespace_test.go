@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -40,11 +41,11 @@ import (
 
 var testNamespaceID = ts.StringID("testNs")
 
-var testShardIDs = []uint32{0, 1}
+var testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
 
 func newTestNamespace(t *testing.T) *dbNamespace {
 	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
-	hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0] }
+	hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
 	dopts := testDatabaseOptions()
@@ -66,7 +67,7 @@ func TestNamespaceTick(t *testing.T) {
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().Tick(expectedPerShardDeadline)
-		ns.shards[testShardIDs[i]] = shard
+		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
 	// Only asserting the expected methods are called
@@ -102,7 +103,7 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().Write(ctx, id, ts, val, unit, ant).Return(nil)
-	ns.shards[testShardIDs[0]] = shard
+	ns.shards[testShardIDs[0].ID()] = shard
 
 	require.NoError(t, ns.Write(ctx, id, ts, val, unit, ant))
 }
@@ -133,7 +134,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
-	ns.shards[testShardIDs[0]] = shard
+	ns.shards[testShardIDs[0].ID()] = shard
 
 	_, err := ns.ReadEncoded(ctx, id, start, end)
 	require.NoError(t, err)
@@ -147,7 +148,7 @@ func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	_, err := ns.FetchBlocks(ctx, testShardIDs[0], ts.StringID("foo"), nil)
+	_, err := ns.FetchBlocks(ctx, testShardIDs[0].ID(), ts.StringID("foo"), nil)
 	require.True(t, xerrors.IsInvalidParams(err))
 }
 
@@ -161,9 +162,9 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().FetchBlocks(ctx, ts.StringID("foo"), nil).Return(nil)
-	ns.shards[testShardIDs[0]] = shard
+	ns.shards[testShardIDs[0].ID()] = shard
 
-	res, err := ns.FetchBlocks(ctx, testShardIDs[0], ts.StringID("foo"), nil)
+	res, err := ns.FetchBlocks(ctx, testShardIDs[0].ID(), ts.StringID("foo"), nil)
 	require.Nil(t, res)
 	require.NoError(t, err)
 }
@@ -178,7 +179,7 @@ func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {
 	}
 	start := time.Now()
 	end := start.Add(time.Hour)
-	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], start, end, 100, 0, true, true)
+	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(), start, end, 100, 0, true, true)
 	require.True(t, xerrors.IsInvalidParams(err))
 }
 
@@ -201,10 +202,14 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchBlocksMetadata(ctx, start, end, limit, pageToken, includeSizes, includeChecksums).Return(nil, &nextPageToken)
-	ns.shards[testShardIDs[0]] = shard
+	shard.EXPECT().
+		FetchBlocksMetadata(ctx, start, end, limit, pageToken,
+			includeSizes, includeChecksums).
+		Return(nil, &nextPageToken)
+	ns.shards[testShardIDs[0].ID()] = shard
 
-	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0], start, end, limit, pageToken, includeSizes, includeChecksums)
+	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(),
+		start, end, limit, pageToken, includeSizes, includeChecksums)
 	require.Nil(t, res)
 	require.Equal(t, npt, &nextPageToken)
 	require.NoError(t, err)
@@ -239,13 +244,15 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	ns := newTestNamespace(t)
 	errs := []error{nil, errors.New("foo")}
 	bs := bootstrap.NewMockBootstrap(ctrl)
-	bs.EXPECT().Run(ranges, ns.ID(), testShardIDs).Return(bootstrap.NewResult(), nil)
+	bs.EXPECT().
+		Run(ranges, ns.ID(), sharding.IDs(testShardIDs)).
+		Return(bootstrap.NewResult(), nil)
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 		shard.EXPECT().Bootstrap(nil).Return(errs[i])
-		ns.shards[testShardIDs[i]] = shard
+		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
 	require.Equal(t, "foo", ns.Bootstrap(bs, ranges).Error())
@@ -280,9 +287,9 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().Flush(testNamespaceID, blockStart, nil).Return(errs[i])
 		if errs[i] != nil {
-			shard.EXPECT().ID().Return(testShardIDs[i])
+			shard.EXPECT().ID().Return(testShardIDs[i].ID())
 		}
-		ns.shards[testShardIDs[i]] = shard
+		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
 	require.Error(t, ns.Flush(blockStart, nil))
@@ -308,8 +315,10 @@ func TestNamespaceCleanupFilesetAllShards(t *testing.T) {
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().CleanupFileset(testNamespaceID, earliestToRetain).Return(errs[i])
-		ns.shards[testShardIDs[i]] = shard
+		shard.EXPECT().
+			CleanupFileset(testNamespaceID, earliestToRetain).
+			Return(errs[i])
+		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
 	require.Error(t, ns.CleanupFileset(earliestToRetain))
@@ -322,14 +331,14 @@ func TestNamespaceTruncate(t *testing.T) {
 	ns := newTestNamespace(t)
 	for _, shard := range testShardIDs {
 		mockShard := NewMockdatabaseShard(ctrl)
-		mockShard.EXPECT().NumSeries().Return(int64(shard))
-		ns.shards[shard] = mockShard
+		mockShard.EXPECT().NumSeries().Return(int64(shard.ID()))
+		ns.shards[shard.ID()] = mockShard
 	}
 
 	res, err := ns.Truncate()
 	require.NoError(t, err)
 	require.Equal(t, int64(1), res)
-	require.NotNil(t, ns.shards[testShardIDs[0]])
+	require.NotNil(t, ns.shards[testShardIDs[0].ID()])
 }
 
 func TestNamespaceRepair(t *testing.T) {
@@ -355,8 +364,10 @@ func TestNamespaceRepair(t *testing.T) {
 				ChecksumDifferences: repair.NewReplicaSeriesMetadata(),
 			}
 		}
-		shard.EXPECT().Repair(gomock.Any(), testNamespaceID, repairTimeRange, repairer).Return(res, errs[i])
-		ns.shards[testShardIDs[i]] = shard
+		shard.EXPECT().
+			Repair(gomock.Any(), testNamespaceID, repairTimeRange, repairer).
+			Return(res, errs[i])
+		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
 	require.Equal(t, "foo", ns.Repair(repairer, repairTimeRange).Error())

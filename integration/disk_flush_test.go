@@ -51,7 +51,7 @@ func waitUntilDataFlushed(
 	dataFlushed := func() bool {
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
-				shard := shardSet.Shard(series.ID)
+				shard := shardSet.Lookup(series.ID)
 				if !fs.FilesetExistsAt(filePathPrefix, namespace, shard, timestamp) {
 					return false
 				}
@@ -76,7 +76,7 @@ func verifyForTime(
 ) {
 	shards := make(map[uint32]struct{})
 	for _, series := range expected {
-		shard := shardSet.Shard(series.ID)
+		shard := shardSet.Lookup(series.ID)
 		shards[shard] = struct{}{}
 	}
 	actual := make(seriesList, 0, len(expected))

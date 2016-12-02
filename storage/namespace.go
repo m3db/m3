@@ -145,7 +145,7 @@ func (n *dbNamespace) NumSeries() int64 {
 
 func (n *dbNamespace) Shards() []Shard {
 	n.RLock()
-	shards := n.shardSet.Shards()
+	shards := n.shardSet.AllIDs()
 	databaseShards := make([]Shard, len(shards))
 	for i, shard := range shards {
 		databaseShards[i] = n.shards[shard]
@@ -160,7 +160,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		existing []databaseShard
 		closing  []databaseShard
 	)
-	for _, shard := range shardSet.Shards() {
+	for _, shard := range shardSet.AllIDs() {
 		incoming[shard] = struct{}{}
 	}
 
@@ -176,7 +176,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 	n.shardSet = shardSet
 	n.shards = make([]databaseShard, n.shardSet.Max()+1)
-	for _, shard := range n.shardSet.Shards() {
+	for _, shard := range n.shardSet.AllIDs() {
 		if int(shard) < len(existing) && existing[shard] != nil {
 			n.shards[shard] = existing[shard]
 		} else {
@@ -459,7 +459,7 @@ func (n *dbNamespace) Truncate() (int64, error) {
 	var totalNumSeries int64
 
 	n.RLock()
-	shards := n.shardSet.Shards()
+	shards := n.shardSet.AllIDs()
 	for _, shard := range shards {
 		totalNumSeries += n.shards[shard].NumSeries()
 	}
@@ -558,7 +558,7 @@ func (n *dbNamespace) Repair(
 
 func (n *dbNamespace) getOwnedShards() []databaseShard {
 	n.RLock()
-	shards := n.shardSet.Shards()
+	shards := n.shardSet.AllIDs()
 	databaseShards := make([]databaseShard, len(shards))
 	for i, shard := range shards {
 		databaseShards[i] = n.shards[shard]
@@ -569,7 +569,7 @@ func (n *dbNamespace) getOwnedShards() []databaseShard {
 
 func (n *dbNamespace) shardFor(id ts.ID) (databaseShard, error) {
 	n.RLock()
-	shardID := n.shardSet.Shard(id)
+	shardID := n.shardSet.Lookup(id)
 	shard, err := n.shardAtWithRLock(shardID)
 	n.RUnlock()
 	return shard, err
@@ -597,7 +597,7 @@ func (n *dbNamespace) shardAtWithRLock(shardID uint32) (databaseShard, error) {
 
 func (n *dbNamespace) initShards() {
 	n.Lock()
-	shards := n.shardSet.Shards()
+	shards := n.shardSet.AllIDs()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex,

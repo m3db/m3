@@ -67,7 +67,7 @@ func (t *staticTopology) Watch() (MapWatch, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newMapWatch(w), nil
+	return NewMapWatch(w), nil
 }
 
 func (t *staticTopology) Close() {
