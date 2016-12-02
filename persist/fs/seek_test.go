@@ -26,8 +26,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/assert"
 )
