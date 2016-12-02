@@ -205,7 +205,7 @@ func fakeRequest() *rpc.FetchRequest {
 }
 
 func (ts *testSetup) waitUntilServerIsUp() error {
-	serverIsUp := func() bool { _, err := fetch(fakeRequest()); return err == nil }
+	serverIsUp := func() bool { _, err := ts.fetch(fakeRequest()); return err == nil }
 	if waitUntil(serverIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
