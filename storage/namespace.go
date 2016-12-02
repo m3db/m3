@@ -18,10 +18,10 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/sync"
-	"github.com/m3db/m3x/time"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"

@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -439,7 +439,7 @@ func (d *db) reportLoop() {
 		select {
 		case <-t:
 			d.metrics.bootstrapStatus.Update(boolToInt(d.IsBootstrapped()))
-			d.metrics.repairStatus.Update(boolToInt(d.IsRepairing()))
+			d.metrics.repairStatus.Update(boolToInt(d.repairer.IsRepairing()))
 			d.metrics.cleanupStatus.Update(boolToInt(d.fsm.IsCleaningUp()))
 			d.metrics.flushStatus.Update(boolToInt(d.fsm.IsFlushing()))
 			d.metrics.tickStatus.Update(atomic.LoadInt64(&d.ticking))
