@@ -422,6 +422,15 @@ func TestShouldExpire(t *testing.T) {
 	now := time.Now()
 	require.False(t, series.shouldExpire(now, now))
 	require.True(t, series.shouldExpire(now, now.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())))
+
+	expiryPeriod := 10 * time.Minute
+	ropts = ropts.SetDiskMode(true).SetDiskModeInMemPeriod(expiryPeriod)
+	opts = opts.SetRetentionOptions(ropts)
+	series = NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
+	assert.NoError(t, series.Bootstrap(nil))
+	require.False(t, series.shouldExpire(now, now))
+	require.True(t, series.shouldExpire(now, now.Add(-2*expiryPeriod)))
+	require.True(t, series.shouldExpire(now, now.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())))
 }
 
 func TestShouldSeal(t *testing.T) {
