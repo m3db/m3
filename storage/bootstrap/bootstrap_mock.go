@@ -26,10 +26,10 @@ package bootstrap
 import (
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
-	instrument "github.com/m3db/m3db/instrument"
 	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
 	ts "github.com/m3db/m3db/ts"
+	instrument "github.com/m3db/m3x/instrument"
 	time0 "github.com/m3db/m3x/time"
 	time "time"
 )

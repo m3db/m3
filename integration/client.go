@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber/tchannel-go"
@@ -99,7 +99,7 @@ func m3dbClient(opts client.Options) (client.Client, error) {
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
-func m3dbClientWriteBatch(client client.Client, workerPool pool.WorkerPool, namespace ts.ID, seriesList seriesList) error {
+func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, namespace ts.ID, seriesList seriesList) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err

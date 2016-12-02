@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
-	"github.com/m3db/m3db/instrument"
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/topology"
 
 	"github.com/uber/tchannel-go"

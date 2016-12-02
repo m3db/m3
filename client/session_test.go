@@ -27,10 +27,10 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

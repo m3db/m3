@@ -1,5 +1,5 @@
-hash: 2cbd8d8ed09ccb1dc72bd9c2857d4f3be33979d35c73e2d9cf5ab6f1c3c3a00a
-updated: 2016-12-01T11:47:42.403950106-05:00
+hash: e6659bdb570f0ed8e3f0cc08c8402ab1128a665c6af9f7be3098644ce0c6c093
+updated: 2016-12-02T01:41:55.478544827-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -27,12 +27,15 @@ imports:
   - services
   - shard
 - name: github.com/m3db/m3x
-  version: 87afcb5f1b6e2040d7b6843c51d15e02e67319bb
+  version: 9b04ee8d5df3d831683cac4124c66d9abe60b37e
   subpackages:
   - close
   - errors
+  - instrument
   - log
+  - pool
   - retry
+  - sync
   - time
   - watch
 - name: github.com/opentracing/opentracing-go
@@ -66,7 +69,7 @@ imports:
 - name: github.com/willf/bitset
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
 - name: golang.org/x/net
-  version: 4971afdc2f162e82d185353533d3cf16188a9f4e
+  version: 97edce0b2e423f6a8debb459af47f4a3cb4ff954
   subpackages:
   - context
 testImports: []

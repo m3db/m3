@@ -25,10 +25,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
 )
 
@@ -40,15 +41,15 @@ type fileSystemSource struct {
 	filePathPrefix   string
 	readerBufferSize int
 	newReaderFn      newFileSetReaderFn
-	ioWorkers        pool.WorkerPool
-	processors       pool.WorkerPool
+	ioWorkers        xsync.WorkerPool
+	processors       xsync.WorkerPool
 }
 
 func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
-	ioWorkers := pool.NewWorkerPool(opts.NumIOWorkers())
+	ioWorkers := xsync.NewWorkerPool(opts.NumIOWorkers())
 	ioWorkers.Init()
 
-	processors := pool.NewWorkerPool(opts.NumProcessors())
+	processors := xsync.NewWorkerPool(opts.NumProcessors())
 	processors.Init()
 
 	return &fileSystemSource{

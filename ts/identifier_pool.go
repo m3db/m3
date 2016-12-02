@@ -24,7 +24,7 @@ import (
 	"reflect"
 
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/pool"
 )
 
 type identifierPool struct {
@@ -52,9 +52,12 @@ func configureHeap(heap pool.BytesPool) pool.BytesPool {
 		return heap
 	}
 
-	return pool.NewNativeHeap([]pool.Bucket{
+	p := pool.NewNativeHeap([]pool.Bucket{
 		{Capacity: 128, Count: 4096},
 		{Capacity: 256, Count: 2048}}, nil)
+	p.Init()
+
+	return p
 }
 
 func create() interface{} {

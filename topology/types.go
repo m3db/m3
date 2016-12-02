@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3db/instrument"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
 )

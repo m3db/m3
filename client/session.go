@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
@@ -44,7 +43,9 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -105,8 +106,8 @@ type session struct {
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	origin                           topology.Host
-	streamBlocksWorkers              pool.WorkerPool
-	streamBlocksReattemptWorkers     pool.WorkerPool
+	streamBlocksWorkers              xsync.WorkerPool
+	streamBlocksReattemptWorkers     xsync.WorkerPool
 	streamBlocksResultsProcessors    chan struct{}
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
@@ -181,9 +182,9 @@ func newSession(opts Options) (clientSession, error) {
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.origin = opts.Origin()
-		s.streamBlocksWorkers = pool.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
+		s.streamBlocksWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksWorkers.Init()
-		s.streamBlocksReattemptWorkers = pool.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
+		s.streamBlocksReattemptWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksReattemptWorkers.Init()
 		processors := opts.FetchSeriesBlocksResultsProcessors()
 		// NB(r): We use a list of tokens here instead of a worker pool for bounding
@@ -2056,7 +2057,7 @@ type peerBlocksQueue struct {
 	assigned     uint64
 	completed    uint64
 	maxQueueSize int
-	workers      pool.WorkerPool
+	workers      xsync.WorkerPool
 	processFn    processFn
 }
 
@@ -2064,7 +2065,7 @@ type newPeerBlocksQueueFn func(
 	peer hostQueue,
 	maxQueueSize int,
 	interval time.Duration,
-	workers pool.WorkerPool,
+	workers xsync.WorkerPool,
 	processFn processFn,
 ) *peerBlocksQueue
 
@@ -2072,7 +2073,7 @@ func newPeerBlocksQueue(
 	peer hostQueue,
 	maxQueueSize int,
 	interval time.Duration,
-	workers pool.WorkerPool,
+	workers xsync.WorkerPool,
 	processFn processFn,
 ) *peerBlocksQueue {
 	q := &peerBlocksQueue{

@@ -25,9 +25,9 @@ package encoding
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	pool "github.com/m3db/m3db/pool"
 	ts "github.com/m3db/m3db/ts"
 	io0 "github.com/m3db/m3db/x/io"
+	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
 	io "io"
 	time "time"
