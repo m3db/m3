@@ -227,7 +227,7 @@ func (s *session) Open() error {
 	s.state = stateOpen
 	s.Unlock()
 
-	go updateTopology()
+	go s.updateTopology()
 
 	return nil
 }
