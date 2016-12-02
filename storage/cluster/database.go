@@ -114,25 +114,17 @@ func (d *clusterDB) Open() error {
 	default:
 		// No updates to the topology since cluster DB created
 	}
-
 	if err := d.Database.Open(); err != nil {
 		return err
 	}
-	if err := d.startActiveTopologyWatch(); err != nil {
-		return err
-	}
-
-	return nil
+	return d.startActiveTopologyWatch()
 }
 
 func (d *clusterDB) Close() error {
 	if err := d.Database.Close(); err != nil {
 		return err
 	}
-	if err := d.stopActiveTopologyWatch(); err != nil {
-		return err
-	}
-	return nil
+	return d.stopActiveTopologyWatch()
 }
 
 func (d *clusterDB) startActiveTopologyWatch() error {
@@ -163,10 +155,8 @@ func (d *clusterDB) stopActiveTopologyWatch() error {
 
 	d.watching = false
 
-	d.doneCh <- struct{}{}
 	close(d.doneCh)
 	<-d.closedCh
-	close(d.closedCh)
 
 	return nil
 }
@@ -182,7 +172,7 @@ func (d *clusterDB) activeTopologyWatch() {
 				d.analyzeAndReportShardStates()
 			case <-reportClosingCh:
 				ticker.Stop()
-				reportClosedCh <- struct{}{}
+				close(reportClosedCh)
 				return
 			}
 		}
@@ -192,11 +182,11 @@ func (d *clusterDB) activeTopologyWatch() {
 		select {
 		case <-d.doneCh:
 			// Issue closing signal to report channel
-			reportClosingCh <- struct{}{}
+			close(reportClosingCh)
 			// Wait for report channel to close
 			<-reportClosedCh
 			// Signal all closed
-			d.closedCh <- struct{}{}
+			close(d.closedCh)
 			return
 		case <-d.watch.C():
 			shardSet := d.hostOrEmptyShardSet(d.watch.Get())
@@ -291,7 +281,5 @@ func (d *clusterDB) hostOrEmptyShardSet(m topology.Map) sharding.ShardSet {
 		return hostShardSet.ShardSet()
 	}
 	d.log.Warnf("topology has no shard set for host ID: %s", d.hostID)
-	allShardSet := m.ShardSet()
-	shardSet, _ := sharding.NewShardSet(nil, allShardSet.HashFn())
-	return shardSet
+	return sharding.NewEmptyShardSet(m.ShardSet().HashFn())
 }

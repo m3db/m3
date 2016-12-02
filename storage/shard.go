@@ -42,6 +42,7 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
+
 	"github.com/uber-go/tally"
 )
 
@@ -457,11 +458,11 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	s.Lock()
 	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
 		entry.incrementWriterCount()
-		s.RUnlock()
+		s.Unlock()
 		// During Rlock -> Wlock promotion the entry was inserted
 		return entry, nil
 	} else if err != errShardEntryNotFound {
-		s.RUnlock()
+		s.Unlock()
 		return nil, err
 	}
 
@@ -483,14 +484,17 @@ func (s *dbShard) FetchBlocks(
 	ctx context.Context,
 	id ts.ID,
 	starts []time.Time,
-) []block.FetchBlockResult {
+) ([]block.FetchBlockResult, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
-	if err != nil {
-		return nil
+	if err == errShardEntryNotFound {
+		return nil, nil
 	}
-	return entry.series.FetchBlocks(ctx, starts)
+	if err != nil {
+		return nil, err
+	}
+	return entry.series.FetchBlocks(ctx, starts), nil
 }
 
 func (s *dbShard) FetchBlocksMetadata(

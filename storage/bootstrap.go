@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3x/errors"
@@ -100,15 +101,14 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	return state == bootstrapped
 }
 
-func (m *bootstrapManager) targetRanges() xtime.Ranges {
-	now := m.nowFn()
+func (m *bootstrapManager) targetRanges(at time.Time) xtime.Ranges {
 	ropts := m.opts.RetentionOptions()
-	start := now.Add(-ropts.RetentionPeriod())
-	midPoint := now.
+	start := at.Add(-ropts.RetentionPeriod())
+	midPoint := at.
 		Add(-ropts.BlockSize()).
 		Add(-ropts.BufferPast()).
 		Truncate(ropts.BlockSize())
-	cutover := now.Add(ropts.BufferFuture())
+	cutover := at.Add(ropts.BufferFuture())
 
 	return xtime.NewRanges().
 		AddRange(xtime.Range{Start: start, End: midPoint}).
@@ -116,7 +116,6 @@ func (m *bootstrapManager) targetRanges() xtime.Ranges {
 }
 
 func (m *bootstrapManager) Bootstrap() error {
-	var enqueued bool
 	m.Lock()
 	switch m.state {
 	case bootstrapping:
@@ -127,15 +126,12 @@ func (m *bootstrapManager) Bootstrap() error {
 		// initial bootstrap or a resharding bootstrap if a new
 		// reshard occurs and we need to bootstrap more shards.
 		m.hasPending = true
-		enqueued = true
+		m.Unlock()
+		return errBootstrapEnqueued
 	default:
 		m.state = bootstrapping
 	}
 	m.Unlock()
-
-	if enqueued {
-		return errBootstrapEnqueued
-	}
 
 	// Keep performing bootstraps until none pending
 	multiErr := xerrors.NewMultiError()
@@ -164,7 +160,7 @@ func (m *bootstrapManager) Bootstrap() error {
 }
 
 func (m *bootstrapManager) bootstrap() error {
-	targetRanges := m.targetRanges()
+	targetRanges := m.targetRanges(m.nowFn())
 
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.

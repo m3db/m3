@@ -63,7 +63,14 @@ type databaseNamespaceMetrics struct {
 	unfulfilled    tally.Counter
 	bootstrapStart tally.Counter
 	bootstrapEnd   tally.Counter
+	shards         databaseNamespaceShardMetrics
 	tick           databaseNamespaceTickMetrics
+}
+
+type databaseNamespaceShardMetrics struct {
+	add         tally.Counter
+	close       tally.Counter
+	closeErrors tally.Counter
 }
 
 type databaseNamespaceTickMetrics struct {
@@ -76,6 +83,7 @@ type databaseNamespaceTickMetrics struct {
 }
 
 func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
+	shardScope := scope.SubScope("shard")
 	tickScope := scope.SubScope("tick")
 	return databaseNamespaceMetrics{
 		bootstrap:      instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
@@ -83,6 +91,11 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 		unfulfilled:    scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart: scope.Counter("bootstrap.start"),
 		bootstrapEnd:   scope.Counter("bootstrap.end"),
+		shards: databaseNamespaceShardMetrics{
+			add:         shardScope.Counter("add"),
+			close:       shardScope.Counter("close"),
+			closeErrors: shardScope.Counter("close-errors"),
+		},
 		tick: databaseNamespaceTickMetrics{
 			activeSeries:  tickScope.Gauge("active-series"),
 			expiredSeries: tickScope.Counter("expired-series"),
@@ -156,7 +169,7 @@ func (n *dbNamespace) Shards() []Shard {
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	var (
-		incoming = make(map[uint32]struct{})
+		incoming = make(map[uint32]struct{}, len(shardSet.All()))
 		existing []databaseShard
 		closing  []databaseShard
 	)
@@ -182,6 +195,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			n.shards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex,
 				n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.sopts)
+			n.metrics.shards.add.Inc(1)
 		}
 	}
 	n.Unlock()
@@ -195,8 +209,10 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	// gate the impact.
 	for _, shard := range closing {
 		shard := shard
+		n.metrics.shards.close.Inc(1)
 		go func() {
 			if err := shard.Close(); err != nil {
+				n.metrics.shards.closeErrors.Inc(1)
 				n.log.WithFields(
 					xlog.NewLogField("namespace", n.id.String()),
 					xlog.NewLogField("shard", shard.ID()),
@@ -265,7 +281,7 @@ func (n *dbNamespace) FetchBlocks(
 	if err != nil {
 		return nil, xerrors.NewInvalidParamsError(err)
 	}
-	return shard.FetchBlocks(ctx, id, starts), nil
+	return shard.FetchBlocks(ctx, id, starts)
 }
 
 func (n *dbNamespace) FetchBlocksMetadata(

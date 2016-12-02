@@ -161,12 +161,12 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchBlocks(ctx, ts.StringID("foo"), nil).Return(nil)
+	shard.EXPECT().FetchBlocks(ctx, ts.StringID("foo"), nil).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	res, err := ns.FetchBlocks(ctx, testShardIDs[0].ID(), ts.StringID("foo"), nil)
-	require.Nil(t, res)
 	require.NoError(t, err)
+	require.Nil(t, res)
 }
 
 func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {

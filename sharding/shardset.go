@@ -46,6 +46,15 @@ func NewShardSet(shards []shard.Shard, fn HashFn) (ShardSet, error) {
 	if err := validateShards(shards); err != nil {
 		return nil, err
 	}
+	return newValidatedShardSet(shards, fn), nil
+}
+
+// NewEmptyShardSet creates a new sharding scheme with an empty set of shards
+func NewEmptyShardSet(fn HashFn) ShardSet {
+	return newValidatedShardSet(nil, fn)
+}
+
+func newValidatedShardSet(shards []shard.Shard, fn HashFn) ShardSet {
 	ids := make([]uint32, len(shards))
 	for i := range ids {
 		ids[i] = shards[i].ID()
@@ -54,7 +63,7 @@ func NewShardSet(shards []shard.Shard, fn HashFn) (ShardSet, error) {
 		shards: shards,
 		ids:    ids,
 		fn:     fn,
-	}, nil
+	}
 }
 
 func (s *shardSet) Lookup(identifier ts.ID) uint32 {

@@ -30,8 +30,8 @@ import (
 	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
 	ts "github.com/m3db/m3db/ts"
-	time "github.com/m3db/m3x/time"
-	time0 "time"
+	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of Result interface
@@ -75,7 +75,7 @@ func (_mr *_MockResultRecorder) Unfulfilled() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Unfulfilled")
 }
 
-func (_m *MockResult) Add(shard uint32, result ShardResult, unfulfilled time.Ranges) {
+func (_m *MockResult) Add(shard uint32, result ShardResult, unfulfilled time0.Ranges) {
 	_m.ctrl.Call(_m, "Add", shard, result, unfulfilled)
 }
 
@@ -130,7 +130,7 @@ func (_mr *_MockShardResultRecorder) IsEmpty() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
 }
 
-func (_m *MockShardResult) BlockAt(id ts.ID, t time0.Time) (block.DatabaseBlock, bool) {
+func (_m *MockShardResult) BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool) {
 	ret := _m.ctrl.Call(_m, "BlockAt", id, t)
 	ret0, _ := ret[0].(block.DatabaseBlock)
 	ret1, _ := ret[1].(bool)
@@ -175,7 +175,7 @@ func (_mr *_MockShardResultRecorder) AddResult(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddResult", arg0)
 }
 
-func (_m *MockShardResult) RemoveBlockAt(id ts.ID, t time0.Time) {
+func (_m *MockShardResult) RemoveBlockAt(id ts.ID, t time.Time) {
 	_m.ctrl.Call(_m, "RemoveBlockAt", id, t)
 }
 
@@ -220,7 +220,7 @@ func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(targetRanges time.Ranges, namespace ts.ID, shards []uint32) (Result, error) {
+func (_m *MockBootstrap) Run(targetRanges time0.Ranges, namespace ts.ID, shards []uint32) (Result, error) {
 	ret := _m.ctrl.Call(_m, "Run", targetRanges, namespace, shards)
 	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)

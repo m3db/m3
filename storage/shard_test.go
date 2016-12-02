@@ -338,7 +338,9 @@ func TestShardFetchBlocksIDNotExists(t *testing.T) {
 	defer ctx.Close()
 
 	shard := testDatabaseShard(opts)
-	require.Nil(t, shard.FetchBlocks(ctx, ts.StringID("foo"), nil))
+	fetched, err := shard.FetchBlocks(ctx, ts.StringID("foo"), nil)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(fetched))
 }
 
 func TestShardFetchBlocksIDExists(t *testing.T) {
@@ -356,7 +358,8 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	starts := []time.Time{now}
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil)}
 	series.EXPECT().FetchBlocks(ctx, starts).Return(expected)
-	res := shard.FetchBlocks(ctx, id, starts)
+	res, err := shard.FetchBlocks(ctx, id, starts)
+	require.NoError(t, err)
 	require.Equal(t, expected, res)
 }
 
