@@ -21,9 +21,8 @@
 package sharding
 
 import (
-	"github.com/m3db/m3db/ts"
-
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/ts"
 )
 
 // HashGen generates HashFn based on the length of shards

@@ -165,8 +165,8 @@ func (d *clusterDB) activeTopologyWatch() {
 	reportClosingCh := make(chan struct{}, 1)
 	reportClosedCh := make(chan struct{}, 1)
 	go func() {
+		ticker := time.NewTicker(time.Second)
 		for {
-			ticker := time.NewTicker(time.Second)
 			select {
 			case <-ticker.C:
 				d.analyzeAndReportShardStates()
