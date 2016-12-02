@@ -74,3 +74,7 @@ func (v *id) OnClose() {
 func (v *id) String() string {
 	return string(v.data)
 }
+
+func (v *id) Reset(val []byte) {
+	v.data, v.hash = val, null
+}

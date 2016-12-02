@@ -29,8 +29,8 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"

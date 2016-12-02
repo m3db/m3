@@ -39,14 +39,19 @@ const (
 
 	// defaultBufferDrain is the default buffer drain
 	defaultBufferDrain = 2 * time.Minute
+
+	// defaultShortExpiryOn is the default bool for whether short expiry is on
+	defaultShortExpiry = false
 )
 
 type options struct {
-	retentionPeriod time.Duration
-	blockSize       time.Duration
-	bufferFuture    time.Duration
-	bufferPast      time.Duration
-	bufferDrain     time.Duration
+	retentionPeriod   time.Duration
+	blockSize         time.Duration
+	bufferFuture      time.Duration
+	bufferPast        time.Duration
+	bufferDrain       time.Duration
+	shortExpiry       bool
+	shortExpiryPeriod time.Duration
 }
 
 // NewOptions creates new retention options
@@ -57,6 +62,7 @@ func NewOptions() Options {
 		bufferFuture:    defaultBufferFuture,
 		bufferPast:      defaultBufferPast,
 		bufferDrain:     defaultBufferDrain,
+		shortExpiry:     defaultShortExpiry,
 	}
 }
 
@@ -108,4 +114,24 @@ func (o *options) SetBufferDrain(value time.Duration) Options {
 
 func (o *options) BufferDrain() time.Duration {
 	return o.bufferDrain
+}
+
+func (o *options) SetShortExpiry(on bool) Options {
+	opts := *o
+	opts.shortExpiry = on
+	return &opts
+}
+
+func (o *options) ShortExpiry() bool {
+	return o.shortExpiry
+}
+
+func (o *options) SetShortExpiryPeriod(period time.Duration) Options {
+	opts := *o
+	opts.shortExpiryPeriod = period
+	return &opts
+}
+
+func (o *options) ShortExpiryPeriod() time.Duration {
+	return o.shortExpiryPeriod
 }

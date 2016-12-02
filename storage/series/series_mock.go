@@ -28,12 +28,12 @@ import (
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
-	instrument "github.com/m3db/m3x/instrument"
 	persist "github.com/m3db/m3db/persist"
 	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
 	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
+	instrument "github.com/m3db/m3x/instrument"
 	time0 "github.com/m3db/m3x/time"
 	time "time"
 )
