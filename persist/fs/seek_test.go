@@ -54,7 +54,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 	err = s.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, s.Entries())
-	_, err = s.Seek("foo")
+	_, err = s.Seek(ts.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
 	assert.NoError(t, s.Close())
@@ -82,7 +82,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	err = s.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, err = s.Seek("foo")
+	_, err = s.Seek(ts.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errReadNotExpectedSize, err)
 
@@ -119,7 +119,7 @@ func TestSeekBadMarker(t *testing.T) {
 	err = s.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, err = s.Seek("foo")
+	_, err = s.Seek(ts.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errReadMarkerNotFound, err)
 
@@ -146,19 +146,19 @@ func TestSeek(t *testing.T) {
 	err = s.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	data, err := s.Seek("foo3")
+	data, err := s.Seek(ts.StringID("foo3"))
 	assert.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 3}, data)
 
-	data, err = s.Seek("foo1")
+	data, err = s.Seek(ts.StringID("foo1"))
 	assert.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 1}, data)
 
-	_, err = s.Seek("foo")
+	_, err = s.Seek(ts.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
 
-	data, err = s.Seek("foo2")
+	data, err = s.Seek(ts.StringID("foo2"))
 	assert.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 2}, data)
 

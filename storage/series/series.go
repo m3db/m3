@@ -157,9 +157,9 @@ func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
 	var cutoff time.Time
 	rops := s.opts.RetentionOptions()
-	if rops.DiskMode() {
+	if rops.ShortExpiry() {
 		// Some blocks of series is stored in disk only
-		cutoff = now.Add(-rops.DiskModeInMemPeriod()).Truncate(rops.BlockSize())
+		cutoff = now.Add(-rops.ShortExpiryPeriod() - rops.BlockSize()).Truncate(rops.BlockSize())
 	} else {
 		// Everything for the retention period is kept in mem
 		cutoff = now.Add(-rops.RetentionPeriod()).Truncate(rops.BlockSize())

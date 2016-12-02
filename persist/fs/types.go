@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 )
 
@@ -79,7 +79,7 @@ type FileSetSeeker interface {
 
 	// Seek returns the data for specified id provided the index was loaded upon open. An
 	// error will be returned if the index was not loaded or id cannot be found
-	Seek(id string) (data []byte, err error)
+	Seek(id ts.ID) (data []byte, err error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range

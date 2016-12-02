@@ -40,18 +40,18 @@ const (
 	// defaultBufferDrain is the default buffer drain
 	defaultBufferDrain = 2 * time.Minute
 
-	// defaultDiskModeOn is the default bool for whether disk mode is on
-	defaultDiskModeOn = false
+	// defaultShortExpiryOn is the default bool for whether short expiry is on
+	defaultShortExpiry = false
 )
 
 type options struct {
-	retentionPeriod     time.Duration
-	blockSize           time.Duration
-	bufferFuture        time.Duration
-	bufferPast          time.Duration
-	bufferDrain         time.Duration
-	diskModeOn          bool
-	diskModeInMemPeriod time.Duration
+	retentionPeriod   time.Duration
+	blockSize         time.Duration
+	bufferFuture      time.Duration
+	bufferPast        time.Duration
+	bufferDrain       time.Duration
+	shortExpiry       bool
+	shortExpiryPeriod time.Duration
 }
 
 // NewOptions creates new retention options
@@ -62,7 +62,7 @@ func NewOptions() Options {
 		bufferFuture:    defaultBufferFuture,
 		bufferPast:      defaultBufferPast,
 		bufferDrain:     defaultBufferDrain,
-		diskModeOn:      defaultDiskModeOn,
+		shortExpiry:     defaultShortExpiry,
 	}
 }
 
@@ -116,22 +116,22 @@ func (o *options) BufferDrain() time.Duration {
 	return o.bufferDrain
 }
 
-func (o *options) SetDiskMode(diskModeOn bool) Options {
+func (o *options) SetShortExpiry(on bool) Options {
 	opts := *o
-	opts.diskModeOn = diskModeOn
+	opts.shortExpiry = on
 	return &opts
 }
 
-func (o *options) DiskMode() bool {
-	return o.diskModeOn
+func (o *options) ShortExpiry() bool {
+	return o.shortExpiry
 }
 
-func (o *options) SetDiskModeInMemPeriod(period time.Duration) Options {
+func (o *options) SetShortExpiryPeriod(period time.Duration) Options {
 	opts := *o
-	opts.diskModeInMemPeriod = period
+	opts.shortExpiryPeriod = period
 	return &opts
 }
 
-func (o *options) DiskModeInMemPeriod() time.Duration {
-	return o.diskModeInMemPeriod
+func (o *options) ShortExpiryPeriod() time.Duration {
+	return o.shortExpiryPeriod
 }

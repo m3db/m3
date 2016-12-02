@@ -424,7 +424,7 @@ func TestShouldExpire(t *testing.T) {
 	require.True(t, series.shouldExpire(now, now.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())))
 
 	expiryPeriod := 10 * time.Minute
-	ropts = ropts.SetDiskMode(true).SetDiskModeInMemPeriod(expiryPeriod)
+	ropts = ropts.SetShortExpiry(true).SetShortExpiryPeriod(expiryPeriod)
 	opts = opts.SetRetentionOptions(ropts)
 	series = NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))

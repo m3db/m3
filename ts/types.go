@@ -35,6 +35,7 @@ type ID interface {
 	Equal(value ID) bool
 	Hash() Hash
 	String() string
+	Reset(v []byte)
 }
 
 // IdentifierPool represents an automatic pool of IDs

@@ -56,17 +56,18 @@ type Options interface {
 	// BufferDrain returns the bufferDrain
 	BufferDrain() time.Duration
 
-	// SetDiskMode sets the disk mode
-	SetDiskMode(diskModeOn bool) Options
+	// SetShortExpiry sets the short expiry mode
+	SetShortExpiry(on bool) Options
 
-	// DiskMode returns whether disk mode is on
-	DiskMode() bool
+	// ShortExpiry returns whether short expiry mode is turned on. If turned on,
+	// data is only stored in memory for part of the retention period
+	ShortExpiry() bool
 
-	// SetDiskModeInMemPeriod sets the period that blocks should be kept in memory
-	// when disk mode is turned on
-	SetDiskModeInMemPeriod(period time.Duration) Options
+	// SetShortExpiryPeriod sets the period that blocks should be kept in memory
+	// when  short expiry  is turned on
+	SetShortExpiryPeriod(period time.Duration) Options
 
-	// DiskModeInMemPeriod returns the period that blocks should be kep in memory
-	// when disk mode is turned on
-	DiskModeInMemPeriod() time.Duration
+	// ShortExpiryPeriod returns the period that blocks should be kep in memory
+	// when short expiry is turned on
+	ShortExpiryPeriod() time.Duration
 }

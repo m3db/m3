@@ -54,11 +54,13 @@ type seeker struct {
 	expectedInfoDigest         uint32
 	expectedIndexDigest        uint32
 
-	unreadBuf []byte
-	entries   int
-	dataFd    *os.File
-	indexMap  map[string]*schema.IndexEntry
-	bytesPool pool.BytesPool
+	unreadBuf  []byte
+	prologue   []byte
+	entries    int
+	reusableID ts.ID
+	dataFd     *os.File
+	indexMap   map[ts.Hash]*schema.IndexEntry
+	bytesPool  pool.BytesPool
 }
 
 // NewSeeker returns a new seeker for a filePathPrefix and expects all files to exist.  Will
@@ -70,7 +72,9 @@ func NewSeeker(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) 
 		indexFdWithDigest:          digest.NewFdWithDigestReader(bufferSize),
 		dataReader:                 bufio.NewReaderSize(nil, bufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
+		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  bytesPool,
+		reusableID:                 ts.StringID(""),
 	}
 }
 
@@ -130,7 +134,6 @@ func (s *seeker) readDigest() error {
 	if s.expectedIndexDigest, err = s.digestFdWithDigestContents.ReadDigest(); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -159,7 +162,7 @@ func (s *seeker) readIndex(size int) error {
 	}
 
 	indexUnread := s.unreadBuf[:n][:]
-	s.indexMap = make(map[string]*schema.IndexEntry, s.entries)
+	s.indexMap = make(map[ts.Hash]*schema.IndexEntry, s.entries)
 	// Read all entries of index
 	for read := 0; read < s.entries; read++ {
 		entry := &schema.IndexEntry{}
@@ -175,14 +178,15 @@ func (s *seeker) readIndex(size int) error {
 		}
 
 		indexUnread = indexUnread[size:]
-		s.indexMap[string(entry.Id)] = entry
+		s.reusableID.Reset(entry.Id)
+		s.indexMap[s.reusableID.Hash()] = entry
 	}
 
 	return nil
 }
 
-func (s *seeker) Seek(id string) ([]byte, error) {
-	entry, exists := s.indexMap[id]
+func (s *seeker) Seek(id ts.ID) ([]byte, error) {
+	entry, exists := s.indexMap[id.Hash()]
 	if !exists {
 		return nil, errSeekIDNotFound
 	}
@@ -193,15 +197,23 @@ func (s *seeker) Seek(id string) ([]byte, error) {
 	}
 	s.dataReader.Reset(s.dataFd)
 
-	expectedSize := markerLen + idxLen + int(entry.Size)
-	var data []byte
-	if s.bytesPool != nil {
-		data = s.bytesPool.Get(expectedSize)[:expectedSize]
-	} else {
-		data = make([]byte, expectedSize)
+	n, err := s.dataReader.Read(s.prologue)
+	if err != nil {
+		return nil, err
+	} else if n != cap(s.prologue) {
+		return nil, errReadNotExpectedSize
+	} else if !bytes.Equal(s.prologue[:markerLen], marker) {
+		return nil, errReadMarkerNotFound
 	}
 
-	n, err := s.dataReader.Read(data)
+	var data []byte
+	if s.bytesPool != nil {
+		data = s.bytesPool.Get(int(entry.Size))[:entry.Size]
+	} else {
+		data = make([]byte, entry.Size)
+	}
+
+	n, err = s.dataReader.Read(data)
 	if err != nil {
 		return nil, err
 	}
@@ -220,15 +232,11 @@ func (s *seeker) Seek(id string) ([]byte, error) {
 		n += remainder
 	}
 
-	if n != expectedSize {
+	if n != int(entry.Size) {
 		return nil, errReadNotExpectedSize
 	}
 
-	if !bytes.Equal(data[:markerLen], marker) {
-		return nil, errReadMarkerNotFound
-	}
-
-	return data[markerLen+idxLen:], nil
+	return data, nil
 }
 
 func (s *seeker) Range() xtime.Range {
