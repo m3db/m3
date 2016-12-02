@@ -20,7 +20,7 @@
 
 package repair
 
-import "github.com/m3db/m3db/pool"
+import "github.com/m3db/m3x/pool"
 
 type hostBlockMetadataSlicePool struct {
 	pool     pool.ObjectPool

@@ -21,7 +21,7 @@
 package encoding
 
 import (
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/pool"
 )
 
 const (

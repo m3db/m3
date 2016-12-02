@@ -23,7 +23,7 @@ package encoding
 import (
 	"sort"
 
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/pool"
 )
 
 // TODO(r): there should be an ArrayPool that can take an alloc function

@@ -22,7 +22,7 @@ package tchannelthrift
 
 import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/pool"
 )
 
 var (

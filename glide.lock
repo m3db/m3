@@ -27,11 +27,13 @@ imports:
   - services
   - shard
 - name: github.com/m3db/m3x
-  version: 87afcb5f1b6e2040d7b6843c51d15e02e67319bb
+  version: c12535cbe63e3192de6050237e62f6f091d09524
   subpackages:
   - close
   - errors
+  - instrument
   - log
+  - pool
   - retry
   - time
   - watch

@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"

@@ -23,7 +23,7 @@ package encoding
 import (
 	"time"
 
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/pool"
 )
 
 var (

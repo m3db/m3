@@ -9,10 +9,8 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/instrument"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -20,7 +18,9 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -274,7 +274,7 @@ func (n *dbNamespace) Bootstrap(
 	n.metrics.bootstrap.Success.Inc(1)
 
 	// Bootstrap shards using at least half the CPUs available
-	workers := pool.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
+	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	workers.Init()
 
 	var (
@@ -419,7 +419,7 @@ func (n *dbNamespace) Repair(repairer databaseShardRepairer, tr xtime.Range) err
 		throttlePerShard = time.Duration(int64(repairer.Options().RepairThrottle()) / int64(numShards))
 	}
 
-	workers := pool.NewWorkerPool(repairer.Options().RepairShardConcurrency())
+	workers := xsync.NewWorkerPool(repairer.Options().RepairShardConcurrency())
 	workers.Init()
 	for _, shard := range shards {
 		shard := shard

@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/pool"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,7 +85,7 @@ func BenchmarkPooling(b *testing.B) {
 	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
 	ctx := context.NewContext()
 
-	v := []byte{}
+	v := []byte{'a', 'b', 'c'}
 
 	for i := 0; i < b.N; i++ {
 		id := p.GetBinaryID(ctx, v)
