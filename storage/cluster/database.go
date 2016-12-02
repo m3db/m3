@@ -26,8 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"code.uber.internal/go-common.git/x/log"
-
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
@@ -292,7 +290,7 @@ func (d *clusterDB) hostOrEmptyShardSet(m topology.Map) sharding.ShardSet {
 	if hostShardSet, ok := m.LookupHostShardSet(d.hostID); ok {
 		return hostShardSet.ShardSet()
 	}
-	log.Warnf("topology has no shard set for host ID: %s", d.hostID)
+	d.log.Warnf("topology has no shard set for host ID: %s", d.hostID)
 	allShardSet := m.ShardSet()
 	shardSet, _ := sharding.NewShardSet(nil, allShardSet.HashFn())
 	return shardSet
