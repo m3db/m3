@@ -29,8 +29,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/proto/schema"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
