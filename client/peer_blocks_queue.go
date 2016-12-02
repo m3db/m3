@@ -25,7 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/pool"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 type peerBlocksQueue struct {
@@ -37,7 +37,7 @@ type peerBlocksQueue struct {
 	assigned     uint64
 	completed    uint64
 	maxQueueSize int
-	workers      pool.WorkerPool
+	workers      xsync.WorkerPool
 	processFn    processFn
 }
 
@@ -47,7 +47,7 @@ type newPeerBlocksQueueFn func(
 	peer hostQueue,
 	maxQueueSize int,
 	interval time.Duration,
-	workers pool.WorkerPool,
+	workers xsync.WorkerPool,
 	processFn processFn,
 ) *peerBlocksQueue
 
@@ -55,7 +55,7 @@ func newPeerBlocksQueue(
 	peer hostQueue,
 	maxQueueSize int,
 	interval time.Duration,
-	workers pool.WorkerPool,
+	workers xsync.WorkerPool,
 	processFn processFn,
 ) *peerBlocksQueue {
 	q := &peerBlocksQueue{

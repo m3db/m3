@@ -40,7 +40,7 @@ imports:
   - time
   - watch
 - name: github.com/opentracing/opentracing-go
-  version: 902ca977fd85455c364050f985eba376b44315f0
+  version: ac5446f53f2c0fc68dc16dc5f426eae1cd288b34
   subpackages:
   - ext
   - log

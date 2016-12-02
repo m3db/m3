@@ -26,8 +26,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/topology"
+
+	"github.com/m3db/m3x/pool"
 
 	"github.com/uber-go/tally"
 )

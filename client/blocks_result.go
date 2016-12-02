@@ -28,11 +28,12 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+
+	"github.com/m3db/m3x/pool"
 )
 
 type blocksResult struct {

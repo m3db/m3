@@ -32,10 +32,10 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
-	"github.com/m3db/m3db/pool"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -192,12 +192,12 @@ func (s *session) Open() error {
 	// Wait for the topology to be available
 	<-watch.C()
 
-	if err := s.setTopologyWithLock(topologyWatch.Get(), true); err != nil {
+	if err := s.setTopologyWithLock(watch.Get(), true); err != nil {
 		s.Unlock()
 		return err
 	}
 
-	s.topoWatch = topologyWatch
+	s.topoWatch = watch
 
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is that Open will already take some time
@@ -242,9 +242,9 @@ func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hos
 	// For purposes of simplifying the options for pooling the write op pool size
 	// represents the number of ops to pool not including replication, this is due
 	// to the fact that the ops are shared between the different host queue replicas.
-	totalBatches := topoMap.Replicas() *
+	totalBatches := topologyMap.Replicas() *
 		int(math.Ceil(float64(s.opts.WriteOpPoolSize())/float64(s.opts.WriteBatchSize())))
-	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topoMap.HostsLen())))
+	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
 	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
