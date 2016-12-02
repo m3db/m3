@@ -44,7 +44,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/sync"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 )
 
 var (
@@ -196,6 +196,16 @@ func (ts *testSetup) waitUntilServerIsUp() error {
 		resp, err := ts.health()
 		return err == nil && resp.Bootstrapped
 	}
+}
+
+func fakeRequest() *rpc.FetchRequest {
+	req := rpc.NewFetchRequest()
+	req.NameSpace = testNamespaces[0].String()
+	return req
+}
+
+func (ts *testSetup) waitUntilServerIsUp() error {
+	serverIsUp := func() bool { _, err := ts.fetch(fakeRequest()); return err == nil }
 	if waitUntil(serverIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
@@ -207,6 +217,7 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 		_, err := ts.health()
 		return err != nil
 	}
+
 	if waitUntil(serverIsDown, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
