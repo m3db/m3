@@ -203,6 +203,38 @@ func TestClusterAddOneNode(t *testing.T) {
 	svcs.NotifyServiceUpdate("m3db")
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(512, 1023))
 
+	log.Debug("waiting for shards to be marked initialized")
+	allMarkedAvailable := func(
+		fakePlacementService FakeM3ClusterPlacementService,
+		instanceID string,
+		shards []shard.Shard,
+	) bool {
+		markedAvailable := fakePlacementService.InstanceShardsMarkedAvailable()
+		if len(markedAvailable) != 1 {
+			return false
+		}
+		if len(markedAvailable[instanceID]) != len(shards) {
+			return false
+		}
+		marked := shard.NewShards(nil)
+		for _, id := range markedAvailable[instanceID] {
+			marked.Add(shard.NewShard(id).SetState(shard.Available))
+		}
+		for _, shard := range shards {
+			if !marked.Contains(shard.ID()) {
+				return false
+			}
+		}
+		return true
+	}
+
+	fps := svcs.FakePlacementService()
+	shouldMark := instances.add[1].Shards().All()
+	for !allMarkedAvailable(fps, "testhost1", shouldMark) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	log.Debug("all shards marked as initialized")
+
 	// Shed the old shards from the first node
 	log.Debug("resharding to shed shards from first node")
 	svc.SetInstances(instances.added)

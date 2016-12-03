@@ -46,6 +46,9 @@ type FakeM3ClusterServices interface {
 
 	// NotifyServiceUpdate will trigger any watch to fire for a service
 	NotifyServiceUpdate(name string)
+
+	// FakePlacementService returns the fake m3cluster placement service
+	FakePlacementService() FakeM3ClusterPlacementService
 }
 
 // FakeM3ClusterService is a fake m3cluster service, mainly used
@@ -53,6 +56,14 @@ type FakeM3ClusterServices interface {
 // service implementation included in m3cluster
 type FakeM3ClusterService interface {
 	services.Service
+}
+
+// FakeM3ClusterPlacementService is a fake m3cluster placement service
+type FakeM3ClusterPlacementService interface {
+	services.PlacementService
+
+	// InstanceShardsMarkedAvailable returns instance shards marked as available
+	InstanceShardsMarkedAvailable() map[string][]uint32
 }
 
 // FakeM3ClusterKVStore is a fake m3cluster kv store
@@ -84,13 +95,15 @@ func (c *fakeM3ClusterClient) KV() kv.Store {
 // NewFakeM3ClusterServices creates a new fake m3cluster services
 func NewFakeM3ClusterServices() FakeM3ClusterServices {
 	return &fakeM3ClusterServices{
-		services: make(map[string]*fakeM3RegisteredService),
+		services:         make(map[string]*fakeM3RegisteredService),
+		placementService: NewFakeM3ClusterPlacementService(),
 	}
 }
 
 type fakeM3ClusterServices struct {
 	sync.RWMutex
-	services map[string]*fakeM3RegisteredService
+	services         map[string]*fakeM3RegisteredService
+	placementService FakeM3ClusterPlacementService
 }
 
 type fakeM3RegisteredService struct {
@@ -119,6 +132,10 @@ func (s *fakeM3ClusterServices) NotifyServiceUpdate(
 	defer s.RUnlock()
 	svc := s.services[name].service
 	s.services[name].watchable.Update(svc)
+}
+
+func (s *fakeM3ClusterServices) FakePlacementService() FakeM3ClusterPlacementService {
+	return s.placementService
 }
 
 func (s *fakeM3ClusterServices) Advertise(
@@ -166,6 +183,63 @@ func (s *fakeM3ClusterServices) PlacementService(
 	service services.ServiceID,
 	popts services.PlacementOptions,
 ) (services.PlacementService, error) {
+	return s.placementService, nil
+}
+
+// NewFakeM3ClusterPlacementService creates a fake m3cluster placement service
+func NewFakeM3ClusterPlacementService() FakeM3ClusterPlacementService {
+	return &fakeM3ClusterPlacementService{
+		markedAvailable: make(map[string][]uint32),
+	}
+}
+
+type fakeM3ClusterPlacementService struct {
+	markedAvailable map[string][]uint32
+}
+
+func (s *fakeM3ClusterPlacementService) InstanceShardsMarkedAvailable() map[string][]uint32 {
+	return s.markedAvailable
+}
+
+func (s *fakeM3ClusterPlacementService) BuildInitialPlacement(
+	instances []services.PlacementInstance, numShards int, rf int,
+) (services.ServicePlacement, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (s *fakeM3ClusterPlacementService) AddReplica() (
+	services.ServicePlacement, error,
+) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (s *fakeM3ClusterPlacementService) AddInstance(
+	candidates []services.PlacementInstance,
+) (services.ServicePlacement, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (s *fakeM3ClusterPlacementService) RemoveInstance(
+	leavingInstanceID string,
+) (services.ServicePlacement, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (s *fakeM3ClusterPlacementService) ReplaceInstance(
+	leavingInstanceID string, candidates []services.PlacementInstance,
+) (services.ServicePlacement, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (s *fakeM3ClusterPlacementService) MarkShardAvailable(
+	instanceID string, shardID uint32,
+) error {
+	s.markedAvailable[instanceID] = append(s.markedAvailable[instanceID], shardID)
+	return nil
+}
+func (s *fakeM3ClusterPlacementService) MarkInstanceAvailable(
+	instanceID string,
+) error {
+	return fmt.Errorf("not implemented")
+}
+func (s *fakeM3ClusterPlacementService) Placement() (
+	services.ServicePlacement, error,
+) {
 	return nil, fmt.Errorf("not implemented")
 }
 
