@@ -26,10 +26,8 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
@@ -39,6 +37,8 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -124,6 +124,15 @@ type Namespace interface {
 
 	// Shards returns the shards
 	Shards() []Shard
+}
+
+// NamespacesByID is a sortable slice of namespaces by ID
+type NamespacesByID []Namespace
+
+func (n NamespacesByID) Len() int      { return len(n) }
+func (n NamespacesByID) Swap(i, j int) { n[i], n[j] = n[j], n[i] }
+func (n NamespacesByID) Less(i, j int) bool {
+	return n[i].ID().String() < n[j].ID().String()
 }
 
 type databaseNamespace interface {

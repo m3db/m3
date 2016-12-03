@@ -83,7 +83,7 @@ type databaseNamespaceTickMetrics struct {
 }
 
 func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
-	shardScope := scope.SubScope("shard")
+	shardsScope := scope.SubScope("dbnamespace").SubScope("shards")
 	tickScope := scope.SubScope("tick")
 	return databaseNamespaceMetrics{
 		bootstrap:      instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
@@ -92,9 +92,9 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 		bootstrapStart: scope.Counter("bootstrap.start"),
 		bootstrapEnd:   scope.Counter("bootstrap.end"),
 		shards: databaseNamespaceShardMetrics{
-			add:         shardScope.Counter("add"),
-			close:       shardScope.Counter("close"),
-			closeErrors: shardScope.Counter("close-errors"),
+			add:         shardsScope.Counter("add"),
+			close:       shardsScope.Counter("close"),
+			closeErrors: shardsScope.Counter("close-errors"),
 		},
 		tick: databaseNamespaceTickMetrics{
 			activeSeries:  tickScope.Gauge("active-series"),
@@ -209,14 +209,15 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	// gate the impact.
 	for _, shard := range closing {
 		shard := shard
-		n.metrics.shards.close.Inc(1)
 		go func() {
 			if err := shard.Close(); err != nil {
-				n.metrics.shards.closeErrors.Inc(1)
 				n.log.WithFields(
 					xlog.NewLogField("namespace", n.id.String()),
 					xlog.NewLogField("shard", shard.ID()),
 				).Errorf("error occurred closing shard: %v", err)
+				n.metrics.shards.closeErrors.Inc(1)
+			} else {
+				n.metrics.shards.close.Inc(1)
 			}
 		}()
 	}

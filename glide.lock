@@ -1,5 +1,5 @@
-hash: e6659bdb570f0ed8e3f0cc08c8402ab1128a665c6af9f7be3098644ce0c6c093
-updated: 2016-12-02T01:41:55.478544827-05:00
+hash: cb528327ce21a76762adb5180f5e49e53cbd292ab8e7bac954c1730f228ebd8d
+updated: 2016-12-03T15:21:03.914148519-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -25,6 +25,7 @@ imports:
   - client
   - kv
   - services
+  - services/placement
   - shard
 - name: github.com/m3db/m3x
   version: 9b04ee8d5df3d831683cac4124c66d9abe60b37e
@@ -58,7 +59,7 @@ imports:
 - name: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
 - name: github.com/uber/tchannel-go
-  version: 9701a0d5a8bfab135c6366a7c123a9b1df76421c
+  version: 8d570ed87acb2661d390c096215260f3f9e9b931
   subpackages:
   - relay
   - thrift

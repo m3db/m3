@@ -22,6 +22,8 @@ package storage
 
 import (
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,10 +34,13 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -259,6 +264,54 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	require.Equal(t, bootstrapped, ns.bs)
 }
 
+func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	writeStart := time.Now()
+	ranges := xtime.NewRanges().AddRange(xtime.Range{
+		Start: writeStart.Add(-time.Hour),
+		End:   writeStart.Add(-10 * time.Minute),
+	}).AddRange(xtime.Range{
+		Start: writeStart.Add(-10 * time.Minute),
+		End:   writeStart.Add(2 * time.Minute),
+	})
+
+	var needsBootstrap, alreadyBootstrapped []shard.Shard
+	for i, shard := range testShardIDs {
+		if i%2 == 0 {
+			needsBootstrap = append(needsBootstrap, shard)
+		} else {
+			alreadyBootstrapped = append(alreadyBootstrapped, shard)
+		}
+	}
+
+	require.True(t, len(needsBootstrap) > 0)
+	require.True(t, len(alreadyBootstrapped) > 0)
+
+	ns := newTestNamespace(t)
+	bs := bootstrap.NewMockBootstrap(ctrl)
+	bs.EXPECT().
+		Run(ranges, ns.ID(), sharding.IDs(needsBootstrap)).
+		Return(bootstrap.NewResult(), nil)
+
+	for _, testShard := range needsBootstrap {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().IsBootstrapped().Return(false)
+		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
+		shard.EXPECT().Bootstrap(nil).Return(nil)
+		ns.shards[testShard.ID()] = shard
+	}
+	for _, testShard := range alreadyBootstrapped {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().IsBootstrapped().Return(true)
+		ns.shards[testShard.ID()] = shard
+	}
+
+	require.NoError(t, ns.Bootstrap(bs, ranges))
+	require.Equal(t, bootstrapped, ns.bs)
+}
+
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns := newTestNamespace(t)
 	require.Equal(t, errNamespaceNotBootstrapped, ns.Flush(time.Now(), nil))
@@ -387,4 +440,88 @@ func TestNamespaceShardAt(t *testing.T) {
 	require.NoError(t, err)
 	_, err = ns.shardAt(2)
 	require.Error(t, err)
+}
+
+func TestNamespaceAssignShardSet(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shards := sharding.NewShards([]uint32{0, 1, 2, 3, 4}, shard.Available)
+	prevAssignment := shard.NewShards([]shard.Shard{shards[0], shards[2], shards[3]})
+	nextAssignment := shard.NewShards([]shard.Shard{shards[0], shards[4]})
+	closing := shard.NewShards([]shard.Shard{shards[2], shards[3]})
+	closingErrors := shard.NewShards([]shard.Shard{shards[3]})
+	adding := shard.NewShards([]shard.Shard{shards[4]})
+
+	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
+	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
+	require.NoError(t, err)
+	dopts := testDatabaseOptions()
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope := tally.NewRootScope("", nil, reporter, time.Millisecond)
+	dopts = dopts.SetInstrumentOptions(dopts.InstrumentOptions().
+		SetMetricsScope(scope))
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, dopts).(*dbNamespace)
+
+	prevMockShards := make(map[uint32]*MockdatabaseShard)
+	for _, testShard := range prevAssignment.All() {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
+		if closing.Contains(testShard.ID()) {
+			if closingErrors.Contains(testShard.ID()) {
+				shard.EXPECT().Close().Return(fmt.Errorf("an error"))
+			} else {
+				shard.EXPECT().Close().Return(nil)
+			}
+		}
+		ns.shards[testShard.ID()] = shard
+		prevMockShards[testShard.ID()] = shard
+	}
+
+	nextShardSet, err := sharding.NewShardSet(nextAssignment.All(), hashFn)
+	require.NoError(t, err)
+
+	ns.AssignShardSet(nextShardSet)
+
+	waitForStats(reporter, func(r xmetrics.TestStatsReporter) bool {
+		var (
+			counts       = r.Counters()
+			adds         = int64(adding.NumShards())
+			closeSuccess = int64(closing.NumShards() - closingErrors.NumShards())
+			closeErrors  = int64(closingErrors.NumShards())
+		)
+		return counts["database.dbnamespace.shards.add"] == adds &&
+			counts["database.dbnamespace.shards.close"] == closeSuccess &&
+			counts["database.dbnamespace.shards.close-errors"] == closeErrors
+	})
+
+	for _, shard := range shards {
+		if nextAssignment.Contains(shard.ID()) {
+			assert.NotNil(t, ns.shards[shard.ID()])
+			if prevAssignment.Contains(shard.ID()) {
+				assert.Equal(t, prevMockShards[shard.ID()], ns.shards[shard.ID()])
+			} else {
+				assert.True(t, adding.Contains(shard.ID()))
+			}
+		} else {
+			assert.Nil(t, ns.shards[shard.ID()])
+		}
+	}
+}
+
+func waitForStats(
+	reporter xmetrics.TestStatsReporter,
+	check func(xmetrics.TestStatsReporter) bool,
+) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		for !check(reporter) {
+			time.Sleep(100 * time.Millisecond)
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
 }

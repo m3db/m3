@@ -21,9 +21,12 @@
 package storage
 
 import (
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
@@ -36,6 +39,7 @@ import (
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,7 +98,7 @@ func testDatabaseOptions() Options {
 			SetRetentionPeriod(2 * 24 * time.Hour))
 }
 
-func testDatabase(t *testing.T, bs bootstrapState) *db {
+func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -115,18 +119,30 @@ func testDatabase(t *testing.T, bs bootstrapState) *db {
 	return d
 }
 
+func dbAddNewMockNamespace(
+	ctrl *gomock.Controller,
+	d *db,
+	id string,
+) *MockdatabaseNamespace {
+	ns := ts.StringID(id)
+	mockNamespace := NewMockdatabaseNamespace(ctrl)
+	mockNamespace.EXPECT().ID().Return(ns).AnyTimes()
+	d.namespaces[ns.Hash()] = mockNamespace
+	return mockNamespace
+}
+
 func TestDatabaseOpen(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d := testDatabase(t, bootstrapNotStarted)
+	d := newTestDatabase(t, bootstrapNotStarted)
 	require.NoError(t, d.Open())
 	require.Equal(t, errDatabaseAlreadyOpen, d.Open())
 	require.NoError(t, d.Close())
 }
 
 func TestDatabaseClose(t *testing.T) {
-	d := testDatabase(t, bootstrapped)
+	d := newTestDatabase(t, bootstrapped)
 
 	require.NoError(t, d.Open())
 	require.NoError(t, d.Close())
@@ -137,7 +153,7 @@ func TestDatabaseReadEncodedNotBootstrapped(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d := testDatabase(t, bootstrapNotStarted)
+	d := newTestDatabase(t, bootstrapNotStarted)
 	_, err := d.ReadEncoded(ctx, ts.StringID("testns1"), ts.StringID("foo"), time.Now(), time.Now())
 	require.Equal(t, errDatabaseNotBootstrapped, err)
 }
@@ -146,7 +162,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d := testDatabase(t, bootstrapped)
+	d := newTestDatabase(t, bootstrapped)
 	_, err := d.ReadEncoded(ctx, ts.StringID("nonexistent"), ts.StringID("foo"), time.Now(), time.Now())
 	require.Equal(t, "no such namespace nonexistent", err.Error())
 	require.Panics(t, func() { d.RUnlock() }, "shouldn't be able to unlock the read lock")
@@ -159,7 +175,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d := testDatabase(t, bootstrapped)
+	d := newTestDatabase(t, bootstrapped)
 	ns := ts.StringID("testns1")
 	id := ts.StringID("bar")
 	end := time.Now()
@@ -178,7 +194,7 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d := testDatabase(t, bootstrapped)
+	d := newTestDatabase(t, bootstrapped)
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
 	res, err := d.FetchBlocks(ctx, ts.StringID("testns1"), 0, ts.StringID("foo"), starts)
@@ -193,7 +209,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d := testDatabase(t, bootstrapped)
+	d := newTestDatabase(t, bootstrapped)
 	ns := ts.StringID("testns1")
 	id := ts.StringID("bar")
 	shardID := uint32(0)
@@ -223,7 +239,7 @@ func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
 		includeSizes     = true
 		includeChecksums = true
 	)
-	d := testDatabase(t, bootstrapped)
+	d := newTestDatabase(t, bootstrapped)
 	res, nextPageToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, start, end, limit, pageToken, includeSizes, includeChecksums)
 	require.Nil(t, res)
 	require.Nil(t, nextPageToken)
@@ -248,7 +264,7 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 		includeChecksums = true
 	)
 
-	d := testDatabase(t, bootstrapped)
+	d := newTestDatabase(t, bootstrapped)
 	expectedBlocks := block.NewFetchBlocksMetadataResults()
 	expectedBlocks.Add(block.NewFetchBlocksMetadataResult(ts.StringID("bar"), nil))
 	expectedToken := new(int64)
@@ -263,4 +279,81 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 	require.Equal(t, expectedBlocks, res)
 	require.Equal(t, expectedToken, nextToken)
 	require.Nil(t, err)
+}
+
+func TestDatabaseNamespaces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d := newTestDatabase(t, bootstrapped)
+
+	var ns []*MockdatabaseNamespace
+	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
+	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
+
+	result := d.Namespaces()
+	require.Equal(t, 2, len(result))
+
+	sort.Sort(NamespacesByID(result))
+	assert.Equal(t, "testns1", result[0].ID().String())
+	assert.Equal(t, "testns2", result[1].ID().String())
+}
+
+func TestDatabaseAssignShardSet(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d := newTestDatabase(t, bootstrapped)
+
+	var ns []*MockdatabaseNamespace
+	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
+	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(len(ns))
+	for _, n := range ns {
+		n.EXPECT().AssignShardSet(shardSet).Do(func(_ sharding.ShardSet) {
+			wg.Done()
+		})
+	}
+
+	d.AssignShardSet(shardSet)
+
+	wg.Wait()
+}
+
+func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d := newTestDatabase(t, bootstrapped)
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+
+	bsm := NewMockdatabaseBootstrapManager(ctrl)
+	bsm.EXPECT().Bootstrap().Return(nil)
+	d.bsm = bsm
+
+	assert.NoError(t, d.Bootstrap())
+
+	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available),
+		sharding.NewShards([]uint32{2}, shard.Initializing)...)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	ns.EXPECT().AssignShardSet(shardSet)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	bsm.EXPECT().Bootstrap().Return(nil).Do(func() {
+		wg.Done()
+	})
+
+	d.AssignShardSet(shardSet)
+
+	wg.Wait()
 }

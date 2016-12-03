@@ -25,7 +25,7 @@ import:
   - require
 
 - package: github.com/uber/tchannel-go
-  version: 9701a0d5a8bfab135c6366a7c123a9b1df76421c
+  version: 8d570ed87acb2661d390c096215260f3f9e9b931
   subpackages:
   - thrift
 
