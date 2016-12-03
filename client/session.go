@@ -980,6 +980,7 @@ func (s *session) streamBlocksFromPeers(
 	// Consume the incoming metadata and enqueue to the ready channel
 	go func() {
 		s.streamCollectedBlocksMetadata(len(peers), ch, enqueueCh)
+		enqueueCh.closeIfNoQueue()
 	}()
 
 	// Fetch blocks from peers as results become ready
