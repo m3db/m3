@@ -42,8 +42,9 @@ type options struct {
 
 // NewOptions creates new instrument options
 func NewOptions() Options {
+	logger := xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LogLevelInfo)
 	return &options{
-		logger:         xlog.SimpleLogger,
+		logger:         logger,
 		scope:          tally.NoopScope,
 		samplingRate:   defaultSamplingRate,
 		reportInterval: defaultReportInterval,
