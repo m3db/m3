@@ -32,11 +32,11 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
@@ -252,29 +252,6 @@ func writeCommitLogs(
 	return &wg
 }
 
-func waitForFlush(l *commitLog) {
-	var currFlushAt, lastFlushAt time.Time
-	l.flushMutex.RLock()
-	lastFlushAt = l.lastFlushAt
-	l.flushMutex.RUnlock()
-	matches := 0
-	for {
-		l.flushMutex.RLock()
-		currFlushAt = l.lastFlushAt
-		l.flushMutex.RUnlock()
-		if currFlushAt.Equal(lastFlushAt) {
-			matches++
-		} else {
-			matches = 0
-		}
-		if matches >= 10 {
-			break
-		}
-		lastFlushAt = currFlushAt
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
 func flushUntilDone(l *commitLog, wg *sync.WaitGroup) {
 	done := uint64(0)
 	blockWg := sync.WaitGroup{}
@@ -335,14 +312,11 @@ func TestCommitLogWrite(t *testing.T) {
 	// Call write sync
 	writeCommitLogs(t, scope, stats, commitLog.Write, writes).Wait()
 
-	// Wait for flush
-	waitForFlush(commitLog)
+	// Close the commit log and consequently flush
+	assert.NoError(t, commitLog.Close())
 
 	// Assert writes occurred by reading the commit log
 	assertCommitLogWritesByIterating(t, commitLog, writes)
-
-	// Close the commit log
-	assert.NoError(t, commitLog.Close())
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {
@@ -361,14 +335,11 @@ func TestCommitLogWriteBehind(t *testing.T) {
 	// Call write behind
 	writeCommitLogs(t, scope, stats, commitLog.WriteBehind, writes)
 
-	// Wait for flush
-	waitForFlush(commitLog)
+	// Close the commit log and consequently flush
+	assert.NoError(t, commitLog.Close())
 
 	// Assert writes occurred by reading the commit log
 	assertCommitLogWritesByIterating(t, commitLog, writes)
-
-	// Close the commit log
-	assert.NoError(t, commitLog.Close())
 }
 
 func TestCommitLogWriteErrorOnClosed(t *testing.T) {
