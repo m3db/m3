@@ -213,7 +213,7 @@ func (s *session) ShardID(id string) (uint32, error) {
 		s.RUnlock()
 		return 0, errSessionStateNotOpen
 	}
-	value := s.topoMap.ShardSet().Shard(ts.StringID(id))
+	value := s.topoMap.ShardSet().Lookup(ts.StringID(id))
 	s.RUnlock()
 	return value, nil
 }
@@ -371,7 +371,7 @@ func (s *session) initHostQueues(topoMap topology.Map) ([]hostQueue, int, int, e
 		queues[i] = s.newHostQueue(hosts[i], topoMap)
 	}
 
-	shards := topoMap.ShardSet().Shards()
+	shards := topoMap.ShardSet().AllIDs()
 	minConnectionCount := s.opts.MinConnectionCount()
 	replicas := topoMap.Replicas()
 	majority := topoMap.MajorityReplicas()

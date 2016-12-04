@@ -27,9 +27,9 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
-	pool "github.com/m3db/m3x/pool"
 	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
+	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
 	time "time"
 )

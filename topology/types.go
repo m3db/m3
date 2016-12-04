@@ -21,7 +21,6 @@
 package topology
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3cluster/client"
@@ -29,18 +28,18 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/close"
 )
 
 // Host is a container of a host in a topology
 type Host interface {
-	fmt.Stringer
-
 	// ID is the identifier of the host
 	ID() string
 
 	// Address returns the address of the host
 	Address() string
+
+	// String returns a string representation of the host
+	String() string
 }
 
 // HostShardSet is a container for a host and corresponding shard set
@@ -60,13 +59,24 @@ type Initializer interface {
 
 // Topology is a container of a topology map and disseminates topology map changes
 type Topology interface {
-	xclose.SimpleCloser
-
 	// Get the topology map
 	Get() Map
 
 	// Watch for the topology map
 	Watch() (MapWatch, error)
+
+	// Close will close the topology map
+	Close()
+}
+
+// DynamicTopology is a topology that dynamically changes and as such
+// adds functionality for a clustered database to call back and mark
+// a shard as available once it completes bootstrapping
+type DynamicTopology interface {
+	Topology
+
+	// MarkShardAvailable marks a shard with the state of initializing as available
+	MarkShardAvailable(instanceID string, shardID uint32) error
 }
 
 // MapWatch is a watch on a topology map
@@ -86,8 +96,11 @@ type Map interface {
 	// Hosts returns all hosts in the map
 	Hosts() []Host
 
-	// Hosts returns all HostShardSets in the map
+	// HostShardSets returns all HostShardSets in the map
 	HostShardSets() []HostShardSet
+
+	// LookupHostShardSet returns a HostShardSet for a host in the map
+	LookupHostShardSet(hostID string) (HostShardSet, bool)
 
 	// HostsLen returns the length of all hosts in the map
 	HostsLen() int

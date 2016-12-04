@@ -24,9 +24,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/topology"
 )
 
 const (
+	// defaultID is the default node ID
+	defaultID = "testhost"
+
 	// defaultServerStateChangeTimeout is the default time we wait for a server to change its state.
 	defaultServerStateChangeTimeout = time.Minute
 
@@ -61,6 +65,12 @@ type testOptions interface {
 
 	// Namespaces returns the namespaces.
 	Namespaces() []namespace.Metadata
+
+	// SetID sets the node ID.
+	SetID(value string) testOptions
+
+	// ID returns the node ID.
+	ID() string
 
 	// SetHTTPClusterAddr sets the http cluster address.
 	SetHTTPClusterAddr(value string) testOptions
@@ -122,6 +132,14 @@ type testOptions interface {
 	// WorkerPoolSize returns the number of workers in the worker pool.
 	WorkerPoolSize() int
 
+	// SetClusterDatabaseTopologyInitializer sets the topology initializer that
+	// is used when creating a cluster database
+	SetClusterDatabaseTopologyInitializer(value topology.Initializer) testOptions
+
+	// ClusterDatabaseTopologyInitializer returns the topology initializer that
+	// is used when creating a cluster database
+	ClusterDatabaseTopologyInitializer() topology.Initializer
+
 	// SetUseTChannelClientForReading sets whether we use the tchannel client for reading.
 	SetUseTChannelClientForReading(value bool) testOptions
 
@@ -148,21 +166,23 @@ type testOptions interface {
 }
 
 type options struct {
-	namespaces                      []namespace.Metadata
-	httpClusterAddr                 string
-	tchannelClusterAddr             string
-	httpNodeAddr                    string
-	tchannelNodeAddr                string
-	serverStateChangeTimeout        time.Duration
-	clusterConnectionTimeout        time.Duration
-	readRequestTimeout              time.Duration
-	writeRequestTimeout             time.Duration
-	truncateRequestTimeout          time.Duration
-	workerPoolSize                  int
-	useTChannelClientForReading     bool
-	useTChannelClientForWriting     bool
-	useTChannelClientForTruncation  bool
-	verifySeriesDebugFilePathPrefix string
+	namespaces                         []namespace.Metadata
+	id                                 string
+	httpClusterAddr                    string
+	tchannelClusterAddr                string
+	httpNodeAddr                       string
+	tchannelNodeAddr                   string
+	serverStateChangeTimeout           time.Duration
+	clusterConnectionTimeout           time.Duration
+	readRequestTimeout                 time.Duration
+	writeRequestTimeout                time.Duration
+	truncateRequestTimeout             time.Duration
+	workerPoolSize                     int
+	clusterDatabaseTopologyInitializer topology.Initializer
+	useTChannelClientForReading        bool
+	useTChannelClientForWriting        bool
+	useTChannelClientForTruncation     bool
+	verifySeriesDebugFilePathPrefix    string
 }
 
 func newTestOptions() testOptions {
@@ -171,7 +191,8 @@ func newTestOptions() testOptions {
 		namespaces = append(namespaces, namespace.NewMetadata(ns, namespace.NewOptions()))
 	}
 	return &options{
-		namespaces:                     namespaces,
+		namespaces: namespaces,
+		id:         defaultID,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
 		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
 		readRequestTimeout:             defaultReadRequestTimeout,
@@ -192,6 +213,16 @@ func (o *options) SetNamespaces(value []namespace.Metadata) testOptions {
 
 func (o *options) Namespaces() []namespace.Metadata {
 	return o.namespaces
+}
+
+func (o *options) SetID(value string) testOptions {
+	opts := *o
+	opts.id = value
+	return &opts
+}
+
+func (o *options) ID() string {
+	return o.id
 }
 
 func (o *options) SetHTTPClusterAddr(value string) testOptions {
@@ -292,6 +323,16 @@ func (o *options) SetWorkerPoolSize(value int) testOptions {
 
 func (o *options) WorkerPoolSize() int {
 	return o.workerPoolSize
+}
+
+func (o *options) SetClusterDatabaseTopologyInitializer(value topology.Initializer) testOptions {
+	opts := *o
+	opts.clusterDatabaseTopologyInitializer = value
+	return &opts
+}
+
+func (o *options) ClusterDatabaseTopologyInitializer() topology.Initializer {
+	return o.clusterDatabaseTopologyInitializer
 }
 
 func (o *options) SetUseTChannelClientForReading(value bool) testOptions {

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	hjcluster "github.com/m3db/m3db/network/server/httpjson/cluster"
 	hjnode "github.com/m3db/m3db/network/server/httpjson/node"
@@ -40,27 +41,37 @@ import (
 
 const defaultNamespaceName = "default"
 
-// DefaultShardSet creates a default shard set.
+// DefaultShardSet creates a default shard set
 func DefaultShardSet() (sharding.ShardSet, error) {
 	shardsLen := uint32(1024)
-	var shards []uint32
+	var ids []uint32
 	for i := uint32(0); i < shardsLen; i++ {
-		shards = append(shards, i)
+		ids = append(ids, i)
 	}
 
+	shards := sharding.NewShards(ids, shard.Available)
 	return sharding.NewShardSet(shards, sharding.DefaultHashGen(1024))
 }
 
-// DefaultNamespaces creates a list of default namespaces.
-func DefaultNamespaces() []namespace.Metadata {
-	opts := namespace.NewOptions()
-	return []namespace.Metadata{
-		namespace.NewMetadata(ts.StringID(defaultNamespaceName), opts),
+// DefaultTopologyInitializer creates a default topology initializer
+func DefaultTopologyInitializer(
+	hostID string,
+	tchannelNodeAddr string,
+) (topology.Initializer, error) {
+	shardSet, err := DefaultShardSet()
+	if err != nil {
+		return nil, err
 	}
+
+	return DefaultTopologyInitializerForShardSet(hostID, tchannelNodeAddr, shardSet)
 }
 
-// DefaultClientOptions creates a default m3db client options.
-func DefaultClientOptions(id, tchannelNodeAddr string, shardSet sharding.ShardSet) (client.Options, error) {
+// DefaultTopologyInitializerForShardSet creates a default topology initializer for a shard set
+func DefaultTopologyInitializerForShardSet(
+	hostID string,
+	tchannelNodeAddr string,
+	shardSet sharding.ShardSet,
+) (topology.Initializer, error) {
 	var localNodeAddr string
 	if !strings.ContainsRune(tchannelNodeAddr, ':') {
 		return nil, errors.New("tchannelthrift address does not specify port")
@@ -68,40 +79,46 @@ func DefaultClientOptions(id, tchannelNodeAddr string, shardSet sharding.ShardSe
 	localNodeAddrComponents := strings.Split(tchannelNodeAddr, ":")
 	localNodeAddr = fmt.Sprintf("127.0.0.1:%s", localNodeAddrComponents[len(localNodeAddrComponents)-1])
 
-	hostShardSet := topology.NewHostShardSet(topology.NewHost(id, localNodeAddr), shardSet)
+	hostShardSet := topology.NewHostShardSet(topology.NewHost(hostID, localNodeAddr), shardSet)
 	staticOptions := topology.NewStaticOptions().
 		SetShardSet(shardSet).
 		SetReplicas(1).
 		SetHostShardSets([]topology.HostShardSet{hostShardSet})
 
-	return client.NewOptions().SetTopologyInitializer(topology.NewStaticInitializer(staticOptions)), nil
+	return topology.NewStaticInitializer(staticOptions), nil
 }
 
-// Serve starts up the tchannel server as well as the http server.
-func Serve(
+// DefaultNamespaces creates a list of default namespaces
+func DefaultNamespaces() []namespace.Metadata {
+	opts := namespace.NewOptions()
+	return []namespace.Metadata{
+		namespace.NewMetadata(ts.StringID(defaultNamespaceName), opts),
+	}
+}
+
+// DefaultClientOptions creates a default m3db client options
+func DefaultClientOptions(initializer topology.Initializer) client.Options {
+	return client.NewOptions().SetTopologyInitializer(initializer)
+}
+
+// OpenAndServe opens the database, starts up the RPC servers and bootstraps
+// the database for serving traffic
+func OpenAndServe(
 	httpClusterAddr string,
 	tchannelClusterAddr string,
 	httpNodeAddr string,
 	tchannelNodeAddr string,
-	namespaces []namespace.Metadata,
+	db storage.Database,
 	client client.Client,
-	storageOpts storage.Options,
+	opts storage.Options,
 	doneCh chan struct{},
 ) error {
-	log := storageOpts.InstrumentOptions().Logger()
-	shardSet, err := DefaultShardSet()
-	if err != nil {
-		return err
-	}
-	db, err := storage.NewDatabase(namespaces, shardSet, storageOpts)
-	if err != nil {
-		return err
-	}
+	log := opts.InstrumentOptions().Logger()
 	if err := db.Open(); err != nil {
 		return fmt.Errorf("could not open database: %v", err)
 	}
 
-	contextPool := storageOpts.ContextPool()
+	contextPool := opts.ContextPool()
 	ttopts := tchannelthrift.NewOptions()
 	nativeNodeClose, err := ttnode.NewServer(db, tchannelNodeAddr, contextPool, nil, ttopts).ListenAndServe()
 	if err != nil {
@@ -123,6 +140,7 @@ func Serve(
 	}
 	defer nativeClusterClose()
 	log.Infof("cluster tchannelthrift: listening on %v", tchannelClusterAddr)
+
 	httpjsonClusterClose, err := hjcluster.NewServer(client, httpClusterAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open httpjson interface %s: %v", httpClusterAddr, err)
@@ -131,7 +149,7 @@ func Serve(
 	log.Infof("cluster httpjson: listening on %v", httpClusterAddr)
 
 	if err := db.Bootstrap(); err != nil {
-		log.Errorf("bootstrapping database encountered error(s): %v", err)
+		return fmt.Errorf("bootstrapping database encountered error: %v", err)
 	}
 	log.Debug("bootstrapped")
 

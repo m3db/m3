@@ -102,7 +102,7 @@ type ReplicaSeriesMetadata interface {
 	NumBlocks() int64
 
 	// Series returns the series metadata
-	Series() map[ts.Hash]ReplicaBlocksMetadataWrapper
+	Series() map[ts.Hash]ReplicaSeriesBlocksMetadata
 
 	// GetOrAdd returns the series metadata for an id, creating one if it doesn't exist
 	GetOrAdd(id ts.ID) ReplicaBlocksMetadata
@@ -111,8 +111,8 @@ type ReplicaSeriesMetadata interface {
 	Close()
 }
 
-// ReplicaBlocksMetadataWrapper represents series metadata and an associated ID.
-type ReplicaBlocksMetadataWrapper struct {
+// ReplicaSeriesBlocksMetadata represents series metadata and an associated ID.
+type ReplicaSeriesBlocksMetadata struct {
 	ID       ts.ID
 	Metadata ReplicaBlocksMetadata
 }

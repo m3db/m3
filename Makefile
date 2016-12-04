@@ -32,7 +32,7 @@ VENDOR_ENV := GO15VENDOREXPERIMENT=1
 SERVICES := \
 	m3dbnode
 
-TOOLS := 
+TOOLS :=
 
 setup:
 	mkdir -p $(BUILD)
@@ -137,12 +137,12 @@ testhtml: test-internal
 	gocov convert $(coverfile) | gocov-html > $(html_report) && open $(html_report)
 	@rm -f $(test_log) &> /dev/null
 
-install-ci: 
+install-ci:
 	make install-vendor
 
 test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
-	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
+	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
 
 test-ci-integration:
 	@$(VENDOR_ENV) $(test_ci_integration)

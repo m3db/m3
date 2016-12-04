@@ -46,7 +46,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	}))
 
 	namespace := NewMockdatabaseNamespace(ctrl)
-	namespace.EXPECT().Bootstrap(nil, gomock.Any(), now).Return(fmt.Errorf("an error"))
+	namespace.EXPECT().Bootstrap(nil, gomock.Any()).Return(fmt.Errorf("an error"))
 	namespace.EXPECT().ID().Return(ts.StringID("test"))
 
 	namespaces := map[string]databaseNamespace{

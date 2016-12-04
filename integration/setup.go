@@ -38,7 +38,9 @@ import (
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/cluster"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/sync"
 
@@ -64,7 +66,10 @@ type nowSetterFn func(t time.Time)
 
 type testSetup struct {
 	opts           testOptions
+	db             cluster.Database
 	storageOpts    storage.Options
+	hostID         string
+	topoInit       topology.Initializer
 	shardSet       sharding.ShardSet
 	getNowFn       clock.NowFn
 	setNowFn       nowSetterFn
@@ -97,7 +102,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	id := *id
 	if id == "" {
-		id = "testhost"
+		id = opts.ID()
 	}
 
 	tchannelNodeAddr := *tchannelNodeAddr
@@ -105,11 +110,16 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		tchannelNodeAddr = addr
 	}
 
-	clientOpts, err := server.DefaultClientOptions(id, tchannelNodeAddr, shardSet)
-	if err != nil {
-		return nil, err
+	topoInit := opts.ClusterDatabaseTopologyInitializer()
+	if topoInit == nil {
+		topoInit, err = server.DefaultTopologyInitializerForShardSet(id, tchannelNodeAddr, shardSet)
+		if err != nil {
+			return nil, err
+		}
 	}
-	clientOpts = clientOpts.SetClusterConnectTimeout(opts.ClusterConnectionTimeout())
+
+	clientOpts := server.DefaultClientOptions(topoInit).
+		SetClusterConnectTimeout(opts.ClusterConnectionTimeout())
 
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(tchannelNodeAddr)
@@ -165,6 +175,8 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	return &testSetup{
 		opts:           opts,
 		storageOpts:    storageOpts,
+		hostID:         id,
+		topoInit:       topoInit,
 		shardSet:       shardSet,
 		getNowFn:       getNowFn,
 		setNowFn:       setNowFn,
@@ -179,15 +191,11 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}, nil
 }
 
-func (ts *testSetup) fakeRequest() *rpc.FetchRequest {
-	req := rpc.NewFetchRequest()
-	req.NameSpace = testNamespaces[0].String()
-	return req
-}
-
 func (ts *testSetup) waitUntilServerIsUp() error {
-	fakeRequest := ts.fakeRequest()
-	serverIsUp := func() bool { _, err := ts.fetch(fakeRequest); return err == nil }
+	serverIsUp := func() bool {
+		resp, err := ts.health()
+		return err == nil && resp.Bootstrapped
+	}
 	if waitUntil(serverIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
@@ -195,8 +203,10 @@ func (ts *testSetup) waitUntilServerIsUp() error {
 }
 
 func (ts *testSetup) waitUntilServerIsDown() error {
-	fakeRequest := ts.fakeRequest()
-	serverIsDown := func() bool { _, err := ts.fetch(fakeRequest); return err != nil }
+	serverIsDown := func() bool {
+		_, err := ts.health()
+		return err != nil
+	}
 	if waitUntil(serverIsDown, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
@@ -226,17 +236,18 @@ func (ts *testSetup) startServer() error {
 		tchannelNodeAddr = addr
 	}
 
+	var err error
+	ts.db, err = cluster.NewDatabase(ts.namespaces,
+		ts.hostID, ts.topoInit, ts.storageOpts)
+	if err != nil {
+		return err
+	}
 	go func() {
-		err := server.Serve(
-			httpClusterAddr,
-			tchannelClusterAddr,
-			httpNodeAddr,
-			tchannelNodeAddr,
-			ts.namespaces,
-			ts.m3dbClient,
-			ts.storageOpts,
-			ts.doneCh)
-		if err != nil {
+		if err := server.OpenAndServe(
+			httpClusterAddr, tchannelClusterAddr,
+			httpNodeAddr, tchannelNodeAddr,
+			ts.db, ts.m3dbClient, ts.storageOpts, ts.doneCh,
+		); err != nil {
 			select {
 			case resultCh <- err:
 			default:
@@ -287,6 +298,10 @@ func (ts *testSetup) truncate(req *rpc.TruncateRequest) (int64, error) {
 		return tchannelClientTruncate(ts.tchannelClient, ts.opts.TruncateRequestTimeout(), req)
 	}
 	return m3dbClientTruncate(ts.m3dbClient, req)
+}
+
+func (ts *testSetup) health() (*rpc.NodeHealthResult_, error) {
+	return tchannelClientHealth(ts.tchannelClient)
 }
 
 func (ts *testSetup) close() {

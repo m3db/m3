@@ -63,14 +63,14 @@ func (o *staticOptions) Validate() error {
 	// shard has at least the required replicas mapped to
 	// NB(r): We allow greater than the required replicas in case
 	// node is streaming in and needs to take writes
-	totalShards := len(o.shardSet.Shards())
+	totalShards := len(o.shardSet.AllIDs())
 	hostAddressesByShard := make([]map[string]struct{}, totalShards)
 	for i := range hostAddressesByShard {
 		hostAddressesByShard[i] = make(map[string]struct{}, o.replicas)
 	}
 	for _, hostShardSet := range o.hostShardSets {
 		hostAddress := hostShardSet.Host().Address()
-		for _, shard := range hostShardSet.ShardSet().Shards() {
+		for _, shard := range hostShardSet.ShardSet().AllIDs() {
 			hostAddressesByShard[shard][hostAddress] = struct{}{}
 		}
 	}
@@ -126,7 +126,7 @@ type dynamicOptions struct {
 // NewDynamicOptions creates a new set of dynamic topology options
 func NewDynamicOptions() DynamicOptions {
 	return &dynamicOptions{
-		serviceID:         services.NewServiceID(),
+		serviceID:         services.NewServiceID().SetName(defaultServiceName),
 		queryOptions:      services.NewQueryOptions(),
 		instrumentOptions: instrument.NewOptions(),
 		initTimeout:       defaultInitTimeout,

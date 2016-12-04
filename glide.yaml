@@ -25,7 +25,7 @@ import:
   - require
 
 - package: github.com/uber/tchannel-go
-  version: 9701a0d5a8bfab135c6366a7c123a9b1df76421c
+  version: 8d570ed87acb2661d390c096215260f3f9e9b931
   subpackages:
   - thrift
 
@@ -42,7 +42,7 @@ import:
   - services
 
 - package: github.com/m3db/m3x
-  version: 9b04ee8d5df3d831683cac4124c66d9abe60b37e
+  version: c95055f7a69f49ffba6040d25d0804705b7ea8b5
   subpackages:
   - close
   - errors

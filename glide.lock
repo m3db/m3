@@ -1,5 +1,5 @@
-hash: e6659bdb570f0ed8e3f0cc08c8402ab1128a665c6af9f7be3098644ce0c6c093
-updated: 2016-12-02T01:41:55.478544827-05:00
+hash: d2bb67550897148e6e6ea262a3bb55a1d840678fb93bd3c9a7963f2bd8ad16ae
+updated: 2016-12-03T17:42:54.9450546-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -25,9 +25,10 @@ imports:
   - client
   - kv
   - services
+  - services/placement
   - shard
 - name: github.com/m3db/m3x
-  version: 9b04ee8d5df3d831683cac4124c66d9abe60b37e
+  version: c95055f7a69f49ffba6040d25d0804705b7ea8b5
   subpackages:
   - close
   - errors
@@ -58,7 +59,7 @@ imports:
 - name: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
 - name: github.com/uber/tchannel-go
-  version: 9701a0d5a8bfab135c6366a7c123a9b1df76421c
+  version: 8d570ed87acb2661d390c096215260f3f9e9b931
   subpackages:
   - relay
   - thrift
@@ -69,7 +70,7 @@ imports:
 - name: github.com/willf/bitset
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
 - name: golang.org/x/net
-  version: 97edce0b2e423f6a8debb459af47f4a3cb4ff954
+  version: 6cdc0daab091c43fc46193327e0047b4f883c613
   subpackages:
   - context
 testImports: []

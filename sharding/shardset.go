@@ -24,41 +24,63 @@ import (
 	"errors"
 	"math"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/ts"
+
 	"github.com/spaolacci/murmur3"
 )
 
 var (
-	// ErrNoShards returned when shard set is empty
-	ErrNoShards = errors.New("empty shard set")
 	// ErrDuplicateShards returned when shard set is empty
 	ErrDuplicateShards = errors.New("duplicate shards")
 )
 
 type shardSet struct {
-	shards []uint32
+	shards []shard.Shard
+	ids    []uint32
 	fn     HashFn
 }
 
 // NewShardSet creates a new sharding scheme with a set of shards
-func NewShardSet(shards []uint32, fn HashFn) (ShardSet, error) {
+func NewShardSet(shards []shard.Shard, fn HashFn) (ShardSet, error) {
 	if err := validateShards(shards); err != nil {
 		return nil, err
 	}
-	return &shardSet{shards, fn}, nil
+	return newValidatedShardSet(shards, fn), nil
 }
 
-func (s *shardSet) Shard(identifier ts.ID) uint32 {
+// NewEmptyShardSet creates a new sharding scheme with an empty set of shards
+func NewEmptyShardSet(fn HashFn) ShardSet {
+	return newValidatedShardSet(nil, fn)
+}
+
+func newValidatedShardSet(shards []shard.Shard, fn HashFn) ShardSet {
+	ids := make([]uint32, len(shards))
+	for i := range ids {
+		ids[i] = shards[i].ID()
+	}
+	return &shardSet{
+		shards: shards,
+		ids:    ids,
+		fn:     fn,
+	}
+}
+
+func (s *shardSet) Lookup(identifier ts.ID) uint32 {
 	return s.fn(identifier)
 }
 
-func (s *shardSet) Shards() []uint32 {
+func (s *shardSet) All() []shard.Shard {
 	return s.shards[:]
+}
+
+func (s *shardSet) AllIDs() []uint32 {
+	return s.ids[:]
 }
 
 func (s *shardSet) Min() uint32 {
 	min := uint32(math.MaxUint32)
-	for _, shard := range s.shards {
+	for _, shard := range s.ids {
 		if shard < min {
 			min = shard
 		}
@@ -68,7 +90,7 @@ func (s *shardSet) Min() uint32 {
 
 func (s *shardSet) Max() uint32 {
 	max := uint32(0)
-	for _, shard := range s.shards {
+	for _, shard := range s.ids {
 		if shard > max {
 			max = shard
 		}
@@ -80,16 +102,31 @@ func (s *shardSet) HashFn() HashFn {
 	return s.fn
 }
 
-func validateShards(shards []uint32) error {
-	if len(shards) <= 0 {
-		return ErrNoShards
+// NewShards returns a new slice of shards with a specified state
+func NewShards(ids []uint32, state shard.State) []shard.Shard {
+	shards := make([]shard.Shard, len(ids))
+	for i, id := range ids {
+		shards[i] = shard.NewShard(id).SetState(state)
 	}
+	return shards
+}
+
+// IDs returns a new slice of shard IDs for a set of shards
+func IDs(shards []shard.Shard) []uint32 {
+	ids := make([]uint32, len(shards))
+	for i := range ids {
+		ids[i] = shards[i].ID()
+	}
+	return ids
+}
+
+func validateShards(shards []shard.Shard) error {
 	uniqueShards := make(map[uint32]struct{}, len(shards))
 	for _, s := range shards {
-		if _, exist := uniqueShards[s]; exist {
+		if _, exist := uniqueShards[s.ID()]; exist {
 			return ErrDuplicateShards
 		}
-		uniqueShards[s] = struct{}{}
+		uniqueShards[s.ID()] = struct{}{}
 	}
 	return nil
 }

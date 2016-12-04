@@ -21,6 +21,7 @@
 package sharding
 
 import (
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/ts"
 )
 
@@ -33,11 +34,14 @@ type HashFn func(id ts.ID) uint32
 // ShardSet contains a sharding function and a set of shards, this interface
 // allows for potentially out of order shard sets
 type ShardSet interface {
-	// Shard will return a shard for a given identifier
-	Shard(id ts.ID) uint32
+	// All returns a slice to the shards in this set
+	All() []shard.Shard
 
-	// Shards returns a slice to the shards in this set
-	Shards() []uint32
+	// AllIDs returns a slice to the shard IDs in this set
+	AllIDs() []uint32
+
+	// Lookup will return a shard for a given identifier
+	Lookup(id ts.ID) uint32
 
 	// Min returns the smallest shard owned by this shard set
 	Min() uint32

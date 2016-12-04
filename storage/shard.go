@@ -22,6 +22,7 @@ package storage
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -41,6 +42,8 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -50,12 +53,33 @@ const (
 	defaultTickSleepIfAheadEvery           = 128
 )
 
+var (
+	errShardEntryNotFound = errors.New("shard entry not found")
+	errShardNotOpen       = errors.New("shard is not open")
+)
+
 type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
+
+type tickPolicy int
+
+const (
+	tickPolicyRegular tickPolicy = iota
+	tickPolicyForceExpiry
+)
+
+type dbShardState int
+
+const (
+	dbShardStateOpen dbShardState = iota
+	dbShardStateClosing
+	dbShardStateClosed
+)
 
 type dbShard struct {
 	sync.RWMutex
 	opts                  Options
 	nowFn                 clock.NowFn
+	state                 dbShardState
 	namespace             ts.ID
 	shard                 uint32
 	increasingIndex       increasingIndex
@@ -70,6 +94,23 @@ type dbShard struct {
 	tickSleepIfAheadEvery int
 	sleepFn               func(time.Duration)
 	identifierPool        ts.IdentifierPool
+	metrics               dbShardMetrics
+}
+
+type dbShardMetrics struct {
+	create       tally.Counter
+	close        tally.Counter
+	closeStart   tally.Counter
+	closeLatency tally.Timer
+}
+
+func newDbShardMetrics(scope tally.Scope) dbShardMetrics {
+	return dbShardMetrics{
+		create:       scope.Counter("create"),
+		close:        scope.Counter("close"),
+		closeStart:   scope.Counter("close-start"),
+		closeLatency: scope.Timer("close-latency"),
+	}
 }
 
 type dbShardEntry struct {
@@ -102,9 +143,12 @@ func newDatabaseShard(
 	needsBootstrap bool,
 	opts Options,
 ) databaseShard {
+	scope := opts.InstrumentOptions().MetricsScope().
+		SubScope("dbshard")
 	d := &dbShard{
 		opts:                  opts,
 		nowFn:                 opts.ClockOptions().NowFn(),
+		state:                 dbShardStateOpen,
 		namespace:             namespace,
 		shard:                 shard,
 		increasingIndex:       increasingIndex,
@@ -117,11 +161,13 @@ func newDatabaseShard(
 		tickSleepIfAheadEvery: defaultTickSleepIfAheadEvery,
 		sleepFn:               time.Sleep,
 		identifierPool:        opts.IdentifierPool(),
+		metrics:               newDbShardMetrics(scope),
 	}
 	if !needsBootstrap {
 		d.bs = bootstrapped
 		d.newSeriesBootstrapped = true
 	}
+	d.metrics.create.Inc(1)
 	return d
 }
 
@@ -178,11 +224,53 @@ func (s *dbShard) forBatchWithLock(
 	return nextElem
 }
 
-func (s *dbShard) Tick(softDeadline time.Duration) tickResult {
-	return s.tickAndExpire(softDeadline)
+func (s *dbShard) IsBootstrapping() bool {
+	s.RLock()
+	state := s.bs
+	s.RUnlock()
+	return state == bootstrapping
 }
 
-func (s *dbShard) tickAndExpire(softDeadline time.Duration) tickResult {
+func (s *dbShard) IsBootstrapped() bool {
+	s.RLock()
+	state := s.bs
+	s.RUnlock()
+	return state == bootstrapped
+}
+
+func (s *dbShard) Close() error {
+	s.Lock()
+	if s.state != dbShardStateOpen {
+		s.Unlock()
+		return errShardNotOpen
+	}
+	s.state = dbShardStateClosing
+	s.Unlock()
+
+	s.metrics.closeStart.Inc(1)
+	start := s.metrics.closeLatency.Start()
+	defer func() {
+		s.metrics.close.Inc(1)
+		s.metrics.closeLatency.Stop(start)
+	}()
+
+	// NB(r): Asynchronously we purge expired series to ensure pressure on the
+	// GC is not placed all at one time.  If the deadline is too low and still
+	// causes the GC to impact performance when closing shards the deadline
+	// should be increased.
+	s.tickAndExpire(s.opts.ShardCloseDeadline(), tickPolicyForceExpiry)
+
+	return nil
+}
+
+func (s *dbShard) Tick(softDeadline time.Duration) tickResult {
+	return s.tickAndExpire(softDeadline, tickPolicyRegular)
+}
+
+func (s *dbShard) tickAndExpire(
+	softDeadline time.Duration,
+	policy tickPolicy,
+) tickResult {
 	var (
 		r                    tickResult
 		perEntrySoftDeadline time.Duration
@@ -201,7 +289,16 @@ func (s *dbShard) tickAndExpire(softDeadline time.Duration) tickResult {
 				s.sleepFn(prevEntryDeadline.Sub(now))
 			}
 		}
-		result, err := entry.series.Tick()
+		var (
+			result series.TickResult
+			err    error
+		)
+		switch policy {
+		case tickPolicyRegular:
+			result, err = entry.series.Tick()
+		case tickPolicyForceExpiry:
+			err = series.ErrSeriesAllDatapointsExpired
+		}
 		if err == series.ErrSeriesAllDatapointsExpired {
 			expired = append(expired, entry.series)
 			r.expiredSeries++
@@ -243,10 +340,11 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 	s.Lock()
 	for _, series := range expired {
 		id := series.ID()
-		entry, elem, exists := s.getEntryWithLock(id)
+		elem, exists := s.lookup[id.Hash()]
 		if !exists {
 			continue
 		}
+		entry := elem.Value.(*dbShardEntry)
 		// If this series is currently being written to, we don't remove
 		// it even though it's empty in that it might become non-empty soon.
 		if entry.writerCount() > 0 {
@@ -276,12 +374,14 @@ func (s *dbShard) Write(
 	annotation []byte,
 ) error {
 	// Prepare write
-	entry := s.writableSeries(id)
+	entry, err := s.writableSeries(id)
+	if err != nil {
+		return err
+	}
 
 	// Perform write
-	err := entry.series.Write(ctx, timestamp, value, unit, annotation)
+	err = entry.series.Write(ctx, timestamp, value, unit, annotation)
 	entry.decrementWriterCount()
-
 	if err != nil {
 		return err
 	}
@@ -308,29 +408,40 @@ func (s *dbShard) ReadEncoded(
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
-	entry, _, exists := s.getEntryWithLock(id)
+	entry, _, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
-	if !exists {
+	if err == errShardEntryNotFound {
 		return nil, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 	return entry.series.ReadEncoded(ctx, start, end)
 }
 
-// getEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
-func (s *dbShard) getEntryWithLock(id ts.ID) (*dbShardEntry, *list.Element, bool) {
+// lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
+func (s *dbShard) lookupEntryWithLock(id ts.ID) (*dbShardEntry, *list.Element, error) {
+	if s.state != dbShardStateOpen {
+		// NB(r): Return an invalid params error here so any upstream
+		// callers will not retry this operation
+		return nil, nil, xerrors.NewInvalidParamsError(errShardNotOpen)
+	}
 	elem, exists := s.lookup[id.Hash()]
 	if !exists {
-		return nil, nil, false
+		return nil, nil, errShardEntryNotFound
 	}
-	return elem.Value.(*dbShardEntry), elem, true
+	return elem.Value.(*dbShardEntry), elem, nil
 }
 
-func (s *dbShard) writableSeries(id ts.ID) *dbShardEntry {
+func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	s.RLock()
-	if entry, _, exists := s.getEntryWithLock(id); exists {
+	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
 		entry.incrementWriterCount()
 		s.RUnlock()
-		return entry
+		return entry, nil
+	} else if err != errShardEntryNotFound {
+		s.RUnlock()
+		return nil, err
 	}
 	s.RUnlock()
 
@@ -345,12 +456,16 @@ func (s *dbShard) writableSeries(id ts.ID) *dbShardEntry {
 	}
 
 	s.Lock()
-	if entry, _, exists := s.getEntryWithLock(id); exists {
+	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
 		entry.incrementWriterCount()
 		s.Unlock()
 		// During Rlock -> Wlock promotion the entry was inserted
-		return entry
+		return entry, nil
+	} else if err != errShardEntryNotFound {
+		s.Unlock()
+		return nil, err
 	}
+
 	// Must set the index inside the write lock to ensure ID indexes are ascending in order
 	entry.index = s.increasingIndex.nextIndex()
 	if s.newSeriesBootstrapped {
@@ -358,24 +473,28 @@ func (s *dbShard) writableSeries(id ts.ID) *dbShardEntry {
 		entry.series.Bootstrap(nil)
 	}
 	elem := s.list.PushBack(entry)
+
 	s.lookup[id.Hash()] = elem
 	s.Unlock()
 
-	return entry
+	return entry, nil
 }
 
 func (s *dbShard) FetchBlocks(
 	ctx context.Context,
 	id ts.ID,
 	starts []time.Time,
-) []block.FetchBlockResult {
+) ([]block.FetchBlockResult, error) {
 	s.RLock()
-	entry, _, exists := s.getEntryWithLock(id)
+	entry, _, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
-	if !exists {
-		return nil
+	if err == errShardEntryNotFound {
+		return nil, nil
 	}
-	return entry.series.FetchBlocks(ctx, starts)
+	if err != nil {
+		return nil, err
+	}
+	return entry.series.FetchBlocks(ctx, starts), nil
 }
 
 func (s *dbShard) FetchBlocksMetadata(
@@ -428,8 +547,7 @@ func (s *dbShard) FetchBlocksMetadata(
 }
 
 func (s *dbShard) Bootstrap(
-	bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocksWrapper,
-	writeStart time.Time,
+	bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocks,
 ) error {
 	s.Lock()
 	if s.bs == bootstrapped {
@@ -445,8 +563,12 @@ func (s *dbShard) Bootstrap(
 
 	multiErr := xerrors.NewMultiError()
 	for _, dbBlocks := range bootstrappedSeries {
-		entry := s.writableSeries(dbBlocks.ID)
-		err := entry.series.Bootstrap(dbBlocks.Blocks)
+		entry, err := s.writableSeries(dbBlocks.ID)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+		err = entry.series.Bootstrap(dbBlocks.Blocks)
 		entry.decrementWriterCount()
 		multiErr = multiErr.Add(err)
 	}

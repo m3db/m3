@@ -28,11 +28,9 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -40,6 +38,8 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -48,6 +48,12 @@ const (
 
 	// defaultMaxFlushRetries is the default number of retries when flush fails
 	defaultMaxFlushRetries = 3
+
+	// defaultShardCloseDeadline is the default soft deadline to give when closing shards,
+	// it is used to gate the impact of closing the shard on the performnace of the process.
+	// It by default is 2 minutes which aligns with the Go GC timer so it should at least be
+	// split across two GC cycles somewhat.
+	defaultShardCloseDeadline = 2 * time.Minute
 
 	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket
 	defaultBytesPoolBucketCapacity = 256
@@ -95,6 +101,7 @@ type options struct {
 	newBootstrapFn                 NewBootstrapFn
 	newPersistManagerFn            NewPersistManagerFn
 	maxFlushRetries                int
+	shardCloseDeadline             time.Duration
 	contextPool                    context.Pool
 	seriesPool                     series.DatabaseSeriesPool
 	bytesPool                      pool.BytesPool
@@ -122,6 +129,7 @@ func NewOptions() Options {
 		newBootstrapFn:                 defaultNewBootstrapFn,
 		newPersistManagerFn:            defaultNewPersistManagerFn,
 		maxFlushRetries:                defaultMaxFlushRetries,
+		shardCloseDeadline:             defaultShardCloseDeadline,
 		contextPool:                    context.NewPool(nil, nil),
 		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
 		bytesPool:                      pool.NewBytesPool(nil, nil),
@@ -348,6 +356,16 @@ func (o *options) SetMaxFlushRetries(value int) Options {
 
 func (o *options) MaxFlushRetries() int {
 	return o.maxFlushRetries
+}
+
+func (o *options) SetShardCloseDeadline(value time.Duration) Options {
+	opts := *o
+	opts.shardCloseDeadline = value
+	return &opts
+}
+
+func (o *options) ShardCloseDeadline() time.Duration {
+	return o.shardCloseDeadline
 }
 
 func (o *options) SetContextPool(value context.Pool) Options {

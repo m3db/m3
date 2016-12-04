@@ -27,10 +27,10 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
-	instrument "github.com/m3db/m3x/instrument"
 	fs "github.com/m3db/m3db/persist/fs"
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
+	instrument "github.com/m3db/m3x/instrument"
 	time0 "github.com/m3db/m3x/time"
 	time "time"
 )

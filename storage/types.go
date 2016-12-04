@@ -26,18 +26,19 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -45,6 +46,12 @@ import (
 type Database interface {
 	// Options returns the database options
 	Options() Options
+
+	// AssignShardSet sets the shard set assignment and returns immediately
+	AssignShardSet(shardSet sharding.ShardSet)
+
+	// Namespaces returns the namespaces
+	Namespaces() []Namespace
 
 	// Open will open the database for writing and reading
 	Open() error
@@ -107,12 +114,32 @@ type Database interface {
 	Truncate(namespace ts.ID) (int64, error)
 }
 
-type databaseNamespace interface {
+// Namespace is a time series database namespace
+type Namespace interface {
 	// ID returns the ID of the namespace
 	ID() ts.ID
 
 	// NumSeries returns the number of series in the namespace
 	NumSeries() int64
+
+	// Shards returns the shards
+	Shards() []Shard
+}
+
+// NamespacesByID is a sortable slice of namespaces by ID
+type NamespacesByID []Namespace
+
+func (n NamespacesByID) Len() int      { return len(n) }
+func (n NamespacesByID) Swap(i, j int) { n[i], n[j] = n[j], n[i] }
+func (n NamespacesByID) Less(i, j int) bool {
+	return n[i].ID().String() < n[j].ID().String()
+}
+
+type databaseNamespace interface {
+	Namespace
+
+	// AssignShardSet sets the shard set assignment and returns immediately
+	AssignShardSet(shardSet sharding.ShardSet)
 
 	// Tick performs any regular maintenance operations
 	Tick(softDeadline time.Duration)
@@ -157,7 +184,6 @@ type databaseNamespace interface {
 	Bootstrap(
 		bs bootstrap.Bootstrap,
 		targetRanges xtime.Ranges,
-		writeStart time.Time,
 	) error
 
 	// Flush flushes in-memory data
@@ -173,10 +199,26 @@ type databaseNamespace interface {
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
 }
 
-type databaseShard interface {
+// Shard is a time series database shard
+type Shard interface {
+	// ID returns the ID of the shard
 	ID() uint32
 
+	// NumSeries returns the number of series in the shard
 	NumSeries() int64
+
+	// IsBootstrapped returns whether the shard is bootstrapping
+	IsBootstrapping() bool
+
+	// IsBootstrapped returns whether the shard is already bootstrapped
+	IsBootstrapped() bool
+}
+
+type databaseShard interface {
+	Shard
+
+	// Close will release the shard resources and close the shard
+	Close() error
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
 	Tick(softDeadline time.Duration) tickResult
@@ -201,7 +243,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ts.ID,
 		starts []time.Time,
-	) []block.FetchBlockResult
+	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata retrieves the blocks metadata.
 	FetchBlocksMetadata(
@@ -214,8 +256,7 @@ type databaseShard interface {
 	) (block.FetchBlocksMetadataResults, *int64)
 
 	Bootstrap(
-		bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocksWrapper,
-		writeStart time.Time,
+		bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocks,
 	) error
 
 	// Flush flushes the series in this shard.
@@ -239,11 +280,13 @@ type databaseShard interface {
 
 // databaseBootstrapManager manages the bootstrap process.
 type databaseBootstrapManager interface {
+	// IsBootstrapped returns whether the database is bootstrapping.
+	IsBootstrapping() bool
+
 	// IsBootstrapped returns whether the database is already bootstrapped.
 	IsBootstrapped() bool
 
-	// Bootstrap performs bootstrapping for all shards owned by db. It returns an error
-	// if the server is currently being bootstrapped, and nil otherwise.
+	// Bootstrap performs bootstrapping for all namespaces and shards owned.
 	Bootstrap() error
 }
 
@@ -424,6 +467,14 @@ type Options interface {
 
 	// MaxFlushRetries returns the maximum number of retries when data flushing fails
 	MaxFlushRetries() int
+
+	// SetShardCloseDeadline sets the deadline to close shards, increase from
+	// default to avoid high GC pressure during resharding
+	SetShardCloseDeadline(value time.Duration) Options
+
+	// ShardCloseDeadline returns the deadline to close shards, increase from
+	// default to avoid high GC pressure during resharding
+	ShardCloseDeadline() time.Duration
 
 	// SetContextPool sets the contextPool
 	SetContextPool(value context.Pool) Options

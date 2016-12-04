@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,6 +84,7 @@ func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 	bind := "0.0.0.0"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
 	return opts.
+		SetID(fmt.Sprintf("testhost%d", instance)).
 		SetTChannelNodeAddr(fmt.Sprintf("%s:%d", bind, start)).
 		SetTChannelClusterAddr(fmt.Sprintf("%s:%d", bind, start+1)).
 		SetHTTPNodeAddr(fmt.Sprintf("%s:%d", bind, start+2)).
@@ -107,7 +109,7 @@ func newMultiAddrAdminClient(
 		origin        topology.Host
 	)
 	for i := 0; i < replicas; i++ {
-		id := fmt.Sprintf("localhost%d", i)
+		id := fmt.Sprintf("testhost%d", i)
 		nodeAddr := fmt.Sprintf("127.0.0.1:%d", start+(i*multiAddrPortEach))
 		host := topology.NewHost(id, nodeAddr)
 		if i == instance {
@@ -154,6 +156,7 @@ type bootstrappableTestSetupOptions struct {
 	disablePeersBootstrapper   bool
 	bootstrapBlocksBatchSize   int
 	bootstrapBlocksConcurrency int
+	topologyInitializer        topology.Initializer
 	testStatsReporter          xmetrics.TestStatsReporter
 }
 
@@ -182,10 +185,15 @@ func newDefaultBootstrappableTestSetups(
 			usingPeersBoostrapper      = !setupOpts[i].disablePeersBootstrapper
 			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
 			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
+			topologyInitializer        = setupOpts[i].topologyInitializer
 			testStatsReporter          = setupOpts[i].testStatsReporter
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
 			setup                      *testSetup
 		)
+		if topologyInitializer != nil {
+			instanceOpts = instanceOpts.
+				SetClusterDatabaseTopologyInitializer(topologyInitializer)
+		}
 		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
 			instrumentOpts := setup.storageOpts.InstrumentOptions()
 
@@ -317,12 +325,12 @@ func writeToDisk(
 	seriesList seriesList,
 ) error {
 	seriesPerShard := make(map[uint32][]series)
-	for _, shard := range shardSet.Shards() {
+	for _, shard := range shardSet.AllIDs() {
 		// Ensure we write out block files for each shard even if there's no data
 		seriesPerShard[shard] = make([]series, 0)
 	}
 	for _, s := range seriesList {
-		shard := shardSet.Shard(s.ID)
+		shard := shardSet.Lookup(s.ID)
 		seriesPerShard[shard] = append(seriesPerShard[shard], s)
 	}
 	segmentHolder := make([][]byte, 2)
@@ -350,4 +358,76 @@ func writeToDisk(
 	}
 
 	return nil
+}
+
+func concatShards(a, b shard.Shards) shard.Shards {
+	all := append(a.All(), b.All()...)
+	return shard.NewShards(all)
+}
+
+func newShardsRange(from, to uint32) []uint32 {
+	var ids []uint32
+	for i := from; i <= to; i++ {
+		ids = append(ids, i)
+	}
+	return ids
+}
+
+func newClusterShards(ids []uint32, s shard.State) shard.Shards {
+	var shards []shard.Shard
+	for _, id := range ids {
+		shards = append(shards, shard.NewShard(id).SetState(s))
+	}
+	return shard.NewShards(shards)
+}
+
+func newClusterShardsRange(from, to uint32, s shard.State) shard.Shards {
+	return newClusterShards(newShardsRange(from, to), s)
+}
+
+func newClusterEmptyShardsRange() shard.Shards {
+	return newClusterShards(nil, shard.Available)
+}
+
+func waitUntilHasBootstrappedShardsExactly(
+	db storage.Database,
+	shards []uint32,
+) {
+	for {
+		if hasBootstrappedShardsExactly(db, shards) {
+			return
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func hasBootstrappedShardsExactly(
+	db storage.Database,
+	shards []uint32,
+) bool {
+	for _, namespace := range db.Namespaces() {
+		expect := make(map[uint32]struct{})
+		pending := make(map[uint32]struct{})
+		for _, shard := range shards {
+			expect[shard] = struct{}{}
+			pending[shard] = struct{}{}
+		}
+
+		for _, s := range namespace.Shards() {
+			if _, ok := expect[s.ID()]; !ok {
+				// Not expecting shard
+				return false
+			}
+			if s.IsBootstrapped() {
+				delete(pending, s.ID())
+			}
+		}
+
+		if len(pending) != 0 {
+			// Not all shards bootstrapped
+			return false
+		}
+	}
+
+	return true
 }

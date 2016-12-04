@@ -112,15 +112,15 @@ func (m replicaBlocksMetadata) Close() {
 }
 
 // NB(xichen): replicaSeriesMetadata is not thread-safe
-type replicaSeriesMetadata map[ts.Hash]ReplicaBlocksMetadataWrapper
+type replicaSeriesMetadata map[ts.Hash]ReplicaSeriesBlocksMetadata
 
 // NewReplicaSeriesMetadata creates a new replica series metadata
 func NewReplicaSeriesMetadata() ReplicaSeriesMetadata {
 	return make(replicaSeriesMetadata, defaultReplicaSeriesMetadataCapacity)
 }
 
-func (m replicaSeriesMetadata) NumSeries() int64                                 { return int64(len(m)) }
-func (m replicaSeriesMetadata) Series() map[ts.Hash]ReplicaBlocksMetadataWrapper { return m }
+func (m replicaSeriesMetadata) NumSeries() int64                                { return int64(len(m)) }
+func (m replicaSeriesMetadata) Series() map[ts.Hash]ReplicaSeriesBlocksMetadata { return m }
 
 func (m replicaSeriesMetadata) NumBlocks() int64 {
 	var numBlocks int64
@@ -135,7 +135,7 @@ func (m replicaSeriesMetadata) GetOrAdd(id ts.ID) ReplicaBlocksMetadata {
 	if exists {
 		return blocks.Metadata
 	}
-	blocks = ReplicaBlocksMetadataWrapper{
+	blocks = ReplicaSeriesBlocksMetadata{
 		ID:       id,
 		Metadata: NewReplicaBlocksMetadata(),
 	}

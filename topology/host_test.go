@@ -40,14 +40,14 @@ func TestNewHostShardSetFromServiceInstance(t *testing.T) {
 			shard.NewShard(3),
 		}))
 	hash := sharding.DefaultHashGen(3)
-	host, err := NewHostShardSetFromServiceInstance(i1, hash)
+	host, err := newHostShardSetFromServiceInstance(i1, hash)
 	assert.NoError(t, err)
 	assert.Equal(t, "h1:9000", host.Host().Address())
 	assert.Equal(t, "h1", host.Host().ID())
-	assert.Equal(t, 3, len(host.ShardSet().Shards()))
+	assert.Equal(t, 3, len(host.ShardSet().AllIDs()))
 	assert.Equal(t, uint32(1), host.ShardSet().Min())
 	assert.Equal(t, uint32(3), host.ShardSet().Max())
 
 	id := ts.StringID("id")
-	assert.Equal(t, host.ShardSet().Shard(id), hash(id))
+	assert.Equal(t, host.ShardSet().Lookup(id), hash(id))
 }
