@@ -224,8 +224,8 @@ func (l *commitLog) write() {
 			}
 		}
 
-		err := l.writer.Write(
-			write.series, write.datapoint, write.unit, write.annotation)
+		err := l.writer.Write(write.series,
+			write.datapoint, write.unit, write.annotation)
 		write.series.ID.OnClose()
 
 		if err != nil {
