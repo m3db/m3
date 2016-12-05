@@ -37,9 +37,7 @@ type enqueueChannel struct {
 func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
 	c := &enqueueChannel{
 		peersMetadataCh: make(chan []*blocksMetadata, 2*4096),
-		// give channel capacity for twice the total number of shards to prevent
-		// deadlock on re-enqueue
-		// todo@bl: can this be 4097 instead?
+		// capacity for 2x the total number of peers avoids deadlock on re-enqueue
 		qGauge: m.blocksEnqueueChannel,
 	}
 	go c.updateGauge()
