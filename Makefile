@@ -32,7 +32,7 @@ VENDOR_ENV := GO15VENDOREXPERIMENT=1
 SERVICES := \
 	m3dbnode
 
-TOOLS :=
+TOOLS := iddump
 
 setup:
 	mkdir -p $(BUILD)
