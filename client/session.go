@@ -1373,16 +1373,12 @@ func (s *session) streamBlocksBatchFromPeer(
 				break
 			}
 
-			// Index of the received block could be offset by missed blocks
-			resultBlock := result.Elements[i].Blocks[j-missed]
-
 			if err := s.validateBlock(
-				resultBlock,
+				result.Elements[i].Blocks[j-missed], // Index of the received block could be offset by missed blocks
 				batch[i].blocks[j],
 				blocksResult,
 				earliestBlockStart,
-				id,
-				peer.Host().String()); err != nil {
+				id, peer.Host().String()); err != nil {
 				if err == errBlockStartMismatch {
 					missed++
 				}
