@@ -46,7 +46,7 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 		queues[i] = s.newHostQueue(hosts[i], topologyMap)
 	}
 
-	shards := topologyMap.ShardSet().Shards()
+	shards := topologyMap.ShardSet().AllIDs()
 	minConnectionCount := s.opts.MinConnectionCount()
 	replicas := topologyMap.Replicas()
 	majority := topologyMap.MajorityReplicas()
@@ -112,7 +112,7 @@ func (s *session) initHostQueues(topologyMap topology.Map) ([]hostQueue, int, in
 			case ConnectConsistencyLevelOne:
 				clusterAvailableForShard = shardReplicasAvailable > 0
 			default:
-				return nil, 0, 0, errSessionInvalidConnectClusterConnectConsistencyLevel
+				return nil, 0, 0, errSessionInvalidConsistencyLevel
 			}
 			if !clusterAvailableForShard {
 				clusterAvailable = false

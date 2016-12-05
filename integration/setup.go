@@ -196,16 +196,6 @@ func (ts *testSetup) waitUntilServerIsUp() error {
 		resp, err := ts.health()
 		return err == nil && resp.Bootstrapped
 	}
-}
-
-func fakeRequest() *rpc.FetchRequest {
-	req := rpc.NewFetchRequest()
-	req.NameSpace = testNamespaces[0].String()
-	return req
-}
-
-func (ts *testSetup) waitUntilServerIsUp() error {
-	serverIsUp := func() bool { _, err := ts.fetch(fakeRequest()); return err == nil }
 	if waitUntil(serverIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}

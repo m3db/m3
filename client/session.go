@@ -57,16 +57,14 @@ const (
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
 	// ensuring at least each partition has an up node with a connection to it
-	ErrClusterConnectTimeout = errors.New("timed out establishing min connections to cluster")
-	// errSessionStateNotInitial is raised when trying to open a session not in the initial clean state
-	errSessionStateNotInitial = errors.New("session not in initial state")
-	// errSessionStateNotOpen is raised when operations are requested from a session not in the open state
-	errSessionStateNotOpen = errors.New("session not in open state")
-	// errSessionBadBlockResultFromPeer is raised when there is a bad block return from a peer
-	errSessionBadBlockResultFromPeer = errors.New("session fetched bad block result from peer")
-	// errSessionInvalidConnectClusterConnectConsistencyLevel is raised when
-	// the connect consistency level specified is not recognized
-	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New("session has invalid connect consistency level specified")
+	ErrClusterConnectTimeout          = errors.New("timed out establishing min connections to cluster")
+	errSessionStateNotInitial         = errors.New("session not in the initial clean state")
+	errSessionStateNotOpen            = errors.New("session not in open state")
+	errSessionBadBlockResultFromPeer  = errors.New("session fetched bad block result from peer")
+	errSessionInvalidConsistencyLevel = errors.New("session has invalid connect consistency level specified")
+
+	errBlockStartMismatch = errors.New("block starts don't match")
+	errBlock              = errors.New("block failed")
 )
 
 type session struct {
@@ -82,6 +80,7 @@ type session struct {
 	topo                             topology.Topology
 	topoMap                          topology.Map
 	topoWatch                        topology.MapWatch
+	origin                           topology.Host
 	replicas                         int32
 	majority                         int32
 	queues                           []hostQueue
@@ -97,7 +96,6 @@ type session struct {
 	writeStatePool                   sync.Pool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
-	origin                           topology.Host
 	streamBlocksWorkers              xsync.WorkerPool
 	streamBlocksResultsProcessors    chan struct{}
 	streamBlocksBatchSize            int
@@ -1304,20 +1302,16 @@ func (s *session) streamBlocksBatchFromPeer(
 		earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
 	)
 
-	for i := range batch {
-		starts := make([]int64, 0, len(batch[i].blocks))
-		sort.Sort(blockMetadatasByTime(batch[i].blocks))
-		for j := range batch[i].blocks {
-			blockStart := batch[i].blocks[j].start
-			if blockStart.Before(earliestBlockStart) {
+	for i, b := range batch {
+		starts := make([]int64, 0, len(b.blocks))
+		sort.Sort(blockMetadatasByTime(b.blocks))
+		for _, block := range b.blocks {
+			if block.start.Before(earliestBlockStart) {
 				continue // Fell out of retention while we were streaming blocks
 			}
-			starts = append(starts, blockStart.UnixNano())
+			starts = append(starts, block.start.UnixNano())
 		}
-		req.Elements[i] = &rpc.FetchBlocksRawRequestElement{
-			ID:     batch[i].id.Data(),
-			Starts: starts,
-		}
+		req.Elements[i] = &rpc.FetchBlocksRawRequestElement{ID: b.id.Data(), Starts: starts}
 	}
 
 	// Attempt request
@@ -1332,8 +1326,8 @@ func (s *session) streamBlocksBatchFromPeer(
 		return err
 	}); err != nil {
 		s.log.Errorf("stream blocks response from peer %s returned error: %v", peer.Host().String(), err)
-		for i := range batch {
-			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
+		for _, b := range batch {
+			s.streamBlocksReattemptFromPeers(b.blocks, enqueueCh)
 		}
 		return
 	}
@@ -1348,9 +1342,10 @@ func (s *session) streamBlocksBatchFromPeer(
 	token := <-s.streamBlocksResultsProcessors
 
 	// Parse and act on result
+
 	for i := range result.Elements {
 		if i >= len(batch) {
-			s.log.Errorf("stream blocks response from peer %s returned more IDs than expected", peer.Host().String())
+			s.log.Errorf("stream blocks response from peer %s returned too many IDs", peer.Host().String())
 			break
 		}
 
@@ -1367,6 +1362,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		}
 
 		missed := 0
+
 		for j := range result.Elements[i].Blocks {
 			if j >= len(batch[i].blocks) {
 				s.log.WithFields(
@@ -1378,59 +1374,68 @@ func (s *session) streamBlocksBatchFromPeer(
 			}
 
 			// Index of the received block could be offset by missed blocks
-			block := result.Elements[i].Blocks[j-missed]
+			resultBlock := result.Elements[i].Blocks[j-missed]
 
-			if block.Start != batch[i].blocks[j].start.UnixNano() {
-				missed++
-
-				// If fell out of retention during request this is healthy, otherwise an error
-				if !time.Unix(0, block.Start).Before(earliestBlockStart) {
-					failed := []blockMetadata{batch[i].blocks[j]}
-					s.streamBlocksReattemptFromPeers(failed, enqueueCh)
-					s.log.WithFields(
-						xlog.NewLogField("id", id.String()),
-						xlog.NewLogField("expectedStart", batch[i].blocks[j].start.UnixNano()),
-						xlog.NewLogField("actualStart", block.Start),
-						xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
-						xlog.NewLogField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
-						xlog.NewLogField("indexID", i),
-						xlog.NewLogField("indexBlock", j),
-					).Errorf("stream blocks response from peer %s returned mismatched block start", peer.Host().String())
+			if err := s.validateBlock(
+				resultBlock,
+				batch[i].blocks[j],
+				blocksResult,
+				earliestBlockStart,
+				id,
+				peer.Host().String()); err != nil {
+				if err == errBlockStartMismatch {
+					missed++
 				}
-				continue
+				s.streamBlocksReattemptFromPeers([]blockMetadata{batch[i].blocks[j]}, enqueueCh)
 			}
 
-			if block.Err != nil {
-				failed := []blockMetadata{batch[i].blocks[j]}
-				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
-				s.log.WithFields(
-					xlog.NewLogField("id", id.String()),
-					xlog.NewLogField("start", block.Start),
-					xlog.NewLogField("errorType", block.Err.Type),
-					xlog.NewLogField("errorMessage", block.Err.Message),
-					xlog.NewLogField("indexID", i),
-					xlog.NewLogField("indexBlock", j),
-				).Errorf("stream blocks response from peer %s returned block error", peer.Host().String())
-				continue
-			}
-
-			err := blocksResult.addBlockFromPeer(id, block)
-			if err != nil {
-				failed := []blockMetadata{batch[i].blocks[j]}
-				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
-				s.log.WithFields(
-					xlog.NewLogField("id", id.String()),
-					xlog.NewLogField("start", block.Start),
-					xlog.NewLogField("error", err),
-					xlog.NewLogField("indexID", i),
-					xlog.NewLogField("indexBlock", j),
-				).Errorf("stream blocks response from peer %s bad block response", peer.Host().String())
-			}
 		}
 	}
 
 	// Return token to continue collecting results in other go routines
 	s.streamBlocksResultsProcessors <- token
+}
+
+func (s *session) validateBlock(
+	resultBlock *rpc.Block,
+	batchBlock blockMetadata,
+	blocksResult *blocksResult,
+	earliestBlockStart time.Time,
+	id ts.ID,
+	host string,
+) error {
+	if resultBlock.Start != batchBlock.start.UnixNano() {
+		// If fell out of retention during request this is healthy, otherwise an error
+		if !time.Unix(0, resultBlock.Start).Before(earliestBlockStart) {
+			s.log.WithFields(
+				xlog.NewLogField("id", id.String()),
+				xlog.NewLogField("expectedStart", batchBlock.start.UnixNano()),
+				xlog.NewLogField("actualStart", resultBlock.Start),
+			).Errorf("stream blocks response from peer %s returned mismatched block start", host)
+		}
+		return errBlockStartMismatch
+	}
+
+	if resultBlock.Err != nil {
+		s.log.WithFields(
+			xlog.NewLogField("id", id.String()),
+			xlog.NewLogField("start", resultBlock.Start),
+			xlog.NewLogField("errorType", resultBlock.Err.Type),
+			xlog.NewLogField("errorMessage", resultBlock.Err.Message),
+		).Errorf("stream blocks response from peer %s returned block error", host)
+		return resultBlock.Err
+	}
+
+	if err := blocksResult.addBlockFromPeer(id, resultBlock); err != nil {
+		s.log.WithFields(
+			xlog.NewLogField("id", id.String()),
+			xlog.NewLogField("start", resultBlock.Start),
+			xlog.NewLogField("error", err),
+		).Errorf("stream blocks response from peer %s bad block response", host)
+		return err
+	}
+
+	return nil
 }
 
 func (s *session) streamBlocksReattemptFromPeers(blocks []blockMetadata, enqueueCh *enqueueChannel) {
