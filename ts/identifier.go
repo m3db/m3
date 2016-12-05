@@ -27,12 +27,12 @@ import (
 
 // BinaryID constructs a new ID based on a binary value
 func BinaryID(v []byte) ID {
-	return &id{data: v}
+	return &id{data: append(make([]byte, 0, len(v)), v...)}
 }
 
 // StringID constructs a new ID based on a string value
 func StringID(v string) ID {
-	return BinaryID([]byte(v))
+	return &id{data: append(make([]byte, 0, len(v)), v...)}
 }
 
 type id struct {
