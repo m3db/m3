@@ -78,6 +78,17 @@ func NewSeeker(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) 
 	}
 }
 
+// GetFileIds retrieves all the identifiers present in the configured file
+func (s *seeker) GetFileIds() []string {
+	fileIds := make([]string, len(s.indexMap))
+	idx := 0
+	for _, indexEntry := range s.indexMap {
+		fileIds[idx] = string(indexEntry.Id)
+		idx++
+	}
+	return fileIds
+}
+
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd *os.File
