@@ -76,9 +76,3 @@ func (c *enqueueChannel) done() {
 		c.maybeDestruct()
 	}
 }
-
-// todo@bl: drop this, this is a race condition in the original code
-func (c *enqueueChannel) doneLag() {
-	atomic.AddInt32(&c.enqueued, -1)
-	c.maybeDestruct()
-}

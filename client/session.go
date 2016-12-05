@@ -1018,7 +1018,7 @@ func (s *session) streamBlocksFromPeers(
 		onDone := func() {
 			// Mark completion of work from the enqueue channel when all queues drained
 			if atomic.AddUint32(&completed, 1) == queues {
-				enqueueCh.doneLag()
+				enqueueCh.done()
 			}
 		}
 
