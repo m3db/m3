@@ -20,19 +20,45 @@
 
 package shard
 
-const (
-	// Initializing represents a shard newly assigned to an instance
-	Initializing State = iota
-
-	// Available represents a shard bootstraped and ready to serve
-	Available
-
-	// Leaving represents a shard that is intending to be removed
-	Leaving
+import (
+	"fmt"
+	"sort"
+	"strings"
 )
 
 // State represents the state of a shard
 type State int
+
+const (
+	// Initializing represents a shard newly assigned to an instance
+	Initializing State = iota
+	// Available represents a shard bootstraped and ready to serve
+	Available
+	// Leaving represents a shard that is intending to be removed
+	Leaving
+)
+
+// States returns all the possible states
+func States() []State {
+	return []State{
+		Initializing,
+		Available,
+		Leaving,
+	}
+}
+
+// String returns the string representation of the state
+func (s State) String() string {
+	switch s {
+	case Initializing:
+		return "Initializing"
+	case Available:
+		return "Available"
+	case Leaving:
+		return "Leaving"
+	}
+	return "Unknown"
+}
 
 // A Shard represents a piece of data owned by the service
 type Shard interface {
@@ -67,10 +93,31 @@ func (s *shard) SetState(state State) Shard        { s.state = state; return s }
 func (s *shard) SourceID() string                  { return s.sourceID }
 func (s *shard) SetSourceID(sourceID string) Shard { s.sourceID = sourceID; return s }
 
+// SortableShardsByIDAsc are sortable shards by ID in ascending order
+type SortableShardsByIDAsc []Shard
+
+func (s SortableShardsByIDAsc) Len() int      { return len(s) }
+func (s SortableShardsByIDAsc) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s SortableShardsByIDAsc) Less(i, j int) bool {
+	return s[i].ID() < s[j].ID()
+}
+
+// SortableIDsAsc are sortable shard IDs in ascending order
+type SortableIDsAsc []uint32
+
+func (s SortableIDsAsc) Len() int      { return len(s) }
+func (s SortableIDsAsc) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s SortableIDsAsc) Less(i, j int) bool {
+	return s[i] < s[j]
+}
+
 // Shards is a collection of shards owned by one ServiceInstance
 type Shards interface {
-	// Shards returns the shards
+	// All returns the shards sorted ascending
 	All() []Shard
+
+	// AllIDs returns the shard IDs sorted ascending
+	AllIDs() []uint32
 
 	// NumShards returns the number of the shards
 	NumShards() int
@@ -92,6 +139,9 @@ type Shards interface {
 
 	// Shard returns the shard for the id
 	Shard(id uint32) (Shard, bool)
+
+	// String returns the string representation of the shards
+	String() string
 }
 
 // NewShards creates a new instance of Shards
@@ -112,7 +162,17 @@ func (s shards) All() []Shard {
 	for _, shard := range s.shardsMap {
 		ss = append(ss, shard)
 	}
+	sort.Sort(SortableShardsByIDAsc(ss))
 	return ss
+}
+
+func (s shards) AllIDs() []uint32 {
+	ids := make([]uint32, 0, len(s.shardsMap))
+	for _, shard := range s.shardsMap {
+		ids = append(ids, shard.ID())
+	}
+	sort.Sort(SortableIDsAsc(ids))
+	return ids
 }
 
 func (s shards) NumShards() int {
@@ -155,4 +215,14 @@ func (s shards) ShardsForState(state State) []Shard {
 		}
 	}
 	return r
+}
+
+func (s shards) String() string {
+	var strs []string
+	for _, state := range States() {
+		ids := NewShards(s.ShardsForState(state)).AllIDs()
+		str := fmt.Sprintf("%s=%v", state.String(), ids)
+		strs = append(strs, str)
+	}
+	return fmt.Sprintf("Shards<%s>", strings.Join(strs, ", "))
 }

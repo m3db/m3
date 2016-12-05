@@ -81,7 +81,8 @@ func (ps placementService) BuildInitialPlacement(
 		return nil, err
 	}
 
-	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
+	// NB(r): All new placements should appear as available for
+	// proper client semantics when calculating consistency results
 	p, err = markAllShardsAsAvailable(p)
 	if err != nil {
 		return nil, err
@@ -101,12 +102,6 @@ func (ps placementService) AddReplica() (services.ServicePlacement, error) {
 	}
 
 	if err := placement.Validate(p); err != nil {
-		return nil, err
-	}
-
-	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
-	p, err = markAllShardsAsAvailable(p)
-	if err != nil {
 		return nil, err
 	}
 
@@ -133,12 +128,6 @@ func (ps placementService) AddInstance(
 		return nil, err
 	}
 
-	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
-	p, err = markAllShardsAsAvailable(p)
-	if err != nil {
-		return nil, err
-	}
-
 	return p, ps.ss.CheckAndSet(ps.service, p, v)
 }
 
@@ -157,12 +146,6 @@ func (ps placementService) RemoveInstance(instanceID string) (services.ServicePl
 	}
 
 	if err := placement.Validate(p); err != nil {
-		return nil, err
-	}
-
-	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
-	p, err = markAllShardsAsAvailable(p)
-	if err != nil {
 		return nil, err
 	}
 
@@ -193,12 +176,6 @@ func (ps placementService) ReplaceInstance(
 	}
 
 	if err := placement.Validate(p); err != nil {
-		return nil, err
-	}
-
-	// TODO(chaowang) this will be removed once the m3db nodes start to mark shards as available
-	p, err = markAllShardsAsAvailable(p)
-	if err != nil {
 		return nil, err
 	}
 
@@ -234,6 +211,9 @@ func (ps placementService) MarkInstanceAvailable(instanceID string) error {
 		return fmt.Errorf("could not find instance %s in placement", instanceID)
 	}
 	for _, s := range instance.Shards().All() {
+		if s.State() != shard.Initializing {
+			continue
+		}
 		p, err = algo.MarkShardAvailable(p, instanceID, s.ID())
 		if err != nil {
 			return err

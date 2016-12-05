@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testServiceID() services.ServiceID {
@@ -55,11 +56,20 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 	_, err = p.AddReplica()
 	assert.NoError(t, err)
 
+	for _, instance := range []services.PlacementInstance{h1, h2} {
+		err = p.MarkInstanceAvailable(instance.ID())
+		assert.NoError(t, err)
+	}
 	_, err = p.AddInstance([]services.PlacementInstance{h3})
+	assert.NoError(t, err)
+
+	err = p.MarkInstanceAvailable(h3.ID())
 	assert.NoError(t, err)
 
 	_, err = p.RemoveInstance(h1.ID())
 	assert.NoError(t, err)
+
+	markAllInstancesAvailable(t, p)
 
 	_, err = p.ReplaceInstance(
 		h2.ID(),
@@ -71,6 +81,12 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 		},
 	)
 	assert.NoError(t, err)
+
+	for _, id := range []string{"h21", "h4"} {
+		err = p.MarkInstanceAvailable(id)
+		assert.NoError(t, err)
+	}
+
 	s, err := p.Placement()
 	assert.NoError(t, err)
 	assert.Equal(t, 3, s.NumInstances())
@@ -701,4 +717,19 @@ func (ms *mockStorage) Placement(service services.ServiceID) (services.ServicePl
 	}
 
 	return nil, 0, errors.New("placement not exist")
+}
+
+func markAllInstancesAvailable(
+	t *testing.T,
+	ps services.PlacementService,
+) {
+	p, err := ps.Placement()
+	require.NoError(t, err)
+	for _, i := range p.Instances() {
+		if len(i.Shards().ShardsForState(shard.Initializing)) == 0 {
+			continue
+		}
+		err := ps.MarkInstanceAvailable(i.ID())
+		require.NoError(t, err)
+	}
 }
