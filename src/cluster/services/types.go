@@ -185,6 +185,9 @@ type ServicePlacement interface {
 
 	// ShardsLen returns the number of shards in a replica
 	NumShards() int
+
+	// String returns a description of the placement
+	String() string
 }
 
 // PlacementInstance represents an instance in a service placement

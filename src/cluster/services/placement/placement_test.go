@@ -21,6 +21,7 @@
 package placement
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
@@ -220,7 +221,12 @@ func TestValidate(t *testing.T) {
 }
 
 func TestInstance(t *testing.T) {
-	h1 := NewInstance().SetID("id").SetEndpoint("endpoint").SetRack("rack").SetWeight(1).SetZone("zone")
+	h1 := NewInstance().
+		SetID("id").
+		SetEndpoint("endpoint").
+		SetRack("rack").
+		SetWeight(1).
+		SetZone("zone")
 	assert.NotNil(t, h1.Shards())
 	s := shard.NewShards([]shard.Shard{
 		shard.NewShard(1).SetState(shard.Available),
@@ -228,7 +234,10 @@ func TestInstance(t *testing.T) {
 		shard.NewShard(3).SetState(shard.Available),
 	})
 	h1.SetShards(s)
-	assert.Equal(t, "[id:id, rack:rack, zone:zone, weight:1]", h1.String())
+	description := fmt.Sprintf(
+		"Instance<ID=id, Rack=rack, Zone=zone, Weight=1, Shards=%s>",
+		"Shards<Initializing=[], Available=[1 2 3], Leaving=[]>")
+	assert.Equal(t, description, h1.String())
 
 	assert.True(t, h1.Shards().Contains(1))
 	assert.False(t, h1.Shards().Contains(100))

@@ -22,6 +22,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/m3db/m3cluster/shard"
 )
@@ -139,3 +140,19 @@ type queryOptions struct {
 
 func (qo *queryOptions) IncludeUnhealthy() bool                  { return qo.includeUnhealthy }
 func (qo *queryOptions) SetIncludeUnhealthy(h bool) QueryOptions { qo.includeUnhealthy = h; return qo }
+
+// PlacementInstances is a slice of instances that can produce a debug string
+type PlacementInstances []PlacementInstance
+
+func (i PlacementInstances) String() string {
+	if len(i) == 0 {
+		return "[]"
+	}
+	var strs []string
+	strs = append(strs, "[\n")
+	for _, elem := range i {
+		strs = append(strs, "\t"+elem.String()+",\n")
+	}
+	strs = append(strs, "]")
+	return strings.Join(strs, "")
+}
