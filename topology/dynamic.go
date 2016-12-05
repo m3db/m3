@@ -235,7 +235,7 @@ func getStaticOptions(service services.Service, hashGen sharding.HashGen) (Stati
 
 	hostShardSets := make([]HostShardSet, len(instances))
 	for i, instance := range instances {
-		hs, err := newHostShardSetFromServiceInstance(instance, fn)
+		hs, err := NewHostShardSetFromServiceInstance(instance, fn)
 		if err != nil {
 			return nil, err
 		}
