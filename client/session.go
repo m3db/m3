@@ -980,7 +980,9 @@ func (s *session) streamBlocksFromPeers(
 	// Consume the incoming metadata and enqueue to the ready channel
 	go func() {
 		s.streamCollectedBlocksMetadata(len(peers), ch, enqueueCh)
-		enqueueCh.closeIfNoQueue()
+		enqueueCh.maybeDestruct()
+		// prevents deadlock in case nothing is ever enqueued
+		// todo@bl: this is awful, improve this
 	}()
 
 	// Fetch blocks from peers as results become ready
@@ -1018,7 +1020,7 @@ func (s *session) streamBlocksFromPeers(
 		onDone := func() {
 			// Mark completion of work from the enqueue channel when all queues drained
 			if atomic.AddUint32(&completed, 1) == queues {
-				enqueueCh.done()
+				enqueueCh.doneLag()
 			}
 		}
 

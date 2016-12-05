@@ -63,27 +63,24 @@ func (c *enqueueChannel) get() <-chan []*blocksMetadata {
 	return c.peersMetadataCh
 }
 
-func (c *enqueueChannel) destruct() {
-	// temporary! should only be called once!
+func (c *enqueueChannel) maybeDestruct() {
+	// todo@bl: temporary! make a deterministic destructor
 
-	if atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
+	time.Sleep(100 * time.Millisecond)
+	if atomic.LoadInt32(&c.enqueued) == 0 && atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
 		close(c.peersMetadataCh)
-		//		atomic.StoreInt32(&c.closed, 1)
 		c.qGauge.Update(0)
 	}
 }
 
 func (c *enqueueChannel) done() {
 	if atomic.AddInt32(&c.enqueued, -1) == 0 {
-		time.Sleep(100 * time.Millisecond)
-		// todo@bl : fix this, this is a race condition in the original code
-		c.destruct()
+		c.maybeDestruct()
 	}
 }
 
-// prevents deadlock in case nothing is ever enqueued
-func (c *enqueueChannel) closeIfNoQueue() {
-	if atomic.LoadInt32(&c.enqueued) == 0 {
-		c.destruct()
-	}
+// todo@bl: drop this, this is a race condition in the original code
+func (c *enqueueChannel) doneLag() {
+	atomic.AddInt32(&c.enqueued, -1)
+	c.maybeDestruct()
 }
