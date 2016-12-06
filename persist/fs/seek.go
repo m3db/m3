@@ -78,13 +78,10 @@ func NewSeeker(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) 
 	}
 }
 
-// GetFileIds retrieves all the identifiers present in the configured file
-func (s *seeker) GetFileIds() []string {
-	fileIds := make([]string, len(s.indexMap))
-	idx := 0
+func (s *seeker) IDs() []ts.ID {
+	fileIds := make([]ts.ID, 0, len(s.indexMap))
 	for _, indexEntry := range s.indexMap {
-		fileIds[idx] = string(indexEntry.Id)
-		idx++
+		fileIds = append(fileIds, ts.BinaryID(indexEntry.Id))
 	}
 	return fileIds
 }

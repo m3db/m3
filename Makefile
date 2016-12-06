@@ -34,7 +34,7 @@ SERVICES := \
 
 TOOLS :=   \
 	read_ids \
-	index_reader
+	read_index_ids
 
 setup:
 	mkdir -p $(BUILD)

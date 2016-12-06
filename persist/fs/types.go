@@ -87,8 +87,8 @@ type FileSetSeeker interface {
 	// Entries returns the count of entries in the volume
 	Entries() int
 
-	// GetFileIds retrieves all the identifiers present in the file set
-	GetFileIds() []string
+	// IDs retrieves all the identifiers present in the file set
+	IDs() []ts.ID
 }
 
 // Options represents the options for filesystem persistence
