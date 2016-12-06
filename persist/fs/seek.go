@@ -78,6 +78,14 @@ func NewSeeker(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) 
 	}
 }
 
+func (s *seeker) IDs() []ts.ID {
+	fileIds := make([]ts.ID, 0, len(s.indexMap))
+	for _, indexEntry := range s.indexMap {
+		fileIds = append(fileIds, ts.BinaryID(indexEntry.Id))
+	}
+	return fileIds
+}
+
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd *os.File

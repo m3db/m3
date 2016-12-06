@@ -32,8 +32,9 @@ VENDOR_ENV := GO15VENDOREXPERIMENT=1
 SERVICES := \
 	m3dbnode
 
-TOOLS := \
-	read_ids
+TOOLS :=   \
+	read_ids \
+	read_index_ids
 
 setup:
 	mkdir -p $(BUILD)
