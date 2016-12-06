@@ -21,6 +21,8 @@
 package ts
 
 import (
+	"crypto/md5"
+	"sync"
 	"testing"
 
 	"github.com/m3db/m3db/context"
@@ -52,6 +54,25 @@ func TestPooling(t *testing.T) {
 	ctx.BlockingClose()
 
 	require.Empty(t, a.Data())
+}
+
+func TestHashing(t *testing.T) {
+	var (
+		wg         sync.WaitGroup
+		id         = StringID("abc")
+		expected   = Hash(md5.Sum(id.Data()))
+		numWorkers = 100
+	)
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			require.Equal(t, expected, id.Hash())
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestCloning(t *testing.T) {
