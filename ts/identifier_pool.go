@@ -32,7 +32,7 @@ type identifierPool struct {
 	heap pool.BytesPool
 }
 
-// NewIdentifierPool constructs a new IdentifierPool
+// NewIdentifierPool constructs a new IdentifierPool.
 func NewIdentifierPool(
 	heap pool.BytesPool, options pool.ObjectPoolOptions) IdentifierPool {
 
@@ -64,21 +64,25 @@ func create() interface{} {
 	return &id{}
 }
 
-// GetBinaryID returns a new ID based on a binary value
+// GetBinaryID returns a new ID based on a binary value.
 func (p *identifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
 	id := p.pool.GetOr(create).(*id)
 	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
-	ctx.RegisterCloser(id)
+	ctx.RegisterCloser(context.CloserFn(id.Close))
 
 	return id
 }
 
-// GetStringID returns a new ID based on a string value
+// GetStringID returns a new ID based on a string value.
 func (p *identifierPool) GetStringID(ctx context.Context, v string) ID {
-	return p.GetBinaryID(ctx, []byte(v))
+	id := p.pool.GetOr(create).(*id)
+	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
+	ctx.RegisterCloser(context.CloserFn(id.Close))
+
+	return id
 }
 
-// Clone replicates given ID into a new ID from the pool
+// Clone replicates given ID into a new ID from the pool.
 func (p *identifierPool) Clone(v ID) ID {
 	id := p.pool.GetOr(create).(*id)
 	id.pool, id.data = p, append(p.heap.Get(len(v.Data())), v.Data()...)

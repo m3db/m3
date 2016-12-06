@@ -339,8 +339,8 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 	// Remove all expired series from lookup and list.
 	s.Lock()
 	for _, series := range expired {
-		id := series.ID()
-		elem, exists := s.lookup[id.Hash()]
+		hash := series.ID().Hash()
+		elem, exists := s.lookup[hash]
 		if !exists {
 			continue
 		}
@@ -360,7 +360,7 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 		// safe to remove it.
 		series.Close()
 		s.list.Remove(elem)
-		delete(s.lookup, id.Hash())
+		delete(s.lookup, hash)
 	}
 	s.Unlock()
 }

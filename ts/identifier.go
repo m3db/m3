@@ -27,14 +27,16 @@ import (
 	"sync/atomic"
 )
 
-// BinaryID constructs a new ID based on a binary value
+// BinaryID constructs a new ID based on a binary value.
+// WARNING: Does not copy the underlying data, do not use
+// when cloning a pooled ID object.
 func BinaryID(v []byte) ID {
-	return &id{data: append(make([]byte, 0, len(v)), v...)}
+	return &id{data: v}
 }
 
-// StringID constructs a new ID based on a string value
+// StringID constructs a new ID based on a string value.
 func StringID(v string) ID {
-	return &id{data: append(make([]byte, 0, len(v)), v...)}
+	return &id{data: []byte(v)}
 }
 
 func hash(data []byte) Hash {
@@ -56,18 +58,14 @@ type id struct {
 	pool  *identifierPool
 }
 
-// Data returns the binary value of an ID
+// Data returns the binary value of an ID.
 func (v *id) Data() []byte {
 	return v.data
 }
 
-func (v *id) Equal(value ID) bool {
-	return bytes.Equal(v.Data(), value.Data())
-}
-
 var null = Hash{}
 
-// Hash calculates and returns the hash of an ID
+// Hash calculates and returns the hash of an ID.
 func (v *id) Hash() Hash {
 	state := hashState(atomic.LoadInt32(&v.state))
 	switch state {
@@ -91,20 +89,25 @@ func (v *id) Hash() Hash {
 	}
 }
 
-func (v *id) OnClose() {
+func (v *id) Equal(value ID) bool {
+	return bytes.Equal(v.Data(), value.Data())
+}
+
+func (v *id) Close() {
 	if v.pool == nil {
 		return
 	}
 
 	v.pool.heap.Put(v.data)
-	v.data, v.hash = nil, null
-	v.pool.pool.Put(v)
+
+	v.Reset(nil)
+	v.pool.pool.Put(v) // No-op for standalone IDs.
+}
+
+func (v *id) Reset(value []byte) {
+	v.data, v.hash = value, null
 }
 
 func (v *id) String() string {
 	return string(v.data)
-}
-
-func (v *id) Reset(val []byte) {
-	v.data, v.hash = val, null
 }

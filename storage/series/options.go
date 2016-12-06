@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -38,6 +39,7 @@ type options struct {
 	encoderPool                   encoding.EncoderPool
 	multiReaderIteratorPool       encoding.MultiReaderIteratorPool
 	fetchBlockMetadataResultsPool block.FetchBlockMetadataResultsPool
+	identifierPool                ts.IdentifierPool
 }
 
 // NewOptions creates new database series options
@@ -51,6 +53,7 @@ func NewOptions() Options {
 		encoderPool:                   encoding.NewEncoderPool(nil),
 		multiReaderIteratorPool:       encoding.NewMultiReaderIteratorPool(nil),
 		fetchBlockMetadataResultsPool: block.NewFetchBlockMetadataResultsPool(nil, 0),
+		identifierPool:                ts.NewIdentifierPool(nil, nil),
 	}
 }
 
@@ -132,4 +135,14 @@ func (o *options) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadat
 
 func (o *options) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool {
 	return o.fetchBlockMetadataResultsPool
+}
+
+func (o *options) SetIdentifierPool(value ts.IdentifierPool) Options {
+	opts := *o
+	opts.identifierPool = value
+	return &opts
+}
+
+func (o *options) IdentifierPool() ts.IdentifierPool {
+	return o.identifierPool
 }

@@ -85,7 +85,8 @@ func NewSeriesOptionsFromOptions(opts Options) series.Options {
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetContextPool(opts.ContextPool()).
 		SetEncoderPool(opts.EncoderPool()).
-		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool())
+		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool()).
+		SetIdentifierPool(opts.IdentifierPool())
 }
 
 type options struct {
@@ -233,16 +234,14 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.bytesPool = bytesPool
 
 	// initialize context pool
-	contextPool := context.NewPool(nil, nil)
-	opts.contextPool = contextPool
+	opts.contextPool = context.NewPool(nil, nil)
+
+	encoderPool := encoding.NewEncoderPool(nil)
+	readerIteratorPool := encoding.NewReaderIteratorPool(nil)
 
 	// initialize segment reader pool
 	segmentReaderPool := xio.NewSegmentReaderPool(nil)
 	opts.segmentReaderPool = segmentReaderPool
-
-	encoderPool := encoding.NewEncoderPool(nil)
-	readerIteratorPool := encoding.NewReaderIteratorPool(nil)
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
 
 	encodingOpts := encoding.NewOptions().
 		SetBytesPool(bytesPool).
@@ -263,6 +262,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
 	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
@@ -273,16 +273,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		SetReaderIteratorPool(readerIteratorPool).
 		SetMultiReaderIteratorPool(multiReaderIteratorPool)
 
-	seriesOpts := series.NewOptions().
-		SetClockOptions(opts.ClockOptions()).
-		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetRetentionOptions(opts.RetentionOptions()).
-		SetDatabaseBlockOptions(opts.blockOpts).
-		SetContextPool(contextPool).
-		SetEncoderPool(encoderPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool)
-
-	opts.seriesPool = series.NewDatabaseSeriesPool(seriesOpts, nil)
+	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
 
 	return (&opts).encodingM3TSZ()
 }
