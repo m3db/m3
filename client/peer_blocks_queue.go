@@ -101,12 +101,11 @@ func (q *peerBlocksQueue) trackCompleted(amount int) {
 func (q *peerBlocksQueue) enqueue(bm *blocksMetadata, doneFn func()) {
 	q.Lock()
 
-	if len(q.queue) == 0 && cap(q.queue) < q.maxQueueSize {
-		// Lazy initialize queue
+	// Lazy init
+	if q.queue == nil {
 		q.queue = make([]*blocksMetadata, 0, q.maxQueueSize)
 	}
-	if len(q.doneFns) == 0 && cap(q.doneFns) < q.maxQueueSize {
-		// Lazy initialize doneFns
+	if q.doneFns == nil {
 		q.doneFns = make([]func(), 0, q.maxQueueSize)
 	}
 	q.queue = append(q.queue, bm)
@@ -115,26 +114,15 @@ func (q *peerBlocksQueue) enqueue(bm *blocksMetadata, doneFn func()) {
 	}
 	q.trackAssigned(len(bm.blocks))
 
-	// Determine if should drain immediately
-	if len(q.queue) < q.maxQueueSize {
-		// Require more to fill up block
-		q.Unlock()
-		return
+	if len(q.queue) >= q.maxQueueSize { // drain immediately
+		q.drainWithLock()
 	}
-	q.drainWithLock()
 
-	q.Unlock()
-}
-
-func (q *peerBlocksQueue) drain() {
-	q.Lock()
-	q.drainWithLock()
 	q.Unlock()
 }
 
 func (q *peerBlocksQueue) drainWithLock() {
 	if len(q.queue) == 0 {
-		// None to drain
 		return
 	}
 	enqueued := q.queue

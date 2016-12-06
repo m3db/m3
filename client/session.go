@@ -21,7 +21,6 @@
 package client
 
 import (
-	"math"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -62,7 +61,6 @@ type session struct {
 	log                              xlog.Logger
 	writeLevel                       topology.ConsistencyLevel
 	readLevel                        ReadConsistencyLevel
-	newHostQueueFn                   newHostQueueFn
 	topo                             topology.Topology
 	topoMap                          topology.Map
 	topoWatch                        topology.MapWatch
@@ -81,21 +79,17 @@ type session struct {
 	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
 	writeStatePool                   sync.Pool
 	fetchBatchSize                   int
-	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	streamBlocksWorkers              xsync.WorkerPool
 	streamBlocksResultsProcessors    chan struct{}
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
 	streamBlocksBatchTimeout         time.Duration
 	metrics                          sessionMetrics
-}
 
-type newHostQueueFn func(
-	host topology.Host,
-	writeBatchRawRequestPool writeBatchRawRequestPool,
-	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
-	opts Options,
-) hostQueue
+	// for testing
+	newPeerBlocksQueueFn newPeerBlocksQueueFn
+	newHostQueueFn       newHostQueueFn
+}
 
 func newSession(opts Options) (clientSession, error) {
 	topo, err := opts.TopologyInitializer().Init()
@@ -214,39 +208,6 @@ func (s *session) Open() error {
 	go s.updateTopology()
 
 	return nil
-}
-
-func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hostQueue {
-	// NB(r): Due to hosts being replicas we have:
-	// = replica * numWrites
-	// = total writes to all hosts
-	// We need to pool:
-	// = replica * (numWrites / writeBatchSize)
-	// = number of batch request structs to pool
-	// For purposes of simplifying the options for pooling the write op pool size
-	// represents the number of ops to pool not including replication, this is due
-	// to the fact that the ops are shared between the different host queue replicas.
-	totalBatches := topologyMap.Replicas() *
-		int(math.Ceil(float64(s.opts.WriteOpPoolSize())/float64(s.opts.WriteBatchSize())))
-	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
-	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(hostBatches).
-		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
-			s.scope.SubScope("write-batch-request-pool"),
-		))
-	writeBatchRequestPool := newWriteBatchRawRequestPool(writeBatchRequestPoolOpts)
-	writeBatchRequestPool.Init()
-	writeBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(hostBatches).
-		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
-			s.scope.SubScope("id-datapoint-array-pool"),
-		))
-	writeBatchRawRequestElementArrayPool := newWriteBatchRawRequestElementArrayPool(
-		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
-	writeBatchRawRequestElementArrayPool.Init()
-	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, writeBatchRawRequestElementArrayPool, s.opts)
-	hostQueue.Open()
-	return hostQueue
 }
 
 func (s *session) Write(namespace, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
@@ -654,10 +615,6 @@ func (s *session) Close() error {
 	s.topoWatch.Close()
 	s.topo.Close()
 	return nil
-}
-
-func (s *session) Origin() topology.Host {
-	return s.origin
 }
 
 func (s *session) Replicas() int {

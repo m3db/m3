@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -228,4 +229,48 @@ func (s *session) updateTopology() {
 			s.log.Errorf("could not update topology map: %v", err)
 		}
 	}
+}
+
+type newHostQueueFn func(
+	host topology.Host,
+	writeBatchRawRequestPool writeBatchRawRequestPool,
+	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
+	opts Options,
+) hostQueue
+
+func (s *session) newHostQueue(host topology.Host, topologyMap topology.Map) hostQueue {
+	// NB(r): Due to hosts being replicas we have:
+	// = replica * numWrites
+	// = total writes to all hosts
+	// We need to pool:
+	// = replica * (numWrites / writeBatchSize)
+	// = number of batch request structs to pool
+	// For purposes of simplifying the options for pooling the write op pool size
+	// represents the number of ops to pool not including replication, this is due
+	// to the fact that the ops are shared between the different host queue replicas.
+	totalBatches := topologyMap.Replicas() *
+		int(math.Ceil(float64(s.opts.WriteOpPoolSize())/float64(s.opts.WriteBatchSize())))
+	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topologyMap.HostsLen())))
+	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-batch-request-pool"),
+		))
+	writeBatchRequestPool := newWriteBatchRawRequestPool(writeBatchRequestPoolOpts)
+	writeBatchRequestPool.Init()
+	writeBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("id-datapoint-array-pool"),
+		))
+	writeBatchRawRequestElementArrayPool := newWriteBatchRawRequestElementArrayPool(
+		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
+	writeBatchRawRequestElementArrayPool.Init()
+	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, writeBatchRawRequestElementArrayPool, s.opts)
+	hostQueue.Open()
+	return hostQueue
+}
+
+func (s *session) Origin() topology.Host {
+	return s.origin
 }

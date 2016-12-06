@@ -192,7 +192,9 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 				qsMutex.Lock()
 				defer qsMutex.Unlock()
 				for _, q := range qs {
-					q.drain()
+					q.Lock()
+					q.drainWithLock()
+					q.Unlock()
 				}
 				return
 			}
