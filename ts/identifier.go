@@ -37,6 +37,10 @@ func StringID(v string) ID {
 	return &id{data: append(make([]byte, 0, len(v)), v...)}
 }
 
+func hash(data []byte) Hash {
+	return md5.Sum(data)
+}
+
 type hashState int32
 
 const (
@@ -46,11 +50,10 @@ const (
 )
 
 type id struct {
-	data []byte
-	hash Hash
-	pool *identifierPool
-
+	data  []byte
+	hash  Hash
 	state int32
+	pool  *identifierPool
 }
 
 // Data returns the binary value of an ID
@@ -73,16 +76,16 @@ func (v *id) Hash() Hash {
 		return Hash(v.hash)
 	case computing:
 		// If the id hash is being computed, compute the hash without waiting
-		return md5.Sum(v.data)
+		return hash(v.data)
 	case uninitialized:
 		// If the id hash is unitialized, and this goroutine gains exclusive
 		// access to the hash field, computes the hash and sets the hash
 		if atomic.CompareAndSwapInt32(&v.state, int32(uninitialized), int32(computing)) {
-			v.hash = md5.Sum(v.data)
+			v.hash = hash(v.data)
 			return v.hash
 		}
 		// Otherwise compute the hash without waiting
-		return md5.Sum(v.data)
+		return hash(v.data)
 	default:
 		panic(fmt.Sprintf("unexpected hash state: %v", state))
 	}
