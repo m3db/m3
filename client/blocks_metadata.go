@@ -126,9 +126,7 @@ type blocksMetadatasQueuesByOutstandingAsc []blocksMetadataQueue
 func (arr blocksMetadatasQueuesByOutstandingAsc) Len() int      { return len(arr) }
 func (arr blocksMetadatasQueuesByOutstandingAsc) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
 func (arr blocksMetadatasQueuesByOutstandingAsc) Less(i, j int) bool {
-	outstandingFirst := atomic.LoadUint64(&arr[i].queue.assigned) - atomic.LoadUint64(&arr[i].queue.completed)
-	outstandingSecond := atomic.LoadUint64(&arr[j].queue.assigned) - atomic.LoadUint64(&arr[j].queue.completed)
-	return outstandingFirst < outstandingSecond
+	return atomic.LoadInt32(&arr[i].queue.pending) < atomic.LoadInt32(&arr[j].queue.pending)
 }
 
 type blockMetadatasByTime []blockMetadata

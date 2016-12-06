@@ -34,8 +34,8 @@ type peerBlocksQueue struct {
 	peer         hostQueue
 	queue        []*blocksMetadata
 	doneFns      []func()
-	assigned     uint64
-	completed    uint64
+	assigned     int32 // for testing. todo@bl - get rid of this
+	pending      int32
 	maxQueueSize int
 	workers      xsync.WorkerPool
 	processFn    processFn
@@ -90,11 +90,12 @@ func (q *peerBlocksQueue) close() {
 }
 
 func (q *peerBlocksQueue) trackAssigned(amount int) {
-	atomic.AddUint64(&q.assigned, uint64(amount))
+	atomic.AddInt32(&q.assigned, int32(amount))
+	atomic.AddInt32(&q.pending, int32(amount))
 }
 
 func (q *peerBlocksQueue) trackCompleted(amount int) {
-	atomic.AddUint64(&q.completed, uint64(amount))
+	atomic.AddInt32(&q.pending, -int32(amount))
 }
 
 func (q *peerBlocksQueue) enqueue(bm *blocksMetadata, doneFn func()) {

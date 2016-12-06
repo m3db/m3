@@ -185,7 +185,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 			qsMutex.RLock()
 			assigned := 0
 			for _, q := range qs {
-				assigned += int(atomic.LoadUint64(&q.assigned))
+				assigned += int(atomic.LoadInt32(&q.assigned))
 			}
 			qsMutex.RUnlock()
 			if assigned == len(blocks) {
