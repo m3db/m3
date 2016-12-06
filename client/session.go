@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -262,15 +263,11 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 
 	for i := range state.queues {
 		if err := state.queues[i].Enqueue(state.op); err != nil {
-			state.Unlock()
-			state.decRef()
-
-			// NB(r): if this ever happens we have a code bug, once we
-			// are in the read lock the current queues we are using should
-			// never be closed
-			s.RUnlock()
-			s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", err)
-			return err
+			msg := fmt.Sprintf("failed to enqueue write: %v", err)
+			s.opts.InstrumentOptions().Logger().Error(msg)
+			panic(msg)
+			// NB(r): if this happens we have a bug, once we are in the read
+			// lock the current queues should never be closed
 		}
 
 		state.incRef()
@@ -617,9 +614,7 @@ func (s *session) Close() error {
 	return nil
 }
 
-func (s *session) Replicas() int {
-	return int(atomic.LoadInt32(&s.replicas))
-}
+func (s *session) Replicas() int { return int(atomic.LoadInt32(&s.replicas)) }
 
 func (s *session) Truncate(namespace ts.ID) (int64, error) {
 	var (
@@ -699,8 +694,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	)
 
 	go func() {
-		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard, peers,
-			start, end, metadataCh, m)
+		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard, peers, start, end, metadataCh, m)
 		close(metadataCh)
 		close(errCh)
 	}()
@@ -965,11 +959,9 @@ func (s *session) streamBlocksFromPeers(
 		}
 
 		for _, peerBlocksMetadata := range perPeerBlocksMetadata {
-			if len(peerBlocksMetadata.blocks) == 0 {
-				continue // No blocks to enqueue
+			if len(peerBlocksMetadata.blocks) > 0 {
+				peerQueues.findQueue(peerBlocksMetadata.peer).enqueue(peerBlocksMetadata, onDone)
 			}
-			queue := peerQueues.findQueue(peerBlocksMetadata.peer)
-			queue.enqueue(peerBlocksMetadata, onDone)
 		}
 	}
 
@@ -984,7 +976,7 @@ func (s *session) streamCollectedBlocksMetadata(
 ) {
 	metadata := make(map[ts.Hash]*receivedBlocks)
 
-	// Receive off of metadata channel
+	// receive off of metadata channel
 	for m := range ch {
 		m := m
 		received, ok := metadata[m.id.Hash()]
@@ -1062,8 +1054,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 	// Sort the metadatas per peer by time and reset the selection index
 	for _, blocksMetadata := range perPeerBlocksMetadata {
 		sort.Sort(blockMetadatasByTime(blocksMetadata.blocks))
-		// Reset the selection index
-		blocksMetadata.idx = 0
+		blocksMetadata.idx = 0 // Reset the selection index
 	}
 
 	// Select blocks from peers
@@ -1325,7 +1316,6 @@ func (s *session) streamBlocksBatchFromPeer(
 				}
 				s.streamBlocksReattemptFromPeers([]blockMetadata{batch[i].blocks[j]}, enqueueCh)
 			}
-
 		}
 	}
 

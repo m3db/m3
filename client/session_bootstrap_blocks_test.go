@@ -1054,15 +1054,7 @@ type fetchMetadataReqMatcher struct {
 
 func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 	req, ok := x.(*rpc.FetchBlocksMetadataRawRequest)
-	if !ok {
-		return false
-	}
-
-	if m.shard != req.Shard {
-		return false
-	}
-
-	if m.limit != req.Limit {
+	if !ok || m.shard != req.Shard || m.limit != req.Limit {
 		return false
 	}
 
@@ -1070,26 +1062,16 @@ func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 		if req.PageToken != nil {
 			return false
 		}
-	} else {
-		if req.PageToken == nil {
-			return false
-		}
-		if *req.PageToken != *m.pageToken {
-			return false
-		}
+	} else if req.PageToken == nil || *req.PageToken != *m.pageToken {
+		return false
 	}
 
 	if m.includeSizes == nil {
 		if req.IncludeSizes != nil {
 			return false
 		}
-	} else {
-		if req.IncludeSizes == nil {
-			return false
-		}
-		if *req.IncludeSizes != *m.includeSizes {
-			return false
-		}
+	} else if req.IncludeSizes == nil || *req.IncludeSizes != *m.includeSizes {
+		return false
 	}
 
 	return true

@@ -24,13 +24,14 @@ import (
 	"errors"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -52,7 +53,7 @@ type queue struct {
 	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool
 	size                                 int
 	ops                                  []op
-	opsSumSize                           int
+	opsSumSize                           int32
 	opsLastRotatedAt                     time.Time
 	opsArrayPool                         opArrayPool
 	drainIn                              chan []op
@@ -359,8 +360,7 @@ func (q *queue) asyncTruncate(wg *sync.WaitGroup, op *truncateOp) {
 
 	go func() {
 		client, err := q.connPool.NextClient()
-		if err != nil {
-			// No client available
+		if err != nil { // No client available
 			op.completionFn(nil, err)
 			wg.Done()
 			return
@@ -378,10 +378,7 @@ func (q *queue) asyncTruncate(wg *sync.WaitGroup, op *truncateOp) {
 }
 
 func (q *queue) Len() int {
-	q.RLock()
-	v := q.opsSumSize
-	q.RUnlock()
-	return v
+	return int(atomic.LoadInt32(&q.opsSumSize))
 }
 
 func (q *queue) Enqueue(o op) error {
@@ -392,9 +389,9 @@ func (q *queue) Enqueue(o op) error {
 		return errQueueNotOpen
 	}
 	q.ops = append(q.ops, o)
-	q.opsSumSize += o.Size()
+	q.opsSumSize += int32(o.Size())
 	// If queue is full flush
-	if q.opsSumSize >= q.size {
+	if q.opsSumSize >= int32(q.size) {
 		needsDrain = q.rotateOpsWithLock()
 	}
 	// Need to hold lock while writing to the drainIn

@@ -30,7 +30,7 @@ import (
 
 type peerBlocksQueue struct {
 	sync.RWMutex
-	closed       bool
+	closed       int32
 	peer         hostQueue
 	queue        []*blocksMetadata
 	doneFns      []func()
@@ -71,12 +71,8 @@ func newPeerBlocksQueue(
 }
 
 func (q *peerBlocksQueue) drainEvery(interval time.Duration) {
-	for {
+	for atomic.LoadInt32(&q.closed) == 0 {
 		q.Lock()
-		if q.closed {
-			q.Unlock()
-			return
-		}
 		q.drainWithLock()
 		q.Unlock()
 		time.Sleep(interval)
@@ -84,9 +80,7 @@ func (q *peerBlocksQueue) drainEvery(interval time.Duration) {
 }
 
 func (q *peerBlocksQueue) close() {
-	q.Lock()
-	q.closed = true
-	q.Unlock()
+	atomic.StoreInt32(&q.closed, 1)
 }
 
 func (q *peerBlocksQueue) trackAssigned(amount int) {
