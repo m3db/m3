@@ -21,11 +21,25 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
+)
+
+var (
+	// ErrClusterConnectTimeout is raised when connecting to the cluster and
+	// ensuring at least each partition has an up node with a connection to it
+	ErrClusterConnectTimeout          = errors.New("timed out establishing min connections to cluster")
+	errSessionStateNotInitial         = errors.New("session not in the initial clean state")
+	errSessionStateNotOpen            = errors.New("session not in open state")
+	errSessionBadBlockResultFromPeer  = errors.New("session fetched bad block result from peer")
+	errSessionInvalidConsistencyLevel = errors.New("session has invalid connect consistency level specified")
+
+	errBlockStartMismatch = errors.New("block starts don't match")
+	errBlock              = errors.New("block failed")
 )
 
 // IsInternalServerError determines if the error is an internal server error

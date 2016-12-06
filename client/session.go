@@ -21,7 +21,6 @@
 package client
 
 import (
-	"errors"
 	"math"
 	"sort"
 	"sync"
@@ -52,19 +51,6 @@ const (
 	blocksMetadataInitialCapacity        = 64
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
-)
-
-var (
-	// ErrClusterConnectTimeout is raised when connecting to the cluster and
-	// ensuring at least each partition has an up node with a connection to it
-	ErrClusterConnectTimeout          = errors.New("timed out establishing min connections to cluster")
-	errSessionStateNotInitial         = errors.New("session not in the initial clean state")
-	errSessionStateNotOpen            = errors.New("session not in open state")
-	errSessionBadBlockResultFromPeer  = errors.New("session fetched bad block result from peer")
-	errSessionInvalidConsistencyLevel = errors.New("session has invalid connect consistency level specified")
-
-	errBlockStartMismatch = errors.New("block starts don't match")
-	errBlock              = errors.New("block failed")
 )
 
 type session struct {
@@ -394,8 +380,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 	iters.Reset(len(ids))
 
 	defer func() {
-		// NB(r): Ensure we cover all edge cases and close the iters in any case
-		// of an error being returned
+		// NB(r): Ensure we close iters if an error is returned
 		if !success {
 			iters.Close()
 		}
@@ -484,7 +469,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 			}
 			// NB(xichen): decrementing pending and checking remaining against zero must
 			// come after incrementing success, otherwise we might end up passing results[:success]
-			// to iter.Reset down below before setting the iterator in the results array,
+			// to iter. Reset down below before setting the iterator in the results array,
 			// which would cause a nil pointer exception.
 			remaining := atomic.AddInt32(&pending, -1)
 			var complete bool
@@ -1069,6 +1054,35 @@ func (s *session) streamCollectedBlocksMetadata(
 	}
 }
 
+func freeRefs(pooledCurrStart, pooledCurrEligible []*blocksMetadata,
+	pooledBlocksMetadataQueues []blocksMetadataQueue,
+) {
+	for i := range pooledCurrStart {
+		pooledCurrStart[i] = nil
+	}
+	for i := range pooledCurrEligible {
+		pooledCurrEligible[i] = nil
+	}
+
+	var zeroed blocksMetadataQueue
+	for i := range pooledCurrEligible { // should this be pooledBlocksMetadataQueues?
+		pooledBlocksMetadataQueues[i] = zeroed
+	}
+}
+
+func earliestUnselectedStartTime(metaBlocks []*blocksMetadata) time.Time {
+	var earliestStart = time.Now() // sentinel
+
+	for _, blocksMetadata := range metaBlocks {
+		unselected := blocksMetadata.unselectedBlocks()
+		if len(unselected) > 0 && unselected[0].start.Before(earliestStart) {
+			earliestStart = unselected[0].start
+		}
+	}
+
+	return earliestStart
+}
+
 func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 	perPeerBlocksMetadata []*blocksMetadata,
 	peerQueues peerBlocksQueues,
@@ -1076,16 +1090,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 	pooledBlocksMetadataQueues []blocksMetadataQueue,
 ) {
 	// Free any references the pool still has
-	for i := range pooledCurrStart {
-		pooledCurrStart[i] = nil
-	}
-	for i := range pooledCurrEligible {
-		pooledCurrEligible[i] = nil
-	}
-	var zeroed blocksMetadataQueue
-	for i := range pooledCurrEligible {
-		pooledBlocksMetadataQueues[i] = zeroed
-	}
+	freeRefs(pooledCurrStart, pooledCurrEligible, pooledBlocksMetadataQueues)
 
 	// Get references to pooled arrays
 	var (
@@ -1106,40 +1111,19 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 
 	// Select blocks from peers
 	for {
-		// Find the earliest start time
-		var earliestStart time.Time
-		for _, blocksMetadata := range perPeerBlocksMetadata {
-			if len(blocksMetadata.unselectedBlocks()) == 0 {
-				// No unselected blocks
-				continue
-			}
-			unselected := blocksMetadata.unselectedBlocks()
-			if earliestStart.IsZero() ||
-				unselected[0].start.Before(earliestStart) {
-				earliestStart = unselected[0].start
-			}
-		}
+		earliestStart := earliestUnselectedStartTime(perPeerBlocksMetadata)
 
-		// Find all with the earliest start time,
-		// ordered by time so must be first of each
+		// Find all with the earliest start time, ordered by time so must be first of each
 		currStart = currStart[:0]
 		for _, blocksMetadata := range perPeerBlocksMetadata {
-			if len(blocksMetadata.unselectedBlocks()) == 0 {
-				// No unselected blocks
-				continue
-			}
-
 			unselected := blocksMetadata.unselectedBlocks()
-			if !unselected[0].start.Equal(earliestStart) {
-				// Not the same block
-				continue
-			}
 
-			currStart = append(currStart, blocksMetadata)
+			if len(unselected) > 0 && unselected[0].start.Equal(earliestStart) {
+				currStart = append(currStart, blocksMetadata)
+			}
 		}
 
-		if len(currStart) == 0 {
-			// No more blocks to select from any peers
+		if len(currStart) == 0 { // No more blocks to select from any peers
 			break
 		}
 
@@ -1148,8 +1132,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 		currID := currStart[0].id
 		for i := len(currEligible) - 1; i >= 0; i-- {
 			unselected := currEligible[i].unselectedBlocks()
-			if unselected[0].reattempt.attempt == 0 {
-				// Not attempted yet
+			if unselected[0].reattempt.attempt == 0 { // Not attempted yet
 				continue
 			}
 
@@ -1184,15 +1167,14 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 
 		// Prepare the reattempt peers metadata
 		peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
-		for i := range currStart {
-			unselected := currStart[i].unselectedBlocks()
-			metadata := blockMetadataReattemptPeerMetadata{
-				peer:     currStart[i].peer,
+		for _, c := range currStart {
+			unselected := c.unselectedBlocks()
+			peersMetadata = append(peersMetadata, blockMetadataReattemptPeerMetadata{
+				peer:     c.peer,
 				start:    unselected[0].start,
 				size:     unselected[0].size,
 				checksum: unselected[0].checksum,
-			}
-			peersMetadata = append(peersMetadata, metadata)
+			})
 		}
 
 		var (
@@ -1216,7 +1198,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			}
 		}
 
-		// If all the peers have the same non-nil checksum, we pick the peer with the
+		// If all of the peers have the same non-nil checksum, we pick the peer with the
 		// fewest outstanding requests
 		if sameNonNilChecksum {
 			// Order by least outstanding blocks being fetched
@@ -1332,6 +1314,11 @@ func (s *session) streamBlocksBatchFromPeer(
 		return
 	}
 
+	if len(result.Elements) > len(batch) {
+		s.log.Errorf("stream blocks response from peer %s returned too many IDs", peer.Host().String())
+		result.Elements = result.Elements[:len(batch)]
+	}
+
 	// Calculate earliest block start as of end of request
 	earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
 
@@ -1344,11 +1331,6 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Parse and act on result
 
 	for i := range result.Elements {
-		if i >= len(batch) {
-			s.log.Errorf("stream blocks response from peer %s returned too many IDs", peer.Host().String())
-			break
-		}
-
 		id := ts.BinaryID(result.Elements[i].ID)
 
 		if !batch[i].id.Equal(id) {
@@ -1373,12 +1355,14 @@ func (s *session) streamBlocksBatchFromPeer(
 				break
 			}
 
-			if err := s.validateBlock(
+			if err := validateBlock(
 				result.Elements[i].Blocks[j-missed], // Index of the received block could be offset by missed blocks
 				batch[i].blocks[j],
 				blocksResult,
 				earliestBlockStart,
-				id, peer.Host().String()); err != nil {
+				id,
+				peer.Host().String(),
+				s.log); err != nil {
 				if err == errBlockStartMismatch {
 					missed++
 				}
@@ -1390,48 +1374,6 @@ func (s *session) streamBlocksBatchFromPeer(
 
 	// Return token to continue collecting results in other go routines
 	s.streamBlocksResultsProcessors <- token
-}
-
-func (s *session) validateBlock(
-	resultBlock *rpc.Block,
-	batchBlock blockMetadata,
-	blocksResult *blocksResult,
-	earliestBlockStart time.Time,
-	id ts.ID,
-	host string,
-) error {
-	if resultBlock.Start != batchBlock.start.UnixNano() {
-		// If fell out of retention during request this is healthy, otherwise an error
-		if !time.Unix(0, resultBlock.Start).Before(earliestBlockStart) {
-			s.log.WithFields(
-				xlog.NewLogField("id", id.String()),
-				xlog.NewLogField("expectedStart", batchBlock.start.UnixNano()),
-				xlog.NewLogField("actualStart", resultBlock.Start),
-			).Errorf("stream blocks response from peer %s returned mismatched block start", host)
-		}
-		return errBlockStartMismatch
-	}
-
-	if resultBlock.Err != nil {
-		s.log.WithFields(
-			xlog.NewLogField("id", id.String()),
-			xlog.NewLogField("start", resultBlock.Start),
-			xlog.NewLogField("errorType", resultBlock.Err.Type),
-			xlog.NewLogField("errorMessage", resultBlock.Err.Message),
-		).Errorf("stream blocks response from peer %s returned block error", host)
-		return resultBlock.Err
-	}
-
-	if err := blocksResult.addBlockFromPeer(id, resultBlock); err != nil {
-		s.log.WithFields(
-			xlog.NewLogField("id", id.String()),
-			xlog.NewLogField("start", resultBlock.Start),
-			xlog.NewLogField("error", err),
-		).Errorf("stream blocks response from peer %s bad block response", host)
-		return err
-	}
-
-	return nil
 }
 
 func (s *session) streamBlocksReattemptFromPeers(blocks []blockMetadata, enqueueCh *enqueueChannel) {
