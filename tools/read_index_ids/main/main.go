@@ -1,8 +1,7 @@
 package main
 
-import "fmt"
-
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -43,12 +42,12 @@ func main() {
 	err := seeker.Open(ts.StringID(*optNamespace), uint32(*optShard), time.Unix(0, int64(*optBlockstart)))
 
 	if err != nil {
-		log.Fatalf("Unable to open file: %v", err)
+		log.Fatalf("unable to open file: %v", err)
 	}
 
 	fileIds := seeker.IDs()
-	if fileIds == nil {
-		log.Fatalf("Unable to retrieve ids")
+	if fileIds == nil || len(fileIds) == 0 {
+		log.Fatalf("no ids in index")
 	}
 
 	for _, id := range fileIds {
