@@ -71,9 +71,6 @@ func (ph *placementHelper) TargetLoadForInstance(id string) int {
 }
 
 func (ph *placementHelper) MoveOneShard(from, to services.PlacementInstance) bool {
-	if from == nil {
-		return false
-	}
 	for _, s := range from.Shards().All() {
 		if s.State() != shard.Leaving && ph.MoveShard(s, from, to) {
 			return true
@@ -82,31 +79,32 @@ func (ph *placementHelper) MoveOneShard(from, to services.PlacementInstance) boo
 	return false
 }
 
-func (ph *placementHelper) MoveShard(s shard.Shard, from, to services.PlacementInstance) bool {
-	if !ph.canAssignInstance(s.ID(), from, to) {
+func (ph *placementHelper) MoveShard(candidateShard shard.Shard, from, to services.PlacementInstance) bool {
+	if !ph.canAssignInstance(candidateShard.ID(), from, to) {
 		return false
 	}
 
-	if s.State() == shard.Leaving {
+	if candidateShard.State() == shard.Leaving {
 		// should not move a Leaving shard,
 		// Leaving shard will be removed when the Initializing shard is marked as Available
 		return false
 	}
 
+	newShard := shard.NewShard(candidateShard.ID())
+	newShard.SetState(shard.Initializing)
+
 	if from != nil {
-		if s.State() == shard.Initializing {
-			from.Shards().Remove(s.ID())
-		} else if s.State() == shard.Available {
-			s.SetState(shard.Leaving)
+		if candidateShard.State() == shard.Initializing {
+			from.Shards().Remove(candidateShard.ID())
+			newShard.SetSourceID(candidateShard.SourceID())
+		} else if candidateShard.State() == shard.Available {
+			candidateShard.SetState(shard.Leaving)
+			newShard.SetSourceID(from.ID())
 		}
 
-		delete(ph.shardToInstanceMap[s.ID()], from)
+		delete(ph.shardToInstanceMap[candidateShard.ID()], from)
 	}
 
-	newShard := shard.NewShard(s.ID()).SetState(shard.Initializing)
-	if from != nil && s.State() != shard.Initializing {
-		newShard = newShard.SetSourceID(from.ID())
-	}
 	ph.assignShardToInstance(newShard, to)
 	return true
 }
@@ -293,6 +291,9 @@ func (ph *placementHelper) scanCurrentLoad() {
 		totalWeight += h.Weight()
 
 		for _, s := range h.Shards().All() {
+			if s.State() == shard.Leaving {
+				continue
+			}
 			ph.assignShardToInstance(s, h)
 		}
 	}

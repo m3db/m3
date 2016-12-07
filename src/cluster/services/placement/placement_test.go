@@ -126,7 +126,7 @@ func TestValidate(t *testing.T) {
 	p = NewPlacement(instances, ids, 2)
 	err := Validate(p)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid number of available shards in placement")
+	assert.Equal(t, err.Error(), "invalid placement, the total available shards in the placement is 11, expecting 12")
 
 	// contains shard that's unexpected to be in placement
 	h1 = NewEmptyInstance("r1h1", "r1", "z1", 1)
@@ -185,7 +185,6 @@ func TestValidate(t *testing.T) {
 	p = NewPlacement(instances, []uint32{1, 2, 3, 4}, 2)
 	assert.Error(t, Validate(p))
 
-	// missing a shard
 	h1 = NewEmptyInstance("r1h1", "r1", "z1", 1)
 	h1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
 	h1.Shards().Add(shard.NewShard(2).SetState(shard.Initializing))
@@ -200,24 +199,22 @@ func TestValidate(t *testing.T) {
 	p = NewPlacement(instances, ids, 1)
 	err = Validate(p)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "more than initializing")
+	assert.Equal(t, err.Error(), "invalid placement, 3 shards in Leaving state, more than 2 in Initializing state")
 
-	// missing a shard
 	h1 = NewEmptyInstance("r1h1", "r1", "z1", 1)
 	h1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	h1.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
 	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
 	h2 = NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
-	h2.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
-	h2.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+	h2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	h2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("h1"))
 
 	instances = []services.PlacementInstance{h1, h2}
-	p = NewPlacement(instances, ids, 2)
+	p = NewPlacement(instances, ids, 1)
 	err = Validate(p)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "more than initializing")
+	assert.Equal(t, err.Error(), "invalid placement, 2 shards in Leaving state, not equal 1 in Initializing state with source id")
 }
 
 func TestInstance(t *testing.T) {
