@@ -574,7 +574,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	s.RUnlock()
 	state.Wait()
 
-	err := s.writeConsistencyResult(majority, enqueued,
+	err := writeConsistencyResult(s.writeLevel, majority, enqueued,
 		enqueued-atomic.LoadInt32(&state.pending), int32(len(state.errors)), state.errors)
 	s.incWriteMetrics(err, int32(len(state.errors)))
 
@@ -673,7 +673,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				resultErrLock.RUnlock()
 			}
 			responded := enqueued - atomic.LoadInt32(&pending)
-			err := s.readConsistencyResult(majority, enqueued, responded, errsLen, reportErrors)
+			err := readConsistencyResult(s.readLevel, majority, enqueued, responded, errsLen, reportErrors)
 			s.incFetchMetrics(err, errsLen)
 			if err != nil {
 				resultErrLock.Lock()
@@ -833,66 +833,6 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 	}
 	success = true
 	return iters, nil
-}
-
-func (s *session) writeConsistencyResult(
-	majority, enqueued, responded, resultErrs int32,
-	errs []error,
-) error {
-	if resultErrs == 0 {
-		return nil
-	}
-
-	// Check consistency level satisfied
-	success := enqueued - resultErrs
-	switch s.writeLevel {
-	case topology.ConsistencyLevelAll:
-		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
-	case topology.ConsistencyLevelMajority:
-		if success >= majority {
-			// Meets majority
-			break
-		}
-		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
-	case topology.ConsistencyLevelOne:
-		if success > 0 {
-			// Meets one
-			break
-		}
-		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
-	}
-
-	return nil
-}
-
-func (s *session) readConsistencyResult(
-	majority, enqueued, responded, resultErrs int32,
-	errs []error,
-) error {
-	if resultErrs == 0 {
-		return nil
-	}
-
-	// Check consistency level satisfied
-	success := enqueued - resultErrs
-	switch s.readLevel {
-	case ReadConsistencyLevelAll:
-		return newConsistencyResultError(s.readLevel, int(enqueued), int(responded), errs)
-	case ReadConsistencyLevelMajority:
-		if success >= majority {
-			// Meets majority
-			break
-		}
-		return newConsistencyResultError(s.readLevel, int(enqueued), int(responded), errs)
-	case ReadConsistencyLevelOne, ReadConsistencyLevelUnstrictMajority:
-		if success > 0 {
-			// Meets one
-			break
-		}
-		return newConsistencyResultError(s.readLevel, int(enqueued), int(responded), errs)
-	}
-
-	return nil
 }
 
 func (s *session) Close() error {
