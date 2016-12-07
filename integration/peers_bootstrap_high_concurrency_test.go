@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,8 +42,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	// Test setups
 	log := xlog.SimpleLogger
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-	opts := newTestOptions().
-		SetNamespaces([]namespace.Metadata{namesp})
+	opts := newTestOptions().SetNamespaces([]namespace.Metadata{namesp})
 
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).

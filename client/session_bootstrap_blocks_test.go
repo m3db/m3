@@ -39,10 +39,11 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/sync"
-	"github.com/m3db/m3x/time"
+	xio "github.com/m3db/m3db/x/io"
+
+	xretry "github.com/m3db/m3x/retry"
+	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -184,14 +185,16 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 			qsMutex.RLock()
 			assigned := 0
 			for _, q := range qs {
-				assigned += int(atomic.LoadUint64(&q.assigned))
+				assigned += int(atomic.LoadInt32(&q.assigned))
 			}
 			qsMutex.RUnlock()
 			if assigned == len(blocks) {
 				qsMutex.Lock()
 				defer qsMutex.Unlock()
 				for _, q := range qs {
-					q.drain()
+					q.Lock()
+					q.drainWithLock()
+					q.Unlock()
 				}
 				return
 			}
@@ -605,8 +608,6 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-	// Ensure work enqueued immediately so can test result of the reenqueue
-	session.streamBlocksReattemptWorkers = newSynchronousWorkerPool()
 
 	assert.NoError(t, session.Open())
 
@@ -1053,15 +1054,7 @@ type fetchMetadataReqMatcher struct {
 
 func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 	req, ok := x.(*rpc.FetchBlocksMetadataRawRequest)
-	if !ok {
-		return false
-	}
-
-	if m.shard != req.Shard {
-		return false
-	}
-
-	if m.limit != req.Limit {
+	if !ok || m.shard != req.Shard || m.limit != req.Limit {
 		return false
 	}
 
@@ -1069,26 +1062,16 @@ func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 		if req.PageToken != nil {
 			return false
 		}
-	} else {
-		if req.PageToken == nil {
-			return false
-		}
-		if *req.PageToken != *m.pageToken {
-			return false
-		}
+	} else if req.PageToken == nil || *req.PageToken != *m.pageToken {
+		return false
 	}
 
 	if m.includeSizes == nil {
 		if req.IncludeSizes != nil {
 			return false
 		}
-	} else {
-		if req.IncludeSizes == nil {
-			return false
-		}
-		if *req.IncludeSizes != *m.includeSizes {
-			return false
-		}
+	} else if req.IncludeSizes == nil || *req.IncludeSizes != *m.includeSizes {
+		return false
 	}
 
 	return true

@@ -31,11 +31,12 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/topology"
 
-	"github.com/uber/tchannel-go"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
+
+	tchannel "github.com/uber/tchannel-go"
 )
 
 const (
@@ -94,13 +95,13 @@ const (
 	defaultBackgroundConnectInterval = 4 * time.Second
 
 	// defaultBackgroundConnectStutter is the default background connect stutter
-	defaultBackgroundConnectStutter = 1 * time.Second
+	defaultBackgroundConnectStutter = time.Second
 
 	// defaultBackgroundHealthCheckInterval is the default background health check interval
-	defaultBackgroundHealthCheckInterval = 1 * time.Second
+	defaultBackgroundHealthCheckInterval = time.Second
 
 	// defaultBackgroundHealthCheckStutter is the default background health check stutter
-	defaultBackgroundHealthCheckStutter = 1 * time.Second
+	defaultBackgroundHealthCheckStutter = time.Second
 
 	// defaultBackgroundHealthCheckFailLimit is the default background health failure
 	// limit before connection is deemed unhealth

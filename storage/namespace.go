@@ -16,12 +16,13 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/errors"
+	xio "github.com/m3db/m3db/x/io"
+	xerrors "github.com/m3db/m3x/errors"
+	xlog "github.com/m3db/m3x/log"
+
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/sync"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -390,9 +391,11 @@ func (n *dbNamespace) Bootstrap(
 
 			err := shard.Bootstrap(bootstrapped)
 
-			mutex.Lock()
-			multiErr = multiErr.Add(err)
-			mutex.Unlock()
+			if err != nil {
+				mutex.Lock()
+				multiErr = multiErr.Add(err)
+				mutex.Unlock()
+			}
 
 			wg.Done()
 		})

@@ -44,7 +44,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/sync"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 )
 
 var (
@@ -207,6 +207,7 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 		_, err := ts.health()
 		return err != nil
 	}
+
 	if waitUntil(serverIsDown, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}

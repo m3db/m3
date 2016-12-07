@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3db/x/metrics"
+	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
@@ -204,16 +204,6 @@ func TestSessionFetchReadConsistencyLevelMajority(t *testing.T) {
 	for i := 2; i <= 3; i++ {
 		testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelMajority, i, outcomeFail)
 	}
-}
-
-func TestSessionFetchReadConsistencyLevelUnstrictMajority(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	for i := 0; i <= 2; i++ {
-		testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelUnstrictMajority, i, outcomeSuccess)
-	}
-	testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelUnstrictMajority, 3, outcomeFail)
 }
 
 func TestSessionFetchReadConsistencyLevelOne(t *testing.T) {

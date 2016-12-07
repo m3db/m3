@@ -25,8 +25,9 @@ import (
 
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
+
+	xerrors "github.com/m3db/m3x/errors"
+	xlog "github.com/m3db/m3x/log"
 )
 
 const (
