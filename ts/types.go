@@ -44,6 +44,7 @@ type ID interface {
 type IdentifierPool interface {
 	GetBinaryID(context.Context, []byte) ID
 	GetStringID(context.Context, string) ID
+	Put(ID)
 
 	// Clone replicates a given ID into a pooled ID.
 	Clone(other ID) ID

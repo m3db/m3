@@ -44,16 +44,26 @@ func TestConstructorEquality(t *testing.T) {
 	assert.Equal(t, a.Hash(), b.Hash())
 }
 
-func TestPooling(t *testing.T) {
-	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
+func testPooling(t *testing.T, p IdentifierPool) {
 	ctx := context.NewContext()
 
 	a := p.GetStringID(ctx, "abc")
-	a.Hash()
+	b := p.Clone(a)
+
+	require.True(t, a.Equal(b))
 
 	ctx.BlockingClose()
 
 	require.Empty(t, a.Data())
+	require.NotEmpty(t, b.Data())
+}
+
+func TestSimplePooling(t *testing.T) {
+	testPooling(t, NewSimpleIdentifierPool(pool.NewObjectPoolOptions()))
+}
+
+func TestNativePooling(t *testing.T) {
+	testPooling(t, NewNativeIdentifierPool(nil, pool.NewObjectPoolOptions()))
 }
 
 func TestHashing(t *testing.T) {
@@ -73,14 +83,6 @@ func TestHashing(t *testing.T) {
 	}
 
 	wg.Wait()
-}
-
-func TestCloning(t *testing.T) {
-	a := StringID("abc")
-	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
-	b := p.Clone(a)
-
-	require.True(t, a.Equal(b))
 }
 
 func BenchmarkHashing(b *testing.B) {
@@ -103,7 +105,7 @@ func BenchmarkHashCaching(b *testing.B) {
 }
 
 func BenchmarkPooling(b *testing.B) {
-	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
+	p := NewNativeIdentifierPool(nil, pool.NewObjectPoolOptions())
 	ctx := context.NewContext()
 
 	v := []byte{'a', 'b', 'c'}
