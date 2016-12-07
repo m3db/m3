@@ -35,6 +35,13 @@ type blocksMetadata struct {
 	idx    int
 }
 
+type receivedBlocks struct {
+	submitted bool
+	results   []*blocksMetadata
+}
+
+type processFn func(batch []*blocksMetadata)
+
 func (b blocksMetadata) unselectedBlocks() []blockMetadata {
 	if b.idx == len(b.blocks) {
 		return nil
