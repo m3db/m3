@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// NewSimpleIdentifierPool constructs a new SimpleIdentifierPool.
-func NewSimpleIdentifierPool(options pool.ObjectPoolOptions) IdentifierPool {
+// NewIdentifierPool constructs a new simple IdentifierPool.
+func NewIdentifierPool(options pool.ObjectPoolOptions) IdentifierPool {
 	p := &simpleIdentifierPool{pool: pool.NewObjectPool(options)}
 	p.pool.Init(func() interface{} { return &id{pool: p} })
 

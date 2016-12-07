@@ -59,7 +59,7 @@ func testPooling(t *testing.T, p IdentifierPool) {
 }
 
 func TestSimplePooling(t *testing.T) {
-	testPooling(t, NewSimpleIdentifierPool(pool.NewObjectPoolOptions()))
+	testPooling(t, NewIdentifierPool(pool.NewObjectPoolOptions()))
 }
 
 func TestNativePooling(t *testing.T) {

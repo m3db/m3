@@ -138,7 +138,7 @@ func NewOptions() Options {
 		segmentReaderPool:              xio.NewSegmentReaderPool(nil),
 		readerIteratorPool:             encoding.NewReaderIteratorPool(nil),
 		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(nil),
-		identifierPool:                 ts.NewSimpleIdentifierPool(nil),
+		identifierPool:                 ts.NewIdentifierPool(nil),
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(nil, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(nil, 0),
 	}
