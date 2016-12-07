@@ -26,7 +26,6 @@ import (
 	"io"
 	"math"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1975,8 +1974,8 @@ func (q *peerBlocksQueue) drainEvery(interval time.Duration) {
 
 func (q *peerBlocksQueue) close() {
 	q.Lock()
-	defer q.Unlock()
 	q.closed = true
+	q.Unlock()
 }
 
 func (q *peerBlocksQueue) trackAssigned(amount int) {
@@ -2060,94 +2059,6 @@ func (qs peerBlocksQueues) closeAll() {
 	for _, q := range qs {
 		q.close()
 	}
-}
-
-type blocksMetadata struct {
-	peer   hostQueue
-	id     ts.ID
-	blocks []blockMetadata
-	idx    int
-}
-
-func (b blocksMetadata) unselectedBlocks() []blockMetadata {
-	if b.idx == len(b.blocks) {
-		return nil
-	}
-	return b.blocks[b.idx:]
-}
-
-type blocksMetadatas []*blocksMetadata
-
-func (arr blocksMetadatas) swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
-func (arr blocksMetadatas) hasBlocksLen() int {
-	count := 0
-	for i := range arr {
-		if arr[i] != nil && len(arr[i].blocks) > 0 {
-			count++
-		}
-	}
-	return count
-}
-
-type peerBlocksMetadataByID []*blocksMetadata
-
-func (arr peerBlocksMetadataByID) Len() int      { return len(arr) }
-func (arr peerBlocksMetadataByID) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
-func (arr peerBlocksMetadataByID) Less(i, j int) bool {
-	return strings.Compare(arr[i].peer.Host().ID(), arr[j].peer.Host().ID()) < 0
-}
-
-type blocksMetadataQueue struct {
-	blocksMetadata *blocksMetadata
-	queue          *peerBlocksQueue
-}
-
-type blocksMetadatasQueuesByOutstandingAsc []blocksMetadataQueue
-
-func (arr blocksMetadatasQueuesByOutstandingAsc) Len() int      { return len(arr) }
-func (arr blocksMetadatasQueuesByOutstandingAsc) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
-func (arr blocksMetadatasQueuesByOutstandingAsc) Less(i, j int) bool {
-	outstandingFirst := atomic.LoadUint64(&arr[i].queue.assigned) - atomic.LoadUint64(&arr[i].queue.completed)
-	outstandingSecond := atomic.LoadUint64(&arr[j].queue.assigned) - atomic.LoadUint64(&arr[j].queue.completed)
-	return outstandingFirst < outstandingSecond
-}
-
-type blockMetadata struct {
-	start     time.Time
-	size      int64
-	checksum  *uint32
-	reattempt blockMetadataReattempt
-}
-
-type blockMetadataReattempt struct {
-	attempt       int
-	id            ts.ID
-	attempted     []hostQueue
-	peersMetadata []blockMetadataReattemptPeerMetadata
-}
-
-type blockMetadataReattemptPeerMetadata struct {
-	peer     hostQueue
-	start    time.Time
-	size     int64
-	checksum *uint32
-}
-
-func (b blockMetadataReattempt) hasAttemptedPeer(peer hostQueue) bool {
-	for i := range b.attempted {
-		if b.attempted[i] == peer {
-			return true
-		}
-	}
-	return false
-}
-
-type blockMetadatasByTime []blockMetadata
-
-func (b blockMetadatasByTime) Len() int      { return len(b) }
-func (b blockMetadatasByTime) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-func (b blockMetadatasByTime) Less(i, j int) bool {
-	return b[i].start.Before(b[j].start)
 }
 
 func newTimesByUnixNanos(values []int64) []time.Time {
