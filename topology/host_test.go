@@ -51,3 +51,9 @@ func TestNewHostShardSetFromServiceInstance(t *testing.T) {
 	id := ts.StringID("id")
 	assert.Equal(t, host.ShardSet().Lookup(id), hash(id))
 }
+
+func TestMajority(t *testing.T) {
+	assert.Equal(t, 2, majority(2))
+	assert.Equal(t, 2, majority(3))
+	assert.Equal(t, 3, majority(4))
+}
