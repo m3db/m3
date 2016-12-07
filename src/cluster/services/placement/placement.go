@@ -95,6 +95,7 @@ func Validate(p services.ServicePlacement) error {
 	totalCapacity := 0
 	totalLeaving := 0
 	totalInit := 0
+	totalInitWithSourceID := 0
 	for _, instance := range p.Instances() {
 		for _, s := range instance.Shards().All() {
 			count, exist := shardCountMap[s.ID()]
@@ -108,6 +109,9 @@ func Validate(p services.ServicePlacement) error {
 				totalInit++
 				shardCountMap[s.ID()] = count + 1
 				totalCapacity++
+				if s.SourceID() != "" {
+					totalInitWithSourceID++
+				}
 			} else if s.State() == shard.Leaving {
 				totalLeaving++
 			} else {
@@ -118,11 +122,14 @@ func Validate(p services.ServicePlacement) error {
 
 	// initializing could be more than leaving for cases like initial placement
 	if totalLeaving > totalInit {
-		return fmt.Errorf("invalid shards in placement, the total leaving shards in the placement is %d, more than initializing %d", totalLeaving, totalInit)
+		return fmt.Errorf("invalid placement, %d shards in Leaving state, more than %d in Initializing state", totalLeaving, totalInit)
+	}
+	if totalLeaving != totalInitWithSourceID {
+		return fmt.Errorf("invalid placement, %d shards in Leaving state, not equal %d in Initializing state with source id", totalLeaving, totalInitWithSourceID)
 	}
 
 	if expectedTotal != totalCapacity {
-		return fmt.Errorf("invalid number of available shards in placement, the total available shards in the placement is %d, expecting %d", totalCapacity, expectedTotal)
+		return fmt.Errorf("invalid placement, the total available shards in the placement is %d, expecting %d", totalCapacity, expectedTotal)
 	}
 
 	for shard, c := range shardCountMap {

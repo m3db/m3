@@ -29,87 +29,159 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMoveShard(t *testing.T) {
-	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+func TestMoveInitializingShard(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
 
-	h2 := placement.NewEmptyInstance("r1h2", "r1", "z1", 1)
-	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", 1)
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	h3 := placement.NewEmptyInstance("r2h3", "r2", "z1", 1)
-	h3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", 1)
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
 
-	h4 := placement.NewEmptyInstance("r2h4", "r2", "z1", 1)
-	h4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	instances := []services.PlacementInstance{i1, i2, i3}
+	p := placement.NewPlacement(instances, []uint32{1, 2, 3}, 1)
+	ph := newHelper(p, 3, placement.NewOptions()).(*placementHelper)
 
-	h5 := placement.NewEmptyInstance("r3h5", "r3", "z1", 1)
-	h5.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
-	h5.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	// move an Initializing shard
+	s3, ok := i3.Shards().Shard(3)
+	assert.True(t, ok)
+	assert.True(t, ph.MoveShard(s3, i3, i2))
+	_, ok = i3.Shards().Shard(3)
+	assert.False(t, ok)
+	// i2 now owns it
+	s3, ok = i2.Shards().Shard(3)
+	assert.True(t, ok)
+	assert.Equal(t, "i1", s3.SourceID())
+	assert.Equal(t, shard.Initializing, s3.State())
+}
 
-	h6 := placement.NewEmptyInstance("r4h6", "r4", "z1", 1)
-	h6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h6.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-	h6.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+func TestMoveLeavingShard(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
 
-	instances := []services.PlacementInstance{h1, h2, h3, h4, h5, h6}
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", 1)
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", 1)
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
+
+	instances := []services.PlacementInstance{i1, i2, i3}
+	p := placement.NewPlacement(instances, []uint32{1, 2, 3}, 1)
+	ph := newHelper(p, 3, placement.NewOptions()).(*placementHelper)
+
+	// make sure Leaving shard could not be moved
+	s3, ok := i1.Shards().Shard(3)
+	assert.True(t, ok)
+	assert.False(t, ph.MoveShard(s3, i1, i2))
+}
+
+func TestMoveAvailableShard(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", 1)
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", 1)
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	instances := []services.PlacementInstance{i1, i2, i3}
+	p := placement.NewPlacement(instances, []uint32{1, 2, 3}, 1)
+	ph := newHelper(p, 3, placement.NewOptions()).(*placementHelper)
+
+	s3, ok := i3.Shards().Shard(3)
+	assert.True(t, ok)
+	assert.True(t, ph.MoveShard(s3, i3, i2))
+	assert.Equal(t, shard.Leaving, s3.State())
+	assert.Equal(t, "", s3.SourceID())
+	s3, ok = i2.Shards().Shard(3)
+	assert.True(t, ok)
+	assert.Equal(t, shard.Initializing, s3.State())
+	assert.Equal(t, "i3", s3.SourceID())
+}
+
+func TestAssignShard(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", 1)
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+	i3 := placement.NewEmptyInstance("i3", "r2", "z1", 1)
+	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+
+	i4 := placement.NewEmptyInstance("i4", "r2", "z1", 1)
+	i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+	i5 := placement.NewEmptyInstance("i5", "r3", "z1", 1)
+	i5.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i5.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i5.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
+
+	i6 := placement.NewEmptyInstance("i6", "r4", "z1", 1)
+	i6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i6.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i6.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+
+	instances := []services.PlacementInstance{i1, i2, i3, i4, i5, i6}
 	p := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 3)
 
 	ph := newHelper(p, 3, placement.NewOptions()).(*placementHelper)
-	assert.True(t, ph.canAssignInstance(2, h6, h5))
-	assert.True(t, ph.canAssignInstance(1, h1, h6))
-	assert.False(t, ph.canAssignInstance(2, h6, h1))
+	assert.True(t, ph.canAssignInstance(2, i6, i5))
+	assert.True(t, ph.canAssignInstance(1, i1, i6))
+	assert.False(t, ph.canAssignInstance(2, i6, i1))
 	// rack check
-	assert.False(t, ph.canAssignInstance(2, h6, h3))
+	assert.False(t, ph.canAssignInstance(2, i6, i3))
 	ph = newHelper(p, 3, placement.NewOptions().SetLooseRackCheck(true)).(*placementHelper)
-	assert.True(t, ph.canAssignInstance(2, h6, h3))
+	assert.True(t, ph.canAssignInstance(2, i6, i3))
 
 	s := shard.NewShard(1).SetState(shard.Available)
 	ph.assignShardToInstance(s, nil)
 	assert.Equal(t, shard.NewShard(1).SetState(shard.Available), s)
-
-	assert.False(t, ph.MoveOneShard(nil, h1))
 }
 
 func TestIsInstanceLeaving(t *testing.T) {
-	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	assert.False(t, isInstanceLeaving(h1))
+	i1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	assert.False(t, isInstanceLeaving(i1))
 
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
-	assert.False(t, isInstanceLeaving(h1))
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	assert.False(t, isInstanceLeaving(i1))
 
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
-	assert.True(t, isInstanceLeaving(h1))
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	assert.True(t, isInstanceLeaving(i1))
 
-	h1.SetShards(shard.NewShards(nil))
-	assert.False(t, isInstanceLeaving(h1))
+	i1.SetShards(shard.NewShards(nil))
+	assert.False(t, isInstanceLeaving(i1))
 }
 
 func TestNonLeavingInstances(t *testing.T) {
 	instances := []services.PlacementInstance{
 		placement.NewInstance().
-			SetID("h1").
+			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 		placement.NewInstance().
-			SetID("h2").
+			SetID("i2").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Leaving)})),
 		placement.NewInstance().
-			SetID("h2"),
+			SetID("i2"),
 	}
 	r := nonLeavingInstances(instances)
 	assert.Equal(t, 2, len(r))
-	assert.Equal(t, "h1", r[0].ID())
-	assert.Equal(t, "h2", r[1].ID())
+	assert.Equal(t, "i1", r[0].ID())
+	assert.Equal(t, "i2", r[1].ID())
 }
 
 func TestMarkShard(t *testing.T) {
@@ -151,26 +223,26 @@ func TestMarkShard(t *testing.T) {
 
 func TestRemoveInstanceFromArray(t *testing.T) {
 	instances := []services.PlacementInstance{
-		placement.NewEmptyInstance("h1", "", "", 1),
-		placement.NewEmptyInstance("h2", "", "", 1),
+		placement.NewEmptyInstance("i1", "", "", 1),
+		placement.NewEmptyInstance("i2", "", "", 1),
 	}
 
 	assert.Equal(t, instances, removeInstance(instances, "not_exist"))
-	assert.Equal(t, []services.PlacementInstance{placement.NewEmptyInstance("h2", "", "", 1)}, removeInstance(instances, "h1"))
+	assert.Equal(t, []services.PlacementInstance{placement.NewEmptyInstance("i2", "", "", 1)}, removeInstance(instances, "i1"))
 }
 
 func TestCopy(t *testing.T) {
-	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	h2 := placement.NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", 1)
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	instances := []services.PlacementInstance{h1, h2}
+	instances := []services.PlacementInstance{i1, i2}
 
 	ids := []uint32{1, 2, 3, 4, 5, 6}
 	s := placement.NewPlacement(instances, ids, 1)
@@ -187,13 +259,13 @@ func TestCopy(t *testing.T) {
 }
 
 func TestLoadOnInstance(t *testing.T) {
-	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
-	assert.Equal(t, 1, loadOnInstance(h1))
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	assert.Equal(t, 1, loadOnInstance(i1))
 
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	assert.Equal(t, 2, loadOnInstance(h1))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	assert.Equal(t, 2, loadOnInstance(i1))
 
-	h1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
-	assert.Equal(t, 2, loadOnInstance(h1))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
+	assert.Equal(t, 2, loadOnInstance(i1))
 }
