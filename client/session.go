@@ -574,8 +574,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	s.RUnlock()
 	state.Wait()
 
-	err := writeConsistencyResult(s.writeLevel, majority, enqueued,
-		enqueued-atomic.LoadInt32(&state.pending), int32(len(state.errors)), state.errors)
+	err := writeConsistencyResult(s.writeLevel, majority, enqueued, atomic.LoadInt32(&state.pending), state.errors)
 	s.incWriteMetrics(err, int32(len(state.errors)))
 
 	state.Unlock()
