@@ -138,7 +138,7 @@ func NewOptions() Options {
 		segmentReaderPool:              xio.NewSegmentReaderPool(nil),
 		readerIteratorPool:             encoding.NewReaderIteratorPool(nil),
 		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(nil),
-		identifierPool:                 ts.NewIdentifierPool(nil, nil),
+		identifierPool:                 ts.NewIdentifierPool(nil),
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(nil, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(nil, 0),
 	}
@@ -229,7 +229,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		Capacity: defaultBytesPoolBucketCapacity,
 		Count:    defaultBytesPoolBucketCount,
 	}}
-	bytesPool := pool.NewNativeHeap(buckets, nil)
+	bytesPool := pool.NewBytesPool(buckets, nil)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 

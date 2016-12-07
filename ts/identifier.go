@@ -55,7 +55,7 @@ type id struct {
 	data  []byte
 	hash  Hash
 	state int32
-	pool  *identifierPool
+	pool  IdentifierPool
 }
 
 // Data returns the binary value of an ID.
@@ -98,10 +98,7 @@ func (v *id) Close() {
 		return
 	}
 
-	v.pool.heap.Put(v.data)
-
-	v.Reset(nil)
-	v.pool.pool.Put(v) // No-op for standalone IDs.
+	v.pool.Put(v)
 }
 
 func (v *id) Reset(value []byte) {
