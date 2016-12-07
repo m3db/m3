@@ -111,6 +111,6 @@ func BenchmarkPooling(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		id := p.GetBinaryID(ctx, v)
 		id.Hash()
-		id.OnClose()
+		id.Close()
 	}
 }
