@@ -57,7 +57,7 @@ type queue struct {
 	opsArrayPool                         opArrayPool
 	drainIn                              chan []op
 	state                                state
-	//	shardStates                          []shardState
+	//	shardStates                          map[uint32]shardState
 }
 
 func newHostQueue(
