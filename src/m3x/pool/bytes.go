@@ -20,106 +20,28 @@
 
 package pool
 
-import (
-	"fmt"
-	"sort"
-
-	"github.com/uber-go/tally"
-)
-
 type bytesPool struct {
-	sizesAsc          []Bucket
-	buckets           []bytesBucket
-	maxBucketCapacity int
-	opts              ObjectPoolOptions
-	maxAlloc          tally.Counter
+	pool BucketizedObjectPool
 }
 
-type bytesBucket struct {
-	capacity int
-	pool     ObjectPool
-}
-
-// NewBytesPool creates a new pool
+// NewBytesPool creates a new bytes pool
 func NewBytesPool(sizes []Bucket, opts ObjectPoolOptions) BytesPool {
-	if opts == nil {
-		opts = NewObjectPoolOptions()
-	}
-
-	sizesAsc := make([]Bucket, len(sizes))
-	copy(sizesAsc, sizes)
-	sort.Sort(BucketByCapacity(sizesAsc))
-
-	var maxBucketCapacity int
-	if len(sizesAsc) != 0 {
-		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity
-	}
-
-	iopts := opts.InstrumentOptions()
-
-	return &bytesPool{
-		opts:              opts,
-		sizesAsc:          sizesAsc,
-		maxBucketCapacity: maxBucketCapacity,
-		maxAlloc:          iopts.MetricsScope().Counter("alloc-max"),
-	}
-}
-
-func (p *bytesPool) alloc(capacity int) []byte {
-	return make([]byte, 0, capacity)
+	return &bytesPool{pool: NewBucketizedObjectPool(sizes, opts)}
 }
 
 func (p *bytesPool) Init() {
-	buckets := make([]bytesBucket, len(p.sizesAsc))
-	for i := range p.sizesAsc {
-		size := p.sizesAsc[i].Count
-		capacity := p.sizesAsc[i].Capacity
-
-		opts := p.opts.SetSize(size)
-		iopts := opts.InstrumentOptions()
-
-		if iopts.MetricsScope() != nil {
-			opts = opts.SetInstrumentOptions(iopts.SetMetricsScope(
-				iopts.MetricsScope().Tagged(map[string]string{
-					"bucket-capacity": fmt.Sprintf("%d", capacity),
-				})))
-		}
-
-		buckets[i].capacity = capacity
-		buckets[i].pool = NewObjectPool(opts)
-		buckets[i].pool.Init(func() interface{} {
-			return p.alloc(capacity)
-		})
-	}
-	p.buckets = buckets
+	p.pool.Init(func(capacity int) interface{} {
+		return make([]byte, 0, capacity)
+	})
 }
 
 func (p *bytesPool) Get(capacity int) []byte {
-	if capacity > p.maxBucketCapacity {
-		p.maxAlloc.Inc(1)
-		return p.alloc(capacity)
-	}
-	for i := range p.buckets {
-		if p.buckets[i].capacity >= capacity {
-			return p.buckets[i].pool.Get().([]byte)
-		}
-	}
-	return p.alloc(capacity)
+	return p.pool.Get(capacity).([]byte)
 }
 
-func (p *bytesPool) Put(buffer []byte) {
-	capacity := cap(buffer)
-	if capacity > p.maxBucketCapacity {
-		return
-	}
-
-	buffer = buffer[:0]
-	for i := len(p.buckets) - 1; i >= 0; i-- {
-		if capacity >= p.buckets[i].capacity {
-			p.buckets[i].pool.Put(buffer)
-			return
-		}
-	}
+func (p *bytesPool) Put(value []byte) {
+	value = value[:0]
+	p.pool.Put(value, cap(value))
 }
 
 // AppendByte appends a byte to a byte slice getting a new slice from the
