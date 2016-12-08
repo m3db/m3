@@ -104,7 +104,7 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapping
 	err := s.Flush(testNamespaceID, time.Now(), nil)
-	require.Equal(t, err, errShardNotBootstrapped)
+	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
 
 func TestShardFlushNoPersistFuncNoError(t *testing.T) {

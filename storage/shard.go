@@ -609,7 +609,7 @@ func (s *dbShard) Flush(
 	s.RLock()
 	if s.bs != bootstrapped {
 		s.RUnlock()
-		return errShardNotBootstrapped
+		return errShardNotBootstrappedToFlush
 	}
 	s.RUnlock()
 

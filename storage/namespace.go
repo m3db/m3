@@ -265,7 +265,7 @@ func (n *dbNamespace) ReadEncoded(
 	id ts.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
-	shard, err := n.shardFor(id)
+	shard, err := n.readableShardFor(id)
 	if err != nil {
 		return nil, err
 	}
@@ -278,9 +278,9 @@ func (n *dbNamespace) FetchBlocks(
 	id ts.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
-	shard, err := n.shardAt(shardID)
+	shard, err := n.readableShardAt(shardID)
 	if err != nil {
-		return nil, xerrors.NewInvalidParamsError(err)
+		return nil, err
 	}
 	return shard.FetchBlocks(ctx, id, starts)
 }
@@ -294,9 +294,9 @@ func (n *dbNamespace) FetchBlocksMetadata(
 	includeSizes bool,
 	includeChecksums bool,
 ) (block.FetchBlocksMetadataResults, *int64, error) {
-	shard, err := n.shardAt(shardID)
+	shard, err := n.readableShardAt(shardID)
 	if err != nil {
-		return nil, nil, xerrors.NewInvalidParamsError(err)
+		return nil, nil, err
 	}
 	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, limit,
 		pageToken, includeSizes, includeChecksums)
@@ -592,9 +592,17 @@ func (n *dbNamespace) shardFor(id ts.ID) (databaseShard, error) {
 	return shard, err
 }
 
-func (n *dbNamespace) shardAt(shardID uint32) (databaseShard, error) {
+func (n *dbNamespace) readableShardFor(id ts.ID) (databaseShard, error) {
 	n.RLock()
-	shard, err := n.shardAtWithRLock(shardID)
+	shardID := n.shardSet.Lookup(id)
+	shard, err := n.readableShardAtWithRLock(shardID)
+	n.RUnlock()
+	return shard, err
+}
+
+func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, error) {
+	n.RLock()
+	shard, err := n.readableShardAtWithRLock(shardID)
 	n.RUnlock()
 	return shard, err
 }
@@ -608,6 +616,22 @@ func (n *dbNamespace) shardAtWithRLock(shardID uint32) (databaseShard, error) {
 	if shard == nil {
 		return nil, xerrors.NewInvalidParamsError(
 			fmt.Errorf("not responsible for shard %d", shardID))
+	}
+	return shard, nil
+}
+
+func (n *dbNamespace) readableShardAtWithRLock(shardID uint32) (databaseShard, error) {
+	if int(shardID) >= len(n.shards) {
+		return nil, xerrors.NewInvalidParamsError(
+			fmt.Errorf("not responsible for shard %d", shardID))
+	}
+	shard := n.shards[shardID]
+	if shard == nil {
+		return nil, xerrors.NewInvalidParamsError(
+			fmt.Errorf("not responsible for shard %d", shardID))
+	}
+	if !shard.IsBootstrapped() {
+		return nil, xerrors.NewRetryableError(errShardNotBootstrappedToRead)
 	}
 	return shard, nil
 }

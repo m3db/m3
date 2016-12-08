@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -399,10 +399,6 @@ func (d *db) Truncate(namespace ts.ID) (int64, error) {
 
 func (d *db) readableNamespace(namespace ts.ID) (databaseNamespace, error) {
 	d.RLock()
-	if !d.bsm.IsBootstrapped() {
-		d.RUnlock()
-		return nil, errDatabaseNotBootstrapped
-	}
 	n, exists := d.namespaces[namespace.Hash()]
 	d.RUnlock()
 
