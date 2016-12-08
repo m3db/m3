@@ -20,9 +20,24 @@
 
 package tdigest
 
+import (
+	"errors"
+	"fmt"
+)
+
 const (
 	defaultCompression = 100.0
 	defaultPrecision   = 0
+	minPrecision       = 0
+	maxPrecision       = 16
+	minCompression     = 20.0
+	maxCompression     = 1000.0
+)
+
+var (
+	errInvalidCompression = fmt.Errorf("compression must be between %f and %f", minCompression, maxCompression)
+	errInvalidPrecision   = fmt.Errorf("precision must be between %d and %d", minPrecision, maxPrecision)
+	errNoCentroidsPool    = errors.New("no centroids pool set")
 )
 
 type options struct {
@@ -43,21 +58,21 @@ func NewOptions() Options {
 	}
 }
 
-func (o options) SetCompressionFactor(value float64) Options {
+func (o options) SetCompression(value float64) Options {
 	o.compression = value
 	return o
 }
 
-func (o options) CompressionFactor() float64 {
+func (o options) Compression() float64 {
 	return o.compression
 }
 
-func (o options) SetQuantilePrecision(value int) Options {
+func (o options) SetPrecision(value int) Options {
 	o.precision = value
 	return o
 }
 
-func (o options) QuantilePrecision() int {
+func (o options) Precision() int {
 	return o.precision
 }
 
@@ -68,4 +83,17 @@ func (o options) SetCentroidsPool(value CentroidsPool) Options {
 
 func (o options) CentroidsPool() CentroidsPool {
 	return o.centroidsPool
+}
+
+func (o options) Validate() error {
+	if o.compression < minCompression || o.compression > maxCompression {
+		return errInvalidCompression
+	}
+	if o.precision < minPrecision || o.precision > maxPrecision {
+		return errInvalidPrecision
+	}
+	if o.centroidsPool == nil {
+		return errNoCentroidsPool
+	}
+	return nil
 }

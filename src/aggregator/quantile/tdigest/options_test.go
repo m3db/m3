@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cm
+package tdigest
 
 import (
 	"testing"
@@ -26,48 +26,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMinHeapPushInDecreasingOrder(t *testing.T) {
-	h := &minHeap{}
-	iter := 10
-	for i := iter - 1; i >= 0; i-- {
-		h.Push(float64(i))
-		require.Equal(t, iter-i, h.Len())
-	}
-	for i := 0; i < iter; i++ {
-		require.Equal(t, float64(i), h.Min())
-		require.Equal(t, float64(i), h.Pop())
-		validateInvariant(t, *h, 0)
-	}
+var (
+	testOpts = NewOptions()
+)
+
+func TestOptionsValidateSuccess(t *testing.T) {
+	require.NoError(t, testOpts.Validate())
 }
 
-func TestMinHeapPushInIncreasingOrder(t *testing.T) {
-	h := &minHeap{}
-	iter := 10
-	for i := 0; i < iter; i++ {
-		h.Push(float64(i))
-		require.Equal(t, i+1, h.Len())
-	}
-	for i := 0; i < iter; i++ {
-		require.Equal(t, float64(i), h.Min())
-		require.Equal(t, float64(i), h.Pop())
-		validateInvariant(t, *h, 0)
-	}
+func TestOptionsValidateInvalidCompression(t *testing.T) {
+	opts := testOpts.SetCompression(minCompression - 1)
+	require.Equal(t, errInvalidCompression, opts.Validate())
+
+	opts = testOpts.SetCompression(maxCompression + 1)
+	require.Equal(t, errInvalidCompression, opts.Validate())
 }
 
-func validateInvariant(t *testing.T, h minHeap, i int) {
-	var (
-		n     = h.Len()
-		left  = 2*i + 1
-		right = 2*i + 2
-	)
+func TestOptionsValidateInvalidPrecision(t *testing.T) {
+	opts := testOpts.SetPrecision(minPrecision - 1)
+	require.Equal(t, errInvalidPrecision, opts.Validate())
 
-	if left < n {
-		require.True(t, h[i] <= h[left])
-		validateInvariant(t, h, left)
-	}
+	opts = testOpts.SetPrecision(maxPrecision + 1)
+	require.Equal(t, errInvalidPrecision, opts.Validate())
+}
 
-	if right < n {
-		require.True(t, h[i] <= h[right])
-		validateInvariant(t, h, right)
-	}
+func TestOptionsValidateNoCentroidsPool(t *testing.T) {
+	opts := testOpts.SetCentroidsPool(nil)
+	require.Equal(t, errNoCentroidsPool, opts.Validate())
 }

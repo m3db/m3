@@ -20,6 +20,10 @@
 
 package cm
 
+// minHeap is a typed min heap for floating point numbers. Unlike the generic
+// heap in the container/heap package, pushing data to or popping data off of
+// the heap doesn't require conversion between floats and interface{} objects,
+// therefore avoiding the memory and GC overhead due to the additional allocations.
 type minHeap []float64
 
 // Len returns the number of values in the heap

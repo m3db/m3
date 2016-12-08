@@ -51,15 +51,16 @@ func NewStream(capacity int, opts Options) Stream {
 	samplePool := opts.SamplePool()
 	floatsPool := opts.FloatsPool()
 
-	return &stream{
+	s := &stream{
 		capacity:   capacity,
 		eps:        opts.Eps(),
 		quantiles:  opts.Quantiles(),
-		bufLess:    minHeap(floatsPool.Get(capacity)),
-		bufMore:    minHeap(floatsPool.Get(capacity)),
 		samplePool: samplePool,
 		floatsPool: floatsPool,
 	}
+
+	s.Reset()
+	return s
 }
 
 func (s *stream) Add(value float64) {
@@ -79,6 +80,10 @@ func (s *stream) Flush() {
 }
 
 func (s *stream) Quantile(q float64) float64 {
+	if s.samples.Empty() {
+		return 0.0
+	}
+
 	var (
 		minRank   int64
 		maxRank   int64
@@ -96,9 +101,6 @@ func (s *stream) Quantile(q float64) float64 {
 		minRank += curr.numRanks
 		prev = curr
 		curr = curr.next
-	}
-	if prev == nil {
-		return 0.0
 	}
 	return prev.value
 }
@@ -269,10 +271,10 @@ func (s *stream) addToMinHeap(heap *minHeap, value float64) {
 	// If we are at capacity, get a bigger heap from the pool
 	// and return the current heap to the pool
 	if len(curr) == cap(curr) {
-		newHeap := minHeap(s.floatsPool.Get(2 * len(curr)))
-		n := copy(newHeap, curr)
+		newHeap := s.floatsPool.Get(2 * len(curr))
+		newHeap = append(newHeap, curr...)
 		s.floatsPool.Put(curr)
-		*heap = newHeap[:n]
+		*heap = newHeap
 	}
 	heap.Push(value)
 }

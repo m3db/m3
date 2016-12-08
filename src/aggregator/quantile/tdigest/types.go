@@ -65,21 +65,24 @@ type TDigest interface {
 
 // Options provides a set of t-digest options
 type Options interface {
-	// SetCompressionFactor sets the compression factor
-	SetCompressionFactor(value float64) Options
+	// SetCompression sets the compression
+	SetCompression(value float64) Options
 
-	// CompressionFactor returns the compression factor
-	CompressionFactor() float64
+	// Compression returns the compression
+	Compression() float64
 
-	// SetQuantilePrecision sets the quantile precision
-	SetQuantilePrecision(value int) Options
+	// SetPrecision sets the quantile precision
+	SetPrecision(value int) Options
 
-	// QuantilePrecision returns the quantile precision
-	QuantilePrecision() int
+	// Precision returns the quantile precision
+	Precision() int
 
 	// SetCentroidsPool sets the centroids pool
 	SetCentroidsPool(value CentroidsPool) Options
 
 	// CentroidsPool returns the centroids pool
 	CentroidsPool() CentroidsPool
+
+	// Validate validates the options
+	Validate() error
 }

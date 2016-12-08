@@ -92,7 +92,7 @@ func (p *bucketizedObjectPool) Get(capacity int) interface{} {
 	}
 	for i := range p.buckets {
 		if p.buckets[i].capacity >= capacity {
-			return p.buckets[i].pool.Get().([]float64)
+			return p.buckets[i].pool.Get()
 		}
 	}
 	return p.alloc(capacity)
