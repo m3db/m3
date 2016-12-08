@@ -21,7 +21,7 @@
 package cm
 
 import (
-	"github.com/m3db/m3aggregator/pool"
+	"github.com/m3db/m3x/pool"
 )
 
 type floatsPool struct {
@@ -29,8 +29,8 @@ type floatsPool struct {
 }
 
 // NewFloatsPool creates a new floats pool
-func NewFloatsPool(opts pool.BucketizedObjectPoolOptions) FloatsPool {
-	return &floatsPool{pool: pool.NewBucketizedObjectPool(opts)}
+func NewFloatsPool(sizes []pool.Bucket, opts pool.ObjectPoolOptions) FloatsPool {
+	return &floatsPool{pool: pool.NewBucketizedObjectPool(sizes, opts)}
 }
 
 func (p *floatsPool) Init() {

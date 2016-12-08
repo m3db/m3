@@ -23,6 +23,8 @@ package tdigest
 import (
 	"errors"
 	"fmt"
+
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -35,6 +37,10 @@ const (
 )
 
 var (
+	defaultBuckets = []pool.Bucket{
+		{Capacity: 16, Count: 4096},
+	}
+
 	errInvalidCompression = fmt.Errorf("compression must be between %f and %f", minCompression, maxCompression)
 	errInvalidPrecision   = fmt.Errorf("precision must be between %d and %d", minPrecision, maxPrecision)
 	errNoCentroidsPool    = errors.New("no centroids pool set")
@@ -48,7 +54,7 @@ type options struct {
 
 // NewOptions creates a new options
 func NewOptions() Options {
-	centroidsPool := NewCentroidsPool(nil)
+	centroidsPool := NewCentroidsPool(defaultBuckets, nil)
 	centroidsPool.Init()
 
 	return options{

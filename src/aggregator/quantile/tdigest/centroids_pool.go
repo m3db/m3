@@ -21,7 +21,7 @@
 package tdigest
 
 import (
-	"github.com/m3db/m3aggregator/pool"
+	"github.com/m3db/m3x/pool"
 )
 
 type centroidsPool struct {
@@ -29,8 +29,8 @@ type centroidsPool struct {
 }
 
 // NewCentroidsPool creates a new centroids pool
-func NewCentroidsPool(opts pool.BucketizedObjectPoolOptions) CentroidsPool {
-	return &centroidsPool{pool: pool.NewBucketizedObjectPool(opts)}
+func NewCentroidsPool(sizes []pool.Bucket, opts pool.ObjectPoolOptions) CentroidsPool {
+	return &centroidsPool{pool: pool.NewBucketizedObjectPool(sizes, opts)}
 }
 
 func (p *centroidsPool) Init() {
