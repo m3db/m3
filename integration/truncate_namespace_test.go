@@ -112,9 +112,10 @@ func TestTruncateNamespace(t *testing.T) {
 	require.Equal(t, int64(1), truncated)
 
 	log.Debugf("fetching data from namespace %s again", testNamespaces[0])
-	res, err = testSetup.fetch(fetchReq)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(res))
+	_, err = testSetup.fetch(fetchReq)
+	// Turncate drops the namespace and initiates all the shards
+	// so the shards became bootstrapping and unreadable
+	require.Error(t, err)
 
 	log.Debugf("fetching data from a different namespace %s", testNamespaces[1])
 	fetchReq.ID = "bar"
