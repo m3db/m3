@@ -252,6 +252,7 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 			d.log.Errorf("cluster db failed marking shard %d available: %v",
 				id, err)
 		}
+		d.log.Infof("successfully marked shard %d available", id)
 	}
 }
 
