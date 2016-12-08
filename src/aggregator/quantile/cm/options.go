@@ -23,6 +23,8 @@ package cm
 import (
 	"errors"
 	"fmt"
+
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -34,7 +36,11 @@ const (
 )
 
 var (
-	defaultQuantiles    = []float64{0.5, 0.95, 0.99}
+	defaultQuantiles = []float64{0.5, 0.95, 0.99}
+	defaultBuckets   = []pool.Bucket{
+		{Capacity: 16, Count: 4096},
+	}
+
 	errInvalidEps       = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
 	errInvalidQuantiles = fmt.Errorf("quantiles must be nonempty and between %f and %f", minQuantile, maxQuantile)
 	errNoSamplePool     = errors.New("no sample pool set")
@@ -53,7 +59,7 @@ func NewOptions() Options {
 	samplePool := NewSamplePool(nil)
 	samplePool.Init()
 
-	floatsPool := NewFloatsPool(nil)
+	floatsPool := NewFloatsPool(defaultBuckets, nil)
 	floatsPool.Init()
 
 	return options{

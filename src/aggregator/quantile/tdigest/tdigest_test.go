@@ -25,7 +25,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/m3db/m3aggregator/pool"
+	"github.com/m3db/m3x/pool"
 	"github.com/stretchr/testify/require"
 )
 
@@ -159,11 +159,11 @@ func TestTDigestClose(t *testing.T) {
 }
 
 func TestTDigestAppendCentroid(t *testing.T) {
-	centroidsPool := NewCentroidsPool(pool.NewBucketizedObjectPoolOptions().SetBuckets(
+	centroidsPool := NewCentroidsPool(
 		[]pool.Bucket{
 			{Capacity: 1, Count: 1},
 			{Capacity: 2, Count: 1},
-		}))
+		}, nil)
 	centroidsPool.Init()
 	opts := testTDigestOptions().SetCentroidsPool(centroidsPool)
 	d := NewTDigest(opts).(*tDigest)

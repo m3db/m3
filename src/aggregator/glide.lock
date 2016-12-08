@@ -1,11 +1,13 @@
-hash: 759a494ab1ff8a6bb3b6a1ef5cd3ac5944189223bcbae9438569b317f9b8897c
-updated: 2016-12-07T14:38:19.633802194-05:00
+hash: bb1928892083f3dad043f25871d76cda774c909232e2ccd59dc2053c808b44db
+updated: 2016-12-08T12:22:16.625829987-05:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
-- name: github.com/m3db/m3db
-  version: 265aece6efed8baa24cbfa89faae9ecee58daaa1
+- name: github.com/m3db/m3x
+  version: ef3db531178d5a815f6f1b8461cf98bb40bd8cea
   subpackages:
+  - instrument
+  - log
   - pool
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
