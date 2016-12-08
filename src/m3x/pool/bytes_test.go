@@ -29,7 +29,6 @@ import (
 func TestBytesPool(t *testing.T) {
 	p := getBytesPool(2, []int{5, 10})
 	p.Init()
-	assert.Equal(t, 2, len(p.buckets))
 
 	b1 := p.Get(1)
 	assert.Equal(t, 0, len(b1))
