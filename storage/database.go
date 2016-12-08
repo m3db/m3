@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -317,7 +317,7 @@ func (d *db) ReadEncoded(
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	callStart := d.nowFn()
-	n, err := d.readableNamespace(namespace)
+	n, err := d.namespaceFor(namespace)
 
 	if err != nil {
 		d.metrics.read.ReportError(d.nowFn().Sub(callStart))
@@ -337,7 +337,7 @@ func (d *db) FetchBlocks(
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := d.nowFn()
-	n, err := d.readableNamespace(namespace)
+	n, err := d.namespaceFor(namespace)
 
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
@@ -361,7 +361,7 @@ func (d *db) FetchBlocksMetadata(
 	includeChecksums bool,
 ) (block.FetchBlocksMetadataResults, *int64, error) {
 	callStart := d.nowFn()
-	n, err := d.readableNamespace(namespace)
+	n, err := d.namespaceFor(namespace)
 
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
@@ -390,19 +390,15 @@ func (d *db) Repair() error {
 }
 
 func (d *db) Truncate(namespace ts.ID) (int64, error) {
-	n, err := d.readableNamespace(namespace)
+	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		return 0, err
 	}
 	return n.Truncate()
 }
 
-func (d *db) readableNamespace(namespace ts.ID) (databaseNamespace, error) {
+func (d *db) namespaceFor(namespace ts.ID) (databaseNamespace, error) {
 	d.RLock()
-	if !d.bsm.IsBootstrapped() {
-		d.RUnlock()
-		return nil, errDatabaseNotBootstrapped
-	}
 	n, exists := d.namespaces[namespace.Hash()]
 	d.RUnlock()
 

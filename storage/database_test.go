@@ -149,15 +149,6 @@ func TestDatabaseClose(t *testing.T) {
 	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
 }
 
-func TestDatabaseReadEncodedNotBootstrapped(t *testing.T) {
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	d := newTestDatabase(t, bootstrapNotStarted)
-	_, err := d.ReadEncoded(ctx, ts.StringID("testns1"), ts.StringID("foo"), time.Now(), time.Now())
-	require.Equal(t, errDatabaseNotBootstrapped, err)
-}
-
 func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()

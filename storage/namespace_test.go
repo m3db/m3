@@ -141,8 +141,15 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	shard.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
+	shard.EXPECT().IsBootstrapped().Return(true)
 	_, err := ns.ReadEncoded(ctx, id, start, end)
 	require.NoError(t, err)
+
+	shard.EXPECT().IsBootstrapped().Return(false)
+	_, err = ns.ReadEncoded(ctx, id, start, end)
+	require.Error(t, err)
+	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
 }
 
 func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
@@ -169,9 +176,16 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 	shard.EXPECT().FetchBlocks(ctx, ts.StringID("foo"), nil).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
+	shard.EXPECT().IsBootstrapped().Return(true)
 	res, err := ns.FetchBlocks(ctx, testShardIDs[0].ID(), ts.StringID("foo"), nil)
 	require.NoError(t, err)
 	require.Nil(t, res)
+
+	shard.EXPECT().IsBootstrapped().Return(false)
+	_, err = ns.FetchBlocks(ctx, testShardIDs[0].ID(), ts.StringID("foo"), nil)
+	require.Error(t, err)
+	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
 }
 
 func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {
@@ -213,11 +227,19 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 		Return(nil, &nextPageToken)
 	ns.shards[testShardIDs[0].ID()] = shard
 
+	shard.EXPECT().IsBootstrapped().Return(true)
 	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(),
 		start, end, limit, pageToken, includeSizes, includeChecksums)
 	require.Nil(t, res)
 	require.Equal(t, npt, &nextPageToken)
 	require.NoError(t, err)
+
+	shard.EXPECT().IsBootstrapped().Return(false)
+	_, _, err = ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(),
+		start, end, limit, pageToken, includeSizes, includeChecksums)
+	require.Error(t, err)
+	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
 }
 
 func TestNamespaceBootstrapBootstrapping(t *testing.T) {
@@ -392,6 +414,8 @@ func TestNamespaceTruncate(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), res)
 	require.NotNil(t, ns.shards[testShardIDs[0].ID()])
+	require.True(t, ns.shards[testShardIDs[0].ID()].IsBootstrapped())
+	require.False(t, ns.shards[testShardIDs[0].ID()].IsBootstrapping())
 }
 
 func TestNamespaceRepair(t *testing.T) {
@@ -431,15 +455,23 @@ func TestNamespaceShardAt(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns := newTestNamespace(t)
-	ns.shards[0] = NewMockdatabaseShard(ctrl)
-	ns.shards[1] = NewMockdatabaseShard(ctrl)
 
-	_, err := ns.shardAt(0)
+	s0 := NewMockdatabaseShard(ctrl)
+	s0.EXPECT().IsBootstrapped().Return(true)
+	ns.shards[0] = s0
+
+	s1 := NewMockdatabaseShard(ctrl)
+	s1.EXPECT().IsBootstrapped().Return(false)
+	ns.shards[1] = s1
+
+	_, err := ns.readableShardAt(0)
 	require.NoError(t, err)
-	_, err = ns.shardAt(1)
-	require.NoError(t, err)
-	_, err = ns.shardAt(2)
+	_, err = ns.readableShardAt(1)
 	require.Error(t, err)
+	require.True(t, xerrors.IsRetryableError(err))
+	_, err = ns.readableShardAt(2)
+	require.Error(t, err)
+	require.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestNamespaceAssignShardSet(t *testing.T) {
