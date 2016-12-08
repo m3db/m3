@@ -31,6 +31,9 @@ type sampleList struct {
 	len  int
 }
 
+// Empty returns true if the list is empty
+func (l *sampleList) Empty() bool { return l.len == 0 }
+
 // Len returns the number of samples in the list
 func (l *sampleList) Len() int { return l.len }
 

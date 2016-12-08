@@ -26,6 +26,7 @@ import (
 )
 
 var (
+	nan              = math.NaN()
 	positiveInfinity = math.Inf(1)
 	negativeInfinity = math.Inf(-1)
 	sentinelCentroid = Centroid{Mean: positiveInfinity, Weight: 0.0}
@@ -37,12 +38,21 @@ func (c centroidsByMeanAsc) Len() int           { return len(c) }
 func (c centroidsByMeanAsc) Less(i, j int) bool { return c[i].Mean < c[j].Mean }
 func (c centroidsByMeanAsc) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 
+type mergeCentroidFn func(
+	currIndex float64,
+	currWeight float64,
+	totalWeight float64,
+	c Centroid,
+	mergeResult []Centroid,
+) (float64, []Centroid)
+
 type tDigest struct {
-	compression      float64       // compression factor
-	mergedCapacity   int           // merged centroid slice capacity
-	unmergedCapacity int           // unmerged centroid slice capacity
-	multiplier       int64         // quantile precision multiplier
-	centroidsPool    CentroidsPool // centroids pool
+	compression      float64         // compression factor
+	mergedCapacity   int             // merged centroid slice capacity
+	unmergedCapacity int             // unmerged centroid slice capacity
+	multiplier       int64           // quantile precision multiplier
+	mergeCentroidFn  mergeCentroidFn // function to merge centroids
+	centroidsPool    CentroidsPool   // centroids pool
 
 	closed         bool       // whether the t-digest is closed
 	merged         []Centroid // merged centroids
@@ -55,12 +65,14 @@ type tDigest struct {
 
 // mergedCapacity computes the capacity of the merged centroid slice
 func mergedCapacity(compression float64) int {
-	return int(math.Pi*compression/2 + 0.5)
+	return int(math.Ceil(math.Pi*compression + 0.5))
 }
 
 func unmergedCapacity(compression float64) int {
+	// NB: the formula is taken from tdunning's implementation by
+	// regressing against known sizes for sample compression values
 	compression = math.Min(math.Max(20, compression), 1000)
-	return (int)(7.5 + 0.37*compression - 2e-4*compression*compression)
+	return int(7.5 + 0.37*compression - 2e-4*compression*compression)
 }
 
 // NewTDigest creates a new t-digest
@@ -68,26 +80,26 @@ func unmergedCapacity(compression float64) int {
 // TODO(xichen): add metrics
 func NewTDigest(opts Options) TDigest {
 	centroidsPool := opts.CentroidsPool()
-	compression := opts.CompressionFactor()
+	compression := opts.Compression()
 	mergedCapacity := mergedCapacity(compression)
 	unmergedCapacity := unmergedCapacity(compression)
 
 	var multiplier int64
-	if precision := opts.QuantilePrecision(); precision != 0 {
+	if precision := opts.Precision(); precision != 0 {
 		multiplier = int64(math.Pow10(precision))
 	}
 
-	return &tDigest{
-		compression:      opts.CompressionFactor(),
+	d := &tDigest{
+		compression:      opts.Compression(),
 		multiplier:       multiplier,
 		centroidsPool:    centroidsPool,
-		merged:           centroidsPool.Get(mergedCapacity),
 		mergedCapacity:   mergedCapacity,
-		unmerged:         centroidsPool.Get(unmergedCapacity),
 		unmergedCapacity: unmergedCapacity,
-		minValue:         positiveInfinity,
-		maxValue:         negativeInfinity,
 	}
+	d.mergeCentroidFn = d.mergeCentroid
+
+	d.Reset()
+	return d
 }
 
 func (d *tDigest) Merged() []Centroid {
@@ -103,20 +115,23 @@ func (d *tDigest) Add(value float64) {
 }
 
 func (d *tDigest) Quantile(q float64) float64 {
+	if q < 0.0 || q > 1.0 {
+		return nan
+	}
 	// compress the centroids first
 	d.compress()
 
 	var (
 		targetWeight = q * d.mergedWeight
-		curWeight    = 0.0
+		currWeight   = 0.0
 		lowerBound   = d.minValue
 		upperBound   float64
 	)
 	for i, c := range d.merged {
 		upperBound = d.upperBound(i)
-		if targetWeight <= curWeight+c.Weight {
+		if targetWeight <= currWeight+c.Weight {
 			// The quantile falls within this centroid
-			ratio := (targetWeight - curWeight) / c.Weight
+			ratio := (targetWeight - currWeight) / c.Weight
 			quantile := lowerBound + ratio*(upperBound-lowerBound)
 			// If there is a desired precision, we truncate the quantile per the precision requirement
 			if d.multiplier != 0 {
@@ -124,13 +139,13 @@ func (d *tDigest) Quantile(q float64) float64 {
 			}
 			return quantile
 		}
-		curWeight += c.Weight
+		currWeight += c.Weight
 		lowerBound = upperBound
 	}
 
 	// NB(xichen): should never get here unless the centroids array are empty
 	// because the target weight should always be no larger than the total weight
-	return math.NaN()
+	return nan
 }
 
 func (d *tDigest) Merge(tdigest TDigest) {
@@ -174,58 +189,41 @@ func (d *tDigest) compress() {
 	sort.Sort(centroidsByMeanAsc(d.unmerged))
 
 	var (
-		totalWeight = d.mergedWeight + d.unmergedWeight
-		currWeight  = 0.0
-		currIndex   = 0.0
-		merged      = d.merged
-		unmerged    = d.unmerged
-		buffer      = d.unmerged[:0]
+		totalWeight   = d.mergedWeight + d.unmergedWeight
+		currWeight    = 0.0
+		currIndex     = 0.0
+		mergedIndex   = 0
+		unmergedIndex = 0
+		mergeResult   = d.centroidsPool.Get(len(d.merged) + len(d.unmerged))
 	)
 
-	d.merged = d.merged[:0]
-	for len(merged) > 0 || len(buffer) > 0 || len(unmerged) > 0 {
+	for mergedIndex < len(d.merged) || unmergedIndex < len(d.unmerged) {
 		currUnmerged := sentinelCentroid
-		if len(unmerged) > 0 {
-			currUnmerged = unmerged[0]
+		if unmergedIndex < len(d.unmerged) {
+			currUnmerged = d.unmerged[unmergedIndex]
 		}
 
 		currMerged := sentinelCentroid
-		// buffer takes precedence over merged
-		if len(buffer) > 0 {
-			currMerged = buffer[0]
-		} else if len(merged) > 0 {
-			currMerged = merged[0]
+		if mergedIndex < len(d.merged) {
+			currMerged = d.merged[mergedIndex]
 		}
 
 		if currUnmerged.Mean < currMerged.Mean {
-			// Save the first centroid in case it'll be overwritten
-			if len(merged) > 0 {
-				buffer = d.appendCentroid(buffer, merged[0])
-				merged = merged[1:]
-			}
-			unmerged = unmerged[1:]
-			currIndex = d.mergeCentroid(currIndex, currWeight, totalWeight, currUnmerged)
+			currIndex, mergeResult = d.mergeCentroidFn(currIndex, currWeight, totalWeight, currUnmerged, mergeResult)
 			currWeight += currUnmerged.Weight
+			unmergedIndex++
 		} else {
-			if len(merged) > 0 {
-				// Save the first centroid in case it'll be overwritten
-				if len(buffer) > 0 {
-					copy(buffer, buffer[1:])
-					buffer[len(buffer)-1] = merged[0]
-				}
-				merged = merged[1:]
-			} else {
-				// Merged buffer is used up, now consuming saved centroids
-				buffer = buffer[1:]
-			}
-			currIndex = d.mergeCentroid(currIndex, currWeight, totalWeight, currMerged)
+			currIndex, mergeResult = d.mergeCentroidFn(currIndex, currWeight, totalWeight, currMerged, mergeResult)
 			currWeight += currMerged.Weight
+			mergedIndex++
 		}
 	}
 
+	d.centroidsPool.Put(d.merged)
+	d.merged = mergeResult
+	d.mergedWeight = totalWeight
 	d.unmerged = d.unmerged[:0]
 	d.unmergedWeight = 0.0
-	d.mergedWeight = totalWeight
 }
 
 // mergeCentroid merges a centroid into the list of merged centroids
@@ -234,19 +232,20 @@ func (d *tDigest) mergeCentroid(
 	currWeight float64,
 	totalWeight float64,
 	c Centroid,
-) float64 {
+	mergeResult []Centroid,
+) (float64, []Centroid) {
 	nextIndex := d.nextIndex((currWeight + c.Weight) / totalWeight)
-	if nextIndex-currIndex > 1 || len(d.merged) == 0 {
+	if nextIndex-currIndex > 1 || len(mergeResult) == 0 {
 		// This is the first centroid added, or the next index is too far away from the current index
-		d.merged = d.appendCentroid(d.merged, c)
-		return d.nextIndex(currWeight / totalWeight)
+		mergeResult = d.appendCentroid(mergeResult, c)
+		return d.nextIndex(currWeight / totalWeight), mergeResult
 	}
 
 	// The new centroid falls within the range of the current centroid
-	numMerged := len(d.merged)
-	d.merged[numMerged-1].Weight += c.Weight
-	d.merged[numMerged-1].Mean += (c.Mean - d.merged[numMerged-1].Mean) * c.Weight / d.merged[numMerged-1].Weight
-	return currIndex
+	numResults := len(mergeResult)
+	mergeResult[numResults-1].Weight += c.Weight
+	mergeResult[numResults-1].Mean += (c.Mean - mergeResult[numResults-1].Mean) * c.Weight / mergeResult[numResults-1].Weight
+	return currIndex, mergeResult
 }
 
 // nextIndex estimates the index of the next centroid
@@ -277,9 +276,9 @@ func (d *tDigest) upperBound(index int) float64 {
 func (d *tDigest) appendCentroid(centroids []Centroid, c Centroid) []Centroid {
 	if len(centroids) == cap(centroids) {
 		newCentroids := d.centroidsPool.Get(2 * len(centroids))
-		n := copy(newCentroids, centroids)
+		newCentroids = append(newCentroids, centroids...)
 		d.centroidsPool.Put(centroids)
-		centroids = newCentroids[:n]
+		centroids = newCentroids
 	}
 	return append(centroids, c)
 }

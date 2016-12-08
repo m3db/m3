@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/m3db/m3aggregator/pool"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,6 +43,13 @@ func TestEmptyTDigest(t *testing.T) {
 	for _, q := range testQuantiles {
 		require.True(t, math.IsNaN(d.Quantile(q)))
 	}
+}
+
+func TestTDigestWithOutOfBoundsQuantile(t *testing.T) {
+	opts := testTDigestOptions()
+	d := NewTDigest(opts)
+	require.True(t, math.IsNaN(d.Quantile(-1.0)))
+	require.True(t, math.IsNaN(d.Quantile(10.0)))
 }
 
 func TestTDigestWithOneValue(t *testing.T) {
@@ -134,4 +142,89 @@ func TestTDigestMerge(t *testing.T) {
 	for _, q := range testQuantiles {
 		require.InEpsilon(t, float64(maxInt64)*q, merged.Quantile(q), 0.01)
 	}
+}
+
+func TestTDigestClose(t *testing.T) {
+	opts := testTDigestOptions()
+	d := NewTDigest(opts).(*tDigest)
+	require.False(t, d.closed)
+
+	// Close the t-digest
+	d.Close()
+	require.True(t, d.closed)
+
+	// Close the t-digest again, should be a no-op
+	d.Close()
+	require.True(t, d.closed)
+}
+
+func TestTDigestAppendCentroid(t *testing.T) {
+	centroidsPool := NewCentroidsPool(pool.NewBucketizedObjectPoolOptions().SetBuckets(
+		[]pool.Bucket{
+			{Capacity: 1, Count: 1},
+			{Capacity: 2, Count: 1},
+		}))
+	centroidsPool.Init()
+	opts := testTDigestOptions().SetCentroidsPool(centroidsPool)
+	d := NewTDigest(opts).(*tDigest)
+
+	centroids := centroidsPool.Get(1)
+	require.Equal(t, 1, cap(centroids))
+
+	inputs := []Centroid{
+		{Mean: 1.0, Weight: 0.5},
+		{Mean: 2.0, Weight: 0.8},
+	}
+
+	// Append one centroid, still under capacity
+	centroids = d.appendCentroid(centroids, inputs[0])
+	require.Equal(t, []Centroid{inputs[0]}, centroids)
+	require.Equal(t, 1, cap(centroids))
+
+	// Append another centroid, which causes the capacity to grow
+	centroids = d.appendCentroid(centroids, inputs[1])
+	require.Equal(t, inputs, centroids)
+	require.Equal(t, 2, cap(centroids))
+}
+
+func TestTDigestCompress(t *testing.T) {
+	opts := testTDigestOptions()
+	d := NewTDigest(opts).(*tDigest)
+
+	var result []Centroid
+	d.mergeCentroidFn = func(
+		currIndex float64,
+		currWeight float64,
+		totalWeight float64,
+		c Centroid,
+		mergeResult []Centroid,
+	) (float64, []Centroid) {
+		result = append(result, c)
+		return currIndex + 1, result
+	}
+	d.merged = []Centroid{
+		{Mean: 1.0, Weight: 0.5},
+		{Mean: 2.0, Weight: 0.8},
+	}
+	d.mergedWeight = 1.3
+	d.unmerged = []Centroid{
+		{Mean: 5.0, Weight: 1.2},
+		{Mean: 4.0, Weight: 2.0},
+		{Mean: 6.0, Weight: 1.5},
+	}
+	d.unmergedWeight = 4.7
+
+	d.compress()
+
+	expected := []Centroid{
+		{Mean: 1.0, Weight: 0.5},
+		{Mean: 2.0, Weight: 0.8},
+		{Mean: 4.0, Weight: 2.0},
+		{Mean: 5.0, Weight: 1.2},
+		{Mean: 6.0, Weight: 1.5},
+	}
+	require.Equal(t, expected, d.merged)
+	require.Equal(t, 6.0, d.mergedWeight)
+	require.Equal(t, 0, len(d.unmerged))
+	require.Equal(t, 0.0, d.unmergedWeight)
 }

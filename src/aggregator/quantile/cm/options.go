@@ -20,7 +20,10 @@
 
 package cm
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 const (
 	defaultEps  = 1e-3
@@ -34,6 +37,8 @@ var (
 	defaultQuantiles    = []float64{0.5, 0.95, 0.99}
 	errInvalidEps       = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
 	errInvalidQuantiles = fmt.Errorf("quantiles must be nonempty and between %f and %f", minQuantile, maxQuantile)
+	errNoSamplePool     = errors.New("no sample pool set")
+	errNoFloatsPool     = errors.New("no floats pool set")
 )
 
 type options struct {
@@ -101,6 +106,12 @@ func (o options) Validate() error {
 	}
 	if len(o.quantiles) == 0 {
 		return errInvalidQuantiles
+	}
+	if o.samplePool == nil {
+		return errNoSamplePool
+	}
+	if o.floatsPool == nil {
+		return errNoFloatsPool
 	}
 	for _, quantile := range o.quantiles {
 		if quantile <= minQuantile || quantile >= maxQuantile {

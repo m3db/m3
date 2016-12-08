@@ -1,5 +1,5 @@
-hash: 96d428bd900f5390ac1cf345841ad37f66083c78ec69f82032366d9d43e89556
-updated: 2016-11-21T14:00:51.251523506-05:00
+hash: 759a494ab1ff8a6bb3b6a1ef5cd3ac5944189223bcbae9438569b317f9b8897c
+updated: 2016-12-07T14:38:19.633802194-05:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
@@ -7,6 +7,11 @@ imports:
   version: 265aece6efed8baa24cbfa89faae9ecee58daaa1
   subpackages:
   - pool
+- name: github.com/stretchr/testify
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
+  subpackages:
+  - assert
+  - require
 - name: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
 testImports:
@@ -18,8 +23,3 @@ testImports:
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
-- name: github.com/stretchr/testify
-  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
-  subpackages:
-  - assert
-  - require

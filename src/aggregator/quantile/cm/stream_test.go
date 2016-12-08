@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/m3db/m3aggregator/pool"
 	"github.com/stretchr/testify/require"
 )
 
@@ -143,4 +144,44 @@ func TestStreamWithSkewedDistribution(t *testing.T) {
 	for _, q := range opts.Quantiles() {
 		require.Equal(t, 1.0, s.Quantile(q))
 	}
+}
+
+func TestStreamClose(t *testing.T) {
+	opts := testStreamOptions()
+	s := NewStream(0, opts).(*stream)
+	require.False(t, s.closed)
+
+	// Close the stream
+	s.Close()
+	require.True(t, s.closed)
+
+	// Close the stream again, should be a no-op
+	s.Close()
+	require.True(t, s.closed)
+}
+
+func TestStreamAddToMinHeap(t *testing.T) {
+	floatsPool := NewFloatsPool(pool.NewBucketizedObjectPoolOptions().SetBuckets(
+		[]pool.Bucket{
+			{Capacity: 1, Count: 1},
+			{Capacity: 2, Count: 1},
+		}))
+	floatsPool.Init()
+	opts := testStreamOptions().SetFloatsPool(floatsPool)
+	s := NewStream(0, opts).(*stream)
+
+	heap := minHeap(floatsPool.Get(1))
+	require.Equal(t, 1, cap(heap))
+
+	inputs := []float64{1.0, 2.0}
+
+	// Push one value to the heap, still under capacity
+	s.addToMinHeap(&heap, inputs[0])
+	require.Equal(t, inputs[:1], []float64(heap))
+	require.Equal(t, 1, cap(heap))
+
+	// Push another value to the heap, which causes the capacity to grow
+	s.addToMinHeap(&heap, inputs[1])
+	require.Equal(t, inputs, []float64(heap))
+	require.Equal(t, 2, cap(heap))
 }
