@@ -25,9 +25,9 @@ import (
 	"sync/atomic"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 )
 
 var (
@@ -36,6 +36,7 @@ var (
 
 type writeOp struct {
 	namespace    ts.ID
+	shardID      uint32
 	request      rpc.WriteBatchRawRequestElement
 	datapoint    rpc.Datapoint
 	completionFn completionFn

@@ -519,9 +519,9 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		return timestampErr
 	}
 
-	if s.RLock(); s.state != stateOpen {
-		s.RUnlock()
-		return errSessionStateNotOpen
+	shardID, err := s.ShardID(id)
+	if err != nil { // checks if session is open
+		return err
 	}
 
 	state := s.writeStatePool.Get().(*writeState)
@@ -531,6 +531,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 
 	state.op.namespace = ts.StringID(namespace)
 	state.op.request.ID = tsID.Data()
+	state.op.shardID = shardID
 	state.op.request.Datapoint.Value = value
 	state.op.request.Datapoint.Timestamp = timestamp
 	state.op.request.Datapoint.TimestampType = timeType

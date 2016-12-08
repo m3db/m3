@@ -28,9 +28,9 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -57,6 +57,7 @@ type queue struct {
 	opsArrayPool                         opArrayPool
 	drainIn                              chan []op
 	state                                state
+	//	shardStates                          []shardState
 }
 
 func newHostQueue(
@@ -65,14 +66,12 @@ func newHostQueue(
 	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
 	opts Options,
 ) hostQueue {
-	scope := opts.InstrumentOptions().MetricsScope().
-		SubScope("hostqueue").
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("hostqueue").
 		Tagged(map[string]string{
 			"hostID": host.ID(),
 		})
 
-	opts = opts.SetInstrumentOptions(
-		opts.InstrumentOptions().SetMetricsScope(scope))
+	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
 	size := opts.HostQueueOpsFlushSize()
 
@@ -192,22 +191,21 @@ func (q *queue) drain() {
 		writeBatchSize               = q.opts.WriteBatchSize()
 	)
 
-	for {
-		ops, ok := <-q.drainIn
-		if !ok {
-			break
-		}
+	for ops := range q.drainIn {
+		ops := ops
 		var (
 			currWriteOps      []op
 			currBatchElements []*rpc.WriteBatchRawRequestElement
 			opsLen            = len(ops)
 		)
+
 		for i := 0; i < opsLen; i++ {
 			switch v := ops[i].(type) {
 			case *writeOp:
 				namespace := v.namespace
-				currWriteOps = currWriteOpsByNamespace[namespace.Hash()]
-				currBatchElements = currBatchElementsByNamespace[namespace.Hash()]
+				hash := namespace.Hash()
+				currWriteOps = currWriteOpsByNamespace[hash]
+				currBatchElements = currBatchElementsByNamespace[hash]
 				if currWriteOps == nil {
 					currWriteOps = q.opsArrayPool.Get()
 					currBatchElements = q.writeBatchRawRequestElementArrayPool.Get()
@@ -215,14 +213,14 @@ func (q *queue) drain() {
 
 				currWriteOps = append(currWriteOps, ops[i])
 				currBatchElements = append(currBatchElements, &v.request)
-				currWriteOpsByNamespace[namespace.Hash()] = currWriteOps
-				currBatchElementsByNamespace[namespace.Hash()] = currBatchElements
+				currWriteOpsByNamespace[hash] = currWriteOps
+				currBatchElementsByNamespace[hash] = currBatchElements
 
 				if len(currWriteOps) == writeBatchSize {
 					// Reached write batch limit, write async and reset
 					q.asyncWrite(wgAll, namespace, currWriteOps, currBatchElements)
-					currWriteOpsByNamespace[namespace.Hash()] = nil
-					currBatchElementsByNamespace[namespace.Hash()] = nil
+					currWriteOpsByNamespace[hash] = nil
+					currBatchElementsByNamespace[hash] = nil
 				}
 			case *fetchBatchOp:
 				q.asyncFetch(wgAll, v)
@@ -238,9 +236,10 @@ func (q *queue) drain() {
 		for _, writeOps := range currWriteOpsByNamespace {
 			if len(writeOps) > 0 {
 				namespace := writeOps[0].(*writeOp).namespace
-				q.asyncWrite(wgAll, namespace, writeOps, currBatchElementsByNamespace[namespace.Hash()])
-				currWriteOpsByNamespace[namespace.Hash()] = nil
-				currBatchElementsByNamespace[namespace.Hash()] = nil
+				hash := namespace.Hash()
+				q.asyncWrite(wgAll, namespace, writeOps, currBatchElementsByNamespace[hash])
+				currWriteOpsByNamespace[hash] = nil
+				currBatchElementsByNamespace[hash] = nil
 			}
 		}
 
@@ -255,8 +254,9 @@ func (q *queue) drain() {
 }
 
 func (q *queue) asyncWrite(
-	wg *sync.WaitGroup, namespace ts.ID, ops []op, elems []*rpc.WriteBatchRawRequestElement) {
-
+	wg *sync.WaitGroup, namespace ts.ID, ops []op,
+	elems []*rpc.WriteBatchRawRequestElement,
+) {
 	wg.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
@@ -282,6 +282,7 @@ func (q *queue) asyncWrite(
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
 		err = client.WriteBatchRaw(ctx, req)
+		// todo@bl - insert shard state here?
 		if err == nil {
 			// All succeeded
 			callAllCompletionFns(ops, nil, nil)
