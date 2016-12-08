@@ -139,7 +139,7 @@ func newDatabaseNamespace(
 		metrics:          newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
-	n.initShards()
+	n.initShards(nopts.NeedsBootstrap())
 
 	return n
 }
@@ -486,7 +486,7 @@ func (n *dbNamespace) Truncate() (int64, error) {
 	// namespace, which means the memory will be reclaimed the next time GC kicks in and returns the
 	// reclaimed memory to the OS. In the future, we might investigate whether it's worth returning
 	// the pooled objects to the pools if the pool is low and needs replenishing.
-	n.initShards()
+	n.initShards(false)
 
 	// NB(xichen): possibly also clean up disk files and force a GC here to reclaim memory immediately
 	return totalNumSeries, nil
@@ -636,13 +636,13 @@ func (n *dbNamespace) readableShardAtWithRLock(shardID uint32) (databaseShard, e
 	return shard, nil
 }
 
-func (n *dbNamespace) initShards() {
+func (n *dbNamespace) initShards(needBootstrap bool) {
 	n.Lock()
 	shards := n.shardSet.AllIDs()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex,
-			n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.sopts)
+			n.writeCommitLogFn, needBootstrap, n.sopts)
 	}
 	n.shards = dbShards
 	n.Unlock()
