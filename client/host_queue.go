@@ -57,7 +57,6 @@ type queue struct {
 	opsArrayPool                         opArrayPool
 	drainIn                              chan []op
 	state                                state
-	//	shardStates                          map[uint32]shardState
 }
 
 func newHostQueue(
@@ -275,7 +274,7 @@ func (q *queue) asyncWrite(
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			callAllCompletionFns(ops, nil, err)
+			callAllCompletionFns(ops, host.ID(), err)
 			cleanup()
 			return
 		}
@@ -285,7 +284,7 @@ func (q *queue) asyncWrite(
 		// todo@bl - insert shard state here?
 		if err == nil {
 			// All succeeded
-			callAllCompletionFns(ops, nil, nil)
+			callAllCompletionFns(ops, host.ID(), nil)
 			cleanup()
 			return
 		}
@@ -295,14 +294,14 @@ func (q *queue) asyncWrite(
 			hasErr := make(map[int]struct{})
 			for _, batchErr := range batchErrs.Errors {
 				op := ops[batchErr.Index]
-				op.CompletionFn()(nil, batchErr.Err)
+				op.CompletionFn()(host.ID(), batchErr.Err)
 				hasErr[int(batchErr.Index)] = struct{}{}
 			}
 			// Callback all writes with no errors
 			for i := range ops {
 				if _, ok := hasErr[i]; !ok {
 					// No error
-					ops[i].CompletionFn()(nil, nil)
+					ops[i].CompletionFn()(host.ID(), nil)
 				}
 			}
 			cleanup()
@@ -310,7 +309,7 @@ func (q *queue) asyncWrite(
 		}
 
 		// Entire batch failed
-		callAllCompletionFns(ops, nil, err)
+		callAllCompletionFns(ops, host.ID(), err)
 		cleanup()
 	}()
 }

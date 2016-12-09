@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
@@ -130,7 +129,7 @@ type Map interface {
 }
 
 // RouteForEachFn is a function to execute for each routed to host
-type RouteForEachFn func(idx int, host Host, state shard.State)
+type RouteForEachFn func(idx int, host Host)
 
 // ConsistencyLevel is the consistency level for cluster operations
 type ConsistencyLevel int

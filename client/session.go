@@ -44,8 +44,6 @@ import (
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
-	clusterShard "github.com/m3db/m3cluster/shard"
-
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -538,12 +536,12 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	state.op.request.Datapoint.Annotation = annotation
 	state.op.completionFn = state.completionFn
 
-	// todo@bl - at this point we know the host and the shard, can we get the shard state?
-	if err := s.topoMap.RouteForEach(tsID, func(idx int, _ topology.Host, state clusterShard.state) {
+	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// First count all the pending write requests to ensure
 		// we count the amount we're going to be waiting for
 		// before we enqueue the completion fns that rely on having
 		// an accurate number of the pending requests when they execute
+
 		state.pending++
 		state.queues = append(state.queues, s.queues[idx])
 	}); err != nil {
@@ -556,27 +554,24 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 
 	for i := range state.queues {
 		if err := state.queues[i].Enqueue(state.op); err != nil {
-			state.Unlock()
-			state.decRef()
-
-			// NB(r): if this ever happens we have a code bug, once we
-			// are in the read lock the current queues we are using should
-			// never be closed
-			s.RUnlock()
-			s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", err)
-			return err
+			// NB(r): if this happens we have a bug, once we are in the read
+			// lock the current queues we are using should never be closed
+			msg := fmt.Sprintf("failed to enqueue write: %v", err)
+			s.opts.InstrumentOptions().Logger().Error(msg)
+			panic(msg)
 		}
 
 		state.incRef()
 		enqueued++
 	}
 
-	// Wait for writes to complete. We don't need to loop over Wait() since there
-	// are no spurious wakeups in Golang and the condition is one-way and binary.
 	s.RUnlock()
 	state.Wait()
 
-	err := writeConsistencyResult(s.writeLevel, majority, enqueued, atomic.LoadInt32(&state.pending), state.errors)
+	pending, success := atomic.LoadInt32(&state.pending), state.successful()
+
+	err := writeConsistencyResult(s.writeLevel, success, majority,
+		enqueued, pending, state.errors)
 	s.incWriteMetrics(err, int32(len(state.errors)))
 
 	state.Unlock()
@@ -765,7 +760,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 
 		tsID := ts.StringID(ids[idx])
 
-		if err := s.topoMap.RouteForEach(tsID, func(hostIdx int, host topology.Host, _ clusterShard.state) {
+		if err := s.topoMap.RouteForEach(tsID, func(hostIdx int, host topology.Host) {
 			// Inc safely as this for each is sequential
 			enqueued++
 			pending++
@@ -909,7 +904,7 @@ func (s *session) Truncate(namespace ts.ID) (int64, error) {
 func (s *session) peersForShard(shard uint32) ([]hostQueue, error) {
 	s.RLock()
 	peers := make([]hostQueue, 0, s.topoMap.Replicas()-1)
-	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host, _ clusterShard.State) {
+	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
 		if s.origin != nil && s.origin.ID() == host.ID() {
 			// Don't include the origin host
 			return

@@ -99,11 +99,13 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	session             *session
-	op                  *writeOp
-	majority            int32
-	successful, pending int32
-	errors              []error
+	session           *session
+	op                *writeOp
+	majority, pending int32
+	fullSuccess       int32
+	halfSuccess       int32
+	topoMap           topology.Map
+	errors            []error
 
 	queues []hostQueue
 }
@@ -118,17 +120,22 @@ func (w *writeState) reset() {
 func (w *writeState) close() {
 	w.session.writeOpPool.Put(w.op)
 
-	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
+	w.op, w.majority, w.pending = nil, 0, 0, 0
+	w.fullSuccess, w.halfSuccess = 0, 0
 	w.errors = w.errors[:0]
 	w.queues = w.queues[:0]
 
 	w.session.writeStatePool.Put(w)
 }
 
+// todo@bl - result needs to have hostID to look up shard state
+// also, store success in the state to avoid duplicating logic
+// also, NB about what happens to inflight writes
 func (w *writeState) completionFn(result interface{}, err error) {
 	var (
 		successful int32
 		remaining  = atomic.AddInt32(&w.pending, -1)
+		hostID     = result.(string)
 	)
 
 	if err != nil {
@@ -136,26 +143,33 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		w.errors = append(w.errors, err)
 		w.Unlock()
 	} else {
-		successful = atomic.AddInt32(&w.successful, 1)
-	}
+		// NB(bl) When bootstrapping, we count writes to the initializing and
+		// leaving nodes as a single success towards quorum, and only if both
+		// writes succeed.
 
-	w.Lock()
-
-	switch w.session.writeLevel {
-	case topology.ConsistencyLevelOne:
-		if successful > 0 || remaining == 0 {
-			w.Signal()
-		}
-	case topology.ConsistencyLevelMajority:
-		if successful >= w.majority || remaining == 0 {
-			w.Signal()
-		}
-	case topology.ConsistencyLevelAll:
-		if remaining == 0 {
-			w.Signal()
+		shardState := w.topoMap.LookupHostShardSet(hostID).LookupState(w.op.shardID)
+		if shardState == shard.Available {
+			successful = atomic.AddInt32(&w.fullSuccess, 1) +
+				atomic.LoadInt32(&w.halfSuccess)/2
+		} else {
+			successful = atomic.LoadInt32(&w.fullSuccess) +
+				atomic.AddInt32(&w.halfSuccess, 1)/2
 		}
 	}
 
-	w.Unlock()
+	wLevel := w.session.writeLevel
+
+	if remaining == 0 ||
+		(wLevel == topology.ConsistencyLevelOne && successful > 0) ||
+		(wLevel == topology.ConsistencyLevelMajority && successful >= w.majority) {
+		w.Lock()
+		w.Signal()
+		w.Unlock()
+	}
+
 	w.decRef()
+}
+
+func (w *writeState) successful() int32 {
+	return atomic.LoadInt32(&w.fullSuccess) + atomic.LoadInt32(&w.halfSuccess)
 }

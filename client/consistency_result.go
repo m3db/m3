@@ -23,18 +23,15 @@ package client
 import "github.com/m3db/m3db/topology"
 
 func writeConsistencyResult(
-	writeLevel topology.ConsistencyLevel, majority, enqueued, pending int32,
-	errs []error,
+	writeLevel topology.ConsistencyLevel,
+	success, majority, enqueued, pending int32, errs []error,
 ) error {
-	numErrs := int32(len(errs))
-
-	if numErrs == 0 {
+	if len(errs) == 0 {
 		return nil
 	}
 
 	// Check consistency level satisfied
 	responded := enqueued - pending
-	success := enqueued - numErrs
 	switch writeLevel {
 	case topology.ConsistencyLevelAll:
 		return newConsistencyResultError(writeLevel, int(enqueued), int(responded), errs)
@@ -56,9 +53,8 @@ func writeConsistencyResult(
 }
 
 func readConsistencyResult(
-	readLevel ReadConsistencyLevel,
-	majority, enqueued, responded, resultErrs int32,
-	errs []error,
+	readLevel ReadConsistencyLevel, majority,
+	enqueued, responded, resultErrs int32, errs []error,
 ) error {
 	if resultErrs == 0 {
 		return nil
