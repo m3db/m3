@@ -119,15 +119,13 @@ func newConsistencyResultError(
 			break
 		}
 	}
-	allErrs := make([]error, len(errs))
-	copy(allErrs, errs)
 	return consistencyResultErr{
 		level:       level,
 		success:     enqueued - len(errs),
 		enqueued:    enqueued,
 		responded:   responded,
 		topLevelErr: topLevelErr,
-		errs:        allErrs,
+		errs:        append([]error{}, errs...),
 	}
 }
 
