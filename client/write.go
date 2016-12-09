@@ -131,20 +131,17 @@ func (w *writeState) close() {
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
-	var (
-		successful int32
-		remaining  = atomic.AddInt32(&w.pending, -1)
-	)
-
-	if err != nil {
-		w.Lock()
-		w.errors = append(w.errors, err)
-		w.Unlock()
-	} else {
+	remaining := atomic.AddInt32(&w.pending, -1)
+	successful := int32(0)
+	if err == nil {
 		successful = atomic.AddInt32(&w.successful, 1)
 	}
 
 	w.Lock()
+
+	if err != nil {
+		w.errors = append(w.errors, err)
+	}
 
 	switch w.session.writeLevel {
 	case topology.ConsistencyLevelOne:
