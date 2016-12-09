@@ -20,11 +20,7 @@
 
 package topology
 
-import (
-	"errors"
-
-	"github.com/m3db/m3x/watch"
-)
+import "errors"
 
 var (
 	errUnownedShard = errors.New("unowned shard")

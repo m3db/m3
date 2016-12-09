@@ -70,9 +70,8 @@ type Topology interface {
 	Close()
 }
 
-// DynamicTopology is a topology that dynamically changes and as such
-// adds functionality for a clustered database to call back and mark
-// a shard as available once it completes bootstrapping
+// DynamicTopology adds functionality for a clustered database to call back and
+// mark a shard as available once it completes bootstrapping
 type DynamicTopology interface {
 	Topology
 

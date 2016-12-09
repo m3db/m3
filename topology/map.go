@@ -56,12 +56,10 @@ func NewStaticMap(opts StaticOptions) Map {
 		host := hostShardSet.Host()
 		topoMap.hostShardSetsByID[host.ID()] = hostShardSet
 		topoMap.orderedHosts = append(topoMap.orderedHosts, host)
-		for _, shard := range hostShardSet.ShardSet().AllIDs() {
-			topoMap.hostsByShard[shard] = append(topoMap.hostsByShard[shard], host)
-			topoMap.orderedHostsByShard[shard] = append(topoMap.orderedHostsByShard[shard], orderedHost{
-				idx:  idx,
-				host: host,
-			})
+		for _, shardID := range hostShardSet.ShardSet().AllIDs() {
+			topoMap.hostsByShard[shardID] = append(topoMap.hostsByShard[shardID], host)
+			topoMap.orderedHostsByShard[shardID] = append(topoMap.orderedHostsByShard[shardID],
+				orderedHost{idx: idx, host: host})
 		}
 	}
 

@@ -102,8 +102,7 @@ func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 
 	m, err := getMapFromUpdate(watch.Get(), opts.HashGen())
 	if err != nil {
-		logger.Errorf("dynamic topology received invalid initial value: %v",
-			err)
+		logger.Errorf("dynamic topology received invalid initial value: %v", err)
 		return nil, err
 	}
 
@@ -151,7 +150,7 @@ func (t *dynamicTopology) Watch() (MapWatch, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewMapWatch(w), err
+	return NewMapWatch(w), nil
 }
 
 func (t *dynamicTopology) Close() {
