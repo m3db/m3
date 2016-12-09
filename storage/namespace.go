@@ -467,6 +467,9 @@ func (n *dbNamespace) FlushState(blockStart time.Time) fileOpState {
 	anyNumFailures := false
 	n.RLock()
 	for _, shard := range n.shards {
+		if shard == nil {
+			continue
+		}
 		state := shard.FlushState(blockStart)
 		switch state.Status {
 		case fileOpNotStarted:
