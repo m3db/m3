@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/namespace"
@@ -37,11 +38,11 @@ import (
 	"github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
-	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var testNamespaceID = ts.StringID("testNs")
@@ -540,6 +541,173 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 			assert.Nil(t, ns.shards[shard.ID()])
 		}
 	}
+}
+
+func TestNamespaceFlushStateAllSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shards := sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+
+	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	require.NoError(t, err)
+
+	dopts := testDatabaseOptions()
+	ropts := dopts.RetentionOptions()
+
+	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
+	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
+		return at
+	}))
+
+	blockStart := retention.FlushTimeEnd(ropts, at)
+
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, dopts).(*dbNamespace)
+	for _, s := range shards {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
+		shard.EXPECT().FlushState(blockStart).Return(fileOpState{
+			Status: fileOpSuccess,
+		})
+		ns.shards[s.ID()] = shard
+	}
+
+	res := ns.FlushState(blockStart)
+	assert.Equal(t, fileOpState{Status: fileOpSuccess}, res)
+}
+
+func TestNamespaceFlushStateFailedCountsLeastNumFailures(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shards := sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+
+	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	require.NoError(t, err)
+
+	dopts := testDatabaseOptions()
+	ropts := dopts.RetentionOptions()
+
+	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
+	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
+		return at
+	}))
+
+	blockStart := retention.FlushTimeEnd(ropts, at)
+
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, dopts).(*dbNamespace)
+	for _, s := range shards {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
+		switch shard.ID() {
+		case shards[0].ID():
+			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
+				Status: fileOpSuccess,
+			})
+		case shards[1].ID():
+			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
+				Status:      fileOpFailed,
+				NumFailures: 2,
+			})
+		case shards[2].ID():
+			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
+				Status:      fileOpFailed,
+				NumFailures: 1,
+			})
+		}
+		ns.shards[s.ID()] = shard
+	}
+
+	res := ns.FlushState(blockStart)
+	assert.Equal(t, fileOpState{Status: fileOpFailed, NumFailures: 1}, res)
+}
+
+func TestNamespaceFlushStateAnyNotStarted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shards := sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+
+	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	require.NoError(t, err)
+
+	dopts := testDatabaseOptions()
+	ropts := dopts.RetentionOptions()
+
+	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
+	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
+		return at
+	}))
+
+	blockStart := retention.FlushTimeEnd(ropts, at)
+
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, dopts).(*dbNamespace)
+	for _, s := range shards {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
+		switch shard.ID() {
+		case shards[0].ID():
+			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
+				Status: fileOpSuccess,
+			})
+		case shards[1].ID():
+			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
+				Status: fileOpNotStarted,
+			})
+		}
+		ns.shards[s.ID()] = shard
+	}
+
+	res := ns.FlushState(blockStart)
+	assert.Equal(t, fileOpState{Status: fileOpNotStarted}, res)
+}
+
+func TestNamespaceFlushStateInProgress(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shards := sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+
+	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	require.NoError(t, err)
+
+	dopts := testDatabaseOptions()
+	ropts := dopts.RetentionOptions()
+
+	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
+	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
+		return at
+	}))
+
+	blockStart := retention.FlushTimeEnd(ropts, at)
+
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, dopts).(*dbNamespace)
+	for _, s := range shards {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
+		switch shard.ID() {
+		case shards[0].ID():
+			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
+				Status: fileOpSuccess,
+			})
+		case shards[1].ID():
+			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
+				Status: fileOpInProgress,
+			})
+		}
+		ns.shards[s.ID()] = shard
+	}
+
+	res := ns.FlushState(blockStart)
+	assert.Equal(t, fileOpState{Status: fileOpInProgress}, res)
 }
 
 func waitForStats(

@@ -472,15 +472,6 @@ func (n *dbNamespace) FlushState(blockStart time.Time) fileOpState {
 		}
 		state := shard.FlushState(blockStart)
 		switch state.Status {
-		case fileOpNotStarted:
-			// We default to not started and it only overrides if currently
-			// set to report as success
-			if result.Status == fileOpSuccess {
-				result.Status = fileOpNotStarted
-			}
-		case fileOpInProgress:
-			// If any in progress then make it appear as namespace all in progress
-			return state
 		case fileOpSuccess:
 			// All have to be success to report success so if it's the first then
 			// set it to success and if none others flag it otherwise we'll report
@@ -491,6 +482,10 @@ func (n *dbNamespace) FlushState(blockStart time.Time) fileOpState {
 		case fileOpFailed:
 			// Always appear as failed if any failed
 			result.Status = fileOpFailed
+		case fileOpNotStarted, fileOpInProgress:
+			// If any in progress or any not started then make it appear as
+			// namespace has the same status
+			return state
 		}
 		if !anyNumFailures && state.NumFailures > 0 {
 			anyNumFailures = true
