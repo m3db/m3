@@ -33,6 +33,7 @@ const (
 	Millisecond
 	Microsecond
 	Nanosecond
+	Minute
 )
 
 var (
@@ -81,6 +82,7 @@ var (
 		Millisecond: "ms",
 		Nanosecond:  "ns",
 		Microsecond: "us",
+		Minute:      "m",
 	}
 
 	durationsToUnit = make(map[time.Duration]Unit)
@@ -89,6 +91,7 @@ var (
 		Millisecond: time.Millisecond,
 		Nanosecond:  time.Nanosecond,
 		Microsecond: time.Microsecond,
+		Minute:      time.Minute,
 	}
 )
 
