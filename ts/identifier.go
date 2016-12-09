@@ -23,58 +23,88 @@ package ts
 import (
 	"bytes"
 	"crypto/md5"
+	"fmt"
+	"sync/atomic"
 )
 
-// BinaryID constructs a new ID based on a binary value
+// BinaryID constructs a new ID based on a binary value.
+// WARNING: Does not copy the underlying data, do not use
+// when cloning a pooled ID object.
 func BinaryID(v []byte) ID {
-	return &id{data: append(make([]byte, 0, len(v)), v...)}
+	return &id{data: v}
 }
 
-// StringID constructs a new ID based on a string value
+// StringID constructs a new ID based on a string value.
 func StringID(v string) ID {
-	return &id{data: append(make([]byte, 0, len(v)), v...)}
+	return &id{data: []byte(v)}
 }
+
+func hash(data []byte) Hash {
+	return md5.Sum(data)
+}
+
+type hashState int32
+
+const (
+	uninitialized hashState = iota
+	computing
+	computed
+)
 
 type id struct {
-	data []byte
-	hash Hash
-	pool *identifierPool
+	data  []byte
+	hash  Hash
+	state int32
+	pool  IdentifierPool
 }
 
-// Data returns the binary value of an ID
+// Data returns the binary value of an ID.
 func (v *id) Data() []byte {
 	return v.data
+}
+
+var null = Hash{}
+
+// Hash calculates and returns the hash of an ID.
+func (v *id) Hash() Hash {
+	state := hashState(atomic.LoadInt32(&v.state))
+	switch state {
+	case computed:
+		// If the id hash has been computed, return cached hash value
+		return Hash(v.hash)
+	case computing:
+		// If the id hash is being computed, compute the hash without waiting
+		return hash(v.data)
+	case uninitialized:
+		// If the id hash is unitialized, and this goroutine gains exclusive
+		// access to the hash field, computes the hash and sets the hash
+		if atomic.CompareAndSwapInt32(&v.state, int32(uninitialized), int32(computing)) {
+			v.hash = hash(v.data)
+			return v.hash
+		}
+		// Otherwise compute the hash without waiting
+		return hash(v.data)
+	default:
+		panic(fmt.Sprintf("unexpected hash state: %v", state))
+	}
 }
 
 func (v *id) Equal(value ID) bool {
 	return bytes.Equal(v.Data(), value.Data())
 }
 
-var null = Hash{}
-
-// Hash calculates and returns the hash of an ID
-func (v *id) Hash() Hash {
-	if bytes.Equal(v.hash[:], null[:]) {
-		v.hash = md5.Sum(v.data)
-	}
-
-	return Hash(v.hash)
-}
-
-func (v *id) OnClose() {
+func (v *id) Close() {
 	if v.pool == nil {
 		return
 	}
 
-	v.pool.heap.Put(v.data)
-	v.data, v.hash = nil, null
-	v.pool.pool.Put(v)
+	v.pool.Put(v)
+}
+
+func (v *id) Reset(value []byte) {
+	v.data, v.hash = value, null
 }
 
 func (v *id) String() string {
 	return string(v.data)
-}
-
-func (v *id) Reset(val []byte) {
-	v.data, v.hash = val, null
 }

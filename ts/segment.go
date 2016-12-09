@@ -20,17 +20,17 @@
 
 package ts
 
-// Segment represents a binary blob consisting of two byte slices
+// Segment represents a binary blob consisting of two byte slices.
 type Segment struct {
-	// Head is the head of the segment
+	// Head is the head of the segment.
 	Head []byte
 
-	// Tail is the tail of the segment
+	// Tail is the tail of the segment.
 	Tail []byte
 
-	// HeadShared determines whether the head bytes are shared
+	// HeadShared determines whether the head bytes are shared.
 	HeadShared bool
 
-	// TailShared determines whether the tail bytes are shared
+	// TailShared determines whether the tail bytes are shared.
 	TailShared bool
 }

@@ -52,8 +52,11 @@ var (
 	// errShardIsBootstrapping raised when trying to bootstrap a shard that's being bootstrapped.
 	errShardIsBootstrapping = errors.New("shard is bootstrapping")
 
-	// errShardNotBootstrapped raised when trying to flush data for a shard that's not yet bootstrapped.
-	errShardNotBootstrapped = errors.New("shard is not yet bootstrapped")
+	// errShardNotBootstrappedToFlush raised when trying to flush data for a shard that's not yet bootstrapped.
+	errShardNotBootstrappedToFlush = errors.New("shard is not yet bootstrapped to flush")
+
+	// errShardNotBootstrappedToRead raised when trying to read data for a shard that's not yet bootstrapped.
+	errShardNotBootstrappedToRead = errors.New("shard is not yet bootstrapped to read")
 
 	// errBootstrapEnqueued raised when trying to bootstrap and bootstrap becomes enqueued.
 	errBootstrapEnqueued = errors.New("database bootstrapping enqueued bootstrap")

@@ -192,4 +192,10 @@ type Options interface {
 
 	// FetchBlockMetadataResultsPool returns the fetchBlockMetadataResultsPool
 	FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool
+
+	// SetIdentifierPool sets the identifierPool
+	SetIdentifierPool(value ts.IdentifierPool) Options
+
+	// IdentifierPool returns the identifierPool
+	IdentifierPool() ts.IdentifierPool
 }

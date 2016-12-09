@@ -22,39 +22,42 @@ package ts
 
 import (
 	"crypto/md5"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/context"
 )
 
-// ID represents an immutable identifier for a timeseries
+// ID represents an immutable identifier for a timeseries.
 type ID interface {
-	context.Closer
+	fmt.Stringer
 
 	Data() []byte
-	Equal(value ID) bool
 	Hash() Hash
-	String() string
+	Equal(value ID) bool
+
+	Close()
 	Reset(v []byte)
 }
 
-// IdentifierPool represents an automatic pool of IDs
+// IdentifierPool represents an automatic pool of IDs.
 type IdentifierPool interface {
 	GetBinaryID(context.Context, []byte) ID
 	GetStringID(context.Context, string) ID
+	Put(ID)
 
-	// Clone replicates a given ID into a pooled ID
+	// Clone replicates a given ID into a pooled ID.
 	Clone(other ID) ID
 }
 
-// Hash represents a form of ID suitable to be used as map keys
+// Hash represents a form of ID suitable to be used as map keys.
 type Hash [md5.Size]byte
 
-// A Datapoint is a single data value reported at a given time
+// A Datapoint is a single data value reported at a given time.
 type Datapoint struct {
 	Timestamp time.Time
 	Value     float64
 }
 
-// Annotation represents information used to annotate datapoints
+// Annotation represents information used to annotate datapoints.
 type Annotation []byte

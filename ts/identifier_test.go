@@ -21,6 +21,8 @@
 package ts
 
 import (
+	"crypto/md5"
+	"sync"
 	"testing"
 
 	"github.com/m3db/m3db/context"
@@ -42,24 +44,45 @@ func TestConstructorEquality(t *testing.T) {
 	assert.Equal(t, a.Hash(), b.Hash())
 }
 
-func TestPooling(t *testing.T) {
-	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
+func testPooling(t *testing.T, p IdentifierPool) {
 	ctx := context.NewContext()
 
 	a := p.GetStringID(ctx, "abc")
-	a.Hash()
+	b := p.Clone(a)
+
+	require.True(t, a.Equal(b))
 
 	ctx.BlockingClose()
 
 	require.Empty(t, a.Data())
+	require.NotEmpty(t, b.Data())
 }
 
-func TestCloning(t *testing.T) {
-	a := StringID("abc")
-	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
-	b := p.Clone(a)
+func TestSimplePooling(t *testing.T) {
+	testPooling(t, NewIdentifierPool(pool.NewObjectPoolOptions()))
+}
 
-	require.True(t, a.Equal(b))
+func TestNativePooling(t *testing.T) {
+	testPooling(t, NewNativeIdentifierPool(nil, pool.NewObjectPoolOptions()))
+}
+
+func TestHashing(t *testing.T) {
+	var (
+		wg         sync.WaitGroup
+		id         = StringID("abc")
+		expected   = Hash(md5.Sum(id.Data()))
+		numWorkers = 100
+	)
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			require.Equal(t, expected, id.Hash())
+		}()
+	}
+
+	wg.Wait()
 }
 
 func BenchmarkHashing(b *testing.B) {
@@ -82,7 +105,7 @@ func BenchmarkHashCaching(b *testing.B) {
 }
 
 func BenchmarkPooling(b *testing.B) {
-	p := NewIdentifierPool(nil, pool.NewObjectPoolOptions())
+	p := NewNativeIdentifierPool(nil, pool.NewObjectPoolOptions())
 	ctx := context.NewContext()
 
 	v := []byte{'a', 'b', 'c'}
@@ -90,6 +113,6 @@ func BenchmarkPooling(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		id := p.GetBinaryID(ctx, v)
 		id.Hash()
-		id.OnClose()
+		id.Close()
 	}
 }

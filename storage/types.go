@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -140,7 +141,7 @@ type NamespacesByID []Namespace
 func (n NamespacesByID) Len() int      { return len(n) }
 func (n NamespacesByID) Swap(i, j int) { n[i], n[j] = n[j], n[i] }
 func (n NamespacesByID) Less(i, j int) bool {
-	return n[i].ID().String() < n[j].ID().String()
+	return bytes.Compare(n[i].ID().Data(), n[j].ID().Data()) < 0
 }
 
 type databaseNamespace interface {
