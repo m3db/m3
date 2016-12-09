@@ -144,7 +144,12 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		// leaving nodes as a single success towards quorum, and only if both
 		// writes succeed.
 
-		shardState := w.topoMap.LookupHostShardSet(hostID).LookupState(w.op.shardID)
+		hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID)
+		if !ok {
+			panic("Missing host shard set") // todo@bl: handle this gracefully
+		}
+		shardState := hostShardSet.ShardSet().LookupState(w.op.shardID)
+
 		var addToSuccess int32
 
 		// NB(bl): We use one variable, halfSuccess, to avoid atomically reads
@@ -161,7 +166,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		} else {
 			addToSuccess = 1
 		}
-		successful = atomic.LoadInt32(&w.halfSuccess, addToSuccess) / 2
+		successful = atomic.AddInt32(&w.halfSuccess, addToSuccess) / 2
 	}
 
 	wLevel := w.session.writeLevel
