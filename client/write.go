@@ -24,6 +24,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -102,7 +103,6 @@ type writeState struct {
 	session           *session
 	op                *writeOp
 	majority, pending int32
-	fullSuccess       int32
 	halfSuccess       int32
 	topoMap           topology.Map
 	errors            []error
@@ -120,17 +120,14 @@ func (w *writeState) reset() {
 func (w *writeState) close() {
 	w.session.writeOpPool.Put(w.op)
 
-	w.op, w.majority, w.pending = nil, 0, 0, 0
-	w.fullSuccess, w.halfSuccess = 0, 0
+	w.op, w.majority, w.pending, w.halfSuccess = nil, 0, 0, 0
 	w.errors = w.errors[:0]
 	w.queues = w.queues[:0]
 
 	w.session.writeStatePool.Put(w)
 }
 
-// todo@bl - result needs to have hostID to look up shard state
-// also, store success in the state to avoid duplicating logic
-// also, NB about what happens to inflight writes
+// todo@bl - modify comment on what happens to inflight writes
 func (w *writeState) completionFn(result interface{}, err error) {
 	var (
 		successful int32
@@ -148,13 +145,23 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		// writes succeed.
 
 		shardState := w.topoMap.LookupHostShardSet(hostID).LookupState(w.op.shardID)
+		var addToSuccess int32
+
+		// NB(bl): We use one variable, halfSuccess, to avoid atomically reads
+		// to and from multiple vars. success = halfSuccess/2
+
+		// each successful write to an available node increases halfSuccess by 2
+		// (i.e. increases success by one); each successful write to an
+		// initializing or leaving node increases halfSuccess by 1 (i.e. success
+		// goes up by one only if both nodes are written to, and doesn't
+		// increase if only one or the other is written to)
+
 		if shardState == shard.Available {
-			successful = atomic.AddInt32(&w.fullSuccess, 1) +
-				atomic.LoadInt32(&w.halfSuccess)/2
+			addToSuccess = 2
 		} else {
-			successful = atomic.LoadInt32(&w.fullSuccess) +
-				atomic.AddInt32(&w.halfSuccess, 1)/2
+			addToSuccess = 1
 		}
+		successful = atomic.LoadInt32(&w.halfSuccess, addToSuccess) / 2
 	}
 
 	wLevel := w.session.writeLevel
@@ -171,5 +178,5 @@ func (w *writeState) completionFn(result interface{}, err error) {
 }
 
 func (w *writeState) successful() int32 {
-	return atomic.LoadInt32(&w.fullSuccess) + atomic.LoadInt32(&w.halfSuccess)
+	return atomic.LoadInt32(&w.halfSuccess) / 2
 }

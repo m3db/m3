@@ -118,7 +118,7 @@ func (t *staticMap) RouteShardForEach(shard uint32, forEachFn RouteForEachFn) er
 	orderedHosts := t.orderedHostsByShard[shard]
 	for _, host := range orderedHosts {
 		host := host
-		forEachFn(host.idx, host.host, host.shardStates[shard]) // todo@bl fixit
+		forEachFn(host.idx, host.host)
 	}
 	return nil
 }

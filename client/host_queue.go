@@ -271,20 +271,23 @@ func (q *queue) asyncWrite(
 			wg.Done()
 		}
 
+		hostID := q.host.ID() // NB(bl): this is passed back to writeState to
+		// determine the state of the shard on the node we're writing to
+
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			callAllCompletionFns(ops, host.ID(), err)
+			callAllCompletionFns(ops, hostID, err)
 			cleanup()
 			return
 		}
 
 		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
 		err = client.WriteBatchRaw(ctx, req)
-		// todo@bl - insert shard state here?
+
 		if err == nil {
 			// All succeeded
-			callAllCompletionFns(ops, host.ID(), nil)
+			callAllCompletionFns(ops, hostID, nil)
 			cleanup()
 			return
 		}
@@ -294,14 +297,14 @@ func (q *queue) asyncWrite(
 			hasErr := make(map[int]struct{})
 			for _, batchErr := range batchErrs.Errors {
 				op := ops[batchErr.Index]
-				op.CompletionFn()(host.ID(), batchErr.Err)
+				op.CompletionFn()(hostID, batchErr.Err)
 				hasErr[int(batchErr.Index)] = struct{}{}
 			}
 			// Callback all writes with no errors
 			for i := range ops {
 				if _, ok := hasErr[i]; !ok {
 					// No error
-					ops[i].CompletionFn()(host.ID(), nil)
+					ops[i].CompletionFn()(hostID, nil)
 				}
 			}
 			cleanup()
@@ -309,7 +312,7 @@ func (q *queue) asyncWrite(
 		}
 
 		// Entire batch failed
-		callAllCompletionFns(ops, host.ID(), err)
+		callAllCompletionFns(ops, hostID, err)
 		cleanup()
 	}()
 }
