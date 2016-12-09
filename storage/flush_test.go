@@ -22,46 +22,88 @@ package storage
 
 import (
 	"errors"
+	"sort"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/ts"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
 func TestFlushManagerHasFlushed(t *testing.T) {
-	database := newMockDatabase()
-	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	namespace := NewMockdatabaseNamespace(ctrl)
+
+	db := newMockDatabase()
+	db.namespaces = map[string]databaseNamespace{
+		"testns": namespace,
+	}
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
 
 	now := time.Now()
+
+	namespace.EXPECT().
+		FlushState(now).
+		Return(fileOpState{Status: fileOpNotStarted})
 	require.False(t, fm.HasFlushed(now))
 
-	fm.flushStates[now] = fileOpState{Status: fileOpFailed}
+	namespace.EXPECT().
+		FlushState(now).
+		Return(fileOpState{Status: fileOpFailed})
 	require.False(t, fm.HasFlushed(now))
 
-	fm.flushStates[now] = fileOpState{Status: fileOpSuccess}
+	namespace.EXPECT().
+		FlushState(now).
+		Return(fileOpState{Status: fileOpSuccess})
 	require.True(t, fm.HasFlushed(now))
 }
 
 func TestFlushManagerNeedsFlush(t *testing.T) {
-	database := newMockDatabase()
-	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	namespace := NewMockdatabaseNamespace(ctrl)
+
+	db := newMockDatabase()
+	db.namespaces = map[string]databaseNamespace{
+		"testns": namespace,
+	}
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
 
 	now := time.Now()
-	maxFlushRetries := database.opts.MaxFlushRetries()
-	require.True(t, fm.needsFlushWithLock(now))
 
-	fm.flushStates[now] = fileOpState{Status: fileOpFailed, NumFailures: maxFlushRetries - 1}
-	require.True(t, fm.needsFlushWithLock(now))
+	maxRetries := db.opts.MaxFlushRetries()
+	require.True(t, maxRetries > 1)
 
-	fm.flushStates[now] = fileOpState{Status: fileOpFailed, NumFailures: maxFlushRetries}
-	require.False(t, fm.needsFlushWithLock(now))
+	namespace.EXPECT().
+		FlushState(now).
+		Return(fileOpState{Status: fileOpNotStarted})
+	assert.True(t, fm.needsFlush(now))
 
-	fm.flushStates[now] = fileOpState{Status: fileOpSuccess}
-	require.False(t, fm.needsFlushWithLock(now))
+	namespace.EXPECT().
+		FlushState(now).
+		Return(fileOpState{Status: fileOpFailed, NumFailures: maxRetries - 1})
+	assert.True(t, fm.needsFlush(now))
+
+	namespace.EXPECT().
+		FlushState(now).
+		Return(fileOpState{Status: fileOpFailed, NumFailures: maxRetries})
+	assert.False(t, fm.needsFlush(now))
+
+	namespace.EXPECT().
+		FlushState(now).
+		Return(fileOpState{Status: fileOpSuccess})
+	require.False(t, fm.needsFlush(now))
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {
@@ -96,7 +138,7 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 	}
 }
 
-func TestFlushManagerFlush(t *testing.T) {
+func TestFlushManagerFlushStates(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -105,112 +147,199 @@ func TestFlushManagerFlush(t *testing.T) {
 		fs fileOpState
 	}{
 		{time.Unix(14400, 0), fileOpState{fileOpFailed, 2}},
+		{time.Unix(21600, 0), fileOpState{fileOpFailed, 3}},
 		{time.Unix(28800, 0), fileOpState{fileOpFailed, 3}},
 		{time.Unix(36000, 0), fileOpState{fileOpInProgress, 0}},
 		{time.Unix(43200, 0), fileOpState{fileOpSuccess, 1}},
 	}
-	notFlushed := make(map[time.Time]struct{})
-	for i := 1; i < 4; i++ {
-		notFlushed[inputTimes[i].bs] = struct{}{}
-	}
 
-	tickStart := time.Unix(188000, 0)
-	database := newMockDatabase()
-	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
-	for _, input := range inputTimes {
-		fm.flushStates[input.bs] = input.fs
-	}
-	endTime := time.Unix(0, 0).Add(2 * 24 * time.Hour)
+	tickStart := time.Unix(51300, 0)
+
+	db := newMockDatabase()
+	db.opts = db.opts.SetRetentionOptions(
+		db.opts.RetentionOptions().
+			SetRetentionPeriod(10 * time.Hour))
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
 
 	namespaces := make(map[string]databaseNamespace)
 	for i := 0; i < 2; i++ {
-		name := strconv.Itoa(i)
+		name := "testns" + strconv.Itoa(i)
 		ns := NewMockdatabaseNamespace(ctrl)
-		ns.EXPECT().ID().Return(ts.StringID(name))
-		cur := inputTimes[0].bs
-		for !cur.After(endTime) {
-			if _, excluded := notFlushed[cur]; !excluded {
-				ns.EXPECT().Flush(cur, fm.pm).Return(nil)
-			}
-			cur = cur.Add(2 * time.Hour)
+		for _, input := range inputTimes {
+			ns.EXPECT().FlushState(input.bs).Return(input.fs).AnyTimes()
 		}
-		ns.EXPECT().Flush(cur, fm.pm).Return(errors.New("some errors"))
+		firstBlockStart := inputTimes[0].bs
+		ns.EXPECT().Flush(firstBlockStart, fm.pm).Return(errors.New("some errors"))
+		ns.EXPECT().ID().Return(ts.StringID(name))
 		namespaces[name] = ns
 	}
-	database.namespaces = namespaces
+	db.namespaces = namespaces
 
 	err := fm.Flush(tickStart)
-
-	j := 0
-	for i := 0; i < 19; i++ {
-		if i == 1 {
-			j += 3
-		}
-		expectedTime := time.Unix(int64(21600+j*7200), 0)
-		require.Equal(t, fileOpSuccess, fm.flushStates[expectedTime].Status)
-		j++
-	}
-	expectedTime := time.Unix(int64(180000), 0)
-	require.Equal(t, fileOpFailed, fm.flushStates[expectedTime].Status)
-	require.Equal(t, 1, fm.flushStates[expectedTime].NumFailures)
 	require.Error(t, err)
+	require.Equal(t, "namespace testns0 failed to flush data: some errors\n"+
+		"namespace testns1 failed to flush data: some errors", err.Error())
 }
 
 func TestFlushManagerFlushTimes(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	inputTimes := []struct {
 		bs time.Time
 		fs fileOpState
 	}{
 		{time.Unix(14400, 0), fileOpState{fileOpFailed, 2}},
+		{time.Unix(21600, 0), fileOpState{fileOpFailed, 2}},
 		{time.Unix(28800, 0), fileOpState{fileOpFailed, 3}},
 		{time.Unix(36000, 0), fileOpState{fileOpInProgress, 0}},
 		{time.Unix(43200, 0), fileOpState{fileOpSuccess, 1}},
 	}
-	database := newMockDatabase()
-	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
-	for _, input := range inputTimes {
-		fm.flushStates[input.bs] = input.fs
-	}
-	tickStart := time.Unix(188000, 0)
-	res := fm.flushTimes(tickStart)
-	require.Equal(t, 21, len(res))
-	j := 0
-	for i := 0; i < len(res); i++ {
-		if i == 2 {
-			j += 3
+
+	tickStart := time.Unix(51300, 0)
+
+	db := newMockDatabase()
+	db.opts = db.opts.SetRetentionOptions(
+		db.opts.RetentionOptions().
+			SetRetentionPeriod(10 * time.Hour))
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
+
+	namespaces := make(map[string]databaseNamespace)
+	for i := 0; i < 2; i++ {
+		name := "testns" + strconv.Itoa(i)
+		ns := NewMockdatabaseNamespace(ctrl)
+		for _, input := range inputTimes {
+			ns.EXPECT().FlushState(input.bs).Return(input.fs).AnyTimes()
 		}
-		expectedTime := time.Unix(int64(14400+j*7200), 0)
-		require.Equal(t, expectedTime, res[20-i])
-		j++
+		namespaces[name] = ns
 	}
+	db.namespaces = namespaces
+
+	res := fm.flushTimes(tickStart)
+
+	var timestamps []int
+	for _, t := range res {
+		timestamps = append(timestamps, int(t.Unix()))
+	}
+
+	sort.Ints(timestamps)
+
+	assert.Equal(t, []int{14400, 21600}, timestamps)
 }
 
-func TestFlushManagerFlushWithTimes(t *testing.T) {
+func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	flushTime := time.Unix(7200, 0)
-	database := newMockDatabase()
-	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
-
-	inputs := []struct {
-		name string
-		err  error
+	inputTimes := []struct {
+		bs time.Time
+		fs fileOpState
 	}{
-		{"foo", errors.New("some error")},
-		{"bar", errors.New("some other error")},
-		{"baz", nil},
+		{time.Unix(14400, 0), fileOpState{fileOpSuccess, 0}},
+		{time.Unix(21600, 0), fileOpState{fileOpSuccess, 0}},
+		{time.Unix(28800, 0), fileOpState{fileOpSuccess, 0}},
+		{time.Unix(36000, 0), fileOpState{fileOpSuccess, 0}},
+		{time.Unix(43200, 0), fileOpState{fileOpNotStarted, 0}},
 	}
-	namespaces := make(map[string]databaseNamespace)
-	for _, input := range inputs {
-		ns := NewMockdatabaseNamespace(ctrl)
-		ns.EXPECT().Flush(flushTime, fm.pm).Return(input.err)
-		if input.err != nil {
-			ns.EXPECT().ID().Return(ts.StringID(input.name))
-		}
-		namespaces[input.name] = ns
-	}
-	database.namespaces = namespaces
 
-	require.Error(t, fm.flushWithTime(flushTime))
+	tickStart := time.Unix(51300, 0)
+
+	db := newMockDatabase()
+	db.opts = db.opts.SetRetentionOptions(
+		db.opts.RetentionOptions().
+			SetRetentionPeriod(10 * time.Hour))
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
+
+	var (
+		namespaces = make(map[string]databaseNamespace)
+		flushingWg sync.WaitGroup
+		doneWg     sync.WaitGroup
+	)
+	flushingWg.Add(1)
+	doneWg.Add(1)
+	for i := 0; i < 2; i++ {
+		name := "testns" + strconv.Itoa(i)
+		ns := NewMockdatabaseNamespace(ctrl)
+		for _, input := range inputTimes {
+			ns.EXPECT().FlushState(input.bs).Return(input.fs).AnyTimes()
+		}
+		last := inputTimes[len(inputTimes)-1].bs
+		if i == 0 {
+			ns.EXPECT().
+				Flush(last, fm.pm).
+				Do(func(x interface{}, y interface{}) {
+					flushingWg.Done()
+					doneWg.Wait()
+				}).
+				Return(nil)
+		} else {
+			ns.EXPECT().
+				Flush(last, fm.pm).
+				Return(nil)
+		}
+		namespaces[name] = ns
+	}
+	db.namespaces = namespaces
+
+	go func() {
+		// Wait for flush
+		flushingWg.Wait()
+
+		err := fm.Flush(tickStart)
+		assert.Error(t, err)
+		assert.Equal(t, errFlushAlreadyInProgress, err)
+
+		// Notify done
+		doneWg.Done()
+	}()
+
+	err := fm.Flush(tickStart)
+	assert.NoError(t, err)
+}
+
+func TestFlushManagerFlushNoTimes(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	inputTimes := []struct {
+		bs time.Time
+		fs fileOpState
+	}{
+		{time.Unix(14400, 0), fileOpState{fileOpSuccess, 0}},
+		{time.Unix(21600, 0), fileOpState{fileOpSuccess, 0}},
+		{time.Unix(28800, 0), fileOpState{fileOpSuccess, 0}},
+		{time.Unix(36000, 0), fileOpState{fileOpSuccess, 0}},
+		{time.Unix(43200, 0), fileOpState{fileOpSuccess, 0}},
+	}
+
+	tickStart := time.Unix(51300, 0)
+
+	db := newMockDatabase()
+	db.opts = db.opts.SetRetentionOptions(
+		db.opts.RetentionOptions().
+			SetRetentionPeriod(10 * time.Hour))
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
+
+	var (
+		namespaces = make(map[string]databaseNamespace)
+		flushingWg sync.WaitGroup
+		doneWg     sync.WaitGroup
+	)
+	flushingWg.Add(1)
+	doneWg.Add(1)
+	for i := 0; i < 2; i++ {
+		name := "testns" + strconv.Itoa(i)
+		ns := NewMockdatabaseNamespace(ctrl)
+		for _, input := range inputTimes {
+			ns.EXPECT().FlushState(input.bs).Return(input.fs).AnyTimes()
+		}
+		namespaces[name] = ns
+	}
+	db.namespaces = namespaces
+
+	assert.NoError(t, fm.Flush(tickStart))
 }

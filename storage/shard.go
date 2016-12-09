@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/repair"
@@ -94,6 +95,7 @@ type dbShard struct {
 	tickSleepIfAheadEvery int
 	sleepFn               func(time.Duration)
 	identifierPool        ts.IdentifierPool
+	flushState            shardFlushState
 	metrics               dbShardMetrics
 }
 
@@ -135,6 +137,17 @@ type writeCompletionFn func()
 
 type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
+type shardFlushState struct {
+	sync.RWMutex
+	statesByTime map[time.Time]fileOpState
+}
+
+func newShardFlushState() shardFlushState {
+	return shardFlushState{
+		statesByTime: make(map[time.Time]fileOpState),
+	}
+}
+
 func newDatabaseShard(
 	namespace ts.ID,
 	shard uint32,
@@ -161,6 +174,7 @@ func newDatabaseShard(
 		tickSleepIfAheadEvery: defaultTickSleepIfAheadEvery,
 		sleepFn:               time.Sleep,
 		identifierPool:        opts.IdentifierPool(),
+		flushState:            newShardFlushState(),
 		metrics:               newDbShardMetrics(scope),
 	}
 	if !needsBootstrap {
@@ -264,6 +278,7 @@ func (s *dbShard) Close() error {
 }
 
 func (s *dbShard) Tick(softDeadline time.Duration) tickResult {
+	s.removeAnyFlushStatesTooEarly()
 	return s.tickAndExpire(softDeadline, tickPolicyRegular)
 }
 
@@ -619,7 +634,11 @@ func (s *dbShard) Flush(
 
 	if prepared.Persist == nil {
 		// No action is necessary therefore we bail out early and there is no need to close.
-		return multiErr.FinalError()
+		if err := multiErr.FinalError(); err != nil {
+			s.markFlushStateFail(blockStart)
+			return err
+		}
+		return nil
 	}
 	defer prepared.Close()
 
@@ -636,7 +655,54 @@ func (s *dbShard) Flush(
 		return true
 	})
 
-	return multiErr.FinalError()
+	resultErr := multiErr.FinalError()
+
+	// Track flush state for block state
+	if resultErr == nil {
+		s.markFlushStateSuccess(blockStart)
+	} else {
+		s.markFlushStateFail(blockStart)
+	}
+
+	return resultErr
+}
+
+func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
+	s.flushState.RLock()
+	state, ok := s.flushState.statesByTime[blockStart]
+	if !ok {
+		s.flushState.RUnlock()
+		return fileOpState{Status: fileOpNotStarted}
+	}
+	s.flushState.RUnlock()
+	return state
+}
+
+func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
+	s.flushState.Lock()
+	s.flushState.statesByTime[blockStart] = fileOpState{Status: fileOpSuccess}
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) markFlushStateFail(blockStart time.Time) {
+	s.flushState.Lock()
+	state := s.flushState.statesByTime[blockStart]
+	state.Status = fileOpFailed
+	state.NumFailures++
+	s.flushState.statesByTime[blockStart] = state
+	s.flushState.Unlock()
+}
+
+func (s *dbShard) removeAnyFlushStatesTooEarly() {
+	s.flushState.Lock()
+	now := s.nowFn()
+	earliestFlush := retention.FlushTimeStart(s.opts.RetentionOptions(), now)
+	for t := range s.flushState.statesByTime {
+		if t.Before(earliestFlush) {
+			delete(s.flushState.statesByTime, t)
+		}
+	}
+	s.flushState.Unlock()
 }
 
 func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error {

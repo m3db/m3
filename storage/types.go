@@ -114,6 +114,14 @@ type Database interface {
 	Truncate(namespace ts.ID) (int64, error)
 }
 
+// database is the internal database interface
+type database interface {
+	Database
+
+	// getOwnedNamespaces returns the namespaces this database owns.
+	getOwnedNamespaces() []databaseNamespace
+}
+
 // Namespace is a time series database namespace
 type Namespace interface {
 	// ID returns the ID of the namespace
@@ -188,6 +196,9 @@ type databaseNamespace interface {
 
 	// Flush flushes in-memory data
 	Flush(blockStart time.Time, pm persist.Manager) error
+
+	// FlushState returns the flush state for this namespace at block start.
+	FlushState(blockStart time.Time) fileOpState
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error
@@ -265,6 +276,9 @@ type databaseShard interface {
 		blockStart time.Time,
 		pm persist.Manager,
 	) error
+
+	// FlushState returns the flush state for this shard at block start.
+	FlushState(blockStart time.Time) fileOpState
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error

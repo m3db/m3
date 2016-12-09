@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -70,14 +70,6 @@ const (
 	databaseOpen
 	databaseClosed
 )
-
-// database is the internal database interface.
-type database interface {
-	Database
-
-	// getOwnedNamespaces returns the namespaces this database owns.
-	getOwnedNamespaces() []databaseNamespace
-}
 
 // increasingIndex provides a monotonically increasing index for new series
 type increasingIndex interface {

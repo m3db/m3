@@ -25,9 +25,9 @@ import (
 	"sync/atomic"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 )
 
 var (
@@ -118,7 +118,13 @@ func (w *writeState) close() {
 	w.session.writeOpPool.Put(w.op)
 
 	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
+	for i := range w.errors {
+		w.errors[i] = nil
+	}
 	w.errors = w.errors[:0]
+	for i := range w.queues {
+		w.queues[i] = nil
+	}
 	w.queues = w.queues[:0]
 
 	w.session.writeStatePool.Put(w)

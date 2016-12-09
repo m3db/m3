@@ -446,14 +446,63 @@ func (n *dbNamespace) Flush(
 		}
 	}
 
-	// if nil, succeeded
+	res := multiErr.FinalError()
+	n.metrics.flush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	return res
+}
 
-	if res := multiErr.FinalError(); res != nil {
-		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
-		return res
+func (n *dbNamespace) FlushState(blockStart time.Time) fileOpState {
+	// NB(r): The logic below is not extensively clear just by reading the
+	// code. Essentially if all are success, we return success, if any
+	// are failed then we return failed with the minimum num failures to
+	// give all shards the chance of max retries - otherwise if any in progress
+	// we return in progress and if any is not started  we return not started.
+	// This is implemented the way it is to avoid iterating over all shards
+	// and reading/querying their states multiple times.
+	result := fileOpState{
+		Status:      fileOpNotStarted,
+		NumFailures: 0,
 	}
-	n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
-	return nil
+	first := false
+	anyNumFailures := false
+	n.RLock()
+	for _, shard := range n.shards {
+		state := shard.FlushState(blockStart)
+		switch state.Status {
+		case fileOpNotStarted:
+			// We default to not started and it only overrides if currently
+			// set to report as success
+			if result.Status == fileOpSuccess {
+				result.Status = fileOpNotStarted
+			}
+		case fileOpInProgress:
+			// If any in progress then make it appear as namespace all in progress
+			return state
+		case fileOpSuccess:
+			// All have to be success to report success so if it's the first then
+			// set it to success and if none others flag it otherwise we'll report
+			// it as success
+			if first {
+				result.Status = fileOpSuccess
+			}
+		case fileOpFailed:
+			// Always appear as failed if any failed
+			result.Status = fileOpFailed
+		}
+		if !anyNumFailures && state.NumFailures > 0 {
+			anyNumFailures = true
+			result.NumFailures = state.NumFailures
+		} else if state.NumFailures < result.NumFailures {
+			// Prefer reporting we have less failures, as this will determine
+			// if a retry is attempted or not - this means max retries is not
+			// strictly an absolute maximum count when resharding occurs
+			result.NumFailures = state.NumFailures
+		}
+		// Track this isn't the first
+		first = true
+	}
+	n.RUnlock()
+	return result
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
