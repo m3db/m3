@@ -37,6 +37,7 @@ func TestUnitValue(t *testing.T) {
 		{Millisecond, time.Millisecond},
 		{Microsecond, time.Microsecond},
 		{Nanosecond, time.Nanosecond},
+		{Minute, time.Minute},
 	}
 	for _, input := range inputs {
 		v, err := input.u.Value()
@@ -58,6 +59,7 @@ func TestUnitIsValid(t *testing.T) {
 		{Millisecond, true},
 		{Microsecond, true},
 		{Nanosecond, true},
+		{Minute, true},
 		{Unit(10), false},
 	}
 	for _, input := range inputs {
@@ -74,6 +76,7 @@ func TestUnitFromDuration(t *testing.T) {
 		{time.Millisecond, Millisecond},
 		{time.Microsecond, Microsecond},
 		{time.Nanosecond, Nanosecond},
+		{time.Minute, Minute},
 	}
 	for _, input := range inputs {
 		u, err := UnitFromDuration(input.d)
@@ -96,6 +99,7 @@ func TestUnitString(t *testing.T) {
 		{Millisecond, "ms"},
 		{Microsecond, "us"},
 		{Nanosecond, "ns"},
+		{Minute, "m"},
 		{None, "unknown"},
 	}
 
