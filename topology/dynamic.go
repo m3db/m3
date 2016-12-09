@@ -29,8 +29,9 @@ import (
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/watch"
+
+	xlog "github.com/m3db/m3x/log"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 var (
@@ -38,7 +39,7 @@ var (
 	errInvalidService            = errors.New("service topology is invalid")
 	errUnexpectedShard           = errors.New("shard is unexpected")
 	errMissingShard              = errors.New("shard is missing")
-	errNotEnoughReplicasForShard = errors.New("replicas of shard is less than expected")
+	errNotEnoughReplicasForShard = errors.New("fewer shard replicas than expected")
 	errInvalidTopology           = errors.New("could not parse latest value from config service")
 )
 

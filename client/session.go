@@ -44,6 +44,8 @@ import (
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
+	clusterShard "github.com/m3db/m3cluster/shard"
+
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -519,26 +521,25 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		return timestampErr
 	}
 
-	shardID, err := s.ShardID(id)
-	if err != nil { // checks if session is open
-		return err
+	if s.RLock(); s.state != stateOpen {
+		s.RUnlock()
+		return errSessionStateNotOpen
 	}
 
 	state := s.writeStatePool.Get().(*writeState)
 	state.incRef()
 
 	state.op, state.majority = s.writeOpPool.Get(), majority
-
 	state.op.namespace = ts.StringID(namespace)
 	state.op.request.ID = tsID.Data()
-	state.op.shardID = shardID
 	state.op.request.Datapoint.Value = value
 	state.op.request.Datapoint.Timestamp = timestamp
 	state.op.request.Datapoint.TimestampType = timeType
 	state.op.request.Datapoint.Annotation = annotation
 	state.op.completionFn = state.completionFn
 
-	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
+	// todo@bl - at this point we know the host and the shard, can we get the shard state?
+	if err := s.topoMap.RouteForEach(tsID, func(idx int, _ topology.Host, state clusterShard.state) {
 		// First count all the pending write requests to ensure
 		// we count the amount we're going to be waiting for
 		// before we enqueue the completion fns that rely on having
@@ -764,7 +765,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 
 		tsID := ts.StringID(ids[idx])
 
-		if err := s.topoMap.RouteForEach(tsID, func(hostIdx int, host topology.Host) {
+		if err := s.topoMap.RouteForEach(tsID, func(hostIdx int, host topology.Host, _ clusterShard.state) {
 			// Inc safely as this for each is sequential
 			enqueued++
 			pending++
@@ -908,7 +909,7 @@ func (s *session) Truncate(namespace ts.ID) (int64, error) {
 func (s *session) peersForShard(shard uint32) ([]hostQueue, error) {
 	s.RLock()
 	peers := make([]hostQueue, 0, s.topoMap.Replicas()-1)
-	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
+	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host, _ clusterShard.State) {
 		if s.origin != nil && s.origin.ID() == host.ID() {
 			// Don't include the origin host
 			return
