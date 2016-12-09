@@ -23,6 +23,7 @@ package topology
 import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 type staticMap struct {
@@ -81,7 +82,8 @@ func (t *staticMap) HostShardSets() []HostShardSet {
 }
 
 func (t *staticMap) LookupHostShardSet(id string) (HostShardSet, bool) {
-	return t.hostShardSetsByID[id]
+	value, ok := t.hostShardSetsByID[id]
+	return value, ok
 }
 
 func (t *staticMap) HostsLen() int {
@@ -118,7 +120,7 @@ func (t *staticMap) RouteShardForEach(shard uint32, forEachFn RouteForEachFn) er
 	orderedHosts := t.orderedHostsByShard[shard]
 	for _, host := range orderedHosts {
 		host := host
-		forEachFn(host.idx, host.host, host.shardStates[shard])
+		forEachFn(host.idx, host.host, host.shardStates[shard]) // todo@bl fixit
 	}
 	return nil
 }

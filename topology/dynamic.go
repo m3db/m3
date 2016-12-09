@@ -23,6 +23,7 @@ package topology
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3cluster/services"
@@ -76,12 +77,11 @@ func (i *dynamicInitializer) Init() (Topology, error) {
 }
 
 type dynamicTopology struct {
-	sync.RWMutex
 	opts      DynamicOptions
 	services  services.Services
 	watch     xwatch.Watch
 	watchable xwatch.Watchable
-	closed    bool
+	closed    int32
 	hashGen   sharding.HashGen
 	logger    xlog.Logger
 }
@@ -123,10 +123,7 @@ func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 }
 
 func (t *dynamicTopology) isClosed() bool {
-	t.RLock()
-	closed := t.closed
-	t.RUnlock()
-	return closed
+	return atomic.LoadInt32(&t.closed) == 1
 }
 
 func (t *dynamicTopology) run() {
@@ -158,17 +155,10 @@ func (t *dynamicTopology) Watch() (MapWatch, error) {
 }
 
 func (t *dynamicTopology) Close() {
-	t.Lock()
-	defer t.Unlock()
-
-	if t.closed {
-		return
+	if atomic.CompareAndSwapInt32(&t.closed, 0, 1) {
+		t.watch.Close()
+		t.watchable.Close()
 	}
-
-	t.closed = true
-
-	t.watch.Close()
-	t.watchable.Close()
 }
 
 func (t *dynamicTopology) MarkShardAvailable(
