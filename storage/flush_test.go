@@ -22,8 +22,10 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -178,8 +180,14 @@ func TestFlushManagerFlushStates(t *testing.T) {
 
 	err := fm.Flush(tickStart)
 	require.Error(t, err)
-	require.Equal(t, "namespace testns0 failed to flush data: some errors\n"+
-		"namespace testns1 failed to flush data: some errors", err.Error())
+
+	var strs []string
+	for i := 0; i < len(namespaces); i++ {
+		msgFmt := "namespace testns%d failed to flush data: some errors"
+		strs = append(strs, fmt.Sprintf(msgFmt, i))
+	}
+	assert.True(t, strings.Join(strs, "\n") == err.Error() ||
+		strings.Join(reversableStrings(strs), "\n") == err.Error())
 }
 
 func TestFlushManagerFlushTimes(t *testing.T) {
@@ -342,4 +350,18 @@ func TestFlushManagerFlushNoTimes(t *testing.T) {
 	db.namespaces = namespaces
 
 	assert.NoError(t, fm.Flush(tickStart))
+}
+
+type reversableStrings []string
+
+func (v reversableStrings) Len() int {
+	return len(v)
+}
+
+func (v reversableStrings) Less(lhs, rhs int) bool {
+	return v[lhs] > v[rhs]
+}
+
+func (v reversableStrings) Swap(lhs, rhs int) {
+	v[lhs], v[rhs] = v[rhs], v[lhs]
 }
