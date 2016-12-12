@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"sync"
 	"sync/atomic"
 
@@ -32,7 +33,8 @@ import (
 )
 
 var (
-	writeOpZeroed writeOp
+	writeOpZeroed       writeOp
+	errHostShardMissing = errors.New("Missing host shard in writeState completionFn")
 )
 
 type writeOp struct {
@@ -127,30 +129,31 @@ func (w *writeState) close() {
 	w.session.writeStatePool.Put(w)
 }
 
+func (w *writeState) addError(err error) {
+	w.Lock()
+	w.errors = append(w.errors, err)
+	w.Unlock()
+}
+
 // todo@bl - modify comment on what happens to inflight writes
 func (w *writeState) completionFn(result interface{}, err error) {
 	var (
 		successful int32
 		remaining  = atomic.AddInt32(&w.pending, -1)
 		hostID     = result.(string)
+		// NB(bl) panic on invalid result, it indicates a bug in the code
 	)
 
 	if err != nil {
-		w.Lock()
-		w.errors = append(w.errors, err)
-		w.Unlock()
+		w.addError(err)
+	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
+		w.addError(errHostShardMissing)
 	} else {
 		// NB(bl) When bootstrapping, we count the writes to the initializing and
 		// leaving nodes as a single success towards quorum, and only if both
 		// writes succeed.
 
-		hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID)
-		if !ok {
-			panic("Missing host shard set") // todo@bl: handle this gracefully?
-		}
 		shardState := hostShardSet.ShardSet().LookupStateByID(w.op.shardID)
-
-		var addToSuccess int32
 
 		// NB(bl): We use one variable, halfSuccess, to avoid atomically
 		// reading and editing multiple vars. success = halfSuccess/2
@@ -160,11 +163,14 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		// initializing or leaving node increases halfSuccess by 1 (i.e. success
 		// goes up by one if and only if both nodes are written to.)
 
+		var addToSuccess int32
+
 		if shardState == shard.Available {
 			addToSuccess = 2
 		} else {
 			addToSuccess = 1
 		}
+
 		successful = atomic.AddInt32(&w.halfSuccess, addToSuccess) / 2
 	}
 

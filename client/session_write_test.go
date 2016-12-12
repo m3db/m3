@@ -39,6 +39,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testHost = "testHost"
+
 func TestSessionWriteNotOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -52,8 +54,7 @@ func TestSessionWriteNotOpenError(t *testing.T) {
 	assert.Equal(t, errSessionStateNotOpen, err)
 }
 
-// todo@bl: fix this
-func _TestSessionWrite(t *testing.T) {
+func TestSessionWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -109,7 +110,7 @@ func _TestSessionWrite(t *testing.T) {
 	// Callback
 	enqueueWg.Wait()
 	for i := 0; i < session.topoMap.Replicas(); i++ {
-		completionFn(nil, nil)
+		completionFn(testHost, nil)
 	}
 
 	// Wait for write to complete
@@ -245,10 +246,10 @@ func testWriteConsistencyLevel(
 	enqueueWg.Wait()
 	writeErr := "a specific write error"
 	for i := 0; i < session.topoMap.Replicas()-failures; i++ {
-		completionFn(nil, nil)
+		completionFn(testHost, nil)
 	}
 	for i := 0; i < failures; i++ {
-		completionFn(nil, fmt.Errorf(writeErr))
+		completionFn(testHost, fmt.Errorf(writeErr))
 	}
 
 	// Wait for write to complete
