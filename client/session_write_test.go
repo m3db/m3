@@ -43,11 +43,8 @@ func TestSessionWriteNotOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-
-	err = s.Write("namespace", "foo", time.Now(), 1.337, xtime.Second, nil)
+	s := newTestSession(t, ctrl)
+	err := s.Write("namespace", "foo", time.Now(), 1.337, xtime.Second, nil)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStateNotOpen, err)
 }
@@ -56,10 +53,7 @@ func TestSessionWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	session := s.(*session)
+	session := newTestSession(t, ctrl).(*session)
 	require.NotNil(t, session.topoMap)
 
 	w := struct {
@@ -123,10 +117,7 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	session := s.(*session)
+	session := newTestSession(t, ctrl).(*session)
 
 	w := struct {
 		ns         string
@@ -288,4 +279,12 @@ func testWriteConsistencyLevel(
 			}
 		}
 	}
+}
+
+func newTestSession(t *testing.T, ctrl *gomock.Controller) clientSession {
+	opts := newSessionTestOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+
+	return s
 }
