@@ -54,7 +54,6 @@ func TestSessionWrite(t *testing.T) {
 	defer ctrl.Finish()
 
 	session := newTestSession(t, ctrl).(*session)
-	require.NotNil(t, session.topoMap)
 
 	w := struct {
 		ns         string
@@ -92,16 +91,11 @@ func TestSessionWrite(t *testing.T) {
 	assert.Equal(t, errSessionStateNotInitial, consecutiveOpenErr)
 
 	// Begin write
-	var resultErr error
-	var writeWg sync.WaitGroup
-	writeWg.Add(1)
-	go func() {
-		resultErr = session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
-		writeWg.Done()
-	}()
+	resultErr := session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
 
 	// Callback
-	enqueueWg.Wait()
+	require.NotNil(t, session.topoMap)
+
 	for i := 0; i < session.topoMap.Replicas(); i++ {
 		completionFn(defaultTestHostName(), nil)
 	}
