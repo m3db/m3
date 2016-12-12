@@ -209,6 +209,7 @@ func testSessionClusterConnectConsistencyLevel(
 	) hostQueue {
 		hostQueue := NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open().Times(1)
+		hostQueue.EXPECT().Host().Return(host).AnyTimes()
 		if atomic.AddInt32(&failingConns, 1) <= int32(failures) {
 			hostQueue.EXPECT().ConnectionCount().Return(0).AnyTimes()
 		} else {
@@ -251,6 +252,7 @@ func mockHostQueues(
 		enqueuedIdx := idx
 		hostQueue := NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open()
+		hostQueue.EXPECT().Host().Return(host).AnyTimes()
 		// Take two attempts to establish min connection count
 		hostQueue.EXPECT().ConnectionCount().Return(0).Times(sessionTestShards)
 		hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
