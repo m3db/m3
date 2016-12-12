@@ -431,6 +431,7 @@ func (q *queue) BorrowConnection(fn withConnectionFn) error {
 	}
 	// Add an outstanding operation to avoid connection pool being closed
 	q.Add(1)
+	defer q.Done()
 	q.RUnlock()
 
 	conn, err := q.connPool.NextClient()
@@ -439,8 +440,6 @@ func (q *queue) BorrowConnection(fn withConnectionFn) error {
 	}
 
 	fn(conn)
-	q.Done()
-
 	return nil
 }
 
