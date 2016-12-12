@@ -91,9 +91,16 @@ func TestSessionWrite(t *testing.T) {
 	assert.Equal(t, errSessionStateNotInitial, consecutiveOpenErr)
 
 	// Begin write
-	resultErr := session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+	var resultErr error
+	var writeWg sync.WaitGroup
+	writeWg.Add(1)
+	go func() {
+		resultErr = session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+		writeWg.Done()
+	}()
 
 	// Callback
+	enqueueWg.Wait()
 	require.NotNil(t, session.topoMap)
 
 	for i := 0; i < session.topoMap.Replicas(); i++ {
