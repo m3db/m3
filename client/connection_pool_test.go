@@ -29,14 +29,15 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3x/close"
+	xclose "github.com/m3db/m3x/close"
 	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/stretchr/testify/assert"
 )
 
 var (
-	h           = topology.NewHost("testhost", "testhost:9000")
+	testHost    = "testhost"
+	h           = topology.NewHost(testHost, testHost+":9000")
 	channelNone = &nullChannel{}
 )
 

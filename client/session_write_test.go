@@ -101,7 +101,6 @@ func TestSessionWrite(t *testing.T) {
 
 	// Callback
 	enqueueWg.Wait()
-	require.NotNil(t, session.topoMap)
 
 	for i := 0; i < session.topoMap.Replicas(); i++ {
 		completionFn(defaultTestHostName(), nil)
@@ -145,7 +144,7 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 	assert.NoError(t, session.Close())
 }
 
-func _TestSessionWriteConsistencyLevelAll(t *testing.T) {
+func TestSessionWriteConsistencyLevelAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -156,7 +155,7 @@ func _TestSessionWriteConsistencyLevelAll(t *testing.T) {
 	}
 }
 
-func _TestSessionWriteConsistencyLevelMajority(t *testing.T) {
+func TestSessionWriteConsistencyLevelMajority(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -169,7 +168,7 @@ func _TestSessionWriteConsistencyLevelMajority(t *testing.T) {
 	}
 }
 
-func _TestSessionWriteConsistencyLevelOne(t *testing.T) {
+func TestSessionWriteConsistencyLevelOne(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

@@ -81,7 +81,7 @@ func TestHostQueueWriteErrorAfterClose(t *testing.T) {
 	assert.Equal(t, err, errQueueNotOpen)
 }
 
-func _TestHostQueueWriteBatches(t *testing.T) {
+func TestHostQueueWriteBatches(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -143,7 +143,7 @@ func _TestHostQueueWriteBatches(t *testing.T) {
 	wg.Wait()
 
 	// Assert writes successful
-	success := []hostQueueResult{{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}}
+	success := []hostQueueResult{{testHost, nil}, {testHost, nil}, {testHost, nil}, {testHost, nil}}
 	assert.Equal(t, success, results)
 
 	// Close
@@ -156,8 +156,7 @@ func _TestHostQueueWriteBatches(t *testing.T) {
 	closeWg.Wait()
 }
 
-// todo@bl: fix this
-func _TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
+func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -222,7 +221,7 @@ func _TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 	wg.Wait()
 
 	// Assert writes successful
-	success := []hostQueueResult{{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}}
+	success := []hostQueueResult{{testHost, nil}, {testHost, nil}, {testHost, nil}, {testHost, nil}}
 	assert.Equal(t, success, results)
 
 	// Close
@@ -235,7 +234,7 @@ func _TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 	closeWg.Wait()
 }
 
-func _TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
+func TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -278,7 +277,7 @@ func _TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 	closeWg.Wait()
 }
 
-func _TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
+func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -348,7 +347,7 @@ func _TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	closeWg.Wait()
 }
 
-func _TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
+func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

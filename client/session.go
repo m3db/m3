@@ -525,6 +525,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	}
 
 	state := s.writeStatePool.Get().(*writeState)
+	state.topoMap = s.topoMap
 	state.incRef()
 
 	state.op, state.majority = s.writeOpPool.Get(), majority
