@@ -252,10 +252,7 @@ func (q *queue) drain() {
 	q.connPool.Close()
 }
 
-func (q *queue) asyncWrite(
-	wg *sync.WaitGroup, namespace ts.ID, ops []op,
-	elems []*rpc.WriteBatchRawRequestElement,
-) {
+func (q *queue) asyncWrite(wg *sync.WaitGroup, namespace ts.ID, ops []op, elems []*rpc.WriteBatchRawRequestElement) {
 	wg.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
@@ -271,7 +268,7 @@ func (q *queue) asyncWrite(
 			wg.Done()
 		}
 
-		hostID := q.host.ID() // NB(bl): this is passed back to writeState to
+		hostID := q.host.ID() // NB(bl): this is passed to writeState to
 		// determine the state of the shard on the node we're writing to
 
 		client, err := q.connPool.NextClient()

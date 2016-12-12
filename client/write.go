@@ -140,26 +140,25 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		w.errors = append(w.errors, err)
 		w.Unlock()
 	} else {
-		// NB(bl) When bootstrapping, we count writes to the initializing and
+		// NB(bl) When bootstrapping, we count the writes to the initializing and
 		// leaving nodes as a single success towards quorum, and only if both
 		// writes succeed.
 
 		hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID)
 		if !ok {
-			panic("Missing host shard set") // todo@bl: handle this gracefully
+			panic("Missing host shard set") // todo@bl: handle this gracefully?
 		}
 		shardState := hostShardSet.ShardSet().LookupStateByID(w.op.shardID)
 
 		var addToSuccess int32
 
-		// NB(bl): We use one variable, halfSuccess, to avoid atomically reads
-		// to and from multiple vars. success = halfSuccess/2
+		// NB(bl): We use one variable, halfSuccess, to avoid atomically
+		// reading and editing multiple vars. success = halfSuccess/2
 
-		// each successful write to an available node increases halfSuccess by 2
-		// (i.e. increases success by one); each successful write to an
+		// Each successful write to an available node increases halfSuccess by 2
+		// (i.e. increases success by one). Each successful write to an
 		// initializing or leaving node increases halfSuccess by 1 (i.e. success
-		// goes up by one only if both nodes are written to, and doesn't
-		// increase if only one or the other is written to)
+		// goes up by one if and only if both nodes are written to.)
 
 		if shardState == shard.Available {
 			addToSuccess = 2
@@ -171,9 +170,9 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 	wLevel := w.session.writeLevel
 
-	if remaining == 0 ||
-		(wLevel == topology.ConsistencyLevelOne && successful > 0) ||
-		(wLevel == topology.ConsistencyLevelMajority && successful >= w.majority) {
+	if (remaining == 0) ||
+		(successful >= w.majority && wLevel == topology.ConsistencyLevelMajority) ||
+		(successful > 0 && wLevel == topology.ConsistencyLevelOne) {
 		w.Lock()
 		w.Signal()
 		w.Unlock()

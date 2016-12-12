@@ -76,6 +76,7 @@ func (s *shardSet) Lookup(identifier ts.ID) uint32 {
 	return s.fn(identifier)
 }
 
+// todo@bl: handle failure gracefully?
 func (s *shardSet) LookupStateByID(shardID uint32) shard.State {
 	state, ok := s.states[shardID]
 	if !ok {
