@@ -39,8 +39,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testHost = "testHost"
-
 func TestSessionWriteNotOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -62,6 +60,7 @@ func TestSessionWrite(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
+	require.NotNil(t, session.topoMap)
 
 	w := struct {
 		ns         string
@@ -110,7 +109,7 @@ func TestSessionWrite(t *testing.T) {
 	// Callback
 	enqueueWg.Wait()
 	for i := 0; i < session.topoMap.Replicas(); i++ {
-		completionFn(testHost, nil)
+		completionFn(defaultTestHostName(), nil)
 	}
 
 	// Wait for write to complete
@@ -199,12 +198,10 @@ func testWriteConsistencyLevel(
 	opts := newSessionTestOptions()
 	opts = opts.SetWriteConsistencyLevel(level)
 
-	reporterOpts := xmetrics.NewTestStatsReporterOptions().
-		SetCaptureEvents(true)
+	reporterOpts := xmetrics.NewTestStatsReporterOptions().SetCaptureEvents(true)
 	reporter := xmetrics.NewTestStatsReporter(reporterOpts)
 	scope := tally.NewRootScope("", nil, reporter, time.Millisecond)
-	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
-		SetMetricsScope(scope))
+	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
 	s, err := newSession(opts)
 	assert.NoError(t, err)
@@ -246,10 +243,10 @@ func testWriteConsistencyLevel(
 	enqueueWg.Wait()
 	writeErr := "a specific write error"
 	for i := 0; i < session.topoMap.Replicas()-failures; i++ {
-		completionFn(testHost, nil)
+		completionFn(defaultTestHostName(), nil)
 	}
 	for i := 0; i < failures; i++ {
-		completionFn(testHost, fmt.Errorf(writeErr))
+		completionFn(defaultTestHostName(), fmt.Errorf(writeErr))
 	}
 
 	// Wait for write to complete
