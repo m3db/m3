@@ -25,9 +25,9 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/instrument"
 )
 
 // Host is a container of a host in a topology
@@ -69,9 +69,8 @@ type Topology interface {
 	Close()
 }
 
-// DynamicTopology is a topology that dynamically changes and as such
-// adds functionality for a clustered database to call back and mark
-// a shard as available once it completes bootstrapping
+// DynamicTopology adds functionality for a clustered database to call back and
+// mark a shard as available once it completes bootstrapping
 type DynamicTopology interface {
 	Topology
 

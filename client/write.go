@@ -24,10 +24,11 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 
 type writeOp struct {
 	namespace    ts.ID
+	shardID      uint32
 	request      rpc.WriteBatchRawRequestElement
 	datapoint    rpc.Datapoint
 	completionFn completionFn
@@ -98,11 +100,12 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	session             *session
-	op                  *writeOp
-	majority            int32
-	successful, pending int32
-	errors              []error
+	session           *session
+	op                *writeOp
+	majority, pending int32
+	halfSuccess       int32
+	topoMap           topology.Map
+	errors            []error
 
 	queues []hostQueue
 }
@@ -117,17 +120,19 @@ func (w *writeState) reset() {
 func (w *writeState) close() {
 	w.session.writeOpPool.Put(w.op)
 
-	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
+	w.op, w.majority, w.pending, w.halfSuccess = nil, 0, 0, 0
 	w.errors = w.errors[:0]
 	w.queues = w.queues[:0]
 
 	w.session.writeStatePool.Put(w)
 }
 
+// todo@bl - modify comment on what happens to inflight writes
 func (w *writeState) completionFn(result interface{}, err error) {
 	var (
 		successful int32
 		remaining  = atomic.AddInt32(&w.pending, -1)
+		hostID     = result.(string)
 	)
 
 	if err != nil {
@@ -135,26 +140,47 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		w.errors = append(w.errors, err)
 		w.Unlock()
 	} else {
-		successful = atomic.AddInt32(&w.successful, 1)
+		// NB(bl) When bootstrapping, we count the writes to the initializing and
+		// leaving nodes as a single success towards quorum, and only if both
+		// writes succeed.
+
+		hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID)
+		if !ok {
+			panic("Missing host shard set") // todo@bl: handle this gracefully?
+		}
+		shardState := hostShardSet.ShardSet().LookupStateByID(w.op.shardID)
+
+		var addToSuccess int32
+
+		// NB(bl): We use one variable, halfSuccess, to avoid atomically
+		// reading and editing multiple vars. success = halfSuccess/2
+
+		// Each successful write to an available node increases halfSuccess by 2
+		// (i.e. increases success by one). Each successful write to an
+		// initializing or leaving node increases halfSuccess by 1 (i.e. success
+		// goes up by one if and only if both nodes are written to.)
+
+		if shardState == shard.Available {
+			addToSuccess = 2
+		} else {
+			addToSuccess = 1
+		}
+		successful = atomic.AddInt32(&w.halfSuccess, addToSuccess) / 2
 	}
 
-	w.Lock()
+	wLevel := w.session.writeLevel
 
-	switch w.session.writeLevel {
-	case topology.ConsistencyLevelOne:
-		if successful > 0 || remaining == 0 {
-			w.Signal()
-		}
-	case topology.ConsistencyLevelMajority:
-		if successful >= w.majority || remaining == 0 {
-			w.Signal()
-		}
-	case topology.ConsistencyLevelAll:
-		if remaining == 0 {
-			w.Signal()
-		}
+	if (remaining == 0) ||
+		(successful >= w.majority && wLevel == topology.ConsistencyLevelMajority) ||
+		(successful > 0 && wLevel == topology.ConsistencyLevelOne) {
+		w.Lock()
+		w.Signal()
+		w.Unlock()
 	}
 
-	w.Unlock()
 	w.decRef()
+}
+
+func (w *writeState) successful() int32 {
+	return atomic.LoadInt32(&w.halfSuccess) / 2
 }

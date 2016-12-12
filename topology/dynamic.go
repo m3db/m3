@@ -23,14 +23,16 @@ package topology
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/watch"
+
+	xlog "github.com/m3db/m3x/log"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 var (
@@ -38,7 +40,7 @@ var (
 	errInvalidService            = errors.New("service topology is invalid")
 	errUnexpectedShard           = errors.New("shard is unexpected")
 	errMissingShard              = errors.New("shard is missing")
-	errNotEnoughReplicasForShard = errors.New("replicas of shard is less than expected")
+	errNotEnoughReplicasForShard = errors.New("fewer shard replicas than expected")
 	errInvalidTopology           = errors.New("could not parse latest value from config service")
 )
 
@@ -75,12 +77,11 @@ func (i *dynamicInitializer) Init() (Topology, error) {
 }
 
 type dynamicTopology struct {
-	sync.RWMutex
 	opts      DynamicOptions
 	services  services.Services
 	watch     xwatch.Watch
 	watchable xwatch.Watchable
-	closed    bool
+	closed    int32
 	hashGen   sharding.HashGen
 	logger    xlog.Logger
 }
@@ -101,8 +102,7 @@ func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 
 	m, err := getMapFromUpdate(watch.Get(), opts.HashGen())
 	if err != nil {
-		logger.Errorf("dynamic topology received invalid initial value: %v",
-			err)
+		logger.Errorf("dynamic topology received invalid initial value: %v", err)
 		return nil, err
 	}
 
@@ -122,10 +122,7 @@ func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 }
 
 func (t *dynamicTopology) isClosed() bool {
-	t.RLock()
-	closed := t.closed
-	t.RUnlock()
-	return closed
+	return atomic.LoadInt32(&t.closed) == 1
 }
 
 func (t *dynamicTopology) run() {
@@ -153,21 +150,14 @@ func (t *dynamicTopology) Watch() (MapWatch, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewMapWatch(w), err
+	return NewMapWatch(w), nil
 }
 
 func (t *dynamicTopology) Close() {
-	t.Lock()
-	defer t.Unlock()
-
-	if t.closed {
-		return
+	if atomic.CompareAndSwapInt32(&t.closed, 0, 1) {
+		t.watch.Close()
+		t.watchable.Close()
 	}
-
-	t.closed = true
-
-	t.watch.Close()
-	t.watchable.Close()
 }
 
 func (t *dynamicTopology) MarkShardAvailable(

@@ -43,6 +43,9 @@ type ShardSet interface {
 	// Lookup will return a shard for a given identifier
 	Lookup(id ts.ID) uint32
 
+	// LookupStateByID will return the state of a shard for a given ID
+	LookupStateByID(shardID uint32) shard.State
+
 	// Min returns the smallest shard owned by this shard set
 	Min() uint32
 

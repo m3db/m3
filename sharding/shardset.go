@@ -22,6 +22,7 @@ package sharding
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/m3db/m3cluster/shard"
@@ -38,6 +39,7 @@ var (
 type shardSet struct {
 	shards []shard.Shard
 	ids    []uint32
+	states map[uint32]shard.State
 	fn     HashFn
 }
 
@@ -56,18 +58,31 @@ func NewEmptyShardSet(fn HashFn) ShardSet {
 
 func newValidatedShardSet(shards []shard.Shard, fn HashFn) ShardSet {
 	ids := make([]uint32, len(shards))
-	for i := range ids {
-		ids[i] = shards[i].ID()
+	states := make(map[uint32]shard.State, len(shards))
+	for i, shard := range shards {
+		ids[i] = shard.ID()
+		states[shard.ID()] = shard.State()
 	}
+
 	return &shardSet{
 		shards: shards,
 		ids:    ids,
+		states: states,
 		fn:     fn,
 	}
 }
 
 func (s *shardSet) Lookup(identifier ts.ID) uint32 {
 	return s.fn(identifier)
+}
+
+// todo@bl: handle failure gracefully?
+func (s *shardSet) LookupStateByID(shardID uint32) shard.State {
+	state, ok := s.states[shardID]
+	if !ok {
+		panic(fmt.Sprintf("No shard for id: %v", shardID))
+	}
+	return state
 }
 
 func (s *shardSet) All() []shard.Shard {

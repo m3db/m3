@@ -23,7 +23,6 @@ package topology
 import (
 	"errors"
 	"fmt"
-	"math"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
@@ -33,7 +32,7 @@ import (
 var errInstanceHasNoShardsAssignment = errors.New("invalid instance with no shards assigned")
 
 func majority(replicas int) int {
-	return int(math.Ceil(0.5 * float64(replicas+1)))
+	return (replicas / 2) + 1
 }
 
 type host struct {

@@ -23,7 +23,7 @@ package topology
 import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 type staticMap struct {
@@ -56,12 +56,10 @@ func NewStaticMap(opts StaticOptions) Map {
 		host := hostShardSet.Host()
 		topoMap.hostShardSetsByID[host.ID()] = hostShardSet
 		topoMap.orderedHosts = append(topoMap.orderedHosts, host)
-		for _, shard := range hostShardSet.ShardSet().AllIDs() {
-			topoMap.hostsByShard[shard] = append(topoMap.hostsByShard[shard], host)
-			topoMap.orderedHostsByShard[shard] = append(topoMap.orderedHostsByShard[shard], orderedHost{
-				idx:  idx,
-				host: host,
-			})
+		for _, shardID := range hostShardSet.ShardSet().AllIDs() {
+			topoMap.hostsByShard[shardID] = append(topoMap.hostsByShard[shardID], host)
+			topoMap.orderedHostsByShard[shardID] = append(topoMap.orderedHostsByShard[shardID],
+				orderedHost{idx: idx, host: host})
 		}
 	}
 
@@ -118,8 +116,9 @@ func (t *staticMap) RouteShardForEach(shard uint32, forEachFn RouteForEachFn) er
 		return errUnownedShard
 	}
 	orderedHosts := t.orderedHostsByShard[shard]
-	for i := range orderedHosts {
-		forEachFn(orderedHosts[i].idx, orderedHosts[i].host)
+	for _, host := range orderedHosts {
+		host := host
+		forEachFn(host.idx, host.host)
 	}
 	return nil
 }
