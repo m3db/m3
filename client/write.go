@@ -21,9 +21,11 @@
 package client
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -36,6 +38,7 @@ var (
 
 type writeOp struct {
 	namespace    ts.ID
+	shardID      uint32
 	request      rpc.WriteBatchRawRequestElement
 	datapoint    rpc.Datapoint
 	completionFn completionFn
@@ -98,11 +101,12 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	session             *session
-	op                  *writeOp
-	majority            int32
-	successful, pending int32
-	errors              []error
+	session           *session
+	topoMap           topology.Map
+	op                *writeOp
+	majority, pending int32
+	halfSuccess       int32
+	errors            []error
 
 	queues []hostQueue
 }
@@ -117,7 +121,7 @@ func (w *writeState) reset() {
 func (w *writeState) close() {
 	w.session.writeOpPool.Put(w.op)
 
-	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
+	w.op, w.majority, w.pending, w.halfSuccess = nil, 0, 0, 0
 	for i := range w.errors {
 		w.errors[i] = nil
 	}
@@ -130,11 +134,47 @@ func (w *writeState) close() {
 	w.session.writeStatePool.Put(w)
 }
 
+func (w *writeState) addError(err error) {
+	w.Lock()
+	w.errors = append(w.errors, err)
+	w.Unlock()
+}
+
+// todo@bl - modify comment on what happens to inflight writes
 func (w *writeState) completionFn(result interface{}, err error) {
-	remaining := atomic.AddInt32(&w.pending, -1)
-	successful := int32(0)
-	if err == nil {
-		successful = atomic.AddInt32(&w.successful, 1)
+	var (
+		successful int32
+		remaining  = atomic.AddInt32(&w.pending, -1)
+		hostID     = result.(string)
+		// NB(bl) panic on invalid result, it indicates a bug in the code
+	)
+
+	if err != nil {
+		w.addError(err)
+	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
+		w.addError(fmt.Errorf("Missing host shard in writeState completionFn: %s", hostID))
+	} else if shardState, err :=
+		hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
+		w.addError(fmt.Errorf("Missing shard %d in host %s", w.op.shardID, hostID))
+	} else {
+		// NB(bl): We use one variable, halfSuccess, to avoid atomically
+		// reading and editing multiple vars. success = halfSuccess/2
+
+		// Each successful write to an available node increases halfSuccess by 2
+		// (i.e. increases success by one). Each successful write to an
+		// initializing or leaving node increases halfSuccess by 1 (i.e. success
+		// goes up by one if and only if both nodes are written to.)
+
+		var addToSuccess int32
+
+		if shardState == shard.Available {
+			addToSuccess = 2
+		} else {
+			addToSuccess = 1
+		}
+
+		successful = atomic.AddInt32(&w.halfSuccess, addToSuccess) / 2
+
 	}
 
 	w.Lock()
@@ -160,4 +200,8 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 	w.Unlock()
 	w.decRef()
+}
+
+func (w *writeState) successful() int32 {
+	return atomic.LoadInt32(&w.halfSuccess) / 2
 }

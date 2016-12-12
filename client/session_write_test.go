@@ -30,7 +30,7 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/x/metrics"
+	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
@@ -43,12 +43,9 @@ func TestSessionWriteNotOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
+	s := newDefaultTestSession(t)
 
-	err = s.Write("namespace", "foo", time.Now(), 1.337, xtime.Second, nil)
-	assert.Error(t, err)
+	err := s.Write("namespace", "foo", time.Now(), 1.337, xtime.Second, nil)
 	assert.Equal(t, errSessionStateNotOpen, err)
 }
 
@@ -56,10 +53,7 @@ func TestSessionWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	session := s.(*session)
+	session := newDefaultTestSession(t).(*session)
 
 	w := struct {
 		ns         string
@@ -108,7 +102,7 @@ func TestSessionWrite(t *testing.T) {
 	// Callback
 	enqueueWg.Wait()
 	for i := 0; i < session.topoMap.Replicas(); i++ {
-		completionFn(nil, nil)
+		completionFn(defaultTestHostName(), nil)
 	}
 
 	// Wait for write to complete
@@ -122,10 +116,7 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	session := s.(*session)
+	session := newDefaultTestSession(t).(*session)
 
 	w := struct {
 		ns         string
@@ -204,9 +195,7 @@ func testWriteConsistencyLevel(
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 		SetMetricsScope(scope))
 
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	session := s.(*session)
+	session := newTestSession(t, opts).(*session)
 
 	w := struct {
 		ns         string
@@ -244,10 +233,10 @@ func testWriteConsistencyLevel(
 	enqueueWg.Wait()
 	writeErr := "a specific write error"
 	for i := 0; i < session.topoMap.Replicas()-failures; i++ {
-		completionFn(nil, nil)
+		completionFn(defaultTestHostName(), nil)
 	}
 	for i := 0; i < failures; i++ {
-		completionFn(nil, fmt.Errorf(writeErr))
+		completionFn(defaultTestHostName(), fmt.Errorf(writeErr))
 	}
 
 	// Wait for write to complete
@@ -289,4 +278,14 @@ func testWriteConsistencyLevel(
 			}
 		}
 	}
+}
+
+func newTestSession(t *testing.T, opts Options) clientSession {
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	return s
+}
+
+func newDefaultTestSession(t *testing.T) clientSession {
+	return newTestSession(t, newSessionTestOptions())
 }

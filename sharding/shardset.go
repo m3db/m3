@@ -33,11 +33,15 @@ import (
 var (
 	// ErrDuplicateShards returned when shard set is empty
 	ErrDuplicateShards = errors.New("duplicate shards")
+
+	// ErrInvalidShardID is returned on an invalid shard ID
+	ErrInvalidShardID = errors.New("no shard with given ID")
 )
 
 type shardSet struct {
 	shards []shard.Shard
 	ids    []uint32
+	states map[uint32]shard.State
 	fn     HashFn
 }
 
@@ -56,18 +60,29 @@ func NewEmptyShardSet(fn HashFn) ShardSet {
 
 func newValidatedShardSet(shards []shard.Shard, fn HashFn) ShardSet {
 	ids := make([]uint32, len(shards))
-	for i := range ids {
-		ids[i] = shards[i].ID()
+	states := make(map[uint32]shard.State, len(shards))
+	for i, shard := range shards {
+		ids[i] = shard.ID()
+		states[shard.ID()] = shard.State()
 	}
 	return &shardSet{
 		shards: shards,
 		ids:    ids,
+		states: states,
 		fn:     fn,
 	}
 }
 
 func (s *shardSet) Lookup(identifier ts.ID) uint32 {
 	return s.fn(identifier)
+}
+
+func (s *shardSet) LookupStateByID(shardID uint32) (shard.State, error) {
+	state, ok := s.states[shardID]
+	if !ok {
+		return state, ErrInvalidShardID
+	}
+	return state, nil
 }
 
 func (s *shardSet) All() []shard.Shard {

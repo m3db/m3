@@ -42,9 +42,9 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
+	xretry "github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
@@ -631,6 +631,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	}
 
 	state := s.writeStatePool.Get().(*writeState)
+	state.topoMap = s.topoMap
 	state.incRef()
 
 	state.op, state.majority = s.writeOpPool.Get(), majority
