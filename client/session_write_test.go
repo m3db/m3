@@ -55,14 +55,7 @@ func TestSessionWrite(t *testing.T) {
 
 	session := newDefaultTestSession(t).(*session)
 
-	w := struct {
-		ns         string
-		id         string
-		value      float64
-		t          time.Time
-		unit       xtime.Unit
-		annotation []byte
-	}{
+	w := writeStub{
 		ns:         "testNs",
 		id:         "foo",
 		value:      1.0,
@@ -278,6 +271,15 @@ func testWriteConsistencyLevel(
 			}
 		}
 	}
+}
+
+type writeStub struct {
+	ns         string
+	id         string
+	value      float64
+	t          time.Time
+	unit       xtime.Unit
+	annotation []byte
 }
 
 func newTestSession(t *testing.T, opts Options) clientSession {

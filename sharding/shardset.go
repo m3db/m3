@@ -39,10 +39,10 @@ var (
 )
 
 type shardSet struct {
-	shards []shard.Shard
-	ids    []uint32
-	states map[uint32]shard.State
-	fn     HashFn
+	shards   []shard.Shard
+	ids      []uint32
+	shardMap map[uint32]shard.Shard
+	fn       HashFn
 }
 
 // NewShardSet creates a new sharding scheme with a set of shards
@@ -60,16 +60,16 @@ func NewEmptyShardSet(fn HashFn) ShardSet {
 
 func newValidatedShardSet(shards []shard.Shard, fn HashFn) ShardSet {
 	ids := make([]uint32, len(shards))
-	states := make(map[uint32]shard.State, len(shards))
+	shardMap := make(map[uint32]shard.Shard, len(shards))
 	for i, shard := range shards {
 		ids[i] = shard.ID()
-		states[shard.ID()] = shard.State()
+		shardMap[shard.ID()] = shard
 	}
 	return &shardSet{
-		shards: shards,
-		ids:    ids,
-		states: states,
-		fn:     fn,
+		shards:   shards,
+		ids:      ids,
+		shardMap: shardMap,
+		fn:       fn,
 	}
 }
 
@@ -78,11 +78,12 @@ func (s *shardSet) Lookup(identifier ts.ID) uint32 {
 }
 
 func (s *shardSet) LookupStateByID(shardID uint32) (shard.State, error) {
-	state, ok := s.states[shardID]
+	hostShard, ok := s.shardMap[shardID]
 	if !ok {
+		var state shard.State
 		return state, ErrInvalidShardID
 	}
-	return state, nil
+	return hostShard.State(), nil
 }
 
 func (s *shardSet) All() []shard.Shard {
