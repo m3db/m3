@@ -294,6 +294,17 @@ func (s *session) nodesRespondingErrorsMetricIndex(respErrs int32) int32 {
 	return idx
 }
 
+// todo@bl - pull out other pool inits
+func (s *session) initWriteOpPool() {
+	writeOpPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.WriteOpPoolSize()).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-op-pool"),
+		))
+	s.writeOpPool = newWriteOpPool(writeOpPoolOpts)
+	s.writeOpPool.Init()
+}
+
 func (s *session) Open() error {
 	s.Lock()
 	if s.state != stateNotOpen {
@@ -322,13 +333,7 @@ func (s *session) Open() error {
 
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
-	writeOpPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.WriteOpPoolSize()).
-		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
-			s.scope.SubScope("write-op-pool"),
-		))
-	s.writeOpPool = newWriteOpPool(writeOpPoolOpts)
-	s.writeOpPool.Init()
+	s.initWriteOpPool()
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(

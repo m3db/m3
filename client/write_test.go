@@ -56,6 +56,8 @@ func TestWriteToInitializingAndLeavingShards(t *testing.T) {
 
 func initWriteState(t *testing.T) (*session, *writeState) {
 	s := newDefaultTestSession(t).(*session)
+	s.initWriteOpPool()
+
 	wState := s.writeStatePool.Get().(*writeState)
 	wState.topoMap = s.topoMap
 	wState.op = s.writeOpPool.Get()
