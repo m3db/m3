@@ -1904,8 +1904,6 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 		return nil
 	}
 
-	var tmpCtx context.Context
-
 	for {
 		r.Lock()
 		currBlock, exists := r.result.BlockAt(id, start)
@@ -1922,12 +1920,7 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 
 		// If we've already received data for this block, merge them
 		// with the new block if possible
-		if tmpCtx == nil {
-			tmpCtx = r.contextPool.Get()
-		} else {
-			tmpCtx.Reset()
-		}
-
+		tmpCtx := r.contextPool.Get()
 		currReader, err := currBlock.Stream(tmpCtx)
 		if err != nil {
 			return err
