@@ -76,10 +76,10 @@ func (s *shardSet) Lookup(identifier ts.ID) uint32 {
 	return s.fn(identifier)
 }
 
-func (s *shardSet) LookupState(identifier ts.ID) shard.State {
-	state, ok := s.states[s.Lookup(identifier)]
+func (s *shardSet) LookupStateByID(shardID uint32) shard.State {
+	state, ok := s.states[shardID]
 	if !ok {
-		panic(fmt.Sprintf("No shard for identifier: %s", identifier))
+		panic(fmt.Sprintf("No shard for id: %v", shardID))
 	}
 	return state
 }

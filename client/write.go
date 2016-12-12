@@ -148,7 +148,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		if !ok {
 			panic("Missing host shard set") // todo@bl: handle this gracefully
 		}
-		shardState := hostShardSet.ShardSet().LookupState(w.op.shardID)
+		shardState := hostShardSet.ShardSet().LookupStateByID(w.op.shardID)
 
 		var addToSuccess int32
 
