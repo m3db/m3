@@ -1312,7 +1312,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	for moreResults {
 		if err := retrier.Attempt(func() error {
 			var attemptErr error
-			var borrowErr error = peer.BorrowConnection(func(client rpc.TChanNode) {
+			borrowErr := peer.BorrowConnection(func(client rpc.TChanNode) {
 				attemptErr = attemptFn(client)
 			})
 			return xerrors.FirstError(borrowErr, attemptErr)
@@ -1704,7 +1704,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Attempt request
 	if err := retrier.Attempt(func() error {
 		var attempErr error
-		var borrowErr error = peer.BorrowConnection(func(client rpc.TChanNode) {
+		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode) {
 			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
 			result, attempErr = client.FetchBlocksRaw(tctx, req)
 		})
