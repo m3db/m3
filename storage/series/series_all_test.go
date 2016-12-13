@@ -24,11 +24,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/storage/block"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var timeDistantFuture = time.Now().Add(10 * 365 * 24 * time.Hour)
@@ -45,9 +47,14 @@ func hrs(x float64) time.Duration {
 	return time.Duration(x * float64(time.Hour))
 }
 
-type drain struct {
-	start   time.Time
-	encoder encoding.Encoder
+func requireDrainedStream(
+	t *testing.T,
+	ctx context.Context,
+	b block.DatabaseBlock,
+) xio.SegmentReader {
+	stream, err := b.Stream(ctx)
+	require.NoError(t, err)
+	return stream
 }
 
 type value struct {

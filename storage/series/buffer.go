@@ -69,7 +69,7 @@ type dbBuffer struct {
 	bufferFuture      time.Duration
 }
 
-type databaseBufferDrainFn func(start time.Time, encoder encoding.Encoder)
+type databaseBufferDrainFn func(b block.DatabaseBlock)
 
 func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuffer {
 	b := &dbBuffer{
@@ -159,7 +159,11 @@ func (b *dbBuffer) DrainAndReset() {
 			// After we merge there is always only a single encoder with all the data
 			encoder := bucket.encoders[0].encoder
 			encoder.Seal()
-			b.drainFn(bucket.start, encoder)
+
+			newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+			newBlock.Reset(bucket.start, encoder)
+			newBlock.Seal()
+			b.drainFn(newBlock)
 			bucket.drained = true
 		}
 
@@ -300,6 +304,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 type dbBufferBucketStreamFn func(stream xio.SegmentReader)
 
 type dbBufferBucket struct {
+	ctx          context.Context
 	opts         Options
 	start        time.Time
 	encoders     []inOrderEncoder
@@ -313,21 +318,32 @@ type inOrderEncoder struct {
 	encoder     encoding.Encoder
 }
 
-func (b *dbBufferBucket) resetTo(start time.Time) {
+func (b *dbBufferBucket) resetTo(
+	start time.Time,
+) {
+	ctx := b.opts.ContextPool().Get()
+
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
-	first := inOrderEncoder{
-		lastWriteAt: timeZero,
-		encoder:     encoder,
-	}
 
+	// Register when this bucket resets we close the encoder
+	ctx.RegisterCloser(context.CloserFn(encoder.Close))
+
+	if b.ctx != nil {
+		// Close the old context if we're resetting for use
+		b.ctx.Close()
+	}
+	b.ctx = ctx
 	b.start = start
 	var zeroed inOrderEncoder
 	for i := range b.encoders {
 		b.encoders[i] = zeroed
 	}
-	b.encoders = append(b.encoders[:0], first)
+	b.encoders = append(b.encoders[:0], inOrderEncoder{
+		lastWriteAt: timeZero,
+		encoder:     encoder,
+	})
 	b.bootstrapped = nil
 	b.empty = true
 	b.drained = false
@@ -337,29 +353,44 @@ func (b *dbBufferBucket) canRead() bool {
 	return !b.drained && !b.empty
 }
 
-func (b *dbBufferBucket) needsReset(targetStart time.Time) bool {
+func (b *dbBufferBucket) needsReset(
+	targetStart time.Time,
+) bool {
 	return !b.start.Equal(targetStart)
 }
 
-func (b *dbBufferBucket) needsDrain(now time.Time, targetStart time.Time) bool {
+func (b *dbBufferBucket) needsDrain(
+	now time.Time,
+	targetStart time.Time,
+) bool {
 	retentionOpts := b.opts.RetentionOptions()
 	blockSize := retentionOpts.BlockSize()
 	bufferPast := retentionOpts.BufferPast()
 
-	return b.canRead() && (b.needsReset(targetStart) || b.start.Add(blockSize).Before(now.Add(-bufferPast)))
+	return b.canRead() && (b.needsReset(targetStart) ||
+		b.start.Add(blockSize).Before(now.Add(-bufferPast)))
 }
 
-func (b *dbBufferBucket) bootstrap(bl block.DatabaseBlock) {
+func (b *dbBufferBucket) bootstrap(
+	bl block.DatabaseBlock,
+) {
+	// Register when this bucket resets we close the bootstrapped block
+	b.ctx.RegisterCloser(context.CloserFn(bl.Close))
 	b.empty = false
 	b.bootstrapped = append(b.bootstrapped, bl)
 }
 
-func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+func (b *dbBufferBucket) write(
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
 	var target *inOrderEncoder
 	for i := range b.encoders {
 		if timestamp == b.encoders[i].lastWriteAt {
-			// NB(xichen): we discard datapoints with the same timestamps as the ones we've
-			// already encoded.
+			// NB(xichen): We discard datapoints with the same timestamps as the
+			// ones we've already encoded. Immutable/first-write-wins semantics.
 			return nil
 		}
 		if timestamp.After(b.encoders[i].lastWriteAt) {
@@ -370,11 +401,15 @@ func (b *dbBufferBucket) write(timestamp time.Time, value float64, unit xtime.Un
 	if target == nil {
 		bopts := b.opts.DatabaseBlockOptions()
 		blockSize := b.opts.RetentionOptions().BlockSize()
+		blockAllocSize := bopts.DatabaseBlockAllocSize()
 		encoder := bopts.EncoderPool().Get()
-		encoder.Reset(timestamp.Truncate(blockSize), bopts.DatabaseBlockAllocSize())
+		encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
 		next := inOrderEncoder{encoder: encoder}
 		b.encoders = append(b.encoders, next)
 		target = &b.encoders[len(b.encoders)-1]
+
+		// Register when this bucket resets we close the encoder we just created
+		b.ctx.RegisterCloser(context.CloserFn(encoder.Close))
 	}
 
 	datapoint := ts.Datapoint{
@@ -393,6 +428,10 @@ func (b *dbBufferBucket) readStreams(
 	ctx context.Context,
 	streamFn dbBufferBucketStreamFn,
 ) {
+	// NB(r): Ensure we don't call any closers before the operation
+	// started by the passed context completes.
+	b.ctx.DependsOn(ctx)
+
 	for i := range b.bootstrapped {
 		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s != nil {
 			// NB(r): block stream method will register the stream closer already
@@ -421,6 +460,9 @@ func (b *dbBufferBucket) merge() {
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
+	// Register when this bucket resets we close the encoder we just created
+	b.ctx.RegisterCloser(context.CloserFn(encoder.Close))
+
 	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
 	for i := range b.encoders {
 		if stream := b.encoders[i].encoder.Stream(); stream != nil {
@@ -428,12 +470,8 @@ func (b *dbBufferBucket) merge() {
 		}
 	}
 
-	var ctx context.Context
 	for i := range b.bootstrapped {
-		if ctx == nil {
-			ctx = bopts.ContextPool().Get()
-		}
-		stream, err := b.bootstrapped[i].Stream(ctx)
+		stream, err := b.bootstrapped[i].Stream(b.ctx)
 		if err == nil && stream != nil {
 			readers = append(readers, stream)
 		}
@@ -449,10 +487,6 @@ func (b *dbBufferBucket) merge() {
 	}
 	iter.Close()
 
-	for i := range b.encoders {
-		b.encoders[i].encoder.Close()
-	}
-
 	var zeroed inOrderEncoder
 	for i := range b.encoders {
 		b.encoders[i] = zeroed
@@ -462,8 +496,4 @@ func (b *dbBufferBucket) merge() {
 		encoder:     encoder,
 	})
 	b.bootstrapped = nil
-
-	if ctx != nil {
-		ctx.Close()
-	}
 }

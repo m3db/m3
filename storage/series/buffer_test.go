@@ -172,9 +172,9 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 }
 
 func TestBufferDrain(t *testing.T) {
-	var drained []drain
-	drainFn := func(start time.Time, encoder encoding.Encoder) {
-		drained = append(drained, drain{start, encoder})
+	var drained []block.DatabaseBlock
+	drainFn := func(b block.DatabaseBlock) {
+		drained = append(drained, b)
 	}
 
 	opts := newBufferTestOptions()
@@ -207,24 +207,24 @@ func TestBufferDrain(t *testing.T) {
 	buffer.DrainAndReset()
 
 	assert.Equal(t, false, buffer.NeedsDrain())
-	assert.Equal(t, 1, len(drained))
+	require.Equal(t, 1, len(drained))
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
-	assert.NotNil(t, results)
+	require.NotNil(t, results)
 
 	assertValuesEqual(t, data[:4], [][]xio.SegmentReader{[]xio.SegmentReader{
-		drained[0].encoder.Stream(),
+		requireDrainedStream(t, ctx, drained[0]),
 	}}, opts)
 	assertValuesEqual(t, data[4:], results, opts)
 }
 
 func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
-	var drained []drain
-	drainFn := func(start time.Time, encoder encoding.Encoder) {
-		drained = append(drained, drain{start, encoder})
+	var drained []block.DatabaseBlock
+	drainFn := func(b block.DatabaseBlock) {
+		drained = append(drained, b)
 	}
 
 	opts := newBufferTestOptions()
@@ -259,8 +259,8 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	assert.NotNil(t, results)
 
 	assertValuesEqual(t, data[:2], [][]xio.SegmentReader{[]xio.SegmentReader{
-		drained[0].encoder.Stream(),
-		drained[1].encoder.Stream(),
+		requireDrainedStream(t, ctx, drained[1]),
+		requireDrainedStream(t, ctx, drained[0]),
 	}}, opts)
 	assertValuesEqual(t, data[2:], results, opts)
 }
@@ -323,11 +323,12 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	assertValuesEqual(t, data, results, opts)
 }
 
-func initializeTestBufferBucket() (*dbBufferBucket, Options, []value) {
+func newTestBufferBucketWithData(t *testing.T) (*dbBufferBucket, Options, []value) {
 	opts := newBufferTestOptions()
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
-	b := &dbBufferBucket{opts: opts, start: curr, empty: false}
+	b := &dbBufferBucket{opts: opts}
+	b.resetTo(curr)
 	data := [][]value{
 		{
 			{curr, 1, xtime.Second, nil},
@@ -348,8 +349,12 @@ func initializeTestBufferBucket() (*dbBufferBucket, Options, []value) {
 		},
 	}
 
+	// Empty all existing encoders
+	b.encoders = nil
+
 	var expected []value
 	for i, d := range data {
+		encoded := 0
 		encoder := opts.EncoderPool().Get()
 		encoder.Reset(curr, 0)
 		for _, v := range data[i] {
@@ -357,17 +362,20 @@ func initializeTestBufferBucket() (*dbBufferBucket, Options, []value) {
 				Timestamp: v.timestamp,
 				Value:     v.value,
 			}
-			encoder.Encode(dp, v.unit, v.annotation)
+			err := encoder.Encode(dp, v.unit, v.annotation)
+			require.NoError(t, err)
+			encoded++
 		}
 		b.encoders = append(b.encoders, inOrderEncoder{encoder: encoder})
 		expected = append(expected, d...)
 	}
+	b.empty = false
 	sort.Sort(valuesByTime(expected))
 	return b, opts, expected
 }
 
 func TestBufferBucketMerge(t *testing.T) {
-	b, opts, expected := initializeTestBufferBucket()
+	b, opts, expected := newTestBufferBucketWithData(t)
 
 	b.merge()
 
@@ -383,7 +391,8 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
 
-	b := &dbBufferBucket{opts: opts, start: curr, empty: true}
+	b := &dbBufferBucket{opts: opts}
+	b.resetTo(curr)
 	emptyEncoder := opts.EncoderPool().Get()
 	emptyEncoder.Reset(curr, 0)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
@@ -409,7 +418,8 @@ func TestBufferBucketWriteDuplicate(t *testing.T) {
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
 
-	b := &dbBufferBucket{opts: opts, start: curr, empty: true}
+	b := &dbBufferBucket{opts: opts}
+	b.resetTo(curr)
 	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
 	require.False(t, b.empty)
@@ -422,7 +432,7 @@ func TestBufferBucketWriteDuplicate(t *testing.T) {
 }
 
 func TestBufferFetchBlocks(t *testing.T) {
-	b, opts, expected := initializeTestBufferBucket()
+	b, opts, expected := newTestBufferBucketWithData(t)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -431,11 +441,8 @@ func TestBufferFetchBlocks(t *testing.T) {
 
 	for i := 1; i < 3; i++ {
 		newBucketStart := b.start.Add(time.Duration(i) * time.Minute)
-		buffer.buckets[i] = dbBufferBucket{
-			start:    newBucketStart,
-			empty:    true,
-			encoders: []inOrderEncoder{{newBucketStart, nil}},
-		}
+		(&buffer.buckets[i]).resetTo(newBucketStart)
+		buffer.buckets[i].encoders = []inOrderEncoder{{newBucketStart, nil}}
 	}
 
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)})
@@ -445,7 +452,7 @@ func TestBufferFetchBlocks(t *testing.T) {
 }
 
 func TestBufferFetchBlocksMetadata(t *testing.T) {
-	b, opts, _ := initializeTestBufferBucket()
+	b, opts, _ := newTestBufferBucketWithData(t)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 

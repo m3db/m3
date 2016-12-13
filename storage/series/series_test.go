@@ -22,6 +22,7 @@ package series
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -402,14 +403,15 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 
 	faultyEncoder := opts.EncoderPool().Get()
 	faultyEncoder.ResetSetData(blockStart, []byte{0x0}, true)
-	series.pendingBootstrap = []pendingBootstrapDrain{pendingBootstrapDrain{
-		start:   blockStart,
-		encoder: faultyEncoder,
-	}}
-	err := series.Bootstrap(blocks)
+	faultyBlock := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+	faultyBlock.Reset(blockStart, faultyEncoder)
+	series.blocks.AddBlock(faultyBlock)
 
+	err := series.Bootstrap(blocks)
 	require.NotNil(t, err)
-	require.Equal(t, "bootstrap series error occurred for foo: bar", err.Error())
+	str := fmt.Sprintf("bootstrap series error occurred for %s block at %s: %s",
+		series.ID().String(), blockStart.String(), "bar")
+	require.Equal(t, str, err.Error())
 	require.Equal(t, bootstrapped, series.bs)
 	require.Equal(t, 1, series.blocks.Len())
 }
