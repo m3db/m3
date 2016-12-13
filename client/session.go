@@ -1703,12 +1703,12 @@ func (s *session) streamBlocksBatchFromPeer(
 
 	// Attempt request
 	if err := retrier.Attempt(func() error {
-		var attempErr error
+		var attemptErr error
 		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode) {
 			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
-			result, attempErr = client.FetchBlocksRaw(tctx, req)
+			result, attemptErr = client.FetchBlocksRaw(tctx, req)
 		})
-		return xerrors.FirstError(borrowErr, attempErr)
+		return xerrors.FirstError(borrowErr, attemptErr)
 	}); err != nil {
 		s.log.Errorf("stream blocks response from peer %s returned error: %v", peer.Host().String(), err)
 		for i := range batch {
