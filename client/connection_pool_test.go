@@ -35,9 +35,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testHost     = "testhost"
+	testHostAddr = testHost + ":9000"
+)
+
 var (
-	testHost    = "testhost"
-	h           = topology.NewHost(testHost, testHost+":9000")
+	h           = topology.NewHost(testHost, testHostAddr)
 	channelNone = &nullChannel{}
 )
 

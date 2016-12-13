@@ -71,7 +71,6 @@ func TestLookupShardState(t *testing.T) {
 	require.Equal(t, shard.Available, shardOneState)
 
 	var noState shard.State
-
 	shardTwoState, err := ss.LookupStateByID(2)
 	require.Equal(t, ErrInvalidShardID, err)
 	require.Equal(t, noState, shardTwoState)
