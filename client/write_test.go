@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/generated/thrift/rpc"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -34,95 +33,126 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWriteToAvailableShard(t *testing.T) {
-	s, wState := initWriteState(t)
-	require.True(t, false)
-	setShardStates(t, s, shard.Available)
-	writeToSession(t, s)
+func TestWriteToAvailableShards(t *testing.T) {
+	success, halfSuccess := shardStateWriteTest(t, shard.Available)
 
-	assert.Equal(t, 2, wState.halfSuccess)
-	assert.Equal(t, 1, wState.successful())
+	assert.Equal(t, int32(sessionTestReplicas), success)
+	assert.Equal(t, int32(2*sessionTestReplicas), halfSuccess)
 }
 
-func TestWriteToInitializingShard(t *testing.T) {
+func TestWriteToInitializingShards(t *testing.T) {
+	success, halfSuccess := shardStateWriteTest(t, shard.Initializing)
 
+	assert.Equal(t, int32(sessionTestReplicas/2), success)
+	assert.Equal(t, int32(sessionTestReplicas), halfSuccess)
 }
 
-func TestWriteToLeavingShard(t *testing.T) {
+func TestWriteToLeavingShards(t *testing.T) {
+	success, halfSuccess := shardStateWriteTest(t, shard.Leaving)
 
+	assert.Equal(t, int32(sessionTestReplicas/2), success)
+	assert.Equal(t, int32(sessionTestReplicas), halfSuccess)
 }
 
 func TestWriteToInitializingAndLeavingShards(t *testing.T) {
-
-}
-
-func initWriteState(t *testing.T) (*session, *writeState) {
-	s := newDefaultTestSession(t).(*session)
-	require.NoError(t, s.Open())
-
-	wState := s.writeStatePool.Get().(*writeState)
-	wState.topoMap = s.topoMap
-	wState.op = s.writeOpPool.Get()
-	wState.op.completionFn = wState.completionFn
-
-	return s, wState
-}
-
-func TestWriteToInit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	session := newDefaultTestSession(t).(*session)
-
-	w := writeStub{
-		ns:         "testNs",
-		id:         "foo",
-		value:      1.0,
-		t:          time.Now(),
-		unit:       xtime.Second,
-		annotation: nil,
-	}
+	s := newDefaultTestSession(t).(*session)
 
 	var completionFn completionFn
-	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
+	enqueueWg := mockHostQueues(ctrl, s, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
 		completionFn = op.CompletionFn()
-		write, ok := op.(*writeOp)
-		assert.True(t, ok)
-		assert.Equal(t, w.id, string(write.request.ID))
-		assert.Equal(t, w.value, write.request.Datapoint.Value)
-		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
-		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampType)
-		assert.NotNil(t, write.completionFn)
 	}})
 
-	assert.NoError(t, session.Open())
+	s.Open()
+	defer s.Close()
 
-	// Ensure consecutive opens cause errors
-	consecutiveOpenErr := session.Open()
-	assert.Error(t, consecutiveOpenErr)
-	assert.Equal(t, errSessionStateNotInitial, consecutiveOpenErr)
+	// set up write state
+	wState := getWriteState(s)
+	for i := 0; i < sessionTestReplicas+1; i++ {
+		wState.incRef()
+	}
+	defer wState.decRef() // add an extra incRef so we can inspect wState
 
 	// Begin write
-	var resultErr error
+	var writeWg sync.WaitGroup
+	writeWg.Add(1)
+	w := newWriteStub()
+	go func() {
+		s.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+		writeWg.Done()
+	}()
+
+	// Callbacks
+	callback := func(state shard.State) {
+		setShardStates(t, s, state)
+		completionFn(defaultTestHostName(), nil)        // maintain session state
+		wState.completionFn(defaultTestHostName(), nil) // for the test
+	}
+	enqueueWg.Wait()
+
+	callback(shard.Available)
+	callback(shard.Initializing)
+	callback(shard.Leaving)
+
+	// Wait for writes to complete
+	writeWg.Wait()
+
+	assert.Equal(t, int32(2), wState.successful())
+	assert.Equal(t, int32(4), wState.halfSuccess)
+
+}
+
+func shardStateWriteTest(t *testing.T, state shard.State) (success, halfSuccess int32) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	s := newDefaultTestSession(t).(*session)
+	w := newWriteStub()
+
+	var completionFn completionFn
+	enqueueWg := mockHostQueues(ctrl, s, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
+		completionFn = op.CompletionFn()
+	}})
+
+	s.Open()
+	defer s.Close()
+
+	wState := getWriteState(s)
+	for i := 0; i < sessionTestReplicas+1; i++ {
+		wState.incRef()
+	}
+	defer wState.decRef() // add an extra incRef so we can inspect wState
+
+	// Begin write
 	var writeWg sync.WaitGroup
 	writeWg.Add(1)
 	go func() {
-		resultErr = session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+		s.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
 
 	// Callback
+	setShardStates(t, s, state)
+
 	enqueueWg.Wait()
-	for i := 0; i < session.topoMap.Replicas(); i++ {
+	for i := 0; i < s.topoMap.Replicas(); i++ {
 		completionFn(defaultTestHostName(), nil)
+		wState.completionFn(defaultTestHostName(), nil)
 	}
 
 	// Wait for write to complete
 	writeWg.Wait()
-	assert.Nil(t, resultErr)
 
-	//	assert.NoError(t, session.Close())
+	return wState.successful(), wState.halfSuccess
+}
 
+func getWriteState(s *session) *writeState {
+	wState := s.writeStatePool.Get().(*writeState)
+	wState.topoMap = s.topoMap
+	wState.op = s.writeOpPool.Get()
+	return wState
 }
 
 func setShardStates(t *testing.T, s *session, state shard.State) {

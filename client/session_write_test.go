@@ -55,15 +55,7 @@ func TestSessionWrite(t *testing.T) {
 
 	session := newDefaultTestSession(t).(*session)
 
-	w := writeStub{
-		ns:         "testNs",
-		id:         "foo",
-		value:      1.0,
-		t:          time.Now(),
-		unit:       xtime.Second,
-		annotation: nil,
-	}
-
+	w := newWriteStub()
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
 		completionFn = op.CompletionFn()
@@ -290,4 +282,15 @@ func newTestSession(t *testing.T, opts Options) clientSession {
 
 func newDefaultTestSession(t *testing.T) clientSession {
 	return newTestSession(t, newSessionTestOptions())
+}
+
+func newWriteStub() writeStub {
+	return writeStub{
+		ns:         "testNs",
+		id:         "foo",
+		value:      1.0,
+		t:          time.Now(),
+		unit:       xtime.Second,
+		annotation: nil,
+	}
 }
