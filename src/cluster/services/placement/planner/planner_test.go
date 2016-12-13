@@ -31,37 +31,37 @@ import (
 )
 
 func TestDeployment(t *testing.T) {
-	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	h2 := placement.NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h3 := placement.NewEmptyInstance("r3h3", "r3", "z1", 1)
-	h3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 1)
+	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
-	h4 := placement.NewEmptyInstance("r4h4", "r4", "z1", 1)
-	h4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i4 := placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)
+	i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h5 := placement.NewEmptyInstance("r5h5", "r5", "z1", 1)
-	h5.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
-	h5.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i5 := placement.NewEmptyInstance("i5", "r5", "z1", "endpoint", 1)
+	i5.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i5.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 
-	h6 := placement.NewEmptyInstance("r6h6", "r6", "z1", 1)
-	h6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h6.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-	h6.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i6 := placement.NewEmptyInstance("i6", "r6", "z1", "endpoint", 1)
+	i6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i6.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i6.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 
-	instances := []services.PlacementInstance{h1, h2, h3, h4, h5, h6}
+	instances := []services.PlacementInstance{i1, i2, i3, i4, i5, i6}
 
 	mp := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 3)
 
@@ -76,50 +76,50 @@ func TestDeployment(t *testing.T) {
 }
 
 func TestDeterministicSteps(t *testing.T) {
-	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	h2 := placement.NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 
-	h3 := placement.NewEmptyInstance("r3h3", "r3", "z1", 1)
-	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 1)
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h4 := placement.NewEmptyInstance("r4h4", "r4", "z1", 1)
-	h4.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i4 := placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)
+	i4.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	h5 := placement.NewEmptyInstance("r5h5", "r5", "z1", 1)
-	h5.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i5 := placement.NewEmptyInstance("i5", "r5", "z1", "endpoint", 1)
+	i5.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h6 := placement.NewEmptyInstance("r6h6", "r6", "z1", 1)
-	h6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h6.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i6 := placement.NewEmptyInstance("i6", "r6", "z1", "endpoint", 1)
+	i6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i6.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
-	h7 := placement.NewEmptyInstance("r7h7", "r7", "z1", 1)
+	h7 := placement.NewEmptyInstance("i7", "r7", "z1", "endpoint", 1)
 	h7.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 	h7.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	h8 := placement.NewEmptyInstance("r8h8", "r8", "z1", 1)
+	h8 := placement.NewEmptyInstance("i8", "r8", "z1", "endpoint", 1)
 	h8.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 	h8.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
-	h9 := placement.NewEmptyInstance("r9h9", "r9", "z1", 1)
+	h9 := placement.NewEmptyInstance("i9", "r9", "z1", "endpoint", 1)
 	h9.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 	h9.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 
 	mp1 := placement.NewPlacement(
-		[]services.PlacementInstance{h1, h2, h3, h4, h5, h6, h7, h8, h9},
+		[]services.PlacementInstance{i1, i2, i3, i4, i5, i6, h7, h8, h9},
 		[]uint32{1, 2, 3, 4, 5, 6},
 		3,
 	)
 
 	mp2 := placement.NewPlacement(
-		[]services.PlacementInstance{h4, h5, h6, h7, h8, h9, h1, h2, h3},
+		[]services.PlacementInstance{i4, i5, i6, h7, h8, h9, i1, i2, i3},
 		[]uint32{1, 2, 3, 4, 5, 6},
 		3,
 	)
@@ -129,43 +129,43 @@ func TestDeterministicSteps(t *testing.T) {
 }
 
 func TestDeploymentWithThreeReplica(t *testing.T) {
-	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	h2 := placement.NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 
-	h3 := placement.NewEmptyInstance("r3h3", "r3", "z1", 1)
-	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 1)
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h4 := placement.NewEmptyInstance("r4h4", "r4", "z1", 1)
-	h4.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i4 := placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)
+	i4.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	h5 := placement.NewEmptyInstance("r5h5", "r5", "z1", 1)
-	h5.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i5 := placement.NewEmptyInstance("i5", "r5", "z1", "endpoint", 1)
+	i5.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h6 := placement.NewEmptyInstance("r6h6", "r6", "z1", 1)
-	h6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h6.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i6 := placement.NewEmptyInstance("i6", "r6", "z1", "endpoint", 1)
+	i6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i6.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
-	h7 := placement.NewEmptyInstance("r7h7", "r7", "z1", 1)
+	h7 := placement.NewEmptyInstance("i7", "r7", "z1", "endpoint", 1)
 	h7.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 	h7.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	h8 := placement.NewEmptyInstance("r8h8", "r8", "z1", 1)
+	h8 := placement.NewEmptyInstance("i8", "r8", "z1", "endpoint", 1)
 	h8.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 	h8.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
-	h9 := placement.NewEmptyInstance("r9h9", "r9", "z1", 1)
+	h9 := placement.NewEmptyInstance("i9", "r9", "z1", "endpoint", 1)
 	h9.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 	h9.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 
-	instances := []services.PlacementInstance{h1, h2, h3, h4, h5, h6, h7, h8, h9}
+	instances := []services.PlacementInstance{i1, i2, i3, i4, i5, i6, h7, h8, h9}
 
 	mp := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 3)
 
@@ -198,31 +198,31 @@ func TestDeploymentWithThreeReplica(t *testing.T) {
 }
 
 func TestRemoveInstance(t *testing.T) {
-	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
-	h2 := placement.NewEmptyInstance("r2h2", "r2", "z1", 1)
-	h3 := placement.NewEmptyInstance("r3h3", "r3", "z1", 1)
-	h4 := placement.NewEmptyInstance("r4h4", "r4", "z1", 1)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "", 1)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "", 1)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "", 1)
+	i4 := placement.NewEmptyInstance("i4", "r4", "z1", "", 1)
 
-	instances := []services.PlacementInstance{h1, h2, h3, h4}
+	instances := []services.PlacementInstance{i1, i2, i3, i4}
 
-	left := removeInstance(instances, h4)
+	left := removeInstance(instances, i4)
 	assert.Equal(t, 3, len(left))
 
-	left = removeInstance(instances, placement.NewEmptyInstance("r5h5", "r5", "z1", 1))
+	left = removeInstance(instances, placement.NewEmptyInstance("i5", "r5", "z1", "", 1))
 	assert.Equal(t, 4, len(left))
 }
 
 func TestSort(t *testing.T) {
 	var steps sortableSteps
 	steps = append(steps, []services.PlacementInstance{
-		placement.NewEmptyInstance("", "", "", 1),
-		placement.NewEmptyInstance("", "", "", 1)})
+		placement.NewEmptyInstance("", "", "", "", 1),
+		placement.NewEmptyInstance("", "", "", "", 1)})
 	steps = append(steps, []services.PlacementInstance{
-		placement.NewEmptyInstance("", "", "", 1),
-		placement.NewEmptyInstance("", "", "", 1),
-		placement.NewEmptyInstance("", "", "", 1)})
+		placement.NewEmptyInstance("", "", "", "", 1),
+		placement.NewEmptyInstance("", "", "", "", 1),
+		placement.NewEmptyInstance("", "", "", "", 1)})
 	steps = append(steps, []services.PlacementInstance{
-		placement.NewEmptyInstance("", "", "", 1)})
+		placement.NewEmptyInstance("", "", "", "", 1)})
 	sort.Sort(steps)
 
 	assert.Equal(t, 3, len(steps))

@@ -46,7 +46,7 @@ func NewRackAwarePlacementAlgorithm(opts services.PlacementOptions) placement.Al
 }
 
 func (a rackAwarePlacementAlgorithm) InitialPlacement(instances []services.PlacementInstance, shards []uint32) (services.ServicePlacement, error) {
-	ph := newInitHelper(instances, shards, a.opts)
+	ph := newInitHelper(cloneInstances(instances), shards, a.opts)
 
 	if err := ph.PlaceShards(newShards(shards), nil); err != nil {
 		return nil, err
@@ -82,8 +82,7 @@ func (a rackAwarePlacementAlgorithm) AddInstance(
 	p services.ServicePlacement,
 	i services.PlacementInstance,
 ) (services.ServicePlacement, error) {
-	p = clonePlacement(p)
-	return a.addInstance(p, placement.NewEmptyInstance(i.ID(), i.Rack(), i.Zone(), i.Weight()))
+	return a.addInstance(clonePlacement(p), cloneInstance(i))
 }
 
 func (a rackAwarePlacementAlgorithm) ReplaceInstance(

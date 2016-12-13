@@ -30,14 +30,14 @@ import (
 )
 
 func TestMoveInitializingShard(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 	i1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
 
-	i2 := placement.NewEmptyInstance("i2", "r2", "z1", 1)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
 	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	i3 := placement.NewEmptyInstance("i3", "r3", "z1", 1)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 1)
 	i3.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
 
 	instances := []services.PlacementInstance{i1, i2, i3}
@@ -58,14 +58,14 @@ func TestMoveInitializingShard(t *testing.T) {
 }
 
 func TestMoveLeavingShard(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 	i1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
 
-	i2 := placement.NewEmptyInstance("i2", "r2", "z1", 1)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
 	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	i3 := placement.NewEmptyInstance("i3", "r3", "z1", 1)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 1)
 	i3.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
 
 	instances := []services.PlacementInstance{i1, i2, i3}
@@ -79,13 +79,13 @@ func TestMoveLeavingShard(t *testing.T) {
 }
 
 func TestMoveAvailableShard(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 
-	i2 := placement.NewEmptyInstance("i2", "r2", "z1", 1)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
 	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	i3 := placement.NewEmptyInstance("i3", "r3", "z1", 1)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 1)
 	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
 	instances := []services.PlacementInstance{i1, i2, i3}
@@ -104,33 +104,33 @@ func TestMoveAvailableShard(t *testing.T) {
 }
 
 func TestAssignShard(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 	i1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
 
-	i2 := placement.NewEmptyInstance("i2", "r1", "z1", 1)
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
 	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	i3 := placement.NewEmptyInstance("i3", "r2", "z1", 1)
+	i3 := placement.NewEmptyInstance("i3", "r2", "z1", "endpoint", 1)
 	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
-	i4 := placement.NewEmptyInstance("i4", "r2", "z1", 1)
+	i4 := placement.NewEmptyInstance("i4", "r2", "z1", "endpoint", 1)
 	i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 	i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 	i4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	i5 := placement.NewEmptyInstance("i5", "r3", "z1", 1)
+	i5 := placement.NewEmptyInstance("i5", "r3", "z1", "endpoint", 1)
 	i5.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 	i5.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 	i5.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 	i5.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
 
-	i6 := placement.NewEmptyInstance("i6", "r4", "z1", 1)
+	i6 := placement.NewEmptyInstance("i6", "r4", "z1", "endpoint", 1)
 	i6.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 	i6.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 	i6.Shards().Add(shard.NewShard(4).SetState(shard.Available))
@@ -153,7 +153,7 @@ func TestAssignShard(t *testing.T) {
 }
 
 func TestIsInstanceLeaving(t *testing.T) {
-	i1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 1)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 	assert.False(t, isInstanceLeaving(i1))
 
@@ -185,11 +185,11 @@ func TestNonLeavingInstances(t *testing.T) {
 }
 
 func TestMarkShard(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "", "", 1)
+	i1 := placement.NewEmptyInstance("i1", "", "", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	i2 := placement.NewEmptyInstance("i2", "", "", 1)
+	i2 := placement.NewEmptyInstance("i2", "", "", "endpoint", 1)
 	i2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i3"))
 	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
 	i2.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
@@ -223,21 +223,21 @@ func TestMarkShard(t *testing.T) {
 
 func TestRemoveInstanceFromArray(t *testing.T) {
 	instances := []services.PlacementInstance{
-		placement.NewEmptyInstance("i1", "", "", 1),
-		placement.NewEmptyInstance("i2", "", "", 1),
+		placement.NewEmptyInstance("i1", "", "", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "", "", "endpoint", 1),
 	}
 
 	assert.Equal(t, instances, removeInstance(instances, "not_exist"))
-	assert.Equal(t, []services.PlacementInstance{placement.NewEmptyInstance("i2", "", "", 1)}, removeInstance(instances, "i1"))
+	assert.Equal(t, []services.PlacementInstance{placement.NewEmptyInstance("i2", "", "", "endpoint", 1)}, removeInstance(instances, "i1"))
 }
 
 func TestCopy(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	i2 := placement.NewEmptyInstance("i2", "r2", "z1", 1)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
 	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
@@ -259,7 +259,7 @@ func TestCopy(t *testing.T) {
 }
 
 func TestLoadOnInstance(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", 1)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
 	assert.Equal(t, 1, loadOnInstance(i1))
 
