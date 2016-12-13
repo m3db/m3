@@ -47,42 +47,42 @@ func TestGoodWorkflow(t *testing.T) {
 }
 
 func testGoodWorkflow(t *testing.T, p services.PlacementService) {
-	h1 := placement.NewEmptyInstance("r1h1", "r1", "z1", 2)
-	h2 := placement.NewEmptyInstance("r2h2", "r2", "z1", 2)
-	h3 := placement.NewEmptyInstance("r3h3", "r3", "z1", 2)
-	_, err := p.BuildInitialPlacement([]services.PlacementInstance{h1, h2}, 10, 1)
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 2)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 2)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 2)
+	_, err := p.BuildInitialPlacement([]services.PlacementInstance{i1, i2}, 10, 1)
 	assert.NoError(t, err)
 
 	_, err = p.AddReplica()
 	assert.NoError(t, err)
 
-	for _, instance := range []services.PlacementInstance{h1, h2} {
+	for _, instance := range []services.PlacementInstance{i1, i2} {
 		err = p.MarkInstanceAvailable(instance.ID())
 		assert.NoError(t, err)
 	}
-	_, err = p.AddInstance([]services.PlacementInstance{h3})
+	_, err = p.AddInstance([]services.PlacementInstance{i3})
 	assert.NoError(t, err)
 
-	err = p.MarkInstanceAvailable(h3.ID())
+	err = p.MarkInstanceAvailable(i3.ID())
 	assert.NoError(t, err)
 
-	_, err = p.RemoveInstance(h1.ID())
+	_, err = p.RemoveInstance(i1.ID())
 	assert.NoError(t, err)
 
 	markAllInstancesAvailable(t, p)
 
 	_, err = p.ReplaceInstance(
-		h2.ID(),
+		i2.ID(),
 		[]services.PlacementInstance{
-			placement.NewEmptyInstance("h21", "r2", "z1", 1),
-			placement.NewEmptyInstance("h4", "r4", "z1", 1),
-			h3, // already in placement
-			placement.NewEmptyInstance("h31", "r3", "z1", 1), // conflict
+			placement.NewEmptyInstance("i21", "r2", "z1", "endpoint", 1),
+			placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1),
+			i3, // already in placement
+			placement.NewEmptyInstance("i31", "r3", "z1", "endpoint", 1), // conflict
 		},
 	)
 	assert.NoError(t, err)
 
-	for _, id := range []string{"h21", "h4"} {
+	for _, id := range []string{"i21", "i4"} {
 		err = p.MarkInstanceAvailable(id)
 		assert.NoError(t, err)
 	}
@@ -90,33 +90,33 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 	s, err := p.Placement()
 	assert.NoError(t, err)
 	assert.Equal(t, 3, s.NumInstances())
-	assert.NotNil(t, s.Instance("h21"))
-	assert.NotNil(t, s.Instance("h4"))
+	assert.NotNil(t, s.Instance("i21"))
+	assert.NotNil(t, s.Instance("i4"))
 
-	_, err = p.AddInstance([]services.PlacementInstance{h1})
+	_, err = p.AddInstance([]services.PlacementInstance{i1})
 	assert.NoError(t, err)
 
-	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("r2h4", "r2", "z1", 1)})
+	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i24", "r2", "z1", "endpoint", 1)})
 	assert.NoError(t, err)
 
-	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("r3h4", "r3", "z1", 1)})
+	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i34", "r3", "z1", "endpoint", 1)})
 	assert.NoError(t, err)
-	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("r3h5", "r3", "z1", 1)})
+	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i35", "r3", "z1", "endpoint", 1)})
 	assert.NoError(t, err)
 
 	instances := []services.PlacementInstance{
-		placement.NewEmptyInstance("r1h5", "r1", "z1", 1),
-		placement.NewEmptyInstance("r3h4", "r3", "z1", 1),
-		placement.NewEmptyInstance("r3h5", "r3", "z1", 1),
-		placement.NewEmptyInstance("r3h6", "r3", "z1", 1),
-		placement.NewEmptyInstance("r2h3", "r2", "z1", 1),
-		placement.NewEmptyInstance("r4h41", "r4", "z1", 1),
+		placement.NewEmptyInstance("i15", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i34", "r3", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i35", "r3", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i36", "r3", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i23", "r2", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i41", "r4", "z1", "endpoint", 1),
 	}
 	_, err = p.AddInstance(instances)
 	assert.NoError(t, err)
 	s, err = p.Placement()
 	assert.NoError(t, err)
-	assert.NotNil(t, s.Instance("r4h41")) // instance added from least weighted rack
+	assert.NotNil(t, s.Instance("i41")) // instance added from least weighted rack
 }
 
 func TestBadInitialPlacement(t *testing.T) {
@@ -128,29 +128,29 @@ func TestBadInitialPlacement(t *testing.T) {
 
 	// not enough racks
 	_, err = p.BuildInitialPlacement([]services.PlacementInstance{
-		placement.NewEmptyInstance("r1h1", "r1", "z1", 1),
-		placement.NewEmptyInstance("r1h2", "r1", "z1", 1),
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
 	}, 100, 2)
 	assert.Error(t, err)
 
 	// too many zones
 	_, err = p.BuildInitialPlacement([]services.PlacementInstance{
-		placement.NewEmptyInstance("r1h1", "r1", "z1", 1),
-		placement.NewEmptyInstance("r2h2", "r2", "z2", 1),
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r2", "z2", "endpoint", 1),
 	}, 100, 2)
 	assert.Error(t, err)
 	assert.Equal(t, errMultipleZones, err)
 
 	_, err = p.BuildInitialPlacement([]services.PlacementInstance{
-		placement.NewEmptyInstance("r1h1", "r1", "z1", 1),
-		placement.NewEmptyInstance("r2h2", "r2", "z1", 1),
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1),
 	}, 100, 2)
 	assert.NoError(t, err)
 
 	// placement already exist
 	_, err = p.BuildInitialPlacement([]services.PlacementInstance{
-		placement.NewEmptyInstance("r1h1", "r1", "z1", 1),
-		placement.NewEmptyInstance("r2h2", "r2", "z1", 1),
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1),
 	}, 100, 2)
 	assert.Error(t, err)
 }
@@ -159,7 +159,7 @@ func TestBadAddReplica(t *testing.T) {
 	p := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
 
 	_, err := p.BuildInitialPlacement(
-		[]services.PlacementInstance{placement.NewEmptyInstance("r1h1", "r1", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)},
 		10, 1)
 	assert.NoError(t, err)
 
@@ -178,26 +178,26 @@ func TestBadAddInstance(t *testing.T) {
 	p := NewPlacementService(ms, testServiceID(), placement.NewOptions())
 
 	_, err := p.BuildInitialPlacement(
-		[]services.PlacementInstance{placement.NewEmptyInstance("r1h1", "r1", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)},
 		10, 1)
 	assert.NoError(t, err)
 
 	// adding instance already exist
-	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("r1h1", "r1", "z1", 1)})
+	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)})
 	assert.Error(t, err)
 
 	// too many zones
-	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("r2h2", "r2", "z2", 1)})
+	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z2", "endpoint", 1)})
 	assert.Error(t, err)
 	assert.Equal(t, errNoValidInstance, err)
 
 	p = NewPlacementService(ms, testServiceID(), placement.NewOptions())
-	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("r1h1", "r1", "z1", 1)})
+	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)})
 	assert.Error(t, err)
 
 	// could not find placement for service
 	p = NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
-	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("r2h2", "r2", "z1", 1)})
+	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)})
 	assert.Error(t, err)
 }
 
@@ -205,7 +205,7 @@ func TestBadRemoveInstance(t *testing.T) {
 	p := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
 
 	_, err := p.BuildInitialPlacement(
-		[]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)},
 		10, 1)
 	assert.NoError(t, err)
 
@@ -227,22 +227,22 @@ func TestBadReplaceInstance(t *testing.T) {
 	p := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
 
 	_, err := p.BuildInitialPlacement([]services.PlacementInstance{
-		placement.NewEmptyInstance("i1", "r1", "z1", 1),
-		placement.NewEmptyInstance("i4", "r4", "z1", 1),
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1),
 	}, 10, 1)
 	assert.NoError(t, err)
 
 	// leaving instance not exist
 	_, err = p.ReplaceInstance(
 		"not_exist",
-		[]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
 	)
 	assert.Error(t, err)
 
 	// adding instance already exist
 	_, err = p.ReplaceInstance(
 		"i1",
-		[]services.PlacementInstance{placement.NewEmptyInstance("i4", "r4", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)},
 	)
 	assert.Error(t, err)
 
@@ -251,7 +251,7 @@ func TestBadReplaceInstance(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = p.ReplaceInstance(
 		"i4",
-		[]services.PlacementInstance{placement.NewEmptyInstance("i12", "r1", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i12", "r1", "z1", "endpoint", 1)},
 	)
 	assert.Error(t, err)
 
@@ -259,7 +259,7 @@ func TestBadReplaceInstance(t *testing.T) {
 	p = NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
 	_, err = p.ReplaceInstance(
 		"i1",
-		[]services.PlacementInstance{placement.NewEmptyInstance("r2h2", "r2", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
 	)
 	assert.Error(t, err)
 }
@@ -269,22 +269,22 @@ func TestReplaceInstanceWithLooseRackCheck(t *testing.T) {
 
 	_, err := p.BuildInitialPlacement(
 		[]services.PlacementInstance{
-			placement.NewEmptyInstance("i1", "r1", "z1", 1),
-			placement.NewEmptyInstance("i4", "r4", "z1", 1),
+			placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+			placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1),
 		}, 10, 1)
 	assert.NoError(t, err)
 
 	// leaving instance not exist
 	_, err = p.ReplaceInstance(
 		"not_exist",
-		[]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
 	)
 	assert.Error(t, err)
 
 	// adding instance already exist
 	_, err = p.ReplaceInstance(
 		"i1",
-		[]services.PlacementInstance{placement.NewEmptyInstance("i4", "r4", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)},
 	)
 	assert.Error(t, err)
 
@@ -293,7 +293,7 @@ func TestReplaceInstanceWithLooseRackCheck(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = p.ReplaceInstance(
 		"i4",
-		[]services.PlacementInstance{placement.NewEmptyInstance("i12", "r1", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i12", "r1", "z1", "endpoint", 1)},
 	)
 	assert.NoError(t, err)
 
@@ -301,7 +301,7 @@ func TestReplaceInstanceWithLooseRackCheck(t *testing.T) {
 	p = NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
 	_, err = p.ReplaceInstance(
 		"i1",
-		[]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", 1)},
+		[]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
 	)
 	assert.Error(t, err)
 }
@@ -310,36 +310,36 @@ func TestMarkShard(t *testing.T) {
 	ms := NewMockStorage()
 	sid := testServiceID()
 
-	h1 := placement.NewEmptyInstance("h1", "r1", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	h2 := placement.NewEmptyInstance("h2", "r1", "z1", 1)
-	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h3 := placement.NewEmptyInstance("h3", "r2", "z1", 1)
-	h3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i3 := placement.NewEmptyInstance("i3", "r2", "z1", "endpoint", 1)
+	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
-	h4 := placement.NewEmptyInstance("h4", "r2", "z1", 1)
-	h4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i4 := placement.NewEmptyInstance("i4", "r2", "z1", "endpoint", 1)
+	i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h5 := placement.NewEmptyInstance("h5", "r2", "z1", 1)
-	h5.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("h1"))
+	i5 := placement.NewEmptyInstance("i5", "r2", "z1", "endpoint", 1)
+	i5.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"))
 
-	instances := []services.PlacementInstance{h1, h2, h3, h4, h5}
+	instances := []services.PlacementInstance{i1, i2, i3, i4, i5}
 	p := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 2)
 	err := ms.SetIfNotExist(sid, p)
 	assert.NoError(t, err)
 
 	ps := NewPlacementService(ms, sid, placement.NewOptions())
-	err = ps.MarkShardAvailable("h5", 1)
+	err = ps.MarkShardAvailable("i5", 1)
 	assert.NoError(t, err)
 	p, _, err = ms.Placement(sid)
 	assert.NoError(t, err)
@@ -350,10 +350,10 @@ func TestMarkShard(t *testing.T) {
 		}
 	}
 
-	err = ps.MarkShardAvailable("h1", 1)
+	err = ps.MarkShardAvailable("i1", 1)
 	assert.Error(t, err)
 
-	err = ps.MarkShardAvailable("h5", 5)
+	err = ps.MarkShardAvailable("i5", 5)
 	assert.Error(t, err)
 }
 
@@ -361,107 +361,107 @@ func TestMarkInstance(t *testing.T) {
 	ms := NewMockStorage()
 	sid := testServiceID()
 
-	h1 := placement.NewEmptyInstance("h1", "r1", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	h2 := placement.NewEmptyInstance("h2", "r1", "z1", 1)
-	h2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h3 := placement.NewEmptyInstance("h3", "r2", "z1", 1)
-	h3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i3 := placement.NewEmptyInstance("i3", "r2", "z1", "endpoint", 1)
+	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
-	h4 := placement.NewEmptyInstance("h4", "r2", "z1", 1)
-	h4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i4 := placement.NewEmptyInstance("i4", "r2", "z1", "endpoint", 1)
+	i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h5 := placement.NewEmptyInstance("h5", "r2", "z1", 1)
-	h5.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("h1"))
-	h5.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("h1"))
+	i5 := placement.NewEmptyInstance("i5", "r2", "z1", "endpoint", 1)
+	i5.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"))
+	i5.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
 
-	instances := []services.PlacementInstance{h1, h2, h3, h4, h5}
+	instances := []services.PlacementInstance{i1, i2, i3, i4, i5}
 	p := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 2)
 	err := ms.SetIfNotExist(sid, p)
 	assert.NoError(t, err)
 
 	ps := NewPlacementService(ms, sid, placement.NewOptions())
 	// marking shard 2 will fail
-	err = ps.MarkInstanceAvailable("h5")
+	err = ps.MarkInstanceAvailable("i5")
 	assert.Error(t, err)
 
 	// instance not exist
-	err = ps.MarkInstanceAvailable("h6")
+	err = ps.MarkInstanceAvailable("i6")
 	assert.Error(t, err)
 
-	h5.Shards().Remove(2)
+	i5.Shards().Remove(2)
 	ms = NewMockStorage()
 	ms.SetIfNotExist(sid, p)
 	ps = NewPlacementService(ms, sid, placement.NewOptions())
-	err = ps.MarkInstanceAvailable("h5")
+	err = ps.MarkInstanceAvailable("i5")
 	assert.NoError(t, err)
 }
 
 func TestFindReplaceInstance(t *testing.T) {
-	h1 := placement.NewEmptyInstance("r1h1", "r11", "z1", 1)
-	h1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i1 := placement.NewEmptyInstance("i1", "r11", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
-	h10 := placement.NewEmptyInstance("r1h10", "r11", "z1", 1)
-	h10.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h10.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i10 := placement.NewEmptyInstance("i10", "r11", "z1", "endpoint", 1)
+	i10.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i10.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 
-	h2 := placement.NewEmptyInstance("r2h2", "r12", "z1", 1)
-	h2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(7).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(8).SetState(shard.Available))
-	h2.Shards().Add(shard.NewShard(9).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r12", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(7).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(8).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(9).SetState(shard.Available))
 
-	h3 := placement.NewEmptyInstance("r3h3", "r13", "z1", 3)
-	h3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	h3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i3 := placement.NewEmptyInstance("i3", "r13", "z1", "endpoint", 3)
+	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	h4 := placement.NewEmptyInstance("r4h4", "r14", "z1", 1)
-	h4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(7).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(8).SetState(shard.Available))
-	h4.Shards().Add(shard.NewShard(9).SetState(shard.Available))
+	i4 := placement.NewEmptyInstance("i4", "r14", "z1", "endpoint", 1)
+	i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(7).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(8).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(9).SetState(shard.Available))
 
-	instances := []services.PlacementInstance{h1, h2, h3, h4, h10}
+	instances := []services.PlacementInstance{i1, i2, i3, i4, i10}
 
 	ids := []uint32{1, 2, 3, 4, 5, 6, 7, 8}
 	s := placement.NewPlacement(instances, ids, 2)
 
 	candidates := []services.PlacementInstance{
-		placement.NewEmptyInstance("h11", "r11", "z1", 1),
-		placement.NewEmptyInstance("h22", "r22", "z2", 1), // bad zone
+		placement.NewEmptyInstance("i11", "r11", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i22", "r22", "z2", "endpoint", 1), // bad zone
 	}
 
 	p := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions()).(placementService)
-	i, err := p.findReplaceInstance(s, candidates, h4)
+	i, err := p.findReplaceInstance(s, candidates, i4)
 	assert.Error(t, err)
 	assert.Nil(t, i)
 
 	noConflictCandidates := []services.PlacementInstance{
-		placement.NewEmptyInstance("h11", "r0", "z1", 1),
-		placement.NewEmptyInstance("h22", "r0", "z2", 1),
+		placement.NewEmptyInstance("i11", "r0", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i22", "r0", "z2", "endpoint", 1),
 	}
-	i, err = p.findReplaceInstance(s, noConflictCandidates, h3)
+	i, err = p.findReplaceInstance(s, noConflictCandidates, i3)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "could not find enough instance to replace")
 	assert.Nil(t, i)
 
 	p = NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions().SetLooseRackCheck(true)).(placementService)
-	i, err = p.findReplaceInstance(s, candidates, h4)
+	i, err = p.findReplaceInstance(s, candidates, i4)
 	assert.NoError(t, err)
 	// gonna prefer r1 because r1 would only conflict shard 2, r2 would conflict 7,8,9
 	assert.Equal(t, 1, len(i))
@@ -469,146 +469,146 @@ func TestFindReplaceInstance(t *testing.T) {
 }
 
 func TestGroupInstancesByConflict(t *testing.T) {
-	h1 := placement.NewEmptyInstance("h1", "", "", 1)
-	h2 := placement.NewEmptyInstance("h2", "", "", 1)
-	h3 := placement.NewEmptyInstance("h3", "", "", 1)
-	h4 := placement.NewEmptyInstance("h4", "", "", 2)
+	i1 := placement.NewEmptyInstance("i1", "", "", "endpoint", 1)
+	i2 := placement.NewEmptyInstance("i2", "", "", "endpoint", 1)
+	i3 := placement.NewEmptyInstance("i3", "", "", "endpoint", 1)
+	i4 := placement.NewEmptyInstance("i4", "", "", "endpoint", 2)
 	instanceConflicts := []sortableValue{
-		sortableValue{value: h1, weight: 1},
-		sortableValue{value: h2, weight: 0},
-		sortableValue{value: h3, weight: 3},
-		sortableValue{value: h4, weight: 2},
+		sortableValue{value: i1, weight: 1},
+		sortableValue{value: i2, weight: 0},
+		sortableValue{value: i3, weight: 3},
+		sortableValue{value: i4, weight: 2},
 	}
 
 	groups := groupInstancesByConflict(instanceConflicts, true)
 	assert.Equal(t, 4, len(groups))
-	assert.Equal(t, h2, groups[0][0])
-	assert.Equal(t, h1, groups[1][0])
-	assert.Equal(t, h4, groups[2][0])
-	assert.Equal(t, h3, groups[3][0])
+	assert.Equal(t, i2, groups[0][0])
+	assert.Equal(t, i1, groups[1][0])
+	assert.Equal(t, i4, groups[2][0])
+	assert.Equal(t, i3, groups[3][0])
 
 	groups = groupInstancesByConflict(instanceConflicts, false)
 	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, h2, groups[0][0])
+	assert.Equal(t, i2, groups[0][0])
 }
 
 func TestKnapSack(t *testing.T) {
-	h1 := placement.NewEmptyInstance("h1", "", "", 40000)
-	h2 := placement.NewEmptyInstance("h2", "", "", 20000)
-	h3 := placement.NewEmptyInstance("h3", "", "", 80000)
-	h4 := placement.NewEmptyInstance("h4", "", "", 50000)
-	h5 := placement.NewEmptyInstance("h5", "", "", 190000)
-	instances := []services.PlacementInstance{h1, h2, h3, h4, h5}
+	i1 := placement.NewEmptyInstance("i1", "", "", "endpoint", 40000)
+	i2 := placement.NewEmptyInstance("i2", "", "", "endpoint", 20000)
+	i3 := placement.NewEmptyInstance("i3", "", "", "endpoint", 80000)
+	i4 := placement.NewEmptyInstance("i4", "", "", "endpoint", 50000)
+	i5 := placement.NewEmptyInstance("i5", "", "", "endpoint", 190000)
+	instances := []services.PlacementInstance{i1, i2, i3, i4, i5}
 
 	res, leftWeight := knapsack(instances, 10000)
 	assert.Equal(t, -10000, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h2}, res)
+	assert.Equal(t, []services.PlacementInstance{i2}, res)
 
 	res, leftWeight = knapsack(instances, 20000)
 	assert.Equal(t, 0, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h2}, res)
+	assert.Equal(t, []services.PlacementInstance{i2}, res)
 
 	res, leftWeight = knapsack(instances, 30000)
 	assert.Equal(t, -10000, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1}, res)
+	assert.Equal(t, []services.PlacementInstance{i1}, res)
 
 	res, leftWeight = knapsack(instances, 60000)
 	assert.Equal(t, 0, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h2}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i2}, res)
 
 	res, leftWeight = knapsack(instances, 120000)
 	assert.Equal(t, 0, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h3}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i3}, res)
 
 	res, leftWeight = knapsack(instances, 170000)
 	assert.Equal(t, 0, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h3, h4}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i3, i4}, res)
 
 	res, leftWeight = knapsack(instances, 190000)
 	assert.Equal(t, 0, leftWeight)
-	// will prefer h5 than h1+h2+h3+h4
-	assert.Equal(t, []services.PlacementInstance{h5}, res)
+	// will prefer i5 than i1+i2+i3+i4
+	assert.Equal(t, []services.PlacementInstance{i5}, res)
 
 	res, leftWeight = knapsack(instances, 200000)
 	assert.Equal(t, -10000, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h2, h5}, res)
+	assert.Equal(t, []services.PlacementInstance{i2, i5}, res)
 
 	res, leftWeight = knapsack(instances, 210000)
 	assert.Equal(t, 0, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h2, h5}, res)
+	assert.Equal(t, []services.PlacementInstance{i2, i5}, res)
 
 	res, leftWeight = knapsack(instances, 400000)
 	assert.Equal(t, 20000, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h2, h3, h4, h5}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i2, i3, i4, i5}, res)
 }
 
 func TestFillWeight(t *testing.T) {
-	h1 := placement.NewEmptyInstance("h1", "", "", 4)
-	h2 := placement.NewEmptyInstance("h2", "", "", 2)
-	h3 := placement.NewEmptyInstance("h3", "", "", 8)
-	h4 := placement.NewEmptyInstance("h4", "", "", 5)
-	h5 := placement.NewEmptyInstance("h5", "", "", 19)
+	i1 := placement.NewEmptyInstance("i1", "", "", "endpoint", 4)
+	i2 := placement.NewEmptyInstance("i2", "", "", "endpoint", 2)
+	i3 := placement.NewEmptyInstance("i3", "", "", "endpoint", 8)
+	i4 := placement.NewEmptyInstance("i4", "", "", "endpoint", 5)
+	i5 := placement.NewEmptyInstance("i5", "", "", "endpoint", 19)
 
-	h6 := placement.NewEmptyInstance("h6", "", "", 3)
-	h7 := placement.NewEmptyInstance("h7", "", "", 7)
+	i6 := placement.NewEmptyInstance("i6", "", "", "endpoint", 3)
+	i7 := placement.NewEmptyInstance("i7", "", "", "endpoint", 7)
 	groups := [][]services.PlacementInstance{
-		[]services.PlacementInstance{h1, h2, h3, h4, h5},
-		[]services.PlacementInstance{h6, h7},
+		[]services.PlacementInstance{i1, i2, i3, i4, i5},
+		[]services.PlacementInstance{i6, i7},
 	}
 
 	// When targetWeight is smaller than 38, the first group will satisfy
 	res, leftWeight := fillWeight(groups, 1)
 	assert.Equal(t, -1, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h2}, res)
+	assert.Equal(t, []services.PlacementInstance{i2}, res)
 
 	res, leftWeight = fillWeight(groups, 2)
 	assert.Equal(t, 0, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h2}, res)
+	assert.Equal(t, []services.PlacementInstance{i2}, res)
 
 	res, leftWeight = fillWeight(groups, 17)
 	assert.Equal(t, 0, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h3, h4}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i3, i4}, res)
 
 	res, leftWeight = fillWeight(groups, 20)
 	assert.Equal(t, -1, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h2, h5}, res)
+	assert.Equal(t, []services.PlacementInstance{i2, i5}, res)
 
 	// When targetWeight is bigger than 38, need to get instance from group 2
 	res, leftWeight = fillWeight(groups, 40)
 	assert.Equal(t, -1, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h2, h3, h4, h5, h6}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i2, i3, i4, i5, i6}, res)
 
 	res, leftWeight = fillWeight(groups, 41)
 	assert.Equal(t, 0, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h2, h3, h4, h5, h6}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i2, i3, i4, i5, i6}, res)
 
 	res, leftWeight = fillWeight(groups, 47)
 	assert.Equal(t, -1, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h2, h3, h4, h5, h6, h7}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i2, i3, i4, i5, i6, i7}, res)
 
 	res, leftWeight = fillWeight(groups, 48)
 	assert.Equal(t, 0, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h2, h3, h4, h5, h6, h7}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i2, i3, i4, i5, i6, i7}, res)
 
 	res, leftWeight = fillWeight(groups, 50)
 	assert.Equal(t, 2, leftWeight)
-	assert.Equal(t, []services.PlacementInstance{h1, h2, h3, h4, h5, h6, h7}, res)
+	assert.Equal(t, []services.PlacementInstance{i1, i2, i3, i4, i5, i6, i7}, res)
 }
 
 func TestFillWeightDeterministic(t *testing.T) {
-	h1 := placement.NewEmptyInstance("h1", "", "", 1)
-	h2 := placement.NewEmptyInstance("h2", "", "", 1)
-	h3 := placement.NewEmptyInstance("h3", "", "", 1)
-	h4 := placement.NewEmptyInstance("h4", "", "", 3)
-	h5 := placement.NewEmptyInstance("h5", "", "", 4)
+	i1 := placement.NewEmptyInstance("i1", "", "", "endpoint", 1)
+	i2 := placement.NewEmptyInstance("i2", "", "", "endpoint", 1)
+	i3 := placement.NewEmptyInstance("i3", "", "", "endpoint", 1)
+	i4 := placement.NewEmptyInstance("i4", "", "", "endpoint", 3)
+	i5 := placement.NewEmptyInstance("i5", "", "", "endpoint", 4)
 
-	h6 := placement.NewEmptyInstance("h6", "", "", 1)
-	h7 := placement.NewEmptyInstance("h7", "", "", 1)
-	h8 := placement.NewEmptyInstance("h8", "", "", 1)
-	h9 := placement.NewEmptyInstance("h9", "", "", 2)
+	i6 := placement.NewEmptyInstance("i6", "", "", "endpoint", 1)
+	i7 := placement.NewEmptyInstance("i7", "", "", "endpoint", 1)
+	i8 := placement.NewEmptyInstance("i8", "", "", "endpoint", 1)
+	i9 := placement.NewEmptyInstance("i9", "", "", "endpoint", 2)
 	groups := [][]services.PlacementInstance{
-		[]services.PlacementInstance{h1, h2, h3, h4, h5},
-		[]services.PlacementInstance{h6, h7, h8, h9},
+		[]services.PlacementInstance{i1, i2, i3, i4, i5},
+		[]services.PlacementInstance{i6, i7, i8, i9},
 	}
 
 	for i := 1; i < 17; i++ {

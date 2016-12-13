@@ -97,6 +97,12 @@ func Validate(p services.ServicePlacement) error {
 	totalInit := 0
 	totalInitWithSourceID := 0
 	for _, instance := range p.Instances() {
+		if instance.Endpoint() == "" {
+			return fmt.Errorf("instance %s does not contain valid endpoint", instance.String())
+		}
+		if instance.Shards().NumShards() == 0 {
+			return fmt.Errorf("instance %s contains no shard", instance.String())
+		}
 		for _, s := range instance.Shards().All() {
 			count, exist := shardCountMap[s.ID()]
 			if !exist {
@@ -154,13 +160,14 @@ func NewInstance() services.PlacementInstance {
 }
 
 // NewEmptyInstance returns a PlacementInstance with some basic properties but no shards assigned
-func NewEmptyInstance(id, rack, zone string, weight uint32) services.PlacementInstance {
+func NewEmptyInstance(id, rack, zone, endpoint string, weight uint32) services.PlacementInstance {
 	return &instance{
-		id:     id,
-		rack:   rack,
-		zone:   zone,
-		weight: weight,
-		shards: shard.NewShards(nil),
+		id:       id,
+		rack:     rack,
+		zone:     zone,
+		weight:   weight,
+		endpoint: endpoint,
+		shards:   shard.NewShards(nil),
 	}
 }
 
