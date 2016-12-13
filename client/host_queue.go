@@ -28,9 +28,9 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -42,6 +42,7 @@ var (
 )
 
 type queue struct {
+	sync.WaitGroup
 	sync.RWMutex
 
 	opts                                 Options
@@ -186,7 +187,6 @@ func (q *queue) rotateOpsWithLock() []op {
 
 func (q *queue) drain() {
 	var (
-		wgAll                        = &sync.WaitGroup{}
 		currWriteOpsByNamespace      = make(map[ts.Hash][]op)
 		currBatchElementsByNamespace = make(map[ts.Hash][]*rpc.WriteBatchRawRequestElement)
 		writeBatchSize               = q.opts.WriteBatchSize()
@@ -220,14 +220,14 @@ func (q *queue) drain() {
 
 				if len(currWriteOps) == writeBatchSize {
 					// Reached write batch limit, write async and reset
-					q.asyncWrite(wgAll, namespace, currWriteOps, currBatchElements)
+					q.asyncWrite(namespace, currWriteOps, currBatchElements)
 					currWriteOpsByNamespace[namespace.Hash()] = nil
 					currBatchElementsByNamespace[namespace.Hash()] = nil
 				}
 			case *fetchBatchOp:
-				q.asyncFetch(wgAll, v)
+				q.asyncFetch(v)
 			case *truncateOp:
-				q.asyncTruncate(wgAll, v)
+				q.asyncTruncate(v)
 			default:
 				completionFn := ops[i].CompletionFn()
 				completionFn(nil, errQueueUnknownOperation)
@@ -238,7 +238,7 @@ func (q *queue) drain() {
 		for _, writeOps := range currWriteOpsByNamespace {
 			if len(writeOps) > 0 {
 				namespace := writeOps[0].(*writeOp).namespace
-				q.asyncWrite(wgAll, namespace, writeOps, currBatchElementsByNamespace[namespace.Hash()])
+				q.asyncWrite(namespace, writeOps, currBatchElementsByNamespace[namespace.Hash()])
 				currWriteOpsByNamespace[namespace.Hash()] = nil
 				currBatchElementsByNamespace[namespace.Hash()] = nil
 			}
@@ -250,14 +250,17 @@ func (q *queue) drain() {
 	}
 
 	// Close the connection pool after all requests done
-	wgAll.Wait()
+	q.Wait()
 	q.connPool.Close()
 }
 
 func (q *queue) asyncWrite(
-	wg *sync.WaitGroup, namespace ts.ID, ops []op, elems []*rpc.WriteBatchRawRequestElement) {
+	namespace ts.ID,
+	ops []op,
+	elems []*rpc.WriteBatchRawRequestElement,
+) {
 
-	wg.Add(1)
+	q.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
 		req := q.writeBatchRawRequestPool.Get()
@@ -269,7 +272,7 @@ func (q *queue) asyncWrite(
 			q.writeBatchRawRequestPool.Put(req)
 			q.writeBatchRawRequestElementArrayPool.Put(elems)
 			q.opsArrayPool.Put(ops)
-			wg.Done()
+			q.Done()
 		}
 
 		client, err := q.connPool.NextClient()
@@ -314,12 +317,12 @@ func (q *queue) asyncWrite(
 	}()
 }
 
-func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
-	wg.Add(1)
+func (q *queue) asyncFetch(op *fetchBatchOp) {
+	q.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async fetches
 	go func() {
 		// NB(r): Defer is slow in the hot path unfortunately
-		cleanup := wg.Done
+		cleanup := q.Done
 
 		client, err := q.connPool.NextClient()
 		if err != nil {
@@ -354,15 +357,17 @@ func (q *queue) asyncFetch(wg *sync.WaitGroup, op *fetchBatchOp) {
 	}()
 }
 
-func (q *queue) asyncTruncate(wg *sync.WaitGroup, op *truncateOp) {
-	wg.Add(1)
+func (q *queue) asyncTruncate(op *truncateOp) {
+	q.Add(1)
 
 	go func() {
+		cleanup := q.Done
+
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
 			op.completionFn(nil, err)
-			wg.Done()
+			cleanup()
 			return
 		}
 
@@ -373,7 +378,7 @@ func (q *queue) asyncTruncate(wg *sync.WaitGroup, op *truncateOp) {
 			op.completionFn(res, nil)
 		}
 
-		wg.Done()
+		cleanup()
 	}()
 }
 
@@ -416,6 +421,26 @@ func (q *queue) ConnectionCount() int {
 
 func (q *queue) ConnectionPool() connectionPool {
 	return q.connPool
+}
+
+func (q *queue) BorrowConnection(fn withConnectionFn) error {
+	q.RLock()
+	if q.state != stateOpen {
+		q.RUnlock()
+		return errQueueNotOpen
+	}
+	// Add an outstanding operation to avoid connection pool being closed
+	q.Add(1)
+	defer q.Done()
+	q.RUnlock()
+
+	conn, err := q.connPool.NextClient()
+	if err != nil {
+		return err
+	}
+
+	fn(conn)
+	return nil
 }
 
 func (q *queue) Close() {

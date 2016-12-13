@@ -617,6 +617,16 @@ func (_mr *_MockhostQueueRecorder) ConnectionPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionPool")
 }
 
+func (_m *MockhostQueue) BorrowConnection(fn withConnectionFn) error {
+	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockhostQueueRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BorrowConnection", arg0)
+}
+
 func (_m *MockhostQueue) Close() {
 	_m.ctrl.Call(_m, "Close")
 }
@@ -681,6 +691,78 @@ func (_m *MockconnectionPool) Close() {
 
 func (_mr *_MockconnectionPoolRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+// Mock of peerSource interface
+type MockpeerSource struct {
+	ctrl     *gomock.Controller
+	recorder *_MockpeerSourceRecorder
+}
+
+// Recorder for MockpeerSource (not exported)
+type _MockpeerSourceRecorder struct {
+	mock *MockpeerSource
+}
+
+func NewMockpeerSource(ctrl *gomock.Controller) *MockpeerSource {
+	mock := &MockpeerSource{ctrl: ctrl}
+	mock.recorder = &_MockpeerSourceRecorder{mock}
+	return mock
+}
+
+func (_m *MockpeerSource) EXPECT() *_MockpeerSourceRecorder {
+	return _m.recorder
+}
+
+func (_m *MockpeerSource) BorrowConnection(hostID string, fn withConnectionFn) error {
+	ret := _m.ctrl.Call(_m, "BorrowConnection", hostID, fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockpeerSourceRecorder) BorrowConnection(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BorrowConnection", arg0, arg1)
+}
+
+// Mock of peer interface
+type Mockpeer struct {
+	ctrl     *gomock.Controller
+	recorder *_MockpeerRecorder
+}
+
+// Recorder for Mockpeer (not exported)
+type _MockpeerRecorder struct {
+	mock *Mockpeer
+}
+
+func NewMockpeer(ctrl *gomock.Controller) *Mockpeer {
+	mock := &Mockpeer{ctrl: ctrl}
+	mock.recorder = &_MockpeerRecorder{mock}
+	return mock
+}
+
+func (_m *Mockpeer) EXPECT() *_MockpeerRecorder {
+	return _m.recorder
+}
+
+func (_m *Mockpeer) Host() topology.Host {
+	ret := _m.ctrl.Call(_m, "Host")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+func (_mr *_MockpeerRecorder) Host() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Host")
+}
+
+func (_m *Mockpeer) BorrowConnection(fn withConnectionFn) error {
+	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockpeerRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BorrowConnection", arg0)
 }
 
 // Mock of op interface

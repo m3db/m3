@@ -27,12 +27,12 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
 	tchannel "github.com/uber/tchannel-go"
@@ -221,9 +221,14 @@ type hostQueue interface {
 	// ConnectionPool gets the connection pool
 	ConnectionPool() connectionPool
 
+	// BorrowConnection will borrow a connection and execute a user function
+	BorrowConnection(fn withConnectionFn) error
+
 	// Close the host queue, will flush any operations still pending
 	Close()
 }
+
+type withConnectionFn func(c rpc.TChanNode)
 
 type connectionPool interface {
 	// Open starts the connection pool connecting and health checking
@@ -237,6 +242,19 @@ type connectionPool interface {
 
 	// Close the connection pool
 	Close()
+}
+
+type peerSource interface {
+	// BorrowConnection will borrow a connection and execute a user function
+	BorrowConnection(hostID string, fn withConnectionFn) error
+}
+
+type peer interface {
+	// Host gets the host
+	Host() topology.Host
+
+	// BorrowConnection will borrow a connection and execute a user function
+	BorrowConnection(fn withConnectionFn) error
 }
 
 type state int
