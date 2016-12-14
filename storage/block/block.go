@@ -89,6 +89,9 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 
 // Reset resets the block start time and the encoder.
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
+	if !b.closed {
+		b.ctx.Close()
+	}
 	b.ctx = b.opts.ContextPool().Get()
 	b.start = start
 	b.segment = segment

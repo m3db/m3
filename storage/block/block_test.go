@@ -122,7 +122,9 @@ func testDatabaseBlockWithDependentContext(
 	require.NoError(t, err)
 
 	var finished uint32
-	block.ctx.RegisterCloser(context.CloserFn(func() { atomic.StoreUint32(&finished, 1) }))
+	block.ctx.RegisterCloser(context.CloserFn(func() {
+		atomic.StoreUint32(&finished, 1)
+	}))
 	f(block)
 
 	// sleep a bit to let the goroutine run

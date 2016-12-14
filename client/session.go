@@ -1916,17 +1916,6 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 
 	}
 
-	resultCtx := r.contextPool.Get()
-	defer resultCtx.Close()
-
-	resultReader, err := result.Stream(resultCtx)
-	if err != nil {
-		return err
-	}
-	if resultReader == nil {
-		return nil
-	}
-
 	for {
 		r.Lock()
 		currBlock, exists := r.result.BlockAt(id, start)
@@ -1955,9 +1944,18 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 			continue
 		}
 
+		resultReader, err := result.Stream(tmpCtx)
+		if err != nil {
+			return err
+		}
+		if resultReader == nil {
+			return nil
+		}
+
 		readers := []io.Reader{currReader, resultReader}
 		encoder, err := r.mergeReaders(start, readers)
-		tmpCtx.BlockingClose()
+
+		tmpCtx.Close()
 
 		if err != nil {
 			return err
