@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3x/log"
 	"github.com/uber-go/tally"
 )
 
@@ -48,11 +49,11 @@ type fileSystemManager struct {
 	databaseCleanupManager
 	sync.RWMutex
 
-	database  database               // storage database
-	opts      Options                // database options
-	jitter    time.Duration          // file operation jitter
-	status    fileOpStatus           // current file operation status
-	processed map[time.Time]struct{} // times we have already processed
+	log      xlog.Logger
+	database database
+	opts     Options
+	jitter   time.Duration
+	status   fileOpStatus
 }
 
 func newFileSystemManager(
@@ -79,11 +80,11 @@ func newFileSystemManager(
 	return &fileSystemManager{
 		databaseFlushManager:   fm,
 		databaseCleanupManager: cm,
-		database:               database,
-		opts:                   opts,
-		jitter:                 jitter,
-		status:                 fileOpNotStarted,
-		processed:              map[time.Time]struct{}{},
+		log:      opts.InstrumentOptions().Logger(),
+		database: database,
+		opts:     opts,
+		jitter:   jitter,
+		status:   fileOpNotStarted,
 	}, nil
 }
 
@@ -97,49 +98,26 @@ func (m *fileSystemManager) ShouldRun(t time.Time) bool {
 	defer m.RUnlock()
 
 	// If we are in the middle of performing file operations, bail early.
-	if m.status == fileOpInProgress {
-		return false
-	}
-
-	// If we have processed this ID before, do nothing.
-	id := m.timeID(t)
-	if _, exists := m.processed[id]; exists {
-		return false
-	}
-
-	return true
+	return m.status != fileOpInProgress
 }
 
 func (m *fileSystemManager) Run(t time.Time, async bool) {
 	m.Lock()
-
 	if m.status == fileOpInProgress {
 		m.Unlock()
 		return
 	}
-
-	id := m.timeID(t)
-	if _, exists := m.processed[id]; exists {
-		m.Unlock()
-		return
-	}
-
 	m.status = fileOpInProgress
-	m.processed[id] = struct{}{}
-
 	m.Unlock()
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
-		log := m.opts.InstrumentOptions().Logger()
 		if err := m.Cleanup(t); err != nil {
-			log.Errorf("encountered errors when cleaning up data for time %v: %v", t, err)
+			m.log.Errorf("error when cleaning up data for time %v: %v", t, err)
 		}
-
 		if err := m.Flush(t); err != nil {
-			log.Errorf("encountered errors when flushing data for time %v: %v", t, err)
+			m.log.Errorf("error when flushing data for time %v: %v", t, err)
 		}
-
 		m.Lock()
 		m.status = fileOpNotStarted
 		m.Unlock()
@@ -150,13 +128,4 @@ func (m *fileSystemManager) Run(t time.Time, async bool) {
 	} else {
 		go flushFn()
 	}
-}
-
-// timeID returns the id of a given time. For now we use the latest flushable
-// time as the ID so we only perform flushing and cleanup once every block
-// size period and can flush the data as early as possible. If we need to retry
-// flushing or cleanup more frequently, can make the ID time-based (e.g., every
-// 10 minutes).
-func (m *fileSystemManager) timeID(t time.Time) time.Time {
-	return m.FlushTimeEnd(t.Add(-m.jitter))
 }

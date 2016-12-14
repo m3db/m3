@@ -26,9 +26,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
 )
@@ -154,7 +154,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 		leftBlockStart := commitLogTime.Add(-m.blockSize)
 		rightBlockStart := commitLogTime.Add(m.blockSize)
 		for blockStart := leftBlockStart; !blockStart.After(rightBlockStart); blockStart = blockStart.Add(m.blockSize) {
-			if !m.fm.HasFlushed(blockStart) {
+			if m.fm.NeedsFlush(blockStart) {
 				hasFlushedAll = false
 				break
 			}

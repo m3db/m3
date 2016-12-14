@@ -115,6 +115,14 @@ type Database interface {
 	Truncate(namespace ts.ID) (int64, error)
 }
 
+// database is the internal database interface
+type database interface {
+	Database
+
+	// getOwnedNamespaces returns the namespaces this database owns.
+	getOwnedNamespaces() []databaseNamespace
+}
+
 // Namespace is a time series database namespace
 type Namespace interface {
 	// ID returns the ID of the namespace
@@ -189,6 +197,9 @@ type databaseNamespace interface {
 
 	// Flush flushes in-memory data
 	Flush(blockStart time.Time, pm persist.Manager) error
+
+	// NeedsFlush returns true if the namespace needs a flush for a block start.
+	NeedsFlush(blockStart time.Time) bool
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error
@@ -267,6 +278,9 @@ type databaseShard interface {
 		pm persist.Manager,
 	) error
 
+	// FlushState returns the flush state for this shard at block start.
+	FlushState(blockStart time.Time) fileOpState
+
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error
 
@@ -296,8 +310,8 @@ type databaseFlushManager interface {
 	// IsFlushing returns whether flush is in progress
 	IsFlushing() bool
 
-	// HasFlushed returns true if the data for a given time have been flushed.
-	HasFlushed(t time.Time) bool
+	// NeedsFlush returns true if the data for a given time have been flushed.
+	NeedsFlush(t time.Time) bool
 
 	// FlushTimeStart is the earliest flushable time.
 	FlushTimeStart(t time.Time) time.Time

@@ -435,6 +435,9 @@ func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, er
 				if connectConsistencyLevel == ConnectConsistencyLevelNone {
 					// Already tried to resolve all consistency requirements, just
 					// return successfully at this point
+					err := fmt.Errorf("timed out connecting, returning success")
+					s.log.Warnf("cluster connect with consistency any: %v", err)
+					connected = true
 					return queues, replicas, majority, nil
 				}
 			default:

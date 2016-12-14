@@ -191,6 +191,7 @@ func TestClusterAddOneNode(t *testing.T) {
 
 	// Stop the servers at test completion
 	defer func() {
+		log.Debug("servers closing")
 		setups.parallel(func(s *testSetup) {
 			require.NoError(t, s.stopServer())
 		})
@@ -241,6 +242,8 @@ func TestClusterAddOneNode(t *testing.T) {
 	svcs.NotifyServiceUpdate("m3db")
 	waitUntilHasBootstrappedShardsExactly(setups[0].db, newShardsRange(0, 511))
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(512, 1023))
+
+	log.Debug("verifying data in servers matches expected data set")
 
 	// Verify in-memory data match what we expect
 	for i := range setups {

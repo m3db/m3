@@ -25,9 +25,9 @@ import (
 	"sync/atomic"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 )
 
 var (
@@ -118,27 +118,30 @@ func (w *writeState) close() {
 	w.session.writeOpPool.Put(w.op)
 
 	w.op, w.majority, w.successful, w.pending = nil, 0, 0, 0
+	for i := range w.errors {
+		w.errors[i] = nil
+	}
 	w.errors = w.errors[:0]
+	for i := range w.queues {
+		w.queues[i] = nil
+	}
 	w.queues = w.queues[:0]
 
 	w.session.writeStatePool.Put(w)
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
-	var (
-		successful int32
-		remaining  = atomic.AddInt32(&w.pending, -1)
-	)
-
-	if err != nil {
-		w.Lock()
-		w.errors = append(w.errors, err)
-		w.Unlock()
-	} else {
+	remaining := atomic.AddInt32(&w.pending, -1)
+	successful := int32(0)
+	if err == nil {
 		successful = atomic.AddInt32(&w.successful, 1)
 	}
 
 	w.Lock()
+
+	if err != nil {
+		w.errors = append(w.errors, err)
+	}
 
 	switch w.session.writeLevel {
 	case topology.ConsistencyLevelOne:

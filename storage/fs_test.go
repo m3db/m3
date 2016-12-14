@@ -27,7 +27,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-
 	"github.com/uber-go/tally"
 )
 
@@ -53,27 +52,6 @@ func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 	require.False(t, mgr.ShouldRun(now))
 }
 
-func TestFileSystemManagerShouldRunAttemptedBefore(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	database := newMockDatabase()
-	database.bs = bootstrapped
-	fm := NewMockdatabaseFlushManager(ctrl)
-	fsm, err := newFileSystemManager(database, tally.NoopScope)
-	require.NoError(t, err)
-	mgr := fsm.(*fileSystemManager)
-	mgr.databaseFlushManager = fm
-
-	now := database.Options().ClockOptions().NowFn()()
-	fm.EXPECT().FlushTimeEnd(now).Return(now)
-	require.True(t, mgr.ShouldRun(now))
-
-	mgr.processed[now] = struct{}{}
-	fm.EXPECT().FlushTimeEnd(now).Return(now)
-	require.False(t, mgr.ShouldRun(now))
-}
-
 func TestFileSystemManagerRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -90,7 +68,6 @@ func TestFileSystemManagerRun(t *testing.T) {
 
 	ts := time.Now()
 	gomock.InOrder(
-		fm.EXPECT().FlushTimeEnd(ts).Return(ts),
 		cm.EXPECT().Cleanup(ts).Return(errors.New("foo")),
 		fm.EXPECT().Flush(ts).Return(errors.New("bar")),
 	)

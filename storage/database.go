@@ -71,14 +71,6 @@ const (
 	databaseClosed
 )
 
-// database is the internal database interface.
-type database interface {
-	Database
-
-	// getOwnedNamespaces returns the namespaces this database owns.
-	getOwnedNamespaces() []databaseNamespace
-}
-
 // increasingIndex provides a monotonically increasing index for new series
 type increasingIndex interface {
 	nextIndex() uint64

@@ -41,8 +41,8 @@ type dbNamespace struct {
 
 	id       ts.ID
 	shardSet sharding.ShardSet
+	opts     Options
 	nopts    namespace.Options
-	sopts    Options
 	nowFn    clock.NowFn
 	log      xlog.Logger
 	bs       bootstrapState
@@ -110,7 +110,7 @@ func newDatabaseNamespace(
 	shardSet sharding.ShardSet,
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
-	sopts Options,
+	opts Options,
 ) databaseNamespace {
 	id := metadata.ID()
 	nopts := metadata.Options()
@@ -119,7 +119,7 @@ func newDatabaseNamespace(
 		fn = commitLogWriteNoOp
 	}
 
-	iops := sopts.InstrumentOptions()
+	iops := opts.InstrumentOptions()
 	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
 			"namespace": id.String(),
@@ -128,10 +128,10 @@ func newDatabaseNamespace(
 	n := &dbNamespace{
 		id:               id,
 		shardSet:         shardSet,
+		opts:             opts,
 		nopts:            nopts,
-		sopts:            sopts,
-		nowFn:            sopts.ClockOptions().NowFn(),
-		log:              sopts.InstrumentOptions().Logger(),
+		nowFn:            opts.ClockOptions().NowFn(),
+		log:              opts.InstrumentOptions().Logger(),
 		increasingIndex:  increasingIndex,
 		writeCommitLogFn: fn,
 		metrics:          newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
@@ -192,7 +192,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 			n.shards[shard] = existing[shard]
 		} else {
 			n.shards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex,
-				n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.sopts)
+				n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.opts)
 			n.metrics.shards.add.Inc(1)
 		}
 	}
@@ -443,14 +443,47 @@ func (n *dbNamespace) Flush(
 		}
 	}
 
-	// if nil, succeeded
+	res := multiErr.FinalError()
+	n.metrics.flush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	return res
+}
 
-	if res := multiErr.FinalError(); res != nil {
-		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
-		return res
+func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
+	// NB(r): Essentially if all are success, we don't need to flush, if any
+	// are failed with the minimum num failures less than max retries then
+	// we need to flush - otherwise if any in progress we can't flush and if
+	// any not started then we need to flush.
+	n.RLock()
+	defer n.RUnlock()
+
+	maxRetries := n.opts.MaxFlushRetries()
+
+	// Check if any in progress first to block another flush if so
+	for _, shard := range n.shards {
+		if shard == nil {
+			continue
+		}
+		if shard.FlushState(blockStart).Status == fileOpInProgress {
+			return false
+		}
 	}
-	n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
-	return nil
+
+	// Check for not started or failed that might need a flush
+	for _, shard := range n.shards {
+		if shard == nil {
+			continue
+		}
+		state := shard.FlushState(blockStart)
+		if state.Status == fileOpNotStarted {
+			return true
+		}
+		if state.Status == fileOpFailed && state.NumFailures < maxRetries {
+			return true
+		}
+	}
+
+	// All success or failed and reached max retries
+	return false
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
@@ -527,7 +560,7 @@ func (n *dbNamespace) Repair(
 		workers.Go(func() {
 			defer wg.Done()
 
-			ctx := n.sopts.ContextPool().Get()
+			ctx := n.opts.ContextPool().Get()
 			defer ctx.Close()
 
 			metadataRes, err := shard.Repair(ctx, n.id, tr, repairer)
@@ -639,7 +672,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex,
-			n.writeCommitLogFn, needBootstrap, n.sopts)
+			n.writeCommitLogFn, needBootstrap, n.opts)
 	}
 	n.shards = dbShards
 	n.Unlock()

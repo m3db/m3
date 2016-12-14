@@ -125,7 +125,7 @@ func newConsistencyResultError(
 		enqueued:    enqueued,
 		responded:   responded,
 		topLevelErr: topLevelErr,
-		errs:        errs,
+		errs:        append([]error{}, errs...),
 	}
 }
 

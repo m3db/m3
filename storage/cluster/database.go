@@ -251,8 +251,6 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		if err := topo.MarkShardAvailable(d.hostID, id); err != nil {
 			d.log.Errorf("cluster db failed marking shard %d available: %v",
 				id, err)
-		} else {
-			d.log.Infof("successfully marked shard %d available", id)
 		}
 	}
 }

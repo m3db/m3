@@ -21,17 +21,23 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ratelimit"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
+)
+
+var (
+	errFlushAlreadyInProgress = errors.New("flush already in progress")
 )
 
 type flushManager struct {
@@ -42,7 +48,6 @@ type flushManager struct {
 	nowFn           clock.NowFn
 	blockSize       time.Duration
 	pm              persist.Manager
-	flushStates     map[time.Time]fileOpState
 	flushInProgress bool
 	metrics         instrument.MethodMetrics
 }
@@ -53,13 +58,12 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 	pm := opts.NewPersistManagerFn()()
 
 	return &flushManager{
-		database:    database,
-		opts:        opts,
-		nowFn:       opts.ClockOptions().NowFn(),
-		blockSize:   blockSize,
-		pm:          pm,
-		flushStates: map[time.Time]fileOpState{},
-		metrics:     instrument.NewMethodMetrics(scope, "flush", 1.0),
+		database:  database,
+		opts:      opts,
+		nowFn:     opts.ClockOptions().NowFn(),
+		blockSize: blockSize,
+		pm:        pm,
+		metrics:   instrument.NewMethodMetrics(scope, "flush", 1.0),
 	}
 }
 
@@ -70,31 +74,38 @@ func (m *flushManager) IsFlushing() bool {
 	return flushInProgress
 }
 
-func (m *flushManager) HasFlushed(t time.Time) bool {
-	m.RLock()
-	defer m.RUnlock()
-
-	flushState, exists := m.flushStates[t]
-	if !exists {
-		return false
+func (m *flushManager) NeedsFlush(t time.Time) bool {
+	namespaces := m.database.getOwnedNamespaces()
+	for _, n := range namespaces {
+		if n.NeedsFlush(t) {
+			return true
+		}
 	}
-	return flushState.Status == fileOpSuccess
+	return false
 }
 
 func (m *flushManager) FlushTimeStart(t time.Time) time.Time {
-	retentionPeriod := m.opts.RetentionOptions().RetentionPeriod()
-	return t.Add(-retentionPeriod).Truncate(m.blockSize)
+	return retention.FlushTimeStart(m.opts.RetentionOptions(), t)
 }
 
 func (m *flushManager) FlushTimeEnd(t time.Time) time.Time {
-	bufferPast := m.opts.RetentionOptions().BufferPast()
-	return t.Add(-bufferPast).Add(-m.blockSize).Truncate(m.blockSize)
+	return retention.FlushTimeEnd(m.opts.RetentionOptions(), t)
 }
 
-func (m *flushManager) Flush(t time.Time) error {
+func (m *flushManager) Flush(curr time.Time) error {
 	callStart := m.nowFn()
 
+	timesToFlush := m.flushTimes(curr)
+	if len(timesToFlush) == 0 {
+		m.metrics.ReportSuccess(m.nowFn().Sub(callStart))
+		return nil
+	}
+
 	m.Lock()
+	if m.flushInProgress {
+		m.Unlock()
+		return errFlushAlreadyInProgress
+	}
 	m.flushInProgress = true
 	m.Unlock()
 
@@ -104,46 +115,16 @@ func (m *flushManager) Flush(t time.Time) error {
 		m.Unlock()
 	}()
 
-	timesToFlush := m.flushTimes(t)
-	if len(timesToFlush) == 0 {
-		m.metrics.ReportSuccess(m.nowFn().Sub(callStart))
-		return nil
-	}
-
 	multiErr := xerrors.NewMultiError()
 	for _, flushTime := range timesToFlush {
-		m.Lock()
-		if !m.needsFlushWithLock(flushTime) {
-			m.Unlock()
-			continue
+		if err := m.flushWithTime(flushTime); err != nil {
+			multiErr = multiErr.Add(err)
 		}
-		flushState := m.flushStates[flushTime]
-		flushState.Status = fileOpInProgress
-		m.flushStates[flushTime] = flushState
-		m.Unlock()
-
-		flushErr := m.flushWithTime(flushTime)
-
-		m.Lock()
-		flushState = m.flushStates[flushTime]
-		if flushErr == nil {
-			flushState.Status = fileOpSuccess
-		} else {
-			flushState.Status = fileOpFailed
-			flushState.NumFailures++
-			multiErr = multiErr.Add(flushErr)
-		}
-		m.flushStates[flushTime] = flushState
-		m.Unlock()
 	}
 
-	d := m.nowFn().Sub(callStart)
-	if err := multiErr.FinalError(); err != nil {
-		m.metrics.ReportError(d)
-		return err
-	}
-	m.metrics.ReportSuccess(d)
-	return nil
+	res := multiErr.FinalError()
+	m.metrics.ReportSuccessOrError(res, m.nowFn().Sub(callStart))
+	return res
 }
 
 func (m *flushManager) SetRateLimitOptions(value ratelimit.Options) {
@@ -154,34 +135,22 @@ func (m *flushManager) RateLimitOptions() ratelimit.Options {
 	return m.pm.RateLimitOptions()
 }
 
-// flushTimes returns a list of times we need to flush data blocks for.
-func (m *flushManager) flushTimes(t time.Time) []time.Time {
-	earliest, latest := m.FlushTimeStart(t), m.FlushTimeEnd(t)
+func (m *flushManager) flushTimes(curr time.Time) []time.Time {
+	earliest, latest := m.FlushTimeStart(curr), m.FlushTimeEnd(curr)
 
 	// NB(xichen): could preallocate slice here.
 	var flushTimes []time.Time
-	m.RLock()
-	for flushTime := latest; !flushTime.Before(earliest); flushTime = flushTime.Add(-m.blockSize) {
-		if m.needsFlushWithLock(flushTime) {
-			flushTimes = append(flushTimes, flushTime)
+	for t := latest; !t.Before(earliest); t = t.Add(-m.blockSize) {
+		if m.NeedsFlush(t) {
+			flushTimes = append(flushTimes, t)
 		}
 	}
-	m.RUnlock()
 
 	return flushTimes
 }
 
-// needsFlushWithLock returns true if we need to flush data for a given time.
-func (m *flushManager) needsFlushWithLock(t time.Time) bool {
-	flushState, exists := m.flushStates[t]
-	if !exists {
-		return true
-	}
-	return flushState.Status == fileOpFailed && flushState.NumFailures < m.opts.MaxFlushRetries()
-}
-
-// flushWithTime flushes in-memory data across all namespaces for a given time, returning any
-// error encountered during flushing
+// flushWithTime flushes in-memory data across all namespaces for a given
+// time, returning any error encountered during flushing
 func (m *flushManager) flushWithTime(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	namespaces := m.database.getOwnedNamespaces()
@@ -189,7 +158,8 @@ func (m *flushManager) flushWithTime(t time.Time) error {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
 		if err := n.Flush(t, m.pm); err != nil {
-			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v", n.ID().String(), err)
+			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
+				n.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}

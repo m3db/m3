@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/series"
@@ -38,6 +39,7 @@ import (
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,6 +67,28 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 	shard := newDatabaseShard(ts.StringID("namespace"), 0, &testIncreasingIndex{}, commitLogWriteNoOp, false, opts).(*dbShard)
 	require.Equal(t, bootstrapped, shard.bs)
 	require.True(t, shard.newSeriesBootstrapped)
+}
+
+func TestShardFlushStateNotStarted(t *testing.T) {
+	now := time.Now()
+	nowFn := func() time.Time {
+		return now
+	}
+
+	opts := testDatabaseOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+
+	ropts := opts.RetentionOptions()
+
+	earliest := retention.FlushTimeStart(ropts, now)
+	latest := retention.FlushTimeEnd(ropts, now)
+
+	s := testDatabaseShard(opts)
+
+	notStarted := fileOpState{Status: fileOpNotStarted}
+	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
+		assert.Equal(t, notStarted, s.FlushState(earliest))
+	}
 }
 
 func TestShardBootstrapWithError(t *testing.T) {
@@ -117,7 +141,15 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{}
 	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, nil)
-	require.Nil(t, s.Flush(testNamespaceID, blockStart, pm))
+
+	err := s.Flush(testNamespaceID, blockStart, pm)
+	require.Nil(t, err)
+
+	flushState := s.FlushState(blockStart)
+	require.Equal(t, fileOpState{
+		Status:      fileOpNotStarted,
+		NumFailures: 0,
+	}, flushState)
 }
 
 func TestShardFlushNoPersistFuncWithError(t *testing.T) {
@@ -131,20 +163,32 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
 	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, expectedErr)
+
 	actualErr := s.Flush(testNamespaceID, blockStart, pm)
 	require.NotNil(t, actualErr)
 	require.Equal(t, "some error", actualErr.Error())
+
+	flushState := s.FlushState(blockStart)
+	require.Equal(t, fileOpState{
+		Status:      fileOpFailed,
+		NumFailures: 1,
+	}, flushState)
 }
 
 func TestShardFlushSeriesFlushError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	blockStart := time.Unix(21600, 0)
+
 	s := testDatabaseShard(testDatabaseOptions())
 	s.bs = bootstrapped
+	s.flushState.statesByTime[blockStart] = fileOpState{
+		Status:      fileOpFailed,
+		NumFailures: 1,
+	}
 
 	var closed bool
-	blockStart := time.Unix(21600, 0)
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{
 		Persist: func(ts.ID, ts.Segment) error { return nil },
@@ -169,6 +213,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 			Return(expectedErr)
 		s.list.PushBack(&dbShardEntry{series: series})
 	}
+
 	err := s.Flush(testNamespaceID, blockStart, pm)
 
 	require.Equal(t, len(flushed), 2)
@@ -180,6 +225,65 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	require.True(t, closed)
 	require.NotNil(t, err)
 	require.Equal(t, "error foo\nerror bar", err.Error())
+
+	flushState := s.FlushState(blockStart)
+	require.Equal(t, fileOpState{
+		Status:      fileOpFailed,
+		NumFailures: 2,
+	}, flushState)
+}
+
+func TestShardFlushSeriesFlushSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockStart := time.Unix(21600, 0)
+
+	s := testDatabaseShard(testDatabaseOptions())
+	s.bs = bootstrapped
+	s.flushState.statesByTime[blockStart] = fileOpState{
+		Status:      fileOpFailed,
+		NumFailures: 1,
+	}
+
+	var closed bool
+	pm := persist.NewMockManager(ctrl)
+	prepared := persist.PreparedPersist{
+		Persist: func(ts.ID, ts.Segment) error { return nil },
+		Close:   func() { closed = true },
+	}
+
+	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, nil)
+
+	flushed := make(map[int]struct{})
+	for i := 0; i < 2; i++ {
+		i := i
+		series := series.NewMockDatabaseSeries(ctrl)
+		series.EXPECT().
+			Flush(gomock.Any(), blockStart, gomock.Any()).
+			Do(func(context.Context, time.Time, persist.Fn) {
+				flushed[i] = struct{}{}
+			}).
+			Return(nil)
+		s.list.PushBack(&dbShardEntry{series: series})
+	}
+
+	err := s.Flush(testNamespaceID, blockStart, pm)
+
+	require.Equal(t, len(flushed), 2)
+	for i := 0; i < 2; i++ {
+		_, ok := flushed[i]
+		require.True(t, ok)
+	}
+
+	require.True(t, closed)
+	require.Nil(t, err)
+
+	flushState := s.FlushState(blockStart)
+	require.Equal(t, fileOpState{
+		Status:      fileOpSuccess,
+		NumFailures: 0,
+	}, flushState)
 }
 
 func addTestSeries(shard *dbShard, id ts.ID) series.DatabaseSeries {
@@ -206,7 +310,20 @@ func TestShardTick(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+
+	earliestFlush := retention.FlushTimeStart(opts.RetentionOptions(), now)
+	beforeEarliestFlush := earliestFlush.Add(-opts.RetentionOptions().BlockSize())
+
 	shard := testDatabaseShard(opts)
+
+	// Also check that it expires flush states by time
+	shard.flushState.statesByTime[earliestFlush] = fileOpState{
+		Status: fileOpSuccess,
+	}
+	shard.flushState.statesByTime[beforeEarliestFlush] = fileOpState{
+		Status: fileOpSuccess,
+	}
+	assert.Equal(t, 2, len(shard.flushState.statesByTime))
 
 	var slept time.Duration
 	shard.sleepFn = func(t time.Duration) {
@@ -222,10 +339,15 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
-	r := shard.tickAndExpire(6*time.Millisecond, tickPolicyRegular)
+	r := shard.Tick(6 * time.Millisecond)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 	require.Equal(t, 4*time.Millisecond, slept)
+
+	// Ensure flush states by time was expired correctly
+	require.Equal(t, 1, len(shard.flushState.statesByTime))
+	_, ok := shard.flushState.statesByTime[earliestFlush]
+	require.True(t, ok)
 }
 
 // This tests the scenario where an empty series is expired.
