@@ -52,14 +52,14 @@ type dbBlock struct {
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) DatabaseBlock {
-	return &dbBlock{
-		opts:     opts,
-		ctx:      opts.ContextPool().Get(),
-		start:    start,
-		segment:  segment,
-		checksum: digest.SegmentChecksum(segment),
-		closed:   false,
+	b := &dbBlock{
+		opts:   opts,
+		ctx:    opts.ContextPool().Get(),
+		start:  start,
+		closed: false,
 	}
+	b.resetSegment(segment)
+	return b
 }
 
 func (b *dbBlock) StartTime() time.Time {
@@ -94,9 +94,27 @@ func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 	}
 	b.ctx = b.opts.ContextPool().Get()
 	b.start = start
+	b.closed = false
+	b.resetSegment(segment)
+}
+
+func (b *dbBlock) resetSegment(segment ts.Segment) {
 	b.segment = segment
 	b.checksum = digest.SegmentChecksum(segment)
-	b.closed = false
+
+	bytesPool := b.opts.BytesPool()
+	if bytesPool == nil {
+		return
+	}
+
+	b.ctx.RegisterCloser(context.CloserFn(func() {
+		if segment.Head != nil && !segment.HeadShared {
+			bytesPool.Put(segment.Head)
+		}
+		if segment.Tail != nil && !segment.TailShared {
+			bytesPool.Put(segment.Tail)
+		}
+	}))
 }
 
 func (b *dbBlock) Close() {
@@ -105,20 +123,6 @@ func (b *dbBlock) Close() {
 	}
 
 	b.closed = true
-
-	segment := b.segment
-	b.segment = ts.Segment{}
-	if bytesPool := b.opts.BytesPool(); bytesPool != nil {
-		b.ctx.RegisterCloser(context.CloserFn(func() {
-			if segment.Head != nil && !segment.HeadShared {
-				bytesPool.Put(segment.Head)
-			}
-			if segment.Tail != nil && !segment.TailShared {
-				bytesPool.Put(segment.Tail)
-			}
-		}))
-	}
-
 	b.ctx.Close()
 
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {

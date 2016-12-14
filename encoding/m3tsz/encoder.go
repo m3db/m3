@@ -39,7 +39,6 @@ const (
 )
 
 var (
-	errEncoderNotWritable   = errors.New("encoder is not writable")
 	errEncoderClosed        = errors.New("encoder is closed")
 	errEncoderAlreadyClosed = errors.New("encoder is already closed")
 )
@@ -65,8 +64,7 @@ type encoder struct {
 	ant ts.Annotation // current annotation
 	tu  xtime.Unit    // current time unit
 
-	writable bool
-	closed   bool
+	closed bool
 }
 
 // NewEncoder creates a new encoder.
@@ -84,7 +82,6 @@ func NewEncoder(start time.Time, bytes []byte, intOptimized bool, opts encoding.
 		opts:         opts,
 		t:            start,
 		tu:           tu,
-		writable:     true,
 		closed:       false,
 		intOptimized: intOptimized,
 	}
@@ -109,9 +106,6 @@ func initialTimeUnit(start time.Time, tu xtime.Unit) xtime.Unit {
 func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
 	if enc.closed {
 		return errEncoderClosed
-	}
-	if !enc.writable {
-		return errEncoderNotWritable
 	}
 
 	if enc.os.Len() == 0 {
@@ -493,10 +487,10 @@ func (enc *encoder) Reset(start time.Time, capacity int) {
 	} else {
 		newBuffer = make([]byte, 0, capacity)
 	}
-	enc.ResetSetData(start, newBuffer, true)
+	enc.ResetSetData(start, newBuffer)
 }
 
-func (enc *encoder) ResetSetData(start time.Time, data []byte, writable bool) {
+func (enc *encoder) ResetSetData(start time.Time, data []byte) {
 	enc.os.Reset(data)
 	enc.t = start
 	enc.dt = 0
@@ -511,7 +505,6 @@ func (enc *encoder) ResetSetData(start time.Time, data []byte, writable bool) {
 	enc.ant = nil
 	enc.tu = initialTimeUnit(start, enc.opts.DefaultTimeUnit())
 	enc.closed = false
-	enc.writable = writable
 }
 
 func (enc *encoder) Stream() xio.SegmentReader {
@@ -520,18 +513,12 @@ func (enc *encoder) Stream() xio.SegmentReader {
 	}
 	b, pos := enc.os.Rawbytes()
 	blen := len(b)
-	head := b
 
-	var tail []byte
-	if enc.writable {
-		// Only if still writable do we need a multibyte tail,
-		// otherwise the tail has already been written to the underlying
-		// stream by `Done`.
-		head = b[:blen-1]
-
-		scheme := enc.opts.MarkerEncodingScheme()
-		tail = scheme.Tail(b[blen-1], pos)
-	}
+	// We need a multibyte tail to capture an immutable snapshot
+	// of the encoder data this encoder.
+	head := b[:blen-1]
+	scheme := enc.opts.MarkerEncodingScheme()
+	tail := scheme.Tail(b[blen-1], pos)
 
 	segment := ts.Segment{Head: head, Tail: tail, TailShared: true}
 	readerPool := enc.opts.SegmentReaderPool()
@@ -543,37 +530,11 @@ func (enc *encoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(segment)
 }
 
-func (enc *encoder) Seal() {
-	if enc.closed || !enc.writable {
-		// If the encoder is already closed, or we've already written the tail,
-		// no action is necessary.
-		return
-	}
-	enc.writable = false
-
-	if enc.os.Empty() {
-		return
-	}
-
-	b, pos := enc.os.Rawbytes()
-	blen := len(b)
-
-	scheme := enc.opts.MarkerEncodingScheme()
-	tail := scheme.Tail(b[blen-1], pos)
-
-	// Trim to before last byte
-	enc.os.Reset(b[:blen-1])
-
-	// Append the tail including contents of the last byte
-	enc.os.WriteBytes(tail)
-}
-
 func (enc *encoder) Close() {
 	if enc.closed {
 		return
 	}
 
-	enc.writable = false
 	enc.closed = true
 
 	buffer, _ := enc.os.Rawbytes()

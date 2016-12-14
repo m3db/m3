@@ -1344,11 +1344,10 @@ func assertEnqueueChannel(
 }
 
 type testEncoder struct {
-	start    time.Time
-	data     []byte
-	writable bool
-	sealed   bool
-	closed   bool
+	start  time.Time
+	data   []byte
+	sealed bool
+	closed bool
 }
 
 func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error {
@@ -1366,13 +1365,11 @@ func (e *testEncoder) Seal() {
 func (e *testEncoder) Reset(t time.Time, capacity int) {
 	e.start = t
 	e.data = nil
-	e.writable = true
 }
 
-func (e *testEncoder) ResetSetData(t time.Time, data []byte, writable bool) {
+func (e *testEncoder) ResetSetData(t time.Time, data []byte) {
 	e.start = t
 	e.data = data
-	e.writable = writable
 }
 
 func (e *testEncoder) Close() {

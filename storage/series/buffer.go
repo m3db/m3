@@ -163,9 +163,9 @@ func (b *dbBuffer) DrainAndReset() {
 			newBlock.Reset(bucket.start, encoder.Stream().Segment())
 			b.drainFn(newBlock)
 
-			// Make encoder unwritable and release reference to the data so when
+			// Release the reference encoder has to the data so when
 			// encoder is closed it will not return the bytes to the bytes pool
-			encoder.ResetSetData(bucket.start, nil, false)
+			encoder.ResetSetData(bucket.start, nil)
 
 			bucket.drained = true
 		}

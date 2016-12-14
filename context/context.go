@@ -88,7 +88,8 @@ func (c *ctx) OnClose() {
 }
 
 func (c *ctx) Close() {
-	c.close(false)
+	// c.close(false)
+	c.close(true)
 }
 
 func (c *ctx) BlockingClose() {

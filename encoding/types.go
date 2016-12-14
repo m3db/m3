@@ -38,14 +38,11 @@ type Encoder interface {
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
 	Stream() xio.SegmentReader
 
-	// Seal will append any end of stream marker and ensure the encoder cannot be written to anymore.
-	Seal()
-
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)
 
 	// Reset resets the start time of the encoder and the internal state with some preset data.
-	ResetSetData(t time.Time, data []byte, writable bool)
+	ResetSetData(t time.Time, data []byte)
 
 	// Close closes the encoder and if pooled will return to the pool.
 	Close()
