@@ -40,6 +40,7 @@ const (
 
 var (
 	errEncoderNotWritable   = errors.New("encoder is not writable")
+	errEncoderClosed        = errors.New("encoder is closed")
 	errEncoderAlreadyClosed = errors.New("encoder is already closed")
 )
 
@@ -106,6 +107,9 @@ func initialTimeUnit(start time.Time, tu xtime.Unit) xtime.Unit {
 
 // Encode encodes the timestamp and the value of a datapoint.
 func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) error {
+	if enc.closed {
+		return errEncoderClosed
+	}
 	if !enc.writable {
 		return errEncoderNotWritable
 	}
@@ -568,22 +572,41 @@ func (enc *encoder) Close() {
 	if enc.closed {
 		return
 	}
+
 	enc.writable = false
 	enc.closed = true
+
+	buffer, _ := enc.os.Rawbytes()
 
 	// Reset the ostream to avoid reusing this encoder
 	// using the buffer we are returning to the pool
 	enc.os.Reset(nil)
 
-	bytesPool := enc.opts.BytesPool()
-	if bytesPool != nil {
-		buffer, _ := enc.os.Rawbytes()
-
+	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
 		bytesPool.Put(buffer)
 	}
 
-	pool := enc.opts.EncoderPool()
-	if pool != nil {
+	if pool := enc.opts.EncoderPool(); pool != nil {
 		pool.Put(enc)
 	}
+}
+
+func (enc *encoder) Discard() ts.Segment {
+	stream := enc.Stream()
+	if stream == nil {
+		return ts.Segment{}
+	}
+
+	// Reset the ostream to avoid putting this data back
+	// into the bytes pool
+	enc.os.Reset(nil)
+
+	// Take the segment from the reader and close the reader
+	segment := stream.Segment()
+	stream.Close()
+
+	// Close the encoder no longer needed
+	enc.Close()
+
+	return segment
 }

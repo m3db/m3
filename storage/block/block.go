@@ -22,21 +22,17 @@ package block
 
 import (
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/time"
 )
 
 var (
 	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
 	errWriteToClosedBlock  = errors.New("attempt to write to a closed block")
-	errWriteToSealedBlock  = errors.New("attempt to write to a sealed block")
 
 	timeZero = time.Time{}
 )
@@ -47,29 +43,23 @@ var (
 // make it more clear w.r.t. how/when we acquire locks, though.
 type dbBlock struct {
 	opts     Options
-	start    time.Time
-	encoder  encoding.Encoder
-	segment  ts.Segment
 	ctx      context.Context
-	ctxLock  sync.RWMutex
-	closed   bool
-	sealed   bool
+	start    time.Time
+	segment  ts.Segment
 	checksum uint32
+	closed   bool
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
-func NewDatabaseBlock(start time.Time, encoder encoding.Encoder, opts Options) DatabaseBlock {
+func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) DatabaseBlock {
 	return &dbBlock{
-		opts:    opts,
-		start:   start,
-		encoder: encoder,
-		closed:  false,
-		sealed:  false,
+		opts:     opts,
+		ctx:      opts.ContextPool().Get(),
+		start:    start,
+		segment:  segment,
+		checksum: digest.SegmentChecksum(segment),
+		closed:   false,
 	}
-}
-
-func (b *dbBlock) IsSealed() bool {
-	return b.sealed
 }
 
 func (b *dbBlock) StartTime() time.Time {
@@ -77,35 +67,15 @@ func (b *dbBlock) StartTime() time.Time {
 }
 
 func (b *dbBlock) Checksum() *uint32 {
-	if !b.IsSealed() {
-		return nil
-	}
 	cksum := b.checksum
 	return &cksum
-}
-
-func (b *dbBlock) Write(timestamp time.Time, value float64, unit xtime.Unit, annotation ts.Annotation) error {
-	if b.closed {
-		return errWriteToClosedBlock
-	}
-	if b.sealed {
-		return errWriteToSealedBlock
-	}
-	return b.encoder.Encode(ts.Datapoint{Timestamp: timestamp, Value: value}, unit, annotation)
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	if b.closed {
 		return nil, errReadFromClosedBlock
 	}
-	b.context().DependsOn(blocker)
-	if !b.sealed {
-		stream := b.encoder.Stream()
-		if stream != nil {
-			blocker.RegisterCloser(context.CloserFn(stream.Close))
-		}
-		return stream, nil
-	}
+	b.ctx.DependsOn(blocker)
 	// If the block is not writable, and the segment is empty, it means
 	// there are no data encoded in this block, so we return a nil reader.
 	if b.segment.Head == nil && b.segment.Tail == nil {
@@ -117,122 +87,58 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	return s, nil
 }
 
-func (b *dbBlock) context() context.Context {
-	b.ctxLock.RLock()
-	ctx := b.ctx
-	b.ctxLock.RUnlock()
-	if ctx != nil {
-		return ctx
-	}
-
-	b.ctxLock.Lock()
-	if ctx = b.ctx; ctx != nil {
-		b.ctxLock.Unlock()
-		return ctx
-	}
-
-	ctx = b.opts.ContextPool().Get()
-	b.ctx = ctx
-	b.ctxLock.Unlock()
-
-	return ctx
-}
-
-// close closes internal context and returns encoder and stream to pool.
-func (b *dbBlock) close() {
-	// If the context is nil (e.g., when it's just obtained from the pool),
-	// we return immediately.
-	b.ctxLock.RLock()
-	ctx := b.ctx
-	b.ctxLock.RUnlock()
-
-	if ctx == nil {
-		return
-	}
-
-	defer func() {
-		ctx.Close()
-		b.ctxLock.Lock()
-		b.ctx = nil
-		b.ctxLock.Unlock()
-		b.encoder = nil
-		b.segment = ts.Segment{}
-	}()
-
-	if !b.sealed {
-		// If the block is not sealed, we need to close the encoder.
-		if encoder := b.encoder; encoder != nil {
-			ctx.RegisterCloser(context.CloserFn(encoder.Close))
-		}
-		return
-	}
-
-	// Otherwise, we need to return bytes to the bytes pool.
-	segment := b.segment
-	bytesPool := b.opts.BytesPool()
-	ctx.RegisterCloser(context.CloserFn(func() {
-		if segment.Head != nil && !segment.HeadShared {
-			bytesPool.Put(segment.Head)
-		}
-		if segment.Tail != nil && !segment.TailShared {
-			bytesPool.Put(segment.Tail)
-		}
-	}))
-}
-
 // Reset resets the block start time and the encoder.
-func (b *dbBlock) Reset(startTime time.Time, encoder encoding.Encoder) {
-	b.close()
-	b.start = startTime
-	b.encoder = encoder
-	b.segment = ts.Segment{}
-	b.checksum = 0
+func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
+	if !b.closed {
+		// Return resources to pool if was not closed before reset
+		b.Close()
+	}
+	b.ctx = b.opts.ContextPool().Get()
+	b.start = start
+	b.segment = segment
+	b.checksum = digest.SegmentChecksum(segment)
 	b.closed = false
-	b.sealed = false
 }
 
 func (b *dbBlock) Close() {
 	if b.closed {
 		return
 	}
+
 	b.closed = true
-	b.close()
+
+	segment := b.segment
+	b.segment = ts.Segment{}
+	if bytesPool := b.opts.BytesPool(); bytesPool != nil {
+		b.ctx.RegisterCloser(context.CloserFn(func() {
+			if segment.Head != nil && !segment.HeadShared {
+				bytesPool.Put(segment.Head)
+			}
+			if segment.Tail != nil && !segment.TailShared {
+				bytesPool.Put(segment.Tail)
+			}
+		}))
+	}
+
+	b.ctx.Close()
+
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
 		pool.Put(b)
 	}
 }
 
-func (b *dbBlock) Seal() {
-	if b.closed || b.sealed {
-		return
-	}
-	b.sealed = true
-	if stream := b.encoder.Stream(); stream != nil {
-		b.segment = stream.Segment()
-		b.checksum = digest.SegmentChecksum(b.segment)
-		stream.Close()
-	}
-	// Reset encoder to prevent the byte stream inside the encoder
-	// from being returned to the bytes pool.
-	b.encoder.ResetSetData(b.start, nil, false)
-	b.encoder.Close()
-	b.encoder = nil
-}
-
 type databaseSeriesBlocks struct {
-	opts   Options
-	elems  map[time.Time]DatabaseBlock
-	min    time.Time
-	max    time.Time
-	sealed bool
+	opts  Options
+	elems map[time.Time]DatabaseBlock
+	min   time.Time
+	max   time.Time
 }
 
 // NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
 func NewDatabaseSeriesBlocks(capacity int, opts Options) DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
-		opts:   opts,
-		elems:  make(map[time.Time]DatabaseBlock, capacity),
-		sealed: true,
+		opts:  opts,
+		elems: make(map[time.Time]DatabaseBlock, capacity),
 	}
 }
 
@@ -244,20 +150,6 @@ func (dbb *databaseSeriesBlocks) Len() int {
 	return len(dbb.elems)
 }
 
-func (dbb *databaseSeriesBlocks) IsSealed() bool {
-	return dbb.sealed
-}
-
-func (dbb *databaseSeriesBlocks) Seal() {
-	if dbb.sealed {
-		return
-	}
-	for _, block := range dbb.elems {
-		block.Seal()
-	}
-	dbb.sealed = true
-}
-
 func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	start := block.StartTime()
 	if dbb.min.Equal(timeZero) || start.Before(dbb.min) {
@@ -267,7 +159,6 @@ func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 		dbb.max = start
 	}
 	dbb.elems[start] = block
-	dbb.sealed = dbb.sealed && block.IsSealed()
 }
 
 func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
@@ -300,10 +191,8 @@ func (dbb *databaseSeriesBlocks) BlockOrAdd(t time.Time) DatabaseBlock {
 	if ok {
 		return b
 	}
-	encoder := dbb.opts.EncoderPool().Get()
-	encoder.Reset(t, dbb.opts.DatabaseBlockAllocSize())
 	newBlock := dbb.opts.DatabaseBlockPool().Get()
-	newBlock.Reset(t, encoder)
+	newBlock.Reset(t, ts.Segment{})
 	dbb.AddBlock(newBlock)
 	return newBlock
 }
@@ -322,7 +211,6 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 	}
 	dbb.min, dbb.max = timeZero, timeZero
 	if len(dbb.elems) == 0 {
-		dbb.sealed = true
 		return
 	}
 	for k := range dbb.elems {
@@ -340,11 +228,8 @@ func (dbb *databaseSeriesBlocks) RemoveAll() {
 		block.Close()
 		delete(dbb.elems, t)
 	}
-	dbb.sealed = true
 }
 
 func (dbb *databaseSeriesBlocks) Close() {
-	for _, block := range dbb.elems {
-		block.Close()
-	}
+	dbb.RemoveAll()
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
@@ -235,12 +236,24 @@ func requireShardResults(
 	// First create what result should be constructed for test values
 	bopts := opts.BootstrapOptions()
 	ropts := bopts.RetentionOptions()
+	blopts := bopts.DatabaseBlockOptions()
 	blockSize := ropts.BlockSize()
 
 	expected := bootstrap.ShardResults{}
 
 	// Sort before iterating to ensure encoding to blocks is correct order
 	sort.Stable(testValuesByTime(values))
+
+	type seriesShardResultBlock struct {
+		encoder encoding.Encoder
+	}
+
+	type seriesShardResult struct {
+		blocks map[time.Time]*seriesShardResultBlock
+		result block.DatabaseSeriesBlocks
+	}
+
+	allResults := make(map[string]*seriesShardResult)
 	for _, v := range values {
 		result, ok := expected[v.s.Shard]
 		if !ok {
@@ -252,9 +265,38 @@ func requireShardResults(
 
 		blocks := result.AllSeries()[v.s.ID.Hash()].Blocks
 		blockStart := v.t.Truncate(blockSize)
-		block := blocks.BlockOrAdd(blockStart)
-		err := block.Write(v.t, v.v, v.u, v.a)
-		require.NoError(t, err)
+
+		r, ok := allResults[v.s.ID.String()]
+		if !ok {
+			r = &seriesShardResult{
+				blocks: make(map[time.Time]*seriesShardResultBlock),
+				result: blocks,
+			}
+			allResults[v.s.ID.String()] = r
+		}
+
+		b, ok := r.blocks[blockStart]
+		if !ok {
+			encoder := bopts.DatabaseBlockOptions().EncoderPool().Get()
+			encoder.Reset(v.t, 0)
+			b = &seriesShardResultBlock{
+				encoder: encoder,
+			}
+			r.blocks[blockStart] = b
+		}
+
+		require.NoError(t, b.encoder.Encode(ts.Datapoint{
+			Timestamp: v.t,
+			Value:     v.v,
+		}, v.u, v.a))
+	}
+
+	for _, r := range allResults {
+		for start, blockResult := range r.blocks {
+			enc := blockResult.encoder
+			bl := block.NewDatabaseBlock(start, enc.Discard(), blopts)
+			r.result.AddBlock(bl)
+		}
 	}
 
 	// Assert the values

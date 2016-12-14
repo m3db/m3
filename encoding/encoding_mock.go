@@ -106,6 +106,16 @@ func (_mr *_MockEncoderRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
+func (_m *MockEncoder) Discard() ts.Segment {
+	ret := _m.ctrl.Call(_m, "Discard")
+	ret0, _ := ret[0].(ts.Segment)
+	return ret0
+}
+
+func (_mr *_MockEncoderRecorder) Discard() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Discard")
+}
+
 // Mock of Options interface
 type MockOptions struct {
 	ctrl     *gomock.Controller

@@ -50,6 +50,7 @@ func (e *nullEncoder) Seal()                                                { e.
 func (e *nullEncoder) Reset(t time.Time, capacity int)                      {}
 func (e *nullEncoder) ResetSetData(t time.Time, data []byte, writable bool) { e.data = data }
 func (e *nullEncoder) Close()                                               {}
+func (e *nullEncoder) Discard() ts.Segment                                  { return ts.Segment{} }
 
 type nullReaderIterator struct{}
 

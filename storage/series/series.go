@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
+	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -66,7 +67,6 @@ type dbSeries struct {
 
 type updateBlocksResult struct {
 	expired int
-	sealed  int
 }
 
 // NewDatabaseSeries creates a new database series
@@ -123,7 +123,6 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	if needsBlockUpdate {
 		updateResult := s.updateBlocksWithLock()
 		r.ExpiredBlocks = updateResult.expired
-		r.SealedBlocks = updateResult.sealed
 	}
 	r.ActiveBlocks = s.blocks.Len()
 	s.Unlock()
@@ -140,11 +139,7 @@ func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 	// we should expire the blocks.
 	now := s.opts.ClockOptions().NowFn()()
 	minBlockStart := s.blocks.MinTime()
-	if s.shouldExpire(now, minBlockStart) {
-		return true
-	}
-
-	return !s.blocks.IsSealed()
+	return s.shouldExpire(now, minBlockStart)
 }
 
 func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
@@ -163,36 +158,18 @@ func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
 
 func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 	var (
-		r               updateBlocksResult
-		now             = s.opts.ClockOptions().NowFn()()
-		allBlocks       = s.blocks.AllBlocks()
-		allBlocksSealed = true
+		r         updateBlocksResult
+		now       = s.opts.ClockOptions().NowFn()()
+		allBlocks = s.blocks.AllBlocks()
 	)
 	for blockStart, block := range allBlocks {
 		if s.shouldExpire(now, blockStart) {
 			s.blocks.RemoveBlockAt(blockStart)
 			block.Close()
 			r.expired++
-		} else if block.IsSealed() {
-			continue
-		} else if s.shouldSeal(now, blockStart, block) {
-			block.Seal()
-			r.sealed++
-		} else {
-			allBlocksSealed = false
 		}
 	}
-	if allBlocksSealed {
-		s.blocks.Seal()
-	}
 	return r
-}
-
-func (s *dbSeries) shouldSeal(now, blockStart time.Time, block block.DatabaseBlock) bool {
-	rops := s.opts.RetentionOptions()
-	blockSize := rops.BlockSize()
-	cutoff := now.Add(-rops.BufferPast()).Add(-blockSize).Truncate(blockSize)
-	return !blockStart.After(cutoff)
 }
 
 func (s *dbSeries) IsEmpty() bool {
@@ -381,7 +358,11 @@ func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
 		s.blocks.AddBlock(newBlock)
 		return
 	}
-	s.mergeBlock(s.blocks, newBlock)
+	if err := s.mergeBlock(s.blocks, newBlock); err != nil {
+		log := s.opts.InstrumentOptions().Logger()
+		log = log.WithFields(xlog.NewLogField("id", s.id.String()))
+		log.Errorf("series error merging blocks: %v", err)
+	}
 }
 
 func (s *dbSeries) mergeBlock(
@@ -415,6 +396,11 @@ func (s *dbSeries) mergeBlock(
 	if err != nil {
 		return err
 	}
+	if existingBlockReader == nil {
+		// Existing block has no data
+		blocks.AddBlock(newBlock)
+		return nil
+	}
 
 	defer existingBlockReader.Close()
 
@@ -426,41 +412,31 @@ func (s *dbSeries) mergeBlock(
 	multiIter.Reset(readers[:])
 	defer multiIter.Close()
 
-	encoder := s.opts.EncoderPool().Get()
 	blopts := s.opts.DatabaseBlockOptions()
+	encoder := s.opts.EncoderPool().Get()
 	encoder.Reset(blockStart, blopts.DatabaseBlockAllocSize())
-
-	success := false
-	defer func() {
-		// Return encoder to the pool if we abort draining the stream
-		if !success {
-			encoder.Close()
-		}
-	}()
 
 	for multiIter.Next() {
 		dp, unit, annotation := multiIter.Current()
 		err := encoder.Encode(dp, unit, annotation)
 		if err != nil {
+			encoder.Close()
 			return err
 		}
 	}
 	if err := multiIter.Err(); err != nil {
+		encoder.Close()
 		return err
 	}
 
-	blocks.RemoveBlockAt(blockStart)
-
 	block := blopts.DatabaseBlockPool().Get()
-	block.Reset(blockStart, encoder)
-	block.Seal()
+	block.Reset(blockStart, encoder.Discard())
 	blocks.AddBlock(block)
 
 	// Close the existing and new blocks
 	existingBlock.Close()
 	newBlock.Close()
 
-	success = true
 	return nil
 }
 
@@ -533,7 +509,11 @@ func (s *dbSeries) newBootstrapBlockError(
 	return xerrors.NewRenamedError(err, renamed)
 }
 
-func (s *dbSeries) Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error {
+func (s *dbSeries) Flush(
+	ctx context.Context,
+	blockStart time.Time,
+	persistFn persist.Fn,
+) error {
 	s.RLock()
 	if s.bs != bootstrapped {
 		s.RUnlock()

@@ -388,8 +388,8 @@ func TestBufferBucketMerge(t *testing.T) {
 
 func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	opts := newBufferTestOptions()
-	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
 
 	b := &dbBufferBucket{opts: opts}
 	b.resetTo(curr)
@@ -398,10 +398,16 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
 	require.Nil(t, b.encoders[0].encoder.Stream())
 
-	nonEmptyEncoder := opts.EncoderPool().Get()
-	nonEmptyEncoder.Reset(curr, 0)
-	require.NoError(t, nonEmptyEncoder.Encode(ts.Datapoint{Timestamp: curr, Value: 1.0}, xtime.Second, nil))
-	b.bootstrapped = append(b.bootstrapped, block.NewDatabaseBlock(curr, nonEmptyEncoder, opts.DatabaseBlockOptions()))
+	encoder := opts.EncoderPool().Get()
+	encoder.Reset(curr, 0)
+
+	value := ts.Datapoint{Timestamp: curr, Value: 1.0}
+	err := encoder.Encode(value, xtime.Second, nil)
+	require.NoError(t, err)
+
+	blopts := opts.DatabaseBlockOptions()
+	newBlock := block.NewDatabaseBlock(curr, encoder.Discard(), blopts)
+	b.bootstrapped = append(b.bootstrapped, newBlock)
 	ctx := opts.ContextPool().Get()
 	stream, err := b.bootstrapped[0].Stream(ctx)
 	require.NoError(t, err)

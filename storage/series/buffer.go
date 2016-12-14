@@ -158,12 +158,11 @@ func (b *dbBuffer) DrainAndReset() {
 
 			// After we merge there is always only a single encoder with all the data
 			encoder := bucket.encoders[0].encoder
-			encoder.Seal()
 
 			newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-			newBlock.Reset(bucket.start, encoder)
-			newBlock.Seal()
+			newBlock.Reset(bucket.start, encoder.Stream().Segment())
 			b.drainFn(newBlock)
+
 			bucket.drained = true
 		}
 
@@ -483,7 +482,11 @@ func (b *dbBufferBucket) merge() {
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		lastWriteAt = dp.Timestamp
-		encoder.Encode(dp, unit, annotation)
+		if err := encoder.Encode(dp, unit, annotation); err != nil {
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf("buffer merge encode error: %v", err)
+			break
+		}
 	}
 	iter.Close()
 

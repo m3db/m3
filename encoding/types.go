@@ -24,9 +24,9 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -49,6 +49,9 @@ type Encoder interface {
 
 	// Close closes the encoder and if pooled will return to the pool.
 	Close()
+
+	// Discard will take ownership of the encoder data and if pooled will return to the pool.
+	Discard() ts.Segment
 }
 
 // NewEncoderFn creates a new encoder

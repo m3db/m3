@@ -45,9 +45,9 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	start := time.Now().Truncate(blockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, nil, blopts),
-		block.NewDatabaseBlock(start.Add(1*blockSize), nil, blopts),
-		block.NewDatabaseBlock(start.Add(2*blockSize), nil, blopts),
+		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -143,9 +143,9 @@ func TestResultAddResult(t *testing.T) {
 	start := time.Now().Truncate(blockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, nil, blopts),
-		block.NewDatabaseBlock(start.Add(1*blockSize), nil, blopts),
-		block.NewDatabaseBlock(start.Add(2*blockSize), nil, blopts),
+		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -203,7 +203,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 	sr := NewShardResult(0, opts)
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(time.Now(), nil)
+	block.Reset(time.Now(), ts.Segment{})
 	sr.AddBlock(ts.StringID("foo"), block)
 	require.False(t, sr.IsEmpty())
 }
@@ -222,7 +222,7 @@ func TestShardResultAddBlock(t *testing.T) {
 	}
 	for _, input := range inputs {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		block.Reset(input.timestamp, nil)
+		block.Reset(input.timestamp, ts.Segment{})
 		sr.AddBlock(ts.StringID(input.id), block)
 	}
 	allSeries := sr.AllSeries()
@@ -247,7 +247,7 @@ func TestShardResultAddSeries(t *testing.T) {
 	}
 	moreSeries := block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(start, nil)
+	block.Reset(start, ts.Segment{})
 	moreSeries.AddBlock(block)
 	sr.AddSeries(ts.StringID("foo"), moreSeries)
 	allSeries := sr.AllSeries()

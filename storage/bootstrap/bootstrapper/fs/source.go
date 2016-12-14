@@ -217,12 +217,9 @@ func (s *fileSystemSource) bootstrapFromReaders(
 						break
 					}
 
-					encoder := bopts.DatabaseBlockOptions().EncoderPool().Get()
-					encoder.ResetSetData(timeRange.Start, data, false)
 					block := bopts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-					block.Reset(timeRange.Start, encoder)
+					block.Reset(timeRange.Start, ts.Segment{Head: data})
 					seriesMap.AddBlock(id, block)
-					block.Seal()
 				}
 				if !hasError {
 					if err := r.Validate(); err != nil {

@@ -25,10 +25,9 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3x/pool"
 )
 
 // Metadata captures block metadata
@@ -117,29 +116,20 @@ type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock represents a data block.
 type DatabaseBlock interface {
-	// IsSealed returns whether the block is sealed.
-	IsSealed() bool
-
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
 	// Checksum returns the block checksum if available
 	Checksum() *uint32
 
-	// Write writes a datapoint to the block along with time unit and annotation.
-	Write(timestamp time.Time, value float64, unit xtime.Unit, annotation ts.Annotation) error
-
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)
 
 	// Reset resets the block start time and the encoder.
-	Reset(startTime time.Time, encoder encoding.Encoder)
+	Reset(startTime time.Time, segment ts.Segment)
 
 	// Close closes the block.
 	Close()
-
-	// Seal seals the block.
-	Seal()
 }
 
 // DatabaseSeriesBlocks represents a collection of data blocks.
@@ -149,12 +139,6 @@ type DatabaseSeriesBlocks interface {
 
 	// Len returns the number of blocks contained in the collection.
 	Len() int
-
-	// IsSealed returns whether all the blocks are sealed
-	IsSealed() bool
-
-	// Seal seals all the blocks
-	Seal()
 
 	// AddBlock adds a data block.
 	AddBlock(block DatabaseBlock)
