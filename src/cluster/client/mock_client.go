@@ -50,20 +50,22 @@ func (_m *MockClient) EXPECT() *_MockClientRecorder {
 	return _m.recorder
 }
 
-func (_m *MockClient) KV() kv.Store {
+func (_m *MockClient) KV() (kv.Store, error) {
 	ret := _m.ctrl.Call(_m, "KV")
 	ret0, _ := ret[0].(kv.Store)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockClientRecorder) KV() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "KV")
 }
 
-func (_m *MockClient) Services() services.Services {
+func (_m *MockClient) Services() (services.Services, error) {
 	ret := _m.ctrl.Call(_m, "Services")
 	ret0, _ := ret[0].(services.Services)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockClientRecorder) Services() *gomock.Call {
