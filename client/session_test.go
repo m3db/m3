@@ -67,8 +67,7 @@ func sessionTestShardSet() sharding.ShardSet {
 	return shardSet
 }
 
-func defaultTestHostName() string { return testHostName(0) }
-func testHostName(i int) string   { return fmt.Sprintf("testhost%d", i) }
+func testHostName(i int) string { return fmt.Sprintf("testhost%d", i) }
 
 func sessionTestHostAndShards(
 	shardSet sharding.ShardSet,

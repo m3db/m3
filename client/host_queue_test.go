@@ -143,8 +143,10 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	wg.Wait()
 
 	// Assert writes successful
-	success := []hostQueueResult{{testHost, nil}, {testHost, nil}, {testHost, nil}, {testHost, nil}}
-	assert.Equal(t, success, results)
+	assert.Equal(t, len(writes), len(results))
+	for _, result := range results {
+		assert.Nil(t, result.err)
+	}
 
 	// Close
 	var closeWg sync.WaitGroup
@@ -221,8 +223,10 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 	wg.Wait()
 
 	// Assert writes successful
-	success := []hostQueueResult{{testHost, nil}, {testHost, nil}, {testHost, nil}, {testHost, nil}}
-	assert.Equal(t, success, results)
+	assert.Equal(t, len(writes), len(results))
+	for _, result := range results {
+		assert.Nil(t, result.err)
+	}
 
 	// Close
 	var closeWg sync.WaitGroup

@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/topology"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -58,7 +59,8 @@ func shardStateWriteTest(t *testing.T, state shard.State) int32 {
 	s.Open()
 	defer s.Close()
 
-	setShardStates(t, s, state)
+	host := s.topoMap.Hosts()[0] // any host
+	setShardStates(t, s, host, state)
 
 	wState := getWriteState(s)
 	for i := 0; i < sessionTestReplicas+1; i++ {
@@ -79,8 +81,8 @@ func shardStateWriteTest(t *testing.T, state shard.State) int32 {
 	enqueueWg.Wait()
 	require.True(t, s.topoMap.Replicas() == sessionTestReplicas)
 	for i := 0; i < s.topoMap.Replicas(); i++ {
-		completionFn(defaultTestHostName(), nil)        // maintain session state
-		wState.completionFn(defaultTestHostName(), nil) // for the test
+		completionFn(host, nil)        // maintain session state
+		wState.completionFn(host, nil) // for the test
 	}
 
 	// Wait for write to complete
@@ -96,8 +98,8 @@ func getWriteState(s *session) *writeState {
 	return wState
 }
 
-func setShardStates(t *testing.T, s *session, state shard.State) {
-	hostShardSet, ok := s.topoMap.LookupHostShardSet(defaultTestHostName())
+func setShardStates(t *testing.T, s *session, host topology.Host, state shard.State) {
+	hostShardSet, ok := s.topoMap.LookupHostShardSet(host.ID())
 	require.True(t, ok)
 
 	for _, hostShard := range hostShardSet.ShardSet().All() {
