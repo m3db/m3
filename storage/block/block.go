@@ -186,17 +186,6 @@ func (dbb *databaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
 	return b, ok
 }
 
-func (dbb *databaseSeriesBlocks) BlockOrAdd(t time.Time) DatabaseBlock {
-	b, ok := dbb.elems[t]
-	if ok {
-		return b
-	}
-	newBlock := dbb.opts.DatabaseBlockPool().Get()
-	newBlock.Reset(t, ts.Segment{})
-	dbb.AddBlock(newBlock)
-	return newBlock
-}
-
 func (dbb *databaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {
 	return dbb.elems
 }

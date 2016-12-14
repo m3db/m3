@@ -155,9 +155,6 @@ type DatabaseSeriesBlocks interface {
 	// BlockAt returns the block at a given time if any.
 	BlockAt(t time.Time) (DatabaseBlock, bool)
 
-	// BlockOrAdd returns the block at a given time, add it if it doesn't exist.
-	BlockOrAdd(t time.Time) DatabaseBlock
-
 	// AllBlocks returns all the blocks in the series.
 	AllBlocks() map[time.Time]DatabaseBlock
 

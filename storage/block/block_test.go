@@ -185,20 +185,6 @@ func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
 	require.False(t, exists)
 }
 
-func TestDatabaseSeriesBlocksGetBlockOrAdd(t *testing.T) {
-	opts := NewOptions()
-	blocks := testDatabaseSeriesBlocks()
-	block := opts.DatabaseBlockPool().Get()
-	now := time.Now()
-	block.Reset(now, ts.Segment{})
-	blocks.AddBlock(block)
-	res := blocks.BlockOrAdd(now)
-	require.True(t, res == block)
-	blockStart := now.Add(time.Hour)
-	blocks.BlockOrAdd(blockStart)
-	validateBlocks(t, blocks, now, blockStart, []time.Time{now, blockStart})
-}
-
 func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}

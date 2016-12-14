@@ -400,16 +400,6 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) BlockAt(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockAt", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) BlockOrAdd(t time.Time) DatabaseBlock {
-	ret := _m.ctrl.Call(_m, "BlockOrAdd", t)
-	ret0, _ := ret[0].(DatabaseBlock)
-	return ret0
-}
-
-func (_mr *_MockDatabaseSeriesBlocksRecorder) BlockOrAdd(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockOrAdd", arg0)
-}
-
 func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {
 	ret := _m.ctrl.Call(_m, "AllBlocks")
 	ret0, _ := ret[0].(map[time.Time]DatabaseBlock)
