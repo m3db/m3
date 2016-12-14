@@ -78,7 +78,6 @@ type databaseNamespaceTickMetrics struct {
 	expiredSeries tally.Counter
 	activeBlocks  tally.Gauge
 	expiredBlocks tally.Counter
-	sealedBlocks  tally.Counter
 	errors        tally.Counter
 }
 
@@ -101,7 +100,6 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			expiredSeries: tickScope.Counter("expired-series"),
 			activeBlocks:  tickScope.Gauge("active-blocks"),
 			expiredBlocks: tickScope.Counter("expired-blocks"),
-			sealedBlocks:  tickScope.Counter("sealed-blocks"),
 			errors:        tickScope.Counter("errors"),
 		},
 	}
@@ -241,7 +239,6 @@ func (n *dbNamespace) Tick(softDeadline time.Duration) {
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
 	n.metrics.tick.activeBlocks.Update(int64(r.activeBlocks))
 	n.metrics.tick.expiredBlocks.Inc(int64(r.expiredBlocks))
-	n.metrics.tick.sealedBlocks.Inc(int64(r.sealedBlocks))
 	n.metrics.tick.errors.Inc(int64(r.errors))
 }
 

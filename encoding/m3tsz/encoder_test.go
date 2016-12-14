@@ -360,16 +360,15 @@ func TestEncoderResets(t *testing.T) {
 	require.Equal(t, 0, enc.os.Len())
 
 	newBytes := []byte{0x13, 0xce}
-	enc.ResetSetData(now, newBytes, true)
+	enc.ResetSetData(now, newBytes)
 	b, _ := enc.os.Rawbytes()
 	require.Equal(t, newBytes, b)
 
 	enc.Stream()
-	enc.Seal()
+
 	newBytes = []byte{0x13}
-	enc.ResetSetData(now, newBytes, false)
+	enc.ResetSetData(now, newBytes)
 	b, _ = enc.os.Rawbytes()
 	require.Equal(t, newBytes, b)
-	enc.Seal()
 	enc.Close()
 }

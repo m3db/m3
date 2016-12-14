@@ -75,6 +75,8 @@ var (
 	// errSessionInvalidConnectClusterConnectConsistencyLevel is raised when
 	// the connect consistency level specified is not recognized
 	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New("session has invalid connect consistency level specified")
+	// errSessionHasNoHostQueueForHost is raised when host queue requested for a missing host
+	errSessionHasNoHostQueueForHost = errors.New("session has no host queue for host")
 )
 
 type session struct {
@@ -93,6 +95,7 @@ type session struct {
 	replicas                         int32
 	majority                         int32
 	queues                           []hostQueue
+	queuesByHostID                   map[string]hostQueue
 	state                            state
 	writeOpPool                      writeOpPool
 	fetchBatchOpPool                 fetchBatchOpPool
@@ -169,6 +172,7 @@ func newSession(opts Options) (clientSession, error) {
 		writeLevel:           opts.WriteConsistencyLevel(),
 		readLevel:            opts.ReadConsistencyLevel(),
 		newHostQueueFn:       newHostQueue,
+		queuesByHostID:       make(map[string]hostQueue),
 		topo:                 topo,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
@@ -304,7 +308,7 @@ func (s *session) Open() error {
 
 	topoMap := watch.Get()
 
-	queues, replicas, majority, err := s.initHostQueues(topoMap)
+	queues, replicas, majority, err := s.newHostQueues(topoMap)
 	if err != nil {
 		s.Unlock()
 		return err
@@ -344,7 +348,7 @@ func (s *session) Open() error {
 		for range s.topoWatch.C() {
 			s.log.Info("received update for topology")
 			topoMap := s.topoWatch.Get()
-			queues, replicas, majority, err := s.initHostQueues(topoMap)
+			queues, replicas, majority, err := s.newHostQueues(topoMap)
 			if err != nil {
 				s.log.Errorf("could not update topology map: %v", err)
 				continue
@@ -358,7 +362,29 @@ func (s *session) Open() error {
 	return nil
 }
 
-func (s *session) initHostQueues(topoMap topology.Map) ([]hostQueue, int, int, error) {
+func (s *session) BorrowConnection(hostID string, fn withConnectionFn) error {
+	s.RLock()
+	unlocked := false
+	queue, ok := s.queuesByHostID[hostID]
+	if !ok {
+		s.RUnlock()
+		return errSessionHasNoHostQueueForHost
+	}
+	err := queue.BorrowConnection(func(c rpc.TChanNode) {
+		// Unlock early on success
+		s.RUnlock()
+		unlocked = true
+
+		// Execute function with borrowed connection
+		fn(c)
+	})
+	if !unlocked {
+		s.RUnlock()
+	}
+	return err
+}
+
+func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, error) {
 	// NB(r): we leave existing writes in the host queues to finish
 	// as they are already enroute to their destination, this is ok
 	// as part of adding a host is to add another replica for the
@@ -461,6 +487,10 @@ func (s *session) initHostQueues(topoMap topology.Map) ([]hostQueue, int, int, e
 func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, replicas, majority int) {
 	prev := s.queues
 	s.queues = queues
+	s.queuesByHostID = make(map[string]hostQueue, len(queues))
+	for _, queue := range s.queues {
+		s.queuesByHostID[queue.Host().ID()] = queue
+	}
 	s.topoMap = topoMap
 
 	prevReplicas := atomic.LoadInt32(&s.replicas)
@@ -1037,15 +1067,15 @@ func (s *session) Truncate(namespace ts.ID) (int64, error) {
 	return truncated, resultErr.FinalError()
 }
 
-func (s *session) peersForShard(shard uint32) ([]hostQueue, error) {
+func (s *session) peersForShard(shard uint32) ([]peer, error) {
 	s.RLock()
-	peers := make([]hostQueue, 0, s.topoMap.Replicas()-1)
+	peers := make([]peer, 0, s.topoMap.Replicas())
 	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
 		if s.origin != nil && s.origin.ID() == host.ID() {
 			// Don't include the origin host
 			return
 		}
-		peers = append(peers, s.queues[idx])
+		peers = append(peers, newPeer(s, host))
 	})
 	s.RUnlock()
 	if err != nil {
@@ -1146,7 +1176,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 func (s *session) streamBlocksMetadataFromPeers(
 	namespace ts.ID,
 	shard uint32,
-	peers []hostQueue,
+	peers []peer,
 	start, end time.Time,
 	ch chan<- blocksMetadata,
 	m *streamFromPeersMetrics,
@@ -1190,7 +1220,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 func (s *session) streamBlocksMetadataFromPeer(
 	namespace ts.ID,
 	shard uint32,
-	peer hostQueue,
+	peer peer,
 	start, end time.Time,
 	ch chan<- blocksMetadata,
 	m *streamFromPeersMetrics,
@@ -1207,12 +1237,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		moreResults            = true
 	)
 	// Declare before loop to avoid redeclaring each iteration
-	attemptFn := func() error {
-		client, err := peer.ConnectionPool().NextClient()
-		if err != nil {
-			return err
-		}
-
+	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
 		req := rpc.NewFetchBlocksMetadataRawRequest()
 		req.NameSpace = namespace.Data()
@@ -1288,7 +1313,13 @@ func (s *session) streamBlocksMetadataFromPeer(
 		return nil
 	}
 	for moreResults {
-		if err := retrier.Attempt(attemptFn); err != nil {
+		if err := retrier.Attempt(func() error {
+			var attemptErr error
+			borrowErr := peer.BorrowConnection(func(client rpc.TChanNode) {
+				attemptErr = attemptFn(client)
+			})
+			return xerrors.FirstError(borrowErr, attemptErr)
+		}); err != nil {
 			return err
 		}
 	}
@@ -1298,7 +1329,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 func (s *session) streamBlocksFromPeers(
 	namespace ts.ID,
 	shard uint32,
-	peers []hostQueue,
+	peers []peer,
 	ch <-chan blocksMetadata,
 	opts bootstrap.Options,
 	result *blocksResult,
@@ -1636,7 +1667,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 func (s *session) streamBlocksBatchFromPeer(
 	namespace ts.ID,
 	shard uint32,
-	peer hostQueue,
+	peer peer,
 	batch []*blocksMetadata,
 	opts bootstrap.Options,
 	blocksResult *blocksResult,
@@ -1675,14 +1706,12 @@ func (s *session) streamBlocksBatchFromPeer(
 
 	// Attempt request
 	if err := retrier.Attempt(func() error {
-		client, err := peer.ConnectionPool().NextClient()
-		if err != nil {
-			return err
-		}
-
-		tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
-		result, err = client.FetchBlocksRaw(tctx, req)
-		return err
+		var attemptErr error
+		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode) {
+			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
+			result, attemptErr = client.FetchBlocksRaw(tctx, req)
+		})
+		return xerrors.FirstError(borrowErr, attemptErr)
 	}); err != nil {
 		s.log.Errorf("stream blocks response from peer %s returned error: %v", peer.Host().String(), err)
 		for i := range batch {
@@ -1863,15 +1892,10 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	switch {
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
-		size := len(segments.Merged.Head) + len(segments.Merged.Tail)
-		data := r.bytesPool.Get(size)[:size]
-		n := copy(data, segments.Merged.Head)
-		copy(data[n:], segments.Merged.Tail)
-
-		encoder := r.encoderPool.Get()
-		encoder.ResetSetData(start, data, false)
-
-		result.Reset(start, encoder)
+		result.Reset(start, ts.Segment{
+			Head: segments.Merged.Head,
+			Tail: segments.Merged.Tail,
+		})
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
@@ -1886,28 +1910,14 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 		if err != nil {
 			return err
 		}
-		result.Reset(start, encoder)
+
+		// Set the block data
+		result.Reset(start, encoder.Discard())
 
 	default:
 		return errSessionBadBlockResultFromPeer
 
 	}
-
-	// No longer need the encoder, seal the block
-	result.Seal()
-
-	resultCtx := r.contextPool.Get()
-	defer resultCtx.Close()
-
-	resultReader, err := result.Stream(resultCtx)
-	if err != nil {
-		return err
-	}
-	if resultReader == nil {
-		return nil
-	}
-
-	var tmpCtx context.Context
 
 	for {
 		r.Lock()
@@ -1925,12 +1935,7 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 
 		// If we've already received data for this block, merge them
 		// with the new block if possible
-		if tmpCtx == nil {
-			tmpCtx = r.contextPool.Get()
-		} else {
-			tmpCtx.Reset()
-		}
-
+		tmpCtx := r.contextPool.Get()
 		currReader, err := currBlock.Stream(tmpCtx)
 		if err != nil {
 			return err
@@ -1942,16 +1947,24 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 			continue
 		}
 
+		resultReader, err := result.Stream(tmpCtx)
+		if err != nil {
+			return err
+		}
+		if resultReader == nil {
+			return nil
+		}
+
 		readers := []io.Reader{currReader, resultReader}
 		encoder, err := r.mergeReaders(start, readers)
-		tmpCtx.BlockingClose()
+
+		tmpCtx.Close()
 
 		if err != nil {
 			return err
 		}
 
-		result.Reset(start, encoder)
-		result.Seal()
+		result.Reset(start, encoder.Discard())
 	}
 
 	return nil
@@ -2054,7 +2067,7 @@ type processFn func(batch []*blocksMetadata)
 type peerBlocksQueue struct {
 	sync.RWMutex
 	closed       bool
-	peer         hostQueue
+	peer         peer
 	queue        []*blocksMetadata
 	doneFns      []func()
 	assigned     uint64
@@ -2065,7 +2078,7 @@ type peerBlocksQueue struct {
 }
 
 type newPeerBlocksQueueFn func(
-	peer hostQueue,
+	peer peer,
 	maxQueueSize int,
 	interval time.Duration,
 	workers xsync.WorkerPool,
@@ -2073,7 +2086,7 @@ type newPeerBlocksQueueFn func(
 ) *peerBlocksQueue
 
 func newPeerBlocksQueue(
-	peer hostQueue,
+	peer peer,
 	maxQueueSize int,
 	interval time.Duration,
 	workers xsync.WorkerPool,
@@ -2178,7 +2191,7 @@ func (q *peerBlocksQueue) drainWithLock() {
 
 type peerBlocksQueues []*peerBlocksQueue
 
-func (qs peerBlocksQueues) findQueue(peer hostQueue) *peerBlocksQueue {
+func (qs peerBlocksQueues) findQueue(peer peer) *peerBlocksQueue {
 	for _, q := range qs {
 		if q.peer == peer {
 			return q
@@ -2194,7 +2207,7 @@ func (qs peerBlocksQueues) closeAll() {
 }
 
 type blocksMetadata struct {
-	peer   hostQueue
+	peer   peer
 	id     ts.ID
 	blocks []blockMetadata
 	idx    int
@@ -2253,18 +2266,18 @@ type blockMetadata struct {
 type blockMetadataReattempt struct {
 	attempt       int
 	id            ts.ID
-	attempted     []hostQueue
+	attempted     []peer
 	peersMetadata []blockMetadataReattemptPeerMetadata
 }
 
 type blockMetadataReattemptPeerMetadata struct {
-	peer     hostQueue
+	peer     peer
 	start    time.Time
 	size     int64
 	checksum *uint32
 }
 
-func (b blockMetadataReattempt) hasAttemptedPeer(peer hostQueue) bool {
+func (b blockMetadataReattempt) hasAttemptedPeer(peer peer) bool {
 	for i := range b.attempted {
 		if b.attempted[i] == peer {
 			return true

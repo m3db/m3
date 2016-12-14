@@ -514,3 +514,23 @@ func (_m *MockOptions) FetchBlockMetadataResultsPool() block.FetchBlockMetadataR
 func (_mr *_MockOptionsRecorder) FetchBlockMetadataResultsPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlockMetadataResultsPool")
 }
+
+func (_m *MockOptions) SetIdentifierPool(value ts.IdentifierPool) Options {
+	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
+}
+
+func (_m *MockOptions) IdentifierPool() ts.IdentifierPool {
+	ret := _m.ctrl.Call(_m, "IdentifierPool")
+	ret0, _ := ret[0].(ts.IdentifierPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) IdentifierPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IdentifierPool")
+}

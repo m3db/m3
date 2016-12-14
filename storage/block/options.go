@@ -25,8 +25,9 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -60,7 +61,7 @@ func NewOptions() Options {
 		bytesPool:               pool.NewBytesPool(nil, nil),
 	}
 	o.databaseBlockPool.Init(func() DatabaseBlock {
-		return NewDatabaseBlock(timeZero, nil, o)
+		return NewDatabaseBlock(timeZero, ts.Segment{}, o)
 	})
 	o.encoderPool.Init(func() encoding.Encoder {
 		return encoding.NewNullEncoder()

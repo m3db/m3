@@ -28,12 +28,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
+	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -57,23 +57,16 @@ var (
 
 type dbSeries struct {
 	sync.RWMutex
-	opts             Options
-	id               ts.ID
-	buffer           databaseBuffer
-	blocks           block.DatabaseSeriesBlocks
-	pendingBootstrap []pendingBootstrapDrain
-	bs               bootstrapState
-	pool             DatabaseSeriesPool
-}
-
-type pendingBootstrapDrain struct {
-	start   time.Time
-	encoder encoding.Encoder
+	opts   Options
+	id     ts.ID
+	buffer databaseBuffer
+	blocks block.DatabaseSeriesBlocks
+	bs     bootstrapState
+	pool   DatabaseSeriesPool
 }
 
 type updateBlocksResult struct {
 	expired int
-	sealed  int
 }
 
 // NewDatabaseSeries creates a new database series
@@ -130,7 +123,6 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	if needsBlockUpdate {
 		updateResult := s.updateBlocksWithLock()
 		r.ExpiredBlocks = updateResult.expired
-		r.SealedBlocks = updateResult.sealed
 	}
 	r.ActiveBlocks = s.blocks.Len()
 	s.Unlock()
@@ -147,11 +139,7 @@ func (s *dbSeries) needsBlockUpdateWithRLock() bool {
 	// we should expire the blocks.
 	now := s.opts.ClockOptions().NowFn()()
 	minBlockStart := s.blocks.MinTime()
-	if s.shouldExpire(now, minBlockStart) {
-		return true
-	}
-
-	return !s.blocks.IsSealed()
+	return s.shouldExpire(now, minBlockStart)
 }
 
 func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
@@ -170,36 +158,18 @@ func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
 
 func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 	var (
-		r               updateBlocksResult
-		now             = s.opts.ClockOptions().NowFn()()
-		allBlocks       = s.blocks.AllBlocks()
-		allBlocksSealed = true
+		r         updateBlocksResult
+		now       = s.opts.ClockOptions().NowFn()()
+		allBlocks = s.blocks.AllBlocks()
 	)
 	for blockStart, block := range allBlocks {
 		if s.shouldExpire(now, blockStart) {
 			s.blocks.RemoveBlockAt(blockStart)
 			block.Close()
 			r.expired++
-		} else if block.IsSealed() {
-			continue
-		} else if s.shouldSeal(now, blockStart, block) {
-			block.Seal()
-			r.sealed++
-		} else {
-			allBlocksSealed = false
 		}
 	}
-	if allBlocksSealed {
-		s.blocks.Seal()
-	}
 	return r
-}
-
-func (s *dbSeries) shouldSeal(now, blockStart time.Time, block block.DatabaseBlock) bool {
-	rops := s.opts.RetentionOptions()
-	blockSize := rops.BlockSize()
-	cutoff := now.Add(-rops.BufferPast()).Add(-blockSize).Truncate(blockSize)
-	return !blockStart.After(cutoff)
 }
 
 func (s *dbSeries) IsEmpty() bool {
@@ -379,95 +349,93 @@ func (s *dbSeries) FetchBlocksMetadata(
 	return block.NewFetchBlocksMetadataResult(s.id, res)
 }
 
-func (s *dbSeries) bufferDrained(start time.Time, encoder encoding.Encoder) {
+func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
 	// NB(r): by the very nature of this method executing we have the
 	// lock already. Executing the drain method occurs during a write if the
 	// buffer needs to drain or if tick is called and series explicitly asks
 	// the buffer to drain ready buckets.
-	if s.bs != bootstrapped {
-		s.pendingBootstrap = append(s.pendingBootstrap, pendingBootstrapDrain{
-			start:   start,
-			encoder: encoder,
-		})
-		return
-	}
-
-	if _, ok := s.blocks.BlockAt(start); !ok {
-		// New completed block
-		newBlock := s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		newBlock.Reset(start, encoder)
+	if _, ok := s.blocks.BlockAt(newBlock.StartTime()); !ok {
 		s.blocks.AddBlock(newBlock)
 		return
 	}
-
-	// NB(r): this will occur if after bootstrap we have a partial
-	// block and now the buffer is passing the rest of that block
-	s.drainBufferedEncoderWithLock(s.blocks, start, encoder)
+	if err := s.mergeBlock(s.blocks, newBlock); err != nil {
+		log := s.opts.InstrumentOptions().Logger()
+		log = log.WithFields(xlog.NewLogField("id", s.id.String()))
+		log.Errorf("series error merging blocks: %v", err)
+	}
 }
 
-func (s *dbSeries) drainBufferedEncoderWithLock(
+func (s *dbSeries) mergeBlock(
 	blocks block.DatabaseSeriesBlocks,
-	blockStart time.Time,
-	enc encoding.Encoder,
+	newBlock block.DatabaseBlock,
 ) error {
-	// If enc is empty, do nothing
-	stream := enc.Stream()
-	if stream == nil {
-		return nil
-	}
-	defer stream.Close()
+	blockStart := newBlock.StartTime()
 
-	// If we don't have an existing block, grab a block from the pool
-	// and reset its encoder
-	blopts := s.opts.DatabaseBlockOptions()
-	existing, ok := blocks.BlockAt(blockStart)
+	// If we don't have an existing block just insert the new block
+	existingBlock, ok := blocks.BlockAt(blockStart)
 	if !ok {
-		block := blopts.DatabaseBlockPool().Get()
-		block.Reset(blockStart, enc)
-		blocks.AddBlock(block)
+		blocks.AddBlock(newBlock)
 		return nil
 	}
-
-	var readers [2]io.Reader
-	readers[0] = stream
 
 	ctx := s.opts.ContextPool().Get()
 	defer ctx.Close()
-	reader, err := existing.Stream(ctx)
+
+	// If enc is empty, do nothing
+	newBlockReader, err := newBlock.Stream(ctx)
 	if err != nil {
 		return err
 	}
-	readers[1] = reader
+	if newBlockReader == nil {
+		return nil
+	}
+
+	defer newBlockReader.Close()
+
+	existingBlockReader, err := existingBlock.Stream(ctx)
+	if err != nil {
+		return err
+	}
+	if existingBlockReader == nil {
+		// Existing block has no data
+		blocks.AddBlock(newBlock)
+		return nil
+	}
+
+	defer existingBlockReader.Close()
+
+	var readers [2]io.Reader
+	readers[0] = newBlockReader
+	readers[1] = existingBlockReader
 
 	multiIter := s.opts.MultiReaderIteratorPool().Get()
 	multiIter.Reset(readers[:])
 	defer multiIter.Close()
 
+	blopts := s.opts.DatabaseBlockOptions()
 	encoder := s.opts.EncoderPool().Get()
 	encoder.Reset(blockStart, blopts.DatabaseBlockAllocSize())
 
-	abort := func() {
-		// Return encoder to the pool if we abort draining the stream
-		encoder.Close()
-	}
-
 	for multiIter.Next() {
 		dp, unit, annotation := multiIter.Current()
-
 		err := encoder.Encode(dp, unit, annotation)
 		if err != nil {
-			abort()
+			encoder.Close()
 			return err
 		}
 	}
 	if err := multiIter.Err(); err != nil {
-		abort()
+		encoder.Close()
 		return err
 	}
 
 	block := blopts.DatabaseBlockPool().Get()
-	block.Reset(blockStart, encoder)
+	block.Reset(blockStart, encoder.Discard())
 	blocks.AddBlock(block)
+
+	// Close the existing and new blocks
+	existingBlock.Close()
+	newBlock.Close()
 
 	return nil
 }
@@ -489,11 +457,12 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 	}
 
 	s.bs = bootstrapping
+	existingBlocks := s.blocks
 
 	multiErr := xerrors.NewMultiError()
 	if blocks == nil {
 		// If no data to bootstrap from then fallback to the empty blocks map
-		blocks = s.blocks
+		blocks = existingBlocks
 	} else {
 		// Request the in-memory buffer to drain and reset so that the start times
 		// of the blocks in the buckets are set to the latest valid times
@@ -504,36 +473,47 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 		for t, block := range blocks.AllBlocks() {
 			if !t.Before(min) {
 				if err := s.buffer.Bootstrap(block); err != nil {
-					err = xerrors.NewRenamedError(err, fmt.Errorf(
-						"bootstrap series error occurred for %s: %v", s.id.String(), err))
-					multiErr = multiErr.Add(err)
+					multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
 				}
 				blocks.RemoveBlockAt(t)
 			}
 		}
 	}
 
-	for i := range s.pendingBootstrap {
-		if err := s.drainBufferedEncoderWithLock(
-			blocks,
-			s.pendingBootstrap[i].start,
-			s.pendingBootstrap[i].encoder,
-		); err != nil {
-			err = xerrors.NewRenamedError(err, fmt.Errorf(
-				"bootstrap series error occurred for %s: %v", s.id.String(), err))
-			multiErr = multiErr.Add(err)
+	if existingBlocks != blocks {
+		// If we're overwriting the blocks then merge any existing blocks
+		// already drained
+		for _, existingBlock := range existingBlocks.AllBlocks() {
+			if _, ok := blocks.BlockAt(existingBlock.StartTime()); ok {
+				err := s.mergeBlock(blocks, existingBlock)
+				if err != nil {
+					multiErr = multiErr.Add(s.newBootstrapBlockError(existingBlock, err))
+				}
+			}
 		}
 	}
 
 	s.blocks = blocks
-	s.pendingBootstrap = nil
 	s.bs = bootstrapped
 	s.Unlock()
 
 	return multiErr.FinalError()
 }
 
-func (s *dbSeries) Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error {
+func (s *dbSeries) newBootstrapBlockError(
+	b block.DatabaseBlock,
+	err error,
+) error {
+	msgFmt := "bootstrap series error occurred for %s block at %s: %v"
+	renamed := fmt.Errorf(msgFmt, s.id.String(), b.StartTime().String(), err)
+	return xerrors.NewRenamedError(err, renamed)
+}
+
+func (s *dbSeries) Flush(
+	ctx context.Context,
+	blockStart time.Time,
+	persistFn persist.Fn,
+) error {
 	s.RLock()
 	if s.bs != bootstrapped {
 		s.RUnlock()
@@ -562,7 +542,6 @@ func (s *dbSeries) Close() {
 	s.id.Close()
 	s.buffer.Reset()
 	s.blocks.Close()
-	s.pendingBootstrap = nil
 	s.Unlock()
 	if s.pool != nil {
 		s.pool.Put(s)
@@ -574,7 +553,6 @@ func (s *dbSeries) Reset(id ts.ID) {
 	s.id = s.opts.IdentifierPool().Clone(id)
 	s.buffer.Reset()
 	s.blocks.RemoveAll()
-	s.pendingBootstrap = nil
 	s.bs = bootstrapNotStarted
 	s.Unlock()
 }

@@ -92,7 +92,6 @@ type DatabaseSeries interface {
 type TickResult struct {
 	ActiveBlocks  int
 	ExpiredBlocks int
-	SealedBlocks  int
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool

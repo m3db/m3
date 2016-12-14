@@ -105,7 +105,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 		qsMutex sync.RWMutex
 	)
 	session.newPeerBlocksQueueFn = func(
-		peer hostQueue,
+		peer peer,
 		maxQueueSize int,
 		_ time.Duration,
 		workers xsync.WorkerPool,
@@ -221,8 +221,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 	session := s.(*session)
 
 	var (
-		peerA            = NewMockhostQueue(ctrl)
-		peerB            = NewMockhostQueue(ctrl)
+		peerA            = NewMockpeer(ctrl)
+		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
 		peerBlocksQueues = mockPeerBlocksQueues(peers, opts)
 	)
@@ -264,7 +264,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 	assert.Equal(t, &checksum, perPeer[0].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[0].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA}, perPeer[0].blocks[0].reattempt.attempted)
+	assert.Equal(t, []peer{peerA}, perPeer[0].blocks[0].reattempt.attempted)
 
 	// Assert selection second peer
 	assert.Equal(t, 0, len(perPeer[1].blocks))
@@ -280,8 +280,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 	session := s.(*session)
 
 	var (
-		peerA            = NewMockhostQueue(ctrl)
-		peerB            = NewMockhostQueue(ctrl)
+		peerA            = NewMockpeer(ctrl)
+		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
 		peerBlocksQueues = mockPeerBlocksQueues(peers, opts)
 	)
@@ -325,14 +325,14 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 	assert.Equal(t, &checksums[1], perPeer[0].blocks[0].checksum)
 
 	assert.Equal(t, 2, perPeer[0].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[0].blocks[0].reattempt.attempted)
+	assert.Equal(t, []peer{peerA, peerB}, perPeer[0].blocks[0].reattempt.attempted)
 
 	assert.Equal(t, start.Add(time.Hour*2), perPeer[0].blocks[1].start)
 	assert.Equal(t, int64(1), perPeer[0].blocks[1].size)
 	assert.Equal(t, &checksums[0], perPeer[0].blocks[1].checksum)
 
 	assert.Equal(t, 2, perPeer[0].blocks[1].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[0].blocks[1].reattempt.attempted)
+	assert.Equal(t, []peer{peerA, peerB}, perPeer[0].blocks[1].reattempt.attempted)
 
 	// Assert selection second peer
 	assert.Equal(t, 2, len(perPeer[1].blocks))
@@ -342,14 +342,14 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 	assert.Equal(t, &checksums[0], perPeer[1].blocks[0].checksum)
 
 	assert.Equal(t, 2, perPeer[1].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[1].blocks[0].reattempt.attempted)
+	assert.Equal(t, []peer{peerA, peerB}, perPeer[1].blocks[0].reattempt.attempted)
 
 	assert.Equal(t, start.Add(time.Hour*2), perPeer[1].blocks[1].start)
 	assert.Equal(t, int64(2), perPeer[1].blocks[1].size)
 	assert.Equal(t, &checksums[1], perPeer[1].blocks[1].checksum)
 
 	assert.Equal(t, 2, perPeer[1].blocks[1].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[1].blocks[1].reattempt.attempted)
+	assert.Equal(t, []peer{peerA, peerB}, perPeer[1].blocks[1].reattempt.attempted)
 }
 
 func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testing.T) {
@@ -362,9 +362,9 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 	session := s.(*session)
 
 	var (
-		peerA            = NewMockhostQueue(ctrl)
-		peerB            = NewMockhostQueue(ctrl)
-		peerC            = NewMockhostQueue(ctrl)
+		peerA            = NewMockpeer(ctrl)
+		peerB            = NewMockpeer(ctrl)
+		peerC            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB, peerC)
 		peerBlocksQueues = mockPeerBlocksQueues(peers, opts)
 	)
@@ -413,7 +413,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 	assert.Equal(t, &checksum, perPeer[0].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[0].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA}, perPeer[0].blocks[0].reattempt.attempted)
+	assert.Equal(t, []peer{peerA}, perPeer[0].blocks[0].reattempt.attempted)
 
 	// Assert selection second peer
 	assert.Equal(t, 1, len(perPeer[1].blocks))
@@ -423,7 +423,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 	assert.Equal(t, &checksum, perPeer[1].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[1].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerB}, perPeer[1].blocks[0].reattempt.attempted)
+	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[0].reattempt.attempted)
 
 	// Assert selection third peer
 	assert.Equal(t, 1, len(perPeer[2].blocks))
@@ -433,7 +433,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 	assert.Equal(t, &checksum, perPeer[2].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[2].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerC}, perPeer[2].blocks[0].reattempt.attempted)
+	assert.Equal(t, []peer{peerC}, perPeer[2].blocks[0].reattempt.attempted)
 }
 
 func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemptedPeers(t *testing.T) {
@@ -446,9 +446,9 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 	session := s.(*session)
 
 	var (
-		peerA            = NewMockhostQueue(ctrl)
-		peerB            = NewMockhostQueue(ctrl)
-		peerC            = NewMockhostQueue(ctrl)
+		peerA            = NewMockpeer(ctrl)
+		peerB            = NewMockpeer(ctrl)
+		peerC            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB, peerC)
 		peerBlocksQueues = mockPeerBlocksQueues(peers, opts)
 	)
@@ -462,7 +462,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 		reattempt               = blockMetadataReattempt{
 			attempt:   1,
 			id:        fooID,
-			attempted: []hostQueue{peerA},
+			attempted: []peer{peerA},
 		}
 		perPeer = []*blocksMetadata{
 			&blocksMetadata{
@@ -510,7 +510,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 	assert.Equal(t, &checksum, perPeer[1].blocks[0].checksum)
 
 	assert.Equal(t, 2, perPeer[1].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA, peerB}, perPeer[1].blocks[0].reattempt.attempted)
+	assert.Equal(t, []peer{peerA, peerB}, perPeer[1].blocks[0].reattempt.attempted)
 
 	// Assert selection third peer
 	assert.Equal(t, 0, len(perPeer[2].blocks))
@@ -526,9 +526,9 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	session := s.(*session)
 
 	var (
-		peerA            = NewMockhostQueue(ctrl)
-		peerB            = NewMockhostQueue(ctrl)
-		peerC            = NewMockhostQueue(ctrl)
+		peerA            = NewMockpeer(ctrl)
+		peerB            = NewMockpeer(ctrl)
+		peerC            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB, peerC)
 		peerBlocksQueues = mockPeerBlocksQueues(peers, opts)
 	)
@@ -542,7 +542,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 		reattempt               = blockMetadataReattempt{
 			attempt:   3,
 			id:        fooID,
-			attempted: []hostQueue{peerA, peerB, peerC},
+			attempted: []peer{peerA, peerB, peerC},
 		}
 		perPeer = []*blocksMetadata{
 			&blocksMetadata{
@@ -585,7 +585,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	assert.Equal(t, &checksum, perPeer[0].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[0].blocks[0].reattempt.attempt)
-	assert.Equal(t, []hostQueue{peerA}, perPeer[0].blocks[0].reattempt.attempted)
+	assert.Equal(t, []peer{peerA}, perPeer[0].blocks[0].reattempt.attempted)
 
 	// Assert selection second peer
 	assert.Equal(t, 0, len(perPeer[1].blocks))
@@ -699,11 +699,8 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	assert.NotNil(t, stream)
 
 	// Assert block has data
-	assert.Equal(t, []byte{1, 2, 3}, stream.Segment().Head)
-	assert.Equal(t, []byte(nil), stream.Segment().Tail)
-
-	// Ensure sealed
-	assert.True(t, result.IsSealed())
+	assert.Equal(t, []byte{1, 2}, stream.Segment().Head)
+	assert.Equal(t, []byte{3}, stream.Segment().Tail)
 }
 
 func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
@@ -753,7 +750,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 			assert.NoError(t, encoder.Encode(dp, val.unit, val.annotation))
 			all = append(all, val)
 		}
-		result := encoder.Stream().Segment()
+		result := encoder.Discard()
 		seg := &rpc.Segment{Head: result.Head, Tail: result.Tail}
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
@@ -796,9 +793,6 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	}
 	assert.Equal(t, len(all), asserted)
 	assert.NoError(t, iter.Err())
-
-	// Ensure block sealed
-	assert.True(t, result.IsSealed())
 }
 
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
@@ -823,7 +817,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
 
-func mockPeerBlocksQueues(peers []hostQueue, opts AdminOptions) peerBlocksQueues {
+func mockPeerBlocksQueues(peers []peer, opts AdminOptions) peerBlocksQueues {
 	var (
 		peerQueues peerBlocksQueues
 		workers    = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
@@ -839,8 +833,8 @@ func mockPeerBlocksQueues(peers []hostQueue, opts AdminOptions) peerBlocksQueues
 	return peerQueues
 }
 
-func preparedMockPeers(peers ...*MockhostQueue) []hostQueue {
-	var result []hostQueue
+func preparedMockPeers(peers ...*Mockpeer) []peer {
+	var result []peer
 	for i, peer := range peers {
 		id := fmt.Sprintf("mockpeer%d", i)
 		addr := fmt.Sprintf("%s:9000", id)
@@ -894,6 +888,9 @@ func mockHostQueuesAndClientsForFetchBootstrapBlocks(
 		hostQueue.EXPECT().Host().Return(host).AnyTimes()
 		hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
 		hostQueue.EXPECT().ConnectionPool().Return(connectionPool).AnyTimes()
+		hostQueue.EXPECT().BorrowConnection(gomock.Any()).Do(func(fn withConnectionFn) {
+			fn(client)
+		}).Return(nil).AnyTimes()
 		hostQueue.EXPECT().Close()
 		hostQueues = append(hostQueues, hostQueue)
 		clients = append(clients, client)
@@ -1347,11 +1344,10 @@ func assertEnqueueChannel(
 }
 
 type testEncoder struct {
-	start    time.Time
-	data     []byte
-	writable bool
-	sealed   bool
-	closed   bool
+	start  time.Time
+	data   []byte
+	sealed bool
+	closed bool
 }
 
 func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error {
@@ -1369,17 +1365,22 @@ func (e *testEncoder) Seal() {
 func (e *testEncoder) Reset(t time.Time, capacity int) {
 	e.start = t
 	e.data = nil
-	e.writable = true
 }
 
-func (e *testEncoder) ResetSetData(t time.Time, data []byte, writable bool) {
+func (e *testEncoder) ResetSetData(t time.Time, data []byte) {
 	e.start = t
 	e.data = data
-	e.writable = writable
 }
 
 func (e *testEncoder) Close() {
 	e.closed = true
+}
+
+func (e *testEncoder) Discard() ts.Segment {
+	data := e.data
+	e.closed = true
+	e.data = nil
+	return ts.Segment{Head: data, Tail: nil}
 }
 
 type synchronousWorkerPool struct{}

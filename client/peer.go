@@ -18,22 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package client
 
-type tickResult struct {
-	activeSeries  int
-	expiredSeries int
-	activeBlocks  int
-	expiredBlocks int
-	errors        int
+import "github.com/m3db/m3db/topology"
+
+type sessionPeer struct {
+	source peerSource
+	host   topology.Host
 }
 
-func (r tickResult) merge(other tickResult) tickResult {
-	return tickResult{
-		activeSeries:  r.activeSeries + other.activeSeries,
-		expiredSeries: r.expiredSeries + other.expiredSeries,
-		activeBlocks:  r.activeBlocks + other.activeBlocks,
-		expiredBlocks: r.expiredBlocks + other.expiredBlocks,
-		errors:        r.errors + other.errors,
+func newPeer(source peerSource, host topology.Host) peer {
+	return &sessionPeer{
+		source: source,
+		host:   host,
 	}
+}
+
+func (p *sessionPeer) Host() topology.Host {
+	return p.host
+}
+
+func (p *sessionPeer) BorrowConnection(fn withConnectionFn) error {
+	return p.source.BorrowConnection(p.host.ID(), fn)
 }

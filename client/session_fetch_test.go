@@ -368,7 +368,7 @@ func fulfillTszFetchBatchOps(
 					}
 					encoder.Encode(dp, value.unit, value.annotation)
 				}
-				seg := encoder.Stream().Segment()
+				seg := encoder.Discard()
 				op.completionFns[i]([]*rpc.Segments{&rpc.Segments{
 					Merged: &rpc.Segment{Head: seg.Head, Tail: seg.Tail},
 				}}, nil)

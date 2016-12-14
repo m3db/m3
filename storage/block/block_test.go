@@ -28,17 +28,15 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-func testDatabaseBlock(ctrl *gomock.Controller) (*dbBlock, *encoding.MockEncoder) {
+func testDatabaseBlock(ctrl *gomock.Controller) *dbBlock {
 	opts := NewOptions()
-	encoder := encoding.NewMockEncoder(ctrl)
-	b := NewDatabaseBlock(time.Now(), encoder, opts).(*dbBlock)
-	return b, encoder
+	b := NewDatabaseBlock(time.Now(), ts.Segment{}, opts).(*dbBlock)
+	return b
 }
 
 func testDatabaseSeriesBlocks() *databaseSeriesBlocks {
@@ -51,7 +49,7 @@ func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks 
 	blocks := testDatabaseSeriesBlocks()
 	for _, timestamp := range times {
 		block := opts.DatabaseBlockPool().Get()
-		block.Reset(timestamp, nil)
+		block.Reset(timestamp, ts.Segment{})
 		blocks.AddBlock(block)
 	}
 	return blocks
@@ -79,27 +77,6 @@ func closeTestDatabaseBlock(t *testing.T, block *dbBlock) {
 	}
 }
 
-func TestDatabaseBlockWriteToClosedBlock(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	block, encoder := testDatabaseBlock(ctrl)
-	encoder.EXPECT().Close()
-	closeTestDatabaseBlock(t, block)
-	err := block.Write(time.Now(), 1.0, xtime.Second, nil)
-	require.Equal(t, errWriteToClosedBlock, err)
-}
-
-func TestDatabaseBlockWriteToSealedBlock(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	block, _ := testDatabaseBlock(ctrl)
-	block.sealed = true
-	err := block.Write(time.Now(), 1.0, xtime.Second, nil)
-	require.Equal(t, errWriteToSealedBlock, err)
-}
-
 func TestDatabaseBlockReadFromClosedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -107,47 +84,17 @@ func TestDatabaseBlockReadFromClosedBlock(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	block, encoder := testDatabaseBlock(ctrl)
-	encoder.EXPECT().Close()
+	block := testDatabaseBlock(ctrl)
 	closeTestDatabaseBlock(t, block)
 	_, err := block.Stream(ctx)
 	require.Equal(t, errReadFromClosedBlock, err)
 }
 
-func TestDatabaseBlockReadFromSealedBlock(t *testing.T) {
+func TestDatabaseBlockChecksum(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	block, _ := testDatabaseBlock(ctrl)
-	block.sealed = true
-	segment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
-	block.segment = segment
-	r, err := block.Stream(ctx)
-	require.NoError(t, err)
-	require.Equal(t, segment, r.Segment())
-}
-
-func TestDatabaseBlockChecksumUnsealed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	block, _ := testDatabaseBlock(ctrl)
-	block.sealed = false
-	segment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
-	block.segment = segment
-
-	require.Nil(t, block.Checksum())
-}
-
-func TestDatabaseBlockChecksumSealed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	block, _ := testDatabaseBlock(ctrl)
-	block.sealed = true
+	block := testDatabaseBlock(ctrl)
 	block.checksum = uint32(10)
 
 	require.Equal(t, block.checksum, *block.Checksum())
@@ -162,29 +109,27 @@ type testDatabaseBlockAssertionFn func(t *testing.T, block *dbBlock)
 func testDatabaseBlockWithDependentContext(
 	t *testing.T,
 	f testDatabaseBlockFn,
-	ef testDatabaseBlockExpectedFn,
 	af testDatabaseBlockAssertionFn,
 ) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	block, encoder := testDatabaseBlock(ctrl)
+	block := testDatabaseBlock(ctrl)
 	depCtx := block.opts.ContextPool().Get()
 
 	// register a dependent context here
-	encoder.EXPECT().Stream().Return(nil)
 	_, err := block.Stream(depCtx)
 	require.NoError(t, err)
 
 	var finished uint32
-	block.ctx.RegisterCloser(context.CloserFn(func() { atomic.StoreUint32(&finished, 1) }))
+	block.ctx.RegisterCloser(context.CloserFn(func() {
+		atomic.StoreUint32(&finished, 1)
+	}))
 	f(block)
 
 	// sleep a bit to let the goroutine run
 	time.Sleep(200 * time.Millisecond)
 	require.Equal(t, uint32(0), atomic.LoadUint32(&finished))
-
-	ef(encoder)
 
 	// now closing the dependent context
 	depCtx.Close()
@@ -196,42 +141,15 @@ func testDatabaseBlockWithDependentContext(
 }
 
 func TestDatabaseBlockResetNormalWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.Reset(time.Now(), nil) }
-	ef := func(encoder *encoding.MockEncoder) { encoder.EXPECT().Close() }
+	f := func(block *dbBlock) { block.Reset(time.Now(), ts.Segment{}) }
 	af := func(t *testing.T, block *dbBlock) { require.False(t, block.closed) }
-	testDatabaseBlockWithDependentContext(t, f, ef, af)
-}
-
-func TestDatabaseBlockResetSealedWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.sealed = true; block.Reset(time.Now(), nil) }
-	ef := func(encoder *encoding.MockEncoder) {}
-	af := func(t *testing.T, block *dbBlock) { require.False(t, block.closed) }
-	testDatabaseBlockWithDependentContext(t, f, ef, af)
+	testDatabaseBlockWithDependentContext(t, f, af)
 }
 
 func TestDatabaseBlockCloseNormalWithDependentContext(t *testing.T) {
 	f := func(block *dbBlock) { block.Close() }
-	ef := func(encoder *encoding.MockEncoder) { encoder.EXPECT().Close() }
 	af := func(t *testing.T, block *dbBlock) { require.True(t, block.closed) }
-	testDatabaseBlockWithDependentContext(t, f, ef, af)
-}
-
-func TestDatabaseBlockCloseSealedWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.sealed = true; block.Close() }
-	ef := func(encoder *encoding.MockEncoder) {}
-	af := func(t *testing.T, block *dbBlock) { require.True(t, block.closed) }
-	testDatabaseBlockWithDependentContext(t, f, ef, af)
-}
-
-func TestDatabaseSeriesBlocksSeal(t *testing.T) {
-	blocks := testDatabaseSeriesBlocksWithTimes(nil)
-	require.True(t, blocks.IsSealed())
-
-	blocks.sealed = false
-	require.False(t, blocks.IsSealed())
-
-	blocks.Seal()
-	require.True(t, blocks.IsSealed())
+	testDatabaseBlockWithDependentContext(t, f, af)
 }
 
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
@@ -239,7 +157,6 @@ func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
 	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)}
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
 	validateBlocks(t, blocks, blockTimes[4], blockTimes[2], blockTimes)
-	require.False(t, blocks.IsSealed())
 }
 
 func TestDatabaseSeriesBlocksAddSeries(t *testing.T) {
@@ -270,20 +187,6 @@ func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
 	require.False(t, exists)
 }
 
-func TestDatabaseSeriesBlocksGetBlockOrAdd(t *testing.T) {
-	opts := NewOptions()
-	blocks := testDatabaseSeriesBlocks()
-	block := opts.DatabaseBlockPool().Get()
-	now := time.Now()
-	block.Reset(now, nil)
-	blocks.AddBlock(block)
-	res := blocks.BlockOrAdd(now)
-	require.True(t, res == block)
-	blockStart := now.Add(time.Hour)
-	blocks.BlockOrAdd(blockStart)
-	validateBlocks(t, blocks, now, blockStart, []time.Time{now, blockStart})
-}
-
 func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
@@ -310,8 +213,8 @@ func TestDatabaseSeriesBlocksRemoveAll(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
 	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
-	require.False(t, blocks.IsSealed())
+	require.Equal(t, len(blockTimes), len(blocks.AllBlocks()))
 
 	blocks.RemoveAll()
-	require.True(t, blocks.IsSealed())
+	require.Equal(t, 0, len(blocks.AllBlocks()))
 }
