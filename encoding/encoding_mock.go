@@ -74,14 +74,6 @@ func (_mr *_MockEncoderRecorder) Stream() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream")
 }
 
-func (_m *MockEncoder) Seal() {
-	_m.ctrl.Call(_m, "Seal")
-}
-
-func (_mr *_MockEncoderRecorder) Seal() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Seal")
-}
-
 func (_m *MockEncoder) Reset(t time0.Time, capacity int) {
 	_m.ctrl.Call(_m, "Reset", t, capacity)
 }
@@ -90,12 +82,12 @@ func (_mr *_MockEncoderRecorder) Reset(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1)
 }
 
-func (_m *MockEncoder) ResetSetData(t time0.Time, data []byte, writable bool) {
-	_m.ctrl.Call(_m, "ResetSetData", t, data, writable)
+func (_m *MockEncoder) ResetSetData(t time0.Time, data []byte) {
+	_m.ctrl.Call(_m, "ResetSetData", t, data)
 }
 
-func (_mr *_MockEncoderRecorder) ResetSetData(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ResetSetData", arg0, arg1, arg2)
+func (_mr *_MockEncoderRecorder) ResetSetData(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ResetSetData", arg0, arg1)
 }
 
 func (_m *MockEncoder) Close() {
@@ -104,6 +96,16 @@ func (_m *MockEncoder) Close() {
 
 func (_mr *_MockEncoderRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+func (_m *MockEncoder) Discard() ts.Segment {
+	ret := _m.ctrl.Call(_m, "Discard")
+	ret0, _ := ret[0].(ts.Segment)
+	return ret0
+}
+
+func (_mr *_MockEncoderRecorder) Discard() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Discard")
 }
 
 // Mock of Options interface

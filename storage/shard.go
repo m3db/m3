@@ -321,7 +321,6 @@ func (s *dbShard) tickAndExpire(
 		}
 		r.activeBlocks += result.ActiveBlocks
 		r.expiredBlocks += result.ExpiredBlocks
-		r.sealedBlocks += result.SealedBlocks
 		i++
 		// Continue
 		return true

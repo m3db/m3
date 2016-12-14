@@ -1889,15 +1889,10 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	switch {
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
-		size := len(segments.Merged.Head) + len(segments.Merged.Tail)
-		data := r.bytesPool.Get(size)[:size]
-		n := copy(data, segments.Merged.Head)
-		copy(data[n:], segments.Merged.Tail)
-
-		encoder := r.encoderPool.Get()
-		encoder.ResetSetData(start, data, false)
-
-		result.Reset(start, encoder)
+		result.Reset(start, ts.Segment{
+			Head: segments.Merged.Head,
+			Tail: segments.Merged.Tail,
+		})
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
@@ -1912,25 +1907,13 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 		if err != nil {
 			return err
 		}
-		result.Reset(start, encoder)
+
+		// Set the block data
+		result.Reset(start, encoder.Discard())
 
 	default:
 		return errSessionBadBlockResultFromPeer
 
-	}
-
-	// No longer need the encoder, seal the block
-	result.Seal()
-
-	resultCtx := r.contextPool.Get()
-	defer resultCtx.Close()
-
-	resultReader, err := result.Stream(resultCtx)
-	if err != nil {
-		return err
-	}
-	if resultReader == nil {
-		return nil
 	}
 
 	for {
@@ -1961,16 +1944,24 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 			continue
 		}
 
+		resultReader, err := result.Stream(tmpCtx)
+		if err != nil {
+			return err
+		}
+		if resultReader == nil {
+			return nil
+		}
+
 		readers := []io.Reader{currReader, resultReader}
 		encoder, err := r.mergeReaders(start, readers)
-		tmpCtx.BlockingClose()
+
+		tmpCtx.Close()
 
 		if err != nil {
 			return err
 		}
 
-		result.Reset(start, encoder)
-		result.Seal()
+		result.Reset(start, encoder.Discard())
 	}
 
 	return nil

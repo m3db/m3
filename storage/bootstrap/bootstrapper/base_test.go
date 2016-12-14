@@ -70,7 +70,7 @@ func shardResult(entries ...testBlockEntry) bootstrap.ShardResult {
 	res := bootstrap.NewShardResult(0, opts)
 	for _, entry := range entries {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		block.Reset(entry.t, nil)
+		block.Reset(entry.t, ts.Segment{})
 		res.AddBlock(ts.StringID(entry.id), block)
 	}
 	return res

@@ -30,7 +30,6 @@ import (
 	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
 	pool "github.com/m3db/m3x/pool"
-	time0 "github.com/m3db/m3x/time"
 	time "time"
 )
 
@@ -266,16 +265,6 @@ func (_m *MockDatabaseBlock) EXPECT() *_MockDatabaseBlockRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDatabaseBlock) IsSealed() bool {
-	ret := _m.ctrl.Call(_m, "IsSealed")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-func (_mr *_MockDatabaseBlockRecorder) IsSealed() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsSealed")
-}
-
 func (_m *MockDatabaseBlock) StartTime() time.Time {
 	ret := _m.ctrl.Call(_m, "StartTime")
 	ret0, _ := ret[0].(time.Time)
@@ -296,16 +285,6 @@ func (_mr *_MockDatabaseBlockRecorder) Checksum() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
 }
 
-func (_m *MockDatabaseBlock) Write(timestamp time.Time, value float64, unit time0.Unit, annotation ts.Annotation) error {
-	ret := _m.ctrl.Call(_m, "Write", timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockDatabaseBlockRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3)
-}
-
 func (_m *MockDatabaseBlock) Stream(blocker context.Context) (io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "Stream", blocker)
 	ret0, _ := ret[0].(io.SegmentReader)
@@ -317,8 +296,8 @@ func (_mr *_MockDatabaseBlockRecorder) Stream(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0)
 }
 
-func (_m *MockDatabaseBlock) Reset(startTime time.Time, encoder encoding.Encoder) {
-	_m.ctrl.Call(_m, "Reset", startTime, encoder)
+func (_m *MockDatabaseBlock) Reset(startTime time.Time, segment ts.Segment) {
+	_m.ctrl.Call(_m, "Reset", startTime, segment)
 }
 
 func (_mr *_MockDatabaseBlockRecorder) Reset(arg0, arg1 interface{}) *gomock.Call {
@@ -331,14 +310,6 @@ func (_m *MockDatabaseBlock) Close() {
 
 func (_mr *_MockDatabaseBlockRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
-}
-
-func (_m *MockDatabaseBlock) Seal() {
-	_m.ctrl.Call(_m, "Seal")
-}
-
-func (_mr *_MockDatabaseBlockRecorder) Seal() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Seal")
 }
 
 // Mock of DatabaseSeriesBlocks interface
@@ -380,24 +351,6 @@ func (_m *MockDatabaseSeriesBlocks) Len() int {
 
 func (_mr *_MockDatabaseSeriesBlocksRecorder) Len() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Len")
-}
-
-func (_m *MockDatabaseSeriesBlocks) IsSealed() bool {
-	ret := _m.ctrl.Call(_m, "IsSealed")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-func (_mr *_MockDatabaseSeriesBlocksRecorder) IsSealed() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsSealed")
-}
-
-func (_m *MockDatabaseSeriesBlocks) Seal() {
-	_m.ctrl.Call(_m, "Seal")
-}
-
-func (_mr *_MockDatabaseSeriesBlocksRecorder) Seal() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Seal")
 }
 
 func (_m *MockDatabaseSeriesBlocks) AddBlock(block DatabaseBlock) {
@@ -445,16 +398,6 @@ func (_m *MockDatabaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
 
 func (_mr *_MockDatabaseSeriesBlocksRecorder) BlockAt(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockAt", arg0)
-}
-
-func (_m *MockDatabaseSeriesBlocks) BlockOrAdd(t time.Time) DatabaseBlock {
-	ret := _m.ctrl.Call(_m, "BlockOrAdd", t)
-	ret0, _ := ret[0].(DatabaseBlock)
-	return ret0
-}
-
-func (_mr *_MockDatabaseSeriesBlocksRecorder) BlockOrAdd(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockOrAdd", arg0)
 }
 
 func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {

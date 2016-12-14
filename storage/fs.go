@@ -55,7 +55,10 @@ type fileSystemManager struct {
 	processed map[time.Time]struct{} // times we have already processed
 }
 
-func newFileSystemManager(database database, scope tally.Scope) (databaseFileSystemManager, error) {
+func newFileSystemManager(
+	database database,
+	scope tally.Scope,
+) (databaseFileSystemManager, error) {
 	opts := database.Options()
 	fileOpts := opts.FileOpOptions()
 	if err := fileOpts.Validate(); err != nil {
@@ -69,7 +72,8 @@ func newFileSystemManager(database database, scope tally.Scope) (databaseFileSys
 	if maxJitter := fileOpts.Jitter(); maxJitter > 0 {
 		nowFn := opts.ClockOptions().NowFn()
 		src := rand.NewSource(nowFn().UnixNano())
-		jitter = time.Duration(float64(maxJitter) * (float64(src.Int63()) / float64(math.MaxInt64)))
+		jitter = time.Duration(float64(maxJitter) *
+			(float64(src.Int63()) / float64(math.MaxInt64)))
 	}
 
 	return &fileSystemManager{

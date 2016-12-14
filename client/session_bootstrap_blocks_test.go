@@ -699,11 +699,8 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	assert.NotNil(t, stream)
 
 	// Assert block has data
-	assert.Equal(t, []byte{1, 2, 3}, stream.Segment().Head)
-	assert.Equal(t, []byte(nil), stream.Segment().Tail)
-
-	// Ensure sealed
-	assert.True(t, result.IsSealed())
+	assert.Equal(t, []byte{1, 2}, stream.Segment().Head)
+	assert.Equal(t, []byte{3}, stream.Segment().Tail)
 }
 
 func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
@@ -753,7 +750,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 			assert.NoError(t, encoder.Encode(dp, val.unit, val.annotation))
 			all = append(all, val)
 		}
-		result := encoder.Stream().Segment()
+		result := encoder.Discard()
 		seg := &rpc.Segment{Head: result.Head, Tail: result.Tail}
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
@@ -796,9 +793,6 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	}
 	assert.Equal(t, len(all), asserted)
 	assert.NoError(t, iter.Err())
-
-	// Ensure block sealed
-	assert.True(t, result.IsSealed())
 }
 
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
@@ -1350,11 +1344,10 @@ func assertEnqueueChannel(
 }
 
 type testEncoder struct {
-	start    time.Time
-	data     []byte
-	writable bool
-	sealed   bool
-	closed   bool
+	start  time.Time
+	data   []byte
+	sealed bool
+	closed bool
 }
 
 func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error {
@@ -1372,17 +1365,22 @@ func (e *testEncoder) Seal() {
 func (e *testEncoder) Reset(t time.Time, capacity int) {
 	e.start = t
 	e.data = nil
-	e.writable = true
 }
 
-func (e *testEncoder) ResetSetData(t time.Time, data []byte, writable bool) {
+func (e *testEncoder) ResetSetData(t time.Time, data []byte) {
 	e.start = t
 	e.data = data
-	e.writable = writable
 }
 
 func (e *testEncoder) Close() {
 	e.closed = true
+}
+
+func (e *testEncoder) Discard() ts.Segment {
+	data := e.data
+	e.closed = true
+	e.data = nil
+	return ts.Segment{Head: data, Tail: nil}
 }
 
 type synchronousWorkerPool struct{}

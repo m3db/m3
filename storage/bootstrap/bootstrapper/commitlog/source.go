@@ -185,7 +185,7 @@ func (s *commitLogSource) Read(
 					emptyErrs++
 					continue
 				} else if len(unmergedBlock) == 1 {
-					block.Reset(start, unmergedBlock[0].enc)
+					block.Reset(start, unmergedBlock[0].enc.Discard())
 				} else {
 					readers := make([]io.Reader, len(unmergedBlock))
 					for i := range unmergedBlock {
@@ -223,7 +223,7 @@ func (s *commitLogSource) Read(
 						continue
 					}
 
-					block.Reset(start, enc)
+					block.Reset(start, enc.Discard())
 				}
 				blocks.AddBlock(block)
 			}
