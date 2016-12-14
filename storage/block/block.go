@@ -91,7 +91,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 	if !b.closed {
 		// Return resources to pool if was not closed before reset
-		b.Close()
+		b.ctx.Close()
 	}
 	b.ctx = b.opts.ContextPool().Get()
 	b.start = start
