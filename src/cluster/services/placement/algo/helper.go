@@ -421,8 +421,8 @@ func (h *instanceHeap) Pop() interface{} {
 // MarkShardAvailable marks the state of a shard to available
 func MarkShardAvailable(p services.ServicePlacement, instanceID string, shardID uint32) (services.ServicePlacement, error) {
 	p = clonePlacement(p)
-	instance := p.Instance(instanceID)
-	if instance == nil {
+	instance, exist := p.Instance(instanceID)
+	if !exist {
 		return nil, fmt.Errorf("instance %s does not exist in placement", instanceID)
 	}
 
@@ -443,8 +443,8 @@ func MarkShardAvailable(p services.ServicePlacement, instanceID string, shardID 
 		return p, nil
 	}
 
-	sourceInstance := p.Instance(sourceID)
-	if sourceInstance == nil {
+	sourceInstance, exist := p.Instance(sourceID)
+	if !exist {
 		return nil, fmt.Errorf("source instance %s for shard %d does not exist in placement", sourceID, shardID)
 	}
 
@@ -478,7 +478,7 @@ func removeInstance(list []services.PlacementInstance, instanceID string) []serv
 }
 
 func addInstanceToPlacement(p services.ServicePlacement, i services.PlacementInstance, allowEmpty bool) (services.ServicePlacement, services.PlacementInstance, error) {
-	if p.Instance(i.ID()) != nil {
+	if _, exist := p.Instance(i.ID()); exist {
 		return nil, nil, errAddingInstanceAlreadyExist
 	}
 	instance := cloneInstance(i)
@@ -490,19 +490,16 @@ func addInstanceToPlacement(p services.ServicePlacement, i services.PlacementIns
 }
 
 func removeInstanceFromPlacement(p services.ServicePlacement, id string) (services.ServicePlacement, services.PlacementInstance, error) {
-	leavingInstance := p.Instance(id)
-	if leavingInstance == nil {
-		return nil, nil, errInstanceAbsent
+	leavingInstance, exist := p.Instance(id)
+	if !exist {
+		return nil, nil, fmt.Errorf("instance %s does not exist in placement", id)
 	}
 
-	var instances []services.PlacementInstance
-	for i, instance := range p.Instances() {
-		if instance.ID() == leavingInstance.ID() {
-			instances = append(p.Instances()[:i], p.Instances()[i+1:]...)
-			break
-		}
-	}
-	return placement.NewPlacement(instances, p.Shards(), p.ReplicaFactor()), leavingInstance, nil
+	return placement.NewPlacement(
+		removeInstance(p.Instances(), id),
+		p.Shards(),
+		p.ReplicaFactor(),
+	), leavingInstance, nil
 }
 
 func clonePlacement(p services.ServicePlacement) services.ServicePlacement {

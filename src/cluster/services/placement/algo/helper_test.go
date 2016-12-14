@@ -251,10 +251,12 @@ func TestCopy(t *testing.T) {
 	assert.Equal(t, s.Shards(), copy.Shards())
 	assert.Equal(t, s.ReplicaFactor(), copy.ReplicaFactor())
 	for _, i := range s.Instances() {
-		assert.Equal(t, copy.Instance(i.ID()), i)
+		copiedInstance, exist := copy.Instance(i.ID())
+		assert.True(t, exist)
+		assert.Equal(t, copiedInstance, i)
 		// make sure they are different objects, updating one won't update the other
 		i.Shards().Add(shard.NewShard(100).SetState(shard.Available))
-		assert.NotEqual(t, copy.Instance(i.ID()), i)
+		assert.NotEqual(t, copiedInstance, i)
 	}
 }
 

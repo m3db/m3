@@ -67,16 +67,19 @@ func TestPlacement(t *testing.T) {
 	p := NewPlacement(instances, ids, 3)
 	assert.NoError(t, Validate(p))
 
-	i := p.Instance("i6")
+	i, exist := p.Instance("i6")
+	assert.True(t, exist)
 	assert.Equal(t, i6, i)
-	i = p.Instance("not_exist")
-	assert.Nil(t, i)
+	_, exist = p.Instance("not_exist")
+	assert.False(t, exist)
 
 	assert.Equal(t, 6, p.NumInstances())
 	assert.Equal(t, 3, p.ReplicaFactor())
 	assert.Equal(t, ids, p.Shards())
 	assert.Equal(t, 6, p.NumShards())
-	assert.Equal(t, instances, p.Instances())
+	is := p.Instances()
+	sort.Sort(ByIDAscending(is))
+	assert.Equal(t, instances, is)
 }
 
 func TestValidateGood(t *testing.T) {

@@ -137,7 +137,7 @@ func (ps placementService) RemoveInstance(instanceID string) (services.ServicePl
 		return nil, err
 	}
 
-	if p.Instance(instanceID) == nil {
+	if _, exist := p.Instance(instanceID); !exist {
 		return nil, errInstanceAbsent
 	}
 
@@ -161,8 +161,8 @@ func (ps placementService) ReplaceInstance(
 		return nil, err
 	}
 
-	leavingInstance := p.Instance(leavingInstanceID)
-	if leavingInstance == nil {
+	leavingInstance, exist := p.Instance(leavingInstanceID)
+	if !exist {
 		return nil, errInstanceAbsent
 	}
 
@@ -206,8 +206,8 @@ func (ps placementService) MarkInstanceAvailable(instanceID string) error {
 		return err
 	}
 
-	instance := p.Instance(instanceID)
-	if instance == nil {
+	instance, exist := p.Instance(instanceID)
+	if !exist {
 		return fmt.Errorf("could not find instance %s in placement", instanceID)
 	}
 	for _, s := range instance.Shards().All() {
@@ -339,7 +339,7 @@ func (ps placementService) getNewInstancesToPlacement(
 ) []services.PlacementInstance {
 	var instances []services.PlacementInstance
 	for _, h := range candidates {
-		if p.Instance(h.ID()) == nil {
+		if _, exist := p.Instance(h.ID()); !exist {
 			instances = append(instances, h)
 		}
 	}

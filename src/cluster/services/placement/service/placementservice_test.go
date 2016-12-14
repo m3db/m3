@@ -90,8 +90,10 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 	s, err := p.Placement()
 	assert.NoError(t, err)
 	assert.Equal(t, 3, s.NumInstances())
-	assert.NotNil(t, s.Instance("i21"))
-	assert.NotNil(t, s.Instance("i4"))
+	_, exist := s.Instance("i21")
+	assert.True(t, exist)
+	_, exist = s.Instance("i4")
+	assert.True(t, exist)
 
 	_, err = p.AddInstance([]services.PlacementInstance{i1})
 	assert.NoError(t, err)
@@ -116,7 +118,8 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 	assert.NoError(t, err)
 	s, err = p.Placement()
 	assert.NoError(t, err)
-	assert.NotNil(t, s.Instance("i41")) // instance added from least weighted rack
+	_, exist = s.Instance("i41") // instance added from least weighted rack
+	assert.True(t, exist)
 }
 
 func TestBadInitialPlacement(t *testing.T) {

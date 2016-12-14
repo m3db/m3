@@ -175,7 +175,7 @@ type ServicePlacement interface {
 	NumInstances() int
 
 	// Instance returns the Instance for the requested id
-	Instance(id string) PlacementInstance
+	Instance(id string) (PlacementInstance, bool)
 
 	// ReplicaFactor returns the replica factor in the placement
 	ReplicaFactor() int
