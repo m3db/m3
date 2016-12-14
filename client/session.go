@@ -390,9 +390,10 @@ func (s *session) BorrowConnection(hostID string, fn withConnectionFn) error {
 
 func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, error) {
 	// NB(r): we leave existing writes in the host queues to finish
-	// as they are already enroute to their destination, this is ok
-	// as part of adding a host is to add another replica for the
-	// shard set and only once bootstrapped decomission the old node
+	// as they are already enroute to their destination. This is an edge case
+	// that might result in leaving nodes counting towards quorum, but fixing it
+	// would result in additional chatter.
+
 	start := s.nowFn()
 
 	hosts := topoMap.Hosts()

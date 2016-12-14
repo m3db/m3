@@ -32,56 +32,18 @@ import (
 )
 
 func TestWriteToAvailableShards(t *testing.T) {
-	success, halfSuccess := shardStateWriteTest(t,
-		[]shard.State{
-			shard.Available,
-			shard.Available,
-			shard.Available,
-		})
-
-	assert.Equal(t, int32(sessionTestReplicas), success)
-	assert.Equal(t, int32(2*sessionTestReplicas), halfSuccess)
+	assert.Equal(t, int32(sessionTestReplicas), shardStateWriteTest(t, shard.Available))
 }
 
 func TestWriteToInitializingShards(t *testing.T) {
-	success, halfSuccess := shardStateWriteTest(t,
-		[]shard.State{
-			shard.Initializing,
-			shard.Initializing,
-			shard.Initializing,
-		})
-
-	assert.Equal(t, int32(sessionTestReplicas/2), success)
-	assert.Equal(t, int32(sessionTestReplicas), halfSuccess)
+	assert.Equal(t, int32(0), shardStateWriteTest(t, shard.Initializing))
 }
 
 func TestWriteToLeavingShards(t *testing.T) {
-	success, halfSuccess := shardStateWriteTest(t,
-		[]shard.State{
-			shard.Leaving,
-			shard.Leaving,
-			shard.Leaving,
-		})
-
-	assert.Equal(t, int32(sessionTestReplicas/2), success)
-	assert.Equal(t, int32(sessionTestReplicas), halfSuccess)
+	assert.Equal(t, int32(0), shardStateWriteTest(t, shard.Leaving))
 }
 
-func TestWriteToInitializingAndLeavingShards(t *testing.T) {
-	success, halfSuccess := shardStateWriteTest(t,
-		[]shard.State{
-			shard.Initializing,
-			shard.Available,
-			shard.Leaving,
-		})
-
-	assert.Equal(t, int32(2), success)
-	assert.Equal(t, int32(4), halfSuccess)
-}
-
-func shardStateWriteTest(t *testing.T, states []shard.State) (success, halfSuccess int32) {
-	require.True(t, len(states) == sessionTestReplicas)
-
+func shardStateWriteTest(t *testing.T, state shard.State) int32 {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -95,6 +57,8 @@ func shardStateWriteTest(t *testing.T, states []shard.State) (success, halfSucce
 
 	s.Open()
 	defer s.Close()
+
+	setShardStates(t, s, state)
 
 	wState := getWriteState(s)
 	for i := 0; i < sessionTestReplicas+1; i++ {
@@ -111,22 +75,18 @@ func shardStateWriteTest(t *testing.T, states []shard.State) (success, halfSucce
 	}()
 
 	// Callbacks
-	callback := func(idx int) {
-		setShardStates(t, s, states[idx])
-		completionFn(defaultTestHostName(), nil)        // maintain session state
-		wState.completionFn(defaultTestHostName(), nil) // for the test
-	}
 
 	enqueueWg.Wait()
 	require.True(t, s.topoMap.Replicas() == sessionTestReplicas)
 	for i := 0; i < s.topoMap.Replicas(); i++ {
-		callback(i)
+		completionFn(defaultTestHostName(), nil)        // maintain session state
+		wState.completionFn(defaultTestHostName(), nil) // for the test
 	}
 
 	// Wait for write to complete
 	writeWg.Wait()
 
-	return wState.successful(), wState.halfSuccess
+	return wState.success
 }
 
 func getWriteState(s *session) *writeState {

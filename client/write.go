@@ -23,7 +23,6 @@ package client
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/generated/thrift/rpc"
@@ -105,7 +104,7 @@ type writeState struct {
 	topoMap           topology.Map
 	op                *writeOp
 	majority, pending int32
-	halfSuccess       int32
+	success           int32
 	errors            []error
 
 	queues []hostQueue
@@ -121,10 +120,12 @@ func (w *writeState) reset() {
 func (w *writeState) close() {
 	w.session.writeOpPool.Put(w.op)
 
-	w.op, w.majority, w.pending, w.halfSuccess = nil, 0, 0, 0
+	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
+
 	for i := range w.errors {
 		w.errors[i] = nil
 	}
+
 	w.errors = w.errors[:0]
 	for i := range w.queues {
 		w.queues[i] = nil
@@ -134,74 +135,32 @@ func (w *writeState) close() {
 	w.session.writeStatePool.Put(w)
 }
 
-func (w *writeState) addError(err error) {
-	w.Lock()
-	w.errors = append(w.errors, err)
-	w.Unlock()
-}
-
-// todo@bl - modify comment on what happens to inflight writes
 func (w *writeState) completionFn(result interface{}, err error) {
-	var (
-		successful int32
-		remaining  = atomic.AddInt32(&w.pending, -1)
-		hostID     = result.(string)
-		// NB(bl) panic on invalid result, it indicates a bug in the code
-	)
-
-	if err != nil {
-		w.addError(err)
-	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
-		w.addError(fmt.Errorf("Missing host shard in writeState completionFn: %s", hostID))
-	} else if shardState, err :=
-		hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
-		w.addError(fmt.Errorf("Missing shard %d in host %s", w.op.shardID, hostID))
-	} else {
-		// NB(bl): We use one variable, halfSuccess, to avoid atomically
-		// reading and editing multiple vars. success = halfSuccess/2
-
-		// Each successful write to an available node increases halfSuccess by 2
-		// (i.e. increases success by one). Each successful write to an
-		// initializing or leaving node increases halfSuccess by 1 (i.e. success
-		// goes up by one if and only if both nodes are written to.)
-
-		var addToSuccess int32
-
-		if shardState == shard.Available {
-			addToSuccess = 2
-		} else {
-			addToSuccess = 1
-		}
-
-		successful = atomic.AddInt32(&w.halfSuccess, addToSuccess) / 2
-
-	}
+	hostID := result.(string)
+	// NB(bl) panic on invalid result, it indicates a bug in the code
 
 	w.Lock()
+	w.pending--
 
 	if err != nil {
 		w.errors = append(w.errors, err)
+	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
+		w.errors = append(w.errors, fmt.Errorf("Missing host shard in writeState completionFn: %s", hostID))
+	} else if shardState, err :=
+		hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
+		w.errors = append(w.errors, fmt.Errorf("Missing shard %d in host %s", w.op.shardID, hostID))
+	} else if shardState == shard.Available {
+		// NB(bl): only count writes to available shards towards success
+		w.success++
 	}
 
-	switch w.session.writeLevel {
-	case topology.ConsistencyLevelOne:
-		if successful > 0 || remaining == 0 {
-			w.Signal()
-		}
-	case topology.ConsistencyLevelMajority:
-		if successful >= w.majority || remaining == 0 {
-			w.Signal()
-		}
-	case topology.ConsistencyLevelAll:
-		if remaining == 0 {
-			w.Signal()
-		}
+	wLevel := w.session.writeLevel
+	if w.pending == 0 ||
+		(w.success >= w.majority && wLevel == topology.ConsistencyLevelMajority) ||
+		(w.success > 0 && wLevel == topology.ConsistencyLevelOne) {
+		w.Signal()
 	}
 
 	w.Unlock()
 	w.decRef()
-}
-
-func (w *writeState) successful() int32 {
-	return atomic.LoadInt32(&w.halfSuccess) / 2
 }
