@@ -401,24 +401,26 @@ func (s *dbSeries) mergeBlock(
 	defer ctx.Close()
 
 	// If enc is empty, do nothing
-	stream, err := newBlock.Stream(ctx)
+	newBlockReader, err := newBlock.Stream(ctx)
 	if err != nil {
 		return err
 	}
-	if stream == nil {
+	if newBlockReader == nil {
 		return nil
 	}
 
-	defer stream.Close()
+	defer newBlockReader.Close()
 
-	reader, err := existingBlock.Stream(ctx)
+	existingBlockReader, err := existingBlock.Stream(ctx)
 	if err != nil {
 		return err
 	}
 
+	defer existingBlockReader.Close()
+
 	var readers [2]io.Reader
-	readers[0] = stream
-	readers[1] = reader
+	readers[0] = newBlockReader
+	readers[1] = existingBlockReader
 
 	multiIter := s.opts.MultiReaderIteratorPool().Get()
 	multiIter.Reset(readers[:])
