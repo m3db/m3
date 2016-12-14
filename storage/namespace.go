@@ -453,12 +453,12 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 	// are failed with the minimum num failures less than max retries then
 	// we need to flush - otherwise if any in progress we can't flush and if
 	// any not started then we need to flush.
-	anyFailed := false
-	minNumFailures := int(math.MaxInt32)
-
 	n.RLock()
 	defer n.RUnlock()
 
+	maxRetries := n.opts.MaxFlushRetries()
+
+	// Check if any in progress first to block another flush if so
 	for _, shard := range n.shards {
 		if shard == nil {
 			continue
@@ -467,6 +467,8 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 			return false
 		}
 	}
+
+	// Check for not started or failed that might need a flush
 	for _, shard := range n.shards {
 		if shard == nil {
 			continue
@@ -475,19 +477,13 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 		if state.Status == fileOpNotStarted {
 			return true
 		}
-		if state.Status == fileOpFailed {
-			anyFailed = true
-			if state.NumFailures < minNumFailures {
-				minNumFailures = state.NumFailures
-			}
+		if state.Status == fileOpFailed && state.NumFailures < maxRetries {
+			return true
 		}
 	}
 
-	// Prefer reporting we have less failures, as this will determine
-	// if a retry is attempted or not - this means that if some shards
-	// have reached their max retries but others have not (because they
-	// are new) then the ones with max retries may also be retried again
-	return anyFailed && minNumFailures < n.opts.MaxFlushRetries()
+	// All success or failed and reached max retries
+	return false
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
