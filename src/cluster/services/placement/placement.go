@@ -38,19 +38,23 @@ var (
 
 // NewPlacement returns a ServicePlacement
 func NewPlacement(instances []services.PlacementInstance, shards []uint32, rf int) services.ServicePlacement {
-	return placement{instances: instances, rf: rf, shards: shards}
+	instancesMap := make(map[string]services.PlacementInstance, len(instances))
+	for _, instance := range instances {
+		instancesMap[instance.ID()] = instance
+	}
+	return placement{instances: instancesMap, rf: rf, shards: shards}
 }
 
 type placement struct {
-	instances []services.PlacementInstance
+	instances map[string]services.PlacementInstance
 	rf        int
 	shards    []uint32
 }
 
 func (p placement) Instances() []services.PlacementInstance {
-	result := make([]services.PlacementInstance, p.NumInstances())
-	for i, instance := range p.instances {
-		result[i] = instance
+	result := make([]services.PlacementInstance, 0, p.NumInstances())
+	for _, instance := range p.instances {
+		result = append(result, instance)
 	}
 	return result
 }
@@ -59,13 +63,9 @@ func (p placement) NumInstances() int {
 	return len(p.instances)
 }
 
-func (p placement) Instance(id string) services.PlacementInstance {
-	for _, instance := range p.Instances() {
-		if instance.ID() == id {
-			return instance
-		}
-	}
-	return nil
+func (p placement) Instance(id string) (services.PlacementInstance, bool) {
+	instance, ok := p.instances[id]
+	return instance, ok
 }
 
 func (p placement) ReplicaFactor() int {
@@ -81,7 +81,7 @@ func (p placement) NumShards() int {
 }
 
 func (p placement) String() string {
-	return services.PlacementInstances(p.instances).String()
+	return services.PlacementInstances(p.Instances()).String()
 }
 
 // Validate validates a placement
