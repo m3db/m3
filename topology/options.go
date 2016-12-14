@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3x/instrument"
 )
 
 const (
@@ -37,10 +37,9 @@ const (
 )
 
 var (
-	errNoConfigServiceClient   = errors.New("no config service client")
-	errNoServiceDiscoverClient = errors.New("no service discover client")
-	errNoHashGen               = errors.New("no hash gen function defined")
-	errInvalidReplicas         = errors.New("replicas must be equal to or greater than 1")
+	errNoConfigServiceClient = errors.New("no config service client")
+	errNoHashGen             = errors.New("no hash gen function defined")
+	errInvalidReplicas       = errors.New("replicas must be equal to or greater than 1")
 )
 
 type staticOptions struct {
@@ -138,8 +137,9 @@ func (o *dynamicOptions) Validate() error {
 	if o.ConfigServiceClient() == nil {
 		return errNoConfigServiceClient
 	}
-	if o.ConfigServiceClient().Services() == nil {
-		return errNoServiceDiscoverClient
+	_, err := o.ConfigServiceClient().Services()
+	if err != nil {
+		return fmt.Errorf("no service discover client, %v", err)
 	}
 	if o.HashGen() == nil {
 		return errNoHashGen
