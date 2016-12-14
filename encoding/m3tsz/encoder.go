@@ -571,13 +571,13 @@ func (enc *encoder) Close() {
 	enc.writable = false
 	enc.closed = true
 
+	// Reset the ostream to avoid reusing this encoder
+	// using the buffer we are returning to the pool
+	enc.os.Reset(nil)
+
 	bytesPool := enc.opts.BytesPool()
 	if bytesPool != nil {
 		buffer, _ := enc.os.Rawbytes()
-
-		// Reset the ostream to avoid reusing this encoder
-		// using the buffer we are returning to the pool
-		enc.os.Reset(nil)
 
 		bytesPool.Put(buffer)
 	}

@@ -48,8 +48,8 @@ func hrs(x float64) time.Duration {
 }
 
 func requireDrainedStream(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	b block.DatabaseBlock,
 ) xio.SegmentReader {
 	stream, err := b.Stream(ctx)
