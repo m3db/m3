@@ -1,5 +1,5 @@
-hash: d2bb67550897148e6e6ea262a3bb55a1d840678fb93bd3c9a7963f2bd8ad16ae
-updated: 2016-12-03T17:42:54.9450546-05:00
+hash: 006181a12c7ccb56dfb440de774085a802c33748ad63955365694495f1b04f3c
+updated: 2016-12-14T17:17:50.966086465-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -20,7 +20,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 583846cefcd1bbb2bb689ee9f48f4cf16b2e6883
+  version: 8ca9f7bc9c3e446aec14fa785cf22f640117d33b
   subpackages:
   - client
   - kv
@@ -43,6 +43,8 @@ imports:
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
   - ext
+- name: github.com/pborman/getopt
+  version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
@@ -70,7 +72,7 @@ imports:
 - name: github.com/willf/bitset
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
 - name: golang.org/x/net
-  version: 6cdc0daab091c43fc46193327e0047b4f883c613
+  version: 944c58e9d57bcecf171fd4bea155269aa8a96805
   subpackages:
   - context
 testImports: []

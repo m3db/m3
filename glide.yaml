@@ -36,7 +36,7 @@ import:
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
 
 - package: github.com/m3db/m3cluster
-  version: 583846cefcd1bbb2bb689ee9f48f4cf16b2e6883
+  version: 8ca9f7bc9c3e446aec14fa785cf22f640117d33b
   subpackages:
   - client
   - services
