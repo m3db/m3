@@ -451,8 +451,8 @@ func (n *dbNamespace) Flush(
 func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 	// NB(r): Essentially if all are success, we don't need to flush, if any
 	// are failed with the minimum num failures less than max retries then
-	// we need to flush - otherwise if any in progress or any not started
-	// then we need to flush.
+	// we need to flush - otherwise if any in progress we can't flush and if
+	// any not started then we need to flush.
 	anyFailed := false
 	minNumFailures := int(math.MaxInt32)
 
@@ -463,10 +463,15 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 		if shard == nil {
 			continue
 		}
-		state := shard.FlushState(blockStart)
-		if state.Status == fileOpInProgress {
+		if shard.FlushState(blockStart).Status == fileOpInProgress {
 			return false
 		}
+	}
+	for _, shard := range n.shards {
+		if shard == nil {
+			continue
+		}
+		state := shard.FlushState(blockStart)
 		if state.Status == fileOpNotStarted {
 			return true
 		}
