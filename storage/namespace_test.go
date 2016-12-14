@@ -574,8 +574,7 @@ func TestNamespaceFlushStateAllSuccess(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	res := ns.FlushState(blockStart)
-	assert.Equal(t, fileOpState{Status: fileOpSuccess}, res)
+	assert.False(t, ns.NeedsFlush(blockStart))
 }
 
 func TestNamespaceFlushStateFailedCountsLeastNumFailures(t *testing.T) {
@@ -622,8 +621,7 @@ func TestNamespaceFlushStateFailedCountsLeastNumFailures(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	res := ns.FlushState(blockStart)
-	assert.Equal(t, fileOpState{Status: fileOpFailed, NumFailures: 1}, res)
+	assert.True(t, ns.NeedsFlush(blockStart))
 }
 
 func TestNamespaceFlushStateAnyNotStarted(t *testing.T) {
@@ -664,8 +662,7 @@ func TestNamespaceFlushStateAnyNotStarted(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	res := ns.FlushState(blockStart)
-	assert.Equal(t, fileOpState{Status: fileOpNotStarted}, res)
+	assert.True(t, ns.NeedsFlush(blockStart))
 }
 
 func TestNamespaceFlushStateInProgress(t *testing.T) {
@@ -706,8 +703,7 @@ func TestNamespaceFlushStateInProgress(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	res := ns.FlushState(blockStart)
-	assert.Equal(t, fileOpState{Status: fileOpInProgress}, res)
+	assert.False(t, ns.NeedsFlush(blockStart))
 }
 
 func waitForStats(

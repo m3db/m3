@@ -81,13 +81,13 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		fm.EXPECT().FlushTimeStart(ts).Return(start),
 		fm.EXPECT().FlushTimeStart(ts).Return(start),
 		fm.EXPECT().FlushTimeEnd(ts).Return(end),
-		fm.EXPECT().HasFlushed(time.Unix(14400, 0)).Return(true),
-		fm.EXPECT().HasFlushed(time.Unix(21600, 0)).Return(true),
-		fm.EXPECT().HasFlushed(time.Unix(28800, 0)).Return(true),
-		fm.EXPECT().HasFlushed(time.Unix(7200, 0)).Return(true),
-		fm.EXPECT().HasFlushed(time.Unix(14400, 0)).Return(true),
-		fm.EXPECT().HasFlushed(time.Unix(21600, 0)).Return(true),
-		fm.EXPECT().HasFlushed(time.Unix(0, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(time.Unix(14400, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(time.Unix(21600, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(time.Unix(28800, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(time.Unix(7200, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(time.Unix(14400, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(time.Unix(21600, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(time.Unix(0, 0)).Return(true),
 	)
 
 	require.Error(t, mgr.Cleanup(ts))

@@ -74,8 +74,14 @@ func (m *flushManager) IsFlushing() bool {
 	return flushInProgress
 }
 
-func (m *flushManager) HasFlushed(t time.Time) bool {
-	return !m.needsFlush(t)
+func (m *flushManager) NeedsFlush(t time.Time) bool {
+	namespaces := m.database.getOwnedNamespaces()
+	for _, n := range namespaces {
+		if n.NeedsFlush(t) {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *flushManager) FlushTimeStart(t time.Time) time.Time {
@@ -135,27 +141,12 @@ func (m *flushManager) flushTimes(curr time.Time) []time.Time {
 	// NB(xichen): could preallocate slice here.
 	var flushTimes []time.Time
 	for t := latest; !t.Before(earliest); t = t.Add(-m.blockSize) {
-		if m.needsFlush(t) {
+		if m.NeedsFlush(t) {
 			flushTimes = append(flushTimes, t)
 		}
 	}
 
 	return flushTimes
-}
-
-// needsFlush returns true if we need to flush data for a given time.
-func (m *flushManager) needsFlush(t time.Time) bool {
-	maxRetries := m.opts.MaxFlushRetries()
-	namespaces := m.database.getOwnedNamespaces()
-	for _, n := range namespaces {
-		state := n.FlushState(t)
-		if state.Status != fileOpSuccess &&
-			state.Status != fileOpInProgress &&
-			state.NumFailures < maxRetries {
-			return true
-		}
-	}
-	return false
 }
 
 // flushWithTime flushes in-memory data across all namespaces for a given
