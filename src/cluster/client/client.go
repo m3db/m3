@@ -29,8 +29,8 @@ import (
 // access to cluster services
 type Client interface {
 	// Services returns access to the set of services
-	Services() services.Services
+	Services() (services.Services, error)
 
 	// KV returns access to the distributed configuration store
-	KV() kv.Store
+	KV() (kv.Store, error)
 }

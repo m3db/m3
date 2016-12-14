@@ -810,10 +810,11 @@ func (_mr *_MockServicePlacementRecorder) NumInstances() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NumInstances")
 }
 
-func (_m *MockServicePlacement) Instance(id string) PlacementInstance {
+func (_m *MockServicePlacement) Instance(id string) (PlacementInstance, bool) {
 	ret := _m.ctrl.Call(_m, "Instance", id)
 	ret0, _ := ret[0].(PlacementInstance)
-	return ret0
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
 }
 
 func (_mr *_MockServicePlacementRecorder) Instance(arg0 interface{}) *gomock.Call {
@@ -848,6 +849,16 @@ func (_m *MockServicePlacement) NumShards() int {
 
 func (_mr *_MockServicePlacementRecorder) NumShards() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NumShards")
+}
+
+func (_m *MockServicePlacement) String() string {
+	ret := _m.ctrl.Call(_m, "String")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockServicePlacementRecorder) String() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "String")
 }
 
 // Mock of PlacementInstance interface
