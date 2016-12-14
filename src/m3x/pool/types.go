@@ -118,3 +118,15 @@ type BytesPool interface {
 	// Put returns a buffer to the pool
 	Put(buffer []byte)
 }
+
+// FloatsPool provides a pool for variable-sized float64 slices
+type FloatsPool interface {
+	// Init initializes the pool
+	Init()
+
+	// Get provides an float64 slice from the pool
+	Get(capacity int) []float64
+
+	// Put returns an float64 slice to the pool
+	Put(value []float64)
+}
