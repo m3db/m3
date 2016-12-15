@@ -59,7 +59,7 @@ func testGoodCapturingRawEncoder(t *testing.T) (RawEncoder, *[]interface{}) {
 	return rawEncoder, &result
 }
 
-func getExpectedResults(t *testing.T, m *metric.RawMetric, p policy.VersionedPolicies) []interface{} {
+func getExpectedResults(t *testing.T, m *metric.OneOf, p policy.VersionedPolicies) []interface{} {
 	results := []interface{}{
 		int64(supportedVersion),
 		int64(m.Type),
@@ -100,7 +100,7 @@ func getExpectedResults(t *testing.T, m *metric.RawMetric, p policy.VersionedPol
 func TestRawEncodeCounterWithDefaultPolicies(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
 	encoder, results := testGoodCapturingRawEncoder(t)
-	require.NoError(t, encoder.Encode(&testCounter, policies))
+	require.NoError(t, testEncode(t, encoder, &testCounter, policies))
 	expected := getExpectedResults(t, &testCounter, policies)
 	require.Equal(t, expected, *results)
 }
@@ -108,7 +108,7 @@ func TestRawEncodeCounterWithDefaultPolicies(t *testing.T) {
 func TestRawEncodeBatchTimerWithDefaultPolicies(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
 	encoder, results := testGoodCapturingRawEncoder(t)
-	require.NoError(t, encoder.Encode(&testBatchTimer, policies))
+	require.NoError(t, testEncode(t, encoder, &testBatchTimer, policies))
 	expected := getExpectedResults(t, &testBatchTimer, policies)
 	require.Equal(t, expected, *results)
 }
@@ -116,7 +116,7 @@ func TestRawEncodeBatchTimerWithDefaultPolicies(t *testing.T) {
 func TestRawEncodeGaugeWithDefaultPolicies(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
 	encoder, results := testGoodCapturingRawEncoder(t)
-	require.NoError(t, encoder.Encode(&testGauge, policies))
+	require.NoError(t, testEncode(t, encoder, &testGauge, policies))
 	expected := getExpectedResults(t, &testGauge, policies)
 	require.Equal(t, expected, *results)
 }
@@ -125,7 +125,7 @@ func TestRawEncodeAllTypesWithDefaultPolicies(t *testing.T) {
 	var expected []interface{}
 	encoder, results := testGoodCapturingRawEncoder(t)
 	for _, input := range testInputWithAllTypesAndDefaultPolicies {
-		require.NoError(t, encoder.Encode(&input.metric, input.policies))
+		require.NoError(t, testEncode(t, encoder, &input.metric, input.policies))
 		expected = append(expected, getExpectedResults(t, &input.metric, input.policies)...)
 	}
 
@@ -136,7 +136,7 @@ func TestRawEncodeAllTypesWithCustomPolicies(t *testing.T) {
 	var expected []interface{}
 	encoder, results := testGoodCapturingRawEncoder(t)
 	for _, input := range testInputWithAllTypesAndCustomPolicies {
-		require.NoError(t, encoder.Encode(&input.metric, input.policies))
+		require.NoError(t, testEncode(t, encoder, &input.metric, input.policies))
 		expected = append(expected, getExpectedResults(t, &input.metric, input.policies)...)
 	}
 
@@ -148,16 +148,16 @@ func TestRawEncodeCounterError(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
 
 	// Intentionally return an error when encoding varint
-	rawEncoder := testRawEncoder(t).(*rawEncoder)
-	rawEncoder.encodeVarintFn = func(value int64) {
-		rawEncoder.err = errTestVarint
+	encoder := testRawEncoder(t).(*rawEncoder)
+	encoder.encodeVarintFn = func(value int64) {
+		encoder.err = errTestVarint
 	}
 
 	// Assert the error is expected
-	require.Equal(t, errTestVarint, rawEncoder.Encode(&counter, policies))
+	require.Equal(t, errTestVarint, testEncode(t, encoder, &counter, policies))
 
 	// Assert re-encoding doesn't change the error
-	require.Equal(t, errTestVarint, rawEncoder.Encode(&counter, policies))
+	require.Equal(t, errTestVarint, testEncode(t, encoder, &counter, policies))
 }
 
 func TestRawEncodeBatchTimerError(t *testing.T) {
@@ -165,16 +165,16 @@ func TestRawEncodeBatchTimerError(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
 
 	// Intentionally return an error when encoding array length
-	rawEncoder := testRawEncoder(t).(*rawEncoder)
-	rawEncoder.encodeArrayLenFn = func(value int) {
-		rawEncoder.err = errTestArrayLen
+	encoder := testRawEncoder(t).(*rawEncoder)
+	encoder.encodeArrayLenFn = func(value int) {
+		encoder.err = errTestArrayLen
 	}
 
 	// Assert the error is expected
-	require.Equal(t, errTestArrayLen, rawEncoder.Encode(&timer, policies))
+	require.Equal(t, errTestArrayLen, testEncode(t, encoder, &timer, policies))
 
 	// Assert re-encoding doesn't change the error
-	require.Equal(t, errTestArrayLen, rawEncoder.Encode(&timer, policies))
+	require.Equal(t, errTestArrayLen, testEncode(t, encoder, &timer, policies))
 }
 
 func TestRawEncodeGaugeError(t *testing.T) {
@@ -182,16 +182,16 @@ func TestRawEncodeGaugeError(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
 
 	// Intentionally return an error when encoding float64
-	rawEncoder := testRawEncoder(t).(*rawEncoder)
-	rawEncoder.encodeFloat64Fn = func(value float64) {
-		rawEncoder.err = errTestFloat64
+	encoder := testRawEncoder(t).(*rawEncoder)
+	encoder.encodeFloat64Fn = func(value float64) {
+		encoder.err = errTestFloat64
 	}
 
 	// Assert the error is expected
-	require.Equal(t, errTestFloat64, rawEncoder.Encode(&gauge, policies))
+	require.Equal(t, errTestFloat64, testEncode(t, encoder, &gauge, policies))
 
 	// Assert re-encoding doesn't change the error
-	require.Equal(t, errTestFloat64, rawEncoder.Encode(&gauge, policies))
+	require.Equal(t, errTestFloat64, testEncode(t, encoder, &gauge, policies))
 }
 
 func TestRawEncodePolicyError(t *testing.T) {
@@ -207,14 +207,14 @@ func TestRawEncodePolicyError(t *testing.T) {
 	}
 
 	// Intentionally return an error when encoding array length
-	rawEncoder := testRawEncoder(t).(*rawEncoder)
-	rawEncoder.encodeArrayLenFn = func(value int) {
-		rawEncoder.err = errTestArrayLen
+	encoder := testRawEncoder(t).(*rawEncoder)
+	encoder.encodeArrayLenFn = func(value int) {
+		encoder.err = errTestArrayLen
 	}
 
 	// Assert the error is expected
-	require.Equal(t, errTestArrayLen, rawEncoder.Encode(&gauge, policies))
+	require.Equal(t, errTestArrayLen, testEncode(t, encoder, &gauge, policies))
 
 	// Assert re-encoding doesn't change the error
-	require.Equal(t, errTestArrayLen, rawEncoder.Encode(&gauge, policies))
+	require.Equal(t, errTestArrayLen, testEncode(t, encoder, &gauge, policies))
 }

@@ -36,19 +36,19 @@ import (
 )
 
 var (
-	testCounter = metric.RawMetric{
+	testCounter = metric.OneOf{
 		Type:       metric.CounterType,
 		ID:         []byte("foo"),
 		CounterVal: 1234,
 	}
 
-	testBatchTimer = metric.RawMetric{
+	testBatchTimer = metric.OneOf{
 		Type:          metric.BatchTimerType,
 		ID:            []byte("foo"),
 		BatchTimerVal: []float64{222.22, 345.67, 901.23345},
 	}
 
-	testGauge = metric.RawMetric{
+	testGauge = metric.OneOf{
 		Type:     metric.GaugeType,
 		ID:       []byte("foo"),
 		GaugeVal: 123.456,
@@ -118,7 +118,7 @@ var (
 )
 
 type metricWithPolicies struct {
-	metric   metric.RawMetric
+	metric   metric.OneOf
 	policies policy.VersionedPolicies
 }
 
@@ -135,7 +135,20 @@ func testRawIterator(t *testing.T, reader io.Reader) RawIterator {
 	return rawIterator
 }
 
-func compareMetric(t *testing.T, expected metric.RawMetric, actual metric.RawMetric) {
+func testEncode(t *testing.T, encoder RawEncoder, m *metric.OneOf, p policy.VersionedPolicies) error {
+	switch m.Type {
+	case metric.CounterType:
+		return encoder.EncodeCounter(m.Counter(), p)
+	case metric.BatchTimerType:
+		return encoder.EncodeBatchTimer(m.BatchTimer(), p)
+	case metric.GaugeType:
+		return encoder.EncodeGauge(m.Gauge(), p)
+	default:
+		return fmt.Errorf("unrecognized metric type %v", m.Type)
+	}
+}
+
+func compareMetric(t *testing.T, expected metric.OneOf, actual metric.OneOf) {
 	require.Equal(t, expected.Type, actual.Type)
 	switch expected.Type {
 	case metric.CounterType:
@@ -166,7 +179,7 @@ func validateRoundtripWithEncoderAndIterator(
 	// Encode the batch of metrics
 	encoder.Reset(newBufferedEncoder())
 	for _, input := range inputs {
-		encoder.Encode(&input.metric, input.policies)
+		testEncode(t, encoder, &input.metric, input.policies)
 	}
 	buffer := encoder.Encoder().Buffer
 
@@ -192,7 +205,7 @@ func validateRoundtripWithEncoderAndIterator(
 
 func TestEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
 	validateRoundtrip(t, metricWithPolicies{
-		metric: metric.RawMetric{
+		metric: metric.OneOf{
 			Type:       metric.CounterType,
 			ID:         []byte("foo"),
 			CounterVal: 1234,
@@ -203,7 +216,7 @@ func TestEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
 
 func TestEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
 	validateRoundtrip(t, metricWithPolicies{
-		metric: metric.RawMetric{
+		metric: metric.OneOf{
 			Type:          metric.BatchTimerType,
 			ID:            []byte("foo"),
 			BatchTimerVal: []float64{222.22, 345.67, 901.23345},
@@ -214,7 +227,7 @@ func TestEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
 
 func TestEncodeDecodeGaugeWithDefaultPolicies(t *testing.T) {
 	validateRoundtrip(t, metricWithPolicies{
-		metric: metric.RawMetric{
+		metric: metric.OneOf{
 			Type:     metric.GaugeType,
 			ID:       []byte("foo"),
 			GaugeVal: 123.456,
@@ -234,7 +247,7 @@ func TestEncodeDecodeAllTypesWithCustomPolicies(t *testing.T) {
 func TestEncodeDecodeStress(t *testing.T) {
 	numIter := 10
 	numMetrics := 10000
-	rawMetrics := []metric.RawMetric{testCounter, testBatchTimer, testGauge}
+	rawMetrics := []metric.OneOf{testCounter, testBatchTimer, testGauge}
 	policies := []policy.VersionedPolicies{
 		policy.DefaultVersionedPolicies,
 		{

@@ -20,8 +20,6 @@
 
 package metric
 
-import "time"
-
 // Type is a metric type
 type Type int8
 
@@ -57,12 +55,11 @@ type Gauge struct {
 	Value float64
 }
 
-// RawMetric represents an unaggregated raw metric, which consists of a union
-// of different types of metrics, only one of which is valid at any given time.
-// The actual type of the metric depends on the type field, which determines
-// which value field is valid. We intentionally do not use pointers to avoid
-// the GC overhead of marking and sweeping the raw metrics.
-type RawMetric struct {
+// OneOf is a union of different types of metrics, only one of which is valid
+// at any given time. The actual type of the metric depends on the type field,
+// which determines which value field is valid. We intentionally do not use
+// pointers to avoid the GC overhead of marking and sweeping the metrics.
+type OneOf struct {
 	Type          Type
 	ID            IDType
 	CounterVal    int64
@@ -70,28 +67,16 @@ type RawMetric struct {
 	GaugeVal      float64
 }
 
-var emptyRawMetric RawMetric
+var emptyOneOf OneOf
 
-// Reset resets the raw metric
-func (m *RawMetric) Reset() { *m = emptyRawMetric }
+// Reset resets the metric
+func (m *OneOf) Reset() { *m = emptyOneOf }
 
 // Counter returns the counter metric
-func (m *RawMetric) Counter() Counter { return Counter{ID: m.ID, Value: m.CounterVal} }
+func (m *OneOf) Counter() Counter { return Counter{ID: m.ID, Value: m.CounterVal} }
 
 // BatchTimer returns the batch timer metric
-func (m *RawMetric) BatchTimer() BatchTimer { return BatchTimer{ID: m.ID, Values: m.BatchTimerVal} }
+func (m *OneOf) BatchTimer() BatchTimer { return BatchTimer{ID: m.ID, Values: m.BatchTimerVal} }
 
 // Gauge returns the gauge metric
-func (m *RawMetric) Gauge() Gauge { return Gauge{ID: m.ID, Value: m.GaugeVal} }
-
-// Metric is the metric interface
-type Metric interface {
-	// ID is the metric id
-	ID() IDType
-
-	// Timestamp is the metric timestamp
-	Timestamp() time.Time
-
-	// Value is the metric value
-	Value() float64
-}
+func (m *OneOf) Gauge() Gauge { return Gauge{ID: m.ID, Value: m.GaugeVal} }

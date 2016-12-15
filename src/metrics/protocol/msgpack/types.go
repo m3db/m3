@@ -61,8 +61,14 @@ type BufferedEncoderPool interface {
 
 // RawEncoder is a msgpack-based encoder for encoding raw metrics
 type RawEncoder interface {
-	// Encode encodes a raw metric with applicable policies
-	Encode(m *metric.RawMetric, p policy.VersionedPolicies) error
+	// EncodeCounter encodes a counter with applicable policies
+	EncodeCounter(c metric.Counter, p policy.VersionedPolicies) error
+
+	// EncodeBatchTimer encodes a batched timer with applicable policies
+	EncodeBatchTimer(bt metric.BatchTimer, p policy.VersionedPolicies) error
+
+	// EncodeGauge encodes a gauge with applicable policies
+	EncodeGauge(g metric.Gauge, p policy.VersionedPolicies) error
 
 	// Buffer returns the encoder buffer
 	Encoder() BufferedEncoder
@@ -77,7 +83,7 @@ type RawIterator interface {
 	Next() bool
 
 	// Value returns the current metric and applicable policies
-	Value() (*metric.RawMetric, policy.VersionedPolicies)
+	Value() (*metric.OneOf, policy.VersionedPolicies)
 
 	// Err returns the error encountered during decoding if any
 	Err() error
