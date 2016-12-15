@@ -1,4 +1,51 @@
-hash: 91080fab99d4ee44560bb2e6d9b0080cbc6491841d7b9540a4d794510ccc74f2
-updated: 2016-12-13T16:35:59.437682599-05:00
-imports: []
-testImports: []
+hash: d8de5319d9d2b69ac7538271d44105f6007d92f0815d936b0551c4a7e3721f6f
+updated: 2016-12-13T22:42:28.879149226-05:00
+imports:
+- name: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/golang/protobuf
+  version: 3852dcfda249c2097355a6aabb199a28d97b30df
+  subpackages:
+  - proto
+- name: github.com/m3db/m3x
+  version: d39b3685ef8430f7fbeedc666f7da781d7f55ba9
+  subpackages:
+  - instrument
+  - log
+  - pool
+  - time
+- name: github.com/uber-go/tally
+  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+- name: golang.org/x/net
+  version: 3b993948b6f0e651ffb58ba135d8538a68b1cddf
+  subpackages:
+  - context
+- name: google.golang.org/appengine
+  version: ca59ef35f409df61fa4a5f8290ff289b37eccfb8
+  subpackages:
+  - datastore
+  - internal
+  - internal/app_identity
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/modules
+  - internal/remote_api
+- name: gopkg.in/vmihailenco/msgpack.v2
+  version: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
+  subpackages:
+  - codes
+testImports:
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
+- name: github.com/pmezard/go-difflib
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  subpackages:
+  - difflib
+- name: github.com/stretchr/testify
+  version: d77da356e56a7428ad25149ca77381849a6a5232
+  subpackages:
+  - assert
+  - require
