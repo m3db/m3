@@ -47,7 +47,7 @@ type rawIterator struct {
 	decoder      *msgpack.Decoder         // internal decoder that does the actual decoding
 	floatsPool   xpool.FloatsPool         // pool for float slices
 	policiesPool pool.PoliciesPool        // pool for policies
-	metric       metric.RawMetric         // current raw metric
+	metric       metric.OneOf             // current raw metric
 	policies     policy.VersionedPolicies // current policies
 	err          error                    // error encountered during decoding
 
@@ -83,7 +83,7 @@ func (it *rawIterator) Reset(reader io.Reader) {
 	it.err = nil
 }
 
-func (it *rawIterator) Value() (*metric.RawMetric, policy.VersionedPolicies) {
+func (it *rawIterator) Value() (*metric.OneOf, policy.VersionedPolicies) {
 	return &it.metric, it.policies
 }
 

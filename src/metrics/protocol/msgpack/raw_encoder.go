@@ -21,8 +21,6 @@
 package msgpack
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 )
@@ -64,41 +62,43 @@ func (enc *rawEncoder) Reset(encoder BufferedEncoder) {
 	enc.encoder = encoder
 }
 
-func (enc *rawEncoder) Encode(m *metric.RawMetric, p policy.VersionedPolicies) error {
+func (enc *rawEncoder) EncodeCounter(c metric.Counter, p policy.VersionedPolicies) error {
 	if enc.err != nil {
 		return enc.err
 	}
 	enc.encodeVersion(supportedVersion)
-	enc.encodeType(m.Type)
-	enc.encodeID(m.ID)
-	switch m.Type {
-	case metric.CounterType:
-		enc.encodeCounterValue(m.CounterVal)
-	case metric.BatchTimerType:
-		enc.encodeBatchTimerValue(m.BatchTimerVal)
-	case metric.GaugeType:
-		enc.encodeGaugeValue(m.GaugeVal)
-	default:
-		enc.err = fmt.Errorf("unrecognized metric type %v", m.Type)
+	enc.encodeType(metric.CounterType)
+	enc.encodeID(c.ID)
+	enc.encodeVarintFn(int64(c.Value))
+	enc.encodeVersionedPolicies(p)
+	return enc.err
+}
+
+func (enc *rawEncoder) EncodeBatchTimer(bt metric.BatchTimer, p policy.VersionedPolicies) error {
+	if enc.err != nil {
 		return enc.err
+	}
+	enc.encodeVersion(supportedVersion)
+	enc.encodeType(metric.BatchTimerType)
+	enc.encodeID(bt.ID)
+	enc.encodeArrayLenFn(len(bt.Values))
+	for _, v := range bt.Values {
+		enc.encodeFloat64Fn(v)
 	}
 	enc.encodeVersionedPolicies(p)
 	return enc.err
 }
 
-func (enc *rawEncoder) encodeCounterValue(value int64) {
-	enc.encodeVarintFn(value)
-}
-
-func (enc *rawEncoder) encodeBatchTimerValue(values []float64) {
-	enc.encodeArrayLenFn(len(values))
-	for _, v := range values {
-		enc.encodeFloat64Fn(v)
+func (enc *rawEncoder) EncodeGauge(g metric.Gauge, p policy.VersionedPolicies) error {
+	if enc.err != nil {
+		return enc.err
 	}
-}
-
-func (enc *rawEncoder) encodeGaugeValue(value float64) {
-	enc.encodeFloat64Fn(value)
+	enc.encodeVersion(supportedVersion)
+	enc.encodeType(metric.GaugeType)
+	enc.encodeID(g.ID)
+	enc.encodeFloat64Fn(g.Value)
+	enc.encodeVersionedPolicies(p)
+	return enc.err
 }
 
 func (enc *rawEncoder) encodeVersionedPolicies(p policy.VersionedPolicies) {

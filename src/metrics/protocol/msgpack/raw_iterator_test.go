@@ -90,7 +90,7 @@ func testGoodRawIterator(
 
 func getMockValuesFor(
 	t *testing.T,
-	m *metric.RawMetric,
+	m *metric.OneOf,
 	p policy.VersionedPolicies,
 ) ([]int64, []float64, [][]byte, []int) {
 	var (
