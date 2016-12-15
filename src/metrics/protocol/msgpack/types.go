@@ -59,8 +59,8 @@ type BufferedEncoderPool interface {
 	Put(enc BufferedEncoder)
 }
 
-// RawEncoder is a msgpack-based encoder for encoding raw metrics
-type RawEncoder interface {
+// MultiTypedEncoder is an encoder for encoding different types of metrics
+type MultiTypedEncoder interface {
 	// EncodeCounter encodes a counter with applicable policies
 	EncodeCounter(c metric.Counter, p policy.VersionedPolicies) error
 
@@ -74,11 +74,11 @@ type RawEncoder interface {
 	Encoder() BufferedEncoder
 
 	// Reset resets the encoder
-	Reset(buffer BufferedEncoder)
+	Reset(encoder BufferedEncoder)
 }
 
-// RawIterator iterates over data stream and decodes raw metrics
-type RawIterator interface {
+// MultiTypedIterator decodes different types of metrics iteratively
+type MultiTypedIterator interface {
 	// Next returns true if there are more items to decode
 	Next() bool
 
@@ -92,16 +92,16 @@ type RawIterator interface {
 	Reset(reader io.Reader)
 }
 
-// RawIteratorOptions provide options for raw iterators
-type RawIteratorOptions interface {
+// MultiTypedIteratorOptions provide options for multi-typed iterators
+type MultiTypedIteratorOptions interface {
 	// SetFloatsPool sets the floats pool
-	SetFloatsPool(value xpool.FloatsPool) RawIteratorOptions
+	SetFloatsPool(value xpool.FloatsPool) MultiTypedIteratorOptions
 
 	// FloatsPool returns the floats pool
 	FloatsPool() xpool.FloatsPool
 
 	// SetPoliciesPool sets the policies pool
-	SetPoliciesPool(value pool.PoliciesPool) RawIteratorOptions
+	SetPoliciesPool(value pool.PoliciesPool) MultiTypedIteratorOptions
 
 	// PoliciesPool returns the policies pool
 	PoliciesPool() pool.PoliciesPool

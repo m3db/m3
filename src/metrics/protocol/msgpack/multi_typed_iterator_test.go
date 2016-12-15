@@ -32,16 +32,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testGoodRawIterator(
+func testCapturedMultiTypedIterator(
 	t *testing.T,
 	varintValues []int64,
 	float64Values []float64,
 	bytesValues [][]byte,
 	arrayLenValues []int,
-) *rawIterator {
-	it, err := NewRawIterator(nil, nil)
-	require.NoError(t, err)
-	rawIt := it.(*rawIterator)
+) *multiTypedIterator {
+	it := testMultiTypedIterator(t, nil).(*multiTypedIterator)
 
 	var (
 		varintIdx   int
@@ -49,43 +47,43 @@ func testGoodRawIterator(
 		bytesIdx    int
 		arrayLenIdx int
 	)
-	rawIt.decodeVarintFn = func() int64 {
+	it.decodeVarintFn = func() int64 {
 		if varintIdx >= len(varintValues) {
-			rawIt.err = io.EOF
+			it.err = io.EOF
 			return 0
 		}
 		v := varintValues[varintIdx]
 		varintIdx++
 		return v
 	}
-	rawIt.decodeFloat64Fn = func() float64 {
+	it.decodeFloat64Fn = func() float64 {
 		if float64Idx >= len(float64Values) {
-			rawIt.err = io.EOF
+			it.err = io.EOF
 			return 0.0
 		}
 		v := float64Values[float64Idx]
 		float64Idx++
 		return v
 	}
-	rawIt.decodeBytesFn = func() []byte {
+	it.decodeBytesFn = func() []byte {
 		if bytesIdx >= len(bytesValues) {
-			rawIt.err = io.EOF
+			it.err = io.EOF
 			return nil
 		}
 		v := bytesValues[bytesIdx]
 		bytesIdx++
 		return v
 	}
-	rawIt.decodeArrayLenFn = func() int {
+	it.decodeArrayLenFn = func() int {
 		if arrayLenIdx >= len(arrayLenValues) {
-			rawIt.err = io.EOF
+			it.err = io.EOF
 			return 0
 		}
 		v := arrayLenValues[arrayLenIdx]
 		arrayLenIdx++
 		return v
 	}
-	return rawIt
+	return it
 }
 
 func getMockValuesFor(
@@ -147,22 +145,22 @@ func validateDecodeResults(t *testing.T, inputs ...metricWithPolicies) {
 		bytesValues = append(bytesValues, b...)
 		arrayLenValues = append(arrayLenValues, al...)
 	}
-	rawIt := testGoodRawIterator(t, varintValues, float64Values, bytesValues, arrayLenValues)
+	it := testCapturedMultiTypedIterator(t, varintValues, float64Values, bytesValues, arrayLenValues)
 
 	var results []metricWithPolicies
-	for rawIt.Next() {
-		value, policies := rawIt.Value()
+	for it.Next() {
+		value, policies := it.Value()
 		results = append(results, metricWithPolicies{
 			metric:   *value,
 			policies: policies,
 		})
 	}
 
-	require.Equal(t, io.EOF, rawIt.Err())
+	require.Equal(t, io.EOF, it.Err())
 	require.Equal(t, inputs, results)
 }
 
-func TestRawIteratorDecodeCounter(t *testing.T) {
+func TestMultiTypedIteratorDecodeCounter(t *testing.T) {
 	input := metricWithPolicies{
 		metric:   testCounter,
 		policies: policy.DefaultVersionedPolicies,
@@ -170,7 +168,7 @@ func TestRawIteratorDecodeCounter(t *testing.T) {
 	validateDecodeResults(t, input)
 }
 
-func TestRawIteratorDecodeBatchTimer(t *testing.T) {
+func TestMultiTypedIteratorDecodeBatchTimer(t *testing.T) {
 	input := metricWithPolicies{
 		metric:   testBatchTimer,
 		policies: policy.DefaultVersionedPolicies,
@@ -178,7 +176,7 @@ func TestRawIteratorDecodeBatchTimer(t *testing.T) {
 	validateDecodeResults(t, input)
 }
 
-func TestRawIteratorDecodeGauge(t *testing.T) {
+func TestMultiTypedIteratorDecodeGauge(t *testing.T) {
 	input := metricWithPolicies{
 		metric:   testGauge,
 		policies: policy.DefaultVersionedPolicies,
@@ -186,30 +184,30 @@ func TestRawIteratorDecodeGauge(t *testing.T) {
 	validateDecodeResults(t, input)
 }
 
-func TestRawIteratorDecodeAllTypesWithDefaultPolicies(t *testing.T) {
+func TestMultiTypedIteratorDecodeAllTypesWithDefaultPolicies(t *testing.T) {
 	validateDecodeResults(t, testInputWithAllTypesAndDefaultPolicies...)
 }
 
-func TestRawIteratorDecodeAllTypesWithCustomPolicies(t *testing.T) {
+func TestMultiTypedIteratorDecodeAllTypesWithCustomPolicies(t *testing.T) {
 	validateDecodeResults(t, testInputWithAllTypesAndCustomPolicies...)
 }
 
-func TestRawIteratorDecodeError(t *testing.T) {
-	it, err := NewRawIterator(nil, nil)
+func TestMultiTypedIteratorDecodeError(t *testing.T) {
+	it, err := NewMultiTypedIterator(nil, nil)
 	require.NoError(t, err)
 	err = errors.New("foo")
-	it.(*rawIterator).err = err
+	it.(*multiTypedIterator).err = err
 
 	require.False(t, it.Next())
 	require.Equal(t, err, it.Err())
 }
 
-func TestRawIteratorReset(t *testing.T) {
-	it, err := NewRawIterator(nil, nil)
+func TestMultiTypedIteratorReset(t *testing.T) {
+	it, err := NewMultiTypedIterator(nil, nil)
 	require.NoError(t, err)
 	err = errors.New("foo")
-	it.(*rawIterator).err = err
+	it.(*multiTypedIterator).err = err
 
 	it.Reset(nil)
-	require.NoError(t, it.(*rawIterator).err)
+	require.NoError(t, it.(*multiTypedIterator).err)
 }

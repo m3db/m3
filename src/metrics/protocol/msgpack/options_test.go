@@ -27,15 +27,15 @@ import (
 )
 
 var (
-	testRawIteratorOpts = NewRawIteratorOptions()
+	testMultiTypedIteratorOpts = NewMultiTypedIteratorOptions()
 )
 
-func TestRawIteratorOptionsValidateNoFloatsPool(t *testing.T) {
-	opts := testRawIteratorOpts.SetFloatsPool(nil)
+func TestMultiTypedIteratorOptionsValidateNoFloatsPool(t *testing.T) {
+	opts := testMultiTypedIteratorOpts.SetFloatsPool(nil)
 	require.Equal(t, errNoFloatsPool, opts.Validate())
 }
 
-func TestRawIteratorOptionsValidateNoPoliciesPool(t *testing.T) {
-	opts := testRawIteratorOpts.SetPoliciesPool(nil)
+func TestMultiTypedIteratorOptionsValidateNoPoliciesPool(t *testing.T) {
+	opts := testMultiTypedIteratorOpts.SetPoliciesPool(nil)
 	require.Equal(t, errNoPoliciesPool, opts.Validate())
 }

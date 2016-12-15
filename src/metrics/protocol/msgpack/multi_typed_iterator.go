@@ -42,12 +42,13 @@ type decodeFloat64Fn func() float64
 type decodeBytesFn func() []byte
 type decodeArrayLenFn func() int
 
-// rawIterator uses MessagePack to decode a stream of raw metrics. It is NOT thread-safe.
-type rawIterator struct {
+// multiTypedIterator uses MessagePack to decode different types of metrics.
+// NB(xichen): it is NOT thread-safe.
+type multiTypedIterator struct {
 	decoder      *msgpack.Decoder         // internal decoder that does the actual decoding
 	floatsPool   xpool.FloatsPool         // pool for float slices
 	policiesPool pool.PoliciesPool        // pool for policies
-	metric       metric.OneOf             // current raw metric
+	metric       metric.OneOf             // current metric
 	policies     policy.VersionedPolicies // current policies
 	err          error                    // error encountered during decoding
 
@@ -57,15 +58,15 @@ type rawIterator struct {
 	decodeArrayLenFn decodeArrayLenFn
 }
 
-// NewRawIterator creates a raw iterator
-func NewRawIterator(reader io.Reader, opts RawIteratorOptions) (RawIterator, error) {
+// NewMultiTypedIterator creates a new multi-typed iterator
+func NewMultiTypedIterator(reader io.Reader, opts MultiTypedIteratorOptions) (MultiTypedIterator, error) {
 	if opts == nil {
-		opts = NewRawIteratorOptions()
+		opts = NewMultiTypedIteratorOptions()
 	}
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	it := &rawIterator{
+	it := &multiTypedIterator{
 		decoder:      msgpack.NewDecoder(reader),
 		floatsPool:   opts.FloatsPool(),
 		policiesPool: opts.PoliciesPool(),
@@ -78,22 +79,22 @@ func NewRawIterator(reader io.Reader, opts RawIteratorOptions) (RawIterator, err
 	return it, nil
 }
 
-func (it *rawIterator) Reset(reader io.Reader) {
+func (it *multiTypedIterator) Reset(reader io.Reader) {
 	it.decoder.Reset(reader)
 	it.err = nil
 }
 
-func (it *rawIterator) Value() (*metric.OneOf, policy.VersionedPolicies) {
+func (it *multiTypedIterator) Value() (*metric.OneOf, policy.VersionedPolicies) {
 	return &it.metric, it.policies
 }
 
-func (it *rawIterator) Err() error { return it.err }
+func (it *multiTypedIterator) Err() error { return it.err }
 
-func (it *rawIterator) Next() bool {
+func (it *multiTypedIterator) Next() bool {
 	if it.err != nil {
 		return false
 	}
-	// Resetting the raw metric to avoid holding onto the float64 slices
+	// Resetting the metric to avoid holding onto the float64 slices
 	// in the metric field even though they may not be used
 	it.metric.Reset()
 	it.decodeVersion()
@@ -102,7 +103,7 @@ func (it *rawIterator) Next() bool {
 	return it.err == nil
 }
 
-func (it *rawIterator) decodeMetric() {
+func (it *multiTypedIterator) decodeMetric() {
 	it.decodeType()
 	it.decodeID()
 	if it.err != nil {
@@ -120,11 +121,11 @@ func (it *rawIterator) decodeMetric() {
 	}
 }
 
-func (it *rawIterator) decodeCounterValue() {
+func (it *multiTypedIterator) decodeCounterValue() {
 	it.metric.CounterVal = int64(it.decodeVarintFn())
 }
 
-func (it *rawIterator) decodeBatchTimerValue() {
+func (it *multiTypedIterator) decodeBatchTimerValue() {
 	numValues := it.decodeArrayLenFn()
 	if it.err != nil {
 		return
@@ -136,11 +137,11 @@ func (it *rawIterator) decodeBatchTimerValue() {
 	it.metric.BatchTimerVal = values
 }
 
-func (it *rawIterator) decodeGaugeValue() {
+func (it *multiTypedIterator) decodeGaugeValue() {
 	it.metric.GaugeVal = it.decodeFloat64Fn()
 }
 
-func (it *rawIterator) decodeVersionedPolicies() {
+func (it *multiTypedIterator) decodeVersionedPolicies() {
 	version := int(it.decodeVarintFn())
 	if it.err != nil {
 		return
@@ -162,7 +163,7 @@ func (it *rawIterator) decodeVersionedPolicies() {
 	it.policies = policy.VersionedPolicies{Version: version, Policies: policies}
 }
 
-func (it *rawIterator) decodeVersion() {
+func (it *multiTypedIterator) decodeVersion() {
 	version := int(it.decodeVarintFn())
 	if it.err != nil {
 		return
@@ -172,21 +173,21 @@ func (it *rawIterator) decodeVersion() {
 	}
 }
 
-func (it *rawIterator) decodeType() {
+func (it *multiTypedIterator) decodeType() {
 	it.metric.Type = metric.Type(it.decodeVarintFn())
 }
 
-func (it *rawIterator) decodeID() {
+func (it *multiTypedIterator) decodeID() {
 	it.metric.ID = metric.IDType(it.decodeBytesFn())
 }
 
-func (it *rawIterator) decodePolicy() policy.Policy {
+func (it *multiTypedIterator) decodePolicy() policy.Policy {
 	resolution := it.decodeResolution()
 	retention := it.decodeRetention()
 	return policy.Policy{Resolution: resolution, Retention: retention}
 }
 
-func (it *rawIterator) decodeResolution() policy.Resolution {
+func (it *multiTypedIterator) decodeResolution() policy.Resolution {
 	resolutionValue := policy.ResolutionValue(it.decodeVarintFn())
 	resolution, err := resolutionValue.Resolution()
 	if it.err != nil {
@@ -196,7 +197,7 @@ func (it *rawIterator) decodeResolution() policy.Resolution {
 	return resolution
 }
 
-func (it *rawIterator) decodeRetention() policy.Retention {
+func (it *multiTypedIterator) decodeRetention() policy.Retention {
 	retentionValue := policy.RetentionValue(it.decodeVarintFn())
 	retention, err := retentionValue.Retention()
 	if it.err != nil {
@@ -210,7 +211,7 @@ func (it *rawIterator) decodeRetention() policy.Retention {
 // always decodes an int64 and looks at the actual decoded
 // value to determine the width of the integer (a.k.a. varint
 // decoding)
-func (it *rawIterator) decodeVarint() int64 {
+func (it *multiTypedIterator) decodeVarint() int64 {
 	if it.err != nil {
 		return 0
 	}
@@ -219,7 +220,7 @@ func (it *rawIterator) decodeVarint() int64 {
 	return value
 }
 
-func (it *rawIterator) decodeFloat64() float64 {
+func (it *multiTypedIterator) decodeFloat64() float64 {
 	if it.err != nil {
 		return 0.0
 	}
@@ -228,7 +229,7 @@ func (it *rawIterator) decodeFloat64() float64 {
 	return value
 }
 
-func (it *rawIterator) decodeBytes() []byte {
+func (it *multiTypedIterator) decodeBytes() []byte {
 	if it.err != nil {
 		return nil
 	}
@@ -237,7 +238,7 @@ func (it *rawIterator) decodeBytes() []byte {
 	return value
 }
 
-func (it *rawIterator) decodeArrayLen() int {
+func (it *multiTypedIterator) decodeArrayLen() int {
 	if it.err != nil {
 		return 0
 	}

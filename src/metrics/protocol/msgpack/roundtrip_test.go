@@ -122,20 +122,20 @@ type metricWithPolicies struct {
 	policies policy.VersionedPolicies
 }
 
-func testRawEncoder(t *testing.T) RawEncoder {
-	rawEncoder, err := NewRawEncoder(newBufferedEncoder())
+func testMultiTypedEncoder(t *testing.T) MultiTypedEncoder {
+	encoder, err := NewMultiTypedEncoder(newBufferedEncoder())
 	require.NoError(t, err)
-	return rawEncoder
+	return encoder
 }
 
-func testRawIterator(t *testing.T, reader io.Reader) RawIterator {
-	opts := NewRawIteratorOptions()
-	rawIterator, err := NewRawIterator(reader, opts)
+func testMultiTypedIterator(t *testing.T, reader io.Reader) MultiTypedIterator {
+	opts := NewMultiTypedIteratorOptions()
+	iterator, err := NewMultiTypedIterator(reader, opts)
 	require.NoError(t, err)
-	return rawIterator
+	return iterator
 }
 
-func testEncode(t *testing.T, encoder RawEncoder, m *metric.OneOf, p policy.VersionedPolicies) error {
+func testEncode(t *testing.T, encoder MultiTypedEncoder, m *metric.OneOf, p policy.VersionedPolicies) error {
 	switch m.Type {
 	case metric.CounterType:
 		return encoder.EncodeCounter(m.Counter(), p)
@@ -163,16 +163,14 @@ func compareMetric(t *testing.T, expected metric.OneOf, actual metric.OneOf) {
 }
 
 func validateRoundtrip(t *testing.T, inputs ...metricWithPolicies) {
-	encoder := testRawEncoder(t)
-	it := testRawIterator(t, nil)
+	encoder := testMultiTypedEncoder(t)
+	it := testMultiTypedIterator(t, nil)
 	validateRoundtripWithEncoderAndIterator(t, encoder, it, inputs...)
 }
 
 func validateRoundtripWithEncoderAndIterator(
 	t *testing.T,
-	encoder RawEncoder,
-	it RawIterator,
-	inputs ...metricWithPolicies,
+	encoder MultiTypedEncoder, it MultiTypedIterator, inputs ...metricWithPolicies,
 ) {
 	var results []metricWithPolicies
 
@@ -247,8 +245,8 @@ func TestEncodeDecodeAllTypesWithCustomPolicies(t *testing.T) {
 func TestEncodeDecodeStress(t *testing.T) {
 	numIter := 10
 	numMetrics := 10000
-	rawMetrics := []metric.OneOf{testCounter, testBatchTimer, testGauge}
-	policies := []policy.VersionedPolicies{
+	allMetrics := []metric.OneOf{testCounter, testBatchTimer, testGauge}
+	allPolicies := []policy.VersionedPolicies{
 		policy.DefaultVersionedPolicies,
 		{
 			Version: 2,
@@ -265,13 +263,13 @@ func TestEncodeDecodeStress(t *testing.T) {
 		},
 	}
 
-	encoder := testRawEncoder(t)
-	iterator := testRawIterator(t, nil)
+	encoder := testMultiTypedEncoder(t)
+	iterator := testMultiTypedIterator(t, nil)
 	for i := 0; i < numIter; i++ {
 		var inputs []metricWithPolicies
 		for j := 0; j < numMetrics; j++ {
-			m := rawMetrics[rand.Int63n(int64(len(rawMetrics)))]
-			p := policies[rand.Int63n(int64(len(policies)))]
+			m := allMetrics[rand.Int63n(int64(len(allMetrics)))]
+			p := allPolicies[rand.Int63n(int64(len(allPolicies)))]
 			inputs = append(inputs, metricWithPolicies{metric: m, policies: p})
 		}
 		validateRoundtripWithEncoderAndIterator(t, encoder, iterator, inputs...)
