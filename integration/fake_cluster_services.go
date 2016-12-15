@@ -84,12 +84,12 @@ type fakeM3ClusterClient struct {
 	kvStore  FakeM3ClusterKVStore
 }
 
-func (c *fakeM3ClusterClient) Services() (services.Services, error) {
-	return c.services, nil
+func (c *fakeM3ClusterClient) Services() services.Services {
+	return c.services
 }
 
-func (c *fakeM3ClusterClient) KV() (kv.Store, error) {
-	return c.kvStore, nil
+func (c *fakeM3ClusterClient) KV() kv.Store {
+	return c.kvStore
 }
 
 // NewFakeM3ClusterServices creates a new fake m3cluster services
