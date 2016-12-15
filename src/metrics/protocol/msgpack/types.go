@@ -70,7 +70,7 @@ type RawEncoder interface {
 	// EncodeGauge encodes a gauge with applicable policies
 	EncodeGauge(g metric.Gauge, p policy.VersionedPolicies) error
 
-	// Buffer returns the encoder buffer
+	// Encoder returns the encoder
 	Encoder() BufferedEncoder
 
 	// Reset resets the encoder
