@@ -40,7 +40,7 @@ func testSetup(ctrl *gomock.Controller) (DynamicOptions, *testWatch) {
 	mockCSServices.EXPECT().Watch(opts.ServiceID(), opts.QueryOptions()).Return(watch, nil)
 
 	mockCSClient := client.NewMockClient(ctrl)
-	mockCSClient.EXPECT().Services().Return(mockCSServices, nil)
+	mockCSClient.EXPECT().Services().Return(mockCSServices)
 	opts = opts.SetConfigServiceClient(mockCSClient)
 	return opts, watch
 }
