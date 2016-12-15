@@ -32,46 +32,46 @@ var (
 	errNoPoliciesPool = errors.New("no policies pool")
 )
 
-type rawIteratorOptions struct {
+type multiTypedIteratorOptions struct {
 	floatsPool   xpool.FloatsPool
 	policiesPool pool.PoliciesPool
 }
 
-// NewRawIteratorOptions creates a new set of raw iterator options
-func NewRawIteratorOptions() RawIteratorOptions {
+// NewMultiTypedIteratorOptions creates a new set of multi-typed iterator options
+func NewMultiTypedIteratorOptions() MultiTypedIteratorOptions {
 	floatsPool := xpool.NewFloatsPool(nil, nil)
 	floatsPool.Init()
 
 	policiesPool := pool.NewPoliciesPool(nil, nil)
 	policiesPool.Init()
 
-	return rawIteratorOptions{
+	return multiTypedIteratorOptions{
 		floatsPool:   floatsPool,
 		policiesPool: policiesPool,
 	}
 }
 
-func (o rawIteratorOptions) SetFloatsPool(value xpool.FloatsPool) RawIteratorOptions {
+func (o multiTypedIteratorOptions) SetFloatsPool(value xpool.FloatsPool) MultiTypedIteratorOptions {
 	opts := o
 	opts.floatsPool = value
 	return opts
 }
 
-func (o rawIteratorOptions) FloatsPool() xpool.FloatsPool {
+func (o multiTypedIteratorOptions) FloatsPool() xpool.FloatsPool {
 	return o.floatsPool
 }
 
-func (o rawIteratorOptions) SetPoliciesPool(value pool.PoliciesPool) RawIteratorOptions {
+func (o multiTypedIteratorOptions) SetPoliciesPool(value pool.PoliciesPool) MultiTypedIteratorOptions {
 	opts := o
 	opts.policiesPool = value
 	return opts
 }
 
-func (o rawIteratorOptions) PoliciesPool() pool.PoliciesPool {
+func (o multiTypedIteratorOptions) PoliciesPool() pool.PoliciesPool {
 	return o.policiesPool
 }
 
-func (o rawIteratorOptions) Validate() error {
+func (o multiTypedIteratorOptions) Validate() error {
 	if o.floatsPool == nil {
 		return errNoFloatsPool
 	}

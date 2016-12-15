@@ -40,23 +40,23 @@ var (
 	errTestArrayLen = errors.New("test array len error")
 )
 
-func testGoodCapturingRawEncoder(t *testing.T) (RawEncoder, *[]interface{}) {
-	rawEncoder := testRawEncoder(t).(*rawEncoder)
+func testCapturingMultiTypedEncoder(t *testing.T) (MultiTypedEncoder, *[]interface{}) {
+	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
 
 	var result []interface{}
-	rawEncoder.encodeVarintFn = func(value int64) {
+	encoder.encodeVarintFn = func(value int64) {
 		result = append(result, value)
 	}
-	rawEncoder.encodeFloat64Fn = func(value float64) {
+	encoder.encodeFloat64Fn = func(value float64) {
 		result = append(result, value)
 	}
-	rawEncoder.encodeBytesFn = func(value []byte) {
+	encoder.encodeBytesFn = func(value []byte) {
 		result = append(result, value)
 	}
-	rawEncoder.encodeArrayLenFn = func(value int) {
+	encoder.encodeArrayLenFn = func(value int) {
 		result = append(result, value)
 	}
-	return rawEncoder, &result
+	return encoder, &result
 }
 
 func getExpectedResults(t *testing.T, m *metric.OneOf, p policy.VersionedPolicies) []interface{} {
@@ -97,33 +97,33 @@ func getExpectedResults(t *testing.T, m *metric.OneOf, p policy.VersionedPolicie
 	return results
 }
 
-func TestRawEncodeCounterWithDefaultPolicies(t *testing.T) {
+func TestMultiTypedEncodeCounterWithDefaultPolicies(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
-	encoder, results := testGoodCapturingRawEncoder(t)
+	encoder, results := testCapturingMultiTypedEncoder(t)
 	require.NoError(t, testEncode(t, encoder, &testCounter, policies))
 	expected := getExpectedResults(t, &testCounter, policies)
 	require.Equal(t, expected, *results)
 }
 
-func TestRawEncodeBatchTimerWithDefaultPolicies(t *testing.T) {
+func TestMultiTypedEncodeBatchTimerWithDefaultPolicies(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
-	encoder, results := testGoodCapturingRawEncoder(t)
+	encoder, results := testCapturingMultiTypedEncoder(t)
 	require.NoError(t, testEncode(t, encoder, &testBatchTimer, policies))
 	expected := getExpectedResults(t, &testBatchTimer, policies)
 	require.Equal(t, expected, *results)
 }
 
-func TestRawEncodeGaugeWithDefaultPolicies(t *testing.T) {
+func TestMultiTypedEncodeGaugeWithDefaultPolicies(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
-	encoder, results := testGoodCapturingRawEncoder(t)
+	encoder, results := testCapturingMultiTypedEncoder(t)
 	require.NoError(t, testEncode(t, encoder, &testGauge, policies))
 	expected := getExpectedResults(t, &testGauge, policies)
 	require.Equal(t, expected, *results)
 }
 
-func TestRawEncodeAllTypesWithDefaultPolicies(t *testing.T) {
+func TestMultiTypedEncodeAllTypesWithDefaultPolicies(t *testing.T) {
 	var expected []interface{}
-	encoder, results := testGoodCapturingRawEncoder(t)
+	encoder, results := testCapturingMultiTypedEncoder(t)
 	for _, input := range testInputWithAllTypesAndDefaultPolicies {
 		require.NoError(t, testEncode(t, encoder, &input.metric, input.policies))
 		expected = append(expected, getExpectedResults(t, &input.metric, input.policies)...)
@@ -132,9 +132,9 @@ func TestRawEncodeAllTypesWithDefaultPolicies(t *testing.T) {
 	require.Equal(t, expected, *results)
 }
 
-func TestRawEncodeAllTypesWithCustomPolicies(t *testing.T) {
+func TestMultiTypedEncodeAllTypesWithCustomPolicies(t *testing.T) {
 	var expected []interface{}
-	encoder, results := testGoodCapturingRawEncoder(t)
+	encoder, results := testCapturingMultiTypedEncoder(t)
 	for _, input := range testInputWithAllTypesAndCustomPolicies {
 		require.NoError(t, testEncode(t, encoder, &input.metric, input.policies))
 		expected = append(expected, getExpectedResults(t, &input.metric, input.policies)...)
@@ -143,12 +143,12 @@ func TestRawEncodeAllTypesWithCustomPolicies(t *testing.T) {
 	require.Equal(t, expected, *results)
 }
 
-func TestRawEncodeCounterError(t *testing.T) {
+func TestMultiTypedEncodeCounterError(t *testing.T) {
 	counter := testCounter
 	policies := policy.DefaultVersionedPolicies
 
 	// Intentionally return an error when encoding varint
-	encoder := testRawEncoder(t).(*rawEncoder)
+	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
 	encoder.encodeVarintFn = func(value int64) {
 		encoder.err = errTestVarint
 	}
@@ -160,12 +160,12 @@ func TestRawEncodeCounterError(t *testing.T) {
 	require.Equal(t, errTestVarint, testEncode(t, encoder, &counter, policies))
 }
 
-func TestRawEncodeBatchTimerError(t *testing.T) {
+func TestMultiTypedEncodeBatchTimerError(t *testing.T) {
 	timer := testBatchTimer
 	policies := policy.DefaultVersionedPolicies
 
 	// Intentionally return an error when encoding array length
-	encoder := testRawEncoder(t).(*rawEncoder)
+	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
 	encoder.encodeArrayLenFn = func(value int) {
 		encoder.err = errTestArrayLen
 	}
@@ -177,12 +177,12 @@ func TestRawEncodeBatchTimerError(t *testing.T) {
 	require.Equal(t, errTestArrayLen, testEncode(t, encoder, &timer, policies))
 }
 
-func TestRawEncodeGaugeError(t *testing.T) {
+func TestMultiTypedEncodeGaugeError(t *testing.T) {
 	gauge := testGauge
 	policies := policy.DefaultVersionedPolicies
 
 	// Intentionally return an error when encoding float64
-	encoder := testRawEncoder(t).(*rawEncoder)
+	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
 	encoder.encodeFloat64Fn = func(value float64) {
 		encoder.err = errTestFloat64
 	}
@@ -194,7 +194,7 @@ func TestRawEncodeGaugeError(t *testing.T) {
 	require.Equal(t, errTestFloat64, testEncode(t, encoder, &gauge, policies))
 }
 
-func TestRawEncodePolicyError(t *testing.T) {
+func TestMultiTypedEncodePolicyError(t *testing.T) {
 	gauge := testGauge
 	policies := policy.VersionedPolicies{
 		Version: 1,
@@ -207,7 +207,7 @@ func TestRawEncodePolicyError(t *testing.T) {
 	}
 
 	// Intentionally return an error when encoding array length
-	encoder := testRawEncoder(t).(*rawEncoder)
+	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
 	encoder.encodeArrayLenFn = func(value int) {
 		encoder.err = errTestArrayLen
 	}
