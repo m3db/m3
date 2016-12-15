@@ -259,6 +259,6 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 	}
 }
 
-func (m replicaMetadataComparer) OnClose() {
+func (m replicaMetadataComparer) Finalize() {
 	m.metadata.Close()
 }

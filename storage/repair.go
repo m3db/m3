@@ -112,7 +112,7 @@ func (r shardRepairer) Repair(
 	)
 
 	metadata := repair.NewReplicaMetadataComparer(replicas, r.rpopts)
-	ctx.RegisterCloser(metadata)
+	ctx.RegisterFinalizer(metadata)
 
 	// Add local metadata
 	localMetadata, _ := shard.FetchBlocksMetadata(ctx, start, end, math.MaxInt64, 0, true, true)

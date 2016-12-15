@@ -83,7 +83,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	}
 	s := b.opts.SegmentReaderPool().Get()
 	s.Reset(b.segment)
-	blocker.RegisterCloser(context.CloserFn(s.Close))
+	blocker.RegisterFinalizer(context.FinalizerFn(s.Close))
 	return s, nil
 }
 
@@ -107,7 +107,7 @@ func (b *dbBlock) resetSegment(segment ts.Segment) {
 		return
 	}
 
-	b.ctx.RegisterCloser(context.CloserFn(func() {
+	b.ctx.RegisterFinalizer(context.FinalizerFn(func() {
 		if segment.Head != nil && !segment.HeadShared {
 			bytesPool.Put(segment.Head)
 		}

@@ -128,8 +128,8 @@ type ReplicaMetadataComparer interface {
 	// Compare returns the metadata differences between local host and peers
 	Compare() MetadataComparisonResult
 
-	// OnClose performs cleanup during close
-	OnClose()
+	// Finalize performs cleanup during close
+	Finalize()
 }
 
 // MetadataComparisonResult captures metadata comparison results

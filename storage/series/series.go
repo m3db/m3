@@ -542,7 +542,7 @@ func (s *dbSeries) Flush(
 
 func (s *dbSeries) Close() {
 	s.Lock()
-	s.id.Close()
+	s.id.Finalize()
 	s.buffer.Reset()
 	s.blocks.Close()
 	s.Unlock()

@@ -43,19 +43,11 @@ func hash(data []byte) Hash {
 	return md5.Sum(data)
 }
 
-type hashState int32
-
-const (
-	uninitialized hashState = iota
-	computing
-	computed
-)
-
 type id struct {
-	data  []byte
-	hash  Hash
-	state int32
-	pool  IdentifierPool
+	data []byte
+	hash Hash
+	pool IdentifierPool
+	flag int32
 }
 
 // Data returns the binary value of an ID.
@@ -63,37 +55,45 @@ func (v *id) Data() []byte {
 	return v.data
 }
 
+type hashFlag int32
+
+const (
+	invalid hashFlag = iota
+	pending
+	computed
+)
+
 var null = Hash{}
 
 // Hash calculates and returns the hash of an ID.
 func (v *id) Hash() Hash {
-	state := hashState(atomic.LoadInt32(&v.state))
-	switch state {
+	switch flag := hashFlag(atomic.LoadInt32(&v.flag)); flag {
 	case computed:
-		// If the id hash has been computed, return cached hash value
-		return Hash(v.hash)
-	case computing:
-		// If the id hash is being computed, compute the hash without waiting
-		return hash(v.data)
-	case uninitialized:
-		// If the id hash is unitialized, and this goroutine gains exclusive
-		// access to the hash field, computes the hash and sets the hash
-		if atomic.CompareAndSwapInt32(&v.state, int32(uninitialized), int32(computing)) {
+		// If the hash has been computed, return the previously cached value.
+		return v.hash
+	case pending:
+		break
+	case invalid:
+		// If the hash is not computed, and this goroutine gains exclusive
+		// access to the hash field, compute and cache it.
+		if atomic.CompareAndSwapInt32(&v.flag, int32(invalid), int32(pending)) {
 			v.hash = hash(v.data)
 			return v.hash
 		}
-		// Otherwise compute the hash without waiting
-		return hash(v.data)
 	default:
-		panic(fmt.Sprintf("unexpected hash state: %v", state))
+		panic(fmt.Sprintf("unexpected hash state: %v", flag))
 	}
+
+	// If the hash is being computed, compute the hash in place and don't
+	// wait.
+	return hash(v.data)
 }
 
 func (v *id) Equal(value ID) bool {
 	return bytes.Equal(v.Data(), value.Data())
 }
 
-func (v *id) Close() {
+func (v *id) Finalize() {
 	if v.pool == nil {
 		return
 	}

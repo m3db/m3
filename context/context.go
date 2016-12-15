@@ -20,140 +20,141 @@
 
 package context
 
-import (
-	"sync"
-)
+import "sync"
 
-type dependency struct {
-	closers      []Closer
-	dependencies sync.WaitGroup
-}
-
-// NB(r): using golang.org/x/net/context is too GC expensive
+// NB(r): using golang.org/x/net/context is too GC expensive.
 type ctx struct {
+	sync.WaitGroup
 	sync.RWMutex
-	pool   contextPool
-	closed bool
-	dep    *dependency
+
+	pool       contextPool
+	done       bool
+	finalizers []Finalizer
 }
 
-// NewContext creates a new context
+// NewContext creates a new context.
 func NewContext() Context {
 	return newPooledContext(nil)
 }
 
-// NewPooledContext returns a new context that is returned to a pool when closed
+// NewPooledContext returns a new context that is returned to a pool when closed.
 func newPooledContext(pool contextPool) Context {
 	return &ctx{pool: pool}
 }
 
-func (c *ctx) ensureDependencies(initClosers bool) {
-	if c.dep == nil {
-		c.dep = &dependency{}
-	}
-	if !initClosers || c.dep.closers != nil {
-		return
-	}
-	if c.pool != nil {
-		c.dep.closers = c.pool.GetClosers()
-	} else {
-		c.dep.closers = allocateClosers()
-	}
+func (c *ctx) IsClosed() bool {
+	c.RLock()
+	done := c.done
+	c.RUnlock()
+
+	return done
 }
 
-func (c *ctx) RegisterCloser(closer Closer) {
-	c.Lock()
-	if c.closed {
+func (c *ctx) RegisterFinalizer(f Finalizer) {
+	if c.Lock(); c.done {
 		c.Unlock()
 		return
 	}
-	c.ensureDependencies(true)
-	c.dep.closers = append(c.dep.closers, closer)
+
+	if c.finalizers != nil {
+		c.finalizers = append(c.finalizers, f)
+		c.Unlock()
+		return
+	}
+
+	if c.pool != nil {
+		c.finalizers = append(c.pool.GetFinalizers(), f)
+	} else {
+		c.finalizers = append(allocateFinalizers(), f)
+	}
+
 	c.Unlock()
 }
 
 func (c *ctx) DependsOn(blocker Context) {
 	c.Lock()
-	if !c.closed {
-		c.ensureDependencies(false)
-		c.dep.dependencies.Add(1)
-		blocker.RegisterCloser(c)
+
+	if !c.done {
+		c.Add(1)
+		blocker.RegisterFinalizer(c)
 	}
+
 	c.Unlock()
 }
 
-// OnClose handles a call from another context that was depended upon closing
-func (c *ctx) OnClose() {
-	c.dep.dependencies.Done()
+// Finalize handles a call from another context that was depended upon closing.
+func (c *ctx) Finalize() {
+	c.Done()
 }
 
+type closeMode int
+
+const (
+	closeAsync closeMode = iota
+	closeBlock
+)
+
 func (c *ctx) Close() {
-	c.close(false)
+	c.close(closeAsync)
 }
 
 func (c *ctx) BlockingClose() {
-	c.close(true)
+	c.close(closeBlock)
 }
 
-func (c *ctx) close(blocking bool) {
-	var closers []Closer
-
-	c.Lock()
-	if c.closed {
+func (c *ctx) close(mode closeMode) {
+	if c.Lock(); c.done {
 		c.Unlock()
 		return
 	}
-	c.closed = true
-	if c.dep != nil {
-		closers = c.dep.closers[:]
-	}
+
+	c.done = true
+	finalizers := c.finalizers[:]
 	c.Unlock()
 
-	if len(closers) == 0 {
+	if len(finalizers) == 0 {
 		c.returnToPool()
 		return
 	}
 
-	if blocking {
-		c.finalize(closers)
-	} else {
-		go c.finalize(closers)
+	switch mode {
+	case closeAsync:
+		go c.finalize(finalizers)
+	case closeBlock:
+		c.finalize(finalizers)
 	}
 }
 
-func (c *ctx) finalize(closers []Closer) {
-	// Wait for dependencies
-	c.dep.dependencies.Wait()
-	// Now call closers
-	for i := range closers {
-		closers[i].OnClose()
+func (c *ctx) finalize(finalizers []Finalizer) {
+	// Wait for dependencies.
+	c.Wait()
+
+	// Now call finalizers.
+	for i := range finalizers {
+		finalizers[i].Finalize()
 	}
+
 	c.returnToPool()
-}
-
-func (c *ctx) IsClosed() bool {
-	c.RLock()
-	closed := c.closed
-	c.RUnlock()
-	return closed
 }
 
 func (c *ctx) Reset() {
 	c.Lock()
-	c.closed = false
-	if c.dep != nil {
-		if c.pool != nil {
-			c.pool.PutClosers(c.dep.closers)
-		}
-		c.dep.closers = nil
-		c.dep.dependencies = sync.WaitGroup{}
+
+	if c.pool != nil {
+		c.pool.PutFinalizers(c.finalizers)
 	}
+
+	c.WaitGroup = sync.WaitGroup{}
+	c.done, c.finalizers = false, nil
+
 	c.Unlock()
 }
 
 func (c *ctx) returnToPool() {
-	if c.pool != nil {
-		c.Reset()
-		c.pool.Put(c)
+	if c.pool == nil {
+		return
 	}
+
+	c.Reset()
+	c.pool.Put(c)
 }

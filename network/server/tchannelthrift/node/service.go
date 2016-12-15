@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
@@ -36,6 +35,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -346,7 +346,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 
 	// NB(xichen): register a closer with context so objects are returned to pool
 	// when we are done using them
-	ctx.RegisterCloser(s.newCloseableMetadataResult(result))
+	ctx.RegisterFinalizer(s.newCloseableMetadataResult(result))
 
 	for _, fetchedMetadata := range fetchedResults {
 		blocksMetadata := s.blocksMetadataPool.Get()
@@ -509,7 +509,7 @@ type closeableMetadataResult struct {
 	result *rpc.FetchBlocksMetadataRawResult_
 }
 
-func (c closeableMetadataResult) OnClose() {
+func (c closeableMetadataResult) Finalize() {
 	for _, blocksMetadata := range c.result.Elements {
 		for _, blockMetadata := range blocksMetadata.Blocks {
 			c.s.blockMetadataPool.Put(blockMetadata)
