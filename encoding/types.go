@@ -208,7 +208,6 @@ type IStream interface {
 
 // OStream encapsulates a writable stream.
 type OStream interface {
-	Clone() OStream
 	Len() int
 	Empty() bool
 	WriteBit(v Bit)

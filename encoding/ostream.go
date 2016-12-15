@@ -45,11 +45,6 @@ func NewOStream(bytes []byte, initAllocIfEmpty bool, bytesPool pool.BytesPool) O
 	return stream
 }
 
-// Clone creates a copy of the Ostream
-func (os *ostream) Clone() OStream {
-	return &ostream{os.rawBuffer, os.pos, os.bytesPool}
-}
-
 // Len returns the length of the Ostream
 func (os *ostream) Len() int {
 	return len(os.rawBuffer)

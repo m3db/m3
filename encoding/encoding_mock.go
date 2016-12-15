@@ -824,16 +824,6 @@ func (_m *MockOStream) EXPECT() *_MockOStreamRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOStream) Clone() OStream {
-	ret := _m.ctrl.Call(_m, "Clone")
-	ret0, _ := ret[0].(OStream)
-	return ret0
-}
-
-func (_mr *_MockOStreamRecorder) Clone() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Clone")
-}
-
 func (_m *MockOStream) Len() int {
 	ret := _m.ctrl.Call(_m, "Len")
 	ret0, _ := ret[0].(int)

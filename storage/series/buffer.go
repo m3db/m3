@@ -158,14 +158,15 @@ func (b *dbBuffer) DrainAndReset() {
 
 			// After we merge there is always only a single encoder with all the data
 			encoder := bucket.encoders[0].encoder
+			if stream := encoder.Stream(); stream != nil {
+				newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+				newBlock.Reset(bucket.start, stream.Segment())
+				b.drainFn(newBlock)
 
-			newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-			newBlock.Reset(bucket.start, encoder.Stream().Segment())
-			b.drainFn(newBlock)
-
-			// Release the reference encoder has to the data so when
-			// encoder is closed it will not return the bytes to the bytes pool
-			encoder.ResetSetData(bucket.start, nil)
+				// Release the reference encoder has to the data so when
+				// encoder is closed it will not return the bytes to the bytes pool
+				encoder.ResetSetData(bucket.start, nil)
+			}
 
 			bucket.drained = true
 		}

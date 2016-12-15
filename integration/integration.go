@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
@@ -40,6 +39,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
@@ -271,6 +271,7 @@ type testData struct {
 }
 
 func writeTestDataToDisk(
+	t *testing.T,
 	namespace ts.ID,
 	setup *testSetup,
 	seriesMaps map[time.Time]seriesList,
@@ -298,7 +299,7 @@ func writeTestDataToDisk(
 	}
 
 	for start, data := range seriesMaps {
-		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, data)
+		err := writeToDisk(t, writer, setup.shardSet, encoder, start, namespace, data)
 		if err != nil {
 			return err
 		}
@@ -307,7 +308,7 @@ func writeTestDataToDisk(
 
 	// Write remaining files even for empty start periods to avoid unfulfilled ranges
 	for start := range starts {
-		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, nil)
+		err := writeToDisk(t, writer, setup.shardSet, encoder, start, namespace, nil)
 		if err != nil {
 			return err
 		}
@@ -317,6 +318,7 @@ func writeTestDataToDisk(
 }
 
 func writeToDisk(
+	t *testing.T,
 	writer fs.FileSetWriter,
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
@@ -345,7 +347,9 @@ func writeToDisk(
 					return err
 				}
 			}
-			segment := encoder.Stream().Segment()
+			stream := encoder.Stream()
+			require.NotNil(t, stream)
+			segment := stream.Segment()
 			segmentHolder[0] = segment.Head
 			segmentHolder[1] = segment.Tail
 			if err := writer.WriteAll(series.ID, segmentHolder); err != nil {
