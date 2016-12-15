@@ -30,7 +30,7 @@ import:
   - thrift
 
 - package: github.com/willf/bitset
-  version: 2e6e8094ef4745224150c88c16191c7dceaad16f
+  version: 1ea0245d2bc8ce44623f24a1ae162beb06ad8cd6
 
 - package: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
