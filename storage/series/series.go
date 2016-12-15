@@ -117,6 +117,9 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	}
 
 	s.Lock()
+	// Recalculate in case changed during lock promotion
+	needsBlockUpdate = s.needsBlockUpdateWithRLock()
+	needsDrain = s.buffer.NeedsDrain()
 	if needsDrain {
 		s.buffer.DrainAndReset()
 	}
