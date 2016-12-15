@@ -37,9 +37,10 @@ const (
 )
 
 var (
-	errNoConfigServiceClient = errors.New("no config service client")
-	errNoHashGen             = errors.New("no hash gen function defined")
-	errInvalidReplicas       = errors.New("replicas must be equal to or greater than 1")
+	errNoConfigServiceClient         = errors.New("no config service client")
+	errNoConfigServiceServicesClient = errors.New("no config service services client")
+	errNoHashGen                     = errors.New("no hash gen function defined")
+	errInvalidReplicas               = errors.New("replicas must be equal to or greater than 1")
 )
 
 type staticOptions struct {
@@ -137,9 +138,9 @@ func (o *dynamicOptions) Validate() error {
 	if o.ConfigServiceClient() == nil {
 		return errNoConfigServiceClient
 	}
-	_, err := o.ConfigServiceClient().Services()
-	if err != nil {
-		return fmt.Errorf("no service discover client, %v", err)
+	services := o.ConfigServiceClient().Services()
+	if services == nil {
+		return errNoConfigServiceServicesClient
 	}
 	if o.HashGen() == nil {
 		return errNoHashGen
