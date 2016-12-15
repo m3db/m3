@@ -84,8 +84,8 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 			appendSeries(right, start, series)
 		}
 	}
-	require.NoError(t, writeTestDataToDisk(namesp.ID(), setups[0], left))
-	require.NoError(t, writeTestDataToDisk(namesp.ID(), setups[1], right))
+	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setups[0], left))
+	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setups[1], right))
 
 	// Start the first two servers with filesystem bootstrappers
 	setups[:2].parallel(func(s *testSetup) {

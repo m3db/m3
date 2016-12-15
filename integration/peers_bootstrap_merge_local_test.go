@@ -125,7 +125,7 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	require.Equal(t, 120, len(directWritesSeriesMaps[now][1].Data))
 
 	// Write data to first node
-	err := writeTestDataToDisk(namesp.ID(), setups[0], firstNodeSeriesMaps)
+	err := writeTestDataToDisk(t, namesp.ID(), setups[0], firstNodeSeriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

@@ -38,7 +38,6 @@ var (
 // internally ordered but not collectively in order readers, it also deduplicates datapoints.
 type multiReaderIterator struct {
 	iters            IteratorHeap
-	cachedIters      []ReaderIterator
 	slicesIter       xio.ReaderSliceOfSlicesIterator
 	iteratorAlloc    ReaderIteratorAllocate
 	singleSlicesIter singleSlicesOfSlicesIterator
@@ -111,16 +110,9 @@ func (it *multiReaderIterator) moveToNext() {
 	currentLen := it.slicesIter.CurrentLen()
 	for i := 0; i < currentLen; i++ {
 		var (
-			iter   ReaderIterator
 			reader = it.slicesIter.CurrentAt(i)
+			iter   = it.iteratorAlloc(reader)
 		)
-		if len(it.cachedIters) != 0 {
-			iter = it.cachedIters[len(it.cachedIters)-1]
-			iter.Reset(reader)
-			it.cachedIters = it.cachedIters[:len(it.cachedIters)-1]
-		} else {
-			iter = it.iteratorAlloc(reader)
-		}
 		if iter.Next() {
 			// Only insert it if it has values
 			heap.Push(&it.iters, iter)
@@ -146,7 +138,7 @@ func (it *multiReaderIterator) moveIteratorsToNext() {
 	if it.moveIteratorToValidNext(iter) {
 		heap.Push(&it.iters, iter)
 	} else {
-		it.cachedIters = append(it.cachedIters, iter)
+		iter.Close()
 	}
 
 	if it.iters.Len() == 0 {
@@ -171,14 +163,12 @@ func (it *multiReaderIterator) moveIteratorToValidNext(iter Iterator) bool {
 			if it.err == nil {
 				it.err = errOutOfOrderIterator
 			}
-			iter.Close()
 			return false
 		}
 		return true
 	}
 
 	err := iter.Err()
-	iter.Close()
 	if it.err == nil && err != nil {
 		it.err = err
 	}

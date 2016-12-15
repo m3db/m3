@@ -146,7 +146,7 @@ func TestClusterAddOneNode(t *testing.T) {
 		{ids: []string{ids[0].str, ids[1].str}, numPoints: 180, start: now.Add(-blockSize)},
 		{ids: []string{ids[0].str, ids[2].str}, numPoints: 90, start: now},
 	})
-	err = writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
+	err = writeTestDataToDisk(t, namesp.ID(), setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Prepare verfication of data on nodes

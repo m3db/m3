@@ -85,9 +85,10 @@ func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuff
 }
 
 func (b *dbBuffer) Reset() {
-	b.computedForEachBucketAsc(b.nowFn(), computeAndResetBucketIdx, func(bucket *dbBufferBucket, start time.Time) {
+	idx := computeAndResetBucketIdx
+	b.computedForEachBucketAsc(b.nowFn(), idx, func(bucket *dbBufferBucket, t time.Time) {
 		bucket.opts = b.opts
-		bucket.resetTo(start)
+		bucket.resetTo(t)
 	})
 }
 
@@ -143,8 +144,9 @@ func (b *dbBuffer) IsEmpty() bool {
 
 func (b *dbBuffer) NeedsDrain() bool {
 	now := b.nowFn()
+	idx := computeBucketIdx
 	needsDrainAny := false
-	b.computedForEachBucketAsc(now, computeBucketIdx, func(bucket *dbBufferBucket, current time.Time) {
+	b.computedForEachBucketAsc(now, idx, func(bucket *dbBufferBucket, current time.Time) {
 		needsDrainAny = needsDrainAny || bucket.needsDrain(now, current)
 	})
 	return needsDrainAny
@@ -152,20 +154,26 @@ func (b *dbBuffer) NeedsDrain() bool {
 
 func (b *dbBuffer) DrainAndReset() {
 	now := b.nowFn()
-	b.computedForEachBucketAsc(now, computeAndResetBucketIdx, func(bucket *dbBufferBucket, current time.Time) {
+	idx := computeAndResetBucketIdx
+	b.computedForEachBucketAsc(now, idx, func(bucket *dbBufferBucket, current time.Time) {
 		if bucket.needsDrain(now, current) {
 			bucket.merge()
 
-			// After we merge there is always only a single encoder with all the data
+			// After we merge there is always only a single encoder with all data
 			encoder := bucket.encoders[0].encoder
+			if stream := encoder.Stream(); stream != nil {
+				newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+				newBlock.Reset(bucket.start, stream.Segment())
+				b.drainFn(newBlock)
 
-			newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-			newBlock.Reset(bucket.start, encoder.Stream().Segment())
-			b.drainFn(newBlock)
-
-			// Release the reference encoder has to the data so when
-			// encoder is closed it will not return the bytes to the bytes pool
-			encoder.ResetSetData(bucket.start, nil)
+				// Release the reference encoder has to the data so when
+				// encoder is closed it will not return the bytes to the bytes pool
+				encoder.ResetSetData(bucket.start, nil)
+			} else {
+				log := b.opts.InstrumentOptions().Logger()
+				log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
+					current.String())
+			}
 
 			bucket.drained = true
 		}

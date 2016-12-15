@@ -237,7 +237,7 @@ func TestSeriesTickNeedsDrain(t *testing.T) {
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
 	buffer.EXPECT().IsEmpty().Return(false)
-	buffer.EXPECT().NeedsDrain().Return(true)
+	buffer.EXPECT().NeedsDrain().Return(true).Times(2)
 	buffer.EXPECT().DrainAndReset()
 	_, err := series.Tick()
 	require.NoError(t, err)
@@ -268,7 +268,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
 	buffer.EXPECT().IsEmpty().Return(true)
-	buffer.EXPECT().NeedsDrain().Return(false)
+	buffer.EXPECT().NeedsDrain().Return(false).Times(2)
 	r, err := series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 1, r.ActiveBlocks)

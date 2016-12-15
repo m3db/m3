@@ -108,7 +108,7 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	// stale buckets, cheaply check this case first with a Rlock
 	s.RLock()
 	needsDrain := s.buffer.NeedsDrain()
-	needsBlockUpdate := s.needsBlockUpdateWithRLock()
+	needsBlockUpdate := s.needsBlockUpdateWithLock()
 	r.ActiveBlocks = s.blocks.Len()
 	s.RUnlock()
 
@@ -117,6 +117,9 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	}
 
 	s.Lock()
+	// Recalculate in case changed during lock promotion
+	needsDrain = s.buffer.NeedsDrain()
+	needsBlockUpdate = s.needsBlockUpdateWithLock()
 	if needsDrain {
 		s.buffer.DrainAndReset()
 	}
@@ -130,7 +133,7 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	return r, nil
 }
 
-func (s *dbSeries) needsBlockUpdateWithRLock() bool {
+func (s *dbSeries) needsBlockUpdateWithLock() bool {
 	if s.blocks.Len() == 0 {
 		return false
 	}

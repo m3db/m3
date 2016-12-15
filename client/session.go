@@ -1856,7 +1856,6 @@ type blocksResult struct {
 	contextPool             context.Pool
 	encoderPool             encoding.EncoderPool
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
-	bytesPool               pool.BytesPool
 	result                  bootstrap.ShardResult
 }
 
@@ -1873,7 +1872,6 @@ func newBlocksResult(
 		contextPool:             opts.ContextPool(),
 		encoderPool:             blockOpts.EncoderPool(),
 		multiReaderIteratorPool: multiReaderIteratorPool,
-		bytesPool:               blockOpts.BytesPool(),
 		result:                  bootstrap.NewShardResult(4096, bootstrapOpts),
 	}
 }
@@ -1958,13 +1956,16 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 		readers := []io.Reader{currReader, resultReader}
 		encoder, err := r.mergeReaders(start, readers)
 
-		tmpCtx.Close()
-
 		if err != nil {
 			return err
 		}
 
+		result.Close()
+
+		result = r.blockOpts.DatabaseBlockPool().Get()
 		result.Reset(start, encoder.Discard())
+
+		tmpCtx.Close()
 	}
 
 	return nil
