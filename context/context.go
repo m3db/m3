@@ -109,29 +109,28 @@ func (c *ctx) close(mode closeMode) {
 	}
 
 	c.done = true
-	finalizers := c.finalizers[:]
 	c.Unlock()
 
-	if len(finalizers) == 0 {
+	if len(c.finalizers) == 0 {
 		c.returnToPool()
 		return
 	}
 
 	switch mode {
 	case closeAsync:
-		go c.finalize(finalizers)
+		go c.finalize()
 	case closeBlock:
-		c.finalize(finalizers)
+		c.finalize()
 	}
 }
 
-func (c *ctx) finalize(finalizers []Finalizer) {
+func (c *ctx) finalize() {
 	// Wait for dependencies.
 	c.Wait()
 
 	// Now call finalizers.
-	for i := range finalizers {
-		finalizers[i].Finalize()
+	for i := range c.finalizers {
+		c.finalizers[i].Finalize()
 	}
 
 	c.returnToPool()
@@ -140,7 +139,7 @@ func (c *ctx) finalize(finalizers []Finalizer) {
 func (c *ctx) Reset() {
 	c.Lock()
 
-	if c.pool != nil {
+	if c.pool != nil && c.finalizers != nil {
 		c.pool.PutFinalizers(c.finalizers)
 	}
 
