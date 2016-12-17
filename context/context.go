@@ -24,11 +24,11 @@ import "sync"
 
 // NB(r): using golang.org/x/net/context is too GC expensive.
 type ctx struct {
-	sync.WaitGroup
 	sync.RWMutex
 
 	pool       contextPool
 	done       bool
+	wg         sync.WaitGroup
 	finalizers []Finalizer
 }
 
@@ -75,7 +75,7 @@ func (c *ctx) DependsOn(blocker Context) {
 	c.Lock()
 
 	if !c.done {
-		c.Add(1)
+		c.wg.Add(1)
 		blocker.RegisterFinalizer(c)
 	}
 
@@ -84,7 +84,7 @@ func (c *ctx) DependsOn(blocker Context) {
 
 // Finalize handles a call from another context that was depended upon closing.
 func (c *ctx) Finalize() {
-	c.Done()
+	c.wg.Done()
 }
 
 type closeMode int
@@ -126,7 +126,7 @@ func (c *ctx) close(mode closeMode) {
 
 func (c *ctx) finalize() {
 	// Wait for dependencies.
-	c.Wait()
+	c.wg.Wait()
 
 	// Now call finalizers.
 	for i := range c.finalizers {
@@ -143,7 +143,6 @@ func (c *ctx) Reset() {
 		c.pool.PutFinalizers(c.finalizers)
 	}
 
-	c.WaitGroup = sync.WaitGroup{}
 	c.done, c.finalizers = false, nil
 
 	c.Unlock()
