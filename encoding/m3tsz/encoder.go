@@ -479,15 +479,15 @@ func (enc *encoder) trackNewSig(numSig uint8) uint8 {
 	return newSig
 }
 
-func (enc *encoder) Reset(start time.Time, capacity int) {
-	var newBuffer []byte
-	bytesPool := enc.opts.BytesPool()
-	if bytesPool != nil {
-		newBuffer = bytesPool.Get(capacity)
-	} else {
-		newBuffer = make([]byte, 0, capacity)
+func (enc *encoder) newBuffer(capacity int) []byte {
+	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
+		return bytesPool.Get(capacity)
 	}
-	enc.ResetSetData(start, newBuffer)
+	return make([]byte, 0, capacity)
+}
+
+func (enc *encoder) Reset(start time.Time, capacity int) {
+	enc.ResetSetData(start, enc.newBuffer(capacity))
 }
 
 func (enc *encoder) ResetSetData(start time.Time, data []byte) {
@@ -516,7 +516,7 @@ func (enc *encoder) Stream() xio.SegmentReader {
 
 	// We need a multibyte tail to capture an immutable snapshot
 	// of the encoder data this encoder.
-	head := b[:blen-1]
+	head := append(enc.newBuffer(blen-1), b[:blen-1]...)
 	scheme := enc.opts.MarkerEncodingScheme()
 	tail := scheme.Tail(b[blen-1], pos)
 
