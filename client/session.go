@@ -1720,9 +1720,6 @@ func (s *session) streamBlocksBatchFromPeer(
 		return
 	}
 
-	// Calculate earliest block start as of end of request
-	earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
-
 	// NB(r): As discussed in the new session constructor this processing needs to happen
 	// synchronously so that our outstanding work is calculated correctly, however we do
 	// not want to steal all the CPUs on the machine to avoid dropping incoming writes so
@@ -1764,22 +1761,9 @@ func (s *session) streamBlocksBatchFromPeer(
 			block := result.Elements[i].Blocks[j-missed]
 
 			if block.Start != batch[i].blocks[j].start.UnixNano() {
+				// If fell out of retention during request this is healthy, otherwise
+				// missing blocks will be repaired during an active repair
 				missed++
-
-				// If fell out of retention during request this is healthy, otherwise an error
-				if !time.Unix(0, block.Start).Before(earliestBlockStart) {
-					failed := []blockMetadata{batch[i].blocks[j]}
-					s.streamBlocksReattemptFromPeers(failed, enqueueCh)
-					s.log.WithFields(
-						xlog.NewLogField("id", id.String()),
-						xlog.NewLogField("expectedStart", batch[i].blocks[j].start.UnixNano()),
-						xlog.NewLogField("actualStart", block.Start),
-						xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
-						xlog.NewLogField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
-						xlog.NewLogField("indexID", i),
-						xlog.NewLogField("indexBlock", j),
-					).Errorf("stream blocks response from peer %s returned mismatched block start", peer.Host().String())
-				}
 				continue
 			}
 
