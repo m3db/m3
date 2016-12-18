@@ -36,7 +36,7 @@ type ID interface {
 	Hash() Hash
 	Equal(value ID) bool
 
-	Close()
+	Finalize()
 	Reset(v []byte)
 }
 

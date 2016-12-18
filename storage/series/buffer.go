@@ -339,7 +339,7 @@ func (b *dbBufferBucket) resetTo(
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
 
 	// Register when this bucket resets we close the encoder
-	ctx.RegisterCloser(context.CloserFn(encoder.Close))
+	ctx.RegisterFinalizer(context.FinalizerFn(encoder.Close))
 
 	if b.ctx != nil {
 		// Close the old context if we're resetting for use
@@ -386,7 +386,7 @@ func (b *dbBufferBucket) bootstrap(
 	bl block.DatabaseBlock,
 ) {
 	// Register when this bucket resets we close the bootstrapped block
-	b.ctx.RegisterCloser(context.CloserFn(bl.Close))
+	b.ctx.RegisterFinalizer(context.FinalizerFn(bl.Close))
 	b.empty = false
 	b.bootstrapped = append(b.bootstrapped, bl)
 }
@@ -420,7 +420,7 @@ func (b *dbBufferBucket) write(
 		target = &b.encoders[len(b.encoders)-1]
 
 		// Register when this bucket resets we close the encoder we just created
-		b.ctx.RegisterCloser(context.CloserFn(encoder.Close))
+		b.ctx.RegisterFinalizer(context.FinalizerFn(encoder.Close))
 	}
 
 	datapoint := ts.Datapoint{
@@ -451,7 +451,7 @@ func (b *dbBufferBucket) readStreams(
 	}
 	for i := range b.encoders {
 		if s := b.encoders[i].encoder.Stream(); s != nil {
-			ctx.RegisterCloser(context.CloserFn(s.Close))
+			ctx.RegisterFinalizer(context.FinalizerFn(s.Close))
 			streamFn(s)
 		}
 	}
@@ -472,7 +472,7 @@ func (b *dbBufferBucket) merge() {
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
 	// Register when this bucket resets we close the encoder we just created
-	b.ctx.RegisterCloser(context.CloserFn(encoder.Close))
+	b.ctx.RegisterFinalizer(context.FinalizerFn(encoder.Close))
 
 	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
 	for i := range b.encoders {

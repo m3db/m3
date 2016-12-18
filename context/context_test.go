@@ -29,83 +29,47 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEnsureDependencyNoAllocThenAlloc(t *testing.T) {
-	ctx := NewContext().(*ctx)
-
-	// Ensure dependencies without allocating closers
-	ctx.ensureDependencies(false)
-	assert.NotNil(t, ctx.dep)
-	assert.Nil(t, ctx.dep.closers)
-
-	// Ensure dependencies with allocation to confirm closers are allocated
-	ctx.ensureDependencies(true)
-	assert.NotNil(t, ctx.dep)
-	assert.NotNil(t, ctx.dep.closers)
-}
-
-func TestEnsureDependencyNoAllocTwice(t *testing.T) {
-	ctx := NewContext().(*ctx)
-
-	ctx.ensureDependencies(false)
-	ctx.ensureDependencies(false)
-
-	assert.NotNil(t, ctx.dep)
-	assert.Nil(t, ctx.dep.closers)
-}
-
-func TestEnsureDependencyAllocTwice(t *testing.T) {
-	ctx := NewContext().(*ctx)
-
-	ctx.ensureDependencies(true)
-	ctx.RegisterCloser(CloserFn(func() {}))
-	assert.Equal(t, 1, len(ctx.dep.closers))
-
-	// Ensure dependencies with allocation to confirm closers are not double allocated
-	ctx.ensureDependencies(true)
-	assert.Equal(t, 1, len(ctx.dep.closers))
-}
-
-func TestRegisterCloser(t *testing.T) {
-	var wg sync.WaitGroup
-	closed := false
-
-	ctx := NewContext().(*ctx)
+func TestRegisterFinalizer(t *testing.T) {
+	var (
+		wg     sync.WaitGroup
+		closed = false
+		ctx    = NewContext().(*ctx)
+	)
 
 	wg.Add(1)
-	ctx.RegisterCloser(CloserFn(func() {
+	ctx.RegisterFinalizer(FinalizerFn(func() {
 		closed = true
 		wg.Done()
 	}))
 
-	assert.Equal(t, 1, len(ctx.dep.closers))
+	assert.Equal(t, 1, len(ctx.finalizers))
 
 	ctx.Close()
-
 	wg.Wait()
 
 	assert.Equal(t, true, closed)
 }
 
-func TestDoesNotRegisterCloserWhenClosed(t *testing.T) {
+func TestDoesNotRegisterFinalizerWhenClosed(t *testing.T) {
 	ctx := NewContext().(*ctx)
 	ctx.Close()
-	ctx.RegisterCloser(CloserFn(func() {}))
+	ctx.RegisterFinalizer(FinalizerFn(func() {}))
 
-	assert.Nil(t, ctx.dep)
+	assert.Equal(t, 0, len(ctx.finalizers))
 }
 
 func TestDoesNotCloseTwice(t *testing.T) {
 	ctx := NewContext().(*ctx)
 
 	var closed int32
-	ctx.RegisterCloser(CloserFn(func() {
+	ctx.RegisterFinalizer(FinalizerFn(func() {
 		atomic.AddInt32(&closed, 1)
 	}))
 
 	ctx.Close()
 	ctx.Close()
 
-	// Give some time for a bug to occur
+	// Give some time for a bug to occur.
 	time.Sleep(100 * time.Millisecond)
 
 	assert.Equal(t, int32(1), atomic.LoadInt32(&closed))
@@ -114,7 +78,7 @@ func TestDoesNotCloseTwice(t *testing.T) {
 func TestDependsOnNoCloserAllocation(t *testing.T) {
 	ctx := NewContext().(*ctx)
 	ctx.DependsOn(NewContext())
-	assert.Nil(t, ctx.dep.closers)
+	assert.Nil(t, ctx.finalizers)
 }
 
 func TestDependsOnWithReset(t *testing.T) {
@@ -122,7 +86,7 @@ func TestDependsOnWithReset(t *testing.T) {
 
 	testDependsOn(ctx, t)
 
-	// Reset and test works again
+	// Reset and test works again.
 	ctx.Reset()
 
 	testDependsOn(ctx, t)
@@ -135,7 +99,7 @@ func testDependsOn(c *ctx, t *testing.T) {
 	other := NewContext().(*ctx)
 
 	wg.Add(1)
-	c.RegisterCloser(CloserFn(func() {
+	c.RegisterFinalizer(FinalizerFn(func() {
 		atomic.AddInt32(&closed, 1)
 		wg.Done()
 	}))
@@ -143,17 +107,17 @@ func testDependsOn(c *ctx, t *testing.T) {
 	c.DependsOn(other)
 	c.Close()
 
-	// Give some time for a bug to occur
+	// Give some time for a bug to occur.
 	time.Sleep(100 * time.Millisecond)
 
 	// Ensure still not closed
 	assert.Equal(t, int32(0), atomic.LoadInt32(&closed))
 
-	// Now close the context ctx is dependent on
+	// Now close the context ctx is dependent on.
 	other.Close()
 
 	wg.Wait()
 
-	// Ensure closed now
+	// Ensure closed now.
 	assert.Equal(t, int32(1), atomic.LoadInt32(&closed))
 }

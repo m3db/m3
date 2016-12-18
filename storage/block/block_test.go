@@ -69,7 +69,7 @@ func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime
 func closeTestDatabaseBlock(t *testing.T, block *dbBlock) {
 	var finished uint32
 	block.ctx = block.opts.ContextPool().Get()
-	block.ctx.RegisterCloser(context.CloserFn(func() { atomic.StoreUint32(&finished, 1) }))
+	block.ctx.RegisterFinalizer(context.FinalizerFn(func() { atomic.StoreUint32(&finished, 1) }))
 	block.Close()
 	// waiting for the goroutine that closes context to finish
 	for atomic.LoadUint32(&finished) == 0 {
@@ -122,7 +122,7 @@ func testDatabaseBlockWithDependentContext(
 	require.NoError(t, err)
 
 	var finished uint32
-	block.ctx.RegisterCloser(context.CloserFn(func() {
+	block.ctx.RegisterFinalizer(context.FinalizerFn(func() {
 		atomic.StoreUint32(&finished, 1)
 	}))
 	f(block)

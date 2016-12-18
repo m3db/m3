@@ -226,7 +226,7 @@ func (l *commitLog) write() {
 
 		err := l.writer.Write(write.series,
 			write.datapoint, write.unit, write.annotation)
-		write.series.ID.Close()
+		write.series.ID.Finalize()
 
 		if err != nil {
 			l.metrics.errors.Inc(1)

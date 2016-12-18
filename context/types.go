@@ -20,61 +20,60 @@
 
 package context
 
-// Closer closes a resource
-type Closer interface {
-	// OnClose is called on close
-	OnClose()
+// Finalizer finalizes a resource.
+type Finalizer interface {
+	Finalize()
 }
 
-// CloserFn is a function literal that is a closer
-type CloserFn func()
+// FinalizerFn is a function literal that is a finalizer.
+type FinalizerFn func()
 
-// OnClose will call the function literal as a closer
-func (fn CloserFn) OnClose() {
+// Finalize will call the function literal as a finalizer.
+func (fn FinalizerFn) Finalize() {
 	fn()
 }
 
-// Context provides context to an operation
+// Context provides context to an operation.
 type Context interface {
-	// RegisterCloser will register a resource closer
-	RegisterCloser(closer Closer)
+	// IsClosed returns whether the context is closed.
+	IsClosed() bool
+
+	// RegisterFinalizer will register a resource finalizer.
+	RegisterFinalizer(Finalizer)
 
 	// DependsOn will register a blocking context that
-	// must complete first before closers can be called
-	DependsOn(blocker Context)
+	// must complete first before finalizers can be called.
+	DependsOn(Context)
 
-	// Close will close the context
+	// Close will close the context.
 	Close()
 
 	// BlockingClose will close the context and call the
-	// registered closers in a blocking manner after waiting
+	// registered finalizers in a blocking manner after waiting
 	// for any dependent contexts to close. After calling
 	// the context becomes safe to reset and reuse again.
 	BlockingClose()
 
-	// IsClosed returns whether the context is closed
-	IsClosed() bool
-
-	// Reset will reset the context for reuse
+	// Reset will reset the context for reuse.
 	Reset()
 }
 
-// Pool provides a pool for contexts
+// Pool provides a pool for contexts.
 type Pool interface {
-	// Get provides a context from the pool
+	// Get provides a context from the pool.
 	Get() Context
 
-	// Put returns a context to the pool
-	Put(ctx Context)
+	// Put returns a context to the pool.
+	Put(Context)
 }
 
-// contextPool is the internal pool interface for contexts
+// contextPool is the internal pool interface for contexts.
 type contextPool interface {
 	Pool
 
-	// GetClosers provides a closer slice from the pool
-	GetClosers() []Closer
+	// GetFinalizers provides a finalizer slice from the pool.
+	GetFinalizers() []Finalizer
 
-	// PutClosers returns the closers to pool
-	PutClosers(closers []Closer)
+	// PutFinalizers returns the finalizers to pool.
+	PutFinalizers([]Finalizer)
 }

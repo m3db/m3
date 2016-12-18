@@ -42,7 +42,7 @@ type simpleIdentifierPool struct {
 func (p *simpleIdentifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
 	id := p.pool.Get().(*id)
 	id.data = v
-	ctx.RegisterCloser(context.CloserFn(id.Close))
+	ctx.RegisterFinalizer(id)
 
 	return id
 }
@@ -104,7 +104,7 @@ func create() interface{} {
 func (p *nativeIdentifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
 	id := p.pool.GetOr(create).(*id)
 	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
-	ctx.RegisterCloser(context.CloserFn(id.Close))
+	ctx.RegisterFinalizer(id)
 
 	return id
 }
@@ -113,7 +113,7 @@ func (p *nativeIdentifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
 func (p *nativeIdentifierPool) GetStringID(ctx context.Context, v string) ID {
 	id := p.pool.GetOr(create).(*id)
 	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
-	ctx.RegisterCloser(context.CloserFn(id.Close))
+	ctx.RegisterFinalizer(id)
 
 	return id
 }

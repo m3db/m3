@@ -25,61 +25,67 @@ import (
 )
 
 const (
-	defaultClosersCapacity = 4
+	defaultFinalizersCapacity = 4
 )
 
-// closersPool provides a pool for closer slices
-type closersPool interface {
-	// Get provides a pre-allocated slice to store closers
-	Get() []Closer
+// finalizersPool provides a pool for finalizer slices.
+type finalizersPool interface {
+	// Get provides a pre-allocated slice to store finalizers.
+	Get() []Finalizer
 
-	// Put returns a closer slice to the pool
-	Put(closers []Closer)
+	// Put returns a finalizers slice to the pool.
+	Put([]Finalizer)
 }
 
-type poolOfClosers struct {
+type poolOfFinalizers struct {
 	pool pool.ObjectPool
 }
 
-// newClosersPool creates a new closers pool
-func newClosersPool(opts pool.ObjectPoolOptions) closersPool {
-	p := &poolOfClosers{pool: pool.NewObjectPool(opts)}
+// newFinalizerPool creates a new finalizers pool.
+func newFinalizersPool(opts pool.ObjectPoolOptions) finalizersPool {
+	p := &poolOfFinalizers{pool: pool.NewObjectPool(opts)}
+
 	p.pool.Init(func() interface{} {
-		return allocateClosers()
+		return allocateFinalizers()
 	})
+
 	return p
 }
 
-func (p *poolOfClosers) Get() []Closer {
-	return p.pool.Get().([]Closer)
+func (p *poolOfFinalizers) Get() []Finalizer {
+	return p.pool.Get().([]Finalizer)
 }
 
-func (p *poolOfClosers) Put(closers []Closer) {
-	for i := range closers {
-		// Free values from collection
-		closers[i] = nil
+func (p *poolOfFinalizers) Put(finalizers []Finalizer) {
+	for i := range finalizers {
+		// Free values from collection.
+		finalizers[i] = nil
 	}
-	if len(closers) > defaultClosersCapacity {
-		// Free any large arrays that are created
+
+	if len(finalizers) > defaultFinalizersCapacity {
+		// Free any large arrays that are created.
 		return
 	}
-	p.pool.Put(closers[:0])
+
+	p.pool.Put(finalizers[:0])
 }
 
 type poolOfContexts struct {
-	ctxPool     pool.ObjectPool
-	closersPool closersPool
+	ctxPool        pool.ObjectPool
+	finalizersPool finalizersPool
 }
 
-// NewPool creates a new context pool
+// NewPool creates a new context pool.
 func NewPool(opts pool.ObjectPoolOptions, copts pool.ObjectPoolOptions) Pool {
 	p := &poolOfContexts{
-		ctxPool:     pool.NewObjectPool(opts),
-		closersPool: newClosersPool(copts),
+		ctxPool:        pool.NewObjectPool(opts),
+		finalizersPool: newFinalizersPool(copts),
 	}
+
 	p.ctxPool.Init(func() interface{} {
 		return newPooledContext(p)
 	})
+
 	return p
 }
 
@@ -91,14 +97,14 @@ func (p *poolOfContexts) Put(context Context) {
 	p.ctxPool.Put(context)
 }
 
-func (p *poolOfContexts) GetClosers() []Closer {
-	return p.closersPool.Get()
+func (p *poolOfContexts) GetFinalizers() []Finalizer {
+	return p.finalizersPool.Get()
 }
 
-func (p *poolOfContexts) PutClosers(closers []Closer) {
-	p.closersPool.Put(closers)
+func (p *poolOfContexts) PutFinalizers(finalizers []Finalizer) {
+	p.finalizersPool.Put(finalizers)
 }
 
-func allocateClosers() []Closer {
-	return make([]Closer, 0, defaultClosersCapacity)
+func allocateFinalizers() []Finalizer {
+	return make([]Finalizer, 0, defaultFinalizersCapacity)
 }
