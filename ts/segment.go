@@ -22,7 +22,9 @@ package ts
 
 import "github.com/m3db/m3x/pool"
 
-// Segment represents a binary blob consisting of two byte slices.
+// Segment represents a binary blob consisting of two byte slices, if the
+// pools are set for the two byte slices then when the Segment goes out of
+// scope the slices should be returned to their respective pools with Finalize.
 type Segment struct {
 	// Head is the head of the segment.
 	Head []byte
@@ -35,4 +37,16 @@ type Segment struct {
 
 	// TailPool if not nil is the bytes pool used to allocate the tail.
 	TailPool pool.BytesPool
+}
+
+// Finalize will release resources kept by the segment if pooled.
+func (s *Segment) Finalize() {
+	if s.HeadPool != nil && s.Head != nil {
+		s.HeadPool.Put(s.Head)
+	}
+	if s.TailPool != nil && s.Tail != nil {
+		s.TailPool.Put(s.Tail)
+	}
+	s.Head = nil
+	s.Tail = nil
 }

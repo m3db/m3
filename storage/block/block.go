@@ -102,14 +102,7 @@ func (b *dbBlock) resetSegment(seg ts.Segment) {
 	b.segment = seg
 	b.checksum = digest.SegmentChecksum(seg)
 
-	b.ctx.RegisterFinalizer(context.FinalizerFn(func() {
-		if seg.HeadPool != nil && seg.Head != nil {
-			seg.HeadPool.Put(seg.Head)
-		}
-		if seg.TailPool != nil && seg.Tail != nil {
-			seg.TailPool.Put(seg.Tail)
-		}
-	}))
+	b.ctx.RegisterFinalizer(&seg)
 }
 
 func (b *dbBlock) Close() {
