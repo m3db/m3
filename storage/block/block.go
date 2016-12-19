@@ -98,21 +98,16 @@ func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 	b.resetSegment(segment)
 }
 
-func (b *dbBlock) resetSegment(segment ts.Segment) {
-	b.segment = segment
-	b.checksum = digest.SegmentChecksum(segment)
-
-	bytesPool := b.opts.BytesPool()
-	if bytesPool == nil {
-		return
-	}
+func (b *dbBlock) resetSegment(seg ts.Segment) {
+	b.segment = seg
+	b.checksum = digest.SegmentChecksum(seg)
 
 	b.ctx.RegisterFinalizer(context.FinalizerFn(func() {
-		if segment.Head != nil && !segment.HeadShared {
-			bytesPool.Put(segment.Head)
+		if seg.HeadPool != nil && seg.Head != nil {
+			seg.HeadPool.Put(seg.Head)
 		}
-		if segment.Tail != nil && !segment.TailShared {
-			bytesPool.Put(segment.Tail)
+		if seg.TailPool != nil && seg.Tail != nil {
+			seg.TailPool.Put(seg.Tail)
 		}
 	}))
 }

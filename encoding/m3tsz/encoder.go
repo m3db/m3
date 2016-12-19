@@ -508,21 +508,11 @@ func (enc *encoder) ResetSetData(start time.Time, data []byte) {
 }
 
 func (enc *encoder) Stream() xio.SegmentReader {
-	if enc.os.Empty() {
+	segment := enc.segment()
+	if segment.Head == nil && segment.Tail == nil {
 		return nil
 	}
-	b, pos := enc.os.Rawbytes()
-	blen := len(b)
-
-	// We need a multibyte tail to capture an immutable snapshot
-	// of the encoder data this encoder.
-	head := append(enc.newBuffer(blen-1), b[:blen-1]...)
-	scheme := enc.opts.MarkerEncodingScheme()
-	tail := scheme.Tail(b[blen-1], pos)
-
-	segment := ts.Segment{Head: head, Tail: tail, TailShared: true}
-	readerPool := enc.opts.SegmentReaderPool()
-	if readerPool != nil {
+	if readerPool := enc.opts.SegmentReaderPool(); readerPool != nil {
 		reader := readerPool.Get()
 		reader.Reset(segment)
 		return reader
@@ -543,7 +533,7 @@ func (enc *encoder) Close() {
 	// using the buffer we are returning to the pool
 	enc.os.Reset(nil)
 
-	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
+	if bytesPool := enc.opts.BytesPool(); bytesPool != nil && buffer != nil {
 		bytesPool.Put(buffer)
 	}
 
@@ -553,21 +543,33 @@ func (enc *encoder) Close() {
 }
 
 func (enc *encoder) Discard() ts.Segment {
-	stream := enc.Stream()
-	if stream == nil {
-		return ts.Segment{}
-	}
+	segment := enc.segment()
 
-	// Reset the ostream to avoid putting this data back
-	// into the bytes pool
+	// Reset the ostream to avoid putting the current data into the bytes pool
 	enc.os.Reset(nil)
-
-	// Take the segment from the reader and close the reader
-	segment := stream.Segment()
-	stream.Close()
 
 	// Close the encoder no longer needed
 	enc.Close()
 
 	return segment
+}
+
+func (enc *encoder) segment() ts.Segment {
+	if enc.os.Empty() {
+		return ts.Segment{}
+	}
+	b, pos := enc.os.Rawbytes()
+	blen := len(b)
+
+	// We need a multibyte tail to capture an immutable snapshot
+	// of the encoder data this encoder.
+	head := append(enc.newBuffer(blen-1), b[:blen-1]...)
+	scheme := enc.opts.MarkerEncodingScheme()
+	tail := scheme.Tail(b[blen-1], pos)
+
+	return ts.Segment{
+		Head:     head,
+		Tail:     tail,
+		HeadPool: enc.opts.BytesPool(),
+	}
 }

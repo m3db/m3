@@ -20,6 +20,8 @@
 
 package ts
 
+import "github.com/m3db/m3x/pool"
+
 // Segment represents a binary blob consisting of two byte slices.
 type Segment struct {
 	// Head is the head of the segment.
@@ -28,9 +30,9 @@ type Segment struct {
 	// Tail is the tail of the segment.
 	Tail []byte
 
-	// HeadShared determines whether the head bytes are shared.
-	HeadShared bool
+	// HeadPool if not nil is the bytes pool used to allocate the head.
+	HeadPool pool.BytesPool
 
-	// TailShared determines whether the tail bytes are shared.
-	TailShared bool
+	// TailPool if not nil is the bytes pool used to allocate the tail.
+	TailPool pool.BytesPool
 }
