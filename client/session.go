@@ -1736,11 +1736,15 @@ func (s *session) streamBlocksBatchFromPeer(
 	token := <-s.streamBlocksResultsProcessors
 
 	// Parse and act on result
+	tooManyIDsLogged := false
 	for i := range result.Elements {
 		if i >= len(batch) {
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
-			s.log.Errorf("stream blocks response from peer %s returned more IDs than expected", peer.Host().String())
-			break
+			if !tooManyIDsLogged {
+				tooManyIDsLogged = true
+				s.log.Errorf("stream blocks response from peer %s returned more IDs than expected", peer.Host().String())
+			}
+			continue
 		}
 
 		id := ts.BinaryID(result.Elements[i].ID)
@@ -1757,15 +1761,19 @@ func (s *session) streamBlocksBatchFromPeer(
 		}
 
 		missed := 0
+		tooManyBlocksLogged := false
 		for j := range result.Elements[i].Blocks {
 			if j >= len(req.Elements[i].Starts) {
-				m.fetchBlockError.Inc(int64(j + 1 - len(req.Elements[i].Starts)))
-				s.log.WithFields(
-					xlog.NewLogField("id", id.String()),
-					xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
-					xlog.NewLogField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
-				).Errorf("stream blocks response from peer %s returned more blocks than expected", peer.Host().String())
-				break
+				m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
+				if !tooManyBlocksLogged {
+					tooManyBlocksLogged = true
+					s.log.WithFields(
+						xlog.NewLogField("id", id.String()),
+						xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
+						xlog.NewLogField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
+					).Errorf("stream blocks response from peer %s returned more blocks than expected", peer.Host().String())
+				}
+				continue
 			}
 
 			// Index of the received block could be offset by missed blocks
