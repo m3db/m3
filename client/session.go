@@ -251,6 +251,8 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 		metadataFetchBatchSuccess: scope.Counter("fetch-metadata-peers-batch-success"),
 		metadataFetchBatchError:   scope.Counter("fetch-metadata-peers-batch-error"),
 		metadataReceived:          scope.Counter("fetch-metadata-peers-received"),
+		fetchBlockSuccess:         scope.Counter("fetch-block-success"),
+		fetchBlockError:           scope.Counter("fetch-block-error"),
 		blocksEnqueueChannel:      scope.Gauge("fetch-blocks-enqueue-channel-length"),
 	}
 	s.metrics.streamFromPeersMetrics[shard] = m

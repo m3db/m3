@@ -656,7 +656,8 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	// Attempt stream blocks
 	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
 	bopts := bootstrap.NewOptions().SetRetentionOptions(ropts)
-	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, nil, enqueueCh, retrier)
+	m := session.streamFromPeersMetricsForShard(0)
+	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
 	// Assert result
 	assertEnqueueChannel(t, append(batch[0].blocks, batch[1].blocks...), enqueueCh)
