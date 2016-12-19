@@ -46,14 +46,15 @@ var (
 	errUnknownRetention      = errors.New("unknown retention")
 	errUnknownRetentionValue = errors.New("unknown retention value")
 
-	emptyRetention Retention
+	// EmptyRetention is an empty retention
+	EmptyRetention Retention
 )
 
 // Retention returns the retention associated with a value
 func (v RetentionValue) Retention() (Retention, error) {
 	retention, exists := valuesToRetention[v]
 	if !exists {
-		return emptyRetention, errUnknownRetentionValue
+		return EmptyRetention, errUnknownRetentionValue
 	}
 	return retention, nil
 }

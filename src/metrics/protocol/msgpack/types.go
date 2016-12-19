@@ -61,14 +61,14 @@ type BufferedEncoderPool interface {
 
 // MultiTypedEncoder is an encoder for encoding different types of metrics
 type MultiTypedEncoder interface {
-	// EncodeCounter encodes a counter with applicable policies
-	EncodeCounter(c metric.Counter, p policy.VersionedPolicies) error
+	// EncodeCounterWithPolicies encodes a counter with applicable policies
+	EncodeCounterWithPolicies(c metric.Counter, vp policy.VersionedPolicies) error
 
-	// EncodeBatchTimer encodes a batched timer with applicable policies
-	EncodeBatchTimer(bt metric.BatchTimer, p policy.VersionedPolicies) error
+	// EncodeBatchTimerWithPolicies encodes a batched timer with applicable policies
+	EncodeBatchTimerWithPolicies(bt metric.BatchTimer, vp policy.VersionedPolicies) error
 
-	// EncodeGauge encodes a gauge with applicable policies
-	EncodeGauge(g metric.Gauge, p policy.VersionedPolicies) error
+	// EncodeGaugeWithPolicies encodes a gauge with applicable policies
+	EncodeGaugeWithPolicies(g metric.Gauge, vp policy.VersionedPolicies) error
 
 	// Encoder returns the encoder
 	Encoder() BufferedEncoder
