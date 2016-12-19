@@ -146,6 +146,8 @@ type streamFromPeersMetrics struct {
 	metadataFetchBatchSuccess tally.Counter
 	metadataFetchBatchError   tally.Counter
 	metadataReceived          tally.Counter
+	fetchBlockSuccess         tally.Counter
+	fetchBlockError           tally.Counter
 	blocksEnqueueChannel      tally.Gauge
 }
 
@@ -1362,7 +1364,7 @@ func (s *session) streamBlocksFromPeers(
 		drainEvery := 100 * time.Millisecond
 		processFn := func(batch []*blocksMetadata) {
 			s.streamBlocksBatchFromPeer(namespace, shard, peer, batch, opts,
-				result, enqueueCh, retrier)
+				result, enqueueCh, retrier, m)
 		}
 		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, processFn)
 		peerQueues = append(peerQueues, queue)
@@ -1673,11 +1675,13 @@ func (s *session) streamBlocksBatchFromPeer(
 	blocksResult *blocksResult,
 	enqueueCh *enqueueChannel,
 	retrier xretry.Retrier,
+	m *streamFromPeersMetrics,
 ) {
 	// Prepare request
 	var (
-		req    = rpc.NewFetchBlocksRawRequest()
-		result *rpc.FetchBlocksRawResult_
+		req          = rpc.NewFetchBlocksRawRequest()
+		result       *rpc.FetchBlocksRawResult_
+		reqBlocksLen int64
 
 		nowFn              = opts.ClockOptions().NowFn()
 		ropts              = opts.RetentionOptions()
@@ -1698,6 +1702,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			}
 			starts = append(starts, blockStart.UnixNano())
 		}
+		reqBlocksLen++
 		req.Elements[i] = &rpc.FetchBlocksRawRequestElement{
 			ID:     batch[i].id.Data(),
 			Starts: starts,
@@ -1713,6 +1718,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		})
 		return xerrors.FirstError(borrowErr, attemptErr)
 	}); err != nil {
+		m.fetchBlockError.Inc(reqBlocksLen)
 		s.log.Errorf("stream blocks response from peer %s returned error: %v", peer.Host().String(), err)
 		for i := range batch {
 			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
@@ -1730,6 +1736,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Parse and act on result
 	for i := range result.Elements {
 		if i >= len(batch) {
+			m.fetchBlockError.Inc(1)
 			s.log.Errorf("stream blocks response from peer %s returned more IDs than expected", peer.Host().String())
 			break
 		}
@@ -1738,6 +1745,7 @@ func (s *session) streamBlocksBatchFromPeer(
 
 		if !batch[i].id.Equal(id) {
 			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
+			m.fetchBlockError.Inc(1)
 			s.log.WithFields(
 				xlog.NewLogField("expectedID", batch[i].id),
 				xlog.NewLogField("actualID", id.String()),
@@ -1749,6 +1757,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		missed := 0
 		for j := range result.Elements[i].Blocks {
 			if j >= len(batch[i].blocks) {
+				m.fetchBlockError.Inc(1)
 				s.log.WithFields(
 					xlog.NewLogField("id", id.String()),
 					xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
@@ -1770,6 +1779,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			if block.Err != nil {
 				failed := []blockMetadata{batch[i].blocks[j]}
 				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
+				m.fetchBlockError.Inc(1)
 				s.log.WithFields(
 					xlog.NewLogField("id", id.String()),
 					xlog.NewLogField("start", block.Start),
@@ -1785,6 +1795,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			if err != nil {
 				failed := []blockMetadata{batch[i].blocks[j]}
 				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
+				m.fetchBlockError.Inc(1)
 				s.log.WithFields(
 					xlog.NewLogField("id", id.String()),
 					xlog.NewLogField("start", block.Start),
@@ -1792,7 +1803,10 @@ func (s *session) streamBlocksBatchFromPeer(
 					xlog.NewLogField("indexID", i),
 					xlog.NewLogField("indexBlock", j),
 				).Errorf("stream blocks response from peer %s bad block response", peer.Host().String())
+				continue
 			}
+
+			m.fetchBlockSuccess.Inc(1)
 		}
 	}
 
