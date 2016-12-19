@@ -156,6 +156,9 @@ func (sr *segmentReader) Reset(segment ts.Segment) {
 }
 
 func (sr *segmentReader) Close() {
+	// Return head and tail to pools if their pools are set on the segment
+	sr.segment.Finalize()
+
 	if sr.pool != nil {
 		sr.pool.Put(sr)
 	}
