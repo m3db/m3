@@ -44,14 +44,15 @@ var (
 	errUnknownResolution      = errors.New("unknown resolution")
 	errUnknownResolutionValue = errors.New("unknown resolution value")
 
-	emptyResolution Resolution
+	// EmptyResolution is an empty resolution
+	EmptyResolution Resolution
 )
 
 // Resolution returns the resolution associated with a value
 func (v ResolutionValue) Resolution() (Resolution, error) {
 	resolution, exists := valuesToResolution[v]
 	if !exists {
-		return emptyResolution, errUnknownResolutionValue
+		return EmptyResolution, errUnknownResolutionValue
 	}
 	return resolution, nil
 }

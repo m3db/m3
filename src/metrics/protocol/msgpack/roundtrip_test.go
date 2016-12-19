@@ -56,16 +56,16 @@ var (
 
 	testInputWithAllTypesAndDefaultPolicies = []metricWithPolicies{
 		{
-			metric:   testCounter,
-			policies: policy.DefaultVersionedPolicies,
+			metric:            testCounter,
+			versionedPolicies: policy.DefaultVersionedPolicies,
 		},
 		{
-			metric:   testBatchTimer,
-			policies: policy.DefaultVersionedPolicies,
+			metric:            testBatchTimer,
+			versionedPolicies: policy.DefaultVersionedPolicies,
 		},
 		{
-			metric:   testGauge,
-			policies: policy.DefaultVersionedPolicies,
+			metric:            testGauge,
+			versionedPolicies: policy.DefaultVersionedPolicies,
 		},
 	}
 
@@ -73,7 +73,7 @@ var (
 		// Retain this metric at 1 second resolution for 1 hour
 		{
 			metric: testCounter,
-			policies: policy.VersionedPolicies{
+			versionedPolicies: policy.VersionedPolicies{
 				Version: 1,
 				Policies: []policy.Policy{
 					{
@@ -87,7 +87,7 @@ var (
 		// then 1 minute resolution for 2 days
 		{
 			metric: testBatchTimer,
-			policies: policy.VersionedPolicies{
+			versionedPolicies: policy.VersionedPolicies{
 				Version: 2,
 				Policies: []policy.Policy{
 					{
@@ -104,7 +104,7 @@ var (
 		// Retain this metric at 10 minute resolution for 45 days
 		{
 			metric: testGauge,
-			policies: policy.VersionedPolicies{
+			versionedPolicies: policy.VersionedPolicies{
 				Version: 2,
 				Policies: []policy.Policy{
 					{
@@ -118,8 +118,8 @@ var (
 )
 
 type metricWithPolicies struct {
-	metric   metric.OneOf
-	policies policy.VersionedPolicies
+	metric            metric.OneOf
+	versionedPolicies policy.VersionedPolicies
 }
 
 func testMultiTypedEncoder(t *testing.T) MultiTypedEncoder {
@@ -138,11 +138,11 @@ func testMultiTypedIterator(t *testing.T, reader io.Reader) MultiTypedIterator {
 func testEncode(t *testing.T, encoder MultiTypedEncoder, m *metric.OneOf, p policy.VersionedPolicies) error {
 	switch m.Type {
 	case metric.CounterType:
-		return encoder.EncodeCounter(m.Counter(), p)
+		return encoder.EncodeCounterWithPolicies(m.Counter(), p)
 	case metric.BatchTimerType:
-		return encoder.EncodeBatchTimer(m.BatchTimer(), p)
+		return encoder.EncodeBatchTimerWithPolicies(m.BatchTimer(), p)
 	case metric.GaugeType:
-		return encoder.EncodeGauge(m.Gauge(), p)
+		return encoder.EncodeGaugeWithPolicies(m.Gauge(), p)
 	default:
 		return fmt.Errorf("unrecognized metric type %v", m.Type)
 	}
@@ -177,7 +177,7 @@ func validateRoundtripWithEncoderAndIterator(
 	// Encode the batch of metrics
 	encoder.Reset(newBufferedEncoder())
 	for _, input := range inputs {
-		testEncode(t, encoder, &input.metric, input.policies)
+		testEncode(t, encoder, &input.metric, input.versionedPolicies)
 	}
 	buffer := encoder.Encoder().Buffer
 
@@ -187,8 +187,8 @@ func validateRoundtripWithEncoderAndIterator(
 	for it.Next() {
 		m, p := it.Value()
 		results = append(results, metricWithPolicies{
-			metric:   *m,
-			policies: p,
+			metric:            *m,
+			versionedPolicies: p,
 		})
 	}
 
@@ -197,7 +197,7 @@ func validateRoundtripWithEncoderAndIterator(
 	require.Equal(t, len(inputs), len(results))
 	for i := 0; i < len(inputs); i++ {
 		compareMetric(t, inputs[i].metric, results[i].metric)
-		require.Equal(t, inputs[i].policies, results[i].policies)
+		require.Equal(t, inputs[i].versionedPolicies, results[i].versionedPolicies)
 	}
 }
 
@@ -208,7 +208,7 @@ func TestEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
 			ID:         []byte("foo"),
 			CounterVal: 1234,
 		},
-		policies: policy.DefaultVersionedPolicies,
+		versionedPolicies: policy.DefaultVersionedPolicies,
 	})
 }
 
@@ -219,7 +219,7 @@ func TestEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
 			ID:            []byte("foo"),
 			BatchTimerVal: []float64{222.22, 345.67, 901.23345},
 		},
-		policies: policy.DefaultVersionedPolicies,
+		versionedPolicies: policy.DefaultVersionedPolicies,
 	})
 }
 
@@ -230,7 +230,7 @@ func TestEncodeDecodeGaugeWithDefaultPolicies(t *testing.T) {
 			ID:       []byte("foo"),
 			GaugeVal: 123.456,
 		},
-		policies: policy.DefaultVersionedPolicies,
+		versionedPolicies: policy.DefaultVersionedPolicies,
 	})
 }
 
@@ -270,7 +270,7 @@ func TestEncodeDecodeStress(t *testing.T) {
 		for j := 0; j < numMetrics; j++ {
 			m := allMetrics[rand.Int63n(int64(len(allMetrics)))]
 			p := allPolicies[rand.Int63n(int64(len(allPolicies)))]
-			inputs = append(inputs, metricWithPolicies{metric: m, policies: p})
+			inputs = append(inputs, metricWithPolicies{metric: m, versionedPolicies: p})
 		}
 		validateRoundtripWithEncoderAndIterator(t, encoder, iterator, inputs...)
 	}

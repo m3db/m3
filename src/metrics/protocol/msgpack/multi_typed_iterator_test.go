@@ -22,174 +22,236 @@ package msgpack
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func testCapturedMultiTypedIterator(
+func validateDecodeResults(
 	t *testing.T,
-	varintValues []int64,
-	float64Values []float64,
-	bytesValues [][]byte,
-	arrayLenValues []int,
-) *multiTypedIterator {
-	it := testMultiTypedIterator(t, nil).(*multiTypedIterator)
-
-	var (
-		varintIdx   int
-		float64Idx  int
-		bytesIdx    int
-		arrayLenIdx int
-	)
-	it.decodeVarintFn = func() int64 {
-		if varintIdx >= len(varintValues) {
-			it.err = io.EOF
-			return 0
-		}
-		v := varintValues[varintIdx]
-		varintIdx++
-		return v
-	}
-	it.decodeFloat64Fn = func() float64 {
-		if float64Idx >= len(float64Values) {
-			it.err = io.EOF
-			return 0.0
-		}
-		v := float64Values[float64Idx]
-		float64Idx++
-		return v
-	}
-	it.decodeBytesFn = func() []byte {
-		if bytesIdx >= len(bytesValues) {
-			it.err = io.EOF
-			return nil
-		}
-		v := bytesValues[bytesIdx]
-		bytesIdx++
-		return v
-	}
-	it.decodeArrayLenFn = func() int {
-		if arrayLenIdx >= len(arrayLenValues) {
-			it.err = io.EOF
-			return 0
-		}
-		v := arrayLenValues[arrayLenIdx]
-		arrayLenIdx++
-		return v
-	}
-	return it
-}
-
-func getMockValuesFor(
-	t *testing.T,
-	m *metric.OneOf,
-	p policy.VersionedPolicies,
-) ([]int64, []float64, [][]byte, []int) {
-	var (
-		varintValues = []int64{
-			int64(supportedVersion),
-			int64(m.Type),
-		}
-		float64Values []float64
-		bytesValues   = [][]byte{
-			[]byte(m.ID),
-		}
-		arrayLenValues []int
-	)
-	switch m.Type {
-	case metric.CounterType:
-		varintValues = append(varintValues, m.CounterVal)
-	case metric.BatchTimerType:
-		arrayLenValues = append(arrayLenValues, len(m.BatchTimerVal))
-		float64Values = m.BatchTimerVal
-	case metric.GaugeType:
-		float64Values = []float64{m.GaugeVal}
-	default:
-		require.Fail(t, fmt.Sprintf("unrecognized metric type %v", m.Type))
-	}
-
-	varintValues = append(varintValues, int64(p.Version))
-	if p.Version != policy.DefaultPolicyVersion {
-		arrayLenValues = append(arrayLenValues, len(p.Policies))
-		for _, p := range p.Policies {
-			resolutionValue, err := policy.ValueFromResolution(p.Resolution)
-			require.NoError(t, err)
-			varintValues = append(varintValues, int64(resolutionValue))
-
-			retentionValue, err := policy.ValueFromRetention(p.Retention)
-			require.NoError(t, err)
-			varintValues = append(varintValues, int64(retentionValue))
-		}
-	}
-
-	return varintValues, float64Values, bytesValues, arrayLenValues
-}
-
-func validateDecodeResults(t *testing.T, inputs ...metricWithPolicies) {
-	var (
-		varintValues   []int64
-		float64Values  []float64
-		bytesValues    [][]byte
-		arrayLenValues []int
-	)
-	for _, input := range inputs {
-		vi, f, b, al := getMockValuesFor(t, &input.metric, input.policies)
-		varintValues = append(varintValues, vi...)
-		float64Values = append(float64Values, f...)
-		bytesValues = append(bytesValues, b...)
-		arrayLenValues = append(arrayLenValues, al...)
-	}
-	it := testCapturedMultiTypedIterator(t, varintValues, float64Values, bytesValues, arrayLenValues)
-
+	it MultiTypedIterator,
+	expectedResults []metricWithPolicies,
+	expectedErr error,
+) {
 	var results []metricWithPolicies
 	for it.Next() {
 		value, policies := it.Value()
 		results = append(results, metricWithPolicies{
-			metric:   *value,
-			policies: policies,
+			metric:            *value,
+			versionedPolicies: policies,
 		})
 	}
-
-	require.Equal(t, io.EOF, it.Err())
-	require.Equal(t, inputs, results)
+	require.Equal(t, expectedErr, it.Err())
+	require.Equal(t, expectedResults, results)
 }
 
-func TestMultiTypedIteratorDecodeCounter(t *testing.T) {
+func TestMultiTypedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	input := metricWithPolicies{
-		metric:   testCounter,
-		policies: policy.DefaultVersionedPolicies,
+		metric:            testCounter,
+		versionedPolicies: policy.DefaultVersionedPolicies,
 	}
-	validateDecodeResults(t, input)
+	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+
+	// Version encoded is higher than supported version
+	enc.encodeTopLevelFn = func(objType objectType) {
+		enc.encodeVersion(supportedVersion + 1)
+		enc.encodeObjectType(objType)
+		enc.encodeNumObjectFields(numFieldsForType(objType))
+	}
+	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
+
+	// Now restore the encode top-level function and encode another counter
+	enc.encodeTopLevelFn = enc.encodeTopLevel
+	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
+
+	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we skipped the first counter and normally decoded the second counter
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeBatchTimer(t *testing.T) {
+func TestMultiTypedIteratorDecodeTopLevelMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
-		metric:   testBatchTimer,
-		policies: policy.DefaultVersionedPolicies,
+		metric:            testCounter,
+		versionedPolicies: policy.DefaultVersionedPolicies,
 	}
-	validateDecodeResults(t, input)
+	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+
+	// Pretend we added an extra int field to the top-level object
+	enc.encodeTopLevelFn = func(objType objectType) {
+		enc.encodeVersion(supportedVersion)
+		enc.encodeObjectType(objType)
+		enc.encodeNumObjectFields(numFieldsForType(objType) + 1)
+	}
+	enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies)
+	enc.encodeVarintFn(0)
+	require.NoError(t, enc.err)
+
+	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we normally decoded the counter
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeGauge(t *testing.T) {
+func TestMultiTypedIteratorDecodeCounterMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
-		metric:   testGauge,
-		policies: policy.DefaultVersionedPolicies,
+		metric:            testCounter,
+		versionedPolicies: policy.DefaultVersionedPolicies,
 	}
-	validateDecodeResults(t, input)
+	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+
+	// Pretend we added an extra int field to the counter object
+	enc.encodeCounterFn = func(c metric.Counter) {
+		enc.encodeNumObjectFields(numFieldsForType(counterType) + 1)
+		enc.encodeID(c.ID)
+		enc.encodeVarintFn(int64(c.Value))
+		enc.encodeVarintFn(0)
+	}
+	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
+
+	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we normally decoded the counter
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeAllTypesWithDefaultPolicies(t *testing.T) {
-	validateDecodeResults(t, testInputWithAllTypesAndDefaultPolicies...)
+func TestMultiTypedIteratorDecodeBatchTimerMoreFieldsThanExpected(t *testing.T) {
+	input := metricWithPolicies{
+		metric:            testBatchTimer,
+		versionedPolicies: policy.DefaultVersionedPolicies,
+	}
+	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+
+	// Pretend we added an extra int field to the batch timer object
+	enc.encodeBatchTimerFn = func(bt metric.BatchTimer) {
+		enc.encodeNumObjectFields(numFieldsForType(batchTimerType) + 1)
+		enc.encodeID(bt.ID)
+		enc.encodeArrayLenFn(len(bt.Values))
+		for _, v := range bt.Values {
+			enc.encodeFloat64Fn(v)
+		}
+		enc.encodeVarintFn(0)
+	}
+	require.NoError(t, enc.EncodeBatchTimerWithPolicies(
+		input.metric.BatchTimer(),
+		input.versionedPolicies,
+	))
+
+	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we normally decoded the batch timer
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeAllTypesWithCustomPolicies(t *testing.T) {
-	validateDecodeResults(t, testInputWithAllTypesAndCustomPolicies...)
+func TestMultiTypedIteratorDecodeGaugeMoreFieldsThanExpected(t *testing.T) {
+	input := metricWithPolicies{
+		metric:            testGauge,
+		versionedPolicies: policy.DefaultVersionedPolicies,
+	}
+	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+
+	// Pretend we added an extra int field to the gauge object
+	enc.encodeGaugeFn = func(g metric.Gauge) {
+		enc.encodeNumObjectFields(numFieldsForType(gaugeType) + 1)
+		enc.encodeID(g.ID)
+		enc.encodeFloat64Fn(g.Value)
+		enc.encodeVarintFn(0)
+	}
+	require.NoError(t, enc.EncodeGaugeWithPolicies(input.metric.Gauge(), input.versionedPolicies))
+
+	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we normally decoded the gauge
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
+}
+
+func TestMultiTypedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
+	input := metricWithPolicies{
+		metric: testGauge,
+		versionedPolicies: policy.VersionedPolicies{
+			Version: 1,
+			Policies: []policy.Policy{
+				{
+					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
+					Retention:  policy.Retention(time.Hour),
+				},
+			},
+		},
+	}
+	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+
+	// Pretend we added an extra int field to the policy object
+	enc.encodePolicyFn = func(p policy.Policy) {
+		enc.encodeNumObjectFields(numFieldsForType(policyType) + 1)
+		enc.encodeResolution(p.Resolution)
+		enc.encodeRetention(p.Retention)
+		enc.encodeVarintFn(0)
+	}
+	require.NoError(t, enc.EncodeGaugeWithPolicies(input.metric.Gauge(), input.versionedPolicies))
+
+	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we normally decoded the policy
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
+}
+
+func TestMultiTypedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *testing.T) {
+	input := metricWithPolicies{
+		metric: testGauge,
+		versionedPolicies: policy.VersionedPolicies{
+			Version: 1,
+			Policies: []policy.Policy{
+				{
+					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
+					Retention:  policy.Retention(time.Hour),
+				},
+			},
+		},
+	}
+	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+
+	// Pretend we added an extra int field to the policy object
+	enc.encodeVersionedPoliciesFn = func(vp policy.VersionedPolicies) {
+		enc.encodeNumObjectFields(numFieldsForType(customVersionedPolicyType) + 1)
+		enc.encodeVersion(vp.Version)
+		enc.encodeArrayLenFn(len(vp.Policies))
+		for _, policy := range vp.Policies {
+			enc.encodePolicyFn(policy)
+		}
+		enc.encodeVarintFn(0)
+	}
+	require.NoError(t, enc.EncodeGaugeWithPolicies(input.metric.Gauge(), input.versionedPolicies))
+
+	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we normally decoded the policy
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
+}
+
+func TestMultiTypedIteratorDecodeCounterFewerFieldsThanExpected(t *testing.T) {
+	input := metricWithPolicies{
+		metric:            testCounter,
+		versionedPolicies: policy.DefaultVersionedPolicies,
+	}
+	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+
+	// Pretend we added an extra int field to the counter object
+	enc.encodeCounterFn = func(c metric.Counter) {
+		enc.encodeNumObjectFields(numFieldsForType(counterType) - 1)
+		enc.encodeID(c.ID)
+	}
+	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
+
+	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we normally decoded the counter
+	validateDecodeResults(t, it, nil, errors.New("number of fields mismatch: expected 2 actual 1"))
 }
 
 func TestMultiTypedIteratorDecodeError(t *testing.T) {
