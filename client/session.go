@@ -1704,7 +1704,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			}
 			starts = append(starts, blockStart.UnixNano())
 		}
-		reqBlocksLen++
+		reqBlocksLen += int64(len(starts))
 		req.Elements[i] = &rpc.FetchBlocksRawRequestElement{
 			ID:     batch[i].id.Data(),
 			Starts: starts,
@@ -1738,7 +1738,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	// Parse and act on result
 	for i := range result.Elements {
 		if i >= len(batch) {
-			m.fetchBlockError.Inc(1)
+			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
 			s.log.Errorf("stream blocks response from peer %s returned more IDs than expected", peer.Host().String())
 			break
 		}
@@ -1747,7 +1747,7 @@ func (s *session) streamBlocksBatchFromPeer(
 
 		if !batch[i].id.Equal(id) {
 			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
-			m.fetchBlockError.Inc(1)
+			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
 			s.log.WithFields(
 				xlog.NewLogField("expectedID", batch[i].id),
 				xlog.NewLogField("actualID", id.String()),
@@ -1758,8 +1758,8 @@ func (s *session) streamBlocksBatchFromPeer(
 
 		missed := 0
 		for j := range result.Elements[i].Blocks {
-			if j >= len(batch[i].blocks) {
-				m.fetchBlockError.Inc(1)
+			if j >= len(req.Elements[i].Starts) {
+				m.fetchBlockError.Inc(int64(j + 1 - len(req.Elements[i].Starts)))
 				s.log.WithFields(
 					xlog.NewLogField("id", id.String()),
 					xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
