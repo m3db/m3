@@ -36,6 +36,10 @@ func (p *bytesPool) Init() {
 }
 
 func (p *bytesPool) Get(capacity int) []byte {
+	if capacity < 1 {
+		return nil
+	}
+
 	return p.pool.Get(capacity).([]byte)
 }
 
