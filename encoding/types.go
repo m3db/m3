@@ -41,14 +41,14 @@ type Encoder interface {
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)
 
-	// Reset resets the encoder and returns the currently owned data.
-	ResetSetData(t time.Time, data ts.Segment) ts.Segment
-
 	// Close closes the encoder and if pooled will return to the pool.
 	Close()
 
 	// Discard will take ownership of the encoder data and if pooled will return to the pool.
 	Discard() ts.Segment
+
+	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
+	DiscardReset(t time.Time, capacity int) ts.Segment
 }
 
 // NewEncoderFn creates a new encoder

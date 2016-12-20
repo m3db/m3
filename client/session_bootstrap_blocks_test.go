@@ -1368,13 +1368,6 @@ func (e *testEncoder) Reset(t time.Time, capacity int) {
 	e.data = ts.Segment{}
 }
 
-func (e *testEncoder) ResetSetData(t time.Time, data ts.Segment) ts.Segment {
-	curr := e.data
-	e.start = t
-	e.data = data
-	return curr
-}
-
 func (e *testEncoder) Close() {
 	e.closed = true
 }
@@ -1384,6 +1377,13 @@ func (e *testEncoder) Discard() ts.Segment {
 	e.closed = true
 	e.data = ts.Segment{}
 	return data
+}
+
+func (e *testEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
+	curr := e.data
+	e.start = t
+	e.data = ts.Segment{}
+	return curr
 }
 
 type synchronousWorkerPool struct{}

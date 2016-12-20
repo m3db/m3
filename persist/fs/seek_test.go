@@ -33,8 +33,12 @@ import (
 )
 
 func newTestSeeker(filePathPrefix string) FileSetSeeker {
-	return NewSeeker(filePathPrefix, testReaderBufferSize,
-		pool.NewBytesPool([]pool.Bucket{pool.Bucket{Capacity: 1024, Count: 10}}, nil))
+	bytesPool := pool.NewBytesPool([]pool.Bucket{pool.Bucket{
+		Capacity: 1024,
+		Count:    10,
+	}}, nil)
+	bytesPool.Init()
+	return NewSeeker(filePathPrefix, testReaderBufferSize, bytesPool)
 }
 
 func TestSeekEmptyIndex(t *testing.T) {

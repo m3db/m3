@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -157,22 +158,26 @@ func getBytes(t *testing.T, r io.Reader) []byte {
 func TestWriteTimeUnit(t *testing.T) {
 	encoder := getTestEncoder(testStartTime)
 	inputs := []struct {
-		timeUnit      xtime.Unit
-		expectedBytes []byte
-		expectedPos   int
+		timeUnit       xtime.Unit
+		expectedResult bool
+		expectedBytes  []byte
+		expectedPos    int
 	}{
 		{
 			xtime.None,
+			false,
 			[]byte{},
 			0,
 		},
 		{
 			xtime.Second,
+			true,
 			[]byte{0x80, 0x40, 0x20},
 			3,
 		},
 		{
-			xtime.Unit(5),
+			xtime.Unit(255),
+			false,
 			[]byte{},
 			0,
 		},
@@ -180,10 +185,10 @@ func TestWriteTimeUnit(t *testing.T) {
 	for _, input := range inputs {
 		encoder.Reset(testStartTime, 0)
 		encoder.tu = xtime.None
-		encoder.writeTimeUnit(input.timeUnit)
+		assert.Equal(t, input.expectedResult, encoder.writeTimeUnit(input.timeUnit))
 		b, p := encoder.os.Rawbytes()
-		require.Equal(t, input.expectedBytes, b)
-		require.Equal(t, input.expectedPos, p)
+		assert.Equal(t, input.expectedBytes, b)
+		assert.Equal(t, input.expectedPos, p)
 	}
 }
 
@@ -351,24 +356,26 @@ func TestInitTimeUnit(t *testing.T) {
 func TestEncoderResets(t *testing.T) {
 	enc := getTestOptEncoder(testStartTime)
 	defer enc.Close()
-	enc.Stream()
+
+	require.Equal(t, 0, enc.os.Len())
+	require.Equal(t, nil, enc.Stream())
+
 	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
 
 	now := time.Now()
 	enc.Reset(now, 0)
 	require.Equal(t, 0, enc.os.Len())
-
-	newBytes := []byte{0x13, 0xce}
-	enc.ResetSetData(now, ts.Segment{Head: newBytes})
+	require.Equal(t, nil, enc.Stream())
 	b, _ := enc.os.Rawbytes()
-	require.Equal(t, newBytes, b)
+	require.Equal(t, []byte{}, b)
 
-	enc.Stream()
+	enc.Encode(ts.Datapoint{now, 13}, xtime.Second, nil)
+	require.True(t, enc.os.Len() > 0)
 
-	newBytes = []byte{0x13}
-	enc.ResetSetData(now, ts.Segment{Head: newBytes})
+	enc.DiscardReset(now, 0)
+	require.Equal(t, 0, enc.os.Len())
+	require.Equal(t, nil, enc.Stream())
 	b, _ = enc.os.Rawbytes()
-	require.Equal(t, newBytes, b)
-	enc.Close()
+	require.Equal(t, []byte{}, b)
 }

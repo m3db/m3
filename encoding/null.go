@@ -31,7 +31,6 @@ import (
 )
 
 type nullEncoder struct {
-	data   ts.Segment
 	sealed bool
 }
 
@@ -44,16 +43,13 @@ func (e *nullEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 	return nil
 }
 func (e *nullEncoder) Stream() xio.SegmentReader {
-	return xio.NewSegmentReader(e.data)
+	return xio.NewSegmentReader(ts.Segment{})
 }
-func (e *nullEncoder) Seal()                           { e.sealed = true }
-func (e *nullEncoder) Reset(t time.Time, capacity int) {}
-func (e *nullEncoder) ResetSetData(t time.Time, data ts.Segment) ts.Segment {
-	e.data = data
-	return ts.Segment{}
-}
-func (e *nullEncoder) Close()              {}
-func (e *nullEncoder) Discard() ts.Segment { return ts.Segment{} }
+func (e *nullEncoder) Seal()                                             { e.sealed = true }
+func (e *nullEncoder) Reset(t time.Time, capacity int)                   {}
+func (e *nullEncoder) Close()                                            {}
+func (e *nullEncoder) Discard() ts.Segment                               { return ts.Segment{} }
+func (e *nullEncoder) DiscardReset(t time.Time, capacity int) ts.Segment { return ts.Segment{} }
 
 type nullReaderIterator struct{}
 
