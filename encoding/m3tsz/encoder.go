@@ -480,9 +480,6 @@ func (enc *encoder) trackNewSig(numSig uint8) uint8 {
 }
 
 func (enc *encoder) newBuffer(capacity int) []byte {
-	if capacity < 1 {
-		return nil
-	}
 	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
 		return bytesPool.Get(capacity)
 	}
@@ -494,6 +491,11 @@ func (enc *encoder) Reset(start time.Time, capacity int) {
 }
 
 func (enc *encoder) reset(start time.Time, bytes []byte) {
+	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
+		if b, _ := enc.os.Rawbytes(); b != nil {
+			bytesPool.Put(b)
+		}
+	}
 	enc.os.Reset(bytes)
 	enc.t = start
 	enc.dt = 0

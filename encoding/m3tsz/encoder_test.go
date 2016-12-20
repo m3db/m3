@@ -120,7 +120,7 @@ func TestWriteAnnotation(t *testing.T) {
 	}{
 		{
 			nil,
-			[]byte(nil),
+			[]byte{},
 			0,
 		},
 		{
@@ -163,18 +163,13 @@ func TestWriteTimeUnit(t *testing.T) {
 	}{
 		{
 			xtime.None,
-			[]byte(nil),
+			[]byte{},
 			0,
 		},
 		{
 			xtime.Second,
 			[]byte{0x80, 0x40, 0x20},
 			3,
-		},
-		{
-			xtime.Unit(5),
-			[]byte(nil),
-			0,
 		},
 	}
 	for _, input := range inputs {
@@ -363,7 +358,7 @@ func TestEncoderResets(t *testing.T) {
 	require.Equal(t, 0, enc.os.Len())
 	require.Equal(t, nil, enc.Stream())
 	b, _ := enc.os.Rawbytes()
-	require.Equal(t, []byte(nil), b)
+	require.Equal(t, []byte{}, b)
 
 	enc.Encode(ts.Datapoint{now, 13}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
@@ -372,5 +367,5 @@ func TestEncoderResets(t *testing.T) {
 	require.Equal(t, 0, enc.os.Len())
 	require.Equal(t, nil, enc.Stream())
 	b, _ = enc.os.Rawbytes()
-	require.Equal(t, []byte(nil), b)
+	require.Equal(t, []byte{}, b)
 }
