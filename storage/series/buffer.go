@@ -163,7 +163,7 @@ func (b *dbBuffer) DrainAndReset() {
 			encoder := bucket.encoders[0].encoder
 			data := encoder.ResetSetData(current, ts.Segment{})
 
-			if data.Head != nil || data.Tail != nil {
+			if len(data.Head) > 0 || len(data.Tail) > 0 {
 				newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 				newBlock.Reset(bucket.start, data)
 				b.drainFn(newBlock)
