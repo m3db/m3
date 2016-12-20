@@ -59,7 +59,7 @@ func TestUnaggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 
 	// Version encoded is higher than supported version
 	enc.encodeRootObjectFn = func(objType objectType) {
-		enc.encodeVersion(supportedVersion + 1)
+		enc.encodeVersion(unaggregatedVersion + 1)
 		enc.encodeNumObjectFields(numFieldsForType(rootObjectType))
 		enc.encodeObjectType(objType)
 	}
@@ -71,7 +71,7 @@ func TestUnaggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
-	// Check that we skipped the first counter and normally decoded the second counter
+	// Check that we skipped the first counter and successfully decoded the second counter
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
@@ -84,7 +84,7 @@ func TestUnaggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T
 
 	// Pretend we added an extra int field to the top-level object
 	enc.encodeRootObjectFn = func(objType objectType) {
-		enc.encodeVersion(supportedVersion)
+		enc.encodeVersion(unaggregatedVersion)
 		enc.encodeNumObjectFields(numFieldsForType(rootObjectType) + 1)
 		enc.encodeObjectType(objType)
 	}
@@ -94,7 +94,7 @@ func TestUnaggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
-	// Check that we normally decoded the counter
+	// Check that we successfully decoded the counter
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
@@ -117,7 +117,7 @@ func TestUnaggregatedIteratorDecodeCounterWithPoliciesMoreFieldsThanExpected(t *
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
-	// Check that we normally decoded the counter
+	// Check that we successfully decoded the counter
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
@@ -139,7 +139,7 @@ func TestUnaggregatedIteratorDecodeCounterMoreFieldsThanExpected(t *testing.T) {
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
-	// Check that we normally decoded the counter
+	// Check that we successfully decoded the counter
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
@@ -167,7 +167,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerMoreFieldsThanExpected(t *testing.T
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
-	// Check that we normally decoded the batch timer
+	// Check that we successfully decoded the batch timer
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
@@ -189,7 +189,51 @@ func TestUnaggregatedIteratorDecodeGaugeMoreFieldsThanExpected(t *testing.T) {
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
-	// Check that we normally decoded the gauge
+	// Check that we successfully decoded the gauge
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
+}
+
+func TestUnaggregatedIteratorDecodePolicyWithCustomResolution(t *testing.T) {
+	input := metricWithPolicies{
+		metric: testGauge,
+		versionedPolicies: policy.VersionedPolicies{
+			Version: 1,
+			Policies: []policy.Policy{
+				{
+					Resolution: policy.Resolution{Window: time.Duration(3), Precision: xtime.Second},
+					Retention:  policy.Retention(time.Hour),
+				},
+			},
+		},
+	}
+	enc := testUnaggregatedEncoder(t)
+	require.NoError(t, enc.EncodeGaugeWithPolicies(input.metric.Gauge(), input.versionedPolicies))
+
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we successfully decoded the policy
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
+}
+
+func TestUnaggregatedIteratorDecodePolicyWithCustomRetention(t *testing.T) {
+	input := metricWithPolicies{
+		metric: testGauge,
+		versionedPolicies: policy.VersionedPolicies{
+			Version: 1,
+			Policies: []policy.Policy{
+				{
+					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
+					Retention:  policy.Retention(289 * time.Hour),
+				},
+			},
+		},
+	}
+	enc := testUnaggregatedEncoder(t)
+	require.NoError(t, enc.EncodeGaugeWithPolicies(input.metric.Gauge(), input.versionedPolicies))
+
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we successfully decoded the policy
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
@@ -219,7 +263,7 @@ func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
-	// Check that we normally decoded the policy
+	// Check that we successfully decoded the policy
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
@@ -240,7 +284,8 @@ func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *te
 
 	// Pretend we added an extra int field to the policy object
 	enc.encodeVersionedPoliciesFn = func(vp policy.VersionedPolicies) {
-		enc.encodeNumObjectFields(numFieldsForType(customVersionedPolicyType) + 1)
+		enc.encodeNumObjectFields(numFieldsForType(customVersionedPoliciesType) + 1)
+		enc.encodeObjectType(customVersionedPoliciesType)
 		enc.encodeVersion(vp.Version)
 		enc.encodeArrayLenFn(len(vp.Policies))
 		for _, policy := range vp.Policies {
@@ -252,7 +297,7 @@ func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *te
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
-	// Check that we normally decoded the policy
+	// Check that we successfully decoded the policy
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
@@ -272,7 +317,7 @@ func TestUnaggregatedIteratorDecodeCounterFewerFieldsThanExpected(t *testing.T) 
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
-	// Check that we normally decoded the counter
+	// Check that we successfully decoded the counter
 	validateDecodeResults(t, it, nil, errors.New("number of fields mismatch: expected 2 actual 1"))
 }
 

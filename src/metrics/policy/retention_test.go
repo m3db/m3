@@ -59,7 +59,7 @@ func TestValidRetentionValue(t *testing.T) {
 
 func TestInvalidRetentionValue(t *testing.T) {
 	inputs := []RetentionValue{
-		UnknownRetention,
+		UnknownRetentionValue,
 		RetentionValue(100),
 	}
 	for _, value := range inputs {

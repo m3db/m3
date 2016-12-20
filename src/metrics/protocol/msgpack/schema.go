@@ -45,6 +45,11 @@ package msgpack
 type objectType int
 
 const (
+	// Current version for encoding unaggregated metrics
+	unaggregatedVersion int = 1
+)
+
+const (
 	unknownType = iota
 
 	// Root object type
@@ -60,8 +65,12 @@ const (
 	batchTimerType
 	gaugeType
 	policyType
-	defaultVersionedPolicyType
-	customVersionedPolicyType
+	knownResolutionType
+	unknownResolutionType
+	knownRetentionType
+	unknownRetentionType
+	defaultVersionedPoliciesType
+	customVersionedPoliciesType
 
 	// Total number of object types
 	numObjectTypes = iota
@@ -76,8 +85,12 @@ const (
 	numBatchTimerFields             = 2
 	numGaugeFields                  = 2
 	numPolicyFields                 = 2
+	numKnownResolutionFields        = 2
+	numUnknownResolutionFields      = 3
+	numKnownRetentionFields         = 2
+	numUnknownRetentionFields       = 2
 	numDefaultVersionedPolicyFields = 1
-	numCustomVersionedPolicyFields  = 2
+	numCustomVersionedPolicyFields  = 3
 )
 
 var numObjectFields []int
@@ -100,7 +113,11 @@ func init() {
 	setNumFieldsForType(batchTimerType, numBatchTimerFields)
 	setNumFieldsForType(gaugeType, numGaugeFields)
 	setNumFieldsForType(policyType, numPolicyFields)
-	setNumFieldsForType(defaultVersionedPolicyType, numDefaultVersionedPolicyFields)
-	setNumFieldsForType(customVersionedPolicyType, numCustomVersionedPolicyFields)
+	setNumFieldsForType(knownResolutionType, numKnownResolutionFields)
+	setNumFieldsForType(unknownResolutionType, numUnknownResolutionFields)
+	setNumFieldsForType(knownRetentionType, numKnownRetentionFields)
+	setNumFieldsForType(unknownRetentionType, numKnownRetentionFields)
+	setNumFieldsForType(defaultVersionedPoliciesType, numDefaultVersionedPolicyFields)
+	setNumFieldsForType(customVersionedPoliciesType, numCustomVersionedPolicyFields)
 
 }

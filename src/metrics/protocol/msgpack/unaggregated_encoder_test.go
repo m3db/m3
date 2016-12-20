@@ -62,7 +62,7 @@ func testCapturingUnaggregatedEncoder(t *testing.T) (UnaggregatedEncoder, *[]int
 
 func getExpectedResultsForMetricWithPolicies(t *testing.T, m *unaggregated.MetricUnion, p policy.VersionedPolicies) []interface{} {
 	results := []interface{}{
-		int64(supportedVersion),
+		int64(unaggregatedVersion),
 		numFieldsForType(rootObjectType),
 	}
 
@@ -100,12 +100,13 @@ func getExpectedResultsForMetricWithPolicies(t *testing.T, m *unaggregated.Metri
 
 	if p.Version == policy.DefaultPolicyVersion {
 		results = append(results, []interface{}{
-			numFieldsForType(defaultVersionedPolicyType),
-			int64(p.Version),
+			numFieldsForType(defaultVersionedPoliciesType),
+			int64(defaultVersionedPoliciesType),
 		}...)
 	} else {
 		results = append(results, []interface{}{
-			numFieldsForType(customVersionedPolicyType),
+			numFieldsForType(customVersionedPoliciesType),
+			int64(customVersionedPoliciesType),
 			int64(p.Version),
 			len(p.Policies),
 		}...)
@@ -113,12 +114,35 @@ func getExpectedResultsForMetricWithPolicies(t *testing.T, m *unaggregated.Metri
 			results = append(results, numFieldsForType(policyType))
 
 			resolutionValue, err := policy.ValueFromResolution(p.Resolution)
-			require.NoError(t, err)
-			results = append(results, int64(resolutionValue))
+			if err == nil {
+				results = append(results, []interface{}{
+					numFieldsForType(knownResolutionType),
+					int64(knownResolutionType),
+					int64(resolutionValue),
+				}...)
+			} else {
+				results = append(results, []interface{}{
+					numFieldsForType(unknownResolutionType),
+					int64(unknownResolutionType),
+					int64(p.Resolution.Window),
+					int64(p.Resolution.Precision),
+				}...)
+			}
 
 			retentionValue, err := policy.ValueFromRetention(p.Retention)
-			require.NoError(t, err)
-			results = append(results, int64(retentionValue))
+			if err == nil {
+				results = append(results, []interface{}{
+					numFieldsForType(knownRetentionType),
+					int64(knownRetentionType),
+					int64(retentionValue),
+				}...)
+			} else {
+				results = append(results, []interface{}{
+					numFieldsForType(unknownRetentionType),
+					int64(unknownRetentionType),
+					int64(p.Retention),
+				}...)
+			}
 		}
 	}
 

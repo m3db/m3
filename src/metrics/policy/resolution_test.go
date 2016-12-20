@@ -53,7 +53,7 @@ func TestValidResolutionValue(t *testing.T) {
 
 func TestInvalidResolutionValue(t *testing.T) {
 	inputs := []ResolutionValue{
-		UnknownResolution,
+		UnknownResolutionValue,
 		ResolutionValue(100),
 	}
 	for _, value := range inputs {

@@ -83,20 +83,24 @@ var (
 				},
 			},
 		},
-		// Retain this metric at 10 second resolution for 6 hours,
-		// then 1 minute resolution for 2 days
+		// Retain this metric at 100 second resolution for 6 hours,
+		// then custom resolution for 2 days, then 1 minute for 25 days
 		{
 			metric: testBatchTimer,
 			versionedPolicies: policy.VersionedPolicies{
 				Version: 2,
 				Policies: []policy.Policy{
 					{
-						Resolution: policy.Resolution{Window: time.Duration(10), Precision: xtime.Second},
+						Resolution: policy.Resolution{Window: time.Duration(100), Precision: xtime.Second},
 						Retention:  policy.Retention(6 * time.Hour),
 					},
 					{
-						Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Minute},
+						Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Unit(100)},
 						Retention:  policy.Retention(2 * 24 * time.Hour),
+					},
+					{
+						Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Minute},
+						Retention:  policy.Retention(25 * 24 * time.Hour),
 					},
 				},
 			},
