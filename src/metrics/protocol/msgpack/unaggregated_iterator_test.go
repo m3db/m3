@@ -58,15 +58,15 @@ func TestUnaggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Version encoded is higher than supported version
-	enc.encodeTopLevelFn = func(objType objectType) {
+	enc.encodeRootObjectFn = func(objType objectType) {
 		enc.encodeVersion(supportedVersion + 1)
+		enc.encodeNumObjectFields(numFieldsForType(rootObjectType))
 		enc.encodeObjectType(objType)
-		enc.encodeNumObjectFields(numFieldsForType(objType))
 	}
 	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
 
 	// Now restore the encode top-level function and encode another counter
-	enc.encodeTopLevelFn = enc.encodeTopLevel
+	enc.encodeRootObjectFn = enc.encodeRootObject
 	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
 
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
@@ -75,7 +75,7 @@ func TestUnaggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestUnaggregatedIteratorDecodeTopLevelMoreFieldsThanExpected(t *testing.T) {
+func TestUnaggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
 		versionedPolicies: policy.DefaultVersionedPolicies,
@@ -83,10 +83,33 @@ func TestUnaggregatedIteratorDecodeTopLevelMoreFieldsThanExpected(t *testing.T) 
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Pretend we added an extra int field to the top-level object
-	enc.encodeTopLevelFn = func(objType objectType) {
+	enc.encodeRootObjectFn = func(objType objectType) {
 		enc.encodeVersion(supportedVersion)
+		enc.encodeNumObjectFields(numFieldsForType(rootObjectType) + 1)
 		enc.encodeObjectType(objType)
-		enc.encodeNumObjectFields(numFieldsForType(objType) + 1)
+	}
+	enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies)
+	enc.encodeVarintFn(0)
+	require.NoError(t, enc.err)
+
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
+
+	// Check that we normally decoded the counter
+	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
+}
+
+func TestUnaggregatedIteratorDecodeCounterWithPoliciesMoreFieldsThanExpected(t *testing.T) {
+	input := metricWithPolicies{
+		metric:            testCounter,
+		versionedPolicies: policy.DefaultVersionedPolicies,
+	}
+	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
+
+	// Pretend we added an extra int field to the top-level object
+	enc.encodeCounterWithPoliciesFn = func(c unaggregated.Counter, vp policy.VersionedPolicies) {
+		enc.encodeNumObjectFields(numFieldsForType(counterWithPoliciesType) + 1)
+		enc.encodeCounterFn(c)
+		enc.encodeVersionedPoliciesFn(vp)
 	}
 	enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies)
 	enc.encodeVarintFn(0)

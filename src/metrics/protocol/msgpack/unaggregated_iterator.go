@@ -80,26 +80,38 @@ func (it *unaggregatedIterator) Next() bool {
 	// Resetting the metric to avoid holding onto the float64 slices
 	// in the metric field even though they may not be used
 	it.metric.Reset()
+
+	return it.decodeRootObject()
+}
+
+func (it *unaggregatedIterator) decodeRootObject() bool {
 	version := it.decodeVersion()
-	objType := it.decodeObjectType()
 	if it.err != nil {
 		return false
 	}
-
 	// If the actual version is higher than supported version, we skip
 	// the data for this metric and continue to the next
 	if version > supportedVersion {
 		it.skip(it.decodeNumObjectFields())
 		return it.Next()
 	}
-
 	// Otherwise we proceed to decoding normally
+	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(rootObjectType)
+	if !ok {
+		return false
+	}
+	objType := it.decodeObjectType()
+	if it.err != nil {
+		return false
+	}
 	switch objType {
 	case counterWithPoliciesType, batchTimerWithPoliciesType, gaugeWithPoliciesType:
 		it.decodeMetricWithPolicies(objType)
 	default:
 		it.err = fmt.Errorf("unrecognized object type %v", objType)
 	}
+	it.skip(numActualFields - numExpectedFields)
+
 	return it.err == nil
 }
 

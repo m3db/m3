@@ -63,6 +63,7 @@ func testCapturingUnaggregatedEncoder(t *testing.T) (UnaggregatedEncoder, *[]int
 func getExpectedResultsForMetricWithPolicies(t *testing.T, m *unaggregated.MetricUnion, p policy.VersionedPolicies) []interface{} {
 	results := []interface{}{
 		int64(supportedVersion),
+		numFieldsForType(rootObjectType),
 	}
 
 	switch m.Type {
