@@ -120,7 +120,7 @@ func TestWriteAnnotation(t *testing.T) {
 	}{
 		{
 			nil,
-			[]byte{},
+			[]byte(nil),
 			0,
 		},
 		{
@@ -163,7 +163,7 @@ func TestWriteTimeUnit(t *testing.T) {
 	}{
 		{
 			xtime.None,
-			[]byte{},
+			[]byte(nil),
 			0,
 		},
 		{
@@ -173,7 +173,7 @@ func TestWriteTimeUnit(t *testing.T) {
 		},
 		{
 			xtime.Unit(5),
-			[]byte{},
+			[]byte(nil),
 			0,
 		},
 	}
@@ -351,24 +351,26 @@ func TestInitTimeUnit(t *testing.T) {
 func TestEncoderResets(t *testing.T) {
 	enc := getTestOptEncoder(testStartTime)
 	defer enc.Close()
-	enc.Stream()
+
+	require.Equal(t, 0, enc.os.Len())
+	require.Equal(t, nil, enc.Stream())
+
 	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
 
 	now := time.Now()
 	enc.Reset(now, 0)
 	require.Equal(t, 0, enc.os.Len())
-
-	newBytes := []byte{0x13, 0xce}
-	enc.ResetSetData(now, ts.Segment{Head: newBytes})
+	require.Equal(t, nil, enc.Stream())
 	b, _ := enc.os.Rawbytes()
-	require.Equal(t, newBytes, b)
+	require.Equal(t, []byte(nil), b)
 
-	enc.Stream()
+	enc.Encode(ts.Datapoint{now, 13}, xtime.Second, nil)
+	require.True(t, enc.os.Len() > 0)
 
-	newBytes = []byte{0x13}
-	enc.ResetSetData(now, ts.Segment{Head: newBytes})
+	enc.DiscardReset(now, 0)
+	require.Equal(t, 0, enc.os.Len())
+	require.Equal(t, nil, enc.Stream())
 	b, _ = enc.os.Rawbytes()
-	require.Equal(t, newBytes, b)
-	enc.Close()
+	require.Equal(t, []byte(nil), b)
 }
