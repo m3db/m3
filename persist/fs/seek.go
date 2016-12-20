@@ -57,7 +57,6 @@ type seeker struct {
 	unreadBuf  []byte
 	prologue   []byte
 	entries    int
-	reusableID ts.ID
 	dataFd     *os.File
 	indexMap   map[ts.Hash]*schema.IndexEntry
 	bytesPool  pool.BytesPool
@@ -74,7 +73,6 @@ func NewSeeker(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) 
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
 		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  bytesPool,
-		reusableID:                 ts.StringID(""),
 	}
 }
 
@@ -186,8 +184,7 @@ func (s *seeker) readIndex(size int) error {
 		}
 
 		indexUnread = indexUnread[size:]
-		s.reusableID.Reset(entry.Id)
-		s.indexMap[s.reusableID.Hash()] = entry
+		s.indexMap[ts.BinaryID(entry.Id).Hash()] = entry
 	}
 
 	return nil
