@@ -51,6 +51,7 @@ var (
 )
 
 type recordFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult)
+type repairShardFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) error
 
 type shardRepairer struct {
 	opts      Options
@@ -58,6 +59,7 @@ type shardRepairer struct {
 	rtopts    retention.Options
 	client    client.AdminClient
 	recordFn  recordFn
+	repairFn  repairShardFn
 	logger    xlog.Logger
 	scope     tally.Scope
 	nowFn     clock.NowFn
@@ -85,6 +87,7 @@ func newShardRepairer(opts Options, rpopts repair.Options) (databaseShardRepaire
 		blockSize: rtopts.BlockSize(),
 	}
 	r.recordFn = r.recordDifferences
+	r.repairFn = r.repairDifferences
 
 	return r, nil
 }
@@ -133,8 +136,36 @@ func (r shardRepairer) Repair(
 	metadataRes := metadata.Compare()
 
 	r.recordFn(namespace, shard, metadataRes)
+	// TODO(prateek): flipr config for this?
+	if err = r.repairFn(namespace, shard, metadataRes); err != nil {
+		return repair.MetadataComparisonResult{}, err
+	}
 
 	return metadataRes, nil
+}
+
+func (r shardRepairer) repairDifferences(
+	namespace ts.ID,
+	shard databaseShard,
+	diffRes repair.MetadataComparisonResult,
+) error {
+	// TODO(prateek): track the blocks repaired
+	// TODO(prateek): put better resource controls in place i.e. throttles, workerpools
+	// TODO(prateek): optimize the data access i.e. batch reads per host, etc
+
+	// session, err := r.client.DefaultAdminSession()
+	// if err != nil {
+	// 	return err
+	// }
+
+	// shardResult, err := session.FetchRepairBlocksFromPeers(namespace, shard.ID(), diffRes)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// TODO(prateek): figure out how to transfer shardResult -> local shards
+	// and then overwrite those files on disk
+	return nil
 }
 
 func (r shardRepairer) recordDifferences(
