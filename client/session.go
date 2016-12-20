@@ -1240,7 +1240,6 @@ func (s *session) FetchRepairBlocksFromPeers(
 				err := errors.New("Unable to find peer: " + rb.Peer.ID())
 				onDone(err) // bail early
 				break
-				// TODO(prateek) ^ check ok and indicate error, increment metric
 			}
 			metadataCh <- blocksMetadata{
 				id:   rb.ID,
@@ -1261,8 +1260,8 @@ func (s *session) FetchRepairBlocksFromPeers(
 	go func() {
 		err := s.streamBlocksFromPeers(namespace, shard, peers,
 			metadataCh, opts, result, m)
-		onDone(err)
 		close(outputCh)
+		onDone(err)
 	}()
 
 	pbi := newPeerBlocksIter(outputCh, doneCh)
@@ -2024,50 +2023,46 @@ type blocksResult interface {
 	addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error
 }
 
-type streamBlocksResult struct {
-	opts                    Options
+type baseBlocksResult struct {
 	blockOpts               block.Options
 	blockAllocSize          int
 	contextPool             context.Pool
 	encoderPool             encoding.EncoderPool
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
-	outputCh                chan<- peerBlocksDatapoint
 }
 
-func newStreamBlocksResult(
-	opts Options,
-	resultOpts result.Options,
-	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
-	outputCh chan<- peerBlocksDatapoint,
-) *streamBlocksResult {
-	blockOpts := resultOpts.DatabaseBlockOptions()
-	return &streamBlocksResult{
-		opts:                    opts,
-		blockOpts:               blockOpts,
-		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
-		contextPool:             opts.ContextPool(),
-		encoderPool:             blockOpts.EncoderPool(),
-		multiReaderIteratorPool: multiReaderIteratorPool,
-		outputCh:                outputCh,
+func (b *baseBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
+	iter := b.multiReaderIteratorPool.Get()
+	iter.Reset(readers)
+	defer iter.Close()
+
+	encoder := b.encoderPool.Get()
+	encoder.Reset(start, b.blockAllocSize)
+
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		if err := encoder.Encode(dp, unit, annotation); err != nil {
+			encoder.Close()
+			return nil, err
+		}
 	}
+	if err := iter.Err(); err != nil {
+		encoder.Close()
+		return nil, err
+	}
+
+	return encoder, nil
 }
 
-type peerBlocksDatapoint struct {
-	id    ts.ID
-	peer  topology.Host
-	block block.DatabaseBlock
-}
-
-// TODO(prateek): refactor to re-use this code-base along with bulkBlocksResult
-func (s *streamBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
+func (b *baseBlocksResult) getDatabaseBlock(block *rpc.Block) (block.DatabaseBlock, error) {
 	var (
 		start    = time.Unix(0, block.Start)
 		segments = block.Segments
-		result   = s.blockOpts.DatabaseBlockPool().Get()
+		result   = b.blockOpts.DatabaseBlockPool().Get()
 	)
 
 	if segments == nil {
-		return errSessionBadBlockResultFromPeer
+		return nil, errSessionBadBlockResultFromPeer
 	}
 
 	switch {
@@ -2087,48 +2082,62 @@ func (s *streamBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, bloc
 				Tail: segments.Unmerged[i].Tail,
 			})
 		}
-		encoder, err := s.mergeReaders(start, readers)
+		encoder, err := b.mergeReaders(start, readers)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// Set the block data
 		result.Reset(start, encoder.Discard())
 
 	default:
-		return errSessionBadBlockResultFromPeer
+		return nil, errSessionBadBlockResultFromPeer
 	}
 
+	return result, nil
+}
+
+type streamBlocksResult struct {
+	baseBlocksResult
+	outputCh chan<- peerBlocksDatapoint
+}
+
+func newStreamBlocksResult(
+	opts Options,
+	resultOpts result.Options,
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
+	outputCh chan<- peerBlocksDatapoint,
+) *streamBlocksResult {
+	blockOpts := resultOpts.DatabaseBlockOptions()
+	return &streamBlocksResult{
+		baseBlocksResult: baseBlocksResult{
+			blockOpts:               blockOpts,
+			blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
+			contextPool:             opts.ContextPool(),
+			encoderPool:             blockOpts.EncoderPool(),
+			multiReaderIteratorPool: multiReaderIteratorPool,
+		},
+		outputCh: outputCh,
+	}
+}
+
+type peerBlocksDatapoint struct {
+	id    ts.ID
+	peer  topology.Host
+	block block.DatabaseBlock
+}
+
+func (s *streamBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
+	result, err := s.getDatabaseBlock(block)
+	if err != nil {
+		return err
+	}
 	s.outputCh <- peerBlocksDatapoint{
 		id:    id,
 		peer:  peer,
 		block: result,
 	}
 	return nil
-}
-
-// TODO(prateek): refactor to re-use this code-base along with bulkBlocksResult
-func (s *streamBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
-	iter := s.multiReaderIteratorPool.Get()
-	iter.Reset(readers)
-	defer iter.Close()
-
-	encoder := s.encoderPool.Get()
-	encoder.Reset(start, s.blockAllocSize)
-
-	for iter.Next() {
-		dp, unit, annotation := iter.Current()
-		if err := encoder.Encode(dp, unit, annotation); err != nil {
-			encoder.Close()
-			return nil, err
-		}
-	}
-	if err := iter.Err(); err != nil {
-		encoder.Close()
-		return nil, err
-	}
-
-	return encoder, nil
 }
 
 type peerBlocksIter struct {
@@ -2175,13 +2184,8 @@ func (it *peerBlocksIter) Next() bool {
 
 type bulkBlocksResult struct {
 	sync.RWMutex
-	opts                    Options
-	blockOpts               block.Options
-	blockAllocSize          int
-	contextPool             context.Pool
-	encoderPool             encoding.EncoderPool
-	multiReaderIteratorPool encoding.MultiReaderIteratorPool
-	result                  result.ShardResult
+	baseBlocksResult
+	result result.ShardResult
 }
 
 func newBulkBlocksResult(
@@ -2191,54 +2195,22 @@ func newBulkBlocksResult(
 ) *bulkBlocksResult {
 	blockOpts := resultOpts.DatabaseBlockOptions()
 	return &bulkBlocksResult{
-		opts:                    opts,
-		blockOpts:               blockOpts,
-		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
-		contextPool:             opts.ContextPool(),
-		encoderPool:             blockOpts.EncoderPool(),
-		multiReaderIteratorPool: multiReaderIteratorPool,
-		result:                  result.NewShardResult(4096, resultOpts),
+		baseBlocksResult: baseBlocksResult{
+			blockOpts:               blockOpts,
+			blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
+			contextPool:             opts.ContextPool(),
+			encoderPool:             blockOpts.EncoderPool(),
+			multiReaderIteratorPool: multiReaderIteratorPool,
+		},
+		result: result.NewShardResult(4096, resultOpts),
 	}
 }
 
 func (r *bulkBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
-	var (
-		start    = time.Unix(0, block.Start)
-		segments = block.Segments
-		result   = r.blockOpts.DatabaseBlockPool().Get()
-	)
-
-	if segments == nil {
-		return errSessionBadBlockResultFromPeer
-	}
-
-	switch {
-	case segments.Merged != nil:
-		// Unmerged, can insert directly into a single block
-		result.Reset(start, ts.Segment{
-			Head: segments.Merged.Head,
-			Tail: segments.Merged.Tail,
-		})
-
-	case segments.Unmerged != nil:
-		// Must merge to provide a single block
-		readers := make([]io.Reader, len(segments.Unmerged))
-		for i := range segments.Unmerged {
-			readers[i] = xio.NewSegmentReader(ts.Segment{
-				Head: segments.Unmerged[i].Head,
-				Tail: segments.Unmerged[i].Tail,
-			})
-		}
-		encoder, err := r.mergeReaders(start, readers)
-		if err != nil {
-			return err
-		}
-
-		// Set the block data
-		result.Reset(start, encoder.Discard())
-
-	default:
-		return errSessionBadBlockResultFromPeer
+	start := time.Unix(0, block.Start)
+	result, err := r.getDatabaseBlock(block)
+	if err != nil {
+		return err
 	}
 
 	for {
@@ -2293,29 +2265,6 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block 
 	}
 
 	return nil
-}
-
-func (r *bulkBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
-	iter := r.multiReaderIteratorPool.Get()
-	iter.Reset(readers)
-	defer iter.Close()
-
-	encoder := r.encoderPool.Get()
-	encoder.Reset(start, r.blockAllocSize)
-
-	for iter.Next() {
-		dp, unit, annotation := iter.Current()
-		if err := encoder.Encode(dp, unit, annotation); err != nil {
-			encoder.Close()
-			return nil, err
-		}
-	}
-	if err := iter.Err(); err != nil {
-		encoder.Close()
-		return nil, err
-	}
-
-	return encoder, nil
 }
 
 type enqueueChannel struct {

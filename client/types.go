@@ -215,8 +215,6 @@ type AdminSession interface {
 		blocks []block.ReplicaMetadata,
 		opts result.Options,
 	) (PeerBlocksIter, error)
-	// TODO(prateek): break down bootstrap.Options into new options with the subparts needed here
-	//								remove the dependency on the bootstrapOpts for both this and FetchBootstrapBlocksFromPeer
 }
 
 type clientSession interface {
