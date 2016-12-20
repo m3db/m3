@@ -82,12 +82,10 @@ func NewPooledDatabaseSeries(id ts.ID, pool DatabaseSeriesPool, opts Options) Da
 }
 
 func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
-	ropts := opts.RetentionOptions()
-	blocksLen := int(ropts.RetentionPeriod() / ropts.BlockSize())
 	series := &dbSeries{
 		id:     opts.IdentifierPool().Clone(id),
 		opts:   opts,
-		blocks: block.NewDatabaseSeriesBlocks(blocksLen, opts.DatabaseBlockOptions()),
+		blocks: block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()),
 		bs:     bootstrapNotStarted,
 	}
 	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
