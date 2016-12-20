@@ -36,11 +36,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	seeker := fs.NewSeeker(*optPathPrefix, defaultBufferReadSize, pool.NewBytesPool(
-		[]pool.Bucket{pool.Bucket{Capacity: defaultBufferCapacity, Count: defaultBufferPoolCount}}, nil))
+	bytesPool := pool.NewBytesPool([]pool.Bucket{pool.Bucket{
+		Capacity: defaultBufferCapacity,
+		Count:    defaultBufferPoolCount,
+	}}, nil)
+	bytesPool.Init()
 
-	err := seeker.Open(ts.StringID(*optNamespace), uint32(*optShard), time.Unix(0, int64(*optBlockstart)))
+	seeker := fs.NewSeeker(*optPathPrefix, defaultBufferReadSize, bytesPool)
 
+	err := seeker.Open(ts.StringID(*optNamespace),
+		uint32(*optShard), time.Unix(0, int64(*optBlockstart)))
 	if err != nil {
 		log.Fatalf("unable to open file: %v", err)
 	}

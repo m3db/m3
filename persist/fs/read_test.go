@@ -48,8 +48,12 @@ var (
 )
 
 func newTestReader(filePathPrefix string) FileSetReader {
-	return NewReader(filePathPrefix, testReaderBufferSize,
-		pool.NewBytesPool([]pool.Bucket{pool.Bucket{Capacity: 1024, Count: 10}}, nil))
+	bytesPool := pool.NewBytesPool([]pool.Bucket{pool.Bucket{
+		Capacity: 1024,
+		Count:    10,
+	}}, nil)
+	bytesPool.Init()
+	return NewReader(filePathPrefix, testReaderBufferSize, bytesPool)
 }
 
 func TestReadEmptyIndexUnreadData(t *testing.T) {

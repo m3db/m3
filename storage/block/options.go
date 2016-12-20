@@ -76,6 +76,7 @@ func NewOptions() Options {
 		it.Reset(r)
 		return it
 	})
+	o.bytesPool.Init()
 	return o
 }
 
