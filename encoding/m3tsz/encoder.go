@@ -496,6 +496,8 @@ func (enc *encoder) ResetSetData(start time.Time, data ts.Segment) ts.Segment {
 
 	bytes := data.Head
 	if data.Tail != nil {
+		// NB(r): If you pass a tail this will cause a copy if
+		// head cannot fit the tail
 		bytes = append(bytes, data.Tail...)
 	}
 	enc.os.Reset(bytes)

@@ -162,8 +162,7 @@ func (b *dbBuffer) DrainAndReset() {
 			// After we merge there is always only a single encoder with all data
 			encoder := bucket.encoders[0].encoder
 			data := encoder.ResetSetData(current, ts.Segment{})
-
-			if len(data.Head) > 0 || len(data.Tail) > 0 {
+			if data.Len() > 0 {
 				newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 				newBlock.Reset(bucket.start, data)
 				b.drainFn(newBlock)
