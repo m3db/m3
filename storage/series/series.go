@@ -75,8 +75,8 @@ func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
 }
 
 // NewPooledDatabaseSeries creates a new pooled database series
-func NewPooledDatabaseSeries(id ts.ID, pool DatabaseSeriesPool, opts Options) DatabaseSeries {
-	series := newDatabaseSeries(id, opts)
+func NewPooledDatabaseSeries(pool DatabaseSeriesPool, opts Options) DatabaseSeries {
+	series := newDatabaseSeries(nil, opts)
 	series.pool = pool
 	return series
 }
@@ -555,7 +555,7 @@ func (s *dbSeries) Close() {
 
 func (s *dbSeries) Reset(id ts.ID) {
 	s.Lock()
-	s.id = s.opts.IdentifierPool().Clone(id)
+	s.id = id
 	s.buffer.Reset()
 	s.blocks.RemoveAll()
 	s.bs = bootstrapNotStarted

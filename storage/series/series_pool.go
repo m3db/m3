@@ -30,7 +30,7 @@ type databaseSeriesPool struct {
 func NewDatabaseSeriesPool(seriesOpts Options, opts pool.ObjectPoolOptions) DatabaseSeriesPool {
 	p := &databaseSeriesPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
-		return NewPooledDatabaseSeries(nil, p, seriesOpts)
+		return NewPooledDatabaseSeries(p, seriesOpts)
 	})
 	return p
 }
