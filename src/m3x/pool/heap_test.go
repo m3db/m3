@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,6 +70,15 @@ func TestNativeHeapOverflow(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		require.NotNil(t, heap.Get(42))
 	}
+}
+
+func TestNativeHeapGetZero(t *testing.T) {
+	heap := NewNativeHeap([]Bucket{
+		Bucket{Capacity: 128, Count: 2},
+		Bucket{Capacity: 256, Count: 2},
+	}, nil)
+
+	assert.Equal(t, []byte(nil), p.Get(0))
 }
 
 func BenchmarkNativeHeap(b *testing.B) {

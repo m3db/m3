@@ -194,6 +194,10 @@ func (p heap) pick(class int, action func(*slot)) bool {
 }
 
 func (p heap) Get(n int) []byte {
+	if n < 1 {
+		return nil
+	}
+
 	var head []byte
 
 	if p.pick(n, func(s *slot) {
