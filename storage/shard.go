@@ -471,12 +471,14 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 
 	s.Lock()
 	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
+		// During Rlock -> Wlock promotion the entry was inserted
 		entry.incrementWriterCount()
 		s.Unlock()
-		// During Rlock -> Wlock promotion the entry was inserted
+		series.Close()
 		return entry, nil
 	} else if err != errShardEntryNotFound {
 		s.Unlock()
+		series.Close()
 		return nil, err
 	}
 

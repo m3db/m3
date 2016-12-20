@@ -82,8 +82,11 @@ func NewPooledDatabaseSeries(id ts.ID, pool DatabaseSeriesPool, opts Options) Da
 }
 
 func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
+	if id != nil {
+		id = opts.IdentifierPool().Clone(id)
+	}
 	series := &dbSeries{
-		id:     opts.IdentifierPool().Clone(id),
+		id:     id,
 		opts:   opts,
 		blocks: block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()),
 		bs:     bootstrapNotStarted,
@@ -541,6 +544,7 @@ func (s *dbSeries) Flush(
 func (s *dbSeries) Close() {
 	s.Lock()
 	s.id.Finalize()
+	s.id = nil
 	s.buffer.Reset()
 	s.blocks.Close()
 	s.Unlock()

@@ -350,7 +350,8 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 
 	for _, fetchedMetadata := range fetchedResults {
 		blocksMetadata := s.blocksMetadataPool.Get()
-		blocksMetadata.ID = fetchedMetadata.ID.Data()
+		// LEAK(@kobolog): `fetched` is closed before return, can ID expire?
+		blocksMetadata.ID = append([]byte{}, fetchedMetadata.ID.Data()...)
 		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
 		blocksMetadata.Blocks = s.blockMetadataSlicePool.Get()
 

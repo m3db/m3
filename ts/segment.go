@@ -40,12 +40,12 @@ type Segment struct {
 }
 
 // Len returns the length of the head and tail.
-func (s *Segment) Len() int {
+func (s Segment) Len() int {
 	return len(s.Head) + len(s.Tail)
 }
 
 // Finalize will release resources kept by the segment if pooled.
-func (s *Segment) Finalize() {
+func (s Segment) Finalize() {
 	if s.HeadPool != nil && s.Head != nil {
 		s.HeadPool.Put(s.Head)
 	}
