@@ -298,11 +298,12 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	blocks := block.NewDatabaseSeriesBlocks(0, blopts)
 	blocks.AddBlock(b)
 
-	faultyEncoder := opts.EncoderPool().Get()
-	faultyEncoder.ResetSetData(blockStart, ts.Segment{Head: []byte{0x0}})
-	faultyBlock := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	faultyBlock.Reset(blockStart, faultyEncoder.Discard())
-	series.blocks.AddBlock(faultyBlock)
+	encoder := opts.EncoderPool().Get()
+	encoder.Reset(blockStart, 16)
+	encoder.Encode(ts.Datapoint{Timestamp: time.Now(), Value: 1.0}, xtime.Second, nil)
+	existingBlock := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+	existingBlock.Reset(blockStart, encoder.Discard())
+	series.blocks.AddBlock(existingBlock)
 
 	err := series.Bootstrap(blocks)
 	require.NotNil(t, err)
