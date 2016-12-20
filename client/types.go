@@ -23,12 +23,12 @@ package client
 import (
 	"time"
 
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
@@ -204,8 +204,8 @@ type AdminSession interface {
 		namespace ts.ID,
 		shard uint32,
 		start, end time.Time,
-		opts bootstrap.Options,
-	) (bootstrap.ShardResult, error)
+		opts result.Options,
+	) (result.ShardResult, error)
 
 	// FetchRepairBlocksFromPeers will fetch the requested blocks from the
 	// peers specified
@@ -213,7 +213,7 @@ type AdminSession interface {
 		namespace ts.ID,
 		shard uint32,
 		blocks []block.ReplicaMetadata,
-		bootstrapOpts bootstrap.Options,
+		opts result.Options,
 	) (PeerBlocksIter, error)
 	// TODO(prateek): break down bootstrap.Options into new options with the subparts needed here
 	//								remove the dependency on the bootstrapOpts for both this and FetchBootstrapBlocksFromPeer

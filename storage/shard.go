@@ -29,6 +29,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
@@ -36,7 +37,6 @@ import (
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -564,7 +564,7 @@ func (s *dbShard) FetchBlocksMetadata(
 }
 
 func (s *dbShard) Bootstrap(
-	bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocks,
+	bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,
 ) error {
 	s.Lock()
 	if s.bs == bootstrapped {

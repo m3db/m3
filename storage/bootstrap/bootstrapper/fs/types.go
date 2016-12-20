@@ -21,17 +21,17 @@
 package fs
 
 import (
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/storage/bootstrap"
 )
 
 // Options represents the options for bootstrapping from the filesystem
 type Options interface {
-	// SetBootstrapOptions sets the instrumentation options
-	SetBootstrapOptions(value bootstrap.Options) Options
+	// SetResultOptions sets the instrumentation options
+	SetResultOptions(value result.Options) Options
 
-	// BootstrapOptions returns the instrumentation options
-	BootstrapOptions() bootstrap.Options
+	// ResultOptions returns the instrumentation options
+	ResultOptions() result.Options
 
 	// SetFilesystemOptions sets the filesystem options
 	SetFilesystemOptions(value fs.Options) Options

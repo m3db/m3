@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
@@ -54,7 +55,7 @@ func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 
 	return &fileSystemSource{
 		opts:             opts,
-		log:              opts.BootstrapOptions().InstrumentOptions().Logger(),
+		log:              opts.ResultOptions().InstrumentOptions().Logger(),
 		filePathPrefix:   prefix,
 		readerBufferSize: opts.FilesystemOptions().ReaderBufferSize(),
 		newReaderFn:      fs.NewReader,
@@ -73,8 +74,8 @@ func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
 
 func (s *fileSystemSource) Available(
 	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
-) bootstrap.ShardTimeRanges {
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
 	result := make(map[uint32]xtime.Ranges)
 	for shard, ranges := range shardsTimeRanges {
 		result[shard] = s.shardAvailability(namespace, shard, ranges)
@@ -111,7 +112,7 @@ func (s *fileSystemSource) shardAvailability(
 
 func (s *fileSystemSource) enqueueReaders(
 	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
+	shardsTimeRanges result.ShardTimeRanges,
 	readerPool *readerPool,
 	readersCh chan<- shardReaders,
 ) {
@@ -174,12 +175,12 @@ func (s *fileSystemSource) enqueueReaders(
 func (s *fileSystemSource) bootstrapFromReaders(
 	readerPool *readerPool,
 	readersCh <-chan shardReaders,
-) bootstrap.Result {
+) result.Result {
 	var (
-		wg         sync.WaitGroup
-		resultLock sync.Mutex
-		result     = bootstrap.NewResult()
-		bopts      = s.opts.BootstrapOptions()
+		wg              sync.WaitGroup
+		resultLock      sync.Mutex
+		bootstrapResult = result.NewResult()
+		bopts           = s.opts.ResultOptions()
 	)
 
 	for shardReaders := range readersCh {
@@ -189,7 +190,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 			defer wg.Done()
 
 			var (
-				seriesMap       bootstrap.ShardResult
+				seriesMap       result.ShardResult
 				timesWithErrors []time.Time
 			)
 
@@ -197,7 +198,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 			for _, r := range readers {
 				if seriesMap == nil {
 					// Delay initializing seriesMap until we have a good idea of its capacity
-					seriesMap = bootstrap.NewShardResult(r.Entries(), bopts)
+					seriesMap = result.NewShardResult(r.Entries(), bopts)
 				}
 
 				var (
@@ -265,25 +266,25 @@ func (s *fileSystemSource) bootstrapFromReaders(
 			}
 
 			resultLock.Lock()
-			result.Add(shard, seriesMap, tr)
+			bootstrapResult.Add(shard, seriesMap, tr)
 			resultLock.Unlock()
 		})
 	}
 
 	wg.Wait()
-	return result
+	return bootstrapResult
 }
 
 func (s *fileSystemSource) Read(
 	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
-) (bootstrap.Result, error) {
+	shardsTimeRanges result.ShardTimeRanges,
+) (result.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
 
 	readerPool := newReaderPool(func() fs.FileSetReader {
-		return s.newReaderFn(s.filePathPrefix, s.readerBufferSize, s.opts.BootstrapOptions().
+		return s.newReaderFn(s.filePathPrefix, s.readerBufferSize, s.opts.ResultOptions().
 			DatabaseBlockOptions().BytesPool())
 	})
 	readersCh := make(chan shardReaders)

@@ -21,12 +21,7 @@
 package bootstrap
 
 import (
-	"time"
-
-	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -34,71 +29,10 @@ import (
 // NewBootstrapFn creates a new bootstrap processor.
 type NewBootstrapFn func() Bootstrap
 
-// Result is the result of a bootstrap.
-type Result interface {
-	// ShardResults is the results of all shards for the bootstrap.
-	ShardResults() ShardResults
-
-	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
-	Unfulfilled() ShardTimeRanges
-
-	// Add adds a shard result with any unfulfilled time ranges.
-	Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges)
-
-	// SetUnfulfilled sets the current unfulfilled shard time ranges.
-	SetUnfulfilled(unfulfilled ShardTimeRanges)
-
-	// AddResult adds a result.
-	AddResult(other Result)
-}
-
-// ShardResult returns the bootstrap result for a shard.
-type ShardResult interface {
-	// IsEmpty returns whether the result is empty.
-	IsEmpty() bool
-
-	// BlockAt returns the block at a given time for a given id,
-	// or nil if there is no such block.
-	BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool)
-
-	// AllSeries returns all series of blocks.
-	AllSeries() map[ts.Hash]DatabaseSeriesBlocks
-
-	// AddBlock adds a data block.
-	AddBlock(id ts.ID, block block.DatabaseBlock)
-
-	// AddSeries adds a single series of blocks.
-	AddSeries(id ts.ID, rawSeries block.DatabaseSeriesBlocks)
-
-	// AddResult adds a shard result.
-	AddResult(other ShardResult)
-
-	// RemoveBlockAt removes a data block at a given timestamp
-	RemoveBlockAt(id ts.ID, t time.Time)
-
-	// RemoveSeries removes a single series of blocks.
-	RemoveSeries(id ts.ID)
-
-	// Close closes a shard result.
-	Close()
-}
-
-// DatabaseSeriesBlocks represents a series of blocks and a associated series ID.
-type DatabaseSeriesBlocks struct {
-	ID     ts.ID
-	Blocks block.DatabaseSeriesBlocks
-}
-
-// ShardResults is a map of shards to shard results.
-type ShardResults map[uint32]ShardResult
-
-// ShardTimeRanges is a map of shards to time ranges.
-type ShardTimeRanges map[uint32]xtime.Ranges
-
 // Bootstrap represents the bootstrap process.
 type Bootstrap interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(targetRanges xtime.Ranges, namespace ts.ID, shards []uint32) (Result, error)
+	Run(targetRanges xtime.Ranges, namespace ts.ID, shards []uint32) (result.Result, error)
 }
 
 // Strategy describes a bootstrap strategy.
@@ -123,7 +57,7 @@ type Bootstrapper interface {
 	// series data and the time ranges it's unable to fulfill in parallel. A bootstrapper
 	// should only return an error should it want to entirely cancel the bootstrapping of the
 	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
-	Bootstrap(namespace ts.ID, shardsTimeRanges ShardTimeRanges) (Result, error)
+	Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.Result, error)
 }
 
 // Source represents a bootstrap source.
@@ -132,38 +66,11 @@ type Source interface {
 	Can(strategy Strategy) bool
 
 	// Available returns what time ranges are available for a given set of shards.
-	Available(namespace ts.ID, shardsTimeRanges ShardTimeRanges) ShardTimeRanges
+	Available(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges
 
 	// Read returns raw series for a given set of shards & specified time ranges and
 	// the time ranges it's unable to fulfill. A bootstrapper source should only return
 	// an error should it want to entirely cancel the bootstrapping of the node,
 	// i.e. non-recoverable situation like not being able to read from the filesystem.
-	Read(namespace ts.ID, shardsTimeRanges ShardTimeRanges) (Result, error)
-}
-
-// Options represents the options for bootstrapping
-type Options interface {
-	// SetClockOptions sets the clock options
-	SetClockOptions(value clock.Options) Options
-
-	// ClockOptions returns the clock options
-	ClockOptions() clock.Options
-
-	// SetInstrumentOptions sets the instrumentation options
-	SetInstrumentOptions(value instrument.Options) Options
-
-	// InstrumentOptions returns the instrumentation options
-	InstrumentOptions() instrument.Options
-
-	// SetRetentionOptions sets the retention options
-	SetRetentionOptions(value retention.Options) Options
-
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
-
-	// SetDatabaseBlockOptions sets the database block options
-	SetDatabaseBlockOptions(value block.Options) Options
-
-	// DatabaseBlockOptions returns the database block options
-	DatabaseBlockOptions() block.Options
+	Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.Result, error)
 }

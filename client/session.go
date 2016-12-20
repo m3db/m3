@@ -32,6 +32,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
@@ -39,7 +40,6 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -1134,8 +1134,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	namespace ts.ID,
 	shard uint32,
 	start, end time.Time,
-	opts bootstrap.Options,
-) (bootstrap.ShardResult, error) {
+	opts result.Options,
+) (result.ShardResult, error) {
 	var (
 		result   = newBulkBlocksResult(s.opts, opts, s.multiReaderIteratorPool)
 		complete = int64(0)
@@ -1197,13 +1197,13 @@ func (s *session) FetchRepairBlocksFromPeers(
 	namespace ts.ID,
 	shard uint32,
 	repairBlocks []block.ReplicaMetadata,
-	opts bootstrap.Options,
+	opts result.Options,
 ) (PeerBlocksIter, error) {
 	var (
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		result   = newStreamBlocksResult(s.opts, opts, s.multiReaderIteratorPool, outputCh, doneCh)
+		result   = newStreamBlocksResult(s.opts, opts, s.multiReaderIteratorPool, outputCh)
 		onDone   = func(err error) {
 			atomic.StoreInt64(&complete, 1)
 			select {
@@ -1261,8 +1261,8 @@ func (s *session) FetchRepairBlocksFromPeers(
 	go func() {
 		err := s.streamBlocksFromPeers(namespace, shard, peers,
 			metadataCh, opts, result, m)
-		close(outputCh)
 		onDone(err)
+		close(outputCh)
 	}()
 
 	pbi := newPeerBlocksIter(outputCh, doneCh)
@@ -1427,7 +1427,7 @@ func (s *session) streamBlocksFromPeers(
 	shard uint32,
 	peers []peer,
 	ch <-chan blocksMetadata,
-	opts bootstrap.Options,
+	opts result.Options,
 	result blocksResult,
 	m *streamFromPeersMetrics,
 ) error {
@@ -1768,7 +1768,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	shard uint32,
 	peer peer,
 	batch []*blocksMetadata,
-	opts bootstrap.Options,
+	opts result.Options,
 	blocksResult blocksResult,
 	enqueueCh *enqueueChannel,
 	retrier xretry.Retrier,
@@ -2032,17 +2032,15 @@ type streamBlocksResult struct {
 	encoderPool             encoding.EncoderPool
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
 	outputCh                chan<- peerBlocksDatapoint
-	errCh                   chan<- error
 }
 
 func newStreamBlocksResult(
 	opts Options,
-	bootstrapOpts bootstrap.Options,
+	resultOpts result.Options,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	outputCh chan<- peerBlocksDatapoint,
-	errCh chan<- error,
 ) *streamBlocksResult {
-	blockOpts := bootstrapOpts.DatabaseBlockOptions()
+	blockOpts := resultOpts.DatabaseBlockOptions()
 	return &streamBlocksResult{
 		opts:                    opts,
 		blockOpts:               blockOpts,
@@ -2051,7 +2049,6 @@ func newStreamBlocksResult(
 		encoderPool:             blockOpts.EncoderPool(),
 		multiReaderIteratorPool: multiReaderIteratorPool,
 		outputCh:                outputCh,
-		errCh:                   errCh,
 	}
 }
 
@@ -2061,7 +2058,6 @@ type peerBlocksDatapoint struct {
 	block block.DatabaseBlock
 }
 
-// TODO(prateek): figure out semantics of the error channel
 // TODO(prateek): refactor to re-use this code-base along with bulkBlocksResult
 func (s *streamBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
 	var (
@@ -2185,15 +2181,15 @@ type bulkBlocksResult struct {
 	contextPool             context.Pool
 	encoderPool             encoding.EncoderPool
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
-	result                  bootstrap.ShardResult
+	result                  result.ShardResult
 }
 
 func newBulkBlocksResult(
 	opts Options,
-	bootstrapOpts bootstrap.Options,
+	resultOpts result.Options,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 ) *bulkBlocksResult {
-	blockOpts := bootstrapOpts.DatabaseBlockOptions()
+	blockOpts := resultOpts.DatabaseBlockOptions()
 	return &bulkBlocksResult{
 		opts:                    opts,
 		blockOpts:               blockOpts,
@@ -2201,7 +2197,7 @@ func newBulkBlocksResult(
 		contextPool:             opts.ContextPool(),
 		encoderPool:             blockOpts.EncoderPool(),
 		multiReaderIteratorPool: multiReaderIteratorPool,
-		result:                  bootstrap.NewShardResult(4096, bootstrapOpts),
+		result:                  result.NewShardResult(4096, resultOpts),
 	}
 }
 

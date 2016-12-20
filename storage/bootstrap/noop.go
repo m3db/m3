@@ -21,6 +21,7 @@
 package bootstrap
 
 import (
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 )
@@ -36,6 +37,6 @@ func (b *noOpBootstrapProcess) Run(
 	targetRanges xtime.Ranges,
 	namespace ts.ID,
 	shards []uint32,
-) (Result, error) {
-	return NewResult(), nil
+) (result.Result, error) {
+	return result.NewResult(), nil
 }

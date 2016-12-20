@@ -30,13 +30,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -80,8 +80,8 @@ func newSessionTestAdminOptions() AdminOptions {
 		SetFetchSeriesBlocksBatchConcurrency(4)
 }
 
-func newBootstrapTestOptions() bootstrap.Options {
-	opts := bootstrap.NewOptions()
+func newResultTestOptions() result.Options {
+	opts := result.NewOptions()
 	encoderPool := encoding.NewEncoderPool(nil)
 	encoderPool.Init(func() encoding.Encoder {
 		return &testEncoder{}
@@ -204,7 +204,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	}()
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
-	bootstrapOpts := newBootstrapTestOptions()
+	bootstrapOpts := newResultTestOptions()
 	result, err := session.FetchBootstrapBlocksFromPeers(nsID, 0, rangeStart, rangeEnd, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -335,7 +335,7 @@ func TestFetchRepairBlocksAllPeersSucceed(t *testing.T) {
 		}
 	}()
 	blockReplicasMetadata := testBlocksToBlockReplicasMetadata(t, peerBlocks, mockHostQueues[1:])
-	bootstrapOpts := newBootstrapTestOptions()
+	bootstrapOpts := newResultTestOptions()
 	result, err := session.FetchRepairBlocksFromPeers(nsID, 0, blockReplicasMetadata, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -989,7 +989,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 
 	// Attempt stream blocks
 	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
-	bopts := bootstrap.NewOptions().SetRetentionOptions(ropts)
+	bopts := result.NewOptions().SetRetentionOptions(ropts)
 	m := session.streamFromPeersMetricsForShard(0)
 	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
@@ -1132,7 +1132,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 
 func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	opts := newSessionTestAdminOptions()
-	bopts := newBootstrapTestOptions()
+	bopts := newResultTestOptions()
 
 	start := time.Now()
 
@@ -1184,7 +1184,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	})
 
 	opts := newSessionTestAdminOptions()
-	bopts := bootstrap.NewOptions()
+	bopts := result.NewOptions()
 	bopts = bopts.SetDatabaseBlockOptions(bopts.DatabaseBlockOptions().
 		SetEncoderPool(encoderPool))
 
@@ -1265,7 +1265,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	opts := newSessionTestAdminOptions()
-	bopts := bootstrap.NewOptions()
+	bopts := result.NewOptions()
 	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
@@ -1276,7 +1276,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	opts := newSessionTestAdminOptions()
-	bopts := bootstrap.NewOptions()
+	bopts := result.NewOptions()
 	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
@@ -1732,7 +1732,7 @@ type testBlockSegment struct {
 func assertFetchBootstrapBlocksResult(
 	t *testing.T,
 	expected []testBlocks,
-	actual bootstrap.ShardResult,
+	actual result.ShardResult,
 ) {
 	ctx := context.NewContext()
 	defer ctx.Close()

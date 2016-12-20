@@ -23,6 +23,7 @@ package bootstrapper
 import (
 	"sync"
 
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/errors"
@@ -35,7 +36,7 @@ const (
 
 // baseBootstrapper provides a skeleton for the interface methods.
 type baseBootstrapper struct {
-	opts bootstrap.Options
+	opts result.Options
 	log  xlog.Logger
 	name string
 	src  bootstrap.Source
@@ -46,7 +47,7 @@ type baseBootstrapper struct {
 func NewBaseBootstrapper(
 	name string,
 	src bootstrap.Source,
-	opts bootstrap.Options,
+	opts result.Options,
 	next bootstrap.Bootstrapper,
 ) bootstrap.Bootstrapper {
 	bs := next
@@ -68,8 +69,8 @@ func (b *baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
 
 func (b *baseBootstrapper) Bootstrap(
 	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
-) (bootstrap.Result, error) {
+	shardsTimeRanges result.ShardTimeRanges,
+) (result.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -80,7 +81,7 @@ func (b *baseBootstrapper) Bootstrap(
 
 	var (
 		wg                     sync.WaitGroup
-		currResult, nextResult bootstrap.Result
+		currResult, nextResult result.Result
 		currErr, nextErr       error
 	)
 	if !remaining.IsEmpty() &&
@@ -123,13 +124,13 @@ func (b *baseBootstrapper) Bootstrap(
 	}
 
 	if currResult == nil {
-		currResult = bootstrap.NewResult()
+		currResult = result.NewResult()
 	}
 
 	var (
 		mergedResult         = currResult
 		currUnfulfilled      = currResult.Unfulfilled()
-		firstNextUnfulfilled bootstrap.ShardTimeRanges
+		firstNextUnfulfilled result.ShardTimeRanges
 	)
 	if nextResult != nil {
 		// Union the results

@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/client/result"
 )
 
 // SleepFn is a fn that will sleep the current goroutine
@@ -32,11 +32,11 @@ type SleepFn func(d time.Duration)
 
 // Options represents the options for bootstrapping from peers
 type Options interface {
-	// SetBootstrapOptions sets the instrumentation options
-	SetBootstrapOptions(value bootstrap.Options) Options
+	// SetResultOptions sets the instrumentation options
+	SetResultOptions(value result.Options) Options
 
-	// BootstrapOptions returns the instrumentation options
-	BootstrapOptions() bootstrap.Options
+	// ResultOptions returns the instrumentation options
+	ResultOptions() result.Options
 
 	// SetAdminClient sets the admin client
 	SetAdminClient(value client.AdminClient) Options

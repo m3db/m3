@@ -25,6 +25,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
@@ -55,7 +56,7 @@ type encoderMap struct {
 func newCommitLogSource(opts Options) bootstrap.Source {
 	return &commitLogSource{
 		opts:          opts,
-		log:           opts.BootstrapOptions().InstrumentOptions().Logger(),
+		log:           opts.ResultOptions().InstrumentOptions().Logger(),
 		newIteratorFn: commitlog.NewIterator,
 	}
 }
@@ -69,8 +70,8 @@ func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 
 func (s *commitLogSource) Available(
 	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
-) bootstrap.ShardTimeRanges {
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
 	// Commit log bootstrapper is a last ditch effort, so fulfill all
 	// time ranges requested even if not enough data, just to succeed
 	// the bootstrap
@@ -79,8 +80,8 @@ func (s *commitLogSource) Available(
 
 func (s *commitLogSource) Read(
 	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
-) (bootstrap.Result, error) {
+	shardsTimeRanges result.ShardTimeRanges,
+) (result.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -94,7 +95,7 @@ func (s *commitLogSource) Read(
 
 	var (
 		unmerged    = make(map[uint32]map[ts.Hash]encoderMap)
-		bopts       = s.opts.BootstrapOptions()
+		bopts       = s.opts.ResultOptions()
 		blopts      = bopts.DatabaseBlockOptions()
 		blockSize   = bopts.RetentionOptions().BlockSize()
 		encoderPool = bopts.DatabaseBlockOptions().EncoderPool()
@@ -172,11 +173,11 @@ func (s *commitLogSource) Read(
 
 	errs = 0
 	emptyErrs := 0
-	result := bootstrap.NewResult()
+	bootstrapResult := result.NewResult()
 	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
 	for shard, unmergedShard := range unmerged {
-		shardResult := bootstrap.NewShardResult(len(unmergedShard), s.opts.BootstrapOptions())
+		shardResult := result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
 		for _, unmergedBlocks := range unmergedShard {
 			blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders), blopts)
 			for start, unmergedBlock := range unmergedBlocks.encoders {
@@ -234,7 +235,7 @@ func (s *commitLogSource) Read(
 			}
 		}
 		if len(shardResult.AllSeries()) > 0 {
-			result.Add(shard, shardResult, nil)
+			bootstrapResult.Add(shard, shardResult, nil)
 		}
 	}
 	if errs > 0 {
@@ -244,5 +245,5 @@ func (s *commitLogSource) Read(
 		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrs)
 	}
 
-	return result, nil
+	return bootstrapResult, nil
 }

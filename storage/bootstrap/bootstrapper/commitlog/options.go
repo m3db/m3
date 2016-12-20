@@ -21,31 +21,31 @@
 package commitlog
 
 import (
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/storage/bootstrap"
 )
 
 type options struct {
-	bootstrapOpts bootstrap.Options
+	resultOpts    result.Options
 	commitLogOpts commitlog.Options
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		bootstrapOpts: bootstrap.NewOptions(),
+		resultOpts:    result.NewOptions(),
 		commitLogOpts: commitlog.NewOptions(),
 	}
 }
 
-func (o *options) SetBootstrapOptions(value bootstrap.Options) Options {
+func (o *options) SetResultOptions(value result.Options) Options {
 	opts := *o
-	opts.bootstrapOpts = value
+	opts.resultOpts = value
 	return &opts
 }
 
-func (o *options) BootstrapOptions() bootstrap.Options {
-	return o.bootstrapOpts
+func (o *options) ResultOptions() result.Options {
+	return o.resultOpts
 }
 
 func (o *options) SetCommitLogOptions(value commitlog.Options) Options {

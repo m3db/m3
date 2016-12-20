@@ -21,6 +21,7 @@
 package bootstrapper
 
 import (
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 )
@@ -51,7 +52,7 @@ func (noop *noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop *noOpNoneBootstrapper) Bootstrap(_ ts.ID, str bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
+func (noop *noOpNoneBootstrapper) Bootstrap(_ ts.ID, str result.ShardTimeRanges) (result.Result, error) {
 	return str.ToUnfulfilledResult(), nil
 }
 
@@ -72,8 +73,8 @@ func (noop *noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop *noOpAllBootstrapper) Bootstrap(_ ts.ID, _ bootstrap.ShardTimeRanges) (bootstrap.Result, error) {
-	return bootstrap.NewResult(), nil
+func (noop *noOpAllBootstrapper) Bootstrap(_ ts.ID, _ result.ShardTimeRanges) (result.Result, error) {
+	return result.NewResult(), nil
 }
 
 func (noop *noOpAllBootstrapper) String() string {

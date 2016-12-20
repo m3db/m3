@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"time"
 
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
@@ -268,7 +269,7 @@ type databaseShard interface {
 	) (block.FetchBlocksMetadataResults, *int64)
 
 	Bootstrap(
-		bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocks,
+		bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,
 	) error
 
 	// Flush flushes the series in this shard.

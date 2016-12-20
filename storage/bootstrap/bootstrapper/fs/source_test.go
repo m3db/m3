@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -88,7 +89,7 @@ func testTimeRanges() xtime.Ranges {
 	return xtime.NewRanges().AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 }
 
-func testShardTimeRanges() bootstrap.ShardTimeRanges {
+func testShardTimeRanges() result.ShardTimeRanges {
 	return map[uint32]xtime.Ranges{testShard: testTimeRanges()}
 }
 

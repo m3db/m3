@@ -27,12 +27,12 @@ import (
 	time "time"
 
 	gomock "github.com/golang/mock/gomock"
+	result "github.com/m3db/m3db/client/result"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
 	rpc "github.com/m3db/m3db/generated/thrift/rpc"
 	block "github.com/m3db/m3db/storage/block"
-	bootstrap "github.com/m3db/m3db/storage/bootstrap"
 	topology "github.com/m3db/m3db/topology"
 	ts "github.com/m3db/m3db/ts"
 	instrument "github.com/m3db/m3x/instrument"
@@ -444,9 +444,9 @@ func (_mr *_MockAdminSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, a
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
+func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, opts result.Options) (result.ShardResult, error) {
 	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts)
-	ret0, _ := ret[0].(bootstrap.ShardResult)
+	ret0, _ := ret[0].(result.ShardResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -455,8 +455,8 @@ func (_mr *_MockAdminSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockAdminSession) FetchRepairBlocksFromPeers(namespace ts.ID, shard uint32, blocks []block.ReplicaMetadata, bootstrapOpts bootstrap.Options) (PeerBlocksIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchRepairBlocksFromPeers", namespace, shard, blocks, bootstrapOpts)
+func (_m *MockAdminSession) FetchRepairBlocksFromPeers(namespace ts.ID, shard uint32, blocks []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchRepairBlocksFromPeers", namespace, shard, blocks, opts)
 	ret0, _ := ret[0].(PeerBlocksIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -582,9 +582,9 @@ func (_mr *_MockclientSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
+func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, opts result.Options) (result.ShardResult, error) {
 	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts)
-	ret0, _ := ret[0].(bootstrap.ShardResult)
+	ret0, _ := ret[0].(result.ShardResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -593,8 +593,8 @@ func (_mr *_MockclientSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1,
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockclientSession) FetchRepairBlocksFromPeers(namespace ts.ID, shard uint32, blocks []block.ReplicaMetadata, bootstrapOpts bootstrap.Options) (PeerBlocksIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchRepairBlocksFromPeers", namespace, shard, blocks, bootstrapOpts)
+func (_m *MockclientSession) FetchRepairBlocksFromPeers(namespace ts.ID, shard uint32, blocks []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchRepairBlocksFromPeers", namespace, shard, blocks, opts)
 	ret0, _ := ret[0].(PeerBlocksIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
