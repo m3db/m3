@@ -1346,7 +1346,7 @@ func assertEnqueueChannel(
 
 type testEncoder struct {
 	start  time.Time
-	data   []byte
+	data   ts.Segment
 	sealed bool
 	closed bool
 }
@@ -1356,7 +1356,7 @@ func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 }
 
 func (e *testEncoder) Stream() xio.SegmentReader {
-	return xio.NewSegmentReader(ts.Segment{Head: e.data, Tail: nil})
+	return xio.NewSegmentReader(e.data)
 }
 
 func (e *testEncoder) Seal() {
@@ -1365,12 +1365,14 @@ func (e *testEncoder) Seal() {
 
 func (e *testEncoder) Reset(t time.Time, capacity int) {
 	e.start = t
-	e.data = nil
+	e.data = ts.Segment{}
 }
 
-func (e *testEncoder) ResetSetData(t time.Time, data []byte) {
+func (e *testEncoder) ResetSetData(t time.Time, data ts.Segment) ts.Segment {
+	curr := e.data
 	e.start = t
 	e.data = data
+	return curr
 }
 
 func (e *testEncoder) Close() {
@@ -1380,8 +1382,8 @@ func (e *testEncoder) Close() {
 func (e *testEncoder) Discard() ts.Segment {
 	data := e.data
 	e.closed = true
-	e.data = nil
-	return ts.Segment{Head: data, Tail: nil}
+	e.data = ts.Segment{}
+	return data
 }
 
 type synchronousWorkerPool struct{}

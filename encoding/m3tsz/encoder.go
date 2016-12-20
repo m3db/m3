@@ -487,11 +487,18 @@ func (enc *encoder) newBuffer(capacity int) []byte {
 }
 
 func (enc *encoder) Reset(start time.Time, capacity int) {
-	enc.ResetSetData(start, enc.newBuffer(capacity))
+	enc.ResetSetData(start, ts.Segment{Head: enc.newBuffer(capacity)})
 }
 
-func (enc *encoder) ResetSetData(start time.Time, data []byte) {
-	enc.os.Reset(data)
+func (enc *encoder) ResetSetData(start time.Time, data ts.Segment) ts.Segment {
+	// Return what this encoder owned by reference
+	segment := enc.segment(byRefResultType)
+
+	bytes := data.Head
+	if data.Tail != nil {
+		bytes = append(bytes, data.Tail...)
+	}
+	enc.os.Reset(bytes)
 	enc.t = start
 	enc.dt = 0
 	enc.vb = 0
@@ -505,10 +512,11 @@ func (enc *encoder) ResetSetData(start time.Time, data []byte) {
 	enc.ant = nil
 	enc.tu = initialTimeUnit(start, enc.opts.DefaultTimeUnit())
 	enc.closed = false
+	return segment
 }
 
 func (enc *encoder) Stream() xio.SegmentReader {
-	segment := enc.segment()
+	segment := enc.segment(byCopyResultType)
 	if segment.Head == nil && segment.Tail == nil {
 		return nil
 	}
@@ -529,10 +537,6 @@ func (enc *encoder) Close() {
 
 	buffer, _ := enc.os.Rawbytes()
 
-	// Reset the ostream to avoid reusing this encoder
-	// using the buffer we are returning to the pool
-	enc.os.Reset(nil)
-
 	if bytesPool := enc.opts.BytesPool(); bytesPool != nil && buffer != nil {
 		bytesPool.Put(buffer)
 	}
@@ -543,9 +547,10 @@ func (enc *encoder) Close() {
 }
 
 func (enc *encoder) Discard() ts.Segment {
-	segment := enc.segment()
+	segment := enc.segment(byRefResultType)
 
-	// Reset the ostream to avoid putting the current data into the bytes pool
+	// We are taking the encoder's bytes by reference so ensure not put back
+	// in the pool when we close the encoder directly next
 	enc.os.Reset(nil)
 
 	// Close the encoder no longer needed
@@ -554,7 +559,7 @@ func (enc *encoder) Discard() ts.Segment {
 	return segment
 }
 
-func (enc *encoder) segment() ts.Segment {
+func (enc *encoder) segment(resType resultType) ts.Segment {
 	if enc.os.Empty() {
 		return ts.Segment{}
 	}
@@ -563,7 +568,13 @@ func (enc *encoder) segment() ts.Segment {
 
 	// We need a multibyte tail to capture an immutable snapshot
 	// of the encoder data this encoder.
-	head := append(enc.newBuffer(blen-1), b[:blen-1]...)
+	var head []byte
+	if resType == byRefResultType {
+		head = b[:blen-1]
+	} else {
+		head = append(enc.newBuffer(blen-1), b[:blen-1]...)
+	}
+
 	scheme := enc.opts.MarkerEncodingScheme()
 	tail := scheme.Tail(b[blen-1], pos)
 
@@ -573,3 +584,10 @@ func (enc *encoder) segment() ts.Segment {
 		HeadPool: enc.opts.BytesPool(),
 	}
 }
+
+type resultType int
+
+const (
+	byCopyResultType resultType = iota
+	byRefResultType
+)

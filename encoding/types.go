@@ -41,8 +41,8 @@ type Encoder interface {
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)
 
-	// Reset resets the start time of the encoder and the internal state with some preset data.
-	ResetSetData(t time.Time, data []byte)
+	// Reset resets the encoder and returns the currently owned data.
+	ResetSetData(t time.Time, data ts.Segment) ts.Segment
 
 	// Close closes the encoder and if pooled will return to the pool.
 	Close()
