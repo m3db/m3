@@ -82,9 +82,6 @@ func NewPooledDatabaseSeries(pool DatabaseSeriesPool, opts Options) DatabaseSeri
 }
 
 func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
-	if id != nil {
-		id = opts.IdentifierPool().Clone(id)
-	}
 	series := &dbSeries{
 		id:     id,
 		opts:   opts,
