@@ -78,6 +78,7 @@ func (v *id) Hash() Hash {
 		// access to the hash field, compute and cache it.
 		if atomic.CompareAndSwapInt32(&v.flag, int32(invalid), int32(pending)) {
 			v.hash = hash(v.data)
+			atomic.StoreInt32(&v.flag, int32(computed))
 			return v.hash
 		}
 	default:
@@ -101,8 +102,8 @@ func (v *id) Finalize() {
 	v.pool.Put(v)
 }
 
-func (v *id) Reset(value []byte) {
-	v.data, v.hash = value, null
+func (v *id) Reset() {
+	v.data, v.hash, v.flag = nil, null, int32(invalid)
 }
 
 func (v *id) String() string {

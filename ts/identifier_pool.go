@@ -41,8 +41,9 @@ type simpleIdentifierPool struct {
 
 func (p *simpleIdentifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
 	id := p.pool.Get().(*id)
-	id.data = v
 	ctx.RegisterFinalizer(id)
+
+	id.data = v
 
 	return id
 }
@@ -52,7 +53,7 @@ func (p *simpleIdentifierPool) GetStringID(ctx context.Context, v string) ID {
 }
 
 func (p *simpleIdentifierPool) Put(v ID) {
-	v.Reset(nil)
+	v.Reset()
 	p.pool.Put(v)
 }
 
@@ -103,8 +104,9 @@ func create() interface{} {
 // GetBinaryID returns a new ID based on a binary value.
 func (p *nativeIdentifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
 	id := p.pool.GetOr(create).(*id)
-	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
 	ctx.RegisterFinalizer(id)
+
+	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
 
 	return id
 }
@@ -112,19 +114,17 @@ func (p *nativeIdentifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
 // GetStringID returns a new ID based on a string value.
 func (p *nativeIdentifierPool) GetStringID(ctx context.Context, v string) ID {
 	id := p.pool.GetOr(create).(*id)
-	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
 	ctx.RegisterFinalizer(id)
+
+	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
 
 	return id
 }
 
 func (p *nativeIdentifierPool) Put(v ID) {
-	id := v.(*id)
-
-	p.heap.Put(id.data)
-	id.Reset(nil)
-
-	p.pool.Put(id)
+	p.heap.Put(v.Data())
+	v.Reset()
+	p.pool.Put(v.(*id))
 }
 
 // Clone replicates given ID into a new ID from the pool.
