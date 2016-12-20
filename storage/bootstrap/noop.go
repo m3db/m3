@@ -37,6 +37,6 @@ func (b *noOpBootstrapProcess) Run(
 	targetRanges xtime.Ranges,
 	namespace ts.ID,
 	shards []uint32,
-) (result.Result, error) {
-	return result.NewResult(), nil
+) (result.BootstrapResult, error) {
+	return result.NewBootstrapResult(), nil
 }

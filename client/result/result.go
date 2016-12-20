@@ -31,37 +31,37 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
-type result struct {
+type bootstrapResult struct {
 	results     ShardResults
 	unfulfilled ShardTimeRanges
 }
 
-// NewResult creates a new result.
-func NewResult() Result {
-	return &result{
+// NewBootstrapResult creates a new result.
+func NewBootstrapResult() BootstrapResult {
+	return &bootstrapResult{
 		results:     make(ShardResults),
 		unfulfilled: make(ShardTimeRanges),
 	}
 }
 
-func (r *result) ShardResults() ShardResults {
+func (r *bootstrapResult) ShardResults() ShardResults {
 	return r.results
 }
 
-func (r *result) Unfulfilled() ShardTimeRanges {
+func (r *bootstrapResult) Unfulfilled() ShardTimeRanges {
 	return r.unfulfilled
 }
 
-func (r *result) Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
+func (r *bootstrapResult) Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
 	r.results.AddResults(ShardResults{shard: result})
 	r.unfulfilled.AddRanges(ShardTimeRanges{shard: unfulfilled})
 }
 
-func (r *result) SetUnfulfilled(unfulfilled ShardTimeRanges) {
+func (r *bootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
 	r.unfulfilled = unfulfilled
 }
 
-func (r *result) AddResult(other Result) {
+func (r *bootstrapResult) AddResult(other BootstrapResult) {
 	if other == nil {
 		return
 	}
@@ -277,8 +277,8 @@ func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
 
 // ToUnfulfilledResult will return a result that is comprised of wholly
 // unfufilled time ranges from the set of shard time ranges.
-func (r ShardTimeRanges) ToUnfulfilledResult() Result {
-	result := NewResult()
+func (r ShardTimeRanges) ToUnfulfilledResult() BootstrapResult {
+	result := NewBootstrapResult()
 	for shard, ranges := range r {
 		result.Add(shard, nil, ranges)
 	}

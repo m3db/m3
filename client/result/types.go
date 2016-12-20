@@ -31,8 +31,8 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// Result is the result of a bootstrap.
-type Result interface {
+// BootstrapResult is the result of a bootstrap.
+type BootstrapResult interface {
 	// ShardResults is the results of all shards for the bootstrap.
 	ShardResults() ShardResults
 
@@ -46,7 +46,7 @@ type Result interface {
 	SetUnfulfilled(unfulfilled ShardTimeRanges)
 
 	// AddResult adds a result.
-	AddResult(other Result)
+	AddResult(other BootstrapResult)
 }
 
 // ShardResult returns the bootstrap result for a shard.

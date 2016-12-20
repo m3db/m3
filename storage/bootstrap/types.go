@@ -32,7 +32,7 @@ type NewBootstrapFn func() Bootstrap
 // Bootstrap represents the bootstrap process.
 type Bootstrap interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(targetRanges xtime.Ranges, namespace ts.ID, shards []uint32) (result.Result, error)
+	Run(targetRanges xtime.Ranges, namespace ts.ID, shards []uint32) (result.BootstrapResult, error)
 }
 
 // Strategy describes a bootstrap strategy.
@@ -57,7 +57,7 @@ type Bootstrapper interface {
 	// series data and the time ranges it's unable to fulfill in parallel. A bootstrapper
 	// should only return an error should it want to entirely cancel the bootstrapping of the
 	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
-	Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.Result, error)
+	Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error)
 }
 
 // Source represents a bootstrap source.
@@ -72,5 +72,5 @@ type Source interface {
 	// the time ranges it's unable to fulfill. A bootstrapper source should only return
 	// an error should it want to entirely cancel the bootstrapping of the node,
 	// i.e. non-recoverable situation like not being able to read from the filesystem.
-	Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.Result, error)
+	Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error)
 }

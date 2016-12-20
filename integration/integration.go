@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
@@ -197,7 +198,7 @@ func newDefaultBootstrappableTestSetups(
 		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
 			instrumentOpts := setup.storageOpts.InstrumentOptions()
 
-			bsOpts := bootstrap.NewOptions().
+			bsOpts := result.NewOptions().
 				SetClockOptions(setup.storageOpts.ClockOptions()).
 				SetInstrumentOptions(instrumentOpts).
 				SetRetentionOptions(setup.storageOpts.RetentionOptions()).
@@ -219,7 +220,7 @@ func newDefaultBootstrappableTestSetups(
 			}
 
 			peersOpts := peers.NewOptions().
-				SetBootstrapOptions(bsOpts).
+				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient)
 
 			peersBootstrapper := peers.NewPeersBootstrapper(peersOpts, noOpAll)
@@ -228,7 +229,7 @@ func newDefaultBootstrappableTestSetups(
 			filePathPrefix := fsOpts.FilePathPrefix()
 
 			bfsOpts := bfs.NewOptions().
-				SetBootstrapOptions(bsOpts).
+				SetResultOptions(bsOpts).
 				SetFilesystemOptions(fsOpts)
 
 			var fsBootstrapper bootstrap.Bootstrapper

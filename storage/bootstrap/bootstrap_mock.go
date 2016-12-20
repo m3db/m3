@@ -51,9 +51,9 @@ func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(targetRanges time.Ranges, namespace ts.ID, shards []uint32) (result.Result, error) {
+func (_m *MockBootstrap) Run(targetRanges time.Ranges, namespace ts.ID, shards []uint32) (result.BootstrapResult, error) {
 	ret := _m.ctrl.Call(_m, "Run", targetRanges, namespace, shards)
-	ret0, _ := ret[0].(result.Result)
+	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -103,9 +103,9 @@ func (_mr *_MockBootstrapperRecorder) Can(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Can", arg0)
 }
 
-func (_m *MockBootstrapper) Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.Result, error) {
+func (_m *MockBootstrapper) Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error) {
 	ret := _m.ctrl.Call(_m, "Bootstrap", namespace, shardsTimeRanges)
-	ret0, _ := ret[0].(result.Result)
+	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -155,9 +155,9 @@ func (_mr *_MockSourceRecorder) Available(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Available", arg0, arg1)
 }
 
-func (_m *MockSource) Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.Result, error) {
+func (_m *MockSource) Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error) {
 	ret := _m.ctrl.Call(_m, "Read", namespace, shardsTimeRanges)
-	ret0, _ := ret[0].(result.Result)
+	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

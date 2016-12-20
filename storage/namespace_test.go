@@ -275,7 +275,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	bs := bootstrap.NewMockBootstrap(ctrl)
 	bs.EXPECT().
 		Run(ranges, ns.ID(), sharding.IDs(testShardIDs)).
-		Return(result.NewResult(), nil)
+		Return(result.NewBootstrapResult(), nil)
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
@@ -317,7 +317,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	bs := bootstrap.NewMockBootstrap(ctrl)
 	bs.EXPECT().
 		Run(ranges, ns.ID(), sharding.IDs(needsBootstrap)).
-		Return(result.NewResult(), nil)
+		Return(result.NewBootstrapResult(), nil)
 
 	for _, testShard := range needsBootstrap {
 		shard := NewMockdatabaseShard(ctrl)

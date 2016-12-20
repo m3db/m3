@@ -70,7 +70,7 @@ func (b *baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
 func (b *baseBootstrapper) Bootstrap(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
-) (result.Result, error) {
+) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -81,7 +81,7 @@ func (b *baseBootstrapper) Bootstrap(
 
 	var (
 		wg                     sync.WaitGroup
-		currResult, nextResult result.Result
+		currResult, nextResult result.BootstrapResult
 		currErr, nextErr       error
 	)
 	if !remaining.IsEmpty() &&
@@ -124,7 +124,7 @@ func (b *baseBootstrapper) Bootstrap(
 	}
 
 	if currResult == nil {
-		currResult = result.NewResult()
+		currResult = result.NewBootstrapResult()
 	}
 
 	var (
