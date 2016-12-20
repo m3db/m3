@@ -145,20 +145,28 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	if err != nil {
 		w.errors = append(w.errors, err)
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
-		w.errors = append(w.errors, fmt.Errorf("Missing host shard in writeState completionFn: %s", hostID))
+		w.errors = append(w.errors, fmt.Errorf("missing host shard in writeState completionFn: %s", hostID))
 	} else if shardState, err :=
 		hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
-		w.errors = append(w.errors, fmt.Errorf("Missing shard %d in host %s", w.op.shardID, hostID))
+		w.errors = append(w.errors, fmt.Errorf("missing shard %d in host %s", w.op.shardID, hostID))
 	} else if shardState == shard.Available {
 		// NB(bl): only count writes to available shards towards success
 		w.success++
 	}
 
-	wLevel := w.session.writeLevel
-	if w.pending == 0 ||
-		(w.success >= w.majority && wLevel == topology.ConsistencyLevelMajority) ||
-		(w.success > 0 && wLevel == topology.ConsistencyLevelOne) {
-		w.Signal()
+	switch w.session.writeLevel {
+	case topology.ConsistencyLevelOne:
+		if w.success > 0 || w.pending == 0 {
+			w.Signal()
+		}
+	case topology.ConsistencyLevelMajority:
+		if w.success > w.majority || w.pending == 0 {
+			w.Signal()
+		}
+	case topology.ConsistencyLevelAll:
+		if w.pending == 0 {
+			w.Signal()
+		}
 	}
 
 	w.Unlock()

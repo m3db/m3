@@ -80,8 +80,7 @@ func (s *shardSet) Lookup(identifier ts.ID) uint32 {
 func (s *shardSet) LookupStateByID(shardID uint32) (shard.State, error) {
 	hostShard, ok := s.shardMap[shardID]
 	if !ok {
-		var noState shard.State
-		return noState, ErrInvalidShardID
+		return shard.State(0), ErrInvalidShardID
 	}
 	return hostShard.State(), nil
 }
