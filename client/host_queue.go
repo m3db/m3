@@ -456,20 +456,14 @@ func (q *queue) Close() {
 
 // errors
 
-type errQueueNotOpen string
-
-func (s errQueueNotOpen) Error() string {
-	return fmt.Sprintf("host operation queue not open for host: %s", string(s))
+func errQueueNotOpen(hostID string) error {
+	return fmt.Errorf("host operation queue not open for host: %s", hostID)
 }
 
-type errQueueUnknownOperation string
-
-func (s errQueueUnknownOperation) Error() string {
-	return fmt.Sprintf("host operation queue received unknown operation for host: %s", string(s))
+func errQueueUnknownOperation(hostID string) error {
+	return fmt.Errorf("host operation queue received unknown operation for host: %s", hostID)
 }
 
-type errQueueFetchNoResponse string
-
-func (s errQueueFetchNoResponse) Error() string {
-	return fmt.Sprintf("host operation queue did not receive response for given fetch for host: %s", string(s))
+func errQueueFetchNoResponse(hostID string) error {
+	return fmt.Errorf("host operation queue did not receive response for given fetch for host: %s", hostID)
 }

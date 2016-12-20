@@ -64,8 +64,7 @@ func TestHostQueueWriteErrorBeforeOpen(t *testing.T) {
 	opts := newHostQueueTestOptions()
 	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts)
 
-	err := queue.Enqueue(&writeOp{})
-	assert.IsType(t, errQueueNotOpen(""), err)
+	assert.Error(t, queue.Enqueue(&writeOp{}))
 }
 
 func TestHostQueueWriteErrorAfterClose(t *testing.T) {
@@ -75,8 +74,7 @@ func TestHostQueueWriteErrorAfterClose(t *testing.T) {
 	queue.Open()
 	queue.Close()
 
-	err := queue.Enqueue(&writeOp{})
-	assert.IsType(t, errQueueNotOpen(""), err)
+	assert.Error(t, queue.Enqueue(&writeOp{}))
 }
 
 func TestHostQueueWriteBatches(t *testing.T) {
