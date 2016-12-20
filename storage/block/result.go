@@ -161,6 +161,7 @@ func (s *fetchBlocksMetadataResults) Reset() {
 func (s *fetchBlocksMetadataResults) Close() {
 	for i := range s.results {
 		s.results[i].Blocks.Close()
+		s.results[i].ID.Finalize()
 	}
 	if s.pool != nil {
 		s.pool.Put(s)

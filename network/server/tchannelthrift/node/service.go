@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
@@ -338,6 +339,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
+	ctx.RegisterFinalizer(context.FinalizerFn(fetched.Close))
 
 	fetchedResults := fetched.Results()
 	result := rpc.NewFetchBlocksMetadataRawResult_()
@@ -373,8 +375,6 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 
 		result.Elements = append(result.Elements, blocksMetadata)
 	}
-
-	fetched.Close()
 
 	s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
 

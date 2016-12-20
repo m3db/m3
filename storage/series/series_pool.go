@@ -20,14 +20,7 @@
 
 package series
 
-import (
-	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/pool"
-)
-
-var (
-	nilID = ts.BinaryID(nil)
-)
+import "github.com/m3db/m3x/pool"
 
 type databaseSeriesPool struct {
 	pool pool.ObjectPool
@@ -37,7 +30,7 @@ type databaseSeriesPool struct {
 func NewDatabaseSeriesPool(seriesOpts Options, opts pool.ObjectPoolOptions) DatabaseSeriesPool {
 	p := &databaseSeriesPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
-		return NewPooledDatabaseSeries(nilID, p, seriesOpts)
+		return NewPooledDatabaseSeries(nil, p, seriesOpts)
 	})
 	return p
 }

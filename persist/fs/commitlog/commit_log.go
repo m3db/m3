@@ -212,6 +212,8 @@ func (l *commitLog) write() {
 
 		if now := l.nowFn(); !now.Before(l.writerExpireAt) {
 			if err := l.openWriter(now); err != nil {
+				write.series.ID.Finalize()
+
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
 				l.log.Errorf("failed to open commit log: %v", err)
@@ -316,9 +318,9 @@ func (l *commitLog) Write(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	l.RLock()
-	if l.closed {
+	if l.RLock(); l.closed {
 		l.RUnlock()
+		series.ID.Finalize()
 		return errCommitLogClosed
 	}
 
@@ -353,6 +355,7 @@ func (l *commitLog) Write(
 	l.RUnlock()
 
 	if !enqueued {
+		series.ID.Finalize()
 		return errCommitLogQueueFull
 	}
 
@@ -368,9 +371,9 @@ func (l *commitLog) WriteBehind(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	l.RLock()
-	if l.closed {
+	if l.RLock(); l.closed {
 		l.RUnlock()
+		series.ID.Finalize()
 		return errCommitLogClosed
 	}
 
@@ -392,6 +395,7 @@ func (l *commitLog) WriteBehind(
 	l.RUnlock()
 
 	if !enqueued {
+		series.ID.Finalize()
 		return errCommitLogQueueFull
 	}
 

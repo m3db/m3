@@ -482,6 +482,7 @@ func (b *dbBufferBucket) merge() {
 	for i := range b.encoders {
 		if stream := b.encoders[i].encoder.Stream(); stream != nil {
 			readers = append(readers, stream)
+			defer stream.Close()
 		}
 	}
 
