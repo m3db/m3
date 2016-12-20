@@ -56,3 +56,22 @@ func TestShardSet(t *testing.T) {
 	fn := ss.HashFn()
 	require.Equal(t, staticShard, fn(id))
 }
+
+func TestLookupShardState(t *testing.T) {
+	staticShard := uint32(1)
+	ss, err := NewShardSet(
+		NewShards([]uint32{1, 5, 3}, shard.Available),
+		func(id ts.ID) uint32 {
+			return staticShard
+		})
+	require.NoError(t, err)
+
+	shardOneState, err := ss.LookupStateByID(1)
+	require.NoError(t, err)
+	require.Equal(t, shard.Available, shardOneState)
+
+	var noState shard.State
+	shardTwoState, err := ss.LookupStateByID(2)
+	require.Equal(t, ErrInvalidShardID, err)
+	require.Equal(t, noState, shardTwoState)
+}

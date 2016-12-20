@@ -46,9 +46,9 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
+	xretry "github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
@@ -412,9 +412,10 @@ func (s *session) BorrowConnection(hostID string, fn withConnectionFn) error {
 
 func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, error) {
 	// NB(r): we leave existing writes in the host queues to finish
-	// as they are already enroute to their destination, this is ok
-	// as part of adding a host is to add another replica for the
-	// shard set and only once bootstrapped decomission the old node
+	// as they are already enroute to their destination. This is an edge case
+	// that might result in leaving nodes counting towards quorum, but fixing it
+	// would result in additional chatter.
+
 	start := s.nowFn()
 
 	hosts := topoMap.Hosts()
@@ -653,6 +654,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	}
 
 	state := s.writeStatePool.Get().(*writeState)
+	state.topoMap = s.topoMap
 	state.incRef()
 
 	state.op, state.majority = s.writeOpPool.Get(), majority
@@ -702,8 +704,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	s.RUnlock()
 	state.Wait()
 
-	err := s.writeConsistencyResult(majority, enqueued,
-		enqueued-atomic.LoadInt32(&state.pending), int32(len(state.errors)), state.errors)
+	err := s.writeConsistencyResult(majority, enqueued, enqueued-state.pending, int32(len(state.errors)), state.errors)
 	s.incWriteMetrics(err, int32(len(state.errors)))
 
 	state.Unlock()
