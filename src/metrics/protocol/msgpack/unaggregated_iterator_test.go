@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
 
@@ -35,8 +35,7 @@ import (
 
 func validateDecodeResults(
 	t *testing.T,
-	it MultiTypedIterator,
-	expectedResults []metricWithPolicies,
+	it UnaggregatedIterator, expectedResults []metricWithPolicies,
 	expectedErr error,
 ) {
 	var results []metricWithPolicies
@@ -51,12 +50,12 @@ func validateDecodeResults(
 	require.Equal(t, expectedResults, results)
 }
 
-func TestMultiTypedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
+func TestUnaggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	}
-	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Version encoded is higher than supported version
 	enc.encodeTopLevelFn = func(objType objectType) {
@@ -70,18 +69,18 @@ func TestMultiTypedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	enc.encodeTopLevelFn = enc.encodeTopLevel
 	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
 
-	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
 	// Check that we skipped the first counter and normally decoded the second counter
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeTopLevelMoreFieldsThanExpected(t *testing.T) {
+func TestUnaggregatedIteratorDecodeTopLevelMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	}
-	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Pretend we added an extra int field to the top-level object
 	enc.encodeTopLevelFn = func(objType objectType) {
@@ -93,21 +92,21 @@ func TestMultiTypedIteratorDecodeTopLevelMoreFieldsThanExpected(t *testing.T) {
 	enc.encodeVarintFn(0)
 	require.NoError(t, enc.err)
 
-	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
 	// Check that we normally decoded the counter
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeCounterMoreFieldsThanExpected(t *testing.T) {
+func TestUnaggregatedIteratorDecodeCounterMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	}
-	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Pretend we added an extra int field to the counter object
-	enc.encodeCounterFn = func(c metric.Counter) {
+	enc.encodeCounterFn = func(c unaggregated.Counter) {
 		enc.encodeNumObjectFields(numFieldsForType(counterType) + 1)
 		enc.encodeID(c.ID)
 		enc.encodeVarintFn(int64(c.Value))
@@ -115,21 +114,21 @@ func TestMultiTypedIteratorDecodeCounterMoreFieldsThanExpected(t *testing.T) {
 	}
 	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
 
-	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
 	// Check that we normally decoded the counter
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeBatchTimerMoreFieldsThanExpected(t *testing.T) {
+func TestUnaggregatedIteratorDecodeBatchTimerMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testBatchTimer,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	}
-	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Pretend we added an extra int field to the batch timer object
-	enc.encodeBatchTimerFn = func(bt metric.BatchTimer) {
+	enc.encodeBatchTimerFn = func(bt unaggregated.BatchTimer) {
 		enc.encodeNumObjectFields(numFieldsForType(batchTimerType) + 1)
 		enc.encodeID(bt.ID)
 		enc.encodeArrayLenFn(len(bt.Values))
@@ -143,21 +142,21 @@ func TestMultiTypedIteratorDecodeBatchTimerMoreFieldsThanExpected(t *testing.T) 
 		input.versionedPolicies,
 	))
 
-	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
 	// Check that we normally decoded the batch timer
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeGaugeMoreFieldsThanExpected(t *testing.T) {
+func TestUnaggregatedIteratorDecodeGaugeMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testGauge,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	}
-	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Pretend we added an extra int field to the gauge object
-	enc.encodeGaugeFn = func(g metric.Gauge) {
+	enc.encodeGaugeFn = func(g unaggregated.Gauge) {
 		enc.encodeNumObjectFields(numFieldsForType(gaugeType) + 1)
 		enc.encodeID(g.ID)
 		enc.encodeFloat64Fn(g.Value)
@@ -165,13 +164,13 @@ func TestMultiTypedIteratorDecodeGaugeMoreFieldsThanExpected(t *testing.T) {
 	}
 	require.NoError(t, enc.EncodeGaugeWithPolicies(input.metric.Gauge(), input.versionedPolicies))
 
-	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
 	// Check that we normally decoded the gauge
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
+func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric: testGauge,
 		versionedPolicies: policy.VersionedPolicies{
@@ -184,7 +183,7 @@ func TestMultiTypedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 			},
 		},
 	}
-	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Pretend we added an extra int field to the policy object
 	enc.encodePolicyFn = func(p policy.Policy) {
@@ -195,13 +194,13 @@ func TestMultiTypedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 	}
 	require.NoError(t, enc.EncodeGaugeWithPolicies(input.metric.Gauge(), input.versionedPolicies))
 
-	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
 	// Check that we normally decoded the policy
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *testing.T) {
+func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric: testGauge,
 		versionedPolicies: policy.VersionedPolicies{
@@ -214,7 +213,7 @@ func TestMultiTypedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *test
 			},
 		},
 	}
-	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Pretend we added an extra int field to the policy object
 	enc.encodeVersionedPoliciesFn = func(vp policy.VersionedPolicies) {
@@ -228,48 +227,48 @@ func TestMultiTypedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *test
 	}
 	require.NoError(t, enc.EncodeGaugeWithPolicies(input.metric.Gauge(), input.versionedPolicies))
 
-	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
 	// Check that we normally decoded the policy
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 }
 
-func TestMultiTypedIteratorDecodeCounterFewerFieldsThanExpected(t *testing.T) {
+func TestUnaggregatedIteratorDecodeCounterFewerFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	}
-	enc := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	// Pretend we added an extra int field to the counter object
-	enc.encodeCounterFn = func(c metric.Counter) {
+	enc.encodeCounterFn = func(c unaggregated.Counter) {
 		enc.encodeNumObjectFields(numFieldsForType(counterType) - 1)
 		enc.encodeID(c.ID)
 	}
 	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
 
-	it := testMultiTypedIterator(t, enc.Encoder().Buffer)
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
 
 	// Check that we normally decoded the counter
 	validateDecodeResults(t, it, nil, errors.New("number of fields mismatch: expected 2 actual 1"))
 }
 
-func TestMultiTypedIteratorDecodeError(t *testing.T) {
-	it, err := NewMultiTypedIterator(nil, nil)
+func TestUnaggregatedIteratorDecodeError(t *testing.T) {
+	it, err := NewUnaggregatedIterator(nil, nil)
 	require.NoError(t, err)
 	err = errors.New("foo")
-	it.(*multiTypedIterator).err = err
+	it.(*unaggregatedIterator).err = err
 
 	require.False(t, it.Next())
 	require.Equal(t, err, it.Err())
 }
 
-func TestMultiTypedIteratorReset(t *testing.T) {
-	it, err := NewMultiTypedIterator(nil, nil)
+func TestUnaggregatedIteratorReset(t *testing.T) {
+	it, err := NewUnaggregatedIterator(nil, nil)
 	require.NoError(t, err)
 	err = errors.New("foo")
-	it.(*multiTypedIterator).err = err
+	it.(*unaggregatedIterator).err = err
 
 	it.Reset(nil)
-	require.NoError(t, it.(*multiTypedIterator).err)
+	require.NoError(t, it.(*unaggregatedIterator).err)
 }

@@ -25,6 +25,7 @@ import (
 	"io"
 
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/pool"
 	xpool "github.com/m3db/m3x/pool"
@@ -32,26 +33,26 @@ import (
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
-// multiTypedIterator uses MessagePack to decode different types of metrics.
+// unaggregatedIterator uses MessagePack to decode different types of unaggregated metrics.
 // It is not thread-safe.
-type multiTypedIterator struct {
+type unaggregatedIterator struct {
 	decoder           *msgpack.Decoder         // internal decoder that does the actual decoding
 	floatsPool        xpool.FloatsPool         // pool for float slices
 	policiesPool      pool.PoliciesPool        // pool for policies
-	metric            metric.OneOf             // current metric
+	metric            unaggregated.MetricUnion // current metric
 	versionedPolicies policy.VersionedPolicies // current policies
 	err               error                    // error encountered during decoding
 }
 
-// NewMultiTypedIterator creates a new multi-typed iterator
-func NewMultiTypedIterator(reader io.Reader, opts MultiTypedIteratorOptions) (MultiTypedIterator, error) {
+// NewUnaggregatedIterator creates a new unaggregated iterator
+func NewUnaggregatedIterator(reader io.Reader, opts UnaggregatedIteratorOptions) (UnaggregatedIterator, error) {
 	if opts == nil {
-		opts = NewMultiTypedIteratorOptions()
+		opts = NewUnaggregatedIteratorOptions()
 	}
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	it := &multiTypedIterator{
+	it := &unaggregatedIterator{
 		decoder:      msgpack.NewDecoder(reader),
 		floatsPool:   opts.FloatsPool(),
 		policiesPool: opts.PoliciesPool(),
@@ -60,18 +61,18 @@ func NewMultiTypedIterator(reader io.Reader, opts MultiTypedIteratorOptions) (Mu
 	return it, nil
 }
 
-func (it *multiTypedIterator) Reset(reader io.Reader) {
+func (it *unaggregatedIterator) Reset(reader io.Reader) {
 	it.decoder.Reset(reader)
 	it.err = nil
 }
 
-func (it *multiTypedIterator) Value() (*metric.OneOf, policy.VersionedPolicies) {
+func (it *unaggregatedIterator) Value() (*unaggregated.MetricUnion, policy.VersionedPolicies) {
 	return &it.metric, it.versionedPolicies
 }
 
-func (it *multiTypedIterator) Err() error { return it.err }
+func (it *unaggregatedIterator) Err() error { return it.err }
 
-func (it *multiTypedIterator) Next() bool {
+func (it *unaggregatedIterator) Next() bool {
 	if it.err != nil {
 		return false
 	}
@@ -102,7 +103,7 @@ func (it *multiTypedIterator) Next() bool {
 	return it.err == nil
 }
 
-func (it *multiTypedIterator) decodeMetricWithPolicies(objType objectType) {
+func (it *unaggregatedIterator) decodeMetricWithPolicies(objType objectType) {
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(objType)
 	if !ok {
 		return
@@ -122,23 +123,23 @@ func (it *multiTypedIterator) decodeMetricWithPolicies(objType objectType) {
 	it.skip(numActualFields - numExpectedFields)
 }
 
-func (it *multiTypedIterator) decodeCounter() {
+func (it *unaggregatedIterator) decodeCounter() {
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(counterType)
 	if !ok {
 		return
 	}
-	it.metric.Type = metric.CounterType
+	it.metric.Type = unaggregated.CounterType
 	it.metric.ID = it.decodeID()
 	it.metric.CounterVal = int64(it.decodeVarint())
 	it.skip(numActualFields - numExpectedFields)
 }
 
-func (it *multiTypedIterator) decodeBatchTimer() {
+func (it *unaggregatedIterator) decodeBatchTimer() {
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(batchTimerType)
 	if !ok {
 		return
 	}
-	it.metric.Type = metric.BatchTimerType
+	it.metric.Type = unaggregated.BatchTimerType
 	it.metric.ID = it.decodeID()
 	numValues := it.decodeArrayLen()
 	values := it.floatsPool.Get(numValues)
@@ -149,18 +150,18 @@ func (it *multiTypedIterator) decodeBatchTimer() {
 	it.skip(numActualFields - numExpectedFields)
 }
 
-func (it *multiTypedIterator) decodeGauge() {
+func (it *unaggregatedIterator) decodeGauge() {
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(gaugeType)
 	if !ok {
 		return
 	}
-	it.metric.Type = metric.GaugeType
+	it.metric.Type = unaggregated.GaugeType
 	it.metric.ID = it.decodeID()
 	it.metric.GaugeVal = it.decodeFloat64()
 	it.skip(numActualFields - numExpectedFields)
 }
 
-func (it *multiTypedIterator) decodePolicy() policy.Policy {
+func (it *unaggregatedIterator) decodePolicy() policy.Policy {
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(policyType)
 	if !ok {
 		return policy.Policy{}
@@ -172,7 +173,7 @@ func (it *multiTypedIterator) decodePolicy() policy.Policy {
 	return p
 }
 
-func (it *multiTypedIterator) decodeVersionedPolicies() {
+func (it *unaggregatedIterator) decodeVersionedPolicies() {
 	numActualFields := it.decodeNumObjectFields()
 	version := int(it.decodeVarint())
 	if it.err != nil {
@@ -214,12 +215,12 @@ func (it *multiTypedIterator) decodeVersionedPolicies() {
 // checkNumFieldsForType decodes and compares the number of actual fields with
 // the number of expected fields for a given object type, returning true if
 // the number of expected fields is no more than the number of actual fields
-func (it *multiTypedIterator) checkNumFieldsForType(objType objectType) (int, int, bool) {
+func (it *unaggregatedIterator) checkNumFieldsForType(objType objectType) (int, int, bool) {
 	numActualFields := it.decodeNumObjectFields()
 	return it.checkNumFieldsForTypeWithActual(objType, numActualFields)
 }
 
-func (it *multiTypedIterator) checkNumFieldsForTypeWithActual(
+func (it *unaggregatedIterator) checkNumFieldsForTypeWithActual(
 	objType objectType,
 	numActualFields int,
 ) (int, int, bool) {
@@ -234,23 +235,23 @@ func (it *multiTypedIterator) checkNumFieldsForTypeWithActual(
 	return numExpectedFields, numActualFields, true
 }
 
-func (it *multiTypedIterator) decodeVersion() int {
+func (it *unaggregatedIterator) decodeVersion() int {
 	return int(it.decodeVarint())
 }
 
-func (it *multiTypedIterator) decodeObjectType() objectType {
+func (it *unaggregatedIterator) decodeObjectType() objectType {
 	return objectType(it.decodeVarint())
 }
 
-func (it *multiTypedIterator) decodeNumObjectFields() int {
+func (it *unaggregatedIterator) decodeNumObjectFields() int {
 	return int(it.decodeArrayLen())
 }
 
-func (it *multiTypedIterator) decodeID() metric.IDType {
-	return metric.IDType(it.decodeBytes())
+func (it *unaggregatedIterator) decodeID() metric.ID {
+	return metric.ID(it.decodeBytes())
 }
 
-func (it *multiTypedIterator) decodeResolution() policy.Resolution {
+func (it *unaggregatedIterator) decodeResolution() policy.Resolution {
 	resolutionValue := policy.ResolutionValue(it.decodeVarint())
 	resolution, err := resolutionValue.Resolution()
 	if it.err != nil {
@@ -260,7 +261,7 @@ func (it *multiTypedIterator) decodeResolution() policy.Resolution {
 	return resolution
 }
 
-func (it *multiTypedIterator) decodeRetention() policy.Retention {
+func (it *unaggregatedIterator) decodeRetention() policy.Retention {
 	retentionValue := policy.RetentionValue(it.decodeVarint())
 	retention, err := retentionValue.Retention()
 	if it.err != nil {
@@ -274,7 +275,7 @@ func (it *multiTypedIterator) decodeRetention() policy.Retention {
 // always decodes an int64 and looks at the actual decoded
 // value to determine the width of the integer (a.k.a. varint
 // decoding)
-func (it *multiTypedIterator) decodeVarint() int64 {
+func (it *unaggregatedIterator) decodeVarint() int64 {
 	if it.err != nil {
 		return 0
 	}
@@ -283,7 +284,7 @@ func (it *multiTypedIterator) decodeVarint() int64 {
 	return value
 }
 
-func (it *multiTypedIterator) decodeFloat64() float64 {
+func (it *unaggregatedIterator) decodeFloat64() float64 {
 	if it.err != nil {
 		return 0.0
 	}
@@ -292,7 +293,7 @@ func (it *multiTypedIterator) decodeFloat64() float64 {
 	return value
 }
 
-func (it *multiTypedIterator) decodeBytes() []byte {
+func (it *unaggregatedIterator) decodeBytes() []byte {
 	if it.err != nil {
 		return nil
 	}
@@ -301,7 +302,7 @@ func (it *multiTypedIterator) decodeBytes() []byte {
 	return value
 }
 
-func (it *multiTypedIterator) decodeArrayLen() int {
+func (it *unaggregatedIterator) decodeArrayLen() int {
 	if it.err != nil {
 		return 0
 	}
@@ -310,7 +311,7 @@ func (it *multiTypedIterator) decodeArrayLen() int {
 	return value
 }
 
-func (it *multiTypedIterator) skip(numFields int) {
+func (it *unaggregatedIterator) skip(numFields int) {
 	if it.err != nil {
 		return
 	}

@@ -24,7 +24,7 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/pool"
 	xpool "github.com/m3db/m3x/pool"
@@ -59,16 +59,16 @@ type BufferedEncoderPool interface {
 	Put(enc BufferedEncoder)
 }
 
-// MultiTypedEncoder is an encoder for encoding different types of metrics
-type MultiTypedEncoder interface {
+// UnaggregatedEncoder is an encoder for encoding different types of unaggregated metrics
+type UnaggregatedEncoder interface {
 	// EncodeCounterWithPolicies encodes a counter with applicable policies
-	EncodeCounterWithPolicies(c metric.Counter, vp policy.VersionedPolicies) error
+	EncodeCounterWithPolicies(c unaggregated.Counter, vp policy.VersionedPolicies) error
 
 	// EncodeBatchTimerWithPolicies encodes a batched timer with applicable policies
-	EncodeBatchTimerWithPolicies(bt metric.BatchTimer, vp policy.VersionedPolicies) error
+	EncodeBatchTimerWithPolicies(bt unaggregated.BatchTimer, vp policy.VersionedPolicies) error
 
 	// EncodeGaugeWithPolicies encodes a gauge with applicable policies
-	EncodeGaugeWithPolicies(g metric.Gauge, vp policy.VersionedPolicies) error
+	EncodeGaugeWithPolicies(g unaggregated.Gauge, vp policy.VersionedPolicies) error
 
 	// Encoder returns the encoder
 	Encoder() BufferedEncoder
@@ -77,13 +77,13 @@ type MultiTypedEncoder interface {
 	Reset(encoder BufferedEncoder)
 }
 
-// MultiTypedIterator decodes different types of metrics iteratively
-type MultiTypedIterator interface {
+// UnaggregatedIterator decodes different types of unaggregated metrics iteratively
+type UnaggregatedIterator interface {
 	// Next returns true if there are more items to decode
 	Next() bool
 
 	// Value returns the current metric and applicable policies
-	Value() (*metric.OneOf, policy.VersionedPolicies)
+	Value() (*unaggregated.MetricUnion, policy.VersionedPolicies)
 
 	// Err returns the error encountered during decoding if any
 	Err() error
@@ -92,16 +92,16 @@ type MultiTypedIterator interface {
 	Reset(reader io.Reader)
 }
 
-// MultiTypedIteratorOptions provide options for multi-typed iterators
-type MultiTypedIteratorOptions interface {
+// UnaggregatedIteratorOptions provide options for unaggregated iterators
+type UnaggregatedIteratorOptions interface {
 	// SetFloatsPool sets the floats pool
-	SetFloatsPool(value xpool.FloatsPool) MultiTypedIteratorOptions
+	SetFloatsPool(value xpool.FloatsPool) UnaggregatedIteratorOptions
 
 	// FloatsPool returns the floats pool
 	FloatsPool() xpool.FloatsPool
 
 	// SetPoliciesPool sets the policies pool
-	SetPoliciesPool(value pool.PoliciesPool) MultiTypedIteratorOptions
+	SetPoliciesPool(value pool.PoliciesPool) UnaggregatedIteratorOptions
 
 	// PoliciesPool returns the policies pool
 	PoliciesPool() pool.PoliciesPool

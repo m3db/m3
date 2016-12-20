@@ -32,46 +32,46 @@ var (
 	errNoPoliciesPool = errors.New("no policies pool")
 )
 
-type multiTypedIteratorOptions struct {
+type unaggregatedIteratorOptions struct {
 	floatsPool   xpool.FloatsPool
 	policiesPool pool.PoliciesPool
 }
 
-// NewMultiTypedIteratorOptions creates a new set of multi-typed iterator options
-func NewMultiTypedIteratorOptions() MultiTypedIteratorOptions {
+// NewUnaggregatedIteratorOptions creates a new set of unaggregated iterator options
+func NewUnaggregatedIteratorOptions() UnaggregatedIteratorOptions {
 	floatsPool := xpool.NewFloatsPool(nil, nil)
 	floatsPool.Init()
 
 	policiesPool := pool.NewPoliciesPool(nil, nil)
 	policiesPool.Init()
 
-	return multiTypedIteratorOptions{
+	return unaggregatedIteratorOptions{
 		floatsPool:   floatsPool,
 		policiesPool: policiesPool,
 	}
 }
 
-func (o multiTypedIteratorOptions) SetFloatsPool(value xpool.FloatsPool) MultiTypedIteratorOptions {
+func (o unaggregatedIteratorOptions) SetFloatsPool(value xpool.FloatsPool) UnaggregatedIteratorOptions {
 	opts := o
 	opts.floatsPool = value
 	return opts
 }
 
-func (o multiTypedIteratorOptions) FloatsPool() xpool.FloatsPool {
+func (o unaggregatedIteratorOptions) FloatsPool() xpool.FloatsPool {
 	return o.floatsPool
 }
 
-func (o multiTypedIteratorOptions) SetPoliciesPool(value pool.PoliciesPool) MultiTypedIteratorOptions {
+func (o unaggregatedIteratorOptions) SetPoliciesPool(value pool.PoliciesPool) UnaggregatedIteratorOptions {
 	opts := o
 	opts.policiesPool = value
 	return opts
 }
 
-func (o multiTypedIteratorOptions) PoliciesPool() pool.PoliciesPool {
+func (o unaggregatedIteratorOptions) PoliciesPool() pool.PoliciesPool {
 	return o.policiesPool
 }
 
-func (o multiTypedIteratorOptions) Validate() error {
+func (o unaggregatedIteratorOptions) Validate() error {
 	if o.floatsPool == nil {
 		return errNoFloatsPool
 	}

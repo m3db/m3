@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
 
@@ -40,8 +40,8 @@ var (
 	errTestArrayLen = errors.New("test array len error")
 )
 
-func testCapturingMultiTypedEncoder(t *testing.T) (MultiTypedEncoder, *[]interface{}) {
-	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
+func testCapturingUnaggregatedEncoder(t *testing.T) (UnaggregatedEncoder, *[]interface{}) {
+	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
 	var result []interface{}
 	encoder.encodeVarintFn = func(value int64) {
@@ -60,13 +60,13 @@ func testCapturingMultiTypedEncoder(t *testing.T) (MultiTypedEncoder, *[]interfa
 	return encoder, &result
 }
 
-func getExpectedResultsForMetricWithPolicies(t *testing.T, m *metric.OneOf, p policy.VersionedPolicies) []interface{} {
+func getExpectedResultsForMetricWithPolicies(t *testing.T, m *unaggregated.MetricUnion, p policy.VersionedPolicies) []interface{} {
 	results := []interface{}{
 		int64(supportedVersion),
 	}
 
 	switch m.Type {
-	case metric.CounterType:
+	case unaggregated.CounterType:
 		results = append(results, []interface{}{
 			int64(counterWithPoliciesType),
 			numFieldsForType(counterWithPoliciesType),
@@ -74,7 +74,7 @@ func getExpectedResultsForMetricWithPolicies(t *testing.T, m *metric.OneOf, p po
 			[]byte(m.ID),
 			m.CounterVal,
 		}...)
-	case metric.BatchTimerType:
+	case unaggregated.BatchTimerType:
 		results = append(results, []interface{}{
 			int64(batchTimerWithPoliciesType),
 			numFieldsForType(batchTimerWithPoliciesType),
@@ -85,7 +85,7 @@ func getExpectedResultsForMetricWithPolicies(t *testing.T, m *metric.OneOf, p po
 		for _, v := range m.BatchTimerVal {
 			results = append(results, v)
 		}
-	case metric.GaugeType:
+	case unaggregated.GaugeType:
 		results = append(results, []interface{}{
 			int64(gaugeWithPoliciesType),
 			numFieldsForType(gaugeWithPoliciesType),
@@ -124,33 +124,33 @@ func getExpectedResultsForMetricWithPolicies(t *testing.T, m *metric.OneOf, p po
 	return results
 }
 
-func TestMultiTypedEncodeCounterWithDefaultPolicies(t *testing.T) {
+func TestUnaggregatedEncodeCounterWithDefaultPolicies(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
-	encoder, results := testCapturingMultiTypedEncoder(t)
+	encoder, results := testCapturingUnaggregatedEncoder(t)
 	require.NoError(t, testEncode(t, encoder, &testCounter, policies))
 	expected := getExpectedResultsForMetricWithPolicies(t, &testCounter, policies)
 	require.Equal(t, expected, *results)
 }
 
-func TestMultiTypedEncodeBatchTimerWithDefaultPolicies(t *testing.T) {
+func TestUnaggregatedEncodeBatchTimerWithDefaultPolicies(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
-	encoder, results := testCapturingMultiTypedEncoder(t)
+	encoder, results := testCapturingUnaggregatedEncoder(t)
 	require.NoError(t, testEncode(t, encoder, &testBatchTimer, policies))
 	expected := getExpectedResultsForMetricWithPolicies(t, &testBatchTimer, policies)
 	require.Equal(t, expected, *results)
 }
 
-func TestMultiTypedEncodeGaugeWithDefaultPolicies(t *testing.T) {
+func TestUnaggregatedEncodeGaugeWithDefaultPolicies(t *testing.T) {
 	policies := policy.DefaultVersionedPolicies
-	encoder, results := testCapturingMultiTypedEncoder(t)
+	encoder, results := testCapturingUnaggregatedEncoder(t)
 	require.NoError(t, testEncode(t, encoder, &testGauge, policies))
 	expected := getExpectedResultsForMetricWithPolicies(t, &testGauge, policies)
 	require.Equal(t, expected, *results)
 }
 
-func TestMultiTypedEncodeAllTypesWithDefaultPolicies(t *testing.T) {
+func TestUnaggregatedEncodeAllTypesWithDefaultPolicies(t *testing.T) {
 	var expected []interface{}
-	encoder, results := testCapturingMultiTypedEncoder(t)
+	encoder, results := testCapturingUnaggregatedEncoder(t)
 	for _, input := range testInputWithAllTypesAndDefaultPolicies {
 		require.NoError(t, testEncode(t, encoder, &input.metric, input.versionedPolicies))
 		expected = append(expected, getExpectedResultsForMetricWithPolicies(t, &input.metric, input.versionedPolicies)...)
@@ -159,9 +159,9 @@ func TestMultiTypedEncodeAllTypesWithDefaultPolicies(t *testing.T) {
 	require.Equal(t, expected, *results)
 }
 
-func TestMultiTypedEncodeAllTypesWithCustomPolicies(t *testing.T) {
+func TestUnaggregatedEncodeAllTypesWithCustomPolicies(t *testing.T) {
 	var expected []interface{}
-	encoder, results := testCapturingMultiTypedEncoder(t)
+	encoder, results := testCapturingUnaggregatedEncoder(t)
 	for _, input := range testInputWithAllTypesAndCustomPolicies {
 		require.NoError(t, testEncode(t, encoder, &input.metric, input.versionedPolicies))
 		expected = append(expected, getExpectedResultsForMetricWithPolicies(t, &input.metric, input.versionedPolicies)...)
@@ -170,12 +170,12 @@ func TestMultiTypedEncodeAllTypesWithCustomPolicies(t *testing.T) {
 	require.Equal(t, expected, *results)
 }
 
-func TestMultiTypedEncodeVarintError(t *testing.T) {
+func TestUnaggregatedEncodeVarintError(t *testing.T) {
 	counter := testCounter
 	policies := policy.DefaultVersionedPolicies
 
 	// Intentionally return an error when encoding varint
-	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	encoder.encodeVarintFn = func(value int64) {
 		encoder.err = errTestVarint
 	}
@@ -187,12 +187,12 @@ func TestMultiTypedEncodeVarintError(t *testing.T) {
 	require.Equal(t, errTestVarint, testEncode(t, encoder, &counter, policies))
 }
 
-func TestMultiTypedEncodeFloat64Error(t *testing.T) {
+func TestUnaggregatedEncodeFloat64Error(t *testing.T) {
 	gauge := testGauge
 	policies := policy.DefaultVersionedPolicies
 
 	// Intentionally return an error when encoding float64
-	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	encoder.encodeFloat64Fn = func(value float64) {
 		encoder.err = errTestFloat64
 	}
@@ -204,12 +204,12 @@ func TestMultiTypedEncodeFloat64Error(t *testing.T) {
 	require.Equal(t, errTestFloat64, testEncode(t, encoder, &gauge, policies))
 }
 
-func TestMultiTypedEncodeBytesError(t *testing.T) {
+func TestUnaggregatedEncodeBytesError(t *testing.T) {
 	timer := testBatchTimer
 	policies := policy.DefaultVersionedPolicies
 
 	// Intentionally return an error when encoding array length
-	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	encoder.encodeBytesFn = func(value []byte) {
 		encoder.err = errTestBytes
 	}
@@ -221,7 +221,7 @@ func TestMultiTypedEncodeBytesError(t *testing.T) {
 	require.Equal(t, errTestBytes, testEncode(t, encoder, &timer, policies))
 }
 
-func TestMultiTypedEncodeArrayLenError(t *testing.T) {
+func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 	gauge := testGauge
 	policies := policy.VersionedPolicies{
 		Version: 1,
@@ -234,7 +234,7 @@ func TestMultiTypedEncodeArrayLenError(t *testing.T) {
 	}
 
 	// Intentionally return an error when encoding array length
-	encoder := testMultiTypedEncoder(t).(*multiTypedEncoder)
+	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	encoder.encodeArrayLenFn = func(value int) {
 		encoder.err = errTestArrayLen
 	}
