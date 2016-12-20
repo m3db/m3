@@ -480,6 +480,9 @@ func (enc *encoder) trackNewSig(numSig uint8) uint8 {
 }
 
 func (enc *encoder) newBuffer(capacity int) []byte {
+	if capacity < 1 {
+		return nil
+	}
 	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
 		return bytesPool.Get(capacity)
 	}
@@ -487,19 +490,10 @@ func (enc *encoder) newBuffer(capacity int) []byte {
 }
 
 func (enc *encoder) Reset(start time.Time, capacity int) {
-	enc.ResetSetData(start, ts.Segment{Head: enc.newBuffer(capacity)})
+	enc.reset(start, enc.newBuffer(capacity))
 }
 
-func (enc *encoder) ResetSetData(start time.Time, data ts.Segment) ts.Segment {
-	// Return what this encoder owned by reference
-	segment := enc.segment(byRefResultType)
-
-	bytes := data.Head
-	if data.Tail != nil {
-		// NB(r): If you pass a tail this will cause a copy if
-		// head cannot fit the tail
-		bytes = append(bytes, data.Tail...)
-	}
+func (enc *encoder) reset(start time.Time, bytes []byte) {
 	enc.os.Reset(bytes)
 	enc.t = start
 	enc.dt = 0
@@ -514,7 +508,6 @@ func (enc *encoder) ResetSetData(start time.Time, data ts.Segment) ts.Segment {
 	enc.ant = nil
 	enc.tu = initialTimeUnit(start, enc.opts.DefaultTimeUnit())
 	enc.closed = false
-	return segment
 }
 
 func (enc *encoder) Stream() xio.SegmentReader {
@@ -539,6 +532,9 @@ func (enc *encoder) Close() {
 
 	buffer, _ := enc.os.Rawbytes()
 
+	// Buffer is being returned to pool, ensure not to keep reference
+	enc.os.Reset(nil)
+
 	if bytesPool := enc.opts.BytesPool(); bytesPool != nil && buffer != nil {
 		bytesPool.Put(buffer)
 	}
@@ -548,16 +544,22 @@ func (enc *encoder) Close() {
 	}
 }
 
-func (enc *encoder) Discard() ts.Segment {
-	segment := enc.segment(byRefResultType)
+func (enc *encoder) discard() ts.Segment {
+	return enc.segment(byRefResultType)
+}
 
-	// We are taking the encoder's bytes by reference so ensure not put back
-	// in the pool when we close the encoder directly next
-	enc.os.Reset(nil)
+func (enc *encoder) Discard() ts.Segment {
+	segment := enc.discard()
 
 	// Close the encoder no longer needed
 	enc.Close()
 
+	return segment
+}
+
+func (enc *encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
+	segment := enc.discard()
+	enc.Reset(start, capacity)
 	return segment
 }
 
@@ -572,6 +574,9 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 	// of the encoder data this encoder.
 	var head []byte
 	if resType == byRefResultType {
+		// Transferring ownership so release reference to these bytes
+		enc.os.Reset(nil)
+		// Take reference
 		head = b[:blen-1]
 	} else {
 		head = append(enc.newBuffer(blen-1), b[:blen-1]...)
