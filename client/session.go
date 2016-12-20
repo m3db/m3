@@ -1137,7 +1137,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts bootstrap.Options,
 ) (bootstrap.ShardResult, error) {
 	var (
-		result   = newBlocksResult(s.opts, opts, s.multiReaderIteratorPool)
+		result   = newBulkBlocksResult(s.opts, opts, s.multiReaderIteratorPool)
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		onDone   = func(err error) {
@@ -1191,6 +1191,82 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		return nil, err
 	}
 	return result.result, nil
+}
+
+func (s *session) FetchRepairBlocksFromPeers(
+	namespace ts.ID,
+	shard uint32,
+	repairBlocks []block.ReplicaMetadata,
+	opts bootstrap.Options,
+) (PeerBlocksIter, error) {
+	var (
+		complete = int64(0)
+		doneCh   = make(chan error, 1)
+		outputCh = make(chan peerBlocksDatapoint, 4096)
+		result   = newStreamBlocksResult(s.opts, opts, s.multiReaderIteratorPool, outputCh, doneCh)
+		onDone   = func(err error) {
+			atomic.StoreInt64(&complete, 1)
+			select {
+			case doneCh <- err:
+			default:
+			}
+		}
+		m = s.streamFromPeersMetricsForShard(shard)
+	)
+
+	peers, err := s.peersForShard(shard)
+	if err != nil {
+		return nil, err
+	}
+	peersByHost := make(map[string]peer, len(peers))
+	for _, peer := range peers {
+		peersByHost[peer.Host().ID()] = peer
+	}
+
+	go func() {
+		for atomic.LoadInt64(&complete) == 0 {
+			m.fetchBlocksFromPeers.Update(1)
+			time.Sleep(gaugeReportInterval)
+		}
+		m.fetchBlocksFromPeers.Update(0)
+	}()
+
+	// Transform provided repairBlocks into channel
+	metadataCh := make(chan blocksMetadata, 4096)
+	go func() {
+		for _, rb := range repairBlocks {
+			peer, ok := peersByHost[rb.Peer.ID()]
+			if !ok {
+				err := errors.New("Unable to find peer: " + rb.Peer.ID())
+				onDone(err) // bail early
+				break
+				// TODO(prateek) ^ check ok and indicate error, increment metric
+			}
+			metadataCh <- blocksMetadata{
+				id:   rb.ID,
+				peer: peer,
+				blocks: []blockMetadata{
+					blockMetadata{
+						start:    rb.Start,
+						size:     rb.Size,
+						checksum: rb.Checksum,
+					},
+				},
+			}
+		}
+		close(metadataCh)
+	}()
+
+	// Begin consuming metadata and making requests
+	go func() {
+		err := s.streamBlocksFromPeers(namespace, shard, peers,
+			metadataCh, opts, result, m)
+		close(outputCh)
+		onDone(err)
+	}()
+
+	pbi := newPeerBlocksIter(outputCh, doneCh)
+	return pbi, nil
 }
 
 func (s *session) streamBlocksMetadataFromPeers(
@@ -1352,7 +1428,7 @@ func (s *session) streamBlocksFromPeers(
 	peers []peer,
 	ch <-chan blocksMetadata,
 	opts bootstrap.Options,
-	result *blocksResult,
+	result blocksResult,
 	m *streamFromPeersMetrics,
 ) error {
 	var (
@@ -1693,7 +1769,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	peer peer,
 	batch []*blocksMetadata,
 	opts bootstrap.Options,
-	blocksResult *blocksResult,
+	blocksResult blocksResult,
 	enqueueCh *enqueueChannel,
 	retrier xretry.Retrier,
 	m *streamFromPeersMetrics,
@@ -1825,7 +1901,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			// Verify and if verify succeeds add the block from the peer
 			err := s.verifyFetchedBlock(block, batch[i].blocks[j])
 			if err == nil {
-				err = blocksResult.addBlockFromPeer(id, block)
+				err = blocksResult.addBlockFromPeer(id, peer.Host(), block)
 			}
 
 			if err != nil {
@@ -1944,7 +2020,164 @@ func (s *session) streamBlocksReattemptFromPeers(
 	})
 }
 
-type blocksResult struct {
+type blocksResult interface {
+	addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error
+}
+
+type streamBlocksResult struct {
+	opts                    Options
+	blockOpts               block.Options
+	blockAllocSize          int
+	contextPool             context.Pool
+	encoderPool             encoding.EncoderPool
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool
+	outputCh                chan<- peerBlocksDatapoint
+	errCh                   chan<- error
+}
+
+func newStreamBlocksResult(
+	opts Options,
+	bootstrapOpts bootstrap.Options,
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
+	outputCh chan<- peerBlocksDatapoint,
+	errCh chan<- error,
+) *streamBlocksResult {
+	blockOpts := bootstrapOpts.DatabaseBlockOptions()
+	return &streamBlocksResult{
+		opts:                    opts,
+		blockOpts:               blockOpts,
+		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
+		contextPool:             opts.ContextPool(),
+		encoderPool:             blockOpts.EncoderPool(),
+		multiReaderIteratorPool: multiReaderIteratorPool,
+		outputCh:                outputCh,
+		errCh:                   errCh,
+	}
+}
+
+type peerBlocksDatapoint struct {
+	id    ts.ID
+	peer  topology.Host
+	block block.DatabaseBlock
+}
+
+// TODO(prateek): figure out semantics of the error channel
+// TODO(prateek): refactor to re-use this code-base along with bulkBlocksResult
+func (s *streamBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
+	var (
+		start    = time.Unix(0, block.Start)
+		segments = block.Segments
+		result   = s.blockOpts.DatabaseBlockPool().Get()
+	)
+
+	if segments == nil {
+		return errSessionBadBlockResultFromPeer
+	}
+
+	switch {
+	case segments.Merged != nil:
+		// Unmerged, can insert directly into a single block
+		result.Reset(start, ts.Segment{
+			Head: segments.Merged.Head,
+			Tail: segments.Merged.Tail,
+		})
+
+	case segments.Unmerged != nil:
+		// Must merge to provide a single block
+		readers := make([]io.Reader, len(segments.Unmerged))
+		for i := range segments.Unmerged {
+			readers[i] = xio.NewSegmentReader(ts.Segment{
+				Head: segments.Unmerged[i].Head,
+				Tail: segments.Unmerged[i].Tail,
+			})
+		}
+		encoder, err := s.mergeReaders(start, readers)
+		if err != nil {
+			return err
+		}
+
+		// Set the block data
+		result.Reset(start, encoder.Discard())
+
+	default:
+		return errSessionBadBlockResultFromPeer
+	}
+
+	s.outputCh <- peerBlocksDatapoint{
+		id:    id,
+		peer:  peer,
+		block: result,
+	}
+	return nil
+}
+
+// TODO(prateek): refactor to re-use this code-base along with bulkBlocksResult
+func (s *streamBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
+	iter := s.multiReaderIteratorPool.Get()
+	iter.Reset(readers)
+	defer iter.Close()
+
+	encoder := s.encoderPool.Get()
+	encoder.Reset(start, s.blockAllocSize)
+
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		if err := encoder.Encode(dp, unit, annotation); err != nil {
+			encoder.Close()
+			return nil, err
+		}
+	}
+	if err := iter.Err(); err != nil {
+		encoder.Close()
+		return nil, err
+	}
+
+	return encoder, nil
+}
+
+type peerBlocksIter struct {
+	inputCh <-chan peerBlocksDatapoint
+	errCh   <-chan error
+	current peerBlocksDatapoint
+	err     error
+	done    bool
+}
+
+func newPeerBlocksIter(
+	inputC <-chan peerBlocksDatapoint,
+	errC <-chan error,
+) *peerBlocksIter {
+	return &peerBlocksIter{
+		inputCh: inputC,
+		errCh:   errC,
+	}
+}
+
+func (it *peerBlocksIter) Current() (topology.Host, ts.ID, block.DatabaseBlock) {
+	return it.current.peer, it.current.id, it.current.block
+}
+
+func (it *peerBlocksIter) Err() error {
+	return it.err
+}
+
+func (it *peerBlocksIter) Next() bool {
+	if it.done || it.err != nil {
+		return false
+	}
+	m, more := <-it.inputCh
+
+	if !more {
+		it.err = <-it.errCh
+		it.done = true
+		return false
+	}
+
+	it.current = m
+	return true
+}
+
+type bulkBlocksResult struct {
 	sync.RWMutex
 	opts                    Options
 	blockOpts               block.Options
@@ -1955,13 +2188,13 @@ type blocksResult struct {
 	result                  bootstrap.ShardResult
 }
 
-func newBlocksResult(
+func newBulkBlocksResult(
 	opts Options,
 	bootstrapOpts bootstrap.Options,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
-) *blocksResult {
+) *bulkBlocksResult {
 	blockOpts := bootstrapOpts.DatabaseBlockOptions()
-	return &blocksResult{
+	return &bulkBlocksResult{
 		opts:                    opts,
 		blockOpts:               blockOpts,
 		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
@@ -1972,7 +2205,7 @@ func newBlocksResult(
 	}
 }
 
-func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
+func (r *bulkBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
 	var (
 		start    = time.Unix(0, block.Start)
 		segments = block.Segments
@@ -2010,7 +2243,6 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 
 	default:
 		return errSessionBadBlockResultFromPeer
-
 	}
 
 	for {
@@ -2067,7 +2299,7 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	return nil
 }
 
-func (r *blocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
+func (r *bulkBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
 	iter := r.multiReaderIteratorPool.Get()
 	iter.Reset(readers)
 	defer iter.Close()
@@ -2161,6 +2393,7 @@ type receivedBlocks struct {
 
 type processFn func(batch []*blocksMetadata)
 
+// peerBlocksQueue is a per peer queue of blocks to be retrieved from a peer
 type peerBlocksQueue struct {
 	sync.RWMutex
 	closed       bool

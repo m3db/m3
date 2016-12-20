@@ -164,6 +164,19 @@ type PeerBlocksMetadataIter interface {
 	Err() error
 }
 
+// PeerBlocksIter iterates over a collection of blocks from peers
+type PeerBlocksIter interface {
+	// Next returns whether there are more items in the collection
+	Next() bool
+
+	// Current returns the metadata, and block data for a single block replica.
+	// These remain valid until Next() is called again.
+	Current() (topology.Host, ts.ID, block.DatabaseBlock)
+
+	// Err returns any error encountered
+	Err() error
+}
+
 // AdminSession can perform administrative and node-to-node operations
 type AdminSession interface {
 	Session
@@ -193,6 +206,17 @@ type AdminSession interface {
 		start, end time.Time,
 		opts bootstrap.Options,
 	) (bootstrap.ShardResult, error)
+
+	// FetchRepairBlocksFromPeers will fetch the requested blocks from the
+	// peers specified
+	FetchRepairBlocksFromPeers(
+		namespace ts.ID,
+		shard uint32,
+		blocks []block.ReplicaMetadata,
+		bootstrapOpts bootstrap.Options,
+	) (PeerBlocksIter, error)
+	// TODO(prateek): break down bootstrap.Options into new options with the subparts needed here
+	//								remove the dependency on the bootstrapOpts for both this and FetchBootstrapBlocksFromPeer
 }
 
 type clientSession interface {
