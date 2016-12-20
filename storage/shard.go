@@ -462,7 +462,7 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	// Retrieve the entry out of any locks to avoid any possible expensive
 	// allocations during any unpooled gets blocking other writers
 	series := s.seriesPool.Get()
-	series.Reset(id)
+	series.Reset(s.identifierPool.Clone(id))
 
 	entry := &dbShardEntry{
 		series:     series,
