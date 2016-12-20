@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -157,28 +158,37 @@ func getBytes(t *testing.T, r io.Reader) []byte {
 func TestWriteTimeUnit(t *testing.T) {
 	encoder := getTestEncoder(testStartTime)
 	inputs := []struct {
-		timeUnit      xtime.Unit
-		expectedBytes []byte
-		expectedPos   int
+		timeUnit       xtime.Unit
+		expectedResult bool
+		expectedBytes  []byte
+		expectedPos    int
 	}{
 		{
 			xtime.None,
+			false,
 			[]byte{},
 			0,
 		},
 		{
 			xtime.Second,
+			true,
 			[]byte{0x80, 0x40, 0x20},
 			3,
+		},
+		{
+			xtime.Unit(255),
+			false,
+			[]byte{},
+			0,
 		},
 	}
 	for _, input := range inputs {
 		encoder.Reset(testStartTime, 0)
 		encoder.tu = xtime.None
-		encoder.writeTimeUnit(input.timeUnit)
+		assert.Equal(t, input.expectedResult, encoder.writeTimeUnit(input.timeUnit))
 		b, p := encoder.os.Rawbytes()
-		require.Equal(t, input.expectedBytes, b)
-		require.Equal(t, input.expectedPos, p)
+		assert.Equal(t, input.expectedBytes, b)
+		assert.Equal(t, input.expectedPos, p)
 	}
 }
 
