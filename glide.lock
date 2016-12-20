@@ -1,5 +1,5 @@
-hash: 006181a12c7ccb56dfb440de774085a802c33748ad63955365694495f1b04f3c
-updated: 2016-12-14T17:17:50.966086465-05:00
+hash: a7625649c12f625d1634f5001faa54c37e014a3df3d464951724846e84ffafa6
+updated: 2016-12-15T14:07:25.871346636-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -20,7 +20,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 8ca9f7bc9c3e446aec14fa785cf22f640117d33b
+  version: f8624741714fd60f93c47088b2b17701a1889393
   subpackages:
   - client
   - kv
@@ -70,9 +70,9 @@ imports:
   - trand
   - typed
 - name: github.com/willf/bitset
-  version: 2e6e8094ef4745224150c88c16191c7dceaad16f
+  version: 1ea0245d2bc8ce44623f24a1ae162beb06ad8cd6
 - name: golang.org/x/net
-  version: 944c58e9d57bcecf171fd4bea155269aa8a96805
+  version: 989b0d93bc6ec51a61396cea995cf81d807fd342
   subpackages:
   - context
 testImports: []
