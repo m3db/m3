@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
@@ -49,10 +50,10 @@ func TestFilesystemBootstrap(t *testing.T) {
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix := fsOpts.FilePathPrefix()
 		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-		bsOpts := bootstrap.NewOptions().
+		bsOpts := result.NewOptions().
 			SetRetentionOptions(setup.storageOpts.RetentionOptions())
 		bfsOpts := fs.NewOptions().
-			SetBootstrapOptions(bsOpts).
+			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts)
 		bs := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
 		return bootstrap.NewBootstrapProcess(bsOpts, bs)
