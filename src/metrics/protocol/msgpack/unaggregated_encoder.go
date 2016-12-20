@@ -22,14 +22,15 @@ package msgpack
 
 import (
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 )
 
 // various object-level encoding functions to facilitate testing
 type encodeTopLevelFn func(objType objectType)
-type encodeCounterFn func(c metric.Counter)
-type encodeBatchTimerFn func(bt metric.BatchTimer)
-type encodeGaugeFn func(g metric.Gauge)
+type encodeCounterFn func(c unaggregated.Counter)
+type encodeBatchTimerFn func(bt unaggregated.BatchTimer)
+type encodeGaugeFn func(g unaggregated.Gauge)
 type encodePolicyFn func(p policy.Policy)
 type encodeVersionedPoliciesFn func(vp policy.VersionedPolicies)
 
@@ -39,9 +40,9 @@ type encodeFloat64Fn func(value float64)
 type encodeBytesFn func(value []byte)
 type encodeArrayLenFn func(value int)
 
-// multiTypedEncoder uses MessagePack for encoding different types of metrics.
+// unaggregatedEncoder uses MessagePack for encoding different types of unaggregated metrics.
 // It is not thread-safe.
-type multiTypedEncoder struct {
+type unaggregatedEncoder struct {
 	encoderPool               BufferedEncoderPool       // pool for internal encoders
 	encoder                   BufferedEncoder           // internal encoder that does the actual encoding
 	err                       error                     // error encountered during encoding
@@ -57,9 +58,9 @@ type multiTypedEncoder struct {
 	encodeArrayLenFn          encodeArrayLenFn          // array length encoding function
 }
 
-// NewMultiTypedEncoder creates a new multi-typed encoder
-func NewMultiTypedEncoder(encoder BufferedEncoder) (MultiTypedEncoder, error) {
-	enc := &multiTypedEncoder{encoder: encoder}
+// NewUnaggregatedEncoder creates a new unaggregated encoder
+func NewUnaggregatedEncoder(encoder BufferedEncoder) (UnaggregatedEncoder, error) {
+	enc := &unaggregatedEncoder{encoder: encoder}
 
 	enc.encodeTopLevelFn = enc.encodeTopLevel
 	enc.encodeCounterFn = enc.encodeCounter
@@ -75,15 +76,15 @@ func NewMultiTypedEncoder(encoder BufferedEncoder) (MultiTypedEncoder, error) {
 	return enc, nil
 }
 
-func (enc *multiTypedEncoder) Encoder() BufferedEncoder {
+func (enc *unaggregatedEncoder) Encoder() BufferedEncoder {
 	return enc.encoder
 }
 
-func (enc *multiTypedEncoder) Reset(encoder BufferedEncoder) {
+func (enc *unaggregatedEncoder) Reset(encoder BufferedEncoder) {
 	enc.encoder = encoder
 }
 
-func (enc *multiTypedEncoder) EncodeCounterWithPolicies(c metric.Counter, vp policy.VersionedPolicies) error {
+func (enc *unaggregatedEncoder) EncodeCounterWithPolicies(c unaggregated.Counter, vp policy.VersionedPolicies) error {
 	if enc.err != nil {
 		return enc.err
 	}
@@ -93,7 +94,7 @@ func (enc *multiTypedEncoder) EncodeCounterWithPolicies(c metric.Counter, vp pol
 	return enc.err
 }
 
-func (enc *multiTypedEncoder) EncodeBatchTimerWithPolicies(bt metric.BatchTimer, vp policy.VersionedPolicies) error {
+func (enc *unaggregatedEncoder) EncodeBatchTimerWithPolicies(bt unaggregated.BatchTimer, vp policy.VersionedPolicies) error {
 	if enc.err != nil {
 		return enc.err
 	}
@@ -103,7 +104,7 @@ func (enc *multiTypedEncoder) EncodeBatchTimerWithPolicies(bt metric.BatchTimer,
 	return enc.err
 }
 
-func (enc *multiTypedEncoder) EncodeGaugeWithPolicies(g metric.Gauge, vp policy.VersionedPolicies) error {
+func (enc *unaggregatedEncoder) EncodeGaugeWithPolicies(g unaggregated.Gauge, vp policy.VersionedPolicies) error {
 	if enc.err != nil {
 		return enc.err
 	}
@@ -113,19 +114,19 @@ func (enc *multiTypedEncoder) EncodeGaugeWithPolicies(g metric.Gauge, vp policy.
 	return enc.err
 }
 
-func (enc *multiTypedEncoder) encodeTopLevel(objType objectType) {
+func (enc *unaggregatedEncoder) encodeTopLevel(objType objectType) {
 	enc.encodeVersion(supportedVersion)
 	enc.encodeObjectType(objType)
 	enc.encodeNumObjectFields(numFieldsForType(objType))
 }
 
-func (enc *multiTypedEncoder) encodeCounter(c metric.Counter) {
+func (enc *unaggregatedEncoder) encodeCounter(c unaggregated.Counter) {
 	enc.encodeNumObjectFields(numFieldsForType(counterType))
 	enc.encodeID(c.ID)
 	enc.encodeVarintFn(int64(c.Value))
 }
 
-func (enc *multiTypedEncoder) encodeBatchTimer(bt metric.BatchTimer) {
+func (enc *unaggregatedEncoder) encodeBatchTimer(bt unaggregated.BatchTimer) {
 	enc.encodeNumObjectFields(numFieldsForType(batchTimerType))
 	enc.encodeID(bt.ID)
 	enc.encodeArrayLenFn(len(bt.Values))
@@ -134,19 +135,19 @@ func (enc *multiTypedEncoder) encodeBatchTimer(bt metric.BatchTimer) {
 	}
 }
 
-func (enc *multiTypedEncoder) encodeGauge(g metric.Gauge) {
+func (enc *unaggregatedEncoder) encodeGauge(g unaggregated.Gauge) {
 	enc.encodeNumObjectFields(numFieldsForType(gaugeType))
 	enc.encodeID(g.ID)
 	enc.encodeFloat64Fn(g.Value)
 }
 
-func (enc *multiTypedEncoder) encodePolicy(p policy.Policy) {
+func (enc *unaggregatedEncoder) encodePolicy(p policy.Policy) {
 	enc.encodeNumObjectFields(numFieldsForType(policyType))
 	enc.encodeResolution(p.Resolution)
 	enc.encodeRetention(p.Retention)
 }
 
-func (enc *multiTypedEncoder) encodeVersionedPolicies(vp policy.VersionedPolicies) {
+func (enc *unaggregatedEncoder) encodeVersionedPolicies(vp policy.VersionedPolicies) {
 	// NB(xichen): if this is a default policy, we only encode the policy version
 	// and not the actual policies to optimize for the common case where the policies
 	// are the default ones
@@ -165,23 +166,23 @@ func (enc *multiTypedEncoder) encodeVersionedPolicies(vp policy.VersionedPolicie
 	}
 }
 
-func (enc *multiTypedEncoder) encodeVersion(version int) {
+func (enc *unaggregatedEncoder) encodeVersion(version int) {
 	enc.encodeVarintFn(int64(version))
 }
 
-func (enc *multiTypedEncoder) encodeObjectType(objType objectType) {
+func (enc *unaggregatedEncoder) encodeObjectType(objType objectType) {
 	enc.encodeVarintFn(int64(objType))
 }
 
-func (enc *multiTypedEncoder) encodeNumObjectFields(numFields int) {
+func (enc *unaggregatedEncoder) encodeNumObjectFields(numFields int) {
 	enc.encodeArrayLenFn(numFields)
 }
 
-func (enc *multiTypedEncoder) encodeID(id metric.IDType) {
+func (enc *unaggregatedEncoder) encodeID(id metric.ID) {
 	enc.encodeBytesFn([]byte(id))
 }
 
-func (enc *multiTypedEncoder) encodeResolution(resolution policy.Resolution) {
+func (enc *unaggregatedEncoder) encodeResolution(resolution policy.Resolution) {
 	if enc.err != nil {
 		return
 	}
@@ -193,7 +194,7 @@ func (enc *multiTypedEncoder) encodeResolution(resolution policy.Resolution) {
 	enc.encodeVarintFn(int64(resolutionValue))
 }
 
-func (enc *multiTypedEncoder) encodeRetention(retention policy.Retention) {
+func (enc *unaggregatedEncoder) encodeRetention(retention policy.Retention) {
 	if enc.err != nil {
 		return
 	}
@@ -208,28 +209,28 @@ func (enc *multiTypedEncoder) encodeRetention(retention policy.Retention) {
 // NB(xichen): the underlying msgpack encoder implementation
 // always cast an integer value to an int64 and encodes integer
 // values as varints, regardless of the actual integer type
-func (enc *multiTypedEncoder) encodeVarint(value int64) {
+func (enc *unaggregatedEncoder) encodeVarint(value int64) {
 	if enc.err != nil {
 		return
 	}
 	enc.err = enc.encoder.EncodeInt64(value)
 }
 
-func (enc *multiTypedEncoder) encodeFloat64(value float64) {
+func (enc *unaggregatedEncoder) encodeFloat64(value float64) {
 	if enc.err != nil {
 		return
 	}
 	enc.err = enc.encoder.EncodeFloat64(value)
 }
 
-func (enc *multiTypedEncoder) encodeBytes(value []byte) {
+func (enc *unaggregatedEncoder) encodeBytes(value []byte) {
 	if enc.err != nil {
 		return
 	}
 	enc.err = enc.encoder.EncodeBytes(value)
 }
 
-func (enc *multiTypedEncoder) encodeArrayLen(value int) {
+func (enc *unaggregatedEncoder) encodeArrayLen(value int) {
 	if enc.err != nil {
 		return
 	}

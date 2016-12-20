@@ -18,24 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package msgpack
+package metric
 
-import (
-	"testing"
+// ID is the metric id
+// TODO(xichen): make ID a union of numeric ID and bytes-backed IDs
+// so we can compress IDs on a per-connection basis
+type ID []byte
 
-	"github.com/stretchr/testify/require"
-)
-
-var (
-	testUnaggregatedIteratorOpts = NewUnaggregatedIteratorOptions()
-)
-
-func TestUnaggregatedIteratorOptionsValidateNoFloatsPool(t *testing.T) {
-	opts := testUnaggregatedIteratorOpts.SetFloatsPool(nil)
-	require.Equal(t, errNoFloatsPool, opts.Validate())
-}
-
-func TestUnaggregatedIteratorOptionsValidateNoPoliciesPool(t *testing.T) {
-	opts := testUnaggregatedIteratorOpts.SetPoliciesPool(nil)
-	require.Equal(t, errNoPoliciesPool, opts.Validate())
-}
+// String is the string representation of an id
+func (id ID) String() string { return string(id) }

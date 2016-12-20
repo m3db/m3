@@ -18,7 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package metric
+package unaggregated
+
+import "github.com/m3db/m3metrics/metric"
 
 // Type is a metric type
 type Type int8
@@ -31,52 +33,47 @@ const (
 	GaugeType
 )
 
-// IDType is the metric id type
-type IDType []byte
-
-// String is the string representation of an id
-func (id IDType) String() string { return string(id) }
-
 // Counter is a counter containing the counter ID and the counter value
 type Counter struct {
-	ID    IDType
+	ID    metric.ID
 	Value int64
 }
 
 // BatchTimer is a timer containing the timer ID and a list of timer values
 type BatchTimer struct {
-	ID     IDType
+	ID     metric.ID
 	Values []float64
 }
 
 // Gauge is a gauge containing the gauge ID and the value at certain time
 type Gauge struct {
-	ID    IDType
+	ID    metric.ID
 	Value float64
 }
 
-// OneOf is a union of different types of metrics, only one of which is valid
+// MetricUnion is a union of different types of metrics, only one of which is valid
 // at any given time. The actual type of the metric depends on the type field,
-// which determines which value field is valid. We intentionally do not use
-// pointers to avoid the GC overhead of marking and sweeping the metrics.
-type OneOf struct {
+// which determines which value field is valid. We intentionally do not use value
+// pointers and nil checks to determine which type is valid in order to avoid the GC
+// overhead of marking and sweeping the metrics.
+type MetricUnion struct {
 	Type          Type
-	ID            IDType
+	ID            metric.ID
 	CounterVal    int64
 	BatchTimerVal []float64
 	GaugeVal      float64
 }
 
-var emptyOneOf OneOf
+var emptyMetricUnion MetricUnion
 
-// Reset resets the metric
-func (m *OneOf) Reset() { *m = emptyOneOf }
+// Reset resets the metric union
+func (m *MetricUnion) Reset() { *m = emptyMetricUnion }
 
 // Counter returns the counter metric
-func (m *OneOf) Counter() Counter { return Counter{ID: m.ID, Value: m.CounterVal} }
+func (m *MetricUnion) Counter() Counter { return Counter{ID: m.ID, Value: m.CounterVal} }
 
 // BatchTimer returns the batch timer metric
-func (m *OneOf) BatchTimer() BatchTimer { return BatchTimer{ID: m.ID, Values: m.BatchTimerVal} }
+func (m *MetricUnion) BatchTimer() BatchTimer { return BatchTimer{ID: m.ID, Values: m.BatchTimerVal} }
 
 // Gauge returns the gauge metric
-func (m *OneOf) Gauge() Gauge { return Gauge{ID: m.ID, Value: m.GaugeVal} }
+func (m *MetricUnion) Gauge() Gauge { return Gauge{ID: m.ID, Value: m.GaugeVal} }

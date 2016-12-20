@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
 
@@ -36,20 +36,20 @@ import (
 )
 
 var (
-	testCounter = metric.OneOf{
-		Type:       metric.CounterType,
+	testCounter = unaggregated.MetricUnion{
+		Type:       unaggregated.CounterType,
 		ID:         []byte("foo"),
 		CounterVal: 1234,
 	}
 
-	testBatchTimer = metric.OneOf{
-		Type:          metric.BatchTimerType,
+	testBatchTimer = unaggregated.MetricUnion{
+		Type:          unaggregated.BatchTimerType,
 		ID:            []byte("foo"),
 		BatchTimerVal: []float64{222.22, 345.67, 901.23345},
 	}
 
-	testGauge = metric.OneOf{
-		Type:     metric.GaugeType,
+	testGauge = unaggregated.MetricUnion{
+		Type:     unaggregated.GaugeType,
 		ID:       []byte("foo"),
 		GaugeVal: 123.456,
 	}
@@ -118,44 +118,44 @@ var (
 )
 
 type metricWithPolicies struct {
-	metric            metric.OneOf
+	metric            unaggregated.MetricUnion
 	versionedPolicies policy.VersionedPolicies
 }
 
-func testMultiTypedEncoder(t *testing.T) MultiTypedEncoder {
-	encoder, err := NewMultiTypedEncoder(newBufferedEncoder())
+func testUnaggregatedEncoder(t *testing.T) UnaggregatedEncoder {
+	encoder, err := NewUnaggregatedEncoder(newBufferedEncoder())
 	require.NoError(t, err)
 	return encoder
 }
 
-func testMultiTypedIterator(t *testing.T, reader io.Reader) MultiTypedIterator {
-	opts := NewMultiTypedIteratorOptions()
-	iterator, err := NewMultiTypedIterator(reader, opts)
+func testUnaggregatedIterator(t *testing.T, reader io.Reader) UnaggregatedIterator {
+	opts := NewUnaggregatedIteratorOptions()
+	iterator, err := NewUnaggregatedIterator(reader, opts)
 	require.NoError(t, err)
 	return iterator
 }
 
-func testEncode(t *testing.T, encoder MultiTypedEncoder, m *metric.OneOf, p policy.VersionedPolicies) error {
+func testEncode(t *testing.T, encoder UnaggregatedEncoder, m *unaggregated.MetricUnion, p policy.VersionedPolicies) error {
 	switch m.Type {
-	case metric.CounterType:
+	case unaggregated.CounterType:
 		return encoder.EncodeCounterWithPolicies(m.Counter(), p)
-	case metric.BatchTimerType:
+	case unaggregated.BatchTimerType:
 		return encoder.EncodeBatchTimerWithPolicies(m.BatchTimer(), p)
-	case metric.GaugeType:
+	case unaggregated.GaugeType:
 		return encoder.EncodeGaugeWithPolicies(m.Gauge(), p)
 	default:
 		return fmt.Errorf("unrecognized metric type %v", m.Type)
 	}
 }
 
-func compareMetric(t *testing.T, expected metric.OneOf, actual metric.OneOf) {
+func compareMetric(t *testing.T, expected unaggregated.MetricUnion, actual unaggregated.MetricUnion) {
 	require.Equal(t, expected.Type, actual.Type)
 	switch expected.Type {
-	case metric.CounterType:
+	case unaggregated.CounterType:
 		require.Equal(t, expected.Counter(), actual.Counter())
-	case metric.BatchTimerType:
+	case unaggregated.BatchTimerType:
 		require.Equal(t, expected.BatchTimer(), actual.BatchTimer())
-	case metric.GaugeType:
+	case unaggregated.GaugeType:
 		require.Equal(t, expected.Gauge(), actual.Gauge())
 	default:
 		require.Fail(t, fmt.Sprintf("unrecognized metric type %v", expected.Type))
@@ -163,14 +163,14 @@ func compareMetric(t *testing.T, expected metric.OneOf, actual metric.OneOf) {
 }
 
 func validateRoundtrip(t *testing.T, inputs ...metricWithPolicies) {
-	encoder := testMultiTypedEncoder(t)
-	it := testMultiTypedIterator(t, nil)
+	encoder := testUnaggregatedEncoder(t)
+	it := testUnaggregatedIterator(t, nil)
 	validateRoundtripWithEncoderAndIterator(t, encoder, it, inputs...)
 }
 
 func validateRoundtripWithEncoderAndIterator(
 	t *testing.T,
-	encoder MultiTypedEncoder, it MultiTypedIterator, inputs ...metricWithPolicies,
+	encoder UnaggregatedEncoder, it UnaggregatedIterator, inputs ...metricWithPolicies,
 ) {
 	var results []metricWithPolicies
 
@@ -203,8 +203,8 @@ func validateRoundtripWithEncoderAndIterator(
 
 func TestEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
 	validateRoundtrip(t, metricWithPolicies{
-		metric: metric.OneOf{
-			Type:       metric.CounterType,
+		metric: unaggregated.MetricUnion{
+			Type:       unaggregated.CounterType,
 			ID:         []byte("foo"),
 			CounterVal: 1234,
 		},
@@ -214,8 +214,8 @@ func TestEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
 
 func TestEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
 	validateRoundtrip(t, metricWithPolicies{
-		metric: metric.OneOf{
-			Type:          metric.BatchTimerType,
+		metric: unaggregated.MetricUnion{
+			Type:          unaggregated.BatchTimerType,
 			ID:            []byte("foo"),
 			BatchTimerVal: []float64{222.22, 345.67, 901.23345},
 		},
@@ -225,8 +225,8 @@ func TestEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
 
 func TestEncodeDecodeGaugeWithDefaultPolicies(t *testing.T) {
 	validateRoundtrip(t, metricWithPolicies{
-		metric: metric.OneOf{
-			Type:     metric.GaugeType,
+		metric: unaggregated.MetricUnion{
+			Type:     unaggregated.GaugeType,
 			ID:       []byte("foo"),
 			GaugeVal: 123.456,
 		},
@@ -245,7 +245,7 @@ func TestEncodeDecodeAllTypesWithCustomPolicies(t *testing.T) {
 func TestEncodeDecodeStress(t *testing.T) {
 	numIter := 10
 	numMetrics := 10000
-	allMetrics := []metric.OneOf{testCounter, testBatchTimer, testGauge}
+	allMetrics := []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge}
 	allPolicies := []policy.VersionedPolicies{
 		policy.DefaultVersionedPolicies,
 		{
@@ -263,8 +263,8 @@ func TestEncodeDecodeStress(t *testing.T) {
 		},
 	}
 
-	encoder := testMultiTypedEncoder(t)
-	iterator := testMultiTypedIterator(t, nil)
+	encoder := testUnaggregatedEncoder(t)
+	iterator := testUnaggregatedIterator(t, nil)
 	for i := 0; i < numIter; i++ {
 		var inputs []metricWithPolicies
 		for j := 0; j < numMetrics; j++ {
