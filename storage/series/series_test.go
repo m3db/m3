@@ -299,7 +299,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	blocks.AddBlock(b)
 
 	faultyEncoder := opts.EncoderPool().Get()
-	faultyEncoder.ResetSetData(blockStart, []byte{0x0})
+	faultyEncoder.ResetSetData(blockStart, ts.Segment{Head: []byte{0x0}})
 	faultyBlock := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	faultyBlock.Reset(blockStart, faultyEncoder.Discard())
 	series.blocks.AddBlock(faultyBlock)

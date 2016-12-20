@@ -161,14 +161,11 @@ func (b *dbBuffer) DrainAndReset() {
 
 			// After we merge there is always only a single encoder with all data
 			encoder := bucket.encoders[0].encoder
-			if stream := encoder.Stream(); stream != nil {
+			data := encoder.ResetSetData(current, ts.Segment{})
+			if data.Len() > 0 {
 				newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-				newBlock.Reset(bucket.start, stream.Segment())
+				newBlock.Reset(bucket.start, data)
 				b.drainFn(newBlock)
-
-				// Release the reference encoder has to the data so when
-				// encoder is closed it will not return the bytes to the bytes pool
-				encoder.ResetSetData(bucket.start, nil)
 			} else {
 				log := b.opts.InstrumentOptions().Logger()
 				log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
@@ -332,6 +329,9 @@ type inOrderEncoder struct {
 func (b *dbBufferBucket) resetTo(
 	start time.Time,
 ) {
+	// Close the old context if we're resetting for use
+	b.finalize()
+
 	ctx := b.opts.ContextPool().Get()
 
 	bopts := b.opts.DatabaseBlockOptions()
@@ -341,10 +341,6 @@ func (b *dbBufferBucket) resetTo(
 	// Register when this bucket resets we close the encoder
 	ctx.RegisterFinalizer(context.FinalizerFn(encoder.Close))
 
-	if b.ctx != nil {
-		// Close the old context if we're resetting for use
-		b.ctx.Close()
-	}
 	b.ctx = ctx
 	b.start = start
 	var zeroed inOrderEncoder
@@ -358,6 +354,14 @@ func (b *dbBufferBucket) resetTo(
 	b.bootstrapped = nil
 	b.empty = true
 	b.drained = false
+}
+
+func (b *dbBufferBucket) finalize() {
+	if b.ctx != nil {
+		// Close the old context
+		b.ctx.Close()
+	}
+	b.ctx = nil
 }
 
 func (b *dbBufferBucket) canRead() bool {

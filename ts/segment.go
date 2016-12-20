@@ -39,6 +39,11 @@ type Segment struct {
 	TailPool pool.BytesPool
 }
 
+// Len returns the length of the head and tail.
+func (s *Segment) Len() int {
+	return len(s.Head) + len(s.Tail)
+}
+
 // Finalize will release resources kept by the segment if pooled.
 func (s *Segment) Finalize() {
 	if s.HeadPool != nil && s.Head != nil {
