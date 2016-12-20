@@ -23,12 +23,14 @@ package msgpack
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/pool"
 	xpool "github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/time"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
@@ -91,7 +93,7 @@ func (it *unaggregatedIterator) decodeRootObject() bool {
 	}
 	// If the actual version is higher than supported version, we skip
 	// the data for this metric and continue to the next
-	if version > supportedVersion {
+	if version > unaggregatedVersion {
 		it.skip(it.decodeNumObjectFields())
 		return it.Next()
 	}
@@ -185,43 +187,93 @@ func (it *unaggregatedIterator) decodePolicy() policy.Policy {
 	return p
 }
 
+func (it *unaggregatedIterator) decodeResolution() policy.Resolution {
+	numActualFields := it.decodeNumObjectFields()
+	resolutionType := it.decodeObjectType()
+	numExpectedFields, numActualFields, ok := it.checkNumFieldsForTypeWithActual(
+		resolutionType,
+		numActualFields,
+	)
+	if !ok {
+		return policy.EmptyResolution
+	}
+	switch resolutionType {
+	case knownResolutionType:
+		resolutionValue := policy.ResolutionValue(it.decodeVarint())
+		it.skip(numActualFields - numExpectedFields)
+		if it.err != nil {
+			return policy.EmptyResolution
+		}
+		resolution, err := resolutionValue.Resolution()
+		it.err = err
+		return resolution
+	case unknownResolutionType:
+		window := time.Duration(it.decodeVarint())
+		precision := xtime.Unit(it.decodeVarint())
+		it.skip(numActualFields - numExpectedFields)
+		return policy.Resolution{Window: window, Precision: precision}
+	default:
+		it.err = fmt.Errorf("unrecognized resolution type %v", resolutionType)
+		return policy.EmptyResolution
+	}
+}
+
+func (it *unaggregatedIterator) decodeRetention() policy.Retention {
+	numActualFields := it.decodeNumObjectFields()
+	retentionType := it.decodeObjectType()
+	numExpectedFields, numActualFields, ok := it.checkNumFieldsForTypeWithActual(
+		retentionType,
+		numActualFields,
+	)
+	if !ok {
+		return policy.EmptyRetention
+	}
+	switch retentionType {
+	case knownRetentionType:
+		retentionValue := policy.RetentionValue(it.decodeVarint())
+		it.skip(numActualFields - numExpectedFields)
+		if it.err != nil {
+			return policy.EmptyRetention
+		}
+		retention, err := retentionValue.Retention()
+		it.err = err
+		return retention
+	case unknownRetentionType:
+		retention := policy.Retention(it.decodeVarint())
+		it.skip(numActualFields - numExpectedFields)
+		return retention
+	default:
+		it.err = fmt.Errorf("unrecognized retention type %v", retentionType)
+		return policy.EmptyRetention
+	}
+}
+
 func (it *unaggregatedIterator) decodeVersionedPolicies() {
 	numActualFields := it.decodeNumObjectFields()
-	version := int(it.decodeVarint())
-	if it.err != nil {
-		return
-	}
-
-	// NB(xichen): if the policy version is the default version, simply
-	// return the default policies
-	if version == policy.DefaultPolicyVersion {
-		numExpectedFields, numActualFields, ok := it.checkNumFieldsForTypeWithActual(
-			defaultVersionedPolicyType,
-			numActualFields,
-		)
-		if !ok {
-			return
-		}
-		it.versionedPolicies = policy.DefaultVersionedPolicies
-		it.skip(numActualFields - numExpectedFields)
-		return
-	}
-
-	// Otherwise proceed to decoding the entire object
+	versionedPoliciesType := it.decodeObjectType()
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForTypeWithActual(
-		customVersionedPolicyType,
+		versionedPoliciesType,
 		numActualFields,
 	)
 	if !ok {
 		return
 	}
-	numPolicies := it.decodeArrayLen()
-	policies := it.policiesPool.Get(numPolicies)
-	for i := 0; i < numPolicies; i++ {
-		policies = append(policies, it.decodePolicy())
+	switch versionedPoliciesType {
+	case defaultVersionedPoliciesType:
+		it.versionedPolicies = policy.DefaultVersionedPolicies
+		it.skip(numActualFields - numExpectedFields)
+	case customVersionedPoliciesType:
+		version := int(it.decodeVarint())
+		numPolicies := it.decodeArrayLen()
+		policies := it.policiesPool.Get(numPolicies)
+		for i := 0; i < numPolicies; i++ {
+			policies = append(policies, it.decodePolicy())
+		}
+		it.versionedPolicies = policy.VersionedPolicies{Version: version, Policies: policies}
+		it.skip(numActualFields - numExpectedFields)
+	default:
+		it.err = fmt.Errorf("unrecognized versioned policies type: %v", versionedPoliciesType)
 	}
-	it.versionedPolicies = policy.VersionedPolicies{Version: version, Policies: policies}
-	it.skip(numActualFields - numExpectedFields)
 }
 
 // checkNumFieldsForType decodes and compares the number of actual fields with
@@ -236,10 +288,10 @@ func (it *unaggregatedIterator) checkNumFieldsForTypeWithActual(
 	objType objectType,
 	numActualFields int,
 ) (int, int, bool) {
-	numExpectedFields := numFieldsForType(objType)
 	if it.err != nil {
 		return 0, 0, false
 	}
+	numExpectedFields := numFieldsForType(objType)
 	if numExpectedFields > numActualFields {
 		it.err = fmt.Errorf("number of fields mismatch: expected %d actual %d", numExpectedFields, numActualFields)
 		return 0, 0, false
@@ -261,26 +313,6 @@ func (it *unaggregatedIterator) decodeNumObjectFields() int {
 
 func (it *unaggregatedIterator) decodeID() metric.ID {
 	return metric.ID(it.decodeBytes())
-}
-
-func (it *unaggregatedIterator) decodeResolution() policy.Resolution {
-	resolutionValue := policy.ResolutionValue(it.decodeVarint())
-	resolution, err := resolutionValue.Resolution()
-	if it.err != nil {
-		return policy.EmptyResolution
-	}
-	it.err = err
-	return resolution
-}
-
-func (it *unaggregatedIterator) decodeRetention() policy.Retention {
-	retentionValue := policy.RetentionValue(it.decodeVarint())
-	retention, err := retentionValue.Retention()
-	if it.err != nil {
-		return policy.EmptyRetention
-	}
-	it.err = err
-	return retention
 }
 
 // NB(xichen): the underlying msgpack decoder implementation

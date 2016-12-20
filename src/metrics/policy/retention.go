@@ -28,9 +28,9 @@ import (
 // RetentionValue is the retention value
 type RetentionValue int
 
-// List of retention values currently supported
+// List of known retention values
 const (
-	UnknownRetention RetentionValue = iota
+	UnknownRetentionValue RetentionValue = iota
 	OneHour
 	SixHours
 	TwelveHours
@@ -65,7 +65,7 @@ func ValueFromRetention(retention Retention) (RetentionValue, error) {
 	if exists {
 		return value, nil
 	}
-	return UnknownRetention, errUnknownRetention
+	return UnknownRetentionValue, errUnknownRetention
 }
 
 var (

@@ -30,9 +30,9 @@ import (
 // ResolutionValue is the resolution value
 type ResolutionValue int
 
-// List of resolution values currently supported
+// List of known resolution values
 const (
-	UnknownResolution ResolutionValue = iota
+	UnknownResolutionValue ResolutionValue = iota
 	OneSecond
 	TenSeconds
 	OneMinute
@@ -63,7 +63,7 @@ func ValueFromResolution(resolution Resolution) (ResolutionValue, error) {
 	if exists {
 		return value, nil
 	}
-	return UnknownResolution, errUnknownResolution
+	return UnknownResolutionValue, errUnknownResolution
 }
 
 var (

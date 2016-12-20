@@ -130,7 +130,7 @@ func (enc *unaggregatedEncoder) EncodeGaugeWithPolicies(
 }
 
 func (enc *unaggregatedEncoder) encodeRootObject(objType objectType) {
-	enc.encodeVersion(supportedVersion)
+	enc.encodeVersion(unaggregatedVersion)
 	enc.encodeNumObjectFields(numFieldsForType(rootObjectType))
 	enc.encodeObjectType(objType)
 }
@@ -189,18 +189,55 @@ func (enc *unaggregatedEncoder) encodePolicy(p policy.Policy) {
 	enc.encodeRetention(p.Retention)
 }
 
+func (enc *unaggregatedEncoder) encodeResolution(resolution policy.Resolution) {
+	if enc.err != nil {
+		return
+	}
+	// If this is a known resolution, only encode its corresponding value
+	if resolutionValue, err := policy.ValueFromResolution(resolution); err == nil {
+		enc.encodeNumObjectFields(numFieldsForType(knownResolutionType))
+		enc.encodeObjectType(knownResolutionType)
+		enc.encodeVarintFn(int64(resolutionValue))
+		return
+	}
+	// Otherwise encode the entire resolution object
+	// TODO(xichen): validate the resolution before putting it on the wire
+	enc.encodeNumObjectFields(numFieldsForType(unknownResolutionType))
+	enc.encodeObjectType(unknownResolutionType)
+	enc.encodeVarintFn(int64(resolution.Window))
+	enc.encodeVarintFn(int64(resolution.Precision))
+}
+
+func (enc *unaggregatedEncoder) encodeRetention(retention policy.Retention) {
+	if enc.err != nil {
+		return
+	}
+	// If this is a known retention, only encode its corresponding value
+	if retentionValue, err := policy.ValueFromRetention(retention); err == nil {
+		enc.encodeNumObjectFields(numFieldsForType(knownRetentionType))
+		enc.encodeObjectType(knownRetentionType)
+		enc.encodeVarintFn(int64(retentionValue))
+		return
+	}
+	// Otherwise encode the entire retention object
+	// TODO(xichen): validate the retention before putting it on the wire
+	enc.encodeNumObjectFields(numFieldsForType(unknownRetentionType))
+	enc.encodeObjectType(unknownRetentionType)
+	enc.encodeVarintFn(int64(retention))
+}
+
 func (enc *unaggregatedEncoder) encodeVersionedPolicies(vp policy.VersionedPolicies) {
 	// NB(xichen): if this is a default policy, we only encode the policy version
 	// and not the actual policies to optimize for the common case where the policies
 	// are the default ones
 	if vp.Version == policy.DefaultPolicyVersion {
-		enc.encodeNumObjectFields(numFieldsForType(defaultVersionedPolicyType))
-		enc.encodeVersion(vp.Version)
+		enc.encodeNumObjectFields(numFieldsForType(defaultVersionedPoliciesType))
+		enc.encodeObjectType(defaultVersionedPoliciesType)
 		return
 	}
-
 	// Otherwise fallback to encoding the entire object
-	enc.encodeNumObjectFields(numFieldsForType(customVersionedPolicyType))
+	enc.encodeNumObjectFields(numFieldsForType(customVersionedPoliciesType))
+	enc.encodeObjectType(customVersionedPoliciesType)
 	enc.encodeVersion(vp.Version)
 	enc.encodeArrayLenFn(len(vp.Policies))
 	for _, policy := range vp.Policies {
@@ -222,30 +259,6 @@ func (enc *unaggregatedEncoder) encodeNumObjectFields(numFields int) {
 
 func (enc *unaggregatedEncoder) encodeID(id metric.ID) {
 	enc.encodeBytesFn([]byte(id))
-}
-
-func (enc *unaggregatedEncoder) encodeResolution(resolution policy.Resolution) {
-	if enc.err != nil {
-		return
-	}
-	resolutionValue, err := policy.ValueFromResolution(resolution)
-	if err != nil {
-		enc.err = err
-		return
-	}
-	enc.encodeVarintFn(int64(resolutionValue))
-}
-
-func (enc *unaggregatedEncoder) encodeRetention(retention policy.Retention) {
-	if enc.err != nil {
-		return
-	}
-	retentionValue, err := policy.ValueFromRetention(retention)
-	if err != nil {
-		enc.err = err
-		return
-	}
-	enc.encodeVarintFn(int64(retentionValue))
 }
 
 // NB(xichen): the underlying msgpack encoder implementation

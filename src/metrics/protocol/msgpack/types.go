@@ -32,10 +32,6 @@ import (
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
-const (
-	supportedVersion int = 1
-)
-
 // BufferedEncoder is an messagePack-based encoder backed by byte buffers
 type BufferedEncoder struct {
 	*msgpack.Encoder
