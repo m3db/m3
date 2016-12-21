@@ -33,8 +33,9 @@ import (
 func TestWatchable(t *testing.T) {
 	p := NewWatchable()
 	assert.Nil(t, p.Get())
-	assert.Equal(t, 0, WatchLen(p.(*watchable)))
+	assert.Equal(t, 0, p.NumWatches())
 	assert.NoError(t, p.Update(nil))
+	assert.False(t, p.IsClosed())
 	get := 100
 	p = NewWatchable()
 	p.Update(get)
@@ -44,10 +45,11 @@ func TestWatchable(t *testing.T) {
 	assert.Equal(t, get, v)
 	assert.NoError(t, err)
 	assert.NoError(t, p.Update(get))
-	assert.Equal(t, 1, WatchLen(p.(*watchable)))
+	assert.Equal(t, 1, p.NumWatches())
 
 	p.Close()
-	assert.Equal(t, 0, WatchLen(p.(*watchable)))
+	assert.True(t, p.IsClosed())
+	assert.Equal(t, 0, p.NumWatches())
 	assert.Equal(t, get, p.Get())
 	_, s, err = p.Watch()
 	assert.Nil(t, s)
@@ -68,11 +70,11 @@ func TestWatch(t *testing.T) {
 	assert.True(t, ok)
 	assert.Nil(t, s.Get())
 
-	assert.Equal(t, 1, WatchLen(p.(*watchable)))
+	assert.Equal(t, 1, p.NumWatches())
 	s.Close()
 	_, ok = <-s.C()
 	assert.False(t, ok)
-	assert.Equal(t, 0, WatchLen(p.(*watchable)))
+	assert.Equal(t, 0, p.NumWatches())
 	assert.NotPanics(t, s.Close)
 
 	get := 100
@@ -88,13 +90,13 @@ func TestWatch(t *testing.T) {
 	assert.Equal(t, get, s.Get())
 
 	// sub.Close() after p.Close()
-	assert.Equal(t, 1, WatchLen(p.(*watchable)))
+	assert.Equal(t, 1, p.NumWatches())
 	p.Close()
-	assert.Equal(t, 0, WatchLen(p.(*watchable)))
+	assert.Equal(t, 0, p.NumWatches())
 	s.Close()
 	_, ok = <-s.C()
 	assert.False(t, ok)
-	assert.Equal(t, 0, WatchLen(p.(*watchable)))
+	assert.Equal(t, 0, p.NumWatches())
 
 	// second watch has initial update
 	p = NewWatchable()
@@ -131,7 +133,7 @@ func TestMultiWatch(t *testing.T) {
 		testWatchAndClose(t, p, subMap, valueMap, i)
 	}
 
-	assert.Equal(t, 0, WatchLen(p.(*watchable)))
+	assert.Equal(t, 0, p.NumWatches())
 	p.Close()
 }
 
@@ -147,7 +149,7 @@ func testWatchAndClose(t *testing.T, p Watchable, subMap map[int]Watch, valueMap
 		valueMap[i] = v
 	}
 
-	l := WatchLen(p.(*watchable))
+	l := p.NumWatches()
 	assert.Equal(t, len(subMap), l)
 
 	// randomly close 1 subscriber
@@ -160,7 +162,7 @@ func testWatchAndClose(t *testing.T, p Watchable, subMap map[int]Watch, valueMap
 		delete(valueMap, i)
 		break
 	}
-	assert.Equal(t, l-1, WatchLen(p.(*watchable)))
+	assert.Equal(t, l-1, p.NumWatches())
 }
 
 func TestAsyncWatch(t *testing.T) {
@@ -193,13 +195,6 @@ func TestAsyncWatch(t *testing.T) {
 		assert.NoError(t, err)
 	}
 	p.Close()
-	assert.Equal(t, 0, WatchLen(p.(*watchable)))
+	assert.Equal(t, 0, p.NumWatches())
 	wg.Wait()
-}
-
-func WatchLen(w *watchable) int {
-	w.RLock()
-	l := len(w.active)
-	w.RUnlock()
-	return l
 }
