@@ -21,7 +21,7 @@
 package client
 
 import (
-	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -33,12 +33,6 @@ import (
 	"github.com/m3db/m3x/pool"
 
 	"github.com/uber/tchannel-go/thrift"
-)
-
-var (
-	errQueueNotOpen          = errors.New("host operation queue not open")
-	errQueueUnknownOperation = errors.New("host operation queue received unknown operation")
-	errQueueFetchNoResponse  = errors.New("host operation queue did not receive response for given fetch")
 )
 
 type queue struct {
@@ -230,7 +224,7 @@ func (q *queue) drain() {
 				q.asyncTruncate(v)
 			default:
 				completionFn := ops[i].CompletionFn()
-				completionFn(nil, errQueueUnknownOperation)
+				completionFn(nil, errQueueUnknownOperation(q.host.ID()))
 			}
 		}
 
@@ -347,7 +341,7 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 		for i := 0; i < op.Size(); i++ {
 			if !(i < resultLen) {
 				// No results for this entry, in practice should never occur
-				op.complete(i, nil, errQueueFetchNoResponse)
+				op.complete(i, nil, errQueueFetchNoResponse(q.host.ID()))
 				continue
 			}
 			if result.Elements[i].Err != nil {
@@ -397,7 +391,7 @@ func (q *queue) Enqueue(o op) error {
 	q.Lock()
 	if q.state != stateOpen {
 		q.Unlock()
-		return errQueueNotOpen
+		return errQueueNotOpen(q.host.ID())
 	}
 	q.ops = append(q.ops, o)
 	q.opsSumSize += o.Size()
@@ -430,7 +424,7 @@ func (q *queue) BorrowConnection(fn withConnectionFn) error {
 	q.RLock()
 	if q.state != stateOpen {
 		q.RUnlock()
-		return errQueueNotOpen
+		return errQueueNotOpen(q.host.ID())
 	}
 	// Add an outstanding operation to avoid connection pool being closed
 	q.Add(1)
@@ -458,4 +452,18 @@ func (q *queue) Close() {
 	// consistently if channel is open or not by checking state
 	close(q.drainIn)
 	q.Unlock()
+}
+
+// errors
+
+func errQueueNotOpen(hostID string) error {
+	return fmt.Errorf("host operation queue not open for host: %s", hostID)
+}
+
+func errQueueUnknownOperation(hostID string) error {
+	return fmt.Errorf("host operation queue received unknown operation for host: %s", hostID)
+}
+
+func errQueueFetchNoResponse(hostID string) error {
+	return fmt.Errorf("host operation queue did not receive response for given fetch for host: %s", hostID)
 }
