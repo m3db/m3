@@ -64,9 +64,7 @@ func TestHostQueueWriteErrorBeforeOpen(t *testing.T) {
 	opts := newHostQueueTestOptions()
 	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts)
 
-	err := queue.Enqueue(&writeOp{})
-	assert.Error(t, err)
-	assert.Equal(t, err, errQueueNotOpen)
+	assert.Error(t, queue.Enqueue(&writeOp{}))
 }
 
 func TestHostQueueWriteErrorAfterClose(t *testing.T) {
@@ -76,9 +74,7 @@ func TestHostQueueWriteErrorAfterClose(t *testing.T) {
 	queue.Open()
 	queue.Close()
 
-	err := queue.Enqueue(&writeOp{})
-	assert.Error(t, err)
-	assert.Equal(t, err, errQueueNotOpen)
+	assert.Error(t, queue.Enqueue(&writeOp{}))
 }
 
 func TestHostQueueWriteBatches(t *testing.T) {
@@ -469,9 +465,12 @@ func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
 	for i := range ids[:len(ids)-1] {
 		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
 	}
-	expected = append(expected, hostQueueResult{nil, errQueueFetchNoResponse})
+
 	testHostQueueFetchBatches(t, namespace, ids, result, expected, nil, func(results []hostQueueResult) {
-		assert.Equal(t, expected, results)
+		assert.Equal(t, expected, results[:len(results)-1])
+		lastResult := results[len(results)-1]
+		assert.Nil(t, lastResult.result)
+		assert.IsType(t, errQueueFetchNoResponse(""), lastResult.err)
 	})
 }
 
