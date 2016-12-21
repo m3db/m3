@@ -14,17 +14,40 @@ It has these top-level messages:
 package kvtest
 
 import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 type Foo struct {
 	Msg string `protobuf:"bytes,1,opt,name=msg" json:"msg,omitempty"`
 }
 
-func (m *Foo) Reset()         { *m = Foo{} }
-func (m *Foo) String() string { return proto.CompactTextString(m) }
-func (*Foo) ProtoMessage()    {}
+func (m *Foo) Reset()                    { *m = Foo{} }
+func (m *Foo) String() string            { return proto.CompactTextString(m) }
+func (*Foo) ProtoMessage()               {}
+func (*Foo) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 func init() {
+	proto.RegisterType((*Foo)(nil), "kvtest.Foo")
+}
+
+func init() { proto.RegisterFile("kvtest.proto", fileDescriptor0) }
+
+var fileDescriptor0 = []byte{
+	// 70 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xe2, 0xe2, 0xc9, 0x2e, 0x2b, 0x49,
+	0x2d, 0x2e, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x83, 0xf0, 0x94, 0xc4, 0xb9, 0x98,
+	0xdd, 0xf2, 0xf3, 0x85, 0x04, 0xb8, 0x98, 0x73, 0x8b, 0xd3, 0x25, 0x18, 0x15, 0x18, 0x35, 0x38,
+	0x83, 0x40, 0xcc, 0x24, 0x36, 0xb0, 0x3a, 0x63, 0x40, 0x00, 0x00, 0x00, 0xff, 0xff, 0xf4, 0x24,
+	0x12, 0x2d, 0x37, 0x00, 0x00, 0x00,
 }
