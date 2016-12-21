@@ -184,7 +184,7 @@ func (s *seeker) readIndex(size int) error {
 		}
 
 		indexUnread = indexUnread[size:]
-		s.indexMap[ts.BinaryID(entry.Id).Hash()] = entry
+		s.indexMap[ts.HashFn(entry.Id)] = entry
 	}
 
 	return nil
