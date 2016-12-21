@@ -143,7 +143,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	w.pending--
 
 	if err != nil {
-		w.errors = append(w.errors, fmt.Errof("error writing to host %s: %v", hostID, err))
+		w.errors = append(w.errors, fmt.Errorf("error writing to host %s: %v", hostID, err))
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
 		w.errors = append(w.errors, fmt.Errorf("missing host shard in writeState completionFn: %s", hostID))
 	} else if shardState, err :=
