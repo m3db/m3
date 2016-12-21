@@ -15,25 +15,52 @@ It has these top-level messages:
 package changesettest
 
 import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 type Config struct {
 	Text string `protobuf:"bytes,1,opt,name=text" json:"text,omitempty"`
 }
 
-func (m *Config) Reset()         { *m = Config{} }
-func (m *Config) String() string { return proto.CompactTextString(m) }
-func (*Config) ProtoMessage()    {}
+func (m *Config) Reset()                    { *m = Config{} }
+func (m *Config) String() string            { return proto.CompactTextString(m) }
+func (*Config) ProtoMessage()               {}
+func (*Config) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 type Changes struct {
 	Lines []string `protobuf:"bytes,1,rep,name=lines" json:"lines,omitempty"`
 }
 
-func (m *Changes) Reset()         { *m = Changes{} }
-func (m *Changes) String() string { return proto.CompactTextString(m) }
-func (*Changes) ProtoMessage()    {}
+func (m *Changes) Reset()                    { *m = Changes{} }
+func (m *Changes) String() string            { return proto.CompactTextString(m) }
+func (*Changes) ProtoMessage()               {}
+func (*Changes) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 func init() {
+	proto.RegisterType((*Config)(nil), "changesettest.Config")
+	proto.RegisterType((*Changes)(nil), "changesettest.Changes")
+}
+
+func init() { proto.RegisterFile("changesettest.proto", fileDescriptor0) }
+
+var fileDescriptor0 = []byte{
+	// 106 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xe2, 0x12, 0x4e, 0xce, 0x48, 0xcc,
+	0x4b, 0x4f, 0x2d, 0x4e, 0x2d, 0x29, 0x49, 0x2d, 0x2e, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17,
+	0xe2, 0x45, 0x11, 0x54, 0x92, 0xe1, 0x62, 0x73, 0xce, 0xcf, 0x4b, 0xcb, 0x4c, 0x17, 0x12, 0xe2,
+	0x62, 0x29, 0x49, 0xad, 0x28, 0x91, 0x60, 0x54, 0x60, 0xd4, 0xe0, 0x0c, 0x02, 0xb3, 0x95, 0xe4,
+	0xb9, 0xd8, 0x9d, 0x21, 0xca, 0x85, 0x44, 0xb8, 0x58, 0x73, 0x32, 0xf3, 0x52, 0x8b, 0x25, 0x18,
+	0x15, 0x98, 0x35, 0x38, 0x83, 0x20, 0x9c, 0x24, 0x36, 0xb0, 0xa1, 0xc6, 0x80, 0x00, 0x00, 0x00,
+	0xff, 0xff, 0x16, 0x26, 0xac, 0xe3, 0x6b, 0x00, 0x00, 0x00,
 }

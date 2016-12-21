@@ -14,9 +14,19 @@ It has these top-level messages:
 package changesetpb
 
 import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 // ChangeSetState tracks the stateof a changeset
 type ChangeSetState int32
@@ -41,23 +51,43 @@ var ChangeSetState_value = map[string]int32{
 func (x ChangeSetState) String() string {
 	return proto.EnumName(ChangeSetState_name, int32(x))
 }
+func (ChangeSetState) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 // A ChangeSet is a set of changes that are applied together.  The exact
 // format of the changes is up to the application; the ChangeSet simply
 // tracks the state of application
 type ChangeSet struct {
 	// for_version is the version of configuration on which this ChangeSet is built
-	ForVersion int32 `protobuf:"varint,1,opt,name=for_version" json:"for_version,omitempty"`
+	ForVersion int32 `protobuf:"varint,1,opt,name=for_version,json=forVersion" json:"for_version,omitempty"`
 	// state is the state of the ChangeSet
 	State ChangeSetState `protobuf:"varint,2,opt,name=state,enum=changesetpb.ChangeSetState" json:"state,omitempty"`
 	// changes are the marshalled form of the changes
 	Changes []byte `protobuf:"bytes,3,opt,name=changes,proto3" json:"changes,omitempty"`
 }
 
-func (m *ChangeSet) Reset()         { *m = ChangeSet{} }
-func (m *ChangeSet) String() string { return proto.CompactTextString(m) }
-func (*ChangeSet) ProtoMessage()    {}
+func (m *ChangeSet) Reset()                    { *m = ChangeSet{} }
+func (m *ChangeSet) String() string            { return proto.CompactTextString(m) }
+func (*ChangeSet) ProtoMessage()               {}
+func (*ChangeSet) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
 func init() {
+	proto.RegisterType((*ChangeSet)(nil), "changesetpb.ChangeSet")
 	proto.RegisterEnum("changesetpb.ChangeSetState", ChangeSetState_name, ChangeSetState_value)
+}
+
+func init() { proto.RegisterFile("changeset.proto", fileDescriptor0) }
+
+var fileDescriptor0 = []byte{
+	// 176 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xe2, 0xe2, 0x4f, 0xce, 0x48, 0xcc,
+	0x4b, 0x4f, 0x2d, 0x4e, 0x2d, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0x86, 0x0b, 0x14,
+	0x24, 0x29, 0x55, 0x72, 0x71, 0x3a, 0x83, 0xb9, 0xc1, 0xa9, 0x25, 0x42, 0xf2, 0x5c, 0xdc, 0x69,
+	0xf9, 0x45, 0xf1, 0x65, 0xa9, 0x45, 0xc5, 0x99, 0xf9, 0x79, 0x12, 0x8c, 0x0a, 0x8c, 0x1a, 0xac,
+	0x41, 0x5c, 0x69, 0xf9, 0x45, 0x61, 0x10, 0x11, 0x21, 0x43, 0x2e, 0xd6, 0xe2, 0x92, 0xc4, 0x92,
+	0x54, 0x09, 0x26, 0x05, 0x46, 0x0d, 0x3e, 0x23, 0x69, 0x3d, 0x24, 0xa3, 0xf4, 0xe0, 0xe6, 0x04,
+	0x83, 0x94, 0x04, 0x41, 0x54, 0x0a, 0x49, 0x70, 0xb1, 0x43, 0x15, 0x49, 0x30, 0x2b, 0x30, 0x6a,
+	0xf0, 0x04, 0xc1, 0xb8, 0x5a, 0xc6, 0x5c, 0x7c, 0xa8, 0x5a, 0x84, 0xb8, 0xb9, 0xd8, 0x43, 0xfd,
+	0xbc, 0xfd, 0xfc, 0xc3, 0xfd, 0x04, 0x18, 0x84, 0x38, 0xb8, 0x58, 0xfc, 0x03, 0x5c, 0xfd, 0x04,
+	0x18, 0x85, 0xb8, 0xb8, 0xd8, 0x9c, 0x7d, 0xfc, 0x83, 0x5d, 0x5d, 0x04, 0x98, 0x92, 0xd8, 0xc0,
+	0x7e, 0x30, 0x06, 0x04, 0x00, 0x00, 0xff, 0xff, 0x89, 0xba, 0xc3, 0x6a, 0xd6, 0x00, 0x00, 0x00,
 }
