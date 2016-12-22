@@ -55,6 +55,10 @@ var (
 	errSeriesNotBootstrapped  = errors.New("series is not yet bootstrapped")
 )
 
+var (
+	nilID = ts.BinaryID(nil)
+)
+
 type dbSeries struct {
 	sync.RWMutex
 	opts   Options
@@ -76,7 +80,7 @@ func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
 
 // NewPooledDatabaseSeries creates a new pooled database series
 func NewPooledDatabaseSeries(pool DatabaseSeriesPool, opts Options) DatabaseSeries {
-	series := newDatabaseSeries(nil, opts)
+	series := newDatabaseSeries(nilID, opts)
 	series.pool = pool
 	return series
 }
@@ -540,11 +544,14 @@ func (s *dbSeries) Flush(
 
 func (s *dbSeries) Close() {
 	s.Lock()
-	s.id.Finalize()
-	s.id = nil
+	if !s.id.Equal(nilID) {
+		s.id.Finalize()
+		s.id = nilID
+	}
 	s.buffer.Reset()
 	s.blocks.Close()
 	s.Unlock()
+
 	if s.pool != nil {
 		s.pool.Put(s)
 	}
