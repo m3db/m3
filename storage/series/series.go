@@ -351,11 +351,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 
 	res.Sort()
 
-	if !s.id.Equal(nilID) {
-		return block.NewFetchBlocksMetadataResult(s.opts.IdentifierPool().Clone(s.id), res)
-	}
-
-	return block.NewFetchBlocksMetadataResult(s.id, res)
+	return block.NewFetchBlocksMetadataResult(s.opts.IdentifierPool().Clone(s.id), res)
 }
 
 func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
