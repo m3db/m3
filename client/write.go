@@ -47,7 +47,6 @@ type writeOp struct {
 
 func (w *writeOp) reset() {
 	*w = writeOpZeroed
-
 	w.request.Datapoint = &w.datapoint
 }
 
