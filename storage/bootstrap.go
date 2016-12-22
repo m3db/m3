@@ -52,6 +52,9 @@ var (
 	// errShardIsBootstrapping raised when trying to bootstrap a shard that's being bootstrapped.
 	errShardIsBootstrapping = errors.New("shard is bootstrapping")
 
+	// errShardNotBootstrapped raised when trying to update a shard which has not yet bootstrapped .
+	errShardNotBootstrapped = errors.New("shard not bootstrapped")
+
 	// errShardNotBootstrappedToFlush raised when trying to flush data for a shard that's not yet bootstrapped.
 	errShardNotBootstrappedToFlush = errors.New("shard is not yet bootstrapped to flush")
 

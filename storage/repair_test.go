@@ -210,7 +210,7 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	require.Nil(t, repairer.Repair())
 }
 
-func TestDatabaseShardRepairerRepair(t *testing.T) {
+func TestDatabaseShardRepairerRecordDifferences(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -297,6 +297,9 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		resNamespace = namespace
 		resShard = shard
 		resDiff = diffRes
+	}
+	repairer.repairFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) error {
+		return nil
 	}
 
 	ctx := context.NewContext()

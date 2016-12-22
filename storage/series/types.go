@@ -78,6 +78,9 @@ type DatabaseSeries interface {
 	// Bootstrap merges the raw series bootstrapped along with any buffered data
 	Bootstrap(blocks block.DatabaseSeriesBlocks) error
 
+	// Update merges the raw database block along with existing data
+	Update(block block.DatabaseBlock) error
+
 	// Flush flushes the data blocks of this series for a given start time
 	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
 

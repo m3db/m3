@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -202,6 +203,12 @@ type Options interface {
 
 	// HostBlockMetadataSlicePool returns the hostBlockMetadataSlice pool
 	HostBlockMetadataSlicePool() HostBlockMetadataSlicePool
+
+	// SetResultOptions sets the options for `client.results`
+	SetResultOptions(opts result.Options) Options
+
+	// ResultOptions returns the options for `client.results``
+	ResultOptions() result.Options
 
 	// Validate checks if the options are valid
 	Validate() error

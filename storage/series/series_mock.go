@@ -24,6 +24,8 @@
 package series
 
 import (
+	time "time"
+
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
@@ -35,7 +37,6 @@ import (
 	io "github.com/m3db/m3db/x/io"
 	instrument "github.com/m3db/m3x/instrument"
 	time0 "github.com/m3db/m3x/time"
-	time "time"
 )
 
 // Mock of DatabaseSeries interface
@@ -149,6 +150,16 @@ func (_m *MockDatabaseSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error
 
 func (_mr *_MockDatabaseSeriesRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
+}
+
+func (_m *MockDatabaseSeries) Update(block block.DatabaseBlock) error {
+	ret := _m.ctrl.Call(_m, "Update", block)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDatabaseSeriesRecorder) Update(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Update", arg0)
 }
 
 func (_m *MockDatabaseSeries) Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error {

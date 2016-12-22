@@ -481,6 +481,10 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 		if state.Status == fileOpFailed && state.NumFailures < maxRetries {
 			return true
 		}
+		// TODO(prateek): add tests for this case
+		if state.Status == fileOpDirty {
+			return true
+		}
 	}
 
 	// All success or failed and reached max retries

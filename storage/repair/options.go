@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/client/result"
 )
 
 const (
@@ -60,6 +61,7 @@ type options struct {
 	repairThrottle             time.Duration
 	repairMaxRetries           int
 	hostBlockMetadataSlicePool HostBlockMetadataSlicePool
+	resultOpts                 result.Options
 }
 
 // NewOptions creates new bootstrap options
@@ -73,7 +75,18 @@ func NewOptions() Options {
 		repairThrottle:             defaultRepairThrottle,
 		repairMaxRetries:           defaultRepairMaxRetries,
 		hostBlockMetadataSlicePool: NewHostBlockMetadataSlicePool(nil, 0),
+		resultOpts:                 result.NewOptions(),
 	}
+}
+
+func (o *options) SetResultOptions(ropts result.Options) Options {
+	opts := *o
+	opts.resultOpts = ropts
+	return &opts
+}
+
+func (o *options) ResultOptions() result.Options {
+	return o.resultOpts
 }
 
 func (o *options) SetAdminClient(value client.AdminClient) Options {

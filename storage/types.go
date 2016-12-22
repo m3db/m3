@@ -292,6 +292,13 @@ type databaseShard interface {
 		tr xtime.Range,
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
+
+	// UpdateSeries updates the identified series by merging any existing data
+	// with the provided block.
+	UpdateSeries(
+		seriesID ts.ID,
+		blk block.DatabaseBlock,
+	) error
 }
 
 // databaseBootstrapManager manages the bootstrap process.

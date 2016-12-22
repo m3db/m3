@@ -37,7 +37,10 @@ const (
 	fileOpInProgress
 	fileOpSuccess
 	fileOpFailed
+	fileOpDirty
 )
+
+// TODO(prateek): add tests for fileOpDirty
 
 type fileOpState struct {
 	Status      fileOpStatus

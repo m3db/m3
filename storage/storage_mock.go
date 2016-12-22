@@ -823,6 +823,16 @@ func (_mr *_MockdatabaseShardRecorder) Repair(arg0, arg1, arg2, arg3 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1, arg2, arg3)
 }
 
+func (_m *MockdatabaseShard) UpdateSeries(seriesID ts.ID, blk block.DatabaseBlock) error {
+	ret := _m.ctrl.Call(_m, "UpdateSeries", seriesID, blk)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseShardRecorder) UpdateSeries(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "UpdateSeries", arg0, arg1)
+}
+
 // Mock of databaseBootstrapManager interface
 type MockdatabaseBootstrapManager struct {
 	ctrl     *gomock.Controller

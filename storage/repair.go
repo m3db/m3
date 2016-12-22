@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 
+	"github.com/m3db/m3db/topology"
 	"github.com/uber-go/tally"
 )
 
@@ -136,12 +137,134 @@ func (r shardRepairer) Repair(
 	metadataRes := metadata.Compare()
 
 	r.recordFn(namespace, shard, metadataRes)
-	// TODO(prateek): flipr config for this?
+	// TODO(prateek): flipr config for this(!)
 	if err = r.repairFn(namespace, shard, metadataRes); err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
 
+	// TODO(prateek):
+	// - change the return type to include a RepairResult construct
+	// - trace up the chain here, make sure we mark state to re-attempt any pending repairs
 	return metadataRes, nil
+}
+
+type hostSet map[topology.Host]repair.HostBlockMetadata
+
+type blockID struct {
+	id    ts.ID
+	start time.Time
+}
+
+func newHostSet() *hostSet {
+	hs := make(hostSet, 3)
+	return &hs
+}
+
+func (h *hostSet) insert(hbm repair.HostBlockMetadata) {
+	(*h)[hbm.Host] = hbm
+}
+
+func (h *hostSet) insertOneFromSet(oh *hostSet) {
+	for _, hbm := range *oh {
+		h.insert(hbm)
+		return
+	}
+}
+
+func (h *hostSet) contains(host topology.Host) bool {
+	_, ok := (*h)[host]
+	return ok
+}
+
+func (h *hostSet) remove(host topology.Host) {
+	delete(*h, host)
+}
+
+func (h *hostSet) empty() bool {
+	return len(*h) == 0
+}
+
+func (r shardRepairer) constructRequiredRepairBlocks(
+	namespace ts.ID,
+	shard databaseShard,
+	diffRes repair.MetadataComparisonResult,
+	originHost topology.Host,
+) ([]block.ReplicaMetadata, map[blockID]*hostSet) {
+	// TODO(prateek): pooling object creation in this method
+	replicaState := make(map[blockID]*hostSet, diffRes.NumBlocks)
+
+	// add size differences
+	for _, rsm := range diffRes.SizeDifferences.Series() {
+		for start, blk := range rsm.Metadata.Blocks() {
+			blkID := blockID{rsm.ID, start}
+			// find all unique sizes seen for this block
+			uniqueValues := make(map[int64]*hostSet, 3)
+			for _, hBlk := range blk.Metadata() {
+				sz := hBlk.Size
+				if _, ok := uniqueValues[sz]; !ok {
+					uniqueValues[sz] = newHostSet()
+				}
+				uniqueValues[sz].insert(hBlk)
+			}
+			for _, hs := range uniqueValues {
+				if hs.contains(originHost) {
+					// we already have originHost data available locally, no need to fetch it
+					continue
+				}
+				// insert value into replicaState
+				if _, ok := replicaState[blkID]; !ok {
+					replicaState[blkID] = newHostSet()
+				}
+				// only care about a single value from the unique set
+				replicaState[blkID].insertOneFromSet(hs)
+			}
+		}
+	}
+
+	// add checksum differences
+	for _, rsm := range diffRes.ChecksumDifferences.Series() {
+		for start, blk := range rsm.Metadata.Blocks() {
+			blkID := blockID{rsm.ID, start}
+			// find all unique checksums seen for this block
+			uniqueValues := make(map[uint32]*hostSet, 3)
+			for _, hBlk := range blk.Metadata() {
+				cs := hBlk.Checksum
+				if cs == nil {
+					continue // checksum unavailable, don't include in diff
+				}
+				if _, ok := uniqueValues[*cs]; !ok {
+					uniqueValues[*cs] = newHostSet()
+				}
+				uniqueValues[*cs].insert(hBlk)
+			}
+			for _, hs := range uniqueValues {
+				if hs.contains(originHost) {
+					// we already have originHost data available locally, no need to fetch it
+					continue
+				}
+				// insert value into replicaState
+				if _, ok := replicaState[blkID]; !ok {
+					replicaState[blkID] = newHostSet()
+				}
+				// only care about a single value from the unique set
+				replicaState[blkID].insertOneFromSet(hs)
+			}
+		}
+	}
+
+	repairBlocks := make([]block.ReplicaMetadata, 0, diffRes.NumBlocks)
+	for blkID, hs := range replicaState {
+		for _, h := range *hs {
+			repairBlocks = append(repairBlocks, block.ReplicaMetadata{
+				Start:    blkID.start,
+				ID:       blkID.id,
+				Peer:     h.Host,
+				Checksum: h.Checksum,
+				Size:     h.Size,
+			})
+		}
+	}
+	return repairBlocks, replicaState
 }
 
 func (r shardRepairer) repairDifferences(
@@ -149,22 +272,62 @@ func (r shardRepairer) repairDifferences(
 	shard databaseShard,
 	diffRes repair.MetadataComparisonResult,
 ) error {
-	// TODO(prateek): track the blocks repaired
-	// TODO(prateek): put better resource controls in place i.e. throttles, workerpools
-	// TODO(prateek): optimize the data access i.e. batch reads per host, etc
+	var (
+		logger       = r.opts.InstrumentOptions().Logger()
+		session, err = r.client.DefaultAdminSession()
+	)
+	if err != nil {
+		return err
+	}
 
-	// session, err := r.client.DefaultAdminSession()
-	// if err != nil {
-	// 	return err
-	// }
+	reqBlocks, blockState := r.constructRequiredRepairBlocks(namespace, shard, diffRes, session.Origin())
+	blocksIter, err := session.FetchRepairBlocksFromPeers(namespace, shard.ID(), reqBlocks, r.rpopts.ResultOptions())
+	if err != nil {
+		return err
+	}
 
-	// shardResult, err := session.FetchRepairBlocksFromPeers(namespace, shard.ID(), diffRes)
-	// if err != nil {
-	// 	return err
-	// }
+	for blocksIter.Next() {
+		host, id, blk := blocksIter.Current()
+		// TODO(prateek): does Close() need to be called on blk
+		// i.e. figure out ownership - is it reset by iterator or not
+
+		blkID := blockID{id, blk.StartTime()}
+		if hs, ok := blockState[blkID]; !ok || !hs.contains(host) {
+			// should never happen
+			logger.WithFields(
+				xlog.NewLogField("id", id.String()),
+				xlog.NewLogField("host", host.String()),
+				xlog.NewLogField("blockID", blkID),
+			).Warnf("received un-requested block, session.FetchRepairBlockFromPeers violated contract, skipping.")
+			continue
+		}
+
+		blockState[blkID].remove(host)
+		// TODO(prateek): current implementation of UpdateSeries marks shards flushed internally,
+		// this is something we should amortize to be done at the end of iterating through this function
+		// concern being, we want to minimize the number of flushes we can potentially induce
+		if err := shard.UpdateSeries(id, blk); err != nil {
+			// TODO(prateek):
+			// - build multiErr
+			// - increment error count in return object
+			// - publish metrics for this too
+			continue
+		}
+		//	track number of "repaired" blocks, report metric
+	}
+	// for any cached, and not consolidated, track in errors metric
+	// or, if blocksIter.Err() is :(
 
 	// TODO(prateek): figure out how to transfer shardResult -> local shards
-	// and then overwrite those files on disk
+	// and then write those files on disk
+
+	// for writes:
+	// 	- don't always write, factor in a minimum number of blocks repaired,
+	//    and number of blocks still requiring repair
+	// 	- write a new version of the file for the timestamp, keep last 'n' versions,
+	//    do NOT delete old version before writing a new version
+
+	// TODO(prateek): change the return type to include a RepairResult construct
 	return nil
 }
 

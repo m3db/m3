@@ -440,6 +440,26 @@ func (s *dbSeries) mergeBlock(
 	return nil
 }
 
+func (s *dbSeries) Update(blk block.DatabaseBlock) error {
+	// TODO(prateek): add tess: series.Update
+	s.Lock()
+	defer s.Unlock()
+
+	// ensure series is bootstraped before allowing any updates
+	if s.bs != bootstrapped {
+		return errSeriesNotBootstrapped
+	}
+
+	existingBlocks := s.blocks
+	err := s.mergeBlock(existingBlocks, blk)
+	if err != nil {
+		return err
+	}
+	s.blocks = existingBlocks
+
+	return nil
+}
+
 // NB(xichen): we are holding a big lock here to drain the in-memory buffer.
 // This could potentially be expensive in that we might accumulate a lot of
 // data in memory during bootstrapping. If that becomes a problem, we could

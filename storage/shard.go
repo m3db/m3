@@ -682,6 +682,13 @@ func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
 	s.flushState.Unlock()
 }
 
+func (s *dbShard) markFlushStateDirty(blockStart time.Time) {
+	// TODO(prateek): add tests dbShard.markFlushStateDirty()
+	s.flushState.Lock()
+	s.flushState.statesByTime[blockStart] = fileOpState{Status: fileOpDirty}
+	s.flushState.Unlock()
+}
+
 func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[blockStart]
@@ -724,4 +731,51 @@ func (s *dbShard) Repair(
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
 	return repairer.Repair(ctx, namespace, tr, s)
+}
+
+func (s *dbShard) UpdateSeries(
+	id ts.ID,
+	blk block.DatabaseBlock,
+) error {
+	// TODO(prateek): add tests dbShard.UpdateSeries
+	// TODO(prateek): do we need to check that we are accepting writes past the buffered state
+	// i.e. only allow updates for 'sealed' blocks.
+
+	// ensure shard is bootstrapped
+	s.Lock()
+	if s.bs != bootstrapped {
+		s.Unlock()
+		return errShardNotBootstrapped
+	}
+	s.Unlock()
+
+	// Prepare series to be updated
+	entry, err := s.writableSeries(id)
+	if err != nil {
+		return err
+	}
+
+	// Perform update
+	err = entry.series.Update(blk)
+	entry.decrementWriterCount()
+	if err != nil {
+		return err
+	}
+
+	// Mark shard state dirty, indicating we have updated data
+	// TODO(prateek):
+	// - understand and document the various flushStates and transitions between them.
+	// - ensure that we don't need to check anything fancy before marking the state dirty
+	// - add tests for the new state
+	s.markFlushStateDirty(blk.StartTime())
+
+	// NOTE(prateek): We explicitly choose to bypass the commit log during a
+	// merge for the following reasons:
+	// (1) We only bootstrap from the commit log for the last 2 hour window,
+	// this function is only used by the shardRepairer, which only operates on
+	// sealed blocks (blocks older than 2 hours). So writing to the commit log
+	// would not provide any direct value.
+	// (2) We persist the merged state by flushing 'dirty' shards
+	// TODO(prateek): clean ^ up
+	return nil
 }
