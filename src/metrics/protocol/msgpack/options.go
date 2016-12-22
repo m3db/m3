@@ -27,14 +27,19 @@ import (
 	xpool "github.com/m3db/m3x/pool"
 )
 
+const (
+	defaultIgnoreHigherVersion = true
+)
+
 var (
 	errNoFloatsPool   = errors.New("no floats pool")
 	errNoPoliciesPool = errors.New("no policies pool")
 )
 
 type unaggregatedIteratorOptions struct {
-	floatsPool   xpool.FloatsPool
-	policiesPool pool.PoliciesPool
+	ignoreHigherVersion bool
+	floatsPool          xpool.FloatsPool
+	policiesPool        pool.PoliciesPool
 }
 
 // NewUnaggregatedIteratorOptions creates a new set of unaggregated iterator options
@@ -46,9 +51,20 @@ func NewUnaggregatedIteratorOptions() UnaggregatedIteratorOptions {
 	policiesPool.Init()
 
 	return unaggregatedIteratorOptions{
-		floatsPool:   floatsPool,
-		policiesPool: policiesPool,
+		ignoreHigherVersion: defaultIgnoreHigherVersion,
+		floatsPool:          floatsPool,
+		policiesPool:        policiesPool,
 	}
+}
+
+func (o unaggregatedIteratorOptions) SetIgnoreHigherVersion(value bool) UnaggregatedIteratorOptions {
+	opts := o
+	opts.ignoreHigherVersion = value
+	return opts
+}
+
+func (o unaggregatedIteratorOptions) IgnoreHigherVersion() bool {
+	return o.ignoreHigherVersion
 }
 
 func (o unaggregatedIteratorOptions) SetFloatsPool(value xpool.FloatsPool) UnaggregatedIteratorOptions {

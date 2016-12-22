@@ -54,6 +54,16 @@ var (
 		GaugeVal: 123.456,
 	}
 
+	testVersionedPoliciesWithInvalidTimeUnit = policy.VersionedPolicies{
+		Version: 1,
+		Policies: []policy.Policy{
+			{
+				Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Unit(100)},
+				Retention:  policy.Retention(time.Hour),
+			},
+		},
+	}
+
 	testInputWithAllTypesAndDefaultPolicies = []metricWithPolicies{
 		{
 			metric:            testCounter,
@@ -84,22 +94,22 @@ var (
 			},
 		},
 		// Retain this metric at 100 second resolution for 6 hours,
-		// then custom resolution for 2 days, then 1 minute for 25 days
+		// then 1 minute for 2 days, then 10 minutes for 25 days
 		{
 			metric: testBatchTimer,
 			versionedPolicies: policy.VersionedPolicies{
 				Version: 2,
 				Policies: []policy.Policy{
 					{
-						Resolution: policy.Resolution{Window: time.Duration(100), Precision: xtime.Second},
+						Resolution: policy.Resolution{Window: time.Duration(20), Precision: xtime.Second},
 						Retention:  policy.Retention(6 * time.Hour),
 					},
 					{
-						Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Unit(100)},
+						Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Minute},
 						Retention:  policy.Retention(2 * 24 * time.Hour),
 					},
 					{
-						Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Minute},
+						Resolution: policy.Resolution{Window: time.Duration(10), Precision: xtime.Minute},
 						Retention:  policy.Retention(25 * 24 * time.Hour),
 					},
 				},
@@ -191,7 +201,7 @@ func validateRoundtripWithEncoderAndIterator(
 	for it.Next() {
 		m, p := it.Value()
 		results = append(results, metricWithPolicies{
-			metric:            *m,
+			metric:            m,
 			versionedPolicies: p,
 		})
 	}
@@ -207,33 +217,21 @@ func validateRoundtripWithEncoderAndIterator(
 
 func TestEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
 	validateRoundtrip(t, metricWithPolicies{
-		metric: unaggregated.MetricUnion{
-			Type:       unaggregated.CounterType,
-			ID:         []byte("foo"),
-			CounterVal: 1234,
-		},
+		metric:            testCounter,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	})
 }
 
 func TestEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
 	validateRoundtrip(t, metricWithPolicies{
-		metric: unaggregated.MetricUnion{
-			Type:          unaggregated.BatchTimerType,
-			ID:            []byte("foo"),
-			BatchTimerVal: []float64{222.22, 345.67, 901.23345},
-		},
+		metric:            testBatchTimer,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	})
 }
 
 func TestEncodeDecodeGaugeWithDefaultPolicies(t *testing.T) {
 	validateRoundtrip(t, metricWithPolicies{
-		metric: unaggregated.MetricUnion{
-			Type:     unaggregated.GaugeType,
-			ID:       []byte("foo"),
-			GaugeVal: 123.456,
-		},
+		metric:            testGauge,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	})
 }

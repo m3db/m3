@@ -79,7 +79,7 @@ type UnaggregatedIterator interface {
 	Next() bool
 
 	// Value returns the current metric and applicable policies
-	Value() (*unaggregated.MetricUnion, policy.VersionedPolicies)
+	Value() (unaggregated.MetricUnion, policy.VersionedPolicies)
 
 	// Err returns the error encountered during decoding if any
 	Err() error
@@ -90,6 +90,14 @@ type UnaggregatedIterator interface {
 
 // UnaggregatedIteratorOptions provide options for unaggregated iterators
 type UnaggregatedIteratorOptions interface {
+	// SetIgnoreHigherVersion determines whether the iterator ignores messages
+	// with higher-than-supported version
+	SetIgnoreHigherVersion(value bool) UnaggregatedIteratorOptions
+
+	// IgnoreHigherVersion returns whether the iterator ignores messages with
+	// higher-than-supported version
+	IgnoreHigherVersion() bool
+
 	// SetFloatsPool sets the floats pool
 	SetFloatsPool(value xpool.FloatsPool) UnaggregatedIteratorOptions
 

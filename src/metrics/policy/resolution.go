@@ -57,6 +57,12 @@ func (v ResolutionValue) Resolution() (Resolution, error) {
 	return resolution, nil
 }
 
+// IsValid returns whether the resolution value is valid
+func (v ResolutionValue) IsValid() bool {
+	_, valid := valuesToResolution[v]
+	return valid
+}
+
 // ValueFromResolution returns the value given a resolution
 func ValueFromResolution(resolution Resolution) (ResolutionValue, error) {
 	value, exists := resolutionToValues[resolution]
