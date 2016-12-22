@@ -275,7 +275,7 @@ func (q *queue) asyncWrite(
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			callAllCompletionFns(ops, q.host, err)
+			callAllCompletionFns(ops, q.host.ID(), err)
 			cleanup()
 			return
 		}
@@ -284,7 +284,7 @@ func (q *queue) asyncWrite(
 		err = client.WriteBatchRaw(ctx, req)
 		if err == nil {
 			// All succeeded
-			callAllCompletionFns(ops, q.host, nil)
+			callAllCompletionFns(ops, q.host.ID(), nil)
 			cleanup()
 			return
 		}
@@ -294,14 +294,14 @@ func (q *queue) asyncWrite(
 			hasErr := make(map[int]struct{})
 			for _, batchErr := range batchErrs.Errors {
 				op := ops[batchErr.Index]
-				op.CompletionFn()(q.host, batchErr.Err)
+				op.CompletionFn()(q.host.ID(), batchErr.Err)
 				hasErr[int(batchErr.Index)] = struct{}{}
 			}
 			// Callback all writes with no errors
 			for i := range ops {
 				if _, ok := hasErr[i]; !ok {
 					// No error
-					ops[i].CompletionFn()(q.host, nil)
+					ops[i].CompletionFn()(q.host.ID(), nil)
 				}
 			}
 			cleanup()
@@ -309,7 +309,7 @@ func (q *queue) asyncWrite(
 		}
 
 		// Entire batch failed
-		callAllCompletionFns(ops, q.host, err)
+		callAllCompletionFns(ops, q.host.ID(), err)
 		cleanup()
 	}()
 }

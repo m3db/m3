@@ -87,7 +87,7 @@ func TestSessionWrite(t *testing.T) {
 	// Callback
 	enqueueWg.Wait()
 	for i := 0; i < session.topoMap.Replicas(); i++ {
-		completionFn(session.topoMap.Hosts()[0], nil)
+		completionFn(session.topoMap.Hosts()[0].ID(), nil)
 	}
 
 	// Wait for write to complete
@@ -219,10 +219,10 @@ func testWriteConsistencyLevel(
 	host := session.topoMap.Hosts()[0] // any host
 	writeErr := "a specific write error"
 	for i := 0; i < session.topoMap.Replicas()-failures; i++ {
-		completionFn(host, nil)
+		completionFn(host.ID(), nil)
 	}
 	for i := 0; i < failures; i++ {
-		completionFn(host, fmt.Errorf(writeErr))
+		completionFn(host.ID(), fmt.Errorf(writeErr))
 	}
 
 	// Wait for write to complete

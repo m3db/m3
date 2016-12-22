@@ -81,8 +81,8 @@ func shardStateWriteTest(t *testing.T, state shard.State) int32 {
 	enqueueWg.Wait()
 	require.True(t, s.topoMap.Replicas() == sessionTestReplicas)
 	for i := 0; i < s.topoMap.Replicas(); i++ {
-		completionFn(host, nil)        // maintain session state
-		wState.completionFn(host, nil) // for the test
+		completionFn(host.ID(), nil)        // maintain session state
+		wState.completionFn(host.ID(), nil) // for the test
 	}
 
 	// Wait for write to complete

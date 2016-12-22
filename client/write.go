@@ -138,7 +138,7 @@ func (w *writeState) close() {
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
-	hostID := result.(topology.Host).ID()
+	hostID := result.(string)
 	// NB(bl) panic on invalid result, it indicates a bug in the code
 
 	w.Lock()
