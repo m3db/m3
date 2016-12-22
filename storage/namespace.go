@@ -451,9 +451,9 @@ func (n *dbNamespace) Flush(
 
 func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 	// NB(r): Essentially if all are success, we don't need to flush, if any
-	// are failed with the minimum num failures less than max retries then
-	// we need to flush - otherwise if any in progress we can't flush and if
-	// any not started then we need to flush.
+	// are failed with the minimum num failures less than max retries, or if
+	// any have been marked dirty, then we need to flush - otherwise if any
+	// in progress we can't flush and if any not started then we need to flush.
 	n.RLock()
 	defer n.RUnlock()
 
@@ -469,7 +469,7 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 		}
 	}
 
-	// Check for not started or failed that might need a flush
+	// Check for not started or failed or dirty that might need a flush
 	for _, shard := range n.shards {
 		if shard == nil {
 			continue
@@ -481,7 +481,6 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 		if state.Status == fileOpFailed && state.NumFailures < maxRetries {
 			return true
 		}
-		// TODO(prateek): add tests for this case
 		if state.Status == fileOpDirty {
 			return true
 		}

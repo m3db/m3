@@ -40,8 +40,6 @@ const (
 	fileOpDirty
 )
 
-// TODO(prateek): add tests for fileOpDirty
-
 type fileOpState struct {
 	Status      fileOpStatus
 	NumFailures int
