@@ -1237,7 +1237,7 @@ func (s *session) FetchRepairBlocksFromPeers(
 		for _, rb := range repairBlocks {
 			peer, ok := peersByHost[rb.Peer.ID()]
 			if !ok {
-				err := errors.New("Unable to find peer: " + rb.Peer.ID())
+				err := fmt.Errorf("unable to find peer: %v", rb.Peer.ID())
 				onDone(err) // bail early
 				break
 			}
@@ -2031,6 +2031,21 @@ type baseBlocksResult struct {
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
 }
 
+func newBaseBlocksResult(
+	opts Options,
+	resultOpts result.Options,
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
+) baseBlocksResult {
+	blockOpts := resultOpts.DatabaseBlockOptions()
+	return baseBlocksResult{
+		blockOpts:               blockOpts,
+		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
+		contextPool:             opts.ContextPool(),
+		encoderPool:             blockOpts.EncoderPool(),
+		multiReaderIteratorPool: multiReaderIteratorPool,
+	}
+}
+
 func (b *baseBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
 	iter.Reset(readers)
@@ -2054,7 +2069,7 @@ func (b *baseBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (e
 	return encoder, nil
 }
 
-func (b *baseBlocksResult) getDatabaseBlock(block *rpc.Block) (block.DatabaseBlock, error) {
+func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlock, error) {
 	var (
 		start    = time.Unix(0, block.Start)
 		segments = block.Segments
@@ -2062,6 +2077,7 @@ func (b *baseBlocksResult) getDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	)
 
 	if segments == nil {
+		result.Close() // return block to pool
 		return nil, errSessionBadBlockResultFromPeer
 	}
 
@@ -2084,6 +2100,8 @@ func (b *baseBlocksResult) getDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		}
 		encoder, err := b.mergeReaders(start, readers)
 		if err != nil {
+			encoder.Close() // return encoder to pool
+			result.Close()  // return block to pool
 			return nil, err
 		}
 
@@ -2091,6 +2109,7 @@ func (b *baseBlocksResult) getDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		result.Reset(start, encoder.Discard())
 
 	default:
+		result.Close() // return block to pool
 		return nil, errSessionBadBlockResultFromPeer
 	}
 
@@ -2108,16 +2127,9 @@ func newStreamBlocksResult(
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	outputCh chan<- peerBlocksDatapoint,
 ) *streamBlocksResult {
-	blockOpts := resultOpts.DatabaseBlockOptions()
 	return &streamBlocksResult{
-		baseBlocksResult: baseBlocksResult{
-			blockOpts:               blockOpts,
-			blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
-			contextPool:             opts.ContextPool(),
-			encoderPool:             blockOpts.EncoderPool(),
-			multiReaderIteratorPool: multiReaderIteratorPool,
-		},
-		outputCh: outputCh,
+		baseBlocksResult: newBaseBlocksResult(opts, resultOpts, multiReaderIteratorPool),
+		outputCh:         outputCh,
 	}
 }
 
@@ -2128,7 +2140,7 @@ type peerBlocksDatapoint struct {
 }
 
 func (s *streamBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
-	result, err := s.getDatabaseBlock(block)
+	result, err := s.newDatabaseBlock(block)
 	if err != nil {
 		return err
 	}
@@ -2193,22 +2205,15 @@ func newBulkBlocksResult(
 	resultOpts result.Options,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 ) *bulkBlocksResult {
-	blockOpts := resultOpts.DatabaseBlockOptions()
 	return &bulkBlocksResult{
-		baseBlocksResult: baseBlocksResult{
-			blockOpts:               blockOpts,
-			blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
-			contextPool:             opts.ContextPool(),
-			encoderPool:             blockOpts.EncoderPool(),
-			multiReaderIteratorPool: multiReaderIteratorPool,
-		},
-		result: result.NewShardResult(4096, resultOpts),
+		baseBlocksResult: newBaseBlocksResult(opts, resultOpts, multiReaderIteratorPool),
+		result:           result.NewShardResult(4096, resultOpts),
 	}
 }
 
 func (r *bulkBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
 	start := time.Unix(0, block.Start)
-	result, err := r.getDatabaseBlock(block)
+	result, err := r.newDatabaseBlock(block)
 	if err != nil {
 		return err
 	}
