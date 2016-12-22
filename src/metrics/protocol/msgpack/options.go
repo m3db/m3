@@ -28,7 +28,13 @@ import (
 )
 
 const (
-	defaultIgnoreHigherVersion = true
+	// Whether the iterator should ignore higher-than-supported version
+	// by default for unaggregated metrics
+	defaultUnaggregatedIgnoreHigherVersion = true
+
+	// Whether the iterator should ignore higher-than-supported version
+	// by default for aggregated metrics
+	defaultAggregatedIgnoreHigherVersion = true
 )
 
 var (
@@ -51,7 +57,7 @@ func NewUnaggregatedIteratorOptions() UnaggregatedIteratorOptions {
 	policiesPool.Init()
 
 	return unaggregatedIteratorOptions{
-		ignoreHigherVersion: defaultIgnoreHigherVersion,
+		ignoreHigherVersion: defaultUnaggregatedIgnoreHigherVersion,
 		floatsPool:          floatsPool,
 		policiesPool:        policiesPool,
 	}
@@ -95,4 +101,25 @@ func (o unaggregatedIteratorOptions) Validate() error {
 		return errNoPoliciesPool
 	}
 	return nil
+}
+
+type aggregatedIteratorOptions struct {
+	ignoreHigherVersion bool
+}
+
+// NewAggregatedIteratorOptions creates a new set of aggregated iterator options
+func NewAggregatedIteratorOptions() AggregatedIteratorOptions {
+	return aggregatedIteratorOptions{
+		ignoreHigherVersion: defaultAggregatedIgnoreHigherVersion,
+	}
+}
+
+func (o aggregatedIteratorOptions) SetIgnoreHigherVersion(value bool) AggregatedIteratorOptions {
+	opts := o
+	opts.ignoreHigherVersion = value
+	return opts
+}
+
+func (o aggregatedIteratorOptions) IgnoreHigherVersion() bool {
+	return o.ignoreHigherVersion
 }

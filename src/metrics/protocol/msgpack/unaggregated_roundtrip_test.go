@@ -137,9 +137,7 @@ type metricWithPolicies struct {
 }
 
 func testUnaggregatedEncoder(t *testing.T) UnaggregatedEncoder {
-	encoder, err := NewUnaggregatedEncoder(newBufferedEncoder())
-	require.NoError(t, err)
-	return encoder
+	return NewUnaggregatedEncoder(newBufferedEncoder())
 }
 
 func testUnaggregatedIterator(t *testing.T, reader io.Reader) UnaggregatedIterator {
@@ -149,7 +147,7 @@ func testUnaggregatedIterator(t *testing.T, reader io.Reader) UnaggregatedIterat
 	return iterator
 }
 
-func testEncode(t *testing.T, encoder UnaggregatedEncoder, m *unaggregated.MetricUnion, p policy.VersionedPolicies) error {
+func testUnaggregatedEncode(t *testing.T, encoder UnaggregatedEncoder, m *unaggregated.MetricUnion, p policy.VersionedPolicies) error {
 	switch m.Type {
 	case unaggregated.CounterType:
 		return encoder.EncodeCounterWithPolicies(m.Counter(), p)
@@ -162,7 +160,7 @@ func testEncode(t *testing.T, encoder UnaggregatedEncoder, m *unaggregated.Metri
 	}
 }
 
-func compareMetric(t *testing.T, expected unaggregated.MetricUnion, actual unaggregated.MetricUnion) {
+func compareUnaggregatedMetric(t *testing.T, expected unaggregated.MetricUnion, actual unaggregated.MetricUnion) {
 	require.Equal(t, expected.Type, actual.Type)
 	switch expected.Type {
 	case unaggregated.CounterType:
@@ -176,27 +174,28 @@ func compareMetric(t *testing.T, expected unaggregated.MetricUnion, actual unagg
 	}
 }
 
-func validateRoundtrip(t *testing.T, inputs ...metricWithPolicies) {
+func validateUnaggregatedRoundtrip(t *testing.T, inputs ...metricWithPolicies) {
 	encoder := testUnaggregatedEncoder(t)
 	it := testUnaggregatedIterator(t, nil)
-	validateRoundtripWithEncoderAndIterator(t, encoder, it, inputs...)
+	validateUnaggregatedRoundtripWithEncoderAndIterator(t, encoder, it, inputs...)
 }
 
-func validateRoundtripWithEncoderAndIterator(
+func validateUnaggregatedRoundtripWithEncoderAndIterator(
 	t *testing.T,
-	encoder UnaggregatedEncoder, it UnaggregatedIterator, inputs ...metricWithPolicies,
+	encoder UnaggregatedEncoder,
+	it UnaggregatedIterator,
+	inputs ...metricWithPolicies,
 ) {
 	var results []metricWithPolicies
 
 	// Encode the batch of metrics
 	encoder.Reset(newBufferedEncoder())
 	for _, input := range inputs {
-		testEncode(t, encoder, &input.metric, input.versionedPolicies)
+		testUnaggregatedEncode(t, encoder, &input.metric, input.versionedPolicies)
 	}
-	buffer := encoder.Encoder().Buffer
 
 	// Decode the batch of metrics
-	byteStream := bytes.NewBuffer(buffer.Bytes())
+	byteStream := bytes.NewBuffer(encoder.Encoder().Bytes())
 	it.Reset(byteStream)
 	for it.Next() {
 		m, p := it.Value()
@@ -210,41 +209,41 @@ func validateRoundtripWithEncoderAndIterator(
 	require.Equal(t, io.EOF, it.Err())
 	require.Equal(t, len(inputs), len(results))
 	for i := 0; i < len(inputs); i++ {
-		compareMetric(t, inputs[i].metric, results[i].metric)
+		compareUnaggregatedMetric(t, inputs[i].metric, results[i].metric)
 		require.Equal(t, inputs[i].versionedPolicies, results[i].versionedPolicies)
 	}
 }
 
-func TestEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
-	validateRoundtrip(t, metricWithPolicies{
+func TestUnaggregatedEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, metricWithPolicies{
 		metric:            testCounter,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	})
 }
 
-func TestEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
-	validateRoundtrip(t, metricWithPolicies{
+func TestUnaggregatedEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, metricWithPolicies{
 		metric:            testBatchTimer,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	})
 }
 
-func TestEncodeDecodeGaugeWithDefaultPolicies(t *testing.T) {
-	validateRoundtrip(t, metricWithPolicies{
+func TestUnaggregatedEncodeDecodeGaugeWithDefaultPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, metricWithPolicies{
 		metric:            testGauge,
 		versionedPolicies: policy.DefaultVersionedPolicies,
 	})
 }
 
-func TestEncodeDecodeAllTypesWithDefaultPolicies(t *testing.T) {
-	validateRoundtrip(t, testInputWithAllTypesAndDefaultPolicies...)
+func TestUnaggregatedEncodeDecodeAllTypesWithDefaultPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, testInputWithAllTypesAndDefaultPolicies...)
 }
 
-func TestEncodeDecodeAllTypesWithCustomPolicies(t *testing.T) {
-	validateRoundtrip(t, testInputWithAllTypesAndCustomPolicies...)
+func TestUnaggregatedEncodeDecodeAllTypesWithCustomPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, testInputWithAllTypesAndCustomPolicies...)
 }
 
-func TestEncodeDecodeStress(t *testing.T) {
+func TestUnaggregatedEncodeDecodeStress(t *testing.T) {
 	numIter := 10
 	numMetrics := 10000
 	allMetrics := []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge}
@@ -274,6 +273,6 @@ func TestEncodeDecodeStress(t *testing.T) {
 			p := allPolicies[rand.Int63n(int64(len(allPolicies)))]
 			inputs = append(inputs, metricWithPolicies{metric: m, versionedPolicies: p})
 		}
-		validateRoundtripWithEncoderAndIterator(t, encoder, iterator, inputs...)
+		validateUnaggregatedRoundtripWithEncoderAndIterator(t, encoder, iterator, inputs...)
 	}
 }

@@ -40,7 +40,7 @@ func TestBufferedEncoderReset(t *testing.T) {
 	for _, input := range inputs {
 		encoder.Encode(input)
 	}
-	encoded := encoder.Buffer.Bytes()
+	encoded := encoder.Bytes()
 	results := make([]byte, len(encoded))
 	copy(results, encoded)
 
@@ -51,7 +51,7 @@ func TestBufferedEncoderReset(t *testing.T) {
 	for _, input := range inputs {
 		encoder.Encode(input)
 	}
-	encoded = encoder.Buffer.Bytes()
+	encoded = encoder.Bytes()
 	results2 := make([]byte, len(encoded))
 	copy(results2, encoded)
 
