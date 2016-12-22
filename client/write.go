@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	writeOpZeroed writeOp = writeOp{shardID: math.MaxUint32}
+	writeOpZeroed = writeOp{shardID: math.MaxUint32}
 	// NB(bl): use an invalid shardID for the zeroed op
 )
 
