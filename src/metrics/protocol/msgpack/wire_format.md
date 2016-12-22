@@ -1,4 +1,4 @@
-## Wire format
+## Wire format for unaggregated metrics
 
 * Message format
   * Version
@@ -9,17 +9,17 @@
     * BatchTimerWithPolicies
     * GaugeWithPolicies
 
-* CounterWithPolicies format
+* CounterWithPolicies object
   * Number of CounterWithPolicies fields
   * Counter object
   * VersionedPolicies object
 
-* BatchTimerWithPolicies format
+* BatchTimerWithPolicies object
   * Number of BatchTimerWithPolicies fields
   * BatchTimer object
   * VersionedPolicies object
 
-* GaugeWithPolicies format
+* GaugeWithPolicies object
   * Number of GaugeWithPolicies fields
   * Gauge object
   * VersionedPolicies object
@@ -71,6 +71,28 @@
       * RetentionValue
     * UnknownRetention
       * Retention duration in nanoseconds
+
+## Wire format for aggregated metrics
+
+* Message format
+  * Version
+  * Number of root object fields
+  * Root object type
+  * Root object (can be one of the following):
+    * RawMetricWithPolicy
+
+* RawMetricWithPolicy object
+  * Number of RawMetricWithPolicy fields
+  * Raw metric object
+  * Policy object
+
+* Raw metric object
+  * Version
+  * Metric ID
+  * Metric timestamp
+  * Metric value
+
+* Policy object (same format as in unaggregated metrics)
 
 ## Schema changes
 

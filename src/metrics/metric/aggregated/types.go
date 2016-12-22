@@ -18,39 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package msgpack
+package aggregated
 
 import (
-	"bytes"
+	"time"
 
-	msgpack "gopkg.in/vmihailenco/msgpack.v2"
+	"github.com/m3db/m3metrics/metric"
 )
 
-// newBufferedEncoder creates a new buffered encoder
-func newBufferedEncoder() BufferedEncoder {
-	return NewPooledBufferedEncoder(nil)
+// Metric is a metric, which is essentially a named value at certain time.
+type Metric struct {
+	ID        metric.ID
+	Timestamp time.Time
+	Value     float64
 }
 
-// NewPooledBufferedEncoder creates a new pooled buffered encoder
-func NewPooledBufferedEncoder(p BufferedEncoderPool) BufferedEncoder {
-	buffer := bytes.NewBuffer(nil)
+// RawMetric is a metric in its raw form (e.g., encoded bytes associated with
+// a metric object)
+type RawMetric interface {
+	// ID is the metric identifier
+	ID() (metric.ID, error)
 
-	return BufferedEncoder{
-		Encoder: msgpack.NewEncoder(buffer),
-		Buffer:  buffer,
-		pool:    p,
-	}
-}
+	// Timestamp is the metric timestamp
+	Timestamp() (time.Time, error)
 
-// Bytes returns the buffer data
-func (enc BufferedEncoder) Bytes() []byte { return enc.Buffer.Bytes() }
+	// Value is the metric value
+	Value() (float64, error)
 
-// Reset resets the buffered encoder
-func (enc BufferedEncoder) Reset() { enc.Buffer.Truncate(0) }
+	// Metric is the metric object represented by the raw metric
+	Metric() (Metric, error)
 
-// Close returns the buffered encoder to the pool if possible
-func (enc BufferedEncoder) Close() {
-	if enc.pool != nil {
-		enc.pool.Put(enc)
-	}
+	// Bytes are the bytes backing this raw metric
+	Bytes() []byte
+
+	// Reset resets the raw data
+	Reset(data []byte)
 }

@@ -23,28 +23,23 @@ package msgpack
 import (
 	"fmt"
 	"io"
-	"time"
 
-	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/pool"
 	xpool "github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/time"
-
-	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
 // unaggregatedIterator uses MessagePack to decode different types of unaggregated metrics.
 // It is not thread-safe.
 type unaggregatedIterator struct {
-	decoder             *msgpack.Decoder         // internal decoder that does the actual decoding
+	iteratorBase
+
 	ignoreHigherVersion bool                     // whether we ignore messages with a higher-than-supported version
 	floatsPool          xpool.FloatsPool         // pool for float slices
 	policiesPool        pool.PoliciesPool        // pool for policies
 	metric              unaggregated.MetricUnion // current metric
 	versionedPolicies   policy.VersionedPolicies // current policies
-	err                 error                    // error encountered during decoding
 }
 
 // NewUnaggregatedIterator creates a new unaggregated iterator
@@ -56,7 +51,7 @@ func NewUnaggregatedIterator(reader io.Reader, opts UnaggregatedIteratorOptions)
 		return nil, err
 	}
 	it := &unaggregatedIterator{
-		decoder:             msgpack.NewDecoder(reader),
+		iteratorBase:        newBaseIterator(reader),
 		ignoreHigherVersion: opts.IgnoreHigherVersion(),
 		floatsPool:          opts.FloatsPool(),
 		policiesPool:        opts.PoliciesPool(),
@@ -65,19 +60,15 @@ func NewUnaggregatedIterator(reader io.Reader, opts UnaggregatedIteratorOptions)
 	return it, nil
 }
 
-func (it *unaggregatedIterator) Reset(reader io.Reader) {
-	it.decoder.Reset(reader)
-	it.err = nil
-}
+func (it *unaggregatedIterator) Reset(reader io.Reader) { it.reset(reader) }
+func (it *unaggregatedIterator) Err() error             { return it.err() }
 
 func (it *unaggregatedIterator) Value() (unaggregated.MetricUnion, policy.VersionedPolicies) {
 	return it.metric, it.versionedPolicies
 }
 
-func (it *unaggregatedIterator) Err() error { return it.err }
-
 func (it *unaggregatedIterator) Next() bool {
-	if it.err != nil {
+	if it.err() != nil {
 		return false
 	}
 
@@ -90,7 +81,7 @@ func (it *unaggregatedIterator) Next() bool {
 
 func (it *unaggregatedIterator) decodeRootObject() bool {
 	version := it.decodeVersion()
-	if it.err != nil {
+	if it.err() != nil {
 		return false
 	}
 	// If the actual version is higher than supported version, we skip
@@ -100,7 +91,7 @@ func (it *unaggregatedIterator) decodeRootObject() bool {
 			it.skip(it.decodeNumObjectFields())
 			return it.Next()
 		}
-		it.err = fmt.Errorf("received version %d is higher than supported version %d", version, unaggregatedVersion)
+		it.setErr(fmt.Errorf("received version %d is higher than supported version %d", version, unaggregatedVersion))
 		return false
 	}
 	// Otherwise we proceed to decoding normally
@@ -109,18 +100,18 @@ func (it *unaggregatedIterator) decodeRootObject() bool {
 		return false
 	}
 	objType := it.decodeObjectType()
-	if it.err != nil {
+	if it.err() != nil {
 		return false
 	}
 	switch objType {
 	case counterWithPoliciesType, batchTimerWithPoliciesType, gaugeWithPoliciesType:
 		it.decodeMetricWithPolicies(objType)
 	default:
-		it.err = fmt.Errorf("unrecognized object type %v", objType)
+		it.setErr(fmt.Errorf("unrecognized object type %v", objType))
 	}
 	it.skip(numActualFields - numExpectedFields)
 
-	return it.err == nil
+	return it.err() == nil
 }
 
 func (it *unaggregatedIterator) decodeMetricWithPolicies(objType objectType) {
@@ -136,7 +127,7 @@ func (it *unaggregatedIterator) decodeMetricWithPolicies(objType objectType) {
 	case gaugeWithPoliciesType:
 		it.decodeGauge()
 	default:
-		it.err = fmt.Errorf("unrecognized metric with policies type %v", objType)
+		it.setErr(fmt.Errorf("unrecognized metric with policies type %v", objType))
 		return
 	}
 	it.decodeVersionedPolicies()
@@ -181,94 +172,6 @@ func (it *unaggregatedIterator) decodeGauge() {
 	it.skip(numActualFields - numExpectedFields)
 }
 
-func (it *unaggregatedIterator) decodePolicy() policy.Policy {
-	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(policyType)
-	if !ok {
-		return policy.Policy{}
-	}
-	resolution := it.decodeResolution()
-	retention := it.decodeRetention()
-	p := policy.Policy{Resolution: resolution, Retention: retention}
-	it.skip(numActualFields - numExpectedFields)
-	return p
-}
-
-func (it *unaggregatedIterator) decodeResolution() policy.Resolution {
-	numActualFields := it.decodeNumObjectFields()
-	resolutionType := it.decodeObjectType()
-	numExpectedFields, numActualFields, ok := it.checkNumFieldsForTypeWithActual(
-		resolutionType,
-		numActualFields,
-	)
-	if !ok {
-		return policy.EmptyResolution
-	}
-	switch resolutionType {
-	case knownResolutionType:
-		resolutionValue := policy.ResolutionValue(it.decodeVarint())
-		if !resolutionValue.IsValid() {
-			it.err = fmt.Errorf("invalid resolution value %v", resolutionValue)
-			return policy.EmptyResolution
-		}
-		it.skip(numActualFields - numExpectedFields)
-		if it.err != nil {
-			return policy.EmptyResolution
-		}
-		resolution, err := resolutionValue.Resolution()
-		it.err = err
-		return resolution
-	case unknownResolutionType:
-		window := time.Duration(it.decodeVarint())
-		precision := xtime.Unit(it.decodeVarint())
-		if it.err != nil {
-			return policy.EmptyResolution
-		}
-		if !precision.IsValid() {
-			it.err = fmt.Errorf("invalid precision %v", precision)
-			return policy.EmptyResolution
-		}
-		it.skip(numActualFields - numExpectedFields)
-		return policy.Resolution{Window: window, Precision: precision}
-	default:
-		it.err = fmt.Errorf("unrecognized resolution type %v", resolutionType)
-		return policy.EmptyResolution
-	}
-}
-
-func (it *unaggregatedIterator) decodeRetention() policy.Retention {
-	numActualFields := it.decodeNumObjectFields()
-	retentionType := it.decodeObjectType()
-	numExpectedFields, numActualFields, ok := it.checkNumFieldsForTypeWithActual(
-		retentionType,
-		numActualFields,
-	)
-	if !ok {
-		return policy.EmptyRetention
-	}
-	switch retentionType {
-	case knownRetentionType:
-		retentionValue := policy.RetentionValue(it.decodeVarint())
-		if !retentionValue.IsValid() {
-			it.err = fmt.Errorf("invalid retention value %v", retentionValue)
-			return policy.EmptyRetention
-		}
-		it.skip(numActualFields - numExpectedFields)
-		if it.err != nil {
-			return policy.EmptyRetention
-		}
-		retention, err := retentionValue.Retention()
-		it.err = err
-		return retention
-	case unknownRetentionType:
-		retention := policy.Retention(it.decodeVarint())
-		it.skip(numActualFields - numExpectedFields)
-		return retention
-	default:
-		it.err = fmt.Errorf("unrecognized retention type %v", retentionType)
-		return policy.EmptyRetention
-	}
-}
-
 func (it *unaggregatedIterator) decodeVersionedPolicies() {
 	numActualFields := it.decodeNumObjectFields()
 	versionedPoliciesType := it.decodeObjectType()
@@ -293,102 +196,6 @@ func (it *unaggregatedIterator) decodeVersionedPolicies() {
 		it.versionedPolicies = policy.VersionedPolicies{Version: version, Policies: policies}
 		it.skip(numActualFields - numExpectedFields)
 	default:
-		it.err = fmt.Errorf("unrecognized versioned policies type: %v", versionedPoliciesType)
-	}
-}
-
-// checkNumFieldsForType decodes and compares the number of actual fields with
-// the number of expected fields for a given object type, returning true if
-// the number of expected fields is no more than the number of actual fields
-func (it *unaggregatedIterator) checkNumFieldsForType(objType objectType) (int, int, bool) {
-	numActualFields := it.decodeNumObjectFields()
-	return it.checkNumFieldsForTypeWithActual(objType, numActualFields)
-}
-
-func (it *unaggregatedIterator) checkNumFieldsForTypeWithActual(
-	objType objectType,
-	numActualFields int,
-) (int, int, bool) {
-	if it.err != nil {
-		return 0, 0, false
-	}
-	numExpectedFields := numFieldsForType(objType)
-	if numExpectedFields > numActualFields {
-		it.err = fmt.Errorf("number of fields mismatch: expected %d actual %d", numExpectedFields, numActualFields)
-		return 0, 0, false
-	}
-	return numExpectedFields, numActualFields, true
-}
-
-func (it *unaggregatedIterator) decodeVersion() int {
-	return int(it.decodeVarint())
-}
-
-func (it *unaggregatedIterator) decodeObjectType() objectType {
-	return objectType(it.decodeVarint())
-}
-
-func (it *unaggregatedIterator) decodeNumObjectFields() int {
-	return int(it.decodeArrayLen())
-}
-
-func (it *unaggregatedIterator) decodeID() metric.ID {
-	return metric.ID(it.decodeBytes())
-}
-
-// NB(xichen): the underlying msgpack decoder implementation
-// always decodes an int64 and looks at the actual decoded
-// value to determine the width of the integer (a.k.a. varint
-// decoding)
-func (it *unaggregatedIterator) decodeVarint() int64 {
-	if it.err != nil {
-		return 0
-	}
-	value, err := it.decoder.DecodeInt64()
-	it.err = err
-	return value
-}
-
-func (it *unaggregatedIterator) decodeFloat64() float64 {
-	if it.err != nil {
-		return 0.0
-	}
-	value, err := it.decoder.DecodeFloat64()
-	it.err = err
-	return value
-}
-
-func (it *unaggregatedIterator) decodeBytes() []byte {
-	if it.err != nil {
-		return nil
-	}
-	value, err := it.decoder.DecodeBytes()
-	it.err = err
-	return value
-}
-
-func (it *unaggregatedIterator) decodeArrayLen() int {
-	if it.err != nil {
-		return 0
-	}
-	value, err := it.decoder.DecodeArrayLen()
-	it.err = err
-	return value
-}
-
-func (it *unaggregatedIterator) skip(numFields int) {
-	if it.err != nil {
-		return
-	}
-	if numFields < 0 {
-		it.err = fmt.Errorf("number of fields to skip is %d", numFields)
-		return
-	}
-	// Otherwise we skip any unexpected extra fields
-	for i := 0; i < numFields; i++ {
-		if err := it.decoder.Skip(); err != nil {
-			it.err = err
-			return
-		}
+		it.setErr(fmt.Errorf("unrecognized versioned policies type: %v", versionedPoliciesType))
 	}
 }
