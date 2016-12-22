@@ -51,9 +51,9 @@ func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(targetRanges time.Ranges, namespace ts.ID, shards []uint32) (result.BootstrapResult, error) {
+func (_m *MockBootstrap) Run(targetRanges time.Ranges, namespace ts.ID, shards []uint32) (Result, error) {
 	ret := _m.ctrl.Call(_m, "Run", targetRanges, namespace, shards)
-	ret0, _ := ret[0].(result.BootstrapResult)
+	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -103,9 +103,9 @@ func (_mr *_MockBootstrapperRecorder) Can(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Can", arg0)
 }
 
-func (_m *MockBootstrapper) Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error) {
+func (_m *MockBootstrapper) Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (Result, error) {
 	ret := _m.ctrl.Call(_m, "Bootstrap", namespace, shardsTimeRanges)
-	ret0, _ := ret[0].(result.BootstrapResult)
+	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -155,13 +155,78 @@ func (_mr *_MockSourceRecorder) Available(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Available", arg0, arg1)
 }
 
-func (_m *MockSource) Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error) {
+func (_m *MockSource) Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (Result, error) {
 	ret := _m.ctrl.Call(_m, "Read", namespace, shardsTimeRanges)
-	ret0, _ := ret[0].(result.BootstrapResult)
+	ret0, _ := ret[0].(Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 func (_mr *_MockSourceRecorder) Read(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read", arg0, arg1)
+}
+
+// Mock of Result interface
+type MockResult struct {
+	ctrl     *gomock.Controller
+	recorder *_MockResultRecorder
+}
+
+// Recorder for MockResult (not exported)
+type _MockResultRecorder struct {
+	mock *MockResult
+}
+
+func NewMockResult(ctrl *gomock.Controller) *MockResult {
+	mock := &MockResult{ctrl: ctrl}
+	mock.recorder = &_MockResultRecorder{mock}
+	return mock
+}
+
+func (_m *MockResult) EXPECT() *_MockResultRecorder {
+	return _m.recorder
+}
+
+func (_m *MockResult) ShardResults() result.ShardResults {
+	ret := _m.ctrl.Call(_m, "ShardResults")
+	ret0, _ := ret[0].(result.ShardResults)
+	return ret0
+}
+
+func (_mr *_MockResultRecorder) ShardResults() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardResults")
+}
+
+func (_m *MockResult) Unfulfilled() result.ShardTimeRanges {
+	ret := _m.ctrl.Call(_m, "Unfulfilled")
+	ret0, _ := ret[0].(result.ShardTimeRanges)
+	return ret0
+}
+
+func (_mr *_MockResultRecorder) Unfulfilled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Unfulfilled")
+}
+
+func (_m *MockResult) Add(shard uint32, shardResult result.ShardResult, unfulfilled time.Ranges) {
+	_m.ctrl.Call(_m, "Add", shard, shardResult, unfulfilled)
+}
+
+func (_mr *_MockResultRecorder) Add(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Add", arg0, arg1, arg2)
+}
+
+func (_m *MockResult) SetUnfulfilled(unfulfilled result.ShardTimeRanges) {
+	_m.ctrl.Call(_m, "SetUnfulfilled", unfulfilled)
+}
+
+func (_mr *_MockResultRecorder) SetUnfulfilled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetUnfulfilled", arg0)
+}
+
+func (_m *MockResult) AddResult(other Result) {
+	_m.ctrl.Call(_m, "AddResult", other)
+}
+
+func (_mr *_MockResultRecorder) AddResult(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddResult", arg0)
 }

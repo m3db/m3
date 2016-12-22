@@ -77,8 +77,8 @@ func shardResult(entries ...testBlockEntry) result.ShardResult {
 	return res
 }
 
-func testResult(results map[uint32]testShardResult) result.BootstrapResult {
-	result := result.NewBootstrapResult()
+func testResult(results map[uint32]testShardResult) bootstrap.Result {
+	result := bootstrap.NewResult()
 	for shard, entry := range results {
 		result.Add(shard, entry.result, entry.unfulfilled)
 	}
@@ -108,7 +108,7 @@ func validateSeries(t *testing.T, expectedSeries, actualSeries block.DatabaseSer
 	}
 }
 
-func validateResult(t *testing.T, expected, actual result.BootstrapResult) {
+func validateResult(t *testing.T, expected, actual bootstrap.Result) {
 	if expected == nil {
 		require.Nil(t, actual)
 		return

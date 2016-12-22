@@ -21,21 +21,44 @@
 package bootstrap
 
 import (
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3x/time"
 )
 
-type noOpBootstrapProcess struct{}
-
-// NewNoOpBootstrapProcess creates a no-op bootstrap process.
-func NewNoOpBootstrapProcess() Bootstrap {
-	return &noOpBootstrapProcess{}
+type bootstrapResult struct {
+	results     result.ShardResults
+	unfulfilled result.ShardTimeRanges
 }
 
-func (b *noOpBootstrapProcess) Run(
-	targetRanges xtime.Ranges,
-	namespace ts.ID,
-	shards []uint32,
-) (Result, error) {
-	return NewResult(), nil
+// NewResult creates a new result.
+func NewResult() Result {
+	return &bootstrapResult{
+		results:     make(result.ShardResults),
+		unfulfilled: make(result.ShardTimeRanges),
+	}
+}
+
+func (r *bootstrapResult) ShardResults() result.ShardResults {
+	return r.results
+}
+
+func (r *bootstrapResult) Unfulfilled() result.ShardTimeRanges {
+	return r.unfulfilled
+}
+
+func (r *bootstrapResult) Add(shard uint32, shardResult result.ShardResult, unfulfilled xtime.Ranges) {
+	r.results.AddResults(result.ShardResults{shard: shardResult})
+	r.unfulfilled.AddRanges(result.ShardTimeRanges{shard: unfulfilled})
+}
+
+func (r *bootstrapResult) SetUnfulfilled(unfulfilled result.ShardTimeRanges) {
+	r.unfulfilled = unfulfilled
+}
+
+func (r *bootstrapResult) AddResult(other Result) {
+	if other == nil {
+		return
+	}
+	r.results.AddResults(other.ShardResults())
+	r.unfulfilled.AddRanges(other.Unfulfilled())
 }

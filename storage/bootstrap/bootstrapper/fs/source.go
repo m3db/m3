@@ -175,11 +175,11 @@ func (s *fileSystemSource) enqueueReaders(
 func (s *fileSystemSource) bootstrapFromReaders(
 	readerPool *readerPool,
 	readersCh <-chan shardReaders,
-) result.BootstrapResult {
+) bootstrap.Result {
 	var (
 		wg              sync.WaitGroup
 		resultLock      sync.Mutex
-		bootstrapResult = result.NewBootstrapResult()
+		bootstrapResult = bootstrap.NewResult()
 		bopts           = s.opts.ResultOptions()
 	)
 
@@ -278,7 +278,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 func (s *fileSystemSource) Read(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
-) (result.BootstrapResult, error) {
+) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}

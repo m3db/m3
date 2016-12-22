@@ -65,12 +65,12 @@ func (s *peersSource) Available(
 func (s *peersSource) Read(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
-) (result.BootstrapResult, error) {
+) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
 
-	result := result.NewBootstrapResult()
+	result := bootstrap.NewResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
 		s.log.Errorf("peers bootstrapper cannot get default admin session: %v", err)

@@ -56,8 +56,8 @@ func (b *bootstrapProcess) Run(
 	targetRanges xtime.Ranges,
 	namespace ts.ID,
 	shards []uint32,
-) (result.BootstrapResult, error) {
-	bootstrapResult := result.NewBootstrapResult()
+) (Result, error) {
+	bootstrapResult := NewResult()
 	it := targetRanges.Iter()
 	for it.Next() {
 		shardsTimeRanges := make(result.ShardTimeRanges, len(shards))

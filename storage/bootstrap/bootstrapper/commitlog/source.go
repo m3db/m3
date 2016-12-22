@@ -81,7 +81,7 @@ func (s *commitLogSource) Available(
 func (s *commitLogSource) Read(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
-) (result.BootstrapResult, error) {
+) (bootstrap.Result, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -173,7 +173,7 @@ func (s *commitLogSource) Read(
 
 	errs = 0
 	emptyErrs := 0
-	bootstrapResult := result.NewBootstrapResult()
+	bootstrapResult := bootstrap.NewResult()
 	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
 	for shard, unmergedShard := range unmerged {
