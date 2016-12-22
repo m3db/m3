@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"math"
 	"sync"
 
 	"github.com/m3db/m3cluster/shard"
@@ -32,12 +33,9 @@ import (
 )
 
 var (
-	writeOpZeroed writeOp
+	writeOpZeroed writeOp = writeOp{shardID: math.MaxUint32}
+	// NB(bl): use an invalid shardID for the zeroed op
 )
-
-func init() {
-	writeOpZeroed.shardID = MaxUint32 // NB(bl): use an invalid shardID for the zeroed op
-}
 
 type writeOp struct {
 	namespace    ts.ID
