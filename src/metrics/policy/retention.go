@@ -59,6 +59,12 @@ func (v RetentionValue) Retention() (Retention, error) {
 	return retention, nil
 }
 
+// IsValid returns whether the retention value is valid
+func (v RetentionValue) IsValid() bool {
+	_, valid := valuesToRetention[v]
+	return valid
+}
+
 // ValueFromRetention returns the value given a retention
 func ValueFromRetention(retention Retention) (RetentionValue, error) {
 	value, exists := retentionToValues[retention]

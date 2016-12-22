@@ -48,6 +48,7 @@ func TestValidResolutionValue(t *testing.T) {
 		resolution, err := value.Resolution()
 		require.NoError(t, err)
 		require.Equal(t, resolution, expected[i])
+		require.True(t, value.IsValid())
 	}
 }
 
@@ -59,6 +60,7 @@ func TestInvalidResolutionValue(t *testing.T) {
 	for _, value := range inputs {
 		_, err := value.Resolution()
 		require.Equal(t, errUnknownResolutionValue, err)
+		require.False(t, value.IsValid())
 	}
 }
 

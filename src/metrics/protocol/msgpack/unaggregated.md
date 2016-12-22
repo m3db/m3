@@ -60,7 +60,7 @@
     * KnownResolution
       * ResolutionValue
     * UnknownResolution
-      * Resolution window
+      * Resolution window in nanoseconds
       * Resolution precision
 
 * Retention object
@@ -70,7 +70,7 @@
     * KnownRetention
       * RetentionValue
     * UnknownRetention
-      * Retention duration
+      * Retention duration in nanoseconds
 
 ## Schema changes
 
@@ -80,4 +80,5 @@ increase the version for backward-compatible changes.
 
 Backward-incompatible changes (e.g., removing a field or changing a field type) must be deployed
 to the server-side first then to the client-side. It is REQUIRED to increase the version for
-backward-incompatible changes.
+backward-incompatible changes. If the changes are deployed to the client-side first, the server
+will optionally ignore the messages with the higher version.

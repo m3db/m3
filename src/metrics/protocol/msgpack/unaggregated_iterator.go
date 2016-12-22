@@ -38,12 +38,13 @@ import (
 // unaggregatedIterator uses MessagePack to decode different types of unaggregated metrics.
 // It is not thread-safe.
 type unaggregatedIterator struct {
-	decoder           *msgpack.Decoder         // internal decoder that does the actual decoding
-	floatsPool        xpool.FloatsPool         // pool for float slices
-	policiesPool      pool.PoliciesPool        // pool for policies
-	metric            unaggregated.MetricUnion // current metric
-	versionedPolicies policy.VersionedPolicies // current policies
-	err               error                    // error encountered during decoding
+	decoder             *msgpack.Decoder         // internal decoder that does the actual decoding
+	ignoreHigherVersion bool                     // whether we ignore messages with a higher-than-supported version
+	floatsPool          xpool.FloatsPool         // pool for float slices
+	policiesPool        pool.PoliciesPool        // pool for policies
+	metric              unaggregated.MetricUnion // current metric
+	versionedPolicies   policy.VersionedPolicies // current policies
+	err                 error                    // error encountered during decoding
 }
 
 // NewUnaggregatedIterator creates a new unaggregated iterator
@@ -55,9 +56,10 @@ func NewUnaggregatedIterator(reader io.Reader, opts UnaggregatedIteratorOptions)
 		return nil, err
 	}
 	it := &unaggregatedIterator{
-		decoder:      msgpack.NewDecoder(reader),
-		floatsPool:   opts.FloatsPool(),
-		policiesPool: opts.PoliciesPool(),
+		decoder:             msgpack.NewDecoder(reader),
+		ignoreHigherVersion: opts.IgnoreHigherVersion(),
+		floatsPool:          opts.FloatsPool(),
+		policiesPool:        opts.PoliciesPool(),
 	}
 
 	return it, nil
@@ -68,8 +70,8 @@ func (it *unaggregatedIterator) Reset(reader io.Reader) {
 	it.err = nil
 }
 
-func (it *unaggregatedIterator) Value() (*unaggregated.MetricUnion, policy.VersionedPolicies) {
-	return &it.metric, it.versionedPolicies
+func (it *unaggregatedIterator) Value() (unaggregated.MetricUnion, policy.VersionedPolicies) {
+	return it.metric, it.versionedPolicies
 }
 
 func (it *unaggregatedIterator) Err() error { return it.err }
@@ -94,8 +96,12 @@ func (it *unaggregatedIterator) decodeRootObject() bool {
 	// If the actual version is higher than supported version, we skip
 	// the data for this metric and continue to the next
 	if version > unaggregatedVersion {
-		it.skip(it.decodeNumObjectFields())
-		return it.Next()
+		if it.ignoreHigherVersion {
+			it.skip(it.decodeNumObjectFields())
+			return it.Next()
+		}
+		it.err = fmt.Errorf("received version %d is higher than supported version %d", version, unaggregatedVersion)
+		return false
 	}
 	// Otherwise we proceed to decoding normally
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(rootObjectType)
@@ -200,6 +206,10 @@ func (it *unaggregatedIterator) decodeResolution() policy.Resolution {
 	switch resolutionType {
 	case knownResolutionType:
 		resolutionValue := policy.ResolutionValue(it.decodeVarint())
+		if !resolutionValue.IsValid() {
+			it.err = fmt.Errorf("invalid resolution value %v", resolutionValue)
+			return policy.EmptyResolution
+		}
 		it.skip(numActualFields - numExpectedFields)
 		if it.err != nil {
 			return policy.EmptyResolution
@@ -210,6 +220,13 @@ func (it *unaggregatedIterator) decodeResolution() policy.Resolution {
 	case unknownResolutionType:
 		window := time.Duration(it.decodeVarint())
 		precision := xtime.Unit(it.decodeVarint())
+		if it.err != nil {
+			return policy.EmptyResolution
+		}
+		if !precision.IsValid() {
+			it.err = fmt.Errorf("invalid precision %v", precision)
+			return policy.EmptyResolution
+		}
 		it.skip(numActualFields - numExpectedFields)
 		return policy.Resolution{Window: window, Precision: precision}
 	default:
@@ -231,6 +248,10 @@ func (it *unaggregatedIterator) decodeRetention() policy.Retention {
 	switch retentionType {
 	case knownRetentionType:
 		retentionValue := policy.RetentionValue(it.decodeVarint())
+		if !retentionValue.IsValid() {
+			it.err = fmt.Errorf("invalid retention value %v", retentionValue)
+			return policy.EmptyRetention
+		}
 		it.skip(numActualFields - numExpectedFields)
 		if it.err != nil {
 			return policy.EmptyRetention

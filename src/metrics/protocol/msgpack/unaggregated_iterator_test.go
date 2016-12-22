@@ -21,6 +21,7 @@
 package msgpack
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"testing"
@@ -42,7 +43,7 @@ func validateDecodeResults(
 	for it.Next() {
 		value, policies := it.Value()
 		results = append(results, metricWithPolicies{
-			metric:            *value,
+			metric:            value,
 			versionedPolicies: policies,
 		})
 	}
@@ -69,10 +70,13 @@ func TestUnaggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	enc.encodeRootObjectFn = enc.encodeRootObject
 	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
 
-	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
-
 	// Check that we skipped the first counter and successfully decoded the second counter
+	it := testUnaggregatedIterator(t, bytes.NewBuffer(enc.Encoder().Buffer.Bytes()))
 	validateDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
+
+	it.Reset(bytes.NewBuffer(enc.Encoder().Buffer.Bytes()))
+	it.(*unaggregatedIterator).ignoreHigherVersion = false
+	validateDecodeResults(t, it, nil, errors.New("received version 2 is higher than supported version 1"))
 }
 
 func TestUnaggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T) {
@@ -339,4 +343,15 @@ func TestUnaggregatedIteratorReset(t *testing.T) {
 
 	it.Reset(nil)
 	require.NoError(t, it.(*unaggregatedIterator).err)
+}
+
+func TestUnaggregatedIteratorDecodeInvalidTimeUnit(t *testing.T) {
+	input := metricWithPolicies{
+		metric:            testCounter,
+		versionedPolicies: testVersionedPoliciesWithInvalidTimeUnit,
+	}
+	enc := testUnaggregatedEncoder(t)
+	require.NoError(t, enc.EncodeCounterWithPolicies(input.metric.Counter(), input.versionedPolicies))
+	it := testUnaggregatedIterator(t, enc.Encoder().Buffer)
+	validateDecodeResults(t, it, nil, errors.New("invalid precision unknown"))
 }

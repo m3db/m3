@@ -54,6 +54,7 @@ func TestValidRetentionValue(t *testing.T) {
 		retention, err := value.Retention()
 		require.NoError(t, err)
 		require.Equal(t, expected[i], retention)
+		require.True(t, value.IsValid())
 	}
 }
 
@@ -65,6 +66,7 @@ func TestInvalidRetentionValue(t *testing.T) {
 	for _, value := range inputs {
 		_, err := value.Retention()
 		require.Equal(t, errUnknownRetentionValue, err)
+		require.False(t, value.IsValid())
 	}
 }
 
