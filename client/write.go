@@ -35,6 +35,10 @@ var (
 	writeOpZeroed writeOp
 )
 
+func init() {
+	writeOpZeroed.shardID = MaxUint32 // NB(bl): use an invalid shardID for the zeroed op
+}
+
 type writeOp struct {
 	namespace    ts.ID
 	shardID      uint32
@@ -45,6 +49,7 @@ type writeOp struct {
 
 func (w *writeOp) reset() {
 	*w = writeOpZeroed
+
 	w.request.Datapoint = &w.datapoint
 }
 
