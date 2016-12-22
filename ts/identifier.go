@@ -39,7 +39,8 @@ func StringID(v string) ID {
 	return &id{data: []byte(v)}
 }
 
-func hash(data []byte) Hash {
+// HashFn is the default hashing implementation for IDs.
+func HashFn(data []byte) Hash {
 	return md5.Sum(data)
 }
 
@@ -77,7 +78,7 @@ func (v *id) Hash() Hash {
 		// If the hash is not computed, and this goroutine gains exclusive
 		// access to the hash field, compute and cache it.
 		if atomic.CompareAndSwapInt32(&v.flag, int32(invalid), int32(pending)) {
-			v.hash = hash(v.data)
+			v.hash = HashFn(v.data)
 			atomic.StoreInt32(&v.flag, int32(computed))
 			return v.hash
 		}
@@ -87,7 +88,7 @@ func (v *id) Hash() Hash {
 
 	// If the hash is being computed, compute the hash in place and don't
 	// wait.
-	return hash(v.data)
+	return HashFn(v.data)
 }
 
 func (v *id) Equal(value ID) bool {
