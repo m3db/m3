@@ -546,8 +546,8 @@ func (s *dbSeries) Close() {
 	s.Lock()
 	if !s.id.Equal(nilID) {
 		s.id.Finalize()
+		s.id = nilID
 	}
-	s.id = nilID
 	s.buffer.Reset()
 	s.blocks.Close()
 	s.Unlock()
