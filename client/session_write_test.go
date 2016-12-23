@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -133,9 +134,9 @@ func TestSessionWriteConsistencyLevelAll(t *testing.T) {
 	defer ctrl.Finish()
 
 	level := topology.ConsistencyLevelAll
-	testWriteConsistencyLevel(t, ctrl, level, 0, outcomeSuccess)
+	testWriteConsistencyLevel(t, ctrl, level, 3, 0, outcomeSuccess)
 	for i := 1; i <= 3; i++ {
-		testWriteConsistencyLevel(t, ctrl, level, i, outcomeFail)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, i, outcomeFail)
 	}
 }
 
@@ -145,10 +146,11 @@ func TestSessionWriteConsistencyLevelMajority(t *testing.T) {
 
 	level := topology.ConsistencyLevelMajority
 	for i := 0; i <= 1; i++ {
-		testWriteConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, 0, outcomeSuccess)
 	}
 	for i := 2; i <= 3; i++ {
-		testWriteConsistencyLevel(t, ctrl, level, i, outcomeFail)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, i, outcomeFail)
 	}
 }
 
@@ -158,16 +160,17 @@ func TestSessionWriteConsistencyLevelOne(t *testing.T) {
 
 	level := topology.ConsistencyLevelOne
 	for i := 0; i <= 2; i++ {
-		testWriteConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, 0, outcomeSuccess)
 	}
-	testWriteConsistencyLevel(t, ctrl, level, 3, outcomeFail)
+	testWriteConsistencyLevel(t, ctrl, level, 0, 3, outcomeFail)
 }
 
 func testWriteConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	level topology.ConsistencyLevel,
-	failures int,
+	success, failures int,
 	expected outcome,
 ) {
 	opts := newSessionTestOptions()
@@ -218,15 +221,32 @@ func testWriteConsistencyLevel(
 	enqueueWg.Wait()
 	host := session.topoMap.Hosts()[0] // any host
 	writeErr := "a specific write error"
-	for i := 0; i < session.topoMap.Replicas()-failures; i++ {
+	for i := 0; i < success; i++ {
 		completionFn(host, nil)
 	}
 	for i := 0; i < failures; i++ {
 		completionFn(host, fmt.Errorf(writeErr))
 	}
 
-	// Wait for write to complete
-	writeWg.Wait()
+	// Wait for write to complete, or timeout
+	doneCh := make(chan struct{})
+	timeoutCh := make(chan struct{})
+	go func() {
+		writeWg.Wait()
+		close(doneCh)
+	}()
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		close(timeoutCh)
+	}()
+
+	select {
+	case <-timeoutCh:
+		// NB(bl): Check that we're correctly signaling in write_state.completionFn.
+		require.NoError(t, errors.New("Session write failed to signal."))
+	case <-doneCh:
+		// continue
+	}
 
 	switch expected {
 	case outcomeSuccess:

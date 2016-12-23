@@ -107,3 +107,7 @@ func setShardStates(t *testing.T, s *session, host topology.Host, state shard.St
 		hostShard.SetState(state)
 	}
 }
+
+func testCompletionSignal(t *testing.T, level topology.ConsistencyLevel) {
+
+}
