@@ -31,13 +31,13 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 )
 
 var (
 	// newStorageDatabase is the injected constructor to construct a database,
 	// useful for replacing which database constructor is called in tests
-	newStorageDatabase newStorageDatabaseFn = storage.NewDatabase
+	newStorageDatabase = storage.NewDatabase
 
 	errAlreadyWatchingTopology = errors.New("cluster db is already watching topology")
 	errNotWatchingTopology     = errors.New("cluster db is not watching topology")
