@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"math"
 	"sync"
 
 	"github.com/m3db/m3cluster/shard"
@@ -32,7 +33,8 @@ import (
 )
 
 var (
-	writeOpZeroed writeOp
+	writeOpZeroed = writeOp{shardID: math.MaxUint32}
+	// NB(bl): use an invalid shardID for the zerod op
 )
 
 type writeOp struct {
@@ -160,7 +162,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			w.Signal()
 		}
 	case topology.ConsistencyLevelMajority:
-		if w.success > w.majority || w.pending == 0 {
+		if w.success >= w.majority || w.pending == 0 {
 			w.Signal()
 		}
 	case topology.ConsistencyLevelAll:

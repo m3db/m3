@@ -95,6 +95,7 @@ func getWriteState(s *session) *writeState {
 	wState := s.writeStatePool.Get().(*writeState)
 	wState.topoMap = s.topoMap
 	wState.op = s.writeOpPool.Get()
+	wState.op.shardID = 0 // Any valid shardID
 	return wState
 }
 

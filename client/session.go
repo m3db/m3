@@ -661,6 +661,8 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 
 	state.op.namespace = ts.StringID(namespace)
 	state.op.request.ID = tsID.Data().Get()
+	state.op.shardID = s.topoMap.ShardSet().Lookup(tsID)
+	state.op.request.ID = tsID.Data().Get()
 	state.op.request.Datapoint.Value = value
 	state.op.request.Datapoint.Timestamp = timestamp
 	state.op.request.Datapoint.TimestampType = timeType
