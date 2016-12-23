@@ -26,6 +26,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -142,22 +143,20 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	// NB(bl) panic on invalid result, it indicates a bug in the code
 
 	pending := atomic.AddInt32(&w.pending, -1)
-	//	var addToSuccess int32
+	var addToSuccess int32
 
 	if err != nil {
 		w.errors = append(w.errors, fmt.Errorf("error writing to host %s: %v", hostID, err))
+	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
+		w.errors = append(w.errors, fmt.Errorf("missing host shard in writeState completionFn: %s", hostID))
+	} else if shardState, err :=
+		hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
+		w.errors = append(w.errors, fmt.Errorf("missing shard %d in host %s", w.op.shardID, hostID))
+	} else if shardState == shard.Available {
+		// NB(bl): only count writes to available shards towards success
+		addToSuccess = 1
 	}
-	// else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
-	// 	w.errors = append(w.errors, fmt.Errorf("missing host shard in writeState completionFn: %s", hostID))
-	// } else if shardState, err :=
-	// 	hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
-	// 	w.errors = append(w.errors, fmt.Errorf("missing shard %d in host %s", w.op.shardID, hostID))
-	// } else if shardState == shard.Available {
-	// 	// NB(bl): only count writes to available shards towards success
-	// 	addToSuccess = 1
-	// }
-	//	success := atomic.AddInt32(&w.success, addToSuccess)
-	success := atomic.AddInt32(&w.success, 1)
+	success := atomic.AddInt32(&w.success, addToSuccess)
 
 	w.Lock()
 	switch w.session.writeLevel {
@@ -166,7 +165,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 			w.Signal()
 		}
 	case topology.ConsistencyLevelMajority:
-		if success > w.majority || pending == 0 {
+		if success >= w.majority || pending == 0 {
 			w.Signal()
 		}
 	case topology.ConsistencyLevelAll:
