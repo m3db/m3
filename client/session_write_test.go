@@ -230,19 +230,13 @@ func testWriteConsistencyLevel(
 
 	// Wait for write to complete, or timeout
 	doneCh := make(chan struct{})
-	timeoutCh := make(chan struct{})
 	go func() {
 		writeWg.Wait()
 		close(doneCh)
 	}()
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		close(timeoutCh)
-	}()
 
-	select {
-	case <-timeoutCh:
-		// NB(bl): Check that we're correctly signaling in write_state.completionFn.
+	select { // NB(bl): Check that we're correctly signaling in write_state.completionFn.
+	case <-time.After(time.Millisecond):
 		require.NoError(t, errors.New("Session write failed to signal."))
 	case <-doneCh:
 		// continue
