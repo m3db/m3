@@ -237,7 +237,7 @@ func testWriteConsistencyLevel(
 
 	select { // NB(bl): Check that we're correctly signaling in write_state.completionFn.
 	case <-time.After(time.Millisecond):
-		require.NoError(t, errors.New("Session write failed to signal."))
+		require.NoError(t, errors.New("session write failed to signal"))
 	case <-doneCh:
 		// continue
 	}
