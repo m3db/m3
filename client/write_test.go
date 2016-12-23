@@ -60,9 +60,9 @@ func shardStateWriteTest(t *testing.T, state shard.State) int32 {
 	defer s.Close()
 
 	host := s.topoMap.Hosts()[0] // any host
-	setShardStates(t, s, host, state)
+	someShardID := setShardStates(t, s, host, state)
 
-	wState := getWriteState(s)
+	wState := getWriteState(s, someShardID)
 	for i := 0; i < sessionTestReplicas+1; i++ {
 		wState.incRef()
 	}
@@ -81,8 +81,8 @@ func shardStateWriteTest(t *testing.T, state shard.State) int32 {
 	enqueueWg.Wait()
 	require.True(t, s.topoMap.Replicas() == sessionTestReplicas)
 	for i := 0; i < s.topoMap.Replicas(); i++ {
-		completionFn(host, nil)        // maintain session state
-		wState.completionFn(host, nil) // for the test
+		completionFn(host.ID(), nil)        // maintain session state
+		wState.completionFn(host.ID(), nil) // for the test
 	}
 
 	// Wait for write to complete
@@ -91,18 +91,25 @@ func shardStateWriteTest(t *testing.T, state shard.State) int32 {
 	return wState.success
 }
 
-func getWriteState(s *session) *writeState {
+func getWriteState(s *session, shardID uint32) *writeState {
 	wState := s.writeStatePool.Get().(*writeState)
 	wState.topoMap = s.topoMap
 	wState.op = s.writeOpPool.Get()
+	wState.op.shardID = shardID
 	return wState
 }
 
-func setShardStates(t *testing.T, s *session, host topology.Host, state shard.State) {
+// returns some shardID
+func setShardStates(t *testing.T, s *session, host topology.Host, state shard.State) uint32 {
 	hostShardSet, ok := s.topoMap.LookupHostShardSet(host.ID())
 	require.True(t, ok)
 
+	var shardID uint32
+
 	for _, hostShard := range hostShardSet.ShardSet().All() {
 		hostShard.SetState(state)
+		shardID = hostShard.ID()
 	}
+
+	return shardID
 }

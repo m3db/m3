@@ -638,6 +638,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	state.op, state.majority = s.writeOpPool.Get(), majority
 
 	state.op.namespace = ts.StringID(namespace)
+	state.op.shardID = s.topoMap.ShardSet().Lookup(tsID)
 	state.op.request.ID = tsID.Data()
 	state.op.request.Datapoint.Value = value
 	state.op.request.Datapoint.Timestamp = timestamp
@@ -682,7 +683,8 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	s.RUnlock()
 	state.Wait()
 
-	err := s.writeConsistencyResult(majority, enqueued, enqueued-state.pending, int32(len(state.errors)), state.errors)
+	err := s.writeConsistencyResult(majority, enqueued, enqueued-atomic.LoadInt32(&state.pending),
+		int32(len(state.errors)), state.errors)
 	s.incWriteMetrics(err, int32(len(state.errors)))
 
 	state.Unlock()

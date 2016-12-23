@@ -22,7 +22,9 @@ package client
 
 import (
 	"fmt"
+	"math"
 	"sync"
+	"sync/atomic"
 
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/generated/thrift/rpc"
@@ -32,7 +34,8 @@ import (
 )
 
 var (
-	writeOpZeroed writeOp
+	writeOpZeroed = writeOp{shardID: math.MaxUint32}
+	// NB(bl): use an invalid shardID for the zeroed op
 )
 
 type writeOp struct {
@@ -136,11 +139,11 @@ func (w *writeState) close() {
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
-	hostID := result.(topology.Host).ID()
+	hostID := result.(string)
 	// NB(bl) panic on invalid result, it indicates a bug in the code
 
-	w.Lock()
-	w.pending--
+	pending := atomic.AddInt32(&w.pending, -1)
+	var addToSuccess int32
 
 	if err != nil {
 		w.errors = append(w.errors, fmt.Errorf("error writing to host %s: %v", hostID, err))
@@ -151,24 +154,26 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		w.errors = append(w.errors, fmt.Errorf("missing shard %d in host %s", w.op.shardID, hostID))
 	} else if shardState == shard.Available {
 		// NB(bl): only count writes to available shards towards success
-		w.success++
+		addToSuccess = 1
 	}
+	success := atomic.AddInt32(&w.success, addToSuccess)
 
+	w.Lock()
 	switch w.session.writeLevel {
 	case topology.ConsistencyLevelOne:
-		if w.success > 0 || w.pending == 0 {
+		if success > 0 || pending == 0 {
 			w.Signal()
 		}
 	case topology.ConsistencyLevelMajority:
-		if w.success > w.majority || w.pending == 0 {
+		if success >= w.majority || pending == 0 {
 			w.Signal()
 		}
 	case topology.ConsistencyLevelAll:
-		if w.pending == 0 {
+		if pending == 0 {
 			w.Signal()
 		}
 	}
-
 	w.Unlock()
+
 	w.decRef()
 }
