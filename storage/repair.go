@@ -307,10 +307,9 @@ func (r shardRepairer) repairDifferences(
 		// this is something we should amortize to be done at the end of iterating through this function
 		// concern being, we want to minimize the number of flushes we can potentially induce
 		if err := shard.UpdateSeries(id, blk); err != nil {
-			// TODO(prateek):
-			// - build multiErr
-			// - increment error count in return object
-			// - publish metrics for this too
+			// TODO(prateek): build multiErr
+			// TODO(prateek): increment error count in return object
+			// TODO(prateek): publish metrics for this too
 			continue
 		}
 		//	track number of "repaired" blocks, report metric
