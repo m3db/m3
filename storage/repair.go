@@ -116,9 +116,10 @@ func (r shardRepairer) Repair(
 
 	// Add local metadata
 	localMetadata, _ := shard.FetchBlocksMetadata(ctx, start, end, math.MaxInt64, 0, true, true)
+	ctx.RegisterFinalizer(context.FinalizerFn(localMetadata.Close))
+
 	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
 	metadata.AddLocalMetadata(origin, localIter)
-	localMetadata.Close()
 
 	// Add peer metadata
 	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end)
