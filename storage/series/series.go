@@ -54,6 +54,8 @@ var (
 	errSeriesDrainEmptyStream = errors.New("series attempted to drain an empty stream")
 	errSeriesIsBootstrapping  = errors.New("series is bootstrapping")
 	errSeriesNotBootstrapped  = errors.New("series is not yet bootstrapped")
+
+	errSeriesUpdateBuffered = errors.New("series is buffered at specified time, unable to update")
 )
 
 var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
@@ -441,13 +443,19 @@ func (s *dbSeries) mergeBlock(
 }
 
 func (s *dbSeries) Update(blk block.DatabaseBlock) error {
-	// TODO(prateek): add tess: series.Update
 	s.Lock()
 	defer s.Unlock()
 
 	// ensure series is bootstraped before allowing any updates
 	if s.bs != bootstrapped {
 		return errSeriesNotBootstrapped
+	}
+
+	// we only accept updates to non-buffered data
+	// ensure buffer is past provided time
+	min, _ := s.buffer.MinMax()
+	if !blk.StartTime().Before(min) {
+		return errSeriesUpdateBuffered
 	}
 
 	existingBlocks := s.blocks
