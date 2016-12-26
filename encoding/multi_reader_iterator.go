@@ -169,7 +169,7 @@ func (it *multiReaderIterator) moveIteratorToValidNext(iter Iterator) bool {
 	}
 
 	err := iter.Err()
-	if it.err == nil && err != nil {
+	if it.err == nil && err != nil && err != io.EOF {
 		it.err = err
 	}
 	return false
