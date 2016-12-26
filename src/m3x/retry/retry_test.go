@@ -59,7 +59,7 @@ func testOptions() Options {
 	return NewOptions().
 		SetInitialBackoff(time.Second).
 		SetBackoffFactor(2).
-		SetMax(2).
+		SetMaxRetries(2).
 		SetJitter(false)
 }
 
@@ -96,6 +96,21 @@ func TestRetrierExponentialBackOffFailure(t *testing.T) {
 	err := r.Attempt(newTestFn(testFnOpts{}))
 	assert.Equal(t, errTestFn, err)
 	assert.Equal(t, 3*time.Second, slept)
+}
+
+func TestRetrierMaxBackoff(t *testing.T) {
+	succeedAfter := 3
+	opts := testOptions().
+		SetMaxRetries(succeedAfter).
+		SetMaxBackoff(3 * time.Second)
+	slept := time.Duration(0)
+	r := NewRetrier(opts).(*retrier)
+	r.sleepFn = func(t time.Duration) {
+		slept += t
+	}
+	err := r.Attempt(newTestFn(testFnOpts{succeedAfter: &succeedAfter}))
+	assert.Nil(t, err)
+	assert.Equal(t, 6*time.Second, slept)
 }
 
 func TestRetrierExponentialBackOffBreakWhileImmediate(t *testing.T) {

@@ -78,7 +78,7 @@ func TestNativeHeapGetZero(t *testing.T) {
 		Bucket{Capacity: 256, Count: 2},
 	}, nil)
 
-	assert.Equal(t, []byte(nil), p.Get(0))
+	assert.Equal(t, []byte(nil), heap.Get(0))
 }
 
 func BenchmarkNativeHeap(b *testing.B) {

@@ -21,6 +21,7 @@
 package xretry
 
 import (
+	"math"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -29,7 +30,8 @@ import (
 const (
 	defaultInitialBackoff = time.Second
 	defaultBackoffFactor  = 2.0
-	defaultMax            = 2
+	defaultMaxBackoff     = time.Duration(math.MaxInt64)
+	defaultMaxRetries     = 2
 	defaultJitter         = true
 )
 
@@ -37,7 +39,8 @@ type options struct {
 	scope          tally.Scope
 	initialBackoff time.Duration
 	backoffFactor  float64
-	max            int
+	maxBackoff     time.Duration
+	maxRetries     int
 	jitter         bool
 }
 
@@ -47,7 +50,8 @@ func NewOptions() Options {
 		scope:          tally.NoopScope,
 		initialBackoff: defaultInitialBackoff,
 		backoffFactor:  defaultBackoffFactor,
-		max:            defaultMax,
+		maxBackoff:     defaultMaxBackoff,
+		maxRetries:     defaultMaxRetries,
 		jitter:         defaultJitter,
 	}
 }
@@ -82,14 +86,24 @@ func (o *options) BackoffFactor() float64 {
 	return o.backoffFactor
 }
 
-func (o *options) SetMax(value int) Options {
+func (o *options) SetMaxBackoff(value time.Duration) Options {
 	opts := *o
-	opts.max = value
+	opts.maxBackoff = value
 	return &opts
 }
 
-func (o *options) Max() int {
-	return o.max
+func (o *options) MaxBackoff() time.Duration {
+	return o.maxBackoff
+}
+
+func (o *options) SetMaxRetries(value int) Options {
+	opts := *o
+	opts.maxRetries = value
+	return &opts
+}
+
+func (o *options) MaxRetries() int {
+	return o.maxRetries
 }
 
 func (o *options) SetJitter(value bool) Options {

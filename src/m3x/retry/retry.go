@@ -39,7 +39,8 @@ var (
 type retrier struct {
 	initialBackoff time.Duration
 	backoffFactor  float64
-	max            int
+	maxBackoff     time.Duration
+	maxRetries     int
 	jitter         bool
 	sleepFn        func(t time.Duration)
 	metrics        retrierMetrics
@@ -72,7 +73,8 @@ func NewRetrier(opts Options) Retrier {
 	return &retrier{
 		initialBackoff: opts.InitialBackoff(),
 		backoffFactor:  opts.BackoffFactor(),
-		max:            opts.Max(),
+		maxBackoff:     opts.MaxBackoff(),
+		maxRetries:     opts.MaxRetries(),
 		jitter:         opts.Jitter(),
 		sleepFn:        time.Sleep,
 		metrics: retrierMetrics{
@@ -118,11 +120,14 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 	}
 	r.metrics.errors.Inc(1)
 
-	for i := 0; i < r.max; i++ {
+	for i := 0; i < r.maxRetries; i++ {
 		curr := r.initialBackoff.Nanoseconds() * int64(math.Pow(r.backoffFactor, float64(i)))
 		if r.jitter {
 			half := curr / 2
 			curr = half + int64(rand.Float64()*float64(half))
+		}
+		if maxBackoff := r.maxBackoff.Nanoseconds(); curr > maxBackoff {
+			curr = maxBackoff
 		}
 		r.sleepFn(time.Duration(curr))
 
