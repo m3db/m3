@@ -73,11 +73,17 @@ type Options interface {
 	// BackoffFactor gets the backoff factor multiplier when moving to next attempt
 	BackoffFactor() float64
 
-	// SetMax sets the maximum retry attempts
-	SetMax(value int) Options
+	// SetMaxBackoff sets the maximum backoff delay
+	SetMaxBackoff(value time.Duration) Options
+
+	// MaxBackoff returns the maximum backoff delay
+	MaxBackoff() time.Duration
+
+	// SetMaxRetries sets the maximum retry attempts
+	SetMaxRetries(value int) Options
 
 	// Max gets the maximum retry attempts
-	Max() int
+	MaxRetries() int
 
 	// SetJitter sets whether to jitter between the current backoff and the next
 	// backoff when moving to next attempt
