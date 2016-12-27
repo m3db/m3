@@ -63,11 +63,11 @@ func TestAggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 		enc.encodeNumObjectFields(numFieldsForType(rootObjectType))
 		enc.encodeObjectType(objType)
 	}
-	require.NoError(t, enc.EncodeMetricWithPolicy(input.metric.(aggregated.Metric), input.policy))
+	require.NoError(t, testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy))
 
 	// Now restore the encode top-level function and encode another metric
 	enc.encodeRootObjectFn = enc.encodeRootObject
-	require.NoError(t, enc.EncodeMetricWithPolicy(input.metric.(aggregated.Metric), input.policy))
+	require.NoError(t, testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy))
 
 	it := testAggregatedIterator(t, enc.Encoder().Buffer)
 
@@ -88,7 +88,7 @@ func TestAggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T) 
 		enc.encodeNumObjectFields(numFieldsForType(rootObjectType) + 1)
 		enc.encodeObjectType(objType)
 	}
-	enc.EncodeMetricWithPolicy(input.metric.(aggregated.Metric), input.policy)
+	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
 	enc.encodeVarint(0)
 	require.NoError(t, enc.err())
 
@@ -111,7 +111,7 @@ func TestAggregatedIteratorDecodeRawMetricMoreFieldsThanExpected(t *testing.T) {
 		enc.encodeRawMetricFn(data)
 		enc.encodePolicy(p)
 	}
-	enc.EncodeMetricWithPolicy(input.metric.(aggregated.Metric), input.policy)
+	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
 	enc.encodeVarint(0)
 	require.NoError(t, enc.err())
 
@@ -134,7 +134,7 @@ func TestAggregatedIteratorDecodeMetricHigherVersionThanSupported(t *testing.T) 
 		enc.buf.encodeVersion(metricVersion + 1)
 		return enc.buf.encoder().Bytes()
 	}
-	enc.EncodeMetricWithPolicy(input.metric.(aggregated.Metric), input.policy)
+	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
 	require.NoError(t, enc.err())
 
 	it := testAggregatedIterator(t, enc.Encoder().Buffer)
@@ -157,7 +157,7 @@ func TestAggregatedIteratorDecodeMetricMoreFieldsThanExpected(t *testing.T) {
 		enc.buf.encodeVarint(0)
 		return enc.buf.encoder().Bytes()
 	}
-	enc.EncodeMetricWithPolicy(input.metric.(aggregated.Metric), input.policy)
+	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
 	require.NoError(t, enc.err())
 
 	it := testAggregatedIterator(t, enc.Encoder().Buffer)

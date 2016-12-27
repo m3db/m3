@@ -145,14 +145,23 @@ func testUnaggregatedIterator(t *testing.T, reader io.Reader) UnaggregatedIterat
 	return NewUnaggregatedIterator(reader, opts)
 }
 
-func testUnaggregatedEncode(t *testing.T, encoder UnaggregatedEncoder, m *unaggregated.MetricUnion, p policy.VersionedPolicies) error {
+func testUnaggregatedEncode(t *testing.T, encoder UnaggregatedEncoder, m unaggregated.MetricUnion, p policy.VersionedPolicies) error {
 	switch m.Type {
 	case unaggregated.CounterType:
-		return encoder.EncodeCounterWithPolicies(m.Counter(), p)
+		return encoder.EncodeCounterWithPolicies(unaggregated.CounterWithPolicies{
+			Counter:           m.Counter(),
+			VersionedPolicies: p,
+		})
 	case unaggregated.BatchTimerType:
-		return encoder.EncodeBatchTimerWithPolicies(m.BatchTimer(), p)
+		return encoder.EncodeBatchTimerWithPolicies(unaggregated.BatchTimerWithPolicies{
+			BatchTimer:        m.BatchTimer(),
+			VersionedPolicies: p,
+		})
 	case unaggregated.GaugeType:
-		return encoder.EncodeGaugeWithPolicies(m.Gauge(), p)
+		return encoder.EncodeGaugeWithPolicies(unaggregated.GaugeWithPolicies{
+			Gauge:             m.Gauge(),
+			VersionedPolicies: p,
+		})
 	default:
 		return fmt.Errorf("unrecognized metric type %v", m.Type)
 	}
@@ -189,7 +198,7 @@ func validateUnaggregatedRoundtripWithEncoderAndIterator(
 	// Encode the batch of metrics
 	encoder.Reset(newBufferedEncoder())
 	for _, input := range inputs {
-		testUnaggregatedEncode(t, encoder, &input.metric, input.versionedPolicies)
+		testUnaggregatedEncode(t, encoder, input.metric, input.versionedPolicies)
 	}
 
 	// Decode the batch of metrics

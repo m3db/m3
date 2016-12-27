@@ -163,13 +163,13 @@ type iteratorBase interface {
 // UnaggregatedEncoder is an encoder for encoding different types of unaggregated metrics
 type UnaggregatedEncoder interface {
 	// EncodeCounterWithPolicies encodes a counter with applicable policies
-	EncodeCounterWithPolicies(c unaggregated.Counter, vp policy.VersionedPolicies) error
+	EncodeCounterWithPolicies(cp unaggregated.CounterWithPolicies) error
 
 	// EncodeBatchTimerWithPolicies encodes a batched timer with applicable policies
-	EncodeBatchTimerWithPolicies(bt unaggregated.BatchTimer, vp policy.VersionedPolicies) error
+	EncodeBatchTimerWithPolicies(btp unaggregated.BatchTimerWithPolicies) error
 
 	// EncodeGaugeWithPolicies encodes a gauge with applicable policies
-	EncodeGaugeWithPolicies(g unaggregated.Gauge, vp policy.VersionedPolicies) error
+	EncodeGaugeWithPolicies(gp unaggregated.GaugeWithPolicies) error
 
 	// Encoder returns the encoder
 	Encoder() BufferedEncoder
@@ -243,10 +243,10 @@ type UnaggregatedIteratorPool interface {
 // AggregatedEncoder is an encoder for encoding aggregated metrics
 type AggregatedEncoder interface {
 	// EncodeMetricWithPolicy encodes a metric with an applicable policy
-	EncodeMetricWithPolicy(m aggregated.Metric, p policy.Policy) error
+	EncodeMetricWithPolicy(mp aggregated.MetricWithPolicy) error
 
 	// EncodeRawMetricWithPolicy encodes a raw metric with an applicable policy
-	EncodeRawMetricWithPolicy(m aggregated.RawMetric, p policy.Policy) error
+	EncodeRawMetricWithPolicy(rp aggregated.RawMetricWithPolicy) error
 
 	// Encoder returns the encoder
 	Encoder() BufferedEncoder

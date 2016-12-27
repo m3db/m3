@@ -97,7 +97,7 @@ func TestAggregatedEncodeMetric(t *testing.T) {
 
 func TestAggregatedEncodeMetricWithPolicy(t *testing.T) {
 	encoder, results := testCapturingAggregatedEncoder(t)
-	require.NoError(t, encoder.EncodeMetricWithPolicy(testMetric, testPolicy))
+	require.NoError(t, testAggregatedEncode(t, encoder, testMetric, testPolicy))
 	expected := expectedResultsForAggregatedMetricWithPolicy(t, testMetric, testPolicy)
 	require.Equal(t, expected, *results)
 }
@@ -105,7 +105,7 @@ func TestAggregatedEncodeMetricWithPolicy(t *testing.T) {
 func TestAggregatedEncodeRawMetricWithPolicy(t *testing.T) {
 	encoder, results := testCapturingAggregatedEncoder(t)
 	rawMetric := toRawMetric(t, testMetric)
-	require.NoError(t, encoder.EncodeRawMetricWithPolicy(rawMetric, testPolicy))
+	require.NoError(t, testAggregatedEncode(t, encoder, rawMetric, testPolicy))
 	expected := expectedResultsForAggregatedMetricWithPolicy(t, rawMetric, testPolicy)
 	require.Equal(t, expected, *results)
 }
@@ -119,8 +119,8 @@ func TestAggregatedEncodeError(t *testing.T) {
 	}
 
 	// Assert the error is expected
-	require.Equal(t, errTestVarint, encoder.EncodeMetricWithPolicy(testMetric, testPolicy))
+	require.Equal(t, errTestVarint, testAggregatedEncode(t, encoder, testMetric, testPolicy))
 
 	// Assert re-encoding doesn't change the error
-	require.Equal(t, errTestVarint, encoder.EncodeMetricWithPolicy(testMetric, testPolicy))
+	require.Equal(t, errTestVarint, testAggregatedEncode(t, encoder, testMetric, testPolicy))
 }

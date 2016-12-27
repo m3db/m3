@@ -22,6 +22,7 @@ package msgpack
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -60,6 +61,23 @@ func testAggregatedIterator(t *testing.T, reader io.Reader) AggregatedIterator {
 	return NewAggregatedIterator(reader, NewAggregatedIteratorOptions())
 }
 
+func testAggregatedEncode(t *testing.T, encoder AggregatedEncoder, m interface{}, p policy.Policy) error {
+	switch m := m.(type) {
+	case aggregated.Metric:
+		return encoder.EncodeMetricWithPolicy(aggregated.MetricWithPolicy{
+			Metric: m,
+			Policy: p,
+		})
+	case aggregated.RawMetric:
+		return encoder.EncodeRawMetricWithPolicy(aggregated.RawMetricWithPolicy{
+			RawMetric: m,
+			Policy:    p,
+		})
+	default:
+		return fmt.Errorf("unrecognized metric type: %T", m)
+	}
+}
+
 func toRawMetric(t *testing.T, m aggregated.Metric) aggregated.RawMetric {
 	encoder := NewAggregatedEncoder(newBufferedEncoder()).(*aggregatedEncoder)
 	data := encoder.encodeMetricAsRaw(m)
@@ -93,7 +111,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 				metric: inputMetric,
 				policy: input.policy,
 			})
-			require.NoError(t, encoder.EncodeMetricWithPolicy(inputMetric, input.policy))
+			require.NoError(t, testAggregatedEncode(t, encoder, inputMetric, input.policy))
 		case aggregated.RawMetric:
 			m, err := inputMetric.Metric()
 			require.NoError(t, err)
@@ -101,7 +119,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 				metric: m,
 				policy: input.policy,
 			})
-			require.NoError(t, encoder.EncodeRawMetricWithPolicy(inputMetric, input.policy))
+			require.NoError(t, testAggregatedEncode(t, encoder, inputMetric, input.policy))
 		default:
 			require.Fail(t, "unrecognized input type %T", inputMetric)
 		}
