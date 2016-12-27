@@ -21,77 +21,31 @@
 package kv
 
 import (
-	"errors"
-
 	"github.com/golang/protobuf/proto"
-	"github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
-var (
-	// ErrVersionMismatch is returned when attempting a CheckAndSet and the
-	// key is not at the provided version
-	ErrVersionMismatch = errors.New("key is not at the specified version")
-
-	// ErrAlreadyExists is returned when attempting a SetIfEmpty and the key
-	// already has a value
-	ErrAlreadyExists = errors.New("key already has a value")
-
-	// ErrNotFound is returned when attempting a Get but no value is found for
-	// the given key
-	ErrNotFound = errors.New("key not found")
-)
-
-// A Value provides access to a versioned value in the configuration store
-type Value interface {
-	// Unmarshal retrieves the stored value
-	Unmarshal(v proto.Message) error
-
-	// Version returns the current version of the value
-	Version() int
+type value struct {
+	CurVersion int    `json:"version"`
+	Value      []byte `json:"value"`
 }
 
-// ValueWatch provides updates to a Value
-type ValueWatch interface {
-	// C returns the notification channel
-	C() <-chan struct{}
-	// Get returns the latest version of the value
-	Get() Value
-	// Close stops watching for value updates
-	Close()
+// NewValue creates a new Value
+func NewValue(binaryValue []byte, version int) Value {
+	return &value{
+		Value:      binaryValue,
+		CurVersion: version,
+	}
 }
 
-// ValueWatchable can be watched for Value changes
-type ValueWatchable interface {
-	// Get returns the latest Value
-	Get() Value
-	// Watch returns the Value and a ValueWatch that will be notified on updates
-	Watch() (Value, ValueWatch, error)
-	// Update sets the Value and notify Watches
-	Update(Value) error
-	// Close stops watching for value updates
-	Close()
+func (c *value) Unmarshal(v proto.Message) error {
+	err := proto.Unmarshal(c.Value, v)
+
+	return err
 }
 
-// Store provides access to the configuration store
-type Store interface {
-	// Get retrieves the value for the given key
-	Get(key string) (Value, error)
-
-	// Watch adds a watch for value updates for given key. This is a non-blocking
-	// call - a notification will be sent to ValueWatch.C() once a value is
-	// available
-	Watch(key string) (ValueWatch, error)
-
-	// Set stores the value for the given key
-	Set(key string, v proto.Message) (int, error)
-
-	// SetIfNotExists sets the value for the given key only if no value already
-	// exists
-	SetIfNotExists(key string, v proto.Message) (int, error)
-
-	// CheckAndSet stores the value for the given key if the current version
-	// matches the provided version
-	CheckAndSet(key string, version int, v proto.Message) (int, error)
+func (c *value) Version() int {
+	return c.CurVersion
 }
 
 type valueWatch struct {
@@ -124,6 +78,10 @@ func NewValueWatchable() ValueWatchable {
 	return &valueWatchable{w: xwatch.NewWatchable()}
 }
 
+func (w *valueWatchable) IsClosed() bool {
+	return w.w.IsClosed()
+}
+
 func (w *valueWatchable) Close() {
 	w.w.Close()
 }
@@ -139,6 +97,10 @@ func (w *valueWatchable) Watch() (Value, ValueWatch, error) {
 	}
 
 	return valueFromWatch(value), newValueWatch(watch), nil
+}
+
+func (w *valueWatchable) NumWatches() int {
+	return w.w.NumWatches()
 }
 
 func (w *valueWatchable) Update(v Value) error {

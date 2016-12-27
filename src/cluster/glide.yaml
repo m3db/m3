@@ -10,13 +10,21 @@ import:
   subpackages:
   - proto
 - package: github.com/m3db/m3x
-  version: d39b3685ef8430f7fbeedc666f7da781d7f55ba9
+  version: 71d99ef2d83e52ded21c79eb1e5959195f29d7cf
   subpackages:
+  - close
+  - errors
   - instrument
   - log
+  - retry
   - watch
 - package: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
   - assert
   - require
+- package: github.com/coreos/etcd
+  version: be740dc4362bf90d63650ddb809daf8f5abd16a6
+  subpackages:
+  - clientv3
+  - integration
