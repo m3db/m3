@@ -22,25 +22,25 @@ package msgpack
 
 import "github.com/m3db/m3x/pool"
 
-type bufferedEncoderPool struct {
+type aggregatedIteratorPool struct {
 	pool pool.ObjectPool
 }
 
-// NewBufferedEncoderPool creates a new pool for buffered encoders
-func NewBufferedEncoderPool(opts pool.ObjectPoolOptions) BufferedEncoderPool {
-	return &bufferedEncoderPool{pool: pool.NewObjectPool(opts)}
+// NewAggregatedIteratorPool creates a new pool for aggregated iterators
+func NewAggregatedIteratorPool(opts pool.ObjectPoolOptions) AggregatedIteratorPool {
+	return &aggregatedIteratorPool{pool: pool.NewObjectPool(opts)}
 }
 
-func (p *bufferedEncoderPool) Init(alloc BufferedEncoderAlloc) {
+func (p *aggregatedIteratorPool) Init(alloc AggregatedIteratorAlloc) {
 	p.pool.Init(func() interface{} {
 		return alloc()
 	})
 }
 
-func (p *bufferedEncoderPool) Get() BufferedEncoder {
-	return p.pool.Get().(BufferedEncoder)
+func (p *aggregatedIteratorPool) Get() AggregatedIterator {
+	return p.pool.Get().(AggregatedIterator)
 }
 
-func (p *bufferedEncoderPool) Put(encoder BufferedEncoder) {
-	p.pool.Put(encoder)
+func (p *aggregatedIteratorPool) Put(it AggregatedIterator) {
+	p.pool.Put(it)
 }

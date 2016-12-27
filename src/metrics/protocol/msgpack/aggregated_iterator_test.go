@@ -165,3 +165,11 @@ func TestAggregatedIteratorDecodeMetricMoreFieldsThanExpected(t *testing.T) {
 	// Check that we successfully decoded the metric
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
 }
+
+func TestAggregatedIteratorClose(t *testing.T) {
+	it := NewAggregatedIterator(nil, nil)
+	it.Close()
+	require.False(t, it.Next())
+	require.NoError(t, it.Err())
+	require.True(t, it.(*aggregatedIterator).closed)
+}

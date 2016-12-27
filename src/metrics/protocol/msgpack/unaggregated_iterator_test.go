@@ -328,9 +328,8 @@ func TestUnaggregatedIteratorDecodeCounterFewerFieldsThanExpected(t *testing.T) 
 }
 
 func TestUnaggregatedIteratorDecodeError(t *testing.T) {
-	it, err := NewUnaggregatedIterator(nil, nil)
-	require.NoError(t, err)
-	err = errors.New("foo")
+	it := NewUnaggregatedIterator(nil, nil)
+	err := errors.New("foo")
 	it.(*unaggregatedIterator).setErr(err)
 
 	require.False(t, it.Next())
@@ -338,13 +337,21 @@ func TestUnaggregatedIteratorDecodeError(t *testing.T) {
 }
 
 func TestUnaggregatedIteratorReset(t *testing.T) {
-	it, err := NewUnaggregatedIterator(nil, nil)
-	require.NoError(t, err)
-	err = errors.New("foo")
+	it := NewUnaggregatedIterator(nil, nil)
+	err := errors.New("foo")
 	it.(*unaggregatedIterator).setErr(err)
 
 	it.Reset(nil)
 	require.NoError(t, it.(*unaggregatedIterator).Err())
+	require.False(t, it.(*unaggregatedIterator).closed)
+}
+
+func TestUnaggregatedIteratorClose(t *testing.T) {
+	it := NewUnaggregatedIterator(nil, nil)
+	it.Close()
+	require.False(t, it.Next())
+	require.NoError(t, it.Err())
+	require.True(t, it.(*unaggregatedIterator).closed)
 }
 
 func TestUnaggregatedIteratorDecodeInvalidTimeUnit(t *testing.T) {

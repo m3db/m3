@@ -32,8 +32,6 @@ func testBufferedEncoder() BufferedEncoder {
 
 func TestBufferedEncoderReset(t *testing.T) {
 	encoder := testBufferedEncoder()
-	defer encoder.Close()
-
 	inputs := []interface{}{1, 2.0, "foo", byte(8)}
 
 	// Encode for the first time
@@ -56,4 +54,17 @@ func TestBufferedEncoderReset(t *testing.T) {
 	copy(results2, encoded)
 
 	require.Equal(t, results, results2)
+}
+
+func TestBufferedEncoderClose(t *testing.T) {
+	encoder := testBufferedEncoder()
+	require.False(t, encoder.closed)
+
+	// Close the encoder should set the flag
+	encoder.Close()
+	require.True(t, encoder.closed)
+
+	// Close the encoder again should be a no-op
+	encoder.Close()
+	require.True(t, encoder.closed)
 }

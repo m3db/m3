@@ -32,9 +32,11 @@ import (
 type aggregatedIterator struct {
 	iteratorBase
 
-	ignoreHigherVersion bool // whether we ignore messages with a higher-than-supported version
-	metric              aggregated.RawMetric
-	policy              policy.Policy
+	ignoreHigherVersion bool                   // whether we ignore messages with a higher-than-supported version
+	iteratorPool        AggregatedIteratorPool // pool for aggregated iterators
+	closed              bool                   // whether the iterator is closed
+	metric              aggregated.RawMetric   // current raw metric
+	policy              policy.Policy          // current policy
 }
 
 // NewAggregatedIterator creates a new aggregated iterator
@@ -46,21 +48,36 @@ func NewAggregatedIterator(reader io.Reader, opts AggregatedIteratorOptions) Agg
 		ignoreHigherVersion: opts.IgnoreHigherVersion(),
 		iteratorBase:        newBaseIterator(reader),
 		metric:              NewRawMetric(nil),
+		iteratorPool:        opts.IteratorPool(),
 	}
 }
 
-func (it *aggregatedIterator) Reset(reader io.Reader) { it.reset(reader) }
-func (it *aggregatedIterator) Err() error             { return it.err() }
+func (it *aggregatedIterator) Err() error { return it.err() }
+
+func (it *aggregatedIterator) Reset(reader io.Reader) {
+	it.closed = false
+	it.reset(reader)
+}
 
 func (it *aggregatedIterator) Value() (aggregated.RawMetric, policy.Policy) {
 	return it.metric, it.policy
 }
 
 func (it *aggregatedIterator) Next() bool {
-	if it.err() != nil {
+	if it.err() != nil || it.closed {
 		return false
 	}
 	return it.decodeRootObject()
+}
+
+func (it *aggregatedIterator) Close() {
+	if it.closed {
+		return
+	}
+	it.closed = true
+	if it.iteratorPool != nil {
+		it.iteratorPool.Put(it)
+	}
 }
 
 func (it *aggregatedIterator) decodeRootObject() bool {

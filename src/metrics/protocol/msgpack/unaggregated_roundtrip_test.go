@@ -142,9 +142,7 @@ func testUnaggregatedEncoder(t *testing.T) UnaggregatedEncoder {
 
 func testUnaggregatedIterator(t *testing.T, reader io.Reader) UnaggregatedIterator {
 	opts := NewUnaggregatedIteratorOptions()
-	iterator, err := NewUnaggregatedIterator(reader, opts)
-	require.NoError(t, err)
-	return iterator
+	return NewUnaggregatedIterator(reader, opts)
 }
 
 func testUnaggregatedEncode(t *testing.T, encoder UnaggregatedEncoder, m *unaggregated.MetricUnion, p policy.VersionedPolicies) error {

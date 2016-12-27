@@ -21,8 +21,6 @@
 package msgpack
 
 import (
-	"errors"
-
 	"github.com/m3db/m3metrics/pool"
 	xpool "github.com/m3db/m3x/pool"
 )
@@ -37,15 +35,11 @@ const (
 	defaultAggregatedIgnoreHigherVersion = true
 )
 
-var (
-	errNoFloatsPool   = errors.New("no floats pool")
-	errNoPoliciesPool = errors.New("no policies pool")
-)
-
 type unaggregatedIteratorOptions struct {
 	ignoreHigherVersion bool
 	floatsPool          xpool.FloatsPool
 	policiesPool        pool.PoliciesPool
+	iteratorPool        UnaggregatedIteratorPool
 }
 
 // NewUnaggregatedIteratorOptions creates a new set of unaggregated iterator options
@@ -93,18 +87,19 @@ func (o unaggregatedIteratorOptions) PoliciesPool() pool.PoliciesPool {
 	return o.policiesPool
 }
 
-func (o unaggregatedIteratorOptions) Validate() error {
-	if o.floatsPool == nil {
-		return errNoFloatsPool
-	}
-	if o.policiesPool == nil {
-		return errNoPoliciesPool
-	}
-	return nil
+func (o unaggregatedIteratorOptions) SetIteratorPool(value UnaggregatedIteratorPool) UnaggregatedIteratorOptions {
+	opts := o
+	opts.iteratorPool = value
+	return opts
+}
+
+func (o unaggregatedIteratorOptions) IteratorPool() UnaggregatedIteratorPool {
+	return o.iteratorPool
 }
 
 type aggregatedIteratorOptions struct {
 	ignoreHigherVersion bool
+	iteratorPool        AggregatedIteratorPool
 }
 
 // NewAggregatedIteratorOptions creates a new set of aggregated iterator options
@@ -122,4 +117,14 @@ func (o aggregatedIteratorOptions) SetIgnoreHigherVersion(value bool) Aggregated
 
 func (o aggregatedIteratorOptions) IgnoreHigherVersion() bool {
 	return o.ignoreHigherVersion
+}
+
+func (o aggregatedIteratorOptions) SetIteratorPool(value AggregatedIteratorPool) AggregatedIteratorOptions {
+	opts := o
+	opts.iteratorPool = value
+	return opts
+}
+
+func (o aggregatedIteratorOptions) IteratorPool() AggregatedIteratorPool {
+	return o.iteratorPool
 }

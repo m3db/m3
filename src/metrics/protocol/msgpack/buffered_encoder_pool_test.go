@@ -42,7 +42,11 @@ func TestBufferedEncoderPool(t *testing.T) {
 	// Closing the encoder should put it back to the pool
 	encoder.Close()
 
-	// Retrieve the encoder and assert it's been reset
+	// Retrieve the encoder and assert it's the same encoder
 	encoder = p.Get()
+	require.Equal(t, 3, encoder.Buffer.Len())
+
+	// Reset the encoder and assert it's been reset
+	encoder.Reset()
 	require.Equal(t, 0, encoder.Buffer.Len())
 }
