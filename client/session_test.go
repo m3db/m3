@@ -67,14 +67,12 @@ func sessionTestShardSet() sharding.ShardSet {
 	return shardSet
 }
 
-func testHostName(i int) string { return fmt.Sprintf("testhost%d", i) }
-
 func sessionTestHostAndShards(
 	shardSet sharding.ShardSet,
 ) []topology.HostShardSet {
 	var hosts []topology.Host
 	for i := 0; i < sessionTestReplicas; i++ {
-		id := testHostName(i)
+		id := fmt.Sprintf("testhost%d", i)
 		host := topology.NewHost(id, fmt.Sprintf("%s:9000", id))
 		hosts = append(hosts, host)
 	}

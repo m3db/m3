@@ -275,13 +275,10 @@ func (q *queue) asyncWrite(
 			q.Done()
 		}
 
-		// NB(bl): host is passed to writeState to determine the state of the
-		// shard on the node we're writing to
-
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			callAllCompletionFns(ops, q.host, err)
+			callAllCompletionFns(ops, nil, err)
 			cleanup()
 			return
 		}
@@ -290,7 +287,7 @@ func (q *queue) asyncWrite(
 		err = client.WriteBatchRaw(ctx, req)
 		if err == nil {
 			// All succeeded
-			callAllCompletionFns(ops, q.host, nil)
+			callAllCompletionFns(ops, nil, nil)
 			cleanup()
 			return
 		}
@@ -300,14 +297,14 @@ func (q *queue) asyncWrite(
 			hasErr := make(map[int]struct{})
 			for _, batchErr := range batchErrs.Errors {
 				op := ops[batchErr.Index]
-				op.CompletionFn()(q.host, batchErr.Err)
+				op.CompletionFn()(nil, batchErr.Err)
 				hasErr[int(batchErr.Index)] = struct{}{}
 			}
 			// Callback all writes with no errors
 			for i := range ops {
 				if _, ok := hasErr[i]; !ok {
 					// No error
-					ops[i].CompletionFn()(q.host, nil)
+					ops[i].CompletionFn()(nil, nil)
 				}
 			}
 			cleanup()
@@ -315,7 +312,7 @@ func (q *queue) asyncWrite(
 		}
 
 		// Entire batch failed
-		callAllCompletionFns(ops, q.host, err)
+		callAllCompletionFns(ops, nil, err)
 		cleanup()
 	}()
 }
