@@ -40,6 +40,7 @@ type BufferedEncoder struct {
 	*msgpack.Encoder
 
 	Buffer *bytes.Buffer
+	closed bool
 	pool   BufferedEncoderPool
 }
 
@@ -190,6 +191,9 @@ type UnaggregatedIterator interface {
 
 	// Reset resets the iterator
 	Reset(reader io.Reader)
+
+	// Close closes the iterator
+	Close()
 }
 
 // UnaggregatedIteratorOptions provide options for unaggregated iterators
@@ -214,8 +218,26 @@ type UnaggregatedIteratorOptions interface {
 	// PoliciesPool returns the policies pool
 	PoliciesPool() pool.PoliciesPool
 
-	// Validate validates the options
-	Validate() error
+	// SetIteratorPool sets the unaggregated iterator pool
+	SetIteratorPool(value UnaggregatedIteratorPool) UnaggregatedIteratorOptions
+
+	// IteratorPool returns the unaggregated iterator pool
+	IteratorPool() UnaggregatedIteratorPool
+}
+
+// UnaggregatedIteratorAlloc allocates an unaggregated iterator
+type UnaggregatedIteratorAlloc func() UnaggregatedIterator
+
+// UnaggregatedIteratorPool is a pool of unaggregated iterators
+type UnaggregatedIteratorPool interface {
+	// Init initializes the unaggregated iterator pool
+	Init(alloc UnaggregatedIteratorAlloc)
+
+	// Get returns an unaggregated iterator from the pool
+	Get() UnaggregatedIterator
+
+	// Put puts an unaggregated iterator into the pool
+	Put(it UnaggregatedIterator)
 }
 
 // AggregatedEncoder is an encoder for encoding aggregated metrics
@@ -246,6 +268,9 @@ type AggregatedIterator interface {
 
 	// Reset resets the iterator
 	Reset(reader io.Reader)
+
+	// Close closes the iterator
+	Close()
 }
 
 // AggregatedIteratorOptions provide options for aggregated iterators
@@ -257,4 +282,25 @@ type AggregatedIteratorOptions interface {
 	// IgnoreHigherVersion returns whether the iterator ignores messages with
 	// higher-than-supported version
 	IgnoreHigherVersion() bool
+
+	// SetIteratorPool sets the aggregated iterator pool
+	SetIteratorPool(value AggregatedIteratorPool) AggregatedIteratorOptions
+
+	// IteratorPool returns the aggregated iterator pool
+	IteratorPool() AggregatedIteratorPool
+}
+
+// AggregatedIteratorAlloc allocates an aggregated iterator
+type AggregatedIteratorAlloc func() AggregatedIterator
+
+// AggregatedIteratorPool is a pool of aggregated iterators
+type AggregatedIteratorPool interface {
+	// Init initializes the aggregated iterator pool
+	Init(alloc AggregatedIteratorAlloc)
+
+	// Get returns an aggregated iterator from the pool
+	Get() AggregatedIterator
+
+	// Put puts an aggregated iterator into the pool
+	Put(it AggregatedIterator)
 }

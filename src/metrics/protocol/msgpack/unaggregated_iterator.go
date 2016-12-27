@@ -38,37 +38,39 @@ type unaggregatedIterator struct {
 	ignoreHigherVersion bool                     // whether we ignore messages with a higher-than-supported version
 	floatsPool          xpool.FloatsPool         // pool for float slices
 	policiesPool        pool.PoliciesPool        // pool for policies
+	iteratorPool        UnaggregatedIteratorPool // pool for unaggregated iterators
+	closed              bool                     // whether the iterator is closed
 	metric              unaggregated.MetricUnion // current metric
 	versionedPolicies   policy.VersionedPolicies // current policies
 }
 
 // NewUnaggregatedIterator creates a new unaggregated iterator
-func NewUnaggregatedIterator(reader io.Reader, opts UnaggregatedIteratorOptions) (UnaggregatedIterator, error) {
+func NewUnaggregatedIterator(reader io.Reader, opts UnaggregatedIteratorOptions) UnaggregatedIterator {
 	if opts == nil {
 		opts = NewUnaggregatedIteratorOptions()
 	}
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-	it := &unaggregatedIterator{
+	return &unaggregatedIterator{
 		iteratorBase:        newBaseIterator(reader),
 		ignoreHigherVersion: opts.IgnoreHigherVersion(),
 		floatsPool:          opts.FloatsPool(),
 		policiesPool:        opts.PoliciesPool(),
+		iteratorPool:        opts.IteratorPool(),
 	}
-
-	return it, nil
 }
 
-func (it *unaggregatedIterator) Reset(reader io.Reader) { it.reset(reader) }
-func (it *unaggregatedIterator) Err() error             { return it.err() }
+func (it *unaggregatedIterator) Err() error { return it.err() }
+
+func (it *unaggregatedIterator) Reset(reader io.Reader) {
+	it.closed = false
+	it.reset(reader)
+}
 
 func (it *unaggregatedIterator) Value() (unaggregated.MetricUnion, policy.VersionedPolicies) {
 	return it.metric, it.versionedPolicies
 }
 
 func (it *unaggregatedIterator) Next() bool {
-	if it.err() != nil {
+	if it.err() != nil || it.closed {
 		return false
 	}
 
@@ -77,6 +79,16 @@ func (it *unaggregatedIterator) Next() bool {
 	it.metric.Reset()
 
 	return it.decodeRootObject()
+}
+
+func (it *unaggregatedIterator) Close() {
+	if it.closed {
+		return
+	}
+	it.closed = true
+	if it.iteratorPool != nil {
+		it.iteratorPool.Put(it)
+	}
 }
 
 func (it *unaggregatedIterator) decodeRootObject() bool {

@@ -20,22 +20,27 @@
 
 package msgpack
 
-import (
-	"testing"
+import "github.com/m3db/m3x/pool"
 
-	"github.com/stretchr/testify/require"
-)
-
-var (
-	testUnaggregatedIteratorOpts = NewUnaggregatedIteratorOptions()
-)
-
-func TestUnaggregatedIteratorOptionsValidateNoFloatsPool(t *testing.T) {
-	opts := testUnaggregatedIteratorOpts.SetFloatsPool(nil)
-	require.Equal(t, errNoFloatsPool, opts.Validate())
+type unaggregatedIteratorPool struct {
+	pool pool.ObjectPool
 }
 
-func TestUnaggregatedIteratorOptionsValidateNoPoliciesPool(t *testing.T) {
-	opts := testUnaggregatedIteratorOpts.SetPoliciesPool(nil)
-	require.Equal(t, errNoPoliciesPool, opts.Validate())
+// NewUnaggregatedIteratorPool creates a new pool for unaggregated iterators
+func NewUnaggregatedIteratorPool(opts pool.ObjectPoolOptions) UnaggregatedIteratorPool {
+	return &unaggregatedIteratorPool{pool: pool.NewObjectPool(opts)}
+}
+
+func (p *unaggregatedIteratorPool) Init(alloc UnaggregatedIteratorAlloc) {
+	p.pool.Init(func() interface{} {
+		return alloc()
+	})
+}
+
+func (p *unaggregatedIteratorPool) Get() UnaggregatedIterator {
+	return p.pool.Get().(UnaggregatedIterator)
+}
+
+func (p *unaggregatedIteratorPool) Put(it UnaggregatedIterator) {
+	p.pool.Put(it)
 }

@@ -20,27 +20,35 @@
 
 package msgpack
 
-import "github.com/m3db/m3x/pool"
+import (
+	"bytes"
+	"testing"
 
-type bufferedEncoderPool struct {
-	pool pool.ObjectPool
-}
+	"github.com/m3db/m3x/pool"
 
-// NewBufferedEncoderPool creates a new pool for buffered encoders
-func NewBufferedEncoderPool(opts pool.ObjectPoolOptions) BufferedEncoderPool {
-	return &bufferedEncoderPool{pool: pool.NewObjectPool(opts)}
-}
+	"github.com/stretchr/testify/require"
+)
 
-func (p *bufferedEncoderPool) Init(alloc BufferedEncoderAlloc) {
-	p.pool.Init(func() interface{} {
-		return alloc()
+func TestAggregatedIteratorPool(t *testing.T) {
+	p := NewAggregatedIteratorPool(pool.NewObjectPoolOptions().SetSize(1))
+	itOpts := NewAggregatedIteratorOptions().SetIteratorPool(p)
+	p.Init(func() AggregatedIterator {
+		return NewAggregatedIterator(nil, itOpts)
 	})
-}
 
-func (p *bufferedEncoderPool) Get() BufferedEncoder {
-	return p.pool.Get().(BufferedEncoder)
-}
+	// Retrieve an iterator from the pool
+	it := p.Get()
+	it.Reset(bytes.NewBuffer([]byte{0x1, 0x2}))
 
-func (p *bufferedEncoderPool) Put(encoder BufferedEncoder) {
-	p.pool.Put(encoder)
+	// Closing the iterator should put it back to the pool
+	it.Close()
+	require.True(t, it.(*aggregatedIterator).closed)
+
+	// Retrieve the iterator and assert it's the same iterator
+	it = p.Get()
+	require.True(t, it.(*aggregatedIterator).closed)
+
+	// Reset the iterator and assert it's been reset
+	it.Reset(nil)
+	require.False(t, it.(*aggregatedIterator).closed)
 }
