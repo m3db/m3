@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/policy"
 )
 
 // Metric is a metric, which is essentially a named value at certain time.
@@ -53,4 +54,16 @@ type RawMetric interface {
 
 	// Reset resets the raw data
 	Reset(data []byte)
+}
+
+// MetricWithPolicy is a metric with applicable policy
+type MetricWithPolicy struct {
+	Metric
+	policy.Policy
+}
+
+// RawMetricWithPolicy is a raw metric with applicable policy
+type RawMetricWithPolicy struct {
+	RawMetric
+	policy.Policy
 }

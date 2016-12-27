@@ -20,7 +20,10 @@
 
 package unaggregated
 
-import "github.com/m3db/m3metrics/metric"
+import (
+	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/policy"
+)
 
 // Type is a metric type
 type Type int8
@@ -49,6 +52,24 @@ type BatchTimer struct {
 type Gauge struct {
 	ID    metric.ID
 	Value float64
+}
+
+// CounterWithPolicies is a counter with applicable policies
+type CounterWithPolicies struct {
+	Counter
+	policy.VersionedPolicies
+}
+
+// BatchTimerWithPolicies is a batch timer with applicable policies
+type BatchTimerWithPolicies struct {
+	BatchTimer
+	policy.VersionedPolicies
+}
+
+// GaugeWithPolicies is a gauge with applicable policies
+type GaugeWithPolicies struct {
+	Gauge
+	policy.VersionedPolicies
 }
 
 // MetricUnion is a union of different types of metrics, only one of which is valid

@@ -61,22 +61,22 @@ func (enc *aggregatedEncoder) Reset(encoder BufferedEncoder) { enc.reset(encoder
 
 // NB(xichen): we encode metric as a raw metric so the decoder can inspect the encoded byte stream
 // and apply filters to the encode bytes as needed without fully decoding the entire payload
-func (enc *aggregatedEncoder) EncodeMetricWithPolicy(m aggregated.Metric, p policy.Policy) error {
+func (enc *aggregatedEncoder) EncodeMetricWithPolicy(mp aggregated.MetricWithPolicy) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
 	enc.encodeRootObjectFn(rawMetricWithPolicyType)
-	data := enc.encodeMetricAsRawFn(m)
-	enc.encodeRawMetricWithPolicyFn(data, p)
+	data := enc.encodeMetricAsRawFn(mp.Metric)
+	enc.encodeRawMetricWithPolicyFn(data, mp.Policy)
 	return enc.err()
 }
 
-func (enc *aggregatedEncoder) EncodeRawMetricWithPolicy(m aggregated.RawMetric, p policy.Policy) error {
+func (enc *aggregatedEncoder) EncodeRawMetricWithPolicy(rp aggregated.RawMetricWithPolicy) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
 	enc.encodeRootObjectFn(rawMetricWithPolicyType)
-	enc.encodeRawMetricWithPolicyFn(m.Bytes(), p)
+	enc.encodeRawMetricWithPolicyFn(rp.RawMetric.Bytes(), rp.Policy)
 	return enc.err()
 }
 
