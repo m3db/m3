@@ -469,7 +469,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	var expectedSize int64
 	for i := range b.encoders {
 		segment := b.encoders[i].encoder.Stream().Segment()
-		expectedSize += int64(len(segment.Head) + len(segment.Tail))
+		expectedSize += int64(segment.Len())
 	}
 
 	res := buffer.FetchBlocksMetadata(ctx, start, end, true, true).Results()

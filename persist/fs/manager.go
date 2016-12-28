@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 )
 
 const (
@@ -51,7 +52,7 @@ type persistManager struct {
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
 	// head and the tail of each segment so we don't need to allocate memory
 	// and gc it shortly after.
-	segmentHolder [][]byte
+	segmentHolder []checked.Bytes
 }
 
 // NewPersistManager creates a new filesystem persist manager
@@ -69,7 +70,7 @@ func NewPersistManager(opts Options) persist.Manager {
 		nowFn:          opts.ClockOptions().NowFn(),
 		sleepFn:        time.Sleep,
 		writer:         writer,
-		segmentHolder:  make([][]byte, 2),
+		segmentHolder:  make([]checked.Bytes, 2),
 	}
 }
 
@@ -92,7 +93,7 @@ func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
 	pm.segmentHolder[0] = segment.Head
 	pm.segmentHolder[1] = segment.Tail
 	err := pm.writer.WriteAll(id, pm.segmentHolder)
-	pm.bytesWritten += int64(len(segment.Head) + len(segment.Tail))
+	pm.bytesWritten += int64(segment.Len())
 
 	return err
 }

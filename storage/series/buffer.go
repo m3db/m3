@@ -291,7 +291,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		var size int64
 		bucket.readStreams(ctx, func(stream xio.SegmentReader) {
 			segment := stream.Segment()
-			size += int64(len(segment.Head) + len(segment.Tail))
+			size += int64(segment.Len())
 		})
 		// If we have no data in this bucket, return early without appending it to the result.
 		if size == 0 {

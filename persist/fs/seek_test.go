@@ -30,13 +30,16 @@ import (
 	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestSeeker(filePathPrefix string) FileSetSeeker {
-	bytesPool := pool.NewBytesPool([]pool.Bucket{pool.Bucket{
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: 1024,
 		Count:    10,
-	}}, nil)
+	}}, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
 	bytesPool.Init()
 	return NewSeeker(filePathPrefix, testReaderBufferSize, bytesPool)
 }
@@ -76,7 +79,8 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
-	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
+
+	assert.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	// Truncate one byte
@@ -112,7 +116,7 @@ func TestSeekBadMarker(t *testing.T) {
 	// Mess up the marker
 	marker[0] = marker[0] + 1
 
-	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
+	assert.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{1, 2, 3})))
 
 	// Reset the marker
 	marker = actualMarker
@@ -141,9 +145,9 @@ func TestIDs(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
-	assert.NoError(t, w.Write(ts.StringID("foo1"), []byte{1, 2, 1}))
-	assert.NoError(t, w.Write(ts.StringID("foo2"), []byte{1, 2, 2}))
-	assert.NoError(t, w.Write(ts.StringID("foo3"), []byte{1, 2, 3}))
+	assert.NoError(t, w.Write(ts.StringID("foo1"), bytesRefd([]byte{1, 2, 1})))
+	assert.NoError(t, w.Write(ts.StringID("foo2"), bytesRefd([]byte{1, 2, 2})))
+	assert.NoError(t, w.Write(ts.StringID("foo3"), bytesRefd([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
@@ -176,9 +180,9 @@ func TestSeek(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
-	assert.NoError(t, w.Write(ts.StringID("foo1"), []byte{1, 2, 1}))
-	assert.NoError(t, w.Write(ts.StringID("foo2"), []byte{1, 2, 2}))
-	assert.NoError(t, w.Write(ts.StringID("foo3"), []byte{1, 2, 3}))
+	assert.NoError(t, w.Write(ts.StringID("foo1"), bytesRefd(([]byte{1, 2, 1}))))
+	assert.NoError(t, w.Write(ts.StringID("foo2"), bytesRefd(([]byte{1, 2, 2}))))
+	assert.NoError(t, w.Write(ts.StringID("foo3"), bytesRefd(([]byte{1, 2, 3}))))
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
@@ -186,20 +190,29 @@ func TestSeek(t *testing.T) {
 	assert.NoError(t, err)
 
 	data, err := s.Seek(ts.StringID("foo3"))
-	assert.NoError(t, err)
-	assert.Equal(t, []byte{1, 2, 3}, data)
+	require.NoError(t, err)
+
+	data.IncRef()
+	defer data.DecRef()
+	assert.Equal(t, []byte{1, 2, 3}, data.Get())
 
 	data, err = s.Seek(ts.StringID("foo1"))
-	assert.NoError(t, err)
-	assert.Equal(t, []byte{1, 2, 1}, data)
+	require.NoError(t, err)
+
+	data.IncRef()
+	defer data.DecRef()
+	assert.Equal(t, []byte{1, 2, 1}, data.Get())
 
 	_, err = s.Seek(ts.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
 
 	data, err = s.Seek(ts.StringID("foo2"))
-	assert.NoError(t, err)
-	assert.Equal(t, []byte{1, 2, 2}, data)
+	require.NoError(t, err)
+
+	data.IncRef()
+	defer data.DecRef()
+	assert.Equal(t, []byte{1, 2, 2}, data.Get())
 
 	assert.NoError(t, s.Close())
 }

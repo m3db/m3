@@ -141,7 +141,7 @@ type NamespacesByID []Namespace
 func (n NamespacesByID) Len() int      { return len(n) }
 func (n NamespacesByID) Swap(i, j int) { n[i], n[j] = n[j], n[i] }
 func (n NamespacesByID) Less(i, j int) bool {
-	return bytes.Compare(n[i].ID().Data(), n[j].ID().Data()) < 0
+	return bytes.Compare(n[i].ID().Data().Get(), n[j].ID().Data().Get()) < 0
 }
 
 type databaseNamespace interface {
@@ -405,6 +405,9 @@ type NewPersistManagerFn func() persist.Manager
 
 // Options represents the options for storage
 type Options interface {
+	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
+	SetEncodingM3TSZPooled() Options
+
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
 
@@ -447,24 +450,6 @@ type Options interface {
 	// FileOpOptions returns the repair options
 	FileOpOptions() FileOpOptions
 
-	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
-	SetEncodingM3TSZPooled() Options
-
-	// SetEncodingM3TSZ sets m3tsz encoding
-	SetEncodingM3TSZ() Options
-
-	// SetNewEncoderFn sets the newEncoderFn
-	SetNewEncoderFn(value encoding.NewEncoderFn) Options
-
-	// NewEncoderFn returns the newEncoderFn
-	NewEncoderFn() encoding.NewEncoderFn
-
-	// SetNewDecoderFn sets the newDecoderFn
-	SetNewDecoderFn(value encoding.NewDecoderFn) Options
-
-	// NewDecoderFn returns the newDecoderFn
-	NewDecoderFn() encoding.NewDecoderFn
-
 	// SetNewBootstrapFn sets the newBootstrapFn
 	SetNewBootstrapFn(value NewBootstrapFn) Options
 
@@ -504,10 +489,10 @@ type Options interface {
 	DatabaseSeriesPool() series.DatabaseSeriesPool
 
 	// SetBytesPool sets the bytesPool
-	SetBytesPool(value pool.BytesPool) Options
+	SetBytesPool(value pool.CheckedBytesPool) Options
 
 	// BytesPool returns the bytesPool
-	BytesPool() pool.BytesPool
+	BytesPool() pool.CheckedBytesPool
 
 	// SetEncoderPool sets the contextPool
 	SetEncoderPool(value encoding.EncoderPool) Options

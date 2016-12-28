@@ -49,7 +49,7 @@ func TestWriteBits(t *testing.T) {
 	require.True(t, os.Empty())
 	for _, input := range inputs {
 		os.WriteBits(input.value, input.numBits)
-		require.Equal(t, input.expectedBytes, os.rawBuffer)
+		require.Equal(t, input.expectedBytes, os.rawBuffer.Get())
 		require.Equal(t, input.expectedPos, os.pos)
 	}
 	require.False(t, os.Empty())
@@ -60,7 +60,7 @@ func TestWriteBytes(t *testing.T) {
 	os := o.(*ostream)
 	rawBytes := []byte{0x1, 0x2}
 	os.WriteBytes(rawBytes)
-	require.Equal(t, rawBytes, os.rawBuffer)
+	require.Equal(t, rawBytes, os.rawBuffer.Get())
 	require.Equal(t, 8, os.pos)
 }
 

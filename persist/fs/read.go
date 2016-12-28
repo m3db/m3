@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
@@ -83,12 +84,16 @@ type reader struct {
 	prologue    []byte
 	currEntry   schema.IndexEntry
 	digestBuf   digest.Buffer
-	bytesPool   pool.BytesPool
+	bytesPool   pool.CheckedBytesPool
 }
 
 // NewReader returns a new reader for a filePathPrefix, expects all files to exist.  Will
 // read the index info.
-func NewReader(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) FileSetReader {
+func NewReader(
+	filePathPrefix string,
+	bufferSize int,
+	bytesPool pool.CheckedBytesPool,
+) FileSetReader {
 	return &reader{
 		filePathPrefix:             filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
@@ -213,7 +218,7 @@ func (r *reader) readIndex(size int) error {
 	return nil
 }
 
-func (r *reader) Read() (ts.ID, []byte, error) {
+func (r *reader) Read() (ts.ID, checked.Bytes, error) {
 	var none ts.ID
 	entry := &r.currEntry
 	entry.Reset()
@@ -244,13 +249,19 @@ func (r *reader) Read() (ts.ID, []byte, error) {
 		return none, nil, ErrReadWrongIdx{ExpectedIdx: entry.Index, ActualIdx: idx}
 	}
 
-	var data []byte
+	var data checked.Bytes
 	if r.bytesPool != nil {
-		data = r.bytesPool.Get(int(entry.Size))[:entry.Size]
+		data = r.bytesPool.Get(int(entry.Size))
+		data.IncRef()
+		defer data.DecRef()
+		data.Resize(int(entry.Size))
 	} else {
-		data = make([]byte, entry.Size)
+		data = checked.NewBytes(make([]byte, entry.Size), nil)
+		data.IncRef()
+		defer data.DecRef()
 	}
-	n, err = r.dataFdWithDigest.ReadBytes(data)
+
+	n, err = r.dataFdWithDigest.ReadBytes(data.Get())
 	if err != nil {
 		return none, nil, err
 	}
@@ -260,7 +271,7 @@ func (r *reader) Read() (ts.ID, []byte, error) {
 
 	r.entriesRead++
 
-	return ts.BinaryID(entry.Id), data, nil
+	return ts.StringID(string(entry.Id)), data, nil
 }
 
 // NB(xichen): Validate should be called after all data are read because the

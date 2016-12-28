@@ -29,7 +29,7 @@ type metadata struct {
 
 // NewMetadata creates a new namespace metadata
 func NewMetadata(id ts.ID, opts Options) Metadata {
-	return metadata{id: ts.BinaryID(append([]byte{}, id.Data()...)), opts: opts}
+	return metadata{id: ts.StringID(string(id.Data().Get())), opts: opts}
 }
 
 func (m metadata) ID() ts.ID {

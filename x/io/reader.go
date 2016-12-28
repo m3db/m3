@@ -112,16 +112,17 @@ func NewSegmentReader(segment ts.Segment) SegmentReader {
 	return &segmentReader{segment: segment}
 }
 
-// NewPooledSegmentReader creates a new pooled segment reader.
-func NewPooledSegmentReader(segment ts.Segment, pool SegmentReaderPool) SegmentReader {
-	return &segmentReader{segment: segment, pool: pool}
-}
-
 func (sr *segmentReader) Read(b []byte) (int, error) {
 	if len(b) == 0 {
 		return 0, nil
 	}
-	head, tail := sr.segment.Head, sr.segment.Tail
+	var head, tail []byte
+	if b := sr.segment.Head; b != nil {
+		head = b.Get()
+	}
+	if b := sr.segment.Tail; b != nil {
+		tail = b.Get()
+	}
 	nh, nt := len(head), len(tail)
 	if sr.si >= nh+nt {
 		return 0, io.EOF
@@ -156,10 +157,10 @@ func (sr *segmentReader) Reset(segment ts.Segment) {
 }
 
 func (sr *segmentReader) Close() {
-	// Return head and tail to pools if their pools are set on the segment
+	// Finalize the segment
 	sr.segment.Finalize()
 
-	if sr.pool != nil {
-		sr.pool.Put(sr)
+	if pool := sr.pool; pool != nil {
+		pool.Put(sr)
 	}
 }

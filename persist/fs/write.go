@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -128,11 +129,11 @@ func (w *writer) writeData(data []byte) error {
 	return nil
 }
 
-func (w *writer) Write(id ts.ID, data []byte) error {
-	return w.WriteAll(id, [][]byte{data})
+func (w *writer) Write(id ts.ID, data checked.Bytes) error {
+	return w.WriteAll(id, []checked.Bytes{data})
 }
 
-func (w *writer) WriteAll(id ts.ID, data [][]byte) error {
+func (w *writer) WriteAll(id ts.ID, data []checked.Bytes) error {
 	if w.err != nil {
 		return w.err
 	}
@@ -144,10 +145,10 @@ func (w *writer) WriteAll(id ts.ID, data [][]byte) error {
 	return nil
 }
 
-func (w *writer) writeAll(id ts.ID, data [][]byte) error {
+func (w *writer) writeAll(id ts.ID, data []checked.Bytes) error {
 	var size int64
 	for _, d := range data {
-		size += int64(len(d))
+		size += int64(d.Len())
 	}
 	if size == 0 {
 		return nil
@@ -157,7 +158,7 @@ func (w *writer) writeAll(id ts.ID, data [][]byte) error {
 	entry.Reset()
 	entry.Index = w.currIdx
 	entry.Size = size
-	entry.Id = id.Data()
+	entry.Id = id.Data().Get()
 	entry.Offset = w.currOffset
 
 	w.indexBuffer.Reset()
@@ -179,7 +180,7 @@ func (w *writer) writeAll(id ts.ID, data [][]byte) error {
 		return err
 	}
 	for _, d := range data {
-		if err := w.writeData(d); err != nil {
+		if err := w.writeData(d.Get()); err != nil {
 			return err
 		}
 	}

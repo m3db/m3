@@ -33,7 +33,11 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
-type newFileSetReaderFn func(filePathPrefix string, readerBufferSize int, bytesPool pool.BytesPool) fs.FileSetReader
+type newFileSetReaderFn func(
+	filePathPrefix string,
+	readerBufferSize int,
+	bytesPool pool.CheckedBytesPool,
+) fs.FileSetReader
 
 type fileSystemSource struct {
 	opts             Options
@@ -218,7 +222,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					}
 
 					block := bopts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-					block.Reset(timeRange.Start, ts.Segment{Head: data})
+					block.Reset(timeRange.Start, ts.NewSegment(data, nil, ts.FinalizeHead))
 					seriesMap.AddBlock(id, block)
 				}
 				if !hasError {

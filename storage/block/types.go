@@ -246,8 +246,8 @@ type Options interface {
 	SegmentReaderPool() xio.SegmentReaderPool
 
 	// SetBytesPool sets the bytesPool
-	SetBytesPool(value pool.BytesPool) Options
+	SetBytesPool(value pool.CheckedBytesPool) Options
 
 	// BytesPool returns the bytesPool
-	BytesPool() pool.BytesPool
+	BytesPool() pool.CheckedBytesPool
 }

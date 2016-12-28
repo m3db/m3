@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
@@ -202,11 +203,11 @@ func TestSeriesFlush(t *testing.T) {
 	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	flushTime := time.Unix(7200, 0)
-	head := []byte{0x1, 0x2}
-	tail := []byte{0x3, 0x4}
+	head := checked.NewBytes([]byte{0x1, 0x2}, nil)
+	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
 
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(flushTime, ts.Segment{Head: head, Tail: tail})
+	block.Reset(flushTime, ts.NewSegment(head, tail, ts.FinalizeNone))
 	series.blocks.AddBlock(block)
 
 	inputs := []error{errors.New("some error"), nil}
@@ -397,7 +398,9 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 
 	blocks := map[time.Time]block.DatabaseBlock{}
 	b := block.NewMockDatabaseBlock(ctrl)
-	expectedSegment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
+	head := checked.NewBytes([]byte{0x1, 0x2}, nil)
+	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
+	expectedSegment := ts.NewSegment(head, tail, ts.FinalizeNone)
 	b.EXPECT().Stream(ctx).Return(xio.NewSegmentReader(expectedSegment), nil)
 	expectedChecksum := digest.SegmentChecksum(expectedSegment)
 	b.EXPECT().Checksum().Return(&expectedChecksum)

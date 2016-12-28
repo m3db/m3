@@ -104,13 +104,16 @@ func ToSegments(readers []xio.SegmentReader) *rpc.Segments {
 
 	if len(readers) == 1 {
 		seg := readers[0].Segment()
-		s.Merged = &rpc.Segment{Head: seg.Head, Tail: seg.Tail}
+		s.Merged = &rpc.Segment{Head: seg.Head.Get(), Tail: seg.Tail.Get()}
 		return s
 	}
 
 	for _, reader := range readers {
 		seg := reader.Segment()
-		s.Unmerged = append(s.Unmerged, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
+		s.Unmerged = append(s.Unmerged, &rpc.Segment{
+			Head: seg.Head.Get(),
+			Tail: seg.Tail.Get(),
+		})
 	}
 
 	return s

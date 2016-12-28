@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ import (
 
 func TestConstructorEquality(t *testing.T) {
 	a := StringID("abc")
-	b := BinaryID([]byte{'a', 'b', 'c'})
+	b := BinaryID(checked.NewBytes([]byte{'a', 'b', 'c'}, nil))
 
 	require.Equal(t, a.String(), "abc")
 
@@ -70,7 +71,7 @@ func TestHashing(t *testing.T) {
 	var (
 		wg         sync.WaitGroup
 		id         = StringID("abc")
-		expected   = Hash(md5.Sum(id.Data()))
+		expected   = Hash(md5.Sum(id.Data().Get()))
 		numWorkers = 100
 	)
 
@@ -86,7 +87,7 @@ func TestHashing(t *testing.T) {
 }
 
 func BenchmarkHashing(b *testing.B) {
-	v := []byte{}
+	v := checked.NewBytes([]byte{}, nil)
 
 	for i := 0; i < b.N; i++ {
 		id := BinaryID(v)
@@ -95,7 +96,7 @@ func BenchmarkHashing(b *testing.B) {
 }
 
 func BenchmarkHashCaching(b *testing.B) {
-	v := []byte{}
+	v := checked.NewBytes([]byte{}, nil)
 
 	for i := 0; i < b.N; i++ {
 		id := BinaryID(v)
@@ -108,7 +109,7 @@ func BenchmarkPooling(b *testing.B) {
 	p := NewNativeIdentifierPool(nil, pool.NewObjectPoolOptions())
 	ctx := context.NewContext()
 
-	v := []byte{'a', 'b', 'c'}
+	v := checked.NewBytes([]byte{'a', 'b', 'c'}, nil)
 
 	for i := 0; i < b.N; i++ {
 		id := p.GetBinaryID(ctx, v)

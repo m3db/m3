@@ -43,17 +43,20 @@ type SegmentReader interface {
 	// Reset resets the reader to read a new segment
 	Reset(segment ts.Segment)
 
-	// Close closes the reader and if pooled will return to the pool
+	// Close closes the reader, there must be no refs left to the reader
 	Close()
 }
 
 // SegmentReaderPool provides a pool for segment readers
 type SegmentReaderPool interface {
+	// Init will initialize the pool
+	Init()
+
 	// Get provides a segment reader from the pool
 	Get() SegmentReader
 
 	// Put returns a segment reader to the pool
-	Put(reader SegmentReader)
+	Put(sr SegmentReader)
 }
 
 // ReaderSliceOfSlicesIterator is an iterator that iterates through an array of reader arrays
@@ -67,7 +70,7 @@ type ReaderSliceOfSlicesIterator interface {
 	// CurrentAt returns the current reader in the slice of readers at an index
 	CurrentAt(idx int) io.Reader
 
-	// Close closes the iterator and if pooled will return to the pool
+	// Close closes the iterator
 	Close()
 }
 

@@ -21,8 +21,8 @@
 package xio
 
 import (
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 )
 
 type segmentReaderPool struct {
@@ -31,17 +31,21 @@ type segmentReaderPool struct {
 
 // NewSegmentReaderPool creates a new pool
 func NewSegmentReaderPool(opts pool.ObjectPoolOptions) SegmentReaderPool {
-	p := &segmentReaderPool{pool: pool.NewObjectPool(opts)}
+	return &segmentReaderPool{pool: pool.NewObjectPool(opts)}
+}
+
+func (p *segmentReaderPool) Init() {
 	p.pool.Init(func() interface{} {
-		return NewPooledSegmentReader(ts.Segment{}, p)
+		sr := NewSegmentReader(ts.Segment{}).(*segmentReader)
+		sr.pool = p
+		return sr
 	})
-	return p
 }
 
 func (p *segmentReaderPool) Get() SegmentReader {
 	return p.pool.Get().(SegmentReader)
 }
 
-func (p *segmentReaderPool) Put(reader SegmentReader) {
-	p.pool.Put(reader)
+func (p *segmentReaderPool) Put(sr SegmentReader) {
+	p.pool.Put(sr)
 }

@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -108,8 +109,12 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	blockStart := time.Unix(1000, 0)
 	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(nil)
 
-	id := ts.StringID("foo")
-	segment := ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3, 0x4}}
+	var (
+		id      = ts.StringID("foo")
+		head    = checked.NewBytes([]byte{0x1, 0x2}, nil)
+		tail    = checked.NewBytes([]byte{0x3, 0x4}, nil)
+		segment = ts.NewSegment(head, tail, ts.FinalizeNone)
+	)
 	writer.EXPECT().WriteAll(id, gomock.Any()).Return(nil)
 	writer.EXPECT().Close()
 
@@ -151,7 +156,9 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		now     time.Time
 		slept   time.Duration
 		id      = ts.StringID("foo")
-		segment = ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3}}
+		head    = checked.NewBytes([]byte{0x1, 0x2}, nil)
+		tail    = checked.NewBytes([]byte{0x3}, nil)
+		segment = ts.NewSegment(head, tail, ts.FinalizeNone)
 	)
 
 	pm.nowFn = func() time.Time { return now }
@@ -186,7 +193,9 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		slept   time.Duration
 		iter    = 2
 		id      = ts.StringID("foo")
-		segment = ts.Segment{Head: []byte{0x1, 0x2}, Tail: []byte{0x3}}
+		head    = checked.NewBytes([]byte{0x1, 0x2}, nil)
+		tail    = checked.NewBytes([]byte{0x3}, nil)
+		segment = ts.NewSegment(head, tail, ts.FinalizeNone)
 	)
 
 	pm.nowFn = func() time.Time { return now }

@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -636,7 +637,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	state.op, state.majority = s.writeOpPool.Get(), majority
 
 	state.op.namespace = ts.StringID(namespace)
-	state.op.request.ID = tsID.Data()
+	state.op.request.ID = tsID.Data().Get()
 	state.op.request.Datapoint.Value = value
 	state.op.request.Datapoint.Timestamp = timestamp
 	state.op.request.Datapoint.TimestampType = timeType
@@ -894,7 +895,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 			}
 
 			// Append IDWithNamespace to this request
-			f.append(nsID, tsID.Data(), completionFn)
+			f.append(nsID, tsID.Data().Get(), completionFn)
 		}); err != nil {
 			routeErr = err
 			break
@@ -1037,7 +1038,7 @@ func (s *session) Truncate(namespace ts.ID) (int64, error) {
 	)
 
 	t := &truncateOp{}
-	t.request.NameSpace = namespace.Data()
+	t.request.NameSpace = namespace.Data().Get()
 	t.completionFn = func(result interface{}, err error) {
 		if err != nil {
 			resultErrLock.Lock()
@@ -1233,7 +1234,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		pageToken *int64
 		retrier   = xretry.NewRetrier(xretry.NewOptions().
 				SetBackoffFactor(2).
-				SetMax(3).
+				SetMaxRetries(3).
 				SetInitialBackoff(time.Second).
 				SetJitter(true))
 		optionIncludeSizes     = true
@@ -1244,7 +1245,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
 		req := rpc.NewFetchBlocksMetadataRawRequest()
-		req.NameSpace = namespace.Data()
+		req.NameSpace = namespace.Data().Get()
 		req.Shard = int32(shard)
 		req.RangeStart = start.UnixNano()
 		req.RangeEnd = end.UnixNano()
@@ -1309,7 +1310,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 			}
 			ch <- blocksMetadata{
 				peer:   peer,
-				id:     ts.BinaryID(elem.ID),
+				id:     ts.BinaryID(checked.NewBytes(elem.ID, nil)),
 				blocks: blockMetas,
 			}
 		}
@@ -1342,7 +1343,7 @@ func (s *session) streamBlocksFromPeers(
 	var (
 		retrier = xretry.NewRetrier(xretry.NewOptions().
 			SetBackoffFactor(2).
-			SetMax(3).
+			SetMaxRetries(3).
 			SetInitialBackoff(time.Second).
 			SetJitter(true))
 		enqueueCh           = newEnqueueChannel(m)
@@ -1685,13 +1686,14 @@ func (s *session) streamBlocksBatchFromPeer(
 		result       *rpc.FetchBlocksRawResult_
 		reqBlocksLen int64
 
+		bytesPool          = opts.DatabaseBlockOptions().BytesPool()
 		nowFn              = opts.ClockOptions().NowFn()
 		ropts              = opts.RetentionOptions()
 		blockSize          = ropts.BlockSize()
 		retention          = ropts.RetentionPeriod()
 		earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
 	)
-	req.NameSpace = namespace.Data()
+	req.NameSpace = namespace.Data().Get()
 	req.Shard = int32(shard)
 	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, len(batch))
 	for i := range batch {
@@ -1706,7 +1708,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		}
 		reqBlocksLen += int64(len(starts))
 		req.Elements[i] = &rpc.FetchBlocksRawRequestElement{
-			ID:     batch[i].id.Data(),
+			ID:     batch[i].id.Data().Get(),
 			Starts: starts,
 		}
 	}
@@ -1747,7 +1749,11 @@ func (s *session) streamBlocksBatchFromPeer(
 			continue
 		}
 
-		id := ts.BinaryID(result.Elements[i].ID)
+		buffer := bytesPool.Get(len(result.Elements[i].ID))
+		buffer.IncRef()
+		buffer.AppendAll(result.Elements[i].ID)
+		buffer.DecRef()
+		id := ts.BinaryID(buffer)
 
 		if !batch[i].id.Equal(id) {
 			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
@@ -1884,6 +1890,26 @@ func newBlocksResult(
 	}
 }
 
+func (r *blocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
+	var (
+		bytesPool  = r.blockOpts.BytesPool()
+		head, tail checked.Bytes
+	)
+	if len(seg.Head) > 0 {
+		head = bytesPool.Get(len(seg.Head))
+		head.IncRef()
+		head.AppendAll(seg.Head)
+		head.DecRef()
+	}
+	if len(seg.Tail) > 0 {
+		tail = bytesPool.Get(len(seg.Tail))
+		tail.IncRef()
+		tail.AppendAll(seg.Tail)
+		tail.DecRef()
+	}
+	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
+}
+
 func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	var (
 		start    = time.Unix(0, block.Start)
@@ -1898,21 +1924,24 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 	switch {
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
-		result.Reset(start, ts.Segment{
-			Head: segments.Merged.Head,
-			Tail: segments.Merged.Tail,
-		})
+		result.Reset(start, r.segmentForBlock(segments.Merged))
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
+		readerPool := r.blockOpts.SegmentReaderPool()
 		readers := make([]io.Reader, len(segments.Unmerged))
 		for i := range segments.Unmerged {
-			readers[i] = xio.NewSegmentReader(ts.Segment{
-				Head: segments.Unmerged[i].Head,
-				Tail: segments.Unmerged[i].Tail,
-			})
+			reader := readerPool.Get()
+			reader.Reset(r.segmentForBlock(segments.Unmerged[i]))
+			readers[i] = reader
 		}
+
 		encoder, err := r.mergeReaders(start, readers)
+		for _, reader := range readers {
+			// Close each reader
+			reader.(xio.SegmentReader).Close()
+		}
+
 		if err != nil {
 			return err
 		}

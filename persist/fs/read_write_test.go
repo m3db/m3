@@ -50,7 +50,9 @@ func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.T
 	assert.NoError(t, err)
 
 	for i := range entries {
-		assert.NoError(t, w.Write(ts.StringID(entries[i].id), entries[i].data))
+		assert.NoError(t, w.Write(
+			ts.StringID(entries[i].id),
+			bytesRefd(entries[i].data)))
 	}
 	assert.NoError(t, w.Close())
 }
@@ -64,9 +66,12 @@ func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Ti
 
 	for i := 0; i < r.Entries(); i++ {
 		id, data, err := r.Read()
+		data.IncRef()
+		defer data.DecRef()
+
 		assert.NoError(t, err)
 		assert.Equal(t, entries[i].id, id.String())
-		assert.True(t, bytes.Equal(entries[i].data, data))
+		assert.True(t, bytes.Equal(entries[i].data, data.Get()))
 
 		assert.Equal(t, i+1, r.EntriesRead())
 	}
@@ -132,11 +137,16 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	shard := uint32(0)
 	require.NoError(t, w.Open(testNamespaceID, shard, testWriterStart))
-	require.NoError(t, w.Write(ts.StringID(entries[0].id), entries[0].data))
+
+	require.NoError(t, w.Write(
+		ts.StringID(entries[0].id),
+		bytesRefd(entries[0].data)))
 
 	// Intentionally force a writer error.
 	w.(*writer).err = errors.New("foo")
-	require.Equal(t, "foo", w.Write(ts.StringID(entries[1].id), entries[1].data).Error())
+	require.Equal(t, "foo", w.Write(
+		ts.StringID(entries[1].id),
+		bytesRefd(entries[1].data)).Error())
 	w.Close()
 
 	r := newTestReader(filePathPrefix)

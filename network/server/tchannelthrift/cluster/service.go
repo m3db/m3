@@ -180,7 +180,7 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.
 	if !ok {
 		return nil, tterrors.NewInternalError(errors.New("unable to get an admin session"))
 	}
-	truncated, err := adminSession.Truncate(ts.BinaryID(req.NameSpace))
+	truncated, err := adminSession.Truncate(ts.StringID(string(req.NameSpace)))
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}

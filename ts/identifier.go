@@ -25,18 +25,21 @@ import (
 	"crypto/md5"
 	"fmt"
 	"sync/atomic"
+
+	"github.com/m3db/m3x/checked"
 )
 
 // BinaryID constructs a new ID based on a binary value.
-// WARNING: Does not copy the underlying data, do not use
-// when cloning a pooled ID object.
-func BinaryID(v []byte) ID {
+func BinaryID(v checked.Bytes) ID {
+	v.IncRef()
 	return &id{data: v}
 }
 
 // StringID constructs a new ID based on a string value.
-func StringID(v string) ID {
-	return &id{data: []byte(v)}
+func StringID(str string) ID {
+	v := checked.NewBytes([]byte(str), nil)
+	v.IncRef()
+	return &id{data: v}
 }
 
 // HashFn is the default hashing implementation for IDs.
@@ -45,14 +48,14 @@ func HashFn(data []byte) Hash {
 }
 
 type id struct {
-	data []byte
+	data checked.Bytes
 	hash Hash
 	pool IdentifierPool
 	flag int32
 }
 
 // Data returns the binary value of an ID.
-func (v *id) Data() []byte {
+func (v *id) Data() checked.Bytes {
 	return v.data
 }
 
@@ -78,7 +81,7 @@ func (v *id) Hash() Hash {
 		// If the hash is not computed, and this goroutine gains exclusive
 		// access to the hash field, compute and cache it.
 		if atomic.CompareAndSwapInt32(&v.flag, int32(invalid), int32(pending)) {
-			v.hash = HashFn(v.data)
+			v.hash = HashFn(v.data.Get())
 			atomic.StoreInt32(&v.flag, int32(computed))
 			return v.hash
 		}
@@ -88,17 +91,21 @@ func (v *id) Hash() Hash {
 
 	// If the hash is being computed, compute the hash in place and don't
 	// wait.
-	return HashFn(v.data)
+	return HashFn(v.data.Get())
 }
 
 func (v *id) Equal(value ID) bool {
-	return bytes.Equal(v.Data(), value.Data())
+	return bytes.Equal(v.Data().Get(), value.Data().Get())
 }
 
 func (v *id) Finalize() {
 	if v.pool == nil {
 		return
 	}
+
+	v.data.DecRef()
+	v.data.Finalize()
+	v.data = nil
 
 	v.pool.Put(v)
 }
@@ -108,5 +115,5 @@ func (v *id) Reset() {
 }
 
 func (v *id) String() string {
-	return string(v.data)
+	return string(v.data.Get())
 }

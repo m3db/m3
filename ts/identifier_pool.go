@@ -24,6 +24,7 @@ import (
 	"reflect"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -39,17 +40,18 @@ type simpleIdentifierPool struct {
 	pool pool.ObjectPool
 }
 
-func (p *simpleIdentifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
+func (p *simpleIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
 	id := p.pool.Get().(*id)
 	ctx.RegisterFinalizer(id)
 
+	v.IncRef()
 	id.data = v
 
 	return id
 }
 
 func (p *simpleIdentifierPool) GetStringID(ctx context.Context, v string) ID {
-	return p.GetBinaryID(ctx, []byte(v))
+	return p.GetBinaryID(ctx, checked.NewBytes([]byte(v), nil))
 }
 
 func (p *simpleIdentifierPool) Put(v ID) {
@@ -57,16 +59,23 @@ func (p *simpleIdentifierPool) Put(v ID) {
 	p.pool.Put(v)
 }
 
-func (p *simpleIdentifierPool) Clone(other ID) ID {
+func (p *simpleIdentifierPool) Clone(existing ID) ID {
 	id := p.pool.Get().(*id)
-	id.data = other.Data()
+
+	data := checked.NewBytes(nil, nil)
+	data.IncRef()
+	data.AppendAll(existing.Data().Get())
+
+	id.data = data
 
 	return id
 }
 
 // NewNativeIdentifierPool constructs a new NativeIdentifierPool.
 func NewNativeIdentifierPool(
-	heap pool.BytesPool, options pool.ObjectPoolOptions) IdentifierPool {
+	heap pool.CheckedBytesPool,
+	options pool.ObjectPoolOptions,
+) IdentifierPool {
 
 	if options == nil {
 		options = pool.NewObjectPoolOptions()
@@ -81,17 +90,22 @@ func NewNativeIdentifierPool(
 
 type nativeIdentifierPool struct {
 	pool pool.NativePool
-	heap pool.BytesPool
+	heap pool.CheckedBytesPool
 }
 
-func configureHeap(heap pool.BytesPool) pool.BytesPool {
+func configureHeap(heap pool.CheckedBytesPool) pool.CheckedBytesPool {
 	if heap != nil {
 		return heap
 	}
 
-	p := pool.NewNativeHeap([]pool.Bucket{
+	b := []pool.Bucket{
 		{Capacity: 128, Count: 4096},
-		{Capacity: 256, Count: 2048}}, nil)
+		{Capacity: 256, Count: 2048},
+	}
+
+	p := pool.NewCheckedBytesPool(b, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewNativeHeap(s, nil)
+	})
 	p.Init()
 
 	return p
@@ -102,35 +116,46 @@ func create() interface{} {
 }
 
 // GetBinaryID returns a new ID based on a binary value.
-func (p *nativeIdentifierPool) GetBinaryID(ctx context.Context, v []byte) ID {
+func (p *nativeIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
 	id := p.pool.GetOr(create).(*id)
 	ctx.RegisterFinalizer(id)
 
-	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
+	v.IncRef()
+	id.pool, id.data = p, v
 
 	return id
 }
 
 // GetStringID returns a new ID based on a string value.
-func (p *nativeIdentifierPool) GetStringID(ctx context.Context, v string) ID {
+func (p *nativeIdentifierPool) GetStringID(ctx context.Context, str string) ID {
 	id := p.pool.GetOr(create).(*id)
 	ctx.RegisterFinalizer(id)
 
-	id.pool, id.data = p, append(p.heap.Get(len(v)), v...)
+	v := p.heap.Get(len(str))
+	v.IncRef()
+	v.AppendAll([]byte(str))
+
+	id.pool, id.data = p, v
 
 	return id
 }
 
 func (p *nativeIdentifierPool) Put(v ID) {
-	p.heap.Put(v.Data())
 	v.Reset()
 	p.pool.Put(v.(*id))
 }
 
 // Clone replicates given ID into a new ID from the pool.
-func (p *nativeIdentifierPool) Clone(v ID) ID {
+func (p *nativeIdentifierPool) Clone(existing ID) ID {
 	id := p.pool.GetOr(create).(*id)
-	id.pool, id.data = p, append(p.heap.Get(len(v.Data())), v.Data()...)
+
+	data := existing.Data().Get()
+
+	v := p.heap.Get(len(data))
+	v.IncRef()
+	v.AppendAll(data)
+
+	id.pool, id.data = p, v
 
 	return id
 }

@@ -21,9 +21,9 @@
 package encoding
 
 import (
-	"bytes"
 	"errors"
 
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/time"
 )
 
@@ -187,11 +187,7 @@ type MarkerEncodingScheme interface {
 
 	// Tail will return the tail portion of a stream including the relevant bits
 	// in the last byte along with the end of stream marker.
-	Tail(streamLastByte byte, streamCurrentPosition int) []byte
-
-	// TrimEndOfStream will trim the end of stream marker if any and return the
-	// trimmed stream and the number of used bits.
-	TrimEndOfStream(encoded []byte) ([]byte, int, error)
+	Tail(streamLastByte byte, streamCurrentPosition int) checked.Bytes
 }
 
 type markerEncodingScheme struct {
@@ -201,7 +197,7 @@ type markerEncodingScheme struct {
 	endOfStream   Marker
 	annotation    Marker
 	timeUnit      Marker
-	tails         [256][8][]byte
+	tails         [256][8]checked.Bytes
 }
 
 func newMarkerEncodingScheme(
@@ -226,7 +222,7 @@ func newMarkerEncodingScheme(
 	for i := range scheme.tails {
 		for j := range scheme.tails[i] {
 			pos := j + 1
-			tmp := NewOStream(nil, false, nil)
+			tmp := NewOStream(checked.NewBytes(nil, nil), false, nil)
 			tmp.WriteBits(uint64(i)>>uint(8-pos), pos)
 			WriteSpecialMarker(tmp, scheme, endOfStream)
 			tail, _ := tmp.Rawbytes()
@@ -243,29 +239,10 @@ func WriteSpecialMarker(os OStream, scheme MarkerEncodingScheme, marker Marker) 
 	os.WriteBits(uint64(marker), scheme.NumValueBits())
 }
 
-func (mes *markerEncodingScheme) Opcode() uint64              { return mes.opcode }
-func (mes *markerEncodingScheme) NumOpcodeBits() int          { return mes.numOpcodeBits }
-func (mes *markerEncodingScheme) NumValueBits() int           { return mes.numValueBits }
-func (mes *markerEncodingScheme) EndOfStream() Marker         { return mes.endOfStream }
-func (mes *markerEncodingScheme) Annotation() Marker          { return mes.annotation }
-func (mes *markerEncodingScheme) TimeUnit() Marker            { return mes.timeUnit }
-func (mes *markerEncodingScheme) Tail(b byte, pos int) []byte { return mes.tails[int(b)][pos-1] }
-
-func (mes *markerEncodingScheme) TrimEndOfStream(encoded []byte) ([]byte, int, error) {
-	numEncodedBytes := len(encoded)
-	for i := range mes.tails {
-		for j := range mes.tails[i] {
-			numTailBytes := len(mes.tails[i][j])
-			if numEncodedBytes < numTailBytes {
-				continue
-			}
-			tailIdx := numEncodedBytes - numTailBytes
-			tailBytes := encoded[tailIdx:]
-			if bytes.Equal(mes.tails[i][j], tailBytes) {
-				encoded[tailIdx] = byte(i)
-				return encoded[:tailIdx+1], j + 1, nil
-			}
-		}
-	}
-	return nil, 0, errEndOfStreamMarkerNotFound
-}
+func (mes *markerEncodingScheme) Opcode() uint64                     { return mes.opcode }
+func (mes *markerEncodingScheme) NumOpcodeBits() int                 { return mes.numOpcodeBits }
+func (mes *markerEncodingScheme) NumValueBits() int                  { return mes.numValueBits }
+func (mes *markerEncodingScheme) EndOfStream() Marker                { return mes.endOfStream }
+func (mes *markerEncodingScheme) Annotation() Marker                 { return mes.annotation }
+func (mes *markerEncodingScheme) TimeUnit() Marker                   { return mes.timeUnit }
+func (mes *markerEncodingScheme) Tail(b byte, pos int) checked.Bytes { return mes.tails[int(b)][pos-1] }

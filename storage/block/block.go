@@ -82,13 +82,9 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		return nil, nil
 	}
 	s := b.opts.SegmentReaderPool().Get()
-	// NB(r): We explicitly pass a new segment without a HeadPool to avoid
-	// the segment reader returning these byte slices to the pool again as these
-	// are immutable slices that are shared amongst all the readers.
-	s.Reset(ts.Segment{
-		Head: b.segment.Head,
-		Tail: b.segment.Tail,
-	})
+	// NB(r): We explicitly create a new segment to ensure references
+	// are taken to the bytes refs and to not finalize the bytes.
+	s.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
 	blocker.RegisterFinalizer(context.FinalizerFn(s.Close))
 	return s, nil
 }

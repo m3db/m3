@@ -115,8 +115,8 @@ func (r *reader) Read() (
 		}
 		r.metadataLookup[r.log.Index] = Series{
 			UniqueIndex: r.log.Index,
-			ID:          ts.BinaryID(r.metadata.Id),
-			Namespace:   ts.BinaryID(r.metadata.Namespace),
+			ID:          ts.StringID(string(r.metadata.Id)),
+			Namespace:   ts.StringID(string(r.metadata.Namespace)),
 			Shard:       r.metadata.Shard,
 		}
 	}

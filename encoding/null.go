@@ -27,10 +27,13 @@ import (
 
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/time"
 )
 
 type nullEncoder struct {
+	checked.RefCount
+
 	sealed bool
 }
 
