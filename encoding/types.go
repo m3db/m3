@@ -42,10 +42,10 @@ type Encoder interface {
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)
 
-	// Close closes the encoder, ensure zero ref before close.
+	// Close closes the encoder and if pooled will return to the pool.
 	Close()
 
-	// Discard will take ownership of the encoder data, ensure zero ref before close.
+	// Discard will take ownership of the encoder data and if pooled will return to the pool.
 	Discard() ts.Segment
 
 	// DiscardReset will take ownership of the encoder data and reset the encoder for use.
@@ -226,6 +226,9 @@ type EncoderPool interface {
 
 	// Get provides an encoder from the pool
 	Get() Encoder
+
+	// Put returns an encoder to the pool
+	Put(e Encoder)
 }
 
 // ReaderIteratorPool provides a pool for ReaderIterators

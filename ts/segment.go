@@ -72,7 +72,14 @@ func NewSegment(
 
 // Len returns the length of the head and tail.
 func (s *Segment) Len() int {
-	return s.Head.Len() + s.Tail.Len()
+	var total int
+	if s.Head != nil {
+		total += s.Head.Len()
+	}
+	if s.Tail != nil {
+		total += s.Tail.Len()
+	}
+	return total
 }
 
 // Finalize will finalize the segment by decrementing refs to head and

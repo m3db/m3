@@ -45,8 +45,6 @@ var (
 )
 
 type encoder struct {
-	checked.RefCount
-
 	os   encoding.OStream
 	opts encoding.Options
 
@@ -538,8 +536,9 @@ func (enc *encoder) Close() {
 	// Ensure to free ref to ostream bytes
 	enc.os.Reset(nil)
 
-	// Finalize and return to pool if pooled
-	enc.Finalize()
+	if pool := enc.opts.EncoderPool(); pool != nil {
+		pool.Put(enc)
+	}
 }
 
 func (enc *encoder) discard() ts.Segment {
