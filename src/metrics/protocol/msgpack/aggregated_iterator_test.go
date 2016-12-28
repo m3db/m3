@@ -70,6 +70,7 @@ func TestAggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	require.NoError(t, testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy))
 
 	it := testAggregatedIterator(t, enc.Encoder().Buffer)
+	it.(*aggregatedIterator).ignoreHigherVersion = true
 
 	// Check that we skipped the first metric and successfully decoded the second metric
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
