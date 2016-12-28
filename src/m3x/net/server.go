@@ -50,10 +50,10 @@ func StartAcceptLoop(l net.Listener, retrier xretry.Retrier) (<-chan net.Conn, <
 				}
 				// If the error is a temporary network error, we consider it retryable
 				if ne, ok := connErr.(net.Error); ok && ne.Temporary() {
-					return xerrors.NewRetryableError(ne)
+					return ne
 				}
 				// Otherwise it's a non-retryable error
-				return connErr
+				return xerrors.NewNonRetryableError(connErr)
 			}); err != nil {
 				close(connCh)
 				errCh <- err
