@@ -1,14 +1,32 @@
-hash: d10b45615eec75d92104d9688ba51e74076e45ca4bc8eebb6a6f3ad50b6b6201
-updated: 2016-12-08T13:43:15.768704055-05:00
+hash: 256e975ba2a621abcae8cc90c9b6bede6f6cce15014660983fa441f7a0500ae4
+updated: 2016-12-27T22:53:29.495551966-05:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
-- name: github.com/m3db/m3x
-  version: 871bc2bd6d94337af12999ba77842f07465f6165
+- name: github.com/golang/protobuf
+  version: 3852dcfda249c2097355a6aabb199a28d97b30df
   subpackages:
+  - proto
+- name: github.com/m3db/m3metrics
+  version: e048526e1c6bc12edbe3b082c54e1c6cd9ca3c57
+  subpackages:
+  - metric
+  - metric/aggregated
+  - metric/unaggregated
+  - policy
+  - pool
+  - protocol/msgpack
+- name: github.com/m3db/m3x
+  version: f842df6a45a44771d5b399ad19efcbe67a4f2887
+  subpackages:
+  - errors
   - instrument
   - log
+  - net
   - pool
+  - retry
+  - sync
+  - time
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
@@ -16,6 +34,25 @@ imports:
   - require
 - name: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+- name: golang.org/x/net
+  version: 3b993948b6f0e651ffb58ba135d8538a68b1cddf
+  subpackages:
+  - context
+- name: google.golang.org/appengine
+  version: 08a149cfaee099e6ce4be01c0113a78c85ee1dee
+  subpackages:
+  - datastore
+  - internal
+  - internal/app_identity
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/modules
+  - internal/remote_api
+- name: gopkg.in/vmihailenco/msgpack.v2
+  version: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
+  subpackages:
+  - codes
 testImports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
