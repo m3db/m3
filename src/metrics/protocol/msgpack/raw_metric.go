@@ -33,10 +33,6 @@ var (
 	emptyMetric aggregated.Metric
 )
 
-type decodeVersionFn func() int
-type decodeBytesLenFn func() int
-type decodeTimeFn func() time.Time
-type decodeFloat64Fn func() float64
 type readBytesFn func(n int) []byte
 
 // rawMetric is a raw metric
@@ -48,10 +44,6 @@ type rawMetric struct {
 	idDecoded        bool              // whether id has been decoded
 	timestampDecoded bool              // whether timestamp has been decoded
 	valueDecoded     bool              // whether value has been decoded
-	decodeVersionFn  decodeVersionFn   // decoding version function
-	decodeBytesLenFn decodeBytesLenFn  // decoding the byte slice length function
-	decodeTimeFn     decodeTimeFn      // decoding time function
-	decodeFloat64Fn  decodeFloat64Fn   // decoding float64 value function
 	readBytesFn      readBytesFn       // reading bytes function
 }
 
@@ -64,10 +56,6 @@ func NewRawMetric(data []byte) aggregated.RawMetric {
 		it:   newBaseIterator(buf),
 	}
 
-	m.decodeVersionFn = m.it.decodeVersion
-	m.decodeBytesLenFn = m.it.decodeBytesLen
-	m.decodeTimeFn = m.it.decodeTime
-	m.decodeFloat64Fn = m.it.decodeFloat64
 	m.readBytesFn = m.buf.Next
 
 	return m
@@ -82,6 +70,7 @@ func (m *rawMetric) ID() (metric.ID, error) {
 }
 
 func (m *rawMetric) Timestamp() (time.Time, error) {
+	m.decodeID()
 	m.decodeTimestamp()
 	if err := m.it.err(); err != nil {
 		return time.Time{}, err
@@ -90,6 +79,8 @@ func (m *rawMetric) Timestamp() (time.Time, error) {
 }
 
 func (m *rawMetric) Value() (float64, error) {
+	m.decodeID()
+	m.decodeTimestamp()
 	m.decodeValue()
 	if err := m.it.err(); err != nil {
 		return 0.0, err
@@ -130,7 +121,7 @@ func (m *rawMetric) decodeID() {
 	if m.it.err() != nil || m.idDecoded {
 		return
 	}
-	version := m.decodeVersionFn()
+	version := m.it.decodeVersion()
 	if m.it.err() != nil {
 		return
 	}
@@ -139,7 +130,11 @@ func (m *rawMetric) decodeID() {
 		m.it.setErr(err)
 		return
 	}
-	idLen := m.decodeBytesLenFn()
+	_, _, ok := m.it.checkNumFieldsForType(metricType)
+	if !ok {
+		return
+	}
+	idLen := m.it.decodeBytesLen()
 	if m.it.err() != nil {
 		return
 	}
@@ -156,7 +151,7 @@ func (m *rawMetric) decodeTimestamp() {
 	if m.it.err() != nil || m.timestampDecoded {
 		return
 	}
-	t := m.decodeTimeFn()
+	t := m.it.decodeTime()
 	if m.it.err() != nil {
 		return
 	}
@@ -168,7 +163,7 @@ func (m *rawMetric) decodeValue() {
 	if m.it.err() != nil || m.valueDecoded {
 		return
 	}
-	v := m.decodeFloat64Fn()
+	v := m.it.decodeFloat64()
 	if m.it.err() != nil {
 		return
 	}

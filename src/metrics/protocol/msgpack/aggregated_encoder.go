@@ -86,14 +86,10 @@ func (enc *aggregatedEncoder) encodeRootObject(objType objectType) {
 	enc.encodeObjectType(objType)
 }
 
-// NB(xichen): we do not encode the number of object fields here because the metric
-// is encoded as raw bytes in the payload, which means each metric is decoded individually
-// rather than in a streaming fashion. As a result we can safely make backward-compatible
-// changes (e.g., encode one more field at the end) without needing the number of object
-// fields.
 func (enc *aggregatedEncoder) encodeMetricAsRaw(m aggregated.Metric) []byte {
 	enc.buf.resetData()
 	enc.buf.encodeVersion(metricVersion)
+	enc.buf.encodeNumObjectFields(numFieldsForType(metricType))
 	enc.buf.encodeID(m.ID)
 	enc.buf.encodeTime(m.Timestamp)
 	enc.buf.encodeFloat64(m.Value)

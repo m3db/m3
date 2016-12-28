@@ -73,6 +73,7 @@ func TestUnaggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 
 	// Check that we skipped the first counter and successfully decoded the second counter
 	it := testUnaggregatedIterator(t, bytes.NewBuffer(enc.Encoder().Buffer.Bytes()))
+	it.(*unaggregatedIterator).ignoreHigherVersion = true
 	validateUnaggregatedDecodeResults(t, it, []metricWithPolicies{input}, io.EOF)
 
 	it.Reset(bytes.NewBuffer(enc.Encoder().Buffer.Bytes()))

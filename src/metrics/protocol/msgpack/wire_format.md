@@ -88,6 +88,7 @@
 
 * Raw metric object
   * Version
+  * Number of metric fields
   * Metric ID
   * Metric timestamp
   * Metric value

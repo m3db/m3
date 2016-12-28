@@ -22,11 +22,13 @@ package msgpack
 
 import (
 	"errors"
+	"io"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/policy"
 
 	"github.com/stretchr/testify/require"
 )
@@ -36,13 +38,55 @@ var (
 	errTestDecodeRawMetric = errors.New("foo")
 )
 
-func testRawMetric() *rawMetric {
-	m := NewRawMetric(testRawMetricData).(*rawMetric)
+type decodeVersionFn func() int
+type decodeBytesLenFn func() int
+type decodeTimeFn func() time.Time
+type decodeFloat64Fn func() float64
 
-	m.decodeVersionFn = func() int { return metricVersion }
-	m.decodeBytesLenFn = func() int { return len(testMetric.ID) }
-	m.decodeTimeFn = func() time.Time { return testMetric.Timestamp }
-	m.decodeFloat64Fn = func() float64 { return testMetric.Value }
+type mockBaseIterator struct {
+	itErr            error
+	decodeVersionFn  decodeVersionFn
+	decodeBytesLenFn decodeBytesLenFn
+	decodeTimeFn     decodeTimeFn
+	decodeFloat64Fn  decodeFloat64Fn
+}
+
+func (it *mockBaseIterator) reset(reader io.Reader)       {}
+func (it *mockBaseIterator) err() error                   { return it.itErr }
+func (it *mockBaseIterator) setErr(err error)             { it.itErr = err }
+func (it *mockBaseIterator) decodePolicy() policy.Policy  { return policy.Policy{} }
+func (it *mockBaseIterator) decodeVersion() int           { return it.decodeVersionFn() }
+func (it *mockBaseIterator) decodeObjectType() objectType { return unknownType }
+func (it *mockBaseIterator) decodeNumObjectFields() int   { return 0 }
+func (it *mockBaseIterator) decodeID() metric.ID          { return nil }
+func (it *mockBaseIterator) decodeTime() time.Time        { return it.decodeTimeFn() }
+func (it *mockBaseIterator) decodeVarint() int64          { return 0 }
+func (it *mockBaseIterator) decodeFloat64() float64       { return it.decodeFloat64Fn() }
+func (it *mockBaseIterator) decodeBytes() []byte          { return nil }
+func (it *mockBaseIterator) decodeBytesLen() int          { return it.decodeBytesLenFn() }
+func (it *mockBaseIterator) decodeArrayLen() int          { return 0 }
+func (it *mockBaseIterator) skip(numFields int)           {}
+
+func (it *mockBaseIterator) checkNumFieldsForType(objType objectType) (int, int, bool) {
+	return 0, 0, true
+}
+
+func (it *mockBaseIterator) checkNumFieldsForTypeWithActual(
+	objType objectType,
+	numActualFields int,
+) (int, int, bool) {
+	return 0, 0, true
+}
+
+func testRawMetric() *rawMetric {
+	mockIt := &mockBaseIterator{}
+	mockIt.decodeVersionFn = func() int { return metricVersion }
+	mockIt.decodeBytesLenFn = func() int { return len(testMetric.ID) }
+	mockIt.decodeTimeFn = func() time.Time { return testMetric.Timestamp }
+	mockIt.decodeFloat64Fn = func() float64 { return testMetric.Value }
+
+	m := NewRawMetric(testRawMetricData).(*rawMetric)
+	m.it = mockIt
 	m.readBytesFn = func(n int) []byte { return testRawMetricData[:n] }
 
 	return m
@@ -57,14 +101,16 @@ func TestRawMetricDecodeIDExistingError(t *testing.T) {
 
 func TestRawMetricDecodeIDVersionError(t *testing.T) {
 	m := testRawMetric()
-	m.decodeVersionFn = func() int { return metricVersion + 1 }
+	m.it.(*mockBaseIterator).decodeVersionFn = func() int {
+		return metricVersion + 1
+	}
 	_, err := m.ID()
 	require.Error(t, err)
 }
 
 func TestRawMetricDecodeIDBytesLenDecodeError(t *testing.T) {
 	m := testRawMetric()
-	m.decodeBytesLenFn = func() int {
+	m.it.(*mockBaseIterator).decodeBytesLenFn = func() int {
 		m.it.setErr(errTestDecodeRawMetric)
 		return 0
 	}
@@ -74,12 +120,14 @@ func TestRawMetricDecodeIDBytesLenDecodeError(t *testing.T) {
 
 func TestRawMetricDecodeIDBytesLenOutOfRange(t *testing.T) {
 	m := testRawMetric()
-	m.decodeBytesLenFn = func() int { return -1 }
+	m.it.(*mockBaseIterator).decodeBytesLenFn = func() int { return -1 }
 	_, err := m.ID()
 	require.Error(t, err)
 
 	m = testRawMetric()
-	m.decodeBytesLenFn = func() int { return len(testRawMetricData) + 1 }
+	m.it.(*mockBaseIterator).decodeBytesLenFn = func() int {
+		return len(testRawMetricData) + 1
+	}
 	_, err = m.ID()
 	require.Error(t, err)
 }
@@ -106,7 +154,7 @@ func TestRawMetricDecodeTimestampExistingError(t *testing.T) {
 
 func TestRawMetricDecodeTimestampDecodeError(t *testing.T) {
 	m := testRawMetric()
-	m.decodeTimeFn = func() time.Time {
+	m.it.(*mockBaseIterator).decodeTimeFn = func() time.Time {
 		m.it.setErr(errTestDecodeRawMetric)
 		return time.Time{}
 	}
@@ -135,7 +183,7 @@ func TestRawMetricDecodeValueExistingError(t *testing.T) {
 
 func TestRawMetricDecodeValueDecodeError(t *testing.T) {
 	m := testRawMetric()
-	m.decodeFloat64Fn = func() float64 {
+	m.it.(*mockBaseIterator).decodeFloat64Fn = func() float64 {
 		m.it.setErr(errTestDecodeRawMetric)
 		return 0
 	}

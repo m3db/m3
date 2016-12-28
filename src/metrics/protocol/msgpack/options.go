@@ -28,11 +28,11 @@ import (
 const (
 	// Whether the iterator should ignore higher-than-supported version
 	// by default for unaggregated metrics
-	defaultUnaggregatedIgnoreHigherVersion = true
+	defaultUnaggregatedIgnoreHigherVersion = false
 
 	// Whether the iterator should ignore higher-than-supported version
 	// by default for aggregated metrics
-	defaultAggregatedIgnoreHigherVersion = true
+	defaultAggregatedIgnoreHigherVersion = false
 )
 
 type unaggregatedIteratorOptions struct {

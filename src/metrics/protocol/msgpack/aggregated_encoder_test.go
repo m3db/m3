@@ -88,6 +88,7 @@ func TestAggregatedEncodeMetric(t *testing.T) {
 	encoder.encodeMetricAsRaw(testMetric)
 	expected := []interface{}{
 		int64(metricVersion),
+		int(numFieldsForType(metricType)),
 		[]byte(testMetric.ID),
 		int64(testMetric.Timestamp.UnixNano()),
 		testMetric.Value,

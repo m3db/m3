@@ -34,7 +34,7 @@ const (
 )
 
 const (
-	unknownType = iota
+	unknownType objectType = iota
 
 	// Root object type
 	rootObjectType
@@ -49,6 +49,7 @@ const (
 	counterType
 	batchTimerType
 	gaugeType
+	metricType
 	policyType
 	knownResolutionType
 	unknownResolutionType
@@ -70,6 +71,7 @@ const (
 	numCounterFields                = 2
 	numBatchTimerFields             = 2
 	numGaugeFields                  = 2
+	numMetricFields                 = 3
 	numPolicyFields                 = 2
 	numKnownResolutionFields        = 2
 	numUnknownResolutionFields      = 3
@@ -101,6 +103,7 @@ func init() {
 	setNumFieldsForType(counterType, numCounterFields)
 	setNumFieldsForType(batchTimerType, numBatchTimerFields)
 	setNumFieldsForType(gaugeType, numGaugeFields)
+	setNumFieldsForType(metricType, numMetricFields)
 	setNumFieldsForType(policyType, numPolicyFields)
 	setNumFieldsForType(knownResolutionType, numKnownResolutionFields)
 	setNumFieldsForType(unknownResolutionType, numUnknownResolutionFields)
