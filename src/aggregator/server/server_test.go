@@ -151,9 +151,9 @@ func TestAggregationServerListenAndClose(t *testing.T) {
 	s.Close()
 
 	// Assert the number of connections match expectations
-	require.Equal(t, int32(numClients), *numAddedConns)
-	require.Equal(t, int32(numClients), *numRemovedConns)
-	require.Equal(t, int32(numClients), *numHandledConns)
+	require.Equal(t, int32(numClients), atomic.LoadInt32(numAddedConns))
+	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemovedConns))
+	require.Equal(t, int32(numClients), atomic.LoadInt32(numHandledConns))
 
 	// Assert the snapshot match expectations
 	require.Equal(t, expectedResult, s.aggregator.(aggregator.MockAggregator).Snapshot())
