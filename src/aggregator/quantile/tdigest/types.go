@@ -50,6 +50,12 @@ type TDigest interface {
 	// Add adds a value
 	Add(value float64)
 
+	// Min returns the minimum value
+	Min() float64
+
+	// Max returns the maximum value
+	Max() float64
+
 	// Quantile returns the quantile value
 	Quantile(q float64) float64
 

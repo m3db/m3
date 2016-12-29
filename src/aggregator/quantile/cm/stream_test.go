@@ -38,6 +38,8 @@ func testStreamOptions() Options {
 func TestEmptyStream(t *testing.T) {
 	opts := testStreamOptions()
 	s := NewStream(0, opts)
+	require.Equal(t, 0.0, s.Min())
+	require.Equal(t, 0.0, s.Max())
 	for _, q := range opts.Quantiles() {
 		require.Equal(t, 0.0, s.Quantile(q))
 	}
@@ -49,6 +51,8 @@ func TestStreamWithOnePositiveSample(t *testing.T) {
 	s.Add(100.0)
 	s.Flush()
 
+	require.Equal(t, 100.0, s.Min())
+	require.Equal(t, 100.0, s.Max())
 	for _, q := range opts.Quantiles() {
 		require.Equal(t, 100.0, s.Quantile(q))
 	}
@@ -60,6 +64,8 @@ func TestStreamWithOneNegativeSample(t *testing.T) {
 	s.Add(-100.0)
 	s.Flush()
 
+	require.Equal(t, -100.0, s.Min())
+	require.Equal(t, -100.0, s.Max())
 	for _, q := range opts.Quantiles() {
 		require.Equal(t, -100.0, s.Quantile(q))
 	}
@@ -73,6 +79,8 @@ func TestStreamWithThreeSamples(t *testing.T) {
 	}
 	s.Flush()
 
+	require.Equal(t, 100.0, s.Min())
+	require.Equal(t, 300.0, s.Max())
 	expected := []float64{200.0, 300.0, 300.0}
 	for i, q := range opts.Quantiles() {
 		require.Equal(t, expected[i], s.Quantile(q))
@@ -88,6 +96,8 @@ func TestStreamWithIncreasingSamples(t *testing.T) {
 	}
 	s.Flush()
 
+	require.Equal(t, 0.0, s.Min())
+	require.Equal(t, float64(numSamples-1), s.Max())
 	margin := float64(numSamples) * opts.Eps()
 	for _, q := range opts.Quantiles() {
 		val := s.Quantile(q)
@@ -104,6 +114,8 @@ func TestStreamWithDecreasingSamples(t *testing.T) {
 	}
 	s.Flush()
 
+	require.Equal(t, 0.0, s.Min())
+	require.Equal(t, float64(numSamples-1), s.Max())
 	margin := float64(numSamples) * opts.Eps()
 	for _, q := range opts.Quantiles() {
 		val := s.Quantile(q)
@@ -116,13 +128,21 @@ func TestStreamWithRandomSamples(t *testing.T) {
 	maxInt64 := int64(math.MaxInt64)
 	opts := testStreamOptions()
 	s := NewStream(0, opts)
+	min := math.MaxFloat64
+	max := -1.0
 
 	rand.Seed(100)
 	for i := 0; i < numSamples; i++ {
-		s.Add(float64(rand.Int63n(maxInt64)))
+		v := float64(rand.Int63n(maxInt64))
+		min = math.Min(min, v)
+		max = math.Max(max, v)
+		s.Add(v)
+
 	}
 	s.Flush()
 
+	require.Equal(t, min, s.Min())
+	require.Equal(t, max, s.Max())
 	margin := float64(maxInt64) * opts.Eps()
 	for _, q := range opts.Quantiles() {
 		val := s.Quantile(q)
@@ -141,6 +161,8 @@ func TestStreamWithSkewedDistribution(t *testing.T) {
 	s.Add(10000000.0)
 	s.Flush()
 
+	require.Equal(t, 1.0, s.Min())
+	require.Equal(t, 10000000.0, s.Max())
 	for _, q := range opts.Quantiles() {
 		require.Equal(t, 1.0, s.Quantile(q))
 	}
