@@ -41,8 +41,10 @@ func testTDigestOptions() Options {
 func TestEmptyTDigest(t *testing.T) {
 	opts := testTDigestOptions()
 	d := NewTDigest(opts)
+	require.Equal(t, 0.0, d.Min())
+	require.Equal(t, 0.0, d.Max())
 	for _, q := range testQuantiles {
-		require.True(t, math.IsNaN(d.Quantile(q)))
+		require.Equal(t, 0.0, d.Quantile(q))
 	}
 }
 
@@ -57,6 +59,8 @@ func TestTDigestWithOneValue(t *testing.T) {
 	opts := testTDigestOptions()
 	d := NewTDigest(opts)
 	d.Add(100.0)
+	require.Equal(t, 100.0, d.Min())
+	require.Equal(t, 100.0, d.Max())
 	for _, q := range testQuantiles {
 		require.Equal(t, 100.0, d.Quantile(q))
 	}
@@ -69,6 +73,8 @@ func TestTDigestWithThreeValues(t *testing.T) {
 		d.Add(val)
 	}
 
+	require.Equal(t, 100.0, d.Min())
+	require.Equal(t, 300.0, d.Max())
 	expected := []float64{200.0, 300.0, 300.0}
 	for i, q := range testQuantiles {
 		require.InEpsilon(t, expected[i], d.Quantile(q), 0.025)
@@ -83,6 +89,8 @@ func TestTDigestWithIncreasingValues(t *testing.T) {
 		d.Add(float64(i))
 	}
 
+	require.Equal(t, 0.0, d.Min())
+	require.Equal(t, float64(numSamples-1), d.Max())
 	for _, q := range testQuantiles {
 		require.InEpsilon(t, float64(numSamples)*q, d.Quantile(q), 0.01)
 	}
@@ -96,6 +104,8 @@ func TestTDigestWithDecreasingValues(t *testing.T) {
 		d.Add(float64(i))
 	}
 
+	require.Equal(t, 0.0, d.Min())
+	require.Equal(t, float64(numSamples-1), d.Max())
 	for _, q := range testQuantiles {
 		require.InEpsilon(t, float64(numSamples)*q, d.Quantile(q), 0.01)
 	}
@@ -106,12 +116,19 @@ func TestTDigestWithRandomValues(t *testing.T) {
 	maxInt64 := int64(math.MaxInt64)
 	opts := testTDigestOptions()
 	d := NewTDigest(opts)
+	min := math.MaxFloat64
+	max := -1.0
 
 	rand.Seed(100)
 	for i := 0; i < numSamples; i++ {
-		d.Add(float64(rand.Int63n(maxInt64)))
+		v := float64(rand.Int63n(maxInt64))
+		min = math.Min(min, v)
+		max = math.Max(max, v)
+		d.Add(v)
 	}
 
+	require.Equal(t, min, d.Min())
+	require.Equal(t, max, d.Max())
 	for _, q := range testQuantiles {
 		require.InEpsilon(t, float64(maxInt64)*q, d.Quantile(q), 0.01)
 	}

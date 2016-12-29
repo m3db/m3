@@ -26,6 +26,10 @@ const (
 	minSamplesToCompress = 3
 )
 
+var (
+	nan = math.NaN()
+)
+
 // stream represents a data stream
 type stream struct {
 	capacity   int        // stream capacity
@@ -79,9 +83,26 @@ func (s *stream) Flush() {
 	}
 }
 
+func (s *stream) Min() float64 {
+	return s.Quantile(0.0)
+}
+
+func (s *stream) Max() float64 {
+	return s.Quantile(1.0)
+}
+
 func (s *stream) Quantile(q float64) float64 {
+	if q < 0.0 || q > 1.0 {
+		return nan
+	}
 	if s.samples.Empty() {
 		return 0.0
+	}
+	if q == 0.0 {
+		return s.samples.Front().value
+	}
+	if q == 1.0 {
+		return s.samples.Back().value
 	}
 
 	var (

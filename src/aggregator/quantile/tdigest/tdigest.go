@@ -114,12 +114,34 @@ func (d *tDigest) Add(value float64) {
 	d.add(value, 1.0)
 }
 
+func (d *tDigest) Min() float64 {
+	return d.Quantile(0.0)
+}
+
+func (d *tDigest) Max() float64 {
+	return d.Quantile(1.0)
+}
+
 func (d *tDigest) Quantile(q float64) float64 {
 	if q < 0.0 || q > 1.0 {
 		return nan
 	}
+
 	// compress the centroids first
 	d.compress()
+
+	// If the digest is empty, return 0
+	if len(d.merged) == 0 {
+		return 0.0
+	}
+
+	if q == 0.0 {
+		return d.minValue
+	}
+
+	if q == 1.0 {
+		return d.maxValue
+	}
 
 	var (
 		targetWeight = q * d.mergedWeight
@@ -179,8 +201,7 @@ func (d *tDigest) Reset() {
 	d.maxValue = negativeInfinity
 }
 
-// compress merges unmerged centroids and merged centroids in place
-// using unmerged centroids as temporary buffer
+// compress merges unmerged centroids and merged centroids
 func (d *tDigest) compress() {
 	if len(d.unmerged) == 0 {
 		return

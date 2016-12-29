@@ -64,6 +64,12 @@ type Stream interface {
 	// Flush flushes the internal buffer
 	Flush()
 
+	// Min returns the minimum value
+	Min() float64
+
+	// Max returns the maximum value
+	Max() float64
+
 	// Quantile returns the quantile value
 	Quantile(q float64) float64
 
