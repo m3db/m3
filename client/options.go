@@ -31,9 +31,9 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3db/topology"
 
 	"github.com/uber/tchannel-go"
 )
@@ -115,6 +115,9 @@ const (
 	// defaultSeriesIteratorPoolSize is the default size of the series iterator pools
 	defaultSeriesIteratorPoolSize = 100000
 
+	// defaultFetchSeriesBlocksMaxBlockRetries is the default max retries for fetch series blocks
+	defaultFetchSeriesBlocksMaxBlockRetries = 3
+
 	// defaultFetchSeriesBlocksBatchSize is the default fetch series blocks batch size
 	defaultFetchSeriesBlocksBatchSize = 4096
 
@@ -172,6 +175,7 @@ type options struct {
 	seriesIteratorArrayPoolBuckets          []pool.Bucket
 	contextPool                             context.Pool
 	origin                                  topology.Host
+	fetchSeriesBlocksMaxBlockRetries        int
 	fetchSeriesBlocksBatchSize              int
 	fetchSeriesBlocksMetadataBatchTimeout   time.Duration
 	fetchSeriesBlocksBatchTimeout           time.Duration
@@ -219,6 +223,7 @@ func newOptions() *options {
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
 		contextPool:                             context.NewPool(nil, nil),
+		fetchSeriesBlocksMaxBlockRetries:        defaultFetchSeriesBlocksMaxBlockRetries,
 		fetchSeriesBlocksBatchSize:              defaultFetchSeriesBlocksBatchSize,
 		fetchSeriesBlocksMetadataBatchTimeout:   defaultFetchSeriesBlocksMetadataBatchTimeout,
 		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
@@ -564,6 +569,16 @@ func (o *options) SetOrigin(value topology.Host) AdminOptions {
 
 func (o *options) Origin() topology.Host {
 	return o.origin
+}
+
+func (o *options) SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions {
+	opts := *o
+	opts.fetchSeriesBlocksMaxBlockRetries = value
+	return &opts
+}
+
+func (o *options) FetchSeriesBlocksMaxBlockRetries() int {
+	return o.fetchSeriesBlocksMaxBlockRetries
 }
 
 func (o *options) SetFetchSeriesBlocksBatchSize(value int) AdminOptions {

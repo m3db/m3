@@ -23,6 +23,7 @@ package client
 import (
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"math"
 	"sort"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
@@ -106,9 +108,11 @@ type session struct {
 	seriesIteratorPool               encoding.SeriesIteratorPool
 	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
 	writeStatePool                   sync.Pool
+	digestPool                       sync.Pool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	origin                           topology.Host
+	streamBlocksMaxBlockRetries      int
 	streamBlocksWorkers              xsync.WorkerPool
 	streamBlocksReattemptWorkers     xsync.WorkerPool
 	streamBlocksResultsProcessors    chan struct{}
@@ -148,6 +152,7 @@ type streamFromPeersMetrics struct {
 	metadataReceived          tally.Counter
 	fetchBlockSuccess         tally.Counter
 	fetchBlockError           tally.Counter
+	fetchBlockRetries         tally.Counter
 	blocksEnqueueChannel      tally.Gauge
 }
 
@@ -185,9 +190,13 @@ func newSession(opts Options) (clientSession, error) {
 		w.reset()
 		return w
 	}}
+	s.digestPool = sync.Pool{New: func() interface{} {
+		return digest.NewDigest()
+	}}
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.origin = opts.Origin()
+		s.streamBlocksMaxBlockRetries = opts.FetchSeriesBlocksMaxBlockRetries()
 		s.streamBlocksWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksWorkers.Init()
 		s.streamBlocksReattemptWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
@@ -253,6 +262,7 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 		metadataReceived:          scope.Counter("fetch-metadata-peers-received"),
 		fetchBlockSuccess:         scope.Counter("fetch-block-success"),
 		fetchBlockError:           scope.Counter("fetch-block-error"),
+		fetchBlockRetries:         scope.Counter("fetch-block-retries"),
 		blocksEnqueueChannel:      scope.Gauge("fetch-blocks-enqueue-channel-length"),
 	}
 	s.metrics.streamFromPeersMetrics[shard] = m
@@ -1233,7 +1243,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		pageToken *int64
 		retrier   = xretry.NewRetrier(xretry.NewOptions().
 				SetBackoffFactor(2).
-				SetMax(3).
+				SetMaxRetries(3).
 				SetInitialBackoff(time.Second).
 				SetJitter(true))
 		optionIncludeSizes     = true
@@ -1342,7 +1352,7 @@ func (s *session) streamBlocksFromPeers(
 	var (
 		retrier = xretry.NewRetrier(xretry.NewOptions().
 			SetBackoffFactor(2).
-			SetMax(3).
+			SetMaxRetries(3).
 			SetInitialBackoff(time.Second).
 			SetJitter(true))
 		enqueueCh           = newEnqueueChannel(m)
@@ -1542,7 +1552,8 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			}
 
 			// Check if eligible
-			if unselected[0].reattempt.hasAttemptedPeer(currEligible[i].peer) {
+			n := s.streamBlocksMaxBlockRetries
+			if unselected[0].reattempt.peerAttempts(currEligible[i].peer) >= n {
 				// Swap current entry to tail
 				blocksMetadatas(currEligible).swap(i, len(currEligible)-1)
 				// Trim newly last entry
@@ -1564,7 +1575,8 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				blocksLen := len(currStart[i].blocks)
 				idx := currStart[i].idx
 				tailIdx := blocksLen - 1
-				currStart[i].blocks[idx], currStart[i].blocks[tailIdx] = currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
+				currStart[i].blocks[idx], currStart[i].blocks[tailIdx] =
+					currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
 				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 			}
 			continue
@@ -1605,9 +1617,9 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 		}
 
 		// If all the peers have the same non-nil checksum, we pick the peer with the
-		// fewest outstanding requests
+		// fewest attempts and fewest outstanding requests
 		if sameNonNilChecksum {
-			// Order by least outstanding blocks being fetched
+			// Order by least attempts then by least outstanding blocks being fetched
 			blocksMetadataQueues = blocksMetadataQueues[:0]
 			for i := range currEligible {
 				insert := blocksMetadataQueue{
@@ -1616,7 +1628,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				}
 				blocksMetadataQueues = append(blocksMetadataQueues, insert)
 			}
-			sort.Stable(blocksMetadatasQueuesByOutstandingAsc(blocksMetadataQueues))
+			sort.Stable(blocksMetadatasQueuesByAttemptsAscOutstandingAsc(blocksMetadataQueues))
 
 			// Select the best peer
 			bestPeerBlocksQueue := blocksMetadataQueues[0].queue
@@ -1644,7 +1656,8 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				blocksLen := len(currStart[i].blocks)
 				idx := currStart[i].idx
 				tailIdx := blocksLen - 1
-				currStart[i].blocks[idx], currStart[i].blocks[tailIdx] = currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
+				currStart[i].blocks[idx], currStart[i].blocks[tailIdx] =
+					currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
 				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 			}
 		} else {
@@ -1721,7 +1734,10 @@ func (s *session) streamBlocksBatchFromPeer(
 		return xerrors.FirstError(borrowErr, attemptErr)
 	}); err != nil {
 		m.fetchBlockError.Inc(reqBlocksLen)
-		s.log.Errorf("stream blocks response from peer %s returned error: %v", peer.Host().String(), err)
+		s.log.WithFields(
+			xlog.NewLogField("error", err),
+			xlog.NewLogField("peer", peer.Host().String()),
+		).Errorf("stream blocks request error")
 		for i := range batch {
 			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
 		}
@@ -1742,7 +1758,9 @@ func (s *session) streamBlocksBatchFromPeer(
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
 			if !tooManyIDsLogged {
 				tooManyIDsLogged = true
-				s.log.Errorf("stream blocks response from peer %s returned more IDs than expected", peer.Host().String())
+				s.log.WithFields(
+					xlog.NewLogField("peer", peer.Host().String()),
+				).Errorf("stream blocks more IDs than expected")
 			}
 			continue
 		}
@@ -1756,7 +1774,8 @@ func (s *session) streamBlocksBatchFromPeer(
 				xlog.NewLogField("expectedID", batch[i].id),
 				xlog.NewLogField("actualID", id.String()),
 				xlog.NewLogField("indexID", i),
-			).Errorf("stream blocks response from peer %s returned mismatched ID", peer.Host().String())
+				xlog.NewLogField("peer", peer.Host().String()),
+			).Errorf("stream blocks mismatched ID")
 			continue
 		}
 
@@ -1771,7 +1790,8 @@ func (s *session) streamBlocksBatchFromPeer(
 						xlog.NewLogField("id", id.String()),
 						xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
 						xlog.NewLogField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
-					).Errorf("stream blocks response from peer %s returned more blocks than expected", peer.Host().String())
+						xlog.NewLogField("peer", peer.Host().String()),
+					).Errorf("stream blocks returned more blocks than expected")
 				}
 				continue
 			}
@@ -1786,22 +1806,12 @@ func (s *session) streamBlocksBatchFromPeer(
 				continue
 			}
 
-			if block.Err != nil {
-				failed := []blockMetadata{batch[i].blocks[j]}
-				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
-				m.fetchBlockError.Inc(1)
-				s.log.WithFields(
-					xlog.NewLogField("id", id.String()),
-					xlog.NewLogField("start", block.Start),
-					xlog.NewLogField("errorType", block.Err.Type),
-					xlog.NewLogField("errorMessage", block.Err.Message),
-					xlog.NewLogField("indexID", i),
-					xlog.NewLogField("indexBlock", j),
-				).Errorf("stream blocks response from peer %s returned block error", peer.Host().String())
-				continue
+			// Verify and if verify succeeds add the block from the peer
+			err := s.verifyFetchedBlock(block, batch[i].blocks[j])
+			if err == nil {
+				err = blocksResult.addBlockFromPeer(id, block)
 			}
 
-			err := blocksResult.addBlockFromPeer(id, block)
 			if err != nil {
 				failed := []blockMetadata{batch[i].blocks[j]}
 				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
@@ -1812,7 +1822,8 @@ func (s *session) streamBlocksBatchFromPeer(
 					xlog.NewLogField("error", err),
 					xlog.NewLogField("indexID", i),
 					xlog.NewLogField("indexBlock", j),
-				).Errorf("stream blocks response from peer %s bad block response", peer.Host().String())
+					xlog.NewLogField("peer", peer.Host().String()),
+				).Errorf("stream blocks bad block")
 				continue
 			}
 
@@ -1822,6 +1833,59 @@ func (s *session) streamBlocksBatchFromPeer(
 
 	// Return token to continue collecting results in other go routines
 	s.streamBlocksResultsProcessors <- token
+}
+
+func (s *session) verifyFetchedBlock(block *rpc.Block, metadata blockMetadata) error {
+	if block.Err != nil {
+		return fmt.Errorf("block error from peer: %s %s", block.Err.Type.String(), block.Err.Message)
+	}
+	if block.Segments == nil {
+		return fmt.Errorf("block segments is bad: segments is nil")
+	}
+	if block.Segments.Merged == nil && len(block.Segments.Unmerged) == 0 {
+		return fmt.Errorf("block segments is bad: merged and unmerged not set")
+	}
+
+	if metadata.checksum != nil {
+		expected := *metadata.checksum
+		digest := s.digestPool.Get().(hash.Hash32)
+		digest.Reset()
+		if block.Segments.Merged != nil {
+			if block.Segments.Merged.Head != nil {
+				digest.Write(block.Segments.Merged.Head)
+			}
+			if block.Segments.Merged.Tail != nil {
+				digest.Write(block.Segments.Merged.Tail)
+			}
+		} else {
+			for _, segment := range block.Segments.Unmerged {
+				if segment.Head != nil {
+					digest.Write(segment.Head)
+				}
+				if segment.Tail != nil {
+					digest.Write(segment.Tail)
+				}
+			}
+		}
+		actual := digest.Sum32()
+		if actual != expected {
+			return fmt.Errorf("block checksum is bad: expected=%d, actual=%d", expected, actual)
+		}
+	}
+
+	var size int
+	if block.Segments.Merged != nil {
+		size = len(block.Segments.Merged.Head) + len(block.Segments.Merged.Tail)
+	} else {
+		for _, segment := range block.Segments.Unmerged {
+			size += len(segment.Head) + len(segment.Tail)
+		}
+	}
+	if size != int(metadata.size) {
+		return fmt.Errorf("block size is bad: expected=%d, actual=%d", metadata.size, size)
+	}
+
+	return nil
 }
 
 func (s *session) streamBlocksReattemptFromPeers(
@@ -2255,14 +2319,32 @@ type blocksMetadataQueue struct {
 	queue          *peerBlocksQueue
 }
 
-type blocksMetadatasQueuesByOutstandingAsc []blocksMetadataQueue
+type blocksMetadatasQueuesByAttemptsAscOutstandingAsc []blocksMetadataQueue
 
-func (arr blocksMetadatasQueuesByOutstandingAsc) Len() int      { return len(arr) }
-func (arr blocksMetadatasQueuesByOutstandingAsc) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
-func (arr blocksMetadatasQueuesByOutstandingAsc) Less(i, j int) bool {
-	outstandingFirst := atomic.LoadUint64(&arr[i].queue.assigned) - atomic.LoadUint64(&arr[i].queue.completed)
-	outstandingSecond := atomic.LoadUint64(&arr[j].queue.assigned) - atomic.LoadUint64(&arr[j].queue.completed)
-	return outstandingFirst < outstandingSecond
+func (arr blocksMetadatasQueuesByAttemptsAscOutstandingAsc) Len() int {
+	return len(arr)
+}
+func (arr blocksMetadatasQueuesByAttemptsAscOutstandingAsc) Swap(i, j int) {
+	arr[i], arr[j] = arr[j], arr[i]
+}
+func (arr blocksMetadatasQueuesByAttemptsAscOutstandingAsc) Less(i, j int) bool {
+	peerI := arr[i].queue.peer
+	peerJ := arr[j].queue.peer
+	blocksI := arr[i].blocksMetadata.unselectedBlocks()
+	blocksJ := arr[j].blocksMetadata.unselectedBlocks()
+	attemptsI := blocksI[0].reattempt.peerAttempts(peerI)
+	attemptsJ := blocksJ[0].reattempt.peerAttempts(peerJ)
+	if attemptsI != attemptsJ {
+		return attemptsI < attemptsJ
+	}
+
+	outstandingI :=
+		atomic.LoadUint64(&arr[i].queue.assigned) -
+			atomic.LoadUint64(&arr[i].queue.completed)
+	outstandingJ :=
+		atomic.LoadUint64(&arr[j].queue.assigned) -
+			atomic.LoadUint64(&arr[j].queue.completed)
+	return outstandingI < outstandingJ
 }
 
 type blockMetadata struct {
@@ -2286,13 +2368,14 @@ type blockMetadataReattemptPeerMetadata struct {
 	checksum *uint32
 }
 
-func (b blockMetadataReattempt) hasAttemptedPeer(peer peer) bool {
+func (b blockMetadataReattempt) peerAttempts(p peer) int {
+	r := 0
 	for i := range b.attempted {
-		if b.attempted[i] == peer {
-			return true
+		if b.attempted[i] == p {
+			r++
 		}
 	}
-	return false
+	return r
 }
 
 type blockMetadatasByTime []blockMetadata

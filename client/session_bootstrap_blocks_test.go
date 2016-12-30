@@ -520,7 +520,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestAdminOptions()
+	opts := newSessionTestAdminOptions().
+		SetFetchSeriesBlocksMaxBlockRetries(0)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -594,6 +595,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	assert.Equal(t, 0, len(perPeer[2].blocks))
 }
 
+// TODO: add test TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries
+
 func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -613,7 +616,9 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	var (
 		blockSize = 2 * time.Hour
 		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-		retrier   = xretry.NewRetrier(xretry.NewOptions().SetMax(1).SetInitialBackoff(time.Millisecond))
+		retrier   = xretry.NewRetrier(xretry.NewOptions().
+				SetMaxRetries(1).
+				SetInitialBackoff(time.Millisecond))
 		peerIdx   = len(mockHostQueues) - 1
 		peer      = mockHostQueues[peerIdx]
 		client    = mockClients[peerIdx]
@@ -664,6 +669,16 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 
 	assert.NoError(t, session.Close())
 }
+
+// TODO: add test TestStreamBlocksBatchFromPeerVerifiesBlockErr
+
+// TODO: add test TestVerifyFetchedBlockSegmentsNil
+
+// TODO: add test TestVerifyFetchedBlockSegmentsNoMergedOrUnmerged
+
+// TODO: add test TestVerifyFetchedBlockChecksum
+
+// TODO: add test TestVerifyFetchedBlockSize
 
 func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	opts := newSessionTestAdminOptions()
@@ -795,6 +810,8 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	assert.Equal(t, len(all), asserted)
 	assert.NoError(t, iter.Err())
 }
+
+// TODO: add test TestBlocksResultAddBlockFromPeerMergeExistingResult
 
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	opts := newSessionTestAdminOptions()

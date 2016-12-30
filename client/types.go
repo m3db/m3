@@ -492,6 +492,12 @@ type AdminOptions interface {
 	// Origin gets the current host originating requests from
 	Origin() topology.Host
 
+	// SetFetchSeriesBlocksMaxBlockRetries sets the max retries for fetching series blocks
+	SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions
+
+	// FetchSeriesBlocksMaxBlockRetries gets the max retries for fetching series blocks
+	FetchSeriesBlocksMaxBlockRetries() int
+
 	// SetFetchSeriesBlocksBatchSize sets the batch size for fetching series blocks in batch
 	SetFetchSeriesBlocksBatchSize(value int) AdminOptions
 
