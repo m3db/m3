@@ -81,6 +81,25 @@ func TestNativeHeapGetZero(t *testing.T) {
 	assert.Equal(t, []byte(nil), heap.Get(0))
 }
 
+func TestNativeHeapLargePutMisplacedOk(t *testing.T) {
+	h := NewNativeHeap([]Bucket{
+		Bucket{Capacity: 128, Count: 2},
+		Bucket{Capacity: 256, Count: 2},
+	}, nil)
+
+	h.Init()
+
+	for i := 0; i < 2; i++ {
+		require.NotNil(t, h.Get(42))
+	}
+	for i := 0; i < 2; i++ {
+		require.NotNil(t, h.Get(142))
+	}
+
+	// This causes a "misplace"
+	h.Put(make([]byte, 257))
+}
+
 func BenchmarkNativeHeap(b *testing.B) {
 	heap := NewNativeHeap([]Bucket{
 		Bucket{Capacity: 128, Count: 4},
