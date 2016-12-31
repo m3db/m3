@@ -58,7 +58,7 @@ var (
 		Version: 1,
 		Policies: []policy.Policy{
 			{
-				Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Unit(100)},
+				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Unit(100)},
 				Retention:  policy.Retention(time.Hour),
 			},
 		},
@@ -87,13 +87,13 @@ var (
 				Version: 1,
 				Policies: []policy.Policy{
 					{
-						Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
+						Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 						Retention:  policy.Retention(time.Hour),
 					},
 				},
 			},
 		},
-		// Retain this metric at 100 second resolution for 6 hours,
+		// Retain this metric at 20 second resolution for 6 hours,
 		// then 1 minute for 2 days, then 10 minutes for 25 days
 		{
 			metric: testBatchTimer,
@@ -101,15 +101,15 @@ var (
 				Version: 2,
 				Policies: []policy.Policy{
 					{
-						Resolution: policy.Resolution{Window: time.Duration(20), Precision: xtime.Second},
+						Resolution: policy.Resolution{Window: 20 * time.Second, Precision: xtime.Second},
 						Retention:  policy.Retention(6 * time.Hour),
 					},
 					{
-						Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Minute},
+						Resolution: policy.Resolution{Window: time.Minute, Precision: xtime.Minute},
 						Retention:  policy.Retention(2 * 24 * time.Hour),
 					},
 					{
-						Resolution: policy.Resolution{Window: time.Duration(10), Precision: xtime.Minute},
+						Resolution: policy.Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
 						Retention:  policy.Retention(25 * 24 * time.Hour),
 					},
 				},
@@ -122,7 +122,7 @@ var (
 				Version: 2,
 				Policies: []policy.Policy{
 					{
-						Resolution: policy.Resolution{Window: time.Duration(10), Precision: xtime.Minute},
+						Resolution: policy.Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
 						Retention:  policy.Retention(45 * 24 * time.Hour),
 					},
 				},
@@ -260,11 +260,11 @@ func TestUnaggregatedEncodeDecodeStress(t *testing.T) {
 			Version: 2,
 			Policies: []policy.Policy{
 				{
-					Resolution: policy.Resolution{Window: time.Duration(10), Precision: xtime.Second},
+					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(6 * time.Hour),
 				},
 				{
-					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Minute},
+					Resolution: policy.Resolution{Window: time.Minute, Precision: xtime.Minute},
 					Retention:  policy.Retention(2 * 24 * time.Hour),
 				},
 			},

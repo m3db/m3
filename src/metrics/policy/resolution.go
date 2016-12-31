@@ -74,11 +74,11 @@ func ValueFromResolution(resolution Resolution) (ResolutionValue, error) {
 
 var (
 	valuesToResolution = map[ResolutionValue]Resolution{
-		OneSecond:   Resolution{Window: time.Duration(1), Precision: xtime.Second},
-		TenSeconds:  Resolution{Window: time.Duration(10), Precision: xtime.Second},
-		OneMinute:   Resolution{Window: time.Duration(1), Precision: xtime.Minute},
-		FiveMinutes: Resolution{Window: time.Duration(5), Precision: xtime.Minute},
-		TenMinutes:  Resolution{Window: time.Duration(10), Precision: xtime.Minute},
+		OneSecond:   Resolution{Window: time.Second, Precision: xtime.Second},
+		TenSeconds:  Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+		OneMinute:   Resolution{Window: time.Minute, Precision: xtime.Minute},
+		FiveMinutes: Resolution{Window: 5 * time.Minute, Precision: xtime.Minute},
+		TenMinutes:  Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
 	}
 
 	resolutionToValues = make(map[Resolution]ResolutionValue)

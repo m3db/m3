@@ -38,11 +38,11 @@ func TestValidResolutionValue(t *testing.T) {
 		TenMinutes,
 	}
 	expected := []Resolution{
-		Resolution{Window: time.Duration(1), Precision: xtime.Second},
-		Resolution{Window: time.Duration(10), Precision: xtime.Second},
-		Resolution{Window: time.Duration(1), Precision: xtime.Minute},
-		Resolution{Window: time.Duration(5), Precision: xtime.Minute},
-		Resolution{Window: time.Duration(10), Precision: xtime.Minute},
+		Resolution{Window: time.Second, Precision: xtime.Second},
+		Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+		Resolution{Window: time.Minute, Precision: xtime.Minute},
+		Resolution{Window: 5 * time.Minute, Precision: xtime.Minute},
+		Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
 	}
 	for i, value := range inputs {
 		resolution, err := value.Resolution()
@@ -66,11 +66,11 @@ func TestInvalidResolutionValue(t *testing.T) {
 
 func TestValidResolution(t *testing.T) {
 	inputs := []Resolution{
-		{Window: time.Duration(1), Precision: xtime.Second},
-		{Window: time.Duration(10), Precision: xtime.Second},
-		{Window: time.Duration(1), Precision: xtime.Minute},
-		{Window: time.Duration(5), Precision: xtime.Minute},
-		{Window: time.Duration(10), Precision: xtime.Minute},
+		{Window: time.Second, Precision: xtime.Second},
+		{Window: 10 * time.Second, Precision: xtime.Second},
+		{Window: time.Minute, Precision: xtime.Minute},
+		{Window: 5 * time.Minute, Precision: xtime.Minute},
+		{Window: 10 * time.Minute, Precision: xtime.Minute},
 	}
 	expected := []ResolutionValue{
 		OneSecond,
@@ -88,8 +88,8 @@ func TestValidResolution(t *testing.T) {
 
 func TestInvalidResolution(t *testing.T) {
 	inputs := []Resolution{
-		{Window: time.Duration(100), Precision: xtime.Second},
-		{Window: time.Duration(37), Precision: xtime.Minute},
+		{Window: 2 * time.Second, Precision: xtime.Second},
+		{Window: time.Second, Precision: xtime.None},
 	}
 	for _, resolution := range inputs {
 		_, err := ValueFromResolution(resolution)

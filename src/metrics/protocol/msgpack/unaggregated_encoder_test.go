@@ -247,7 +247,7 @@ func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 		Version: 1,
 		Policies: []policy.Policy{
 			{
-				Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
+				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 				Retention:  policy.Retention(time.Hour),
 			},
 		},

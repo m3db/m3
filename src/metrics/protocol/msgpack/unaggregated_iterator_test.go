@@ -203,7 +203,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomResolution(t *testing.T) {
 			Version: 1,
 			Policies: []policy.Policy{
 				{
-					Resolution: policy.Resolution{Window: time.Duration(3), Precision: xtime.Second},
+					Resolution: policy.Resolution{Window: 3 * time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(time.Hour),
 				},
 			},
@@ -225,7 +225,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomRetention(t *testing.T) {
 			Version: 1,
 			Policies: []policy.Policy{
 				{
-					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
+					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(289 * time.Hour),
 				},
 			},
@@ -247,7 +247,7 @@ func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 			Version: 1,
 			Policies: []policy.Policy{
 				{
-					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
+					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(time.Hour),
 				},
 			},
@@ -278,7 +278,7 @@ func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *te
 			Version: 1,
 			Policies: []policy.Policy{
 				{
-					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
+					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(time.Hour),
 				},
 			},
