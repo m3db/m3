@@ -37,11 +37,11 @@ var (
 		Version: DefaultPolicyVersion,
 		Policies: []Policy{
 			{
-				Resolution: Resolution{Window: time.Duration(10), Precision: xtime.Second},
+				Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
 				Retention:  Retention(2 * 24 * time.Hour),
 			},
 			{
-				Resolution: Resolution{Window: time.Duration(1), Precision: xtime.Minute},
+				Resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
 				Retention:  Retention(30 * 24 * time.Hour),
 			},
 		},
