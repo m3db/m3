@@ -144,16 +144,17 @@ func newSessionMetrics(scope tally.Scope) sessionMetrics {
 }
 
 type streamFromPeersMetrics struct {
-	fetchBlocksFromPeers      tally.Gauge
-	metadataFetches           tally.Gauge
-	metadataFetchBatchCall    tally.Counter
-	metadataFetchBatchSuccess tally.Counter
-	metadataFetchBatchError   tally.Counter
-	metadataReceived          tally.Counter
-	fetchBlockSuccess         tally.Counter
-	fetchBlockError           tally.Counter
-	fetchBlockRetries         tally.Counter
-	blocksEnqueueChannel      tally.Gauge
+	fetchBlocksFromPeers       tally.Gauge
+	metadataFetches            tally.Gauge
+	metadataFetchBatchCall     tally.Counter
+	metadataFetchBatchSuccess  tally.Counter
+	metadataFetchBatchError    tally.Counter
+	metadataReceived           tally.Counter
+	fetchBlockSuccess          tally.Counter
+	fetchBlockError            tally.Counter
+	fetchBlockRetriesReqError  tally.Counter
+	fetchBlockRetriesRespError tally.Counter
+	blocksEnqueueChannel       tally.Gauge
 }
 
 type newHostQueueFn func(
@@ -262,8 +263,13 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 		metadataReceived:          scope.Counter("fetch-metadata-peers-received"),
 		fetchBlockSuccess:         scope.Counter("fetch-block-success"),
 		fetchBlockError:           scope.Counter("fetch-block-error"),
-		fetchBlockRetries:         scope.Counter("fetch-block-retries"),
-		blocksEnqueueChannel:      scope.Gauge("fetch-blocks-enqueue-channel-length"),
+		fetchBlockRetriesReqError: scope.Tagged(map[string]string{
+			"reason": "request-error",
+		}).Counter("fetch-block-retries"),
+		fetchBlockRetriesRespError: scope.Tagged(map[string]string{
+			"reason": "response-error",
+		}).Counter("fetch-block-retries"),
+		blocksEnqueueChannel: scope.Gauge("fetch-blocks-enqueue-channel-length"),
 	}
 	s.metrics.streamFromPeersMetrics[shard] = m
 	s.metrics.Unlock()
@@ -1731,7 +1737,15 @@ func (s *session) streamBlocksBatchFromPeer(
 			tctx, _ := thrift.NewContext(s.streamBlocksBatchTimeout)
 			result, attemptErr = client.FetchBlocksRaw(tctx, req)
 		})
-		return xerrors.FirstError(borrowErr, attemptErr)
+		err := xerrors.FirstError(borrowErr, attemptErr)
+		// Do not retry if cannot borrow the connection or
+		// if the connection pool has no connections
+		switch err {
+		case errSessionHasNoHostQueueForHost,
+			errConnectionPoolHasNoConnections:
+			err = xerrors.NewNonRetryableError(err)
+		}
+		return err
 	}); err != nil {
 		m.fetchBlockError.Inc(reqBlocksLen)
 		s.log.WithFields(
@@ -1739,7 +1753,8 @@ func (s *session) streamBlocksBatchFromPeer(
 			xlog.NewLogField("peer", peer.Host().String()),
 		).Errorf("stream blocks request error")
 		for i := range batch {
-			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
+			b := batch[i].blocks
+			s.streamBlocksReattemptFromPeers(b, enqueueCh, reqErrReason, m)
 		}
 		return
 	}
@@ -1768,7 +1783,8 @@ func (s *session) streamBlocksBatchFromPeer(
 		id := ts.BinaryID(result.Elements[i].ID)
 
 		if !batch[i].id.Equal(id) {
-			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
+			b := batch[i].blocks
+			s.streamBlocksReattemptFromPeers(b, enqueueCh, respErrReason, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
 			s.log.WithFields(
 				xlog.NewLogField("expectedID", batch[i].id),
@@ -1814,7 +1830,7 @@ func (s *session) streamBlocksBatchFromPeer(
 
 			if err != nil {
 				failed := []blockMetadata{batch[i].blocks[j]}
-				s.streamBlocksReattemptFromPeers(failed, enqueueCh)
+				s.streamBlocksReattemptFromPeers(failed, enqueueCh, respErrReason, m)
 				m.fetchBlockError.Inc(1)
 				s.log.WithFields(
 					xlog.NewLogField("id", id.String()),
@@ -1888,10 +1904,26 @@ func (s *session) verifyFetchedBlock(block *rpc.Block, metadata blockMetadata) e
 	return nil
 }
 
+type reason int
+
+const (
+	reqErrReason reason = iota
+	respErrReason
+)
+
 func (s *session) streamBlocksReattemptFromPeers(
 	blocks []blockMetadata,
 	enqueueCh *enqueueChannel,
+	reason reason,
+	m *streamFromPeersMetrics,
 ) {
+	switch reason {
+	case reqErrReason:
+		m.fetchBlockRetriesReqError.Inc(int64(len(blocks)))
+	case respErrReason:
+		m.fetchBlockRetriesRespError.Inc(int64(len(blocks)))
+	}
+
 	// Must do this asynchronously or else could get into a deadlock scenario
 	// where cannot enqueue into the reattempt channel because no more work is
 	// getting done because new attempts are blocked on existing attempts completing
