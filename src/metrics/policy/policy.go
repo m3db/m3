@@ -26,8 +26,11 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
-// DefaultPolicyVersion is the version for the default policy
 const (
+	// InitPolicyVersion is the version of an uninitialized policy
+	InitPolicyVersion = -1
+
+	// DefaultPolicyVersion is the version for the default policy
 	DefaultPolicyVersion = 0
 )
 
