@@ -32,6 +32,11 @@ import:
 - package: github.com/willf/bitset
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
 
+- name: golang.org/x/net
+  version: 8fd7f25955530b92e73e9e1932a41b522b22ccd9
+  subpackages:
+  - context
+
 - package: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
 
@@ -42,7 +47,7 @@ import:
   - services
 
 - package: github.com/m3db/m3x
-  version: 119c944475ca66da9874870d4e36c1ad6f025de9
+  version: 75a2a1fc0463602f50fb35206ca97157ec8b25b6
   subpackages:
   - close
   - errors
