@@ -50,6 +50,21 @@ func TestBytesPool(t *testing.T) {
 	assert.Equal(t, b1, b3[:1])
 }
 
+func TestBytesPoolGetLargerThanLargestBucket(t *testing.T) {
+	p := getBytesPool(2, []int{8})
+	p.Init()
+
+	x := p.Get(16)
+	assert.NotNil(t, x)
+	assert.Equal(t, 16, cap(x))
+	assert.Equal(t, 0, len(x))
+
+	// Assert not from pool
+	bucketed := p.pool.(*bucketizedObjectPool)
+	assert.Equal(t, 1, len(bucketed.buckets))
+	assert.Equal(t, 2, len(bucketed.buckets[0].pool.(*objectPool).values))
+}
+
 func TestAppendByte(t *testing.T) {
 	p := getBytesPool(1, []int{3, 10})
 	p.Init()

@@ -20,64 +20,83 @@
 
 package pool
 
-import "github.com/m3db/m3x/instrument"
+import (
+	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/instrument"
+)
 
 // Allocator allocates an object for a pool.
 type Allocator func() interface{}
 
-// ObjectPool provides a pool for objects
+// CheckedAllocator allocates a checked object for a pool.
+type CheckedAllocator func() checked.ReadWriteRef
+
+// ObjectPool provides a pool for objects.
 type ObjectPool interface {
 	// Init initializes the pool.
 	Init(alloc Allocator)
 
-	// Get provides an object from the pool
+	// Get provides an object from the pool.
 	Get() interface{}
 
-	// Put returns an object to the pool
+	// Put returns an object to the pool.
 	Put(obj interface{})
 }
 
-// ObjectPoolOptions provides options for an object pool
+// CheckedObjectPool provides a checked pool for objects.
+type CheckedObjectPool interface {
+	// Init initializes the pool.
+	Init(alloc CheckedAllocator)
+
+	// Get provides an object from the pool to return it to the pool simply
+	// increment it immediately, continue to increment and decrement through
+	// use and when decremented to zero and finalized it will return itself
+	// to the pool. The pool uses the finalizer on the checked value so be sure
+	// not to override it.
+	Get() checked.ReadWriteRef
+}
+
+// ObjectPoolOptions provides options for an object pool.
 type ObjectPoolOptions interface {
-	// SetSize sets the size of the object pool
+	// SetSize sets the size of the object pool.
 	SetSize(value int) ObjectPoolOptions
 
-	// Size returns the size of the object pool
+	// Size returns the size of the object pool.
 	Size() int
 
 	// SetRefillLowWatermark sets the refill low watermark value between [0, 1),
-	// if zero then no refills occur
+	// if zero then no refills occur.
 	SetRefillLowWatermark(value float64) ObjectPoolOptions
 
 	// RefillLowWatermark returns the refill low watermark value between [0, 1),
-	// if zero then no refills occur
+	// if zero then no refills occur.
 	RefillLowWatermark() float64
 
 	// SetRefillHighWatermark sets the refill high watermark value between [0, 1),
-	// if less or equal to low watermark then no refills occur
+	// if less or equal to low watermark then no refills occur.
 	SetRefillHighWatermark(value float64) ObjectPoolOptions
 
 	// RefillLowWatermark returns the refill low watermark value between [0, 1),
-	// if less or equal to low watermark then no refills occur
+	// if less or equal to low watermark then no refills occur.
 	RefillHighWatermark() float64
 
-	// SetInstrumentOptions sets the instrument options
+	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) ObjectPoolOptions
 
-	// InstrumentOptions returns the instrument options
+	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 }
 
-// Bucket specifies a pool bucket
+// Bucket specifies a pool bucket.
 type Bucket struct {
-	// Capacity is the size of each element in the bucket
+	// Capacity is the size of each element in the bucket.
 	Capacity int
 
-	// Count is the number of fixed elements in the bucket
+	// Count is the number of fixed elements in the bucket.
 	Count int
 }
 
-// BucketByCapacity is a sortable collection of pool buckets
+// BucketByCapacity is a sortable collection of pool buckets.
 type BucketByCapacity []Bucket
 
 func (x BucketByCapacity) Len() int {
@@ -92,41 +111,54 @@ func (x BucketByCapacity) Less(i, j int) bool {
 	return x[i].Capacity < x[j].Capacity
 }
 
-// BucketizedAllocator allocates an object for a bucket given its capacity
+// BucketizedAllocator allocates an object for a bucket given its capacity.
 type BucketizedAllocator func(capacity int) interface{}
 
-// BucketizedObjectPool is a bucketized pool of objects
+// BucketizedObjectPool is a bucketized pool of objects.
 type BucketizedObjectPool interface {
-	// Init initializes the pool
+	// Init initializes the pool.
 	Init(alloc BucketizedAllocator)
 
-	// Get provides an object from the pool
+	// Get provides an object from the pool.
 	Get(capacity int) interface{}
 
-	// Put returns an object to the pool, given the object capacity
+	// Put returns an object to the pool, given the object capacity.
 	Put(obj interface{}, capacity int)
 }
 
-// BytesPool provides a pool for variable size buffers
+// BytesPool provides a pool for variable size buffers.
 type BytesPool interface {
-	// Init initializes the pool
+	// Init initializes the pool.
 	Init()
 
-	// Get provides a buffer from the pool
+	// Get provides a buffer from the pool.
 	Get(capacity int) []byte
 
-	// Put returns a buffer to the pool
+	// Put returns a buffer to the pool.
 	Put(buffer []byte)
 }
 
-// FloatsPool provides a pool for variable-sized float64 slices
-type FloatsPool interface {
-	// Init initializes the pool
+// CheckedBytesPool provides a checked pool for variable size buffers.
+type CheckedBytesPool interface {
+	// Init initializes the pool.
 	Init()
 
-	// Get provides an float64 slice from the pool
+	// Get provides a buffer from the pool, to return it to the pool simply
+	// increment it immediately, continue to increment and decrement through
+	// use and when decremented to zero and finalized it will return itself
+	// to the pool. The pool uses the finalizer on the checked.Bytes so be sure
+	// not to override it.
+	Get(capacity int) checked.Bytes
+}
+
+// FloatsPool provides a pool for variable-sized float64 slices.
+type FloatsPool interface {
+	// Init initializes the pool.
+	Init()
+
+	// Get provides an float64 slice from the pool.
 	Get(capacity int) []float64
 
-	// Put returns an float64 slice to the pool
+	// Put returns an float64 slice to the pool.
 	Put(value []float64)
 }
