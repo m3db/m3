@@ -53,6 +53,9 @@ type VersionedPolicies struct {
 	// Version is the version of the policies
 	Version int
 
+	// Cutover is when the policies take effect
+	Cutover time.Time
+
 	// Policies represent the list of policies
 	Policies []Policy
 }

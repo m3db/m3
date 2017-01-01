@@ -41,11 +41,13 @@
 
 * VersionedPolicies object
   * Number of VersionedPolicies fields
-  * Versioned Policies type
   * Versioned Policies (can be one of the following)
     * DefaultVersionedPolicies
+      * Versioned Policies type
     * CustomVersionedPolicies
+      * Versioned Policies type
       * Version
+      * Cutover
       * List of Policy objects
 
 * Policy object
@@ -55,21 +57,23 @@
 
 * Resolution object
   * Number of Resolution fields
-  * Resolution type
   * Resolution (can be one of the following)
     * KnownResolution
+      * Resolution type
       * ResolutionValue
     * UnknownResolution
+      * Resolution type
       * Resolution window in nanoseconds
       * Resolution precision
 
 * Retention object
   * Number of Retention fields
-  * Retention type
   * Retention (can be one of the following)
     * KnownRetention
+      * Retention type
       * RetentionValue
     * UnknownRetention
+      * Retention type
       * Retention duration in nanoseconds
 
 ## Wire format for aggregated metrics

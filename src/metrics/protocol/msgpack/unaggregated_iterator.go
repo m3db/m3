@@ -200,12 +200,17 @@ func (it *unaggregatedIterator) decodeVersionedPolicies() {
 		it.skip(numActualFields - numExpectedFields)
 	case customVersionedPoliciesType:
 		version := int(it.decodeVarint())
+		cutover := it.decodeTime()
 		numPolicies := it.decodeArrayLen()
 		policies := it.policiesPool.Get(numPolicies)
 		for i := 0; i < numPolicies; i++ {
 			policies = append(policies, it.decodePolicy())
 		}
-		it.versionedPolicies = policy.VersionedPolicies{Version: version, Policies: policies}
+		it.versionedPolicies = policy.VersionedPolicies{
+			Version:  version,
+			Cutover:  cutover,
+			Policies: policies,
+		}
 		it.skip(numActualFields - numExpectedFields)
 	default:
 		it.setErr(fmt.Errorf("unrecognized versioned policies type: %v", versionedPoliciesType))

@@ -78,7 +78,7 @@ const (
 	numKnownRetentionFields         = 2
 	numUnknownRetentionFields       = 2
 	numDefaultVersionedPolicyFields = 1
-	numCustomVersionedPolicyFields  = 3
+	numCustomVersionedPolicyFields  = 4
 )
 
 // NB(xichen): use a slice instead of a map to avoid lookup overhead

@@ -154,6 +154,7 @@ func (enc *unaggregatedEncoder) encodeVersionedPolicies(vp policy.VersionedPolic
 	enc.encodeNumObjectFields(numFieldsForType(customVersionedPoliciesType))
 	enc.encodeObjectType(customVersionedPoliciesType)
 	enc.encodeVersion(vp.Version)
+	enc.encodeTime(vp.Cutover)
 	enc.encodeArrayLen(len(vp.Policies))
 	for _, policy := range vp.Policies {
 		enc.encodePolicy(policy)

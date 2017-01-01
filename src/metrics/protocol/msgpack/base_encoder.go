@@ -28,6 +28,7 @@ import (
 )
 
 type encodePolicyFn func(p policy.Policy)
+type encodeTimeFn func(t time.Time)
 type encodeVarintFn func(value int64)
 type encodeFloat64Fn func(value float64)
 type encodeBytesFn func(value []byte)
@@ -38,6 +39,7 @@ type baseEncoder struct {
 	bufEncoder       BufferedEncoder  // internal encoder that performs the actual encoding
 	encodeErr        error            // error encountered during encoding
 	encodePolicyFn   encodePolicyFn   // policy encoding function
+	encodeTimeFn     encodeTimeFn     // time encoding function
 	encodeVarintFn   encodeVarintFn   // varint encoding function
 	encodeFloat64Fn  encodeFloat64Fn  // float64 encoding function
 	encodeBytesFn    encodeBytesFn    // byte slice encoding function
@@ -48,6 +50,7 @@ func newBaseEncoder(encoder BufferedEncoder) encoderBase {
 	enc := &baseEncoder{bufEncoder: encoder}
 
 	enc.encodePolicyFn = enc.encodePolicyInternal
+	enc.encodeTimeFn = enc.encodeTimeInternal
 	enc.encodeVarintFn = enc.encodeVarintInternal
 	enc.encodeFloat64Fn = enc.encodeFloat64Internal
 	enc.encodeBytesFn = enc.encodeBytesInternal
@@ -65,7 +68,7 @@ func (enc *baseEncoder) encodeVersion(version int)           { enc.encodeVarint(
 func (enc *baseEncoder) encodeObjectType(objType objectType) { enc.encodeVarint(int64(objType)) }
 func (enc *baseEncoder) encodeNumObjectFields(numFields int) { enc.encodeArrayLen(numFields) }
 func (enc *baseEncoder) encodeID(id metric.ID)               { enc.encodeBytes([]byte(id)) }
-func (enc *baseEncoder) encodeTime(t time.Time)              { enc.encodeVarint(t.UnixNano()) }
+func (enc *baseEncoder) encodeTime(t time.Time)              { enc.encodeTimeFn(t) }
 func (enc *baseEncoder) encodeVarint(value int64)            { enc.encodeVarintFn(value) }
 func (enc *baseEncoder) encodeFloat64(value float64)         { enc.encodeFloat64Fn(value) }
 func (enc *baseEncoder) encodeBytes(value []byte)            { enc.encodeBytesFn(value) }
@@ -112,6 +115,13 @@ func (enc *baseEncoder) encodeRetention(retention policy.Retention) {
 	enc.encodeNumObjectFields(numFieldsForType(unknownRetentionType))
 	enc.encodeObjectType(unknownRetentionType)
 	enc.encodeVarintFn(int64(retention))
+}
+
+func (enc *baseEncoder) encodeTimeInternal(value time.Time) {
+	if enc.encodeErr != nil {
+		return
+	}
+	enc.encodeErr = enc.bufEncoder.EncodeTime(value)
 }
 
 // NB(xichen): the underlying msgpack encoder implementation

@@ -201,6 +201,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomResolution(t *testing.T) {
 		metric: testGauge,
 		versionedPolicies: policy.VersionedPolicies{
 			Version: 1,
+			Cutover: time.Now(),
 			Policies: []policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: 3 * time.Second, Precision: xtime.Second},
@@ -223,6 +224,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomRetention(t *testing.T) {
 		metric: testGauge,
 		versionedPolicies: policy.VersionedPolicies{
 			Version: 1,
+			Cutover: time.Now(),
 			Policies: []policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
@@ -245,6 +247,7 @@ func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 		metric: testGauge,
 		versionedPolicies: policy.VersionedPolicies{
 			Version: 1,
+			Cutover: time.Now(),
 			Policies: []policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
@@ -276,6 +279,7 @@ func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *te
 		metric: testGauge,
 		versionedPolicies: policy.VersionedPolicies{
 			Version: 1,
+			Cutover: time.Now(),
 			Policies: []policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
@@ -291,6 +295,7 @@ func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *te
 		enc.encodeNumObjectFields(numFieldsForType(customVersionedPoliciesType) + 1)
 		enc.encodeObjectType(customVersionedPoliciesType)
 		enc.encodeVersion(vp.Version)
+		enc.encodeTime(vp.Cutover)
 		enc.encodeArrayLen(len(vp.Policies))
 		for _, policy := range vp.Policies {
 			enc.encodePolicy(policy)
