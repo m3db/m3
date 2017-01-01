@@ -56,6 +56,7 @@ var (
 
 	testVersionedPoliciesWithInvalidTimeUnit = policy.VersionedPolicies{
 		Version: 1,
+		Cutover: time.Now(),
 		Policies: []policy.Policy{
 			{
 				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Unit(100)},
@@ -85,6 +86,7 @@ var (
 			metric: testCounter,
 			versionedPolicies: policy.VersionedPolicies{
 				Version: 1,
+				Cutover: time.Now(),
 				Policies: []policy.Policy{
 					{
 						Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
@@ -99,6 +101,7 @@ var (
 			metric: testBatchTimer,
 			versionedPolicies: policy.VersionedPolicies{
 				Version: 2,
+				Cutover: time.Now(),
 				Policies: []policy.Policy{
 					{
 						Resolution: policy.Resolution{Window: 20 * time.Second, Precision: xtime.Second},
@@ -120,6 +123,7 @@ var (
 			metric: testGauge,
 			versionedPolicies: policy.VersionedPolicies{
 				Version: 2,
+				Cutover: time.Now(),
 				Policies: []policy.Policy{
 					{
 						Resolution: policy.Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
@@ -134,6 +138,29 @@ var (
 type metricWithPolicies struct {
 	metric            unaggregated.MetricUnion
 	versionedPolicies policy.VersionedPolicies
+}
+
+func testCapturingBaseEncoder(encoder encoderBase) *[]interface{} {
+	baseEncoder := encoder.(*baseEncoder)
+
+	var result []interface{}
+	baseEncoder.encodeTimeFn = func(value time.Time) {
+		result = append(result, value)
+	}
+	baseEncoder.encodeVarintFn = func(value int64) {
+		result = append(result, value)
+	}
+	baseEncoder.encodeFloat64Fn = func(value float64) {
+		result = append(result, value)
+	}
+	baseEncoder.encodeBytesFn = func(value []byte) {
+		result = append(result, value)
+	}
+	baseEncoder.encodeArrayLenFn = func(value int) {
+		result = append(result, value)
+	}
+
+	return &result
 }
 
 func testUnaggregatedEncoder(t *testing.T) UnaggregatedEncoder {
@@ -258,6 +285,7 @@ func TestUnaggregatedEncodeDecodeStress(t *testing.T) {
 		policy.DefaultVersionedPolicies,
 		{
 			Version: 2,
+			Cutover: time.Now(),
 			Policies: []policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},

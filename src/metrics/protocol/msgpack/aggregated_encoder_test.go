@@ -29,26 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testCapturingBaseEncoder(encoder encoderBase) *[]interface{} {
-	baseEncoder := encoder.(*baseEncoder)
-
-	var result []interface{}
-	baseEncoder.encodeVarintFn = func(value int64) {
-		result = append(result, value)
-	}
-	baseEncoder.encodeFloat64Fn = func(value float64) {
-		result = append(result, value)
-	}
-	baseEncoder.encodeBytesFn = func(value []byte) {
-		result = append(result, value)
-	}
-	baseEncoder.encodeArrayLenFn = func(value int) {
-		result = append(result, value)
-	}
-
-	return &result
-}
-
 func testCapturingAggregatedEncoder(t *testing.T) (AggregatedEncoder, *[]interface{}) {
 	encoder := testAggregatedEncoder(t).(*aggregatedEncoder)
 	result := testCapturingBaseEncoder(encoder.encoderBase)
@@ -90,7 +70,7 @@ func TestAggregatedEncodeMetric(t *testing.T) {
 		int64(metricVersion),
 		int(numFieldsForType(metricType)),
 		[]byte(testMetric.ID),
-		int64(testMetric.Timestamp.UnixNano()),
+		testMetric.Timestamp,
 		testMetric.Value,
 	}
 	require.Equal(t, expected, *result)

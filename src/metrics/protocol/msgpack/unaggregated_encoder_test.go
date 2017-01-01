@@ -131,6 +131,7 @@ func expectedResultsForUnaggregatedMetricWithPolicies(t *testing.T, m unaggregat
 			numFieldsForType(customVersionedPoliciesType),
 			int64(customVersionedPoliciesType),
 			int64(p.Version),
+			p.Cutover,
 			len(p.Policies),
 		}...)
 		for _, p := range p.Policies {
@@ -245,6 +246,7 @@ func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 	gauge := testGauge
 	policies := policy.VersionedPolicies{
 		Version: 1,
+		Cutover: time.Now(),
 		Policies: []policy.Policy{
 			{
 				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},

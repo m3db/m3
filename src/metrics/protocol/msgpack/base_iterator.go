@@ -160,7 +160,12 @@ func (it *baseIterator) decodeID() metric.ID {
 }
 
 func (it *baseIterator) decodeTime() time.Time {
-	return time.Unix(0, it.decodeVarint())
+	if it.decodeErr != nil {
+		return time.Time{}
+	}
+	value, err := it.decoder.DecodeTime()
+	it.decodeErr = err
+	return value
 }
 
 // NB(xichen): the underlying msgpack decoder implementation
