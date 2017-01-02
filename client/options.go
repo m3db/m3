@@ -116,7 +116,8 @@ const (
 	defaultSeriesIteratorPoolSize = 100000
 
 	// defaultFetchSeriesBlocksMaxBlockRetries is the default max retries for fetch series blocks
-	defaultFetchSeriesBlocksMaxBlockRetries = 3
+	// from a single peer
+	defaultFetchSeriesBlocksMaxBlockRetries = 2
 
 	// defaultFetchSeriesBlocksBatchSize is the default fetch series blocks batch size
 	defaultFetchSeriesBlocksBatchSize = 4096

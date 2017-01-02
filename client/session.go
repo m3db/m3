@@ -1749,7 +1749,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	}); err != nil {
 		m.fetchBlockError.Inc(reqBlocksLen)
 		s.log.WithFields(
-			xlog.NewLogField("error", err),
+			xlog.NewLogField("error", err.Error()),
 			xlog.NewLogField("peer", peer.Host().String()),
 		).Errorf("stream blocks request error")
 		for i := range batch {
@@ -1835,7 +1835,7 @@ func (s *session) streamBlocksBatchFromPeer(
 				s.log.WithFields(
 					xlog.NewLogField("id", id.String()),
 					xlog.NewLogField("start", block.Start),
-					xlog.NewLogField("error", err),
+					xlog.NewLogField("error", err.Error()),
 					xlog.NewLogField("indexID", i),
 					xlog.NewLogField("indexBlock", j),
 					xlog.NewLogField("peer", peer.Host().String()),
