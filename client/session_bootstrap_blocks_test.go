@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
@@ -1161,7 +1162,8 @@ func (m *fetchBlocksReqMatcher) Matches(x interface{}) bool {
 	}
 
 	for i := range params {
-		if params[i].id.String() != string(req.Elements[i].ID) {
+		reqID := ts.BinaryID(checked.NewBytes(req.Elements[i].ID, nil))
+		if !params[i].id.Equal(reqID) {
 			return false
 		}
 		if len(params[i].starts) != len(req.Elements[i].Starts) {

@@ -1686,7 +1686,6 @@ func (s *session) streamBlocksBatchFromPeer(
 		result       *rpc.FetchBlocksRawResult_
 		reqBlocksLen int64
 
-		bytesPool          = opts.DatabaseBlockOptions().BytesPool()
 		nowFn              = opts.ClockOptions().NowFn()
 		ropts              = opts.RetentionOptions()
 		blockSize          = ropts.BlockSize()
@@ -1749,12 +1748,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			continue
 		}
 
-		buffer := bytesPool.Get(len(result.Elements[i].ID))
-		buffer.IncRef()
-		buffer.AppendAll(result.Elements[i].ID)
-		buffer.DecRef()
-		id := ts.BinaryID(buffer)
-
+		id := ts.BinaryID(checked.NewBytes(result.Elements[i].ID, nil))
 		if !batch[i].id.Equal(id) {
 			s.streamBlocksReattemptFromPeers(batch[i].blocks, enqueueCh)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
@@ -1928,18 +1922,19 @@ func (r *blocksResult) addBlockFromPeer(id ts.ID, block *rpc.Block) error {
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
-		readerPool := r.blockOpts.SegmentReaderPool()
+		segmentReaderPool := r.blockOpts.SegmentReaderPool()
 		readers := make([]io.Reader, len(segments.Unmerged))
 		for i := range segments.Unmerged {
-			reader := readerPool.Get()
-			reader.Reset(r.segmentForBlock(segments.Unmerged[i]))
-			readers[i] = reader
+			segmentReader := segmentReaderPool.Get()
+			segmentReader.Reset(r.segmentForBlock(segments.Unmerged[i]))
+			readers[i] = segmentReader
 		}
 
 		encoder, err := r.mergeReaders(start, readers)
 		for _, reader := range readers {
 			// Close each reader
-			reader.(xio.SegmentReader).Close()
+			segmentReader := reader.(xio.SegmentReader)
+			segmentReader.Close()
 		}
 
 		if err != nil {

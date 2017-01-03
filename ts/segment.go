@@ -43,11 +43,11 @@ type SegmentFlags uint8
 
 const (
 	// FinalizeNone specifies to finalize neither of the bytes
-	FinalizeNone SegmentFlags = 0 << 0
+	FinalizeNone SegmentFlags = 0 << 1
 	// FinalizeHead specifies to finalize the head bytes
-	FinalizeHead SegmentFlags = 1 << 0
+	FinalizeHead SegmentFlags = 1 << 1
 	// FinalizeTail specifies to finalize the tail bytes
-	FinalizeTail SegmentFlags = 2 << 0
+	FinalizeTail SegmentFlags = 2 << 1
 )
 
 // NewSegment will create a new segment and increment the refs to

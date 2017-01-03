@@ -35,9 +35,9 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -77,7 +77,7 @@ type service struct {
 	nowFn                   clock.NowFn
 	metrics                 serviceMetrics
 	idPool                  ts.IdentifierPool
-	bytesPool               pool.CheckedBytesPool
+	checkedBytesPool        sync.Pool
 	blockMetadataPool       tchannelthrift.BlockMetadataPool
 	blockMetadataSlicePool  tchannelthrift.BlockMetadataSlicePool
 	blocksMetadataPool      tchannelthrift.BlocksMetadataPool
@@ -97,13 +97,12 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		map[string]string{"serviceName": "node"},
 	)
 
-	return &service{
+	s := &service{
 		db:                      db,
 		opts:                    opts,
 		nowFn:                   db.Options().ClockOptions().NowFn(),
 		metrics:                 newServiceMetrics(scope, iopts.MetricsSamplingRate()),
 		idPool:                  db.Options().IdentifierPool(),
-		bytesPool:               db.Options().BytesPool(),
 		blockMetadataPool:       opts.BlockMetadataPool(),
 		blockMetadataSlicePool:  opts.BlockMetadataSlicePool(),
 		blocksMetadataPool:      opts.BlocksMetadataPool(),
@@ -114,6 +113,17 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			Bootstrapped: false,
 		},
 	}
+	checkedBytesPoolOpts := checked.NewBytesOptions().
+		SetFinalizer(checked.BytesFinalizerFn(func(b checked.Bytes) {
+			b.Reset(nil)
+			b.DecRef()
+			s.checkedBytesPool.Put(b)
+		}))
+	s.checkedBytesPool = sync.Pool{New: func() interface{} {
+		return checked.NewBytes(nil, checkedBytesPoolOpts)
+	}}
+
+	return s
 }
 
 func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
@@ -268,7 +278,10 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	res := rpc.NewFetchBlocksRawResult_()
 	res.Elements = make([]*rpc.Blocks, len(req.Elements))
 
-	var blockStarts []time.Time
+	// Preallocate starts to maximum size since at least one element will likely
+	// be fetching most blocks for peer bootstrapping
+	ropts := s.db.Options().RetentionOptions()
+	blockStarts := make([]time.Time, 0, ropts.RetentionPeriod()/ropts.BlockSize())
 
 	for i, request := range req.Elements {
 		blockStarts = blockStarts[:0]
@@ -310,10 +323,6 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	return res, nil
 }
 
-func (s *service) newCloseableMetadataResult(res *rpc.FetchBlocksMetadataRawResult_) closeableMetadataResult {
-	return closeableMetadataResult{s: s, result: res}
-}
-
 func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -341,12 +350,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		includeChecksums = *req.IncludeChecksums
 	}
 
-	buffer := s.bytesPool.Get(len(req.NameSpace))
-	buffer.IncRef()
-	buffer.AppendAll(req.NameSpace)
-	buffer.DecRef()
-	nsID := s.idPool.GetBinaryID(ctx, buffer)
-	buffer = nil
+	nsID := s.idPool.GetBinaryID(ctx, checked.NewBytes(req.NameSpace, nil))
 
 	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx,
 		nsID, uint32(req.Shard), start, end,
@@ -521,11 +525,20 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rp
 }
 
 func (s *service) newID(ctx context.Context, id []byte) ts.ID {
-	buffer := s.bytesPool.Get(len(id))
-	buffer.IncRef()
-	buffer.AppendAll(id)
-	buffer.DecRef()
-	return s.idPool.GetBinaryID(ctx, buffer)
+	checkedBytes := s.checkedBytesPool.Get().(checked.Bytes)
+	checkedBytes.IncRef()
+	checkedBytes.Reset(id)
+
+	// Ensure when context is finalizing checked bytes is finalized
+	ctx.RegisterFinalizer(checkedBytes)
+
+	return s.idPool.GetBinaryID(ctx, checkedBytes)
+}
+
+func (s *service) newCloseableMetadataResult(
+	res *rpc.FetchBlocksMetadataRawResult_,
+) closeableMetadataResult {
+	return closeableMetadataResult{s: s, result: res}
 }
 
 type closeableMetadataResult struct {
