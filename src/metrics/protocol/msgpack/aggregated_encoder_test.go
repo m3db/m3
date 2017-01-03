@@ -105,3 +105,13 @@ func TestAggregatedEncodeError(t *testing.T) {
 	// Assert re-encoding doesn't change the error
 	require.Equal(t, errTestVarint, testAggregatedEncode(t, encoder, testMetric, testPolicy))
 }
+
+func TestAggregatedEncoderReset(t *testing.T) {
+	encoder := testAggregatedEncoder(t).(*aggregatedEncoder)
+	baseEncoder := encoder.encoderBase.(*baseEncoder)
+	baseEncoder.encodeErr = errTestVarint
+	require.Equal(t, errTestVarint, testAggregatedEncode(t, encoder, testMetric, testPolicy))
+
+	encoder.Reset(newBufferedEncoder())
+	require.NoError(t, testAggregatedEncode(t, encoder, testMetric, testPolicy))
+}
