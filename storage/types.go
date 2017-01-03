@@ -298,6 +298,7 @@ type databaseShard interface {
 	UpdateSeries(
 		seriesID ts.ID,
 		blk block.DatabaseBlock,
+		markFlushStateDirty bool,
 	) error
 }
 

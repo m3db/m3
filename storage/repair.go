@@ -184,6 +184,7 @@ func (h *hostSet) empty() bool {
 	return len(*h) == 0
 }
 
+// TODO(prateek): tests for constructRequiredRepairBlocks
 func (r shardRepairer) constructRequiredRepairBlocks(
 	namespace ts.ID,
 	shard databaseShard,
@@ -306,7 +307,8 @@ func (r shardRepairer) repairDifferences(
 		// TODO(prateek): current implementation of UpdateSeries marks shards flushed internally,
 		// this is something we should amortize to be done at the end of iterating through this function
 		// concern being, we want to minimize the number of flushes we can potentially induce
-		if err := shard.UpdateSeries(id, blk); err != nil {
+		markFlushStateDirty := true
+		if err := shard.UpdateSeries(id, blk, markFlushStateDirty); err != nil {
 			// TODO(prateek): build multiErr
 			// TODO(prateek): increment error count in return object
 			// TODO(prateek): publish metrics for this too
