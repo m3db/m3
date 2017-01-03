@@ -83,7 +83,7 @@ func (o *options) MetricsSamplingRate() float64 {
 
 func (o *options) SetReportInterval(value time.Duration) Options {
 	opts := *o
-	o.reportInterval = value
+	opts.reportInterval = value
 	return &opts
 }
 
