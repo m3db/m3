@@ -61,7 +61,6 @@ func newBaseEncoder(encoder BufferedEncoder) encoderBase {
 
 func (enc *baseEncoder) encoder() BufferedEncoder            { return enc.bufEncoder }
 func (enc *baseEncoder) err() error                          { return enc.encodeErr }
-func (enc *baseEncoder) reset(encoder BufferedEncoder)       { enc.bufEncoder = encoder }
 func (enc *baseEncoder) resetData()                          { enc.bufEncoder.Reset() }
 func (enc *baseEncoder) encodePolicy(p policy.Policy)        { enc.encodePolicyFn(p) }
 func (enc *baseEncoder) encodeVersion(version int)           { enc.encodeVarint(int64(version)) }
@@ -73,6 +72,11 @@ func (enc *baseEncoder) encodeVarint(value int64)            { enc.encodeVarintF
 func (enc *baseEncoder) encodeFloat64(value float64)         { enc.encodeFloat64Fn(value) }
 func (enc *baseEncoder) encodeBytes(value []byte)            { enc.encodeBytesFn(value) }
 func (enc *baseEncoder) encodeArrayLen(value int)            { enc.encodeArrayLenFn(value) }
+
+func (enc *baseEncoder) reset(encoder BufferedEncoder) {
+	enc.bufEncoder = encoder
+	enc.encodeErr = nil
+}
 
 func (enc *baseEncoder) encodePolicyInternal(p policy.Policy) {
 	enc.encodeNumObjectFields(numFieldsForType(policyType))

@@ -268,3 +268,16 @@ func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 	// Assert re-encoding doesn't change the error
 	require.Equal(t, errTestArrayLen, testUnaggregatedEncode(t, encoder, gauge, policies))
 }
+
+func TestUnaggregatedEncoderReset(t *testing.T) {
+	metric := testCounter
+	policies := policy.DefaultVersionedPolicies
+
+	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
+	baseEncoder := encoder.encoderBase.(*baseEncoder)
+	baseEncoder.encodeErr = errTestVarint
+	require.Equal(t, errTestVarint, testUnaggregatedEncode(t, encoder, metric, policies))
+
+	encoder.Reset(newBufferedEncoder())
+	require.NoError(t, testUnaggregatedEncode(t, encoder, metric, policies))
+}
