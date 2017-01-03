@@ -137,7 +137,7 @@ func TestSessionClusterConnectConsistencyLevelAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	level := ConnectConsistencyLevelAll
+	level := ConnectConsistencyLevelAll + 1
 	testSessionClusterConnectConsistencyLevel(t, ctrl, level, 0, outcomeSuccess)
 	for i := 1; i <= 3; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeFail)
