@@ -276,6 +276,7 @@ func (r shardRepairer) repairDifferences(
 	var (
 		logger       = r.opts.InstrumentOptions().Logger()
 		session, err = r.client.DefaultAdminSession()
+		multiErr     xerrors.MultiError
 	)
 	if err != nil {
 		return err
@@ -309,7 +310,8 @@ func (r shardRepairer) repairDifferences(
 		// concern being, we want to minimize the number of flushes we can potentially induce
 		markFlushStateDirty := true
 		if err := shard.UpdateSeries(id, blk, markFlushStateDirty); err != nil {
-			// TODO(prateek): build multiErr
+			multiErr.Add(fmt.Errorf(
+				"unable to update series [ id = %v, block_start = %v, err = %v ]", id.String(), blkID.start, err))
 			// TODO(prateek): increment error count in return object
 			// TODO(prateek): publish metrics for this too
 			continue
@@ -329,7 +331,7 @@ func (r shardRepairer) repairDifferences(
 	//    do NOT delete old version before writing a new version
 
 	// TODO(prateek): change the return type to include a RepairResult construct
-	return nil
+	return multiErr.FinalError()
 }
 
 func (r shardRepairer) recordDifferences(
