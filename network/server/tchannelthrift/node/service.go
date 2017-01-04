@@ -115,6 +115,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	}
 	checkedBytesPoolOpts := checked.NewBytesOptions().
 		SetFinalizer(checked.BytesFinalizerFn(func(b checked.Bytes) {
+			b.IncRef()
 			b.Reset(nil)
 			b.DecRef()
 			s.checkedBytesPool.Put(b)
@@ -350,7 +351,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		includeChecksums = *req.IncludeChecksums
 	}
 
-	nsID := s.idPool.GetBinaryID(ctx, checked.NewBytes(req.NameSpace, nil))
+	nsID := s.newID(ctx, req.NameSpace)
 
 	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx,
 		nsID, uint32(req.Shard), start, end,
@@ -528,6 +529,7 @@ func (s *service) newID(ctx context.Context, id []byte) ts.ID {
 	checkedBytes := s.checkedBytesPool.Get().(checked.Bytes)
 	checkedBytes.IncRef()
 	checkedBytes.Reset(id)
+	checkedBytes.DecRef()
 
 	// Ensure when context is finalizing checked bytes is finalized
 	ctx.RegisterFinalizer(checkedBytes)

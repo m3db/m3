@@ -320,12 +320,224 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 	}
 }
 
-// TODO: add test TestFetchBlocksMetadataRaw
+func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-// TODO: add test TestWrite
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
 
-// TODO: add test TestWriteBatchRaw
+	service := NewService(mockDB, nil).(*service)
 
-// TODO: add test TestRepair
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
 
-// TODO: add test TestTruncate
+	start := time.Now().Add(-4 * time.Hour)
+	end := start.Add(4 * time.Hour)
+
+	start, end = start.Truncate(time.Hour), end.Truncate(time.Hour)
+
+	limit := int64(2)
+	pageToken := int64(0)
+	next := pageToken + limit
+	nextPageToken := &next
+	includeSizes := true
+	includeChecksums := true
+
+	nsID := "metrics"
+
+	series := map[string][]struct {
+		start    time.Time
+		size     int64
+		checksum uint32
+	}{
+		"foo": {
+			{start.Add(0 * time.Hour), 16, 111},
+			{start.Add(2 * time.Hour), 32, 222},
+		},
+		"bar": {
+			{start.Add(0 * time.Hour), 32, 222},
+			{start.Add(2 * time.Hour), 64, 333},
+		},
+	}
+	ids := make([][]byte, 0, len(series))
+	mockResult := block.NewFetchBlocksMetadataResults()
+	for id, s := range series {
+		ids = append(ids, []byte(id))
+		blocks := block.NewFetchBlockMetadataResults()
+		metadata := block.FetchBlocksMetadataResult{
+			ID:     ts.StringID(id),
+			Blocks: blocks,
+		}
+		for _, v := range s {
+			entry := v
+			blocks.Add(block.FetchBlockMetadataResult{
+				Start:    entry.start,
+				Size:     &entry.size,
+				Checksum: &entry.checksum,
+				Err:      nil,
+			})
+		}
+		mockResult.Add(metadata)
+	}
+	mockDB.EXPECT().
+		FetchBlocksMetadata(ctx, ts.NewIDMatcher(nsID), uint32(0), start, end,
+			limit, pageToken, includeSizes, includeChecksums).
+		Return(mockResult, nextPageToken, nil)
+
+	r, err := service.FetchBlocksMetadataRaw(tctx, &rpc.FetchBlocksMetadataRawRequest{
+		NameSpace:        []byte(nsID),
+		Shard:            0,
+		RangeStart:       start.UnixNano(),
+		RangeEnd:         end.UnixNano(),
+		Limit:            limit,
+		PageToken:        &pageToken,
+		IncludeSizes:     &includeSizes,
+		IncludeChecksums: &includeChecksums,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, len(ids), len(r.Elements))
+	for _, elem := range r.Elements {
+		require.NotNil(t, elem)
+
+		expectBlocks := series[string(elem.ID)]
+		require.Equal(t, len(expectBlocks), len(elem.Blocks))
+
+		for i, expectBlock := range expectBlocks {
+			block := elem.Blocks[i]
+			assert.Equal(t, expectBlock.start.UnixNano(), block.Start)
+			require.NotNil(t, block.Size)
+			require.NotNil(t, block.Checksum)
+		}
+	}
+}
+
+func TestServiceWrite(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	nsID := "metrics"
+
+	id := "foo"
+
+	at := time.Now().Truncate(time.Second)
+	value := 42.42
+
+	mockDB.EXPECT().
+		Write(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher(id), at, value, xtime.Second, nil).
+		Return(nil)
+
+	err := service.Write(tctx, &rpc.WriteRequest{
+		NameSpace: nsID,
+		ID:        id,
+		Datapoint: &rpc.Datapoint{
+			Timestamp:     at.Unix(),
+			TimestampType: rpc.TimeType_UNIX_SECONDS,
+			Value:         value,
+		},
+	})
+	require.NoError(t, err)
+}
+
+func TestServiceWriteBatchRaw(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	nsID := "metrics"
+
+	values := []struct {
+		id string
+		t  time.Time
+		v  float64
+	}{
+		{"foo", time.Now().Truncate(time.Second), 12.34},
+		{"bar", time.Now().Truncate(time.Second), 42.42},
+	}
+	for _, w := range values {
+		mockDB.EXPECT().
+			Write(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher(w.id), w.t, w.v, xtime.Second, nil).
+			Return(nil)
+	}
+
+	var elements []*rpc.WriteBatchRawRequestElement
+	for _, w := range values {
+		elem := &rpc.WriteBatchRawRequestElement{
+			ID: []byte(w.id),
+			Datapoint: &rpc.Datapoint{
+				Timestamp:     w.t.Unix(),
+				TimestampType: rpc.TimeType_UNIX_SECONDS,
+				Value:         w.v,
+			},
+		}
+		elements = append(elements, elem)
+	}
+
+	err := service.WriteBatchRaw(tctx, &rpc.WriteBatchRawRequest{
+		NameSpace: []byte(nsID),
+		Elements:  elements,
+	})
+	require.NoError(t, err)
+}
+
+func TestServiceRepair(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	mockDB.EXPECT().Repair().Return(nil)
+
+	err := service.Repair(tctx)
+	require.NoError(t, err)
+}
+
+func TestServiceTruncate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	nsID := "metrics"
+
+	truncated := int64(123)
+
+	mockDB.EXPECT().Truncate(ts.NewIDMatcher(nsID)).Return(truncated, nil)
+
+	r, err := service.Truncate(tctx, &rpc.TruncateRequest{NameSpace: []byte(nsID)})
+	require.NoError(t, err)
+	assert.Equal(t, truncated, r.NumSeries)
+}
