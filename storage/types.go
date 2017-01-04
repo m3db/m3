@@ -291,7 +291,7 @@ type databaseShard interface {
 		namespace ts.ID,
 		tr xtime.Range,
 		repairer databaseShardRepairer,
-	) (repair.MetadataComparisonResult, error)
+	) (repair.Result, error)
 
 	// UpdateSeries updates the identified series by merging any existing data
 	// with the provided block.
@@ -388,7 +388,7 @@ type databaseShardRepairer interface {
 		namespace ts.ID,
 		tr xtime.Range,
 		shard databaseShard,
-	) (repair.MetadataComparisonResult, error)
+	) (repair.Result, error)
 }
 
 // databaseRepairer repairs in-memory database data

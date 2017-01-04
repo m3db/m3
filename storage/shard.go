@@ -728,7 +728,7 @@ func (s *dbShard) Repair(
 	namespace ts.ID,
 	tr xtime.Range,
 	repairer databaseShardRepairer,
-) (repair.MetadataComparisonResult, error) {
+) (repair.Result, error) {
 	return repairer.Repair(ctx, namespace, tr, s)
 }
 

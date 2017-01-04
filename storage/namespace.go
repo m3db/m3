@@ -567,7 +567,8 @@ func (n *dbNamespace) Repair(
 			ctx := n.opts.ContextPool().Get()
 			defer ctx.Close()
 
-			metadataRes, err := shard.Repair(ctx, n.id, tr, repairer)
+			repairResult, err := shard.Repair(ctx, n.id, tr, repairer)
+			metadataRes := repairResult.DifferenceSummary
 
 			mutex.Lock()
 			if err != nil {

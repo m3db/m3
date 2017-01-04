@@ -445,7 +445,7 @@ func TestNamespaceRepair(t *testing.T) {
 		}
 		shard.EXPECT().
 			Repair(gomock.Any(), ts.NewIDMatcher(testNamespaceID.String()), repairTimeRange, repairer).
-			Return(res, errs[i])
+			Return(repair.Result{DifferenceSummary: res}, errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 

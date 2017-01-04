@@ -52,7 +52,7 @@ var (
 )
 
 type recordFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult)
-type repairShardFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) error
+type repairShardFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) (repair.Summary, error)
 
 type shardRepairer struct {
 	opts      Options
@@ -102,10 +102,10 @@ func (r shardRepairer) Repair(
 	namespace ts.ID,
 	tr xtime.Range,
 	shard databaseShard,
-) (repair.MetadataComparisonResult, error) {
+) (repair.Result, error) {
 	session, err := r.client.DefaultAdminSession()
 	if err != nil {
-		return repair.MetadataComparisonResult{}, err
+		return repair.Result{}, err
 	}
 
 	var (
@@ -128,24 +128,29 @@ func (r shardRepairer) Repair(
 	// Add peer metadata
 	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end)
 	if err != nil {
-		return repair.MetadataComparisonResult{}, err
+		return repair.Result{}, err
 	}
 	if err := metadata.AddPeerMetadata(peerIter); err != nil {
-		return repair.MetadataComparisonResult{}, err
+		return repair.Result{}, err
 	}
 
 	metadataRes := metadata.Compare()
 
 	r.recordFn(namespace, shard, metadataRes)
 	// TODO(prateek): flipr config for this(!)
-	if err = r.repairFn(namespace, shard, metadataRes); err != nil {
-		return repair.MetadataComparisonResult{}, err
+	repairResult, err := r.repairFn(namespace, shard, metadataRes)
+	if err != nil {
+		return repair.Result{}, err
 	}
 
 	// TODO(prateek):
 	// - change the return type to include a RepairResult construct
 	// - trace up the chain here, make sure we mark state to re-attempt any pending repairs
-	return metadataRes, nil
+	result := repair.Result{
+		RepairSummary:     repairResult,
+		DifferenceSummary: metadataRes,
+	}
+	return result, nil
 }
 
 type hostSet map[topology.Host]repair.HostBlockMetadata
@@ -272,20 +277,21 @@ func (r shardRepairer) repairDifferences(
 	namespace ts.ID,
 	shard databaseShard,
 	diffRes repair.MetadataComparisonResult,
-) error {
+) (repair.Summary, error) {
 	var (
-		logger       = r.opts.InstrumentOptions().Logger()
-		session, err = r.client.DefaultAdminSession()
-		multiErr     xerrors.MultiError
+		logger        = r.opts.InstrumentOptions().Logger()
+		session, err  = r.client.DefaultAdminSession()
+		repairSummary = repair.Summary{}
+		multiErr      xerrors.MultiError
 	)
 	if err != nil {
-		return err
+		return repairSummary, err
 	}
 
 	reqBlocks, blockState := r.constructRequiredRepairBlocks(namespace, shard, diffRes, session.Origin())
 	blocksIter, err := session.FetchRepairBlocksFromPeers(namespace, shard.ID(), reqBlocks, r.rpopts.ResultOptions())
 	if err != nil {
-		return err
+		return repairSummary, err
 	}
 
 	for blocksIter.Next() {
@@ -330,8 +336,7 @@ func (r shardRepairer) repairDifferences(
 	// 	- write a new version of the file for the timestamp, keep last 'n' versions,
 	//    do NOT delete old version before writing a new version
 
-	// TODO(prateek): change the return type to include a RepairResult construct
-	return multiErr.FinalError()
+	return repairSummary, multiErr.FinalError()
 }
 
 func (r shardRepairer) recordDifferences(

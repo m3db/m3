@@ -133,6 +133,21 @@ type ReplicaMetadataComparer interface {
 	Finalize()
 }
 
+// Summary captures details about repaired series'
+// TODO(prateek): Summary and Result here are confusing, rename
+type Summary struct {
+}
+
+// Result captures details about the differences pre-repair, and a summary
+// of the repaired series'
+type Result struct {
+	// DifferenceSummary returns the difference pre-repair
+	DifferenceSummary MetadataComparisonResult
+
+	// RepairSummary returns the statistics about repairs performed
+	RepairSummary Summary
+}
+
 // MetadataComparisonResult captures metadata comparison results
 type MetadataComparisonResult struct {
 	// NumSeries returns the total number of series

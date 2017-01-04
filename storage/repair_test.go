@@ -298,8 +298,8 @@ func TestDatabaseShardRepairerRecordDifferences(t *testing.T) {
 		resShard = shard
 		resDiff = diffRes
 	}
-	repairer.repairFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) error {
-		return nil
+	repairer.repairFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) (repair.Summary, error) {
+		return repair.Summary{}, nil
 	}
 
 	ctx := context.NewContext()
