@@ -34,8 +34,10 @@ const (
 	DefaultPolicyVersion = 0
 )
 
-// DefaultVersionedPolicies are the default versioned policies
 var (
+	emptyVersionedPolicies VersionedPolicies
+
+	// DefaultVersionedPolicies are the default versioned policies
 	DefaultVersionedPolicies = VersionedPolicies{
 		Version: DefaultPolicyVersion,
 		Policies: []Policy{
@@ -50,3 +52,8 @@ var (
 		},
 	}
 )
+
+// Reset resets the versioned policies
+func (vp *VersionedPolicies) Reset() {
+	*vp = emptyVersionedPolicies
+}

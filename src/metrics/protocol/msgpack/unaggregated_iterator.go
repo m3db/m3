@@ -86,6 +86,9 @@ func (it *unaggregatedIterator) Close() {
 		return
 	}
 	it.closed = true
+	it.reset(emptyReader)
+	it.metric.Reset()
+	it.versionedPolicies.Reset()
 	if it.iteratorPool != nil {
 		it.iteratorPool.Put(it)
 	}
