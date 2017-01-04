@@ -21,6 +21,7 @@
 package msgpack
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"time"
@@ -30,6 +31,10 @@ import (
 	"github.com/m3db/m3x/time"
 
 	msgpack "gopkg.in/vmihailenco/msgpack.v2"
+)
+
+var (
+	emptyReader *bytes.Buffer
 )
 
 // baseIterator is the base iterator that provides common decoding APIs
