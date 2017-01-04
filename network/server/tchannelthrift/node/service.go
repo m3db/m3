@@ -531,9 +531,6 @@ func (s *service) newID(ctx context.Context, id []byte) ts.ID {
 	checkedBytes.Reset(id)
 	checkedBytes.DecRef()
 
-	// Ensure when context is finalizing checked bytes is finalized
-	ctx.RegisterFinalizer(checkedBytes)
-
 	return s.idPool.GetBinaryID(ctx, checkedBytes)
 }
 

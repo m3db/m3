@@ -1,8 +1,10 @@
-hash: de913aa01a0ab7b8ae571c31087a6a0e9208a30ca2546ef61a05cc5ad534641f
-updated: 2016-12-31T10:16:30.880263822Z
+hash: 4df34dfbf13900a3ccd0ce0b54aafe1a19adb660b966fec2b15eaa66ba109e73
+updated: 2017-01-09T09:33:24.608900659-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
+  repo: git@github.com:apache/thrift.git
+  vcs: git
   subpackages:
   - lib/go/thrift
 - name: github.com/davecgh/go-spew
@@ -13,14 +15,20 @@ imports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  repo: git@github.com:golang/mock.git
+  vcs: git
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
   version: bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
+  repo: git@github.com:golang/protobuf.git
+  vcs: git
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
   version: 8ca9f7bc9c3e446aec14fa785cf22f640117d33b
+  repo: git@github.com:m3db/m3cluster.git
+  vcs: git
   subpackages:
   - client
   - kv
@@ -28,7 +36,9 @@ imports:
   - services/placement
   - shard
 - name: github.com/m3db/m3x
-  version: 75a2a1fc0463602f50fb35206ca97157ec8b25b6
+  version: 4793bdfe6fb85eddbb8567229163c33533e34836
+  repo: git@github.com:m3db/m3x.git
+  vcs: git
   subpackages:
   - checked
   - close
@@ -52,8 +62,12 @@ imports:
   - difflib
 - name: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
+  repo: git@github.com:spaolacci/murmur3.git
+  vcs: git
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
+  repo: git@github.com:stretchr/testify.git
+  vcs: git
   subpackages:
   - assert
   - require
@@ -61,8 +75,12 @@ imports:
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+  repo: git@github.com:uber-go/tally.git
+  vcs: git
 - name: github.com/uber/tchannel-go
   version: 8d570ed87acb2661d390c096215260f3f9e9b931
+  repo: git@github.com:uber/tchannel-go.git
+  vcs: git
   subpackages:
   - relay
   - thrift
@@ -72,8 +90,10 @@ imports:
   - typed
 - name: github.com/willf/bitset
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
+  repo: git@github.com:willf/bitset.git
+  vcs: git
 - name: golang.org/x/net
-  version: 8fd7f25955530b92e73e9e1932a41b522b22ccd9
+  version: da2b4fa28524a3baf148c1b94df4440267063c88
   subpackages:
   - context
 testImports: []

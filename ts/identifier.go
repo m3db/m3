@@ -99,13 +99,13 @@ func (v *id) Equal(value ID) bool {
 }
 
 func (v *id) Finalize() {
-	if v.pool == nil {
-		return
-	}
-
 	v.data.DecRef()
 	v.data.Finalize()
 	v.data = nil
+
+	if v.pool == nil {
+		return
+	}
 
 	v.pool.Put(v)
 }

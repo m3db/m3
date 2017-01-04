@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,6 +43,8 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/sync"
 
 	"github.com/uber/tchannel-go"
@@ -54,9 +57,10 @@ var (
 	httpNodeAddr        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
 	tchannelNodeAddr    = flag.String("nodetchanneladdr", "0.0.0.0:9003", "Node TChannel server address")
 
-	errServerStartTimedOut = errors.New("server took too long to start")
-	errServerStopTimedOut  = errors.New("server took too long to stop")
-	testNamespaces         = []ts.ID{ts.StringID("testNs1"), ts.StringID("testNs2")}
+	errServerStartTimedOut   = errors.New("server took too long to start")
+	errServerStopTimedOut    = errors.New("server took too long to stop")
+	testNamespaces           = []ts.ID{ts.StringID("testNs1"), ts.StringID("testNs2")}
+	testNativePoolingBuckets = []pool.Bucket{{Capacity: 4096, Count: 256}}
 
 	created = uint64(0)
 )
@@ -68,6 +72,7 @@ type testSetup struct {
 	opts           testOptions
 	db             cluster.Database
 	storageOpts    storage.Options
+	nativePooling  bool
 	hostID         string
 	topoInit       topology.Initializer
 	shardSet       sharding.ShardSet
@@ -93,6 +98,24 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	storageOpts := storage.NewOptions()
+
+	nativePooling :=
+		strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
+	if nativePooling {
+		buckets := testNativePoolingBuckets
+		bytesPool := pool.NewCheckedBytesPool(buckets, nil, func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewNativeHeap(s, nil)
+		})
+		bytesPool.Init()
+
+		storageOpts = storageOpts.
+			SetBytesPool(bytesPool)
+
+		idPool := ts.NewNativeIdentifierPool(bytesPool, nil)
+
+		storageOpts = storageOpts.
+			SetIdentifierPool(idPool)
+	}
 
 	// Set up shard set
 	shardSet, err := server.DefaultShardSet()
@@ -175,6 +198,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	return &testSetup{
 		opts:           opts,
 		storageOpts:    storageOpts,
+		nativePooling:  nativePooling,
 		hostID:         id,
 		topoInit:       topoInit,
 		shardSet:       shardSet,
@@ -214,6 +238,12 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 }
 
 func (ts *testSetup) startServer() error {
+	log := ts.storageOpts.InstrumentOptions().Logger()
+	fields := []xlog.LogField{
+		xlog.NewLogField("nativepooling", ts.nativePooling),
+	}
+	log.WithFields(fields...).Infof("starting server")
+
 	resultCh := make(chan error, 1)
 
 	httpClusterAddr := *httpClusterAddr
@@ -264,7 +294,13 @@ func (ts *testSetup) startServer() error {
 		}
 	}()
 
-	return <-resultCh
+	err = <-resultCh
+	if err == nil {
+		log.WithFields(fields...).Infof("started server")
+	} else {
+		log.WithFields(fields...).Errorf("start server error: %v", err)
+	}
+	return err
 }
 
 func (ts *testSetup) stopServer() error {

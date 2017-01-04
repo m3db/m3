@@ -57,8 +57,13 @@ var (
 )
 
 var (
-	nilID = ts.BinaryID(checked.NewBytes(nil, nil))
+	nilIDBytes = checked.NewBytes(nil, nil)
+	nilID      = ts.BinaryID(nilIDBytes)
 )
+
+func init() {
+	nilIDBytes.IncRef()
+}
 
 type dbSeries struct {
 	sync.RWMutex

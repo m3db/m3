@@ -45,7 +45,7 @@ func (p *simpleIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes)
 	ctx.RegisterFinalizer(id)
 
 	v.IncRef()
-	id.data = v
+	id.pool, id.data = p, v
 
 	return id
 }
@@ -62,11 +62,16 @@ func (p *simpleIdentifierPool) Put(v ID) {
 func (p *simpleIdentifierPool) Clone(existing ID) ID {
 	id := p.pool.Get().(*id)
 
-	data := checked.NewBytes(nil, nil)
+	data := existing.Data()
 	data.IncRef()
-	data.AppendAll(existing.Data().Get())
 
-	id.data = data
+	newBytes := checked.NewBytes(nil, nil)
+	newBytes.IncRef()
+	newBytes.AppendAll(data.Get())
+
+	data.DecRef()
+
+	id.pool, id.data = p, data
 
 	return id
 }
@@ -149,11 +154,14 @@ func (p *nativeIdentifierPool) Put(v ID) {
 func (p *nativeIdentifierPool) Clone(existing ID) ID {
 	id := p.pool.GetOr(create).(*id)
 
-	data := existing.Data().Get()
+	data := existing.Data()
+	data.IncRef()
 
-	v := p.heap.Get(len(data))
+	v := p.heap.Get(data.Len())
 	v.IncRef()
-	v.AppendAll(data)
+	v.AppendAll(data.Get())
+
+	data.DecRef()
 
 	id.pool, id.data = p, v
 
