@@ -33,7 +33,7 @@ import:
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
 
 - name: golang.org/x/net
-  version: 8fd7f25955530b92e73e9e1932a41b522b22ccd9
+  version: 69d4b8aa71caaaa75c3dfc11211d1be495abec7c
   subpackages:
   - context
 
@@ -47,7 +47,7 @@ import:
   - services
 
 - package: github.com/m3db/m3x
-  version: 75a2a1fc0463602f50fb35206ca97157ec8b25b6
+  version: fcb5878c2ad11ab932afc2d30810da4a23986d0e
   subpackages:
   - close
   - errors

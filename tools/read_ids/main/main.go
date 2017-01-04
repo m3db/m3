@@ -90,7 +90,7 @@ func main() {
 			pageToken *int64
 			retrier   = xretry.NewRetrier(xretry.NewOptions().
 					SetBackoffFactor(2).
-					SetMax(3).
+					SetMaxRetries(3).
 					SetInitialBackoff(time.Second).
 					SetJitter(true))
 			optionIncludeSizes     = true
