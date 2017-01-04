@@ -135,7 +135,13 @@ type ReplicaMetadataComparer interface {
 
 // Summary captures details about repaired series'
 // TODO(prateek): Summary and Result here are confusing, rename
+// TODO(prateek): Document the meaning of the numbers here
 type Summary struct {
+	NumReplicasRequested   int64
+	NumReplicasSucceeded   int64
+	NumReplicasFailed      int64
+	NumReplicasPending     int64
+	NumUnrequestedReplicas int64
 }
 
 // Result captures details about the differences pre-repair, and a summary

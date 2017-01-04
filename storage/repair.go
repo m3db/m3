@@ -136,7 +136,9 @@ func (r shardRepairer) Repair(
 
 	metadataRes := metadata.Compare()
 
+	// TODO(prateek): migrate recordFn to operate upon repair.Result, i.e. include stats about repair
 	r.recordFn(namespace, shard, metadataRes)
+
 	// TODO(prateek): flipr config for this(!)
 	repairResult, err := r.repairFn(namespace, shard, metadataRes)
 	if err != nil {
@@ -144,7 +146,6 @@ func (r shardRepairer) Repair(
 	}
 
 	// TODO(prateek):
-	// - change the return type to include a RepairResult construct
 	// - trace up the chain here, make sure we mark state to re-attempt any pending repairs
 	result := repair.Result{
 		RepairSummary:     repairResult,
@@ -153,7 +154,7 @@ func (r shardRepairer) Repair(
 	return result, nil
 }
 
-type hostSet map[topology.Host]repair.HostBlockMetadata
+type hostSet map[string]repair.HostBlockMetadata
 
 type blockID struct {
 	id    ts.ID
@@ -166,7 +167,7 @@ func newHostSet() *hostSet {
 }
 
 func (h *hostSet) insert(hbm repair.HostBlockMetadata) {
-	(*h)[hbm.Host] = hbm
+	(*h)[hbm.Host.String()] = hbm
 }
 
 func (h *hostSet) insertOneFromSet(oh *hostSet) {
@@ -177,27 +178,51 @@ func (h *hostSet) insertOneFromSet(oh *hostSet) {
 }
 
 func (h *hostSet) contains(host topology.Host) bool {
-	_, ok := (*h)[host]
+	_, ok := (*h)[host.String()]
 	return ok
 }
 
 func (h *hostSet) remove(host topology.Host) {
-	delete(*h, host)
+	delete(*h, host.String())
 }
 
 func (h *hostSet) empty() bool {
 	return len(*h) == 0
 }
 
-// TODO(prateek): tests for constructRequiredRepairBlocks
-func (r shardRepairer) constructRequiredRepairBlocks(
-	namespace ts.ID,
-	shard databaseShard,
+func (r shardRepairer) newAdminRepairBlocksRequest(
+	pendingReplicasMap map[blockID]*hostSet,
+	initialCapacity int64,
+) []block.ReplicaMetadata {
+	repairBlocks := make([]block.ReplicaMetadata, 0, initialCapacity)
+	for blkID, hs := range pendingReplicasMap {
+		for _, h := range *hs {
+			repairBlocks = append(repairBlocks, block.ReplicaMetadata{
+				Start:    blkID.start,
+				ID:       blkID.id,
+				Peer:     h.Host,
+				Checksum: h.Checksum,
+				Size:     h.Size,
+			})
+		}
+	}
+	return repairBlocks
+}
+
+// newPendingReplicasMap returns a map from (series_id, block_start) -> set of host replicas,
+// using which repairs are to be performed
+//
+// NB(prateek): In the scenario when multiple peers have identical replicas for a single block, the current
+// implementation arbitrarily picks one of the peers as the source to request the replica from. In the event
+// the replica is unavailable from the selected peer, the current implementation fails. If this becomes an issue,
+// the code should enhanced to provide a list of potential sources for a single replica (as opposed to the
+// non-deterministic selection)
+func (r shardRepairer) newPendingReplicasMap(
 	diffRes repair.MetadataComparisonResult,
 	originHost topology.Host,
-) ([]block.ReplicaMetadata, map[blockID]*hostSet) {
+) map[blockID]*hostSet {
 	// TODO(prateek): pooling object creation in this method
-	replicaState := make(map[blockID]*hostSet, diffRes.NumBlocks)
+	pendingReplicas := make(map[blockID]*hostSet, diffRes.NumBlocks)
 
 	// add size differences
 	for _, rsm := range diffRes.SizeDifferences.Series() {
@@ -218,11 +243,11 @@ func (r shardRepairer) constructRequiredRepairBlocks(
 					continue
 				}
 				// insert value into replicaState
-				if _, ok := replicaState[blkID]; !ok {
-					replicaState[blkID] = newHostSet()
+				if _, ok := pendingReplicas[blkID]; !ok {
+					pendingReplicas[blkID] = newHostSet()
 				}
 				// only care about a single value from the unique set
-				replicaState[blkID].insertOneFromSet(hs)
+				pendingReplicas[blkID].insertOneFromSet(hs)
 			}
 		}
 	}
@@ -249,30 +274,20 @@ func (r shardRepairer) constructRequiredRepairBlocks(
 					continue
 				}
 				// insert value into replicaState
-				if _, ok := replicaState[blkID]; !ok {
-					replicaState[blkID] = newHostSet()
+				if _, ok := pendingReplicas[blkID]; !ok {
+					pendingReplicas[blkID] = newHostSet()
 				}
 				// only care about a single value from the unique set
-				replicaState[blkID].insertOneFromSet(hs)
+				pendingReplicas[blkID].insertOneFromSet(hs)
 			}
 		}
 	}
 
-	repairBlocks := make([]block.ReplicaMetadata, 0, diffRes.NumBlocks)
-	for blkID, hs := range replicaState {
-		for _, h := range *hs {
-			repairBlocks = append(repairBlocks, block.ReplicaMetadata{
-				Start:    blkID.start,
-				ID:       blkID.id,
-				Peer:     h.Host,
-				Checksum: h.Checksum,
-				Size:     h.Size,
-			})
-		}
-	}
-	return repairBlocks, replicaState
+	return pendingReplicas
 }
 
+// TODO(prateek): add unit tests for repairDifferences
+// TODO(prateek): add integration tests for repairDifferences
 func (r shardRepairer) repairDifferences(
 	namespace ts.ID,
 	shard databaseShard,
@@ -288,7 +303,15 @@ func (r shardRepairer) repairDifferences(
 		return repairSummary, err
 	}
 
-	reqBlocks, blockState := r.constructRequiredRepairBlocks(namespace, shard, diffRes, session.Origin())
+	// pendingBlockReplicas is a map from (series_id, block_start) -> set of host replicas for which repairs are pending
+	pendingBlockReplicas := r.newPendingReplicasMap(diffRes, session.Origin())
+
+	// reqBlocks contains the same information as the above map, destructured for the `session` API
+	initialCap := diffRes.NumBlocks
+	reqBlocks := r.newAdminRepairBlocksRequest(pendingBlockReplicas, initialCap)
+	repairSummary.NumReplicasRequested = int64(len(reqBlocks))
+
+	// stream over the requested replicas
 	blocksIter, err := session.FetchRepairBlocksFromPeers(namespace, shard.ID(), reqBlocks, r.rpopts.ResultOptions())
 	if err != nil {
 		return repairSummary, err
@@ -300,41 +323,57 @@ func (r shardRepairer) repairDifferences(
 		// i.e. figure out ownership - is it reset by iterator or not
 
 		blkID := blockID{id, blk.StartTime()}
-		if hs, ok := blockState[blkID]; !ok || !hs.contains(host) {
-			// should never happen
+		// ensure the replica was requested, should never happen
+		if hs, ok := pendingBlockReplicas[blkID]; !ok || !hs.contains(host) {
 			logger.WithFields(
 				xlog.NewLogField("id", id.String()),
 				xlog.NewLogField("host", host.String()),
 				xlog.NewLogField("blockID", blkID),
 			).Warnf("received un-requested block, session.FetchRepairBlockFromPeers violated contract, skipping.")
+			repairSummary.NumUnrequestedReplicas++
 			continue
 		}
 
-		blockState[blkID].remove(host)
+		// mark the block replica as received
+		pendingBlockReplicas[blkID].remove(host)
+
 		// TODO(prateek): current implementation of UpdateSeries marks shards flushed internally,
-		// this is something we should amortize to be done at the end of iterating through this function
+		// this is something we should amortize to be done at the end of iterating through this function.
 		// concern being, we want to minimize the number of flushes we can potentially induce
 		markFlushStateDirty := true
 		if err := shard.UpdateSeries(id, blk, markFlushStateDirty); err != nil {
-			multiErr.Add(fmt.Errorf(
-				"unable to update series [ id = %v, block_start = %v, err = %v ]", id.String(), blkID.start, err))
-			// TODO(prateek): increment error count in return object
-			// TODO(prateek): publish metrics for this too
+			repErr := fmt.Errorf(
+				"unable to update series [ id = %v, block_start = %v, err = %v ]", id.String(), blkID.start, err)
+			logger.Warnf("%v", repErr)
+			multiErr.Add(repErr)
+			repairSummary.NumReplicasFailed++
 			continue
 		}
-		//	track number of "repaired" blocks, report metric
+		repairSummary.NumReplicasSucceeded++
 	}
-	// for any cached, and not consolidated, track in errors metric
-	// or, if blocksIter.Err() is :(
 
-	// TODO(prateek): figure out how to transfer shardResult -> local shards
-	// and then write those files on disk
+	// track error if blocksIter is unhappy
+	if err := blocksIter.Err(); err != nil {
+		multiErr.Add(err)
+		logger.Warnf("repair iterator terminated with error: %v", err)
+		return repairSummary, multiErr.FinalError()
+	}
 
-	// for writes:
-	// 	- don't always write, factor in a minimum number of blocks repaired,
-	//    and number of blocks still requiring repair
-	// 	- write a new version of the file for the timestamp, keep last 'n' versions,
-	//    do NOT delete old version before writing a new version
+	// track count for pending replicas
+	for blkID, hs := range pendingBlockReplicas {
+		if hs.empty() {
+			continue
+		}
+		for _, hbm := range *hs {
+			logger.Warnf("replica requested but not received [ host = %v, id = %v, block_start = %v ]",
+				hbm.Host.String(), blkID.id.String(), blkID.start)
+			repairSummary.NumReplicasPending++
+		}
+	}
+
+	// TODO(prateek): better handling of repaired shard writes
+	// 	- don't always write, factor in a minimum number of blocks repaired, and number of blocks still requiring repair
+	// 	- write a new version of the file for the timestamp, keep last 'n' versions, do NOT delete old version before writing a new version
 
 	return repairSummary, multiErr.FinalError()
 }

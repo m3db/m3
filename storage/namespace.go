@@ -569,6 +569,8 @@ func (n *dbNamespace) Repair(
 
 			repairResult, err := shard.Repair(ctx, n.id, tr, repairer)
 			metadataRes := repairResult.DifferenceSummary
+			// TODO(prateek): include repair stats here
+			// TODO(prateek): check if namespace_test needs to be updated for this
 
 			mutex.Lock()
 			if err != nil {

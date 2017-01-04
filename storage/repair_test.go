@@ -22,6 +22,8 @@ package storage
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -389,4 +391,181 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	database.namespaces = namespaces
 
 	require.Error(t, r.repairWithTimeRange(repairTimeRange))
+}
+
+func TestNewPendingReplicasMapComplexDiff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	database := newMockDatabase()
+	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
+	repairer, err := newDatabaseRepairer(database)
+	require.NoError(t, err)
+	r := repairer.(*dbRepairer).shardRepairer.(shardRepairer)
+	t0 := time.Now()
+	sizes := [...]int64{1, 2, 1}
+	checksums := [...]uint32{1, 1, 2}
+	hostsMetadata := generateSampleHostsMetadata(t0, sizes, checksums)
+	repairOpts := testRepairOptions(ctrl)
+	mcr := newTestMetadataComparisonResult(ctrl, t, hostsMetadata, 3, repairOpts)
+	originHost := testHost(0)
+	pendingReplicasMap := r.newPendingReplicasMap(mcr, originHost)
+	for _, replicas := range pendingReplicasMap {
+		require.True(t, !replicas.contains(testHost(0)))
+		require.True(t, replicas.contains(testHost(1)))
+		require.True(t, replicas.contains(testHost(2)))
+	}
+}
+
+func TestNewPendingReplicasMapSingleChecksumDiff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	database := newMockDatabase()
+	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
+	repairer, err := newDatabaseRepairer(database)
+	require.NoError(t, err)
+	r := repairer.(*dbRepairer).shardRepairer.(shardRepairer)
+
+	t0 := time.Now()
+	sizes := [...]int64{1, 2, 1}
+	checksums := [...]uint32{1, 1, 1}
+	hostsMetadata := generateSampleHostsMetadata(t0, sizes, checksums)
+	repairOpts := testRepairOptions(ctrl)
+	mcr := newTestMetadataComparisonResult(ctrl, t, hostsMetadata, 3, repairOpts)
+	originHost := testHost(0)
+	pendingReplicasMap := r.newPendingReplicasMap(mcr, originHost)
+	for _, replicas := range pendingReplicasMap {
+		require.True(t, replicas.contains(testHost(1)))
+		require.True(t, !replicas.contains(testHost(0)))
+		require.True(t, !replicas.contains(testHost(2)))
+	}
+}
+
+func TestNewPendingReplicasMapAllIdentical(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	database := newMockDatabase()
+	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
+	repairer, err := newDatabaseRepairer(database)
+	require.NoError(t, err)
+	r := repairer.(*dbRepairer).shardRepairer.(shardRepairer)
+
+	t0 := time.Now()
+	sizes := [...]int64{1, 1, 1}
+	checksums := [...]uint32{1, 1, 1}
+	allPeersIdenticalHostsMetadata := generateSampleHostsMetadata(t0, sizes, checksums)
+	repairOpts := testRepairOptions(ctrl)
+	mcr := newTestMetadataComparisonResult(ctrl, t, allPeersIdenticalHostsMetadata, 3, repairOpts)
+	originHost := testHost(0)
+	pendingReplicasMap := r.newPendingReplicasMap(mcr, originHost)
+	for _, replicas := range pendingReplicasMap {
+		require.Empty(t, *replicas)
+	}
+}
+
+func generateSampleHostsMetadata(
+	t0 time.Time,
+	sizes [3]int64,
+	checksums [3]uint32,
+) []testHostMetadata {
+	return []testHostMetadata{
+		testHostMetadata{
+			host: testHost(0),
+			metadata: []block.BlocksMetadata{
+				block.BlocksMetadata{
+					ID: ts.StringID("foo"),
+					Blocks: []block.Metadata{
+						block.Metadata{
+							Start:    t0,
+							Size:     sizes[0],
+							Checksum: &checksums[0],
+						},
+					},
+				},
+			},
+		},
+		testHostMetadata{
+			host: testHost(1),
+			metadata: []block.BlocksMetadata{
+				block.BlocksMetadata{
+					ID: ts.StringID("foo"),
+					Blocks: []block.Metadata{
+						block.Metadata{
+							Start:    t0,
+							Size:     sizes[1],
+							Checksum: &checksums[1],
+						},
+					},
+				},
+			},
+		},
+		testHostMetadata{
+			host: testHost(2),
+			metadata: []block.BlocksMetadata{
+				block.BlocksMetadata{
+					ID: ts.StringID("foo"),
+					Blocks: []block.Metadata{
+						block.Metadata{
+							Start:    t0,
+							Size:     sizes[2],
+							Checksum: &checksums[2],
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+type testHostMetadata struct {
+	host     topology.Host
+	metadata []block.BlocksMetadata
+}
+
+func testHost(i int) topology.Host {
+	return topology.NewHost(strconv.Itoa(i), fmt.Sprintf("testhost%d", i))
+}
+
+func newTestMetadataComparisonResult(
+	ctrl *gomock.Controller,
+	t *testing.T,
+	hostsMetadata []testHostMetadata,
+	numReplicas int,
+	opts repair.Options,
+) repair.MetadataComparisonResult {
+	comparer := repair.NewReplicaMetadataComparer(numReplicas, opts)
+	localIter := block.NewMockFilteredBlocksMetadataIter(ctrl)
+	localIterCalls := []*gomock.Call{}
+	peerIter := client.NewMockPeerBlocksMetadataIter(ctrl)
+	peerIterCalls := []*gomock.Call{}
+	for i, hm := range hostsMetadata {
+		if i == 0 { // localhost
+			for _, md := range hm.metadata {
+				for _, block := range md.Blocks {
+					localIterCalls = append(localIterCalls,
+						localIter.EXPECT().Next().Return(true),
+						localIter.EXPECT().Current().Return(md.ID, block))
+				}
+			}
+		} else { // peer
+			for _, md := range hm.metadata {
+				peerIterCalls = append(peerIterCalls,
+					peerIter.EXPECT().Next().Return(true),
+					peerIter.EXPECT().Current().Return(hm.host, md))
+			}
+		}
+	}
+	localIterCalls = append(localIterCalls,
+		localIter.EXPECT().Next().Return(false))
+	gomock.InOrder(localIterCalls...)
+	comparer.AddLocalMetadata(hostsMetadata[0].host, localIter)
+
+	peerIterCalls = append(peerIterCalls,
+		peerIter.EXPECT().Next().Return(false),
+		peerIter.EXPECT().Err().Return(nil))
+	gomock.InOrder(peerIterCalls...)
+	comparer.AddPeerMetadata(peerIter)
+	return comparer.Compare()
 }
