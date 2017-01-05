@@ -152,8 +152,8 @@ func (r shardRepairer) Repair(
 type hostSet map[string]repair.HostBlockMetadata
 
 type blockID struct {
-	id    ts.ID
-	start time.Time
+	idHash ts.Hash
+	start  time.Time
 }
 
 func newHostSet() *hostSet {
@@ -187,6 +187,7 @@ func (h *hostSet) empty() bool {
 
 func (r shardRepairer) newAdminRepairBlocksRequest(
 	pendingReplicasMap map[blockID]*hostSet,
+	idMap map[ts.Hash]ts.ID,
 	initialCapacity int64,
 ) []block.ReplicaMetadata {
 	repairBlocks := make([]block.ReplicaMetadata, 0, initialCapacity)
@@ -194,7 +195,7 @@ func (r shardRepairer) newAdminRepairBlocksRequest(
 		for _, h := range *hs {
 			repairBlocks = append(repairBlocks, block.ReplicaMetadata{
 				Start:    blkID.start,
-				ID:       blkID.id,
+				ID:       idMap[blkID.idHash],
 				Peer:     h.Host,
 				Checksum: h.Checksum,
 				Size:     h.Size,
@@ -215,14 +216,17 @@ func (r shardRepairer) newAdminRepairBlocksRequest(
 func (r shardRepairer) newPendingReplicasMap(
 	diffRes repair.MetadataComparisonResult,
 	originHost topology.Host,
-) map[blockID]*hostSet {
+) (map[blockID]*hostSet, map[ts.Hash]ts.ID) {
 	// TODO(prateek): pooling object creation in this method
 	pendingReplicas := make(map[blockID]*hostSet, diffRes.NumBlocks)
+	idMap := make(map[ts.Hash]ts.ID, diffRes.NumBlocks)
 
 	// add size differences
 	for _, rsm := range diffRes.SizeDifferences.Series() {
+		idHash := rsm.ID.Hash()
+		idMap[idHash] = rsm.ID
 		for start, blk := range rsm.Metadata.Blocks() {
-			blkID := blockID{rsm.ID, start}
+			blkID := blockID{idHash, start}
 			// find all unique sizes seen for this block
 			uniqueValues := make(map[int64]*hostSet, 3)
 			for _, hBlk := range blk.Metadata() {
@@ -249,8 +253,10 @@ func (r shardRepairer) newPendingReplicasMap(
 
 	// add checksum differences
 	for _, rsm := range diffRes.ChecksumDifferences.Series() {
+		idHash := rsm.ID.Hash()
+		idMap[idHash] = rsm.ID
 		for start, blk := range rsm.Metadata.Blocks() {
-			blkID := blockID{rsm.ID, start}
+			blkID := blockID{idHash, start}
 			// find all unique checksums seen for this block
 			uniqueValues := make(map[uint32]*hostSet, 3)
 			for _, hBlk := range blk.Metadata() {
@@ -278,10 +284,9 @@ func (r shardRepairer) newPendingReplicasMap(
 		}
 	}
 
-	return pendingReplicas
+	return pendingReplicas, idMap
 }
 
-// TODO(prateek): add unit tests for repairDifferences
 // TODO(prateek): add integration tests for repairDifferences
 func (r shardRepairer) repairDifferences(
 	namespace ts.ID,
@@ -299,11 +304,11 @@ func (r shardRepairer) repairDifferences(
 	}
 
 	// pendingBlockReplicas is a map from (series_id, block_start) -> set of host replicas for which repairs are pending
-	pendingBlockReplicas := r.newPendingReplicasMap(diffRes, session.Origin())
+	pendingBlockReplicas, hashToIDMap := r.newPendingReplicasMap(diffRes, session.Origin())
 
 	// reqBlocks contains the same information as the above map, destructured for the `session` API
 	initialCap := diffRes.NumBlocks
-	reqBlocks := r.newAdminRepairBlocksRequest(pendingBlockReplicas, initialCap)
+	reqBlocks := r.newAdminRepairBlocksRequest(pendingBlockReplicas, hashToIDMap, initialCap)
 	repairSummary.NumRequested = int64(len(reqBlocks))
 
 	// stream over the requested replicas
@@ -317,7 +322,7 @@ func (r shardRepairer) repairDifferences(
 		// TODO(prateek): does Close() need to be called on blk
 		// i.e. figure out ownership - is it reset by iterator or not
 
-		blkID := blockID{id, blk.StartTime()}
+		blkID := blockID{id.Hash(), blk.StartTime()}
 		// ensure the replica was requested, should never happen
 		if hs, ok := pendingBlockReplicas[blkID]; !ok || !hs.contains(host) {
 			logger.WithFields(
@@ -338,9 +343,10 @@ func (r shardRepairer) repairDifferences(
 		markFlushStateDirty := true
 		if err := shard.UpdateSeries(id, blk, markFlushStateDirty); err != nil {
 			repErr := fmt.Errorf(
-				"unable to update series [ id = %v, block_start = %v, err = %v ]", id.String(), blkID.start, err)
+				"unable to update series [ id = %v, block_start = %v, err = %v ]",
+				id.String(), blkID.start, err)
+			multiErr = multiErr.Add(repErr)
 			logger.Warnf("%v", repErr)
-			multiErr.Add(repErr)
 			repairSummary.NumFailed++
 			continue
 		}
@@ -353,8 +359,11 @@ func (r shardRepairer) repairDifferences(
 			continue
 		}
 		for _, hbm := range *hs {
-			logger.Warnf("replica requested but not received [ host = %v, id = %v, block_start = %v ]",
-				hbm.Host.String(), blkID.id.String(), blkID.start)
+			missingErr := fmt.Errorf(
+				"replica requested but not received [ host = %v, id = %v, block_start = %v ]",
+				hbm.Host.String(), hashToIDMap[blkID.idHash], blkID.start)
+			multiErr = multiErr.Add(missingErr)
+			logger.Warnf("%v", missingErr)
 			repairSummary.NumPending++
 		}
 	}
@@ -363,14 +372,16 @@ func (r shardRepairer) repairDifferences(
 	if err := blocksIter.Err(); err != nil {
 		multiErr.Add(err)
 		logger.Warnf("repair iterator terminated with error: %v", err)
-		return repairSummary, multiErr.FinalError()
 	}
 
 	// TODO(prateek): better handling of repaired shard writes
 	// 	- write a new version of the file for the timestamp, keep last 'n' versions, do NOT delete old version before writing a new version
 	// 	- consider not always writing, factor in a minimum number of blocks repaired, and number of blocks still requiring repair
 
-	return repairSummary, multiErr.FinalError()
+	if err := multiErr.FinalError(); err == nil {
+		return repairSummary, nil
+	}
+	return repairSummary, multiErr
 }
 
 func (r shardRepairer) recordDifferences(
