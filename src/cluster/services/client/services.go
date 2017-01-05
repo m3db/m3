@@ -23,28 +23,26 @@ package client
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
+	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
 	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/heartbeat"
 	"github.com/m3db/m3cluster/services/placement/service"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/watch"
 	"github.com/uber-go/tally"
 )
 
-const (
-	defaultGaugeInterval = 10 * time.Second
-)
-
 var (
-	errNotImplemented   = errors.New("not implemented")
-	errNoServiceFound   = errors.New("no service found")
 	errWatchInitTimeout = errors.New("service watch init time out")
 	errNoServiceName    = errors.New("no service specified")
-	errNoZone           = errors.New("no zone specified")
-	errNoEnv            = errors.New("no env specified")
+	errNoServiceID      = errors.New("no service id specified")
+	errNoInstanceID     = errors.New("no instance id specified")
 )
 
 // NewServices returns a client of Services
@@ -54,40 +52,136 @@ func NewServices(opts Options) (services.Services, error) {
 	}
 
 	return &client{
-		pManagers: map[string]*placementManager{},
-		opts:      opts,
+		kvManagers: make(map[string]*kvManager),
+		hbStores:   make(map[string]heartbeat.Store),
+		adDoneChs:  make(map[string]chan struct{}),
+		opts:       opts,
+		logger:     opts.InstrumentsOptions().Logger(),
 	}, nil
 }
 
 type client struct {
 	sync.RWMutex
 
-	opts      Options
-	pManagers map[string]*placementManager
+	opts       Options
+	kvManagers map[string]*kvManager
+	hbStores   map[string]heartbeat.Store
+	adDoneChs  map[string]chan struct{}
+	logger     xlog.Logger
 }
 
-func (s *client) PlacementService(sid services.ServiceID, opts services.PlacementOptions) (services.PlacementService, error) {
-	if err := validateRequest(sid); err != nil {
+func (c *client) Metadata(sid services.ServiceID) (services.Metadata, error) {
+	if err := validateServiceID(sid); err != nil {
 		return nil, err
 	}
 
-	return service.NewPlacementService(s, sid, opts), nil
-}
-
-func (s *client) Advertise(ad services.Advertisement) error {
-	return errNotImplemented
-}
-
-func (s *client) Unadvertise(sid services.ServiceID, id string) error {
-	return errNotImplemented
-}
-
-func (s *client) Query(sid services.ServiceID, opts services.QueryOptions) (services.Service, error) {
-	if err := validateRequest(sid); err != nil {
+	m, err := c.getKVManager(sid.Zone())
+	if err != nil {
 		return nil, err
 	}
 
-	v, err := s.placement(sid)
+	v, err := m.kv.Get(metadataKey(sid))
+	if err != nil {
+		return nil, err
+	}
+
+	var mp metadataproto.Metadata
+	if err = v.Unmarshal(&mp); err != nil {
+		return nil, err
+	}
+
+	return metadataFromProto(mp), nil
+}
+
+func (c *client) SetMetadata(sid services.ServiceID, meta services.Metadata) error {
+	if err := validateServiceID(sid); err != nil {
+		return err
+	}
+
+	m, err := c.getKVManager(sid.Zone())
+	if err != nil {
+		return err
+	}
+
+	mp := metadataToProto(meta)
+	_, err = m.kv.Set(metadataKey(sid), &mp)
+	return err
+}
+
+func (c *client) PlacementService(sid services.ServiceID, opts services.PlacementOptions) (services.PlacementService, error) {
+	if err := validateServiceID(sid); err != nil {
+		return nil, err
+	}
+
+	return service.NewPlacementService(c, sid, opts), nil
+}
+
+func (c *client) Advertise(ad services.Advertisement) error {
+	if err := validateAdvertisement(ad.ServiceID(), ad.InstanceID()); err != nil {
+		return err
+	}
+
+	m, err := c.Metadata(ad.ServiceID())
+	if err != nil {
+		return err
+	}
+
+	hb, err := c.getHeartbeatStore(ad.ServiceID().Zone())
+	if err != nil {
+		return err
+	}
+
+	key := adKey(ad.ServiceID(), ad.InstanceID())
+	c.Lock()
+	ch, ok := c.adDoneChs[key]
+	if ok {
+		c.Unlock()
+		return fmt.Errorf("service %s, instance %s is already being advertised", ad.ServiceID(), ad.InstanceID())
+	}
+	ch = make(chan struct{})
+	c.adDoneChs[key] = ch
+	c.Unlock()
+
+	go func() {
+		ticker := time.Tick(m.HeartbeatInterval())
+		for {
+			select {
+			case <-ticker:
+				if isHealthy(ad) {
+					hb.Heartbeat(serviceKey(ad.ServiceID()), ad.InstanceID(), m.LivenessInterval())
+				}
+			case <-ch:
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+func (c *client) Unadvertise(sid services.ServiceID, id string) error {
+	if err := validateAdvertisement(sid, id); err != nil {
+		return err
+	}
+
+	c.Lock()
+	defer c.Unlock()
+
+	key := adKey(sid, id)
+	ch, ok := c.adDoneChs[key]
+	if !ok {
+		return fmt.Errorf("service %s, instance %s is not being advertised", sid.String(), id)
+	}
+	ch <- struct{}{}
+	delete(c.adDoneChs, key)
+	return nil
+}
+
+func (c *client) Query(sid services.ServiceID, opts services.QueryOptions) (services.Service, error) {
+	if err := validateServiceID(sid); err != nil {
+		return nil, err
+	}
+
+	v, err := c.getPlacementValue(sid)
 	if err != nil {
 		return nil, err
 	}
@@ -96,15 +190,30 @@ func (s *client) Query(sid services.ServiceID, opts services.QueryOptions) (serv
 	if err != nil {
 		return nil, err
 	}
+
+	if !opts.IncludeUnhealthy() {
+		hbStore, err := c.getHeartbeatStore(sid.Zone())
+		if err != nil {
+			return nil, err
+		}
+
+		ids, err := hbStore.Get(serviceKey(sid))
+		if err != nil {
+			return nil, err
+		}
+
+		service = filterHealthyInstances(service, ids, false)
+	}
+
 	return service, nil
 }
 
-func (s *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwatch.Watch, error) {
-	if err := validateRequest(sid); err != nil {
+func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwatch.Watch, error) {
+	if err := validateServiceID(sid); err != nil {
 		return nil, err
 	}
 
-	s.opts.InstrumentsOptions().Logger().Infof(
+	c.logger.Infof(
 		"adding a watch for service: %s env: %s zone: %s includeUnhealthy: %v",
 		sid.Name(),
 		sid.Environment(),
@@ -112,69 +221,84 @@ func (s *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 		opts.IncludeUnhealthy(),
 	)
 
-	pMgr, err := s.getPlacementManager(sid.Zone())
+	kvm, err := c.getKVManager(sid.Zone())
 	if err != nil {
 		return nil, err
 	}
 
-	key := placementKey(sid.Environment(), sid.Name())
+	key := serviceKey(sid)
 
-	pMgr.RLock()
-	watchable, exist := pMgr.serviceWatchables[key]
-	pMgr.RUnlock()
+	kvm.RLock()
+	watchable, exist := kvm.serviceWatchables[key]
+	kvm.RUnlock()
 	if exist {
 		_, w, err := watchable.Watch()
 		return w, err
 	}
 
+	var (
+		hbStore heartbeat.Store
+		ids     []string
+	)
+	if !opts.IncludeUnhealthy() {
+		hbStore, err = c.getHeartbeatStore(sid.Zone())
+		if err != nil {
+			return nil, err
+		}
+		ids, err = hbStore.Get(serviceKey(sid))
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// prepare the watch of placement outside of lock
-	_, valueWatch, err := initValueWatch(pMgr.kv, key, sid, s.opts.InitTimeout())
+	placementWatch, err := initPlacementWatch(kvm.kv, sid, c.opts.InitTimeout())
 	if err != nil {
 		return nil, err
 	}
 
-	initService, err := getServiceFromValue(valueWatch.Get(), sid)
+	initService, err := getServiceFromValue(placementWatch.Get(), sid)
 	if err != nil {
-		valueWatch.Close()
+		placementWatch.Close()
 		return nil, err
 	}
 
-	pMgr.Lock()
-	defer pMgr.Unlock()
-	watchable, exist = pMgr.serviceWatchables[key]
+	kvm.Lock()
+	defer kvm.Unlock()
+	watchable, exist = kvm.serviceWatchables[key]
 	if exist {
 		// if a watchable already exist now, we need to clean up the placement watches we just created
-		valueWatch.Close()
+		placementWatch.Close()
 		_, w, err := watchable.Watch()
 		return w, err
 	}
 
 	watchable = xwatch.NewWatchable()
-	pMgr.serviceWatchables[key] = watchable
+	kvm.serviceWatchables[key] = watchable
 
-	watchable.Update(initService)
+	watchable.Update(filterHealthyInstances(initService, ids, opts.IncludeUnhealthy()))
 
 	sdm := newServiceDiscoveryMetrics(
-		s.opts.InstrumentsOptions().MetricsScope().Tagged(map[string]string{
+		c.opts.InstrumentsOptions().MetricsScope().Tagged(map[string]string{
 			"sd_service": sid.Name(),
 			"sd_env":     sid.Environment(),
 			"sd_zone":    sid.Zone(),
 		}),
 	)
-	go s.run(valueWatch, watchable, sid, sdm.serviceUnmalshalErr)
-	go updateVersionGauge(valueWatch, sdm.versionGauge)
+	go c.run(placementWatch, watchable, sid, opts, hbStore, initService, ids, sdm.serviceUnmalshalErr)
+	go updateVersionGauge(placementWatch, sdm.versionGauge)
 
 	_, w, err := watchable.Watch()
 	return w, err
 }
 
-func (s *client) placement(sid services.ServiceID) (kv.Value, error) {
-	pMgr, err := s.getPlacementManager(sid.Zone())
+func (c *client) getPlacementValue(sid services.ServiceID) (kv.Value, error) {
+	kvm, err := c.getKVManager(sid.Zone())
 	if err != nil {
 		return nil, err
 	}
 
-	v, err := pMgr.kv.Get(placementKey(sid.Environment(), sid.Name()))
+	v, err := kvm.kv.Get(placementKey(sid))
 	if err != nil {
 		return nil, err
 	}
@@ -182,43 +306,135 @@ func (s *client) placement(sid services.ServiceID) (kv.Value, error) {
 	return v, nil
 }
 
-func (s *client) getPlacementManager(zone string) (*placementManager, error) {
-	s.Lock()
-	defer s.Unlock()
-	pManager, ok := s.pManagers[zone]
+func (c *client) getHeartbeatStore(zone string) (heartbeat.Store, error) {
+	c.Lock()
+	defer c.Unlock()
+	hb, ok := c.hbStores[zone]
 	if ok {
-		return pManager, nil
+		return hb, nil
 	}
 
-	kv, err := s.opts.KVGen()(zone)
+	hb, err := c.opts.HeartbeatGen()(zone)
 	if err != nil {
 		return nil, err
 	}
 
-	pManager = &placementManager{
+	c.hbStores[zone] = hb
+	return hb, nil
+}
+
+func (c *client) getKVManager(zone string) (*kvManager, error) {
+	c.Lock()
+	defer c.Unlock()
+	m, ok := c.kvManagers[zone]
+	if ok {
+		return m, nil
+	}
+
+	kv, err := c.opts.KVGen()(zone)
+	if err != nil {
+		return nil, err
+	}
+
+	m = &kvManager{
 		kv:                kv,
 		serviceWatchables: map[string]xwatch.Watchable{},
 	}
 
-	s.pManagers[zone] = pManager
-	return pManager, nil
+	c.kvManagers[zone] = m
+	return m, nil
 }
 
-func (s *client) run(vw kv.ValueWatch, w xwatch.Watchable, sid services.ServiceID, errCounter tally.Counter) {
-	for range vw.C() {
-		value := vw.Get()
-		s.opts.InstrumentsOptions().Logger().Infof("received topology update notification on version %d", value.Version())
+func (c *client) run(
+	vw kv.ValueWatch,
+	w xwatch.Watchable,
+	sid services.ServiceID,
+	qopts services.QueryOptions,
+	hbStore heartbeat.Store,
+	service services.Service,
+	ids []string,
+	errCounter tally.Counter,
+) {
+	ticker := time.NewTicker(c.opts.HeartbeatCheckInterval())
 
-		service, err := getServiceFromValue(value, sid)
-		if err != nil {
-			s.opts.InstrumentsOptions().Logger().Errorf("could not unmarshal update from kv store for cluster")
-			errCounter.Inc(1)
-			continue
-		}
-		s.opts.InstrumentsOptions().Logger().Infof("successfully parsed placement on version %d", value.Version())
-
-		w.Update(service)
+	if qopts.IncludeUnhealthy() {
+		ticker.Stop()
 	}
+
+	var err error
+
+	for {
+
+		select {
+		case <-vw.C():
+			value := vw.Get()
+			c.logger.Infof("received topology update notification on version %d", value.Version())
+
+			service, err = getServiceFromValue(value, sid)
+			if err != nil {
+				c.logger.Errorf("could not unmarshal update from kv store for cluster, %v", err)
+				errCounter.Inc(1)
+				continue
+			}
+			c.logger.Infof("successfully parsed placement on version %d", value.Version())
+
+			w.Update(filterHealthyInstances(service, ids, qopts.IncludeUnhealthy()))
+		case <-ticker.C:
+			newIDs, err := hbStore.Get(serviceKey(sid))
+			if err != nil {
+				c.logger.Errorf("could not get healthy instances from heartbeat store, %v", err)
+				continue
+			}
+
+			sort.Strings(newIDs)
+
+			if !equalIDs(ids, newIDs) {
+				ids = newIDs
+				w.Update(filterHealthyInstances(service, ids, qopts.IncludeUnhealthy()))
+			}
+		}
+	}
+}
+
+func isHealthy(ad services.Advertisement) bool {
+	healthFn := ad.Health()
+	return healthFn == nil || healthFn() == nil
+}
+
+func filterHealthyInstances(s services.Service, ids []string, includeUnhealthy bool) services.Service {
+	if s == nil {
+		return nil
+	}
+
+	if includeUnhealthy {
+		return s
+	}
+
+	instances := make([]services.ServiceInstance, 0, len(s.Instances()))
+	for _, id := range ids {
+		if instance, err := s.Instance(id); err == nil {
+			instances = append(instances, instance)
+		}
+	}
+
+	return services.NewService().
+		SetInstances(instances).
+		SetSharding(s.Sharding()).
+		SetReplication(s.Replication())
+}
+
+func equalIDs(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
 }
 
 func updateVersionGauge(vw kv.ValueWatch, versionGauge tally.Gauge) {
@@ -236,18 +452,20 @@ func getServiceFromValue(value kv.Value, sid services.ServiceID) (services.Servi
 	return serviceFromProto(placement, sid)
 }
 
-func initValueWatch(kv kv.Store, key string, sid services.ServiceID, timeoutDur time.Duration) (services.Service, kv.ValueWatch, error) {
-	valueWatch, err := kv.Watch(key)
+func initPlacementWatch(kv kv.Store, sid services.ServiceID, timeoutDur time.Duration) (kv.ValueWatch, error) {
+	valueWatch, err := kv.Watch(placementKey(sid))
 	if err != nil {
-		return nil, nil, err
+		valueWatch.Close()
+		return nil, err
 	}
 
 	err = wait(valueWatch, timeoutDur)
 	if err != nil {
-		return nil, nil, err
+		valueWatch.Close()
+		return nil, err
 	}
 
-	return nil, valueWatch, err
+	return valueWatch, nil
 }
 
 func wait(vw kv.ValueWatch, timeout time.Duration) error {
@@ -269,17 +487,7 @@ func newServiceDiscoveryMetrics(m tally.Scope) serviceDiscoveryMetrics {
 	}
 }
 
-func placementKey(env, service string) string {
-	return fmt.Sprintf("[%s]%s", env, service)
-}
-
-func validateRequest(sid services.ServiceID) error {
-	if sid.Environment() == "" {
-		return errNoEnv
-	}
-	if sid.Zone() == "" {
-		return errNoZone
-	}
+func validateServiceID(sid services.ServiceID) error {
 	if sid.Name() == "" {
 		return errNoServiceName
 	}
@@ -287,8 +495,21 @@ func validateRequest(sid services.ServiceID) error {
 	return nil
 }
 
-type placementManager struct {
+func validateAdvertisement(sid services.ServiceID, id string) error {
+	if sid == nil {
+		return errNoServiceID
+	}
+
+	if id == "" {
+		return errNoInstanceID
+	}
+
+	return nil
+}
+
+type kvManager struct {
 	sync.RWMutex
+
 	kv                kv.Store
 	serviceWatchables map[string]xwatch.Watchable
 }

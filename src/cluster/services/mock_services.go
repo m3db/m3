@@ -27,6 +27,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	shard "github.com/m3db/m3cluster/shard"
 	watch "github.com/m3db/m3x/watch"
+	time "time"
 )
 
 // Mock of Services interface
@@ -90,6 +91,27 @@ func (_m *MockServices) Watch(service ServiceID, opts QueryOptions) (watch.Watch
 
 func (_mr *_MockServicesRecorder) Watch(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Watch", arg0, arg1)
+}
+
+func (_m *MockServices) Metadata(sid ServiceID) (Metadata, error) {
+	ret := _m.ctrl.Call(_m, "Metadata", sid)
+	ret0, _ := ret[0].(Metadata)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockServicesRecorder) Metadata(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Metadata", arg0)
+}
+
+func (_m *MockServices) SetMetadata(sid ServiceID, m Metadata) error {
+	ret := _m.ctrl.Call(_m, "SetMetadata", sid, m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockServicesRecorder) SetMetadata(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMetadata", arg0, arg1)
 }
 
 func (_m *MockServices) PlacementService(service ServiceID, popts PlacementOptions) (PlacementService, error) {
@@ -500,6 +522,16 @@ func (_m *MockServiceID) EXPECT() *_MockServiceIDRecorder {
 	return _m.recorder
 }
 
+func (_m *MockServiceID) String() string {
+	ret := _m.ctrl.Call(_m, "String")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockServiceIDRecorder) String() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "String")
+}
+
 func (_m *MockServiceID) Name() string {
 	ret := _m.ctrl.Call(_m, "Name")
 	ret0, _ := ret[0].(string)
@@ -599,6 +631,87 @@ func (_m *MockQueryOptions) SetIncludeUnhealthy(h bool) QueryOptions {
 
 func (_mr *_MockQueryOptionsRecorder) SetIncludeUnhealthy(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIncludeUnhealthy", arg0)
+}
+
+// Mock of Metadata interface
+type MockMetadata struct {
+	ctrl     *gomock.Controller
+	recorder *_MockMetadataRecorder
+}
+
+// Recorder for MockMetadata (not exported)
+type _MockMetadataRecorder struct {
+	mock *MockMetadata
+}
+
+func NewMockMetadata(ctrl *gomock.Controller) *MockMetadata {
+	mock := &MockMetadata{ctrl: ctrl}
+	mock.recorder = &_MockMetadataRecorder{mock}
+	return mock
+}
+
+func (_m *MockMetadata) EXPECT() *_MockMetadataRecorder {
+	return _m.recorder
+}
+
+func (_m *MockMetadata) Port() uint32 {
+	ret := _m.ctrl.Call(_m, "Port")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+func (_mr *_MockMetadataRecorder) Port() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Port")
+}
+
+func (_m *MockMetadata) SetPort(p uint32) Metadata {
+	ret := _m.ctrl.Call(_m, "SetPort", p)
+	ret0, _ := ret[0].(Metadata)
+	return ret0
+}
+
+func (_mr *_MockMetadataRecorder) SetPort(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPort", arg0)
+}
+
+func (_m *MockMetadata) LivenessInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "LivenessInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockMetadataRecorder) LivenessInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "LivenessInterval")
+}
+
+func (_m *MockMetadata) SetLivenessInterval(l time.Duration) Metadata {
+	ret := _m.ctrl.Call(_m, "SetLivenessInterval", l)
+	ret0, _ := ret[0].(Metadata)
+	return ret0
+}
+
+func (_mr *_MockMetadataRecorder) SetLivenessInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetLivenessInterval", arg0)
+}
+
+func (_m *MockMetadata) HeartbeatInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "HeartbeatInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockMetadataRecorder) HeartbeatInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HeartbeatInterval")
+}
+
+func (_m *MockMetadata) SetHeartbeatInterval(h time.Duration) Metadata {
+	ret := _m.ctrl.Call(_m, "SetHeartbeatInterval", h)
+	ret0, _ := ret[0].(Metadata)
+	return ret0
+}
+
+func (_mr *_MockMetadataRecorder) SetHeartbeatInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHeartbeatInterval", arg0)
 }
 
 // Mock of PlacementService interface

@@ -236,6 +236,14 @@ func TestConvertBetweenProtoAndPlacementWithError(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestKeys(t *testing.T) {
+	sid := services.NewServiceID().SetName("m3db").SetEnvironment("production")
+	assert.Equal(t, "production/m3db", serviceKey(sid))
+	assert.Equal(t, "_sd.placement/production/m3db", placementKey(sid))
+	assert.Equal(t, "_sd.metadata/production/m3db", metadataKey(sid))
+	assert.Equal(t, "production/m3db/instance1", adKey(sid, "instance1"))
+}
+
 func getProtoShards(ids []uint32) []*placementproto.Shard {
 	r := make([]*placementproto.Shard, len(ids))
 	for i, id := range ids {
