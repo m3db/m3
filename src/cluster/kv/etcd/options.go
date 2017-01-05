@@ -46,30 +46,44 @@ type KeyFn func(key string) string
 
 // Options are options for the client of the kv store
 type Options interface {
+	// RequestTimeout is the timeout for etcd requests
 	RequestTimeout() time.Duration
-
+	// SetRequestTimeout sets the RequestTimeout
 	SetRequestTimeout(t time.Duration) Options
 
+	// KeyFn is the function to wrap a key
 	KeyFn() KeyFn
-
+	// SetKeyFn sets the KeyFn
 	SetKeyFn(f KeyFn) Options
 
+	// InstrumentsOptions is the instrument options
 	InstrumentsOptions() instrument.Options
-
+	// SetInstrumentsOptions sets the InstrumentsOptions
 	SetInstrumentsOptions(iopts instrument.Options) Options
 
+	// RetryOptions is the retry options
 	RetryOptions() xretry.Options
-
+	// SetRetryOptions sets the RetryOptions
 	SetRetryOptions(ropts xretry.Options) Options
 
+	// WatchChanCheckInterval will be used to periodicaly check if a watch chan
+	// is no longer being subscribed and should be closed
 	WatchChanCheckInterval() time.Duration
-
+	// SetWatchChanCheckInterval sets the WatchChanCheckInterval
 	SetWatchChanCheckInterval(t time.Duration) Options
 
+	// WatchChanResetInterval is the delay before resetting the etcd watch chan
 	WatchChanResetInterval() time.Duration
-
+	// SetWatchChanResetInterval sets the WatchChanResetInterval
 	SetWatchChanResetInterval(t time.Duration) Options
 
+	// CacheFilePath is the file path to persist in-memory cache.
+	// If not provided, not file persisting will happen
+	CacheFilePath() string
+	// SetCacheFilePath sets the CacheFilePath
+	SetCacheFilePath(c string) Options
+
+	// Validate validates the Options
 	Validate() error
 }
 
@@ -80,6 +94,7 @@ type options struct {
 	ropts                  xretry.Options
 	watchChanCheckInterval time.Duration
 	watchChanResetInterval time.Duration
+	cacheFilePath          string
 }
 
 // NewOptions creates a sane default Option
@@ -164,5 +179,14 @@ func (o options) WatchChanResetInterval() time.Duration {
 
 func (o options) SetWatchChanResetInterval(t time.Duration) Options {
 	o.watchChanResetInterval = t
+	return o
+}
+
+func (o options) CacheFilePath() string {
+	return o.cacheFilePath
+}
+
+func (o options) SetCacheFilePath(c string) Options {
+	o.cacheFilePath = c
 	return o
 }

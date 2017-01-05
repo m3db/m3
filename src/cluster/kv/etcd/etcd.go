@@ -21,7 +21,9 @@
 package etcd
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -41,13 +43,17 @@ var noopCancel func()
 // NewStore creates a kv store based on etcd
 func NewStore(c *clientv3.Client, opts Options) kv.Store {
 	scope := opts.InstrumentsOptions().MetricsScope()
-	return &client{
-		opts:       opts,
-		kv:         c.KV,
-		watcher:    c.Watcher,
-		watchables: map[string]kv.ValueWatchable{},
-		retrier:    xretry.NewRetrier(opts.RetryOptions()),
-		logger:     opts.InstrumentsOptions().Logger(),
+
+	store := &client{
+		opts:           opts,
+		kv:             c.KV,
+		watcher:        c.Watcher,
+		watchables:     map[string]kv.ValueWatchable{},
+		retrier:        xretry.NewRetrier(opts.RetryOptions()),
+		logger:         opts.InstrumentsOptions().Logger(),
+		cacheFile:      opts.CacheFilePath(),
+		cache:          newCache(),
+		cacheUpdatedCh: make(chan struct{}, 1),
 		m: clientMetrics{
 			etcdGetError:    scope.Counter("etcd-get-error"),
 			etcdPutError:    scope.Counter("etcd-put-error"),
@@ -55,20 +61,37 @@ func NewStore(c *clientv3.Client, opts Options) kv.Store {
 			etcdWatchCreate: scope.Counter("etcd-watch-create"),
 			etcdWatchError:  scope.Counter("etcd-watch-error"),
 			etcdWatchReset:  scope.Counter("etcd-watch-reset"),
+			diskWriteError:  scope.Counter("disk-write-error"),
+			diskReadError:   scope.Counter("disk-read-error"),
 		},
 	}
+
+	if store.cacheFile != "" {
+		if err := store.initCache(); err != nil {
+			store.logger.Warnf("could not load cache from file %s: %v", opts.CacheFilePath(), err)
+		}
+		go func() {
+			for range store.cacheUpdatedCh {
+				store.writeCacheToFile()
+			}
+		}()
+	}
+	return store
 }
 
 type client struct {
 	sync.RWMutex
 
-	opts       Options
-	kv         clientv3.KV
-	watcher    clientv3.Watcher
-	watchables map[string]kv.ValueWatchable
-	retrier    xretry.Retrier
-	logger     xlog.Logger
-	m          clientMetrics
+	opts           Options
+	kv             clientv3.KV
+	watcher        clientv3.Watcher
+	watchables     map[string]kv.ValueWatchable
+	retrier        xretry.Retrier
+	logger         xlog.Logger
+	m              clientMetrics
+	cache          *valueCache
+	cacheFile      string
+	cacheUpdatedCh chan struct{}
 }
 
 type clientMetrics struct {
@@ -78,8 +101,12 @@ type clientMetrics struct {
 	etcdWatchCreate tally.Counter
 	etcdWatchError  tally.Counter
 	etcdWatchReset  tally.Counter
+	diskWriteError  tally.Counter
+	diskReadError   tally.Counter
 }
 
+// Get returns the latest value from etcd store and only fall back to
+// in-memory cache if the remote store is unavailable
 func (c *client) Get(key string) (kv.Value, error) {
 	ctx, cancel := c.context()
 	defer cancel()
@@ -87,6 +114,10 @@ func (c *client) Get(key string) (kv.Value, error) {
 	r, err := c.kv.Get(ctx, c.opts.KeyFn()(key))
 	if err != nil {
 		c.m.etcdGetError.Inc(1)
+		cachedV, ok := c.getCache(key)
+		if ok {
+			return cachedV, nil
+		}
 		return nil, err
 	}
 
@@ -98,7 +129,11 @@ func (c *client) Get(key string) (kv.Value, error) {
 		return nil, fmt.Errorf("received %d values for key %s, expecting 1", r.Count, key)
 	}
 
-	return kv.NewValue(r.Kvs[0].Value, int(r.Kvs[0].Version)), nil
+	v := newValue(r.Kvs[0].Value, r.Kvs[0].Version, r.Kvs[0].ModRevision)
+
+	c.mergeCache(key, v)
+
+	return v, nil
 }
 
 func (c *client) Watch(key string) (kv.ValueWatch, error) {
@@ -200,17 +235,26 @@ func (c *client) processNotification(r clientv3.WatchResponse, w kv.ValueWatchab
 }
 
 func (c *client) update(w kv.ValueWatchable, key string) error {
-	v, err := c.Get(key)
+	newValue, err := c.Get(key)
+	if err == kv.ErrNotFound {
+		// nothing to update
+		return nil
+	}
+
 	if err != nil {
 		return err
 	}
 
 	curValue := w.Get()
-	if curValue != nil && curValue.Version() >= v.Version() {
-		return nil
+	if curValue == nil {
+		return w.Update(newValue)
 	}
 
-	return w.Update(v)
+	if newValue.(*value).isNewer(curValue.(*value)) {
+		return w.Update(newValue)
+	}
+
+	return nil
 }
 
 func (c *client) Set(key string, v proto.Message) (int, error) {
@@ -269,6 +313,77 @@ func (c *client) CheckAndSet(key string, version int, v proto.Message) (int, err
 	return version + 1, nil
 }
 
+func (c *client) getCache(key string) (kv.Value, bool) {
+	c.cache.RLock()
+	v, ok := c.cache.Values[key]
+	c.cache.RUnlock()
+
+	return v, ok
+}
+
+func (c *client) mergeCache(key string, v *value) {
+	c.cache.Lock()
+	defer c.cache.Unlock()
+
+	cur, ok := c.cache.Values[key]
+	if !ok || v.isNewer(cur) {
+		c.cache.Values[key] = v
+
+		// notify that cached data is updated
+		select {
+		case c.cacheUpdatedCh <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (c *client) writeCacheToFile() error {
+	file, err := os.Create(c.cacheFile)
+	if err != nil {
+		c.m.diskWriteError.Inc(1)
+		c.logger.Warnf("error creating cache file %s: %v", c.cacheFile, err)
+		return fmt.Errorf("invalid cache file: %s", c.cacheFile)
+	}
+
+	encoder := json.NewEncoder(file)
+	c.cache.RLock()
+	err = encoder.Encode(c.cache)
+	c.cache.RUnlock()
+
+	if err != nil {
+		c.m.diskWriteError.Inc(1)
+		c.logger.Warnf("error encoding values: %v", err)
+		return err
+	}
+
+	if err = file.Close(); err != nil {
+		c.m.diskWriteError.Inc(1)
+		c.logger.Warnf("error closing cache file %s: %v", c.cacheFile, err)
+	}
+
+	return nil
+}
+
+func (c *client) initCache() error {
+	file, err := os.Open(c.opts.CacheFilePath())
+	if err != nil {
+		c.m.diskReadError.Inc(1)
+		c.logger.Errorf("error opening cache file %s: %v", c.cacheFile, err)
+		return err
+	}
+
+	// Read bootstrap file
+	decoder := json.NewDecoder(file)
+
+	if err := decoder.Decode(c.cache); err != nil {
+		c.m.diskReadError.Inc(1)
+		c.logger.Errorf("error reading cache file %s: %v", c.cacheFile, err)
+		return err
+	}
+
+	return nil
+}
+
 func (c *client) context() (context.Context, context.CancelFunc) {
 	ctx := context.Background()
 	cancel := noopCancel
@@ -277,4 +392,42 @@ func (c *client) context() (context.Context, context.CancelFunc) {
 	}
 
 	return ctx, cancel
+}
+
+type valueCache struct {
+	sync.RWMutex
+
+	Values map[string]*value `json:"values"`
+}
+
+func newCache() *valueCache {
+	return &valueCache{Values: make(map[string]*value)}
+}
+
+type value struct {
+	Val []byte `json:"value"`
+	Ver int64  `json:"version"`
+	Rev int64  `json:"revision"`
+}
+
+func newValue(val []byte, ver, rev int64) *value {
+	return &value{
+		Val: val,
+		Ver: ver,
+		Rev: rev,
+	}
+}
+
+func (c *value) isNewer(other *value) bool {
+	return c.Rev > other.Rev
+}
+
+func (c *value) Unmarshal(v proto.Message) error {
+	err := proto.Unmarshal(c.Val, v)
+
+	return err
+}
+
+func (c *value) Version() int {
+	return int(c.Ver)
 }

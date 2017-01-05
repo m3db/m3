@@ -20,33 +20,7 @@
 
 package kv
 
-import (
-	"github.com/golang/protobuf/proto"
-	xwatch "github.com/m3db/m3x/watch"
-)
-
-type value struct {
-	CurVersion int    `json:"version"`
-	Value      []byte `json:"value"`
-}
-
-// NewValue creates a new Value
-func NewValue(binaryValue []byte, version int) Value {
-	return &value{
-		Value:      binaryValue,
-		CurVersion: version,
-	}
-}
-
-func (c *value) Unmarshal(v proto.Message) error {
-	err := proto.Unmarshal(c.Value, v)
-
-	return err
-}
-
-func (c *value) Version() int {
-	return c.CurVersion
-}
+import xwatch "github.com/m3db/m3x/watch"
 
 type valueWatch struct {
 	w xwatch.Watch
