@@ -133,15 +133,22 @@ type ReplicaMetadataComparer interface {
 	Finalize()
 }
 
-// Summary captures details about repaired series'
-// TODO(prateek): Summary and Result here are confusing, rename
-// TODO(prateek): Document the meaning of the numbers here
-type Summary struct {
-	NumReplicasRequested   int64
-	NumReplicasSucceeded   int64
-	NumReplicasFailed      int64
-	NumReplicasPending     int64
-	NumUnrequestedReplicas int64
+// ExecutionMetrics captures metrics about the repair process
+type ExecutionMetrics struct {
+	// NumRequested returns the number of block replicas requested for repair
+	NumRequested int64
+
+	// NumRepaired returns the number of block replicas successfully repaired
+	NumRepaired int64
+
+	// NumFailed returns the number of block replicas retrieved but failed to merge into local data
+	NumFailed int64
+
+	// NumPending returns difference between the number of block replicas requested and received
+	NumPending int64
+
+	// NumUnrequested returns a count of block replicas returned but were not requested, it should be 0 in all usual executions
+	NumUnrequested int64
 }
 
 // Result captures details about the differences pre-repair, and a summary
@@ -151,7 +158,7 @@ type Result struct {
 	DifferenceSummary MetadataComparisonResult
 
 	// RepairSummary returns the statistics about repairs performed
-	RepairSummary Summary
+	RepairSummary ExecutionMetrics
 }
 
 // MetadataComparisonResult captures metadata comparison results

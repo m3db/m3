@@ -535,16 +535,21 @@ func (n *dbNamespace) Repair(
 	}
 
 	var (
-		wg                    sync.WaitGroup
-		mutex                 sync.Mutex
-		numShardsRepaired     int
-		numTotalSeries        int64
-		numTotalBlocks        int64
-		numSizeDiffSeries     int64
-		numSizeDiffBlocks     int64
-		numChecksumDiffSeries int64
-		numChecksumDiffBlocks int64
-		throttlePerShard      time.Duration
+		wg                     sync.WaitGroup
+		mutex                  sync.Mutex
+		numShardsRepaired      int
+		numTotalSeries         int64
+		numTotalBlocks         int64
+		numSizeDiffSeries      int64
+		numSizeDiffBlocks      int64
+		numChecksumDiffSeries  int64
+		numChecksumDiffBlocks  int64
+		numReplicasRequested   int64
+		numReplicasFailed      int64
+		numReplicasPending     int64
+		numReplicasRepaired    int64
+		numReplicasUnrequested int64
+		throttlePerShard       time.Duration
 	)
 
 	multiErr := xerrors.NewMultiError()
@@ -569,8 +574,7 @@ func (n *dbNamespace) Repair(
 
 			repairResult, err := shard.Repair(ctx, n.id, tr, repairer)
 			metadataRes := repairResult.DifferenceSummary
-			// TODO(prateek): include repair stats here
-			// TODO(prateek): check if namespace_test needs to be updated for this
+			execMetrics := repairResult.RepairSummary
 
 			mutex.Lock()
 			if err != nil {
@@ -583,6 +587,11 @@ func (n *dbNamespace) Repair(
 				numSizeDiffBlocks += metadataRes.SizeDifferences.NumBlocks()
 				numChecksumDiffSeries += metadataRes.ChecksumDifferences.NumSeries()
 				numChecksumDiffBlocks += metadataRes.ChecksumDifferences.NumBlocks()
+				numReplicasFailed += execMetrics.NumFailed
+				numReplicasRepaired += execMetrics.NumRepaired
+				numReplicasPending += execMetrics.NumPending
+				numReplicasRequested += execMetrics.NumRequested
+				numReplicasUnrequested += execMetrics.NumUnrequested
 			}
 			mutex.Unlock()
 
@@ -605,6 +614,11 @@ func (n *dbNamespace) Repair(
 		xlog.NewLogField("numSizeDiffBlocks", numSizeDiffBlocks),
 		xlog.NewLogField("numChecksumDiffSeries", numChecksumDiffSeries),
 		xlog.NewLogField("numChecksumDiffBlocks", numChecksumDiffBlocks),
+		xlog.NewLogField("numReplicasFailed", numReplicasFailed),
+		xlog.NewLogField("numReplicasRepaired", numShardsRepaired),
+		xlog.NewLogField("numReplicasPending", numReplicasPending),
+		xlog.NewLogField("numReplicasRequested", numReplicasRequested),
+		xlog.NewLogField("numReplicasUnrequested", numReplicasUnrequested),
 	).Infof("repair result")
 
 	return multiErr.FinalError()

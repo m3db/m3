@@ -295,13 +295,13 @@ func TestDatabaseShardRepairerRecordDifferences(t *testing.T) {
 	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
 	require.NoError(t, err)
 	repairer := databaseShardRepairer.(shardRepairer)
-	repairer.recordFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
+	repairer.recordFn = func(namespace ts.ID, shard databaseShard, res repair.Result) {
 		resNamespace = namespace
 		resShard = shard
-		resDiff = diffRes
+		resDiff = res.DifferenceSummary
 	}
-	repairer.repairFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) (repair.Summary, error) {
-		return repair.Summary{}, nil
+	repairer.repairFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) (repair.ExecutionMetrics, error) {
+		return repair.ExecutionMetrics{}, nil
 	}
 
 	ctx := context.NewContext()

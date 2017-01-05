@@ -51,8 +51,8 @@ var (
 	errRepairInProgress = errors.New("repair already in progress")
 )
 
-type recordFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult)
-type repairShardFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) (repair.Summary, error)
+type recordFn func(namespace ts.ID, shard databaseShard, res repair.Result)
+type repairShardFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) (repair.ExecutionMetrics, error)
 
 type shardRepairer struct {
 	opts      Options
@@ -135,22 +135,17 @@ func (r shardRepairer) Repair(
 	}
 
 	metadataRes := metadata.Compare()
+	result := repair.Result{DifferenceSummary: metadataRes}
 
-	// TODO(prateek): migrate recordFn to operate upon repair.Result, i.e. include stats about repair
-	r.recordFn(namespace, shard, metadataRes)
-
-	// TODO(prateek): flipr config for this(!)
-	repairResult, err := r.repairFn(namespace, shard, metadataRes)
+	res, err := r.repairFn(namespace, shard, metadataRes)
 	if err != nil {
-		return repair.Result{}, err
+		// even in the event of repair failure, report statistics about differences
+		r.recordFn(namespace, shard, result)
+		return result, err
 	}
 
-	// TODO(prateek):
-	// - trace up the chain here, make sure we mark state to re-attempt any pending repairs
-	result := repair.Result{
-		RepairSummary:     repairResult,
-		DifferenceSummary: metadataRes,
-	}
+	result.RepairSummary = res
+	r.recordFn(namespace, shard, result)
 	return result, nil
 }
 
@@ -292,11 +287,11 @@ func (r shardRepairer) repairDifferences(
 	namespace ts.ID,
 	shard databaseShard,
 	diffRes repair.MetadataComparisonResult,
-) (repair.Summary, error) {
+) (repair.ExecutionMetrics, error) {
 	var (
 		logger        = r.opts.InstrumentOptions().Logger()
 		session, err  = r.client.DefaultAdminSession()
-		repairSummary = repair.Summary{}
+		repairSummary = repair.ExecutionMetrics{}
 		multiErr      xerrors.MultiError
 	)
 	if err != nil {
@@ -309,7 +304,7 @@ func (r shardRepairer) repairDifferences(
 	// reqBlocks contains the same information as the above map, destructured for the `session` API
 	initialCap := diffRes.NumBlocks
 	reqBlocks := r.newAdminRepairBlocksRequest(pendingBlockReplicas, initialCap)
-	repairSummary.NumReplicasRequested = int64(len(reqBlocks))
+	repairSummary.NumRequested = int64(len(reqBlocks))
 
 	// stream over the requested replicas
 	blocksIter, err := session.FetchRepairBlocksFromPeers(namespace, shard.ID(), reqBlocks, r.rpopts.ResultOptions())
@@ -330,7 +325,7 @@ func (r shardRepairer) repairDifferences(
 				xlog.NewLogField("host", host.String()),
 				xlog.NewLogField("blockID", blkID),
 			).Warnf("received un-requested block, session.FetchRepairBlockFromPeers violated contract, skipping.")
-			repairSummary.NumUnrequestedReplicas++
+			repairSummary.NumUnrequested++
 			continue
 		}
 
@@ -346,17 +341,10 @@ func (r shardRepairer) repairDifferences(
 				"unable to update series [ id = %v, block_start = %v, err = %v ]", id.String(), blkID.start, err)
 			logger.Warnf("%v", repErr)
 			multiErr.Add(repErr)
-			repairSummary.NumReplicasFailed++
+			repairSummary.NumFailed++
 			continue
 		}
-		repairSummary.NumReplicasSucceeded++
-	}
-
-	// track error if blocksIter is unhappy
-	if err := blocksIter.Err(); err != nil {
-		multiErr.Add(err)
-		logger.Warnf("repair iterator terminated with error: %v", err)
-		return repairSummary, multiErr.FinalError()
+		repairSummary.NumRepaired++
 	}
 
 	// track count for pending replicas
@@ -367,13 +355,20 @@ func (r shardRepairer) repairDifferences(
 		for _, hbm := range *hs {
 			logger.Warnf("replica requested but not received [ host = %v, id = %v, block_start = %v ]",
 				hbm.Host.String(), blkID.id.String(), blkID.start)
-			repairSummary.NumReplicasPending++
+			repairSummary.NumPending++
 		}
 	}
 
+	// track error if blocksIter is unhappy
+	if err := blocksIter.Err(); err != nil {
+		multiErr.Add(err)
+		logger.Warnf("repair iterator terminated with error: %v", err)
+		return repairSummary, multiErr.FinalError()
+	}
+
 	// TODO(prateek): better handling of repaired shard writes
-	// 	- don't always write, factor in a minimum number of blocks repaired, and number of blocks still requiring repair
 	// 	- write a new version of the file for the timestamp, keep last 'n' versions, do NOT delete old version before writing a new version
+	// 	- consider not always writing, factor in a minimum number of blocks repaired, and number of blocks still requiring repair
 
 	return repairSummary, multiErr.FinalError()
 }
@@ -381,7 +376,7 @@ func (r shardRepairer) repairDifferences(
 func (r shardRepairer) recordDifferences(
 	namespace ts.ID,
 	shard databaseShard,
-	diffRes repair.MetadataComparisonResult,
+	repairResult repair.Result,
 ) {
 	var (
 		shardScope = r.scope.Tagged(map[string]string{
@@ -391,6 +386,9 @@ func (r shardRepairer) recordDifferences(
 		totalScope        = shardScope.Tagged(map[string]string{"resultType": "total"})
 		sizeDiffScope     = shardScope.Tagged(map[string]string{"resultType": "sizeDiff"})
 		checksumDiffScope = shardScope.Tagged(map[string]string{"resultType": "checksumDiff"})
+		executionScope    = shardScope.Tagged(map[string]string{"resultType": "execution"})
+		diffRes           = repairResult.DifferenceSummary
+		execMetrics       = repairResult.RepairSummary
 	)
 
 	// Record total number of series and total number of blocks
@@ -404,6 +402,13 @@ func (r shardRepairer) recordDifferences(
 	// Record checksum differences
 	checksumDiffScope.Counter("series").Inc(diffRes.ChecksumDifferences.NumSeries())
 	checksumDiffScope.Counter("blocks").Inc(diffRes.ChecksumDifferences.NumBlocks())
+
+	// Record ExecutionMetrics
+	executionScope.Counter("failed").Inc(execMetrics.NumFailed)
+	executionScope.Counter("pending").Inc(execMetrics.NumPending)
+	executionScope.Counter("repaired").Inc(execMetrics.NumRepaired)
+	executionScope.Counter("requested").Inc(execMetrics.NumRequested)
+	executionScope.Counter("unrequested").Inc(execMetrics.NumUnrequested)
 }
 
 type repairFn func() error
