@@ -22,10 +22,12 @@ package etcd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
 	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3cluster/generated/proto/kvtest"
@@ -34,8 +36,10 @@ import (
 )
 
 func TestGetAndSet(t *testing.T) {
-	store, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t)
 	defer closeFn()
+
+	store := NewStore(ec, opts)
 
 	value, err := store.Get("foo")
 	assert.Error(t, err)
@@ -59,9 +63,94 @@ func TestGetAndSet(t *testing.T) {
 	verifyValue(t, value, "bar2", 2)
 }
 
+func TestNoCache(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+
+	store := NewStore(ec, opts)
+	assert.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+
+	version, err := store.Set("foo", genProto("bar1"))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, version)
+
+	value, err := store.Get("foo")
+	assert.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+	// the will send a notification but won't trigger a sync
+	// because no cache file is set
+	assert.Equal(t, 1, len(store.(*client).cacheUpdatedCh))
+
+	closeFn()
+
+	// from cache
+	value, err = store.Get("foo")
+	assert.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+
+	// new store but no cache file set
+	store = NewStore(ec, opts)
+
+	_, err = store.Set("foo", genProto("bar1"))
+	assert.Error(t, err)
+
+	_, err = store.Get("foo")
+	assert.Error(t, err)
+	assert.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+}
+
+func TestCache(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+
+	f, err := ioutil.TempFile("", "")
+	assert.NoError(t, err)
+
+	opts = opts.SetCacheFilePath(f.Name())
+
+	store := NewStore(ec, opts)
+	assert.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+
+	version, err := store.Set("foo", genProto("bar1"))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, version)
+
+	value, err := store.Get("foo")
+	assert.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+	for {
+		// the notification should be picked up and trigger a sync
+		if len(store.(*client).cacheUpdatedCh) == 0 {
+			break
+		}
+	}
+	closeFn()
+
+	// from cache
+	value, err = store.Get("foo")
+	assert.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+	assert.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+
+	// new store but with cache file
+	store = NewStore(ec, opts)
+
+	_, err = store.Set("key", genProto("bar1"))
+	assert.Error(t, err)
+
+	_, err = store.Get("key")
+	assert.Error(t, err)
+	assert.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+
+	value, err = store.Get("foo")
+	assert.NoError(t, err)
+	verifyValue(t, value, "bar1", 1)
+	assert.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
+}
+
 func TestSetIfNotExist(t *testing.T) {
-	store, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t)
 	defer closeFn()
+
+	store := NewStore(ec, opts)
 
 	version, err := store.SetIfNotExists("foo", genProto("bar"))
 	assert.NoError(t, err)
@@ -77,8 +166,10 @@ func TestSetIfNotExist(t *testing.T) {
 }
 
 func TestCheckAndSet(t *testing.T) {
-	store, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t)
 	defer closeFn()
+
+	store := NewStore(ec, opts)
 
 	version, err := store.CheckAndSet("foo", 1, genProto("bar"))
 	assert.Error(t, err)
@@ -102,8 +193,10 @@ func TestCheckAndSet(t *testing.T) {
 }
 
 func TestWatchClose(t *testing.T) {
-	store, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t)
 	defer closeFn()
+
+	store := NewStore(ec, opts)
 
 	_, err := store.Set("foo", genProto("bar1"))
 	assert.NoError(t, err)
@@ -147,8 +240,10 @@ func TestWatchClose(t *testing.T) {
 }
 
 func TestWatchLastVersion(t *testing.T) {
-	store, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t)
 	defer closeFn()
+
+	store := NewStore(ec, opts)
 
 	w, err := store.Watch("foo")
 	assert.NoError(t, err)
@@ -175,8 +270,10 @@ func TestWatchLastVersion(t *testing.T) {
 }
 
 func TestWatchFromExist(t *testing.T) {
-	store, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t)
 	defer closeFn()
+
+	store := NewStore(ec, opts)
 
 	_, err := store.Set("foo", genProto("bar1"))
 	assert.NoError(t, err)
@@ -210,8 +307,10 @@ func TestWatchFromExist(t *testing.T) {
 }
 
 func TestWatchFromNotExist(t *testing.T) {
-	store, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t)
 	defer closeFn()
+
+	store := NewStore(ec, opts)
 
 	w, err := store.Watch("foo")
 	assert.NoError(t, err)
@@ -236,8 +335,10 @@ func TestWatchFromNotExist(t *testing.T) {
 }
 
 func TestMultipleWatchesFromExist(t *testing.T) {
-	store, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t)
 	defer closeFn()
+
+	store := NewStore(ec, opts)
 
 	_, err := store.Set("foo", genProto("bar1"))
 	assert.NoError(t, err)
@@ -283,9 +384,10 @@ func TestMultipleWatchesFromExist(t *testing.T) {
 }
 
 func TestMultipleWatchesFromNotExist(t *testing.T) {
-	store, closeFn := testStore(t)
+	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
+	store := NewStore(ec, opts)
 	w1, err := store.Watch("foo")
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(w1.C()))
@@ -334,7 +436,7 @@ func genProto(msg string) proto.Message {
 	return &kvtest.Foo{Msg: msg}
 }
 
-func testStore(t *testing.T) (kv.Store, func()) {
+func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
 	ec := ecluster.Client(rand.Intn(3))
 
@@ -343,5 +445,5 @@ func testStore(t *testing.T) (kv.Store, func()) {
 		ec.Watcher.Close()
 	}
 
-	return NewStore(ec, NewOptions().SetWatchChanCheckInterval(10*time.Millisecond)), closer
+	return ec, NewOptions().SetWatchChanCheckInterval(10 * time.Millisecond), closer
 }
