@@ -18,33 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package kv
+package mem
 
 import (
 	"sync"
 	"testing"
 
 	"github.com/m3db/m3cluster/generated/proto/kvtest"
+	"github.com/m3db/m3cluster/kv"
 	"github.com/stretchr/testify/require"
 )
 
-func TestFakeStore(t *testing.T) {
-	kv := NewFakeStore()
+func TestStore(t *testing.T) {
+	s := NewStore()
 
 	// Should start without a value
-	val, err := kv.Get("foo")
-	require.Equal(t, ErrNotFound, err)
+	val, err := s.Get("foo")
+	require.Equal(t, kv.ErrNotFound, err)
 	require.Nil(t, val)
 
 	// Should be able to set to non-existent value
-	version, err := kv.SetIfNotExists("foo", &kvtest.Foo{
+	version, err := s.SetIfNotExists("foo", &kvtest.Foo{
 		Msg: "first",
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, version)
 
 	// And have that value stored
-	val, err = kv.Get("foo")
+	val, err = s.Get("foo")
 	require.NoError(t, err)
 	require.NotNil(t, val)
 	require.Equal(t, 1, val.Version())
@@ -54,13 +55,13 @@ func TestFakeStore(t *testing.T) {
 	require.Equal(t, "first", read.Msg)
 
 	// Should not be able to SetIfNotExists to that value again
-	_, err = kv.SetIfNotExists("foo", &kvtest.Foo{
+	_, err = s.SetIfNotExists("foo", &kvtest.Foo{
 		Msg: "update",
 	})
-	require.Equal(t, ErrAlreadyExists, err)
+	require.Equal(t, kv.ErrAlreadyExists, err)
 
 	read.Reset()
-	val, err = kv.Get("foo")
+	val, err = s.Get("foo")
 	require.NoError(t, err)
 	require.NotNil(t, val)
 	require.Equal(t, 1, val.Version())
@@ -68,27 +69,27 @@ func TestFakeStore(t *testing.T) {
 	require.Equal(t, "first", read.Msg)
 
 	// Should be able to Set unconditionally and get a new version
-	version2, err := kv.Set("foo", &kvtest.Foo{
+	version2, err := s.Set("foo", &kvtest.Foo{
 		Msg: "update",
 	})
 	require.Nil(t, nil)
 	require.Equal(t, 2, version2)
 
 	read.Reset()
-	val, err = kv.Get("foo")
+	val, err = s.Get("foo")
 	require.NoError(t, err)
 	require.Equal(t, 2, val.Version())
 	require.NoError(t, val.Unmarshal(&read))
 	require.Equal(t, "update", read.Msg)
 
 	// Should not be able to set at an old version
-	_, err = kv.CheckAndSet("foo", version, &kvtest.Foo{
+	_, err = s.CheckAndSet("foo", version, &kvtest.Foo{
 		Msg: "update2",
 	})
-	require.Equal(t, ErrVersionMismatch, err)
+	require.Equal(t, kv.ErrVersionMismatch, err)
 
 	read.Reset()
-	val, err = kv.Get("foo")
+	val, err = s.Get("foo")
 	require.NoError(t, err)
 	require.NotNil(t, val)
 	require.Equal(t, 2, val.Version())
@@ -96,14 +97,14 @@ func TestFakeStore(t *testing.T) {
 	require.Equal(t, "update", read.Msg)
 
 	// Should be able to set at the specific version
-	version3, err := kv.CheckAndSet("foo", val.Version(), &kvtest.Foo{
+	version3, err := s.CheckAndSet("foo", val.Version(), &kvtest.Foo{
 		Msg: "update3",
 	})
 	require.NoError(t, err)
 	require.Equal(t, 3, version3)
 
 	read.Reset()
-	val, err = kv.Get("foo")
+	val, err = s.Get("foo")
 	require.NoError(t, err)
 	require.NotNil(t, val)
 	require.Equal(t, 3, val.Version())
@@ -111,15 +112,15 @@ func TestFakeStore(t *testing.T) {
 	require.Equal(t, "update3", read.Msg)
 }
 
-func TestFakeStoreWatch(t *testing.T) {
-	kv := NewFakeStore()
+func TestStoreWatch(t *testing.T) {
+	s := NewStore()
 
-	fooWatch1, err := kv.Watch("foo")
+	fooWatch1, err := s.Watch("foo")
 	require.NoError(t, err)
 	require.NotNil(t, fooWatch1)
 	require.Nil(t, fooWatch1.Get())
 
-	version, err := kv.SetIfNotExists("foo", &kvtest.Foo{
+	version, err := s.SetIfNotExists("foo", &kvtest.Foo{
 		Msg: "first",
 	})
 	require.NoError(t, err)
@@ -130,7 +131,7 @@ func TestFakeStoreWatch(t *testing.T) {
 	require.NoError(t, fooWatch1.Get().Unmarshal(&foo))
 	require.Equal(t, "first", foo.Msg)
 
-	fooWatch2, err := kv.Watch("foo")
+	fooWatch2, err := s.Watch("foo")
 	<-fooWatch2.C()
 	require.NoError(t, fooWatch2.Get().Unmarshal(&foo))
 	require.Equal(t, "first", foo.Msg)
@@ -154,7 +155,7 @@ func TestFakeStoreWatch(t *testing.T) {
 		require.Equal(t, "second", foo.Msg)
 	}()
 
-	version, err = kv.Set("foo", &kvtest.Foo{
+	version, err = s.Set("foo", &kvtest.Foo{
 		Msg: "second",
 	})
 	require.NoError(t, err)
@@ -162,7 +163,7 @@ func TestFakeStoreWatch(t *testing.T) {
 	wg.Wait()
 
 	fooWatch1.Close()
-	version, err = kv.Set("foo", &kvtest.Foo{
+	version, err = s.Set("foo", &kvtest.Foo{
 		Msg: "third",
 	})
 	require.NoError(t, err)
@@ -172,14 +173,14 @@ func TestFakeStoreWatch(t *testing.T) {
 }
 
 func TestFakeStoreErrors(t *testing.T) {
-	kv := NewFakeStore()
+	s := NewStore()
 
-	_, err := kv.Set("foo", nil)
+	_, err := s.Set("foo", nil)
 	require.Error(t, err)
 
-	_, err = kv.SetIfNotExists("foo", nil)
+	_, err = s.SetIfNotExists("foo", nil)
 	require.Error(t, err)
 
-	_, err = kv.CheckAndSet("foo", 1, nil)
+	_, err = s.CheckAndSet("foo", 1, nil)
 	require.Error(t, err)
 }
