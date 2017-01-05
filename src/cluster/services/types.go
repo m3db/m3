@@ -21,6 +21,8 @@
 package services
 
 import (
+	"time"
+
 	"github.com/m3db/m3cluster/shard"
 	xwatch "github.com/m3db/m3x/watch"
 )
@@ -33,11 +35,17 @@ type Services interface {
 	// Unadvertise indicates a given instance is no longer available
 	Unadvertise(service ServiceID, id string) error
 
-	// Query returns metadata and a list of available instances for a given service
+	// Query returns the topology for a given service
 	Query(service ServiceID, opts QueryOptions) (Service, error)
 
 	// Watch returns a watch on metadata and a list of available instances for a given service
 	Watch(service ServiceID, opts QueryOptions) (xwatch.Watch, error)
+
+	// Metadata returns the metadata for a given service
+	Metadata(sid ServiceID) (Metadata, error)
+
+	// SetMetadata sets the metadata for a given service
+	SetMetadata(sid ServiceID, m Metadata) error
 
 	// PlacementService returns a client of Placement Service
 	PlacementService(service ServiceID, popts PlacementOptions) (PlacementService, error)
@@ -103,7 +111,7 @@ type Advertisement interface {
 	SetInstanceID(id string) Advertisement        // sets the ID of the instance being advertised
 	ServiceID() ServiceID                         // the service being advertised
 	SetServiceID(service ServiceID) Advertisement // sets the service being advertised
-	Health() func() error                         // optional health function.  return an error to indicate unhealthy
+	Health() func() error                         // optional health function, return an error to indicate unhealthy
 	SetHealth(health func() error) Advertisement  // sets the health function for the advertised instance
 	Endpoint() string                             // endpoint exposed by the service
 	SetEndpoint(e string) Advertisement           // sets the endpoint exposed by the service
@@ -111,6 +119,7 @@ type Advertisement interface {
 
 // ServiceID contains the fields required to id a service
 type ServiceID interface {
+	String() string                      // String returns a description of the ServiceID
 	Name() string                        // the service name of the ServiceID
 	SetName(s string) ServiceID          // set the service name of the ServiceID
 	Environment() string                 // the environemnt of the ServiceID
@@ -123,6 +132,27 @@ type ServiceID interface {
 type QueryOptions interface {
 	IncludeUnhealthy() bool                  // if true, will return unhealthy instances
 	SetIncludeUnhealthy(h bool) QueryOptions // sets whether to include unhealthy instances
+}
+
+// Metadata contains the metadata for a service
+type Metadata interface {
+	// Port returns the port to be used to contact the service
+	Port() uint32
+
+	// SetPort sets the port
+	SetPort(p uint32) Metadata
+
+	// LivenessInterval is the ttl interval for an instance to be considered as healthy
+	LivenessInterval() time.Duration
+
+	// SetLivenessInterval sets the LivenessInterval
+	SetLivenessInterval(l time.Duration) Metadata
+
+	// HeartbeatInterval is the interval for heatbeats
+	HeartbeatInterval() time.Duration
+
+	// SetHeartbeatInterval sets the HeartbeatInterval
+	SetHeartbeatInterval(h time.Duration) Metadata
 }
 
 // PlacementService handles the placement related operations for registered services

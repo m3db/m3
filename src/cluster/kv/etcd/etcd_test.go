@@ -29,7 +29,7 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3cluster/generated/proto/kvtest"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/stretchr/testify/assert"

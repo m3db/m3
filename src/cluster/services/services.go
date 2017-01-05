@@ -22,7 +22,9 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/m3db/m3cluster/shard"
 )
@@ -124,12 +126,15 @@ type serviceID struct {
 	zone string
 }
 
-func (sq *serviceID) Name() string                      { return sq.name }
-func (sq *serviceID) Environment() string               { return sq.env }
-func (sq *serviceID) Zone() string                      { return sq.zone }
-func (sq *serviceID) SetName(n string) ServiceID        { sq.name = n; return sq }
-func (sq *serviceID) SetEnvironment(e string) ServiceID { sq.env = e; return sq }
-func (sq *serviceID) SetZone(z string) ServiceID        { sq.zone = z; return sq }
+func (sid *serviceID) Name() string                      { return sid.name }
+func (sid *serviceID) Environment() string               { return sid.env }
+func (sid *serviceID) Zone() string                      { return sid.zone }
+func (sid *serviceID) SetName(n string) ServiceID        { sid.name = n; return sid }
+func (sid *serviceID) SetEnvironment(e string) ServiceID { sid.env = e; return sid }
+func (sid *serviceID) SetZone(z string) ServiceID        { sid.zone = z; return sid }
+func (sid *serviceID) String() string {
+	return fmt.Sprintf("[name: %s, env: %s, zone: %s]", sid.name, sid.env, sid.zone)
+}
 
 // NewQueryOptions creates new QueryOptions
 func NewQueryOptions() QueryOptions { return new(queryOptions) }
@@ -140,6 +145,28 @@ type queryOptions struct {
 
 func (qo *queryOptions) IncludeUnhealthy() bool                  { return qo.includeUnhealthy }
 func (qo *queryOptions) SetIncludeUnhealthy(h bool) QueryOptions { qo.includeUnhealthy = h; return qo }
+
+// NewMetadata creates new Metadata
+func NewMetadata() Metadata { return new(metadata) }
+
+type metadata struct {
+	port              uint32
+	livenessInterval  time.Duration
+	heartbeatInterval time.Duration
+}
+
+func (m *metadata) Port() uint32                     { return m.port }
+func (m *metadata) LivenessInterval() time.Duration  { return m.livenessInterval }
+func (m *metadata) HeartbeatInterval() time.Duration { return m.heartbeatInterval }
+func (m *metadata) SetPort(p uint32) Metadata        { m.port = p; return m }
+func (m *metadata) SetLivenessInterval(l time.Duration) Metadata {
+	m.livenessInterval = l
+	return m
+}
+func (m *metadata) SetHeartbeatInterval(l time.Duration) Metadata {
+	m.heartbeatInterval = l
+	return m
+}
 
 // PlacementInstances is a slice of instances that can produce a debug string
 type PlacementInstances []PlacementInstance

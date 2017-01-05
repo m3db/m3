@@ -28,18 +28,18 @@ import (
 
 // NewPlacementStorage returns a client of placement.Storage
 func NewPlacementStorage(opts Options) (placement.Storage, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
+	if opts.KVGen() == nil {
+		return nil, errNoKVGen
 	}
 
 	return &client{
-		pManagers: map[string]*placementManager{},
-		opts:      opts,
+		kvManagers: map[string]*kvManager{},
+		opts:       opts,
 	}, nil
 }
 
 func (s *client) CheckAndSet(sid services.ServiceID, p services.ServicePlacement, version int) error {
-	if err := validateRequest(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return err
 	}
 
@@ -48,13 +48,13 @@ func (s *client) CheckAndSet(sid services.ServiceID, p services.ServicePlacement
 		return err
 	}
 
-	pMgr, err := s.getPlacementManager(sid.Zone())
+	kvm, err := s.getKVManager(sid.Zone())
 	if err != nil {
 		return err
 	}
 
-	_, err = pMgr.kv.CheckAndSet(
-		placementKey(sid.Environment(), sid.Name()),
+	_, err = kvm.kv.CheckAndSet(
+		placementKey(sid),
 		version,
 		&placementProto,
 	)
@@ -62,7 +62,7 @@ func (s *client) CheckAndSet(sid services.ServiceID, p services.ServicePlacement
 }
 
 func (s *client) SetIfNotExist(sid services.ServiceID, p services.ServicePlacement) error {
-	if err := validateRequest(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return err
 	}
 
@@ -71,24 +71,24 @@ func (s *client) SetIfNotExist(sid services.ServiceID, p services.ServicePlaceme
 		return err
 	}
 
-	pMgr, err := s.getPlacementManager(sid.Zone())
+	kvm, err := s.getKVManager(sid.Zone())
 	if err != nil {
 		return err
 	}
 
-	_, err = pMgr.kv.SetIfNotExists(
-		placementKey(sid.Environment(), sid.Name()),
+	_, err = kvm.kv.SetIfNotExists(
+		placementKey(sid),
 		&placementProto,
 	)
 	return err
 }
 
 func (s *client) Placement(sid services.ServiceID) (services.ServicePlacement, int, error) {
-	if err := validateRequest(sid); err != nil {
+	if err := validateServiceID(sid); err != nil {
 		return nil, 0, err
 	}
 
-	v, err := s.placement(sid)
+	v, err := s.getPlacementValue(sid)
 	if err != nil {
 		return nil, 0, err
 	}

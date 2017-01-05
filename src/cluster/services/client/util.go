@@ -23,12 +23,35 @@ package client
 import (
 	"fmt"
 	"sort"
+	"time"
 
+	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
 	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 )
+
+const (
+	placementPrefix = "_sd.placement"
+	metadataPrefix  = "_sd.metadata"
+	keyFormat       = "%s/%s"
+)
+
+func metadataFromProto(m metadataproto.Metadata) services.Metadata {
+	return services.NewMetadata().
+		SetPort(m.Port).
+		SetLivenessInterval(time.Duration(m.LivenessInterval)).
+		SetHeartbeatInterval(time.Duration(m.HeartbeatInterval))
+}
+
+func metadataToProto(m services.Metadata) metadataproto.Metadata {
+	return metadataproto.Metadata{
+		Port:              m.Port(),
+		LivenessInterval:  int64(m.LivenessInterval()),
+		HeartbeatInterval: int64(m.HeartbeatInterval()),
+	}
+}
 
 func serviceFromProto(p placementproto.Placement, sid services.ServiceID) (services.Service, error) {
 	r := make([]services.ServiceInstance, 0, len(p.Instances))
@@ -193,4 +216,23 @@ func (su shardByIDAscending) Less(i, j int) bool {
 
 func (su shardByIDAscending) Swap(i, j int) {
 	su[i], su[j] = su[j], su[i]
+}
+
+func adKey(sid services.ServiceID, id string) string {
+	return fmt.Sprintf(keyFormat, serviceKey(sid), id)
+}
+
+func placementKey(s services.ServiceID) string {
+	return fmt.Sprintf(keyFormat, placementPrefix, serviceKey(s))
+}
+
+func metadataKey(s services.ServiceID) string {
+	return fmt.Sprintf(keyFormat, metadataPrefix, serviceKey(s))
+}
+
+func serviceKey(s services.ServiceID) string {
+	if s.Environment() == "" {
+		return s.Name()
+	}
+	return fmt.Sprintf(keyFormat, s.Environment(), s.Name())
 }
