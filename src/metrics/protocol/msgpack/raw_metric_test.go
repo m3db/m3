@@ -87,8 +87,6 @@ func testRawMetric() *rawMetric {
 
 	m := NewRawMetric(testRawMetricData).(*rawMetric)
 	m.it = mockIt
-	m.readBytesFn = func(n int) []byte { return testRawMetricData[:n] }
-
 	return m
 }
 

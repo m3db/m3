@@ -41,6 +41,11 @@ var (
 		Timestamp: time.Now(),
 		Value:     123.45,
 	}
+	testMetric2 = aggregated.Metric{
+		ID:        metric.ID("bar"),
+		Timestamp: time.Now(),
+		Value:     678.90,
+	}
 
 	testPolicy = policy.Policy{
 		Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
@@ -175,7 +180,7 @@ func TestAggregatedEncodeDecodeStress(t *testing.T) {
 				})
 			} else {
 				inputs = append(inputs, metricWithPolicy{
-					metric: toRawMetric(t, testMetric),
+					metric: toRawMetric(t, testMetric2),
 					policy: testPolicy,
 				})
 			}
