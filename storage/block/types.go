@@ -47,11 +47,10 @@ type BlocksMetadata struct {
 // ReplicaMetadata captures block metadata along with corresponding peer identifier
 // for a single replica of a block
 type ReplicaMetadata struct {
-	ID       ts.ID
-	Start    time.Time
-	Size     int64
-	Checksum *uint32
-	Peer     topology.Host
+	Metadata
+
+	ID   ts.ID
+	Host topology.Host
 }
 
 // FilteredBlocksMetadataIter iterates over a list of blocks metadata results with filtering applied

@@ -455,7 +455,7 @@ func (_mr *_MockAdminSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockAdminSession) FetchRepairBlocksFromPeers(namespace ts.ID, shard uint32, blocks []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+func (_m *MockAdminSession) FetchBlocksFromPeers(namespace ts.ID, shard uint32, blocks []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
 	ret := _m.ctrl.Call(_m, "FetchRepairBlocksFromPeers", namespace, shard, blocks, opts)
 	ret0, _ := ret[0].(PeerBlocksIter)
 	ret1, _ := ret[1].(error)
@@ -593,7 +593,7 @@ func (_mr *_MockclientSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1,
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockclientSession) FetchRepairBlocksFromPeers(namespace ts.ID, shard uint32, blocks []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+func (_m *MockclientSession) FetchBlocksFromPeers(namespace ts.ID, shard uint32, blocks []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
 	ret := _m.ctrl.Call(_m, "FetchRepairBlocksFromPeers", namespace, shard, blocks, opts)
 	ret0, _ := ret[0].(PeerBlocksIter)
 	ret1, _ := ret[1].(error)

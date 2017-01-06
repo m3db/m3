@@ -59,6 +59,10 @@ const (
 	blocksMetadataInitialCapacity        = 64
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
+
+	resultTypeMetadata  = "metadata"
+	resultTypeBootstrap = "bootstrap"
+	resultTypeRaw       = "raw"
 )
 
 var (
@@ -122,6 +126,11 @@ type session struct {
 	metrics                          sessionMetrics
 }
 
+type shardMetricsKey struct {
+	shardID    uint32
+	resultType string
+}
+
 type sessionMetrics struct {
 	sync.RWMutex
 	writeSuccess               tally.Counter
@@ -130,7 +139,7 @@ type sessionMetrics struct {
 	fetchSuccess               tally.Counter
 	fetchErrors                tally.Counter
 	fetchNodesRespondingErrors []tally.Counter
-	streamFromPeersMetrics     map[uint32]streamFromPeersMetrics
+	streamFromPeersMetrics     map[shardMetricsKey]streamFromPeersMetrics
 }
 
 func newSessionMetrics(scope tally.Scope) sessionMetrics {
@@ -139,7 +148,7 @@ func newSessionMetrics(scope tally.Scope) sessionMetrics {
 		writeErrors:            scope.Counter("write.errors"),
 		fetchSuccess:           scope.Counter("fetch.success"),
 		fetchErrors:            scope.Counter("fetch.errors"),
-		streamFromPeersMetrics: make(map[uint32]streamFromPeersMetrics),
+		streamFromPeersMetrics: make(map[shardMetricsKey]streamFromPeersMetrics),
 	}
 }
 
@@ -234,9 +243,13 @@ func (s *session) ShardID(id string) (uint32, error) {
 	return value, nil
 }
 
-func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersMetrics {
+func (s *session) streamFromPeersMetricsForShard(
+	shard uint32,
+	resultType string,
+) *streamFromPeersMetrics {
+	mKey := shardMetricsKey{shardID: shard, resultType: resultType}
 	s.metrics.RLock()
-	m, ok := s.metrics.streamFromPeersMetrics[shard]
+	m, ok := s.metrics.streamFromPeersMetrics[mKey]
 	s.metrics.RUnlock()
 
 	if ok {
@@ -246,13 +259,14 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 	scope := s.opts.InstrumentOptions().MetricsScope()
 
 	s.metrics.Lock()
-	m, ok = s.metrics.streamFromPeersMetrics[shard]
+	m, ok = s.metrics.streamFromPeersMetrics[mKey]
 	if ok {
 		s.metrics.Unlock()
 		return &m
 	}
 	scope = scope.SubScope("stream-from-peers").Tagged(map[string]string{
-		"shard": fmt.Sprintf("%d", shard),
+		"shard":      fmt.Sprintf("%d", shard),
+		"resultType": resultType,
 	})
 	m = streamFromPeersMetrics{
 		fetchBlocksFromPeers:      scope.Gauge("fetch-blocks-inprogress"),
@@ -271,7 +285,7 @@ func (s *session) streamFromPeersMetricsForShard(shard uint32) *streamFromPeersM
 		}).Counter("fetch-block-retries"),
 		blocksEnqueueChannel: scope.Gauge("fetch-blocks-enqueue-channel-length"),
 	}
-	s.metrics.streamFromPeersMetrics[shard] = m
+	s.metrics.streamFromPeersMetrics[mKey] = m
 	s.metrics.Unlock()
 	return &m
 }
@@ -1117,7 +1131,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	var (
 		metadataCh = make(chan blocksMetadata, blocksMetadataChannelInitialCapacity)
 		errCh      = make(chan error, 1)
-		m          = s.streamFromPeersMetricsForShard(shard)
+		m          = s.streamFromPeersMetricsForShard(shard, resultTypeMetadata)
 	)
 
 	go func() {
@@ -1150,7 +1164,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		waitDone = func() error {
 			return <-doneCh
 		}
-		m = s.streamFromPeersMetricsForShard(shard)
+		m = s.streamFromPeersMetricsForShard(shard, resultTypeBootstrap)
 	)
 
 	peers, err := s.peersForShard(shard)
@@ -1193,13 +1207,14 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	return result.result, nil
 }
 
-func (s *session) FetchRepairBlocksFromPeers(
+func (s *session) FetchBlocksFromPeers(
 	namespace ts.ID,
 	shard uint32,
-	repairBlocks []block.ReplicaMetadata,
+	metadatas []block.ReplicaMetadata,
 	opts result.Options,
 ) (PeerBlocksIter, error) {
 	var (
+		logger   = opts.InstrumentOptions().Logger()
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
@@ -1211,7 +1226,7 @@ func (s *session) FetchRepairBlocksFromPeers(
 			default:
 			}
 		}
-		m = s.streamFromPeersMetricsForShard(shard)
+		m = s.streamFromPeersMetricsForShard(shard, resultTypeRaw)
 	)
 
 	peers, err := s.peersForShard(shard)
@@ -1231,15 +1246,18 @@ func (s *session) FetchRepairBlocksFromPeers(
 		m.fetchBlocksFromPeers.Update(0)
 	}()
 
-	// Transform provided repairBlocks into channel
+	// transform provided metadatas into channel
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
-		for _, rb := range repairBlocks {
-			peer, ok := peersByHost[rb.Peer.ID()]
+		for _, rb := range metadatas {
+			peer, ok := peersByHost[rb.Host.ID()]
 			if !ok {
-				err := fmt.Errorf("unable to find peer: %v", rb.Peer.ID())
-				onDone(err) // bail early
-				break
+				logger.WithFields(
+					xlog.NewLogField("peer", rb.Host.String()),
+					xlog.NewLogField("id", rb.ID.String()),
+					xlog.NewLogField("start", rb.Start.String()),
+				).Warnf("replica requested from unknown peer, skipping")
+				continue
 			}
 			metadataCh <- blocksMetadata{
 				id:   rb.ID,
@@ -2100,8 +2118,8 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		}
 		encoder, err := b.mergeReaders(start, readers)
 		if err != nil {
-			encoder.Close() // return encoder to pool
-			result.Close()  // return block to pool
+			// mergeReaders(...) already calls encoder.Close() upon error
+			result.Close() // return block to pool
 			return nil, err
 		}
 

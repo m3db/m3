@@ -336,7 +336,7 @@ func TestFetchRepairBlocksAllPeersSucceed(t *testing.T) {
 	}()
 	blockReplicasMetadata := testBlocksToBlockReplicasMetadata(t, peerBlocks, mockHostQueues[1:])
 	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchRepairBlocksFromPeers(nsID, 0, blockReplicasMetadata, bootstrapOpts)
+	result, err := session.FetchBlocksFromPeers(nsID, 0, blockReplicasMetadata, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -445,11 +445,13 @@ func testBlocksToBlockReplicasMetadata(
 		for _, bm := range blocksMetadata {
 			for _, b := range bm.blocks {
 				blockReplicas = append(blockReplicas, block.ReplicaMetadata{
-					ID:       bm.id,
-					Start:    b.start,
-					Size:     *(b.size),
-					Checksum: b.checksum,
-					Peer:     peerHost,
+					Metadata: block.Metadata{
+						Start:    b.start,
+						Size:     *(b.size),
+						Checksum: b.checksum,
+					},
+					ID:   bm.id,
+					Host: peerHost,
 				})
 			}
 		}
@@ -951,7 +953,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		peerIdx   = len(mockHostQueues) - 1
 		peer      = mockHostQueues[peerIdx]
 		client    = mockClients[peerIdx]
-		enqueueCh = newEnqueueChannel(session.streamFromPeersMetricsForShard(0))
+		enqueueCh = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, "test"))
 		batch     = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
 				{start: start, size: 2, reattempt: blockMetadataReattempt{
@@ -990,7 +992,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	// Attempt stream blocks
 	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
 	bopts := result.NewOptions().SetRetentionOptions(ropts)
-	m := session.streamFromPeersMetricsForShard(0)
+	m := session.streamFromPeersMetricsForShard(0, "test")
 	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
 	// Assert result

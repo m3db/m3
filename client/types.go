@@ -207,12 +207,12 @@ type AdminSession interface {
 		opts result.Options,
 	) (result.ShardResult, error)
 
-	// FetchRepairBlocksFromPeers will fetch the requested blocks from the
+	// FetchBlocksFromPeers will fetch the required blocks from the
 	// peers specified
-	FetchRepairBlocksFromPeers(
+	FetchBlocksFromPeers(
 		namespace ts.ID,
 		shard uint32,
-		blocks []block.ReplicaMetadata,
+		metadatas []block.ReplicaMetadata,
 		opts result.Options,
 	) (PeerBlocksIter, error)
 }
