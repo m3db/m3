@@ -33,7 +33,7 @@ var (
 	emptyMetric aggregated.Metric
 )
 
-type readBytesFn func(n int) []byte
+type readBytesFn func(start int, n int) []byte
 
 // rawMetric is a raw metric
 type rawMetric struct {
@@ -56,7 +56,7 @@ func NewRawMetric(data []byte) aggregated.RawMetric {
 		it:   newBaseIterator(buf),
 	}
 
-	m.readBytesFn = m.buf.Next
+	m.readBytesFn = m.readBytes
 
 	return m
 }
@@ -138,12 +138,11 @@ func (m *rawMetric) decodeID() {
 	if m.it.err() != nil {
 		return
 	}
-	if idLen < 0 || idLen > m.buf.Len() {
-		err := fmt.Errorf("invalid id length %d", idLen)
-		m.it.setErr(err)
+	numRead := len(m.data) - m.buf.Len()
+	m.metric.ID = m.readBytesFn(numRead, idLen)
+	if m.it.err() != nil {
 		return
 	}
-	m.metric.ID = m.readBytesFn(idLen)
 	m.idDecoded = true
 }
 
@@ -169,4 +168,20 @@ func (m *rawMetric) decodeValue() {
 	}
 	m.metric.Value = v
 	m.valueDecoded = true
+}
+
+func (m *rawMetric) readBytes(start int, n int) []byte {
+	numBytes := len(m.data)
+	if n < 0 || start < 0 || start+n > numBytes {
+		err := fmt.Errorf("invalid start %d and length %d, numBytes=%d", start, n, numBytes)
+		m.it.setErr(err)
+		return nil
+	}
+	// Advance the internal buffer index
+	if numRead := len(m.buf.Next(n)); numRead != n {
+		err := fmt.Errorf("num bytes read %d doesn't match target length %d", numRead, n)
+		m.it.setErr(err)
+		return nil
+	}
+	return m.data[start : start+n]
 }
