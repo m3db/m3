@@ -324,18 +324,20 @@ func (r ShardTimeRanges) MinMax() (time.Time, time.Time) {
 	return min, max
 }
 
-// String returns a description of the time ranges
-func (r ShardTimeRanges) String() string {
-	var (
-		buf    bytes.Buffer
-		values []shardTimeRanges
-	)
+type summaryFn func(xtime.Ranges) string
+
+func (r ShardTimeRanges) summarize(sfn summaryFn) string {
+	values := make([]shardTimeRanges, 0, len(r))
 	for shard, ranges := range r {
 		values = append(values, shardTimeRanges{shard: shard, value: ranges})
 	}
-
 	sort.Sort(shardTimeRangesByShard(values))
-	hasPrev := false
+
+	var (
+		buf     bytes.Buffer
+		hasPrev = false
+	)
+
 	buf.WriteString("{")
 	for _, v := range values {
 		shard, ranges := v.shard, v.value
@@ -344,46 +346,33 @@ func (r ShardTimeRanges) String() string {
 		}
 		hasPrev = true
 
-		buf.WriteString(fmt.Sprintf("%d: %s", shard, ranges.String()))
+		buf.WriteString(fmt.Sprintf("%d: %s", shard, sfn(ranges)))
 	}
 	buf.WriteString("}")
 
 	return buf.String()
 }
 
+// String returns a description of the time ranges
+func (r ShardTimeRanges) String() string {
+	return r.summarize(xtime.Ranges.String)
+}
+
+func rangesDuration(ranges xtime.Ranges) string {
+	var (
+		duration time.Duration
+		it       = ranges.Iter()
+	)
+	for it.Next() {
+		curr := it.Value()
+		duration += curr.End.Sub(curr.Start)
+	}
+	return duration.String()
+}
+
 // SummaryString returns a summary description of the time ranges
 func (r ShardTimeRanges) SummaryString() string {
-	var (
-		buf    bytes.Buffer
-		values []shardTimeRanges
-	)
-	for shard, ranges := range r {
-		values = append(values, shardTimeRanges{shard: shard, value: ranges})
-	}
-
-	sort.Sort(shardTimeRangesByShard(values))
-	hasPrev := false
-	buf.WriteString("{")
-	for _, v := range values {
-		shard, ranges := v.shard, v.value
-		if hasPrev {
-			buf.WriteString(", ")
-		}
-		hasPrev = true
-
-		var (
-			duration time.Duration
-			it       = ranges.Iter()
-		)
-		for it.Next() {
-			curr := it.Value()
-			duration += curr.End.Sub(curr.Start)
-		}
-		buf.WriteString(fmt.Sprintf("%d: %s", shard, duration.String()))
-	}
-	buf.WriteString("}")
-
-	return buf.String()
+	return r.summarize(rangesDuration)
 }
 
 type shardTimeRanges struct {
