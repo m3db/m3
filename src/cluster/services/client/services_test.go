@@ -39,6 +39,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestOptions(t *testing.T) {
+	opts := NewOptions()
+	require.Equal(t, errNoKVGen, opts.Validate())
+
+	opts = opts.SetKVGen(func(zone string) (kv.Store, error) {
+		return nil, nil
+	})
+	require.Equal(t, errNoHeartbeatGen, opts.Validate())
+
+	opts = opts.SetHeartbeatGen(func(zone string) (heartbeat.Store, error) {
+		return nil, nil
+	})
+	require.NoError(t, opts.Validate())
+
+	opts = opts.SetInitTimeout(0)
+	require.Equal(t, errInvalidInitTimeout, opts.Validate())
+
+	opts = opts.SetHeartbeatCheckInterval(0)
+	require.Equal(t, errInvalidHeartbeatInterval, opts.Validate())
+}
+
 func TestMetadata(t *testing.T) {
 	opts, closer, _ := testSetup(t)
 	defer closer()
