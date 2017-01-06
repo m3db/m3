@@ -163,6 +163,17 @@ type bootstrappableTestSetupOptions struct {
 
 type closeFn func()
 
+func newDefaulTestResultOptions(
+	storageOpts storage.Options,
+	instrumentOpts instrument.Options,
+) result.Options {
+	return result.NewOptions().
+		SetClockOptions(storageOpts.ClockOptions()).
+		SetInstrumentOptions(instrumentOpts).
+		SetRetentionOptions(storageOpts.RetentionOptions()).
+		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
+}
+
 func newDefaultBootstrappableTestSetups(
 	t *testing.T,
 	opts testOptions,
@@ -198,12 +209,7 @@ func newDefaultBootstrappableTestSetups(
 		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
 			instrumentOpts := setup.storageOpts.InstrumentOptions()
 
-			bsOpts := result.NewOptions().
-				SetClockOptions(setup.storageOpts.ClockOptions()).
-				SetInstrumentOptions(instrumentOpts).
-				SetRetentionOptions(setup.storageOpts.RetentionOptions()).
-				SetDatabaseBlockOptions(setup.storageOpts.DatabaseBlockOptions())
-
+			bsOpts := newDefaulTestResultOptions(setup.storageOpts, instrumentOpts)
 			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
 
 			var adminClient client.AdminClient
