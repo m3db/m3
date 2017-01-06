@@ -27,7 +27,6 @@ import (
 	time "time"
 
 	gomock "github.com/golang/mock/gomock"
-	result "github.com/m3db/m3db/client/result"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
@@ -38,6 +37,7 @@ import (
 	sharding "github.com/m3db/m3db/sharding"
 	block "github.com/m3db/m3db/storage/block"
 	bootstrap "github.com/m3db/m3db/storage/bootstrap"
+	result "github.com/m3db/m3db/storage/bootstrap/result"
 	repair "github.com/m3db/m3db/storage/repair"
 	series "github.com/m3db/m3db/storage/series"
 	ts "github.com/m3db/m3db/ts"

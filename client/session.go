@@ -32,7 +32,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
@@ -40,6 +39,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"

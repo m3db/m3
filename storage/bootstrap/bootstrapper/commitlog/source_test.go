@@ -27,11 +27,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 

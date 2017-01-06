@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/client/result"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
 type options struct {

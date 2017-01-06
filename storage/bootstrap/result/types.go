@@ -31,6 +31,24 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// BootstrapResult is the result of a bootstrap.
+type BootstrapResult interface {
+	// ShardResults is the results of all shards for the bootstrap.
+	ShardResults() ShardResults
+
+	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
+	Unfulfilled() ShardTimeRanges
+
+	// Add adds a shard result with any unfulfilled time ranges.
+	Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges)
+
+	// SetUnfulfilled sets the current unfulfilled shard time ranges.
+	SetUnfulfilled(unfulfilled ShardTimeRanges)
+
+	// AddResult adds a result.
+	AddResult(other BootstrapResult)
+}
+
 // ShardResult returns the bootstrap result for a shard.
 type ShardResult interface {
 	// IsEmpty returns whether the result is empty.
@@ -74,7 +92,7 @@ type ShardResults map[uint32]ShardResult
 // ShardTimeRanges is a map of shards to time ranges.
 type ShardTimeRanges map[uint32]xtime.Ranges
 
-// Options represents the options for fetching results
+// Options represents the options for bootstrap results
 type Options interface {
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options

@@ -21,7 +21,7 @@
 package bootstrap
 
 import (
-	"github.com/m3db/m3db/client/result"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -32,7 +32,7 @@ type NewBootstrapFn func() Bootstrap
 // Bootstrap represents the bootstrap process.
 type Bootstrap interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(targetRanges xtime.Ranges, namespace ts.ID, shards []uint32) (Result, error)
+	Run(targetRanges xtime.Ranges, namespace ts.ID, shards []uint32) (result.BootstrapResult, error)
 }
 
 // Strategy describes a bootstrap strategy.
@@ -57,7 +57,7 @@ type Bootstrapper interface {
 	// series data and the time ranges it's unable to fulfill in parallel. A bootstrapper
 	// should only return an error should it want to entirely cancel the bootstrapping of the
 	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
-	Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (Result, error)
+	Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error)
 }
 
 // Source represents a bootstrap source.
@@ -72,23 +72,5 @@ type Source interface {
 	// the time ranges it's unable to fulfill. A bootstrapper source should only return
 	// an error should it want to entirely cancel the bootstrapping of the node,
 	// i.e. non-recoverable situation like not being able to read from the filesystem.
-	Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (Result, error)
-}
-
-// Result is the result of a bootstrap.
-type Result interface {
-	// ShardResults is the results of all shards for the bootstrap.
-	ShardResults() result.ShardResults
-
-	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
-	Unfulfilled() result.ShardTimeRanges
-
-	// Add adds a shard result with any unfulfilled time ranges.
-	Add(shard uint32, shardResult result.ShardResult, unfulfilled xtime.Ranges)
-
-	// SetUnfulfilled sets the current unfulfilled shard time ranges.
-	SetUnfulfilled(unfulfilled result.ShardTimeRanges)
-
-	// AddResult adds a result.
-	AddResult(other Result)
+	Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error)
 }

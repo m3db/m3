@@ -29,11 +29,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"

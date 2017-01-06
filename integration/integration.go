@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"

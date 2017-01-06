@@ -30,10 +30,10 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"

@@ -24,8 +24,8 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
 const (

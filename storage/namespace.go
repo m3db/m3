@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
@@ -15,6 +14,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"

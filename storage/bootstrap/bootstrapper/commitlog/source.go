@@ -25,11 +25,11 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -81,7 +81,7 @@ func (s *commitLogSource) Available(
 func (s *commitLogSource) Read(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
-) (bootstrap.Result, error) {
+) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -173,7 +173,7 @@ func (s *commitLogSource) Read(
 
 	errs = 0
 	emptyErrs := 0
-	bootstrapResult := bootstrap.NewResult()
+	bootstrapResult := result.NewBootstrapResult()
 	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
 	for shard, unmergedShard := range unmerged {

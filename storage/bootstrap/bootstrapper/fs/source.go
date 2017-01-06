@@ -24,9 +24,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -175,11 +175,11 @@ func (s *fileSystemSource) enqueueReaders(
 func (s *fileSystemSource) bootstrapFromReaders(
 	readerPool *readerPool,
 	readersCh <-chan shardReaders,
-) bootstrap.Result {
+) result.BootstrapResult {
 	var (
 		wg              sync.WaitGroup
 		resultLock      sync.Mutex
-		bootstrapResult = bootstrap.NewResult()
+		bootstrapResult = result.NewBootstrapResult()
 		bopts           = s.opts.ResultOptions()
 	)
 
@@ -278,7 +278,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 func (s *fileSystemSource) Read(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
-) (bootstrap.Result, error) {
+) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}

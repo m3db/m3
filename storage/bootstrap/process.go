@@ -23,7 +23,7 @@ package bootstrap
 import (
 	"errors"
 
-	"github.com/m3db/m3db/client/result"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -56,8 +56,8 @@ func (b *bootstrapProcess) Run(
 	targetRanges xtime.Ranges,
 	namespace ts.ID,
 	shards []uint32,
-) (Result, error) {
-	bootstrapResult := NewResult()
+) (result.BootstrapResult, error) {
+	bootstrapResult := result.NewBootstrapResult()
 	it := targetRanges.Iter()
 	for it.Next() {
 		shardsTimeRanges := make(result.ShardTimeRanges, len(shards))

@@ -31,6 +31,44 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
+type bootstrapResult struct {
+	results     ShardResults
+	unfulfilled ShardTimeRanges
+}
+
+// NewBootstrapResult creates a new result.
+func NewBootstrapResult() BootstrapResult {
+	return &bootstrapResult{
+		results:     make(ShardResults),
+		unfulfilled: make(ShardTimeRanges),
+	}
+}
+
+func (r *bootstrapResult) ShardResults() ShardResults {
+	return r.results
+}
+
+func (r *bootstrapResult) Unfulfilled() ShardTimeRanges {
+	return r.unfulfilled
+}
+
+func (r *bootstrapResult) Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
+	r.results.AddResults(ShardResults{shard: result})
+	r.unfulfilled.AddRanges(ShardTimeRanges{shard: unfulfilled})
+}
+
+func (r *bootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
+	r.unfulfilled = unfulfilled
+}
+
+func (r *bootstrapResult) AddResult(other BootstrapResult) {
+	if other == nil {
+		return
+	}
+	r.results.AddResults(other.ShardResults())
+	r.unfulfilled.AddRanges(other.Unfulfilled())
+}
+
 type shardResult struct {
 	opts   Options
 	blocks map[ts.Hash]DatabaseSeriesBlocks
@@ -235,6 +273,16 @@ func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
 			r[shard] = ranges
 		}
 	}
+}
+
+// ToUnfulfilledResult will return a result that is comprised of wholly
+// unfufilled time ranges from the set of shard time ranges.
+func (r ShardTimeRanges) ToUnfulfilledResult() BootstrapResult {
+	result := NewBootstrapResult()
+	for shard, ranges := range r {
+		result.Add(shard, nil, ranges)
+	}
+	return result
 }
 
 // Subtract will subtract another range from the current range.

@@ -37,6 +37,167 @@ func testResultOptions() Options {
 	return NewOptions()
 }
 
+func TestResultAddMergesExistingShardResults(t *testing.T) {
+	opts := testResultOptions()
+	blopts := opts.DatabaseBlockOptions()
+
+	blockSize := opts.RetentionOptions().BlockSize()
+	start := time.Now().Truncate(blockSize)
+
+	blocks := []block.DatabaseBlock{
+		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
+	}
+
+	srs := []ShardResult{
+		NewShardResult(0, opts),
+		NewShardResult(0, opts),
+	}
+
+	srs[0].AddBlock(ts.StringID("foo"), blocks[0])
+	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
+	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
+
+	r := NewBootstrapResult()
+	r.Add(0, srs[0], nil)
+	r.Add(0, srs[1], nil)
+
+	srMerged := NewShardResult(0, opts)
+	srMerged.AddBlock(ts.StringID("foo"), blocks[0])
+	srMerged.AddBlock(ts.StringID("foo"), blocks[1])
+	srMerged.AddBlock(ts.StringID("bar"), blocks[2])
+
+	merged := NewBootstrapResult()
+	merged.Add(0, srMerged, nil)
+
+	assert.True(t, r.ShardResults().Equal(merged.ShardResults()))
+}
+
+func TestResultAddMergesUnfulfilled(t *testing.T) {
+	opts := testResultOptions()
+
+	blockSize := opts.RetentionOptions().BlockSize()
+	start := time.Now().Truncate(blockSize)
+
+	r := NewBootstrapResult()
+
+	r.Add(0, nil, xtime.NewRanges().AddRange(xtime.Range{
+		Start: start,
+		End:   start.Add(8 * blockSize),
+	}))
+
+	r.Add(0, nil, xtime.NewRanges().AddRange(xtime.Range{
+		Start: start,
+		End:   start.Add(2 * blockSize),
+	}).AddRange(xtime.Range{
+		Start: start.Add(6 * blockSize),
+		End:   start.Add(10 * blockSize),
+	}))
+
+	expected := ShardTimeRanges{0: xtime.NewRanges().AddRange(xtime.Range{
+		Start: start,
+		End:   start.Add(10 * blockSize),
+	})}
+
+	assert.True(t, r.Unfulfilled().Equal(expected))
+}
+
+func TestResultSetUnfulfilled(t *testing.T) {
+	opts := testResultOptions()
+
+	blockSize := opts.RetentionOptions().BlockSize()
+	start := time.Now().Truncate(blockSize)
+
+	r := NewBootstrapResult()
+	r.SetUnfulfilled(ShardTimeRanges{
+		0: xtime.NewRanges().AddRange(xtime.Range{
+			Start: start,
+			End:   start.Add(2 * blockSize),
+		}),
+		1: xtime.NewRanges().AddRange(xtime.Range{
+			Start: start,
+			End:   start.Add(2 * blockSize),
+		}),
+	})
+	r.SetUnfulfilled(ShardTimeRanges{
+		1: xtime.NewRanges().AddRange(xtime.Range{
+			Start: start,
+			End:   start.Add(2 * blockSize),
+		}),
+	})
+
+	assert.True(t, r.Unfulfilled().Equal(ShardTimeRanges{
+		1: xtime.NewRanges().AddRange(xtime.Range{
+			Start: start,
+			End:   start.Add(2 * blockSize),
+		}),
+	}))
+}
+
+func TestResultAddResult(t *testing.T) {
+	opts := testResultOptions()
+	blopts := opts.DatabaseBlockOptions()
+
+	blockSize := opts.RetentionOptions().BlockSize()
+	start := time.Now().Truncate(blockSize)
+
+	blocks := []block.DatabaseBlock{
+		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
+	}
+
+	srs := []ShardResult{
+		NewShardResult(0, opts),
+		NewShardResult(0, opts),
+	}
+
+	srs[0].AddBlock(ts.StringID("foo"), blocks[0])
+	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
+	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
+
+	rs := []BootstrapResult{
+		NewBootstrapResult(),
+		NewBootstrapResult(),
+	}
+
+	rs[0].Add(0, srs[0], xtime.NewRanges().AddRange(xtime.Range{
+		Start: start.Add(4 * blockSize),
+		End:   start.Add(6 * blockSize),
+	}))
+
+	rs[1].Add(0, srs[1], xtime.NewRanges().AddRange(xtime.Range{
+		Start: start.Add(6 * blockSize),
+		End:   start.Add(8 * blockSize),
+	}))
+
+	r := rs[0]
+	r.AddResult(rs[1])
+
+	srMerged := NewShardResult(0, opts)
+	srMerged.AddBlock(ts.StringID("foo"), blocks[0])
+	srMerged.AddBlock(ts.StringID("foo"), blocks[1])
+	srMerged.AddBlock(ts.StringID("bar"), blocks[2])
+
+	expected := struct {
+		shardResults ShardResults
+		unfulfilled  ShardTimeRanges
+	}{
+		ShardResults{0: srMerged},
+		ShardTimeRanges{0: xtime.NewRanges().AddRange(xtime.Range{
+			Start: start.Add(4 * blockSize),
+			End:   start.Add(6 * blockSize),
+		}).AddRange(xtime.Range{
+			Start: start.Add(6 * blockSize),
+			End:   start.Add(8 * blockSize),
+		})},
+	}
+
+	assert.True(t, r.ShardResults().Equal(expected.shardResults))
+	assert.True(t, r.Unfulfilled().Equal(expected.unfulfilled))
+}
+
 func TestShardResultIsEmpty(t *testing.T) {
 	opts := testResultOptions()
 	sr := NewShardResult(0, opts)
@@ -146,6 +307,22 @@ func TestShardTimeRangesCopy(t *testing.T) {
 	// Ensure is a copy not same instance
 	assert.NotEqual(t, fmt.Sprintf("%p", str), fmt.Sprintf("%p", copied))
 	assert.True(t, str.Equal(copied))
+}
+
+func TestShardTimeRangesToUnfulfilledResult(t *testing.T) {
+	str := ShardTimeRanges{
+		0: xtime.NewRanges().AddRange(xtime.Range{
+			Start: time.Now(),
+			End:   time.Now().Add(time.Minute),
+		}),
+		1: xtime.NewRanges().AddRange(xtime.Range{
+			Start: time.Now().Add(3 * time.Minute),
+			End:   time.Now().Add(4 * time.Minute),
+		}),
+	}
+	r := str.ToUnfulfilledResult()
+	assert.Equal(t, 0, len(r.ShardResults()))
+	assert.True(t, r.Unfulfilled().Equal(str))
 }
 
 func TestShardTimeRangesSubtract(t *testing.T) {

@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -77,8 +77,8 @@ func shardResult(entries ...testBlockEntry) result.ShardResult {
 	return res
 }
 
-func testResult(results map[uint32]testShardResult) bootstrap.Result {
-	result := bootstrap.NewResult()
+func testResult(results map[uint32]testShardResult) result.BootstrapResult {
+	result := result.NewBootstrapResult()
 	for shard, entry := range results {
 		result.Add(shard, entry.result, entry.unfulfilled)
 	}
@@ -108,7 +108,7 @@ func validateSeries(t *testing.T, expectedSeries, actualSeries block.DatabaseSer
 	}
 }
 
-func validateResult(t *testing.T, expected, actual bootstrap.Result) {
+func validateResult(t *testing.T, expected, actual result.BootstrapResult) {
 	if expected == nil {
 		require.Nil(t, actual)
 		return
