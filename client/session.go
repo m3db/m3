@@ -1246,9 +1246,16 @@ func (s *session) FetchBlocksFromPeers(
 		m.fetchBlocksFromPeers.Update(0)
 	}()
 
-	// transform provided metadatas into channel
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
+		// the streamBlocksFromPeers machinery assumes block metadata is grouped
+		// by unique values of (id, host) into `blocksMetadata` structs
+		// we perform this transformation below
+		type midKey struct {
+			idHash ts.Hash
+			peer   string
+		}
+		metadatasByID := make(map[midKey]blocksMetadata, len(metadatas))
 		for _, rb := range metadatas {
 			peer, ok := peersByHost[rb.Host.ID()]
 			if !ok {
@@ -1259,17 +1266,26 @@ func (s *session) FetchBlocksFromPeers(
 				).Warnf("replica requested from unknown peer, skipping")
 				continue
 			}
-			metadataCh <- blocksMetadata{
-				id:   rb.ID,
-				peer: peer,
-				blocks: []blockMetadata{
-					blockMetadata{
-						start:    rb.Start,
-						size:     rb.Size,
-						checksum: rb.Checksum,
-					},
-				},
+			mk := midKey{rb.ID.Hash(), rb.Host.ID()}
+			bm, ok := metadatasByID[mk]
+			if !ok {
+				bm = blocksMetadata{
+					id:     rb.ID,
+					peer:   peer,
+					blocks: []blockMetadata{},
+				}
 			}
+			bm.blocks = append(bm.blocks, blockMetadata{
+				start:    rb.Start,
+				size:     rb.Size,
+				checksum: rb.Checksum,
+			})
+			metadatasByID[mk] = bm
+		}
+
+		// insert the transformed metadata into the request channel
+		for _, bm := range metadatasByID {
+			metadataCh <- bm
 		}
 		close(metadataCh)
 	}()
