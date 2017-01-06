@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/client/result"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 
 	"github.com/stretchr/testify/require"
 )
