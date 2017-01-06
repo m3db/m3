@@ -39,7 +39,7 @@ var (
 	errNoKVGen                  = errors.New("no KVGen function set")
 	errNoHeartbeatGen           = errors.New("no HeartbeatGen function set")
 	errInvalidHeartbeatInterval = errors.New("non-positive interval for heartbeat check")
-	errInvalidHInitTimeout      = errors.New("non-positive init timeout for service watch")
+	errInvalidInitTimeout       = errors.New("non-positive init timeout for service watch")
 )
 
 // KVGen generates a kv store for a given zone
@@ -109,7 +109,7 @@ func (o options) Validate() error {
 	}
 
 	if o.hbGen == nil {
-		return errNoKVGen
+		return errNoHeartbeatGen
 	}
 
 	if o.hbInterval <= 0 {
@@ -117,7 +117,7 @@ func (o options) Validate() error {
 	}
 
 	if o.initTimeout <= 0 {
-		return errInvalidHInitTimeout
+		return errInvalidInitTimeout
 	}
 
 	return nil
