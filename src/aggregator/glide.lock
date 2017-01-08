@@ -1,5 +1,5 @@
-hash: 256e975ba2a621abcae8cc90c9b6bede6f6cce15014660983fa441f7a0500ae4
-updated: 2016-12-27T22:53:29.495551966-05:00
+hash: c3849df6d6a03739bb32a5a31efc32bbc1db08ac5b044a9c8260400187d93a80
+updated: 2017-01-06T17:17:59.39175414-05:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
@@ -8,7 +8,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3metrics
-  version: e048526e1c6bc12edbe3b082c54e1c6cd9ca3c57
+  version: 92d021a01ae1a259f518b4670589ed607c297027
   subpackages:
   - metric
   - metric/aggregated
@@ -17,8 +17,10 @@ imports:
   - pool
   - protocol/msgpack
 - name: github.com/m3db/m3x
-  version: f842df6a45a44771d5b399ad19efcbe67a4f2887
+  version: fcb5878c2ad11ab932afc2d30810da4a23986d0e
   subpackages:
+  - checked
+  - clock
   - errors
   - instrument
   - log
@@ -39,7 +41,7 @@ imports:
   subpackages:
   - context
 - name: google.golang.org/appengine
-  version: 08a149cfaee099e6ce4be01c0113a78c85ee1dee
+  version: 8758a385849434ba5eac8aeedcf5192c5a0f5f10
   subpackages:
   - datastore
   - internal

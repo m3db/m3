@@ -18,21 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregation
+package aggregator
 
-import (
-	"testing"
+import "github.com/m3db/m3x/pool"
 
-	"github.com/stretchr/testify/require"
-)
+type entryPool struct {
+	pool pool.ObjectPool
+}
 
-func TestCounter(t *testing.T) {
-	var c Counter
-	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
-	}
-	require.Equal(t, int64(5050), c.Sum())
+// NewEntryPool creates a new pool for entries
+func NewEntryPool(opts pool.ObjectPoolOptions) EntryPool {
+	return &entryPool{pool: pool.NewObjectPool(opts)}
+}
 
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
+func (p *entryPool) Init(alloc EntryAlloc) {
+	p.pool.Init(func() interface{} {
+		return alloc()
+	})
+}
+
+func (p *entryPool) Get() *Entry {
+	return p.pool.Get().(*Entry)
+}
+
+func (p *entryPool) Put(value *Entry) {
+	p.pool.Put(value)
 }

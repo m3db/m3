@@ -53,7 +53,7 @@ func NewOptions() Options {
 		return msgpack.NewUnaggregatedIterator(nil, opts)
 	})
 
-	return options{
+	return &options{
 		instrumentOpts:  instrument.NewOptions(),
 		retrier:         xretry.NewRetrier(xretry.NewOptions()),
 		iteratorPool:    iteratorPool,
@@ -62,52 +62,52 @@ func NewOptions() Options {
 	}
 }
 
-func (o options) SetInstrumentOptions(value instrument.Options) Options {
-	opts := o
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
+	opts := *o
 	opts.instrumentOpts = value
-	return opts
+	return &opts
 }
 
-func (o options) InstrumentOptions() instrument.Options {
+func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o options) SetRetrier(value xretry.Retrier) Options {
-	opts := o
+func (o *options) SetRetrier(value xretry.Retrier) Options {
+	opts := *o
 	opts.retrier = value
-	return opts
+	return &opts
 }
 
-func (o options) Retrier() xretry.Retrier {
+func (o *options) Retrier() xretry.Retrier {
 	return o.retrier
 }
 
-func (o options) SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options {
-	opts := o
+func (o *options) SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options {
+	opts := *o
 	opts.iteratorPool = value
-	return opts
+	return &opts
 }
 
-func (o options) IteratorPool() msgpack.UnaggregatedIteratorPool {
+func (o *options) IteratorPool() msgpack.UnaggregatedIteratorPool {
 	return o.iteratorPool
 }
 
-func (o options) SetPacketQueueSize(value int) Options {
-	opts := o
+func (o *options) SetPacketQueueSize(value int) Options {
+	opts := *o
 	opts.packetQueueSize = value
-	return opts
+	return &opts
 }
 
-func (o options) PacketQueueSize() int {
+func (o *options) PacketQueueSize() int {
 	return o.packetQueueSize
 }
 
-func (o options) SetWorkerPoolSize(value int) Options {
-	opts := o
+func (o *options) SetWorkerPoolSize(value int) Options {
+	opts := *o
 	opts.workerPoolSize = value
-	return opts
+	return &opts
 }
 
-func (o options) WorkerPoolSize() int {
+func (o *options) WorkerPoolSize() int {
 	return o.workerPoolSize
 }

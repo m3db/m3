@@ -32,12 +32,13 @@ import (
 func testStreamOptions() Options {
 	return NewOptions().
 		SetEps(0.01).
+		SetCapacity(16).
 		SetQuantiles([]float64{0.5, 0.9, 0.99})
 }
 
 func TestEmptyStream(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(0, opts)
+	s := NewStream(opts)
 	require.Equal(t, 0.0, s.Min())
 	require.Equal(t, 0.0, s.Max())
 	for _, q := range opts.Quantiles() {
@@ -47,7 +48,7 @@ func TestEmptyStream(t *testing.T) {
 
 func TestStreamWithOnePositiveSample(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(0, opts)
+	s := NewStream(opts)
 	s.Add(100.0)
 	s.Flush()
 
@@ -60,7 +61,7 @@ func TestStreamWithOnePositiveSample(t *testing.T) {
 
 func TestStreamWithOneNegativeSample(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(0, opts)
+	s := NewStream(opts)
 	s.Add(-100.0)
 	s.Flush()
 
@@ -73,7 +74,7 @@ func TestStreamWithOneNegativeSample(t *testing.T) {
 
 func TestStreamWithThreeSamples(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(0, opts)
+	s := NewStream(opts)
 	for _, val := range []float64{100.0, 200.0, 300.0} {
 		s.Add(val)
 	}
@@ -90,7 +91,7 @@ func TestStreamWithThreeSamples(t *testing.T) {
 func TestStreamWithIncreasingSamples(t *testing.T) {
 	numSamples := 100000
 	opts := testStreamOptions()
-	s := NewStream(0, opts)
+	s := NewStream(opts)
 	for i := 0; i < numSamples; i++ {
 		s.Add(float64(i))
 	}
@@ -108,7 +109,7 @@ func TestStreamWithIncreasingSamples(t *testing.T) {
 func TestStreamWithDecreasingSamples(t *testing.T) {
 	numSamples := 100000
 	opts := testStreamOptions()
-	s := NewStream(0, opts)
+	s := NewStream(opts)
 	for i := numSamples - 1; i >= 0; i-- {
 		s.Add(float64(i))
 	}
@@ -127,7 +128,7 @@ func TestStreamWithRandomSamples(t *testing.T) {
 	numSamples := 100000
 	maxInt64 := int64(math.MaxInt64)
 	opts := testStreamOptions()
-	s := NewStream(0, opts)
+	s := NewStream(opts)
 	min := math.MaxFloat64
 	max := -1.0
 
@@ -152,7 +153,7 @@ func TestStreamWithRandomSamples(t *testing.T) {
 
 func TestStreamWithSkewedDistribution(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(0, opts)
+	s := NewStream(opts)
 	for i := 0; i < 10000; i++ {
 		s.Add(1.0)
 	}
@@ -170,7 +171,7 @@ func TestStreamWithSkewedDistribution(t *testing.T) {
 
 func TestStreamClose(t *testing.T) {
 	opts := testStreamOptions()
-	s := NewStream(0, opts).(*stream)
+	s := NewStream(opts).(*stream)
 	require.False(t, s.closed)
 
 	// Close the stream
@@ -190,7 +191,7 @@ func TestStreamAddToMinHeap(t *testing.T) {
 		}, nil)
 	floatsPool.Init()
 	opts := testStreamOptions().SetFloatsPool(floatsPool)
-	s := NewStream(0, opts).(*stream)
+	s := NewStream(opts).(*stream)
 
 	heap := minHeap(floatsPool.Get(1))
 	require.Equal(t, 1, cap(heap))

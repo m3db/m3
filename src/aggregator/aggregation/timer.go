@@ -20,13 +20,24 @@
 
 package aggregation
 
-import "math"
+import (
+	"math"
+
+	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+)
+
+// NewTimer creates a new timer
+func NewTimer(opts cm.Options) *Timer {
+	return &Timer{
+		stream: cm.NewStream(opts),
+	}
+}
 
 // Add adds a timer value
 func (t *Timer) Add(value float64) {
 	t.count++
 	t.sum += value
-	t.squaredSum += math.Pow(value, 2)
+	t.sumSq += math.Pow(value, 2)
 	t.stream.Add(value)
 }
 
@@ -61,8 +72,8 @@ func (t *Timer) Max() float64 {
 // Sum returns the sum of timer values
 func (t *Timer) Sum() float64 { return t.sum }
 
-// SquaredSum returns the squared sum of timer values
-func (t *Timer) SquaredSum() float64 { return t.squaredSum }
+// SumSq returns the squared sum of timer values
+func (t *Timer) SumSq() float64 { return t.sumSq }
 
 // Mean returns the mean timer value
 func (t *Timer) Mean() float64 {
@@ -74,10 +85,23 @@ func (t *Timer) Mean() float64 {
 
 // Stddev returns the standard deviation timer value
 func (t *Timer) Stddev() float64 {
-	num := float64(t.count)*t.squaredSum - math.Pow(t.sum, 2)
+	num := float64(t.count)*t.sumSq - math.Pow(t.sum, 2)
 	div := t.count * (t.count - 1)
 	if div == 0 {
 		return 0.0
 	}
 	return math.Sqrt(num / float64(div))
+}
+
+// Reset resets the timer
+func (t *Timer) Reset() {
+	t.count = 0
+	t.sum = 0.0
+	t.sumSq = 0.0
+	t.stream.Reset()
+}
+
+// Close closes the timer
+func (t *Timer) Close() {
+	t.stream.Close()
 }

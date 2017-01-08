@@ -20,8 +20,14 @@
 
 package aggregation
 
+// NewCounter creates a new counter
+func NewCounter() *Counter { return &Counter{} }
+
 // Add adds a counter value
 func (c *Counter) Add(value int64) { c.sum += value }
 
 // Sum returns the sum of counter values
 func (c *Counter) Sum() int64 { return c.sum }
+
+// Reset resets the counter
+func (c *Counter) Reset() { c.sum = 0 }

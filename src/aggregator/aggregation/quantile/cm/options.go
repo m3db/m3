@@ -28,11 +28,12 @@ import (
 )
 
 const (
-	defaultEps  = 1e-3
-	minEps      = 0.0
-	maxEps      = 0.5
-	minQuantile = 0.0
-	maxQuantile = 1.0
+	minEps          = 0.0
+	maxEps          = 0.5
+	minQuantile     = 0.0
+	maxQuantile     = 1.0
+	defaultEps      = 1e-3
+	defaultCapacity = 16
 )
 
 var (
@@ -50,6 +51,7 @@ var (
 type options struct {
 	eps        float64
 	quantiles  []float64
+	capacity   int
 	samplePool SamplePool
 	floatsPool FloatsPool
 }
@@ -62,51 +64,66 @@ func NewOptions() Options {
 	floatsPool := NewFloatsPool(defaultBuckets, nil)
 	floatsPool.Init()
 
-	return options{
+	return &options{
 		eps:        defaultEps,
 		quantiles:  defaultQuantiles,
+		capacity:   defaultCapacity,
 		samplePool: samplePool,
 		floatsPool: floatsPool,
 	}
 }
 
-func (o options) SetEps(value float64) Options {
-	o.eps = value
-	return o
+func (o *options) SetEps(value float64) Options {
+	opts := *o
+	opts.eps = value
+	return &opts
 }
 
-func (o options) Eps() float64 {
+func (o *options) Eps() float64 {
 	return o.eps
 }
 
-func (o options) SetQuantiles(value []float64) Options {
-	o.quantiles = value
-	return o
+func (o *options) SetQuantiles(value []float64) Options {
+	opts := *o
+	opts.quantiles = value
+	return &opts
 }
 
-func (o options) Quantiles() []float64 {
+func (o *options) Quantiles() []float64 {
 	return o.quantiles
 }
 
-func (o options) SetSamplePool(value SamplePool) Options {
-	o.samplePool = value
-	return o
+func (o *options) SetCapacity(value int) Options {
+	opts := *o
+	opts.capacity = value
+	return &opts
 }
 
-func (o options) SamplePool() SamplePool {
+func (o *options) Capacity() int {
+	return o.capacity
+}
+
+func (o *options) SetSamplePool(value SamplePool) Options {
+	opts := *o
+	opts.samplePool = value
+	return &opts
+}
+
+func (o *options) SamplePool() SamplePool {
 	return o.samplePool
 }
 
-func (o options) SetFloatsPool(value FloatsPool) Options {
-	o.floatsPool = value
-	return o
+func (o *options) SetFloatsPool(value FloatsPool) Options {
+	opts := *o
+	opts.floatsPool = value
+	return &opts
 }
 
-func (o options) FloatsPool() FloatsPool {
+func (o *options) FloatsPool() FloatsPool {
 	return o.floatsPool
 }
 
-func (o options) Validate() error {
+func (o *options) Validate() error {
 	if o.eps <= minEps || o.eps >= maxEps {
 		return errInvalidEps
 	}

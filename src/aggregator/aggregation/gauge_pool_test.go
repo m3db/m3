@@ -23,16 +23,29 @@ package aggregation
 import (
 	"testing"
 
+	"github.com/m3db/m3x/pool"
+
 	"github.com/stretchr/testify/require"
 )
 
-func TestCounter(t *testing.T) {
-	var c Counter
-	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
-	}
-	require.Equal(t, int64(5050), c.Sum())
+func TestGaugePool(t *testing.T) {
+	p := NewGaugePool(pool.NewObjectPoolOptions().SetSize(1))
+	p.Init()
 
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
+	// Retrieve a gauge from the pool
+	gauge := p.Get()
+	gauge.Reset()
+	gauge.Add(1.23)
+	require.Equal(t, 1.23, gauge.Value())
+
+	// Put the gauge back to pool
+	p.Put(gauge)
+
+	// Retrieve the gauge and assert it's the same gauge
+	gauge = p.Get()
+	require.Equal(t, 1.23, gauge.Value())
+
+	// Reset the gauge and assert it's been reset
+	gauge.Reset()
+	require.Equal(t, 0.0, gauge.Value())
 }

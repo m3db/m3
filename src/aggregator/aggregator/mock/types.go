@@ -18,21 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregation
+package mock
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3metrics/metric/unaggregated"
 )
 
-func TestCounter(t *testing.T) {
-	var c Counter
-	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
-	}
-	require.Equal(t, int64(5050), c.Sum())
+// Aggregator provide an aggregator for testing purposes
+type Aggregator interface {
+	aggregator.Aggregator
 
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
+	// Snapshot returns a copy of the aggregated data and resets aggregations
+	Snapshot() SnapshotResult
+}
+
+// SnapshotResult is the snapshot result
+type SnapshotResult struct {
+	CountersWithPolicies    []unaggregated.CounterWithPolicies
+	BatchTimersWithPolicies []unaggregated.BatchTimerWithPolicies
+	GaugesWithPolicies      []unaggregated.GaugeWithPolicies
 }

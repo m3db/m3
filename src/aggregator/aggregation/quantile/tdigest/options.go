@@ -57,41 +57,44 @@ func NewOptions() Options {
 	centroidsPool := NewCentroidsPool(defaultBuckets, nil)
 	centroidsPool.Init()
 
-	return options{
+	return &options{
 		compression:   defaultCompression,
 		precision:     defaultPrecision,
 		centroidsPool: centroidsPool,
 	}
 }
 
-func (o options) SetCompression(value float64) Options {
-	o.compression = value
-	return o
+func (o *options) SetCompression(value float64) Options {
+	opts := *o
+	opts.compression = value
+	return &opts
 }
 
-func (o options) Compression() float64 {
+func (o *options) Compression() float64 {
 	return o.compression
 }
 
-func (o options) SetPrecision(value int) Options {
-	o.precision = value
-	return o
+func (o *options) SetPrecision(value int) Options {
+	opts := *o
+	opts.precision = value
+	return &opts
 }
 
-func (o options) Precision() int {
+func (o *options) Precision() int {
 	return o.precision
 }
 
-func (o options) SetCentroidsPool(value CentroidsPool) Options {
-	o.centroidsPool = value
-	return o
+func (o *options) SetCentroidsPool(value CentroidsPool) Options {
+	opts := *o
+	opts.centroidsPool = value
+	return &opts
 }
 
-func (o options) CentroidsPool() CentroidsPool {
+func (o *options) CentroidsPool() CentroidsPool {
 	return o.centroidsPool
 }
 
-func (o options) Validate() error {
+func (o *options) Validate() error {
 	if o.compression < minCompression || o.compression > maxCompression {
 		return errInvalidCompression
 	}

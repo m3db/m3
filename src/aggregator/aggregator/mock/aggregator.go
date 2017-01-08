@@ -18,12 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregator
+package mock
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/policy"
 )
 
 // mockAggregator is a no-op aggregator that simply captures
@@ -37,31 +39,51 @@ type mockAggregator struct {
 	gaugesWithPolicies      []unaggregated.GaugeWithPolicies
 }
 
-// NewMockAggregator creates a new mock aggregator
-func NewMockAggregator() MockAggregator {
+// NewAggregator creates a new mock aggregator
+func NewAggregator() Aggregator {
 	return &mockAggregator{}
 }
 
-func (agg *mockAggregator) AddCounterWithPolicies(cp unaggregated.CounterWithPolicies) {
+func (agg *mockAggregator) AddMetricWithPolicies(
+	mu unaggregated.MetricUnion,
+	policies policy.VersionedPolicies,
+) error {
 	agg.Lock()
-	agg.countersWithPolicies = append(agg.countersWithPolicies, cp)
+
+	switch mu.Type {
+	case unaggregated.CounterType:
+		cp := unaggregated.CounterWithPolicies{
+			Counter:           mu.Counter(),
+			VersionedPolicies: policies,
+		}
+		agg.countersWithPolicies = append(agg.countersWithPolicies, cp)
+	case unaggregated.BatchTimerType:
+		btp := unaggregated.BatchTimerWithPolicies{
+			BatchTimer:        mu.BatchTimer(),
+			VersionedPolicies: policies,
+		}
+		agg.batchTimersWithPolicies = append(agg.batchTimersWithPolicies, btp)
+	case unaggregated.GaugeType:
+		gp := unaggregated.GaugeWithPolicies{
+			Gauge:             mu.Gauge(),
+			VersionedPolicies: policies,
+		}
+		agg.gaugesWithPolicies = append(agg.gaugesWithPolicies, gp)
+	default:
+		agg.Unlock()
+		return fmt.Errorf("unrecognized metric type %v", mu.Type)
+	}
+
 	agg.Unlock()
+
+	return nil
 }
 
-func (agg *mockAggregator) AddBatchTimerWithPolicies(btp unaggregated.BatchTimerWithPolicies) {
-	agg.Lock()
-	agg.batchTimersWithPolicies = append(agg.batchTimersWithPolicies, btp)
-	agg.Unlock()
-}
-
-func (agg *mockAggregator) AddGaugeWithPolicies(gp unaggregated.GaugeWithPolicies) {
-	agg.Lock()
-	agg.gaugesWithPolicies = append(agg.gaugesWithPolicies, gp)
-	agg.Unlock()
-}
+func (agg *mockAggregator) Close() {}
 
 func (agg *mockAggregator) Snapshot() SnapshotResult {
 	agg.Lock()
+
 	result := SnapshotResult{
 		CountersWithPolicies:    agg.countersWithPolicies,
 		BatchTimersWithPolicies: agg.batchTimersWithPolicies,
@@ -70,6 +92,7 @@ func (agg *mockAggregator) Snapshot() SnapshotResult {
 	agg.countersWithPolicies = nil
 	agg.batchTimersWithPolicies = nil
 	agg.gaugesWithPolicies = nil
+
 	agg.Unlock()
 
 	return result

@@ -94,6 +94,12 @@ type Options interface {
 	// Quantiles returns the quantiles to be computed
 	Quantiles() []float64
 
+	// SetCapacity sets the initial heap capacity
+	SetCapacity(value int) Options
+
+	// Capacity returns the initial heap capacity
+	Capacity() int
+
 	// SetSamplePool sets the sample pool
 	SetSamplePool(value SamplePool) Options
 

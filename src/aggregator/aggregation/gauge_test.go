@@ -32,4 +32,7 @@ func TestGauge(t *testing.T) {
 		g.Add(float64(i))
 	}
 	require.Equal(t, 100.0, g.Value())
+
+	g.Reset()
+	require.Equal(t, 0.0, g.Value())
 }
