@@ -215,11 +215,23 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	assert.NoError(t, session.Close())
 }
 
-func TestFetchRepairBlocksAllPeersSucceed(t *testing.T) {
+type fetchBlocksFromPeersTestScenarioGenerator func(peerIdx int, numPeers int, start time.Time) []testBlocks
+
+func fetchBlocksFromPeersTestsHelper(
+	t *testing.T,
+	peerScenarioFn fetchBlocksFromPeersTestScenarioGenerator,
+) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestAdminOptions()
+	// NB(prateek): the implementation of FetchBlocksFromPeers does not make
+	// strong guarantees wrt to how it orders/batches requests to the client.
+	// As a result, the simplest predictable way to generate Expect/Match pairs
+	// for request/responses is to turn off batching.
+	opts := newSessionTestAdminOptions().
+		SetFetchSeriesBlocksBatchSize(1).
+		SetFetchBatchSize(1).(AdminOptions)
+
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -251,51 +263,13 @@ func TestFetchRepairBlocksAllPeersSucceed(t *testing.T) {
 
 	batchSize := opts.FetchSeriesBlocksBatchSize()
 	blockSize := 2 * time.Hour
-
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
 	allBlocks := make([][]testBlocks, 0, len(mockHostQueues))
 	peerBlocks := make([][]testBlocks, 0, len(mockHostQueues))
 	numBlocks := 0
 	for idx := 0; idx < len(mockHostQueues); idx++ {
-		blocks := []testBlocks{
-			{
-				id: fooID,
-				blocks: []testBlock{
-					{
-						start: start.Add(blockSize * 1),
-						segments: &testBlockSegments{merged: &testBlockSegment{
-							head: []byte{byte(1 + 10*idx), byte(2 + 10*idx)},
-							tail: []byte{byte(3 + 10*idx)},
-						}},
-					},
-				},
-			},
-			{
-				id: barID,
-				blocks: []testBlock{
-					{
-						start: start.Add(blockSize * 2),
-						segments: &testBlockSegments{merged: &testBlockSegment{
-							head: []byte{byte(4 + 10*idx), byte(5 + 10*idx)},
-							tail: []byte{byte(6 + 10*idx)},
-						}},
-					},
-				},
-			},
-			{
-				id: bazID,
-				blocks: []testBlock{
-					{
-						start: start.Add(blockSize * 3),
-						segments: &testBlockSegments{merged: &testBlockSegment{
-							head: []byte{byte(7 + 10*idx), byte(8 + 10*idx)},
-							tail: []byte{byte(9 + 10*idx)},
-						}},
-					},
-				},
-			},
-		}
+		blocks := peerScenarioFn(idx, len(mockHostQueues), start)
 
 		// Add to the expected list
 		allBlocks = append(allBlocks, blocks)
@@ -305,11 +279,14 @@ func TestFetchRepairBlocksAllPeersSucceed(t *testing.T) {
 		}
 
 		// Expect the fetch blocks calls
+		// expectedRepairFetchRequestsAndResponses(blocks, batchSize)
 		blocksExpectedReqs, blocksResult := expectedRepairFetchRequestsAndResponses(blocks, batchSize)
 		expectFetchBlocksAndReturn(mockClients[idx], blocksExpectedReqs, blocksResult)
 
 		// Track number of blocks to be used to drain the work queue
-		numBlocks = numBlocks + len(blocks)
+		for _, blk := range blocks {
+			numBlocks = numBlocks + len(blk.blocks)
+		}
 		peerBlocks = append(peerBlocks, blocks)
 	}
 
@@ -340,28 +317,150 @@ func TestFetchRepairBlocksAllPeersSucceed(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	assertFetchRepairBlocksResult(t, peerBlocks, mockHostQueues[1:], result)
+	assertFetchBlocksFromPeersResult(t, peerBlocks, mockHostQueues[1:], result)
 	assert.NoError(t, session.Close())
 }
 
-func assertFetchRepairBlocksResult(
+func TestFetchBlocksFromPeersSingleNonIdenticalBlockReplica(t *testing.T) {
+	blockSize := 2 * time.Hour
+	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
+		if peerIdx == 0 {
+			return []testBlocks{}
+		}
+		return []testBlocks{
+			{
+				id: fooID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 1),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(1 + 10*peerIdx), byte(2 + 10*peerIdx)},
+							tail: []byte{byte(3 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+		}
+	}
+	fetchBlocksFromPeersTestsHelper(t, peerScenarioGeneratorFn)
+}
+
+func TestFetchRepairBlocksMultipleDifferentBlocks(t *testing.T) {
+	blockSize := 2 * time.Hour
+	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
+		return []testBlocks{
+			{
+				id: fooID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 1),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(1 + 10*peerIdx), byte(2 + 10*peerIdx)},
+							tail: []byte{byte(3 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+			{
+				id: barID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 2),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(4 + 10*peerIdx), byte(5 + 10*peerIdx)},
+							tail: []byte{byte(6 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+			{
+				id: bazID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 3),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(7 + 10*peerIdx), byte(8 + 10*peerIdx)},
+							tail: []byte{byte(9 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+		}
+	}
+	fetchBlocksFromPeersTestsHelper(t, peerScenarioGeneratorFn)
+}
+
+func TestFetchRepairBlocksMultipleBlocksSameIDAndPeer(t *testing.T) {
+	blockSize := 2 * time.Hour
+	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
+		return []testBlocks{
+			{
+				id: fooID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 1),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(1 + 10*peerIdx), byte(2 + 10*peerIdx)},
+							tail: []byte{byte(3 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+			{
+				id: barID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 2),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(4 + 10*peerIdx), byte(5 + 10*peerIdx)},
+							tail: []byte{byte(6 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+			{
+				id: bazID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 3),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(7 + 10*peerIdx), byte(8 + 10*peerIdx)},
+							tail: []byte{byte(9 + 10*peerIdx)},
+						}},
+					},
+					{
+						start: start.Add(blockSize * 4),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(8 + 10*peerIdx), byte(9 + 10*peerIdx)},
+							tail: []byte{byte(1 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+		}
+	}
+	fetchBlocksFromPeersTestsHelper(t, peerScenarioGeneratorFn)
+}
+
+func assertFetchBlocksFromPeersResult(
 	t *testing.T,
 	expectedBlocks [][]testBlocks,
 	peers MockHostQueues,
 	observedBlocksIter PeerBlocksIter,
 ) {
-	matchedBlocks := make([][]bool, 0, len(expectedBlocks))
+	matchedBlocks := make([][][]bool, 0, len(expectedBlocks))
 	for _, blocks := range expectedBlocks {
-		unsetBlocks := make([]bool, len(blocks))
+		unsetBlocks := make([][]bool, len(blocks))
 		matchedBlocks = append(matchedBlocks, unsetBlocks)
 	}
 	extraBlocks := []peerBlocksDatapoint{}
 	for observedBlocksIter.Next() {
-		peer, id, block := observedBlocksIter.Current()
+		observedHost, observedID, observedBlock := observedBlocksIter.Current()
+
 		// find which peer the current datapoint is for
 		peerIdx := -1
 		for idx, mockPeer := range peers {
-			if peer.String() == mockPeer.Host().String() {
+			if observedHost.String() == mockPeer.Host().String() {
 				peerIdx = idx
 				break
 			}
@@ -370,39 +469,50 @@ func assertFetchRepairBlocksResult(
 		// unknown peer, marking extra block
 		if peerIdx == -1 {
 			extraBlocks = append(extraBlocks, peerBlocksDatapoint{
-				id:    id,
-				peer:  peer,
-				block: block,
+				id:    observedID,
+				peer:  observedHost,
+				block: observedBlock,
 			})
 			continue
 		}
 
 		// find blockIdx
 		blockIdx := -1
-		for idx, blocks := range expectedBlocks[peerIdx] {
-			if blocks.id.Equal(id) {
-				blockIdx = idx
-				break
+		subBlockIdx := -1
+		for i, blocks := range expectedBlocks[peerIdx] {
+			if !blocks.id.Equal(observedID) {
+				continue
+			}
+			for j, expectedBlock := range blocks.blocks {
+				if observedBlock.StartTime().Equal(expectedBlock.start) {
+					blockIdx = i
+					subBlockIdx = j
+					break
+				}
+
 			}
 		}
 
 		// unknown block, marking extra
-		if blockIdx == -1 {
+		if blockIdx == -1 || subBlockIdx == -1 {
 			extraBlocks = append(extraBlocks, peerBlocksDatapoint{
-				id:    id,
-				peer:  peer,
-				block: block,
+				id:    observedID,
+				peer:  observedHost,
+				block: observedBlock,
 			})
 			continue
 		}
 
-		// currently only supporting one data block per id per peer in these tests
-		assert.Equal(t, len(expectedBlocks[peerIdx][blockIdx].blocks), 1)
-		expectedBlock := expectedBlocks[peerIdx][blockIdx].blocks[0]
+		// lazily construct matchedBlocks inner most array
+		if matchedBlocks[peerIdx][blockIdx] == nil {
+			matchedBlocks[peerIdx][blockIdx] = make([]bool, len(expectedBlocks[peerIdx][blockIdx].blocks))
+		}
+
+		expectedBlock := expectedBlocks[peerIdx][blockIdx].blocks[subBlockIdx]
 		expectedData := append(expectedBlock.segments.merged.head, expectedBlock.segments.merged.tail...)
 		ctx := context.NewContext()
 		defer ctx.Close()
-		stream, err := block.Stream(ctx)
+		stream, err := observedBlock.Stream(ctx)
 		assert.NoError(t, err)
 		actualData := append(stream.Segment().Head, stream.Segment().Tail...)
 
@@ -415,18 +525,28 @@ func assertFetchRepairBlocksResult(
 				continue
 			}
 		}
+
 		// data is the same, mark match
-		matchedBlocks[peerIdx][blockIdx] = true
+		matchedBlocks[peerIdx][blockIdx][subBlockIdx] = true
 	}
 
 	for _, extraBlock := range extraBlocks {
-		assert.Fail(t, "Received extra block: %v", extraBlock)
+		assert.Fail(t, "received extra block: %v", extraBlock)
 	}
 
 	for i, peerMatches := range matchedBlocks {
-		for j, blockMatch := range peerMatches {
-			if !blockMatch {
-				assert.Fail(t, "Un-matched block [ Peer=%d, Block=%d, Expected=%v ]", i, j, expectedBlocks[i][j])
+		for j, blockMatches := range peerMatches {
+			if blockMatches == nil || len(blockMatches) == 0 {
+				assert.Fail(t,
+					"un-matched block [ peer=%d, block=%d, expected=%v ]",
+					i, j, expectedBlocks[i][j])
+			}
+			for k, blockMatch := range blockMatches {
+				if !blockMatch {
+					assert.Fail(t,
+						"un-matched block [ peer=%d, block=%d, sub-block=%d, expected=%v ]",
+						i, j, k, expectedBlocks[i][j].blocks[k])
+				}
 			}
 		}
 	}
@@ -1607,7 +1727,6 @@ func expectFetchBlocksAndReturn(
 	expect []fetchBlocksReq,
 	result [][]testBlocks,
 ) {
-	var calls []*gomock.Call
 	for i := 0; i < len(expect); i++ {
 		matcher := &fetchBlocksReqMatcher{req: expect[i]}
 		ret := &rpc.FetchBlocksRawResult_{}
@@ -1642,11 +1761,8 @@ func expectFetchBlocksAndReturn(
 			}
 			ret.Elements = append(ret.Elements, blocks)
 		}
-		call := client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Return(ret, nil)
-		calls = append(calls, call)
+		client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Return(ret, nil)
 	}
-
-	gomock.InOrder(calls...)
 }
 
 type fetchBlocksReqMatcher struct {
