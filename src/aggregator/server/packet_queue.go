@@ -21,6 +21,7 @@
 package server
 
 import (
+	"errors"
 	"sync/atomic"
 
 	"github.com/m3db/m3metrics/metric/unaggregated"
@@ -28,6 +29,10 @@ import (
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
+)
+
+var (
+	errQueueClosed = errors.New("queue is closed")
 )
 
 type packet struct {
@@ -49,10 +54,9 @@ func newPacketQueueMetrics(scope tally.Scope, samplingRate float64) packetQueueM
 	}
 }
 
-// NB(xichen): the packet queue currently queues up metric to the end of the
-// queue. If the queue is full, new incoming metrics will be dropped until there
-// is more space in the queue. This semantics may be changed in the future
-// to override oldest metrics instead of dropping most recent metrics.
+// NB(xichen): packet queue is a fixed-size queue for incoming packets.
+// If the queue is full when enqueuing packets, oldest packets will be
+// dropped until there is more space in the queue
 type packetQueue struct {
 	queue   chan packet
 	metrics packetQueueMetrics
@@ -70,21 +74,32 @@ func newPacketQueue(size int, instrumentOpts instrument.Options) *packetQueue {
 
 func (q *packetQueue) Len() int { return len(q.queue) }
 
-func (q *packetQueue) Enqueue(p packet) {
-	select {
-	case q.queue <- p:
-		q.metrics.enqueues.Inc(1)
-	default:
-		q.metrics.discarded.Inc(1)
+func (q *packetQueue) Enqueue(p packet) error {
+	for atomic.LoadInt32(&q.closed) == 0 {
+		select {
+		case q.queue <- p:
+			q.metrics.enqueues.Inc(1)
+			return nil
+		default:
+		}
+
+		select {
+		case <-q.queue:
+			q.metrics.discarded.Inc(1)
+		default:
+		}
 	}
+
+	return errQueueClosed
 }
 
-func (q *packetQueue) Dequeue() (packet, bool) {
+func (q *packetQueue) Dequeue() (packet, error) {
 	p, ok := <-q.queue
-	if ok {
-		q.metrics.dequeues.Inc(1)
+	if !ok {
+		return packet{}, errQueueClosed
 	}
-	return p, ok
+	q.metrics.dequeues.Inc(1)
+	return p, nil
 }
 
 func (q *packetQueue) Close() {

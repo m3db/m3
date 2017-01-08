@@ -48,6 +48,10 @@ func TestPacketQueueEnqueue(t *testing.T) {
 	// Enqueue one more and assert the packet gets dropped
 	q.Enqueue(packet{})
 	require.Equal(t, size, q.Len())
+
+	// Enqueuing to a closed queue should result in an error
+	q.Close()
+	require.Equal(t, errQueueClosed, q.Enqueue(packet{}))
 }
 
 func TestPacketQueueDequeue(t *testing.T) {
@@ -72,8 +76,8 @@ func TestPacketQueueDequeue(t *testing.T) {
 
 	// Dequeue until the queue is empty
 	for i := 1; i <= size; i++ {
-		p, ok := q.Dequeue()
-		require.True(t, ok)
+		p, err := q.Dequeue()
+		require.NoError(t, err)
 		require.Equal(t, size-i, q.Len())
 		results = append(results, p)
 	}
@@ -81,8 +85,8 @@ func TestPacketQueueDequeue(t *testing.T) {
 
 	// Close the queue and assert Dequeue returns false
 	q.Close()
-	_, ok := q.Dequeue()
-	require.False(t, ok)
+	_, err := q.Dequeue()
+	require.Equal(t, errQueueClosed, err)
 }
 
 func TestPacketQueueClose(t *testing.T) {

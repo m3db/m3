@@ -214,7 +214,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 	// Iterate over the incoming metrics stream and queue up metrics
 	for it.Next() {
 		metric, policies := it.Value()
-		s.queue.Enqueue(packet{metric: metric, policies: policies})
+		if err := s.queue.Enqueue(packet{metric: metric, policies: policies}); err != nil {
+			// TODO(xichen): log and emit metrics
+		}
 	}
 
 	// If there is an error during decoding, it's likely due to a broken connection
@@ -228,9 +230,13 @@ func (s *Server) processPackets() {
 	defer s.wgWorkers.Done()
 
 	for {
-		p, ok := s.queue.Dequeue()
-		if !ok {
+		p, err := s.queue.Dequeue()
+		if err == errQueueClosed {
 			return
+		}
+		if err != nil {
+			// TODO(xichen): log and emit metrics
+			continue
 		}
 		s.processPacketFn(p)
 	}
