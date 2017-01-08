@@ -194,11 +194,13 @@ func (r shardRepairer) newAdminRepairBlocksRequest(
 	for blkID, hs := range pendingReplicasMap {
 		for _, h := range *hs {
 			repairBlocks = append(repairBlocks, block.ReplicaMetadata{
-				Start:    blkID.start,
-				ID:       idMap[blkID.idHash],
-				Peer:     h.Host,
-				Checksum: h.Checksum,
-				Size:     h.Size,
+				ID:   idMap[blkID.idHash],
+				Host: h.Host,
+				Metadata: block.Metadata{
+					Start:    blkID.start,
+					Checksum: h.Checksum,
+					Size:     h.Size,
+				},
 			})
 		}
 	}
@@ -288,6 +290,15 @@ func (r shardRepairer) newPendingReplicasMap(
 }
 
 // TODO(prateek): add integration tests for repairDifferences
+// TODO(prateek): better handling of repaired shard writes
+// - Versioning
+//   - write a new version of the file for the timestamp
+//   - keep last 'n' versions
+//   - do NOT delete old version before writing a new version
+// - Smarter triggering of writes
+//   - consider not always writing
+//   - factor in a minimum number of blocks repaired
+//   - and number of blocks still requiring repair
 func (r shardRepairer) repairDifferences(
 	namespace ts.ID,
 	shard databaseShard,
@@ -312,7 +323,7 @@ func (r shardRepairer) repairDifferences(
 	repairSummary.NumRequested = int64(len(reqBlocks))
 
 	// stream over the requested replicas
-	blocksIter, err := session.FetchRepairBlocksFromPeers(namespace, shard.ID(), reqBlocks, r.rpopts.ResultOptions())
+	blocksIter, err := session.FetchBlocksFromPeers(namespace, shard.ID(), reqBlocks, r.rpopts.ResultOptions())
 	if err != nil {
 		return repairSummary, err
 	}
@@ -373,10 +384,6 @@ func (r shardRepairer) repairDifferences(
 		multiErr.Add(err)
 		logger.Warnf("repair iterator terminated with error: %v", err)
 	}
-
-	// TODO(prateek): better handling of repaired shard writes
-	// 	- write a new version of the file for the timestamp, keep last 'n' versions, do NOT delete old version before writing a new version
-	// 	- consider not always writing, factor in a minimum number of blocks repaired, and number of blocks still requiring repair
 
 	if err := multiErr.FinalError(); err == nil {
 		return repairSummary, nil

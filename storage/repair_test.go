@@ -542,7 +542,7 @@ func TestDatabaseShardRepairerRepairDifferencesAllSuccess(t *testing.T) {
 	)
 
 	session.EXPECT().
-		FetchRepairBlocksFromPeers(namespace, shardID, gomock.Any(), gomock.Any()).
+		FetchBlocksFromPeers(namespace, shardID, gomock.Any(), gomock.Any()).
 		Return(peerBlocksIter, nil)
 
 	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
@@ -624,7 +624,7 @@ func TestDatabaseShardRepairerRepairDifferencesNetworkFailure(t *testing.T) {
 	)
 
 	session.EXPECT().
-		FetchRepairBlocksFromPeers(namespace, shardID, gomock.Any(), gomock.Any()).
+		FetchBlocksFromPeers(namespace, shardID, gomock.Any(), gomock.Any()).
 		Return(peerBlocksIter, nil)
 
 	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
@@ -716,7 +716,7 @@ func TestDatabaseShardRepairerRepairDifferencesUpdateFailure(t *testing.T) {
 	)
 
 	session.EXPECT().
-		FetchRepairBlocksFromPeers(namespace, shardID, gomock.Any(), gomock.Any()).
+		FetchBlocksFromPeers(namespace, shardID, gomock.Any(), gomock.Any()).
 		Return(peerBlocksIter, nil)
 
 	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
