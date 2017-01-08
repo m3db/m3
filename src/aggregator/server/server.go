@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/net"
 	"github.com/m3db/m3x/sync"
@@ -63,6 +64,7 @@ type processPacketFn func(p packet)
 type Server struct {
 	sync.Mutex
 
+	address      string
 	listener     net.Listener
 	aggregator   aggregator.Aggregator
 	opts         Options
@@ -85,12 +87,12 @@ type Server struct {
 }
 
 // NewServer creates a new server
-func NewServer(l net.Listener, agg aggregator.Aggregator, opts Options) *Server {
+func NewServer(address string, agg aggregator.Aggregator, opts Options) *Server {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("server")
 
 	s := &Server{
-		listener:     l,
+		address:      address,
 		aggregator:   agg,
 		opts:         opts,
 		log:          instrumentOpts.Logger(),
@@ -120,10 +122,19 @@ func NewServer(l net.Listener, agg aggregator.Aggregator, opts Options) *Server 
 	return s
 }
 
-// ListenAndServe listens for new incoming connections and adds them
-// to the list of known connections. The call blocks until the server
-// is closed
-func (s *Server) ListenAndServe() error {
+// ListenAndServe starts listening to new incoming connections and
+// handles data from those connections
+func (s *Server) ListenAndServe() (xclose.SimpleCloser, error) {
+	listener, err := net.Listen("tcp", s.address)
+	if err != nil {
+		return nil, err
+	}
+	s.listener = listener
+	go s.serve()
+	return s, nil
+}
+
+func (s *Server) serve() error {
 	connCh, errCh := xnet.StartAcceptLoop(s.listener, s.opts.Retrier())
 	for conn := range connCh {
 		if !s.addConnectionFn(conn) {
@@ -133,7 +144,6 @@ func (s *Server) ListenAndServe() error {
 			go s.handleConnectionFn(conn)
 		}
 	}
-
 	return <-errCh
 }
 

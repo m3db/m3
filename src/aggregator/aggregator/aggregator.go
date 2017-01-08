@@ -40,6 +40,8 @@ type addMetricWithPoliciesFn func(
 	policies policy.VersionedPolicies,
 ) error
 
+type waitForFn func(d time.Duration) <-chan time.Time
+
 // aggregator stores aggregations of different types of metrics (e.g., counter,
 // timer, gauges) and periodically flushes them out
 type aggregator struct {
@@ -52,7 +54,7 @@ type aggregator struct {
 	lists                   *MetricLists
 	metrics                 *metricMap
 	addMetricWithPoliciesFn addMetricWithPoliciesFn
-	sleepFn                 sleepFn
+	waitForFn               waitForFn
 }
 
 // NewAggregator creates a new aggregator
@@ -68,7 +70,7 @@ func NewAggregator(opts Options) Aggregator {
 		metrics:       newMetricMap(lists, opts),
 	}
 	agg.addMetricWithPoliciesFn = agg.metrics.AddMetricWithPolicies
-	agg.sleepFn = time.Sleep
+	agg.waitForFn = time.After
 
 	if agg.checkInterval > 0 {
 		agg.wgTick.Add(1)
@@ -120,6 +122,11 @@ func (agg *aggregator) tickInternal() {
 	tickDuration := agg.nowFn().Sub(start)
 	// TODO(xichen): add metrics
 	if tickDuration < agg.checkInterval {
-		agg.sleepFn(agg.checkInterval - tickDuration)
+		// NB(xichen): use a channel here instead of sleeping in case
+		// server needs to close and we don't tick frequently enough
+		select {
+		case <-agg.waitForFn(agg.checkInterval - tickDuration):
+		case <-agg.doneCh:
+		}
 	}
 }
