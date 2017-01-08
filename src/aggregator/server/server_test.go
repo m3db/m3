@@ -37,6 +37,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testListenAddress = "127.0.0.1:6000"
+)
+
 var (
 	testCounterWithPolicies = unaggregated.CounterWithPolicies{
 		Counter: unaggregated.Counter{
@@ -70,7 +74,7 @@ var (
 	}
 )
 
-func testAggregationServerOptions() Options {
+func testServerOptions() Options {
 	iteratorPool := msgpack.NewUnaggregatedIteratorPool(nil)
 	iteratorOpts := msgpack.NewUnaggregatedIteratorOptions().SetIteratorPool(iteratorPool)
 	iteratorPool.Init(func() msgpack.UnaggregatedIterator {
@@ -86,32 +90,32 @@ func testAggregationServerOptions() Options {
 		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
 }
 
-func testAggregationServer(l net.Listener) (*Server, *int32, *int32, *int32, *int32) {
+func testServer(addr string) (*Server, *int32, *int32, *int32, *int32) {
 	var (
-		numAddedConns   int32
-		numRemovedConns int32
-		numHandledConns int32
-		numPackets      int32
+		numAdded   int32
+		numRemoved int32
+		numHandled int32
+		numPackets int32
 	)
 
-	opts := testAggregationServerOptions()
+	opts := testServerOptions()
 	agg := mock.NewAggregator()
-	s := NewServer(l, agg, opts)
+	s := NewServer(addr, agg, opts)
 
 	s.addConnectionFn = func(conn net.Conn) bool {
 		ret := s.addConnection(conn)
-		atomic.AddInt32(&numAddedConns, 1)
+		atomic.AddInt32(&numAdded, 1)
 		return ret
 	}
 
 	s.removeConnectionFn = func(conn net.Conn) {
 		s.removeConnection(conn)
-		atomic.AddInt32(&numRemovedConns, 1)
+		atomic.AddInt32(&numRemoved, 1)
 	}
 
 	s.handleConnectionFn = func(conn net.Conn) {
 		s.handleConnection(conn)
-		atomic.AddInt32(&numHandledConns, 1)
+		atomic.AddInt32(&numHandled, 1)
 	}
 
 	s.processPacketFn = func(p packet) {
@@ -119,13 +123,11 @@ func testAggregationServer(l net.Listener) (*Server, *int32, *int32, *int32, *in
 		atomic.AddInt32(&numPackets, 1)
 	}
 
-	return s, &numAddedConns, &numRemovedConns, &numHandledConns, &numPackets
+	return s, &numAdded, &numRemoved, &numHandled, &numPackets
 }
 
-func TestAggregationServerListenAndClose(t *testing.T) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	s, numAddedConns, numRemovedConns, numHandledConns, numPackets := testAggregationServer(l)
+func testServerListenAndClose(t *testing.T) {
+	s, numAdded, numRemoved, numHandled, numPackets := testServer(testListenAddress)
 
 	var (
 		numClients     = 9
@@ -134,7 +136,8 @@ func TestAggregationServerListenAndClose(t *testing.T) {
 	)
 
 	// Start server
-	go s.ListenAndServe()
+	closer, err := s.ListenAndServe()
+	require.NoError(t, err)
 
 	// Now establish multiple connections and send data to the server
 	for i := 0; i < numClients; i++ {
@@ -148,7 +151,7 @@ func TestAggregationServerListenAndClose(t *testing.T) {
 		go func() {
 			defer wgClient.Done()
 
-			conn, err := net.Dial("tcp", l.Addr().String())
+			conn, err := net.Dial("tcp", testListenAddress)
 			require.NoError(t, err)
 
 			encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
@@ -166,12 +169,12 @@ func TestAggregationServerListenAndClose(t *testing.T) {
 	}
 
 	// Close the server
-	s.Close()
+	closer.Close()
 
 	// Assert the number of connections match expectations
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numAddedConns))
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemovedConns))
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numHandledConns))
+	require.Equal(t, int32(numClients), atomic.LoadInt32(numAdded))
+	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemoved))
+	require.Equal(t, int32(numClients), atomic.LoadInt32(numHandled))
 
 	// Assert the snapshot match expectations
 	require.Equal(t, expectedResult, s.aggregator.(mock.Aggregator).Snapshot())

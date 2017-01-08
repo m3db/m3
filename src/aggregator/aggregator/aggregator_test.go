@@ -46,7 +46,11 @@ func TestAggregator(t *testing.T) {
 		resultPolicies = policies
 		return nil
 	}
-	agg.sleepFn = func(time.Duration) {}
+	agg.waitForFn = func(time.Duration) <-chan time.Time {
+		c := make(chan time.Time)
+		close(c)
+		return c
+	}
 
 	// Add a counter metric
 	require.NoError(t, agg.AddMetricWithPolicies(testCounter, testVersionedPolicies))
