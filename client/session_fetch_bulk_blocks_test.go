@@ -224,14 +224,7 @@ func fetchBlocksFromPeersTestsHelper(
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// NB(prateek): the implementation of FetchBlocksFromPeers does not make
-	// strong guarantees wrt to how it orders/batches requests to the client.
-	// As a result, the simplest predictable way to generate Expect/Match pairs
-	// for request/responses is to turn off batching.
-	opts := newSessionTestAdminOptions().
-		SetFetchSeriesBlocksBatchSize(1).
-		SetFetchBatchSize(1).(AdminOptions)
-
+	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -279,7 +272,6 @@ func fetchBlocksFromPeersTestsHelper(
 		}
 
 		// Expect the fetch blocks calls
-		// expectedRepairFetchRequestsAndResponses(blocks, batchSize)
 		blocksExpectedReqs, blocksResult := expectedRepairFetchRequestsAndResponses(blocks, batchSize)
 		expectFetchBlocksAndReturn(mockClients[idx], blocksExpectedReqs, blocksResult)
 
@@ -428,6 +420,11 @@ func TestFetchRepairBlocksMultipleBlocksSameIDAndPeer(t *testing.T) {
 							tail: []byte{byte(9 + 10*peerIdx)},
 						}},
 					},
+				},
+			},
+			{
+				id: bazID,
+				blocks: []testBlock{
 					{
 						start: start.Add(blockSize * 4),
 						segments: &testBlockSegments{merged: &testBlockSegment{

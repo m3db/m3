@@ -1248,14 +1248,6 @@ func (s *session) FetchBlocksFromPeers(
 
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
-		// the streamBlocksFromPeers machinery assumes block metadata is grouped
-		// by unique values of (id, host) into `blocksMetadata` structs
-		// we perform this transformation below
-		type midKey struct {
-			idHash ts.Hash
-			peer   string
-		}
-		metadatasByID := make(map[midKey]blocksMetadata, len(metadatas))
 		for _, rb := range metadatas {
 			peer, ok := peersByHost[rb.Host.ID()]
 			if !ok {
@@ -1266,26 +1258,17 @@ func (s *session) FetchBlocksFromPeers(
 				).Warnf("replica requested from unknown peer, skipping")
 				continue
 			}
-			mk := midKey{rb.ID.Hash(), rb.Host.ID()}
-			bm, ok := metadatasByID[mk]
-			if !ok {
-				bm = blocksMetadata{
-					id:     rb.ID,
-					peer:   peer,
-					blocks: []blockMetadata{},
-				}
+			metadataCh <- blocksMetadata{
+				id:   rb.ID,
+				peer: peer,
+				blocks: []blockMetadata{
+					blockMetadata{
+						start:    rb.Start,
+						size:     rb.Size,
+						checksum: rb.Checksum,
+					},
+				},
 			}
-			bm.blocks = append(bm.blocks, blockMetadata{
-				start:    rb.Start,
-				size:     rb.Size,
-				checksum: rb.Checksum,
-			})
-			metadatasByID[mk] = bm
-		}
-
-		// insert the transformed metadata into the request channel
-		for _, bm := range metadatasByID {
-			metadataCh <- bm
 		}
 		close(metadataCh)
 	}()
@@ -1539,6 +1522,11 @@ func (s *session) streamBlocksFromPeers(
 	return nil
 }
 
+// TODO(prateek): streamCollectedBlocksMetadata edge case
+// should we add the unit test for the case where
+// we get multiple entries in the metadata channel with the same id, and
+// run into the condition where we've already submitted the 'received' object for that id
+// and that results in us missing data
 func (s *session) streamCollectedBlocksMetadata(
 	peersLen int,
 	ch <-chan blocksMetadata,
@@ -1554,17 +1542,12 @@ func (s *session) streamCollectedBlocksMetadata(
 		}
 
 		received, ok := metadata[m.id.Hash()]
-		if !ok {
+		if !ok || received.submitted {
 			received = &receivedBlocks{
 				results: make([]*blocksMetadata, 0, peersLen),
 			}
 			metadata[m.id.Hash()] = received
 		}
-		if received.submitted {
-			// Already submitted to enqueue channel
-			continue
-		}
-
 		received.results = append(received.results, &m)
 
 		if len(received.results) == peersLen {
