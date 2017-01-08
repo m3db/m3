@@ -739,12 +739,12 @@ func (s *dbShard) UpdateSeries(
 ) error {
 
 	// ensure shard is bootstrapped
-	s.Lock()
+	s.RLock()
 	if s.bs != bootstrapped {
-		s.Unlock()
+		s.RUnlock()
 		return errShardNotBootstrapped
 	}
-	s.Unlock()
+	s.RUnlock()
 
 	// Prepare series to be updated
 	entry, err := s.writableSeries(id)

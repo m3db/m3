@@ -463,7 +463,6 @@ func (s *dbSeries) Update(blk block.DatabaseBlock) error {
 	if err != nil {
 		return err
 	}
-	s.blocks = existingBlocks
 
 	return nil
 }

@@ -385,10 +385,7 @@ func (r shardRepairer) repairDifferences(
 		logger.Warnf("repair iterator terminated with error: %v", err)
 	}
 
-	if err := multiErr.FinalError(); err == nil {
-		return repairSummary, nil
-	}
-	return repairSummary, multiErr
+	return repairSummary, multiErr.FinalError()
 }
 
 func (r shardRepairer) recordDifferences(
