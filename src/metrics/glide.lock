@@ -1,5 +1,5 @@
-hash: d8de5319d9d2b69ac7538271d44105f6007d92f0815d936b0551c4a7e3721f6f
-updated: 2016-12-13T22:42:28.879149226-05:00
+hash: 22996bdfd992015c6b999771d64996343958df212db5c82b032b8142caaa30ff
+updated: 2017-01-07T22:32:44.56183669-05:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
@@ -21,7 +21,7 @@ imports:
   subpackages:
   - context
 - name: google.golang.org/appengine
-  version: ca59ef35f409df61fa4a5f8290ff289b37eccfb8
+  version: 8758a385849434ba5eac8aeedcf5192c5a0f5f10
   subpackages:
   - datastore
   - internal
@@ -32,7 +32,7 @@ imports:
   - internal/modules
   - internal/remote_api
 - name: gopkg.in/vmihailenco/msgpack.v2
-  version: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
+  version: a1382b1ce0c749733b814157c245e02cc1f41076
   subpackages:
   - codes
 testImports:
