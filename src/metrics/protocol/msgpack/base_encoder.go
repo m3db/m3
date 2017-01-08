@@ -32,6 +32,7 @@ type encodeTimeFn func(t time.Time)
 type encodeVarintFn func(value int64)
 type encodeFloat64Fn func(value float64)
 type encodeBytesFn func(value []byte)
+type encodeBytesLenFn func(value int)
 type encodeArrayLenFn func(value int)
 
 // baseEncoder is the base encoder that provides common encoding APIs
@@ -43,6 +44,7 @@ type baseEncoder struct {
 	encodeVarintFn   encodeVarintFn   // varint encoding function
 	encodeFloat64Fn  encodeFloat64Fn  // float64 encoding function
 	encodeBytesFn    encodeBytesFn    // byte slice encoding function
+	encodeBytesLenFn encodeBytesLenFn // byte slice length encoding function
 	encodeArrayLenFn encodeArrayLenFn // array length encoding function
 }
 
@@ -54,6 +56,7 @@ func newBaseEncoder(encoder BufferedEncoder) encoderBase {
 	enc.encodeVarintFn = enc.encodeVarintInternal
 	enc.encodeFloat64Fn = enc.encodeFloat64Internal
 	enc.encodeBytesFn = enc.encodeBytesInternal
+	enc.encodeBytesLenFn = enc.encodeBytesLenInternal
 	enc.encodeArrayLenFn = enc.encodeArrayLenInternal
 
 	return enc
@@ -71,11 +74,19 @@ func (enc *baseEncoder) encodeTime(t time.Time)              { enc.encodeTimeFn(
 func (enc *baseEncoder) encodeVarint(value int64)            { enc.encodeVarintFn(value) }
 func (enc *baseEncoder) encodeFloat64(value float64)         { enc.encodeFloat64Fn(value) }
 func (enc *baseEncoder) encodeBytes(value []byte)            { enc.encodeBytesFn(value) }
+func (enc *baseEncoder) encodeBytesLen(value int)            { enc.encodeBytesLenFn(value) }
 func (enc *baseEncoder) encodeArrayLen(value int)            { enc.encodeArrayLenFn(value) }
 
 func (enc *baseEncoder) reset(encoder BufferedEncoder) {
 	enc.bufEncoder = encoder
 	enc.encodeErr = nil
+}
+
+func (enc *baseEncoder) encodeChunkedID(id metric.ChunkedID) {
+	enc.encodeBytesLen(len(id.Prefix) + len(id.Data) + len(id.Suffix))
+	enc.writeRaw(id.Prefix)
+	enc.writeRaw(id.Data)
+	enc.writeRaw(id.Suffix)
 }
 
 func (enc *baseEncoder) encodePolicyInternal(p policy.Policy) {
@@ -152,9 +163,23 @@ func (enc *baseEncoder) encodeBytesInternal(value []byte) {
 	enc.encodeErr = enc.bufEncoder.EncodeBytes(value)
 }
 
+func (enc *baseEncoder) encodeBytesLenInternal(value int) {
+	if enc.encodeErr != nil {
+		return
+	}
+	enc.encodeErr = enc.bufEncoder.EncodeBytesLen(value)
+}
+
 func (enc *baseEncoder) encodeArrayLenInternal(value int) {
 	if enc.encodeErr != nil {
 		return
 	}
 	enc.encodeErr = enc.bufEncoder.EncodeArrayLen(value)
+}
+
+func (enc *baseEncoder) writeRaw(buf []byte) {
+	if enc.encodeErr != nil {
+		return
+	}
+	_, enc.encodeErr = enc.bufEncoder.Buffer.Write(buf)
 }

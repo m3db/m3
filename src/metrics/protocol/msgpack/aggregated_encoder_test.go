@@ -54,6 +54,9 @@ func expectedResultsForAggregatedMetricWithPolicy(t *testing.T, m interface{}, p
 	case aggregated.Metric:
 		rm := toRawMetric(t, m)
 		results = append(results, expectedResultsForRawMetricWithPolicy(t, rm, p)...)
+	case aggregated.ChunkedMetric:
+		rm := toRawMetric(t, m)
+		results = append(results, expectedResultsForRawMetricWithPolicy(t, rm, p)...)
 	case aggregated.RawMetric:
 		results = append(results, expectedResultsForRawMetricWithPolicy(t, m, p)...)
 	default:
@@ -80,6 +83,13 @@ func TestAggregatedEncodeMetricWithPolicy(t *testing.T) {
 	encoder, results := testCapturingAggregatedEncoder(t)
 	require.NoError(t, testAggregatedEncode(t, encoder, testMetric, testPolicy))
 	expected := expectedResultsForAggregatedMetricWithPolicy(t, testMetric, testPolicy)
+	require.Equal(t, expected, *results)
+}
+
+func TestAggregatedEncodeChunkedMetricWithPolicy(t *testing.T) {
+	encoder, results := testCapturingAggregatedEncoder(t)
+	require.NoError(t, testAggregatedEncode(t, encoder, testChunkedMetric, testPolicy))
+	expected := expectedResultsForAggregatedMetricWithPolicy(t, testChunkedMetric, testPolicy)
 	require.Equal(t, expected, *results)
 }
 

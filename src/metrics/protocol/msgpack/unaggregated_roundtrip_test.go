@@ -156,6 +156,9 @@ func testCapturingBaseEncoder(encoder encoderBase) *[]interface{} {
 	baseEncoder.encodeBytesFn = func(value []byte) {
 		result = append(result, value)
 	}
+	baseEncoder.encodeBytesLenFn = func(value int) {
+		result = append(result, value)
+	}
 	baseEncoder.encodeArrayLenFn = func(value int) {
 		result = append(result, value)
 	}

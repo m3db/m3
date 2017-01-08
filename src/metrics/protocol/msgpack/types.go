@@ -88,6 +88,9 @@ type encoderBase interface {
 	// encodeID encodes an ID
 	encodeID(id metric.ID)
 
+	// encodeChunkedID encodes a chunked ID
+	encodeChunkedID(id metric.ChunkedID)
+
 	// encodeTime encodes a time
 	encodeTime(t time.Time)
 
@@ -99,6 +102,9 @@ type encoderBase interface {
 
 	// encodeBytes encodes a byte slice
 	encodeBytes(value []byte)
+
+	// encodeBytesLen encodes the length of a byte slice
+	encodeBytesLen(value int)
 
 	// encodeArrayLen encodes the length of an array
 	encodeArrayLen(value int)
@@ -244,6 +250,9 @@ type UnaggregatedIteratorPool interface {
 type AggregatedEncoder interface {
 	// EncodeMetricWithPolicy encodes a metric with an applicable policy
 	EncodeMetricWithPolicy(mp aggregated.MetricWithPolicy) error
+
+	// EncodeChunkedMetricWithPolicy encodes a chunked metric with an applicable policy
+	EncodeChunkedMetricWithPolicy(cmp aggregated.ChunkedMetricWithPolicy) error
 
 	// EncodeRawMetricWithPolicy encodes a raw metric with an applicable policy
 	EncodeRawMetricWithPolicy(rp aggregated.RawMetricWithPolicy) error

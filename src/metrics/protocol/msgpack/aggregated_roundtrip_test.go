@@ -41,12 +41,20 @@ var (
 		Timestamp: time.Now(),
 		Value:     123.45,
 	}
+	testChunkedMetric = aggregated.ChunkedMetric{
+		ChunkedID: metric.ChunkedID{
+			Prefix: []byte("foo."),
+			Data:   []byte("bar"),
+			Suffix: []byte(".baz"),
+		},
+		Timestamp: time.Now(),
+		Value:     123.45,
+	}
 	testMetric2 = aggregated.Metric{
 		ID:        metric.ID("bar"),
 		Timestamp: time.Now(),
 		Value:     678.90,
 	}
-
 	testPolicy = policy.Policy{
 		Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 		Retention:  policy.Retention(time.Hour),
@@ -73,6 +81,11 @@ func testAggregatedEncode(t *testing.T, encoder AggregatedEncoder, m interface{}
 			Metric: m,
 			Policy: p,
 		})
+	case aggregated.ChunkedMetric:
+		return encoder.EncodeChunkedMetricWithPolicy(aggregated.ChunkedMetricWithPolicy{
+			ChunkedMetric: m,
+			Policy:        p,
+		})
 	case aggregated.RawMetric:
 		return encoder.EncodeRawMetricWithPolicy(aggregated.RawMetricWithPolicy{
 			RawMetric: m,
@@ -83,9 +96,17 @@ func testAggregatedEncode(t *testing.T, encoder AggregatedEncoder, m interface{}
 	}
 }
 
-func toRawMetric(t *testing.T, m aggregated.Metric) aggregated.RawMetric {
+func toRawMetric(t *testing.T, m interface{}) aggregated.RawMetric {
 	encoder := NewAggregatedEncoder(newBufferedEncoder()).(*aggregatedEncoder)
-	data := encoder.encodeMetricAsRaw(m)
+	var data []byte
+	switch m := m.(type) {
+	case aggregated.Metric:
+		data = encoder.encodeMetricAsRaw(m)
+	case aggregated.ChunkedMetric:
+		data = encoder.encodeChunkedMetricAsRaw(m)
+	default:
+		require.Fail(t, "unrecognized metric type %T", m)
+	}
 	require.NoError(t, encoder.err())
 	return NewRawMetric(data)
 }
@@ -114,6 +135,20 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 		case aggregated.Metric:
 			expected = append(expected, metricWithPolicy{
 				metric: inputMetric,
+				policy: input.policy,
+			})
+			require.NoError(t, testAggregatedEncode(t, encoder, inputMetric, input.policy))
+		case aggregated.ChunkedMetric:
+			var id metric.ID
+			id = append(id, inputMetric.ChunkedID.Prefix...)
+			id = append(id, inputMetric.ChunkedID.Data...)
+			id = append(id, inputMetric.ChunkedID.Suffix...)
+			expected = append(expected, metricWithPolicy{
+				metric: aggregated.Metric{
+					ID:        id,
+					Timestamp: inputMetric.Timestamp,
+					Value:     inputMetric.Value,
+				},
 				policy: input.policy,
 			})
 			require.NoError(t, testAggregatedEncode(t, encoder, inputMetric, input.policy))
@@ -155,6 +190,13 @@ func TestAggregatedEncodeDecodeMetricWithPolicy(t *testing.T) {
 	})
 }
 
+func TestAggregatedEncodeDecodeChunkedMetricWithPolicy(t *testing.T) {
+	validateAggregatedRoundtrip(t, metricWithPolicy{
+		metric: testChunkedMetric,
+		policy: testPolicy,
+	})
+}
+
 func TestAggregatedEncodeDecodeRawMetricWithPolicy(t *testing.T) {
 	validateAggregatedRoundtrip(t, metricWithPolicy{
 		metric: toRawMetric(t, testMetric),
@@ -173,9 +215,14 @@ func TestAggregatedEncodeDecodeStress(t *testing.T) {
 	for i := 0; i < numIter; i++ {
 		var inputs []metricWithPolicy
 		for j := 0; j < numMetrics; j++ {
-			if j%2 == 0 {
+			if j%3 == 0 {
 				inputs = append(inputs, metricWithPolicy{
 					metric: testMetric,
+					policy: testPolicy,
+				})
+			} else if j%3 == 1 {
+				inputs = append(inputs, metricWithPolicy{
+					metric: testChunkedMetric,
 					policy: testPolicy,
 				})
 			} else {

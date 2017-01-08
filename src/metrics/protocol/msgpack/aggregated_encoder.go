@@ -28,6 +28,7 @@ import (
 type encodeRawMetricWithPolicyFn func(data []byte, p policy.Policy)
 type encodeRawMetricFn func(data []byte)
 type encodeMetricAsRawFn func(m aggregated.Metric) []byte
+type encodeChunkedMetricAsRawFn func(m aggregated.ChunkedMetric) []byte
 
 // aggregatedEncoder uses MessagePack for encoding aggregated metrics.
 // It is not thread-safe.
@@ -39,6 +40,7 @@ type aggregatedEncoder struct {
 	encodeRawMetricWithPolicyFn encodeRawMetricWithPolicyFn // raw metric with policy encoding function
 	encodeRawMetricFn           encodeRawMetricFn           // raw metric encoding function
 	encodeMetricAsRawFn         encodeMetricAsRawFn         // metric to raw metric conversion function
+	encodeChunkedMetricAsRawFn  encodeChunkedMetricAsRawFn  // chunked metric to raw metric conversion function
 }
 
 // NewAggregatedEncoder creates an aggregated encoder
@@ -52,6 +54,7 @@ func NewAggregatedEncoder(encoder BufferedEncoder) AggregatedEncoder {
 	enc.encodeRawMetricWithPolicyFn = enc.encodeRawMetricWithPolicy
 	enc.encodeRawMetricFn = enc.encodeRawMetric
 	enc.encodeMetricAsRawFn = enc.encodeMetricAsRaw
+	enc.encodeChunkedMetricAsRawFn = enc.encodeChunkedMetricAsRaw
 
 	return enc
 }
@@ -68,6 +71,16 @@ func (enc *aggregatedEncoder) EncodeMetricWithPolicy(mp aggregated.MetricWithPol
 	enc.encodeRootObjectFn(rawMetricWithPolicyType)
 	data := enc.encodeMetricAsRawFn(mp.Metric)
 	enc.encodeRawMetricWithPolicyFn(data, mp.Policy)
+	return enc.err()
+}
+
+func (enc *aggregatedEncoder) EncodeChunkedMetricWithPolicy(cmp aggregated.ChunkedMetricWithPolicy) error {
+	if err := enc.err(); err != nil {
+		return err
+	}
+	enc.encodeRootObjectFn(rawMetricWithPolicyType)
+	data := enc.encodeChunkedMetricAsRawFn(cmp.ChunkedMetric)
+	enc.encodeRawMetricWithPolicyFn(data, cmp.Policy)
 	return enc.err()
 }
 
@@ -88,12 +101,25 @@ func (enc *aggregatedEncoder) encodeRootObject(objType objectType) {
 
 func (enc *aggregatedEncoder) encodeMetricAsRaw(m aggregated.Metric) []byte {
 	enc.buf.resetData()
-	enc.buf.encodeVersion(metricVersion)
-	enc.buf.encodeNumObjectFields(numFieldsForType(metricType))
+	enc.encodeMetricProlog()
 	enc.buf.encodeID(m.ID)
 	enc.buf.encodeTime(m.Timestamp)
 	enc.buf.encodeFloat64(m.Value)
 	return enc.buf.encoder().Bytes()
+}
+
+func (enc *aggregatedEncoder) encodeChunkedMetricAsRaw(m aggregated.ChunkedMetric) []byte {
+	enc.buf.resetData()
+	enc.encodeMetricProlog()
+	enc.buf.encodeChunkedID(m.ChunkedID)
+	enc.buf.encodeTime(m.Timestamp)
+	enc.buf.encodeFloat64(m.Value)
+	return enc.buf.encoder().Bytes()
+}
+
+func (enc *aggregatedEncoder) encodeMetricProlog() {
+	enc.buf.encodeVersion(metricVersion)
+	enc.buf.encodeNumObjectFields(numFieldsForType(metricType))
 }
 
 func (enc *aggregatedEncoder) encodeRawMetricWithPolicy(data []byte, p policy.Policy) {

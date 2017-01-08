@@ -20,6 +20,8 @@
 
 package metric
 
+import "fmt"
+
 // ID is the metric id
 // TODO(xichen): make ID a union of numeric ID and bytes-backed IDs
 // so we can compress IDs on a per-connection basis
@@ -27,3 +29,15 @@ type ID []byte
 
 // String is the string representation of an id
 func (id ID) String() string { return string(id) }
+
+// ChunkedID is a three-part id
+type ChunkedID struct {
+	Prefix []byte
+	Data   []byte
+	Suffix []byte
+}
+
+// String is the string representation of the chunked id
+func (cid ChunkedID) String() string {
+	return fmt.Sprintf("%s%s%s", cid.Prefix, cid.Data, cid.Suffix)
+}

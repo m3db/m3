@@ -29,7 +29,14 @@ import (
 
 // Metric is a metric, which is essentially a named value at certain time.
 type Metric struct {
-	ID        metric.ID
+	metric.ID
+	Timestamp time.Time
+	Value     float64
+}
+
+// ChunkedMetric is a metric with a chunked ID
+type ChunkedMetric struct {
+	metric.ChunkedID
 	Timestamp time.Time
 	Value     float64
 }
@@ -59,6 +66,12 @@ type RawMetric interface {
 // MetricWithPolicy is a metric with applicable policy
 type MetricWithPolicy struct {
 	Metric
+	policy.Policy
+}
+
+// ChunkedMetricWithPolicy is a chunked metric with applicable policy
+type ChunkedMetricWithPolicy struct {
+	ChunkedMetric
 	policy.Policy
 }
 
