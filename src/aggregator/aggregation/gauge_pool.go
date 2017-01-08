@@ -20,19 +20,27 @@
 
 package aggregation
 
-import (
-	"testing"
+import "github.com/m3db/m3x/pool"
 
-	"github.com/stretchr/testify/require"
-)
+type gaugePool struct {
+	pool pool.ObjectPool
+}
 
-func TestCounter(t *testing.T) {
-	var c Counter
-	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
-	}
-	require.Equal(t, int64(5050), c.Sum())
+// NewGaugePool creates a new pool for gauges
+func NewGaugePool(opts pool.ObjectPoolOptions) GaugePool {
+	return &gaugePool{pool: pool.NewObjectPool(opts)}
+}
 
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
+func (p *gaugePool) Init() {
+	p.pool.Init(func() interface{} {
+		return NewGauge()
+	})
+}
+
+func (p *gaugePool) Get() *Gauge {
+	return p.pool.Get().(*Gauge)
+}
+
+func (p *gaugePool) Put(value *Gauge) {
+	p.pool.Put(value)
 }

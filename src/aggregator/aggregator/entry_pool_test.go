@@ -18,21 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregation
+package aggregator
 
 import (
 	"testing"
 
+	"github.com/m3db/m3x/pool"
+
 	"github.com/stretchr/testify/require"
 )
 
-func TestCounter(t *testing.T) {
-	var c Counter
-	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
-	}
-	require.Equal(t, int64(5050), c.Sum())
+func TestEntryPool(t *testing.T) {
+	p := NewEntryPool(pool.NewObjectPoolOptions().SetSize(1))
+	p.Init(func() *Entry {
+		return NewEntry(nil, testOptions())
+	})
 
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
+	// Retrieve an entry from the pool
+	entry := p.Get()
+	lists := &MetricLists{}
+	entry.ResetSetData(&MetricLists{})
+	require.Equal(t, lists, entry.lists)
+
+	// Put the entry back to pool
+	p.Put(entry)
+
+	// Retrieve the entry and assert it's the same entry
+	entry = p.Get()
+	require.Equal(t, lists, entry.lists)
 }

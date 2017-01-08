@@ -20,8 +20,14 @@
 
 package aggregation
 
+// NewGauge creates a new gauge
+func NewGauge() *Gauge { return &Gauge{} }
+
 // Add adds a gauge value
 func (g *Gauge) Add(value float64) { g.value = value }
 
 // Value returns the latest value
 func (g *Gauge) Value() float64 { return g.value }
+
+// Reset resets the gauge
+func (g *Gauge) Reset() { g.value = 0.0 }

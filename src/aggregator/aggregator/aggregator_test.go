@@ -18,21 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregation
+package aggregator
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/policy"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestCounter(t *testing.T) {
-	var c Counter
-	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
-	}
-	require.Equal(t, int64(5050), c.Sum())
+func TestAggregator(t *testing.T) {
+	agg := NewAggregator(testOptions().SetEntryCheckInterval(0)).(*aggregator)
 
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
+	var (
+		resultMu       unaggregated.MetricUnion
+		resultPolicies policy.VersionedPolicies
+	)
+	agg.addMetricWithPoliciesFn = func(
+		mu unaggregated.MetricUnion,
+		policies policy.VersionedPolicies,
+	) error {
+		resultMu = mu
+		resultPolicies = policies
+		return nil
+	}
+	agg.sleepFn = func(time.Duration) {}
+
+	// Add a counter metric
+	require.NoError(t, agg.AddMetricWithPolicies(testCounter, testVersionedPolicies))
+	require.Equal(t, testCounter, resultMu)
+	require.Equal(t, testVersionedPolicies, resultPolicies)
+
+	// Force a tick
+	agg.tickInternal()
+
+	// Close the aggregator
+	agg.Close()
+
+	// Closing a second time should be a no op
+	agg.Close()
+
+	// Adding a metric to a closed aggregator should result in an error
+	err := agg.AddMetricWithPolicies(testCounter, testVersionedPolicies)
+	require.Equal(t, errAggregatorClosed, err)
+
+	// Assert the aggregator is closed
+	require.Equal(t, int32(1), atomic.LoadInt32(&agg.closed))
 }

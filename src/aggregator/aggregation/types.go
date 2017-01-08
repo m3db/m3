@@ -20,9 +20,7 @@
 
 package aggregation
 
-import (
-	"github.com/m3db/m3aggregator/quantile/cm"
-)
+import "github.com/m3db/m3aggregator/aggregation/quantile/cm"
 
 // Counter aggregates counter values
 type Counter struct {
@@ -36,8 +34,47 @@ type Gauge struct {
 
 // Timer aggregates timer values
 type Timer struct {
-	count      int64     // number of values received
-	sum        float64   // sum of the values
-	squaredSum float64   // sum of squared values
-	stream     cm.Stream // stream of values received
+	count  int64     // number of values received
+	sum    float64   // sum of the values
+	sumSq  float64   // sum of squared values
+	stream cm.Stream // stream of values received
+}
+
+// CounterPool provides a pool of counters
+type CounterPool interface {
+	// Init initializes the counter pool
+	Init()
+
+	// Get gets a counter from the pool
+	Get() *Counter
+
+	// Put returns a counter to the pool
+	Put(value *Counter)
+}
+
+// TimerAlloc allocates a new timer
+type TimerAlloc func() *Timer
+
+// TimerPool provides a pool of timers
+type TimerPool interface {
+	// Init initializes the timer pool
+	Init(alloc TimerAlloc)
+
+	// Get gets a timer from the pool
+	Get() *Timer
+
+	// Put returns a timer to the pool
+	Put(value *Timer)
+}
+
+// GaugePool provides a pool of gauges
+type GaugePool interface {
+	// Init initializes the gauge pool
+	Init()
+
+	// Get gets a gauge from the pool
+	Get() *Gauge
+
+	// Put returns a gauge to the pool
+	Put(value *Gauge)
 }

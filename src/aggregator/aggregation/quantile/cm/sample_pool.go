@@ -18,21 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregation
+package cm
 
-import (
-	"testing"
+import "github.com/m3db/m3x/pool"
 
-	"github.com/stretchr/testify/require"
-)
+type samplePool struct {
+	pool pool.ObjectPool
+}
 
-func TestCounter(t *testing.T) {
-	var c Counter
-	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
-	}
-	require.Equal(t, int64(5050), c.Sum())
+// NewSamplePool creates a new pool for samples
+func NewSamplePool(opts pool.ObjectPoolOptions) SamplePool {
+	return &samplePool{pool: pool.NewObjectPool(opts)}
+}
 
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
+func (p *samplePool) Init() {
+	p.pool.Init(func() interface{} {
+		return newSample()
+	})
+}
+
+func (p *samplePool) Get() *Sample {
+	return p.pool.Get().(*Sample)
+}
+
+func (p *samplePool) Put(sample *Sample) {
+	// Reset sample to reduce GC sweep overhead
+	sample.reset()
+	p.pool.Put(sample)
 }

@@ -18,29 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cm
+package id
 
-import "github.com/m3db/m3x/pool"
+import "crypto/md5"
 
-type samplePool struct {
-	pool pool.ObjectPool
-}
+// Hash represents a form of ID suitable to be used as map keys.
+type Hash [md5.Size]byte
 
-// NewSamplePool creates a new pool for samples
-func NewSamplePool(opts pool.ObjectPoolOptions) SamplePool {
-	return &samplePool{pool: pool.NewObjectPool(opts)}
-}
-
-func (p *samplePool) Init() {
-	p.pool.Init(func() interface{} {
-		return newSample()
-	})
-}
-
-func (p *samplePool) Get() *Sample {
-	return p.pool.Get().(*Sample)
-}
-
-func (p *samplePool) Put(sample *Sample) {
-	p.pool.Put(sample)
+// HashFn is the default hashing implementation for IDs.
+func HashFn(data []byte) Hash {
+	return md5.Sum(data)
 }

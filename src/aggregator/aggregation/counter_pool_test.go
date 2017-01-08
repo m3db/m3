@@ -23,16 +23,29 @@ package aggregation
 import (
 	"testing"
 
+	"github.com/m3db/m3x/pool"
+
 	"github.com/stretchr/testify/require"
 )
 
-func TestCounter(t *testing.T) {
-	var c Counter
-	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
-	}
-	require.Equal(t, int64(5050), c.Sum())
+func TestCounterPool(t *testing.T) {
+	p := NewCounterPool(pool.NewObjectPoolOptions().SetSize(1))
+	p.Init()
 
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
+	// Retrieve a counter from the pool
+	counter := p.Get()
+	counter.Reset()
+	counter.Add(1)
+	require.Equal(t, int64(1), counter.Sum())
+
+	// Put the counter back to pool
+	p.Put(counter)
+
+	// Retrieve the counter and assert it's the same counter
+	counter = p.Get()
+	require.Equal(t, int64(1), counter.Sum())
+
+	// Reset the counter and assert it's been reset
+	counter.Reset()
+	require.Equal(t, int64(0), counter.Sum())
 }

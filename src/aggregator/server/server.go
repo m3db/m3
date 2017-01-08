@@ -107,10 +107,12 @@ func NewServer(l net.Listener, agg aggregator.Aggregator, opts Options) *Server 
 
 	// Start the workers to process incoming data
 	numWorkers := opts.WorkerPoolSize()
+	s.wgWorkers.Add(numWorkers)
 	s.workers = xsync.NewWorkerPool(numWorkers)
 	s.workers.Init()
-	s.wgWorkers.Add(numWorkers)
-	s.workers.Go(s.processPackets)
+	for i := 0; i < numWorkers; i++ {
+		s.workers.Go(s.processPackets)
+	}
 
 	// Start reporting metrics
 	go s.reportMetrics()
@@ -165,6 +167,9 @@ func (s *Server) Close() {
 	// Wait for all workers to finish dequeuing existing
 	// packets in the queue
 	s.wgWorkers.Wait()
+
+	// Finally close the aggregator
+	s.aggregator.Close()
 }
 
 func (s *Server) addConnection(conn net.Conn) bool {
@@ -233,21 +238,10 @@ func (s *Server) processPackets() {
 
 func (s *Server) processPacket(p packet) {
 	switch p.metric.Type {
-	case unaggregated.CounterType:
-		s.aggregator.AddCounterWithPolicies(unaggregated.CounterWithPolicies{
-			Counter:           p.metric.Counter(),
-			VersionedPolicies: p.policies,
-		})
-	case unaggregated.BatchTimerType:
-		s.aggregator.AddBatchTimerWithPolicies(unaggregated.BatchTimerWithPolicies{
-			BatchTimer:        p.metric.BatchTimer(),
-			VersionedPolicies: p.policies,
-		})
-	case unaggregated.GaugeType:
-		s.aggregator.AddGaugeWithPolicies(unaggregated.GaugeWithPolicies{
-			Gauge:             p.metric.Gauge(),
-			VersionedPolicies: p.policies,
-		})
+	case unaggregated.CounterType, unaggregated.BatchTimerType, unaggregated.GaugeType:
+		if err := s.aggregator.AddMetricWithPolicies(p.metric, p.policies); err != nil {
+			// TODO(xichen): log and emit metrics
+		}
 	default:
 		s.metrics.invalidMetrics.Inc(1)
 	}

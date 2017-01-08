@@ -23,16 +23,33 @@ package aggregation
 import (
 	"testing"
 
+	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3x/pool"
+
 	"github.com/stretchr/testify/require"
 )
 
-func TestCounter(t *testing.T) {
-	var c Counter
-	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
-	}
-	require.Equal(t, int64(5050), c.Sum())
+func TestTimerPool(t *testing.T) {
+	p := NewTimerPool(pool.NewObjectPoolOptions().SetSize(1))
+	streamOpts := cm.NewOptions()
+	p.Init(func() *Timer {
+		return NewTimer(streamOpts)
+	})
 
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
+	// Retrieve a timer from the pool
+	timer := p.Get()
+	timer.Reset()
+	timer.Add(10)
+	require.Equal(t, int64(1), timer.Count())
+	require.Equal(t, 10.0, timer.Sum())
+
+	// Put the timer back to pool
+	p.Put(timer)
+
+	// Retrieve the timer
+	timer = p.Get()
+	timer.Reset()
+	timer.Add(10)
+	require.Equal(t, int64(1), timer.Count())
+	require.Equal(t, 10.0, timer.Sum())
 }

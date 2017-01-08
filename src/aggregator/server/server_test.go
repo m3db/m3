@@ -27,10 +27,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3aggregator/aggregator/mock"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -51,6 +52,7 @@ var (
 		},
 		VersionedPolicies: policy.VersionedPolicies{
 			Version: 1,
+			Cutover: time.Now(),
 			Policies: []policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
@@ -68,6 +70,22 @@ var (
 	}
 )
 
+func testAggregationServerOptions() Options {
+	iteratorPool := msgpack.NewUnaggregatedIteratorPool(nil)
+	iteratorOpts := msgpack.NewUnaggregatedIteratorOptions().SetIteratorPool(iteratorPool)
+	iteratorPool.Init(func() msgpack.UnaggregatedIterator {
+		return msgpack.NewUnaggregatedIterator(nil, iteratorOpts)
+	})
+
+	opts := NewOptions()
+	return opts.
+		SetPacketQueueSize(1024).
+		SetWorkerPoolSize(2).
+		SetIteratorPool(iteratorPool).
+		SetRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(2))).
+		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
+}
+
 func testAggregationServer(l net.Listener) (*Server, *int32, *int32, *int32, *int32) {
 	var (
 		numAddedConns   int32
@@ -76,8 +94,8 @@ func testAggregationServer(l net.Listener) (*Server, *int32, *int32, *int32, *in
 		numPackets      int32
 	)
 
-	opts := NewOptions()
-	agg := aggregator.NewMockAggregator()
+	opts := testAggregationServerOptions()
+	agg := mock.NewAggregator()
 	s := NewServer(l, agg, opts)
 
 	s.addConnectionFn = func(conn net.Conn) bool {
@@ -112,7 +130,7 @@ func TestAggregationServerListenAndClose(t *testing.T) {
 	var (
 		numClients     = 9
 		wgClient       sync.WaitGroup
-		expectedResult aggregator.SnapshotResult
+		expectedResult mock.SnapshotResult
 	)
 
 	// Start server
@@ -156,5 +174,5 @@ func TestAggregationServerListenAndClose(t *testing.T) {
 	require.Equal(t, int32(numClients), atomic.LoadInt32(numHandledConns))
 
 	// Assert the snapshot match expectations
-	require.Equal(t, expectedResult, s.aggregator.(aggregator.MockAggregator).Snapshot())
+	require.Equal(t, expectedResult, s.aggregator.(mock.Aggregator).Snapshot())
 }
