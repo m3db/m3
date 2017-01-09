@@ -94,6 +94,23 @@ func TestRefCountFinalizeCallsFinalizer(t *testing.T) {
 	assert.Equal(t, 1, finalizerCalls)
 }
 
+func TestRefCountFinalizerNil(t *testing.T) {
+	elem := &RefCount{}
+
+	assert.Equal(t, (Finalizer)(nil), elem.Finalizer())
+
+	finalizerCalls := 0
+	elem.SetFinalizer(Finalizer(FinalizerFn(func() {
+		finalizerCalls++
+	})))
+
+	assert.NotNil(t, elem.Finalizer())
+
+	elem.Finalize()
+
+	assert.Equal(t, 1, finalizerCalls)
+}
+
 func TestRefCountReadAfterFree(t *testing.T) {
 	elem := &RefCount{}
 

@@ -48,52 +48,55 @@ func TestTracebackReadAfterFree(t *testing.T) {
 	SetTracebackCycles(2)
 	defer SetTracebackCycles(defaultTracebackCycles)
 
-	elem := &struct {
-		RefCount
-		x int
-	}{
-		x: 42,
+	for i := 0; i < 1000; i++ {
+		elem := &struct {
+			RefCount
+			x int
+		}{
+			x: 42,
+		}
+
+		finalized := 0
+		elem.SetFinalizer(FinalizerFn(func() {
+			finalized++
+		}))
+
+		elem.IncRef()
+		assert.Equal(t, 1, elem.NumRef())
+		assert.Equal(t, 0, finalized)
+
+		elem.IncReads()
+		assert.Equal(t, 1, elem.NumReaders())
+
+		elem.DecReads()
+		assert.Equal(t, 0, elem.NumReaders())
+
+		elem.DecRef()
+		assert.Equal(t, 0, finalized)
+
+		elem.Finalize()
+		assert.Equal(t, 1, finalized)
+
+		var err error
+		SetPanicFn(func(e error) {
+			err = e
+		})
+
+		elem.IncReads()
+
+		require.Error(t, err)
+
+		ResetPanicFn()
+
+		str := err.Error()
+		assert.True(t, strings.Contains(str, "read after free: reads=1, ref=0"))
+		assert.True(t, strings.Contains(str, "IncReads, ref=0, unixnanos="))
+		assert.True(t, strings.Contains(str, "checked.(*RefCount).IncReads"))
+		assert.True(t, strings.Contains(str, "DecRef, ref=0, unixnanos="))
+		assert.True(t, strings.Contains(str, "checked.(*RefCount).DecRef"))
+		assert.True(t, strings.Contains(str, "IncRef, ref=1, unixnanos="))
+		assert.True(t, strings.Contains(str, "checked.(*RefCount).IncRef"))
 	}
-
-	finalized := 0
-	elem.SetFinalizer(FinalizerFn(func() {
-		finalized++
-	}))
-
-	elem.IncRef()
-	assert.Equal(t, 1, elem.NumRef())
-	assert.Equal(t, 0, finalized)
-
-	elem.IncReads()
-	assert.Equal(t, 1, elem.NumReaders())
-
-	elem.DecReads()
-	assert.Equal(t, 0, elem.NumReaders())
-
-	elem.DecRef()
-	assert.Equal(t, 0, finalized)
-
-	elem.Finalize()
-	assert.Equal(t, 1, finalized)
-
-	var err error
-	SetPanicFn(func(e error) {
-		err = e
-	})
-	defer ResetPanicFn()
-
-	elem.IncReads()
-
-	require.Error(t, err)
-
-	str := err.Error()
-	assert.True(t, strings.Contains(str, "read after free: reads=1, ref=0"))
-	assert.True(t, strings.Contains(str, "IncReads, ref=0, unixnanos="))
-	assert.True(t, strings.Contains(str, "checked.(*RefCount).IncReads"))
-	assert.True(t, strings.Contains(str, "DecRef, ref=0, unixnanos="))
-	assert.True(t, strings.Contains(str, "checked.(*RefCount).DecRef"))
-	assert.True(t, strings.Contains(str, "IncRef, ref=1, unixnanos="))
-	assert.True(t, strings.Contains(str, "checked.(*RefCount).IncRef"))
 }
 
 func TestTracebackDoubleWrite(t *testing.T) {
@@ -102,55 +105,58 @@ func TestTracebackDoubleWrite(t *testing.T) {
 	SetTracebackCycles(2)
 	defer SetTracebackCycles(defaultTracebackCycles)
 
-	elem := &struct {
-		RefCount
-		x int
-	}{
-		x: 42,
+	for i := 0; i < 1000; i++ {
+		elem := &struct {
+			RefCount
+			x int
+		}{
+			x: 42,
+		}
+
+		finalized := 0
+		elem.SetFinalizer(FinalizerFn(func() {
+			finalized++
+		}))
+
+		elem.IncRef()
+		elem.DecRef()
+		assert.Equal(t, 0, elem.NumRef())
+
+		elem.IncRef()
+		assert.Equal(t, 1, elem.NumRef())
+		assert.Equal(t, 0, finalized)
+
+		elem.IncWrites()
+		elem.DecWrites()
+		assert.Equal(t, 0, elem.NumWriters())
+
+		elem.DecRef()
+
+		elem.IncRef()
+		elem.MoveRef()
+		assert.Equal(t, 1, elem.NumRef())
+
+		var err error
+		SetPanicFn(func(e error) {
+			err = e
+		})
+
+		elem.IncWrites()
+		assert.Equal(t, 1, elem.NumWriters())
+
+		elem.IncWrites()
+
+		require.Error(t, err)
+
+		ResetPanicFn()
+
+		str := err.Error()
+		assert.True(t, strings.Contains(str, "double write: writes=2, ref=1"))
+		assert.True(t, strings.Contains(str, "IncWrites, ref=1, unixnanos="))
+		assert.True(t, strings.Contains(str, "checked.(*RefCount).IncWrites"))
+		assert.True(t, strings.Contains(str, "IncWrites, ref=1, unixnanos="))
+		assert.True(t, strings.Contains(str, "checked.(*RefCount).IncWrites"))
+		assert.True(t, strings.Contains(str, "IncRef, ref=1, unixnanos="))
+		assert.True(t, strings.Contains(str, "checked.(*RefCount).IncRef"))
 	}
-
-	finalized := 0
-	elem.SetFinalizer(FinalizerFn(func() {
-		finalized++
-	}))
-
-	elem.IncRef()
-	elem.DecRef()
-	assert.Equal(t, 0, elem.NumRef())
-
-	elem.IncRef()
-	assert.Equal(t, 1, elem.NumRef())
-	assert.Equal(t, 0, finalized)
-
-	elem.IncWrites()
-	elem.DecWrites()
-	assert.Equal(t, 0, elem.NumWriters())
-
-	elem.DecRef()
-
-	elem.IncRef()
-	elem.MoveRef()
-	assert.Equal(t, 1, elem.NumRef())
-
-	var err error
-	SetPanicFn(func(e error) {
-		err = e
-	})
-	defer ResetPanicFn()
-
-	elem.IncWrites()
-	assert.Equal(t, 1, elem.NumWriters())
-
-	elem.IncWrites()
-
-	require.Error(t, err)
-
-	str := err.Error()
-	assert.True(t, strings.Contains(str, "double write: writes=2, ref=1"))
-	assert.True(t, strings.Contains(str, "IncWrites, ref=1, unixnanos="))
-	assert.True(t, strings.Contains(str, "checked.(*RefCount).IncWrites"))
-	assert.True(t, strings.Contains(str, "IncWrites, ref=1, unixnanos="))
-	assert.True(t, strings.Contains(str, "checked.(*RefCount).IncWrites"))
-	assert.True(t, strings.Contains(str, "IncRef, ref=1, unixnanos="))
-	assert.True(t, strings.Contains(str, "checked.(*RefCount).IncRef"))
 }

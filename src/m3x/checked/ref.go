@@ -23,6 +23,7 @@ package checked
 import (
 	"fmt"
 	"sync/atomic"
+	"unsafe"
 )
 
 // RefCount is an embeddable checked.Ref.
@@ -30,7 +31,7 @@ type RefCount struct {
 	ref       int32
 	reads     int32
 	writes    int32
-	finalizer Finalizer
+	finalizer unsafe.Pointer
 }
 
 // IncRef increments the reference count to this entity.
@@ -73,19 +74,25 @@ func (c *RefCount) Finalize() {
 		err := fmt.Errorf("finalize before zero ref count, ref=%d", n)
 		panicRef(c, err)
 	}
-	if c.finalizer != nil {
-		c.finalizer.Finalize()
+	finalizerPtr := (*Finalizer)(atomic.LoadPointer(&c.finalizer))
+	if finalizerPtr != nil {
+		finalizer := *finalizerPtr
+		finalizer.Finalize()
 	}
 }
 
 // Finalizer returns the finalizer if any or nil otherwise.
 func (c *RefCount) Finalizer() Finalizer {
-	return c.finalizer
+	finalizerPtr := (*Finalizer)(atomic.LoadPointer(&c.finalizer))
+	if finalizerPtr == nil {
+		return nil
+	}
+	return *finalizerPtr
 }
 
 // SetFinalizer sets the finalizer.
 func (c *RefCount) SetFinalizer(f Finalizer) {
-	c.finalizer = f
+	atomic.StorePointer(&c.finalizer, unsafe.Pointer(&f))
 }
 
 // IncReads increments the reads count to this entity.

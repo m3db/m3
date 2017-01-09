@@ -23,19 +23,28 @@ package checked
 import (
 	"bytes"
 	"fmt"
-	"runtime/debug"
+	"runtime"
+	"sync"
 	"time"
 )
 
 const (
-	defaultTraceback       = false
-	defaultTracebackCycles = 3
+	defaultTraceback         = false
+	defaultTracebackCycles   = 3
+	defaultTracebackMaxDepth = 64
 )
 
 var (
-	traceback       = defaultTraceback
-	tracebackCycles = defaultTracebackCycles
-	panicFn         = defaultPanic
+	traceback            = defaultTraceback
+	tracebackCycles      = defaultTracebackCycles
+	tracebackMaxDepth    = defaultTracebackMaxDepth
+	tracebackCallersPool = sync.Pool{New: func() interface{} {
+		return make([]uintptr, tracebackMaxDepth)
+	}}
+	tracebackEntryPool = sync.Pool{New: func() interface{} {
+		return &debuggerEntry{}
+	}}
+	panicFn = defaultPanic
 )
 
 // PanicFn is a panic function to call on invalid checked state
@@ -68,6 +77,11 @@ func SetTraceback(value bool) {
 // SetTracebackCycles sets the count of traceback cycles to keep if enabled
 func SetTracebackCycles(value int) {
 	tracebackCycles = value
+}
+
+// SetTracebackMaxDepth sets the max amount of frames to capture for traceback
+func SetTracebackMaxDepth(frames int) {
+	tracebackMaxDepth = frames
 }
 
 func panicRef(c *RefCount, err error) {
@@ -111,42 +125,54 @@ func (d debuggerEvent) String() string {
 }
 
 type debugger struct {
+	sync.Mutex
 	entries [][]*debuggerEntry
 }
 
-func (d *debugger) append(event debuggerEvent, ref int, stack []byte) {
+func (d *debugger) append(event debuggerEvent, ref int, pc []uintptr) {
+	d.Lock()
 	if len(d.entries) == 0 {
 		d.entries = make([][]*debuggerEntry, 1, tracebackCycles)
 	}
 	idx := len(d.entries) - 1
-	d.entries[idx] = append(d.entries[idx], &debuggerEntry{
-		event: event,
-		ref:   ref,
-		stack: stack,
-		t:     time.Now(),
-	})
+	entry := tracebackEntryPool.Get().(*debuggerEntry)
+	entry.event = event
+	entry.ref = ref
+	entry.pc = pc
+	entry.t = time.Now()
+	d.entries[idx] = append(d.entries[idx], entry)
 	if event == decRefEvent && ref == 0 {
 		if len(d.entries) == tracebackCycles {
 			// Shift all tracebacks back one if at end of traceback cycles
+			slice := d.entries[0]
+			for i, entry := range slice {
+				tracebackCallersPool.Put(entry.pc)
+				entry.pc = nil
+				tracebackEntryPool.Put(entry)
+				slice[i] = nil
+			}
 			for i := 1; i < len(d.entries); i++ {
 				d.entries[i-1] = d.entries[i]
 			}
-			d.entries[idx] = nil
+			d.entries[idx] = slice[:0]
 		} else {
 			// Begin writing new events to the next cycle
 			d.entries = d.entries[:len(d.entries)+1]
 		}
 	}
+	d.Unlock()
 }
 
 func (d *debugger) String() string {
 	buffer := bytes.NewBuffer(nil)
+	d.Lock()
 	// Reverse the entries for time descending
 	for i := len(d.entries) - 1; i >= 0; i-- {
 		for j := len(d.entries[i]) - 1; j >= 0; j-- {
 			buffer.WriteString(d.entries[i][j].String())
 		}
 	}
+	d.Unlock()
 	return buffer.String()
 }
 
@@ -164,26 +190,51 @@ func (d *debuggerRef) Finalize() {
 type debuggerEntry struct {
 	event debuggerEvent
 	ref   int
-	stack []byte
+	pc    []uintptr
 	t     time.Time
 }
 
 func (e *debuggerEntry) String() string {
+	buf := bytes.NewBuffer(nil)
+	frames := runtime.CallersFrames(e.pc)
+	for {
+		frame, more := frames.Next()
+		buf.WriteString(frame.Function)
+		buf.WriteString("(...)")
+		buf.WriteString("\n")
+		buf.WriteString("\t")
+		buf.WriteString(frame.File)
+		buf.WriteString(":")
+		buf.WriteString(fmt.Sprintf("%d", frame.Line))
+		buf.WriteString(fmt.Sprintf(" +%x", frame.Entry))
+		buf.WriteString("\n")
+		if !more {
+			break
+		}
+	}
 	return fmt.Sprintf("%s, ref=%d, unixnanos=%d:\n%s\n",
-		e.event.String(), e.ref, e.t.UnixNano(), string(e.stack))
+		e.event.String(), e.ref, e.t.UnixNano(), buf.String())
 }
 
 func getDebuggerRef(c *RefCount) *debuggerRef {
-	if c.finalizer == nil {
-		c.finalizer = &debuggerRef{}
-		return c.finalizer.(*debuggerRef)
+	// Note: because finalizer is an atomic pointer not using
+	// CompareAndSwapPointer makes this code is racy, however
+	// it is safe due to using atomic load and stores.
+	// This is used primarily for debugging and the races will
+	// show up when inspecting the tracebacks.
+	finalizer := c.Finalizer()
+	if finalizer == nil {
+		debugger := &debuggerRef{}
+		c.SetFinalizer(debugger)
+		return debugger
 	}
 
-	debugger, ok := c.finalizer.(*debuggerRef)
+	debugger, ok := finalizer.(*debuggerRef)
 	if !ok {
 		// Wrap the existing finalizer in a debuggerRef
-		c.finalizer = &debuggerRef{finalizer: c.finalizer}
-		return c.finalizer.(*debuggerRef)
+		debugger := &debuggerRef{finalizer: finalizer}
+		c.SetFinalizer(debugger)
+		return debugger
 	}
 
 	return debugger
@@ -191,16 +242,13 @@ func getDebuggerRef(c *RefCount) *debuggerRef {
 
 func tracebackEvent(c *RefCount, ref int, e debuggerEvent) {
 	d := getDebuggerRef(c)
-	stack := debug.Stack()
-	endlines := 0
-	skipPrologue := 1
+	depth := tracebackMaxDepth
+	pc := tracebackCallersPool.Get().([]uintptr)
+	if capacity := cap(pc); capacity < depth {
+		pc = make([]uintptr, depth)
+	}
+	pc = pc[:depth]
 	skipEntry := 2
-	entryLen := 2
-	skipAfterIdx := bytes.IndexFunc(stack, func(r rune) bool {
-		if r == '\n' {
-			endlines++
-		}
-		return endlines == skipPrologue+(skipEntry*entryLen)
-	})
-	d.append(e, ref, stack[skipAfterIdx+1:])
+	n := runtime.Callers(skipEntry, pc)
+	d.append(e, ref, pc[:n])
 }
