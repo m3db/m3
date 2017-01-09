@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
@@ -41,15 +42,15 @@ type packet struct {
 }
 
 type packetQueueMetrics struct {
-	enqueues  tally.Counter
-	dequeues  tally.Counter
+	enqueue   instrument.MethodMetrics
+	dequeue   instrument.MethodMetrics
 	discarded tally.Counter
 }
 
 func newPacketQueueMetrics(scope tally.Scope, samplingRate float64) packetQueueMetrics {
 	return packetQueueMetrics{
-		enqueues:  scope.Counter("enqueues"),
-		dequeues:  scope.Counter("dequeues"),
+		enqueue:   instrument.NewMethodMetrics(scope, "enqueue", samplingRate),
+		dequeue:   instrument.NewMethodMetrics(scope, "dequeue", samplingRate),
 		discarded: scope.Counter("discarded"),
 	}
 }
@@ -58,15 +59,21 @@ func newPacketQueueMetrics(scope tally.Scope, samplingRate float64) packetQueueM
 // If the queue is full when enqueuing packets, oldest packets will be
 // dropped until there is more space in the queue
 type packetQueue struct {
+	nowFn   clock.NowFn
 	queue   chan packet
 	metrics packetQueueMetrics
 	closed  int32
 }
 
-func newPacketQueue(size int, instrumentOpts instrument.Options) *packetQueue {
-	scope := instrumentOpts.MetricsScope()
+func newPacketQueue(
+	size int,
+	clockOpts clock.Options,
+	instrumentOpts instrument.Options,
+) *packetQueue {
+	scope := instrumentOpts.MetricsScope().SubScope("queue")
 	samplingRate := instrumentOpts.MetricsSamplingRate()
 	return &packetQueue{
+		nowFn:   clockOpts.NowFn(),
 		queue:   make(chan packet, size),
 		metrics: newPacketQueueMetrics(scope, samplingRate),
 	}
@@ -75,10 +82,11 @@ func newPacketQueue(size int, instrumentOpts instrument.Options) *packetQueue {
 func (q *packetQueue) Len() int { return len(q.queue) }
 
 func (q *packetQueue) Enqueue(p packet) error {
+	callStart := q.nowFn()
 	for atomic.LoadInt32(&q.closed) == 0 {
 		select {
 		case q.queue <- p:
-			q.metrics.enqueues.Inc(1)
+			q.metrics.enqueue.ReportSuccess(q.nowFn().Sub(callStart))
 			return nil
 		default:
 		}
@@ -90,15 +98,18 @@ func (q *packetQueue) Enqueue(p packet) error {
 		}
 	}
 
+	q.metrics.enqueue.ReportError(q.nowFn().Sub(callStart))
 	return errQueueClosed
 }
 
 func (q *packetQueue) Dequeue() (packet, error) {
+	callStart := q.nowFn()
 	p, ok := <-q.queue
 	if !ok {
+		q.metrics.dequeue.ReportError(q.nowFn().Sub(callStart))
 		return packet{}, errQueueClosed
 	}
-	q.metrics.dequeues.Inc(1)
+	q.metrics.dequeue.ReportSuccess(q.nowFn().Sub(callStart))
 	return p, nil
 }
 

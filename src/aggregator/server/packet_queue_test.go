@@ -26,13 +26,14 @@ import (
 
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/stretchr/testify/require"
 )
 
 func testPacketQueue(size int) *packetQueue {
-	return newPacketQueue(size, instrument.NewOptions())
+	return newPacketQueue(size, clock.NewOptions(), instrument.NewOptions())
 }
 
 func TestPacketQueueEnqueue(t *testing.T) {

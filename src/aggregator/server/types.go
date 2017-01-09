@@ -22,12 +22,19 @@ package server
 
 import (
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 )
 
 // Options provide a set of server options
 type Options interface {
+	// SetClockOptions sets the clock options
+	SetClockOptions(value clock.Options) Options
+
+	// ClockOptions returns the clock options
+	ClockOptions() clock.Options
+
 	// SetInstrumentOptions sets the instrument options
 	SetInstrumentOptions(value instrument.Options) Options
 
