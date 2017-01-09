@@ -60,7 +60,7 @@ func newTestNamespace(t *testing.T) *dbNamespace {
 
 func TestNamespaceName(t *testing.T) {
 	ns := newTestNamespace(t)
-	require.Equal(t, testNamespaceID, ns.ID())
+	require.True(t, testNamespaceID.Equal(ns.ID()))
 }
 
 func TestNamespaceTick(t *testing.T) {
