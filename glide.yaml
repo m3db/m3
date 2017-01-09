@@ -3,57 +3,48 @@ import:
 
 - package: github.com/apache/thrift
   version: ~0.9.3
-  repo: git@github.com:apache/thrift.git
   vcs: git
   subpackages:
   - lib/go/thrift
 
 - package: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
-  repo: git@github.com:golang/mock.git
   vcs: git
   subpackages:
   - gomock
 
 - package: github.com/golang/protobuf
   version: bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
-  repo: git@github.com:golang/protobuf.git
   vcs: git
   subpackages:
   - proto
 
 - package: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
-  repo: git@github.com:spaolacci/murmur3.git
   vcs: git
 
 - package: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
-  repo: git@github.com:stretchr/testify.git
   vcs: git
   subpackages:
   - require
 
 - package: github.com/uber/tchannel-go
   version: 8d570ed87acb2661d390c096215260f3f9e9b931
-  repo: git@github.com:uber/tchannel-go.git
   vcs: git
   subpackages:
   - thrift
 
 - package: github.com/willf/bitset
   version: 2e6e8094ef4745224150c88c16191c7dceaad16f
-  repo: git@github.com:willf/bitset.git
   vcs: git
 
 - package: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
-  repo: git@github.com:uber-go/tally.git
   vcs: git
 
 - package: github.com/m3db/m3cluster
   version: 8ca9f7bc9c3e446aec14fa785cf22f640117d33b
-  repo: git@github.com:m3db/m3cluster.git
   vcs: git
   subpackages:
   - client
@@ -61,7 +52,6 @@ import:
 
 - package: github.com/m3db/m3x
   version: 4793bdfe6fb85eddbb8567229163c33533e34836
-  repo: git@github.com:m3db/m3x.git
   vcs: git
   subpackages:
   - close
