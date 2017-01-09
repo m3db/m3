@@ -136,6 +136,9 @@ type QueryOptions interface {
 
 // Metadata contains the metadata for a service
 type Metadata interface {
+	// String returns a description of the metadata
+	String() string
+
 	// Port returns the port to be used to contact the service
 	Port() uint32
 

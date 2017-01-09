@@ -167,6 +167,13 @@ func (m *metadata) SetHeartbeatInterval(l time.Duration) Metadata {
 	m.heartbeatInterval = l
 	return m
 }
+func (m *metadata) String() string {
+	return fmt.Sprintf("[port: %d, livenessInterval: %v, heartbeatInterval: %v]",
+		m.port,
+		m.livenessInterval,
+		m.heartbeatInterval,
+	)
+}
 
 // PlacementInstances is a slice of instances that can produce a debug string
 type PlacementInstances []PlacementInstance
