@@ -162,7 +162,9 @@ func newHostSet() *hostSet {
 }
 
 func (h *hostSet) insert(hbm repair.HostBlockMetadata) {
-	(*h)[hbm.Host.String()] = hbm
+	if host := hbm.Host; host != nil {
+		(*h)[host.String()] = hbm
+	}
 }
 
 func (h *hostSet) insertOneFromSet(oh *hostSet) {
@@ -173,6 +175,9 @@ func (h *hostSet) insertOneFromSet(oh *hostSet) {
 }
 
 func (h *hostSet) contains(host topology.Host) bool {
+	if host == nil {
+		return false
+	}
 	_, ok := (*h)[host.String()]
 	return ok
 }

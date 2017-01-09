@@ -139,7 +139,7 @@ func newMultiAddrAdminClient(
 	return adminClient
 }
 
-func newBootstrappableTestSetup(
+func newMultipleTestSetup(
 	t *testing.T,
 	opts testOptions,
 	retentionOpts retention.Options,
@@ -154,12 +154,13 @@ func newBootstrappableTestSetup(
 	return setup
 }
 
-type bootstrappableTestSetupOptions struct {
-	disablePeersBootstrapper   bool
-	bootstrapBlocksBatchSize   int
-	bootstrapBlocksConcurrency int
-	topologyInitializer        topology.Initializer
-	testStatsReporter          xmetrics.TestStatsReporter
+type multipleTestSetupsOptions struct {
+	enableRepairer                    bool
+	disablePeersBootstrapper          bool
+	fetchSeriesBlocksBatchSize        int
+	fetchSeriesBlocksBatchConcurrency int
+	topologyInitializer               topology.Initializer
+	testStatsReporter                 xmetrics.TestStatsReporter
 }
 
 type closeFn func()
@@ -175,11 +176,25 @@ func newDefaulTestResultOptions(
 		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
 }
 
-func newDefaultBootstrappableTestSetups(
+func newDefaultAdminOptions(
+	fetchSeriesBlocksBatchSize int,
+	fetchSeriesBlocksBatchConcurrency int,
+) client.AdminOptions {
+	adminOpts := client.NewAdminOptions()
+	if fetchSeriesBlocksBatchSize > 0 {
+		adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(fetchSeriesBlocksBatchSize)
+	}
+	if fetchSeriesBlocksBatchConcurrency > 0 {
+		adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(fetchSeriesBlocksBatchConcurrency)
+	}
+	return adminOpts
+}
+
+func newDefaultMultipleTestSetups(
 	t *testing.T,
 	opts testOptions,
 	retentionOpts retention.Options,
-	setupOpts []bootstrappableTestSetupOptions,
+	setupOpts []multipleTestSetupsOptions,
 ) (testSetups, closeFn) {
 	var (
 		replicas        = len(setupOpts)
@@ -194,20 +209,21 @@ func newDefaultBootstrappableTestSetups(
 	}
 	for i := 0; i < replicas; i++ {
 		var (
-			instance                   = i
-			usingPeersBoostrapper      = !setupOpts[i].disablePeersBootstrapper
-			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
-			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
-			topologyInitializer        = setupOpts[i].topologyInitializer
-			testStatsReporter          = setupOpts[i].testStatsReporter
-			instanceOpts               = newMultiAddrTestOptions(opts, instance)
-			setup                      *testSetup
+			instance                          = i
+			usingRepairer                     = setupOpts[i].enableRepairer
+			usingPeersBoostrapper             = !setupOpts[i].disablePeersBootstrapper
+			fetchSeriesBlocksBatchSize        = setupOpts[i].fetchSeriesBlocksBatchSize
+			fetchSeriesBlocksBatchConcurrency = setupOpts[i].fetchSeriesBlocksBatchConcurrency
+			topologyInitializer               = setupOpts[i].topologyInitializer
+			testStatsReporter                 = setupOpts[i].testStatsReporter
+			instanceOpts                      = newMultiAddrTestOptions(opts, instance)
+			setup                             *testSetup
 		)
 		if topologyInitializer != nil {
 			instanceOpts = instanceOpts.
 				SetClusterDatabaseTopologyInitializer(topologyInitializer)
 		}
-		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
+		setup = newMultipleTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
 			instrumentOpts := setup.storageOpts.InstrumentOptions()
 
 			bsOpts := newDefaulTestResultOptions(setup.storageOpts, instrumentOpts)
@@ -215,13 +231,7 @@ func newDefaultBootstrappableTestSetups(
 
 			var adminClient client.AdminClient
 			if usingPeersBoostrapper {
-				adminOpts := client.NewAdminOptions()
-				if bootstrapBlocksBatchSize > 0 {
-					adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
-				}
-				if bootstrapBlocksConcurrency > 0 {
-					adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
-				}
+				adminOpts := newDefaultAdminOptions(fetchSeriesBlocksBatchSize, fetchSeriesBlocksBatchConcurrency)
 				adminClient = newMultiAddrAdminClient(
 					t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			}
@@ -255,8 +265,14 @@ func newDefaultBootstrappableTestSetups(
 			scope := tally.NewRootScope("", nil, testStatsReporter, 100*time.Millisecond)
 			iopts = iopts.SetMetricsScope(scope)
 		}
+		if usingRepairer {
+			bsOpts := newDefaulTestResultOptions(setup.storageOpts, iopts)
+			adminOpts := newDefaultAdminOptions(fetchSeriesBlocksBatchSize, fetchSeriesBlocksBatchConcurrency)
+			adminClient := newMultiAddrAdminClient(t, adminOpts, iopts, setup.shardSet, replicas, instance)
+			repairOpts := setup.storageOpts.RepairOptions().SetResultOptions(bsOpts).SetAdminClient(adminClient)
+			setup.storageOpts = setup.storageOpts.SetRepairOptions(repairOpts)
+		}
 		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(iopts)
-
 		setups = append(setups, setup)
 		appendCleanupFn(func() {
 			setup.close()

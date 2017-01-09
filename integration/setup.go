@@ -99,6 +99,12 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	storageOpts := storage.NewOptions()
+	repairOpts := storageOpts.RepairOptions().
+		SetRepairThrottle(opts.RepairThrottle()).
+		SetRepairTimeJitter(opts.RepairTimeJitter()).
+		SetRepairTimeOffset(opts.RepairTimeOffset()).
+		SetRepairCheckInterval(opts.RepairCheckInterval())
+	storageOpts = storageOpts.SetRepairOptions(repairOpts)
 
 	nativePooling :=
 		strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"

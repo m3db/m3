@@ -57,6 +57,18 @@ const (
 
 	// defaultUseTChannelClientForTruncation determines whether we use the tchannel client for truncation by default.
 	defaultUseTChannelClientForTruncation = true
+
+	// defaultRepairThrottle determines the throttle per namespace repair by default.
+	defaultRepairThrottle = time.Duration(1 * time.Minute)
+
+	// defaultRepairTimeJitter determines the repair jitter by default.
+	defaultRepairTimeJitter = time.Duration(1 * time.Second)
+
+	// defaultRepairTimeOffset determines the repair time offset by default.
+	defaultRepairTimeOffset = time.Duration(1 * time.Second)
+
+	// defaultRepairCheckInterval determines the repair check interval by default.
+	defaultRepairCheckInterval = time.Duration(1 * time.Minute)
 )
 
 type testOptions interface {
@@ -163,6 +175,30 @@ type testOptions interface {
 
 	// VerifySeriesDebugFilePathPrefix returns the file path prefix for writing a debug file of series comparisons.
 	VerifySeriesDebugFilePathPrefix() string
+
+	// SetRepairThrottle sets minimum duration of time a namespace repair is throttled to.
+	SetRepairThrottle(throttle time.Duration) testOptions
+
+	// RepairThrottle returns the repair throttle duration.
+	RepairThrottle() time.Duration
+
+	// SetRepairTimeJitter sets the repair time jitter.
+	SetRepairTimeJitter(t time.Duration) testOptions
+
+	// RepairTimeJitter returns the repair time jitter.
+	RepairTimeJitter() time.Duration
+
+	// SetRepairTimeOffset sets the repair time offset.
+	SetRepairTimeOffset(t time.Duration) testOptions
+
+	// RepairTimeOffset returns the repair time offset.
+	RepairTimeOffset() time.Duration
+
+	// SetRepairCheckInterval sets the repair check interval duration.
+	SetRepairCheckInterval(t time.Duration) testOptions
+
+	// RepairCheckInterval returns the repair check interval duration.
+	RepairCheckInterval() time.Duration
 }
 
 type options struct {
@@ -183,6 +219,10 @@ type options struct {
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
 	verifySeriesDebugFilePathPrefix    string
+	repairThrottle                     time.Duration
+	repairTimeJitter                   time.Duration
+	repairTimeOffset                   time.Duration
+	repairCheckInterval                time.Duration
 }
 
 func newTestOptions() testOptions {
@@ -202,6 +242,10 @@ func newTestOptions() testOptions {
 		useTChannelClientForReading:    defaultUseTChannelClientForReading,
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
+		repairThrottle:                 defaultRepairThrottle,
+		repairTimeJitter:               defaultRepairTimeJitter,
+		repairTimeOffset:               defaultRepairTimeOffset,
+		repairCheckInterval:            defaultRepairCheckInterval,
 	}
 }
 
@@ -373,4 +417,44 @@ func (o *options) SetVerifySeriesDebugFilePathPrefix(value string) testOptions {
 
 func (o *options) VerifySeriesDebugFilePathPrefix() string {
 	return o.verifySeriesDebugFilePathPrefix
+}
+
+func (o *options) SetRepairThrottle(t time.Duration) testOptions {
+	opts := *o
+	opts.repairThrottle = t
+	return &opts
+}
+
+func (o *options) RepairThrottle() time.Duration {
+	return o.repairThrottle
+}
+
+func (o *options) SetRepairTimeJitter(t time.Duration) testOptions {
+	opts := *o
+	opts.repairTimeJitter = t
+	return &opts
+}
+
+func (o *options) RepairTimeJitter() time.Duration {
+	return o.repairTimeJitter
+}
+
+func (o *options) SetRepairTimeOffset(t time.Duration) testOptions {
+	opts := *o
+	opts.repairTimeOffset = t
+	return &opts
+}
+
+func (o *options) RepairTimeOffset() time.Duration {
+	return o.repairTimeOffset
+}
+
+func (o *options) SetRepairCheckInterval(t time.Duration) testOptions {
+	opts := *o
+	opts.repairCheckInterval = t
+	return &opts
+}
+
+func (o *options) RepairCheckInterval() time.Duration {
+	return o.repairCheckInterval
 }
