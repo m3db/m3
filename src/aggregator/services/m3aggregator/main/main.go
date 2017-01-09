@@ -23,18 +23,26 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/server"
+	"github.com/m3db/m3aggregator/services/m3aggregator/processor"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
+	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/log"
 )
 
 const (
 	gracefulShutdownTimeout = 10 * time.Second
+	processorQueueSize      = 4096
 )
 
 var (
@@ -49,15 +57,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Creating the aggregator
-	// TODO(xichen): customize flush flunction
 	aggregatorOpts := aggregator.NewOptions()
+	log := aggregatorOpts.InstrumentOptions().Logger()
+	metricWithPolicyfn := func(metric aggregated.Metric, policy policy.Policy) error {
+		log.WithFields(
+			xlog.NewLogField("metric", metric),
+			xlog.NewLogField("policy", policy),
+		).Info("aggregated metric")
+		return nil
+	}
+	numWorkers := int(math.Max(float64(runtime.NumCPU()/4), 1.0))
+	processor := processor.NewAggregatedMetricProcessor(
+		processorQueueSize,
+		numWorkers,
+		metricWithPolicyfn,
+		log,
+		msgpack.NewAggregatedIteratorOptions(),
+	)
+
+	// Creating the aggregator
+	aggregatorOpts = aggregatorOpts.SetFlushFn(processor.Add)
 	aggregator := aggregator.NewAggregator(aggregatorOpts)
 
 	// Creating the server
 	listenAddr := *listenAddrArg
 	serverOpts := server.NewOptions()
-	log := serverOpts.InstrumentOptions().Logger()
 
 	// Start listening
 	doneCh := make(chan struct{})
@@ -73,6 +97,8 @@ func main() {
 			log.Fatalf("could not start serving traffic: %v", err)
 		}
 		log.Debug("server closed")
+		processor.Close()
+		log.Debug("processor closed")
 		close(closedCh)
 	}()
 
