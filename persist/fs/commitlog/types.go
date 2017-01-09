@@ -25,10 +25,10 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -105,7 +105,23 @@ type Series struct {
 
 	// Shard is the shard the series belongs to
 	Shard uint32
+
+	// SegmentFlags declares whether to finalize when finalizing the Series.
+	Flags SeriesFlags
 }
+
+// SeriesFlags describes the option to finalize or not finalize
+// bytes in a Series.
+type SeriesFlags uint8
+
+const (
+	// FinalizeNone specifies to finalize neither of the bytes
+	FinalizeNone SeriesFlags = 0 << 1
+	// FinalizeID specifies to finalize the ID
+	FinalizeID SeriesFlags = 1 << 1
+	// FinalizeNamespace specifies to finalize the namespace
+	FinalizeNamespace SeriesFlags = 2 << 1
+)
 
 // Options represents the options for the commit log
 type Options interface {

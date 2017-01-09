@@ -55,7 +55,7 @@ func testPooling(t *testing.T, p IdentifierPool) {
 
 	ctx.BlockingClose()
 
-	require.Empty(t, a.Data().Get())
+	require.Nil(t, a.Data())
 	require.NotEmpty(t, b.Data().Get())
 }
 

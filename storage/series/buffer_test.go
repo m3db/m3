@@ -434,7 +434,9 @@ func TestBufferBucketWriteDuplicate(t *testing.T) {
 	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
 	require.True(t, b.merged())
-	require.Equal(t, encoded, b.encoders[0].encoder.Stream().Segment())
+
+	firstEncoderSegment := b.encoders[0].encoder.Stream().Segment()
+	require.True(t, encoded.Equal(&firstEncoderSegment))
 }
 
 func TestBufferFetchBlocks(t *testing.T) {

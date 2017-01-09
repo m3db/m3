@@ -21,6 +21,8 @@
 package ts
 
 import (
+	"bytes"
+
 	"github.com/m3db/m3x/checked"
 )
 
@@ -80,6 +82,27 @@ func (s *Segment) Len() int {
 		total += s.Tail.Len()
 	}
 	return total
+}
+
+// Equal returns if this segment is equal to another.
+// WARNIG: this   should only be used in code paths not
+// executed often as it allocates bytes to concat each
+// segment head and tail together before comparing the contents.
+func (s *Segment) Equal(other *Segment) bool {
+	var head, tail, otherHead, otherTail []byte
+	if s.Head != nil {
+		head = s.Head.Get()
+	}
+	if s.Tail != nil {
+		tail = s.Tail.Get()
+	}
+	if other.Head != nil {
+		otherHead = other.Head.Get()
+	}
+	if other.Tail != nil {
+		otherTail = other.Tail.Get()
+	}
+	return bytes.Equal(append(head, tail...), append(otherHead, otherTail...))
 }
 
 // Finalize will finalize the segment by decrementing refs to head and
