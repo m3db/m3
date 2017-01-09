@@ -5,6 +5,7 @@ SHELL=/bin/bash -o pipefail
 
 html_report := coverage.html
 test := .ci/test-cover.sh
+test_ci_integration := .ci/test-integration.sh
 convert-test-data := .ci/convert-test-data.sh
 coverfile := cover.out
 coverage_xml := coverage.xml
@@ -18,8 +19,28 @@ vendor_prefix := vendor
 BUILD := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
+SERVICES := \
+	m3aggregator
+
 setup:
 	mkdir -p $(BUILD)
+
+define SERVICE_RULES
+
+$(SERVICE): setup
+	@echo Building $(SERVICE)
+	$(VENDOR_ENV) go build -o $(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
+
+$(SERVICE)-linux-amd64:
+	$(LINUX_AMD64_ENV) make $(SERVICE)
+
+endef
+
+services: $(SERVICES)
+services-linux-amd64:
+	$(LINUX_AMD64_ENV) make services
+
+$(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 
 lint:
 	@which golint > /dev/null || go get -u github.com/golang/lint/golint
@@ -28,6 +49,9 @@ lint:
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
 	$(test) $(coverfile) | tee $(test_log)
+
+test-integration:
+	go test -v -tags=integration ./integration
 
 test-xml: test-internal
 	go-junit-report < $(test_log) > $(junit_xml)
