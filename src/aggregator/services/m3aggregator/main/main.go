@@ -23,10 +23,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -36,13 +34,11 @@ import (
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
 )
 
 const (
 	gracefulShutdownTimeout = 10 * time.Second
-	processorQueueSize      = 4096
 )
 
 var (
@@ -57,8 +53,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	aggregatorOpts := aggregator.NewOptions()
-	log := aggregatorOpts.InstrumentOptions().Logger()
+	// Creating the downstream processor
+	processorOpts := processor.NewOptions()
+	log := processorOpts.InstrumentOptions().Logger()
 	metricWithPolicyfn := func(metric aggregated.Metric, policy policy.Policy) error {
 		log.WithFields(
 			xlog.NewLogField("metric", metric),
@@ -66,17 +63,11 @@ func main() {
 		).Info("aggregated metric")
 		return nil
 	}
-	numWorkers := int(math.Max(float64(runtime.NumCPU()/4), 1.0))
-	processor := processor.NewAggregatedMetricProcessor(
-		processorQueueSize,
-		numWorkers,
-		metricWithPolicyfn,
-		log,
-		msgpack.NewAggregatedIteratorOptions(),
-	)
+	processorOpts = processorOpts.SetMetricWithPolicyFn(metricWithPolicyfn)
+	processor := processor.NewAggregatedMetricProcessor(processorOpts)
 
 	// Creating the aggregator
-	aggregatorOpts = aggregatorOpts.SetFlushFn(processor.Add)
+	aggregatorOpts := aggregator.NewOptions().SetFlushFn(processor.Add)
 	aggregator := aggregator.NewAggregator(aggregatorOpts)
 
 	// Creating the server
@@ -91,7 +82,6 @@ func main() {
 			listenAddr,
 			serverOpts,
 			aggregator,
-			aggregatorOpts,
 			doneCh,
 		); err != nil {
 			log.Fatalf("could not start serving traffic: %v", err)

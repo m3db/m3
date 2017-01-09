@@ -18,36 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package serve
+package integration
 
 import (
-	"fmt"
-
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/server"
+	"time"
 )
 
-// Serve starts serving RPC traffic
-func Serve(
-	listenAddr string,
-	serverOpts server.Options,
-	aggregator aggregator.Aggregator,
-	doneCh chan struct{},
-) error {
-	log := serverOpts.InstrumentOptions().Logger()
-	s := server.NewServer(listenAddr, aggregator, serverOpts)
+type conditionFn func() bool
 
-	closer, err := s.ListenAndServe()
-	if err != nil {
-		return fmt.Errorf("could not listen on %s: %v", listenAddr, err)
+func waitUntil(fn conditionFn, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if fn() {
+			return true
+		}
+		time.Sleep(time.Second)
 	}
-	log.Infof("start listening on %s", listenAddr)
-
-	// Wait for exit signal
-	<-doneCh
-
-	log.Debug("closing the server")
-	closer.Close()
-
-	return nil
+	return false
 }

@@ -224,9 +224,12 @@ func TestSetMaxFlushSize(t *testing.T) {
 func TestSetFlushFn(t *testing.T) {
 	var b *bytes.Buffer
 	buf := msgpack.NewPooledBufferedEncoder(nil)
-	value := func(buf msgpack.BufferedEncoder) { b = buf.Buffer }
+	value := func(buf msgpack.BufferedEncoder) error {
+		b = buf.Buffer
+		return nil
+	}
 	o := NewOptions().SetFlushFn(value)
-	o.FlushFn()(buf)
+	require.NoError(t, o.FlushFn()(buf))
 	require.Equal(t, b, buf.Buffer)
 }
 

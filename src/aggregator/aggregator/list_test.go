@@ -115,10 +115,11 @@ func TestMetricListTick(t *testing.T) {
 		bufferLock sync.Mutex
 		buffers    []msgpack.BufferedEncoder
 	)
-	flushFn := func(buffer msgpack.BufferedEncoder) {
+	flushFn := func(buffer msgpack.BufferedEncoder) error {
 		bufferLock.Lock()
 		buffers = append(buffers, buffer)
 		bufferLock.Unlock()
+		return nil
 	}
 
 	var now = time.Unix(216, 0).UnixNano()

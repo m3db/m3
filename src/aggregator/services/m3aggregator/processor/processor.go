@@ -54,19 +54,14 @@ type AggregatedMetricProcessor struct {
 }
 
 // NewAggregatedMetricProcessor creates a new aggregated metric processor
-func NewAggregatedMetricProcessor(
-	queueSize int,
-	numWorkers int,
-	fn MetricWithPolicyFn,
-	logger xlog.Logger,
-	iterOpts msgpack.AggregatedIteratorOptions,
-) *AggregatedMetricProcessor {
+func NewAggregatedMetricProcessor(opts Options) *AggregatedMetricProcessor {
 	p := &AggregatedMetricProcessor{
-		queue:    make(chan msgpack.BufferedEncoder, queueSize),
-		fn:       fn,
-		log:      logger,
-		iterOpts: iterOpts,
+		queue:    make(chan msgpack.BufferedEncoder, opts.QueueSize()),
+		fn:       opts.MetricWithPolicyFn(),
+		log:      opts.InstrumentOptions().Logger(),
+		iterOpts: opts.IteratorOptions(),
 	}
+	numWorkers := opts.NumWorkers()
 	p.wgWorkers.Add(numWorkers)
 	p.workers = xsync.NewWorkerPool(numWorkers)
 	p.workers.Init()
