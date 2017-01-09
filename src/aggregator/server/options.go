@@ -25,6 +25,7 @@ import (
 	"runtime"
 
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 )
@@ -38,6 +39,7 @@ var (
 )
 
 type options struct {
+	clockOpts       clock.Options
 	instrumentOpts  instrument.Options
 	retrier         xretry.Retrier
 	iteratorPool    msgpack.UnaggregatedIteratorPool
@@ -54,12 +56,23 @@ func NewOptions() Options {
 	})
 
 	return &options{
+		clockOpts:       clock.NewOptions(),
 		instrumentOpts:  instrument.NewOptions(),
 		retrier:         xretry.NewRetrier(xretry.NewOptions()),
 		iteratorPool:    iteratorPool,
 		packetQueueSize: defaultPacketQueueSize,
 		workerPoolSize:  defaultWorkerPoolSize,
 	}
+}
+
+func (o *options) SetClockOptions(value clock.Options) Options {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *options) ClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *options) SetInstrumentOptions(value instrument.Options) Options {

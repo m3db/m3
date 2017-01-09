@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/server"
+	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 )
 
 const (
@@ -50,31 +51,27 @@ func main() {
 
 	// Creating the aggregator
 	// TODO(xichen): customize flush flunction
-	aggOpts := aggregator.NewOptions()
-	aggregator := aggregator.NewAggregator(aggOpts)
+	aggregatorOpts := aggregator.NewOptions()
+	aggregator := aggregator.NewAggregator(aggregatorOpts)
 
 	// Creating the server
-	listendAddr := *listenAddrArg
+	listenAddr := *listenAddrArg
 	serverOpts := server.NewOptions()
 	log := serverOpts.InstrumentOptions().Logger()
-	s := server.NewServer(listendAddr, aggregator, serverOpts)
 
 	// Start listening
 	doneCh := make(chan struct{})
 	closedCh := make(chan struct{})
 	go func() {
-		closer, err := s.ListenAndServe()
-		if err != nil {
-			log.Fatalf("could not listen on %s: %v", listendAddr, err)
+		if err := serve.Serve(
+			listenAddr,
+			serverOpts,
+			aggregator,
+			aggregatorOpts,
+			doneCh,
+		); err != nil {
+			log.Fatalf("could not start serving traffic: %v", err)
 		}
-		log.Infof("start listening on %s", listendAddr)
-
-		// Wait for exit signal
-		<-doneCh
-
-		log.Debug("closing the server")
-		closer.Close()
-
 		log.Debug("server closed")
 		close(closedCh)
 	}()

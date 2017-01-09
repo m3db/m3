@@ -28,12 +28,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/net"
-	"github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
 )
@@ -41,63 +39,61 @@ import (
 type serverMetrics struct {
 	openConnections tally.Gauge
 	queueSize       tally.Gauge
+	enqueueErrors   tally.Counter
 	decodeErrors    tally.Counter
-	invalidMetrics  tally.Counter
 }
 
 func newServerMetrics(scope tally.Scope) serverMetrics {
 	return serverMetrics{
 		openConnections: scope.Gauge("open-connections"),
 		queueSize:       scope.Gauge("queue-size"),
+		enqueueErrors:   scope.Counter("enqueue-errors"),
 		decodeErrors:    scope.Counter("decode-errors"),
-		invalidMetrics:  scope.Counter("invalid-metrics"),
 	}
 }
 
 type addConnectionFn func(conn net.Conn) bool
 type removeConnectionFn func(conn net.Conn)
 type handleConnectionFn func(conn net.Conn)
-type processPacketFn func(p packet)
 
 // Server is a server that receives incoming connections and delegates
-// to the handler to process incoming data
+// to the processor to process incoming data
 type Server struct {
 	sync.Mutex
 
 	address      string
 	listener     net.Listener
-	aggregator   aggregator.Aggregator
 	opts         Options
 	log          xlog.Logger
 	iteratorPool msgpack.UnaggregatedIteratorPool
 
-	queue     *packetQueue
-	workers   xsync.WorkerPool
-	wgWorkers sync.WaitGroup
-	conns     []net.Conn
-	wgConns   sync.WaitGroup
 	closed    int32
 	numConns  int32
+	conns     []net.Conn
+	wgConns   sync.WaitGroup
+	queue     *packetQueue
+	processor *packetProcessor
 	metrics   serverMetrics
 
 	addConnectionFn    addConnectionFn
 	removeConnectionFn removeConnectionFn
 	handleConnectionFn handleConnectionFn
-	processPacketFn    processPacketFn
 }
 
 // NewServer creates a new server
-func NewServer(address string, agg aggregator.Aggregator, opts Options) *Server {
+func NewServer(address string, aggregator aggregator.Aggregator, opts Options) *Server {
+	clockOpts := opts.ClockOptions()
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("server")
-
+	queue := newPacketQueue(opts.PacketQueueSize(), clockOpts, instrumentOpts.SetMetricsScope(scope))
+	processor := newPacketProcessor(queue, aggregator, opts.WorkerPoolSize(), clockOpts, instrumentOpts)
 	s := &Server{
 		address:      address,
-		aggregator:   agg,
 		opts:         opts,
 		log:          instrumentOpts.Logger(),
 		iteratorPool: opts.IteratorPool(),
-		queue:        newPacketQueue(opts.PacketQueueSize(), instrumentOpts),
+		queue:        queue,
+		processor:    processor,
 		metrics:      newServerMetrics(scope),
 	}
 
@@ -105,16 +101,6 @@ func NewServer(address string, agg aggregator.Aggregator, opts Options) *Server 
 	s.addConnectionFn = s.addConnection
 	s.removeConnectionFn = s.removeConnection
 	s.handleConnectionFn = s.handleConnection
-	s.processPacketFn = s.processPacket
-
-	// Start the workers to process incoming data
-	numWorkers := opts.WorkerPoolSize()
-	s.wgWorkers.Add(numWorkers)
-	s.workers = xsync.NewWorkerPool(numWorkers)
-	s.workers.Init()
-	for i := 0; i < numWorkers; i++ {
-		s.workers.Go(s.processPackets)
-	}
 
 	// Start reporting metrics
 	go s.reportMetrics()
@@ -164,22 +150,17 @@ func (s *Server) Close() {
 		conn.Close()
 	}
 
-	// Close the server
+	// Close the listener
 	s.listener.Close()
 
 	// Wait for all connection handlers to finish
 	s.wgConns.Wait()
 
-	// There should be no new packets so it's safe
-	// to close the packet queue
+	// Close the packet queue
 	s.queue.Close()
 
-	// Wait for all workers to finish dequeuing existing
-	// packets in the queue
-	s.wgWorkers.Wait()
-
-	// Finally close the aggregator
-	s.aggregator.Close()
+	// Close the packet processor
+	s.processor.Close()
 }
 
 func (s *Server) addConnection(conn net.Conn) bool {
@@ -225,7 +206,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 	for it.Next() {
 		metric, policies := it.Value()
 		if err := s.queue.Enqueue(packet{metric: metric, policies: policies}); err != nil {
-			// TODO(xichen): log and emit metrics
+			s.log.WithFields(
+				xlog.NewLogField("metric", metric),
+				xlog.NewLogField("policies", policies),
+				xlog.NewLogErrField(err),
+			).Errorf("server enqueue error")
+			s.metrics.enqueueErrors.Inc(1)
 		}
 	}
 
@@ -233,33 +219,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 	if err := it.Err(); err != nil {
 		s.log.Errorf("decode error: %v", err)
 		s.metrics.decodeErrors.Inc(1)
-	}
-}
-
-func (s *Server) processPackets() {
-	defer s.wgWorkers.Done()
-
-	for {
-		p, err := s.queue.Dequeue()
-		if err == errQueueClosed {
-			return
-		}
-		if err != nil {
-			// TODO(xichen): log and emit metrics
-			continue
-		}
-		s.processPacketFn(p)
-	}
-}
-
-func (s *Server) processPacket(p packet) {
-	switch p.metric.Type {
-	case unaggregated.CounterType, unaggregated.BatchTimerType, unaggregated.GaugeType:
-		if err := s.aggregator.AddMetricWithPolicies(p.metric, p.policies); err != nil {
-			// TODO(xichen): log and emit metrics
-		}
-	default:
-		s.metrics.invalidMetrics.Inc(1)
 	}
 }
 

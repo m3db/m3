@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/time"
 
@@ -42,18 +43,27 @@ const (
 )
 
 var (
+	testCounter = unaggregated.MetricUnion{
+		Type:       unaggregated.CounterType,
+		ID:         []byte("foo"),
+		CounterVal: 123,
+	}
+	testBatchTimer = unaggregated.MetricUnion{
+		Type:          unaggregated.BatchTimerType,
+		ID:            []byte("bar"),
+		BatchTimerVal: []float64{1.0, 2.0, 3.0},
+	}
+	testGauge = unaggregated.MetricUnion{
+		Type:     unaggregated.GaugeType,
+		ID:       []byte("baz"),
+		GaugeVal: 456.780,
+	}
 	testCounterWithPolicies = unaggregated.CounterWithPolicies{
-		Counter: unaggregated.Counter{
-			ID:    []byte("foo"),
-			Value: 123,
-		},
+		Counter:           testCounter.Counter(),
 		VersionedPolicies: policy.DefaultVersionedPolicies,
 	}
 	testBatchTimerWithPolicies = unaggregated.BatchTimerWithPolicies{
-		BatchTimer: unaggregated.BatchTimer{
-			ID:     []byte("bar"),
-			Values: []float64{1.0, 2.0, 3.0},
-		},
+		BatchTimer: testBatchTimer.BatchTimer(),
 		VersionedPolicies: policy.VersionedPolicies{
 			Version: 1,
 			Cutover: time.Now(),
@@ -66,10 +76,7 @@ var (
 		},
 	}
 	testGaugeWithPolicies = unaggregated.GaugeWithPolicies{
-		Gauge: unaggregated.Gauge{
-			ID:    []byte("baz"),
-			Value: 456.780,
-		},
+		Gauge:             testGauge.Gauge(),
 		VersionedPolicies: policy.DefaultVersionedPolicies,
 	}
 )
@@ -87,6 +94,7 @@ func testServerOptions() Options {
 		SetWorkerPoolSize(2).
 		SetIteratorPool(iteratorPool).
 		SetRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(2))).
+		SetClockOptions(clock.NewOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
 }
 
@@ -118,15 +126,16 @@ func testServer(addr string) (*Server, *int32, *int32, *int32, *int32) {
 		atomic.AddInt32(&numHandled, 1)
 	}
 
-	s.processPacketFn = func(p packet) {
-		s.processPacket(p)
+	s.processor.processPacketFn = func(p packet) error {
+		err := s.processor.processPacket(p)
 		atomic.AddInt32(&numPackets, 1)
+		return err
 	}
 
 	return s, &numAdded, &numRemoved, &numHandled, &numPackets
 }
 
-func testServerListenAndClose(t *testing.T) {
+func TestServerListenAndClose(t *testing.T) {
 	s, numAdded, numRemoved, numHandled, numPackets := testServer(testListenAddress)
 
 	var (
@@ -177,5 +186,5 @@ func testServerListenAndClose(t *testing.T) {
 	require.Equal(t, int32(numClients), atomic.LoadInt32(numHandled))
 
 	// Assert the snapshot match expectations
-	require.Equal(t, expectedResult, s.aggregator.(mock.Aggregator).Snapshot())
+	require.Equal(t, expectedResult, s.processor.aggregator.(mock.Aggregator).Snapshot())
 }
