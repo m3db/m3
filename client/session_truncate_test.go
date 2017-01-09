@@ -20,4 +20,46 @@
 
 package client
 
-// TODO: add truncate tests
+import (
+	"math/rand"
+	"testing"
+
+	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/ts"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestTruncate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	var expected int64
+	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
+		func(idx int, op op) {
+			truncate, ok := op.(*truncateOp)
+			assert.True(t, ok)
+			assert.Equal(t, []byte("metrics"), truncate.request.NameSpace)
+
+			n := rand.Int63n(128)
+			result := &rpc.TruncateResult_{NumSeries: n}
+			expected += n
+			truncate.completionFn(result, nil)
+		},
+	})
+
+	assert.NoError(t, session.Open())
+
+	n, err := s.Truncate(ts.StringID("metrics"))
+	require.NoError(t, err)
+	assert.Equal(t, expected, n)
+
+	assert.NoError(t, session.Close())
+}
