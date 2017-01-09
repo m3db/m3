@@ -188,7 +188,9 @@ func (l *MetricList) tickInternal() {
 	// Flush remaining bytes in the buffer
 	if encoder := l.encoder.Encoder(); len(encoder.Bytes()) > 0 {
 		l.encoder.Reset(l.encoderPool.Get())
-		l.flushFn(encoder)
+		if err := l.flushFn(encoder); err != nil {
+			l.log.Errorf("flushing metrics error: %v", err)
+		}
 	}
 
 	// Collect tombstoned elements
@@ -250,7 +252,9 @@ func (l *MetricList) processAggregatedMetric(
 	encoder2.Buffer.Write(data[sizeBefore:sizeAfter])
 	l.encoder.Reset(encoder2)
 	encoder.Buffer.Truncate(sizeBefore)
-	l.flushFn(encoder)
+	if err := l.flushFn(encoder); err != nil {
+		l.log.Errorf("flushing metrics error: %v", err)
+	}
 }
 
 // TODO(xichen): encode the byte slices without copying them once

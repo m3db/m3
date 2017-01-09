@@ -58,8 +58,9 @@ func defaultTimerQuantileSuffixFn(quantile float64) []byte {
 }
 
 // By default we print out the buffer size
-func defaultFlushFn(buffer msgpack.BufferedEncoder) {
+func defaultFlushFn(buffer msgpack.BufferedEncoder) error {
 	fmt.Printf("buffer size=%d\n", len(buffer.Bytes()))
+	return nil
 }
 
 type options struct {

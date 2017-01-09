@@ -106,7 +106,7 @@ type Aggregator interface {
 type QuantileSuffixFn func(quantile float64) []byte
 
 // FlushFn flushes a buffered encoder
-type FlushFn func(buffer msgpack.BufferedEncoder)
+type FlushFn func(buffer msgpack.BufferedEncoder) error
 
 // Options provide a set of base and derived options for the aggregator
 type Options interface {
