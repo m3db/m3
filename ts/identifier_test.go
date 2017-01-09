@@ -41,7 +41,7 @@ func TestConstructorEquality(t *testing.T) {
 
 	assert.True(t, a.Equal(b))
 	assert.Equal(t, a.String(), b.String())
-	assert.Equal(t, a.Data(), b.Data())
+	assert.Equal(t, a.Data().Get(), b.Data().Get())
 	assert.Equal(t, a.Hash(), b.Hash())
 }
 
@@ -55,8 +55,8 @@ func testPooling(t *testing.T, p IdentifierPool) {
 
 	ctx.BlockingClose()
 
-	require.Empty(t, a.Data())
-	require.NotEmpty(t, b.Data())
+	require.Empty(t, a.Data().Get())
+	require.NotEmpty(t, b.Data().Get())
 }
 
 func TestSimplePooling(t *testing.T) {
