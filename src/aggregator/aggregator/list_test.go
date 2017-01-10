@@ -134,7 +134,11 @@ func TestMetricListTick(t *testing.T) {
 		SetFlushFn(flushFn)
 	l := newMetricList(0, opts)
 	l.resolution = testPolicy.Resolution.Window
-	l.sleepFn = func(d time.Duration) {}
+	l.waitForFn = func(time.Duration) <-chan time.Time {
+		c := make(chan time.Time)
+		close(c)
+		return c
+	}
 
 	// Intentionally cause a one-time error during encoding
 	var count int

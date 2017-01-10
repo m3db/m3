@@ -42,7 +42,6 @@ var (
 )
 
 type encodeFn func(mp aggregated.MetricWithPolicy) error
-type sleepFn func(d time.Duration)
 
 // MetricList stores aggregated metrics at a given resolution
 // and flushes aggregations periodically
@@ -56,19 +55,20 @@ type MetricList struct {
 	timeLock     *sync.RWMutex
 	maxFlushSize int
 	flushFn      FlushFn
-	sleepFn      sleepFn
-	encodeFn     encodeFn
 	encoderPool  msgpack.BufferedEncoderPool
 
 	resolution    time.Duration
 	flushInterval time.Duration
 	aggregations  *list.List
+	timer         *time.Timer
 	idBuf         bytes.Buffer
 	encoder       msgpack.AggregatedEncoder
 	toCollect     []*list.Element
 	closed        bool
 	doneCh        chan struct{}
 	wgTick        sync.WaitGroup
+	encodeFn      encodeFn
+	waitForFn     waitForFn
 }
 
 func newMetricList(resolution time.Duration, opts Options) *MetricList {
@@ -89,15 +89,16 @@ func newMetricList(resolution time.Duration, opts Options) *MetricList {
 		timeLock:      opts.TimeLock(),
 		maxFlushSize:  opts.MaxFlushSize(),
 		flushFn:       opts.FlushFn(),
-		sleepFn:       time.Sleep,
 		encoderPool:   encoderPool,
 		resolution:    resolution,
 		flushInterval: flushInterval,
 		aggregations:  list.New(),
+		timer:         time.NewTimer(0),
 		encoder:       msgpack.NewAggregatedEncoder(encoderPool.Get()),
 		doneCh:        make(chan struct{}),
 	}
 	l.encodeFn = l.encoder.EncodeMetricWithPolicy
+	l.waitForFn = time.After
 
 	// Start ticking
 	if l.flushInterval > 0 {
@@ -203,7 +204,12 @@ func (l *MetricList) tickInternal() {
 	// TODO(xichen): add metrics
 	tickDuration := l.nowFn().Sub(start)
 	if tickDuration < l.flushInterval {
-		l.sleepFn(l.flushInterval - tickDuration)
+		// NB(xichen): use a channel here instead of sleeping in case
+		// server needs to close and we don't tick frequently enough
+		select {
+		case <-l.waitForFn(l.flushInterval - tickDuration):
+		case <-l.doneCh:
+		}
 	}
 }
 
