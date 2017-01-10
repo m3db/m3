@@ -18,28 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package packet
 
 import (
-	"net"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator/mock"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	testListenAddress = "127.0.0.1:6000"
 )
 
 var (
@@ -81,110 +73,50 @@ var (
 	}
 )
 
-func testServerOptions() Options {
-	iteratorPool := msgpack.NewUnaggregatedIteratorPool(nil)
-	iteratorOpts := msgpack.NewUnaggregatedIteratorOptions().SetIteratorPool(iteratorPool)
-	iteratorPool.Init(func() msgpack.UnaggregatedIterator {
-		return msgpack.NewUnaggregatedIterator(nil, iteratorOpts)
-	})
+func TestProcessor(t *testing.T) {
+	clockOpts := clock.NewOptions()
+	instrumentOpts := instrument.NewOptions()
+	queue := NewQueue(1024, clockOpts, instrumentOpts)
+	aggregator := mock.NewAggregator()
+	processor := NewProcessor(queue, aggregator, 1, clockOpts, instrumentOpts)
 
-	opts := NewOptions()
-	return opts.
-		SetPacketQueueSize(1024).
-		SetWorkerPoolSize(2).
-		SetIteratorPool(iteratorPool).
-		SetRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(2))).
-		SetClockOptions(clock.NewOptions()).
-		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
-}
+	// Processing invalid packets should result in an error
+	require.Error(t, processor.processPacket(Packet{}))
 
-func testServer(addr string) (*Server, *int32, *int32, *int32, *int32) {
+	// Add a few metrics
 	var (
-		numAdded   int32
-		numRemoved int32
-		numHandled int32
-		numPackets int32
-	)
-
-	opts := testServerOptions()
-	agg := mock.NewAggregator()
-	s := NewServer(addr, agg, opts)
-
-	s.addConnectionFn = func(conn net.Conn) bool {
-		ret := s.addConnection(conn)
-		atomic.AddInt32(&numAdded, 1)
-		return ret
-	}
-
-	s.removeConnectionFn = func(conn net.Conn) {
-		s.removeConnection(conn)
-		atomic.AddInt32(&numRemoved, 1)
-	}
-
-	s.handleConnectionFn = func(conn net.Conn) {
-		s.handleConnection(conn)
-		atomic.AddInt32(&numHandled, 1)
-	}
-
-	s.processor.processPacketFn = func(p packet) error {
-		err := s.processor.processPacket(p)
-		atomic.AddInt32(&numPackets, 1)
-		return err
-	}
-
-	return s, &numAdded, &numRemoved, &numHandled, &numPackets
-}
-
-func TestServerListenAndClose(t *testing.T) {
-	s, numAdded, numRemoved, numHandled, numPackets := testServer(testListenAddress)
-
-	var (
-		numClients     = 9
-		wgClient       sync.WaitGroup
 		expectedResult mock.SnapshotResult
+		numIter        = 10
 	)
-
-	// Start server
-	closer, err := s.ListenAndServe()
-	require.NoError(t, err)
-
-	// Now establish multiple connections and send data to the server
-	for i := 0; i < numClients; i++ {
-		wgClient.Add(1)
-
+	for i := 0; i < numIter; i++ {
 		// Add test metrics to expected result
 		expectedResult.CountersWithPolicies = append(expectedResult.CountersWithPolicies, testCounterWithPolicies)
 		expectedResult.BatchTimersWithPolicies = append(expectedResult.BatchTimersWithPolicies, testBatchTimerWithPolicies)
 		expectedResult.GaugesWithPolicies = append(expectedResult.GaugesWithPolicies, testGaugeWithPolicies)
 
-		go func() {
-			defer wgClient.Done()
-
-			conn, err := net.Dial("tcp", testListenAddress)
-			require.NoError(t, err)
-
-			encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
-			encoder.EncodeCounterWithPolicies(testCounterWithPolicies)
-			encoder.EncodeBatchTimerWithPolicies(testBatchTimerWithPolicies)
-			encoder.EncodeGaugeWithPolicies(testGaugeWithPolicies)
-
-			_, err = conn.Write(encoder.Encoder().Bytes())
-			require.NoError(t, err)
-		}()
+		require.NoError(t, queue.Enqueue(Packet{
+			Metric:   testCounter,
+			Policies: testCounterWithPolicies.VersionedPolicies,
+		}))
+		require.NoError(t, queue.Enqueue(Packet{
+			Metric:   testBatchTimer,
+			Policies: testBatchTimerWithPolicies.VersionedPolicies,
+		}))
+		require.NoError(t, queue.Enqueue(Packet{
+			Metric:   testGauge,
+			Policies: testGaugeWithPolicies.VersionedPolicies,
+		}))
 	}
 
-	// Wait for all connections to be added
-	for atomic.LoadInt32(numPackets) < int32(numClients)*3 {
-	}
+	// Close the queue so the workers will finish
+	queue.Close()
 
-	// Close the server
-	closer.Close()
+	// Close the processor
+	processor.Close()
 
-	// Assert the number of connections match expectations
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numAdded))
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemoved))
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numHandled))
+	// Closing the processor a second time should be a no-op
+	processor.Close()
 
 	// Assert the snapshot match expectations
-	require.Equal(t, expectedResult, s.processor.aggregator.(mock.Aggregator).Snapshot())
+	require.Equal(t, expectedResult, processor.aggregator.(mock.Aggregator).Snapshot())
 }

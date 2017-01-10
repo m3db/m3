@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package packet
 
 import (
 	"errors"
@@ -36,52 +36,56 @@ var (
 	errQueueClosed = errors.New("queue is closed")
 )
 
-type packet struct {
-	metric   unaggregated.MetricUnion
-	policies policy.VersionedPolicies
+// Packet is a packet containing an unaggregated metric along with applicable versioned policies
+type Packet struct {
+	Metric   unaggregated.MetricUnion
+	Policies policy.VersionedPolicies
 }
 
-type packetQueueMetrics struct {
+type queueMetrics struct {
 	enqueue   instrument.MethodMetrics
 	dequeue   instrument.MethodMetrics
 	discarded tally.Counter
 }
 
-func newPacketQueueMetrics(scope tally.Scope, samplingRate float64) packetQueueMetrics {
-	return packetQueueMetrics{
+func newQueueMetrics(scope tally.Scope, samplingRate float64) queueMetrics {
+	return queueMetrics{
 		enqueue:   instrument.NewMethodMetrics(scope, "enqueue", samplingRate),
 		dequeue:   instrument.NewMethodMetrics(scope, "dequeue", samplingRate),
 		discarded: scope.Counter("discarded"),
 	}
 }
 
-// NB(xichen): packet queue is a fixed-size queue for incoming packets.
+// Queue is a packet queue. It is a fixed-size queue for incoming packets.
 // If the queue is full when enqueuing packets, oldest packets will be
 // dropped until there is more space in the queue
-type packetQueue struct {
+type Queue struct {
 	nowFn   clock.NowFn
-	queue   chan packet
-	metrics packetQueueMetrics
+	queue   chan Packet
+	metrics queueMetrics
 	closed  int32
 }
 
-func newPacketQueue(
+// NewQueue creates a new packet queue
+func NewQueue(
 	size int,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
-) *packetQueue {
+) *Queue {
 	scope := instrumentOpts.MetricsScope().SubScope("queue")
 	samplingRate := instrumentOpts.MetricsSamplingRate()
-	return &packetQueue{
+	return &Queue{
 		nowFn:   clockOpts.NowFn(),
-		queue:   make(chan packet, size),
-		metrics: newPacketQueueMetrics(scope, samplingRate),
+		queue:   make(chan Packet, size),
+		metrics: newQueueMetrics(scope, samplingRate),
 	}
 }
 
-func (q *packetQueue) Len() int { return len(q.queue) }
+// Len returns the number of items in the queue
+func (q *Queue) Len() int { return len(q.queue) }
 
-func (q *packetQueue) Enqueue(p packet) error {
+// Enqueue pushes a packet into the queue
+func (q *Queue) Enqueue(p Packet) error {
 	callStart := q.nowFn()
 	for atomic.LoadInt32(&q.closed) == 0 {
 		select {
@@ -102,18 +106,20 @@ func (q *packetQueue) Enqueue(p packet) error {
 	return errQueueClosed
 }
 
-func (q *packetQueue) Dequeue() (packet, error) {
+// Dequeue pops a packet from the queue
+func (q *Queue) Dequeue() (Packet, error) {
 	callStart := q.nowFn()
 	p, ok := <-q.queue
 	if !ok {
 		q.metrics.dequeue.ReportError(q.nowFn().Sub(callStart))
-		return packet{}, errQueueClosed
+		return Packet{}, errQueueClosed
 	}
 	q.metrics.dequeue.ReportSuccess(q.nowFn().Sub(callStart))
 	return p, nil
 }
 
-func (q *packetQueue) Close() {
+// Close closes the queue
+func (q *Queue) Close() {
 	if !atomic.CompareAndSwapInt32(&q.closed, 0, 1) {
 		return
 	}

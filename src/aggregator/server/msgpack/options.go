@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package msgpack
 
 import (
 	"math"
@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	defaultWorkerPoolSize = int(math.Max(1.0, float64(runtime.NumCPU()/8)))
+	defaultWorkerPoolSize = int(math.Max(1.0, float64(runtime.NumCPU())/8.0))
 )
 
 type options struct {

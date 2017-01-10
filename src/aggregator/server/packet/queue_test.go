@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package packet
 
 import (
 	"fmt"
@@ -32,44 +32,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testPacketQueue(size int) *packetQueue {
-	return newPacketQueue(size, clock.NewOptions(), instrument.NewOptions())
+func testQueue(size int) *Queue {
+	return NewQueue(size, clock.NewOptions(), instrument.NewOptions())
 }
 
-func TestPacketQueueEnqueue(t *testing.T) {
+func TestQueueEnqueue(t *testing.T) {
 	size := 10
-	q := testPacketQueue(size)
+	q := testQueue(size)
 
 	// Enqueue up to the queue size
 	for i := 1; i <= size; i++ {
-		q.Enqueue(packet{})
+		q.Enqueue(Packet{})
 		require.Equal(t, i, q.Len())
 	}
 
 	// Enqueue one more and assert the packet gets dropped
-	q.Enqueue(packet{})
+	q.Enqueue(Packet{})
 	require.Equal(t, size, q.Len())
 
 	// Enqueuing to a closed queue should result in an error
 	q.Close()
-	require.Equal(t, errQueueClosed, q.Enqueue(packet{}))
+	require.Equal(t, errQueueClosed, q.Enqueue(Packet{}))
 }
 
-func TestPacketQueueDequeue(t *testing.T) {
+func TestQueueDequeue(t *testing.T) {
 	var (
-		expected []packet
-		results  []packet
+		expected []Packet
+		results  []Packet
 		size     = 10
-		q        = testPacketQueue(size)
+		q        = testQueue(size)
 	)
 	for i := 1; i <= size; i++ {
-		p := packet{
-			metric: unaggregated.MetricUnion{
+		p := Packet{
+			Metric: unaggregated.MetricUnion{
 				Type:       unaggregated.CounterType,
 				ID:         []byte(fmt.Sprintf("%d", i)),
 				CounterVal: int64(i),
 			},
-			policies: policy.DefaultVersionedPolicies,
+			Policies: policy.DefaultVersionedPolicies,
 		}
 		expected = append(expected, p)
 		q.Enqueue(p)
@@ -90,8 +90,8 @@ func TestPacketQueueDequeue(t *testing.T) {
 	require.Equal(t, errQueueClosed, err)
 }
 
-func TestPacketQueueClose(t *testing.T) {
-	q := testPacketQueue(1)
+func TestQueueClose(t *testing.T) {
+	q := testQueue(1)
 	require.Equal(t, int32(0), q.closed)
 
 	q.Close()
