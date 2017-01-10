@@ -294,7 +294,6 @@ func (r shardRepairer) newPendingReplicasMap(
 	return pendingReplicas, idMap
 }
 
-// TODO(prateek): add integration tests for repairDifferences
 // TODO(prateek): better handling of repaired shard writes
 // - Versioning
 //   - write a new version of the file for the timestamp
