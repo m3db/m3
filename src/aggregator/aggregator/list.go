@@ -41,7 +41,7 @@ var (
 	errListsClosed = errors.New("metric lists are closed")
 )
 
-type encodeFn func(mp aggregated.MetricWithPolicy) error
+type encodeFn func(mp aggregated.ChunkedMetricWithPolicy) error
 
 // MetricList stores aggregated metrics at a given resolution
 // and flushes aggregations periodically
@@ -97,7 +97,7 @@ func newMetricList(resolution time.Duration, opts Options) *MetricList {
 		encoder:       msgpack.NewAggregatedEncoder(encoderPool.Get()),
 		doneCh:        make(chan struct{}),
 	}
-	l.encodeFn = l.encoder.EncodeMetricWithPolicy
+	l.encodeFn = l.encoder.EncodeChunkedMetricWithPolicy
 	l.waitForFn = time.After
 
 	// Start ticking
@@ -223,9 +223,13 @@ func (l *MetricList) processAggregatedMetric(
 ) {
 	encoder := l.encoder.Encoder()
 	sizeBefore := encoder.Buffer.Len()
-	if err := l.encodeFn(aggregated.MetricWithPolicy{
-		Metric: aggregated.Metric{
-			ID:        l.computeFullID(idPrefix, id, idSuffix),
+	if err := l.encodeFn(aggregated.ChunkedMetricWithPolicy{
+		ChunkedMetric: aggregated.ChunkedMetric{
+			ChunkedID: metric.ChunkedID{
+				Prefix: idPrefix,
+				Data:   []byte(id),
+				Suffix: idSuffix,
+			},
 			Timestamp: timestamp,
 			Value:     value,
 		},
@@ -261,16 +265,6 @@ func (l *MetricList) processAggregatedMetric(
 	if err := l.flushFn(encoder); err != nil {
 		l.log.Errorf("flushing metrics error: %v", err)
 	}
-}
-
-// TODO(xichen): encode the byte slices without copying them once
-// the encoder support is in place
-func (l *MetricList) computeFullID(idPrefix []byte, id metric.ID, idSuffix []byte) []byte {
-	l.idBuf.Reset()
-	l.idBuf.Write(idPrefix)
-	l.idBuf.Write([]byte(id))
-	l.idBuf.Write(idSuffix)
-	return l.idBuf.Bytes()
 }
 
 type newMetricListFn func(resolution time.Duration, opts Options) *MetricList

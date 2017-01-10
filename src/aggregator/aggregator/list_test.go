@@ -142,12 +142,12 @@ func TestMetricListTick(t *testing.T) {
 
 	// Intentionally cause a one-time error during encoding
 	var count int
-	l.encodeFn = func(mp aggregated.MetricWithPolicy) error {
+	l.encodeFn = func(mp aggregated.ChunkedMetricWithPolicy) error {
 		if count == 0 {
 			count++
 			return errors.New("foo")
 		}
-		return l.encoder.EncodeMetricWithPolicy(mp)
+		return l.encoder.EncodeChunkedMetricWithPolicy(mp)
 	}
 
 	elemPairs := []testElemPair{

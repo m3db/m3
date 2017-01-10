@@ -1,5 +1,5 @@
-hash: c3849df6d6a03739bb32a5a31efc32bbc1db08ac5b044a9c8260400187d93a80
-updated: 2017-01-06T17:17:59.39175414-05:00
+hash: 5a13b15385bc69226b6e3f7f077a85b3cd7aa31b56f1d0154c1d6df7b2f13d97
+updated: 2017-01-10T13:27:11.616640887-05:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
@@ -8,7 +8,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3metrics
-  version: 92d021a01ae1a259f518b4670589ed607c297027
+  version: ffa77a96a073c405631747c9cc5edb0a564eee9d
   subpackages:
   - metric
   - metric/aggregated
@@ -21,6 +21,7 @@ imports:
   subpackages:
   - checked
   - clock
+  - close
   - errors
   - instrument
   - log
@@ -52,7 +53,7 @@ imports:
   - internal/modules
   - internal/remote_api
 - name: gopkg.in/vmihailenco/msgpack.v2
-  version: 94af6ea04d2da6a09d6914ca79b8fb94f3acbba4
+  version: a1382b1ce0c749733b814157c245e02cc1f41076
   subpackages:
   - codes
 testImports:
