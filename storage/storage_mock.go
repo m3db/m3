@@ -24,6 +24,8 @@
 package storage
 
 import (
+	time "time"
+
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
@@ -43,7 +45,6 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
-	time "time"
 )
 
 // Mock of Database interface
@@ -831,6 +832,18 @@ func (_m *MockdatabaseShard) UpdateSeries(seriesID ts.ID, blk block.DatabaseBloc
 
 func (_mr *_MockdatabaseShardRecorder) UpdateSeries(arg0, arg1, arg2 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "UpdateSeries", arg0, arg1, arg2)
+}
+
+func (_m *MockdatabaseShard) MarkFlushStatesDirty(blockTimes ...time.Time) {
+	_s := []interface{}{}
+	for _, _x := range blockTimes {
+		_s = append(_s, _x)
+	}
+	_m.ctrl.Call(_m, "MarkFlushStatesDirty", _s...)
+}
+
+func (_mr *_MockdatabaseShardRecorder) MarkFlushStatesDirty(arg0 ...interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkFlushStatesDirty", arg0...)
 }
 
 // Mock of databaseBootstrapManager interface

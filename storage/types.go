@@ -300,6 +300,12 @@ type databaseShard interface {
 		blk block.DatabaseBlock,
 		markFlushStateDirty bool,
 	) error
+
+	// MarkFlushStatesDirty marks the flush state for the specified block times
+	// dirty.
+	MarkFlushStatesDirty(
+		blockTimes ...time.Time,
+	)
 }
 
 // databaseBootstrapManager manages the bootstrap process.

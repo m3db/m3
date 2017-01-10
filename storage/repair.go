@@ -332,6 +332,8 @@ func (r shardRepairer) repairDifferences(
 		return repairSummary, err
 	}
 
+	// amortizing the times marked dirty by UpdateSeries
+	dirtyBlockTimes := make(map[time.Time]struct{})
 	for blocksIter.Next() {
 		host, id, blk := blocksIter.Current()
 
@@ -350,10 +352,7 @@ func (r shardRepairer) repairDifferences(
 		// mark the block replica as received
 		pendingBlockReplicas[blkID].remove(host)
 
-		// TODO(prateek): current implementation of UpdateSeries marks shards flushed internally,
-		// this is something we should amortize to be done at the end of iterating through this function.
-		// concern being, we want to minimize the number of flushes we can potentially induce
-		markFlushStateDirty := true
+		markFlushStateDirty := false
 		if err := shard.UpdateSeries(id, blk, markFlushStateDirty); err != nil {
 			repErr := fmt.Errorf(
 				"unable to update series [ id = %v, block_start = %v, err = %v ]",
@@ -363,8 +362,17 @@ func (r shardRepairer) repairDifferences(
 			repairSummary.NumFailed++
 			continue
 		}
+
+		dirtyBlockTimes[blkID.start] = struct{}{}
 		repairSummary.NumRepaired++
 	}
+
+	// marking flush states dirty
+	dirtyBlockTimesList := make([]time.Time, 0, len(dirtyBlockTimes))
+	for t := range dirtyBlockTimes {
+		dirtyBlockTimesList = append(dirtyBlockTimesList, t)
+	}
+	shard.MarkFlushStatesDirty(dirtyBlockTimesList...)
 
 	// track count for pending replicas
 	for blkID, hs := range pendingBlockReplicas {

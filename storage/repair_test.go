@@ -489,10 +489,6 @@ func TestDatabaseShardRepairerRepairDifferencesAllSuccess(t *testing.T) {
 		SetClockOptions(copts.SetNowFn(nowFn)).
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
 
-	shardID := uint32(0)
-	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().ID().Return(shardID).AnyTimes()
-
 	// this test considers repair in the following scenario:
 	// input data:
 	// - 3 hosts
@@ -518,17 +514,23 @@ func TestDatabaseShardRepairerRepairDifferencesAllSuccess(t *testing.T) {
 	testHostInputData := generateSampleHostsMetadata(t, now, numTestSeries, sizes, checksums)
 	metadataDiffRes := newTestMetadataComparisonResult(ctrl, t, testHostInputData, numPeers, rpOpts)
 
+	// mock the shard
+	shardID := uint32(0)
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(shardID).AnyTimes()
+	shard.EXPECT().MarkFlushStatesDirty(now)
+
 	// mock blocks and shards for [ series 2, host 1 ]
 	ts2 := testSeries(2)
 	blk21 := block.NewMockDatabaseBlock(ctrl)
 	blk21.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts2, blk21, true).Return(nil)
+	shard.EXPECT().UpdateSeries(ts2, blk21, false).Return(nil)
 
 	// mock blocks and shards for [ series 1, host 2 ]
 	ts1 := testSeries(1)
 	blk12 := block.NewMockDatabaseBlock(ctrl)
 	blk12.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts1, blk12, true).Return(nil)
+	shard.EXPECT().UpdateSeries(ts1, blk12, false).Return(nil)
 
 	// mock peerBlocksIter
 	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
@@ -580,10 +582,6 @@ func TestDatabaseShardRepairerRepairDifferencesNetworkFailure(t *testing.T) {
 		SetClockOptions(copts.SetNowFn(nowFn)).
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
 
-	shardID := uint32(0)
-	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().ID().Return(shardID).AnyTimes()
-
 	// this test considers repair in the following scenario:
 	// input data:
 	// - 3 hosts
@@ -608,11 +606,17 @@ func TestDatabaseShardRepairerRepairDifferencesNetworkFailure(t *testing.T) {
 	testHostInputData := generateSampleHostsMetadata(t, now, numTestSeries, sizes, checksums)
 	metadataDiffRes := newTestMetadataComparisonResult(ctrl, t, testHostInputData, numPeers, rpOpts)
 
+	// mock the shard
+	shardID := uint32(0)
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(shardID).AnyTimes()
+	shard.EXPECT().MarkFlushStatesDirty(now)
+
 	// mock blocks and shards for [ series 2, host 1 ]
 	ts2 := testSeries(2)
 	blk21 := block.NewMockDatabaseBlock(ctrl)
 	blk21.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts2, blk21, true).Return(nil)
+	shard.EXPECT().UpdateSeries(ts2, blk21, false).Return(nil)
 
 	// mock peerBlocksIter
 	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
@@ -662,10 +666,6 @@ func TestDatabaseShardRepairerRepairDifferencesUpdateFailure(t *testing.T) {
 		SetClockOptions(copts.SetNowFn(nowFn)).
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
 
-	shardID := uint32(0)
-	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().ID().Return(shardID).AnyTimes()
-
 	// this test considers repair in the following scenario:
 	// input data:
 	// - 3 hosts
@@ -692,17 +692,23 @@ func TestDatabaseShardRepairerRepairDifferencesUpdateFailure(t *testing.T) {
 	testHostInputData := generateSampleHostsMetadata(t, now, numTestSeries, sizes, checksums)
 	metadataDiffRes := newTestMetadataComparisonResult(ctrl, t, testHostInputData, numPeers, rpOpts)
 
+	// mock the shard
+	shardID := uint32(0)
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(shardID).AnyTimes()
+	shard.EXPECT().MarkFlushStatesDirty(now)
+
 	// mock blocks and shards for [ series 2, host 1 ]
 	ts2 := testSeries(2)
 	blk21 := block.NewMockDatabaseBlock(ctrl)
 	blk21.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts2, blk21, true).Return(fmt.Errorf("simulated failure"))
+	shard.EXPECT().UpdateSeries(ts2, blk21, false).Return(fmt.Errorf("simulated failure"))
 
 	// mock blocks and shards for [ series 1, host 2 ]
 	ts1 := testSeries(1)
 	blk12 := block.NewMockDatabaseBlock(ctrl)
 	blk12.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts1, blk12, true).Return(nil)
+	shard.EXPECT().UpdateSeries(ts1, blk12, false).Return(nil)
 
 	// mock peerBlocksIter
 	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)

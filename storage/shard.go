@@ -773,3 +773,11 @@ func (s *dbShard) UpdateSeries(
 	// (2) We persist the merged state by flushing 'dirty' shards
 	return nil
 }
+
+func (s *dbShard) MarkFlushStatesDirty(
+	blockTimes ...time.Time,
+) {
+	for _, t := range blockTimes {
+		s.markFlushStateDirty(t)
+	}
+}

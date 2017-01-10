@@ -613,3 +613,30 @@ func TestShardUpdateNewSeriesWithError(t *testing.T) {
 	err = s.UpdateSeries(ts.StringID("bar"), mockBlock, true)
 	require.NotNil(t, err)
 }
+
+func TestShardMarkFlushStateDirty(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	ropts := opts.RetentionOptions()
+
+	now := time.Now()
+	s := testDatabaseShard(opts)
+	bootstrappedSeries := map[ts.Hash]result.DatabaseSeriesBlocks{}
+	err := s.Bootstrap(bootstrappedSeries)
+	require.Nil(t, err)
+
+	earliest := retention.FlushTimeStart(ropts, now)
+	latest := retention.FlushTimeEnd(ropts, now)
+
+	times := []time.Time{}
+	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
+		times = append(times, st)
+	}
+
+	s.MarkFlushStatesDirty(times...)
+	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
+		require.Equal(t, fileOpState{Status: fileOpDirty}, s.FlushState(st))
+	}
+}
