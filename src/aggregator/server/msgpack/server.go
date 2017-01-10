@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package msgpack
 
 import (
 	"bufio"
@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3aggregator/server/packet"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/log"
@@ -72,8 +73,8 @@ type Server struct {
 	numConns  int32
 	conns     []net.Conn
 	wgConns   sync.WaitGroup
-	queue     *packetQueue
-	processor *packetProcessor
+	queue     *packet.Queue
+	processor *packet.Processor
 	metrics   serverMetrics
 
 	addConnectionFn    addConnectionFn
@@ -86,8 +87,8 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) *
 	clockOpts := opts.ClockOptions()
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("server")
-	queue := newPacketQueue(opts.PacketQueueSize(), clockOpts, instrumentOpts.SetMetricsScope(scope))
-	processor := newPacketProcessor(queue, aggregator, opts.WorkerPoolSize(), clockOpts, instrumentOpts)
+	queue := packet.NewQueue(opts.PacketQueueSize(), clockOpts, instrumentOpts.SetMetricsScope(scope))
+	processor := packet.NewProcessor(queue, aggregator, opts.WorkerPoolSize(), clockOpts, instrumentOpts)
 	s := &Server{
 		address:      address,
 		opts:         opts,
@@ -206,7 +207,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	// Iterate over the incoming metrics stream and queue up metrics
 	for it.Next() {
 		metric, policies := it.Value()
-		if err := s.queue.Enqueue(packet{metric: metric, policies: policies}); err != nil {
+		if err := s.queue.Enqueue(packet.Packet{Metric: metric, Policies: policies}); err != nil {
 			s.log.WithFields(
 				xlog.NewLogField("metric", metric),
 				xlog.NewLogField("policies", policies),

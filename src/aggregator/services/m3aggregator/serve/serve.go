@@ -24,18 +24,18 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/server"
+	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 )
 
 // Serve starts serving RPC traffic
 func Serve(
 	listenAddr string,
-	serverOpts server.Options,
+	serverOpts msgpackserver.Options,
 	aggregator aggregator.Aggregator,
 	doneCh chan struct{},
 ) error {
 	log := serverOpts.InstrumentOptions().Logger()
-	s := server.NewServer(listenAddr, aggregator, serverOpts)
+	s := msgpackserver.NewServer(listenAddr, aggregator, serverOpts)
 
 	closer, err := s.ListenAndServe()
 	if err != nil {

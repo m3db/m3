@@ -33,7 +33,7 @@ const (
 )
 
 var (
-	defaultNumWorkers = int(math.Max(float64(runtime.NumCPU()/4), 1.0))
+	defaultNumWorkers = int(math.Max(float64(runtime.NumCPU())/8.0, 1.0))
 )
 
 // Options provides a set of processor options

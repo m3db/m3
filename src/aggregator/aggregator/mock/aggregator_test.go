@@ -90,6 +90,8 @@ func TestMockAggregator(t *testing.T) {
 		require.NoError(t, agg.AddMetricWithPolicies(mu, policies))
 	}
 
+	require.Equal(t, 3, agg.NumMetricsAdded())
+
 	res := agg.Snapshot()
 	require.Equal(t, expected, res)
 }

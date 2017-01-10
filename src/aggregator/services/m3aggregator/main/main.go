@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/server"
+	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 	"github.com/m3db/m3aggregator/services/m3aggregator/processor"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -72,7 +72,7 @@ func main() {
 
 	// Creating the server
 	listenAddr := *listenAddrArg
-	serverOpts := server.NewOptions()
+	serverOpts := msgpackserver.NewOptions()
 
 	// Start listening
 	doneCh := make(chan struct{})

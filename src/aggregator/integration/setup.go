@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/server"
+	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 	"github.com/m3db/m3aggregator/services/m3aggregator/processor"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -50,7 +50,7 @@ type nowSetterFn func(t time.Time)
 type testSetup struct {
 	opts           testOptions
 	listenAddr     string
-	serverOpts     server.Options
+	serverOpts     msgpackserver.Options
 	aggregator     aggregator.Aggregator
 	aggregatorOpts aggregator.Options
 	processor      *processor.AggregatedMetricProcessor
@@ -97,7 +97,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Create the server options
-	serverOpts := server.NewOptions()
+	serverOpts := msgpackserver.NewOptions()
 
 	// Creating the aggregator options
 	aggregatorOpts := aggregator.NewOptions()

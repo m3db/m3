@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package msgpack
 
 import (
 	"github.com/m3db/m3metrics/protocol/msgpack"

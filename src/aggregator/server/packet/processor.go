@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package packet
 
 import (
 	"errors"
@@ -30,14 +30,13 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/sync"
+
 	"github.com/uber-go/tally"
 )
 
 var (
 	errInvalidMetricType = errors.New("invalid metric type")
 )
-
-type processPacketFn func(p packet) error
 
 type processorMetrics struct {
 	drainErrors   tally.Counter
@@ -51,34 +50,34 @@ func newProcessorMetrics(scope tally.Scope, samplingRate float64) processorMetri
 	}
 }
 
-type packetProcessor struct {
-	queue           *packetQueue
-	aggregator      aggregator.Aggregator
-	workers         xsync.WorkerPool
-	wgWorkers       sync.WaitGroup
-	nowFn           clock.NowFn
-	log             xlog.Logger
-	metrics         processorMetrics
-	processPacketFn processPacketFn
+// Processor is a packet processor
+type Processor struct {
+	queue      *Queue
+	aggregator aggregator.Aggregator
+	workers    xsync.WorkerPool
+	wgWorkers  sync.WaitGroup
+	nowFn      clock.NowFn
+	log        xlog.Logger
+	metrics    processorMetrics
 }
 
-func newPacketProcessor(
-	queue *packetQueue,
+// NewProcessor creates a new processor
+func NewProcessor(
+	queue *Queue,
 	aggregator aggregator.Aggregator,
 	numWorkers int,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
-) *packetProcessor {
+) *Processor {
 	scope := instrumentOpts.MetricsScope().SubScope("processor")
 	samplingRate := instrumentOpts.MetricsSamplingRate()
-	p := &packetProcessor{
+	p := &Processor{
 		queue:      queue,
 		aggregator: aggregator,
 		nowFn:      clockOpts.NowFn(),
 		log:        instrumentOpts.Logger(),
 		metrics:    newProcessorMetrics(scope, samplingRate),
 	}
-	p.processPacketFn = p.processPacket
 
 	// Start the workers to drain the queue
 	p.wgWorkers.Add(numWorkers)
@@ -91,9 +90,9 @@ func newPacketProcessor(
 	return p
 }
 
-// NB(xichen): it's safe to call close more than once. All but
-// the first call are no-ops.
-func (p *packetProcessor) Close() {
+// Close closes the processor. It's safe to call close more than once.
+// All but the first call are no-ops.
+func (p *Processor) Close() {
 	// Wait for all workers to finish dequeuing existing
 	// packets in the queue
 	p.wgWorkers.Wait()
@@ -102,7 +101,7 @@ func (p *packetProcessor) Close() {
 	p.aggregator.Close()
 }
 
-func (p *packetProcessor) drain() {
+func (p *Processor) drain() {
 	defer p.wgWorkers.Done()
 
 	for {
@@ -115,21 +114,21 @@ func (p *packetProcessor) drain() {
 			p.metrics.drainErrors.Inc(1)
 			continue
 		}
-		if err = p.processPacketFn(packet); err != nil {
+		if err = p.processPacket(packet); err != nil {
 			p.log.WithFields(
-				xlog.NewLogField("metric", packet.metric),
-				xlog.NewLogField("policies", packet.policies),
+				xlog.NewLogField("metric", packet.Metric),
+				xlog.NewLogField("policies", packet.Policies),
 				xlog.NewLogErrField(err),
 			).Errorf("process packet error")
 		}
 	}
 }
 
-func (p *packetProcessor) processPacket(packet packet) error {
+func (p *Processor) processPacket(packet Packet) error {
 	callStart := p.nowFn()
-	switch packet.metric.Type {
+	switch packet.Metric.Type {
 	case unaggregated.CounterType, unaggregated.BatchTimerType, unaggregated.GaugeType:
-		err := p.aggregator.AddMetricWithPolicies(packet.metric, packet.policies)
+		err := p.aggregator.AddMetricWithPolicies(packet.Metric, packet.Policies)
 		p.metrics.processPacket.ReportSuccessOrError(err, p.nowFn().Sub(callStart))
 		return err
 	default:

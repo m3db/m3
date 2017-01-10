@@ -29,7 +29,11 @@ import (
 type Aggregator interface {
 	aggregator.Aggregator
 
-	// Snapshot returns a copy of the aggregated data and resets aggregations
+	// NumMetricsAdded returns the number of metrics added
+	NumMetricsAdded() int
+
+	// Snapshot returns a copy of the aggregated data, resets
+	// aggregations and number of metrics added
 	Snapshot() SnapshotResult
 }
 

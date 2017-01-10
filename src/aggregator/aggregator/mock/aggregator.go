@@ -34,6 +34,7 @@ import (
 type mockAggregator struct {
 	sync.RWMutex
 
+	numMetricsAdded         int
 	countersWithPolicies    []unaggregated.CounterWithPolicies
 	batchTimersWithPolicies []unaggregated.BatchTimerWithPolicies
 	gaugesWithPolicies      []unaggregated.GaugeWithPolicies
@@ -74,12 +75,20 @@ func (agg *mockAggregator) AddMetricWithPolicies(
 		return fmt.Errorf("unrecognized metric type %v", mu.Type)
 	}
 
+	agg.numMetricsAdded++
 	agg.Unlock()
 
 	return nil
 }
 
 func (agg *mockAggregator) Close() {}
+
+func (agg *mockAggregator) NumMetricsAdded() int {
+	agg.RLock()
+	numMetricsAdded := agg.numMetricsAdded
+	agg.RUnlock()
+	return numMetricsAdded
+}
 
 func (agg *mockAggregator) Snapshot() SnapshotResult {
 	agg.Lock()
@@ -92,6 +101,7 @@ func (agg *mockAggregator) Snapshot() SnapshotResult {
 	agg.countersWithPolicies = nil
 	agg.batchTimersWithPolicies = nil
 	agg.gaugesWithPolicies = nil
+	agg.numMetricsAdded = 0
 
 	agg.Unlock()
 
