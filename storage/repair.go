@@ -334,8 +334,6 @@ func (r shardRepairer) repairDifferences(
 
 	for blocksIter.Next() {
 		host, id, blk := blocksIter.Current()
-		// TODO(prateek): does Close() need to be called on blk
-		// i.e. figure out ownership - is it reset by iterator or not
 
 		blkID := blockID{id.Hash(), blk.StartTime()}
 		// ensure the replica was requested, should never happen
