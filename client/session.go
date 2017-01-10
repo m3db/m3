@@ -1202,7 +1202,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// Begin consuming metadata and making requests
 	go func() {
 		err := s.streamBlocksFromPeers(namespace, shard, peers,
-			metadataCh, opts, result, m)
+			metadataCh, opts, result, m, s.streamAndGroupCollectedBlocksMetadata)
 		onDone(err)
 	}()
 
@@ -1281,7 +1281,7 @@ func (s *session) FetchBlocksFromPeers(
 	// Begin consuming metadata and making requests
 	go func() {
 		err := s.streamBlocksFromPeers(namespace, shard, peers,
-			metadataCh, opts, result, m)
+			metadataCh, opts, result, m, s.passThruBlocksMetadata)
 		close(outputCh)
 		onDone(err)
 	}()
@@ -1451,6 +1451,7 @@ func (s *session) streamBlocksFromPeers(
 	opts result.Options,
 	result blocksResult,
 	m *streamFromPeersMetrics,
+	streamMetadataFn streamBlocksMetadataFn,
 ) error {
 	var (
 		retrier = xretry.NewRetrier(xretry.NewOptions().
@@ -1464,7 +1465,7 @@ func (s *session) streamBlocksFromPeers(
 
 	// Consume the incoming metadata and enqueue to the ready channel
 	go func() {
-		s.streamCollectedBlocksMetadata(len(peers), ch, enqueueCh)
+		streamMetadataFn(len(peers), ch, enqueueCh)
 		// Begin assessing the queue and how much is processed, once queue
 		// is entirely processed then we can close the enqueue channel
 		enqueueCh.closeOnAllProcessed()
@@ -1527,12 +1528,29 @@ func (s *session) streamBlocksFromPeers(
 	return nil
 }
 
-// TODO(prateek): streamCollectedBlocksMetadata edge case
-// should we add the unit test for the case where
-// we get multiple entries in the metadata channel with the same id, and
-// run into the condition where we've already submitted the 'received' object for that id
-// and that results in us missing data
-func (s *session) streamCollectedBlocksMetadata(
+type streamBlocksMetadataFn func(
+	peersLen int,
+	ch <-chan blocksMetadata,
+	enqueueCh *enqueueChannel,
+)
+
+func (s *session) passThruBlocksMetadata(
+	peersLen int,
+	ch <-chan blocksMetadata,
+	enqueueCh *enqueueChannel,
+) {
+	// Receive off of metadata channel
+	for {
+		m, ok := <-ch
+		if !ok {
+			break
+		}
+		res := []*blocksMetadata{&m}
+		enqueueCh.enqueue(res)
+	}
+}
+
+func (s *session) streamAndGroupCollectedBlocksMetadata(
 	peersLen int,
 	ch <-chan blocksMetadata,
 	enqueueCh *enqueueChannel,
