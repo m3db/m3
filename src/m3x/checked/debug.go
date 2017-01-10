@@ -98,6 +98,7 @@ const (
 	incRefEvent debuggerEvent = iota
 	decRefEvent
 	moveRefEvent
+	finalizeEvent
 	incReadsEvent
 	decReadsEvent
 	incWritesEvent
@@ -112,6 +113,8 @@ func (d debuggerEvent) String() string {
 		return "DecRef"
 	case moveRefEvent:
 		return "MoveRef"
+	case finalizeEvent:
+		return "Finalize"
 	case incReadsEvent:
 		return "IncReads"
 	case decReadsEvent:
@@ -141,7 +144,7 @@ func (d *debugger) append(event debuggerEvent, ref int, pc []uintptr) {
 	entry.pc = pc
 	entry.t = time.Now()
 	d.entries[idx] = append(d.entries[idx], entry)
-	if event == decRefEvent && ref == 0 {
+	if event == finalizeEvent {
 		if len(d.entries) == tracebackCycles {
 			// Shift all tracebacks back one if at end of traceback cycles
 			slice := d.entries[0]
@@ -245,6 +248,8 @@ func tracebackEvent(c *RefCount, ref int, e debuggerEvent) {
 	depth := tracebackMaxDepth
 	pc := tracebackCallersPool.Get().([]uintptr)
 	if capacity := cap(pc); capacity < depth {
+		// Defensive programming here in case someone changes
+		// the max depth during runtime
 		pc = make([]uintptr, depth)
 	}
 	pc = pc[:depth]
