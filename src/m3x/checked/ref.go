@@ -70,10 +70,17 @@ func (c *RefCount) NumRef() int {
 
 // Finalize will call the finalizer if any, ref count must be zero.
 func (c *RefCount) Finalize() {
-	if n := c.NumRef(); n != 0 {
+	n := c.NumRef()
+
+	if traceback {
+		tracebackEvent(c, int(n), finalizeEvent)
+	}
+
+	if n != 0 {
 		err := fmt.Errorf("finalize before zero ref count, ref=%d", n)
 		panicRef(c, err)
 	}
+
 	finalizerPtr := (*Finalizer)(atomic.LoadPointer(&c.finalizer))
 	if finalizerPtr != nil {
 		finalizer := *finalizerPtr
