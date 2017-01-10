@@ -51,6 +51,19 @@ var (
 			},
 		},
 	}
+	testUpdatedVersionedPolicies = policy.VersionedPolicies{
+		Version: 2,
+		Policies: []policy.Policy{
+			{
+				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
+				Retention:  policy.Retention(time.Hour),
+			},
+			{
+				Resolution: policy.Resolution{Window: 3 * time.Second, Precision: xtime.Second},
+				Retention:  policy.Retention(24 * time.Hour),
+			},
+		},
+	}
 )
 
 type byTimeIDPolicyAscending []aggregated.MetricWithPolicy
@@ -77,6 +90,8 @@ type valuesByTime map[time.Time]interface{}
 type datapointsByID map[string]valuesByTime
 type metricsByPolicy map[policy.Policy]datapointsByID
 
+type metricTypeFn func(idx int) unaggregated.Type
+
 type testData struct {
 	timestamp time.Time
 	metrics   []unaggregated.MetricUnion
@@ -85,6 +100,21 @@ type testData struct {
 type testDatasetWithPolicies struct {
 	dataset  []testData
 	policies policy.VersionedPolicies
+}
+
+func roundRobinMetricTypeFn(idx int) unaggregated.Type {
+	switch idx % 3 {
+	case 0:
+		return unaggregated.CounterType
+	case 1:
+		return unaggregated.BatchTimerType
+	default:
+		return unaggregated.GaugeType
+	}
+}
+
+func constantMetryTypeFnFactory(typ unaggregated.Type) metricTypeFn {
+	return func(int) unaggregated.Type { return typ }
 }
 
 func generateTestIDs(prefix string, numIDs int) []string {
@@ -99,6 +129,7 @@ func generateTestData(
 	start, stop time.Time,
 	interval time.Duration,
 	ids []string,
+	typeFn metricTypeFn,
 	policies policy.VersionedPolicies,
 ) testDatasetWithPolicies {
 	var (
@@ -110,26 +141,27 @@ func generateTestData(
 		for i := 0; i < len(ids); i++ {
 			// Randomly generate metrics with slightly pertubrations to the values
 			var mu unaggregated.MetricUnion
-			switch i % 3 {
-			case 0:
+			metricType := typeFn(i)
+			switch metricType {
+			case unaggregated.CounterType:
 				mu = unaggregated.MetricUnion{
-					Type:       unaggregated.CounterType,
+					Type:       metricType,
 					ID:         metric.ID(ids[i]),
 					CounterVal: testCounterVal + int64(intervalIdx),
 				}
-			case 1:
+			case unaggregated.BatchTimerType:
 				vals := make([]float64, len(testBatchTimerVals))
 				for idx, v := range testBatchTimerVals {
 					vals[idx] = v + float64(intervalIdx)
 				}
 				mu = unaggregated.MetricUnion{
-					Type:          unaggregated.BatchTimerType,
+					Type:          metricType,
 					ID:            metric.ID(ids[i]),
 					BatchTimerVal: vals,
 				}
-			default:
+			case unaggregated.GaugeType:
 				mu = unaggregated.MetricUnion{
-					Type:     unaggregated.GaugeType,
+					Type:     metricType,
 					ID:       metric.ID(ids[i]),
 					GaugeVal: testGaugeVal + float64(intervalIdx),
 				}

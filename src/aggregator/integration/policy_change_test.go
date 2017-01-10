@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOneClientMultiTypes(t *testing.T) {
+func TestPolicyChange(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -46,15 +46,16 @@ func TestOneClientMultiTypes(t *testing.T) {
 
 	// Start the server
 	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
-	log.Info("test one client sending multiple types of metrics")
+	log.Info("test policy change")
 	require.NoError(t, testSetup.startServer())
 	log.Info("server is now up")
 
 	var (
 		idPrefix = "foo"
-		numIDs   = 100
+		numIDs   = 1
 		start    = testSetup.getNowFn()
-		stop     = start.Add(10 * time.Second)
+		middle   = start.Add(4 * time.Second)
+		end      = start.Add(10 * time.Second)
 		interval = time.Second
 	)
 	client := testSetup.newClient()
@@ -62,30 +63,34 @@ func TestOneClientMultiTypes(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input := generateTestData(start, stop, interval, ids, testVersionedPolicies)
-	for _, data := range input.dataset {
-		testSetup.setNowFn(data.timestamp)
-		for _, mu := range data.metrics {
-			require.NoError(t, client.write(mu, input.policies))
-		}
-		require.NoError(t, client.flush())
+	input1 := generateTestData(start, middle, interval, ids, roundRobinMetricTypeFn, testVersionedPolicies)
+	input2 := generateTestData(middle, end, interval, ids, roundRobinMetricTypeFn, testUpdatedVersionedPolicies)
+	for _, input := range []testDatasetWithPolicies{input1, input2} {
+		for _, data := range input.dataset {
+			testSetup.setNowFn(data.timestamp)
+			for _, mu := range data.metrics {
+				require.NoError(t, client.write(mu, input.policies))
+			}
+			require.NoError(t, client.flush())
 
-		// Give server some time to process the incoming packets
-		time.Sleep(100 * time.Millisecond)
+			// Give server some time to process the incoming packets
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
-	finalTime := stop.Add(time.Second)
+	finalTime := end.Add(time.Second)
 	testSetup.setNowFn(finalTime)
-	time.Sleep(4 * time.Second)
+	time.Sleep(6 * time.Second)
 
 	// Stop the server
 	require.NoError(t, testSetup.stopServer())
 	log.Info("server is now down")
 
 	// Validate results
-	expected := toExpectedResults(finalTime, input, testSetup.aggregatorOpts)
+	expected := toExpectedResults(finalTime, input1, testSetup.aggregatorOpts)
+	expected = append(expected, toExpectedResults(finalTime, input2, testSetup.aggregatorOpts)...)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }
