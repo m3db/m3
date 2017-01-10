@@ -85,11 +85,16 @@ func NewNativeIdentifierPool(
 	}
 
 	iopts := opts.InstrumentOptions()
-	return &nativeIdentifierPool{
+
+	p := &nativeIdentifierPool{
 		pool: pool.NewObjectPool(opts.SetInstrumentOptions(
 			iopts.SetMetricsScope(iopts.MetricsScope().SubScope("id-pool")))),
 		heap: configureHeap(heap),
 	}
+	p.pool.Init(func() interface{} {
+		return &id{pool: p}
+	})
+	return p
 }
 
 type nativeIdentifierPool struct {
