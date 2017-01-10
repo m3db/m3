@@ -106,12 +106,15 @@ func (c *client) write(mu unaggregated.MetricUnion, vp policy.VersionedPolicies)
 	c.encoder.Reset(encoder2)
 	encoder.Buffer.Truncate(sizeBefore)
 	_, err = c.conn.Write(encoder.Bytes())
+	encoder.Close()
 	return err
 }
 
 func (c *client) flush() error {
-	if remaining := c.encoder.Encoder().Bytes(); len(remaining) > 0 {
-		_, err := c.conn.Write(remaining)
+	if encoder := c.encoder.Encoder(); len(encoder.Bytes()) > 0 {
+		c.encoder.Reset(msgpack.NewPooledBufferedEncoder(nil))
+		_, err := c.conn.Write(encoder.Bytes())
+		encoder.Close()
 		return err
 	}
 	return nil

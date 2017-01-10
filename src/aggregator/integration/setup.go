@@ -23,6 +23,7 @@ package integration
 import (
 	"errors"
 	"flag"
+	"sort"
 	"sync"
 	"time"
 
@@ -57,7 +58,7 @@ type testSetup struct {
 	getNowFn       clock.NowFn
 	setNowFn       nowSetterFn
 	workerPool     xsync.WorkerPool
-	results        []aggregated.MetricWithPolicy
+	results        *[]aggregated.MetricWithPolicy
 	resultLock     *sync.Mutex
 
 	// Signals
@@ -82,7 +83,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	// Set up getter and setter for now
 	var lock sync.RWMutex
-	now := time.Now()
+	now := time.Now().Truncate(time.Hour)
 	getNowFn := func() time.Time {
 		lock.RLock()
 		t := now
@@ -102,6 +103,11 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	aggregatorOpts := aggregator.NewOptions()
 	clockOpts := aggregatorOpts.ClockOptions()
 	aggregatorOpts = aggregatorOpts.SetClockOptions(clockOpts.SetNowFn(getNowFn))
+	entryPool := aggregator.NewEntryPool(nil)
+	entryPool.Init(func() *aggregator.Entry {
+		return aggregator.NewEntry(nil, aggregatorOpts)
+	})
+	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
 
 	// Creating the processor options
 	var (
@@ -128,7 +134,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		getNowFn:       getNowFn,
 		setNowFn:       setNowFn,
 		workerPool:     workerPool,
-		results:        results,
+		results:        &results,
 		resultLock:     &resultLock,
 		doneCh:         make(chan struct{}),
 		closedCh:       make(chan struct{}),
@@ -157,6 +163,7 @@ func (ts *testSetup) startServer() error {
 	ts.processor = processor.NewAggregatedMetricProcessor(ts.processorOpts)
 
 	// Creating the aggregator
+	ts.aggregatorOpts = ts.aggregatorOpts.SetFlushFn(ts.processor.Add)
 	ts.aggregator = aggregator.NewAggregator(ts.aggregatorOpts)
 
 	go func() {
@@ -183,6 +190,11 @@ func (ts *testSetup) startServer() error {
 	}()
 
 	return <-errCh
+}
+
+func (ts *testSetup) sortedResults() []aggregated.MetricWithPolicy {
+	sort.Sort(byTimeIDPolicyAscending(*ts.results))
+	return *ts.results
 }
 
 func (ts *testSetup) stopServer() error {

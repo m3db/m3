@@ -22,6 +22,7 @@ package server
 
 import (
 	"bufio"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -216,7 +217,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 
 	// If there is an error during decoding, it's likely due to a broken connection
-	if err := it.Err(); err != nil {
+	// and therefore we ignore the EOF error
+	if err := it.Err(); err != nil && err != io.EOF {
 		s.log.Errorf("decode error: %v", err)
 		s.metrics.decodeErrors.Inc(1)
 	}
