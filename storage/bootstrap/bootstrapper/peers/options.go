@@ -24,31 +24,31 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
 type options struct {
-	bootstrapOpts bootstrap.Options
-	client        client.AdminClient
-	sleepFn       SleepFn
+	resultOpts result.Options
+	client     client.AdminClient
+	sleepFn    SleepFn
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		bootstrapOpts: bootstrap.NewOptions(),
-		sleepFn:       time.Sleep,
+		resultOpts: result.NewOptions(),
+		sleepFn:    time.Sleep,
 	}
 }
 
-func (o *options) SetBootstrapOptions(value bootstrap.Options) Options {
+func (o *options) SetResultOptions(value result.Options) Options {
 	opts := *o
-	opts.bootstrapOpts = value
+	opts.resultOpts = value
 	return &opts
 }
 
-func (o *options) BootstrapOptions() bootstrap.Options {
-	return o.bootstrapOpts
+func (o *options) ResultOptions() result.Options {
+	return o.resultOpts
 }
 
 func (o *options) SetAdminClient(value client.AdminClient) Options {

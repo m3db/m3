@@ -14,6 +14,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -348,7 +349,7 @@ func (n *dbNamespace) Bootstrap(
 		shardIDs[i] = shard.ID()
 	}
 
-	result, err := bs.Run(targetRanges, n.id, shardIDs)
+	bootstrapResult, err := bs.Run(targetRanges, n.id, shardIDs)
 	if err != nil {
 		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v",
 			n.id.String(), err)
@@ -361,7 +362,7 @@ func (n *dbNamespace) Bootstrap(
 	workers.Init()
 
 	numSeries := 0
-	for _, r := range result.ShardResults() {
+	for _, r := range bootstrapResult.ShardResults() {
 		numSeries += len(r.AllSeries())
 	}
 	n.log.WithFields(
@@ -372,7 +373,7 @@ func (n *dbNamespace) Bootstrap(
 
 	var (
 		multiErr = xerrors.NewMultiError()
-		results  = result.ShardResults()
+		results  = bootstrapResult.ShardResults()
 		mutex    sync.Mutex
 		wg       sync.WaitGroup
 	)
@@ -380,7 +381,7 @@ func (n *dbNamespace) Bootstrap(
 		shard := shard
 		wg.Add(1)
 		workers.Go(func() {
-			var bootstrapped map[ts.Hash]bootstrap.DatabaseSeriesBlocks
+			var bootstrapped map[ts.Hash]result.DatabaseSeriesBlocks
 			if result, ok := results[shard.ID()]; ok {
 				bootstrapped = result.AllSeries()
 			}
@@ -398,10 +399,10 @@ func (n *dbNamespace) Bootstrap(
 	wg.Wait()
 
 	// Counter, tag this with namespace
-	unfulfilled := int64(len(result.Unfulfilled()))
+	unfulfilled := int64(len(bootstrapResult.Unfulfilled()))
 	n.metrics.unfulfilled.Inc(unfulfilled)
 	if unfulfilled > 0 {
-		str := result.Unfulfilled().SummaryString()
+		str := bootstrapResult.Unfulfilled().SummaryString()
 		msgFmt := "bootstrap for namespace %s completed with unfulfilled ranges: %s"
 		multiErr = multiErr.Add(fmt.Errorf(msgFmt, n.id.String(), str))
 		n.log.Errorf(msgFmt, n.id.String(), str)

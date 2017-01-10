@@ -42,7 +42,7 @@ func NewPeersBootstrapper(
 	src := newPeersSource(opts)
 	b := &peersBootstrapper{}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
-		src, opts.BootstrapOptions(), next)
+		src, opts.ResultOptions(), next)
 	return b
 }
 

@@ -65,17 +65,18 @@ var (
 type nowSetterFn func(t time.Time)
 
 type testSetup struct {
-	opts           testOptions
-	db             cluster.Database
-	storageOpts    storage.Options
-	hostID         string
-	topoInit       topology.Initializer
-	shardSet       sharding.ShardSet
-	getNowFn       clock.NowFn
-	setNowFn       nowSetterFn
-	tchannelClient rpc.TChanNode
-	m3dbClient     client.Client
-	workerPool     xsync.WorkerPool
+	opts            testOptions
+	db              cluster.Database
+	storageOpts     storage.Options
+	hostID          string
+	topoInit        topology.Initializer
+	shardSet        sharding.ShardSet
+	getNowFn        clock.NowFn
+	setNowFn        nowSetterFn
+	tchannelClient  rpc.TChanNode
+	m3dbClient      client.Client
+	m3dbAdminClient client.AdminClient
+	workerPool      xsync.WorkerPool
 
 	// things that need to be cleaned up
 	channel        *tchannel.Channel
@@ -170,24 +171,26 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	})
 
 	// Set up repair options
-	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(mc.(client.AdminClient)))
+	adminClient := mc.(client.AdminClient)
+	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
 
 	return &testSetup{
-		opts:           opts,
-		storageOpts:    storageOpts,
-		hostID:         id,
-		topoInit:       topoInit,
-		shardSet:       shardSet,
-		getNowFn:       getNowFn,
-		setNowFn:       setNowFn,
-		tchannelClient: tc,
-		m3dbClient:     mc,
-		workerPool:     workerPool,
-		channel:        channel,
-		filePathPrefix: filePathPrefix,
-		namespaces:     opts.Namespaces(),
-		doneCh:         make(chan struct{}),
-		closedCh:       make(chan struct{}),
+		opts:            opts,
+		storageOpts:     storageOpts,
+		hostID:          id,
+		topoInit:        topoInit,
+		shardSet:        shardSet,
+		getNowFn:        getNowFn,
+		setNowFn:        setNowFn,
+		tchannelClient:  tc,
+		m3dbClient:      mc,
+		m3dbAdminClient: adminClient,
+		workerPool:      workerPool,
+		channel:         channel,
+		filePathPrefix:  filePathPrefix,
+		namespaces:      opts.Namespaces(),
+		doneCh:          make(chan struct{}),
+		closedCh:        make(chan struct{}),
 	}, nil
 }
 

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrap
+package result
 
 import (
 	"fmt"
@@ -59,7 +59,7 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
 	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
 
-	r := NewResult()
+	r := NewBootstrapResult()
 	r.Add(0, srs[0], nil)
 	r.Add(0, srs[1], nil)
 
@@ -68,7 +68,7 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	srMerged.AddBlock(ts.StringID("foo"), blocks[1])
 	srMerged.AddBlock(ts.StringID("bar"), blocks[2])
 
-	merged := NewResult()
+	merged := NewBootstrapResult()
 	merged.Add(0, srMerged, nil)
 
 	assert.True(t, r.ShardResults().Equal(merged.ShardResults()))
@@ -80,7 +80,7 @@ func TestResultAddMergesUnfulfilled(t *testing.T) {
 	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Now().Truncate(blockSize)
 
-	r := NewResult()
+	r := NewBootstrapResult()
 
 	r.Add(0, nil, xtime.NewRanges().AddRange(xtime.Range{
 		Start: start,
@@ -109,7 +109,7 @@ func TestResultSetUnfulfilled(t *testing.T) {
 	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Now().Truncate(blockSize)
 
-	r := NewResult()
+	r := NewBootstrapResult()
 	r.SetUnfulfilled(ShardTimeRanges{
 		0: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
@@ -157,9 +157,9 @@ func TestResultAddResult(t *testing.T) {
 	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
 	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
 
-	rs := []Result{
-		NewResult(),
-		NewResult(),
+	rs := []BootstrapResult{
+		NewBootstrapResult(),
+		NewBootstrapResult(),
 	}
 
 	rs[0].Add(0, srs[0], xtime.NewRanges().AddRange(xtime.Range{

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
@@ -88,7 +89,7 @@ func testTimeRanges() xtime.Ranges {
 	return xtime.NewRanges().AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 }
 
-func testShardTimeRanges() bootstrap.ShardTimeRanges {
+func testShardTimeRanges() result.ShardTimeRanges {
 	return map[uint32]xtime.Ranges{testShard: testTimeRanges()}
 }
 

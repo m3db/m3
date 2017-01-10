@@ -22,16 +22,16 @@ package commitlog
 
 import (
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
 // Options represents the options for bootstrapping from commit logs
 type Options interface {
-	// SetBootstrapOptions sets the instrumentation options
-	SetBootstrapOptions(value bootstrap.Options) Options
+	// SetResultOptions sets the instrumentation options
+	SetResultOptions(value result.Options) Options
 
-	// BootstrapOptions returns the instrumentation options
-	BootstrapOptions() bootstrap.Options
+	// ResultOptions returns the instrumentation options
+	ResultOptions() result.Options
 
 	// SetCommitLogOptions sets the commit log options
 	SetCommitLogOptions(value commitlog.Options) Options

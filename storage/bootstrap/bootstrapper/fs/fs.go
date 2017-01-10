@@ -43,7 +43,7 @@ func NewFileSystemBootstrapper(
 	src := newFileSystemSource(prefix, opts)
 	b := &fileSystemBootstrapper{}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
-		src, opts.BootstrapOptions(), next)
+		src, opts.ResultOptions(), next)
 	return b
 }
 

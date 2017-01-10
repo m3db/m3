@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
@@ -274,7 +275,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	bs := bootstrap.NewMockBootstrap(ctrl)
 	bs.EXPECT().
 		Run(ranges, ns.ID(), sharding.IDs(testShardIDs)).
-		Return(bootstrap.NewResult(), nil)
+		Return(result.NewBootstrapResult(), nil)
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
@@ -316,7 +317,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	bs := bootstrap.NewMockBootstrap(ctrl)
 	bs.EXPECT().
 		Run(ranges, ns.ID(), sharding.IDs(needsBootstrap)).
-		Return(bootstrap.NewResult(), nil)
+		Return(result.NewBootstrapResult(), nil)
 
 	for _, testShard := range needsBootstrap {
 		shard := NewMockdatabaseShard(ctrl)

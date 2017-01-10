@@ -23,12 +23,12 @@ package client
 import (
 	"time"
 
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
@@ -164,6 +164,19 @@ type PeerBlocksMetadataIter interface {
 	Err() error
 }
 
+// PeerBlocksIter iterates over a collection of blocks from peers
+type PeerBlocksIter interface {
+	// Next returns whether there are more items in the collection
+	Next() bool
+
+	// Current returns the metadata, and block data for a single block replica.
+	// These remain valid until Next() is called again.
+	Current() (topology.Host, ts.ID, block.DatabaseBlock)
+
+	// Err returns any error encountered
+	Err() error
+}
+
 // AdminSession can perform administrative and node-to-node operations
 type AdminSession interface {
 	Session
@@ -191,8 +204,17 @@ type AdminSession interface {
 		namespace ts.ID,
 		shard uint32,
 		start, end time.Time,
-		opts bootstrap.Options,
-	) (bootstrap.ShardResult, error)
+		opts result.Options,
+	) (result.ShardResult, error)
+
+	// FetchBlocksFromPeers will fetch the required blocks from the
+	// peers specified
+	FetchBlocksFromPeers(
+		namespace ts.ID,
+		shard uint32,
+		metadatas []block.ReplicaMetadata,
+		opts result.Options,
+	) (PeerBlocksIter, error)
 }
 
 type clientSession interface {

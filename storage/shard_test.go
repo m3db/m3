@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
@@ -112,7 +112,7 @@ func TestShardBootstrapWithError(t *testing.T) {
 	fooID := ts.StringID("foo")
 	barID := ts.StringID("bar")
 
-	bootstrappedSeries := map[ts.Hash]bootstrap.DatabaseSeriesBlocks{
+	bootstrappedSeries := map[ts.Hash]result.DatabaseSeriesBlocks{
 		fooID.Hash(): {ID: fooID, Blocks: fooBlocks},
 		barID.Hash(): {ID: barID, Blocks: barBlocks},
 	}

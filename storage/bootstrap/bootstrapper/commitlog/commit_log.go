@@ -42,7 +42,7 @@ func NewCommitLogBootstrapper(
 	src := newCommitLogSource(opts)
 	b := &commitLogBootstrapper{}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
-		src, opts.BootstrapOptions(), next)
+		src, opts.ResultOptions(), next)
 	return b
 }
 

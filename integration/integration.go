@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
@@ -162,6 +163,17 @@ type bootstrappableTestSetupOptions struct {
 
 type closeFn func()
 
+func newDefaulTestResultOptions(
+	storageOpts storage.Options,
+	instrumentOpts instrument.Options,
+) result.Options {
+	return result.NewOptions().
+		SetClockOptions(storageOpts.ClockOptions()).
+		SetInstrumentOptions(instrumentOpts).
+		SetRetentionOptions(storageOpts.RetentionOptions()).
+		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
+}
+
 func newDefaultBootstrappableTestSetups(
 	t *testing.T,
 	opts testOptions,
@@ -197,12 +209,7 @@ func newDefaultBootstrappableTestSetups(
 		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
 			instrumentOpts := setup.storageOpts.InstrumentOptions()
 
-			bsOpts := bootstrap.NewOptions().
-				SetClockOptions(setup.storageOpts.ClockOptions()).
-				SetInstrumentOptions(instrumentOpts).
-				SetRetentionOptions(setup.storageOpts.RetentionOptions()).
-				SetDatabaseBlockOptions(setup.storageOpts.DatabaseBlockOptions())
-
+			bsOpts := newDefaulTestResultOptions(setup.storageOpts, instrumentOpts)
 			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
 
 			var adminClient client.AdminClient
@@ -219,7 +226,7 @@ func newDefaultBootstrappableTestSetups(
 			}
 
 			peersOpts := peers.NewOptions().
-				SetBootstrapOptions(bsOpts).
+				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient)
 
 			peersBootstrapper := peers.NewPeersBootstrapper(peersOpts, noOpAll)
@@ -228,7 +235,7 @@ func newDefaultBootstrappableTestSetups(
 			filePathPrefix := fsOpts.FilePathPrefix()
 
 			bfsOpts := bfs.NewOptions().
-				SetBootstrapOptions(bsOpts).
+				SetResultOptions(bsOpts).
 				SetFilesystemOptions(fsOpts)
 
 			var fsBootstrapper bootstrap.Bootstrapper

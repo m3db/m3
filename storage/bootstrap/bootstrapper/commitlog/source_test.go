@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -42,8 +42,8 @@ var testNamespaceID = ts.StringID("testNamespace")
 
 func testOptions() Options {
 	opts := NewOptions()
-	bopts := opts.BootstrapOptions()
-	blopts := opts.BootstrapOptions().DatabaseBlockOptions()
+	ropts := opts.ResultOptions()
+	rlopts := opts.ResultOptions().DatabaseBlockOptions()
 	eopts := encoding.NewOptions()
 	encoderPool := encoding.NewEncoderPool(nil)
 	encoderPool.Init(func() encoding.Encoder {
@@ -59,7 +59,7 @@ func testOptions() Options {
 		it.Reset(reader)
 		return it
 	})
-	return opts.SetBootstrapOptions(bopts.SetDatabaseBlockOptions(blopts.
+	return opts.SetResultOptions(ropts.SetDatabaseBlockOptions(rlopts.
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).
 		SetMultiReaderIteratorPool(multiReaderIteratorPool)))
@@ -68,8 +68,8 @@ func testOptions() Options {
 func TestAvailableEmptyRangeError(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts)
-	res := src.Available(testNamespaceID, bootstrap.ShardTimeRanges{})
-	require.True(t, bootstrap.ShardTimeRanges{}.Equal(res))
+	res := src.Available(testNamespaceID, result.ShardTimeRanges{})
+	require.True(t, result.ShardTimeRanges{}.Equal(res))
 }
 
 func TestReadEmpty(t *testing.T) {
@@ -77,7 +77,7 @@ func TestReadEmpty(t *testing.T) {
 
 	src := newCommitLogSource(opts)
 
-	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{})
+	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{})
 	require.Nil(t, res)
 	require.Nil(t, err)
 }
@@ -95,7 +95,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		Start: time.Now(),
 		End:   time.Now().Add(time.Hour),
 	})
-	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{0: ranges})
+	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges})
 	require.Error(t, err)
 	require.Nil(t, res)
 }
@@ -104,7 +104,7 @@ func TestReadOrderedValues(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.BootstrapOptions().RetentionOptions().BlockSize()
+	blockSize := opts.ResultOptions().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -134,7 +134,7 @@ func TestReadOrderedValues(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
+	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges, 1: ranges})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -146,7 +146,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.BootstrapOptions().RetentionOptions().BlockSize()
+	blockSize := opts.ResultOptions().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -173,7 +173,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
+	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges, 1: ranges})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -185,7 +185,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.BootstrapOptions().RetentionOptions().BlockSize()
+	blockSize := opts.ResultOptions().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -211,7 +211,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(testNamespaceID, bootstrap.ShardTimeRanges{0: ranges, 1: ranges})
+	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges, 1: ranges})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -230,16 +230,16 @@ type testValue struct {
 func requireShardResults(
 	t *testing.T,
 	values []testValue,
-	actual bootstrap.ShardResults,
+	actual result.ShardResults,
 	opts Options,
 ) {
 	// First create what result should be constructed for test values
-	bopts := opts.BootstrapOptions()
+	bopts := opts.ResultOptions()
 	ropts := bopts.RetentionOptions()
 	blopts := bopts.DatabaseBlockOptions()
 	blockSize := ropts.BlockSize()
 
-	expected := bootstrap.ShardResults{}
+	expected := result.ShardResults{}
 
 	// Sort before iterating to ensure encoding to blocks is correct order
 	sort.Stable(testValuesByTime(values))
@@ -255,15 +255,15 @@ func requireShardResults(
 
 	allResults := make(map[string]*seriesShardResult)
 	for _, v := range values {
-		result, ok := expected[v.s.Shard]
+		shardResult, ok := expected[v.s.Shard]
 		if !ok {
-			result = bootstrap.NewShardResult(0, bopts)
+			shardResult = result.NewShardResult(0, bopts)
 			// Trigger blocks to be created for series
-			result.AddSeries(v.s.ID, nil)
-			expected[v.s.Shard] = result
+			shardResult.AddSeries(v.s.ID, nil)
+			expected[v.s.Shard] = shardResult
 		}
 
-		blocks := result.AllSeries()[v.s.ID.Hash()].Blocks
+		blocks := shardResult.AllSeries()[v.s.ID.Hash()].Blocks
 		blockStart := v.t.Truncate(blockSize)
 
 		r, ok := allResults[v.s.ID.String()]

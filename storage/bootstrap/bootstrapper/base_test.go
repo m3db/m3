@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -46,13 +47,13 @@ type testBlockEntry struct {
 }
 
 type testShardResult struct {
-	result      bootstrap.ShardResult
+	result      result.ShardResult
 	unfulfilled xtime.Ranges
 }
 
 func testBaseBootstrapper(t *testing.T, ctrl *gomock.Controller) (*bootstrap.MockSource, *bootstrap.MockBootstrapper, *baseBootstrapper) {
 	source := bootstrap.NewMockSource(ctrl)
-	opts := bootstrap.NewOptions()
+	opts := result.NewOptions()
 	next := bootstrap.NewMockBootstrapper(ctrl)
 	return source, next, NewBaseBootstrapper("mock", source, opts, next).(*baseBootstrapper)
 }
@@ -61,13 +62,13 @@ func testTargetRanges() xtime.Ranges {
 	return xtime.NewRanges().AddRange(xtime.Range{Start: testTargetStart, End: testTargetStart.Add(2 * time.Hour)})
 }
 
-func testShardTimeRanges() bootstrap.ShardTimeRanges {
+func testShardTimeRanges() result.ShardTimeRanges {
 	return map[uint32]xtime.Ranges{testShard: testTargetRanges()}
 }
 
-func shardResult(entries ...testBlockEntry) bootstrap.ShardResult {
-	opts := bootstrap.NewOptions()
-	res := bootstrap.NewShardResult(0, opts)
+func shardResult(entries ...testBlockEntry) result.ShardResult {
+	opts := result.NewOptions()
+	res := result.NewShardResult(0, opts)
 	for _, entry := range entries {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		block.Reset(entry.t, ts.Segment{})
@@ -76,8 +77,8 @@ func shardResult(entries ...testBlockEntry) bootstrap.ShardResult {
 	return res
 }
 
-func testResult(results map[uint32]testShardResult) bootstrap.Result {
-	result := bootstrap.NewResult()
+func testResult(results map[uint32]testShardResult) result.BootstrapResult {
+	result := result.NewBootstrapResult()
 	for shard, entry := range results {
 		result.Add(shard, entry.result, entry.unfulfilled)
 	}
@@ -107,7 +108,7 @@ func validateSeries(t *testing.T, expectedSeries, actualSeries block.DatabaseSer
 	}
 }
 
-func validateResult(t *testing.T, expected, actual bootstrap.Result) {
+func validateResult(t *testing.T, expected, actual result.BootstrapResult) {
 	if expected == nil {
 		require.Nil(t, actual)
 		return
@@ -178,7 +179,7 @@ type shardTimeRangesMatcher struct {
 }
 
 func (m shardTimeRangesMatcher) Matches(x interface{}) bool {
-	actual, ok := x.(bootstrap.ShardTimeRanges)
+	actual, ok := x.(result.ShardTimeRanges)
 	if !ok {
 		return false
 	}
@@ -271,7 +272,7 @@ func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 	validateResult(t, expectedResult, res)
 }
 
-func testBasebootstrapperNext(t *testing.T, nextUnfulfilled bootstrap.ShardTimeRanges) {
+func testBasebootstrapperNext(t *testing.T, nextUnfulfilled result.ShardTimeRanges) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	source, next, base := testBaseBootstrapper(t, ctrl)

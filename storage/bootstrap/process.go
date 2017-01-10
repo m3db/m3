@@ -23,6 +23,7 @@ package bootstrap
 import (
 	"errors"
 
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -34,14 +35,14 @@ var (
 
 // bootstrapProcess represents the bootstrapping process.
 type bootstrapProcess struct {
-	opts         Options
+	opts         result.Options
 	log          xlog.Logger
 	bootstrapper Bootstrapper
 }
 
 // NewBootstrapProcess creates a new bootstrap process.
 func NewBootstrapProcess(
-	opts Options,
+	opts result.Options,
 	bootstrapper Bootstrapper,
 ) Bootstrap {
 	return &bootstrapProcess{
@@ -55,11 +56,11 @@ func (b *bootstrapProcess) Run(
 	targetRanges xtime.Ranges,
 	namespace ts.ID,
 	shards []uint32,
-) (Result, error) {
-	result := NewResult()
+) (result.BootstrapResult, error) {
+	bootstrapResult := result.NewBootstrapResult()
 	it := targetRanges.Iter()
 	for it.Next() {
-		shardsTimeRanges := make(ShardTimeRanges, len(shards))
+		shardsTimeRanges := make(result.ShardTimeRanges, len(shards))
 
 		window := it.Value()
 
@@ -91,8 +92,8 @@ func (b *bootstrapProcess) Run(
 		}
 
 		b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed successfully")
-		result.AddResult(res)
+		bootstrapResult.AddResult(res)
 	}
 
-	return result, nil
+	return bootstrapResult, nil
 }

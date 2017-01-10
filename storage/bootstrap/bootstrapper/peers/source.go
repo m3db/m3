@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -40,8 +41,8 @@ type peersSource struct {
 func newPeersSource(opts Options) bootstrap.Source {
 	return &peersSource{
 		opts:  opts,
-		log:   opts.BootstrapOptions().InstrumentOptions().Logger(),
-		nowFn: opts.BootstrapOptions().ClockOptions().NowFn(),
+		log:   opts.ResultOptions().InstrumentOptions().Logger(),
+		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 	}
 }
 
@@ -55,21 +56,21 @@ func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 
 func (s *peersSource) Available(
 	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
-) bootstrap.ShardTimeRanges {
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
 	// Peers should be able to fulfill all data
 	return shardsTimeRanges
 }
 
 func (s *peersSource) Read(
 	namespace ts.ID,
-	shardsTimeRanges bootstrap.ShardTimeRanges,
-) (bootstrap.Result, error) {
+	shardsTimeRanges result.ShardTimeRanges,
+) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
 
-	result := bootstrap.NewResult()
+	result := result.NewBootstrapResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
 		s.log.Errorf("peers bootstrapper cannot get default admin session: %v", err)
@@ -79,7 +80,7 @@ func (s *peersSource) Read(
 
 	s.log.Infof("peers bootstrapper starting to bootstrap shards in parallel")
 	var (
-		bopts = s.opts.BootstrapOptions()
+		bopts = s.opts.ResultOptions()
 		lock  sync.Mutex
 		wg    sync.WaitGroup
 	)
