@@ -143,8 +143,9 @@ func (e *CounterElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion
 		counter.Reset()
 		e.values[alignedStart] = counter
 	}
-	counter.Add(mu.CounterVal)
 	e.Unlock()
+	// Counter APIs are thread-safe
+	counter.Add(mu.CounterVal)
 	return nil
 }
 
@@ -313,8 +314,9 @@ func (e *GaugeElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 		gauge.Reset()
 		e.values[alignedStart] = gauge
 	}
-	gauge.Add(mu.GaugeVal)
 	e.Unlock()
+	// Gauge APIs are thread-safe
+	gauge.Add(mu.GaugeVal)
 	return nil
 }
 

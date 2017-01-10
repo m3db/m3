@@ -22,17 +22,17 @@ package aggregation
 
 import "github.com/m3db/m3aggregator/aggregation/quantile/cm"
 
-// Counter aggregates counter values
+// Counter aggregates counter values. Counter APIs are thread-safe
 type Counter struct {
 	sum int64 // Sum of the values received
 }
 
-// Gauge aggregates gauge values
+// Gauge aggregates gauge values. Gauge APIs are thread-safe
 type Gauge struct {
-	value float64 // latest value received
+	value uint64 // latest value received
 }
 
-// Timer aggregates timer values
+// Timer aggregates timer values. Timer APIs are not thread-safe
 type Timer struct {
 	count  int64     // number of values received
 	sum    float64   // sum of the values
