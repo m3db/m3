@@ -25,7 +25,7 @@ import "time"
 const (
 	defaultServerStateChangeTimeout = 5 * time.Second
 	defaultClientBatchSize          = 1440
-	defaultClientConnectTimeout     = tiem.Second
+	defaultClientConnectTimeout     = time.Second
 	defaultWorkerPoolSize           = 4
 )
 

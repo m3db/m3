@@ -22,6 +22,7 @@ package processor
 
 import (
 	"errors"
+	"io"
 	"sync"
 
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -112,6 +113,8 @@ func (p *AggregatedMetricProcessor) drain() {
 		if !ok {
 			return
 		}
+		defer encoder.Close()
+
 		iter.Reset(encoder.Buffer)
 		for iter.Next() {
 			rawMetric, policy := iter.Value()
@@ -131,7 +134,7 @@ func (p *AggregatedMetricProcessor) drain() {
 				).Errorf("handling metric with policy error")
 			}
 		}
-		if err := iter.Err(); err != nil {
+		if err := iter.Err(); err != nil && err != io.EOF {
 			p.log.Errorf("draining iterator error: %v", err)
 		}
 	}
