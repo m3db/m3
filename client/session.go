@@ -59,10 +59,15 @@ const (
 	blocksMetadataInitialCapacity        = 64
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
+)
 
-	resultTypeMetadata  = "metadata"
-	resultTypeBootstrap = "bootstrap"
-	resultTypeRaw       = "raw"
+type resultTypeEnum string
+
+const (
+	resultTypeMetadata  resultTypeEnum = "metadata"
+	resultTypeBootstrap                = "bootstrap"
+	resultTypeRaw                      = "raw"
+	resultTypeTest                     = "test"
 )
 
 var (
@@ -128,7 +133,7 @@ type session struct {
 
 type shardMetricsKey struct {
 	shardID    uint32
-	resultType string
+	resultType resultTypeEnum
 }
 
 type sessionMetrics struct {
@@ -245,7 +250,7 @@ func (s *session) ShardID(id string) (uint32, error) {
 
 func (s *session) streamFromPeersMetricsForShard(
 	shard uint32,
-	resultType string,
+	resultType resultTypeEnum,
 ) *streamFromPeersMetrics {
 	mKey := shardMetricsKey{shardID: shard, resultType: resultType}
 	s.metrics.RLock()
@@ -266,7 +271,7 @@ func (s *session) streamFromPeersMetricsForShard(
 	}
 	scope = scope.SubScope("stream-from-peers").Tagged(map[string]string{
 		"shard":      fmt.Sprintf("%d", shard),
-		"resultType": resultType,
+		"resultType": string(resultType),
 	})
 	m = streamFromPeersMetrics{
 		fetchBlocksFromPeers:      scope.Gauge("fetch-blocks-inprogress"),

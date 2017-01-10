@@ -1070,7 +1070,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		peerIdx   = len(mockHostQueues) - 1
 		peer      = mockHostQueues[peerIdx]
 		client    = mockClients[peerIdx]
-		enqueueCh = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, "test"))
+		enqueueCh = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeTest))
 		batch     = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
 				{start: start, size: 2, reattempt: blockMetadataReattempt{
@@ -1109,7 +1109,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	// Attempt stream blocks
 	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
 	bopts := result.NewOptions().SetRetentionOptions(ropts)
-	m := session.streamFromPeersMetricsForShard(0, "test")
+	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
 	// Assert result
@@ -1158,7 +1158,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		peerIdx       = len(mockHostQueues) - 1
 		peer          = mockHostQueues[peerIdx]
 		client        = mockClients[peerIdx]
-		enqueueCh     = newEnqueueChannel(session.streamFromPeersMetricsForShard(0))
+		enqueueCh     = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeTest))
 		blockChecksum = digest.Checksum(rawBlockData)
 		batch         = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
@@ -1218,14 +1218,14 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 
 	// Attempt stream blocks
 	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
-	bopts := bootstrap.NewOptions().SetRetentionOptions(ropts)
-	m := session.streamFromPeersMetricsForShard(0)
+	bopts := result.NewOptions().SetRetentionOptions(ropts)
+	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	poolOpts := pool.NewObjectPoolOptions().SetSize(0)
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(poolOpts)
 	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, true, encoding.NewOptions())
 	})
-	r := newBlocksResult(opts, bopts, multiReaderIteratorPool)
+	r := newBulkBlocksResult(opts, bopts, multiReaderIteratorPool)
 	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert result
