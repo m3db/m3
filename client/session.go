@@ -1867,20 +1867,12 @@ func (s *session) verifyFetchedBlock(block *rpc.Block, metadata blockMetadata) e
 		digest := s.digestPool.Get().(hash.Hash32)
 		digest.Reset()
 		if block.Segments.Merged != nil {
-			if block.Segments.Merged.Head != nil {
-				digest.Write(block.Segments.Merged.Head)
-			}
-			if block.Segments.Merged.Tail != nil {
-				digest.Write(block.Segments.Merged.Tail)
-			}
+			digest.Write(block.Segments.Merged.Head)
+			digest.Write(block.Segments.Merged.Tail)
 		} else {
 			for _, segment := range block.Segments.Unmerged {
-				if segment.Head != nil {
-					digest.Write(segment.Head)
-				}
-				if segment.Tail != nil {
-					digest.Write(segment.Tail)
-				}
+				digest.Write(segment.Head)
+				digest.Write(segment.Tail)
 			}
 		}
 		actual := digest.Sum32()
