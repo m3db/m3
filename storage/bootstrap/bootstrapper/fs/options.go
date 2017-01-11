@@ -25,7 +25,7 @@ import (
 	"runtime"
 
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
 const (
@@ -37,7 +37,7 @@ var (
 )
 
 type options struct {
-	bootstrapOpts bootstrap.Options
+	resultOpts    result.Options
 	fsOpts        fs.Options
 	numIOWorkers  int
 	numProcessors int
@@ -46,21 +46,21 @@ type options struct {
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		bootstrapOpts: bootstrap.NewOptions(),
+		resultOpts:    result.NewOptions(),
 		fsOpts:        fs.NewOptions(),
 		numIOWorkers:  defaultNumIOWorkers,
 		numProcessors: defaultNumProcessors,
 	}
 }
 
-func (o *options) SetBootstrapOptions(value bootstrap.Options) Options {
+func (o *options) SetResultOptions(value result.Options) Options {
 	opts := *o
-	opts.bootstrapOpts = value
+	opts.resultOpts = value
 	return &opts
 }
 
-func (o *options) BootstrapOptions() bootstrap.Options {
-	return o.bootstrapOpts
+func (o *options) ResultOptions() result.Options {
+	return o.resultOpts
 }
 
 func (o *options) SetFilesystemOptions(value fs.Options) Options {

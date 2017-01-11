@@ -118,6 +118,9 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 		mux.HandleFunc(fmt.Sprintf("/%s", name), func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 
+			// Always close the request body
+			defer r.Body.Close()
+
 			httpMethod := strings.ToUpper(r.Method)
 			if reqIn == nil && httpMethod != "GET" {
 				writeError(w, errRequestMustBeGet)

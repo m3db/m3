@@ -36,17 +36,20 @@ import (
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -55,6 +58,7 @@ var (
 	fooID    = ts.StringID("foo")
 	barID    = ts.StringID("bar")
 	bazID    = ts.StringID("baz")
+	testHost = topology.NewHost("testhost", "testhost:9000")
 )
 
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
@@ -77,8 +81,8 @@ func newSessionTestAdminOptions() AdminOptions {
 		SetFetchSeriesBlocksBatchConcurrency(4)
 }
 
-func newBootstrapTestOptions() bootstrap.Options {
-	opts := bootstrap.NewOptions()
+func newResultTestOptions() result.Options {
+	opts := result.NewOptions()
 	encoderPool := encoding.NewEncoderPool(nil)
 	encoderPool.Init(func() encoding.Encoder {
 		return &testEncoder{}
@@ -201,7 +205,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	}()
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
-	bootstrapOpts := newBootstrapTestOptions()
+	bootstrapOpts := newResultTestOptions()
 	result, err := session.FetchBootstrapBlocksFromPeers(nsID, 0, rangeStart, rangeEnd, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -210,6 +214,367 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	assertFetchBootstrapBlocksResult(t, blocks, result)
 
 	assert.NoError(t, session.Close())
+}
+
+type fetchBlocksFromPeersTestScenarioGenerator func(peerIdx int, numPeers int, start time.Time) []testBlocks
+
+func fetchBlocksFromPeersTestsHelper(
+	t *testing.T,
+	peerScenarioFn fetchBlocksFromPeersTestScenarioGenerator,
+) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var (
+		qs      []*peerBlocksQueue
+		qsMutex sync.RWMutex
+	)
+	session.newPeerBlocksQueueFn = func(
+		peer peer,
+		maxQueueSize int,
+		_ time.Duration,
+		workers xsync.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		qsMutex.Lock()
+		defer qsMutex.Unlock()
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+
+	assert.NoError(t, session.Open())
+
+	batchSize := opts.FetchSeriesBlocksBatchSize()
+	blockSize := 2 * time.Hour
+	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+
+	allBlocks := make([][]testBlocks, 0, len(mockHostQueues))
+	peerBlocks := make([][]testBlocks, 0, len(mockHostQueues))
+	numBlocks := 0
+	for idx := 0; idx < len(mockHostQueues); idx++ {
+		blocks := peerScenarioFn(idx, len(mockHostQueues), start)
+
+		// Add to the expected list
+		allBlocks = append(allBlocks, blocks)
+
+		if idx == 0 {
+			continue // i.e. skip the first host. used as local m3dbnode
+		}
+
+		// Expect the fetch blocks calls
+		blocksExpectedReqs, blocksResult := expectedRepairFetchRequestsAndResponses(blocks, batchSize)
+		expectFetchBlocksAndReturn(mockClients[idx], blocksExpectedReqs, blocksResult)
+
+		// Track number of blocks to be used to drain the work queue
+		for _, blk := range blocks {
+			numBlocks = numBlocks + len(blk.blocks)
+		}
+		peerBlocks = append(peerBlocks, blocks)
+	}
+
+	// Fetch blocks
+	go func() {
+		// Trigger peer queues to drain explicitly when all work enqueued
+		for {
+			qsMutex.RLock()
+			assigned := 0
+			for _, q := range qs {
+				assigned += int(atomic.LoadUint64(&q.assigned))
+			}
+			qsMutex.RUnlock()
+			if assigned == numBlocks {
+				qsMutex.Lock()
+				defer qsMutex.Unlock()
+				for _, q := range qs {
+					q.drain()
+				}
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	blockReplicasMetadata := testBlocksToBlockReplicasMetadata(t, peerBlocks, mockHostQueues[1:])
+	bootstrapOpts := newResultTestOptions()
+	result, err := session.FetchBlocksFromPeers(nsID, 0, blockReplicasMetadata, bootstrapOpts)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	assertFetchBlocksFromPeersResult(t, peerBlocks, mockHostQueues[1:], result)
+	assert.NoError(t, session.Close())
+}
+
+func TestFetchBlocksFromPeersSingleNonIdenticalBlockReplica(t *testing.T) {
+	blockSize := 2 * time.Hour
+	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
+		if peerIdx == 0 {
+			return []testBlocks{}
+		}
+		return []testBlocks{
+			{
+				id: fooID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 1),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(1 + 10*peerIdx), byte(2 + 10*peerIdx)},
+							tail: []byte{byte(3 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+		}
+	}
+	fetchBlocksFromPeersTestsHelper(t, peerScenarioGeneratorFn)
+}
+
+func TestFetchRepairBlocksMultipleDifferentBlocks(t *testing.T) {
+	blockSize := 2 * time.Hour
+	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
+		return []testBlocks{
+			{
+				id: fooID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 1),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(1 + 10*peerIdx), byte(2 + 10*peerIdx)},
+							tail: []byte{byte(3 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+			{
+				id: barID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 2),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(4 + 10*peerIdx), byte(5 + 10*peerIdx)},
+							tail: []byte{byte(6 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+			{
+				id: bazID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 3),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(7 + 10*peerIdx), byte(8 + 10*peerIdx)},
+							tail: []byte{byte(9 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+		}
+	}
+	fetchBlocksFromPeersTestsHelper(t, peerScenarioGeneratorFn)
+}
+
+func TestFetchRepairBlocksMultipleBlocksSameIDAndPeer(t *testing.T) {
+	blockSize := 2 * time.Hour
+	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
+		return []testBlocks{
+			{
+				id: fooID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 1),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(1 + 10*peerIdx), byte(2 + 10*peerIdx)},
+							tail: []byte{byte(3 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+			{
+				id: barID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 2),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(4 + 10*peerIdx), byte(5 + 10*peerIdx)},
+							tail: []byte{byte(6 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+			{
+				id: bazID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 3),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(7 + 10*peerIdx), byte(8 + 10*peerIdx)},
+							tail: []byte{byte(9 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+			{
+				id: bazID,
+				blocks: []testBlock{
+					{
+						start: start.Add(blockSize * 4),
+						segments: &testBlockSegments{merged: &testBlockSegment{
+							head: []byte{byte(8 + 10*peerIdx), byte(9 + 10*peerIdx)},
+							tail: []byte{byte(1 + 10*peerIdx)},
+						}},
+					},
+				},
+			},
+		}
+	}
+	fetchBlocksFromPeersTestsHelper(t, peerScenarioGeneratorFn)
+}
+
+func assertFetchBlocksFromPeersResult(
+	t *testing.T,
+	expectedBlocks [][]testBlocks,
+	peers MockHostQueues,
+	observedBlocksIter PeerBlocksIter,
+) {
+	matchedBlocks := make([][][]bool, 0, len(expectedBlocks))
+	for _, blocks := range expectedBlocks {
+		unsetBlocks := make([][]bool, len(blocks))
+		matchedBlocks = append(matchedBlocks, unsetBlocks)
+	}
+	extraBlocks := []peerBlocksDatapoint{}
+	for observedBlocksIter.Next() {
+		observedHost, observedID, observedBlock := observedBlocksIter.Current()
+
+		// find which peer the current datapoint is for
+		peerIdx := -1
+		for idx, mockPeer := range peers {
+			if observedHost.String() == mockPeer.Host().String() {
+				peerIdx = idx
+				break
+			}
+		}
+
+		// unknown peer, marking extra block
+		if peerIdx == -1 {
+			extraBlocks = append(extraBlocks, peerBlocksDatapoint{
+				id:    observedID,
+				peer:  observedHost,
+				block: observedBlock,
+			})
+			continue
+		}
+
+		// find blockIdx
+		blockIdx := -1
+		subBlockIdx := -1
+		for i, blocks := range expectedBlocks[peerIdx] {
+			if !blocks.id.Equal(observedID) {
+				continue
+			}
+			for j, expectedBlock := range blocks.blocks {
+				if observedBlock.StartTime().Equal(expectedBlock.start) {
+					blockIdx = i
+					subBlockIdx = j
+					break
+				}
+
+			}
+		}
+
+		// unknown block, marking extra
+		if blockIdx == -1 || subBlockIdx == -1 {
+			extraBlocks = append(extraBlocks, peerBlocksDatapoint{
+				id:    observedID,
+				peer:  observedHost,
+				block: observedBlock,
+			})
+			continue
+		}
+
+		// lazily construct matchedBlocks inner most array
+		if matchedBlocks[peerIdx][blockIdx] == nil {
+			matchedBlocks[peerIdx][blockIdx] = make([]bool, len(expectedBlocks[peerIdx][blockIdx].blocks))
+		}
+
+		expectedBlock := expectedBlocks[peerIdx][blockIdx].blocks[subBlockIdx]
+		expectedData := append(expectedBlock.segments.merged.head, expectedBlock.segments.merged.tail...)
+		ctx := context.NewContext()
+		defer ctx.Close()
+		stream, err := observedBlock.Stream(ctx)
+		assert.NoError(t, err)
+		actualData := append(stream.Segment().Head.Get(), stream.Segment().Tail.Get()...)
+
+		// compare actual v expected data
+		if len(expectedData) != len(actualData) {
+			continue
+		}
+		for i := range expectedData {
+			if expectedData[i] != actualData[i] {
+				continue
+			}
+		}
+
+		// data is the same, mark match
+		matchedBlocks[peerIdx][blockIdx][subBlockIdx] = true
+	}
+
+	for _, extraBlock := range extraBlocks {
+		assert.Fail(t, "received extra block: %v", extraBlock)
+	}
+
+	for i, peerMatches := range matchedBlocks {
+		for j, blockMatches := range peerMatches {
+			if blockMatches == nil || len(blockMatches) == 0 {
+				assert.Fail(t,
+					"un-matched block [ peer=%d, block=%d, expected=%v ]",
+					i, j, expectedBlocks[i][j])
+			}
+			for k, blockMatch := range blockMatches {
+				if !blockMatch {
+					assert.Fail(t,
+						"un-matched block [ peer=%d, block=%d, sub-block=%d, expected=%v ]",
+						i, j, k, expectedBlocks[i][j].blocks[k])
+				}
+			}
+		}
+	}
+}
+
+func testBlocksToBlockReplicasMetadata(
+	t *testing.T,
+	peerBlocks [][]testBlocks,
+	peers MockHostQueues,
+) []block.ReplicaMetadata {
+	assert.True(t, len(peerBlocks) == len(peers))
+	blockReplicas := make([]block.ReplicaMetadata, 0, len(peers))
+	for idx, blocks := range peerBlocks {
+		blocksMetadata := resultMetadataFromBlocks(blocks)
+		peerHost := peers[idx].Host()
+		for _, bm := range blocksMetadata {
+			for _, b := range bm.blocks {
+				blockReplicas = append(blockReplicas, block.ReplicaMetadata{
+					Metadata: block.Metadata{
+						Start:    b.start,
+						Size:     *(b.size),
+						Checksum: b.checksum,
+					},
+					ID:   bm.id,
+					Host: peerHost,
+				})
+			}
+		}
+	}
+	return blockReplicas
 }
 
 func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T) {
@@ -521,7 +886,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestAdminOptions()
+	opts := newSessionTestAdminOptions().
+		SetFetchSeriesBlocksMaxBlockRetries(0)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
@@ -540,7 +906,10 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 		blocksMetadataQueues    []blocksMetadataQueue
 		start                   = timeZero
 		checksum                = uint32(2)
-		reattempt               = blockMetadataReattempt{
+		// First block should be fetched from the first peer and the second
+		// block should be avoided being fetched at all as all peers already
+		// attempted
+		reattempt = blockMetadataReattempt{
 			attempt:   3,
 			id:        fooID,
 			attempted: []peer{peerA, peerB, peerC},
@@ -579,7 +948,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 		currStart, currEligible, blocksMetadataQueues)
 
 	// Assert selection first peer
-	assert.Equal(t, 1, len(perPeer[0].blocks))
+	require.Equal(t, 1, len(perPeer[0].blocks))
 
 	assert.Equal(t, start, perPeer[0].blocks[0].start)
 	assert.Equal(t, int64(2), perPeer[0].blocks[0].size)
@@ -593,6 +962,88 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 
 	// Assert selection third peer
 	assert.Equal(t, 0, len(perPeer[2].blocks))
+}
+
+func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions().
+		SetFetchSeriesBlocksMaxBlockRetries(2)
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	var (
+		peerA            = NewMockpeer(ctrl)
+		peerB            = NewMockpeer(ctrl)
+		peers            = preparedMockPeers(peerA, peerB)
+		peerBlocksQueues = mockPeerBlocksQueues(peers, opts)
+	)
+	atomic.StoreUint64(&peerBlocksQueues[0].assigned, 16)
+	atomic.StoreUint64(&peerBlocksQueues[1].assigned, 0)
+	defer peerBlocksQueues.closeAll()
+
+	var (
+		currStart, currEligible []*blocksMetadata
+		blocksMetadataQueues    []blocksMetadataQueue
+		start                   = timeZero
+		checksum                = uint32(2)
+		// Peer A has 2 attempts, peer B has 1 attempt, peer B should be selected
+		// for the second block as it has one retry remaining.  The first block
+		// should select peer B to retrieve as we synthetically set the assigned
+		// blocks count for peer A much higher than peer B.
+		reattempt = blockMetadataReattempt{
+			attempt:   3,
+			id:        fooID,
+			attempted: []peer{peerA, peerB, peerA},
+		}
+		perPeer = []*blocksMetadata{
+			&blocksMetadata{
+				peer: peerA,
+				id:   fooID,
+				blocks: []blockMetadata{
+					{start: start, size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum, reattempt: reattempt},
+				},
+			},
+			&blocksMetadata{
+				peer: peerB,
+				id:   fooID,
+				blocks: []blockMetadata{
+					{start: start, size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum, reattempt: reattempt},
+				},
+			},
+		}
+	)
+
+	// Perform selection
+	session.selectBlocksForSeriesFromPeerBlocksMetadata(
+		perPeer, peerBlocksQueues,
+		currStart, currEligible, blocksMetadataQueues)
+
+	// Assert selection first peer
+	assert.Equal(t, 0, len(perPeer[0].blocks))
+
+	// Assert selection second peer
+	require.Equal(t, 2, len(perPeer[1].blocks))
+
+	// Assert first block second peer
+	assert.Equal(t, start, perPeer[1].blocks[0].start)
+	assert.Equal(t, int64(2), perPeer[1].blocks[0].size)
+	assert.Equal(t, &checksum, perPeer[1].blocks[0].checksum)
+
+	assert.Equal(t, 1, perPeer[1].blocks[0].reattempt.attempt)
+	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[0].reattempt.attempted)
+
+	// Assert first block second peer
+	assert.Equal(t, start.Add(time.Hour*2), perPeer[1].blocks[1].start)
+	assert.Equal(t, int64(2), perPeer[1].blocks[1].size)
+	assert.Equal(t, &checksum, perPeer[1].blocks[1].checksum)
+
+	assert.Equal(t, 4, perPeer[1].blocks[1].reattempt.attempt)
+	assert.Equal(t, []peer{peerA, peerB, peerA, peerB}, perPeer[1].blocks[1].reattempt.attempted)
 }
 
 func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
@@ -620,7 +1071,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		peerIdx   = len(mockHostQueues) - 1
 		peer      = mockHostQueues[peerIdx]
 		client    = mockClients[peerIdx]
-		enqueueCh = newEnqueueChannel(session.streamFromPeersMetricsForShard(0))
+		enqueueCh = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeTest))
 		batch     = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
 				{start: start, size: 2, reattempt: blockMetadataReattempt{
@@ -638,13 +1089,13 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 			}},
 			&blocksMetadata{id: barID, blocks: []blockMetadata{
 				{start: start, size: 2, reattempt: blockMetadataReattempt{
-					id: fooID,
+					id: barID,
 					peersMetadata: []blockMetadataReattemptPeerMetadata{
 						{start: start, size: 2},
 					},
 				}},
 				{start: start.Add(blockSize), size: 2, reattempt: blockMetadataReattempt{
-					id: fooID,
+					id: barID,
 					peersMetadata: []blockMetadataReattemptPeerMetadata{
 						{start: start.Add(blockSize), size: 2},
 					},
@@ -658,8 +1109,8 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 
 	// Attempt stream blocks
 	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
-	bopts := bootstrap.NewOptions().SetRetentionOptions(ropts)
-	m := session.streamFromPeersMetricsForShard(0)
+	bopts := result.NewOptions().SetRetentionOptions(ropts)
+	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
 	// Assert result
@@ -668,9 +1119,140 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	assert.NoError(t, session.Close())
 }
 
+func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+	// Ensure work enqueued immediately so can test result of the reenqueue
+	session.streamBlocksReattemptWorkers = newSynchronousWorkerPool()
+
+	assert.NoError(t, session.Open())
+
+	blockSize := 2 * time.Hour
+	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+
+	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
+	require.NoError(t, enc.Encode(ts.Datapoint{
+		Timestamp: start.Add(10 * time.Second),
+		Value:     42,
+	}, xtime.Second, nil))
+	reader := enc.Stream()
+	require.NotNil(t, reader)
+	segment := reader.Segment()
+	rawBlockData := make([]byte, segment.Len())
+	n, err := reader.Read(rawBlockData)
+	require.NoError(t, err)
+	require.Equal(t, len(rawBlockData), n)
+	rawBlockLen := int64(len(rawBlockData))
+
+	var (
+		retrier = xretry.NewRetrier(xretry.NewOptions().
+			SetMaxRetries(1).
+			SetInitialBackoff(time.Millisecond))
+		peerIdx       = len(mockHostQueues) - 1
+		peer          = mockHostQueues[peerIdx]
+		client        = mockClients[peerIdx]
+		enqueueCh     = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeTest))
+		blockChecksum = digest.Checksum(rawBlockData)
+		batch         = []*blocksMetadata{
+			&blocksMetadata{id: fooID, blocks: []blockMetadata{
+				{start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
+					id: fooID,
+					peersMetadata: []blockMetadataReattemptPeerMetadata{
+						{start: start, size: rawBlockLen, checksum: &blockChecksum},
+					},
+				}},
+			}},
+			&blocksMetadata{id: barID, blocks: []blockMetadata{
+				{start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
+					id: barID,
+					peersMetadata: []blockMetadataReattemptPeerMetadata{
+						{start: start, size: rawBlockLen, checksum: &blockChecksum},
+					},
+				}},
+				{start: start.Add(blockSize), size: rawBlockLen, reattempt: blockMetadataReattempt{
+					id: barID,
+					peersMetadata: []blockMetadataReattemptPeerMetadata{
+						{start: start.Add(blockSize), size: rawBlockLen, checksum: &blockChecksum},
+					},
+				}},
+			}},
+		}
+	)
+
+	// Fail the call twice due to retry
+	client.EXPECT().
+		FetchBlocksRaw(gomock.Any(), gomock.Any()).
+		Return(&rpc.FetchBlocksRawResult_{
+			Elements: []*rpc.Blocks{
+				// First foo block intact
+				&rpc.Blocks{ID: []byte("foo"), Blocks: []*rpc.Block{
+					&rpc.Block{Start: start.UnixNano(), Segments: &rpc.Segments{
+						Merged: &rpc.Segment{
+							Head: rawBlockData[:len(rawBlockData)-1],
+							Tail: []byte{rawBlockData[len(rawBlockData)-1]},
+						},
+					}},
+				}},
+				// First bar block with error, second intact
+				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
+					&rpc.Block{Start: start.UnixNano(), Segments: &rpc.Segments{
+						Merged: &rpc.Segment{
+							Head: rawBlockData[:len(rawBlockData)-1],
+							Tail: []byte{rawBlockData[len(rawBlockData)-1]},
+						},
+					}},
+					&rpc.Block{Start: start.Add(blockSize).UnixNano(), Err: &rpc.Error{
+						Type:    rpc.ErrorType_INTERNAL_ERROR,
+						Message: "an error",
+					}},
+				}},
+			},
+		}, nil)
+
+	// Attempt stream blocks
+	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
+	bopts := result.NewOptions().SetRetentionOptions(ropts)
+	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
+	poolOpts := pool.NewObjectPoolOptions().SetSize(0)
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(poolOpts)
+	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, true, encoding.NewOptions())
+	})
+	r := newBulkBlocksResult(opts, bopts, multiReaderIteratorPool)
+	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
+
+	// Assert result
+	assertEnqueueChannel(t, batch[1].blocks[1:], enqueueCh)
+
+	// Assert length of blocks result
+	assert.Equal(t, 2, len(r.result.AllSeries()))
+	assert.Equal(t, 1, r.result.AllSeries()[fooID.Hash()].Blocks.Len())
+	assert.Equal(t, 1, r.result.AllSeries()[barID.Hash()].Blocks.Len())
+
+	assert.NoError(t, session.Close())
+}
+
+// TODO: add test TestStreamBlocksBatchFromPeerDoesNotRetryOnUnreachable
+
+// TODO: add test TestVerifyFetchedBlockSegmentsNil
+
+// TODO: add test TestVerifyFetchedBlockSegmentsNoMergedOrUnmerged
+
+// TODO: add test TestVerifyFetchedBlockChecksum
+
+// TODO: add test TestVerifyFetchedBlockSize
+
 func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	opts := newSessionTestAdminOptions()
-	bopts := newBootstrapTestOptions()
+	bopts := newResultTestOptions()
 
 	start := time.Now()
 
@@ -682,8 +1264,8 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 		}},
 	}
 
-	r := newBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
-	r.addBlockFromPeer(fooID, bl)
+	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
+	r.addBlockFromPeer(fooID, testHost, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, len(series))
@@ -722,7 +1304,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	})
 
 	opts := newSessionTestAdminOptions()
-	bopts := bootstrap.NewOptions()
+	bopts := result.NewOptions()
 	bopts = bopts.SetDatabaseBlockOptions(bopts.DatabaseBlockOptions().
 		SetEncoderPool(encoderPool))
 
@@ -759,8 +1341,8 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
-	r := newBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
-	r.addBlockFromPeer(fooID, bl)
+	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
+	r.addBlockFromPeer(fooID, testHost, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, len(series))
@@ -799,24 +1381,26 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	assert.NoError(t, iter.Err())
 }
 
+// TODO: add test TestBlocksResultAddBlockFromPeerMergeExistingResult
+
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	opts := newSessionTestAdminOptions()
-	bopts := bootstrap.NewOptions()
-	r := newBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
+	bopts := result.NewOptions()
+	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
-	err := r.addBlockFromPeer(fooID, bl)
+	err := r.addBlockFromPeer(fooID, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
 
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	opts := newSessionTestAdminOptions()
-	bopts := bootstrap.NewOptions()
-	r := newBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
+	bopts := result.NewOptions()
+	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
-	err := r.addBlockFromPeer(fooID, bl)
+	err := r.addBlockFromPeer(fooID, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
@@ -936,6 +1520,43 @@ func resultMetadataFromBlocks(
 		result = append(result, m)
 	}
 	return result
+}
+
+func expectedRepairFetchRequestsAndResponses(
+	blocks []testBlocks,
+	batchSize int,
+) ([]fetchBlocksReq, [][]testBlocks) {
+	requests := make([]fetchBlocksReq, 0, len(blocks))
+	responses := make([][]testBlocks, 0, len(blocks))
+	request := fetchBlocksReq{
+		params: []fetchBlocksReqParam{},
+	}
+	response := []testBlocks{}
+	for idx := 0; idx < len(blocks); idx++ {
+		starts := make([]time.Time, 0, len(blocks[idx].blocks))
+		for j := 0; j < len(blocks[idx].blocks); j++ {
+			starts = append(starts, blocks[idx].blocks[j].start)
+		}
+		if idx != 0 && (idx%batchSize) == 0 {
+			requests = append(requests, request)
+			responses = append(responses, response)
+			request = fetchBlocksReq{
+				params: []fetchBlocksReqParam{},
+			}
+			response = []testBlocks{}
+		}
+		request.params = append(request.params,
+			fetchBlocksReqParam{
+				id:     blocks[idx].id,
+				starts: starts,
+			})
+		response = append(response, blocks[idx])
+	}
+	if len(response) > 0 {
+		responses = append(responses, response)
+		requests = append(requests, request)
+	}
+	return requests, responses
 }
 
 func expectedReqsAndResultFromBlocks(
@@ -1104,7 +1725,6 @@ func expectFetchBlocksAndReturn(
 	expect []fetchBlocksReq,
 	result [][]testBlocks,
 ) {
-	var calls []*gomock.Call
 	for i := 0; i < len(expect); i++ {
 		matcher := &fetchBlocksReqMatcher{req: expect[i]}
 		ret := &rpc.FetchBlocksRawResult_{}
@@ -1139,11 +1759,8 @@ func expectFetchBlocksAndReturn(
 			}
 			ret.Elements = append(ret.Elements, blocks)
 		}
-		call := client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Return(ret, nil)
-		calls = append(calls, call)
+		client.EXPECT().FetchBlocksRaw(gomock.Any(), matcher).Return(ret, nil)
 	}
-
-	gomock.InOrder(calls...)
 }
 
 type fetchBlocksReqMatcher struct {
@@ -1232,7 +1849,7 @@ type testBlockSegment struct {
 func assertFetchBootstrapBlocksResult(
 	t *testing.T,
 	expected []testBlocks,
-	actual bootstrap.ShardResult,
+	actual result.ShardResult,
 ) {
 	ctx := context.NewContext()
 	defer ctx.Close()

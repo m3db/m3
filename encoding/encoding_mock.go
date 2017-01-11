@@ -937,6 +937,14 @@ func (_mr *_MockEncoderPoolRecorder) Get() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get")
 }
 
+func (_m *MockEncoderPool) Put(e Encoder) {
+	_m.ctrl.Call(_m, "Put", e)
+}
+
+func (_mr *_MockEncoderPoolRecorder) Put(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Put", arg0)
+}
+
 // Mock of ReaderIteratorPool interface
 type MockReaderIteratorPool struct {
 	ctrl     *gomock.Controller

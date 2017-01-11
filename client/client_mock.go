@@ -30,7 +30,7 @@ import (
 	encoding "github.com/m3db/m3db/encoding"
 	rpc "github.com/m3db/m3db/generated/thrift/rpc"
 	block "github.com/m3db/m3db/storage/block"
-	bootstrap "github.com/m3db/m3db/storage/bootstrap"
+	result "github.com/m3db/m3db/storage/bootstrap/result"
 	topology "github.com/m3db/m3db/topology"
 	ts "github.com/m3db/m3db/ts"
 	instrument "github.com/m3db/m3x/instrument"
@@ -274,6 +274,59 @@ func (_mr *_MockPeerBlocksMetadataIterRecorder) Err() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
 }
 
+// Mock of PeerBlocksIter interface
+type MockPeerBlocksIter struct {
+	ctrl     *gomock.Controller
+	recorder *_MockPeerBlocksIterRecorder
+}
+
+// Recorder for MockPeerBlocksIter (not exported)
+type _MockPeerBlocksIterRecorder struct {
+	mock *MockPeerBlocksIter
+}
+
+func NewMockPeerBlocksIter(ctrl *gomock.Controller) *MockPeerBlocksIter {
+	mock := &MockPeerBlocksIter{ctrl: ctrl}
+	mock.recorder = &_MockPeerBlocksIterRecorder{mock}
+	return mock
+}
+
+func (_m *MockPeerBlocksIter) EXPECT() *_MockPeerBlocksIterRecorder {
+	return _m.recorder
+}
+
+func (_m *MockPeerBlocksIter) Next() bool {
+	ret := _m.ctrl.Call(_m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockPeerBlocksIterRecorder) Next() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
+}
+
+func (_m *MockPeerBlocksIter) Current() (topology.Host, ts.ID, block.DatabaseBlock) {
+	ret := _m.ctrl.Call(_m, "Current")
+	ret0, _ := ret[0].(topology.Host)
+	ret1, _ := ret[1].(ts.ID)
+	ret2, _ := ret[2].(block.DatabaseBlock)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockPeerBlocksIterRecorder) Current() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Current")
+}
+
+func (_m *MockPeerBlocksIter) Err() error {
+	ret := _m.ctrl.Call(_m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockPeerBlocksIterRecorder) Err() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
+}
+
 // Mock of AdminSession interface
 type MockAdminSession struct {
 	ctrl     *gomock.Controller
@@ -390,15 +443,26 @@ func (_mr *_MockAdminSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, a
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time0.Time, end time0.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
+func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time0.Time, end time0.Time, opts result.Options) (result.ShardResult, error) {
 	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts)
-	ret0, _ := ret[0].(bootstrap.ShardResult)
+	ret0, _ := ret[0].(result.ShardResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 func (_mr *_MockAdminSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
+}
+
+func (_m *MockAdminSession) FetchBlocksFromPeers(namespace ts.ID, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
+	ret0, _ := ret[0].(PeerBlocksIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockAdminSessionRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksFromPeers", arg0, arg1, arg2, arg3)
 }
 
 // Mock of clientSession interface
@@ -517,15 +581,26 @@ func (_mr *_MockclientSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time0.Time, end time0.Time, opts bootstrap.Options) (bootstrap.ShardResult, error) {
+func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace ts.ID, shard uint32, start time0.Time, end time0.Time, opts result.Options) (result.ShardResult, error) {
 	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts)
-	ret0, _ := ret[0].(bootstrap.ShardResult)
+	ret0, _ := ret[0].(result.ShardResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 func (_mr *_MockclientSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
+}
+
+func (_m *MockclientSession) FetchBlocksFromPeers(namespace ts.ID, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
+	ret0, _ := ret[0].(PeerBlocksIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockclientSessionRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksFromPeers", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockclientSession) Open() error {
@@ -2146,6 +2221,26 @@ func (_m *MockAdminOptions) Origin() topology.Host {
 
 func (_mr *_MockAdminOptionsRecorder) Origin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Origin")
+}
+
+func (_m *MockAdminOptions) SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksMaxBlockRetries", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) SetFetchSeriesBlocksMaxBlockRetries(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchSeriesBlocksMaxBlockRetries", arg0)
+}
+
+func (_m *MockAdminOptions) FetchSeriesBlocksMaxBlockRetries() int {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksMaxBlockRetries")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksMaxBlockRetries() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksMaxBlockRetries")
 }
 
 func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchSize(value int) AdminOptions {

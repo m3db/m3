@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/pool"
@@ -41,6 +42,15 @@ type Metadata struct {
 type BlocksMetadata struct {
 	ID     ts.ID
 	Blocks []Metadata
+}
+
+// ReplicaMetadata captures block metadata along with corresponding peer identifier
+// for a single replica of a block
+type ReplicaMetadata struct {
+	Metadata
+
+	ID   ts.ID
+	Host topology.Host
 }
 
 // FilteredBlocksMetadataIter iterates over a list of blocks metadata results with filtering applied

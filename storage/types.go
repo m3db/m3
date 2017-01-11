@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -268,7 +269,7 @@ type databaseShard interface {
 	) (block.FetchBlocksMetadataResults, *int64)
 
 	Bootstrap(
-		bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocks,
+		bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,
 	) error
 
 	// Flush flushes the series in this shard.

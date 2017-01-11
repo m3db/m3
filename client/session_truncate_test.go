@@ -18,29 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package peers
+package client
 
 import (
-	"time"
+	"math/rand"
+	"testing"
 
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/ts"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// SleepFn is a fn that will sleep the current goroutine
-type SleepFn func(d time.Duration)
+func TestTruncate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-// Options represents the options for bootstrapping from peers
-type Options interface {
-	// SetResultOptions sets the instrumentation options
-	SetResultOptions(value result.Options) Options
+	opts := newSessionTestOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
 
-	// ResultOptions returns the instrumentation options
-	ResultOptions() result.Options
+	var expected int64
+	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
+		func(idx int, op op) {
+			truncate, ok := op.(*truncateOp)
+			assert.True(t, ok)
+			assert.Equal(t, []byte("metrics"), truncate.request.NameSpace)
 
-	// SetAdminClient sets the admin client
-	SetAdminClient(value client.AdminClient) Options
+			n := rand.Int63n(128)
+			result := &rpc.TruncateResult_{NumSeries: n}
+			expected += n
+			truncate.completionFn(result, nil)
+		},
+	})
 
-	// AdminClient returns the admin client
-	AdminClient() client.AdminClient
+	assert.NoError(t, session.Open())
+
+	n, err := s.Truncate(ts.StringID("metrics"))
+	require.NoError(t, err)
+	assert.Equal(t, expected, n)
+
+	assert.NoError(t, session.Close())
 }

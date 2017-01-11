@@ -35,6 +35,7 @@ import (
 	sharding "github.com/m3db/m3db/sharding"
 	block "github.com/m3db/m3db/storage/block"
 	bootstrap "github.com/m3db/m3db/storage/bootstrap"
+	result "github.com/m3db/m3db/storage/bootstrap/result"
 	repair "github.com/m3db/m3db/storage/repair"
 	series "github.com/m3db/m3db/storage/series"
 	ts "github.com/m3db/m3db/ts"
@@ -771,7 +772,7 @@ func (_mr *_MockdatabaseShardRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries map[ts.Hash]bootstrap.DatabaseSeriesBlocks) error {
+func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks) error {
 	ret := _m.ctrl.Call(_m, "Bootstrap", bootstrappedSeries)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1469,46 +1470,6 @@ func (_m *MockOptions) FileOpOptions() FileOpOptions {
 
 func (_mr *_MockOptionsRecorder) FileOpOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FileOpOptions")
-}
-
-func (_m *MockOptions) SetNewEncoderFn(value encoding.NewEncoderFn) Options {
-	ret := _m.ctrl.Call(_m, "SetNewEncoderFn", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetNewEncoderFn(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNewEncoderFn", arg0)
-}
-
-func (_m *MockOptions) NewEncoderFn() encoding.NewEncoderFn {
-	ret := _m.ctrl.Call(_m, "NewEncoderFn")
-	ret0, _ := ret[0].(encoding.NewEncoderFn)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) NewEncoderFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewEncoderFn")
-}
-
-func (_m *MockOptions) SetNewDecoderFn(value encoding.NewDecoderFn) Options {
-	ret := _m.ctrl.Call(_m, "SetNewDecoderFn", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetNewDecoderFn(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNewDecoderFn", arg0)
-}
-
-func (_m *MockOptions) NewDecoderFn() encoding.NewDecoderFn {
-	ret := _m.ctrl.Call(_m, "NewDecoderFn")
-	ret0, _ := ret[0].(encoding.NewDecoderFn)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) NewDecoderFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoderFn")
 }
 
 func (_m *MockOptions) SetNewBootstrapFn(value NewBootstrapFn) Options {
