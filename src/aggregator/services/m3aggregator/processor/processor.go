@@ -128,8 +128,8 @@ func (p *AggregatedMetricProcessor) drain() {
 			}
 			if err := p.fn(metric, policy); err != nil {
 				p.log.WithFields(
-					xlog.NewLogField("metric", metric),
-					xlog.NewLogField("policy", policy),
+					xlog.NewLogField("metric", metric.String()),
+					xlog.NewLogField("policy", policy.String()),
 					xlog.NewLogErrField(err),
 				).Errorf("handling metric with policy error")
 			}

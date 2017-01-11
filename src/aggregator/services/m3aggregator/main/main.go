@@ -60,8 +60,8 @@ func main() {
 	log := processorOpts.InstrumentOptions().Logger()
 	metricWithPolicyfn := func(metric aggregated.Metric, policy policy.Policy) error {
 		log.WithFields(
-			xlog.NewLogField("metric", metric),
-			xlog.NewLogField("policy", policy),
+			xlog.NewLogField("metric", metric.String()),
+			xlog.NewLogField("policy", policy.String()),
 		).Info("aggregated metric")
 		return nil
 	}

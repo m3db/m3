@@ -107,8 +107,8 @@ func (p *Processor) drain() {
 		}
 		if err = p.processPacket(packet); err != nil {
 			p.log.WithFields(
-				xlog.NewLogField("metric", packet.Metric),
-				xlog.NewLogField("policies", packet.Policies),
+				xlog.NewLogField("metric", packet.Metric.String()),
+				xlog.NewLogField("policies", packet.Policies.String()),
 				xlog.NewLogErrField(err),
 			).Errorf("process packet error")
 		}
