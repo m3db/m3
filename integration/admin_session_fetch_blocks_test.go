@@ -150,7 +150,7 @@ func testSetupToSeriesMaps(
 	seriesMap := make(map[time.Time]seriesList)
 	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts,
 		testSetup.storageOpts.InstrumentOptions())
-	decoderFn := testSetup.storageOpts.NewDecoderFn()
+	iterPool := testSetup.storageOpts.ReaderIteratorPool()
 	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
 	require.NoError(t, err)
 	require.NotNil(t, session)
@@ -162,12 +162,12 @@ func testSetupToSeriesMaps(
 
 		for blocksIter.Next() {
 			_, id, blk := blocksIter.Current()
-			decoder := decoderFn()
 			ctx := context.NewContext()
 			defer ctx.Close()
 			reader, err := blk.Stream(ctx)
 			require.NoError(t, err)
-			readerIter := decoder.Decode(reader)
+			readerIter := iterPool.Get()
+			readerIter.Reset(reader)
 
 			var datapoints []ts.Datapoint
 			for readerIter.Next() {

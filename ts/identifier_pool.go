@@ -98,6 +98,17 @@ func NewNativeIdentifierPool(
 }
 
 type nativeIdentifierPool struct {
+	// NB(r): We originally were using a `pool.NativePool`` here for pooling the
+	// `id` structs and this worked fine when the `id` structs had no references
+	// to anything except longly lived objects.  Now however the `id` structs
+	// have references to `checked.Bytes` which need to have GC roots or else
+	// they are collected and become invalid references held by the `id` structs.
+	// The cheapest way to keep a GC root to them is to simply have `id`
+	// structs have a GC root themselves too, hence using the simple object pool
+	// here.
+	// In the future we could potentially craft a special `checked.Bytes` that
+	// has no references to anything itself and can be pooled by the
+	// `pool.NativePool` itself too.
 	pool pool.ObjectPool
 	heap pool.CheckedBytesPool
 }

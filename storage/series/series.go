@@ -56,14 +56,7 @@ var (
 	errSeriesNotBootstrapped  = errors.New("series is not yet bootstrapped")
 )
 
-var (
-	nilIDBytes = checked.NewBytes(nil, nil)
-	nilID      = ts.BinaryID(nilIDBytes)
-)
-
-func init() {
-	nilIDBytes.IncRef()
-}
+var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
 
 type dbSeries struct {
 	sync.RWMutex

@@ -45,11 +45,11 @@ type SegmentFlags uint8
 
 const (
 	// FinalizeNone specifies to finalize neither of the bytes
-	FinalizeNone SegmentFlags = 0 << 1
+	FinalizeNone SegmentFlags = 1 << 0
 	// FinalizeHead specifies to finalize the head bytes
 	FinalizeHead SegmentFlags = 1 << 1
 	// FinalizeTail specifies to finalize the tail bytes
-	FinalizeTail SegmentFlags = 2 << 1
+	FinalizeTail SegmentFlags = 1 << 2
 )
 
 // NewSegment will create a new segment and increment the refs to
@@ -85,7 +85,7 @@ func (s *Segment) Len() int {
 }
 
 // Equal returns if this segment is equal to another.
-// WARNIG: this   should only be used in code paths not
+// WARNING: This should only be used in code paths not
 // executed often as it allocates bytes to concat each
 // segment head and tail together before comparing the contents.
 func (s *Segment) Equal(other *Segment) bool {

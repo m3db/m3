@@ -116,11 +116,11 @@ type SeriesFlags uint8
 
 const (
 	// FinalizeNone specifies to finalize neither of the bytes
-	FinalizeNone SeriesFlags = 0 << 1
+	FinalizeNone SeriesFlags = 1 << 0
 	// FinalizeID specifies to finalize the ID
 	FinalizeID SeriesFlags = 1 << 1
 	// FinalizeNamespace specifies to finalize the namespace
-	FinalizeNamespace SeriesFlags = 2 << 1
+	FinalizeNamespace SeriesFlags = 1 << 2
 )
 
 // Options represents the options for the commit log
