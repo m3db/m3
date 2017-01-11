@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
 
@@ -53,7 +54,7 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 	for _, series := range seriesList {
 		for _, dp := range series.Data {
 			elem := &rpc.WriteBatchRawRequestElement{
-				ID: series.ID.Data(),
+				ID: series.ID.Data().Get(),
 				Datapoint: &rpc.Datapoint{
 					Timestamp:     xtime.ToNormalizedTime(dp.Timestamp, time.Second),
 					Value:         dp.Value,
@@ -65,7 +66,7 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 	}
 
 	ctx, _ := thrift.NewContext(timeout)
-	batchReq := &rpc.WriteBatchRawRequest{NameSpace: namespace.Data(), Elements: elems}
+	batchReq := &rpc.WriteBatchRawRequest{NameSpace: namespace.Data().Get(), Elements: elems}
 	return client.WriteBatchRaw(ctx, batchReq)
 }
 
@@ -181,5 +182,5 @@ func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error
 		return 0, errors.New("unable to get an admin session")
 	}
 
-	return adminSession.Truncate(ts.BinaryID(req.NameSpace))
+	return adminSession.Truncate(ts.BinaryID(checked.NewBytes(req.NameSpace, nil)))
 }

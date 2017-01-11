@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -342,7 +343,7 @@ func writeToDisk(
 		shard := shardSet.Lookup(s.ID)
 		seriesPerShard[shard] = append(seriesPerShard[shard], s)
 	}
-	segmentHolder := make([][]byte, 2)
+	segmentHolder := make([]checked.Bytes, 2)
 	for shard, seriesList := range seriesPerShard {
 		if err := writer.Open(namespace, shard, start); err != nil {
 			return err

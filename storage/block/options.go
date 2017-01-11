@@ -43,7 +43,7 @@ type options struct {
 	contextPool             context.Pool
 	encoderPool             encoding.EncoderPool
 	segmentReaderPool       xio.SegmentReaderPool
-	bytesPool               pool.BytesPool
+	bytesPool               pool.CheckedBytesPool
 	readerIteratorPool      encoding.ReaderIteratorPool
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
 }
@@ -58,7 +58,9 @@ func NewOptions() Options {
 		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
 		segmentReaderPool:       xio.NewSegmentReaderPool(nil),
-		bytesPool:               pool.NewBytesPool(nil, nil),
+		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, nil)
+		}),
 	}
 	o.databaseBlockPool.Init(func() DatabaseBlock {
 		return NewDatabaseBlock(timeZero, ts.Segment{}, o)
@@ -76,6 +78,7 @@ func NewOptions() Options {
 		it.Reset(r)
 		return it
 	})
+	o.segmentReaderPool.Init()
 	o.bytesPool.Init()
 	return o
 }
@@ -150,12 +153,12 @@ func (o *options) SegmentReaderPool() xio.SegmentReaderPool {
 	return o.segmentReaderPool
 }
 
-func (o *options) SetBytesPool(value pool.BytesPool) Options {
+func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {
 	opts := *o
 	opts.bytesPool = value
 	return &opts
 }
 
-func (o *options) BytesPool() pool.BytesPool {
+func (o *options) BytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
 }

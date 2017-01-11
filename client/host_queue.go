@@ -264,7 +264,7 @@ func (q *queue) asyncWrite(
 	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
 		req := q.writeBatchRawRequestPool.Get()
-		req.NameSpace = namespace.Data()
+		req.NameSpace = namespace.Data().Get()
 		req.Elements = elems
 
 		// NB(r): Defer is slow in the hot path unfortunately

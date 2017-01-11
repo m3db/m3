@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
@@ -112,7 +113,10 @@ func writeGoodFiles(t *testing.T, dir string, namespace ts.ID, shard uint32) {
 func writeTSDBFiles(t *testing.T, dir string, namespace ts.ID, shard uint32, start time.Time, id string, data []byte) {
 	w := fs.NewWriter(testBlockSize, dir, testWriterBufferSize, testFileMode, testDirMode)
 	require.NoError(t, w.Open(namespace, shard, start))
-	require.NoError(t, w.Write(ts.StringID(id), data))
+
+	bytes := checked.NewBytes(data, nil)
+	bytes.IncRef()
+	require.NoError(t, w.Write(ts.StringID(id), bytes))
 	require.NoError(t, w.Close())
 }
 
@@ -350,7 +354,11 @@ func TestReadValidateError(t *testing.T) {
 
 	reader := fs.NewMockFileSetReader(ctrl)
 	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
-	src.newReaderFn = func(filePathPrefix string, readerBufferSize int, b pool.BytesPool) fs.FileSetReader {
+	src.newReaderFn = func(
+		filePathPrefix string,
+		readerBufferSize int,
+		b pool.CheckedBytesPool,
+	) fs.FileSetReader {
 		return reader
 	}
 
@@ -384,7 +392,11 @@ func TestReadDeleteOnError(t *testing.T) {
 
 	reader := fs.NewMockFileSetReader(ctrl)
 	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
-	src.newReaderFn = func(filePathPrefix string, readerBufferSize int, b pool.BytesPool) fs.FileSetReader {
+	src.newReaderFn = func(
+		filePathPrefix string,
+		readerBufferSize int,
+		b pool.CheckedBytesPool,
+	) fs.FileSetReader {
 		return reader
 	}
 

@@ -20,7 +20,10 @@
 
 package namespace
 
-import "github.com/m3db/m3db/ts"
+import (
+	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
+)
 
 type metadata struct {
 	id   ts.ID
@@ -29,7 +32,11 @@ type metadata struct {
 
 // NewMetadata creates a new namespace metadata
 func NewMetadata(id ts.ID, opts Options) Metadata {
-	return metadata{id: ts.BinaryID(append([]byte{}, id.Data()...)), opts: opts}
+	copiedID := checked.NewBytes(append([]byte(nil), id.Data().Get()...), nil)
+	return metadata{
+		id:   ts.BinaryID(copiedID),
+		opts: opts,
+	}
 }
 
 func (m metadata) ID() ts.ID {

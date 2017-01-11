@@ -24,8 +24,6 @@
 package storage
 
 import (
-	time "time"
-
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
@@ -45,6 +43,7 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of Database interface
@@ -1323,6 +1322,16 @@ func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
 }
 
+func (_m *MockOptions) SetEncodingM3TSZPooled() Options {
+	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZPooled")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetEncodingM3TSZPooled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZPooled")
+}
+
 func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
 	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
 	ret0, _ := ret[0].(Options)
@@ -1463,66 +1472,6 @@ func (_mr *_MockOptionsRecorder) FileOpOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FileOpOptions")
 }
 
-func (_m *MockOptions) SetEncodingM3TSZPooled() Options {
-	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZPooled")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetEncodingM3TSZPooled() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZPooled")
-}
-
-func (_m *MockOptions) SetEncodingM3TSZ() Options {
-	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
-}
-
-func (_m *MockOptions) SetNewEncoderFn(value encoding.NewEncoderFn) Options {
-	ret := _m.ctrl.Call(_m, "SetNewEncoderFn", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetNewEncoderFn(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNewEncoderFn", arg0)
-}
-
-func (_m *MockOptions) NewEncoderFn() encoding.NewEncoderFn {
-	ret := _m.ctrl.Call(_m, "NewEncoderFn")
-	ret0, _ := ret[0].(encoding.NewEncoderFn)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) NewEncoderFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewEncoderFn")
-}
-
-func (_m *MockOptions) SetNewDecoderFn(value encoding.NewDecoderFn) Options {
-	ret := _m.ctrl.Call(_m, "SetNewDecoderFn", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetNewDecoderFn(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNewDecoderFn", arg0)
-}
-
-func (_m *MockOptions) NewDecoderFn() encoding.NewDecoderFn {
-	ret := _m.ctrl.Call(_m, "NewDecoderFn")
-	ret0, _ := ret[0].(encoding.NewDecoderFn)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) NewDecoderFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoderFn")
-}
-
 func (_m *MockOptions) SetNewBootstrapFn(value NewBootstrapFn) Options {
 	ret := _m.ctrl.Call(_m, "SetNewBootstrapFn", value)
 	ret0, _ := ret[0].(Options)
@@ -1643,7 +1592,7 @@ func (_mr *_MockOptionsRecorder) DatabaseSeriesPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseSeriesPool")
 }
 
-func (_m *MockOptions) SetBytesPool(value pool.BytesPool) Options {
+func (_m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
 	ret := _m.ctrl.Call(_m, "SetBytesPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1653,9 +1602,9 @@ func (_mr *_MockOptionsRecorder) SetBytesPool(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBytesPool", arg0)
 }
 
-func (_m *MockOptions) BytesPool() pool.BytesPool {
+func (_m *MockOptions) BytesPool() pool.CheckedBytesPool {
 	ret := _m.ctrl.Call(_m, "BytesPool")
-	ret0, _ := ret[0].(pool.BytesPool)
+	ret0, _ := ret[0].(pool.CheckedBytesPool)
 	return ret0
 }
 

@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/block"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -55,6 +56,12 @@ func requireDrainedStream(
 	stream, err := b.Stream(ctx)
 	require.NoError(t, err)
 	return stream
+}
+
+func bytesRefd(data []byte) checked.Bytes {
+	bytes := checked.NewBytes(data, nil)
+	bytes.IncRef()
+	return bytes
 }
 
 type value struct {

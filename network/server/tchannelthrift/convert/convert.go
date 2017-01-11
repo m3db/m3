@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 )
@@ -104,16 +105,29 @@ func ToSegments(readers []xio.SegmentReader) *rpc.Segments {
 
 	if len(readers) == 1 {
 		seg := readers[0].Segment()
-		s.Merged = &rpc.Segment{Head: seg.Head, Tail: seg.Tail}
+		s.Merged = &rpc.Segment{
+			Head: bytesRef(seg.Head),
+			Tail: bytesRef(seg.Tail),
+		}
 		return s
 	}
 
 	for _, reader := range readers {
 		seg := reader.Segment()
-		s.Unmerged = append(s.Unmerged, &rpc.Segment{Head: seg.Head, Tail: seg.Tail})
+		s.Unmerged = append(s.Unmerged, &rpc.Segment{
+			Head: bytesRef(seg.Head),
+			Tail: bytesRef(seg.Tail),
+		})
 	}
 
 	return s
+}
+
+func bytesRef(data checked.Bytes) []byte {
+	if data != nil {
+		return data.Get()
+	}
+	return nil
 }
 
 // ToRPCError converts a server error to a RPC error.

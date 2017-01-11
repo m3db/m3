@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 )
@@ -41,10 +42,10 @@ type FileSetWriter interface {
 	Open(namespace ts.ID, shard uint32, start time.Time) error
 
 	// Write will write the id and data pair and returns an error on a write error
-	Write(id ts.ID, data []byte) error
+	Write(id ts.ID, data checked.Bytes) error
 
 	// WriteAll will write the id and all byte slices and returns an error on a write error
-	WriteAll(id ts.ID, data [][]byte) error
+	WriteAll(id ts.ID, data []checked.Bytes) error
 }
 
 // FileSetReader provides an unsynchronized reader for a TSDB file set
@@ -55,7 +56,7 @@ type FileSetReader interface {
 	Open(namespace ts.ID, shard uint32, start time.Time) error
 
 	// Read returns the next id and data pair or error, will return io.EOF at end of volume
-	Read() (id ts.ID, data []byte, err error)
+	Read() (id ts.ID, data checked.Bytes, err error)
 
 	// Validate validates the data and returns an error if the data are corrupted
 	Validate() error
@@ -79,7 +80,7 @@ type FileSetSeeker interface {
 
 	// Seek returns the data for specified id provided the index was loaded upon open. An
 	// error will be returned if the index was not loaded or id cannot be found
-	Seek(id ts.ID) (data []byte, err error)
+	Seek(id ts.ID) (data checked.Bytes, err error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range

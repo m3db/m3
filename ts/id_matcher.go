@@ -18,27 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package encoding
+package ts
 
 import (
-	"testing"
+	"fmt"
 
-	"github.com/stretchr/testify/require"
+	"github.com/golang/mock/gomock"
 )
 
-func TestSchemeTrimEndOfStreamSuccess(t *testing.T) {
-	s := defaultMarkerEncodingScheme.(*markerEncodingScheme)
+// IDMatcher is a gomock.Matcher that matches ID
+type IDMatcher interface {
+	gomock.Matcher
+}
 
-	head := []byte{0x1, 0x2}
-	for i := 0; i < 256; i++ {
-		for j := 0; j < 8; j++ {
-			encoded := append(head, s.tails[i][j]...)
-			trimmed, pos, err := s.TrimEndOfStream(encoded)
-			require.NoError(t, err)
-			require.Equal(t, len(head)+1, len(trimmed))
-			require.Equal(t, head, trimmed[:len(head)])
-			require.Equal(t, j+1, pos)
-			require.Equal(t, byte(i)>>uint(7-j), trimmed[len(trimmed)-1]>>uint(8-pos))
-		}
+// NewIDMatcher returns a new IDMatcher
+func NewIDMatcher(id string) IDMatcher {
+	return &idMatcher{id: StringID(id)}
+}
+
+type idMatcher struct {
+	id ID
+}
+
+func (m *idMatcher) Matches(x interface{}) bool {
+	id, ok := x.(ID)
+	if !ok {
+		return false
 	}
+	return m.id.Equal(id)
+}
+
+func (m *idMatcher) String() string {
+	return fmt.Sprintf("id %s", m.id.String())
 }

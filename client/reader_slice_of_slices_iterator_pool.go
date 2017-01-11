@@ -20,9 +20,7 @@
 
 package client
 
-import (
-	"github.com/m3db/m3x/pool"
-)
+import "github.com/m3db/m3x/pool"
 
 type readerSliceOfSlicesIteratorPool interface {
 	// Init pool

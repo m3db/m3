@@ -21,6 +21,7 @@
 package encoding
 
 import (
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -30,15 +31,19 @@ const (
 
 // Ostream encapsulates a writable stream.
 type ostream struct {
-	rawBuffer []byte // raw bytes
-	pos       int    // how many bits have been used in the last byte
-	bytesPool pool.BytesPool
+	rawBuffer checked.Bytes // raw bytes
+	pos       int           // how many bits have been used in the last byte
+	bytesPool pool.CheckedBytesPool
 }
 
 // NewOStream creates a new Ostream
-func NewOStream(bytes []byte, initAllocIfEmpty bool, bytesPool pool.BytesPool) OStream {
-	if cap(bytes) == 0 && initAllocIfEmpty {
-		bytes = make([]byte, 0, initAllocSize)
+func NewOStream(
+	bytes checked.Bytes,
+	initAllocIfEmpty bool,
+	bytesPool pool.CheckedBytesPool,
+) OStream {
+	if bytes == nil && initAllocIfEmpty {
+		bytes = checked.NewBytes(make([]byte, 0, initAllocSize), nil)
 	}
 	stream := &ostream{bytesPool: bytesPool}
 	stream.Reset(bytes)
@@ -47,7 +52,10 @@ func NewOStream(bytes []byte, initAllocIfEmpty bool, bytesPool pool.BytesPool) O
 
 // Len returns the length of the Ostream
 func (os *ostream) Len() int {
-	return len(os.rawBuffer)
+	if os.rawBuffer == nil {
+		return 0
+	}
+	return os.rawBuffer.Len()
 }
 
 // Empty returns whether the Ostream is empty
@@ -65,17 +73,22 @@ func (os *ostream) hasUnusedBits() bool {
 
 // grow appends the last byte of v to rawBuffer and sets pos to np.
 func (os *ostream) grow(v byte, np int) {
-	if os.bytesPool != nil {
-		os.rawBuffer = pool.AppendByte(os.rawBuffer, v, os.bytesPool)
+	if p := os.bytesPool; p != nil {
+		if b, swapped := pool.AppendByteChecked(os.rawBuffer, v, p); swapped {
+			os.rawBuffer.DecRef()
+			os.rawBuffer.Finalize()
+			os.rawBuffer = b
+			os.rawBuffer.IncRef()
+		}
 	} else {
-		os.rawBuffer = append(os.rawBuffer, v)
+		os.rawBuffer.Append(v)
 	}
 
 	os.pos = np
 }
 
 func (os *ostream) fillUnused(v byte) {
-	os.rawBuffer[os.lastIndex()] |= v >> uint(os.pos)
+	os.rawBuffer.Get()[os.lastIndex()] |= v >> uint(os.pos)
 }
 
 // WriteBit writes the last bit of v.
@@ -132,11 +145,33 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 	}
 }
 
-// Reset resets the os
-func (os *ostream) Reset(buffer []byte) {
-	os.rawBuffer = buffer
+// Discard takes the ref to the checked bytes from the ostream
+func (os *ostream) Discard() checked.Bytes {
+	buffer := os.rawBuffer
+	buffer.DecRef()
 	os.pos = 0
-	if len(buffer) > 0 {
+	os.rawBuffer = nil
+	return buffer
+}
+
+// Reset resets the ostream
+func (os *ostream) Reset(buffer checked.Bytes) {
+	if os.rawBuffer != nil {
+		// Release ref of the current raw buffer
+		os.rawBuffer.DecRef()
+		os.rawBuffer.Finalize()
+		os.rawBuffer = nil
+	}
+
+	os.rawBuffer = buffer
+
+	if os.rawBuffer != nil {
+		// Track ref to the new raw buffer
+		os.rawBuffer.IncRef()
+	}
+
+	os.pos = 0
+	if os.Len() > 0 {
 		// If the byte array passed in is not empty, we set
 		// pos to 8 indicating the last byte is fully used.
 		os.pos = 8
@@ -144,6 +179,6 @@ func (os *ostream) Reset(buffer []byte) {
 }
 
 // Rawbytes returns the Osteam's raw bytes
-func (os *ostream) Rawbytes() ([]byte, int) {
+func (os *ostream) Rawbytes() (checked.Bytes, int) {
 	return os.rawBuffer, os.pos
 }

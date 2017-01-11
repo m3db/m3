@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
@@ -54,17 +55,21 @@ type seeker struct {
 	expectedInfoDigest         uint32
 	expectedIndexDigest        uint32
 
-	unreadBuf  []byte
-	prologue   []byte
-	entries    int
-	dataFd     *os.File
-	indexMap   map[ts.Hash]*schema.IndexEntry
-	bytesPool  pool.BytesPool
+	unreadBuf []byte
+	prologue  []byte
+	entries   int
+	dataFd    *os.File
+	indexMap  map[ts.Hash]*schema.IndexEntry
+	bytesPool pool.CheckedBytesPool
 }
 
 // NewSeeker returns a new seeker for a filePathPrefix and expects all files to exist.  Will
 // read the index info.
-func NewSeeker(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) FileSetSeeker {
+func NewSeeker(
+	filePathPrefix string,
+	bufferSize int,
+	bytesPool pool.CheckedBytesPool,
+) FileSetSeeker {
 	return &seeker{
 		filePathPrefix:             filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
@@ -79,7 +84,7 @@ func NewSeeker(filePathPrefix string, bufferSize int, bytesPool pool.BytesPool) 
 func (s *seeker) IDs() []ts.ID {
 	fileIds := make([]ts.ID, 0, len(s.indexMap))
 	for _, indexEntry := range s.indexMap {
-		fileIds = append(fileIds, ts.BinaryID(indexEntry.Id))
+		fileIds = append(fileIds, ts.BinaryID(checked.NewBytes(indexEntry.Id, nil)))
 	}
 	return fileIds
 }
@@ -190,7 +195,7 @@ func (s *seeker) readIndex(size int) error {
 	return nil
 }
 
-func (s *seeker) Seek(id ts.ID) ([]byte, error) {
+func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 	entry, exists := s.indexMap[id.Hash()]
 	if !exists {
 		return nil, errSeekIDNotFound
@@ -211,22 +216,27 @@ func (s *seeker) Seek(id ts.ID) ([]byte, error) {
 		return nil, errReadMarkerNotFound
 	}
 
-	var data []byte
+	var data checked.Bytes
 	if s.bytesPool != nil {
-		data = s.bytesPool.Get(int(entry.Size))[:entry.Size]
+		data = s.bytesPool.Get(int(entry.Size))
+		data.IncRef()
+		defer data.DecRef()
+		data.Resize(int(entry.Size))
 	} else {
-		data = make([]byte, entry.Size)
+		data = checked.NewBytes(make([]byte, entry.Size), nil)
+		data.IncRef()
+		defer data.DecRef()
 	}
 
-	n, err = s.dataReader.Read(data)
+	n, err = s.dataReader.Read(data.Get())
 	if err != nil {
 		return nil, err
 	}
 
 	// In case the buffered reader only returns what's remaining in
 	// the buffer, repeatedly read what's left in the underlying reader.
-	for n < len(data) {
-		b := data[n:]
+	for n < int(entry.Size) {
+		b := data.Get()[n:]
 		remainder, err := s.dataReader.Read(b)
 
 		if err == io.EOF {

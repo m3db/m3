@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -115,8 +116,8 @@ func (r *reader) Read() (
 		}
 		r.metadataLookup[r.log.Index] = Series{
 			UniqueIndex: r.log.Index,
-			ID:          ts.BinaryID(r.metadata.Id),
-			Namespace:   ts.BinaryID(r.metadata.Namespace),
+			ID:          ts.BinaryID(checked.NewBytes(r.metadata.Id, nil)),
+			Namespace:   ts.BinaryID(checked.NewBytes(r.metadata.Namespace, nil)),
 			Shard:       r.metadata.Shard,
 		}
 	}

@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
@@ -55,9 +56,7 @@ var (
 	errSeriesNotBootstrapped  = errors.New("series is not yet bootstrapped")
 )
 
-var (
-	nilID = ts.BinaryID(nil)
-)
+var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
 
 type dbSeries struct {
 	sync.RWMutex
@@ -329,7 +328,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 		)
 		if includeSizes {
 			segment := reader.Segment()
-			size := int64(len(segment.Head) + len(segment.Tail))
+			size := int64(segment.Len())
 			pSize = &size
 		}
 		if includeChecksums {

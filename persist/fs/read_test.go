@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/schema"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/protobuf/proto"
@@ -48,12 +49,20 @@ var (
 )
 
 func newTestReader(filePathPrefix string) FileSetReader {
-	bytesPool := pool.NewBytesPool([]pool.Bucket{pool.Bucket{
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: 1024,
 		Count:    10,
-	}}, nil)
+	}}, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
 	bytesPool.Init()
 	return NewReader(filePathPrefix, testReaderBufferSize, bytesPool)
+}
+
+func bytesRefd(data []byte) checked.Bytes {
+	bytes := checked.NewBytes(data, nil)
+	bytes.IncRef()
+	return bytes
 }
 
 func TestReadEmptyIndexUnreadData(t *testing.T) {
@@ -91,7 +100,10 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
-	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
+
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
@@ -118,7 +130,10 @@ func TestReadDataError(t *testing.T) {
 	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
-	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
+
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
@@ -151,7 +166,10 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
-	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
+
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	// Truncate one bye
@@ -187,7 +205,9 @@ func TestReadBadMarker(t *testing.T) {
 	// Mess up the marker
 	marker[0] = marker[0] + 1
 
-	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 3})))
 
 	// Reset the marker
 	marker = actualMarker
@@ -216,7 +236,10 @@ func TestReadWrongIdx(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
-	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{1, 2, 3}))
+
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
@@ -277,7 +300,8 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 
 	w := newTestWriter(filePathPrefix)
 	assert.NoError(t, w.Open(testNamespaceID, uint32(shard), start))
-	assert.NoError(t, w.Write(ts.StringID("foo"), []byte{0x1}))
+
+	assert.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{0x1})))
 	assert.NoError(t, w.Close())
 
 	for suffix, data := range fileData {
@@ -356,7 +380,8 @@ func TestReadValidate(t *testing.T) {
 	start := time.Unix(1000, 0)
 	w := newTestWriter(filePathPrefix)
 	require.NoError(t, w.Open(testNamespaceID, shard, start))
-	require.NoError(t, w.Write(ts.StringID("foo"), []byte{0x1}))
+
+	require.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{0x1})))
 	require.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)

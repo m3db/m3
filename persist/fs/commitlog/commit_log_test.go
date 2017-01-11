@@ -108,12 +108,13 @@ func testSeries(
 	id string,
 	shard uint32,
 ) Series {
-	return Series{
-		UniqueIndex: uniqueIndex,
-		Namespace:   ts.StringID("testNS"),
-		ID:          ts.StringID(id),
-		Shard:       shard,
-	}
+	return NewSeries(
+		uniqueIndex,
+		ts.StringID("testNS"),
+		ts.StringID(id),
+		shard,
+		FinalizeNone,
+	)
 }
 
 func (w testWrite) assert(
@@ -124,7 +125,7 @@ func (w testWrite) assert(
 	annotation []byte,
 ) {
 	assert.Equal(t, w.series.UniqueIndex, series.UniqueIndex)
-	assert.Equal(t, w.series.ID, series.ID)
+	assert.True(t, w.series.ID.Equal(series.ID), fmt.Sprintf("write ID '%s' does not match actual ID '%s'", w.series.ID.String(), series.ID.String()))
 	assert.Equal(t, w.series.Shard, series.Shard)
 	assert.True(t, w.t.Equal(datapoint.Timestamp))
 	assert.Equal(t, datapoint.Value, datapoint.Value)
@@ -234,7 +235,8 @@ func writeCommitLogs(
 			defer wg.Done()
 
 			datapoint := ts.Datapoint{Timestamp: write.t, Value: write.v}
-			err := writeFn(ctx, write.series, datapoint, write.u, write.a)
+			series := write.series.Clone(nil)
+			err := writeFn(ctx, series, datapoint, write.u, write.a)
 
 			if write.expectedErr != nil {
 				assert.True(t, strings.Contains(fmt.Sprintf("%v", err), fmt.Sprintf("%v", write.expectedErr)))

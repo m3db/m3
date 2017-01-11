@@ -105,7 +105,7 @@ type options struct {
 	shardCloseDeadline             time.Duration
 	contextPool                    context.Pool
 	seriesPool                     series.DatabaseSeriesPool
-	bytesPool                      pool.BytesPool
+	bytesPool                      pool.CheckedBytesPool
 	encoderPool                    encoding.EncoderPool
 	segmentReaderPool              xio.SegmentReaderPool
 	readerIteratorPool             encoding.ReaderIteratorPool
@@ -120,20 +120,22 @@ type options struct {
 // less than blocksize and check when opening database
 func NewOptions() Options {
 	o := &options{
-		clockOpts:                      clock.NewOptions(),
-		instrumentOpts:                 instrument.NewOptions(),
-		retentionOpts:                  retention.NewOptions(),
-		blockOpts:                      block.NewOptions(),
-		commitLogOpts:                  commitlog.NewOptions(),
-		repairOpts:                     repair.NewOptions(),
-		fileOpOpts:                     NewFileOpOptions(),
-		newBootstrapFn:                 defaultNewBootstrapFn,
-		newPersistManagerFn:            defaultNewPersistManagerFn,
-		maxFlushRetries:                defaultMaxFlushRetries,
-		shardCloseDeadline:             defaultShardCloseDeadline,
-		contextPool:                    context.NewPool(nil, nil),
-		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
-		bytesPool:                      pool.NewBytesPool(nil, nil),
+		clockOpts:           clock.NewOptions(),
+		instrumentOpts:      instrument.NewOptions(),
+		retentionOpts:       retention.NewOptions(),
+		blockOpts:           block.NewOptions(),
+		commitLogOpts:       commitlog.NewOptions(),
+		repairOpts:          repair.NewOptions(),
+		fileOpOpts:          NewFileOpOptions(),
+		newBootstrapFn:      defaultNewBootstrapFn,
+		newPersistManagerFn: defaultNewPersistManagerFn,
+		maxFlushRetries:     defaultMaxFlushRetries,
+		shardCloseDeadline:  defaultShardCloseDeadline,
+		contextPool:         context.NewPool(nil, nil),
+		seriesPool:          series.NewDatabaseSeriesPool(series.NewOptions(), nil),
+		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, nil)
+		}),
 		encoderPool:                    encoding.NewEncoderPool(nil),
 		segmentReaderPool:              xio.NewSegmentReaderPool(nil),
 		readerIteratorPool:             encoding.NewReaderIteratorPool(nil),
@@ -229,7 +231,10 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		Capacity: defaultBytesPoolBucketCapacity,
 		Count:    defaultBytesPoolBucketCount,
 	}}
-	bytesPool := pool.NewBytesPool(buckets, nil)
+	newBackingBytesPool := func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	}
+	bytesPool := pool.NewCheckedBytesPool(buckets, nil, newBackingBytesPool)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 
@@ -241,6 +246,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 
 	// initialize segment reader pool
 	segmentReaderPool := xio.NewSegmentReaderPool(nil)
+	segmentReaderPool.Init()
 	opts.segmentReaderPool = segmentReaderPool
 
 	encodingOpts := encoding.NewOptions().
@@ -274,27 +280,6 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		SetMultiReaderIteratorPool(multiReaderIteratorPool)
 
 	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
-
-	return (&opts).encodingM3TSZ()
-}
-
-func (o *options) SetEncodingM3TSZ() Options {
-	return o.encodingM3TSZ()
-}
-
-func (o *options) encodingM3TSZ() Options {
-	opts := *o
-	encodingOpts := encoding.NewOptions()
-
-	newEncoderFn := func(start time.Time, bytes []byte) encoding.Encoder {
-		return m3tsz.NewEncoder(start, bytes, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	}
-	opts.newEncoderFn = newEncoderFn
-
-	newDecoderFn := func() encoding.Decoder {
-		return m3tsz.NewDecoder(m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	}
-	opts.newDecoderFn = newDecoderFn
 
 	return &opts
 }
@@ -379,13 +364,13 @@ func (o *options) DatabaseSeriesPool() series.DatabaseSeriesPool {
 	return o.seriesPool
 }
 
-func (o *options) SetBytesPool(value pool.BytesPool) Options {
+func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {
 	opts := *o
 	opts.bytesPool = value
 	return &opts
 }
 
-func (o *options) BytesPool() pool.BytesPool {
+func (o *options) BytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
 }
 

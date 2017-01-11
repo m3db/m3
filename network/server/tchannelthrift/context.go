@@ -21,6 +21,8 @@
 package tchannelthrift
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/context"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
@@ -41,6 +43,13 @@ func RegisterServer(channel *tchannel.Channel, service thrift.TChanServer, conte
 		ctxWithValue := xnetcontext.WithValue(ctx, contextKey, contextPool.Get())
 		return thrift.WithHeaders(ctxWithValue, headers)
 	})
+}
+
+// NewContext returns a new thrift context and cancel func with embedded M3DB context
+func NewContext(timeout time.Duration) (thrift.Context, xnetcontext.CancelFunc) {
+	tctx, cancel := thrift.NewContext(timeout)
+	ctxWithValue := xnetcontext.WithValue(tctx, contextKey, context.NewContext())
+	return thrift.WithHeaders(ctxWithValue, nil), cancel
 }
 
 // Context returns an M3DB context from the thrift context

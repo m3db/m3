@@ -27,6 +27,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
+	checked "github.com/m3db/m3x/checked"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
 	io0 "io"
@@ -54,8 +55,8 @@ func (_m *MockEncoder) EXPECT() *_MockEncoderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockEncoder) Encode(dp ts.Datapoint, timeUnit time.Unit, annotation ts.Annotation) error {
-	ret := _m.ctrl.Call(_m, "Encode", dp, timeUnit, annotation)
+func (_m *MockEncoder) Encode(dp ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
+	ret := _m.ctrl.Call(_m, "Encode", dp, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
@@ -231,7 +232,7 @@ func (_mr *_MockOptionsRecorder) ReaderIteratorPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReaderIteratorPool")
 }
 
-func (_m *MockOptions) SetBytesPool(value pool.BytesPool) Options {
+func (_m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
 	ret := _m.ctrl.Call(_m, "SetBytesPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -241,9 +242,9 @@ func (_mr *_MockOptionsRecorder) SetBytesPool(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBytesPool", arg0)
 }
 
-func (_m *MockOptions) BytesPool() pool.BytesPool {
+func (_m *MockOptions) BytesPool() pool.CheckedBytesPool {
 	ret := _m.ctrl.Call(_m, "BytesPool")
-	ret0, _ := ret[0].(pool.BytesPool)
+	ret0, _ := ret[0].(pool.CheckedBytesPool)
 	return ret0
 }
 
@@ -878,7 +879,7 @@ func (_mr *_MockOStreamRecorder) WriteBytes(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBytes", arg0)
 }
 
-func (_m *MockOStream) Reset(buffer []byte) {
+func (_m *MockOStream) Reset(buffer checked.Bytes) {
 	_m.ctrl.Call(_m, "Reset", buffer)
 }
 
@@ -886,9 +887,9 @@ func (_mr *_MockOStreamRecorder) Reset(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0)
 }
 
-func (_m *MockOStream) Rawbytes() ([]byte, int) {
+func (_m *MockOStream) Rawbytes() (checked.Bytes, int) {
 	ret := _m.ctrl.Call(_m, "Rawbytes")
-	ret0, _ := ret[0].([]byte)
+	ret0, _ := ret[0].(checked.Bytes)
 	ret1, _ := ret[1].(int)
 	return ret0, ret1
 }
@@ -936,8 +937,8 @@ func (_mr *_MockEncoderPoolRecorder) Get() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get")
 }
 
-func (_m *MockEncoderPool) Put(encoder Encoder) {
-	_m.ctrl.Call(_m, "Put", encoder)
+func (_m *MockEncoderPool) Put(e Encoder) {
+	_m.ctrl.Call(_m, "Put", e)
 }
 
 func (_mr *_MockEncoderPoolRecorder) Put(arg0 interface{}) *gomock.Call {

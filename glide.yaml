@@ -42,7 +42,8 @@ import:
   - services
 
 - package: github.com/m3db/m3x
-  version: fcb5878c2ad11ab932afc2d30810da4a23986d0e
+  version: 4793bdfe6fb85eddbb8567229163c33533e34836
+  vcs: git
   subpackages:
   - close
   - errors

@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
@@ -511,7 +512,7 @@ func assertFetchBlocksFromPeersResult(
 		defer ctx.Close()
 		stream, err := observedBlock.Stream(ctx)
 		assert.NoError(t, err)
-		actualData := append(stream.Segment().Head, stream.Segment().Tail...)
+		actualData := append(stream.Segment().Head.Get(), stream.Segment().Tail.Get()...)
 
 		// compare actual v expected data
 		if len(expectedData) != len(actualData) {
@@ -1284,8 +1285,8 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	assert.NotNil(t, stream)
 
 	// Assert block has data
-	assert.Equal(t, []byte{1, 2}, stream.Segment().Head)
-	assert.Equal(t, []byte{3}, stream.Segment().Tail)
+	assert.Equal(t, []byte{1, 2}, stream.Segment().Head.Get())
+	assert.Equal(t, []byte{3}, stream.Segment().Tail.Get())
 }
 
 func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
@@ -1336,7 +1337,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 			all = append(all, val)
 		}
 		result := encoder.Discard()
-		seg := &rpc.Segment{Head: result.Head, Tail: result.Tail}
+		seg := &rpc.Segment{Head: result.Head.Get(), Tail: result.Tail.Get()}
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
@@ -1629,7 +1630,7 @@ func expectFetchMetadataAndReturn(
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
 			elem := &rpc.BlocksMetadata{}
-			elem.ID = result[j].id.Data()
+			elem.ID = result[j].id.Data().Get()
 			for k := 0; k < len(result[j].blocks); k++ {
 				bl := &rpc.BlockMetadata{}
 				bl.Start = result[j].blocks[k].start.UnixNano()
@@ -1729,7 +1730,7 @@ func expectFetchBlocksAndReturn(
 		ret := &rpc.FetchBlocksRawResult_{}
 		for _, res := range result[i] {
 			blocks := &rpc.Blocks{}
-			blocks.ID = res.id.Data()
+			blocks.ID = res.id.Data().Get()
 			for j := range res.blocks {
 				bl := &rpc.Block{}
 				bl.Start = res.blocks[j].start.UnixNano()
@@ -1778,7 +1779,8 @@ func (m *fetchBlocksReqMatcher) Matches(x interface{}) bool {
 	}
 
 	for i := range params {
-		if !params[i].id.Equal(ts.BinaryID(req.Elements[i].ID)) {
+		reqID := ts.BinaryID(checked.NewBytes(req.Elements[i].ID, nil))
+		if !params[i].id.Equal(reqID) {
 			return false
 		}
 		if len(params[i].starts) != len(req.Elements[i].Starts) {
@@ -1883,7 +1885,8 @@ func assertFetchBootstrapBlocksResult(
 				expectedData := append(block.segments.merged.head, block.segments.merged.tail...)
 				stream, err := actualBlock.Stream(ctx)
 				assert.NoError(t, err)
-				actualData := append(stream.Segment().Head, stream.Segment().Tail...)
+				seg := stream.Segment()
+				actualData := append(seg.Head.Get(), seg.Tail.Get()...)
 				assert.Equal(t, expectedData, actualData)
 			} else if block.segments.unmerged != nil {
 				assert.Fail(t, "unmerged comparison not supported")

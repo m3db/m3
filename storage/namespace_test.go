@@ -61,7 +61,7 @@ func newTestNamespace(t *testing.T) *dbNamespace {
 
 func TestNamespaceName(t *testing.T) {
 	ns := newTestNamespace(t)
-	require.Equal(t, testNamespaceID, ns.ID())
+	require.True(t, testNamespaceID.Equal(ns.ID()))
 }
 
 func TestNamespaceTick(t *testing.T) {
@@ -175,7 +175,7 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchBlocks(ctx, ts.StringID("foo"), nil).Return(nil, nil)
+	shard.EXPECT().FetchBlocks(ctx, ts.NewIDMatcher("foo"), nil).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)
@@ -362,7 +362,7 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Flush(testNamespaceID, blockStart, nil).Return(errs[i])
+		shard.EXPECT().Flush(ts.NewIDMatcher(testNamespaceID.String()), blockStart, nil).Return(errs[i])
 		if errs[i] != nil {
 			shard.EXPECT().ID().Return(testShardIDs[i].ID())
 		}
@@ -393,7 +393,7 @@ func TestNamespaceCleanupFilesetAllShards(t *testing.T) {
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().
-			CleanupFileset(testNamespaceID, earliestToRetain).
+			CleanupFileset(ts.NewIDMatcher(testNamespaceID.String()), earliestToRetain).
 			Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -444,7 +444,7 @@ func TestNamespaceRepair(t *testing.T) {
 			}
 		}
 		shard.EXPECT().
-			Repair(gomock.Any(), testNamespaceID, repairTimeRange, repairer).
+			Repair(gomock.Any(), ts.NewIDMatcher(testNamespaceID.String()), repairTimeRange, repairer).
 			Return(res, errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}

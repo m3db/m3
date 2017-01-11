@@ -720,7 +720,7 @@ func (_mr *_MockOptionsRecorder) SegmentReaderPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SegmentReaderPool")
 }
 
-func (_m *MockOptions) SetBytesPool(value pool.BytesPool) Options {
+func (_m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
 	ret := _m.ctrl.Call(_m, "SetBytesPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -730,9 +730,9 @@ func (_mr *_MockOptionsRecorder) SetBytesPool(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBytesPool", arg0)
 }
 
-func (_m *MockOptions) BytesPool() pool.BytesPool {
+func (_m *MockOptions) BytesPool() pool.CheckedBytesPool {
 	ret := _m.ctrl.Call(_m, "BytesPool")
-	ret0, _ := ret[0].(pool.BytesPool)
+	ret0, _ := ret[0].(pool.CheckedBytesPool)
 	return ret0
 }
 

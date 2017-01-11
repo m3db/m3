@@ -69,7 +69,7 @@ func verifyForTime(
 	t *testing.T,
 	reader fs.FileSetReader,
 	shardSet sharding.ShardSet,
-	decoder encoding.Decoder,
+	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
 	namespace ts.ID,
 	expected seriesList,
@@ -86,17 +86,25 @@ func verifyForTime(
 			id, data, err := reader.Read()
 			require.NoError(t, err)
 
+			data.IncRef()
+
 			var datapoints []ts.Datapoint
-			it := decoder.Decode(bytes.NewReader(data))
+			it := iteratorPool.Get()
+			it.Reset(bytes.NewBuffer(data.Get()))
 			for it.Next() {
 				dp, _, _ := it.Current()
 				datapoints = append(datapoints, dp)
 			}
 			require.NoError(t, it.Err())
+			it.Close()
+
 			actual = append(actual, series{
 				ID:   id,
 				Data: datapoints,
 			})
+
+			data.DecRef()
+			data.Finalize()
 		}
 		require.NoError(t, reader.Close())
 	}
@@ -113,10 +121,9 @@ func verifyFlushed(
 ) {
 	fsOpts := opts.CommitLogOptions().FilesystemOptions()
 	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.ReaderBufferSize(), opts.BytesPool())
-	newDecoderFn := opts.NewDecoderFn()
-	decoder := newDecoderFn()
+	iteratorPool := opts.ReaderIteratorPool()
 	for timestamp, seriesList := range seriesMaps {
-		verifyForTime(t, reader, shardSet, decoder, timestamp, namespace, seriesList)
+		verifyForTime(t, reader, shardSet, iteratorPool, timestamp, namespace, seriesList)
 	}
 }
 

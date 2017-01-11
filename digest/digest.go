@@ -41,7 +41,11 @@ func Checksum(data []byte) uint32 {
 // SegmentChecksum returns the 32-bit checksum for a segment.
 func SegmentChecksum(segment ts.Segment) uint32 {
 	d := NewDigest()
-	d.Write(segment.Head)
-	d.Write(segment.Tail)
+	if head := segment.Head; head != nil {
+		d.Write(head.Get())
+	}
+	if tail := segment.Tail; tail != nil {
+		d.Write(tail.Get())
+	}
 	return d.Sum32()
 }

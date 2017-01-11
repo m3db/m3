@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
@@ -76,6 +77,7 @@ type service struct {
 	nowFn                   clock.NowFn
 	metrics                 serviceMetrics
 	idPool                  ts.IdentifierPool
+	checkedBytesPool        sync.Pool
 	blockMetadataPool       tchannelthrift.BlockMetadataPool
 	blockMetadataSlicePool  tchannelthrift.BlockMetadataSlicePool
 	blocksMetadataPool      tchannelthrift.BlocksMetadataPool
@@ -95,7 +97,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		map[string]string{"serviceName": "node"},
 	)
 
-	return &service{
+	s := &service{
 		db:                      db,
 		opts:                    opts,
 		nowFn:                   db.Options().ClockOptions().NowFn(),
@@ -111,6 +113,18 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			Bootstrapped: false,
 		},
 	}
+	checkedBytesPoolOpts := checked.NewBytesOptions().
+		SetFinalizer(checked.BytesFinalizerFn(func(b checked.Bytes) {
+			b.IncRef()
+			b.Reset(nil)
+			b.DecRef()
+			s.checkedBytesPool.Put(b)
+		}))
+	s.checkedBytesPool = sync.Pool{New: func() interface{} {
+		return checked.NewBytes(nil, checkedBytesPoolOpts)
+	}}
+
+	return s
 }
 
 func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
@@ -149,8 +163,10 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	encoded, err := s.db.ReadEncoded(
-		ctx, s.idPool.GetStringID(ctx, req.NameSpace), s.idPool.GetStringID(ctx, req.ID), start, end)
+	encoded, err := s.db.ReadEncoded(ctx,
+		s.idPool.GetStringID(ctx, req.NameSpace),
+		s.idPool.GetStringID(ctx, req.ID),
+		start, end)
 	if err != nil {
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		rpcErr := convert.ToRPCError(err)
@@ -207,7 +223,8 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	nsID := s.idPool.GetBinaryID(ctx, req.NameSpace)
+	nsID := s.newID(ctx, req.NameSpace)
+
 	result := rpc.NewFetchBatchRawResult_()
 
 	var (
@@ -220,7 +237,8 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		rawResult := rpc.NewFetchRawResult_()
 		result.Elements = append(result.Elements, rawResult)
 
-		encoded, err := s.db.ReadEncoded(ctx, nsID, s.idPool.GetBinaryID(ctx, req.Ids[i]), start, end)
+		tsID := s.newID(ctx, req.Ids[i])
+		encoded, err := s.db.ReadEncoded(ctx, nsID, tsID, start, end)
 		if err != nil {
 			rawResult.Err = convert.ToRPCError(err)
 			if tterrors.IsBadRequestError(rawResult.Err) {
@@ -256,11 +274,15 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
-	nsID := s.idPool.GetBinaryID(ctx, req.NameSpace)
+	nsID := s.newID(ctx, req.NameSpace)
+
 	res := rpc.NewFetchBlocksRawResult_()
 	res.Elements = make([]*rpc.Blocks, len(req.Elements))
 
-	var blockStarts []time.Time
+	// Preallocate starts to maximum size since at least one element will likely
+	// be fetching most blocks for peer bootstrapping
+	ropts := s.db.Options().RetentionOptions()
+	blockStarts := make([]time.Time, 0, ropts.RetentionPeriod()/ropts.BlockSize())
 
 	for i, request := range req.Elements {
 		blockStarts = blockStarts[:0]
@@ -269,8 +291,9 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 			blockStarts = append(blockStarts, xtime.FromNanoseconds(start))
 		}
 
+		tsID := s.newID(ctx, request.ID)
 		fetched, err := s.db.FetchBlocks(
-			ctx, nsID, uint32(req.Shard), s.idPool.GetBinaryID(ctx, request.ID), blockStarts)
+			ctx, nsID, uint32(req.Shard), tsID, blockStarts)
 		if err != nil {
 			s.metrics.fetchBlocks.ReportError(s.nowFn().Sub(callStart))
 			return nil, convert.ToRPCError(err)
@@ -301,10 +324,6 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	return res, nil
 }
 
-func (s *service) newCloseableMetadataResult(res *rpc.FetchBlocksMetadataRawResult_) closeableMetadataResult {
-	return closeableMetadataResult{s: s, result: res}
-}
-
 func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -332,9 +351,11 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		includeChecksums = *req.IncludeChecksums
 	}
 
-	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(
-		ctx, s.idPool.GetBinaryID(ctx, req.NameSpace), uint32(req.Shard),
-		start, end, req.Limit, pageToken, includeSizes, includeChecksums)
+	nsID := s.newID(ctx, req.NameSpace)
+
+	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx,
+		nsID, uint32(req.Shard), start, end,
+		req.Limit, pageToken, includeSizes, includeChecksums)
 	if err != nil {
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
@@ -352,7 +373,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 
 	for _, fetchedMetadata := range fetchedResults {
 		blocksMetadata := s.blocksMetadataPool.Get()
-		blocksMetadata.ID = fetchedMetadata.ID.Data()
+		blocksMetadata.ID = fetchedMetadata.ID.Data().Get()
 		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
 		blocksMetadata.Blocks = s.blockMetadataSlicePool.Get()
 
@@ -420,7 +441,8 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
-	nsID := s.idPool.GetBinaryID(ctx, req.NameSpace)
+
+	nsID := s.newID(ctx, req.NameSpace)
 
 	var (
 		errs               []*rpc.WriteBatchRawError
@@ -428,7 +450,6 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		retryableErrors    int
 		nonRetryableErrors int
 	)
-
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampType)
 		if unitErr != nil {
@@ -445,7 +466,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		}
 
 		if err = s.db.Write(
-			ctx, nsID, s.idPool.GetBinaryID(ctx, elem.ID),
+			ctx, nsID, s.newID(ctx, elem.ID),
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
 		); err != nil && xerrors.IsInvalidParams(err) {
@@ -489,7 +510,7 @@ func (s *service) Repair(tctx thrift.Context) error {
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
-	truncated, err := s.db.Truncate(s.idPool.GetBinaryID(ctx, req.NameSpace))
+	truncated, err := s.db.Truncate(s.newID(ctx, req.NameSpace))
 
 	if err != nil {
 		s.metrics.truncate.ReportError(s.nowFn().Sub(callStart))
@@ -502,6 +523,21 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rp
 	s.metrics.truncate.ReportSuccess(s.nowFn().Sub(callStart))
 
 	return res, nil
+}
+
+func (s *service) newID(ctx context.Context, id []byte) ts.ID {
+	checkedBytes := s.checkedBytesPool.Get().(checked.Bytes)
+	checkedBytes.IncRef()
+	checkedBytes.Reset(id)
+	checkedBytes.DecRef()
+
+	return s.idPool.GetBinaryID(ctx, checkedBytes)
+}
+
+func (s *service) newCloseableMetadataResult(
+	res *rpc.FetchBlocksMetadataRawResult_,
+) closeableMetadataResult {
+	return closeableMetadataResult{s: s, result: res}
 }
 
 type closeableMetadataResult struct {

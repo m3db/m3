@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 )
 
 type readerSliceOfSlicesIterator struct {
@@ -40,7 +41,7 @@ func newReaderSliceOfSlicesIterator(
 	segments []*rpc.Segments,
 	pool readerSliceOfSlicesIteratorPool,
 ) *readerSliceOfSlicesIterator {
-	it := &readerSliceOfSlicesIterator{}
+	it := &readerSliceOfSlicesIterator{pool: pool}
 	it.Reset(segments)
 	return it
 }
@@ -56,27 +57,46 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	if len(it.segmentReaders) < currLen {
 		diff := currLen - len(it.segmentReaders)
 		for i := 0; i < diff; i++ {
-			it.segmentReaders = append(it.segmentReaders, xio.NewSegmentReader(ts.Segment{}))
+			seg := ts.NewSegment(nil, nil, ts.FinalizeNone)
+			it.segmentReaders = append(it.segmentReaders, xio.NewSegmentReader(seg))
 		}
 	}
 
 	// Set the segment readers to reader from current segment pieces
 	segment := it.segments[it.idx]
 	if segment.Merged != nil {
-		it.segmentReaders[0].Reset(ts.Segment{
-			Head: segment.Merged.Head,
-			Tail: segment.Merged.Tail,
-		})
+		it.resetReader(it.segmentReaders[0], segment.Merged)
 	} else {
 		for i := 0; i < currLen; i++ {
-			it.segmentReaders[i].Reset(ts.Segment{
-				Head: segment.Unmerged[i].Head,
-				Tail: segment.Unmerged[i].Tail,
-			})
+			it.resetReader(it.segmentReaders[i], segment.Unmerged[i])
 		}
 	}
 
 	return true
+}
+
+func (it *readerSliceOfSlicesIterator) resetReader(
+	r xio.SegmentReader,
+	seg *rpc.Segment,
+) {
+	var (
+		rseg = r.Segment()
+		head = rseg.Head
+		tail = rseg.Tail
+	)
+	if head == nil {
+		head = checked.NewBytes(seg.Head, nil)
+		head.IncRef()
+	} else {
+		head.Reset(seg.Head)
+	}
+	if tail == nil {
+		tail = checked.NewBytes(seg.Tail, nil)
+		tail.IncRef()
+	} else {
+		tail.Reset(seg.Tail)
+	}
+	r.Reset(ts.NewSegment(head, tail, ts.FinalizeNone))
 }
 
 func (it *readerSliceOfSlicesIterator) CurrentLen() int {
@@ -98,8 +118,20 @@ func (it *readerSliceOfSlicesIterator) Close() {
 		return
 	}
 	it.closed = true
-	if it.pool != nil {
-		it.pool.Put(it)
+	// Release any refs to segments
+	it.segments = nil
+	// Release any refs to segment byte slices
+	for i := range it.segmentReaders {
+		seg := it.segmentReaders[i].Segment()
+		if seg.Head != nil {
+			seg.Head.Reset(nil)
+		}
+		if seg.Tail != nil {
+			seg.Tail.Reset(nil)
+		}
+	}
+	if pool := it.pool; pool != nil {
+		pool.Put(it)
 	}
 }
 

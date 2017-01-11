@@ -21,8 +21,8 @@
 package encoding
 
 import (
-	"github.com/m3db/m3x/pool"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 )
 
@@ -41,7 +41,7 @@ type options struct {
 	markerEncodingScheme MarkerEncodingScheme
 	encoderPool          EncoderPool
 	readerIteratorPool   ReaderIteratorPool
-	bytesPool            pool.BytesPool
+	bytesPool            pool.CheckedBytesPool
 	segmentReaderPool    xio.SegmentReaderPool
 	intOptimization      bool
 }
@@ -109,13 +109,13 @@ func (o *options) ReaderIteratorPool() ReaderIteratorPool {
 	return o.readerIteratorPool
 }
 
-func (o *options) SetBytesPool(value pool.BytesPool) Options {
+func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {
 	opts := *o
 	opts.bytesPool = value
 	return &opts
 }
 
-func (o *options) BytesPool() pool.BytesPool {
+func (o *options) BytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
 }
 

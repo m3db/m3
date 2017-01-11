@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,5 +95,15 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 		})},
 	}
 
-	require.Equal(t, expected, actual)
+	require.Equal(t, len(expected), len(actual))
+	for i, expected := range expected {
+		actual := actual[i]
+		assert.Equal(t, expected.host.String(), actual.host.String())
+		assert.True(t, expected.blocks.ID.Equal(actual.blocks.ID))
+		require.Equal(t, len(expected.blocks.Blocks), len(actual.blocks.Blocks))
+		for j, expected := range expected.blocks.Blocks {
+			actual := actual.blocks.Blocks[j]
+			assert.Equal(t, expected, actual)
+		}
+	}
 }

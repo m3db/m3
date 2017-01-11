@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 
 	"github.com/stretchr/testify/require"
 )
@@ -156,7 +157,8 @@ func TestSegmentReader(t *testing.T) {
 		0x0, 0x1, 0x0, 0xe0, 0x65, 0x58, 0xcd, 0x3, 0x0, 0x0, 0x0, 0x0,
 	}
 
-	r := NewSegmentReader(ts.Segment{Head: head, Tail: tail})
+	checkd := func(d []byte) checked.Bytes { return checked.NewBytes(d, nil) }
+	r := NewSegmentReader(ts.NewSegment(checkd(head), checkd(tail), ts.FinalizeNone))
 	var b [100]byte
 	n, err := r.Read(b[:])
 	require.NoError(t, err)
@@ -167,6 +169,6 @@ func TestSegmentReader(t *testing.T) {
 	require.Equal(t, io.EOF, err)
 	require.Equal(t, 0, n)
 
-	require.Equal(t, head, r.Segment().Head)
-	require.Equal(t, tail, r.Segment().Tail)
+	require.Equal(t, head, r.Segment().Head.Get())
+	require.Equal(t, tail, r.Segment().Tail.Get())
 }

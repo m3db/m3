@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 
@@ -176,14 +177,18 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.
 	if err != nil {
 		return nil, tterrors.NewInternalError(err)
 	}
+
 	adminSession, ok := session.(client.AdminSession)
 	if !ok {
 		return nil, tterrors.NewInternalError(errors.New("unable to get an admin session"))
 	}
-	truncated, err := adminSession.Truncate(ts.BinaryID(req.NameSpace))
+
+	nsID := ts.BinaryID(checked.NewBytes(req.NameSpace, nil))
+	truncated, err := adminSession.Truncate(nsID)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
+
 	res := rpc.NewTruncateResult_()
 	res.NumSeries = truncated
 	return res, nil

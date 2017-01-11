@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -33,7 +34,7 @@ import (
 // Encoder is the generic interface for different types of encoders.
 type Encoder interface {
 	// Encode encodes a datapoint and optionally an annotation.
-	Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error
+	Encode(dp ts.Datapoint, unit xtime.Unit, annotation ts.Annotation) error
 
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
 	Stream() xio.SegmentReader
@@ -87,10 +88,10 @@ type Options interface {
 	ReaderIteratorPool() ReaderIteratorPool
 
 	// SetBytesPool sets the bytes pool.
-	SetBytesPool(value pool.BytesPool) Options
+	SetBytesPool(value pool.CheckedBytesPool) Options
 
 	// BytesPool returns the bytes pool.
-	BytesPool() pool.BytesPool
+	BytesPool() pool.CheckedBytesPool
 
 	// SetSegmentReaderPool sets the segment reader pool.
 	SetSegmentReaderPool(value xio.SegmentReaderPool) Options
@@ -214,8 +215,9 @@ type OStream interface {
 	WriteBits(v uint64, numBits int)
 	WriteByte(v byte)
 	WriteBytes(bytes []byte)
-	Reset(buffer []byte)
-	Rawbytes() ([]byte, int)
+	Reset(buffer checked.Bytes)
+	Discard() checked.Bytes
+	Rawbytes() (checked.Bytes, int)
 }
 
 // EncoderPool provides a pool for encoders
@@ -227,7 +229,7 @@ type EncoderPool interface {
 	Get() Encoder
 
 	// Put returns an encoder to the pool
-	Put(encoder Encoder)
+	Put(e Encoder)
 }
 
 // ReaderIteratorPool provides a pool for ReaderIterators

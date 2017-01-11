@@ -20,38 +20,106 @@
 
 package ts
 
-import "github.com/m3db/m3x/pool"
+import (
+	"bytes"
 
-// Segment represents a binary blob consisting of two byte slices, if the
-// pools are set for the two byte slices then when the Segment goes out of
-// scope the slices should be returned to their respective pools with Finalize.
+	"github.com/m3db/m3x/checked"
+)
+
+// Segment represents a binary blob consisting of two byte slices and
+// declares whether they should be finalized when the segment is finalized.
 type Segment struct {
 	// Head is the head of the segment.
-	Head []byte
+	Head checked.Bytes
 
 	// Tail is the tail of the segment.
-	Tail []byte
+	Tail checked.Bytes
 
-	// HeadPool if not nil is the bytes pool used to allocate the head.
-	HeadPool pool.BytesPool
+	// SegmentFlags declares whether to finalize when finalizing the segment.
+	Flags SegmentFlags
+}
 
-	// TailPool if not nil is the bytes pool used to allocate the tail.
-	TailPool pool.BytesPool
+// SegmentFlags describes the option to finalize or not finalize
+// bytes in a Segment.
+type SegmentFlags uint8
+
+const (
+	// FinalizeNone specifies to finalize neither of the bytes
+	FinalizeNone SegmentFlags = 1 << 0
+	// FinalizeHead specifies to finalize the head bytes
+	FinalizeHead SegmentFlags = 1 << 1
+	// FinalizeTail specifies to finalize the tail bytes
+	FinalizeTail SegmentFlags = 1 << 2
+)
+
+// NewSegment will create a new segment and increment the refs to
+// head and tail if they are non-nil. When finalized the segment will
+// also finalize the byte slices if FinalizeBytes is passed.
+func NewSegment(
+	head, tail checked.Bytes,
+	flags SegmentFlags,
+) Segment {
+	if head != nil {
+		head.IncRef()
+	}
+	if tail != nil {
+		tail.IncRef()
+	}
+	return Segment{
+		Head:  head,
+		Tail:  tail,
+		Flags: flags,
+	}
 }
 
 // Len returns the length of the head and tail.
 func (s *Segment) Len() int {
-	return len(s.Head) + len(s.Tail)
+	var total int
+	if s.Head != nil {
+		total += s.Head.Len()
+	}
+	if s.Tail != nil {
+		total += s.Tail.Len()
+	}
+	return total
 }
 
-// Finalize will release resources kept by the segment if pooled.
-func (s *Segment) Finalize() {
-	if s.HeadPool != nil && s.Head != nil {
-		s.HeadPool.Put(s.Head)
+// Equal returns if this segment is equal to another.
+// WARNING: This should only be used in code paths not
+// executed often as it allocates bytes to concat each
+// segment head and tail together before comparing the contents.
+func (s *Segment) Equal(other *Segment) bool {
+	var head, tail, otherHead, otherTail []byte
+	if s.Head != nil {
+		head = s.Head.Get()
 	}
-	if s.TailPool != nil && s.Tail != nil {
-		s.TailPool.Put(s.Tail)
+	if s.Tail != nil {
+		tail = s.Tail.Get()
+	}
+	if other.Head != nil {
+		otherHead = other.Head.Get()
+	}
+	if other.Tail != nil {
+		otherTail = other.Tail.Get()
+	}
+	return bytes.Equal(append(head, tail...), append(otherHead, otherTail...))
+}
+
+// Finalize will finalize the segment by decrementing refs to head and
+// tail if they are non-nil.
+func (s *Segment) Finalize() {
+	if s.Head != nil {
+		s.Head.DecRef()
+		if s.Flags&FinalizeHead == FinalizeHead {
+			s.Head.Finalize()
+		}
 	}
 	s.Head = nil
+	if s.Tail != nil {
+		s.Tail.DecRef()
+		if s.Flags&FinalizeTail == FinalizeTail {
+			s.Tail.Finalize()
+		}
+	}
 	s.Tail = nil
 }

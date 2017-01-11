@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/time"
 )
 
@@ -68,7 +69,12 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder.
-func NewEncoder(start time.Time, bytes []byte, intOptimized bool, opts encoding.Options) encoding.Encoder {
+func NewEncoder(
+	start time.Time,
+	bytes checked.Bytes,
+	intOptimized bool,
+	opts encoding.Options,
+) encoding.Encoder {
 	if opts == nil {
 		opts = encoding.NewOptions()
 	}
@@ -479,23 +485,18 @@ func (enc *encoder) trackNewSig(numSig uint8) uint8 {
 	return newSig
 }
 
-func (enc *encoder) newBuffer(capacity int) []byte {
+func (enc *encoder) newBuffer(capacity int) checked.Bytes {
 	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
 		return bytesPool.Get(capacity)
 	}
-	return make([]byte, 0, capacity)
+	return checked.NewBytes(make([]byte, 0, capacity), nil)
 }
 
 func (enc *encoder) Reset(start time.Time, capacity int) {
 	enc.reset(start, enc.newBuffer(capacity))
 }
 
-func (enc *encoder) reset(start time.Time, bytes []byte) {
-	if bytesPool := enc.opts.BytesPool(); bytesPool != nil {
-		if b, _ := enc.os.Rawbytes(); b != nil {
-			bytesPool.Put(b)
-		}
-	}
+func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.os.Reset(bytes)
 	enc.t = start
 	enc.dt = 0
@@ -532,14 +533,8 @@ func (enc *encoder) Close() {
 
 	enc.closed = true
 
-	buffer, _ := enc.os.Rawbytes()
-
-	// Buffer is being returned to pool, ensure not to keep reference
+	// Ensure to free ref to ostream bytes
 	enc.os.Reset(nil)
-
-	if bytesPool := enc.opts.BytesPool(); bytesPool != nil && buffer != nil {
-		bytesPool.Put(buffer)
-	}
 
 	if pool := enc.opts.EncoderPool(); pool != nil {
 		pool.Put(enc)
@@ -566,32 +561,44 @@ func (enc *encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
 }
 
 func (enc *encoder) segment(resType resultType) ts.Segment {
-	if enc.os.Empty() {
+	length := enc.os.Len()
+	if length == 0 {
 		return ts.Segment{}
 	}
-	b, pos := enc.os.Rawbytes()
-	blen := len(b)
 
 	// We need a multibyte tail to capture an immutable snapshot
-	// of the encoder data this encoder.
-	var head []byte
+	// of the encoder data.
+	var head checked.Bytes
+	buffer, pos := enc.os.Rawbytes()
+	lastByte := buffer.Get()[length-1]
 	if resType == byRefResultType {
-		// Transferring ownership so release reference to these bytes
-		enc.os.Reset(nil)
-		// Take reference
-		head = b[:blen-1]
+		// Take ref from the ostream
+		head = enc.os.Discard()
+
+		// Resize to crop out last byte
+		head.IncRef()
+		defer head.DecRef()
+
+		head.Resize(length - 1)
 	} else {
-		head = append(enc.newBuffer(blen-1), b[:blen-1]...)
+		// Copy into new buffer
+		head = enc.newBuffer(length - 1)
+
+		head.IncRef()
+		defer head.DecRef()
+
+		// Copy up to last byte
+		head.AppendAll(buffer.Get()[:length-1])
 	}
 
+	// Take a shared ref to a known good tail
 	scheme := enc.opts.MarkerEncodingScheme()
-	tail := scheme.Tail(b[blen-1], pos)
+	tail := scheme.Tail(lastByte, pos)
 
-	return ts.Segment{
-		Head:     head,
-		Tail:     tail,
-		HeadPool: enc.opts.BytesPool(),
-	}
+	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
+	// ref we have no ref to it anymore and if by copy then the owner should
+	// be finalizing the bytes when the segment is finalized.
+	return ts.NewSegment(head, tail, ts.FinalizeHead)
 }
 
 type resultType int

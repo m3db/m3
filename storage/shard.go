@@ -401,12 +401,8 @@ func (s *dbShard) Write(
 	}
 
 	// Write commit log
-	info := commitlog.Series{
-		UniqueIndex: entry.index,
-		Namespace:   s.namespace,
-		ID:          s.identifierPool.Clone(id),
-		Shard:       s.shard,
-	}
+	info := commitlog.NewSeries(entry.index, s.namespace,
+		s.identifierPool.Clone(id), s.shard, commitlog.FinalizeID)
 
 	datapoint := ts.Datapoint{
 		Timestamp: timestamp,

@@ -54,7 +54,7 @@ type readableSeriesList []readableSeries
 func (l seriesList) Len() int      { return len(l) }
 func (l seriesList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l seriesList) Less(i, j int) bool {
-	return bytes.Compare(l[i].ID.Data(), l[j].ID.Data()) < 0
+	return bytes.Compare(l[i].ID.Data().Get(), l[j].ID.Data().Get()) < 0
 }
 
 func generateTestData(names []string, numPoints int, start time.Time) seriesList {
@@ -202,7 +202,7 @@ func compareSeriesList(
 	require.Equal(t, len(expected), len(actual))
 
 	for i := range expected {
-		require.Equal(t, expected[i].ID.Data(), actual[i].ID.Data())
+		require.Equal(t, expected[i].ID.Data().Get(), actual[i].ID.Data().Get())
 		require.Equal(t, expected[i].Data, expected[i].Data)
 	}
 }

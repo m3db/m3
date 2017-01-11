@@ -124,7 +124,8 @@ test-internal:
 	@$(VENDOR_ENV) $(test) $(coverfile) | tee $(test_log)
 
 test-integration:
-	@$(VENDOR_ENV) go test -v -tags=integration ./integration
+	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false go test -v -tags=integration ./integration
+	@$(VENDOR_ENV) TEST_NATIVE_POOLING=true go test -v -tags=integration ./integration
 
 test-xml: test-internal
 	go-junit-report < $(test_log) > $(junit_xml)
@@ -147,7 +148,8 @@ test-ci-unit: test-internal
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
 
 test-ci-integration:
-	@$(VENDOR_ENV) $(test_ci_integration)
+	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_ci_integration)
+	@$(VENDOR_ENV) TEST_NATIVE_POOLING=true $(test_ci_integration)
 
 clean:
 	@rm -f *.html *.xml *.out *.test

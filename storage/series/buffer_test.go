@@ -434,7 +434,9 @@ func TestBufferBucketWriteDuplicate(t *testing.T) {
 	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
 	require.True(t, b.merged())
-	require.Equal(t, encoded, b.encoders[0].encoder.Stream().Segment())
+
+	firstEncoderSegment := b.encoders[0].encoder.Stream().Segment()
+	require.True(t, encoded.Equal(&firstEncoderSegment))
 }
 
 func TestBufferFetchBlocks(t *testing.T) {
@@ -469,7 +471,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	var expectedSize int64
 	for i := range b.encoders {
 		segment := b.encoders[i].encoder.Stream().Segment()
-		expectedSize += int64(len(segment.Head) + len(segment.Tail))
+		expectedSize += int64(segment.Len())
 	}
 
 	res := buffer.FetchBlocksMetadata(ctx, start, end, true, true).Results()
