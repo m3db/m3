@@ -21,6 +21,7 @@
 package aggregated
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3metrics/metric"
@@ -32,6 +33,16 @@ type Metric struct {
 	metric.ID
 	Timestamp time.Time
 	Value     float64
+}
+
+// String is the string representation of a metric
+func (m Metric) String() string {
+	return fmt.Sprintf(
+		"{id:%s,timestamp:%s,value:%f}",
+		m.ID.String(),
+		m.Timestamp.String(),
+		m.Value,
+	)
 }
 
 // ChunkedMetric is a metric with a chunked ID
@@ -67,6 +78,11 @@ type RawMetric interface {
 type MetricWithPolicy struct {
 	Metric
 	policy.Policy
+}
+
+// String is the string representation of a metric with policy
+func (mp MetricWithPolicy) String() string {
+	return fmt.Sprintf("{metric:%s,policy:%s}", mp.Metric.String(), mp.Policy.String())
 }
 
 // ChunkedMetricWithPolicy is a chunked metric with applicable policy

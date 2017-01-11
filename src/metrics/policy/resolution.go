@@ -22,10 +22,25 @@ package policy
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3x/time"
 )
+
+// Resolution is the sampling resolution for datapoints
+type Resolution struct {
+	// Window is the bucket size represented by the resolution
+	Window time.Duration
+
+	// Precision is the precision of datapoints stored at this resoluion
+	Precision xtime.Unit
+}
+
+// String is the string representation of a resolution
+func (r Resolution) String() string {
+	return fmt.Sprintf("%s@1%s", r.Window.String(), r.Precision.String())
+}
 
 // ResolutionValue is the resolution value
 type ResolutionValue int

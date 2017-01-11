@@ -21,6 +21,8 @@
 package policy
 
 import (
+	"bytes"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3x/time"
@@ -52,6 +54,47 @@ var (
 		},
 	}
 )
+
+// Policy represents the resolution and retention period metric datapoints
+// are stored at
+type Policy struct {
+	// Resolution is the resolution datapoints are stored at
+	Resolution Resolution
+
+	// Retention is the period datatpoints are retained for
+	Retention Retention
+}
+
+// String is the string representation of a policy
+func (p Policy) String() string {
+	return fmt.Sprintf("{resolution:%s,retention:%s}", p.Resolution.String(), p.Retention.String())
+}
+
+// VersionedPolicies represent a list of policies at a specified version
+type VersionedPolicies struct {
+	// Version is the version of the policies
+	Version int
+
+	// Cutover is when the policies take effect
+	Cutover time.Time
+
+	// Policies represent the list of policies
+	Policies []Policy
+}
+
+// String is the representation of versioned policies
+func (vp VersionedPolicies) String() string {
+	var buf bytes.Buffer
+	buf.WriteString(fmt.Sprintf("{version:%d,cutover:%s,policies:[", vp.Version, vp.Cutover.String()))
+	for i := range vp.Policies {
+		buf.WriteString(vp.Policies[i].String())
+		if i < len(vp.Policies)-1 {
+			buf.WriteString(",")
+		}
+	}
+	buf.WriteString("]}")
+	return buf.String()
+}
 
 // Reset resets the versioned policies
 func (vp *VersionedPolicies) Reset() {

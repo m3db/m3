@@ -21,6 +21,8 @@
 package unaggregated
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 )
@@ -35,6 +37,19 @@ const (
 	BatchTimerType
 	GaugeType
 )
+
+func (t Type) String() string {
+	switch t {
+	case CounterType:
+		return "counter"
+	case BatchTimerType:
+		return "batchTimer"
+	case GaugeType:
+		return "gauge"
+	default:
+		return "unknown"
+	}
+}
 
 // Counter is a counter containing the counter ID and the counter value
 type Counter struct {
@@ -86,6 +101,23 @@ type MetricUnion struct {
 }
 
 var emptyMetricUnion MetricUnion
+
+// String is the string representation of a metric union
+func (m *MetricUnion) String() string {
+	switch m.Type {
+	case CounterType:
+		return fmt.Sprintf("{type:%s,id:%s,value:%d}", m.Type, m.ID.String(), m.CounterVal)
+	case BatchTimerType:
+		return fmt.Sprintf("{type:%s,id:%s,value:%v}", m.Type, m.ID.String(), m.BatchTimerVal)
+	case GaugeType:
+		return fmt.Sprintf("{type:%s,id:%s,value:%f}", m.Type, m.ID.String(), m.GaugeVal)
+	default:
+		return fmt.Sprintf(
+			"{type:%d,id:%s,counterVal:%d,batchTimerVal:%v,gaugeVal:%f}",
+			m.Type, m.ID.String(), m.CounterVal, m.BatchTimerVal, m.GaugeVal,
+		)
+	}
+}
 
 // Reset resets the metric union
 func (m *MetricUnion) Reset() { *m = emptyMetricUnion }
