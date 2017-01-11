@@ -271,7 +271,20 @@ func (r *reader) Read() (ts.ID, checked.Bytes, error) {
 
 	r.entriesRead++
 
-	return ts.StringID(string(entry.Id)), data, nil
+	var id checked.Bytes
+	if r.bytesPool != nil {
+		id = r.bytesPool.Get(int(entry.Size))
+		id.IncRef()
+		defer id.DecRef()
+	} else {
+		id = checked.NewBytes(nil, nil)
+		id.IncRef()
+		defer id.DecRef()
+	}
+
+	id.AppendAll(entry.Id)
+
+	return ts.BinaryID(id), data, nil
 }
 
 // NB(xichen): Validate should be called after all data are read because the
