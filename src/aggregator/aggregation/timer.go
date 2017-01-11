@@ -26,6 +26,14 @@ import (
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 )
 
+// Timer aggregates timer values. Timer APIs are not thread-safe
+type Timer struct {
+	count  int64     // number of values received
+	sum    float64   // sum of the values
+	sumSq  float64   // sum of squared values
+	stream cm.Stream // stream of values received
+}
+
 // NewTimer creates a new timer
 func NewTimer(opts cm.Options) *Timer {
 	return &Timer{

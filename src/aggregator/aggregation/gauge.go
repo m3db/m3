@@ -25,6 +25,11 @@ import (
 	"sync/atomic"
 )
 
+// Gauge aggregates gauge values. Gauge APIs are thread-safe
+type Gauge struct {
+	value uint64 // latest value received
+}
+
 // NewGauge creates a new gauge
 func NewGauge() *Gauge { return &Gauge{} }
 
