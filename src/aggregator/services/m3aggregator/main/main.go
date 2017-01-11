@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 	"github.com/m3db/m3aggregator/services/m3aggregator/processor"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
@@ -42,13 +43,14 @@ const (
 )
 
 var (
-	listenAddrArg = flag.String("listenAddr", "0.0.0.0:6000", "server listen address")
+	msgpackAddrArg = flag.String("msgpackAddr", "0.0.0.0:6000", "msgpack server address")
+	httpAddrArg    = flag.String("httpAddr", "0.0.0.0:6001", "http server address")
 )
 
 func main() {
 	flag.Parse()
 
-	if *listenAddrArg == "" {
+	if *msgpackAddrArg == "" || *httpAddrArg == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -70,17 +72,21 @@ func main() {
 	aggregatorOpts := aggregator.NewOptions().SetFlushFn(processor.Add)
 	aggregator := aggregator.NewAggregator(aggregatorOpts)
 
-	// Creating the server
-	listenAddr := *listenAddrArg
-	serverOpts := msgpackserver.NewOptions()
+	// Creating the mgspack server options
+	msgpackAddr := *msgpackAddrArg
+	msgpackServerOpts := msgpackserver.NewOptions()
+	httpAddr := *httpAddrArg
+	httpServerOpts := httpserver.NewOptions()
 
 	// Start listening
 	doneCh := make(chan struct{})
 	closedCh := make(chan struct{})
 	go func() {
 		if err := serve.Serve(
-			listenAddr,
-			serverOpts,
+			msgpackAddr,
+			msgpackServerOpts,
+			httpAddr,
+			httpServerOpts,
 			aggregator,
 			doneCh,
 		); err != nil {

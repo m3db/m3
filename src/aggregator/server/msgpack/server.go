@@ -153,7 +153,9 @@ func (s *Server) Close() {
 	}
 
 	// Close the listener
-	s.listener.Close()
+	if s.listener != nil {
+		s.listener.Close()
+	}
 
 	// Wait for all connection handlers to finish
 	s.wgConns.Wait()

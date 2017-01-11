@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 	"github.com/m3db/m3aggregator/services/m3aggregator/processor"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
@@ -38,8 +39,8 @@ import (
 )
 
 var (
-	listenAddr = flag.String("listenAddr", "0.0.0.0:6000", "Listen address")
-
+	msgpackAddrArg         = flag.String("msgpackAddr", "0.0.0.0:6000", "msgpack server address")
+	httpAddrArg            = flag.String("httpAddr", "0.0.0.0:6001", "http server address")
 	errServerStartTimedOut = errors.New("server took too long to start")
 	errServerStopTimedOut  = errors.New("server took too long to stop")
 )
@@ -48,18 +49,20 @@ var (
 type nowSetterFn func(t time.Time)
 
 type testSetup struct {
-	opts           testOptions
-	listenAddr     string
-	serverOpts     msgpackserver.Options
-	aggregator     aggregator.Aggregator
-	aggregatorOpts aggregator.Options
-	processor      *processor.AggregatedMetricProcessor
-	processorOpts  processor.Options
-	getNowFn       clock.NowFn
-	setNowFn       nowSetterFn
-	workerPool     xsync.WorkerPool
-	results        *[]aggregated.MetricWithPolicy
-	resultLock     *sync.Mutex
+	opts              testOptions
+	msgpackAddr       string
+	httpAddr          string
+	msgpackServerOpts msgpackserver.Options
+	httpServerOpts    httpserver.Options
+	aggregator        aggregator.Aggregator
+	aggregatorOpts    aggregator.Options
+	processor         *processor.AggregatedMetricProcessor
+	processorOpts     processor.Options
+	getNowFn          clock.NowFn
+	setNowFn          nowSetterFn
+	workerPool        xsync.WorkerPool
+	results           *[]aggregated.MetricWithPolicy
+	resultLock        *sync.Mutex
 
 	// Signals
 	doneCh   chan struct{}
@@ -71,10 +74,16 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		opts = newTestOptions()
 	}
 
-	// Set up the listen address
-	listenAddr := *listenAddr
-	if addr := opts.ListenAddr(); addr != "" {
-		listenAddr = addr
+	// Set up the msgpack server address
+	msgpackAddr := *msgpackAddrArg
+	if addr := opts.MsgpackAddr(); addr != "" {
+		msgpackAddr = addr
+	}
+
+	// Set up the http server address
+	httpAddr := *httpAddrArg
+	if addr := opts.HTTPAddr(); addr != "" {
+		httpAddr = addr
 	}
 
 	// Set up worker pool
@@ -97,7 +106,8 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Create the server options
-	serverOpts := msgpackserver.NewOptions()
+	msgpackServerOpts := msgpackserver.NewOptions()
+	httpServerOpts := httpserver.NewOptions()
 
 	// Creating the aggregator options
 	aggregatorOpts := aggregator.NewOptions()
@@ -126,23 +136,25 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	processorOpts := processor.NewOptions().SetMetricWithPolicyFn(metricWithPolicyFn)
 
 	return &testSetup{
-		opts:           opts,
-		listenAddr:     listenAddr,
-		serverOpts:     serverOpts,
-		aggregatorOpts: aggregatorOpts,
-		processorOpts:  processorOpts,
-		getNowFn:       getNowFn,
-		setNowFn:       setNowFn,
-		workerPool:     workerPool,
-		results:        &results,
-		resultLock:     &resultLock,
-		doneCh:         make(chan struct{}),
-		closedCh:       make(chan struct{}),
+		opts:              opts,
+		msgpackAddr:       msgpackAddr,
+		httpAddr:          httpAddr,
+		msgpackServerOpts: msgpackServerOpts,
+		httpServerOpts:    httpServerOpts,
+		aggregatorOpts:    aggregatorOpts,
+		processorOpts:     processorOpts,
+		getNowFn:          getNowFn,
+		setNowFn:          setNowFn,
+		workerPool:        workerPool,
+		results:           &results,
+		resultLock:        &resultLock,
+		doneCh:            make(chan struct{}),
+		closedCh:          make(chan struct{}),
 	}, nil
 }
 
 func (ts *testSetup) newClient() *client {
-	return newClient(ts.listenAddr, ts.opts.ClientBatchSize(), ts.opts.ClientConnectTimeout())
+	return newClient(ts.msgpackAddr, ts.opts.ClientBatchSize(), ts.opts.ClientConnectTimeout())
 }
 
 func (ts *testSetup) waitUntilServerIsUp() error {
@@ -168,8 +180,10 @@ func (ts *testSetup) startServer() error {
 
 	go func() {
 		if err := serve.Serve(
-			ts.listenAddr,
-			ts.serverOpts,
+			ts.msgpackAddr,
+			ts.msgpackServerOpts,
+			ts.httpAddr,
+			ts.httpServerOpts,
 			ts.aggregator,
 			ts.doneCh,
 		); err != nil {

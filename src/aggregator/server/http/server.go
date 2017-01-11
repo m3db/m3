@@ -18,44 +18,62 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package serve
+package http
 
 import (
-	"fmt"
+	"net"
+	"net/http"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	httpserver "github.com/m3db/m3aggregator/server/http"
-	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
+	"github.com/m3db/m3x/close"
 )
 
-// Serve starts serving RPC traffic
-func Serve(
-	msgpackAddr string,
-	msgpackServerOpts msgpackserver.Options,
-	httpAddr string,
-	httpServerOpts httpserver.Options,
-	aggregator aggregator.Aggregator,
-	doneCh chan struct{},
-) error {
-	log := msgpackServerOpts.InstrumentOptions().Logger()
-	defer aggregator.Close()
+// Server is an http server receiving incoming metrics
+type Server struct {
+	opts       Options
+	address    string
+	listener   net.Listener
+	aggregator aggregator.Aggregator
+}
 
-	msgpackClose, err := msgpackserver.NewServer(msgpackAddr, aggregator, msgpackServerOpts).ListenAndServe()
-	if err != nil {
-		return fmt.Errorf("could not start msgpack server at %s: %v", msgpackAddr, err)
+// NewServer creates a new http server
+func NewServer(address string, aggregator aggregator.Aggregator, opts Options) *Server {
+	return &Server{
+		opts:       opts,
+		address:    address,
+		aggregator: aggregator,
 	}
-	defer msgpackClose.Close()
-	log.Infof("msgpack server: listening on %s", msgpackAddr)
+}
 
-	httpClose, err := httpserver.NewServer(httpAddr, aggregator, httpServerOpts).ListenAndServe()
-	if err != nil {
-		return fmt.Errorf("could not start http server at %s: %v", httpAddr, err)
+// ListenAndServe starts listening to new incoming connections and
+// handles data from those connections
+func (s *Server) ListenAndServe() (xclose.SimpleCloser, error) {
+	mux := http.NewServeMux()
+	if err := registerHandlers(mux, s.aggregator); err != nil {
+		return nil, err
 	}
-	defer httpClose.Close()
-	log.Infof("http server: listening on %s", httpAddr)
+	server := http.Server{
+		Handler:      mux,
+		ReadTimeout:  s.opts.ReadTimeout(),
+		WriteTimeout: s.opts.WriteTimeout(),
+	}
 
-	// Wait for exit signal
-	<-doneCh
+	listener, err := net.Listen("tcp", s.address)
+	if err != nil {
+		return nil, err
+	}
+	s.listener = listener
 
-	return nil
+	go func() {
+		server.Serve(listener)
+	}()
+
+	return s, nil
+}
+
+// Close closes all connections and stops the server
+func (s *Server) Close() {
+	if s.listener != nil {
+		s.listener.Close()
+	}
 }
