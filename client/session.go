@@ -1996,18 +1996,6 @@ func (s *session) verifyFetchedBlock(block *rpc.Block, metadata blockMetadata) e
 		}
 	}
 
-	var size int
-	if block.Segments.Merged != nil {
-		size = len(block.Segments.Merged.Head) + len(block.Segments.Merged.Tail)
-	} else {
-		for _, segment := range block.Segments.Unmerged {
-			size += len(segment.Head) + len(segment.Tail)
-		}
-	}
-	if size != int(metadata.size) {
-		return fmt.Errorf("block size is bad: expected=%d, actual=%d", metadata.size, size)
-	}
-
 	return nil
 }
 
