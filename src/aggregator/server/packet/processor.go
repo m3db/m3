@@ -21,21 +21,15 @@
 package packet
 
 import (
-	"errors"
 	"sync"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
-)
-
-var (
-	errInvalidMetricType = errors.New("invalid metric type")
 )
 
 type processorMetrics struct {
@@ -123,13 +117,7 @@ func (p *Processor) drain() {
 
 func (p *Processor) processPacket(packet Packet) error {
 	callStart := p.nowFn()
-	switch packet.Metric.Type {
-	case unaggregated.CounterType, unaggregated.BatchTimerType, unaggregated.GaugeType:
-		err := p.aggregator.AddMetricWithPolicies(packet.Metric, packet.Policies)
-		p.metrics.processPacket.ReportSuccessOrError(err, p.nowFn().Sub(callStart))
-		return err
-	default:
-		p.metrics.processPacket.ReportError(p.nowFn().Sub(callStart))
-		return errInvalidMetricType
-	}
+	err := p.aggregator.AddMetricWithPolicies(packet.Metric, packet.Policies)
+	p.metrics.processPacket.ReportSuccessOrError(err, p.nowFn().Sub(callStart))
+	return err
 }

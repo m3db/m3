@@ -32,7 +32,8 @@ import (
 )
 
 var (
-	errAggregatorClosed = errors.New("aggregator is closed")
+	errAggregatorClosed  = errors.New("aggregator is closed")
+	errInvalidMetricType = errors.New("invalid metric type")
 )
 
 type addMetricWithPoliciesFn func(
@@ -87,7 +88,12 @@ func (agg *aggregator) AddMetricWithPolicies(
 	if atomic.LoadInt32(&agg.closed) == 1 {
 		return errAggregatorClosed
 	}
-	return agg.addMetricWithPoliciesFn(mu, policies)
+	switch mu.Type {
+	case unaggregated.CounterType, unaggregated.BatchTimerType, unaggregated.GaugeType:
+		return agg.addMetricWithPoliciesFn(mu, policies)
+	default:
+		return errInvalidMetricType
+	}
 }
 
 func (agg *aggregator) Close() {
