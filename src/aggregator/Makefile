@@ -70,6 +70,9 @@ test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
 
+test-ci-integration:
+	$(test_ci_integration)
+
 clean:
 	@rm -f *.html *.xml *.out *.test
 
