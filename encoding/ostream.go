@@ -145,7 +145,16 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 	}
 }
 
-// Reset resets the os
+// Discard takes the ref to the checked bytes from the ostream
+func (os *ostream) Discard() checked.Bytes {
+	buffer := os.rawBuffer
+	buffer.DecRef()
+	os.pos = 0
+	os.rawBuffer = nil
+	return buffer
+}
+
+// Reset resets the ostream
 func (os *ostream) Reset(buffer checked.Bytes) {
 	if os.rawBuffer != nil {
 		// Release ref of the current raw buffer

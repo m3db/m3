@@ -216,6 +216,7 @@ type OStream interface {
 	WriteByte(v byte)
 	WriteBytes(bytes []byte)
 	Reset(buffer checked.Bytes)
+	Discard() checked.Bytes
 	Rawbytes() (checked.Bytes, int)
 }
 

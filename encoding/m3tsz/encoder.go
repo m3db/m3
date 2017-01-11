@@ -561,43 +561,39 @@ func (enc *encoder) DiscardReset(start time.Time, capacity int) ts.Segment {
 }
 
 func (enc *encoder) segment(resType resultType) ts.Segment {
-	bytes, pos := enc.os.Rawbytes()
-
-	length := bytes.Len()
+	length := enc.os.Len()
 	if length == 0 {
 		return ts.Segment{}
 	}
 
-	raw := bytes.Get()
-
 	// We need a multibyte tail to capture an immutable snapshot
 	// of the encoder data.
 	var head checked.Bytes
+	buffer, pos := enc.os.Rawbytes()
+	lastByte := buffer.Get()[length-1]
 	if resType == byRefResultType {
-		// Take ref and reset ostream once created the segment
-		// which increments ref
-		head = bytes
+		// Take ref from the ostream
+		head = enc.os.Discard()
 
+		// Resize to crop out last byte
 		head.IncRef()
 		defer head.DecRef()
 
-		// Release ref to these bytes from the ostream
-		enc.os.Reset(nil)
-
-		// Cut the tail
 		head.Resize(length - 1)
 	} else {
+		// Copy into new buffer
 		head = enc.newBuffer(length - 1)
 
 		head.IncRef()
 		defer head.DecRef()
 
-		// Copy up to tail
-		head.AppendAll(raw[:length-1])
+		// Copy up to last byte
+		head.AppendAll(buffer.Get()[:length-1])
 	}
 
+	// Take a shared ref to a known good tail
 	scheme := enc.opts.MarkerEncodingScheme()
-	tail := scheme.Tail(raw[length-1], pos)
+	tail := scheme.Tail(lastByte, pos)
 
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
 	// ref we have no ref to it anymore and if by copy then the owner should
