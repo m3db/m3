@@ -209,8 +209,8 @@ func (s *server) handleConnection(conn net.Conn) {
 		metric, policies := it.Value()
 		if err := s.queue.Enqueue(packet.Packet{Metric: metric, Policies: policies}); err != nil {
 			s.log.WithFields(
-				xlog.NewLogField("metric", metric),
-				xlog.NewLogField("policies", policies),
+				xlog.NewLogField("metric", metric.String()),
+				xlog.NewLogField("policies", policies.String()),
 				xlog.NewLogErrField(err),
 			).Errorf("server enqueue error")
 			s.metrics.enqueueErrors.Inc(1)
