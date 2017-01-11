@@ -96,9 +96,6 @@ func (p *Processor) Close() {
 	// Wait for all workers to finish dequeuing existing
 	// packets in the queue
 	p.wgWorkers.Wait()
-
-	// Finally close the aggregator
-	p.aggregator.Close()
 }
 
 func (p *Processor) drain() {

@@ -30,11 +30,17 @@ const (
 )
 
 type testOptions interface {
-	// SetListenAddr sets the listen address
-	SetListenAddr(value string) testOptions
+	// SetMsgpackAddr sets the msgpack server address
+	SetMsgpackAddr(value string) testOptions
 
-	// ListenAddr returns the listen address
-	ListenAddr() string
+	// MsgpackAddr returns the msgpack server address
+	MsgpackAddr() string
+
+	// SetHTTPAddr sets the http server address
+	SetHTTPAddr(value string) testOptions
+
+	// HTTPAddr returns the http server address
+	HTTPAddr() string
 
 	// SetClientBatchSize sets the client-side batch size
 	SetClientBatchSize(value int) testOptions
@@ -62,7 +68,8 @@ type testOptions interface {
 }
 
 type options struct {
-	listenAddr               string
+	msgpackAddr              string
+	httpAddr                 string
 	serverStateChangeTimeout time.Duration
 	workerPoolSize           int
 	clientBatchSize          int
@@ -78,14 +85,24 @@ func newTestOptions() testOptions {
 	}
 }
 
-func (o *options) SetListenAddr(value string) testOptions {
+func (o *options) SetMsgpackAddr(value string) testOptions {
 	opts := *o
-	opts.listenAddr = value
+	opts.msgpackAddr = value
 	return &opts
 }
 
-func (o *options) ListenAddr() string {
-	return o.listenAddr
+func (o *options) MsgpackAddr() string {
+	return o.msgpackAddr
+}
+
+func (o *options) SetHTTPAddr(value string) testOptions {
+	opts := *o
+	opts.httpAddr = value
+	return &opts
+}
+
+func (o *options) HTTPAddr() string {
+	return o.httpAddr
 }
 
 func (o *options) SetClientBatchSize(value int) testOptions {
