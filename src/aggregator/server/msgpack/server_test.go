@@ -98,7 +98,7 @@ func testServerOptions() Options {
 		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
 }
 
-func testServer(addr string) (*Server, mock.Aggregator, *int32, *int32, *int32) {
+func testServer(addr string) (*server, mock.Aggregator, *int32, *int32, *int32) {
 	var (
 		numAdded   int32
 		numRemoved int32
@@ -107,7 +107,7 @@ func testServer(addr string) (*Server, mock.Aggregator, *int32, *int32, *int32) 
 
 	opts := testServerOptions()
 	agg := mock.NewAggregator()
-	s := NewServer(addr, agg, opts)
+	s := NewServer(addr, agg, opts).(*server)
 
 	s.addConnectionFn = func(conn net.Conn) bool {
 		ret := s.addConnection(conn)

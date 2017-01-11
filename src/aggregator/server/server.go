@@ -18,60 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package http
+package server
 
 import (
-	"net"
-	"net/http"
-
-	"github.com/m3db/m3aggregator/aggregator"
-	networkserver "github.com/m3db/m3aggregator/server"
 	"github.com/m3db/m3x/close"
 )
 
-// server is an http server receiving incoming metrics traffic
-type server struct {
-	opts       Options
-	address    string
-	listener   net.Listener
-	aggregator aggregator.Aggregator
-}
+// Server is a server capable of listening to incoming traffic and closing itself
+// when it's shut down
+type Server interface {
+	// ListenAndServe starts listening to new incoming connections and
+	// handles data from those connections
+	ListenAndServe() (xclose.SimpleCloser, error)
 
-// NewServer creates a new http server
-func NewServer(address string, aggregator aggregator.Aggregator, opts Options) networkserver.Server {
-	return &server{
-		opts:       opts,
-		address:    address,
-		aggregator: aggregator,
-	}
-}
-
-func (s *server) ListenAndServe() (xclose.SimpleCloser, error) {
-	mux := http.NewServeMux()
-	if err := registerHandlers(mux, s.aggregator); err != nil {
-		return nil, err
-	}
-	server := http.Server{
-		Handler:      mux,
-		ReadTimeout:  s.opts.ReadTimeout(),
-		WriteTimeout: s.opts.WriteTimeout(),
-	}
-
-	listener, err := net.Listen("tcp", s.address)
-	if err != nil {
-		return nil, err
-	}
-	s.listener = listener
-
-	go func() {
-		server.Serve(listener)
-	}()
-
-	return s, nil
-}
-
-func (s *server) Close() {
-	if s.listener != nil {
-		s.listener.Close()
-	}
+	// Close closes the server
+	Close()
 }

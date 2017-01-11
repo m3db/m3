@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	networkserver "github.com/m3db/m3aggregator/server"
 	"github.com/m3db/m3aggregator/server/packet"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/close"
@@ -58,9 +59,9 @@ type addConnectionFn func(conn net.Conn) bool
 type removeConnectionFn func(conn net.Conn)
 type handleConnectionFn func(conn net.Conn)
 
-// Server is a server that receives incoming connections and delegates
-// to the processor to process incoming data
-type Server struct {
+// server is a msgpack based server that receives incoming connections containing
+// msgpack-encoded traffic and delegates to the processor to process incoming data
+type server struct {
 	sync.Mutex
 
 	address      string
@@ -82,14 +83,14 @@ type Server struct {
 	handleConnectionFn handleConnectionFn
 }
 
-// NewServer creates a new server
-func NewServer(address string, aggregator aggregator.Aggregator, opts Options) *Server {
+// NewServer creates a new msgpack server
+func NewServer(address string, aggregator aggregator.Aggregator, opts Options) networkserver.Server {
 	clockOpts := opts.ClockOptions()
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("server")
 	queue := packet.NewQueue(opts.PacketQueueSize(), clockOpts, instrumentOpts.SetMetricsScope(scope))
 	processor := packet.NewProcessor(queue, aggregator, opts.WorkerPoolSize(), clockOpts, instrumentOpts)
-	s := &Server{
+	s := &server{
 		address:      address,
 		opts:         opts,
 		log:          instrumentOpts.Logger(),
@@ -110,9 +111,7 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) *
 	return s
 }
 
-// ListenAndServe starts listening to new incoming connections and
-// handles data from those connections
-func (s *Server) ListenAndServe() (xclose.SimpleCloser, error) {
+func (s *server) ListenAndServe() (xclose.SimpleCloser, error) {
 	listener, err := net.Listen("tcp", s.address)
 	if err != nil {
 		return nil, err
@@ -122,7 +121,7 @@ func (s *Server) ListenAndServe() (xclose.SimpleCloser, error) {
 	return s, nil
 }
 
-func (s *Server) serve() error {
+func (s *server) serve() error {
 	connCh, errCh := xnet.StartAcceptLoop(s.listener, s.opts.Retrier())
 	for conn := range connCh {
 		if !s.addConnectionFn(conn) {
@@ -135,8 +134,7 @@ func (s *Server) serve() error {
 	return <-errCh
 }
 
-// Close closes all open connections and stops server from listening
-func (s *Server) Close() {
+func (s *server) Close() {
 	s.Lock()
 	if atomic.LoadInt32(&s.closed) == 1 {
 		s.Unlock()
@@ -167,7 +165,7 @@ func (s *Server) Close() {
 	s.processor.Close()
 }
 
-func (s *Server) addConnection(conn net.Conn) bool {
+func (s *server) addConnection(conn net.Conn) bool {
 	s.Lock()
 	defer s.Unlock()
 
@@ -179,7 +177,7 @@ func (s *Server) addConnection(conn net.Conn) bool {
 	return true
 }
 
-func (s *Server) removeConnection(conn net.Conn) {
+func (s *server) removeConnection(conn net.Conn) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -195,7 +193,7 @@ func (s *Server) removeConnection(conn net.Conn) {
 	}
 }
 
-func (s *Server) handleConnection(conn net.Conn) {
+func (s *server) handleConnection(conn net.Conn) {
 	defer func() {
 		conn.Close()
 		s.removeConnectionFn(conn)
@@ -227,7 +225,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 }
 
-func (s *Server) reportMetrics() {
+func (s *server) reportMetrics() {
 	interval := s.opts.InstrumentOptions().ReportInterval()
 	t := time.Tick(interval)
 
