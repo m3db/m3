@@ -116,7 +116,7 @@ func (e *Entry) AddMetricWithPolicies(
 	}
 
 	if e.shouldUpdatePoliciesWithLock(currTime, policies.Version, policies.Cutover) {
-		if err := e.updatePoliciesWithLock(mu.Type, mu.ID, policies.Policies); err != nil {
+		if err := e.updatePoliciesWithLock(mu.Type, mu.ID, policies.Version, policies.Policies); err != nil {
 			// NB(xichen): if an error occurred during policy update, the policies
 			// will remain as they are, i.e., there are no half-updated policies
 			e.Unlock()
@@ -196,6 +196,7 @@ func (e *Entry) shouldUpdatePoliciesWithLock(
 func (e *Entry) updatePoliciesWithLock(
 	typ unaggregated.Type,
 	id metric.ID,
+	newVersion int,
 	policies []policy.Policy,
 ) error {
 	// We should update the policies first
@@ -237,6 +238,7 @@ func (e *Entry) updatePoliciesWithLock(
 
 	// Replace the existing aggregations with new aggregations
 	e.aggregations = newAggregations
+	e.version = newVersion
 
 	return nil
 }

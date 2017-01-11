@@ -251,6 +251,7 @@ func testEntryAddMetricWithPolicies(
 			require.True(t, exists)
 			input.fn(t, elem, now.Truncate(p.Resolution.Window))
 		}
+		require.Equal(t, newPoliciesVersion, e.version)
 
 		postAddFn(t)
 	}

@@ -22,6 +22,11 @@ package aggregation
 
 import "sync/atomic"
 
+// Counter aggregates counter values. Counter APIs are thread-safe
+type Counter struct {
+	sum int64 // Sum of the values received
+}
+
 // NewCounter creates a new counter
 func NewCounter() *Counter { return &Counter{} }
 
