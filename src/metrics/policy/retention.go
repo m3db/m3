@@ -25,6 +25,14 @@ import (
 	"time"
 )
 
+// Retention is the retention period for datapoints
+type Retention time.Duration
+
+// String is the string representation of a retention period
+func (r Retention) String() string {
+	return time.Duration(r).String()
+}
+
 // RetentionValue is the retention value
 type RetentionValue int
 
