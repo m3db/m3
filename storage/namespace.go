@@ -552,6 +552,8 @@ func (n *dbNamespace) Repair(
 		throttlePerShard       time.Duration
 	)
 
+	nowFn := n.opts.ClockOptions().NowFn()
+	begin := nowFn()
 	multiErr := xerrors.NewMultiError()
 	shards := n.getOwnedShards()
 	numShards := len(shards)
@@ -602,6 +604,7 @@ func (n *dbNamespace) Repair(
 	}
 
 	wg.Wait()
+	duration := nowFn().Sub(begin).String()
 
 	n.log.WithFields(
 		xlog.NewLogField("namespace", n.id.String()),
@@ -619,6 +622,7 @@ func (n *dbNamespace) Repair(
 		xlog.NewLogField("numReplicasPending", numReplicasPending),
 		xlog.NewLogField("numReplicasRequested", numReplicasRequested),
 		xlog.NewLogField("numReplicasUnrequested", numReplicasUnrequested),
+		xlog.NewLogField("took", duration),
 	).Infof("repair result")
 
 	return multiErr.FinalError()
