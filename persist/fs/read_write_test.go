@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -155,4 +156,33 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	// Now reuse the writer and validate the data are written as expected.
 	writeTestData(t, w, shard, testWriterStart, entries)
 	readTestData(t, r, shard, testWriterStart, entries)
+}
+
+func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	checkedBytes := func(b []byte) checked.Bytes {
+		r := checked.NewBytes(b, nil)
+		r.IncRef()
+		return r
+	}
+
+	w := newTestWriter(filePathPrefix)
+	err := w.Open(testNamespaceID, 0, testWriterStart)
+	assert.NoError(t, err)
+
+	w.WriteAll(ts.StringID("foo"), []checked.Bytes{
+		checkedBytes([]byte{1, 2, 3}),
+		nil,
+		checkedBytes([]byte{4, 5, 6}),
+	})
+
+	assert.NoError(t, w.Close())
+
+	r := newTestReader(filePathPrefix)
+	readTestData(t, r, 0, testWriterStart, []testEntry{
+		{"foo", []byte{1, 2, 3, 4, 5, 6}},
+	})
 }
