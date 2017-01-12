@@ -21,6 +21,7 @@
 package mock
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3metrics/metric"
@@ -85,7 +86,7 @@ func TestMockAggregator(t *testing.T) {
 					VersionedPolicies: policies,
 				})
 		default:
-			require.Fail(t, "unknown metric type %v", mu.Type)
+			require.Fail(t, fmt.Sprintf("unknown metric type %v", mu.Type))
 		}
 		require.NoError(t, agg.AddMetricWithPolicies(mu, policies))
 	}

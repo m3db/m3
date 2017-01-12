@@ -52,25 +52,21 @@ type options struct {
 	eps        float64
 	quantiles  []float64
 	capacity   int
+	streamPool StreamPool
 	samplePool SamplePool
 	floatsPool FloatsPool
 }
 
 // NewOptions creates a new options
 func NewOptions() Options {
-	samplePool := NewSamplePool(nil)
-	samplePool.Init()
-
-	floatsPool := NewFloatsPool(defaultBuckets, nil)
-	floatsPool.Init()
-
-	return &options{
-		eps:        defaultEps,
-		quantiles:  defaultQuantiles,
-		capacity:   defaultCapacity,
-		samplePool: samplePool,
-		floatsPool: floatsPool,
+	o := &options{
+		eps:       defaultEps,
+		quantiles: defaultQuantiles,
+		capacity:  defaultCapacity,
 	}
+
+	o.initPools()
+	return o
 }
 
 func (o *options) SetEps(value float64) Options {
@@ -101,6 +97,16 @@ func (o *options) SetCapacity(value int) Options {
 
 func (o *options) Capacity() int {
 	return o.capacity
+}
+
+func (o *options) SetStreamPool(value StreamPool) Options {
+	opts := *o
+	opts.streamPool = value
+	return &opts
+}
+
+func (o *options) StreamPool() StreamPool {
+	return o.streamPool
 }
 
 func (o *options) SetSamplePool(value SamplePool) Options {
@@ -142,4 +148,15 @@ func (o *options) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (o *options) initPools() {
+	o.samplePool = NewSamplePool(nil)
+	o.samplePool.Init()
+
+	o.floatsPool = NewFloatsPool(defaultBuckets, nil)
+	o.floatsPool.Init()
+
+	o.streamPool = NewStreamPool(nil)
+	o.streamPool.Init(func() Stream { return NewStream(o) })
 }

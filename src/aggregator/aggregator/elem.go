@@ -84,21 +84,21 @@ type elemBase struct {
 type CounterElem struct {
 	elemBase
 
-	values map[time.Time]*aggregation.Counter
+	values map[time.Time]aggregation.Counter
 }
 
 // TimerElem is the timer element
 type TimerElem struct {
 	elemBase
 
-	values map[time.Time]*aggregation.Timer
+	values map[time.Time]aggregation.Timer
 }
 
 // GaugeElem is the gauge element
 type GaugeElem struct {
 	elemBase
 
-	values map[time.Time]*aggregation.Gauge
+	values map[time.Time]aggregation.Gauge
 }
 
 // ResetSetData resets the counter and sets data
@@ -125,7 +125,7 @@ func (e *elemBase) MarkAsTombstoned() {
 func NewCounterElem(id metric.ID, policy policy.Policy, opts Options) *CounterElem {
 	return &CounterElem{
 		elemBase: elemBase{opts: opts, id: id, policy: policy},
-		values:   make(map[time.Time]*aggregation.Counter),
+		values:   make(map[time.Time]aggregation.Counter),
 	}
 }
 
@@ -139,13 +139,11 @@ func (e *CounterElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion
 	}
 	counter, exists := e.values[alignedStart]
 	if !exists {
-		counter = e.opts.CounterPool().Get()
-		counter.Reset()
-		e.values[alignedStart] = counter
+		counter = aggregation.NewCounter()
 	}
-	e.Unlock()
-	// Counter APIs are thread-safe
 	counter.Add(mu.CounterVal)
+	e.values[alignedStart] = counter
+	e.Unlock()
 	return nil
 }
 
@@ -162,7 +160,6 @@ func (e *CounterElem) ReadAndDiscard(earlierThan time.Time, fn aggMetricFn) bool
 		if t.Before(earlierThan) {
 			endAt := t.Add(e.policy.Resolution.Window)
 			e.processValue(endAt, agg, fn)
-			e.opts.CounterPool().Put(agg)
 			delete(e.values, t)
 		}
 	}
@@ -180,8 +177,7 @@ func (e *CounterElem) Close() {
 	}
 	e.closed = true
 	e.id = nil
-	for t, agg := range e.values {
-		e.opts.CounterPool().Put(agg)
+	for t := range e.values {
 		delete(e.values, t)
 	}
 	pool := e.opts.CounterElemPool()
@@ -190,7 +186,7 @@ func (e *CounterElem) Close() {
 	pool.Put(e)
 }
 
-func (e *CounterElem) processValue(timestamp time.Time, agg *aggregation.Counter, fn aggMetricFn) {
+func (e *CounterElem) processValue(timestamp time.Time, agg aggregation.Counter, fn aggMetricFn) {
 	fn(e.opts.FullCounterPrefix(), e.id, nil, timestamp, float64(agg.Sum()), e.policy)
 }
 
@@ -198,7 +194,7 @@ func (e *CounterElem) processValue(timestamp time.Time, agg *aggregation.Counter
 func NewTimerElem(id metric.ID, policy policy.Policy, opts Options) *TimerElem {
 	return &TimerElem{
 		elemBase: elemBase{opts: opts, id: id, policy: policy},
-		values:   make(map[time.Time]*aggregation.Timer),
+		values:   make(map[time.Time]aggregation.Timer),
 	}
 }
 
@@ -212,11 +208,10 @@ func (e *TimerElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 	}
 	timer, exists := e.values[alignedStart]
 	if !exists {
-		timer = e.opts.TimerPool().Get()
-		timer.Reset()
-		e.values[alignedStart] = timer
+		timer = aggregation.NewTimer(e.opts.StreamOptions())
 	}
 	timer.AddBatch(mu.BatchTimerVal)
+	e.values[alignedStart] = timer
 	e.Unlock()
 	return nil
 }
@@ -234,7 +229,6 @@ func (e *TimerElem) ReadAndDiscard(earlierThan time.Time, fn aggMetricFn) bool {
 		if t.Before(earlierThan) {
 			endAt := t.Add(e.policy.Resolution.Window)
 			e.processValue(endAt, agg, fn)
-			e.opts.TimerPool().Put(agg)
 			delete(e.values, t)
 		}
 	}
@@ -243,7 +237,7 @@ func (e *TimerElem) ReadAndDiscard(earlierThan time.Time, fn aggMetricFn) bool {
 	return canCollect
 }
 
-func (e *TimerElem) processValue(timestamp time.Time, agg *aggregation.Timer, fn aggMetricFn) {
+func (e *TimerElem) processValue(timestamp time.Time, agg aggregation.Timer, fn aggMetricFn) {
 	var (
 		fullTimerPrefix   = e.opts.FullTimerPrefix()
 		timerSumSuffix    = e.opts.TimerSumSuffix()
@@ -283,7 +277,8 @@ func (e *TimerElem) Close() {
 	e.closed = true
 	e.id = nil
 	for t, agg := range e.values {
-		e.opts.TimerPool().Put(agg)
+		// Returning the underlying stream to pool
+		agg.Close()
 		delete(e.values, t)
 	}
 	pool := e.opts.TimerElemPool()
@@ -296,7 +291,7 @@ func (e *TimerElem) Close() {
 func NewGaugeElem(id metric.ID, policy policy.Policy, opts Options) *GaugeElem {
 	return &GaugeElem{
 		elemBase: elemBase{opts: opts, id: id, policy: policy},
-		values:   make(map[time.Time]*aggregation.Gauge),
+		values:   make(map[time.Time]aggregation.Gauge),
 	}
 }
 
@@ -310,13 +305,11 @@ func (e *GaugeElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 	}
 	gauge, exists := e.values[alignedStart]
 	if !exists {
-		gauge = e.opts.GaugePool().Get()
-		gauge.Reset()
-		e.values[alignedStart] = gauge
+		gauge = aggregation.NewGauge()
 	}
-	e.Unlock()
-	// Gauge APIs are thread-safe
 	gauge.Add(mu.GaugeVal)
+	e.values[alignedStart] = gauge
+	e.Unlock()
 	return nil
 }
 
@@ -333,7 +326,6 @@ func (e *GaugeElem) ReadAndDiscard(earlierThan time.Time, fn aggMetricFn) bool {
 		if t.Before(earlierThan) {
 			endAt := t.Add(e.policy.Resolution.Window)
 			e.processValue(endAt, agg, fn)
-			e.opts.GaugePool().Put(agg)
 			delete(e.values, t)
 		}
 	}
@@ -342,7 +334,7 @@ func (e *GaugeElem) ReadAndDiscard(earlierThan time.Time, fn aggMetricFn) bool {
 	return canCollect
 }
 
-func (e *GaugeElem) processValue(timestamp time.Time, agg *aggregation.Gauge, fn aggMetricFn) {
+func (e *GaugeElem) processValue(timestamp time.Time, agg aggregation.Gauge, fn aggMetricFn) {
 	fn(e.opts.FullGaugePrefix(), e.id, nil, timestamp, agg.Value(), e.policy)
 }
 
@@ -355,8 +347,7 @@ func (e *GaugeElem) Close() {
 	}
 	e.closed = true
 	e.id = nil
-	for t, agg := range e.values {
-		e.opts.GaugePool().Put(agg)
+	for t := range e.values {
 		delete(e.values, t)
 	}
 	pool := e.opts.GaugeElemPool()

@@ -66,15 +66,4 @@ func TestTimer(t *testing.T) {
 
 	// Closing the timer a second time should be a no op
 	timer.Close()
-
-	// Resetting the timer should reset the underlying stream
-	timer.Reset()
-
-	var batch []float64
-	for i := 1; i <= 100; i++ {
-		batch = append(batch, float64(i))
-	}
-	timer.AddBatch(batch)
-	require.Equal(t, 5050.0, timer.Sum())
-	require.Equal(t, 50.0, timer.Quantile(0.5))
 }

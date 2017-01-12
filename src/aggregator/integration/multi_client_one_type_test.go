@@ -69,7 +69,7 @@ func TestMultiClientOneType(t *testing.T) {
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	typeFn := constantMetryTypeFnFactory(unaggregated.CounterType)
-	input := generateTestData(start, stop, interval, ids, typeFn, testVersionedPolicies)
+	input := generateTestData(t, start, stop, interval, ids, typeFn, testVersionedPolicies)
 	for _, data := range input.dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {
@@ -96,7 +96,7 @@ func TestMultiClientOneType(t *testing.T) {
 	log.Info("server is now down")
 
 	// Validate results
-	expected := toExpectedResults(finalTime, input, testSetup.aggregatorOpts)
+	expected := toExpectedResults(t, finalTime, input, testSetup.aggregatorOpts)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }

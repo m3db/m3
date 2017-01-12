@@ -24,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregation"
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -267,24 +266,6 @@ type Options interface {
 
 	// GaugeElemPool returns the gauge element pool
 	GaugeElemPool() GaugeElemPool
-
-	// SetCounterPool sets the counter pool
-	SetCounterPool(value aggregation.CounterPool) Options
-
-	// CounterPool returns the counter pool
-	CounterPool() aggregation.CounterPool
-
-	// SetTimerPool sets the timer pool
-	SetTimerPool(value aggregation.TimerPool) Options
-
-	// TimerPool returns the timer pool
-	TimerPool() aggregation.TimerPool
-
-	// SetGaugePool sets the gauge pool
-	SetGaugePool(value aggregation.GaugePool) Options
-
-	// GaugePool returns the gauge pool
-	GaugePool() aggregation.GaugePool
 
 	// SetBufferedEncoderPool sets the buffered encoder pool
 	SetBufferedEncoderPool(value msgpack.BufferedEncoderPool) Options

@@ -35,8 +35,8 @@ type Timer struct {
 }
 
 // NewTimer creates a new timer
-func NewTimer(opts cm.Options) *Timer {
-	return &Timer{
+func NewTimer(opts cm.Options) Timer {
+	return Timer{
 		stream: cm.NewStream(opts),
 	}
 }
@@ -99,14 +99,6 @@ func (t *Timer) Stddev() float64 {
 		return 0.0
 	}
 	return math.Sqrt(num / float64(div))
-}
-
-// Reset resets the timer
-func (t *Timer) Reset() {
-	t.count = 0
-	t.sum = 0.0
-	t.sumSq = 0.0
-	t.stream.Reset()
 }
 
 // Close closes the timer

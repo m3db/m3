@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregation"
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
@@ -91,9 +90,6 @@ type options struct {
 	counterElemPool       CounterElemPool
 	timerElemPool         TimerElemPool
 	gaugeElemPool         GaugeElemPool
-	counterPool           aggregation.CounterPool
-	timerPool             aggregation.TimerPool
-	gaugePool             aggregation.GaugePool
 	bufferedEncoderPool   msgpack.BufferedEncoderPool
 
 	// Derived options
@@ -406,36 +402,6 @@ func (o *options) GaugeElemPool() GaugeElemPool {
 	return o.gaugeElemPool
 }
 
-func (o *options) SetCounterPool(value aggregation.CounterPool) Options {
-	opts := *o
-	opts.counterPool = value
-	return &opts
-}
-
-func (o *options) CounterPool() aggregation.CounterPool {
-	return o.counterPool
-}
-
-func (o *options) SetTimerPool(value aggregation.TimerPool) Options {
-	opts := *o
-	opts.timerPool = value
-	return &opts
-}
-
-func (o *options) TimerPool() aggregation.TimerPool {
-	return o.timerPool
-}
-
-func (o *options) SetGaugePool(value aggregation.GaugePool) Options {
-	opts := *o
-	opts.gaugePool = value
-	return &opts
-}
-
-func (o *options) GaugePool() aggregation.GaugePool {
-	return o.gaugePool
-}
-
 func (o *options) SetBufferedEncoderPool(value msgpack.BufferedEncoderPool) Options {
 	opts := *o
 	opts.bufferedEncoderPool = value
@@ -467,49 +433,31 @@ func (o *options) TimerQuantileSuffixes() [][]byte {
 }
 
 func (o *options) initPools() {
-	entryPool := NewEntryPool(nil)
-	entryPool.Init(func() *Entry {
+	o.entryPool = NewEntryPool(nil)
+	o.entryPool.Init(func() *Entry {
 		return NewEntry(nil, o)
 	})
 
 	var emptyPolicy policy.Policy
-	counterElemPool := NewCounterElemPool(nil)
-	counterElemPool.Init(func() *CounterElem {
+	o.counterElemPool = NewCounterElemPool(nil)
+	o.counterElemPool.Init(func() *CounterElem {
 		return NewCounterElem(nil, emptyPolicy, o)
 	})
-	timerElemPool := NewTimerElemPool(nil)
-	timerElemPool.Init(func() *TimerElem {
+
+	o.timerElemPool = NewTimerElemPool(nil)
+	o.timerElemPool.Init(func() *TimerElem {
 		return NewTimerElem(nil, emptyPolicy, o)
 	})
-	gaugeElemPool := NewGaugeElemPool(nil)
-	gaugeElemPool.Init(func() *GaugeElem {
+
+	o.gaugeElemPool = NewGaugeElemPool(nil)
+	o.gaugeElemPool.Init(func() *GaugeElem {
 		return NewGaugeElem(nil, emptyPolicy, o)
 	})
 
-	counterPool := aggregation.NewCounterPool(nil)
-	counterPool.Init()
-
-	timerPool := aggregation.NewTimerPool(nil)
-	timerPool.Init(func() *aggregation.Timer {
-		return aggregation.NewTimer(o.streamOpts)
+	o.bufferedEncoderPool = msgpack.NewBufferedEncoderPool(nil)
+	o.bufferedEncoderPool.Init(func() msgpack.BufferedEncoder {
+		return msgpack.NewPooledBufferedEncoder(o.bufferedEncoderPool)
 	})
-
-	gaugePool := aggregation.NewGaugePool(nil)
-	gaugePool.Init()
-
-	encoderPool := msgpack.NewBufferedEncoderPool(nil)
-	encoderPool.Init(func() msgpack.BufferedEncoder {
-		return msgpack.NewPooledBufferedEncoder(encoderPool)
-	})
-
-	o.entryPool = entryPool
-	o.counterElemPool = counterElemPool
-	o.timerElemPool = timerElemPool
-	o.gaugeElemPool = gaugeElemPool
-	o.counterPool = counterPool
-	o.timerPool = timerPool
-	o.gaugePool = gaugePool
-	o.bufferedEncoderPool = encoderPool
 }
 
 func (o *options) computeAllDerived() {
