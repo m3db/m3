@@ -148,6 +148,9 @@ func (w *writer) WriteAll(id ts.ID, data []checked.Bytes) error {
 func (w *writer) writeAll(id ts.ID, data []checked.Bytes) error {
 	var size int64
 	for _, d := range data {
+		if d == nil {
+			continue
+		}
 		size += int64(d.Len())
 	}
 	if size == 0 {
@@ -180,6 +183,9 @@ func (w *writer) writeAll(id ts.ID, data []checked.Bytes) error {
 		return err
 	}
 	for _, d := range data {
+		if d == nil {
+			continue
+		}
 		if err := w.writeData(d.Get()); err != nil {
 			return err
 		}
