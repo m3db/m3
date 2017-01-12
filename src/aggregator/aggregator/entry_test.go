@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"container/list"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -112,7 +113,7 @@ func populateTestAggregations(
 		case unaggregated.GaugeType:
 			newElem = e.opts.GaugeElemPool().Get()
 		default:
-			require.Fail(t, "unrecognized metric type: %v", typ)
+			require.Fail(t, fmt.Sprintf("unrecognized metric type: %v", typ))
 		}
 		newElem.ResetSetData(testID, policy)
 		list, err := e.lists.FindOrCreate(policy.Resolution.Window)
@@ -184,7 +185,7 @@ func checkElemTombstoned(t *testing.T, elem metricElem, deleted map[policy.Polic
 			require.False(t, elem.tombstoned)
 		}
 	default:
-		require.Fail(t, "unexpected elem type %T", elem)
+		require.Fail(t, fmt.Sprintf("unexpected elem type %T", elem))
 	}
 }
 

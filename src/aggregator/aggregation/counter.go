@@ -20,21 +20,20 @@
 
 package aggregation
 
-import "sync/atomic"
+var (
+	emptyCounter Counter
+)
 
-// Counter aggregates counter values. Counter APIs are thread-safe
+// Counter aggregates counter values
 type Counter struct {
 	sum int64 // Sum of the values received
 }
 
 // NewCounter creates a new counter
-func NewCounter() *Counter { return &Counter{} }
+func NewCounter() Counter { return emptyCounter }
 
 // Add adds a counter value
-func (c *Counter) Add(value int64) { atomic.AddInt64(&c.sum, value) }
+func (c *Counter) Add(value int64) { c.sum += value }
 
 // Sum returns the sum of counter values
-func (c *Counter) Sum() int64 { return atomic.LoadInt64(&c.sum) }
-
-// Reset resets the counter
-func (c *Counter) Reset() { atomic.StoreInt64(&c.sum, 0) }
+func (c *Counter) Sum() int64 { return c.sum }

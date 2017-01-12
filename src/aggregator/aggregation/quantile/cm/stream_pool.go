@@ -18,34 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregation
+package cm
 
-import (
-	"testing"
+import "github.com/m3db/m3x/pool"
 
-	"github.com/m3db/m3x/pool"
+type streamPool struct {
+	pool pool.ObjectPool
+}
 
-	"github.com/stretchr/testify/require"
-)
+// NewStreamPool creates a new pool for streams
+func NewStreamPool(opts pool.ObjectPoolOptions) StreamPool {
+	return &streamPool{pool: pool.NewObjectPool(opts)}
+}
 
-func TestCounterPool(t *testing.T) {
-	p := NewCounterPool(pool.NewObjectPoolOptions().SetSize(1))
-	p.Init()
+func (p *streamPool) Init(alloc StreamAlloc) {
+	p.pool.Init(func() interface{} {
+		return alloc()
+	})
+}
 
-	// Retrieve a counter from the pool
-	counter := p.Get()
-	counter.Reset()
-	counter.Add(1)
-	require.Equal(t, int64(1), counter.Sum())
+func (p *streamPool) Get() Stream {
+	return p.pool.Get().(*stream)
+}
 
-	// Put the counter back to pool
-	p.Put(counter)
-
-	// Retrieve the counter and assert it's the same counter
-	counter = p.Get()
-	require.Equal(t, int64(1), counter.Sum())
-
-	// Reset the counter and assert it's been reset
-	counter.Reset()
-	require.Equal(t, int64(0), counter.Sum())
+func (p *streamPool) Put(value Stream) {
+	p.pool.Put(value)
 }

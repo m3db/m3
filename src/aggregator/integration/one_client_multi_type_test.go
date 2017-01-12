@@ -62,7 +62,7 @@ func TestOneClientMultiType(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input := generateTestData(start, stop, interval, ids, roundRobinMetricTypeFn, testVersionedPolicies)
+	input := generateTestData(t, start, stop, interval, ids, roundRobinMetricTypeFn, testVersionedPolicies)
 	for _, data := range input.dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {
@@ -85,7 +85,7 @@ func TestOneClientMultiType(t *testing.T) {
 	log.Info("server is now down")
 
 	// Validate results
-	expected := toExpectedResults(finalTime, input, testSetup.aggregatorOpts)
+	expected := toExpectedResults(t, finalTime, input, testSetup.aggregatorOpts)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }

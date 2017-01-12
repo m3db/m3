@@ -20,28 +20,20 @@
 
 package aggregation
 
-import (
-	"math"
-	"sync/atomic"
+var (
+	emptyGauge Gauge
 )
 
-// Gauge aggregates gauge values. Gauge APIs are thread-safe
+// Gauge aggregates gauge values
 type Gauge struct {
-	value uint64 // latest value received
+	value float64 // latest value received
 }
 
 // NewGauge creates a new gauge
-func NewGauge() *Gauge { return &Gauge{} }
+func NewGauge() Gauge { return emptyGauge }
 
 // Add adds a gauge value
-func (g *Gauge) Add(value float64) {
-	atomic.StoreUint64(&g.value, math.Float64bits(value))
-}
+func (g *Gauge) Add(value float64) { g.value = value }
 
 // Value returns the latest value
-func (g *Gauge) Value() float64 {
-	return math.Float64frombits(atomic.LoadUint64(&g.value))
-}
-
-// Reset resets the gauge
-func (g *Gauge) Reset() { g.Add(0.0) }
+func (g *Gauge) Value() float64 { return g.value }

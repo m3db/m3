@@ -63,8 +63,8 @@ func TestPolicyChange(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input1 := generateTestData(start, middle, interval, ids, roundRobinMetricTypeFn, testVersionedPolicies)
-	input2 := generateTestData(middle, end, interval, ids, roundRobinMetricTypeFn, testUpdatedVersionedPolicies)
+	input1 := generateTestData(t, start, middle, interval, ids, roundRobinMetricTypeFn, testVersionedPolicies)
+	input2 := generateTestData(t, middle, end, interval, ids, roundRobinMetricTypeFn, testUpdatedVersionedPolicies)
 	for _, input := range []testDatasetWithPolicies{input1, input2} {
 		for _, data := range input.dataset {
 			testSetup.setNowFn(data.timestamp)
@@ -89,8 +89,8 @@ func TestPolicyChange(t *testing.T) {
 	log.Info("server is now down")
 
 	// Validate results
-	expected := toExpectedResults(finalTime, input1, testSetup.aggregatorOpts)
-	expected = append(expected, toExpectedResults(finalTime, input2, testSetup.aggregatorOpts)...)
+	expected := toExpectedResults(t, finalTime, input1, testSetup.aggregatorOpts)
+	expected = append(expected, toExpectedResults(t, finalTime, input2, testSetup.aggregatorOpts)...)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }

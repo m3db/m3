@@ -32,7 +32,4 @@ func TestCounter(t *testing.T) {
 		c.Add(int64(i))
 	}
 	require.Equal(t, int64(5050), c.Sum())
-
-	c.Reset()
-	require.Equal(t, int64(0), c.Sum())
 }

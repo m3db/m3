@@ -32,6 +32,7 @@ var (
 
 // stream represents a data stream
 type stream struct {
+	opts       Options
 	eps        float64    // desired epsilon for errors
 	quantiles  []float64  // sorted target quantiles
 	capacity   int        // stream capacity
@@ -49,13 +50,13 @@ type stream struct {
 }
 
 // NewStream creates a new sample stream
-// TODO(xichen): the stream object itself should be pooled too
 // TODO(xichen): add metrics
 func NewStream(opts Options) Stream {
 	if opts == nil {
 		opts = NewOptions()
 	}
 	s := &stream{
+		opts:       opts,
 		eps:        opts.Eps(),
 		quantiles:  opts.Quantiles(),
 		capacity:   opts.Capacity(),
@@ -159,6 +160,9 @@ func (s *stream) Close() {
 	s.samples.Reset()
 	s.insertCursor = nil
 	s.compressCursor = nil
+	if pool := s.opts.StreamPool(); pool != nil {
+		pool.Put(s)
+	}
 }
 
 // addToBuffer adds a new sample to the buffer

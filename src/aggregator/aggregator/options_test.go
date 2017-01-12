@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregation"
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
@@ -87,9 +86,6 @@ func TestOptionsValidateDefault(t *testing.T) {
 	require.NotNil(t, o.CounterElemPool())
 	require.NotNil(t, o.TimerElemPool())
 	require.NotNil(t, o.GaugeElemPool())
-	require.NotNil(t, o.CounterPool())
-	require.NotNil(t, o.TimerPool())
-	require.NotNil(t, o.GaugePool())
 	require.NotNil(t, o.BufferedEncoderPool())
 
 	// Validate derived options
@@ -267,24 +263,6 @@ func TestSetGaugeElemPool(t *testing.T) {
 	value := NewGaugeElemPool(nil)
 	o := NewOptions().SetGaugeElemPool(value)
 	require.Equal(t, value, o.GaugeElemPool())
-}
-
-func TestSetCounterPool(t *testing.T) {
-	value := aggregation.NewCounterPool(nil)
-	o := NewOptions().SetCounterPool(value)
-	require.Equal(t, value, o.CounterPool())
-}
-
-func TestSetTimerPool(t *testing.T) {
-	value := aggregation.NewTimerPool(nil)
-	o := NewOptions().SetTimerPool(value)
-	require.Equal(t, value, o.TimerPool())
-}
-
-func TestSetGaugePool(t *testing.T) {
-	value := aggregation.NewGaugePool(nil)
-	o := NewOptions().SetGaugePool(value)
-	require.Equal(t, value, o.GaugePool())
 }
 
 func TestSetBufferedEncoderPool(t *testing.T) {

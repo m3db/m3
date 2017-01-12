@@ -23,6 +23,7 @@ package integration
 import (
 	"fmt"
 	"sort"
+	"testing"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation"
@@ -32,6 +33,7 @@ import (
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -126,6 +128,7 @@ func generateTestIDs(prefix string, numIDs int) []string {
 }
 
 func generateTestData(
+	t *testing.T,
 	start, stop time.Time,
 	interval time.Duration,
 	ids []string,
@@ -178,6 +181,7 @@ func generateTestData(
 }
 
 func toExpectedResults(
+	t *testing.T,
 	now time.Time,
 	dsp testDatasetWithPolicies,
 	opts aggregator.Options,
@@ -206,17 +210,26 @@ func toExpectedResults(
 						values = aggregation.NewTimer(nil)
 					case unaggregated.GaugeType:
 						values = aggregation.NewGauge()
+					default:
+						require.Fail(t, fmt.Sprintf("unrecognized metric type %v", mu.Type))
 					}
-					datapoints[alignedStart] = values
 				}
 				// Add current metric to the value
 				switch mu.Type {
 				case unaggregated.CounterType:
-					values.(*aggregation.Counter).Add(mu.CounterVal)
+					v := values.(aggregation.Counter)
+					v.Add(mu.CounterVal)
+					datapoints[alignedStart] = v
 				case unaggregated.BatchTimerType:
-					values.(*aggregation.Timer).AddBatch(mu.BatchTimerVal)
+					v := values.(aggregation.Timer)
+					v.AddBatch(mu.BatchTimerVal)
+					datapoints[alignedStart] = v
 				case unaggregated.GaugeType:
-					values.(*aggregation.Gauge).Add(mu.GaugeVal)
+					v := values.(aggregation.Gauge)
+					v.Add(mu.GaugeVal)
+					datapoints[alignedStart] = v
+				default:
+					require.Fail(t, fmt.Sprintf("unrecognized metric type %v", mu.Type))
 				}
 			}
 		}
@@ -232,7 +245,7 @@ func toExpectedResults(
 				// The end time must be no later than the aligned cutoff time
 				// for the data to be flushed
 				if !endAt.After(alignedCutoff) {
-					expected = append(expected, toAggregatedMetrics(id, endAt, values, policy, opts)...)
+					expected = append(expected, toAggregatedMetrics(t, id, endAt, values, policy, opts)...)
 				}
 			}
 		}
@@ -245,6 +258,7 @@ func toExpectedResults(
 }
 
 func toAggregatedMetrics(
+	t *testing.T,
 	id string,
 	timestamp time.Time,
 	values interface{},
@@ -264,9 +278,9 @@ func toAggregatedMetrics(
 	}
 
 	switch values := values.(type) {
-	case *aggregation.Counter:
+	case aggregation.Counter:
 		fn(opts.FullCounterPrefix(), id, nil, timestamp, float64(values.Sum()), p)
-	case *aggregation.Timer:
+	case aggregation.Timer:
 		var (
 			fullTimerPrefix   = opts.FullTimerPrefix()
 			timerSumSuffix    = opts.TimerSumSuffix()
@@ -294,8 +308,10 @@ func toAggregatedMetrics(
 			}
 			fn(fullTimerPrefix, id, quantileSuffixes[idx], timestamp, v, p)
 		}
-	case *aggregation.Gauge:
+	case aggregation.Gauge:
 		fn(opts.FullGaugePrefix(), id, nil, timestamp, values.Value(), p)
+	default:
+		require.Fail(t, fmt.Sprintf("unrecognized aggregation type %T", values))
 	}
 
 	return result
