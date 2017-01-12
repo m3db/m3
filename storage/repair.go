@@ -557,7 +557,7 @@ func (r *dbRepairer) repairTimeRanges() xtime.Ranges {
 		now       = r.nowFn()
 		blockSize = r.rtopts.BlockSize()
 		start     = now.Add(-r.rtopts.RetentionPeriod()).Truncate(blockSize)
-		end       = now.Add(-r.rtopts.BufferPast()).Truncate(blockSize)
+		end       = now.Add(-r.rtopts.BufferPast()).Truncate(blockSize).Add(-blockSize)
 	)
 
 	targetRanges := xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end})
