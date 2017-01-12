@@ -59,7 +59,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]seriesList)
+	seriesMaps := make(seriesMap)
 	inputData := []struct {
 		metricNames []string
 		numPoints   int

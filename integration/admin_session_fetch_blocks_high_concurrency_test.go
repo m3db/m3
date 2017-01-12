@@ -57,7 +57,7 @@ func TestHighConcAdminSessionFetchBlocksFromPeers(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]seriesList)
+	seriesMaps := make(seriesMap)
 	inputData := []struct {
 		metricNames []string
 		numPoints   int
@@ -84,7 +84,7 @@ func TestHighConcAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	// SetFetchSeriesBlocksBatchSize(8).
 	// SetFetchSeriesBlocksBatchConcurrency(64).
 
-	results := make([]map[time.Time]seriesList, 0, concurrency)
+	results := make([]seriesMap, 0, concurrency)
 	var wg sync.WaitGroup
 	var mutex sync.Mutex
 	for i := 0; i < concurrency; i++ {

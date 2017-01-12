@@ -68,8 +68,8 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-blockSize)},
 		{ids: []string{"foo", "baz"}, numPoints: int(completeAt.Sub(now) / time.Second), start: now},
 	})
-	firstNodeSeriesMaps := map[time.Time]seriesList{}
-	directWritesSeriesMaps := map[time.Time]seriesList{}
+	firstNodeSeriesMaps := seriesMap{}
+	directWritesSeriesMaps := seriesMap{}
 	for start, s := range seriesMaps {
 		for i := range s {
 			isPartialSeries := start.Equal(now)

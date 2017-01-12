@@ -65,10 +65,10 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-blockSize)},
 		{ids: []string{"foo", "baz"}, numPoints: 90, start: now},
 	})
-	left := make(map[time.Time]seriesList)
-	right := make(map[time.Time]seriesList)
+	left := make(seriesMap)
+	right := make(seriesMap)
 	shouldMissData := false
-	appendSeries := func(target map[time.Time]seriesList, start time.Time, s series) {
+	appendSeries := func(target seriesMap, start time.Time, s series) {
 		if shouldMissData {
 			var dataWithMissing []ts.Datapoint
 			for i := range s.Data {

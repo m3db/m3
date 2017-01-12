@@ -150,10 +150,10 @@ func TestClusterAddOneNode(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prepare verfication of data on nodes
-	expectedSeriesMaps := make([]map[time.Time]seriesList, 2)
+	expectedSeriesMaps := make([]seriesMap, 2)
 	expectedSeriesIDs := make([]map[string]struct{}, 2)
 	for i := range expectedSeriesMaps {
-		expectedSeriesMaps[i] = make(map[time.Time]seriesList)
+		expectedSeriesMaps[i] = make(seriesMap)
 		expectedSeriesIDs[i] = make(map[string]struct{})
 	}
 	for start, series := range seriesMaps {

@@ -300,7 +300,7 @@ func writeTestDataToDisk(
 	t *testing.T,
 	namespace ts.ID,
 	setup *testSetup,
-	seriesMaps map[time.Time]seriesList,
+	seriesMaps seriesMap,
 ) error {
 	storageOpts := setup.storageOpts
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
@@ -468,9 +468,9 @@ func testSetupToSeriesMaps(
 	namespace ts.ID,
 	start time.Time,
 	end time.Time,
-) map[time.Time]seriesList {
+) seriesMap {
 	metadatasByShard := retrieveAllBlocksMetadata(t, testSetup, namespace, start, end)
-	seriesMap := make(map[time.Time]seriesList)
+	seriesMap := make(seriesMap)
 	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts,
 		testSetup.storageOpts.InstrumentOptions())
 	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
@@ -559,8 +559,8 @@ func retrieveAllBlocksMetadata(
 
 func verifySeriesMapsEqual(
 	t *testing.T,
-	expectedSeriesMap map[time.Time]seriesList,
-	observedSeriesMap map[time.Time]seriesList,
+	expectedSeriesMap seriesMap,
+	observedSeriesMap seriesMap,
 ) {
 	// ensure same length
 	require.Equal(t, len(expectedSeriesMap), len(observedSeriesMap))
@@ -604,4 +604,40 @@ func verifySeriesMapsEqual(
 				i.String(), es.ID.String())
 		}
 	}
+}
+
+func splitSeriesMaps(
+	sm seriesMap,
+	numSplits int,
+) []seriesMap {
+	if numSplits <= 1 {
+		return []seriesMap{sm}
+	}
+
+	res := make([]seriesMap, 0, numSplits)
+	for i := 0; i < numSplits; i++ {
+		res = append(res, make(seriesMap))
+	}
+
+	splitSeries := func(target seriesMap, start time.Time, s series, remainder int) {
+		var dataWithMissing []ts.Datapoint
+		for i := range s.Data {
+			if i%numSplits != remainder {
+				continue
+			}
+			dataWithMissing = append(dataWithMissing, s.Data[i])
+		}
+		target[start] = append(target[start], series{ID: s.ID, Data: dataWithMissing})
+	}
+
+	for start, data := range sm {
+		for _, series := range data {
+			for i := 0; i < numSplits; i++ {
+				splitSeries(res[i], start, series, i)
+			}
+		}
+	}
+
+	return res
+
 }
