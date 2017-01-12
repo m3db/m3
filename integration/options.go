@@ -69,6 +69,9 @@ const (
 
 	// defaultRepairCheckInterval determines the repair check interval by default.
 	defaultRepairCheckInterval = time.Duration(1 * time.Minute)
+
+	// defaultNumShards sets the default number of shards.
+	defaultNumShards = 1024
 )
 
 type testOptions interface {
@@ -199,6 +202,12 @@ type testOptions interface {
 
 	// RepairCheckInterval returns the repair check interval duration.
 	RepairCheckInterval() time.Duration
+
+	// NumShards returns the number of shards.
+	NumShards() uint32
+
+	// SetNumShards sets the number of shards.
+	SetNumShards(numShards uint32) testOptions
 }
 
 type options struct {
@@ -223,6 +232,7 @@ type options struct {
 	repairTimeJitter                   time.Duration
 	repairTimeOffset                   time.Duration
 	repairCheckInterval                time.Duration
+	numShards                          uint32
 }
 
 func newTestOptions() testOptions {
@@ -246,6 +256,7 @@ func newTestOptions() testOptions {
 		repairTimeJitter:               defaultRepairTimeJitter,
 		repairTimeOffset:               defaultRepairTimeOffset,
 		repairCheckInterval:            defaultRepairCheckInterval,
+		numShards:                      defaultNumShards,
 	}
 }
 
@@ -457,4 +468,14 @@ func (o *options) SetRepairCheckInterval(t time.Duration) testOptions {
 
 func (o *options) RepairCheckInterval() time.Duration {
 	return o.repairCheckInterval
+}
+
+func (o *options) SetNumShards(n uint32) testOptions {
+	opts := *o
+	opts.numShards = n
+	return &opts
+}
+
+func (o *options) NumShards() uint32 {
+	return o.numShards
 }

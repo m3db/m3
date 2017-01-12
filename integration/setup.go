@@ -125,7 +125,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up shard set
-	shardSet, err := server.DefaultShardSet()
+	shardSet, err := server.NewShardSet(opts.NumShards())
 	if err != nil {
 		return nil, err
 	}
