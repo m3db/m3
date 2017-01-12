@@ -257,7 +257,7 @@ func (e *TimerElem) processValue(timestamp time.Time, agg aggregation.Timer, fn 
 	fn(fullTimerPrefix, e.id, timerLowerSuffix, timestamp, agg.Min(), e.policy)
 	fn(fullTimerPrefix, e.id, timerUpperSuffix, timestamp, agg.Max(), e.policy)
 	fn(fullTimerPrefix, e.id, timerCountSuffix, timestamp, float64(agg.Count()), e.policy)
-	fn(fullTimerPrefix, e.id, timerStdevSuffix, timestamp, agg.Stddev(), e.policy)
+	fn(fullTimerPrefix, e.id, timerStdevSuffix, timestamp, agg.Stdev(), e.policy)
 	for idx, q := range quantiles {
 		v := agg.Quantile(q)
 		if q == 0.5 {

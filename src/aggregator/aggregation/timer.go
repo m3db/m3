@@ -91,8 +91,8 @@ func (t *Timer) Mean() float64 {
 	return t.sum / float64(t.count)
 }
 
-// Stddev returns the standard deviation timer value
-func (t *Timer) Stddev() float64 {
+// Stdev returns the standard deviation timer value
+func (t *Timer) Stdev() float64 {
 	num := float64(t.count)*t.sumSq - math.Pow(t.sum, 2)
 	div := t.count * (t.count - 1)
 	if div == 0 {
