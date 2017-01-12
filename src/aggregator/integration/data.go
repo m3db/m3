@@ -300,7 +300,7 @@ func toAggregatedMetrics(
 		fn(fullTimerPrefix, id, timerLowerSuffix, timestamp, values.Min(), p)
 		fn(fullTimerPrefix, id, timerUpperSuffix, timestamp, values.Max(), p)
 		fn(fullTimerPrefix, id, timerCountSuffix, timestamp, float64(values.Count()), p)
-		fn(fullTimerPrefix, id, timerStdevSuffix, timestamp, values.Stddev(), p)
+		fn(fullTimerPrefix, id, timerStdevSuffix, timestamp, values.Stdev(), p)
 		for idx, q := range quantiles {
 			v := values.Quantile(q)
 			if q == 0.5 {
