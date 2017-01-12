@@ -23,16 +23,14 @@
 package integration
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-// This test writes data, and retrieves it using AdminSession endpoints
-// FetchMetadataBlocksFromPeers and FetchBlocksFromPeers. Verifying the
-// retrieved value is the same as the written.
-func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
+func TestHighConcAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -81,9 +79,29 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	later := testSetup.getNowFn()
 	time.Sleep(testSetup.storageOpts.RetentionOptions().BufferDrain() * 4)
 
-	// Retrieve written data using the AdminSession APIs (FetchMetadataBlocksFromPeers/FetchBlocksFromPeers)
-	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, testNamespaces[0], now, later)
+	concurrency := 16
+	// TODO(prateek): set client.AdminOptions with the two properties below
+	// SetFetchSeriesBlocksBatchSize(8).
+	// SetFetchSeriesBlocksBatchConcurrency(64).
 
+	results := make([]map[time.Time]seriesList, 0, concurrency)
+	var wg sync.WaitGroup
+	var mutex sync.Mutex
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, testNamespaces[0], now, later)
+			mutex.Lock()
+			results = append(results, observedSeriesMaps)
+			mutex.Unlock()
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	require.Equal(t, concurrency, len(results))
 	// Verify retrieved data matches what we've written
-	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
+	for _, obsSeriesMaps := range results {
+		verifySeriesMapsEqual(t, seriesMaps, obsSeriesMaps)
+	}
 }
