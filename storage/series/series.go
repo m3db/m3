@@ -394,8 +394,6 @@ func (s *dbSeries) mergeBlock(
 		return nil
 	}
 
-	defer newBlockReader.Close()
-
 	existingBlockReader, err := existingBlock.Stream(ctx)
 	if err != nil {
 		return err
@@ -405,8 +403,6 @@ func (s *dbSeries) mergeBlock(
 		blocks.AddBlock(newBlock)
 		return nil
 	}
-
-	defer existingBlockReader.Close()
 
 	var readers [2]io.Reader
 	readers[0] = newBlockReader
