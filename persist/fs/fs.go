@@ -33,12 +33,15 @@ const (
 	filesetFilePrefix    = "fileset"
 	commitLogFilePrefix  = "commitlog"
 	fileSuffix           = ".db"
+	versionSuffix        = ".v"
 
 	separator                    = "-"
 	infoFilePattern              = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
-	filesetFilePattern           = filesetFilePrefix + separator + "[0-9]*" + separator + "[a-z]*" + fileSuffix
+	filesetFilePattern           = filesetFilePrefix + separator + "[0-9]*" + separator + "[a-z]*" + fileSuffix + "(" + versionSuffix + "[0-9]+" + ")?"
+	checkpointFileForTimePattern = filesetFilePrefix + separator + "%d" + separator + checkpointFileSuffix + fileSuffix + "(" + versionSuffix + "[0-9]+" + ")?"
 	commitLogFilePattern         = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
 	commitLogFileForTimeTemplate = commitLogFilePrefix + separator + "%d" + separator + "[0-9]*" + fileSuffix
+	versionSuffixPresentRegex    = versionSuffix + "[0-9]+" + "$"
 
 	// Index ID is int64
 	idxLen = 8

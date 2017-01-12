@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,14 +37,17 @@ import (
 	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/errors"
 
+	"io/ioutil"
+
 	"github.com/golang/protobuf/proto"
 )
 
 var timeZero time.Time
 
 const (
-	dataDirName       = "data"
-	commitLogsDirName = "commitlogs"
+	dataDirName          = "data"
+	commitLogsDirName    = "commitlogs"
+	defaultVersionNumber = 0
 )
 
 type fileOpener func(filePath string) (*os.File, error)
@@ -159,6 +163,29 @@ func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
 	return t, int(index), nil
 }
 
+// TimeAndVersionFromFileName extracts the block start and version number from file name.
+// If a valid version number is not found, it defaults to `defaultVersionNumber`.
+// NB(prateek): this function assumes the input has been validated using filesetFilePattern
+func TimeAndVersionFromFileName(fname string) (time.Time, uint32, error) {
+	components, t, err := componentsAndTimeFromFileName(fname)
+	if err != nil {
+		return timeZero, 0, err
+	}
+
+	re := regexp.MustCompile(versionSuffixPresentRegex)
+	version := re.FindString(components[2])
+	if version == "" {
+		return t, defaultVersionNumber, nil
+	}
+
+	versionNumber, err := strconv.ParseInt(version[2:], 10, 64)
+	if err != nil || versionNumber < 0 {
+		return timeZero, 0, err
+	}
+
+	return t, uint32(versionNumber), nil
+}
+
 type infoFileFn func(fname string, infoData []byte)
 
 func forEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int, fn infoFileFn) {
@@ -174,7 +201,7 @@ func forEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, reade
 		if err != nil {
 			continue
 		}
-		checkpointFilePath := filesetPathFromTime(shardDir, t, checkpointFileSuffix)
+		checkpointFilePath := defaultVersionFilesetPathFromTime(shardDir, t, checkpointFileSuffix)
 		if !FileExists(checkpointFilePath) {
 			continue
 		}
@@ -253,8 +280,31 @@ func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
 
 type toSortableFn func(files []string) sort.Interface
 
-func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error) {
-	matched, err := filepath.Glob(path.Join(fileDir, pattern))
+func findFiles(fileDir string, pattern string) ([]string, error) {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	dirContents, err := ioutil.ReadDir(fileDir)
+	if err != nil {
+		return nil, err
+	}
+
+	matched := []string{}
+	for _, f := range dirContents {
+		if f.IsDir() || !re.MatchString(f.Name()) {
+			continue // we only care about files within this directory matching the pattern
+		}
+		fullPath := path.Join(fileDir, f.Name())
+		matched = append(matched, fullPath)
+	}
+
+	return matched, nil
+}
+
+func findFilesAndSort(fileDir string, pattern string, fn toSortableFn) ([]string, error) {
+	matched, err := findFiles(fileDir, pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -264,13 +314,13 @@ func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error
 
 func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, pattern string) ([]string, error) {
 	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
-	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
+	return findFilesAndSort(shardDir, pattern, func(files []string) sort.Interface {
 		return byTimeAscending(files)
 	})
 }
 
 func commitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
-	return findFiles(commitLogsDir, pattern, func(files []string) sort.Interface {
+	return findFilesAndSort(commitLogsDir, pattern, func(files []string) sort.Interface {
 		return byTimeAndIndexAscending(files)
 	})
 }
@@ -312,7 +362,7 @@ func readAndValidate(
 	readerBufferSize int,
 	expectedDigest uint32,
 ) ([]byte, error) {
-	filePath := filesetPathFromTime(prefix, t, suffix)
+	filePath := defaultVersionFilesetPathFromTime(prefix, t, suffix)
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -346,12 +396,36 @@ func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
 }
 
-// FilesetExistsAt determines whether a data file exists for the given namespace, shard, and block start time.
-func FilesetExistsAt(prefix string, namespace ts.ID, shard uint32, blockStart time.Time) bool {
+// FilesetVersionsAt returns the version numbers (in ascending order) of the filesets present
+// (if any) for the given namespace, shard and block start time.
+func FilesetVersionsAt(prefix string, namespace ts.ID, shard uint32, t time.Time) ([]uint32, error) {
 	shardDir := ShardDirPath(prefix, namespace, shard)
-	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	return FileExists(checkpointFile)
+	filesetFileForTimePattern := fmt.Sprintf(checkpointFileForTimePattern, t.UnixNano())
+	files, err := findFiles(shardDir, filesetFileForTimePattern)
+	if err != nil {
+		return nil, err
+	}
+
+	versions := make(map[uint32]struct{})
+	for _, f := range files {
+		_, v, _ := TimeAndVersionFromFileName(f)
+		versions[v] = struct{}{}
+	}
+
+	vers := make([]uint32, 0, len(versions))
+	for v := range versions {
+		vers = append(vers, v)
+	}
+
+	sort.Sort(uint32arr(vers))
+	return vers, nil
 }
+
+type uint32arr []uint32
+
+func (a uint32arr) Len() int           { return len(a) }
+func (a uint32arr) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint32arr) Less(i, j int) bool { return a[i] < a[j] }
 
 // NextCommitLogsFile returns the next commit logs file.
 func NextCommitLogsFile(prefix string, start time.Time) (string, int) {
@@ -376,7 +450,16 @@ func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 	return os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 }
 
-func filesetPathFromTime(prefix string, t time.Time, suffix string) string {
-	name := fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix)
+func defaultVersionFilesetPathFromTime(prefix string, t time.Time, suffix string) string {
+	return versionFilesetPathFromTime(prefix, t, suffix, defaultVersionNumber)
+}
+
+func versionFilesetPathFromTime(prefix string, t time.Time, suffix string, version uint32) string {
+	vSuffix := ""
+	if version != defaultVersionNumber {
+		vSuffix = fmt.Sprintf("%s%d", versionSuffix, version)
+	}
+
+	name := fmt.Sprintf("%s%s%d%s%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix, vSuffix)
 	return path.Join(prefix, name)
 }

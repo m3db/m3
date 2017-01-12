@@ -24,10 +24,11 @@
 package persist
 
 import (
+	time "time"
+
 	gomock "github.com/golang/mock/gomock"
 	ratelimit "github.com/m3db/m3db/ratelimit"
 	ts "github.com/m3db/m3db/ts"
-	time "time"
 )
 
 // Mock of Manager interface
@@ -51,15 +52,15 @@ func (_m *MockManager) EXPECT() *_MockManagerRecorder {
 	return _m.recorder
 }
 
-func (_m *MockManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error) {
-	ret := _m.ctrl.Call(_m, "Prepare", namespace, shard, blockStart)
+func (_m *MockManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time, createNewVersionIfExists bool) (PreparedPersist, error) {
+	ret := _m.ctrl.Call(_m, "Prepare", namespace, shard, blockStart, createNewVersionIfExists)
 	ret0, _ := ret[0].(PreparedPersist)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockManagerRecorder) Prepare(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Prepare", arg0, arg1, arg2)
+func (_mr *_MockManagerRecorder) Prepare(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Prepare", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockManager) SetRateLimitOptions(value ratelimit.Options) {

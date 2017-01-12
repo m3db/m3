@@ -626,8 +626,20 @@ func (s *dbShard) Flush(
 	}
 	s.RUnlock()
 
-	var multiErr xerrors.MultiError
-	prepared, err := pm.Prepare(namespace, s.ID(), blockStart)
+	var (
+		flushStateAtBlockStart    = s.FlushState(blockStart)
+		shardRepariedAtBlockStart = flushStateAtBlockStart.Status == fileOpDirty
+		multiErr                  xerrors.MultiError
+	)
+
+	// NB(prateek): we only want to create a new version of the fileset under
+	// two conditions:
+	// (1) we have not flushed the current (shard, blockStart) before, or
+	// (2) we have flushed the current (shard, blockStart) earlier, but have
+	//     since repaired the shard, and want to persist a new version of the
+	//     fileset. We indicate this condition by passing the var
+	//     `shardRepariedAtBlockStart`.
+	prepared, err := pm.Prepare(namespace, s.ID(), blockStart, shardRepariedAtBlockStart)
 	multiErr = multiErr.Add(err)
 
 	if prepared.Persist == nil {

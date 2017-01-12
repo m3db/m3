@@ -82,10 +82,10 @@ func NewWriter(
 	}
 }
 
-// Open initializes the internal state for writing to the given shard,
+// OpenVersion initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
-func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+func (w *writer) OpenVersion(namespace ts.ID, shard uint32, blockStart time.Time, version uint32) error {
 	shardDir := ShardDirPath(w.filePathPrefix, namespace, shard)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
@@ -93,17 +93,17 @@ func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	w.start = blockStart
 	w.currIdx = 0
 	w.currOffset = 0
-	w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	w.checkpointFilePath = versionFilesetPathFromTime(shardDir, blockStart, checkpointFileSuffix, version)
 	w.err = nil
 
 	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
-			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
-			filesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
-			filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+			versionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix, version):   &infoFd,
+			versionFilesetPathFromTime(shardDir, blockStart, indexFileSuffix, version):  &indexFd,
+			versionFilesetPathFromTime(shardDir, blockStart, dataFileSuffix, version):   &dataFd,
+			versionFilesetPathFromTime(shardDir, blockStart, digestFileSuffix, version): &digestFd,
 		},
 	); err != nil {
 		return err
@@ -115,6 +115,13 @@ func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	w.digestFdWithDigestContents.Reset(digestFd)
 
 	return nil
+}
+
+// Open initializes the internal state for writing to the given shard,
+// specifically creating the shard directory if it doesn't exist, and
+// opening / truncating files associated with that shard for writing.
+func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+	return w.OpenVersion(namespace, shard, blockStart, defaultVersionNumber)
 }
 
 func (w *writer) writeData(data []byte) error {

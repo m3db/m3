@@ -109,15 +109,36 @@ func (pm *persistManager) reset() {
 	pm.bytesWritten = 0
 }
 
-func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
+func (pm *persistManager) Prepare(
+	namespace ts.ID,
+	shard uint32,
+	blockStart time.Time,
+	createNewVersionIfExists bool,
+) (persist.PreparedPersist, error) {
 	var prepared persist.PreparedPersist
 
-	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
-	// This allows us to retry failed flushing attempts because they wouldn't
-	// have created the checkpoint file.
-	if FilesetExistsAt(pm.filePathPrefix, namespace, shard, blockStart) {
-		return prepared, nil
+	nextVersion := uint32(defaultVersionNumber)
+	versions, err := FilesetVersionsAt(pm.filePathPrefix, namespace, shard, blockStart)
+	checkpointFileExists := err == nil && len(versions) > 0
+
+	// NB(prateek): if no checkpointFileExists, we create a new one with default version
+	// if a checkpoint file does exist, then the behavior depends upon `createNewVersionIfExists`
+	//  	if !createNewVersionIfExists, we bail. This allows us to retry failed flushing
+	//      attempts because they wouldn't have created the checkpoint file.
+	//    On the other hand, if createNewVersionIfExists, then we create a new file with
+	// 			an updated version number.
+	if checkpointFileExists {
+		if !createNewVersionIfExists {
+			return prepared, nil
+		}
+		// TODO(prateek): book-keeping about which files exist, and what to delete
+		nextVersion = 1 + versions[len(versions)-1]
 	}
+
+	println(nextVersion)
+	// if err := pm.writer.OpenVersion(namespace, shard, blockStart, nextVersion); err != nil {
+	// 	return prepared, err
+	// }
 	if err := pm.writer.Open(namespace, shard, blockStart); err != nil {
 		return prepared, err
 	}

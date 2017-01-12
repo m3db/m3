@@ -54,8 +54,8 @@ func createTempDir(t *testing.T) string {
 	return dir
 }
 
-func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix string, b []byte) {
-	filePath := filesetPathFromTime(shardDir, blockStart, suffix)
+func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix string, version uint32, b []byte) {
+	filePath := versionFilesetPathFromTime(shardDir, blockStart, suffix, version)
 	createFile(t, filePath, b)
 }
 
@@ -74,7 +74,7 @@ func createInfoFiles(t *testing.T, namespace ts.ID, shard uint32, iter int) stri
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	for i := 0; i < iter; i++ {
 		ts := time.Unix(0, int64(i))
-		infoFilePath := filesetPathFromTime(shardDir, ts, infoFileSuffix)
+		infoFilePath := defaultVersionFilesetPathFromTime(shardDir, ts, infoFileSuffix)
 		createFile(t, infoFilePath, nil)
 	}
 	return dir
@@ -167,30 +167,30 @@ func TestForEachInfoFile(t *testing.T) {
 	digest := digest.NewDigest()
 
 	// No checkpoint file
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, nil)
 
 	// No digest file
 	blockStart = blockStart.Add(time.Nanosecond)
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, nil)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, defaultVersionNumber, buf)
 
 	// Digest of digest mismatch
 	blockStart = blockStart.Add(time.Nanosecond)
 	digests := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}
 	digest.Write(append(digests, 0xd))
 	buf.WriteDigest(digest.Sum32())
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
-	createDataFile(t, shardDir, blockStart, digestFileSuffix, digests)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, nil)
+	createDataFile(t, shardDir, blockStart, digestFileSuffix, defaultVersionNumber, digests)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, defaultVersionNumber, buf)
 
 	// Info file digest mismatch
 	blockStart = blockStart.Add(time.Nanosecond)
 	digest.Reset()
 	digest.Write(digests)
 	buf.WriteDigest(digest.Sum32())
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, []byte{0x1})
-	createDataFile(t, shardDir, blockStart, digestFileSuffix, digests)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, []byte{0x1})
+	createDataFile(t, shardDir, blockStart, digestFileSuffix, defaultVersionNumber, digests)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, defaultVersionNumber, buf)
 
 	// All digests match
 	blockStart = blockStart.Add(time.Nanosecond)
@@ -202,9 +202,9 @@ func TestForEachInfoFile(t *testing.T) {
 	digest.Reset()
 	digest.Write(digestOfDigest)
 	buf.WriteDigest(digest.Sum32())
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, infoData)
-	createDataFile(t, shardDir, blockStart, digestFileSuffix, digestOfDigest)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, infoData)
+	createDataFile(t, shardDir, blockStart, digestFileSuffix, defaultVersionNumber, digestOfDigest)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, defaultVersionNumber, buf)
 
 	var fnames []string
 	var res []byte
@@ -213,7 +213,7 @@ func TestForEachInfoFile(t *testing.T) {
 		res = append(res, data...)
 	})
 
-	require.Equal(t, []string{filesetPathFromTime(shardDir, blockStart, infoFileSuffix)}, fnames)
+	require.Equal(t, []string{defaultVersionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix)}, fnames)
 	require.Equal(t, infoData, res)
 }
 
@@ -233,6 +233,43 @@ func TestTimeFromName(t *testing.T) {
 	v, err = TimeFromFileName("foo/bar/foo-21234567890-bar.db")
 	expected = time.Unix(0, 21234567890)
 	require.Equal(t, expected, v)
+	require.NoError(t, err)
+}
+
+func TestTimeAndVersionFromFileName(t *testing.T) {
+	_, _, err := TimeAndVersionFromFileName("foo/bar")
+	require.Error(t, err)
+	require.Equal(t, "unexpected file name foo/bar", err.Error())
+
+	_, _, err = TimeAndVersionFromFileName("foo/bar-baz")
+	require.Error(t, err)
+
+	type expected struct {
+		t time.Time
+		i uint32
+	}
+	ts, i, err := TimeAndVersionFromFileName("foo-1-0.db")
+	exp := expected{time.Unix(0, 1), 0}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+
+	ts, i, err = TimeAndVersionFromFileName("foo-1-0.db.v2")
+	exp = expected{time.Unix(0, 1), 2}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+
+	ts, i, err = TimeAndVersionFromFileName("foo/bar/foo-21234567890-1.db")
+	exp = expected{time.Unix(0, 21234567890), 0}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+
+	ts, i, err = TimeAndVersionFromFileName("foo/bar/foo-21234567890-1.db.v11")
+	exp = expected{time.Unix(0, 21234567890), 11}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 }
 
@@ -261,7 +298,7 @@ func TestTimeAndIndexFromFileName(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestFileExists(t *testing.T) {
+func TestFilesetVersionsAt(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -271,15 +308,33 @@ func TestFileExists(t *testing.T) {
 	err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 	require.NoError(t, err)
 
-	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
-	createDataFile(t, shardDir, start, infoFileSuffix, nil)
+	infoFilePath := defaultVersionFilesetPathFromTime(shardDir, start, infoFileSuffix)
+	createDataFile(t, shardDir, start, infoFileSuffix, defaultVersionNumber, nil)
 	require.True(t, FileExists(infoFilePath))
-	require.False(t, FilesetExistsAt(dir, testNamespaceID, uint32(shard), start))
+	versions, err := FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
+	require.NoError(t, err)
+	require.Empty(t, versions)
 
-	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
-	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
+	checkpointFilePath := defaultVersionFilesetPathFromTime(shardDir, start, checkpointFileSuffix)
+	createDataFile(t, shardDir, start, checkpointFileSuffix, defaultVersionNumber, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	require.True(t, FilesetExistsAt(dir, testNamespaceID, uint32(shard), start))
+	versions, err = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
+	require.NoError(t, err)
+	require.Equal(t, versions, []uint32{defaultVersionNumber})
+
+	checkpointFilePath = versionFilesetPathFromTime(shardDir, start, checkpointFileSuffix, 1)
+	createDataFile(t, shardDir, start, checkpointFileSuffix, 1, nil)
+	require.True(t, FileExists(checkpointFilePath))
+	versions, err = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
+	require.NoError(t, err)
+	require.Equal(t, versions, []uint32{defaultVersionNumber, 1})
+
+	checkpointFilePath = versionFilesetPathFromTime(shardDir, start, checkpointFileSuffix, 2)
+	createDataFile(t, shardDir, start, checkpointFileSuffix, 2, nil)
+	require.True(t, FileExists(checkpointFilePath))
+	versions, err = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
+	require.NoError(t, err)
+	require.Equal(t, versions, []uint32{defaultVersionNumber, 1, 2})
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))
@@ -304,7 +359,7 @@ func TestFilePathFromTime(t *testing.T) {
 		{"foo/bar/", infoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expected, filesetPathFromTime(input.prefix, start, input.suffix))
+		require.Equal(t, input.expected, defaultVersionFilesetPathFromTime(input.prefix, start, input.suffix))
 	}
 }
 
@@ -322,7 +377,7 @@ func TestFilesetFilesBefore(t *testing.T) {
 	shardDir := path.Join(dir, dataDirName, testNamespaceID.String(), strconv.Itoa(int(shard)))
 	for i := 0; i < len(res); i++ {
 		ts := time.Unix(0, int64(i))
-		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
+		require.Equal(t, defaultVersionFilesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
 	}
 }
 

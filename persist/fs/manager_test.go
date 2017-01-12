@@ -69,12 +69,12 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	shardDir := createShardDir(t, pm.filePathPrefix, testNamespaceID, shard)
-	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	checkpointFilePath := defaultVersionFilesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	f, err := os.Create(checkpointFilePath)
 	require.NoError(t, err)
 	f.Close()
 
-	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart)
+	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart, false)
 	require.NoError(t, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -92,7 +92,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	expectedErr := errors.New("foo")
 	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(expectedErr)
 
-	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart)
+	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart, false)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -118,7 +118,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	writer.EXPECT().WriteAll(id, gomock.Any()).Return(nil)
 	writer.EXPECT().Close()
 
-	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart)
+	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart, false)
 	require.Nil(t, err)
 
 	defer prepared.Close()

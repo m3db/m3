@@ -44,8 +44,12 @@ type PreparedPersist struct {
 type Manager interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
-	// preparation if any.
-	Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error)
+	// preparation if any. createNewVersionIfExists is used to indicate if a new
+	// version should be regardless of preceeding versions existing.
+	Prepare(namespace ts.ID,
+		shard uint32,
+		blockStart time.Time,
+		createNewVersionIfExists bool) (PreparedPersist, error)
 
 	// SetRateLimitOptions sets the rate limit options
 	SetRateLimitOptions(value ratelimit.Options)
