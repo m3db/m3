@@ -56,6 +56,7 @@ func TestRepairSimple(t *testing.T) {
 	setupOpts := []multipleTestSetupsOptions{
 		{
 			disablePeersBootstrapper: true,
+			enableRepairer:           true,
 		},
 		{
 			disablePeersBootstrapper: true,
