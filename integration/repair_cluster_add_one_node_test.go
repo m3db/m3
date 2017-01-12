@@ -246,7 +246,7 @@ func TestRepairClusterAddOneNode(t *testing.T) {
 	later := now.Add(blockSize * 3).Add(30 * time.Second)
 	setups[0].setNowFn(later)
 	setups[1].setNowFn(later)
-	time.Sleep(setups[1].storageOpts.RepairOptions().RepairCheckInterval() * 3)
+	time.Sleep(setups[1].storageOpts.RepairOptions().RepairCheckInterval() * 4)
 
 	// Shed the old shards from the first node
 	log.Debug("resharding to shed shards from first node")

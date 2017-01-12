@@ -84,7 +84,7 @@ func TestRepairSimple(t *testing.T) {
 	later := now.Add(blockSize * 3).Add(30 * time.Second)
 	setups[0].setNowFn(later)
 	setups[1].setNowFn(later)
-	time.Sleep(setups[1].storageOpts.RepairOptions().RepairCheckInterval() * 3)
+	time.Sleep(setups[1].storageOpts.RepairOptions().RepairCheckInterval() * 4)
 
 	// Stop the servers
 	defer func() {
