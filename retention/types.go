@@ -70,4 +70,11 @@ type Options interface {
 	// ShortExpiryPeriod returns the period that blocks should be kep in memory
 	// when short expiry is turned on
 	ShortExpiryPeriod() time.Duration
+
+	// SetMaxVersionsRetained sets the maximum number of fileset versions to be
+	// retained.
+	SetMaxVersionsRetained(numVersions uint32) Options
+
+	// MaxVersionsRetained returns the maximum number of versions being retained.
+	MaxVersionsRetained() uint32
 }

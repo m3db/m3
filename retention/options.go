@@ -42,27 +42,32 @@ const (
 
 	// defaultShortExpiryOn is the default bool for whether short expiry is on
 	defaultShortExpiry = false
+
+	// defaultMaxVersionsRetained is the default max number of versions retained
+	defaultMaxVersionsRetained = 3
 )
 
 type options struct {
-	retentionPeriod   time.Duration
-	blockSize         time.Duration
-	bufferFuture      time.Duration
-	bufferPast        time.Duration
-	bufferDrain       time.Duration
-	shortExpiry       bool
-	shortExpiryPeriod time.Duration
+	retentionPeriod     time.Duration
+	blockSize           time.Duration
+	bufferFuture        time.Duration
+	bufferPast          time.Duration
+	bufferDrain         time.Duration
+	shortExpiry         bool
+	shortExpiryPeriod   time.Duration
+	maxVersionsRetained uint32
 }
 
 // NewOptions creates new retention options
 func NewOptions() Options {
 	return &options{
-		retentionPeriod: defaultRetentionPeriod,
-		blockSize:       defaultBlockSize,
-		bufferFuture:    defaultBufferFuture,
-		bufferPast:      defaultBufferPast,
-		bufferDrain:     defaultBufferDrain,
-		shortExpiry:     defaultShortExpiry,
+		retentionPeriod:     defaultRetentionPeriod,
+		blockSize:           defaultBlockSize,
+		bufferFuture:        defaultBufferFuture,
+		bufferPast:          defaultBufferPast,
+		bufferDrain:         defaultBufferDrain,
+		shortExpiry:         defaultShortExpiry,
+		maxVersionsRetained: defaultMaxVersionsRetained,
 	}
 }
 
@@ -134,4 +139,14 @@ func (o *options) SetShortExpiryPeriod(period time.Duration) Options {
 
 func (o *options) ShortExpiryPeriod() time.Duration {
 	return o.shortExpiryPeriod
+}
+
+func (o *options) SetMaxVersionsRetained(n uint32) Options {
+	opts := *o
+	opts.maxVersionsRetained = n
+	return &opts
+}
+
+func (o *options) MaxVersionsRetained() uint32 {
+	return o.maxVersionsRetained
 }
