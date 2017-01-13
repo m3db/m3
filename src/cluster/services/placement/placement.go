@@ -37,12 +37,8 @@ var (
 )
 
 // NewPlacement returns a ServicePlacement
-func NewPlacement(instances []services.PlacementInstance, shards []uint32, rf int) services.ServicePlacement {
-	instancesMap := make(map[string]services.PlacementInstance, len(instances))
-	for _, instance := range instances {
-		instancesMap[instance.ID()] = instance
-	}
-	return placement{instances: instancesMap, rf: rf, shards: shards}
+func NewPlacement() services.ServicePlacement {
+	return &placement{}
 }
 
 type placement struct {
@@ -51,7 +47,7 @@ type placement struct {
 	shards    []uint32
 }
 
-func (p placement) Instances() []services.PlacementInstance {
+func (p *placement) Instances() []services.PlacementInstance {
 	result := make([]services.PlacementInstance, 0, p.NumInstances())
 	for _, instance := range p.instances {
 		result = append(result, instance)
@@ -59,28 +55,48 @@ func (p placement) Instances() []services.PlacementInstance {
 	return result
 }
 
-func (p placement) NumInstances() int {
+func (p *placement) SetInstances(instances []services.PlacementInstance) services.ServicePlacement {
+	instancesMap := make(map[string]services.PlacementInstance, len(instances))
+	for _, instance := range instances {
+		instancesMap[instance.ID()] = instance
+	}
+
+	p.instances = instancesMap
+	return p
+}
+
+func (p *placement) NumInstances() int {
 	return len(p.instances)
 }
 
-func (p placement) Instance(id string) (services.PlacementInstance, bool) {
+func (p *placement) Instance(id string) (services.PlacementInstance, bool) {
 	instance, ok := p.instances[id]
 	return instance, ok
 }
 
-func (p placement) ReplicaFactor() int {
+func (p *placement) ReplicaFactor() int {
 	return p.rf
 }
 
-func (p placement) Shards() []uint32 {
+func (p *placement) SetReplicaFactor(rf int) services.ServicePlacement {
+	p.rf = rf
+	return p
+}
+
+func (p *placement) Shards() []uint32 {
 	return p.shards
 }
 
-func (p placement) NumShards() int {
+func (p *placement) SetShards(shards []uint32) services.ServicePlacement {
+	p.shards = shards
+	return p
+}
+
+func (p *placement) NumShards() int {
 	return len(p.shards)
 }
 
-func (p placement) String() string {
+func (p *placement) String() string {
 	return services.PlacementInstances(p.Instances()).String()
 }
 

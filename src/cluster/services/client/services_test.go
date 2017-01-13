@@ -231,14 +231,14 @@ func TestQueryIncludeUnhealthy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
-	p := placement.NewPlacement([]services.PlacementInstance{
+	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
 		placement.NewInstance().
 			SetID("i2").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-	}, []uint32{1}, 2)
+	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
 	ps, err := NewPlacementStorage(opts)
 	require.NoError(t, err)
@@ -272,14 +272,14 @@ func TestQueryNotIncludeUnhealthy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
-	p := placement.NewPlacement([]services.PlacementInstance{
+	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
 		placement.NewInstance().
 			SetID("i2").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-	}, []uint32{1}, 2)
+	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
 	ps, err := NewPlacementStorage(opts)
 	require.NoError(t, err)
@@ -327,14 +327,14 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, errWatchInitTimeout, err)
 
-	p := placement.NewPlacement([]services.PlacementInstance{
+	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
 		placement.NewInstance().
 			SetID("i2").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-	}, []uint32{1}, 2)
+	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
 	ps, err := NewPlacementStorage(opts)
 	require.NoError(t, err)
@@ -350,14 +350,14 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	p = placement.NewPlacement([]services.PlacementInstance{
+	p = placement.NewPlacement().SetInstances([]services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
 		placement.NewInstance().
 			SetID("i2").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(2)})),
-	}, []uint32{1, 2}, 1)
+	}).SetShards([]uint32{1, 2}).SetReplicaFactor(1)
 
 	err = ps.CheckAndSet(sid, p, 1)
 	require.NoError(t, err)
@@ -382,14 +382,14 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, errWatchInitTimeout, err)
 
-	p := placement.NewPlacement([]services.PlacementInstance{
+	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
 		placement.NewInstance().
 			SetID("i2").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-	}, []uint32{1}, 2)
+	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
 	ps, err := NewPlacementStorage(opts)
 	require.NoError(t, err)
@@ -447,14 +447,14 @@ func TestMultipleWatches(t *testing.T) {
 	qopts := services.NewQueryOptions()
 	sid := services.NewServiceID().SetName("m3db").SetZone("zone1")
 
-	p := placement.NewPlacement([]services.PlacementInstance{
+	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
 		placement.NewInstance().
 			SetID("i2").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-	}, []uint32{1}, 2)
+	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
 	ps, err := NewPlacementStorage(opts)
 	require.NoError(t, err)

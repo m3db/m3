@@ -134,7 +134,7 @@ func (ph *placementHelper) GeneratePlacement() services.ServicePlacement {
 			instancesWithLoad = append(instancesWithLoad, instance)
 		}
 	}
-	return placement.NewPlacement(ph.instances, ph.uniqueShards, ph.rf)
+	return placement.NewPlacement().SetInstances(ph.instances).SetShards(ph.uniqueShards).SetReplicaFactor(ph.rf)
 }
 
 func (ph placementHelper) PlaceShards(shards []shard.Shard, from services.PlacementInstance) error {
@@ -217,7 +217,7 @@ func NewPlacementHelper(p services.ServicePlacement, opts services.PlacementOpti
 }
 
 func newInitHelper(instances []services.PlacementInstance, ids []uint32, opts services.PlacementOptions) PlacementHelper {
-	emptyPlacement := placement.NewPlacement(instances, ids, 0)
+	emptyPlacement := placement.NewPlacement().SetInstances(instances).SetShards(ids).SetReplicaFactor(0)
 	return newHelper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts)
 }
 
@@ -226,7 +226,7 @@ func newAddReplicaHelper(p services.ServicePlacement, opts services.PlacementOpt
 }
 
 func newAddInstanceHelper(p services.ServicePlacement, i services.PlacementInstance, opts services.PlacementOptions) PlacementHelper {
-	p = placement.NewPlacement(append(p.Instances(), i), p.Shards(), p.ReplicaFactor())
+	p = placement.NewPlacement().SetInstances(append(p.Instances(), i)).SetShards(p.Shards()).SetReplicaFactor(p.ReplicaFactor())
 	return newHelper(p, p.ReplicaFactor(), opts)
 }
 
@@ -459,11 +459,10 @@ func MarkShardAvailable(p services.ServicePlacement, instanceID string, shardID 
 
 	sourceInstance.Shards().Remove(shardID)
 	if sourceInstance.Shards().NumShards() == 0 {
-		return placement.NewPlacement(
-			removeInstance(p.Instances(), sourceInstance.ID()),
-			p.Shards(),
-			p.ReplicaFactor(),
-		), nil
+		return placement.NewPlacement().
+			SetInstances(removeInstance(p.Instances(), sourceInstance.ID())).
+			SetShards(p.Shards()).
+			SetReplicaFactor(p.ReplicaFactor()), nil
 	}
 	return p, nil
 }
@@ -484,7 +483,10 @@ func addInstanceToPlacement(p services.ServicePlacement, i services.PlacementIns
 	instance := cloneInstance(i)
 
 	if allowEmpty || instance.Shards().NumShards() > 0 {
-		p = placement.NewPlacement(append(p.Instances(), instance), p.Shards(), p.ReplicaFactor())
+		p = placement.NewPlacement().
+			SetInstances(append(p.Instances(), instance)).
+			SetShards(p.Shards()).
+			SetReplicaFactor(p.ReplicaFactor())
 	}
 	return p, instance, nil
 }
@@ -495,15 +497,17 @@ func removeInstanceFromPlacement(p services.ServicePlacement, id string) (servic
 		return nil, nil, fmt.Errorf("instance %s does not exist in placement", id)
 	}
 
-	return placement.NewPlacement(
-		removeInstance(p.Instances(), id),
-		p.Shards(),
-		p.ReplicaFactor(),
-	), leavingInstance, nil
+	return placement.NewPlacement().
+		SetInstances(removeInstance(p.Instances(), id)).
+		SetShards(p.Shards()).
+		SetReplicaFactor(p.ReplicaFactor()), leavingInstance, nil
 }
 
 func clonePlacement(p services.ServicePlacement) services.ServicePlacement {
-	return placement.NewPlacement(cloneInstances(p.Instances()), p.Shards(), p.ReplicaFactor())
+	return placement.NewPlacement().
+		SetInstances(cloneInstances(p.Instances())).
+		SetShards(p.Shards()).
+		SetReplicaFactor(p.ReplicaFactor())
 }
 
 func cloneInstances(instances []services.PlacementInstance) []services.PlacementInstance {

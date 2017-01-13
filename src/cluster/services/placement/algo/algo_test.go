@@ -532,7 +532,10 @@ func TestAddInstancesCouldNotReachTargetLoad(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	p := placement.NewPlacement([]services.PlacementInstance{}, ids, 1)
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{}).
+		SetShards(ids).
+		SetReplicaFactor(1)
 
 	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
 
@@ -665,7 +668,10 @@ func TestAddReplica(t *testing.T) {
 	for i := 0; i < len(ids); i++ {
 		ids[i] = uint32(i)
 	}
-	p := placement.NewPlacement(instances, ids, 1)
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards(ids).
+		SetReplicaFactor(1)
 
 	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
 	p, err := a.AddReplica(p)
@@ -710,7 +716,10 @@ func TestAddInstance(t *testing.T) {
 	for i := 0; i < len(ids); i++ {
 		ids[i] = uint32(i)
 	}
-	p := placement.NewPlacement(instances, ids, 1)
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards(ids).
+		SetReplicaFactor(1)
 
 	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
 	i2 := placement.NewEmptyInstance("i2", "r2", "", "e2", 1)
@@ -747,7 +756,10 @@ func TestRemoveInstance(t *testing.T) {
 	for i := 0; i < len(ids); i++ {
 		ids[i] = uint32(i)
 	}
-	p := placement.NewPlacement(instances, ids, 1)
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards(ids).
+		SetReplicaFactor(1)
 
 	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
 	p, err := a.RemoveInstance(p, i2.ID())
@@ -796,7 +808,10 @@ func TestReplaceInstance(t *testing.T) {
 	for i := 0; i < len(ids); i++ {
 		ids[i] = uint32(i)
 	}
-	p := placement.NewPlacement(instances, ids, 1)
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards(ids).
+		SetReplicaFactor(1)
 
 	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
 	i3 := placement.NewEmptyInstance("i3", "r3", "", "e3", 1)

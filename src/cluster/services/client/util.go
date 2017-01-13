@@ -106,7 +106,10 @@ func PlacementFromProto(p placementproto.Placement) (services.ServicePlacement, 
 		)
 	}
 
-	s := placement.NewPlacement(instances, shards, int(p.ReplicaFactor))
+	s := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards(shards).
+		SetReplicaFactor(int(p.ReplicaFactor))
 	if err := placement.Validate(s); err != nil {
 		return nil, err
 	}

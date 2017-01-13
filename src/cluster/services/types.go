@@ -204,6 +204,9 @@ type ServicePlacement interface {
 	// Instances returns all Instances in the placement
 	Instances() []PlacementInstance
 
+	// SetInstances sets the Instances
+	SetInstances(instances []PlacementInstance) ServicePlacement
+
 	// NumInstances returns the number of instances in the placement
 	NumInstances() int
 
@@ -213,8 +216,14 @@ type ServicePlacement interface {
 	// ReplicaFactor returns the replica factor in the placement
 	ReplicaFactor() int
 
+	// SetReplicaFactor sets the ReplicaFactor
+	SetReplicaFactor(rf int) ServicePlacement
+
 	// Shards returns all the unique shard ids for a replica
 	Shards() []uint32
+
+	// SetShards sets the unique shard ids for a replica
+	SetShards(s []uint32) ServicePlacement
 
 	// ShardsLen returns the number of shards in a replica
 	NumShards() int

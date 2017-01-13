@@ -41,7 +41,7 @@ func TestMoveInitializingShard(t *testing.T) {
 	i3.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
 
 	instances := []services.PlacementInstance{i1, i2, i3}
-	p := placement.NewPlacement(instances, []uint32{1, 2, 3}, 1)
+	p := placement.NewPlacement().SetInstances(instances).SetShards([]uint32{1, 2, 3}).SetReplicaFactor(1)
 	ph := newHelper(p, 3, placement.NewOptions()).(*placementHelper)
 
 	// move an Initializing shard
@@ -69,7 +69,7 @@ func TestMoveLeavingShard(t *testing.T) {
 	i3.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
 
 	instances := []services.PlacementInstance{i1, i2, i3}
-	p := placement.NewPlacement(instances, []uint32{1, 2, 3}, 1)
+	p := placement.NewPlacement().SetInstances(instances).SetShards([]uint32{1, 2, 3}).SetReplicaFactor(1)
 	ph := newHelper(p, 3, placement.NewOptions()).(*placementHelper)
 
 	// make sure Leaving shard could not be moved
@@ -89,7 +89,7 @@ func TestMoveAvailableShard(t *testing.T) {
 	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
 
 	instances := []services.PlacementInstance{i1, i2, i3}
-	p := placement.NewPlacement(instances, []uint32{1, 2, 3}, 1)
+	p := placement.NewPlacement().SetInstances(instances).SetShards([]uint32{1, 2, 3}).SetReplicaFactor(1)
 	ph := newHelper(p, 3, placement.NewOptions()).(*placementHelper)
 
 	s3, ok := i3.Shards().Shard(3)
@@ -136,7 +136,10 @@ func TestAssignShard(t *testing.T) {
 	i6.Shards().Add(shard.NewShard(4).SetState(shard.Available))
 
 	instances := []services.PlacementInstance{i1, i2, i3, i4, i5, i6}
-	p := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 3)
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
+		SetReplicaFactor(3)
 
 	ph := newHelper(p, 3, placement.NewOptions()).(*placementHelper)
 	assert.True(t, ph.canAssignInstance(2, i6, i5))
@@ -194,7 +197,10 @@ func TestMarkShard(t *testing.T) {
 	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
 	i2.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
 
-	p := placement.NewPlacement([]services.PlacementInstance{i1, i2}, []uint32{1, 2}, 2)
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(2)
 
 	_, err := MarkShardAvailable(p, "i3", 1)
 	assert.Error(t, err)
@@ -245,7 +251,7 @@ func TestCopy(t *testing.T) {
 	instances := []services.PlacementInstance{i1, i2}
 
 	ids := []uint32{1, 2, 3, 4, 5, 6}
-	s := placement.NewPlacement(instances, ids, 1)
+	s := placement.NewPlacement().SetInstances(instances).SetShards(ids).SetReplicaFactor(1)
 	copy := clonePlacement(s)
 	assert.Equal(t, s.NumInstances(), copy.NumInstances())
 	assert.Equal(t, s.Shards(), copy.Shards())
