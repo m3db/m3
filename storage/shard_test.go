@@ -140,7 +140,7 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	blockStart := time.Unix(21600, 0)
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{}
-	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, nil)
+	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart, false).Return(prepared, nil)
 
 	err := s.Flush(testNamespaceID, blockStart, pm)
 	require.Nil(t, err)
@@ -162,7 +162,7 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
-	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, expectedErr)
+	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart, false).Return(prepared, expectedErr)
 
 	actualErr := s.Flush(testNamespaceID, blockStart, pm)
 	require.NotNil(t, actualErr)
@@ -195,7 +195,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Close:   func() { closed = true },
 	}
 	expectedErr := errors.New("error foo")
-	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, expectedErr)
+	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart, false).Return(prepared, expectedErr)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -253,7 +253,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		Close:   func() { closed = true },
 	}
 
-	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, nil)
+	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart, false).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
