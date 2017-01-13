@@ -34,12 +34,15 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
+// DefaultVersionNumber is the sentinel version number.
+const DefaultVersionNumber = 0
+
 // FileSetWriter provides an unsynchronized writer for a TSDB file set
 type FileSetWriter interface {
 	io.Closer
 
 	// Open opens the files for writing data to the given shard in the given namespace
-	Open(namespace ts.ID, shard uint32, start time.Time) error
+	Open(namespace ts.ID, shard uint32, start time.Time, version uint32) error
 
 	// Write will write the id and data pair and returns an error on a write error
 	Write(id ts.ID, data checked.Bytes) error

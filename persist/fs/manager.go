@@ -39,15 +39,16 @@ type sleepFn func(time.Duration)
 // persistManager is responsible for persisting series segments onto local filesystem.
 // It is not thread-safe.
 type persistManager struct {
-	opts           Options
-	filePathPrefix string
-	rateLimitOpts  ratelimit.Options
-	nowFn          clock.NowFn
-	sleepFn        sleepFn
-	writer         FileSetWriter
-	start          time.Time
-	lastCheck      time.Time
-	bytesWritten   int64
+	opts             Options
+	filePathPrefix   string
+	rateLimitOpts    ratelimit.Options
+	nowFn            clock.NowFn
+	sleepFn          sleepFn
+	writer           FileSetWriter
+	start            time.Time
+	lastCheck        time.Time
+	bytesWritten     int64
+	versionsToExpire []uint32
 
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
 	// head and the tail of each segment so we don't need to allocate memory
@@ -99,7 +100,11 @@ func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
 }
 
 func (pm *persistManager) close() {
-	pm.writer.Close()
+	err := pm.writer.Close()
+	if err != nil {
+		// TODO(prateek): delete files with verisons from pm.versionsToExpire
+		// TODO(prateek): add tests for this part
+	}
 	pm.reset()
 }
 
@@ -107,6 +112,7 @@ func (pm *persistManager) reset() {
 	pm.start = timeZero
 	pm.lastCheck = timeZero
 	pm.bytesWritten = 0
+	pm.versionsToExpire = []uint32{}
 }
 
 func (pm *persistManager) Prepare(
@@ -117,9 +123,9 @@ func (pm *persistManager) Prepare(
 ) (persist.PreparedPersist, error) {
 	var prepared persist.PreparedPersist
 
-	nextVersion := uint32(defaultVersionNumber)
-	versions, err := FilesetVersionsAt(pm.filePathPrefix, namespace, shard, blockStart)
-	checkpointFileExists := err == nil && len(versions) > 0
+	nextVersion := uint32(DefaultVersionNumber)
+	versions := FilesetVersionsAt(pm.filePathPrefix, namespace, shard, blockStart)
+	checkpointFileExists := len(versions) > 0
 
 	// NB(prateek): if no checkpointFileExists, we create a new one with default version
 	// if a checkpoint file does exist, then the behavior depends upon `createNewVersionIfExists`
@@ -131,15 +137,17 @@ func (pm *persistManager) Prepare(
 		if !createNewVersionIfExists {
 			return prepared, nil
 		}
-		// TODO(prateek): book-keeping about which files exist, and what to delete
+		// TODO(prateek): add tests for this part
 		nextVersion = 1 + versions[len(versions)-1]
+		maxRetained := pm.opts.RetentionOptions().MaxVersionsRetained()
+		numVersionsToDelete := len(versions) + 1 - int(maxRetained)
+		if numVersionsToDelete > 0 {
+			pm.versionsToExpire = versions[:numVersionsToDelete]
+		}
 	}
 
-	println(nextVersion)
-	// if err := pm.writer.OpenVersion(namespace, shard, blockStart, nextVersion); err != nil {
-	// 	return prepared, err
-	// }
-	if err := pm.writer.Open(namespace, shard, blockStart); err != nil {
+	// TODO(prateek): add tests for multiple writers
+	if err := pm.writer.Open(namespace, shard, blockStart, nextVersion); err != nil {
 		return prepared, err
 	}
 

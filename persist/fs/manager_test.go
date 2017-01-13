@@ -63,7 +63,7 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, _ := testManager(t, ctrl)
+	pm, writer := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -78,6 +78,13 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
+
+	writer.EXPECT().Open(testNamespaceID,
+		shard, blockStart, uint32(1)).Return(nil)
+	prepared, err = pm.Prepare(testNamespaceID, shard, blockStart, true)
+	require.NoError(t, err)
+	require.NotNil(t, prepared.Persist)
+	require.NotNil(t, prepared.Close)
 }
 
 func TestPersistenceManagerPrepareOpenError(t *testing.T) {
@@ -90,7 +97,8 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	expectedErr := errors.New("foo")
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(expectedErr)
+	writer.EXPECT().Open(testNamespaceID,
+		shard, blockStart, uint32(0)).Return(expectedErr)
 
 	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart, false)
 	require.Equal(t, expectedErr, err)
@@ -107,7 +115,8 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(nil)
+	writer.EXPECT().Open(testNamespaceID,
+		shard, blockStart, uint32(DefaultVersionNumber)).Return(nil)
 
 	var (
 		id      = ts.StringID("foo")

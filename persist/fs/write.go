@@ -82,10 +82,10 @@ func NewWriter(
 	}
 }
 
-// OpenVersion initializes the internal state for writing to the given shard,
+// Open initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
-func (w *writer) OpenVersion(namespace ts.ID, shard uint32, blockStart time.Time, version uint32) error {
+func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time, version uint32) error {
 	shardDir := ShardDirPath(w.filePathPrefix, namespace, shard)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
@@ -115,13 +115,6 @@ func (w *writer) OpenVersion(namespace ts.ID, shard uint32, blockStart time.Time
 	w.digestFdWithDigestContents.Reset(digestFd)
 
 	return nil
-}
-
-// Open initializes the internal state for writing to the given shard,
-// specifically creating the shard directory if it doesn't exist, and
-// opening / truncating files associated with that shard for writing.
-func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
-	return w.OpenVersion(namespace, shard, blockStart, defaultVersionNumber)
 }
 
 func (w *writer) writeData(data []byte) error {

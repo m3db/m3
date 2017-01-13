@@ -53,7 +53,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
@@ -76,7 +76,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
@@ -106,7 +106,7 @@ func TestSeekBadMarker(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	// Copy the marker out
@@ -143,7 +143,7 @@ func TestIDs(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(ts.StringID("foo1"), bytesRefd([]byte{1, 2, 1})))
 	assert.NoError(t, w.Write(ts.StringID("foo2"), bytesRefd([]byte{1, 2, 2})))
@@ -178,7 +178,7 @@ func TestSeek(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(ts.StringID("foo1"), bytesRefd(([]byte{1, 2, 1}))))
 	assert.NoError(t, w.Write(ts.StringID("foo2"), bytesRefd(([]byte{1, 2, 2}))))

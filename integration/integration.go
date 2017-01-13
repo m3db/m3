@@ -363,7 +363,7 @@ func writeToDisk(
 	}
 	segmentHolder := make([]checked.Bytes, 2)
 	for shard, seriesList := range seriesPerShard {
-		if err := writer.Open(namespace, shard, start); err != nil {
+		if err := writer.Open(namespace, shard, start, fs.DefaultVersionNumber); err != nil {
 			return err
 		}
 		for _, series := range seriesList {

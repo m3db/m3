@@ -47,7 +47,6 @@ var timeZero time.Time
 const (
 	dataDirName          = "data"
 	commitLogsDirName    = "commitlogs"
-	defaultVersionNumber = 0
 )
 
 type fileOpener func(filePath string) (*os.File, error)
@@ -164,7 +163,7 @@ func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
 }
 
 // TimeAndVersionFromFileName extracts the block start and version number from file name.
-// If a valid version number is not found, it defaults to `defaultVersionNumber`.
+// If a valid version number is not found, it defaults to `DefaultVersionNumber`.
 // NB(prateek): this function assumes the input has been validated using filesetFilePattern
 func TimeAndVersionFromFileName(fname string) (time.Time, uint32, error) {
 	components, t, err := componentsAndTimeFromFileName(fname)
@@ -175,7 +174,7 @@ func TimeAndVersionFromFileName(fname string) (time.Time, uint32, error) {
 	re := regexp.MustCompile(versionSuffixPresentRegex)
 	version := re.FindString(components[2])
 	if version == "" {
-		return t, defaultVersionNumber, nil
+		return t, DefaultVersionNumber, nil
 	}
 
 	versionNumber, err := strconv.ParseInt(version[2:], 10, 64)
@@ -398,12 +397,12 @@ func CommitLogsDirPath(prefix string) string {
 
 // FilesetVersionsAt returns the version numbers (in ascending order) of the filesets present
 // (if any) for the given namespace, shard and block start time.
-func FilesetVersionsAt(prefix string, namespace ts.ID, shard uint32, t time.Time) ([]uint32, error) {
+func FilesetVersionsAt(prefix string, namespace ts.ID, shard uint32, t time.Time) []uint32 {
 	shardDir := ShardDirPath(prefix, namespace, shard)
 	filesetFileForTimePattern := fmt.Sprintf(checkpointFileForTimePattern, t.UnixNano())
 	files, err := findFiles(shardDir, filesetFileForTimePattern)
 	if err != nil {
-		return nil, err
+		return []uint32{}
 	}
 
 	versions := make(map[uint32]struct{})
@@ -418,7 +417,7 @@ func FilesetVersionsAt(prefix string, namespace ts.ID, shard uint32, t time.Time
 	}
 
 	sort.Sort(uint32arr(vers))
-	return vers, nil
+	return vers
 }
 
 type uint32arr []uint32
@@ -451,12 +450,12 @@ func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 }
 
 func defaultVersionFilesetPathFromTime(prefix string, t time.Time, suffix string) string {
-	return versionFilesetPathFromTime(prefix, t, suffix, defaultVersionNumber)
+	return versionFilesetPathFromTime(prefix, t, suffix, DefaultVersionNumber)
 }
 
 func versionFilesetPathFromTime(prefix string, t time.Time, suffix string, version uint32) string {
 	vSuffix := ""
-	if version != defaultVersionNumber {
+	if version != DefaultVersionNumber {
 		vSuffix = fmt.Sprintf("%s%d", versionSuffix, version)
 	}
 

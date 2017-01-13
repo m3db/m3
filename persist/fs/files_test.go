@@ -167,30 +167,30 @@ func TestForEachInfoFile(t *testing.T) {
 	digest := digest.NewDigest()
 
 	// No checkpoint file
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, nil)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, DefaultVersionNumber, nil)
 
 	// No digest file
 	blockStart = blockStart.Add(time.Nanosecond)
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, nil)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, defaultVersionNumber, buf)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, DefaultVersionNumber, nil)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, DefaultVersionNumber, buf)
 
 	// Digest of digest mismatch
 	blockStart = blockStart.Add(time.Nanosecond)
 	digests := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}
 	digest.Write(append(digests, 0xd))
 	buf.WriteDigest(digest.Sum32())
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, nil)
-	createDataFile(t, shardDir, blockStart, digestFileSuffix, defaultVersionNumber, digests)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, defaultVersionNumber, buf)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, DefaultVersionNumber, nil)
+	createDataFile(t, shardDir, blockStart, digestFileSuffix, DefaultVersionNumber, digests)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, DefaultVersionNumber, buf)
 
 	// Info file digest mismatch
 	blockStart = blockStart.Add(time.Nanosecond)
 	digest.Reset()
 	digest.Write(digests)
 	buf.WriteDigest(digest.Sum32())
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, []byte{0x1})
-	createDataFile(t, shardDir, blockStart, digestFileSuffix, defaultVersionNumber, digests)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, defaultVersionNumber, buf)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, DefaultVersionNumber, []byte{0x1})
+	createDataFile(t, shardDir, blockStart, digestFileSuffix, DefaultVersionNumber, digests)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, DefaultVersionNumber, buf)
 
 	// All digests match
 	blockStart = blockStart.Add(time.Nanosecond)
@@ -202,9 +202,9 @@ func TestForEachInfoFile(t *testing.T) {
 	digest.Reset()
 	digest.Write(digestOfDigest)
 	buf.WriteDigest(digest.Sum32())
-	createDataFile(t, shardDir, blockStart, infoFileSuffix, defaultVersionNumber, infoData)
-	createDataFile(t, shardDir, blockStart, digestFileSuffix, defaultVersionNumber, digestOfDigest)
-	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, defaultVersionNumber, buf)
+	createDataFile(t, shardDir, blockStart, infoFileSuffix, DefaultVersionNumber, infoData)
+	createDataFile(t, shardDir, blockStart, digestFileSuffix, DefaultVersionNumber, digestOfDigest)
+	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, DefaultVersionNumber, buf)
 
 	var fnames []string
 	var res []byte
@@ -309,32 +309,28 @@ func TestFilesetVersionsAt(t *testing.T) {
 	require.NoError(t, err)
 
 	infoFilePath := defaultVersionFilesetPathFromTime(shardDir, start, infoFileSuffix)
-	createDataFile(t, shardDir, start, infoFileSuffix, defaultVersionNumber, nil)
+	createDataFile(t, shardDir, start, infoFileSuffix, DefaultVersionNumber, nil)
 	require.True(t, FileExists(infoFilePath))
-	versions, err := FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
-	require.NoError(t, err)
+	versions := FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
 	require.Empty(t, versions)
 
 	checkpointFilePath := defaultVersionFilesetPathFromTime(shardDir, start, checkpointFileSuffix)
-	createDataFile(t, shardDir, start, checkpointFileSuffix, defaultVersionNumber, nil)
+	createDataFile(t, shardDir, start, checkpointFileSuffix, DefaultVersionNumber, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	versions, err = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
-	require.NoError(t, err)
-	require.Equal(t, versions, []uint32{defaultVersionNumber})
+	versions = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
+	require.Equal(t, versions, []uint32{DefaultVersionNumber})
 
 	checkpointFilePath = versionFilesetPathFromTime(shardDir, start, checkpointFileSuffix, 1)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, 1, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	versions, err = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
-	require.NoError(t, err)
-	require.Equal(t, versions, []uint32{defaultVersionNumber, 1})
+	versions = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
+	require.Equal(t, versions, []uint32{DefaultVersionNumber, 1})
 
 	checkpointFilePath = versionFilesetPathFromTime(shardDir, start, checkpointFileSuffix, 2)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, 2, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	versions, err = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
-	require.NoError(t, err)
-	require.Equal(t, versions, []uint32{defaultVersionNumber, 1, 2})
+	versions = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
+	require.Equal(t, versions, []uint32{DefaultVersionNumber, 1, 2})
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))

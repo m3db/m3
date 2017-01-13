@@ -108,18 +108,18 @@ func NewReader(
 	}
 }
 
-func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
-	// If there is no checkpoint file, don't read the data files.
+func (r *reader) openVersion(namespace ts.ID, shard uint32, blockStart time.Time, version uint32) error {
 	shardDir := ShardDirPath(r.filePathPrefix, namespace, shard)
-	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
+	if err := r.readCheckpointFile(shardDir, blockStart, version); err != nil {
 		return err
 	}
+
 	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		defaultVersionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-		defaultVersionFilesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
-		defaultVersionFilesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
-		defaultVersionFilesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+		versionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix, version):   &infoFd,
+		versionFilesetPathFromTime(shardDir, blockStart, indexFileSuffix, version):  &indexFd,
+		versionFilesetPathFromTime(shardDir, blockStart, dataFileSuffix, version):   &dataFd,
+		versionFilesetPathFromTime(shardDir, blockStart, digestFileSuffix, version): &digestFd,
 	}); err != nil {
 		return err
 	}
@@ -153,14 +153,28 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	return nil
 }
 
+func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+	// TODO(prateek): add test for ensuring the correct version is being read
+	versions := FilesetVersionsAt(r.filePathPrefix, namespace, shard, blockStart)
+	if len(versions) == 0 {
+		return errCheckpointFileNotFound
+	}
+	latestVersion := versions[len(versions)-1]
+	return r.openVersion(namespace, shard, blockStart, latestVersion)
+}
+
 func (r *reader) prepareUnreadBuf(size int) {
 	if len(r.unreadBuf) < size {
 		r.unreadBuf = make([]byte, size)
 	}
 }
 
-func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error {
-	filePath := defaultVersionFilesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+func (r *reader) readCheckpointFile(
+	shardDir string,
+	blockStart time.Time,
+	version uint32,
+) error {
+	filePath := versionFilesetPathFromTime(shardDir, blockStart, checkpointFileSuffix, version)
 	if !FileExists(filePath) {
 		return errCheckpointFileNotFound
 	}

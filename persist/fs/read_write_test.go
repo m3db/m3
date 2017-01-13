@@ -48,7 +48,7 @@ func newTestWriter(filePathPrefix string) FileSetWriter {
 }
 
 func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := w.Open(testNamespaceID, shard, timestamp)
+	err := w.Open(testNamespaceID, shard, timestamp, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	for i := range entries {
@@ -163,7 +163,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	}
 	w := newTestWriter(filePathPrefix)
 	shard := uint32(0)
-	require.NoError(t, w.Open(testNamespaceID, shard, testWriterStart))
+	require.NoError(t, w.Open(testNamespaceID, shard, testWriterStart, DefaultVersionNumber))
 
 	require.NoError(t, w.Write(
 		ts.StringID(entries[0].id),
@@ -196,7 +196,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	}
 
 	w := newTestWriter(filePathPrefix)
-	err := w.Open(testNamespaceID, 0, testWriterStart)
+	err := w.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	w.WriteAll(ts.StringID("foo"), []checked.Bytes{
