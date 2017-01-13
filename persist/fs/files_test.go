@@ -355,7 +355,30 @@ func TestFilePathFromTime(t *testing.T) {
 		{"foo/bar/", infoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expected, defaultVersionFilesetPathFromTime(input.prefix, start, input.suffix))
+		require.Equal(t,
+			input.expected,
+			versionFilesetPathFromTime(
+				input.prefix, start, input.suffix, DefaultVersionNumber))
+	}
+
+	// with a version number this time
+	vInputs := []struct {
+		prefix   string
+		suffix   string
+		version  uint32
+		expected string
+	}{
+		{"foo/bar", infoFileSuffix, 1, "foo/bar/fileset-1465501321123456789-info.db.v1"},
+		{"foo/bar", indexFileSuffix, 1, "foo/bar/fileset-1465501321123456789-index.db.v1"},
+		{"foo/bar", dataFileSuffix, 1, "foo/bar/fileset-1465501321123456789-data.db.v1"},
+		{"foo/bar", checkpointFileSuffix, 1, "foo/bar/fileset-1465501321123456789-checkpoint.db.v1"},
+		{"foo/bar/", infoFileSuffix, 1, "foo/bar/fileset-1465501321123456789-info.db.v1"},
+	}
+	for _, input := range vInputs {
+		require.Equal(t,
+			input.expected,
+			versionFilesetPathFromTime(
+				input.prefix, start, input.suffix, uint32(1)))
 	}
 }
 

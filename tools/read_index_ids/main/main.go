@@ -41,8 +41,8 @@ func main() {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: defaultBufferCapacity,
 		Count:    defaultBufferPoolCount,
-	}}, nil, func(buckets []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(buckets, nil)
+	}}, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
 
