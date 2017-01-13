@@ -332,20 +332,20 @@ func TestEntryMaybeExpireNoExpiry(t *testing.T) {
 	e, _, now := testEntry()
 
 	// If we are still within entry TTL, should not expire
-	require.False(t, e.MaybeExpire(now.Add(e.opts.EntryTTL()).Add(-time.Second)))
+	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(-time.Second)))
 
 	// If the entry is closed, should not expire
 	atomic.StoreInt32(&e.closed, 1)
-	require.False(t, e.MaybeExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
+	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
 
 	// If there are still active writers, should not expire
 	atomic.StoreInt32(&e.closed, 0)
 	e.numWriters = 1
-	require.False(t, e.MaybeExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
+	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
 }
 
 func TestEntryMaybeExpireWithExpiry(t *testing.T) {
-	e, _, now := testEntry()
+	e, _, _ := testEntry()
 	populateTestAggregations(t, e, unaggregated.CounterType)
 
 	var elems []*CounterElem
@@ -353,8 +353,8 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 		elems = append(elems, elem.Value.(*CounterElem))
 	}
 
-	// If no writers and we're past TTL, should expire
-	require.True(t, e.MaybeExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
+	// Expire this entry
+	e.Expire()
 
 	// Assert elements have been tombstoned
 	require.Equal(t, 0, len(e.aggregations))

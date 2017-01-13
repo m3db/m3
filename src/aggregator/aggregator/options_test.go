@@ -76,6 +76,7 @@ func TestOptionsValidateDefault(t *testing.T) {
 	require.Equal(t, defaultMaxFlushSize, o.MaxFlushSize())
 	require.Equal(t, defaultEntryTTL, o.EntryTTL())
 	require.Equal(t, defaultEntryCheckInterval, o.EntryCheckInterval())
+	require.Equal(t, defaultEntryCheckBatchPercent, o.EntryCheckBatchPercent())
 	require.NotNil(t, o.TimerQuantileSuffixFn())
 	require.NotNil(t, o.FlushFn())
 	require.NotNil(t, o.ClockOptions())
@@ -239,6 +240,12 @@ func TestSetEntryCheckInterval(t *testing.T) {
 	value := time.Minute
 	o := NewOptions().SetEntryCheckInterval(value)
 	require.Equal(t, value, o.EntryCheckInterval())
+}
+
+func TestSetEntryCheckBatchPercent(t *testing.T) {
+	value := 0.05
+	o := NewOptions().SetEntryCheckBatchPercent(value)
+	require.Equal(t, value, o.EntryCheckBatchPercent())
 }
 
 func TestSetEntryPool(t *testing.T) {

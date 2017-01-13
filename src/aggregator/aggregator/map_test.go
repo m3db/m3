@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -44,25 +45,30 @@ var (
 func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 	opts := testOptions()
 	lists := newMetricLists(opts)
-	m := newMetricMap(lists, opts)
+	m := newMetricMap(lists, make(chan struct{}), opts)
 	policies := policy.DefaultVersionedPolicies
 
 	// Add a counter metric and assert there is one entry afterwards
 	require.NoError(t, m.AddMetricWithPolicies(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
+	require.Equal(t, 1, m.entryList.Len())
 	idHash := id.HashFn(testID)
-	e, exists := m.entries[idHash]
+	elem, exists := m.entries[idHash]
 	require.True(t, exists)
-	require.Equal(t, int32(0), atomic.LoadInt32(&e.numWriters))
+	entry := elem.Value.(hashedEntry)
+	require.Equal(t, int32(0), atomic.LoadInt32(&entry.entry.numWriters))
+	require.Equal(t, idHash, entry.idHash)
 	require.Equal(t, 2, lists.Len())
 
 	// Add the same counter and assert there is still one entry
 	require.NoError(t, m.AddMetricWithPolicies(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
-	e2, exists := m.entries[idHash]
+	require.Equal(t, 1, m.entryList.Len())
+	elem2, exists := m.entries[idHash]
 	require.True(t, exists)
-	require.Equal(t, e, e2)
-	require.Equal(t, int32(0), atomic.LoadInt32(&e2.numWriters))
+	entry2 := elem2.Value.(hashedEntry)
+	require.Equal(t, entry, entry2)
+	require.Equal(t, int32(0), atomic.LoadInt32(&entry2.entry.numWriters))
 	require.Equal(t, 2, lists.Len())
 
 	// Add a different metric and assert there are now two entries
@@ -75,41 +81,69 @@ func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 		testVersionedPolicies,
 	))
 	require.Equal(t, 2, len(m.entries))
+	require.Equal(t, 2, m.entryList.Len())
 	require.Equal(t, 3, lists.Len())
 }
 
 func TestMetricMapDeleteExpired(t *testing.T) {
 	var (
-		idFoo = []byte("foo")
-		idBar = []byte("bar")
-		ttl   = time.Hour
-		now   = time.Now()
+		batchPercent = 0.07
+		ttl          = time.Hour
+		now          = time.Now()
 	)
 	liveClockOpts := clock.NewOptions().SetNowFn(func() time.Time {
 		return now
 	})
-	liveEntryOpts := testOptions().
-		SetClockOptions(liveClockOpts).
-		SetEntryTTL(ttl)
 	expiredClockOpt := clock.NewOptions().SetNowFn(func() time.Time {
 		return now.Add(-ttl).Add(-time.Second)
 	})
-	expiredEntryOpts := testOptions().
+	opts := testOptions().
+		SetClockOptions(liveClockOpts).
+		SetEntryCheckBatchPercent(batchPercent)
+	liveEntryOpts := opts.
+		SetClockOptions(liveClockOpts).
+		SetEntryTTL(ttl)
+	expiredEntryOpts := opts.
 		SetClockOptions(expiredClockOpt).
 		SetEntryTTL(ttl)
-	opts := testOptions().SetClockOptions(liveClockOpts)
-	lists := newMetricLists(opts)
-	m := newMetricMap(lists, opts)
 
-	// Insert a live entry and an expired entry
-	m.entries[id.HashFn(idFoo)] = NewEntry(lists, liveEntryOpts)
-	m.entries[id.HashFn(idBar)] = NewEntry(lists, expiredEntryOpts)
+	lists := newMetricLists(opts)
+	m := newMetricMap(lists, make(chan struct{}), opts)
+	var waitIntervals []time.Duration
+	m.waitForFn = func(d time.Duration) <-chan time.Time {
+		waitIntervals = append(waitIntervals, d)
+		c := make(chan time.Time)
+		close(c)
+		return c
+	}
+
+	// Insert some live entries and some expired entries
+	numEntries := 100
+	for i := 0; i < numEntries; i++ {
+		idHash := id.HashFn([]byte(fmt.Sprintf("%d", i)))
+		if i%2 == 0 {
+			m.entries[idHash] = m.entryList.PushBack(hashedEntry{
+				idHash: idHash,
+				entry:  NewEntry(lists, liveEntryOpts),
+			})
+		} else {
+			m.entries[idHash] = m.entryList.PushBack(hashedEntry{
+				idHash: idHash,
+				entry:  NewEntry(lists, expiredEntryOpts),
+			})
+		}
+	}
 
 	// Delete expired entries
-	m.DeleteExpired()
+	m.DeleteExpired(opts.EntryCheckInterval())
 
-	// Assert there should be only one entry left
-	require.Equal(t, 1, len(m.entries))
-	_, exists := m.entries[id.HashFn(idFoo)]
-	require.True(t, exists)
+	// Assert there should be only half of the entries left
+	require.Equal(t, numEntries/2, len(m.entries))
+	require.Equal(t, numEntries/2, m.entryList.Len())
+	require.True(t, len(waitIntervals) > 0)
+	for k, v := range m.entries {
+		e := v.Value.(hashedEntry)
+		require.Equal(t, k, e.idHash)
+		require.NotNil(t, e.entry)
+	}
 }

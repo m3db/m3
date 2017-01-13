@@ -130,17 +130,8 @@ func (e *Entry) AddMetricWithPolicies(
 	return nil
 }
 
-// MaybeExpire attempts to expire the entry, returning true
-// if the entry has been expired and false otherwise
-func (e *Entry) MaybeExpire(now time.Time) bool {
-	if !e.shouldExpire(now) {
-		return false
-	}
-	e.expire()
-	return true
-}
-
-func (e *Entry) shouldExpire(now time.Time) bool {
+// ShouldExpire returns whether the entry should expire
+func (e *Entry) ShouldExpire(now time.Time) bool {
 	if atomic.LoadInt32(&e.closed) == 1 {
 		return false
 	}
@@ -149,7 +140,8 @@ func (e *Entry) shouldExpire(now time.Time) bool {
 	return numWriters == 0 && now.After(lastAccess.Add(e.opts.EntryTTL()))
 }
 
-func (e *Entry) expire() {
+// Expire expires the entry
+func (e *Entry) Expire() {
 	e.Lock()
 	if atomic.LoadInt32(&e.closed) == 1 {
 		e.Unlock()
