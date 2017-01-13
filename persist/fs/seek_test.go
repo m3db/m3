@@ -58,7 +58,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, s.Entries())
 	_, err = s.Seek(ts.StringID("foo"))
@@ -87,7 +87,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	assert.NoError(t, os.Truncate(dataFile, 1))
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	_, err = s.Seek(ts.StringID("foo"))
@@ -124,7 +124,7 @@ func TestSeekBadMarker(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	_, err = s.Seek(ts.StringID("foo"))
@@ -151,7 +151,7 @@ func TestIDs(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	contains := func(list []ts.ID, s ts.ID) bool {
@@ -186,7 +186,7 @@ func TestSeek(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	data, err := s.Seek(ts.StringID("foo3"))

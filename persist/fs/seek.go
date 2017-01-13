@@ -89,14 +89,14 @@ func (s *seeker) IDs() []ts.ID {
 	return fileIds
 }
 
-func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time, version uint32) error {
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		defaultVersionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-		defaultVersionFilesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
-		defaultVersionFilesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
-		defaultVersionFilesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+		versionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix, version):   &infoFd,
+		versionFilesetPathFromTime(shardDir, blockStart, indexFileSuffix, version):  &indexFd,
+		versionFilesetPathFromTime(shardDir, blockStart, dataFileSuffix, version):   &dataFd,
+		versionFilesetPathFromTime(shardDir, blockStart, digestFileSuffix, version): &digestFd,
 	}); err != nil {
 		return err
 	}

@@ -81,7 +81,7 @@ type FileSetSeeker interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(namespace ts.ID, shard uint32, start time.Time) error
+	Open(namespace ts.ID, shard uint32, start time.Time, version uint32) error
 
 	// Seek returns the data for specified id provided the index was loaded upon open. An
 	// error will be returned if the index was not loaded or id cannot be found

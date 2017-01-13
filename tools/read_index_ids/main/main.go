@@ -24,6 +24,7 @@ func main() {
 		optNamespace  = getopt.StringLong("namespace", 'n', "", "Namespace [e.g. metrics]")
 		optShard      = getopt.Uint32Long("shard-id", 's', 0, "Shard ID [expected format uint32]")
 		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
+		optVersion    = getopt.Uint32Long("version-num", 'v', 0, "Version [expected format uint32]")
 		log           = xlog.NewLogger(os.Stderr)
 	)
 	getopt.Parse()
@@ -31,6 +32,7 @@ func main() {
 	if *optPathPrefix == "" ||
 		*optNamespace == "" ||
 		*optShard < 0 ||
+		*optVersion < 0 ||
 		*optBlockstart <= 0 {
 		getopt.Usage()
 		os.Exit(1)
@@ -47,7 +49,8 @@ func main() {
 	seeker := fs.NewSeeker(*optPathPrefix, defaultBufferReadSize, bytesPool)
 
 	err := seeker.Open(ts.StringID(*optNamespace),
-		uint32(*optShard), time.Unix(0, int64(*optBlockstart)))
+		uint32(*optShard), time.Unix(0, int64(*optBlockstart)),
+		uint32(*optVersion))
 	if err != nil {
 		log.Fatalf("unable to open file: %v", err)
 	}
