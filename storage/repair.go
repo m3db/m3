@@ -438,8 +438,6 @@ func (r shardRepairer) recordDifferences(
 
 type repairFn func() error
 
-type sleepFn func(d time.Duration)
-
 type repairStatus int
 
 const (
@@ -462,17 +460,14 @@ type dbRepairer struct {
 	shardRepairer databaseShardRepairer
 	repairStates  map[time.Time]repairState
 
-	repairFn            repairFn
-	sleepFn             sleepFn
-	nowFn               clock.NowFn
-	logger              xlog.Logger
-	repairInterval      time.Duration
-	repairTimeOffset    time.Duration
-	repairTimeJitter    time.Duration
-	repairCheckInterval time.Duration
-	repairMaxRetries    int
-	closed              bool
-	running             int32
+	repairFn         repairFn
+	nowFn            clock.NowFn
+	logger           xlog.Logger
+	repairInterval   time.Duration
+	repairTimeJitter time.Duration
+	repairMaxRetries int
+	running          int32
+	lastRun          time.Time
 }
 
 func newDatabaseRepairer(database database) (databaseRepairer, error) {
@@ -498,57 +493,45 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 	}
 
 	r := &dbRepairer{
-		database:            database,
-		ropts:               ropts,
-		rtopts:              opts.RetentionOptions(),
-		shardRepairer:       shardRepairer,
-		repairStates:        make(map[time.Time]repairState),
-		sleepFn:             time.Sleep,
-		nowFn:               nowFn,
-		logger:              opts.InstrumentOptions().Logger(),
-		repairInterval:      ropts.RepairInterval(),
-		repairTimeOffset:    ropts.RepairTimeOffset(),
-		repairTimeJitter:    jitter,
-		repairCheckInterval: ropts.RepairCheckInterval(),
-		repairMaxRetries:    ropts.RepairMaxRetries(),
+		database:         database,
+		ropts:            ropts,
+		rtopts:           opts.RetentionOptions(),
+		shardRepairer:    shardRepairer,
+		repairStates:     make(map[time.Time]repairState),
+		nowFn:            nowFn,
+		logger:           opts.InstrumentOptions().Logger(),
+		repairInterval:   ropts.RepairInterval(),
+		repairTimeJitter: jitter,
+		repairMaxRetries: ropts.RepairMaxRetries(),
 	}
 	r.repairFn = r.Repair
 
 	return r, nil
 }
 
-func (r *dbRepairer) run() {
-	var curIntervalStart time.Time
+func (r *dbRepairer) ShouldRun() bool {
+	if r.IsRepairing() {
+		return false
+	}
+	now := r.nowFn()
+	maxDelta := r.repairInterval + r.repairTimeJitter
+	return now.Sub(r.lastRun).Nanoseconds() > maxDelta.Nanoseconds()
+}
 
-	for {
-		r.Lock()
-		closed := r.closed
-		r.Unlock()
-
-		if closed {
-			break
-		}
-
-		r.sleepFn(r.repairCheckInterval)
-
-		now := r.nowFn()
-		intervalStart := now.Truncate(r.repairInterval)
-
-		// If we haven't reached the offset yet, skip
-		target := intervalStart.Add(r.repairTimeOffset + r.repairTimeJitter)
-		if now.Before(target) {
-			continue
-		}
-
-		// If we are in the same interval, we must have already repaired, skip
-		if intervalStart == curIntervalStart {
-			continue
-		}
-
-		curIntervalStart = intervalStart
+func (r *dbRepairer) Run(async bool) {
+	run := func() {
 		if err := r.repairFn(); err != nil {
 			r.logger.Errorf("error repairing database: %v", err)
 		}
+		// setting lastRun regardless of success/failure
+		// to constrain the number of repairs run
+		r.lastRun = r.nowFn()
+	}
+
+	if async {
+		go run()
+	} else {
+		run()
 	}
 }
 
@@ -576,20 +559,6 @@ func (r *dbRepairer) needsRepair(t time.Time) bool {
 		return true
 	}
 	return repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries
-}
-
-func (r *dbRepairer) Start() {
-	if r.repairInterval <= 0 {
-		return
-	}
-
-	go r.run()
-}
-
-func (r *dbRepairer) Stop() {
-	r.Lock()
-	r.closed = true
-	r.Unlock()
 }
 
 func (r *dbRepairer) Repair() error {

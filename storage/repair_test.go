@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -45,133 +44,35 @@ func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 	return repair.NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetRepairInterval(time.Second).
-		SetRepairTimeOffset(500 * time.Millisecond).
-		SetRepairTimeJitter(300 * time.Millisecond).
-		SetRepairCheckInterval(100 * time.Millisecond)
+		SetRepairTimeJitter(300 * time.Millisecond)
 }
 
-func TestDatabaseRepairerStartStop(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockDatabase := newMockDatabase()
-	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
-
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
-	require.NoError(t, err)
-	repairer := databaseRepairer.(*dbRepairer)
-
-	var (
-		repaired bool
-		lock     sync.RWMutex
-	)
-
-	repairer.repairFn = func() error {
-		lock.Lock()
-		repaired = true
-		lock.Unlock()
-		return nil
-	}
-
-	repairer.Start()
-
-	for {
-		// Wait for repair to be called
-		lock.RLock()
-		done := repaired
-		lock.RUnlock()
-		if done {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-
-	repairer.Stop()
-	for {
-		// Wait for the repairer to stop
-		repairer.Lock()
-		closed := repairer.closed
-		repairer.Unlock()
-		if closed {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-}
-
-func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
+func TestDatabaseRepairerShouldRunOffsetChecker(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		repairInterval   = 2 * time.Hour
-		repairTimeOffset = time.Hour
-		now              = time.Now().Truncate(repairInterval).Add(30 * time.Minute)
-		repaired         = false
-		numIter          = 0
-	)
-
-	nowFn := func() time.Time { return now }
-	mockDatabase := newMockDatabase()
-	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
-	repairOpts := testRepairOptions(ctrl).
-		SetRepairInterval(repairInterval).
-		SetRepairTimeOffset(repairTimeOffset)
-	mockDatabase.opts = mockDatabase.opts.
-		SetClockOptions(clockOpts.SetNowFn(nowFn)).
-		SetRepairOptions(repairOpts)
-
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
-	require.NoError(t, err)
-	repairer := databaseRepairer.(*dbRepairer)
-
-	repairer.repairFn = func() error {
-		repaired = true
-		return nil
-	}
-
-	repairer.sleepFn = func(_ time.Duration) {
-		if numIter == 0 {
-			repairer.closed = true
-		}
-		numIter++
-	}
-
-	repairer.run()
-	require.Equal(t, 1, numIter)
-	require.False(t, repaired)
-}
-
-func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		repairInterval   = 2 * time.Hour
-		repairTimeOffset = time.Hour
-		now              = time.Now().Truncate(repairInterval).Add(90 * time.Minute)
-		numRepairs       = 0
-		numIter          = 0
+		repairInterval = 2 * time.Hour
+		now            = time.Now().Truncate(repairInterval).Add(30 * time.Minute)
+		callNum        = 1
 	)
 
 	nowFn := func() time.Time {
-		switch numIter {
-		case 0:
-			return now
+		switch callNum {
 		case 1:
-			return now.Add(time.Minute)
+			return now
 		case 2:
 			return now.Add(time.Hour)
+		case 3:
+			return now.Add(3 * time.Hour)
 		default:
-			return now.Add(2 * time.Hour)
+			return now
 		}
 	}
-
 	mockDatabase := newMockDatabase()
 	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
 	repairOpts := testRepairOptions(ctrl).
-		SetRepairInterval(repairInterval).
-		SetRepairTimeOffset(repairTimeOffset)
+		SetRepairInterval(repairInterval)
 	mockDatabase.opts = mockDatabase.opts.
 		SetClockOptions(clockOpts.SetNowFn(nowFn)).
 		SetRepairOptions(repairOpts)
@@ -181,20 +82,16 @@ func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
 	repairer := databaseRepairer.(*dbRepairer)
 
 	repairer.repairFn = func() error {
-		numRepairs++
 		return nil
 	}
 
-	repairer.sleepFn = func(_ time.Duration) {
-		if numIter == 3 {
-			repairer.closed = true
-		}
-		numIter++
-	}
+	require.True(t, repairer.ShouldRun())
+	repairer.Run(false)
+	callNum++
+	require.False(t, repairer.ShouldRun())
+	callNum++
+	require.True(t, repairer.ShouldRun())
 
-	repairer.run()
-	require.Equal(t, 4, numIter)
-	require.Equal(t, 2, numRepairs)
 }
 
 func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {

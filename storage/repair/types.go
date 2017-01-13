@@ -196,23 +196,11 @@ type Options interface {
 	// RepairInterval returns the repair interval
 	RepairInterval() time.Duration
 
-	// SetRepairTimeOffset sets the repair time offset
-	SetRepairTimeOffset(value time.Duration) Options
-
-	// RepairTimeOffset returns the repair time offset
-	RepairTimeOffset() time.Duration
-
 	// SetRepairJitter sets the repair time jitter
 	SetRepairTimeJitter(value time.Duration) Options
 
 	// RepairTimeJitter returns the repair time jitter
 	RepairTimeJitter() time.Duration
-
-	// SetRepairCheckInterval sets the repair check interval
-	SetRepairCheckInterval(value time.Duration) Options
-
-	// RepairCheckInterval returns the repair check interval
-	RepairCheckInterval() time.Duration
 
 	// SetRepairThrottle sets the repair throttle
 	SetRepairThrottle(value time.Duration) Options

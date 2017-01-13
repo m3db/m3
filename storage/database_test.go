@@ -106,9 +106,7 @@ func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 	opts = opts.SetRepairOptions(repair.NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetRepairInterval(time.Duration(0)).
-		SetRepairTimeOffset(time.Duration(0)).
-		SetRepairTimeJitter(time.Duration(0)).
-		SetRepairCheckInterval(time.Duration(0)))
+		SetRepairTimeJitter(time.Duration(0)))
 
 	database, err := NewDatabase(nil, nil, opts)
 	require.NoError(t, err)

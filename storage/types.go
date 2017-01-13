@@ -399,14 +399,11 @@ type databaseShardRepairer interface {
 
 // databaseRepairer repairs in-memory database data
 type databaseRepairer interface {
-	// Start starts the repair process
-	Start()
+	// ShouldRun determines if any repairs operations are needed
+	ShouldRun() bool
 
-	// Stop stops the repair process
-	Stop()
-
-	// Repair repairs in-memory data
-	Repair() error
+	// Run performs all repair-related operations
+	Run(async bool)
 
 	// IsRepairing returns whether the repairer is running or not
 	IsRepairing() bool
