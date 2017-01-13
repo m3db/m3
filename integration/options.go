@@ -244,6 +244,7 @@ func newTestOptions() testOptions {
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		repairThrottle:                 defaultRepairThrottle,
 		repairTimeJitter:               defaultRepairTimeJitter,
+		repairInterval:                 defaultRepairInterval,
 		numShards:                      defaultNumShards,
 	}
 }

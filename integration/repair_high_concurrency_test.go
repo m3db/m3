@@ -44,7 +44,7 @@ func TestRepairHighConcurrency(t *testing.T) {
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
 		SetNamespaces([]namespace.Metadata{namesp}).
-		SetRepairInterval(5 * time.Second).
+		SetRepairInterval(3 * time.Second).
 		SetRepairThrottle(1 * time.Second).
 		SetRepairTimeJitter(0 * time.Second).
 		SetNumShards(128)
@@ -106,7 +106,7 @@ func TestRepairHighConcurrency(t *testing.T) {
 	log.Debug("servers are now up")
 
 	// Wait an emperically determined amount of time for repairs to finish
-	time.Sleep(60 * time.Second)
+	time.Sleep(90 * time.Second)
 
 	// Stop the servers
 	defer func() {
