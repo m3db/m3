@@ -47,7 +47,7 @@ func TestRepairHighConcurrency(t *testing.T) {
 		SetRepairInterval(3 * time.Second).
 		SetRepairThrottle(1 * time.Second).
 		SetRepairTimeJitter(0 * time.Second).
-		SetNumShards(128)
+		SetNumShards(64)
 
 	retentionOpts := retention.NewOptions().
 		SetBufferDrain(3 * time.Second).
@@ -106,7 +106,7 @@ func TestRepairHighConcurrency(t *testing.T) {
 	log.Debug("servers are now up")
 
 	// Wait an emperically determined amount of time for repairs to finish
-	time.Sleep(120 * time.Second)
+	time.Sleep(2 * time.Minute)
 
 	// Stop the servers
 	defer func() {
