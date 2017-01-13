@@ -64,11 +64,8 @@ const (
 	// defaultRepairTimeJitter determines the repair jitter by default.
 	defaultRepairTimeJitter = time.Duration(1 * time.Second)
 
-	// defaultRepairTimeOffset determines the repair time offset by default.
-	defaultRepairTimeOffset = time.Duration(1 * time.Second)
-
-	// defaultRepairCheckInterval determines the repair check interval by default.
-	defaultRepairCheckInterval = time.Duration(1 * time.Minute)
+	// defaultRepairInterval determines the interval between repairs by default.
+	defaultRepairInterval = time.Duration(2 * time.Minute)
 
 	// defaultNumShards sets the default number of shards.
 	defaultNumShards = 1024
@@ -185,23 +182,17 @@ type testOptions interface {
 	// RepairThrottle returns the repair throttle duration.
 	RepairThrottle() time.Duration
 
+	// SetRepairInterval sets interval between repairs.
+	SetRepairInterval(interval time.Duration) testOptions
+
+	// RepairInterval returns the repair interval duration.
+	RepairInterval() time.Duration
+
 	// SetRepairTimeJitter sets the repair time jitter.
 	SetRepairTimeJitter(t time.Duration) testOptions
 
 	// RepairTimeJitter returns the repair time jitter.
 	RepairTimeJitter() time.Duration
-
-	// SetRepairTimeOffset sets the repair time offset.
-	SetRepairTimeOffset(t time.Duration) testOptions
-
-	// RepairTimeOffset returns the repair time offset.
-	RepairTimeOffset() time.Duration
-
-	// SetRepairCheckInterval sets the repair check interval duration.
-	SetRepairCheckInterval(t time.Duration) testOptions
-
-	// RepairCheckInterval returns the repair check interval duration.
-	RepairCheckInterval() time.Duration
 
 	// NumShards returns the number of shards.
 	NumShards() uint32
@@ -230,8 +221,7 @@ type options struct {
 	verifySeriesDebugFilePathPrefix    string
 	repairThrottle                     time.Duration
 	repairTimeJitter                   time.Duration
-	repairTimeOffset                   time.Duration
-	repairCheckInterval                time.Duration
+	repairInterval                     time.Duration
 	numShards                          uint32
 }
 
@@ -254,8 +244,6 @@ func newTestOptions() testOptions {
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		repairThrottle:                 defaultRepairThrottle,
 		repairTimeJitter:               defaultRepairTimeJitter,
-		repairTimeOffset:               defaultRepairTimeOffset,
-		repairCheckInterval:            defaultRepairCheckInterval,
 		numShards:                      defaultNumShards,
 	}
 }
@@ -440,6 +428,16 @@ func (o *options) RepairThrottle() time.Duration {
 	return o.repairThrottle
 }
 
+func (o *options) SetRepairInterval(t time.Duration) testOptions {
+	opts := *o
+	opts.repairInterval = t
+	return &opts
+}
+
+func (o *options) RepairInterval() time.Duration {
+	return o.repairInterval
+}
+
 func (o *options) SetRepairTimeJitter(t time.Duration) testOptions {
 	opts := *o
 	opts.repairTimeJitter = t
@@ -448,26 +446,6 @@ func (o *options) SetRepairTimeJitter(t time.Duration) testOptions {
 
 func (o *options) RepairTimeJitter() time.Duration {
 	return o.repairTimeJitter
-}
-
-func (o *options) SetRepairTimeOffset(t time.Duration) testOptions {
-	opts := *o
-	opts.repairTimeOffset = t
-	return &opts
-}
-
-func (o *options) RepairTimeOffset() time.Duration {
-	return o.repairTimeOffset
-}
-
-func (o *options) SetRepairCheckInterval(t time.Duration) testOptions {
-	opts := *o
-	opts.repairCheckInterval = t
-	return &opts
-}
-
-func (o *options) RepairCheckInterval() time.Duration {
-	return o.repairCheckInterval
 }
 
 func (o *options) SetNumShards(n uint32) testOptions {

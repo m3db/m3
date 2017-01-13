@@ -43,12 +43,12 @@ func TestRepairSimple(t *testing.T) {
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
 		SetNamespaces([]namespace.Metadata{namesp}).
+		SetRepairInterval(5 * time.Second).
 		SetRepairThrottle(1 * time.Second).
-		SetRepairCheckInterval(10 * time.Second).
-		SetRepairTimeJitter(0 * time.Second).
-		SetRepairTimeOffset(0 * time.Second)
+		SetRepairTimeJitter(0 * time.Second)
 
 	retentionOpts := retention.NewOptions().
+		SetBufferDrain(3 * time.Second).
 		SetRetentionPeriod(8 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
@@ -85,7 +85,9 @@ func TestRepairSimple(t *testing.T) {
 	later := now.Add(blockSize * 3).Add(30 * time.Second)
 	setups[0].setNowFn(later)
 	setups[1].setNowFn(later)
-	time.Sleep(setups[1].storageOpts.RepairOptions().RepairCheckInterval() * 4)
+
+	// Wait an emperically determined amount of time for repairs to finish
+	time.Sleep(20 * time.Second)
 
 	// Stop the servers
 	defer func() {

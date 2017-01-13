@@ -44,10 +44,9 @@ func TestRepairHighConcurrency(t *testing.T) {
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
 		SetNamespaces([]namespace.Metadata{namesp}).
+		SetRepairInterval(5 * time.Second).
 		SetRepairThrottle(1 * time.Second).
-		SetRepairCheckInterval(10 * time.Second).
 		SetRepairTimeJitter(0 * time.Second).
-		SetRepairTimeOffset(0 * time.Second).
 		SetNumShards(128)
 
 	retentionOpts := retention.NewOptions().
@@ -96,16 +95,18 @@ func TestRepairHighConcurrency(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setups[1], splitMaps[1]))
 	log.Debug("fs bootstrap input data written to disk")
 
+	// Move time forward to trigger repairs
+	later := now.Add(blockSize * 2).Add(30 * time.Second)
+	setups[0].setNowFn(later)
+	setups[1].setNowFn(later)
+
 	// Start the servers with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
 
-	// Move time forward to trigger repairs
-	later := now.Add(blockSize * 2).Add(30 * time.Second)
-	setups[0].setNowFn(later)
-	setups[1].setNowFn(later)
-	time.Sleep(setups[1].storageOpts.RepairOptions().RepairCheckInterval() * 4)
+	// Wait an emperically determined amount of time for repairs to finish
+	time.Sleep(60 * time.Second)
 
 	// Stop the servers
 	defer func() {
