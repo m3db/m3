@@ -243,6 +243,12 @@ type Options interface {
 	// EntryCheckInterval returns the interval for checking expired entries
 	EntryCheckInterval() time.Duration
 
+	// SetEntryCheckBatchPercent sets the batch percentage for checking expired entries
+	SetEntryCheckBatchPercent(value float64) Options
+
+	// EntryCheckBatchPercent returns the batch percentage for checking expired entries
+	EntryCheckBatchPercent() float64
+
 	// SetEntryPool sets the entry pool
 	SetEntryPool(value EntryPool) Options
 

@@ -33,22 +33,23 @@ import (
 )
 
 var (
-	defaultMetricPrefix       = []byte("stats.")
-	defaultCounterPrefix      = []byte("counts.")
-	defaultTimerPrefix        = []byte("timers.")
-	defaultTimerSumSuffix     = []byte(".sum")
-	defaultTimerSumSqSuffix   = []byte(".sum_sq")
-	defaultTimerMeanSuffix    = []byte(".mean")
-	defaultTimerLowerSuffix   = []byte(".lower")
-	defaultTimerUpperSuffix   = []byte(".upper")
-	defaultTimerCountSuffix   = []byte(".count")
-	defaultTimerStdevSuffix   = []byte(".stdev")
-	defaultTimerMedianSuffix  = []byte(".median")
-	defaultGaugePrefix        = []byte("gauges.")
-	defaultMinFlushInterval   = 5 * time.Second
-	defaultMaxFlushSize       = 1440
-	defaultEntryTTL           = 24 * time.Hour
-	defaultEntryCheckInterval = time.Hour
+	defaultMetricPrefix           = []byte("stats.")
+	defaultCounterPrefix          = []byte("counts.")
+	defaultTimerPrefix            = []byte("timers.")
+	defaultTimerSumSuffix         = []byte(".sum")
+	defaultTimerSumSqSuffix       = []byte(".sum_sq")
+	defaultTimerMeanSuffix        = []byte(".mean")
+	defaultTimerLowerSuffix       = []byte(".lower")
+	defaultTimerUpperSuffix       = []byte(".upper")
+	defaultTimerCountSuffix       = []byte(".count")
+	defaultTimerStdevSuffix       = []byte(".stdev")
+	defaultTimerMedianSuffix      = []byte(".median")
+	defaultGaugePrefix            = []byte("gauges.")
+	defaultMinFlushInterval       = 5 * time.Second
+	defaultMaxFlushSize           = 1440
+	defaultEntryTTL               = 24 * time.Hour
+	defaultEntryCheckInterval     = time.Hour
+	defaultEntryCheckBatchPercent = 0.01
 )
 
 // By default we use e.g. ".p50", ".p95", ".p99" for the 50th/95th/99th percentile
@@ -64,33 +65,34 @@ func defaultFlushFn(buffer msgpack.BufferedEncoder) error {
 
 type options struct {
 	// Base options
-	metricPrefix          []byte
-	counterPrefix         []byte
-	timerPrefix           []byte
-	timerSumSuffix        []byte
-	timerSumSqSuffix      []byte
-	timerMeanSuffix       []byte
-	timerLowerSuffix      []byte
-	timerUpperSuffix      []byte
-	timerCountSuffix      []byte
-	timerStdevSuffix      []byte
-	timerMedianSuffix     []byte
-	timerQuantileSuffixFn QuantileSuffixFn
-	gaugePrefix           []byte
-	clockOpts             clock.Options
-	instrumentOpts        instrument.Options
-	streamOpts            cm.Options
-	timeLock              *sync.RWMutex
-	minFlushInterval      time.Duration
-	maxFlushSize          int
-	flushFn               FlushFn
-	entryTTL              time.Duration
-	entryCheckInterval    time.Duration
-	entryPool             EntryPool
-	counterElemPool       CounterElemPool
-	timerElemPool         TimerElemPool
-	gaugeElemPool         GaugeElemPool
-	bufferedEncoderPool   msgpack.BufferedEncoderPool
+	metricPrefix           []byte
+	counterPrefix          []byte
+	timerPrefix            []byte
+	timerSumSuffix         []byte
+	timerSumSqSuffix       []byte
+	timerMeanSuffix        []byte
+	timerLowerSuffix       []byte
+	timerUpperSuffix       []byte
+	timerCountSuffix       []byte
+	timerStdevSuffix       []byte
+	timerMedianSuffix      []byte
+	timerQuantileSuffixFn  QuantileSuffixFn
+	gaugePrefix            []byte
+	clockOpts              clock.Options
+	instrumentOpts         instrument.Options
+	streamOpts             cm.Options
+	timeLock               *sync.RWMutex
+	minFlushInterval       time.Duration
+	maxFlushSize           int
+	flushFn                FlushFn
+	entryTTL               time.Duration
+	entryCheckInterval     time.Duration
+	entryCheckBatchPercent float64
+	entryPool              EntryPool
+	counterElemPool        CounterElemPool
+	timerElemPool          TimerElemPool
+	gaugeElemPool          GaugeElemPool
+	bufferedEncoderPool    msgpack.BufferedEncoderPool
 
 	// Derived options
 	fullCounterPrefix     []byte
@@ -103,28 +105,29 @@ type options struct {
 // NewOptions create a new set of options
 func NewOptions() Options {
 	o := &options{
-		metricPrefix:          defaultMetricPrefix,
-		counterPrefix:         defaultCounterPrefix,
-		timerPrefix:           defaultTimerPrefix,
-		timerSumSuffix:        defaultTimerSumSuffix,
-		timerSumSqSuffix:      defaultTimerSumSqSuffix,
-		timerMeanSuffix:       defaultTimerMeanSuffix,
-		timerLowerSuffix:      defaultTimerLowerSuffix,
-		timerUpperSuffix:      defaultTimerUpperSuffix,
-		timerCountSuffix:      defaultTimerCountSuffix,
-		timerStdevSuffix:      defaultTimerStdevSuffix,
-		timerMedianSuffix:     defaultTimerMedianSuffix,
-		timerQuantileSuffixFn: defaultTimerQuantileSuffixFn,
-		gaugePrefix:           defaultGaugePrefix,
-		clockOpts:             clock.NewOptions(),
-		instrumentOpts:        instrument.NewOptions(),
-		streamOpts:            cm.NewOptions(),
-		timeLock:              &sync.RWMutex{},
-		minFlushInterval:      defaultMinFlushInterval,
-		maxFlushSize:          defaultMaxFlushSize,
-		flushFn:               defaultFlushFn,
-		entryTTL:              defaultEntryTTL,
-		entryCheckInterval:    defaultEntryCheckInterval,
+		metricPrefix:           defaultMetricPrefix,
+		counterPrefix:          defaultCounterPrefix,
+		timerPrefix:            defaultTimerPrefix,
+		timerSumSuffix:         defaultTimerSumSuffix,
+		timerSumSqSuffix:       defaultTimerSumSqSuffix,
+		timerMeanSuffix:        defaultTimerMeanSuffix,
+		timerLowerSuffix:       defaultTimerLowerSuffix,
+		timerUpperSuffix:       defaultTimerUpperSuffix,
+		timerCountSuffix:       defaultTimerCountSuffix,
+		timerStdevSuffix:       defaultTimerStdevSuffix,
+		timerMedianSuffix:      defaultTimerMedianSuffix,
+		timerQuantileSuffixFn:  defaultTimerQuantileSuffixFn,
+		gaugePrefix:            defaultGaugePrefix,
+		clockOpts:              clock.NewOptions(),
+		instrumentOpts:         instrument.NewOptions(),
+		streamOpts:             cm.NewOptions(),
+		timeLock:               &sync.RWMutex{},
+		minFlushInterval:       defaultMinFlushInterval,
+		maxFlushSize:           defaultMaxFlushSize,
+		flushFn:                defaultFlushFn,
+		entryTTL:               defaultEntryTTL,
+		entryCheckInterval:     defaultEntryCheckInterval,
+		entryCheckBatchPercent: defaultEntryCheckBatchPercent,
 	}
 
 	// Initialize pools
@@ -360,6 +363,16 @@ func (o *options) SetEntryCheckInterval(value time.Duration) Options {
 
 func (o *options) EntryCheckInterval() time.Duration {
 	return o.entryCheckInterval
+}
+
+func (o *options) SetEntryCheckBatchPercent(value float64) Options {
+	opts := *o
+	opts.entryCheckBatchPercent = value
+	return &opts
+}
+
+func (o *options) EntryCheckBatchPercent() float64 {
+	return o.entryCheckBatchPercent
 }
 
 func (o *options) SetEntryPool(value EntryPool) Options {

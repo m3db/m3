@@ -62,13 +62,14 @@ type aggregator struct {
 // TODO(xichen): add metrics
 func NewAggregator(opts Options) Aggregator {
 	lists := newMetricLists(opts)
+	doneCh := make(chan struct{})
 	agg := &aggregator{
 		opts:          opts,
 		nowFn:         opts.ClockOptions().NowFn(),
 		checkInterval: opts.EntryCheckInterval(),
-		doneCh:        make(chan struct{}),
+		doneCh:        doneCh,
 		lists:         lists,
-		metrics:       newMetricMap(lists, opts),
+		metrics:       newMetricMap(lists, doneCh, opts),
 	}
 	agg.addMetricWithPoliciesFn = agg.metrics.AddMetricWithPolicies
 	agg.waitForFn = time.After
@@ -124,7 +125,7 @@ func (agg *aggregator) tick() {
 
 func (agg *aggregator) tickInternal() {
 	start := agg.nowFn()
-	agg.metrics.DeleteExpired()
+	agg.metrics.DeleteExpired(agg.checkInterval)
 	tickDuration := agg.nowFn().Sub(start)
 	// TODO(xichen): add metrics
 	if tickDuration < agg.checkInterval {
