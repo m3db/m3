@@ -106,7 +106,7 @@ func TestRepairHighConcurrency(t *testing.T) {
 	log.Debug("servers are now up")
 
 	// Wait an emperically determined amount of time for repairs to finish
-	time.Sleep(2 * time.Minute)
+	time.Sleep(3 * time.Minute)
 
 	// Stop the servers
 	defer func() {
