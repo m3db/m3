@@ -337,7 +337,10 @@ func TestMarkShard(t *testing.T) {
 	i5.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"))
 
 	instances := []services.PlacementInstance{i1, i2, i3, i4, i5}
-	p := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 2)
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
+		SetReplicaFactor(2)
 	err := ms.SetIfNotExist(sid, p)
 	assert.NoError(t, err)
 
@@ -389,7 +392,10 @@ func TestMarkInstance(t *testing.T) {
 	i5.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
 
 	instances := []services.PlacementInstance{i1, i2, i3, i4, i5}
-	p := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 2)
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
+		SetReplicaFactor(2)
 	err := ms.SetIfNotExist(sid, p)
 	assert.NoError(t, err)
 
@@ -442,7 +448,7 @@ func TestFindReplaceInstance(t *testing.T) {
 	instances := []services.PlacementInstance{i1, i2, i3, i4, i10}
 
 	ids := []uint32{1, 2, 3, 4, 5, 6, 7, 8}
-	s := placement.NewPlacement(instances, ids, 2)
+	s := placement.NewPlacement().SetInstances(instances).SetShards(ids).SetReplicaFactor(2)
 
 	candidates := []services.PlacementInstance{
 		placement.NewEmptyInstance("i11", "r11", "z1", "endpoint", 1),

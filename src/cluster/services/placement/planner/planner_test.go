@@ -63,7 +63,10 @@ func TestDeployment(t *testing.T) {
 
 	instances := []services.PlacementInstance{i1, i2, i3, i4, i5, i6}
 
-	mp := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 3)
+	mp := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
+		SetReplicaFactor(3)
 
 	dp := NewShardAwareDeploymentPlanner(placement.NewDeploymentOptions())
 	steps := dp.DeploymentSteps(mp)
@@ -112,17 +115,15 @@ func TestDeterministicSteps(t *testing.T) {
 	h9.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 	h9.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 
-	mp1 := placement.NewPlacement(
-		[]services.PlacementInstance{i1, i2, i3, i4, i5, i6, h7, h8, h9},
-		[]uint32{1, 2, 3, 4, 5, 6},
-		3,
-	)
+	mp1 := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2, i3, i4, i5, i6, h7, h8, h9}).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
+		SetReplicaFactor(3)
 
-	mp2 := placement.NewPlacement(
-		[]services.PlacementInstance{i4, i5, i6, h7, h8, h9, i1, i2, i3},
-		[]uint32{1, 2, 3, 4, 5, 6},
-		3,
-	)
+	mp2 := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{i4, i5, i6, h7, h8, h9, i1, i2, i3}).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
+		SetReplicaFactor(3)
 
 	dp := NewShardAwareDeploymentPlanner(placement.NewDeploymentOptions())
 	assert.Equal(t, dp.DeploymentSteps(mp1), dp.DeploymentSteps(mp2))
@@ -167,7 +168,10 @@ func TestDeploymentWithThreeReplica(t *testing.T) {
 
 	instances := []services.PlacementInstance{i1, i2, i3, i4, i5, i6, h7, h8, h9}
 
-	mp := placement.NewPlacement(instances, []uint32{1, 2, 3, 4, 5, 6}, 3)
+	mp := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
+		SetReplicaFactor(3)
 
 	dp := NewShardAwareDeploymentPlanner(placement.NewDeploymentOptions())
 	steps := dp.DeploymentSteps(mp)

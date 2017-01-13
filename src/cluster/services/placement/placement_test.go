@@ -64,7 +64,7 @@ func TestPlacement(t *testing.T) {
 	instances := []services.PlacementInstance{i1, i2, i3, i4, i5, i6}
 
 	ids := []uint32{1, 2, 3, 4, 5, 6}
-	p := NewPlacement(instances, ids, 3)
+	p := NewPlacement().SetInstances(instances).SetShards(ids).SetReplicaFactor(3)
 	assert.NoError(t, Validate(p))
 
 	i, exist := p.Instance("i6")
@@ -96,11 +96,11 @@ func TestValidateGood(t *testing.T) {
 	i2.Shards().Add(shard.NewShard(6).SetState(shard.Initializing))
 
 	instances := []services.PlacementInstance{i1, i2}
-	p := NewPlacement(instances, ids, 1)
+	p := NewPlacement().SetInstances(instances).SetShards(ids).SetReplicaFactor(1)
 	assert.NoError(t, Validate(p))
 
 	// mismatch shards
-	p = NewPlacement(instances, append(ids, 7), 1)
+	p = NewPlacement().SetInstances(instances).SetShards(append(ids, 7)).SetReplicaFactor(1)
 	assert.Error(t, Validate(p))
 	assert.Error(t, Validate(p))
 }
@@ -115,7 +115,7 @@ func TestValidateMissingShard(t *testing.T) {
 
 	instances := []services.PlacementInstance{i1, i2}
 	ids := []uint32{1, 2}
-	p := NewPlacement(instances, ids, 2)
+	p := NewPlacement().SetInstances(instances).SetShards(ids).SetReplicaFactor(2)
 	err := Validate(p)
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "invalid placement, the total available shards in the placement is 3, expecting 4")
@@ -130,7 +130,10 @@ func TestValidateUnexpectedShard(t *testing.T) {
 	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
 	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	p := NewPlacement([]services.PlacementInstance{i1, i2}, []uint32{1, 2}, 2)
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(2)
 	assert.Error(t, Validate(p))
 	assert.Equal(t, errUnexpectedShards, Validate(p))
 }
@@ -146,7 +149,10 @@ func TestValidateDuplicatedShards(t *testing.T) {
 	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
 	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
 
-	p := NewPlacement([]services.PlacementInstance{i1, i2}, []uint32{2, 3, 4, 4, 5, 6}, 1)
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{2, 3, 4, 4, 5, 6}).
+		SetReplicaFactor(1)
 	assert.Error(t, Validate(p))
 	assert.Equal(t, errDuplicatedShards, Validate(p))
 }
@@ -167,7 +173,10 @@ func TestValidateWrongReplicaForSomeShards(t *testing.T) {
 	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 	i3.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	p := NewPlacement([]services.PlacementInstance{i1, i2, i3}, []uint32{1, 2, 3, 4}, 2)
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2, i3}).
+		SetShards([]uint32{1, 2, 3, 4}).
+		SetReplicaFactor(2)
 	assert.Error(t, Validate(p))
 }
 
@@ -182,7 +191,10 @@ func TestValidateLeavingMoreThanInitializing(t *testing.T) {
 	i2.Shards().Add(shard.NewShard(2).SetState(shard.Leaving))
 	i2.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
 
-	p := NewPlacement([]services.PlacementInstance{i1, i2}, []uint32{1, 2, 3}, 1)
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2, 3}).
+		SetReplicaFactor(1)
 	err := Validate(p)
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "invalid placement, 3 shards in Leaving state, more than 2 in Initializing state")
@@ -198,7 +210,10 @@ func TestValidateLeavingNotMatchInitializingWithSourceID(t *testing.T) {
 	i2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
 	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
 
-	p := NewPlacement([]services.PlacementInstance{i1, i2}, []uint32{1, 2, 3}, 1)
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2, 3}).
+		SetReplicaFactor(1)
 	err := Validate(p)
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "invalid placement, 2 shards in Leaving state, not equal 1 in Initializing state with source id")
@@ -211,7 +226,10 @@ func TestValidateNoEndpoint(t *testing.T) {
 	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
 	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
 
-	p := NewPlacement([]services.PlacementInstance{i1, i2}, []uint32{1, 2}, 1)
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(1)
 	err := Validate(p)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "does not contain valid endpoint")
@@ -223,7 +241,10 @@ func TestValidateInstanceWithNoShard(t *testing.T) {
 	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
 	i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
 
-	p := NewPlacement([]services.PlacementInstance{i1, i2}, []uint32{1}, 1)
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1}).
+		SetReplicaFactor(1)
 	err := Validate(p)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "contains no shard")

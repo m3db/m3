@@ -46,7 +46,10 @@ func TestPlacementStorage(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
-	p := placement.NewPlacement([]services.PlacementInstance{}, []uint32{}, 0)
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{}).
+		SetShards([]uint32{}).
+		SetReplicaFactor(0)
 
 	err = ps.SetIfNotExist(sid, p)
 	require.NoError(t, err)
