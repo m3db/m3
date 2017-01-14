@@ -68,6 +68,7 @@ type MetricList struct {
 	doneCh        chan struct{}
 	wgTick        sync.WaitGroup
 	encodeFn      encodeFn
+	aggMetricFn   aggMetricFn
 	waitForFn     waitForFn
 }
 
@@ -98,6 +99,7 @@ func newMetricList(resolution time.Duration, opts Options) *MetricList {
 		doneCh:        make(chan struct{}),
 	}
 	l.encodeFn = l.encoder.EncodeChunkedMetricWithPolicy
+	l.aggMetricFn = l.processAggregatedMetric
 	l.waitForFn = time.After
 
 	// Start ticking
@@ -175,7 +177,7 @@ func (l *MetricList) tickInternal() {
 		case metricElem:
 			// If the element is eligible for collection after the values are
 			// processed, close it and reset the value to nil
-			if elem.ReadAndDiscard(alignedStart, l.processAggregatedMetric) {
+			if elem.ReadAndDiscard(alignedStart, l.aggMetricFn) {
 				elem.Close()
 				e.Value = nil
 				l.toCollect = append(l.toCollect, e)
