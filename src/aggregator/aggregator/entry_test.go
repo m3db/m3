@@ -24,7 +24,6 @@ import (
 	"container/list"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -157,7 +156,7 @@ func TestEntryIncDecWriter(t *testing.T) {
 func TestEntryResetSetData(t *testing.T) {
 	e, lists, now := testEntry()
 
-	require.Equal(t, int32(0), atomic.LoadInt32(&e.closed))
+	require.False(t, e.closed)
 	require.Equal(t, lists, e.lists)
 	require.Equal(t, policy.InitPolicyVersion, e.version)
 	require.Equal(t, int32(0), e.numWriters)
@@ -313,14 +312,14 @@ func TestEntryAddMetricsWithPolicyError(t *testing.T) {
 	))
 
 	// Add a metric to a closed entry should result in an error
-	atomic.StoreInt32(&e.closed, 1)
+	e.closed = true
 	require.Equal(t, errEntryClosed, e.AddMetricWithPolicies(
 		testCounter,
 		versionedPolicies,
 	))
 
 	// Add a metric with closed lists should result in an error
-	atomic.StoreInt32(&e.closed, 0)
+	e.closed = false
 	lists.closed = true
 	require.Error(t, e.AddMetricWithPolicies(
 		testCounter,
@@ -335,11 +334,11 @@ func TestEntryMaybeExpireNoExpiry(t *testing.T) {
 	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(-time.Second)))
 
 	// If the entry is closed, should not expire
-	atomic.StoreInt32(&e.closed, 1)
+	e.closed = true
 	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
 
 	// If there are still active writers, should not expire
-	atomic.StoreInt32(&e.closed, 0)
+	e.closed = false
 	e.numWriters = 1
 	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
 }

@@ -50,7 +50,7 @@ type Entry struct {
 	numWriters     int32                           // number of writers writing to this entry
 	lastAccessInNs int64                           // last access time
 	aggregations   map[policy.Policy]*list.Element // aggregations at different resolutions
-	closed         int32                           // whether the entry is closed
+	closed         bool                            // whether the entry is closed
 }
 
 // NewEntry creates a new entry
@@ -71,7 +71,7 @@ func (e *Entry) DecWriter() { atomic.AddInt32(&e.numWriters, -1) }
 
 // ResetSetData resets the entry and sets initial data
 func (e *Entry) ResetSetData(lists *MetricLists) {
-	atomic.StoreInt32(&e.closed, 0)
+	e.closed = false
 	e.lists = lists
 	e.version = policy.InitPolicyVersion
 	e.numWriters = 0
@@ -94,7 +94,7 @@ func (e *Entry) AddMetricWithPolicies(
 	defer timeLock.RUnlock()
 
 	e.RLock()
-	if atomic.LoadInt32(&e.closed) == 1 {
+	if e.closed {
 		e.RUnlock()
 		return errEntryClosed
 	}
@@ -110,7 +110,7 @@ func (e *Entry) AddMetricWithPolicies(
 	e.RUnlock()
 
 	e.Lock()
-	if atomic.LoadInt32(&e.closed) == 1 {
+	if e.closed {
 		e.Unlock()
 		return errEntryClosed
 	}
@@ -132,22 +132,26 @@ func (e *Entry) AddMetricWithPolicies(
 
 // ShouldExpire returns whether the entry should expire
 func (e *Entry) ShouldExpire(now time.Time) bool {
-	if atomic.LoadInt32(&e.closed) == 1 {
+	e.RLock()
+	if e.closed {
+		e.RUnlock()
 		return false
 	}
-	numWriters := int(atomic.LoadInt32(&e.numWriters))
-	lastAccess := time.Unix(0, atomic.LoadInt64(&e.lastAccessInNs))
-	return numWriters == 0 && now.After(lastAccess.Add(e.opts.EntryTTL()))
+	// Only expire the entry if there are no active writers
+	// and it has reached its ttl since last accessed
+	shouldExpire := e.writerCount() == 0 && now.After(e.lastAccessed().Add(e.opts.EntryTTL()))
+	e.RUnlock()
+	return shouldExpire
 }
 
 // Expire expires the entry
 func (e *Entry) Expire() {
 	e.Lock()
-	if atomic.LoadInt32(&e.closed) == 1 {
+	if e.closed {
 		e.Unlock()
 		return
 	}
-	atomic.StoreInt32(&e.closed, 1)
+	e.closed = true
 	for p, agg := range e.aggregations {
 		switch elem := agg.Value.(type) {
 		case metricElem:
@@ -164,6 +168,9 @@ func (e *Entry) Expire() {
 
 	pool.Put(e)
 }
+
+func (e *Entry) writerCount() int        { return int(atomic.LoadInt32(&e.numWriters)) }
+func (e *Entry) lastAccessed() time.Time { return time.Unix(0, atomic.LoadInt64(&e.lastAccessInNs)) }
 
 func (e *Entry) recordLastAccessed(currTime time.Time) {
 	atomic.StoreInt64(&e.lastAccessInNs, currTime.UnixNano())
