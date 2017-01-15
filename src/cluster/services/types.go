@@ -197,6 +197,10 @@ type PlacementOptions interface {
 	// placed on instances other than the new instances in a replace operation
 	AllowPartialReplace() bool
 	SetAllowPartialReplace(allowPartialReplace bool) PlacementOptions
+
+	// Dryrun will try to perform the placement operation but will not persist the final result
+	Dryrun() bool
+	SetDryrun(d bool) PlacementOptions
 }
 
 // ServicePlacement describes how instances are placed in a service

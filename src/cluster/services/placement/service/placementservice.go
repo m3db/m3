@@ -88,6 +88,10 @@ func (ps placementService) BuildInitialPlacement(
 		return nil, err
 	}
 
+	if ps.opts.Dryrun() {
+		return p, err
+	}
+
 	return p, ps.ss.SetIfNotExist(ps.service, p)
 }
 
@@ -103,6 +107,10 @@ func (ps placementService) AddReplica() (services.ServicePlacement, error) {
 
 	if err := placement.Validate(p); err != nil {
 		return nil, err
+	}
+
+	if ps.opts.Dryrun() {
+		return p, err
 	}
 
 	return p, ps.ss.CheckAndSet(ps.service, p, v)
@@ -128,6 +136,10 @@ func (ps placementService) AddInstance(
 		return nil, err
 	}
 
+	if ps.opts.Dryrun() {
+		return p, err
+	}
+
 	return p, ps.ss.CheckAndSet(ps.service, p, v)
 }
 
@@ -147,6 +159,10 @@ func (ps placementService) RemoveInstance(instanceID string) (services.ServicePl
 
 	if err := placement.Validate(p); err != nil {
 		return nil, err
+	}
+
+	if ps.opts.Dryrun() {
+		return p, err
 	}
 
 	return p, ps.ss.CheckAndSet(ps.service, p, v)
@@ -177,6 +193,10 @@ func (ps placementService) ReplaceInstance(
 
 	if err := placement.Validate(p); err != nil {
 		return nil, err
+	}
+
+	if ps.opts.Dryrun() {
+		return p, err
 	}
 
 	return p, ps.ss.CheckAndSet(ps.service, p, v)
