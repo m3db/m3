@@ -182,8 +182,11 @@ type PlacementService interface {
 	// MarkInstanceAvailable marks all the shards on a given instance as available
 	MarkInstanceAvailable(instanceID string) error
 
-	// Placement gets the persisted placement for service
-	Placement() (ServicePlacement, error)
+	// Placement returns the persisted placement with version
+	Placement() (ServicePlacement, int, error)
+
+	// SetPlacement persists the placement
+	SetPlacement(p ServicePlacement) error
 }
 
 // PlacementOptions is the interface for placement options
