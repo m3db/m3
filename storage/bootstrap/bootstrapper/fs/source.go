@@ -46,14 +46,10 @@ type fileSystemSource struct {
 	filePathPrefix   string
 	readerBufferSize int
 	newReaderFn      newFileSetReaderFn
-	ioWorkers        xsync.WorkerPool
 	processors       xsync.WorkerPool
 }
 
 func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
-	ioWorkers := xsync.NewWorkerPool(opts.NumIOWorkers())
-	ioWorkers.Init()
-
 	processors := xsync.NewWorkerPool(opts.NumProcessors())
 	processors.Init()
 
@@ -63,14 +59,13 @@ func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 		filePathPrefix:   prefix,
 		readerBufferSize: opts.FilesystemOptions().ReaderBufferSize(),
 		newReaderFn:      fs.NewReader,
-		ioWorkers:        ioWorkers,
 		processors:       processors,
 	}
 }
 
 func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
 	switch strategy {
-	case bootstrap.BootstrapParallel, bootstrap.BootstrapSequential:
+	case bootstrap.BootstrapSequential:
 		return true
 	}
 	return false
@@ -124,52 +119,48 @@ func (s *fileSystemSource) enqueueReaders(
 
 	for shard, tr := range shardsTimeRanges {
 		shard, tr := shard, tr
-		wg.Add(1)
-		s.ioWorkers.Go(func() {
-			defer wg.Done()
 
-			var files []string
-			fs.ForEachInfoFile(s.filePathPrefix, namespace, shard, s.readerBufferSize, func(fname string, _ []byte) {
-				files = append(files, fname)
-			})
-
-			if len(files) == 0 {
-				// Use default readers value to indicate no readers for this shard
-				readersCh <- shardReaders{shard: shard, tr: tr}
-				return
-			}
-
-			readers := make([]fs.FileSetReader, 0, len(files))
-			for i := 0; i < len(files); i++ {
-				t, err := fs.TimeFromFileName(files[i])
-				if err != nil {
-					s.log.WithFields(
-						xlog.NewLogField("shard", shard),
-						xlog.NewLogField("file", files[i]),
-						xlog.NewLogField("error", err.Error()),
-					).Error("unable to get time from info file")
-					continue
-				}
-				r := readerPool.get()
-				if err := r.Open(namespace, shard, t); err != nil {
-					s.log.WithFields(
-						xlog.NewLogField("shard", shard),
-						xlog.NewLogField("time", t.String()),
-						xlog.NewLogField("error", err.Error()),
-					).Error("unable to open fileset files")
-					readerPool.put(r)
-					continue
-				}
-				timeRange := r.Range()
-				if !tr.Overlaps(timeRange) {
-					r.Close()
-					readerPool.put(r)
-					continue
-				}
-				readers = append(readers, r)
-			}
-			readersCh <- shardReaders{shard: shard, tr: tr, readers: readers}
+		var files []string
+		fs.ForEachInfoFile(s.filePathPrefix, namespace, shard, s.readerBufferSize, func(fname string, _ []byte) {
+			files = append(files, fname)
 		})
+
+		if len(files) == 0 {
+			// Use default readers value to indicate no readers for this shard
+			readersCh <- shardReaders{shard: shard, tr: tr}
+			return
+		}
+
+		readers := make([]fs.FileSetReader, 0, len(files))
+		for i := 0; i < len(files); i++ {
+			t, err := fs.TimeFromFileName(files[i])
+			if err != nil {
+				s.log.WithFields(
+					xlog.NewLogField("shard", shard),
+					xlog.NewLogField("file", files[i]),
+					xlog.NewLogField("error", err.Error()),
+				).Error("unable to get time from info file")
+				continue
+			}
+			r := readerPool.get()
+			if err := r.Open(namespace, shard, t); err != nil {
+				s.log.WithFields(
+					xlog.NewLogField("shard", shard),
+					xlog.NewLogField("time", t.String()),
+					xlog.NewLogField("error", err.Error()),
+				).Error("unable to open fileset files")
+				readerPool.put(r)
+				continue
+			}
+			timeRange := r.Range()
+			if !tr.Overlaps(timeRange) {
+				r.Close()
+				readerPool.put(r)
+				continue
+			}
+			readers = append(readers, r)
+		}
+		readersCh <- shardReaders{shard: shard, tr: tr, readers: readers}
 	}
 
 	wg.Wait()

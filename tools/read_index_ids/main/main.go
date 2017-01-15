@@ -36,10 +36,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	bytesPool := pool.NewBytesPool([]pool.Bucket{pool.Bucket{
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: defaultBufferCapacity,
 		Count:    defaultBufferPoolCount,
-	}}, nil)
+	}}, nil, func(buckets []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(buckets, nil)
+	})
 	bytesPool.Init()
 
 	seeker := fs.NewSeeker(*optPathPrefix, defaultBufferReadSize, bytesPool)

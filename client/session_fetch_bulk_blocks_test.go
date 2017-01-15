@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
@@ -1221,12 +1220,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
 	bopts := result.NewOptions().SetRetentionOptions(ropts)
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
-	poolOpts := pool.NewObjectPoolOptions().SetSize(0)
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(poolOpts)
-	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, true, encoding.NewOptions())
-	})
-	r := newBulkBlocksResult(opts, bopts, multiReaderIteratorPool)
+	r := newBulkBlocksResult(opts, bopts)
 	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert result
@@ -1264,7 +1258,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 		}},
 	}
 
-	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
+	r := newBulkBlocksResult(opts, bopts)
 	r.addBlockFromPeer(fooID, testHost, bl)
 
 	series := r.result.AllSeries()
@@ -1306,7 +1300,8 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
 	bopts = bopts.SetDatabaseBlockOptions(bopts.DatabaseBlockOptions().
-		SetEncoderPool(encoderPool))
+		SetEncoderPool(encoderPool).
+		SetMultiReaderIteratorPool(newSessionTestMultiReaderIteratorPool()))
 
 	start := time.Now()
 
@@ -1341,7 +1336,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
-	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
+	r := newBulkBlocksResult(opts, bopts)
 	r.addBlockFromPeer(fooID, testHost, bl)
 
 	series := r.result.AllSeries()
@@ -1386,7 +1381,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
+	r := newBulkBlocksResult(opts, bopts)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
 	err := r.addBlockFromPeer(fooID, testHost, bl)
@@ -1397,7 +1392,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts, newSessionTestMultiReaderIteratorPool())
+	r := newBulkBlocksResult(opts, bopts)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
 	err := r.addBlockFromPeer(fooID, testHost, bl)

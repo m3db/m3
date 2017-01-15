@@ -23,12 +23,12 @@ package client
 import (
 	"time"
 
-	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
@@ -543,10 +543,4 @@ type AdminOptions interface {
 
 	// FetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch
 	FetchSeriesBlocksBatchConcurrency() int
-
-	// SetFetchSeriesBlocksResultsProcessors sets the concurrency for processing results when fetching series blocks
-	SetFetchSeriesBlocksResultsProcessors(value int) AdminOptions
-
-	// FetchSeriesBlocksResultsProcessors gets the concurrency for processing results when fetching series blocks
-	FetchSeriesBlocksResultsProcessors() int
 }

@@ -27,15 +27,22 @@ import (
 )
 
 // NewIdentifierPool constructs a new simple IdentifierPool.
-func NewIdentifierPool(options pool.ObjectPoolOptions) IdentifierPool {
-	p := &simpleIdentifierPool{pool: pool.NewObjectPool(options)}
+func NewIdentifierPool(
+	bytesPool pool.CheckedBytesPool,
+	options pool.ObjectPoolOptions,
+) IdentifierPool {
+	p := &simpleIdentifierPool{
+		bytesPool: bytesPool,
+		pool:      pool.NewObjectPool(options),
+	}
 	p.pool.Init(func() interface{} { return &id{pool: p} })
 
 	return p
 }
 
 type simpleIdentifierPool struct {
-	pool pool.ObjectPool
+	bytesPool pool.CheckedBytesPool
+	pool      pool.ObjectPool
 }
 
 func (p *simpleIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
@@ -49,7 +56,10 @@ func (p *simpleIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes)
 }
 
 func (p *simpleIdentifierPool) GetStringID(ctx context.Context, v string) ID {
-	data := checked.NewBytes([]byte(v), nil)
+	data := p.bytesPool.Get(len(v))
+	data.IncRef()
+	data.AppendAll([]byte(v))
+	data.DecRef()
 	return p.GetBinaryID(ctx, data)
 }
 
@@ -64,7 +74,7 @@ func (p *simpleIdentifierPool) Clone(existing ID) ID {
 	data := existing.Data()
 	data.IncRef()
 
-	newData := checked.NewBytes(nil, nil)
+	newData := p.bytesPool.Get(data.Len())
 	newData.IncRef()
 	newData.AppendAll(data.Get())
 

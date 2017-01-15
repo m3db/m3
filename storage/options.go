@@ -119,28 +119,29 @@ type options struct {
 // TODO(r): add an "IsValid()" method and ensure buffer future and buffer past are
 // less than blocksize and check when opening database
 func NewOptions() Options {
+	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
 	o := &options{
-		clockOpts:           clock.NewOptions(),
-		instrumentOpts:      instrument.NewOptions(),
-		retentionOpts:       retention.NewOptions(),
-		blockOpts:           block.NewOptions(),
-		commitLogOpts:       commitlog.NewOptions(),
-		repairOpts:          repair.NewOptions(),
-		fileOpOpts:          NewFileOpOptions(),
-		newBootstrapFn:      defaultNewBootstrapFn,
-		newPersistManagerFn: defaultNewPersistManagerFn,
-		maxFlushRetries:     defaultMaxFlushRetries,
-		shardCloseDeadline:  defaultShardCloseDeadline,
-		contextPool:         context.NewPool(nil, nil),
-		seriesPool:          series.NewDatabaseSeriesPool(series.NewOptions(), nil),
-		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, nil)
-		}),
+		clockOpts:                      clock.NewOptions(),
+		instrumentOpts:                 instrument.NewOptions(),
+		retentionOpts:                  retention.NewOptions(),
+		blockOpts:                      block.NewOptions(),
+		commitLogOpts:                  commitlog.NewOptions(),
+		repairOpts:                     repair.NewOptions(),
+		fileOpOpts:                     NewFileOpOptions(),
+		newBootstrapFn:                 defaultNewBootstrapFn,
+		newPersistManagerFn:            defaultNewPersistManagerFn,
+		maxFlushRetries:                defaultMaxFlushRetries,
+		shardCloseDeadline:             defaultShardCloseDeadline,
+		contextPool:                    context.NewPool(nil, nil),
+		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
+		bytesPool:                      bytesPool,
 		encoderPool:                    encoding.NewEncoderPool(nil),
 		segmentReaderPool:              xio.NewSegmentReaderPool(nil),
 		readerIteratorPool:             encoding.NewReaderIteratorPool(nil),
 		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(nil),
-		identifierPool:                 ts.NewIdentifierPool(nil),
+		identifierPool:                 ts.NewIdentifierPool(bytesPool, nil),
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(nil, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(nil, 0),
 	}
