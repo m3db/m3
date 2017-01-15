@@ -304,10 +304,13 @@ func TestOptions(t *testing.T) {
 	o := NewOptions()
 	assert.False(t, o.LooseRackCheck())
 	assert.False(t, o.AllowPartialReplace())
+	assert.False(t, o.Dryrun())
 	o = o.SetLooseRackCheck(true)
 	assert.True(t, o.LooseRackCheck())
 	o = o.SetAllowPartialReplace(true)
 	assert.True(t, o.AllowPartialReplace())
+	o = o.SetDryrun(true)
+	assert.True(t, o.Dryrun())
 
 	dopts := NewDeploymentOptions()
 	assert.Equal(t, defaultMaxStepSize, dopts.MaxStepSize())

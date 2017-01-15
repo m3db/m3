@@ -122,6 +122,66 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 	assert.True(t, exist)
 }
 
+func TestDryrun(t *testing.T) {
+	m := NewMockStorage()
+	sid := testServiceID()
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 2)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 2)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 2)
+	dryrunPS := NewPlacementService(m, sid, placement.NewOptions().SetDryrun(true))
+	ps := NewPlacementService(m, sid, placement.NewOptions())
+
+	_, err := dryrunPS.BuildInitialPlacement([]services.PlacementInstance{i1, i2}, 10, 2)
+	assert.NoError(t, err)
+
+	_, _, err = m.Placement(sid)
+	assert.Error(t, err)
+
+	_, err = ps.BuildInitialPlacement([]services.PlacementInstance{i1, i2}, 10, 2)
+	assert.NoError(t, err)
+
+	_, v, err := m.Placement(sid)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, v)
+
+	_, err = dryrunPS.AddInstance([]services.PlacementInstance{i3})
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement(sid)
+	assert.Equal(t, 1, v)
+
+	_, err = ps.AddInstance([]services.PlacementInstance{i3})
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement(sid)
+	assert.Equal(t, 2, v)
+
+	_, err = dryrunPS.RemoveInstance("i3")
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement(sid)
+	assert.Equal(t, 2, v)
+
+	_, err = ps.RemoveInstance("i3")
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement(sid)
+	assert.Equal(t, 3, v)
+
+	_, err = dryrunPS.ReplaceInstance("i2", []services.PlacementInstance{i3})
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement(sid)
+	assert.Equal(t, 3, v)
+
+	_, err = ps.ReplaceInstance("i2", []services.PlacementInstance{i3})
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement(sid)
+	assert.Equal(t, 4, v)
+
+}
+
 func TestBadInitialPlacement(t *testing.T) {
 	p := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
 

@@ -52,6 +52,7 @@ func NewOptions() services.PlacementOptions {
 type options struct {
 	looseRackCheck      bool
 	allowPartialReplace bool
+	dryrun              bool
 }
 
 func (o options) LooseRackCheck() bool {
@@ -69,5 +70,13 @@ func (o options) AllowPartialReplace() bool {
 
 func (o options) SetAllowPartialReplace(allowPartialReplace bool) services.PlacementOptions {
 	o.allowPartialReplace = allowPartialReplace
+	return o
+}
+
+func (o options) Dryrun() bool {
+	return o.dryrun
+}
+func (o options) SetDryrun(d bool) services.PlacementOptions {
+	o.dryrun = d
 	return o
 }
