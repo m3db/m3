@@ -22,7 +22,6 @@ package peers
 
 import (
 	"runtime"
-	"time"
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -35,7 +34,6 @@ var (
 type options struct {
 	resultOpts                result.Options
 	client                    client.AdminClient
-	sleepFn                   SleepFn
 	bootstrapShardConcurrency int
 }
 
@@ -43,7 +41,6 @@ type options struct {
 func NewOptions() Options {
 	return &options{
 		resultOpts:                result.NewOptions(),
-		sleepFn:                   time.Sleep,
 		bootstrapShardConcurrency: defaultBootstrapShardConcurrency,
 	}
 }

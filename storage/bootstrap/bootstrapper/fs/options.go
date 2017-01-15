@@ -35,7 +35,6 @@ var (
 type options struct {
 	resultOpts    result.Options
 	fsOpts        fs.Options
-	numIOWorkers  int
 	numProcessors int
 }
 
@@ -44,7 +43,6 @@ func NewOptions() Options {
 	return &options{
 		resultOpts:    result.NewOptions(),
 		fsOpts:        fs.NewOptions(),
-		numIOWorkers:  defaultNumIOWorkers,
 		numProcessors: defaultNumProcessors,
 	}
 }

@@ -21,8 +21,6 @@
 package peers
 
 import (
-	"time"
-
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )

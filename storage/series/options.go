@@ -50,6 +50,7 @@ func NewOptions() Options {
 	}, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
+	bytesPool.Init()
 	return &options{
 		clockOpts:                     clock.NewOptions(),
 		instrumentOpts:                instrument.NewOptions(),
