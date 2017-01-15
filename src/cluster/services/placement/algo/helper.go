@@ -105,6 +105,13 @@ func (ph *placementHelper) MoveShard(candidateShard shard.Shard, from, to servic
 		delete(ph.shardToInstanceMap[candidateShard.ID()], from)
 	}
 
+	curShard, ok := to.Shards().Shard(candidateShard.ID())
+	if ok && curShard.State() == shard.Leaving {
+		// NB(cw): if the instance already owns the shard in Leaving state,
+		// simply mark it as Available
+		newShard = shard.NewShard(newShard.ID()).SetState(shard.Available)
+	}
+
 	ph.assignShardToInstance(newShard, to)
 	return true
 }
@@ -281,20 +288,20 @@ func (ph *placementHelper) scanCurrentLoad() {
 	ph.rackToInstancesMap = make(map[string]map[services.PlacementInstance]struct{})
 	ph.rackToWeightMap = make(map[string]uint32)
 	totalWeight := uint32(0)
-	for _, h := range ph.instances {
-		if _, exist := ph.rackToInstancesMap[h.Rack()]; !exist {
-			ph.rackToInstancesMap[h.Rack()] = make(map[services.PlacementInstance]struct{})
+	for _, instance := range ph.instances {
+		if _, exist := ph.rackToInstancesMap[instance.Rack()]; !exist {
+			ph.rackToInstancesMap[instance.Rack()] = make(map[services.PlacementInstance]struct{})
 		}
-		ph.rackToInstancesMap[h.Rack()][h] = struct{}{}
+		ph.rackToInstancesMap[instance.Rack()][instance] = struct{}{}
 
-		ph.rackToWeightMap[h.Rack()] = ph.rackToWeightMap[h.Rack()] + h.Weight()
-		totalWeight += h.Weight()
+		ph.rackToWeightMap[instance.Rack()] = ph.rackToWeightMap[instance.Rack()] + instance.Weight()
+		totalWeight += instance.Weight()
 
-		for _, s := range h.Shards().All() {
+		for _, s := range instance.Shards().All() {
 			if s.State() == shard.Leaving {
 				continue
 			}
-			ph.assignShardToInstance(s, h)
+			ph.assignShardToInstance(s, instance)
 		}
 	}
 	ph.totalWeight = totalWeight
@@ -332,18 +339,21 @@ func (ph placementHelper) getShardLen() int {
 	return len(ph.uniqueShards)
 }
 
-func (ph placementHelper) canAssignInstance(shard uint32, from, to services.PlacementInstance) bool {
-	if to.Shards().Contains(shard) {
+func (ph placementHelper) canAssignInstance(shardID uint32, from, to services.PlacementInstance) bool {
+	s, ok := to.Shards().Shard(shardID)
+	if ok && s.State() != shard.Leaving {
+		// NB(cw): a Leaving shard is not counted to the load of the instance
+		// so the instance should be able to take the ownership back if needed
+		// assuming i1 owns shard 1 as Available, this case can be triggered by:
+		// 1: add i2, now shard 1 is "Leaving" on i1 and "Initializing" on i2
+		// 2: remove i2, now i2 needs to return shard 1 back to i1
+		// and i1 should be able to take it and mark it as "Available"
 		return false
 	}
-	return ph.opts.LooseRackCheck() || ph.HasNoRackConflict(shard, from, to.Rack())
+	return ph.opts.LooseRackCheck() || ph.HasNoRackConflict(shardID, from, to.Rack())
 }
 
 func (ph placementHelper) assignShardToInstance(s shard.Shard, to services.PlacementInstance) {
-	if to == nil {
-		return
-	}
-
 	to.Shards().Add(s)
 
 	if _, exist := ph.shardToInstanceMap[s.ID()]; !exist {

@@ -333,6 +333,52 @@ func TestOverSizedRack(t *testing.T) {
 	validateDistribution(t, p, 1.15, "TestOverSizedRack add 1")
 }
 
+func TestRemoveInitializingInstance(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "e1", 1)
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "e2", 1)
+
+	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	p, err := a.InitialPlacement([]services.PlacementInstance{i1}, []uint32{1, 2})
+	assert.NoError(t, err)
+
+	p, err = MarkShardAvailable(p, "i1", 1)
+	assert.NoError(t, err)
+	p, err = MarkShardAvailable(p, "i1", 2)
+	assert.NoError(t, err)
+
+	instance1, ok := p.Instance("i1")
+	assert.True(t, ok)
+	assert.Equal(t, 2, instance1.Shards().NumShardsForState(shard.Available))
+
+	p, err = a.AddInstance(p, i2)
+	assert.NoError(t, err)
+
+	instance1, ok = p.Instance("i1")
+	assert.True(t, ok)
+	assert.Equal(t, 1, instance1.Shards().NumShardsForState(shard.Available))
+	assert.Equal(t, 1, instance1.Shards().NumShardsForState(shard.Leaving))
+
+	instance2, ok := p.Instance("i2")
+	assert.True(t, ok)
+	assert.Equal(t, 1, instance2.Shards().NumShardsForState(shard.Initializing))
+	for _, s := range instance2.Shards().All() {
+		assert.Equal(t, "i1", s.SourceID())
+	}
+
+	p, err = a.RemoveInstance(p, "i2")
+	assert.NoError(t, err)
+
+	instance1, ok = p.Instance("i1")
+	assert.True(t, ok)
+	for _, s := range instance1.Shards().All() {
+		assert.Equal(t, shard.Available, s.State())
+		assert.Equal(t, "", s.SourceID())
+	}
+
+	_, ok = p.Instance("i2")
+	assert.False(t, ok)
+}
+
 func TestInitPlacementOnNoInstances(t *testing.T) {
 	instances := []services.PlacementInstance{}
 

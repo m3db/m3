@@ -57,6 +57,29 @@ func TestMoveInitializingShard(t *testing.T) {
 	assert.Equal(t, shard.Initializing, s3.State())
 }
 
+func TestMoveInitializingShardBackToSource(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"))
+
+	instances := []services.PlacementInstance{i1, i2}
+	p := placement.NewPlacement().SetInstances(instances).SetShards([]uint32{1}).SetReplicaFactor(1)
+	ph := newHelper(p, 3, placement.NewOptions()).(*placementHelper)
+
+	s1, ok := i2.Shards().Shard(1)
+	assert.True(t, ok)
+	assert.True(t, ph.MoveShard(s1, i2, i1))
+	_, ok = i2.Shards().Shard(1)
+	assert.False(t, ok)
+	// i1 now owns it
+	s1, ok = i1.Shards().Shard(1)
+	assert.True(t, ok)
+	assert.Equal(t, "", s1.SourceID())
+	assert.Equal(t, shard.Available, s1.State())
+}
+
 func TestMoveLeavingShard(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
@@ -149,10 +172,6 @@ func TestAssignShard(t *testing.T) {
 	assert.False(t, ph.canAssignInstance(2, i6, i3))
 	ph = newHelper(p, 3, placement.NewOptions().SetLooseRackCheck(true)).(*placementHelper)
 	assert.True(t, ph.canAssignInstance(2, i6, i3))
-
-	s := shard.NewShard(1).SetState(shard.Available)
-	ph.assignShardToInstance(s, nil)
-	assert.Equal(t, shard.NewShard(1).SetState(shard.Available), s)
 }
 
 func TestIsInstanceLeaving(t *testing.T) {
