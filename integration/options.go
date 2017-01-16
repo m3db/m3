@@ -69,6 +69,13 @@ const (
 
 	// defaultNumShards sets the default number of shards.
 	defaultNumShards = 1024
+
+	// defaultFetchSeriesBlocksBatchSize sets the number of series blocks to fetch in batch, by default.
+	defaultFetchSeriesBlocksBatchSize = 0
+
+	// defaultFetchSeriesBlocksBatchConcurrency sets the number of series blocks to fetch in
+	// batch concurrently, by default.
+	defaultFetchSeriesBlocksBatchConcurrency = 0
 )
 
 type testOptions interface {
@@ -194,11 +201,23 @@ type testOptions interface {
 	// RepairTimeJitter returns the repair time jitter.
 	RepairTimeJitter() time.Duration
 
+	// SetNumShards sets the number of shards.
+	SetNumShards(numShards uint32) testOptions
+
 	// NumShards returns the number of shards.
 	NumShards() uint32
 
-	// SetNumShards sets the number of shards.
-	SetNumShards(numShards uint32) testOptions
+	// SetFetchSeriesBlocksBatchSize sets the number of Series Blocks to fetch in batch.
+	SetFetchSeriesBlocksBatchSize(n int) testOptions
+
+	// FetchSeriesBlocksBatchSize returns the number of Series Blocks to fetch in batch.
+	FetchSeriesBlocksBatchSize() int
+
+	// SetFetchSeriesBlocksBatchConcurrency sets the number of series blocks to fetch in batch concurrently.
+	SetFetchSeriesBlocksBatchConcurrency(n int) testOptions
+
+	// FetchSeriesBlocksBatchConcurrency returns the number of series blocks to fetch in batch concurrently.
+	FetchSeriesBlocksBatchConcurrency() int
 }
 
 type options struct {
@@ -223,6 +242,8 @@ type options struct {
 	repairTimeJitter                   time.Duration
 	repairInterval                     time.Duration
 	numShards                          uint32
+	fetchSeriesBlocksBatchSize         int
+	fetchSeriesBlocksBatchConcurrency  int
 }
 
 func newTestOptions() testOptions {
@@ -233,19 +254,21 @@ func newTestOptions() testOptions {
 	return &options{
 		namespaces: namespaces,
 		id:         defaultID,
-		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
-		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
-		readRequestTimeout:             defaultReadRequestTimeout,
-		writeRequestTimeout:            defaultWriteRequestTimeout,
-		truncateRequestTimeout:         defaultTruncateRequestTimeout,
-		workerPoolSize:                 defaultWorkerPoolSize,
-		useTChannelClientForReading:    defaultUseTChannelClientForReading,
-		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
-		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
-		repairThrottle:                 defaultRepairThrottle,
-		repairTimeJitter:               defaultRepairTimeJitter,
-		repairInterval:                 defaultRepairInterval,
-		numShards:                      defaultNumShards,
+		serverStateChangeTimeout:          defaultServerStateChangeTimeout,
+		clusterConnectionTimeout:          defaultClusterConnectionTimeout,
+		readRequestTimeout:                defaultReadRequestTimeout,
+		writeRequestTimeout:               defaultWriteRequestTimeout,
+		truncateRequestTimeout:            defaultTruncateRequestTimeout,
+		workerPoolSize:                    defaultWorkerPoolSize,
+		useTChannelClientForReading:       defaultUseTChannelClientForReading,
+		useTChannelClientForWriting:       defaultUseTChannelClientForWriting,
+		useTChannelClientForTruncation:    defaultUseTChannelClientForTruncation,
+		repairThrottle:                    defaultRepairThrottle,
+		repairTimeJitter:                  defaultRepairTimeJitter,
+		repairInterval:                    defaultRepairInterval,
+		numShards:                         defaultNumShards,
+		fetchSeriesBlocksBatchSize:        defaultFetchSeriesBlocksBatchSize,
+		fetchSeriesBlocksBatchConcurrency: defaultFetchSeriesBlocksBatchConcurrency,
 	}
 }
 
@@ -457,4 +480,24 @@ func (o *options) SetNumShards(n uint32) testOptions {
 
 func (o *options) NumShards() uint32 {
 	return o.numShards
+}
+
+func (o *options) SetFetchSeriesBlocksBatchSize(n int) testOptions {
+	opts := *o
+	opts.fetchSeriesBlocksBatchSize = n
+	return &opts
+}
+
+func (o *options) FetchSeriesBlocksBatchSize() int {
+	return o.fetchSeriesBlocksBatchSize
+}
+
+func (o *options) SetFetchSeriesBlocksBatchConcurrency(n int) testOptions {
+	opts := *o
+	opts.fetchSeriesBlocksBatchConcurrency = n
+	return &opts
+}
+
+func (o *options) FetchSeriesBlocksBatchConcurrency() int {
+	return o.fetchSeriesBlocksBatchConcurrency
 }

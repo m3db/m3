@@ -298,15 +298,16 @@ func TestNewPendingReplicasMapComplexDiff(t *testing.T) {
 	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
 	repairer, err := newDatabaseRepairer(database)
 	require.NoError(t, err)
+	numReplicas := 3
 	r := repairer.(*dbRepairer).shardRepairer.(shardRepairer)
 	t0 := time.Now()
 	sizes := []int64{1, 2, 1}
 	checksums := []uint32{1, 1, 2}
 	hostsMetadata := generateSampleHostsMetadata(t, t0, 1, sizes, checksums)
 	repairOpts := testRepairOptions(ctrl)
-	mcr := newTestMetadataComparisonResult(ctrl, t, hostsMetadata, 3, repairOpts)
+	mcr := newTestMetadataComparisonResult(ctrl, t, hostsMetadata, numReplicas, repairOpts)
 	originHost := testHost(0)
-	pendingReplicasMap, _ := r.newPendingReplicasMap(mcr, originHost)
+	pendingReplicasMap, _ := r.newPendingReplicasMap(mcr, originHost, numReplicas)
 	for _, replicas := range pendingReplicasMap {
 		require.True(t, !replicas.contains(testHost(0)))
 		require.True(t, replicas.contains(testHost(1)))
@@ -323,15 +324,16 @@ func TestNewPendingReplicasMapSingleChecksumDiff(t *testing.T) {
 	repairer, err := newDatabaseRepairer(database)
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer).shardRepairer.(shardRepairer)
+	numReplicas := 3
 
 	t0 := time.Now()
 	sizes := []int64{1, 2, 1}
 	checksums := []uint32{1, 1, 1}
 	hostsMetadata := generateSampleHostsMetadata(t, t0, 1, sizes, checksums)
 	repairOpts := testRepairOptions(ctrl)
-	mcr := newTestMetadataComparisonResult(ctrl, t, hostsMetadata, 3, repairOpts)
+	mcr := newTestMetadataComparisonResult(ctrl, t, hostsMetadata, numReplicas, repairOpts)
 	originHost := testHost(0)
-	pendingReplicasMap, _ := r.newPendingReplicasMap(mcr, originHost)
+	pendingReplicasMap, _ := r.newPendingReplicasMap(mcr, originHost, numReplicas)
 	for _, replicas := range pendingReplicasMap {
 		require.True(t, replicas.contains(testHost(1)))
 		require.True(t, !replicas.contains(testHost(0)))
@@ -348,17 +350,18 @@ func TestNewPendingReplicasMapAllIdentical(t *testing.T) {
 	repairer, err := newDatabaseRepairer(database)
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer).shardRepairer.(shardRepairer)
+	numReplicas := 3
 
 	t0 := time.Now()
 	sizes := []int64{1, 1, 1}
 	checksums := []uint32{1, 1, 1}
 	allPeersIdenticalHostsMetadata := generateSampleHostsMetadata(t, t0, 1, sizes, checksums)
 	repairOpts := testRepairOptions(ctrl)
-	mcr := newTestMetadataComparisonResult(ctrl, t, allPeersIdenticalHostsMetadata, 3, repairOpts)
+	mcr := newTestMetadataComparisonResult(ctrl, t, allPeersIdenticalHostsMetadata, numReplicas, repairOpts)
 	originHost := testHost(0)
-	pendingReplicasMap, _ := r.newPendingReplicasMap(mcr, originHost)
+	pendingReplicasMap, _ := r.newPendingReplicasMap(mcr, originHost, numReplicas)
 	for _, replicas := range pendingReplicasMap {
-		require.Empty(t, *replicas)
+		require.Empty(t, replicas)
 	}
 }
 
@@ -375,6 +378,7 @@ func TestDatabaseShardRepairerRepairDifferencesAllSuccess(t *testing.T) {
 
 	session := client.NewMockAdminSession(ctrl)
 	session.EXPECT().Origin().Return(testHost(0))
+	session.EXPECT().Replicas().Return(int(3))
 	mockClient := client.NewMockAdminClient(ctrl)
 	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
 	rpOpts := testRepairOptions(ctrl).SetAdminClient(mockClient)
@@ -415,19 +419,19 @@ func TestDatabaseShardRepairerRepairDifferencesAllSuccess(t *testing.T) {
 	shardID := uint32(0)
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
-	shard.EXPECT().MarkFlushStatesDirty(now)
+	shard.EXPECT().MarkFlushStatesDirty(&timeArrayMatcher{times: []time.Time{now}})
 
 	// mock blocks and shards for [ series 2, host 1 ]
 	ts2 := testSeries(2)
 	blk21 := block.NewMockDatabaseBlock(ctrl)
 	blk21.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts2, blk21, false).Return(nil)
+	shard.EXPECT().UpdateSeries(ts2, blk21).Return(nil)
 
 	// mock blocks and shards for [ series 1, host 2 ]
 	ts1 := testSeries(1)
 	blk12 := block.NewMockDatabaseBlock(ctrl)
 	blk12.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts1, blk12, false).Return(nil)
+	shard.EXPECT().UpdateSeries(ts1, blk12).Return(nil)
 
 	// mock peerBlocksIter
 	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
@@ -468,6 +472,7 @@ func TestDatabaseShardRepairerRepairDifferencesNetworkFailure(t *testing.T) {
 
 	session := client.NewMockAdminSession(ctrl)
 	session.EXPECT().Origin().Return(testHost(0))
+	session.EXPECT().Replicas().Return(int(3))
 	mockClient := client.NewMockAdminClient(ctrl)
 	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
 	rpOpts := testRepairOptions(ctrl).SetAdminClient(mockClient)
@@ -507,13 +512,13 @@ func TestDatabaseShardRepairerRepairDifferencesNetworkFailure(t *testing.T) {
 	shardID := uint32(0)
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
-	shard.EXPECT().MarkFlushStatesDirty(now)
+	shard.EXPECT().MarkFlushStatesDirty(&timeArrayMatcher{times: []time.Time{now}})
 
 	// mock blocks and shards for [ series 2, host 1 ]
 	ts2 := testSeries(2)
 	blk21 := block.NewMockDatabaseBlock(ctrl)
 	blk21.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts2, blk21, false).Return(nil)
+	shard.EXPECT().UpdateSeries(ts2, blk21).Return(nil)
 
 	// mock peerBlocksIter
 	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
@@ -552,6 +557,7 @@ func TestDatabaseShardRepairerRepairDifferencesUpdateFailure(t *testing.T) {
 
 	session := client.NewMockAdminSession(ctrl)
 	session.EXPECT().Origin().Return(testHost(0))
+	session.EXPECT().Replicas().Return(int(3))
 	mockClient := client.NewMockAdminClient(ctrl)
 	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
 	rpOpts := testRepairOptions(ctrl).SetAdminClient(mockClient)
@@ -593,19 +599,19 @@ func TestDatabaseShardRepairerRepairDifferencesUpdateFailure(t *testing.T) {
 	shardID := uint32(0)
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
-	shard.EXPECT().MarkFlushStatesDirty(now)
+	shard.EXPECT().MarkFlushStatesDirty(&timeArrayMatcher{times: []time.Time{now}})
 
 	// mock blocks and shards for [ series 2, host 1 ]
 	ts2 := testSeries(2)
 	blk21 := block.NewMockDatabaseBlock(ctrl)
 	blk21.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts2, blk21, false).Return(fmt.Errorf("simulated failure"))
+	shard.EXPECT().UpdateSeries(ts2, blk21).Return(fmt.Errorf("simulated failure"))
 
 	// mock blocks and shards for [ series 1, host 2 ]
 	ts1 := testSeries(1)
 	blk12 := block.NewMockDatabaseBlock(ctrl)
 	blk12.EXPECT().StartTime().Return(now)
-	shard.EXPECT().UpdateSeries(ts1, blk12, false).Return(nil)
+	shard.EXPECT().UpdateSeries(ts1, blk12).Return(nil)
 
 	// mock peerBlocksIter
 	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
@@ -719,4 +725,31 @@ func newTestMetadataComparisonResult(
 	gomock.InOrder(peerIterCalls...)
 	comparer.AddPeerMetadata(peerIter)
 	return comparer.Compare()
+}
+
+type timeArrayMatcher struct {
+	times []time.Time
+}
+
+func (m *timeArrayMatcher) Matches(x interface{}) bool {
+	arr, ok := x.([]time.Time)
+	if !ok {
+		return false
+	}
+
+	if len(m.times) != len(arr) {
+		return false
+	}
+
+	for i := range arr {
+		if !arr[i].Equal(m.times[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (m *timeArrayMatcher) String() string {
+	return "timeArrayMatcher"
 }

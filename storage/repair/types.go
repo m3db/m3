@@ -147,8 +147,8 @@ type ExecutionMetrics struct {
 	// NumPending returns difference between the number of block replicas requested and received
 	NumPending int64
 
-	// NumUnrequested returns a count of block replicas returned but were not requested, it should be 0 in all usual executions
-	NumUnrequested int64
+	// NumUnexpected returns a count of block replicas returned but were not requested, it should be 0 in all usual executions
+	NumUnexpected int64
 }
 
 // Result captures details about the differences pre-repair, and a summary

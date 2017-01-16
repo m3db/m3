@@ -35,8 +35,13 @@ func TestHighConcAdminSessionFetchBlocksFromPeers(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	concurrency := 64
+	testOpts := newTestOptions().
+		SetFetchSeriesBlocksBatchSize(8).
+		SetFetchSeriesBlocksBatchConcurrency(concurrency)
+	testSetup, err := newTestSetup(testOpts)
 	require.NoError(t, err)
+
 	defer testSetup.close()
 
 	testSetup.storageOpts =
@@ -78,11 +83,6 @@ func TestHighConcAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
 	later := testSetup.getNowFn()
 	time.Sleep(testSetup.storageOpts.RetentionOptions().BufferDrain() * 4)
-
-	concurrency := 16
-	// TODO(prateek): set client.AdminOptions with the two properties below
-	// SetFetchSeriesBlocksBatchSize(8).
-	// SetFetchSeriesBlocksBatchConcurrency(64).
 
 	results := make([]seriesMap, 0, concurrency)
 	var wg sync.WaitGroup

@@ -735,7 +735,6 @@ func (s *dbShard) Repair(
 func (s *dbShard) UpdateSeries(
 	id ts.ID,
 	blk block.DatabaseBlock,
-	markDirty bool,
 ) error {
 
 	// ensure shard is bootstrapped
@@ -759,11 +758,6 @@ func (s *dbShard) UpdateSeries(
 		return err
 	}
 
-	if markDirty {
-		// Mark shard state dirty, indicating we have updated data
-		s.markFlushStateDirty(blk.StartTime())
-	}
-
 	// NB(prateek): We explicitly choose to bypass the commit log during a
 	// merge for the following reasons:
 	// (1) We only bootstrap from the commit log for the last 2 hour window,
@@ -775,7 +769,7 @@ func (s *dbShard) UpdateSeries(
 }
 
 func (s *dbShard) MarkFlushStatesDirty(
-	blockTimes ...time.Time,
+	blockTimes []time.Time,
 ) {
 	for _, t := range blockTimes {
 		s.markFlushStateDirty(t)

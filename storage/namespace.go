@@ -475,13 +475,10 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 			continue
 		}
 		state := shard.FlushState(blockStart)
-		if state.Status == fileOpNotStarted {
+		if state.Status == fileOpNotStarted || state.Status == fileOpDirty {
 			return true
 		}
 		if state.Status == fileOpFailed && state.NumFailures < maxRetries {
-			return true
-		}
-		if state.Status == fileOpDirty {
 			return true
 		}
 	}
@@ -535,21 +532,21 @@ func (n *dbNamespace) Repair(
 	}
 
 	var (
-		wg                     sync.WaitGroup
-		mutex                  sync.Mutex
-		numShardsRepaired      int
-		numTotalSeries         int64
-		numTotalBlocks         int64
-		numSizeDiffSeries      int64
-		numSizeDiffBlocks      int64
-		numChecksumDiffSeries  int64
-		numChecksumDiffBlocks  int64
-		numReplicasRequested   int64
-		numReplicasFailed      int64
-		numReplicasPending     int64
-		numReplicasRepaired    int64
-		numReplicasUnrequested int64
-		throttlePerShard       time.Duration
+		wg                    sync.WaitGroup
+		mutex                 sync.Mutex
+		numShardsRepaired     int
+		numTotalSeries        int64
+		numTotalBlocks        int64
+		numSizeDiffSeries     int64
+		numSizeDiffBlocks     int64
+		numChecksumDiffSeries int64
+		numChecksumDiffBlocks int64
+		numReplicasRequested  int64
+		numReplicasFailed     int64
+		numReplicasPending    int64
+		numReplicasRepaired   int64
+		numReplicasUnexpected int64
+		throttlePerShard      time.Duration
 	)
 
 	nowFn := n.opts.ClockOptions().NowFn()
@@ -593,7 +590,7 @@ func (n *dbNamespace) Repair(
 				numReplicasRepaired += execMetrics.NumRepaired
 				numReplicasPending += execMetrics.NumPending
 				numReplicasRequested += execMetrics.NumRequested
-				numReplicasUnrequested += execMetrics.NumUnrequested
+				numReplicasUnexpected += execMetrics.NumUnexpected
 			}
 			mutex.Unlock()
 
@@ -621,7 +618,7 @@ func (n *dbNamespace) Repair(
 		xlog.NewLogField("numReplicasRepaired", numShardsRepaired),
 		xlog.NewLogField("numReplicasPending", numReplicasPending),
 		xlog.NewLogField("numReplicasRequested", numReplicasRequested),
-		xlog.NewLogField("numReplicasUnrequested", numReplicasUnrequested),
+		xlog.NewLogField("numReplicasUnexpected", numReplicasUnexpected),
 		xlog.NewLogField("took", duration),
 	).Infof("repair result")
 

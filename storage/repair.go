@@ -138,15 +138,11 @@ func (r shardRepairer) Repair(
 	result := repair.Result{DifferenceSummary: metadataRes}
 
 	res, err := r.repairFn(namespace, shard, metadataRes)
-	if err != nil {
-		// even in the event of repair failure, report statistics about differences
-		r.recordFn(namespace, shard, result)
-		return result, err
+	if err == nil {
+		result.RepairSummary = res
 	}
-
-	result.RepairSummary = res
 	r.recordFn(namespace, shard, result)
-	return result, nil
+	return result, err
 }
 
 type hostSet map[string]repair.HostBlockMetadata
@@ -156,48 +152,50 @@ type blockID struct {
 	start  time.Time
 }
 
-func newHostSet() *hostSet {
-	hs := make(hostSet, 3)
-	return &hs
+func newHostSet(numReplicas int) hostSet {
+	hs := make(hostSet, numReplicas)
+	return hs
 }
 
-func (h *hostSet) insert(hbm repair.HostBlockMetadata) {
+func (h hostSet) insert(hbm repair.HostBlockMetadata) {
 	if host := hbm.Host; host != nil {
-		(*h)[host.String()] = hbm
+		h[host.String()] = hbm
 	}
 }
 
-func (h *hostSet) insertOneFromSet(oh *hostSet) {
-	for _, hbm := range *oh {
+func (h hostSet) insertOneFromSet(oh hostSet) {
+	for _, hbm := range oh {
 		h.insert(hbm)
 		return
 	}
 }
 
-func (h *hostSet) contains(host topology.Host) bool {
+func (h hostSet) contains(host topology.Host) bool {
 	if host == nil {
 		return false
 	}
-	_, ok := (*h)[host.String()]
+	_, ok := h[host.String()]
 	return ok
 }
 
-func (h *hostSet) remove(host topology.Host) {
-	delete(*h, host.String())
+func (h hostSet) remove(host topology.Host) {
+	if host != nil {
+		delete(h, host.String())
+	}
 }
 
-func (h *hostSet) empty() bool {
-	return len(*h) == 0
+func (h hostSet) empty() bool {
+	return len(h) == 0
 }
 
-func (r shardRepairer) newAdminRepairBlocksRequest(
-	pendingReplicasMap map[blockID]*hostSet,
+func (r shardRepairer) newRequest(
+	pendingReplicasMap map[blockID]hostSet,
 	idMap map[ts.Hash]ts.ID,
 	initialCapacity int64,
 ) []block.ReplicaMetadata {
 	repairBlocks := make([]block.ReplicaMetadata, 0, initialCapacity)
 	for blkID, hs := range pendingReplicasMap {
-		for _, h := range *hs {
+		for _, h := range hs {
 			repairBlocks = append(repairBlocks, block.ReplicaMetadata{
 				ID:   idMap[blkID.idHash],
 				Host: h.Host,
@@ -212,6 +210,47 @@ func (r shardRepairer) newAdminRepairBlocksRequest(
 	return repairBlocks
 }
 
+func pendingReplicasHelper(
+	pendingReplicas map[blockID]hostSet,
+	idMap map[ts.Hash]ts.ID,
+	originHost topology.Host,
+	numReplicas int,
+	diffFn func() map[ts.Hash]repair.ReplicaSeriesBlocksMetadata,
+	valueFn func(repair.HostBlockMetadata) (int64, bool),
+) {
+	for _, rsm := range diffFn() {
+		idHash := rsm.ID.Hash()
+		idMap[idHash] = rsm.ID
+		for start, blk := range rsm.Metadata.Blocks() {
+			blkID := blockID{idHash, start}
+			// find all unique sizes seen for this block
+			uniqueValues := make(map[int64]hostSet, numReplicas)
+			for _, hBlk := range blk.Metadata() {
+				sz, ok := valueFn(hBlk)
+				if !ok {
+					continue
+				}
+				if _, ok := uniqueValues[sz]; !ok {
+					uniqueValues[sz] = newHostSet(numReplicas)
+				}
+				uniqueValues[sz].insert(hBlk)
+			}
+			for _, hs := range uniqueValues {
+				if hs.contains(originHost) {
+					// we already have originHost data available locally, no need to fetch it
+					continue
+				}
+				// insert value into replicaState
+				if _, ok := pendingReplicas[blkID]; !ok {
+					pendingReplicas[blkID] = newHostSet(numReplicas)
+				}
+				// only care about a single value from the unique set
+				pendingReplicas[blkID].insertOneFromSet(hs)
+			}
+		}
+	}
+}
+
 // newPendingReplicasMap returns a map from (series_id, block_start) -> set of host replicas,
 // using which repairs are to be performed
 //
@@ -223,73 +262,29 @@ func (r shardRepairer) newAdminRepairBlocksRequest(
 func (r shardRepairer) newPendingReplicasMap(
 	diffRes repair.MetadataComparisonResult,
 	originHost topology.Host,
-) (map[blockID]*hostSet, map[ts.Hash]ts.ID) {
+	numReplicas int,
+) (map[blockID]hostSet, map[ts.Hash]ts.ID) {
 	// TODO(prateek): pooling object creation in this method
-	pendingReplicas := make(map[blockID]*hostSet, diffRes.NumBlocks)
+	pendingReplicas := make(map[blockID]hostSet, diffRes.NumBlocks)
 	idMap := make(map[ts.Hash]ts.ID, diffRes.NumBlocks)
 
 	// add size differences
-	for _, rsm := range diffRes.SizeDifferences.Series() {
-		idHash := rsm.ID.Hash()
-		idMap[idHash] = rsm.ID
-		for start, blk := range rsm.Metadata.Blocks() {
-			blkID := blockID{idHash, start}
-			// find all unique sizes seen for this block
-			uniqueValues := make(map[int64]*hostSet, 3)
-			for _, hBlk := range blk.Metadata() {
-				sz := hBlk.Size
-				if _, ok := uniqueValues[sz]; !ok {
-					uniqueValues[sz] = newHostSet()
-				}
-				uniqueValues[sz].insert(hBlk)
-			}
-			for _, hs := range uniqueValues {
-				if hs.contains(originHost) {
-					// we already have originHost data available locally, no need to fetch it
-					continue
-				}
-				// insert value into replicaState
-				if _, ok := pendingReplicas[blkID]; !ok {
-					pendingReplicas[blkID] = newHostSet()
-				}
-				// only care about a single value from the unique set
-				pendingReplicas[blkID].insertOneFromSet(hs)
-			}
-		}
-	}
+	pendingReplicasHelper(pendingReplicas, idMap, originHost, numReplicas, diffRes.SizeDifferences.Series,
+		func(h repair.HostBlockMetadata) (int64, bool) {
+			return h.Size, true
+		},
+	)
 
 	// add checksum differences
-	for _, rsm := range diffRes.ChecksumDifferences.Series() {
-		idHash := rsm.ID.Hash()
-		idMap[idHash] = rsm.ID
-		for start, blk := range rsm.Metadata.Blocks() {
-			blkID := blockID{idHash, start}
-			// find all unique checksums seen for this block
-			uniqueValues := make(map[uint32]*hostSet, 3)
-			for _, hBlk := range blk.Metadata() {
-				cs := hBlk.Checksum
-				if cs == nil {
-					continue // checksum unavailable, don't include in diff
-				}
-				if _, ok := uniqueValues[*cs]; !ok {
-					uniqueValues[*cs] = newHostSet()
-				}
-				uniqueValues[*cs].insert(hBlk)
+	pendingReplicasHelper(pendingReplicas, idMap, originHost, numReplicas, diffRes.ChecksumDifferences.Series,
+		func(h repair.HostBlockMetadata) (int64, bool) {
+			cs := h.Checksum
+			if cs == nil {
+				return 0, false
 			}
-			for _, hs := range uniqueValues {
-				if hs.contains(originHost) {
-					// we already have originHost data available locally, no need to fetch it
-					continue
-				}
-				// insert value into replicaState
-				if _, ok := pendingReplicas[blkID]; !ok {
-					pendingReplicas[blkID] = newHostSet()
-				}
-				// only care about a single value from the unique set
-				pendingReplicas[blkID].insertOneFromSet(hs)
-			}
-		}
-	}
+			return int64(*cs), true
+		},
+	)
 
 	return pendingReplicas, idMap
 }
@@ -317,13 +312,14 @@ func (r shardRepairer) repairDifferences(
 	if err != nil {
 		return repairSummary, err
 	}
+	numReplicas := session.Replicas()
 
 	// pendingBlockReplicas is a map from (series_id, block_start) -> set of host replicas for which repairs are pending
-	pendingBlockReplicas, hashToIDMap := r.newPendingReplicasMap(diffRes, session.Origin())
+	pendingBlockReplicas, hashToIDMap := r.newPendingReplicasMap(diffRes, session.Origin(), numReplicas)
 
 	// reqBlocks contains the same information as the above map, destructured for the `session` API
 	initialCap := diffRes.NumBlocks
-	reqBlocks := r.newAdminRepairBlocksRequest(pendingBlockReplicas, hashToIDMap, initialCap)
+	reqBlocks := r.newRequest(pendingBlockReplicas, hashToIDMap, initialCap)
 	repairSummary.NumRequested = int64(len(reqBlocks))
 
 	// stream over the requested replicas
@@ -344,16 +340,15 @@ func (r shardRepairer) repairDifferences(
 				xlog.NewLogField("id", id.String()),
 				xlog.NewLogField("host", host.String()),
 				xlog.NewLogField("blockID", blkID),
-			).Warnf("received un-requested block, session.FetchRepairBlockFromPeers violated contract, skipping.")
-			repairSummary.NumUnrequested++
+			).Warnf("received unexpected block, session.FetchRepairBlockFromPeers violated contract, skipping.")
+			repairSummary.NumUnexpected++
 			continue
 		}
 
 		// mark the block replica as received
 		pendingBlockReplicas[blkID].remove(host)
 
-		markFlushStateDirty := false
-		if err := shard.UpdateSeries(id, blk, markFlushStateDirty); err != nil {
+		if err := shard.UpdateSeries(id, blk); err != nil {
 			repErr := fmt.Errorf(
 				"unable to update series [ id = %v, block_start = %v, err = %v ]",
 				id.String(), blkID.start, err)
@@ -372,14 +367,14 @@ func (r shardRepairer) repairDifferences(
 	for t := range dirtyBlockTimes {
 		dirtyBlockTimesList = append(dirtyBlockTimesList, t)
 	}
-	shard.MarkFlushStatesDirty(dirtyBlockTimesList...)
+	shard.MarkFlushStatesDirty(dirtyBlockTimesList)
 
 	// track count for pending replicas
 	for blkID, hs := range pendingBlockReplicas {
 		if hs.empty() {
 			continue
 		}
-		for _, hbm := range *hs {
+		for _, hbm := range hs {
 			missingErr := fmt.Errorf(
 				"replica requested but not received [ host = %v, id = %v, block_start = %v ]",
 				hbm.Host.String(), hashToIDMap[blkID.idHash], blkID.start)
@@ -433,7 +428,7 @@ func (r shardRepairer) recordDifferences(
 	executionScope.Counter("pending").Inc(execMetrics.NumPending)
 	executionScope.Counter("repaired").Inc(execMetrics.NumRepaired)
 	executionScope.Counter("requested").Inc(execMetrics.NumRequested)
-	executionScope.Counter("unrequested").Inc(execMetrics.NumUnrequested)
+	executionScope.Counter("unexpected").Inc(execMetrics.NumUnexpected)
 }
 
 type repairFn func() error
@@ -515,7 +510,7 @@ func (r *dbRepairer) ShouldRun() bool {
 	}
 	now := r.nowFn()
 	maxDelta := r.repairInterval + r.repairTimeJitter
-	return now.Sub(r.lastRun).Nanoseconds() > maxDelta.Nanoseconds()
+	return now.Sub(r.lastRun) > maxDelta
 }
 
 func (r *dbRepairer) Run(async bool) {

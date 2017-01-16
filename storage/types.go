@@ -295,16 +295,16 @@ type databaseShard interface {
 
 	// UpdateSeries updates the identified series by merging any existing data
 	// with the provided block.
+	// NOTE: this method does not modify the shard FlushState
 	UpdateSeries(
 		seriesID ts.ID,
 		blk block.DatabaseBlock,
-		markFlushStateDirty bool,
 	) error
 
 	// MarkFlushStatesDirty marks the flush state for the specified block times
 	// dirty.
 	MarkFlushStatesDirty(
-		blockTimes ...time.Time,
+		blockTimes []time.Time,
 	)
 }
 

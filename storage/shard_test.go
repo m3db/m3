@@ -560,22 +560,14 @@ func TestShardUpdateExistingSeriesWithNoError(t *testing.T) {
 
 	mockBlock := block.NewMockDatabaseBlock(ctrl)
 	mockBlock.EXPECT().StartTime().AnyTimes().Return(curr.Add(-2 * blockSize))
-	fooSeries.EXPECT().Update(mockBlock).Times(2)
+	fooSeries.EXPECT().Update(mockBlock)
 
-	// update series, but do not flush state
+	// update series
 	currentState := s.FlushState(mockBlock.StartTime())
-	flushDirtyState := false
-	err = s.UpdateSeries(fooID, mockBlock, flushDirtyState)
+	err = s.UpdateSeries(fooID, mockBlock)
 	require.Nil(t, err)
 	nextState := s.FlushState(mockBlock.StartTime())
 	require.Equal(t, currentState, nextState)
-
-	// this time, update series, and flush
-	flushDirtyState = true
-	err = s.UpdateSeries(fooID, mockBlock, flushDirtyState)
-	require.Nil(t, err)
-	nextState = s.FlushState(mockBlock.StartTime())
-	require.NotEqual(t, currentState, nextState)
 }
 
 func TestShardUpdateNewSeriesWithNoError(t *testing.T) {
@@ -593,7 +585,7 @@ func TestShardUpdateNewSeriesWithNoError(t *testing.T) {
 
 	mockBlock := block.NewMockDatabaseBlock(ctrl)
 	mockBlock.EXPECT().StartTime().AnyTimes().Return(curr.Add(-2 * blockSize))
-	err = s.UpdateSeries(fooID, mockBlock, true)
+	err = s.UpdateSeries(fooID, mockBlock)
 	require.Nil(t, err)
 }
 
@@ -610,7 +602,7 @@ func TestShardUpdateNewSeriesWithError(t *testing.T) {
 
 	mockBlock := block.NewMockDatabaseBlock(ctrl)
 	mockBlock.EXPECT().StartTime().AnyTimes().Return(curr)
-	err = s.UpdateSeries(ts.StringID("bar"), mockBlock, true)
+	err = s.UpdateSeries(ts.StringID("bar"), mockBlock)
 	require.NotNil(t, err)
 }
 
@@ -635,7 +627,7 @@ func TestShardMarkFlushStateDirty(t *testing.T) {
 		times = append(times, st)
 	}
 
-	s.MarkFlushStatesDirty(times...)
+	s.MarkFlushStatesDirty(times)
 	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
 		require.Equal(t, fileOpState{Status: fileOpDirty}, s.FlushState(st))
 	}

@@ -147,7 +147,10 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		}
 	}
 
-	clientOpts := server.DefaultClientOptions(topoInit).
+	clientOpts := newDefaultAdminOptions(
+		opts.FetchSeriesBlocksBatchSize(),
+		opts.FetchSeriesBlocksBatchConcurrency()).
+		SetTopologyInitializer(topoInit).
 		SetClusterConnectTimeout(opts.ClusterConnectionTimeout())
 
 	// Set up tchannel client
@@ -199,7 +202,11 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	})
 
 	// Set up repair options
-	adminClient := mc.(client.AdminClient)
+	adminClient, err := m3dbAdminClient(clientOpts.(client.AdminOptions))
+	if err != nil {
+		return nil, err
+	}
+
 	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
 
 	return &testSetup{
