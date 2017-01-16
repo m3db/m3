@@ -21,6 +21,7 @@
 package etcd
 
 import (
+	"errors"
 	"time"
 
 	"github.com/m3db/m3x/instrument"
@@ -49,6 +50,8 @@ type Options interface {
 
 	InstrumentOptions() instrument.Options
 	SetInstrumentOptions(iopts instrument.Options) Options
+
+	Validate() error
 }
 
 // Cluster defines the configuration for a etcd cluster
@@ -73,6 +76,22 @@ type options struct {
 	appID              string
 	clusters           map[string]Cluster
 	iopts              instrument.Options
+}
+
+func (o options) Validate() error {
+	if o.appID == "" {
+		return errors.New("invalid options, no appID set")
+	}
+
+	if len(o.clusters) == 0 {
+		return errors.New("invalid options, no etcd clusters set")
+	}
+
+	if o.iopts == nil {
+		return errors.New("invalid options, no instrument options set")
+	}
+
+	return nil
 }
 
 func (o options) Env() string {

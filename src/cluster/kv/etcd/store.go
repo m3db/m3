@@ -69,9 +69,10 @@ func NewStore(c *clientv3.Client, opts Options) kv.Store {
 	if store.cacheFile != "" {
 		if err := store.initCache(); err != nil {
 			store.logger.Warnf("could not load cache from file %s: %v", store.cacheFile, err)
+		} else {
+			store.logger.Infof("successfully loaded cache from file %s", store.cacheFile)
 		}
 
-		store.logger.Infof("successfully loaded cache from file %s", store.cacheFile)
 		go func() {
 			for range store.cacheUpdatedCh {
 				store.writeCacheToFile()
