@@ -79,3 +79,19 @@ func TestOptions(t *testing.T) {
 	assert.Equal(t, c, c2)
 	assert.Equal(t, iopts, opts.InstrumentOptions())
 }
+
+func TestValidate(t *testing.T) {
+	opts := NewOptions()
+	assert.Error(t, opts.Validate())
+
+	opts = opts.SetAppID("app")
+	assert.Error(t, opts.Validate())
+
+	c1 := NewCluster().SetZone("z1")
+	c2 := NewCluster().SetZone("z2")
+	opts = opts.SetClusters([]Cluster{c1, c2})
+	assert.NoError(t, opts.Validate())
+
+	opts = opts.SetInstrumentOptions(nil)
+	assert.Error(t, opts.Validate())
+}
