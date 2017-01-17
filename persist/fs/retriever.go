@@ -55,6 +55,7 @@ type blockRetriever struct {
 	fsOpts Options
 
 	reqPool   retrieveRequestPool
+	bytesPool pool.CheckedBytesPool
 	namespace ts.ID
 
 	reqsByShardIdx []*shardRetrieveRequests
@@ -73,10 +74,11 @@ func NewBlockRetriever(
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
 	reqPool.Init()
 	return &blockRetriever{
-		opts:    opts,
-		fsOpts:  fsOpts,
-		reqPool: reqPool,
-		sleepFn: time.Sleep,
+		opts:      opts,
+		fsOpts:    fsOpts,
+		reqPool:   reqPool,
+		bytesPool: opts.BytesPool(),
+		sleepFn:   time.Sleep,
 	}
 }
 
@@ -118,7 +120,7 @@ func (r *blockRetriever) newOpenSeeker(
 ) (FileSetSeeker, error) {
 	filePathPrefix := r.fsOpts.FilePathPrefix()
 	bufferSize := r.fsOpts.ReaderBufferSize()
-	bytesPool := r.opts.BytesPool()
+	bytesPool := r.bytesPool
 
 	seeker := NewSeeker(filePathPrefix, bufferSize, bytesPool)
 	if err := seeker.Open(r.namespace, shard, start); err != nil {
@@ -266,7 +268,19 @@ func (r *blockRetriever) fetchBatch(
 			req.onError(err)
 			continue
 		}
+
 		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+
+		if req.onRetrieve != nil {
+			// NB(r): Need to also trigger callback with a copy of the data.
+			// This is used by the database series to cache the in
+			// memory data.
+			cacheData := r.bytesPool.Get(data.Len())
+			cacheSegment := ts.NewSegment(cacheData, nil, ts.FinalizeHead)
+			cacheData.AppendAll(data.Get())
+			req.onRetrieve.OnRetrieveBlock(req.start, cacheSegment)
+		}
+
 		req.onRetrieved(seg)
 	}
 }
@@ -385,15 +399,6 @@ func (req *retrieveRequest) onError(err error) {
 
 func (req *retrieveRequest) onRetrieved(segment ts.Segment) {
 	req.Reset(segment)
-	if req.onRetrieve != nil {
-		// NB(r): When we close this request we need to ensure
-		// that the reader doesn't finalize this segment as we
-		// are now passing the segment to be owned by the onRetrieve
-		// callback.
-		// This is used by the database series to cache the in
-		// memory data.
-		req.onRetrieve.OnRetrieveBlock(req.start, segment)
-	}
 }
 
 func (req *retrieveRequest) Reset(segment ts.Segment) {
