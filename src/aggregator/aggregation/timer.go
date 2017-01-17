@@ -37,7 +37,7 @@ type Timer struct {
 // NewTimer creates a new timer
 func NewTimer(opts cm.Options) Timer {
 	return Timer{
-		stream: cm.NewStream(opts),
+		stream: opts.StreamPool().Get(),
 	}
 }
 
