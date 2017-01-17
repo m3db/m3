@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
 	"github.com/m3db/m3cluster/services/heartbeat"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,35 @@ func TestKeys(t *testing.T) {
 
 	require.Equal(t, "_hb/service/instance", heartbeatKey(s, id))
 	require.Equal(t, "_hb/service", servicePrefix(s))
-	require.Equal(t, "instance", instanceID(heartbeatKey(s, id), s))
+	require.Equal(t, "instance", instanceFromKey(heartbeatKey(s, id), s))
+	require.Equal(t, "_hb/service/instance/1m0s", leaseKey(s, id, time.Minute))
+}
+
+func TestReuseLeaseID(t *testing.T) {
+	s, closeFn := testStore(t)
+	defer closeFn()
+
+	store := s.(*client)
+	err := store.Heartbeat("s", "i1", time.Minute)
+	require.NoError(t, err)
+
+	store.RLock()
+	require.Equal(t, 1, len(store.leases))
+	var leaseID clientv3.LeaseID
+	for _, v := range store.leases {
+		leaseID = v
+	}
+	store.RUnlock()
+
+	err = store.Heartbeat("s", "i1", time.Minute)
+	require.NoError(t, err)
+
+	store.RLock()
+	require.Equal(t, 1, len(store.leases))
+	for _, v := range store.leases {
+		require.Equal(t, leaseID, v)
+	}
+	store.RUnlock()
 }
 
 func TestStore(t *testing.T) {
