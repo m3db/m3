@@ -33,7 +33,7 @@ const (
 	defaultID = "testhost"
 
 	// defaultServerStateChangeTimeout is the default time we wait for a server to change its state.
-	defaultServerStateChangeTimeout = time.Minute
+	defaultServerStateChangeTimeout = 5 * time.Minute
 
 	// defaultClusterConnectionTimeout is the default time we wait for cluster connections to be established.
 	defaultClusterConnectionTimeout = 2 * time.Second

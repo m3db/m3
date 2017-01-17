@@ -82,7 +82,7 @@ type reader struct {
 	entriesRead int
 	indexUnread []byte
 	prologue    []byte
-	protoBuff   *proto.Buffer
+	protoBuf    *proto.Buffer
 	currEntry   schema.IndexEntry
 	digestBuf   digest.Buffer
 	bytesPool   pool.CheckedBytesPool
@@ -102,7 +102,7 @@ func NewReader(
 		dataFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
 		prologue:                   make([]byte, markerLen+idxLen),
-		protoBuff:                  proto.NewBuffer(nil),
+		protoBuf:                   proto.NewBuffer(nil),
 		digestBuf:                  digest.NewBuffer(),
 		bytesPool:                  bytesPool,
 	}
@@ -231,8 +231,8 @@ func (r *reader) Read() (ts.ID, checked.Bytes, error) {
 		return none, nil, errReadIndexEntryZeroSize
 	}
 	indexEntryData := r.indexUnread[:size]
-	r.protoBuff.SetBuf(indexEntryData)
-	if err := r.protoBuff.Unmarshal(entry); err != nil {
+	r.protoBuf.SetBuf(indexEntryData)
+	if err := r.protoBuf.Unmarshal(entry); err != nil {
 		return none, nil, err
 	}
 	r.indexUnread = r.indexUnread[size:]
@@ -288,8 +288,8 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 		return none, 0, 0, errReadIndexEntryZeroSize
 	}
 	indexEntryData := r.indexUnread[:size]
-	r.protoBuff.SetBuf(indexEntryData)
-	if err := r.protoBuff.Unmarshal(entry); err != nil {
+	r.protoBuf.SetBuf(indexEntryData)
+	if err := r.protoBuf.Unmarshal(entry); err != nil {
 		return none, 0, 0, err
 	}
 	r.indexUnread = r.indexUnread[size:]

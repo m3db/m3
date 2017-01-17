@@ -380,12 +380,12 @@ func (_m *MockOnRetrieveBlock) EXPECT() *_MockOnRetrieveBlockRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOnRetrieveBlock) OnRetrieveBlock(startTime time.Time, segment ts.Segment) {
-	_m.ctrl.Call(_m, "OnRetrieveBlock", startTime, segment)
+func (_m *MockOnRetrieveBlock) OnRetrieveBlock(id ts.ID, startTime time.Time, segment ts.Segment) {
+	_m.ctrl.Call(_m, "OnRetrieveBlock", id, startTime, segment)
 }
 
-func (_mr *_MockOnRetrieveBlockRecorder) OnRetrieveBlock(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnRetrieveBlock", arg0, arg1)
+func (_mr *_MockOnRetrieveBlockRecorder) OnRetrieveBlock(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnRetrieveBlock", arg0, arg1, arg2)
 }
 
 // Mock of DatabaseBlockRetriever interface

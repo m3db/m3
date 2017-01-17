@@ -29,8 +29,8 @@ import (
 	persist "github.com/m3db/m3db/persist"
 	block "github.com/m3db/m3db/storage/block"
 	ts "github.com/m3db/m3db/ts"
-	io "github.com/m3db/m3db/x/io"
 	time0 "github.com/m3db/m3x/time"
+	io "github.com/m3db/m3db/x/io"
 	time "time"
 )
 
