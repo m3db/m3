@@ -120,10 +120,6 @@ func (r *blockRetriever) newOpenSeeker(
 	bufferSize := r.fsOpts.ReaderBufferSize()
 	bytesPool := r.opts.BytesPool()
 
-	log := r.fsOpts.InstrumentOptions().Logger()
-	log.Infof("creating seeker with for namespace %s shard %d start %s",
-		r.namespace.String(), shard, start.String())
-
 	seeker := NewSeeker(filePathPrefix, bufferSize, bytesPool)
 	if err := seeker.Open(r.namespace, shard, start); err != nil {
 		return nil, err
