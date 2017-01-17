@@ -79,9 +79,9 @@ func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
 	return newDatabaseSeries(id, opts)
 }
 
-// NewPooledDatabaseSeries creates a new pooled database series
-func NewPooledDatabaseSeries(pool DatabaseSeriesPool, opts Options) DatabaseSeries {
-	series := newDatabaseSeries(nilID, opts)
+// newPooledDatabaseSeries creates a new pooled database series
+func newPooledDatabaseSeries(pool DatabaseSeriesPool, opts Options) DatabaseSeries {
+	series := newDatabaseSeries(nil, opts)
 	series.pool = pool
 	return series
 }
@@ -398,11 +398,15 @@ func (s *dbSeries) FetchBlocksMetadata(
 		bufferResults.Close()
 	}
 
+	// NB(r): clone the ID before releasing lock incase this series is being
+	// closed or removed immediately after unlocking.
+	id := s.opts.IdentifierPool().Clone(s.id)
+
 	s.RUnlock()
 
 	res.Sort()
 
-	return block.NewFetchBlocksMetadataResult(s.opts.IdentifierPool().Clone(s.id), res)
+	return block.NewFetchBlocksMetadataResult(id, res)
 }
 
 func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
