@@ -190,6 +190,9 @@ func (r *blockRetriever) fetchLoop() {
 		currBatchReqs = currBatchReqs[:0]
 	}
 	for {
+		// Reset in flight request references
+		resetInFlight()
+
 		r.RLock()
 		// Move requests from shard retriever reqs into in flight slice
 		for _, reqs := range r.reqsByShardIdx {
@@ -201,13 +204,14 @@ func (r *blockRetriever) fetchLoop() {
 			reqs.Unlock()
 		}
 
-		// Exit if not open and fulfilled all open requests
+		status := r.status
 		lenInFlight := len(inFlight)
-		if lenInFlight == 0 && r.status != blockRetrieverOpen {
-			r.RUnlock()
+		r.RUnlock()
+
+		// Exit if not open and fulfilled all open requests
+		if lenInFlight == 0 && status != blockRetrieverOpen {
 			break
 		}
-		r.RUnlock()
 
 		// TODO(r): expire old seekers to unreachable file sets
 
@@ -244,9 +248,6 @@ func (r *blockRetriever) fetchLoop() {
 
 		// Fetch any finally outstanding in the current batch
 		fetchCurrBatch()
-
-		// Reset in flight request references
-		resetInFlight()
 	}
 
 	// Close the seekers
@@ -315,12 +316,11 @@ func (r *blockRetriever) Stream(
 	req.id = id
 	req.start = startTime
 	req.onRetrieve = onRetrieve
+	req.resultWg.Add(1)
 
 	reqs.Lock()
 	reqs.queued = append(reqs.queued, req)
 	reqs.Unlock()
-
-	req.resultWg.Add(1)
 
 	return req, nil
 }
@@ -440,12 +440,6 @@ func (req *retrieveRequest) Segment() (ts.Segment, error) {
 }
 
 func (req *retrieveRequest) Close() {
-	if req.onRetrieve != nil {
-		// NB(r): If we passed the segment to a callback then it
-		// belongs to them now and the reader shouldn't finalize
-		// the segment when it is closed.
-		req.reader.Reset(ts.Segment{})
-	}
 	req.reader.Close()
 	req.pool.Put(req)
 }
