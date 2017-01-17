@@ -48,10 +48,6 @@ const (
 	blockRetrieverClosed
 )
 
-const (
-	notifyRetrievalChLen = 16384
-)
-
 type blockRetriever struct {
 	sync.RWMutex
 
@@ -62,10 +58,9 @@ type blockRetriever struct {
 	bytesPool pool.CheckedBytesPool
 	namespace ts.ID
 
-	status            blockRetrieverStatus
-	reqsByShardIdx    []*shardRetrieveRequests
-	notifyRetrievalCh chan notifyRetrieval
-	sleepFn           func(time.Duration)
+	status         blockRetrieverStatus
+	reqsByShardIdx []*shardRetrieveRequests
+	sleepFn        func(time.Duration)
 }
 
 type notifyRetrieval struct {
@@ -85,13 +80,12 @@ func NewBlockRetriever(
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
 	reqPool.Init()
 	return &blockRetriever{
-		opts:              opts,
-		fsOpts:            fsOpts,
-		reqPool:           reqPool,
-		bytesPool:         opts.BytesPool(),
-		status:            blockRetrieverNotOpen,
-		notifyRetrievalCh: make(chan notifyRetrieval, notifyRetrievalChLen),
-		sleepFn:           time.Sleep,
+		opts:      opts,
+		fsOpts:    fsOpts,
+		reqPool:   reqPool,
+		bytesPool: opts.BytesPool(),
+		status:    blockRetrieverNotOpen,
+		sleepFn:   time.Sleep,
 	}
 }
 
@@ -123,7 +117,6 @@ func (r *blockRetriever) Open(namespace ts.ID) error {
 	for i := 0; i < r.opts.FetchConcurrency(); i++ {
 		go r.fetchLoop()
 	}
-	go r.notifyOnRetrieveLoop()
 
 	return nil
 }
@@ -292,22 +285,10 @@ func (r *blockRetriever) fetchBatch(
 			copyData := r.bytesPool.Get(data.Len())
 			copySegment := ts.NewSegment(copyData, nil, ts.FinalizeHead)
 			copyData.AppendAll(data.Get())
-
-			r.notifyRetrievalCh <- notifyRetrieval{
-				target:  req.onRetrieve,
-				id:      req.id,
-				start:   req.start,
-				segment: copySegment,
-			}
+			go req.onRetrieve.OnRetrieveBlock(req.id, req.start, copySegment)
 		}
 
 		req.onRetrieved(seg)
-	}
-}
-
-func (r *blockRetriever) notifyOnRetrieveLoop() {
-	for notif := range r.notifyRetrievalCh {
-		notif.target.OnRetrieveBlock(notif.id, notif.start, notif.segment)
 	}
 }
 
@@ -342,6 +323,7 @@ func (r *blockRetriever) shardRequests(
 ) (*shardRetrieveRequests, error) {
 	r.RLock()
 	if r.status != blockRetrieverOpen {
+		r.RUnlock()
 		return nil, errBlockRetrieverNotOpen
 	}
 	if int(shard) < len(r.reqsByShardIdx) {
@@ -352,13 +334,14 @@ func (r *blockRetriever) shardRequests(
 	r.RUnlock()
 
 	r.Lock()
+	defer r.Unlock()
+
 	// Check if raced with another call to this method
 	if r.status != blockRetrieverOpen {
 		return nil, errBlockRetrieverNotOpen
 	}
 	if int(shard) < len(r.reqsByShardIdx) {
 		reqs := r.reqsByShardIdx[shard]
-		r.RUnlock()
 		return reqs, nil
 	}
 
@@ -377,7 +360,6 @@ func (r *blockRetriever) shardRequests(
 
 	r.reqsByShardIdx = reqsByShardIdx
 	reqs := r.reqsByShardIdx[shard]
-	r.Unlock()
 
 	return reqs, nil
 }
@@ -388,7 +370,7 @@ func (r *blockRetriever) Close() error {
 
 	r.namespace = nil
 	r.status = blockRetrieverClosed
-	close(r.notifyRetrievalCh)
+
 	return nil
 }
 
