@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	defaultRequestPoolSize        = 4096
+	defaultRequestPoolSize        = 16384
 	defaultFetchConcurrency       = 1
 	defaultFetchYieldOnQueueEmpty = 10 * time.Millisecond
 )
