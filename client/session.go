@@ -2313,9 +2313,11 @@ type enqueueChannel struct {
 	metrics         *streamFromPeersMetrics
 }
 
+const enqueueChannelDefaultLen = 32768
+
 func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
 	c := &enqueueChannel{
-		peersMetadataCh: make(chan []*blocksMetadata, 32768),
+		peersMetadataCh: make(chan []*blocksMetadata, enqueueChannelDefaultLen),
 		closed:          0,
 		metrics:         m,
 	}
