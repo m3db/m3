@@ -25,7 +25,7 @@ import "time"
 // Store is a heartbeat store
 type Store interface {
 	// Heartbeat sends heartbeat for a service instance with a ttl
-	Heartbeat(service, id string, ttl time.Duration) error
+	Heartbeat(service, instance string, ttl time.Duration) error
 
 	// Get gets healthy instances for a service
 	Get(service string) ([]string, error)

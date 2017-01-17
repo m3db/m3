@@ -57,6 +57,7 @@ func NewServices(opts Options) (services.Services, error) {
 		adDoneChs:  make(map[string]chan struct{}),
 		opts:       opts,
 		logger:     opts.InstrumentsOptions().Logger(),
+		m:          opts.InstrumentsOptions().MetricsScope(),
 	}, nil
 }
 
@@ -68,6 +69,7 @@ type client struct {
 	hbStores   map[string]heartbeat.Store
 	adDoneChs  map[string]chan struct{}
 	logger     xlog.Logger
+	m          tally.Scope
 }
 
 func (c *client) Metadata(sid services.ServiceID) (services.Metadata, error) {
@@ -143,12 +145,18 @@ func (c *client) Advertise(ad services.Advertisement) error {
 	c.Unlock()
 
 	go func() {
+		sid := ad.ServiceID()
+		errCounter := c.serviceTaggedScope(sid).Counter("heartbeat.error")
+
 		ticker := time.Tick(m.HeartbeatInterval())
 		for {
 			select {
 			case <-ticker:
 				if isHealthy(ad) {
-					hb.Heartbeat(serviceKey(ad.ServiceID()), ad.InstanceID(), m.LivenessInterval())
+					if err := hb.Heartbeat(serviceKey(sid), ad.InstanceID(), m.LivenessInterval()); err != nil {
+						c.logger.Errorf("could not heartbeat service %s, %v", sid.String(), err)
+						errCounter.Inc(1)
+					}
 				}
 			case <-ch:
 				return
@@ -278,13 +286,7 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 
 	watchable.Update(filterHealthyInstances(initService, ids, opts.IncludeUnhealthy()))
 
-	sdm := newServiceDiscoveryMetrics(
-		c.opts.InstrumentsOptions().MetricsScope().Tagged(map[string]string{
-			"sd_service": sid.Name(),
-			"sd_env":     sid.Environment(),
-			"sd_zone":    sid.Zone(),
-		}),
-	)
+	sdm := newServiceDiscoveryMetrics(c.serviceTaggedScope(sid))
 	go c.run(placementWatch, watchable, sid, opts, hbStore, initService, ids, sdm.serviceUnmalshalErr)
 	go updateVersionGauge(placementWatch, sdm.versionGauge)
 
@@ -396,6 +398,16 @@ func (c *client) run(
 	}
 }
 
+func (c *client) serviceTaggedScope(sid services.ServiceID) tally.Scope {
+	return c.m.Tagged(
+		map[string]string{
+			"sd_service": sid.Name(),
+			"sd_env":     sid.Environment(),
+			"sd_zone":    sid.Zone(),
+		},
+	)
+}
+
 func isHealthy(ad services.Advertisement) bool {
 	healthFn := ad.Health()
 	return healthFn == nil || healthFn() == nil
@@ -480,13 +492,6 @@ func wait(vw kv.ValueWatch, timeout time.Duration) error {
 	}
 }
 
-func newServiceDiscoveryMetrics(m tally.Scope) serviceDiscoveryMetrics {
-	return serviceDiscoveryMetrics{
-		versionGauge:        m.Gauge("placement.verison"),
-		serviceUnmalshalErr: m.Counter("placement.unmarshal.error"),
-	}
-}
-
 func validateServiceID(sid services.ServiceID) error {
 	if sid.Name() == "" {
 		return errNoServiceName
@@ -512,6 +517,13 @@ type kvManager struct {
 
 	kv                kv.Store
 	serviceWatchables map[string]xwatch.Watchable
+}
+
+func newServiceDiscoveryMetrics(m tally.Scope) serviceDiscoveryMetrics {
+	return serviceDiscoveryMetrics{
+		versionGauge:        m.Gauge("placement.verison"),
+		serviceUnmalshalErr: m.Counter("placement.unmarshal.error"),
+	}
 }
 
 type serviceDiscoveryMetrics struct {

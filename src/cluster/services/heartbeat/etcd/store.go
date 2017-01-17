@@ -23,6 +23,7 @@ package etcd
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
@@ -38,22 +39,53 @@ const (
 
 // NewStore creates a heartbeat store based on etcd
 func NewStore(c *clientv3.Client) heartbeat.Store {
-	return &client{l: c.Lease, kv: c.KV}
+	return &client{l: c.Lease, kv: c.KV, leases: make(map[string]clientv3.LeaseID)}
 }
 
 type client struct {
+	sync.RWMutex
+	leases map[string]clientv3.LeaseID
+
 	l  clientv3.Lease
 	kv clientv3.KV
 }
 
-func (c *client) Heartbeat(service, id string, ttl time.Duration) error {
+func (c *client) Heartbeat(service, instance string, ttl time.Duration) error {
+	key := leaseKey(service, instance, ttl)
+
+	c.RLock()
+	leaseID, ok := c.leases[key]
+	c.RUnlock()
+
+	if ok {
+		_, err := c.l.KeepAliveOnce(context.Background(), leaseID)
+		// if err != nil, it could because the old lease has already timedout
+		// on the server side, we need to try a new lease.
+		if err == nil {
+			return nil
+		}
+	}
+
 	resp, err := c.l.Grant(context.Background(), int64(ttl/time.Second))
 	if err != nil {
 		return err
 	}
 
-	_, err = c.kv.Put(context.Background(), heartbeatKey(service, id), "", clientv3.WithLease(resp.ID))
-	return err
+	_, err = c.kv.Put(
+		context.Background(),
+		heartbeatKey(service, instance),
+		"",
+		clientv3.WithLease(resp.ID),
+	)
+	if err != nil {
+		return err
+	}
+
+	c.Lock()
+	c.leases[key] = resp.ID
+	c.Unlock()
+
+	return nil
 }
 
 func (c *client) Get(service string) ([]string, error) {
@@ -64,16 +96,16 @@ func (c *client) Get(service string) ([]string, error) {
 
 	r := make([]string, len(gr.Kvs))
 	for i, kv := range gr.Kvs {
-		r[i] = instanceID(string(kv.Key), service)
+		r[i] = instanceFromKey(string(kv.Key), service)
 	}
 	return r, nil
 }
 
-func heartbeatKey(service, id string) string {
-	return fmt.Sprintf(keyFormat, servicePrefix(service), id)
+func heartbeatKey(service, instance string) string {
+	return fmt.Sprintf(keyFormat, servicePrefix(service), instance)
 }
 
-func instanceID(key, service string) string {
+func instanceFromKey(key, service string) string {
 	return strings.TrimPrefix(
 		strings.TrimPrefix(key, servicePrefix(service)),
 		keySeparator,
@@ -82,4 +114,8 @@ func instanceID(key, service string) string {
 
 func servicePrefix(service string) string {
 	return fmt.Sprintf(keyFormat, heartbeatKeyPrefix, service)
+}
+
+func leaseKey(service, instance string, ttl time.Duration) string {
+	return fmt.Sprintf(keyFormat, heartbeatKey(service, instance), ttl.String())
 }
