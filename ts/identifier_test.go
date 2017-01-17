@@ -60,7 +60,12 @@ func testPooling(t *testing.T, p IdentifierPool) {
 }
 
 func TestSimplePooling(t *testing.T) {
-	testPooling(t, NewIdentifierPool(pool.NewObjectPoolOptions()))
+	bytesPool := pool.NewCheckedBytesPool(nil, nil,
+		func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, nil)
+		})
+	bytesPool.Init()
+	testPooling(t, NewIdentifierPool(bytesPool, pool.NewObjectPoolOptions()))
 }
 
 func TestNativePooling(t *testing.T) {
