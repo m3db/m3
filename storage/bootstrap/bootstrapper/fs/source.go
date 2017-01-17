@@ -115,11 +115,7 @@ func (s *fileSystemSource) enqueueReaders(
 	readerPool *readerPool,
 	readersCh chan<- shardReaders,
 ) {
-	var wg sync.WaitGroup
-
 	for shard, tr := range shardsTimeRanges {
-		shard, tr := shard, tr
-
 		var files []string
 		fs.ForEachInfoFile(s.filePathPrefix, namespace, shard, s.readerBufferSize, func(fname string, _ []byte) {
 			files = append(files, fname)
@@ -128,7 +124,7 @@ func (s *fileSystemSource) enqueueReaders(
 		if len(files) == 0 {
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- shardReaders{shard: shard, tr: tr}
-			return
+			continue
 		}
 
 		readers := make([]fs.FileSetReader, 0, len(files))
@@ -163,7 +159,6 @@ func (s *fileSystemSource) enqueueReaders(
 		readersCh <- shardReaders{shard: shard, tr: tr, readers: readers}
 	}
 
-	wg.Wait()
 	close(readersCh)
 }
 
