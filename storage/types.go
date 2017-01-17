@@ -44,6 +44,13 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+type runType int
+
+const (
+	runTypeSync runType = iota
+	runTypeAsync
+)
+
 // Database is a time series database
 type Database interface {
 	// Options returns the database options
@@ -380,7 +387,7 @@ type databaseFileSystemManager interface {
 	ShouldRun(t time.Time) bool
 
 	// Run performs all filesystem-related operations
-	Run(t time.Time, async bool)
+	Run(t time.Time, mode runType)
 }
 
 // databaseShardRepairer repairs in-memory data for a shard
@@ -403,7 +410,7 @@ type databaseRepairer interface {
 	ShouldRun() bool
 
 	// Run performs all repair-related operations
-	Run(async bool)
+	Run(mode runType)
 
 	// IsRepairing returns whether the repairer is running or not
 	IsRepairing() bool

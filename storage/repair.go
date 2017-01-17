@@ -513,7 +513,7 @@ func (r *dbRepairer) ShouldRun() bool {
 	return now.Sub(r.lastRun) > maxDelta
 }
 
-func (r *dbRepairer) Run(async bool) {
+func (r *dbRepairer) Run(mode runType) {
 	run := func() {
 		if err := r.repairFn(); err != nil {
 			r.logger.Errorf("error repairing database: %v", err)
@@ -523,7 +523,7 @@ func (r *dbRepairer) Run(async bool) {
 		r.lastRun = r.nowFn()
 	}
 
-	if async {
+	if mode == runTypeAsync {
 		go run()
 	} else {
 		run()

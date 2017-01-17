@@ -372,7 +372,7 @@ func (d *db) IsBootstrapped() bool {
 }
 
 func (d *db) Repair() error {
-	d.repairer.Run(true)
+	d.repairer.Run(runTypeAsync)
 	return nil
 }
 
@@ -491,12 +491,12 @@ func (d *db) splayedTick() {
 		// blocks may only have just become available during a tick beginning
 		// from the tick begin marker.
 		if d.fsm.ShouldRun(start) {
-			d.fsm.Run(start, false)
+			d.fsm.Run(start, runTypeSync)
 		}
 
 		// NB(prateek): The repairer has to be run after any pending flushes
 		if d.repairer.ShouldRun() {
-			d.repairer.Run(false)
+			d.repairer.Run(runTypeSync)
 		}
 	}()
 }

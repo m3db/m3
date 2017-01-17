@@ -86,7 +86,7 @@ func TestDatabaseRepairerShouldRunOffsetChecker(t *testing.T) {
 	}
 
 	require.True(t, repairer.ShouldRun())
-	repairer.Run(false)
+	repairer.Run(runTypeSync)
 	callNum++
 	require.False(t, repairer.ShouldRun())
 	callNum++
