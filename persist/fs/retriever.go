@@ -48,6 +48,10 @@ const (
 	blockRetrieverClosed
 )
 
+const (
+	notifyRetrievalChLen = 16384
+)
+
 type blockRetriever struct {
 	sync.RWMutex
 
@@ -58,10 +62,17 @@ type blockRetriever struct {
 	bytesPool pool.CheckedBytesPool
 	namespace ts.ID
 
-	reqsByShardIdx []*shardRetrieveRequests
+	status            blockRetrieverStatus
+	reqsByShardIdx    []*shardRetrieveRequests
+	notifyRetrievalCh chan notifyRetrieval
+	sleepFn           func(time.Duration)
+}
 
-	status  blockRetrieverStatus
-	sleepFn func(time.Duration)
+type notifyRetrieval struct {
+	target  block.OnRetrieveBlock
+	id      ts.ID
+	start   time.Time
+	segment ts.Segment
 }
 
 // NewBlockRetriever returns a new block retriever for TSDB file sets.
@@ -74,11 +85,13 @@ func NewBlockRetriever(
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
 	reqPool.Init()
 	return &blockRetriever{
-		opts:      opts,
-		fsOpts:    fsOpts,
-		reqPool:   reqPool,
-		bytesPool: opts.BytesPool(),
-		sleepFn:   time.Sleep,
+		opts:              opts,
+		fsOpts:            fsOpts,
+		reqPool:           reqPool,
+		bytesPool:         opts.BytesPool(),
+		status:            blockRetrieverNotOpen,
+		notifyRetrievalCh: make(chan notifyRetrieval, notifyRetrievalChLen),
+		sleepFn:           time.Sleep,
 	}
 }
 
@@ -110,6 +123,7 @@ func (r *blockRetriever) Open(namespace ts.ID) error {
 	for i := 0; i < r.opts.FetchConcurrency(); i++ {
 		go r.fetchLoop()
 	}
+	go r.notifyOnRetrieveLoop()
 
 	return nil
 }
@@ -275,13 +289,25 @@ func (r *blockRetriever) fetchBatch(
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database series to cache the in
 			// memory data.
-			cacheData := r.bytesPool.Get(data.Len())
-			cacheSegment := ts.NewSegment(cacheData, nil, ts.FinalizeHead)
-			cacheData.AppendAll(data.Get())
-			req.onRetrieve.OnRetrieveBlock(req.start, cacheSegment)
+			copyData := r.bytesPool.Get(data.Len())
+			copySegment := ts.NewSegment(copyData, nil, ts.FinalizeHead)
+			copyData.AppendAll(data.Get())
+
+			r.notifyRetrievalCh <- notifyRetrieval{
+				target:  req.onRetrieve,
+				id:      req.id,
+				start:   req.start,
+				segment: copySegment,
+			}
 		}
 
 		req.onRetrieved(seg)
+	}
+}
+
+func (r *blockRetriever) notifyOnRetrieveLoop() {
+	for notif := range r.notifyRetrievalCh {
+		notif.target.OnRetrieveBlock(notif.id, notif.start, notif.segment)
 	}
 }
 
@@ -358,9 +384,11 @@ func (r *blockRetriever) shardRequests(
 
 func (r *blockRetriever) Close() error {
 	r.Lock()
+	defer r.Unlock()
+
 	r.namespace = nil
 	r.status = blockRetrieverClosed
-	r.Unlock()
+	close(r.notifyRetrievalCh)
 	return nil
 }
 

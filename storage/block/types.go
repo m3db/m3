@@ -164,7 +164,11 @@ type DatabaseBlock interface {
 
 // OnRetrieveBlock is an interface to callback on when a block is retrieved.
 type OnRetrieveBlock interface {
-	OnRetrieveBlock(startTime time.Time, segment ts.Segment)
+	OnRetrieveBlock(
+		id ts.ID,
+		startTime time.Time,
+		segment ts.Segment,
+	)
 }
 
 // RetrievableBlockMetadata describes a retrievable block.

@@ -374,18 +374,6 @@ func (s *dbSeries) FetchBlocksMetadata(
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
 			continue
 		}
-		reader, err := b.Stream(ctx)
-		// If we failed to read some blocks, skip this block and continue to get
-		// the metadata for the rest of the blocks.
-		if err != nil {
-			detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.id.String(), t, err)
-			res.Add(block.NewFetchBlockMetadataResult(t, nil, nil, detailedErr))
-			continue
-		}
-		// If there are no datapoints in the block, continue and don't append it to the result.
-		if reader == nil {
-			continue
-		}
 		var (
 			pSize     *int64
 			pChecksum *uint32
@@ -583,20 +571,29 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 
 // OnRetrieveCallback is called by each individual block when
 // they are retrieved from disk
-func (s *dbSeries) OnRetrieveBlock(blockStart time.Time, segment ts.Segment) {
+func (s *dbSeries) OnRetrieveBlock(
+	id ts.ID,
+	blockStart time.Time,
+	segment ts.Segment,
+) {
 	var err error
 
 	s.Lock()
-	min, _ := s.buffer.MinMax()
-	if !blockStart.Before(min) {
-		err = s.buffer.CacheRetrievedBlock(blockStart, segment)
+	if !s.id.Equal(id) {
+		err = fmt.Errorf("retrieved ID %s does not match series ID",
+			id.String())
 	} else {
-		block, ok := s.blocks.BlockAt(blockStart)
-		if !ok {
-			err = fmt.Errorf("block retrieved for %s not an existing block",
-				blockStart.String())
+		min, _ := s.buffer.MinMax()
+		if !blockStart.Before(min) {
+			err = s.buffer.CacheRetrievedBlock(blockStart, segment)
 		} else {
-			block.Reset(blockStart, segment)
+			block, ok := s.blocks.BlockAt(blockStart)
+			if !ok {
+				err = fmt.Errorf("retrieved for %s not an existing block",
+					blockStart.String())
+			} else {
+				block.Reset(blockStart, segment)
+			}
 		}
 	}
 	s.Unlock()

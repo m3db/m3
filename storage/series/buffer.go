@@ -299,12 +299,7 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 			return
 		}
 
-		unmerged := make([]xio.SegmentReader, 0, len(bucket.encoders))
-		bucket.readStreams(ctx, func(stream xio.SegmentReader) {
-			unmerged = append(unmerged, stream)
-		})
-
-		results = append(results, unmerged)
+		results = append(results, bucket.streams(ctx))
 	})
 
 	return results
@@ -329,11 +324,8 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 		if !found {
 			return
 		}
-		readers := make([]xio.SegmentReader, 0, len(bucket.encoders))
-		bucket.readStreams(ctx, func(stream xio.SegmentReader) {
-			readers = append(readers, stream)
-		})
-		res = append(res, block.NewFetchBlockResult(bucket.start, readers, nil))
+		streams := bucket.streams(ctx)
+		res = append(res, block.NewFetchBlockResult(bucket.start, streams, nil))
 	})
 
 	return res
@@ -501,26 +493,27 @@ func (b *dbBufferBucket) write(
 	return nil
 }
 
-func (b *dbBufferBucket) readStreams(
-	ctx context.Context,
-	streamFn dbBufferBucketStreamFn,
-) {
+func (b *dbBufferBucket) streams(ctx context.Context) []xio.SegmentReader {
 	// NB(r): Ensure we don't call any closers before the operation
 	// started by the passed context completes.
 	b.ctx.DependsOn(ctx)
 
+	streams := make([]xio.SegmentReader, 0, len(b.bootstrapped)+len(b.encoders))
+
 	for i := range b.bootstrapped {
 		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s != nil {
 			// NB(r): block stream method will register the stream closer already
-			streamFn(s)
+			streams = append(streams, s)
 		}
 	}
 	for i := range b.encoders {
 		if s := b.encoders[i].encoder.Stream(); s != nil {
 			ctx.RegisterFinalizer(context.FinalizerFn(s.Close))
-			streamFn(s)
+			streams = append(streams, s)
 		}
 	}
+
+	return streams
 }
 
 func (b *dbBufferBucket) streamsLen() int {
