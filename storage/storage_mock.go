@@ -1532,6 +1532,26 @@ func (_mr *_MockOptionsRecorder) MaxFlushRetries() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxFlushRetries")
 }
 
+func (_m *MockOptions) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
+	ret := _m.ctrl.Call(_m, "SetDatabaseBlockRetrieverManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetDatabaseBlockRetrieverManager(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetDatabaseBlockRetrieverManager", arg0)
+}
+
+func (_m *MockOptions) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
+	ret := _m.ctrl.Call(_m, "DatabaseBlockRetrieverManager")
+	ret0, _ := ret[0].(block.DatabaseBlockRetrieverManager)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) DatabaseBlockRetrieverManager() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseBlockRetrieverManager")
+}
+
 func (_m *MockOptions) SetShardCloseDeadline(value time.Duration) Options {
 	ret := _m.ctrl.Call(_m, "SetShardCloseDeadline", value)
 	ret0, _ := ret[0].(Options)

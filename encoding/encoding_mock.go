@@ -26,11 +26,11 @@ package encoding
 import (
 	gomock "github.com/golang/mock/gomock"
 	ts "github.com/m3db/m3db/ts"
-	io "github.com/m3db/m3db/x/io"
+	io0 "github.com/m3db/m3db/x/io"
 	checked "github.com/m3db/m3x/checked"
 	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
-	io0 "io"
+	io "io"
 	time "time"
 )
 
@@ -65,9 +65,9 @@ func (_mr *_MockEncoderRecorder) Encode(arg0, arg1, arg2 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Encode", arg0, arg1, arg2)
 }
 
-func (_m *MockEncoder) Stream() io.SegmentReader {
+func (_m *MockEncoder) Stream() io0.SegmentReader {
 	ret := _m.ctrl.Call(_m, "Stream")
-	ret0, _ := ret[0].(io.SegmentReader)
+	ret0, _ := ret[0].(io0.SegmentReader)
 	return ret0
 }
 
@@ -262,7 +262,7 @@ func (_mr *_MockOptionsRecorder) BytesPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BytesPool")
 }
 
-func (_m *MockOptions) SetSegmentReaderPool(value io.SegmentReaderPool) Options {
+func (_m *MockOptions) SetSegmentReaderPool(value io0.SegmentReaderPool) Options {
 	ret := _m.ctrl.Call(_m, "SetSegmentReaderPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -272,9 +272,9 @@ func (_mr *_MockOptionsRecorder) SetSegmentReaderPool(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSegmentReaderPool", arg0)
 }
 
-func (_m *MockOptions) SegmentReaderPool() io.SegmentReaderPool {
+func (_m *MockOptions) SegmentReaderPool() io0.SegmentReaderPool {
 	ret := _m.ctrl.Call(_m, "SegmentReaderPool")
-	ret0, _ := ret[0].(io.SegmentReaderPool)
+	ret0, _ := ret[0].(io0.SegmentReaderPool)
 	return ret0
 }
 
@@ -404,7 +404,7 @@ func (_mr *_MockReaderIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockReaderIterator) Reset(reader io0.Reader) {
+func (_m *MockReaderIterator) Reset(reader io.Reader) {
 	_m.ctrl.Call(_m, "Reset", reader)
 }
 
@@ -473,7 +473,7 @@ func (_mr *_MockMultiReaderIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockMultiReaderIterator) Reset(readers []io0.Reader) {
+func (_m *MockMultiReaderIterator) Reset(readers []io.Reader) {
 	_m.ctrl.Call(_m, "Reset", readers)
 }
 
@@ -481,7 +481,7 @@ func (_mr *_MockMultiReaderIteratorRecorder) Reset(arg0 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0)
 }
 
-func (_m *MockMultiReaderIterator) ResetSliceOfSlices(readers io.ReaderSliceOfSlicesIterator) {
+func (_m *MockMultiReaderIterator) ResetSliceOfSlices(readers io0.ReaderSliceOfSlicesIterator) {
 	_m.ctrl.Call(_m, "ResetSliceOfSlices", readers)
 }
 
@@ -733,7 +733,7 @@ func (_m *MockDecoder) EXPECT() *_MockDecoderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDecoder) Decode(reader io0.Reader) ReaderIterator {
+func (_m *MockDecoder) Decode(reader io.Reader) ReaderIterator {
 	ret := _m.ctrl.Call(_m, "Decode", reader)
 	ret0, _ := ret[0].(ReaderIterator)
 	return ret0
@@ -808,7 +808,7 @@ func (_mr *_MockIStreamRecorder) PeekBits(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PeekBits", arg0)
 }
 
-func (_m *MockIStream) Reset(r io0.Reader) {
+func (_m *MockIStream) Reset(r io.Reader) {
 	_m.ctrl.Call(_m, "Reset", r)
 }
 

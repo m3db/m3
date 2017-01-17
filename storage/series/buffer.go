@@ -58,6 +58,48 @@ const (
 	computeAndResetBucketIdx
 )
 
+type databaseBuffer interface {
+	Write(
+		ctx context.Context,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
+
+	ReadEncoded(
+		ctx context.Context,
+		start, end time.Time,
+	) [][]xio.SegmentReader
+
+	FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult
+
+	FetchBlocksMetadata(
+		ctx context.Context,
+		start, end time.Time,
+		includeSizes bool,
+		includeChecksums bool,
+	) block.FetchBlockMetadataResults
+
+	IsEmpty() bool
+
+	MinMax() (time.Time, time.Time)
+
+	NeedsDrain() bool
+
+	DrainAndReset()
+
+	Bootstrap(bl block.DatabaseBlock) error
+
+	// CacheRetrievedBlock is called to cache a block retrieved from disk
+	CacheRetrievedBlock(
+		blockStart time.Time,
+		segment ts.Segment,
+	) error
+
+	Reset()
+}
+
 type dbBuffer struct {
 	opts              Options
 	nowFn             clock.NowFn
