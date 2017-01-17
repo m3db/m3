@@ -28,10 +28,6 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
-const (
-	defaultNumIOWorkers = 1
-)
-
 var (
 	defaultNumProcessors = int(math.Ceil(float64(runtime.NumCPU()) / 2))
 )
@@ -39,7 +35,6 @@ var (
 type options struct {
 	resultOpts    result.Options
 	fsOpts        fs.Options
-	numIOWorkers  int
 	numProcessors int
 }
 
@@ -48,7 +43,6 @@ func NewOptions() Options {
 	return &options{
 		resultOpts:    result.NewOptions(),
 		fsOpts:        fs.NewOptions(),
-		numIOWorkers:  defaultNumIOWorkers,
 		numProcessors: defaultNumProcessors,
 	}
 }
@@ -71,16 +65,6 @@ func (o *options) SetFilesystemOptions(value fs.Options) Options {
 
 func (o *options) FilesystemOptions() fs.Options {
 	return o.fsOpts
-}
-
-func (o *options) SetNumIOWorkers(value int) Options {
-	opts := *o
-	opts.numIOWorkers = value
-	return &opts
-}
-
-func (o *options) NumIOWorkers() int {
-	return o.numIOWorkers
 }
 
 func (o *options) SetNumProcessors(value int) Options {

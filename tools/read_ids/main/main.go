@@ -101,7 +101,7 @@ func main() {
 		attemptFn := func() error {
 			tctx, _ := thrift.NewContext(60 * time.Second)
 			req := rpc.NewFetchBlocksMetadataRawRequest()
-			req.NameSpace = ts.StringID(namespace).Data()
+			req.NameSpace = ts.StringID(namespace).Data().Get()
 			req.Shard = int32(shard)
 			req.RangeStart = 0
 			req.RangeEnd = time.Now().Add(365 * 24 * time.Hour).UnixNano()

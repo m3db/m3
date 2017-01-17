@@ -22,13 +22,13 @@ package peers
 
 import (
 	"sync"
-	"time"
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
 )
 
@@ -48,7 +48,7 @@ func newPeersSource(opts Options) bootstrap.Source {
 
 func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 	switch strategy {
-	case bootstrap.BootstrapParallel, bootstrap.BootstrapSequential:
+	case bootstrap.BootstrapSequential:
 		return true
 	}
 	return false
@@ -78,23 +78,32 @@ func (s *peersSource) Read(
 		return result, nil
 	}
 
-	s.log.Infof("peers bootstrapper starting to bootstrap shards in parallel")
 	var (
-		bopts = s.opts.ResultOptions()
-		lock  sync.Mutex
-		wg    sync.WaitGroup
+		bopts       = s.opts.ResultOptions()
+		concurrency = s.opts.BootstrapShardConcurrency()
+		count       = len(shardsTimeRanges)
+		lock        sync.Mutex
+		wg          sync.WaitGroup
 	)
+	s.log.WithFields(
+		xlog.NewLogField("shards", count),
+		xlog.NewLogField("concurrency", concurrency),
+	).Infof("peers bootstrapper bootstrapping shards for ranges")
+	workers := xsync.NewWorkerPool(concurrency)
+	workers.Init()
 	for shard, ranges := range shardsTimeRanges {
-		it := ranges.Iter()
-		for it.Next() {
-			currRange := it.Value()
-			// We fetch all results in parallel and the underlying session will
-			// rate limit the total throughput with a single worker pool that
-			// is defined by the fetch series blocks batch concurrency option
-			wg.Add(1)
-			go func(shard uint32, start, end time.Time) {
+		shard, ranges := shard, ranges
+		wg.Add(1)
+		workers.Go(func() {
+			defer wg.Done()
+
+			it := ranges.Iter()
+			for it.Next() {
+				currRange := it.Value()
+
 				shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace,
-					shard, start, end, bopts)
+					shard, currRange.Start, currRange.End, bopts)
+
 				lock.Lock()
 				if err == nil {
 					result.Add(shard, shardResult, nil)
@@ -102,9 +111,8 @@ func (s *peersSource) Read(
 					result.Add(shard, nil, xtime.NewRanges().AddRange(currRange))
 				}
 				lock.Unlock()
-				wg.Done()
-			}(shard, currRange.Start, currRange.End)
-		}
+			}
+		})
 	}
 
 	wg.Wait()

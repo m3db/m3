@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
 type options struct {
@@ -44,6 +45,12 @@ type options struct {
 
 // NewOptions creates new database series options
 func NewOptions() Options {
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
+		pool.Bucket{Count: 4096, Capacity: 128},
+	}, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
+	bytesPool.Init()
 	return &options{
 		clockOpts:                     clock.NewOptions(),
 		instrumentOpts:                instrument.NewOptions(),
@@ -53,7 +60,7 @@ func NewOptions() Options {
 		encoderPool:                   encoding.NewEncoderPool(nil),
 		multiReaderIteratorPool:       encoding.NewMultiReaderIteratorPool(nil),
 		fetchBlockMetadataResultsPool: block.NewFetchBlockMetadataResultsPool(nil, 0),
-		identifierPool:                ts.NewIdentifierPool(nil),
+		identifierPool:                ts.NewIdentifierPool(bytesPool, nil),
 	}
 }
 

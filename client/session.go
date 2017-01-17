@@ -21,6 +21,7 @@
 package client
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"hash"
@@ -125,7 +126,6 @@ type session struct {
 	streamBlocksMaxBlockRetries      int
 	streamBlocksWorkers              xsync.WorkerPool
 	streamBlocksReattemptWorkers     xsync.WorkerPool
-	streamBlocksResultsProcessors    chan struct{}
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
 	streamBlocksBatchTimeout         time.Duration
@@ -217,19 +217,6 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksWorkers.Init()
 		s.streamBlocksReattemptWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksReattemptWorkers.Init()
-		processors := opts.FetchSeriesBlocksResultsProcessors()
-		// NB(r): We use a list of tokens here instead of a worker pool for bounding
-		// the stream blocks results processors as we require the processing of the
-		// response to be synchronous in relation to the caller, which is the peer
-		// queue. This is required because after executing the stream blocks batch request,
-		// which is triggered from the peer queue, we decrement the outstanding work
-		// and we cannot let this fall to zero until there is absolutely no work left.
-		// This is because we sample the queue length and if it's ever zero we consider
-		// streaming blocks to be finished.
-		s.streamBlocksResultsProcessors = make(chan struct{}, processors)
-		for i := 0; i < processors; i++ {
-			s.streamBlocksResultsProcessors <- struct{}{}
-		}
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
@@ -1157,7 +1144,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts result.Options,
 ) (result.ShardResult, error) {
 	var (
-		result   = newBulkBlocksResult(s.opts, opts, s.multiReaderIteratorPool)
+		result   = newBulkBlocksResult(s.opts, opts)
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		onDone   = func(err error) {
@@ -1224,7 +1211,7 @@ func (s *session) FetchBlocksFromPeers(
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		result   = newStreamBlocksResult(s.opts, opts, s.multiReaderIteratorPool, outputCh)
+		result   = newStreamBlocksResult(s.opts, opts, outputCh)
 		onDone   = func(err error) {
 			atomic.StoreInt64(&complete, 1)
 			select {
@@ -1430,14 +1417,21 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 		return nil
 	}
+
+	// NB(r): split the following methods up so they don't allocate
+	// a closure per fetch blocks call
+	var attemptErr error
+	checkedAttemptFn := func(client rpc.TChanNode) {
+		attemptErr = attemptFn(client)
+	}
+
+	fetchFn := func() error {
+		borrowErr := peer.BorrowConnection(checkedAttemptFn)
+		return xerrors.FirstError(borrowErr, attemptErr)
+	}
+
 	for moreResults {
-		if err := retrier.Attempt(func() error {
-			var attemptErr error
-			borrowErr := peer.BorrowConnection(func(client rpc.TChanNode) {
-				attemptErr = attemptFn(client)
-			})
-			return xerrors.FirstError(borrowErr, attemptErr)
-		}); err != nil {
+		if err := retrier.Attempt(fetchFn); err != nil {
 			return err
 		}
 	}
@@ -1875,13 +1869,6 @@ func (s *session) streamBlocksBatchFromPeer(
 		return
 	}
 
-	// NB(r): As discussed in the new session constructor this processing needs to happen
-	// synchronously so that our outstanding work is calculated correctly, however we do
-	// not want to steal all the CPUs on the machine to avoid dropping incoming writes so
-	// we reduce the amount of processors in this critical section by checking out a token.
-	// Wait for token to process the results to bound the amount of CPU of collecting results.
-	token := <-s.streamBlocksResultsProcessors
-
 	// Parse and act on result
 	tooManyIDsLogged := false
 	for i := range result.Elements {
@@ -1896,8 +1883,8 @@ func (s *session) streamBlocksBatchFromPeer(
 			continue
 		}
 
-		id := ts.BinaryID(checked.NewBytes(result.Elements[i].ID, nil))
-		if !batch[i].id.Equal(id) {
+		id := batch[i].id
+		if !bytes.Equal(id.Data().Get(), result.Elements[i].ID) {
 			b := batch[i].blocks
 			s.streamBlocksReattemptFromPeers(b, enqueueCh, respErrReason, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
@@ -1961,9 +1948,6 @@ func (s *session) streamBlocksBatchFromPeer(
 			m.fetchBlockSuccess.Inc(1)
 		}
 	}
-
-	// Return token to continue collecting results in other go routines
-	s.streamBlocksResultsProcessors <- token
 }
 
 func (s *session) verifyFetchedBlock(block *rpc.Block, metadata blockMetadata) error {
@@ -2062,7 +2046,6 @@ type baseBlocksResult struct {
 func newBaseBlocksResult(
 	opts Options,
 	resultOpts result.Options,
-	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 ) baseBlocksResult {
 	blockOpts := resultOpts.DatabaseBlockOptions()
 	return baseBlocksResult{
@@ -2070,7 +2053,7 @@ func newBaseBlocksResult(
 		blockAllocSize:          blockOpts.DatabaseBlockAllocSize(),
 		contextPool:             opts.ContextPool(),
 		encoderPool:             blockOpts.EncoderPool(),
-		multiReaderIteratorPool: multiReaderIteratorPool,
+		multiReaderIteratorPool: blockOpts.MultiReaderIteratorPool(),
 	}
 }
 
@@ -2176,11 +2159,10 @@ type streamBlocksResult struct {
 func newStreamBlocksResult(
 	opts Options,
 	resultOpts result.Options,
-	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	outputCh chan<- peerBlocksDatapoint,
 ) *streamBlocksResult {
 	return &streamBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(opts, resultOpts, multiReaderIteratorPool),
+		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
 		outputCh:         outputCh,
 	}
 }
@@ -2255,10 +2237,9 @@ type bulkBlocksResult struct {
 func newBulkBlocksResult(
 	opts Options,
 	resultOpts result.Options,
-	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 ) *bulkBlocksResult {
 	return &bulkBlocksResult{
-		baseBlocksResult: newBaseBlocksResult(opts, resultOpts, multiReaderIteratorPool),
+		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
 		result:           result.NewShardResult(4096, resultOpts),
 	}
 }
@@ -2332,9 +2313,11 @@ type enqueueChannel struct {
 	metrics         *streamFromPeersMetrics
 }
 
+const enqueueChannelDefaultLen = 32768
+
 func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
 	c := &enqueueChannel{
-		peersMetadataCh: make(chan []*blocksMetadata, 4096),
+		peersMetadataCh: make(chan []*blocksMetadata, enqueueChannelDefaultLen),
 		closed:          0,
 		metrics:         m,
 	}

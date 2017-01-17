@@ -21,14 +21,9 @@
 package peers
 
 import (
-	"time"
-
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
-
-// SleepFn is a fn that will sleep the current goroutine
-type SleepFn func(d time.Duration)
 
 // Options represents the options for bootstrapping from peers
 type Options interface {
@@ -43,4 +38,10 @@ type Options interface {
 
 	// AdminClient returns the admin client
 	AdminClient() client.AdminClient
+
+	// SetBootstrapShardConcurrency sets the concurrency for bootstrapping shards
+	SetBootstrapShardConcurrency(value int) Options
+
+	// BootstrapShardConcurrency returns the concurrency for bootstrapping shards
+	BootstrapShardConcurrency() int
 }
