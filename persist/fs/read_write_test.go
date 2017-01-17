@@ -47,8 +47,8 @@ func newTestWriter(filePathPrefix string) FileSetWriter {
 	return NewWriter(blockSize, filePathPrefix, testWriterBufferSize, newFileMode, newDirectoryMode)
 }
 
-func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := w.Open(testNamespaceID, shard, timestamp, DefaultVersionNumber)
+func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry, version uint32) {
+	err := w.Open(testNamespaceID, shard, timestamp, version)
 	assert.NoError(t, err)
 
 	for i := range entries {
@@ -59,8 +59,8 @@ func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.T
 	assert.NoError(t, w.Close())
 }
 
-func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := r.Open(testNamespaceID, 0, timestamp)
+func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry, version uint32) {
+	err := r.Open(testNamespaceID, 0, timestamp, version)
 	assert.NoError(t, err)
 
 	assert.Equal(t, len(entries), r.Entries())
@@ -95,10 +95,73 @@ func TestSimpleReadWrite(t *testing.T) {
 	}
 
 	w := newTestWriter(filePathPrefix)
-	writeTestData(t, w, 0, testWriterStart, entries)
+	writeTestData(t, w, 0, testWriterStart, entries, DefaultVersionNumber)
 
 	r := newTestReader(filePathPrefix)
-	readTestData(t, r, 0, testWriterStart, entries)
+	readTestData(t, r, 0, testWriterStart, entries, DefaultVersionNumber)
+}
+
+func TestVersionMismatch(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+		{"baz", make([]byte, 65536)},
+		{"cat", make([]byte, 100000)},
+		{"echo", []byte{7, 8, 9}},
+	}
+
+	// create valid output files with version set at DefaultVersionNumber
+	w := newTestWriter(filePathPrefix)
+	writeTestData(t, w, 0, testWriterStart, entries, DefaultVersionNumber)
+
+	// rename the files created to have version in filename set at 1
+	for _, s := range filesetFileSuffixes {
+		shardDir := ShardDirPath(filePathPrefix, testNamespaceID, 0)
+		oldFname := versionFilesetPathFromTime(shardDir, testWriterStart, s, DefaultVersionNumber)
+		_, err := os.Stat(oldFname)
+		require.NoError(t, err)
+		newFname := versionFilesetPathFromTime(shardDir, testWriterStart, s, 1)
+		require.NoError(t, os.Rename(oldFname, newFname))
+	}
+
+	// try to read the data
+	r := newTestReader(filePathPrefix)
+	require.EqualError(t, r.Open(testNamespaceID, 0, testWriterStart, 1), errVersionMismatch.Error())
+}
+
+func TestVersionsReadWrite(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+		{"baz", make([]byte, 65536)},
+		{"cat", make([]byte, 100000)},
+		{"echo", []byte{7, 8, 9}},
+	}
+	// make sure initial read/write succeeds
+	w := newTestWriter(filePathPrefix)
+	writeTestData(t, w, 0, testWriterStart, entries, 1)
+	r := newTestReader(filePathPrefix)
+	readTestData(t, r, 0, testWriterStart, entries, 1)
+
+	// new version with higher verison number
+	fewerEntries := entries[2:]
+	writeTestData(t, w, 0, testWriterStart, fewerEntries, 2)
+	r = newTestReader(filePathPrefix)
+	readTestData(t, r, 0, testWriterStart, fewerEntries, 2)
+	readTestData(t, r, 0, testWriterStart, entries, 1)
+
+	// no affect by writing a lower version number
+	writeTestData(t, w, 0, testWriterStart, entries, 1)
+	r = newTestReader(filePathPrefix)
+	readTestData(t, r, 0, testWriterStart, fewerEntries, 2)
 }
 
 func TestInfoReadWrite(t *testing.T) {
@@ -143,12 +206,12 @@ func TestReusingReaderWriter(t *testing.T) {
 	}
 	w := newTestWriter(filePathPrefix)
 	for i := range allEntries {
-		writeTestData(t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
+		writeTestData(t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i], DefaultVersionNumber)
 	}
 
 	r := newTestReader(filePathPrefix)
 	for i := range allEntries {
-		readTestData(t, r, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
+		readTestData(t, r, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i], DefaultVersionNumber)
 	}
 }
 
@@ -177,11 +240,11 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w.Close()
 
 	r := newTestReader(filePathPrefix)
-	require.Equal(t, errCheckpointFileNotFound, r.Open(testNamespaceID, shard, testWriterStart))
+	require.Equal(t, errCheckpointFileNotFound, r.Open(testNamespaceID, shard, testWriterStart, DefaultVersionNumber))
 
 	// Now reuse the writer and validate the data are written as expected.
-	writeTestData(t, w, shard, testWriterStart, entries)
-	readTestData(t, r, shard, testWriterStart, entries)
+	writeTestData(t, w, shard, testWriterStart, entries, DefaultVersionNumber)
+	readTestData(t, r, shard, testWriterStart, entries, DefaultVersionNumber)
 }
 
 func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
@@ -210,5 +273,5 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	r := newTestReader(filePathPrefix)
 	readTestData(t, r, 0, testWriterStart, []testEntry{
 		{"foo", []byte{1, 2, 3, 4, 5, 6}},
-	})
+	}, DefaultVersionNumber)
 }

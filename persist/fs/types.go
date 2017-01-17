@@ -55,10 +55,8 @@ type FileSetWriter interface {
 type FileSetReader interface {
 	io.Closer
 
-	// Open opens the files for the given shard and version for reading
-	// TODO(prateek): make FileSetReader.Open() use the highest version file by default
-	// TODO(prateek): expose FileSetReader.OpenVersion()
-	Open(namespace ts.ID, shard uint32, start time.Time) error
+	// Open opens the files for the given namespace, shard, time and version
+	Open(namespace ts.ID, shard uint32, start time.Time, version uint32) error
 
 	// Read returns the next id and data pair or error, will return io.EOF at end of volume
 	Read() (id ts.ID, data checked.Bytes, err error)

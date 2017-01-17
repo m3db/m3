@@ -34,6 +34,7 @@ import (
 )
 
 type writer struct {
+	version          uint32
 	blockSize        time.Duration
 	filePathPrefix   string
 	newFileMode      os.FileMode
@@ -90,6 +91,7 @@ func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time, versi
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
 	}
+	w.version = version
 	w.start = blockStart
 	w.currIdx = 0
 	w.currOffset = 0
@@ -206,6 +208,7 @@ func (w *writer) close() error {
 		Start:     xtime.ToNanoseconds(w.start),
 		BlockSize: int64(w.blockSize),
 		Entries:   w.currIdx,
+		Version:   int64(w.version),
 	}
 	w.infoBuffer.Reset()
 	if err := w.infoBuffer.Marshal(info); err != nil {

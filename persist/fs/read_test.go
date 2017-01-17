@@ -79,7 +79,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceID, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	_, _, err = r.Read()
@@ -107,7 +107,7 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceID, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	reader := r.(*reader)
@@ -137,7 +137,7 @@ func TestReadDataError(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceID, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 
 	// Close out the dataFd and expect an error on next read
 	reader := r.(*reader)
@@ -176,7 +176,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	assert.NoError(t, os.Truncate(dataFile, 1))
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceID, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	_, _, err = r.Read()
@@ -215,7 +215,7 @@ func TestReadBadMarker(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceID, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	_, _, err = r.Read()
@@ -243,7 +243,7 @@ func TestReadWrongIdx(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	err = r.Open(testNamespaceID, 0, testWriterStart)
+	err = r.Open(testNamespaceID, 0, testWriterStart, DefaultVersionNumber)
 	assert.NoError(t, err)
 
 	// Replace the expected idx with 123
@@ -281,12 +281,12 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	shardDir := ShardDirPath(filePathPrefix, testNamespaceID, shard)
-	checkpointFile := defaultVersionFilesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
+	checkpointFile := versionFilesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix, DefaultVersionNumber)
 	require.True(t, FileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
 	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
-	err = r.Open(testNamespaceID, shard, testWriterStart)
+	err = r.Open(testNamespaceID, shard, testWriterStart, DefaultVersionNumber)
 	require.Equal(t, errCheckpointFileNotFound, err)
 }
 
@@ -305,7 +305,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	assert.NoError(t, w.Close())
 
 	for suffix, data := range fileData {
-		digestFile := defaultVersionFilesetPathFromTime(shardDir, start, suffix)
+		digestFile := versionFilesetPathFromTime(shardDir, start, suffix, DefaultVersionNumber)
 		fd, err := os.OpenFile(digestFile, os.O_WRONLY|os.O_TRUNC, os.FileMode(0666))
 		require.NoError(t, err)
 		_, err = fd.Write(data)
@@ -314,7 +314,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	}
 
 	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
-	require.Error(t, r.Open(testNamespaceID, shard, time.Unix(1000, 0)))
+	require.Error(t, r.Open(testNamespaceID, shard, time.Unix(1000, 0), DefaultVersionNumber))
 }
 
 func TestReadOpenDigestOfDigestMismatch(t *testing.T) {
@@ -385,7 +385,7 @@ func TestReadValidate(t *testing.T) {
 	require.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
-	require.NoError(t, r.Open(testNamespaceID, shard, start))
+	require.NoError(t, r.Open(testNamespaceID, shard, start, DefaultVersionNumber))
 	_, _, err := r.Read()
 	require.NoError(t, err)
 
@@ -394,5 +394,33 @@ func TestReadValidate(t *testing.T) {
 	reader.expectedDataDigest = 0
 	require.Error(t, r.Validate())
 
+	require.NoError(t, r.Close())
+}
+
+func TestReadValidateMultipleVersion(t *testing.T) {
+	filePathPrefix := createTempDir(t)
+	defer os.RemoveAll(filePathPrefix)
+
+	shard := uint32(0)
+	start := time.Unix(1000, 0)
+	w := newTestWriter(filePathPrefix)
+	require.NoError(t, w.Open(testNamespaceID, shard, start, 1))
+	require.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{0x2})))
+	require.NoError(t, w.Close())
+
+	require.NoError(t, w.Open(testNamespaceID, shard, start, 2))
+	require.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{0x3})))
+	require.NoError(t, w.Close())
+
+	r := newTestReader(filePathPrefix)
+	require.NoError(t, r.Open(testNamespaceID, shard, start, 1))
+	_, _, err := r.Read()
+	require.NoError(t, err)
+	require.NoError(t, r.Close())
+
+	r = newTestReader(filePathPrefix)
+	require.NoError(t, r.Open(testNamespaceID, shard, start, 2))
+	_, _, err = r.Read()
+	require.NoError(t, err)
 	require.NoError(t, r.Close())
 }

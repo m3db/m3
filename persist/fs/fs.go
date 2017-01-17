@@ -54,4 +54,7 @@ var (
 
 	// Endianness is little endian
 	endianness = binary.LittleEndian
+
+	// the domain of valid filesetFileSuffix(es)
+	filesetFileSuffixes = []string{infoFileSuffix, indexFileSuffix, dataFileSuffix, digestFileSuffix, checkpointFileSuffix}
 )

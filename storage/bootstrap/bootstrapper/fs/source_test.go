@@ -364,7 +364,7 @@ func TestReadValidateError(t *testing.T) {
 
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart, "foo", []byte{0x1})
-	reader.EXPECT().Open(testNamespaceID, shard, testStart).Return(nil)
+	reader.EXPECT().Open(testNamespaceID, shard, testStart, uint32(fs.DefaultVersionNumber)).Return(nil)
 	reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}).Times(2)
 	reader.EXPECT().Entries().Return(0).Times(2)
 	reader.EXPECT().Validate().Return(errors.New("foo"))
@@ -404,7 +404,7 @@ func TestReadDeleteOnError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart, "foo", []byte{0x1})
 
 	gomock.InOrder(
-		reader.EXPECT().Open(testNamespaceID, shard, testStart).Return(nil),
+		reader.EXPECT().Open(testNamespaceID, shard, testStart, uint32(fs.DefaultVersionNumber)).Return(nil),
 		reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}),
 		reader.EXPECT().Entries().Return(2),
 		reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}),

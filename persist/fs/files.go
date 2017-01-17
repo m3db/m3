@@ -45,8 +45,8 @@ import (
 var timeZero time.Time
 
 const (
-	dataDirName          = "data"
-	commitLogsDirName    = "commitlogs"
+	dataDirName       = "data"
+	commitLogsDirName = "commitlogs"
 )
 
 type fileOpener func(filePath string) (*os.File, error)
@@ -196,11 +196,11 @@ func forEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, reade
 	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
 	digestBuf := digest.NewBuffer()
 	for i := range matched {
-		t, err := TimeFromFileName(matched[i])
+		t, v, err := TimeAndVersionFromFileName(matched[i])
 		if err != nil {
 			continue
 		}
-		checkpointFilePath := defaultVersionFilesetPathFromTime(shardDir, t, checkpointFileSuffix)
+		checkpointFilePath := versionFilesetPathFromTime(shardDir, t, checkpointFileSuffix, v)
 		if !FileExists(checkpointFilePath) {
 			continue
 		}
@@ -215,13 +215,13 @@ func forEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, reade
 			continue
 		}
 		// Read and validate the digest file
-		digestData, err := readAndValidate(shardDir, t, digestFileSuffix, readerBufferSize, expectedDigestOfDigest)
+		digestData, err := readAndValidate(shardDir, t, digestFileSuffix, v, readerBufferSize, expectedDigestOfDigest)
 		if err != nil {
 			continue
 		}
 		// Read and validate the info file
 		expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
-		infoData, err := readAndValidate(shardDir, t, infoFileSuffix, readerBufferSize, expectedInfoDigest)
+		infoData, err := readAndValidate(shardDir, t, infoFileSuffix, v, readerBufferSize, expectedInfoDigest)
 		if err != nil {
 			continue
 		}
@@ -239,6 +239,28 @@ func ReadInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, readerB
 		}
 		indexEntries = append(indexEntries, info)
 	})
+	return indexEntries
+}
+
+// ReadLatestInfoFiles reads the latest valid version for all info entries.
+func ReadLatestInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int) []*schema.IndexInfo {
+	versionsByTime := make(map[int64]*schema.IndexInfo)
+	ForEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
+		info, err := readInfo(data)
+		if err != nil {
+			return
+		}
+		currInfo, ok := versionsByTime[info.Start]
+		if ok && currInfo.Version > info.Version {
+			info = currInfo
+		}
+		versionsByTime[info.Start] = info
+	})
+	// destructure map values to slice
+	indexEntries := make([]*schema.IndexInfo, 0, len(versionsByTime))
+	for _, info := range versionsByTime {
+		indexEntries = append(indexEntries, info)
+	}
 	return indexEntries
 }
 
@@ -358,10 +380,11 @@ func readAndValidate(
 	prefix string,
 	t time.Time,
 	suffix string,
+	version uint32,
 	readerBufferSize int,
 	expectedDigest uint32,
 ) ([]byte, error) {
-	filePath := defaultVersionFilesetPathFromTime(prefix, t, suffix)
+	filePath := versionFilesetPathFromTime(prefix, t, suffix, version)
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -447,10 +470,6 @@ func FileExists(filePath string) bool {
 // OpenWritable opens a file for writing and truncating as necessary.
 func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 	return os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
-}
-
-func defaultVersionFilesetPathFromTime(prefix string, t time.Time, suffix string) string {
-	return versionFilesetPathFromTime(prefix, t, suffix, DefaultVersionNumber)
 }
 
 func versionFilesetPathFromTime(prefix string, t time.Time, suffix string, version uint32) string {

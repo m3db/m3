@@ -125,15 +125,15 @@ func (pm *persistManager) Prepare(
 
 	nextVersion := uint32(DefaultVersionNumber)
 	versions := FilesetVersionsAt(pm.filePathPrefix, namespace, shard, blockStart)
-	checkpointFileExists := len(versions) > 0
+	atleastOneVersionExists := len(versions) > 0
 
-	// NB(prateek): if no checkpointFileExists, we create a new one with default version
-	// if a checkpoint file does exist, then the behavior depends upon `createNewVersionIfExists`
+	// NB(prateek): if no files exist, we create a new one with default version
+	// if a version does exist, then the behavior depends upon `createNewVersionIfExists`
 	//  	if !createNewVersionIfExists, we bail. This allows us to retry failed flushing
 	//      attempts because they wouldn't have created the checkpoint file.
 	//    On the other hand, if createNewVersionIfExists, then we create a new file with
 	// 			an updated version number.
-	if checkpointFileExists {
+	if atleastOneVersionExists {
 		if !createNewVersionIfExists {
 			return prepared, nil
 		}

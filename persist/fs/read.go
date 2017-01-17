@@ -51,6 +51,9 @@ var (
 
 	// errReadMarkerNotFound returned when the marker is not found at the beginning of a data record
 	errReadMarkerNotFound = errors.New("expected marker not found")
+
+	// errVersionMismatch returned when the version in the filename does not match that found in the info file
+	errVersionMismatch = errors.New("version number mismatch")
 )
 
 // ErrReadWrongIdx returned when the wrong idx is read in the data file
@@ -67,6 +70,7 @@ type reader struct {
 	filePathPrefix string
 	start          time.Time
 	blockSize      time.Duration
+	version        uint32
 
 	infoFdWithDigest           digest.FdWithDigestReader
 	indexFdWithDigest          digest.FdWithDigestReader
@@ -108,7 +112,7 @@ func NewReader(
 	}
 }
 
-func (r *reader) openVersion(namespace ts.ID, shard uint32, blockStart time.Time, version uint32) error {
+func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time, version uint32) error {
 	shardDir := ShardDirPath(r.filePathPrefix, namespace, shard)
 	if err := r.readCheckpointFile(shardDir, blockStart, version); err != nil {
 		return err
@@ -142,7 +146,7 @@ func (r *reader) openVersion(namespace ts.ID, shard uint32, blockStart time.Time
 		r.Close()
 		return err
 	}
-	if err := r.readInfo(int(infoStat.Size())); err != nil {
+	if err := r.readInfo(version, int(infoStat.Size())); err != nil {
 		r.Close()
 		return err
 	}
@@ -151,16 +155,6 @@ func (r *reader) openVersion(namespace ts.ID, shard uint32, blockStart time.Time
 		return err
 	}
 	return nil
-}
-
-func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
-	// TODO(prateek): add test for ensuring the correct version is being read
-	versions := FilesetVersionsAt(r.filePathPrefix, namespace, shard, blockStart)
-	if len(versions) == 0 {
-		return errCheckpointFileNotFound
-	}
-	latestVersion := versions[len(versions)-1]
-	return r.openVersion(namespace, shard, blockStart, latestVersion)
 }
 
 func (r *reader) prepareUnreadBuf(size int) {
@@ -205,7 +199,7 @@ func (r *reader) readDigest() error {
 	return r.digestFdWithDigestContents.Validate(r.expectedDigestOfDigest)
 }
 
-func (r *reader) readInfo(size int) error {
+func (r *reader) readInfo(expectedVersion uint32, size int) error {
 	r.prepareUnreadBuf(size)
 	n, err := r.infoFdWithDigest.ReadAllAndValidate(r.unreadBuf[:size], r.expectedInfoDigest)
 	if err != nil {
@@ -215,6 +209,11 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
+	obsVersion := uint32(info.Version)
+	if expectedVersion != obsVersion {
+		return errVersionMismatch
+	}
+	r.version = obsVersion
 	r.start = xtime.FromNanoseconds(info.Start)
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)

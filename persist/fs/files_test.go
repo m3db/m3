@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"testing"
@@ -74,7 +75,7 @@ func createInfoFiles(t *testing.T, namespace ts.ID, shard uint32, iter int) stri
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	for i := 0; i < iter; i++ {
 		ts := time.Unix(0, int64(i))
-		infoFilePath := defaultVersionFilesetPathFromTime(shardDir, ts, infoFileSuffix)
+		infoFilePath := versionFilesetPathFromTime(shardDir, ts, infoFileSuffix, DefaultVersionNumber)
 		createFile(t, infoFilePath, nil)
 	}
 	return dir
@@ -213,7 +214,7 @@ func TestForEachInfoFile(t *testing.T) {
 		res = append(res, data...)
 	})
 
-	require.Equal(t, []string{defaultVersionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix)}, fnames)
+	require.Equal(t, []string{versionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix, DefaultVersionNumber)}, fnames)
 	require.Equal(t, infoData, res)
 }
 
@@ -298,6 +299,81 @@ func TestTimeAndIndexFromFileName(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestReadInfoFiles(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+		{"baz", make([]byte, 65536)},
+		{"cat", make([]byte, 100000)},
+		{"echo", []byte{7, 8, 9}},
+	}
+
+	w := newTestWriter(filePathPrefix)
+	t0 := testWriterStart
+	writeTestData(t, w, 0, t0, entries, 1)
+	t1 := t0.Add(time.Hour)
+	writeTestData(t, w, 0, t1, entries, 2)
+	t2 := t1.Add(time.Hour)
+	writeTestData(t, w, 0, t2, entries, 3)
+
+	infos := ReadInfoFiles(filePathPrefix, testNamespaceID, 0, 16)
+	require.Equal(t, 3, len(infos))
+	for _, info := range infos {
+		switch info.Start {
+		case t0.UnixNano():
+			require.Equal(t, int64(1), info.Version)
+		case t1.UnixNano():
+			require.Equal(t, int64(2), info.Version)
+		case t2.UnixNano():
+			require.Equal(t, int64(3), info.Version)
+		default:
+			require.FailNow(t, "unexpected fileInfo struct received")
+		}
+	}
+}
+
+func TestReadLatestInfoFiles(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+		{"baz", make([]byte, 65536)},
+		{"cat", make([]byte, 100000)},
+		{"echo", []byte{7, 8, 9}},
+	}
+
+	w := newTestWriter(filePathPrefix)
+	t0 := testWriterStart
+	t1 := t0.Add(time.Hour)
+	t2 := t1.Add(time.Hour)
+	writeTestData(t, w, 0, t0, entries, DefaultVersionNumber)
+	writeTestData(t, w, 0, t0, entries, 2)
+	writeTestData(t, w, 0, t1, entries, 1)
+	writeTestData(t, w, 0, t2, entries, DefaultVersionNumber)
+
+	infos := ReadLatestInfoFiles(filePathPrefix, testNamespaceID, 0, 16)
+	require.Equal(t, 3, len(infos))
+	for _, info := range infos {
+		switch info.Start {
+		case t0.UnixNano():
+			require.Equal(t, int64(2), info.Version)
+		case t1.UnixNano():
+			require.Equal(t, int64(1), info.Version)
+		case t2.UnixNano():
+			require.Equal(t, int64(DefaultVersionNumber), info.Version)
+		default:
+			require.FailNow(t, "unexpected fileInfo struct received")
+		}
+	}
+}
+
 func TestFilesetVersionsAt(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
@@ -308,13 +384,13 @@ func TestFilesetVersionsAt(t *testing.T) {
 	err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 	require.NoError(t, err)
 
-	infoFilePath := defaultVersionFilesetPathFromTime(shardDir, start, infoFileSuffix)
+	infoFilePath := versionFilesetPathFromTime(shardDir, start, infoFileSuffix, DefaultVersionNumber)
 	createDataFile(t, shardDir, start, infoFileSuffix, DefaultVersionNumber, nil)
 	require.True(t, FileExists(infoFilePath))
 	versions := FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
 	require.Empty(t, versions)
 
-	checkpointFilePath := defaultVersionFilesetPathFromTime(shardDir, start, checkpointFileSuffix)
+	checkpointFilePath := versionFilesetPathFromTime(shardDir, start, checkpointFileSuffix, DefaultVersionNumber)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, DefaultVersionNumber, nil)
 	require.True(t, FileExists(checkpointFilePath))
 	versions = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
@@ -331,9 +407,6 @@ func TestFilesetVersionsAt(t *testing.T) {
 	require.True(t, FileExists(checkpointFilePath))
 	versions = FilesetVersionsAt(dir, testNamespaceID, uint32(shard), start)
 	require.Equal(t, versions, []uint32{DefaultVersionNumber, 1, 2})
-
-	os.Remove(infoFilePath)
-	require.False(t, FileExists(infoFilePath))
 }
 
 func TestShardDirPath(t *testing.T) {
@@ -396,7 +469,7 @@ func TestFilesetFilesBefore(t *testing.T) {
 	shardDir := path.Join(dir, dataDirName, testNamespaceID.String(), strconv.Itoa(int(shard)))
 	for i := 0; i < len(res); i++ {
 		ts := time.Unix(0, int64(i))
-		require.Equal(t, defaultVersionFilesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
+		require.Equal(t, versionFilesetPathFromTime(shardDir, ts, infoFileSuffix, DefaultVersionNumber), res[i])
 	}
 }
 

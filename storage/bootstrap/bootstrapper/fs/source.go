@@ -127,7 +127,7 @@ func (s *fileSystemSource) enqueueReaders(
 		for i := 0; i < len(files); i++ {
 			r := readerPool.get()
 			t := xtime.FromNanoseconds(files[i].Start)
-			if err := r.Open(namespace, shard, t); err != nil {
+			if err := r.Open(namespace, shard, t, fs.DefaultVersionNumber); err != nil {
 				s.log.WithFields(
 					xlog.NewLogField("shard", shard),
 					xlog.NewLogField("time", t.String()),
