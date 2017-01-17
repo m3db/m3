@@ -667,6 +667,9 @@ func (s *dbShard) Flush(
 			s.markFlushStateFail(blockStart)
 			return err
 		}
+		// NB(r): Need to mark this state as success so IsBlockRetrievable can
+		// return true when querying if a block is retrievable for this time
+		s.markFlushStateSuccess(blockStart)
 		return nil
 	}
 	defer prepared.Close()
