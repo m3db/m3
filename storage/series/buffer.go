@@ -245,16 +245,13 @@ func (s *dbBuffer) CacheRetrievedBlock(blockStart time.Time, segment ts.Segment)
 	cached := false
 	s.forEachBucketAsc(func(bucket *dbBufferBucket) {
 		if bucket.start.Equal(blockStart) {
-			if len(bucket.bootstrapped) != 1 {
-				// Bootstrapped blocks will only ever be length 1 as they are
-				// merged before being passed to the series bootstrap method
-				err = fmt.Errorf("buffer block at %s contains multiple bootstrapped blocks",
-					blockStart.String())
-				return
+			for _, bl := range bucket.bootstrapped {
+				if !bl.IsRetrieved() {
+					bl.Reset(blockStart, segment)
+					cached = true
+					return
+				}
 			}
-			// Cache the memory in data
-			bucket.bootstrapped[0].Reset(blockStart, segment)
-			cached = true
 		}
 	})
 	if err == nil && !cached {
