@@ -78,10 +78,12 @@ const (
 
 type dbShard struct {
 	sync.RWMutex
+	block.DatabaseBlockRetriever
 	opts                  Options
 	nowFn                 clock.NowFn
 	state                 dbShardState
 	namespace             ts.ID
+	shardBlockRetriever   series.ShardBlockRetriever
 	shard                 uint32
 	increasingIndex       increasingIndex
 	seriesPool            series.DatabaseSeriesPool
@@ -151,6 +153,7 @@ func newShardFlushState() shardFlushState {
 func newDatabaseShard(
 	namespace ts.ID,
 	shard uint32,
+	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
 	needsBootstrap bool,
@@ -158,6 +161,7 @@ func newDatabaseShard(
 ) databaseShard {
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("dbshard")
+
 	d := &dbShard{
 		opts:                  opts,
 		nowFn:                 opts.ClockOptions().NowFn(),
@@ -181,6 +185,12 @@ func newDatabaseShard(
 		d.bs = bootstrapped
 		d.newSeriesBootstrapped = true
 	}
+	if blockRetriever != nil {
+		// If passing the block retriever then set the block retriever
+		// and set the series block retriever as the shard itself
+		d.DatabaseBlockRetriever = blockRetriever
+		d.shardBlockRetriever = d
+	}
 	d.metrics.create.Inc(1)
 	return d
 }
@@ -194,6 +204,25 @@ func (s *dbShard) NumSeries() int64 {
 	n := s.list.Len()
 	s.RUnlock()
 	return int64(n)
+}
+
+// ShardID implements series.ShardBlockRetriever
+func (s *dbShard) ShardID() uint32 {
+	return s.ID()
+}
+
+// IsBlockRetrievable implements series.ShardBlockRetriever
+func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
+	flushState := s.FlushState(blockStart)
+	switch flushState.Status {
+	case fileOpNotStarted, fileOpInProgress, fileOpFailed:
+		return false
+	case fileOpSuccess:
+		return true
+	}
+	panic(fmt.Errorf("shard queried is retrievable with bad flush state %d",
+		flushState.Status))
+	return false
 }
 
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
@@ -335,6 +364,7 @@ func (s *dbShard) tickAndExpire(
 			}
 		}
 		r.activeBlocks += result.ActiveBlocks
+		r.resetRetrievableBlocks += result.ResetRetrievableBlocks
 		r.expiredBlocks += result.ExpiredBlocks
 		i++
 		// Continue
@@ -458,7 +488,7 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	// Retrieve the entry out of any locks to avoid any possible expensive
 	// allocations during any unpooled gets blocking other writers
 	series := s.seriesPool.Get()
-	series.Reset(s.identifierPool.Clone(id))
+	series.Reset(s.identifierPool.Clone(id), s.shardBlockRetriever)
 
 	entry := &dbShardEntry{
 		series:     series,
@@ -581,6 +611,7 @@ func (s *dbShard) Bootstrap(
 			multiErr = multiErr.Add(err)
 			continue
 		}
+
 		err = entry.series.Bootstrap(dbBlocks.Blocks)
 		entry.decrementWriterCount()
 		multiErr = multiErr.Add(err)

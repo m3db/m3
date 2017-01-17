@@ -103,7 +103,8 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
@@ -133,7 +134,8 @@ func TestReadDataError(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
@@ -169,7 +171,8 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	// Truncate one bye
@@ -207,7 +210,8 @@ func TestReadBadMarker(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 
 	// Reset the marker
 	marker = actualMarker
@@ -239,7 +243,8 @@ func TestReadWrongIdx(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
@@ -301,7 +306,10 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	w := newTestWriter(filePathPrefix)
 	assert.NoError(t, w.Open(testNamespaceID, uint32(shard), start))
 
-	assert.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{0x1})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{0x1}),
+		digest.Checksum([]byte{0x1})))
 	assert.NoError(t, w.Close())
 
 	for suffix, data := range fileData {
@@ -381,7 +389,10 @@ func TestReadValidate(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	require.NoError(t, w.Open(testNamespaceID, shard, start))
 
-	require.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{0x1})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{0x1}),
+		digest.Checksum([]byte{0x1})))
 	require.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)

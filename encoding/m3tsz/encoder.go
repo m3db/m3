@@ -526,6 +526,11 @@ func (enc *encoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(segment)
 }
 
+func (enc *encoder) StreamLen() int {
+	buff, _ := enc.os.Rawbytes()
+	return buff.Len()
+}
+
 func (enc *encoder) Close() {
 	if enc.closed {
 		return

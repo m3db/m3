@@ -72,6 +72,7 @@ type testSetup struct {
 	opts            testOptions
 	db              cluster.Database
 	storageOpts     storage.Options
+	fsOpts          fs.Options
 	nativePooling   bool
 	hostID          string
 	topoInit        topology.Initializer
@@ -197,9 +198,15 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	adminClient := mc.(client.AdminClient)
 	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
 
+	// Set up block retriever manager
+	if mgr := opts.DatabaseBlockRetrieverManager(); mgr != nil {
+		storageOpts = storageOpts.SetDatabaseBlockRetrieverManager(mgr)
+	}
+
 	return &testSetup{
 		opts:            opts,
 		storageOpts:     storageOpts,
+		fsOpts:          fsOpts,
 		nativePooling:   nativePooling,
 		hostID:          id,
 		topoInit:        topoInit,

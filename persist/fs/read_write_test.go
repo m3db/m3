@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +54,8 @@ func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.T
 	for i := range entries {
 		assert.NoError(t, w.Write(
 			ts.StringID(entries[i].id),
-			bytesRefd(entries[i].data)))
+			bytesRefd(entries[i].data),
+			digest.Checksum(entries[i].data)))
 	}
 	assert.NoError(t, w.Close())
 }
@@ -141,13 +143,15 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 
 	require.NoError(t, w.Write(
 		ts.StringID(entries[0].id),
-		bytesRefd(entries[0].data)))
+		bytesRefd(entries[0].data),
+		digest.Checksum(entries[0].data)))
 
 	// Intentionally force a writer error.
 	w.(*writer).err = errors.New("foo")
 	require.Equal(t, "foo", w.Write(
 		ts.StringID(entries[1].id),
-		bytesRefd(entries[1].data)).Error())
+		bytesRefd(entries[1].data),
+		digest.Checksum(entries[1].data)).Error())
 	w.Close()
 
 	r := newTestReader(filePathPrefix)
@@ -177,7 +181,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 		checkedBytes([]byte{1, 2, 3}),
 		nil,
 		checkedBytes([]byte{4, 5, 6}),
-	})
+	}, digest.Checksum([]byte{1, 2, 3, 4, 5, 6}))
 
 	assert.NoError(t, w.Close())
 

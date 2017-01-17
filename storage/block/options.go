@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -38,6 +39,7 @@ const (
 )
 
 type options struct {
+	clockOpts               clock.Options
 	databaseBlockAllocSize  int
 	databaseBlockPool       DatabaseBlockPool
 	contextPool             context.Pool
@@ -51,6 +53,7 @@ type options struct {
 // NewOptions creates new database block options
 func NewOptions() Options {
 	o := &options{
+		clockOpts:               clock.NewOptions(),
 		databaseBlockAllocSize:  defaultDatabaseBlockAllocSize,
 		databaseBlockPool:       NewDatabaseBlockPool(nil),
 		contextPool:             context.NewPool(nil, nil),
@@ -81,6 +84,16 @@ func NewOptions() Options {
 	o.segmentReaderPool.Init()
 	o.bytesPool.Init()
 	return o
+}
+
+func (o *options) SetClockOptions(value clock.Options) Options {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *options) ClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *options) SetDatabaseBlockAllocSize(value int) Options {

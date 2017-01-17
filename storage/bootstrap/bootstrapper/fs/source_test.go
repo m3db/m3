@@ -31,6 +31,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -116,7 +117,7 @@ func writeTSDBFiles(t *testing.T, dir string, namespace ts.ID, shard uint32, sta
 
 	bytes := checked.NewBytes(data, nil)
 	bytes.IncRef()
-	require.NoError(t, w.Write(ts.StringID(id), bytes))
+	require.NoError(t, w.Write(ts.StringID(id), bytes, digest.Checksum(bytes.Get())))
 	require.NoError(t, w.Close())
 }
 

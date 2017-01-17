@@ -337,9 +337,15 @@ func readAndValidate(
 	return buf[:n], nil
 }
 
+// NamespaceDirPath returns the path to a given namespace.
+func NamespaceDirPath(prefix string, namespace ts.ID) string {
+	return path.Join(prefix, dataDirName, namespace.String())
+}
+
 // ShardDirPath returns the path to a given shard.
 func ShardDirPath(prefix string, namespace ts.ID, shard uint32) string {
-	return path.Join(prefix, dataDirName, namespace.String(), strconv.Itoa(int(shard)))
+	namespacePath := NamespaceDirPath(prefix, namespace)
+	return path.Join(namespacePath, strconv.Itoa(int(shard)))
 }
 
 // CommitLogsDirPath returns the path to commit logs.

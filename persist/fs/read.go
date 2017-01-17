@@ -274,9 +274,35 @@ func (r *reader) Read() (ts.ID, checked.Bytes, error) {
 
 	r.entriesRead++
 
+	return r.currEntryID(), data, nil
+}
+
+func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err error) {
+	var none ts.ID
+	entry := &r.currEntry
+	entry.Reset()
+
+	size, consumed := proto.DecodeVarint(r.indexUnread)
+	r.indexUnread = r.indexUnread[consumed:]
+	if consumed < 1 {
+		return none, 0, 0, errReadIndexEntryZeroSize
+	}
+	indexEntryData := r.indexUnread[:size]
+	r.protoBuff.SetBuf(indexEntryData)
+	if err := r.protoBuff.Unmarshal(entry); err != nil {
+		return none, 0, 0, err
+	}
+	r.indexUnread = r.indexUnread[size:]
+
+	r.entriesRead++
+
+	return r.currEntryID(), int(entry.Size), uint32(entry.Checksum), nil
+}
+
+func (r *reader) currEntryID() ts.ID {
 	var id checked.Bytes
 	if r.bytesPool != nil {
-		id = r.bytesPool.Get(int(entry.Size))
+		id = r.bytesPool.Get(len(r.currEntry.Id))
 		id.IncRef()
 		defer id.DecRef()
 	} else {
@@ -285,9 +311,9 @@ func (r *reader) Read() (ts.ID, checked.Bytes, error) {
 		defer id.DecRef()
 	}
 
-	id.AppendAll(entry.Id)
+	id.AppendAll(r.currEntry.Id)
 
-	return ts.BinaryID(id), data, nil
+	return ts.BinaryID(id)
 }
 
 // NB(xichen): Validate should be called after all data are read because the

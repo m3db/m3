@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
@@ -115,11 +116,7 @@ func (s *fileSystemSource) enqueueReaders(
 	readerPool *readerPool,
 	readersCh chan<- shardReaders,
 ) {
-	var wg sync.WaitGroup
-
 	for shard, tr := range shardsTimeRanges {
-		shard, tr := shard, tr
-
 		var files []string
 		fs.ForEachInfoFile(s.filePathPrefix, namespace, shard, s.readerBufferSize, func(fname string, _ []byte) {
 			files = append(files, fname)
@@ -128,7 +125,7 @@ func (s *fileSystemSource) enqueueReaders(
 		if len(files) == 0 {
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- shardReaders{shard: shard, tr: tr}
-			return
+			continue
 		}
 
 		readers := make([]fs.FileSetReader, 0, len(files))
@@ -163,12 +160,12 @@ func (s *fileSystemSource) enqueueReaders(
 		readersCh <- shardReaders{shard: shard, tr: tr, readers: readers}
 	}
 
-	wg.Wait()
 	close(readersCh)
 }
 
 func (s *fileSystemSource) bootstrapFromReaders(
 	readerPool *readerPool,
+	retriever block.DatabaseBlockRetriever,
 	readersCh <-chan shardReaders,
 ) result.BootstrapResult {
 	var (
@@ -176,6 +173,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		resultLock      sync.Mutex
 		bootstrapResult = result.NewBootstrapResult()
 		bopts           = s.opts.ResultOptions()
+		blockPool       = bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	)
 
 	for shardReaders := range readersCh {
@@ -198,26 +196,57 @@ func (s *fileSystemSource) bootstrapFromReaders(
 
 				var (
 					timeRange  = r.Range()
+					start      = timeRange.Start
 					hasError   = false
 					numEntries = r.Entries()
 				)
 
 				for i := 0; i < numEntries; i++ {
-					id, data, err := r.Read()
-					if err != nil {
+					var (
+						seriesID    ts.ID
+						seriesBlock = blockPool.Get()
+						entryErr    error
+					)
+					if retriever == nil {
+						id, data, err := r.Read()
+						if err != nil {
+							entryErr = err
+						} else {
+							seriesID = id
+							seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+							seriesBlock.Reset(start, seg)
+						}
+					} else {
+						id, length, checksum, err := r.ReadMetadata()
+						if err != nil {
+							entryErr = err
+						} else {
+							seriesID = id
+							metadata := block.RetrievableBlockMetadata{
+								ID:       id,
+								Shard:    shard,
+								Length:   length,
+								Checksum: checksum,
+							}
+							seriesBlock.ResetRetrievable(start, retriever, metadata)
+						}
+					}
+
+					if entryErr != nil {
 						s.log.WithFields(
 							xlog.NewLogField("shard", shard),
-							xlog.NewLogField("error", err),
+							xlog.NewLogField("error", entryErr),
 						).Error("reading data file failed")
 						hasError = true
 						break
 					}
 
-					block := bopts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-					block.Reset(timeRange.Start, ts.NewSegment(data, nil, ts.FinalizeHead))
-					seriesMap.AddBlock(id, block)
+					seriesMap.AddBlock(seriesID, seriesBlock)
 				}
-				if !hasError {
+
+				// NB(r): Only validate if we read the data, e.g. if we are
+				// not creating blocks that aren't immediately retrieved.
+				if retriever == nil && !hasError {
 					if err := r.Validate(); err != nil {
 						s.log.WithFields(
 							xlog.NewLogField("shard", shard),
@@ -226,6 +255,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 						hasError = true
 					}
 				}
+
 				if !hasError {
 					tr = tr.RemoveRange(timeRange)
 				} else {
@@ -278,13 +308,28 @@ func (s *fileSystemSource) Read(
 		return nil, nil
 	}
 
+	var blockRetriever block.DatabaseBlockRetriever
+	blockRetrieverMgr := s.opts.DatabaseBlockRetrieverManager()
+	if blockRetrieverMgr != nil {
+		var err error
+		blockRetriever, err = blockRetrieverMgr.Retriever(namespace)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	s.log.WithFields(
+		xlog.NewLogField("shards", len(shardsTimeRanges)),
+		xlog.NewLogField("concurrency", s.opts.NumProcessors()),
+		xlog.NewLogField("metadataOnly", blockRetriever != nil),
+	).Infof("filesystem bootstrapper bootstrapping shards for ranges")
 	readerPool := newReaderPool(func() fs.FileSetReader {
 		return s.newReaderFn(s.filePathPrefix, s.readerBufferSize, s.opts.ResultOptions().
 			DatabaseBlockOptions().BytesPool())
 	})
 	readersCh := make(chan shardReaders)
 	go s.enqueueReaders(namespace, shardsTimeRanges, readerPool, readersCh)
-	return s.bootstrapFromReaders(readerPool, readersCh), nil
+	return s.bootstrapFromReaders(readerPool, blockRetriever, readersCh), nil
 }
 
 type shardReaders struct {

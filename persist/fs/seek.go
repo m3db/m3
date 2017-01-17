@@ -39,8 +39,8 @@ import (
 )
 
 var (
-	// errSeekIDNotFound returned when id cannot be found in the shard
-	errSeekIDNotFound = errors.New("id was not found in shard")
+	// errSeekIDNotFound returned when ID cannot be found in the shard
+	errSeekIDNotFound = errors.New("id not found in shard")
 )
 
 type seeker struct {
@@ -252,6 +252,14 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 	}
 
 	return data, nil
+}
+
+func (s *seeker) SeekOffset(id ts.ID) int {
+	entry, exists := s.indexMap[id.Hash()]
+	if !exists {
+		return -1
+	}
+	return int(entry.Offset)
 }
 
 func (s *seeker) Range() xtime.Range {

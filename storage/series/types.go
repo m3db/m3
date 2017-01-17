@@ -85,13 +85,27 @@ type DatabaseSeries interface {
 	Close()
 
 	// Reset resets the series for reuse
-	Reset(id ts.ID)
+	Reset(id ts.ID, blockRetriever ShardBlockRetriever)
+}
+
+// ShardBlockRetriever is a block retriever that is bound to a shard
+// and can tell if a block is retrievable or not for a given start time
+type ShardBlockRetriever interface {
+	block.DatabaseBlockRetriever
+
+	// ShardID returns the shard the retriever operates on
+	ShardID() uint32
+
+	// IsBlockRetrievable returns whether a block is retrievable
+	// for a given block start time
+	IsBlockRetrievable(blockStart time.Time) bool
 }
 
 // TickResult is a set of results from a tick
 type TickResult struct {
-	ActiveBlocks  int
-	ExpiredBlocks int
+	ActiveBlocks           int
+	ExpiredBlocks          int
+	ResetRetrievableBlocks int
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool
@@ -138,6 +152,12 @@ type databaseBuffer interface {
 	DrainAndReset()
 
 	Bootstrap(bl block.DatabaseBlock) error
+
+	// CacheRetrievedBlock is called to cache a block retrieved from disk
+	CacheRetrievedBlock(
+		blockStart time.Time,
+		segment ts.Segment,
+	) error
 
 	Reset()
 }

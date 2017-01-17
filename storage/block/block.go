@@ -28,37 +28,64 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/clock"
 )
 
 var (
-	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
-	errWriteToClosedBlock  = errors.New("attempt to write to a closed block")
+	errReadFromClosedBlock         = errors.New("attempt to read from a closed block")
+	errRetrievableBlockNoRetriever = errors.New("attempt to read from a retrievable block with no retriever")
 
 	timeZero = time.Time{}
 )
 
-// NB(xichen): locking of dbBlock instances is currently done outside the dbBlock struct at the series level.
-// Specifically, read lock is acquired for accessing operations like Stream(), and write lock is acquired
-// for mutating operations like Write(), Reset(), and Close(). Adding a explicit lock to the dbBlock struct might
-// make it more clear w.r.t. how/when we acquire locks, though.
 type dbBlock struct {
 	opts     Options
+	nowFn    clock.NowFn
 	ctx      context.Context
 	start    time.Time
 	segment  ts.Segment
+	length   int
 	checksum uint32
-	closed   bool
+
+	lastAccess time.Time
+
+	retriever     DatabaseBlockRetriever
+	retrieveShard uint32
+	retrieveID    ts.ID
+	onRetrieve    OnRetrieveBlock
+
+	closed bool
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) DatabaseBlock {
 	b := &dbBlock{
 		opts:   opts,
+		nowFn:  opts.ClockOptions().NowFn(),
 		ctx:    opts.ContextPool().Get(),
 		start:  start,
 		closed: false,
 	}
-	b.resetSegment(segment)
+	if segment.Len() > 0 {
+		b.resetSegment(segment)
+	}
+	return b
+}
+
+// NewRetrievableDatabaseBlock creates a new retrievable DatabaseBlock instance.
+func NewRetrievableDatabaseBlock(
+	start time.Time,
+	retriever DatabaseBlockRetriever,
+	metadata RetrievableBlockMetadata,
+	opts Options,
+) DatabaseBlock {
+	b := &dbBlock{
+		opts:   opts,
+		ctx:    opts.ContextPool().Get(),
+		start:  start,
+		closed: false,
+	}
+	b.resetRetrievable(retriever, metadata)
 	return b
 }
 
@@ -66,16 +93,32 @@ func (b *dbBlock) StartTime() time.Time {
 	return b.start
 }
 
-func (b *dbBlock) Checksum() *uint32 {
-	cksum := b.checksum
-	return &cksum
+func (b *dbBlock) LastAccessTime() time.Time {
+	return b.lastAccess
+}
+
+func (b *dbBlock) Len() int {
+	return b.length
+}
+
+func (b *dbBlock) Checksum() uint32 {
+	return b.checksum
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	if b.closed {
 		return nil, errReadFromClosedBlock
 	}
+
 	b.ctx.DependsOn(blocker)
+	b.lastAccess = b.nowFn()
+
+	// If the block retrieve ID is set then it must be retrieved
+	if b.retriever != nil {
+		shard := b.retrieveShard
+		id := b.retrieveID
+		return b.retriever.Stream(shard, id, b.start, b.onRetrieve)
+	}
 	// If the block is not writable, and the segment is empty, it means
 	// there are no data encoded in this block, so we return a nil reader.
 	if b.segment.Head == nil && b.segment.Tail == nil {
@@ -89,7 +132,14 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	return s, nil
 }
 
-// Reset resets the block start time and the encoder.
+func (b *dbBlock) SetOnRetrieveBlock(onRetrieve OnRetrieveBlock) {
+	b.onRetrieve = onRetrieve
+}
+
+func (b *dbBlock) IsRetrieved() bool {
+	return b.retriever == nil
+}
+
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 	if !b.closed {
 		b.ctx.Close()
@@ -97,14 +147,48 @@ func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 	b.ctx = b.opts.ContextPool().Get()
 	b.start = start
 	b.closed = false
+	b.lastAccess = b.nowFn()
 	b.resetSegment(segment)
+}
+
+func (b *dbBlock) ResetRetrievable(
+	start time.Time,
+	retriever DatabaseBlockRetriever,
+	metadata RetrievableBlockMetadata,
+) {
+	if !b.closed {
+		b.ctx.Close()
+	}
+	b.ctx = b.opts.ContextPool().Get()
+	b.start = start
+	b.closed = false
+	b.lastAccess = b.nowFn()
+	b.resetRetrievable(retriever, metadata)
 }
 
 func (b *dbBlock) resetSegment(seg ts.Segment) {
 	b.segment = seg
+	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
 
+	b.retriever = nil
+	b.retrieveShard = 0
+	b.retrieveID = nil
+
 	b.ctx.RegisterFinalizer(&seg)
+}
+
+func (b *dbBlock) resetRetrievable(
+	retriever DatabaseBlockRetriever,
+	metadata RetrievableBlockMetadata,
+) {
+	b.segment = ts.Segment{}
+	b.length = metadata.Length
+	b.checksum = metadata.Checksum
+
+	b.retriever = retriever
+	b.retrieveShard = metadata.Shard
+	b.retrieveID = metadata.ID
 }
 
 func (b *dbBlock) Close() {

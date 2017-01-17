@@ -249,15 +249,27 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 			continue
 		}
 
-		success++
-
+		var streamErr error
 		segments := make([]*rpc.Segments, 0, len(encoded))
-
 		for _, readers := range encoded {
-			if s := convert.ToSegments(readers); s != nil {
-				segments = append(segments, s)
+			var seg *rpc.Segments
+			seg, streamErr = convert.ToSegments(readers)
+			if streamErr != nil {
+				rawResult.Err = convert.ToRPCError(err)
+				if tterrors.IsBadRequestError(rawResult.Err) {
+					nonRetryableErrors++
+				} else {
+					retryableErrors++
+				}
+				break
 			}
+			segments = append(segments, seg)
 		}
+		if streamErr != nil {
+			continue
+		}
+
+		success++
 
 		rawResult.Segments = segments
 	}
@@ -310,7 +322,10 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 			if err := fetchedBlock.Err(); err != nil {
 				block.Err = convert.ToRPCError(err)
 			} else {
-				block.Segments = convert.ToSegments(fetchedBlock.Readers())
+				block.Segments, err = convert.ToSegments(fetchedBlock.Readers())
+				if err != nil {
+					block.Err = convert.ToRPCError(err)
+				}
 			}
 
 			blocks.Blocks[j] = block

@@ -197,6 +197,30 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 	return nil
 }
 
+// CacheRetrievedBlock is called to cache a block retrieved from disk
+func (s *dbBuffer) CacheRetrievedBlock(blockStart time.Time, segment ts.Segment) error {
+	var err error
+	cached := false
+	s.forEachBucketAsc(func(bucket *dbBufferBucket) {
+		if bucket.start.Equal(blockStart) {
+			if len(bucket.bootstrapped) != 1 {
+				// Bootstrapped blocks will only ever be length 1 as they are
+				// merged before being passed to the series bootstrap method
+				err = fmt.Errorf("buffer block at %s contains multiple bootstrapped blocks",
+					blockStart.String())
+				return
+			}
+			// Cache the memory in data
+			bucket.bootstrapped[0].Reset(blockStart, segment)
+			cached = true
+		}
+	})
+	if err == nil && !cached {
+		err = fmt.Errorf("block at %s not contained by buffer", blockStart.String())
+	}
+	return err
+}
+
 // forEachBucketAsc iterates over the buckets in time ascending order
 // to read bucket data
 func (b *dbBuffer) forEachBucketAsc(fn func(*dbBufferBucket)) {
@@ -288,11 +312,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		if !start.Before(bucket.start.Add(blockSize)) || !bucket.start.Before(end) {
 			return
 		}
-		var size int64
-		bucket.readStreams(ctx, func(stream xio.SegmentReader) {
-			segment := stream.Segment()
-			size += int64(segment.Len())
-		})
+		size := int64(bucket.streamsLen())
 		// If we have no data in this bucket, return early without appending it to the result.
 		if size == 0 {
 			return
@@ -459,6 +479,17 @@ func (b *dbBufferBucket) readStreams(
 			streamFn(s)
 		}
 	}
+}
+
+func (b *dbBufferBucket) streamsLen() int {
+	length := 0
+	for i := range b.bootstrapped {
+		length += b.bootstrapped[i].Len()
+	}
+	for i := range b.encoders {
+		length += b.encoders[i].encoder.StreamLen()
+	}
+	return length
 }
 
 func (b *dbBufferBucket) merged() bool {

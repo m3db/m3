@@ -38,7 +38,7 @@ type SegmentReader interface {
 	io.Reader
 
 	// Segment gets the segment read by this reader
-	Segment() ts.Segment
+	Segment() (ts.Segment, error)
 
 	// Reset resets the reader to read a new segment
 	Reset(segment ts.Segment)

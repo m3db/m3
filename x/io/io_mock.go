@@ -119,10 +119,11 @@ func (_mr *_MockSegmentReaderRecorder) Reset(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0)
 }
 
-func (_m *MockSegmentReader) Segment() ts.Segment {
+func (_m *MockSegmentReader) Segment() (ts.Segment, error) {
 	ret := _m.ctrl.Call(_m, "Segment")
 	ret0, _ := ret[0].(ts.Segment)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockSegmentReaderRecorder) Segment() *gomock.Call {

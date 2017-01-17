@@ -275,9 +275,19 @@ func (_mr *_MockDatabaseBlockRecorder) StartTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "StartTime")
 }
 
-func (_m *MockDatabaseBlock) Checksum() *uint32 {
+func (_m *MockDatabaseBlock) Len() int {
+	ret := _m.ctrl.Call(_m, "Len")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockDatabaseBlockRecorder) Len() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Len")
+}
+
+func (_m *MockDatabaseBlock) Checksum() uint32 {
 	ret := _m.ctrl.Call(_m, "Checksum")
-	ret0, _ := ret[0].(*uint32)
+	ret0, _ := ret[0].(uint32)
 	return ret0
 }
 
@@ -296,6 +306,14 @@ func (_mr *_MockDatabaseBlockRecorder) Stream(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0)
 }
 
+func (_m *MockDatabaseBlock) SetOnRetrieveBlock(onRetrieve OnRetrieveBlock) {
+	_m.ctrl.Call(_m, "SetOnRetrieveBlock", onRetrieve)
+}
+
+func (_mr *_MockDatabaseBlockRecorder) SetOnRetrieveBlock(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetOnRetrieveBlock", arg0)
+}
+
 func (_m *MockDatabaseBlock) Reset(startTime time.Time, segment ts.Segment) {
 	_m.ctrl.Call(_m, "Reset", startTime, segment)
 }
@@ -304,12 +322,81 @@ func (_mr *_MockDatabaseBlockRecorder) Reset(arg0, arg1 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1)
 }
 
+func (_m *MockDatabaseBlock) ResetRetrievable(startTime time.Time, retriever DatabaseBlockRetriever, metadata RetrievableBlockMetadata) {
+	_m.ctrl.Call(_m, "ResetRetrievable", startTime, retriever, metadata)
+}
+
+func (_mr *_MockDatabaseBlockRecorder) ResetRetrievable(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ResetRetrievable", arg0, arg1, arg2)
+}
+
 func (_m *MockDatabaseBlock) Close() {
 	_m.ctrl.Call(_m, "Close")
 }
 
 func (_mr *_MockDatabaseBlockRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+// Mock of DatabaseBlockRetriever interface
+type MockDatabaseBlockRetriever struct {
+	ctrl     *gomock.Controller
+	recorder *_MockDatabaseBlockRetrieverRecorder
+}
+
+// Recorder for MockDatabaseBlockRetriever (not exported)
+type _MockDatabaseBlockRetrieverRecorder struct {
+	mock *MockDatabaseBlockRetriever
+}
+
+func NewMockDatabaseBlockRetriever(ctrl *gomock.Controller) *MockDatabaseBlockRetriever {
+	mock := &MockDatabaseBlockRetriever{ctrl: ctrl}
+	mock.recorder = &_MockDatabaseBlockRetrieverRecorder{mock}
+	return mock
+}
+
+func (_m *MockDatabaseBlockRetriever) EXPECT() *_MockDatabaseBlockRetrieverRecorder {
+	return _m.recorder
+}
+
+func (_m *MockDatabaseBlockRetriever) Stream(shard uint32, id ts.ID, startTime time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+	ret := _m.ctrl.Call(_m, "Stream", shard, id, startTime, onRetrieve)
+	ret0, _ := ret[0].(io.SegmentReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockDatabaseBlockRetrieverRecorder) Stream(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0, arg1, arg2, arg3)
+}
+
+// Mock of OnRetrieveBlock interface
+type MockOnRetrieveBlock struct {
+	ctrl     *gomock.Controller
+	recorder *_MockOnRetrieveBlockRecorder
+}
+
+// Recorder for MockOnRetrieveBlock (not exported)
+type _MockOnRetrieveBlockRecorder struct {
+	mock *MockOnRetrieveBlock
+}
+
+func NewMockOnRetrieveBlock(ctrl *gomock.Controller) *MockOnRetrieveBlock {
+	mock := &MockOnRetrieveBlock{ctrl: ctrl}
+	mock.recorder = &_MockOnRetrieveBlockRecorder{mock}
+	return mock
+}
+
+func (_m *MockOnRetrieveBlock) EXPECT() *_MockOnRetrieveBlockRecorder {
+	return _m.recorder
+}
+
+func (_m *MockOnRetrieveBlock) OnRetrieveBlock(startTime time.Time, segment ts.Segment) {
+	_m.ctrl.Call(_m, "OnRetrieveBlock", startTime, segment)
+}
+
+func (_mr *_MockOnRetrieveBlockRecorder) OnRetrieveBlock(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnRetrieveBlock", arg0, arg1)
 }
 
 // Mock of DatabaseSeriesBlocks interface

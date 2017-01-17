@@ -102,6 +102,7 @@ type options struct {
 	newBootstrapFn                 NewBootstrapFn
 	newPersistManagerFn            NewPersistManagerFn
 	maxFlushRetries                int
+	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	shardCloseDeadline             time.Duration
 	contextPool                    context.Pool
 	seriesPool                     series.DatabaseSeriesPool
@@ -334,6 +335,16 @@ func (o *options) SetMaxFlushRetries(value int) Options {
 
 func (o *options) MaxFlushRetries() int {
 	return o.maxFlushRetries
+}
+
+func (o *options) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
+	opts := *o
+	opts.blockRetrieverManager = value
+	return &opts
+}
+
+func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
+	return o.blockRetrieverManager
 }
 
 func (o *options) SetShardCloseDeadline(value time.Duration) Options {
