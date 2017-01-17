@@ -201,9 +201,8 @@ func testEntryAddMetricWithPolicies(
 			fn: func(t *testing.T, elem *list.Element, alignedStart time.Time) {
 				aggregations := elem.Value.(*CounterElem).values
 				require.Equal(t, 1, len(aggregations))
-				value, exists := aggregations[alignedStart]
-				require.True(t, exists)
-				require.Equal(t, int64(1234), value.Sum())
+				require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNs)
+				require.Equal(t, int64(1234), aggregations[0].counter.Sum())
 			},
 		},
 		{
@@ -211,9 +210,8 @@ func testEntryAddMetricWithPolicies(
 			fn: func(t *testing.T, elem *list.Element, alignedStart time.Time) {
 				aggregations := elem.Value.(*TimerElem).values
 				require.Equal(t, 1, len(aggregations))
-				value, exists := aggregations[alignedStart]
-				require.True(t, exists)
-				require.Equal(t, 18.0, value.Sum())
+				require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNs)
+				require.Equal(t, 18.0, aggregations[0].timer.Sum())
 			},
 		},
 		{
@@ -221,9 +219,8 @@ func testEntryAddMetricWithPolicies(
 			fn: func(t *testing.T, elem *list.Element, alignedStart time.Time) {
 				aggregations := elem.Value.(*GaugeElem).values
 				require.Equal(t, 1, len(aggregations))
-				value, exists := aggregations[alignedStart]
-				require.True(t, exists)
-				require.Equal(t, 123.456, value.Value())
+				require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNs)
+				require.Equal(t, 123.456, aggregations[0].gauge.Value())
 			},
 		},
 	}

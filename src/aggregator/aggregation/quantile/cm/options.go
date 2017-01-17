@@ -46,6 +46,7 @@ var (
 	errInvalidQuantiles = fmt.Errorf("quantiles must be nonempty and between %f and %f", minQuantile, maxQuantile)
 	errNoSamplePool     = errors.New("no sample pool set")
 	errNoFloatsPool     = errors.New("no floats pool set")
+	errNoStreamPool     = errors.New("no stream pool set")
 )
 
 type options struct {
@@ -135,6 +136,9 @@ func (o *options) Validate() error {
 	}
 	if len(o.quantiles) == 0 {
 		return errInvalidQuantiles
+	}
+	if o.streamPool == nil {
+		return errNoStreamPool
 	}
 	if o.samplePool == nil {
 		return errNoSamplePool
