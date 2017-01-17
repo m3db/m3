@@ -5,6 +5,7 @@ message IndexInfo {
 	int64 start = 1;
 	int64 blockSize = 2;
 	int64 entries = 3;
+	int64 version = 4;
 }
 
 message IndexEntry {
