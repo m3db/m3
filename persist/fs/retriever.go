@@ -271,20 +271,27 @@ func (r *blockRetriever) fetchBatch(
 	// Seek and execute all requests
 	for _, req := range reqs {
 		data, err := seeker.Seek(req.id)
-		if err != nil {
+		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
 			continue
 		}
 
-		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+		var seg ts.Segment
+		if data != nil {
+			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
+		}
 
 		if req.onRetrieve != nil {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database series to cache the in
 			// memory data.
-			copyData := r.bytesPool.Get(data.Len())
-			copySegment := ts.NewSegment(copyData, nil, ts.FinalizeHead)
-			copyData.AppendAll(data.Get())
+			var copySegment ts.Segment
+			if data != nil {
+				copyData := r.bytesPool.Get(data.Len())
+				copySegment = ts.NewSegment(copyData, nil, ts.FinalizeHead)
+				copyData.AppendAll(data.Get())
+			}
+
 			go req.onRetrieve.OnRetrieveBlock(req.id, req.start, copySegment)
 		}
 

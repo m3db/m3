@@ -108,6 +108,9 @@ func ToSegments(readers []xio.SegmentReader) (*rpc.Segments, error) {
 		if err != nil {
 			return nil, err
 		}
+		if seg.Len() == 0 {
+			return nil, nil
+		}
 		s.Merged = &rpc.Segment{
 			Head: bytesRef(seg.Head),
 			Tail: bytesRef(seg.Tail),
@@ -120,10 +123,16 @@ func ToSegments(readers []xio.SegmentReader) (*rpc.Segments, error) {
 		if err != nil {
 			return nil, err
 		}
+		if seg.Len() == 0 {
+			continue
+		}
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
 			Head: bytesRef(seg.Head),
 			Tail: bytesRef(seg.Tail),
 		})
+	}
+	if len(s.Unmerged) == 0 {
+		return nil, nil
 	}
 
 	return s, nil

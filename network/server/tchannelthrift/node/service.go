@@ -263,6 +263,9 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 				}
 				break
 			}
+			if seg == nil {
+				continue
+			}
 			segments = append(segments, seg)
 		}
 		if streamErr != nil {
@@ -313,9 +316,9 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 
 		blocks := rpc.NewBlocks()
 		blocks.ID = request.ID
-		blocks.Blocks = make([]*rpc.Block, len(fetched))
+		blocks.Blocks = make([]*rpc.Block, 0, len(fetched))
 
-		for j, fetchedBlock := range fetched {
+		for _, fetchedBlock := range fetched {
 			block := rpc.NewBlock()
 			block.Start = xtime.ToNanoseconds(fetchedBlock.Start())
 
@@ -326,9 +329,13 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 				if err != nil {
 					block.Err = convert.ToRPCError(err)
 				}
+				if block.Segments == nil {
+					// No data for block, skip this block
+					continue
+				}
 			}
 
-			blocks.Blocks[j] = block
+			blocks.Blocks = append(blocks.Blocks, block)
 		}
 
 		res.Elements[i] = blocks
