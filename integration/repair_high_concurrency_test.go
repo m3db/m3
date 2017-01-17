@@ -1,4 +1,4 @@
-// +build integration
+// +build integration_disabled
 
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -47,10 +47,10 @@ func TestRepairHighConcurrency(t *testing.T) {
 		SetRepairInterval(3 * time.Second).
 		SetRepairThrottle(1 * time.Second).
 		SetRepairTimeJitter(0 * time.Second).
-		SetNumShards(64)
+		SetNumShards(128)
 
 	retentionOpts := retention.NewOptions().
-		SetBufferDrain(3 * time.Second).
+		SetBufferDrain(5 * time.Second).
 		SetRetentionPeriod(12 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
@@ -106,7 +106,7 @@ func TestRepairHighConcurrency(t *testing.T) {
 	log.Debug("servers are now up")
 
 	// Wait an emperically determined amount of time for repairs to finish
-	time.Sleep(3 * time.Minute)
+	time.Sleep(2 * time.Minute)
 
 	// Stop the servers
 	defer func() {
