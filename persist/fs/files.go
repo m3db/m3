@@ -302,14 +302,21 @@ func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
 type toSortableFn func(files []string) sort.Interface
 
 func findFiles(fileDir string, pattern string) ([]string, error) {
+	matched := []string{}
 	re := regexp.MustCompile(pattern)
+
+	// NB(prateek): returning no matched files if the specified directory doesn't exist,
+	// we do this instead of returning an error to match os.Glob semantics.
+	_, err := os.Stat(fileDir)
+	if err != nil {
+		return matched, nil
+	}
 
 	dirContents, err := ioutil.ReadDir(fileDir)
 	if err != nil {
 		return nil, err
 	}
 
-	matched := []string{}
 	for _, f := range dirContents {
 		if f.IsDir() || !re.MatchString(f.Name()) {
 			continue // we only care about files within this directory matching the pattern
