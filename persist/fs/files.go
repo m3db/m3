@@ -171,8 +171,7 @@ func TimeAndVersionFromFileName(fname string) (time.Time, uint32, error) {
 		return timeZero, 0, err
 	}
 
-	re := regexp.MustCompile(versionSuffixPresentRegex)
-	version := re.FindString(components[2])
+	version := versionSuffixPresentRegexp.FindString(components[2])
 	if version == "" {
 		return t, DefaultVersionNumber, nil
 	}
@@ -188,7 +187,7 @@ func TimeAndVersionFromFileName(fname string) (time.Time, uint32, error) {
 type infoFileFn func(fname string, infoData []byte)
 
 func forEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int, fn infoFileFn) {
-	matched, err := filesetFiles(filePathPrefix, namespace, shard, infoFilePattern)
+	matched, err := filesetFiles(filePathPrefix, namespace, shard, infoFileSuffixRegexp)
 	if err != nil {
 		return
 	}
@@ -245,7 +244,7 @@ func ReadInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, readerB
 // ReadLatestInfoFiles reads the latest valid version for all info entries.
 func ReadLatestInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int) []*schema.IndexInfo {
 	versionsByTime := make(map[int64]*schema.IndexInfo)
-	ForEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
+	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
 		info, err := readInfo(data)
 		if err != nil {
 			return
@@ -266,7 +265,7 @@ func ReadLatestInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, r
 
 // FilesetBefore returns all the fileset files whose timestamps are earlier than a given time.
 func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.Time) ([]string, error) {
-	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
+	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePatternRegexp)
 	if err != nil {
 		return nil, err
 	}
@@ -275,13 +274,14 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 
 // CommitLogFiles returns all the commit log files in the commit logs directory.
 func CommitLogFiles(commitLogsDir string) ([]string, error) {
-	return commitlogFiles(commitLogsDir, commitLogFilePattern)
+	return commitlogFiles(commitLogsDir, commitLogFilePatternRegexp)
 }
 
 // CommitLogFilesForTime returns all the commit log files for a given time.
 func CommitLogFilesForTime(commitLogsDir string, t time.Time) ([]string, error) {
 	commitLogFileForTimePattern := fmt.Sprintf(commitLogFileForTimeTemplate, t.UnixNano())
-	return commitlogFiles(commitLogsDir, commitLogFileForTimePattern)
+	re := regexp.MustCompile(commitLogFileForTimePattern)
+	return commitlogFiles(commitLogsDir, re)
 }
 
 // CommitLogFilesBefore returns all the commit log files whose timestamps are earlier than a given time.
@@ -301,9 +301,8 @@ func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
 
 type toSortableFn func(files []string) sort.Interface
 
-func findFiles(fileDir string, pattern string) ([]string, error) {
+func findFiles(fileDir string, re *regexp.Regexp) ([]string, error) {
 	matched := []string{}
-	re := regexp.MustCompile(pattern)
 
 	// NB(prateek): returning no matched files if the specified directory doesn't exist,
 	// we do this instead of returning an error to match os.Glob semantics.
@@ -328,8 +327,8 @@ func findFiles(fileDir string, pattern string) ([]string, error) {
 	return matched, nil
 }
 
-func findFilesAndSort(fileDir string, pattern string, fn toSortableFn) ([]string, error) {
-	matched, err := findFiles(fileDir, pattern)
+func findFilesAndSort(fileDir string, re *regexp.Regexp, fn toSortableFn) ([]string, error) {
+	matched, err := findFiles(fileDir, re)
 	if err != nil {
 		return nil, err
 	}
@@ -337,15 +336,15 @@ func findFilesAndSort(fileDir string, pattern string, fn toSortableFn) ([]string
 	return matched, nil
 }
 
-func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, pattern string) ([]string, error) {
+func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, re *regexp.Regexp) ([]string, error) {
 	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
-	return findFilesAndSort(shardDir, pattern, func(files []string) sort.Interface {
+	return findFilesAndSort(shardDir, re, func(files []string) sort.Interface {
 		return byTimeAscending(files)
 	})
 }
 
-func commitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
-	return findFilesAndSort(commitLogsDir, pattern, func(files []string) sort.Interface {
+func commitlogFiles(commitLogsDir string, re *regexp.Regexp) ([]string, error) {
+	return findFilesAndSort(commitLogsDir, re, func(files []string) sort.Interface {
 		return byTimeAndIndexAscending(files)
 	})
 }
@@ -427,7 +426,8 @@ func CommitLogsDirPath(prefix string) string {
 func FilesetVersionsAt(prefix string, namespace ts.ID, shard uint32, t time.Time) []uint32 {
 	shardDir := ShardDirPath(prefix, namespace, shard)
 	filesetFileForTimePattern := fmt.Sprintf(checkpointFileForTimePattern, t.UnixNano())
-	files, err := findFiles(shardDir, filesetFileForTimePattern)
+	re := regexp.MustCompile(filesetFileForTimePattern)
+	files, err := findFiles(shardDir, re)
 	if err != nil {
 		return []uint32{}
 	}
