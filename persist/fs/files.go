@@ -302,10 +302,7 @@ func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
 type toSortableFn func(files []string) sort.Interface
 
 func findFiles(fileDir string, pattern string) ([]string, error) {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return nil, err
-	}
+	re := regexp.MustCompile(pattern)
 
 	dirContents, err := ioutil.ReadDir(fileDir)
 	if err != nil {
