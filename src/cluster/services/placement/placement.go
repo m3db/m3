@@ -45,6 +45,7 @@ type placement struct {
 	instances map[string]services.PlacementInstance
 	rf        int
 	shards    []uint32
+	isSharded bool
 }
 
 func (p *placement) Instances() []services.PlacementInstance {
@@ -96,8 +97,20 @@ func (p *placement) NumShards() int {
 	return len(p.shards)
 }
 
+func (p *placement) IsSharded() bool {
+	return p.isSharded
+}
+
+func (p *placement) SetIsSharded(v bool) services.ServicePlacement {
+	p.isSharded = v
+	return p
+}
+
 func (p *placement) String() string {
-	return services.PlacementInstances(p.Instances()).String()
+	return fmt.Sprintf(
+		"Placement[Instances=%s, NumShards=%d, ReplicaFactor=%d, IsSharded=%v]",
+		p.Instances(), p.NumShards(), p.ReplicaFactor(), p.IsSharded(),
+	)
 }
 
 // Validate validates a placement
@@ -116,8 +129,11 @@ func Validate(p services.ServicePlacement) error {
 		if instance.Endpoint() == "" {
 			return fmt.Errorf("instance %s does not contain valid endpoint", instance.String())
 		}
-		if instance.Shards().NumShards() == 0 {
-			return fmt.Errorf("instance %s contains no shard", instance.String())
+		if instance.Shards().NumShards() == 0 && p.IsSharded() {
+			return fmt.Errorf("instance %s contains no shard in a sharded placement", instance.String())
+		}
+		if instance.Shards().NumShards() != 0 && !p.IsSharded() {
+			return fmt.Errorf("instance %s contains shards in a non-sharded placement", instance.String())
 		}
 		for _, s := range instance.Shards().All() {
 			count, exist := shardCountMap[s.ID()]
@@ -142,10 +158,15 @@ func Validate(p services.ServicePlacement) error {
 		}
 	}
 
+	if !p.IsSharded() {
+		return nil
+	}
+
 	// initializing could be more than leaving for cases like initial placement
 	if totalLeaving > totalInit {
 		return fmt.Errorf("invalid placement, %d shards in Leaving state, more than %d in Initializing state", totalLeaving, totalInit)
 	}
+
 	if totalLeaving != totalInitWithSourceID {
 		return fmt.Errorf("invalid placement, %d shards in Leaving state, not equal %d in Initializing state with source id", totalLeaving, totalInitWithSourceID)
 	}
@@ -198,8 +219,9 @@ type instance struct {
 
 func (i *instance) String() string {
 	return fmt.Sprintf(
-		"Instance<ID=%s, Rack=%s, Zone=%s, Weight=%d, Shards=%s>",
-		i.id, i.rack, i.zone, i.weight, i.shards.String())
+		"Instance[ID=%s, Rack=%s, Zone=%s, Weight=%d, Endpoint=%s, Shards=%s]",
+		i.id, i.rack, i.zone, i.weight, i.endpoint, i.shards.String(),
+	)
 }
 
 func (i *instance) ID() string {

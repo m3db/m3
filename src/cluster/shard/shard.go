@@ -224,5 +224,5 @@ func (s shards) String() string {
 		str := fmt.Sprintf("%s=%v", state.String(), ids)
 		strs = append(strs, str)
 	}
-	return fmt.Sprintf("Shards<%s>", strings.Join(strs, ", "))
+	return fmt.Sprintf("[%s]", strings.Join(strs, ", "))
 }

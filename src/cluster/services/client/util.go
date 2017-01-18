@@ -65,7 +65,7 @@ func serviceFromProto(p placementproto.Placement, sid services.ServiceID) (servi
 
 	return services.NewService().
 		SetReplication(services.NewServiceReplication().SetReplicas(int(p.ReplicaFactor))).
-		SetSharding(services.NewServiceSharding().SetNumShards(int(p.NumShards))).
+		SetSharding(services.NewServiceSharding().SetNumShards(int(p.NumShards)).SetIsSharded(p.IsSharded)).
 		SetInstances(r), nil
 }
 
@@ -109,7 +109,8 @@ func PlacementFromProto(p placementproto.Placement) (services.ServicePlacement, 
 	s := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(shards).
-		SetReplicaFactor(int(p.ReplicaFactor))
+		SetReplicaFactor(int(p.ReplicaFactor)).
+		SetIsSharded(p.IsSharded)
 	if err := placement.Validate(s); err != nil {
 		return nil, err
 	}
@@ -140,6 +141,7 @@ func PlacementToProto(p services.ServicePlacement) (placementproto.Placement, er
 		Instances:     instances,
 		ReplicaFactor: uint32(p.ReplicaFactor()),
 		NumShards:     uint32(p.NumShards()),
+		IsSharded:     p.IsSharded(),
 	}, nil
 }
 
