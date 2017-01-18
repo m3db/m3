@@ -107,7 +107,11 @@ func TestRepairHighConcurrency(t *testing.T) {
 	log.Debug("servers are now up")
 
 	// Wait an emperically determined amount of time for repairs to finish
-	time.Sleep(2 * time.Minute)
+	fpp0 := setups[0].storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	fpp1 := setups[1].storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	waitTimeout := setups[1].storageOpts.RetentionOptions().BufferDrain() * 20
+	require.NoError(t, waitUntilDataFlushed(fpp0, setups[0].shardSet, namesp.ID(), seriesMaps, waitTimeout, 2))
+	require.NoError(t, waitUntilDataFlushed(fpp1, setups[1].shardSet, namesp.ID(), seriesMaps, waitTimeout, 2))
 
 	// Stop the servers
 	defer func() {
@@ -117,6 +121,11 @@ func TestRepairHighConcurrency(t *testing.T) {
 		log.Debug("servers are now down")
 	}()
 
+	// Verify in-memory data match what we expect
 	verifySeriesMaps(t, setups[0], namesp.ID(), seriesMaps)
 	verifySeriesMaps(t, setups[1], namesp.ID(), seriesMaps)
+
+	// Verify on-disk data match what we expect
+	verifyFlushed(t, setups[0].shardSet, setups[0].storageOpts, namesp.ID(), 1, seriesMaps)
+	verifyFlushed(t, setups[1].shardSet, setups[1].storageOpts, namesp.ID(), 1, seriesMaps)
 }

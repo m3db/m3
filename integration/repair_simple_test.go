@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/log"
@@ -69,6 +70,7 @@ func TestRepairSimple(t *testing.T) {
 
 	// Write test data for first node
 	now := setups[0].getNowFn()
+	filePathPrefix := setups[1].storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
 	seriesMaps := generateTestDataByStart([]testData{
 		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-2 * blockSize)},
@@ -82,14 +84,6 @@ func TestRepairSimple(t *testing.T) {
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
 
-	// Move time forward to trigger repairs
-	later := now.Add(blockSize * 3).Add(30 * time.Second)
-	setups[0].setNowFn(later)
-	setups[1].setNowFn(later)
-
-	// Wait an emperically determined amount of time for repairs to finish
-	time.Sleep(30 * time.Second)
-
 	// Stop the servers
 	defer func() {
 		setups.parallel(func(s *testSetup) {
@@ -98,6 +92,18 @@ func TestRepairSimple(t *testing.T) {
 		log.Debug("servers are now down")
 	}()
 
-	// Verify in-memory data match what we expect
+	// Move time forward to trigger repairs
+	later := now.Add(blockSize * 3).Add(30 * time.Second)
+	setups[0].setNowFn(later)
+	setups[1].setNowFn(later)
+
+	// Wait an emperically determined amount of time for repairs to finish
+	waitTimeout := setups[1].storageOpts.RetentionOptions().BufferDrain() * 10
+	require.NoError(t, waitUntilDataFlushed(filePathPrefix, setups[1].shardSet, namesp.ID(), seriesMaps, waitTimeout, 1))
+
+	// verify data in memory is what we expect
 	verifySeriesMaps(t, setups[1], namesp.ID(), seriesMaps)
+
+	// Verify on-disk data match what we expect
+	verifyFlushed(t, setups[1].shardSet, setups[1].storageOpts, namesp.ID(), fs.DefaultVersionNumber, seriesMaps)
 }
