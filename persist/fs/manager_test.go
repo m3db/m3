@@ -88,80 +88,6 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	require.NotNil(t, prepared.Close)
 }
 
-func TestPersistenceManagerDeleteFilesetFn(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	pm, writer := testManager(t, ctrl)
-	defer os.RemoveAll(pm.filePathPrefix)
-
-	initialVersions := []uint32{1, 2, 3, 4}
-	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
-	shardDir := createShardDir(t, pm.filePathPrefix, testNamespaceID, shard)
-	for _, v := range initialVersions {
-		for _, suffix := range filesetFileSuffixes {
-			filepath := versionFilesetPathFromTime(shardDir, blockStart, suffix, v)
-			f, err := os.Create(filepath)
-			require.NoError(t, err)
-			f.Close()
-		}
-	}
-
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart, uint32(5)).Return(nil)
-	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart, true)
-	require.NoError(t, err)
-	require.NotNil(t, prepared.Persist)
-	require.NotNil(t, prepared.Close)
-
-	deleteFn := pm.deleteFileset
-	require.NoError(t, deleteFn(2))
-	remainingVersions := []uint32{1, 3, 4}
-	for _, v := range remainingVersions {
-		for _, suffix := range filesetFileSuffixes {
-			fp := versionFilesetPathFromTime(shardDir, blockStart, suffix, v)
-			_, err := os.Stat(fp)
-			require.NoError(t, err)
-		}
-	}
-}
-
-func TestPersistenceManagerCloseExpiredVersion(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	pm, writer := testManager(t, ctrl)
-	defer os.RemoveAll(pm.filePathPrefix)
-
-	initialVersions := []uint32{1, 2, 3, 4}
-	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
-	shardDir := createShardDir(t, pm.filePathPrefix, testNamespaceID, shard)
-	for _, v := range initialVersions {
-		checkpointFilePath := versionFilesetPathFromTime(shardDir, blockStart, checkpointFileSuffix, v)
-		f, err := os.Create(checkpointFilePath)
-		require.NoError(t, err)
-		f.Close()
-	}
-
-	deletedVersions := []uint32{}
-	pm.deleteFn = func(v uint32) error {
-		deletedVersions = append(deletedVersions, v)
-		return nil
-	}
-
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart, uint32(5)).Return(nil)
-	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart, true)
-	require.NoError(t, err)
-	require.NotNil(t, prepared.Persist)
-	require.NotNil(t, prepared.Close)
-
-	writer.EXPECT().Close()
-	prepared.Close()
-	require.Equal(t, 2, len(deletedVersions))
-	require.Equal(t, []uint32{1, 2}, deletedVersions)
-}
-
 func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -227,10 +153,6 @@ func TestPersistenceManagerClose(t *testing.T) {
 	require.True(t, pm.start.IsZero())
 	require.True(t, pm.lastCheck.IsZero())
 	require.Equal(t, int64(0), pm.bytesWritten)
-	require.Empty(t, pm.versionsToExpire)
-	require.True(t, pm.blockStart.IsZero())
-	require.Nil(t, pm.namespace)
-	require.Zero(t, pm.shard)
 }
 
 func TestPersistenceManagerNoRateLimit(t *testing.T) {

@@ -23,15 +23,11 @@ package fs
 import (
 	"time"
 
-	"os"
-
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
 )
 
 const (
@@ -39,7 +35,6 @@ const (
 )
 
 type sleepFn func(time.Duration)
-type deleteFilesetFn func(version uint32) error
 
 // persistManager is responsible for persisting series segments onto local filesystem.
 // It is not thread-safe.
@@ -49,16 +44,10 @@ type persistManager struct {
 	rateLimitOpts  ratelimit.Options
 	nowFn          clock.NowFn
 	sleepFn        sleepFn
-	deleteFn       deleteFilesetFn
 	writer         FileSetWriter
 	start          time.Time
 	lastCheck      time.Time
 	bytesWritten   int64
-
-	versionsToExpire []uint32
-	namespace        ts.ID
-	shard            uint32
-	blockStart       time.Time
 
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
 	// head and the tail of each segment so we don't need to allocate memory
@@ -83,7 +72,6 @@ func NewPersistManager(opts Options) persist.Manager {
 		writer:         writer,
 		segmentHolder:  make([]checked.Bytes, 2),
 	}
-	pm.deleteFn = pm.deleteFileset
 	return pm
 }
 
@@ -112,51 +100,14 @@ func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
 }
 
 func (pm *persistManager) close() {
-	defer pm.reset()
-	logger := pm.opts.InstrumentOptions().Logger()
-	if err := pm.writer.Close(); err != nil {
-		logger.WithFields(
-			xlog.NewLogField("namespace", pm.namespace.String()),
-			xlog.NewLogField("shard", pm.shard),
-			xlog.NewLogField("blockStart", pm.blockStart.String()),
-			xlog.NewLogField("err", err.Error()),
-		).Info("unable to Close() filesetwriter")
-		return
-	}
-
-	for _, v := range pm.versionsToExpire {
-		if err := pm.deleteFn(v); err != nil {
-			logger.WithFields(
-				xlog.NewLogField("namespace", pm.namespace.String()),
-				xlog.NewLogField("shard", pm.shard),
-				xlog.NewLogField("blockStart", pm.blockStart.String()),
-				xlog.NewLogField("version", v),
-				xlog.NewLogField("err", err.Error()),
-			).Info("unable to delete fileset version")
-		}
-	}
+	pm.writer.Close()
+	pm.reset()
 }
 
 func (pm *persistManager) reset() {
 	pm.start = timeZero
 	pm.lastCheck = timeZero
 	pm.bytesWritten = 0
-	pm.versionsToExpire = []uint32{}
-	pm.blockStart = timeZero
-	pm.shard = 0
-	pm.namespace = nil
-}
-
-func (pm *persistManager) deleteFileset(version uint32) error {
-	var multiErr xerrors.MultiError
-	shardDir := ShardDirPath(pm.filePathPrefix, pm.namespace, pm.shard)
-	for _, suffix := range filesetFileSuffixes {
-		filepath := versionFilesetPathFromTime(shardDir, pm.blockStart, suffix, version)
-		if err := os.Remove(filepath); err != nil {
-			multiErr.Add(err)
-		}
-	}
-	return multiErr.FinalError()
 }
 
 func (pm *persistManager) Prepare(
@@ -171,9 +122,6 @@ func (pm *persistManager) Prepare(
 		atleastOneVersionExists = len(versions) > 0
 		prepared                persist.PreparedPersist
 	)
-	pm.namespace = namespace
-	pm.shard = shard
-	pm.blockStart = blockStart
 
 	// NB(prateek): if no files exist, we create a new one with default version
 	// if a version does exist, then the behavior depends upon `createNewVersionIfExists`
@@ -186,11 +134,6 @@ func (pm *persistManager) Prepare(
 			return prepared, nil
 		}
 		nextVersion = 1 + versions[len(versions)-1]
-		maxRetained := pm.opts.RetentionOptions().MaxVersionsRetained()
-		numVersionsToDelete := len(versions) + 1 - int(maxRetained)
-		if numVersionsToDelete > 0 {
-			pm.versionsToExpire = versions[:numVersionsToDelete]
-		}
 	}
 	// TODO(prateek): migrate cleanup functionality to cleanup manager. flushing should not do anything to it!
 
