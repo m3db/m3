@@ -25,6 +25,7 @@ message placement {
   map<string, instance> instances = 1;
   uint32 replica_factor = 2;
   uint32 num_shards = 3;
+  bool is_sharded = 4;
 }
 
 message instance {

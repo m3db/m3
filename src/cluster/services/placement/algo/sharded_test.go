@@ -50,7 +50,7 @@ func TestGoodCase(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions().SetAllowPartialReplace(true))
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	p = markAllShardsAsAvailable(t, p)
@@ -135,7 +135,7 @@ func TestGoodCaseWithWeight(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	p = markAllShardsAsAvailable(t, p)
@@ -210,7 +210,7 @@ func TestPlacementChangeWithoutStateUpdate(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions().SetAllowPartialReplace(true))
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, p.ReplicaFactor())
@@ -297,7 +297,7 @@ func TestOverSizedRack(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions().SetAllowPartialReplace(false))
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestOverSizedRack replica 1")
@@ -314,7 +314,7 @@ func TestOverSizedRack(t *testing.T) {
 	_, err = a.ReplaceInstance(p, i8.ID(), []services.PlacementInstance{i10})
 	assert.Error(t, err)
 
-	a = NewRackAwarePlacementAlgorithm(placement.NewOptions().SetAllowPartialReplace(true))
+	a = newShardedAlgorithm(placement.NewOptions())
 	p, err = a.ReplaceInstance(p, i8.ID(), []services.PlacementInstance{i10})
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestOverSizedRack replace 1")
@@ -337,7 +337,7 @@ func TestRemoveInitializingInstance(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "e1", 1)
 	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "e2", 1)
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement([]services.PlacementInstance{i1}, []uint32{1, 2})
 	assert.NoError(t, err)
 
@@ -387,7 +387,7 @@ func TestInitPlacementOnNoInstances(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.Error(t, err)
 	assert.Nil(t, p)
@@ -404,7 +404,7 @@ func TestOneRack(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestOneRack replica 1")
@@ -430,7 +430,7 @@ func TestRFGreaterThanRackLen(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLen replica 1")
@@ -457,7 +457,7 @@ func TestRFGreaterThanRackLenAfterInstanceRemoval(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLenAfterInstanceRemoval replica 1")
@@ -484,7 +484,7 @@ func TestRFGreaterThanRackLenAfterInstanceReplace(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLenAfterInstanceReplace replica 1")
@@ -512,7 +512,7 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	markAllShardsAsAvailable(t, p)
@@ -541,7 +541,7 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 	markAllShardsAsAvailable(t, p)
 	assert.NoError(t, placement.Validate(p))
 
-	b := NewRackAwarePlacementAlgorithm(placement.NewOptions().SetLooseRackCheck(true))
+	b := newShardedAlgorithm(placement.NewOptions().SetLooseRackCheck(true))
 	// different with normal algo, which would return error here
 	i3 := placement.NewEmptyInstance("i3", "r1", "z1", "endpoint", 1)
 	p, err = b.ReplaceInstance(p, i2.ID(), []services.PlacementInstance{i3})
@@ -581,9 +581,10 @@ func TestAddInstancesCouldNotReachTargetLoad(t *testing.T) {
 	p := placement.NewPlacement().
 		SetInstances([]services.PlacementInstance{}).
 		SetShards(ids).
-		SetReplicaFactor(1)
+		SetReplicaFactor(1).
+		SetIsSharded(true)
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 
 	p1, err := a.AddInstance(p, i1)
 	// errCouldNotReachTargetLoad should only happen when trying to add a instance to
@@ -604,7 +605,7 @@ func TestAddExistInstance(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestAddExistInstance replica 1")
@@ -627,7 +628,7 @@ func TestRemoveAbsentInstance(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestRemoveAbsentInstance replica 1")
@@ -652,7 +653,7 @@ func TestReplaceAbsentInstance(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "TestReplaceAbsentInstance replica 1")
@@ -677,7 +678,7 @@ func TestInit(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, p.ReplicaFactor())
@@ -717,9 +718,10 @@ func TestAddReplica(t *testing.T) {
 	p := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(ids).
-		SetReplicaFactor(1)
+		SetReplicaFactor(1).
+		SetIsSharded(true)
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.AddReplica(p)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, p.ReplicaFactor())
@@ -765,9 +767,10 @@ func TestAddInstance(t *testing.T) {
 	p := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(ids).
-		SetReplicaFactor(1)
+		SetReplicaFactor(1).
+		SetIsSharded(true)
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	i2 := placement.NewEmptyInstance("i2", "r2", "", "e2", 1)
 	p, err := a.AddInstance(p, i2)
 	assert.NoError(t, err)
@@ -805,9 +808,10 @@ func TestRemoveInstance(t *testing.T) {
 	p := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(ids).
-		SetReplicaFactor(1)
+		SetReplicaFactor(1).
+		SetIsSharded(true)
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.RemoveInstance(p, i2.ID())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, p.ReplicaFactor())
@@ -857,9 +861,10 @@ func TestReplaceInstance(t *testing.T) {
 	p := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(ids).
-		SetReplicaFactor(1)
+		SetReplicaFactor(1).
+		SetIsSharded(true)
 
-	a := NewRackAwarePlacementAlgorithm(placement.NewOptions())
+	a := newShardedAlgorithm(placement.NewOptions())
 	i3 := placement.NewEmptyInstance("i3", "r3", "", "e3", 1)
 	p, err := a.ReplaceInstance(p, i2.ID(), []services.PlacementInstance{i3})
 	assert.NoError(t, err)
@@ -887,6 +892,33 @@ func TestReplaceInstance(t *testing.T) {
 		assert.Equal(t, shard.Initializing, s.State())
 		assert.Equal(t, "i2", s.SourceID())
 	}
+}
+
+func TestShardedAlgoOnNonShardedPlacement(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetEndpoint("e1")
+	i2 := placement.NewInstance().SetID("i2").SetEndpoint("e2")
+	i3 := placement.NewInstance().SetID("i3").SetEndpoint("e3")
+	i4 := placement.NewInstance().SetID("i4").SetEndpoint("e4")
+
+	p, err := newNonShardedAlgorithm().InitialPlacement([]services.PlacementInstance{i1, i2}, []uint32{})
+	assert.NoError(t, err)
+
+	a := newShardedAlgorithm(placement.NewOptions())
+	_, err = a.AddReplica(p)
+	assert.Error(t, err)
+	assert.Equal(t, errShardedAlgoOnNotShardedPlacement, err)
+
+	_, err = a.AddInstance(p, i3)
+	assert.Error(t, err)
+	assert.Equal(t, errShardedAlgoOnNotShardedPlacement, err)
+
+	_, err = a.RemoveInstance(p, "i1")
+	assert.Error(t, err)
+	assert.Equal(t, errShardedAlgoOnNotShardedPlacement, err)
+
+	_, err = a.ReplaceInstance(p, "i1", []services.PlacementInstance{i3, i4})
+	assert.Error(t, err)
+	assert.Equal(t, errShardedAlgoOnNotShardedPlacement, err)
 }
 
 func markAllShardsAsAvailable(t *testing.T, p services.ServicePlacement) services.ServicePlacement {

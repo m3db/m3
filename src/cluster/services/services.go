@@ -69,11 +69,14 @@ func (r *serviceReplication) SetReplicas(rep int) ServiceReplication { r.replica
 func NewServiceSharding() ServiceSharding { return new(serviceSharding) }
 
 type serviceSharding struct {
+	isSharded bool
 	numShards int
 }
 
-func (s *serviceSharding) NumShards() int                     { return s.numShards }
-func (s *serviceSharding) SetNumShards(n int) ServiceSharding { s.numShards = n; return s }
+func (s *serviceSharding) NumShards() int                      { return s.numShards }
+func (s *serviceSharding) IsSharded() bool                     { return s.isSharded }
+func (s *serviceSharding) SetNumShards(n int) ServiceSharding  { s.numShards = n; return s }
+func (s *serviceSharding) SetIsSharded(v bool) ServiceSharding { s.isSharded = v; return s }
 
 // NewServiceInstance creates a new ServiceInstance
 func NewServiceInstance() ServiceInstance { return new(serviceInstance) }

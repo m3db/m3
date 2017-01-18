@@ -104,6 +104,7 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 
 	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i34", "r3", "z1", "endpoint", 1)})
 	assert.NoError(t, err)
+
 	_, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i35", "r3", "z1", "endpoint", 1)})
 	assert.NoError(t, err)
 
@@ -121,6 +122,68 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 	assert.NoError(t, err)
 	_, exist = s.Instance("i41") // instance added from least weighted rack
 	assert.True(t, exist)
+}
+
+func TestNonShardedWorkflow(t *testing.T) {
+	ps := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions().SetIsSharded(false))
+
+	p, err := ps.BuildInitialPlacement([]services.PlacementInstance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "e1", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "e2", 1),
+	}, 10, 1)
+	assert.Error(t, err)
+
+	p, err = ps.BuildInitialPlacement([]services.PlacementInstance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "e1", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "e2", 1),
+	}, 0, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 1, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	p, err = ps.AddReplica()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	p, err = ps.AddInstance([]services.PlacementInstance{
+		placement.NewEmptyInstance("i3", "r1", "z1", "e3", 1),
+		placement.NewEmptyInstance("i4", "r1", "z1", "e4", 1),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, 3, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	p, err = ps.RemoveInstance("i1")
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	p, err = ps.ReplaceInstance("i2", []services.PlacementInstance{
+		placement.NewEmptyInstance("i3", "r1", "z1", "e3", 1),
+		placement.NewEmptyInstance("i4", "r1", "z1", "e4", 1),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	// nothing happens because i3 has no shards
+	err = ps.MarkInstanceAvailable("i3")
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
 }
 
 func TestDryrun(t *testing.T) {
@@ -195,10 +258,40 @@ func TestDryrun(t *testing.T) {
 }
 
 func TestBadInitialPlacement(t *testing.T) {
-	p := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
+	p := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions().SetIsSharded(false))
+
+	// invalid numShards
+	_, err := p.BuildInitialPlacement([]services.PlacementInstance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
+	}, -1, 1)
+	assert.Error(t, err)
+
+	// invalid rf
+	_, err = p.BuildInitialPlacement([]services.PlacementInstance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
+	}, 10, 0)
+	assert.Error(t, err)
+
+	// numshards > 0 && sharded == false
+	_, err = p.BuildInitialPlacement([]services.PlacementInstance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
+	}, 10, 1)
+	assert.Error(t, err)
+
+	p = NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
 
 	// not enough instances
-	_, err := p.BuildInitialPlacement([]services.PlacementInstance{}, 10, 1)
+	_, err = p.BuildInitialPlacement([]services.PlacementInstance{}, 10, 1)
+	assert.Error(t, err)
+
+	// err: rf == 0 && sharded == true
+	_, err = p.BuildInitialPlacement([]services.PlacementInstance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
+	}, 10, 0)
 	assert.Error(t, err)
 
 	// not enough racks
@@ -412,7 +505,8 @@ func TestMarkShard(t *testing.T) {
 	p := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
-		SetReplicaFactor(2)
+		SetReplicaFactor(2).
+		SetIsSharded(true)
 	err := ms.SetIfNotExist(sid, p)
 	assert.NoError(t, err)
 
@@ -467,7 +561,8 @@ func TestMarkInstance(t *testing.T) {
 	p := placement.NewPlacement().
 		SetInstances(instances).
 		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
-		SetReplicaFactor(2)
+		SetReplicaFactor(2).
+		SetIsSharded(true)
 	err := ms.SetIfNotExist(sid, p)
 	assert.NoError(t, err)
 
@@ -557,7 +652,8 @@ func TestSetPlacement(t *testing.T) {
 	p := placement.NewPlacement().
 		SetInstances([]services.PlacementInstance{i1, i2}).
 		SetShards([]uint32{1, 2}).
-		SetReplicaFactor(1)
+		SetReplicaFactor(1).
+		SetIsSharded(true)
 
 	m := NewMockStorage()
 	err := NewPlacementService(m, testServiceID(), placement.NewOptions().SetDryrun(true)).SetPlacement(p)

@@ -366,7 +366,6 @@ func (c *client) run(
 	var err error
 
 	for {
-
 		select {
 		case <-vw.C():
 			value := vw.Get()
@@ -381,6 +380,7 @@ func (c *client) run(
 			c.logger.Infof("successfully parsed placement on version %d", value.Version())
 
 			w.Update(filterHealthyInstances(service, ids, qopts.IncludeUnhealthy()))
+
 		case <-ticker.C:
 			newIDs, err := hbStore.Get(serviceKey(sid))
 			if err != nil {

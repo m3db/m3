@@ -24,7 +24,12 @@ import (
 	"github.com/m3db/m3cluster/services"
 )
 
-const defaultMaxStepSize = 3
+const (
+	defaultMaxStepSize = 3
+	defaultIsSharded   = true
+	// by default partial replace should be allowed for better distribution
+	defaultAllowPartialReplace = true
+)
 
 type deploymentOptions struct {
 	maxStepSize int
@@ -46,12 +51,16 @@ func (o deploymentOptions) SetMaxStepSize(stepSize int) DeploymentOptions {
 
 // NewOptions returns a default PlacementOptions
 func NewOptions() services.PlacementOptions {
-	return options{}
+	return options{
+		allowPartialReplace: defaultAllowPartialReplace,
+		sharded:             defaultIsSharded,
+	}
 }
 
 type options struct {
 	looseRackCheck      bool
 	allowPartialReplace bool
+	sharded             bool
 	dryrun              bool
 }
 
@@ -70,6 +79,15 @@ func (o options) AllowPartialReplace() bool {
 
 func (o options) SetAllowPartialReplace(allowPartialReplace bool) services.PlacementOptions {
 	o.allowPartialReplace = allowPartialReplace
+	return o
+}
+
+func (o options) IsSharded() bool {
+	return o.sharded
+}
+
+func (o options) SetIsSharded(sharded bool) services.PlacementOptions {
+	o.sharded = sharded
 	return o
 }
 

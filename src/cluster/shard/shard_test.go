@@ -21,6 +21,7 @@
 package shard
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -69,4 +70,19 @@ func TestShards(t *testing.T) {
 
 	shards = NewShards([]Shard{s1, s2})
 	assert.Equal(t, 2, shards.NumShards())
+
+	shards.Add(NewShard(3).SetState(Leaving))
+	assert.Equal(t, "[Initializing=[1], Available=[2], Leaving=[3]]", shards.String())
+}
+
+func TestSort(t *testing.T) {
+	var shards []Shard
+	shards = append(shards, NewShard(1))
+	shards = append(shards, NewShard(2))
+	shards = append(shards, NewShard(0))
+	sortable := SortableShardsByIDAsc(shards)
+	sort.Sort(sortable)
+	for i := range shards {
+		assert.Equal(t, uint32(i), shards[i].ID())
+	}
 }

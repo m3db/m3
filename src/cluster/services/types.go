@@ -91,6 +91,12 @@ type ServiceSharding interface {
 
 	// SetNumShards sets the number of shards to use for sharding
 	SetNumShards(n int) ServiceSharding
+
+	// IsSharded() returns whether this service is sharded
+	IsSharded() bool
+
+	// SetIsSharded sets IsSharded
+	SetIsSharded(s bool) ServiceSharding
 }
 
 // ServiceInstance is a single instance of a service
@@ -201,6 +207,11 @@ type PlacementOptions interface {
 	AllowPartialReplace() bool
 	SetAllowPartialReplace(allowPartialReplace bool) PlacementOptions
 
+	// IsSharded describes whether a placement needs to be sharded
+	// when set to false, no specific shards will be assigned to any instance
+	IsSharded() bool
+	SetIsSharded(sharded bool) PlacementOptions
+
 	// Dryrun will try to perform the placement operation but will not persist the final result
 	Dryrun() bool
 	SetDryrun(d bool) PlacementOptions
@@ -234,6 +245,12 @@ type ServicePlacement interface {
 
 	// ShardsLen returns the number of shards in a replica
 	NumShards() int
+
+	// IsSharded() returns whether this placement is sharded
+	IsSharded() bool
+
+	// SetIsSharded() sets IsSharded
+	SetIsSharded(v bool) ServicePlacement
 
 	// String returns a description of the placement
 	String() string

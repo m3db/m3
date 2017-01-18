@@ -55,12 +55,14 @@ func TestConvertBetweenProtoAndService(t *testing.T) {
 		},
 		ReplicaFactor: 2,
 		NumShards:     3,
+		IsSharded:     true,
 	}
 
 	s, err := serviceFromProto(p, sid)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, s.Replication().Replicas())
 	assert.Equal(t, 3, s.Sharding().NumShards())
+	assert.True(t, s.Sharding().IsSharded())
 
 	i1, err := s.Instance("i1")
 	assert.NoError(t, err)
@@ -81,12 +83,11 @@ func TestConvertBetweenProtoAndService(t *testing.T) {
 	assert.True(t, i2.Shards().Contains(0))
 	assert.True(t, i2.Shards().Contains(1))
 	assert.True(t, i2.Shards().Contains(2))
-
 }
 
 func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	protoShards := getProtoShards([]uint32{0, 1, 2})
-	p := placementproto.Placement{
+	placementProto := placementproto.Placement{
 		Instances: map[string]*placementproto.Instance{
 			"i1": &placementproto.Instance{
 				Id:       "i1",
@@ -107,20 +108,22 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 		},
 		ReplicaFactor: 2,
 		NumShards:     3,
+		IsSharded:     true,
 	}
 
-	s, err := PlacementFromProto(p)
+	p, err := PlacementFromProto(placementProto)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, s.NumInstances())
-	assert.Equal(t, 2, s.ReplicaFactor())
-	assert.Equal(t, []uint32{0, 1, 2}, s.Shards())
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.True(t, p.IsSharded())
+	assert.Equal(t, []uint32{0, 1, 2}, p.Shards())
 
-	p1, err := PlacementToProto(s)
+	placementProtoNew, err := PlacementToProto(p)
 	assert.NoError(t, err)
-	assert.Equal(t, p.ReplicaFactor, p1.ReplicaFactor)
-	assert.Equal(t, p.NumShards, p1.NumShards)
-	for id, h := range p.Instances {
-		i1 := p1.Instances[id]
+	assert.Equal(t, placementProto.ReplicaFactor, placementProtoNew.ReplicaFactor)
+	assert.Equal(t, placementProto.NumShards, placementProtoNew.NumShards)
+	for id, h := range placementProto.Instances {
+		i1 := placementProtoNew.Instances[id]
 		assert.Equal(t, h.Id, i1.Id)
 		assert.Equal(t, h.Rack, i1.Rack)
 		assert.Equal(t, h.Zone, i1.Zone)

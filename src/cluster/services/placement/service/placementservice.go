@@ -48,34 +48,34 @@ type placementService struct {
 
 // NewPlacementService returns an instance of placement service
 func NewPlacementService(ss placement.Storage, service services.ServiceID, opts services.PlacementOptions) services.PlacementService {
-	return placementService{ss: ss, service: service, opts: opts, algo: algo.NewRackAwarePlacementAlgorithm(opts)}
+	return placementService{ss: ss, service: service, opts: opts, algo: algo.NewAlgorithm(opts)}
 }
 
 func (ps placementService) BuildInitialPlacement(
 	instances []services.PlacementInstance,
-	shardLen int,
+	numShards int,
 	rf int,
 ) (services.ServicePlacement, error) {
+	if numShards < 0 {
+		return nil, fmt.Errorf("could not build initial placement, invalid numShards %d", numShards)
+	}
+
+	if rf <= 0 {
+		return nil, fmt.Errorf("could not build initial placement, invalid replica factor %d", rf)
+	}
 	var err error
 	if err = ps.validateInitInstances(instances); err != nil {
 		return nil, err
 	}
 
-	ids := make([]uint32, shardLen)
-	for i := 0; i < shardLen; i++ {
+	ids := make([]uint32, numShards)
+	for i := 0; i < numShards; i++ {
 		ids[i] = uint32(i)
 	}
 
-	var p services.ServicePlacement
-	for i := 0; i < rf; i++ {
-		if i == 0 {
-			p, err = ps.algo.InitialPlacement(instances, ids)
-		} else {
-			p, err = ps.algo.AddReplica(p)
-		}
-		if err != nil {
-			return nil, err
-		}
+	p, err := ps.initPlacement(instances, ids, rf)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := placement.Validate(p); err != nil {
@@ -94,6 +94,25 @@ func (ps placementService) BuildInitialPlacement(
 	}
 
 	return p, ps.ss.SetIfNotExist(ps.service, p)
+}
+
+func (ps placementService) initPlacement(
+	instances []services.PlacementInstance,
+	ids []uint32,
+	rf int,
+) (services.ServicePlacement, error) {
+	p, err := ps.algo.InitialPlacement(instances, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 1; i < rf; i++ {
+		if p, err = ps.algo.AddReplica(p); err != nil {
+			return nil, err
+		}
+	}
+
+	return p, nil
 }
 
 func (ps placementService) AddReplica() (services.ServicePlacement, error) {
