@@ -21,6 +21,7 @@
 package retention
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -47,6 +48,10 @@ const (
 	defaultMaxVersionsRetained = 3
 )
 
+var (
+	errMaxVersionsRetainedAtleastOne = fmt.Errorf("max versions retained must be at least one")
+)
+
 type options struct {
 	retentionPeriod     time.Duration
 	blockSize           time.Duration
@@ -69,6 +74,13 @@ func NewOptions() Options {
 		shortExpiry:         defaultShortExpiry,
 		maxVersionsRetained: defaultMaxVersionsRetained,
 	}
+}
+
+func (o *options) Validate() error {
+	if o.maxVersionsRetained < 1 {
+		return errMaxVersionsRetainedAtleastOne
+	}
+	return nil
 }
 
 func (o *options) SetRetentionPeriod(value time.Duration) Options {

@@ -26,6 +26,9 @@ import (
 
 // Options represents the options for retention
 type Options interface {
+	// Validate validates the options
+	Validate() error
+
 	// SetRetentionPeriod sets how long we intend to keep data in memory
 	SetRetentionPeriod(value time.Duration) Options
 
