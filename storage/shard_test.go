@@ -233,6 +233,72 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	}, flushState)
 }
 
+func TestShardFlushAlreadyFlushedBlock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockStart := time.Unix(21600, 0)
+
+	s := testDatabaseShard(testDatabaseOptions())
+	s.bs = bootstrapped
+	pm := persist.NewMockManager(ctrl)
+
+	s.flushState.statesByTime[blockStart] = fileOpState{
+		Status: fileOpSuccess,
+	}
+	prepared := persist.PreparedPersist{}
+	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart, false).Return(prepared, nil)
+	err := s.Flush(testNamespaceID, blockStart, pm)
+	require.Nil(t, err)
+}
+
+func TestShardFlushDirtyBlock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockStart := time.Unix(21600, 0)
+
+	s := testDatabaseShard(testDatabaseOptions())
+	s.bs = bootstrapped
+	pm := persist.NewMockManager(ctrl)
+	s.flushState.statesByTime[blockStart] = fileOpState{
+		Status: fileOpDirty,
+	}
+
+	var closed bool
+	prepared := persist.PreparedPersist{
+		Persist: func(ts.ID, ts.Segment) error { return nil },
+		Close:   func() { closed = true },
+	}
+	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart, true).Return(prepared, nil)
+	flushed := make(map[int]struct{})
+	for i := 0; i < 2; i++ {
+		i := i
+		series := series.NewMockDatabaseSeries(ctrl)
+		series.EXPECT().
+			Flush(gomock.Any(), blockStart, gomock.Any()).
+			Do(func(context.Context, time.Time, persist.Fn) {
+				flushed[i] = struct{}{}
+			}).
+			Return(nil)
+		s.list.PushBack(&dbShardEntry{series: series})
+	}
+
+	err := s.Flush(testNamespaceID, blockStart, pm)
+
+	require.Equal(t, len(flushed), 2)
+	for i := 0; i < 2; i++ {
+		_, ok := flushed[i]
+		require.True(t, ok)
+	}
+
+	require.True(t, closed)
+	require.Nil(t, err)
+
+	flushState := s.FlushState(blockStart)
+	require.Equal(t, fileOpState{Status: fileOpSuccess}, flushState)
+}
+
 func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

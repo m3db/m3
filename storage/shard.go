@@ -639,7 +639,6 @@ func (s *dbShard) Flush(
 	//     since repaired the shard, and want to persist a new version of the
 	//     fileset. We indicate this condition by passing the var
 	//     `shardRepariedAtBlockStart`.
-	// TODO(prateek): add tests for this case
 	prepared, err := pm.Prepare(namespace, s.ID(), blockStart, shardRepariedAtBlockStart)
 	multiErr = multiErr.Add(err)
 
