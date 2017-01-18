@@ -51,7 +51,7 @@ func createWriter(storageOpts storage.Options) fs.FileSetWriter {
 func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
 	writer := createWriter(storageOpts)
 	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(namespace, shard, start))
+		require.NoError(t, writer.Open(namespace, shard, start, fs.DefaultVersionNumber))
 		require.NoError(t, writer.Close())
 	}
 }
@@ -66,7 +66,7 @@ func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time
 
 func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
 	dataCleanedUp := func() bool {
-		if fs.FilesetExistsAt(filePathPrefix, namespace, shard, toDelete) {
+		if len(fs.FilesetVersionsAt(filePathPrefix, namespace, shard, toDelete)) != 0 {
 			return false
 		}
 		_, index := fs.NextCommitLogsFile(filePathPrefix, toDelete)

@@ -26,12 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/persist/fs"
-
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiskFlush(t *testing.T) {
+func TestMultileVersionsDiskCleanup(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -43,15 +41,17 @@ func TestDiskFlush(t *testing.T) {
 	testSetup.storageOpts =
 		testSetup.storageOpts.
 			SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
+				SetMaxVersionsRetained(1).
 				SetBufferDrain(3 * time.Second).
 				SetRetentionPeriod(6 * time.Hour))
 
 	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	retentionPeriod := testSetup.storageOpts.RetentionOptions().RetentionPeriod()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("disk flush test")
+	log.Debug("disk multiple version cleanup test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
 
@@ -61,32 +61,23 @@ func TestDiskFlush(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	// Write test data
+	// Now create some fileset files and commit logs
+	shard := uint32(0)
+	numTimes := 10
+	fileTimes := make([]time.Time, numTimes)
 	now := testSetup.getNowFn()
-	seriesMaps := make(seriesMap)
-	inputData := []struct {
-		metricNames []string
-		numPoints   int
-		start       time.Time
-	}{
-		{[]string{"foo", "bar"}, 100, now},
-		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
+	for i := 0; i < numTimes; i++ {
+		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
-	for _, input := range inputData {
-		testSetup.setNowFn(input.start)
-		testData := generateTestData(input.metricNames, input.numPoints, input.start)
-		seriesMaps[input.start] = testData
-		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
-	}
-	log.Debug("test data is now written")
+	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes)
+	createCommitLogs(t, filePathPrefix, fileTimes)
 
-	// Advance time to make sure all data are flushed. Because data
-	// are flushed to disk asynchronously, need to poll to check
-	// when data are written.
-	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 10
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, waitTimeout, 1))
+	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
+	// and commit logs at now will be deleted
+	newNow := now.Add(retentionPeriod).Add(2 * blockSize)
+	testSetup.setNowFn(newNow)
 
-	// Verify on-disk data match what we expect
-	verifyFlushed(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], fs.DefaultVersionNumber, seriesMaps)
+	// Check if files have been deleted
+	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 4
+	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
 }

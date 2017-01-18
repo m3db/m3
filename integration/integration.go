@@ -21,6 +21,8 @@
 package integration
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -55,6 +57,10 @@ import (
 const (
 	multiAddrPortStart = 9000
 	multiAddrPortEach  = 4
+)
+
+var (
+	errDiskFlushTimedOut = errors.New("flushing data to disk took too long")
 )
 
 type conditionFn func() bool
@@ -296,9 +302,10 @@ type testData struct {
 	start     time.Time
 }
 
-func writeTestDataToDisk(
+func writeVersionedTestDataToDisk(
 	t *testing.T,
 	namespace ts.ID,
+	version uint32,
 	setup *testSetup,
 	seriesMaps seriesMap,
 ) error {
@@ -325,7 +332,7 @@ func writeTestDataToDisk(
 	}
 
 	for start, data := range seriesMaps {
-		err := writeToDisk(t, writer, setup.shardSet, encoder, start, namespace, data)
+		err := writeToDisk(t, writer, setup.shardSet, encoder, start, version, namespace, data)
 		if err != nil {
 			return err
 		}
@@ -334,7 +341,7 @@ func writeTestDataToDisk(
 
 	// Write remaining files even for empty start periods to avoid unfulfilled ranges
 	for start := range starts {
-		err := writeToDisk(t, writer, setup.shardSet, encoder, start, namespace, nil)
+		err := writeToDisk(t, writer, setup.shardSet, encoder, start, version, namespace, nil)
 		if err != nil {
 			return err
 		}
@@ -343,12 +350,22 @@ func writeTestDataToDisk(
 	return nil
 }
 
+func writeTestDataToDisk(
+	t *testing.T,
+	namespace ts.ID,
+	setup *testSetup,
+	seriesMaps map[time.Time]seriesList,
+) error {
+	return writeVersionedTestDataToDisk(t, namespace, fs.DefaultVersionNumber, setup, seriesMaps)
+}
+
 func writeToDisk(
 	t *testing.T,
 	writer fs.FileSetWriter,
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
+	version uint32,
 	namespace ts.ID,
 	seriesList seriesList,
 ) error {
@@ -363,7 +380,7 @@ func writeToDisk(
 	}
 	segmentHolder := make([]checked.Bytes, 2)
 	for shard, seriesList := range seriesPerShard {
-		if err := writer.Open(namespace, shard, start, fs.DefaultVersionNumber); err != nil {
+		if err := writer.Open(namespace, shard, start, version); err != nil {
 			return err
 		}
 		for _, series := range seriesList {
@@ -637,7 +654,94 @@ func splitSeriesMaps(
 			}
 		}
 	}
-
 	return res
+}
 
+func waitUntilDataFlushed(
+	filePathPrefix string,
+	shardSet sharding.ShardSet,
+	namespace ts.ID,
+	testData map[time.Time]seriesList,
+	timeout time.Duration,
+	expectedNumVersions int,
+) error {
+	dataFlushed := func() bool {
+		for timestamp, seriesList := range testData {
+			for _, series := range seriesList {
+				shard := shardSet.Lookup(series.ID)
+				if len(fs.FilesetVersionsAt(filePathPrefix, namespace, shard, timestamp)) != expectedNumVersions {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	if waitUntil(dataFlushed, timeout) {
+		return nil
+	}
+	return errDiskFlushTimedOut
+}
+
+func verifyFlushedDataForTime(
+	t *testing.T,
+	reader fs.FileSetReader,
+	shardSet sharding.ShardSet,
+	iteratorPool encoding.ReaderIteratorPool,
+	timestamp time.Time,
+	namespace ts.ID,
+	version uint32,
+	expected seriesList,
+) {
+	shards := make(map[uint32]struct{})
+	for _, series := range expected {
+		shard := shardSet.Lookup(series.ID)
+		shards[shard] = struct{}{}
+	}
+	actual := make(seriesList, 0, len(expected))
+	for shard := range shards {
+		require.NoError(t, reader.Open(namespace, shard, timestamp, version))
+		for i := 0; i < reader.Entries(); i++ {
+			id, data, err := reader.Read()
+			require.NoError(t, err)
+
+			data.IncRef()
+
+			var datapoints []ts.Datapoint
+			it := iteratorPool.Get()
+			it.Reset(bytes.NewBuffer(data.Get()))
+			for it.Next() {
+				dp, _, _ := it.Current()
+				datapoints = append(datapoints, dp)
+			}
+			require.NoError(t, it.Err())
+			it.Close()
+
+			actual = append(actual, series{
+				ID:   id,
+				Data: datapoints,
+			})
+
+			data.DecRef()
+			data.Finalize()
+		}
+		require.NoError(t, reader.Close())
+	}
+
+	compareSeriesList(t, expected, actual)
+}
+
+func verifyFlushed(
+	t *testing.T,
+	shardSet sharding.ShardSet,
+	opts storage.Options,
+	namespace ts.ID,
+	version uint32,
+	seriesMaps map[time.Time]seriesList,
+) {
+	fsOpts := opts.CommitLogOptions().FilesystemOptions()
+	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.ReaderBufferSize(), opts.BytesPool())
+	iteratorPool := opts.ReaderIteratorPool()
+	for timestamp, seriesList := range seriesMaps {
+		verifyFlushedDataForTime(t, reader, shardSet, iteratorPool, timestamp, namespace, version, seriesList)
+	}
 }
