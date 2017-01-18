@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/time"
 
 	"io/ioutil"
 
@@ -261,6 +262,42 @@ func ReadLatestInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, r
 		indexEntries = append(indexEntries, info)
 	}
 	return indexEntries
+}
+
+// FilesetExtraVersions returns all fileset file versions which are over the specified count.
+// TODO(prateek): add tests for this
+func FilesetExtraVersions(filePathPrefix string, namespace ts.ID, shard uint32, maxNumVersions uint32) ([]string, error) {
+	readerBufferSize := 16
+	versionsByTime := make(map[int64][]uint32)
+	ForEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
+		info, err := readInfo(data)
+		if err != nil {
+			return
+		}
+		_, ok := versionsByTime[info.Start] // TODO(prateek): can probably delete the []uint32 initializion, append should work
+		if !ok {
+			versionsByTime[info.Start] = []uint32{}
+		}
+		versionsByTime[info.Start] = append(versionsByTime[info.Start], uint32(info.Version))
+	})
+
+	shardDirPath := ShardDirPath(filePathPrefix, namespace, shard)
+	filesToDelete := []string{}
+	for t, versions := range versionsByTime {
+		if len(versions) <= int(maxNumVersions) {
+			continue
+		}
+		sort.Sort(uint32arr(versions))
+		numToRemove := len(versions) - int(maxNumVersions)
+		versionsToRemove := versions[:numToRemove]
+		for _, v := range versionsToRemove {
+			for _, suffix := range filesetFileSuffixes {
+				filepath := versionFilesetPathFromTime(shardDirPath, xtime.FromNanoseconds(t), suffix, v)
+				filesToDelete = append(filesToDelete, filepath)
+			}
+		}
+	}
+	return filesToDelete, nil
 }
 
 // FilesetBefore returns all the fileset files whose timestamps are earlier than a given time.

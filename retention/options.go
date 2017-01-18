@@ -49,7 +49,7 @@ const (
 )
 
 var (
-	errMaxVersionsRetainedAtleastOne = fmt.Errorf("max versions retained must be at least one")
+	errMaxVersionsRetainedTooLow = fmt.Errorf("max versions retained must be at least two")
 )
 
 type options struct {
@@ -77,8 +77,8 @@ func NewOptions() Options {
 }
 
 func (o *options) Validate() error {
-	if o.maxVersionsRetained < 1 {
-		return errMaxVersionsRetainedAtleastOne
+	if o.maxVersionsRetained < 2 {
+		return errMaxVersionsRetainedTooLow
 	}
 	return nil
 }

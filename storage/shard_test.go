@@ -594,13 +594,16 @@ func TestShardCleanupFileset(t *testing.T) {
 	shard.filesetBeforeFn = func(_ string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error) {
 		return []string{namespace.String(), strconv.Itoa(int(shardID))}, nil
 	}
+	shard.filesetExtraVersionsFn = func(_ string, namespace ts.ID, shardID uint32, n uint32) ([]string, error) {
+		return []string{"abc", "def"}, nil
+	}
 	var deletedFiles []string
 	shard.deleteFilesFn = func(files []string) error {
 		deletedFiles = append(deletedFiles, files...)
 		return nil
 	}
 	require.NoError(t, shard.CleanupFileset(testNamespaceID, time.Now()))
-	require.Equal(t, []string{testNamespaceID.String(), "0"}, deletedFiles)
+	require.Equal(t, []string{testNamespaceID.String(), "0", "abc", "def"}, deletedFiles)
 }
 
 func TestShardUpdateExistingSeriesWithNoError(t *testing.T) {

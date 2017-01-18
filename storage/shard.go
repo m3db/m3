@@ -60,6 +60,7 @@ var (
 )
 
 type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
+type filesetExtraVersionsFn func(filePathPrefix string, namespace ts.ID, shardID uint32, maxNumVersion uint32) ([]string, error)
 
 type tickPolicy int
 
@@ -78,25 +79,26 @@ const (
 
 type dbShard struct {
 	sync.RWMutex
-	opts                  Options
-	nowFn                 clock.NowFn
-	state                 dbShardState
-	namespace             ts.ID
-	shard                 uint32
-	increasingIndex       increasingIndex
-	seriesPool            series.DatabaseSeriesPool
-	writeCommitLogFn      writeCommitLogFn
-	lookup                map[ts.Hash]*list.Element
-	list                  *list.List
-	bs                    bootstrapState
-	newSeriesBootstrapped bool
-	filesetBeforeFn       filesetBeforeFn
-	deleteFilesFn         deleteFilesFn
-	tickSleepIfAheadEvery int
-	sleepFn               func(time.Duration)
-	identifierPool        ts.IdentifierPool
-	flushState            shardFlushState
-	metrics               dbShardMetrics
+	opts                   Options
+	nowFn                  clock.NowFn
+	state                  dbShardState
+	namespace              ts.ID
+	shard                  uint32
+	increasingIndex        increasingIndex
+	seriesPool             series.DatabaseSeriesPool
+	writeCommitLogFn       writeCommitLogFn
+	lookup                 map[ts.Hash]*list.Element
+	list                   *list.List
+	bs                     bootstrapState
+	newSeriesBootstrapped  bool
+	filesetBeforeFn        filesetBeforeFn
+	filesetExtraVersionsFn filesetExtraVersionsFn
+	deleteFilesFn          deleteFilesFn
+	tickSleepIfAheadEvery  int
+	sleepFn                func(time.Duration)
+	identifierPool         ts.IdentifierPool
+	flushState             shardFlushState
+	metrics                dbShardMetrics
 }
 
 type dbShardMetrics struct {
@@ -159,23 +161,24 @@ func newDatabaseShard(
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("dbshard")
 	d := &dbShard{
-		opts:                  opts,
-		nowFn:                 opts.ClockOptions().NowFn(),
-		state:                 dbShardStateOpen,
-		namespace:             namespace,
-		shard:                 shard,
-		increasingIndex:       increasingIndex,
-		seriesPool:            opts.DatabaseSeriesPool(),
-		writeCommitLogFn:      writeCommitLogFn,
-		lookup:                make(map[ts.Hash]*list.Element),
-		list:                  list.New(),
-		filesetBeforeFn:       fs.FilesetBefore,
-		deleteFilesFn:         fs.DeleteFiles,
-		tickSleepIfAheadEvery: defaultTickSleepIfAheadEvery,
-		sleepFn:               time.Sleep,
-		identifierPool:        opts.IdentifierPool(),
-		flushState:            newShardFlushState(),
-		metrics:               newDbShardMetrics(scope),
+		opts:                   opts,
+		nowFn:                  opts.ClockOptions().NowFn(),
+		state:                  dbShardStateOpen,
+		namespace:              namespace,
+		shard:                  shard,
+		increasingIndex:        increasingIndex,
+		seriesPool:             opts.DatabaseSeriesPool(),
+		writeCommitLogFn:       writeCommitLogFn,
+		lookup:                 make(map[ts.Hash]*list.Element),
+		list:                   list.New(),
+		filesetBeforeFn:        fs.FilesetBefore,
+		filesetExtraVersionsFn: fs.FilesetExtraVersions,
+		deleteFilesFn:          fs.DeleteFiles,
+		tickSleepIfAheadEvery:  defaultTickSleepIfAheadEvery,
+		sleepFn:                time.Sleep,
+		identifierPool:         opts.IdentifierPool(),
+		flushState:             newShardFlushState(),
+		metrics:                newDbShardMetrics(scope),
 	}
 	if !needsBootstrap {
 		d.bs = bootstrapped
@@ -724,14 +727,29 @@ func (s *dbShard) removeAnyFlushStatesTooEarly() {
 func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
+
+	// cleanup expired fileset files
 	expired, err := s.filesetBeforeFn(filePathPrefix, namespace, s.ID(), earliestToRetain)
 	if err != nil {
-		detailedErr := fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v", filePathPrefix, namespace, s.ID(), err)
+		detailedErr := fmt.Errorf("encountered errors when getting expired fileset files for prefix %s namespace %s shard %d: %v", filePathPrefix, namespace, s.ID(), err)
 		multiErr = multiErr.Add(detailedErr)
 	}
 	if err := s.deleteFilesFn(expired); err != nil {
 		multiErr = multiErr.Add(err)
 	}
+
+	// cleanup unrequired versions of fileset files
+	// TODO(prateek): add tests for this
+	maxNumVersions := s.opts.RetentionOptions().MaxVersionsRetained()
+	expired, err = s.filesetExtraVersionsFn(filePathPrefix, namespace, s.ID(), maxNumVersions)
+	if err != nil {
+		detailedErr := fmt.Errorf("encountered errors when getting extra version fileset files for prefix %s namespace %s shard %d: %v", filePathPrefix, namespace, s.ID(), err)
+		multiErr = multiErr.Add(detailedErr)
+	}
+	if err := s.deleteFilesFn(expired); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
 	return multiErr.FinalError()
 }
 

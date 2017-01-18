@@ -135,7 +135,6 @@ func (pm *persistManager) Prepare(
 		}
 		nextVersion = 1 + versions[len(versions)-1]
 	}
-	// TODO(prateek): migrate cleanup functionality to cleanup manager. flushing should not do anything to it!
 
 	if err := pm.writer.Open(namespace, shard, blockStart, nextVersion); err != nil {
 		return prepared, err

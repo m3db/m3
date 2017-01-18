@@ -374,6 +374,45 @@ func TestReadLatestInfoFiles(t *testing.T) {
 	}
 }
 
+func TestFilesetExtraVersionsAt(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+		{"baz", make([]byte, 65536)},
+		{"cat", make([]byte, 100000)},
+		{"echo", []byte{7, 8, 9}},
+	}
+
+	w := newTestWriter(filePathPrefix)
+	t0 := testWriterStart
+	t1 := t0.Add(time.Hour)
+	t2 := t1.Add(time.Hour)
+	writeTestData(t, w, 0, t0, entries, DefaultVersionNumber)
+	writeTestData(t, w, 0, t0, entries, 2)
+	writeTestData(t, w, 0, t1, entries, 10)
+	writeTestData(t, w, 0, t1, entries, 2)
+	writeTestData(t, w, 0, t2, entries, DefaultVersionNumber)
+
+	shardDirPath := ShardDirPath(filePathPrefix, testNamespaceID, 0)
+	expectedExtraVersionFiles := []string{}
+	for _, suffix := range filesetFileSuffixes {
+		expectedExtraVersionFiles = append(expectedExtraVersionFiles,
+			versionFilesetPathFromTime(shardDirPath, t0, suffix, DefaultVersionNumber))
+
+		expectedExtraVersionFiles = append(expectedExtraVersionFiles,
+			versionFilesetPathFromTime(shardDirPath, t1, suffix, 2))
+	}
+	expectedFilesMatcher := &stringArrayMatcher{strings: expectedExtraVersionFiles}
+
+	files, err := FilesetExtraVersions(filePathPrefix, testNamespaceID, 0, 1)
+	require.Nil(t, err)
+	require.True(t, expectedFilesMatcher.Matches(files))
+}
+
 func TestFilesetVersionsAt(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
@@ -529,4 +568,41 @@ func TestCommitLogFiles(t *testing.T) {
 			validateCommitLogFiles(t, i, j, perSlot, i, dir, files)
 		}
 	}
+}
+
+// NB: assumes all strings are unique
+type stringArrayMatcher struct {
+	strings []string
+}
+
+func (m *stringArrayMatcher) Matches(x interface{}) bool {
+	arr, ok := x.([]string)
+	if !ok {
+		return false
+	}
+
+	if len(m.strings) != len(arr) {
+		return false
+	}
+
+	matches := make([]bool, len(arr))
+	for i := range m.strings {
+		for j := range arr {
+			if !matches[i] && m.strings[i] == arr[j] {
+				matches[i] = true
+			}
+		}
+	}
+
+	for _, b := range matches {
+		if !b {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (m *stringArrayMatcher) String() string {
+	return "stringArrayMatcher"
 }
