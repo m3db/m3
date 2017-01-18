@@ -91,7 +91,7 @@ func (s *fileSystemSource) shardAvailability(
 		return nil
 	}
 
-	entries := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
+	entries := fs.ReadLatestInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
 	if len(entries) == 0 {
 		return nil
 	}
@@ -116,21 +116,22 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
-		files := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
+		files := fs.ReadLatestInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
 		if len(files) == 0 {
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- shardReaders{shard: shard, tr: tr}
 			continue
 		}
-
 		readers := make([]fs.FileSetReader, 0, len(files))
 		for i := 0; i < len(files); i++ {
-			r := readerPool.get()
 			t := xtime.FromNanoseconds(files[i].Start)
-			if err := r.Open(namespace, shard, t, fs.DefaultVersionNumber); err != nil {
+			v := uint32(files[i].Version)
+			r := readerPool.get()
+			if err := r.Open(namespace, shard, t, v); err != nil {
 				s.log.WithFields(
 					xlog.NewLogField("shard", shard),
 					xlog.NewLogField("time", t.String()),
+					xlog.NewLogField("version", v),
 					xlog.NewLogField("error", err.Error()),
 				).Error("unable to open fileset files")
 				readerPool.put(r)
