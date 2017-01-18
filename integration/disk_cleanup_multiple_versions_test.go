@@ -69,6 +69,7 @@ func TestMultileVersionsDiskCleanup(t *testing.T) {
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
+	// TODO(prateek): make this actually cleanup multiple versions
 	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes)
 	createCommitLogs(t, filePathPrefix, fileTimes)
 
