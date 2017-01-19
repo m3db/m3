@@ -739,7 +739,6 @@ func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) er
 	}
 
 	// cleanup unrequired versions of fileset files
-	// TODO(prateek): add tests for this
 	maxNumVersions := s.opts.RetentionOptions().MaxVersionsRetained()
 	expired, err = s.filesetExtraVersionsFn(filePathPrefix, namespace, s.ID(), maxNumVersions)
 	if err != nil {
