@@ -152,6 +152,10 @@ func NewDatabase(
 	shardSet sharding.ShardSet,
 	opts Options,
 ) (Database, error) {
+	if err := opts.RetentionOptions().Validate(); err != nil {
+		return nil, err
+	}
+
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
 
