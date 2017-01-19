@@ -23,16 +23,11 @@
 package integration
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
 func TestDiskCleanup(t *testing.T) {

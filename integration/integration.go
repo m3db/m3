@@ -61,7 +61,8 @@ const (
 )
 
 var (
-	errDiskFlushTimedOut = errors.New("flushing data to disk took too long")
+	errDiskFlushTimedOut   = errors.New("flushing data to disk took too long")
+	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
 type conditionFn func() bool
