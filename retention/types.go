@@ -75,9 +75,9 @@ type Options interface {
 	ShortExpiryPeriod() time.Duration
 
 	// SetMaxVersionsRetained sets the maximum number of fileset versions to be
-	// retained.
+	// retained
 	SetMaxVersionsRetained(numVersions uint32) Options
 
-	// MaxVersionsRetained returns the maximum number of versions being retained.
+	// MaxVersionsRetained returns the maximum number of versions being retained
 	MaxVersionsRetained() uint32
 }

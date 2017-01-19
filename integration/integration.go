@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -744,4 +745,56 @@ func verifyFlushed(
 	for timestamp, seriesList := range seriesMaps {
 		verifyFlushedDataForTime(t, reader, shardSet, iteratorPool, timestamp, namespace, version, seriesList)
 	}
+}
+
+func createWriter(storageOpts storage.Options) fs.FileSetWriter {
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	blockSize := storageOpts.RetentionOptions().BlockSize()
+	filePathPrefix := fsOpts.FilePathPrefix()
+	writerBufferSize := fsOpts.WriterBufferSize()
+	newFileMode := fsOpts.NewFileMode()
+	newDirectoryMode := fsOpts.NewDirectoryMode()
+	return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
+}
+
+func createFilesetFiles(
+	t *testing.T,
+	storageOpts storage.Options,
+	namespace ts.ID,
+	shard uint32,
+	fileTimes []time.Time,
+	versions []uint32,
+) {
+	writer := createWriter(storageOpts)
+	for _, start := range fileTimes {
+		for _, v := range versions {
+			require.NoError(t, writer.Open(namespace, shard, start, v))
+			require.NoError(t, writer.Close())
+		}
+	}
+}
+
+func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
+	for _, start := range fileTimes {
+		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
+		_, err := os.Create(commitLogFile)
+		require.NoError(t, err)
+	}
+}
+
+func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, numVersionExpected int, timeout time.Duration) error {
+	dataCleanedUp := func() bool {
+		if len(fs.FilesetVersionsAt(filePathPrefix, namespace, shard, toDelete)) != numVersionExpected {
+			return false
+		}
+		_, index := fs.NextCommitLogsFile(filePathPrefix, toDelete)
+		if index != 0 {
+			return false
+		}
+		return true
+	}
+	if waitUntil(dataCleanedUp, timeout) {
+		return nil
+	}
+	return errDataCleanupTimedOut
 }

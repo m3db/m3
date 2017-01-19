@@ -24,71 +24,16 @@ package integration
 
 import (
 	"errors"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
-
-func createWriter(storageOpts storage.Options) fs.FileSetWriter {
-	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	blockSize := storageOpts.RetentionOptions().BlockSize()
-	filePathPrefix := fsOpts.FilePathPrefix()
-	writerBufferSize := fsOpts.WriterBufferSize()
-	newFileMode := fsOpts.NewFileMode()
-	newDirectoryMode := fsOpts.NewDirectoryMode()
-	return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-}
-
-func createFilesetFiles(
-	t *testing.T,
-	storageOpts storage.Options,
-	namespace ts.ID,
-	shard uint32,
-	fileTimes []time.Time,
-	versions []uint32,
-) {
-	writer := createWriter(storageOpts)
-	for _, start := range fileTimes {
-		for _, v := range versions {
-			require.NoError(t, writer.Open(namespace, shard, start, v))
-			require.NoError(t, writer.Close())
-		}
-	}
-}
-
-func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
-	for _, start := range fileTimes {
-		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
-		_, err := os.Create(commitLogFile)
-		require.NoError(t, err)
-	}
-}
-
-func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, numVersionExpected int, timeout time.Duration) error {
-	dataCleanedUp := func() bool {
-		if len(fs.FilesetVersionsAt(filePathPrefix, namespace, shard, toDelete)) != numVersionExpected {
-			return false
-		}
-		_, index := fs.NextCommitLogsFile(filePathPrefix, toDelete)
-		if index != 0 {
-			return false
-		}
-		return true
-	}
-	if waitUntil(dataCleanedUp, timeout) {
-		return nil
-	}
-	return errDataCleanupTimedOut
-}
 
 func TestDiskCleanup(t *testing.T) {
 	if testing.Short() {

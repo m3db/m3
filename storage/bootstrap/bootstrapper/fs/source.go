@@ -91,6 +91,8 @@ func (s *fileSystemSource) shardAvailability(
 		return nil
 	}
 
+	// find the latest version of complete fileset info files for each block start time in the
+	// the specified namespace, shard data directories
 	entries := fs.ReadLatestInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
 	if len(entries) == 0 {
 		return nil
@@ -116,6 +118,8 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
+		// find the latest version of complete fileset info files for each block start time in the
+		// the specified namespace, shard data directories
 		files := fs.ReadLatestInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
 		if len(files) == 0 {
 			// Use default readers value to indicate no readers for this shard

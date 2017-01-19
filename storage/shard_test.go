@@ -594,7 +594,7 @@ func TestShardCleanupFileset(t *testing.T) {
 	shard.filesetBeforeFn = func(_ string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error) {
 		return []string{namespace.String(), strconv.Itoa(int(shardID))}, nil
 	}
-	shard.filesetExtraVersionsFn = func(_ string, namespace ts.ID, shardID uint32, n uint32) ([]string, error) {
+	shard.filesetExtraVersionsFn = func(_ string, namespace ts.ID, shardID uint32, n uint32, _ int) ([]string, error) {
 		return []string{"abc", "def"}, nil
 	}
 	var deletedFiles []string

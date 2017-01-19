@@ -60,7 +60,7 @@ var (
 )
 
 type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
-type filesetExtraVersionsFn func(filePathPrefix string, namespace ts.ID, shardID uint32, maxNumVersion uint32) ([]string, error)
+type filesetExtraVersionsFn func(filePathPrefix string, namespace ts.ID, shardID uint32, maxNumVersion uint32, readerBufferSize int) ([]string, error)
 
 type tickPolicy int
 
@@ -94,6 +94,7 @@ type dbShard struct {
 	filesetBeforeFn        filesetBeforeFn
 	filesetExtraVersionsFn filesetExtraVersionsFn
 	deleteFilesFn          deleteFilesFn
+	readerBufferSize       int
 	tickSleepIfAheadEvery  int
 	sleepFn                func(time.Duration)
 	identifierPool         ts.IdentifierPool
@@ -174,6 +175,7 @@ func newDatabaseShard(
 		filesetBeforeFn:        fs.FilesetBefore,
 		filesetExtraVersionsFn: fs.FilesetExtraVersions,
 		deleteFilesFn:          fs.DeleteFiles,
+		readerBufferSize:       opts.CommitLogOptions().FilesystemOptions().ReaderBufferSize(),
 		tickSleepIfAheadEvery:  defaultTickSleepIfAheadEvery,
 		sleepFn:                time.Sleep,
 		identifierPool:         opts.IdentifierPool(),
@@ -740,7 +742,7 @@ func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) er
 
 	// cleanup unrequired versions of fileset files
 	maxNumVersions := s.opts.RetentionOptions().MaxVersionsRetained()
-	expired, err = s.filesetExtraVersionsFn(filePathPrefix, namespace, s.ID(), maxNumVersions)
+	expired, err = s.filesetExtraVersionsFn(filePathPrefix, namespace, s.ID(), maxNumVersions, s.readerBufferSize)
 	if err != nil {
 		detailedErr := fmt.Errorf("encountered errors when getting extra version fileset files for prefix %s namespace %s shard %d: %v", filePathPrefix, namespace, s.ID(), err)
 		multiErr = multiErr.Add(detailedErr)

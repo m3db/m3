@@ -387,17 +387,18 @@ func TestFilesetExtraVersionsAt(t *testing.T) {
 		{"echo", []byte{7, 8, 9}},
 	}
 
+	shard := uint32(0)
 	w := newTestWriter(filePathPrefix)
 	t0 := testWriterStart
 	t1 := t0.Add(time.Hour)
 	t2 := t1.Add(time.Hour)
-	writeTestData(t, w, 0, t0, entries, DefaultVersionNumber)
-	writeTestData(t, w, 0, t0, entries, 2)
-	writeTestData(t, w, 0, t1, entries, 10)
-	writeTestData(t, w, 0, t1, entries, 2)
-	writeTestData(t, w, 0, t2, entries, DefaultVersionNumber)
+	writeTestData(t, w, shard, t0, entries, DefaultVersionNumber)
+	writeTestData(t, w, shard, t0, entries, 2)
+	writeTestData(t, w, shard, t1, entries, 10)
+	writeTestData(t, w, shard, t1, entries, 2)
+	writeTestData(t, w, shard, t2, entries, DefaultVersionNumber)
 
-	shardDirPath := ShardDirPath(filePathPrefix, testNamespaceID, 0)
+	shardDirPath := ShardDirPath(filePathPrefix, testNamespaceID, shard)
 	expectedExtraVersionFiles := []string{}
 	for _, suffix := range filesetFileSuffixes {
 		expectedExtraVersionFiles = append(expectedExtraVersionFiles,
@@ -408,7 +409,9 @@ func TestFilesetExtraVersionsAt(t *testing.T) {
 	}
 	expectedFilesMatcher := &stringArrayMatcher{strings: expectedExtraVersionFiles}
 
-	files, err := FilesetExtraVersions(filePathPrefix, testNamespaceID, 0, 1)
+	readerBufferSize := 16
+	maxNumVersions := uint32(1)
+	files, err := FilesetExtraVersions(filePathPrefix, testNamespaceID, shard, maxNumVersions, readerBufferSize)
 	require.Nil(t, err)
 	require.True(t, expectedFilesMatcher.Matches(files))
 }
