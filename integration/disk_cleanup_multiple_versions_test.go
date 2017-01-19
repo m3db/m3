@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMultileVersionsDiskCleanup(t *testing.T) {
+func TestMultipleVersionsDiskCleanup(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -40,7 +40,7 @@ func TestMultileVersionsDiskCleanup(t *testing.T) {
 
 	testSetup.storageOpts = testSetup.storageOpts.SetRetentionOptions(
 		testSetup.storageOpts.RetentionOptions().
-			SetMaxVersionsRetained(1).
+			SetMaxVersionsRetained(2).
 			SetBufferDrain(3 * time.Second).
 			SetRetentionPeriod(6 * time.Hour))
 
@@ -63,9 +63,9 @@ func TestMultileVersionsDiskCleanup(t *testing.T) {
 	shard := uint32(0)
 	now := testSetup.getNowFn().Add(-2 * blockSize).Truncate(blockSize)
 	fileTimes := []time.Time{now}
-	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes, []uint32{1, 2})
+	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes, []uint32{1, 2, 3})
 
 	// Check if files have been deleted
 	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 4
-	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, 1, waitTimeout))
+	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, 2, waitTimeout))
 }
