@@ -265,7 +265,6 @@ func ReadLatestInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, r
 }
 
 // FilesetExtraVersions returns all fileset file versions which are over the specified count.
-// TODO(prateek): add tests for this
 func FilesetExtraVersions(filePathPrefix string, namespace ts.ID, shard uint32, maxNumVersions uint32) ([]string, error) {
 	readerBufferSize := 16
 	versionsByTime := make(map[int64][]uint32)
@@ -273,10 +272,6 @@ func FilesetExtraVersions(filePathPrefix string, namespace ts.ID, shard uint32, 
 		info, err := readInfo(data)
 		if err != nil {
 			return
-		}
-		_, ok := versionsByTime[info.Start] // TODO(prateek): can probably delete the []uint32 initializion, append should work
-		if !ok {
-			versionsByTime[info.Start] = []uint32{}
 		}
 		versionsByTime[info.Start] = append(versionsByTime[info.Start], uint32(info.Version))
 	})

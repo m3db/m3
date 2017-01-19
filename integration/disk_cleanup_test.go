@@ -48,11 +48,20 @@ func createWriter(storageOpts storage.Options) fs.FileSetWriter {
 	return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 }
 
-func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
+func createFilesetFiles(
+	t *testing.T,
+	storageOpts storage.Options,
+	namespace ts.ID,
+	shard uint32,
+	fileTimes []time.Time,
+	versions []uint32,
+) {
 	writer := createWriter(storageOpts)
 	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(namespace, shard, start, fs.DefaultVersionNumber))
-		require.NoError(t, writer.Close())
+		for _, v := range versions {
+			require.NoError(t, writer.Open(namespace, shard, start, v))
+			require.NoError(t, writer.Close())
+		}
 	}
 }
 
@@ -64,9 +73,9 @@ func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time
 	}
 }
 
-func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
+func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, numVersionExpected int, timeout time.Duration) error {
 	dataCleanedUp := func() bool {
-		if len(fs.FilesetVersionsAt(filePathPrefix, namespace, shard, toDelete)) != 0 {
+		if len(fs.FilesetVersionsAt(filePathPrefix, namespace, shard, toDelete)) != numVersionExpected {
 			return false
 		}
 		_, index := fs.NextCommitLogsFile(filePathPrefix, toDelete)
@@ -120,7 +129,7 @@ func TestDiskCleanup(t *testing.T) {
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
-	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes)
+	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes, []uint32{fs.DefaultVersionNumber})
 	createCommitLogs(t, filePathPrefix, fileTimes)
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
@@ -130,5 +139,5 @@ func TestDiskCleanup(t *testing.T) {
 
 	// Check if files have been deleted
 	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 4
-	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
+	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, 0, waitTimeout))
 }

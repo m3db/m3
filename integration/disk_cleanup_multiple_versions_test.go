@@ -38,20 +38,18 @@ func TestMultileVersionsDiskCleanup(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts =
-		testSetup.storageOpts.
-			SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-				SetMaxVersionsRetained(1).
-				SetBufferDrain(3 * time.Second).
-				SetRetentionPeriod(6 * time.Hour))
+	testSetup.storageOpts = testSetup.storageOpts.SetRetentionOptions(
+		testSetup.storageOpts.RetentionOptions().
+			SetMaxVersionsRetained(1).
+			SetBufferDrain(3 * time.Second).
+			SetRetentionPeriod(6 * time.Hour))
 
 	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	retentionPeriod := testSetup.storageOpts.RetentionOptions().RetentionPeriod()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("disk multiple version cleanup test")
+	log.Debug("disk cleanup test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
 
@@ -63,22 +61,11 @@ func TestMultileVersionsDiskCleanup(t *testing.T) {
 
 	// Now create some fileset files and commit logs
 	shard := uint32(0)
-	numTimes := 10
-	fileTimes := make([]time.Time, numTimes)
-	now := testSetup.getNowFn()
-	for i := 0; i < numTimes; i++ {
-		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
-	}
-	// TODO(prateek): make this actually cleanup multiple versions
-	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes)
-	createCommitLogs(t, filePathPrefix, fileTimes)
-
-	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
-	// and commit logs at now will be deleted
-	newNow := now.Add(retentionPeriod).Add(2 * blockSize)
-	testSetup.setNowFn(newNow)
+	now := testSetup.getNowFn().Add(-2 * blockSize).Truncate(blockSize)
+	fileTimes := []time.Time{now}
+	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes, []uint32{1, 2})
 
 	// Check if files have been deleted
 	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 4
-	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
+	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, 1, waitTimeout))
 }
