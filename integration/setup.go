@@ -43,11 +43,11 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/sync"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 )
 
 var (
@@ -100,8 +100,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	storageOpts := storage.NewOptions()
 
-	nativePooling :=
-		strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
+	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {
 		buckets := testNativePoolingBuckets
 		bytesPool := pool.NewCheckedBytesPool(buckets, nil, func(s []pool.Bucket) pool.BytesPool {
