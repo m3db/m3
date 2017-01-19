@@ -200,7 +200,7 @@ func forEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, reade
 		if err != nil {
 			continue
 		}
-		checkpointFilePath := versionFilesetPathFromTime(shardDir, t, checkpointFileSuffix, v)
+		checkpointFilePath := filesetPathFromTime(shardDir, t, checkpointFileSuffix, v)
 		if !FileExists(checkpointFilePath) {
 			continue
 		}
@@ -287,7 +287,7 @@ func FilesetExtraVersions(filePathPrefix string, namespace ts.ID, shard uint32, 
 		versionsToRemove := versions[:numToRemove]
 		for _, v := range versionsToRemove {
 			for _, suffix := range filesetFileSuffixes {
-				filepath := versionFilesetPathFromTime(shardDirPath, xtime.FromNanoseconds(t), suffix, v)
+				filepath := filesetPathFromTime(shardDirPath, xtime.FromNanoseconds(t), suffix, v)
 				filesToDelete = append(filesToDelete, filepath)
 			}
 		}
@@ -419,7 +419,7 @@ func readAndValidate(
 	readerBufferSize int,
 	expectedDigest uint32,
 ) ([]byte, error) {
-	filePath := versionFilesetPathFromTime(prefix, t, suffix, version)
+	filePath := filesetPathFromTime(prefix, t, suffix, version)
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -508,7 +508,7 @@ func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 	return os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 }
 
-func versionFilesetPathFromTime(prefix string, t time.Time, suffix string, version uint32) string {
+func filesetPathFromTime(prefix string, t time.Time, suffix string, version uint32) string {
 	vSuffix := ""
 	if version != DefaultVersionNumber {
 		vSuffix = fmt.Sprintf("%s%d", versionSuffix, version)

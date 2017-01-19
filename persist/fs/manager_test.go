@@ -70,7 +70,7 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	shardDir := createShardDir(t, pm.filePathPrefix, testNamespaceID, shard)
-	checkpointFilePath := versionFilesetPathFromTime(shardDir, blockStart, checkpointFileSuffix, DefaultVersionNumber)
+	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix, DefaultVersionNumber)
 	f, err := os.Create(checkpointFilePath)
 	require.NoError(t, err)
 	f.Close()

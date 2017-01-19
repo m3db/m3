@@ -63,7 +63,7 @@ func NewPersistManager(opts Options) persist.Manager {
 	newFileMode := opts.NewFileMode()
 	newDirectoryMode := opts.NewDirectoryMode()
 	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-	pm := &persistManager{
+	return &persistManager{
 		opts:           opts,
 		filePathPrefix: filePathPrefix,
 		rateLimitOpts:  opts.RateLimitOptions(),
@@ -72,7 +72,6 @@ func NewPersistManager(opts Options) persist.Manager {
 		writer:         writer,
 		segmentHolder:  make([]checked.Bytes, 2),
 	}
-	return pm
 }
 
 func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {

@@ -121,10 +121,10 @@ func TestVersionMismatch(t *testing.T) {
 	// rename the files created to have version in filename set at 1
 	for _, s := range filesetFileSuffixes {
 		shardDir := ShardDirPath(filePathPrefix, testNamespaceID, 0)
-		oldFname := versionFilesetPathFromTime(shardDir, testWriterStart, s, DefaultVersionNumber)
+		oldFname := filesetPathFromTime(shardDir, testWriterStart, s, DefaultVersionNumber)
 		_, err := os.Stat(oldFname)
 		require.NoError(t, err)
-		newFname := versionFilesetPathFromTime(shardDir, testWriterStart, s, 1)
+		newFname := filesetPathFromTime(shardDir, testWriterStart, s, 1)
 		require.NoError(t, os.Rename(oldFname, newFname))
 	}
 

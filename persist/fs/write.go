@@ -95,17 +95,17 @@ func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time, versi
 	w.start = blockStart
 	w.currIdx = 0
 	w.currOffset = 0
-	w.checkpointFilePath = versionFilesetPathFromTime(shardDir, blockStart, checkpointFileSuffix, version)
+	w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix, version)
 	w.err = nil
 
 	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
-			versionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix, version):   &infoFd,
-			versionFilesetPathFromTime(shardDir, blockStart, indexFileSuffix, version):  &indexFd,
-			versionFilesetPathFromTime(shardDir, blockStart, dataFileSuffix, version):   &dataFd,
-			versionFilesetPathFromTime(shardDir, blockStart, digestFileSuffix, version): &digestFd,
+			filesetPathFromTime(shardDir, blockStart, infoFileSuffix, version):   &infoFd,
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix, version):  &indexFd,
+			filesetPathFromTime(shardDir, blockStart, dataFileSuffix, version):   &dataFd,
+			filesetPathFromTime(shardDir, blockStart, digestFileSuffix, version): &digestFd,
 		},
 	); err != nil {
 		return err

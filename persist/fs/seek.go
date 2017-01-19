@@ -93,10 +93,10 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time, versi
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		versionFilesetPathFromTime(shardDir, blockStart, infoFileSuffix, version):   &infoFd,
-		versionFilesetPathFromTime(shardDir, blockStart, indexFileSuffix, version):  &indexFd,
-		versionFilesetPathFromTime(shardDir, blockStart, dataFileSuffix, version):   &dataFd,
-		versionFilesetPathFromTime(shardDir, blockStart, digestFileSuffix, version): &digestFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix, version):   &infoFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix, version):  &indexFd,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix, version):   &dataFd,
+		filesetPathFromTime(shardDir, blockStart, digestFileSuffix, version): &digestFd,
 	}); err != nil {
 		return err
 	}
