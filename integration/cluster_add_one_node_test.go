@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/services"
@@ -46,8 +46,11 @@ func TestClusterAddOneNode(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Test setups
+	// Test setup
 	log := xlog.SimpleLogger
+	testSetup, err := newTestSetup(newTestOptions())
+	require.NoError(t, err)
+	defer testSetup.close()
 
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
