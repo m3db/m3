@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/instrument"
 	xwatch "github.com/m3db/m3x/watch"
 )
 
@@ -215,6 +216,10 @@ type PlacementOptions interface {
 	// Dryrun will try to perform the placement operation but will not persist the final result
 	Dryrun() bool
 	SetDryrun(d bool) PlacementOptions
+
+	// InstrumentOptions is the options for instrument
+	InstrumentOptions() instrument.Options
+	SetInstrumentOptions(iopts instrument.Options) PlacementOptions
 }
 
 // ServicePlacement describes how instances are placed in a service

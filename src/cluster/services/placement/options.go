@@ -22,6 +22,7 @@ package placement
 
 import (
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3x/instrument"
 )
 
 const (
@@ -54,6 +55,7 @@ func NewOptions() services.PlacementOptions {
 	return options{
 		allowPartialReplace: defaultAllowPartialReplace,
 		sharded:             defaultIsSharded,
+		iopts:               instrument.NewOptions(),
 	}
 }
 
@@ -62,6 +64,7 @@ type options struct {
 	allowPartialReplace bool
 	sharded             bool
 	dryrun              bool
+	iopts               instrument.Options
 }
 
 func (o options) LooseRackCheck() bool {
@@ -94,7 +97,17 @@ func (o options) SetIsSharded(sharded bool) services.PlacementOptions {
 func (o options) Dryrun() bool {
 	return o.dryrun
 }
+
 func (o options) SetDryrun(d bool) services.PlacementOptions {
 	o.dryrun = d
+	return o
+}
+
+func (o options) InstrumentOptions() instrument.Options {
+	return o.iopts
+}
+
+func (o options) SetInstrumentOptions(iopts instrument.Options) services.PlacementOptions {
+	o.iopts = iopts
 	return o
 }
