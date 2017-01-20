@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/services/placement/algo"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/log"
 )
 
 var (
@@ -44,11 +45,17 @@ type placementService struct {
 	service services.ServiceID
 	opts    services.PlacementOptions
 	algo    placement.Algorithm
+	logger  xlog.Logger
 }
 
 // NewPlacementService returns an instance of placement service
 func NewPlacementService(ss placement.Storage, service services.ServiceID, opts services.PlacementOptions) services.PlacementService {
-	return placementService{ss: ss, service: service, opts: opts, algo: algo.NewAlgorithm(opts)}
+	return placementService{ss: ss,
+		service: service,
+		opts:    opts,
+		algo:    algo.NewAlgorithm(opts),
+		logger:  opts.InstrumentOptions().Logger(),
+	}
 }
 
 func (ps placementService) BuildInitialPlacement(
@@ -90,6 +97,7 @@ func (ps placementService) BuildInitialPlacement(
 	}
 
 	if ps.opts.Dryrun() {
+		ps.logger.Info("this is a dryrun, the operation is not persisted")
 		return p, err
 	}
 
@@ -130,6 +138,7 @@ func (ps placementService) AddReplica() (services.ServicePlacement, error) {
 	}
 
 	if ps.opts.Dryrun() {
+		ps.logger.Info("this is a dryrun, the operation is not persisted")
 		return p, err
 	}
 
@@ -157,6 +166,7 @@ func (ps placementService) AddInstance(
 	}
 
 	if ps.opts.Dryrun() {
+		ps.logger.Info("this is a dryrun, the operation is not persisted")
 		return p, err
 	}
 
@@ -182,6 +192,7 @@ func (ps placementService) RemoveInstance(instanceID string) (services.ServicePl
 	}
 
 	if ps.opts.Dryrun() {
+		ps.logger.Info("this is a dryrun, the operation is not persisted")
 		return p, err
 	}
 
@@ -216,6 +227,7 @@ func (ps placementService) ReplaceInstance(
 	}
 
 	if ps.opts.Dryrun() {
+		ps.logger.Info("this is a dryrun, the operation is not persisted")
 		return p, err
 	}
 
@@ -277,6 +289,7 @@ func (ps placementService) SetPlacement(p services.ServicePlacement) error {
 	}
 
 	if ps.opts.Dryrun() {
+		ps.logger.Info("this is a dryrun, the operation is not persisted")
 		return nil
 	}
 

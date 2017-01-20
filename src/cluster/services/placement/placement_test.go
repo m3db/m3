@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/instrument"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -331,6 +332,7 @@ func TestOptions(t *testing.T) {
 	assert.True(t, o.AllowPartialReplace())
 	assert.True(t, o.IsSharded())
 	assert.False(t, o.Dryrun())
+	assert.Equal(t, instrument.NewOptions(), o.InstrumentOptions())
 
 	o = o.SetLooseRackCheck(true)
 	assert.True(t, o.LooseRackCheck())
@@ -343,6 +345,10 @@ func TestOptions(t *testing.T) {
 
 	o = o.SetDryrun(true)
 	assert.True(t, o.Dryrun())
+
+	iopts := instrument.NewOptions().SetMetricsSamplingRate(0.5)
+	o = o.SetInstrumentOptions(iopts)
+	assert.Equal(t, iopts, o.InstrumentOptions())
 
 	dopts := NewDeploymentOptions()
 	assert.Equal(t, defaultMaxStepSize, dopts.MaxStepSize())
