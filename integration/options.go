@@ -57,6 +57,10 @@ const (
 
 	// defaultUseTChannelClientForTruncation determines whether we use the tchannel client for truncation by default.
 	defaultUseTChannelClientForTruncation = true
+
+	// defaultWriteConsistencyLevel is the default write consistency level. This
+	// should match the default in client/options.
+	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
 )
 
 type testOptions interface {
@@ -163,6 +167,12 @@ type testOptions interface {
 
 	// VerifySeriesDebugFilePathPrefix returns the file path prefix for writing a debug file of series comparisons.
 	VerifySeriesDebugFilePathPrefix() string
+
+	// WriteConsistencyLevel returns the consistency level for writing with the m3db client.
+	WriteConsistencyLevel() topology.WriteConsistencyLevel
+
+	// SetWriteConsistencyLevel sets the consistency level for writing with the m3db client.
+	SetWriteConsistencyLevel(topology.WriteConsistencyLevel) testOptions
 }
 
 type options struct {
@@ -183,6 +193,7 @@ type options struct {
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
 	verifySeriesDebugFilePathPrefix    string
+	writeConsistencyLevel              topology.WriteConsistencyLevel
 }
 
 func newTestOptions() testOptions {
@@ -202,6 +213,7 @@ func newTestOptions() testOptions {
 		useTChannelClientForReading:    defaultUseTChannelClientForReading,
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
+		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 	}
 }
 

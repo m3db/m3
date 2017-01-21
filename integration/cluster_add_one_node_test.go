@@ -48,8 +48,9 @@ func TestClusterAddOneNode(t *testing.T) {
 
 	// Test setup
 	log := xlog.SimpleLogger
-	tSetup, err := newTestSetup(newTestOptions())
+	tSetup, err := newTestSetup(newTestOptions().SetUseTChannelClientForWriting(false))
 	require.NoError(t, err)
+
 	defer tSetup.close()
 
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
@@ -257,4 +258,7 @@ func TestClusterAddOneNode(t *testing.T) {
 // quorumWriteTest verifies that all write consistency levels work as expected.
 func quorumWriteTest(t *testing.T, tSetup *testSetup, bool isAdding) {
 	// for each consistencyLevel, set level, do writes, check if result is expected
+
+	// set all
+
 }

@@ -657,6 +657,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	state.topoMap = s.topoMap
 	state.incRef()
 
+	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = s.writeOpPool.Get(), majority
 
 	state.op.namespace = ts.StringID(namespace)
@@ -670,10 +671,8 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	state.op.completionFn = state.completionFn
 
 	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
-		// First count all the pending write requests to ensure
-		// we count the amount we're going to be waiting for
-		// before we enqueue the completion fns that rely on having
-		// an accurate number of the pending requests when they execute
+		// Count pending write requests before we enqueue the completion fns,
+		// which rely on the count when executing
 		state.pending++
 		state.queues = append(state.queues, s.queues[idx])
 	}); err != nil {
@@ -686,23 +685,15 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 
 	for i := range state.queues {
 		if err := state.queues[i].Enqueue(state.op); err != nil {
-			state.Unlock()
-			state.decRef()
-
-			// NB(r): if this ever happens we have a code bug, once we
-			// are in the read lock the current queues we are using should
-			// never be closed
-			s.RUnlock()
-			s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", err)
-			return err
+			// NB(r): if this happens we have a bug, once we are in the read
+			// lock the current queues should never be closed
+			panic("failed to enqueue write: %v", err)
 		}
 
 		state.incRef()
 		enqueued++
 	}
 
-	// Wait for writes to complete. We don't need to loop over Wait() since there
-	// are no spurious wakeups in Golang and the condition is one-way and binary.
 	s.RUnlock()
 	state.Wait()
 
@@ -980,14 +971,12 @@ func (s *session) writeConsistencyResult(
 	case topology.ConsistencyLevelAll:
 		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
 	case topology.ConsistencyLevelMajority:
-		if success >= majority {
-			// Meets majority
+		if success >= majority { // Meets majority
 			break
 		}
 		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
 	case topology.ConsistencyLevelOne:
-		if success > 0 {
-			// Meets one
+		if success > 0 { // Meets one
 			break
 		}
 		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)

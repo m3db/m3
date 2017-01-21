@@ -142,7 +142,8 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	clientOpts := server.DefaultClientOptions(topoInit).
-		SetClusterConnectTimeout(opts.ClusterConnectionTimeout())
+		SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
+		SetWriteConsistencyLevel(opts.WriteConsistencyLevel())
 
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(tchannelNodeAddr)
