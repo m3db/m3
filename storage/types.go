@@ -117,7 +117,7 @@ type Database interface {
 	IsBootstrapped() bool
 
 	// Repair will issue a repair and return nil on success or error on error.
-	Repair() error
+	Repair(start time.Time) error
 
 	// Truncate truncates data for the given namespace
 	Truncate(namespace ts.ID) (int64, error)
@@ -407,10 +407,10 @@ type databaseShardRepairer interface {
 // databaseRepairer repairs in-memory database data
 type databaseRepairer interface {
 	// ShouldRun determines if any repairs operations are needed
-	ShouldRun() bool
+	ShouldRun(start time.Time) bool
 
 	// Run performs all repair-related operations
-	Run(mode runType)
+	Run(start time.Time, mode runType)
 
 	// IsRepairing returns whether the repairer is running or not
 	IsRepairing() bool

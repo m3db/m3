@@ -371,8 +371,8 @@ func (d *db) IsBootstrapped() bool {
 	return d.bsm.IsBootstrapped()
 }
 
-func (d *db) Repair() error {
-	d.repairer.Run(runTypeAsync)
+func (d *db) Repair(t time.Time) error {
+	d.repairer.Run(t, runTypeAsync)
 	return nil
 }
 
@@ -495,8 +495,8 @@ func (d *db) splayedTick() {
 		}
 
 		// NB(prateek): The repairer has to be run after any pending flushes
-		if d.repairer.ShouldRun() {
-			d.repairer.Run(runTypeSync)
+		if d.repairer.ShouldRun(start) {
+			d.repairer.Run(start, runTypeSync)
 		}
 	}()
 }

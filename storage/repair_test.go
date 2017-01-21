@@ -54,43 +54,28 @@ func TestDatabaseRepairerShouldRunOffsetChecker(t *testing.T) {
 	var (
 		repairInterval = 2 * time.Hour
 		now            = time.Now().Truncate(repairInterval).Add(30 * time.Minute)
-		callNum        = 1
 	)
 
-	nowFn := func() time.Time {
-		switch callNum {
-		case 1:
-			return now
-		case 2:
-			return now.Add(time.Hour)
-		case 3:
-			return now.Add(3 * time.Hour)
-		default:
-			return now
-		}
-	}
 	mockDatabase := newMockDatabase()
-	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
 	repairOpts := testRepairOptions(ctrl).
 		SetRepairInterval(repairInterval)
 	mockDatabase.opts = mockDatabase.opts.
-		SetClockOptions(clockOpts.SetNowFn(nowFn)).
 		SetRepairOptions(repairOpts)
 
 	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
-	repairer.repairFn = func() error {
+	repairer.repairFn = func(_ time.Time) error {
 		return nil
 	}
 
-	require.True(t, repairer.ShouldRun())
-	repairer.Run(runTypeSync)
-	callNum++
-	require.False(t, repairer.ShouldRun())
-	callNum++
-	require.True(t, repairer.ShouldRun())
+	require.True(t, repairer.ShouldRun(now))
+	repairer.Run(now, runTypeSync)
+	now = now.Add(time.Hour)
+	require.False(t, repairer.ShouldRun(now))
+	now = now.Add(2 * time.Hour)
+	require.True(t, repairer.ShouldRun(now))
 
 }
 
@@ -105,8 +90,9 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
+	now := time.Now()
 	mockDatabase.bs = bootstrapNotStarted
-	require.Nil(t, repairer.Repair())
+	require.Nil(t, repairer.Repair(now))
 }
 
 func TestDatabaseShardRepairerRecordDifferences(t *testing.T) {
@@ -250,10 +236,10 @@ func TestRepairerRepairTimes(t *testing.T) {
 		r.repairStates[input.bs] = input.rs
 	}
 
-	res := r.repairTimeRanges()
+	res := r.repairTimeRanges(now)
 	expectedRanges := xtime.NewRanges().
 		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
-		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(187200, 0)})
+		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(180000, 0)})
 	require.Equal(t, expectedRanges, res)
 }
 

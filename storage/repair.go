@@ -431,7 +431,7 @@ func (r shardRepairer) recordDifferences(
 	executionScope.Counter("unexpected").Inc(execMetrics.NumUnexpected)
 }
 
-type repairFn func() error
+type repairFn func(time.Time) error
 
 type repairStatus int
 
@@ -504,23 +504,22 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 	return r, nil
 }
 
-func (r *dbRepairer) ShouldRun() bool {
+func (r *dbRepairer) ShouldRun(start time.Time) bool {
 	if r.IsRepairing() {
 		return false
 	}
-	now := r.nowFn()
 	maxDelta := r.repairInterval + r.repairTimeJitter
-	return now.Sub(r.lastRun) > maxDelta
+	return start.Sub(r.lastRun) > maxDelta
 }
 
-func (r *dbRepairer) Run(mode runType) {
+func (r *dbRepairer) Run(start time.Time, mode runType) {
 	run := func() {
-		if err := r.repairFn(); err != nil {
+		if err := r.repairFn(start); err != nil {
 			r.logger.Errorf("error repairing database: %v", err)
 		}
 		// setting lastRun regardless of success/failure
 		// to constrain the number of repairs run
-		r.lastRun = r.nowFn()
+		r.lastRun = start
 	}
 
 	if mode == runTypeAsync {
@@ -530,12 +529,11 @@ func (r *dbRepairer) Run(mode runType) {
 	}
 }
 
-func (r *dbRepairer) repairTimeRanges() xtime.Ranges {
+func (r *dbRepairer) repairTimeRanges(startTime time.Time) xtime.Ranges {
 	var (
-		now       = r.nowFn()
 		blockSize = r.rtopts.BlockSize()
-		start     = now.Add(-r.rtopts.RetentionPeriod()).Truncate(blockSize)
-		end       = now.Add(-r.rtopts.BufferPast()).Truncate(blockSize)
+		start     = retention.FlushTimeStart(r.rtopts, startTime)
+		end       = retention.FlushTimeEnd(r.rtopts, startTime)
 	)
 
 	targetRanges := xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end})
@@ -556,7 +554,7 @@ func (r *dbRepairer) needsRepair(t time.Time) bool {
 	return repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries
 }
 
-func (r *dbRepairer) Repair() error {
+func (r *dbRepairer) Repair(startTime time.Time) error {
 	// Don't attempt a repair if the database is not bootstrapped yet
 	if !r.database.IsBootstrapped() {
 		return nil
@@ -572,7 +570,7 @@ func (r *dbRepairer) Repair() error {
 
 	multiErr := xerrors.NewMultiError()
 	blockSize := r.rtopts.BlockSize()
-	iter := r.repairTimeRanges().Iter()
+	iter := r.repairTimeRanges(startTime).Iter()
 	for iter.Next() {
 		tr := iter.Value()
 		err := r.repairWithTimeRange(tr)
