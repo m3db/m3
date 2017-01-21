@@ -615,7 +615,7 @@ func (n *dbNamespace) Repair(
 		xlog.NewLogField("numChecksumDiffSeries", numChecksumDiffSeries),
 		xlog.NewLogField("numChecksumDiffBlocks", numChecksumDiffBlocks),
 		xlog.NewLogField("numReplicasFailed", numReplicasFailed),
-		xlog.NewLogField("numReplicasRepaired", numShardsRepaired),
+		xlog.NewLogField("numReplicasRepaired", numReplicasRepaired),
 		xlog.NewLogField("numReplicasPending", numReplicasPending),
 		xlog.NewLogField("numReplicasRequested", numReplicasRequested),
 		xlog.NewLogField("numReplicasUnexpected", numReplicasUnexpected),
