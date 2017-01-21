@@ -106,16 +106,11 @@ func PlacementFromProto(p placementproto.Placement) (services.ServicePlacement, 
 		)
 	}
 
-	s := placement.NewPlacement().
+	return placement.NewPlacement().
 		SetInstances(instances).
 		SetShards(shards).
 		SetReplicaFactor(int(p.ReplicaFactor)).
-		SetIsSharded(p.IsSharded)
-	if err := placement.Validate(s); err != nil {
-		return nil, err
-	}
-
-	return s, nil
+		SetIsSharded(p.IsSharded), nil
 }
 
 // PlacementToProto converts a ServicePlacement to a placement proto
