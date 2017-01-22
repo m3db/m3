@@ -23,6 +23,20 @@
 package integration
 
 import (
+	// "testing"
+	// "time"
+
+	// "github.com/m3db/m3db/retention"
+	// "github.com/m3db/m3db/storage/namespace"
+	// "github.com/m3db/m3db/topology"
+	// "github.com/m3db/m3db/ts"
+	// xlog "github.com/m3db/m3x/log"
+
+	// "github.com/golang/mock/gomock"
+	// "github.com/m3db/m3cluster/services"
+	// "github.com/m3db/m3cluster/shard"
+	// "github.com/stretchr/testify/require"
+	"fmt"
 	"testing"
 	"time"
 
@@ -35,220 +49,220 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
+	//	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestClusterAddOneNode(t *testing.T) {
-	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
-	}
+// func TestClusterAddOneNode(t *testing.T) {
+// 	if testing.Short() {
+// 		t.SkipNow() // Just skip if we're doing a short run
+// 	}
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
 
-	// Test setup
-	log := xlog.SimpleLogger
+// 	// Test setup
+// 	log := xlog.SimpleLogger
 
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-	opts := newTestOptions().SetNamespaces([]namespace.Metadata{namesp})
+// 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
+// 	opts := newTestOptions().SetNamespaces([]namespace.Metadata{namesp})
 
-	instances := struct {
-		start []services.ServiceInstance
-		add   []services.ServiceInstance
-		added []services.ServiceInstance
-	}{
-		start: []services.ServiceInstance{
-			services.NewServiceInstance().
-				SetInstanceID("testhost0").
-				SetEndpoint("127.0.0.1:9000").
-				SetShards(newClusterShardsRange(0, 1023, shard.Available)),
-			services.NewServiceInstance().
-				SetInstanceID("testhost1").
-				SetEndpoint("127.0.0.1:9004").
-				SetShards(newClusterEmptyShardsRange()),
-		},
-		add: []services.ServiceInstance{
-			services.NewServiceInstance().
-				SetInstanceID("testhost0").
-				SetEndpoint("127.0.0.1:9000").
-				SetShards(concatShards(
-					newClusterShardsRange(0, 511, shard.Available),
-					newClusterShardsRange(512, 1023, shard.Leaving))),
-			services.NewServiceInstance().
-				SetInstanceID("testhost1").
-				SetEndpoint("127.0.0.1:9004").
-				SetShards(newClusterShardsRange(512, 1023, shard.Initializing)),
-		},
-		added: []services.ServiceInstance{
-			services.NewServiceInstance().
-				SetInstanceID("testhost0").
-				SetEndpoint("127.0.0.1:9000").
-				SetShards(newClusterShardsRange(0, 511, shard.Available)),
-			services.NewServiceInstance().
-				SetInstanceID("testhost1").
-				SetEndpoint("127.0.0.1:9004").
-				SetShards(newClusterShardsRange(512, 1023, shard.Available)),
-		},
-	}
+// 	instances := struct {
+// 		start []services.ServiceInstance
+// 		add   []services.ServiceInstance
+// 		added []services.ServiceInstance
+// 	}{
+// 		start: []services.ServiceInstance{
+// 			services.NewServiceInstance().
+// 				SetInstanceID("testhost0").
+// 				SetEndpoint("127.0.0.1:9000").
+// 				SetShards(newClusterShardsRange(0, 1023, shard.Available)),
+// 			services.NewServiceInstance().
+// 				SetInstanceID("testhost1").
+// 				SetEndpoint("127.0.0.1:9004").
+// 				SetShards(newClusterEmptyShardsRange()),
+// 		},
+// 		add: []services.ServiceInstance{
+// 			services.NewServiceInstance().
+// 				SetInstanceID("testhost0").
+// 				SetEndpoint("127.0.0.1:9000").
+// 				SetShards(concatShards(
+// 					newClusterShardsRange(0, 511, shard.Available),
+// 					newClusterShardsRange(512, 1023, shard.Leaving))),
+// 			services.NewServiceInstance().
+// 				SetInstanceID("testhost1").
+// 				SetEndpoint("127.0.0.1:9004").
+// 				SetShards(newClusterShardsRange(512, 1023, shard.Initializing)),
+// 		},
+// 		added: []services.ServiceInstance{
+// 			services.NewServiceInstance().
+// 				SetInstanceID("testhost0").
+// 				SetEndpoint("127.0.0.1:9000").
+// 				SetShards(newClusterShardsRange(0, 511, shard.Available)),
+// 			services.NewServiceInstance().
+// 				SetInstanceID("testhost1").
+// 				SetEndpoint("127.0.0.1:9004").
+// 				SetShards(newClusterShardsRange(512, 1023, shard.Available)),
+// 		},
+// 	}
 
-	svc := NewFakeM3ClusterService().
-		SetInstances(instances.start).
-		SetReplication(services.NewServiceReplication().
-			SetReplicas(1)).
-		SetSharding(services.NewServiceSharding().
-			SetNumShards(1024))
+// 	svc := NewFakeM3ClusterService().
+// 		SetInstances(instances.start).
+// 		SetReplication(services.NewServiceReplication().
+// 			SetReplicas(1)).
+// 		SetSharding(services.NewServiceSharding().
+// 			SetNumShards(1024))
 
-	svcs := NewFakeM3ClusterServices()
-	svcs.RegisterService("m3db", svc)
+// 	svcs := NewFakeM3ClusterServices()
+// 	svcs.RegisterService("m3db", svc)
 
-	topoOpts := topology.NewDynamicOptions().
-		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
-	topoInit := topology.NewDynamicInitializer(topoOpts)
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBlockSize(2 * time.Hour).
-		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute)
-	setupOpts := []bootstrappableTestSetupOptions{
-		{
-			disablePeersBootstrapper: true,
-			topologyInitializer:      topoInit,
-		},
-		{
-			disablePeersBootstrapper: false,
-			topologyInitializer:      topoInit,
-		},
-	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
-	defer closeFn()
+// 	topoOpts := topology.NewDynamicOptions().
+// 		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
+// 	topoInit := topology.NewDynamicInitializer(topoOpts)
+// 	retentionOpts := retention.NewOptions().
+// 		SetRetentionPeriod(6 * time.Hour).
+// 		SetBlockSize(2 * time.Hour).
+// 		SetBufferPast(10 * time.Minute).
+// 		SetBufferFuture(2 * time.Minute)
+// 	setupOpts := []bootstrappableTestSetupOptions{
+// 		{
+// 			disablePeersBootstrapper: true,
+// 			topologyInitializer:      topoInit,
+// 		},
+// 		{
+// 			disablePeersBootstrapper: false,
+// 			topologyInitializer:      topoInit,
+// 		},
+// 	}
+// 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+// 	defer closeFn()
 
-	// Write test data for first node
-	topo, err := topoInit.Init()
-	require.NoError(t, err)
-	ids := []struct {
-		str   string
-		shard uint32
-	}{
-		{"foobarqux", 902},
-		{"bar", 397},
-		{"baz", 234},
-	}
-	shardSet := topo.Get().ShardSet()
-	for _, id := range ids {
-		// Verify IDs will map to halves of the shard space
-		require.Equal(t, id.shard, shardSet.Lookup(ts.StringID(id.str)))
-	}
+// 	// Write test data for first node
+// 	topo, err := topoInit.Init()
+// 	require.NoError(t, err)
+// 	ids := []struct {
+// 		str   string
+// 		shard uint32
+// 	}{
+// 		{"foobarqux", 902},
+// 		{"bar", 397},
+// 		{"baz", 234},
+// 	}
+// 	shardSet := topo.Get().ShardSet()
+// 	for _, id := range ids {
+// 		// Verify IDs will map to halves of the shard space
+// 		require.Equal(t, id.shard, shardSet.Lookup(ts.StringID(id.str)))
+// 	}
 
-	now := setups[0].getNowFn()
-	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
-	seriesMaps := generateTestDataByStart([]testData{
-		{ids: []string{ids[0].str, ids[1].str}, numPoints: 180, start: now.Add(-blockSize)},
-		{ids: []string{ids[0].str, ids[2].str}, numPoints: 90, start: now},
-	})
-	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setups[0], seriesMaps))
+// 	now := setups[0].getNowFn()
+// 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
+// 	seriesMaps := generateTestDataByStart([]testData{
+// 		{ids: []string{ids[0].str, ids[1].str}, numPoints: 180, start: now.Add(-blockSize)},
+// 		{ids: []string{ids[0].str, ids[2].str}, numPoints: 90, start: now},
+// 	})
+// 	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setups[0], seriesMaps))
 
-	// Prepare verfication of data on nodes
-	expectedSeriesMaps := make([]map[time.Time]seriesList, 2)
-	expectedSeriesIDs := make([]map[string]struct{}, 2)
-	for i := range expectedSeriesMaps {
-		expectedSeriesMaps[i] = make(map[time.Time]seriesList)
-		expectedSeriesIDs[i] = make(map[string]struct{})
-	}
-	for start, series := range seriesMaps {
-		list := make([]seriesList, 2)
-		for j := range series {
-			if shardSet.Lookup(series[j].ID) < 512 {
-				list[0] = append(list[0], series[j])
-			} else {
-				list[1] = append(list[1], series[j])
-			}
-		}
-		for i := range expectedSeriesMaps {
-			if len(list[i]) > 0 {
-				expectedSeriesMaps[i][start] = list[i]
-			}
-		}
-	}
-	for i := range expectedSeriesMaps {
-		for _, series := range expectedSeriesMaps[i] {
-			for _, elem := range series {
-				expectedSeriesIDs[i][elem.ID.String()] = struct{}{}
-			}
-		}
-	}
-	require.Equal(t, 2, len(expectedSeriesIDs[0]))
-	require.Equal(t, 1, len(expectedSeriesIDs[1]))
+// 	// Prepare verfication of data on nodes
+// 	expectedSeriesMaps := make([]map[time.Time]seriesList, 2)
+// 	expectedSeriesIDs := make([]map[string]struct{}, 2)
+// 	for i := range expectedSeriesMaps {
+// 		expectedSeriesMaps[i] = make(map[time.Time]seriesList)
+// 		expectedSeriesIDs[i] = make(map[string]struct{})
+// 	}
+// 	for start, series := range seriesMaps {
+// 		list := make([]seriesList, 2)
+// 		for j := range series {
+// 			if shardSet.Lookup(series[j].ID) < 512 {
+// 				list[0] = append(list[0], series[j])
+// 			} else {
+// 				list[1] = append(list[1], series[j])
+// 			}
+// 		}
+// 		for i := range expectedSeriesMaps {
+// 			if len(list[i]) > 0 {
+// 				expectedSeriesMaps[i][start] = list[i]
+// 			}
+// 		}
+// 	}
+// 	for i := range expectedSeriesMaps {
+// 		for _, series := range expectedSeriesMaps[i] {
+// 			for _, elem := range series {
+// 				expectedSeriesIDs[i][elem.ID.String()] = struct{}{}
+// 			}
+// 		}
+// 	}
+// 	require.Equal(t, 2, len(expectedSeriesIDs[0]))
+// 	require.Equal(t, 1, len(expectedSeriesIDs[1]))
 
-	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+// 	// Start the first server with filesystem bootstrapper
+// 	require.NoError(t, setups[0].startServer())
 
-	// Start the last server with peers and filesystem bootstrappers, no shards
-	// are assigned at first
-	require.NoError(t, setups[1].startServer())
-	log.Debug("servers are now up")
-	quorumWriteTest(t, data)
+// 	// Start the last server with peers and filesystem bootstrappers, no shards
+// 	// are assigned at first
+// 	require.NoError(t, setups[1].startServer())
+// 	log.Debug("servers are now up")
 
-	// Stop the servers at test completion
-	defer func() {
-		log.Debug("servers closing")
-		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
-		})
-		log.Debug("servers are now down")
-	}()
+// 	// Stop the servers at test completion
+// 	defer func() {
+// 		log.Debug("servers closing")
+// 		setups.parallel(func(s *testSetup) {
+// 			require.NoError(t, s.stopServer())
+// 		})
+// 		log.Debug("servers are now down")
+// 	}()
 
-	// Bootstrap the new shards
-	log.Debug("resharding to initialize shards on second node")
-	svc.SetInstances(instances.add)
-	svcs.NotifyServiceUpdate("m3db")
-	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(512, 1023))
+// 	// Bootstrap the new shards
+// 	log.Debug("resharding to initialize shards on second node")
+// 	svc.SetInstances(instances.add)
+// 	svcs.NotifyServiceUpdate("m3db")
+// 	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(512, 1023))
 
-	log.Debug("waiting for shards to be marked initialized")
-	allMarkedAvailable := func(
-		fakePlacementService FakeM3ClusterPlacementService,
-		instanceID string,
-		shards []shard.Shard,
-	) bool {
-		markedAvailable := fakePlacementService.InstanceShardsMarkedAvailable()
-		if len(markedAvailable) != 1 {
-			return false
-		}
-		if len(markedAvailable[instanceID]) != len(shards) {
-			return false
-		}
-		marked := shard.NewShards(nil)
-		for _, id := range markedAvailable[instanceID] {
-			marked.Add(shard.NewShard(id).SetState(shard.Available))
-		}
-		for _, shard := range shards {
-			if !marked.Contains(shard.ID()) {
-				return false
-			}
-		}
-		return true
-	}
+// 	log.Debug("waiting for shards to be marked initialized")
+// 	allMarkedAvailable := func(
+// 		fakePlacementService FakeM3ClusterPlacementService,
+// 		instanceID string,
+// 		shards []shard.Shard,
+// 	) bool {
+// 		markedAvailable := fakePlacementService.InstanceShardsMarkedAvailable()
+// 		if len(markedAvailable) != 1 {
+// 			return false
+// 		}
+// 		if len(markedAvailable[instanceID]) != len(shards) {
+// 			return false
+// 		}
+// 		marked := shard.NewShards(nil)
+// 		for _, id := range markedAvailable[instanceID] {
+// 			marked.Add(shard.NewShard(id).SetState(shard.Available))
+// 		}
+// 		for _, shard := range shards {
+// 			if !marked.Contains(shard.ID()) {
+// 				return false
+// 			}
+// 		}
+// 		return true
+// 	}
 
-	fps := svcs.FakePlacementService()
-	shouldMark := instances.add[1].Shards().All()
-	for !allMarkedAvailable(fps, "testhost1", shouldMark) {
-		time.Sleep(100 * time.Millisecond)
-	}
-	log.Debug("all shards marked as initialized")
+// 	fps := svcs.FakePlacementService()
+// 	shouldMark := instances.add[1].Shards().All()
+// 	for !allMarkedAvailable(fps, "testhost1", shouldMark) {
+// 		time.Sleep(100 * time.Millisecond)
+// 	}
+// 	log.Debug("all shards marked as initialized")
 
-	// Shed the old shards from the first node
-	log.Debug("resharding to shed shards from first node")
-	svc.SetInstances(instances.added)
-	svcs.NotifyServiceUpdate("m3db")
-	waitUntilHasBootstrappedShardsExactly(setups[0].db, newShardsRange(0, 511))
-	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(512, 1023))
+// 	// Shed the old shards from the first node
+// 	log.Debug("resharding to shed shards from first node")
+// 	svc.SetInstances(instances.added)
+// 	svcs.NotifyServiceUpdate("m3db")
+// 	waitUntilHasBootstrappedShardsExactly(setups[0].db, newShardsRange(0, 511))
+// 	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(512, 1023))
 
-	log.Debug("verifying data in servers matches expected data set")
+// 	log.Debug("verifying data in servers matches expected data set")
 
-	// Verify in-memory data match what we expect
-	for i := range setups {
-		verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
-	}
-}
+// 	// Verify in-memory data match what we expect
+// 	for i := range setups {
+// 		verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
+// 	}
+// }
 
 // todo@bl: refactor
 
@@ -402,6 +416,7 @@ func TestWriteQuorumWhileAdding(t *testing.T) {
 	// are assigned at first
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
+	quorumWriteTest(t, data, false)
 
 	// Stop the servers at test completion
 	defer func() {
@@ -416,6 +431,7 @@ func TestWriteQuorumWhileAdding(t *testing.T) {
 	log.Debug("resharding to initialize shards on second node")
 	svc.SetInstances(instances.add)
 	svcs.NotifyServiceUpdate("m3db")
+	//	quorumWriteTest(t, data, true)
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(512, 1023))
 
 	log.Debug("waiting for shards to be marked initialized")
@@ -466,8 +482,10 @@ func TestWriteQuorumWhileAdding(t *testing.T) {
 }
 
 // todo@bl: move test data generation to testWrite
+// todo@bl: /s/require/assert
 // quorumWriteTest verifies that all write consistency levels work as expected.
-func quorumWriteTest(t *testing.T, data seriesList, bool isAdding) {
+func quorumWriteTest(t *testing.T, data seriesList, isAdding bool) {
+	fmt.Println("******* we are the champions my friends ******")
 	// for each consistencyLevel, set level, do writes, check if result is expected
 
 	// tSetup.m3dbClient.Options.SetWriteConsistencyLevel(topology.ConsistencyLevelOne)
@@ -476,19 +494,21 @@ func quorumWriteTest(t *testing.T, data seriesList, bool isAdding) {
 	// set all
 
 	if isAdding {
-		assert.Error(t, testWrite(topology.ConsistencyLevelAll, data))
+		require.Error(t, testWrite(t, topology.ConsistencyLevelAll, data))
 	}
 
-	assert.NoError(t, testWrite(topology.ConsistencyLevelAll, data))
+	require.NoError(t, testWrite(t, topology.ConsistencyLevelAll, data))
 }
 
-func testWrite(cLevel topology.ConsistencyLevel, data seriesList) error {
+func testWrite(t *testing.T, cLevel topology.ConsistencyLevel, data seriesList) error {
 	testSetup, err := newTestSetup(newTestOptions().
 		SetUseTChannelClientForWriting(false).
 		SetWriteConsistencyLevel(cLevel))
 	require.NoError(t, err)
-
 	defer testSetup.close()
+
+	require.NoError(t, testSetup.startServer())
+	defer func() { require.NoError(t, testSetup.stopServer()) }()
 
 	return testSetup.writeBatch(testNamespaces[0], data)
 }
