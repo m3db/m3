@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/topology"
-	xlog "github.com/m3db/m3x/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,10 +86,8 @@ import (
 
 // 	svc := NewFakeM3ClusterService().
 // 		SetInstances(instances.start).
-// 		SetReplication(services.NewServiceReplication().
-// 			SetReplicas(1)).
-// 		SetSharding(services.NewServiceSharding().
-// 			SetNumShards(1024))
+//		SetReplication(services.NewServiceReplication().SetReplicas(1)).
+// 		SetSharding(services.NewServiceSharding().SetNumShards(1024))
 
 // 	svcs := NewFakeM3ClusterServices()
 // 	svcs.RegisterService("m3db", svc)
@@ -255,7 +252,7 @@ func TestClusterWriteQuorum(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Test setup
-	log := xlog.SimpleLogger
+	//	log := xlog.SimpleLogger
 
 	instances := struct {
 		start []services.ServiceInstance
@@ -282,10 +279,8 @@ func TestClusterWriteQuorum(t *testing.T) {
 
 	svc := NewFakeM3ClusterService().
 		SetInstances(instances.start).
-		SetReplication(services.NewServiceReplication().
-			SetReplicas(1)).
-		SetSharding(services.NewServiceSharding().
-			SetNumShards(1024))
+		SetReplication(services.NewServiceReplication().SetReplicas(3)).
+		SetSharding(services.NewServiceSharding().SetNumShards(1024))
 
 	svcs := NewFakeM3ClusterServices()
 	svcs.RegisterService("m3db", svc)
@@ -296,7 +291,6 @@ func TestClusterWriteQuorum(t *testing.T) {
 	svc.SetInstances(instances.add)
 	svcs.NotifyServiceUpdate("m3db")
 	quorumWriteTest(t, true)
-	//	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(0, 1023))
 
 	svc.SetInstances(instances.add)
 	svcs.NotifyServiceUpdate("m3db")
@@ -331,10 +325,8 @@ func TestClusterWriteQuorum(t *testing.T) {
 	// for !allMarkedAvailable(fps, "testhost1", shouldMark) {
 	// 	time.Sleep(100 * time.Millisecond)
 	// }
-	// log.Debug("all shards marked as initialized")
 
 	// // Shed the old shards from the first node
-	// log.Debug("resharding to shed shards from first node")
 	// svc.SetInstances(instances.added)
 	// svcs.NotifyServiceUpdate("m3db")
 }
@@ -344,9 +336,6 @@ func TestClusterWriteQuorum(t *testing.T) {
 func quorumWriteTest(t *testing.T, isAdding bool) {
 	fmt.Println("******* we are the champions my friends ******")
 	// for each consistencyLevel, set level, do writes, check if result is expected
-
-	// tSetup.m3dbClient.Options.SetWriteConsistencyLevel(topology.ConsistencyLevelOne)
-	// up.m3dbClient.Options.SetWriteConsistencyLevel(topology.ConsistencyLevelMajority)
 
 	// set all
 
