@@ -687,7 +687,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		if err := state.queues[i].Enqueue(state.op); err != nil {
 			// NB(r): if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			panic("failed to enqueue write: %v", err)
+			panic(fmt.Sprintf("failed to enqueue write: %v", err))
 		}
 
 		state.incRef()

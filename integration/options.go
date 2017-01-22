@@ -169,10 +169,10 @@ type testOptions interface {
 	VerifySeriesDebugFilePathPrefix() string
 
 	// WriteConsistencyLevel returns the consistency level for writing with the m3db client.
-	WriteConsistencyLevel() topology.WriteConsistencyLevel
+	WriteConsistencyLevel() topology.ConsistencyLevel
 
 	// SetWriteConsistencyLevel sets the consistency level for writing with the m3db client.
-	SetWriteConsistencyLevel(topology.WriteConsistencyLevel) testOptions
+	SetWriteConsistencyLevel(topology.ConsistencyLevel) testOptions
 }
 
 type options struct {
@@ -193,7 +193,7 @@ type options struct {
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
 	verifySeriesDebugFilePathPrefix    string
-	writeConsistencyLevel              topology.WriteConsistencyLevel
+	writeConsistencyLevel              topology.ConsistencyLevel
 }
 
 func newTestOptions() testOptions {
@@ -385,4 +385,14 @@ func (o *options) SetVerifySeriesDebugFilePathPrefix(value string) testOptions {
 
 func (o *options) VerifySeriesDebugFilePathPrefix() string {
 	return o.verifySeriesDebugFilePathPrefix
+}
+
+func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {
+	return o.writeConsistencyLevel
+}
+
+func (o *options) SetWriteConsistencyLevel(cLevel topology.ConsistencyLevel) testOptions {
+	opts := *o
+	opts.writeConsistencyLevel = cLevel
+	return &opts
 }
