@@ -243,7 +243,7 @@ import (
 
 // todo@bl: refactor
 
-func TestClusterWriteQuorum(t *testing.T) {
+func TestAddClusterWriteQuorum(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -253,99 +253,25 @@ func TestClusterWriteQuorum(t *testing.T) {
 
 	// Test setup
 	//	log := xlog.SimpleLogger
-
-	instances := struct {
-		start []services.ServiceInstance
-		add   []services.ServiceInstance
-		added []services.ServiceInstance
-	}{
-		start: []services.ServiceInstance{
-			node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
-			node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-			node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
-		},
-		add: []services.ServiceInstance{
-			node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
-			node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-			node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
-			node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
-		},
-		added: []services.ServiceInstance{
-			node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-			node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
-			node(t, 3, newClusterShardsRange(0, 1023, shard.Available)),
-		},
+	instances := []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
+		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
 	}
 
 	svc := NewFakeM3ClusterService().
-		SetInstances(instances.start).
+		SetInstances(instances).
 		SetReplication(services.NewServiceReplication().SetReplicas(3)).
 		SetSharding(services.NewServiceSharding().SetNumShards(1024))
 
 	svcs := NewFakeM3ClusterServices()
 	svcs.RegisterService("m3db", svc)
 
-	quorumWriteTest(t, false)
-
-	// Bootstrap the new shards
-	svc.SetInstances(instances.add)
-	svcs.NotifyServiceUpdate("m3db")
-	quorumWriteTest(t, true)
-
-	svc.SetInstances(instances.add)
-	svcs.NotifyServiceUpdate("m3db")
-	quorumWriteTest(t, false)
-
-	// allMarkedAvailable := func(
-	// 	fakePlacementService FakeM3ClusterPlacementService,
-	// 	instanceID string,
-	// 	shards []shard.Shard,
-	// ) bool {
-	// 	markedAvailable := fakePlacementService.InstanceShardsMarkedAvailable()
-	// 	if len(markedAvailable) != 1 {
-	// 		return false
-	// 	}
-	// 	if len(markedAvailable[instanceID]) != len(shards) {
-	// 		return false
-	// 	}
-	// 	marked := shard.NewShards(nil)
-	// 	for _, id := range markedAvailable[instanceID] {
-	// 		marked.Add(shard.NewShard(id).SetState(shard.Available))
-	// 	}
-	// 	for _, shard := range shards {
-	// 		if !marked.Contains(shard.ID()) {
-	// 			return false
-	// 		}
-	// 	}
-	// 	return true
-	// }
-
-	// fps := svcs.FakePlacementService()
-	// shouldMark := instances.add[1].Shards().All()
-	// for !allMarkedAvailable(fps, "testhost1", shouldMark) {
-	// 	time.Sleep(100 * time.Millisecond)
-	// }
-
-	// // Shed the old shards from the first node
-	// svc.SetInstances(instances.added)
-	// svcs.NotifyServiceUpdate("m3db")
-}
-
-// todo@bl: /s/require/assert
-// quorumWriteTest verifies that all write consistency levels work as expected.
-func quorumWriteTest(t *testing.T, isAdding bool) {
-	fmt.Println("******* we are the champions my friends ******")
-	// for each consistencyLevel, set level, do writes, check if result is expected
-
-	// set all
-
-	if isAdding {
-		require.Error(t, testWrite(t, topology.ConsistencyLevelAll))
-	}
-
-	require.NoError(t, testWrite(t, topology.ConsistencyLevelAll))
-
-	fmt.Println("****** aaaand we'll keep on fighting til the end ******")
+	// /s/require/assert
+	require.NoError(t, testWrite(t, topology.ConsistencyLevelOne))
+	require.NoError(t, testWrite(t, topology.ConsistencyLevelMajority))
+	//require.Error(t, testWrite(t, topology.ConsistencyLevelAll))
 }
 
 func testWrite(t *testing.T, cLevel topology.ConsistencyLevel) error {
