@@ -58,7 +58,7 @@ const (
 	defaultClusterConnectTimeout = 30 * time.Second
 
 	// defaultClusterConnectConsistencyLevel is the default cluster connect consistency level
-	defaultClusterConnectConsistencyLevel = ConnectConsistencyLevelMajority
+	defaultClusterConnectConsistencyLevel = ConnectConsistencyLevelAny
 
 	// defaultWriteRequestTimeout is the default write request timeout
 	defaultWriteRequestTimeout = 5 * time.Second
