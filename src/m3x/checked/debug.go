@@ -32,20 +32,29 @@ const (
 	defaultTraceback         = false
 	defaultTracebackCycles   = 3
 	defaultTracebackMaxDepth = 64
+	defaultLeakDetection     = false
 )
 
 var (
-	traceback            = defaultTraceback
-	tracebackCycles      = defaultTracebackCycles
-	tracebackMaxDepth    = defaultTracebackMaxDepth
-	tracebackCallersPool = sync.Pool{New: func() interface{} {
-		return make([]uintptr, tracebackMaxDepth)
-	}}
-	tracebackEntryPool = sync.Pool{New: func() interface{} {
-		return &debuggerEntry{}
-	}}
-	panicFn = defaultPanic
+	traceback         = defaultTraceback
+	tracebackCycles   = defaultTracebackCycles
+	tracebackMaxDepth = defaultTracebackMaxDepth
+	panicFn           = defaultPanic
+	leakDetectionFlag = defaultLeakDetection
 )
+
+var tracebackCallersPool = sync.Pool{New: func() interface{} {
+	return make([]uintptr, tracebackMaxDepth)
+}}
+
+var tracebackEntryPool = sync.Pool{New: func() interface{} {
+	return &debuggerEntry{}
+}}
+
+var leaks struct {
+	sync.RWMutex
+	m map[string]uint64
+}
 
 // PanicFn is a panic function to call on invalid checked state
 type PanicFn func(e error)
@@ -65,13 +74,14 @@ func ResetPanicFn() {
 	panicFn = defaultPanic
 }
 
-func defaultPanic(e error) {
-	panic(e)
+// EnableTracebacks turns traceback collection for events on
+func EnableTracebacks() {
+	traceback = true
 }
 
-// SetTraceback sets whether to traceback events
-func SetTraceback(value bool) {
-	traceback = value
+// DisableTracebacks turns traceback collection for events off
+func DisableTracebacks() {
+	traceback = false
 }
 
 // SetTracebackCycles sets the count of traceback cycles to keep if enabled
@@ -84,11 +94,41 @@ func SetTracebackMaxDepth(frames int) {
 	tracebackMaxDepth = frames
 }
 
+// EnableLeakDetection turns leak detection on.
+func EnableLeakDetection() {
+	leakDetectionFlag = true
+}
+
+// DisableLeakDetection turns leak detection off.
+func DisableLeakDetection() {
+	leakDetectionFlag = false
+}
+
+// DumpLeaks returns all detected leaks so far.
+func DumpLeaks() []string {
+	var r []string
+
+	leaks.RLock()
+
+	for k, v := range leaks.m {
+		r = append(r, fmt.Sprintf("leaked %d bytes, origin:\n%s", v, k))
+	}
+
+	leaks.RUnlock()
+
+	return r
+}
+
+func defaultPanic(e error) {
+	panic(e)
+}
+
 func panicRef(c *RefCount, err error) {
 	if traceback {
 		trace := getDebuggerRef(c).String()
 		err = fmt.Errorf("%v, traceback:\n\n%s", err, trace)
 	}
+
 	panicFn(err)
 }
 
@@ -244,6 +284,10 @@ func getDebuggerRef(c *RefCount) *debuggerRef {
 }
 
 func tracebackEvent(c *RefCount, ref int, e debuggerEvent) {
+	if !traceback {
+		return
+	}
+
 	d := getDebuggerRef(c)
 	depth := tracebackMaxDepth
 	pc := tracebackCallersPool.Get().([]uintptr)
@@ -256,4 +300,8 @@ func tracebackEvent(c *RefCount, ref int, e debuggerEvent) {
 	skipEntry := 2
 	n := runtime.Callers(skipEntry, pc)
 	d.append(e, ref, pc[:n])
+}
+
+func init() {
+	leaks.m = make(map[string]uint64)
 }

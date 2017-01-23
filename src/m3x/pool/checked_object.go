@@ -58,7 +58,9 @@ func NewCheckedObjectPool(opts ObjectPoolOptions) CheckedObjectPool {
 
 func (p *checkedObjectPool) Init(alloc CheckedAllocator) {
 	p.pool.Init(func() interface{} {
-		return alloc()
+		v := alloc()
+		v.TrackObject(v)
+		return v
 	})
 	p.finalizerPool.Init(func() interface{} {
 		return &checkedObjectFinalizer{}

@@ -43,8 +43,8 @@ func TestSetPanicFn(t *testing.T) {
 }
 
 func TestTracebackReadAfterFree(t *testing.T) {
-	SetTraceback(true)
-	defer SetTraceback(false)
+	EnableTracebacks()
+	defer DisableTracebacks()
 	SetTracebackCycles(2)
 	defer SetTracebackCycles(defaultTracebackCycles)
 
@@ -100,8 +100,8 @@ func TestTracebackReadAfterFree(t *testing.T) {
 }
 
 func TestTracebackDoubleWrite(t *testing.T) {
-	SetTraceback(true)
-	defer SetTraceback(defaultTraceback)
+	EnableTracebacks()
+	defer DisableTracebacks()
 	SetTracebackCycles(2)
 	defer SetTracebackCycles(defaultTracebackCycles)
 

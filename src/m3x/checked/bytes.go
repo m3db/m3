@@ -54,6 +54,7 @@ func NewBytes(value []byte, opts BytesOptions) Bytes {
 		value: value,
 	}
 	b.SetFinalizer(b)
+	b.TrackObject(b.value)
 	return b
 }
 

@@ -55,6 +55,10 @@ type Ref interface {
 
 	// SetFinalizer sets the finalizer.
 	SetFinalizer(f Finalizer)
+
+	// TrackObject sets up the initial internal state of the Ref for
+	// leak detection.
+	TrackObject(v interface{})
 }
 
 // Read is an entity that checks reads.

@@ -22,7 +22,9 @@ package checked
 
 import (
 	"reflect"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -203,4 +205,27 @@ func TestRefCountWriteFinishAfterFree(t *testing.T) {
 	elem.DecWrites()
 	assert.Error(t, err)
 	assert.Equal(t, "write finish after free: writes=0, ref=0", err.Error())
+}
+
+func TestLeakDetection(t *testing.T) {
+	EnableLeakDetection()
+	defer DisableLeakDetection()
+
+	{
+		v := &RefCount{}
+		v.TrackObject(v)
+		v.IncRef()
+	}
+
+	runtime.GC()
+
+	var l []string
+
+	for ; len(l) == 0; l = DumpLeaks() {
+		// Finalizers are run in a separate goroutine, so we have to wait
+		// a little bit here.
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	assert.NotEmpty(t, l)
 }
