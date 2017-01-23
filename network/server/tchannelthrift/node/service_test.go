@@ -33,6 +33,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/digest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go/thrift"
@@ -243,6 +244,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 	nsID := "metrics"
 
 	streams := map[string]xio.SegmentReader{}
+	checksums := map[string]uint32{}
 	series := map[string][]struct {
 		t time.Time
 		v float64
@@ -268,11 +270,13 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		}
 
 		streams[id] = enc.Stream()
+		checksum := digest.SegmentChecksum(streams[id].Segment())
+		checksums[id] = checksum
 
 		mockDB.EXPECT().
 			FetchBlocks(ctx, ts.NewIDMatcher(nsID), uint32(0), ts.NewIDMatcher(id), starts).
 			Return([]block.FetchBlockResult{
-				block.NewFetchBlockResult(start, []xio.SegmentReader{enc.Stream()}, nil),
+				block.NewFetchBlockResult(start, []xio.SegmentReader{enc.Stream()}, nil, &checksum),
 			}, nil)
 	}
 
@@ -301,6 +305,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 
 		require.Equal(t, 1, len(elem.Blocks))
 		require.Nil(t, elem.Blocks[0].Err)
+		require.Equal(t, checksums[string(id)], uint32(*(elem.Blocks[0].Checksum)))
 
 		seg := elem.Blocks[0].Segments
 		require.NotNil(t, seg)
