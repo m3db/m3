@@ -125,7 +125,6 @@ type session struct {
 	origin                           topology.Host
 	streamBlocksMaxBlockRetries      int
 	streamBlocksWorkers              xsync.WorkerPool
-	streamBlocksReattemptWorkers     xsync.WorkerPool
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
 	streamBlocksBatchTimeout         time.Duration
@@ -215,8 +214,6 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksMaxBlockRetries = opts.FetchSeriesBlocksMaxBlockRetries()
 		s.streamBlocksWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksWorkers.Init()
-		s.streamBlocksReattemptWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
-		s.streamBlocksReattemptWorkers.Init()
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
@@ -2008,7 +2005,7 @@ func (s *session) streamBlocksReattemptFromPeers(
 	// getting done because new attempts are blocked on existing attempts completing
 	// and existing attempts are trying to enqueue into a full reattempt channel
 	enqueue := enqueueCh.enqueueDelayed()
-	s.streamBlocksReattemptWorkers.Go(func() {
+	go func() {
 		for i := range blocks {
 			// Reconstruct peers metadata for reattempt
 			reattemptBlocksMetadata :=
@@ -2028,7 +2025,7 @@ func (s *session) streamBlocksReattemptFromPeers(
 			// Re-enqueue the block to be fetched
 			enqueue(reattemptBlocksMetadata)
 		}
-	})
+	}()
 }
 
 type blocksResult interface {
