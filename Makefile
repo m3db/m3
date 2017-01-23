@@ -93,7 +93,7 @@ install-proto-bin: install-vendor
 	go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)
 
 install-glide:
-	@which glide > /dev/null || go get -u github.com/Masterminds/glide && cd $(GOPATH)/src/github.com/Masterminds/glide && git checkout v0.12.3 && go install
+	@which glide > /dev/null || go get -u github.com/Masterminds/glide
 
 install-thrift-bin: install-vendor install-glide
 	@echo Installing thrift binaries
