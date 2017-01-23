@@ -11,7 +11,7 @@ echo "mode: count" > $TARGET
 echo "" > $LOG
 
 DIRS=""
-for DIR in $(find $SOURCE -maxdepth 10 -not -path '*/.git*' -not -path '*/.ci*' -not -path '*/_*' -not -path '*/vendor/*' -type d);
+for DIR in $(find $SOURCE -maxdepth 10 -not -path '*/.git*' -not -path '*/.ci*' -not -path '*/_*' -not -path '*/vendor/*' -not -path '*/.glide/*' -type d);
 do
   if ls $DIR/*_test.go &> /dev/null; then
     DIRS="$DIRS $DIR"

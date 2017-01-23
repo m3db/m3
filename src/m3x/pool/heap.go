@@ -123,7 +123,6 @@ func (s *slot) getOr(l sync.Locker, fn OverflowFn) interface{} {
 			return nil
 		}); segment != nil {
 			l.Unlock()
-			s.updateMetrics()
 			return segment
 		}
 	}
@@ -186,6 +185,7 @@ func (p heap) pick(class int, action func(*slot)) bool {
 	for _, slot := range p.slots {
 		if class <= slot.class {
 			action(slot)
+			slot.updateMetrics()
 			return true
 		}
 	}
