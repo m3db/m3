@@ -13,6 +13,9 @@ echo "" > $LOG
 DIRS=""
 for DIR in $SRC;
 do
+  if [[ "$DIR" =~ "\.glide" ]]; then
+    continue
+  fi
   if ls $DIR/*_test.go &> /dev/null; then
     DIRS="$DIRS $DIR"
   fi
