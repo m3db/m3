@@ -2789,10 +2789,12 @@ func (p *Blocks) String() string {
 //  - Start
 //  - Segments
 //  - Err
+//  - Checksum
 type Block struct {
 	Start    int64     `thrift:"start,1,required" db:"start" json:"start"`
 	Segments *Segments `thrift:"segments,2" db:"segments" json:"segments,omitempty"`
 	Err      *Error    `thrift:"err,3" db:"err" json:"err,omitempty"`
+	Checksum *int64    `thrift:"checksum,4" db:"checksum" json:"checksum,omitempty"`
 }
 
 func NewBlock() *Block {
@@ -2820,12 +2822,25 @@ func (p *Block) GetErr() *Error {
 	}
 	return p.Err
 }
+
+var Block_Checksum_DEFAULT int64
+
+func (p *Block) GetChecksum() int64 {
+	if !p.IsSetChecksum() {
+		return Block_Checksum_DEFAULT
+	}
+	return *p.Checksum
+}
 func (p *Block) IsSetSegments() bool {
 	return p.Segments != nil
 }
 
 func (p *Block) IsSetErr() bool {
 	return p.Err != nil
+}
+
+func (p *Block) IsSetChecksum() bool {
+	return p.Checksum != nil
 }
 
 func (p *Block) Read(iprot thrift.TProtocol) error {
@@ -2855,6 +2870,10 @@ func (p *Block) Read(iprot thrift.TProtocol) error {
 			}
 		case 3:
 			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
+		case 4:
+			if err := p.ReadField4(iprot); err != nil {
 				return err
 			}
 		default:
@@ -2902,6 +2921,15 @@ func (p *Block) ReadField3(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Block) ReadField4(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 4: ", err)
+	} else {
+		p.Checksum = &v
+	}
+	return nil
+}
+
 func (p *Block) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Block"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -2914,6 +2942,9 @@ func (p *Block) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField3(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField4(oprot); err != nil {
 			return err
 		}
 	}
@@ -2964,6 +2995,21 @@ func (p *Block) writeField3(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *Block) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetChecksum() {
+		if err := oprot.WriteFieldBegin("checksum", thrift.I64, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:checksum: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.Checksum)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.checksum (4) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:checksum: ", p), err)
 		}
 	}
 	return err
