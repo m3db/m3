@@ -1925,7 +1925,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			}
 
 			// Verify and if verify succeeds add the block from the peer
-			err := s.verifyFetchedBlock(block, batch[i].blocks[j])
+			err := s.verifyFetchedBlock(block)
 			if err == nil {
 				err = blocksResult.addBlockFromPeer(id, peer.Host(), block)
 			}
@@ -1950,7 +1950,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	}
 }
 
-func (s *session) verifyFetchedBlock(block *rpc.Block, metadata blockMetadata) error {
+func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 	if block.Err != nil {
 		return fmt.Errorf("block error from peer: %s %s", block.Err.Type.String(), block.Err.Message)
 	}
@@ -1961,8 +1961,8 @@ func (s *session) verifyFetchedBlock(block *rpc.Block, metadata blockMetadata) e
 		return fmt.Errorf("block segments is bad: merged and unmerged not set")
 	}
 
-	if metadata.checksum != nil {
-		expected := *metadata.checksum
+	if block.Checksum != nil {
+		expected := uint32(*block.Checksum)
 		digest := s.digestPool.Get().(hash.Hash32)
 		digest.Reset()
 		if block.Segments.Merged != nil {
