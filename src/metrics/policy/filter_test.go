@@ -108,7 +108,6 @@ func TestTagsFilterMatches(t *testing.T) {
 		{id: "tagName1=tagValue1,tagName2=tagValue2", match: true},
 		{id: "tagName0=tagValue0,tagName1=tagValue1,tagName2=tagValue2,tagName3=tagValue3", match: true},
 		{id: "tagName1=tagValue1", match: false},
-		{id: "tagName1=tagValue1", match: false},
 		{id: "tagName2=tagValue2", match: false},
 		{id: "tagName1=tagValue2,tagName2=tagValue1", match: false},
 	}
