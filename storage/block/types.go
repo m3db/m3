@@ -62,7 +62,8 @@ type FilteredBlocksMetadataIter interface {
 	Current() (ts.ID, Metadata)
 }
 
-// FetchBlockResult captures the block start time, the readers for the underlying streams, and any errors encountered.
+// FetchBlockResult captures the block start time, the readers for the underlying streams, the
+// corresponding checksum and any errors encountered.
 type FetchBlockResult interface {
 	// Start returns the start time of an encoded block
 	Start() time.Time
@@ -72,6 +73,9 @@ type FetchBlockResult interface {
 
 	// Err returns the error encountered when fetching the block.
 	Err() error
+
+	// Checksum returns the checksum of the underlying block.
+	Checksum() *uint32
 }
 
 // FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered
