@@ -1220,6 +1220,9 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	r := newBulkBlocksResult(opts, bopts)
 	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
+	// need the sleep to yield the current go routine to any pending reattempt routines
+	time.Sleep(time.Millisecond)
+
 	// Assert result
 	assertEnqueueChannel(t, batch[1].blocks[1:], enqueueCh)
 
