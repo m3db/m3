@@ -13,12 +13,34 @@ test_log := test.log
 lint_check := .ci/lint.sh
 gopath_prefix := $(GOPATH)/src
 vendor_prefix := vendor
+license_dir := .ci/uber-licence
+license_node_modules := $(license_dir)/node_modules
+auto_gen := .ci/auto-gen.sh
+protoc_go_package := github.com/golang/protobuf/protoc-gen-go
+proto_output_dir := generated/proto/schema
+proto_rules_dir := generated/proto
 
 BUILD := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
 setup:
 	mkdir -p $(BUILD)
+
+install-license-bin: install-vendor
+	@echo Installing node modules
+	git submodule update --init --recursive
+	[ -d $(license_node_modules) ] || (cd $(license_dir) && npm install)
+
+install-proto-bin: install-vendor
+	@echo Installing protobuf binaries
+	@echo Note: the protobuf compiler v3.0.0 can be downloaded from https://github.com/google/protobuf/releases or built from source at https://github.com/google/protobuf.
+	go install $(m3metrics_package)/$(vendor_prefix)/$(protoc_go_package)
+
+proto-gen: install-proto-bin install-license-bin
+	@echo Generating protobuf files
+	$(auto_gen) $(proto_output_dir) $(proto_rules_dir)
+
+all-gen: proto-gen
 
 lint:
 	@which golint > /dev/null || go get -u github.com/golang/lint/golint

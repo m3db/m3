@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3x/time"
 )
 
@@ -37,6 +38,7 @@ const (
 )
 
 var (
+	emptyPolicy            Policy
 	emptyVersionedPolicies VersionedPolicies
 
 	// DefaultVersionedPolicies are the default versioned policies
@@ -68,6 +70,61 @@ type Policy struct {
 // String is the string representation of a policy
 func (p Policy) String() string {
 	return fmt.Sprintf("{resolution:%s,retention:%s}", p.Resolution.String(), p.Retention.String())
+}
+
+func newPolicy(p *schema.Policy) (Policy, error) {
+	precision := time.Duration(p.Resolution.Precision)
+	unit, err := xtime.UnitFromDuration(precision)
+	if err != nil {
+		return emptyPolicy, err
+	}
+	return Policy{
+		Resolution: Resolution{
+			Window:    time.Duration(p.Resolution.WindowSize),
+			Precision: unit,
+		},
+		Retention: Retention(p.Retention.Period),
+	}, nil
+}
+
+func newPolicies(policies []*schema.Policy) ([]Policy, error) {
+	res := make([]Policy, 0, len(policies))
+	for _, p := range policies {
+		policy, err := newPolicy(p)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, policy)
+	}
+	return res, nil
+}
+
+// ByResolutionAsc implements the sort.Sort interface to sort
+// policies by resolution in ascending order, finest resolution first.
+// If two policies have the same resolution, the one with longer
+// retention period comes first.
+type ByResolutionAsc []Policy
+
+func (pr ByResolutionAsc) Len() int      { return len(pr) }
+func (pr ByResolutionAsc) Swap(i, j int) { pr[i], pr[j] = pr[j], pr[i] }
+
+func (pr ByResolutionAsc) Less(i, j int) bool {
+	w1, w2 := pr[i].Resolution.Window, pr[j].Resolution.Window
+	if w1 < w2 {
+		return true
+	}
+	if w1 > w2 {
+		return false
+	}
+	r1, r2 := pr[i].Retention, pr[j].Retention
+	if r1 > r2 {
+		return true
+	}
+	if r1 < r2 {
+		return false
+	}
+	// NB(xichen): compare precision to ensure a deterministic ordering
+	return pr[i].Resolution.Precision < pr[i].Resolution.Precision
 }
 
 // VersionedPolicies represent a list of policies at a specified version
