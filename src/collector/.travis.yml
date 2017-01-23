@@ -1,0 +1,12 @@
+language: go
+go:
+  - 1.7
+install: make install-ci
+env:
+ # Set higher timeouts for Travis
+ - TEST_TIMEOUT_SCALE=20
+sudo: required
+dist: trusty
+script:
+ - make lint
+ - make test-ci-unit
