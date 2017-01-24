@@ -1,3 +1,0 @@
-[submodule ".ci/uber-licence"]
-	path = .ci/uber-licence
-	url = https://github.com/uber/uber-licence
