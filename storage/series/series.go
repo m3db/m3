@@ -398,6 +398,21 @@ func (s *dbSeries) FetchBlocksMetadata(
 		bufferResults.Close()
 	}
 
+	// NB(r): it's possible a ref to this series was taken before the series was
+	// closed then the method is called, which means no data and a nil ID.
+	//
+	// Hence we should return an empty result set here.
+	//
+	// In the future we need a way to make sure the call we're performing is for the
+	// series we're originally took a ref to. This will avoid pooling of series messing
+	// with calls to a series that was ref'd before it was closed/reused.
+	//
+	// For now this protects this case causing nil panic when trying to clone the ID
+	// for a series which has just been closed but has not been reused yet.
+	if len(res.Results()) == 0 {
+		return block.NewFetchBlocksMetadataResult(nil, res)
+	}
+
 	// NB(r): clone the ID before releasing lock incase this series is being
 	// closed or removed immediately after unlocking.
 	id := s.opts.IdentifierPool().Clone(s.id)

@@ -579,7 +579,9 @@ func (s *dbShard) FetchBlocksMetadata(
 		// If the blocksMetadata is empty, the series have no data within the specified
 		// time range so we don't return it to the client
 		if len(blocksMetadata.Blocks.Results()) == 0 {
-			blocksMetadata.ID.Finalize()
+			if blocksMetadata.ID != nil {
+				blocksMetadata.ID.Finalize()
+			}
 			blocksMetadata.Blocks.Close()
 			return true
 		}
