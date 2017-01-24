@@ -20,7 +20,11 @@
 
 package heartbeat
 
-import "time"
+import (
+	"time"
+
+	"github.com/m3db/m3x/watch"
+)
 
 // Store is a heartbeat store
 type Store interface {
@@ -29,4 +33,7 @@ type Store interface {
 
 	// Get gets healthy instances for a service
 	Get(service string) ([]string, error)
+
+	// Watch watches the heartbeats for a service
+	Watch(service string) (xwatch.Watch, error)
 }

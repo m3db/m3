@@ -143,15 +143,7 @@ func (c *client) Watch(key string) (kv.ValueWatch, error) {
 	c.Lock()
 	watchable, ok := c.watchables[key]
 	if !ok {
-		watchChan := c.watcher.Watch(
-			context.Background(),
-			c.opts.KeyFn()(key),
-			// periodically (appx every 10 mins) checks for the latest data
-			// with or without any update notification
-			clientv3.WithProgressNotify(),
-			// receive initial notification once the watch channel is created
-			clientv3.WithCreatedNotify(),
-		)
+		watchChan := c.watchChan(key)
 		c.m.etcdWatchCreate.Inc(1)
 
 		watchable = kv.NewValueWatchable()
@@ -171,12 +163,7 @@ func (c *client) Watch(key string) (kv.ValueWatch, error) {
 						// avoid recreating watch channel too frequently
 						time.Sleep(c.opts.WatchChanResetInterval())
 
-						watchChan = c.watcher.Watch(
-							context.Background(),
-							c.opts.KeyFn()(key),
-							clientv3.WithProgressNotify(),
-							clientv3.WithCreatedNotify(),
-						)
+						watchChan = c.watchChan(key)
 						c.m.etcdWatchReset.Inc(1)
 					}
 				case <-ticker:
@@ -199,6 +186,18 @@ func (c *client) Watch(key string) (kv.ValueWatch, error) {
 	c.Unlock()
 	_, w, err := watchable.Watch()
 	return w, err
+}
+
+func (c *client) watchChan(key string) clientv3.WatchChan {
+	return c.watcher.Watch(
+		context.Background(),
+		c.opts.KeyFn()(key),
+		// periodically (appx every 10 mins) checks for the latest data
+		// with or without any update notification
+		clientv3.WithProgressNotify(),
+		// receive initial notification once the watch channel is created
+		clientv3.WithCreatedNotify(),
+	)
 }
 
 func (c *client) tryCleanUp(key string) bool {

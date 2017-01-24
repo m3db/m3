@@ -23,12 +23,12 @@ package client
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/coreos/etcd/integration"
+	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
 	"github.com/m3db/m3cluster/kv"
 	etcdKV "github.com/m3db/m3cluster/kv/etcd"
 	"github.com/m3db/m3cluster/services"
@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/watch"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,9 +56,6 @@ func TestOptions(t *testing.T) {
 
 	opts = opts.SetInitTimeout(0)
 	require.Equal(t, errInvalidInitTimeout, opts.Validate())
-
-	opts = opts.SetHeartbeatCheckInterval(0)
-	require.Equal(t, errInvalidHeartbeatInterval, opts.Validate())
 }
 
 func TestMetadata(t *testing.T) {
@@ -240,7 +238,7 @@ func TestQueryIncludeUnhealthy(t *testing.T) {
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
 	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
-	ps, err := NewPlacementStorage(opts)
+	ps, err := newPlacementStorage(opts)
 	require.NoError(t, err)
 
 	err = ps.SetIfNotExist(sid, p)
@@ -281,7 +279,7 @@ func TestQueryNotIncludeUnhealthy(t *testing.T) {
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
 	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
-	ps, err := NewPlacementStorage(opts)
+	ps, err := newPlacementStorage(opts)
 	require.NoError(t, err)
 
 	err = ps.SetIfNotExist(sid, p)
@@ -322,24 +320,29 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, errNoServiceName, err)
 
-	sid = sid.SetName("m3db")
+	sid = sid.SetName("m3db").SetZone("zone1")
 	_, err = sd.Watch(sid, qopts)
 	require.Error(t, err)
 	require.Equal(t, errWatchInitTimeout, err)
 
-	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
-		placement.NewInstance().
-			SetID("i1").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-		placement.NewInstance().
-			SetID("i2").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-	}).SetShards([]uint32{1}).SetReplicaFactor(2)
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint("e1").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			placement.NewInstance().
+				SetID("i2").
+				SetEndpoint("e2").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+		}).
+		SetShards([]uint32{1}).
+		SetReplicaFactor(2).
+		SetIsSharded(true)
 
-	ps, err := NewPlacementStorage(opts)
+	ps, err := sd.PlacementService(sid, placement.NewOptions())
 	require.NoError(t, err)
-
-	err = ps.SetIfNotExist(sid, p)
+	err = ps.SetPlacement(p)
 	require.NoError(t, err)
 
 	w, err := sd.Watch(sid, qopts)
@@ -350,22 +353,60 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	p = placement.NewPlacement().SetInstances([]services.PlacementInstance{
-		placement.NewInstance().
-			SetID("i1").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-		placement.NewInstance().
-			SetID("i2").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(2)})),
-	}).SetShards([]uint32{1, 2}).SetReplicaFactor(1)
+	p = placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint("e1").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			placement.NewInstance().
+				SetID("i2").
+				SetEndpoint("e2").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(2)})),
+		}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
 
-	err = ps.CheckAndSet(sid, p, 1)
+	err = ps.SetPlacement(p)
 	require.NoError(t, err)
+
 	<-w.C()
 	s = w.Get().(services.Service)
 	require.Equal(t, 2, len(s.Instances()))
 	require.Equal(t, 2, s.Sharding().NumShards())
 	require.Equal(t, 1, s.Replication().Replicas())
+
+	c := sd.(*client)
+
+	c.RLock()
+	kvm, ok := c.kvManagers["zone1"]
+	c.RUnlock()
+	require.True(t, ok)
+
+	// set a bad value for placement
+	v, err := kvm.kv.Set(placementKey(sid), &metadataproto.Metadata{Port: 1})
+	require.NoError(t, err)
+	require.Equal(t, 3, v)
+
+	// make sure the newly set bad value has been propagated to watches
+	w2, err := kvm.kv.Watch(placementKey(sid))
+	require.NoError(t, err)
+	for range w2.C() {
+		if w2.Get().Version() == 3 {
+			break
+		}
+	}
+	w2.Close()
+
+	// make sure the bad value has been ignored
+	s = w.Get().(services.Service)
+	require.Equal(t, 0, len(w.C()))
+	require.Equal(t, 2, len(s.Instances()))
+	require.Equal(t, 2, s.Sharding().NumShards())
+	require.Equal(t, 1, s.Replication().Replicas())
+
+	w.Close()
 }
 
 func TestWatchNotIncludeUnhealthy(t *testing.T) {
@@ -382,34 +423,43 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, errWatchInitTimeout, err)
 
-	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
-		placement.NewInstance().
-			SetID("i1").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-		placement.NewInstance().
-			SetID("i2").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
-	}).SetShards([]uint32{1}).SetReplicaFactor(2)
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint("e1").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			placement.NewInstance().
+				SetID("i2").
+				SetEndpoint("e2").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+		}).
+		SetShards([]uint32{1}).
+		SetReplicaFactor(2).
+		SetIsSharded(true)
 
-	ps, err := NewPlacementStorage(opts)
+	ps, err := sd.PlacementService(sid, placement.NewOptions())
 	require.NoError(t, err)
-
-	err = ps.SetIfNotExist(sid, p)
+	err = ps.SetPlacement(p)
 	require.NoError(t, err)
 
 	w, err := sd.Watch(sid, qopts)
 	require.NoError(t, err)
 	<-w.C()
 	s := w.Get().(services.Service)
-	require.Equal(t, 0, len(s.Instances()))
+	// the heartbeat has nil value, so no filtering
+	require.Equal(t, 2, len(s.Instances()))
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	mockHB, err := m.genMockStore("zone1")
-	require.NoError(t, err)
+	mockHB, ok := m.getMockStore("zone1")
+	require.True(t, ok)
+
+	watchable, ok := mockHB.getWatchable(serviceKey(sid))
+	require.True(t, ok)
 
 	// heartbeat
-	require.NoError(t, mockHB.Heartbeat(serviceKey(sid), "i1", time.Second))
+	watchable.Update([]string{"i1"})
 	<-w.C()
 	s = w.Get().(services.Service)
 	require.Equal(t, 1, len(s.Instances()))
@@ -418,26 +468,71 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	require.NoError(t, mockHB.Heartbeat(serviceKey(sid), "i2", time.Second))
+	watchable.Update([]string{"i1", "i2"})
 	<-w.C()
 	s = w.Get().(services.Service)
 	require.Equal(t, 2, len(s.Instances()))
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	mockHB.cleanup(serviceKey(sid), "i1")
-	mockHB.cleanup(serviceKey(sid), "i2")
-	mockHB, ok := m.getMockStore("zone1")
-	require.True(t, ok)
-
-	// make sure it does another tick
-	time.Sleep(opts.HeartbeatCheckInterval())
+	watchable.Update([]string{})
 
 	<-w.C()
 	s = w.Get().(services.Service)
 	require.Equal(t, 0, len(s.Instances()))
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
+
+	watchable.Update([]string{"i2"})
+
+	<-w.C()
+	s = w.Get().(services.Service)
+	require.Equal(t, 1, len(s.Instances()))
+	require.Equal(t, 1, s.Sharding().NumShards())
+	require.True(t, s.Sharding().IsSharded())
+	require.Equal(t, 2, s.Replication().Replicas())
+
+	c := sd.(*client)
+
+	c.RLock()
+	kvm, ok := c.kvManagers["zone1"]
+	c.RUnlock()
+	require.True(t, ok)
+
+	// set a bad value for placement
+	v, err := kvm.kv.Set(placementKey(sid), &metadataproto.Metadata{Port: 1})
+	require.NoError(t, err)
+	require.Equal(t, 2, v)
+
+	// make sure the newly set bad value has been propagated to watches
+	w2, err := kvm.kv.Watch(placementKey(sid))
+	require.NoError(t, err)
+	for range w2.C() {
+		if w2.Get().Version() == 2 {
+			break
+		}
+	}
+	w2.Close()
+
+	// make sure the bad value has been ignored
+	require.Equal(t, 0, len(w.C()))
+	s = w.Get().(services.Service)
+	require.Equal(t, 1, len(s.Instances()))
+	require.Equal(t, 1, s.Sharding().NumShards())
+	require.True(t, s.Sharding().IsSharded())
+	require.Equal(t, 2, s.Replication().Replicas())
+
+	// now receive a update from heartbeat Store
+	// will try to merge it with existing placement
+	watchable.Update([]string{"i1", "i2"})
+
+	<-w.C()
+	s = w.Get().(services.Service)
+	require.Equal(t, 2, len(s.Instances()))
+	require.Equal(t, 1, s.Sharding().NumShards())
+	require.True(t, s.Sharding().IsSharded())
+	require.Equal(t, 2, s.Replication().Replicas())
+	w.Close()
 }
 
 func TestMultipleWatches(t *testing.T) {
@@ -456,7 +551,7 @@ func TestMultipleWatches(t *testing.T) {
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
 	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
-	ps, err := NewPlacementStorage(opts)
+	ps, err := newPlacementStorage(opts)
 	require.NoError(t, err)
 
 	err = ps.SetIfNotExist(sid, p)
@@ -482,19 +577,14 @@ func TestMultipleWatches(t *testing.T) {
 	<-w2.C()
 
 	require.Equal(t, w1.Get(), w2.Get())
-}
 
-func TestEqualIDs(t *testing.T) {
-	require.True(t, equalIDs(nil, nil))
-	require.False(t, equalIDs(nil, []string{"i1"}))
-	require.True(t, equalIDs([]string{"i1"}, []string{"i1"}))
-	require.False(t, equalIDs([]string{"i2"}, []string{"i1"}))
-	require.False(t, equalIDs([]string{"i1", "i2"}, []string{"i1"}))
+	w1.Close()
+	w2.Close()
 }
 
 func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
-	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
-	ec := ecluster.Client(rand.Intn(3))
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
+	ec := ecluster.Client(0)
 
 	closer := func() {
 		ecluster.Terminate(t)
@@ -513,7 +603,9 @@ func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 		), nil
 	}
 
-	m := &mockHBGen{hbs: map[string]*mockHBStore{}}
+	m := &mockHBGen{
+		hbs: map[string]*mockHBStore{},
+	}
 	hbGen := func(zone string) (heartbeat.Store, error) {
 		return m.genMockStore(zone)
 	}
@@ -522,7 +614,6 @@ func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 		SetKVGen(kvGen).
 		SetHeartbeatGen(hbGen).
 		SetInitTimeout(100 * time.Millisecond).
-		SetHeartbeatCheckInterval(100 * time.Millisecond).
 		SetInstrumentsOptions(instrument.NewOptions()), closer, m
 }
 
@@ -540,7 +631,10 @@ func (m *mockHBGen) genMockStore(zone string) (*mockHBStore, error) {
 	if ok {
 		return s, nil
 	}
-	s = &mockHBStore{hbs: map[string]map[string]time.Time{}}
+	s = &mockHBStore{
+		hbs:        map[string]map[string]time.Time{},
+		watchables: map[string]xwatch.Watchable{},
+	}
 
 	m.hbs[zone] = s
 	return s, nil
@@ -557,7 +651,8 @@ func (m *mockHBGen) getMockStore(zone string) (*mockHBStore, bool) {
 type mockHBStore struct {
 	sync.Mutex
 
-	hbs map[string]map[string]time.Time
+	hbs        map[string]map[string]time.Time
+	watchables map[string]xwatch.Watchable
 }
 
 func (hb *mockHBStore) Heartbeat(s string, id string, ttl time.Duration) error {
@@ -589,6 +684,31 @@ func (hb *mockHBStore) Get(s string) ([]string, error) {
 	}
 
 	return r, nil
+}
+
+func (hb *mockHBStore) Watch(s string) (xwatch.Watch, error) {
+	hb.Lock()
+	defer hb.Unlock()
+
+	watchable, ok := hb.watchables[s]
+	if ok {
+		_, w, err := watchable.Watch()
+		return w, err
+	}
+
+	watchable = xwatch.NewWatchable()
+	hb.watchables[s] = watchable
+
+	_, w, err := watchable.Watch()
+	return w, err
+}
+
+func (hb *mockHBStore) getWatchable(s string) (xwatch.Watchable, bool) {
+	hb.Lock()
+	defer hb.Unlock()
+
+	w, ok := hb.watchables[s]
+	return w, ok
 }
 
 func (hb *mockHBStore) cleanup(s, id string) {

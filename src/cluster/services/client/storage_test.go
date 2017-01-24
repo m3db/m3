@@ -33,7 +33,7 @@ func TestPlacementStorage(t *testing.T) {
 	opts, closer, _ := testSetup(t)
 	defer closer()
 
-	ps, err := NewPlacementStorage(opts)
+	ps, err := newPlacementStorage(opts)
 	require.NoError(t, err)
 
 	sid := services.NewServiceID()
