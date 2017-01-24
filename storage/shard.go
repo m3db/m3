@@ -83,7 +83,7 @@ type dbShard struct {
 	nowFn                 clock.NowFn
 	state                 dbShardState
 	namespace             ts.ID
-	shardBlockRetriever   series.ShardBlockRetriever
+	seriesBlockRetriever  series.SeriesBlockRetriever
 	shard                 uint32
 	increasingIndex       increasingIndex
 	seriesPool            series.DatabaseSeriesPool
@@ -189,7 +189,7 @@ func newDatabaseShard(
 		// If passing the block retriever then set the block retriever
 		// and set the series block retriever as the shard itself
 		d.DatabaseBlockRetriever = blockRetriever
-		d.shardBlockRetriever = d
+		d.seriesBlockRetriever = d
 	}
 	d.metrics.create.Inc(1)
 	return d
@@ -206,12 +206,16 @@ func (s *dbShard) NumSeries() int64 {
 	return int64(n)
 }
 
-// ShardID implements series.ShardBlockRetriever
-func (s *dbShard) ShardID() uint32 {
-	return s.ID()
+// Stream implements series.SeriesBlockRetriever
+func (s *dbShard) Stream(
+	id ts.ID,
+	start time.Time,
+	onRetrieve block.OnRetrieveBlock,
+) (xio.SegmentReader, error) {
+	return s.DatabaseBlockRetriever.Stream(s.shard, id, start, onRetrieve)
 }
 
-// IsBlockRetrievable implements series.ShardBlockRetriever
+// IsBlockRetrievable implements series.SeriesBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
 	switch flushState.Status {
@@ -488,7 +492,7 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	// Retrieve the entry out of any locks to avoid any possible expensive
 	// allocations during any unpooled gets blocking other writers
 	series := s.seriesPool.Get()
-	series.Reset(s.identifierPool.Clone(id), s.shardBlockRetriever)
+	series.Reset(s.identifierPool.Clone(id), s.seriesBlockRetriever)
 
 	entry := &dbShardEntry{
 		series:     series,

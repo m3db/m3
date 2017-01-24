@@ -60,6 +60,7 @@ type blockRetriever struct {
 
 	status         blockRetrieverStatus
 	reqsByShardIdx []*shardRetrieveRequests
+	seekerMgrs     []FileSetSeekerManager
 	sleepFn        func(time.Duration)
 }
 
@@ -111,32 +112,45 @@ func (r *blockRetriever) Open(namespace ts.ID) error {
 			namespace.String())
 	}
 
-	r.namespace = namespace
-	r.status = blockRetrieverOpen
-
+	seekerMgrs := make([]FileSetSeekerManager, 0, r.opts.FetchConcurrency())
 	for i := 0; i < r.opts.FetchConcurrency(); i++ {
-		go r.fetchLoop()
+		seekerMgr := NewSeekerManager(r.bytesPool, r.fsOpts)
+		if err := seekerMgr.Open(namespace); err != nil {
+			for _, opened := range seekerMgrs {
+				opened.Close()
+			}
+			return err
+		}
+		seekerMgrs = append(seekerMgrs, seekerMgr)
 	}
 
+	r.namespace = namespace
+	r.status = blockRetrieverOpen
+	r.seekerMgrs = seekerMgrs
+
+	for _, seekerMgr := range seekerMgrs {
+		go r.fetchLoop(seekerMgr)
+	}
 	return nil
 }
 
-func (r *blockRetriever) newOpenSeeker(
-	shard uint32,
-	start time.Time,
-) (FileSetSeeker, error) {
-	filePathPrefix := r.fsOpts.FilePathPrefix()
-	bufferSize := r.fsOpts.ReaderBufferSize()
-	bytesPool := r.bytesPool
+func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
+	r.RLock()
+	defer r.RUnlock()
 
-	seeker := NewSeeker(filePathPrefix, bufferSize, bytesPool)
-	if err := seeker.Open(r.namespace, shard, start); err != nil {
-		return nil, err
+	if r.status != blockRetrieverOpen {
+		return errBlockRetrieverNotOpen
 	}
-	return seeker, nil
+
+	for _, seekerMgr := range r.seekerMgrs {
+		if err := seekerMgr.CacheShardIndices(shards); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (r *blockRetriever) fetchLoop() {
+func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 	var (
 		yield          = r.opts.FetchYieldOnQueueEmpty()
 		rng            = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -144,7 +158,6 @@ func (r *blockRetriever) fetchLoop() {
 		currBatchShard uint32
 		currBatchStart time.Time
 		currBatchReqs  []*retrieveRequest
-		seekers        = map[uint32]map[time.Time]FileSetSeeker{}
 	)
 	resetInFlight := func() {
 		// Free references to the requests
@@ -157,31 +170,8 @@ func (r *blockRetriever) fetchLoop() {
 		shard := currBatchShard
 		start := currBatchStart
 		if len(currBatchReqs) != 0 {
-			var (
-				seekersByStart = seekers[shard]
-				seeker         FileSetSeeker
-				seekerErr      error
-			)
-			if seekersByStart == nil {
-				seekersByStart = make(map[time.Time]FileSetSeeker)
-				seekers[shard] = seekersByStart
-			}
-
-			seeker = seekersByStart[start]
-			if seeker == nil {
-				seeker, seekerErr = r.newOpenSeeker(shard, start)
-				seekersByStart[start] = seeker
-			}
-
-			if seekerErr != nil {
-				// Fail all retrieve requests, cannot open seeker
-				for _, req := range currBatchReqs {
-					req.onError(seekerErr)
-				}
-			} else {
-				// Fetch the batch using the open seeker
-				r.fetchBatch(seeker, currBatchReqs)
-			}
+			// Fetch the batch using the seeker mgr
+			r.fetchBatch(seekerMgr, shard, start, currBatchReqs)
 		}
 		// Free references to the requests
 		for i := range currBatchReqs {
@@ -251,17 +241,24 @@ func (r *blockRetriever) fetchLoop() {
 	}
 
 	// Close the seekers
-	for _, seekersByStart := range seekers {
-		for _, seeker := range seekersByStart {
-			seeker.Close()
-		}
-	}
+	seekerMgr.Close()
 }
 
 func (r *blockRetriever) fetchBatch(
-	seeker FileSetSeeker,
+	seekerMgr FileSetSeekerManager,
+	shard uint32,
+	blockStart time.Time,
 	reqs []*retrieveRequest,
 ) {
+	// Resolve the seeker from the seeker mgr
+	seeker, err := seekerMgr.Seeker(shard, blockStart)
+	if err != nil {
+		for _, req := range reqs {
+			req.onError(err)
+		}
+		return
+	}
+
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {

@@ -24,14 +24,15 @@
 package series
 
 import (
+	time "time"
+
 	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
 	persist "github.com/m3db/m3db/persist"
 	block "github.com/m3db/m3db/storage/block"
 	ts "github.com/m3db/m3db/ts"
-	time0 "github.com/m3db/m3x/time"
 	io "github.com/m3db/m3db/x/io"
-	time "time"
+	time0 "github.com/m3db/m3x/time"
 )
 
 // Mock of DatabaseSeries interface
@@ -144,7 +145,7 @@ func (_mr *_MockDatabaseSeriesRecorder) ReadEncoded(arg0, arg1, arg2 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 ShardBlockRetriever) {
+func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 SeriesBlockRetriever) {
 	_m.ctrl.Call(_m, "Reset", _param0, _param1)
 }
 

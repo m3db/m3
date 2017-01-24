@@ -49,10 +49,9 @@ type dbBlock struct {
 
 	lastAccess time.Time
 
-	retriever     DatabaseBlockRetriever
-	retrieveShard uint32
-	retrieveID    ts.ID
-	onRetrieve    OnRetrieveBlock
+	retriever  DatabaseShardBlockRetriever
+	retrieveID ts.ID // can get rid of with a bound databaseblockretriever
+	onRetrieve OnRetrieveBlock
 
 	closed bool
 }
@@ -75,7 +74,7 @@ func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) Databas
 // NewRetrievableDatabaseBlock creates a new retrievable DatabaseBlock instance.
 func NewRetrievableDatabaseBlock(
 	start time.Time,
-	retriever DatabaseBlockRetriever,
+	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 	opts Options,
 ) DatabaseBlock {
@@ -115,9 +114,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 
 	// If the block retrieve ID is set then it must be retrieved
 	if b.retriever != nil {
-		shard := b.retrieveShard
-		id := b.retrieveID
-		return b.retriever.Stream(shard, id, b.start, b.onRetrieve)
+		return b.retriever.Stream(b.retrieveID, b.start, b.onRetrieve)
 	}
 	// If the block is not writable, and the segment is empty, it means
 	// there are no data encoded in this block, so we return a nil reader.
@@ -153,7 +150,7 @@ func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 
 func (b *dbBlock) ResetRetrievable(
 	start time.Time,
-	retriever DatabaseBlockRetriever,
+	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 ) {
 	if !b.closed {
@@ -172,14 +169,13 @@ func (b *dbBlock) resetSegment(seg ts.Segment) {
 	b.checksum = digest.SegmentChecksum(seg)
 
 	b.retriever = nil
-	b.retrieveShard = 0
 	b.retrieveID = nil
 
 	b.ctx.RegisterFinalizer(&seg)
 }
 
 func (b *dbBlock) resetRetrievable(
-	retriever DatabaseBlockRetriever,
+	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 ) {
 	b.segment = ts.Segment{}
@@ -187,7 +183,6 @@ func (b *dbBlock) resetRetrievable(
 	b.checksum = metadata.Checksum
 
 	b.retriever = retriever
-	b.retrieveShard = metadata.Shard
 	b.retrieveID = metadata.ID
 }
 

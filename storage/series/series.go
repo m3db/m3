@@ -65,7 +65,7 @@ type dbSeries struct {
 	buffer         databaseBuffer
 	blocks         block.DatabaseSeriesBlocks
 	bs             bootstrapState
-	blockRetriever ShardBlockRetriever
+	blockRetriever SeriesBlockRetriever
 	pool           DatabaseSeriesPool
 }
 
@@ -222,12 +222,12 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		}
 		if retriever != nil && dataExpiry && currBlock.IsRetrieved() {
 			sinceLastAccessed := now.Sub(currBlock.LastAccessTime())
-			if sinceLastAccessed > dataCutoff {
+			if sinceLastAccessed > dataCutoff &&
+				retriever.IsBlockRetrievable(start) {
 				// NB(r): Each block needs shared ref to the series ID
 				// or else each block needs to have a copy of the ID
 				id := s.id
 				metadata := block.RetrievableBlockMetadata{
-					Shard:    retriever.ShardID(),
 					ID:       id,
 					Length:   currBlock.Len(),
 					Checksum: currBlock.Checksum(),
@@ -660,7 +660,7 @@ func (s *dbSeries) Close() {
 	}
 }
 
-func (s *dbSeries) Reset(id ts.ID, blockRetriever ShardBlockRetriever) {
+func (s *dbSeries) Reset(id ts.ID, blockRetriever SeriesBlockRetriever) {
 	s.Lock()
 	s.id = id
 	s.buffer.Reset()

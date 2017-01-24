@@ -106,6 +106,21 @@ type FileSetSeeker interface {
 	IDs() []ts.ID
 }
 
+// FileSetSeekerManager provides management of seekers for a TSDB namespace.
+type FileSetSeekerManager interface {
+	io.Closer
+
+	// Open opens the seekers for a given namespace.
+	Open(namespace ts.ID) error
+
+	// CacheShardIndices will pre-parse the indexes for given shards
+	// to improve times when seeking to a block.
+	CacheShardIndices(shards []uint32) error
+
+	// Seeker returns an open seeker for a given shard and block start time.
+	Seeker(shard uint32, start time.Time) (FileSetSeeker, error)
+}
+
 // BlockRetriever provides a block retriever for TSDB file sets
 type BlockRetriever interface {
 	io.Closer
@@ -177,6 +192,7 @@ type Options interface {
 	ReaderBufferSize() int
 }
 
+// BlockRetrieverOptions represents the options for block retrieval
 type BlockRetrieverOptions interface {
 	// SetRequestPoolOptions sets the request pool options
 	SetRequestPoolOptions(value pool.ObjectPoolOptions) BlockRetrieverOptions

@@ -343,7 +343,7 @@ func (_mr *_MockDatabaseBlockRecorder) Reset(arg0, arg1 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1)
 }
 
-func (_m *MockDatabaseBlock) ResetRetrievable(startTime time.Time, retriever DatabaseBlockRetriever, metadata RetrievableBlockMetadata) {
+func (_m *MockDatabaseBlock) ResetRetrievable(startTime time.Time, retriever DatabaseShardBlockRetriever, metadata RetrievableBlockMetadata) {
 	_m.ctrl.Call(_m, "ResetRetrievable", startTime, retriever, metadata)
 }
 
@@ -418,6 +418,38 @@ func (_m *MockDatabaseBlockRetriever) Stream(shard uint32, id ts.ID, startTime t
 
 func (_mr *_MockDatabaseBlockRetrieverRecorder) Stream(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0, arg1, arg2, arg3)
+}
+
+// Mock of DatabaseShardBlockRetriever interface
+type MockDatabaseShardBlockRetriever struct {
+	ctrl     *gomock.Controller
+	recorder *_MockDatabaseShardBlockRetrieverRecorder
+}
+
+// Recorder for MockDatabaseShardBlockRetriever (not exported)
+type _MockDatabaseShardBlockRetrieverRecorder struct {
+	mock *MockDatabaseShardBlockRetriever
+}
+
+func NewMockDatabaseShardBlockRetriever(ctrl *gomock.Controller) *MockDatabaseShardBlockRetriever {
+	mock := &MockDatabaseShardBlockRetriever{ctrl: ctrl}
+	mock.recorder = &_MockDatabaseShardBlockRetrieverRecorder{mock}
+	return mock
+}
+
+func (_m *MockDatabaseShardBlockRetriever) EXPECT() *_MockDatabaseShardBlockRetrieverRecorder {
+	return _m.recorder
+}
+
+func (_m *MockDatabaseShardBlockRetriever) Stream(id ts.ID, startTime time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+	ret := _m.ctrl.Call(_m, "Stream", id, startTime, onRetrieve)
+	ret0, _ := ret[0].(io.SegmentReader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockDatabaseShardBlockRetrieverRecorder) Stream(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0, arg1, arg2)
 }
 
 // Mock of DatabaseBlockRetrieverManager interface

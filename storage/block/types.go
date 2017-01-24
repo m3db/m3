@@ -154,7 +154,7 @@ type DatabaseBlock interface {
 	// ResetRetrievable resets the block to become retrievable.
 	ResetRetrievable(
 		startTime time.Time,
-		retriever DatabaseBlockRetriever,
+		retriever DatabaseShardBlockRetriever,
 		metadata RetrievableBlockMetadata,
 	)
 
@@ -173,7 +173,6 @@ type OnRetrieveBlock interface {
 
 // RetrievableBlockMetadata describes a retrievable block.
 type RetrievableBlockMetadata struct {
-	Shard    uint32
 	ID       ts.ID
 	Length   int
 	Checksum uint32
@@ -181,10 +180,25 @@ type RetrievableBlockMetadata struct {
 
 // DatabaseBlockRetriever is a block retriever.
 type DatabaseBlockRetriever interface {
+	// CacheShardIndices will pre-parse the indexes for given shards
+	// to improve times when streaming a block.
+	CacheShardIndices(shards []uint32) error
+
+	// Stream will stream a block for a given shard, id and start.
 	Stream(
 		shard uint32,
 		id ts.ID,
-		startTime time.Time,
+		blockStart time.Time,
+		onRetrieve OnRetrieveBlock,
+	) (xio.SegmentReader, error)
+}
+
+// DatabaseShardBlockRetriever is a block retriever bound to a shard.
+type DatabaseShardBlockRetriever interface {
+	// Stream will stream a block for a given id and start.
+	Stream(
+		id ts.ID,
+		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,
 	) (xio.SegmentReader, error)
 }
@@ -193,6 +207,12 @@ type DatabaseBlockRetriever interface {
 // for different namespaces.
 type DatabaseBlockRetrieverManager interface {
 	Retriever(namespace ts.ID) (DatabaseBlockRetriever, error)
+}
+
+// DatabaseShardBlockRetrieverManager creates and holds shard block
+// retrievers binding shards to an existing retriever.
+type DatabaseShardBlockRetrieverManager interface {
+	ShardRetriever(shard uint32) DatabaseShardBlockRetriever
 }
 
 // DatabaseSeriesBlocks represents a collection of data blocks.

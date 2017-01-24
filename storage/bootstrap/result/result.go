@@ -83,6 +83,7 @@ func NewShardResult(capacity int, opts Options) ShardResult {
 }
 
 func (sr *shardResult) newBlocksLen() int {
+	// TODO: make default size option in Options, use 2 for default
 	ropts := sr.opts.RetentionOptions()
 	return int(ropts.RetentionPeriod() / ropts.BlockSize())
 }

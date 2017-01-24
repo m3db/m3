@@ -169,12 +169,17 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	readersCh <-chan shardReaders,
 ) result.BootstrapResult {
 	var (
-		wg              sync.WaitGroup
-		resultLock      sync.Mutex
-		bootstrapResult = result.NewBootstrapResult()
-		bopts           = s.opts.ResultOptions()
-		blockPool       = bopts.DatabaseBlockOptions().DatabaseBlockPool()
+		wg                sync.WaitGroup
+		resultLock        sync.Mutex
+		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
+		bootstrapResult   = result.NewBootstrapResult()
+		bopts             = s.opts.ResultOptions()
+		blockPool         = bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	)
+
+	if retriever != nil {
+		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(retriever)
+	}
 
 	for shardReaders := range readersCh {
 		shardReaders := shardReaders
@@ -185,9 +190,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 			var (
 				seriesMap       result.ShardResult
 				timesWithErrors []time.Time
+				shardRetriever  block.DatabaseShardBlockRetriever
 			)
 
 			shard, tr, readers := shardReaders.shard, shardReaders.tr, shardReaders.readers
+			if shardRetrieverMgr != nil {
+				shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
+			}
+
 			for _, r := range readers {
 				if seriesMap == nil {
 					// Delay initializing seriesMap until we have a good idea of its capacity
@@ -224,11 +234,10 @@ func (s *fileSystemSource) bootstrapFromReaders(
 							seriesID = id
 							metadata := block.RetrievableBlockMetadata{
 								ID:       id,
-								Shard:    shard,
 								Length:   length,
 								Checksum: checksum,
 							}
-							seriesBlock.ResetRetrievable(start, retriever, metadata)
+							seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
 						}
 					}
 
@@ -311,8 +320,27 @@ func (s *fileSystemSource) Read(
 	var blockRetriever block.DatabaseBlockRetriever
 	blockRetrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 	if blockRetrieverMgr != nil {
+		s.log.WithFields(
+			xlog.NewLogField("namespace", namespace.String()),
+		).Infof("filesystem bootstrapper resolving block retriever")
+
 		var err error
 		blockRetriever, err = blockRetrieverMgr.Retriever(namespace)
+		if err != nil {
+			return nil, err
+		}
+
+		s.log.WithFields(
+			xlog.NewLogField("namespace", namespace.String()),
+			xlog.NewLogField("shards", len(shardsTimeRanges)),
+		).Infof("filesystem bootstrapper caching block retriever shard indices")
+
+		shards := make([]uint32, 0, len(shardsTimeRanges))
+		for shard := range shardsTimeRanges {
+			shards = append(shards, shard)
+		}
+
+		err = blockRetriever.CacheShardIndices(shards)
 		if err != nil {
 			return nil, err
 		}

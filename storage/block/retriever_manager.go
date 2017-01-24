@@ -22,8 +22,10 @@ package block
 
 import (
 	"sync"
+	"time"
 
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/io"
 )
 
 // NewDatabaseBlockRetrieverFn is a method for constructing
@@ -76,4 +78,67 @@ func (m *blockRetrieverManager) Retriever(
 
 	m.retrievers[namespace.Hash()] = retriever
 	return retriever, nil
+}
+
+type shardBlockRetriever struct {
+	DatabaseBlockRetriever
+	shard uint32
+}
+
+// NewDatabaseShardBlockRetriever creates a new shard database
+// block retriever given an existing database block retriever
+func NewDatabaseShardBlockRetriever(
+	shard uint32,
+	r DatabaseBlockRetriever,
+) DatabaseShardBlockRetriever {
+	return &shardBlockRetriever{
+		DatabaseBlockRetriever: r,
+		shard: shard,
+	}
+}
+
+func (r *shardBlockRetriever) Stream(
+	id ts.ID,
+	blockStart time.Time,
+	onRetrieve OnRetrieveBlock,
+) (xio.SegmentReader, error) {
+	return r.DatabaseBlockRetriever.Stream(r.shard, id, blockStart, onRetrieve)
+}
+
+type shardBlockRetrieverManager struct {
+	sync.RWMutex
+	retriever       DatabaseBlockRetriever
+	shardRetrievers map[uint32]DatabaseShardBlockRetriever
+}
+
+// NewDatabaseShardBlockRetrieverManager creates and holds shard block
+// retrievers binding shards to an existing retriever.
+func NewDatabaseShardBlockRetrieverManager(
+	r DatabaseBlockRetriever,
+) DatabaseShardBlockRetrieverManager {
+	return &shardBlockRetrieverManager{retriever: r}
+}
+
+func (m *shardBlockRetrieverManager) ShardRetriever(
+	shard uint32,
+) DatabaseShardBlockRetriever {
+	m.RLock()
+	retriever, ok := m.shardRetrievers[shard]
+	m.RUnlock()
+
+	if ok {
+		return retriever
+	}
+
+	m.Lock()
+	defer m.Unlock()
+
+	retriever, ok = m.shardRetrievers[shard]
+	if ok {
+		return retriever
+	}
+
+	retriever = NewDatabaseShardBlockRetriever(shard, m.retriever)
+	m.shardRetrievers[shard] = retriever
+	return retriever
 }

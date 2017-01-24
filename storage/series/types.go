@@ -85,16 +85,13 @@ type DatabaseSeries interface {
 	Close()
 
 	// Reset resets the series for reuse
-	Reset(id ts.ID, blockRetriever ShardBlockRetriever)
+	Reset(id ts.ID, blockRetriever SeriesBlockRetriever)
 }
 
-// ShardBlockRetriever is a block retriever that is bound to a shard
-// and can tell if a block is retrievable or not for a given start time
-type ShardBlockRetriever interface {
-	block.DatabaseBlockRetriever
-
-	// ShardID returns the shard the retriever operates on
-	ShardID() uint32
+// SeriesBlockRetriever is a block retriever that can tell if a block
+// is retrievable or not for a given start time.
+type SeriesBlockRetriever interface {
+	block.DatabaseShardBlockRetriever
 
 	// IsBlockRetrievable returns whether a block is retrievable
 	// for a given block start time

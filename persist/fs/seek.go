@@ -55,38 +55,76 @@ type seeker struct {
 	expectedInfoDigest         uint32
 	expectedIndexDigest        uint32
 
-	unreadBuf []byte
-	prologue  []byte
-	entries   int
-	dataFd    *os.File
-	indexMap  map[ts.Hash]*schema.IndexEntry
-	bytesPool pool.CheckedBytesPool
+	keepUnreadBuf bool
+	unreadBuf     []byte
+	prologue      []byte
+	entries       int
+	dataFd        *os.File
+	// NB(r): specifically use a non pointer type for
+	// key and value in this map to avoid the GC scanning
+	// this large map.
+	indexMap     map[ts.Hash]indexMapEntry
+	keepIndexIDs bool
+	indexIDs     []ts.ID
+	bytesPool    pool.CheckedBytesPool
 }
 
-// NewSeeker returns a new seeker for a filePathPrefix and expects all files to exist.  Will
-// read the index info.
+type indexMapEntry struct {
+	size   int64
+	offset int64
+}
+
+// NewSeeker returns a new seeker.
 func NewSeeker(
 	filePathPrefix string,
 	bufferSize int,
 	bytesPool pool.CheckedBytesPool,
 ) FileSetSeeker {
+	return newSeeker(seekerOpts{
+		filePathPrefix: filePathPrefix,
+		bufferSize:     bufferSize,
+		bytesPool:      bytesPool,
+		keepIndexIDs:   true,
+		keepUnreadBuf:  false,
+	})
+}
+
+type seekerOpts struct {
+	filePathPrefix string
+	bufferSize     int
+	bytesPool      pool.CheckedBytesPool
+	keepIndexIDs   bool
+	keepUnreadBuf  bool
+}
+
+// fileSetSeeker adds package level access to further methods
+// on the seeker for use by the seeker manager for efficient
+// multi-seeker use.
+type fileSetSeeker interface {
+	FileSetSeeker
+
+	// unreadBuffer returns the unread buffer
+	unreadBuffer() []byte
+
+	// setUnreadBuffer sets the unread buffer
+	setUnreadBuffer(buf []byte)
+}
+
+func newSeeker(opts seekerOpts) fileSetSeeker {
 	return &seeker{
-		filePathPrefix:             filePathPrefix,
-		infoFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
-		indexFdWithDigest:          digest.NewFdWithDigestReader(bufferSize),
-		dataReader:                 bufio.NewReaderSize(nil, bufferSize),
-		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
+		filePathPrefix:             opts.filePathPrefix,
+		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.bufferSize),
+		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.bufferSize),
+		dataReader:                 bufio.NewReaderSize(nil, opts.bufferSize),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.bufferSize),
 		prologue:                   make([]byte, markerLen+idxLen),
-		bytesPool:                  bytesPool,
+		keepIndexIDs:               opts.keepIndexIDs,
+		bytesPool:                  opts.bytesPool,
 	}
 }
 
 func (s *seeker) IDs() []ts.ID {
-	fileIds := make([]ts.ID, 0, len(s.indexMap))
-	for _, indexEntry := range s.indexMap {
-		fileIds = append(fileIds, ts.BinaryID(checked.NewBytes(indexEntry.Id, nil)))
-	}
-	return fileIds
+	return s.indexIDs
 }
 
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
@@ -133,8 +171,17 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 
 func (s *seeker) prepareUnreadBuf(size int) {
 	if len(s.unreadBuf) < size {
-		s.unreadBuf = make([]byte, size)
+		// NB(r): Make a little larger so unlikely to occur multiple times
+		s.unreadBuf = make([]byte, int(1.5*float64(size)))
 	}
+}
+
+func (s *seeker) unreadBuffer() []byte {
+	return s.unreadBuf
+}
+
+func (s *seeker) setUnreadBuffer(buf []byte) {
+	s.unreadBuf = buf
 }
 
 func (s *seeker) readDigest() error {
@@ -173,10 +220,17 @@ func (s *seeker) readIndex(size int) error {
 	}
 
 	indexUnread := s.unreadBuf[:n][:]
-	s.indexMap = make(map[ts.Hash]*schema.IndexEntry, s.entries)
+	if s.indexMap == nil {
+		s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
+	}
+
+	protoBuf := proto.NewBuffer(nil)
+	entry := &schema.IndexEntry{}
+
 	// Read all entries of index
 	for read := 0; read < s.entries; read++ {
-		entry := &schema.IndexEntry{}
+		entry.Reset()
+
 		size, consumed := proto.DecodeVarint(indexUnread)
 		indexUnread = indexUnread[consumed:]
 		if consumed < 1 {
@@ -184,12 +238,28 @@ func (s *seeker) readIndex(size int) error {
 		}
 
 		indexEntryData := indexUnread[:size]
-		if err := proto.Unmarshal(indexEntryData, entry); err != nil {
+		protoBuf.SetBuf(indexEntryData)
+		if err := protoBuf.Unmarshal(entry); err != nil {
 			return err
 		}
 
 		indexUnread = indexUnread[size:]
-		s.indexMap[ts.HashFn(entry.Id)] = entry
+		s.indexMap[ts.HashFn(entry.Id)] = indexMapEntry{
+			size:   entry.Size,
+			offset: entry.Offset,
+		}
+
+		if s.keepIndexIDs {
+			entryID := append([]byte(nil), entry.Id...)
+			id := ts.BinaryID(checked.NewBytes(entryID, nil))
+			s.indexIDs = append(s.indexIDs, id)
+		}
+	}
+
+	if !s.keepUnreadBuf {
+		// NB(r): Free the unread buffer as unless using this seeker
+		// in the seeker manager we never use this buffer again
+		s.unreadBuf = nil
 	}
 
 	return nil
@@ -201,7 +271,7 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 		return nil, errSeekIDNotFound
 	}
 
-	_, err := s.dataFd.Seek(entry.Offset, 0)
+	_, err := s.dataFd.Seek(entry.offset, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -218,12 +288,12 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 	var data checked.Bytes
 	if s.bytesPool != nil {
-		data = s.bytesPool.Get(int(entry.Size))
+		data = s.bytesPool.Get(int(entry.size))
 		data.IncRef()
 		defer data.DecRef()
-		data.Resize(int(entry.Size))
+		data.Resize(int(entry.size))
 	} else {
-		data = checked.NewBytes(make([]byte, entry.Size), nil)
+		data = checked.NewBytes(make([]byte, entry.size), nil)
 		data.IncRef()
 		defer data.DecRef()
 	}
@@ -235,7 +305,7 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 	// In case the buffered reader only returns what's remaining in
 	// the buffer, repeatedly read what's left in the underlying reader.
-	for n < int(entry.Size) {
+	for n < int(entry.size) {
 		b := data.Get()[n:]
 		remainder, err := s.dataReader.Read(b)
 
@@ -247,7 +317,7 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 		n += remainder
 	}
 
-	if n != int(entry.Size) {
+	if n != int(entry.size) {
 		return nil, errReadNotExpectedSize
 	}
 
@@ -259,7 +329,7 @@ func (s *seeker) SeekOffset(id ts.ID) int {
 	if !exists {
 		return -1
 	}
-	return int(entry.Offset)
+	return int(entry.offset)
 }
 
 func (s *seeker) Range() xtime.Range {
@@ -271,6 +341,10 @@ func (s *seeker) Entries() int {
 }
 
 func (s *seeker) Close() error {
+	// Prepare for reuse
+	for key := range s.indexMap {
+		delete(s.indexMap, key)
+	}
 	return closeAll(
 		s.infoFdWithDigest,
 		s.indexFdWithDigest,
