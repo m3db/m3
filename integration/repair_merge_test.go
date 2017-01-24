@@ -82,15 +82,15 @@ func TestRepairMerge(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setups[1], splitMaps[1]))
 	log.Debug("fs bootstrap input data written to disk")
 
-	// Move time forward to trigger repairs
-	later := now.Add(blockSize * 3).Add(30 * time.Second)
-	setups[0].setNowFn(later)
-	setups[1].setNowFn(later)
-
 	// Start the servers with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
+
+	// Move time forward to trigger repairs
+	later := now.Add(blockSize * 3).Add(30 * time.Second)
+	setups[0].setNowFn(later)
+	setups[1].setNowFn(later)
 
 	// Wait an empirically determined amount of time for repairs to finish
 	waitTimeout := setups[1].storageOpts.RetentionOptions().BufferDrain() * 20
