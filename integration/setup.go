@@ -108,13 +108,11 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		})
 		bytesPool.Init()
 
-		storageOpts = storageOpts.
-			SetBytesPool(bytesPool)
+		storageOpts = storageOpts.SetBytesPool(bytesPool)
 
 		idPool := ts.NewNativeIdentifierPool(bytesPool, nil)
 
-		storageOpts = storageOpts.
-			SetIdentifierPool(idPool)
+		storageOpts = storageOpts.SetIdentifierPool(idPool)
 	}
 
 	// Set up shard set
