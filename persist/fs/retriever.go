@@ -203,8 +203,6 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 			break
 		}
 
-		// TODO(r): expire old seekers to unreachable file sets
-
 		// If no fetches then no work to do, yield
 		if lenInFlight == 0 {
 			yieldFor := time.Duration(rng.Int63n(int64(yield)))

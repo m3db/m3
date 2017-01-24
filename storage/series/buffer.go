@@ -270,7 +270,11 @@ func (b *dbBuffer) forEachBucketAsc(fn func(*dbBufferBucket)) {
 }
 
 // computedForEachBucketAsc performs computation on the buckets in time ascending order
-func (b *dbBuffer) computedForEachBucketAsc(now time.Time, op computeBucketIdxOp, fn func(*dbBufferBucket, time.Time)) {
+func (b *dbBuffer) computedForEachBucketAsc(
+	now time.Time,
+	op computeBucketIdxOp,
+	fn func(*dbBufferBucket, time.Time),
+) {
 	pastMostBucketStart := now.Truncate(b.blockSize).Add(-1 * b.blockSize)
 	bucketNum := (pastMostBucketStart.UnixNano() / int64(b.blockSize)) % bucketsLen
 	for i := int64(0); i < bucketsLen; i++ {

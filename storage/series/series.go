@@ -598,18 +598,16 @@ func (s *dbSeries) OnRetrieveBlock(
 	var err error
 
 	s.Lock()
-	if !s.id.Equal(id) {
+	if !id.Equal(s.id) {
 		err = fmt.Errorf("retrieved ID %s does not match series ID",
 			id.String())
 	} else {
-		min, _ := s.buffer.MinMax()
+		min := s.blocks.MinTime()
 		if !blockStart.Before(min) {
-			err = s.buffer.CacheRetrievedBlock(blockStart, segment)
-		} else {
 			block, ok := s.blocks.BlockAt(blockStart)
 			if !ok {
-				err = fmt.Errorf("retrieved for %s not an existing block",
-					blockStart.String())
+				// Must fall within the buffer
+				err = s.buffer.CacheRetrievedBlock(blockStart, segment)
 			} else {
 				block.Reset(blockStart, segment)
 			}
