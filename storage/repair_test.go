@@ -239,7 +239,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 	res := r.repairTimeRanges(now)
 	expectedRanges := xtime.NewRanges().
 		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
-		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(180000, 0)})
+		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(172800, 0)})
 	require.Equal(t, expectedRanges, res)
 }
 

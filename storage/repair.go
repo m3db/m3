@@ -532,8 +532,9 @@ func (r *dbRepairer) Run(start time.Time, mode runType) {
 func (r *dbRepairer) repairTimeRanges(startTime time.Time) xtime.Ranges {
 	var (
 		blockSize = r.rtopts.BlockSize()
-		start     = retention.FlushTimeStart(r.rtopts, startTime)
-		end       = retention.FlushTimeEnd(r.rtopts, startTime)
+		// only attempt repairs on data that has been flushed
+		start = retention.FlushTimeStart(r.rtopts, startTime)
+		end   = retention.FlushTimeEnd(r.rtopts, startTime).Add(-blockSize)
 	)
 
 	targetRanges := xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end})
