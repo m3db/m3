@@ -49,7 +49,7 @@ func TestRepairSimple(t *testing.T) {
 
 	retentionOpts := retention.NewOptions().
 		SetBufferDrain(3 * time.Second).
-		SetRetentionPeriod(8 * time.Hour).
+		SetRetentionPeriod(12 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
@@ -70,8 +70,8 @@ func TestRepairSimple(t *testing.T) {
 	now := setups[0].getNowFn()
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
 	seriesMaps := generateTestDataByStart([]testData{
-		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-blockSize)},
-		{ids: []string{"foo", "baz"}, numPoints: 90, start: now},
+		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-2 * blockSize)},
+		{ids: []string{"foo", "baz"}, numPoints: 90, start: now.Add(-3 * blockSize)},
 	})
 	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setups[0], seriesMaps))
 	log.Debug("fs bootstrap input data written to disk")
@@ -87,7 +87,7 @@ func TestRepairSimple(t *testing.T) {
 	setups[1].setNowFn(later)
 
 	// Wait an emperically determined amount of time for repairs to finish
-	time.Sleep(20 * time.Second)
+	time.Sleep(30 * time.Second)
 
 	// Stop the servers
 	defer func() {

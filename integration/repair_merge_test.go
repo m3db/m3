@@ -71,7 +71,7 @@ func TestRepairMerge(t *testing.T) {
 	now := setups[0].getNowFn()
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
 	seriesMaps := generateTestDataByStart([]testData{
-		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-blockSize)},
+		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-3 * blockSize)},
 		{ids: []string{"foo", "baz"}, numPoints: 90, start: now.Add(-2 * blockSize)},
 	})
 	splitMaps := splitSeriesMaps(seriesMaps, 2)
@@ -89,8 +89,8 @@ func TestRepairMerge(t *testing.T) {
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
 
-	// Wait an emperically determined amount of time for repairs to finish
-	time.Sleep(30 * time.Second)
+	// Wait an empirically determined amount of time for repairs to finish
+	time.Sleep(45 * time.Second)
 
 	// Stop the servers
 	defer func() {
