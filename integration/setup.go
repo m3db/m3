@@ -281,8 +281,16 @@ func (ts *testSetup) startServer() error {
 		tchannelNodeAddr = addr
 	}
 
+	repairerEnabled := ts.opts.RepairerEnabled()
+	namespaces := make([]namespace.Metadata, 0, len(ts.namespaces))
+	for _, ns := range ts.namespaces {
+		opts := ns.Options().SetNeedsRepair(repairerEnabled)
+		newNs := namespace.NewMetadata(ns.ID(), opts)
+		namespaces = append(namespaces, newNs)
+	}
+
 	var err error
-	ts.db, err = cluster.NewDatabase(ts.namespaces,
+	ts.db, err = cluster.NewDatabase(namespaces,
 		ts.hostID, ts.topoInit, ts.storageOpts)
 	if err != nil {
 		return err

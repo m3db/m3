@@ -43,6 +43,7 @@ func TestRepairMerge(t *testing.T) {
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
 		SetNamespaces([]namespace.Metadata{namesp}).
+		SetRepairerEnabled(true).
 		SetRepairInterval(3 * time.Second).
 		SetRepairThrottle(1 * time.Second).
 		SetRepairTimeJitter(0 * time.Second).

@@ -211,6 +211,12 @@ type testOptions interface {
 
 	// FetchSeriesBlocksBatchConcurrency returns the number of series blocks to fetch in batch concurrently.
 	FetchSeriesBlocksBatchConcurrency() int
+
+	// SetRepairerEnabled controls whether the repairer is enabled.
+	SetRepairerEnabled(f bool) testOptions
+
+	// RepairerEnabled returns whether the repairer is enabled.
+	RepairerEnabled() bool
 }
 
 type options struct {
@@ -231,6 +237,7 @@ type options struct {
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
 	verifySeriesDebugFilePathPrefix    string
+	repairerEnabled                    bool
 	repairThrottle                     time.Duration
 	repairTimeJitter                   time.Duration
 	repairInterval                     time.Duration
@@ -491,4 +498,14 @@ func (o *options) SetFetchSeriesBlocksBatchConcurrency(n int) testOptions {
 
 func (o *options) FetchSeriesBlocksBatchConcurrency() int {
 	return o.fetchSeriesBlocksBatchConcurrency
+}
+
+func (o *options) SetRepairerEnabled(f bool) testOptions {
+	opts := *o
+	opts.repairerEnabled = f
+	return &opts
+}
+
+func (o *options) RepairerEnabled() bool {
+	return o.repairerEnabled
 }
