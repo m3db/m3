@@ -732,6 +732,13 @@ func (s *dbShard) Repair(
 	return repairer.Repair(ctx, namespace, tr, s)
 }
 
+// NB(prateek): We explicitly choose to bypass the commit log during a
+// merge for the following reasons:
+// (1) We only bootstrap from the commit log for the last 2 hour window,
+// this function is only used by the shardRepairer, which only operates on
+// sealed blocks (blocks older than 2 hours). So writing to the commit log
+// would not provide any direct value.
+// (2) We persist the merged state by flushing 'dirty' shards
 func (s *dbShard) UpdateSeries(
 	id ts.ID,
 	blk block.DatabaseBlock,
@@ -754,18 +761,7 @@ func (s *dbShard) UpdateSeries(
 	// Perform update
 	err = entry.series.Update(blk)
 	entry.decrementWriterCount()
-	if err != nil {
-		return err
-	}
-
-	// NB(prateek): We explicitly choose to bypass the commit log during a
-	// merge for the following reasons:
-	// (1) We only bootstrap from the commit log for the last 2 hour window,
-	// this function is only used by the shardRepairer, which only operates on
-	// sealed blocks (blocks older than 2 hours). So writing to the commit log
-	// would not provide any direct value.
-	// (2) We persist the merged state by flushing 'dirty' shards
-	return nil
+	return err
 }
 
 func (s *dbShard) MarkFlushStatesDirty(

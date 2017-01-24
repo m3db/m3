@@ -69,13 +69,6 @@ const (
 
 	// defaultNumShards sets the default number of shards.
 	defaultNumShards = 1024
-
-	// defaultFetchSeriesBlocksBatchSize sets the number of series blocks to fetch in batch, by default.
-	defaultFetchSeriesBlocksBatchSize = 0
-
-	// defaultFetchSeriesBlocksBatchConcurrency sets the number of series blocks to fetch in
-	// batch concurrently, by default.
-	defaultFetchSeriesBlocksBatchConcurrency = 0
 )
 
 type testOptions interface {
@@ -254,21 +247,19 @@ func newTestOptions() testOptions {
 	return &options{
 		namespaces: namespaces,
 		id:         defaultID,
-		serverStateChangeTimeout:          defaultServerStateChangeTimeout,
-		clusterConnectionTimeout:          defaultClusterConnectionTimeout,
-		readRequestTimeout:                defaultReadRequestTimeout,
-		writeRequestTimeout:               defaultWriteRequestTimeout,
-		truncateRequestTimeout:            defaultTruncateRequestTimeout,
-		workerPoolSize:                    defaultWorkerPoolSize,
-		useTChannelClientForReading:       defaultUseTChannelClientForReading,
-		useTChannelClientForWriting:       defaultUseTChannelClientForWriting,
-		useTChannelClientForTruncation:    defaultUseTChannelClientForTruncation,
-		repairThrottle:                    defaultRepairThrottle,
-		repairTimeJitter:                  defaultRepairTimeJitter,
-		repairInterval:                    defaultRepairInterval,
-		numShards:                         defaultNumShards,
-		fetchSeriesBlocksBatchSize:        defaultFetchSeriesBlocksBatchSize,
-		fetchSeriesBlocksBatchConcurrency: defaultFetchSeriesBlocksBatchConcurrency,
+		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
+		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
+		readRequestTimeout:             defaultReadRequestTimeout,
+		writeRequestTimeout:            defaultWriteRequestTimeout,
+		truncateRequestTimeout:         defaultTruncateRequestTimeout,
+		workerPoolSize:                 defaultWorkerPoolSize,
+		useTChannelClientForReading:    defaultUseTChannelClientForReading,
+		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
+		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
+		repairThrottle:                 defaultRepairThrottle,
+		repairTimeJitter:               defaultRepairTimeJitter,
+		repairInterval:                 defaultRepairInterval,
+		numShards:                      defaultNumShards,
 	}
 }
 

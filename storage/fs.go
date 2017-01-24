@@ -124,9 +124,9 @@ func (m *fileSystemManager) Run(t time.Time, mode runType) {
 		m.Unlock()
 	}
 
-	if mode == runTypeSync {
-		flushFn()
-	} else {
+	if mode == runTypeAsync {
 		go flushFn()
+	} else {
+		flushFn()
 	}
 }
