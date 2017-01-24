@@ -116,7 +116,10 @@ type shardBlockRetrieverManager struct {
 func NewDatabaseShardBlockRetrieverManager(
 	r DatabaseBlockRetriever,
 ) DatabaseShardBlockRetrieverManager {
-	return &shardBlockRetrieverManager{retriever: r}
+	return &shardBlockRetrieverManager{
+		retriever:       r,
+		shardRetrievers: make(map[uint32]DatabaseShardBlockRetriever),
+	}
 }
 
 func (m *shardBlockRetrieverManager) ShardRetriever(
