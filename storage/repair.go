@@ -289,15 +289,6 @@ func (r shardRepairer) newPendingReplicasMap(
 	return pendingReplicas, idMap
 }
 
-// TODO(prateek): better handling of repaired shard writes
-// - Versioning
-//   - write a new version of the file for the timestamp
-//   - keep last 'n' versions
-//   - do NOT delete old version before writing a new version
-// - Smarter triggering of writes
-//   - consider not always writing
-//   - factor in a minimum number of blocks repaired
-//   - and number of blocks still requiring repair
 func (r shardRepairer) repairDifferences(
 	namespace ts.ID,
 	shard databaseShard,
