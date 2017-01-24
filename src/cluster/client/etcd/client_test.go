@@ -21,7 +21,6 @@
 package etcd
 
 import (
-	"math/rand"
 	"testing"
 	"time"
 
@@ -156,8 +155,8 @@ func testOptions() Options {
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {
-	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
-	ec := ecluster.Client(rand.Intn(3))
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
+	ec := ecluster.Client(0)
 
 	newFn := func(endpoints []string) (*clientv3.Client, error) {
 		return ec, nil

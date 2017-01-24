@@ -23,7 +23,6 @@ package client
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -210,7 +209,7 @@ func (c *client) Query(sid services.ServiceID, opts services.QueryOptions) (serv
 			return nil, err
 		}
 
-		service = filterHealthyInstances(service, ids, false)
+		service = filterInstances(service, ids)
 	}
 
 	return service, nil
@@ -244,21 +243,6 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 		return w, err
 	}
 
-	var (
-		hbStore heartbeat.Store
-		ids     []string
-	)
-	if !opts.IncludeUnhealthy() {
-		hbStore, err = c.getHeartbeatStore(sid.Zone())
-		if err != nil {
-			return nil, err
-		}
-		ids, err = hbStore.Get(serviceKey(sid))
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	// prepare the watch of placement outside of lock
 	placementWatch, err := initPlacementWatch(kvm.kv, sid, c.opts.InitTimeout())
 	if err != nil {
@@ -275,19 +259,35 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 	defer kvm.Unlock()
 	watchable, exist = kvm.serviceWatchables[key]
 	if exist {
-		// if a watchable already exist now, we need to clean up the placement watches we just created
+		// if a watchable already exist now, we need to clean up the placement watch we just created
 		placementWatch.Close()
 		_, w, err := watchable.Watch()
 		return w, err
 	}
 
 	watchable = xwatch.NewWatchable()
+	sdm := newServiceDiscoveryMetrics(c.serviceTaggedScope(sid))
+
+	if !opts.IncludeUnhealthy() {
+		hbStore, err := c.getHeartbeatStore(sid.Zone())
+		if err != nil {
+			placementWatch.Close()
+			return nil, err
+		}
+		heartbeatWatch, err := hbStore.Watch(serviceKey(sid))
+		if err != nil {
+			placementWatch.Close()
+			return nil, err
+		}
+		watchable.Update(filterInstancesWithWatch(initService, heartbeatWatch))
+		go c.watchPlacementAndHeartbeat(watchable, placementWatch, heartbeatWatch, sid, initService, sdm.serviceUnmalshalErr)
+	} else {
+		watchable.Update(initService)
+		go c.watchPlacement(watchable, placementWatch, sid, sdm.serviceUnmalshalErr)
+	}
+
 	kvm.serviceWatchables[key] = watchable
 
-	watchable.Update(filterHealthyInstances(initService, ids, opts.IncludeUnhealthy()))
-
-	sdm := newServiceDiscoveryMetrics(c.serviceTaggedScope(sid))
-	go c.run(placementWatch, watchable, sid, opts, hbStore, initService, ids, sdm.serviceUnmalshalErr)
 	go updateVersionGauge(placementWatch, sdm.versionGauge)
 
 	_, w, err := watchable.Watch()
@@ -347,54 +347,58 @@ func (c *client) getKVManager(zone string) (*kvManager, error) {
 	return m, nil
 }
 
-func (c *client) run(
-	vw kv.ValueWatch,
+func (c *client) watchPlacement(
 	w xwatch.Watchable,
+	vw kv.ValueWatch,
 	sid services.ServiceID,
-	qopts services.QueryOptions,
-	hbStore heartbeat.Store,
-	service services.Service,
-	ids []string,
 	errCounter tally.Counter,
 ) {
-	ticker := time.NewTicker(c.opts.HeartbeatCheckInterval())
-
-	if qopts.IncludeUnhealthy() {
-		ticker.Stop()
-	}
-
-	var err error
-
 	for {
 		select {
 		case <-vw.C():
 			value := vw.Get()
-			c.logger.Infof("received topology update notification on version %d", value.Version())
+			c.logger.Infof("received placement update notification on version %d", value.Version())
 
-			service, err = getServiceFromValue(value, sid)
+			service, err := getServiceFromValue(value, sid)
 			if err != nil {
-				c.logger.Errorf("could not unmarshal update from kv store for cluster, %v", err)
+				c.logger.Errorf("could not unmarshal update from kv store for placement, %v", err)
 				errCounter.Inc(1)
 				continue
 			}
 			c.logger.Infof("successfully parsed placement on version %d", value.Version())
 
-			w.Update(filterHealthyInstances(service, ids, qopts.IncludeUnhealthy()))
+			w.Update(service)
+		}
+	}
+}
 
-		case <-ticker.C:
-			newIDs, err := hbStore.Get(serviceKey(sid))
+func (c *client) watchPlacementAndHeartbeat(
+	w xwatch.Watchable,
+	vw kv.ValueWatch,
+	heartbeatWatch xwatch.Watch,
+	sid services.ServiceID,
+	service services.Service,
+	errCounter tally.Counter,
+) {
+	for {
+		select {
+		case <-vw.C():
+			value := vw.Get()
+			c.logger.Infof("received placement update on version %d", value.Version())
+
+			newService, err := getServiceFromValue(value, sid)
 			if err != nil {
-				c.logger.Errorf("could not get healthy instances from heartbeat store, %v", err)
+				c.logger.Errorf("could not unmarshal update from kv store for placement, %v", err)
+				errCounter.Inc(1)
 				continue
 			}
 
-			sort.Strings(newIDs)
-
-			if !equalIDs(ids, newIDs) {
-				ids = newIDs
-				w.Update(filterHealthyInstances(service, ids, qopts.IncludeUnhealthy()))
-			}
+			c.logger.Infof("successfully parsed placement on version %d", value.Version())
+			service = newService
+		case <-heartbeatWatch.C():
+			c.logger.Infof("received heartbeat update")
 		}
+		w.Update(filterInstancesWithWatch(service, heartbeatWatch))
 	}
 }
 
@@ -413,13 +417,9 @@ func isHealthy(ad services.Advertisement) bool {
 	return healthFn == nil || healthFn() == nil
 }
 
-func filterHealthyInstances(s services.Service, ids []string, includeUnhealthy bool) services.Service {
+func filterInstances(s services.Service, ids []string) services.Service {
 	if s == nil {
 		return nil
-	}
-
-	if includeUnhealthy {
-		return s
 	}
 
 	instances := make([]services.ServiceInstance, 0, len(s.Instances()))
@@ -435,18 +435,11 @@ func filterHealthyInstances(s services.Service, ids []string, includeUnhealthy b
 		SetReplication(s.Replication())
 }
 
-func equalIDs(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
+func filterInstancesWithWatch(s services.Service, hbw xwatch.Watch) services.Service {
+	if hbw.Get() == nil {
+		return s
 	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
+	return filterInstances(s, hbw.Get().([]string))
 }
 
 func updateVersionGauge(vw kv.ValueWatch, versionGauge tally.Gauge) {

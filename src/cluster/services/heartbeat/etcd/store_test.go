@@ -21,13 +21,12 @@
 package etcd
 
 import (
-	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
-	"github.com/m3db/m3cluster/services/heartbeat"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,10 +41,10 @@ func TestKeys(t *testing.T) {
 }
 
 func TestReuseLeaseID(t *testing.T) {
-	s, closeFn := testStore(t)
+	cli, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store := s.(*client)
+	store := NewStore(cli, opts).(*client)
 	err := store.Heartbeat("s", "i1", time.Minute)
 	require.NoError(t, err)
 
@@ -68,10 +67,11 @@ func TestReuseLeaseID(t *testing.T) {
 	store.RUnlock()
 }
 
-func TestStore(t *testing.T) {
-	store, closeFn := testStore(t)
+func TestHeartbeat(t *testing.T) {
+	cli, opts, closeFn := testStore(t)
 	defer closeFn()
 
+	store := NewStore(cli, opts)
 	err := store.Heartbeat("s", "i1", 1*time.Second)
 	require.NoError(t, err)
 	err = store.Heartbeat("s", "i2", 2*time.Second)
@@ -106,14 +106,213 @@ func TestStore(t *testing.T) {
 	require.NotContains(t, ids, "i2")
 }
 
-func testStore(t *testing.T) (heartbeat.Store, func()) {
-	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 3})
-	ec := ecluster.Client(rand.Intn(3))
+func TestWatch(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store := NewStore(ec, opts)
+	w1, err := store.Watch("foo")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Nil(t, w1.Get())
+
+	err = store.Heartbeat("foo", "i1", 2*time.Second)
+	assert.NoError(t, err)
+
+	<-w1.C()
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Equal(t, []string{}, w1.Get())
+
+	<-w1.C()
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Equal(t, []string{"i1"}, w1.Get())
+
+	time.Sleep(time.Second)
+
+	err = store.Heartbeat("foo", "i2", 2*time.Second)
+	assert.NoError(t, err)
+
+	<-w1.C()
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Equal(t, []string{"i1", "i2"}, w1.Get())
+
+	<-w1.C()
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Equal(t, []string{"i2"}, w1.Get())
+
+	<-w1.C()
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Equal(t, []string{}, w1.Get())
+
+	err = store.Heartbeat("foo", "i2", time.Second)
+	assert.NoError(t, err)
+
+	<-w1.C()
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Equal(t, []string{"i2"}, w1.Get())
+
+	w1.Close()
+}
+
+func TestWatchClose(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store := NewStore(ec, opts)
+
+	err := store.Heartbeat("foo", "i1", 100*time.Second)
+	assert.NoError(t, err)
+
+	w1, err := store.Watch("foo")
+	assert.NoError(t, err)
+	<-w1.C()
+	assert.Equal(t, []string{"i1"}, w1.Get())
+
+	c := store.(*client)
+	_, ok := c.watchables["foo"]
+	assert.True(t, ok)
+
+	// closing w1 will close the go routine for the watch updates
+	w1.Close()
+
+	// waits until the original watchable is cleaned up
+	for {
+		c.RLock()
+		_, ok = c.watchables["foo"]
+		c.RUnlock()
+		if !ok {
+			break
+		}
+	}
+
+	// getting a new watch will create a new watchale and thread to watch for updates
+	w2, err := store.Watch("foo")
+	assert.NoError(t, err)
+	<-w2.C()
+	assert.Equal(t, []string{"i1"}, w2.Get())
+
+	// verify that w1 will no longer be updated because the original watchable is closed
+	err = store.Heartbeat("foo", "i2", 100*time.Second)
+	assert.NoError(t, err)
+	<-w2.C()
+	assert.Equal(t, []string{"i1", "i2"}, w2.Get())
+	assert.Equal(t, []string{"i1"}, w1.Get())
+
+	w1.Close()
+	w2.Close()
+}
+
+func TestRenewLeaseDoNotTriggerWatch(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store := NewStore(ec, opts)
+
+	ticker := time.NewTicker(time.Second)
+	go func() {
+		for range ticker.C {
+			err := store.Heartbeat("foo", "i1", 2*time.Second)
+			assert.NoError(t, err)
+		}
+	}()
+
+	w1, err := store.Watch("foo")
+	assert.NoError(t, err)
+
+	for range w1.C() {
+		if len(w1.Get().([]string)) == 1 {
+			break
+		}
+	}
+	assert.Equal(t, []string{"i1"}, w1.Get())
+
+	select {
+	case <-w1.C():
+		assert.FailNow(t, "unexpected notification")
+	case <-time.After(2 * time.Second):
+	}
+	ticker.Stop()
+	w1.Close()
+}
+
+func TestMultipleWatchesFromNotExist(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store := NewStore(ec, opts)
+	w1, err := store.Watch("foo")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Nil(t, w1.Get())
+
+	w2, err := store.Watch("foo")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(w2.C()))
+	assert.Nil(t, w2.Get())
+
+	err = store.Heartbeat("foo", "i1", 2*time.Second)
+	assert.NoError(t, err)
+
+	for {
+		g := w1.Get()
+		if g == nil {
+			continue
+		}
+		if len(g.([]string)) == 1 {
+			break
+		}
+	}
+
+	<-w1.C()
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Equal(t, []string{"i1"}, w1.Get())
+
+	<-w2.C()
+	assert.Equal(t, 0, len(w2.C()))
+	assert.Equal(t, []string{"i1"}, w2.Get())
+
+	time.Sleep(time.Second)
+
+	err = store.Heartbeat("foo", "i2", 2*time.Second)
+	assert.NoError(t, err)
+
+	<-w1.C()
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Equal(t, []string{"i1", "i2"}, w1.Get())
+
+	<-w2.C()
+	assert.Equal(t, 0, len(w2.C()))
+	assert.Equal(t, []string{"i1", "i2"}, w2.Get())
+
+	for {
+		g := w1.Get()
+		if g == nil {
+			continue
+		}
+		if len(g.([]string)) == 0 {
+			break
+		}
+	}
+
+	<-w1.C()
+	assert.Equal(t, 0, len(w1.C()))
+	assert.Equal(t, []string{}, w1.Get())
+
+	<-w2.C()
+	assert.Equal(t, 0, len(w2.C()))
+	assert.Equal(t, []string{}, w2.Get())
+
+	w1.Close()
+	w2.Close()
+}
+
+func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
+	ec := ecluster.Client(0)
 
 	closer := func() {
 		ecluster.Terminate(t)
 		ec.Watcher.Close()
 	}
-
-	return NewStore(ec), closer
+	return ec, NewOptions().SetWatchChanCheckInterval(10 * time.Millisecond), closer
 }

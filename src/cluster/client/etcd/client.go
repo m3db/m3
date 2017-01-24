@@ -61,6 +61,7 @@ func NewConfigServiceClient(opts Options) (client.Client, error) {
 		opts:    opts,
 		kvScope: scope.Tagged(map[string]string{"config_service": "kv"}),
 		sdScope: scope.Tagged(map[string]string{"config_service": "sd"}),
+		hbScope: scope.Tagged(map[string]string{"config_service": "hb"}),
 		clis:    make(map[string]*clientv3.Client),
 		logger:  opts.InstrumentOptions().Logger(),
 		newFn:   newClient,
@@ -74,6 +75,7 @@ type csclient struct {
 	opts    Options
 	kvScope tally.Scope
 	sdScope tally.Scope
+	hbScope tally.Scope
 	logger  xlog.Logger
 	newFn   newClientFn
 
@@ -160,7 +162,13 @@ func (c *csclient) heartbeatGen() sdClient.HeartbeatGen {
 				return nil, err
 			}
 
-			return etcdHeartbeat.NewStore(cli), nil
+			opts := etcdHeartbeat.NewOptions().
+				SetInstrumentsOptions(
+					instrument.NewOptions().
+						SetLogger(c.logger).
+						SetMetricsScope(c.hbScope),
+				)
+			return etcdHeartbeat.NewStore(cli, opts), nil
 		},
 	)
 }

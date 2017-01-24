@@ -32,12 +32,7 @@ var (
 	defaultRequestTimeout         = 10 * time.Second
 	defaultWatchChanCheckInterval = 10 * time.Second
 	defaultWatchChanResetInterval = 10 * time.Second
-	defaultRetryOptions           = xretry.NewOptions().SetMaxRetries(5)
-	defaultKeyFn                  = KeyFn(
-		func(key string) string {
-			return key
-		},
-	)
+	defaultRetryOptions           = xretry.NewOptions().SetMaxRetries(3)
 )
 
 // KeyFn is a function that wraps a key
@@ -49,11 +44,6 @@ type Options interface {
 	RequestTimeout() time.Duration
 	// SetRequestTimeout sets the RequestTimeout
 	SetRequestTimeout(t time.Duration) Options
-
-	// KeyFn is the function to wrap a key
-	KeyFn() KeyFn
-	// SetKeyFn sets the KeyFn
-	SetKeyFn(f KeyFn) Options
 
 	// InstrumentsOptions is the instrument options
 	InstrumentsOptions() instrument.Options
@@ -76,24 +66,16 @@ type Options interface {
 	// SetWatchChanResetInterval sets the WatchChanResetInterval
 	SetWatchChanResetInterval(t time.Duration) Options
 
-	// CacheFilePath is the file path to persist in-memory cache.
-	// If not provided, not file persisting will happen
-	CacheFilePath() string
-	// SetCacheFilePath sets the CacheFilePath
-	SetCacheFilePath(c string) Options
-
 	// Validate validates the Options
 	Validate() error
 }
 
 type options struct {
 	requestTimeout         time.Duration
-	keyFn                  KeyFn
 	iopts                  instrument.Options
 	ropts                  xretry.Options
 	watchChanCheckInterval time.Duration
 	watchChanResetInterval time.Duration
-	cacheFilePath          string
 }
 
 // NewOptions creates a sane default Option
@@ -103,8 +85,7 @@ func NewOptions() Options {
 		SetInstrumentsOptions(instrument.NewOptions()).
 		SetRetryOptions(defaultRetryOptions).
 		SetWatchChanCheckInterval(defaultWatchChanCheckInterval).
-		SetWatchChanResetInterval(defaultWatchChanResetInterval).
-		SetKeyFn(defaultKeyFn)
+		SetWatchChanResetInterval(defaultWatchChanResetInterval)
 }
 
 func (o options) Validate() error {
@@ -120,10 +101,6 @@ func (o options) Validate() error {
 		return errors.New("invalid watch channel check interval")
 	}
 
-	if o.keyFn == nil {
-		return errors.New("no keyFn set")
-	}
-
 	return nil
 }
 
@@ -133,15 +110,6 @@ func (o options) RequestTimeout() time.Duration {
 
 func (o options) SetRequestTimeout(t time.Duration) Options {
 	o.requestTimeout = t
-	return o
-}
-
-func (o options) KeyFn() KeyFn {
-	return o.keyFn
-}
-
-func (o options) SetKeyFn(f KeyFn) Options {
-	o.keyFn = f
 	return o
 }
 
@@ -178,14 +146,5 @@ func (o options) WatchChanResetInterval() time.Duration {
 
 func (o options) SetWatchChanResetInterval(t time.Duration) Options {
 	o.watchChanResetInterval = t
-	return o
-}
-
-func (o options) CacheFilePath() string {
-	return o.cacheFilePath
-}
-
-func (o options) SetCacheFilePath(c string) Options {
-	o.cacheFilePath = c
 	return o
 }

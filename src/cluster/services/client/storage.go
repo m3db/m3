@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3cluster/services/placement"
 )
 
-// NewPlacementStorage returns a client of placement.Storage
-func NewPlacementStorage(opts Options) (placement.Storage, error) {
+// newPlacementStorage returns a client of placement.Storage
+func newPlacementStorage(opts Options) (placement.Storage, error) {
 	if opts.KVGen() == nil {
 		return nil, errNoKVGen
 	}
