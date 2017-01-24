@@ -514,7 +514,7 @@ type kvManager struct {
 
 func newServiceDiscoveryMetrics(m tally.Scope) serviceDiscoveryMetrics {
 	return serviceDiscoveryMetrics{
-		versionGauge:        m.Gauge("placement.verison"),
+		versionGauge:        m.Gauge("placement.version"),
 		serviceUnmalshalErr: m.Counter("placement.unmarshal.error"),
 	}
 }
