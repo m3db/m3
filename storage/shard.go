@@ -107,6 +107,7 @@ type dbShardMetrics struct {
 	close        tally.Counter
 	closeStart   tally.Counter
 	closeLatency tally.Timer
+	reflushes    tally.Counter
 }
 
 func newDbShardMetrics(scope tally.Scope) dbShardMetrics {
@@ -115,6 +116,7 @@ func newDbShardMetrics(scope tally.Scope) dbShardMetrics {
 		close:        scope.Counter("close"),
 		closeStart:   scope.Counter("close-start"),
 		closeLatency: scope.Timer("close-latency"),
+		reflushes:    scope.Counter("reflushes"),
 	}
 }
 
@@ -675,11 +677,19 @@ func (s *dbShard) Flush(
 	// Track flush state for block state
 	if resultErr == nil {
 		s.markFlushStateSuccess(blockStart)
+		s.trackReflushCount(shardRepariedAtBlockStart)
 	} else {
 		s.markFlushStateFail(blockStart)
 	}
 
 	return resultErr
+}
+
+func (s *dbShard) trackReflushCount(shardRepaired bool) {
+	if !shardRepaired {
+		return
+	}
+	s.metrics.reflushes.Inc(1)
 }
 
 func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
