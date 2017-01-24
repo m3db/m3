@@ -267,7 +267,7 @@ func ReadLatestInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, r
 // FilesetExtraVersions returns all fileset file versions which are over the specified count.
 func FilesetExtraVersions(filePathPrefix string, namespace ts.ID, shard uint32, maxNumVersions uint32, readerBufferSize int) ([]string, error) {
 	versionsByTime := make(map[int64][]uint32)
-	ForEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
+	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
 		info, err := readInfo(data)
 		if err != nil {
 			return

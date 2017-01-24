@@ -178,7 +178,7 @@ func TestInfoReadWrite(t *testing.T) {
 	}
 
 	w := newTestWriter(filePathPrefix)
-	writeTestData(t, w, 0, testWriterStart, entries)
+	writeTestData(t, w, 0, testWriterStart, entries, 1)
 
 	infoFiles := ReadInfoFiles(filePathPrefix, testNamespaceID, 0, 16)
 	require.Equal(t, 1, len(infoFiles))
@@ -187,6 +187,7 @@ func TestInfoReadWrite(t *testing.T) {
 	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.Start)))
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
+	require.Equal(t, int64(1), infoFile.Version)
 }
 
 func TestReusingReaderWriter(t *testing.T) {
