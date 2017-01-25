@@ -1,4 +1,4 @@
-// +build integration
+// +build integration_disabled
 
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -23,22 +23,25 @@
 package integration
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-// This test writes data, and retrieves it using AdminSession endpoints
-// FetchMetadataBlocksFromPeers and FetchBlocksFromPeers. Verifying the
-// retrieved value is the same as the written.
-func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
+func TestHighConcAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	concurrency := 64
+	testOpts := newTestOptions().
+		SetFetchSeriesBlocksBatchSize(8).
+		SetFetchSeriesBlocksBatchConcurrency(concurrency)
+	testSetup, err := newTestSetup(testOpts)
 	require.NoError(t, err)
+
 	defer testSetup.close()
 
 	testSetup.storageOpts =
@@ -81,9 +84,24 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	later := testSetup.getNowFn()
 	time.Sleep(testSetup.storageOpts.RetentionOptions().BufferDrain() * 4)
 
-	// Retrieve written data using the AdminSession APIs (FetchMetadataBlocksFromPeers/FetchBlocksFromPeers)
-	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, testNamespaces[0], now, later)
+	results := make([]seriesMap, 0, concurrency)
+	var wg sync.WaitGroup
+	var mutex sync.Mutex
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, testNamespaces[0], now, later)
+			mutex.Lock()
+			results = append(results, observedSeriesMaps)
+			mutex.Unlock()
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 
+	require.Equal(t, concurrency, len(results))
 	// Verify retrieved data matches what we've written
-	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
+	for _, obsSeriesMaps := range results {
+		verifySeriesMapsEqual(t, seriesMaps, obsSeriesMaps)
+	}
 }

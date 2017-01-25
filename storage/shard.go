@@ -682,6 +682,12 @@ func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
 	s.flushState.Unlock()
 }
 
+func (s *dbShard) markFlushStateDirty(blockStart time.Time) {
+	s.flushState.Lock()
+	s.flushState.statesByTime[blockStart] = fileOpState{Status: fileOpDirty}
+	s.flushState.Unlock()
+}
+
 func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 	s.flushState.Lock()
 	state := s.flushState.statesByTime[blockStart]
@@ -722,6 +728,46 @@ func (s *dbShard) Repair(
 	namespace ts.ID,
 	tr xtime.Range,
 	repairer databaseShardRepairer,
-) (repair.MetadataComparisonResult, error) {
+) (repair.Result, error) {
 	return repairer.Repair(ctx, namespace, tr, s)
+}
+
+// NB(prateek): We explicitly choose to bypass the commit log during a
+// merge for the following reasons:
+// (1) We only bootstrap from the commit log for the last 2 hour window,
+// this function is only used by the shardRepairer, which only operates on
+// sealed blocks (blocks older than 2 hours). So writing to the commit log
+// would not provide any direct value.
+// (2) We persist the merged state by flushing 'dirty' shards
+func (s *dbShard) UpdateSeries(
+	id ts.ID,
+	blk block.DatabaseBlock,
+) error {
+
+	// ensure shard is bootstrapped
+	s.RLock()
+	if s.bs != bootstrapped {
+		s.RUnlock()
+		return errShardNotBootstrapped
+	}
+	s.RUnlock()
+
+	// Prepare series to be updated
+	entry, err := s.writableSeries(id)
+	if err != nil {
+		return err
+	}
+
+	// Perform update
+	err = entry.series.Update(blk)
+	entry.decrementWriterCount()
+	return err
+}
+
+func (s *dbShard) MarkFlushStatesDirty(
+	blockTimes []time.Time,
+) {
+	for _, t := range blockTimes {
+		s.markFlushStateDirty(t)
+	}
 }

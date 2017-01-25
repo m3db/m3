@@ -44,6 +44,13 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+type runType int
+
+const (
+	runTypeSync runType = iota
+	runTypeAsync
+)
+
 // Database is a time series database
 type Database interface {
 	// Options returns the database options
@@ -110,7 +117,7 @@ type Database interface {
 	IsBootstrapped() bool
 
 	// Repair will issue a repair and return nil on success or error on error.
-	Repair() error
+	Repair(start time.Time) error
 
 	// Truncate truncates data for the given namespace
 	Truncate(namespace ts.ID) (int64, error)
@@ -291,7 +298,21 @@ type databaseShard interface {
 		namespace ts.ID,
 		tr xtime.Range,
 		repairer databaseShardRepairer,
-	) (repair.MetadataComparisonResult, error)
+	) (repair.Result, error)
+
+	// UpdateSeries updates the identified series by merging any existing data
+	// with the provided block.
+	// NOTE: this method does not modify the shard FlushState
+	UpdateSeries(
+		seriesID ts.ID,
+		blk block.DatabaseBlock,
+	) error
+
+	// MarkFlushStatesDirty marks the flush state for the specified block times
+	// dirty.
+	MarkFlushStatesDirty(
+		blockTimes []time.Time,
+	)
 }
 
 // databaseBootstrapManager manages the bootstrap process.
@@ -366,7 +387,7 @@ type databaseFileSystemManager interface {
 	ShouldRun(t time.Time) bool
 
 	// Run performs all filesystem-related operations
-	Run(t time.Time, async bool)
+	Run(t time.Time, mode runType)
 }
 
 // databaseShardRepairer repairs in-memory data for a shard
@@ -380,19 +401,16 @@ type databaseShardRepairer interface {
 		namespace ts.ID,
 		tr xtime.Range,
 		shard databaseShard,
-	) (repair.MetadataComparisonResult, error)
+	) (repair.Result, error)
 }
 
 // databaseRepairer repairs in-memory database data
 type databaseRepairer interface {
-	// Start starts the repair process
-	Start()
+	// ShouldRun determines if any repairs operations are needed
+	ShouldRun(start time.Time) bool
 
-	// Stop stops the repair process
-	Stop()
-
-	// Repair repairs in-memory data
-	Repair() error
+	// Run performs all repair-related operations
+	Run(start time.Time, mode runType)
 
 	// IsRepairing returns whether the repairer is running or not
 	IsRepairing() bool

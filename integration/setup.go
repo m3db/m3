@@ -99,6 +99,11 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	storageOpts := storage.NewOptions()
+	repairOpts := storageOpts.RepairOptions().
+		SetRepairInterval(opts.RepairInterval()).
+		SetRepairThrottle(opts.RepairThrottle()).
+		SetRepairTimeJitter(opts.RepairTimeJitter())
+	storageOpts = storageOpts.SetRepairOptions(repairOpts)
 
 	nativePooling :=
 		strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
@@ -119,7 +124,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up shard set
-	shardSet, err := server.DefaultShardSet()
+	shardSet, err := server.NewShardSet(opts.NumShards())
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +147,10 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		}
 	}
 
-	clientOpts := server.DefaultClientOptions(topoInit).
+	clientOpts := newDefaultAdminOptions(
+		opts.FetchSeriesBlocksBatchSize(),
+		opts.FetchSeriesBlocksBatchConcurrency()).
+		SetTopologyInitializer(topoInit).
 		SetClusterConnectTimeout(opts.ClusterConnectionTimeout())
 
 	// Set up tchannel client
@@ -194,7 +202,11 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	})
 
 	// Set up repair options
-	adminClient := mc.(client.AdminClient)
+	adminClient, err := m3dbAdminClient(clientOpts.(client.AdminOptions))
+	if err != nil {
+		return nil, err
+	}
+
 	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
 
 	return &testSetup{
@@ -269,8 +281,16 @@ func (ts *testSetup) startServer() error {
 		tchannelNodeAddr = addr
 	}
 
+	repairerEnabled := ts.opts.RepairerEnabled()
+	namespaces := make([]namespace.Metadata, 0, len(ts.namespaces))
+	for _, ns := range ts.namespaces {
+		opts := ns.Options().SetNeedsRepair(repairerEnabled)
+		newNs := namespace.NewMetadata(ns.ID(), opts)
+		namespaces = append(namespaces, newNs)
+	}
+
 	var err error
-	ts.db, err = cluster.NewDatabase(ts.namespaces,
+	ts.db, err = cluster.NewDatabase(namespaces,
 		ts.hostID, ts.topoInit, ts.storageOpts)
 	if err != nil {
 		return err

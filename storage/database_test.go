@@ -58,7 +58,7 @@ func (d *mockDatabase) Open() error                               { return nil }
 func (d *mockDatabase) Close() error                              { return nil }
 func (d *mockDatabase) Bootstrap() error                          { return nil }
 func (d *mockDatabase) IsBootstrapped() bool                      { return d.bs == bootstrapped }
-func (d *mockDatabase) Repair() error                             { return nil }
+func (d *mockDatabase) Repair(t time.Time) error                  { return nil }
 func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error)   { return 0, nil }
 func (d *mockDatabase) flush(t time.Time, async bool)             {}
 
@@ -106,9 +106,7 @@ func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 	opts = opts.SetRepairOptions(repair.NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetRepairInterval(time.Duration(0)).
-		SetRepairTimeOffset(time.Duration(0)).
-		SetRepairTimeJitter(time.Duration(0)).
-		SetRepairCheckInterval(time.Duration(0)))
+		SetRepairTimeJitter(time.Duration(0)))
 
 	database, err := NewDatabase(nil, nil, opts)
 	require.NoError(t, err)

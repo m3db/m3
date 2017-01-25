@@ -246,10 +246,6 @@ func (d *db) Open() error {
 	go d.reportLoop()
 	go d.ongoingTick()
 
-	// Explicitly start the repairer in Open and stop it in Close so there is no need to
-	// register this goroutine with dbOngoingTasks
-	d.repairer.Start()
-
 	return nil
 }
 
@@ -271,8 +267,6 @@ func (d *db) Close() error {
 	for i := 0; i < dbOngoingTasks; i++ {
 		d.doneCh <- struct{}{}
 	}
-
-	d.repairer.Stop()
 
 	// Finally close the commit log
 	return d.commitLog.Close()
@@ -377,8 +371,9 @@ func (d *db) IsBootstrapped() bool {
 	return d.bsm.IsBootstrapped()
 }
 
-func (d *db) Repair() error {
-	return d.repairer.Repair()
+func (d *db) Repair(t time.Time) error {
+	d.repairer.Run(t, runTypeAsync)
+	return nil
 }
 
 func (d *db) Truncate(namespace ts.ID) (int64, error) {
@@ -490,13 +485,20 @@ func (d *db) splayedTick() {
 		time.Sleep(d.tickDeadline - duration)
 	}
 
-	// NB(r): Cleanup and/or flush if required to cleanup files and/or
-	// flush blocks to disk. Note this has to run after the tick as
-	// blocks may only have just become available during a tick beginning
-	// from the tick begin marker.
-	if d.fsm.ShouldRun(start) {
-		d.fsm.Run(start, true)
-	}
+	go func() {
+		// NB(r): Cleanup and/or flush if required to cleanup files and/or
+		// flush blocks to disk. Note this has to run after the tick as
+		// blocks may only have just become available during a tick beginning
+		// from the tick begin marker.
+		if d.fsm.ShouldRun(start) {
+			d.fsm.Run(start, runTypeSync)
+		}
+
+		// NB(prateek): The repairer has to be run after any pending flushes
+		if d.repairer.ShouldRun(start) {
+			d.repairer.Run(start, runTypeSync)
+		}
+	}()
 }
 
 func (d *db) nextIndex() uint64 {

@@ -99,6 +99,10 @@ func m3dbClient(opts client.Options) (client.Client, error) {
 	return client.NewClient(opts)
 }
 
+func m3dbAdminClient(opts client.AdminOptions) (client.AdminClient, error) {
+	return client.NewAdminClient(opts)
+}
+
 // m3dbClientWriteBatch writes a data map using an m3db client.
 func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, namespace ts.ID, seriesList seriesList) error {
 	session, err := client.NewSession()

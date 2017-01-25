@@ -536,3 +536,99 @@ func TestShardCleanupFileset(t *testing.T) {
 	require.NoError(t, shard.CleanupFileset(testNamespaceID, time.Now()))
 	require.Equal(t, []string{testNamespaceID.String(), "0"}, deletedFiles)
 }
+
+func TestShardUpdateExistingSeriesWithNoError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	curr := time.Now()
+	blockSize := opts.RetentionOptions().BlockSize()
+	s := testDatabaseShard(opts)
+	fooID := ts.StringID("foo")
+	fooSeries := series.NewMockDatabaseSeries(ctrl)
+	s.lookup[fooID.Hash()] = s.list.PushBack(&dbShardEntry{series: fooSeries})
+
+	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
+	fooSeries.EXPECT().Bootstrap(fooBlocks).Return(nil)
+	fooSeries.EXPECT().IsBootstrapped().Return(true)
+	bootstrappedSeries := map[ts.Hash]result.DatabaseSeriesBlocks{
+		fooID.Hash(): {ID: fooID, Blocks: fooBlocks},
+	}
+	err := s.Bootstrap(bootstrappedSeries)
+	require.Nil(t, err)
+
+	mockBlock := block.NewMockDatabaseBlock(ctrl)
+	mockBlock.EXPECT().StartTime().AnyTimes().Return(curr.Add(-2 * blockSize))
+	fooSeries.EXPECT().Update(mockBlock)
+
+	// update series
+	currentState := s.FlushState(mockBlock.StartTime())
+	err = s.UpdateSeries(fooID, mockBlock)
+	require.Nil(t, err)
+	nextState := s.FlushState(mockBlock.StartTime())
+	require.Equal(t, currentState, nextState)
+}
+
+func TestShardUpdateNewSeriesWithNoError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	curr := time.Now()
+	blockSize := opts.RetentionOptions().BlockSize()
+	s := testDatabaseShard(opts)
+	fooID := ts.StringID("foo")
+	bootstrappedSeries := map[ts.Hash]result.DatabaseSeriesBlocks{}
+	err := s.Bootstrap(bootstrappedSeries)
+	require.Nil(t, err)
+
+	mockBlock := block.NewMockDatabaseBlock(ctrl)
+	mockBlock.EXPECT().StartTime().AnyTimes().Return(curr.Add(-2 * blockSize))
+	err = s.UpdateSeries(fooID, mockBlock)
+	require.Nil(t, err)
+}
+
+func TestShardUpdateNewSeriesWithError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	curr := time.Now()
+	s := testDatabaseShard(opts)
+	bootstrappedSeries := map[ts.Hash]result.DatabaseSeriesBlocks{}
+	err := s.Bootstrap(bootstrappedSeries)
+	require.Nil(t, err)
+
+	mockBlock := block.NewMockDatabaseBlock(ctrl)
+	mockBlock.EXPECT().StartTime().AnyTimes().Return(curr)
+	err = s.UpdateSeries(ts.StringID("bar"), mockBlock)
+	require.NotNil(t, err)
+}
+
+func TestShardMarkFlushStateDirty(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	ropts := opts.RetentionOptions()
+
+	now := time.Now()
+	s := testDatabaseShard(opts)
+	bootstrappedSeries := map[ts.Hash]result.DatabaseSeriesBlocks{}
+	err := s.Bootstrap(bootstrappedSeries)
+	require.Nil(t, err)
+
+	earliest := retention.FlushTimeStart(ropts, now)
+	latest := retention.FlushTimeEnd(ropts, now)
+
+	times := []time.Time{}
+	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
+		times = append(times, st)
+	}
+
+	s.MarkFlushStatesDirty(times)
+	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
+		require.Equal(t, fileOpState{Status: fileOpDirty}, s.FlushState(st))
+	}
+}

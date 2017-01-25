@@ -500,7 +500,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 func (s *service) Repair(tctx thrift.Context) error {
 	callStart := s.nowFn()
 
-	if err := s.db.Repair(); err != nil {
+	if err := s.db.Repair(callStart); err != nil {
 		s.metrics.repair.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
 	}

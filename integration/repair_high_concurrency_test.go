@@ -34,7 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPeersBootstrapHighConcurrency(t *testing.T) {
+func TestRepairHighConcurrency(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -43,10 +43,16 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	log := xlog.SimpleLogger
 	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	opts := newTestOptions().
-		SetNamespaces([]namespace.Metadata{namesp})
+		SetNamespaces([]namespace.Metadata{namesp}).
+		SetRepairerEnabled(true).
+		SetRepairInterval(3 * time.Second).
+		SetRepairThrottle(1 * time.Second).
+		SetRepairTimeJitter(0 * time.Second).
+		SetNumShards(128)
 
 	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
+		SetBufferDrain(5 * time.Second).
+		SetRetentionPeriod(12 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
@@ -54,41 +60,54 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	concurrency := 64
 	setupOpts := []multipleTestSetupsOptions{
 		{
-			disablePeersBootstrapper: true,
+			disablePeersBootstrapper:          true,
+			enableRepairer:                    true,
+			fetchSeriesBlocksBatchSize:        batchSize,
+			fetchSeriesBlocksBatchConcurrency: concurrency,
 		},
 		{
-			disablePeersBootstrapper:   false,
-			fetchSeriesBlocksBatchSize:   batchSize,
+			disablePeersBootstrapper:          true,
+			enableRepairer:                    true,
+			fetchSeriesBlocksBatchSize:        batchSize,
 			fetchSeriesBlocksBatchConcurrency: concurrency,
 		},
 	}
 	setups, closeFn := newDefaultMultipleTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
 
-	// Write test data for first node
+	// generate fake data
 	total := 8 * batchSize * concurrency
 	log.Debugf("testing a total of %d IDs with %d batch size %d concurrency", total, batchSize, concurrency)
+	now := setups[0].getNowFn()
 	shardIDs := make([]string, 0, total)
 	for i := 0; i < total; i++ {
 		id := fmt.Sprintf("id.%d", i)
 		shardIDs = append(shardIDs, id)
 	}
-
-	now := setups[0].getNowFn()
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
 	seriesMaps := generateTestDataByStart([]testData{
+		{ids: shardIDs, numPoints: 3, start: now.Add(-2 * blockSize)},
 		{ids: shardIDs, numPoints: 3, start: now.Add(-blockSize)},
-		{ids: shardIDs, numPoints: 3, start: now},
 	})
-	err := writeTestDataToDisk(t, namesp.ID(), setups[0], seriesMaps)
-	require.NoError(t, err)
 
-	// Start the first server with filesystem bootstrapper
+	// split fake data into two halves
+	splitMaps := splitSeriesMaps(seriesMaps, 2)
+	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setups[0], splitMaps[0]))
+	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setups[1], splitMaps[1]))
+	log.Debug("fs bootstrap input data written to disk")
+
+	// Move time forward to trigger repairs
+	later := now.Add(blockSize * 2).Add(30 * time.Second)
+	setups[0].setNowFn(later)
+	setups[1].setNowFn(later)
+
+	// Start the servers with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
-
-	// Start the last server with peers and filesystem bootstrappers
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
+
+	// Wait an emperically determined amount of time for repairs to finish
+	time.Sleep(2 * time.Minute)
 
 	// Stop the servers
 	defer func() {
@@ -98,8 +117,6 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		log.Debug("servers are now down")
 	}()
 
-	// Verify in-memory data match what we expect
-	for _, setup := range setups {
-		verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
-	}
+	verifySeriesMaps(t, setups[0], namesp.ID(), seriesMaps)
+	verifySeriesMaps(t, setups[1], namesp.ID(), seriesMaps)
 }

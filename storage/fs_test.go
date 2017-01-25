@@ -72,6 +72,6 @@ func TestFileSystemManagerRun(t *testing.T) {
 		fm.EXPECT().Flush(ts).Return(errors.New("bar")),
 	)
 
-	mgr.Run(ts, false)
+	mgr.Run(ts, runTypeSync)
 	require.Equal(t, fileOpNotStarted, mgr.status)
 }

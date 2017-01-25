@@ -315,6 +315,100 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	require.Equal(t, 1, series.blocks.Len())
 }
 
+func TestSeriesUpdateErrorBuffered(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
+	buffer := NewMockdatabaseBuffer(ctrl)
+	buffer.EXPECT().MinMax().Return(time.Now(), time.Now().Add(6*time.Hour))
+	series.buffer = buffer
+
+	blockStart := time.Now()
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(blockStart)
+
+	require.NoError(t, series.Bootstrap(nil))
+	err := series.Update(b)
+	require.NotNil(t, err)
+	require.Equal(t, err, errSeriesUpdateBuffered)
+}
+
+func newTestBlock(
+	blockStart time.Time,
+	data []value,
+	opts block.Options,
+) (block.DatabaseBlock, error) {
+	encoder := m3tsz.NewEncoder(blockStart, nil, m3tsz.DefaultIntOptimizationEnabled, nil)
+	for _, val := range data {
+		err := encoder.Encode(ts.Datapoint{Timestamp: val.timestamp, Value: val.value}, val.unit, val.annotation)
+		if err != nil {
+			return nil, err
+		}
+	}
+	blk := block.NewDatabaseBlock(blockStart, encoder.Discard(), opts)
+	return blk, nil
+}
+
+func TestSeriesUpdateMerge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	blockSize := opts.RetentionOptions().BlockSize()
+	curr := time.Now().Truncate(blockSize)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+
+	data := []value{
+		{curr.Add(mins(1)), 2, xtime.Second, nil},
+		{curr.Add(mins(3)), 3, xtime.Second, nil},
+		{curr.Add(mins(5)), 4, xtime.Second, nil},
+		{curr.Add(mins(7)), 4, xtime.Second, nil},
+		{curr.Add(mins(9)), 4, xtime.Second, nil},
+	}
+
+	// setup series buffer
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
+	buffer := NewMockdatabaseBuffer(ctrl)
+	buffer.EXPECT().ReadEncoded(gomock.Any(), gomock.Any(), gomock.Any()).Return([][]xio.SegmentReader{})
+	buffer.EXPECT().ReadEncoded(gomock.Any(), gomock.Any(), gomock.Any()).Return([][]xio.SegmentReader{})
+	buffer.EXPECT().MinMax().Return(curr.Add(blockSize), curr.Add(3*blockSize))
+	series.buffer = buffer
+
+	// setup existing blocks
+	existingBlock, err := newTestBlock(curr, data[:len(data)/2], opts.DatabaseBlockOptions())
+	assert.Nil(t, err)
+	blocks := block.NewDatabaseSeriesBlocks(1, opts.DatabaseBlockOptions())
+	blocks.AddBlock(existingBlock)
+	series.blocks = blocks
+
+	// ensure series is bootstrapped
+	require.NoError(t, series.Bootstrap(nil))
+
+	// update block
+	updateBlock, err := newTestBlock(curr, data[len(data)/2:], opts.DatabaseBlockOptions())
+	require.Nil(t, err)
+
+	// Update() should not fail
+	require.NoError(t, series.Update(updateBlock))
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	// Test fine grained range
+	results, err := series.ReadEncoded(ctx, curr, curr.Add(mins(10)))
+	assert.NoError(t, err)
+	assertValuesEqual(t, data, results, opts)
+
+	// Test wide range
+	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	assert.NoError(t, err)
+	assertValuesEqual(t, data, results, opts)
+}
+
 func TestShouldExpire(t *testing.T) {
 	opts := newSeriesTestOptions()
 	ropts := opts.RetentionOptions()

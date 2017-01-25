@@ -27,11 +27,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
@@ -139,7 +141,7 @@ func newMultiAddrAdminClient(
 	return adminClient
 }
 
-func newBootstrappableTestSetup(
+func newMultipleTestSetup(
 	t *testing.T,
 	opts testOptions,
 	retentionOpts retention.Options,
@@ -154,12 +156,13 @@ func newBootstrappableTestSetup(
 	return setup
 }
 
-type bootstrappableTestSetupOptions struct {
-	disablePeersBootstrapper   bool
-	bootstrapBlocksBatchSize   int
-	bootstrapBlocksConcurrency int
-	topologyInitializer        topology.Initializer
-	testStatsReporter          xmetrics.TestStatsReporter
+type multipleTestSetupsOptions struct {
+	enableRepairer                    bool
+	disablePeersBootstrapper          bool
+	fetchSeriesBlocksBatchSize        int
+	fetchSeriesBlocksBatchConcurrency int
+	topologyInitializer               topology.Initializer
+	testStatsReporter                 xmetrics.TestStatsReporter
 }
 
 type closeFn func()
@@ -175,11 +178,25 @@ func newDefaulTestResultOptions(
 		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
 }
 
-func newDefaultBootstrappableTestSetups(
+func newDefaultAdminOptions(
+	fetchSeriesBlocksBatchSize int,
+	fetchSeriesBlocksBatchConcurrency int,
+) client.AdminOptions {
+	adminOpts := client.NewAdminOptions()
+	if fetchSeriesBlocksBatchSize > 0 {
+		adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(fetchSeriesBlocksBatchSize)
+	}
+	if fetchSeriesBlocksBatchConcurrency > 0 {
+		adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(fetchSeriesBlocksBatchConcurrency)
+	}
+	return adminOpts
+}
+
+func newDefaultMultipleTestSetups(
 	t *testing.T,
 	opts testOptions,
 	retentionOpts retention.Options,
-	setupOpts []bootstrappableTestSetupOptions,
+	setupOpts []multipleTestSetupsOptions,
 ) (testSetups, closeFn) {
 	var (
 		replicas        = len(setupOpts)
@@ -194,20 +211,21 @@ func newDefaultBootstrappableTestSetups(
 	}
 	for i := 0; i < replicas; i++ {
 		var (
-			instance                   = i
-			usingPeersBoostrapper      = !setupOpts[i].disablePeersBootstrapper
-			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
-			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
-			topologyInitializer        = setupOpts[i].topologyInitializer
-			testStatsReporter          = setupOpts[i].testStatsReporter
-			instanceOpts               = newMultiAddrTestOptions(opts, instance)
-			setup                      *testSetup
+			instance                          = i
+			usingRepairer                     = setupOpts[i].enableRepairer
+			usingPeersBoostrapper             = !setupOpts[i].disablePeersBootstrapper
+			fetchSeriesBlocksBatchSize        = setupOpts[i].fetchSeriesBlocksBatchSize
+			fetchSeriesBlocksBatchConcurrency = setupOpts[i].fetchSeriesBlocksBatchConcurrency
+			topologyInitializer               = setupOpts[i].topologyInitializer
+			testStatsReporter                 = setupOpts[i].testStatsReporter
+			instanceOpts                      = newMultiAddrTestOptions(opts, instance)
+			setup                             *testSetup
 		)
 		if topologyInitializer != nil {
 			instanceOpts = instanceOpts.
 				SetClusterDatabaseTopologyInitializer(topologyInitializer)
 		}
-		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
+		setup = newMultipleTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
 			instrumentOpts := setup.storageOpts.InstrumentOptions()
 
 			bsOpts := newDefaulTestResultOptions(setup.storageOpts, instrumentOpts)
@@ -215,13 +233,7 @@ func newDefaultBootstrappableTestSetups(
 
 			var adminClient client.AdminClient
 			if usingPeersBoostrapper {
-				adminOpts := client.NewAdminOptions()
-				if bootstrapBlocksBatchSize > 0 {
-					adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
-				}
-				if bootstrapBlocksConcurrency > 0 {
-					adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
-				}
+				adminOpts := newDefaultAdminOptions(fetchSeriesBlocksBatchSize, fetchSeriesBlocksBatchConcurrency)
 				adminClient = newMultiAddrAdminClient(
 					t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			}
@@ -255,8 +267,14 @@ func newDefaultBootstrappableTestSetups(
 			scope := tally.NewRootScope("", nil, testStatsReporter, 100*time.Millisecond)
 			iopts = iopts.SetMetricsScope(scope)
 		}
+		if usingRepairer {
+			bsOpts := newDefaulTestResultOptions(setup.storageOpts, iopts)
+			adminOpts := newDefaultAdminOptions(fetchSeriesBlocksBatchSize, fetchSeriesBlocksBatchConcurrency)
+			adminClient := newMultiAddrAdminClient(t, adminOpts, iopts, setup.shardSet, replicas, instance)
+			repairOpts := setup.storageOpts.RepairOptions().SetResultOptions(bsOpts).SetAdminClient(adminClient)
+			setup.storageOpts = setup.storageOpts.SetRepairOptions(repairOpts)
+		}
 		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(iopts)
-
 		setups = append(setups, setup)
 		appendCleanupFn(func() {
 			setup.close()
@@ -282,7 +300,7 @@ func writeTestDataToDisk(
 	t *testing.T,
 	namespace ts.ID,
 	setup *testSetup,
-	seriesMaps map[time.Time]seriesList,
+	seriesMaps seriesMap,
 ) error {
 	storageOpts := setup.storageOpts
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
@@ -442,4 +460,184 @@ func hasBootstrappedShardsExactly(
 	}
 
 	return true
+}
+
+func testSetupToSeriesMaps(
+	t *testing.T,
+	testSetup *testSetup,
+	namespace ts.ID,
+	start time.Time,
+	end time.Time,
+) seriesMap {
+	metadatasByShard := retrieveAllBlocksMetadata(t, testSetup, namespace, start, end)
+	seriesMap := make(seriesMap)
+	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts,
+		testSetup.storageOpts.InstrumentOptions())
+	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
+	require.NoError(t, err)
+	require.NotNil(t, session)
+
+	for shardID, metadatas := range metadatasByShard {
+		blocksIter, err := session.FetchBlocksFromPeers(namespace, shardID, metadatas, resultOpts)
+		require.NoError(t, err)
+		require.NotNil(t, blocksIter)
+
+		for blocksIter.Next() {
+			_, id, blk := blocksIter.Current()
+			ctx := context.NewContext()
+			defer ctx.Close()
+			reader, err := blk.Stream(ctx)
+			require.NoError(t, err)
+			readerIter := testSetup.storageOpts.ReaderIteratorPool().Get()
+			readerIter.Reset(reader)
+			defer readerIter.Close()
+
+			var datapoints []ts.Datapoint
+			for readerIter.Next() {
+				datapoint, _, _ := readerIter.Current()
+				datapoints = append(datapoints, datapoint)
+			}
+			require.NoError(t, readerIter.Err())
+			require.NotEmpty(t, datapoints)
+
+			firstTs := datapoints[0].Timestamp
+			seriesMapList, _ := seriesMap[firstTs]
+			seriesMapList = append(seriesMapList, series{
+				ID:   id,
+				Data: datapoints,
+			})
+			seriesMap[firstTs] = seriesMapList
+		}
+		require.NoError(t, blocksIter.Err())
+	}
+	return seriesMap
+}
+
+func retrieveAllBlocksMetadata(
+	t *testing.T,
+	testSetup *testSetup,
+	namespace ts.ID,
+	start time.Time,
+	end time.Time,
+) map[uint32][]block.ReplicaMetadata {
+	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
+	require.NoError(t, err)
+	require.NotNil(t, session)
+
+	metadatasByShard := make(map[uint32][]block.ReplicaMetadata, 10)
+
+	// iterate over all shards
+	for _, shardID := range testSetup.shardSet.AllIDs() {
+		var metadatas []block.ReplicaMetadata
+		iter, err := session.FetchBlocksMetadataFromPeers(namespace, shardID, start, end)
+		require.NoError(t, err)
+
+		for iter.Next() {
+			host, blocksMetadata := iter.Current()
+			for _, blockMetadata := range blocksMetadata.Blocks {
+				metadatas = append(metadatas, block.ReplicaMetadata{
+					Metadata: block.Metadata{
+						Start:    blockMetadata.Start,
+						Checksum: blockMetadata.Checksum,
+						Size:     blockMetadata.Size,
+					},
+					Host: host,
+					ID:   blocksMetadata.ID,
+				})
+			}
+		}
+		require.NoError(t, iter.Err())
+
+		if metadatas != nil {
+			metadatasByShard[shardID] = metadatas
+		}
+	}
+
+	require.NotEmpty(t, metadatasByShard)
+	return metadatasByShard
+}
+
+func verifySeriesMapsEqual(
+	t *testing.T,
+	expectedSeriesMap seriesMap,
+	observedSeriesMap seriesMap,
+) {
+	// ensure same length
+	require.Equal(t, len(expectedSeriesMap), len(observedSeriesMap))
+
+	// ensure same set of keys
+	for i := range expectedSeriesMap {
+		_, ok := observedSeriesMap[i]
+		require.True(t, ok, "%v is expected but not observed", i.String())
+	}
+
+	// given same set of keys, ensure same values too
+	for i := range expectedSeriesMap {
+		expectedSeries := expectedSeriesMap[i]
+		observedSeries := observedSeriesMap[i]
+		require.Equal(t, len(expectedSeries), len(observedSeries))
+		for _, es := range expectedSeries {
+			found := false
+
+			for _, os := range observedSeries {
+				if !es.ID.Equal(os.ID) {
+					continue
+				}
+				found = true
+
+				// compare all the values in the series
+				require.Equal(t, len(es.Data), len(os.Data),
+					"data length mismatch for series - [time: %v, seriesID: %v]", i.String(), es.ID.String())
+				for idx := range es.Data {
+					expectedData := es.Data[idx]
+					observedData := os.Data[idx]
+					require.Equal(t, expectedData.Timestamp, observedData.Timestamp,
+						"data mismatch for series - [time: %v, seriesID: %v, idx: %v]",
+						i.String(), es.ID.String(), idx)
+					require.Equal(t, expectedData.Value, observedData.Value,
+						"data mismatch for series - [time: %v, seriesID: %v, idx: %v]",
+						i.String(), es.ID.String(), idx)
+				}
+			}
+
+			require.True(t, found, "unable to find expected series - [time: %v, seriesID: %v]",
+				i.String(), es.ID.String())
+		}
+	}
+}
+
+func splitSeriesMaps(
+	sm seriesMap,
+	numSplits int,
+) []seriesMap {
+	if numSplits <= 1 {
+		return []seriesMap{sm}
+	}
+
+	res := make([]seriesMap, 0, numSplits)
+	for i := 0; i < numSplits; i++ {
+		res = append(res, make(seriesMap))
+	}
+
+	splitSeries := func(target seriesMap, start time.Time, s series, remainder int) {
+		var dataWithMissing []ts.Datapoint
+		for i := range s.Data {
+			if i%numSplits != remainder {
+				continue
+			}
+			dataWithMissing = append(dataWithMissing, s.Data[i])
+		}
+		target[start] = append(target[start], series{ID: s.ID, Data: dataWithMissing})
+	}
+
+	for start, data := range sm {
+		for _, series := range data {
+			for i := 0; i < numSplits; i++ {
+				splitSeries(res[i], start, series, i)
+			}
+		}
+	}
+
+	return res
+
 }

@@ -62,7 +62,7 @@ func TestTruncateNamespace(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]seriesList)
+	seriesMaps := make(seriesMap)
 	inputData := []struct {
 		namespace ts.ID
 		ids       []string

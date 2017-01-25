@@ -110,7 +110,7 @@ func TestClusterAddOneNode(t *testing.T) {
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	setupOpts := []bootstrappableTestSetupOptions{
+	setupOpts := []multipleTestSetupsOptions{
 		{
 			disablePeersBootstrapper: true,
 			topologyInitializer:      topoInit,
@@ -120,7 +120,7 @@ func TestClusterAddOneNode(t *testing.T) {
 			topologyInitializer:      topoInit,
 		},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultMultipleTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node
@@ -150,10 +150,10 @@ func TestClusterAddOneNode(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prepare verfication of data on nodes
-	expectedSeriesMaps := make([]map[time.Time]seriesList, 2)
+	expectedSeriesMaps := make([]seriesMap, 2)
 	expectedSeriesIDs := make([]map[string]struct{}, 2)
 	for i := range expectedSeriesMaps {
-		expectedSeriesMaps[i] = make(map[time.Time]seriesList)
+		expectedSeriesMaps[i] = make(seriesMap)
 		expectedSeriesIDs[i] = make(map[string]struct{})
 	}
 	for start, series := range seriesMaps {

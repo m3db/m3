@@ -44,6 +44,8 @@ type series struct {
 
 type seriesList []series
 
+type seriesMap map[time.Time]seriesList
+
 type readableSeries struct {
 	ID   string
 	Data []ts.Datapoint
@@ -80,8 +82,8 @@ func generateTestData(names []string, numPoints int, start time.Time) seriesList
 	return testData
 }
 
-func generateTestDataByStart(input []testData) map[time.Time]seriesList {
-	seriesMaps := make(map[time.Time]seriesList)
+func generateTestDataByStart(input []testData) seriesMap {
+	seriesMaps := make(seriesMap)
 	for _, data := range input {
 		generated := generateTestData(data.ids, data.numPoints, data.start)
 		seriesMaps[data.start] = generated
@@ -165,7 +167,7 @@ func verifySeriesMaps(
 	t *testing.T,
 	ts *testSetup,
 	namespace ts.ID,
-	seriesMaps map[time.Time]seriesList,
+	seriesMaps seriesMap,
 ) {
 	debugFilePathPrefix := ts.opts.VerifySeriesDebugFilePathPrefix()
 	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, "expected.log")
