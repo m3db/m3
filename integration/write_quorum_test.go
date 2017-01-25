@@ -44,83 +44,32 @@ func TestNormalQuorum(t *testing.T) {
 		t.SkipNow()
 	}
 
-	log := xlog.SimpleLogger
-
-	nspaces := []namespace.Metadata{
-		namespace.NewMetadata(testNamespaces[0], namespace.NewOptions()),
-	}
-	opts := newTestOptions().SetNamespaces(nspaces)
-
-	instances := []services.ServiceInstance{
+	// nodes = m3db nodes
+	nodes, closeFn, testWrite := makeNodes(t, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
 		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
 		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
-	}
+	})
 
-	svc := NewFakeM3ClusterService().
-		SetInstances(instances).
-		SetReplication(services.NewServiceReplication().SetReplicas(3)).
-		SetSharding(services.NewServiceSharding().SetNumShards(1024))
-
-	svcs := NewFakeM3ClusterServices()
-	svcs.RegisterService("m3db", svc)
-
-	topoOpts := topology.NewDynamicOptions().
-		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
-	topoInit := topology.NewDynamicInitializer(topoOpts)
-	retentionOpts := retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
-
-	nodeOpt := bootstrappableTestSetupOptions{
-		disablePeersBootstrapper: true,
-		topologyInitializer:      topoInit,
-	}
-	nodeOpts := []bootstrappableTestSetupOptions{nodeOpt, nodeOpt, nodeOpt}
-
-	// nodes = m3db nodes
-	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, nodeOpts)
 	defer closeFn()
 
-	now := nodes[0].getNowFn()
-
-	testWrite := func(cLevel topology.ConsistencyLevel) error {
-		opts := client.NewOptions().
-			SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelNone).
-			SetClusterConnectTimeout(10 * time.Millisecond).
-			SetWriteRequestTimeout(100 * time.Millisecond).
-			SetTopologyInitializer(topoInit).
-			SetWriteConsistencyLevel(cLevel)
-
-		c, err := client.NewClient(opts)
-		require.NoError(t, err)
-
-		s, err := c.NewSession()
-		require.NoError(t, err)
-
-		return s.Write(nspaces[0].ID().String(), "quorumTest", now, 42, xtime.Second, nil)
-	}
-
+	// Writes succeed to one node
 	require.NoError(t, nodes[0].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
 
+	// Writes succeed to two nodes
 	require.NoError(t, nodes[1].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
 
+	// Writes succeed to all nodes
 	require.NoError(t, nodes[2].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelAll))
-
-	// Stop the servers at test completion
-	log.Debug("servers closing")
-	nodes.parallel(func(s *testSetup) {
-		require.NoError(t, s.stopServer())
-	})
-	log.Debug("servers are now down")
-
 }
 
 func TestAddNodeQuorum(t *testing.T) {
@@ -128,19 +77,47 @@ func TestAddNodeQuorum(t *testing.T) {
 		t.SkipNow()
 	}
 
+	// nodes = m3db nodes
+	nodes, closeFn, testWrite := makeNodes(t, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
+		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
+	})
+
+	defer closeFn()
+
+	// No writes succeed to available nodes
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[3].startServer())
+	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
+	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
+	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+
+	// Writes succeed to one available node
+	require.NoError(t, nodes[1].startServer())
+	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
+	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
+	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+
+	// Writes succeed to two available nodes
+	require.NoError(t, nodes[2].startServer())
+	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
+	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
+	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+}
+
+type testWriteFn func(topology.ConsistencyLevel) error
+
+func makeNodes(t *testing.T, instances []services.ServiceInstance) (testSetups,
+	closeFn, testWriteFn) {
+
 	log := xlog.SimpleLogger
 
 	nspaces := []namespace.Metadata{
 		namespace.NewMetadata(testNamespaces[0], namespace.NewOptions()),
 	}
 	opts := newTestOptions().SetNamespaces(nspaces)
-
-	instances := []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
-		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
-	}
 
 	svc := NewFakeM3ClusterService().
 		SetInstances(instances).
@@ -159,11 +136,13 @@ func TestAddNodeQuorum(t *testing.T) {
 		disablePeersBootstrapper: true,
 		topologyInitializer:      topoInit,
 	}
-	nodeOpts := []bootstrappableTestSetupOptions{nodeOpt, nodeOpt, nodeOpt, nodeOpt}
 
-	// nodes = m3db nodes
+	nodeOpts := make([]bootstrappableTestSetupOptions, len(instances))
+	for i, _ := range instances {
+		nodeOpts[i] = nodeOpt
+	}
+
 	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, nodeOpts)
-	defer closeFn()
 
 	now := nodes[0].getNowFn()
 
@@ -184,26 +163,15 @@ func TestAddNodeQuorum(t *testing.T) {
 		return s.Write(nspaces[0].ID().String(), "quorumTest", now, 42, xtime.Second, nil)
 	}
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[3].startServer())
-	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
-	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
-	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+	nodeClose := func() {
+		// Stop the servers at test completion
+		log.Debug("servers closing")
+		nodes.parallel(func(s *testSetup) {
+			require.NoError(t, s.stopServer())
+		})
+		log.Debug("servers are now down")
+		closeFn()
+	}
 
-	require.NoError(t, nodes[1].startServer())
-	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
-	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
-	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
-
-	require.NoError(t, nodes[2].startServer())
-	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
-	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
-	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
-
-	// Stop the servers at test completion
-	log.Debug("servers closing")
-	nodes.parallel(func(s *testSetup) {
-		require.NoError(t, s.stopServer())
-	})
-	log.Debug("servers are now down")
+	return nodes, nodeClose, testWrite
 }
