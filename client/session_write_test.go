@@ -228,7 +228,7 @@ func testWriteConsistencyLevel(
 		completionFn(host, fmt.Errorf(writeErr))
 	}
 
-	// Wait for write to complete, or timeout
+	// Wait for write to complete or timeout
 	doneCh := make(chan struct{})
 	go func() {
 		writeWg.Wait()
