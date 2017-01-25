@@ -500,8 +500,7 @@ func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, er
 				break
 			}
 		}
-		if clusterAvailable {
-			// All done
+		if clusterAvailable { // All done
 			break
 		}
 		time.Sleep(clusterConnectWaitInterval)
