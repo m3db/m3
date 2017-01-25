@@ -32,8 +32,8 @@ type Gauge struct {
 // NewGauge creates a new gauge
 func NewGauge() Gauge { return emptyGauge }
 
-// Add adds a gauge value
-func (g *Gauge) Add(value float64) { g.value = value }
+// Set sets the gauge value
+func (g *Gauge) Set(value float64) { g.value = value }
 
 // Value returns the latest value
 func (g *Gauge) Value() float64 { return g.value }

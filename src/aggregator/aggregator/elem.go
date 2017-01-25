@@ -31,6 +31,10 @@ import (
 	"github.com/m3db/m3metrics/policy"
 )
 
+const (
+	defaultNumValues = 2
+)
+
 var (
 	emptyTimedCounter timedCounter
 	emptyTimedTimer   timedTimer
@@ -61,10 +65,10 @@ type metricElem interface {
 	// TODO(xichen): a value union would suffice here
 	AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error
 
-	// ReadAndDiscard processes values before a given time and discards
+	// Consume processes values before a given time and discards
 	// them afterwards, returning whether the element can be collected
 	// after discarding the values
-	ReadAndDiscard(earlierThan time.Time, fn aggMetricFn) bool
+	Consume(earlierThan time.Time, fn aggMetricFn) bool
 
 	// MarkAsTombstoned marks an element as tombstoned, which means this element
 	// will be deleted once its aggregated values have been flushed
@@ -144,7 +148,7 @@ func (e *elemBase) MarkAsTombstoned() {
 func NewCounterElem(id metric.ID, policy policy.Policy, opts Options) *CounterElem {
 	return &CounterElem{
 		elemBase: elemBase{opts: opts, id: id, policy: policy},
-		values:   make([]timedCounter, 0, 2), // in most cases values will have two entries
+		values:   make([]timedCounter, 0, defaultNumValues), // in most cases values will have two entries
 	}
 }
 
@@ -162,10 +166,10 @@ func (e *CounterElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion
 	return nil
 }
 
-// ReadAndDiscard processes values before a given time and discards
+// Consume processes values before a given time and discards
 // them afterwards, returning whether the element can be collected
 // after discarding the values
-func (e *CounterElem) ReadAndDiscard(earlierThan time.Time, fn aggMetricFn) bool {
+func (e *CounterElem) Consume(earlierThan time.Time, fn aggMetricFn) bool {
 	earlierThanNs := earlierThan.UnixNano()
 	e.Lock()
 	if e.closed {
@@ -254,7 +258,7 @@ func (e *CounterElem) processValue(timestamp time.Time, agg aggregation.Counter,
 func NewTimerElem(id metric.ID, policy policy.Policy, opts Options) *TimerElem {
 	return &TimerElem{
 		elemBase: elemBase{opts: opts, id: id, policy: policy},
-		values:   make([]timedTimer, 0, 2), // in most cases values will have two entries
+		values:   make([]timedTimer, 0, defaultNumValues), // in most cases values will have two entries
 	}
 }
 
@@ -272,10 +276,10 @@ func (e *TimerElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 	return nil
 }
 
-// ReadAndDiscard processes values before a given time and discards
+// Consume processes values before a given time and discards
 // them afterwards, returning whether the element can be collected
 // after discarding the values
-func (e *TimerElem) ReadAndDiscard(earlierThan time.Time, fn aggMetricFn) bool {
+func (e *TimerElem) Consume(earlierThan time.Time, fn aggMetricFn) bool {
 	earlierThanNs := earlierThan.UnixNano()
 	e.Lock()
 	if e.closed {
@@ -401,7 +405,7 @@ func (e *TimerElem) processValue(timestamp time.Time, agg aggregation.Timer, fn 
 func NewGaugeElem(id metric.ID, policy policy.Policy, opts Options) *GaugeElem {
 	return &GaugeElem{
 		elemBase: elemBase{opts: opts, id: id, policy: policy},
-		values:   make([]timedGauge, 0, 2), // in most cases values will have two entries
+		values:   make([]timedGauge, 0, defaultNumValues), // in most cases values will have two entries
 	}
 }
 
@@ -414,15 +418,15 @@ func (e *GaugeElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 		return errGaugeElemClosed
 	}
 	idx := e.findOrInsertWithLock(alignedStart)
-	e.values[idx].gauge.Add(mu.GaugeVal)
+	e.values[idx].gauge.Set(mu.GaugeVal)
 	e.Unlock()
 	return nil
 }
 
-// ReadAndDiscard processes values before a given time and discards
+// Consume processes values before a given time and discards
 // them afterwards, returning whether the element can be collected
 // after discarding the values
-func (e *GaugeElem) ReadAndDiscard(earlierThan time.Time, fn aggMetricFn) bool {
+func (e *GaugeElem) Consume(earlierThan time.Time, fn aggMetricFn) bool {
 	earlierThanNs := earlierThan.UnixNano()
 	e.Lock()
 	if e.closed {
