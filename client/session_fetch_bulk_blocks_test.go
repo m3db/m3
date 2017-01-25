@@ -1053,6 +1053,10 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
+	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+		enqueue := enqueueCh.enqueueDelayed()
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
@@ -1109,9 +1113,6 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
-	// need the sleep to yield the current go routine to any pending reattempt routines
-	time.Sleep(time.Millisecond)
-
 	// Assert result
 	assertEnqueueChannel(t, append(batch[0].blocks, batch[1].blocks...), enqueueCh)
 
@@ -1126,6 +1127,10 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
+	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+		enqueue := enqueueCh.enqueueDelayed()
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
@@ -1219,9 +1224,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	r := newBulkBlocksResult(opts, bopts)
 	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
-
-	// need the sleep to yield the current go routine to any pending reattempt routines
-	time.Sleep(time.Millisecond)
 
 	// Assert result
 	assertEnqueueChannel(t, batch[1].blocks[1:], enqueueCh)
