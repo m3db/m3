@@ -126,8 +126,6 @@ func TestWatch(t *testing.T) {
 	}
 	assert.Equal(t, []string{"i1"}, w1.Get())
 
-	time.Sleep(time.Second)
-
 	err = store.Heartbeat("foo", "i2", 2*time.Second)
 	assert.NoError(t, err)
 
@@ -135,9 +133,11 @@ func TestWatch(t *testing.T) {
 	assert.Equal(t, 0, len(w1.C()))
 	assert.Equal(t, []string{"i1", "i2"}, w1.Get())
 
-	<-w1.C()
-	assert.Equal(t, 0, len(w1.C()))
-	assert.Equal(t, []string{"i2"}, w1.Get())
+	for range w1.C() {
+		if len(w1.Get().([]string)) == 0 {
+			break
+		}
+	}
 
 	<-w1.C()
 	assert.Equal(t, 0, len(w1.C()))
@@ -267,8 +267,6 @@ func TestMultipleWatchesFromNotExist(t *testing.T) {
 	<-w2.C()
 	assert.Equal(t, 0, len(w2.C()))
 	assert.Equal(t, []string{"i1"}, w2.Get())
-
-	time.Sleep(time.Second)
 
 	err = store.Heartbeat("foo", "i2", 2*time.Second)
 	assert.NoError(t, err)
