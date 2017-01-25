@@ -267,7 +267,9 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 		bucket.readStreams(ctx, func(stream xio.SegmentReader) {
 			readers = append(readers, stream)
 		})
-		res = append(res, block.NewFetchBlockResult(bucket.start, readers, nil))
+		// Following convention from FetchBlocksMetadata, returning nil checksums for buckets
+		// because they haven't been flushed yet
+		res = append(res, block.NewFetchBlockResult(bucket.start, readers, nil, nil))
 	})
 
 	return res

@@ -132,6 +132,7 @@ struct Block {
 	1: required i64 start
 	2: optional Segments segments
 	3: optional Error err
+	4: optional i64 checksum
 }
 
 struct FetchBlocksMetadataRawRequest {

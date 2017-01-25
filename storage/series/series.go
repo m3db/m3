@@ -274,10 +274,10 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 			if err != nil {
 				r := block.NewFetchBlockResult(start, nil,
 					fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-						s.id.String(), start, err))
+						s.id.String(), start, err), nil)
 				res = append(res, r)
 			} else if stream != nil {
-				r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil)
+				r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil, b.Checksum())
 				res = append(res, r)
 			}
 		}
