@@ -36,7 +36,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -234,96 +233,12 @@ func TestClusterAddOneNode(t *testing.T) {
 	}
 }
 
-func TestNormalWriteQuorum(t *testing.T) {
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	instances := []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
-	}
-
-	fmt.Println("1a")
-	assert.NoError(t, testWrite(t, instances, topology.ConsistencyLevelOne))
-	fmt.Println("2a")
-	assert.NoError(t, testWrite(t, instances, topology.ConsistencyLevelMajority))
-	fmt.Println("3a")
-	assert.NoError(t, testWrite(t, instances, topology.ConsistencyLevelAll))
-
-}
-
-func TestAddNodeWriteQuorum(t *testing.T) {
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	instances := []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 2, newClusterShardsRange(0, 1023, shard.Leaving)),
-		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
-	}
-
-	fmt.Println("1")
-	assert.NoError(t, testWrite(t, instances, topology.ConsistencyLevelOne))
-	fmt.Println("2")
-	assert.NoError(t, testWrite(t, instances, topology.ConsistencyLevelMajority))
-	fmt.Println("3")
-	assert.Error(t, testWrite(t, instances, topology.ConsistencyLevelAll))
-}
-
-func testWrite(
-	t *testing.T,
-	instances []services.ServiceInstance,
-	cLevel topology.ConsistencyLevel,
-) error {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	svc := NewFakeM3ClusterService().
-		SetInstances(instances).
-		SetReplication(services.NewServiceReplication().SetReplicas(3)).
-		SetSharding(services.NewServiceSharding().SetNumShards(1024))
-
-	svcs := NewFakeM3ClusterServices()
-	svcs.RegisterService("m3db", svc)
-
-	topoOpts := topology.NewDynamicOptions().
-		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
-	topoInit := topology.NewDynamicInitializer(topoOpts)
-
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-
-	ts, err := newTestSetup(newTestOptions().
-		SetNamespaces([]namespace.Metadata{namesp}).
-		SetUseTChannelClientForWriting(false).
-		SetWriteConsistencyLevel(cLevel).
-		SetClusterDatabaseTopologyInitializer(topoInit))
-	require.NoError(t, err)
-	defer ts.close()
-
-	require.NoError(t, ts.startServer())
-	defer func() { require.NoError(t, ts.stopServer()) }()
-
-	now := ts.getNowFn()
-	ts.setNowFn(now)
-	data := generateTestData([]string{"quorum", "test"}, 1, now)
-
-	waitUntilHasBootstrappedShardsExactly(ts.db, newShardsRange(0, 1023))
-	err = ts.writeBatch(testNamespaces[0], data)
-	fmt.Println("there")
-
-	return err
-}
-
 // utils
 
 func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
-	require.True(t, n < 1000) // keep ports sensible
+	require.True(t, n < 250) // keep ports sensible
 	return services.NewServiceInstance().
 		SetInstanceID(fmt.Sprintf("testhost%v", n)).
-		SetEndpoint(fmt.Sprintf("127.0.0.1:%v", 9000+n)).
+		SetEndpoint(fmt.Sprintf("127.0.0.1:%v", 9000+4*n)).
 		SetShards(shards)
 }
