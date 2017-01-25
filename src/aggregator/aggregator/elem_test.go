@@ -163,7 +163,7 @@ func testGaugeElem() *GaugeElem {
 	e := NewGaugeElem(testID, testPolicy, testOptions())
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
 		gauge := aggregation.NewGauge()
-		gauge.Add(testGauge.GaugeVal)
+		gauge.Set(testGauge.GaugeVal)
 		e.values = append(e.values, timedGauge{
 			timeNs: aligned.UnixNano(),
 			gauge:  gauge,
@@ -302,33 +302,33 @@ func TestCounterElemReadAndDiscard(t *testing.T) {
 
 	// Read and discard values before an early-enough time
 	fn, res := testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(time.Unix(0, 0), fn))
+	require.False(t, e.Consume(time.Unix(0, 0), fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 2, len(e.values))
 
 	// Read and discard one value
 	fn, res = testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(testAlignedStarts[1], fn))
+	require.False(t, e.Consume(testAlignedStarts[1], fn))
 	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[1], testPolicy), *res)
 	require.Equal(t, 1, len(e.values))
 
 	// Read and discard all values
 	fn, res = testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(testAlignedStarts[2], fn))
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[2], testPolicy), *res)
 	require.Equal(t, 0, len(e.values))
 
 	// Tombstone the element and discard all values
 	e.tombstoned = true
 	fn, res = testAggMetricFn()
-	require.True(t, e.ReadAndDiscard(testAlignedStarts[2], fn))
+	require.True(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 0, len(e.values))
 
 	// Reading and discarding values from a closed element is no op
 	e.closed = true
 	fn, res = testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(testAlignedStarts[2], fn))
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 }
 
@@ -424,33 +424,33 @@ func TestTimerElemReadAndDiscard(t *testing.T) {
 
 	// Read and discard values before an early-enough time
 	fn, res := testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(time.Unix(0, 0), fn))
+	require.False(t, e.Consume(time.Unix(0, 0), fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 2, len(e.values))
 
 	// Read and discard one value
 	fn, res = testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(testAlignedStarts[1], fn))
+	require.False(t, e.Consume(testAlignedStarts[1], fn))
 	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[1], testPolicy), *res)
 	require.Equal(t, 1, len(e.values))
 
 	// Read and discard all values
 	fn, res = testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(testAlignedStarts[2], fn))
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[2], testPolicy), *res)
 	require.Equal(t, 0, len(e.values))
 
 	// Tombstone the element and discard all values
 	e.tombstoned = true
 	fn, res = testAggMetricFn()
-	require.True(t, e.ReadAndDiscard(testAlignedStarts[2], fn))
+	require.True(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 0, len(e.values))
 
 	// Reading and discarding values from a closed element is no op
 	e.closed = true
 	fn, res = testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(testAlignedStarts[2], fn))
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 
 	// Verify the streams have been returned to pool
@@ -538,26 +538,26 @@ func TestGaugeElemReadAndDiscard(t *testing.T) {
 
 	// Read and discard values before an early-enough time
 	fn, res := testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(time.Unix(0, 0), fn))
+	require.False(t, e.Consume(time.Unix(0, 0), fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 2, len(e.values))
 
 	// Read and discard one value
 	fn, res = testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(testAlignedStarts[1], fn))
+	require.False(t, e.Consume(testAlignedStarts[1], fn))
 	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[1], testPolicy), *res)
 	require.Equal(t, 1, len(e.values))
 
 	// Read and discard all values
 	fn, res = testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(testAlignedStarts[2], fn))
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[2], testPolicy), *res)
 	require.Equal(t, 0, len(e.values))
 
 	// Tombstone the element and discard all values
 	e.tombstoned = true
 	fn, res = testAggMetricFn()
-	require.True(t, e.ReadAndDiscard(testAlignedStarts[2], fn))
+	require.True(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 0, len(e.values))
 	require.Equal(t, 0, len(e.values))
@@ -565,7 +565,7 @@ func TestGaugeElemReadAndDiscard(t *testing.T) {
 	// Reading and discarding values from a closed element is no op
 	e.closed = true
 	fn, res = testAggMetricFn()
-	require.False(t, e.ReadAndDiscard(testAlignedStarts[2], fn))
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 }
 

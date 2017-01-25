@@ -162,8 +162,9 @@ func (l *MetricList) tickInternal() {
 	// are protected by the same read lock
 	l.timeLock.Lock()
 	start := l.nowFn()
-	alignedStart := start.Truncate(l.resolution)
+	resolution := l.resolution
 	l.timeLock.Unlock()
+	alignedStart := start.Truncate(resolution)
 
 	// Reset states reused across ticks
 	l.idBuf.Reset()
@@ -177,7 +178,7 @@ func (l *MetricList) tickInternal() {
 		case metricElem:
 			// If the element is eligible for collection after the values are
 			// processed, close it and reset the value to nil
-			if elem.ReadAndDiscard(alignedStart, l.aggMetricFn) {
+			if elem.Consume(alignedStart, l.aggMetricFn) {
 				elem.Close()
 				e.Value = nil
 				l.toCollect = append(l.toCollect, e)

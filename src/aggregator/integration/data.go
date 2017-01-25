@@ -226,7 +226,7 @@ func toExpectedResults(
 					datapoints[alignedStart] = v
 				case unaggregated.GaugeType:
 					v := values.(aggregation.Gauge)
-					v.Add(mu.GaugeVal)
+					v.Set(mu.GaugeVal)
 					datapoints[alignedStart] = v
 				default:
 					require.Fail(t, fmt.Sprintf("unrecognized metric type %v", mu.Type))

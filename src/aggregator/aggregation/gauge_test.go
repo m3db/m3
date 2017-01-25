@@ -29,7 +29,7 @@ import (
 func TestGauge(t *testing.T) {
 	var g Gauge
 	for i := 1; i <= 100; i++ {
-		g.Add(float64(i))
+		g.Set(float64(i))
 	}
 	require.Equal(t, 100.0, g.Value())
 }

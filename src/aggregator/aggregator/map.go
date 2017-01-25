@@ -89,12 +89,14 @@ func (m *metricMap) DeleteExpired(target time.Duration) {
 	// Determine batch size
 	m.RLock()
 	elemsLen := m.entryList.Len()
+	if elemsLen == 0 {
+		// If the list is empty, nothing to do
+		m.RUnlock()
+		return
+	}
 	batchSize := int(math.Max(1.0, math.Ceil(m.batchPercent*float64(elemsLen))))
 	numBatches := int(math.Ceil(float64(elemsLen) / float64(batchSize)))
-	var targetPerBatch time.Duration
-	if numBatches > 0 {
-		targetPerBatch = target / time.Duration(numBatches)
-	}
+	targetPerBatch := target / time.Duration(numBatches)
 	currElem := m.entryList.Front()
 	m.RUnlock()
 
