@@ -1,3 +1,6 @@
+SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include $(SELF_DIR)/.ci/common.mk
+
 SHELL=/bin/bash -o pipefail
 
 html_report := coverage.html
@@ -73,10 +76,6 @@ tools-linux-amd64:
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
-install-vendor: install-glide
-	@echo Installing glide deps
-	glide install
-
 install-license-bin: install-vendor
 	@echo Installing node modules
 	git submodule update --init --recursive
@@ -93,9 +92,6 @@ install-proto-bin: install-vendor
 	@echo Note: the protobuf compiler v3.0.0 can be downloaded from https://github.com/google/protobuf/releases or built from source at https://github.com/google/protobuf.
 	go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)
 
-install-glide:
-	@which glide > /dev/null || go get -u github.com/Masterminds/glide && cd $(GOPATH)/src/github.com/Masterminds/glide && git checkout v0.12.3 && go install
-
 install-thrift-bin: install-vendor install-glide
 	@echo Installing thrift binaries
 	@echo Note: the thrift binary should be installed from https://github.com/apache/thrift at commit 9b954e6a469fef18682314458e6fc4af2dd84add.
@@ -104,15 +100,15 @@ install-thrift-bin: install-vendor install-glide
 
 mock-gen: install-mockgen install-license-bin
 	@echo Generating mocks
-	$(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
+	PACKAGE=$(m3db_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
 proto-gen: install-proto-bin install-license-bin
 	@echo Generating protobuf files
-	$(auto_gen) $(proto_output_dir) $(proto_rules_dir)
+	PACKAGE=$(m3db_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
 thrift-gen: install-thrift-bin install-license-bin
 	@echo Generating thrift files
-	$(auto_gen) $(thrift_output_dir) $(thrift_rules_dir)
+	PACKAGE=$(m3db_package) $(auto_gen) $(thrift_output_dir) $(thrift_rules_dir)
 
 all-gen: mock-gen proto-gen thrift-gen
 
@@ -140,9 +136,6 @@ test: test-internal
 testhtml: test-internal
 	gocov convert $(coverfile) | gocov-html > $(html_report) && open $(html_report)
 	@rm -f $(test_log) &> /dev/null
-
-install-ci:
-	make install-vendor
 
 test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
