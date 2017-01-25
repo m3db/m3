@@ -122,10 +122,10 @@ type session struct {
 	digestPool                       sync.Pool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
+	reattemptStreamBlocksFromPeersFn reattemptStreamBlocksFromPeersFn
 	origin                           topology.Host
 	streamBlocksMaxBlockRetries      int
 	streamBlocksWorkers              xsync.WorkerPool
-	streamBlocksReattemptWorkers     xsync.WorkerPool
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
 	streamBlocksBatchTimeout         time.Duration
@@ -201,6 +201,7 @@ func newSession(opts Options) (clientSession, error) {
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		metrics:              newSessionMetrics(scope),
 	}
+	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
 	s.writeStatePool = sync.Pool{New: func() interface{} {
 		w := &writeState{session: s}
 		w.reset()
@@ -215,8 +216,6 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksMaxBlockRetries = opts.FetchSeriesBlocksMaxBlockRetries()
 		s.streamBlocksWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksWorkers.Init()
-		s.streamBlocksReattemptWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
-		s.streamBlocksReattemptWorkers.Init()
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
@@ -1864,7 +1863,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		).Errorf("stream blocks request error")
 		for i := range batch {
 			b := batch[i].blocks
-			s.streamBlocksReattemptFromPeers(b, enqueueCh, reqErrReason, m)
+			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, reqErrReason, m)
 		}
 		return
 	}
@@ -1886,7 +1885,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		id := batch[i].id
 		if !bytes.Equal(id.Data().Get(), result.Elements[i].ID) {
 			b := batch[i].blocks
-			s.streamBlocksReattemptFromPeers(b, enqueueCh, respErrReason, m)
+			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, respErrReason, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
 			s.log.WithFields(
 				xlog.NewLogField("expectedID", batch[i].id),
@@ -1932,7 +1931,7 @@ func (s *session) streamBlocksBatchFromPeer(
 
 			if err != nil {
 				failed := []blockMetadata{batch[i].blocks[j]}
-				s.streamBlocksReattemptFromPeers(failed, enqueueCh, respErrReason, m)
+				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, respErrReason, m)
 				m.fetchBlockError.Inc(1)
 				s.log.WithFields(
 					xlog.NewLogField("id", id.String()),
@@ -1990,6 +1989,8 @@ const (
 	respErrReason
 )
 
+type reattemptStreamBlocksFromPeersFn func([]blockMetadata, *enqueueChannel, reason, *streamFromPeersMetrics)
+
 func (s *session) streamBlocksReattemptFromPeers(
 	blocks []blockMetadata,
 	enqueueCh *enqueueChannel,
@@ -2008,27 +2009,32 @@ func (s *session) streamBlocksReattemptFromPeers(
 	// getting done because new attempts are blocked on existing attempts completing
 	// and existing attempts are trying to enqueue into a full reattempt channel
 	enqueue := enqueueCh.enqueueDelayed()
-	s.streamBlocksReattemptWorkers.Go(func() {
-		for i := range blocks {
-			// Reconstruct peers metadata for reattempt
-			reattemptBlocksMetadata :=
-				make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
-			for j := range reattemptBlocksMetadata {
-				reattemptBlocksMetadata[j] = &blocksMetadata{
-					peer: blocks[i].reattempt.peersMetadata[j].peer,
-					id:   blocks[i].reattempt.id,
-					blocks: []blockMetadata{blockMetadata{
-						start:     blocks[i].reattempt.peersMetadata[j].start,
-						size:      blocks[i].reattempt.peersMetadata[j].size,
-						checksum:  blocks[i].reattempt.peersMetadata[j].checksum,
-						reattempt: blocks[i].reattempt,
-					}},
-				}
+	go s.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+}
+
+func (s *session) streamBlocksReattemptFromPeersEnqueue(
+	blocks []blockMetadata,
+	enqueueFn func([]*blocksMetadata),
+) {
+	for i := range blocks {
+		// Reconstruct peers metadata for reattempt
+		reattemptBlocksMetadata :=
+			make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
+		for j := range reattemptBlocksMetadata {
+			reattemptBlocksMetadata[j] = &blocksMetadata{
+				peer: blocks[i].reattempt.peersMetadata[j].peer,
+				id:   blocks[i].reattempt.id,
+				blocks: []blockMetadata{blockMetadata{
+					start:     blocks[i].reattempt.peersMetadata[j].start,
+					size:      blocks[i].reattempt.peersMetadata[j].size,
+					checksum:  blocks[i].reattempt.peersMetadata[j].checksum,
+					reattempt: blocks[i].reattempt,
+				}},
 			}
-			// Re-enqueue the block to be fetched
-			enqueue(reattemptBlocksMetadata)
 		}
-	})
+		// Re-enqueue the block to be fetched
+		enqueueFn(reattemptBlocksMetadata)
+	}
 }
 
 type blocksResult interface {

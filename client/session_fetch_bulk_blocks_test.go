@@ -1053,12 +1053,13 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
+	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+		enqueue := enqueueCh.enqueueDelayed()
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-	// Ensure work enqueued immediately so can test result of the reenqueue
-	session.streamBlocksReattemptWorkers = newSynchronousWorkerPool()
-
 	assert.NoError(t, session.Open())
 
 	var (
@@ -1126,12 +1127,13 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
+	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+		enqueue := enqueueCh.enqueueDelayed()
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-	// Ensure work enqueued immediately so can test result of the reenqueue
-	session.streamBlocksReattemptWorkers = newSynchronousWorkerPool()
-
 	assert.NoError(t, session.Open())
 
 	blockSize := 2 * time.Hour
@@ -1248,11 +1250,13 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
+	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+		enqueue := enqueueCh.enqueueDelayed()
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-	// Ensure work enqueued immediately so can test result of the reenqueue
-	session.streamBlocksReattemptWorkers = newSynchronousWorkerPool()
 
 	assert.NoError(t, session.Open())
 
@@ -2078,11 +2082,20 @@ func assertEnqueueChannel(
 	}
 
 	require.Equal(t, len(expected), len(distinct))
+	matched := make([]bool, len(expected))
 	for i, expected := range expected {
-		actual := distinct[i]
-		require.Equal(t, expected.start, actual.start)
-		require.Equal(t, expected.size, actual.size)
-		require.Equal(t, expected.reattempt.id, actual.reattempt.id)
+		for _, actual := range distinct {
+			found := expected.start.Equal(actual.start) &&
+				expected.size == actual.size &&
+				expected.reattempt.id.Equal(actual.reattempt.id)
+			if found {
+				matched[i] = true
+				continue
+			}
+		}
+	}
+	for _, m := range matched {
+		assert.True(t, m)
 	}
 
 	close(enqueueCh.peersMetadataCh)
