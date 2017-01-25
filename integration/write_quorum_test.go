@@ -33,7 +33,6 @@ import (
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/assert"
@@ -42,13 +41,9 @@ import (
 
 func TestNormalQuorum(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Test setups
 	log := xlog.SimpleLogger
 
 	nspaces := []namespace.Metadata{
@@ -85,12 +80,11 @@ func TestNormalQuorum(t *testing.T) {
 	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, nodeOpts)
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
 	now := nodes[0].getNowFn()
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
 		opts := client.NewOptions().
-			SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelAny).
+			SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelNone).
 			SetClusterConnectTimeout(10 * time.Millisecond).
 			SetWriteRequestTimeout(100 * time.Millisecond).
 			SetTopologyInitializer(topoInit).
@@ -105,6 +99,7 @@ func TestNormalQuorum(t *testing.T) {
 		return s.Write(nspaces[0].ID().String(), "quorumTest", now, 42, xtime.Second, nil)
 	}
 
+	require.NoError(t, nodes[0].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -130,14 +125,10 @@ func TestNormalQuorum(t *testing.T) {
 
 func TestAddNodeQuorum(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Test setups
-	//	log := xlog.SimpleLogger
+	log := xlog.SimpleLogger
 
 	nspaces := []namespace.Metadata{
 		namespace.NewMetadata(testNamespaces[0], namespace.NewOptions()),
@@ -174,13 +165,11 @@ func TestAddNodeQuorum(t *testing.T) {
 	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, nodeOpts)
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[3].startServer())
 	now := nodes[0].getNowFn()
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
 		opts := client.NewOptions().
-			SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelAny).
+			SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelNone).
 			SetClusterConnectTimeout(10 * time.Millisecond).
 			SetWriteRequestTimeout(100 * time.Millisecond).
 			SetTopologyInitializer(topoInit).
@@ -195,6 +184,8 @@ func TestAddNodeQuorum(t *testing.T) {
 		return s.Write(nspaces[0].ID().String(), "quorumTest", now, 42, xtime.Second, nil)
 	}
 
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[3].startServer())
 	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -209,10 +200,10 @@ func TestAddNodeQuorum(t *testing.T) {
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
 
-	// // Stop the servers at test completion
-	// log.Debug("servers closing")
-	// nodes.parallel(func(s *testSetup) {
-	// 	require.NoError(t, s.stopServer())
-	// })
-	// log.Debug("servers are now down")
+	// Stop the servers at test completion
+	log.Debug("servers closing")
+	nodes.parallel(func(s *testSetup) {
+		require.NoError(t, s.stopServer())
+	})
+	log.Debug("servers are now down")
 }
