@@ -36,12 +36,12 @@ import (
 )
 
 const (
-	testHost     = "testhost"
-	testHostAddr = testHost + ":9000"
+	testHostStr  = "testhost"
+	testHostAddr = testHostStr + ":9000"
 )
 
 var (
-	h           = topology.NewHost(testHost, testHostAddr)
+	h           = topology.NewHost(testHostStr, testHostAddr)
 	channelNone = &nullChannel{}
 )
 
