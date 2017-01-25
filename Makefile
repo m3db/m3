@@ -103,15 +103,15 @@ install-thrift-bin: install-vendor install-glide
 
 mock-gen: install-mockgen install-license-bin
 	@echo Generating mocks
-	$(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
+	PACKAGE=$(m3db_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
 proto-gen: install-proto-bin install-license-bin
 	@echo Generating protobuf files
-	$(auto_gen) $(proto_output_dir) $(proto_rules_dir)
+	PACKAGE=$(m3db_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
 thrift-gen: install-thrift-bin install-license-bin
 	@echo Generating thrift files
-	$(auto_gen) $(thrift_output_dir) $(thrift_rules_dir)
+	PACKAGE=$(m3db_package) $(auto_gen) $(thrift_output_dir) $(thrift_rules_dir)
 
 all-gen: mock-gen proto-gen thrift-gen
 
