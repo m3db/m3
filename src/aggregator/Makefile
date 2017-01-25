@@ -1,3 +1,6 @@
+SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include $(SELF_DIR)/.ci/common.mk
+
 SHELL=/bin/bash -o pipefail
 
 html_report := coverage.html
@@ -17,13 +20,6 @@ LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
 setup:
 	mkdir -p $(BUILD)
-
-install-vendor: install-glide
-	@echo Installing glide deps
-	glide install
-
-install-glide:
-	@which glide > /dev/null || go get -u github.com/Masterminds/glide
 
 lint:
 	@which golint > /dev/null || go get -u github.com/golang/lint/golint
@@ -45,9 +41,6 @@ test: test-internal
 testhtml: test-internal
 	gocov convert $(coverfile) | gocov-html > $(html_report) && open $(html_report)
 	@rm -f $(test_log) &> /dev/null
-
-install-ci:
-	make install-vendor
 
 test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
