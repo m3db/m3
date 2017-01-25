@@ -119,12 +119,11 @@ func TestWatch(t *testing.T) {
 	err = store.Heartbeat("foo", "i1", 2*time.Second)
 	assert.NoError(t, err)
 
-	<-w1.C()
-	assert.Equal(t, 0, len(w1.C()))
-	assert.Equal(t, []string{}, w1.Get())
-
-	<-w1.C()
-	assert.Equal(t, 0, len(w1.C()))
+	for range w1.C() {
+		if len(w1.Get().([]string)) == 1 {
+			break
+		}
+	}
 	assert.Equal(t, []string{"i1"}, w1.Get())
 
 	time.Sleep(time.Second)
@@ -208,15 +207,10 @@ func TestRenewLeaseDoNotTriggerWatch(t *testing.T) {
 
 	store := NewStore(ec, opts)
 
-	ticker := time.NewTicker(time.Second)
-	go func() {
-		for range ticker.C {
-			err := store.Heartbeat("foo", "i1", 2*time.Second)
-			assert.NoError(t, err)
-		}
-	}()
-
 	w1, err := store.Watch("foo")
+	assert.NoError(t, err)
+
+	err = store.Heartbeat("foo", "i1", 2*time.Second)
 	assert.NoError(t, err)
 
 	for range w1.C() {
@@ -226,12 +220,15 @@ func TestRenewLeaseDoNotTriggerWatch(t *testing.T) {
 	}
 	assert.Equal(t, []string{"i1"}, w1.Get())
 
+	err = store.Heartbeat("foo", "i1", 2*time.Second)
+	assert.NoError(t, err)
+
 	select {
 	case <-w1.C():
 		assert.FailNow(t, "unexpected notification")
-	case <-time.After(2 * time.Second):
+	case <-time.After(200 * time.Millisecond):
 	}
-	ticker.Stop()
+
 	w1.Close()
 }
 
