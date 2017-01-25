@@ -66,8 +66,7 @@ func newHostQueue(
 			"hostID": host.ID(),
 		})
 
-	opts = opts.SetInstrumentOptions(
-		opts.InstrumentOptions().SetMetricsScope(scope))
+	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
 	size := opts.HostQueueOpsFlushSize()
 

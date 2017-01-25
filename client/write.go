@@ -144,16 +144,23 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	w.Lock()
 	w.pending--
 
+	var wErr error
+
 	if err != nil {
-		w.errors = append(w.errors, fmt.Errorf("error writing to host %s: %v", hostID, err))
+		wErr = fmt.Errorf("error writing to host %s: %v", hostID, err)
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
-		w.errors = append(w.errors, fmt.Errorf("missing host shard in writeState completionFn: %s", hostID))
-	} else if shardState, err :=
-		hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
-		w.errors = append(w.errors, fmt.Errorf("missing shard %d in host %s", w.op.shardID, hostID))
-	} else if shardState == shard.Available {
+		wErr = fmt.Errorf("missing host shard in writeState completionFn: %s", hostID)
+	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
+		wErr = fmt.Errorf("missing shard %d in host %s", w.op.shardID, hostID)
+	} else if shardState != shard.Available {
 		// NB(bl): only count writes to available shards towards success
+		wErr = fmt.Errorf("shard %d in host %s not available", w.op.shardID, hostID)
+	} else {
 		w.success++
+	}
+
+	if wErr != nil {
+		w.errors = append(w.errors, wErr)
 	}
 
 	switch w.session.writeLevel {

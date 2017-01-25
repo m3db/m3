@@ -137,7 +137,7 @@ func TestAddNodeQuorum(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Test setups
-	log := xlog.SimpleLogger
+	//	log := xlog.SimpleLogger
 
 	nspaces := []namespace.Metadata{
 		namespace.NewMetadata(testNamespaces[0], namespace.NewOptions()),
@@ -209,10 +209,10 @@ func TestAddNodeQuorum(t *testing.T) {
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
 
-	// Stop the servers at test completion
-	log.Debug("servers closing")
-	nodes.parallel(func(s *testSetup) {
-		require.NoError(t, s.stopServer())
-	})
-	log.Debug("servers are now down")
+	// // Stop the servers at test completion
+	// log.Debug("servers closing")
+	// nodes.parallel(func(s *testSetup) {
+	// 	require.NoError(t, s.stopServer())
+	// })
+	// log.Debug("servers are now down")
 }
