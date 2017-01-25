@@ -377,7 +377,7 @@ func (r shardRepairer) repairDifferences(
 		for _, hbm := range hs {
 			missingErr := fmt.Errorf(
 				"replica requested but not received [ host = %v, id = %v, block_start = %v ]",
-				hbm.Host.String(), hashToIDMap[blkID.idHash], blkID.start)
+				hbm.Host.String(), hashToIDMap[blkID.idHash].String(), blkID.start)
 			multiErr = multiErr.Add(missingErr)
 			logger.Warnf("%v", missingErr)
 			repairSummary.NumPending++
@@ -386,7 +386,7 @@ func (r shardRepairer) repairDifferences(
 
 	// track error if blocksIter is unhappy
 	if err := blocksIter.Err(); err != nil {
-		multiErr.Add(err)
+		multiErr = multiErr.Add(err)
 		logger.Warnf("repair iterator terminated with error: %v", err)
 	}
 
