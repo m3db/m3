@@ -456,6 +456,8 @@ func (s *dbSeries) mergeBlock(
 ) (block.DatabaseBlock, error) {
 	blockStart := newBlock.StartTime()
 
+	// TODO(r): remove the possible error case now there is none
+
 	// If we don't have an existing block there is no need to merge
 	existingBlock, ok := blocks.BlockAt(blockStart)
 	if !ok {
@@ -558,6 +560,12 @@ func (s *dbSeries) OnRetrieveBlock(
 				// Must fall within the buffer
 				err = s.buffer.CacheRetrievedBlock(blockStart, segment)
 			} else if !block.IsRetrieved() {
+				// NB(r): This retrieved block could be a mergeWith block
+				// of this block, hence we make sure this isn't retrieved
+				// before resetting with the contents.
+				// Could in the future use the checksum of the segment
+				// to search the blocks in linked list style to find
+				// the one with the right checksum to replace contents of.
 				block.Reset(blockStart, segment)
 			}
 		}
