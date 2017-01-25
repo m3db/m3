@@ -1250,6 +1250,10 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
+	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+		enqueue := enqueueCh.enqueueDelayed()
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
