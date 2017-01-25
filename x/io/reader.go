@@ -156,7 +156,7 @@ func (sr *segmentReader) Reset(segment ts.Segment) {
 	sr.si = 0
 }
 
-func (sr *segmentReader) Close() {
+func (sr *segmentReader) Finalize() {
 	// Finalize the segment
 	sr.segment.Finalize()
 

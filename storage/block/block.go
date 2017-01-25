@@ -49,8 +49,10 @@ type dbBlock struct {
 
 	lastAccess time.Time
 
+	mergeWith DatabaseBlock
+
 	retriever  DatabaseShardBlockRetriever
-	retrieveID ts.ID // can get rid of with a bound databaseblockretriever
+	retrieveID ts.ID
 	onRetrieve OnRetrieveBlock
 
 	closed bool
@@ -113,20 +115,41 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	b.lastAccess = b.nowFn()
 
 	// If the block retrieve ID is set then it must be retrieved
+	var (
+		stream xio.SegmentReader
+		err    error
+	)
 	if b.retriever != nil {
-		return b.retriever.Stream(b.retrieveID, b.start, b.onRetrieve)
+		stream, err = b.retriever.Stream(b.retrieveID, b.start, b.onRetrieve)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		stream = b.opts.SegmentReaderPool().Get()
+		// NB(r): We explicitly create a new segment to ensure references
+		// are taken to the bytes refs and to not finalize the bytes.
+		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
 	}
-	// If the block is not writable, and the segment is empty, it means
-	// there are no data encoded in this block, so we return a nil reader.
-	if b.segment.Head == nil && b.segment.Tail == nil {
-		return nil, nil
+
+	if b.mergeWith != nil {
+		var mergeStream xio.SegmentReader
+		mergeStream, err = b.mergeWith.Stream(blocker)
+		if err != nil {
+			stream.Finalize()
+			return nil, err
+		}
+		// Return a lazily merged stream
+		stream = newDatabaseMergedBlockReader(b.start, stream, mergeStream, b.opts)
 	}
-	s := b.opts.SegmentReaderPool().Get()
-	// NB(r): We explicitly create a new segment to ensure references
-	// are taken to the bytes refs and to not finalize the bytes.
-	s.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
-	blocker.RegisterFinalizer(context.FinalizerFn(s.Close))
-	return s, nil
+
+	// Register the finalizer for the stream
+	blocker.RegisterFinalizer(stream)
+
+	return stream, nil
+}
+
+func (b *dbBlock) MergeOnStream(other DatabaseBlock) {
+	b.mergeWith = other
 }
 
 func (b *dbBlock) SetOnRetrieveBlock(onRetrieve OnRetrieveBlock) {
@@ -145,6 +168,7 @@ func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 	b.start = start
 	b.closed = false
 	b.lastAccess = b.nowFn()
+	b.mergeWith = nil
 	b.resetSegment(segment)
 }
 
@@ -160,6 +184,7 @@ func (b *dbBlock) ResetRetrievable(
 	b.start = start
 	b.closed = false
 	b.lastAccess = b.nowFn()
+	b.mergeWith = nil
 	b.resetRetrievable(retriever, metadata)
 }
 

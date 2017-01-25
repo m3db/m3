@@ -219,6 +219,9 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					)
 					if retriever == nil {
 						id, data, err := r.Read()
+						// TODO(r): put id into a shared hash map and when
+						// it's seen again then finalize the one just read
+						// and use the one from the hashmap to avoid duplicate IDs
 						if err != nil {
 							entryErr = err
 						} else {
@@ -228,6 +231,9 @@ func (s *fileSystemSource) bootstrapFromReaders(
 						}
 					} else {
 						id, length, checksum, err := r.ReadMetadata()
+						// TODO(r): put id into a shared hash map and when
+						// it's seen again then finalize the one just read
+						// and use the one from the hashmap to avoid duplicate IDs
 						if err != nil {
 							entryErr = err
 						} else {

@@ -509,7 +509,7 @@ func (b *dbBufferBucket) streams(ctx context.Context) []xio.SegmentReader {
 	}
 	for i := range b.encoders {
 		if s := b.encoders[i].encoder.Stream(); s != nil {
-			ctx.RegisterFinalizer(context.FinalizerFn(s.Close))
+			ctx.RegisterFinalizer(s)
 			streams = append(streams, s)
 		}
 	}
@@ -549,7 +549,7 @@ func (b *dbBufferBucket) merge() {
 	for i := range b.encoders {
 		if stream := b.encoders[i].encoder.Stream(); stream != nil {
 			readers = append(readers, stream)
-			defer stream.Close()
+			defer stream.Finalize()
 		}
 	}
 

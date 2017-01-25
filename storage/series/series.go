@@ -23,7 +23,6 @@ package series
 import (
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -463,60 +462,10 @@ func (s *dbSeries) mergeBlock(
 		return newBlock, nil
 	}
 
-	ctx := s.opts.ContextPool().Get()
-	defer ctx.Close()
-
-	// If enc is empty, no block to create
-	newBlockReader, err := newBlock.Stream(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if newBlockReader == nil {
-		return nil, nil
-	}
-
-	existingBlockReader, err := existingBlock.Stream(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if existingBlockReader == nil {
-		// Existing block has no data, nothing to merge
-		return newBlock, nil
-	}
-
-	var readers [2]io.Reader
-	readers[0] = newBlockReader
-	readers[1] = existingBlockReader
-
-	multiIter := s.opts.MultiReaderIteratorPool().Get()
-	multiIter.Reset(readers[:])
-	defer multiIter.Close()
-
-	blopts := s.opts.DatabaseBlockOptions()
-	encoder := s.opts.EncoderPool().Get()
-	encoder.Reset(blockStart, blopts.DatabaseBlockAllocSize())
-
-	for multiIter.Next() {
-		dp, unit, annotation := multiIter.Current()
-		err := encoder.Encode(dp, unit, annotation)
-		if err != nil {
-			encoder.Close()
-			return nil, err
-		}
-	}
-	if err := multiIter.Err(); err != nil {
-		encoder.Close()
-		return nil, err
-	}
-
-	block := blopts.DatabaseBlockPool().Get()
-	block.Reset(blockStart, encoder.Discard())
-
-	// Close the existing and new blocks
-	existingBlock.Close()
-	newBlock.Close()
-
-	return block, nil
+	// We are performing this in a lock, cannot wait for the existing
+	// block potentially to be retrieved from disk, lazily merge the stream
+	newBlock.MergeOnStream(existingBlock)
+	return newBlock, nil
 }
 
 // NB(xichen): we are holding a big lock here to drain the in-memory buffer.
@@ -608,7 +557,7 @@ func (s *dbSeries) OnRetrieveBlock(
 			if !ok {
 				// Must fall within the buffer
 				err = s.buffer.CacheRetrievedBlock(blockStart, segment)
-			} else {
+			} else if !block.IsRetrieved() {
 				block.Reset(blockStart, segment)
 			}
 		}

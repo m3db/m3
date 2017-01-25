@@ -434,8 +434,8 @@ func (req *retrieveRequest) Segment() (ts.Segment, error) {
 	return req.reader.Segment()
 }
 
-func (req *retrieveRequest) Close() {
-	req.reader.Close()
+func (req *retrieveRequest) Finalize() {
+	req.reader.Finalize()
 	req.pool.Put(req)
 }
 
