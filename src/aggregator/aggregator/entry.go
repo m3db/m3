@@ -153,13 +153,7 @@ func (e *Entry) Expire() {
 	}
 	e.closed = true
 	for p, agg := range e.aggregations {
-		switch elem := agg.Value.(type) {
-		case metricElem:
-			elem.MarkAsTombstoned()
-		default:
-			// We should never get here
-			panic(fmt.Errorf("unknown metric element type: %T", elem))
-		}
+		agg.Value.(metricElem).MarkAsTombstoned()
 		delete(e.aggregations, p)
 	}
 	e.lists = nil
