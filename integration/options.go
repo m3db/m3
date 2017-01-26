@@ -69,6 +69,10 @@ const (
 
 	// defaultNumShards sets the default number of shards.
 	defaultNumShards = 1024
+
+	// defaultWriteConsistencyLevel is the default write consistency level. This
+	// should match the default in client/options.
+	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
 )
 
 type testOptions interface {
@@ -217,6 +221,12 @@ type testOptions interface {
 
 	// RepairerEnabled returns whether the repairer is enabled.
 	RepairerEnabled() bool
+
+	// WriteConsistencyLevel returns the consistency level for writing with the m3db client.
+	WriteConsistencyLevel() topology.ConsistencyLevel
+
+	// SetWriteConsistencyLevel sets the consistency level for writing with the m3db client.
+	SetWriteConsistencyLevel(topology.ConsistencyLevel) testOptions
 }
 
 type options struct {
@@ -244,6 +254,7 @@ type options struct {
 	numShards                          uint32
 	fetchSeriesBlocksBatchSize         int
 	fetchSeriesBlocksBatchConcurrency  int
+	writeConsistencyLevel              topology.ConsistencyLevel
 }
 
 func newTestOptions() testOptions {
@@ -267,6 +278,7 @@ func newTestOptions() testOptions {
 		repairTimeJitter:               defaultRepairTimeJitter,
 		repairInterval:                 defaultRepairInterval,
 		numShards:                      defaultNumShards,
+		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 	}
 }
 
@@ -508,4 +520,14 @@ func (o *options) SetRepairerEnabled(f bool) testOptions {
 
 func (o *options) RepairerEnabled() bool {
 	return o.repairerEnabled
+}
+
+func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {
+	return o.writeConsistencyLevel
+}
+
+func (o *options) SetWriteConsistencyLevel(cLevel topology.ConsistencyLevel) testOptions {
+	opts := *o
+	opts.writeConsistencyLevel = cLevel
+	return &opts
 }

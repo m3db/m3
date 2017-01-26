@@ -28,8 +28,8 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/x/metrics"
-	"github.com/m3db/m3x/log"
+	xmetrics "github.com/m3db/m3db/x/metrics"
+	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
 )
