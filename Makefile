@@ -2,6 +2,7 @@ SHELL=/bin/bash -o pipefail
 
 html_report := coverage.html
 test := .ci/test-cover.sh
+test_one_integration := .ci/test-one-integration.sh
 test_ci_integration := .ci/test-integration.sh
 convert-test-data := .ci/convert-test-data.sh
 coverfile := cover.out
@@ -150,6 +151,10 @@ test-ci-unit: test-internal
 test-ci-integration:
 	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_ci_integration)
 	@$(VENDOR_ENV) TEST_NATIVE_POOLING=true $(test_ci_integration)
+
+# run as: make test-one-integration test=<test_name>
+test-one-integration:
+	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_one_integration) $(test)
 
 clean:
 	@rm -f *.html *.xml *.out *.test

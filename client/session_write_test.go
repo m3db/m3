@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -30,8 +31,8 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/x/metrics"
-	"github.com/m3db/m3x/time"
+	xmetrics "github.com/m3db/m3db/x/metrics"
+	xtime "github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
@@ -43,12 +44,9 @@ func TestSessionWriteNotOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
+	s := newDefaultTestSession(t)
 
-	err = s.Write("namespace", "foo", time.Now(), 1.337, xtime.Second, nil)
-	assert.Error(t, err)
+	err := s.Write("namespace", "foo", time.Now(), 1.337, xtime.Second, nil)
 	assert.Equal(t, errSessionStateNotOpen, err)
 }
 
@@ -56,27 +54,9 @@ func TestSessionWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	session := s.(*session)
+	session := newDefaultTestSession(t).(*session)
 
-	w := struct {
-		ns         string
-		id         string
-		value      float64
-		t          time.Time
-		unit       xtime.Unit
-		annotation []byte
-	}{
-		ns:         "testNs",
-		id:         "foo",
-		value:      1.0,
-		t:          time.Now(),
-		unit:       xtime.Second,
-		annotation: nil,
-	}
-
+	w := newWriteStub()
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
 		completionFn = op.CompletionFn()
@@ -108,7 +88,7 @@ func TestSessionWrite(t *testing.T) {
 	// Callback
 	enqueueWg.Wait()
 	for i := 0; i < session.topoMap.Replicas(); i++ {
-		completionFn(nil, nil)
+		completionFn(session.topoMap.Hosts()[0], nil)
 	}
 
 	// Wait for write to complete
@@ -122,10 +102,7 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	session := s.(*session)
+	session := newDefaultTestSession(t).(*session)
 
 	w := struct {
 		ns         string
@@ -157,9 +134,9 @@ func TestSessionWriteConsistencyLevelAll(t *testing.T) {
 	defer ctrl.Finish()
 
 	level := topology.ConsistencyLevelAll
-	testWriteConsistencyLevel(t, ctrl, level, 0, outcomeSuccess)
+	testWriteConsistencyLevel(t, ctrl, level, 3, 0, outcomeSuccess)
 	for i := 1; i <= 3; i++ {
-		testWriteConsistencyLevel(t, ctrl, level, i, outcomeFail)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, i, outcomeFail)
 	}
 }
 
@@ -169,10 +146,11 @@ func TestSessionWriteConsistencyLevelMajority(t *testing.T) {
 
 	level := topology.ConsistencyLevelMajority
 	for i := 0; i <= 1; i++ {
-		testWriteConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, 0, outcomeSuccess)
 	}
 	for i := 2; i <= 3; i++ {
-		testWriteConsistencyLevel(t, ctrl, level, i, outcomeFail)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, i, outcomeFail)
 	}
 }
 
@@ -182,16 +160,17 @@ func TestSessionWriteConsistencyLevelOne(t *testing.T) {
 
 	level := topology.ConsistencyLevelOne
 	for i := 0; i <= 2; i++ {
-		testWriteConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, i, outcomeSuccess)
+		testWriteConsistencyLevel(t, ctrl, level, 3-i, 0, outcomeSuccess)
 	}
-	testWriteConsistencyLevel(t, ctrl, level, 3, outcomeFail)
+	testWriteConsistencyLevel(t, ctrl, level, 0, 3, outcomeFail)
 }
 
 func testWriteConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	level topology.ConsistencyLevel,
-	failures int,
+	success, failures int,
 	expected outcome,
 ) {
 	opts := newSessionTestOptions()
@@ -204,9 +183,7 @@ func testWriteConsistencyLevel(
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 		SetMetricsScope(scope))
 
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	session := s.(*session)
+	session := newTestSession(t, opts).(*session)
 
 	w := struct {
 		ns         string
@@ -242,16 +219,30 @@ func testWriteConsistencyLevel(
 
 	// Callback
 	enqueueWg.Wait()
+	host := session.topoMap.Hosts()[0] // any host
 	writeErr := "a specific write error"
-	for i := 0; i < session.topoMap.Replicas()-failures; i++ {
-		completionFn(nil, nil)
+	for i := 0; i < success; i++ {
+		completionFn(host, nil)
 	}
 	for i := 0; i < failures; i++ {
-		completionFn(nil, fmt.Errorf(writeErr))
+		completionFn(host, fmt.Errorf(writeErr))
 	}
 
-	// Wait for write to complete
-	writeWg.Wait()
+	// Wait for write to complete or timeout
+	doneCh := make(chan struct{})
+	go func() {
+		writeWg.Wait()
+		close(doneCh)
+	}()
+
+	// NB(bl): Check whether we're correctly signaling in
+	// write_state.completionFn. If not, the write won't complete.
+	select {
+	case <-time.After(time.Second):
+		require.NoError(t, errors.New("session write failed to signal"))
+	case <-doneCh:
+		// continue
+	}
 
 	switch expected {
 	case outcomeSuccess:
@@ -288,5 +279,35 @@ func testWriteConsistencyLevel(
 				break
 			}
 		}
+	}
+}
+
+type writeStub struct {
+	ns         string
+	id         string
+	value      float64
+	t          time.Time
+	unit       xtime.Unit
+	annotation []byte
+}
+
+func newTestSession(t *testing.T, opts Options) clientSession {
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	return s
+}
+
+func newDefaultTestSession(t *testing.T) clientSession {
+	return newTestSession(t, newSessionTestOptions())
+}
+
+func newWriteStub() writeStub {
+	return writeStub{
+		ns:         "testNs",
+		id:         "foo",
+		value:      1.0,
+		t:          time.Now(),
+		unit:       xtime.Second,
+		annotation: nil,
 	}
 }

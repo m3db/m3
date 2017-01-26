@@ -57,6 +57,10 @@ const (
 
 	// defaultUseTChannelClientForTruncation determines whether we use the tchannel client for truncation by default.
 	defaultUseTChannelClientForTruncation = true
+
+	// defaultWriteConsistencyLevel is the default write consistency level. This
+	// should match the default in client/options.
+	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
 )
 
 type testOptions interface {
@@ -163,6 +167,12 @@ type testOptions interface {
 
 	// VerifySeriesDebugFilePathPrefix returns the file path prefix for writing a debug file of series comparisons.
 	VerifySeriesDebugFilePathPrefix() string
+
+	// WriteConsistencyLevel returns the consistency level for writing with the m3db client.
+	WriteConsistencyLevel() topology.ConsistencyLevel
+
+	// SetWriteConsistencyLevel sets the consistency level for writing with the m3db client.
+	SetWriteConsistencyLevel(topology.ConsistencyLevel) testOptions
 }
 
 type options struct {
@@ -183,6 +193,7 @@ type options struct {
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
 	verifySeriesDebugFilePathPrefix    string
+	writeConsistencyLevel              topology.ConsistencyLevel
 }
 
 func newTestOptions() testOptions {
@@ -202,6 +213,7 @@ func newTestOptions() testOptions {
 		useTChannelClientForReading:    defaultUseTChannelClientForReading,
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
+		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 	}
 }
 
@@ -373,4 +385,14 @@ func (o *options) SetVerifySeriesDebugFilePathPrefix(value string) testOptions {
 
 func (o *options) VerifySeriesDebugFilePathPrefix() string {
 	return o.verifySeriesDebugFilePathPrefix
+}
+
+func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {
+	return o.writeConsistencyLevel
+}
+
+func (o *options) SetWriteConsistencyLevel(cLevel topology.ConsistencyLevel) testOptions {
+	opts := *o
+	opts.writeConsistencyLevel = cLevel
+	return &opts
 }

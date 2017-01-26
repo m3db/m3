@@ -30,9 +30,8 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/require"
@@ -40,11 +39,8 @@ import (
 
 func TestClusterAddOneNode(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	// Test setups
 	log := xlog.SimpleLogger
@@ -59,45 +55,26 @@ func TestClusterAddOneNode(t *testing.T) {
 		added []services.ServiceInstance
 	}{
 		start: []services.ServiceInstance{
-			services.NewServiceInstance().
-				SetInstanceID("testhost0").
-				SetEndpoint("127.0.0.1:9000").
-				SetShards(newClusterShardsRange(0, 1023, shard.Available)),
-			services.NewServiceInstance().
-				SetInstanceID("testhost1").
-				SetEndpoint("127.0.0.1:9004").
-				SetShards(newClusterEmptyShardsRange()),
+			node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
+			node(t, 1, newClusterEmptyShardsRange()),
 		},
+
 		add: []services.ServiceInstance{
-			services.NewServiceInstance().
-				SetInstanceID("testhost0").
-				SetEndpoint("127.0.0.1:9000").
-				SetShards(concatShards(
-					newClusterShardsRange(0, 511, shard.Available),
-					newClusterShardsRange(512, 1023, shard.Leaving))),
-			services.NewServiceInstance().
-				SetInstanceID("testhost1").
-				SetEndpoint("127.0.0.1:9004").
-				SetShards(newClusterShardsRange(512, 1023, shard.Initializing)),
+			node(t, 0, concatShards(
+				newClusterShardsRange(0, 511, shard.Available),
+				newClusterShardsRange(512, 1023, shard.Leaving))),
+			node(t, 1, newClusterShardsRange(512, 1023, shard.Initializing)),
 		},
 		added: []services.ServiceInstance{
-			services.NewServiceInstance().
-				SetInstanceID("testhost0").
-				SetEndpoint("127.0.0.1:9000").
-				SetShards(newClusterShardsRange(0, 511, shard.Available)),
-			services.NewServiceInstance().
-				SetInstanceID("testhost1").
-				SetEndpoint("127.0.0.1:9004").
-				SetShards(newClusterShardsRange(512, 1023, shard.Available)),
+			node(t, 0, newClusterShardsRange(0, 511, shard.Available)),
+			node(t, 1, newClusterShardsRange(512, 1023, shard.Available)),
 		},
 	}
 
 	svc := NewFakeM3ClusterService().
 		SetInstances(instances.start).
-		SetReplication(services.NewServiceReplication().
-			SetReplicas(1)).
-		SetSharding(services.NewServiceSharding().
-			SetNumShards(1024))
+		SetReplication(services.NewServiceReplication().SetReplicas(1)).
+		SetSharding(services.NewServiceSharding().SetNumShards(1024))
 
 	svcs := NewFakeM3ClusterServices()
 	svcs.RegisterService("m3db", svc)

@@ -64,9 +64,7 @@ func TestHostQueueWriteErrorBeforeOpen(t *testing.T) {
 	opts := newHostQueueTestOptions()
 	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts)
 
-	err := queue.Enqueue(&writeOp{})
-	assert.Error(t, err)
-	assert.Equal(t, err, errQueueNotOpen)
+	assert.Error(t, queue.Enqueue(&writeOp{}))
 }
 
 func TestHostQueueWriteErrorAfterClose(t *testing.T) {
@@ -76,9 +74,7 @@ func TestHostQueueWriteErrorAfterClose(t *testing.T) {
 	queue.Open()
 	queue.Close()
 
-	err := queue.Enqueue(&writeOp{})
-	assert.Error(t, err)
-	assert.Equal(t, err, errQueueNotOpen)
+	assert.Error(t, queue.Enqueue(&writeOp{}))
 }
 
 func TestHostQueueWriteBatches(t *testing.T) {
@@ -143,8 +139,10 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	wg.Wait()
 
 	// Assert writes successful
-	success := []hostQueueResult{{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}}
-	assert.Equal(t, success, results)
+	assert.Equal(t, len(writes), len(results))
+	for _, result := range results {
+		assert.Nil(t, result.err)
+	}
 
 	// Close
 	var closeWg sync.WaitGroup
@@ -221,8 +219,10 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 	wg.Wait()
 
 	// Assert writes successful
-	success := []hostQueueResult{{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}}
-	assert.Equal(t, success, results)
+	assert.Equal(t, len(writes), len(results))
+	for _, result := range results {
+		assert.Nil(t, result.err)
+	}
 
 	// Close
 	var closeWg sync.WaitGroup
@@ -465,9 +465,12 @@ func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
 	for i := range ids[:len(ids)-1] {
 		expected = append(expected, hostQueueResult{result.Elements[i].Segments, nil})
 	}
-	expected = append(expected, hostQueueResult{nil, errQueueFetchNoResponse})
+
 	testHostQueueFetchBatches(t, namespace, ids, result, expected, nil, func(results []hostQueueResult) {
-		assert.Equal(t, expected, results)
+		assert.Equal(t, expected, results[:len(results)-1])
+		lastResult := results[len(results)-1]
+		assert.Nil(t, lastResult.result)
+		assert.IsType(t, errQueueFetchNoResponse(""), lastResult.err)
 	})
 }
 
