@@ -23,7 +23,6 @@ package series
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3db/context"
@@ -58,7 +57,7 @@ var (
 var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
 
 type dbSeries struct {
-	sync.RWMutex
+	RWMutex
 	opts           Options
 	id             ts.ID
 	buffer         databaseBuffer
@@ -294,6 +293,7 @@ func (s *dbSeries) ReadEncoded(
 	}
 
 	s.RLock()
+	defer s.RUnlock()
 
 	if s.blocks.Len() > 0 {
 		// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
@@ -321,8 +321,6 @@ func (s *dbSeries) ReadEncoded(
 		results = append(results, bufferResults...)
 	}
 
-	s.RUnlock()
-
 	return results, nil
 }
 
@@ -330,6 +328,7 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 	res := make([]block.FetchBlockResult, 0, len(starts))
 
 	s.RLock()
+	defer s.RUnlock()
 
 	for _, start := range starts {
 		if b, exists := s.blocks.BlockAt(start); exists {
@@ -351,8 +350,6 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 		res = append(res, bufferResults...)
 	}
 
-	s.RUnlock()
-
 	block.SortFetchBlockResultByTimeAscending(res)
 
 	return res
@@ -365,9 +362,13 @@ func (s *dbSeries) FetchBlocksMetadata(
 	includeChecksums bool,
 ) block.FetchBlocksMetadataResult {
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	s.RLock()
-	blocks := s.blocks.AllBlocks()
 	res := s.opts.FetchBlockMetadataResultsPool().Get()
+
+	s.RLock()
+	defer s.RUnlock()
+
+	blocks := s.blocks.AllBlocks()
+
 	// Iterate over the data blocks
 	for t, b := range blocks {
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
@@ -409,15 +410,10 @@ func (s *dbSeries) FetchBlocksMetadata(
 	// For now this protects this case causing nil panic when trying to clone the ID
 	// for a series which has just been closed but has not been reused yet.
 	if len(res.Results()) == 0 {
-		s.RUnlock()
 		return block.NewFetchBlocksMetadataResult(nil, res)
 	}
 
-	// NB(r): clone the ID before releasing lock incase this series is being
-	// closed or removed immediately after unlocking.
 	id := s.opts.IdentifierPool().Clone(s.id)
-
-	s.RUnlock()
 
 	res.Sort()
 
@@ -478,12 +474,12 @@ func (s *dbSeries) mergeBlock(
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
 func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 	s.Lock()
+	defer s.Unlock()
+
 	if s.bs == bootstrapped {
-		s.Unlock()
 		return nil
 	}
 	if s.bs == bootstrapping {
-		s.Unlock()
 		return errSeriesIsBootstrapping
 	}
 
@@ -535,7 +531,6 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 
 	s.blocks = blocks
 	s.bs = bootstrapped
-	s.Unlock()
 
 	return multiErr.FinalError()
 }
@@ -550,6 +545,8 @@ func (s *dbSeries) OnRetrieveBlock(
 	var err error
 
 	s.Lock()
+	defer s.Unlock()
+
 	if !id.Equal(s.id) {
 		err = fmt.Errorf("retrieved ID %s does not match series ID",
 			id.String())
@@ -571,7 +568,6 @@ func (s *dbSeries) OnRetrieveBlock(
 			}
 		}
 	}
-	s.Unlock()
 
 	if err != nil {
 		s.log().Errorf("series cache retrieved block error: %v", err)
@@ -592,7 +588,11 @@ func (s *dbSeries) Flush(
 	blockStart time.Time,
 	persistFn persist.Fn,
 ) error {
+	// NB(r): Do not use defer here as we need to make sure the
+	// call to sr.Segment() which may fetch data from disk is not
+	// blocking the series lock.
 	s.RLock()
+
 	if s.bs != bootstrapped {
 		s.RUnlock()
 		return errSeriesNotBootstrapped
@@ -621,10 +621,11 @@ func (s *dbSeries) Flush(
 
 func (s *dbSeries) Close() {
 	s.Lock()
+	defer s.Unlock()
+
 	s.id = nil
 	s.buffer.Reset()
 	s.blocks.Close()
-	s.Unlock()
 
 	if s.pool != nil {
 		s.pool.Put(s)
@@ -637,6 +638,8 @@ func (s *dbSeries) Reset(
 	blockRetriever SeriesBlockRetriever,
 ) {
 	s.Lock()
+	defer s.Unlock()
+
 	s.id = id
 	s.buffer.Reset()
 	s.blocks.RemoveAll()
@@ -646,5 +649,4 @@ func (s *dbSeries) Reset(
 		s.bs = bootstrapNotStarted
 	}
 	s.blockRetriever = blockRetriever
-	s.Unlock()
 }
