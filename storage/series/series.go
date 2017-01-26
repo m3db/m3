@@ -23,6 +23,7 @@ package series
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/context"
@@ -57,7 +58,7 @@ var (
 var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
 
 type dbSeries struct {
-	RWMutex
+	sync.RWMutex
 	opts           Options
 	id             ts.ID
 	buffer         databaseBuffer
