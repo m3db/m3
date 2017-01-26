@@ -492,7 +492,7 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	// Retrieve the entry out of any locks to avoid any possible expensive
 	// allocations during any unpooled gets blocking other writers
 	series := s.seriesPool.Get()
-	series.Reset(s.identifierPool.Clone(id), s.seriesBlockRetriever)
+	seriesID := s.identifierPool.Clone(id)
 
 	entry := &dbShardEntry{
 		series:     series,
@@ -512,12 +512,12 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 		return nil, err
 	}
 
+	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
+
 	// Must set the index inside the write lock to ensure ID indexes are ascending in order
 	entry.index = s.increasingIndex.nextIndex()
-	if s.newSeriesBootstrapped {
-		// Transitioned to new series being bootstrapped
-		entry.series.Bootstrap(nil)
-	}
+	entry.incrementWriterCount()
+
 	elem := s.list.PushBack(entry)
 
 	s.lookup[id.Hash()] = elem

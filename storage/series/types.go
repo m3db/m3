@@ -85,7 +85,11 @@ type DatabaseSeries interface {
 	Close()
 
 	// Reset resets the series for reuse
-	Reset(id ts.ID, blockRetriever SeriesBlockRetriever)
+	Reset(
+		id ts.ID,
+		bootstrapped bool,
+		blockRetriever SeriesBlockRetriever,
+	)
 }
 
 // SeriesBlockRetriever is a block retriever that can tell if a block

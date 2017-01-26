@@ -409,6 +409,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 	// For now this protects this case causing nil panic when trying to clone the ID
 	// for a series which has just been closed but has not been reused yet.
 	if len(res.Results()) == 0 {
+		s.RUnlock()
 		return block.NewFetchBlocksMetadataResult(nil, res)
 	}
 
@@ -630,12 +631,20 @@ func (s *dbSeries) Close() {
 	}
 }
 
-func (s *dbSeries) Reset(id ts.ID, blockRetriever SeriesBlockRetriever) {
+func (s *dbSeries) Reset(
+	id ts.ID,
+	seriesBootstrapped bool,
+	blockRetriever SeriesBlockRetriever,
+) {
 	s.Lock()
 	s.id = id
 	s.buffer.Reset()
 	s.blocks.RemoveAll()
-	s.bs = bootstrapNotStarted
+	if seriesBootstrapped {
+		s.bs = bootstrapped
+	} else {
+		s.bs = bootstrapNotStarted
+	}
 	s.blockRetriever = blockRetriever
 	s.Unlock()
 }

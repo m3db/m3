@@ -38,10 +38,15 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+)
+
+const (
+	checkedBytesPoolSize = 65536
 )
 
 type serviceMetrics struct {
@@ -77,7 +82,7 @@ type service struct {
 	nowFn                   clock.NowFn
 	metrics                 serviceMetrics
 	idPool                  ts.IdentifierPool
-	checkedBytesPool        sync.Pool
+	checkedBytesPool        pool.ObjectPool
 	blockMetadataPool       tchannelthrift.BlockMetadataPool
 	blockMetadataSlicePool  tchannelthrift.BlockMetadataSlicePool
 	blocksMetadataPool      tchannelthrift.BlocksMetadataPool
@@ -120,9 +125,10 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			b.DecRef()
 			s.checkedBytesPool.Put(b)
 		}))
-	s.checkedBytesPool = sync.Pool{New: func() interface{} {
+	s.checkedBytesPool = pool.NewObjectPool(pool.NewObjectPoolOptions().SetSize(checkedBytesPoolSize))
+	s.checkedBytesPool.Init(func() interface{} {
 		return checked.NewBytes(nil, checkedBytesPoolOpts)
-	}}
+	})
 
 	return s
 }
