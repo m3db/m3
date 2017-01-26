@@ -27,10 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/m3db/m3cluster/services"
@@ -45,7 +43,7 @@ func TestNormalQuorum(t *testing.T) {
 	}
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeNodes(t, []services.ServiceInstance{
+	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
 		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
 		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
@@ -78,7 +76,7 @@ func TestAddNodeQuorum(t *testing.T) {
 	}
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeNodes(t, []services.ServiceInstance{
+	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
 		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
@@ -109,40 +107,14 @@ func TestAddNodeQuorum(t *testing.T) {
 
 type testWriteFn func(topology.ConsistencyLevel) error
 
-func makeNodes(t *testing.T, instances []services.ServiceInstance) (testSetups,
+func makeTestWrite(t *testing.T, instances []services.ServiceInstance) (testSetups,
 	closeFn, testWriteFn) {
-
-	log := xlog.SimpleLogger
 
 	nspaces := []namespace.Metadata{
 		namespace.NewMetadata(testNamespaces[0], namespace.NewOptions()),
 	}
-	opts := newTestOptions().SetNamespaces(nspaces)
 
-	svc := NewFakeM3ClusterService().
-		SetInstances(instances).
-		SetReplication(services.NewServiceReplication().SetReplicas(3)).
-		SetSharding(services.NewServiceSharding().SetNumShards(1024))
-
-	svcs := NewFakeM3ClusterServices()
-	svcs.RegisterService("m3db", svc)
-
-	topoOpts := topology.NewDynamicOptions().
-		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
-	topoInit := topology.NewDynamicInitializer(topoOpts)
-	retentionOpts := retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
-
-	nodeOpt := bootstrappableTestSetupOptions{
-		disablePeersBootstrapper: true,
-		topologyInitializer:      topoInit,
-	}
-
-	nodeOpts := make([]bootstrappableTestSetupOptions, len(instances))
-	for i, _ := range instances {
-		nodeOpts[i] = nodeOpt
-	}
-
-	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, nodeOpts)
+	nodes, topoInit, closeFn := newNodes(t, instances, nspaces)
 
 	now := nodes[0].getNowFn()
 
@@ -163,15 +135,5 @@ func makeNodes(t *testing.T, instances []services.ServiceInstance) (testSetups,
 		return s.Write(nspaces[0].ID().String(), "quorumTest", now, 42, xtime.Second, nil)
 	}
 
-	nodeClose := func() {
-		// Stop the servers at test completion
-		log.Debug("servers closing")
-		nodes.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
-		})
-		log.Debug("servers are now down")
-		closeFn()
-	}
-
-	return nodes, nodeClose, testWrite
+	return nodes, closeFn, testWrite
 }

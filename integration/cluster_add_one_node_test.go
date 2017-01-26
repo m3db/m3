@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -227,14 +226,4 @@ func TestClusterAddOneNode(t *testing.T) {
 	for i := range setups {
 		verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
 	}
-}
-
-// utils
-
-func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
-	require.True(t, n < 250) // keep ports sensible
-	return services.NewServiceInstance().
-		SetInstanceID(fmt.Sprintf("testhost%v", n)).
-		SetEndpoint(fmt.Sprintf("127.0.0.1:%v", 9000+4*n)).
-		SetShards(shards)
 }

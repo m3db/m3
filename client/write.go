@@ -154,7 +154,14 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		wErr = fmt.Errorf("missing shard %d in host %s", w.op.shardID, hostID)
 	} else if shardState != shard.Available {
 		// NB(bl): only count writes to available shards towards success
-		wErr = fmt.Errorf("shard %d in host %s not available", w.op.shardID, hostID)
+		switch shardState {
+		case shard.Initializing:
+			wErr = fmt.Errorf("shard %d in host %s is not available (initializing)", w.op.shardID, hostID)
+		case shard.Leaving:
+			wErr = fmt.Errorf("shard %d in host %s not available (leaving)", w.op.shardID, hostID)
+		default:
+			wErr = fmt.Errorf("shard %d in host %s not available (unknown state)", w.op.shardID, hostID)
+		}
 	} else {
 		w.success++
 	}

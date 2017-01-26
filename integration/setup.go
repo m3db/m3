@@ -29,13 +29,17 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
@@ -47,6 +51,7 @@ import (
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/sync"
 
+	"github.com/stretchr/testify/require"
 	tchannel "github.com/uber/tchannel-go"
 )
 
@@ -216,23 +221,25 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}, nil
 }
 
+func (ts *testSetup) serverIsUp() bool {
+	resp, err := ts.health()
+	return err == nil && resp.Bootstrapped
+}
+
+func (ts *testSetup) serverIsDown() bool {
+	_, err := ts.health()
+	return err != nil
+}
+
 func (ts *testSetup) waitUntilServerIsUp() error {
-	serverIsUp := func() bool {
-		resp, err := ts.health()
-		return err == nil && resp.Bootstrapped
-	}
-	if waitUntil(serverIsUp, ts.opts.ServerStateChangeTimeout()) {
+	if waitUntil(ts.serverIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStartTimedOut
 }
 
 func (ts *testSetup) waitUntilServerIsDown() error {
-	serverIsDown := func() bool {
-		_, err := ts.health()
-		return err != nil
-	}
-	if waitUntil(serverIsDown, ts.opts.ServerStateChangeTimeout()) {
+	if waitUntil(ts.serverIsDown, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStopTimedOut
@@ -363,4 +370,64 @@ func (ts testSetups) parallel(fn func(s *testSetup)) {
 		}()
 	}
 	wg.Wait()
+}
+
+// node generates service instances with reasonable defaults
+func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
+	require.True(t, n < 250) // keep ports sensible
+	return services.NewServiceInstance().
+		SetInstanceID(fmt.Sprintf("testhost%v", n)).
+		SetEndpoint(fmt.Sprintf("127.0.0.1:%v", 9000+4*n)).
+		SetShards(shards)
+}
+
+// newNodes creates a set of testSetups with reasonable defaults
+func newNodes(
+	t *testing.T,
+	instances []services.ServiceInstance,
+	nspaces []namespace.Metadata,
+) (testSetups, topology.Initializer, closeFn) {
+
+	log := xlog.SimpleLogger
+	opts := newTestOptions().SetNamespaces(nspaces)
+
+	// NB(bl): We set replication to 3 to mimic production. This can be made
+	// into a variable if needed.
+	svc := NewFakeM3ClusterService().
+		SetInstances(instances).
+		SetReplication(services.NewServiceReplication().SetReplicas(3)).
+		SetSharding(services.NewServiceSharding().SetNumShards(1024))
+
+	svcs := NewFakeM3ClusterServices()
+	svcs.RegisterService("m3db", svc)
+
+	topoOpts := topology.NewDynamicOptions().
+		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
+	topoInit := topology.NewDynamicInitializer(topoOpts)
+	retentionOpts := retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+
+	nodeOpt := bootstrappableTestSetupOptions{
+		disablePeersBootstrapper: true,
+		topologyInitializer:      topoInit,
+	}
+
+	nodeOpts := make([]bootstrappableTestSetupOptions, len(instances))
+	for i, _ := range instances {
+		nodeOpts[i] = nodeOpt
+	}
+
+	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, nodeOpts)
+
+	nodeClose := func() { // Clean up running servers at end of test
+		log.Debug("servers closing")
+		nodes.parallel(func(s *testSetup) {
+			if s.serverIsUp() {
+				require.NoError(t, s.stopServer())
+			}
+		})
+		log.Debug("servers are now down")
+		closeFn()
+	}
+
+	return nodes, topoInit, nodeClose
 }
