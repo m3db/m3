@@ -3,9 +3,8 @@ go:
   - 1.7
 install: make install-ci
 env:
- # Set higher timeouts for Travis
- - TEST_TIMEOUT_SCALE=20
- - PACKAGE=github.com/m3db/m3aggregator
+ # Set higher timeouts and package name for travis
+ - TEST_TIMEOUT_SCALE=20 PACKAGE=github.com/m3db/m3aggregator
 sudo: required
 dist: trusty
 script:
