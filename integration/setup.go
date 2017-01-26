@@ -412,7 +412,7 @@ func newNodes(
 	}
 
 	nodeOpts := make([]bootstrappableTestSetupOptions, len(instances))
-	for i, _ := range instances {
+	for i := range instances {
 		nodeOpts[i] = nodeOpt
 	}
 
