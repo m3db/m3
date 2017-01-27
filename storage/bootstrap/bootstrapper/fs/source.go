@@ -175,6 +175,12 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		bootstrapResult   = result.NewBootstrapResult()
 		bopts             = s.opts.ResultOptions()
 		blockPool         = bopts.DatabaseBlockOptions().DatabaseBlockPool()
+		ropts             = s.opts.FilesystemOptions().RetentionOptions()
+		nowFn             = s.opts.FilesystemOptions().ClockOptions().NowFn()
+		// NB(r): Must read the current open block and previous block
+		// so that when blocks are rotated out they can be merged without
+		// needing to retrieve the data from disk.
+		mustReadCutoff = nowFn().Truncate(ropts.BlockSize()).Add(-ropts.BlockSize())
 	)
 
 	if retriever != nil {
@@ -217,7 +223,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 						seriesBlock = blockPool.Get()
 						entryErr    error
 					)
-					if retriever == nil {
+					if retriever == nil || !start.Before(mustReadCutoff) {
 						id, data, err := r.Read()
 						// TODO(r): put id into a shared hash map and when
 						// it's seen again then finalize the one just read

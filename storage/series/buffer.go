@@ -199,15 +199,9 @@ func (b *dbBuffer) DrainAndReset() {
 	idx := computeAndResetBucketIdx
 	b.computedForEachBucketAsc(now, idx, func(bucket *dbBufferBucket, current time.Time) {
 		if bucket.needsDrain(now, current) {
-			bucket.merge()
-
-			// After we merge there is always only a single encoder with all data
-			encoder := bucket.encoders[0].encoder
-			data := encoder.DiscardReset(current, 0)
-			if data.Len() > 0 {
-				newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-				newBlock.Reset(bucket.start, data)
-				b.drainFn(newBlock)
+			mergedBlock := bucket.discardMerged()
+			if mergedBlock.Len() > 0 {
+				b.drainFn(mergedBlock)
 			} else {
 				log := b.opts.InstrumentOptions().Logger()
 				log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
@@ -393,16 +387,9 @@ func (b *dbBufferBucket) resetTo(
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
 
-	// Register when this bucket resets we close the encoder
-	ctx.RegisterFinalizer(context.FinalizerFn(encoder.Close))
-
 	b.ctx = ctx
 	b.start = start
-	var zeroed inOrderEncoder
-	for i := range b.encoders {
-		b.encoders[i] = zeroed
-	}
-	b.encoders = append(b.encoders[:0], inOrderEncoder{
+	b.encoders = append(b.encoders, inOrderEncoder{
 		lastWriteAt: timeZero,
 		encoder:     encoder,
 	})
@@ -412,6 +399,8 @@ func (b *dbBufferBucket) resetTo(
 }
 
 func (b *dbBufferBucket) finalize() {
+	b.resetEncoders()
+	b.resetBootstrapped()
 	if b.ctx != nil {
 		// Close the old context
 		b.ctx.Close()
@@ -444,8 +433,6 @@ func (b *dbBufferBucket) needsDrain(
 func (b *dbBufferBucket) bootstrap(
 	bl block.DatabaseBlock,
 ) {
-	// Register when this bucket resets we close the bootstrapped block
-	b.ctx.RegisterFinalizer(context.FinalizerFn(bl.Close))
 	b.empty = false
 	b.bootstrapped = append(b.bootstrapped, bl)
 }
@@ -477,9 +464,6 @@ func (b *dbBufferBucket) write(
 		next := inOrderEncoder{encoder: encoder}
 		b.encoders = append(b.encoders, next)
 		target = &b.encoders[len(b.encoders)-1]
-
-		// Register when this bucket resets we close the encoder we just created
-		b.ctx.RegisterFinalizer(context.FinalizerFn(encoder.Close))
 	}
 
 	datapoint := ts.Datapoint{
@@ -528,22 +512,58 @@ func (b *dbBufferBucket) streamsLen() int {
 	return length
 }
 
-func (b *dbBufferBucket) merged() bool {
-	return len(b.encoders) == 1 && len(b.bootstrapped) == 0
+func (b *dbBufferBucket) resetEncoders() {
+	var zeroed inOrderEncoder
+	for i := range b.encoders {
+		// Register when this bucket resets we close the encoder
+		encoder := b.encoders[i].encoder
+		if b.ctx != nil {
+			b.ctx.RegisterFinalizer(context.FinalizerFn(encoder.Close))
+		}
+		b.encoders[i] = zeroed
+	}
+	b.encoders = b.encoders[:0]
 }
 
-func (b *dbBufferBucket) merge() {
-	if b.merged() {
-		// Already merged
-		return
+func (b *dbBufferBucket) resetBootstrapped() {
+	for i := range b.bootstrapped {
+		bl := b.bootstrapped[i]
+		if b.ctx != nil {
+			b.ctx.RegisterFinalizer(context.FinalizerFn(bl.Close))
+		}
+	}
+	b.bootstrapped = nil
+}
+
+func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
+	if len(b.encoders) == 1 && len(b.bootstrapped) == 0 {
+		// Already merged as a single encoder
+		encoder := b.encoders[0].encoder
+		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+		newBlock.Reset(b.start, encoder.DiscardReset(b.start, 0))
+
+		b.resetEncoders()
+		b.resetBootstrapped()
+
+		return newBlock
+	}
+
+	if len(b.encoders) == 1 &&
+		b.encoders[0].encoder.StreamLen() == 0 &&
+		len(b.bootstrapped) == 1 {
+		// Already merged just a single bootstrapped block
+		existingBlock := b.bootstrapped[0]
+		b.bootstrapped = nil
+
+		b.resetEncoders()
+		b.resetBootstrapped()
+
+		return existingBlock
 	}
 
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
-
-	// Register when this bucket resets we close the encoder we just created
-	b.ctx.RegisterFinalizer(context.FinalizerFn(encoder.Close))
 
 	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
 	for i := range b.encoders {
@@ -560,12 +580,10 @@ func (b *dbBufferBucket) merge() {
 		}
 	}
 
-	var lastWriteAt time.Time
 	iter := b.opts.MultiReaderIteratorPool().Get()
 	iter.Reset(readers)
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
-		lastWriteAt = dp.Timestamp
 		if err := encoder.Encode(dp, unit, annotation); err != nil {
 			log := b.opts.InstrumentOptions().Logger()
 			log.Errorf("buffer merge encode error: %v", err)
@@ -574,13 +592,12 @@ func (b *dbBufferBucket) merge() {
 	}
 	iter.Close()
 
-	var zeroed inOrderEncoder
-	for i := range b.encoders {
-		b.encoders[i] = zeroed
-	}
-	b.encoders = append(b.encoders[:0], inOrderEncoder{
-		lastWriteAt: lastWriteAt,
-		encoder:     encoder,
-	})
-	b.bootstrapped = nil
+	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+	newBlock.Reset(b.start, encoder.DiscardReset(b.start, 0))
+	encoder.Close()
+
+	b.resetEncoders()
+	b.resetBootstrapped()
+
+	return newBlock
 }
