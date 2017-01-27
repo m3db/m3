@@ -1053,12 +1053,13 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
+	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+		enqueue := enqueueCh.enqueueDelayed()
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-	// Ensure work enqueued immediately so can test result of the reenqueue
-	session.streamBlocksReattemptWorkers = newSynchronousWorkerPool()
-
 	assert.NoError(t, session.Open())
 
 	var (
@@ -1126,12 +1127,13 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
+	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+		enqueue := enqueueCh.enqueueDelayed()
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-	// Ensure work enqueued immediately so can test result of the reenqueue
-	session.streamBlocksReattemptWorkers = newSynchronousWorkerPool()
-
 	assert.NoError(t, session.Open())
 
 	blockSize := 2 * time.Hour
@@ -1240,7 +1242,139 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 
 // TODO: add test TestVerifyFetchedBlockSegmentsNoMergedOrUnmerged
 
-// TODO: add test TestVerifyFetchedBlockChecksum
+func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+		enqueue := enqueueCh.enqueueDelayed()
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	}
+
+	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	assert.NoError(t, session.Open())
+
+	blockSize := 2 * time.Hour
+	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+
+	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
+	require.NoError(t, enc.Encode(ts.Datapoint{
+		Timestamp: start.Add(10 * time.Second),
+		Value:     42,
+	}, xtime.Second, nil))
+	reader := enc.Stream()
+	require.NotNil(t, reader)
+	segment := reader.Segment()
+	rawBlockData := make([]byte, segment.Len())
+	n, err := reader.Read(rawBlockData)
+	require.NoError(t, err)
+	require.Equal(t, len(rawBlockData), n)
+	rawBlockLen := int64(len(rawBlockData))
+
+	var (
+		retrier = xretry.NewRetrier(xretry.NewOptions().
+			SetMaxRetries(1).
+			SetInitialBackoff(time.Millisecond))
+		peerIdx       = len(mockHostQueues) - 1
+		peer          = mockHostQueues[peerIdx]
+		client        = mockClients[peerIdx]
+		enqueueCh     = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeTest))
+		blockChecksum = digest.Checksum(rawBlockData)
+		batch         = []*blocksMetadata{
+			&blocksMetadata{id: fooID, blocks: []blockMetadata{
+				{start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
+					id: fooID,
+					peersMetadata: []blockMetadataReattemptPeerMetadata{
+						{start: start, size: rawBlockLen, checksum: &blockChecksum},
+					},
+				}},
+			}},
+			&blocksMetadata{id: barID, blocks: []blockMetadata{
+				{start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
+					id: barID,
+					peersMetadata: []blockMetadataReattemptPeerMetadata{
+						{start: start, size: rawBlockLen, checksum: &blockChecksum},
+					},
+				}},
+				{start: start.Add(blockSize), size: rawBlockLen, reattempt: blockMetadataReattempt{
+					id: barID,
+					peersMetadata: []blockMetadataReattemptPeerMetadata{
+						{start: start.Add(blockSize), size: rawBlockLen, checksum: &blockChecksum},
+					},
+				}},
+			}},
+		}
+	)
+
+	head := rawBlockData[:len(rawBlockData)-1]
+	tail := []byte{rawBlockData[len(rawBlockData)-1]}
+	di := digest.NewDigest()
+	_, err = di.Write(head)
+	require.NoError(t, err)
+	_, err = di.Write(tail)
+	require.NoError(t, err)
+	validChecksum := int64(di.Sum32())
+	invalidChecksum := 1 + validChecksum
+
+	client.EXPECT().
+		FetchBlocksRaw(gomock.Any(), gomock.Any()).
+		Return(&rpc.FetchBlocksRawResult_{
+			Elements: []*rpc.Blocks{
+				// valid foo block
+				&rpc.Blocks{ID: []byte("foo"), Blocks: []*rpc.Block{
+					&rpc.Block{Start: start.UnixNano(), Checksum: &validChecksum, Segments: &rpc.Segments{
+						Merged: &rpc.Segment{
+							Head: head,
+							Tail: tail,
+						},
+					}},
+				}},
+				&rpc.Blocks{ID: []byte("bar"), Blocks: []*rpc.Block{
+					// invalid bar block
+					&rpc.Block{Start: start.UnixNano(), Checksum: &invalidChecksum, Segments: &rpc.Segments{
+						Merged: &rpc.Segment{
+							Head: head,
+							Tail: tail,
+						},
+					}},
+					// valid bar block, no checksum
+					&rpc.Block{Start: start.Add(blockSize).UnixNano(), Segments: &rpc.Segments{
+						Merged: &rpc.Segment{
+							Head: head,
+							Tail: tail,
+						},
+					}},
+				}},
+			},
+		}, nil)
+
+	// Attempt stream blocks
+	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
+	bopts := result.NewOptions().SetRetentionOptions(ropts)
+	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
+	r := newBulkBlocksResult(opts, bopts)
+	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
+
+	// Assert enqueueChannel contents (bad bar block)
+	assertEnqueueChannel(t, batch[1].blocks[:1], enqueueCh)
+
+	// Assert length of blocks result
+	assert.Equal(t, 2, len(r.result.AllSeries()))
+	assert.Equal(t, 1, r.result.AllSeries()[fooID.Hash()].Blocks.Len())
+	_, ok := r.result.AllSeries()[fooID.Hash()].Blocks.BlockAt(start)
+	assert.True(t, ok)
+	assert.Equal(t, 1, r.result.AllSeries()[barID.Hash()].Blocks.Len())
+	_, ok = r.result.AllSeries()[barID.Hash()].Blocks.BlockAt(start.Add(blockSize))
+	assert.True(t, ok)
+
+	assert.NoError(t, session.Close())
+}
 
 // TODO: add test TestVerifyFetchedBlockSize
 
@@ -1947,15 +2081,21 @@ func assertEnqueueChannel(
 		}
 	}
 
-	matchesLen := len(expected) == len(distinct)
-	assert.True(t, matchesLen)
-	if matchesLen {
-		for i, expected := range expected {
-			actual := distinct[i]
-			assert.Equal(t, expected.start, actual.start)
-			assert.Equal(t, expected.size, actual.size)
-			assert.Equal(t, expected.reattempt.id, actual.reattempt.id)
+	require.Equal(t, len(expected), len(distinct))
+	matched := make([]bool, len(expected))
+	for i, expected := range expected {
+		for _, actual := range distinct {
+			found := expected.start.Equal(actual.start) &&
+				expected.size == actual.size &&
+				expected.reattempt.id.Equal(actual.reattempt.id)
+			if found {
+				matched[i] = true
+				continue
+			}
 		}
+	}
+	for _, m := range matched {
+		assert.True(t, m)
 	}
 
 	close(enqueueCh.peersMetadataCh)

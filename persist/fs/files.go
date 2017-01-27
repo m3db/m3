@@ -161,8 +161,7 @@ func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
 
 type infoFileFn func(fname string, infoData []byte)
 
-// ForEachInfoFile iterates over each valid info file and applies the function passed in.
-func ForEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int, fn infoFileFn) {
+func forEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int, fn infoFileFn) {
 	matched, err := filesetFiles(filePathPrefix, namespace, shard, infoFilePattern)
 	if err != nil {
 		return
@@ -207,7 +206,7 @@ func ForEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, reade
 // ReadInfoFiles reads all the valid info entries.
 func ReadInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int) []*schema.IndexInfo {
 	var indexEntries []*schema.IndexInfo
-	ForEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
+	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
 		info, err := readInfo(data)
 		if err != nil {
 			return

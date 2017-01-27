@@ -46,9 +46,9 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
+	xretry "github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
@@ -122,10 +122,10 @@ type session struct {
 	digestPool                       sync.Pool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
+	reattemptStreamBlocksFromPeersFn reattemptStreamBlocksFromPeersFn
 	origin                           topology.Host
 	streamBlocksMaxBlockRetries      int
 	streamBlocksWorkers              xsync.WorkerPool
-	streamBlocksReattemptWorkers     xsync.WorkerPool
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
 	streamBlocksBatchTimeout         time.Duration
@@ -201,6 +201,7 @@ func newSession(opts Options) (clientSession, error) {
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		metrics:              newSessionMetrics(scope),
 	}
+	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
 	s.writeStatePool = sync.Pool{New: func() interface{} {
 		w := &writeState{session: s}
 		w.reset()
@@ -215,8 +216,6 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksMaxBlockRetries = opts.FetchSeriesBlocksMaxBlockRetries()
 		s.streamBlocksWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
 		s.streamBlocksWorkers.Init()
-		s.streamBlocksReattemptWorkers = xsync.NewWorkerPool(opts.FetchSeriesBlocksBatchConcurrency())
-		s.streamBlocksReattemptWorkers.Init()
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
@@ -413,9 +412,10 @@ func (s *session) BorrowConnection(hostID string, fn withConnectionFn) error {
 
 func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, error) {
 	// NB(r): we leave existing writes in the host queues to finish
-	// as they are already enroute to their destination, this is ok
-	// as part of adding a host is to add another replica for the
-	// shard set and only once bootstrapped decomission the old node
+	// as they are already enroute to their destination. This is an edge case
+	// that might result in leaving nodes counting towards quorum, but fixing it
+	// would result in additional chatter.
+
 	start := s.nowFn()
 
 	hosts := topoMap.Hosts()
@@ -500,8 +500,7 @@ func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, er
 				break
 			}
 		}
-		if clusterAvailable {
-			// All done
+		if clusterAvailable { // All done
 			break
 		}
 		time.Sleep(clusterConnectWaitInterval)
@@ -654,11 +653,15 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	}
 
 	state := s.writeStatePool.Get().(*writeState)
+	state.topoMap = s.topoMap
 	state.incRef()
 
+	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = s.writeOpPool.Get(), majority
 
 	state.op.namespace = ts.StringID(namespace)
+	state.op.request.ID = tsID.Data().Get()
+	state.op.shardID = s.topoMap.ShardSet().Lookup(tsID)
 	state.op.request.ID = tsID.Data().Get()
 	state.op.request.Datapoint.Value = value
 	state.op.request.Datapoint.Timestamp = timestamp
@@ -667,10 +670,8 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	state.op.completionFn = state.completionFn
 
 	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
-		// First count all the pending write requests to ensure
-		// we count the amount we're going to be waiting for
-		// before we enqueue the completion fns that rely on having
-		// an accurate number of the pending requests when they execute
+		// Count pending write requests before we enqueue the completion fns,
+		// which rely on the count when executing
 		state.pending++
 		state.queues = append(state.queues, s.queues[idx])
 	}); err != nil {
@@ -686,9 +687,8 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 			state.Unlock()
 			state.decRef()
 
-			// NB(r): if this ever happens we have a code bug, once we
-			// are in the read lock the current queues we are using should
-			// never be closed
+			// NB(r): if this happens we have a bug, once we are in the read
+			// lock the current queues should never be closed
 			s.RUnlock()
 			s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", err)
 			return err
@@ -698,13 +698,10 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		enqueued++
 	}
 
-	// Wait for writes to complete. We don't need to loop over Wait() since there
-	// are no spurious wakeups in Golang and the condition is one-way and binary.
 	s.RUnlock()
 	state.Wait()
 
-	err := s.writeConsistencyResult(majority, enqueued,
-		enqueued-atomic.LoadInt32(&state.pending), int32(len(state.errors)), state.errors)
+	err := s.writeConsistencyResult(majority, enqueued, enqueued-state.pending, int32(len(state.errors)), state.errors)
 	s.incWriteMetrics(err, int32(len(state.errors)))
 
 	state.Unlock()
@@ -978,14 +975,12 @@ func (s *session) writeConsistencyResult(
 	case topology.ConsistencyLevelAll:
 		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
 	case topology.ConsistencyLevelMajority:
-		if success >= majority {
-			// Meets majority
+		if success >= majority { // Meets majority
 			break
 		}
 		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
 	case topology.ConsistencyLevelOne:
-		if success > 0 {
-			// Meets one
+		if success > 0 { // Meets one
 			break
 		}
 		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
@@ -1864,7 +1859,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		).Errorf("stream blocks request error")
 		for i := range batch {
 			b := batch[i].blocks
-			s.streamBlocksReattemptFromPeers(b, enqueueCh, reqErrReason, m)
+			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, reqErrReason, m)
 		}
 		return
 	}
@@ -1886,7 +1881,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		id := batch[i].id
 		if !bytes.Equal(id.Data().Get(), result.Elements[i].ID) {
 			b := batch[i].blocks
-			s.streamBlocksReattemptFromPeers(b, enqueueCh, respErrReason, m)
+			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, respErrReason, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
 			s.log.WithFields(
 				xlog.NewLogField("expectedID", batch[i].id),
@@ -1925,14 +1920,14 @@ func (s *session) streamBlocksBatchFromPeer(
 			}
 
 			// Verify and if verify succeeds add the block from the peer
-			err := s.verifyFetchedBlock(block, batch[i].blocks[j])
+			err := s.verifyFetchedBlock(block)
 			if err == nil {
 				err = blocksResult.addBlockFromPeer(id, peer.Host(), block)
 			}
 
 			if err != nil {
 				failed := []blockMetadata{batch[i].blocks[j]}
-				s.streamBlocksReattemptFromPeers(failed, enqueueCh, respErrReason, m)
+				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, respErrReason, m)
 				m.fetchBlockError.Inc(1)
 				s.log.WithFields(
 					xlog.NewLogField("id", id.String()),
@@ -1950,7 +1945,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	}
 }
 
-func (s *session) verifyFetchedBlock(block *rpc.Block, metadata blockMetadata) error {
+func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 	if block.Err != nil {
 		return fmt.Errorf("block error from peer: %s %s", block.Err.Type.String(), block.Err.Message)
 	}
@@ -1961,8 +1956,8 @@ func (s *session) verifyFetchedBlock(block *rpc.Block, metadata blockMetadata) e
 		return fmt.Errorf("block segments is bad: merged and unmerged not set")
 	}
 
-	if metadata.checksum != nil {
-		expected := *metadata.checksum
+	if block.Checksum != nil {
+		expected := uint32(*block.Checksum)
 		digest := s.digestPool.Get().(hash.Hash32)
 		digest.Reset()
 		if block.Segments.Merged != nil {
@@ -1990,6 +1985,8 @@ const (
 	respErrReason
 )
 
+type reattemptStreamBlocksFromPeersFn func([]blockMetadata, *enqueueChannel, reason, *streamFromPeersMetrics)
+
 func (s *session) streamBlocksReattemptFromPeers(
 	blocks []blockMetadata,
 	enqueueCh *enqueueChannel,
@@ -2008,27 +2005,32 @@ func (s *session) streamBlocksReattemptFromPeers(
 	// getting done because new attempts are blocked on existing attempts completing
 	// and existing attempts are trying to enqueue into a full reattempt channel
 	enqueue := enqueueCh.enqueueDelayed()
-	s.streamBlocksReattemptWorkers.Go(func() {
-		for i := range blocks {
-			// Reconstruct peers metadata for reattempt
-			reattemptBlocksMetadata :=
-				make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
-			for j := range reattemptBlocksMetadata {
-				reattemptBlocksMetadata[j] = &blocksMetadata{
-					peer: blocks[i].reattempt.peersMetadata[j].peer,
-					id:   blocks[i].reattempt.id,
-					blocks: []blockMetadata{blockMetadata{
-						start:     blocks[i].reattempt.peersMetadata[j].start,
-						size:      blocks[i].reattempt.peersMetadata[j].size,
-						checksum:  blocks[i].reattempt.peersMetadata[j].checksum,
-						reattempt: blocks[i].reattempt,
-					}},
-				}
+	go s.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+}
+
+func (s *session) streamBlocksReattemptFromPeersEnqueue(
+	blocks []blockMetadata,
+	enqueueFn func([]*blocksMetadata),
+) {
+	for i := range blocks {
+		// Reconstruct peers metadata for reattempt
+		reattemptBlocksMetadata :=
+			make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
+		for j := range reattemptBlocksMetadata {
+			reattemptBlocksMetadata[j] = &blocksMetadata{
+				peer: blocks[i].reattempt.peersMetadata[j].peer,
+				id:   blocks[i].reattempt.id,
+				blocks: []blockMetadata{blockMetadata{
+					start:     blocks[i].reattempt.peersMetadata[j].start,
+					size:      blocks[i].reattempt.peersMetadata[j].size,
+					checksum:  blocks[i].reattempt.peersMetadata[j].checksum,
+					reattempt: blocks[i].reattempt,
+				}},
 			}
-			// Re-enqueue the block to be fetched
-			enqueue(reattemptBlocksMetadata)
 		}
-	})
+		// Re-enqueue the block to be fetched
+		enqueueFn(reattemptBlocksMetadata)
+	}
 }
 
 type blocksResult interface {

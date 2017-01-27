@@ -117,11 +117,7 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
-		var files []string
-		fs.ForEachInfoFile(s.filePathPrefix, namespace, shard, s.readerBufferSize, func(fname string, _ []byte) {
-			files = append(files, fname)
-		})
-
+		files := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
 		if len(files) == 0 {
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- shardReaders{shard: shard, tr: tr}
@@ -130,16 +126,8 @@ func (s *fileSystemSource) enqueueReaders(
 
 		readers := make([]fs.FileSetReader, 0, len(files))
 		for i := 0; i < len(files); i++ {
-			t, err := fs.TimeFromFileName(files[i])
-			if err != nil {
-				s.log.WithFields(
-					xlog.NewLogField("shard", shard),
-					xlog.NewLogField("file", files[i]),
-					xlog.NewLogField("error", err.Error()),
-				).Error("unable to get time from info file")
-				continue
-			}
 			r := readerPool.get()
+			t := xtime.FromNanoseconds(files[i].Start)
 			if err := r.Open(namespace, shard, t); err != nil {
 				s.log.WithFields(
 					xlog.NewLogField("shard", shard),

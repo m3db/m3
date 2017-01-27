@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/time"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,6 +101,31 @@ func TestSimpleReadWrite(t *testing.T) {
 
 	r := newTestReader(filePathPrefix)
 	readTestData(t, r, 0, testWriterStart, entries)
+}
+
+func TestInfoReadWrite(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+		{"baz", make([]byte, 65536)},
+		{"cat", make([]byte, 100000)},
+		{"echo", []byte{7, 8, 9}},
+	}
+
+	w := newTestWriter(filePathPrefix)
+	writeTestData(t, w, 0, testWriterStart, entries)
+
+	infoFiles := ReadInfoFiles(filePathPrefix, testNamespaceID, 0, 16)
+	require.Equal(t, 1, len(infoFiles))
+
+	infoFile := infoFiles[0]
+	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.Start)))
+	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
+	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }
 
 func TestReusingReaderWriter(t *testing.T) {

@@ -40,10 +40,10 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3db/x/metrics"
+	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 

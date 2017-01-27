@@ -327,7 +327,10 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 		for _, fetchedBlock := range fetched {
 			block := rpc.NewBlock()
 			block.Start = xtime.ToNanoseconds(fetchedBlock.Start())
-
+			if ck := fetchedBlock.Checksum(); ck != nil {
+				cki := int64(*ck)
+				block.Checksum = &cki
+			}
 			if err := fetchedBlock.Err(); err != nil {
 				block.Err = convert.ToRPCError(err)
 			} else {
