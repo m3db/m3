@@ -504,8 +504,6 @@ func (p *reqPool) Get() *retrieveRequest {
 }
 
 func (p *reqPool) Put(req *retrieveRequest) {
-	p.segmentReaderPool.Put(req.reader)
-
 	// Also call reset for reuse to nil any references before
 	// putting back in pool to avoid holding strong refs to any
 	// shortly lived objects while still in the pool

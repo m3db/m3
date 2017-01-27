@@ -218,6 +218,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 			s.blocks.RemoveBlockAt(start)
 			currBlock.Close()
 			r.expired++
+			continue
 		}
 		if retriever != nil && dataExpiry && currBlock.IsRetrieved() {
 			sinceLastAccessed := now.Sub(currBlock.LastAccessTime())
