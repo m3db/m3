@@ -217,10 +217,4 @@ type BlockRetrieverOptions interface {
 
 	// FetchConcurrency returns the fetch concurrency
 	FetchConcurrency() int
-
-	// SetFetchYieldOnQueueEmpty sets the fetch yield duration when queue is empty
-	SetFetchYieldOnQueueEmpty(value time.Duration) BlockRetrieverOptions
-
-	// FetchYieldOnQueueEmpty returns the fetch yield duration when queue is empty
-	FetchYieldOnQueueEmpty() time.Duration
 }

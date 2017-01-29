@@ -59,13 +59,14 @@ var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
 
 type dbSeries struct {
 	sync.RWMutex
-	opts           Options
-	id             ts.ID
-	buffer         databaseBuffer
-	blocks         block.DatabaseSeriesBlocks
-	bs             bootstrapState
-	blockRetriever SeriesBlockRetriever
-	pool           DatabaseSeriesPool
+	opts                 Options
+	id                   ts.ID
+	buffer               databaseBuffer
+	blocks               block.DatabaseSeriesBlocks
+	bs                   bootstrapState
+	blockRetriever       SeriesBlockRetriever
+	allFlushedFromMemory bool
+	pool                 DatabaseSeriesPool
 }
 
 type updateBlocksResult struct {
@@ -163,6 +164,13 @@ func (s *dbSeries) needsBlockUpdateWithLock() bool {
 }
 
 func (s *dbSeries) shouldExpireAnyBlockData(now time.Time) bool {
+	if s.allFlushedFromMemory {
+		// NB(r): This is a cache to speed up having to check the blocks
+		// and if any should be flushed from memory for the usual case
+		// of all already being flushed from memory.
+		return false
+	}
+
 	retriever := s.blockRetriever
 	if retriever == nil {
 		return false
@@ -173,9 +181,13 @@ func (s *dbSeries) shouldExpireAnyBlockData(now time.Time) bool {
 		return false
 	}
 
+	allBlocks := s.blocks.AllBlocks()
+	flushedFromMemory := 0
+
 	cutoff := ropts.BlockDataExpiryAfterNotAccessedPeriod()
-	for start, block := range s.blocks.AllBlocks() {
+	for start, block := range allBlocks {
 		if !block.IsRetrieved() {
+			flushedFromMemory++
 			continue
 		}
 		sinceLastAccessed := now.Sub(block.LastAccessTime())
@@ -183,6 +195,11 @@ func (s *dbSeries) shouldExpireAnyBlockData(now time.Time) bool {
 			retriever.IsBlockRetrievable(start) {
 			return true
 		}
+	}
+
+	if flushedFromMemory == len(allBlocks) {
+		// All blocks are flushed from memory
+		s.allFlushedFromMemory = true
 	}
 
 	return false
@@ -448,6 +465,12 @@ func (s *dbSeries) addBlock(b block.DatabaseBlock) {
 	b.SetOnRetrieveBlock(s)
 
 	s.blocks.AddBlock(b)
+
+	if b.IsRetrieved() {
+		// We know for sure not all the blocks are retrievable now
+		// and that some are already retrieved
+		s.allFlushedFromMemory = false
+	}
 }
 
 func (s *dbSeries) mergeBlock(
@@ -568,6 +591,9 @@ func (s *dbSeries) OnRetrieveBlock(
 				// to search the blocks in linked list style to find
 				// the one with the right checksum to replace contents of.
 				block.Reset(blockStart, segment)
+
+				// We know for sure not all blocks are flushed from memory now
+				s.allFlushedFromMemory = false
 			}
 		}
 	}
@@ -629,6 +655,7 @@ func (s *dbSeries) Close() {
 	s.id = nil
 	s.buffer.Reset()
 	s.blocks.Close()
+	s.allFlushedFromMemory = false
 
 	if s.pool != nil {
 		s.pool.Put(s)
@@ -652,4 +679,5 @@ func (s *dbSeries) Reset(
 		s.bs = bootstrapNotStarted
 	}
 	s.blockRetriever = blockRetriever
+	s.allFlushedFromMemory = false
 }

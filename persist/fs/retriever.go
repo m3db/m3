@@ -23,7 +23,6 @@ package fs
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
 	"sort"
 	"sync"
@@ -61,6 +60,7 @@ type blockRetriever struct {
 	status         blockRetrieverStatus
 	reqsByShardIdx []*shardRetrieveRequests
 	seekerMgrs     []FileSetSeekerManager
+	notifyFetch    chan struct{}
 	sleepFn        func(time.Duration)
 }
 
@@ -81,12 +81,13 @@ func NewBlockRetriever(
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
 	reqPool.Init()
 	return &blockRetriever{
-		opts:      opts,
-		fsOpts:    fsOpts,
-		reqPool:   reqPool,
-		bytesPool: opts.BytesPool(),
-		status:    blockRetrieverNotOpen,
-		sleepFn:   time.Sleep,
+		opts:        opts,
+		fsOpts:      fsOpts,
+		reqPool:     reqPool,
+		bytesPool:   opts.BytesPool(),
+		status:      blockRetrieverNotOpen,
+		notifyFetch: make(chan struct{}, 1),
+		sleepFn:     time.Sleep,
 	}
 }
 
@@ -129,6 +130,7 @@ func (r *blockRetriever) Open(namespace ts.ID) error {
 	r.seekerMgrs = seekerMgrs
 
 	for _, seekerMgr := range seekerMgrs {
+		seekerMgr := seekerMgr
 		go r.fetchLoop(seekerMgr)
 	}
 	return nil
@@ -152,8 +154,6 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 
 func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 	var (
-		yield          = r.opts.FetchYieldOnQueueEmpty()
-		rng            = rand.New(rand.NewSource(time.Now().UnixNano()))
 		inFlight       []*retrieveRequest
 		currBatchShard uint32
 		currBatchStart time.Time
@@ -165,6 +165,23 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 			inFlight[i] = nil
 		}
 		inFlight = inFlight[:0]
+	}
+	selectInFlight := func() (int, blockRetrieverStatus) {
+		r.RLock()
+		// Move requests from shard retriever reqs into in flight slice
+		for _, reqs := range r.reqsByShardIdx {
+			reqs.Lock()
+			if len(reqs.queued) != 0 {
+				inFlight = append(inFlight, reqs.queued...)
+				reqs.resetQueued()
+			}
+			reqs.Unlock()
+		}
+
+		status := r.status
+		n := len(inFlight)
+		r.RUnlock()
+		return n, status
 	}
 	fetchCurrBatch := func() {
 		shard := currBatchShard
@@ -183,30 +200,17 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 		// Reset in flight request references
 		resetInFlight()
 
-		r.RLock()
-		// Move requests from shard retriever reqs into in flight slice
-		for _, reqs := range r.reqsByShardIdx {
-			reqs.Lock()
-			if len(reqs.queued) != 0 {
-				inFlight = append(inFlight, reqs.queued...)
-				reqs.resetQueued()
-			}
-			reqs.Unlock()
-		}
-
-		status := r.status
-		lenInFlight := len(inFlight)
-		r.RUnlock()
+		// Select in flight requests
+		n, status := selectInFlight()
 
 		// Exit if not open and fulfilled all open requests
-		if lenInFlight == 0 && status != blockRetrieverOpen {
+		if n == 0 && status != blockRetrieverOpen {
 			break
 		}
 
 		// If no fetches then no work to do, yield
-		if lenInFlight == 0 {
-			yieldFor := time.Duration(rng.Int63n(int64(yield)))
-			r.sleepFn(yieldFor)
+		if n == 0 {
+			<-r.notifyFetch
 			continue
 		}
 
@@ -316,6 +320,13 @@ func (r *blockRetriever) Stream(
 	reqs.Lock()
 	reqs.queued = append(reqs.queued, req)
 	reqs.Unlock()
+
+	// Notify fetch loop
+	select {
+	case r.notifyFetch <- struct{}{}:
+	default:
+		// Loop busy, already ready to consume notification
+	}
 
 	return req, nil
 }

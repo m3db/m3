@@ -21,25 +21,21 @@
 package fs
 
 import (
-	"time"
-
 	"github.com/m3db/m3db/x/io"
 
 	"github.com/m3db/m3x/pool"
 )
 
 const (
-	defaultRequestPoolSize        = 16384
-	defaultFetchConcurrency       = 1
-	defaultFetchYieldOnQueueEmpty = 10 * time.Millisecond
+	defaultRequestPoolSize  = 16384
+	defaultFetchConcurrency = 1
 )
 
 type blockRetrieverOptions struct {
-	requestPoolOpts        pool.ObjectPoolOptions
-	bytesPool              pool.CheckedBytesPool
-	segmentReaderPool      xio.SegmentReaderPool
-	fetchConcurrency       int
-	fetchYieldOnQueueEmpty time.Duration
+	requestPoolOpts   pool.ObjectPoolOptions
+	bytesPool         pool.CheckedBytesPool
+	segmentReaderPool xio.SegmentReaderPool
+	fetchConcurrency  int
 }
 
 // NewBlockRetrieverOptions creates a new set of block retriever options
@@ -53,10 +49,9 @@ func NewBlockRetrieverOptions() BlockRetrieverOptions {
 	o := &blockRetrieverOptions{
 		requestPoolOpts: pool.NewObjectPoolOptions().
 			SetSize(defaultRequestPoolSize),
-		bytesPool:              bytesPool,
-		segmentReaderPool:      xio.NewSegmentReaderPool(nil),
-		fetchConcurrency:       defaultFetchConcurrency,
-		fetchYieldOnQueueEmpty: defaultFetchYieldOnQueueEmpty,
+		bytesPool:         bytesPool,
+		segmentReaderPool: xio.NewSegmentReaderPool(nil),
+		fetchConcurrency:  defaultFetchConcurrency,
 	}
 	o.segmentReaderPool.Init()
 	return o
@@ -100,14 +95,4 @@ func (o *blockRetrieverOptions) SetFetchConcurrency(value int) BlockRetrieverOpt
 
 func (o *blockRetrieverOptions) FetchConcurrency() int {
 	return o.fetchConcurrency
-}
-
-func (o *blockRetrieverOptions) SetFetchYieldOnQueueEmpty(value time.Duration) BlockRetrieverOptions {
-	opts := *o
-	opts.fetchYieldOnQueueEmpty = value
-	return &opts
-}
-
-func (o *blockRetrieverOptions) FetchYieldOnQueueEmpty() time.Duration {
-	return o.fetchYieldOnQueueEmpty
 }

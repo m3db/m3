@@ -163,13 +163,35 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		bootstrapResult   = result.NewBootstrapResult()
 		bopts             = s.opts.ResultOptions()
 		blockPool         = bopts.DatabaseBlockOptions().DatabaseBlockPool()
-		ropts             = s.opts.FilesystemOptions().RetentionOptions()
-		nowFn             = s.opts.FilesystemOptions().ClockOptions().NowFn()
-		// NB(r): Must read the current open block and previous block
-		// so that when blocks are rotated out they can be merged without
-		// needing to retrieve the data from disk.
-		mustReadCutoff = nowFn().Truncate(ropts.BlockSize()).Add(-ropts.BlockSize())
+		idMap             = make(map[ts.Hash]ts.ID)
+		idMapLock         sync.RWMutex
 	)
+
+	// NB(r): Reusing IDs means we recycle the IDs being constantly read
+	// duplicatively each consequent block for the same shard where
+	// the ID also lives.
+	reusedID := func(id ts.ID) ts.ID {
+		hash := id.Hash()
+
+		idMapLock.RLock()
+		if existingID, ok := idMap[hash]; ok {
+			idMapLock.RUnlock()
+			id.Finalize()
+			return existingID
+		}
+		idMapLock.RUnlock()
+
+		idMapLock.Lock()
+		if existingID, ok := idMap[hash]; ok {
+			idMapLock.Unlock()
+			id.Finalize()
+			return existingID
+		}
+		idMap[hash] = id
+		idMapLock.Unlock()
+
+		return id
+	}
 
 	if retriever != nil {
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(retriever)
@@ -211,11 +233,11 @@ func (s *fileSystemSource) bootstrapFromReaders(
 						seriesBlock = blockPool.Get()
 						entryErr    error
 					)
-					if retriever == nil || !start.Before(mustReadCutoff) {
+					if retriever == nil {
 						id, data, err := r.Read()
-						// TODO(r): put id into a shared hash map and when
-						// it's seen again then finalize the one just read
-						// and use the one from the hashmap to avoid duplicate IDs
+						if id != nil {
+							id = reusedID(id)
+						}
 						if err != nil {
 							entryErr = err
 						} else {
@@ -225,9 +247,9 @@ func (s *fileSystemSource) bootstrapFromReaders(
 						}
 					} else {
 						id, length, checksum, err := r.ReadMetadata()
-						// TODO(r): put id into a shared hash map and when
-						// it's seen again then finalize the one just read
-						// and use the one from the hashmap to avoid duplicate IDs
+						if id != nil {
+							id = reusedID(id)
+						}
 						if err != nil {
 							entryErr = err
 						} else {

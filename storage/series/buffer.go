@@ -549,8 +549,9 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 		return newBlock
 	}
 
-	if len(b.encoders) == 1 &&
-		b.encoders[0].encoder.StreamLen() == 0 &&
+	if (len(b.encoders) == 0 ||
+		(len(b.encoders) == 1 &&
+			b.encoders[0].encoder.StreamLen() == 0)) &&
 		len(b.bootstrapped) == 1 {
 		// Already merged just a single bootstrapped block
 		existingBlock := b.bootstrapped[0]
@@ -560,6 +561,21 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 		b.resetBootstrapped()
 
 		return existingBlock
+	}
+
+	// If we have to merge bootstrapped from disk during a block rotation
+	// this will make ticking extremely slow, ensure to notify this bug.
+	if len(b.bootstrapped) > 0 {
+		unretrieved := 0
+		for i := range b.bootstrapped {
+			if !b.bootstrapped[i].IsRetrieved() {
+				unretrieved++
+			}
+		}
+		if unretrieved > 0 {
+			log := b.opts.InstrumentOptions().Logger()
+			log.Warnf("buffer merging %d unretrieved blocks", unretrieved)
+		}
 	}
 
 	bopts := b.opts.DatabaseBlockOptions()
