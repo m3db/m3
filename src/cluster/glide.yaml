@@ -24,7 +24,7 @@ import:
   - assert
   - require
 - package: github.com/coreos/etcd
-  version: be740dc4362bf90d63650ddb809daf8f5abd16a6
+  version: 8ba2897a21e4fc51b298ca553d251318425f93ae #release-3.1
   subpackages:
   - clientv3
   - integration
