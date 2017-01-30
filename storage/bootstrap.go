@@ -110,7 +110,8 @@ func (m *bootstrapManager) targetRanges(at time.Time) xtime.Ranges {
 	midPoint := at.
 		Add(-ropts.BlockSize()).
 		Add(-ropts.BufferPast()).
-		Truncate(ropts.BlockSize())
+		Truncate(ropts.BlockSize()).
+		Add(ropts.BlockSize())
 	cutover := at.Add(ropts.BufferFuture())
 
 	return xtime.NewRanges().

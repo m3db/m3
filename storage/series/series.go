@@ -557,6 +557,8 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 
 	s.blocks = blocks
 	s.bs = bootstrapped
+	// Not sure if all flushed from memory after a bootstrap
+	s.allFlushedFromMemory = false
 
 	return multiErr.FinalError()
 }

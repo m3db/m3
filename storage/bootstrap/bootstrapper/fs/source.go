@@ -158,40 +158,12 @@ func (s *fileSystemSource) bootstrapFromReaders(
 ) result.BootstrapResult {
 	var (
 		wg                sync.WaitGroup
-		resultLock        sync.Mutex
+		resultLock        sync.RWMutex
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		bootstrapResult   = result.NewBootstrapResult()
 		bopts             = s.opts.ResultOptions()
 		blockPool         = bopts.DatabaseBlockOptions().DatabaseBlockPool()
-		idMap             = make(map[ts.Hash]ts.ID)
-		idMapLock         sync.RWMutex
 	)
-
-	// NB(r): Reusing IDs means we recycle the IDs being constantly read
-	// duplicatively each consequent block for the same shard where
-	// the ID also lives.
-	reusedID := func(id ts.ID) ts.ID {
-		hash := id.Hash()
-
-		idMapLock.RLock()
-		if existingID, ok := idMap[hash]; ok {
-			idMapLock.RUnlock()
-			id.Finalize()
-			return existingID
-		}
-		idMapLock.RUnlock()
-
-		idMapLock.Lock()
-		if existingID, ok := idMap[hash]; ok {
-			idMapLock.Unlock()
-			id.Finalize()
-			return existingID
-		}
-		idMap[hash] = id
-		idMapLock.Unlock()
-
-		return id
-	}
 
 	if retriever != nil {
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(retriever)
@@ -204,8 +176,8 @@ func (s *fileSystemSource) bootstrapFromReaders(
 			defer wg.Done()
 
 			var (
-				seriesMap       result.ShardResult
 				timesWithErrors []time.Time
+				shardResult     result.ShardResult
 				shardRetriever  block.DatabaseShardBlockRetriever
 			)
 
@@ -215,9 +187,24 @@ func (s *fileSystemSource) bootstrapFromReaders(
 			}
 
 			for _, r := range readers {
-				if seriesMap == nil {
-					// Delay initializing seriesMap until we have a good idea of its capacity
-					seriesMap = result.NewShardResult(r.Entries(), bopts)
+				if shardResult == nil {
+					resultLock.RLock()
+					results := bootstrapResult.ShardResults()
+					var exists bool
+					shardResult, exists = results[shard]
+					resultLock.RUnlock()
+
+					if !exists {
+						resultLock.Lock()
+						shardResult, exists = results[shard]
+						if !exists {
+							// NB(r): Wait until we have a reader to initialize the shard result
+							// to be able to somewhat estimate the size of it.
+							shardResult = result.NewShardResult(r.Entries(), bopts)
+							results[shard] = shardResult
+						}
+						resultLock.Unlock()
+					}
 				}
 
 				var (
@@ -226,44 +213,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					hasError   = false
 					numEntries = r.Entries()
 				)
-
 				for i := 0; i < numEntries; i++ {
 					var (
-						seriesID    ts.ID
 						seriesBlock = blockPool.Get()
 						entryErr    error
 					)
-					if retriever == nil {
-						id, data, err := r.Read()
-						if id != nil {
-							id = reusedID(id)
-						}
-						if err != nil {
-							entryErr = err
-						} else {
-							seriesID = id
-							seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-							seriesBlock.Reset(start, seg)
-						}
-					} else {
-						id, length, checksum, err := r.ReadMetadata()
-						if id != nil {
-							id = reusedID(id)
-						}
-						if err != nil {
-							entryErr = err
-						} else {
-							seriesID = id
-							metadata := block.RetrievableBlockMetadata{
-								ID:       id,
-								Length:   length,
-								Checksum: checksum,
-							}
-							seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
-						}
-					}
-
-					if entryErr != nil {
+					id, data, checksum, err := r.Read()
+					if err != nil {
+						entryErr = err
 						s.log.WithFields(
 							xlog.NewLogField("shard", shard),
 							xlog.NewLogField("error", entryErr),
@@ -272,12 +229,48 @@ func (s *fileSystemSource) bootstrapFromReaders(
 						break
 					}
 
-					seriesMap.AddBlock(seriesID, seriesBlock)
+					idHash := id.Hash()
+
+					resultLock.RLock()
+					series, seriesExists := shardResult.AllSeries()[idHash]
+					resultLock.RUnlock()
+
+					if seriesExists {
+						// NB(r): In the case the series is already inserted
+						// we can avoid holding onto this ID and use the already
+						// allocated ID.
+						id.Finalize()
+						id = series.ID
+					}
+
+					if retriever == nil {
+						seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+						seriesBlock.Reset(start, seg)
+					} else {
+						data.IncRef()
+						length := data.Len()
+						data.DecRef()
+						data.Finalize()
+						data = nil
+
+						metadata := block.RetrievableBlockMetadata{
+							ID:       id,
+							Length:   length,
+							Checksum: checksum,
+						}
+						seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
+					}
+
+					resultLock.Lock()
+					if seriesExists {
+						series.Blocks.AddBlock(seriesBlock)
+					} else {
+						shardResult.AddBlock(id, seriesBlock)
+					}
+					resultLock.Unlock()
 				}
 
-				// NB(r): Only validate if we read the data, e.g. if we are
-				// not creating blocks that aren't immediately retrieved.
-				if retriever == nil && !hasError {
+				if !hasError {
 					if err := r.Validate(); err != nil {
 						s.log.WithFields(
 							xlog.NewLogField("shard", shard),
@@ -304,30 +297,42 @@ func (s *fileSystemSource) bootstrapFromReaders(
 			// to the final result but adding series to large map with string keys is expensive, and
 			// the current implementation saves the extra overhead of merging temporary map with the
 			// final result.
-			if seriesMap != nil && len(timesWithErrors) > 0 {
+			if len(timesWithErrors) > 0 {
 				s.log.WithFields(
 					xlog.NewLogField("shard", shard),
 					xlog.NewLogField("timesWithErrors", timesWithErrors),
 				).Info("deleting entries from results for times with errors")
 
-				allSeries := seriesMap.AllSeries()
-				for id, series := range allSeries {
-					for _, t := range timesWithErrors {
-						series.Blocks.RemoveBlockAt(t)
-					}
-					if series.Blocks.Len() == 0 {
-						delete(allSeries, id)
+				resultLock.Lock()
+				shardResult, ok := bootstrapResult.ShardResults()[shard]
+				if ok {
+					for _, series := range shardResult.AllSeries() {
+						for _, t := range timesWithErrors {
+							shardResult.RemoveBlockAt(series.ID, t)
+						}
 					}
 				}
+				resultLock.Unlock()
 			}
 
-			resultLock.Lock()
-			bootstrapResult.Add(shard, seriesMap, tr)
-			resultLock.Unlock()
+			if !tr.IsEmpty() {
+				resultLock.Lock()
+				unfulfilled := bootstrapResult.Unfulfilled()
+				shardUnfulfilled, ok := unfulfilled[shard]
+				if !ok {
+					shardUnfulfilled = xtime.NewRanges().AddRanges(tr)
+				} else {
+					shardUnfulfilled = shardUnfulfilled.AddRanges(tr)
+				}
+
+				unfulfilled[shard] = shardUnfulfilled
+				resultLock.Unlock()
+			}
 		})
 	}
 
 	wg.Wait()
+
 	return bootstrapResult
 }
 

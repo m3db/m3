@@ -58,9 +58,9 @@ type FileSetReader interface {
 	// Open opens the files for the given shard and version for reading
 	Open(namespace ts.ID, shard uint32, start time.Time) error
 
-	// Read returns the next id and data pair or error, will return io.EOF at end of volume.
+	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
-	Read() (id ts.ID, data checked.Bytes, err error)
+	Read() (id ts.ID, data checked.Bytes, checksum uint32, err error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.

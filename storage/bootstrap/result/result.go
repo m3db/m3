@@ -65,8 +65,22 @@ func (r *bootstrapResult) AddResult(other BootstrapResult) {
 	if other == nil {
 		return
 	}
-	r.results.AddResults(other.ShardResults())
-	r.unfulfilled.AddRanges(other.Unfulfilled())
+	size := 0
+	sizeOther := 0
+	for _, sr := range r.results {
+		size += len(sr.AllSeries())
+	}
+	for _, sr := range other.ShardResults() {
+		sizeOther += len(sr.AllSeries())
+	}
+	if size >= sizeOther {
+		r.results.AddResults(other.ShardResults())
+		r.unfulfilled.AddRanges(other.Unfulfilled())
+	} else {
+		other.AddResult(r)
+		r.results = other.ShardResults()
+		r.unfulfilled = other.Unfulfilled()
+	}
 }
 
 type shardResult struct {

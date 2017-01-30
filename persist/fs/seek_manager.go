@@ -65,8 +65,9 @@ type seekerManager struct {
 
 type seekersByTime struct {
 	sync.RWMutex
-	shard   uint32
-	seekers map[time.Time]fileSetSeeker
+	shard    uint32
+	accessed bool
+	seekers  map[time.Time]fileSetSeeker
 }
 
 type seekerManagerPendingClose struct {
@@ -99,34 +100,58 @@ func (m *seekerManager) Open(
 	m.namespace = namespace
 	m.status = seekerManagerOpen
 
-	go m.closeLoop()
+	go m.openCloseLoop()
 
 	return nil
 }
 
 func (m *seekerManager) CacheShardIndices(shards []uint32) error {
+	multiErr := xerrors.NewMultiError()
+
+	for shard := uint32(0); shard < uint32(len(shards)); shard++ {
+		byTime := m.seekersByTime(shard)
+
+		byTime.Lock()
+		// Track accessed to precache in open/close loop
+		byTime.accessed = true
+		byTime.Unlock()
+
+		if err := m.openAnyUnopenSeekers(byTime); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
+func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 	start := m.earliestSeekableBlockStart()
 	end := m.latestSeekableBlockStart()
 	blockSize := m.opts.RetentionOptions().BlockSize()
 	multiErr := xerrors.NewMultiError()
 
-	for shard := uint32(0); shard < uint32(len(shards)); shard++ {
-		byTime := m.seekersByTime(shard)
-		byTime.Lock()
+	for t := start; !t.After(end); t = t.Add(blockSize) {
+		byTime.RLock()
+		shard := byTime.shard
+		_, exists := byTime.seekers[t]
+		byTime.RUnlock()
 
-		for t := start; !t.After(end); t = t.Add(blockSize) {
-			seeker, err := m.newOpenSeeker(shard, t)
-			if err != nil {
-				if err != errSeekerManagerFileSetNotFound {
-					// Best effort to open files, if not there don't bother opening
-					multiErr = multiErr.Add(err)
-				}
-				continue
-			}
-
-			byTime.seekers[t] = seeker
+		if exists {
+			// Avoid opening a new seeker if already an open seeker
+			continue
 		}
 
+		seeker, err := m.newOpenSeeker(shard, t)
+		if err != nil {
+			if err != errSeekerManagerFileSetNotFound {
+				// Best effort to open files, if not there don't bother opening
+				multiErr = multiErr.Add(err)
+			}
+			continue
+		}
+
+		byTime.Lock()
+		byTime.seekers[t] = seeker
 		byTime.Unlock()
 	}
 
@@ -135,16 +160,12 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 
 func (m *seekerManager) Seeker(shard uint32, start time.Time) (FileSetSeeker, error) {
 	byTime := m.seekersByTime(shard)
-	byTime.RLock()
-	seeker, ok := byTime.seekers[start]
-	if ok {
-		byTime.RUnlock()
-		return seeker, nil
-	}
-	byTime.RUnlock()
 
 	byTime.Lock()
-	seeker, ok = byTime.seekers[start]
+	// Track accessed to precache in open/close loop
+	byTime.accessed = true
+
+	seeker, ok := byTime.seekers[start]
 	if ok {
 		byTime.Unlock()
 		return seeker, nil
@@ -252,16 +273,20 @@ func (m *seekerManager) latestSeekableBlockStart() time.Time {
 	nowFn := m.opts.ClockOptions().NowFn()
 	now := nowFn()
 	ropts := m.opts.RetentionOptions()
-	latestReachableBlockStart := retention.FlushTimeEnd(ropts, now)
-	return latestReachableBlockStart
+	return now.Truncate(ropts.BlockSize())
 }
 
-func (m *seekerManager) closeLoop() {
+func (m *seekerManager) openCloseLoop() {
 	var (
-		shouldClose []seekerManagerPendingClose
-		closing     []fileSetSeeker
+		shouldTryOpen []*seekersByTime
+		shouldClose   []seekerManagerPendingClose
+		closing       []fileSetSeeker
 	)
 	resetSlices := func() {
+		for i := range shouldTryOpen {
+			shouldTryOpen[i] = nil
+		}
+		shouldTryOpen = shouldTryOpen[:0]
 		for i := range shouldClose {
 			shouldClose[i] = seekerManagerPendingClose{}
 		}
@@ -282,6 +307,20 @@ func (m *seekerManager) closeLoop() {
 			break
 		}
 
+		for _, byTime := range m.seekersByShardIdx {
+			if !byTime.accessed {
+				continue
+			}
+			shouldTryOpen = append(shouldTryOpen, byTime)
+		}
+		m.RUnlock()
+
+		// Try opening any unopened times for accessed seekers
+		for _, byTime := range shouldTryOpen {
+			m.openAnyUnopenSeekers(byTime)
+		}
+
+		m.RLock()
 		for shard, byTime := range m.seekersByShardIdx {
 			byTime.RLock()
 			for blockStart := range byTime.seekers {
