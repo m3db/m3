@@ -146,6 +146,12 @@ type DatabaseBlock interface {
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)
 
+	// Merge will merge the current block with the specified block
+	// when this block is read. Note: calling this twice
+	// will simply overwrite the target for the block to merge with
+	// rather than merging three blocks together.
+	Merge(other DatabaseBlock)
+
 	// IsRetrieved returns whether the block is already retrieved.
 	IsRetrieved() bool
 

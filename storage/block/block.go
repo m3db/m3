@@ -51,6 +51,8 @@ type dbBlock struct {
 
 	accessedUnixNano int64
 
+	mergeTarget DatabaseBlock
+
 	retriever  DatabaseShardBlockRetriever
 	retrieveID ts.ID
 
@@ -171,6 +173,18 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
 	}
 
+	if b.mergeTarget != nil {
+		var mergeStream xio.SegmentReader
+		mergeStream, err = b.mergeTarget.Stream(blocker)
+		if err != nil {
+			stream.Finalize()
+			return nil, err
+		}
+		// Return a lazily merged stream
+		// TODO(r): once merged reset this block with the contents of it
+		stream = newDatabaseMergedBlockReader(b.startWithLock(), stream, mergeStream, b.opts)
+	}
+
 	// Register the finalizer for the stream
 	blocker.RegisterFinalizer(stream)
 	b.RUnlock()
@@ -185,6 +199,13 @@ func (b *dbBlock) IsRetrieved() bool {
 	return retrieved
 }
 
+func (b *dbBlock) Merge(other DatabaseBlock) {
+	b.Lock()
+	b.resetMergeTargetWithLock()
+	b.mergeTarget = other
+	b.Unlock()
+}
+
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 	b.Lock()
 	defer b.Unlock()
@@ -195,6 +216,7 @@ func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 	b.ctx = b.opts.ContextPool().Get()
 	b.startUnixNano = start.UnixNano()
 	b.closed = false
+	b.resetMergeTargetWithLock()
 	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
 	b.resetSegmentWithLock(segment)
 }
@@ -213,6 +235,7 @@ func (b *dbBlock) ResetRetrievable(
 	b.ctx = b.opts.ContextPool().Get()
 	b.startUnixNano = start.UnixNano()
 	b.closed = false
+	b.resetMergeTargetWithLock()
 	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
 	b.resetRetrievableWithLock(retriever, metadata)
 }
@@ -250,10 +273,18 @@ func (b *dbBlock) Close() {
 
 	b.closed = true
 	b.ctx.Close()
+	b.resetMergeTargetWithLock()
 
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
 		pool.Put(b)
 	}
+}
+
+func (b *dbBlock) resetMergeTargetWithLock() {
+	if b.mergeTarget != nil {
+		b.mergeTarget.Close()
+	}
+	b.mergeTarget = nil
 }
 
 type databaseSeriesBlocks struct {

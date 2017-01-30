@@ -23,7 +23,6 @@ package series
 import (
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -426,86 +425,26 @@ func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
 	// lock already. Executing the drain method occurs during a write if the
 	// buffer needs to drain or if tick is called and series explicitly asks
 	// the buffer to drain ready buckets.
-	if _, ok := s.blocks.BlockAt(newBlock.StartTime()); !ok {
-		s.blocks.AddBlock(newBlock)
-		return
-	}
-
-	if err := s.mergeBlock(s.blocks, newBlock); err != nil {
-		log := s.opts.InstrumentOptions().Logger()
-		log.Errorf("series error merging blocks: %v", err)
-	}
+	s.mergeBlock(s.blocks, newBlock)
 }
 
 func (s *dbSeries) mergeBlock(
 	blocks block.DatabaseSeriesBlocks,
 	newBlock block.DatabaseBlock,
-) error {
+) {
 	blockStart := newBlock.StartTime()
 
-	// If we don't have an existing block just insert the new block
+	// If we don't have an existing block just insert the new block.
 	existingBlock, ok := blocks.BlockAt(blockStart)
 	if !ok {
 		blocks.AddBlock(newBlock)
-		return nil
+		return
 	}
 
-	ctx := s.opts.ContextPool().Get()
-	defer ctx.Close()
-
-	// If enc is empty, do nothing
-	newBlockReader, err := newBlock.Stream(ctx)
-	if err != nil {
-		return err
-	}
-	if newBlockReader == nil {
-		return nil
-	}
-
-	existingBlockReader, err := existingBlock.Stream(ctx)
-	if err != nil {
-		return err
-	}
-	if existingBlockReader == nil {
-		// Existing block has no data
-		blocks.AddBlock(newBlock)
-		return nil
-	}
-
-	var readers [2]io.Reader
-	readers[0] = newBlockReader
-	readers[1] = existingBlockReader
-
-	multiIter := s.opts.MultiReaderIteratorPool().Get()
-	multiIter.Reset(readers[:])
-	defer multiIter.Close()
-
-	blopts := s.opts.DatabaseBlockOptions()
-	encoder := s.opts.EncoderPool().Get()
-	encoder.Reset(blockStart, blopts.DatabaseBlockAllocSize())
-
-	for multiIter.Next() {
-		dp, unit, annotation := multiIter.Current()
-		err := encoder.Encode(dp, unit, annotation)
-		if err != nil {
-			encoder.Close()
-			return err
-		}
-	}
-	if err := multiIter.Err(); err != nil {
-		encoder.Close()
-		return err
-	}
-
-	block := blopts.DatabaseBlockPool().Get()
-	block.Reset(blockStart, encoder.Discard())
-	blocks.AddBlock(block)
-
-	// Close the existing and new blocks
-	existingBlock.Close()
-	newBlock.Close()
-
-	return nil
+	// We are performing this in a lock, cannot wait for the existing
+	// block potentially to be retrieved from disk, lazily merge the stream.
+	newBlock.Merge(existingBlock)
+	blocks.AddBlock(newBlock)
 }
 
 // NB(xichen): we are holding a big lock here to drain the in-memory buffer.
@@ -550,12 +489,7 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 		// If we're overwriting the blocks then merge any existing blocks
 		// already drained
 		for _, existingBlock := range existingBlocks.AllBlocks() {
-			if _, ok := blocks.BlockAt(existingBlock.StartTime()); ok {
-				err := s.mergeBlock(blocks, existingBlock)
-				if err != nil {
-					multiErr = multiErr.Add(s.newBootstrapBlockError(existingBlock, err))
-				}
-			}
+			s.mergeBlock(blocks, existingBlock)
 		}
 	}
 
