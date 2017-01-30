@@ -154,24 +154,22 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 
 func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 	var (
-		inFlight       []*retrieveRequest
-		currBatchShard uint32
-		currBatchStart time.Time
-		currBatchReqs  []*retrieveRequest
+		inFlight      []*retrieveRequest
+		currBatchReqs []*retrieveRequest
 	)
-	resetInFlight := func() {
-		// Free references to the requests
+	for {
+		// Free references to the inflight requests
 		for i := range inFlight {
 			inFlight[i] = nil
 		}
 		inFlight = inFlight[:0]
-	}
-	selectInFlight := func() (int, blockRetrieverStatus) {
+
+		// Select in flight requests
 		r.RLock()
 		// Move requests from shard retriever reqs into in flight slice
 		for _, reqs := range r.reqsByShardIdx {
 			reqs.Lock()
-			if len(reqs.queued) != 0 {
+			if len(reqs.queued) > 0 {
 				inFlight = append(inFlight, reqs.queued...)
 				reqs.resetQueued()
 			}
@@ -181,27 +179,6 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 		status := r.status
 		n := len(inFlight)
 		r.RUnlock()
-		return n, status
-	}
-	fetchCurrBatch := func() {
-		shard := currBatchShard
-		start := currBatchStart
-		if len(currBatchReqs) != 0 {
-			// Fetch the batch using the seeker mgr
-			r.fetchBatch(seekerMgr, shard, start, currBatchReqs)
-		}
-		// Free references to the requests
-		for i := range currBatchReqs {
-			currBatchReqs[i] = nil
-		}
-		currBatchReqs = currBatchReqs[:0]
-	}
-	for {
-		// Reset in flight request references
-		resetInFlight()
-
-		// Select in flight requests
-		n, status := selectInFlight()
 
 		// Exit if not open and fulfilled all open requests
 		if n == 0 && status != blockRetrieverOpen {
@@ -221,13 +198,20 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 
 		// Iterate through all in flight and send them to the seeker in batches
 		// of block time + shard.
-		currBatchShard = 0
-		currBatchStart = time.Time{}
+		currBatchShard := uint32(0)
+		currBatchStart := time.Time{}
+		currBatchReqs = currBatchReqs[:0]
 		for _, req := range inFlight {
 			if !req.start.Equal(currBatchStart) ||
 				req.shard != currBatchShard {
 				// Fetch any outstanding in the current batch
-				fetchCurrBatch()
+				if len(currBatchReqs) > 0 {
+					r.fetchBatch(seekerMgr, currBatchShard, currBatchStart, currBatchReqs)
+					for i := range currBatchReqs {
+						currBatchReqs[i] = nil
+					}
+					currBatchReqs = currBatchReqs[:0]
+				}
 
 				// Set the new batch attributes
 				currBatchShard = req.shard
@@ -239,7 +223,13 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 		}
 
 		// Fetch any finally outstanding in the current batch
-		fetchCurrBatch()
+		if len(currBatchReqs) > 0 {
+			r.fetchBatch(seekerMgr, currBatchShard, currBatchStart, currBatchReqs)
+			for i := range currBatchReqs {
+				currBatchReqs[i] = nil
+			}
+			currBatchReqs = currBatchReqs[:0]
+		}
 	}
 
 	// Close the seekers
@@ -285,14 +275,16 @@ func (r *blockRetriever) fetchBatch(
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database series to cache the in
 			// memory data.
-			var copySegment ts.Segment
+			var segCopy ts.Segment
 			if data != nil {
-				copyData := r.bytesPool.Get(data.Len())
-				copySegment = ts.NewSegment(copyData, nil, ts.FinalizeHead)
-				copyData.AppendAll(data.Get())
+				dataCopy := r.bytesPool.Get(data.Len())
+				segCopy = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
+				dataCopy.AppendAll(data.Get())
 			}
 
-			go req.onRetrieve.OnRetrieveBlock(req.id, req.start, copySegment)
+			// Capture ref to req for async goroutine
+			req := req
+			go req.onRetrieve.OnRetrieveBlock(req.id, req.start, segCopy)
 		}
 
 		req.onRetrieved(seg)
