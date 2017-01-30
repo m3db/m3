@@ -146,13 +146,6 @@ type DatabaseBlock interface {
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)
 
-	// SetOnRetrieveBlock sets the on retrieve block callback.
-	SetOnRetrieveBlock(onRetrieve OnRetrieveBlock)
-
-	// MergeOnStream sets a block that should be merged with this block
-	// when this block is read using stream.
-	MergeOnStream(other DatabaseBlock)
-
 	// IsRetrieved returns whether the block is already retrieved.
 	IsRetrieved() bool
 

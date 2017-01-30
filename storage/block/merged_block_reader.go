@@ -67,8 +67,9 @@ func (r *dbMergedBlockReader) mergedReader() (xio.SegmentReader, error) {
 	r.RUnlock()
 
 	r.Lock()
+	defer r.Unlock()
+
 	if r.merged != nil || r.err != nil {
-		r.Unlock()
 		return r.merged, r.err
 	}
 
@@ -104,7 +105,6 @@ func (r *dbMergedBlockReader) mergedReader() (xio.SegmentReader, error) {
 	}
 
 	r.merged = r.encoder.Stream()
-	r.Unlock()
 
 	return r.merged, nil
 }

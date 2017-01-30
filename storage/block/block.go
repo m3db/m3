@@ -22,13 +22,14 @@ package block
 
 import (
 	"errors"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/clock"
 )
 
 var (
@@ -39,21 +40,19 @@ var (
 )
 
 type dbBlock struct {
-	opts     Options
-	nowFn    clock.NowFn
-	ctx      context.Context
-	start    time.Time
-	segment  ts.Segment
-	length   int
-	checksum uint32
+	sync.RWMutex
 
-	lastAccess time.Time
+	opts          Options
+	ctx           context.Context
+	startUnixNano int64
+	segment       ts.Segment
+	length        int
+	checksum      uint32
 
-	mergeWith DatabaseBlock
+	accessedUnixNano int64
 
 	retriever  DatabaseShardBlockRetriever
 	retrieveID ts.ID
-	onRetrieve OnRetrieveBlock
 
 	closed bool
 }
@@ -61,14 +60,13 @@ type dbBlock struct {
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) DatabaseBlock {
 	b := &dbBlock{
-		opts:   opts,
-		nowFn:  opts.ClockOptions().NowFn(),
-		ctx:    opts.ContextPool().Get(),
-		start:  start,
-		closed: false,
+		opts:          opts,
+		ctx:           opts.ContextPool().Get(),
+		startUnixNano: start.UnixNano(),
+		closed:        false,
 	}
 	if segment.Len() > 0 {
-		b.resetSegment(segment)
+		b.resetSegmentWithLock(segment)
 	}
 	return b
 }
@@ -81,38 +79,79 @@ func NewRetrievableDatabaseBlock(
 	opts Options,
 ) DatabaseBlock {
 	b := &dbBlock{
-		opts:   opts,
-		ctx:    opts.ContextPool().Get(),
-		start:  start,
-		closed: false,
+		opts:          opts,
+		ctx:           opts.ContextPool().Get(),
+		startUnixNano: start.UnixNano(),
+		closed:        false,
 	}
-	b.resetRetrievable(retriever, metadata)
+	b.resetRetrievableWithLock(retriever, metadata)
 	return b
 }
 
+func (b *dbBlock) now() time.Time {
+	nowFn := b.opts.ClockOptions().NowFn()
+	return nowFn()
+}
+
 func (b *dbBlock) StartTime() time.Time {
-	return b.start
+	b.RLock()
+	start := b.startWithLock()
+	b.RUnlock()
+	return start
+}
+
+func (b *dbBlock) startWithLock() time.Time {
+	return time.Unix(0, b.startUnixNano)
 }
 
 func (b *dbBlock) LastAccessTime() time.Time {
-	return b.lastAccess
+	return time.Unix(0, atomic.LoadInt64(&b.accessedUnixNano))
 }
 
 func (b *dbBlock) Len() int {
-	return b.length
+	b.RLock()
+	length := b.length
+	b.RUnlock()
+	return length
 }
 
 func (b *dbBlock) Checksum() uint32 {
-	return b.checksum
+	b.RLock()
+	checksum := b.checksum
+	b.RUnlock()
+	return checksum
+}
+
+func (b *dbBlock) OnRetrieveBlock(
+	id ts.ID,
+	startTime time.Time,
+	segment ts.Segment,
+) {
+	b.Lock()
+	defer b.Unlock()
+
+	if b.closed ||
+		!id.Equal(b.retrieveID) ||
+		!startTime.Equal(b.startWithLock()) {
+		return
+	}
+
+	b.resetSegmentWithLock(segment)
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
+	b.RLock()
+
 	if b.closed {
+		b.RUnlock()
 		return nil, errReadFromClosedBlock
 	}
 
 	b.ctx.DependsOn(blocker)
-	b.lastAccess = b.nowFn()
+
+	// Use an int64 to avoid needing a write lock for
+	// the high frequency stream method
+	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
 
 	// If the block retrieve ID is set then it must be retrieved
 	var (
@@ -120,8 +159,9 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		err    error
 	)
 	if b.retriever != nil {
-		stream, err = b.retriever.Stream(b.retrieveID, b.start, b.onRetrieve)
+		stream, err = b.retriever.Stream(b.retrieveID, b.startWithLock(), b)
 		if err != nil {
+			b.RUnlock()
 			return nil, err
 		}
 	} else {
@@ -131,45 +171,32 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
 	}
 
-	if b.mergeWith != nil {
-		var mergeStream xio.SegmentReader
-		mergeStream, err = b.mergeWith.Stream(blocker)
-		if err != nil {
-			stream.Finalize()
-			return nil, err
-		}
-		// Return a lazily merged stream
-		stream = newDatabaseMergedBlockReader(b.start, stream, mergeStream, b.opts)
-	}
-
 	// Register the finalizer for the stream
 	blocker.RegisterFinalizer(stream)
+	b.RUnlock()
 
 	return stream, nil
 }
 
-func (b *dbBlock) MergeOnStream(other DatabaseBlock) {
-	b.mergeWith = other
-}
-
-func (b *dbBlock) SetOnRetrieveBlock(onRetrieve OnRetrieveBlock) {
-	b.onRetrieve = onRetrieve
-}
-
 func (b *dbBlock) IsRetrieved() bool {
-	return b.retriever == nil
+	b.RLock()
+	retrieved := b.retriever == nil
+	b.RUnlock()
+	return retrieved
 }
 
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
+	b.Lock()
+	defer b.Unlock()
+
 	if !b.closed {
 		b.ctx.Close()
 	}
 	b.ctx = b.opts.ContextPool().Get()
-	b.start = start
+	b.startUnixNano = start.UnixNano()
 	b.closed = false
-	b.lastAccess = b.nowFn()
-	b.mergeWith = nil
-	b.resetSegment(segment)
+	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
+	b.resetSegmentWithLock(segment)
 }
 
 func (b *dbBlock) ResetRetrievable(
@@ -177,18 +204,20 @@ func (b *dbBlock) ResetRetrievable(
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 ) {
+	b.Lock()
+	defer b.Unlock()
+
 	if !b.closed {
 		b.ctx.Close()
 	}
 	b.ctx = b.opts.ContextPool().Get()
-	b.start = start
+	b.startUnixNano = start.UnixNano()
 	b.closed = false
-	b.lastAccess = b.nowFn()
-	b.mergeWith = nil
-	b.resetRetrievable(retriever, metadata)
+	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
+	b.resetRetrievableWithLock(retriever, metadata)
 }
 
-func (b *dbBlock) resetSegment(seg ts.Segment) {
+func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.segment = seg
 	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
@@ -199,7 +228,7 @@ func (b *dbBlock) resetSegment(seg ts.Segment) {
 	b.ctx.RegisterFinalizer(&seg)
 }
 
-func (b *dbBlock) resetRetrievable(
+func (b *dbBlock) resetRetrievableWithLock(
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 ) {
@@ -212,6 +241,9 @@ func (b *dbBlock) resetRetrievable(
 }
 
 func (b *dbBlock) Close() {
+	b.Lock()
+	defer b.Unlock()
+
 	if b.closed {
 		return
 	}
