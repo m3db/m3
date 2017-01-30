@@ -76,6 +76,9 @@ type dbNamespace struct {
 	increasingIndex  increasingIndex
 	writeCommitLogFn writeCommitLogFn
 
+	tickWorkers            xsync.WorkerPool
+	tickWorkersConcurrency int
+
 	metrics databaseNamespaceMetrics
 }
 
@@ -150,17 +153,23 @@ func newDatabaseNamespace(
 			"namespace": id.String(),
 		})
 
+	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
+	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
+	tickWorkers.Init()
+
 	n := &dbNamespace{
-		id:               id,
-		shardSet:         shardSet,
-		blockRetriever:   blockRetriever,
-		opts:             opts,
-		nopts:            nopts,
-		nowFn:            opts.ClockOptions().NowFn(),
-		log:              opts.InstrumentOptions().Logger(),
-		increasingIndex:  increasingIndex,
-		writeCommitLogFn: fn,
-		metrics:          newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
+		id:                     id,
+		shardSet:               shardSet,
+		blockRetriever:         blockRetriever,
+		opts:                   opts,
+		nopts:                  nopts,
+		nowFn:                  opts.ClockOptions().NowFn(),
+		log:                    opts.InstrumentOptions().Logger(),
+		increasingIndex:        increasingIndex,
+		writeCommitLogFn:       fn,
+		tickWorkers:            tickWorkers,
+		tickWorkersConcurrency: tickWorkersConcurrency,
+		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
 	n.initShards(nopts.NeedsBootstrap())
@@ -256,11 +265,28 @@ func (n *dbNamespace) Tick(softDeadline time.Duration) {
 	}
 
 	// Tick through the shards sequentially to avoid parallel data flushes
-	var r tickResult
+	var (
+		r  tickResult
+		l  sync.Mutex
+		wg sync.WaitGroup
+	)
 	perShardDeadline := softDeadline / time.Duration(len(shards))
+	perShardDeadline *= time.Duration(n.tickWorkersConcurrency)
 	for _, shard := range shards {
-		r = r.merge(shard.Tick(perShardDeadline))
+		shard := shard
+		wg.Add(1)
+		n.tickWorkers.Go(func() {
+			defer wg.Done()
+
+			shardResult := shard.Tick(perShardDeadline)
+
+			l.Lock()
+			r = r.merge(shardResult)
+			l.Unlock()
+		})
 	}
+
+	wg.Wait()
 
 	n.metrics.tick.activeSeries.Update(int64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))

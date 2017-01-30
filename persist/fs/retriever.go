@@ -41,6 +41,11 @@ var (
 
 type blockRetrieverStatus int
 
+type newSeekerMgrFn func(
+	bytesPool pool.CheckedBytesPool,
+	opts Options,
+) FileSetSeekerManager
+
 const (
 	blockRetrieverNotOpen blockRetrieverStatus = iota
 	blockRetrieverOpen
@@ -52,6 +57,8 @@ type blockRetriever struct {
 
 	opts   BlockRetrieverOptions
 	fsOpts Options
+
+	newSeekerMgrFn newSeekerMgrFn
 
 	reqPool   retrieveRequestPool
 	bytesPool pool.CheckedBytesPool
@@ -81,13 +88,14 @@ func NewBlockRetriever(
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
 	reqPool.Init()
 	return &blockRetriever{
-		opts:        opts,
-		fsOpts:      fsOpts,
-		reqPool:     reqPool,
-		bytesPool:   opts.BytesPool(),
-		status:      blockRetrieverNotOpen,
-		notifyFetch: make(chan struct{}, 1),
-		sleepFn:     time.Sleep,
+		opts:           opts,
+		fsOpts:         fsOpts,
+		newSeekerMgrFn: NewSeekerManager,
+		reqPool:        reqPool,
+		bytesPool:      opts.BytesPool(),
+		status:         blockRetrieverNotOpen,
+		notifyFetch:    make(chan struct{}, 1),
+		sleepFn:        time.Sleep,
 	}
 }
 
@@ -115,7 +123,7 @@ func (r *blockRetriever) Open(namespace ts.ID) error {
 
 	seekerMgrs := make([]FileSetSeekerManager, 0, r.opts.FetchConcurrency())
 	for i := 0; i < r.opts.FetchConcurrency(); i++ {
-		seekerMgr := NewSeekerManager(r.bytesPool, r.fsOpts)
+		seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts)
 		if err := seekerMgr.Open(namespace); err != nil {
 			for _, opened := range seekerMgrs {
 				opened.Close()
