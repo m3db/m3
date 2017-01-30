@@ -95,8 +95,8 @@ func (v *id) Hash() Hash {
 }
 
 func (v *id) Equal(value ID) bool {
-	currNoData := v.Data() == nil || v.Data().Len() == 0
-	otherNoData := value.Data() == nil || value.Data().Len() == 0
+	currNoData := v == nil || v.Data() == nil || v.Data().Len() == 0
+	otherNoData := value == nil || value.Data() == nil || value.Data().Len() == 0
 	if currNoData && otherNoData {
 		return true
 	}
