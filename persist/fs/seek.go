@@ -55,18 +55,19 @@ type seeker struct {
 	expectedInfoDigest         uint32
 	expectedIndexDigest        uint32
 
+	keepIndexIDs  bool
 	keepUnreadBuf bool
-	unreadBuf     []byte
-	prologue      []byte
-	entries       int
-	dataFd        *os.File
+
+	unreadBuf []byte
+	prologue  []byte
+	entries   int
+	dataFd    *os.File
 	// NB(r): specifically use a non pointer type for
 	// key and value in this map to avoid the GC scanning
 	// this large map.
-	indexMap     map[ts.Hash]indexMapEntry
-	keepIndexIDs bool
-	indexIDs     []ts.ID
-	bytesPool    pool.CheckedBytesPool
+	indexMap  map[ts.Hash]indexMapEntry
+	indexIDs  []ts.ID
+	bytesPool pool.CheckedBytesPool
 }
 
 type indexMapEntry struct {
@@ -117,8 +118,9 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.bufferSize),
 		dataReader:                 bufio.NewReaderSize(nil, opts.bufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.bufferSize),
-		prologue:                   make([]byte, markerLen+idxLen),
 		keepIndexIDs:               opts.keepIndexIDs,
+		keepUnreadBuf:              opts.keepUnreadBuf,
+		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  opts.bytesPool,
 	}
 }

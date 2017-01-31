@@ -69,13 +69,14 @@ func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Ti
 	assert.Equal(t, 0, r.EntriesRead())
 
 	for i := 0; i < r.Entries(); i++ {
-		id, data, err := r.Read()
+		id, data, checksum, err := r.Read()
 		data.IncRef()
 		defer data.DecRef()
 
 		assert.NoError(t, err)
 		assert.Equal(t, entries[i].id, id.String())
 		assert.True(t, bytes.Equal(entries[i].data, data.Get()))
+		assert.Equal(t, digest.Checksum(entries[i].data), checksum)
 
 		assert.Equal(t, i+1, r.EntriesRead())
 	}

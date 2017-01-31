@@ -72,7 +72,10 @@ type databaseBuffer interface {
 		start, end time.Time,
 	) [][]xio.SegmentReader
 
-	FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult
+	FetchBlocks(
+		ctx context.Context,
+		starts []time.Time,
+	) []block.FetchBlockResult
 
 	FetchBlocksMetadata(
 		ctx context.Context,
@@ -90,12 +93,6 @@ type databaseBuffer interface {
 	DrainAndReset()
 
 	Bootstrap(bl block.DatabaseBlock) error
-
-	// CacheRetrievedBlock is called to cache a block retrieved from disk
-	CacheRetrievedBlock(
-		blockStart time.Time,
-		segment ts.Segment,
-	) error
 
 	Reset()
 }
@@ -231,27 +228,6 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 		return fmt.Errorf("block at %s not contained by buffer", blockStart.String())
 	}
 	return nil
-}
-
-// CacheRetrievedBlock is called to cache a block retrieved from disk
-func (s *dbBuffer) CacheRetrievedBlock(blockStart time.Time, segment ts.Segment) error {
-	var err error
-	cached := false
-	s.forEachBucketAsc(func(bucket *dbBufferBucket) {
-		if bucket.start.Equal(blockStart) {
-			for _, bl := range bucket.bootstrapped {
-				if !bl.IsRetrieved() {
-					bl.Reset(blockStart, segment)
-					cached = true
-					return
-				}
-			}
-		}
-	})
-	if err == nil && !cached {
-		err = fmt.Errorf("block at %s not contained by buffer", blockStart.String())
-	}
-	return err
 }
 
 // forEachBucketAsc iterates over the buckets in time ascending order
@@ -487,6 +463,9 @@ func (b *dbBufferBucket) streams(ctx context.Context) []xio.SegmentReader {
 	streams := make([]xio.SegmentReader, 0, len(b.bootstrapped)+len(b.encoders))
 
 	for i := range b.bootstrapped {
+		if b.bootstrapped[i].Len() == 0 {
+			continue
+		}
 		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s != nil {
 			// NB(r): block stream method will register the stream closer already
 			streams = append(streams, s)
@@ -537,15 +516,18 @@ func (b *dbBufferBucket) resetBootstrapped() {
 }
 
 func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
+	defer func() {
+		b.resetEncoders()
+		b.resetBootstrapped()
+		b.empty = true
+	}()
+
 	if len(b.encoders) == 1 && len(b.bootstrapped) == 0 {
 		// Already merged as a single encoder
 		encoder := b.encoders[0].encoder
 		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		newBlock.Reset(b.start, encoder.DiscardReset(b.start, 0))
-
-		b.resetEncoders()
-		b.resetBootstrapped()
-
+		newBlock.Reset(b.start, encoder.Discard())
+		b.encoders = b.encoders[:0]
 		return newBlock
 	}
 
@@ -555,11 +537,7 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 		len(b.bootstrapped) == 1 {
 		// Already merged just a single bootstrapped block
 		existingBlock := b.bootstrapped[0]
-		b.bootstrapped = nil
-
-		b.resetEncoders()
-		b.resetBootstrapped()
-
+		b.bootstrapped = b.bootstrapped[:0]
 		return existingBlock
 	}
 
@@ -610,11 +588,7 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 	iter.Close()
 
 	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	newBlock.Reset(b.start, encoder.DiscardReset(b.start, 0))
-	encoder.Close()
-
-	b.resetEncoders()
-	b.resetBootstrapped()
+	newBlock.Reset(b.start, encoder.Discard())
 
 	return newBlock
 }

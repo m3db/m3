@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -125,6 +125,16 @@ func (_m *MockFetchBlockResult) Err() error {
 
 func (_mr *_MockFetchBlockResultRecorder) Err() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
+}
+
+func (_m *MockFetchBlockResult) Checksum() *uint32 {
+	ret := _m.ctrl.Call(_m, "Checksum")
+	ret0, _ := ret[0].(*uint32)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockResultRecorder) Checksum() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
 }
 
 // Mock of FetchBlockMetadataResults interface
@@ -317,12 +327,12 @@ func (_mr *_MockDatabaseBlockRecorder) Stream(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0)
 }
 
-func (_m *MockDatabaseBlock) SetOnRetrieveBlock(onRetrieve OnRetrieveBlock) {
-	_m.ctrl.Call(_m, "SetOnRetrieveBlock", onRetrieve)
+func (_m *MockDatabaseBlock) Merge(other DatabaseBlock) {
+	_m.ctrl.Call(_m, "Merge", other)
 }
 
-func (_mr *_MockDatabaseBlockRecorder) SetOnRetrieveBlock(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetOnRetrieveBlock", arg0)
+func (_mr *_MockDatabaseBlockRecorder) Merge(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Merge", arg0)
 }
 
 func (_m *MockDatabaseBlock) IsRetrieved() bool {
@@ -409,8 +419,18 @@ func (_m *MockDatabaseBlockRetriever) EXPECT() *_MockDatabaseBlockRetrieverRecor
 	return _m.recorder
 }
 
-func (_m *MockDatabaseBlockRetriever) Stream(shard uint32, id ts.ID, startTime time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
-	ret := _m.ctrl.Call(_m, "Stream", shard, id, startTime, onRetrieve)
+func (_m *MockDatabaseBlockRetriever) CacheShardIndices(shards []uint32) error {
+	ret := _m.ctrl.Call(_m, "CacheShardIndices", shards)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDatabaseBlockRetrieverRecorder) CacheShardIndices(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CacheShardIndices", arg0)
+}
+
+func (_m *MockDatabaseBlockRetriever) Stream(shard uint32, id ts.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+	ret := _m.ctrl.Call(_m, "Stream", shard, id, blockStart, onRetrieve)
 	ret0, _ := ret[0].(io.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -441,8 +461,8 @@ func (_m *MockDatabaseShardBlockRetriever) EXPECT() *_MockDatabaseShardBlockRetr
 	return _m.recorder
 }
 
-func (_m *MockDatabaseShardBlockRetriever) Stream(id ts.ID, startTime time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
-	ret := _m.ctrl.Call(_m, "Stream", id, startTime, onRetrieve)
+func (_m *MockDatabaseShardBlockRetriever) Stream(id ts.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+	ret := _m.ctrl.Call(_m, "Stream", id, blockStart, onRetrieve)
 	ret0, _ := ret[0].(io.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -482,6 +502,37 @@ func (_m *MockDatabaseBlockRetrieverManager) Retriever(namespace ts.ID) (Databas
 
 func (_mr *_MockDatabaseBlockRetrieverManagerRecorder) Retriever(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Retriever", arg0)
+}
+
+// Mock of DatabaseShardBlockRetrieverManager interface
+type MockDatabaseShardBlockRetrieverManager struct {
+	ctrl     *gomock.Controller
+	recorder *_MockDatabaseShardBlockRetrieverManagerRecorder
+}
+
+// Recorder for MockDatabaseShardBlockRetrieverManager (not exported)
+type _MockDatabaseShardBlockRetrieverManagerRecorder struct {
+	mock *MockDatabaseShardBlockRetrieverManager
+}
+
+func NewMockDatabaseShardBlockRetrieverManager(ctrl *gomock.Controller) *MockDatabaseShardBlockRetrieverManager {
+	mock := &MockDatabaseShardBlockRetrieverManager{ctrl: ctrl}
+	mock.recorder = &_MockDatabaseShardBlockRetrieverManagerRecorder{mock}
+	return mock
+}
+
+func (_m *MockDatabaseShardBlockRetrieverManager) EXPECT() *_MockDatabaseShardBlockRetrieverManagerRecorder {
+	return _m.recorder
+}
+
+func (_m *MockDatabaseShardBlockRetrieverManager) ShardRetriever(shard uint32) DatabaseShardBlockRetriever {
+	ret := _m.ctrl.Call(_m, "ShardRetriever", shard)
+	ret0, _ := ret[0].(DatabaseShardBlockRetriever)
+	return ret0
+}
+
+func (_mr *_MockDatabaseShardBlockRetrieverManagerRecorder) ShardRetriever(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardRetriever", arg0)
 }
 
 // Mock of DatabaseSeriesBlocks interface

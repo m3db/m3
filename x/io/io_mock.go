@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -92,12 +92,12 @@ func (_m *MockSegmentReader) EXPECT() *_MockSegmentReaderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockSegmentReader) Close() {
-	_m.ctrl.Call(_m, "Close")
+func (_m *MockSegmentReader) Finalize() {
+	_m.ctrl.Call(_m, "Finalize")
 }
 
-func (_mr *_MockSegmentReaderRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+func (_mr *_MockSegmentReaderRecorder) Finalize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Finalize")
 }
 
 func (_m *MockSegmentReader) Read(_param0 []byte) (int, error) {

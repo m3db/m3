@@ -307,20 +307,19 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	assertValuesEqual(t, data, results, opts)
 
 	// Explicitly merge
+	var mergedResults [][]xio.SegmentReader
 	for i := range buffer.buckets {
-		buffer.buckets[i].merge()
+		block := buffer.buckets[i].discardMerged()
+		require.NotNil(t, block)
+
+		if block.Len() > 0 {
+			result := []xio.SegmentReader{requireDrainedStream(ctx, t, block)}
+			mergedResults = append(mergedResults, result)
+		}
 	}
 
-	// Ensure compacted encoders
-	for i := range buffer.buckets {
-		assert.Len(t, buffer.buckets[i].encoders, 1)
-	}
-
-	// Assert equal again
-	results = buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
-	assert.NotNil(t, results)
-
-	assertValuesEqual(t, data, results, opts)
+	// Assert equal
+	assertValuesEqual(t, data, mergedResults, opts)
 }
 
 func newTestBufferBucketWithData(t *testing.T) (*dbBufferBucket, Options, []value) {
@@ -377,12 +376,18 @@ func newTestBufferBucketWithData(t *testing.T) (*dbBufferBucket, Options, []valu
 func TestBufferBucketMerge(t *testing.T) {
 	b, opts, expected := newTestBufferBucketWithData(t)
 
-	b.merge()
+	bl := b.discardMerged()
+	require.NotNil(t, bl)
 
-	assert.Len(t, b.encoders, 1)
-	assert.False(t, b.empty)
+	assert.Equal(t, 0, len(b.encoders))
+	assert.Equal(t, 0, len(b.bootstrapped))
+	assert.True(t, b.empty)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	assertValuesEqual(t, expected, [][]xio.SegmentReader{[]xio.SegmentReader{
-		b.encoders[0].encoder.Stream(),
+		requireDrainedStream(ctx, t, bl),
 	}}, opts)
 }
 
@@ -413,9 +418,9 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
-	b.merge()
+	b.discardMerged()
 
-	require.Equal(t, 1, len(b.encoders))
+	require.Equal(t, 0, len(b.encoders))
 	require.Nil(t, b.bootstrapped)
 }
 
@@ -430,13 +435,21 @@ func TestBufferBucketWriteDuplicate(t *testing.T) {
 	require.Equal(t, 1, len(b.encoders))
 	require.False(t, b.empty)
 
-	encoded := b.encoders[0].encoder.Stream().Segment()
+	encoded, err := b.encoders[0].encoder.Stream().Segment()
+	require.NoError(t, err)
 	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
-	require.True(t, b.merged())
 
-	firstEncoderSegment := b.encoders[0].encoder.Stream().Segment()
-	require.True(t, encoded.Equal(&firstEncoderSegment))
+	bl := b.discardMerged()
+	require.NotNil(t, bl)
+
+	ctx := context.NewContext()
+	stream, err := bl.Stream(ctx)
+	require.NoError(t, err)
+
+	segment, err := stream.Segment()
+	require.NoError(t, err)
+	require.True(t, encoded.Equal(&segment))
 }
 
 func TestBufferFetchBlocks(t *testing.T) {
@@ -461,18 +474,17 @@ func TestBufferFetchBlocks(t *testing.T) {
 
 func TestBufferFetchBlocksMetadata(t *testing.T) {
 	b, opts, _ := newTestBufferBucketWithData(t)
+
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	start := b.start.Add(-time.Second)
 	end := b.start.Add(time.Second)
+
 	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
 	buffer.buckets[0] = *b
-	var expectedSize int64
-	for i := range b.encoders {
-		segment := b.encoders[i].encoder.Stream().Segment()
-		expectedSize += int64(segment.Len())
-	}
+
+	expectedSize := int64(b.streamsLen())
 
 	res := buffer.FetchBlocksMetadata(ctx, start, end, true, true).Results()
 	require.Equal(t, 1, len(res))

@@ -60,7 +60,12 @@ type seekerManager struct {
 	status            seekerManagerStatus
 	seekersByShardIdx []*seekersByTime
 	namespace         ts.ID
-	unreadBuf         []byte
+	unreadBuf         seekerUnreadBuf
+}
+
+type seekerUnreadBuf struct {
+	sync.RWMutex
+	value []byte
 }
 
 type seekersByTime struct {
@@ -132,7 +137,6 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 
 	for t := start; !t.After(end); t = t.Add(blockSize) {
 		byTime.RLock()
-		shard := byTime.shard
 		_, exists := byTime.seekers[t]
 		byTime.RUnlock()
 
@@ -141,16 +145,23 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 			continue
 		}
 
-		seeker, err := m.newOpenSeeker(shard, t)
+		byTime.Lock()
+		_, exists = byTime.seekers[t]
+		if exists {
+			byTime.Unlock()
+			continue
+		}
+
+		seeker, err := m.newOpenSeeker(byTime.shard, t)
 		if err != nil {
 			if err != errSeekerManagerFileSetNotFound {
 				// Best effort to open files, if not there don't bother opening
 				multiErr = multiErr.Add(err)
 			}
+			byTime.Unlock()
 			continue
 		}
 
-		byTime.Lock()
 		byTime.seekers[t] = seeker
 		byTime.Unlock()
 	}
@@ -189,6 +200,12 @@ func (m *seekerManager) newOpenSeeker(
 		return nil, errSeekerManagerFileSetNotFound
 	}
 
+	// NB(r): Use a lock on the unread buffer to avoid multiple
+	// goroutines reusing the unread buffer that we share between the seekers
+	// when we open each seeker.
+	m.unreadBuf.Lock()
+	defer m.unreadBuf.Unlock()
+
 	seeker := newSeeker(seekerOpts{
 		filePathPrefix: m.filePathPrefix,
 		bufferSize:     m.opts.ReaderBufferSize(),
@@ -198,7 +215,7 @@ func (m *seekerManager) newOpenSeeker(
 	})
 
 	// Set the unread buffer to reuse it amongst all seekers.
-	seeker.setUnreadBuffer(m.unreadBuf)
+	seeker.setUnreadBuffer(m.unreadBuf.value)
 
 	if err := seeker.Open(m.namespace, shard, blockStart); err != nil {
 		return nil, err
@@ -206,7 +223,7 @@ func (m *seekerManager) newOpenSeeker(
 
 	// Retrieve the buffer, it may have changed due to
 	// growing. Also release reference to the unread buffer.
-	m.unreadBuf = seeker.unreadBuffer()
+	m.unreadBuf.value = seeker.unreadBuffer()
 	seeker.setUnreadBuffer(nil)
 
 	return seeker, nil

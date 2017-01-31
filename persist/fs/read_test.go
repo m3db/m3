@@ -82,7 +82,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 	assert.Equal(t, errReadIndexEntryZeroSize, err)
 
@@ -114,7 +114,7 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 	reader := r.(*reader)
 	reader.indexUnread = nil
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 	assert.NoError(t, r.Close())
 }
@@ -145,7 +145,7 @@ func TestReadDataError(t *testing.T) {
 	reader := r.(*reader)
 	assert.NoError(t, reader.dataFdWithDigest.Fd().Close())
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 
 	// Restore the file to cleanly close
@@ -182,7 +182,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 	assert.Equal(t, errReadNotExpectedSize, err)
 
@@ -222,7 +222,7 @@ func TestReadBadMarker(t *testing.T) {
 	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 	assert.Equal(t, errReadMarkerNotFound, err)
 
@@ -258,7 +258,7 @@ func TestReadWrongIdx(t *testing.T) {
 	b = append(proto.EncodeVarint(uint64(len(b))), b...)
 	reader := r.(*reader)
 	reader.indexUnread = b
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 
 	typedErr, ok := err.(ErrReadWrongIdx)
@@ -397,7 +397,7 @@ func TestReadValidate(t *testing.T) {
 
 	r := newTestReader(filePathPrefix)
 	require.NoError(t, r.Open(testNamespaceID, shard, start))
-	_, _, err := r.Read()
+	_, _, _, err := r.Read()
 	require.NoError(t, err)
 
 	// Mutate expected data checksum to simulate data corruption

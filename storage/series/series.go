@@ -134,11 +134,16 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	// block update still holds as running both these checks
 	// are relatively expensive and running these methods
 	// will be a no-op in case conditions no longer hold.
-	s.buffer.DrainAndReset()
+	if needsDrain {
+		s.buffer.DrainAndReset()
+	}
 
-	updateResult := s.updateBlocksWithLock()
-	r.ExpiredBlocks = updateResult.expired
-	r.ResetRetrievableBlocks = updateResult.resetRetrievable
+	if needsBlockUpdate {
+		updateResult := s.updateBlocksWithLock()
+		r.ExpiredBlocks = updateResult.expired
+		r.ResetRetrievableBlocks = updateResult.resetRetrievable
+	}
+
 	r.ActiveBlocks = s.blocks.Len()
 
 	s.Unlock()
@@ -406,9 +411,6 @@ func (s *dbSeries) FetchBlocksMetadata(
 	// In the future we need a way to make sure the call we're performing is for the
 	// series we're originally took a ref to. This will avoid pooling of series messing
 	// with calls to a series that was ref'd before it was closed/reused.
-	//
-	// For now this protects this case causing nil panic when trying to clone the ID
-	// for a series which has just been closed but has not been reused yet.
 	if len(res.Results()) == 0 {
 		return block.NewFetchBlocksMetadataResult(nil, res)
 	}
