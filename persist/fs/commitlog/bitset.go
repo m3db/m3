@@ -60,7 +60,7 @@ func (s *set) set(i uint64) {
 	// case each reallocation only grows the internal slice in
 	// the bitset implementation by 1 slot and copies the existing data
 	// over, causing significant CPU overhead and GC time. Therefore
-	// we explicitly controls when the reallocation happens and grows
+	// we explicitly control when the reallocation happens and grow
 	// the slice explicitly to amortize the allocation cost.
 	if bitsetLen := s.Len(); uint(i) >= bitsetLen {
 		newLength := uint(math.Max(float64(i+1), growthFactor*float64(bitsetLen)))
