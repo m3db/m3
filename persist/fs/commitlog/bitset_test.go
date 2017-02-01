@@ -32,10 +32,10 @@ func TestBitSetSetValue(t *testing.T) {
 
 	// Setting a value smaller than the bitset length doesn't
 	// trigger reallocations
-	oldLen := bs.Len()
-	values = append(values, uint64(oldLen-1))
+	oldCap := cap(bs.Bytes())
+	values = append(values, uint64(oldCap-1))
 	bs.set(values[len(values)-1])
-	require.Equal(t, oldLen, bs.Len())
+	require.Equal(t, oldCap, cap(bs.Bytes()))
 	for _, v := range values {
 		require.True(t, bs.has(v))
 	}
@@ -43,20 +43,20 @@ func TestBitSetSetValue(t *testing.T) {
 	// Setting a value bigger than the bitset length,
 	// which triggers an reallocation, and verify the capacity
 	// has grown and all the existing data are kept
-	values = append(values, uint64(oldLen+1))
+	values = append(values, uint64(defaultBitsetLength+1))
 	bs.set(values[len(values)-1])
-	require.Equal(t, 2*oldLen, bs.Len())
+	require.True(t, cap(bs.Bytes()) >= 2*oldCap)
 	for _, v := range values {
 		require.True(t, bs.has(v))
 	}
 
-	// Setting a value bigger than 2 times the bitset length
-	// will trigger an reallocation and set the length of
-	// the new underlying bitset to value + 1
-	newVal := bs.Len()*2 + 10
+	// Setting a value slightly bigger than the last value
+	// and verify it doesn't trigger a reallocation
+	oldCap = cap(bs.Bytes())
+	newVal := values[len(values)-1] + 100
 	values = append(values, uint64(newVal))
 	bs.set(values[len(values)-1])
-	require.Equal(t, newVal+1, bs.Len())
+	require.Equal(t, oldCap, cap(bs.Bytes()))
 	for _, v := range values {
 		require.True(t, bs.has(v))
 	}

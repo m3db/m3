@@ -20,15 +20,10 @@
 
 package commitlog
 
-import (
-	"math"
-
-	bset "github.com/willf/bitset"
-)
+import bset "github.com/willf/bitset"
 
 const (
 	defaultBitsetLength = 65536
-	growthFactor        = 2.0
 )
 
 // bitset is a shim for providing a bitset
@@ -52,22 +47,6 @@ func (s *set) has(i uint64) bool {
 }
 
 func (s *set) set(i uint64) {
-	// NB(xichen): the bitset implementation keeps track of
-	// the maximum value it has seen so far and triggers a
-	// reallocation if it needs to set a value larger than
-	// the current max. However it only reallocates space large
-	// enough to represent the new value, which means in our
-	// case each reallocation only grows the internal slice in
-	// the bitset implementation by 1 slot and copies the existing data
-	// over, causing significant CPU overhead and GC time. Therefore
-	// we explicitly control when the reallocation happens and grow
-	// the slice explicitly to amortize the allocation cost.
-	if bitsetLen := s.Len(); uint(i) >= bitsetLen {
-		newLength := uint(math.Max(float64(i+1), growthFactor*float64(bitsetLen)))
-		newBitSet := bset.New(newLength)
-		s.BitSet.Copy(newBitSet)
-		s.BitSet = newBitSet
-	}
 	s.Set(uint(i))
 }
 
