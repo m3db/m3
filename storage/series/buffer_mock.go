@@ -27,7 +27,6 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
 	block "github.com/m3db/m3db/storage/block"
-	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
 	time "github.com/m3db/m3x/time"
 	time0 "time"
@@ -141,16 +140,6 @@ func (_m *MockdatabaseBuffer) Bootstrap(bl block.DatabaseBlock) error {
 
 func (_mr *_MockdatabaseBufferRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
-}
-
-func (_m *MockdatabaseBuffer) CacheRetrievedBlock(blockStart time0.Time, segment ts.Segment) error {
-	ret := _m.ctrl.Call(_m, "CacheRetrievedBlock", blockStart, segment)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockdatabaseBufferRecorder) CacheRetrievedBlock(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "CacheRetrievedBlock", arg0, arg1)
 }
 
 func (_m *MockdatabaseBuffer) Reset() {

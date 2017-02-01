@@ -83,7 +83,7 @@ func verifyForTime(
 	for shard := range shards {
 		require.NoError(t, reader.Open(namespace, shard, timestamp))
 		for i := 0; i < reader.Entries(); i++ {
-			id, data, err := reader.Read()
+			id, data, _, err := reader.Read()
 			require.NoError(t, err)
 
 			data.IncRef()

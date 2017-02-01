@@ -151,6 +151,9 @@ func (sr *shardResult) RemoveBlockAt(id ts.ID, t time.Time) {
 		return
 	}
 	curSeries.Blocks.RemoveBlockAt(t)
+	if curSeries.Blocks.Len() == 0 {
+		sr.RemoveSeries(id)
+	}
 }
 
 // RemoveSeries removes a single series of blocks.

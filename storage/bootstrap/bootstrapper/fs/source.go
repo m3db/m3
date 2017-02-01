@@ -333,6 +333,13 @@ func (s *fileSystemSource) bootstrapFromReaders(
 
 	wg.Wait()
 
+	shardResults := bootstrapResult.ShardResults()
+	for shard, results := range shardResults {
+		if len(results.AllSeries()) == 0 {
+			delete(shardResults, shard)
+		}
+	}
+
 	return bootstrapResult
 }
 

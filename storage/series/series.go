@@ -64,7 +64,7 @@ type dbSeries struct {
 	buffer         databaseBuffer
 	blocks         block.DatabaseSeriesBlocks
 	bs             bootstrapState
-	blockRetriever SeriesBlockRetriever
+	blockRetriever QueryableBlockRetriever
 	pool           DatabaseSeriesPool
 }
 
@@ -562,7 +562,7 @@ func (s *dbSeries) Close() {
 func (s *dbSeries) Reset(
 	id ts.ID,
 	seriesBootstrapped bool,
-	blockRetriever SeriesBlockRetriever,
+	blockRetriever QueryableBlockRetriever,
 ) {
 	s.Lock()
 	defer s.Unlock()

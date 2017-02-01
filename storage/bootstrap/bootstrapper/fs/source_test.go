@@ -410,8 +410,8 @@ func TestReadDeleteOnError(t *testing.T) {
 		reader.EXPECT().Entries().Return(2),
 		reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}),
 		reader.EXPECT().Entries().Return(2),
-		reader.EXPECT().Read().Return(ts.StringID("foo"), nil, nil),
-		reader.EXPECT().Read().Return(ts.StringID("foo"), nil, errors.New("foo")),
+		reader.EXPECT().Read().Return(ts.StringID("foo"), nil, digest.Checksum(nil), nil),
+		reader.EXPECT().Read().Return(ts.StringID("bar"), nil, uint32(0), errors.New("foo")),
 		reader.EXPECT().Close().Return(nil),
 	)
 

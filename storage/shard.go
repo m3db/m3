@@ -83,7 +83,7 @@ type dbShard struct {
 	nowFn                 clock.NowFn
 	state                 dbShardState
 	namespace             ts.ID
-	seriesBlockRetriever  series.SeriesBlockRetriever
+	seriesBlockRetriever  series.QueryableBlockRetriever
 	shard                 uint32
 	increasingIndex       increasingIndex
 	seriesPool            series.DatabaseSeriesPool

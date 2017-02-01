@@ -88,13 +88,13 @@ type DatabaseSeries interface {
 	Reset(
 		id ts.ID,
 		bootstrapped bool,
-		blockRetriever SeriesBlockRetriever,
+		blockRetriever QueryableBlockRetriever,
 	)
 }
 
-// SeriesBlockRetriever is a block retriever that can tell if a block
+// QueryableBlockRetriever is a block retriever that can tell if a block
 // is retrievable or not for a given start time.
-type SeriesBlockRetriever interface {
+type QueryableBlockRetriever interface {
 	block.DatabaseShardBlockRetriever
 
 	// IsBlockRetrievable returns whether a block is retrievable

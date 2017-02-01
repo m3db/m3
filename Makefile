@@ -98,7 +98,7 @@ install-thrift-bin: install-vendor install-glide
 	go get $(thrift_gen_package) && cd $(GOPATH)/src/$(thrift_gen_package) && glide install
 	go install $(thrift_gen_package)/thrift/thrift-gen
 
-mock-gen: install-mockgen install-license-bin
+mock-gen: 
 	@echo Generating mocks
 	PACKAGE=$(m3db_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
