@@ -65,11 +65,11 @@ For a write to appear as successful for a given replica it must succeed against 
 * LevelMajority: A write is successful if written to a majority, i.e. a quorum, of nodes.
 * LevelAll: A write is successful if written to all nodes.
 
-Only writes to *AVAILABLE* nodes count as a successful write.
+Only writes to *AVAILABLE* nodes count as successful.
 
-It is up to the nodes to bootstrap shards when the assignment of new shards to it are discovered in the *INITIALIZING* state and to transition the state to *AVAILABLE* once bootstrapped by calling the management service back when done. 
+It is up to a node to bootstrap shards when the assignment of new shards to it is discovered. New shards are start in the *INITIALIZING* state, and the node transitions the state to *AVAILABLE* by calling back the management service back when done bootstrapping. 
 
-The management server can then make a decision to remove the shard assignment from a host the shard was transferring from once it sees all shard assignments are *AVAILABLE* for a given shard.
+Once all new assignments are *AVAILABLE* for a given shard, the management server can decide to remove the shard assignment from the shard's original host.
 
 Nodes will not start serving reads for new shard sets they are assigned until they have bootstrapped data for those shards.
 
@@ -79,7 +79,7 @@ A node is added to the cluster by calling the management service.  The shards as
 
 #### Node down
 
-A node will not be taken out of the cluster unless removed by calling the management service.  If a node goes down and is unavailable, the clients performing reads will be served an error from the replica for the shard range that the node owns.  During this time it will rely on reads from other replicas to continue uninterrupted operation.
+A node will not be taken out of the cluster unless removed by calling the management service.  If a node goes down and is unavailable, clients performing reads will be served an error from the replica for the shard range that the node owns.  During this time the system will rely on reads from other replicas to continue uninterrupted operation.
 
 #### Node remove
 
