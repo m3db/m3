@@ -1,3 +1,6 @@
+SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include $(SELF_DIR)/.ci/common.mk
+
 SHELL=/bin/bash -o pipefail
 
 html_report := coverage.html
@@ -8,7 +11,6 @@ coverage_xml := coverage.xml
 junit_xml := junit.xml
 test_log := test.log
 lint_check := .ci/lint.sh
-m3metrics_package := github.com/m3db/m3metrics
 gopath_prefix := $(GOPATH)/src
 vendor_prefix := vendor
 
@@ -17,13 +19,6 @@ LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
 setup:
 	mkdir -p $(BUILD)
-
-install-vendor: install-glide
-	@echo Installing glide deps
-	glide install
-
-install-glide:
-	@which glide > /dev/null || go get -u github.com/Masterminds/glide
 
 lint:
 	@which golint > /dev/null || go get -u github.com/golang/lint/golint
