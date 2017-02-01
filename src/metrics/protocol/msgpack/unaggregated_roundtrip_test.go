@@ -167,7 +167,7 @@ func testCapturingBaseEncoder(encoder encoderBase) *[]interface{} {
 }
 
 func testUnaggregatedEncoder(t *testing.T) UnaggregatedEncoder {
-	return NewUnaggregatedEncoder(newBufferedEncoder())
+	return NewUnaggregatedEncoder(NewBufferedEncoder())
 }
 
 func testUnaggregatedIterator(t *testing.T, reader io.Reader) UnaggregatedIterator {
@@ -226,7 +226,7 @@ func validateUnaggregatedRoundtripWithEncoderAndIterator(
 	var results []metricWithPolicies
 
 	// Encode the batch of metrics
-	encoder.Reset(newBufferedEncoder())
+	encoder.Reset(NewBufferedEncoder())
 	for _, input := range inputs {
 		testUnaggregatedEncode(t, encoder, input.metric, input.versionedPolicies)
 	}

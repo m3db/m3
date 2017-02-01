@@ -26,8 +26,8 @@ import (
 	msgpack "gopkg.in/vmihailenco/msgpack.v2"
 )
 
-// newBufferedEncoder creates a new buffered encoder
-func newBufferedEncoder() BufferedEncoder {
+// NewBufferedEncoder creates a new buffered encoder
+func NewBufferedEncoder() BufferedEncoder {
 	return NewPooledBufferedEncoder(nil)
 }
 

@@ -67,7 +67,7 @@ type metricWithPolicy struct {
 }
 
 func testAggregatedEncoder(t *testing.T) AggregatedEncoder {
-	return NewAggregatedEncoder(newBufferedEncoder())
+	return NewAggregatedEncoder(NewBufferedEncoder())
 }
 
 func testAggregatedIterator(t *testing.T, reader io.Reader) AggregatedIterator {
@@ -97,7 +97,7 @@ func testAggregatedEncode(t *testing.T, encoder AggregatedEncoder, m interface{}
 }
 
 func toRawMetric(t *testing.T, m interface{}) aggregated.RawMetric {
-	encoder := NewAggregatedEncoder(newBufferedEncoder()).(*aggregatedEncoder)
+	encoder := NewAggregatedEncoder(NewBufferedEncoder()).(*aggregatedEncoder)
 	var data []byte
 	switch m := m.(type) {
 	case aggregated.Metric:
@@ -129,7 +129,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 	)
 
 	// Encode the batch of metrics
-	encoder.Reset(newBufferedEncoder())
+	encoder.Reset(NewBufferedEncoder())
 	for _, input := range inputs {
 		switch inputMetric := input.metric.(type) {
 		case aggregated.Metric:

@@ -47,7 +47,7 @@ type aggregatedEncoder struct {
 func NewAggregatedEncoder(encoder BufferedEncoder) AggregatedEncoder {
 	enc := &aggregatedEncoder{
 		encoderBase: newBaseEncoder(encoder),
-		buf:         newBaseEncoder(newBufferedEncoder()),
+		buf:         newBaseEncoder(NewBufferedEncoder()),
 	}
 
 	enc.encodeRootObjectFn = enc.encodeRootObject

@@ -27,7 +27,7 @@ import (
 )
 
 func testBufferedEncoder() BufferedEncoder {
-	return newBufferedEncoder()
+	return NewBufferedEncoder()
 }
 
 func TestBufferedEncoderReset(t *testing.T) {
