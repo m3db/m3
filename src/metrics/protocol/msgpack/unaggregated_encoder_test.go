@@ -278,6 +278,6 @@ func TestUnaggregatedEncoderReset(t *testing.T) {
 	baseEncoder.encodeErr = errTestVarint
 	require.Equal(t, errTestVarint, testUnaggregatedEncode(t, encoder, metric, policies))
 
-	encoder.Reset(newBufferedEncoder())
+	encoder.Reset(NewBufferedEncoder())
 	require.NoError(t, testUnaggregatedEncode(t, encoder, metric, policies))
 }
