@@ -606,3 +606,13 @@ func (r *dbRepairer) repairWithTimeRange(tr xtime.Range) error {
 func (r *dbRepairer) IsRepairing() bool {
 	return atomic.LoadInt32(&r.running) == 1
 }
+
+type noopRepairer struct{}
+
+func newNoopDatabaseRepairer() databaseRepairer {
+	return noopRepairer{}
+}
+
+func (r noopRepairer) ShouldRun(start time.Time) bool    { return false }
+func (r noopRepairer) Run(start time.Time, mode runType) { return }
+func (r noopRepairer) IsRepairing() bool                 { return false }

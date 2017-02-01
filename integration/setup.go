@@ -202,16 +202,13 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return nil, err
 	}
 
-	if opts.RepairEnabled() {
-		storageOpts = storageOpts.SetRepairEnabled(true)
-		storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().
-			SetRepairInterval(opts.RepairInterval()).
-			SetRepairThrottle(opts.RepairThrottle()).
-			SetRepairTimeJitter(opts.RepairTimeJitter()).
-			SetAdminClient(adminClient))
-	} else {
-		storageOpts = storageOpts.SetRepairEnabled(false)
-	}
+	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().
+		SetRepairInterval(opts.RepairInterval()).
+		SetRepairThrottle(opts.RepairThrottle()).
+		SetRepairTimeJitter(opts.RepairTimeJitter()).
+		SetAdminClient(adminClient))
+
+	storageOpts = storageOpts.SetRepairEnabled(opts.RepairEnabled())
 
 	return &testSetup{
 		opts:            opts,

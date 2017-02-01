@@ -57,9 +57,6 @@ var (
 
 	// errCommitLogStrategyUnknown raised when trying to use an unknown commit log strategy
 	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
-
-	// errRepairDisabled raised when trying to run repair when repair is disabled
-	errRepairDisabled = errors.New("database repair is disabled")
 )
 
 const (
@@ -201,11 +198,12 @@ func NewDatabase(
 	d.bsm = newBootstrapManager(d, d.fsm)
 
 	if opts.RepairEnabled() {
-		repairer, err := newDatabaseRepairer(d)
+		d.repairer, err = newDatabaseRepairer(d)
 		if err != nil {
 			return nil, err
 		}
-		d.repairer = repairer
+	} else {
+		d.repairer = newNoopDatabaseRepairer()
 	}
 
 	return d, nil
@@ -377,11 +375,8 @@ func (d *db) IsBootstrapped() bool {
 }
 
 func (d *db) Repair(t time.Time) error {
-	if d.opts.RepairEnabled() {
-		d.repairer.Run(t, runTypeAsync)
-		return nil
-	}
-	return errRepairDisabled
+	d.repairer.Run(t, runTypeAsync)
+	return nil
 }
 
 func (d *db) Truncate(namespace ts.ID) (int64, error) {
@@ -425,7 +420,7 @@ func (d *db) reportLoop() {
 			} else {
 				d.metrics.bootstrapStatus.Update(0)
 			}
-			if d.opts.RepairEnabled() && d.repairer.IsRepairing() {
+			if d.repairer.IsRepairing() {
 				d.metrics.repairStatus.Update(1)
 			} else {
 				d.metrics.repairStatus.Update(0)
@@ -503,7 +498,7 @@ func (d *db) splayedTick() {
 		}
 
 		// NB(prateek): The repairer has to be run after any pending flushes
-		if d.opts.RepairEnabled() && d.repairer.ShouldRun(start) {
+		if d.repairer.ShouldRun(start) {
 			d.repairer.Run(start, runTypeSync)
 		}
 	}()
