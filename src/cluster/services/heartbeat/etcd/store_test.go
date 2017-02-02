@@ -205,31 +205,23 @@ func TestRenewLeaseDoNotTriggerWatch(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store := NewStore(ec, opts)
+	store := NewStore(ec, opts).(*client)
 
-	w1, err := store.Watch("foo")
-	assert.NoError(t, err)
+	w := store.watchChan("foo")
+	<-w
 
-	err = store.Heartbeat("foo", "i1", 2*time.Second)
-	assert.NoError(t, err)
+	err := store.Heartbeat("foo", "i1", 200*time.Second)
+	require.NoError(t, err)
+	<-w
 
-	for range w1.C() {
-		if len(w1.Get().([]string)) == 1 {
-			break
-		}
-	}
-	assert.Equal(t, []string{"i1"}, w1.Get())
-
-	err = store.Heartbeat("foo", "i1", 2*time.Second)
-	assert.NoError(t, err)
+	err = store.Heartbeat("foo", "i1", 200*time.Second)
+	require.NoError(t, err)
 
 	select {
-	case <-w1.C():
-		assert.FailNow(t, "unexpected notification")
+	case <-w:
+		require.Fail(t, "unexpected notification")
 	case <-time.After(200 * time.Millisecond):
 	}
-
-	w1.Close()
 }
 
 func TestMultipleWatchesFromNotExist(t *testing.T) {
