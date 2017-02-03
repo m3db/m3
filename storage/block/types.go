@@ -178,6 +178,23 @@ type OnRetrieveBlock interface {
 	)
 }
 
+// OnRetrieveBlockFn is a function implementation for the
+// OnRetrieveBlock interface.
+type OnRetrieveBlockFn func(
+	id ts.ID,
+	startTime time.Time,
+	segment ts.Segment,
+)
+
+// OnRetrieveBlock implements the OnRetrieveBlock interface.
+func (fn OnRetrieveBlockFn) OnRetrieveBlock(
+	id ts.ID,
+	startTime time.Time,
+	segment ts.Segment,
+) {
+	fn(id, startTime, segment)
+}
+
 // RetrievableBlockMetadata describes a retrievable block.
 type RetrievableBlockMetadata struct {
 	ID       ts.ID
