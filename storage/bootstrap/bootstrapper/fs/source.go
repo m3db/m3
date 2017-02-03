@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -38,6 +39,7 @@ type newFileSetReaderFn func(
 	filePathPrefix string,
 	readerBufferSize int,
 	bytesPool pool.CheckedBytesPool,
+	decodingOpts msgpack.DecodingOptions,
 ) fs.FileSetReader
 
 type fileSystemSource struct {
@@ -45,6 +47,7 @@ type fileSystemSource struct {
 	log              xlog.Logger
 	filePathPrefix   string
 	readerBufferSize int
+	decodingOpts     msgpack.DecodingOptions
 	newReaderFn      newFileSetReaderFn
 	processors       xsync.WorkerPool
 }
@@ -91,7 +94,7 @@ func (s *fileSystemSource) shardAvailability(
 		return nil
 	}
 
-	entries := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
+	entries := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize, s.decodingOpts)
 	if len(entries) == 0 {
 		return nil
 	}
@@ -116,7 +119,7 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
-		files := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize)
+		files := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize, s.decodingOpts)
 		if len(files) == 0 {
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- shardReaders{shard: shard, tr: tr}
@@ -262,8 +265,12 @@ func (s *fileSystemSource) Read(
 	}
 
 	readerPool := newReaderPool(func() fs.FileSetReader {
-		return s.newReaderFn(s.filePathPrefix, s.readerBufferSize, s.opts.ResultOptions().
-			DatabaseBlockOptions().BytesPool())
+		return s.newReaderFn(
+			s.filePathPrefix,
+			s.readerBufferSize,
+			s.opts.ResultOptions().DatabaseBlockOptions().BytesPool(),
+			s.decodingOpts,
+		)
 	})
 	readersCh := make(chan shardReaders)
 	go s.enqueueReaders(namespace, shardsTimeRanges, readerPool, readersCh)

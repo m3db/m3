@@ -27,13 +27,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/persist/encoding"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3db/digest"
 )
 
@@ -42,9 +42,6 @@ type fileReader func(fd *os.File, buf []byte) (int, error)
 var (
 	// errCheckpointFileNotFound returned when the checkpoint file doesn't exist
 	errCheckpointFileNotFound = errors.New("checkpoint file does not exist")
-
-	// errReadIndexEntryZeroSize returned when size of next index entry is zero
-	errReadIndexEntryZeroSize = errors.New("next index entry is encoded as zero size")
 
 	// errReadNotExpectedSize returned when the size of the next read does not match size specified by the index
 	errReadNotExpectedSize = errors.New("next read not expected size")
@@ -80,10 +77,8 @@ type reader struct {
 	unreadBuf   []byte
 	entries     int
 	entriesRead int
-	indexUnread []byte
 	prologue    []byte
-	protoBuf    *proto.Buffer
-	currEntry   schema.IndexEntry
+	decoder     encoding.Decoder
 	digestBuf   digest.Buffer
 	bytesPool   pool.CheckedBytesPool
 }
@@ -94,6 +89,7 @@ func NewReader(
 	filePathPrefix string,
 	bufferSize int,
 	bytesPool pool.CheckedBytesPool,
+	decodingOpts msgpack.DecodingOptions,
 ) FileSetReader {
 	return &reader{
 		filePathPrefix:             filePathPrefix,
@@ -102,7 +98,7 @@ func NewReader(
 		dataFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
 		prologue:                   make([]byte, markerLen+idxLen),
-		protoBuf:                   proto.NewBuffer(nil),
+		decoder:                    msgpack.NewDecoder(decodingOpts),
 		digestBuf:                  digest.NewBuffer(),
 		bytesPool:                  bytesPool,
 	}
@@ -197,7 +193,8 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	info, err := readInfo(r.unreadBuf[:n])
+	r.decoder.Reset(r.unreadBuf[:n])
+	info, err := r.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
 	}
@@ -216,27 +213,16 @@ func (r *reader) readIndex(size int) error {
 	if err != nil {
 		return err
 	}
-	r.indexUnread = r.unreadBuf[:n][:]
+	r.decoder.Reset(r.unreadBuf[:n][:])
 	return nil
 }
 
 func (r *reader) Read() (ts.ID, checked.Bytes, error) {
 	var none ts.ID
-	entry := &r.currEntry
-	entry.Reset()
-
-	size, consumed := proto.DecodeVarint(r.indexUnread)
-	r.indexUnread = r.indexUnread[consumed:]
-	if consumed < 1 {
-		return none, nil, errReadIndexEntryZeroSize
-	}
-	indexEntryData := r.indexUnread[:size]
-	r.protoBuf.SetBuf(indexEntryData)
-	if err := r.protoBuf.Unmarshal(entry); err != nil {
+	entry, err := r.decoder.DecodeIndexEntry()
+	if err != nil {
 		return none, nil, err
 	}
-	r.indexUnread = r.indexUnread[size:]
-
 	n, err := r.dataFdWithDigest.ReadBytes(r.prologue)
 	if err != nil {
 		return none, nil, err
@@ -285,7 +271,7 @@ func (r *reader) Read() (ts.ID, checked.Bytes, error) {
 		defer id.DecRef()
 	}
 
-	id.AppendAll(entry.Id)
+	id.AppendAll(entry.ID)
 
 	return ts.BinaryID(id), data, nil
 }

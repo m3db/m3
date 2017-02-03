@@ -28,15 +28,18 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/persist/encoding"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
-
-	"github.com/golang/protobuf/proto"
 )
 
 var (
+	emptyLogInfo  schema.LogInfo
+	emptyLogEntry schema.LogEntry
+
 	errCommitLogReaderAlreadyOpen               = errors.New("commit log reader already open")
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
 	errCommitLogReaderChunkDataChecksumMismatch = errors.New("commit log reader encountered chunk data checksum mismatch")
@@ -55,22 +58,26 @@ type commitLogReader interface {
 }
 
 type reader struct {
-	opts           Options
-	chunkReader    *chunkReader
-	sizeBuffer     []byte
-	dataBuffer     []byte
-	info           schema.CommitLogInfo
-	log            schema.CommitLog
-	metadata       schema.CommitLogMetadata
-	metadataLookup map[uint64]Series
+	opts            Options
+	bytesPool       pool.CheckedBytesPool
+	chunkReader     *chunkReader
+	sizeBuffer      []byte
+	dataBuffer      []byte
+	logDecoder      encoding.Decoder
+	metadataDecoder encoding.Decoder
+	metadataLookup  map[uint64]Series
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
+	decodingOpts := opts.FilesystemOptions().DecodingOptions()
 	return &reader{
-		opts:           opts,
-		chunkReader:    newChunkReader(opts.FlushSize()),
-		sizeBuffer:     make([]byte, binary.MaxVarintLen64),
-		metadataLookup: make(map[uint64]Series),
+		opts:            opts,
+		bytesPool:       opts.BytesPool(),
+		chunkReader:     newChunkReader(opts.FlushSize()),
+		sizeBuffer:      make([]byte, binary.MaxVarintLen64),
+		logDecoder:      msgpack.NewDecoder(decodingOpts),
+		metadataDecoder: msgpack.NewDecoder(decodingOpts),
+		metadataLookup:  make(map[uint64]Series),
 	}
 }
 
@@ -85,15 +92,14 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 	}
 
 	r.chunkReader.reset(fd)
-	r.info = schema.CommitLogInfo{}
-	if err := r.read(&r.info); err != nil {
+	info, err := r.readInfo()
+	if err != nil {
 		r.Close()
 		return timeZero, 0, 0, err
 	}
-
-	start := time.Unix(0, r.info.Start)
-	duration := time.Duration(r.info.Duration)
-	index := int(r.info.Index)
+	start := time.Unix(0, info.Start)
+	duration := time.Duration(info.Duration)
+	index := int(info.Index)
 	return start, duration, index, nil
 }
 
@@ -104,25 +110,39 @@ func (r *reader) Read() (
 	annotation ts.Annotation,
 	resultErr error,
 ) {
-	if err := r.read(&r.log); err != nil {
+	entry, err := r.readEntry()
+	if err != nil {
 		resultErr = err
 		return
 	}
 
-	if len(r.log.Metadata) != 0 {
-		if err := proto.Unmarshal(r.log.Metadata, &r.metadata); err != nil {
+	if len(entry.Metadata) != 0 {
+		r.metadataDecoder.Reset(entry.Metadata)
+		decoded, err := r.metadataDecoder.DecodeLogMetadata()
+		if err != nil {
 			resultErr = err
 			return
 		}
-		r.metadataLookup[r.log.Index] = Series{
-			UniqueIndex: r.log.Index,
-			ID:          ts.BinaryID(checked.NewBytes(r.metadata.Id, nil)),
-			Namespace:   ts.BinaryID(checked.NewBytes(r.metadata.Namespace, nil)),
-			Shard:       r.metadata.Shard,
+
+		id := r.bytesPool.Get(len(decoded.ID))
+		id.IncRef()
+		defer id.DecRef()
+		id.AppendAll(decoded.ID)
+
+		namespace := r.bytesPool.Get(len(decoded.Namespace))
+		namespace.IncRef()
+		defer namespace.DecRef()
+		namespace.AppendAll(decoded.Namespace)
+
+		r.metadataLookup[entry.Index] = Series{
+			UniqueIndex: entry.Index,
+			ID:          ts.BinaryID(id),
+			Namespace:   ts.BinaryID(namespace),
+			Shard:       uint32(decoded.Shard),
 		}
 	}
 
-	metadata, ok := r.metadataLookup[r.log.Index]
+	metadata, ok := r.metadataLookup[entry.Index]
 	if !ok {
 		resultErr = errCommitLogReaderMissingLogMetadata
 		return
@@ -130,19 +150,19 @@ func (r *reader) Read() (
 
 	series = metadata
 	datapoint = ts.Datapoint{
-		Timestamp: time.Unix(0, r.log.Timestamp),
-		Value:     r.log.Value,
+		Timestamp: time.Unix(0, entry.Timestamp),
+		Value:     entry.Value,
 	}
-	unit = xtime.Unit(byte(r.log.Unit))
-	annotation = r.log.Annotation
+	unit = xtime.Unit(byte(entry.Unit))
+	annotation = entry.Annotation
 	return
 }
 
-func (r *reader) read(message proto.Message) error {
+func (r *reader) readChunk() ([]byte, error) {
 	// Read size of message
 	size, err := binary.ReadUvarint(r.chunkReader)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Extend buffer as necessary
@@ -158,12 +178,27 @@ func (r *reader) read(message proto.Message) error {
 
 	// Read message
 	if _, err := r.chunkReader.Read(buffer); err != nil {
-		return err
+		return nil, err
 	}
-	if err := proto.Unmarshal(buffer, message); err != nil {
-		return err
+	return buffer, nil
+}
+
+func (r *reader) readInfo() (schema.LogInfo, error) {
+	data, err := r.readChunk()
+	if err != nil {
+		return emptyLogInfo, err
 	}
-	return nil
+	r.logDecoder.Reset(data)
+	return r.logDecoder.DecodeLogInfo()
+}
+
+func (r *reader) readEntry() (schema.LogEntry, error) {
+	data, err := r.readChunk()
+	if err != nil {
+		return emptyLogEntry, err
+	}
+	r.logDecoder.Reset(data)
+	return r.logDecoder.DecodeLogEntry()
 }
 
 func (r *reader) Close() error {

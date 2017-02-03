@@ -29,12 +29,12 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/persist/encoding"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
-
-	"github.com/golang/protobuf/proto"
 )
 
 const (
@@ -89,13 +89,9 @@ type writer struct {
 	chunkWriter        *chunkWriter
 	chunkReserveHeader []byte
 	buffer             *bufio.Writer
-	info               schema.CommitLogInfo
-	log                schema.CommitLog
-	metadata           schema.CommitLogMetadata
 	sizeBuffer         []byte
-	infoBuffer         *proto.Buffer
-	metadataBuffer     *proto.Buffer
-	logBuffer          *proto.Buffer
+	logEncoder         encoding.Encoder
+	metadataEncoder    encoding.Encoder
 }
 
 func newCommitLogWriter(
@@ -112,9 +108,8 @@ func newCommitLogWriter(
 		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
 		bitset:             newBitset(),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
-		infoBuffer:         proto.NewBuffer(nil),
-		metadataBuffer:     proto.NewBuffer(nil),
-		logBuffer:          proto.NewBuffer(nil),
+		logEncoder:         msgpack.NewEncoder(),
+		metadataEncoder:    msgpack.NewEncoder(),
 	}
 }
 
@@ -129,16 +124,15 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	}
 
 	filePath, index := fs.NextCommitLogsFile(w.filePathPrefix, start)
-	w.info = schema.CommitLogInfo{
+	logInfo := schema.LogInfo{
 		Start:    start.UnixNano(),
 		Duration: int64(duration),
 		Index:    int64(index),
 	}
-	w.infoBuffer.Reset()
-	if err := w.infoBuffer.Marshal(&w.info); err != nil {
+	w.logEncoder.Reset()
+	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
 		return err
 	}
-
 	fd, err := fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
 		return err
@@ -146,7 +140,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 
 	w.chunkWriter.fd = fd
 	w.buffer.Reset(w.chunkWriter)
-	if err := w.write(w.infoBuffer.Bytes()); err != nil {
+	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
 		return err
 	}
@@ -166,42 +160,40 @@ func (w *writer) Write(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	w.log = schema.CommitLog{}
-	w.log.Created = w.nowFn().UnixNano()
-	w.log.Index = series.UniqueIndex
+	var logEntry schema.LogEntry
+	logEntry.Create = w.nowFn().UnixNano()
+	logEntry.Index = series.UniqueIndex
 
-	seen := w.bitset.has(w.log.Index)
+	seen := w.bitset.has(logEntry.Index)
 	if !seen {
 		// If "idx" hasn't been written to commit log
 		// yet we need to include series metadata
-		w.metadata = schema.CommitLogMetadata{}
-		w.metadata.Id = series.ID.Data().Get()
-		w.metadata.Namespace = series.Namespace.Data().Get()
-		w.metadata.Shard = series.Shard
-
-		w.metadataBuffer.Reset()
-		if err := w.metadataBuffer.Marshal(&w.metadata); err != nil {
+		var metadata schema.LogMetadata
+		metadata.ID = series.ID.Data().Get()
+		metadata.Namespace = series.Namespace.Data().Get()
+		metadata.Shard = series.Shard
+		w.metadataEncoder.Reset()
+		if err := w.metadataEncoder.EncodeLogMetadata(metadata); err != nil {
 			return err
 		}
-		w.log.Metadata = w.metadataBuffer.Bytes()
+		logEntry.Metadata = w.metadataEncoder.Bytes()
 	}
 
-	w.log.Timestamp = datapoint.Timestamp.UnixNano()
-	w.log.Value = datapoint.Value
-	w.log.Unit = uint32(unit)
-	w.log.Annotation = annotation
-
-	w.logBuffer.Reset()
-	if err := w.logBuffer.Marshal(&w.log); err != nil {
+	logEntry.Timestamp = datapoint.Timestamp.UnixNano()
+	logEntry.Value = datapoint.Value
+	logEntry.Unit = uint32(unit)
+	logEntry.Annotation = annotation
+	w.logEncoder.Reset()
+	if err := w.logEncoder.EncodeLogEntry(logEntry); err != nil {
 		return err
 	}
-	if err := w.write(w.logBuffer.Bytes()); err != nil {
+	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		return err
 	}
 
 	if !seen {
 		// Record we have seen this series
-		w.bitset.set(w.log.Index)
+		w.bitset.set(logEntry.Index)
 	}
 	return nil
 }
