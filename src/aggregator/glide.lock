@@ -1,14 +1,18 @@
-hash: 04218fe6469b35ae78071141523fc165b7c2e7f69b0cc82a48040f96c51ab0a0
-updated: 2017-01-11T11:49:00.220807402-05:00
+hash: b139dd3f70969e44737ed9b78da4850f2557512b67973ad472d8a4cf7051442c
+updated: 2017-02-03T16:47:34.822373326-05:00
 imports:
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/golang/protobuf
-  version: 3852dcfda249c2097355a6aabb199a28d97b30df
+  version: bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
   subpackages:
   - proto
 - name: github.com/m3db/m3metrics
-  version: 38161a81ac013ed38bcc93ce19c365e1c9b89248
+  version: c0bd40ffc7bf6d5a5c7b9360203d0ab0c7422ae9
   subpackages:
   - metric
   - metric/aggregated
@@ -30,6 +34,10 @@ imports:
   - retry
   - sync
   - time
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
@@ -38,7 +46,7 @@ imports:
 - name: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
 - name: golang.org/x/net
-  version: 3b993948b6f0e651ffb58ba135d8538a68b1cddf
+  version: 007e530097ad7f954752df63046b4036f98ba6a6
   subpackages:
   - context
 - name: google.golang.org/appengine
@@ -56,12 +64,4 @@ imports:
   version: a1382b1ce0c749733b814157c245e02cc1f41076
   subpackages:
   - codes
-testImports:
-- name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
-  subpackages:
-  - spew
-- name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
-  subpackages:
-  - difflib
+testImports: []
