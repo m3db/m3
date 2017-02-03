@@ -614,5 +614,5 @@ func newNoopDatabaseRepairer() databaseRepairer {
 }
 
 func (r noopRepairer) ShouldRun(start time.Time) bool    { return false }
-func (r noopRepairer) Run(start time.Time, mode runType) { return }
+func (r noopRepairer) Run(start time.Time, mode runType) {}
 func (r noopRepairer) IsRepairing() bool                 { return false }
