@@ -1,5 +1,5 @@
-hash: 029ba941f724d765bde940f3b4ab40f4d61c19fafac214db369d9b32117e22f3
-updated: 2017-02-01T14:26:06.521913538-05:00
+hash: 48d3c7808154c5e5bc4cde5b81db5b0be2bb867653f761b04f84626ac2585da0
+updated: 2017-02-03T13:45:00.440286064-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -74,7 +74,22 @@ imports:
 - name: github.com/willf/bitset
   version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
 - name: golang.org/x/net
-  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  version: 007e530097ad7f954752df63046b4036f98ba6a6
   subpackages:
   - context
+- name: google.golang.org/appengine
+  version: 8758a385849434ba5eac8aeedcf5192c5a0f5f10
+  subpackages:
+  - datastore
+  - internal
+  - internal/app_identity
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/modules
+  - internal/remote_api
+- name: gopkg.in/vmihailenco/msgpack.v2
+  version: a1382b1ce0c749733b814157c245e02cc1f41076
+  subpackages:
+  - codes
 testImports: []
