@@ -2,7 +2,7 @@ package: github.com/m3db/m3aggregator
 
 import:
 - package: github.com/m3db/m3metrics
-  version: 38161a81ac013ed38bcc93ce19c365e1c9b89248
+  version: c0bd40ffc7bf6d5a5c7b9360203d0ab0c7422ae9
 
 - package: github.com/m3db/m3x
   version: fcb5878c2ad11ab932afc2d30810da4a23986d0e
