@@ -197,11 +197,14 @@ func NewDatabase(
 
 	d.bsm = newBootstrapManager(d, d.fsm)
 
-	repairer, err := newDatabaseRepairer(d)
-	if err != nil {
-		return nil, err
+	if opts.RepairEnabled() {
+		d.repairer, err = newDatabaseRepairer(d)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		d.repairer = newNoopDatabaseRepairer()
 	}
-	d.repairer = repairer
 
 	return d, nil
 }

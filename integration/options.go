@@ -216,11 +216,11 @@ type testOptions interface {
 	// FetchSeriesBlocksBatchConcurrency returns the number of series blocks to fetch in batch concurrently.
 	FetchSeriesBlocksBatchConcurrency() int
 
-	// SetRepairerEnabled controls whether the repairer is enabled.
-	SetRepairerEnabled(f bool) testOptions
+	// SetRepairEnabled controls whether the repair is enabled.
+	SetRepairEnabled(f bool) testOptions
 
-	// RepairerEnabled returns whether the repairer is enabled.
-	RepairerEnabled() bool
+	// RepairEnabled returns whether the repair is enabled.
+	RepairEnabled() bool
 
 	// WriteConsistencyLevel returns the consistency level for writing with the m3db client.
 	WriteConsistencyLevel() topology.ConsistencyLevel
@@ -247,7 +247,7 @@ type options struct {
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
 	verifySeriesDebugFilePathPrefix    string
-	repairerEnabled                    bool
+	repairEnabled                      bool
 	repairThrottle                     time.Duration
 	repairTimeJitter                   time.Duration
 	repairInterval                     time.Duration
@@ -512,14 +512,14 @@ func (o *options) FetchSeriesBlocksBatchConcurrency() int {
 	return o.fetchSeriesBlocksBatchConcurrency
 }
 
-func (o *options) SetRepairerEnabled(f bool) testOptions {
+func (o *options) SetRepairEnabled(f bool) testOptions {
 	opts := *o
-	opts.repairerEnabled = f
+	opts.repairEnabled = f
 	return &opts
 }
 
-func (o *options) RepairerEnabled() bool {
-	return o.repairerEnabled
+func (o *options) RepairEnabled() bool {
+	return o.repairEnabled
 }
 
 func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {

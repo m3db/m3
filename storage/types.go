@@ -457,6 +457,12 @@ type Options interface {
 	// CommitLogOptions returns the commit log options
 	CommitLogOptions() commitlog.Options
 
+	// SetRepairEnabled sets whether or not to enable the repair
+	SetRepairEnabled(b bool) Options
+
+	// RepairEnabled returns whether the repair is enabled
+	RepairEnabled() bool
+
 	// SetRepairOptions sets the repair options
 	SetRepairOptions(value repair.Options) Options
 

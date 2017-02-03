@@ -104,11 +104,6 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	storageOpts := storage.NewOptions()
-	repairOpts := storageOpts.RepairOptions().
-		SetRepairInterval(opts.RepairInterval()).
-		SetRepairThrottle(opts.RepairThrottle()).
-		SetRepairTimeJitter(opts.RepairTimeJitter())
-	storageOpts = storageOpts.SetRepairOptions(repairOpts)
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {
@@ -210,7 +205,13 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return nil, err
 	}
 
-	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
+	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().
+		SetRepairInterval(opts.RepairInterval()).
+		SetRepairThrottle(opts.RepairThrottle()).
+		SetRepairTimeJitter(opts.RepairTimeJitter()).
+		SetAdminClient(adminClient))
+
+	storageOpts = storageOpts.SetRepairEnabled(opts.RepairEnabled())
 
 	return &testSetup{
 		opts:            opts,
@@ -286,10 +287,10 @@ func (ts *testSetup) startServer() error {
 		tchannelNodeAddr = addr
 	}
 
-	repairerEnabled := ts.opts.RepairerEnabled()
+	namespaceRepairEnabled := ts.opts.RepairEnabled()
 	namespaces := make([]namespace.Metadata, 0, len(ts.namespaces))
 	for _, ns := range ts.namespaces {
-		opts := ns.Options().SetNeedsRepair(repairerEnabled)
+		opts := ns.Options().SetNeedsRepair(namespaceRepairEnabled)
 		newNs := namespace.NewMetadata(ns.ID(), opts)
 		namespaces = append(namespaces, newNs)
 	}
