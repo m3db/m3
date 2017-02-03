@@ -118,7 +118,7 @@ func TestRawMetricDecodeIDBytesLenDecodeError(t *testing.T) {
 
 func TestRawMetricDecodeIDBytesLenOutOfRange(t *testing.T) {
 	m := testRawMetric()
-	m.it.(*mockBaseIterator).decodeBytesLenFn = func() int { return -1 }
+	m.it.(*mockBaseIterator).decodeBytesLenFn = func() int { return -100 }
 	_, err := m.ID()
 	require.Error(t, err)
 
@@ -225,6 +225,15 @@ func TestRawMetricDecodeMetricSuccess(t *testing.T) {
 func TestRawMetricBytes(t *testing.T) {
 	m := testRawMetric()
 	require.Equal(t, m.data, m.Bytes())
+}
+
+func TestRawMetricNilID(t *testing.T) {
+	r := NewRawMetric(nil)
+	r.Reset(toRawMetric(t, emptyMetric).Bytes())
+	decoded, err := r.ID()
+	require.NoError(t, err)
+	require.Nil(t, decoded)
+	require.True(t, r.(*rawMetric).idDecoded)
 }
 
 func TestRawMetricReset(t *testing.T) {

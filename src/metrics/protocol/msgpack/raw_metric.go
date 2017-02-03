@@ -23,6 +23,7 @@ package msgpack
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/m3db/m3metrics/metric"
@@ -38,7 +39,7 @@ type readBytesFn func(start int, n int) []byte
 // rawMetric is a raw metric
 type rawMetric struct {
 	data             []byte            // raw data containing encoded metric
-	buf              *bytes.Buffer     // intermediate buffer
+	reader           *bytes.Reader     // intermediate buffer
 	it               iteratorBase      // base iterator for lazily decoding metric fields
 	metric           aggregated.Metric // current metric
 	idDecoded        bool              // whether id has been decoded
@@ -49,11 +50,11 @@ type rawMetric struct {
 
 // NewRawMetric creates a new raw metric
 func NewRawMetric(data []byte) aggregated.RawMetric {
-	buf := bytes.NewBuffer(data)
+	reader := bytes.NewReader(data)
 	m := &rawMetric{
-		data: data,
-		buf:  buf,
-		it:   newBaseIterator(buf),
+		data:   data,
+		reader: reader,
+		it:     newBaseIterator(reader),
 	}
 
 	m.readBytesFn = m.readBytes
@@ -103,14 +104,13 @@ func (m *rawMetric) Bytes() []byte {
 }
 
 func (m *rawMetric) Reset(data []byte) {
-	m.data = data
 	m.metric = emptyMetric
 	m.idDecoded = false
 	m.timestampDecoded = false
 	m.valueDecoded = false
-	m.buf.Reset()
-	_, err := m.buf.Write(data)
-	m.it.setErr(err)
+	m.data = data
+	m.reader.Reset(data)
+	m.it.reset(m.reader)
 }
 
 // NB(xichen): decodeID decodes the ID without making a copy
@@ -134,11 +134,17 @@ func (m *rawMetric) decodeID() {
 	if !ok {
 		return
 	}
+	// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil
 	idLen := m.it.decodeBytesLen()
 	if m.it.err() != nil {
 		return
 	}
-	numRead := len(m.data) - m.buf.Len()
+	if idLen == -1 {
+		m.metric.ID = nil
+		m.idDecoded = true
+		return
+	}
+	numRead := len(m.data) - m.reader.Len()
 	m.metric.ID = m.readBytesFn(numRead, idLen)
 	if m.it.err() != nil {
 		return
@@ -178,8 +184,8 @@ func (m *rawMetric) readBytes(start int, n int) []byte {
 		return nil
 	}
 	// Advance the internal buffer index
-	if numRead := len(m.buf.Next(n)); numRead != n {
-		err := fmt.Errorf("num bytes read %d doesn't match target length %d", numRead, n)
+	_, err := m.reader.Seek(int64(n), io.SeekCurrent)
+	if err != nil {
 		m.it.setErr(err)
 		return nil
 	}
