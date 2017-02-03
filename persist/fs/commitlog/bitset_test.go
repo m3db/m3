@@ -20,40 +20,44 @@
 
 package commitlog
 
-import bset "github.com/willf/bitset"
+import (
+	"testing"
 
-const (
-	defaultBitsetLength = 65536
+	"github.com/stretchr/testify/require"
 )
 
-// bitset is a shim for providing a bitset
-type bitset interface {
-	has(i uint64) bool
-	set(i uint64)
-	clear(i uint64)
-	clearAll()
-}
+func TestBitSetSetValue(t *testing.T) {
+	bs := newBitset().(*set)
+	var values []uint64
 
-type set struct {
-	*bset.BitSet
-}
+	// Setting a value smaller than the bitset length doesn't
+	// trigger reallocations
+	oldCap := cap(bs.Bytes())
+	values = append(values, uint64(oldCap-1))
+	bs.set(values[len(values)-1])
+	require.Equal(t, oldCap, cap(bs.Bytes()))
+	for _, v := range values {
+		require.True(t, bs.has(v))
+	}
 
-func newBitset() bitset {
-	return &set{bset.New(defaultBitsetLength)}
-}
+	// Setting a value bigger than the bitset length,
+	// which triggers an reallocation, and verify the capacity
+	// has grown and all the existing data are kept
+	values = append(values, uint64(defaultBitsetLength+1))
+	bs.set(values[len(values)-1])
+	require.True(t, cap(bs.Bytes()) >= 2*oldCap)
+	for _, v := range values {
+		require.True(t, bs.has(v))
+	}
 
-func (s *set) has(i uint64) bool {
-	return s.Test(uint(i))
-}
-
-func (s *set) set(i uint64) {
-	s.Set(uint(i))
-}
-
-func (s *set) clear(i uint64) {
-	s.Clear(uint(i))
-}
-
-func (s *set) clearAll() {
-	s.ClearAll()
+	// Setting a value slightly bigger than the last value
+	// and verify it doesn't trigger a reallocation
+	oldCap = cap(bs.Bytes())
+	newVal := values[len(values)-1] + 100
+	values = append(values, uint64(newVal))
+	bs.set(values[len(values)-1])
+	require.Equal(t, oldCap, cap(bs.Bytes()))
+	for _, v := range values {
+		require.True(t, bs.has(v))
+	}
 }
