@@ -49,9 +49,9 @@ func newBaseIterator(reader io.Reader) iteratorBase {
 	}
 }
 
-// NB(xichen): if reader is not a bufio.Reader or a bytes.Buffer,
-// the underlying msgpack decoder creates a bufio.Reader wrapping
-// the reader every time Reset() is called
+// NB(xichen): if reader is not a bufio.Reader, a bytes.Reader,
+// or a bytes.Buffer, the underlying msgpack decoder creates a
+// bufio.Reader wrapping the reader every time Reset() is called
 func (it *baseIterator) reset(reader io.Reader) {
 	it.decoder.Reset(reader)
 	it.decodeErr = nil
