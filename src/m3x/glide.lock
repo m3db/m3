@@ -1,5 +1,5 @@
-hash: 886ae72d9ea0b32af162291a3c348d30c4a2d19ee70100da29e53dce05c7c2a7
-updated: 2016-09-05T13:02:39.60792998-04:00
+hash: 47820ec085cb6e8f220e409620d653661f6c617b8b5ed23434010915bcff2954
+updated: 2017-02-04T18:21:55.569443011-05:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
@@ -11,13 +11,13 @@ imports:
   - assert
   - require
 - name: github.com/uber-go/tally
-  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+  version: 08e86c3c1eb55364d563bd6beb982040225f4bb7
 testImports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
 - name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib

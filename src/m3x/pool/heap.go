@@ -171,8 +171,8 @@ func (s *slot) updateMetrics() {
 
 	s.RUnlock()
 
-	s.m.free.Update(free)
-	s.m.size.Update(size)
+	s.m.free.Update(float64(free))
+	s.m.size.Update(float64(size))
 }
 
 func (p heap) Init() {
