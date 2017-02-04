@@ -143,9 +143,9 @@ func (b *dbBlock) OnRetrieveBlock(
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	b.RLock()
+	defer b.RUnlock()
 
 	if b.closed {
-		b.RUnlock()
 		return nil, errReadFromClosedBlock
 	}
 
@@ -163,7 +163,6 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	if b.retriever != nil {
 		stream, err = b.retriever.Stream(b.retrieveID, b.startWithLock(), b)
 		if err != nil {
-			b.RUnlock()
 			return nil, err
 		}
 	} else {
@@ -187,7 +186,6 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 
 	// Register the finalizer for the stream
 	blocker.RegisterFinalizer(stream)
-	b.RUnlock()
 
 	return stream, nil
 }
@@ -209,15 +207,7 @@ func (b *dbBlock) Merge(other DatabaseBlock) {
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
 	b.Lock()
 	defer b.Unlock()
-
-	if !b.closed {
-		b.ctx.Close()
-	}
-	b.ctx = b.opts.ContextPool().Get()
-	b.startUnixNano = start.UnixNano()
-	b.closed = false
-	b.resetMergeTargetWithLock()
-	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
+	b.resetNewBlockStartWithLock(start)
 	b.resetSegmentWithLock(segment)
 }
 
@@ -228,7 +218,11 @@ func (b *dbBlock) ResetRetrievable(
 ) {
 	b.Lock()
 	defer b.Unlock()
+	b.resetNewBlockStartWithLock(start)
+	b.resetRetrievableWithLock(retriever, metadata)
+}
 
+func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
 	if !b.closed {
 		b.ctx.Close()
 	}
@@ -237,7 +231,6 @@ func (b *dbBlock) ResetRetrievable(
 	b.closed = false
 	b.resetMergeTargetWithLock()
 	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
-	b.resetRetrievableWithLock(retriever, metadata)
 }
 
 func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {

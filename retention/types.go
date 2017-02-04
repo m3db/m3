@@ -64,7 +64,7 @@ type Options interface {
 	ShortExpiry() bool
 
 	// SetShortExpiryPeriod sets the period that blocks should be kept in memory
-	// when  short expiry is turned on
+	// when short expiry is turned on
 	SetShortExpiryPeriod(period time.Duration) Options
 
 	// ShortExpiryPeriod returns the period that blocks should be kep in memory

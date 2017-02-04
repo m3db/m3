@@ -39,6 +39,10 @@ var (
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
 )
 
+const (
+	defaultRetrieveRequestQueueCapacity = 4096
+)
+
 type blockRetrieverStatus int
 
 type newSeekerMgrFn func(
@@ -365,9 +369,10 @@ func (r *blockRetriever) shardRequests(
 			reqsByShardIdx[i] = r.reqsByShardIdx[i]
 			continue
 		}
+		capacity := defaultRetrieveRequestQueueCapacity
 		reqsByShardIdx[i] = &shardRetrieveRequests{
 			shard:  uint32(i),
-			queued: make([]*retrieveRequest, 0, 4096),
+			queued: make([]*retrieveRequest, 0, capacity),
 		}
 	}
 
