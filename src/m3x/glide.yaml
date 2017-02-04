@@ -10,5 +10,5 @@ import:
   - assert
   - require
 - package: github.com/uber-go/tally
-  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+  version: 1.0.0
 

@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	nullStopWatchStart tally.StopwatchStart
+	nullStopWatchStart tally.Stopwatch
 )
 
 // sampledTimer is a sampled timer that implements the tally timer interface
@@ -55,19 +55,19 @@ func (t *sampledTimer) shouldSample() bool {
 	return atomic.AddUint64(&t.cnt, 1)%t.rate == 0
 }
 
-func (t *sampledTimer) Start() tally.StopwatchStart {
+func (t *sampledTimer) Start() tally.Stopwatch {
 	if !t.shouldSample() {
 		return nullStopWatchStart
 	}
 	return t.Timer.Start()
 }
 
-func (t *sampledTimer) Stop(startTime tally.StopwatchStart) {
+func (t *sampledTimer) Stop(startTime tally.Stopwatch) {
 	if startTime == nullStopWatchStart {
 		// If startTime is nullStopWatchStart, do nothing
 		return
 	}
-	t.Timer.Stop(startTime)
+	startTime.Stop()
 }
 
 func (t *sampledTimer) Record(d time.Duration) {

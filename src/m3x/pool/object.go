@@ -124,8 +124,8 @@ func (p *objectPool) trySetGauges() {
 }
 
 func (p *objectPool) setGauges() {
-	p.metrics.free.Update(int64(len(p.values)))
-	p.metrics.total.Update(int64(p.size))
+	p.metrics.free.Update(float64(len(p.values)))
+	p.metrics.total.Update(float64(p.size))
 }
 
 func (p *objectPool) tryFill() {
