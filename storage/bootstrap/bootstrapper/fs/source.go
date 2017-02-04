@@ -56,11 +56,13 @@ func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 	processors := xsync.NewWorkerPool(opts.NumProcessors())
 	processors.Init()
 
+	fileSystemOpts := opts.FilesystemOptions()
 	return &fileSystemSource{
 		opts:             opts,
 		log:              opts.ResultOptions().InstrumentOptions().Logger(),
 		filePathPrefix:   prefix,
-		readerBufferSize: opts.FilesystemOptions().ReaderBufferSize(),
+		readerBufferSize: fileSystemOpts.ReaderBufferSize(),
+		decodingOpts:     fileSystemOpts.DecodingOptions(),
 		newReaderFn:      fs.NewReader,
 		processors:       processors,
 	}

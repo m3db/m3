@@ -22,36 +22,36 @@ package msgpack
 
 // DecodingOptions provide a set of options for decoding data
 type DecodingOptions interface {
-	// SetNewAllocForBytes sets whether we allocate new space when decoding
+	// SetAllocDecodedBytes sets whether we allocate new space when decoding
 	// a byte slice
-	SetNewAllocForBytes(value bool) DecodingOptions
+	SetAllocDecodedBytes(value bool) DecodingOptions
 
-	// NewAllocForBytes determines whether we allocate new space when decoding
+	// AllocDecodedBytes determines whether we allocate new space when decoding
 	// a byte slice
-	NewAllocForBytes() bool
+	AllocDecodedBytes() bool
 }
 
 const (
-	defaultNewAllocForBytes = false
+	defaultAllocDecodedBytes = false
 )
 
 type decodingOptions struct {
-	newAllocForBytes bool
+	allocDecodedBytes bool
 }
 
 // NewDecodingOptions creates a new set of decoding options
 func NewDecodingOptions() DecodingOptions {
 	return &decodingOptions{
-		newAllocForBytes: defaultNewAllocForBytes,
+		allocDecodedBytes: defaultAllocDecodedBytes,
 	}
 }
 
-func (o *decodingOptions) SetNewAllocForBytes(value bool) DecodingOptions {
+func (o *decodingOptions) SetAllocDecodedBytes(value bool) DecodingOptions {
 	opts := *o
-	opts.newAllocForBytes = value
+	opts.allocDecodedBytes = value
 	return &opts
 }
 
-func (o *decodingOptions) NewAllocForBytes() bool {
-	return o.newAllocForBytes
+func (o *decodingOptions) AllocDecodedBytes() bool {
+	return o.allocDecodedBytes
 }

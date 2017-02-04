@@ -229,7 +229,7 @@ func TestDecodeBytesNoAlloc(t *testing.T) {
 func TestDecodeBytesAllocNew(t *testing.T) {
 	var (
 		enc = testEncoder(t).(*encoder)
-		dec = testDecoder(t, NewDecodingOptions().SetNewAllocForBytes(true))
+		dec = testDecoder(t, NewDecodingOptions().SetAllocDecodedBytes(true))
 	)
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))

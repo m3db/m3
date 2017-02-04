@@ -40,11 +40,11 @@ var (
 )
 
 type decoder struct {
-	newAllocForBytes bool
-	data             []byte
-	reader           *bytes.Reader
-	dec              *msgpack.Decoder
-	err              error
+	allocDecodedBytes bool
+	data              []byte
+	reader            *bytes.Reader
+	dec               *msgpack.Decoder
+	err               error
 }
 
 // NewDecoder creates a new decoder
@@ -54,9 +54,9 @@ func NewDecoder(opts DecodingOptions) encoding.Decoder {
 	}
 	reader := bytes.NewReader(nil)
 	return &decoder{
-		newAllocForBytes: opts.NewAllocForBytes(),
-		reader:           reader,
-		dec:              msgpack.NewDecoder(reader),
+		allocDecodedBytes: opts.AllocDecodedBytes(),
+		reader:            reader,
+		dec:               msgpack.NewDecoder(reader),
 	}
 }
 
@@ -319,7 +319,7 @@ func (dec *decoder) decodeBytes() []byte {
 	// API which allocates a new slice under the hood, otherwise we simply locate the byte
 	// slice as part of the encoded byte stream and return it
 	var value []byte
-	if dec.newAllocForBytes {
+	if dec.allocDecodedBytes {
 		value, dec.err = dec.dec.DecodeBytes()
 	} else {
 		bytesLen := dec.decodeBytesLen()
@@ -330,8 +330,21 @@ func (dec *decoder) decodeBytes() []byte {
 		if bytesLen == -1 {
 			return nil
 		}
-		numRead := len(dec.data) - dec.reader.Len()
-		value = dec.readBytes(numRead, bytesLen)
+		var (
+			numBytes  = len(dec.data)
+			currPos   = numBytes - dec.reader.Len()
+			targetPos = currPos + bytesLen
+		)
+		if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
+			dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
+			return nil
+		}
+		_, err := dec.reader.Seek(int64(targetPos), io.SeekStart)
+		if err != nil {
+			dec.err = err
+			return nil
+		}
+		value = dec.data[currPos:targetPos]
 	}
 	return value
 }
@@ -352,18 +365,4 @@ func (dec *decoder) decodeBytesLen() int {
 	value, err := dec.dec.DecodeBytesLen()
 	dec.err = err
 	return value
-}
-
-func (dec *decoder) readBytes(start int, n int) []byte {
-	numBytes := len(dec.data)
-	if n < 0 || start < 0 || start+n > numBytes {
-		dec.err = fmt.Errorf("invalid start %d and length %d, numBytes=%d", start, n, numBytes)
-		return nil
-	}
-	_, err := dec.reader.Seek(int64(n), io.SeekCurrent)
-	if err != nil {
-		dec.err = err
-		return nil
-	}
-	return dec.data[start : start+n]
 }
