@@ -120,7 +120,7 @@ func verifyFlushed(
 	seriesMaps seriesMap,
 ) {
 	fsOpts := opts.CommitLogOptions().FilesystemOptions()
-	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.ReaderBufferSize(), opts.BytesPool())
+	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.ReaderBufferSize(), opts.BytesPool(), nil)
 	iteratorPool := opts.ReaderIteratorPool()
 	for timestamp, seriesList := range seriesMaps {
 		verifyForTime(t, reader, shardSet, iteratorPool, timestamp, namespace, seriesList)

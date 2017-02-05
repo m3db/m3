@@ -25,9 +25,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -55,11 +56,12 @@ type options struct {
 	flushSize        int
 	flushInterval    time.Duration
 	backlogQueueSize int
+	bytesPool        pool.CheckedBytesPool
 }
 
 // NewOptions creates new commit log options
 func NewOptions() Options {
-	return &options{
+	o := &options{
 		clockOpts:        clock.NewOptions(),
 		instrumentOpts:   instrument.NewOptions(),
 		retentionOpts:    retention.NewOptions(),
@@ -68,7 +70,12 @@ func NewOptions() Options {
 		flushSize:        defaultFlushSize,
 		flushInterval:    defaultFlushInterval,
 		backlogQueueSize: defaultBacklogQueueSize,
+		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, nil)
+		}),
 	}
+	o.bytesPool.Init()
+	return o
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
@@ -149,4 +156,14 @@ func (o *options) SetBacklogQueueSize(value int) Options {
 
 func (o *options) BacklogQueueSize() int {
 	return o.backlogQueueSize
+}
+
+func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {
+	opts := *o
+	opts.bytesPool = value
+	return &opts
+}
+
+func (o *options) BytesPool() pool.CheckedBytesPool {
+	return o.bytesPool
 }

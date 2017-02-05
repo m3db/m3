@@ -44,7 +44,7 @@ func main() {
 	})
 	bytesPool.Init()
 
-	seeker := fs.NewSeeker(*optPathPrefix, defaultBufferReadSize, bytesPool)
+	seeker := fs.NewSeeker(*optPathPrefix, defaultBufferReadSize, bytesPool, nil)
 
 	err := seeker.Open(ts.StringID(*optNamespace),
 		uint32(*optShard), time.Unix(0, int64(*optBlockstart)))

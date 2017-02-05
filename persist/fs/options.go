@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/instrument"
@@ -55,6 +56,7 @@ type options struct {
 	instrumentOpts   instrument.Options
 	retentionOpts    retention.Options
 	rateLimitOpts    ratelimit.Options
+	decodingOpts     msgpack.DecodingOptions
 	filePathPrefix   string
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
@@ -69,6 +71,7 @@ func NewOptions() Options {
 		instrumentOpts:   instrument.NewOptions(),
 		retentionOpts:    retention.NewOptions(),
 		rateLimitOpts:    ratelimit.NewOptions(),
+		decodingOpts:     msgpack.NewDecodingOptions(),
 		filePathPrefix:   defaultFilePathPrefix,
 		newFileMode:      defaultNewFileMode,
 		newDirectoryMode: defaultNewDirectoryMode,
@@ -115,6 +118,16 @@ func (o *options) SetRateLimitOptions(value ratelimit.Options) Options {
 
 func (o *options) RateLimitOptions() ratelimit.Options {
 	return o.rateLimitOpts
+}
+
+func (o *options) SetDecodingOptions(value msgpack.DecodingOptions) Options {
+	opts := *o
+	opts.decodingOpts = value
+	return &opts
+}
+
+func (o *options) DecodingOptions() msgpack.DecodingOptions {
+	return o.decodingOpts
 }
 
 func (o *options) SetFilePathPrefix(value string) Options {

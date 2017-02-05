@@ -28,13 +28,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/persist/encoding"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3db/digest"
 )
 
@@ -59,7 +60,8 @@ type seeker struct {
 	prologue  []byte
 	entries   int
 	dataFd    *os.File
-	indexMap  map[ts.Hash]*schema.IndexEntry
+	decoder   encoding.Decoder
+	indexMap  map[ts.Hash]schema.IndexEntry
 	bytesPool pool.CheckedBytesPool
 }
 
@@ -69,6 +71,7 @@ func NewSeeker(
 	filePathPrefix string,
 	bufferSize int,
 	bytesPool pool.CheckedBytesPool,
+	decodingOpts msgpack.DecodingOptions,
 ) FileSetSeeker {
 	return &seeker{
 		filePathPrefix:             filePathPrefix,
@@ -77,6 +80,7 @@ func NewSeeker(
 		dataReader:                 bufio.NewReaderSize(nil, bufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
 		prologue:                   make([]byte, markerLen+idxLen),
+		decoder:                    msgpack.NewDecoder(decodingOpts),
 		bytesPool:                  bytesPool,
 	}
 }
@@ -84,7 +88,7 @@ func NewSeeker(
 func (s *seeker) IDs() []ts.ID {
 	fileIds := make([]ts.ID, 0, len(s.indexMap))
 	for _, indexEntry := range s.indexMap {
-		fileIds = append(fileIds, ts.BinaryID(checked.NewBytes(indexEntry.Id, nil)))
+		fileIds = append(fileIds, ts.BinaryID(checked.NewBytes(indexEntry.ID, nil)))
 	}
 	return fileIds
 }
@@ -154,7 +158,8 @@ func (s *seeker) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	info, err := readInfo(s.unreadBuf[:n])
+	s.decoder.Reset(s.unreadBuf[:n])
+	info, err := s.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
 	}
@@ -172,24 +177,18 @@ func (s *seeker) readIndex(size int) error {
 		return err
 	}
 
-	indexUnread := s.unreadBuf[:n][:]
-	s.indexMap = make(map[ts.Hash]*schema.IndexEntry, s.entries)
+	s.decoder.Reset(s.unreadBuf[:n][:])
+	s.indexMap = make(map[ts.Hash]schema.IndexEntry, s.entries)
 	// Read all entries of index
 	for read := 0; read < s.entries; read++ {
-		entry := &schema.IndexEntry{}
-		size, consumed := proto.DecodeVarint(indexUnread)
-		indexUnread = indexUnread[consumed:]
-		if consumed < 1 {
-			return errReadIndexEntryZeroSize
-		}
-
-		indexEntryData := indexUnread[:size]
-		if err := proto.Unmarshal(indexEntryData, entry); err != nil {
+		entry, err := s.decoder.DecodeIndexEntry()
+		if err != nil {
 			return err
 		}
-
-		indexUnread = indexUnread[size:]
-		s.indexMap[ts.HashFn(entry.Id)] = entry
+		// NB(xichen): entry.ID remains valid until next time s.unreadBuf
+		// is modified because we do not allocate new space for decoding
+		// byte slices
+		s.indexMap[ts.HashFn(entry.ID)] = entry
 	}
 
 	return nil

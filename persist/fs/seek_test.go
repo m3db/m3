@@ -41,7 +41,7 @@ func newTestSeeker(filePathPrefix string) FileSetSeeker {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
-	return NewSeeker(filePathPrefix, testReaderBufferSize, bytesPool)
+	return NewSeeker(filePathPrefix, testReaderBufferSize, bytesPool, nil)
 }
 
 func TestSeekEmptyIndex(t *testing.T) {

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -172,4 +173,10 @@ type Options interface {
 
 	// BacklogQueueSize returns the backlog queue size
 	BacklogQueueSize() int
+
+	// SetBytesPool sets the checked bytes pool
+	SetBytesPool(value pool.CheckedBytesPool) Options
+
+	// BytesPool returns the checked bytes pool
+	BytesPool() pool.CheckedBytesPool
 }
