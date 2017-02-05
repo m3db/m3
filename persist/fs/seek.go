@@ -28,13 +28,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/persist/encoding"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3db/digest"
 )
 
@@ -67,6 +67,7 @@ type seeker struct {
 	// this large map.
 	indexMap  map[ts.Hash]indexMapEntry
 	indexIDs  []ts.ID
+	decoder   encoding.Decoder
 	bytesPool pool.CheckedBytesPool
 }
 
@@ -80,6 +81,7 @@ func NewSeeker(
 	filePathPrefix string,
 	bufferSize int,
 	bytesPool pool.CheckedBytesPool,
+	decodingOpts msgpack.DecodingOptions,
 ) FileSetSeeker {
 	return newSeeker(seekerOpts{
 		filePathPrefix: filePathPrefix,
@@ -87,6 +89,7 @@ func NewSeeker(
 		bytesPool:      bytesPool,
 		keepIndexIDs:   true,
 		keepUnreadBuf:  false,
+		decodingOpts:   decodingOpts,
 	})
 }
 
@@ -96,6 +99,7 @@ type seekerOpts struct {
 	bytesPool      pool.CheckedBytesPool
 	keepIndexIDs   bool
 	keepUnreadBuf  bool
+	decodingOpts   msgpack.DecodingOptions
 }
 
 // fileSetSeeker adds package level access to further methods
@@ -122,6 +126,7 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  opts.bytesPool,
+		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
 	}
 }
 
@@ -203,7 +208,8 @@ func (s *seeker) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	info, err := readInfo(s.unreadBuf[:n])
+	s.decoder.Reset(s.unreadBuf[:n])
+	info, err := s.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
 	}
@@ -221,47 +227,34 @@ func (s *seeker) readIndex(size int) error {
 		return err
 	}
 
-	indexUnread := s.unreadBuf[:n][:]
-	if s.indexMap == nil {
-		s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
-	}
-
-	protoBuf := proto.NewBuffer(nil)
-	entry := &schema.IndexEntry{}
-
+	s.decoder.Reset(s.unreadBuf[:n][:])
+	s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
 	// Read all entries of index
 	for read := 0; read < s.entries; read++ {
-		entry.Reset()
-
-		size, consumed := proto.DecodeVarint(indexUnread)
-		indexUnread = indexUnread[consumed:]
-		if consumed < 1 {
-			return errReadIndexEntryZeroSize
-		}
-
-		indexEntryData := indexUnread[:size]
-		protoBuf.SetBuf(indexEntryData)
-		if err := protoBuf.Unmarshal(entry); err != nil {
+		entry, err := s.decoder.DecodeIndexEntry()
+		if err != nil {
 			return err
 		}
-
-		indexUnread = indexUnread[size:]
-		s.indexMap[ts.HashFn(entry.Id)] = indexMapEntry{
+		// NB(xichen): entry.ID remains valid until next time s.unreadBuf
+		// is modified because we do not allocate new space for decoding
+		// byte slices
+		s.indexMap[ts.HashFn(entry.ID)] = indexMapEntry{
 			size:   entry.Size,
 			offset: entry.Offset,
 		}
 
 		if s.keepIndexIDs {
-			entryID := append([]byte(nil), entry.Id...)
+			entryID := append([]byte(nil), entry.ID...)
 			id := ts.BinaryID(checked.NewBytes(entryID, nil))
 			s.indexIDs = append(s.indexIDs, id)
 		}
 	}
 
 	if !s.keepUnreadBuf {
-		// NB(r): Free the unread buffer as unless using this seeker
-		// in the seeker manager we never use this buffer again
+		// NB(r): Free the unread buffer and reset the decoder as unless
+		// using this seeker in the seeker manager we never use this buffer again
 		s.unreadBuf = nil
+		s.decoder = nil
 	}
 
 	return nil

@@ -25,12 +25,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/persist/encoding"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/time"
-
-	"github.com/golang/protobuf/proto"
 )
 
 type writer struct {
@@ -45,16 +45,13 @@ type writer struct {
 	digestFdWithDigestContents digest.FdWithDigestContentsWriter
 	checkpointFilePath         string
 
-	start        time.Time
-	currEntry    schema.IndexEntry
-	currIdx      int64
-	currOffset   int64
-	infoBuffer   *proto.Buffer
-	indexBuffer  *proto.Buffer
-	varintBuffer *proto.Buffer
-	digestBuf    digest.Buffer
-	idxData      []byte
-	err          error
+	start      time.Time
+	currIdx    int64
+	currOffset int64
+	encoder    encoding.Encoder
+	digestBuf  digest.Buffer
+	idxData    []byte
+	err        error
 }
 
 // NewWriter returns a new writer for a filePathPrefix
@@ -70,13 +67,11 @@ func NewWriter(
 		filePathPrefix:             filePathPrefix,
 		newFileMode:                newFileMode,
 		newDirectoryMode:           newDirectoryMode,
-		infoBuffer:                 proto.NewBuffer(nil),
-		indexBuffer:                proto.NewBuffer(nil),
-		varintBuffer:               proto.NewBuffer(nil),
 		infoFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestWriter(bufferSize),
 		dataFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsWriter(bufferSize),
+		encoder:                    msgpack.NewEncoder(),
 		digestBuf:                  digest.NewBuffer(),
 		idxData:                    make([]byte, idxLen),
 	}
@@ -169,22 +164,15 @@ func (w *writer) writeAll(
 		return nil
 	}
 
-	entry := &w.currEntry
-	entry.Reset()
-	entry.Index = w.currIdx
-	entry.Size = size
-	entry.Id = id.Data().Get()
-	entry.Offset = w.currOffset
-	entry.Checksum = int64(checksum)
-
-	w.indexBuffer.Reset()
-	if err := w.indexBuffer.Marshal(entry); err != nil {
-		return err
+	entry := schema.IndexEntry{
+		Index:    w.currIdx,
+		ID:       id.Data().Get(),
+		Size:     size,
+		Offset:   w.currOffset,
+		Checksum: int64(checksum),
 	}
-
-	w.varintBuffer.Reset()
-	entryBytes := w.indexBuffer.Bytes()
-	if err := w.varintBuffer.EncodeVarint(uint64(len(entryBytes))); err != nil {
+	w.encoder.Reset()
+	if err := w.encoder.EncodeIndexEntry(entry); err != nil {
 		return err
 	}
 
@@ -203,10 +191,7 @@ func (w *writer) writeAll(
 			return err
 		}
 	}
-	if _, err := w.indexFdWithDigest.WriteBytes(w.varintBuffer.Bytes()); err != nil {
-		return err
-	}
-	if _, err := w.indexFdWithDigest.WriteBytes(entryBytes); err != nil {
+	if _, err := w.indexFdWithDigest.WriteBytes(w.encoder.Bytes()); err != nil {
 		return err
 	}
 	w.currIdx++
@@ -215,17 +200,18 @@ func (w *writer) writeAll(
 }
 
 func (w *writer) close() error {
-	info := &schema.IndexInfo{
+	info := schema.IndexInfo{
 		Start:     xtime.ToNanoseconds(w.start),
 		BlockSize: int64(w.blockSize),
 		Entries:   w.currIdx,
 	}
-	w.infoBuffer.Reset()
-	if err := w.infoBuffer.Marshal(info); err != nil {
+
+	w.encoder.Reset()
+	if err := w.encoder.EncodeIndexInfo(info); err != nil {
 		return err
 	}
 
-	if _, err := w.infoFdWithDigest.WriteBytes(w.infoBuffer.Bytes()); err != nil {
+	if _, err := w.infoFdWithDigest.WriteBytes(w.encoder.Bytes()); err != nil {
 		return err
 	}
 
