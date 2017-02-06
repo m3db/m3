@@ -282,7 +282,6 @@ func TestWatchFromExist(t *testing.T) {
 
 	w, err := store.Watch("foo")
 	assert.NoError(t, err)
-	assert.Nil(t, w.Get())
 
 	<-w.C()
 	assert.Equal(t, 0, len(w.C()))

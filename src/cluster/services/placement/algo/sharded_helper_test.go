@@ -296,3 +296,142 @@ func TestLoadOnInstance(t *testing.T) {
 	i1.Shards().Add(shard.NewShard(3).SetState(shard.Leaving))
 	assert.Equal(t, 2, loadOnInstance(i1))
 }
+
+func TestReturnInitShardToSource(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{
+			shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2"),
+			shard.NewShard(1).SetState(shard.Available),
+		},
+	))
+	i2 := placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{
+			shard.NewShard(0).SetState(shard.Leaving),
+			shard.NewShard(2).SetState(shard.Available),
+		},
+	))
+	i3 := placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(100).SetShards(shard.NewShards(
+		[]shard.Shard{},
+	))
+	ph := NewPlacementHelper(
+		placement.NewPlacement().
+			SetInstances([]services.PlacementInstance{i1, i2, i3}).
+			SetReplicaFactor(1).
+			SetShards([]uint32{0, 1, 2}).
+			SetIsSharded(true),
+		placement.NewOptions(),
+	).(*placementHelper)
+
+	err := ph.returnInitializingShardsToSource(getShardMap(i1.Shards().All()), i1)
+	assert.NoError(t, err)
+
+	// Only the Initializing shards are moved
+	assert.Equal(t, 1, i1.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{shard.NewShard(1).SetState(shard.Available)}, i1.Shards().All())
+	assert.Equal(t, 2, i2.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{
+		shard.NewShard(0).SetState(shard.Available),
+		shard.NewShard(2).SetState(shard.Available),
+	}, i2.Shards().All())
+	assert.Equal(t, 0, i3.Shards().NumShards())
+}
+
+func TestReturnInitShardToSource_SourceIsLeaving(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
+	))
+	i2 := placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
+	))
+	i3 := placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{},
+	))
+
+	ph := NewPlacementHelper(
+		placement.NewPlacement().
+			SetInstances([]services.PlacementInstance{i1, i2, i3}).
+			SetReplicaFactor(1).
+			SetShards([]uint32{0}).
+			SetIsSharded(true),
+		placement.NewOptions(),
+	).(*placementHelper)
+
+	err := ph.returnInitializingShardsToSource(getShardMap(i1.Shards().All()), i1)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, i1.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")}, i1.Shards().All())
+	assert.Equal(t, 1, i2.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Leaving)}, i2.Shards().All())
+	assert.Equal(t, 0, i3.Shards().NumShards())
+}
+
+func TestReturnInitShardToSource_RackConflict(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
+	))
+	i2 := placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
+	))
+	i3 := placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{},
+	))
+	i4 := placement.NewInstance().SetID("i4").SetRack("r2").SetEndpoint("e4").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Available)},
+	))
+
+	ph := NewPlacementHelper(
+		placement.NewPlacement().
+			SetInstances([]services.PlacementInstance{i1, i2, i3, i4}).
+			SetReplicaFactor(2).
+			SetShards([]uint32{0}).
+			SetIsSharded(true),
+		placement.NewOptions(),
+	).(*placementHelper)
+
+	err := ph.returnInitializingShardsToSource(getShardMap(i1.Shards().All()), i1)
+	assert.NoError(t, err)
+
+	// the Initializing shard will not be returned to i2
+	// because another replica of shard 0 is owned by i4, which is also on r2
+	assert.Equal(t, 1, i1.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")}, i1.Shards().All())
+	assert.Equal(t, 1, i2.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Leaving)}, i2.Shards().All())
+	assert.Equal(t, 0, i3.Shards().NumShards())
+	assert.Equal(t, 1, i4.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Available)}, i4.Shards().All())
+
+	// make sure PlaceShards will handle the unreturned shards
+	i1 = placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
+	))
+	i2 = placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
+	))
+	i3 = placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{},
+	))
+	i4 = placement.NewInstance().SetID("i4").SetRack("r2").SetEndpoint("e4").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Available)},
+	))
+
+	ph = NewPlacementHelper(
+		placement.NewPlacement().
+			SetInstances([]services.PlacementInstance{i1, i2, i3, i4}).
+			SetReplicaFactor(2).
+			SetShards([]uint32{0}).
+			SetIsSharded(true),
+		placement.NewOptions(),
+	).(*placementHelper)
+
+	err = ph.PlaceShards(i1.Shards().All(), i1)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, i1.Shards().NumShards())
+	assert.Equal(t, 1, i2.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Leaving)}, i2.Shards().All())
+	assert.Equal(t, 1, i3.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")}, i3.Shards().All())
+	assert.Equal(t, 1, i4.Shards().NumShards())
+	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Available)}, i4.Shards().All())
+}
