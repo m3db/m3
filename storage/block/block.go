@@ -22,6 +22,8 @@ package block
 
 import (
 	"errors"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/context"
@@ -31,93 +33,251 @@ import (
 )
 
 var (
-	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
-	errWriteToClosedBlock  = errors.New("attempt to write to a closed block")
+	errReadFromClosedBlock         = errors.New("attempt to read from a closed block")
+	errRetrievableBlockNoRetriever = errors.New("attempt to read from a retrievable block with no retriever")
 
 	timeZero = time.Time{}
 )
 
-// NB(xichen): locking of dbBlock instances is currently done outside the dbBlock struct at the series level.
-// Specifically, read lock is acquired for accessing operations like Stream(), and write lock is acquired
-// for mutating operations like Write(), Reset(), and Close(). Adding a explicit lock to the dbBlock struct might
-// make it more clear w.r.t. how/when we acquire locks, though.
 type dbBlock struct {
-	opts     Options
-	ctx      context.Context
-	start    time.Time
-	segment  ts.Segment
-	checksum uint32
-	closed   bool
+	sync.RWMutex
+
+	opts          Options
+	ctx           context.Context
+	startUnixNano int64
+	segment       ts.Segment
+	length        int
+	checksum      uint32
+
+	accessedUnixNano int64
+
+	mergeTarget DatabaseBlock
+
+	retriever  DatabaseShardBlockRetriever
+	retrieveID ts.ID
+
+	closed bool
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) DatabaseBlock {
 	b := &dbBlock{
-		opts:   opts,
-		ctx:    opts.ContextPool().Get(),
-		start:  start,
-		closed: false,
+		opts:          opts,
+		ctx:           opts.ContextPool().Get(),
+		startUnixNano: start.UnixNano(),
+		closed:        false,
 	}
-	b.resetSegment(segment)
+	if segment.Len() > 0 {
+		b.resetSegmentWithLock(segment)
+	}
 	return b
 }
 
-func (b *dbBlock) StartTime() time.Time {
-	return b.start
+// NewRetrievableDatabaseBlock creates a new retrievable DatabaseBlock instance.
+func NewRetrievableDatabaseBlock(
+	start time.Time,
+	retriever DatabaseShardBlockRetriever,
+	metadata RetrievableBlockMetadata,
+	opts Options,
+) DatabaseBlock {
+	b := &dbBlock{
+		opts:          opts,
+		ctx:           opts.ContextPool().Get(),
+		startUnixNano: start.UnixNano(),
+		closed:        false,
+	}
+	b.resetRetrievableWithLock(retriever, metadata)
+	return b
 }
 
-func (b *dbBlock) Checksum() *uint32 {
-	cksum := b.checksum
-	return &cksum
+func (b *dbBlock) now() time.Time {
+	nowFn := b.opts.ClockOptions().NowFn()
+	return nowFn()
+}
+
+func (b *dbBlock) StartTime() time.Time {
+	b.RLock()
+	start := b.startWithLock()
+	b.RUnlock()
+	return start
+}
+
+func (b *dbBlock) startWithLock() time.Time {
+	return time.Unix(0, b.startUnixNano)
+}
+
+func (b *dbBlock) LastAccessTime() time.Time {
+	return time.Unix(0, atomic.LoadInt64(&b.accessedUnixNano))
+}
+
+func (b *dbBlock) Len() int {
+	b.RLock()
+	length := b.length
+	b.RUnlock()
+	return length
+}
+
+func (b *dbBlock) Checksum() uint32 {
+	b.RLock()
+	checksum := b.checksum
+	b.RUnlock()
+	return checksum
+}
+
+func (b *dbBlock) OnRetrieveBlock(
+	id ts.ID,
+	startTime time.Time,
+	segment ts.Segment,
+) {
+	b.Lock()
+	defer b.Unlock()
+
+	if b.closed ||
+		!id.Equal(b.retrieveID) ||
+		!startTime.Equal(b.startWithLock()) {
+		return
+	}
+
+	b.resetSegmentWithLock(segment)
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
+	b.RLock()
+	defer b.RUnlock()
+
 	if b.closed {
 		return nil, errReadFromClosedBlock
 	}
+
 	b.ctx.DependsOn(blocker)
-	// If the block is not writable, and the segment is empty, it means
-	// there are no data encoded in this block, so we return a nil reader.
-	if b.segment.Head == nil && b.segment.Tail == nil {
-		return nil, nil
+
+	// Use an int64 to avoid needing a write lock for
+	// the high frequency stream method
+	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
+
+	// If the block retrieve ID is set then it must be retrieved
+	var (
+		stream xio.SegmentReader
+		err    error
+	)
+	if b.retriever != nil {
+		stream, err = b.retriever.Stream(b.retrieveID, b.startWithLock(), b)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		stream = b.opts.SegmentReaderPool().Get()
+		// NB(r): We explicitly create a new segment to ensure references
+		// are taken to the bytes refs and to not finalize the bytes.
+		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
 	}
-	s := b.opts.SegmentReaderPool().Get()
-	// NB(r): We explicitly create a new segment to ensure references
-	// are taken to the bytes refs and to not finalize the bytes.
-	s.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
-	blocker.RegisterFinalizer(context.FinalizerFn(s.Close))
-	return s, nil
+
+	if b.mergeTarget != nil {
+		var mergeStream xio.SegmentReader
+		mergeStream, err = b.mergeTarget.Stream(blocker)
+		if err != nil {
+			stream.Finalize()
+			return nil, err
+		}
+		// Return a lazily merged stream
+		// TODO(r): once merged reset this block with the contents of it
+		stream = newDatabaseMergedBlockReader(b.startWithLock(), stream, mergeStream, b.opts)
+	}
+
+	// Register the finalizer for the stream
+	blocker.RegisterFinalizer(stream)
+
+	return stream, nil
 }
 
-// Reset resets the block start time and the encoder.
+func (b *dbBlock) IsRetrieved() bool {
+	b.RLock()
+	retrieved := b.retriever == nil
+	b.RUnlock()
+	return retrieved
+}
+
+func (b *dbBlock) Merge(other DatabaseBlock) {
+	b.Lock()
+	b.resetMergeTargetWithLock()
+	b.mergeTarget = other
+	b.Unlock()
+}
+
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
+	b.Lock()
+	defer b.Unlock()
+	b.resetNewBlockStartWithLock(start)
+	b.resetSegmentWithLock(segment)
+}
+
+func (b *dbBlock) ResetRetrievable(
+	start time.Time,
+	retriever DatabaseShardBlockRetriever,
+	metadata RetrievableBlockMetadata,
+) {
+	b.Lock()
+	defer b.Unlock()
+	b.resetNewBlockStartWithLock(start)
+	b.resetRetrievableWithLock(retriever, metadata)
+}
+
+func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
 	if !b.closed {
 		b.ctx.Close()
 	}
 	b.ctx = b.opts.ContextPool().Get()
-	b.start = start
+	b.startUnixNano = start.UnixNano()
 	b.closed = false
-	b.resetSegment(segment)
+	b.resetMergeTargetWithLock()
+	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
 }
 
-func (b *dbBlock) resetSegment(seg ts.Segment) {
+func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.segment = seg
+	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
+
+	b.retriever = nil
+	b.retrieveID = nil
 
 	b.ctx.RegisterFinalizer(&seg)
 }
 
+func (b *dbBlock) resetRetrievableWithLock(
+	retriever DatabaseShardBlockRetriever,
+	metadata RetrievableBlockMetadata,
+) {
+	b.segment = ts.Segment{}
+	b.length = metadata.Length
+	b.checksum = metadata.Checksum
+
+	b.retriever = retriever
+	b.retrieveID = metadata.ID
+}
+
 func (b *dbBlock) Close() {
+	b.Lock()
+	defer b.Unlock()
+
 	if b.closed {
 		return
 	}
 
 	b.closed = true
 	b.ctx.Close()
+	b.resetMergeTargetWithLock()
 
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
 		pool.Put(b)
 	}
+}
+
+func (b *dbBlock) resetMergeTargetWithLock() {
+	if b.mergeTarget != nil {
+		b.mergeTarget.Close()
+	}
+	b.mergeTarget = nil
 }
 
 type databaseSeriesBlocks struct {

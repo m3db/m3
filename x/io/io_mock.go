@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -92,12 +92,12 @@ func (_m *MockSegmentReader) EXPECT() *_MockSegmentReaderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockSegmentReader) Close() {
-	_m.ctrl.Call(_m, "Close")
+func (_m *MockSegmentReader) Finalize() {
+	_m.ctrl.Call(_m, "Finalize")
 }
 
-func (_mr *_MockSegmentReaderRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+func (_mr *_MockSegmentReaderRecorder) Finalize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Finalize")
 }
 
 func (_m *MockSegmentReader) Read(_param0 []byte) (int, error) {
@@ -119,10 +119,11 @@ func (_mr *_MockSegmentReaderRecorder) Reset(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0)
 }
 
-func (_m *MockSegmentReader) Segment() ts.Segment {
+func (_m *MockSegmentReader) Segment() (ts.Segment, error) {
 	ret := _m.ctrl.Call(_m, "Segment")
 	ret0, _ := ret[0].(ts.Segment)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockSegmentReaderRecorder) Segment() *gomock.Call {

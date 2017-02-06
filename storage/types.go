@@ -469,6 +469,23 @@ type Options interface {
 	// MaxFlushRetries returns the maximum number of retries when data flushing fails
 	MaxFlushRetries() int
 
+	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
+	// use when bootstrapping retrievable blocks instead of blocks
+	// containing data.
+	// If you don't wish to bootstrap retrievable blocks instead of
+	// blocks containing data then do not set this manager.
+	// You can opt into which namespace you wish to have this enabled for
+	// by returning nil instead of a result when creating a new block retriever
+	// for a namespace from the manager.
+	SetDatabaseBlockRetrieverManager(
+		value block.DatabaseBlockRetrieverManager,
+	) Options
+
+	// NewBlockRetrieverFn returns the new block retriever constructor to
+	// use when bootstrapping retrievable blocks instead of blocks
+	// containing data.
+	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
+
 	// SetShardCloseDeadline sets the deadline to close shards, increase from
 	// default to avoid high GC pressure during resharding
 	SetShardCloseDeadline(value time.Duration) Options

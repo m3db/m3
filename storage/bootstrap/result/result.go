@@ -61,12 +61,31 @@ func (r *bootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
 	r.unfulfilled = unfulfilled
 }
 
-func (r *bootstrapResult) AddResult(other BootstrapResult) {
-	if other == nil {
-		return
+// MergedBootstrapResult returns a merged result of two bootstrap results.
+// It is a mutating function that mutates the larger result by adding the
+// smaller result to it and then finally returns the mutated result.
+func MergedBootstrapResult(i, j BootstrapResult) BootstrapResult {
+	if i == nil {
+		return j
 	}
-	r.results.AddResults(other.ShardResults())
-	r.unfulfilled.AddRanges(other.Unfulfilled())
+	if j == nil {
+		return i
+	}
+	sizeI, sizeJ := 0, 0
+	for _, sr := range i.ShardResults() {
+		sizeI += len(sr.AllSeries())
+	}
+	for _, sr := range j.ShardResults() {
+		sizeJ += len(sr.AllSeries())
+	}
+	if sizeI >= sizeJ {
+		i.ShardResults().AddResults(j.ShardResults())
+		i.Unfulfilled().AddRanges(j.Unfulfilled())
+		return i
+	}
+	j.ShardResults().AddResults(i.ShardResults())
+	j.Unfulfilled().AddRanges(i.Unfulfilled())
+	return j
 }
 
 type shardResult struct {
@@ -82,11 +101,6 @@ func NewShardResult(capacity int, opts Options) ShardResult {
 	}
 }
 
-func (sr *shardResult) newBlocksLen() int {
-	ropts := sr.opts.RetentionOptions()
-	return int(ropts.RetentionPeriod() / ropts.BlockSize())
-}
-
 // IsEmpty returns whether the result is empty.
 func (sr *shardResult) IsEmpty() bool {
 	return len(sr.blocks) == 0
@@ -96,10 +110,7 @@ func (sr *shardResult) IsEmpty() bool {
 func (sr *shardResult) AddBlock(id ts.ID, b block.DatabaseBlock) {
 	curSeries, exists := sr.blocks[id.Hash()]
 	if !exists {
-		curSeries = DatabaseSeriesBlocks{
-			ID:     id,
-			Blocks: block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions()),
-		}
+		curSeries = sr.newBlocks(id)
 		sr.blocks[id.Hash()] = curSeries
 	}
 	curSeries.Blocks.AddBlock(b)
@@ -109,13 +120,19 @@ func (sr *shardResult) AddBlock(id ts.ID, b block.DatabaseBlock) {
 func (sr *shardResult) AddSeries(id ts.ID, rawSeries block.DatabaseSeriesBlocks) {
 	curSeries, exists := sr.blocks[id.Hash()]
 	if !exists {
-		curSeries = DatabaseSeriesBlocks{
-			ID:     id,
-			Blocks: block.NewDatabaseSeriesBlocks(sr.newBlocksLen(), sr.opts.DatabaseBlockOptions()),
-		}
+		curSeries = sr.newBlocks(id)
 		sr.blocks[id.Hash()] = curSeries
 	}
 	curSeries.Blocks.AddSeries(rawSeries)
+}
+
+func (sr *shardResult) newBlocks(id ts.ID) DatabaseSeriesBlocks {
+	size := sr.opts.NewBlocksLen()
+	blopts := sr.opts.DatabaseBlockOptions()
+	return DatabaseSeriesBlocks{
+		ID:     id,
+		Blocks: block.NewDatabaseSeriesBlocks(size, blopts),
+	}
 }
 
 // AddResult adds a shard result.
@@ -136,6 +153,9 @@ func (sr *shardResult) RemoveBlockAt(id ts.ID, t time.Time) {
 		return
 	}
 	curSeries.Blocks.RemoveBlockAt(t)
+	if curSeries.Blocks.Len() == 0 {
+		sr.RemoveSeries(id)
+	}
 }
 
 // RemoveSeries removes a single series of blocks.

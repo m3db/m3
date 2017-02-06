@@ -44,9 +44,6 @@ type BootstrapResult interface {
 
 	// SetUnfulfilled sets the current unfulfilled shard time ranges.
 	SetUnfulfilled(unfulfilled ShardTimeRanges)
-
-	// AddResult adds a result.
-	AddResult(other BootstrapResult)
 }
 
 // ShardResult returns the bootstrap result for a shard.
@@ -117,4 +114,10 @@ type Options interface {
 
 	// DatabaseBlockOptions returns the database block options
 	DatabaseBlockOptions() block.Options
+
+	// SetNewBlocksLen sets the size of a new blocks map size
+	SetNewBlocksLen(value int) Options
+
+	// NewBlocksLen returns the size of a new blocks map size
+	NewBlocksLen() int
 }

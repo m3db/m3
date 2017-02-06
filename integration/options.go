@@ -23,6 +23,7 @@ package integration
 import (
 	"time"
 
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 )
@@ -162,6 +163,23 @@ type testOptions interface {
 	// UseTChannelClientForTruncation returns whether we use the tchannel client for truncation.
 	UseTChannelClientForTruncation() bool
 
+	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
+	// use when bootstrapping retrievable blocks instead of blocks
+	// containing data.
+	// If you don't wish to bootstrap retrievable blocks instead of
+	// blocks containing data then do not set this manager.
+	// You can opt into which namespace you wish to have this enabled for
+	// by returning nil instead of a result when creating a new block retriever
+	// for a namespace from the manager.
+	SetDatabaseBlockRetrieverManager(
+		value block.DatabaseBlockRetrieverManager,
+	) testOptions
+
+	// NewBlockRetrieverFn returns the new block retriever constructor to
+	// use when bootstrapping retrievable blocks instead of blocks
+	// containing data.
+	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
+
 	// SetVerifySeriesDebugFilePathPrefix sets the file path prefix for writing a debug file of series comparisons.
 	SetVerifySeriesDebugFilePathPrefix(value string) testOptions
 
@@ -192,6 +210,7 @@ type options struct {
 	useTChannelClientForReading        bool
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
+	blockRetrieverManager              block.DatabaseBlockRetrieverManager
 	verifySeriesDebugFilePathPrefix    string
 	writeConsistencyLevel              topology.ConsistencyLevel
 }
@@ -375,6 +394,18 @@ func (o *options) SetUseTChannelClientForTruncation(value bool) testOptions {
 
 func (o *options) UseTChannelClientForTruncation() bool {
 	return o.useTChannelClientForTruncation
+}
+
+func (o *options) SetDatabaseBlockRetrieverManager(
+	value block.DatabaseBlockRetrieverManager,
+) testOptions {
+	opts := *o
+	opts.blockRetrieverManager = value
+	return &opts
+}
+
+func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
+	return o.blockRetrieverManager
 }
 
 func (o *options) SetVerifySeriesDebugFilePathPrefix(value string) testOptions {

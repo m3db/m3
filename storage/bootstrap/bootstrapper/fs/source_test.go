@@ -31,6 +31,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -116,7 +118,7 @@ func writeTSDBFiles(t *testing.T, dir string, namespace ts.ID, shard uint32, sta
 
 	bytes := checked.NewBytes(data, nil)
 	bytes.IncRef()
-	require.NoError(t, w.Write(ts.StringID(id), bytes))
+	require.NoError(t, w.Write(ts.StringID(id), bytes, digest.Checksum(bytes.Get())))
 	require.NoError(t, w.Close())
 }
 
@@ -358,6 +360,7 @@ func TestReadValidateError(t *testing.T) {
 		filePathPrefix string,
 		readerBufferSize int,
 		b pool.CheckedBytesPool,
+		decodingOpts msgpack.DecodingOptions,
 	) fs.FileSetReader {
 		return reader
 	}
@@ -396,6 +399,7 @@ func TestReadDeleteOnError(t *testing.T) {
 		filePathPrefix string,
 		readerBufferSize int,
 		b pool.CheckedBytesPool,
+		decodingOpts msgpack.DecodingOptions,
 	) fs.FileSetReader {
 		return reader
 	}
@@ -409,8 +413,8 @@ func TestReadDeleteOnError(t *testing.T) {
 		reader.EXPECT().Entries().Return(2),
 		reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}),
 		reader.EXPECT().Entries().Return(2),
-		reader.EXPECT().Read().Return(ts.StringID("foo"), nil, nil),
-		reader.EXPECT().Read().Return(ts.StringID("foo"), nil, errors.New("foo")),
+		reader.EXPECT().Read().Return(ts.StringID("foo"), nil, digest.Checksum(nil), nil),
+		reader.EXPECT().Read().Return(ts.StringID("bar"), nil, uint32(0), errors.New("foo")),
 		reader.EXPECT().Close().Return(nil),
 	)
 

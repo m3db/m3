@@ -21,13 +21,14 @@
 // mockgen rules for generating mocks for exported interfaces (reflection mode)
 //go:generate sh -c "mockgen -package=fs -destination=$GOPATH/src/$PACKAGE/persist/fs/fs_mock.go $PACKAGE/persist/fs FileSetWriter,FileSetReader"
 //go:generate sh -c "mockgen -package=xio -destination=$GOPATH/src/$PACKAGE/x/io/io_mock.go $PACKAGE/x/io ReaderSliceReader,SegmentReader"
+//go:generate sh -c "mockgen -package=series -destination=$GOPATH/src/$PACKAGE/storage/series/series_mock.go $PACKAGE/storage/series DatabaseSeries"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)
 //go:generate sh -c "mockgen -package=encoding -destination=$GOPATH/src/$PACKAGE/encoding/encoding_mock.go -source=$GOPATH/src/$PACKAGE/encoding/types.go"
 //go:generate sh -c "mockgen -package=bootstrap -destination=$GOPATH/src/$PACKAGE/storage/bootstrap/bootstrap_mock.go -source=$GOPATH/src/$PACKAGE/storage/bootstrap/types.go"
 //go:generate sh -c "mockgen -package=persist -destination=$GOPATH/src/$PACKAGE/persist/persist_mock.go -source=$GOPATH/src/$PACKAGE/persist/types.go"
 //go:generate sh -c "mockgen -package=storage -destination=$GOPATH/src/$PACKAGE/storage/storage_mock.go -source=$GOPATH/src/$PACKAGE/storage/types.go"
-//go:generate sh -c "mockgen -package=series -destination=$GOPATH/src/$PACKAGE/storage/series/series_mock.go -source=$GOPATH/src/$PACKAGE/storage/series/types.go"
+//go:generate sh -c "mockgen -package=series -destination=$GOPATH/src/$PACKAGE/storage/series/buffer_mock.go -source=$GOPATH/src/$PACKAGE/storage/series/buffer.go"
 //go:generate sh -c "mockgen -package=block -destination=$GOPATH/src/$PACKAGE/storage/block/block_mock.go -source=$GOPATH/src/$PACKAGE/storage/block/types.go"
 //go:generate sh -c "mockgen -package=rpc -destination=$GOPATH/src/$PACKAGE/generated/thrift/rpc/rpc_mock.go -source=$GOPATH/src/$PACKAGE/generated/thrift/rpc/tchan-rpc.go"
 //go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/client_mock.go -source=$GOPATH/src/$PACKAGE/client/types.go"

@@ -192,7 +192,7 @@ func (s *commitLogSource) Read(
 					for i := range unmergedBlock {
 						stream := unmergedBlock[i].enc.Stream()
 						readers[i] = stream
-						defer stream.Close()
+						defer stream.Finalize()
 					}
 
 					iter := multiReaderIteratorPool.Get()

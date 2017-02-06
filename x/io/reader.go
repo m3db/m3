@@ -147,8 +147,8 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-func (sr *segmentReader) Segment() ts.Segment {
-	return sr.segment
+func (sr *segmentReader) Segment() (ts.Segment, error) {
+	return sr.segment, nil
 }
 
 func (sr *segmentReader) Reset(segment ts.Segment) {
@@ -156,7 +156,7 @@ func (sr *segmentReader) Reset(segment ts.Segment) {
 	sr.si = 0
 }
 
-func (sr *segmentReader) Close() {
+func (sr *segmentReader) Finalize() {
 	// Finalize the segment
 	sr.segment.Finalize()
 

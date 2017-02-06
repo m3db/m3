@@ -169,6 +169,8 @@ func TestSegmentReader(t *testing.T) {
 	require.Equal(t, io.EOF, err)
 	require.Equal(t, 0, n)
 
-	require.Equal(t, head, r.Segment().Head.Get())
-	require.Equal(t, tail, r.Segment().Tail.Get())
+	seg, err := r.Segment()
+	require.NoError(t, err)
+	require.Equal(t, head, seg.Head.Get())
+	require.Equal(t, tail, seg.Tail.Get())
 }

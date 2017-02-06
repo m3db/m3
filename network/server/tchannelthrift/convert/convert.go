@@ -96,31 +96,46 @@ func ToTimeType(unit xtime.Unit) (rpc.TimeType, error) {
 }
 
 // ToSegments converts a list of segment readers to segments.
-func ToSegments(readers []xio.SegmentReader) *rpc.Segments {
+func ToSegments(readers []xio.SegmentReader) (*rpc.Segments, error) {
 	if len(readers) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	s := &rpc.Segments{}
 
 	if len(readers) == 1 {
-		seg := readers[0].Segment()
+		seg, err := readers[0].Segment()
+		if err != nil {
+			return nil, err
+		}
+		if seg.Len() == 0 {
+			return nil, nil
+		}
 		s.Merged = &rpc.Segment{
 			Head: bytesRef(seg.Head),
 			Tail: bytesRef(seg.Tail),
 		}
-		return s
+		return s, nil
 	}
 
 	for _, reader := range readers {
-		seg := reader.Segment()
+		seg, err := reader.Segment()
+		if err != nil {
+			return nil, err
+		}
+		if seg.Len() == 0 {
+			continue
+		}
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
 			Head: bytesRef(seg.Head),
 			Tail: bytesRef(seg.Tail),
 		})
 	}
+	if len(s.Unmerged) == 0 {
+		return nil, nil
+	}
 
-	return s
+	return s, nil
 }
 
 func bytesRef(data checked.Bytes) []byte {

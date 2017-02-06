@@ -74,7 +74,11 @@ func NewPersistManager(opts Options) persist.Manager {
 	}
 }
 
-func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
+func (pm *persistManager) persist(
+	id ts.ID,
+	segment ts.Segment,
+	checksum uint32,
+) error {
 	rateLimitMbps := pm.rateLimitOpts.LimitMbps()
 	if pm.rateLimitOpts.LimitEnabled() && rateLimitMbps > 0.0 {
 		now := pm.nowFn()
@@ -92,7 +96,7 @@ func (pm *persistManager) persist(id ts.ID, segment ts.Segment) error {
 
 	pm.segmentHolder[0] = segment.Head
 	pm.segmentHolder[1] = segment.Tail
-	err := pm.writer.WriteAll(id, pm.segmentHolder)
+	err := pm.writer.WriteAll(id, pm.segmentHolder, checksum)
 	pm.bytesWritten += int64(segment.Len())
 
 	return err

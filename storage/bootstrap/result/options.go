@@ -27,11 +27,16 @@ import (
 	"github.com/m3db/m3x/instrument"
 )
 
+const (
+	defaultNewBlocksLen = 2
+)
+
 type options struct {
 	clockOpts      clock.Options
 	instrumentOpts instrument.Options
 	retentionOpts  retention.Options
 	blockOpts      block.Options
+	newBlocksLen   int
 }
 
 // NewOptions creates new bootstrap options
@@ -41,6 +46,7 @@ func NewOptions() Options {
 		instrumentOpts: instrument.NewOptions(),
 		retentionOpts:  retention.NewOptions(),
 		blockOpts:      block.NewOptions(),
+		newBlocksLen:   defaultNewBlocksLen,
 	}
 }
 
@@ -82,4 +88,14 @@ func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 
 func (o *options) DatabaseBlockOptions() block.Options {
 	return o.blockOpts
+}
+
+func (o *options) SetNewBlocksLen(value int) Options {
+	opts := *o
+	opts.newBlocksLen = value
+	return &opts
+}
+
+func (o *options) NewBlocksLen() int {
+	return o.newBlocksLen
 }

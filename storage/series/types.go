@@ -85,13 +85,28 @@ type DatabaseSeries interface {
 	Close()
 
 	// Reset resets the series for reuse
-	Reset(id ts.ID)
+	Reset(
+		id ts.ID,
+		bootstrapped bool,
+		blockRetriever QueryableBlockRetriever,
+	)
+}
+
+// QueryableBlockRetriever is a block retriever that can tell if a block
+// is retrievable or not for a given start time.
+type QueryableBlockRetriever interface {
+	block.DatabaseShardBlockRetriever
+
+	// IsBlockRetrievable returns whether a block is retrievable
+	// for a given block start time
+	IsBlockRetrievable(blockStart time.Time) bool
 }
 
 // TickResult is a set of results from a tick
 type TickResult struct {
-	ActiveBlocks  int
-	ExpiredBlocks int
+	ActiveBlocks           int
+	ExpiredBlocks          int
+	ResetRetrievableBlocks int
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool
@@ -104,42 +119,6 @@ type DatabaseSeriesPool interface {
 
 	// Put returns a database series to the pool
 	Put(block DatabaseSeries)
-}
-
-type databaseBuffer interface {
-	Write(
-		ctx context.Context,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	) error
-
-	ReadEncoded(
-		ctx context.Context,
-		start, end time.Time,
-	) [][]xio.SegmentReader
-
-	FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult
-
-	FetchBlocksMetadata(
-		ctx context.Context,
-		start, end time.Time,
-		includeSizes bool,
-		includeChecksums bool,
-	) block.FetchBlockMetadataResults
-
-	IsEmpty() bool
-
-	MinMax() (time.Time, time.Time)
-
-	NeedsDrain() bool
-
-	DrainAndReset()
-
-	Bootstrap(bl block.DatabaseBlock) error
-
-	Reset()
 }
 
 // Options represents the options for series

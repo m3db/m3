@@ -23,6 +23,7 @@ package xio
 import (
 	"io"
 
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/ts"
 )
 
@@ -36,15 +37,13 @@ type ReaderSliceReader interface {
 // SegmentReader implements the io reader interface backed by a segment
 type SegmentReader interface {
 	io.Reader
+	context.Finalizer
 
 	// Segment gets the segment read by this reader
-	Segment() ts.Segment
+	Segment() (ts.Segment, error)
 
 	// Reset resets the reader to read a new segment
 	Reset(segment ts.Segment)
-
-	// Close closes the reader, there must be no refs left to the reader
-	Close()
 }
 
 // SegmentReaderPool provides a pool for segment readers

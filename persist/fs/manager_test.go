@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
@@ -110,19 +111,20 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(nil)
 
 	var (
-		id      = ts.StringID("foo")
-		head    = checked.NewBytes([]byte{0x1, 0x2}, nil)
-		tail    = checked.NewBytes([]byte{0x3, 0x4}, nil)
-		segment = ts.NewSegment(head, tail, ts.FinalizeNone)
+		id       = ts.StringID("foo")
+		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
+		tail     = checked.NewBytes([]byte{0x3, 0x4}, nil)
+		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
+		checksum = digest.SegmentChecksum(segment)
 	)
-	writer.EXPECT().WriteAll(id, gomock.Any()).Return(nil)
+	writer.EXPECT().WriteAll(id, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
 	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart)
 	require.Nil(t, err)
 
 	defer prepared.Close()
-	require.Nil(t, prepared.Persist(id, segment))
+	require.Nil(t, prepared.Persist(id, segment, checksum))
 }
 
 func TestPersistenceManagerClose(t *testing.T) {
@@ -153,28 +155,29 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	var (
-		now     time.Time
-		slept   time.Duration
-		id      = ts.StringID("foo")
-		head    = checked.NewBytes([]byte{0x1, 0x2}, nil)
-		tail    = checked.NewBytes([]byte{0x3}, nil)
-		segment = ts.NewSegment(head, tail, ts.FinalizeNone)
+		now      time.Time
+		slept    time.Duration
+		id       = ts.StringID("foo")
+		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
+		tail     = checked.NewBytes([]byte{0x3}, nil)
+		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
+		checksum = digest.SegmentChecksum(segment)
 	)
 
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
-	writer.EXPECT().WriteAll(id, pm.segmentHolder).Return(nil).Times(2)
+	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).Times(2)
 
 	// Disable rate limiting
 	pm.rateLimitOpts = pm.rateLimitOpts.SetLimitEnabled(false)
 
 	// Start persistence
 	now = time.Now()
-	require.NoError(t, pm.persist(id, segment))
+	require.NoError(t, pm.persist(id, segment, checksum))
 
 	// Advance time and write again
 	now = now.Add(time.Millisecond)
-	require.NoError(t, pm.persist(id, segment))
+	require.NoError(t, pm.persist(id, segment, checksum))
 
 	// Check there is no rate limiting
 	require.Equal(t, time.Duration(0), slept)
@@ -189,18 +192,19 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	var (
-		now     time.Time
-		slept   time.Duration
-		iter    = 2
-		id      = ts.StringID("foo")
-		head    = checked.NewBytes([]byte{0x1, 0x2}, nil)
-		tail    = checked.NewBytes([]byte{0x3}, nil)
-		segment = ts.NewSegment(head, tail, ts.FinalizeNone)
+		now      time.Time
+		slept    time.Duration
+		iter     = 2
+		id       = ts.StringID("foo")
+		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
+		tail     = checked.NewBytes([]byte{0x3}, nil)
+		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
+		checksum = digest.SegmentChecksum(segment)
 	)
 
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
-	writer.EXPECT().WriteAll(id, pm.segmentHolder).Return(nil).AnyTimes()
+	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
 	// Enable rate limiting
@@ -212,21 +216,21 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	for i := 0; i < iter; i++ {
 		// Start persistence
 		now = time.Now()
-		require.NoError(t, pm.persist(id, segment))
+		require.NoError(t, pm.persist(id, segment, checksum))
 
 		// Advance time and check we don't rate limit if it's not check interval yet
 		now = now.Add(time.Nanosecond)
-		require.NoError(t, pm.persist(id, segment))
+		require.NoError(t, pm.persist(id, segment, checksum))
 		require.Equal(t, time.Duration(0), slept)
 
 		// Advance time and check we rate limit if the disk throughput exceeds the limit
 		now = now.Add(time.Microsecond - time.Nanosecond)
-		require.NoError(t, pm.persist(id, segment))
+		require.NoError(t, pm.persist(id, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		// Advance time and check we don't rate limit if the disk throughput is below the limit
 		now = now.Add(time.Second - time.Microsecond)
-		require.NoError(t, pm.persist(id, segment))
+		require.NoError(t, pm.persist(id, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		require.Equal(t, int64(12), pm.bytesWritten)

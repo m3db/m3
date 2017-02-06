@@ -92,7 +92,7 @@ func (b *bootstrapProcess) Run(
 		}
 
 		b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed successfully")
-		bootstrapResult.AddResult(res)
+		bootstrapResult = result.MergedBootstrapResult(bootstrapResult, res)
 	}
 
 	return bootstrapResult, nil

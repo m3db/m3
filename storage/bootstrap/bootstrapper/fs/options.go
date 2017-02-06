@@ -25,6 +25,7 @@ import (
 	"runtime"
 
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
@@ -33,9 +34,10 @@ var (
 )
 
 type options struct {
-	resultOpts    result.Options
-	fsOpts        fs.Options
-	numProcessors int
+	resultOpts            result.Options
+	fsOpts                fs.Options
+	numProcessors         int
+	blockRetrieverManager block.DatabaseBlockRetrieverManager
 }
 
 // NewOptions creates new bootstrap options
@@ -75,4 +77,16 @@ func (o *options) SetNumProcessors(value int) Options {
 
 func (o *options) NumProcessors() int {
 	return o.numProcessors
+}
+
+func (o *options) SetDatabaseBlockRetrieverManager(
+	value block.DatabaseBlockRetrieverManager,
+) Options {
+	opts := *o
+	opts.blockRetrieverManager = value
+	return &opts
+}
+
+func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
+	return o.blockRetrieverManager
 }
