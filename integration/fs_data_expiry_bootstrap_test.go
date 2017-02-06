@@ -73,7 +73,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 
 	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 
-	setup = newBootstrappableTestSetup(t, opts, retentionOpts, func() bootstrap.Bootstrap {
+	setup = newMultipleTestSetup(t, opts, retentionOpts, func() bootstrap.Bootstrap {
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix := fsOpts.FilePathPrefix()
 		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
