@@ -228,16 +228,15 @@ func (s *seeker) readIndex(size int) error {
 	}
 
 	s.decoder.Reset(s.unreadBuf[:n][:])
-	s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
+	if s.indexMap == nil {
+		s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
+	}
 	// Read all entries of index
 	for read := 0; read < s.entries; read++ {
 		entry, err := s.decoder.DecodeIndexEntry()
 		if err != nil {
 			return err
 		}
-		// NB(xichen): entry.ID remains valid until next time s.unreadBuf
-		// is modified because we do not allocate new space for decoding
-		// byte slices
 		s.indexMap[ts.HashFn(entry.ID)] = indexMapEntry{
 			size:   entry.Size,
 			offset: entry.Offset,
