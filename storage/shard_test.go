@@ -53,7 +53,8 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 }
 
 func testDatabaseShard(opts Options) *dbShard {
-	return newDatabaseShard(ts.StringID("namespace"), 0, &testIncreasingIndex{}, commitLogWriteNoOp, true, opts).(*dbShard)
+	return newDatabaseShard(ts.StringID("namespace"), 0, nil,
+		&testIncreasingIndex{}, commitLogWriteNoOp, true, opts).(*dbShard)
 }
 
 func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID, index uint64) *series.MockDatabaseSeries {
@@ -64,7 +65,8 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID, index uint
 
 func TestShardDontNeedBootstrap(t *testing.T) {
 	opts := testDatabaseOptions()
-	shard := newDatabaseShard(ts.StringID("namespace"), 0, &testIncreasingIndex{}, commitLogWriteNoOp, false, opts).(*dbShard)
+	shard := newDatabaseShard(ts.StringID("namespace"), 0, nil,
+		&testIncreasingIndex{}, commitLogWriteNoOp, false, opts).(*dbShard)
 	require.Equal(t, bootstrapped, shard.bs)
 	require.True(t, shard.newSeriesBootstrapped)
 }
@@ -139,15 +141,18 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	s.bs = bootstrapped
 	blockStart := time.Unix(21600, 0)
 	pm := persist.NewMockManager(ctrl)
-	prepared := persist.PreparedPersist{}
+	prepared := persist.PreparedPersist{Persist: nil}
 	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, nil)
 
 	err := s.Flush(testNamespaceID, blockStart, pm)
 	require.Nil(t, err)
 
 	flushState := s.FlushState(blockStart)
+
+	// Status should be success as returning nil for prepared.Persist
+	// signals that there is already a file set written for the block start
 	require.Equal(t, fileOpState{
-		Status:      fileOpNotStarted,
+		Status:      fileOpSuccess,
 		NumFailures: 0,
 	}, flushState)
 }
@@ -191,7 +196,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	var closed bool
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{
-		Persist: func(ts.ID, ts.Segment) error { return nil },
+		Persist: func(ts.ID, ts.Segment, uint32) error { return nil },
 		Close:   func() { closed = true },
 	}
 	expectedErr := errors.New("error foo")
@@ -249,7 +254,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	var closed bool
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{
-		Persist: func(ts.ID, ts.Segment) error { return nil },
+		Persist: func(ts.ID, ts.Segment, uint32) error { return nil },
 		Close:   func() { closed = true },
 	}
 

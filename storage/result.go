@@ -21,19 +21,21 @@
 package storage
 
 type tickResult struct {
-	activeSeries  int
-	expiredSeries int
-	activeBlocks  int
-	expiredBlocks int
-	errors        int
+	activeSeries           int
+	expiredSeries          int
+	activeBlocks           int
+	resetRetrievableBlocks int
+	expiredBlocks          int
+	errors                 int
 }
 
 func (r tickResult) merge(other tickResult) tickResult {
 	return tickResult{
-		activeSeries:  r.activeSeries + other.activeSeries,
-		expiredSeries: r.expiredSeries + other.expiredSeries,
-		activeBlocks:  r.activeBlocks + other.activeBlocks,
-		expiredBlocks: r.expiredBlocks + other.expiredBlocks,
-		errors:        r.errors + other.errors,
+		activeSeries:           r.activeSeries + other.activeSeries,
+		expiredSeries:          r.expiredSeries + other.expiredSeries,
+		activeBlocks:           r.activeBlocks + other.activeBlocks,
+		resetRetrievableBlocks: r.resetRetrievableBlocks + other.resetRetrievableBlocks,
+		expiredBlocks:          r.expiredBlocks + other.expiredBlocks,
+		errors:                 r.errors + other.errors,
 	}
 }

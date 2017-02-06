@@ -78,10 +78,12 @@ const (
 
 type dbShard struct {
 	sync.RWMutex
+	block.DatabaseBlockRetriever
 	opts                  Options
 	nowFn                 clock.NowFn
 	state                 dbShardState
 	namespace             ts.ID
+	seriesBlockRetriever  series.QueryableBlockRetriever
 	shard                 uint32
 	increasingIndex       increasingIndex
 	seriesPool            series.DatabaseSeriesPool
@@ -151,6 +153,7 @@ func newShardFlushState() shardFlushState {
 func newDatabaseShard(
 	namespace ts.ID,
 	shard uint32,
+	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
 	needsBootstrap bool,
@@ -158,6 +161,7 @@ func newDatabaseShard(
 ) databaseShard {
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("dbshard")
+
 	d := &dbShard{
 		opts:                  opts,
 		nowFn:                 opts.ClockOptions().NowFn(),
@@ -181,6 +185,12 @@ func newDatabaseShard(
 		d.bs = bootstrapped
 		d.newSeriesBootstrapped = true
 	}
+	if blockRetriever != nil {
+		// If passing the block retriever then set the block retriever
+		// and set the series block retriever as the shard itself
+		d.DatabaseBlockRetriever = blockRetriever
+		d.seriesBlockRetriever = d
+	}
 	d.metrics.create.Inc(1)
 	return d
 }
@@ -194,6 +204,29 @@ func (s *dbShard) NumSeries() int64 {
 	n := s.list.Len()
 	s.RUnlock()
 	return int64(n)
+}
+
+// Stream implements series.SeriesBlockRetriever
+func (s *dbShard) Stream(
+	id ts.ID,
+	start time.Time,
+	onRetrieve block.OnRetrieveBlock,
+) (xio.SegmentReader, error) {
+	return s.DatabaseBlockRetriever.Stream(s.shard, id, start, onRetrieve)
+}
+
+// IsBlockRetrievable implements series.SeriesBlockRetriever
+func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
+	flushState := s.FlushState(blockStart)
+	switch flushState.Status {
+	case fileOpNotStarted, fileOpInProgress, fileOpFailed:
+		return false
+	case fileOpSuccess:
+		return true
+	}
+	panic(fmt.Errorf("shard queried is retrievable with bad flush state %d",
+		flushState.Status))
+	return false
 }
 
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
@@ -335,6 +368,7 @@ func (s *dbShard) tickAndExpire(
 			}
 		}
 		r.activeBlocks += result.ActiveBlocks
+		r.resetRetrievableBlocks += result.ResetRetrievableBlocks
 		r.expiredBlocks += result.ExpiredBlocks
 		i++
 		// Continue
@@ -458,7 +492,7 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	// Retrieve the entry out of any locks to avoid any possible expensive
 	// allocations during any unpooled gets blocking other writers
 	series := s.seriesPool.Get()
-	series.Reset(s.identifierPool.Clone(id))
+	seriesID := s.identifierPool.Clone(id)
 
 	entry := &dbShardEntry{
 		series:     series,
@@ -478,12 +512,12 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 		return nil, err
 	}
 
+	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
+
 	// Must set the index inside the write lock to ensure ID indexes are ascending in order
 	entry.index = s.increasingIndex.nextIndex()
-	if s.newSeriesBootstrapped {
-		// Transitioned to new series being bootstrapped
-		entry.series.Bootstrap(nil)
-	}
+	entry.incrementWriterCount()
+
 	elem := s.list.PushBack(entry)
 
 	s.lookup[id.Hash()] = elem
@@ -545,7 +579,9 @@ func (s *dbShard) FetchBlocksMetadata(
 		// If the blocksMetadata is empty, the series have no data within the specified
 		// time range so we don't return it to the client
 		if len(blocksMetadata.Blocks.Results()) == 0 {
-			blocksMetadata.ID.Finalize()
+			if blocksMetadata.ID != nil {
+				blocksMetadata.ID.Finalize()
+			}
 			blocksMetadata.Blocks.Close()
 			return true
 		}
@@ -581,6 +617,7 @@ func (s *dbShard) Bootstrap(
 			multiErr = multiErr.Add(err)
 			continue
 		}
+
 		err = entry.series.Bootstrap(dbBlocks.Blocks)
 		entry.decrementWriterCount()
 		multiErr = multiErr.Add(err)
@@ -636,6 +673,9 @@ func (s *dbShard) Flush(
 			s.markFlushStateFail(blockStart)
 			return err
 		}
+		// NB(r): Need to mark this state as success so IsBlockRetrievable can
+		// return true when querying if a block is retrievable for this time
+		s.markFlushStateSuccess(blockStart)
 		return nil
 	}
 	defer prepared.Close()

@@ -129,23 +129,35 @@ func (w *writer) writeData(data []byte) error {
 	return nil
 }
 
-func (w *writer) Write(id ts.ID, data checked.Bytes) error {
-	return w.WriteAll(id, []checked.Bytes{data})
+func (w *writer) Write(
+	id ts.ID,
+	data checked.Bytes,
+	checksum uint32,
+) error {
+	return w.WriteAll(id, []checked.Bytes{data}, checksum)
 }
 
-func (w *writer) WriteAll(id ts.ID, data []checked.Bytes) error {
+func (w *writer) WriteAll(
+	id ts.ID,
+	data []checked.Bytes,
+	checksum uint32,
+) error {
 	if w.err != nil {
 		return w.err
 	}
 
-	if err := w.writeAll(id, data); err != nil {
+	if err := w.writeAll(id, data, checksum); err != nil {
 		w.err = err
 		return err
 	}
 	return nil
 }
 
-func (w *writer) writeAll(id ts.ID, data []checked.Bytes) error {
+func (w *writer) writeAll(
+	id ts.ID,
+	data []checked.Bytes,
+	checksum uint32,
+) error {
 	var size int64
 	for _, d := range data {
 		if d == nil {
@@ -163,6 +175,7 @@ func (w *writer) writeAll(id ts.ID, data []checked.Bytes) error {
 	entry.Size = size
 	entry.Id = id.Data().Get()
 	entry.Offset = w.currOffset
+	entry.Checksum = int64(checksum)
 
 	w.indexBuffer.Reset()
 	if err := w.indexBuffer.Marshal(entry); err != nil {
