@@ -28,12 +28,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +56,7 @@ func newTestReader(filePathPrefix string) FileSetReader {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
-	return NewReader(filePathPrefix, testReaderBufferSize, bytesPool)
+	return NewReader(filePathPrefix, testReaderBufferSize, bytesPool, nil)
 }
 
 func bytesRefd(data []byte) checked.Bytes {
@@ -84,7 +84,6 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 
 	_, _, _, err = r.Read()
 	assert.Error(t, err)
-	assert.Equal(t, errReadIndexEntryZeroSize, err)
 
 	assert.NoError(t, r.Close())
 }
@@ -112,7 +111,7 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 	assert.NoError(t, err)
 
 	reader := r.(*reader)
-	reader.indexUnread = nil
+	reader.decoder.Reset(nil)
 
 	_, _, _, err = r.Read()
 	assert.Error(t, err)
@@ -252,13 +251,12 @@ func TestReadWrongIdx(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Replace the expected idx with 123
-	entry := &schema.IndexEntry{Index: 123}
-	b, err := proto.Marshal(entry)
-	assert.NoError(t, err)
-	b = append(proto.EncodeVarint(uint64(len(b))), b...)
+	enc := msgpack.NewEncoder()
+	entry := schema.IndexEntry{Index: 123}
+	require.NoError(t, enc.EncodeIndexEntry(entry))
 	reader := r.(*reader)
-	reader.indexUnread = b
-	_, _, _, err = r.Read()
+	reader.decoder.Reset(enc.Bytes())
+	_, _, err = r.Read()
 	assert.Error(t, err)
 
 	typedErr, ok := err.(ErrReadWrongIdx)
@@ -290,7 +288,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	require.True(t, FileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
-	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
+	r := NewReader(filePathPrefix, testReaderBufferSize, nil, nil)
 	err = r.Open(testNamespaceID, shard, testWriterStart)
 	require.Equal(t, errCheckpointFileNotFound, err)
 }
@@ -321,7 +319,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		fd.Close()
 	}
 
-	r := NewReader(filePathPrefix, testReaderBufferSize, nil)
+	r := NewReader(filePathPrefix, testReaderBufferSize, nil, nil)
 	require.Error(t, r.Open(testNamespaceID, shard, time.Unix(1000, 0)))
 }
 
@@ -353,10 +351,11 @@ func TestReadOpenInfoDigestMismatch(t *testing.T) {
 
 func TestReadOpenIndexDigestMismatch(t *testing.T) {
 	// Write the correct info digest
-	b, err := proto.Marshal(&schema.IndexInfo{})
-	require.NoError(t, err)
+	enc := msgpack.NewEncoder()
+	require.NoError(t, enc.EncodeIndexInfo(schema.IndexInfo{}))
+	b := enc.Bytes()
 	di := digest.NewDigest()
-	_, err = di.Write(b)
+	_, err := di.Write(b)
 	require.NoError(t, err)
 
 	// Write the wrong index digest

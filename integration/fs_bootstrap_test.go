@@ -46,7 +46,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(2 * time.Hour)
-	setup = newBootstrappableTestSetup(t, opts, retentionOpts, func() bootstrap.Bootstrap {
+	setup = newMultipleTestSetup(t, opts, retentionOpts, func() bootstrap.Bootstrap {
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix := fsOpts.FilePathPrefix()
 		noOpAll := bootstrapper.NewNoOpAllBootstrapper()

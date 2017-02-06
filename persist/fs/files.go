@@ -31,12 +31,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/generated/proto/schema"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/errors"
-
-	"github.com/golang/protobuf/proto"
 )
 
 var timeZero time.Time
@@ -204,10 +203,18 @@ func forEachInfoFile(filePathPrefix string, namespace ts.ID, shard uint32, reade
 }
 
 // ReadInfoFiles reads all the valid info entries.
-func ReadInfoFiles(filePathPrefix string, namespace ts.ID, shard uint32, readerBufferSize int) []*schema.IndexInfo {
-	var indexEntries []*schema.IndexInfo
+func ReadInfoFiles(
+	filePathPrefix string,
+	namespace ts.ID,
+	shard uint32,
+	readerBufferSize int,
+	decodingOpts msgpack.DecodingOptions,
+) []schema.IndexInfo {
+	var indexEntries []schema.IndexInfo
+	decoder := msgpack.NewDecoder(decodingOpts)
 	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
-		info, err := readInfo(data)
+		decoder.Reset(data)
+		info, err := decoder.DecodeIndexInfo()
 		if err != nil {
 			return
 		}
@@ -294,15 +301,6 @@ func filesBefore(files []string, t time.Time) ([]string, error) {
 		j++
 	}
 	return files[:j], multiErr.FinalError()
-}
-
-// readInfo reads the data stored in the info file and returns an index entry.
-func readInfo(data []byte) (*schema.IndexInfo, error) {
-	info := &schema.IndexInfo{}
-	if err := proto.Unmarshal(data, info); err != nil {
-		return nil, err
-	}
-	return info, nil
 }
 
 func readAndValidate(

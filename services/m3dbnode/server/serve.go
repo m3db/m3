@@ -39,18 +39,25 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-const defaultNamespaceName = "default"
+const (
+	defaultNamespaceName = "default"
+	defaultShardsLen     = 1024
+)
 
-// DefaultShardSet creates a default shard set
-func DefaultShardSet() (sharding.ShardSet, error) {
-	shardsLen := uint32(1024)
+// NewShardSet creates a new shard set with specified number of shards
+func NewShardSet(shardsLen uint32) (sharding.ShardSet, error) {
 	var ids []uint32
 	for i := uint32(0); i < shardsLen; i++ {
 		ids = append(ids, i)
 	}
 
 	shards := sharding.NewShards(ids, shard.Available)
-	return sharding.NewShardSet(shards, sharding.DefaultHashGen(1024))
+	return sharding.NewShardSet(shards, sharding.DefaultHashGen(int(shardsLen)))
+}
+
+// DefaultShardSet creates a default shard set
+func DefaultShardSet() (sharding.ShardSet, error) {
+	return NewShardSet(uint32(defaultShardsLen))
 }
 
 // DefaultTopologyInitializer creates a default topology initializer

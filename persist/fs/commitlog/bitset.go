@@ -20,11 +20,11 @@
 
 package commitlog
 
-import (
-	bset "github.com/willf/bitset"
-)
+import bset "github.com/willf/bitset"
 
-const newBitsetLength = 65536
+const (
+	defaultBitsetLength = 65536
+)
 
 // bitset is a shim for providing a bitset
 type bitset interface {
@@ -39,7 +39,7 @@ type set struct {
 }
 
 func newBitset() bitset {
-	return &set{bset.New(newBitsetLength)}
+	return &set{bset.New(defaultBitsetLength)}
 }
 
 func (s *set) has(i uint64) bool {

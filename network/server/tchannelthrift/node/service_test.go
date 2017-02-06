@@ -525,7 +525,7 @@ func TestServiceRepair(t *testing.T) {
 	ctx := tchannelthrift.Context(tctx)
 	defer ctx.Close()
 
-	mockDB.EXPECT().Repair().Return(nil)
+	mockDB.EXPECT().Repair(gomock.Any()).Return(nil)
 
 	err := service.Repair(tctx)
 	require.NoError(t, err)

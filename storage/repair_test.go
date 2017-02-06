@@ -22,7 +22,8 @@ package storage
 
 import (
 	"errors"
-	"sync"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -43,156 +44,39 @@ func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 	return repair.NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
 		SetRepairInterval(time.Second).
-		SetRepairTimeOffset(500 * time.Millisecond).
-		SetRepairTimeJitter(300 * time.Millisecond).
-		SetRepairCheckInterval(100 * time.Millisecond)
+		SetRepairTimeJitter(300 * time.Millisecond)
 }
 
-func TestDatabaseRepairerStartStop(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockDatabase := newMockDatabase()
-	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
-
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
-	require.NoError(t, err)
-	repairer := databaseRepairer.(*dbRepairer)
-
-	var (
-		repaired bool
-		lock     sync.RWMutex
-	)
-
-	repairer.repairFn = func() error {
-		lock.Lock()
-		repaired = true
-		lock.Unlock()
-		return nil
-	}
-
-	repairer.Start()
-
-	for {
-		// Wait for repair to be called
-		lock.RLock()
-		done := repaired
-		lock.RUnlock()
-		if done {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-
-	repairer.Stop()
-	for {
-		// Wait for the repairer to stop
-		repairer.Lock()
-		closed := repairer.closed
-		repairer.Unlock()
-		if closed {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-}
-
-func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
+func TestDatabaseRepairerShouldRunOffsetChecker(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		repairInterval   = 2 * time.Hour
-		repairTimeOffset = time.Hour
-		now              = time.Now().Truncate(repairInterval).Add(30 * time.Minute)
-		repaired         = false
-		numIter          = 0
+		repairInterval = 2 * time.Hour
+		now            = time.Now().Truncate(repairInterval).Add(30 * time.Minute)
 	)
 
-	nowFn := func() time.Time { return now }
 	mockDatabase := newMockDatabase()
-	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
 	repairOpts := testRepairOptions(ctrl).
-		SetRepairInterval(repairInterval).
-		SetRepairTimeOffset(repairTimeOffset)
+		SetRepairInterval(repairInterval)
 	mockDatabase.opts = mockDatabase.opts.
-		SetClockOptions(clockOpts.SetNowFn(nowFn)).
 		SetRepairOptions(repairOpts)
 
 	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
-	repairer.repairFn = func() error {
-		repaired = true
+	repairer.repairFn = func(_ time.Time) error {
 		return nil
 	}
 
-	repairer.sleepFn = func(_ time.Duration) {
-		if numIter == 0 {
-			repairer.closed = true
-		}
-		numIter++
-	}
+	require.True(t, repairer.ShouldRun(now))
+	repairer.Run(now, runTypeSync)
+	now = now.Add(time.Hour)
+	require.False(t, repairer.ShouldRun(now))
+	now = now.Add(2 * time.Hour)
+	require.True(t, repairer.ShouldRun(now))
 
-	repairer.run()
-	require.Equal(t, 1, numIter)
-	require.False(t, repaired)
-}
-
-func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		repairInterval   = 2 * time.Hour
-		repairTimeOffset = time.Hour
-		now              = time.Now().Truncate(repairInterval).Add(90 * time.Minute)
-		numRepairs       = 0
-		numIter          = 0
-	)
-
-	nowFn := func() time.Time {
-		switch numIter {
-		case 0:
-			return now
-		case 1:
-			return now.Add(time.Minute)
-		case 2:
-			return now.Add(time.Hour)
-		default:
-			return now.Add(2 * time.Hour)
-		}
-	}
-
-	mockDatabase := newMockDatabase()
-	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
-	repairOpts := testRepairOptions(ctrl).
-		SetRepairInterval(repairInterval).
-		SetRepairTimeOffset(repairTimeOffset)
-	mockDatabase.opts = mockDatabase.opts.
-		SetClockOptions(clockOpts.SetNowFn(nowFn)).
-		SetRepairOptions(repairOpts)
-
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
-	require.NoError(t, err)
-	repairer := databaseRepairer.(*dbRepairer)
-
-	repairer.repairFn = func() error {
-		numRepairs++
-		return nil
-	}
-
-	repairer.sleepFn = func(_ time.Duration) {
-		if numIter == 3 {
-			repairer.closed = true
-		}
-		numIter++
-	}
-
-	repairer.run()
-	require.Equal(t, 4, numIter)
-	require.Equal(t, 2, numRepairs)
 }
 
 func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
@@ -206,11 +90,12 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
+	now := time.Now()
 	mockDatabase.bs = bootstrapNotStarted
-	require.Nil(t, repairer.Repair())
+	require.Nil(t, repairer.Repair(now))
 }
 
-func TestDatabaseShardRepairerRepair(t *testing.T) {
+func TestDatabaseShardRepairerRecordDifferences(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -293,10 +178,13 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
 	require.NoError(t, err)
 	repairer := databaseShardRepairer.(shardRepairer)
-	repairer.recordFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
+	repairer.recordFn = func(namespace ts.ID, shard databaseShard, res repair.Result) {
 		resNamespace = namespace
 		resShard = shard
-		resDiff = diffRes
+		resDiff = res.DifferenceSummary
+	}
+	repairer.repairFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) (repair.ExecutionMetrics, error) {
+		return repair.ExecutionMetrics{}, nil
 	}
 
 	ctx := context.NewContext()
@@ -348,10 +236,10 @@ func TestRepairerRepairTimes(t *testing.T) {
 		r.repairStates[input.bs] = input.rs
 	}
 
-	res := r.repairTimeRanges()
+	res := r.repairTimeRanges(now)
 	expectedRanges := xtime.NewRanges().
 		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
-		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(187200, 0)})
+		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(172800, 0)})
 	require.Equal(t, expectedRanges, res)
 }
 
@@ -386,4 +274,468 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	database.namespaces = namespaces
 
 	require.Error(t, r.repairWithTimeRange(repairTimeRange))
+}
+
+func TestNewPendingReplicasMapComplexDiff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	database := newMockDatabase()
+	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
+	repairer, err := newDatabaseRepairer(database)
+	require.NoError(t, err)
+	numReplicas := 3
+	r := repairer.(*dbRepairer).shardRepairer.(shardRepairer)
+	t0 := time.Now()
+	sizes := []int64{1, 2, 1}
+	checksums := []uint32{1, 1, 2}
+	hostsMetadata := generateSampleHostsMetadata(t, t0, 1, sizes, checksums)
+	repairOpts := testRepairOptions(ctrl)
+	mcr := newTestMetadataComparisonResult(ctrl, t, hostsMetadata, numReplicas, repairOpts)
+	originHost := testHost(0)
+	pendingReplicasMap, _ := r.newPendingReplicasMap(mcr, originHost, numReplicas)
+	for _, replicas := range pendingReplicasMap {
+		require.True(t, !replicas.contains(testHost(0)))
+		require.True(t, replicas.contains(testHost(1)))
+		require.True(t, replicas.contains(testHost(2)))
+	}
+}
+
+func TestNewPendingReplicasMapSingleChecksumDiff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	database := newMockDatabase()
+	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
+	repairer, err := newDatabaseRepairer(database)
+	require.NoError(t, err)
+	r := repairer.(*dbRepairer).shardRepairer.(shardRepairer)
+	numReplicas := 3
+
+	t0 := time.Now()
+	sizes := []int64{1, 2, 1}
+	checksums := []uint32{1, 1, 1}
+	hostsMetadata := generateSampleHostsMetadata(t, t0, 1, sizes, checksums)
+	repairOpts := testRepairOptions(ctrl)
+	mcr := newTestMetadataComparisonResult(ctrl, t, hostsMetadata, numReplicas, repairOpts)
+	originHost := testHost(0)
+	pendingReplicasMap, _ := r.newPendingReplicasMap(mcr, originHost, numReplicas)
+	for _, replicas := range pendingReplicasMap {
+		require.True(t, replicas.contains(testHost(1)))
+		require.True(t, !replicas.contains(testHost(0)))
+		require.True(t, !replicas.contains(testHost(2)))
+	}
+}
+
+func TestNewPendingReplicasMapAllIdentical(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	database := newMockDatabase()
+	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
+	repairer, err := newDatabaseRepairer(database)
+	require.NoError(t, err)
+	r := repairer.(*dbRepairer).shardRepairer.(shardRepairer)
+	numReplicas := 3
+
+	t0 := time.Now()
+	sizes := []int64{1, 1, 1}
+	checksums := []uint32{1, 1, 1}
+	allPeersIdenticalHostsMetadata := generateSampleHostsMetadata(t, t0, 1, sizes, checksums)
+	repairOpts := testRepairOptions(ctrl)
+	mcr := newTestMetadataComparisonResult(ctrl, t, allPeersIdenticalHostsMetadata, numReplicas, repairOpts)
+	originHost := testHost(0)
+	pendingReplicasMap, _ := r.newPendingReplicasMap(mcr, originHost, numReplicas)
+	for _, replicas := range pendingReplicasMap {
+		require.Empty(t, replicas)
+	}
+}
+
+func TestDatabaseShardRepairerRepairDifferencesAllSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		now           = time.Now()
+		namespace     = ts.StringID("testNamespace")
+		numTestSeries = 3
+		numPeers      = 3
+	)
+
+	session := client.NewMockAdminSession(ctrl)
+	session.EXPECT().Origin().Return(testHost(0))
+	session.EXPECT().Replicas().Return(int(3))
+	mockClient := client.NewMockAdminClient(ctrl)
+	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
+	rpOpts := testRepairOptions(ctrl).SetAdminClient(mockClient)
+	nowFn := func() time.Time { return now }
+	opts := testDatabaseOptions()
+	copts := opts.ClockOptions()
+	iopts := opts.InstrumentOptions()
+	opts = opts.
+		SetClockOptions(copts.SetNowFn(nowFn)).
+		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
+
+	// this test considers repair in the following scenario:
+	// input data:
+	// - 3 hosts
+	// - each host has 3 series, each with a single block
+	// - series 0 is identical for all three hosts (both size and checksum)
+	// - series 1 is identical amongst hosts 0 and 1; host 2 differs by size
+	// - series 2 is identical amongst hosts 0 and 2; host 1 differs by checksum
+	// communication:
+	// - the local host (host 0) is able to retrieve all data blocks from other hosts
+	// expected final status:
+	// - the local host (host 0) has retrieved all different data from its peers and
+	//   is fully 'repaired'
+	sizes := []int64{
+		1, 2, 3, // host 0 series' block sizes
+		1, 2, 3, // host 1 series' block sizes
+		1, 4, 3, // host 2 series' block sizes
+	}
+	checksums := []uint32{
+		4, 5, 6, // host 0 series' block checksums
+		4, 5, 1, // host 1 series' block checksums
+		4, 5, 6, // host 2 series' block checksums
+	}
+	testHostInputData := generateSampleHostsMetadata(t, now, numTestSeries, sizes, checksums)
+	metadataDiffRes := newTestMetadataComparisonResult(ctrl, t, testHostInputData, numPeers, rpOpts)
+
+	// mock the shard
+	shardID := uint32(0)
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(shardID).AnyTimes()
+	shard.EXPECT().MarkFlushStatesDirty(&timeArrayMatcher{times: []time.Time{now}})
+
+	// mock blocks and shards for [ series 2, host 1 ]
+	ts2 := testSeries(2)
+	blk21 := block.NewMockDatabaseBlock(ctrl)
+	blk21.EXPECT().StartTime().Return(now)
+	shard.EXPECT().UpdateSeries(ts2, blk21).Return(nil)
+
+	// mock blocks and shards for [ series 1, host 2 ]
+	ts1 := testSeries(1)
+	blk12 := block.NewMockDatabaseBlock(ctrl)
+	blk12.EXPECT().StartTime().Return(now)
+	shard.EXPECT().UpdateSeries(ts1, blk12).Return(nil)
+
+	// mock peerBlocksIter
+	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
+	gomock.InOrder(
+		peerBlocksIter.EXPECT().Next().Return(true),
+		peerBlocksIter.EXPECT().Current().Return(testHost(1), ts2, blk21),
+		peerBlocksIter.EXPECT().Next().Return(true),
+		peerBlocksIter.EXPECT().Current().Return(testHost(2), ts1, blk12),
+		peerBlocksIter.EXPECT().Next().Return(false),
+		peerBlocksIter.EXPECT().Err().Return(nil),
+	)
+
+	session.EXPECT().
+		FetchBlocksFromPeers(namespace, shardID, gomock.Any(), gomock.Any()).
+		Return(peerBlocksIter, nil)
+
+	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
+	require.NoError(t, err)
+	repairFn := databaseShardRepairer.(shardRepairer).repairFn
+	execMetrics, err := repairFn(namespace, shard, metadataDiffRes)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), execMetrics.NumRequested)
+	require.Equal(t, int64(2), execMetrics.NumRepaired)
+	require.Equal(t, int64(0), execMetrics.NumFailed)
+	require.Equal(t, int64(0), execMetrics.NumPending)
+}
+
+func TestDatabaseShardRepairerRepairDifferencesNetworkFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		now           = time.Now()
+		namespace     = ts.StringID("testNamespace")
+		numTestSeries = 3
+		numPeers      = 3
+	)
+
+	session := client.NewMockAdminSession(ctrl)
+	session.EXPECT().Origin().Return(testHost(0))
+	session.EXPECT().Replicas().Return(int(3))
+	mockClient := client.NewMockAdminClient(ctrl)
+	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
+	rpOpts := testRepairOptions(ctrl).SetAdminClient(mockClient)
+	nowFn := func() time.Time { return now }
+	opts := testDatabaseOptions()
+	copts := opts.ClockOptions()
+	iopts := opts.InstrumentOptions()
+	opts = opts.
+		SetClockOptions(copts.SetNowFn(nowFn)).
+		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
+
+	// this test considers repair in the following scenario:
+	// input data:
+	// - 3 hosts
+	// - each host has 3 series, each with a single block
+	// - series 0 is identical for all three hosts (both size and checksum)
+	// - series 1 is identical amongst hosts 0 and 1; host 2 differs by size
+	// - series 2 is identical amongst hosts 0 and 2; host 1 differs by checksum
+	// communication:
+	// - the local host (host 0) is able to retrieve data blocks from host 1, but not host 2
+	// expected final status:
+	// - the local host (host 0) has repaired retrieved data, and indicates error
+	sizes := []int64{
+		1, 2, 3, // host 0 series' block sizes
+		1, 2, 3, // host 1 series' block sizes
+		1, 4, 3, // host 2 series' block sizes
+	}
+	checksums := []uint32{
+		4, 5, 6, // host 0 series' block checksums
+		4, 5, 1, // host 1 series' block checksums
+		4, 5, 6, // host 2 series' block checksums
+	}
+	testHostInputData := generateSampleHostsMetadata(t, now, numTestSeries, sizes, checksums)
+	metadataDiffRes := newTestMetadataComparisonResult(ctrl, t, testHostInputData, numPeers, rpOpts)
+
+	// mock the shard
+	shardID := uint32(0)
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(shardID).AnyTimes()
+	shard.EXPECT().MarkFlushStatesDirty(&timeArrayMatcher{times: []time.Time{now}})
+
+	// mock blocks and shards for [ series 2, host 1 ]
+	ts2 := testSeries(2)
+	blk21 := block.NewMockDatabaseBlock(ctrl)
+	blk21.EXPECT().StartTime().Return(now)
+	shard.EXPECT().UpdateSeries(ts2, blk21).Return(nil)
+
+	// mock peerBlocksIter
+	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
+	gomock.InOrder(
+		peerBlocksIter.EXPECT().Next().Return(true),
+		peerBlocksIter.EXPECT().Current().Return(testHost(1), ts2, blk21),
+		peerBlocksIter.EXPECT().Next().Return(false),
+		peerBlocksIter.EXPECT().Err().Return(nil),
+	)
+
+	session.EXPECT().
+		FetchBlocksFromPeers(namespace, shardID, gomock.Any(), gomock.Any()).
+		Return(peerBlocksIter, nil)
+
+	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
+	require.NoError(t, err)
+	repairFn := databaseShardRepairer.(shardRepairer).repairFn
+	execMetrics, err := repairFn(namespace, shard, metadataDiffRes)
+	require.Error(t, err)
+	require.Equal(t, int64(2), execMetrics.NumRequested)
+	require.Equal(t, int64(1), execMetrics.NumRepaired)
+	require.Equal(t, int64(0), execMetrics.NumFailed)
+	require.Equal(t, int64(1), execMetrics.NumPending)
+}
+
+func TestDatabaseShardRepairerRepairDifferencesUpdateFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		now           = time.Now()
+		namespace     = ts.StringID("testNamespace")
+		numTestSeries = 3
+		numPeers      = 3
+	)
+
+	session := client.NewMockAdminSession(ctrl)
+	session.EXPECT().Origin().Return(testHost(0))
+	session.EXPECT().Replicas().Return(int(3))
+	mockClient := client.NewMockAdminClient(ctrl)
+	mockClient.EXPECT().DefaultAdminSession().Return(session, nil)
+	rpOpts := testRepairOptions(ctrl).SetAdminClient(mockClient)
+	nowFn := func() time.Time { return now }
+	opts := testDatabaseOptions()
+	copts := opts.ClockOptions()
+	iopts := opts.InstrumentOptions()
+	opts = opts.
+		SetClockOptions(copts.SetNowFn(nowFn)).
+		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
+
+	// this test considers repair in the following scenario:
+	// input data:
+	// - 3 hosts
+	// - each host has 3 series, each with a single block
+	// - series 0 is identical for all three hosts (both size and checksum)
+	// - series 1 is identical amongst hosts 0 and 1; host 2 differs by size
+	// - series 2 is identical amongst hosts 0 and 2; host 1 differs by checksum
+	// communication:
+	// - the local host (host 0) is able to retrieve data blocks from both hosts
+	// updates:
+	// - the local host (host 0) is unable to update the block received from host 1
+	// expected final status:
+	// - the local host (host 0) has repaired partially, and indicates error
+	sizes := []int64{
+		1, 2, 3, // host 0 series' block sizes
+		1, 2, 3, // host 1 series' block sizes
+		1, 4, 3, // host 2 series' block sizes
+	}
+	checksums := []uint32{
+		4, 5, 6, // host 0 series' block checksums
+		4, 5, 1, // host 1 series' block checksums
+		4, 5, 6, // host 2 series' block checksums
+	}
+	testHostInputData := generateSampleHostsMetadata(t, now, numTestSeries, sizes, checksums)
+	metadataDiffRes := newTestMetadataComparisonResult(ctrl, t, testHostInputData, numPeers, rpOpts)
+
+	// mock the shard
+	shardID := uint32(0)
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(shardID).AnyTimes()
+	shard.EXPECT().MarkFlushStatesDirty(&timeArrayMatcher{times: []time.Time{now}})
+
+	// mock blocks and shards for [ series 2, host 1 ]
+	ts2 := testSeries(2)
+	blk21 := block.NewMockDatabaseBlock(ctrl)
+	blk21.EXPECT().StartTime().Return(now)
+	shard.EXPECT().UpdateSeries(ts2, blk21).Return(fmt.Errorf("simulated failure"))
+
+	// mock blocks and shards for [ series 1, host 2 ]
+	ts1 := testSeries(1)
+	blk12 := block.NewMockDatabaseBlock(ctrl)
+	blk12.EXPECT().StartTime().Return(now)
+	shard.EXPECT().UpdateSeries(ts1, blk12).Return(nil)
+
+	// mock peerBlocksIter
+	peerBlocksIter := client.NewMockPeerBlocksIter(ctrl)
+	gomock.InOrder(
+		peerBlocksIter.EXPECT().Next().Return(true),
+		peerBlocksIter.EXPECT().Current().Return(testHost(1), ts2, blk21),
+		peerBlocksIter.EXPECT().Next().Return(true),
+		peerBlocksIter.EXPECT().Current().Return(testHost(2), ts1, blk12),
+		peerBlocksIter.EXPECT().Next().Return(false),
+		peerBlocksIter.EXPECT().Err().Return(nil),
+	)
+
+	session.EXPECT().
+		FetchBlocksFromPeers(namespace, shardID, gomock.Any(), gomock.Any()).
+		Return(peerBlocksIter, nil)
+
+	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
+	require.NoError(t, err)
+	repairFn := databaseShardRepairer.(shardRepairer).repairFn
+	execMetrics, err := repairFn(namespace, shard, metadataDiffRes)
+	require.Error(t, err)
+	require.Equal(t, int64(2), execMetrics.NumRequested)
+	require.Equal(t, int64(1), execMetrics.NumRepaired)
+	require.Equal(t, int64(1), execMetrics.NumFailed)
+	require.Equal(t, int64(0), execMetrics.NumPending)
+}
+
+func generateSampleHostsMetadata(
+	t *testing.T,
+	t0 time.Time,
+	numSeries int,
+	sizes []int64,
+	checksums []uint32,
+) []testHostMetadata {
+	require.Equal(t, len(sizes), len(checksums))
+	require.Equal(t, len(sizes)%numSeries, 0)
+	numPeers := len(sizes) / numSeries
+	thm := []testHostMetadata{}
+	for i := 0; i < numPeers; i++ {
+		md := []block.BlocksMetadata{}
+		for j := 0; j < numSeries; j++ {
+			md = append(md, block.BlocksMetadata{
+				ID: testSeries(j),
+				Blocks: []block.Metadata{
+					block.Metadata{
+						Start:    t0,
+						Size:     sizes[i*numSeries+j],
+						Checksum: &checksums[i*numSeries+j],
+					},
+				},
+			})
+		}
+		thm = append(thm, testHostMetadata{
+			host:     testHost(i),
+			metadata: md,
+		})
+	}
+	return thm
+}
+
+type testHostMetadata struct {
+	host     topology.Host
+	metadata []block.BlocksMetadata
+}
+
+func testHost(i int) topology.Host {
+	return topology.NewHost(strconv.Itoa(i), fmt.Sprintf("testhost%d", i))
+}
+
+func testSeries(i int) ts.ID {
+	return ts.StringID(fmt.Sprintf("foo%d", i))
+}
+
+func newTestMetadataComparisonResult(
+	ctrl *gomock.Controller,
+	t *testing.T,
+	hostsMetadata []testHostMetadata,
+	numReplicas int,
+	opts repair.Options,
+) repair.MetadataComparisonResult {
+	comparer := repair.NewReplicaMetadataComparer(numReplicas, opts)
+	localIter := block.NewMockFilteredBlocksMetadataIter(ctrl)
+	localIterCalls := []*gomock.Call{}
+	peerIter := client.NewMockPeerBlocksMetadataIter(ctrl)
+	peerIterCalls := []*gomock.Call{}
+	for i, hm := range hostsMetadata {
+		if i == 0 { // localhost
+			for _, md := range hm.metadata {
+				for _, block := range md.Blocks {
+					localIterCalls = append(localIterCalls,
+						localIter.EXPECT().Next().Return(true),
+						localIter.EXPECT().Current().Return(md.ID, block))
+				}
+			}
+		} else { // peer
+			for _, md := range hm.metadata {
+				peerIterCalls = append(peerIterCalls,
+					peerIter.EXPECT().Next().Return(true),
+					peerIter.EXPECT().Current().Return(hm.host, md))
+			}
+		}
+	}
+	localIterCalls = append(localIterCalls,
+		localIter.EXPECT().Next().Return(false))
+	gomock.InOrder(localIterCalls...)
+	comparer.AddLocalMetadata(hostsMetadata[0].host, localIter)
+
+	peerIterCalls = append(peerIterCalls,
+		peerIter.EXPECT().Next().Return(false),
+		peerIter.EXPECT().Err().Return(nil))
+	gomock.InOrder(peerIterCalls...)
+	comparer.AddPeerMetadata(peerIter)
+	return comparer.Compare()
+}
+
+type timeArrayMatcher struct {
+	times []time.Time
+}
+
+func (m *timeArrayMatcher) Matches(x interface{}) bool {
+	arr, ok := x.([]time.Time)
+	if !ok {
+		return false
+	}
+
+	if len(m.times) != len(arr) {
+		return false
+	}
+
+	for i := range arr {
+		if !arr[i].Equal(m.times[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (m *timeArrayMatcher) String() string {
+	return "timeArrayMatcher"
 }

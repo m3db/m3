@@ -32,6 +32,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -359,6 +360,7 @@ func TestReadValidateError(t *testing.T) {
 		filePathPrefix string,
 		readerBufferSize int,
 		b pool.CheckedBytesPool,
+		decodingOpts msgpack.DecodingOptions,
 	) fs.FileSetReader {
 		return reader
 	}
@@ -397,6 +399,7 @@ func TestReadDeleteOnError(t *testing.T) {
 		filePathPrefix string,
 		readerBufferSize int,
 		b pool.CheckedBytesPool,
+		decodingOpts msgpack.DecodingOptions,
 	) fs.FileSetReader {
 		return reader
 	}

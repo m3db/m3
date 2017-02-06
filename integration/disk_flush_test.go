@@ -45,7 +45,7 @@ func waitUntilDataFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
 	namespace ts.ID,
-	testData map[time.Time]seriesList,
+	testData seriesMap,
 	timeout time.Duration,
 ) error {
 	dataFlushed := func() bool {
@@ -117,10 +117,10 @@ func verifyFlushed(
 	shardSet sharding.ShardSet,
 	opts storage.Options,
 	namespace ts.ID,
-	seriesMaps map[time.Time]seriesList,
+	seriesMaps seriesMap,
 ) {
 	fsOpts := opts.CommitLogOptions().FilesystemOptions()
-	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.ReaderBufferSize(), opts.BytesPool())
+	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.ReaderBufferSize(), opts.BytesPool(), nil)
 	iteratorPool := opts.ReaderIteratorPool()
 	for timestamp, seriesList := range seriesMaps {
 		verifyForTime(t, reader, shardSet, iteratorPool, timestamp, namespace, seriesList)
@@ -159,7 +159,7 @@ func TestDiskFlush(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]seriesList)
+	seriesMaps := make(seriesMap)
 	inputData := []struct {
 		metricNames []string
 		numPoints   int

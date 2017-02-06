@@ -49,11 +49,11 @@ func TestPeersBootstrapSimple(t *testing.T) {
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	setupOpts := []bootstrappableTestSetupOptions{
+	setupOpts := []multipleTestSetupsOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultMultipleTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node

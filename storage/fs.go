@@ -37,6 +37,7 @@ const (
 	fileOpInProgress
 	fileOpSuccess
 	fileOpFailed
+	fileOpDirty
 )
 
 type fileOpState struct {
@@ -101,7 +102,7 @@ func (m *fileSystemManager) ShouldRun(t time.Time) bool {
 	return m.status != fileOpInProgress
 }
 
-func (m *fileSystemManager) Run(t time.Time, async bool) {
+func (m *fileSystemManager) Run(t time.Time, mode runType) {
 	m.Lock()
 	if m.status == fileOpInProgress {
 		m.Unlock()
@@ -123,9 +124,9 @@ func (m *fileSystemManager) Run(t time.Time, async bool) {
 		m.Unlock()
 	}
 
-	if !async {
-		flushFn()
-	} else {
+	if mode == runTypeAsync {
 		go flushFn()
+	} else {
+		flushFn()
 	}
 }

@@ -120,7 +120,7 @@ func TestInfoReadWrite(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries)
 
-	infoFiles := ReadInfoFiles(filePathPrefix, testNamespaceID, 0, 16)
+	infoFiles := ReadInfoFiles(filePathPrefix, testNamespaceID, 0, 16, nil)
 	require.Equal(t, 1, len(infoFiles))
 
 	infoFile := infoFiles[0]

@@ -58,7 +58,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	rateLimitOpts := ratelimit.NewOptions()
 	fsm := NewMockdatabaseFileSystemManager(ctrl)
 	fsm.EXPECT().RateLimitOptions().Return(rateLimitOpts)
-	fsm.EXPECT().Run(now, false)
+	fsm.EXPECT().Run(now, runTypeSync)
 	fsm.EXPECT().SetRateLimitOptions(gomock.Any()).Times(2)
 	bsm := newBootstrapManager(db, fsm).(*bootstrapManager)
 	err := bsm.Bootstrap()

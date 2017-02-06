@@ -94,8 +94,53 @@ func (_mr *_MockDatabaseSeriesRecorder) FetchBlocksMetadata(arg0, arg1, arg2, ar
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4)
 }
 
+<<<<<<< HEAD
 func (_m *MockDatabaseSeries) Flush(_param0 context.Context, _param1 time.Time, _param2 persist.Fn) error {
 	ret := _m.ctrl.Call(_m, "Flush", _param0, _param1, _param2)
+=======
+func (_m *MockDatabaseSeries) IsEmpty() bool {
+	ret := _m.ctrl.Call(_m, "IsEmpty")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockDatabaseSeriesRecorder) IsEmpty() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
+}
+
+func (_m *MockDatabaseSeries) IsBootstrapped() bool {
+	ret := _m.ctrl.Call(_m, "IsBootstrapped")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockDatabaseSeriesRecorder) IsBootstrapped() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBootstrapped")
+}
+
+func (_m *MockDatabaseSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
+	ret := _m.ctrl.Call(_m, "Bootstrap", blocks)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDatabaseSeriesRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
+}
+
+func (_m *MockDatabaseSeries) Update(block block.DatabaseBlock) error {
+	ret := _m.ctrl.Call(_m, "Update", block)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDatabaseSeriesRecorder) Update(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Update", arg0)
+}
+
+func (_m *MockDatabaseSeries) Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error {
+	ret := _m.ctrl.Call(_m, "Flush", ctx, blockStart, persistFn)
+>>>>>>> dev
 	ret0, _ := ret[0].(error)
 	return ret0
 }

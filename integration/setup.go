@@ -122,7 +122,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up shard set
-	shardSet, err := server.DefaultShardSet()
+	shardSet, err := server.NewShardSet(opts.NumShards())
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,10 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		}
 	}
 
-	clientOpts := server.DefaultClientOptions(topoInit).
+	clientOpts := newDefaultAdminOptions(
+		opts.FetchSeriesBlocksBatchSize(),
+		opts.FetchSeriesBlocksBatchConcurrency()).
+		SetTopologyInitializer(topoInit).
 		SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
 		SetWriteConsistencyLevel(opts.WriteConsistencyLevel())
 
@@ -198,8 +201,18 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	})
 
 	// Set up repair options
-	adminClient := mc.(client.AdminClient)
-	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
+	adminClient, err := m3dbAdminClient(clientOpts.(client.AdminOptions))
+	if err != nil {
+		return nil, err
+	}
+
+	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().
+		SetRepairInterval(opts.RepairInterval()).
+		SetRepairThrottle(opts.RepairThrottle()).
+		SetRepairTimeJitter(opts.RepairTimeJitter()).
+		SetAdminClient(adminClient))
+
+	storageOpts = storageOpts.SetRepairEnabled(opts.RepairEnabled())
 
 	// Set up block retriever manager
 	if mgr := opts.DatabaseBlockRetrieverManager(); mgr != nil {
@@ -281,8 +294,16 @@ func (ts *testSetup) startServer() error {
 		tchannelNodeAddr = addr
 	}
 
+	namespaceRepairEnabled := ts.opts.RepairEnabled()
+	namespaces := make([]namespace.Metadata, 0, len(ts.namespaces))
+	for _, ns := range ts.namespaces {
+		opts := ns.Options().SetNeedsRepair(namespaceRepairEnabled)
+		newNs := namespace.NewMetadata(ns.ID(), opts)
+		namespaces = append(namespaces, newNs)
+	}
+
 	var err error
-	ts.db, err = cluster.NewDatabase(ts.namespaces,
+	ts.db, err = cluster.NewDatabase(namespaces,
 		ts.hostID, ts.topoInit, ts.storageOpts)
 	if err != nil {
 		return err
@@ -413,17 +434,17 @@ func newNodes(
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 	retentionOpts := retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
 
-	nodeOpt := bootstrappableTestSetupOptions{
+	nodeOpt := multipleTestSetupsOptions{
 		disablePeersBootstrapper: true,
 		topologyInitializer:      topoInit,
 	}
 
-	nodeOpts := make([]bootstrappableTestSetupOptions, len(instances))
+	nodeOpts := make([]multipleTestSetupsOptions, len(instances))
 	for i := range instances {
 		nodeOpts[i] = nodeOpt
 	}
 
-	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, nodeOpts)
+	nodes, closeFn := newDefaultMultipleTestSetups(t, opts, retentionOpts, nodeOpts)
 
 	nodeClose := func() { // Clean up running servers at end of test
 		log.Debug("servers closing")

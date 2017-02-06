@@ -52,11 +52,11 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	setupOpts := []bootstrappableTestSetupOptions{
+	setupOpts := []multipleTestSetupsOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false, testStatsReporter: reporter},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultMultipleTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node, ensure to overflow past
@@ -68,8 +68,8 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-blockSize)},
 		{ids: []string{"foo", "baz"}, numPoints: int(completeAt.Sub(now) / time.Second), start: now},
 	})
-	firstNodeSeriesMaps := map[time.Time]seriesList{}
-	directWritesSeriesMaps := map[time.Time]seriesList{}
+	firstNodeSeriesMaps := seriesMap{}
+	directWritesSeriesMaps := seriesMap{}
 	for start, s := range seriesMaps {
 		for i := range s {
 			isPartialSeries := start.Equal(now)

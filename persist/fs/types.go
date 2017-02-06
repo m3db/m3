@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
@@ -160,6 +161,12 @@ type Options interface {
 
 	// RateLimitOptions returns the rate limit options
 	RateLimitOptions() ratelimit.Options
+
+	// SetDecodingOptions sets the decoding options
+	SetDecodingOptions(value msgpack.DecodingOptions) Options
+
+	// DecodingOptions returns the decoding options
+	DecodingOptions() msgpack.DecodingOptions
 
 	// SetFilePathPrefix sets the file path prefix for sharded TSDB files
 	SetFilePathPrefix(value string) Options

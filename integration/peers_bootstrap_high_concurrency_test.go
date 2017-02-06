@@ -52,17 +52,17 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		SetBufferFuture(2 * time.Minute)
 	batchSize := 16
 	concurrency := 64
-	setupOpts := []bootstrappableTestSetupOptions{
+	setupOpts := []multipleTestSetupsOptions{
 		{
 			disablePeersBootstrapper: true,
 		},
 		{
 			disablePeersBootstrapper:   false,
-			bootstrapBlocksBatchSize:   batchSize,
-			bootstrapBlocksConcurrency: concurrency,
+			fetchSeriesBlocksBatchSize:   batchSize,
+			fetchSeriesBlocksBatchConcurrency: concurrency,
 		},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultMultipleTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node

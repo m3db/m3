@@ -59,6 +59,18 @@ const (
 	// defaultUseTChannelClientForTruncation determines whether we use the tchannel client for truncation by default.
 	defaultUseTChannelClientForTruncation = true
 
+	// defaultRepairThrottle determines the throttle per namespace repair by default.
+	defaultRepairThrottle = time.Duration(1 * time.Minute)
+
+	// defaultRepairTimeJitter determines the repair jitter by default.
+	defaultRepairTimeJitter = time.Duration(1 * time.Second)
+
+	// defaultRepairInterval determines the interval between repairs by default.
+	defaultRepairInterval = time.Duration(2 * time.Minute)
+
+	// defaultNumShards sets the default number of shards.
+	defaultNumShards = 1024
+
 	// defaultWriteConsistencyLevel is the default write consistency level. This
 	// should match the default in client/options.
 	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
@@ -186,6 +198,48 @@ type testOptions interface {
 	// VerifySeriesDebugFilePathPrefix returns the file path prefix for writing a debug file of series comparisons.
 	VerifySeriesDebugFilePathPrefix() string
 
+	// SetRepairThrottle sets minimum duration of time a namespace repair is throttled to.
+	SetRepairThrottle(throttle time.Duration) testOptions
+
+	// RepairThrottle returns the repair throttle duration.
+	RepairThrottle() time.Duration
+
+	// SetRepairInterval sets interval between repairs.
+	SetRepairInterval(interval time.Duration) testOptions
+
+	// RepairInterval returns the repair interval duration.
+	RepairInterval() time.Duration
+
+	// SetRepairTimeJitter sets the repair time jitter.
+	SetRepairTimeJitter(t time.Duration) testOptions
+
+	// RepairTimeJitter returns the repair time jitter.
+	RepairTimeJitter() time.Duration
+
+	// SetNumShards sets the number of shards.
+	SetNumShards(numShards uint32) testOptions
+
+	// NumShards returns the number of shards.
+	NumShards() uint32
+
+	// SetFetchSeriesBlocksBatchSize sets the number of Series Blocks to fetch in batch.
+	SetFetchSeriesBlocksBatchSize(n int) testOptions
+
+	// FetchSeriesBlocksBatchSize returns the number of Series Blocks to fetch in batch.
+	FetchSeriesBlocksBatchSize() int
+
+	// SetFetchSeriesBlocksBatchConcurrency sets the number of series blocks to fetch in batch concurrently.
+	SetFetchSeriesBlocksBatchConcurrency(n int) testOptions
+
+	// FetchSeriesBlocksBatchConcurrency returns the number of series blocks to fetch in batch concurrently.
+	FetchSeriesBlocksBatchConcurrency() int
+
+	// SetRepairEnabled controls whether the repair is enabled.
+	SetRepairEnabled(f bool) testOptions
+
+	// RepairEnabled returns whether the repair is enabled.
+	RepairEnabled() bool
+
 	// WriteConsistencyLevel returns the consistency level for writing with the m3db client.
 	WriteConsistencyLevel() topology.ConsistencyLevel
 
@@ -212,6 +266,13 @@ type options struct {
 	useTChannelClientForTruncation     bool
 	blockRetrieverManager              block.DatabaseBlockRetrieverManager
 	verifySeriesDebugFilePathPrefix    string
+	repairEnabled                      bool
+	repairThrottle                     time.Duration
+	repairTimeJitter                   time.Duration
+	repairInterval                     time.Duration
+	numShards                          uint32
+	fetchSeriesBlocksBatchSize         int
+	fetchSeriesBlocksBatchConcurrency  int
 	writeConsistencyLevel              topology.ConsistencyLevel
 }
 
@@ -232,6 +293,10 @@ func newTestOptions() testOptions {
 		useTChannelClientForReading:    defaultUseTChannelClientForReading,
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
+		repairThrottle:                 defaultRepairThrottle,
+		repairTimeJitter:               defaultRepairTimeJitter,
+		repairInterval:                 defaultRepairInterval,
+		numShards:                      defaultNumShards,
 		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 	}
 }
@@ -416,6 +481,76 @@ func (o *options) SetVerifySeriesDebugFilePathPrefix(value string) testOptions {
 
 func (o *options) VerifySeriesDebugFilePathPrefix() string {
 	return o.verifySeriesDebugFilePathPrefix
+}
+
+func (o *options) SetRepairThrottle(t time.Duration) testOptions {
+	opts := *o
+	opts.repairThrottle = t
+	return &opts
+}
+
+func (o *options) RepairThrottle() time.Duration {
+	return o.repairThrottle
+}
+
+func (o *options) SetRepairInterval(t time.Duration) testOptions {
+	opts := *o
+	opts.repairInterval = t
+	return &opts
+}
+
+func (o *options) RepairInterval() time.Duration {
+	return o.repairInterval
+}
+
+func (o *options) SetRepairTimeJitter(t time.Duration) testOptions {
+	opts := *o
+	opts.repairTimeJitter = t
+	return &opts
+}
+
+func (o *options) RepairTimeJitter() time.Duration {
+	return o.repairTimeJitter
+}
+
+func (o *options) SetNumShards(n uint32) testOptions {
+	opts := *o
+	opts.numShards = n
+	return &opts
+}
+
+func (o *options) NumShards() uint32 {
+	return o.numShards
+}
+
+func (o *options) SetFetchSeriesBlocksBatchSize(n int) testOptions {
+	opts := *o
+	opts.fetchSeriesBlocksBatchSize = n
+	return &opts
+}
+
+func (o *options) FetchSeriesBlocksBatchSize() int {
+	return o.fetchSeriesBlocksBatchSize
+}
+
+func (o *options) SetFetchSeriesBlocksBatchConcurrency(n int) testOptions {
+	opts := *o
+	opts.fetchSeriesBlocksBatchConcurrency = n
+	return &opts
+}
+
+func (o *options) FetchSeriesBlocksBatchConcurrency() int {
+	return o.fetchSeriesBlocksBatchConcurrency
+}
+
+func (o *options) SetRepairEnabled(f bool) testOptions {
+	opts := *o
+	opts.repairEnabled = f
+	return &opts
+}
+
+func (o *options) RepairEnabled() bool {
+	return o.repairEnabled
 }
 
 func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {

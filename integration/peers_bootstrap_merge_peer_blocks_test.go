@@ -49,12 +49,12 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	setupOpts := []bootstrappableTestSetupOptions{
+	setupOpts := []multipleTestSetupsOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultMultipleTestSetups(t, opts, retentionOpts, setupOpts)
 	defer closeFn()
 
 	// Write test data alternating missing data for left/right nodes
@@ -64,10 +64,10 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-blockSize)},
 		{ids: []string{"foo", "baz"}, numPoints: 90, start: now},
 	})
-	left := make(map[time.Time]seriesList)
-	right := make(map[time.Time]seriesList)
+	left := make(seriesMap)
+	right := make(seriesMap)
 	remainder := 0
-	appendSeries := func(target map[time.Time]seriesList, start time.Time, s series) {
+	appendSeries := func(target seriesMap, start time.Time, s series) {
 		var dataWithMissing []ts.Datapoint
 		for i := range s.Data {
 			if i%2 != remainder {

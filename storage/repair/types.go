@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 )
@@ -132,6 +133,34 @@ type ReplicaMetadataComparer interface {
 	Finalize()
 }
 
+// ExecutionMetrics captures metrics about the repair process
+type ExecutionMetrics struct {
+	// NumRequested returns the number of block replicas requested for repair
+	NumRequested int64
+
+	// NumRepaired returns the number of block replicas successfully repaired
+	NumRepaired int64
+
+	// NumFailed returns the number of block replicas retrieved but failed to merge into local data
+	NumFailed int64
+
+	// NumPending returns difference between the number of block replicas requested and received
+	NumPending int64
+
+	// NumUnexpected returns a count of block replicas returned but were not requested, it should be 0 in all usual executions
+	NumUnexpected int64
+}
+
+// Result captures details about the differences pre-repair, and a summary
+// of the repaired series'
+type Result struct {
+	// DifferenceSummary returns the difference pre-repair
+	DifferenceSummary MetadataComparisonResult
+
+	// RepairSummary returns the statistics about repairs performed
+	RepairSummary ExecutionMetrics
+}
+
 // MetadataComparisonResult captures metadata comparison results
 type MetadataComparisonResult struct {
 	// NumSeries returns the total number of series
@@ -167,23 +196,11 @@ type Options interface {
 	// RepairInterval returns the repair interval
 	RepairInterval() time.Duration
 
-	// SetRepairTimeOffset sets the repair time offset
-	SetRepairTimeOffset(value time.Duration) Options
-
-	// RepairTimeOffset returns the repair time offset
-	RepairTimeOffset() time.Duration
-
 	// SetRepairJitter sets the repair time jitter
 	SetRepairTimeJitter(value time.Duration) Options
 
 	// RepairTimeJitter returns the repair time jitter
 	RepairTimeJitter() time.Duration
-
-	// SetRepairCheckInterval sets the repair check interval
-	SetRepairCheckInterval(value time.Duration) Options
-
-	// RepairCheckInterval returns the repair check interval
-	RepairCheckInterval() time.Duration
 
 	// SetRepairThrottle sets the repair throttle
 	SetRepairThrottle(value time.Duration) Options
@@ -202,6 +219,12 @@ type Options interface {
 
 	// HostBlockMetadataSlicePool returns the hostBlockMetadataSlice pool
 	HostBlockMetadataSlicePool() HostBlockMetadataSlicePool
+
+	// SetResultOptions sets the options for `client.results`
+	SetResultOptions(opts result.Options) Options
+
+	// ResultOptions returns the options for `client.results``
+	ResultOptions() result.Options
 
 	// Validate checks if the options are valid
 	Validate() error

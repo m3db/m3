@@ -504,9 +504,9 @@ func (n *dbNamespace) Flush(
 
 func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 	// NB(r): Essentially if all are success, we don't need to flush, if any
-	// are failed with the minimum num failures less than max retries then
-	// we need to flush - otherwise if any in progress we can't flush and if
-	// any not started then we need to flush.
+	// are failed with the minimum num failures less than max retries, or if
+	// any have been marked dirty, then we need to flush - otherwise if any
+	// in progress we can't flush and if any not started then we need to flush.
 	n.RLock()
 	defer n.RUnlock()
 
@@ -522,13 +522,13 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 		}
 	}
 
-	// Check for not started or failed that might need a flush
+	// Check for not started or failed or dirty that might need a flush
 	for _, shard := range n.shards {
 		if shard == nil {
 			continue
 		}
 		state := shard.FlushState(blockStart)
-		if state.Status == fileOpNotStarted {
+		if state.Status == fileOpNotStarted || state.Status == fileOpDirty {
 			return true
 		}
 		if state.Status == fileOpFailed && state.NumFailures < maxRetries {
@@ -594,9 +594,16 @@ func (n *dbNamespace) Repair(
 		numSizeDiffBlocks     int64
 		numChecksumDiffSeries int64
 		numChecksumDiffBlocks int64
+		numReplicasRequested  int64
+		numReplicasFailed     int64
+		numReplicasPending    int64
+		numReplicasRepaired   int64
+		numReplicasUnexpected int64
 		throttlePerShard      time.Duration
 	)
 
+	nowFn := n.opts.ClockOptions().NowFn()
+	begin := nowFn()
 	multiErr := xerrors.NewMultiError()
 	shards := n.getOwnedShards()
 	numShards := len(shards)
@@ -617,7 +624,9 @@ func (n *dbNamespace) Repair(
 			ctx := n.opts.ContextPool().Get()
 			defer ctx.Close()
 
-			metadataRes, err := shard.Repair(ctx, n.id, tr, repairer)
+			repairResult, err := shard.Repair(ctx, n.id, tr, repairer)
+			metadataRes := repairResult.DifferenceSummary
+			execMetrics := repairResult.RepairSummary
 
 			mutex.Lock()
 			if err != nil {
@@ -630,6 +639,11 @@ func (n *dbNamespace) Repair(
 				numSizeDiffBlocks += metadataRes.SizeDifferences.NumBlocks()
 				numChecksumDiffSeries += metadataRes.ChecksumDifferences.NumSeries()
 				numChecksumDiffBlocks += metadataRes.ChecksumDifferences.NumBlocks()
+				numReplicasFailed += execMetrics.NumFailed
+				numReplicasRepaired += execMetrics.NumRepaired
+				numReplicasPending += execMetrics.NumPending
+				numReplicasRequested += execMetrics.NumRequested
+				numReplicasUnexpected += execMetrics.NumUnexpected
 			}
 			mutex.Unlock()
 
@@ -640,6 +654,7 @@ func (n *dbNamespace) Repair(
 	}
 
 	wg.Wait()
+	duration := nowFn().Sub(begin).String()
 
 	n.log.WithFields(
 		xlog.NewLogField("namespace", n.id.String()),
@@ -652,6 +667,12 @@ func (n *dbNamespace) Repair(
 		xlog.NewLogField("numSizeDiffBlocks", numSizeDiffBlocks),
 		xlog.NewLogField("numChecksumDiffSeries", numChecksumDiffSeries),
 		xlog.NewLogField("numChecksumDiffBlocks", numChecksumDiffBlocks),
+		xlog.NewLogField("numReplicasFailed", numReplicasFailed),
+		xlog.NewLogField("numReplicasRepaired", numReplicasRepaired),
+		xlog.NewLogField("numReplicasPending", numReplicasPending),
+		xlog.NewLogField("numReplicasRequested", numReplicasRequested),
+		xlog.NewLogField("numReplicasUnexpected", numReplicasUnexpected),
+		xlog.NewLogField("took", duration),
 	).Infof("repair result")
 
 	return multiErr.FinalError()
