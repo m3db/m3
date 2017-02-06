@@ -141,9 +141,10 @@ test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
 
+# To add testing of native pooling with integration tests for CI again, append:
+# @$(VENDOR_ENV) TEST_NATIVE_POOLING=true $(test_ci_integration)
 test-ci-integration:
 	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_ci_integration)
-	@$(VENDOR_ENV) TEST_NATIVE_POOLING=true $(test_ci_integration)
 
 # run as: make test-one-integration test=<test_name>
 test-one-integration:
