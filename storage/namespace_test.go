@@ -738,7 +738,7 @@ func TestNamespaceNeedsFlushAnyDirty(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, dopts).(*dbNamespace)
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
 	for _, s := range shards {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()

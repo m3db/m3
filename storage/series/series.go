@@ -467,7 +467,8 @@ func (s *dbSeries) Update(blk block.DatabaseBlock) error {
 		return errSeriesUpdateBuffered
 	}
 
-	return s.mergeBlock(s.blocks, blk)
+	s.mergeBlock(s.blocks, blk)
+	return nil
 }
 
 // NB(xichen): we are holding a big lock here to drain the in-memory buffer.

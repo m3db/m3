@@ -89,6 +89,7 @@ func NewSeeker(
 		bytesPool:      bytesPool,
 		keepIndexIDs:   true,
 		keepUnreadBuf:  false,
+		decodingOpts:   decodingOpts,
 	})
 }
 
@@ -98,6 +99,7 @@ type seekerOpts struct {
 	bytesPool      pool.CheckedBytesPool
 	keepIndexIDs   bool
 	keepUnreadBuf  bool
+	decodingOpts   msgpack.DecodingOptions
 }
 
 // fileSetSeeker adds package level access to further methods
@@ -124,7 +126,7 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  opts.bytesPool,
-		decoder:                    msgpack.NewDecoder(decodingOpts),
+		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
 	}
 }
 
@@ -242,7 +244,7 @@ func (s *seeker) readIndex(size int) error {
 		}
 
 		if s.keepIndexIDs {
-			entryID := append([]byte(nil), entry.Id...)
+			entryID := append([]byte(nil), entry.ID...)
 			id := ts.BinaryID(checked.NewBytes(entryID, nil))
 			s.indexIDs = append(s.indexIDs, id)
 		}

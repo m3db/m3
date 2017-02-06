@@ -221,7 +221,7 @@ func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 	var none ts.ID
 	entry, err := r.decoder.DecodeIndexEntry()
 	if err != nil {
-		return none, nil, err
+		return none, nil, 0, err
 	}
 	n, err := r.dataFdWithDigest.ReadBytes(r.prologue)
 	if err != nil {
@@ -260,36 +260,36 @@ func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 
 	r.entriesRead++
 
-	return r.currEntryID(), data, uint32(entry.Checksum), nil
+	return r.entryID(entry.ID), data, uint32(entry.Checksum), nil
 }
 
 func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err error) {
 	var none ts.ID
 	entry, err := r.decoder.DecodeIndexEntry()
 	if err != nil {
-		return none, nil, err
+		return none, 0, 0, err
 	}
 
 	r.entriesRead++
 
-	return r.currEntryID(), int(entry.Size), uint32(entry.Checksum), nil
+	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
 }
 
-func (r *reader) currEntryID() ts.ID {
-	var id checked.Bytes
+func (r *reader) entryID(id []byte) ts.ID {
+	var idCopy checked.Bytes
 	if r.bytesPool != nil {
-		id = r.bytesPool.Get(len(r.currEntry.Id))
-		id.IncRef()
-		defer id.DecRef()
+		idCopy = r.bytesPool.Get(len(id))
+		idCopy.IncRef()
+		defer idCopy.DecRef()
 	} else {
-		id = checked.NewBytes(nil, nil)
-		id.IncRef()
-		defer id.DecRef()
+		idCopy = checked.NewBytes(nil, nil)
+		idCopy.IncRef()
+		defer idCopy.DecRef()
 	}
 
-	id.AppendAll(entry.ID)
+	idCopy.AppendAll(id)
 
-	return ts.BinaryID(id)
+	return ts.BinaryID(idCopy)
 }
 
 // NB(xichen): Validate should be called after all data are read because the

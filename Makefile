@@ -138,10 +138,6 @@ test-ci-integration:
 test-one-integration:
 	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_one_integration) $(test)
 
-# run as: make test-one-integration test=<test_name>
-test-one-integration:
-	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_one_integration) $(test)
-
 clean:
 	@rm -f *.html *.xml *.out *.test
 

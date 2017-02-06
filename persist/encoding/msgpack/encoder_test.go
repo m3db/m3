@@ -81,6 +81,7 @@ func testExpectedResultForIndexEntry(t *testing.T, indexEntry schema.IndexEntry)
 		indexEntry.ID,
 		indexEntry.Size,
 		indexEntry.Offset,
+		indexEntry.Checksum,
 	}
 }
 

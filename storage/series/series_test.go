@@ -72,7 +72,8 @@ func newSeriesTestOptions() Options {
 		SetDatabaseBlockOptions(opts.
 			DatabaseBlockOptions().
 			SetContextPool(opts.ContextPool()).
-			SetEncoderPool(opts.EncoderPool()))
+			SetEncoderPool(opts.EncoderPool()).
+			SetMultiReaderIteratorPool(multiReaderIteratorPool))
 	return opts
 }
 

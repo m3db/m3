@@ -169,7 +169,7 @@ func (w *writer) writeAll(
 		ID:       id.Data().Get(),
 		Size:     size,
 		Offset:   w.currOffset,
-		Checksum: checksum,
+		Checksum: int64(checksum),
 	}
 	w.encoder.Reset()
 	if err := w.encoder.EncodeIndexEntry(entry); err != nil {

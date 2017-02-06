@@ -256,7 +256,7 @@ func TestReadWrongIdx(t *testing.T) {
 	require.NoError(t, enc.EncodeIndexEntry(entry))
 	reader := r.(*reader)
 	reader.decoder.Reset(enc.Bytes())
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 
 	typedErr, ok := err.(ErrReadWrongIdx)

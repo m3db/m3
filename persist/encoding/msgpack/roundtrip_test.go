@@ -38,10 +38,11 @@ var (
 	}
 
 	testIndexEntry = schema.IndexEntry{
-		Index:  234,
-		ID:     []byte("testIndexEntry"),
-		Size:   5456,
-		Offset: 2390423,
+		Index:    234,
+		ID:       []byte("testIndexEntry"),
+		Size:     5456,
+		Offset:   2390423,
+		Checksum: 13434467456,
 	}
 
 	testLogInfo = schema.LogInfo{

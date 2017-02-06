@@ -46,7 +46,7 @@ const (
 const (
 	numRootObjectFields  = 2
 	numIndexInfoFields   = 3
-	numIndexEntryFields  = 4
+	numIndexEntryFields  = 5
 	numLogInfoFields     = 3
 	numLogEntryFields    = 7
 	numLogMetadataFields = 3
