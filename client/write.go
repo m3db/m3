@@ -151,10 +151,10 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		wErr = xerrors.NewRenamedError(err, fmt.Errorf("error writing to host %s: %v", hostID, err))
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
 		errStr := "missing host shard in writeState completionFn: %s"
-		wErr = xerrors.NewNonRetryableError(fmt.Errorf(errStr, hostID))
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, hostID))
 	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
 		errStr := "missing shard %d in host %s"
-		wErr = xerrors.NewNonRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
 	} else if shardState != shard.Available {
 		// NB(bl): only count writes to available shards towards success
 		var errStr string
@@ -166,7 +166,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		default:
 			errStr = "shard %d in host %s not available (unknown state)"
 		}
-		wErr = xerrors.NewNonRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
 	} else {
 		w.success++
 	}
