@@ -107,3 +107,53 @@ func setShardStates(t *testing.T, s *session, host topology.Host, state shard.St
 		hostShard.SetState(state)
 	}
 }
+
+// func TestErrorRetryability(t *testing.T) {
+// 	// pass retryable
+
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
+
+// 	s := newDefaultTestSession(t).(*session)
+// 	w := newWriteStub()
+
+// 	var completionFn completionFn
+// 	enqueueWg := mockHostQueues(ctrl, s, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
+// 		completionFn = op.CompletionFn()
+// 	}})
+
+// 	s.Open()
+// 	defer s.Close()
+
+// 	host := s.topoMap.Hosts()[0] // any host
+// 	setShardStates(t, s, host, shard.Active)
+
+// 	// Begin write
+// 	var writeWg sync.WaitGroup
+// 	writeWg.Add(1)
+// 	go func() {
+// 		s.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+// 		writeWg.Done()
+// 	}()
+
+// 	// Callbacks
+
+// 	enqueueWg.Wait()
+// 	require.True(t, s.topoMap.Replicas() == sessionTestReplicas)
+// 	for i := 0; i < s.topoMap.Replicas(); i++ {
+// 		completionFn(host, nil)        // maintain session state
+// 		wState.completionFn(host, nil) // for the test
+// 	}
+
+// 	// Wait for write to complete
+// 	writeWg.Wait()
+
+// 	return wState.success
+
+// 	// pass non-retryable
+// 	// try other errors
+// }
+
+// func getWriteError(t *testing.T) error {
+// 	xerrors.foo
+// }
