@@ -824,17 +824,15 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 		completionFn := func(result interface{}, err error) {
 			var snapshotSuccess int32
 			if err != nil {
-				n := atomic.AddInt32(&errs, 1)
-				if n == 1 {
-					// NB(r): reuse the error lock here as we do not want to create
-					// a whole lot of locks for every single ID fetched due to size
-					// of mutex being non-trivial and likely to cause more stack growth
-					// or GC pressure if ends up on heap which is likely due to naive
-					// escape analysis.
-					resultErrLock.Lock()
-					errors = append(errors, err)
-					resultErrLock.Unlock()
-				}
+				atomic.AddInt32(&errs, 1)
+				// NB(r): reuse the error lock here as we do not want to create
+				// a whole lot of locks for every single ID fetched due to size
+				// of mutex being non-trivial and likely to cause more stack growth
+				// or GC pressure if ends up on heap which is likely due to naive
+				// escape analysis.
+				resultErrLock.Lock()
+				errors = append(errors, err)
+				resultErrLock.Unlock()
 			} else {
 				slicesIter := s.readerSliceOfSlicesIteratorPool.Get()
 				slicesIter.Reset(result.([]*rpc.Segments))
