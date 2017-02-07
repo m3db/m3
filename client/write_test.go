@@ -59,8 +59,10 @@ func shardStateWriteTest(t *testing.T, state shard.State) int32 {
 		completionFn = op.CompletionFn()
 	}})
 
-	s.Open()
-	defer s.Close()
+	require.NoError(t, s.Open())
+	defer func() {
+		require.NoError(t, s.Close())
+	}()
 
 	host := s.topoMap.Hosts()[0] // any host
 	setShardStates(t, s, host, state)
@@ -135,8 +137,10 @@ func TestErrorRetryability(t *testing.T) {
 			completionFn = op.CompletionFn()
 		}})
 
-		s.Open()
-		defer s.Close()
+		require.NoError(t, s.Open())
+		defer func() {
+			require.NoError(t, s.Close())
+		}()
 
 		host = s.topoMap.Hosts()[0] // any host
 
