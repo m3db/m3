@@ -45,6 +45,7 @@ func (e *nullEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 func (e *nullEncoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(ts.Segment{})
 }
+func (e *nullEncoder) StreamLen() int                                    { return 0 }
 func (e *nullEncoder) Seal()                                             { e.sealed = true }
 func (e *nullEncoder) Reset(t time.Time, capacity int)                   {}
 func (e *nullEncoder) Close()                                            {}

@@ -12,4 +12,5 @@ message IndexEntry {
 	bytes id = 2;
 	int64 size = 3;
 	int64 offset = 4;
+	int64 checksum = 5;
 }

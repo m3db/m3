@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/pool"
 
@@ -41,7 +42,7 @@ func newTestSeeker(filePathPrefix string) FileSetSeeker {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
-	return NewSeeker(filePathPrefix, testReaderBufferSize, bytesPool)
+	return NewSeeker(filePathPrefix, testReaderBufferSize, bytesPool, nil)
 }
 
 func TestSeekEmptyIndex(t *testing.T) {
@@ -80,7 +81,10 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
-	assert.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{1, 2, 3})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	// Truncate one byte
@@ -116,7 +120,10 @@ func TestSeekBadMarker(t *testing.T) {
 	// Mess up the marker
 	marker[0] = marker[0] + 1
 
-	assert.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{1, 2, 3})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 
 	// Reset the marker
 	marker = actualMarker
@@ -145,9 +152,18 @@ func TestIDs(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
-	assert.NoError(t, w.Write(ts.StringID("foo1"), bytesRefd([]byte{1, 2, 1})))
-	assert.NoError(t, w.Write(ts.StringID("foo2"), bytesRefd([]byte{1, 2, 2})))
-	assert.NoError(t, w.Write(ts.StringID("foo3"), bytesRefd([]byte{1, 2, 3})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo1"),
+		bytesRefd([]byte{1, 2, 1}),
+		digest.Checksum([]byte{1, 2, 1})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo2"),
+		bytesRefd([]byte{1, 2, 2}),
+		digest.Checksum([]byte{1, 2, 2})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo3"),
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
@@ -180,9 +196,18 @@ func TestSeek(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	err = w.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
-	assert.NoError(t, w.Write(ts.StringID("foo1"), bytesRefd(([]byte{1, 2, 1}))))
-	assert.NoError(t, w.Write(ts.StringID("foo2"), bytesRefd(([]byte{1, 2, 2}))))
-	assert.NoError(t, w.Write(ts.StringID("foo3"), bytesRefd(([]byte{1, 2, 3}))))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo1"),
+		bytesRefd([]byte{1, 2, 1}),
+		digest.Checksum([]byte{1, 2, 1})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo2"),
+		bytesRefd([]byte{1, 2, 2}),
+		digest.Checksum([]byte{1, 2, 2})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo3"),
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)

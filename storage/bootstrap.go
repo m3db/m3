@@ -106,12 +106,18 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 
 func (m *bootstrapManager) targetRanges(at time.Time) xtime.Ranges {
 	ropts := m.opts.RetentionOptions()
-	start := at.Add(-ropts.RetentionPeriod())
+	start := at.Add(-ropts.RetentionPeriod()).
+		Truncate(ropts.BlockSize())
 	midPoint := at.
 		Add(-ropts.BlockSize()).
 		Add(-ropts.BufferPast()).
-		Truncate(ropts.BlockSize())
-	cutover := at.Add(ropts.BufferFuture())
+		Truncate(ropts.BlockSize()).
+		// NB(r): since "end" is exclusive we need to add a
+		// an extra block size when specifiying the end time.
+		Add(ropts.BlockSize())
+	cutover := at.Add(ropts.BufferFuture()).
+		Truncate(ropts.BlockSize()).
+		Add(ropts.BlockSize())
 
 	return xtime.NewRanges().
 		AddRange(xtime.Range{Start: start, End: midPoint}).

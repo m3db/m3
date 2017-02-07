@@ -2131,7 +2131,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		for _, reader := range readers {
 			// Close each reader
 			segmentReader := reader.(xio.SegmentReader)
-			segmentReader.Close()
+			segmentReader.Finalize()
 		}
 
 		if err != nil {

@@ -181,11 +181,22 @@ func NewDatabase(
 	}
 
 	ns := make(map[ts.Hash]databaseNamespace, len(namespaces))
+	blockRetrieverMgr := opts.DatabaseBlockRetrieverManager()
 	for _, n := range namespaces {
 		if _, exists := ns[n.ID().Hash()]; exists {
 			return nil, errDuplicateNamespaces
 		}
-		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet, d, d.writeCommitLogFn, d.opts)
+		var blockRetriever block.DatabaseBlockRetriever
+		if blockRetrieverMgr != nil {
+			var newRetrieverErr error
+			blockRetriever, newRetrieverErr =
+				blockRetrieverMgr.Retriever(n.ID())
+			if newRetrieverErr != nil {
+				return nil, newRetrieverErr
+			}
+		}
+		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet,
+			blockRetriever, d, d.writeCommitLogFn, d.opts)
 	}
 	d.namespaces = ns
 

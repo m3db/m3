@@ -22,26 +22,44 @@ package fs
 
 import (
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
-// Options represents the options for bootstrapping from the filesystem
+// Options represents the options for bootstrapping from the filesystem.
 type Options interface {
-	// SetResultOptions sets the instrumentation options
+	// SetResultOptions sets the instrumentation options.
 	SetResultOptions(value result.Options) Options
 
-	// ResultOptions returns the instrumentation options
+	// ResultOptions returns the instrumentation options.
 	ResultOptions() result.Options
 
-	// SetFilesystemOptions sets the filesystem options
+	// SetFilesystemOptions sets the filesystem options.
 	SetFilesystemOptions(value fs.Options) Options
 
-	// GetFilesystemOptions returns the filesystem options
+	// FilesystemOptions returns the filesystem options.
 	FilesystemOptions() fs.Options
 
-	// SetNumProcessors sets the number of processors for CPU-bound work
+	// SetNumProcessors sets the number of processors for CPU-bound work.
 	SetNumProcessors(value int) Options
 
-	// NumProcessors returns the number of processors for CPU-bound work
+	// NumProcessors returns the number of processors for CPU-bound work.
 	NumProcessors() int
+
+	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
+	// use when bootstrapping retrievable blocks instead of blocks
+	// containing data.
+	// If you don't wish to bootstrap retrievable blocks instead of
+	// blocks containing data then do not set this manager.
+	// You can opt into which namespace you wish to have this enabled for
+	// by returning nil instead of a result when creating a new block retriever
+	// for a namespace from the manager.
+	SetDatabaseBlockRetrieverManager(
+		value block.DatabaseBlockRetrieverManager,
+	) Options
+
+	// NewBlockRetrieverFn returns the new block retriever constructor to
+	// use when bootstrapping retrievable blocks instead of blocks
+	// containing data.
+	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 }

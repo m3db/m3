@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,4 +66,54 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	require.NotNil(t, err)
 	require.Equal(t, "an error", err.Error())
 	require.Equal(t, bootstrapped, bsm.state)
+}
+
+func TestDatabaseBootstrapTargetRanges(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	opts = opts.SetRetentionOptions(opts.RetentionOptions().
+		SetBufferFuture(10 * time.Minute).
+		SetBufferPast(10 * time.Minute).
+		SetBufferDrain(10 * time.Minute).
+		SetBlockSize(2 * time.Hour).
+		SetRetentionPeriod(2 * 24 * time.Hour))
+	ropts := opts.RetentionOptions()
+	now := time.Now().Truncate(ropts.BlockSize()).Add(8 * time.Minute)
+	opts = opts.SetNewBootstrapFn(func() bootstrap.Bootstrap {
+		return nil
+	}).SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return now
+	}))
+
+	db := &mockDatabase{opts: opts}
+
+	bsm := newBootstrapManager(db, nil).(*bootstrapManager)
+	ranges := bsm.targetRanges(now)
+
+	var all [][]time.Time
+	it := ranges.Iter()
+	for it.Next() {
+		value := it.Value()
+		var times []time.Time
+		for st := value.Start; st.Before(value.End); st = st.Add(ropts.BlockSize()) {
+			times = append(times, st)
+		}
+		all = append(all, times)
+	}
+
+	require.Equal(t, 2, len(all))
+
+	firstWindowExpected :=
+		int(ropts.RetentionPeriod()/ropts.BlockSize()) - 1
+	secondWindowExpected := 2
+
+	assert.Equal(t, firstWindowExpected, len(all[0]))
+	assert.True(t, all[0][0].Equal(now.Truncate(ropts.BlockSize()).Add(-1*ropts.RetentionPeriod())))
+	assert.True(t, all[0][firstWindowExpected-1].Equal(now.Truncate(ropts.BlockSize()).Add(-2*ropts.BlockSize())))
+
+	require.Equal(t, secondWindowExpected, len(all[1]))
+	assert.True(t, all[1][0].Equal(now.Truncate(ropts.BlockSize()).Add(-1*ropts.BlockSize())))
+	assert.True(t, all[1][1].Equal(now.Truncate(ropts.BlockSize())))
 }

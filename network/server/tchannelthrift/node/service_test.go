@@ -212,7 +212,9 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		require.NotNil(t, seg.Merged)
 
 		var expectHead, expectTail []byte
-		expectSegment := streams[string(id)].Segment()
+		expectSegment, err := streams[string(id)].Segment()
+		require.NoError(t, err)
+
 		if expectSegment.Head != nil {
 			expectHead = expectSegment.Head.Get()
 		}
@@ -270,7 +272,11 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		}
 
 		streams[id] = enc.Stream()
-		checksum := digest.SegmentChecksum(streams[id].Segment())
+
+		seg, err := streams[id].Segment()
+		require.NoError(t, err)
+
+		checksum := digest.SegmentChecksum(seg)
 		checksums[id] = checksum
 
 		mockDB.EXPECT().
@@ -312,7 +318,9 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		require.NotNil(t, seg.Merged)
 
 		var expectHead, expectTail []byte
-		expectSegment := streams[string(id)].Segment()
+		expectSegment, err := streams[string(id)].Segment()
+		require.NoError(t, err)
+
 		if expectSegment.Head != nil {
 			expectHead = expectSegment.Head.Get()
 		}

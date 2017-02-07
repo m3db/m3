@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -72,24 +72,24 @@ func (_mr *_MockFileSetWriterRecorder) Open(arg0, arg1, arg2 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1, arg2)
 }
 
-func (_m *MockFileSetWriter) Write(_param0 ts.ID, _param1 checked.Bytes) error {
-	ret := _m.ctrl.Call(_m, "Write", _param0, _param1)
+func (_m *MockFileSetWriter) Write(_param0 ts.ID, _param1 checked.Bytes, _param2 uint32) error {
+	ret := _m.ctrl.Call(_m, "Write", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileSetWriterRecorder) Write(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1)
+func (_mr *_MockFileSetWriterRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2)
 }
 
-func (_m *MockFileSetWriter) WriteAll(_param0 ts.ID, _param1 []checked.Bytes) error {
-	ret := _m.ctrl.Call(_m, "WriteAll", _param0, _param1)
+func (_m *MockFileSetWriter) WriteAll(_param0 ts.ID, _param1 []checked.Bytes, _param2 uint32) error {
+	ret := _m.ctrl.Call(_m, "WriteAll", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockFileSetWriterRecorder) WriteAll(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteAll", arg0, arg1)
+func (_mr *_MockFileSetWriterRecorder) WriteAll(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteAll", arg0, arg1, arg2)
 }
 
 // Mock of FileSetReader interface
@@ -163,16 +163,30 @@ func (_mr *_MockFileSetReaderRecorder) Range() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Range")
 }
 
-func (_m *MockFileSetReader) Read() (ts.ID, checked.Bytes, error) {
+func (_m *MockFileSetReader) Read() (ts.ID, checked.Bytes, uint32, error) {
 	ret := _m.ctrl.Call(_m, "Read")
 	ret0, _ := ret[0].(ts.ID)
 	ret1, _ := ret[1].(checked.Bytes)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret2, _ := ret[2].(uint32)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
 func (_mr *_MockFileSetReaderRecorder) Read() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read")
+}
+
+func (_m *MockFileSetReader) ReadMetadata() (ts.ID, int, uint32, error) {
+	ret := _m.ctrl.Call(_m, "ReadMetadata")
+	ret0, _ := ret[0].(ts.ID)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(uint32)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
+}
+
+func (_mr *_MockFileSetReaderRecorder) ReadMetadata() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadMetadata")
 }
 
 func (_m *MockFileSetReader) Validate() error {

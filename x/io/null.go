@@ -27,6 +27,6 @@ import (
 type nullSegmentReader struct{}
 
 func (r nullSegmentReader) Read(p []byte) (n int, err error) { return 0, nil }
-func (r nullSegmentReader) Segment() ts.Segment              { return ts.Segment{} }
+func (r nullSegmentReader) Segment() (ts.Segment, error)     { return ts.Segment{}, nil }
 func (r nullSegmentReader) Reset(segment ts.Segment)         {}
-func (r nullSegmentReader) Close()                           {}
+func (r nullSegmentReader) Finalize()                        {}
