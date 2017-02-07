@@ -830,6 +830,7 @@ func (s *session) FetchAll(namespace string, ids []string, startInclusive, endEx
 				// of mutex being non-trivial and likely to cause more stack growth
 				// or GC pressure if ends up on heap which is likely due to naive
 				// escape analysis.
+				resultErrLock.Lock()
 				errors = append(errors, err)
 				resultErrLock.Unlock()
 			} else {
