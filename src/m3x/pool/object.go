@@ -21,11 +21,18 @@
 package pool
 
 import (
+	"errors"
 	"math"
 	"sync/atomic"
 	"time"
 
 	"github.com/uber-go/tally"
+)
+
+var (
+	errPoolAlreadyInitialized   = errors.New("object pool already initialized")
+	errPoolGetBeforeInitialized = errors.New("object pool get before initialized")
+	errPoolPutBeforeInitialized = errors.New("object pool put before initialized")
 )
 
 const (
@@ -40,7 +47,8 @@ type objectPool struct {
 	size                int
 	refillLowWatermark  int
 	refillHighWatermark int
-	filling             int64
+	filling             int32
+	initialized         int32
 	metrics             objectPoolMetrics
 }
 
@@ -81,6 +89,12 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 }
 
 func (p *objectPool) Init(alloc Allocator) {
+	if !atomic.CompareAndSwapInt32(&p.initialized, 0, 1) {
+		fn := p.opts.OnPoolAccessErrorFn()
+		fn(errPoolAlreadyInitialized)
+		return
+	}
+
 	p.alloc = alloc
 
 	for i := 0; i < cap(p.values); i++ {
@@ -89,8 +103,13 @@ func (p *objectPool) Init(alloc Allocator) {
 }
 
 func (p *objectPool) Get() interface{} {
-	var v interface{}
+	if atomic.LoadInt32(&p.initialized) != 1 {
+		fn := p.opts.OnPoolAccessErrorFn()
+		fn(errPoolGetBeforeInitialized)
+		return p.alloc()
+	}
 
+	var v interface{}
 	select {
 	case v = <-p.values:
 	default:
@@ -108,6 +127,12 @@ func (p *objectPool) Get() interface{} {
 }
 
 func (p *objectPool) Put(obj interface{}) {
+	if atomic.LoadInt32(&p.initialized) != 1 {
+		fn := p.opts.OnPoolAccessErrorFn()
+		fn(errPoolPutBeforeInitialized)
+		return
+	}
+
 	select {
 	case p.values <- obj:
 	default:
@@ -129,12 +154,12 @@ func (p *objectPool) setGauges() {
 }
 
 func (p *objectPool) tryFill() {
-	if !atomic.CompareAndSwapInt64(&p.filling, 0, 1) {
+	if !atomic.CompareAndSwapInt32(&p.filling, 0, 1) {
 		return
 	}
 
 	go func() {
-		defer atomic.StoreInt64(&p.filling, 0)
+		defer atomic.StoreInt32(&p.filling, 0)
 
 		for len(p.values) < p.refillHighWatermark {
 			select {

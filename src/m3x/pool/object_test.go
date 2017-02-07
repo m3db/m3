@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
@@ -59,4 +60,59 @@ func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 
 	// Assert refilled
 	assert.Equal(t, 75, len(pool.values))
+}
+
+func TestObjectPoolInitTwiceError(t *testing.T) {
+	var accessErr error
+	opts := NewObjectPoolOptions().SetOnPoolAccessErrorFn(func(err error) {
+		accessErr = err
+	})
+
+	pool := NewObjectPool(opts)
+	pool.Init(func() interface{} {
+		return 1
+	})
+
+	require.NoError(t, accessErr)
+
+	pool.Init(func() interface{} {
+		return 1
+	})
+
+	assert.Error(t, accessErr)
+	assert.Equal(t, errPoolAlreadyInitialized, accessErr)
+}
+
+func TestObjectPoolGetBeforeInitError(t *testing.T) {
+	var accessErr error
+	opts := NewObjectPoolOptions().SetOnPoolAccessErrorFn(func(err error) {
+		accessErr = err
+	})
+
+	pool := NewObjectPool(opts)
+
+	require.NoError(t, accessErr)
+
+	assert.Panics(t, func() {
+		pool.Get()
+	})
+
+	assert.Error(t, accessErr)
+	assert.Equal(t, errPoolGetBeforeInitialized, accessErr)
+}
+
+func TestObjectPoolPutBeforeInitError(t *testing.T) {
+	var accessErr error
+	opts := NewObjectPoolOptions().SetOnPoolAccessErrorFn(func(err error) {
+		accessErr = err
+	})
+
+	pool := NewObjectPool(opts)
+
+	require.NoError(t, accessErr)
+
+	pool.Put(1)
+
+	assert.Error(t, accessErr)
+	assert.Equal(t, errPoolPutBeforeInitialized, accessErr)
 }
