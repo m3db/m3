@@ -56,6 +56,10 @@ type CheckedObjectPool interface {
 	Get() checked.ReadWriteRef
 }
 
+// OnPoolAccessErrorFn is a function to call when a pool access error occurs,
+// such as get or put before the pool is initialized.
+type OnPoolAccessErrorFn func(err error)
+
 // ObjectPoolOptions provides options for an object pool.
 type ObjectPoolOptions interface {
 	// SetSize sets the size of the object pool.
@@ -85,6 +89,14 @@ type ObjectPoolOptions interface {
 
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
+
+	// SetOnPoolAccessErrorFn sets the on pool access error callback, by
+	// default this is a panic.
+	SetOnPoolAccessErrorFn(value OnPoolAccessErrorFn) ObjectPoolOptions
+
+	// OnPoolAccessErrorFn returns the on pool access error callback, by
+	// default this is a panic.
+	OnPoolAccessErrorFn() OnPoolAccessErrorFn
 }
 
 // Bucket specifies a pool bucket.
