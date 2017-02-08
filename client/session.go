@@ -519,7 +519,6 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	}
 	s.topoMap = topoMap
 
-	prevReplicas := atomic.LoadInt32(&s.replicas)
 	atomic.StoreInt32(&s.replicas, int32(replicas))
 	atomic.StoreInt32(&s.majority, int32(majority))
 
@@ -1286,7 +1285,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	)
 
 	pending = int64(len(peers))
-	m.metadataFetches.Update(pending)
+	m.metadataFetches.Update(float64(pending))
 	for _, peer := range peers {
 		peer := peer
 
@@ -1301,7 +1300,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 				errLen++
 				multiErr = multiErr.Add(err)
 			}
-			m.metadataFetches.Update(atomic.AddInt64(&pending, -1))
+			m.metadataFetches.Update(float64(atomic.AddInt64(&pending, -1)))
 		}()
 	}
 
@@ -2321,7 +2320,7 @@ func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
 	}
 	go func() {
 		for atomic.LoadInt64(&c.closed) == 0 {
-			m.blocksEnqueueChannel.Update(int64(len(c.peersMetadataCh)))
+			m.blocksEnqueueChannel.Update(float64(len(c.peersMetadataCh)))
 			time.Sleep(gaugeReportInterval)
 		}
 	}()

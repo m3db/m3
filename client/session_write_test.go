@@ -179,7 +179,9 @@ func testWriteConsistencyLevel(
 	reporterOpts := xmetrics.NewTestStatsReporterOptions().
 		SetCaptureEvents(true)
 	reporter := xmetrics.NewTestStatsReporter(reporterOpts)
-	scope := tally.NewRootScope("", nil, reporter, time.Millisecond)
+	scope, closer := tally.NewRootScope("", nil, reporter, time.Millisecond, tally.DefaultSeparator)
+	defer closer.Close()
+
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
 		SetMetricsScope(scope))
 
