@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 
@@ -68,6 +69,9 @@ const (
 
 	// defaultTruncateRequestTimeout is the default truncate request timeout
 	defaultTruncateRequestTimeout = 60 * time.Second
+
+	// defaultIdentifierPoolSize is the default identifier pool size
+	defaultIdentifierPoolSize = 8192
 
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 1000000
@@ -130,6 +134,11 @@ const (
 )
 
 var (
+	// defaultIdentifierPoolBytesPoolSizes is the default bytes pool sizes for the identifier pool
+	defaultIdentifierPoolBytesPoolSizes = []pool.Bucket{
+		{Capacity: 256, Count: defaultIdentifierPoolSize},
+	}
+
 	// defaultFetchSeriesBlocksBatchConcurrency is the default fetch series blocks in batch parallel concurrency limit
 	defaultFetchSeriesBlocksBatchConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
 
@@ -166,6 +175,7 @@ type options struct {
 	fetchBatchOpPoolSize                    int
 	writeBatchSize                          int
 	fetchBatchSize                          int
+	identifierPool                          ts.IdentifierPool
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
 	hostQueueOpsArrayPoolSize               int
@@ -191,6 +201,20 @@ func NewAdminOptions() AdminOptions {
 }
 
 func newOptions() *options {
+	buckets := defaultIdentifierPoolBytesPoolSizes
+	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
+		func(sizes []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(sizes, nil)
+		})
+	bytesPool.Init()
+
+	poolOpts := pool.NewObjectPoolOptions().
+		SetSize(defaultIdentifierPoolSize)
+
+	idPool := ts.NewIdentifierPool(bytesPool, poolOpts)
+
+	contextPool := context.NewPool(poolOpts, poolOpts)
+
 	opts := &options{
 		clockOpts:                               clock.NewOptions(),
 		instrumentOpts:                          instrument.NewOptions(),
@@ -214,12 +238,13 @@ func newOptions() *options {
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
 		writeBatchSize:                          defaultWriteBatchSize,
 		fetchBatchSize:                          defaultFetchBatchSize,
+		identifierPool:                          idPool,
 		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
 		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
-		contextPool:                             context.NewPool(nil, nil),
+		contextPool:                             contextPool,
 		fetchSeriesBlocksMaxBlockRetries:        defaultFetchSeriesBlocksMaxBlockRetries,
 		fetchSeriesBlocksBatchSize:              defaultFetchSeriesBlocksBatchSize,
 		fetchSeriesBlocksMetadataBatchTimeout:   defaultFetchSeriesBlocksMetadataBatchTimeout,
@@ -495,6 +520,16 @@ func (o *options) SetFetchBatchSize(value int) Options {
 
 func (o *options) FetchBatchSize() int {
 	return o.fetchBatchSize
+}
+
+func (o *options) SetIdentifierPool(value ts.IdentifierPool) Options {
+	opts := *o
+	opts.identifierPool = value
+	return &opts
+}
+
+func (o *options) IdentifierPool() ts.IdentifierPool {
+	return o.identifierPool
 }
 
 func (o *options) SetHostQueueOpsFlushSize(value int) Options {

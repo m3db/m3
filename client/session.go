@@ -110,6 +110,8 @@ type session struct {
 	queues                           []hostQueue
 	queuesByHostID                   map[string]hostQueue
 	state                            state
+	contextPool                      context.Pool
+	idPool                           ts.IdentifierPool
 	writeOpPool                      writeOpPool
 	fetchBatchOpPool                 fetchBatchOpPool
 	fetchBatchOpArrayArrayPool       fetchBatchOpArrayArrayPool
@@ -199,6 +201,8 @@ func newSession(opts Options) (clientSession, error) {
 		topo:                 topo,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
+		contextPool:          opts.ContextPool(),
+		idPool:               opts.IdentifierPool(),
 		metrics:              newSessionMetrics(scope),
 	}
 	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
@@ -629,7 +633,9 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	var (
 		enqueued int32
 		majority = atomic.LoadInt32(&s.majority)
-		tsID     = ts.StringID(id)
+		ctx      = s.contextPool.Get()
+		nsID     = s.idPool.GetStringID(ctx, namespace)
+		tsID     = s.idPool.GetStringID(ctx, id)
 	)
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
@@ -653,8 +659,9 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = s.writeOpPool.Get(), majority
+	state.ctx, state.nsID, state.tsID = ctx, state.nsID, state.tsID
 
-	state.op.namespace = ts.StringID(namespace)
+	state.op.namespace = nsID
 	state.op.request.ID = tsID.Data().Get()
 	state.op.shardID = s.topoMap.ShardSet().Lookup(tsID)
 	state.op.request.ID = tsID.Data().Get()
@@ -678,6 +685,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	state.Lock()
 
 	for i := range state.queues {
+		state.incRef()
 		if err := state.queues[i].Enqueue(state.op); err != nil {
 			state.Unlock()
 			state.decRef()
@@ -689,7 +697,6 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 			return err
 		}
 
-		state.incRef()
 		enqueued++
 	}
 

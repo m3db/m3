@@ -110,6 +110,7 @@ func (v *id) Finalize() {
 	v.data.DecRef()
 	v.data.Finalize()
 	v.data = nil
+	v.hash = null
 
 	if v.pool == nil {
 		return

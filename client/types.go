@@ -467,6 +467,12 @@ type Options interface {
 	// FetchBatchSize returns the fetchBatchSize
 	FetchBatchSize() int
 
+	// SetIdentifierPool sets the identifier pool
+	SetIdentifierPool(value ts.IdentifierPool) Options
+
+	// IdentifierPool returns the identifier pool
+	IdentifierPool() ts.IdentifierPool
+
 	// SetHostQueueOpsFlushSize sets the hostQueueOpsFlushSize
 	SetHostQueueOpsFlushSize(value int) Options
 
