@@ -26,8 +26,8 @@ package fs
 import (
 	gomock "github.com/golang/mock/gomock"
 	ts "github.com/m3db/m3db/ts"
-	checked "github.com/m3db/m3x/checked"
-	time0 "github.com/m3db/m3x/time"
+	checked "github.com/m3db/m3db/vendor/github.com/m3db/m3x/checked"
+	time0 "github.com/m3db/m3db/vendor/github.com/m3db/m3x/time"
 	time "time"
 )
 

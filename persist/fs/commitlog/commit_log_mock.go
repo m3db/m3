@@ -31,6 +31,7 @@ import (
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
 	instrument "github.com/m3db/m3x/instrument"
+	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
 	time "time"
 )
@@ -348,4 +349,24 @@ func (_m *MockOptions) BacklogQueueSize() int {
 
 func (_mr *_MockOptionsRecorder) BacklogQueueSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BacklogQueueSize")
+}
+
+func (_m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
+	ret := _m.ctrl.Call(_m, "SetBytesPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetBytesPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBytesPool", arg0)
+}
+
+func (_m *MockOptions) BytesPool() pool.CheckedBytesPool {
+	ret := _m.ctrl.Call(_m, "BytesPool")
+	ret0, _ := ret[0].(pool.CheckedBytesPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) BytesPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BytesPool")
 }
