@@ -36,7 +36,7 @@ import:
   version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
 
 - package: github.com/uber-go/tally
-  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+  version: v1.1.0
 
 - package: github.com/m3db/m3cluster
   version: 8ca9f7bc9c3e446aec14fa785cf22f640117d33b
@@ -45,7 +45,7 @@ import:
   - services
 
 - package: github.com/m3db/m3x
-  version: dd72a7c37fdc78b623a2590ff33bfbfc236dbf77
+  version: 41e3f053bd721ec1d6ba8d4eef3e036290aa7977
   vcs: git
   subpackages:
   - checked

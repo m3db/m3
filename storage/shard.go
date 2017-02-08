@@ -262,10 +262,10 @@ func (s *dbShard) Close() error {
 	s.Unlock()
 
 	s.metrics.closeStart.Inc(1)
-	start := s.metrics.closeLatency.Start()
+	stopwatch := s.metrics.closeLatency.Start()
 	defer func() {
 		s.metrics.close.Inc(1)
-		s.metrics.closeLatency.Stop(start)
+		stopwatch.Stop()
 	}()
 
 	// NB(r): Asynchronously we purge expired series to ensure pressure on the

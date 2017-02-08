@@ -165,7 +165,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 	var sleepForOverride time.Duration
 
 	for {
-		l.metrics.queued.Update(int64(len(l.writes)))
+		l.metrics.queued.Update(float64(len(l.writes)))
 
 		sleepFor := interval
 
