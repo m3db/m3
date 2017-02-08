@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -147,21 +148,25 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	var wErr error
 
 	if err != nil {
-		wErr = fmt.Errorf("error writing to host %s: %v", hostID, err)
+		wErr = xerrors.NewRenamedError(err, fmt.Errorf("error writing to host %s: %v", hostID, err))
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
-		wErr = fmt.Errorf("missing host shard in writeState completionFn: %s", hostID)
+		errStr := "missing host shard in writeState completionFn: %s"
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, hostID))
 	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
-		wErr = fmt.Errorf("missing shard %d in host %s", w.op.shardID, hostID)
+		errStr := "missing shard %d in host %s"
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
 	} else if shardState != shard.Available {
 		// NB(bl): only count writes to available shards towards success
+		var errStr string
 		switch shardState {
 		case shard.Initializing:
-			wErr = fmt.Errorf("shard %d in host %s is not available (initializing)", w.op.shardID, hostID)
+			errStr = "shard %d in host %s is not available (initializing)"
 		case shard.Leaving:
-			wErr = fmt.Errorf("shard %d in host %s not available (leaving)", w.op.shardID, hostID)
+			errStr = "shard %d in host %s not available (leaving)"
 		default:
-			wErr = fmt.Errorf("shard %d in host %s not available (unknown state)", w.op.shardID, hostID)
+			errStr = "shard %d in host %s not available (unknown state)"
 		}
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
 	} else {
 		w.success++
 	}
