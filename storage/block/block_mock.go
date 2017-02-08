@@ -126,6 +126,16 @@ func (_mr *_MockFetchBlockResultRecorder) Err() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
 }
 
+func (_m *MockFetchBlockResult) Checksum() *uint32 {
+	ret := _m.ctrl.Call(_m, "Checksum")
+	ret0, _ := ret[0].(*uint32)
+	return ret0
+}
+
+func (_mr *_MockFetchBlockResultRecorder) Checksum() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
+}
+
 // Mock of FetchBlockMetadataResults interface
 type MockFetchBlockMetadataResults struct {
 	ctrl     *gomock.Controller

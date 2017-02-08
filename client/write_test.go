@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/topology"
 
 	"github.com/golang/mock/gomock"
@@ -126,6 +127,7 @@ func TestShardNotAvailable(t *testing.T) {
 
 func getWriteState(s *session) *writeState {
 	wState := s.writeStatePool.Get().(*writeState)
+	wState.ctx = context.NewContext()
 	wState.topoMap = s.topoMap
 	wState.op = s.writeOpPool.Get()
 	wState.op.shardID = 0 // Any valid shardID

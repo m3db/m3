@@ -24,8 +24,6 @@
 package storage
 
 import (
-	time "time"
-
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
@@ -45,6 +43,7 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of Database interface
@@ -1441,6 +1440,26 @@ func (_m *MockOptions) CommitLogOptions() commitlog.Options {
 
 func (_mr *_MockOptionsRecorder) CommitLogOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogOptions")
+}
+
+func (_m *MockOptions) SetRepairEnabled(b bool) Options {
+	ret := _m.ctrl.Call(_m, "SetRepairEnabled", b)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetRepairEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRepairEnabled", arg0)
+}
+
+func (_m *MockOptions) RepairEnabled() bool {
+	ret := _m.ctrl.Call(_m, "RepairEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) RepairEnabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RepairEnabled")
 }
 
 func (_m *MockOptions) SetRepairOptions(value repair.Options) Options {
