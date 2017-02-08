@@ -267,6 +267,9 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					}
 
 					resultLock.Lock()
+					// NB(prateek): re-checking if the series was created in the interim while
+					// we released the lock
+					series, seriesExists = shardResult.AllSeries()[idHash]
 					if seriesExists {
 						series.Blocks.AddBlock(seriesBlock)
 					} else {
