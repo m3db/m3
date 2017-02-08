@@ -590,12 +590,10 @@ func TestMultipleWatches(t *testing.T) {
 
 func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
-	ec := ecluster.Client(0)
+	ec := ecluster.RandClient()
 
 	closer := func() {
 		ecluster.Terminate(t)
-		ec.Watcher.Close()
-		ec.Lease.Close()
 	}
 
 	kvGen := func(zone string) (kv.Store, error) {
@@ -606,7 +604,7 @@ func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 				SetKeyFn(func(key string) string {
 					return fmt.Sprintf("[%s][%s]", zone, key)
 				}),
-		), nil
+		)
 	}
 
 	m := &mockHBGen{

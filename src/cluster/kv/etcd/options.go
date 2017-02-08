@@ -32,6 +32,7 @@ var (
 	defaultRequestTimeout         = 10 * time.Second
 	defaultWatchChanCheckInterval = 10 * time.Second
 	defaultWatchChanResetInterval = 10 * time.Second
+	defaultWatchChanInitTimeout   = 10 * time.Second
 	defaultRetryOptions           = xretry.NewOptions().SetMaxRetries(5)
 	defaultKeyFn                  = KeyFn(
 		func(key string) string {
@@ -76,6 +77,11 @@ type Options interface {
 	// SetWatchChanResetInterval sets the WatchChanResetInterval
 	SetWatchChanResetInterval(t time.Duration) Options
 
+	// WatchChanInitTimeout is the timeout for a watchChan initialization
+	WatchChanInitTimeout() time.Duration
+	// SetWatchChanInitTimeout sets the WatchChanInitTimeout
+	SetWatchChanInitTimeout(t time.Duration) Options
+
 	// CacheFilePath is the file path to persist in-memory cache.
 	// If not provided, not file persisting will happen
 	CacheFilePath() string
@@ -93,6 +99,7 @@ type options struct {
 	ropts                  xretry.Options
 	watchChanCheckInterval time.Duration
 	watchChanResetInterval time.Duration
+	watchChanInitTimeout   time.Duration
 	cacheFilePath          string
 }
 
@@ -104,6 +111,7 @@ func NewOptions() Options {
 		SetRetryOptions(defaultRetryOptions).
 		SetWatchChanCheckInterval(defaultWatchChanCheckInterval).
 		SetWatchChanResetInterval(defaultWatchChanResetInterval).
+		SetWatchChanInitTimeout(defaultWatchChanInitTimeout).
 		SetKeyFn(defaultKeyFn)
 }
 
@@ -178,6 +186,15 @@ func (o options) WatchChanResetInterval() time.Duration {
 
 func (o options) SetWatchChanResetInterval(t time.Duration) Options {
 	o.watchChanResetInterval = t
+	return o
+}
+
+func (o options) WatchChanInitTimeout() time.Duration {
+	return o.watchChanInitTimeout
+}
+
+func (o options) SetWatchChanInitTimeout(t time.Duration) Options {
+	o.watchChanInitTimeout = t
 	return o
 }
 
