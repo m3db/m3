@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"sync"
 	"testing"
 
@@ -28,68 +29,100 @@ import (
 	"github.com/m3db/m3db/topology"
 
 	"github.com/golang/mock/gomock"
+	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// shard state tests
+
+func testWriteSuccess(t *testing.T, state shard.State, success bool) {
+	var writeWg sync.WaitGroup
+
+	wState, s, host := writeTestSetup(t, &writeWg)
+	setShardStates(t, s, host, state)
+	wState.completionFn(host, nil)
+
+	if success {
+		assert.Equal(t, int32(1), wState.success)
+	} else {
+		assert.Equal(t, int32(0), wState.success)
+	}
+
+	writeTestTeardown(wState, &writeWg)
+}
+
 func TestWriteToAvailableShards(t *testing.T) {
-	assert.Equal(t, int32(sessionTestReplicas), shardStateWriteTest(t, shard.Available))
+	testWriteSuccess(t, shard.Available, true)
 }
 
 func TestWriteToInitializingShards(t *testing.T) {
-	assert.Equal(t, int32(0), shardStateWriteTest(t, shard.Initializing))
+	testWriteSuccess(t, shard.Initializing, false)
 }
 
 func TestWriteToLeavingShards(t *testing.T) {
-	assert.Equal(t, int32(0), shardStateWriteTest(t, shard.Leaving))
+	testWriteSuccess(t, shard.Leaving, false)
 }
 
-func shardStateWriteTest(t *testing.T, state shard.State) int32 {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// retryability test
 
-	s := newDefaultTestSession(t).(*session)
-	w := newWriteStub()
+type errTestFn func(error) bool
 
-	var completionFn completionFn
-	enqueueWg := mockHostQueues(ctrl, s, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
-		completionFn = op.CompletionFn()
-	}})
+func retryabilityCheck(t *testing.T, wState *writeState, testFn errTestFn) {
+	require.True(t, len(wState.errors) == 1)
+	assert.True(t, testFn(wState.errors[0]))
+}
 
-	s.Open()
-	defer s.Close()
-
-	host := s.topoMap.Hosts()[0] // any host
-	setShardStates(t, s, host, state)
-
-	wState := getWriteState(s)
-	for i := 0; i < sessionTestReplicas+1; i++ {
-		wState.incRef()
-	}
-	defer wState.decRef() // add an extra incRef so we can inspect wState
-
-	// Begin write
+func simpleRetryableTest(t *testing.T, passedErr error, customHost topology.Host, testFn errTestFn) {
 	var writeWg sync.WaitGroup
-	writeWg.Add(1)
-	go func() {
-		s.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
-		writeWg.Done()
-	}()
 
-	// Callbacks
-
-	enqueueWg.Wait()
-	require.True(t, s.topoMap.Replicas() == sessionTestReplicas)
-	for i := 0; i < s.topoMap.Replicas(); i++ {
-		completionFn(host, nil)        // maintain session state
-		wState.completionFn(host, nil) // for the test
+	wState, _, host := writeTestSetup(t, &writeWg)
+	if customHost != nil {
+		host = customHost
 	}
-
-	// Wait for write to complete
-	writeWg.Wait()
-
-	return wState.success
+	wState.completionFn(host, passedErr)
+	retryabilityCheck(t, wState, testFn)
+	writeTestTeardown(wState, &writeWg)
 }
+
+func TestNonRetryableError(t *testing.T) {
+	simpleRetryableTest(t, xerrors.NewNonRetryableError(errors.New("")), nil, xerrors.IsNonRetryableError)
+}
+
+func TestBadRequestError(t *testing.T) {
+	simpleRetryableTest(t, tterrors.NewBadRequestError(errors.New("")), nil, IsBadRequestError)
+}
+
+func TestRetryableError(t *testing.T) {
+	simpleRetryableTest(t, xerrors.NewRetryableError(errors.New("")), nil, xerrors.IsRetryableError)
+}
+
+func TestBadHostID(t *testing.T) {
+	simpleRetryableTest(t, nil, fakeHost{id: "not a real host"}, xerrors.IsRetryableError)
+}
+
+func TestBadShardID(t *testing.T) {
+	var writeWg sync.WaitGroup
+
+	wState, _, host := writeTestSetup(t, &writeWg)
+	wState.op.shardID = writeOpZeroed.shardID
+	wState.completionFn(host, nil)
+	retryabilityCheck(t, wState, xerrors.IsRetryableError)
+	writeTestTeardown(wState, &writeWg)
+}
+
+func TestShardNotAvailable(t *testing.T) {
+	var writeWg sync.WaitGroup
+
+	wState, s, host := writeTestSetup(t, &writeWg)
+	setShardStates(t, s, host, shard.Initializing)
+	wState.completionFn(host, nil)
+	retryabilityCheck(t, wState, xerrors.IsRetryableError)
+	writeTestTeardown(wState, &writeWg)
+}
+
+// utils
 
 func getWriteState(s *session) *writeState {
 	wState := s.writeStatePool.Get().(*writeState)
@@ -106,4 +139,56 @@ func setShardStates(t *testing.T, s *session, host topology.Host, state shard.St
 	for _, hostShard := range hostShardSet.ShardSet().All() {
 		hostShard.SetState(state)
 	}
+}
+
+type fakeHost struct{ id string }
+
+func (f fakeHost) ID() string      { return f.id }
+func (f fakeHost) Address() string { return "" }
+func (f fakeHost) String() string  { return "" }
+
+func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *session, topology.Host) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	s := newDefaultTestSession(t).(*session)
+	w := newWriteStub()
+
+	var completionFn completionFn
+	enqueueWg := mockHostQueues(ctrl, s, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
+		completionFn = op.CompletionFn()
+	}})
+
+	require.NoError(t, s.Open())
+	defer func() {
+		require.NoError(t, s.Close())
+	}()
+
+	host := s.topoMap.Hosts()[0] // any host
+
+	wState := getWriteState(s)
+	wState.incRef() // for the test
+	wState.incRef() // allow introspection
+
+	// Begin write
+	writeWg.Add(1)
+	go func() {
+		s.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+		writeWg.Done()
+	}()
+
+	// Callbacks
+
+	enqueueWg.Wait()
+	require.True(t, s.topoMap.Replicas() == sessionTestReplicas)
+	for i := 0; i < s.topoMap.Replicas(); i++ {
+		completionFn(host, nil) // maintain session state
+	}
+
+	return wState, s, host
+}
+
+func writeTestTeardown(wState *writeState, writeWg *sync.WaitGroup) {
+	wState.decRef() // end introspection
+	writeWg.Wait()  // wait for write to complete
 }
