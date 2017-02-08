@@ -199,8 +199,9 @@ func (q *queue) drain() {
 			switch v := ops[i].(type) {
 			case *writeOp:
 				namespace := v.namespace
-				currWriteOps = currWriteOpsByNamespace[namespace.Hash()]
-				currBatchElements = currBatchElementsByNamespace[namespace.Hash()]
+				namespaceKey := namespace.Hash()
+				currWriteOps = currWriteOpsByNamespace[namespaceKey]
+				currBatchElements = currBatchElementsByNamespace[namespaceKey]
 				if currWriteOps == nil {
 					currWriteOps = q.opsArrayPool.Get()
 					currBatchElements = q.writeBatchRawRequestElementArrayPool.Get()
@@ -208,14 +209,14 @@ func (q *queue) drain() {
 
 				currWriteOps = append(currWriteOps, ops[i])
 				currBatchElements = append(currBatchElements, &v.request)
-				currWriteOpsByNamespace[namespace.Hash()] = currWriteOps
-				currBatchElementsByNamespace[namespace.Hash()] = currBatchElements
+				currWriteOpsByNamespace[namespaceKey] = currWriteOps
+				currBatchElementsByNamespace[namespaceKey] = currBatchElements
 
 				if len(currWriteOps) == writeBatchSize {
 					// Reached write batch limit, write async and reset
 					q.asyncWrite(namespace, currWriteOps, currBatchElements)
-					currWriteOpsByNamespace[namespace.Hash()] = nil
-					currBatchElementsByNamespace[namespace.Hash()] = nil
+					currWriteOpsByNamespace[namespaceKey] = nil
+					currBatchElementsByNamespace[namespaceKey] = nil
 				}
 			case *fetchBatchOp:
 				q.asyncFetch(v)
@@ -231,9 +232,10 @@ func (q *queue) drain() {
 		for _, writeOps := range currWriteOpsByNamespace {
 			if len(writeOps) > 0 {
 				namespace := writeOps[0].(*writeOp).namespace
-				q.asyncWrite(namespace, writeOps, currBatchElementsByNamespace[namespace.Hash()])
-				currWriteOpsByNamespace[namespace.Hash()] = nil
-				currBatchElementsByNamespace[namespace.Hash()] = nil
+				namespaceKey := namespace.Hash()
+				q.asyncWrite(namespace, writeOps, currBatchElementsByNamespace[namespaceKey])
+				currWriteOpsByNamespace[namespaceKey] = nil
+				currBatchElementsByNamespace[namespaceKey] = nil
 			}
 		}
 
