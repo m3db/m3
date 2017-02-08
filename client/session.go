@@ -659,7 +659,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = s.writeOpPool.Get(), majority
-	state.ctx, state.nsID, state.tsID = ctx, state.nsID, state.tsID
+	state.ctx, state.nsID, state.tsID = ctx, nsID, tsID
 
 	state.op.namespace = nsID
 	state.op.request.ID = tsID.Data().Get()
