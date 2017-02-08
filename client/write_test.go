@@ -40,7 +40,7 @@ import (
 func testWriteSuccess(t *testing.T, state shard.State, success bool) {
 	var writeWg sync.WaitGroup
 
-	wState, s, host := testSetup(t, &writeWg)
+	wState, s, host := writeTestSetup(t, &writeWg)
 	setShardStates(t, s, host, state)
 	wState.completionFn(host, nil)
 
@@ -50,9 +50,7 @@ func testWriteSuccess(t *testing.T, state shard.State, success bool) {
 		assert.Equal(t, int32(0), wState.success)
 	}
 
-	// cleanup
-	wState.decRef() // end introspection
-	writeWg.Wait()  // wait for write to complete
+	writeTestTeardown(wState, &writeWg)
 }
 
 func TestWriteToAvailableShards(t *testing.T) {
@@ -71,63 +69,57 @@ func TestWriteToLeavingShards(t *testing.T) {
 
 type errTestFn func(error) bool
 
-func retryabilityCheck(t *testing.T, wState *writeState, writeWg *sync.WaitGroup, testFn errTestFn) {
+func retryabilityCheck(t *testing.T, wState *writeState, testFn errTestFn) {
 	require.True(t, len(wState.errors) == 1)
 	assert.True(t, testFn(wState.errors[0]))
+}
 
-	// cleanup
-	wState.decRef() // end introspection
-	writeWg.Wait()  // wait for write to complete
+func simpleRetryableTest(t *testing.T, passedErr error, customHost topology.Host, testFn errTestFn) {
+	var writeWg sync.WaitGroup
+
+	wState, _, host := writeTestSetup(t, &writeWg)
+	if customHost != nil {
+		host = customHost
+	}
+	wState.completionFn(host, passedErr)
+	retryabilityCheck(t, wState, testFn)
+	writeTestTeardown(wState, &writeWg)
 }
 
 func TestNonRetryableError(t *testing.T) {
-	var writeWg sync.WaitGroup
-
-	wState, _, host := testSetup(t, &writeWg)
-	wState.completionFn(host, xerrors.NewNonRetryableError(errors.New("")))
-	retryabilityCheck(t, wState, &writeWg, xerrors.IsNonRetryableError)
+	simpleRetryableTest(t, xerrors.NewNonRetryableError(errors.New("")), nil, xerrors.IsNonRetryableError)
 }
 
 func TestBadRequestError(t *testing.T) {
-	var writeWg sync.WaitGroup
-
-	wState, _, host := testSetup(t, &writeWg)
-	wState.completionFn(host, tterrors.NewBadRequestError(errors.New("")))
-	retryabilityCheck(t, wState, &writeWg, IsBadRequestError)
+	simpleRetryableTest(t, tterrors.NewBadRequestError(errors.New("")), nil, IsBadRequestError)
 }
 
 func TestRetryableError(t *testing.T) {
-	var writeWg sync.WaitGroup
-
-	wState, _, host := testSetup(t, &writeWg)
-	wState.completionFn(host, xerrors.NewRetryableError(errors.New("")))
-	retryabilityCheck(t, wState, &writeWg, xerrors.IsRetryableError)
+	simpleRetryableTest(t, xerrors.NewRetryableError(errors.New("")), nil, xerrors.IsRetryableError)
 }
 
 func TestBadHostID(t *testing.T) {
-	var writeWg sync.WaitGroup
-
-	wState, _, _ := testSetup(t, &writeWg)
-	wState.completionFn(fakeHost{id: "not a real host"}, nil)
-	retryabilityCheck(t, wState, &writeWg, xerrors.IsRetryableError)
+	simpleRetryableTest(t, nil, fakeHost{id: "not a real host"}, xerrors.IsRetryableError)
 }
 
 func TestBadShardID(t *testing.T) {
 	var writeWg sync.WaitGroup
 
-	wState, _, host := testSetup(t, &writeWg)
+	wState, _, host := writeTestSetup(t, &writeWg)
 	wState.op.shardID = writeOpZeroed.shardID
 	wState.completionFn(host, nil)
-	retryabilityCheck(t, wState, &writeWg, xerrors.IsRetryableError)
+	retryabilityCheck(t, wState, xerrors.IsRetryableError)
+	writeTestTeardown(wState, &writeWg)
 }
 
 func TestShardNotAvailable(t *testing.T) {
 	var writeWg sync.WaitGroup
 
-	wState, s, host := testSetup(t, &writeWg)
+	wState, s, host := writeTestSetup(t, &writeWg)
 	setShardStates(t, s, host, shard.Initializing)
 	wState.completionFn(host, nil)
-	retryabilityCheck(t, wState, &writeWg, xerrors.IsRetryableError)
+	retryabilityCheck(t, wState, xerrors.IsRetryableError)
+	writeTestTeardown(wState, &writeWg)
 }
 
 // utils
@@ -155,7 +147,7 @@ func (f fakeHost) ID() string      { return f.id }
 func (f fakeHost) Address() string { return "" }
 func (f fakeHost) String() string  { return "" }
 
-func testSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *session, topology.Host) {
+func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *session, topology.Host) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -194,4 +186,9 @@ func testSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *session, to
 	}
 
 	return wState, s, host
+}
+
+func writeTestTeardown(wState *writeState, writeWg *sync.WaitGroup) {
+	wState.decRef() // end introspection
+	writeWg.Wait()  // wait for write to complete
 }
