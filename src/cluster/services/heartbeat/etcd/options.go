@@ -32,11 +32,9 @@ var (
 	defaultRequestTimeout         = 10 * time.Second
 	defaultWatchChanCheckInterval = 10 * time.Second
 	defaultWatchChanResetInterval = 10 * time.Second
+	defaultWatchChanInitTimeout   = 10 * time.Second
 	defaultRetryOptions           = xretry.NewOptions().SetMaxRetries(3)
 )
-
-// KeyFn is a function that wraps a key
-type KeyFn func(key string) string
 
 // Options are options for the client of the kv store
 type Options interface {
@@ -66,6 +64,11 @@ type Options interface {
 	// SetWatchChanResetInterval sets the WatchChanResetInterval
 	SetWatchChanResetInterval(t time.Duration) Options
 
+	// WatchChanInitTimeout is the timeout for a watchChan initialization
+	WatchChanInitTimeout() time.Duration
+	// SetWatchChanInitTimeout sets the WatchChanInitTimeout
+	SetWatchChanInitTimeout(t time.Duration) Options
+
 	// Validate validates the Options
 	Validate() error
 }
@@ -76,6 +79,7 @@ type options struct {
 	ropts                  xretry.Options
 	watchChanCheckInterval time.Duration
 	watchChanResetInterval time.Duration
+	watchChanInitTimeout   time.Duration
 }
 
 // NewOptions creates a sane default Option
@@ -85,6 +89,7 @@ func NewOptions() Options {
 		SetInstrumentsOptions(instrument.NewOptions()).
 		SetRetryOptions(defaultRetryOptions).
 		SetWatchChanCheckInterval(defaultWatchChanCheckInterval).
+		SetWatchChanInitTimeout(defaultWatchChanInitTimeout).
 		SetWatchChanResetInterval(defaultWatchChanResetInterval)
 }
 
@@ -146,5 +151,14 @@ func (o options) WatchChanResetInterval() time.Duration {
 
 func (o options) SetWatchChanResetInterval(t time.Duration) Options {
 	o.watchChanResetInterval = t
+	return o
+}
+
+func (o options) WatchChanInitTimeout() time.Duration {
+	return o.watchChanInitTimeout
+}
+
+func (o options) SetWatchChanInitTimeout(t time.Duration) Options {
+	o.watchChanInitTimeout = t
 	return o
 }

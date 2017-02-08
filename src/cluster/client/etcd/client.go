@@ -149,7 +149,7 @@ func (c *csclient) kvGen(kvOpts etcdKV.Options) sdClient.KVGen {
 			return etcdKV.NewStore(
 				cli,
 				kvOpts.SetCacheFilePath(cacheFileForZone(c.opts.CacheDir(), kvOpts.KeyFn()(c.opts.AppID()), zone)),
-			), nil
+			)
 		},
 	)
 }
@@ -168,7 +168,7 @@ func (c *csclient) heartbeatGen() sdClient.HeartbeatGen {
 						SetLogger(c.logger).
 						SetMetricsScope(c.hbScope),
 				)
-			return etcdHeartbeat.NewStore(cli, opts), nil
+			return etcdHeartbeat.NewStore(cli, opts)
 		},
 	)
 }
