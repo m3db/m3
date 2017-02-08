@@ -236,9 +236,9 @@ func (n *dbNamespace) Tick(softDeadline time.Duration) {
 		r = r.merge(shard.Tick(perShardDeadline))
 	}
 
-	n.metrics.tick.activeSeries.Update(int64(r.activeSeries))
+	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
-	n.metrics.tick.activeBlocks.Update(int64(r.activeBlocks))
+	n.metrics.tick.activeBlocks.Update(float64(r.activeBlocks))
 	n.metrics.tick.expiredBlocks.Inc(int64(r.expiredBlocks))
 	n.metrics.tick.errors.Inc(int64(r.errors))
 }
