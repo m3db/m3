@@ -179,6 +179,18 @@ func (s *fakeM3ClusterServices) Watch(
 	return nil, fmt.Errorf("service not found: %s", service.Name())
 }
 
+func (s *fakeM3ClusterServices) Metadata(
+	sid services.ServiceID,
+) (services.Metadata, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *fakeM3ClusterServices) SetMetadata(
+	sid services.ServiceID, m services.Metadata,
+) error {
+	return fmt.Errorf("not implemented")
+}
+
 func (s *fakeM3ClusterServices) PlacementService(
 	service services.ServiceID,
 	popts services.PlacementOptions,
@@ -238,9 +250,15 @@ func (s *fakeM3ClusterPlacementService) MarkInstanceAvailable(
 	return fmt.Errorf("not implemented")
 }
 func (s *fakeM3ClusterPlacementService) Placement() (
-	services.ServicePlacement, error,
+	services.ServicePlacement, int, error,
 ) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, 0, fmt.Errorf("not implemented")
+}
+
+func (s *fakeM3ClusterPlacementService) SetPlacement(
+	p services.ServicePlacement,
+) error {
+	return fmt.Errorf("not implemented")
 }
 
 // NewFakeM3ClusterService creates a new fake m3cluster service

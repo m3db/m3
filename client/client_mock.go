@@ -1422,6 +1422,26 @@ func (_mr *_MockOptionsRecorder) FetchBatchSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchSize")
 }
 
+func (_m *MockOptions) SetIdentifierPool(value ts.IdentifierPool) Options {
+	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
+}
+
+func (_m *MockOptions) IdentifierPool() ts.IdentifierPool {
+	ret := _m.ctrl.Call(_m, "IdentifierPool")
+	ret0, _ := ret[0].(ts.IdentifierPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) IdentifierPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IdentifierPool")
+}
+
 func (_m *MockOptions) SetHostQueueOpsFlushSize(value int) Options {
 	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2083,6 +2103,26 @@ func (_mr *_MockAdminOptionsRecorder) FetchBatchSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchSize")
 }
 
+func (_m *MockAdminOptions) SetIdentifierPool(value ts.IdentifierPool) Options {
+	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
+}
+
+func (_m *MockAdminOptions) IdentifierPool() ts.IdentifierPool {
+	ret := _m.ctrl.Call(_m, "IdentifierPool")
+	ret0, _ := ret[0].(ts.IdentifierPool)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) IdentifierPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IdentifierPool")
+}
+
 func (_m *MockAdminOptions) SetHostQueueOpsFlushSize(value int) Options {
 	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2321,24 +2361,4 @@ func (_m *MockAdminOptions) FetchSeriesBlocksBatchConcurrency() int {
 
 func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksBatchConcurrency() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksBatchConcurrency")
-}
-
-func (_m *MockAdminOptions) SetFetchSeriesBlocksResultsProcessors(value int) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksResultsProcessors", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-func (_mr *_MockAdminOptionsRecorder) SetFetchSeriesBlocksResultsProcessors(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchSeriesBlocksResultsProcessors", arg0)
-}
-
-func (_m *MockAdminOptions) FetchSeriesBlocksResultsProcessors() int {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksResultsProcessors")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksResultsProcessors() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksResultsProcessors")
 }
