@@ -264,7 +264,7 @@ func newDefaultMultipleTestSetups(
 		logger = logger.WithFields(xlog.NewLogField("instance", instance))
 		iopts := setup.storageOpts.InstrumentOptions().SetLogger(logger)
 		if testStatsReporter != nil {
-			scope := tally.NewRootScope("", nil, testStatsReporter, 100*time.Millisecond)
+			scope, _ := tally.NewRootScope("", nil, testStatsReporter, 100*time.Millisecond, tally.DefaultSeparator)
 			iopts = iopts.SetMetricsScope(scope)
 		}
 		if usingRepairer {
