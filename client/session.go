@@ -523,8 +523,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	atomic.StoreInt32(&s.replicas, int32(replicas))
 	atomic.StoreInt32(&s.majority, int32(majority))
 
-	if s.fetchBatchOpArrayArrayPool == nil ||
-		s.fetchBatchOpArrayArrayPool.Entries() != len(queues) {
+	if s.fetchBatchOpArrayArrayPool == nil {
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(s.opts.FetchBatchOpPoolSize()).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -536,8 +535,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 			s.opts.FetchBatchOpPoolSize()/len(queues))
 		s.fetchBatchOpArrayArrayPool.Init()
 	}
-	if s.iteratorArrayPool == nil ||
-		prevReplicas != s.replicas {
+	if s.iteratorArrayPool == nil {
 		s.iteratorArrayPool = encoding.NewIteratorArrayPool([]pool.Bucket{
 			pool.Bucket{
 				Capacity: replicas,
@@ -546,8 +544,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		})
 		s.iteratorArrayPool.Init()
 	}
-	if s.readerSliceOfSlicesIteratorPool == nil ||
-		prevReplicas != s.replicas {
+	if s.readerSliceOfSlicesIteratorPool == nil {
 		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
@@ -557,8 +554,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(poolOpts)
 		s.readerSliceOfSlicesIteratorPool.Init()
 	}
-	if s.multiReaderIteratorPool == nil ||
-		prevReplicas != s.replicas {
+	if s.multiReaderIteratorPool == nil {
 		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
