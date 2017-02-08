@@ -1,12 +1,12 @@
-hash: 70bad4f8892a768c8b28c13a87fc2c57afdd0bf9efe1f458146ce129bcea5cab
-updated: 2017-02-07T19:09:13.003965163-05:00
+hash: 09ab13f73be8ab74741d9f986ae8809c1e514542ae11820f449cbce196b08a09
+updated: 2017-02-08T01:10:53.55187587-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
 - name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
@@ -20,7 +20,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 8ca9f7bc9c3e446aec14fa785cf22f640117d33b
+  version: 2c5acc68b0b884a9e3e8e81d4b3e4bee154aa53b
   subpackages:
   - client
   - kv
@@ -74,11 +74,11 @@ imports:
 - name: github.com/willf/bitset
   version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
 - name: golang.org/x/net
-  version: 007e530097ad7f954752df63046b4036f98ba6a6
+  version: 236b8f043b920452504e263bc21d354427127473
   subpackages:
   - context
 - name: google.golang.org/appengine
-  version: 8758a385849434ba5eac8aeedcf5192c5a0f5f10
+  version: 4f7eeb5305a4ba1966344836ba4af9996b7b4e05
   subpackages:
   - datastore
   - internal
