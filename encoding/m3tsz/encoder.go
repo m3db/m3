@@ -515,7 +515,7 @@ func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 
 func (enc *encoder) Stream() xio.SegmentReader {
 	segment := enc.segment(byCopyResultType)
-	if segment.Head == nil && segment.Tail == nil {
+	if segment.Len() == 0 {
 		return nil
 	}
 	if readerPool := enc.opts.SegmentReaderPool(); readerPool != nil {
@@ -524,6 +524,10 @@ func (enc *encoder) Stream() xio.SegmentReader {
 		return reader
 	}
 	return xio.NewSegmentReader(segment)
+}
+
+func (enc *encoder) StreamLen() int {
+	return enc.os.Len()
 }
 
 func (enc *encoder) Close() {

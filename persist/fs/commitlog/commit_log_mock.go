@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,8 +31,9 @@ import (
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
 	instrument "github.com/m3db/m3x/instrument"
-	time0 "github.com/m3db/m3x/time"
-	time "time"
+	pool "github.com/m3db/m3x/pool"
+	time "github.com/m3db/m3x/time"
+	time0 "time"
 )
 
 // Mock of CommitLog interface
@@ -66,7 +67,7 @@ func (_mr *_MockCommitLogRecorder) Open() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
 }
 
-func (_m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
+func (_m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
 	ret := _m.ctrl.Call(_m, "Write", ctx, series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -76,7 +77,7 @@ func (_mr *_MockCommitLogRecorder) Write(arg0, arg1, arg2, arg3, arg4 interface{
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockCommitLog) WriteBehind(ctx context.Context, series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
+func (_m *MockCommitLog) WriteBehind(ctx context.Context, series Series, datapoint ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
 	ret := _m.ctrl.Call(_m, "WriteBehind", ctx, series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -138,11 +139,11 @@ func (_mr *_MockIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockIterator) Current() (Series, ts.Datapoint, time0.Unit, ts.Annotation) {
+func (_m *MockIterator) Current() (Series, ts.Datapoint, time.Unit, ts.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(Series)
 	ret1, _ := ret[1].(ts.Datapoint)
-	ret2, _ := ret[2].(time0.Unit)
+	ret2, _ := ret[2].(time.Unit)
 	ret3, _ := ret[3].(ts.Annotation)
 	return ret0, ret1, ret2, ret3
 }
@@ -310,7 +311,7 @@ func (_mr *_MockOptionsRecorder) Strategy() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Strategy")
 }
 
-func (_m *MockOptions) SetFlushInterval(value time.Duration) Options {
+func (_m *MockOptions) SetFlushInterval(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "SetFlushInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -320,9 +321,9 @@ func (_mr *_MockOptionsRecorder) SetFlushInterval(arg0 interface{}) *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFlushInterval", arg0)
 }
 
-func (_m *MockOptions) FlushInterval() time.Duration {
+func (_m *MockOptions) FlushInterval() time0.Duration {
 	ret := _m.ctrl.Call(_m, "FlushInterval")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -348,4 +349,24 @@ func (_m *MockOptions) BacklogQueueSize() int {
 
 func (_mr *_MockOptionsRecorder) BacklogQueueSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BacklogQueueSize")
+}
+
+func (_m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
+	ret := _m.ctrl.Call(_m, "SetBytesPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetBytesPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBytesPool", arg0)
+}
+
+func (_m *MockOptions) BytesPool() pool.CheckedBytesPool {
+	ret := _m.ctrl.Call(_m, "BytesPool")
+	ret0, _ := ret[0].(pool.CheckedBytesPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) BytesPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BytesPool")
 }

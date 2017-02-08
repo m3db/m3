@@ -23,7 +23,6 @@ package series
 import (
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -62,16 +61,18 @@ var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
 
 type dbSeries struct {
 	sync.RWMutex
-	opts   Options
-	id     ts.ID
-	buffer databaseBuffer
-	blocks block.DatabaseSeriesBlocks
-	bs     bootstrapState
-	pool   DatabaseSeriesPool
+	opts           Options
+	id             ts.ID
+	buffer         databaseBuffer
+	blocks         block.DatabaseSeriesBlocks
+	bs             bootstrapState
+	blockRetriever QueryableBlockRetriever
+	pool           DatabaseSeriesPool
 }
 
 type updateBlocksResult struct {
-	expired int
+	expired          int
+	resetRetrievable int
 }
 
 // NewDatabaseSeries creates a new database series
@@ -79,9 +80,9 @@ func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
 	return newDatabaseSeries(id, opts)
 }
 
-// NewPooledDatabaseSeries creates a new pooled database series
-func NewPooledDatabaseSeries(pool DatabaseSeriesPool, opts Options) DatabaseSeries {
-	series := newDatabaseSeries(nilID, opts)
+// newPooledDatabaseSeries creates a new pooled database series
+func newPooledDatabaseSeries(pool DatabaseSeriesPool, opts Options) DatabaseSeries {
+	series := newDatabaseSeries(nil, opts)
 	series.pool = pool
 	return series
 }
@@ -97,6 +98,14 @@ func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
 	return series
 }
 
+func (s *dbSeries) log() xlog.Logger {
+	// NB(r): only in exceptional cases do we log, so defer
+	// creating the logger with fields until we need it
+	log := s.opts.InstrumentOptions().Logger()
+	log = log.WithFields(xlog.NewLogField("id", s.id.String()))
+	return log
+}
+
 func (s *dbSeries) ID() ts.ID {
 	return s.id
 }
@@ -110,9 +119,11 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	// In best case when explicitly asked to drain may have no
 	// stale buckets, cheaply check this case first with a Rlock
 	s.RLock()
+
 	needsDrain := s.buffer.NeedsDrain()
 	needsBlockUpdate := s.needsBlockUpdateWithLock()
 	r.ActiveBlocks = s.blocks.Len()
+
 	s.RUnlock()
 
 	if !needsDrain && !needsBlockUpdate {
@@ -120,17 +131,23 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	}
 
 	s.Lock()
-	// Recalculate in case changed during lock promotion
-	needsDrain = s.buffer.NeedsDrain()
-	needsBlockUpdate = s.needsBlockUpdateWithLock()
+
+	// NB(r): don't bother to check if needs drain or needs
+	// block update still holds as running both these checks
+	// are relatively expensive and running these methods
+	// will be a no-op in case conditions no longer hold.
 	if needsDrain {
 		s.buffer.DrainAndReset()
 	}
+
 	if needsBlockUpdate {
 		updateResult := s.updateBlocksWithLock()
 		r.ExpiredBlocks = updateResult.expired
+		r.ResetRetrievableBlocks = updateResult.resetRetrievable
 	}
+
 	r.ActiveBlocks = s.blocks.Len()
+
 	s.Unlock()
 
 	return r, nil
@@ -141,14 +158,44 @@ func (s *dbSeries) needsBlockUpdateWithLock() bool {
 		return false
 	}
 
+	now := s.opts.ClockOptions().NowFn()()
+	if s.shouldExpireAnyBlockData(now) {
+		return true
+	}
+
 	// If the earliest block is not within the retention period,
 	// we should expire the blocks.
-	now := s.opts.ClockOptions().NowFn()()
 	minBlockStart := s.blocks.MinTime()
-	return s.shouldExpire(now, minBlockStart)
+	return s.shouldExpireBlockAt(now, minBlockStart)
 }
 
-func (s *dbSeries) shouldExpire(now, blockStart time.Time) bool {
+func (s *dbSeries) shouldExpireAnyBlockData(now time.Time) bool {
+	retriever := s.blockRetriever
+	if retriever == nil {
+		return false
+	}
+
+	ropts := s.opts.RetentionOptions()
+	if !ropts.BlockDataExpiry() {
+		return false
+	}
+
+	cutoff := ropts.BlockDataExpiryAfterNotAccessedPeriod()
+	for start, block := range s.blocks.AllBlocks() {
+		if !block.IsRetrieved() {
+			continue
+		}
+		sinceLastAccessed := now.Sub(block.LastAccessTime())
+		if sinceLastAccessed >= cutoff &&
+			retriever.IsBlockRetrievable(start) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *dbSeries) shouldExpireBlockAt(now, blockStart time.Time) bool {
 	var cutoff time.Time
 	rops := s.opts.RetentionOptions()
 	if rops.ShortExpiry() {
@@ -167,12 +214,35 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		r         updateBlocksResult
 		now       = s.opts.ClockOptions().NowFn()()
 		allBlocks = s.blocks.AllBlocks()
+
+		retriever       = s.blockRetriever
+		ropts           = s.opts.RetentionOptions()
+		dataExpiry      = ropts.BlockDataExpiry()
+		dataCutoff      = ropts.BlockDataExpiryAfterNotAccessedPeriod()
+		makeRetrievable = retriever != nil && dataExpiry
 	)
-	for blockStart, block := range allBlocks {
-		if s.shouldExpire(now, blockStart) {
-			s.blocks.RemoveBlockAt(blockStart)
-			block.Close()
+	for start, currBlock := range allBlocks {
+		if s.shouldExpireBlockAt(now, start) {
+			s.blocks.RemoveBlockAt(start)
+			currBlock.Close()
 			r.expired++
+			continue
+		}
+		if makeRetrievable && currBlock.IsRetrieved() {
+			sinceLastAccessed := now.Sub(currBlock.LastAccessTime())
+			if sinceLastAccessed >= dataCutoff &&
+				retriever.IsBlockRetrievable(start) {
+				// NB(r): Each block needs shared ref to the series ID
+				// or else each block needs to have a copy of the ID
+				id := s.id
+				metadata := block.RetrievableBlockMetadata{
+					ID:       id,
+					Length:   currBlock.Len(),
+					Checksum: currBlock.Checksum(),
+				}
+				currBlock.ResetRetrievable(start, retriever, metadata)
+				r.resetRetrievable++
+			}
 		}
 	}
 	return r
@@ -203,10 +273,6 @@ func (s *dbSeries) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	// TODO(r): as discussed we need to revisit locking to provide a finer grained lock to
-	// avoiding block writes while reads from blocks (not the buffer) go through.  There is
-	// a few different ways we can accomplish this.  Will revisit soon once we have benchmarks
-	// for mixed write/read workload.
 	s.Lock()
 	err := s.buffer.Write(ctx, timestamp, value, unit, annotation)
 	s.Unlock()
@@ -233,6 +299,7 @@ func (s *dbSeries) ReadEncoded(
 	}
 
 	s.RLock()
+	defer s.RUnlock()
 
 	if s.blocks.Len() > 0 {
 		// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
@@ -260,8 +327,6 @@ func (s *dbSeries) ReadEncoded(
 		results = append(results, bufferResults...)
 	}
 
-	s.RUnlock()
-
 	return results, nil
 }
 
@@ -269,6 +334,7 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 	res := make([]block.FetchBlockResult, 0, len(starts))
 
 	s.RLock()
+	defer s.RUnlock()
 
 	for _, start := range starts {
 		if b, exists := s.blocks.BlockAt(start); exists {
@@ -279,7 +345,8 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 						s.id.String(), start, err), nil)
 				res = append(res, r)
 			} else if stream != nil {
-				r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil, b.Checksum())
+				checksum := b.Checksum()
+				r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil, &checksum)
 				res = append(res, r)
 			}
 		}
@@ -289,8 +356,6 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 		bufferResults := s.buffer.FetchBlocks(ctx, starts)
 		res = append(res, bufferResults...)
 	}
-
-	s.RUnlock()
 
 	block.SortFetchBlockResultByTimeAscending(res)
 
@@ -304,24 +369,16 @@ func (s *dbSeries) FetchBlocksMetadata(
 	includeChecksums bool,
 ) block.FetchBlocksMetadataResult {
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	s.RLock()
-	blocks := s.blocks.AllBlocks()
 	res := s.opts.FetchBlockMetadataResultsPool().Get()
+
+	s.RLock()
+	defer s.RUnlock()
+
+	blocks := s.blocks.AllBlocks()
+
 	// Iterate over the data blocks
 	for t, b := range blocks {
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
-			continue
-		}
-		reader, err := b.Stream(ctx)
-		// If we failed to read some blocks, skip this block and continue to get
-		// the metadata for the rest of the blocks.
-		if err != nil {
-			detailedErr := fmt.Errorf("unable to retrieve block stream for series %s time %v: %v", s.id.String(), t, err)
-			res.Add(block.NewFetchBlockMetadataResult(t, nil, nil, detailedErr))
-			continue
-		}
-		// If there are no datapoints in the block, continue and don't append it to the result.
-		if reader == nil {
 			continue
 		}
 		var (
@@ -329,12 +386,12 @@ func (s *dbSeries) FetchBlocksMetadata(
 			pChecksum *uint32
 		)
 		if includeSizes {
-			segment := reader.Segment()
-			size := int64(segment.Len())
+			size := int64(b.Len())
 			pSize = &size
 		}
 		if includeChecksums {
-			pChecksum = b.Checksum()
+			checksum := b.Checksum()
+			pChecksum = &checksum
 		}
 		res.Add(block.NewFetchBlockMetadataResult(t, pSize, pChecksum, nil))
 	}
@@ -348,11 +405,23 @@ func (s *dbSeries) FetchBlocksMetadata(
 		bufferResults.Close()
 	}
 
-	s.RUnlock()
+	// NB(r): it's possible a ref to this series was taken before the series was
+	// closed then the method is called, which means no data and a nil ID.
+	//
+	// Hence we should return an empty result set here.
+	//
+	// In the future we need a way to make sure the call we're performing is for the
+	// series we're originally took a ref to. This will avoid pooling of series messing
+	// with calls to a series that was ref'd before it was closed/reused.
+	if len(res.Results()) == 0 {
+		return block.NewFetchBlocksMetadataResult(nil, res)
+	}
+
+	id := s.opts.IdentifierPool().Clone(s.id)
 
 	res.Sort()
 
-	return block.NewFetchBlocksMetadataResult(s.opts.IdentifierPool().Clone(s.id), res)
+	return block.NewFetchBlocksMetadataResult(id, res)
 }
 
 func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
@@ -360,86 +429,26 @@ func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
 	// lock already. Executing the drain method occurs during a write if the
 	// buffer needs to drain or if tick is called and series explicitly asks
 	// the buffer to drain ready buckets.
-	if _, ok := s.blocks.BlockAt(newBlock.StartTime()); !ok {
-		s.blocks.AddBlock(newBlock)
-		return
-	}
-	if err := s.mergeBlock(s.blocks, newBlock); err != nil {
-		log := s.opts.InstrumentOptions().Logger()
-		log = log.WithFields(xlog.NewLogField("id", s.id.String()))
-		log.Errorf("series error merging blocks: %v", err)
-	}
+	s.mergeBlock(s.blocks, newBlock)
 }
 
 func (s *dbSeries) mergeBlock(
 	blocks block.DatabaseSeriesBlocks,
 	newBlock block.DatabaseBlock,
-) error {
+) {
 	blockStart := newBlock.StartTime()
 
-	// If we don't have an existing block just insert the new block
+	// If we don't have an existing block just insert the new block.
 	existingBlock, ok := blocks.BlockAt(blockStart)
 	if !ok {
 		blocks.AddBlock(newBlock)
-		return nil
+		return
 	}
 
-	ctx := s.opts.ContextPool().Get()
-	defer ctx.Close()
-
-	// If enc is empty, do nothing
-	newBlockReader, err := newBlock.Stream(ctx)
-	if err != nil {
-		return err
-	}
-	if newBlockReader == nil {
-		return nil
-	}
-
-	existingBlockReader, err := existingBlock.Stream(ctx)
-	if err != nil {
-		return err
-	}
-	if existingBlockReader == nil {
-		// Existing block has no data
-		blocks.AddBlock(newBlock)
-		return nil
-	}
-
-	var readers [2]io.Reader
-	readers[0] = newBlockReader
-	readers[1] = existingBlockReader
-
-	multiIter := s.opts.MultiReaderIteratorPool().Get()
-	multiIter.Reset(readers[:])
-	defer multiIter.Close()
-
-	blopts := s.opts.DatabaseBlockOptions()
-	encoder := s.opts.EncoderPool().Get()
-	encoder.Reset(blockStart, blopts.DatabaseBlockAllocSize())
-
-	for multiIter.Next() {
-		dp, unit, annotation := multiIter.Current()
-		err := encoder.Encode(dp, unit, annotation)
-		if err != nil {
-			encoder.Close()
-			return err
-		}
-	}
-	if err := multiIter.Err(); err != nil {
-		encoder.Close()
-		return err
-	}
-
-	block := blopts.DatabaseBlockPool().Get()
-	block.Reset(blockStart, encoder.Discard())
-	blocks.AddBlock(block)
-
-	// Close the existing and new blocks
-	existingBlock.Close()
-	newBlock.Close()
-
-	return nil
+	// We are performing this in a lock, cannot wait for the existing
+	// block potentially to be retrieved from disk, lazily merge the stream.
+	newBlock.Merge(existingBlock)
+	blocks.AddBlock(newBlock)
 }
 
 func (s *dbSeries) Update(blk block.DatabaseBlock) error {
@@ -458,7 +467,8 @@ func (s *dbSeries) Update(blk block.DatabaseBlock) error {
 		return errSeriesUpdateBuffered
 	}
 
-	return s.mergeBlock(s.blocks, blk)
+	s.mergeBlock(s.blocks, blk)
+	return nil
 }
 
 // NB(xichen): we are holding a big lock here to drain the in-memory buffer.
@@ -468,12 +478,12 @@ func (s *dbSeries) Update(blk block.DatabaseBlock) error {
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
 func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 	s.Lock()
+	defer s.Unlock()
+
 	if s.bs == bootstrapped {
-		s.Unlock()
 		return nil
 	}
 	if s.bs == bootstrapping {
-		s.Unlock()
 		return errSeriesIsBootstrapping
 	}
 
@@ -499,24 +509,16 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 				blocks.RemoveBlockAt(t)
 			}
 		}
-	}
 
-	if existingBlocks != blocks {
 		// If we're overwriting the blocks then merge any existing blocks
 		// already drained
 		for _, existingBlock := range existingBlocks.AllBlocks() {
-			if _, ok := blocks.BlockAt(existingBlock.StartTime()); ok {
-				err := s.mergeBlock(blocks, existingBlock)
-				if err != nil {
-					multiErr = multiErr.Add(s.newBootstrapBlockError(existingBlock, err))
-				}
-			}
+			s.mergeBlock(blocks, existingBlock)
 		}
 	}
 
 	s.blocks = blocks
 	s.bs = bootstrapped
-	s.Unlock()
 
 	return multiErr.FinalError()
 }
@@ -535,7 +537,11 @@ func (s *dbSeries) Flush(
 	blockStart time.Time,
 	persistFn persist.Fn,
 ) error {
+	// NB(r): Do not use defer here as we need to make sure the
+	// call to sr.Segment() which may fetch data from disk is not
+	// blocking the series lock.
 	s.RLock()
+
 	if s.bs != bootstrapped {
 		s.RUnlock()
 		return errSeriesNotBootstrapped
@@ -545,6 +551,7 @@ func (s *dbSeries) Flush(
 		s.RUnlock()
 		return nil
 	}
+
 	sr, err := b.Stream(ctx)
 	s.RUnlock()
 
@@ -554,30 +561,41 @@ func (s *dbSeries) Flush(
 	if sr == nil {
 		return nil
 	}
-	segment := sr.Segment()
-	return persistFn(s.id, segment)
+	segment, err := sr.Segment()
+	if err != nil {
+		return err
+	}
+	return persistFn(s.id, segment, b.Checksum())
 }
 
 func (s *dbSeries) Close() {
 	s.Lock()
-	if !s.id.Equal(nilID) {
-		s.id.Finalize()
-		s.id = nilID
-	}
+	defer s.Unlock()
+
+	s.id = nil
 	s.buffer.Reset()
 	s.blocks.Close()
-	s.Unlock()
 
 	if s.pool != nil {
 		s.pool.Put(s)
 	}
 }
 
-func (s *dbSeries) Reset(id ts.ID) {
+func (s *dbSeries) Reset(
+	id ts.ID,
+	seriesBootstrapped bool,
+	blockRetriever QueryableBlockRetriever,
+) {
 	s.Lock()
+	defer s.Unlock()
+
 	s.id = id
 	s.buffer.Reset()
 	s.blocks.RemoveAll()
-	s.bs = bootstrapNotStarted
-	s.Unlock()
+	if seriesBootstrapped {
+		s.bs = bootstrapped
+	} else {
+		s.bs = bootstrapNotStarted
+	}
+	s.blockRetriever = blockRetriever
 }

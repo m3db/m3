@@ -121,8 +121,8 @@ func makeTestWrite(t *testing.T, instances []services.ServiceInstance) (testSetu
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
 		opts := client.NewOptions().
 			SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelNone).
-			SetClusterConnectTimeout(10 * time.Millisecond).
-			SetWriteRequestTimeout(100 * time.Millisecond).
+			SetClusterConnectTimeout(2 * time.Second).
+			SetWriteRequestTimeout(2 * time.Second).
 			SetTopologyInitializer(topoInit).
 			SetWriteConsistencyLevel(cLevel)
 

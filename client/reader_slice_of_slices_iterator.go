@@ -79,8 +79,13 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 	r xio.SegmentReader,
 	seg *rpc.Segment,
 ) {
+	rseg, err := r.Segment()
+	if err != nil {
+		r.Reset(ts.Segment{})
+		return
+	}
+
 	var (
-		rseg = r.Segment()
 		head = rseg.Head
 		tail = rseg.Tail
 	)
@@ -122,7 +127,10 @@ func (it *readerSliceOfSlicesIterator) Close() {
 	it.segments = nil
 	// Release any refs to segment byte slices
 	for i := range it.segmentReaders {
-		seg := it.segmentReaders[i].Segment()
+		seg, err := it.segmentReaders[i].Segment()
+		if err != nil {
+			continue
+		}
 		if seg.Head != nil {
 			seg.Head.Reset(nil)
 		}

@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -133,17 +134,109 @@ type DatabaseBlock interface {
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
-	// Checksum returns the block checksum if available
-	Checksum() *uint32
+	// LastAccessTime returns the last access time of the block.
+	LastAccessTime() time.Time
+
+	// Len returns the block length.
+	Len() int
+
+	// Checksum returns the block checksum.
+	Checksum() uint32
 
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)
 
-	// Reset resets the block start time and the encoder.
+	// Merge will merge the current block with the specified block
+	// when this block is read. Note: calling this twice
+	// will simply overwrite the target for the block to merge with
+	// rather than merging three blocks together.
+	Merge(other DatabaseBlock)
+
+	// IsRetrieved returns whether the block is already retrieved.
+	IsRetrieved() bool
+
+	// Reset resets the block start time and the segment.
 	Reset(startTime time.Time, segment ts.Segment)
+
+	// ResetRetrievable resets the block to become retrievable.
+	ResetRetrievable(
+		startTime time.Time,
+		retriever DatabaseShardBlockRetriever,
+		metadata RetrievableBlockMetadata,
+	)
 
 	// Close closes the block.
 	Close()
+}
+
+// OnRetrieveBlock is an interface to callback on when a block is retrieved.
+type OnRetrieveBlock interface {
+	OnRetrieveBlock(
+		id ts.ID,
+		startTime time.Time,
+		segment ts.Segment,
+	)
+}
+
+// OnRetrieveBlockFn is a function implementation for the
+// OnRetrieveBlock interface.
+type OnRetrieveBlockFn func(
+	id ts.ID,
+	startTime time.Time,
+	segment ts.Segment,
+)
+
+// OnRetrieveBlock implements the OnRetrieveBlock interface.
+func (fn OnRetrieveBlockFn) OnRetrieveBlock(
+	id ts.ID,
+	startTime time.Time,
+	segment ts.Segment,
+) {
+	fn(id, startTime, segment)
+}
+
+// RetrievableBlockMetadata describes a retrievable block.
+type RetrievableBlockMetadata struct {
+	ID       ts.ID
+	Length   int
+	Checksum uint32
+}
+
+// DatabaseBlockRetriever is a block retriever.
+type DatabaseBlockRetriever interface {
+	// CacheShardIndices will pre-parse the indexes for given shards
+	// to improve times when streaming a block.
+	CacheShardIndices(shards []uint32) error
+
+	// Stream will stream a block for a given shard, id and start.
+	Stream(
+		shard uint32,
+		id ts.ID,
+		blockStart time.Time,
+		onRetrieve OnRetrieveBlock,
+	) (xio.SegmentReader, error)
+}
+
+// DatabaseShardBlockRetriever is a block retriever bound to a shard.
+type DatabaseShardBlockRetriever interface {
+	// Stream will stream a block for a given id and start.
+	Stream(
+		id ts.ID,
+		blockStart time.Time,
+		onRetrieve OnRetrieveBlock,
+	) (xio.SegmentReader, error)
+}
+
+// DatabaseBlockRetrieverManager creates and holds block retrievers
+// for different namespaces.
+type DatabaseBlockRetrieverManager interface {
+	Retriever(namespace ts.ID) (DatabaseBlockRetriever, error)
+}
+
+// DatabaseShardBlockRetrieverManager creates and holds shard block
+// retrievers binding shards to an existing retriever.
+type DatabaseShardBlockRetrieverManager interface {
+	ShardRetriever(shard uint32) DatabaseShardBlockRetriever
 }
 
 // DatabaseSeriesBlocks represents a collection of data blocks.
@@ -217,6 +310,12 @@ type FetchBlocksMetadataResultsPool interface {
 
 // Options represents the options for a database block
 type Options interface {
+	// SetClockOptions sets the clock options
+	SetClockOptions(value clock.Options) Options
+
+	// ClockOptions returns the clock options
+	ClockOptions() clock.Options
+
 	// SetDatabaseBlockAllocSize sets the databaseBlockAllocSize
 	SetDatabaseBlockAllocSize(value int) Options
 

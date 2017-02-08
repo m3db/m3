@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
-	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
@@ -40,8 +39,8 @@ import (
 )
 
 var (
-	// errSeekIDNotFound returned when id cannot be found in the shard
-	errSeekIDNotFound = errors.New("id was not found in shard")
+	// errSeekIDNotFound returned when ID cannot be found in the shard
+	errSeekIDNotFound = errors.New("id not found in shard")
 )
 
 type seeker struct {
@@ -56,41 +55,83 @@ type seeker struct {
 	expectedInfoDigest         uint32
 	expectedIndexDigest        uint32
 
+	keepIndexIDs  bool
+	keepUnreadBuf bool
+
 	unreadBuf []byte
 	prologue  []byte
 	entries   int
 	dataFd    *os.File
+	// NB(r): specifically use a non pointer type for
+	// key and value in this map to avoid the GC scanning
+	// this large map.
+	indexMap  map[ts.Hash]indexMapEntry
+	indexIDs  []ts.ID
 	decoder   encoding.Decoder
-	indexMap  map[ts.Hash]schema.IndexEntry
 	bytesPool pool.CheckedBytesPool
 }
 
-// NewSeeker returns a new seeker for a filePathPrefix and expects all files to exist.  Will
-// read the index info.
+type indexMapEntry struct {
+	size   int64
+	offset int64
+}
+
+// NewSeeker returns a new seeker.
 func NewSeeker(
 	filePathPrefix string,
 	bufferSize int,
 	bytesPool pool.CheckedBytesPool,
 	decodingOpts msgpack.DecodingOptions,
 ) FileSetSeeker {
+	return newSeeker(seekerOpts{
+		filePathPrefix: filePathPrefix,
+		bufferSize:     bufferSize,
+		bytesPool:      bytesPool,
+		keepIndexIDs:   true,
+		keepUnreadBuf:  false,
+		decodingOpts:   decodingOpts,
+	})
+}
+
+type seekerOpts struct {
+	filePathPrefix string
+	bufferSize     int
+	bytesPool      pool.CheckedBytesPool
+	keepIndexIDs   bool
+	keepUnreadBuf  bool
+	decodingOpts   msgpack.DecodingOptions
+}
+
+// fileSetSeeker adds package level access to further methods
+// on the seeker for use by the seeker manager for efficient
+// multi-seeker use.
+type fileSetSeeker interface {
+	FileSetSeeker
+
+	// unreadBuffer returns the unread buffer
+	unreadBuffer() []byte
+
+	// setUnreadBuffer sets the unread buffer
+	setUnreadBuffer(buf []byte)
+}
+
+func newSeeker(opts seekerOpts) fileSetSeeker {
 	return &seeker{
-		filePathPrefix:             filePathPrefix,
-		infoFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
-		indexFdWithDigest:          digest.NewFdWithDigestReader(bufferSize),
-		dataReader:                 bufio.NewReaderSize(nil, bufferSize),
-		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
+		filePathPrefix:             opts.filePathPrefix,
+		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.bufferSize),
+		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.bufferSize),
+		dataReader:                 bufio.NewReaderSize(nil, opts.bufferSize),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.bufferSize),
+		keepIndexIDs:               opts.keepIndexIDs,
+		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
-		decoder:                    msgpack.NewDecoder(decodingOpts),
-		bytesPool:                  bytesPool,
+		bytesPool:                  opts.bytesPool,
+		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
 	}
 }
 
 func (s *seeker) IDs() []ts.ID {
-	fileIds := make([]ts.ID, 0, len(s.indexMap))
-	for _, indexEntry := range s.indexMap {
-		fileIds = append(fileIds, ts.BinaryID(checked.NewBytes(indexEntry.ID, nil)))
-	}
-	return fileIds
+	return s.indexIDs
 }
 
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
@@ -137,8 +178,17 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 
 func (s *seeker) prepareUnreadBuf(size int) {
 	if len(s.unreadBuf) < size {
-		s.unreadBuf = make([]byte, size)
+		// NB(r): Make a little larger so unlikely to occur multiple times
+		s.unreadBuf = make([]byte, int(1.5*float64(size)))
 	}
+}
+
+func (s *seeker) unreadBuffer() []byte {
+	return s.unreadBuf
+}
+
+func (s *seeker) setUnreadBuffer(buf []byte) {
+	s.unreadBuf = buf
 }
 
 func (s *seeker) readDigest() error {
@@ -178,7 +228,7 @@ func (s *seeker) readIndex(size int) error {
 	}
 
 	s.decoder.Reset(s.unreadBuf[:n][:])
-	s.indexMap = make(map[ts.Hash]schema.IndexEntry, s.entries)
+	s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
 	// Read all entries of index
 	for read := 0; read < s.entries; read++ {
 		entry, err := s.decoder.DecodeIndexEntry()
@@ -188,7 +238,23 @@ func (s *seeker) readIndex(size int) error {
 		// NB(xichen): entry.ID remains valid until next time s.unreadBuf
 		// is modified because we do not allocate new space for decoding
 		// byte slices
-		s.indexMap[ts.HashFn(entry.ID)] = entry
+		s.indexMap[ts.HashFn(entry.ID)] = indexMapEntry{
+			size:   entry.Size,
+			offset: entry.Offset,
+		}
+
+		if s.keepIndexIDs {
+			entryID := append([]byte(nil), entry.ID...)
+			id := ts.BinaryID(checked.NewBytes(entryID, nil))
+			s.indexIDs = append(s.indexIDs, id)
+		}
+	}
+
+	if !s.keepUnreadBuf {
+		// NB(r): Free the unread buffer and reset the decoder as unless
+		// using this seeker in the seeker manager we never use this buffer again
+		s.unreadBuf = nil
+		s.decoder = nil
 	}
 
 	return nil
@@ -200,7 +266,7 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 		return nil, errSeekIDNotFound
 	}
 
-	_, err := s.dataFd.Seek(entry.Offset, 0)
+	_, err := s.dataFd.Seek(entry.offset, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -217,12 +283,12 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 	var data checked.Bytes
 	if s.bytesPool != nil {
-		data = s.bytesPool.Get(int(entry.Size))
+		data = s.bytesPool.Get(int(entry.size))
 		data.IncRef()
 		defer data.DecRef()
-		data.Resize(int(entry.Size))
+		data.Resize(int(entry.size))
 	} else {
-		data = checked.NewBytes(make([]byte, entry.Size), nil)
+		data = checked.NewBytes(make([]byte, entry.size), nil)
 		data.IncRef()
 		defer data.DecRef()
 	}
@@ -234,7 +300,7 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 	// In case the buffered reader only returns what's remaining in
 	// the buffer, repeatedly read what's left in the underlying reader.
-	for n < int(entry.Size) {
+	for n < int(entry.size) {
 		b := data.Get()[n:]
 		remainder, err := s.dataReader.Read(b)
 
@@ -246,11 +312,19 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 		n += remainder
 	}
 
-	if n != int(entry.Size) {
+	if n != int(entry.size) {
 		return nil, errReadNotExpectedSize
 	}
 
 	return data, nil
+}
+
+func (s *seeker) SeekOffset(id ts.ID) int {
+	entry, exists := s.indexMap[id.Hash()]
+	if !exists {
+		return -1
+	}
+	return int(entry.offset)
 }
 
 func (s *seeker) Range() xtime.Range {
@@ -262,6 +336,10 @@ func (s *seeker) Entries() int {
 }
 
 func (s *seeker) Close() error {
+	// Prepare for reuse
+	for key := range s.indexMap {
+		delete(s.indexMap, key)
+	}
 	return closeAll(
 		s.infoFdWithDigest,
 		s.indexFdWithDigest,

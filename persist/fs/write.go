@@ -124,23 +124,35 @@ func (w *writer) writeData(data []byte) error {
 	return nil
 }
 
-func (w *writer) Write(id ts.ID, data checked.Bytes) error {
-	return w.WriteAll(id, []checked.Bytes{data})
+func (w *writer) Write(
+	id ts.ID,
+	data checked.Bytes,
+	checksum uint32,
+) error {
+	return w.WriteAll(id, []checked.Bytes{data}, checksum)
 }
 
-func (w *writer) WriteAll(id ts.ID, data []checked.Bytes) error {
+func (w *writer) WriteAll(
+	id ts.ID,
+	data []checked.Bytes,
+	checksum uint32,
+) error {
 	if w.err != nil {
 		return w.err
 	}
 
-	if err := w.writeAll(id, data); err != nil {
+	if err := w.writeAll(id, data, checksum); err != nil {
 		w.err = err
 		return err
 	}
 	return nil
 }
 
-func (w *writer) writeAll(id ts.ID, data []checked.Bytes) error {
+func (w *writer) writeAll(
+	id ts.ID,
+	data []checked.Bytes,
+	checksum uint32,
+) error {
 	var size int64
 	for _, d := range data {
 		if d == nil {
@@ -153,10 +165,11 @@ func (w *writer) writeAll(id ts.ID, data []checked.Bytes) error {
 	}
 
 	entry := schema.IndexEntry{
-		Index:  w.currIdx,
-		ID:     id.Data().Get(),
-		Size:   size,
-		Offset: w.currOffset,
+		Index:    w.currIdx,
+		ID:       id.Data().Get(),
+		Size:     size,
+		Offset:   w.currOffset,
+		Checksum: int64(checksum),
 	}
 	w.encoder.Reset()
 	if err := w.encoder.EncodeIndexEntry(entry); err != nil {

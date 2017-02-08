@@ -1,3 +1,23 @@
+// Copyright (c) 2016 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package storage
 
 import (
@@ -40,13 +60,14 @@ func commitLogWriteNoOp(
 type dbNamespace struct {
 	sync.RWMutex
 
-	id       ts.ID
-	shardSet sharding.ShardSet
-	opts     Options
-	nopts    namespace.Options
-	nowFn    clock.NowFn
-	log      xlog.Logger
-	bs       bootstrapState
+	id             ts.ID
+	shardSet       sharding.ShardSet
+	blockRetriever block.DatabaseBlockRetriever
+	opts           Options
+	nopts          namespace.Options
+	nowFn          clock.NowFn
+	log            xlog.Logger
+	bs             bootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -54,6 +75,9 @@ type dbNamespace struct {
 
 	increasingIndex  increasingIndex
 	writeCommitLogFn writeCommitLogFn
+
+	tickWorkers            xsync.WorkerPool
+	tickWorkersConcurrency int
 
 	metrics databaseNamespaceMetrics
 }
@@ -75,11 +99,12 @@ type databaseNamespaceShardMetrics struct {
 }
 
 type databaseNamespaceTickMetrics struct {
-	activeSeries  tally.Gauge
-	expiredSeries tally.Counter
-	activeBlocks  tally.Gauge
-	expiredBlocks tally.Counter
-	errors        tally.Counter
+	activeSeries           tally.Gauge
+	expiredSeries          tally.Counter
+	activeBlocks           tally.Gauge
+	resetRetrievableBlocks tally.Counter
+	expiredBlocks          tally.Counter
+	errors                 tally.Counter
 }
 
 func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
@@ -97,11 +122,12 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			closeErrors: shardsScope.Counter("close-errors"),
 		},
 		tick: databaseNamespaceTickMetrics{
-			activeSeries:  tickScope.Gauge("active-series"),
-			expiredSeries: tickScope.Counter("expired-series"),
-			activeBlocks:  tickScope.Gauge("active-blocks"),
-			expiredBlocks: tickScope.Counter("expired-blocks"),
-			errors:        tickScope.Counter("errors"),
+			activeSeries:           tickScope.Gauge("active-series"),
+			expiredSeries:          tickScope.Counter("expired-series"),
+			activeBlocks:           tickScope.Gauge("active-blocks"),
+			resetRetrievableBlocks: tickScope.Counter("reset-retrievable-blocks"),
+			expiredBlocks:          tickScope.Counter("expired-blocks"),
+			errors:                 tickScope.Counter("errors"),
 		},
 	}
 }
@@ -109,6 +135,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 func newDatabaseNamespace(
 	metadata namespace.Metadata,
 	shardSet sharding.ShardSet,
+	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
 	opts Options,
@@ -126,16 +153,23 @@ func newDatabaseNamespace(
 			"namespace": id.String(),
 		})
 
+	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
+	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
+	tickWorkers.Init()
+
 	n := &dbNamespace{
-		id:               id,
-		shardSet:         shardSet,
-		opts:             opts,
-		nopts:            nopts,
-		nowFn:            opts.ClockOptions().NowFn(),
-		log:              opts.InstrumentOptions().Logger(),
-		increasingIndex:  increasingIndex,
-		writeCommitLogFn: fn,
-		metrics:          newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
+		id:                     id,
+		shardSet:               shardSet,
+		blockRetriever:         blockRetriever,
+		opts:                   opts,
+		nopts:                  nopts,
+		nowFn:                  opts.ClockOptions().NowFn(),
+		log:                    opts.InstrumentOptions().Logger(),
+		increasingIndex:        increasingIndex,
+		writeCommitLogFn:       fn,
+		tickWorkers:            tickWorkers,
+		tickWorkersConcurrency: tickWorkersConcurrency,
+		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
 	n.initShards(nopts.NeedsBootstrap())
@@ -192,8 +226,9 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		if int(shard) < len(existing) && existing[shard] != nil {
 			n.shards[shard] = existing[shard]
 		} else {
-			n.shards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex,
-				n.writeCommitLogFn, n.nopts.NeedsBootstrap(), n.opts)
+			needsBootstrap := n.nopts.NeedsBootstrap()
+			n.shards[shard] = newDatabaseShard(n.id, shard, n.blockRetriever,
+				n.increasingIndex, n.writeCommitLogFn, needsBootstrap, n.opts)
 			n.metrics.shards.add.Inc(1)
 		}
 	}
@@ -230,15 +265,33 @@ func (n *dbNamespace) Tick(softDeadline time.Duration) {
 	}
 
 	// Tick through the shards sequentially to avoid parallel data flushes
-	var r tickResult
+	var (
+		r  tickResult
+		l  sync.Mutex
+		wg sync.WaitGroup
+	)
 	perShardDeadline := softDeadline / time.Duration(len(shards))
+	perShardDeadline *= time.Duration(n.tickWorkersConcurrency)
 	for _, shard := range shards {
-		r = r.merge(shard.Tick(perShardDeadline))
+		shard := shard
+		wg.Add(1)
+		n.tickWorkers.Go(func() {
+			defer wg.Done()
+
+			shardResult := shard.Tick(perShardDeadline)
+
+			l.Lock()
+			r = r.merge(shardResult)
+			l.Unlock()
+		})
 	}
+
+	wg.Wait()
 
 	n.metrics.tick.activeSeries.Update(int64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
 	n.metrics.tick.activeBlocks.Update(int64(r.activeBlocks))
+	n.metrics.tick.resetRetrievableBlocks.Inc(int64(r.resetRetrievableBlocks))
 	n.metrics.tick.expiredBlocks.Inc(int64(r.expiredBlocks))
 	n.metrics.tick.errors.Inc(int64(r.errors))
 }
@@ -693,8 +746,8 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	shards := n.shardSet.AllIDs()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
-		dbShards[shard] = newDatabaseShard(n.id, shard, n.increasingIndex,
-			n.writeCommitLogFn, needBootstrap, n.opts)
+		dbShards[shard] = newDatabaseShard(n.id, shard, n.blockRetriever,
+			n.increasingIndex, n.writeCommitLogFn, needBootstrap, n.opts)
 	}
 	n.shards = dbShards
 	n.Unlock()

@@ -39,6 +39,9 @@ type Encoder interface {
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
 	Stream() xio.SegmentReader
 
+	// StreamLen returns the length of the encoded bytes in the encoder.
+	StreamLen() int
+
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)
 

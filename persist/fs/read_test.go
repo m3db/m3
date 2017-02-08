@@ -82,7 +82,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 
 	assert.NoError(t, r.Close())
@@ -102,7 +102,8 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
@@ -112,7 +113,7 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 	reader := r.(*reader)
 	reader.decoder.Reset(nil)
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 	assert.NoError(t, r.Close())
 }
@@ -132,7 +133,8 @@ func TestReadDataError(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
@@ -142,7 +144,7 @@ func TestReadDataError(t *testing.T) {
 	reader := r.(*reader)
 	assert.NoError(t, reader.dataFdWithDigest.Fd().Close())
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 
 	// Restore the file to cleanly close
@@ -168,7 +170,8 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	// Truncate one bye
@@ -178,7 +181,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 	assert.Equal(t, errReadNotExpectedSize, err)
 
@@ -206,7 +209,8 @@ func TestReadBadMarker(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 
 	// Reset the marker
 	marker = actualMarker
@@ -217,7 +221,7 @@ func TestReadBadMarker(t *testing.T) {
 	err = r.Open(testNamespaceID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 	assert.Equal(t, errReadMarkerNotFound, err)
 
@@ -238,7 +242,8 @@ func TestReadWrongIdx(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3})))
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
@@ -251,7 +256,7 @@ func TestReadWrongIdx(t *testing.T) {
 	require.NoError(t, enc.EncodeIndexEntry(entry))
 	reader := r.(*reader)
 	reader.decoder.Reset(enc.Bytes())
-	_, _, err = r.Read()
+	_, _, _, err = r.Read()
 	assert.Error(t, err)
 
 	typedErr, ok := err.(ErrReadWrongIdx)
@@ -299,7 +304,10 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	w := newTestWriter(filePathPrefix)
 	assert.NoError(t, w.Open(testNamespaceID, uint32(shard), start))
 
-	assert.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{0x1})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{0x1}),
+		digest.Checksum([]byte{0x1})))
 	assert.NoError(t, w.Close())
 
 	for suffix, data := range fileData {
@@ -380,12 +388,15 @@ func TestReadValidate(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	require.NoError(t, w.Open(testNamespaceID, shard, start))
 
-	require.NoError(t, w.Write(ts.StringID("foo"), bytesRefd([]byte{0x1})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{0x1}),
+		digest.Checksum([]byte{0x1})))
 	require.NoError(t, w.Close())
 
 	r := newTestReader(filePathPrefix)
 	require.NoError(t, r.Open(testNamespaceID, shard, start))
-	_, _, err := r.Read()
+	_, _, _, err := r.Read()
 	require.NoError(t, err)
 
 	// Mutate expected data checksum to simulate data corruption

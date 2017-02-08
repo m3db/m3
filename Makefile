@@ -90,7 +90,7 @@ install-thrift-bin: install-vendor install-glide
 	go get $(thrift_gen_package) && cd $(GOPATH)/src/$(thrift_gen_package) && glide install
 	go install $(thrift_gen_package)/thrift/thrift-gen
 
-mock-gen: install-mockgen install-license-bin
+mock-gen:
 	@echo Generating mocks
 	PACKAGE=$(m3db_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
@@ -129,9 +129,10 @@ test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
 
+# To add testing of native pooling with integration tests for CI again, append:
+# @$(VENDOR_ENV) TEST_NATIVE_POOLING=true $(test_ci_integration)
 test-ci-integration:
 	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_ci_integration)
-	@$(VENDOR_ENV) TEST_NATIVE_POOLING=true $(test_ci_integration)
 
 # run as: make test-one-integration test=<test_name>
 test-one-integration:

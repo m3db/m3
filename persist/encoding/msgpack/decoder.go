@@ -158,6 +158,7 @@ func (dec *decoder) decodeIndexEntry() schema.IndexEntry {
 	indexEntry.ID = dec.decodeBytes()
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
+	indexEntry.Checksum = dec.decodeVarint()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexEntry

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -2321,24 +2321,4 @@ func (_m *MockAdminOptions) FetchSeriesBlocksBatchConcurrency() int {
 
 func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksBatchConcurrency() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksBatchConcurrency")
-}
-
-func (_m *MockAdminOptions) SetFetchSeriesBlocksResultsProcessors(value int) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksResultsProcessors", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-func (_mr *_MockAdminOptionsRecorder) SetFetchSeriesBlocksResultsProcessors(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchSeriesBlocksResultsProcessors", arg0)
-}
-
-func (_m *MockAdminOptions) FetchSeriesBlocksResultsProcessors() int {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksResultsProcessors")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksResultsProcessors() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksResultsProcessors")
 }

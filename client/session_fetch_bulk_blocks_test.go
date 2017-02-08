@@ -510,8 +510,11 @@ func assertFetchBlocksFromPeersResult(
 		ctx := context.NewContext()
 		defer ctx.Close()
 		stream, err := observedBlock.Stream(ctx)
-		assert.NoError(t, err)
-		actualData := append(stream.Segment().Head.Get(), stream.Segment().Tail.Get()...)
+		require.NoError(t, err)
+		seg, err := stream.Segment()
+		require.NoError(t, err)
+
+		actualData := append(seg.Head.Get(), seg.Tail.Get()...)
 
 		// compare actual v expected data
 		if len(expectedData) != len(actualData) {
@@ -1146,7 +1149,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	}, xtime.Second, nil))
 	reader := enc.Stream()
 	require.NotNil(t, reader)
-	segment := reader.Segment()
+	segment, err := reader.Segment()
+	require.NoError(t, err)
 	rawBlockData := make([]byte, segment.Len())
 	n, err := reader.Read(rawBlockData)
 	require.NoError(t, err)
@@ -1270,7 +1274,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	}, xtime.Second, nil))
 	reader := enc.Stream()
 	require.NotNil(t, reader)
-	segment := reader.Segment()
+	segment, err := reader.Segment()
+	require.NoError(t, err)
 	rawBlockData := make([]byte, segment.Len())
 	n, err := reader.Read(rawBlockData)
 	require.NoError(t, err)
@@ -1409,12 +1414,15 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	defer ctx.Close()
 
 	stream, err := result.Stream(ctx)
-	assert.NoError(t, err)
-	assert.NotNil(t, stream)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	seg, err := stream.Segment()
+	require.NoError(t, err)
 
 	// Assert block has data
-	assert.Equal(t, []byte{1, 2}, stream.Segment().Head.Get())
-	assert.Equal(t, []byte{3}, stream.Segment().Tail.Get())
+	assert.Equal(t, []byte{1, 2}, seg.Head.Get())
+	assert.Equal(t, []byte{3}, seg.Tail.Get())
 }
 
 func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
@@ -2013,8 +2021,9 @@ func assertFetchBootstrapBlocksResult(
 			if block.segments.merged != nil {
 				expectedData := append(block.segments.merged.head, block.segments.merged.tail...)
 				stream, err := actualBlock.Stream(ctx)
-				assert.NoError(t, err)
-				seg := stream.Segment()
+				require.NoError(t, err)
+				seg, err := stream.Segment()
+				require.NoError(t, err)
 				actualData := append(seg.Head.Get(), seg.Tail.Get()...)
 				assert.Equal(t, expectedData, actualData)
 			} else if block.segments.unmerged != nil {
@@ -2114,6 +2123,10 @@ func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts
 
 func (e *testEncoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(e.data)
+}
+
+func (e *testEncoder) StreamLen() int {
+	return e.data.Len()
 }
 
 func (e *testEncoder) Seal() {

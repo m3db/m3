@@ -29,10 +29,11 @@ type IndexInfo struct {
 
 // IndexEntry stores entry-level data for easier indexing
 type IndexEntry struct {
-	Index  int64
-	ID     []byte
-	Size   int64
-	Offset int64
+	Index    int64
+	ID       []byte
+	Size     int64
+	Offset   int64
+	Checksum int64
 }
 
 // LogInfo stores summary information about a commit log

@@ -135,6 +135,7 @@ func (enc *encoder) encodeIndexEntry(entry schema.IndexEntry) {
 	enc.encodeBytesFn(entry.ID)
 	enc.encodeVarintFn(entry.Size)
 	enc.encodeVarintFn(entry.Offset)
+	enc.encodeVarintFn(entry.Checksum)
 }
 
 func (enc *encoder) encodeLogInfo(info schema.LogInfo) {

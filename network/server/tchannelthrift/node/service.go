@@ -38,10 +38,15 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
+)
+
+const (
+	checkedBytesPoolSize = 65536
 )
 
 type serviceMetrics struct {
@@ -77,7 +82,7 @@ type service struct {
 	nowFn                   clock.NowFn
 	metrics                 serviceMetrics
 	idPool                  ts.IdentifierPool
-	checkedBytesPool        sync.Pool
+	checkedBytesPool        pool.ObjectPool
 	blockMetadataPool       tchannelthrift.BlockMetadataPool
 	blockMetadataSlicePool  tchannelthrift.BlockMetadataSlicePool
 	blocksMetadataPool      tchannelthrift.BlocksMetadataPool
@@ -120,9 +125,10 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			b.DecRef()
 			s.checkedBytesPool.Put(b)
 		}))
-	s.checkedBytesPool = sync.Pool{New: func() interface{} {
+	s.checkedBytesPool = pool.NewObjectPool(pool.NewObjectPoolOptions().SetSize(checkedBytesPoolSize))
+	s.checkedBytesPool.Init(func() interface{} {
 		return checked.NewBytes(nil, checkedBytesPoolOpts)
-	}}
+	})
 
 	return s
 }
@@ -249,15 +255,30 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 			continue
 		}
 
-		success++
-
+		var streamErr error
 		segments := make([]*rpc.Segments, 0, len(encoded))
-
 		for _, readers := range encoded {
-			if s := convert.ToSegments(readers); s != nil {
-				segments = append(segments, s)
+			var seg *rpc.Segments
+			seg, streamErr = convert.ToSegments(readers)
+			if streamErr != nil {
+				rawResult.Err = convert.ToRPCError(err)
+				if tterrors.IsBadRequestError(rawResult.Err) {
+					nonRetryableErrors++
+				} else {
+					retryableErrors++
+				}
+				break
 			}
+			if seg == nil {
+				continue
+			}
+			segments = append(segments, seg)
 		}
+		if streamErr != nil {
+			continue
+		}
+
+		success++
 
 		rawResult.Segments = segments
 	}
@@ -301,9 +322,9 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 
 		blocks := rpc.NewBlocks()
 		blocks.ID = request.ID
-		blocks.Blocks = make([]*rpc.Block, len(fetched))
+		blocks.Blocks = make([]*rpc.Block, 0, len(fetched))
 
-		for j, fetchedBlock := range fetched {
+		for _, fetchedBlock := range fetched {
 			block := rpc.NewBlock()
 			block.Start = xtime.ToNanoseconds(fetchedBlock.Start())
 			if ck := fetchedBlock.Checksum(); ck != nil {
@@ -313,10 +334,17 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 			if err := fetchedBlock.Err(); err != nil {
 				block.Err = convert.ToRPCError(err)
 			} else {
-				block.Segments = convert.ToSegments(fetchedBlock.Readers())
+				block.Segments, err = convert.ToSegments(fetchedBlock.Readers())
+				if err != nil {
+					block.Err = convert.ToRPCError(err)
+				}
+				if block.Segments == nil {
+					// No data for block, skip this block
+					continue
+				}
 			}
 
-			blocks.Blocks[j] = block
+			blocks.Blocks = append(blocks.Blocks, block)
 		}
 
 		res.Elements[i] = blocks

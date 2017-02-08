@@ -154,7 +154,6 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	d := newTestDatabase(t, bootstrapped)
 	_, err := d.ReadEncoded(ctx, ts.StringID("nonexistent"), ts.StringID("foo"), time.Now(), time.Now())
 	require.Equal(t, "no such namespace nonexistent", err.Error())
-	require.Panics(t, func() { d.RUnlock() }, "shouldn't be able to unlock the read lock")
 }
 
 func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
@@ -176,7 +175,6 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	res, err := d.ReadEncoded(ctx, ns, id, start, end)
 	require.Nil(t, res)
 	require.Nil(t, err)
-	require.Panics(t, func() { d.RUnlock() }, "shouldn't be able to unlock the read lock")
 }
 
 func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {

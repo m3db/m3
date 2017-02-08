@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
@@ -361,7 +362,7 @@ func writeToDisk(
 		shard := shardSet.Lookup(s.ID)
 		seriesPerShard[shard] = append(seriesPerShard[shard], s)
 	}
-	segmentHolder := make([]checked.Bytes, 2)
+	data := make([]checked.Bytes, 2)
 	for shard, seriesList := range seriesPerShard {
 		if err := writer.Open(namespace, shard, start); err != nil {
 			return err
@@ -375,10 +376,14 @@ func writeToDisk(
 			}
 			stream := encoder.Stream()
 			require.NotNil(t, stream)
-			segment := stream.Segment()
-			segmentHolder[0] = segment.Head
-			segmentHolder[1] = segment.Tail
-			if err := writer.WriteAll(series.ID, segmentHolder); err != nil {
+			segment, err := stream.Segment()
+			if err != nil {
+				return err
+			}
+			data[0] = segment.Head
+			data[1] = segment.Tail
+			checksum := digest.SegmentChecksum(segment)
+			if err := writer.WriteAll(series.ID, data, checksum); err != nil {
 				return err
 			}
 		}
