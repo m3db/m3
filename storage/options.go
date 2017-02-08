@@ -295,7 +295,14 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.blockOpts = opts.blockOpts.
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool)
+		SetMultiReaderIteratorPool(multiReaderIteratorPool).
+		SetSegmentReaderPool(segmentReaderPool)
+
+	dbBlockPool := block.NewDatabaseBlockPool(nil)
+	dbBlockPool.Init(func() block.DatabaseBlock {
+		return block.NewDatabaseBlock(timeZero, ts.Segment{}, opts.blockOpts)
+	})
+	opts.blockOpts = opts.blockOpts.SetDatabaseBlockPool(dbBlockPool)
 
 	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
 
