@@ -32,7 +32,7 @@ import (
 type TestStatsReporter interface {
 	tally.StatsReporter
 	Counters() map[string]int64
-	Gauges() map[string]int64
+	Gauges() map[string]float64
 	Timers() map[string][]time.Duration
 	Events() []TestStatsReporterEvent
 }
@@ -52,7 +52,7 @@ type TestStatsReporterEvent interface {
 type testStatsReporter struct {
 	sync.RWMutex
 	counters       map[string]int64
-	gauges         map[string]int64
+	gauges         map[string]float64
 	timers         map[string][]time.Duration
 	events         []*event
 	timersDisabled bool
@@ -63,7 +63,7 @@ type testStatsReporter struct {
 func NewTestStatsReporter(opts TestStatsReporterOptions) TestStatsReporter {
 	return &testStatsReporter{
 		counters:       make(map[string]int64),
-		gauges:         make(map[string]int64),
+		gauges:         make(map[string]float64),
 		timers:         make(map[string][]time.Duration),
 		timersDisabled: opts.TimersDisabled(),
 		captureEvents:  opts.CaptureEvents(),
@@ -86,7 +86,7 @@ func (r *testStatsReporter) ReportCounter(name string, tags map[string]string, v
 	r.Unlock()
 }
 
-func (r *testStatsReporter) ReportGauge(name string, tags map[string]string, value int64) {
+func (r *testStatsReporter) ReportGauge(name string, tags map[string]string, value float64) {
 	r.Lock()
 	r.gauges[name] = value
 	if r.captureEvents {
@@ -94,7 +94,7 @@ func (r *testStatsReporter) ReportGauge(name string, tags map[string]string, val
 			eventType: eventTypeGauge,
 			name:      name,
 			tags:      tags,
-			value:     value,
+			value:     int64(value),
 		})
 	}
 	r.Unlock()
@@ -121,6 +121,18 @@ func (r *testStatsReporter) ReportTimer(name string, tags map[string]string, int
 	r.Unlock()
 }
 
+func (r *testStatsReporter) Capabilities() tally.Capabilities {
+	return r
+}
+
+func (r *testStatsReporter) Reporting() bool {
+	return true
+}
+
+func (r *testStatsReporter) Tagging() bool {
+	return true
+}
+
 func (r *testStatsReporter) Counters() map[string]int64 {
 	r.RLock()
 	result := make(map[string]int64, len(r.counters))
@@ -131,9 +143,9 @@ func (r *testStatsReporter) Counters() map[string]int64 {
 	return result
 }
 
-func (r *testStatsReporter) Gauges() map[string]int64 {
+func (r *testStatsReporter) Gauges() map[string]float64 {
 	r.RLock()
-	result := make(map[string]int64, len(r.gauges))
+	result := make(map[string]float64, len(r.gauges))
 	for k, v := range r.gauges {
 		result[k] = v
 	}

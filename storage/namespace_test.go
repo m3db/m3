@@ -492,8 +492,11 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
 	require.NoError(t, err)
 	dopts := testDatabaseOptions()
+
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
-	scope := tally.NewRootScope("", nil, reporter, time.Millisecond)
+	scope, closer := tally.NewRootScope("", nil, reporter, time.Millisecond, tally.DefaultSeparator)
+	defer closer.Close()
+
 	dopts = dopts.SetInstrumentOptions(dopts.InstrumentOptions().
 		SetMetricsScope(scope))
 	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)

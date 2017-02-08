@@ -1,5 +1,5 @@
-hash: 48d3c7808154c5e5bc4cde5b81db5b0be2bb867653f761b04f84626ac2585da0
-updated: 2017-02-06T18:19:53.691408874-05:00
+hash: 70bad4f8892a768c8b28c13a87fc2c57afdd0bf9efe1f458146ce129bcea5cab
+updated: 2017-02-07T19:09:13.003965163-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -28,7 +28,7 @@ imports:
   - services/placement
   - shard
 - name: github.com/m3db/m3x
-  version: dd72a7c37fdc78b623a2590ff33bfbfc236dbf77
+  version: 41e3f053bd721ec1d6ba8d4eef3e036290aa7977
   vcs: git
   subpackages:
   - checked
@@ -62,7 +62,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+  version: 43c1379c0577ac1eb74f9f3869cea07191c9992b
 - name: github.com/uber/tchannel-go
   version: 8d570ed87acb2661d390c096215260f3f9e9b931
   subpackages:

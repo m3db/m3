@@ -438,7 +438,7 @@ func (d *db) reportLoop() {
 			} else {
 				d.metrics.repairStatus.Update(0)
 			}
-			d.metrics.tickStatus.Update(atomic.LoadInt64(&d.ticking))
+			d.metrics.tickStatus.Update(float64(atomic.LoadInt64(&d.ticking)))
 			if d.fsm.IsCleaningUp() {
 				d.metrics.cleanupStatus.Update(1)
 			} else {

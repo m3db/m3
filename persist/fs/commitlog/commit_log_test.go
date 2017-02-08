@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
@@ -55,7 +54,7 @@ func newTestOptions(
 	overrides overrides,
 ) (
 	Options,
-	xmetrics.TestStatsReporter,
+	tally.TestScope,
 ) {
 	dir, err := ioutil.TempDir("", "foo")
 	assert.NoError(t, err)
@@ -67,11 +66,11 @@ func newTestOptions(
 		c = mclock.New()
 	}
 
-	stats := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope := tally.NewTestScope("", nil)
 
 	opts := NewOptions().
 		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
-		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(tally.NewRootScope("", nil, stats, 0))).
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
 		SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir)).
 		SetRetentionOptions(retention.NewOptions().SetBlockSize(2 * time.Hour)).
 		SetFlushSize(4096).
@@ -86,7 +85,7 @@ func newTestOptions(
 		opts = opts.SetBacklogQueueSize(*overrides.backlogQueueSize)
 	}
 
-	return opts, stats
+	return opts, scope
 }
 
 func cleanup(t *testing.T, opts Options) {
@@ -201,18 +200,17 @@ type writeCommitLogFn func(
 
 func writeCommitLogs(
 	t *testing.T,
-	scope tally.Scope,
-	stats xmetrics.TestStatsReporter,
+	scope tally.TestScope,
 	writeFn writeCommitLogFn,
 	writes []testWrite,
 ) *sync.WaitGroup {
 	wg := sync.WaitGroup{}
 
 	getAllWrites := func() int {
-		scope.Report(stats)
-		counters := stats.Counters()
-		result := counters["commitlog.writes.success"] +
-			counters["commitlog.writes.errors"]
+		snapshot := scope.Snapshot()
+		counters := snapshot.Counters()
+		result := counters["commitlog.writes.success"].Value() +
+			counters["commitlog.writes.errors"].Value()
 		return int(result)
 	}
 
@@ -300,11 +298,10 @@ func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
 }
 
 func TestCommitLogWrite(t *testing.T) {
-	opts, stats := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
-	scope := commitLog.scope
 
 	writes := []testWrite{
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
@@ -312,7 +309,7 @@ func TestCommitLogWrite(t *testing.T) {
 	}
 
 	// Call write sync
-	writeCommitLogs(t, scope, stats, commitLog.Write, writes).Wait()
+	writeCommitLogs(t, scope, commitLog.Write, writes).Wait()
 
 	// Close the commit log and consequently flush
 	assert.NoError(t, commitLog.Close())
@@ -322,11 +319,10 @@ func TestCommitLogWrite(t *testing.T) {
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {
-	opts, stats := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
-	scope := commitLog.scope
 
 	writes := []testWrite{
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
@@ -335,7 +331,7 @@ func TestCommitLogWriteBehind(t *testing.T) {
 	}
 
 	// Call write behind
-	writeCommitLogs(t, scope, stats, commitLog.WriteBehind, writes)
+	writeCommitLogs(t, scope, commitLog.WriteBehind, writes)
 
 	// Close the commit log and consequently flush
 	assert.NoError(t, commitLog.Close())
@@ -409,11 +405,10 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 
 func TestCommitLogExpiresWriter(t *testing.T) {
 	clock := mclock.NewMock()
-	opts, stats := newTestOptions(t, overrides{clock: clock})
+	opts, scope := newTestOptions(t, overrides{clock: clock})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
-	scope := commitLog.scope
 
 	blockSize := opts.RetentionOptions().BlockSize()
 	alignedStart := clock.Now().Truncate(blockSize)
@@ -430,7 +425,7 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 		clock.Add(write.t.Sub(clock.Now()))
 
 		// Write entry
-		wg := writeCommitLogs(t, scope, stats, commitLog.Write, []testWrite{write})
+		wg := writeCommitLogs(t, scope, commitLog.Write, []testWrite{write})
 
 		// Flush until finished, this is required as timed flusher not active when clock is mocked
 		flushUntilDone(commitLog, wg)
@@ -450,11 +445,10 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 }
 
 func TestCommitLogFailOnWriteError(t *testing.T) {
-	opts, stats := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := NewCommitLog(opts).(*commitLog)
-	scope := commitLog.scope
 	writer := newMockCommitLogWriter()
 
 	writer.writeFn = func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
@@ -489,21 +483,19 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
-	writeCommitLogs(t, scope, stats, commitLog.WriteBehind, writes)
+	writeCommitLogs(t, scope, commitLog.WriteBehind, writes)
 
 	wg.Wait()
 
 	// Check stats
-	scope.Report(stats)
-	assert.Equal(t, int64(1), stats.Counters()["commitlog.writes.errors"])
+	assert.Equal(t, int64(1), scope.Snapshot().Counters()["commitlog.writes.errors"].Value())
 }
 
 func TestCommitLogFailOnOpenError(t *testing.T) {
-	opts, stats := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := NewCommitLog(opts).(*commitLog)
-	scope := commitLog.scope
 	writer := newMockCommitLogWriter()
 
 	var opens int64
@@ -541,23 +533,21 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
-	writeCommitLogs(t, scope, stats, commitLog.WriteBehind, writes)
+	writeCommitLogs(t, scope, commitLog.WriteBehind, writes)
 
 	wg.Wait()
 
 	// Check stats
-	scope.Report(stats)
-	counters := stats.Counters()
-	assert.Equal(t, int64(1), counters["commitlog.writes.errors"])
-	assert.Equal(t, int64(1), counters["commitlog.writes.open-errors"])
+	counters := scope.Snapshot().Counters()
+	assert.Equal(t, int64(1), counters["commitlog.writes.errors"].Value())
+	assert.Equal(t, int64(1), counters["commitlog.writes.open-errors"].Value())
 }
 
 func TestCommitLogFailOnFlushError(t *testing.T) {
-	opts, stats := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
 	commitLog := NewCommitLog(opts).(*commitLog)
-	scope := commitLog.scope
 	writer := newMockCommitLogWriter()
 
 	var flushes int64
@@ -585,13 +575,12 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
-	writeCommitLogs(t, scope, stats, commitLog.WriteBehind, writes)
+	writeCommitLogs(t, scope, commitLog.WriteBehind, writes)
 
 	wg.Wait()
 
 	// Check stats
-	scope.Report(stats)
-	counters := stats.Counters()
-	assert.Equal(t, int64(1), counters["commitlog.writes.errors"])
-	assert.Equal(t, int64(1), counters["commitlog.writes.flush-errors"])
+	counters := scope.Snapshot().Counters()
+	assert.Equal(t, int64(1), counters["commitlog.writes.errors"].Value())
+	assert.Equal(t, int64(1), counters["commitlog.writes.flush-errors"].Value())
 }
