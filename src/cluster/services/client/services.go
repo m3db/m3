@@ -444,7 +444,7 @@ func filterInstancesWithWatch(s services.Service, hbw xwatch.Watch) services.Ser
 
 func updateVersionGauge(vw kv.ValueWatch, versionGauge tally.Gauge) {
 	for range time.Tick(defaultGaugeInterval) {
-		versionGauge.Update(int64(vw.Get().Version()))
+		versionGauge.Update(float64(vw.Get().Version()))
 	}
 }
 
