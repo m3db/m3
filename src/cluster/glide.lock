@@ -1,5 +1,5 @@
-hash: e412e0809212e1bf3817418678a925ab4af9ac42cd251dc838e07deb0936facd
-updated: 2017-01-28T00:38:10.773685326-05:00
+hash: df401d0f98148e13488626f2e23a9b2cfaf3c088b056bb0483279303affbca65
+updated: 2017-02-08T00:28:04.738352401-05:00
 imports:
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
@@ -112,7 +112,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3x
-  version: 71d99ef2d83e52ded21c79eb1e5959195f29d7cf
+  version: 41e3f053bd721ec1d6ba8d4eef3e036290aa7977
   subpackages:
   - close
   - errors
@@ -146,7 +146,7 @@ imports:
   - assert
   - require
 - name: github.com/uber-go/tally
-  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+  version: 08e86c3c1eb55364d563bd6beb982040225f4bb7
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:

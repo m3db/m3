@@ -10,7 +10,7 @@ import:
   subpackages:
   - proto
 - package: github.com/m3db/m3x
-  version: 71d99ef2d83e52ded21c79eb1e5959195f29d7cf
+  version: 41e3f053bd721ec1d6ba8d4eef3e036290aa7977
   subpackages:
   - close
   - errors
