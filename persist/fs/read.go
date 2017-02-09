@@ -119,10 +119,19 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}); err != nil {
 		return err
 	}
+
 	r.infoFdWithDigest.Reset(infoFd)
 	r.indexFdWithDigest.Reset(indexFd)
 	r.dataFdWithDigest.Reset(dataFd)
 	r.digestFdWithDigestContents.Reset(digestFd)
+
+	defer func() {
+		// NB(r): We don't need to keep these FDs open as we these up front
+		r.infoFdWithDigest.Close()
+		r.indexFdWithDigest.Close()
+		r.digestFdWithDigestContents.Close()
+	}()
+
 	if err := r.readDigest(); err != nil {
 		// Try to close if failed to read
 		r.Close()
@@ -295,10 +304,5 @@ func (r *reader) EntriesRead() int {
 }
 
 func (r *reader) Close() error {
-	return closeAll(
-		r.infoFdWithDigest,
-		r.indexFdWithDigest,
-		r.dataFdWithDigest,
-		r.digestFdWithDigestContents,
-	)
+	return r.dataFdWithDigest.Close()
 }
