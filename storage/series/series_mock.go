@@ -30,7 +30,7 @@ import (
 	block "github.com/m3db/m3db/storage/block"
 	series "github.com/m3db/m3db/storage/series"
 	ts "github.com/m3db/m3db/ts"
-	time "github.com/m3db/m3db/vendor/github.com/m3db/m3x/time"
+	time "github.com/m3db/m3x/time"
 	io "github.com/m3db/m3db/x/io"
 	time0 "time"
 )
