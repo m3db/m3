@@ -28,10 +28,9 @@ import (
 	context "github.com/m3db/m3db/context"
 	persist "github.com/m3db/m3db/persist"
 	block "github.com/m3db/m3db/storage/block"
-	series "github.com/m3db/m3db/storage/series"
 	ts "github.com/m3db/m3db/ts"
-	time "github.com/m3db/m3x/time"
 	io "github.com/m3db/m3db/x/io"
+	time "github.com/m3db/m3x/time"
 	time0 "time"
 )
 
@@ -145,7 +144,7 @@ func (_mr *_MockDatabaseSeriesRecorder) ReadEncoded(arg0, arg1, arg2 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 bool, _param2 series.QueryableBlockRetriever) {
+func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 bool, _param2 QueryableBlockRetriever) {
 	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2)
 }
 
@@ -153,9 +152,9 @@ func (_mr *_MockDatabaseSeriesRecorder) Reset(arg0, arg1, arg2 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Tick() (series.TickResult, error) {
+func (_m *MockDatabaseSeries) Tick() (TickResult, error) {
 	ret := _m.ctrl.Call(_m, "Tick")
-	ret0, _ := ret[0].(series.TickResult)
+	ret0, _ := ret[0].(TickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
