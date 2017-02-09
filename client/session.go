@@ -2004,7 +2004,7 @@ func (s *session) streamBlocksReattemptFromPeers(
 	// where cannot enqueue into the reattempt channel because no more work is
 	// getting done because new attempts are blocked on existing attempts completing
 	// and existing attempts are trying to enqueue into a full reattempt channel
-	enqueue := enqueueCh.enqueueDelayed()
+	enqueue := enqueueCh.enqueueDelayed(len(blocks))
 	go s.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
 }
 
@@ -2337,8 +2337,8 @@ func (c *enqueueChannel) enqueue(peersMetadata []*blocksMetadata) {
 	c.peersMetadataCh <- peersMetadata
 }
 
-func (c *enqueueChannel) enqueueDelayed() func([]*blocksMetadata) {
-	atomic.AddUint64(&c.enqueued, 1)
+func (c *enqueueChannel) enqueueDelayed(numToEnqueue int) func([]*blocksMetadata) {
+	atomic.AddUint64(&c.enqueued, uint64(numToEnqueue))
 	return func(peersMetadata []*blocksMetadata) {
 		c.peersMetadataCh <- peersMetadata
 	}
