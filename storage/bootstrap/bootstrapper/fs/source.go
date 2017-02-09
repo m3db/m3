@@ -123,6 +123,9 @@ func (s *fileSystemSource) enqueueReaders(
 	for shard, tr := range shardsTimeRanges {
 		files := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize, s.decodingOpts)
 		if len(files) == 0 {
+			if tr == nil {
+				tr = xtime.NewRanges()
+			}
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- shardReaders{shard: shard, tr: tr}
 			continue

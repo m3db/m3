@@ -240,6 +240,21 @@ func TestReadPatternError(t *testing.T) {
 	require.Nil(t, res)
 }
 
+func TestReadNilTimeRanges(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	shard := uint32(0)
+	writeGoodFiles(t, dir, testNamespaceID, shard)
+
+	src := newFileSystemSource(dir, NewOptions())
+
+	validateReadResults(t, src, dir, map[uint32]xtime.Ranges{
+		testShard: testTimeRanges(),
+		555:       nil,
+	})
+}
+
 func TestReadOpenFileError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
@@ -281,8 +296,12 @@ func TestReadDataCorruptionError(t *testing.T) {
 	validateTimeRanges(t, res.Unfulfilled()[testShard], rangesArray(strs[testShard]))
 }
 
-func validateReadResults(t *testing.T, src bootstrap.Source, dir string, shard uint32) {
-	strs := testShardTimeRanges()
+func validateReadResults(
+	t *testing.T,
+	src bootstrap.Source,
+	dir string,
+	strs result.ShardTimeRanges,
+) {
 	expected := []xtime.Range{
 		{Start: testStart.Add(2 * time.Hour), End: testStart.Add(10 * time.Hour)},
 	}
@@ -326,24 +345,22 @@ func TestReadTimeFilter(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	shard := uint32(0)
-	writeGoodFiles(t, dir, testNamespaceID, shard)
+	writeGoodFiles(t, dir, testNamespaceID, testShard)
 
 	src := newFileSystemSource(dir, NewOptions())
-	validateReadResults(t, src, dir, shard)
+	validateReadResults(t, src, dir, testShardTimeRanges())
 }
 
 func TestReadPartialError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	shard := uint32(0)
-	writeGoodFiles(t, dir, testNamespaceID, shard)
+	writeGoodFiles(t, dir, testNamespaceID, testShard)
 	// Intentionally corrupt the data file
-	writeDataFile(t, dir, testNamespaceID, shard, testStart.Add(4*time.Hour), []byte{0x1})
+	writeDataFile(t, dir, testNamespaceID, testShard, testStart.Add(4*time.Hour), []byte{0x1})
 
 	src := newFileSystemSource(dir, NewOptions())
-	validateReadResults(t, src, dir, shard)
+	validateReadResults(t, src, dir, testShardTimeRanges())
 }
 
 func TestReadValidateError(t *testing.T) {
