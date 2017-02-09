@@ -67,7 +67,10 @@ func (fwd *fdWithDigest) Reset(fd *os.File) {
 
 // Close closes the file descriptor.
 func (fwd *fdWithDigest) Close() error {
-	fd := fwd.fd
+	if fwd.fd == nil {
+		return nil
+	}
+	err := fwd.fd.Close()
 	fwd.fd = nil
-	return fd.Close()
+	return err
 }

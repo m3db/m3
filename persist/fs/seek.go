@@ -145,9 +145,18 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}); err != nil {
 		return err
 	}
+
 	s.infoFdWithDigest.Reset(infoFd)
 	s.indexFdWithDigest.Reset(indexFd)
 	s.digestFdWithDigestContents.Reset(digestFd)
+
+	defer func() {
+		// NB(r): We don't need to keep these FDs open as we use these up front
+		s.infoFdWithDigest.Close()
+		s.indexFdWithDigest.Close()
+		s.digestFdWithDigestContents.Close()
+	}()
+
 	if err := s.readDigest(); err != nil {
 		// Try to close if failed to read
 		s.Close()
@@ -339,8 +348,10 @@ func (s *seeker) Close() error {
 	for key := range s.indexMap {
 		delete(s.indexMap, key)
 	}
-	return closeAll(
-		s.infoFdWithDigest,
-		s.indexFdWithDigest,
-	)
+	if s.dataFd == nil {
+		return nil
+	}
+	err := s.dataFd.Close()
+	s.dataFd = nil
+	return err
 }
