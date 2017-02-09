@@ -126,7 +126,7 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	r.digestFdWithDigestContents.Reset(digestFd)
 
 	defer func() {
-		// NB(r): We don't need to keep these FDs open as we these up front
+		// NB(r): We don't need to keep these FDs open as we use these up front
 		r.infoFdWithDigest.Close()
 		r.indexFdWithDigest.Close()
 		r.digestFdWithDigestContents.Close()

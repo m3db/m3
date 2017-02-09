@@ -110,7 +110,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	s.digestFdWithDigestContents.Reset(digestFd)
 
 	defer func() {
-		// NB(r): We don't need to keep these FDs open as we these up front
+		// NB(r): We don't need to keep these FDs open as we use these up front
 		s.infoFdWithDigest.Close()
 		s.indexFdWithDigest.Close()
 		s.digestFdWithDigestContents.Close()
@@ -274,6 +274,9 @@ func (s *seeker) Close() error {
 	// Prepare for reuse
 	for key := range s.indexMap {
 		delete(s.indexMap, key)
+	}
+	if s.dataFd == nil {
+		return nil
 	}
 	err := s.dataFd.Close()
 	s.dataFd = nil
