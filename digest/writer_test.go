@@ -96,11 +96,6 @@ func TestFdWithDigestWriteBytesSuccess(t *testing.T) {
 	require.Equal(t, data, md.b)
 }
 
-func TestFdWithDigestWriterCloseFlushError(t *testing.T) {
-	writer := NewFdWithDigestWriter(testWriterBufferSize)
-	require.Error(t, writer.Close())
-}
-
 func TestFdWithDigestWriterCloseSuccess(t *testing.T) {
 	writer, fd, _ := createTestFdWithDigestWriter(t)
 	defer func() {
