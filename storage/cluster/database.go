@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	xlog "github.com/m3db/m3x/log"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -49,13 +51,28 @@ type newStorageDatabaseFn func(
 	opts storage.Options,
 ) (storage.Database, error)
 
+type databaseMetrics struct {
+	initializing tally.Gauge
+	leaving      tally.Gauge
+	available    tally.Gauge
+}
+
+func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
+	return databaseMetrics{
+		initializing: scope.Gauge("shards.initializing"),
+		leaving:      scope.Gauge("shards.leaving"),
+		available:    scope.Gauge("shards.available"),
+	}
+}
+
 type clusterDB struct {
 	storage.Database
 
-	log    xlog.Logger
-	hostID string
-	topo   topology.Topology
-	watch  topology.MapWatch
+	log     xlog.Logger
+	metrics databaseMetrics
+	hostID  string
+	topo    topology.Topology
+	watch   topology.MapWatch
 
 	watchMutex sync.Mutex
 	watching   bool
@@ -73,7 +90,9 @@ func NewDatabase(
 	topoInit topology.Initializer,
 	opts storage.Options,
 ) (Database, error) {
-	log := opts.InstrumentOptions().Logger()
+	instrumentOpts := opts.InstrumentOptions()
+	log := instrumentOpts.Logger()
+	m := newDatabaseMetrics(instrumentOpts.MetricsScope().SubScope("cluster"))
 	topo, err := topoInit.Init()
 	if err != nil {
 		return nil, err
@@ -89,6 +108,7 @@ func NewDatabase(
 
 	d := &clusterDB{
 		log:            log,
+		metrics:        m,
 		hostID:         hostID,
 		topo:           topo,
 		watch:          watch,
@@ -200,6 +220,29 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 	if !ok {
 		return
 	}
+
+	reportStats := func() {
+		var (
+			initializing int64
+			leaving      int64
+			available    int64
+		)
+		for _, s := range entry.ShardSet().All() {
+			switch s.State() {
+			case shard.Initializing:
+				initializing++
+			case shard.Leaving:
+				leaving++
+			case shard.Available:
+				available++
+			}
+		}
+		d.metrics.initializing.Update(float64(initializing))
+		d.metrics.leaving.Update(float64(leaving))
+		d.metrics.available.Update(float64(available))
+	}
+
+	defer reportStats()
 
 	// Manage the reuseable vars
 	d.resetReuseable()
