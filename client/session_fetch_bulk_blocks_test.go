@@ -1054,7 +1054,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
-		enqueue := enqueueCh.enqueueDelayed()
+		enqueue := enqueueCh.enqueueDelayed(len(blocks))
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
 	}
 
@@ -1128,7 +1128,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
-		enqueue := enqueueCh.enqueueDelayed()
+		enqueue := enqueueCh.enqueueDelayed(len(blocks))
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
 	}
 
@@ -1251,7 +1251,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	assert.NoError(t, err)
 	session := s.(*session)
 	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
-		enqueue := enqueueCh.enqueueDelayed()
+		enqueue := enqueueCh.enqueueDelayed(len(blocks))
 		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
 	}
 
@@ -1532,6 +1532,39 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	err := r.addBlockFromPeer(fooID, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
+}
+
+func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+	enqueueCh := newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeTest))
+
+	// Enqueue multiple blocks metadata
+	numBlocks := 10
+	blocks := make([][]*blocksMetadata, numBlocks)
+	enqueueFn := enqueueCh.enqueueDelayed(len(blocks))
+	assert.Equal(t, numBlocks, enqueueCh.unprocessedLen())
+	assert.Equal(t, 0, len(enqueueCh.get()))
+
+	// Actually enqueue the blocks
+	for i := 0; i < numBlocks; i++ {
+		enqueueFn(blocks[i])
+	}
+	assert.Equal(t, numBlocks, enqueueCh.unprocessedLen())
+	assert.Equal(t, numBlocks, len(enqueueCh.get()))
+
+	// Process the blocks
+	for i := 0; i < numBlocks; i++ {
+		<-enqueueCh.get()
+		enqueueCh.trackProcessed(1)
+	}
+	assert.Equal(t, 0, enqueueCh.unprocessedLen())
+	assert.Equal(t, 0, len(enqueueCh.get()))
 }
 
 func mockPeerBlocksQueues(peers []peer, opts AdminOptions) peerBlocksQueues {
