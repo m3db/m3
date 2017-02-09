@@ -1884,7 +1884,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		if !bytes.Equal(id.Data().Get(), result.Elements[i].ID) {
 			b := batch[i].blocks
 			blocksErr := fmt.Errorf(
-				"stream blocks mismatched ID: expectedID=%s,actualID=%s,indexID=%d,peer=%s",
+				"stream blocks mismatched ID: expectedID=%s, actualID=%s, indexID=%d, peer=%s",
 				batch[i].id.String(), id.String(), i, peer.Host().String(),
 			)
 			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, blocksErr, respErrReason, m)
@@ -2024,10 +2024,15 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 			make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
 		for j := range reattemptBlocksMetadata {
 			reattempt := blocks[i].reattempt
+
 			// Copy the errors for every peer so they don't shard the same error
 			// slice and therefore are not subject to race conditions when the
 			// error slice is modified
-			reattempt.errs = append([]error{attemptErr}, reattempt.errs...)
+			reattemptErrs := make([]error, len(reattempt.errs)+1)
+			n := copy(reattemptErrs, reattempt.errs)
+			reattemptErrs[n] = attemptErr
+			reattempt.errs = reattemptErrs
+
 			reattemptBlocksMetadata[j] = &blocksMetadata{
 				peer: reattempt.peersMetadata[j].peer,
 				id:   reattempt.id,
