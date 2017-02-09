@@ -1056,9 +1056,15 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
-	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+	session.reattemptStreamBlocksFromPeersFn = func(
+		blocks []blockMetadata,
+		enqueueCh *enqueueChannel,
+		attemptErr error,
+		_ reason,
+		_ *streamFromPeersMetrics,
+	) {
 		enqueue := enqueueCh.enqueueDelayed(len(blocks))
-		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr, enqueue)
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1130,9 +1136,15 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
-	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+	session.reattemptStreamBlocksFromPeersFn = func(
+		blocks []blockMetadata,
+		enqueueCh *enqueueChannel,
+		attemptErr error,
+		_ reason,
+		_ *streamFromPeersMetrics,
+	) {
 		enqueue := enqueueCh.enqueueDelayed(len(blocks))
-		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr, enqueue)
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -1254,9 +1266,15 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
-	session.reattemptStreamBlocksFromPeersFn = func(blocks []blockMetadata, enqueueCh *enqueueChannel, _ reason, _ *streamFromPeersMetrics) {
+	session.reattemptStreamBlocksFromPeersFn = func(
+		blocks []blockMetadata,
+		enqueueCh *enqueueChannel,
+		attemptErr error,
+		_ reason,
+		_ *streamFromPeersMetrics,
+	) {
 		enqueue := enqueueCh.enqueueDelayed(len(blocks))
-		session.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+		session.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr, enqueue)
 	}
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
