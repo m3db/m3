@@ -1679,6 +1679,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				xlog.NewLogField("id", currID.String()),
 				xlog.NewLogField("start", earliestStart),
 				xlog.NewLogField("attempted", currStart[0].unselectedBlocks()[0].reattempt.attempt),
+				xlog.NewLogField("attemptErrs", currStart[0].unselectedBlocks()[0].reattempt.errs),
 			).Error("retries failed for streaming blocks from peers")
 
 			// Remove the block from all peers
@@ -1852,15 +1853,16 @@ func (s *session) streamBlocksBatchFromPeer(
 		}
 		return err
 	}); err != nil {
-		m.fetchBlockError.Inc(reqBlocksLen)
-		s.log.WithFields(
-			xlog.NewLogField("error", err.Error()),
-			xlog.NewLogField("peer", peer.Host().String()),
-		).Errorf("stream blocks request error")
+		blocksErr := fmt.Errorf(
+			"stream blocks request error: error=%s, peer=%s",
+			err.Error(), peer.Host().String(),
+		)
 		for i := range batch {
 			b := batch[i].blocks
-			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, reqErrReason, m)
+			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, blocksErr, reqErrReason, m)
 		}
+		m.fetchBlockError.Inc(reqBlocksLen)
+		s.log.Errorf(blocksErr.Error())
 		return
 	}
 
@@ -1881,14 +1883,13 @@ func (s *session) streamBlocksBatchFromPeer(
 		id := batch[i].id
 		if !bytes.Equal(id.Data().Get(), result.Elements[i].ID) {
 			b := batch[i].blocks
-			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, respErrReason, m)
+			blocksErr := fmt.Errorf(
+				"stream blocks mismatched ID: expectedID=%s, actualID=%s, indexID=%d, peer=%s",
+				batch[i].id.String(), id.String(), i, peer.Host().String(),
+			)
+			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, blocksErr, respErrReason, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
-			s.log.WithFields(
-				xlog.NewLogField("expectedID", batch[i].id),
-				xlog.NewLogField("actualID", id.String()),
-				xlog.NewLogField("indexID", i),
-				xlog.NewLogField("peer", peer.Host().String()),
-			).Errorf("stream blocks mismatched ID")
+			s.log.Errorf(blocksErr.Error())
 			continue
 		}
 
@@ -1927,16 +1928,13 @@ func (s *session) streamBlocksBatchFromPeer(
 
 			if err != nil {
 				failed := []blockMetadata{batch[i].blocks[j]}
-				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, respErrReason, m)
+				blocksErr := fmt.Errorf(
+					"stream blocks bad block: id=%s, start=%d, error=%s, indexID=%d, indexBlock=%d, peer=%s",
+					id.String(), block.Start, err.Error(), i, j, peer.Host().String(),
+				)
+				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr, respErrReason, m)
 				m.fetchBlockError.Inc(1)
-				s.log.WithFields(
-					xlog.NewLogField("id", id.String()),
-					xlog.NewLogField("start", block.Start),
-					xlog.NewLogField("error", err.Error()),
-					xlog.NewLogField("indexID", i),
-					xlog.NewLogField("indexBlock", j),
-					xlog.NewLogField("peer", peer.Host().String()),
-				).Errorf("stream blocks bad block")
+				s.log.Errorf(blocksErr.Error())
 				continue
 			}
 
@@ -1985,11 +1983,18 @@ const (
 	respErrReason
 )
 
-type reattemptStreamBlocksFromPeersFn func([]blockMetadata, *enqueueChannel, reason, *streamFromPeersMetrics)
+type reattemptStreamBlocksFromPeersFn func(
+	[]blockMetadata,
+	*enqueueChannel,
+	error,
+	reason,
+	*streamFromPeersMetrics,
+)
 
 func (s *session) streamBlocksReattemptFromPeers(
 	blocks []blockMetadata,
 	enqueueCh *enqueueChannel,
+	attemptErr error,
 	reason reason,
 	m *streamFromPeersMetrics,
 ) {
@@ -2005,11 +2010,12 @@ func (s *session) streamBlocksReattemptFromPeers(
 	// getting done because new attempts are blocked on existing attempts completing
 	// and existing attempts are trying to enqueue into a full reattempt channel
 	enqueue := enqueueCh.enqueueDelayed(len(blocks))
-	go s.streamBlocksReattemptFromPeersEnqueue(blocks, enqueue)
+	go s.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr, enqueue)
 }
 
 func (s *session) streamBlocksReattemptFromPeersEnqueue(
 	blocks []blockMetadata,
+	attemptErr error,
 	enqueueFn func([]*blocksMetadata),
 ) {
 	for i := range blocks {
@@ -2017,16 +2023,27 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 		reattemptBlocksMetadata :=
 			make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
 		for j := range reattemptBlocksMetadata {
+			reattempt := blocks[i].reattempt
+
+			// Copy the errors for every peer so they don't shard the same error
+			// slice and therefore are not subject to race conditions when the
+			// error slice is modified
+			reattemptErrs := make([]error, len(reattempt.errs)+1)
+			n := copy(reattemptErrs, reattempt.errs)
+			reattemptErrs[n] = attemptErr
+			reattempt.errs = reattemptErrs
+
 			reattemptBlocksMetadata[j] = &blocksMetadata{
-				peer: blocks[i].reattempt.peersMetadata[j].peer,
-				id:   blocks[i].reattempt.id,
+				peer: reattempt.peersMetadata[j].peer,
+				id:   reattempt.id,
 				blocks: []blockMetadata{blockMetadata{
-					start:     blocks[i].reattempt.peersMetadata[j].start,
-					size:      blocks[i].reattempt.peersMetadata[j].size,
-					checksum:  blocks[i].reattempt.peersMetadata[j].checksum,
-					reattempt: blocks[i].reattempt,
+					start:     reattempt.peersMetadata[j].start,
+					size:      reattempt.peersMetadata[j].size,
+					checksum:  reattempt.peersMetadata[j].checksum,
+					reattempt: reattempt,
 				}},
 			}
+
 		}
 		// Re-enqueue the block to be fetched
 		enqueueFn(reattemptBlocksMetadata)
@@ -2602,6 +2619,7 @@ type blockMetadataReattempt struct {
 	attempt       int
 	id            ts.ID
 	attempted     []peer
+	errs          []error
 	peersMetadata []blockMetadataReattemptPeerMetadata
 }
 
