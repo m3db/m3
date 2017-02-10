@@ -181,6 +181,13 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
+	if !s.keepUnreadBuf {
+		// NB(r): Free the unread buffer and reset the decoder as unless
+		// using this seeker in the seeker manager we never use this buffer again
+		s.unreadBuf = nil
+		s.decoder.Reset(nil)
+	}
+
 	s.dataFd = dataFd
 	return nil
 }
@@ -256,12 +263,6 @@ func (s *seeker) readIndex(size int) error {
 			id := ts.BinaryID(checked.NewBytes(entryID, nil))
 			s.indexIDs = append(s.indexIDs, id)
 		}
-	}
-
-	if !s.keepUnreadBuf {
-		// NB(r): Free the unread buffer and reset the decoder as unless
-		// using this seeker in the seeker manager we never use this buffer again
-		s.unreadBuf = nil
 	}
 
 	return nil

@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
@@ -240,4 +241,52 @@ func TestSeek(t *testing.T) {
 	assert.Equal(t, []byte{1, 2, 2}, data.Get())
 
 	assert.NoError(t, s.Close())
+}
+
+func TestReuseSeeker(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	w := newTestWriter(filePathPrefix)
+
+	err = w.Open(testNamespaceID, 0, testWriterStart.Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 1}),
+		digest.Checksum([]byte{1, 2, 1})))
+	assert.NoError(t, w.Close())
+
+	err = w.Open(testNamespaceID, 0, testWriterStart)
+	assert.NoError(t, err)
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
+	assert.NoError(t, w.Close())
+
+	s := newTestSeeker(filePathPrefix)
+	err = s.Open(testNamespaceID, 0, testWriterStart.Add(-time.Hour))
+	assert.NoError(t, err)
+
+	data, err := s.Seek(ts.StringID("foo"))
+	require.NoError(t, err)
+
+	data.IncRef()
+	defer data.DecRef()
+	assert.Equal(t, []byte{1, 2, 1}, data.Get())
+
+	err = s.Open(testNamespaceID, 0, testWriterStart)
+	assert.NoError(t, err)
+
+	data, err = s.Seek(ts.StringID("foo"))
+	require.NoError(t, err)
+
+	data.IncRef()
+	defer data.DecRef()
+	assert.Equal(t, []byte{1, 2, 3}, data.Get())
 }
