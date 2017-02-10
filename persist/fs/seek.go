@@ -262,7 +262,6 @@ func (s *seeker) readIndex(size int) error {
 		// NB(r): Free the unread buffer and reset the decoder as unless
 		// using this seeker in the seeker manager we never use this buffer again
 		s.unreadBuf = nil
-		s.decoder = nil
 	}
 
 	return nil
