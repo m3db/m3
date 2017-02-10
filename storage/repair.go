@@ -372,3 +372,14 @@ func (r *dbRepairer) repairWithTimeRange(tr xtime.Range) error {
 func (r *dbRepairer) IsRepairing() bool {
 	return atomic.LoadInt32(&r.running) == 1
 }
+
+type noopRepairer struct{}
+
+func newNoopDatabaseRepairer() databaseRepairer {
+	return noopRepairer{}
+}
+
+func (r noopRepairer) Start()            {}
+func (r noopRepairer) Stop()             {}
+func (r noopRepairer) Repair() error     { return nil }
+func (r noopRepairer) IsRepairing() bool { return false }
