@@ -60,6 +60,9 @@ const (
 
 	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket
 	defaultBytesPoolBucketCount = 4096
+
+	// defaultRepairEnabled enables repair by default
+	defaultRepairEnabled = true
 )
 
 var (
@@ -95,6 +98,7 @@ type options struct {
 	retentionOpts                  retention.Options
 	blockOpts                      block.Options
 	commitLogOpts                  commitlog.Options
+	repairEnabled                  bool
 	repairOpts                     repair.Options
 	fileOpOpts                     FileOpOptions
 	newEncoderFn                   encoding.NewEncoderFn
@@ -130,6 +134,7 @@ func NewOptions() Options {
 		retentionOpts:                  retention.NewOptions(),
 		blockOpts:                      block.NewOptions(),
 		commitLogOpts:                  commitlog.NewOptions(),
+		repairEnabled:                  defaultRepairEnabled,
 		repairOpts:                     repair.NewOptions(),
 		fileOpOpts:                     NewFileOpOptions(),
 		newBootstrapFn:                 defaultNewBootstrapFn,
@@ -205,6 +210,16 @@ func (o *options) SetCommitLogOptions(value commitlog.Options) Options {
 
 func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
+}
+
+func (o *options) SetRepairEnabled(b bool) Options {
+	opts := *o
+	opts.repairEnabled = b
+	return &opts
+}
+
+func (o *options) RepairEnabled() bool {
+	return o.repairEnabled
 }
 
 func (o *options) SetRepairOptions(value repair.Options) Options {
