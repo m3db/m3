@@ -146,3 +146,14 @@ func (e consistencyResultErr) numResponded() int {
 func (e consistencyResultErr) numSuccess() int {
 	return e.success
 }
+
+type errs []error
+
+func (e errs) String() string {
+	strs := make([]string, len(e))
+	for i, e := range e {
+		strs[i] = e.Error()
+	}
+	return strings.Join(strs, ", ")
+}
+
