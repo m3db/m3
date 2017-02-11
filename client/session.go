@@ -1680,7 +1680,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				xlog.NewLogField("id", currID.String()),
 				xlog.NewLogField("start", earliestStart),
 				xlog.NewLogField("attempted", unselected.reattempt.attempt),
-				xlog.NewLogField("attemptErrs", errs(unselected.reattempt.errs)),
+				xlog.NewLogField("attemptErrs", xerrors.Errors(unselected.reattempt.errs).Error()),
 			).Error("retries failed for streaming blocks from peers")
 
 			// Remove the block from all peers
