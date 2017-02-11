@@ -1674,12 +1674,30 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 		}
 
 		if len(currEligible) == 0 {
+			// Format errors
+			var fmtErrs bytes.Buffer
+			fmtErrs.WriteString("[")
+			allErrs := currStart[0].unselectedBlocks()[0].reattempt.errs
+			for i, err := range allErrs {
+				if err == nil {
+					fmtErrs.WriteString("{nil}")
+				} else {
+					fmtErrs.WriteString("{")
+					fmtErrs.WriteString(err.Error())
+					fmtErrs.WriteString("}")
+				}
+				if i < len(allErrs)-1 {
+					fmtErrs.WriteString(",")
+				}
+			}
+			fmtErrs.WriteString("]")
+
 			// No current eligible peers to select from
 			s.log.WithFields(
 				xlog.NewLogField("id", currID.String()),
 				xlog.NewLogField("start", earliestStart),
 				xlog.NewLogField("attempted", currStart[0].unselectedBlocks()[0].reattempt.attempt),
-				xlog.NewLogField("attemptErrs", currStart[0].unselectedBlocks()[0].reattempt.errs),
+				xlog.NewLogField("attemptErrs", fmtErrs.String()),
 			).Error("retries failed for streaming blocks from peers")
 
 			// Remove the block from all peers
