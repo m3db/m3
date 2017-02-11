@@ -241,3 +241,24 @@ func (e MultiError) NumErrors() int {
 	}
 	return len(e.errors) + 1
 }
+
+// Errors is a slice of errors that itself is an error too.
+type Errors []error
+
+// Error implements error.
+func (e Errors) Error() string {
+	buf := bytes.NewBuffer(nil)
+	for i, err := range e {
+		if err == nil {
+			buf.WriteString("<nil>")
+		} else {
+			buf.WriteString("<")
+			buf.WriteString(err.Error())
+			buf.WriteString(">")
+		}
+		if i < len(e)-1 {
+			buf.WriteString(", ")
+		}
+	}
+	return buf.String()
+}
