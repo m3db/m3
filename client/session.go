@@ -1795,6 +1795,9 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				currStart[i].idx = idx + 1
 
 				// Set the reattempt metadata
+				// NB(xichen): each block will only be retried on the same peer because we
+				// already fan out the request to all peers. This means we merge data on
+				// a best-effort basis and only fail if we failed to read data from all peers.
 				peer := currStart[i].peer
 				block := currStart[i].blocks[idx]
 				currStart[i].blocks[idx].reattempt.id = currID
