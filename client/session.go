@@ -1676,12 +1676,20 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 		if len(currEligible) == 0 {
 			// No current eligible peers to select from
 			unselected := currStart[0].unselectedBlocks()[0]
-			s.log.WithFields(
-				xlog.NewLogField("id", currID.String()),
-				xlog.NewLogField("start", earliestStart),
-				xlog.NewLogField("attempted", unselected.reattempt.attempt),
-				xlog.NewLogField("attemptErrs", xerrors.Errors(unselected.reattempt.errs).Error()),
-			).Error("retries failed for streaming blocks from peers")
+			finalError := true
+			if unselected.reattempt.failAllowed != nil && atomic.AddInt32(unselected.reattempt.failAllowed, -1) > 0 {
+				// Some peers may still return results so we don't report error here
+				finalError = false
+			}
+
+			if finalError {
+				s.log.WithFields(
+					xlog.NewLogField("id", currID.String()),
+					xlog.NewLogField("start", earliestStart),
+					xlog.NewLogField("attempted", unselected.reattempt.attempt),
+					xlog.NewLogField("attemptErrs", xerrors.Errors(unselected.reattempt.errs).Error()),
+				).Error("retries failed for streaming blocks from peers")
+			}
 
 			// Remove the block from all peers
 			// NB(xichen): we shift the blocks instead of swapping in order to maintain the
@@ -1695,20 +1703,8 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			continue
 		}
 
-		// Prepare the reattempt peers metadata
-		peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
-		for i := range currStart {
-			unselected := currStart[i].unselectedBlocks()
-			metadata := blockMetadataReattemptPeerMetadata{
-				peer:     currStart[i].peer,
-				start:    unselected[0].start,
-				size:     unselected[0].size,
-				checksum: unselected[0].checksum,
-			}
-			peersMetadata = append(peersMetadata, metadata)
-		}
-
 		var (
+			singlePeer         = len(currEligible) == 1
 			sameNonNilChecksum = true
 			curChecksum        *uint32
 		)
@@ -1731,25 +1727,43 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 
 		// If all the peers have the same non-nil checksum, we pick the peer with the
 		// fewest attempts and fewest outstanding requests
-		if sameNonNilChecksum {
-			// Order by least attempts then by least outstanding blocks being fetched
-			blocksMetadataQueues = blocksMetadataQueues[:0]
-			for i := range currEligible {
-				insert := blocksMetadataQueue{
-					blocksMetadata: currEligible[i],
-					queue:          peerQueues.findQueue(currEligible[i].peer),
+		if singlePeer || sameNonNilChecksum {
+			// Prepare the reattempt peers metadata
+			peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
+			for i := range currStart {
+				unselected := currStart[i].unselectedBlocks()
+				metadata := blockMetadataReattemptPeerMetadata{
+					peer:     currStart[i].peer,
+					start:    unselected[0].start,
+					size:     unselected[0].size,
+					checksum: unselected[0].checksum,
 				}
-				blocksMetadataQueues = append(blocksMetadataQueues, insert)
+				peersMetadata = append(peersMetadata, metadata)
 			}
-			sort.Stable(blocksMetadatasQueuesByAttemptsAscOutstandingAsc(blocksMetadataQueues))
 
-			// Select the best peer
-			bestPeerBlocksQueue := blocksMetadataQueues[0].queue
+			var bestPeer peer
+			if singlePeer {
+				bestPeer = currEligible[0].peer
+			} else {
+				// Order by least attempts then by least outstanding blocks being fetched
+				blocksMetadataQueues = blocksMetadataQueues[:0]
+				for i := range currEligible {
+					insert := blocksMetadataQueue{
+						blocksMetadata: currEligible[i],
+						queue:          peerQueues.findQueue(currEligible[i].peer),
+					}
+					blocksMetadataQueues = append(blocksMetadataQueues, insert)
+				}
+				sort.Stable(blocksMetadatasQueuesByAttemptsAscOutstandingAsc(blocksMetadataQueues))
+
+				// Select the best peer
+				bestPeer = blocksMetadataQueues[0].queue.peer
+			}
 
 			// Remove the block from all other peers and increment index for selected peer
 			for i := range currStart {
 				peer := currStart[i].peer
-				if peer == bestPeerBlocksQueue.peer {
+				if peer == bestPeer {
 					// Select this block
 					idx := currStart[i].idx
 					currStart[i].idx = idx + 1
@@ -1774,20 +1788,27 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 			}
 		} else {
+			numPeers := int32(len(currStart))
 			for i := range currStart {
 				// Select this block
 				idx := currStart[i].idx
 				currStart[i].idx = idx + 1
 
 				// Set the reattempt metadata
+				peer := currStart[i].peer
+				block := currStart[i].blocks[idx]
 				currStart[i].blocks[idx].reattempt.id = currID
-				currStart[i].blocks[idx].reattempt.peersMetadata = peersMetadata
-
-				// Each block now has attempted multiple peers
-				for j := range currStart {
-					currStart[i].blocks[idx].reattempt.attempt++
-					currStart[i].blocks[idx].reattempt.attempted =
-						append(currStart[i].blocks[idx].reattempt.attempted, currStart[j].peer)
+				currStart[i].blocks[idx].reattempt.attempt++
+				currStart[i].blocks[idx].reattempt.attempted =
+					append(currStart[i].blocks[idx].reattempt.attempted, peer)
+				currStart[i].blocks[idx].reattempt.failAllowed = &numPeers
+				currStart[i].blocks[idx].reattempt.peersMetadata = []blockMetadataReattemptPeerMetadata{
+					{
+						peer:     peer,
+						start:    block.start,
+						size:     block.size,
+						checksum: block.checksum,
+					},
 				}
 			}
 		}
@@ -2618,6 +2639,7 @@ type blockMetadata struct {
 
 type blockMetadataReattempt struct {
 	attempt       int
+	failAllowed   *int32
 	id            ts.ID
 	attempted     []peer
 	errs          []error
