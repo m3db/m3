@@ -1655,6 +1655,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 		// Only select from peers not already attempted
 		currEligible = currStart[:]
 		currID := currStart[0].id
+		currUnselected := currStart[0].unselectedBlocks()[0]
 		for i := len(currEligible) - 1; i >= 0; i-- {
 			unselected := currEligible[i].unselectedBlocks()
 			if unselected[0].reattempt.attempt == 0 {
@@ -1665,6 +1666,8 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			// Check if eligible
 			n := s.streamBlocksMaxBlockRetries
 			if unselected[0].reattempt.peerAttempts(currEligible[i].peer) >= n {
+				// Remove this block
+				currEligible[i].removeFirstUnselected()
 				// Swap current entry to tail
 				blocksMetadatas(currEligible).swap(i, len(currEligible)-1)
 				// Trim newly last entry
@@ -1675,9 +1678,8 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 
 		if len(currEligible) == 0 {
 			// No current eligible peers to select from
-			unselected := currStart[0].unselectedBlocks()[0]
 			finalError := true
-			if unselected.reattempt.failAllowed != nil && atomic.AddInt32(unselected.reattempt.failAllowed, -1) > 0 {
+			if currUnselected.reattempt.failAllowed != nil && atomic.AddInt32(currUnselected.reattempt.failAllowed, -1) > 0 {
 				// Some peers may still return results so we don't report error here
 				finalError = false
 			}
@@ -1686,20 +1688,11 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				s.log.WithFields(
 					xlog.NewLogField("id", currID.String()),
 					xlog.NewLogField("start", earliestStart),
-					xlog.NewLogField("attempted", unselected.reattempt.attempt),
-					xlog.NewLogField("attemptErrs", xerrors.Errors(unselected.reattempt.errs).Error()),
+					xlog.NewLogField("attempted", currUnselected.reattempt.attempt),
+					xlog.NewLogField("attemptErrs", xerrors.Errors(currUnselected.reattempt.errs).Error()),
 				).Error("retries failed for streaming blocks from peers")
 			}
 
-			// Remove the block from all peers
-			// NB(xichen): we shift the blocks instead of swapping in order to maintain the
-			// invariant that the blocks are sorted by the block start times in ascending order
-			for i := range currStart {
-				blocksLen := len(currStart[i].blocks)
-				idx := currStart[i].idx
-				copy(currStart[i].blocks[idx:], currStart[i].blocks[idx+1:])
-				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
-			}
 			continue
 		}
 
@@ -1729,11 +1722,11 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 		// fewest attempts and fewest outstanding requests
 		if singlePeer || sameNonNilChecksum {
 			// Prepare the reattempt peers metadata
-			peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currStart))
-			for i := range currStart {
-				unselected := currStart[i].unselectedBlocks()
+			peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currEligible))
+			for i := range currEligible {
+				unselected := currEligible[i].unselectedBlocks()
 				metadata := blockMetadataReattemptPeerMetadata{
-					peer:     currStart[i].peer,
+					peer:     currEligible[i].peer,
 					start:    unselected[0].start,
 					size:     unselected[0].size,
 					checksum: unselected[0].checksum,
@@ -1761,51 +1754,42 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			}
 
 			// Remove the block from all other peers and increment index for selected peer
-			for i := range currStart {
-				peer := currStart[i].peer
-				if peer == bestPeer {
+			for i := range currEligible {
+				peer := currEligible[i].peer
+				if peer != bestPeer {
+					currEligible[i].removeFirstUnselected()
+				} else {
 					// Select this block
-					idx := currStart[i].idx
-					currStart[i].idx = idx + 1
+					idx := currEligible[i].idx
+					currEligible[i].idx = idx + 1
 
 					// Set the reattempt metadata
-					currStart[i].blocks[idx].reattempt.id = currID
-					currStart[i].blocks[idx].reattempt.attempt++
-					currStart[i].blocks[idx].reattempt.attempted =
-						append(currStart[i].blocks[idx].reattempt.attempted, peer)
-					currStart[i].blocks[idx].reattempt.peersMetadata = peersMetadata
-
-					// Leave the block in the current peers blocks list
-					continue
+					currEligible[i].blocks[idx].reattempt.id = currID
+					currEligible[i].blocks[idx].reattempt.attempt++
+					currEligible[i].blocks[idx].reattempt.attempted =
+						append(currEligible[i].blocks[idx].reattempt.attempted, peer)
+					currEligible[i].blocks[idx].reattempt.peersMetadata = peersMetadata
 				}
-
-				// Removing this block
-				// NB(xichen): we shift the blocks instead of swapping in order to maintain the
-				// invariant that the blocks are sorted by the block start times in ascending order
-				blocksLen := len(currStart[i].blocks)
-				idx := currStart[i].idx
-				copy(currStart[i].blocks[idx:], currStart[i].blocks[idx+1:])
-				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 			}
 		} else {
-			numPeers := int32(len(currStart))
-			for i := range currStart {
+			numPeers := int32(len(currEligible))
+			for i := range currEligible {
 				// Select this block
-				idx := currStart[i].idx
-				currStart[i].idx = idx + 1
+				idx := currEligible[i].idx
+				currEligible[i].idx = idx + 1
 
 				// Set the reattempt metadata
 				// NB(xichen): each block will only be retried on the same peer because we
 				// already fan out the request to all peers. This means we merge data on
 				// a best-effort basis and only fail if we failed to read data from all peers.
-				peer := currStart[i].peer
-				block := currStart[i].blocks[idx]
-				currStart[i].blocks[idx].reattempt.id = currID
-				currStart[i].blocks[idx].reattempt.attempt++
-				currStart[i].blocks[idx].reattempt.attempted =
-					append(currStart[i].blocks[idx].reattempt.attempted, peer)
-				currStart[i].blocks[idx].reattempt.failAllowed = &numPeers
-				currStart[i].blocks[idx].reattempt.peersMetadata = []blockMetadataReattemptPeerMetadata{
+				peer := currEligible[i].peer
+				block := currEligible[i].blocks[idx]
+				currEligible[i].blocks[idx].reattempt.id = currID
+				currEligible[i].blocks[idx].reattempt.attempt++
+				currEligible[i].blocks[idx].reattempt.attempted =
+					append(currEligible[i].blocks[idx].reattempt.attempted, peer)
+				currEligible[i].blocks[idx].reattempt.failAllowed = &numPeers
+				currEligible[i].blocks[idx].reattempt.peersMetadata = []blockMetadataReattemptPeerMetadata{
 					{
 						peer:     peer,
 						start:    block.start,
@@ -2577,6 +2561,16 @@ func (b blocksMetadata) unselectedBlocks() []blockMetadata {
 		return nil
 	}
 	return b.blocks[b.idx:]
+}
+
+// removeFirstUnselected removes the first unselected block while maintaining
+// the original block order by shifting the blocks and overriding the block to
+// be removed
+func (b *blocksMetadata) removeFirstUnselected() {
+	blocksLen := len(b.blocks)
+	idx := b.idx
+	copy(b.blocks[idx:], b.blocks[idx+1:])
+	b.blocks = b.blocks[:blocksLen-1]
 }
 
 type blocksMetadatas []*blocksMetadata
