@@ -108,9 +108,9 @@ test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
 	@$(VENDOR_ENV) $(test) $(coverfile) | tee $(test_log)
 
+# Do not test native pooling for now due to slow travis builds
 test-integration:
 	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false go test -v -tags=integration ./integration
-	@$(VENDOR_ENV) TEST_NATIVE_POOLING=true go test -v -tags=integration ./integration
 
 test-xml: test-internal
 	go-junit-report < $(test_log) > $(junit_xml)
@@ -129,8 +129,7 @@ test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
 
-# To add testing of native pooling with integration tests for CI again, append:
-# @$(VENDOR_ENV) TEST_NATIVE_POOLING=true $(test_ci_integration)
+# Do not test native pooling for now due to slow travis builds
 test-ci-integration:
 	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_ci_integration)
 
