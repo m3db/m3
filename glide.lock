@@ -1,5 +1,5 @@
-hash: 2838ee948517d8c6d2f184fccb096cf6aa891f3b8c60df4665451012b67b70e4
-updated: 2017-02-11T15:25:24.689588906-05:00
+hash: 6b426bcfbd08fca7d5bacee63a3ef64d1cfae61d0f85f2ad971477caec41055e
+updated: 2017-02-13T16:35:08.221088583-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -28,7 +28,7 @@ imports:
   - services/placement
   - shard
 - name: github.com/m3db/m3x
-  version: 02e9797823472696a38526146e820d3faf2bc807
+  version: 3a8328d65b7880b034b8515177921023b41e4399
   vcs: git
   subpackages:
   - checked
@@ -74,11 +74,11 @@ imports:
 - name: github.com/willf/bitset
   version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
 - name: golang.org/x/net
-  version: 236b8f043b920452504e263bc21d354427127473
+  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
   subpackages:
   - context
 - name: google.golang.org/appengine
-  version: 4f7eeb5305a4ba1966344836ba4af9996b7b4e05
+  version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
   - datastore
   - internal
