@@ -45,7 +45,7 @@ import:
   - services
 
 - package: github.com/m3db/m3x
-  version: 41e3f053bd721ec1d6ba8d4eef3e036290aa7977
+  version: 3a8328d65b7880b034b8515177921023b41e4399
   vcs: git
   subpackages:
   - checked
@@ -58,3 +58,8 @@ import:
   - time
   - watch
 
+- package: golang.org/x/net
+  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+
+- package: google.golang.org/appengine/datastore
+  version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
