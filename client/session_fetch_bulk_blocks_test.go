@@ -96,7 +96,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 
 	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -122,7 +122,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 		return q
 	}
 
-	assert.NoError(t, session.Open())
+	require.NoError(t, session.Open())
 
 	batchSize := opts.FetchSeriesBlocksBatchSize()
 	blockSize := 2 * time.Hour
@@ -226,7 +226,7 @@ func fetchBlocksFromPeersTestsHelper(
 
 	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
@@ -252,7 +252,7 @@ func fetchBlocksFromPeersTestsHelper(
 		return q
 	}
 
-	assert.NoError(t, session.Open())
+	require.NoError(t, session.Open())
 
 	batchSize := opts.FetchSeriesBlocksBatchSize()
 	blockSize := 2 * time.Hour
@@ -582,7 +582,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 
 	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	var (
@@ -641,7 +641,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 
 	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	var (
@@ -723,7 +723,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 
 	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	var (
@@ -807,7 +807,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 
 	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	var (
@@ -888,7 +888,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	opts := newSessionTestAdminOptions().
 		SetFetchSeriesBlocksMaxBlockRetries(0)
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	var (
@@ -970,7 +970,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T
 	opts := newSessionTestAdminOptions().
 		SetFetchSeriesBlocksMaxBlockRetries(2)
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	var (
@@ -1052,7 +1052,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	opts := newSessionTestAdminOptions().
 		SetFetchSeriesBlocksMaxBlockRetries(2)
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	var (
@@ -1132,7 +1132,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	opts := newSessionTestAdminOptions().
 		SetFetchSeriesBlocksMaxBlockRetries(2)
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 
 	var (
@@ -1212,7 +1212,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 
 	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 	session.reattemptStreamBlocksFromPeersFn = func(
 		blocks []blockMetadata,
@@ -1227,7 +1227,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-	assert.NoError(t, session.Open())
+	require.NoError(t, session.Open())
 
 	var (
 		blockSize = 2 * time.Hour
@@ -1292,7 +1292,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 
 	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 	session.reattemptStreamBlocksFromPeersFn = func(
 		blocks []blockMetadata,
@@ -1307,7 +1307,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
-	assert.NoError(t, session.Open())
+	require.NoError(t, session.Open())
 
 	blockSize := 2 * time.Hour
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
@@ -1421,7 +1421,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	opts := newSessionTestAdminOptions()
 	s, err := newSession(opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	session := s.(*session)
 	session.reattemptStreamBlocksFromPeersFn = func(
 		blocks []blockMetadata,
@@ -1437,7 +1437,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
 
-	assert.NoError(t, session.Open())
+	require.NoError(t, session.Open())
 
 	blockSize := 2 * time.Hour
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
@@ -1554,8 +1554,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	assert.NoError(t, session.Close())
 }
-
-// TODO: add test TestVerifyFetchedBlockSize
 
 func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	opts := newSessionTestAdminOptions()
