@@ -1684,12 +1684,12 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			).Error("retries failed for streaming blocks from peers")
 
 			// Remove the block from all peers
+			// NB(xichen): we shift the blocks instead of swapping in order to maintain the
+			// invariant that the blocks are sorted by the block start times in ascending order
 			for i := range currStart {
 				blocksLen := len(currStart[i].blocks)
 				idx := currStart[i].idx
-				tailIdx := blocksLen - 1
-				currStart[i].blocks[idx], currStart[i].blocks[tailIdx] =
-					currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
+				copy(currStart[i].blocks[idx:], currStart[i].blocks[idx+1:])
 				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 			}
 			continue
@@ -1766,11 +1766,11 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 				}
 
 				// Removing this block
+				// NB(xichen): we shift the blocks instead of swapping in order to maintain the
+				// invariant that the blocks are sorted by the block start times in ascending order
 				blocksLen := len(currStart[i].blocks)
 				idx := currStart[i].idx
-				tailIdx := blocksLen - 1
-				currStart[i].blocks[idx], currStart[i].blocks[tailIdx] =
-					currStart[i].blocks[tailIdx], currStart[i].blocks[idx]
+				copy(currStart[i].blocks[idx:], currStart[i].blocks[idx+1:])
 				currStart[i].blocks = currStart[i].blocks[:blocksLen-1]
 			}
 		} else {
