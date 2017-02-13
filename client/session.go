@@ -1721,7 +1721,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 		// If all the peers have the same non-nil checksum, we pick the peer with the
 		// fewest attempts and fewest outstanding requests
 		if singlePeer || sameNonNilChecksum {
-			// Prepare the reattempt peers metadata
+			// Prepare the reattempt peers metadata so we can retry from any of the peers on failure
 			peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currEligible))
 			for i := range currEligible {
 				unselected := currEligible[i].unselectedBlocks()
