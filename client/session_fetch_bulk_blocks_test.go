@@ -707,14 +707,14 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 	assert.Equal(t, &checksums[0], perPeer[1].blocks[0].checksum)
 
 	assert.Equal(t, 1, perPeer[1].blocks[0].reattempt.attempt)
-	assert.Equal(t, []peer{peerA, peerB}, perPeer[1].blocks[0].reattempt.attempted)
+	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[0].reattempt.attempted)
 
 	assert.Equal(t, start.Add(time.Hour*2), perPeer[1].blocks[1].start)
 	assert.Equal(t, int64(2), perPeer[1].blocks[1].size)
 	assert.Equal(t, &checksums[1], perPeer[1].blocks[1].checksum)
 
-	assert.Equal(t, 2, perPeer[1].blocks[1].reattempt.attempt)
-	assert.Equal(t, []peer{peerA, peerB}, perPeer[1].blocks[1].reattempt.attempted)
+	assert.Equal(t, 1, perPeer[1].blocks[1].reattempt.attempt)
+	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[1].reattempt.attempted)
 }
 
 func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testing.T) {
