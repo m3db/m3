@@ -169,6 +169,7 @@ type streamFromPeersMetrics struct {
 	metadataReceived           tally.Counter
 	fetchBlockSuccess          tally.Counter
 	fetchBlockError            tally.Counter
+	fetchBlockFinalError       tally.Counter
 	fetchBlockRetriesReqError  tally.Counter
 	fetchBlockRetriesRespError tally.Counter
 	blocksEnqueueChannel       tally.Gauge
@@ -273,6 +274,7 @@ func (s *session) streamFromPeersMetricsForShard(
 		metadataReceived:          scope.Counter("fetch-metadata-peers-received"),
 		fetchBlockSuccess:         scope.Counter("fetch-block-success"),
 		fetchBlockError:           scope.Counter("fetch-block-error"),
+		fetchBlockFinalError:      scope.Counter("fetch-block-final-error"),
 		fetchBlockRetriesReqError: scope.Tagged(map[string]string{
 			"reason": "request-error",
 		}).Counter("fetch-block-retries"),
@@ -1484,7 +1486,7 @@ func (s *session) streamBlocksFromPeers(
 		// Filter and select which blocks to retrieve from which peers
 		s.selectBlocksForSeriesFromPeerBlocksMetadata(
 			perPeerBlocksMetadata, peerQueues,
-			currStart, currEligible, blocksMetadataQueues)
+			currStart, currEligible, blocksMetadataQueues, m)
 
 		// Insert work into peer queues
 		queues := uint32(blocksMetadatas(perPeerBlocksMetadata).hasBlocksLen())
@@ -1583,6 +1585,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 	peerQueues peerBlocksQueues,
 	pooledCurrStart, pooledCurrEligible []*blocksMetadata,
 	pooledBlocksMetadataQueues []blocksMetadataQueue,
+	m *streamFromPeersMetrics,
 ) {
 	// Free any references the pool still has
 	for i := range pooledCurrStart {
@@ -1685,6 +1688,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			}
 
 			if finalError {
+				m.fetchBlockFinalError.Inc(1)
 				s.log.WithFields(
 					xlog.NewLogField("id", currID.String()),
 					xlog.NewLogField("start", earliestStart),
@@ -1871,7 +1875,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, blocksErr, reqErrReason, m)
 		}
 		m.fetchBlockError.Inc(reqBlocksLen)
-		s.log.Errorf(blocksErr.Error())
+		s.log.Debugf(blocksErr.Error())
 		return
 	}
 
@@ -1880,6 +1884,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	for i := range result.Elements {
 		if i >= len(batch) {
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
+			m.fetchBlockFinalError.Inc(int64(len(req.Elements[i].Starts)))
 			if !tooManyIDsLogged {
 				tooManyIDsLogged = true
 				s.log.WithFields(
@@ -1898,7 +1903,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			)
 			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, blocksErr, respErrReason, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
-			s.log.Errorf(blocksErr.Error())
+			s.log.Debugf(blocksErr.Error())
 			continue
 		}
 
@@ -1907,6 +1912,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		for j := range result.Elements[i].Blocks {
 			if j >= len(req.Elements[i].Starts) {
 				m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
+				m.fetchBlockFinalError.Inc(int64(len(req.Elements[i].Starts)))
 				if !tooManyBlocksLogged {
 					tooManyBlocksLogged = true
 					s.log.WithFields(
@@ -1943,7 +1949,7 @@ func (s *session) streamBlocksBatchFromPeer(
 				)
 				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr, respErrReason, m)
 				m.fetchBlockError.Inc(1)
-				s.log.Errorf(blocksErr.Error())
+				s.log.Debugf(blocksErr.Error())
 				continue
 			}
 

@@ -589,6 +589,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 	session := s.(*session)
 
 	var (
+		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeTest)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -622,7 +623,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 	// Perform selection
 	session.selectBlocksForSeriesFromPeerBlocksMetadata(
 		perPeer, peerBlocksQueues,
-		currStart, currEligible, blocksMetadataQueues)
+		currStart, currEligible, blocksMetadataQueues, metrics)
 
 	// Assert selection first peer
 	assert.Equal(t, 1, len(perPeer[0].blocks))
@@ -648,6 +649,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 	session := s.(*session)
 
 	var (
+		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeTest)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -683,7 +685,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 	// Perform selection
 	session.selectBlocksForSeriesFromPeerBlocksMetadata(
 		perPeer, peerBlocksQueues,
-		currStart, currEligible, blocksMetadataQueues)
+		currStart, currEligible, blocksMetadataQueues, metrics)
 
 	// Assert selection first peer
 	assert.Equal(t, 2, len(perPeer[0].blocks))
@@ -730,6 +732,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 	session := s.(*session)
 
 	var (
+		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeTest)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peerC            = NewMockpeer(ctrl)
@@ -771,7 +774,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 	// Perform selection
 	session.selectBlocksForSeriesFromPeerBlocksMetadata(
 		perPeer, peerBlocksQueues,
-		currStart, currEligible, blocksMetadataQueues)
+		currStart, currEligible, blocksMetadataQueues, metrics)
 
 	// Assert selection first peer
 	assert.Equal(t, 1, len(perPeer[0].blocks))
@@ -814,6 +817,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 	session := s.(*session)
 
 	var (
+		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeTest)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peerC            = NewMockpeer(ctrl)
@@ -865,7 +869,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 	// Perform selection
 	session.selectBlocksForSeriesFromPeerBlocksMetadata(
 		perPeer, peerBlocksQueues,
-		currStart, currEligible, blocksMetadataQueues)
+		currStart, currEligible, blocksMetadataQueues, metrics)
 
 	// Assert selection first peer
 	assert.Equal(t, 0, len(perPeer[0].blocks))
@@ -895,6 +899,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	session := s.(*session)
 
 	var (
+		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeTest)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peerC            = NewMockpeer(ctrl)
@@ -947,7 +952,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	// Perform selection
 	session.selectBlocksForSeriesFromPeerBlocksMetadata(
 		perPeer, peerBlocksQueues,
-		currStart, currEligible, blocksMetadataQueues)
+		currStart, currEligible, blocksMetadataQueues, metrics)
 
 	// Assert selection first peer
 	require.Equal(t, 1, len(perPeer[0].blocks))
@@ -977,6 +982,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T
 	session := s.(*session)
 
 	var (
+		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeTest)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -1023,7 +1029,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T
 	// Perform selection
 	session.selectBlocksForSeriesFromPeerBlocksMetadata(
 		perPeer, peerBlocksQueues,
-		currStart, currEligible, blocksMetadataQueues)
+		currStart, currEligible, blocksMetadataQueues, metrics)
 
 	// Assert selection first peer
 	assert.Equal(t, 0, len(perPeer[0].blocks))
@@ -1059,6 +1065,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	session := s.(*session)
 
 	var (
+		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeTest)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -1105,7 +1112,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	// Perform selection
 	session.selectBlocksForSeriesFromPeerBlocksMetadata(
 		perPeer, peerBlocksQueues,
-		currStart, currEligible, blocksMetadataQueues)
+		currStart, currEligible, blocksMetadataQueues, metrics)
 
 	// Assert selection first peer
 	assert.Equal(t, 0, len(perPeer[0].blocks))
@@ -1139,6 +1146,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	session := s.(*session)
 
 	var (
+		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeTest)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -1179,7 +1187,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	// Perform selection
 	session.selectBlocksForSeriesFromPeerBlocksMetadata(
 		perPeer, peerBlocksQueues,
-		currStart, currEligible, blocksMetadataQueues)
+		currStart, currEligible, blocksMetadataQueues, metrics)
 
 	// Assert selection first peer
 	assert.Equal(t, 0, len(perPeer[0].blocks))
