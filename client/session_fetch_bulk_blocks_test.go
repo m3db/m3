@@ -1036,13 +1036,174 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T
 	assert.Equal(t, 1, perPeer[1].blocks[0].reattempt.attempt)
 	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[0].reattempt.attempted)
 
-	// Assert first block second peer
+	// Assert second block second peer
 	assert.Equal(t, start.Add(time.Hour*2), perPeer[1].blocks[1].start)
 	assert.Equal(t, int64(2), perPeer[1].blocks[1].size)
 	assert.Equal(t, &checksum, perPeer[1].blocks[1].checksum)
 
 	assert.Equal(t, 4, perPeer[1].blocks[1].reattempt.attempt)
 	assert.Equal(t, []peer{peerA, peerB, peerA, peerB}, perPeer[1].blocks[1].reattempt.attempted)
+}
+
+func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeerExhaustion(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions().
+		SetFetchSeriesBlocksMaxBlockRetries(2)
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	var (
+		peerA            = NewMockpeer(ctrl)
+		peerB            = NewMockpeer(ctrl)
+		peers            = preparedMockPeers(peerA, peerB)
+		peerBlocksQueues = mockPeerBlocksQueues(peers, opts)
+	)
+	atomic.StoreUint64(&peerBlocksQueues[0].assigned, 16)
+	atomic.StoreUint64(&peerBlocksQueues[1].assigned, 0)
+	defer peerBlocksQueues.closeAll()
+
+	var (
+		currStart, currEligible []*blocksMetadata
+		blocksMetadataQueues    []blocksMetadataQueue
+		start                   = timeZero
+		checksum                = uint32(2)
+
+		reattempt = blockMetadataReattempt{
+			attempt:   4,
+			id:        fooID,
+			attempted: []peer{peerA, peerB, peerA, peerB},
+		}
+
+		perPeer = []*blocksMetadata{
+			&blocksMetadata{
+				peer: peerA,
+				id:   fooID,
+				blocks: []blockMetadata{
+					{start: start, size: 2, checksum: &checksum, reattempt: reattempt},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 4), size: 2, checksum: &checksum},
+				},
+			},
+			&blocksMetadata{
+				peer: peerB,
+				id:   fooID,
+				blocks: []blockMetadata{
+					{start: start, size: 2, checksum: &checksum, reattempt: reattempt},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 4), size: 2, checksum: &checksum},
+				},
+			},
+		}
+	)
+
+	// Perform selection
+	session.selectBlocksForSeriesFromPeerBlocksMetadata(
+		perPeer, peerBlocksQueues,
+		currStart, currEligible, blocksMetadataQueues)
+
+	// Assert selection first peer
+	assert.Equal(t, 0, len(perPeer[0].blocks))
+
+	// Assert selection second peer
+	require.Equal(t, 2, len(perPeer[1].blocks))
+
+	// Assert first block second peer
+	assert.Equal(t, start.Add(time.Hour*2), perPeer[1].blocks[0].start)
+	assert.Equal(t, int64(2), perPeer[1].blocks[0].size)
+	assert.Equal(t, &checksum, perPeer[1].blocks[0].checksum)
+	assert.Equal(t, 1, perPeer[1].blocks[0].reattempt.attempt)
+	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[0].reattempt.attempted)
+
+	// Assert second block second peer
+	assert.Equal(t, start.Add(time.Hour*4), perPeer[1].blocks[1].start)
+	assert.Equal(t, int64(2), perPeer[1].blocks[1].size)
+	assert.Equal(t, &checksum, perPeer[1].blocks[1].checksum)
+	assert.Equal(t, 1, perPeer[1].blocks[1].reattempt.attempt)
+	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[1].reattempt.attempted)
+}
+
+func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeerSelection(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions().
+		SetFetchSeriesBlocksMaxBlockRetries(2)
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	var (
+		peerA            = NewMockpeer(ctrl)
+		peerB            = NewMockpeer(ctrl)
+		peers            = preparedMockPeers(peerA, peerB)
+		peerBlocksQueues = mockPeerBlocksQueues(peers, opts)
+	)
+	atomic.StoreUint64(&peerBlocksQueues[0].assigned, 16)
+	atomic.StoreUint64(&peerBlocksQueues[1].assigned, 0)
+	defer peerBlocksQueues.closeAll()
+
+	var (
+		currStart, currEligible []*blocksMetadata
+		blocksMetadataQueues    []blocksMetadataQueue
+		start                   = timeZero
+		checksum                = uint32(2)
+
+		perPeer = []*blocksMetadata{
+			&blocksMetadata{
+				peer: peerA,
+				id:   fooID,
+				blocks: []blockMetadata{
+					{start: start, size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 4), size: 2, checksum: &checksum},
+				},
+			},
+			&blocksMetadata{
+				peer: peerB,
+				id:   fooID,
+				blocks: []blockMetadata{
+					{start: start, size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 2), size: 2, checksum: &checksum},
+					{start: start.Add(time.Hour * 4), size: 2, checksum: &checksum},
+				},
+			},
+		}
+	)
+
+	// Perform selection
+	session.selectBlocksForSeriesFromPeerBlocksMetadata(
+		perPeer, peerBlocksQueues,
+		currStart, currEligible, blocksMetadataQueues)
+
+	// Assert selection first peer
+	assert.Equal(t, 0, len(perPeer[0].blocks))
+
+	// Assert selection second peer
+	require.Equal(t, 3, len(perPeer[1].blocks))
+
+	// Assert first block second peer
+	assert.Equal(t, start, perPeer[1].blocks[0].start)
+	assert.Equal(t, int64(2), perPeer[1].blocks[0].size)
+	assert.Equal(t, &checksum, perPeer[1].blocks[0].checksum)
+	assert.Equal(t, 1, perPeer[1].blocks[0].reattempt.attempt)
+	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[0].reattempt.attempted)
+
+	// Assert second block second peer
+	assert.Equal(t, start.Add(time.Hour*2), perPeer[1].blocks[1].start)
+	assert.Equal(t, int64(2), perPeer[1].blocks[1].size)
+	assert.Equal(t, &checksum, perPeer[1].blocks[1].checksum)
+	assert.Equal(t, 1, perPeer[1].blocks[1].reattempt.attempt)
+	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[1].reattempt.attempted)
+
+	// Assert third block second peer
+	assert.Equal(t, start.Add(time.Hour*4), perPeer[1].blocks[2].start)
+	assert.Equal(t, int64(2), perPeer[1].blocks[2].size)
+	assert.Equal(t, &checksum, perPeer[1].blocks[2].checksum)
+	assert.Equal(t, 1, perPeer[1].blocks[2].reattempt.attempt)
+	assert.Equal(t, []peer{peerB}, perPeer[1].blocks[2].reattempt.attempted)
 }
 
 func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
