@@ -248,6 +248,7 @@ type Errors []error
 // Error implements error.
 func (e Errors) Error() string {
 	buf := bytes.NewBuffer(nil)
+	buf.WriteString("[")
 	for i, err := range e {
 		if err == nil {
 			buf.WriteString("<nil>")
@@ -260,5 +261,6 @@ func (e Errors) Error() string {
 			buf.WriteString(", ")
 		}
 	}
+	buf.WriteString("]")
 	return buf.String()
 }

@@ -65,6 +65,6 @@ func TestErrorsIsAnErrorAndFormatsErrors(t *testing.T) {
 		fmt.Errorf("some error: foo=2, bar=baz"),
 		fmt.Errorf("some other error: foo=42, bar=qux"),
 	})
-	assert.Equal(t, "<some error: foo=2, bar=baz>, "+
-		"<some other error: foo=42, bar=qux>", errs.Error())
+	assert.Equal(t, "[<some error: foo=2, bar=baz>, "+
+		"<some other error: foo=42, bar=qux>]", errs.Error())
 }
