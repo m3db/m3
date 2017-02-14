@@ -435,15 +435,19 @@ func (s *dbShard) Write(
 	}
 
 	// Write commit log
-	info := commitlog.NewSeries(entry.index, s.namespace,
-		s.identifierPool.Clone(id), s.shard, commitlog.FinalizeID)
+	series := commitlog.Series{
+		UniqueIndex: entry.index,
+		Namespace:   s.namespace,
+		ID:          id,
+		Shard:       s.shard,
+	}
 
 	datapoint := ts.Datapoint{
 		Timestamp: timestamp,
 		Value:     value,
 	}
 
-	return s.writeCommitLogFn(ctx, info, datapoint, unit, annotation)
+	return s.writeCommitLogFn(ctx, series, datapoint, unit, annotation)
 }
 
 func (s *dbShard) ReadEncoded(

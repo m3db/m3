@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/instrument"
@@ -56,6 +57,7 @@ type options struct {
 	flushSize        int
 	flushInterval    time.Duration
 	backlogQueueSize int
+	contextPool      context.Pool
 	bytesPool        pool.CheckedBytesPool
 }
 
@@ -70,6 +72,7 @@ func NewOptions() Options {
 		flushSize:        defaultFlushSize,
 		flushInterval:    defaultFlushInterval,
 		backlogQueueSize: defaultBacklogQueueSize,
+		contextPool:      context.NewPool(nil, nil),
 		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(s, nil)
 		}),
@@ -156,6 +159,16 @@ func (o *options) SetBacklogQueueSize(value int) Options {
 
 func (o *options) BacklogQueueSize() int {
 	return o.backlogQueueSize
+}
+
+func (o *options) SetContextPool(value context.Pool) Options {
+	opts := *o
+	opts.contextPool = value
+	return &opts
+}
+
+func (o *options) ContextPool() context.Pool {
+	return o.contextPool
 }
 
 func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {

@@ -106,23 +106,7 @@ type Series struct {
 
 	// Shard is the shard the series belongs to
 	Shard uint32
-
-	// SegmentFlags declares whether to finalize when finalizing the Series.
-	Flags SeriesFlags
 }
-
-// SeriesFlags describes the option to finalize or not finalize
-// bytes in a Series.
-type SeriesFlags uint8
-
-const (
-	// FinalizeNone specifies to finalize neither of the bytes
-	FinalizeNone SeriesFlags = 1 << 0
-	// FinalizeID specifies to finalize the ID
-	FinalizeID SeriesFlags = 1 << 1
-	// FinalizeNamespace specifies to finalize the namespace
-	FinalizeNamespace SeriesFlags = 1 << 2
-)
 
 // Options represents the options for the commit log
 type Options interface {
@@ -173,6 +157,12 @@ type Options interface {
 
 	// BacklogQueueSize returns the backlog queue size
 	BacklogQueueSize() int
+
+	// SetContextPool sets the context pool
+	SetContextPool(value context.Pool) Options
+
+	// ContextPool returns the context pool
+	ContextPool() context.Pool
 
 	// SetBytesPool sets the checked bytes pool
 	SetBytesPool(value pool.CheckedBytesPool) Options
