@@ -390,7 +390,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	shard := testDatabaseShard(opts)
 	id := ts.StringID("foo")
 	s := addMockSeries(ctrl, shard, id, 0)
-	s.EXPECT().ID().Return(id)
+	s.EXPECT().ID().Return(id).AnyTimes()
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place just after tick for this series
 		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
