@@ -160,6 +160,7 @@ func (q *queue) flushEvery(interval time.Duration) {
 			q.RUnlock()
 		}
 	}
+
 }
 
 func (q *queue) rotateOpsWithLock() []op {

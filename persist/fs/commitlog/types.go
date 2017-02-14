@@ -158,12 +158,6 @@ type Options interface {
 	// BacklogQueueSize returns the backlog queue size
 	BacklogQueueSize() int
 
-	// SetContextPool sets the context pool
-	SetContextPool(value context.Pool) Options
-
-	// ContextPool returns the context pool
-	ContextPool() context.Pool
-
 	// SetBytesPool sets the checked bytes pool
 	SetBytesPool(value pool.CheckedBytesPool) Options
 

@@ -49,11 +49,10 @@ type completionFn func(err error)
 
 type commitLog struct {
 	sync.RWMutex
-	opts        Options
-	nowFn       clock.NowFn
-	contextPool context.Pool
-	scope       tally.Scope
-	metrics     commitLogMetrics
+	opts    Options
+	nowFn   clock.NowFn
+	scope   tally.Scope
+	metrics commitLogMetrics
 
 	log xlog.Logger
 
@@ -95,7 +94,6 @@ const (
 type commitLogWrite struct {
 	valueType valueType
 
-	ctx          context.Context
 	series       Series
 	datapoint    ts.Datapoint
 	unit         xtime.Unit
@@ -110,10 +108,9 @@ func NewCommitLog(opts Options) CommitLog {
 	scope := iopts.MetricsScope()
 
 	commitLog := &commitLog{
-		opts:        opts,
-		nowFn:       opts.ClockOptions().NowFn(),
-		contextPool: opts.ContextPool(),
-		scope:       scope,
+		opts:  opts,
+		nowFn: opts.ClockOptions().NowFn(),
+		scope: scope,
 		metrics: commitLogMetrics{
 			queued:      scope.Gauge("writes.queued"),
 			success:     scope.Counter("writes.success"),
@@ -215,7 +212,6 @@ func (l *commitLog) write() {
 
 		if now := l.nowFn(); !now.Before(l.writerExpireAt) {
 			if err := l.openWriter(now); err != nil {
-				write.ctx.BlockingClose()
 
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
@@ -231,10 +227,6 @@ func (l *commitLog) write() {
 
 		err := l.writer.Write(write.series,
 			write.datapoint, write.unit, write.annotation)
-
-		// NB(r): Simply calling wg.Done() on another context, hence
-		// we can make this a blocking close
-		write.ctx.BlockingClose()
 
 		if err != nil {
 			l.metrics.errors.Inc(1)
@@ -341,12 +333,7 @@ func (l *commitLog) Write(
 		wg.Done()
 	}
 
-	// Register dependency to keep the ID around
-	writeCtx := l.contextPool.Get()
-	ctx.DependsOn(writeCtx)
-
 	write := commitLogWrite{
-		ctx:          writeCtx,
 		series:       series,
 		datapoint:    datapoint,
 		unit:         unit,
@@ -365,7 +352,6 @@ func (l *commitLog) Write(
 	l.RUnlock()
 
 	if !enqueued {
-		writeCtx.BlockingClose()
 		return errCommitLogQueueFull
 	}
 
@@ -386,12 +372,7 @@ func (l *commitLog) WriteBehind(
 		return errCommitLogClosed
 	}
 
-	// Register dependency to keep the ID around
-	writeCtx := l.contextPool.Get()
-	ctx.DependsOn(writeCtx)
-
 	write := commitLogWrite{
-		ctx:        writeCtx,
 		series:     series,
 		datapoint:  datapoint,
 		unit:       unit,
@@ -409,7 +390,6 @@ func (l *commitLog) WriteBehind(
 	l.RUnlock()
 
 	if !enqueued {
-		writeCtx.BlockingClose()
 		return errCommitLogQueueFull
 	}
 

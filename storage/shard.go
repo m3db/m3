@@ -429,6 +429,8 @@ func (s *dbShard) Write(
 
 	// Perform write
 	err = entry.series.Write(ctx, timestamp, value, unit, annotation)
+	seriesUniqueIndex := entry.index
+	seriesID := entry.series.ID()
 	entry.decrementWriterCount()
 	if err != nil {
 		return err
@@ -436,9 +438,9 @@ func (s *dbShard) Write(
 
 	// Write commit log
 	series := commitlog.Series{
-		UniqueIndex: entry.index,
+		UniqueIndex: seriesUniqueIndex,
 		Namespace:   s.namespace,
-		ID:          id,
+		ID:          seriesID,
 		Shard:       s.shard,
 	}
 
