@@ -429,6 +429,8 @@ func (s *dbShard) Write(
 
 	// Perform write
 	err = entry.series.Write(ctx, timestamp, value, unit, annotation)
+	// Load series metadata before decrementing the writer count
+	// to ensure this metadata is snapshotted at a consistent state
 	seriesUniqueIndex := entry.index
 	seriesID := entry.series.ID()
 	entry.decrementWriterCount()

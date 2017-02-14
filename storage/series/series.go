@@ -559,6 +559,13 @@ func (s *dbSeries) Close() {
 	s.Lock()
 	defer s.Unlock()
 
+	// NB(r): We explicitly do not place this ID back into an
+	// existing pool as high frequency users of series IDs such
+	// as the commit log need to use the reference without the
+	// overhead of ownership tracking.
+	// Since series are purged so infrequently the overhead
+	// of not releasing back an ID to a pool is amortized over
+	// a long period of time.
 	s.id = nil
 	s.buffer.Reset()
 	s.blocks.Close()
