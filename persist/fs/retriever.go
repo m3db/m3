@@ -22,8 +22,6 @@ package fs
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"sort"
 	"sync"
 	"time"
@@ -109,20 +107,6 @@ func (r *blockRetriever) Open(namespace ts.ID) error {
 
 	if r.status != blockRetrieverNotOpen {
 		return errBlockRetrieverAlreadyOpenOrClosed
-	}
-
-	filePathPrefix := r.fsOpts.FilePathPrefix()
-	dir, err := os.Open(NamespaceDirPath(filePathPrefix, namespace))
-	if err != nil {
-		return err
-	}
-	stat, err := dir.Stat()
-	if err != nil {
-		return err
-	}
-	if !stat.IsDir() {
-		return fmt.Errorf("path for namespace %s is not a directory",
-			namespace.String())
 	}
 
 	seekerMgrs := make([]FileSetSeekerManager, 0, r.opts.FetchConcurrency())
