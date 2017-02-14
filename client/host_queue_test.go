@@ -548,7 +548,7 @@ func TestHostQueueDrainOnClose(t *testing.T) {
 
 	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
 
-	mockConnPool.EXPECT().Close()
+	mockConnPool.EXPECT().Close().AnyTimes()
 
 	// Close the queue should cause all writes to be flushed
 	queue.Close()
