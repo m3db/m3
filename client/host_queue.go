@@ -145,20 +145,17 @@ func (q *queue) flushEvery(interval time.Duration) {
 		}
 
 		q.Lock()
-		needsDrain := q.rotateOpsWithLock()
-		q.Unlock()
-
-		if len(needsDrain) != 0 {
-			q.RLock()
-			if q.state != stateOpen {
-				q.RUnlock()
-				return
-			}
-			// Need to hold lock while writing to the drainIn
-			// channel to ensure it has not been closed
-			q.drainIn <- needsDrain
-			q.RUnlock()
+		if q.state != stateOpen {
+			q.Unlock()
+			return
 		}
+		needsDrain := q.rotateOpsWithLock()
+		// Need to hold lock while writing to the drainIn
+		// channel to ensure it has not been closed
+		if len(needsDrain) != 0 {
+			q.drainIn <- needsDrain
+		}
+		q.Unlock()
 	}
 }
 
@@ -447,8 +444,15 @@ func (q *queue) Close() {
 		q.Unlock()
 		return
 	}
-
 	q.state = stateClosed
+
+	// Need to hold lock while writing to the drainIn
+	// channel to ensure it has not been closed
+	needsDrain := q.rotateOpsWithLock()
+	if len(needsDrain) != 0 {
+		q.drainIn <- needsDrain
+	}
+
 	// Closed drainIn channel in lock to ensure writers know
 	// consistently if channel is open or not by checking state
 	close(q.drainIn)
