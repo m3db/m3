@@ -107,13 +107,12 @@ func testSeries(
 	id string,
 	shard uint32,
 ) Series {
-	return NewSeries(
-		uniqueIndex,
-		ts.StringID("testNS"),
-		ts.StringID(id),
-		shard,
-		FinalizeNone,
-	)
+	return Series{
+		UniqueIndex: uniqueIndex,
+		Namespace:   ts.StringID("testNS"),
+		ID:          ts.StringID(id),
+		Shard:       shard,
+	}
 }
 
 func (w testWrite) assert(
@@ -232,8 +231,8 @@ func writeCommitLogs(
 		go func() {
 			defer wg.Done()
 
+			series := write.series
 			datapoint := ts.Datapoint{Timestamp: write.t, Value: write.v}
-			series := write.series.Clone(nil)
 			err := writeFn(ctx, series, datapoint, write.u, write.a)
 
 			if write.expectedErr != nil {

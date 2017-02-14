@@ -429,21 +429,29 @@ func (s *dbShard) Write(
 
 	// Perform write
 	err = entry.series.Write(ctx, timestamp, value, unit, annotation)
+	// Load series metadata before decrementing the writer count
+	// to ensure this metadata is snapshotted at a consistent state
+	seriesUniqueIndex := entry.index
+	seriesID := entry.series.ID()
 	entry.decrementWriterCount()
 	if err != nil {
 		return err
 	}
 
 	// Write commit log
-	info := commitlog.NewSeries(entry.index, s.namespace,
-		s.identifierPool.Clone(id), s.shard, commitlog.FinalizeID)
+	series := commitlog.Series{
+		UniqueIndex: seriesUniqueIndex,
+		Namespace:   s.namespace,
+		ID:          seriesID,
+		Shard:       s.shard,
+	}
 
 	datapoint := ts.Datapoint{
 		Timestamp: timestamp,
 		Value:     value,
 	}
 
-	return s.writeCommitLogFn(ctx, info, datapoint, unit, annotation)
+	return s.writeCommitLogFn(ctx, series, datapoint, unit, annotation)
 }
 
 func (s *dbShard) ReadEncoded(
