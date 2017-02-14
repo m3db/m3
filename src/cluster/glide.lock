@@ -1,5 +1,5 @@
-hash: df401d0f98148e13488626f2e23a9b2cfaf3c088b056bb0483279303affbca65
-updated: 2017-02-08T00:28:04.738352401-05:00
+hash: 3c2ee5c081e420baefcc8ab227d5f0adfa7ec0d5405e6dd5f1c1d2f017b7bd6f
+updated: 2017-02-14T18:19:35.996878285-05:00
 imports:
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
@@ -112,7 +112,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3x
-  version: 41e3f053bd721ec1d6ba8d4eef3e036290aa7977
+  version: 3a8328d65b7880b034b8515177921023b41e4399
   subpackages:
   - close
   - errors
@@ -139,7 +139,7 @@ imports:
   - internal/bitbucket.org/ww/goautoneg
   - model
 - name: github.com/prometheus/procfs
-  version: fcdb11ccb4389efb1b210b7ffb623ab71c5fdd60
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
@@ -195,6 +195,6 @@ testImports:
   subpackages:
   - spew
 - name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
