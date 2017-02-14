@@ -564,7 +564,7 @@ func TestHostQueueDrainOnClose(t *testing.T) {
 
 	select {
 	case <-closeCh:
-	case <-time.After(time.Second):
+	case <-time.After(time.Minute):
 		assert.Fail(t, "Not flushing writes")
 	}
 
