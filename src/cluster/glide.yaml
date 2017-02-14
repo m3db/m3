@@ -10,14 +10,7 @@ import:
   subpackages:
   - proto
 - package: github.com/m3db/m3x
-  version: 41e3f053bd721ec1d6ba8d4eef3e036290aa7977
-  subpackages:
-  - close
-  - errors
-  - instrument
-  - log
-  - retry
-  - watch
+  version: 3a8328d65b7880b034b8515177921023b41e4399
 - package: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
