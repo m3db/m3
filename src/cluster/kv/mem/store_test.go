@@ -183,4 +183,39 @@ func TestFakeStoreErrors(t *testing.T) {
 
 	_, err = s.CheckAndSet("foo", 1, nil)
 	require.Error(t, err)
+
+	_, err = s.History("foo", -5, 0)
+	require.Error(t, err)
+
+	_, err = s.History("foo", 0, 10)
+	require.Error(t, err)
+
+	_, err = s.History("foo", 20, 10)
+	require.Error(t, err)
+}
+
+func TestHistory(t *testing.T) {
+	s := NewStore()
+
+	for i := 1; i <= 10; i++ {
+		_, err := s.Set("foo", &kvtest.Foo{
+			Msg: "bar1",
+		})
+		require.NoError(t, err)
+	}
+
+	vals, err := s.History("foo", 3, 7)
+	require.NoError(t, err)
+	require.Equal(t, 4, len(vals))
+	for i := 0; i < len(vals); i++ {
+		require.Equal(t, i+3, vals[i].Version())
+	}
+
+	vals, err = s.History("foo", 3, 3)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(vals))
+
+	vals, err = s.History("foo", 13, 17)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(vals))
 }

@@ -467,6 +467,63 @@ func TestWatchNonBlocking(t *testing.T) {
 	w1.Close()
 }
 
+func TestHistory(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store, err := NewStore(ec, opts)
+	res, err := store.History("k1", 10, 5)
+	assert.Error(t, err)
+
+	res, err = store.History("k1", 0, 5)
+	assert.Error(t, err)
+
+	res, err = store.History("k1", -5, 0)
+	assert.Error(t, err)
+
+	totalVersion := 10
+	for i := 1; i <= totalVersion; i++ {
+		store.Set("k1", genProto(fmt.Sprintf("bar%d", i)))
+		store.Set("k2", genProto(fmt.Sprintf("bar%d", i)))
+	}
+
+	res, err = store.History("k1", 5, 5)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(res))
+
+	res, err = store.History("k1", 15, 20)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(res))
+
+	res, err = store.History("k1", 6, 10)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(res))
+	for i := 0; i < len(res); i++ {
+		version := i + 6
+		value := res[i]
+		verifyValue(t, value, fmt.Sprintf("bar%d", version), version)
+	}
+
+	res, err = store.History("k1", 3, 7)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(res))
+	for i := 0; i < len(res); i++ {
+		version := i + 3
+		value := res[i]
+		verifyValue(t, value, fmt.Sprintf("bar%d", version), version)
+	}
+
+	res, err = store.History("k1", 5, 15)
+	assert.NoError(t, err)
+	assert.Equal(t, totalVersion-5+1, len(res))
+	for i := 0; i < len(res); i++ {
+		version := i + 5
+		value := res[i]
+		verifyValue(t, value, fmt.Sprintf("bar%d", version), version)
+	}
+
+}
+
 func verifyValue(t *testing.T, v kv.Value, value string, version int) {
 	var testMsg kvtest.Foo
 	err := v.Unmarshal(&testMsg)

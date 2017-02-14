@@ -21,6 +21,7 @@
 package mem
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/golang/protobuf/proto"
@@ -30,7 +31,7 @@ import (
 // NewStore returns a new in-process store that can be used for testing
 func NewStore() kv.Store {
 	return &store{
-		values:     make(map[string]*value),
+		values:     make(map[string][]*value),
 		watchables: make(map[string]kv.ValueWatchable),
 	}
 }
@@ -62,7 +63,7 @@ func (v value) Unmarshal(msg proto.Message) error { return proto.Unmarshal(v.dat
 
 type store struct {
 	sync.RWMutex
-	values     map[string]*value
+	values     map[string][]*value
 	watchables map[string]kv.ValueWatchable
 }
 
@@ -70,11 +71,16 @@ func (s *store) Get(key string) (kv.Value, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	if val := s.values[key]; val != nil {
-		return val, nil
+	val, ok := s.values[key]
+	if !ok {
+		return nil, kv.ErrNotFound
 	}
 
-	return nil, kv.ErrNotFound
+	if len(val) == 0 {
+		return nil, kv.ErrNotFound
+	}
+
+	return val[len(val)-1], nil
 }
 
 func (s *store) Watch(key string) (kv.ValueWatch, error) {
@@ -88,8 +94,8 @@ func (s *store) Watch(key string) (kv.ValueWatch, error) {
 	}
 	s.Unlock()
 
-	if !ok && val != nil {
-		watchable.Update(val)
+	if !ok && len(val) != 0 {
+		watchable.Update(val[len(val)-1])
 	}
 
 	_, watch, _ := watchable.Watch()
@@ -106,8 +112,10 @@ func (s *store) Set(key string, val proto.Message) (int, error) {
 	defer s.Unlock()
 
 	lastVersion := 0
-	if val := s.values[key]; val != nil {
-		lastVersion = val.version
+	vals := s.values[key]
+
+	if len(vals) != 0 {
+		lastVersion = vals[len(vals)-1].version
 	}
 
 	newVersion := lastVersion + 1
@@ -115,7 +123,7 @@ func (s *store) Set(key string, val proto.Message) (int, error) {
 		version: newVersion,
 		data:    data,
 	}
-	s.values[key] = fv
+	s.values[key] = append(vals, fv)
 	s.updateWatchable(key, fv)
 
 	return newVersion, nil
@@ -138,7 +146,7 @@ func (s *store) SetIfNotExists(key string, val proto.Message) (int, error) {
 		version: 1,
 		data:    data,
 	}
-	s.values[key] = fv
+	s.values[key] = append(s.values[key], fv)
 	s.updateWatchable(key, fv)
 
 	return 1, nil
@@ -153,10 +161,14 @@ func (s *store) CheckAndSet(key string, version int, val proto.Message) (int, er
 	s.Lock()
 	defer s.Unlock()
 
-	if val, exists := s.values[key]; exists {
-		if val.version != version {
-			return 0, kv.ErrVersionMismatch
-		}
+	lastVersion := 0
+	vals, exists := s.values[key]
+	if exists && len(vals) != 0 {
+		lastVersion = vals[len(vals)-1].version
+	}
+
+	if version != lastVersion {
+		return 0, kv.ErrVersionMismatch
 	}
 
 	newVersion := version + 1
@@ -164,10 +176,38 @@ func (s *store) CheckAndSet(key string, version int, val proto.Message) (int, er
 		version: newVersion,
 		data:    data,
 	}
-	s.values[key] = fv
+	s.values[key] = append(vals, fv)
 	s.updateWatchable(key, fv)
 
 	return newVersion, nil
+}
+
+func (s *store) History(key string, from, to int) ([]kv.Value, error) {
+	if from <= 0 || to <= 0 || from > to {
+		return nil, errors.New("bad request")
+	}
+	s.RLock()
+	defer s.RUnlock()
+
+	vals, ok := s.values[key]
+	if !ok {
+		return nil, kv.ErrNotFound
+	}
+
+	l := len(vals)
+	if l == 0 {
+		return nil, kv.ErrNotFound
+	}
+
+	var res []kv.Value
+	for i := from; i < to; i++ {
+		idx := i - 1
+		if idx >= 0 && idx < l {
+			res = append(res, vals[idx])
+		}
+	}
+
+	return res, nil
 }
 
 // updateWatchable updates all subscriptions for the given key. It assumes

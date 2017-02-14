@@ -22,6 +22,7 @@ package etcd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -38,7 +39,11 @@ import (
 
 const etcdVersionZero = 0
 
-var noopCancel func()
+var (
+	noopCancel func()
+
+	errInvalidHistoryVersion = errors.New("invalid version range")
+)
 
 // NewStore creates a kv store based on etcd
 func NewStore(c *clientv3.Client, opts Options) (kv.Store, error) {
@@ -150,15 +155,82 @@ func (c *client) get(key string) (kv.Value, error) {
 		return nil, kv.ErrNotFound
 	}
 
-	if r.Count > 1 {
-		return nil, fmt.Errorf("received %d values for key %s, expecting 1", r.Count, key)
-	}
-
 	v := newValue(r.Kvs[0].Value, r.Kvs[0].Version, r.Kvs[0].ModRevision)
 
 	c.mergeCache(key, v)
 
 	return v, nil
+}
+
+func (c *client) History(key string, from, to int) ([]kv.Value, error) {
+	if from > to || from < 0 || to < 0 {
+		return nil, errInvalidHistoryVersion
+	}
+
+	if from == to {
+		return nil, nil
+	}
+
+	newKey := c.opts.KeyFn()(key)
+
+	ctx, cancel := c.context()
+	defer cancel()
+
+	r, err := c.kv.Get(ctx, newKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Count == 0 {
+		return nil, kv.ErrNotFound
+	}
+
+	numValue := to - from
+
+	latestKV := r.Kvs[0]
+	version := int(latestKV.Version)
+	modRev := latestKV.ModRevision
+
+	if version < from {
+		// no value available in the requested version range
+		return nil, nil
+	}
+
+	if version-from+1 < numValue {
+		// get the correct size of the result slice
+		numValue = version - from + 1
+	}
+
+	res := make([]kv.Value, numValue)
+
+	if version < to {
+		// put it in the last element of the result
+		res[version-from] = newValue(latestKV.Value, latestKV.Version, modRev)
+	}
+
+	for version > from {
+		ctx, cancel := c.context()
+		defer cancel()
+
+		r, err = c.kv.Get(ctx, newKey, clientv3.WithRev(modRev-1))
+		if err != nil {
+			return nil, err
+		}
+
+		if r.Count == 0 {
+			// unexpected
+			return nil, fmt.Errorf("could not find version %d for key %s", version-1, key)
+		}
+
+		v := r.Kvs[0]
+		modRev = v.ModRevision
+		version = int(v.Version)
+		if version < to {
+			res[version-from] = newValue(v.Value, v.Version, v.ModRevision)
+		}
+	}
+
+	return res, nil
 }
 
 func (c *client) Watch(key string) (kv.ValueWatch, error) {

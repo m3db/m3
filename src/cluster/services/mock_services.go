@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@ package services
 import (
 	gomock "github.com/golang/mock/gomock"
 	shard "github.com/m3db/m3cluster/shard"
+	instrument "github.com/m3db/m3x/instrument"
 	watch "github.com/m3db/m3x/watch"
 	time "time"
 )
@@ -961,6 +962,26 @@ func (_m *MockPlacementOptions) SetDryrun(d bool) PlacementOptions {
 
 func (_mr *_MockPlacementOptionsRecorder) SetDryrun(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetDryrun", arg0)
+}
+
+func (_m *MockPlacementOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
+	ret0, _ := ret[0].(instrument.Options)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
+}
+
+func (_m *MockPlacementOptions) SetInstrumentOptions(iopts instrument.Options) PlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", iopts)
+	ret0, _ := ret[0].(PlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
 }
 
 // Mock of ServicePlacement interface

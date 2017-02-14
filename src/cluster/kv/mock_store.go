@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -273,4 +273,15 @@ func (_m *MockStore) CheckAndSet(key string, version int, v proto.Message) (int,
 
 func (_mr *_MockStoreRecorder) CheckAndSet(arg0, arg1, arg2 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CheckAndSet", arg0, arg1, arg2)
+}
+
+func (_m *MockStore) History(key string, from int, to int) ([]Value, error) {
+	ret := _m.ctrl.Call(_m, "History", key, from, to)
+	ret0, _ := ret[0].([]Value)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockStoreRecorder) History(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "History", arg0, arg1, arg2)
 }
