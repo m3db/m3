@@ -59,8 +59,14 @@ var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
 
 type dbSeries struct {
 	sync.RWMutex
-	opts           Options
-	id             ts.ID
+	opts Options
+
+	// NB(r): One should audit all places that access the
+	// series ID before changing ownership semantics (e.g.
+	// pooling the ID rather than releasing it to the GC on
+	// calling series.Reset()).
+	id ts.ID
+
 	buffer         databaseBuffer
 	blocks         block.DatabaseSeriesBlocks
 	bs             bootstrapState
@@ -105,7 +111,10 @@ func (s *dbSeries) log() xlog.Logger {
 }
 
 func (s *dbSeries) ID() ts.ID {
-	return s.id
+	s.RLock()
+	id := s.id
+	s.RUnlock()
+	return id
 }
 
 func (s *dbSeries) Tick() (TickResult, error) {
@@ -550,6 +559,13 @@ func (s *dbSeries) Close() {
 	s.Lock()
 	defer s.Unlock()
 
+	// NB(r): We explicitly do not place this ID back into an
+	// existing pool as high frequency users of series IDs such
+	// as the commit log need to use the reference without the
+	// overhead of ownership tracking.
+	// Since series are purged so infrequently the overhead
+	// of not releasing back an ID to a pool is amortized over
+	// a long period of time.
 	s.id = nil
 	s.buffer.Reset()
 	s.blocks.Close()
