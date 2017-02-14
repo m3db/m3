@@ -22,6 +22,7 @@ package block
 
 import (
 	"errors"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,7 +37,10 @@ var (
 	errReadFromClosedBlock         = errors.New("attempt to read from a closed block")
 	errRetrievableBlockNoRetriever = errors.New("attempt to read from a retrievable block with no retriever")
 
-	timeZero = time.Time{}
+	timeUnixNanoZero = int64(math.MinInt64)
+	// NB(cw): the behavior of calling UnixNano() on time.Time{} is undefined
+	// using this timeZero makes testing a bit easier.
+	timeZero = time.Unix(0, timeUnixNanoZero)
 )
 
 type dbBlock struct {
@@ -282,16 +286,18 @@ func (b *dbBlock) resetMergeTargetWithLock() {
 
 type databaseSeriesBlocks struct {
 	opts  Options
-	elems map[time.Time]DatabaseBlock
-	min   time.Time
-	max   time.Time
+	elems map[int64]DatabaseBlock
+	min   int64
+	max   int64
 }
 
 // NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
 func NewDatabaseSeriesBlocks(capacity int, opts Options) DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
 		opts:  opts,
-		elems: make(map[time.Time]DatabaseBlock, capacity),
+		elems: make(map[int64]DatabaseBlock, capacity),
+		min:   timeUnixNanoZero,
+		max:   timeUnixNanoZero,
 	}
 }
 
@@ -304,11 +310,11 @@ func (dbb *databaseSeriesBlocks) Len() int {
 }
 
 func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
-	start := block.StartTime()
-	if dbb.min.Equal(timeZero) || start.Before(dbb.min) {
+	start := block.StartTime().UnixNano()
+	if dbb.min == timeUnixNanoZero || start < dbb.min {
 		dbb.min = start
 	}
-	if dbb.max.Equal(timeZero) || start.After(dbb.max) {
+	if dbb.max == timeUnixNanoZero || start > dbb.max {
 		dbb.max = start
 	}
 	dbb.elems[start] = block
@@ -326,40 +332,45 @@ func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
 
 // MinTime returns the min time of the blocks contained.
 func (dbb *databaseSeriesBlocks) MinTime() time.Time {
-	return dbb.min
+	return time.Unix(0, dbb.min)
 }
 
 // MaxTime returns the max time of the blocks contained.
 func (dbb *databaseSeriesBlocks) MaxTime() time.Time {
-	return dbb.max
+	return time.Unix(0, dbb.max)
 }
 
 func (dbb *databaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
-	b, ok := dbb.elems[t]
+	b, ok := dbb.elems[t.UnixNano()]
 	return b, ok
 }
 
 func (dbb *databaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {
-	return dbb.elems
+	res := make(map[time.Time]DatabaseBlock, len(dbb.elems))
+	for nano, db := range dbb.elems {
+		res[time.Unix(0, nano)] = db
+	}
+	return res
 }
 
 func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
-	if _, exists := dbb.elems[t]; !exists {
+	tNano := t.UnixNano()
+	if _, exists := dbb.elems[tNano]; !exists {
 		return
 	}
-	delete(dbb.elems, t)
-	if !dbb.min.Equal(t) && !dbb.max.Equal(t) {
+	delete(dbb.elems, tNano)
+	if dbb.min != tNano && dbb.max != tNano {
 		return
 	}
-	dbb.min, dbb.max = timeZero, timeZero
+	dbb.min, dbb.max = timeUnixNanoZero, timeUnixNanoZero
 	if len(dbb.elems) == 0 {
 		return
 	}
 	for k := range dbb.elems {
-		if dbb.min == timeZero || dbb.min.After(k) {
+		if dbb.min == timeUnixNanoZero || dbb.min > k {
 			dbb.min = k
 		}
-		if dbb.max == timeZero || dbb.max.Before(k) {
+		if dbb.max == timeUnixNanoZero || dbb.max < k {
 			dbb.max = k
 		}
 	}
