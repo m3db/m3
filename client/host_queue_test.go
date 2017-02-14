@@ -496,6 +496,85 @@ func TestHostQueueFetchBatchesErrorOnResultError(t *testing.T) {
 	})
 }
 
+func TestHostQueueDrainOnClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConnPool := NewMockconnectionPool(ctrl)
+
+	opts := newHostQueueTestOptions()
+	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts).(*queue)
+	queue.connPool = mockConnPool
+
+	// Open
+	mockConnPool.EXPECT().Open()
+	queue.Open()
+	assert.Equal(t, stateOpen, queue.state)
+
+	// Prepare callback for writes
+	var (
+		results []hostQueueResult
+		wg      sync.WaitGroup
+	)
+	callback := func(r interface{}, err error) {
+		results = append(results, hostQueueResult{r, err})
+		wg.Done()
+	}
+
+	// Prepare writes
+	writes := []*writeOp{
+		testWriteOp("testNs", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs", "bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
+		testWriteOp("testNs", "baz", 3.0, 3000, rpc.TimeType_UNIX_SECONDS, callback),
+	}
+
+	for i, write := range writes {
+		wg.Add(1)
+		assert.NoError(t, queue.Enqueue(write))
+		assert.Equal(t, i+1, queue.Len())
+
+		// Sleep some so that we can ensure flushing is not happening until queue is full
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	mockClient := rpc.NewMockTChanNode(ctrl)
+	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRawRequest) {
+		for i, write := range writes {
+			assert.Equal(t, req.Elements[i].ID, write.request.ID)
+			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
+		}
+	}
+	mockClient.EXPECT().WriteBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil)
+
+	mockConnPool.EXPECT().NextClient().Return(mockClient, nil)
+
+	mockConnPool.EXPECT().Close()
+
+	// Close the queue should cause all writes to be flushed
+	queue.Close()
+
+	closeCh := make(chan struct{})
+
+	go func() {
+		// Wait for all writes
+		wg.Wait()
+
+		close(closeCh)
+	}()
+
+	select {
+	case <-closeCh:
+	case <-time.After(time.Second):
+		assert.Fail(t, "Not flushing writes")
+	}
+
+	// Assert writes successful
+	assert.Equal(t, len(writes), len(results))
+	for _, result := range results {
+		assert.Nil(t, result.err)
+	}
+}
+
 type testHostQueueFetchBatchesOptions struct {
 	nextClientErr    error
 	fetchRawBatchErr error
