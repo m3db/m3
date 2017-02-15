@@ -230,10 +230,10 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	for _, ns := range d.namespaces {
 		ns.AssignShardSet(shardSet)
 	}
+	// NB(r): Trigger another bootstrap, if already bootstrapping this will
+	// enqueue a new bootstrap to execute before the current bootstrap
+	// completes
 	if d.bootstraps > 0 {
-		// NB(r): Trigger another bootstrap, if already bootstrapping this will
-		// enqueue a new bootstrap to execute before the current bootstrap
-		// completes
 		go d.Bootstrap()
 	}
 }
@@ -508,9 +508,7 @@ func (d *db) splayedTick() {
 	// flush blocks to disk. Note this has to run after the tick as
 	// blocks may only have just become available during a tick beginning
 	// from the tick begin marker.
-	if d.fsm.ShouldRun(start) {
-		d.fsm.Run(start, true)
-	}
+	d.fsm.Run(start, true, false)
 }
 
 func (d *db) nextIndex() uint64 {

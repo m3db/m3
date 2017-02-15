@@ -58,7 +58,9 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	rateLimitOpts := ratelimit.NewOptions()
 	fsm := NewMockdatabaseFileSystemManager(ctrl)
 	fsm.EXPECT().RateLimitOptions().Return(rateLimitOpts)
-	fsm.EXPECT().Run(now, false)
+	fsm.EXPECT().Disable()
+	fsm.EXPECT().Enable().AnyTimes()
+	fsm.EXPECT().Run(now, false, true)
 	fsm.EXPECT().SetRateLimitOptions(gomock.Any()).Times(2)
 	bsm := newBootstrapManager(db, fsm).(*bootstrapManager)
 	err := bsm.Bootstrap()
@@ -66,6 +68,42 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	require.NotNil(t, err)
 	require.Equal(t, "an error", err.Error())
 	require.Equal(t, bootstrapped, bsm.state)
+}
+
+func TestDatabaseBootstrapWithFileOpInProgess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	now := time.Now()
+	opts = opts.SetNewBootstrapFn(func() bootstrap.Bootstrap {
+		return nil
+	}).SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return now
+	}))
+
+	db := &mockDatabase{opts: opts}
+	rateLimitOpts := ratelimit.NewOptions()
+	fsm := NewMockdatabaseFileSystemManager(ctrl)
+	fsm.EXPECT().RateLimitOptions().Return(rateLimitOpts)
+	fsm.EXPECT().Disable().Return(true)
+	fsm.EXPECT().Enable().AnyTimes()
+	fsm.EXPECT().Run(now, false, true)
+	fsm.EXPECT().SetRateLimitOptions(gomock.Any()).Times(2)
+
+	gomock.InOrder(
+		fsm.EXPECT().IsRunning().Return(true),
+		fsm.EXPECT().IsRunning().Return(true),
+		fsm.EXPECT().IsRunning().Return(false),
+	)
+	bsm := newBootstrapManager(db, fsm).(*bootstrapManager)
+	var slept []time.Duration
+	bsm.sleepFn = func(d time.Duration) {
+		slept = append(slept, d)
+	}
+	require.Nil(t, bsm.Bootstrap())
+	require.Equal(t, bootstrapped, bsm.state)
+	require.Equal(t, 3, len(slept))
 }
 
 func TestDatabaseBootstrapTargetRanges(t *testing.T) {

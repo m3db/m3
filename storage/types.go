@@ -362,11 +362,20 @@ type databaseFileSystemManager interface {
 	databaseFlushManager
 	databaseCleanupManager
 
-	// ShouldRun determines if any file operations are needed for time t
-	ShouldRun(t time.Time) bool
+	// Disable disables the filesystem manager and prevents it from
+	// performing file operations, returns true if the file operations
+	// are in progress when called and false otherwise
+	Disable() bool
 
-	// Run performs all filesystem-related operations
-	Run(t time.Time, async bool)
+	// Enable enables the filesystem manager to perform file operations
+	Enable()
+
+	// IsRunning determines whether some file operations are in progress
+	IsRunning() bool
+
+	// Run attempts to perform all filesystem-related operations,
+	// returning true if those operations are performed, and false otherwise
+	Run(t time.Time, async bool, force bool) bool
 }
 
 // databaseShardRepairer repairs in-memory data for a shard

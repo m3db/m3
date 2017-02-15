@@ -1184,22 +1184,42 @@ func (_mr *_MockdatabaseFileSystemManagerRecorder) Cleanup(arg0 interface{}) *go
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Cleanup", arg0)
 }
 
-func (_m *MockdatabaseFileSystemManager) ShouldRun(t time.Time) bool {
-	ret := _m.ctrl.Call(_m, "ShouldRun", t)
+func (_m *MockdatabaseFileSystemManager) Disable() bool {
+	ret := _m.ctrl.Call(_m, "Disable")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockdatabaseFileSystemManagerRecorder) ShouldRun(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShouldRun", arg0)
+func (_mr *_MockdatabaseFileSystemManagerRecorder) Disable() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Disable")
 }
 
-func (_m *MockdatabaseFileSystemManager) Run(t time.Time, async bool) {
-	_m.ctrl.Call(_m, "Run", t, async)
+func (_m *MockdatabaseFileSystemManager) Enable() {
+	_m.ctrl.Call(_m, "Enable")
 }
 
-func (_mr *_MockdatabaseFileSystemManagerRecorder) Run(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1)
+func (_mr *_MockdatabaseFileSystemManagerRecorder) Enable() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Enable")
+}
+
+func (_m *MockdatabaseFileSystemManager) IsRunning() bool {
+	ret := _m.ctrl.Call(_m, "IsRunning")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockdatabaseFileSystemManagerRecorder) IsRunning() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsRunning")
+}
+
+func (_m *MockdatabaseFileSystemManager) Run(t time.Time, async bool, force bool) bool {
+	ret := _m.ctrl.Call(_m, "Run", t, async, force)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockdatabaseFileSystemManagerRecorder) Run(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1, arg2)
 }
 
 // Mock of databaseShardRepairer interface
@@ -1430,6 +1450,26 @@ func (_m *MockOptions) CommitLogOptions() commitlog.Options {
 
 func (_mr *_MockOptionsRecorder) CommitLogOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogOptions")
+}
+
+func (_m *MockOptions) SetRepairEnabled(b bool) Options {
+	ret := _m.ctrl.Call(_m, "SetRepairEnabled", b)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetRepairEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRepairEnabled", arg0)
+}
+
+func (_m *MockOptions) RepairEnabled() bool {
+	ret := _m.ctrl.Call(_m, "RepairEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) RepairEnabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RepairEnabled")
 }
 
 func (_m *MockOptions) SetRepairOptions(value repair.Options) Options {
