@@ -75,6 +75,7 @@ type bootstrapManager struct {
 	state          bootstrapState
 	hasPending     bool
 	fsManager      databaseFileSystemManager
+	sleepFn        sleepFn
 }
 
 func newBootstrapManager(
@@ -89,6 +90,7 @@ func newBootstrapManager(
 		nowFn:          opts.ClockOptions().NowFn(),
 		newBootstrapFn: opts.NewBootstrapFn(),
 		fsManager:      fsManager,
+		sleepFn:        time.Sleep,
 	}
 }
 
@@ -149,7 +151,7 @@ func (m *bootstrapManager) Bootstrap() error {
 	fileOpInProgess := m.fsManager.Disable()
 	defer m.fsManager.Enable()
 	for fileOpInProgess {
-		time.Sleep(fileOpCheckInterval)
+		m.sleepFn(fileOpCheckInterval)
 		fileOpInProgess = m.fsManager.IsRunning()
 	}
 

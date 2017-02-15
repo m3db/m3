@@ -363,13 +363,14 @@ type databaseFileSystemManager interface {
 	databaseCleanupManager
 
 	// Disable disables the filesystem manager and prevents it from
-	// performing file operations
+	// performing file operations, returns true if the file operations
+	// are in progress when called and false otherwise
 	Disable() bool
 
 	// Enable enables the filesystem manager to perform file operations
 	Enable()
 
-	// IsRunning determines whethere some file operations are in progress
+	// IsRunning determines whether some file operations are in progress
 	IsRunning() bool
 
 	// Run attempts to perform all filesystem-related operations,
