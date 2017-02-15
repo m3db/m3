@@ -54,6 +54,7 @@ type fileSystemManager struct {
 	opts     Options
 	jitter   time.Duration
 	status   fileOpStatus
+	enabled  bool
 }
 
 func newFileSystemManager(
@@ -85,27 +86,36 @@ func newFileSystemManager(
 		opts:     opts,
 		jitter:   jitter,
 		status:   fileOpNotStarted,
+		enabled:  true,
 	}, nil
 }
 
-func (m *fileSystemManager) ShouldRun(t time.Time) bool {
-	// If we haven't bootstrapped yet, no actions necessary.
-	if !m.database.IsBootstrapped() {
-		return false
-	}
-
-	m.RLock()
-	defer m.RUnlock()
-
-	// If we are in the middle of performing file operations, bail early.
-	return m.status != fileOpInProgress
+func (m *fileSystemManager) Disable() bool {
+	m.Lock()
+	isRunning := m.status == fileOpInProgress
+	m.enabled = false
+	m.Unlock()
+	return isRunning
 }
 
-func (m *fileSystemManager) Run(t time.Time, async bool) {
+func (m *fileSystemManager) Enable() {
 	m.Lock()
-	if m.status == fileOpInProgress {
+	m.enabled = true
+	m.Unlock()
+}
+
+func (m *fileSystemManager) IsRunning() bool {
+	m.RLock()
+	running := m.status == fileOpInProgress
+	m.RUnlock()
+	return running
+}
+
+func (m *fileSystemManager) Run(t time.Time, async bool, force bool) bool {
+	m.Lock()
+	if !force && !m.shouldRunWithLock() {
 		m.Unlock()
-		return
+		return false
 	}
 	m.status = fileOpInProgress
 	m.Unlock()
@@ -128,4 +138,9 @@ func (m *fileSystemManager) Run(t time.Time, async bool) {
 	} else {
 		go flushFn()
 	}
+	return true
+}
+
+func (m *fileSystemManager) shouldRunWithLock() bool {
+	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrapped()
 }

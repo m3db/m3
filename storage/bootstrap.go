@@ -34,6 +34,8 @@ import (
 type bootstrapState int
 
 const (
+	fileOpCheckInterval = time.Second
+
 	bootstrapNotStarted bootstrapState = iota
 	bootstrapping
 	bootstrapped
@@ -142,6 +144,15 @@ func (m *bootstrapManager) Bootstrap() error {
 	}
 	m.Unlock()
 
+	// NB(xichen): disable filesystem manager before we bootstrap to minimize
+	// the impact of file operations on node performance
+	fileOpInProgess := m.fsManager.Disable()
+	defer m.fsManager.Enable()
+	for fileOpInProgess {
+		time.Sleep(fileOpCheckInterval)
+		fileOpInProgess = m.fsManager.IsRunning()
+	}
+
 	// Keep performing bootstraps until none pending
 	multiErr := xerrors.NewMultiError()
 	for {
@@ -193,7 +204,7 @@ func (m *bootstrapManager) bootstrap() error {
 	// all the data we bootstrapped.
 	rateLimitOpts := m.fsManager.RateLimitOptions()
 	m.fsManager.SetRateLimitOptions(rateLimitOpts.SetLimitEnabled(false))
-	m.fsManager.Run(m.nowFn(), false)
+	m.fsManager.Run(m.nowFn(), false, true)
 	m.fsManager.SetRateLimitOptions(rateLimitOpts)
 
 	return multiErr.FinalError()

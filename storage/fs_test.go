@@ -32,12 +32,12 @@ import (
 
 func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 	database := newMockDatabase()
-	mgr, err := newFileSystemManager(database, tally.NoopScope)
+	fsm, err := newFileSystemManager(database, tally.NoopScope)
 	require.NoError(t, err)
-	now := database.Options().ClockOptions().NowFn()()
-	require.False(t, mgr.ShouldRun(now))
+	mgr := fsm.(*fileSystemManager)
+	require.False(t, mgr.shouldRunWithLock())
 	database.bs = bootstrapped
-	require.True(t, mgr.ShouldRun(now))
+	require.True(t, mgr.shouldRunWithLock())
 }
 
 func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
@@ -46,10 +46,22 @@ func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 	fsm, err := newFileSystemManager(database, tally.NoopScope)
 	require.NoError(t, err)
 	mgr := fsm.(*fileSystemManager)
-	now := database.Options().ClockOptions().NowFn()()
-	require.True(t, mgr.ShouldRun(now))
+	require.True(t, mgr.shouldRunWithLock())
 	mgr.status = fileOpInProgress
-	require.False(t, mgr.ShouldRun(now))
+	require.False(t, mgr.shouldRunWithLock())
+}
+
+func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
+	database := newMockDatabase()
+	database.bs = bootstrapped
+	fsm, err := newFileSystemManager(database, tally.NoopScope)
+	require.NoError(t, err)
+	mgr := fsm.(*fileSystemManager)
+	require.True(t, mgr.shouldRunWithLock())
+	require.False(t, mgr.Disable())
+	require.False(t, mgr.shouldRunWithLock())
+	mgr.Enable()
+	require.True(t, mgr.shouldRunWithLock())
 }
 
 func TestFileSystemManagerRun(t *testing.T) {
@@ -72,6 +84,6 @@ func TestFileSystemManagerRun(t *testing.T) {
 		fm.EXPECT().Flush(ts).Return(errors.New("bar")),
 	)
 
-	mgr.Run(ts, false)
+	mgr.Run(ts, false, false)
 	require.Equal(t, fileOpNotStarted, mgr.status)
 }
