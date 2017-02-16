@@ -72,12 +72,10 @@ type bootstrapManager struct {
 	newBootstrapFn NewBootstrapFn
 	state          bootstrapState
 	hasPending     bool
-	fsManager      databaseFileSystemManager
 }
 
 func newBootstrapManager(
 	database database,
-	fsManager databaseFileSystemManager,
 ) databaseBootstrapManager {
 	opts := database.Options()
 	return &bootstrapManager{
@@ -86,7 +84,6 @@ func newBootstrapManager(
 		log:            opts.InstrumentOptions().Logger(),
 		nowFn:          opts.ClockOptions().NowFn(),
 		newBootstrapFn: opts.NewBootstrapFn(),
-		fsManager:      fsManager,
 	}
 }
 
@@ -187,14 +184,5 @@ func (m *bootstrapManager) bootstrap() error {
 			xlog.NewLogField("duration", end.Sub(start).String()),
 		).Info("bootstrap finished")
 	}
-
-	// At this point we have bootstrapped everything between now - retentionPeriod
-	// and now, so we should run the filesystem manager to clean up files and flush
-	// all the data we bootstrapped.
-	rateLimitOpts := m.fsManager.RateLimitOptions()
-	m.fsManager.SetRateLimitOptions(rateLimitOpts.SetLimitEnabled(false))
-	m.fsManager.Run(m.nowFn(), false)
-	m.fsManager.SetRateLimitOptions(rateLimitOpts)
-
 	return multiErr.FinalError()
 }
