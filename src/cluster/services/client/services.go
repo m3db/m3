@@ -357,11 +357,16 @@ func (c *client) watchPlacement(
 		select {
 		case <-vw.C():
 			value := vw.Get()
-			c.logger.Infof("received placement update notification on version %d", value.Version())
+			if value == nil {
+				// NB(cw) this can only happen when the placement has been deleted
+				// it is safer to let the user keep using the old topology
+				c.logger.Infof("received placement update with nil value")
+				continue
+			}
 
 			service, err := getServiceFromValue(value, sid)
 			if err != nil {
-				c.logger.Errorf("could not unmarshal update from kv store for placement, %v", err)
+				c.logger.Errorf("could not unmarshal update from kv store for placement on version %d, %v", value.Version(), err)
 				errCounter.Inc(1)
 				continue
 			}
@@ -384,11 +389,16 @@ func (c *client) watchPlacementAndHeartbeat(
 		select {
 		case <-vw.C():
 			value := vw.Get()
-			c.logger.Infof("received placement update on version %d", value.Version())
+			if value == nil {
+				// NB(cw) this can only happen when the placement has been deleted
+				// it is safer to let the user keep using the old topology
+				c.logger.Infof("received placement update with nil value")
+				continue
+			}
 
 			newService, err := getServiceFromValue(value, sid)
 			if err != nil {
-				c.logger.Errorf("could not unmarshal update from kv store for placement, %v", err)
+				c.logger.Errorf("could not unmarshal update from kv store for placement on version %d, %v", value.Version(), err)
 				errCounter.Inc(1)
 				continue
 			}
@@ -444,7 +454,10 @@ func filterInstancesWithWatch(s services.Service, hbw xwatch.Watch) services.Ser
 
 func updateVersionGauge(vw kv.ValueWatch, versionGauge tally.Gauge) {
 	for range time.Tick(defaultGaugeInterval) {
-		versionGauge.Update(float64(vw.Get().Version()))
+		v := vw.Get()
+		if v != nil {
+			versionGauge.Update(float64(v.Version()))
+		}
 	}
 }
 

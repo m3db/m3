@@ -31,6 +31,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3cluster/etcd/watchmanager"
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
 	"github.com/uber-go/tally"
@@ -67,7 +68,7 @@ func NewStore(c *clientv3.Client, opts Options) (kv.Store, error) {
 			diskReadError:  scope.Counter("disk-read-error"),
 		},
 	}
-	whOptions := watchmanager.NewOptions().
+	wOpts := watchmanager.NewOptions().
 		SetWatcher(c.Watcher).
 		SetUpdateFn(store.update).
 		SetTickAndStopFn(store.tickAndStop).
@@ -83,12 +84,12 @@ func NewStore(c *clientv3.Client, opts Options) (kv.Store, error) {
 		SetWatchChanResetInterval(opts.WatchChanResetInterval()).
 		SetInstrumentsOptions(opts.InstrumentsOptions())
 
-	wh, err := watchmanager.NewWatchManager(whOptions)
+	wm, err := watchmanager.NewWatchManager(wOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	store.wh = wh
+	store.wm = wm
 
 	if store.cacheFile != "" {
 		if err := store.initCache(); err != nil {
@@ -120,7 +121,7 @@ type client struct {
 	cacheFile      string
 	cacheUpdatedCh chan struct{}
 
-	wh watchmanager.WatchManager
+	wm watchmanager.WatchManager
 }
 
 type clientMetrics struct {
@@ -241,7 +242,7 @@ func (c *client) Watch(key string) (kv.ValueWatch, error) {
 		watchable = kv.NewValueWatchable()
 		c.watchables[newKey] = watchable
 
-		go c.wh.Watch(newKey)
+		go c.wm.Watch(newKey)
 
 	}
 	c.Unlock()
@@ -263,7 +264,7 @@ func (c *client) update(key string) error {
 			return xretry.NonRetryableError(err)
 		}
 		return err
-	}); execErr != nil {
+	}); execErr != nil && xerrors.GetInnerNonRetryableError(execErr) != kv.ErrNotFound {
 		return execErr
 	}
 
@@ -275,10 +276,17 @@ func (c *client) update(key string) error {
 	}
 
 	curValue := w.Get()
-	if curValue == nil {
+	if curValue == nil && newValue == nil {
+		// nothing to update
+		return nil
+	}
+
+	if curValue == nil || newValue == nil {
+		// got the first value or received a delete update
 		return w.Update(newValue)
 	}
 
+	// now both curValue and newValue are valid, compare version
 	if newValue.(*value).isNewer(curValue.(*value)) {
 		return w.Update(newValue)
 	}
@@ -376,6 +384,37 @@ func (c *client) CheckAndSet(key string, version int, v proto.Message) (int, err
 	return version + 1, nil
 }
 
+func (c *client) Delete(key string) (kv.Value, error) {
+	ctx, cancel := c.context()
+	defer cancel()
+
+	key = c.opts.KeyFn()(key)
+
+	r, err := c.kv.Delete(ctx, key, clientv3.WithPrevKV())
+	if err != nil {
+		return nil, err
+	}
+
+	if r.Deleted == 0 {
+		return nil, kv.ErrNotFound
+	}
+
+	prevKV := newValue(r.PrevKvs[0].Value, r.PrevKvs[0].Version, r.PrevKvs[0].ModRevision)
+
+	c.deleteCache(key)
+
+	return prevKV, nil
+}
+
+func (c *client) deleteCache(key string) {
+	c.cache.Lock()
+
+	delete(c.cache.Values, key)
+	c.notifyCacheUpdate()
+
+	c.cache.Unlock()
+}
+
 func (c *client) getCache(key string) (kv.Value, bool) {
 	c.cache.RLock()
 	v, ok := c.cache.Values[key]
@@ -386,17 +425,21 @@ func (c *client) getCache(key string) (kv.Value, bool) {
 
 func (c *client) mergeCache(key string, v *value) {
 	c.cache.Lock()
-	defer c.cache.Unlock()
 
 	cur, ok := c.cache.Values[key]
 	if !ok || v.isNewer(cur) {
 		c.cache.Values[key] = v
+		c.notifyCacheUpdate()
+	}
 
-		// notify that cached data is updated
-		select {
-		case c.cacheUpdatedCh <- struct{}{}:
-		default:
-		}
+	c.cache.Unlock()
+}
+
+func (c *client) notifyCacheUpdate() {
+	// notify that cached data is updated
+	select {
+	case c.cacheUpdatedCh <- struct{}{}:
+	default:
 	}
 }
 

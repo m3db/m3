@@ -219,3 +219,23 @@ func TestHistory(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, len(vals))
 }
+
+func TestDelete(t *testing.T) {
+	s := NewStore()
+
+	_, err := s.Delete("foo")
+	require.Error(t, err)
+	require.Equal(t, kv.ErrNotFound, err)
+
+	s.Set("foo", &kvtest.Foo{
+		Msg: "bar1",
+	})
+
+	val, err := s.Delete("foo")
+	require.NoError(t, err)
+	require.Equal(t, 1, val.Version())
+
+	var read kvtest.Foo
+	require.NoError(t, val.Unmarshal(&read))
+	require.Equal(t, "bar1", read.Msg)
+}

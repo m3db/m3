@@ -194,6 +194,9 @@ type PlacementService interface {
 
 	// SetPlacement persists the placement
 	SetPlacement(p ServicePlacement) error
+
+	// Delete deletes the placement
+	Delete() error
 }
 
 // PlacementOptions is the interface for placement options

@@ -46,6 +46,10 @@ func TestPlacementStorage(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
+	err = ps.Delete(sid)
+	require.Error(t, err)
+	require.Equal(t, kv.ErrNotFound, err)
+
 	p := placement.NewPlacement().
 		SetInstances([]services.PlacementInstance{}).
 		SetShards([]uint32{}).
@@ -73,6 +77,21 @@ func TestPlacementStorage(t *testing.T) {
 	pGet, v, err = ps.Placement(sid)
 	require.NoError(t, err)
 	require.Equal(t, 2, v)
+	require.Equal(t, p, pGet)
+
+	err = ps.Delete(sid)
+	require.NoError(t, err)
+
+	_, _, err = ps.Placement(sid)
+	require.Error(t, err)
+	require.Equal(t, kv.ErrNotFound, err)
+
+	err = ps.SetIfNotExist(sid, p)
+	require.NoError(t, err)
+
+	pGet, v, err = ps.Placement(sid)
+	require.NoError(t, err)
+	require.Equal(t, 1, v)
 	require.Equal(t, p, pGet)
 
 	// different zone or different env are different services

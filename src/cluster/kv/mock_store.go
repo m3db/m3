@@ -275,6 +275,17 @@ func (_mr *_MockStoreRecorder) CheckAndSet(arg0, arg1, arg2 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CheckAndSet", arg0, arg1, arg2)
 }
 
+func (_m *MockStore) Delete(key string) (Value, error) {
+	ret := _m.ctrl.Call(_m, "Delete", key)
+	ret0, _ := ret[0].(Value)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockStoreRecorder) Delete(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete", arg0)
+}
+
 func (_m *MockStore) History(key string, from int, to int) ([]Value, error) {
 	ret := _m.ctrl.Call(_m, "History", key, from, to)
 	ret0, _ := ret[0].([]Value)
