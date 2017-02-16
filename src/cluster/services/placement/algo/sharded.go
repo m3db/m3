@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/shard"
 )
 
 var (
@@ -157,10 +158,14 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 }
 
 func (a rackAwarePlacementAlgorithm) addInstance(p services.ServicePlacement, addingInstance services.PlacementInstance) (services.ServicePlacement, error) {
-	if _, exist := p.Instance(addingInstance.ID()); exist {
-		return nil, errAddingInstanceAlreadyExist
-
+	if instance, exist := p.Instance(addingInstance.ID()); exist {
+		if !placement.IsInstanceLeaving(instance) {
+			return nil, errAddingInstanceAlreadyExist
+		}
+		p = a.moveLeavingShardsBack(p, instance)
+		addingInstance = instance
 	}
+
 	ph := newAddInstanceHelper(p, addingInstance, a.opts)
 	targetLoad := ph.TargetLoadForInstance(addingInstance.ID())
 	// try to take shards from the most loaded instances until the adding instance reaches target load
@@ -176,4 +181,24 @@ func (a rackAwarePlacementAlgorithm) addInstance(p services.ServicePlacement, ad
 	}
 
 	return ph.GeneratePlacement(), nil
+}
+
+func (a rackAwarePlacementAlgorithm) moveLeavingShardsBack(p services.ServicePlacement, source services.PlacementInstance) services.ServicePlacement {
+	ph := newAddInstanceHelper(p, source, a.opts)
+	instanceID := source.ID()
+	// since the instance does not know where did its shards go, we need to iterate the whole placement to find them
+	for _, other := range p.Instances() {
+		if other.ID() == instanceID {
+			continue
+		}
+		for _, s := range other.Shards().ShardsForState(shard.Initializing) {
+			if s.SourceID() == instanceID {
+				// NB(cw) in very rare case, the leaving shards could not be taken back
+				// but it's fine, the algo will fil up those load with other shards from the cluster
+				ph.MoveShard(s, other, source)
+			}
+		}
+	}
+
+	return ph.GeneratePlacement()
 }

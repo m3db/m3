@@ -334,8 +334,8 @@ func (ps placementService) findAddingInstance(
 	candidates []services.PlacementInstance,
 	opts services.PlacementOptions,
 ) (services.PlacementInstance, error) {
-	// filter out already existing instances
-	candidates = ps.getNewInstancesToPlacement(p, candidates, opts)
+	// filter out invalid instances
+	candidates = getValidCandidates(p, candidates, opts)
 
 	// build rack-instance map for candidate instances
 	candidateRackMap := buildRackMap(candidates)
@@ -377,8 +377,8 @@ func (ps placementService) findReplaceInstance(
 	candidates []services.PlacementInstance,
 	leaving services.PlacementInstance,
 ) ([]services.PlacementInstance, error) {
-	// filter out already existing instances
-	candidates = ps.getNewInstancesToPlacement(p, candidates, ps.opts)
+	// filter out invalid instances
+	candidates = getValidCandidates(p, candidates, ps.opts)
 
 	if len(candidates) == 0 {
 		return nil, errNoValidInstance
@@ -415,15 +415,20 @@ func (ps placementService) findReplaceInstance(
 	return result, nil
 }
 
-func (ps placementService) getNewInstancesToPlacement(
+func getValidCandidates(
 	p services.ServicePlacement,
 	candidates []services.PlacementInstance,
 	opts services.PlacementOptions,
 ) []services.PlacementInstance {
 	var instances []services.PlacementInstance
 	for _, h := range candidates {
-		if _, exist := p.Instance(h.ID()); !exist {
+		instanceInPlacement, exist := p.Instance(h.ID())
+		if !exist {
 			instances = append(instances, h)
+			continue
+		}
+		if placement.IsInstanceLeaving(instanceInPlacement) {
+			instances = append(instances, instanceInPlacement)
 		}
 	}
 	return filterZones(p, instances, opts)

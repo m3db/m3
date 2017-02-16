@@ -270,6 +270,29 @@ func TestDryrun(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestGetValidCandidates(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetZone("z")
+	i1.Shards().Add(shard.NewShard(0).SetState(shard.Available))
+
+	i2 := placement.NewInstance().SetID("i2").SetZone("z")
+	i2.Shards().Add(shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2"))
+
+	i3 := placement.NewInstance().SetID("i3").SetZone("z")
+	i3.Shards().Add(shard.NewShard(0).SetState(shard.Leaving))
+
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2, i3}).
+		SetIsSharded(true).
+		SetReplicaFactor(2).
+		SetShards([]uint32{0})
+
+	emptyI3 := placement.NewInstance().SetID("i3").SetZone("z3")
+	i4 := placement.NewInstance().SetID("i4").SetZone("z")
+	candidates := []services.PlacementInstance{i3, emptyI3, i1, i4}
+	res := getValidCandidates(p, candidates, placement.NewOptions())
+	assert.Equal(t, []services.PlacementInstance{i3, i3, i4}, res)
+}
+
 func TestBadInitialPlacement(t *testing.T) {
 	p := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions().SetIsSharded(false))
 
