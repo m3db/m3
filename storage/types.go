@@ -152,7 +152,7 @@ type databaseNamespace interface {
 	AssignShardSet(shardSet sharding.ShardSet)
 
 	// Tick performs any regular maintenance operations
-	Tick(softDeadline time.Duration)
+	Tick(softDeadline time.Duration, c context.Cancellable)
 
 	// Write writes a data point
 	Write(
@@ -234,7 +234,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
-	Tick(softDeadline time.Duration) tickResult
+	Tick(softDeadline time.Duration, c context.Cancellable) tickResult
 
 	Write(
 		ctx context.Context,
@@ -362,11 +362,20 @@ type databaseFileSystemManager interface {
 	databaseFlushManager
 	databaseCleanupManager
 
-	// ShouldRun determines if any file operations are needed for time t
-	ShouldRun(t time.Time) bool
+	// Disable disables the filesystem manager and prevents it from
+	// performing file operations, returns true if the file operations
+	// are in progress when called and false otherwise
+	Disable() bool
 
-	// Run performs all filesystem-related operations
-	Run(t time.Time, async bool)
+	// Enable enables the filesystem manager to perform file operations
+	Enable()
+
+	// IsRunning determines whether some file operations are in progress
+	IsRunning() bool
+
+	// Run attempts to perform all filesystem-related operations,
+	// returning true if those operations are performed, and false otherwise
+	Run(t time.Time, async bool, force bool) bool
 }
 
 // databaseShardRepairer repairs in-memory data for a shard
@@ -396,6 +405,32 @@ type databaseRepairer interface {
 
 	// IsRepairing returns whether the repairer is running or not
 	IsRepairing() bool
+}
+
+// databaseTickManager performs periodic ticking
+type databaseTickManager interface {
+	// Tick performs maintenance operations, restarting the current
+	// tick if force is true. It return true if a new tick has
+	// completed successfully, and false otherwise.
+	Tick(softDeadline time.Duration, force bool) bool
+}
+
+// databaseMediator mediates actions among various database managers
+type databaseMediator interface {
+	// Open opens the mediator
+	Open() error
+
+	// IsBootstrapped returns whether the database is bootstrapped
+	IsBootstrapped() bool
+
+	// Bootstrap bootstraps the database with file operations performed at the end
+	Bootstrap() error
+
+	// Repair repairs the database
+	Repair() error
+
+	// Close closes the mediator
+	Close() error
 }
 
 // NewBootstrapFn creates a new bootstrap

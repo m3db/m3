@@ -305,19 +305,20 @@ func (s *dbShard) Close() error {
 	// GC is not placed all at one time.  If the deadline is too low and still
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
-	s.tickAndExpire(s.opts.ShardCloseDeadline(), tickPolicyForceExpiry)
+	s.tickAndExpire(s.opts.ShardCloseDeadline(), tickPolicyForceExpiry, context.NoOpCancellable)
 
 	return nil
 }
 
-func (s *dbShard) Tick(softDeadline time.Duration) tickResult {
+func (s *dbShard) Tick(softDeadline time.Duration, c context.Cancellable) tickResult {
 	s.removeAnyFlushStatesTooEarly()
-	return s.tickAndExpire(softDeadline, tickPolicyRegular)
+	return s.tickAndExpire(softDeadline, tickPolicyRegular, c)
 }
 
 func (s *dbShard) tickAndExpire(
 	softDeadline time.Duration,
 	policy tickPolicy,
+	c context.Cancellable,
 ) tickResult {
 	var (
 		r                    tickResult
@@ -330,6 +331,9 @@ func (s *dbShard) tickAndExpire(
 	}
 	start := s.nowFn()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
+		if c.IsCancelled() {
+			return false
+		}
 		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
 			// If we are ahead of our our deadline then throttle tick
 			prevEntryDeadline := start.Add(time.Duration(i) * perEntrySoftDeadline)

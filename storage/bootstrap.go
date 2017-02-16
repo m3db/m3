@@ -72,11 +72,10 @@ type bootstrapManager struct {
 	newBootstrapFn NewBootstrapFn
 	state          bootstrapState
 	hasPending     bool
+	sleepFn        sleepFn
 }
 
-func newBootstrapManager(
-	database database,
-) databaseBootstrapManager {
+func newBootstrapManager(database database) databaseBootstrapManager {
 	opts := database.Options()
 	return &bootstrapManager{
 		database:       database,
@@ -84,6 +83,7 @@ func newBootstrapManager(
 		log:            opts.InstrumentOptions().Logger(),
 		nowFn:          opts.ClockOptions().NowFn(),
 		newBootstrapFn: opts.NewBootstrapFn(),
+		sleepFn:        time.Sleep,
 	}
 }
 
@@ -184,5 +184,6 @@ func (m *bootstrapManager) bootstrap() error {
 			xlog.NewLogField("duration", end.Sub(start).String()),
 		).Info("bootstrap finished")
 	}
+
 	return multiErr.FinalError()
 }
