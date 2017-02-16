@@ -593,29 +593,6 @@ func TestAddInstancesCouldNotReachTargetLoad(t *testing.T) {
 	assert.Nil(t, p1)
 }
 
-func TestAddExistInstance(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
-
-	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
-
-	instances := []services.PlacementInstance{i1, i2}
-
-	ids := make([]uint32, 1024)
-	for i := 0; i < len(ids); i++ {
-		ids[i] = uint32(i)
-	}
-
-	a := newShardedAlgorithm(placement.NewOptions())
-	p, err := a.InitialPlacement(instances, ids)
-	assert.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestAddExistInstance replica 1")
-
-	p1, err := a.AddInstance(p, i2)
-	assert.Error(t, err)
-	assert.Nil(t, p1)
-	assert.NoError(t, placement.Validate(p))
-}
-
 func TestRemoveAbsentInstance(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 
@@ -787,6 +764,98 @@ func TestAddInstance(t *testing.T) {
 		assert.Equal(t, shard.Initializing, s.State())
 		assert.Equal(t, "i1", s.SourceID())
 	}
+}
+
+func TestAddInstance_ExistNonLeaving(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+
+	instances := []services.PlacementInstance{i1, i2}
+
+	ids := make([]uint32, 10)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	a := newShardedAlgorithm(placement.NewOptions())
+	p, err := a.InitialPlacement(instances, ids)
+	assert.NoError(t, err)
+	validateDistribution(t, p, 1.01, "TestAddExistInstance replica 1")
+
+	p1, err := a.AddInstance(p, i2)
+	assert.Error(t, err)
+	assert.Nil(t, p1)
+	assert.NoError(t, placement.Validate(p))
+}
+
+func TestAddInstance_ExistAndLeaving(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+
+	instances := []services.PlacementInstance{i1, i2}
+
+	ids := make([]uint32, 10)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	a := newShardedAlgorithm(placement.NewOptions())
+	p, err := a.InitialPlacement(instances, ids)
+	assert.NoError(t, err)
+	validateDistribution(t, p, 1.01, "TestAddInstance_ExistAndLeaving replica 1")
+	p = markAllShardsAsAvailable(t, p)
+
+	p, err = a.RemoveInstance(p, "i2")
+	assert.NoError(t, err)
+
+	i2, ok := p.Instance("i2")
+	assert.True(t, ok)
+	assert.Equal(t, i2.Shards().NumShards(), i2.Shards().NumShardsForState(shard.Leaving))
+
+	p, err = a.AddInstance(p, i2)
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+}
+
+func TestAddInstance_ExistAndLeavingRackConflict(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetEndpoint("e1").SetRack("r1").SetZone("z1").SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Leaving),
+			shard.NewShard(1).SetState(shard.Leaving),
+			shard.NewShard(3).SetState(shard.Leaving),
+		}))
+	i2 := placement.NewInstance().SetID("i2").SetEndpoint("e2").SetRack("r1").SetZone("z2").SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Available),
+			shard.NewShard(1).SetState(shard.Available),
+		}))
+	i3 := placement.NewInstance().SetID("i3").SetEndpoint("e3").SetRack("r3").SetZone("z3").SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(2).SetState(shard.Available),
+			shard.NewShard(3).SetState(shard.Available),
+		}))
+	i4 := placement.NewInstance().SetID("i4").SetEndpoint("e4").SetRack("r4").SetZone("z4").SetWeight(1).
+		SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i1"),
+			shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"),
+			shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"),
+			shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"),
+		}))
+
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2, i3, i4}).
+		SetIsSharded(true).
+		SetReplicaFactor(2).
+		SetShards([]uint32{0, 1, 2, 3})
+
+	a := newShardedAlgorithm(placement.NewOptions())
+	p, err := a.AddInstance(p, i1)
+	assert.NoError(t, err)
+	i1, ok := p.Instance("i1")
+	assert.True(t, ok)
+	assert.Equal(t, 2, loadOnInstance(i1))
 }
 
 func TestRemoveInstance(t *testing.T) {
