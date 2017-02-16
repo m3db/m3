@@ -255,6 +255,19 @@ func TestDryrun(t *testing.T) {
 
 	_, v, _ = m.Placement(sid)
 	assert.Equal(t, 5, v)
+
+	err = dryrunPS.Delete()
+	assert.NoError(t, err)
+
+	_, v, err = m.Placement(sid)
+	assert.NoError(t, err)
+	assert.Equal(t, 5, v)
+
+	err = ps.Delete()
+	assert.NoError(t, err)
+
+	_, _, err = m.Placement(sid)
+	assert.Error(t, err)
 }
 
 func TestBadInitialPlacement(t *testing.T) {
@@ -655,16 +668,13 @@ func TestSetPlacement(t *testing.T) {
 		SetReplicaFactor(1).
 		SetIsSharded(true)
 
-	m := NewMockStorage()
-	err := NewPlacementService(m, testServiceID(), placement.NewOptions().SetDryrun(true)).SetPlacement(p)
+	ps := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
+	err := ps.SetPlacement(p)
 	assert.NoError(t, err)
-
-	ps := NewPlacementService(m, testServiceID(), placement.NewOptions())
-	err = ps.SetPlacement(p)
-	assert.NoError(t, err)
-	_, v, err := ps.Placement()
+	pGet, v, err := ps.Placement()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, v)
+	assert.Equal(t, p, pGet)
 
 	// validation error
 	err = ps.SetPlacement(placement.NewPlacement().
@@ -677,8 +687,46 @@ func TestSetPlacement(t *testing.T) {
 	err = ps.SetPlacement(p)
 	assert.NoError(t, err)
 
-	_, v, err = ps.Placement()
+	p, v, err = ps.Placement()
 	assert.Equal(t, 2, v)
+	assert.Equal(t, p, pGet)
+}
+
+func TestDeletePlacement(t *testing.T) {
+	m := NewMockStorage()
+
+	ps := NewPlacementService(m, testServiceID(), placement.NewOptions())
+
+	err := ps.Delete()
+	assert.Error(t, err)
+
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+
+	err = ps.SetPlacement(p)
+	assert.NoError(t, err)
+
+	_, v, err := ps.Placement()
+	assert.Equal(t, 1, v)
+
+	err = ps.Delete()
+	assert.NoError(t, err)
+
+	err = ps.Delete()
+	assert.Error(t, err)
+
+	err = ps.SetPlacement(p)
+	assert.NoError(t, err)
+
+	_, v, err = ps.Placement()
+	assert.Equal(t, 1, v)
 }
 
 func TestGroupInstancesByConflict(t *testing.T) {
@@ -918,6 +966,18 @@ func (ms *mockStorage) SetIfNotExist(service services.ServiceID, p services.Serv
 	}
 	ms.m[service.Name()] = p
 	ms.version = 1
+	return nil
+}
+
+func (ms *mockStorage) Delete(service services.ServiceID) error {
+	ms.Lock()
+	defer ms.Unlock()
+
+	if _, exist := ms.m[service.Name()]; !exist {
+		return errors.New("not exist")
+	}
+
+	delete(ms.m, service.Name())
 	return nil
 }
 

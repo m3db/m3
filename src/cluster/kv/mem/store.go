@@ -182,10 +182,29 @@ func (s *store) CheckAndSet(key string, version int, val proto.Message) (int, er
 	return newVersion, nil
 }
 
+func (s *store) Delete(key string) (kv.Value, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	val, ok := s.values[key]
+	if !ok {
+		return nil, kv.ErrNotFound
+	}
+
+	prev := val[len(val)-1]
+
+	return prev, nil
+}
+
 func (s *store) History(key string, from, to int) ([]kv.Value, error) {
 	if from <= 0 || to <= 0 || from > to {
 		return nil, errors.New("bad request")
 	}
+
+	if from == to {
+		return nil, nil
+	}
+
 	s.RLock()
 	defer s.RUnlock()
 

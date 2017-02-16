@@ -521,7 +521,110 @@ func TestHistory(t *testing.T) {
 		value := res[i]
 		verifyValue(t, value, fmt.Sprintf("bar%d", version), version)
 	}
+}
 
+func TestDelete(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store, err := NewStore(ec, opts)
+	require.NoError(t, err)
+
+	v, err := store.Delete("foo")
+	require.Error(t, err)
+	require.Equal(t, kv.ErrNotFound, err)
+
+	version, err := store.Set("foo", genProto("bar1"))
+	require.NoError(t, err)
+	require.Equal(t, 1, version)
+
+	version, err = store.Set("foo", genProto("bar2"))
+	require.NoError(t, err)
+	require.Equal(t, 2, version)
+
+	v, err = store.Get("foo")
+	require.NoError(t, err)
+	verifyValue(t, v, "bar2", 2)
+
+	v, err = store.Delete("foo")
+	require.NoError(t, err)
+	verifyValue(t, v, "bar2", 2)
+
+	v, err = store.Delete("foo")
+	require.Error(t, err)
+	require.Equal(t, kv.ErrNotFound, err)
+
+	v, err = store.Get("foo")
+	require.Error(t, err)
+	require.Equal(t, kv.ErrNotFound, err)
+
+	version, err = store.SetIfNotExists("foo", genProto("bar1"))
+	require.NoError(t, err)
+	require.Equal(t, 1, version)
+}
+
+func TestDelete_UpdateCache(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	c, err := NewStore(ec, opts)
+	require.NoError(t, err)
+
+	store := c.(*client)
+	version, err := store.Set("foo", genProto("bar1"))
+	require.NoError(t, err)
+	require.Equal(t, 1, version)
+
+	v, err := store.Get("foo")
+	require.NoError(t, err)
+	verifyValue(t, v, "bar1", 1)
+	require.Equal(t, 1, len(store.cache.Values))
+	require.Equal(t, 1, len(store.cacheUpdatedCh))
+
+	// drain the notification
+	<-store.cacheUpdatedCh
+
+	v, err = store.Delete("foo")
+	require.NoError(t, err)
+	verifyValue(t, v, "bar1", 1)
+	// make sure the cache is cleaned up
+	require.Equal(t, 0, len(store.cache.Values))
+	require.Equal(t, 1, len(store.cacheUpdatedCh))
+}
+
+func TestDelete_TriggerWatch(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store, err := NewStore(ec, opts)
+	require.NoError(t, err)
+
+	vw, err := store.Watch("foo")
+	require.NoError(t, err)
+
+	_, err = store.Set("foo", genProto("bar1"))
+	require.NoError(t, err)
+
+	<-vw.C()
+	verifyValue(t, vw.Get(), "bar1", 1)
+
+	_, err = store.Set("foo", genProto("bar2"))
+	require.NoError(t, err)
+
+	<-vw.C()
+	verifyValue(t, vw.Get(), "bar2", 2)
+
+	_, err = store.Delete("foo")
+	require.NoError(t, err)
+
+	<-vw.C()
+	require.Nil(t, vw.Get())
+
+	_, err = store.Set("foo", genProto("bar3"))
+	require.NoError(t, err)
+
+	<-vw.C()
+	verifyValue(t, vw.Get(), "bar3", 1)
 }
 
 func verifyValue(t *testing.T, v kv.Value, value string, version int) {

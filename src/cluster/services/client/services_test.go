@@ -393,14 +393,14 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 3, v)
 
 	// make sure the newly set bad value has been propagated to watches
-	w2, err := kvm.kv.Watch(placementKey(sid))
+	testWatch, err := kvm.kv.Watch(placementKey(sid))
 	require.NoError(t, err)
-	for range w2.C() {
-		if w2.Get().Version() == 3 {
+	for range testWatch.C() {
+		if testWatch.Get().Version() == 3 {
 			break
 		}
 	}
-	w2.Close()
+	testWatch.Close()
 
 	// make sure the bad value has been ignored
 	s = w.Get().(services.Service)
@@ -408,6 +408,38 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 2, len(s.Instances()))
 	require.Equal(t, 2, s.Sharding().NumShards())
 	require.Equal(t, 1, s.Replication().Replicas())
+
+	// delete the placement
+	err = ps.Delete()
+	require.NoError(t, err)
+
+	select {
+	case <-w.C():
+		require.Fail(t, "should not receive notification on delete")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	p = placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint("e1").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0)})),
+		}).
+		SetShards([]uint32{0}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+
+	err = ps.SetPlacement(p)
+	require.NoError(t, err)
+
+	// when the next valid placement came through, the watch will be updated
+	<-w.C()
+	s = w.Get().(services.Service)
+	require.Equal(t, 1, len(s.Instances()))
+	require.Equal(t, 1, s.Sharding().NumShards())
+	require.Equal(t, 1, s.Replication().Replicas())
+	require.Equal(t, true, s.Sharding().IsSharded())
 
 	w.Close()
 }
@@ -461,11 +493,11 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	mockHB, ok := m.getMockStore("zone1")
 	require.True(t, ok)
 
-	watchable, ok := mockHB.getWatchable(serviceKey(sid))
+	hbWatchable, ok := mockHB.getWatchable(serviceKey(sid))
 	require.True(t, ok)
 
 	// heartbeat
-	watchable.Update([]string{"i1"})
+	hbWatchable.Update([]string{"i1"})
 	<-w.C()
 	s = w.Get().(services.Service)
 	require.Equal(t, 1, len(s.Instances()))
@@ -474,14 +506,14 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	watchable.Update([]string{"i1", "i2"})
+	hbWatchable.Update([]string{"i1", "i2"})
 	<-w.C()
 	s = w.Get().(services.Service)
 	require.Equal(t, 2, len(s.Instances()))
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	watchable.Update([]string{})
+	hbWatchable.Update([]string{})
 
 	<-w.C()
 	s = w.Get().(services.Service)
@@ -489,7 +521,7 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	watchable.Update([]string{"i2"})
+	hbWatchable.Update([]string{"i2"})
 
 	<-w.C()
 	s = w.Get().(services.Service)
@@ -511,14 +543,14 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 2, v)
 
 	// make sure the newly set bad value has been propagated to watches
-	w2, err := kvm.kv.Watch(placementKey(sid))
+	testWatch, err := kvm.kv.Watch(placementKey(sid))
 	require.NoError(t, err)
-	for range w2.C() {
-		if w2.Get().Version() == 2 {
+	for range testWatch.C() {
+		if testWatch.Get().Version() == 2 {
 			break
 		}
 	}
-	w2.Close()
+	testWatch.Close()
 
 	// make sure the bad value has been ignored
 	require.Equal(t, 0, len(w.C()))
@@ -529,8 +561,8 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 2, s.Replication().Replicas())
 
 	// now receive a update from heartbeat Store
-	// will try to merge it with existing placement
-	watchable.Update([]string{"i1", "i2"})
+	// will try to merge it with existing valid placement
+	hbWatchable.Update([]string{"i1", "i2"})
 
 	<-w.C()
 	s = w.Get().(services.Service)
@@ -538,7 +570,48 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.True(t, s.Sharding().IsSharded())
 	require.Equal(t, 2, s.Replication().Replicas())
-	w.Close()
+
+	// delete the placement
+	err = ps.Delete()
+	require.NoError(t, err)
+
+	select {
+	case <-w.C():
+		require.Fail(t, "should not receive notification on delete")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	// the heartbeat update will be merged with the last known valid placement
+	hbWatchable.Update([]string{"i1", "i2"})
+
+	<-w.C()
+	s = w.Get().(services.Service)
+	require.Equal(t, 2, len(s.Instances()))
+	require.Equal(t, 1, s.Sharding().NumShards())
+	require.True(t, s.Sharding().IsSharded())
+	require.Equal(t, 2, s.Replication().Replicas())
+
+	p = placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint("e1").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0)})),
+		}).
+		SetShards([]uint32{0}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+
+	err = ps.SetPlacement(p)
+	require.NoError(t, err)
+
+	// when the next valid placement came through, the watch will be updated
+	<-w.C()
+	s = w.Get().(services.Service)
+	require.Equal(t, 1, len(s.Instances()))
+	require.Equal(t, 1, s.Sharding().NumShards())
+	require.Equal(t, 1, s.Replication().Replicas())
+	require.Equal(t, true, s.Sharding().IsSharded())
 }
 
 func TestMultipleWatches(t *testing.T) {

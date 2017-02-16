@@ -50,7 +50,8 @@ type placementService struct {
 
 // NewPlacementService returns an instance of placement service
 func NewPlacementService(ss placement.Storage, service services.ServiceID, opts services.PlacementOptions) services.PlacementService {
-	return placementService{ss: ss,
+	return placementService{
+		ss:      ss,
 		service: service,
 		opts:    opts,
 		algo:    algo.NewAlgorithm(opts),
@@ -303,6 +304,15 @@ func (ps placementService) SetPlacement(p services.ServicePlacement) error {
 	}
 
 	return ps.ss.CheckAndSet(ps.service, p, v)
+}
+
+func (ps placementService) Delete() error {
+	if ps.opts.Dryrun() {
+		ps.logger.Info("this is a dryrun, the placement is not deleted")
+		return nil
+	}
+
+	return ps.ss.Delete(ps.service)
 }
 
 func (ps placementService) validateInitInstances(instances []services.PlacementInstance) error {

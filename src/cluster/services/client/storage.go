@@ -83,6 +83,20 @@ func (s *client) SetIfNotExist(sid services.ServiceID, p services.ServicePlaceme
 	return err
 }
 
+func (s *client) Delete(sid services.ServiceID) error {
+	if err := validateServiceID(sid); err != nil {
+		return err
+	}
+
+	kvm, err := s.getKVManager(sid.Zone())
+	if err != nil {
+		return err
+	}
+
+	_, err = kvm.kv.Delete(placementKey(sid))
+	return err
+}
+
 func (s *client) Placement(sid services.ServiceID) (services.ServicePlacement, int, error) {
 	if err := validateServiceID(sid); err != nil {
 		return nil, 0, err

@@ -96,6 +96,9 @@ type Store interface {
 	// matches the provided version
 	CheckAndSet(key string, version int, v proto.Message) (int, error)
 
+	// Delete deletes a key in the store and returns the last value before deletion
+	Delete(key string) (Value, error)
+
 	// History returns the value for a key in version range [from, to)
 	History(key string, from, to int) ([]Value, error)
 }

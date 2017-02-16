@@ -863,6 +863,16 @@ func (_mr *_MockPlacementServiceRecorder) SetPlacement(arg0 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacement", arg0)
 }
 
+func (_m *MockPlacementService) Delete() error {
+	ret := _m.ctrl.Call(_m, "Delete")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockPlacementServiceRecorder) Delete() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete")
+}
+
 // Mock of PlacementOptions interface
 type MockPlacementOptions struct {
 	ctrl     *gomock.Controller

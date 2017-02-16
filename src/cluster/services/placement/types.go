@@ -54,6 +54,9 @@ type Storage interface {
 	// SetIfNotExist writes a placement for a service
 	SetIfNotExist(service services.ServiceID, p services.ServicePlacement) error
 
+	// Delete deletes the placement for a service
+	Delete(service services.ServiceID) error
+
 	// Placement reads placement and version for a service
 	Placement(service services.ServiceID) (services.ServicePlacement, int, error)
 }

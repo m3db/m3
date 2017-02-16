@@ -67,7 +67,7 @@ func NewStore(c *clientv3.Client, opts Options) (heartbeat.Store, error) {
 		watcher: c.Watcher,
 	}
 
-	whOptions := watchmanager.NewOptions().
+	wOpts := watchmanager.NewOptions().
 		SetWatcher(c.Watcher).
 		SetUpdateFn(store.update).
 		SetTickAndStopFn(store.tickAndStop).
@@ -86,12 +86,12 @@ func NewStore(c *clientv3.Client, opts Options) (heartbeat.Store, error) {
 		SetWatchChanResetInterval(opts.WatchChanResetInterval()).
 		SetInstrumentsOptions(opts.InstrumentsOptions())
 
-	wh, err := watchmanager.NewWatchManager(whOptions)
+	wm, err := watchmanager.NewWatchManager(wOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	store.wh = wh
+	store.wm = wm
 
 	return store, nil
 }
@@ -110,7 +110,7 @@ type client struct {
 	kv      clientv3.KV
 	watcher clientv3.Watcher
 
-	wh watchmanager.WatchManager
+	wm watchmanager.WatchManager
 }
 
 type clientMetrics struct {
@@ -198,7 +198,7 @@ func (c *client) Watch(service string) (xwatch.Watch, error) {
 		watchable = xwatch.NewWatchable()
 		c.watchables[serviceKey] = watchable
 
-		go c.wh.Watch(serviceKey)
+		go c.wm.Watch(serviceKey)
 	}
 	c.Unlock()
 
