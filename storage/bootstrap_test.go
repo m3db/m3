@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 
@@ -55,12 +54,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	}
 
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
-	rateLimitOpts := ratelimit.NewOptions()
-	fsm := NewMockdatabaseFileSystemManager(ctrl)
-	fsm.EXPECT().RateLimitOptions().Return(rateLimitOpts)
-	fsm.EXPECT().Run(now, false)
-	fsm.EXPECT().SetRateLimitOptions(gomock.Any()).Times(2)
-	bsm := newBootstrapManager(db, fsm).(*bootstrapManager)
+	bsm := newBootstrapManager(db).(*bootstrapManager)
 	err := bsm.Bootstrap()
 
 	require.NotNil(t, err)
@@ -89,7 +83,7 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 
 	db := &mockDatabase{opts: opts}
 
-	bsm := newBootstrapManager(db, nil).(*bootstrapManager)
+	bsm := newBootstrapManager(db).(*bootstrapManager)
 	ranges := bsm.targetRanges(now)
 
 	var all [][]time.Time

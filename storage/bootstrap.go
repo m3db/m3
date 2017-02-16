@@ -72,12 +72,10 @@ type bootstrapManager struct {
 	newBootstrapFn NewBootstrapFn
 	state          bootstrapState
 	hasPending     bool
-	fsManager      databaseFileSystemManager
 }
 
 func newBootstrapManager(
 	database database,
-	fsManager databaseFileSystemManager,
 ) databaseBootstrapManager {
 	opts := database.Options()
 	return &bootstrapManager{
@@ -86,7 +84,6 @@ func newBootstrapManager(
 		log:            opts.InstrumentOptions().Logger(),
 		nowFn:          opts.ClockOptions().NowFn(),
 		newBootstrapFn: opts.NewBootstrapFn(),
-		fsManager:      fsManager,
 	}
 }
 

@@ -206,7 +206,7 @@ func NewDatabase(
 	}
 	d.fsm = fsm
 
-	d.bsm = newBootstrapManager(d, d.fsm)
+	d.bsm = newBootstrapManager(d)
 
 	if opts.RepairEnabled() {
 		d.repairer, err = newDatabaseRepairer(d)
