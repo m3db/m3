@@ -174,21 +174,6 @@ func TestAssignShard(t *testing.T) {
 	assert.True(t, ph.canAssignInstance(2, i6, i3))
 }
 
-func TestIsInstanceLeaving(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
-	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	assert.False(t, isInstanceLeaving(i1))
-
-	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
-	assert.False(t, isInstanceLeaving(i1))
-
-	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
-	assert.True(t, isInstanceLeaving(i1))
-
-	i1.SetShards(shard.NewShards(nil))
-	assert.False(t, isInstanceLeaving(i1))
-}
-
 func TestNonLeavingInstances(t *testing.T) {
 	instances := []services.PlacementInstance{
 		placement.NewInstance().
