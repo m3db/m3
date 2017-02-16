@@ -312,6 +312,21 @@ func TestInstance(t *testing.T) {
 	assert.Equal(t, "rack", i1.Rack())
 }
 
+func TestIsInstanceLeaving(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	assert.False(t, IsInstanceLeaving(i1))
+
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	assert.False(t, IsInstanceLeaving(i1))
+
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	assert.True(t, IsInstanceLeaving(i1))
+
+	i1.SetShards(shard.NewShards(nil))
+	assert.False(t, IsInstanceLeaving(i1))
+}
+
 func TestSortInstanceByID(t *testing.T) {
 	i1 := NewEmptyInstance("i1", "", "", "endpoint", 1)
 	i2 := NewEmptyInstance("i2", "", "", "endpoint", 1)

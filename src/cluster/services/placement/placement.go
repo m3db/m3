@@ -278,6 +278,19 @@ func (i *instance) SetShards(s shard.Shards) services.PlacementInstance {
 	return i
 }
 
+// IsInstanceLeaving checks if all the shards on the instance is in Leaving state
+func IsInstanceLeaving(instance services.PlacementInstance) bool {
+	newInstance := true
+	for _, s := range instance.Shards().All() {
+		if s.State() != shard.Leaving {
+			return false
+		}
+		newInstance = false
+
+	}
+	return !newInstance
+}
+
 // ByIDAscending sorts PlacementInstance by ID ascending
 type ByIDAscending []services.PlacementInstance
 

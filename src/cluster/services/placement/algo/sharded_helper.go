@@ -203,7 +203,7 @@ func (ph *placementHelper) returnInitializingShardsToSource(shardSet map[uint32]
 		if !ok {
 			return fmt.Errorf("could not find sourceID %s in the placement", sourceID)
 		}
-		if isInstanceLeaving(sourceInstance) {
+		if placement.IsInstanceLeaving(sourceInstance) {
 			continue
 		}
 		if ph.MoveShard(s, from, sourceInstance) {
@@ -621,25 +621,13 @@ func loadOnInstance(instance services.PlacementInstance) int {
 func nonLeavingInstances(instances []services.PlacementInstance) []services.PlacementInstance {
 	r := make([]services.PlacementInstance, 0, len(instances))
 	for _, instance := range instances {
-		if isInstanceLeaving(instance) {
+		if placement.IsInstanceLeaving(instance) {
 			continue
 		}
 		r = append(r, instance)
 	}
 
 	return r
-}
-
-func isInstanceLeaving(instance services.PlacementInstance) bool {
-	newInstance := true
-	for _, s := range instance.Shards().All() {
-		if s.State() != shard.Leaving {
-			return false
-		}
-		newInstance = false
-
-	}
-	return !newInstance
 }
 
 func newShards(shardIDs []uint32) []shard.Shard {
