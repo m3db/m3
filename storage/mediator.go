@@ -34,7 +34,7 @@ type mediatorState int
 
 const (
 	fileOpCheckInterval = time.Second
-	numOngoingTasks     = 2
+	tickCheckInterval   = 5 * time.Second
 
 	mediatorNotOpen mediatorState = iota
 	mediatorOpen
@@ -80,37 +80,34 @@ type mediator struct {
 
 func newMediator(database database, opts Options) (databaseMediator, error) {
 	scope := opts.InstrumentOptions().MetricsScope()
+	d := &mediator{
+		opts:     opts,
+		nowFn:    opts.ClockOptions().NowFn(),
+		sleepFn:  time.Sleep,
+		metrics:  newMediatorMetrics(scope),
+		state:    mediatorNotOpen,
+		closedCh: make(chan struct{}),
+	}
+
 	fsm, err := newFileSystemManager(database, scope)
 	if err != nil {
 		return nil, err
 	}
+	d.databaseFileSystemManager = fsm
 
-	bsm := newBootstrapManager(database)
-	tm := newTickManager(database)
-
-	var repairer databaseRepairer
 	if opts.RepairEnabled() {
 		var err error
-		repairer, err = newDatabaseRepairer(database)
+		d.databaseRepairer, err = newDatabaseRepairer(database)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		repairer = newNoopDatabaseRepairer()
+		d.databaseRepairer = newNoopDatabaseRepairer()
 	}
 
-	return &mediator{
-		databaseBootstrapManager:  bsm,
-		databaseFileSystemManager: fsm,
-		databaseTickManager:       tm,
-		databaseRepairer:          repairer,
-		opts:                      opts,
-		nowFn:                     opts.ClockOptions().NowFn(),
-		sleepFn:                   time.Sleep,
-		metrics:                   newMediatorMetrics(scope),
-		state:                     mediatorNotOpen,
-		closedCh:                  make(chan struct{}),
-	}, nil
+	d.databaseTickManager = newTickManager(database)
+	d.databaseBootstrapManager = newBootstrapManager(database, d)
+	return d, nil
 }
 
 func (m *mediator) Open() error {
@@ -126,31 +123,29 @@ func (m *mediator) Open() error {
 	return nil
 }
 
-func (m *mediator) IsBootstrapped() bool {
-	return m.databaseBootstrapManager.IsBootstrapped()
-}
-
-func (m *mediator) Bootstrap() error {
-	// NB(xichen): disable filesystem manager before we bootstrap to minimize
-	// the impact of file operations on node performance
+func (m *mediator) DisableFileOps() {
 	fileOpInProgess := m.databaseFileSystemManager.Disable()
-	defer m.databaseFileSystemManager.Enable()
-
-	// Wait for in-flight file operations to finish before we proceed
-	// with bootstrapping
 	for fileOpInProgess {
 		m.sleepFn(fileOpCheckInterval)
 		fileOpInProgess = m.databaseFileSystemManager.IsRunning()
 	}
-
-	// Perform file operations after bootstrapping
-	err := m.databaseBootstrapManager.Bootstrap()
-	m.tickWithFileOp(0, false, true)
-	return err
 }
 
-func (m *mediator) Repair() error {
-	return m.databaseRepairer.Repair()
+func (m *mediator) EnableFileOps() {
+	m.databaseFileSystemManager.Enable()
+}
+
+func (m *mediator) Tick(softDeadline time.Duration, asyncFileOp bool, force bool) error {
+	start := m.nowFn()
+	if err := m.databaseTickManager.Tick(softDeadline, force); err != nil {
+		return err
+	}
+	// NB(r): Cleanup and/or flush if required to cleanup files and/or
+	// flush blocks to disk. Note this has to run after the tick as
+	// blocks may only have just become available during a tick beginning
+	// from the tick begin marker.
+	m.databaseFileSystemManager.Run(start, asyncFileOp, force)
+	return nil
 }
 
 func (m *mediator) Close() error {
@@ -175,25 +170,15 @@ func (m *mediator) ongoingTick() {
 		case <-m.closedCh:
 			return
 		default:
-			m.tickWithFileOp(m.opts.RetentionOptions().BufferDrain(), true, false)
+			// NB(xichen): if we attempt to tick while another tick
+			// is in progress, throttle a little to avoid constantly
+			// checking whether the ongoing tick is finished
+			err := m.Tick(m.opts.RetentionOptions().BufferDrain(), true, false)
+			if err == errTickInProgress {
+				m.sleepFn(tickCheckInterval)
+			}
 		}
 	}
-}
-
-func (m *mediator) tickWithFileOp(
-	softDeadline time.Duration,
-	asyncFileOp bool,
-	force bool,
-) {
-	start := m.nowFn()
-	if !m.databaseTickManager.Tick(softDeadline, force) {
-		return
-	}
-	// NB(r): Cleanup and/or flush if required to cleanup files and/or
-	// flush blocks to disk. Note this has to run after the tick as
-	// blocks may only have just become available during a tick beginning
-	// from the tick begin marker.
-	m.databaseFileSystemManager.Run(start, asyncFileOp, force)
 }
 
 func (m *mediator) reportLoop() {

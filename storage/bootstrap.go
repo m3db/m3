@@ -66,6 +66,7 @@ type bootstrapManager struct {
 	sync.RWMutex
 
 	database       database
+	mediator       databaseMediator
 	opts           Options
 	log            xlog.Logger
 	nowFn          clock.NowFn
@@ -75,10 +76,14 @@ type bootstrapManager struct {
 	sleepFn        sleepFn
 }
 
-func newBootstrapManager(database database) databaseBootstrapManager {
+func newBootstrapManager(
+	database database,
+	mediator databaseMediator,
+) databaseBootstrapManager {
 	opts := database.Options()
 	return &bootstrapManager{
 		database:       database,
+		mediator:       mediator,
 		opts:           opts,
 		log:            opts.InstrumentOptions().Logger(),
 		nowFn:          opts.ClockOptions().NowFn(),
@@ -139,6 +144,11 @@ func (m *bootstrapManager) Bootstrap() error {
 	}
 	m.Unlock()
 
+	// NB(xichen): disable filesystem manager before we bootstrap to minimize
+	// the impact of file operations on bootstrapping performance
+	m.mediator.DisableFileOps()
+	defer m.mediator.EnableFileOps()
+
 	// Keep performing bootstraps until none pending
 	multiErr := xerrors.NewMultiError()
 	for {
@@ -161,6 +171,9 @@ func (m *bootstrapManager) Bootstrap() error {
 			break
 		}
 	}
+
+	// Forcing a tick to perform necessary file operations
+	m.mediator.Tick(0, false, true)
 
 	return multiErr.FinalError()
 }

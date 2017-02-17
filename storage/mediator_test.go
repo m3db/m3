@@ -53,7 +53,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	m.databaseFileSystemManager = fsm
 
 	deadline := opts.RetentionOptions().BufferDrain()
-	tm.EXPECT().Tick(deadline, false).Return(true).AnyTimes()
+	tm.EXPECT().Tick(deadline, false).Return(nil).AnyTimes()
 	fsm.EXPECT().Run(now, true, false).AnyTimes()
 
 	require.Equal(t, errMediatorNotOpen, m.Close())
@@ -65,7 +65,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	require.Equal(t, errMediatorAlreadyClosed, m.Close())
 }
 
-func TestDatabaseBootstrapWithFileOpInProgess(t *testing.T) {
+func TestDatabaseMediatorDisableFileOps(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -82,26 +82,18 @@ func TestDatabaseBootstrapWithFileOpInProgess(t *testing.T) {
 	require.NoError(t, err)
 
 	m := med.(*mediator)
-	bsm := NewMockdatabaseBootstrapManager(ctrl)
-	tm := NewMockdatabaseTickManager(ctrl)
 	fsm := NewMockdatabaseFileSystemManager(ctrl)
-	m.databaseBootstrapManager = bsm
-	m.databaseTickManager = tm
 	m.databaseFileSystemManager = fsm
 	var slept []time.Duration
 	m.sleepFn = func(d time.Duration) { slept = append(slept, d) }
 
-	fsm.EXPECT().Disable().Return(true)
-	fsm.EXPECT().Enable().AnyTimes()
 	gomock.InOrder(
+		fsm.EXPECT().Disable().Return(true),
 		fsm.EXPECT().IsRunning().Return(true),
 		fsm.EXPECT().IsRunning().Return(true),
 		fsm.EXPECT().IsRunning().Return(false),
-		fsm.EXPECT().Run(now, false, true),
 	)
-	bsm.EXPECT().Bootstrap().Return(nil)
-	tm.EXPECT().Tick(time.Duration(0), true).Return(true)
 
-	require.Nil(t, m.Bootstrap())
+	m.DisableFileOps()
 	require.Equal(t, 3, len(slept))
 }

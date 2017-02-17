@@ -410,9 +410,9 @@ type databaseRepairer interface {
 // databaseTickManager performs periodic ticking
 type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
-	// tick if force is true. It return true if a new tick has
-	// completed successfully, and false otherwise.
-	Tick(softDeadline time.Duration, force bool) bool
+	// tick if force is true. It returns nil if a new tick has
+	// completed successfully, and an error otherwise.
+	Tick(softDeadline time.Duration, force bool) error
 }
 
 // databaseMediator mediates actions among various database managers
@@ -425,6 +425,15 @@ type databaseMediator interface {
 
 	// Bootstrap bootstraps the database with file operations performed at the end
 	Bootstrap() error
+
+	// DisableFileOps disables file operations
+	DisableFileOps()
+
+	// EnableFileOps enables file operations
+	EnableFileOps()
+
+	// Tick performs a tick
+	Tick(softDeadline time.Duration, asyncFileOp bool, force bool) error
 
 	// Repair repairs the database
 	Repair() error

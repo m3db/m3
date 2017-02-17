@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -31,7 +32,14 @@ import (
 )
 
 const (
-	defaultTickCheckInterval = time.Second
+	tokenCheckInterval        = time.Second
+	cancellationCheckInterval = time.Second
+)
+
+var (
+	errEmptyNamespaces = errors.New("empty namespaces")
+	errTickInProgress  = errors.New("another tick is in progress")
+	errTickCancelled   = errors.New("tick is cancelled")
 )
 
 type tickManagerMetrics struct {
@@ -78,7 +86,7 @@ func newTickManager(database database) databaseTickManager {
 	}
 }
 
-func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) bool {
+func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) error {
 	acquired := false
 	select {
 	case mgr.tokenCh <- struct{}{}:
@@ -86,14 +94,14 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) bool {
 	default:
 		// If there is an ongoing tick and ticking is not forced, return immediately
 		if !force {
-			return false
+			return errTickInProgress
 		}
 	}
 
 	// Otherwise if not acquired, it means this is a forced tick so we attempt to
 	// cancel and re-acquire
 	if !acquired {
-		tick := time.NewTicker(defaultTickCheckInterval)
+		tick := time.NewTicker(tokenCheckInterval)
 		for {
 			select {
 			case mgr.tokenCh <- struct{}{}:
@@ -115,7 +123,7 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) bool {
 	mgr.c.Reset()
 	namespaces := mgr.database.getOwnedNamespaces()
 	if len(namespaces) == 0 {
-		return false
+		return errEmptyNamespaces
 	}
 
 	// Begin ticking
@@ -128,10 +136,6 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) bool {
 		totalSize += size
 	}
 	for i, n := range namespaces {
-		if mgr.c.IsCancelled() {
-			mgr.metrics.tickCancelled.Inc(1)
-			return false
-		}
 		deadline := float64(softDeadline) * (float64(sizes[i]) / float64(totalSize))
 		n.Tick(time.Duration(deadline), mgr.c)
 	}
@@ -144,13 +148,19 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) bool {
 		mgr.metrics.tickDeadlineMissed.Inc(1)
 	} else {
 		mgr.metrics.tickDeadlineMet.Inc(1)
-		if mgr.c.IsCancelled() {
-			mgr.metrics.tickCancelled.Inc(1)
-			return false
-		}
+
 		// Throttle to reduce locking overhead during ticking
-		mgr.sleepFn(softDeadline - duration)
+		for d := time.Duration(0); d < softDeadline-duration; d += cancellationCheckInterval {
+			if mgr.c.IsCancelled() {
+				break
+			}
+			mgr.sleepFn(cancellationCheckInterval)
+		}
 	}
 
-	return true
+	if mgr.c.IsCancelled() {
+		mgr.metrics.tickCancelled.Inc(1)
+		return errTickCancelled
+	}
+	return nil
 }

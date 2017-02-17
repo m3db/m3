@@ -51,7 +51,7 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 
-	require.True(t, tm.Tick(d, false))
+	require.NoError(t, tm.Tick(d, false))
 	require.Equal(t, 0, len(tm.tokenCh))
 }
 
@@ -85,7 +85,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.False(t, tm.Tick(d, false))
+		require.Equal(t, errTickCancelled, tm.Tick(d, false))
 		require.Equal(t, 0, len(tm.tokenCh))
 	}()
 
@@ -126,12 +126,12 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.True(t, tm.Tick(d, false))
+		require.NoError(t, tm.Tick(d, false))
 	}()
 
 	// Wait for tick to start
 	<-ch1
-	require.False(t, tm.Tick(d, false))
+	require.Equal(t, errTickInProgress, tm.Tick(d, false))
 
 	ch2 <- struct{}{}
 	wg.Wait()
@@ -173,7 +173,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.False(t, tm.Tick(d, false))
+		require.Equal(t, errTickCancelled, tm.Tick(d, false))
 	}()
 
 	go func() {
@@ -181,7 +181,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 
 		// Wait for tick to start
 		<-ch1
-		require.True(t, tm.Tick(d, true))
+		require.NoError(t, tm.Tick(d, true))
 	}()
 
 	go func() {
