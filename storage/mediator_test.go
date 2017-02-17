@@ -31,9 +31,6 @@ import (
 )
 
 func TestDatabaseMediatorOpenClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	opts := testDatabaseOptions().SetRepairEnabled(false)
 	now := time.Now()
 	opts = opts.SetNewBootstrapFn(func() bootstrap.Bootstrap {
@@ -43,18 +40,8 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	}))
 
 	db := &mockDatabase{opts: opts}
-	med, err := newMediator(db, opts)
+	m, err := newMediator(db, opts)
 	require.NoError(t, err)
-
-	m := med.(*mediator)
-	tm := NewMockdatabaseTickManager(ctrl)
-	fsm := NewMockdatabaseFileSystemManager(ctrl)
-	m.databaseTickManager = tm
-	m.databaseFileSystemManager = fsm
-
-	deadline := opts.RetentionOptions().BufferDrain()
-	tm.EXPECT().Tick(deadline, false).Return(nil).AnyTimes()
-	fsm.EXPECT().Run(now, true, false).AnyTimes()
 
 	require.Equal(t, errMediatorNotOpen, m.Close())
 
