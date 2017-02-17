@@ -46,6 +46,7 @@ type placement struct {
 	rf        int
 	shards    []uint32
 	isSharded bool
+	version   int
 }
 
 func (p *placement) Instances() []services.PlacementInstance {
@@ -103,6 +104,15 @@ func (p *placement) IsSharded() bool {
 
 func (p *placement) SetIsSharded(v bool) services.ServicePlacement {
 	p.isSharded = v
+	return p
+}
+
+func (p *placement) GetVersion() int {
+	return p.version
+}
+
+func (p *placement) SetVersion(v int) services.ServicePlacement {
+	p.version = v
 	return p
 }
 

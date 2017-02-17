@@ -1136,6 +1136,26 @@ func (_mr *_MockServicePlacementRecorder) String() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "String")
 }
 
+func (_m *MockServicePlacement) GetVersion() int {
+	ret := _m.ctrl.Call(_m, "GetVersion")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockServicePlacementRecorder) GetVersion() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetVersion")
+}
+
+func (_m *MockServicePlacement) SetVersion(v int) ServicePlacement {
+	ret := _m.ctrl.Call(_m, "SetVersion", v)
+	ret0, _ := ret[0].(ServicePlacement)
+	return ret0
+}
+
+func (_mr *_MockServicePlacementRecorder) SetVersion(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetVersion", arg0)
+}
+
 // Mock of PlacementInstance interface
 type MockPlacementInstance struct {
 	ctrl     *gomock.Controller

@@ -341,6 +341,14 @@ func TestSortInstanceByID(t *testing.T) {
 	assert.Equal(t, []services.PlacementInstance{i1, i2, i3, i4, i5, i6}, i)
 }
 
+func TestVersion(t *testing.T) {
+	p1 := NewPlacement()
+	assert.Equal(t, 0, p1.GetVersion())
+
+	p1 = p1.SetVersion(100)
+	assert.Equal(t, 100, p1.GetVersion())
+}
+
 func TestOptions(t *testing.T) {
 	o := NewOptions()
 	assert.False(t, o.LooseRackCheck())
