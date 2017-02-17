@@ -52,6 +52,7 @@ var (
 	testFileMode         = os.FileMode(0666)
 	testDirMode          = os.ModeDir | os.FileMode(0755)
 	testWriterBufferSize = 10
+	testDefaultRunOpts   = bootstrap.NewRunOptions().SetIncremental(false)
 )
 
 func createTempDir(t *testing.T) string {
@@ -229,14 +230,16 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 
 func TestReadEmptyRangeErr(t *testing.T) {
 	src := newFileSystemSource("foo", NewOptions())
-	res, err := src.Read(testNamespaceID, nil)
+	res, err := src.Read(testNamespaceID, nil, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.Nil(t, res)
 }
 
 func TestReadPatternError(t *testing.T) {
 	src := newFileSystemSource("[[", NewOptions())
-	res, err := src.Read(testNamespaceID, map[uint32]xtime.Ranges{testShard: xtime.NewRanges()})
+	res, err := src.Read(testNamespaceID,
+		map[uint32]xtime.Ranges{testShard: xtime.NewRanges()},
+		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.Nil(t, res)
 }
@@ -266,7 +269,8 @@ func TestReadOpenFileError(t *testing.T) {
 	writeInfoFile(t, dir, testNamespaceID, shard, testStart, nil)
 
 	src := newFileSystemSource(dir, NewOptions())
-	res, err := src.Read(testNamespaceID, testShardTimeRanges())
+	res, err := src.Read(testNamespaceID, testShardTimeRanges(),
+		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Unfulfilled())
@@ -289,7 +293,7 @@ func TestReadDataCorruptionError(t *testing.T) {
 
 	src := newFileSystemSource(dir, NewOptions())
 	strs := testShardTimeRanges()
-	res, err := src.Read(testNamespaceID, strs)
+	res, err := src.Read(testNamespaceID, strs, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 0, len(res.ShardResults()))
@@ -304,10 +308,13 @@ func validateReadResults(
 	strs result.ShardTimeRanges,
 ) {
 	expected := []xtime.Range{
-		{Start: testStart.Add(2 * time.Hour), End: testStart.Add(10 * time.Hour)},
+		{
+			Start: testStart.Add(2 * time.Hour),
+			End:   testStart.Add(10 * time.Hour),
+		},
 	}
 
-	res, err := src.Read(testNamespaceID, strs)
+	res, err := src.Read(testNamespaceID, strs, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.ShardResults())
@@ -383,14 +390,24 @@ func TestReadValidateError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart, "foo", []byte{0x1})
-	reader.EXPECT().Open(testNamespaceID, shard, testStart).Return(nil)
-	reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}).Times(2)
+	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart,
+		"foo", []byte{0x1})
+	reader.EXPECT().
+		Open(testNamespaceID, shard, testStart).
+		Return(nil)
+	reader.EXPECT().
+		Range().
+		Return(xtime.Range{
+			Start: testStart,
+			End:   testStart.Add(2 * time.Hour),
+		}).
+		Times(2)
 	reader.EXPECT().Entries().Return(0).Times(2)
 	reader.EXPECT().Validate().Return(errors.New("foo"))
 	reader.EXPECT().Close().Return(nil)
 
-	res, err := src.Read(testNamespaceID, testShardTimeRanges())
+	res, err := src.Read(testNamespaceID, testShardTimeRanges(),
+		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 0, len(res.ShardResults()))
@@ -422,20 +439,36 @@ func TestReadDeleteOnError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart,
+		"foo", []byte{0x1})
 
 	gomock.InOrder(
 		reader.EXPECT().Open(testNamespaceID, shard, testStart).Return(nil),
-		reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}),
+		reader.EXPECT().
+			Range().
+			Return(xtime.Range{
+				Start: testStart,
+				End:   testStart.Add(2 * time.Hour),
+			}),
 		reader.EXPECT().Entries().Return(2),
-		reader.EXPECT().Range().Return(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}),
+		reader.EXPECT().
+			Range().
+			Return(xtime.Range{
+				Start: testStart,
+				End:   testStart.Add(2 * time.Hour),
+			}),
 		reader.EXPECT().Entries().Return(2),
-		reader.EXPECT().Read().Return(ts.StringID("foo"), nil, digest.Checksum(nil), nil),
-		reader.EXPECT().Read().Return(ts.StringID("bar"), nil, uint32(0), errors.New("foo")),
+		reader.EXPECT().
+			Read().
+			Return(ts.StringID("foo"), nil, digest.Checksum(nil), nil),
+		reader.EXPECT().
+			Read().
+			Return(ts.StringID("bar"), nil, uint32(0), errors.New("foo")),
 		reader.EXPECT().Close().Return(nil),
 	)
 
-	res, err := src.Read(testNamespaceID, testShardTimeRanges())
+	res, err := src.Read(testNamespaceID, testShardTimeRanges(),
+		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 0, len(res.ShardResults()))
