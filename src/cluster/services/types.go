@@ -262,6 +262,16 @@ type ServicePlacement interface {
 
 	// String returns a description of the placement
 	String() string
+
+	// GetVersion() returns the version of the placement retreived from the
+	// backing MVCC store.
+	GetVersion() int
+
+	// SetVersion() sets the version of the placement object. Since version
+	// is determined by the backing MVCC store, calling this method has no
+	// effect in terms of the updated ServicePlacement that is written back
+	// to the MVCC store.
+	SetVersion(v int) ServicePlacement
 }
 
 // PlacementInstance represents an instance in a service placement

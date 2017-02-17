@@ -65,7 +65,7 @@ func TestPlacementStorage(t *testing.T) {
 	pGet, v, err := ps.Placement(sid)
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
-	require.Equal(t, p, pGet)
+	require.Equal(t, p.SetVersion(1), pGet)
 
 	err = ps.CheckAndSet(sid, p, v)
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestPlacementStorage(t *testing.T) {
 	pGet, v, err = ps.Placement(sid)
 	require.NoError(t, err)
 	require.Equal(t, 2, v)
-	require.Equal(t, p, pGet)
+	require.Equal(t, p.SetVersion(2), pGet)
 
 	err = ps.Delete(sid)
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestPlacementStorage(t *testing.T) {
 	pGet, v, err = ps.Placement(sid)
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
-	require.Equal(t, p, pGet)
+	require.Equal(t, p.SetVersion(1), pGet)
 
 	// different zone or different env are different services
 	_, _, err = ps.Placement(services.NewServiceID().SetName("m3db").SetEnvironment("env"))
