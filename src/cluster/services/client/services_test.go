@@ -148,7 +148,32 @@ func TestUnadvertiseErrors(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, errNoInstanceID, err)
 
-	// the service and instance is not being advertised
+	// could not find heartbeat from this service instance
+	err = sd.Unadvertise(sid, "i1")
+	require.Error(t, err)
+}
+
+func TestUnadvertise(t *testing.T) {
+	opts, closer, m := testSetup(t)
+	defer closer()
+
+	sd, err := NewServices(opts)
+	require.NoError(t, err)
+
+	sid := services.NewServiceID().SetName("m3db").SetZone("zone1")
+
+	err = sd.Unadvertise(sid, "i1")
+	require.Error(t, err)
+
+	s, ok := m.getMockStore("zone1")
+	require.True(t, ok)
+
+	err = s.Heartbeat(serviceKey(sid), "i1", time.Hour)
+	require.NoError(t, err)
+
+	err = sd.Unadvertise(sid, "i1")
+	require.NoError(t, err)
+
 	err = sd.Unadvertise(sid, "i1")
 	require.Error(t, err)
 }
@@ -178,26 +203,28 @@ func TestAdvertiseUnadvertise(t *testing.T) {
 
 	// wait for one heartbeat
 	for {
-		_, ok := s.lastHeartbeatTime(serviceKey(sid), "i1")
-		if ok {
+		ids, _ := s.Get(serviceKey(sid))
+		if len(ids) == 1 {
 			break
 		}
 	}
 
 	require.NoError(t, sd.Unadvertise(sid, "i1"))
-	now := time.Now()
+	ids, err := s.Get(serviceKey(sid))
+	require.NoError(t, err)
+	require.Equal(t, 0, len(ids))
+
 	// give enough time for another heartbeat
 	time.Sleep(hbInterval)
-	hb, ok := s.lastHeartbeatTime(serviceKey(sid), "i1")
-	require.True(t, ok)
-	require.True(t, hb.Before(now))
+	ids, err = s.Get(serviceKey(sid))
+	require.NoError(t, err)
+	require.Equal(t, 0, len(ids))
 
 	// resume heartbeat
 	require.NoError(t, sd.Advertise(ad))
-	now = time.Now()
 	for {
-		hb, ok = s.lastHeartbeatTime("m3db", "i1")
-		if hb.After(now) {
+		ids, err = s.Get(serviceKey(sid))
+		if len(ids) == 1 {
 			break
 		}
 	}
@@ -735,7 +762,6 @@ type mockHBStore struct {
 func (hb *mockHBStore) Heartbeat(s string, id string, ttl time.Duration) error {
 	hb.Lock()
 	defer hb.Unlock()
-
 	hbMap, ok := hb.hbs[s]
 	if !ok {
 		hbMap = map[string]time.Time{}
@@ -755,11 +781,10 @@ func (hb *mockHBStore) Get(s string) ([]string, error) {
 		return r, nil
 	}
 
-	r = make([]string, len(hbMap))
+	r = make([]string, 0, len(hbMap))
 	for k := range hbMap {
 		r = append(r, k)
 	}
-
 	return r, nil
 }
 
@@ -788,15 +813,22 @@ func (hb *mockHBStore) getWatchable(s string) (xwatch.Watchable, bool) {
 	return w, ok
 }
 
-func (hb *mockHBStore) cleanup(s, id string) {
+func (hb *mockHBStore) Delete(s, id string) error {
 	hb.Lock()
 	defer hb.Unlock()
 
 	hbMap, ok := hb.hbs[s]
 	if !ok {
-		return
+		return errors.New("no hb found")
 	}
+
+	_, ok = hbMap[id]
+	if !ok {
+		return errors.New("no hb found")
+	}
+
 	delete(hbMap, id)
+	return nil
 }
 
 func (hb *mockHBStore) lastHeartbeatTime(s, id string) (time.Time, bool) {

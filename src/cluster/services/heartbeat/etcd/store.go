@@ -51,7 +51,7 @@ func NewStore(c *clientv3.Client, opts Options) (heartbeat.Store, error) {
 	scope := opts.InstrumentsOptions().MetricsScope()
 
 	store := &client{
-		leases:     make(map[string]clientv3.LeaseID),
+		cache:      newLeaseCache(),
 		watchables: make(map[string]xwatch.Watchable),
 		opts:       opts,
 		logger:     opts.InstrumentsOptions().Logger(),
@@ -99,7 +99,7 @@ func NewStore(c *clientv3.Client, opts Options) (heartbeat.Store, error) {
 type client struct {
 	sync.RWMutex
 
-	leases     map[string]clientv3.LeaseID
+	cache      *leaseCache
 	watchables map[string]xwatch.Watchable
 	opts       Options
 	logger     xlog.Logger
@@ -120,12 +120,7 @@ type clientMetrics struct {
 }
 
 func (c *client) Heartbeat(service, instance string, ttl time.Duration) error {
-	key := leaseKey(service, instance, ttl)
-
-	c.RLock()
-	leaseID, ok := c.leases[key]
-	c.RUnlock()
-
+	leaseID, ok := c.cache.get(service, instance, ttl)
 	if ok {
 		ctx, cancel := c.context()
 		defer cancel()
@@ -161,9 +156,7 @@ func (c *client) Heartbeat(service, instance string, ttl time.Duration) error {
 		return err
 	}
 
-	c.Lock()
-	c.leases[key] = resp.ID
-	c.Unlock()
+	c.cache.put(service, instance, ttl, resp.ID)
 
 	return nil
 }
@@ -187,6 +180,25 @@ func (c *client) get(key string) ([]string, error) {
 		r[i] = instanceFromKey(string(kv.Key), key)
 	}
 	return r, nil
+}
+
+func (c *client) Delete(service, instance string) error {
+	ctx, cancel := c.context()
+	defer cancel()
+
+	r, err := c.kv.Delete(ctx, heartbeatKey(service, instance))
+	if err != nil {
+		return err
+	}
+
+	if r.Deleted == 0 {
+		return fmt.Errorf("could not find heartbeat for service: %s, instance: %s", service, instance)
+	}
+
+	// NB(cw) we need to clean up cached lease ID, if not the next heartbeat might reuse the cached lease
+	// and keep alive on existing lease wont work since the key is deleted
+	c.cache.delete(service, instance)
+	return nil
 }
 
 func (c *client) Watch(service string) (xwatch.Watch, error) {
@@ -294,6 +306,47 @@ func servicePrefix(service string) string {
 	return fmt.Sprintf(keyFormat, heartbeatKeyPrefix, service)
 }
 
-func leaseKey(service, instance string, ttl time.Duration) string {
-	return fmt.Sprintf(keyFormat, heartbeatKey(service, instance), ttl.String())
+func newLeaseCache() *leaseCache {
+	return &leaseCache{
+		leases: make(map[string]map[time.Duration]clientv3.LeaseID),
+	}
+}
+
+type leaseCache struct {
+	sync.RWMutex
+
+	leases map[string]map[time.Duration]clientv3.LeaseID
+}
+
+func (c *leaseCache) get(service, instance string, ttl time.Duration) (clientv3.LeaseID, bool) {
+	c.RLock()
+	defer c.RUnlock()
+
+	leases, ok := c.leases[heartbeatKey(service, instance)]
+	if !ok {
+		return clientv3.LeaseID(0), false
+	}
+
+	id, ok := leases[ttl]
+	return id, ok
+}
+
+func (c *leaseCache) put(service, instance string, ttl time.Duration, id clientv3.LeaseID) {
+	key := heartbeatKey(service, instance)
+
+	c.Lock()
+	defer c.Unlock()
+
+	leases, ok := c.leases[key]
+	if !ok {
+		leases = make(map[time.Duration]clientv3.LeaseID)
+		c.leases[key] = leases
+	}
+	leases[ttl] = id
+}
+
+func (c *leaseCache) delete(service, instance string) {
+	c.Lock()
+	delete(c.leases, heartbeatKey(service, instance))
+	c.Unlock()
 }
