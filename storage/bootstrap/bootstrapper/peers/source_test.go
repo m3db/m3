@@ -20,8 +20,258 @@
 
 package peers
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+	"time"
 
-func TestPeersSource(t *testing.T) {
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+var (
+	testNamespace          = ts.StringID("testnamespace")
+	testDefaultRunOpts     = bootstrap.NewRunOptions().SetIncremental(false)
+	testIncrementalRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
+	testBlockOpts          = block.NewOptions()
+)
+
+func TestPeersSourceCan(t *testing.T) {
+	src := newPeersSource(NewOptions())
+
+	assert.True(t, src.Can(bootstrap.BootstrapSequential))
+	assert.False(t, src.Can(bootstrap.BootstrapParallel))
+}
+
+func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
+	src := newPeersSource(NewOptions())
+
+	target := result.ShardTimeRanges{}
+	available := src.Available(testNamespace, target)
+	assert.Equal(t, target, available)
+
+	r, err := src.Read(testNamespace, target, testDefaultRunOpts)
+	assert.NoError(t, err)
+	assert.Nil(t, r)
+}
+
+func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := NewOptions()
+	ropts := opts.ResultOptions().RetentionOptions()
+
+	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+	end := start.Add(ropts.BlockSize())
+
+	goodResult := result.NewShardResult(0, opts.ResultOptions())
+	fooBlock := block.NewDatabaseBlock(start, ts.Segment{}, testBlockOpts)
+	goodResult.AddBlock(ts.StringID("foo"), fooBlock)
+	badErr := fmt.Errorf("an error")
+
+	mockAdminSession := client.NewMockAdminSession(ctrl)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+			uint32(0), start, end, gomock.Any()).
+		Return(goodResult, nil)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+			uint32(1), start, end, gomock.Any()).
+		Return(nil, badErr)
+
+	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+
+	opts = opts.SetAdminClient(mockAdminClient)
+
+	src := newPeersSource(opts)
+
+	target := result.ShardTimeRanges{
+		0: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+	}
+
+	r, err := src.Read(testNamespace, target, testDefaultRunOpts)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, len(r.ShardResults()))
+	require.NotNil(t, r.ShardResults()[0])
+	require.Nil(t, r.ShardResults()[1])
+
+	require.Nil(t, r.Unfulfilled()[0])
+	require.NotNil(t, r.Unfulfilled()[1])
+	require.Equal(t, 1, r.Unfulfilled()[1].Len())
+
+	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
+	require.True(t, ok)
+	require.Equal(t, fooBlock, block)
+
+	rangeIter := r.Unfulfilled()[1].Iter()
+	require.True(t, rangeIter.Next())
+	require.Equal(t, xtime.Range{Start: start, End: end}, rangeIter.Value())
+}
+
+func TestPeersSourceIncrementalRun(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := NewOptions()
+	ropts := opts.ResultOptions().RetentionOptions()
+
+	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+	end := start.Add(2 * ropts.BlockSize())
+
+	firstResult := result.NewShardResult(0, opts.ResultOptions())
+	fooBlock := block.NewDatabaseBlock(start,
+		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
+		testBlockOpts)
+	barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()),
+		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
+		testBlockOpts)
+	firstResult.AddBlock(ts.StringID("foo"), fooBlock)
+	firstResult.AddBlock(ts.StringID("bar"), barBlock)
+
+	secondResult := result.NewShardResult(0, opts.ResultOptions())
+	bazBlock := block.NewDatabaseBlock(start,
+		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
+		testBlockOpts)
+	secondResult.AddBlock(ts.StringID("baz"), bazBlock)
+
+	mockAdminSession := client.NewMockAdminSession(ctrl)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+			uint32(0), start, end, gomock.Any()).
+		Return(firstResult, nil)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+			uint32(1), start, end, gomock.Any()).
+		Return(secondResult, nil)
+
+	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+
+	opts = opts.SetAdminClient(mockAdminClient)
+
+	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	mockRetriever.EXPECT().CacheShardIndices([]uint32{0, 1}).Return(nil)
+
+	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
+	mockRetrieverMgr.EXPECT().
+		Retriever(ts.NewIDMatcher(testNamespace.String())).
+		Return(mockRetriever, nil)
+
+	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+
+	mockPersistManager := persist.NewMockManager(ctrl)
+	persists := make(map[string]int)
+	closes := make(map[string]int)
+	mockPersistManager.EXPECT().
+		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(0), start).
+		Return(persist.PreparedPersist{
+			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				persists["foo"]++
+				assert.Equal(t, "foo", id.String())
+				assert.Equal(t, []byte{1, 2, 3}, segment.Head.Get())
+				assert.Equal(t, fooBlock.Checksum(), checksum)
+				return nil
+			},
+			Close: func() error {
+				closes["foo"]++
+				return nil
+			},
+		}, nil)
+	mockPersistManager.EXPECT().
+		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(0), start.Add(ropts.BlockSize())).
+		Return(persist.PreparedPersist{
+			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				persists["bar"]++
+				assert.Equal(t, "bar", id.String())
+				assert.Equal(t, []byte{4, 5, 6}, segment.Head.Get())
+				assert.Equal(t, barBlock.Checksum(), checksum)
+				return nil
+			},
+			Close: func() error {
+				closes["bar"]++
+				return nil
+			},
+		}, nil)
+	mockPersistManager.EXPECT().
+		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(1), start).
+		Return(persist.PreparedPersist{
+			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				persists["baz"]++
+				assert.Equal(t, "baz", id.String())
+				assert.Equal(t, []byte{7, 8, 9}, segment.Head.Get())
+				assert.Equal(t, bazBlock.Checksum(), checksum)
+				return nil
+			},
+			Close: func() error {
+				closes["baz"]++
+				return nil
+			},
+		}, nil)
+	mockPersistManager.EXPECT().
+		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(1), start.Add(ropts.BlockSize())).
+		Return(persist.PreparedPersist{
+			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				assert.Fail(t, "no expected shard 1 second block")
+				return nil
+			},
+			Close: func() error {
+				closes["empty"]++
+				return nil
+			},
+		}, nil)
+
+	opts = opts.SetNewPersistManagerFn(func() persist.Manager {
+		return mockPersistManager
+	})
+
+	src := newPeersSource(opts)
+
+	target := result.ShardTimeRanges{
+		0: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+	}
+
+	r, err := src.Read(testNamespace, target, testIncrementalRunOpts)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 2, len(r.ShardResults()))
+	require.NotNil(t, r.ShardResults()[0])
+	require.NotNil(t, r.ShardResults()[1])
+
+	require.Nil(t, r.Unfulfilled()[0])
+	require.Nil(t, r.Unfulfilled()[1])
+
+	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
+	require.True(t, ok)
+	require.Equal(t, fooBlock, block)
+
+	block, ok = r.ShardResults()[0].BlockAt(ts.StringID("bar"), start.Add(ropts.BlockSize()))
+	require.True(t, ok)
+	require.Equal(t, barBlock, block)
+
+	block, ok = r.ShardResults()[1].BlockAt(ts.StringID("baz"), start)
+	require.True(t, ok)
+	require.Equal(t, bazBlock, block)
+
+	assert.Equal(t, map[string]int{
+		"foo": 1, "bar": 1, "baz": 1,
+	}, persists)
+
+	assert.Equal(t, map[string]int{
+		"foo": 1, "bar": 1, "baz": 1, "empty": 1,
+	}, closes)
 }

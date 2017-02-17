@@ -41,6 +41,20 @@ type peersSource struct {
 	nowFn clock.NowFn
 }
 
+type incrementalFlush struct {
+	namespace         ts.ID
+	persistManager    persist.Manager
+	shard             uint32
+	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
+	shardResult       result.ShardResult
+	timeRange         xtime.Range
+}
+
+type incrementalFlushedBlock struct {
+	id    ts.ID
+	block block.DatabaseBlock
+}
+
 func newPeersSource(opts Options) bootstrap.Source {
 	return &peersSource{
 		opts:  opts,
@@ -97,6 +111,12 @@ func (s *peersSource) Read(
 			blockRetriever = r
 			shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
 			persistManager = newPersistMgrFn()
+		} else {
+			s.log.WithFields(
+				xlog.NewLogField("namespace", namespace.String()),
+				xlog.NewLogField("noRetrieverMgr", retrieverMgr == nil),
+				xlog.NewLogField("noNewPersistMgrFn", newPersistMgrFn == nil),
+			).Infof("peers bootstrapper skipping incremental run")
 		}
 	}
 
@@ -113,7 +133,7 @@ func (s *peersSource) Read(
 		wg                  sync.WaitGroup
 		incrementalWg       sync.WaitGroup
 		incrementalMaxQueue = s.opts.IncrementalBootstrapPersistMaxQueue()
-		incrementalQueue    = make(chan func(), incrementalMaxQueue)
+		incrementalQueue    = make(chan incrementalFlush, incrementalMaxQueue)
 		bopts               = s.opts.ResultOptions()
 		count               = len(shardsTimeRanges)
 		concurrency         = s.opts.DefaultBootstrapShardConcurrency()
@@ -128,12 +148,21 @@ func (s *peersSource) Read(
 		xlog.NewLogField("incremental", incremental),
 	).Infof("peers bootstrapper bootstrapping shards for ranges")
 	if incremental {
+		// If performing an incremental bootstrap then flush one
+		// at a time as shard results are gathered
 		incrementalWg.Add(1)
 		go func() {
-			for fn := range incrementalQueue {
-				fn()
+			defer incrementalWg.Done()
+
+			for flush := range incrementalQueue {
+				err := s.incrementalFlush(flush.namespace, flush.persistManager,
+					flush.shard, flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
+				if err != nil {
+					s.log.WithFields(
+						xlog.NewLogField("error", err.Error()),
+					).Infof("peers bootstrapper incremental flush encountered error")
+				}
 			}
-			incrementalWg.Done()
 		}()
 	}
 
@@ -153,14 +182,13 @@ func (s *peersSource) Read(
 					shard, currRange.Start, currRange.End, bopts)
 
 				if err == nil && incremental {
-					incrementalQueue <- func() {
-						flushErr := s.incrementalFlush(namespace, persistManager,
-							shard, shardRetrieverMgr, shardResult, currRange)
-						if flushErr != nil {
-							s.log.WithFields(
-								xlog.NewLogField("error", flushErr.Error()),
-							).Infof("peers bootstrapper incremental flush encountered error")
-						}
+					incrementalQueue <- incrementalFlush{
+						namespace:         namespace,
+						persistManager:    persistManager,
+						shard:             shard,
+						shardRetrieverMgr: shardRetrieverMgr,
+						shardResult:       shardResult,
+						timeRange:         currRange,
 					}
 				}
 
@@ -195,11 +223,6 @@ func (s *peersSource) Read(
 	return result, nil
 }
 
-type incrementalFlushedBlock struct {
-	id    ts.ID
-	block block.DatabaseBlock
-}
-
 func (s *peersSource) incrementalFlush(
 	namespace ts.ID,
 	persistManager persist.Manager,
@@ -209,10 +232,12 @@ func (s *peersSource) incrementalFlush(
 	tr xtime.Range,
 ) error {
 	var (
-		flushedBlocks  []incrementalFlushedBlock
-		tmpCtx         = context.NewContext()
-		blockSize      = s.opts.ResultOptions().RetentionOptions().BlockSize()
+		numSeries      = len(shardResult.AllSeries())
+		flushedBlocks  = make([]incrementalFlushedBlock, 0, numSeries)
+		ropts          = s.opts.ResultOptions().RetentionOptions()
+		blockSize      = ropts.BlockSize()
 		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
+		tmpCtx         = context.NewContext()
 	)
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepared, err := persistManager.Prepare(namespace, shard, start)

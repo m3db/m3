@@ -27,7 +27,6 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	result "github.com/m3db/m3db/storage/bootstrap/result"
 	ts "github.com/m3db/m3db/ts"
-	time "github.com/m3db/m3x/time"
 )
 
 // Mock of Bootstrap interface
@@ -51,8 +50,8 @@ func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(targetRanges time.Ranges, namespace ts.ID, shards []uint32) (result.BootstrapResult, error) {
-	ret := _m.ctrl.Call(_m, "Run", targetRanges, namespace, shards)
+func (_m *MockBootstrap) Run(namespace ts.ID, shards []uint32, targetRanges []TargetRange) (result.BootstrapResult, error) {
+	ret := _m.ctrl.Call(_m, "Run", namespace, shards, targetRanges)
 	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -60,6 +59,47 @@ func (_m *MockBootstrap) Run(targetRanges time.Ranges, namespace ts.ID, shards [
 
 func (_mr *_MockBootstrapRecorder) Run(arg0, arg1, arg2 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1, arg2)
+}
+
+// Mock of RunOptions interface
+type MockRunOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockRunOptionsRecorder
+}
+
+// Recorder for MockRunOptions (not exported)
+type _MockRunOptionsRecorder struct {
+	mock *MockRunOptions
+}
+
+func NewMockRunOptions(ctrl *gomock.Controller) *MockRunOptions {
+	mock := &MockRunOptions{ctrl: ctrl}
+	mock.recorder = &_MockRunOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockRunOptions) EXPECT() *_MockRunOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockRunOptions) SetIncremental(value bool) RunOptions {
+	ret := _m.ctrl.Call(_m, "SetIncremental", value)
+	ret0, _ := ret[0].(RunOptions)
+	return ret0
+}
+
+func (_mr *_MockRunOptionsRecorder) SetIncremental(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIncremental", arg0)
+}
+
+func (_m *MockRunOptions) Incremental() bool {
+	ret := _m.ctrl.Call(_m, "Incremental")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockRunOptionsRecorder) Incremental() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Incremental")
 }
 
 // Mock of Bootstrapper interface
@@ -103,15 +143,15 @@ func (_mr *_MockBootstrapperRecorder) Can(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Can", arg0)
 }
 
-func (_m *MockBootstrapper) Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error) {
-	ret := _m.ctrl.Call(_m, "Bootstrap", namespace, shardsTimeRanges)
+func (_m *MockBootstrapper) Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.BootstrapResult, error) {
+	ret := _m.ctrl.Call(_m, "Bootstrap", namespace, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockBootstrapperRecorder) Bootstrap(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1)
+func (_mr *_MockBootstrapperRecorder) Bootstrap(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0, arg1, arg2)
 }
 
 // Mock of Source interface
@@ -155,13 +195,13 @@ func (_mr *_MockSourceRecorder) Available(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Available", arg0, arg1)
 }
 
-func (_m *MockSource) Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) (result.BootstrapResult, error) {
-	ret := _m.ctrl.Call(_m, "Read", namespace, shardsTimeRanges)
+func (_m *MockSource) Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.BootstrapResult, error) {
+	ret := _m.ctrl.Call(_m, "Read", namespace, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockSourceRecorder) Read(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read", arg0, arg1)
+func (_mr *_MockSourceRecorder) Read(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read", arg0, arg1, arg2)
 }
