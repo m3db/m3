@@ -52,9 +52,13 @@ func (noop *noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop *noOpNoneBootstrapper) Bootstrap(_ ts.ID, str result.ShardTimeRanges) (result.BootstrapResult, error) {
+func (noop *noOpNoneBootstrapper) Bootstrap(
+	_ ts.ID,
+	targetRanges result.ShardTimeRanges,
+	_ bootstrap.RunOptions,
+) (result.BootstrapResult, error) {
 	res := result.NewBootstrapResult()
-	res.SetUnfulfilled(str)
+	res.SetUnfulfilled(targetRanges)
 	return res, nil
 }
 
@@ -75,7 +79,11 @@ func (noop *noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop *noOpAllBootstrapper) Bootstrap(_ ts.ID, _ result.ShardTimeRanges) (result.BootstrapResult, error) {
+func (noop *noOpAllBootstrapper) Bootstrap(
+	_ ts.ID,
+	_ result.ShardTimeRanges,
+	_ bootstrap.RunOptions,
+) (result.BootstrapResult, error) {
 	return result.NewBootstrapResult(), nil
 }
 

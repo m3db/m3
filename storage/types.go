@@ -193,7 +193,7 @@ type databaseNamespace interface {
 	// Bootstrap performs bootstrapping
 	Bootstrap(
 		bs bootstrap.Bootstrap,
-		targetRanges xtime.Ranges,
+		targetRanges []bootstrap.TargetRange,
 	) error
 
 	// Flush flushes in-memory data

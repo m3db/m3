@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrap
+package peers
 
-import (
-	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/ts"
-)
+import "testing"
 
-type noOpBootstrapProcess struct{}
+func TestPeersSource(t *testing.T) {
 
-// NewNoOpBootstrapProcess creates a no-op bootstrap process.
-func NewNoOpBootstrapProcess() Bootstrap {
-	return &noOpBootstrapProcess{}
-}
-
-func (b *noOpBootstrapProcess) Run(
-	namespace ts.ID,
-	shards []uint32,
-	targetRanges []TargetRange,
-) (result.BootstrapResult, error) {
-	return result.NewBootstrapResult(), nil
 }

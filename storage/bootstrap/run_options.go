@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,22 +20,29 @@
 
 package bootstrap
 
-import (
-	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/ts"
+const (
+	// defaultIncremental declares the intent to by default not perform an
+	// incremental bootstrap.
+	defaultIncremental = false
 )
 
-type noOpBootstrapProcess struct{}
-
-// NewNoOpBootstrapProcess creates a no-op bootstrap process.
-func NewNoOpBootstrapProcess() Bootstrap {
-	return &noOpBootstrapProcess{}
+type runOptions struct {
+	incremental bool
 }
 
-func (b *noOpBootstrapProcess) Run(
-	namespace ts.ID,
-	shards []uint32,
-	targetRanges []TargetRange,
-) (result.BootstrapResult, error) {
-	return result.NewBootstrapResult(), nil
+// NewRunOptions creates new bootstrap run options
+func NewRunOptions() RunOptions {
+	return &runOptions{
+		incremental: defaultIncremental,
+	}
+}
+
+func (o *runOptions) SetIncremental(value bool) RunOptions {
+	opts := *o
+	opts.incremental = value
+	return &opts
+}
+
+func (o *runOptions) Incremental() bool {
+	return o.incremental
 }

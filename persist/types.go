@@ -32,7 +32,7 @@ type Fn func(id ts.ID, segment ts.Segment, checksum uint32) error
 
 // Closer is a function that performs cleanup after persisting the data
 // blocks for a (shard, blockStart) combination
-type Closer func()
+type Closer func() error
 
 // PreparedPersist is an object that wraps holds a persist function and a closer
 type PreparedPersist struct {

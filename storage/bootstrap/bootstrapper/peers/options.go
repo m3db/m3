@@ -24,24 +24,34 @@ import (
 	"runtime"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
 var (
-	defaultBootstrapShardConcurrency = runtime.NumCPU()
+	defaultDefaultBootstrapShardConcurrency    = runtime.NumCPU()
+	defaultIncrementalShardConcurrency         = 4
+	defaultIncrementalBootstrapPersistMaxQueue = 1
 )
 
 type options struct {
-	resultOpts                result.Options
-	client                    client.AdminClient
-	bootstrapShardConcurrency int
+	resultOpts                           result.Options
+	client                               client.AdminClient
+	defaultBootstrapShardConcurrency     int
+	incrementalBootstrapShardConcurrency int
+	incrementalBootstrapPersistMaxQueue  int
+	newPersistManagerFn                  storage.NewPersistManagerFn
+	blockRetrieverManager                block.DatabaseBlockRetrieverManager
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:                result.NewOptions(),
-		bootstrapShardConcurrency: defaultBootstrapShardConcurrency,
+		resultOpts:                           result.NewOptions(),
+		defaultBootstrapShardConcurrency:     defaultDefaultBootstrapShardConcurrency,
+		incrementalBootstrapShardConcurrency: defaultIncrementalShardConcurrency,
+		incrementalBootstrapPersistMaxQueue:  defaultIncrementalBootstrapPersistMaxQueue,
 	}
 }
 
@@ -65,12 +75,54 @@ func (o *options) AdminClient() client.AdminClient {
 	return o.client
 }
 
-func (o *options) SetBootstrapShardConcurrency(value int) Options {
+func (o *options) SetDefaultBootstrapShardConcurrency(value int) Options {
 	opts := *o
-	opts.bootstrapShardConcurrency = value
+	opts.defaultBootstrapShardConcurrency = value
 	return &opts
 }
 
-func (o *options) BootstrapShardConcurrency() int {
-	return o.bootstrapShardConcurrency
+func (o *options) DefaultBootstrapShardConcurrency() int {
+	return o.defaultBootstrapShardConcurrency
+}
+
+func (o *options) SetIncrementalBootstrapShardConcurrency(value int) Options {
+	opts := *o
+	opts.incrementalBootstrapShardConcurrency = value
+	return &opts
+}
+
+func (o *options) IncrementalBootstrapShardConcurrency() int {
+	return o.incrementalBootstrapShardConcurrency
+}
+
+func (o *options) SetIncrementalBootstrapPersistMaxQueue(value int) Options {
+	opts := *o
+	opts.incrementalBootstrapPersistMaxQueue = value
+	return &opts
+}
+
+func (o *options) IncrementalBootstrapPersistMaxQueue() int {
+	return o.incrementalBootstrapPersistMaxQueue
+}
+
+func (o *options) SetNewPersistManagerFn(value storage.NewPersistManagerFn) Options {
+	opts := *o
+	opts.newPersistManagerFn = value
+	return &opts
+}
+
+func (o *options) NewPersistManagerFn() storage.NewPersistManagerFn {
+	return o.newPersistManagerFn
+}
+
+func (o *options) SetDatabaseBlockRetrieverManager(
+	value block.DatabaseBlockRetrieverManager,
+) Options {
+	opts := *o
+	opts.blockRetrieverManager = value
+	return &opts
+}
+
+func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
+	return o.blockRetrieverManager
 }

@@ -81,6 +81,7 @@ func (s *commitLogSource) Available(
 func (s *commitLogSource) Read(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil

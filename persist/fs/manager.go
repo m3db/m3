@@ -102,9 +102,10 @@ func (pm *persistManager) persist(
 	return err
 }
 
-func (pm *persistManager) close() {
-	pm.writer.Close()
+func (pm *persistManager) close() error {
+	err := pm.writer.Close()
 	pm.reset()
+	return err
 }
 
 func (pm *persistManager) reset() {

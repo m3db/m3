@@ -53,16 +53,15 @@ func NewBootstrapProcess(
 }
 
 func (b *bootstrapProcess) Run(
-	targetRanges xtime.Ranges,
 	namespace ts.ID,
 	shards []uint32,
+	targetRanges []TargetRange,
 ) (result.BootstrapResult, error) {
 	bootstrapResult := result.NewBootstrapResult()
-	it := targetRanges.Iter()
-	for it.Next() {
+	for _, target := range targetRanges {
 		shardsTimeRanges := make(result.ShardTimeRanges, len(shards))
 
-		window := it.Value()
+		window := target.Range
 
 		r := xtime.NewRanges().AddRange(window)
 		for _, s := range shards {
@@ -82,7 +81,11 @@ func (b *bootstrapProcess) Run(
 		nowFn := b.opts.ClockOptions().NowFn()
 		begin := nowFn()
 
-		res, err := b.bootstrapper.Bootstrap(namespace, shardsTimeRanges)
+		opts := target.RunOptions
+		if opts == nil {
+			opts = NewRunOptions()
+		}
+		res, err := b.bootstrapper.Bootstrap(namespace, shardsTimeRanges, opts)
 
 		logFields = append(logFields, xlog.NewLogField("took", nowFn().Sub(begin).String()))
 		if err != nil {

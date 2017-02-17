@@ -24,6 +24,9 @@ import (
 	"sync"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
@@ -65,9 +68,36 @@ func (s *peersSource) Available(
 func (s *peersSource) Read(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
+	}
+
+	var (
+		blockRetriever    block.DatabaseBlockRetriever
+		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
+		persistManager    persist.Manager
+		incremental       = false
+	)
+	if opts.Incremental() {
+		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
+		newPersistMgrFn := s.opts.NewPersistManagerFn()
+		if retrieverMgr != nil && newPersistMgrFn != nil {
+			s.log.WithFields(
+				xlog.NewLogField("namespace", namespace.String()),
+			).Infof("peers bootstrapper resolving block retriever")
+
+			r, err := retrieverMgr.Retriever(namespace)
+			if err != nil {
+				return nil, err
+			}
+
+			incremental = true
+			blockRetriever = r
+			shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
+			persistManager = newPersistMgrFn()
+		}
 	}
 
 	result := result.NewBootstrapResult()
@@ -79,16 +109,34 @@ func (s *peersSource) Read(
 	}
 
 	var (
-		bopts       = s.opts.ResultOptions()
-		concurrency = s.opts.BootstrapShardConcurrency()
-		count       = len(shardsTimeRanges)
-		lock        sync.Mutex
-		wg          sync.WaitGroup
+		lock                sync.Mutex
+		wg                  sync.WaitGroup
+		incrementalWg       sync.WaitGroup
+		incrementalMaxQueue = s.opts.IncrementalBootstrapPersistMaxQueue()
+		incrementalQueue    = make(chan func(), incrementalMaxQueue)
+		bopts               = s.opts.ResultOptions()
+		count               = len(shardsTimeRanges)
+		concurrency         = s.opts.DefaultBootstrapShardConcurrency()
 	)
+	if incremental {
+		concurrency = s.opts.IncrementalBootstrapShardConcurrency()
+	}
+
 	s.log.WithFields(
 		xlog.NewLogField("shards", count),
 		xlog.NewLogField("concurrency", concurrency),
+		xlog.NewLogField("incremental", incremental),
 	).Infof("peers bootstrapper bootstrapping shards for ranges")
+	if incremental {
+		incrementalWg.Add(1)
+		go func() {
+			for fn := range incrementalQueue {
+				fn()
+			}
+			incrementalWg.Done()
+		}()
+	}
+
 	workers := xsync.NewWorkerPool(concurrency)
 	workers.Init()
 	for shard, ranges := range shardsTimeRanges {
@@ -104,6 +152,18 @@ func (s *peersSource) Read(
 				shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace,
 					shard, currRange.Start, currRange.End, bopts)
 
+				if err == nil && incremental {
+					incrementalQueue <- func() {
+						flushErr := s.incrementalFlush(namespace, persistManager,
+							shard, shardRetrieverMgr, shardResult, currRange)
+						if flushErr != nil {
+							s.log.WithFields(
+								xlog.NewLogField("error", flushErr.Error()),
+							).Infof("peers bootstrapper incremental flush encountered error")
+						}
+					}
+				}
+
 				lock.Lock()
 				if err == nil {
 					result.Add(shard, shardResult, nil)
@@ -117,5 +177,95 @@ func (s *peersSource) Read(
 
 	wg.Wait()
 
+	close(incrementalQueue)
+	incrementalWg.Wait()
+
+	if incremental {
+		// Now cache the incremental results
+		shards := make([]uint32, 0, len(shardsTimeRanges))
+		for shard := range shardsTimeRanges {
+			shards = append(shards, shard)
+		}
+
+		if err = blockRetriever.CacheShardIndices(shards); err != nil {
+			return nil, err
+		}
+	}
+
 	return result, nil
+}
+
+type incrementalFlushedBlock struct {
+	id    ts.ID
+	block block.DatabaseBlock
+}
+
+func (s *peersSource) incrementalFlush(
+	namespace ts.ID,
+	persistManager persist.Manager,
+	shard uint32,
+	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
+	shardResult result.ShardResult,
+	tr xtime.Range,
+) error {
+	var (
+		flushedBlocks  []incrementalFlushedBlock
+		tmpCtx         = context.NewContext()
+		blockSize      = s.opts.ResultOptions().RetentionOptions().BlockSize()
+		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
+	)
+	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
+		prepared, err := persistManager.Prepare(namespace, shard, start)
+		if err != nil {
+			return err
+		}
+
+		flushedBlocks = flushedBlocks[:0]
+
+		for _, series := range shardResult.AllSeries() {
+			bl, ok := series.Blocks.BlockAt(start)
+			if !ok {
+				continue
+			}
+
+			tmpCtx.Reset()
+			stream, err := bl.Stream(tmpCtx)
+			if err != nil {
+				return err
+			}
+
+			segment, err := stream.Segment()
+			if err != nil {
+				return err
+			}
+
+			err = prepared.Persist(series.ID, segment, bl.Checksum())
+			tmpCtx.BlockingClose()
+			if err != nil {
+				return err
+			}
+
+			entry := incrementalFlushedBlock{
+				id:    series.ID,
+				block: bl,
+			}
+			flushedBlocks = append(flushedBlocks, entry)
+		}
+
+		if err := prepared.Close(); err != nil {
+			return err
+		}
+
+		// We can now make flushed blocks retrievable
+		for _, entry := range flushedBlocks {
+			metadata := block.RetrievableBlockMetadata{
+				ID:       entry.id,
+				Length:   entry.block.Len(),
+				Checksum: entry.block.Checksum(),
+			}
+			entry.block.ResetRetrievable(start, shardRetriever, metadata)
+		}
+	}
+
+	return nil
 }
