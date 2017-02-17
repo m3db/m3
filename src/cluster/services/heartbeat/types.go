@@ -34,6 +34,9 @@ type Store interface {
 	// Get gets healthy instances for a service
 	Get(service string) ([]string, error)
 
+	// Delete deletes the heartbeat for a service instance
+	Delete(service, instance string) error
+
 	// Watch watches the heartbeats for a service
 	Watch(service string) (xwatch.Watch, error)
 }

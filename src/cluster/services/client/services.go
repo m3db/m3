@@ -170,17 +170,22 @@ func (c *client) Unadvertise(sid services.ServiceID, id string) error {
 		return err
 	}
 
-	c.Lock()
-	defer c.Unlock()
-
 	key := adKey(sid, id)
-	ch, ok := c.adDoneChs[key]
-	if !ok {
-		return fmt.Errorf("service %s, instance %s is not being advertised", sid.String(), id)
+
+	c.Lock()
+	if ch, ok := c.adDoneChs[key]; ok {
+		// if this client is advertising the instance, stop it
+		close(ch)
+		delete(c.adDoneChs, key)
 	}
-	ch <- struct{}{}
-	delete(c.adDoneChs, key)
-	return nil
+	c.Unlock()
+
+	hbStore, err := c.getHeartbeatStore(sid.Zone())
+	if err != nil {
+		return err
+	}
+
+	return hbStore.Delete(serviceKey(sid), id)
 }
 
 func (c *client) Query(sid services.ServiceID, opts services.QueryOptions) (services.Service, error) {

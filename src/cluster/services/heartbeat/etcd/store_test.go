@@ -38,7 +38,6 @@ func TestKeys(t *testing.T) {
 	require.Equal(t, "_hb/service/instance", heartbeatKey(s, id))
 	require.Equal(t, "_hb/service", servicePrefix(s))
 	require.Equal(t, "instance", instanceFromKey(heartbeatKey(s, id), servicePrefix(s)))
-	require.Equal(t, "_hb/service/instance/1m0s", leaseKey(s, id, time.Minute))
 }
 
 func TestReuseLeaseID(t *testing.T) {
@@ -53,10 +52,12 @@ func TestReuseLeaseID(t *testing.T) {
 	require.NoError(t, err)
 
 	store.RLock()
-	require.Equal(t, 1, len(store.leases))
+	require.Equal(t, 1, len(store.cache.leases))
 	var leaseID clientv3.LeaseID
-	for _, v := range store.leases {
-		leaseID = v
+	for _, leases := range store.cache.leases {
+		for _, v := range leases {
+			leaseID = v
+		}
 	}
 	store.RUnlock()
 
@@ -64,9 +65,11 @@ func TestReuseLeaseID(t *testing.T) {
 	require.NoError(t, err)
 
 	store.RLock()
-	require.Equal(t, 1, len(store.leases))
-	for _, v := range store.leases {
-		require.Equal(t, leaseID, v)
+	require.Equal(t, 1, len(store.cache.leases))
+	for _, leases := range store.cache.leases {
+		for _, v := range leases {
+			require.Equal(t, leaseID, v)
+		}
 	}
 	store.RUnlock()
 }
@@ -96,6 +99,7 @@ func TestHeartbeat(t *testing.T) {
 		if len(ids) == 1 {
 			break
 		}
+		time.Sleep(50 * time.Millisecond)
 	}
 	require.Equal(t, 1, len(ids))
 	require.NotContains(t, ids, "i1")
@@ -107,10 +111,53 @@ func TestHeartbeat(t *testing.T) {
 		if len(ids) == 0 {
 			break
 		}
+		time.Sleep(50 * time.Millisecond)
 	}
 	require.Equal(t, 0, len(ids))
 	require.NotContains(t, ids, "i1")
 	require.NotContains(t, ids, "i2")
+}
+
+func TestDelete(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	c, err := NewStore(ec, opts)
+	require.NoError(t, err)
+	store := c.(*client)
+
+	err = store.Heartbeat("s", "i1", time.Hour)
+	require.NoError(t, err)
+
+	err = store.Heartbeat("s", "i2", time.Hour)
+	require.NoError(t, err)
+
+	ids, err := store.Get("s")
+	require.NoError(t, err)
+	require.Equal(t, 2, len(ids))
+	require.Contains(t, ids, "i1")
+	require.Contains(t, ids, "i2")
+
+	err = store.Delete("s", "i1")
+	require.NoError(t, err)
+
+	err = store.Delete("s", "i1")
+	require.Error(t, err)
+
+	ids, err = store.Get("s")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(ids))
+	require.Contains(t, ids, "i2")
+
+	err = store.Heartbeat("s", "i1", time.Hour)
+	require.NoError(t, err)
+
+	for {
+		ids, _ = store.Get("s")
+		if len(ids) == 2 {
+			break
+		}
+	}
 }
 
 func TestWatch(t *testing.T) {
