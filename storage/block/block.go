@@ -22,7 +22,6 @@ package block
 
 import (
 	"errors"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,10 +36,10 @@ var (
 	errReadFromClosedBlock         = errors.New("attempt to read from a closed block")
 	errRetrievableBlockNoRetriever = errors.New("attempt to read from a retrievable block with no retriever")
 
-	timeUnixNanoZero = int64(math.MinInt64)
 	// NB(cw): the behavior of calling UnixNano() on time.Time{} is undefined
 	// using this timeZero makes testing a bit easier.
-	timeZero = time.Unix(0, timeUnixNanoZero)
+	timeZero         = time.Unix(0, 0)
+	timeUnixNanoZero = timeZero.UnixNano()
 )
 
 type dbBlock struct {
@@ -345,21 +344,17 @@ func (dbb *databaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
 	return b, ok
 }
 
-func (dbb *databaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {
-	res := make(map[time.Time]DatabaseBlock, len(dbb.elems))
-	for nano, db := range dbb.elems {
-		res[time.Unix(0, nano)] = db
-	}
-	return res
+func (dbb *databaseSeriesBlocks) AllBlocks() map[int64]DatabaseBlock {
+	return dbb.elems
 }
 
 func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
-	tNano := t.UnixNano()
-	if _, exists := dbb.elems[tNano]; !exists {
+	unixNano := t.UnixNano()
+	if _, exists := dbb.elems[unixNano]; !exists {
 		return
 	}
-	delete(dbb.elems, tNano)
-	if dbb.min != tNano && dbb.max != tNano {
+	delete(dbb.elems, unixNano)
+	if dbb.min != unixNano && dbb.max != unixNano {
 		return
 	}
 	dbb.min, dbb.max = timeUnixNanoZero, timeUnixNanoZero
