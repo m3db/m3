@@ -76,7 +76,6 @@ type mediator struct {
 	metrics  mediatorMetrics
 	state    mediatorState
 	closedCh chan struct{}
-	wg       sync.WaitGroup
 }
 
 func newMediator(database database, opts Options) (databaseMediator, error) {
@@ -121,7 +120,6 @@ func (m *mediator) Open() error {
 		return errMediatorAlreadyOpen
 	}
 	m.state = mediatorOpen
-	m.wg.Add(numOngoingTasks)
 	go m.reportLoop()
 	go m.ongoingTick()
 	m.databaseRepairer.Start()
@@ -167,14 +165,11 @@ func (m *mediator) Close() error {
 	m.state = mediatorClosed
 	close(m.closedCh)
 	m.databaseRepairer.Stop()
-	m.wg.Wait()
 
 	return nil
 }
 
 func (m *mediator) ongoingTick() {
-	defer m.wg.Done()
-
 	for {
 		select {
 		case <-m.closedCh:
@@ -202,8 +197,6 @@ func (m *mediator) tickWithFileOp(
 }
 
 func (m *mediator) reportLoop() {
-	defer m.wg.Done()
-
 	interval := m.opts.InstrumentOptions().ReportInterval()
 	t := time.Tick(interval)
 
