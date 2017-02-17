@@ -87,9 +87,8 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 	ranges := bsm.targetRanges(now)
 
 	var all [][]time.Time
-	it := ranges.Iter()
-	for it.Next() {
-		value := it.Value()
+	for _, target := range ranges {
+		value := target.Range
 		var times []time.Time
 		for st := value.Start; st.Before(value.End); st = st.Add(ropts.BlockSize()) {
 			times = append(times, st)
