@@ -23,17 +23,17 @@ package context
 import "sync/atomic"
 
 type cancellable struct {
-	cancelled *int32
+	cancelled int32
 }
 
 // NewCancellable creates a new cancellable object
 func NewCancellable() Cancellable {
-	return cancellable{cancelled: new(int32)}
+	return &cancellable{}
 }
 
-func (c cancellable) IsCancelled() bool { return atomic.LoadInt32(c.cancelled) == 1 }
-func (c cancellable) Cancel()           { atomic.StoreInt32(c.cancelled, 1) }
-func (c cancellable) Reset()            { atomic.StoreInt32(c.cancelled, 0) }
+func (c *cancellable) IsCancelled() bool { return atomic.LoadInt32(&c.cancelled) == 1 }
+func (c *cancellable) Cancel()           { atomic.StoreInt32(&c.cancelled, 1) }
+func (c *cancellable) Reset()            { atomic.StoreInt32(&c.cancelled, 0) }
 
 // NoOpCancellable is a no-op cancellable
 var noOpCancellable Cancellable = cancellableNoOp{}

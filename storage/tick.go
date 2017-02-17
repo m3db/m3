@@ -89,32 +89,25 @@ func newTickManager(database database) databaseTickManager {
 }
 
 func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) error {
-	acquired := false
-	select {
-	case <-mgr.tokenCh:
-		acquired = true
-	default:
-		// If there is an ongoing tick and ticking is not forced, return immediately
-		if forceType == noForce {
-			return errTickInProgress
-		}
-	}
-
-	// Otherwise if not acquired, it means this is a forced tick so we attempt to
-	// cancel and re-acquire
-	if !acquired {
-		tick := time.NewTicker(tokenCheckInterval)
-		for {
+	if forceType == force {
+		acquired := false
+		waiter := time.NewTicker(tokenCheckInterval)
+		// NB(xichen): cancellation is done in a loop so if there are multiple
+		// forced ticks, their cancellations don't get reset when token is acquired.
+		for !acquired {
 			select {
 			case <-mgr.tokenCh:
 				acquired = true
-				break
-			case <-tick.C:
+			case <-waiter.C:
 				mgr.c.Cancel()
 			}
-			if acquired {
-				break
-			}
+		}
+		waiter.Stop()
+	} else {
+		select {
+		case <-mgr.tokenCh:
+		default:
+			return errTickInProgress
 		}
 	}
 

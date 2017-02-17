@@ -331,10 +331,13 @@ func (s *dbShard) tickAndExpire(
 	}
 	start := s.nowFn()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
-		if c.IsCancelled() {
-			return false
-		}
 		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
+			// NB(xichen): if the tick is cancelled, we bail out immediately.
+			// The cancellation check is performed on every batch of entries
+			// instead of every entry to reduce load.
+			if c.IsCancelled() {
+				return false
+			}
 			// If we are ahead of our our deadline then throttle tick
 			prevEntryDeadline := start.Add(time.Duration(i) * perEntrySoftDeadline)
 			if now := s.nowFn(); now.Before(prevEntryDeadline) {
