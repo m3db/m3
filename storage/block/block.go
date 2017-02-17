@@ -39,7 +39,7 @@ var (
 	// NB(cw): the behavior of calling UnixNano() on time.Time{} is undefined
 	// using this timeZero makes testing a bit easier.
 	timeZero         = time.Unix(0, 0)
-	timeUnixNanoZero = timeZero.UnixNano()
+	timeZeroUnixNano = timeZero.UnixNano()
 )
 
 type dbBlock struct {
@@ -295,8 +295,8 @@ func NewDatabaseSeriesBlocks(capacity int, opts Options) DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
 		opts:  opts,
 		elems: make(map[int64]DatabaseBlock, capacity),
-		min:   timeUnixNanoZero,
-		max:   timeUnixNanoZero,
+		min:   timeZeroUnixNano,
+		max:   timeZeroUnixNano,
 	}
 }
 
@@ -310,10 +310,10 @@ func (dbb *databaseSeriesBlocks) Len() int {
 
 func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	start := block.StartTime().UnixNano()
-	if dbb.min == timeUnixNanoZero || start < dbb.min {
+	if dbb.min == timeZeroUnixNano || start < dbb.min {
 		dbb.min = start
 	}
-	if dbb.max == timeUnixNanoZero || start > dbb.max {
+	if dbb.max == timeZeroUnixNano || start > dbb.max {
 		dbb.max = start
 	}
 	dbb.elems[start] = block
@@ -357,15 +357,15 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 	if dbb.min != unixNano && dbb.max != unixNano {
 		return
 	}
-	dbb.min, dbb.max = timeUnixNanoZero, timeUnixNanoZero
+	dbb.min, dbb.max = timeZeroUnixNano, timeZeroUnixNano
 	if len(dbb.elems) == 0 {
 		return
 	}
 	for k := range dbb.elems {
-		if dbb.min == timeUnixNanoZero || dbb.min > k {
+		if dbb.min == timeZeroUnixNano || dbb.min > k {
 			dbb.min = k
 		}
-		if dbb.max == timeUnixNanoZero || dbb.max < k {
+		if dbb.max == timeZeroUnixNano || dbb.max < k {
 			dbb.max = k
 		}
 	}
