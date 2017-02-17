@@ -58,7 +58,7 @@ func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
 	require.NoError(t, err)
 	mgr := fsm.(*fileSystemManager)
 	require.True(t, mgr.shouldRunWithLock())
-	require.False(t, mgr.Disable())
+	require.NotEqual(t, fileOpInProgress, mgr.Disable())
 	require.False(t, mgr.shouldRunWithLock())
 	mgr.Enable()
 	require.True(t, mgr.shouldRunWithLock())
@@ -84,6 +84,6 @@ func TestFileSystemManagerRun(t *testing.T) {
 		fm.EXPECT().Flush(ts).Return(errors.New("bar")),
 	)
 
-	mgr.Run(ts, false, false)
+	mgr.Run(ts, syncRun, noForce)
 	require.Equal(t, fileOpNotStarted, mgr.status)
 }

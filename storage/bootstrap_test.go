@@ -56,7 +56,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
-	m.EXPECT().Tick(time.Duration(0), false, true).Return(nil)
+	m.EXPECT().Tick(time.Duration(0), syncRun, force).Return(nil)
 	bsm := newBootstrapManager(db, m).(*bootstrapManager)
 	err := bsm.Bootstrap()
 

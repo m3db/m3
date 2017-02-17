@@ -344,7 +344,7 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
-	r := shard.Tick(6*time.Millisecond, context.NoOpCancellable)
+	r := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 	require.Equal(t, 4*time.Millisecond, slept)
@@ -363,7 +363,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
 	addTestSeries(shard, ts.StringID("foo"))
-	shard.Tick(0, context.NoOpCancellable)
+	shard.Tick(context.NewNoOpCanncellable(), 0)
 	require.Equal(t, 0, len(shard.lookup))
 }
 
@@ -374,7 +374,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	r := shard.tickAndExpire(0, tickPolicyRegular, context.NoOpCancellable)
+	r := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
 	require.Equal(t, 1, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 }
@@ -402,7 +402,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		s.EXPECT().IsEmpty().Return(false)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(0, tickPolicyRegular, context.NoOpCancellable)
+	r := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
@@ -429,7 +429,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(0, tickPolicyRegular, context.NoOpCancellable)
+	r := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))

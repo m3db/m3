@@ -44,6 +44,20 @@ type fileOpState struct {
 	NumFailures int
 }
 
+type runType int
+
+const (
+	syncRun runType = iota
+	asyncRun
+)
+
+type forceType int
+
+const (
+	noForce forceType = iota
+	force
+)
+
 type fileSystemManager struct {
 	databaseFlushManager
 	databaseCleanupManager
@@ -90,30 +104,32 @@ func newFileSystemManager(
 	}, nil
 }
 
-func (m *fileSystemManager) Disable() bool {
+func (m *fileSystemManager) Disable() fileOpStatus {
 	m.Lock()
-	isRunning := m.status == fileOpInProgress
+	status := m.status
 	m.enabled = false
 	m.Unlock()
-	return isRunning
+	return status
 }
 
-func (m *fileSystemManager) Enable() {
+func (m *fileSystemManager) Enable() fileOpStatus {
 	m.Lock()
+	status := m.status
 	m.enabled = true
 	m.Unlock()
+	return status
 }
 
-func (m *fileSystemManager) IsRunning() bool {
+func (m *fileSystemManager) Status() fileOpStatus {
 	m.RLock()
-	running := m.status == fileOpInProgress
+	status := m.status
 	m.RUnlock()
-	return running
+	return status
 }
 
-func (m *fileSystemManager) Run(t time.Time, async bool, force bool) bool {
+func (m *fileSystemManager) Run(t time.Time, runType runType, forceType forceType) bool {
 	m.Lock()
-	if !force && !m.shouldRunWithLock() {
+	if forceType == noForce && !m.shouldRunWithLock() {
 		m.Unlock()
 		return false
 	}
@@ -133,7 +149,7 @@ func (m *fileSystemManager) Run(t time.Time, async bool, force bool) bool {
 		m.Unlock()
 	}
 
-	if !async {
+	if runType == syncRun {
 		flushFn()
 	} else {
 		go flushFn()

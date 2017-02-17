@@ -152,7 +152,7 @@ type databaseNamespace interface {
 	AssignShardSet(shardSet sharding.ShardSet)
 
 	// Tick performs any regular maintenance operations
-	Tick(softDeadline time.Duration, c context.Cancellable)
+	Tick(c context.Cancellable, softDeadline time.Duration)
 
 	// Write writes a data point
 	Write(
@@ -234,7 +234,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
-	Tick(softDeadline time.Duration, c context.Cancellable) tickResult
+	Tick(c context.Cancellable, softDeadline time.Duration) tickResult
 
 	Write(
 		ctx context.Context,
@@ -363,19 +363,18 @@ type databaseFileSystemManager interface {
 	databaseCleanupManager
 
 	// Disable disables the filesystem manager and prevents it from
-	// performing file operations, returns true if the file operations
-	// are in progress when called and false otherwise
-	Disable() bool
+	// performing file operations, returns the current file operation status
+	Disable() fileOpStatus
 
 	// Enable enables the filesystem manager to perform file operations
-	Enable()
+	Enable() fileOpStatus
 
-	// IsRunning determines whether some file operations are in progress
-	IsRunning() bool
+	// Status returns the file operation status
+	Status() fileOpStatus
 
 	// Run attempts to perform all filesystem-related operations,
 	// returning true if those operations are performed, and false otherwise
-	Run(t time.Time, async bool, force bool) bool
+	Run(t time.Time, runType runType, forceType forceType) bool
 }
 
 // databaseShardRepairer repairs in-memory data for a shard
@@ -412,7 +411,7 @@ type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
 	// tick if force is true. It returns nil if a new tick has
 	// completed successfully, and an error otherwise.
-	Tick(softDeadline time.Duration, force bool) error
+	Tick(softDeadline time.Duration, forceType forceType) error
 }
 
 // databaseMediator mediates actions among various database managers
@@ -433,7 +432,7 @@ type databaseMediator interface {
 	EnableFileOps()
 
 	// Tick performs a tick
-	Tick(softDeadline time.Duration, asyncFileOp bool, force bool) error
+	Tick(softDeadline time.Duration, runType runType, forceType forceType) error
 
 	// Repair repairs the database
 	Repair() error

@@ -36,10 +36,12 @@ func (c cancellable) Cancel()           { atomic.StoreInt32(c.cancelled, 1) }
 func (c cancellable) Reset()            { atomic.StoreInt32(c.cancelled, 0) }
 
 // NoOpCancellable is a no-op cancellable
-var NoOpCancellable Cancellable = noOpCancellable{}
+var noOpCancellable Cancellable = cancellableNoOp{}
 
-type noOpCancellable struct{}
+type cancellableNoOp struct{}
 
-func (c noOpCancellable) IsCancelled() bool { return false }
-func (c noOpCancellable) Cancel()           {}
-func (c noOpCancellable) Reset()            {}
+// NewNoOpCanncellable returns a no-op cancellable
+func NewNoOpCanncellable() Cancellable      { return noOpCancellable }
+func (c cancellableNoOp) IsCancelled() bool { return false }
+func (c cancellableNoOp) Cancel()           {}
+func (c cancellableNoOp) Reset()            {}

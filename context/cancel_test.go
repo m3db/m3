@@ -38,7 +38,7 @@ func TestCancellable(t *testing.T) {
 }
 
 func TestNoOpCancellable(t *testing.T) {
-	c := NoOpCancellable
+	c := NewNoOpCanncellable()
 	require.False(t, c.IsCancelled())
 
 	c.Cancel()

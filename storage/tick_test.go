@@ -41,7 +41,7 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 
 	namespace := NewMockdatabaseNamespace(ctrl)
 	namespace.EXPECT().NumSeries().Return(int64(10))
-	namespace.EXPECT().Tick(d, c)
+	namespace.EXPECT().Tick(c, d)
 	namespaces := map[string]databaseNamespace{
 		"test": namespace,
 	}
@@ -51,8 +51,8 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 
-	require.NoError(t, tm.Tick(d, false))
-	require.Equal(t, 0, len(tm.tokenCh))
+	require.NoError(t, tm.Tick(d, noForce))
+	require.Equal(t, 1, len(tm.tokenCh))
 }
 
 func TestTickManagerTickCancelled(t *testing.T) {
@@ -68,7 +68,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 
 	namespace := NewMockdatabaseNamespace(ctrl)
 	namespace.EXPECT().NumSeries().Return(int64(10))
-	namespace.EXPECT().Tick(d, c).Do(func(time.Duration, context.Cancellable) {
+	namespace.EXPECT().Tick(c, d).Do(func(context.Cancellable, time.Duration) {
 		ch1 <- struct{}{}
 		<-ch2
 	})
@@ -85,8 +85,8 @@ func TestTickManagerTickCancelled(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.Equal(t, errTickCancelled, tm.Tick(d, false))
-		require.Equal(t, 0, len(tm.tokenCh))
+		require.Equal(t, errTickCancelled, tm.Tick(d, noForce))
+		require.Equal(t, 1, len(tm.tokenCh))
 	}()
 
 	// Wait for tick to start
@@ -109,7 +109,7 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 
 	namespace := NewMockdatabaseNamespace(ctrl)
 	namespace.EXPECT().NumSeries().Return(int64(10))
-	namespace.EXPECT().Tick(d, c).Do(func(time.Duration, context.Cancellable) {
+	namespace.EXPECT().Tick(c, d).Do(func(context.Cancellable, time.Duration) {
 		ch1 <- struct{}{}
 		<-ch2
 	})
@@ -126,17 +126,17 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.NoError(t, tm.Tick(d, false))
+		require.NoError(t, tm.Tick(d, noForce))
 	}()
 
 	// Wait for tick to start
 	<-ch1
-	require.Equal(t, errTickInProgress, tm.Tick(d, false))
+	require.Equal(t, errTickInProgress, tm.Tick(d, noForce))
 
 	ch2 <- struct{}{}
 	wg.Wait()
 
-	require.Equal(t, 0, len(tm.tokenCh))
+	require.Equal(t, 1, len(tm.tokenCh))
 }
 
 func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
@@ -153,12 +153,12 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 	namespace := NewMockdatabaseNamespace(ctrl)
 	gomock.InOrder(
 		namespace.EXPECT().NumSeries().Return(int64(10)),
-		namespace.EXPECT().Tick(d, c).Do(func(time.Duration, context.Cancellable) {
+		namespace.EXPECT().Tick(c, d).Do(func(context.Cancellable, time.Duration) {
 			ch1 <- struct{}{}
 			<-ch2
 		}),
 		namespace.EXPECT().NumSeries().Return(int64(10)),
-		namespace.EXPECT().Tick(d, c),
+		namespace.EXPECT().Tick(c, d),
 	)
 	namespaces := map[string]databaseNamespace{
 		"test": namespace,
@@ -173,7 +173,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.Equal(t, errTickCancelled, tm.Tick(d, false))
+		require.Equal(t, errTickCancelled, tm.Tick(d, noForce))
 	}()
 
 	go func() {
@@ -181,7 +181,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 
 		// Wait for tick to start
 		<-ch1
-		require.NoError(t, tm.Tick(d, true))
+		require.NoError(t, tm.Tick(d, force))
 	}()
 
 	go func() {
@@ -193,5 +193,5 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 	}()
 
 	wg.Wait()
-	require.Equal(t, 0, len(tm.tokenCh))
+	require.Equal(t, 1, len(tm.tokenCh))
 }

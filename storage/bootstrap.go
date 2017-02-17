@@ -73,7 +73,6 @@ type bootstrapManager struct {
 	newBootstrapFn NewBootstrapFn
 	state          bootstrapState
 	hasPending     bool
-	sleepFn        sleepFn
 }
 
 func newBootstrapManager(
@@ -88,7 +87,6 @@ func newBootstrapManager(
 		log:            opts.InstrumentOptions().Logger(),
 		nowFn:          opts.ClockOptions().NowFn(),
 		newBootstrapFn: opts.NewBootstrapFn(),
-		sleepFn:        time.Sleep,
 	}
 }
 
@@ -173,7 +171,7 @@ func (m *bootstrapManager) Bootstrap() error {
 	}
 
 	// Forcing a tick to perform necessary file operations
-	m.mediator.Tick(0, false, true)
+	m.mediator.Tick(0, syncRun, force)
 
 	return multiErr.FinalError()
 }

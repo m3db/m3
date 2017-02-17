@@ -51,10 +51,10 @@ type tickManagerMetrics struct {
 
 func newTickManagerMetrics(scope tally.Scope) tickManagerMetrics {
 	return tickManagerMetrics{
-		tickDuration:       scope.Timer("tick.duration"),
-		tickCancelled:      scope.Counter("tick.cancelled"),
-		tickDeadlineMissed: scope.Counter("tick.deadline.missed"),
-		tickDeadlineMet:    scope.Counter("tick.deadline.met"),
+		tickDuration:       scope.Timer("duration"),
+		tickCancelled:      scope.Counter("cancelled"),
+		tickDeadlineMissed: scope.Counter("deadline.missed"),
+		tickDeadlineMet:    scope.Counter("deadline.met"),
 	}
 }
 
@@ -73,7 +73,9 @@ type tickManager struct {
 
 func newTickManager(database database) databaseTickManager {
 	opts := database.Options()
-	scope := opts.InstrumentOptions().MetricsScope()
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("tick")
+	tokenCh := make(chan struct{}, 1)
+	tokenCh <- struct{}{}
 
 	return &tickManager{
 		database: database,
@@ -82,18 +84,18 @@ func newTickManager(database database) databaseTickManager {
 		sleepFn:  time.Sleep,
 		metrics:  newTickManagerMetrics(scope),
 		c:        context.NewCancellable(),
-		tokenCh:  make(chan struct{}, 1),
+		tokenCh:  tokenCh,
 	}
 }
 
-func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) error {
+func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) error {
 	acquired := false
 	select {
-	case mgr.tokenCh <- struct{}{}:
+	case <-mgr.tokenCh:
 		acquired = true
 	default:
 		// If there is an ongoing tick and ticking is not forced, return immediately
-		if !force {
+		if forceType == noForce {
 			return errTickInProgress
 		}
 	}
@@ -104,7 +106,7 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) error {
 		tick := time.NewTicker(tokenCheckInterval)
 		for {
 			select {
-			case mgr.tokenCh <- struct{}{}:
+			case <-mgr.tokenCh:
 				acquired = true
 				break
 			case <-tick.C:
@@ -117,7 +119,7 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) error {
 	}
 
 	// Release the token
-	defer func() { <-mgr.tokenCh }()
+	defer func() { mgr.tokenCh <- struct{}{} }()
 
 	// Now we acquired the token, reset the cancellable
 	mgr.c.Reset()
@@ -137,7 +139,7 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, force bool) error {
 	}
 	for i, n := range namespaces {
 		deadline := float64(softDeadline) * (float64(sizes[i]) / float64(totalSize))
-		n.Tick(time.Duration(deadline), mgr.c)
+		n.Tick(mgr.c, time.Duration(deadline))
 	}
 
 	end := mgr.nowFn()

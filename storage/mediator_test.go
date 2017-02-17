@@ -88,10 +88,10 @@ func TestDatabaseMediatorDisableFileOps(t *testing.T) {
 	m.sleepFn = func(d time.Duration) { slept = append(slept, d) }
 
 	gomock.InOrder(
-		fsm.EXPECT().Disable().Return(true),
-		fsm.EXPECT().IsRunning().Return(true),
-		fsm.EXPECT().IsRunning().Return(true),
-		fsm.EXPECT().IsRunning().Return(false),
+		fsm.EXPECT().Disable().Return(fileOpInProgress),
+		fsm.EXPECT().Status().Return(fileOpInProgress),
+		fsm.EXPECT().Status().Return(fileOpInProgress),
+		fsm.EXPECT().Status().Return(fileOpNotStarted),
 	)
 
 	m.DisableFileOps()

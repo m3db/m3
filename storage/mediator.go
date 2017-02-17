@@ -95,14 +95,13 @@ func newMediator(database database, opts Options) (databaseMediator, error) {
 	}
 	d.databaseFileSystemManager = fsm
 
+	d.databaseRepairer = newNoopDatabaseRepairer()
 	if opts.RepairEnabled() {
 		var err error
 		d.databaseRepairer, err = newDatabaseRepairer(database)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		d.databaseRepairer = newNoopDatabaseRepairer()
 	}
 
 	d.databaseTickManager = newTickManager(database)
@@ -124,10 +123,10 @@ func (m *mediator) Open() error {
 }
 
 func (m *mediator) DisableFileOps() {
-	fileOpInProgess := m.databaseFileSystemManager.Disable()
-	for fileOpInProgess {
+	status := m.databaseFileSystemManager.Disable()
+	for status == fileOpInProgress {
 		m.sleepFn(fileOpCheckInterval)
-		fileOpInProgess = m.databaseFileSystemManager.IsRunning()
+		status = m.databaseFileSystemManager.Status()
 	}
 }
 
@@ -135,16 +134,16 @@ func (m *mediator) EnableFileOps() {
 	m.databaseFileSystemManager.Enable()
 }
 
-func (m *mediator) Tick(softDeadline time.Duration, asyncFileOp bool, force bool) error {
+func (m *mediator) Tick(softDeadline time.Duration, runType runType, forceType forceType) error {
 	start := m.nowFn()
-	if err := m.databaseTickManager.Tick(softDeadline, force); err != nil {
+	if err := m.databaseTickManager.Tick(softDeadline, forceType); err != nil {
 		return err
 	}
 	// NB(r): Cleanup and/or flush if required to cleanup files and/or
 	// flush blocks to disk. Note this has to run after the tick as
 	// blocks may only have just become available during a tick beginning
 	// from the tick begin marker.
-	m.databaseFileSystemManager.Run(start, asyncFileOp, force)
+	m.databaseFileSystemManager.Run(start, runType, forceType)
 	return nil
 }
 
@@ -173,7 +172,7 @@ func (m *mediator) ongoingTick() {
 			// NB(xichen): if we attempt to tick while another tick
 			// is in progress, throttle a little to avoid constantly
 			// checking whether the ongoing tick is finished
-			err := m.Tick(m.opts.RetentionOptions().BufferDrain(), true, false)
+			err := m.Tick(m.opts.RetentionOptions().BufferDrain(), asyncRun, noForce)
 			if err == errTickInProgress {
 				m.sleepFn(tickCheckInterval)
 			}
@@ -183,11 +182,11 @@ func (m *mediator) ongoingTick() {
 
 func (m *mediator) reportLoop() {
 	interval := m.opts.InstrumentOptions().ReportInterval()
-	t := time.Tick(interval)
+	t := time.NewTicker(interval)
 
 	for {
 		select {
-		case <-t:
+		case <-t.C:
 			if m.databaseBootstrapManager.IsBootstrapped() {
 				m.metrics.bootstrapStatus.Update(1)
 			} else {
@@ -209,6 +208,7 @@ func (m *mediator) reportLoop() {
 				m.metrics.flushStatus.Update(0)
 			}
 		case <-m.closedCh:
+			t.Stop()
 			return
 		}
 	}
