@@ -164,7 +164,10 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	opts = opts.SetAdminClient(mockAdminClient)
 
 	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-	mockRetriever.EXPECT().CacheShardIndices([]uint32{0, 1}).Return(nil)
+	// The shard indices are computed from iterating over a map, they can
+	// come in any order
+	mockRetriever.EXPECT().CacheShardIndices([]uint32{0, 1}).AnyTimes()
+	mockRetriever.EXPECT().CacheShardIndices([]uint32{1, 0}).AnyTimes()
 
 	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 	mockRetrieverMgr.EXPECT().
