@@ -686,7 +686,6 @@ func (s *dbShard) Flush(
 		s.markFlushStateSuccess(blockStart)
 		return nil
 	}
-	defer prepared.Close()
 
 	// If we encounter an error when persisting a series, we continue regardless.
 	tmpCtx := context.NewContext()
@@ -700,6 +699,10 @@ func (s *dbShard) Flush(
 		multiErr = multiErr.Add(err)
 		return true
 	})
+
+	if err := prepared.Close(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
 
 	resultErr := multiErr.FinalError()
 

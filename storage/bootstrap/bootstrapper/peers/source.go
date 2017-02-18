@@ -111,12 +111,6 @@ func (s *peersSource) Read(
 			blockRetriever = r
 			shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
 			persistManager = newPersistMgrFn()
-		} else {
-			s.log.WithFields(
-				xlog.NewLogField("namespace", namespace.String()),
-				xlog.NewLogField("noRetrieverMgr", retrieverMgr == nil),
-				xlog.NewLogField("noNewPersistMgrFn", newPersistMgrFn == nil),
-			).Infof("peers bootstrapper skipping incremental run")
 		}
 	}
 
@@ -125,7 +119,7 @@ func (s *peersSource) Read(
 	if err != nil {
 		s.log.Errorf("peers bootstrapper cannot get default admin session: %v", err)
 		result.SetUnfulfilled(shardsTimeRanges)
-		return result, nil
+		return nil, err
 	}
 
 	var (
@@ -215,7 +209,7 @@ func (s *peersSource) Read(
 			shards = append(shards, shard)
 		}
 
-		if err = blockRetriever.CacheShardIndices(shards); err != nil {
+		if err := blockRetriever.CacheShardIndices(shards); err != nil {
 			return nil, err
 		}
 	}
@@ -245,6 +239,7 @@ func (s *peersSource) incrementalFlush(
 			return err
 		}
 
+		var blockErr error
 		flushedBlocks = flushedBlocks[:0]
 
 		for _, series := range shardResult.AllSeries() {
@@ -256,18 +251,21 @@ func (s *peersSource) incrementalFlush(
 			tmpCtx.Reset()
 			stream, err := bl.Stream(tmpCtx)
 			if err != nil {
-				return err
+				blockErr = err // Need to call prepared.Close, avoid return
+				break
 			}
 
 			segment, err := stream.Segment()
 			if err != nil {
-				return err
+				blockErr = err // Need to call prepared.Close, avoid return
+				break
 			}
 
 			err = prepared.Persist(series.ID, segment, bl.Checksum())
 			tmpCtx.BlockingClose()
 			if err != nil {
-				return err
+				blockErr = err // Need to call prepared.Close, avoid return
+				break
 			}
 
 			entry := incrementalFlushedBlock{
@@ -277,7 +275,14 @@ func (s *peersSource) incrementalFlush(
 			flushedBlocks = append(flushedBlocks, entry)
 		}
 
-		if err := prepared.Close(); err != nil {
+		// Always close before attempting to check if block error occurred,
+		// avoid using a defer here as this needs to be done for each inner loop
+		err = prepared.Close()
+		if blockErr != nil {
+			// A block error is worth bubbling up more than a close error
+			err = blockErr
+		}
+		if err != nil {
 			return err
 		}
 

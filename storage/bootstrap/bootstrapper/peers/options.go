@@ -21,6 +21,7 @@
 package peers
 
 import (
+	"math"
 	"runtime"
 
 	"github.com/m3db/m3db/client"
@@ -31,8 +32,8 @@ import (
 
 var (
 	defaultDefaultBootstrapShardConcurrency    = runtime.NumCPU()
-	defaultIncrementalShardConcurrency         = 4
-	defaultIncrementalBootstrapPersistMaxQueue = 1
+	defaultIncrementalShardConcurrency         = int(math.Max(1, float64(runtime.NumCPU())/2))
+	defaultIncrementalBootstrapPersistMaxQueue = 0
 )
 
 type options struct {

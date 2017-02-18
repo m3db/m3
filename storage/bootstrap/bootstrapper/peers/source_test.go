@@ -25,16 +25,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,6 +64,35 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	r, err := src.Read(testNamespace, target, testDefaultRunOpts)
 	assert.NoError(t, err)
 	assert.Nil(t, r)
+}
+
+func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := NewOptions()
+	ropts := opts.ResultOptions().RetentionOptions()
+
+	expectedErr := fmt.Errorf("an error")
+
+	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(nil, expectedErr)
+
+	opts = opts.SetAdminClient(mockAdminClient)
+
+	src := newPeersSource(opts)
+
+	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+	end := start.Add(ropts.BlockSize())
+
+	target := result.ShardTimeRanges{
+		0: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+	}
+
+	_, err := src.Read(testNamespace, target, testDefaultRunOpts)
+	require.Error(t, err)
+	assert.Equal(t, expectedErr, err)
 }
 
 func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
@@ -276,5 +306,180 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 	assert.Equal(t, map[string]int{
 		"foo": 1, "bar": 1, "baz": 1, "empty": 1,
+	}, closes)
+}
+
+func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := NewOptions()
+	ropts := opts.ResultOptions().RetentionOptions()
+
+	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+	end := start.Add(ropts.BlockSize())
+
+	fooBlock := block.NewMockDatabaseBlock(ctrl)
+	fooBlock.EXPECT().StartTime().Return(start).AnyTimes()
+	fooBlock.EXPECT().Stream(gomock.Any()).Return(nil, fmt.Errorf("stream err"))
+
+	firstResult := result.NewShardResult(0, opts.ResultOptions())
+	firstResult.AddBlock(ts.StringID("foo"), fooBlock)
+
+	mockStream := xio.NewMockSegmentReader(ctrl)
+	mockStream.EXPECT().Segment().Return(ts.Segment{}, fmt.Errorf("segment err"))
+
+	barBlock := block.NewMockDatabaseBlock(ctrl)
+	barBlock.EXPECT().StartTime().Return(start)
+	barBlock.EXPECT().Stream(gomock.Any()).Return(mockStream, nil)
+
+	secondResult := result.NewShardResult(0, opts.ResultOptions())
+	secondResult.AddBlock(ts.StringID("bar"), barBlock)
+
+	bazBlock := block.NewDatabaseBlock(start,
+		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
+		testBlockOpts)
+
+	thirdResult := result.NewShardResult(0, opts.ResultOptions())
+	thirdResult.AddBlock(ts.StringID("baz"), bazBlock)
+
+	quxBlock := block.NewDatabaseBlock(start,
+		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
+		testBlockOpts)
+
+	fourthResult := result.NewShardResult(0, opts.ResultOptions())
+	fourthResult.AddBlock(ts.StringID("qux"), quxBlock)
+
+	mockAdminSession := client.NewMockAdminSession(ctrl)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+			uint32(0), start, end, gomock.Any()).
+		Return(firstResult, nil)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+			uint32(1), start, end, gomock.Any()).
+		Return(secondResult, nil)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+			uint32(2), start, end, gomock.Any()).
+		Return(thirdResult, nil)
+	mockAdminSession.EXPECT().
+		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+			uint32(3), start, end, gomock.Any()).
+		Return(fourthResult, nil)
+
+	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+
+	opts = opts.SetAdminClient(mockAdminClient)
+
+	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	mockRetriever.EXPECT().CacheShardIndices(gomock.Any()).AnyTimes()
+
+	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
+	mockRetrieverMgr.EXPECT().
+		Retriever(ts.NewIDMatcher(testNamespace.String())).
+		Return(mockRetriever, nil)
+
+	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+
+	mockPersistManager := persist.NewMockManager(ctrl)
+	persists := make(map[string]int)
+	closes := make(map[string]int)
+	mockPersistManager.EXPECT().
+		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(0), start).
+		Return(persist.PreparedPersist{
+			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				assert.Fail(t, "not expecting to flush shard 0 at start")
+				return nil
+			},
+			Close: func() error {
+				closes["foo"]++
+				return nil
+			},
+		}, nil)
+	mockPersistManager.EXPECT().
+		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(1), start).
+		Return(persist.PreparedPersist{
+			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				assert.Fail(t, "not expecting to flush shard 0 at start + block size")
+				return nil
+			},
+			Close: func() error {
+				closes["bar"]++
+				return nil
+			},
+		}, nil)
+	mockPersistManager.EXPECT().
+		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(2), start).
+		Return(persist.PreparedPersist{
+			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				persists["baz"]++
+				return fmt.Errorf("a persist error")
+			},
+			Close: func() error {
+				closes["baz"]++
+				return nil
+			},
+		}, nil)
+	mockPersistManager.EXPECT().
+		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(3), start).
+		Return(persist.PreparedPersist{
+			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				persists["qux"]++
+				return nil
+			},
+			Close: func() error {
+				closes["qux"]++
+				return fmt.Errorf("a persist close error")
+			},
+		}, nil)
+
+	opts = opts.SetNewPersistManagerFn(func() persist.Manager {
+		return mockPersistManager
+	})
+
+	src := newPeersSource(opts)
+
+	target := result.ShardTimeRanges{
+		0: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+		2: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+		3: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+	}
+
+	r, err := src.Read(testNamespace, target, testIncrementalRunOpts)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 4, len(r.ShardResults()))
+	for i := uint32(0); i < uint32(len(target)); i++ {
+		require.NotNil(t, r.ShardResults()[i])
+	}
+	for i := uint32(0); i < uint32(len(target)); i++ {
+		require.Nil(t, r.Unfulfilled()[i])
+	}
+
+	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
+	require.True(t, ok)
+	require.Equal(t, fooBlock, block)
+
+	block, ok = r.ShardResults()[1].BlockAt(ts.StringID("bar"), start)
+	require.True(t, ok)
+	require.Equal(t, barBlock, block)
+
+	block, ok = r.ShardResults()[2].BlockAt(ts.StringID("baz"), start)
+	require.True(t, ok)
+	require.Equal(t, bazBlock, block)
+
+	block, ok = r.ShardResults()[3].BlockAt(ts.StringID("qux"), start)
+	require.True(t, ok)
+	require.Equal(t, quxBlock, block)
+
+	assert.Equal(t, map[string]int{
+		"baz": 1, "qux": 1,
+	}, persists)
+
+	assert.Equal(t, map[string]int{
+		"foo": 1, "bar": 1, "baz": 1, "qux": 1,
 	}, closes)
 }
