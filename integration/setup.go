@@ -413,7 +413,7 @@ func newNodes(
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
-		SetBufferDrain(5 * time.Second)
+		SetBufferDrain(3 * time.Second)
 
 	nodeOpt := bootstrappableTestSetupOptions{
 		disablePeersBootstrapper: true,

@@ -50,7 +50,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(5 * time.Second)
+		SetBufferDrain(3 * time.Second)
 	batchSize := 16
 	concurrency := 64
 	setupOpts := []bootstrappableTestSetupOptions{
