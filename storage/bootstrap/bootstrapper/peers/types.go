@@ -41,31 +41,31 @@ type Options interface {
 	// AdminClient returns the admin client
 	AdminClient() client.AdminClient
 
-	// SetDefaultBootstrapShardConcurrency sets the concurrency for
+	// SetDefaultShardConcurrency sets the concurrency for
 	// bootstrapping shards when performing a non-incremental bootstrap.
-	SetDefaultBootstrapShardConcurrency(value int) Options
+	SetDefaultShardConcurrency(value int) Options
 
-	// DefaultBootstrapShardConcurrency returns the concurrency for
+	// DefaultShardConcurrency returns the concurrency for
 	// bootstrapping shards when performing a non-incremental bootstrap.
-	DefaultBootstrapShardConcurrency() int
+	DefaultShardConcurrency() int
 
-	// SetIncrementalBootstrapShardConcurrency sets the concurrency for
+	// SetIncrementalShardConcurrency sets the concurrency for
 	// bootstrapping shards when performing an incremental bootstrap.
-	SetIncrementalBootstrapShardConcurrency(value int) Options
+	SetIncrementalShardConcurrency(value int) Options
 
-	// IncrementalBootstrapShardConcurrency returns the concurrency for
+	// IncrementalShardConcurrency returns the concurrency for
 	// bootstrapping shards when performing an incremental bootstrap.
-	IncrementalBootstrapShardConcurrency() int
+	IncrementalShardConcurrency() int
 
-	// SetIncrementalBootstrapPersistMaxQueue sets the max queue for
+	// SetIncrementalPersistMaxQueueSize sets the max queue for
 	// bootstrapping shards waiting in line to persist without blocking
 	// the concurrent shard fetchers.
-	SetIncrementalBootstrapPersistMaxQueue(value int) Options
+	SetIncrementalPersistMaxQueueSize(value int) Options
 
-	// IncrementalBootstrapPersistMaxQueue returns the max queue for
+	// IncrementalPersistMaxQueueSize returns the max queue for
 	// bootstrapping shards waiting in line to persist without blocking
 	// the concurrent shard fetchers.
-	IncrementalBootstrapPersistMaxQueue() int
+	IncrementalPersistMaxQueueSize() int
 
 	// SetNewPersistManagerFn sets the function for creating a new persistence manager
 	// used to flush blocks when performing an incremental bootstrap run.

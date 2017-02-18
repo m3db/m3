@@ -126,14 +126,14 @@ func (s *peersSource) Read(
 		lock                sync.Mutex
 		wg                  sync.WaitGroup
 		incrementalWg       sync.WaitGroup
-		incrementalMaxQueue = s.opts.IncrementalBootstrapPersistMaxQueue()
+		incrementalMaxQueue = s.opts.IncrementalPersistMaxQueueSize()
 		incrementalQueue    = make(chan incrementalFlush, incrementalMaxQueue)
 		bopts               = s.opts.ResultOptions()
 		count               = len(shardsTimeRanges)
-		concurrency         = s.opts.DefaultBootstrapShardConcurrency()
+		concurrency         = s.opts.DefaultShardConcurrency()
 	)
 	if incremental {
-		concurrency = s.opts.IncrementalBootstrapShardConcurrency()
+		concurrency = s.opts.IncrementalShardConcurrency()
 	}
 
 	s.log.WithFields(
@@ -226,8 +226,6 @@ func (s *peersSource) incrementalFlush(
 	tr xtime.Range,
 ) error {
 	var (
-		numSeries      = len(shardResult.AllSeries())
-		flushedBlocks  = make([]incrementalFlushedBlock, 0, numSeries)
 		ropts          = s.opts.ResultOptions().RetentionOptions()
 		blockSize      = ropts.BlockSize()
 		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
@@ -239,10 +237,11 @@ func (s *peersSource) incrementalFlush(
 			return err
 		}
 
-		var blockErr error
-		flushedBlocks = flushedBlocks[:0]
-
-		for _, series := range shardResult.AllSeries() {
+		var (
+			blockErr          error
+			shardResultSeries = shardResult.AllSeries()
+		)
+		for _, series := range shardResultSeries {
 			bl, ok := series.Blocks.BlockAt(start)
 			if !ok {
 				continue
@@ -251,12 +250,14 @@ func (s *peersSource) incrementalFlush(
 			tmpCtx.Reset()
 			stream, err := bl.Stream(tmpCtx)
 			if err != nil {
+				tmpCtx.BlockingClose()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
 
 			segment, err := stream.Segment()
 			if err != nil {
+				tmpCtx.BlockingClose()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
@@ -267,33 +268,35 @@ func (s *peersSource) incrementalFlush(
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
-
-			entry := incrementalFlushedBlock{
-				id:    series.ID,
-				block: bl,
-			}
-			flushedBlocks = append(flushedBlocks, entry)
 		}
 
 		// Always close before attempting to check if block error occurred,
 		// avoid using a defer here as this needs to be done for each inner loop
 		err = prepared.Close()
 		if blockErr != nil {
-			// A block error is worth bubbling up more than a close error
+			// A block error is more interesting to bubble up than a close error
 			err = blockErr
 		}
 		if err != nil {
 			return err
 		}
 
-		// We can now make flushed blocks retrievable
-		for _, entry := range flushedBlocks {
-			metadata := block.RetrievableBlockMetadata{
-				ID:       entry.id,
-				Length:   entry.block.Len(),
-				Checksum: entry.block.Checksum(),
+		// NB(r): We can now make the flushed blocks retrievable, note that we
+		// explicitly perform another loop here and lookup the block again
+		// to avoid a large expensive allocation to hold onto the blocks
+		// that we just flushed that would have to be pooled.
+		// We are explicitly trading CPU time here for lower GC pressure.
+		for _, series := range shardResultSeries {
+			bl, ok := series.Blocks.BlockAt(start)
+			if !ok {
+				continue
 			}
-			entry.block.ResetRetrievable(start, shardRetriever, metadata)
+			metadata := block.RetrievableBlockMetadata{
+				ID:       series.ID,
+				Length:   bl.Len(),
+				Checksum: bl.Checksum(),
+			}
+			bl.ResetRetrievable(start, shardRetriever, metadata)
 		}
 	}
 

@@ -290,15 +290,18 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
 	require.True(t, ok)
-	require.Equal(t, fooBlock, block)
+	assert.Equal(t, fooBlock, block)
+	assert.False(t, fooBlock.IsRetrieved())
 
 	block, ok = r.ShardResults()[0].BlockAt(ts.StringID("bar"), start.Add(ropts.BlockSize()))
 	require.True(t, ok)
-	require.Equal(t, barBlock, block)
+	assert.Equal(t, barBlock, block)
+	assert.False(t, barBlock.IsRetrieved())
 
 	block, ok = r.ShardResults()[1].BlockAt(ts.StringID("baz"), start)
 	require.True(t, ok)
-	require.Equal(t, bazBlock, block)
+	assert.Equal(t, bazBlock, block)
+	assert.False(t, bazBlock.IsRetrieved())
 
 	assert.Equal(t, map[string]int{
 		"foo": 1, "bar": 1, "baz": 1,
@@ -461,19 +464,19 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 
 	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
 	require.True(t, ok)
-	require.Equal(t, fooBlock, block)
+	assert.Equal(t, fooBlock, block)
 
 	block, ok = r.ShardResults()[1].BlockAt(ts.StringID("bar"), start)
 	require.True(t, ok)
-	require.Equal(t, barBlock, block)
+	assert.Equal(t, barBlock, block)
 
 	block, ok = r.ShardResults()[2].BlockAt(ts.StringID("baz"), start)
 	require.True(t, ok)
-	require.Equal(t, bazBlock, block)
+	assert.Equal(t, bazBlock, block)
 
 	block, ok = r.ShardResults()[3].BlockAt(ts.StringID("qux"), start)
 	require.True(t, ok)
-	require.Equal(t, quxBlock, block)
+	assert.Equal(t, quxBlock, block)
 
 	assert.Equal(t, map[string]int{
 		"baz": 1, "qux": 1,
