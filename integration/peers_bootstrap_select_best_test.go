@@ -49,7 +49,8 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute)
+		SetBufferFuture(2 * time.Minute).
+		SetBufferDrain(5 * time.Second)
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
