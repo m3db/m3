@@ -89,7 +89,7 @@ func newMediator(database database, opts Options) (databaseMediator, error) {
 		closedCh: make(chan struct{}),
 	}
 
-	fsm, err := newFileSystemManager(database, scope)
+	fsm, err := newFileSystemManager(database, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func newMediator(database database, opts Options) (databaseMediator, error) {
 		}
 	}
 
-	d.databaseTickManager = newTickManager(database)
+	d.databaseTickManager = newTickManager(database, opts)
 	d.databaseBootstrapManager = newBootstrapManager(database, d)
 	return d, nil
 }

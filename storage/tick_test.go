@@ -47,7 +47,7 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 	}
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
 
-	tm := newTickManager(db).(*tickManager)
+	tm := newTickManager(db, opts).(*tickManager)
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 
@@ -77,7 +77,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 	}
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
 
-	tm := newTickManager(db).(*tickManager)
+	tm := newTickManager(db, opts).(*tickManager)
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 
@@ -118,7 +118,7 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 	}
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
 
-	tm := newTickManager(db).(*tickManager)
+	tm := newTickManager(db, opts).(*tickManager)
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 
@@ -165,7 +165,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 	}
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
 
-	tm := newTickManager(db).(*tickManager)
+	tm := newTickManager(db, opts).(*tickManager)
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 

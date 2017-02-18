@@ -71,8 +71,7 @@ type tickManager struct {
 	tokenCh chan struct{}
 }
 
-func newTickManager(database database) databaseTickManager {
-	opts := database.Options()
+func newTickManager(database database, opts Options) databaseTickManager {
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("tick")
 	tokenCh := make(chan struct{}, 1)
 	tokenCh <- struct{}{}

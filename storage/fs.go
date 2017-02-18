@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/log"
-	"github.com/uber-go/tally"
 )
 
 type fileOpStatus int
@@ -73,14 +72,14 @@ type fileSystemManager struct {
 
 func newFileSystemManager(
 	database database,
-	scope tally.Scope,
+	opts Options,
 ) (databaseFileSystemManager, error) {
-	opts := database.Options()
 	fileOpts := opts.FileOpOptions()
 	if err := fileOpts.Validate(); err != nil {
 		return nil, err
 	}
-	scope = scope.SubScope("fs")
+	instrumentOpts := opts.InstrumentOptions()
+	scope := instrumentOpts.MetricsScope().SubScope("fs")
 	fm := newFlushManager(database, scope)
 	cm := newCleanupManager(database, fm, scope)
 
@@ -95,7 +94,7 @@ func newFileSystemManager(
 	return &fileSystemManager{
 		databaseFlushManager:   fm,
 		databaseCleanupManager: cm,
-		log:      opts.InstrumentOptions().Logger(),
+		log:      instrumentOpts.Logger(),
 		database: database,
 		opts:     opts,
 		jitter:   jitter,
