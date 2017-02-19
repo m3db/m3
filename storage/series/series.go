@@ -188,13 +188,13 @@ func (s *dbSeries) shouldExpireAnyBlockData(now time.Time) bool {
 	}
 
 	cutoff := ropts.BlockDataExpiryAfterNotAccessedPeriod()
-	for start, block := range s.blocks.AllBlocks() {
+	for startUnixNano, block := range s.blocks.AllBlocks() {
 		if !block.IsRetrieved() {
 			continue
 		}
 		sinceLastAccessed := now.Sub(block.LastAccessTime())
 		if sinceLastAccessed >= cutoff &&
-			retriever.IsBlockRetrievable(start) {
+			retriever.IsBlockRetrievable(time.Unix(0, startUnixNano)) {
 			return true
 		}
 	}
@@ -228,7 +228,8 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		dataCutoff      = ropts.BlockDataExpiryAfterNotAccessedPeriod()
 		makeRetrievable = retriever != nil && dataExpiry
 	)
-	for start, currBlock := range allBlocks {
+	for startUnixNano, currBlock := range allBlocks {
+		start := time.Unix(0, startUnixNano)
 		if s.shouldExpireBlockAt(now, start) {
 			s.blocks.RemoveBlockAt(start)
 			currBlock.Close()
@@ -384,8 +385,9 @@ func (s *dbSeries) FetchBlocksMetadata(
 	blocks := s.blocks.AllBlocks()
 
 	// Iterate over the data blocks
-	for t, b := range blocks {
-		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
+	for unixNano, b := range blocks {
+		start := time.Unix(0, unixNano)
+		if !start.Before(start.Add(blockSize)) || !start.Before(end) {
 			continue
 		}
 		var (
@@ -400,7 +402,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 			checksum := b.Checksum()
 			pChecksum = &checksum
 		}
-		res.Add(block.NewFetchBlockMetadataResult(t, pSize, pChecksum, nil))
+		res.Add(block.NewFetchBlockMetadataResult(start, pSize, pChecksum, nil))
 	}
 
 	// Iterate over the encoders in the database buffer
@@ -488,12 +490,13 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 
 		// If any received data falls within the buffer then we emplace it there
 		min, _ := s.buffer.MinMax()
-		for t, block := range blocks.AllBlocks() {
-			if !t.Before(min) {
+		for startUnixNano, block := range blocks.AllBlocks() {
+			start := time.Unix(0, startUnixNano)
+			if !start.Before(min) {
 				if err := s.buffer.Bootstrap(block); err != nil {
 					multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
 				}
-				blocks.RemoveBlockAt(t)
+				blocks.RemoveBlockAt(start)
 			}
 		}
 
