@@ -73,12 +73,12 @@ func TestNamespaceTick(t *testing.T) {
 	expectedPerShardDeadline := deadline / time.Duration(len(testShardIDs))
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Tick(expectedPerShardDeadline)
+		shard.EXPECT().Tick(context.NewNoOpCanncellable(), expectedPerShardDeadline)
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
 	// Only asserting the expected methods are called
-	ns.Tick(deadline)
+	ns.Tick(context.NewNoOpCanncellable(), deadline)
 }
 
 func TestNamespaceWriteShardNotOwned(t *testing.T) {

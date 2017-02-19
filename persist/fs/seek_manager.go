@@ -41,6 +41,8 @@ const (
 	seekManagerCloseInterval = time.Minute
 )
 
+type openAnyUnopenSeekersFn func(*seekersByTime) error
+
 type seekerManagerStatus int
 
 const (
@@ -57,10 +59,11 @@ type seekerManager struct {
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
 
-	status            seekerManagerStatus
-	seekersByShardIdx []*seekersByTime
-	namespace         ts.ID
-	unreadBuf         seekerUnreadBuf
+	status                 seekerManagerStatus
+	seekersByShardIdx      []*seekersByTime
+	namespace              ts.ID
+	unreadBuf              seekerUnreadBuf
+	openAnyUnopenSeekersFn openAnyUnopenSeekersFn
 }
 
 type seekerUnreadBuf struct {
@@ -85,11 +88,13 @@ func NewSeekerManager(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
 ) FileSetSeekerManager {
-	return &seekerManager{
+	m := &seekerManager{
 		bytesPool:      bytesPool,
 		filePathPrefix: opts.FilePathPrefix(),
 		opts:           opts,
 	}
+	m.openAnyUnopenSeekersFn = m.openAnyUnopenSeekers
+	return m
 }
 
 func (m *seekerManager) Open(
@@ -113,7 +118,7 @@ func (m *seekerManager) Open(
 func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 	multiErr := xerrors.NewMultiError()
 
-	for shard := uint32(0); shard < uint32(len(shards)); shard++ {
+	for _, shard := range shards {
 		byTime := m.seekersByTime(shard)
 
 		byTime.Lock()
@@ -121,7 +126,7 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 		byTime.accessed = true
 		byTime.Unlock()
 
-		if err := m.openAnyUnopenSeekers(byTime); err != nil {
+		if err := m.openAnyUnopenSeekersFn(byTime); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -334,7 +339,7 @@ func (m *seekerManager) openCloseLoop() {
 
 		// Try opening any unopened times for accessed seekers
 		for _, byTime := range shouldTryOpen {
-			m.openAnyUnopenSeekers(byTime)
+			m.openAnyUnopenSeekersFn(byTime)
 		}
 
 		m.RLock()

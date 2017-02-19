@@ -59,10 +59,6 @@ var (
 	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
 )
 
-const (
-	dbOngoingTasks = 2
-)
-
 type databaseState int
 
 const (
@@ -95,32 +91,17 @@ type db struct {
 	writeCommitLogFn writeCommitLogFn
 
 	state    databaseState
-	bsm      databaseBootstrapManager
-	fsm      databaseFileSystemManager
-	repairer databaseRepairer
+	mediator databaseMediator
 
 	created      uint64
 	tickDeadline time.Duration
-	ticking      int64
 	bootstraps   int
 
 	scope   tally.Scope
 	metrics databaseMetrics
-
-	doneCh chan struct{}
 }
 
 type databaseMetrics struct {
-	bootstrapStatus tally.Gauge
-	tickStatus      tally.Gauge
-	cleanupStatus   tally.Gauge
-	flushStatus     tally.Gauge
-	repairStatus    tally.Gauge
-
-	tickDuration       tally.Timer
-	tickDeadlineMissed tally.Counter
-	tickDeadlineMet    tally.Counter
-
 	write               instrument.MethodMetrics
 	read                instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
@@ -129,16 +110,6 @@ type databaseMetrics struct {
 
 func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics {
 	return databaseMetrics{
-		bootstrapStatus: scope.Gauge("bootstrapped"),
-		tickStatus:      scope.Gauge("tick"),
-		cleanupStatus:   scope.Gauge("cleanup"),
-		flushStatus:     scope.Gauge("flush"),
-		repairStatus:    scope.Gauge("repair"),
-
-		tickDuration:       scope.Timer("tick.duration"),
-		tickDeadlineMissed: scope.Counter("tick.deadline.missed"),
-		tickDeadlineMet:    scope.Counter("tick.deadline.met"),
-
 		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
 		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
@@ -161,7 +132,6 @@ func NewDatabase(
 		tickDeadline: opts.RetentionOptions().BufferDrain(),
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
-		doneCh:       make(chan struct{}, dbOngoingTasks),
 	}
 
 	d.commitLog = commitlog.NewCommitLog(opts.CommitLogOptions())
@@ -200,22 +170,11 @@ func NewDatabase(
 	}
 	d.namespaces = ns
 
-	fsm, err := newFileSystemManager(d, scope)
+	mediator, err := newMediator(d, opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
 	if err != nil {
 		return nil, err
 	}
-	d.fsm = fsm
-
-	d.bsm = newBootstrapManager(d)
-
-	if opts.RepairEnabled() {
-		d.repairer, err = newDatabaseRepairer(d)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		d.repairer = newNoopDatabaseRepairer()
-	}
+	d.mediator = mediator
 
 	return d, nil
 }
@@ -230,11 +189,11 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	for _, ns := range d.namespaces {
 		ns.AssignShardSet(shardSet)
 	}
+	// NB(r): Trigger another bootstrap, if already bootstrapping this will
+	// enqueue a new bootstrap to execute before the current bootstrap
+	// completes
 	if d.bootstraps > 0 {
-		// NB(r): Trigger another bootstrap, if already bootstrapping this will
-		// enqueue a new bootstrap to execute before the current bootstrap
-		// completes
-		go d.Bootstrap()
+		go d.mediator.Bootstrap()
 	}
 }
 
@@ -256,15 +215,7 @@ func (d *db) Open() error {
 	}
 	d.state = databaseOpen
 
-	// Goroutines must be accounted for with dbOngoingTasks in order to receive done signal
-	go d.reportLoop()
-	go d.ongoingTick()
-
-	// Explicitly start the repairer in Open and stop it in Close so there is no need to
-	// register this goroutine with dbOngoingTasks
-	d.repairer.Start()
-
-	return nil
+	return d.mediator.Open()
 }
 
 func (d *db) Close() error {
@@ -282,11 +233,9 @@ func (d *db) Close() error {
 	// this is nice as we do not need to do any other branching now in write/read methods.
 	d.namespaces = nil
 
-	for i := 0; i < dbOngoingTasks; i++ {
-		d.doneCh <- struct{}{}
+	if err := d.mediator.Close(); err != nil {
+		return err
 	}
-
-	d.repairer.Stop()
 
 	// Finally close the commit log
 	return d.commitLog.Close()
@@ -384,15 +333,15 @@ func (d *db) Bootstrap() error {
 	d.Lock()
 	d.bootstraps++
 	d.Unlock()
-	return d.bsm.Bootstrap()
+	return d.mediator.Bootstrap()
 }
 
 func (d *db) IsBootstrapped() bool {
-	return d.bsm.IsBootstrapped()
+	return d.mediator.IsBootstrapped()
 }
 
 func (d *db) Repair() error {
-	return d.repairer.Repair()
+	return d.mediator.Repair()
 }
 
 func (d *db) Truncate(namespace ts.ID) (int64, error) {
@@ -422,95 +371,6 @@ func (d *db) getOwnedNamespaces() []databaseNamespace {
 	}
 	d.RUnlock()
 	return namespaces
-}
-
-func (d *db) reportLoop() {
-	interval := d.opts.InstrumentOptions().ReportInterval()
-	t := time.Tick(interval)
-
-	for {
-		select {
-		case <-t:
-			if d.IsBootstrapped() {
-				d.metrics.bootstrapStatus.Update(1)
-			} else {
-				d.metrics.bootstrapStatus.Update(0)
-			}
-			if d.repairer.IsRepairing() {
-				d.metrics.repairStatus.Update(1)
-			} else {
-				d.metrics.repairStatus.Update(0)
-			}
-			d.metrics.tickStatus.Update(float64(atomic.LoadInt64(&d.ticking)))
-			if d.fsm.IsCleaningUp() {
-				d.metrics.cleanupStatus.Update(1)
-			} else {
-				d.metrics.cleanupStatus.Update(0)
-			}
-			if d.fsm.IsFlushing() {
-				d.metrics.flushStatus.Update(1)
-			} else {
-				d.metrics.flushStatus.Update(0)
-			}
-		case <-d.doneCh:
-			return
-		}
-	}
-}
-
-func (d *db) ongoingTick() {
-	for {
-		select {
-		case _ = <-d.doneCh:
-			return
-		default:
-			d.splayedTick()
-		}
-	}
-}
-
-func (d *db) splayedTick() {
-	namespaces := d.getOwnedNamespaces()
-	if len(namespaces) == 0 {
-		return
-	}
-
-	// Begin ticking
-	start := d.nowFn()
-	atomic.StoreInt64(&d.ticking, 1)
-
-	sizes := make([]int64, 0, len(namespaces))
-	totalSize := int64(0)
-	for _, n := range namespaces {
-		size := n.NumSeries()
-		sizes = append(sizes, size)
-		totalSize += size
-	}
-	for i, n := range namespaces {
-		deadline := float64(d.tickDeadline) * (float64(sizes[i]) / float64(totalSize))
-		n.Tick(time.Duration(deadline))
-	}
-
-	end := d.nowFn()
-	duration := end.Sub(start)
-	atomic.StoreInt64(&d.ticking, 0)
-	d.metrics.tickDuration.Record(duration)
-
-	if duration > d.tickDeadline {
-		d.metrics.tickDeadlineMissed.Inc(1)
-	} else {
-		d.metrics.tickDeadlineMet.Inc(1)
-		// Throttle to reduce locking overhead during ticking
-		time.Sleep(d.tickDeadline - duration)
-	}
-
-	// NB(r): Cleanup and/or flush if required to cleanup files and/or
-	// flush blocks to disk. Note this has to run after the tick as
-	// blocks may only have just become available during a tick beginning
-	// from the tick begin marker.
-	if d.fsm.ShouldRun(start) {
-		d.fsm.Run(start, true)
-	}
 }
 
 func (d *db) nextIndex() uint64 {

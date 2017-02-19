@@ -29,9 +29,9 @@ import (
 	io0 "github.com/m3db/m3db/x/io"
 	checked "github.com/m3db/m3x/checked"
 	pool "github.com/m3db/m3x/pool"
-	time "github.com/m3db/m3x/time"
+	time0 "github.com/m3db/m3x/time"
 	io "io"
-	time0 "time"
+	time "time"
 )
 
 // Mock of Encoder interface
@@ -55,7 +55,7 @@ func (_m *MockEncoder) EXPECT() *_MockEncoderRecorder {
 	return _m.recorder
 }
 
-func (_m *MockEncoder) Encode(dp ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
+func (_m *MockEncoder) Encode(dp ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
 	ret := _m.ctrl.Call(_m, "Encode", dp, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -85,7 +85,7 @@ func (_mr *_MockEncoderRecorder) StreamLen() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "StreamLen")
 }
 
-func (_m *MockEncoder) Reset(t time0.Time, capacity int) {
+func (_m *MockEncoder) Reset(t time.Time, capacity int) {
 	_m.ctrl.Call(_m, "Reset", t, capacity)
 }
 
@@ -111,7 +111,7 @@ func (_mr *_MockEncoderRecorder) Discard() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Discard")
 }
 
-func (_m *MockEncoder) DiscardReset(t time0.Time, capacity int) ts.Segment {
+func (_m *MockEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
 	ret := _m.ctrl.Call(_m, "DiscardReset", t, capacity)
 	ret0, _ := ret[0].(ts.Segment)
 	return ret0
@@ -142,7 +142,7 @@ func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOptions) SetDefaultTimeUnit(tu time.Unit) Options {
+func (_m *MockOptions) SetDefaultTimeUnit(tu time0.Unit) Options {
 	ret := _m.ctrl.Call(_m, "SetDefaultTimeUnit", tu)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -152,9 +152,9 @@ func (_mr *_MockOptionsRecorder) SetDefaultTimeUnit(arg0 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetDefaultTimeUnit", arg0)
 }
 
-func (_m *MockOptions) DefaultTimeUnit() time.Unit {
+func (_m *MockOptions) DefaultTimeUnit() time0.Unit {
 	ret := _m.ctrl.Call(_m, "DefaultTimeUnit")
-	ret0, _ := ret[0].(time.Unit)
+	ret0, _ := ret[0].(time0.Unit)
 	return ret0
 }
 
@@ -313,10 +313,10 @@ func (_mr *_MockIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockIterator) Current() (ts.Datapoint, time.Unit, ts.Annotation) {
+func (_m *MockIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(ts.Datapoint)
-	ret1, _ := ret[1].(time.Unit)
+	ret1, _ := ret[1].(time0.Unit)
 	ret2, _ := ret[2].(ts.Annotation)
 	return ret0, ret1, ret2
 }
@@ -374,10 +374,10 @@ func (_mr *_MockReaderIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockReaderIterator) Current() (ts.Datapoint, time.Unit, ts.Annotation) {
+func (_m *MockReaderIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(ts.Datapoint)
-	ret1, _ := ret[1].(time.Unit)
+	ret1, _ := ret[1].(time0.Unit)
 	ret2, _ := ret[2].(ts.Annotation)
 	return ret0, ret1, ret2
 }
@@ -443,10 +443,10 @@ func (_mr *_MockMultiReaderIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockMultiReaderIterator) Current() (ts.Datapoint, time.Unit, ts.Annotation) {
+func (_m *MockMultiReaderIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(ts.Datapoint)
-	ret1, _ := ret[1].(time.Unit)
+	ret1, _ := ret[1].(time0.Unit)
 	ret2, _ := ret[2].(ts.Annotation)
 	return ret0, ret1, ret2
 }
@@ -520,10 +520,10 @@ func (_mr *_MockSeriesIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockSeriesIterator) Current() (ts.Datapoint, time.Unit, ts.Annotation) {
+func (_m *MockSeriesIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(ts.Datapoint)
-	ret1, _ := ret[1].(time.Unit)
+	ret1, _ := ret[1].(time0.Unit)
 	ret2, _ := ret[2].(ts.Annotation)
 	return ret0, ret1, ret2
 }
@@ -560,9 +560,9 @@ func (_mr *_MockSeriesIteratorRecorder) ID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
 }
 
-func (_m *MockSeriesIterator) Start() time0.Time {
+func (_m *MockSeriesIterator) Start() time.Time {
 	ret := _m.ctrl.Call(_m, "Start")
-	ret0, _ := ret[0].(time0.Time)
+	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
@@ -570,9 +570,9 @@ func (_mr *_MockSeriesIteratorRecorder) Start() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
 }
 
-func (_m *MockSeriesIterator) End() time0.Time {
+func (_m *MockSeriesIterator) End() time.Time {
 	ret := _m.ctrl.Call(_m, "End")
-	ret0, _ := ret[0].(time0.Time)
+	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
@@ -580,7 +580,7 @@ func (_mr *_MockSeriesIteratorRecorder) End() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "End")
 }
 
-func (_m *MockSeriesIterator) Reset(id string, startInclusive time0.Time, endExclusive time0.Time, replicas []Iterator) {
+func (_m *MockSeriesIterator) Reset(id string, startInclusive time.Time, endExclusive time.Time, replicas []Iterator) {
 	_m.ctrl.Call(_m, "Reset", id, startInclusive, endExclusive, replicas)
 }
 

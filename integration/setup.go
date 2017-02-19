@@ -411,7 +411,9 @@ func newNodes(
 	topoOpts := topology.NewDynamicOptions().
 		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
-	retentionOpts := retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+	retentionOpts := retention.NewOptions().
+		SetRetentionPeriod(6 * time.Hour).
+		SetBufferDrain(3 * time.Second)
 
 	nodeOpt := bootstrappableTestSetupOptions{
 		disablePeersBootstrapper: true,

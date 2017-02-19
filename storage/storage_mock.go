@@ -474,12 +474,12 @@ func (_mr *_MockdatabaseNamespaceRecorder) AssignShardSet(arg0 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AssignShardSet", arg0)
 }
 
-func (_m *MockdatabaseNamespace) Tick(softDeadline time0.Duration) {
-	_m.ctrl.Call(_m, "Tick", softDeadline)
+func (_m *MockdatabaseNamespace) Tick(c context.Cancellable, softDeadline time0.Duration) {
+	_m.ctrl.Call(_m, "Tick", c, softDeadline)
 }
 
-func (_mr *_MockdatabaseNamespaceRecorder) Tick(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick", arg0)
+func (_mr *_MockdatabaseNamespaceRecorder) Tick(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick", arg0, arg1)
 }
 
 func (_m *MockdatabaseNamespace) Write(ctx context.Context, id ts.ID, timestamp time0.Time, value float64, unit time.Unit, annotation []byte) error {
@@ -719,14 +719,14 @@ func (_mr *_MockdatabaseShardRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockdatabaseShard) Tick(softDeadline time0.Duration) tickResult {
-	ret := _m.ctrl.Call(_m, "Tick", softDeadline)
+func (_m *MockdatabaseShard) Tick(c context.Cancellable, softDeadline time0.Duration) tickResult {
+	ret := _m.ctrl.Call(_m, "Tick", c, softDeadline)
 	ret0, _ := ret[0].(tickResult)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) Tick(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick", arg0)
+func (_mr *_MockdatabaseShardRecorder) Tick(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick", arg0, arg1)
 }
 
 func (_m *MockdatabaseShard) Write(ctx context.Context, id ts.ID, timestamp time0.Time, value float64, unit time.Unit, annotation []byte) error {
@@ -1184,22 +1184,44 @@ func (_mr *_MockdatabaseFileSystemManagerRecorder) Cleanup(arg0 interface{}) *go
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Cleanup", arg0)
 }
 
-func (_m *MockdatabaseFileSystemManager) ShouldRun(t time0.Time) bool {
-	ret := _m.ctrl.Call(_m, "ShouldRun", t)
+func (_m *MockdatabaseFileSystemManager) Disable() fileOpStatus {
+	ret := _m.ctrl.Call(_m, "Disable")
+	ret0, _ := ret[0].(fileOpStatus)
+	return ret0
+}
+
+func (_mr *_MockdatabaseFileSystemManagerRecorder) Disable() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Disable")
+}
+
+func (_m *MockdatabaseFileSystemManager) Enable() fileOpStatus {
+	ret := _m.ctrl.Call(_m, "Enable")
+	ret0, _ := ret[0].(fileOpStatus)
+	return ret0
+}
+
+func (_mr *_MockdatabaseFileSystemManagerRecorder) Enable() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Enable")
+}
+
+func (_m *MockdatabaseFileSystemManager) Status() fileOpStatus {
+	ret := _m.ctrl.Call(_m, "Status")
+	ret0, _ := ret[0].(fileOpStatus)
+	return ret0
+}
+
+func (_mr *_MockdatabaseFileSystemManagerRecorder) Status() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Status")
+}
+
+func (_m *MockdatabaseFileSystemManager) Run(t time0.Time, runType runType, forceType forceType) bool {
+	ret := _m.ctrl.Call(_m, "Run", t, runType, forceType)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockdatabaseFileSystemManagerRecorder) ShouldRun(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShouldRun", arg0)
-}
-
-func (_m *MockdatabaseFileSystemManager) Run(t time0.Time, async bool) {
-	_m.ctrl.Call(_m, "Run", t, async)
-}
-
-func (_mr *_MockdatabaseFileSystemManagerRecorder) Run(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1)
+func (_mr *_MockdatabaseFileSystemManagerRecorder) Run(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1, arg2)
 }
 
 // Mock of databaseShardRepairer interface
@@ -1299,6 +1321,134 @@ func (_m *MockdatabaseRepairer) IsRepairing() bool {
 
 func (_mr *_MockdatabaseRepairerRecorder) IsRepairing() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsRepairing")
+}
+
+// Mock of databaseTickManager interface
+type MockdatabaseTickManager struct {
+	ctrl     *gomock.Controller
+	recorder *_MockdatabaseTickManagerRecorder
+}
+
+// Recorder for MockdatabaseTickManager (not exported)
+type _MockdatabaseTickManagerRecorder struct {
+	mock *MockdatabaseTickManager
+}
+
+func NewMockdatabaseTickManager(ctrl *gomock.Controller) *MockdatabaseTickManager {
+	mock := &MockdatabaseTickManager{ctrl: ctrl}
+	mock.recorder = &_MockdatabaseTickManagerRecorder{mock}
+	return mock
+}
+
+func (_m *MockdatabaseTickManager) EXPECT() *_MockdatabaseTickManagerRecorder {
+	return _m.recorder
+}
+
+func (_m *MockdatabaseTickManager) Tick(softDeadline time0.Duration, forceType forceType) error {
+	ret := _m.ctrl.Call(_m, "Tick", softDeadline, forceType)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseTickManagerRecorder) Tick(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick", arg0, arg1)
+}
+
+// Mock of databaseMediator interface
+type MockdatabaseMediator struct {
+	ctrl     *gomock.Controller
+	recorder *_MockdatabaseMediatorRecorder
+}
+
+// Recorder for MockdatabaseMediator (not exported)
+type _MockdatabaseMediatorRecorder struct {
+	mock *MockdatabaseMediator
+}
+
+func NewMockdatabaseMediator(ctrl *gomock.Controller) *MockdatabaseMediator {
+	mock := &MockdatabaseMediator{ctrl: ctrl}
+	mock.recorder = &_MockdatabaseMediatorRecorder{mock}
+	return mock
+}
+
+func (_m *MockdatabaseMediator) EXPECT() *_MockdatabaseMediatorRecorder {
+	return _m.recorder
+}
+
+func (_m *MockdatabaseMediator) Open() error {
+	ret := _m.ctrl.Call(_m, "Open")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseMediatorRecorder) Open() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
+}
+
+func (_m *MockdatabaseMediator) IsBootstrapped() bool {
+	ret := _m.ctrl.Call(_m, "IsBootstrapped")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockdatabaseMediatorRecorder) IsBootstrapped() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBootstrapped")
+}
+
+func (_m *MockdatabaseMediator) Bootstrap() error {
+	ret := _m.ctrl.Call(_m, "Bootstrap")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseMediatorRecorder) Bootstrap() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap")
+}
+
+func (_m *MockdatabaseMediator) DisableFileOps() {
+	_m.ctrl.Call(_m, "DisableFileOps")
+}
+
+func (_mr *_MockdatabaseMediatorRecorder) DisableFileOps() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DisableFileOps")
+}
+
+func (_m *MockdatabaseMediator) EnableFileOps() {
+	_m.ctrl.Call(_m, "EnableFileOps")
+}
+
+func (_mr *_MockdatabaseMediatorRecorder) EnableFileOps() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "EnableFileOps")
+}
+
+func (_m *MockdatabaseMediator) Tick(softDeadline time0.Duration, runType runType, forceType forceType) error {
+	ret := _m.ctrl.Call(_m, "Tick", softDeadline, runType, forceType)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseMediatorRecorder) Tick(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick", arg0, arg1, arg2)
+}
+
+func (_m *MockdatabaseMediator) Repair() error {
+	ret := _m.ctrl.Call(_m, "Repair")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseMediatorRecorder) Repair() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair")
+}
+
+func (_m *MockdatabaseMediator) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseMediatorRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
 // Mock of Options interface
