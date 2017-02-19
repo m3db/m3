@@ -182,8 +182,14 @@ func (m *bootstrapManager) Bootstrap() error {
 		}
 	}
 
-	// Forcing a tick to perform necessary file operations
-	m.mediator.Tick(m.opts.RetentionOptions().BufferDrain(), syncRun, force)
+	// NB(xichen): in order for bootstrapped data to be flushed to disk, a tick
+	// needs to happen to drain the in-memory buffers and a consequent flush will
+	// flush all the data onto disk. However, this has shown to be too intensive
+	// to do immediately after bootstrap due to bootstrapping nodes simultaneously
+	// attempting to tick through their series and flushing data, adding significant
+	// load to the cluster. It turns out to be better to let ticking happen naturally
+	// on its own course so that the load of ticking and flushing is more spread out
+	// across the cluster.
 
 	return multiErr.FinalError()
 }

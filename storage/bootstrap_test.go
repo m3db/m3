@@ -52,12 +52,10 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 		"test": namespace,
 	}
 
-	deadline := opts.RetentionOptions().BufferDrain()
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
-	m.EXPECT().Tick(deadline, syncRun, force).Return(nil)
 	bsm := newBootstrapManager(db, m).(*bootstrapManager)
 	err := bsm.Bootstrap()
 
