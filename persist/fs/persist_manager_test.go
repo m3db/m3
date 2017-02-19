@@ -136,14 +136,14 @@ func TestPersistenceManagerClose(t *testing.T) {
 
 	now := time.Now()
 	pm.start = now
-	pm.lastCheck = now
+	pm.count = 123
 	pm.bytesWritten = 100
 
 	writer.EXPECT().Close()
 	pm.close()
 
 	require.True(t, pm.start.IsZero())
-	require.True(t, pm.lastCheck.IsZero())
+	require.Equal(t, 0, pm.count)
 	require.Equal(t, int64(0), pm.bytesWritten)
 }
 
@@ -210,7 +210,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	// Enable rate limiting
 	pm.rateLimitOpts = pm.rateLimitOpts.
 		SetLimitEnabled(true).
-		SetLimitCheckInterval(time.Microsecond).
+		SetLimitCheckEvery(2).
 		SetLimitMbps(16.0)
 
 	for i := 0; i < iter; i++ {
@@ -218,22 +218,22 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		now = time.Now()
 		require.NoError(t, pm.persist(id, segment, checksum))
 
-		// Advance time and check we don't rate limit if it's not check interval yet
-		now = now.Add(time.Nanosecond)
+		// Assert we don't rate limit if the count is not enough yet
 		require.NoError(t, pm.persist(id, segment, checksum))
 		require.Equal(t, time.Duration(0), slept)
 
 		// Advance time and check we rate limit if the disk throughput exceeds the limit
-		now = now.Add(time.Microsecond - time.Nanosecond)
+		now = now.Add(time.Microsecond)
 		require.NoError(t, pm.persist(id, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		// Advance time and check we don't rate limit if the disk throughput is below the limit
+		require.NoError(t, pm.persist(id, segment, checksum))
 		now = now.Add(time.Second - time.Microsecond)
 		require.NoError(t, pm.persist(id, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
-		require.Equal(t, int64(12), pm.bytesWritten)
+		require.Equal(t, int64(15), pm.bytesWritten)
 
 		// Reset
 		slept = time.Duration(0)
