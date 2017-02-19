@@ -29,7 +29,7 @@ const (
 	defaultLimitCheckEvery = 128
 
 	// defaultLimitMbps is the default limit in Mb/s
-	defaultLimitMbps = 50.0
+	defaultLimitMbps = 100.0
 )
 
 type options struct {
