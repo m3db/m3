@@ -257,7 +257,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 }
 
-func (n *dbNamespace) Tick(softDeadline time.Duration) {
+func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
 	shards := n.getOwnedShards()
 
 	if len(shards) == 0 {
@@ -278,7 +278,10 @@ func (n *dbNamespace) Tick(softDeadline time.Duration) {
 		n.tickWorkers.Go(func() {
 			defer wg.Done()
 
-			shardResult := shard.Tick(perShardDeadline)
+			if c.IsCancelled() {
+				return
+			}
+			shardResult := shard.Tick(c, perShardDeadline)
 
 			l.Lock()
 			r = r.merge(shardResult)
@@ -287,6 +290,10 @@ func (n *dbNamespace) Tick(softDeadline time.Duration) {
 	}
 
 	wg.Wait()
+
+	if c.IsCancelled() {
+		return
+	}
 
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))

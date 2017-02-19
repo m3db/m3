@@ -373,13 +373,13 @@ func (r *dbRepairer) IsRepairing() bool {
 	return atomic.LoadInt32(&r.running) == 1
 }
 
-type noopRepairer struct{}
+var noOpRepairer databaseRepairer = repairerNoOp{}
 
-func newNoopDatabaseRepairer() databaseRepairer {
-	return noopRepairer{}
-}
+type repairerNoOp struct{}
 
-func (r noopRepairer) Start()            {}
-func (r noopRepairer) Stop()             {}
-func (r noopRepairer) Repair() error     { return nil }
-func (r noopRepairer) IsRepairing() bool { return false }
+func newNoopDatabaseRepairer() databaseRepairer { return noOpRepairer }
+
+func (r repairerNoOp) Start()            {}
+func (r repairerNoOp) Stop()             {}
+func (r repairerNoOp) Repair() error     { return nil }
+func (r repairerNoOp) IsRepairing() bool { return false }
