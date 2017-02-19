@@ -197,7 +197,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{
 		Persist: func(ts.ID, ts.Segment, uint32) error { return nil },
-		Close:   func() { closed = true },
+		Close:   func() error { closed = true; return nil },
 	}
 	expectedErr := errors.New("error foo")
 	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, expectedErr)
@@ -255,7 +255,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	pm := persist.NewMockManager(ctrl)
 	prepared := persist.PreparedPersist{
 		Persist: func(ts.ID, ts.Segment, uint32) error { return nil },
-		Close:   func() { closed = true },
+		Close:   func() error { closed = true; return nil },
 	}
 
 	pm.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, nil)

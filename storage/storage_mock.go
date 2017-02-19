@@ -526,7 +526,7 @@ func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocksMetadata(arg0, arg1, arg2,
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 }
 
-func (_m *MockdatabaseNamespace) Bootstrap(bs bootstrap.Bootstrap, targetRanges time.Ranges) error {
+func (_m *MockdatabaseNamespace) Bootstrap(bs bootstrap.Bootstrap, targetRanges []bootstrap.TargetRange) error {
 	ret := _m.ctrl.Call(_m, "Bootstrap", bs, targetRanges)
 	ret0, _ := ret[0].(error)
 	return ret0

@@ -262,19 +262,22 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	defer ctrl.Finish()
 
 	writeStart := time.Now()
-	ranges := xtime.NewRanges().AddRange(xtime.Range{
-		Start: writeStart.Add(-time.Hour),
-		End:   writeStart.Add(-10 * time.Minute),
-	}).AddRange(xtime.Range{
-		Start: writeStart.Add(-10 * time.Minute),
-		End:   writeStart.Add(2 * time.Minute),
-	})
+	ranges := []bootstrap.TargetRange{
+		{Range: xtime.Range{
+			Start: writeStart.Add(-time.Hour),
+			End:   writeStart.Add(-10 * time.Minute),
+		}},
+		{Range: xtime.Range{
+			Start: writeStart.Add(-10 * time.Minute),
+			End:   writeStart.Add(2 * time.Minute),
+		}},
+	}
 
 	ns := newTestNamespace(t)
 	errs := []error{nil, errors.New("foo")}
 	bs := bootstrap.NewMockBootstrap(ctrl)
 	bs.EXPECT().
-		Run(ranges, ns.ID(), sharding.IDs(testShardIDs)).
+		Run(ns.ID(), sharding.IDs(testShardIDs), ranges).
 		Return(result.NewBootstrapResult(), nil)
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
@@ -293,13 +296,16 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	defer ctrl.Finish()
 
 	writeStart := time.Now()
-	ranges := xtime.NewRanges().AddRange(xtime.Range{
-		Start: writeStart.Add(-time.Hour),
-		End:   writeStart.Add(-10 * time.Minute),
-	}).AddRange(xtime.Range{
-		Start: writeStart.Add(-10 * time.Minute),
-		End:   writeStart.Add(2 * time.Minute),
-	})
+	ranges := []bootstrap.TargetRange{
+		{Range: xtime.Range{
+			Start: writeStart.Add(-time.Hour),
+			End:   writeStart.Add(-10 * time.Minute),
+		}},
+		{Range: xtime.Range{
+			Start: writeStart.Add(-10 * time.Minute),
+			End:   writeStart.Add(2 * time.Minute),
+		}},
+	}
 
 	var needsBootstrap, alreadyBootstrapped []shard.Shard
 	for i, shard := range testShardIDs {
@@ -316,7 +322,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	ns := newTestNamespace(t)
 	bs := bootstrap.NewMockBootstrap(ctrl)
 	bs.EXPECT().
-		Run(ranges, ns.ID(), sharding.IDs(needsBootstrap)).
+		Run(ns.ID(), sharding.IDs(needsBootstrap), ranges).
 		Return(result.NewBootstrapResult(), nil)
 
 	for _, testShard := range needsBootstrap {

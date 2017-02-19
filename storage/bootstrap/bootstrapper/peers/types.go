@@ -22,6 +22,8 @@ package peers
 
 import (
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
@@ -39,9 +41,47 @@ type Options interface {
 	// AdminClient returns the admin client
 	AdminClient() client.AdminClient
 
-	// SetBootstrapShardConcurrency sets the concurrency for bootstrapping shards
-	SetBootstrapShardConcurrency(value int) Options
+	// SetDefaultShardConcurrency sets the concurrency for
+	// bootstrapping shards when performing a non-incremental bootstrap.
+	SetDefaultShardConcurrency(value int) Options
 
-	// BootstrapShardConcurrency returns the concurrency for bootstrapping shards
-	BootstrapShardConcurrency() int
+	// DefaultShardConcurrency returns the concurrency for
+	// bootstrapping shards when performing a non-incremental bootstrap.
+	DefaultShardConcurrency() int
+
+	// SetIncrementalShardConcurrency sets the concurrency for
+	// bootstrapping shards when performing an incremental bootstrap.
+	SetIncrementalShardConcurrency(value int) Options
+
+	// IncrementalShardConcurrency returns the concurrency for
+	// bootstrapping shards when performing an incremental bootstrap.
+	IncrementalShardConcurrency() int
+
+	// SetIncrementalPersistMaxQueueSize sets the max queue for
+	// bootstrapping shards waiting in line to persist without blocking
+	// the concurrent shard fetchers.
+	SetIncrementalPersistMaxQueueSize(value int) Options
+
+	// IncrementalPersistMaxQueueSize returns the max queue for
+	// bootstrapping shards waiting in line to persist without blocking
+	// the concurrent shard fetchers.
+	IncrementalPersistMaxQueueSize() int
+
+	// SetNewPersistManagerFn sets the function for creating a new persistence manager
+	// used to flush blocks when performing an incremental bootstrap run.
+	SetNewPersistManagerFn(value storage.NewPersistManagerFn) Options
+
+	// NewPersistManagerFn returns the function for creating a new persistence manager
+	// used to flush blocks when performing an incremental bootstrap run.
+	NewPersistManagerFn() storage.NewPersistManagerFn
+
+	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
+	// pass to newly flushed blocks when performing an incremental bootstrap run.
+	SetDatabaseBlockRetrieverManager(
+		value block.DatabaseBlockRetrieverManager,
+	) Options
+
+	// NewBlockRetrieverFn returns the block retriever manager to
+	// pass to newly flushed blocks when performing an incremental bootstrap run.
+	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 }

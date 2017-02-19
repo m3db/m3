@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
@@ -38,7 +39,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testNamespaceID = ts.StringID("testNamespace")
+var (
+	testNamespaceID    = ts.StringID("testnamespace")
+	testDefaultRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
+)
 
 func testOptions() Options {
 	opts := NewOptions()
@@ -77,7 +81,8 @@ func TestReadEmpty(t *testing.T) {
 
 	src := newCommitLogSource(opts)
 
-	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{})
+	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{},
+		testDefaultRunOpts)
 	require.Nil(t, res)
 	require.Nil(t, err)
 }
@@ -95,7 +100,8 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		Start: time.Now(),
 		End:   time.Now().Add(time.Hour),
 	})
-	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges})
+	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges},
+		testDefaultRunOpts)
 	require.Error(t, err)
 	require.Nil(t, res)
 }
@@ -134,7 +140,8 @@ func TestReadOrderedValues(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges, 1: ranges})
+	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -173,7 +180,8 @@ func TestReadUnorderedValues(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges, 1: ranges})
+	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -211,7 +219,8 @@ func TestReadTrimsToRanges(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
-	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges, 1: ranges})
+	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))

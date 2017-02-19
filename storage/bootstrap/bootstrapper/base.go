@@ -70,6 +70,7 @@ func (b *baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
 func (b *baseBootstrapper) Bootstrap(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
@@ -91,7 +92,7 @@ func (b *baseBootstrapper) Bootstrap(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			nextResult, nextErr = b.next.Bootstrap(namespace, remaining)
+			nextResult, nextErr = b.next.Bootstrap(namespace, remaining, opts)
 		}()
 	}
 
@@ -108,7 +109,7 @@ func (b *baseBootstrapper) Bootstrap(
 	nowFn := b.opts.ClockOptions().NowFn()
 	begin := nowFn()
 
-	currResult, currErr = b.src.Read(namespace, available)
+	currResult, currErr = b.src.Read(namespace, available, opts)
 
 	logFields = append(logFields, xlog.NewLogField("took", nowFn().Sub(begin).String()))
 	if currErr != nil {
@@ -145,7 +146,7 @@ func (b *baseBootstrapper) Bootstrap(
 	// If there are some time ranges the current bootstrapper could not fulfill,
 	// pass it along to the next bootstrapper
 	if !currUnfulfilled.IsEmpty() {
-		nextResult, nextErr = b.next.Bootstrap(namespace, currUnfulfilled)
+		nextResult, nextErr = b.next.Bootstrap(namespace, currUnfulfilled, opts)
 		if nextErr != nil {
 			return nil, nextErr
 		}

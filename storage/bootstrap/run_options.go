@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,28 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+package bootstrap
 
-import (
-	"testing"
-
-	"github.com/m3db/m3db/ts"
-
-	"github.com/stretchr/testify/require"
+const (
+	// defaultIncremental declares the intent to by default not perform an
+	// incremental bootstrap.
+	defaultIncremental = false
 )
 
-func TestNoOpNoneBootstrapperBootstrap(t *testing.T) {
-	bs := NewNoOpNoneBootstrapper()
-	ranges := testShardTimeRanges()
-	res, err := bs.Bootstrap(ts.StringID("testNs"), ranges, testDefaultRunOpts)
-	require.Equal(t, ranges, res.Unfulfilled())
-	require.Nil(t, err)
+type runOptions struct {
+	incremental bool
 }
 
-func TestNoOpAllBootstrapperBootstrap(t *testing.T) {
-	bs := NewNoOpAllBootstrapper()
-	ranges := testShardTimeRanges()
-	res, err := bs.Bootstrap(ts.StringID("testNs"), ranges, testDefaultRunOpts)
-	require.True(t, res.Unfulfilled().IsEmpty())
-	require.Nil(t, err)
+// NewRunOptions creates new bootstrap run options
+func NewRunOptions() RunOptions {
+	return &runOptions{
+		incremental: defaultIncremental,
+	}
+}
+
+func (o *runOptions) SetIncremental(value bool) RunOptions {
+	opts := *o
+	opts.incremental = value
+	return &opts
+}
+
+func (o *runOptions) Incremental() bool {
+	return o.incremental
 }
