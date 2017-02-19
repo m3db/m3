@@ -126,7 +126,7 @@ func TestShardNotAvailable(t *testing.T) {
 // utils
 
 func getWriteState(s *session) *writeState {
-	wState := s.writeStatePool.Get().(*writeState)
+	wState := s.writeStatePool.Get()
 	wState.ctx = context.NewContext()
 	wState.topoMap = s.topoMap
 	wState.op = s.writeOpPool.Get()

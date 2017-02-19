@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xretry "github.com/m3db/m3x/retry"
 
 	"github.com/uber/tchannel-go"
 )
@@ -74,7 +75,7 @@ const (
 	defaultIdentifierPoolSize = 8192
 
 	// defaultWriteOpPoolSize is the default write op pool size
-	defaultWriteOpPoolSize = 1000000
+	defaultWriteOpPoolSize = 262144
 
 	// defaultFetchBatchOpPoolSize is the default fetch op pool size
 	defaultFetchBatchOpPoolSize = 8192
@@ -145,6 +146,12 @@ var (
 	// defaultSeriesIteratorArrayPoolBuckets is the default pool buckets for the series iterator array pool
 	defaultSeriesIteratorArrayPoolBuckets = []pool.Bucket{}
 
+	// defaulWriteRetrier is the default write retrier for write attempts
+	defaultWriteRetrier = xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))
+
+	// defaultFetchRetrier is the default fetch retrier for fetch attempts
+	defaultFetchRetrier = xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))
+
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
@@ -170,6 +177,8 @@ type options struct {
 	backgroundHealthCheckStutter            time.Duration
 	backgroundHealthCheckFailLimit          int
 	backgroundHealthCheckFailThrottleFactor float64
+	writeRetrier                            xretry.Retrier
+	fetchRetrier                            xretry.Retrier
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
 	writeOpPoolSize                         int
 	fetchBatchOpPoolSize                    int
@@ -234,6 +243,8 @@ func newOptions() *options {
 		backgroundHealthCheckStutter:            defaultBackgroundHealthCheckStutter,
 		backgroundHealthCheckFailLimit:          defaultBackgroundHealthCheckFailLimit,
 		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
+		writeRetrier:                            defaultWriteRetrier,
+		fetchRetrier:                            defaultFetchRetrier,
 		writeOpPoolSize:                         defaultWriteOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
 		writeBatchSize:                          defaultWriteBatchSize,
@@ -264,6 +275,14 @@ func (o *options) Validate() error {
 	return nil
 }
 
+func (o *options) SetEncodingM3TSZ() Options {
+	opts := *o
+	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+	}
+	return &opts
+}
+
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
@@ -282,14 +301,6 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
-}
-
-func (o *options) SetEncodingM3TSZ() Options {
-	opts := *o
-	opts.readerIteratorAllocate = func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
-	return &opts
 }
 
 func (o *options) SetTopologyInitializer(value topology.Initializer) Options {
@@ -470,6 +481,26 @@ func (o *options) SetBackgroundHealthCheckFailThrottleFactor(value float64) Opti
 
 func (o *options) BackgroundHealthCheckFailThrottleFactor() float64 {
 	return o.backgroundHealthCheckFailThrottleFactor
+}
+
+func (o *options) SetWriteRetrier(value xretry.Retrier) Options {
+	opts := *o
+	opts.writeRetrier = value
+	return &opts
+}
+
+func (o *options) WriteRetrier() xretry.Retrier {
+	return o.writeRetrier
+}
+
+func (o *options) SetFetchRetrier(value xretry.Retrier) Options {
+	opts := *o
+	opts.fetchRetrier = value
+	return &opts
+}
+
+func (o *options) FetchRetrier() xretry.Retrier {
+	return o.fetchRetrier
 }
 
 func (o *options) SetWriteOpPoolSize(value int) Options {

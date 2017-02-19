@@ -34,12 +34,12 @@ type readerSliceOfSlicesIterator struct {
 	segmentReaders []xio.SegmentReader
 	idx            int
 	closed         bool
-	pool           readerSliceOfSlicesIteratorPool
+	pool           *readerSliceOfSlicesIteratorPool
 }
 
 func newReaderSliceOfSlicesIterator(
 	segments []*rpc.Segments,
-	pool readerSliceOfSlicesIteratorPool,
+	pool *readerSliceOfSlicesIteratorPool,
 ) *readerSliceOfSlicesIterator {
 	it := &readerSliceOfSlicesIterator{pool: pool}
 	it.Reset(segments)

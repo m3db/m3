@@ -35,6 +35,7 @@ import (
 	ts "github.com/m3db/m3db/ts"
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
+	retry "github.com/m3db/m3x/retry"
 	time0 "github.com/m3db/m3x/time"
 	tchannel_go "github.com/uber/tchannel-go"
 	time "time"
@@ -912,6 +913,16 @@ func (_mr *_MockOptionsRecorder) Validate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
+func (_m *MockOptions) SetEncodingM3TSZ() Options {
+	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
+}
+
 func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
 	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
 	ret0, _ := ret[0].(Options)
@@ -950,16 +961,6 @@ func (_m *MockOptions) InstrumentOptions() instrument.Options {
 
 func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
-}
-
-func (_m *MockOptions) SetEncodingM3TSZ() Options {
-	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
 }
 
 func (_m *MockOptions) SetTopologyInitializer(value topology.Initializer) Options {
@@ -1322,64 +1323,44 @@ func (_mr *_MockOptionsRecorder) BackgroundHealthCheckFailThrottleFactor() *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckFailThrottleFactor")
 }
 
-func (_m *MockOptions) SetWriteOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
+func (_m *MockOptions) SetWriteRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteRetrier", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteOpPoolSize", arg0)
+func (_mr *_MockOptionsRecorder) SetWriteRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteRetrier", arg0)
 }
 
-func (_m *MockOptions) WriteOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
-	ret0, _ := ret[0].(int)
+func (_m *MockOptions) WriteRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "WriteRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) WriteOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteOpPoolSize")
+func (_mr *_MockOptionsRecorder) WriteRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteRetrier")
 }
 
-func (_m *MockOptions) SetFetchBatchOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
+func (_m *MockOptions) SetFetchRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchRetrier", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBatchOpPoolSize", arg0)
+func (_mr *_MockOptionsRecorder) SetFetchRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchRetrier", arg0)
 }
 
-func (_m *MockOptions) FetchBatchOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
-	ret0, _ := ret[0].(int)
+func (_m *MockOptions) FetchRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "FetchRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) FetchBatchOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize")
-}
-
-func (_m *MockOptions) SetContextPool(value context.Pool) Options {
-	ret := _m.ctrl.Call(_m, "SetContextPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetContextPool", arg0)
-}
-
-func (_m *MockOptions) ContextPool() context.Pool {
-	ret := _m.ctrl.Call(_m, "ContextPool")
-	ret0, _ := ret[0].(context.Pool)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) ContextPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
+func (_mr *_MockOptionsRecorder) FetchRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRetrier")
 }
 
 func (_m *MockOptions) SetWriteBatchSize(value int) Options {
@@ -1422,24 +1403,44 @@ func (_mr *_MockOptionsRecorder) FetchBatchSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchSize")
 }
 
-func (_m *MockOptions) SetIdentifierPool(value ts.IdentifierPool) Options {
-	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
+func (_m *MockOptions) SetWriteOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
+func (_mr *_MockOptionsRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteOpPoolSize", arg0)
 }
 
-func (_m *MockOptions) IdentifierPool() ts.IdentifierPool {
-	ret := _m.ctrl.Call(_m, "IdentifierPool")
-	ret0, _ := ret[0].(ts.IdentifierPool)
+func (_m *MockOptions) WriteOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
+	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) IdentifierPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "IdentifierPool")
+func (_mr *_MockOptionsRecorder) WriteOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteOpPoolSize")
+}
+
+func (_m *MockOptions) SetFetchBatchOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBatchOpPoolSize", arg0)
+}
+
+func (_m *MockOptions) FetchBatchOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) FetchBatchOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize")
 }
 
 func (_m *MockOptions) SetHostQueueOpsFlushSize(value int) Options {
@@ -1480,6 +1481,46 @@ func (_m *MockOptions) HostQueueOpsFlushInterval() time.Duration {
 
 func (_mr *_MockOptionsRecorder) HostQueueOpsFlushInterval() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushInterval")
+}
+
+func (_m *MockOptions) SetContextPool(value context.Pool) Options {
+	ret := _m.ctrl.Call(_m, "SetContextPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetContextPool", arg0)
+}
+
+func (_m *MockOptions) ContextPool() context.Pool {
+	ret := _m.ctrl.Call(_m, "ContextPool")
+	ret0, _ := ret[0].(context.Pool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ContextPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
+}
+
+func (_m *MockOptions) SetIdentifierPool(value ts.IdentifierPool) Options {
+	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
+}
+
+func (_m *MockOptions) IdentifierPool() ts.IdentifierPool {
+	ret := _m.ctrl.Call(_m, "IdentifierPool")
+	ret0, _ := ret[0].(ts.IdentifierPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) IdentifierPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IdentifierPool")
 }
 
 func (_m *MockOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
@@ -1593,6 +1634,16 @@ func (_mr *_MockAdminOptionsRecorder) Validate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
+func (_m *MockAdminOptions) SetEncodingM3TSZ() Options {
+	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
+}
+
 func (_m *MockAdminOptions) SetClockOptions(value clock.Options) Options {
 	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
 	ret0, _ := ret[0].(Options)
@@ -1631,16 +1682,6 @@ func (_m *MockAdminOptions) InstrumentOptions() instrument.Options {
 
 func (_mr *_MockAdminOptionsRecorder) InstrumentOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
-}
-
-func (_m *MockAdminOptions) SetEncodingM3TSZ() Options {
-	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockAdminOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
 }
 
 func (_m *MockAdminOptions) SetTopologyInitializer(value topology.Initializer) Options {
@@ -2003,64 +2044,44 @@ func (_mr *_MockAdminOptionsRecorder) BackgroundHealthCheckFailThrottleFactor() 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BackgroundHealthCheckFailThrottleFactor")
 }
 
-func (_m *MockAdminOptions) SetWriteOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
+func (_m *MockAdminOptions) SetWriteRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteRetrier", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteOpPoolSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetWriteRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteRetrier", arg0)
 }
 
-func (_m *MockAdminOptions) WriteOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
-	ret0, _ := ret[0].(int)
+func (_m *MockAdminOptions) WriteRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "WriteRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) WriteOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteOpPoolSize")
+func (_mr *_MockAdminOptionsRecorder) WriteRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteRetrier")
 }
 
-func (_m *MockAdminOptions) SetFetchBatchOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
+func (_m *MockAdminOptions) SetFetchRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchRetrier", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBatchOpPoolSize", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetFetchRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchRetrier", arg0)
 }
 
-func (_m *MockAdminOptions) FetchBatchOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
-	ret0, _ := ret[0].(int)
+func (_m *MockAdminOptions) FetchRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "FetchRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) FetchBatchOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize")
-}
-
-func (_m *MockAdminOptions) SetContextPool(value context.Pool) Options {
-	ret := _m.ctrl.Call(_m, "SetContextPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockAdminOptionsRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetContextPool", arg0)
-}
-
-func (_m *MockAdminOptions) ContextPool() context.Pool {
-	ret := _m.ctrl.Call(_m, "ContextPool")
-	ret0, _ := ret[0].(context.Pool)
-	return ret0
-}
-
-func (_mr *_MockAdminOptionsRecorder) ContextPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
+func (_mr *_MockAdminOptionsRecorder) FetchRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRetrier")
 }
 
 func (_m *MockAdminOptions) SetWriteBatchSize(value int) Options {
@@ -2103,24 +2124,44 @@ func (_mr *_MockAdminOptionsRecorder) FetchBatchSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchSize")
 }
 
-func (_m *MockAdminOptions) SetIdentifierPool(value ts.IdentifierPool) Options {
-	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
+func (_m *MockAdminOptions) SetWriteOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteOpPoolSize", arg0)
 }
 
-func (_m *MockAdminOptions) IdentifierPool() ts.IdentifierPool {
-	ret := _m.ctrl.Call(_m, "IdentifierPool")
-	ret0, _ := ret[0].(ts.IdentifierPool)
+func (_m *MockAdminOptions) WriteOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
+	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) IdentifierPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "IdentifierPool")
+func (_mr *_MockAdminOptionsRecorder) WriteOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteOpPoolSize")
+}
+
+func (_m *MockAdminOptions) SetFetchBatchOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchBatchOpPoolSize", arg0)
+}
+
+func (_m *MockAdminOptions) FetchBatchOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) FetchBatchOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBatchOpPoolSize")
 }
 
 func (_m *MockAdminOptions) SetHostQueueOpsFlushSize(value int) Options {
@@ -2161,6 +2202,46 @@ func (_m *MockAdminOptions) HostQueueOpsFlushInterval() time.Duration {
 
 func (_mr *_MockAdminOptionsRecorder) HostQueueOpsFlushInterval() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "HostQueueOpsFlushInterval")
+}
+
+func (_m *MockAdminOptions) SetContextPool(value context.Pool) Options {
+	ret := _m.ctrl.Call(_m, "SetContextPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetContextPool", arg0)
+}
+
+func (_m *MockAdminOptions) ContextPool() context.Pool {
+	ret := _m.ctrl.Call(_m, "ContextPool")
+	ret0, _ := ret[0].(context.Pool)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) ContextPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
+}
+
+func (_m *MockAdminOptions) SetIdentifierPool(value ts.IdentifierPool) Options {
+	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
+}
+
+func (_m *MockAdminOptions) IdentifierPool() ts.IdentifierPool {
+	ret := _m.ctrl.Call(_m, "IdentifierPool")
+	ret0, _ := ret[0].(ts.IdentifierPool)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) IdentifierPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IdentifierPool")
 }
 
 func (_m *MockAdminOptions) SetHostQueueOpsArrayPoolSize(value int) Options {

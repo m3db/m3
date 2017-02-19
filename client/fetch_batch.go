@@ -68,28 +68,17 @@ func (f *fetchBatchOp) complete(idx int, result interface{}, err error) {
 	f.completionFns[idx](result, err)
 }
 
-type fetchBatchOpPool interface {
-	// Init pool
-	Init()
-
-	// Get a fetch op
-	Get() *fetchBatchOp
-
-	// Put a fetch op
-	Put(f *fetchBatchOp)
-}
-
-type poolOfFetchBatchOp struct {
+type fetchBatchOpPool struct {
 	pool     pool.ObjectPool
 	capacity int
 }
 
-func newFetchBatchOpPool(opts pool.ObjectPoolOptions, capacity int) fetchBatchOpPool {
+func newFetchBatchOpPool(opts pool.ObjectPoolOptions, capacity int) *fetchBatchOpPool {
 	p := pool.NewObjectPool(opts)
-	return &poolOfFetchBatchOp{p, capacity}
+	return &fetchBatchOpPool{pool: p, capacity: capacity}
 }
 
-func (p *poolOfFetchBatchOp) Init() {
+func (p *fetchBatchOpPool) Init() {
 	p.pool.Init(func() interface{} {
 		f := &fetchBatchOp{}
 		f.request.Ids = make([][]byte, 0, p.capacity)
@@ -99,12 +88,11 @@ func (p *poolOfFetchBatchOp) Init() {
 	})
 }
 
-func (p *poolOfFetchBatchOp) Get() *fetchBatchOp {
-	f := p.pool.Get().(*fetchBatchOp)
-	return f
+func (p *fetchBatchOpPool) Get() *fetchBatchOp {
+	return p.pool.Get().(*fetchBatchOp)
 }
 
-func (p *poolOfFetchBatchOp) Put(f *fetchBatchOp) {
+func (p *fetchBatchOpPool) Put(f *fetchBatchOp) {
 	if cap(f.request.Ids) != p.capacity || cap(f.completionFns) != p.capacity {
 		// Grew outside capacity, do not return to pool
 		return

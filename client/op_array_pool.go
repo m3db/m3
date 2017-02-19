@@ -63,35 +63,25 @@ func (p *poolOfOpArray) Put(ops []op) {
 	p.pool.Put(ops)
 }
 
-type fetchBatchOpArrayArrayPool interface {
-	// Init pool
-	Init()
-
-	// Get an array of fetch ops arrays
-	Get() [][]*fetchBatchOp
-
-	// Put an array of fetch ops arrays
-	Put(ops [][]*fetchBatchOp)
-
-	// Entries returns the entries of fetch ops array array returned by the pool
-	Entries() int
-
-	// Capacity returns the capacity of each fetch ops array in each entry
-	Capacity() int
-}
-
-type poolOfFetchBatchOpArrayArray struct {
+type fetchBatchOpArrayArrayPool struct {
 	pool     pool.ObjectPool
 	entries  int
 	capacity int
 }
 
-func newFetchBatchOpArrayArrayPool(opts pool.ObjectPoolOptions, entries int, capacity int) fetchBatchOpArrayArrayPool {
+func newFetchBatchOpArrayArrayPool(
+	opts pool.ObjectPoolOptions,
+	entries, capacity int,
+) *fetchBatchOpArrayArrayPool {
 	p := pool.NewObjectPool(opts)
-	return &poolOfFetchBatchOpArrayArray{p, entries, capacity}
+	return &fetchBatchOpArrayArrayPool{
+		pool:     p,
+		entries:  entries,
+		capacity: capacity,
+	}
 }
 
-func (p *poolOfFetchBatchOpArrayArray) Init() {
+func (p *fetchBatchOpArrayArrayPool) Init() {
 	p.pool.Init(func() interface{} {
 		arr := make([][]*fetchBatchOp, p.entries)
 		for i := range arr {
@@ -101,11 +91,11 @@ func (p *poolOfFetchBatchOpArrayArray) Init() {
 	})
 }
 
-func (p *poolOfFetchBatchOpArrayArray) Get() [][]*fetchBatchOp {
+func (p *fetchBatchOpArrayArrayPool) Get() [][]*fetchBatchOp {
 	return p.pool.Get().([][]*fetchBatchOp)
 }
 
-func (p *poolOfFetchBatchOpArrayArray) Put(arr [][]*fetchBatchOp) {
+func (p *fetchBatchOpArrayArrayPool) Put(arr [][]*fetchBatchOp) {
 	for i := range arr {
 		for j := range arr[i] {
 			arr[i][j] = nil
@@ -115,10 +105,10 @@ func (p *poolOfFetchBatchOpArrayArray) Put(arr [][]*fetchBatchOp) {
 	p.pool.Put(arr)
 }
 
-func (p *poolOfFetchBatchOpArrayArray) Entries() int {
+func (p *fetchBatchOpArrayArrayPool) Entries() int {
 	return p.entries
 }
 
-func (p *poolOfFetchBatchOpArrayArray) Capacity() int {
+func (p *fetchBatchOpArrayArrayPool) Capacity() int {
 	return p.capacity
 }

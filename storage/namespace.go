@@ -699,27 +699,24 @@ func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, error) {
 }
 
 func (n *dbNamespace) shardAtWithRLock(shardID uint32) (databaseShard, error) {
+	// NB(r): These errors are retryable as they will occur
+	// during a topology change and must be retried by the client.
 	if int(shardID) >= len(n.shards) {
-		return nil, xerrors.NewInvalidParamsError(
+		return nil, xerrors.NewRetryableError(
 			fmt.Errorf("not responsible for shard %d", shardID))
 	}
 	shard := n.shards[shardID]
 	if shard == nil {
-		return nil, xerrors.NewInvalidParamsError(
+		return nil, xerrors.NewRetryableError(
 			fmt.Errorf("not responsible for shard %d", shardID))
 	}
 	return shard, nil
 }
 
 func (n *dbNamespace) readableShardAtWithRLock(shardID uint32) (databaseShard, error) {
-	if int(shardID) >= len(n.shards) {
-		return nil, xerrors.NewInvalidParamsError(
-			fmt.Errorf("not responsible for shard %d", shardID))
-	}
-	shard := n.shards[shardID]
-	if shard == nil {
-		return nil, xerrors.NewInvalidParamsError(
-			fmt.Errorf("not responsible for shard %d", shardID))
+	shard, err := n.shardAtWithRLock(shardID)
+	if err != nil {
+		return nil, err
 	}
 	if !shard.IsBootstrapped() {
 		return nil, xerrors.NewRetryableError(errShardNotBootstrappedToRead)

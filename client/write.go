@@ -61,27 +61,16 @@ func (w *writeOp) CompletionFn() completionFn {
 	return w.completionFn
 }
 
-type writeOpPool interface {
-	// Init pool
-	Init()
-
-	// Get a write op
-	Get() *writeOp
-
-	// Put a write op
-	Put(w *writeOp)
-}
-
-type poolOfWriteOp struct {
+type writeOpPool struct {
 	pool pool.ObjectPool
 }
 
-func newWriteOpPool(opts pool.ObjectPoolOptions) writeOpPool {
+func newWriteOpPool(opts pool.ObjectPoolOptions) *writeOpPool {
 	p := pool.NewObjectPool(opts)
-	return &poolOfWriteOp{p}
+	return &writeOpPool{pool: p}
 }
 
-func (p *poolOfWriteOp) Init() {
+func (p *writeOpPool) Init() {
 	p.pool.Init(func() interface{} {
 		w := &writeOp{}
 		w.reset()
@@ -89,12 +78,12 @@ func (p *poolOfWriteOp) Init() {
 	})
 }
 
-func (p *poolOfWriteOp) Get() *writeOp {
+func (p *writeOpPool) Get() *writeOp {
 	w := p.pool.Get().(*writeOp)
 	return w
 }
 
-func (p *poolOfWriteOp) Put(w *writeOp) {
+func (p *writeOpPool) Put(w *writeOp) {
 	w.reset()
 	p.pool.Put(w)
 }
@@ -201,4 +190,33 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 	w.Unlock()
 	w.decRef()
+}
+
+type writeStatePool struct {
+	pool    pool.ObjectPool
+	session *session
+}
+
+func newWriteStatePool(
+	session *session,
+	opts pool.ObjectPoolOptions,
+) *writeStatePool {
+	p := pool.NewObjectPool(opts)
+	return &writeStatePool{pool: p, session: session}
+}
+
+func (p *writeStatePool) Init() {
+	p.pool.Init(func() interface{} {
+		w := &writeState{session: p.session}
+		w.reset()
+		return w
+	})
+}
+
+func (p *writeStatePool) Get() *writeState {
+	return p.pool.Get().(*writeState)
+}
+
+func (p *writeStatePool) Put(w *writeState) {
+	p.pool.Put(w)
 }

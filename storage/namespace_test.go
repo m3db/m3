@@ -91,7 +91,8 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	}
 	err := ns.Write(ctx, ts.StringID("foo"), time.Now(), 0.0, xtime.Second, nil)
 	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
+	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, "not responsible for shard 0", err.Error())
 }
 
 func TestNamespaceWriteShardOwned(t *testing.T) {
@@ -163,7 +164,8 @@ func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
 		ns.shards[i] = nil
 	}
 	_, err := ns.FetchBlocks(ctx, testShardIDs[0].ID(), ts.StringID("foo"), nil)
-	require.True(t, xerrors.IsInvalidParams(err))
+	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, "not responsible for shard 0", err.Error())
 }
 
 func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
@@ -201,7 +203,8 @@ func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {
 	start := time.Now()
 	end := start.Add(time.Hour)
 	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(), start, end, 100, 0, true, true)
-	require.True(t, xerrors.IsInvalidParams(err))
+	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, "not responsible for shard 0", err.Error())
 }
 
 func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
@@ -477,9 +480,11 @@ func TestNamespaceShardAt(t *testing.T) {
 	_, err = ns.readableShardAt(1)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, errShardNotBootstrappedToRead.Error(), err.Error())
 	_, err = ns.readableShardAt(2)
 	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
+	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, "not responsible for shard 2", err.Error())
 }
 
 func TestNamespaceAssignShardSet(t *testing.T) {

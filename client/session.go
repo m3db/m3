@@ -110,18 +110,22 @@ type session struct {
 	queues                           []hostQueue
 	queuesByHostID                   map[string]hostQueue
 	state                            state
+	writeRetrier                     xretry.Retrier
+	fetchRetrier                     xretry.Retrier
 	contextPool                      context.Pool
 	idPool                           ts.IdentifierPool
-	writeOpPool                      writeOpPool
-	fetchBatchOpPool                 fetchBatchOpPool
-	fetchBatchOpArrayArrayPool       fetchBatchOpArrayArrayPool
+	writeOpPool                      *writeOpPool
+	fetchBatchOpPool                 *fetchBatchOpPool
+	fetchBatchOpArrayArrayPool       *fetchBatchOpArrayArrayPool
 	iteratorArrayPool                encoding.IteratorArrayPool
-	readerSliceOfSlicesIteratorPool  readerSliceOfSlicesIteratorPool
+	readerSliceOfSlicesIteratorPool  *readerSliceOfSlicesIteratorPool
 	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
 	seriesIteratorPool               encoding.SeriesIteratorPool
 	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
-	writeStatePool                   sync.Pool
+	writeAttemptPool                 *writeAttemptPool
+	writeStatePool                   *writeStatePool
 	digestPool                       sync.Pool
+	fetchAttemptPool                 *fetchAttemptPool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	reattemptStreamBlocksFromPeersFn reattemptStreamBlocksFromPeersFn
@@ -202,16 +206,27 @@ func newSession(opts Options) (clientSession, error) {
 		topo:                 topo,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
+		writeRetrier:         opts.WriteRetrier(),
+		fetchRetrier:         opts.FetchRetrier(),
 		contextPool:          opts.ContextPool(),
 		idPool:               opts.IdentifierPool(),
 		metrics:              newSessionMetrics(scope),
 	}
 	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
-	s.writeStatePool = sync.Pool{New: func() interface{} {
-		w := &writeState{session: s}
-		w.reset()
-		return w
-	}}
+	writeAttemptPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.WriteOpPoolSize()).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("write-attempt-pool"),
+		))
+	s.writeAttemptPool = newWriteAttemptPool(s, writeAttemptPoolOpts)
+	s.writeAttemptPool.Init()
+	fetchAttemptPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.FetchBatchOpPoolSize()).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("fetch-attempt-pool"),
+		))
+	s.fetchAttemptPool = newFetchAttemptPool(s, fetchAttemptPoolOpts)
+	s.fetchAttemptPool.Init()
 	s.digestPool = sync.Pool{New: func() interface{} {
 		return digest.NewDigest()
 	}}
@@ -357,6 +372,13 @@ func (s *session) Open() error {
 		))
 	s.writeOpPool = newWriteOpPool(writeOpPoolOpts)
 	s.writeOpPool.Init()
+	writeStatePoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.WriteOpPoolSize()).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-state-pool"),
+		))
+	s.writeStatePool = newWriteStatePool(s, writeStatePoolOpts)
+	s.writeStatePool.Init()
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -364,6 +386,7 @@ func (s *session) Open() error {
 		))
 	s.fetchBatchOpPool = newFetchBatchOpPool(fetchBatchOpPoolOpts, s.fetchBatchSize)
 	s.fetchBatchOpPool.Init()
+
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.SeriesIteratorPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -631,7 +654,30 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 	return hostQueue
 }
 
-func (s *session) Write(namespace, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+func (s *session) Write(
+	namespace, id string,
+	t time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	w := s.writeAttemptPool.Get()
+	w.args.namespace, w.args.id =
+		namespace, id
+	w.args.t, w.args.value, w.args.unit, w.args.annotation =
+		t, value, unit, annotation
+	err := s.writeRetrier.Attempt(w.attemptFn)
+	s.writeAttemptPool.Put(w)
+	return err
+}
+
+func (s *session) writeAttempt(
+	namespace, id string,
+	t time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
 	var (
 		enqueued int32
 		majority = atomic.LoadInt32(&s.majority)
@@ -655,7 +701,7 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 		return errSessionStateNotOpen
 	}
 
-	state := s.writeStatePool.Get().(*writeState)
+	state := s.writeStatePool.Get()
 	state.topoMap = s.topoMap
 	state.incRef()
 
@@ -714,7 +760,11 @@ func (s *session) Write(namespace, id string, t time.Time, value float64, unit x
 	return err
 }
 
-func (s *session) Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
+func (s *session) Fetch(
+	namespace string,
+	id string,
+	startInclusive, endExclusive time.Time,
+) (encoding.SeriesIterator, error) {
 	results, err := s.FetchAll(namespace, []string{id}, startInclusive, endExclusive)
 	if err != nil {
 		return nil, err
@@ -728,7 +778,25 @@ func (s *session) Fetch(namespace string, id string, startInclusive, endExclusiv
 	return iter, nil
 }
 
-func (s *session) FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+func (s *session) FetchAll(
+	namespace string,
+	ids []string,
+	startInclusive, endExclusive time.Time,
+) (encoding.SeriesIterators, error) {
+	f := s.fetchAttemptPool.Get()
+	f.args.namespace, f.args.ids, f.args.start, f.args.end =
+		namespace, ids, startInclusive, endExclusive
+	err := s.fetchRetrier.Attempt(f.attemptFn)
+	result := f.result
+	s.fetchAttemptPool.Put(f)
+	return result, err
+}
+
+func (s *session) fetchAllAttempt(
+	namespace string,
+	ids []string,
+	startInclusive, endExclusive time.Time,
+) (encoding.SeriesIterators, error) {
 	var (
 		wg                     sync.WaitGroup
 		allPending             int32
@@ -1971,8 +2039,11 @@ func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 
 	if block.Checksum != nil {
 		expected := uint32(*block.Checksum)
+
 		digest := s.digestPool.Get().(hash.Hash32)
 		digest.Reset()
+		defer s.digestPool.Put(digest)
+
 		if block.Segments.Merged != nil {
 			digest.Write(block.Segments.Merged.Head)
 			digest.Write(block.Segments.Merged.Tail)

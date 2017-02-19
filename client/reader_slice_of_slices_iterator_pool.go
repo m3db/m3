@@ -22,36 +22,27 @@ package client
 
 import "github.com/m3db/m3x/pool"
 
-type readerSliceOfSlicesIteratorPool interface {
-	// Init pool
-	Init()
-
-	// Get an iterator
-	Get() *readerSliceOfSlicesIterator
-
-	// Put an iterator
-	Put(it *readerSliceOfSlicesIterator)
-}
-
-type poolOfReaderSliceOfSlicesIterator struct {
+type readerSliceOfSlicesIteratorPool struct {
 	pool pool.ObjectPool
 }
 
-func newReaderSliceOfSlicesIteratorPool(opts pool.ObjectPoolOptions) readerSliceOfSlicesIteratorPool {
+func newReaderSliceOfSlicesIteratorPool(
+	opts pool.ObjectPoolOptions,
+) *readerSliceOfSlicesIteratorPool {
 	p := pool.NewObjectPool(opts)
-	return &poolOfReaderSliceOfSlicesIterator{p}
+	return &readerSliceOfSlicesIteratorPool{pool: p}
 }
 
-func (p *poolOfReaderSliceOfSlicesIterator) Init() {
+func (p *readerSliceOfSlicesIteratorPool) Init() {
 	p.pool.Init(func() interface{} {
 		return newReaderSliceOfSlicesIterator(nil, p)
 	})
 }
 
-func (p *poolOfReaderSliceOfSlicesIterator) Get() *readerSliceOfSlicesIterator {
+func (p *readerSliceOfSlicesIteratorPool) Get() *readerSliceOfSlicesIterator {
 	return p.pool.Get().(*readerSliceOfSlicesIterator)
 }
 
-func (p *poolOfReaderSliceOfSlicesIterator) Put(it *readerSliceOfSlicesIterator) {
+func (p *readerSliceOfSlicesIteratorPool) Put(it *readerSliceOfSlicesIterator) {
 	p.pool.Put(it)
 }

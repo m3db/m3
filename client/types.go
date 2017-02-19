@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 
 	tchannel "github.com/uber/tchannel-go"
@@ -300,6 +301,9 @@ type Options interface {
 	// Validate validates the options
 	Validate() error
 
+	// SetEncodingM3TSZ sets m3tsz encoding
+	SetEncodingM3TSZ() Options
+
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
 
@@ -311,9 +315,6 @@ type Options interface {
 
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
-
-	// SetEncodingM3TSZ sets m3tsz encoding
-	SetEncodingM3TSZ() Options
 
 	// SetTopologyInitializer sets the TopologyInitializer
 	SetTopologyInitializer(value topology.Initializer) Options
@@ -431,23 +432,21 @@ type Options interface {
 	// timeout to produce a throttle sleep value.
 	BackgroundHealthCheckFailThrottleFactor() float64
 
-	// SetWriteOpPoolSize sets the writeOpPoolSize
-	SetWriteOpPoolSize(value int) Options
+	// SetWriteRetrier sets the write retrier when performing a write for
+	// a write operation. Only retryable errors are retried.
+	SetWriteRetrier(value xretry.Retrier) Options
 
-	// WriteOpPoolSize returns the writeOpPoolSize
-	WriteOpPoolSize() int
+	// WriteRetrier returns the write retrier when perform a write for
+	// a write operation. Only retryable errors are retried.
+	WriteRetrier() xretry.Retrier
 
-	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize
-	SetFetchBatchOpPoolSize(value int) Options
+	// SetFetchRetrier sets the fetch retrier when performing a write for
+	// a fetch operation. Only retryable errors are retried.
+	SetFetchRetrier(value xretry.Retrier) Options
 
-	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize
-	FetchBatchOpPoolSize() int
-
-	// SetContextPool sets the contextPool
-	SetContextPool(value context.Pool) Options
-
-	// ContextPool returns the contextPool
-	ContextPool() context.Pool
+	// FetchRetrier returns the fetch retrier when perform a write for
+	// a fetch operation. Only retryable errors are retried.
+	FetchRetrier() xretry.Retrier
 
 	// SetWriteBatchSize sets the writeBatchSize
 	// NB(r): for a write only application load this should match the host
@@ -467,11 +466,17 @@ type Options interface {
 	// FetchBatchSize returns the fetchBatchSize
 	FetchBatchSize() int
 
-	// SetIdentifierPool sets the identifier pool
-	SetIdentifierPool(value ts.IdentifierPool) Options
+	// SetWriteOpPoolSize sets the writeOpPoolSize
+	SetWriteOpPoolSize(value int) Options
 
-	// IdentifierPool returns the identifier pool
-	IdentifierPool() ts.IdentifierPool
+	// WriteOpPoolSize returns the writeOpPoolSize
+	WriteOpPoolSize() int
+
+	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize
+	SetFetchBatchOpPoolSize(value int) Options
+
+	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize
+	FetchBatchOpPoolSize() int
 
 	// SetHostQueueOpsFlushSize sets the hostQueueOpsFlushSize
 	SetHostQueueOpsFlushSize(value int) Options
@@ -484,6 +489,18 @@ type Options interface {
 
 	// HostQueueOpsFlushInterval returns the hostQueueOpsFlushInterval
 	HostQueueOpsFlushInterval() time.Duration
+
+	// SetContextPool sets the contextPool
+	SetContextPool(value context.Pool) Options
+
+	// ContextPool returns the contextPool
+	ContextPool() context.Pool
+
+	// SetIdentifierPool sets the identifier pool
+	SetIdentifierPool(value ts.IdentifierPool) Options
+
+	// IdentifierPool returns the identifier pool
+	IdentifierPool() ts.IdentifierPool
 
 	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize
 	SetHostQueueOpsArrayPoolSize(value int) Options
