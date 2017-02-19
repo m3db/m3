@@ -113,9 +113,10 @@ func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 	database, err := NewDatabase(nil, nil, opts)
 	require.NoError(t, err)
 	d := database.(*db)
-	bsm := newBootstrapManager(d).(*bootstrapManager)
+	m := d.mediator.(*mediator)
+	bsm := newBootstrapManager(d, m).(*bootstrapManager)
 	bsm.state = bs
-	d.bsm = bsm
+	m.databaseBootstrapManager = bsm
 	return d
 }
 
@@ -323,9 +324,9 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	d := newTestDatabase(t, bootstrapped)
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
-	bsm := NewMockdatabaseBootstrapManager(ctrl)
-	bsm.EXPECT().Bootstrap().Return(nil)
-	d.bsm = bsm
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().Bootstrap().Return(nil)
+	d.mediator = mediator
 
 	assert.NoError(t, d.Bootstrap())
 
@@ -338,7 +339,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	bsm.EXPECT().Bootstrap().Return(nil).Do(func() {
+	mediator.EXPECT().Bootstrap().Return(nil).Do(func() {
 		wg.Done()
 	})
 

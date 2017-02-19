@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,28 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+package peers
 
 import (
 	"testing"
 
-	"github.com/m3db/m3db/ts"
-
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestNoOpNoneBootstrapperBootstrap(t *testing.T) {
-	bs := NewNoOpNoneBootstrapper()
-	ranges := testShardTimeRanges()
-	res, err := bs.Bootstrap(ts.StringID("testNs"), ranges, testDefaultRunOpts)
-	require.Equal(t, ranges, res.Unfulfilled())
-	require.Nil(t, err)
-}
-
-func TestNoOpAllBootstrapperBootstrap(t *testing.T) {
-	bs := NewNoOpAllBootstrapper()
-	ranges := testShardTimeRanges()
-	res, err := bs.Bootstrap(ts.StringID("testNs"), ranges, testDefaultRunOpts)
-	require.True(t, res.Unfulfilled().IsEmpty())
-	require.Nil(t, err)
+func TestNewPeersBotstrapper(t *testing.T) {
+	b := NewPeersBootstrapper(NewOptions(), nil)
+	assert.Equal(t, PeersBootstrapperName, b.String())
 }

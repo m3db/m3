@@ -48,13 +48,17 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	namespace := NewMockdatabaseNamespace(ctrl)
 	namespace.EXPECT().Bootstrap(nil, gomock.Any()).Return(fmt.Errorf("an error"))
 	namespace.EXPECT().ID().Return(ts.StringID("test"))
-
 	namespaces := map[string]databaseNamespace{
 		"test": namespace,
 	}
 
+	deadline := opts.RetentionOptions().BufferDrain()
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
-	bsm := newBootstrapManager(db).(*bootstrapManager)
+	m := NewMockdatabaseMediator(ctrl)
+	m.EXPECT().DisableFileOps()
+	m.EXPECT().EnableFileOps().AnyTimes()
+	m.EXPECT().Tick(deadline, syncRun, force).Return(nil)
+	bsm := newBootstrapManager(db, m).(*bootstrapManager)
 	err := bsm.Bootstrap()
 
 	require.NotNil(t, err)
@@ -82,14 +86,12 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 	}))
 
 	db := &mockDatabase{opts: opts}
-
-	bsm := newBootstrapManager(db).(*bootstrapManager)
+	bsm := newBootstrapManager(db, nil).(*bootstrapManager)
 	ranges := bsm.targetRanges(now)
 
 	var all [][]time.Time
-	it := ranges.Iter()
-	for it.Next() {
-		value := it.Value()
+	for _, target := range ranges {
+		value := target.Range
 		var times []time.Time
 		for st := value.Start; st.Before(value.End); st = st.Add(ropts.BlockSize()) {
 			times = append(times, st)

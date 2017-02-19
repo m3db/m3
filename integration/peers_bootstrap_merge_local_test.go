@@ -51,7 +51,8 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute)
+		SetBufferFuture(2 * time.Minute).
+		SetBufferDrain(3 * time.Second)
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false, testStatsReporter: reporter},

@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/log"
-	"github.com/uber-go/tally"
 )
 
 type fileOpStatus int
@@ -44,6 +43,20 @@ type fileOpState struct {
 	NumFailures int
 }
 
+type runType int
+
+const (
+	syncRun runType = iota
+	asyncRun
+)
+
+type forceType int
+
+const (
+	noForce forceType = iota
+	force
+)
+
 type fileSystemManager struct {
 	databaseFlushManager
 	databaseCleanupManager
@@ -54,18 +67,19 @@ type fileSystemManager struct {
 	opts     Options
 	jitter   time.Duration
 	status   fileOpStatus
+	enabled  bool
 }
 
 func newFileSystemManager(
 	database database,
-	scope tally.Scope,
+	opts Options,
 ) (databaseFileSystemManager, error) {
-	opts := database.Options()
 	fileOpts := opts.FileOpOptions()
 	if err := fileOpts.Validate(); err != nil {
 		return nil, err
 	}
-	scope = scope.SubScope("fs")
+	instrumentOpts := opts.InstrumentOptions()
+	scope := instrumentOpts.MetricsScope().SubScope("fs")
 	fm := newFlushManager(database, scope)
 	cm := newCleanupManager(database, fm, scope)
 
@@ -80,32 +94,43 @@ func newFileSystemManager(
 	return &fileSystemManager{
 		databaseFlushManager:   fm,
 		databaseCleanupManager: cm,
-		log:      opts.InstrumentOptions().Logger(),
+		log:      instrumentOpts.Logger(),
 		database: database,
 		opts:     opts,
 		jitter:   jitter,
 		status:   fileOpNotStarted,
+		enabled:  true,
 	}, nil
 }
 
-func (m *fileSystemManager) ShouldRun(t time.Time) bool {
-	// If we haven't bootstrapped yet, no actions necessary.
-	if !m.database.IsBootstrapped() {
-		return false
-	}
-
-	m.RLock()
-	defer m.RUnlock()
-
-	// If we are in the middle of performing file operations, bail early.
-	return m.status != fileOpInProgress
+func (m *fileSystemManager) Disable() fileOpStatus {
+	m.Lock()
+	status := m.status
+	m.enabled = false
+	m.Unlock()
+	return status
 }
 
-func (m *fileSystemManager) Run(t time.Time, async bool) {
+func (m *fileSystemManager) Enable() fileOpStatus {
 	m.Lock()
-	if m.status == fileOpInProgress {
+	status := m.status
+	m.enabled = true
+	m.Unlock()
+	return status
+}
+
+func (m *fileSystemManager) Status() fileOpStatus {
+	m.RLock()
+	status := m.status
+	m.RUnlock()
+	return status
+}
+
+func (m *fileSystemManager) Run(t time.Time, runType runType, forceType forceType) bool {
+	m.Lock()
+	if forceType == noForce && !m.shouldRunWithLock() {
 		m.Unlock()
-		return
+		return false
 	}
 	m.status = fileOpInProgress
 	m.Unlock()
@@ -123,9 +148,14 @@ func (m *fileSystemManager) Run(t time.Time, async bool) {
 		m.Unlock()
 	}
 
-	if !async {
+	if runType == syncRun {
 		flushFn()
 	} else {
 		go flushFn()
 	}
+	return true
+}
+
+func (m *fileSystemManager) shouldRunWithLock() bool {
+	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrapped()
 }

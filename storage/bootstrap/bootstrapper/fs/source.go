@@ -354,6 +354,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 func (s *fileSystemSource) Read(
 	namespace ts.ID,
 	shardsTimeRanges result.ShardTimeRanges,
+	_ bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil

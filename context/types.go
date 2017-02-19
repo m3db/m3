@@ -20,6 +20,18 @@
 
 package context
 
+// Cancellable is an object that can be cancelled
+type Cancellable interface {
+	// IsCancelled determines whether the object is cancelled
+	IsCancelled() bool
+
+	// Cancel cancels the object
+	Cancel()
+
+	// Reset resets the object
+	Reset()
+}
+
 // Finalizer finalizes a resource.
 type Finalizer interface {
 	Finalize()

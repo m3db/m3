@@ -18,38 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package persist
+package context
 
-import (
-	"time"
+import "sync/atomic"
 
-	"github.com/m3db/m3db/ratelimit"
-	"github.com/m3db/m3db/ts"
-)
-
-// Fn is a function that persists a m3db segment for a given ID
-type Fn func(id ts.ID, segment ts.Segment, checksum uint32) error
-
-// Closer is a function that performs cleanup after persisting the data
-// blocks for a (shard, blockStart) combination
-type Closer func() error
-
-// PreparedPersist is an object that wraps holds a persist function and a closer
-type PreparedPersist struct {
-	Persist Fn
-	Close   Closer
+type cancellable struct {
+	cancelled int32
 }
 
-// Manager manages the internals of persisting data onto storage layer
-type Manager interface {
-	// Prepare prepares writing data for a given (shard, blockStart) combination,
-	// returning a PreparedPersist object and any error encountered during
-	// preparation if any.
-	Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error)
-
-	// SetRateLimitOptions sets the rate limit options
-	SetRateLimitOptions(value ratelimit.Options)
-
-	// RateLimitOptions returns the rate limit options
-	RateLimitOptions() ratelimit.Options
+// NewCancellable creates a new cancellable object
+func NewCancellable() Cancellable {
+	return &cancellable{}
 }
+
+func (c *cancellable) IsCancelled() bool { return atomic.LoadInt32(&c.cancelled) == 1 }
+func (c *cancellable) Cancel()           { atomic.StoreInt32(&c.cancelled, 1) }
+func (c *cancellable) Reset()            { atomic.StoreInt32(&c.cancelled, 0) }
+
+// NoOpCancellable is a no-op cancellable
+var noOpCancellable Cancellable = cancellableNoOp{}
+
+type cancellableNoOp struct{}
+
+// NewNoOpCanncellable returns a no-op cancellable
+func NewNoOpCanncellable() Cancellable      { return noOpCancellable }
+func (c cancellableNoOp) IsCancelled() bool { return false }
+func (c cancellableNoOp) Cancel()           {}
+func (c cancellableNoOp) Reset()            {}

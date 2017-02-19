@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -66,6 +67,7 @@ type bootstrapManager struct {
 	sync.RWMutex
 
 	database       database
+	mediator       databaseMediator
 	opts           Options
 	log            xlog.Logger
 	nowFn          clock.NowFn
@@ -76,10 +78,12 @@ type bootstrapManager struct {
 
 func newBootstrapManager(
 	database database,
+	mediator databaseMediator,
 ) databaseBootstrapManager {
 	opts := database.Options()
 	return &bootstrapManager{
 		database:       database,
+		mediator:       mediator,
 		opts:           opts,
 		log:            opts.InstrumentOptions().Logger(),
 		nowFn:          opts.ClockOptions().NowFn(),
@@ -101,7 +105,7 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	return state == bootstrapped
 }
 
-func (m *bootstrapManager) targetRanges(at time.Time) xtime.Ranges {
+func (m *bootstrapManager) targetRanges(at time.Time) []bootstrap.TargetRange {
 	ropts := m.opts.RetentionOptions()
 	start := at.Add(-ropts.RetentionPeriod()).
 		Truncate(ropts.BlockSize())
@@ -109,16 +113,27 @@ func (m *bootstrapManager) targetRanges(at time.Time) xtime.Ranges {
 		Add(-ropts.BlockSize()).
 		Add(-ropts.BufferPast()).
 		Truncate(ropts.BlockSize()).
-		// NB(r): since "end" is exclusive we need to add a
+		// NB(r): Since "end" is exclusive we need to add a
 		// an extra block size when specifiying the end time.
 		Add(ropts.BlockSize())
 	cutover := at.Add(ropts.BufferFuture()).
 		Truncate(ropts.BlockSize()).
 		Add(ropts.BlockSize())
 
-	return xtime.NewRanges().
-		AddRange(xtime.Range{Start: start, End: midPoint}).
-		AddRange(xtime.Range{Start: midPoint, End: cutover})
+	// NB(r): We want the large initial time range bootstrapped to
+	// bootstrap incrementally so we don't keep the full raw
+	// data in process until we finish bootstrapping which could
+	// cause the process to OOM.
+	return []bootstrap.TargetRange{
+		{
+			Range:      xtime.Range{Start: start, End: midPoint},
+			RunOptions: bootstrap.NewRunOptions().SetIncremental(true),
+		},
+		{
+			Range:      xtime.Range{Start: midPoint, End: cutover},
+			RunOptions: bootstrap.NewRunOptions().SetIncremental(false),
+		},
+	}
 }
 
 func (m *bootstrapManager) Bootstrap() error {
@@ -138,6 +153,11 @@ func (m *bootstrapManager) Bootstrap() error {
 		m.state = bootstrapping
 	}
 	m.Unlock()
+
+	// NB(xichen): disable filesystem manager before we bootstrap to minimize
+	// the impact of file operations on bootstrapping performance
+	m.mediator.DisableFileOps()
+	defer m.mediator.EnableFileOps()
 
 	// Keep performing bootstraps until none pending
 	multiErr := xerrors.NewMultiError()
@@ -162,6 +182,9 @@ func (m *bootstrapManager) Bootstrap() error {
 		}
 	}
 
+	// Forcing a tick to perform necessary file operations
+	m.mediator.Tick(m.opts.RetentionOptions().BufferDrain(), syncRun, force)
+
 	return multiErr.FinalError()
 }
 
@@ -184,5 +207,6 @@ func (m *bootstrapManager) bootstrap() error {
 			xlog.NewLogField("duration", end.Sub(start).String()),
 		).Info("bootstrap finished")
 	}
+
 	return multiErr.FinalError()
 }
