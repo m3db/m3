@@ -46,7 +46,7 @@ type persistManager struct {
 	sleepFn        sleepFn
 	writer         FileSetWriter
 	start          time.Time
-	lastCheck      time.Time
+	count          int
 	bytesWritten   int64
 
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
@@ -82,21 +82,21 @@ func (pm *persistManager) persist(
 	rateLimitMbps := pm.rateLimitOpts.LimitMbps()
 	if pm.rateLimitOpts.LimitEnabled() && rateLimitMbps > 0.0 {
 		now := pm.nowFn()
-		if pm.lastCheck.IsZero() {
+		if pm.start.IsZero() {
 			pm.start = now
-			pm.lastCheck = now
-		} else if now.Sub(pm.lastCheck) >= pm.rateLimitOpts.LimitCheckInterval() {
-			pm.lastCheck = now
+		} else if pm.count == pm.rateLimitOpts.LimitCheckEvery() {
 			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / float64(rateLimitMbps*bytesPerMegabit))
 			if elapsed := now.Sub(pm.start); elapsed < target {
 				pm.sleepFn(target - elapsed)
 			}
+			pm.count = 0
 		}
 	}
 
 	pm.segmentHolder[0] = segment.Head
 	pm.segmentHolder[1] = segment.Tail
 	err := pm.writer.WriteAll(id, pm.segmentHolder, checksum)
+	pm.count++
 	pm.bytesWritten += int64(segment.Len())
 
 	return err
@@ -110,7 +110,7 @@ func (pm *persistManager) close() error {
 
 func (pm *persistManager) reset() {
 	pm.start = timeZero
-	pm.lastCheck = timeZero
+	pm.count = 0
 	pm.bytesWritten = 0
 }
 

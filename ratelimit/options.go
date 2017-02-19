@@ -20,31 +20,30 @@
 
 package ratelimit
 
-import "time"
-
 const (
 	// defaultLimitEnabled determines whether rate limiting is enabled
 	defaultLimitEnabled = false
 
+	// defaultLimitCheckEvery is the default frequency for checking
+	// whether the limit is exceeded
+	defaultLimitCheckEvery = 128
+
 	// defaultLimitMbps is the default limit in Mb/s
 	defaultLimitMbps = 50.0
-
-	// defaultLimitCheckInterval is the default limit check interval
-	defaultLimitCheckInterval = 100 * time.Millisecond
 )
 
 type options struct {
-	limitEnabled       bool
-	limitMbps          float64
-	limitCheckInterval time.Duration
+	limitEnabled    bool
+	limitMbps       float64
+	limitCheckEvery int
 }
 
 // NewOptions creates a new rate limit options
 func NewOptions() Options {
 	return &options{
-		limitEnabled:       defaultLimitEnabled,
-		limitMbps:          defaultLimitMbps,
-		limitCheckInterval: defaultLimitCheckInterval,
+		limitEnabled:    defaultLimitEnabled,
+		limitMbps:       defaultLimitMbps,
+		limitCheckEvery: defaultLimitCheckEvery,
 	}
 }
 
@@ -68,12 +67,12 @@ func (o *options) LimitMbps() float64 {
 	return o.limitMbps
 }
 
-func (o *options) SetLimitCheckInterval(value time.Duration) Options {
+func (o *options) SetLimitCheckEvery(value int) Options {
 	opts := *o
-	opts.limitCheckInterval = value
+	opts.limitCheckEvery = value
 	return &opts
 }
 
-func (o *options) LimitCheckInterval() time.Duration {
-	return o.limitCheckInterval
+func (o *options) LimitCheckEvery() int {
+	return o.limitCheckEvery
 }

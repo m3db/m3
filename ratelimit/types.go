@@ -20,8 +20,6 @@
 
 package ratelimit
 
-import "time"
-
 // Options provides options for rate limiting
 type Options interface {
 	// SetLimitEnabled determines whether rate limiting is enabled
@@ -36,9 +34,9 @@ type Options interface {
 	// LimitMbps returns the limit
 	LimitMbps() float64
 
-	// SetLimitCheckInterval sets the limit check interval
-	SetLimitCheckInterval(value time.Duration) Options
+	// SetLimitCheckEvery sets the limit check frequency
+	SetLimitCheckEvery(value int) Options
 
-	// LimitCheckInterval returns the limit check interval
-	LimitCheckInterval() time.Duration
+	// LimitCheckEvery returns the limit check frequency
+	LimitCheckEvery() int
 }
