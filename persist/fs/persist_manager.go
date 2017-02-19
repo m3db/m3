@@ -84,7 +84,7 @@ func (pm *persistManager) persist(
 		now := pm.nowFn()
 		if pm.start.IsZero() {
 			pm.start = now
-		} else if pm.count == pm.rateLimitOpts.LimitCheckEvery() {
+		} else if pm.count >= pm.rateLimitOpts.LimitCheckEvery() {
 			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / float64(rateLimitMbps*bytesPerMegabit))
 			if elapsed := now.Sub(pm.start); elapsed < target {
 				pm.sleepFn(target - elapsed)
