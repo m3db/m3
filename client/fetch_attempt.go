@@ -60,9 +60,8 @@ func (f *fetchAttempt) perform() error {
 }
 
 type fetchAttemptPool struct {
-	initialized bool
-	pool        pool.ObjectPool
-	session     *session
+	pool    pool.ObjectPool
+	session *session
 }
 
 func newFetchAttemptPool(
@@ -82,7 +81,6 @@ func (p *fetchAttemptPool) Init() {
 		w.reset()
 		return w
 	})
-	p.initialized = true
 }
 
 func (p *fetchAttemptPool) Get() *fetchAttempt {

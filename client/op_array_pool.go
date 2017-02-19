@@ -64,10 +64,9 @@ func (p *poolOfOpArray) Put(ops []op) {
 }
 
 type fetchBatchOpArrayArrayPool struct {
-	initialized bool
-	pool        pool.ObjectPool
-	entries     int
-	capacity    int
+	pool     pool.ObjectPool
+	entries  int
+	capacity int
 }
 
 func newFetchBatchOpArrayArrayPool(
@@ -90,7 +89,6 @@ func (p *fetchBatchOpArrayArrayPool) Init() {
 		}
 		return arr
 	})
-	p.initialized = true
 }
 
 func (p *fetchBatchOpArrayArrayPool) Get() [][]*fetchBatchOp {

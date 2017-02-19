@@ -23,8 +23,7 @@ package client
 import "github.com/m3db/m3x/pool"
 
 type readerSliceOfSlicesIteratorPool struct {
-	initialized bool
-	pool        pool.ObjectPool
+	pool pool.ObjectPool
 }
 
 func newReaderSliceOfSlicesIteratorPool(
@@ -38,7 +37,6 @@ func (p *readerSliceOfSlicesIteratorPool) Init() {
 	p.pool.Init(func() interface{} {
 		return newReaderSliceOfSlicesIterator(nil, p)
 	})
-	p.initialized = true
 }
 
 func (p *readerSliceOfSlicesIteratorPool) Get() *readerSliceOfSlicesIterator {

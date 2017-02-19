@@ -69,9 +69,8 @@ func (f *fetchBatchOp) complete(idx int, result interface{}, err error) {
 }
 
 type fetchBatchOpPool struct {
-	initialized bool
-	pool        pool.ObjectPool
-	capacity    int
+	pool     pool.ObjectPool
+	capacity int
 }
 
 func newFetchBatchOpPool(opts pool.ObjectPoolOptions, capacity int) *fetchBatchOpPool {
@@ -87,7 +86,6 @@ func (p *fetchBatchOpPool) Init() {
 		f.reset()
 		return f
 	})
-	p.initialized = true
 }
 
 func (p *fetchBatchOpPool) Get() *fetchBatchOp {

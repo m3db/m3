@@ -62,8 +62,7 @@ func (w *writeOp) CompletionFn() completionFn {
 }
 
 type writeOpPool struct {
-	initialized bool
-	pool        pool.ObjectPool
+	pool pool.ObjectPool
 }
 
 func newWriteOpPool(opts pool.ObjectPoolOptions) *writeOpPool {
@@ -77,7 +76,6 @@ func (p *writeOpPool) Init() {
 		w.reset()
 		return w
 	})
-	p.initialized = true
 }
 
 func (p *writeOpPool) Get() *writeOp {
@@ -195,9 +193,8 @@ func (w *writeState) completionFn(result interface{}, err error) {
 }
 
 type writeStatePool struct {
-	initialized bool
-	pool        pool.ObjectPool
-	session     *session
+	pool    pool.ObjectPool
+	session *session
 }
 
 func newWriteStatePool(
@@ -214,7 +211,6 @@ func (p *writeStatePool) Init() {
 		w.reset()
 		return w
 	})
-	p.initialized = true
 }
 
 func (p *writeStatePool) Get() *writeState {

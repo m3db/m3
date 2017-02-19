@@ -57,9 +57,8 @@ func (w *writeAttempt) perform() error {
 }
 
 type writeAttemptPool struct {
-	initialized bool
-	pool        pool.ObjectPool
-	session     *session
+	pool    pool.ObjectPool
+	session *session
 }
 
 func newWriteAttemptPool(
@@ -79,7 +78,6 @@ func (p *writeAttemptPool) Init() {
 		w.reset()
 		return w
 	})
-	p.initialized = true
 }
 
 func (p *writeAttemptPool) Get() *writeAttempt {
