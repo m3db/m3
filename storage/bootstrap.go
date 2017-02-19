@@ -182,9 +182,6 @@ func (m *bootstrapManager) Bootstrap() error {
 		}
 	}
 
-	// Forcing a tick to perform necessary file operations
-	m.mediator.Tick(m.opts.RetentionOptions().BufferDrain(), syncRun, force)
-
 	return multiErr.FinalError()
 }
 
