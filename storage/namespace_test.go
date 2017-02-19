@@ -471,9 +471,11 @@ func TestNamespaceShardAt(t *testing.T) {
 	_, err = ns.readableShardAt(1)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, errShardNotBootstrappedToRead.Error(), err.Error())
 	_, err = ns.readableShardAt(2)
 	require.Error(t, err)
-	require.True(t, xerrors.IsInvalidParams(err))
+	require.True(t, xerrors.IsRetryableError(err))
+	require.Equal(t, "not responsible for shard 2", err.Error())
 }
 
 func TestNamespaceAssignShardSet(t *testing.T) {

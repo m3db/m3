@@ -1432,6 +1432,26 @@ func (_mr *_MockOptionsRecorder) CommitLogOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogOptions")
 }
 
+func (_m *MockOptions) SetRepairEnabled(b bool) Options {
+	ret := _m.ctrl.Call(_m, "SetRepairEnabled", b)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetRepairEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRepairEnabled", arg0)
+}
+
+func (_m *MockOptions) RepairEnabled() bool {
+	ret := _m.ctrl.Call(_m, "RepairEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) RepairEnabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RepairEnabled")
+}
+
 func (_m *MockOptions) SetRepairOptions(value repair.Options) Options {
 	ret := _m.ctrl.Call(_m, "SetRepairOptions", value)
 	ret0, _ := ret[0].(Options)

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,31 +20,73 @@
 
 package client
 
-import "github.com/m3db/m3x/pool"
+import (
+	"time"
 
-type readerSliceOfSlicesIteratorPool struct {
+	"github.com/m3db/m3x/pool"
+	xretry "github.com/m3db/m3x/retry"
+	xtime "github.com/m3db/m3x/time"
+)
+
+var writeAttemptArgsZeroed writeAttemptArgs
+
+type writeAttempt struct {
+	args writeAttemptArgs
+
+	session *session
+
+	attemptFn xretry.Fn
+}
+
+type writeAttemptArgs struct {
+	namespace  string
+	id         string
+	t          time.Time
+	value      float64
+	unit       xtime.Unit
+	annotation []byte
+}
+
+func (w *writeAttempt) reset() {
+	w.args = writeAttemptArgsZeroed
+}
+
+func (w *writeAttempt) perform() error {
+	return w.session.writeAttempt(w.args.namespace, w.args.id,
+		w.args.t, w.args.value, w.args.unit, w.args.annotation)
+}
+
+type writeAttemptPool struct {
 	initialized bool
 	pool        pool.ObjectPool
+	session     *session
 }
 
-func newReaderSliceOfSlicesIteratorPool(
+func newWriteAttemptPool(
+	session *session,
 	opts pool.ObjectPoolOptions,
-) *readerSliceOfSlicesIteratorPool {
+) *writeAttemptPool {
 	p := pool.NewObjectPool(opts)
-	return &readerSliceOfSlicesIteratorPool{pool: p}
+	return &writeAttemptPool{pool: p, session: session}
 }
 
-func (p *readerSliceOfSlicesIteratorPool) Init() {
+func (p *writeAttemptPool) Init() {
 	p.pool.Init(func() interface{} {
-		return newReaderSliceOfSlicesIterator(nil, p)
+		w := &writeAttempt{session: p.session}
+		// NB(r): Bind attemptFn once to avoid creating receiver
+		// and function method pointer over and over again
+		w.attemptFn = w.perform
+		w.reset()
+		return w
 	})
 	p.initialized = true
 }
 
-func (p *readerSliceOfSlicesIteratorPool) Get() *readerSliceOfSlicesIterator {
-	return p.pool.Get().(*readerSliceOfSlicesIterator)
+func (p *writeAttemptPool) Get() *writeAttempt {
+	return p.pool.Get().(*writeAttempt)
 }
 
-func (p *readerSliceOfSlicesIteratorPool) Put(it *readerSliceOfSlicesIterator) {
-	p.pool.Put(it)
+func (p *writeAttemptPool) Put(w *writeAttempt) {
+	w.reset()
+	p.pool.Put(w)
 }
