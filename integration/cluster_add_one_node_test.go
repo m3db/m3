@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/integration/fake"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
@@ -71,16 +72,16 @@ func TestClusterAddOneNode(t *testing.T) {
 		},
 	}
 
-	svc := NewFakeM3ClusterService().
+	svc := fake.NewM3ClusterService().
 		SetInstances(instances.start).
 		SetReplication(services.NewServiceReplication().SetReplicas(1)).
 		SetSharding(services.NewServiceSharding().SetNumShards(1024))
 
-	svcs := NewFakeM3ClusterServices()
+	svcs := fake.NewM3ClusterServices()
 	svcs.RegisterService("m3db", svc)
 
 	topoOpts := topology.NewDynamicOptions().
-		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
+		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
@@ -184,7 +185,7 @@ func TestClusterAddOneNode(t *testing.T) {
 
 	log.Debug("waiting for shards to be marked initialized")
 	allMarkedAvailable := func(
-		fakePlacementService FakeM3ClusterPlacementService,
+		fakePlacementService fake.M3ClusterPlacementService,
 		instanceID string,
 		shards []shard.Shard,
 	) bool {

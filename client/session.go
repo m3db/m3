@@ -147,6 +147,8 @@ type sessionMetrics struct {
 	fetchSuccess               tally.Counter
 	fetchErrors                tally.Counter
 	fetchNodesRespondingErrors []tally.Counter
+	topologyUpdatedSuccess     tally.Counter
+	topologyUpdatedError       tally.Counter
 	streamFromPeersMetrics     map[shardMetricsKey]streamFromPeersMetrics
 }
 
@@ -156,6 +158,8 @@ func newSessionMetrics(scope tally.Scope) sessionMetrics {
 		writeErrors:            scope.Counter("write.errors"),
 		fetchSuccess:           scope.Counter("fetch.success"),
 		fetchErrors:            scope.Counter("fetch.errors"),
+		topologyUpdatedSuccess: scope.Counter("topology.updated-success"),
+		topologyUpdatedError:   scope.Counter("topology.updated-error"),
 		streamFromPeersMetrics: make(map[shardMetricsKey]streamFromPeersMetrics),
 	}
 }
@@ -388,11 +392,13 @@ func (s *session) Open() error {
 			queues, replicas, majority, err := s.hostQueues(topoMap, existingQueues)
 			if err != nil {
 				s.log.Errorf("could not update topology map: %v", err)
+				s.metrics.topologyUpdatedError.Inc(1)
 				continue
 			}
 			s.Lock()
 			s.setTopologyWithLock(topoMap, queues, replicas, majority)
 			s.Unlock()
+			s.metrics.topologyUpdatedSuccess.Inc(1)
 		}
 	}()
 
