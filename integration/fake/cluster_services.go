@@ -212,7 +212,6 @@ type m3ClusterPlacementService struct {
 func (s *m3ClusterPlacementService) InstanceShardsMarkedAvailable() map[string][]uint32 {
 	return s.markedAvailable
 }
-
 func (s *m3ClusterPlacementService) BuildInitialPlacement(
 	instances []services.PlacementInstance, numShards int, rf int,
 ) (services.ServicePlacement, error) {
@@ -254,10 +253,12 @@ func (s *m3ClusterPlacementService) Placement() (
 ) {
 	return nil, 0, fmt.Errorf("not implemented")
 }
-
 func (s *m3ClusterPlacementService) SetPlacement(
 	p services.ServicePlacement,
 ) error {
+	return fmt.Errorf("not implemented")
+}
+func (s *m3ClusterPlacementService) Delete() error {
 	return fmt.Errorf("not implemented")
 }
 
