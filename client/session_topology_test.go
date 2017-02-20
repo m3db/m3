@@ -37,28 +37,28 @@ import (
 
 type testHostQueues struct {
 	sync.RWMutex
-	queues map[string]*MockhostQueue
+	queues map[string][]*MockhostQueue
 }
 
 func newTestHostQueues() *testHostQueues {
 	return &testHostQueues{
-		queues: make(map[string]*MockhostQueue),
+		queues: make(map[string][]*MockhostQueue),
 	}
 }
 
-func (q *testHostQueues) set(id string, value *MockhostQueue) {
+func (q *testHostQueues) add(id string, value *MockhostQueue) {
 	q.Lock()
 	defer q.Unlock()
-	q.queues[id] = value
+	q.queues[id] = append(q.queues[id], value)
 }
 
-func (q *testHostQueues) get(id string) *MockhostQueue {
+func (q *testHostQueues) get(id string) []*MockhostQueue {
 	q.RLock()
 	defer q.RUnlock()
 	return q.queues[id]
 }
 
-func (q *testHostQueues) len() int {
+func (q *testHostQueues) numUnique() int {
 	q.RLock()
 	defer q.RUnlock()
 	return len(q.queues)
@@ -115,13 +115,13 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 		opts Options,
 	) hostQueue {
 		queue := NewMockhostQueue(ctrl)
-		createdQueues.set(host.ID(), queue)
+		createdQueues.add(host.ID(), queue)
 
 		queue.EXPECT().Open()
 		queue.EXPECT().Host().Return(host).AnyTimes()
 		queue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).AnyTimes()
 		queue.EXPECT().Close().Do(func() {
-			closedQueues.set(host.ID(), queue)
+			closedQueues.add(host.ID(), queue)
 		})
 		return queue
 	}
@@ -132,10 +132,10 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 	}()
 
 	// Assert created two
-	require.Equal(t, 2, createdQueues.len())
-	require.Equal(t, 0, closedQueues.len())
-	require.NotNil(t, createdQueues.get("testhost0"))
-	require.NotNil(t, createdQueues.get("testhost1"))
+	require.Equal(t, 2, createdQueues.numUnique())
+	require.Equal(t, 0, closedQueues.numUnique())
+	require.Equal(t, 1, len(createdQueues.get("testhost0")))
+	require.Equal(t, 1, len(createdQueues.get("testhost1")))
 
 	// Change topology with one new instance and close one instance
 	svc.SetInstances([]services.ServiceInstance{
@@ -153,10 +153,10 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 	}
 
 	// Assert create third and closed first
-	require.Equal(t, 3, createdQueues.len())
-	require.Equal(t, 1, closedQueues.len())
-	require.NotNil(t, createdQueues.get("testhost0"))
-	require.NotNil(t, createdQueues.get("testhost1"))
-	require.NotNil(t, createdQueues.get("testhost2"))
-	require.NotNil(t, closedQueues.get("testhost0"))
+	require.Equal(t, 3, createdQueues.numUnique())
+	require.Equal(t, 1, closedQueues.numUnique())
+	require.Equal(t, 1, len(createdQueues.get("testhost0")))
+	require.Equal(t, 1, len(createdQueues.get("testhost1")))
+	require.Equal(t, 1, len(createdQueues.get("testhost2")))
+	require.Equal(t, 1, len(closedQueues.get("testhost0")))
 }
