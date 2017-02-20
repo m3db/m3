@@ -151,6 +151,8 @@ type sessionMetrics struct {
 	fetchSuccess               tally.Counter
 	fetchErrors                tally.Counter
 	fetchNodesRespondingErrors []tally.Counter
+	topologyUpdatedSuccess     tally.Counter
+	topologyUpdatedError       tally.Counter
 	streamFromPeersMetrics     map[shardMetricsKey]streamFromPeersMetrics
 }
 
@@ -160,6 +162,8 @@ func newSessionMetrics(scope tally.Scope) sessionMetrics {
 		writeErrors:            scope.Counter("write.errors"),
 		fetchSuccess:           scope.Counter("fetch.success"),
 		fetchErrors:            scope.Counter("fetch.errors"),
+		topologyUpdatedSuccess: scope.Counter("topology.updated-success"),
+		topologyUpdatedError:   scope.Counter("topology.updated-error"),
 		streamFromPeersMetrics: make(map[shardMetricsKey]streamFromPeersMetrics),
 	}
 }
@@ -355,7 +359,7 @@ func (s *session) Open() error {
 
 	topoMap := watch.Get()
 
-	queues, replicas, majority, err := s.newHostQueues(topoMap)
+	queues, replicas, majority, err := s.hostQueues(topoMap, nil)
 	if err != nil {
 		s.Unlock()
 		return err
@@ -400,17 +404,24 @@ func (s *session) Open() error {
 	s.Unlock()
 
 	go func() {
-		for range s.topoWatch.C() {
+		for range watch.C() {
 			s.log.Info("received update for topology")
-			topoMap := s.topoWatch.Get()
-			queues, replicas, majority, err := s.newHostQueues(topoMap)
+			topoMap := watch.Get()
+
+			s.RLock()
+			existingQueues := s.queues
+			s.RUnlock()
+
+			queues, replicas, majority, err := s.hostQueues(topoMap, existingQueues)
 			if err != nil {
 				s.log.Errorf("could not update topology map: %v", err)
+				s.metrics.topologyUpdatedError.Inc(1)
 				continue
 			}
 			s.Lock()
 			s.setTopologyWithLock(topoMap, queues, replicas, majority)
 			s.Unlock()
+			s.metrics.topologyUpdatedSuccess.Inc(1)
 		}
 	}()
 
@@ -439,7 +450,10 @@ func (s *session) BorrowConnection(hostID string, fn withConnectionFn) error {
 	return err
 }
 
-func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, error) {
+func (s *session) hostQueues(
+	topoMap topology.Map,
+	existing []hostQueue,
+) ([]hostQueue, int, int, error) {
 	// NB(r): we leave existing writes in the host queues to finish
 	// as they are already enroute to their destination. This is an edge case
 	// that might result in leaving nodes counting towards quorum, but fixing it
@@ -447,10 +461,22 @@ func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, er
 
 	start := s.nowFn()
 
+	existingByHostID := make(map[string]hostQueue, len(existing))
+	for _, queue := range existing {
+		existingByHostID[queue.Host().ID()] = queue
+	}
+
 	hosts := topoMap.Hosts()
-	queues := make([]hostQueue, len(hosts))
-	for i := range queues {
-		queues[i] = s.newHostQueue(hosts[i], topoMap)
+	queues := make([]hostQueue, 0, len(hosts))
+	newQueues := make([]hostQueue, 0, len(hosts))
+	for _, host := range hosts {
+		if existingQueue, ok := existingByHostID[host.ID()]; ok {
+			queues = append(queues, existingQueue)
+			continue
+		}
+		newQueue := s.newHostQueue(host, topoMap)
+		queues = append(queues, newQueue)
+		newQueues = append(newQueues, newQueue)
 	}
 
 	shards := topoMap.ShardSet().AllIDs()
@@ -474,8 +500,8 @@ func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, er
 	connected := false
 	defer func() {
 		if !connected {
-			for i := range queues {
-				queues[i].Close()
+			for _, queue := range newQueues {
+				queue.Close()
 			}
 		}
 	}()
@@ -540,12 +566,16 @@ func (s *session) newHostQueues(topoMap topology.Map) ([]hostQueue, int, int, er
 }
 
 func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, replicas, majority int) {
-	prev := s.queues
-	s.queues = queues
-	s.queuesByHostID = make(map[string]hostQueue, len(queues))
-	for _, queue := range s.queues {
-		s.queuesByHostID[queue.Host().ID()] = queue
+	prevQueues := s.queues
+
+	newQueuesByHostID := make(map[string]hostQueue, len(queues))
+	for _, queue := range queues {
+		newQueuesByHostID[queue.Host().ID()] = queue
 	}
+
+	s.queues = queues
+	s.queuesByHostID = newQueuesByHostID
+
 	s.topoMap = topoMap
 
 	atomic.StoreInt32(&s.replicas, int32(replicas))
@@ -611,10 +641,13 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		}
 	}
 
-	// Asynchronously close the previous set of host queues
+	// Asynchronously close the set of host queues no longer in use
 	go func() {
-		for i := range prev {
-			prev[i].Close()
+		for _, queue := range prevQueues {
+			newQueue, ok := newQueuesByHostID[queue.Host().ID()]
+			if !ok || newQueue != queue {
+				queue.Close()
+			}
 		}
 	}()
 

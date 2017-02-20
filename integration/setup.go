@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/integration/fake"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
@@ -400,16 +401,16 @@ func newNodes(
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made
 	// into a variable if needed.
-	svc := NewFakeM3ClusterService().
+	svc := fake.NewM3ClusterService().
 		SetInstances(instances).
 		SetReplication(services.NewServiceReplication().SetReplicas(3)).
 		SetSharding(services.NewServiceSharding().SetNumShards(1024))
 
-	svcs := NewFakeM3ClusterServices()
+	svcs := fake.NewM3ClusterServices()
 	svcs.RegisterService("m3db", svc)
 
 	topoOpts := topology.NewDynamicOptions().
-		SetConfigServiceClient(NewM3FakeClusterClient(svcs, nil))
+		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
