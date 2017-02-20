@@ -163,10 +163,8 @@ func (pm *persistManager) persist(
 
 	end := pm.nowFn()
 	worked := end.Sub(start) - slept
-	if currMetrics != nil {
-		currMetrics.recordWorked(worked)
-		currMetrics.recordSlept(slept)
-	}
+	currMetrics.recordWorked(worked)
+	currMetrics.recordSlept(slept)
 
 	return err
 }

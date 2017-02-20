@@ -33,6 +33,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func createShardDir(t *testing.T, prefix string, namespace ts.ID, shard uint32) string {
@@ -166,6 +167,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
+	pm.currMetrics = newShardMetrics(tally.NoopScope, 0)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).Times(2)
 
 	// Disable rate limiting
@@ -204,6 +206,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
+	pm.currMetrics = newShardMetrics(tally.NoopScope, 0)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
