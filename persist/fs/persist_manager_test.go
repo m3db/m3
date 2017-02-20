@@ -167,7 +167,11 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
+
+	pm.Lock()
 	pm.currMetrics = newShardMetrics(tally.NoopScope, 0)
+	pm.Unlock()
+
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).Times(2)
 
 	// Disable rate limiting
@@ -206,7 +210,11 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
+
+	pm.Lock()
 	pm.currMetrics = newShardMetrics(tally.NoopScope, 0)
+	pm.Unlock()
+
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
