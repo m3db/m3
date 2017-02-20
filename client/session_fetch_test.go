@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
@@ -180,6 +181,38 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 	assert.NoError(t, err)
 	assertion := assertFetchResults(t, start, end, fetches, seriesIterators(result))
 	assert.Equal(t, 2, assertion.trimToTimeRange)
+
+	assert.NoError(t, session.Close())
+}
+
+func TestSessionFetchAllBadRequestErrorIsNonRetryable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestOptions()
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	start := time.Now().Truncate(time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
+		func(idx int, op op) {
+			go func() {
+				op.CompletionFn()(nil, &rpc.Error{
+					Type:    rpc.ErrorType_BAD_REQUEST,
+					Message: "expected bad request error",
+				})
+			}()
+		},
+	})
+
+	assert.NoError(t, session.Open())
+
+	_, err = session.FetchAll(testNamespaceName, []string{"foo", "bar"}, start, end)
+	assert.Error(t, err)
+	assert.True(t, xerrors.IsNonRetryableError(err))
 
 	assert.NoError(t, session.Close())
 }

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/encoding"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
 )
@@ -56,6 +57,12 @@ func (f *fetchAttempt) perform() error {
 	result, err := f.session.fetchAllAttempt(f.args.namespace,
 		f.args.ids, f.args.start, f.args.end)
 	f.result = result
+
+	if IsBadRequestError(err) {
+		// Do not retry bad request errors
+		err = xerrors.NewNonRetryableError(err)
+	}
+
 	return err
 }
 

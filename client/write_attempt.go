@@ -23,6 +23,7 @@ package client
 import (
 	"time"
 
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
@@ -52,8 +53,15 @@ func (w *writeAttempt) reset() {
 }
 
 func (w *writeAttempt) perform() error {
-	return w.session.writeAttempt(w.args.namespace, w.args.id,
+	err := w.session.writeAttempt(w.args.namespace, w.args.id,
 		w.args.t, w.args.value, w.args.unit, w.args.annotation)
+
+	if IsBadRequestError(err) {
+		// Do not retry bad request errors
+		err = xerrors.NewNonRetryableError(err)
+	}
+
+	return err
 }
 
 type writeAttemptPool struct {

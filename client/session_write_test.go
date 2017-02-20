@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
+	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
@@ -125,6 +126,54 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 	assert.NoError(t, session.Open())
 
 	assert.Error(t, session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation))
+
+	assert.NoError(t, session.Close())
+}
+
+func TestSessionWriteBadRequestErrorIsNonRetryable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	session := newDefaultTestSession(t).(*session)
+
+	w := struct {
+		ns         string
+		id         string
+		value      float64
+		t          time.Time
+		unit       xtime.Unit
+		annotation []byte
+	}{
+		ns:         "testNs",
+		id:         "foo",
+		value:      1.0,
+		t:          time.Now(),
+		unit:       xtime.Second,
+		annotation: nil,
+	}
+
+	var hosts []topology.Host
+
+	mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
+		func(idx int, op op) {
+			go func() {
+				op.CompletionFn()(hosts[idx], &rpc.Error{
+					Type:    rpc.ErrorType_BAD_REQUEST,
+					Message: "expected bad request error",
+				})
+			}()
+		},
+	})
+
+	assert.NoError(t, session.Open())
+
+	session.RLock()
+	hosts = session.topoMap.Hosts()
+	session.RUnlock()
+
+	err := session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+	assert.Error(t, err)
+	assert.True(t, xerrors.IsNonRetryableError(err))
 
 	assert.NoError(t, session.Close())
 }
