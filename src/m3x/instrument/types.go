@@ -28,6 +28,12 @@ import (
 	"github.com/uber-go/tally"
 )
 
+// Reporter reports information during runtime
+type Reporter interface {
+	// Report reports information during runtime
+	Report()
+}
+
 // Options represents the options for instrumentation
 type Options interface {
 	// SetLogger sets the logger
