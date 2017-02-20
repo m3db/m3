@@ -581,18 +581,20 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	atomic.StoreInt32(&s.replicas, int32(replicas))
 	atomic.StoreInt32(&s.majority, int32(majority))
 
-	if s.fetchBatchOpArrayArrayPool == nil {
-		poolOpts := pool.NewObjectPoolOptions().
-			SetSize(s.opts.FetchBatchOpPoolSize()).
-			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
-				s.scope.SubScope("fetch-batch-op-array-array-pool"),
-			))
-		s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
-			poolOpts,
-			len(queues),
-			s.opts.FetchBatchOpPoolSize()/len(queues))
-		s.fetchBatchOpArrayArrayPool.Init()
-	}
+	// NB(r): Always recreate the fetch batch op array array pool as it must be
+	// the exact length of the queues as we index directly into the return array in
+	// in fetch calls
+	poolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("fetch-batch-op-array-array-pool"),
+		))
+	s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
+		poolOpts,
+		len(queues),
+		s.opts.FetchBatchOpPoolSize()/len(queues))
+	s.fetchBatchOpArrayArrayPool.Init()
+
 	if s.iteratorArrayPool == nil {
 		s.iteratorArrayPool = encoding.NewIteratorArrayPool([]pool.Bucket{
 			pool.Bucket{
@@ -871,7 +873,14 @@ func (s *session) fetchAllAttempt(
 		}
 	}()
 
-	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
+	// NB(r): We must take a ref to the fetch batch op array array pool as it
+	// can change midflight through a fetch request and returning the result
+	// to the new pool can cause the new pool to stall initialization if it
+	// is in progress. This is due to it it enqueueing a fixed number of entries
+	// into the backing channel for the pool and will forever stall on the last
+	// few puts if any unexpected entries find their way there while it is filling.
+	fetchBatchOpArrayArrayPool := s.fetchBatchOpArrayArrayPool
+	fetchBatchOpsByHostIdx = fetchBatchOpArrayArrayPool.Get()
 
 	majority = atomic.LoadInt32(&s.majority)
 
@@ -986,8 +995,9 @@ func (s *session) fetchAllAttempt(
 					}
 				}
 
-				// Return fetch ops array array to pool
-				s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
+				// Return fetch ops array array to pool, making sure to use the
+				// pool we fetch the ops array array from
+				fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
 			}
 		}
 
