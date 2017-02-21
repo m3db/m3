@@ -124,6 +124,7 @@ func (p *fetchBatchOpPool) Put(f *fetchBatchOp) {
 	f.IncRef()
 	if cap(f.request.Ids) != p.capacity || cap(f.completionFns) != p.capacity {
 		// Grew outside capacity, do not return to pool
+		f.DecRef()
 		return
 	}
 	f.reset()

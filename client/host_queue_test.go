@@ -628,7 +628,6 @@ func testHostQueueFetchBatches(
 			Ids:        rawIDs,
 		},
 	}
-	fetchBatch.IncRef()
 	for _ = range fetchBatch.request.Ids {
 		fetchBatch.completionFns = append(fetchBatch.completionFns, callback)
 	}
