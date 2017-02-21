@@ -49,7 +49,7 @@ type queue struct {
 	ops                                  []op
 	opsSumSize                           int
 	opsLastRotatedAt                     time.Time
-	opsArrayPool                         opArrayPool
+	opsArrayPool                         *opArrayPool
 	drainIn                              chan []op
 	state                                state
 }

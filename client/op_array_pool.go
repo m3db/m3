@@ -24,38 +24,27 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-type opArrayPool interface {
-	// Init pool
-	Init()
-
-	// Get an array of ops
-	Get() []op
-
-	// Put an array of ops
-	Put(ops []op)
-}
-
-type poolOfOpArray struct {
+type opArrayPool struct {
 	pool     pool.ObjectPool
 	capacity int
 }
 
-func newOpArrayPool(opts pool.ObjectPoolOptions, capacity int) opArrayPool {
+func newOpArrayPool(opts pool.ObjectPoolOptions, capacity int) *opArrayPool {
 	p := pool.NewObjectPool(opts)
-	return &poolOfOpArray{p, capacity}
+	return &opArrayPool{p, capacity}
 }
 
-func (p *poolOfOpArray) Init() {
+func (p *opArrayPool) Init() {
 	p.pool.Init(func() interface{} {
 		return make([]op, 0, p.capacity)
 	})
 }
 
-func (p *poolOfOpArray) Get() []op {
+func (p *opArrayPool) Get() []op {
 	return p.pool.Get().([]op)
 }
 
-func (p *poolOfOpArray) Put(ops []op) {
+func (p *opArrayPool) Put(ops []op) {
 	for i := range ops {
 		ops[i] = nil
 	}
