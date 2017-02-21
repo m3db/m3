@@ -29,8 +29,10 @@ import (
 )
 
 func TestFrequencyCounterSequential(t *testing.T) {
+	numBuckets := 10
 	interval := time.Second
-	c := NewFrequencyCounter(10, interval)
+	opts := NewOptions().SetNumBuckets(numBuckets).SetInterval(interval)
+	c := NewFrequencyCounter(opts)
 	var now time.Time
 	c.nowFn = func() time.Time { return now }
 
@@ -59,8 +61,10 @@ func TestFrequencyCounterSequential(t *testing.T) {
 }
 
 func TestFrequencyCounterParallel(t *testing.T) {
+	numBuckets := 10
 	interval := time.Second
-	c := NewFrequencyCounter(10, interval)
+	opts := NewOptions().SetNumBuckets(numBuckets).SetInterval(interval)
+	c := NewFrequencyCounter(opts)
 	var now time.Time
 	c.nowFn = func() time.Time { return now }
 
