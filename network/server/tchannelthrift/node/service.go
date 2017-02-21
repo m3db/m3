@@ -302,7 +302,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
 	if s.db.IsOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errDatabaseIsOverloaded)
+		return nil, tterrors.NewInternalError(errServerIsOverloaded)
 	}
 
 	callStart := s.nowFn()
@@ -371,7 +371,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
 	if s.db.IsOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errDatabaseIsOverloaded)
+		return nil, tterrors.NewInternalError(errServerIsOverloaded)
 	}
 
 	callStart := s.nowFn()
