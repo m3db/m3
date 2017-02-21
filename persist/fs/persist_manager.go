@@ -22,9 +22,7 @@ package fs
 
 import (
 	"errors"
-	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -55,43 +53,6 @@ var (
 )
 
 type sleepFn func(time.Duration)
-
-type shardMetrics struct {
-	worked     tally.Gauge
-	slept      tally.Gauge
-	workedInNs int64
-	sleptInNs  int64
-}
-
-func newShardMetrics(scope tally.Scope, shard uint32) *shardMetrics {
-	s := scope.Tagged(
-		map[string]string{
-			"shard": strconv.Itoa(int(shard)),
-		},
-	)
-	return &shardMetrics{
-		worked: s.Gauge("worked"),
-		slept:  s.Gauge("slept"),
-	}
-}
-
-func (m *shardMetrics) reset() {
-	atomic.StoreInt64(&m.workedInNs, 0)
-	atomic.StoreInt64(&m.sleptInNs, 0)
-}
-
-func (m *shardMetrics) recordWorked(d time.Duration) {
-	atomic.AddInt64(&m.workedInNs, int64(d))
-}
-
-func (m *shardMetrics) recordSlept(d time.Duration) {
-	atomic.AddInt64(&m.sleptInNs, int64(d))
-}
-
-func (m *shardMetrics) report() {
-	m.worked.Update(float64(atomic.LoadInt64(&m.workedInNs) / nsPerMillisecond))
-	m.slept.Update(float64(atomic.LoadInt64(&m.sleptInNs) / nsPerMillisecond))
-}
 
 // persistManager is responsible for persisting series segments onto local filesystem.
 // It is not thread-safe.
