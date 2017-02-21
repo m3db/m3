@@ -385,7 +385,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	for {
 		if err := commitLog.WriteBehind(ctx, series, dp, unit, nil); err != nil {
 			// Ensure queue full error
-			assert.Equal(t, errCommitLogQueueFull, err)
+			assert.Equal(t, ErrCommitLogQueueFull, err)
 			break
 		}
 		writes = append(writes, testWrite{series, dp.Timestamp, dp.Value, unit, nil, nil})

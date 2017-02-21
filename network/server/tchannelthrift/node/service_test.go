@@ -233,6 +233,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -339,6 +340,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
 

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
@@ -99,6 +100,10 @@ type db struct {
 
 	scope   tally.Scope
 	metrics databaseMetrics
+
+	errors       xcounter.FrequencyCounter
+	errWindow    time.Duration
+	errThreshold int64
 }
 
 type databaseMetrics struct {
@@ -132,6 +137,9 @@ func NewDatabase(
 		tickDeadline: opts.RetentionOptions().BufferDrain(),
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
+		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:    opts.ErrorWindowForLoad(),
+		errThreshold: opts.ErrorThresholdForLoad(),
 	}
 
 	d.commitLog = commitlog.NewCommitLog(opts.CommitLogOptions())
@@ -261,6 +269,9 @@ func (d *db) Write(
 	}
 
 	err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	if err == commitlog.ErrCommitLogQueueFull {
+		d.errors.Record(1)
+	}
 	d.metrics.write.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
 	return err
 }
@@ -293,7 +304,6 @@ func (d *db) FetchBlocks(
 ) ([]block.FetchBlockResult, error) {
 	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
-
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
 		d.metrics.fetchBlocks.ReportError(d.nowFn().Sub(callStart))
@@ -317,7 +327,6 @@ func (d *db) FetchBlocksMetadata(
 ) (block.FetchBlocksMetadataResults, *int64, error) {
 	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
-
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
 		d.metrics.fetchBlocksMetadata.ReportError(d.nowFn().Sub(callStart))
@@ -350,6 +359,10 @@ func (d *db) Truncate(namespace ts.ID) (int64, error) {
 		return 0, err
 	}
 	return n.Truncate()
+}
+
+func (d *db) IsOverloaded() bool {
+	return d.errors.Count(d.errWindow) > d.errThreshold
 }
 
 func (d *db) namespaceFor(namespace ts.ID) (databaseNamespace, error) {
