@@ -112,7 +112,7 @@ func NewPersistManager(opts Options) persist.Manager {
 	newFileMode := opts.NewFileMode()
 	newDirectoryMode := opts.NewDirectoryMode()
 	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-	pm := &persistManager{
+	return &persistManager{
 		opts:           opts,
 		scope:          scope,
 		filePathPrefix: filePathPrefix,
@@ -123,9 +123,6 @@ func NewPersistManager(opts Options) persist.Manager {
 		metrics:        make(map[uint32]*shardMetrics),
 		segmentHolder:  make([]checked.Bytes, 2),
 	}
-
-	go pm.reportLoop()
-	return pm
 }
 
 func (pm *persistManager) persist(
@@ -164,21 +161,22 @@ func (pm *persistManager) persist(
 	end := pm.nowFn()
 	worked := end.Sub(start) - slept
 	currMetrics.recordWorked(worked)
-	currMetrics.recordSlept(slept)
+	if slept > 0 {
+		currMetrics.recordSlept(slept)
+	}
 
 	return err
 }
 
 func (pm *persistManager) close() error {
-	err := pm.writer.Close()
-	pm.reset()
-	return err
+	return pm.writer.Close()
 }
 
 func (pm *persistManager) reset() {
 	pm.start = timeZero
 	pm.count = 0
 	pm.bytesWritten = 0
+	pm.currMetrics.reset()
 }
 
 func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
@@ -188,34 +186,25 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 		currMetrics = newShardMetrics(pm.scope, shard)
 		pm.metrics[shard] = currMetrics
 	}
-	currMetrics.reset()
 	pm.currMetrics = currMetrics
+	pm.reset()
 	pm.Unlock()
 
-	// NB(xichen): explicitly not using a defer to avoid creating lambdas on
-	// the heap and causing additional GC
-	start := pm.nowFn()
 	var prepared persist.PreparedPersist
 
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 	// This allows us to retry failed flushing attempts because they wouldn't
 	// have created the checkpoint file.
 	if FilesetExistsAt(pm.filePathPrefix, namespace, shard, blockStart) {
-		end := pm.nowFn()
-		currMetrics.recordWorked(end.Sub(start))
 		return prepared, nil
 	}
 	if err := pm.writer.Open(namespace, shard, blockStart); err != nil {
-		end := pm.nowFn()
-		currMetrics.recordWorked(end.Sub(start))
 		return prepared, err
 	}
 
 	prepared.Persist = pm.persist
 	prepared.Close = pm.close
 
-	end := pm.nowFn()
-	currMetrics.recordWorked(end.Sub(start))
 	return prepared, nil
 }
 
@@ -227,15 +216,11 @@ func (pm *persistManager) RateLimitOptions() ratelimit.Options {
 	return pm.rateLimitOpts
 }
 
-func (pm *persistManager) reportLoop() {
-	interval := pm.opts.InstrumentOptions().ReportInterval()
-	t := time.NewTimer(interval)
-	for range t.C {
-		pm.RLock()
-		currMetrics := pm.currMetrics
-		pm.RUnlock()
-		if currMetrics != nil {
-			currMetrics.report()
-		}
+func (pm *persistManager) Report() {
+	pm.RLock()
+	currMetrics := pm.currMetrics
+	pm.RUnlock()
+	if currMetrics != nil {
+		currMetrics.report()
 	}
 }

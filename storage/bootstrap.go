@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 type bootstrapState int
@@ -74,6 +75,7 @@ type bootstrapManager struct {
 	newBootstrapFn NewBootstrapFn
 	state          bootstrapState
 	hasPending     bool
+	status         tally.Gauge
 }
 
 func newBootstrapManager(
@@ -81,6 +83,7 @@ func newBootstrapManager(
 	mediator databaseMediator,
 ) databaseBootstrapManager {
 	opts := database.Options()
+	scope := opts.InstrumentOptions().MetricsScope()
 	return &bootstrapManager{
 		database:       database,
 		mediator:       mediator,
@@ -88,14 +91,8 @@ func newBootstrapManager(
 		log:            opts.InstrumentOptions().Logger(),
 		nowFn:          opts.ClockOptions().NowFn(),
 		newBootstrapFn: opts.NewBootstrapFn(),
+		status:         scope.Gauge("bootstrapped"),
 	}
-}
-
-func (m *bootstrapManager) IsBootstrapping() bool {
-	m.RLock()
-	state := m.state
-	m.RUnlock()
-	return state == bootstrapping
 }
 
 func (m *bootstrapManager) IsBootstrapped() bool {
@@ -103,37 +100,6 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	state := m.state
 	m.RUnlock()
 	return state == bootstrapped
-}
-
-func (m *bootstrapManager) targetRanges(at time.Time) []bootstrap.TargetRange {
-	ropts := m.opts.RetentionOptions()
-	start := at.Add(-ropts.RetentionPeriod()).
-		Truncate(ropts.BlockSize())
-	midPoint := at.
-		Add(-ropts.BlockSize()).
-		Add(-ropts.BufferPast()).
-		Truncate(ropts.BlockSize()).
-		// NB(r): Since "end" is exclusive we need to add a
-		// an extra block size when specifiying the end time.
-		Add(ropts.BlockSize())
-	cutover := at.Add(ropts.BufferFuture()).
-		Truncate(ropts.BlockSize()).
-		Add(ropts.BlockSize())
-
-	// NB(r): We want the large initial time range bootstrapped to
-	// bootstrap incrementally so we don't keep the full raw
-	// data in process until we finish bootstrapping which could
-	// cause the process to OOM.
-	return []bootstrap.TargetRange{
-		{
-			Range:      xtime.Range{Start: start, End: midPoint},
-			RunOptions: bootstrap.NewRunOptions().SetIncremental(true),
-		},
-		{
-			Range:      xtime.Range{Start: midPoint, End: cutover},
-			RunOptions: bootstrap.NewRunOptions().SetIncremental(false),
-		},
-	}
 }
 
 func (m *bootstrapManager) Bootstrap() error {
@@ -192,6 +158,46 @@ func (m *bootstrapManager) Bootstrap() error {
 	// across the cluster.
 
 	return multiErr.FinalError()
+}
+
+func (m *bootstrapManager) Report() {
+	if m.IsBootstrapped() {
+		m.status.Update(1)
+	} else {
+		m.status.Update(0)
+	}
+
+}
+
+func (m *bootstrapManager) targetRanges(at time.Time) []bootstrap.TargetRange {
+	ropts := m.opts.RetentionOptions()
+	start := at.Add(-ropts.RetentionPeriod()).
+		Truncate(ropts.BlockSize())
+	midPoint := at.
+		Add(-ropts.BlockSize()).
+		Add(-ropts.BufferPast()).
+		Truncate(ropts.BlockSize()).
+		// NB(r): Since "end" is exclusive we need to add a
+		// an extra block size when specifiying the end time.
+		Add(ropts.BlockSize())
+	cutover := at.Add(ropts.BufferFuture()).
+		Truncate(ropts.BlockSize()).
+		Add(ropts.BlockSize())
+
+	// NB(r): We want the large initial time range bootstrapped to
+	// bootstrap incrementally so we don't keep the full raw
+	// data in process until we finish bootstrapping which could
+	// cause the process to OOM.
+	return []bootstrap.TargetRange{
+		{
+			Range:      xtime.Range{Start: start, End: midPoint},
+			RunOptions: bootstrap.NewRunOptions().SetIncremental(true),
+		},
+		{
+			Range:      xtime.Range{Start: midPoint, End: cutover},
+			RunOptions: bootstrap.NewRunOptions().SetIncremental(false),
+		},
+	}
 }
 
 func (m *bootstrapManager) bootstrap() error {

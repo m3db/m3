@@ -1,5 +1,5 @@
-hash: 98c9d561d6973239192e7513952576e14adb11e0e04132dd9fcb500aa91bc9ef
-updated: 2017-02-20T09:11:06.175357095-05:00
+hash: 6d155e34454932674b0773ad9668f14d4d0f58cc74a1a56f0bd8efa364a158ce
+updated: 2017-02-20T17:31:51.03659332-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -28,7 +28,7 @@ imports:
   - services/placement
   - shard
 - name: github.com/m3db/m3x
-  version: 3a8328d65b7880b034b8515177921023b41e4399
+  version: 2adc966acde14c9f0cc04c3eaeb338c5f9673a74
   vcs: git
   subpackages:
   - checked

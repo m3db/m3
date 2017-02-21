@@ -426,7 +426,6 @@ func TestNamespaceTruncate(t *testing.T) {
 	require.Equal(t, int64(1), res)
 	require.NotNil(t, ns.shards[testShardIDs[0].ID()])
 	require.True(t, ns.shards[testShardIDs[0].ID()].IsBootstrapped())
-	require.False(t, ns.shards[testShardIDs[0].ID()].IsBootstrapping())
 }
 
 func TestNamespaceRepair(t *testing.T) {

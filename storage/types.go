@@ -220,9 +220,6 @@ type Shard interface {
 	// NumSeries returns the number of series in the shard
 	NumSeries() int64
 
-	// IsBootstrapped returns whether the shard is bootstrapping
-	IsBootstrapping() bool
-
 	// IsBootstrapped returns whether the shard is already bootstrapped
 	IsBootstrapped() bool
 }
@@ -296,21 +293,18 @@ type databaseShard interface {
 
 // databaseBootstrapManager manages the bootstrap process.
 type databaseBootstrapManager interface {
-	// IsBootstrapped returns whether the database is bootstrapping.
-	IsBootstrapping() bool
-
 	// IsBootstrapped returns whether the database is already bootstrapped.
 	IsBootstrapped() bool
 
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
 	Bootstrap() error
+
+	// Report reports runtime information
+	Report()
 }
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
-	// IsFlushing returns whether flush is in progress
-	IsFlushing() bool
-
 	// NeedsFlush returns true if the data for a given time have been flushed.
 	NeedsFlush(t time.Time) bool
 
@@ -328,15 +322,18 @@ type databaseFlushManager interface {
 
 	// RateLimitOptions returns the rate limit options
 	RateLimitOptions() ratelimit.Options
+
+	// Report reports runtime information
+	Report()
 }
 
 // databaseCleanupManager manages cleaning up persistent storage space.
 type databaseCleanupManager interface {
-	// IsCleaningUp returns whether cleanup is in progress
-	IsCleaningUp() bool
-
 	// Cleanup cleans up data not needed in the persistent storage.
 	Cleanup(t time.Time) error
+
+	// Report reports runtime information
+	Report()
 }
 
 // FileOpOptions control the database file operations behavior
@@ -359,8 +356,11 @@ type FileOpOptions interface {
 
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
-	databaseFlushManager
-	databaseCleanupManager
+	// Cleanup cleans up data not needed in the persistent storage.
+	Cleanup(t time.Time) error
+
+	// Flush flushes in-memory data to persistent storage.
+	Flush(t time.Time) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status
@@ -375,6 +375,9 @@ type databaseFileSystemManager interface {
 	// Run attempts to perform all filesystem-related operations,
 	// returning true if those operations are performed, and false otherwise
 	Run(t time.Time, runType runType, forceType forceType) bool
+
+	// Report reports runtime information
+	Report()
 }
 
 // databaseShardRepairer repairs in-memory data for a shard
@@ -402,8 +405,8 @@ type databaseRepairer interface {
 	// Repair repairs in-memory data
 	Repair() error
 
-	// IsRepairing returns whether the repairer is running or not
-	IsRepairing() bool
+	// Report reports runtime information
+	Report()
 }
 
 // databaseTickManager performs periodic ticking
@@ -439,6 +442,9 @@ type databaseMediator interface {
 
 	// Close closes the mediator
 	Close() error
+
+	// Report reports runtime information
+	Report()
 }
 
 // NewBootstrapFn creates a new bootstrap

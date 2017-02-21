@@ -98,7 +98,7 @@ func newMediator(database database, opts Options) (databaseMediator, error) {
 	d.databaseRepairer = newNoopDatabaseRepairer()
 	if opts.RepairEnabled() {
 		var err error
-		d.databaseRepairer, err = newDatabaseRepairer(database)
+		d.databaseRepairer, err = newDatabaseRepairer(database, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -147,6 +147,12 @@ func (m *mediator) Tick(softDeadline time.Duration, runType runType, forceType f
 	return nil
 }
 
+func (m *mediator) Report() {
+	m.databaseBootstrapManager.Report()
+	m.databaseRepairer.Report()
+	m.databaseFileSystemManager.Report()
+}
+
 func (m *mediator) Close() error {
 	m.Lock()
 	defer m.Unlock()
@@ -187,26 +193,7 @@ func (m *mediator) reportLoop() {
 	for {
 		select {
 		case <-t.C:
-			if m.databaseBootstrapManager.IsBootstrapped() {
-				m.metrics.bootstrapStatus.Update(1)
-			} else {
-				m.metrics.bootstrapStatus.Update(0)
-			}
-			if m.databaseRepairer.IsRepairing() {
-				m.metrics.repairStatus.Update(1)
-			} else {
-				m.metrics.repairStatus.Update(0)
-			}
-			if m.databaseFileSystemManager.IsCleaningUp() {
-				m.metrics.cleanupStatus.Update(1)
-			} else {
-				m.metrics.cleanupStatus.Update(0)
-			}
-			if m.databaseFileSystemManager.IsFlushing() {
-				m.metrics.flushStatus.Update(1)
-			} else {
-				m.metrics.flushStatus.Update(0)
-			}
+			m.Report()
 		case <-m.closedCh:
 			t.Stop()
 			return

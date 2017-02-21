@@ -121,10 +121,19 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	writer.EXPECT().WriteAll(id, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
-	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart)
-	require.Nil(t, err)
+	now := time.Now()
+	pm.start = now
+	pm.count = 123
+	pm.bytesWritten = 100
 
+	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart)
 	defer prepared.Close()
+
+	require.Nil(t, err)
+	require.True(t, pm.start.IsZero())
+	require.Equal(t, 0, pm.count)
+	require.Equal(t, int64(0), pm.bytesWritten)
+
 	require.Nil(t, prepared.Persist(id, segment, checksum))
 }
 
@@ -135,17 +144,8 @@ func TestPersistenceManagerClose(t *testing.T) {
 	pm, writer := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
-	now := time.Now()
-	pm.start = now
-	pm.count = 123
-	pm.bytesWritten = 100
-
 	writer.EXPECT().Close()
 	pm.close()
-
-	require.True(t, pm.start.IsZero())
-	require.Equal(t, 0, pm.count)
-	require.Equal(t, int64(0), pm.bytesWritten)
 }
 
 func TestPersistenceManagerNoRateLimit(t *testing.T) {
@@ -225,6 +225,10 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		SetLimitMbps(16.0)
 
 	for i := 0; i < iter; i++ {
+		// Reset
+		slept = time.Duration(0)
+		pm.reset()
+
 		// Start persistence
 		now = time.Now()
 		require.NoError(t, pm.persist(id, segment, checksum))
@@ -246,8 +250,6 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 		require.Equal(t, int64(15), pm.bytesWritten)
 
-		// Reset
-		slept = time.Duration(0)
 		pm.close()
 	}
 }

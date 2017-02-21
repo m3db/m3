@@ -202,11 +202,12 @@ type dbRepairer struct {
 	repairMaxRetries    int
 	closed              bool
 	running             int32
+	status              tally.Gauge
 }
 
-func newDatabaseRepairer(database database) (databaseRepairer, error) {
-	opts := database.Options()
+func newDatabaseRepairer(database database, opts Options) (databaseRepairer, error) {
 	nowFn := opts.ClockOptions().NowFn()
+	scope := opts.InstrumentOptions().MetricsScope()
 	ropts := opts.RepairOptions()
 	if ropts == nil {
 		return nil, errNoRepairOptions
@@ -240,6 +241,7 @@ func newDatabaseRepairer(database database) (databaseRepairer, error) {
 		repairTimeJitter:    jitter,
 		repairCheckInterval: ropts.RepairCheckInterval(),
 		repairMaxRetries:    ropts.RepairMaxRetries(),
+		status:              scope.Gauge("repair"),
 	}
 	r.repairFn = r.Repair
 
@@ -357,6 +359,14 @@ func (r *dbRepairer) Repair() error {
 	return multiErr.FinalError()
 }
 
+func (r *dbRepairer) Report() {
+	if atomic.LoadInt32(&r.running) == 1 {
+		r.status.Update(1)
+	} else {
+		r.status.Update(0)
+	}
+}
+
 func (r *dbRepairer) repairWithTimeRange(tr xtime.Range) error {
 	multiErr := xerrors.NewMultiError()
 	namespaces := r.database.getOwnedNamespaces()
@@ -369,17 +379,13 @@ func (r *dbRepairer) repairWithTimeRange(tr xtime.Range) error {
 	return multiErr.FinalError()
 }
 
-func (r *dbRepairer) IsRepairing() bool {
-	return atomic.LoadInt32(&r.running) == 1
-}
-
 var noOpRepairer databaseRepairer = repairerNoOp{}
 
 type repairerNoOp struct{}
 
 func newNoopDatabaseRepairer() databaseRepairer { return noOpRepairer }
 
-func (r repairerNoOp) Start()            {}
-func (r repairerNoOp) Stop()             {}
-func (r repairerNoOp) Repair() error     { return nil }
-func (r repairerNoOp) IsRepairing() bool { return false }
+func (r repairerNoOp) Start()        {}
+func (r repairerNoOp) Stop()         {}
+func (r repairerNoOp) Repair() error { return nil }
+func (r repairerNoOp) Report()       {}

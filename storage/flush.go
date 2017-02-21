@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
 )
@@ -49,7 +48,7 @@ type flushManager struct {
 	blockSize       time.Duration
 	pm              persist.Manager
 	flushInProgress bool
-	metrics         instrument.MethodMetrics
+	status          tally.Gauge
 }
 
 func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
@@ -63,15 +62,8 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 		nowFn:     opts.ClockOptions().NowFn(),
 		blockSize: blockSize,
 		pm:        pm,
-		metrics:   instrument.NewMethodMetrics(scope, "flush", 1.0),
+		status:    scope.Gauge("flush"),
 	}
-}
-
-func (m *flushManager) IsFlushing() bool {
-	m.RLock()
-	flushInProgress := m.flushInProgress
-	m.RUnlock()
-	return flushInProgress
 }
 
 func (m *flushManager) NeedsFlush(t time.Time) bool {
@@ -93,11 +85,8 @@ func (m *flushManager) FlushTimeEnd(t time.Time) time.Time {
 }
 
 func (m *flushManager) Flush(curr time.Time) error {
-	callStart := m.nowFn()
-
 	timesToFlush := m.flushTimes(curr)
 	if len(timesToFlush) == 0 {
-		m.metrics.ReportSuccess(m.nowFn().Sub(callStart))
 		return nil
 	}
 
@@ -122,9 +111,7 @@ func (m *flushManager) Flush(curr time.Time) error {
 		}
 	}
 
-	res := multiErr.FinalError()
-	m.metrics.ReportSuccessOrError(res, m.nowFn().Sub(callStart))
-	return res
+	return multiErr.FinalError()
 }
 
 func (m *flushManager) SetRateLimitOptions(value ratelimit.Options) {
@@ -133,6 +120,20 @@ func (m *flushManager) SetRateLimitOptions(value ratelimit.Options) {
 
 func (m *flushManager) RateLimitOptions() ratelimit.Options {
 	return m.pm.RateLimitOptions()
+}
+
+func (m *flushManager) Report() {
+	m.RLock()
+	flushInProgress := m.flushInProgress
+	m.RUnlock()
+
+	if flushInProgress {
+		m.status.Update(1)
+	} else {
+		m.status.Update(0)
+	}
+
+	m.pm.Report()
 }
 
 func (m *flushManager) flushTimes(curr time.Time) []time.Time {
