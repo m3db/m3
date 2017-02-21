@@ -135,7 +135,7 @@ type clientMetrics struct {
 // Get returns the latest value from etcd store and only fall back to
 // in-memory cache if the remote store is unavailable
 func (c *client) Get(key string) (kv.Value, error) {
-	return c.get(c.opts.KeyFn()(key))
+	return c.get(c.opts.ApplyPrefix(key))
 }
 
 func (c *client) get(key string) (kv.Value, error) {
@@ -172,7 +172,7 @@ func (c *client) History(key string, from, to int) ([]kv.Value, error) {
 		return nil, nil
 	}
 
-	newKey := c.opts.KeyFn()(key)
+	newKey := c.opts.ApplyPrefix(key)
 
 	ctx, cancel := c.context()
 	defer cancel()
@@ -235,7 +235,7 @@ func (c *client) History(key string, from, to int) ([]kv.Value, error) {
 }
 
 func (c *client) Watch(key string) (kv.ValueWatch, error) {
-	newKey := c.opts.KeyFn()(key)
+	newKey := c.opts.ApplyPrefix(key)
 	c.Lock()
 	watchable, ok := c.watchables[newKey]
 	if !ok {
@@ -337,7 +337,7 @@ func (c *client) Set(key string, v proto.Message) (int, error) {
 		return 0, err
 	}
 
-	r, err := c.kv.Put(ctx, c.opts.KeyFn()(key), string(value), clientv3.WithPrevKV())
+	r, err := c.kv.Put(ctx, c.opts.ApplyPrefix(key), string(value), clientv3.WithPrevKV())
 	if err != nil {
 		c.m.etcdPutError.Inc(1)
 		return 0, err
@@ -368,7 +368,7 @@ func (c *client) CheckAndSet(key string, version int, v proto.Message) (int, err
 		return 0, err
 	}
 
-	key = c.opts.KeyFn()(key)
+	key = c.opts.ApplyPrefix(key)
 	r, err := c.kv.Txn(ctx).
 		If(clientv3.Compare(clientv3.Version(key), "=", version)).
 		Then(clientv3.OpPut(key, string(value))).
@@ -388,7 +388,7 @@ func (c *client) Delete(key string) (kv.Value, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
-	key = c.opts.KeyFn()(key)
+	key = c.opts.ApplyPrefix(key)
 
 	r, err := c.kv.Delete(ctx, key, clientv3.WithPrevKV())
 	if err != nil {

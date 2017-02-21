@@ -23,6 +23,7 @@ package etcd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -40,9 +41,9 @@ import (
 )
 
 const (
-	keyFormat       = "%s/%s"
+	keySeparator    = "/"
 	cacheFileFormat = "%s-%s.json"
-	kvPrefix        = "_kv"
+	kvPrefix        = "_kv/"
 )
 
 type newClientFn func(endpoints []string) (*clientv3.Client, error)
@@ -128,12 +129,7 @@ func (c *csclient) newKVStore() (kv.Store, error) {
 			SetLogger(c.logger).
 			SetMetricsScope(c.kvScope),
 		).
-		SetKeyFn(func(key string) string {
-			if env != "" {
-				key = fmt.Sprintf(keyFormat, env, key)
-			}
-			return fmt.Sprintf(keyFormat, kvPrefix, key)
-		}),
+		SetPrefix(prefix(env)),
 	)
 	return kvGen(c.opts.Zone())
 }
@@ -148,7 +144,7 @@ func (c *csclient) kvGen(kvOpts etcdKV.Options) sdClient.KVGen {
 
 			return etcdKV.NewStore(
 				cli,
-				kvOpts.SetCacheFilePath(cacheFileForZone(c.opts.CacheDir(), kvOpts.KeyFn()(c.opts.AppID()), zone)),
+				kvOpts.SetCacheFilePath(cacheFileForZone(c.opts.CacheDir(), kvOpts.ApplyPrefix(c.opts.AppID()), zone)),
 			)
 		},
 	)
@@ -204,12 +200,23 @@ func cacheFileForZone(cacheDir, appID, zone string) string {
 	if cacheDir == "" || appID == "" || zone == "" {
 		return ""
 	}
-
-	return fmt.Sprintf(keyFormat, cacheDir, fileName(appID, zone))
+	return filepath.Join(cacheDir, fileName(appID, zone))
 }
 
 func fileName(appID, zone string) string {
 	cacheFileName := fmt.Sprintf(cacheFileFormat, appID, zone)
 
 	return strings.Replace(cacheFileName, string(os.PathSeparator), "_", -1)
+}
+
+func prefix(env string) string {
+	res := kvPrefix
+	if env != "" {
+		res = concat(res, concat(env, keySeparator))
+	}
+	return res
+}
+
+func concat(a, b string) string {
+	return fmt.Sprintf("%s%s", a, b)
 }

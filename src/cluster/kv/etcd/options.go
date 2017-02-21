@@ -22,6 +22,7 @@ package etcd
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3x/instrument"
@@ -34,15 +35,7 @@ var (
 	defaultWatchChanResetInterval = 10 * time.Second
 	defaultWatchChanInitTimeout   = 10 * time.Second
 	defaultRetryOptions           = xretry.NewOptions().SetMaxRetries(5)
-	defaultKeyFn                  = KeyFn(
-		func(key string) string {
-			return key
-		},
-	)
 )
-
-// KeyFn is a function that wraps a key
-type KeyFn func(key string) string
 
 // Options are options for the client of the kv store
 type Options interface {
@@ -50,11 +43,6 @@ type Options interface {
 	RequestTimeout() time.Duration
 	// SetRequestTimeout sets the RequestTimeout
 	SetRequestTimeout(t time.Duration) Options
-
-	// KeyFn is the function to wrap a key
-	KeyFn() KeyFn
-	// SetKeyFn sets the KeyFn
-	SetKeyFn(f KeyFn) Options
 
 	// InstrumentsOptions is the instrument options
 	InstrumentsOptions() instrument.Options
@@ -88,13 +76,20 @@ type Options interface {
 	// SetCacheFilePath sets the CacheFilePath
 	SetCacheFilePath(c string) Options
 
+	// Prefix is the prefix for each key
+	Prefix() string
+	// SetPrefix sets the prefix
+	SetPrefix(s string) Options
+	// ApplyPrefix applies the prefix to the key
+	ApplyPrefix(key string) string
+
 	// Validate validates the Options
 	Validate() error
 }
 
 type options struct {
 	requestTimeout         time.Duration
-	keyFn                  KeyFn
+	prefix                 string
 	iopts                  instrument.Options
 	ropts                  xretry.Options
 	watchChanCheckInterval time.Duration
@@ -111,8 +106,7 @@ func NewOptions() Options {
 		SetRetryOptions(defaultRetryOptions).
 		SetWatchChanCheckInterval(defaultWatchChanCheckInterval).
 		SetWatchChanResetInterval(defaultWatchChanResetInterval).
-		SetWatchChanInitTimeout(defaultWatchChanInitTimeout).
-		SetKeyFn(defaultKeyFn)
+		SetWatchChanInitTimeout(defaultWatchChanInitTimeout)
 }
 
 func (o options) Validate() error {
@@ -128,10 +122,6 @@ func (o options) Validate() error {
 		return errors.New("invalid watch channel check interval")
 	}
 
-	if o.keyFn == nil {
-		return errors.New("no keyFn set")
-	}
-
 	return nil
 }
 
@@ -141,15 +131,6 @@ func (o options) RequestTimeout() time.Duration {
 
 func (o options) SetRequestTimeout(t time.Duration) Options {
 	o.requestTimeout = t
-	return o
-}
-
-func (o options) KeyFn() KeyFn {
-	return o.keyFn
-}
-
-func (o options) SetKeyFn(f KeyFn) Options {
-	o.keyFn = f
 	return o
 }
 
@@ -205,4 +186,17 @@ func (o options) CacheFilePath() string {
 func (o options) SetCacheFilePath(c string) Options {
 	o.cacheFilePath = c
 	return o
+}
+
+func (o options) Prefix() string {
+	return o.prefix
+}
+
+func (o options) SetPrefix(prefix string) Options {
+	o.prefix = prefix
+	return o
+}
+
+func (o options) ApplyPrefix(key string) string {
+	return fmt.Sprintf("%s%s", o.prefix, key)
 }

@@ -701,9 +701,7 @@ func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 			ec,
 			etcdKV.NewOptions().
 				SetWatchChanCheckInterval(100*time.Millisecond).
-				SetKeyFn(func(key string) string {
-					return fmt.Sprintf("[%s][%s]", zone, key)
-				}),
+				SetPrefix(fmt.Sprintf("%s/", zone)),
 		)
 	}
 

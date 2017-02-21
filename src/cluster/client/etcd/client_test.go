@@ -147,6 +147,11 @@ func TestCacheFileForZone(t *testing.T) {
 	assert.Equal(t, "/dir/a_b-c_d.json", cacheFileForZone("/dir", "a/b", "c/d"))
 }
 
+func TestPrefix(t *testing.T) {
+	assert.Equal(t, "_kv/test/", prefix("test"))
+	assert.Equal(t, "_kv/", prefix(""))
+}
+
 func testOptions() Options {
 	return NewOptions().SetClusters([]Cluster{
 		NewCluster().SetZone("zone1").SetEndpoints([]string{"i1"}),
