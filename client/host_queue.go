@@ -49,7 +49,7 @@ type queue struct {
 	ops                                  []op
 	opsSumSize                           int
 	opsLastRotatedAt                     time.Time
-	opsArrayPool                         opArrayPool
+	opsArrayPool                         *opArrayPool
 	drainIn                              chan []op
 	state                                state
 }
@@ -182,11 +182,7 @@ func (q *queue) drain() {
 		writeBatchSize               = q.opts.WriteBatchSize()
 	)
 
-	for {
-		ops, ok := <-q.drainIn
-		if !ok {
-			break
-		}
+	for ops := range q.drainIn {
 		var (
 			currWriteOps      []op
 			currBatchElements []*rpc.WriteBatchRawRequestElement
@@ -251,7 +247,6 @@ func (q *queue) asyncWrite(
 	ops []op,
 	elems []*rpc.WriteBatchRawRequestElement,
 ) {
-
 	q.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
 	go func() {
@@ -317,7 +312,11 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 	// TODO(r): Use a worker pool to avoid creating new go routines for async fetches
 	go func() {
 		// NB(r): Defer is slow in the hot path unfortunately
-		cleanup := q.Done
+		cleanup := func() {
+			op.DecRef()
+			op.Finalize()
+			q.Done()
+		}
 
 		client, err := q.connPool.NextClient()
 		if err != nil {
@@ -336,7 +335,8 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 		}
 
 		resultLen := len(result.Elements)
-		for i := 0; i < op.Size(); i++ {
+		opLen := op.Size()
+		for i := 0; i < opLen; i++ {
 			if !(i < resultLen) {
 				// No results for this entry, in practice should never occur
 				op.complete(i, nil, errQueueFetchNoResponse(q.host.ID()))
@@ -385,6 +385,11 @@ func (q *queue) Len() int {
 }
 
 func (q *queue) Enqueue(o op) error {
+	if fetchOp, ok := o.(*fetchBatchOp); ok {
+		// Need to take ownership if its a fetch batch op
+		fetchOp.IncRef()
+	}
+
 	var needsDrain []op
 	q.Lock()
 	if q.state != stateOpen {

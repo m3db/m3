@@ -78,6 +78,9 @@ type healthCheckFn func(client rpc.TChanNode, opts Options) error
 
 type sleepFn func(t time.Duration)
 
+// Allow for test override
+var globalNewConn = newConn
+
 func newConnectionPool(host topology.Host, opts Options) connectionPool {
 	seed := int64(murmur3.Sum32([]byte(host.Address())))
 
@@ -88,7 +91,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		poolLen:            0,
 		connectRand:        rand.NewSource(seed),
 		healthCheckRand:    rand.NewSource(seed + 1),
-		newConn:            newConn,
+		newConn:            globalNewConn,
 		healthCheckNewConn: healthCheck,
 		healthCheck:        healthCheck,
 		sleepConnect:       time.Sleep,
