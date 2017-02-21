@@ -39,6 +39,7 @@ import (
 	repair "github.com/m3db/m3db/storage/repair"
 	series "github.com/m3db/m3db/storage/series"
 	ts "github.com/m3db/m3db/ts"
+	counter "github.com/m3db/m3db/x/counter"
 	io "github.com/m3db/m3db/x/io"
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
@@ -177,6 +178,16 @@ func (_m *MockDatabase) IsBootstrapped() bool {
 
 func (_mr *_MockDatabaseRecorder) IsBootstrapped() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBootstrapped")
+}
+
+func (_m *MockDatabase) IsOverloaded() bool {
+	ret := _m.ctrl.Call(_m, "IsOverloaded")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockDatabaseRecorder) IsOverloaded() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsOverloaded")
 }
 
 func (_m *MockDatabase) Repair() error {
@@ -331,6 +342,16 @@ func (_m *Mockdatabase) IsBootstrapped() bool {
 
 func (_mr *_MockdatabaseRecorder) IsBootstrapped() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBootstrapped")
+}
+
+func (_m *Mockdatabase) IsOverloaded() bool {
+	ret := _m.ctrl.Call(_m, "IsOverloaded")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockdatabaseRecorder) IsOverloaded() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsOverloaded")
 }
 
 func (_m *Mockdatabase) Repair() error {
@@ -1500,6 +1521,66 @@ func (_m *MockOptions) CommitLogOptions() commitlog.Options {
 
 func (_mr *_MockOptionsRecorder) CommitLogOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogOptions")
+}
+
+func (_m *MockOptions) SetErrorCounterOptions(value counter.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetErrorCounterOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetErrorCounterOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetErrorCounterOptions", arg0)
+}
+
+func (_m *MockOptions) ErrorCounterOptions() counter.Options {
+	ret := _m.ctrl.Call(_m, "ErrorCounterOptions")
+	ret0, _ := ret[0].(counter.Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ErrorCounterOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ErrorCounterOptions")
+}
+
+func (_m *MockOptions) SetErrorWindowForLoad(value time0.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetErrorWindowForLoad", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetErrorWindowForLoad(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetErrorWindowForLoad", arg0)
+}
+
+func (_m *MockOptions) ErrorWindowForLoad() time0.Duration {
+	ret := _m.ctrl.Call(_m, "ErrorWindowForLoad")
+	ret0, _ := ret[0].(time0.Duration)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ErrorWindowForLoad() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ErrorWindowForLoad")
+}
+
+func (_m *MockOptions) SetErrorThresholdForLoad(value int64) Options {
+	ret := _m.ctrl.Call(_m, "SetErrorThresholdForLoad", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetErrorThresholdForLoad(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetErrorThresholdForLoad", arg0)
+}
+
+func (_m *MockOptions) ErrorThresholdForLoad() int64 {
+	ret := _m.ctrl.Call(_m, "ErrorThresholdForLoad")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ErrorThresholdForLoad() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ErrorThresholdForLoad")
 }
 
 func (_m *MockOptions) SetRepairEnabled(b bool) Options {

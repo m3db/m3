@@ -38,7 +38,7 @@ import (
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3db/x/counter"
+	xcounter "github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -109,6 +109,9 @@ type Database interface {
 
 	// IsBootstrapped determines whether the database is bootstrapped.
 	IsBootstrapped() bool
+
+	// IsOverloaded determines whether the database is overloaded
+	IsOverloaded() bool
 
 	// Repair will issue a repair and return nil on success or error on error.
 	Repair() error

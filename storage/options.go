@@ -69,7 +69,7 @@ const (
 	defaultErrorWindowForLoad = 10 * time.Second
 
 	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
-	defaultErrorThresholdForLoad = 100
+	defaultErrorThresholdForLoad = 1000
 )
 
 var (

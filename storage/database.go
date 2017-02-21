@@ -58,9 +58,6 @@ var (
 
 	// errCommitLogStrategyUnknown raised when trying to use an unknown commit log strategy
 	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
-
-	// errDatabaseIsOverloaded raised when trying to process a request while the database is overloaded
-	errDatabaseIsOverloaded = errors.New("database is overloaded")
 )
 
 type databaseState int
@@ -114,7 +111,6 @@ type databaseMetrics struct {
 	read                instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
-	overloaded          tally.Counter
 }
 
 func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics {
@@ -123,7 +119,6 @@ func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics
 		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		overloaded:          scope.Counter("overloaded"),
 	}
 }
 
@@ -308,12 +303,6 @@ func (d *db) FetchBlocks(
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := d.nowFn()
-	if d.isOverloaded() {
-		d.metrics.overloaded.Inc(1)
-		d.metrics.fetchBlocks.ReportError(d.nowFn().Sub(callStart))
-		return nil, errDatabaseIsOverloaded
-	}
-
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
@@ -337,14 +326,7 @@ func (d *db) FetchBlocksMetadata(
 	includeChecksums bool,
 ) (block.FetchBlocksMetadataResults, *int64, error) {
 	callStart := d.nowFn()
-	if d.isOverloaded() {
-		d.metrics.overloaded.Inc(1)
-		d.metrics.fetchBlocksMetadata.ReportError(d.nowFn().Sub(callStart))
-		return nil, nil, errDatabaseIsOverloaded
-	}
-
 	n, err := d.namespaceFor(namespace)
-
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
 		d.metrics.fetchBlocksMetadata.ReportError(d.nowFn().Sub(callStart))
@@ -379,7 +361,7 @@ func (d *db) Truncate(namespace ts.ID) (int64, error) {
 	return n.Truncate()
 }
 
-func (d *db) isOverloaded() bool {
+func (d *db) IsOverloaded() bool {
 	return d.errors.Count(d.errWindow) > d.errThreshold
 }
 

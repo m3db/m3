@@ -58,6 +58,7 @@ func (d *mockDatabase) Open() error                               { return nil }
 func (d *mockDatabase) Close() error                              { return nil }
 func (d *mockDatabase) Bootstrap() error                          { return nil }
 func (d *mockDatabase) IsBootstrapped() bool                      { return d.bs == bootstrapped }
+func (d *mockDatabase) IsOverloaded() bool                        { return false }
 func (d *mockDatabase) Repair() error                             { return nil }
 func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error)   { return 0, nil }
 func (d *mockDatabase) flush(t time.Time, async bool)             {}

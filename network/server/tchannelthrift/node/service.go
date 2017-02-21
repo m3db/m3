@@ -21,6 +21,7 @@
 package node
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -49,6 +50,11 @@ const (
 	checkedBytesPoolSize = 65536
 )
 
+var (
+	// errServerIsOverloaded raised when trying to process a request when the server is overloaded
+	errServerIsOverloaded = errors.New("server is overloaded")
+)
+
 type serviceMetrics struct {
 	fetch               instrument.MethodMetrics
 	write               instrument.MethodMetrics
@@ -58,6 +64,7 @@ type serviceMetrics struct {
 	truncate            instrument.MethodMetrics
 	fetchBatchRaw       instrument.BatchMethodMetrics
 	writeBatchRaw       instrument.BatchMethodMetrics
+	overloadRejected    tally.Counter
 }
 
 func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
@@ -70,6 +77,7 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 		truncate:            instrument.NewMethodMetrics(scope, "truncate", samplingRate),
 		fetchBatchRaw:       instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
 		writeBatchRaw:       instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
+		overloadRejected:    scope.Counter("overload-rejected"),
 	}
 }
 
@@ -292,6 +300,11 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 }
 
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, tterrors.NewInternalError(errDatabaseIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -356,6 +369,11 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 }
 
 func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, tterrors.NewInternalError(errDatabaseIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -591,6 +609,13 @@ func (s *service) SetPersistRateLimit(
 	persistManager.SetRateLimitOptions(opts)
 
 	return s.GetPersistRateLimit(ctx)
+}
+
+func (s *service) isOverloaded() bool {
+	// NB(xichen): for now we only use the database load to determine
+	// whether the server is overloaded. In the future we may also take
+	// into account other metrics such as CPU load, disk I/O rate, etc.
+	return s.db.IsOverloaded()
 }
 
 func (s *service) newID(ctx context.Context, id []byte) ts.ID {
