@@ -56,7 +56,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
-	bsm := newBootstrapManager(db, m).(*bootstrapManager)
+	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
 	err := bsm.Bootstrap()
 
 	require.NotNil(t, err)
@@ -84,7 +84,7 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 	}))
 
 	db := &mockDatabase{opts: opts}
-	bsm := newBootstrapManager(db, nil).(*bootstrapManager)
+	bsm := newBootstrapManager(db, nil, opts).(*bootstrapManager)
 	ranges := bsm.targetRanges(now)
 
 	var all [][]time.Time

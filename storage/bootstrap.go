@@ -82,8 +82,8 @@ type bootstrapManager struct {
 func newBootstrapManager(
 	database database,
 	mediator databaseMediator,
+	opts Options,
 ) databaseBootstrapManager {
-	opts := database.Options()
 	scope := opts.InstrumentOptions().MetricsScope()
 	return &bootstrapManager{
 		database:       database,

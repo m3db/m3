@@ -105,7 +105,7 @@ func newMediator(database database, opts Options) (databaseMediator, error) {
 	}
 
 	d.databaseTickManager = newTickManager(database, opts)
-	d.databaseBootstrapManager = newBootstrapManager(database, d)
+	d.databaseBootstrapManager = newBootstrapManager(database, d, opts)
 	return d, nil
 }
 
