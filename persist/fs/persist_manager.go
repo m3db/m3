@@ -82,14 +82,14 @@ type persistManager struct {
 }
 
 type persistManagerMetrics struct {
-	writeDuration tally.Timer
-	sleepDuration tally.Timer
+	writeDurationMs    tally.Gauge
+	throttleDurationMs tally.Gauge
 }
 
 func newPersistManagerMetrics(scope tally.Scope) persistManagerMetrics {
 	return persistManagerMetrics{
-		writeDuration: scope.Timer("write-duration"),
-		sleepDuration: scope.Timer("sleep-duration"),
+		writeDurationMs:    scope.Gauge("write-duration-ms"),
+		throttleDurationMs: scope.Gauge("throttle-duration-ms"),
 	}
 }
 
@@ -185,8 +185,8 @@ func (pm *persistManager) Done() error {
 	}
 
 	// Emit timing metrics
-	pm.metrics.writeDuration.Record(pm.worked)
-	pm.metrics.sleepDuration.Record(pm.slept)
+	pm.metrics.writeDurationMs.Update(float64(pm.worked / time.Millisecond))
+	pm.metrics.throttleDurationMs.Update(float64(pm.slept / time.Millisecond))
 
 	// Reset state
 	pm.reset()
