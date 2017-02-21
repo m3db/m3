@@ -51,15 +51,15 @@ func (_m *MockManager) EXPECT() *_MockManagerRecorder {
 	return _m.recorder
 }
 
-func (_m *MockManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error) {
-	ret := _m.ctrl.Call(_m, "Prepare", namespace, shard, blockStart)
-	ret0, _ := ret[0].(PreparedPersist)
+func (_m *MockManager) StartFlush() (Flush, error) {
+	ret := _m.ctrl.Call(_m, "StartFlush")
+	ret0, _ := ret[0].(Flush)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockManagerRecorder) Prepare(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Prepare", arg0, arg1, arg2)
+func (_mr *_MockManagerRecorder) StartFlush() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "StartFlush")
 }
 
 func (_m *MockManager) SetRateLimitOptions(value ratelimit.Options) {
@@ -80,10 +80,44 @@ func (_mr *_MockManagerRecorder) RateLimitOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RateLimitOptions")
 }
 
-func (_m *MockManager) Report() {
-	_m.ctrl.Call(_m, "Report")
+// Mock of Flush interface
+type MockFlush struct {
+	ctrl     *gomock.Controller
+	recorder *_MockFlushRecorder
 }
 
-func (_mr *_MockManagerRecorder) Report() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Report")
+// Recorder for MockFlush (not exported)
+type _MockFlushRecorder struct {
+	mock *MockFlush
+}
+
+func NewMockFlush(ctrl *gomock.Controller) *MockFlush {
+	mock := &MockFlush{ctrl: ctrl}
+	mock.recorder = &_MockFlushRecorder{mock}
+	return mock
+}
+
+func (_m *MockFlush) EXPECT() *_MockFlushRecorder {
+	return _m.recorder
+}
+
+func (_m *MockFlush) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error) {
+	ret := _m.ctrl.Call(_m, "Prepare", namespace, shard, blockStart)
+	ret0, _ := ret[0].(PreparedPersist)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockFlushRecorder) Prepare(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Prepare", arg0, arg1, arg2)
+}
+
+func (_m *MockFlush) Done() error {
+	ret := _m.ctrl.Call(_m, "Done")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockFlushRecorder) Done() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Done")
 }

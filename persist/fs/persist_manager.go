@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -38,6 +39,19 @@ import (
 const (
 	bytesPerMegabit  = 1024 * 1024 / 8
 	nsPerMillisecond = int64(time.Millisecond / time.Nanosecond)
+)
+
+type persistManagerStatus int
+
+const (
+	persistManagerIdle persistManagerStatus = iota
+	persistManagerFlushing
+)
+
+var (
+	errPersistManagerNotIdle                  = errors.New("persist manager cannot start flush, not idle")
+	errPersistManagerNotFlushing              = errors.New("persist manager cannot finish flushing, not flushing")
+	errPersistManagerCannotPrepareNotFlushing = errors.New("persist manager cannot prepare, not flushing")
 )
 
 type sleepFn func(time.Duration)
@@ -85,43 +99,58 @@ type persistManager struct {
 	sync.RWMutex
 
 	opts           Options
-	scope          tally.Scope
 	filePathPrefix string
-	rateLimitOpts  ratelimit.Options
 	nowFn          clock.NowFn
 	sleepFn        sleepFn
 	writer         FileSetWriter
-	start          time.Time
-	count          int
-	bytesWritten   int64
-	metrics        map[uint32]*shardMetrics
-	currMetrics    *shardMetrics
-
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
 	// head and the tail of each segment so we don't need to allocate memory
 	// and gc it shortly after.
 	segmentHolder []checked.Bytes
+
+	status            persistManagerStatus
+	currRateLimitOpts ratelimit.Options
+
+	start        time.Time
+	count        int
+	bytesWritten int64
+	worked       time.Duration
+	slept        time.Duration
+
+	metrics persistManagerMetrics
+}
+
+type persistManagerMetrics struct {
+	writeDuration tally.Timer
+	sleepDuration tally.Timer
+}
+
+func newPersistManagerMetrics(scope tally.Scope) persistManagerMetrics {
+	return persistManagerMetrics{
+		writeDuration: scope.Timer("write-duration"),
+		sleepDuration: scope.Timer("sleep-duration"),
+	}
 }
 
 // NewPersistManager creates a new filesystem persist manager
 func NewPersistManager(opts Options) persist.Manager {
-	scope := opts.InstrumentOptions().MetricsScope().SubScope("persist")
 	filePathPrefix := opts.FilePathPrefix()
 	writerBufferSize := opts.WriterBufferSize()
 	blockSize := opts.RetentionOptions().BlockSize()
 	newFileMode := opts.NewFileMode()
 	newDirectoryMode := opts.NewDirectoryMode()
 	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("persist")
 	return &persistManager{
-		opts:           opts,
-		scope:          scope,
-		filePathPrefix: filePathPrefix,
-		rateLimitOpts:  opts.RateLimitOptions(),
-		nowFn:          opts.ClockOptions().NowFn(),
-		sleepFn:        time.Sleep,
-		writer:         writer,
-		metrics:        make(map[uint32]*shardMetrics),
-		segmentHolder:  make([]checked.Bytes, 2),
+		opts:              opts,
+		filePathPrefix:    filePathPrefix,
+		nowFn:             opts.ClockOptions().NowFn(),
+		sleepFn:           time.Sleep,
+		writer:            writer,
+		segmentHolder:     make([]checked.Bytes, 2),
+		status:            persistManagerIdle,
+		currRateLimitOpts: opts.RateLimitOptions(),
+		metrics:           newPersistManagerMetrics(scope),
 	}
 }
 
@@ -131,22 +160,26 @@ func (pm *persistManager) persist(
 	checksum uint32,
 ) error {
 	pm.RLock()
-	currMetrics := pm.currMetrics
+	// Rate limit options can change dynamically
+	opts := pm.currRateLimitOpts
 	pm.RUnlock()
 
 	var (
 		start = pm.nowFn()
 		slept time.Duration
 	)
-	rateLimitMbps := pm.rateLimitOpts.LimitMbps()
-	if pm.rateLimitOpts.LimitEnabled() && rateLimitMbps > 0.0 {
+	rateLimitMbps := opts.LimitMbps()
+	if opts.LimitEnabled() && rateLimitMbps > 0.0 {
 		if pm.start.IsZero() {
 			pm.start = start
-		} else if pm.count >= pm.rateLimitOpts.LimitCheckEvery() {
+		} else if pm.count >= opts.LimitCheckEvery() {
 			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / float64(rateLimitMbps*bytesPerMegabit))
 			if elapsed := start.Sub(pm.start); elapsed < target {
-				slept = target - elapsed
-				pm.sleepFn(slept)
+				pm.sleepFn(target - elapsed)
+				// Recapture start for precise timing, might take some time to "wakeup"
+				now := pm.nowFn()
+				slept = now.Sub(start)
+				start = now
 			}
 			pm.count = 0
 		}
@@ -158,11 +191,9 @@ func (pm *persistManager) persist(
 	pm.count++
 	pm.bytesWritten += int64(segment.Len())
 
-	end := pm.nowFn()
-	worked := end.Sub(start) - slept
-	currMetrics.recordWorked(worked)
+	pm.worked += pm.nowFn().Sub(start)
 	if slept > 0 {
-		currMetrics.recordSlept(slept)
+		pm.slept += slept
 	}
 
 	return err
@@ -172,25 +203,54 @@ func (pm *persistManager) close() error {
 	return pm.writer.Close()
 }
 
+func (pm *persistManager) StartFlush() (persist.Flush, error) {
+	pm.Lock()
+	defer pm.Unlock()
+
+	if pm.status != persistManagerIdle {
+		return nil, errPersistManagerNotIdle
+	}
+	pm.status = persistManagerFlushing
+
+	return pm, nil
+}
+
+func (pm *persistManager) Done() error {
+	pm.Lock()
+	defer pm.Unlock()
+
+	if pm.status != persistManagerFlushing {
+		return errPersistManagerNotFlushing
+	}
+
+	// Emit timing metrics
+	pm.metrics.writeDuration.Record(pm.worked)
+	pm.metrics.sleepDuration.Record(pm.slept)
+
+	// Reset state
+	pm.reset()
+
+	return nil
+}
+
 func (pm *persistManager) reset() {
+	pm.status = persistManagerIdle
 	pm.start = timeZero
 	pm.count = 0
 	pm.bytesWritten = 0
-	pm.currMetrics.reset()
+	pm.worked = 0
+	pm.slept = 0
 }
 
 func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
-	pm.Lock()
-	currMetrics, exists := pm.metrics[shard]
-	if !exists {
-		currMetrics = newShardMetrics(pm.scope, shard)
-		pm.metrics[shard] = currMetrics
-	}
-	pm.currMetrics = currMetrics
-	pm.reset()
-	pm.Unlock()
-
 	var prepared persist.PreparedPersist
+
+	pm.RLock()
+	status := pm.status
+	pm.RUnlock()
+	if status != persistManagerFlushing {
+		return prepared, errPersistManagerCannotPrepareNotFlushing
+	}
 
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 	// This allows us to retry failed flushing attempts because they wouldn't
@@ -209,18 +269,14 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 }
 
 func (pm *persistManager) SetRateLimitOptions(value ratelimit.Options) {
-	pm.rateLimitOpts = value
+	pm.Lock()
+	pm.currRateLimitOpts = value
+	pm.Unlock()
 }
 
 func (pm *persistManager) RateLimitOptions() ratelimit.Options {
-	return pm.rateLimitOpts
-}
-
-func (pm *persistManager) Report() {
 	pm.RLock()
-	currMetrics := pm.currMetrics
+	opts := pm.currRateLimitOpts
 	pm.RUnlock()
-	if currMetrics != nil {
-		currMetrics.report()
-	}
+	return opts
 }

@@ -475,7 +475,7 @@ func (n *dbNamespace) Bootstrap(
 
 func (n *dbNamespace) Flush(
 	blockStart time.Time,
-	pm persist.Manager,
+	flush persist.Flush,
 ) error {
 	callStart := n.nowFn()
 
@@ -497,7 +497,7 @@ func (n *dbNamespace) Flush(
 	for _, shard := range shards {
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(n.id, blockStart, pm); err != nil {
+		if err := shard.Flush(n.id, blockStart, flush); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)

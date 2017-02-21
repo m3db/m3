@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3x/checked"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func createShardDir(t *testing.T, prefix string, namespace ts.ID, shard uint32) string {
@@ -76,7 +76,14 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
-	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart)
+	flush, err := pm.StartFlush()
+	require.NoError(t, err)
+
+	defer func() {
+		assert.NoError(t, flush.Done())
+	}()
+
+	prepared, err := flush.Prepare(testNamespaceID, shard, blockStart)
 	require.NoError(t, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -94,7 +101,14 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	expectedErr := errors.New("foo")
 	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(expectedErr)
 
-	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart)
+	flush, err := pm.StartFlush()
+	require.NoError(t, err)
+
+	defer func() {
+		assert.NoError(t, flush.Done())
+	}()
+
+	prepared, err := flush.Prepare(testNamespaceID, shard, blockStart)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -121,20 +135,28 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	writer.EXPECT().WriteAll(id, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
+	flush, err := pm.StartFlush()
+	require.NoError(t, err)
+
+	defer func() {
+		assert.NoError(t, flush.Done())
+	}()
+
 	now := time.Now()
 	pm.start = now
 	pm.count = 123
 	pm.bytesWritten = 100
 
-	prepared, err := pm.Prepare(testNamespaceID, shard, blockStart)
+	prepared, err := flush.Prepare(testNamespaceID, shard, blockStart)
 	defer prepared.Close()
 
 	require.Nil(t, err)
-	require.True(t, pm.start.IsZero())
-	require.Equal(t, 0, pm.count)
-	require.Equal(t, int64(0), pm.bytesWritten)
 
 	require.Nil(t, prepared.Persist(id, segment, checksum))
+
+	require.True(t, pm.start.Equal(now))
+	require.Equal(t, 124, pm.count)
+	require.Equal(t, int64(104), pm.bytesWritten)
 }
 
 func TestPersistenceManagerClose(t *testing.T) {
@@ -168,14 +190,17 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	pm.Lock()
-	pm.currMetrics = newShardMetrics(tally.NoopScope, 0)
-	pm.Unlock()
-
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).Times(2)
 
 	// Disable rate limiting
-	pm.rateLimitOpts = pm.rateLimitOpts.SetLimitEnabled(false)
+	pm.SetRateLimitOptions(pm.RateLimitOptions().SetLimitEnabled(false))
+
+	flush, err := pm.StartFlush()
+	require.NoError(t, err)
+
+	defer func() {
+		assert.NoError(t, flush.Done())
+	}()
 
 	// Start persistence
 	now = time.Now()
@@ -211,23 +236,21 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	pm.Lock()
-	pm.currMetrics = newShardMetrics(tally.NoopScope, 0)
-	pm.Unlock()
-
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
 	// Enable rate limiting
-	pm.rateLimitOpts = pm.rateLimitOpts.
+	pm.SetRateLimitOptions(pm.RateLimitOptions().
 		SetLimitEnabled(true).
 		SetLimitCheckEvery(2).
-		SetLimitMbps(16.0)
+		SetLimitMbps(16.0))
 
 	for i := 0; i < iter; i++ {
 		// Reset
 		slept = time.Duration(0)
-		pm.reset()
+
+		flush, err := pm.StartFlush()
+		require.NoError(t, err)
 
 		// Start persistence
 		now = time.Now()
@@ -251,5 +274,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		require.Equal(t, int64(15), pm.bytesWritten)
 
 		pm.close()
+
+		assert.NoError(t, flush.Done())
 	}
 }

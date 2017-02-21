@@ -844,6 +844,14 @@ func (_mr *_MockdatabaseBootstrapManagerRecorder) Bootstrap() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap")
 }
 
+func (_m *MockdatabaseBootstrapManager) Report() {
+	_m.ctrl.Call(_m, "Report")
+}
+
+func (_mr *_MockdatabaseBootstrapManagerRecorder) Report() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Report")
+}
+
 // Mock of databaseFlushManager interface
 type MockdatabaseFlushManager struct {
 	ctrl     *gomock.Controller
@@ -1574,24 +1582,24 @@ func (_mr *_MockOptionsRecorder) NewBootstrapFn() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewBootstrapFn")
 }
 
-func (_m *MockOptions) SetNewPersistManagerFn(value NewPersistManagerFn) Options {
-	ret := _m.ctrl.Call(_m, "SetNewPersistManagerFn", value)
+func (_m *MockOptions) SetPersistManager(value persist.Manager) Options {
+	ret := _m.ctrl.Call(_m, "SetPersistManager", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SetNewPersistManagerFn(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNewPersistManagerFn", arg0)
+func (_mr *_MockOptionsRecorder) SetPersistManager(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPersistManager", arg0)
 }
 
-func (_m *MockOptions) NewPersistManagerFn() NewPersistManagerFn {
-	ret := _m.ctrl.Call(_m, "NewPersistManagerFn")
-	ret0, _ := ret[0].(NewPersistManagerFn)
+func (_m *MockOptions) PersistManager() persist.Manager {
+	ret := _m.ctrl.Call(_m, "PersistManager")
+	ret0, _ := ret[0].(persist.Manager)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) NewPersistManagerFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewPersistManagerFn")
+func (_mr *_MockOptionsRecorder) PersistManager() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PersistManager")
 }
 
 func (_m *MockOptions) SetMaxFlushRetries(value int) Options {

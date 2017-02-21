@@ -668,7 +668,7 @@ func (s *dbShard) Bootstrap(
 func (s *dbShard) Flush(
 	namespace ts.ID,
 	blockStart time.Time,
-	pm persist.Manager,
+	flush persist.Flush,
 ) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
@@ -679,7 +679,7 @@ func (s *dbShard) Flush(
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
-	prepared, err := pm.Prepare(namespace, s.ID(), blockStart)
+	prepared, err := flush.Prepare(namespace, s.ID(), blockStart)
 	multiErr = multiErr.Add(err)
 
 	if prepared.Persist == nil {
