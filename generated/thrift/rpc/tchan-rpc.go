@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -46,8 +46,10 @@ type TChanNode interface {
 	FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error)
 	FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchBlocksMetadataRawRequest) (*FetchBlocksMetadataRawResult_, error)
 	FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error)
+	GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error)
 	Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	Repair(ctx thrift.Context) error
+	SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error)
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRequest) error
@@ -79,11 +81,8 @@ func (c *tchanClusterClient) Fetch(ctx thrift.Context, req *FetchRequest) (*Fetc
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetch", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetch")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -95,11 +94,8 @@ func (c *tchanClusterClient) Health(ctx thrift.Context) (*HealthResult_, error) 
 	args := ClusterHealthArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "health", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for health")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -113,11 +109,8 @@ func (c *tchanClusterClient) Truncate(ctx thrift.Context, req *TruncateRequest) 
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "truncate", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for truncate")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -131,11 +124,8 @@ func (c *tchanClusterClient) Write(ctx thrift.Context, req *WriteRequest) error 
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "write", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for write")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -318,11 +308,8 @@ func (c *tchanNodeClient) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchRe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetch", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetch")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -336,11 +323,8 @@ func (c *tchanNodeClient) FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchBatchRaw", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchBatchRaw")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -354,11 +338,8 @@ func (c *tchanNodeClient) FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchB
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchBlocksMetadataRaw", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchBlocksMetadataRaw")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -372,11 +353,21 @@ func (c *tchanNodeClient) FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRaw
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchBlocksRaw", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchBlocksRaw")
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error) {
+	var resp NodeGetPersistRateLimitResult
+	args := NodeGetPersistRateLimitArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "getPersistRateLimit", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -388,11 +379,8 @@ func (c *tchanNodeClient) Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	args := NodeHealthArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "health", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for health")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -404,15 +392,27 @@ func (c *tchanNodeClient) Repair(ctx thrift.Context) error {
 	args := NodeRepairArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "repair", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for repair")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
 	return err
+}
+
+func (c *tchanNodeClient) SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error) {
+	var resp NodeSetPersistRateLimitResult
+	args := NodeSetPersistRateLimitArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "setPersistRateLimit", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
 }
 
 func (c *tchanNodeClient) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
@@ -422,11 +422,8 @@ func (c *tchanNodeClient) Truncate(ctx thrift.Context, req *TruncateRequest) (*T
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "truncate", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for truncate")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -440,11 +437,8 @@ func (c *tchanNodeClient) Write(ctx thrift.Context, req *WriteRequest) error {
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "write", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for write")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -458,11 +452,8 @@ func (c *tchanNodeClient) WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "writeBatchRaw", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for writeBatchRaw")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -491,8 +482,10 @@ func (s *tchanNodeServer) Methods() []string {
 		"fetchBatchRaw",
 		"fetchBlocksMetadataRaw",
 		"fetchBlocksRaw",
+		"getPersistRateLimit",
 		"health",
 		"repair",
+		"setPersistRateLimit",
 		"truncate",
 		"write",
 		"writeBatchRaw",
@@ -509,10 +502,14 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleFetchBlocksMetadataRaw(ctx, protocol)
 	case "fetchBlocksRaw":
 		return s.handleFetchBlocksRaw(ctx, protocol)
+	case "getPersistRateLimit":
+		return s.handleGetPersistRateLimit(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
 	case "repair":
 		return s.handleRepair(ctx, protocol)
+	case "setPersistRateLimit":
+		return s.handleSetPersistRateLimit(ctx, protocol)
 	case "truncate":
 		return s.handleTruncate(ctx, protocol)
 	case "write":
@@ -637,6 +634,34 @@ func (s *tchanNodeServer) handleFetchBlocksRaw(ctx thrift.Context, protocol athr
 	return err == nil, &res, nil
 }
 
+func (s *tchanNodeServer) handleGetPersistRateLimit(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeGetPersistRateLimitArgs
+	var res NodeGetPersistRateLimitResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.GetPersistRateLimit(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
 func (s *tchanNodeServer) handleHealth(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	var req NodeHealthArgs
 	var res NodeHealthResult
@@ -687,6 +712,34 @@ func (s *tchanNodeServer) handleRepair(ctx thrift.Context, protocol athrift.TPro
 			return false, nil, err
 		}
 	} else {
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleSetPersistRateLimit(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeSetPersistRateLimitArgs
+	var res NodeSetPersistRateLimitResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.SetPersistRateLimit(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
 	}
 
 	return err == nil, &res, nil

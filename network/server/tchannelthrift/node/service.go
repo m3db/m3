@@ -556,6 +556,43 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rp
 	return res, nil
 }
 
+func (s *service) GetPersistRateLimit(
+	ctx thrift.Context,
+) (*rpc.NodePersistRateLimitResult_, error) {
+	opts := s.db.Options().PersistManager().RateLimitOptions()
+	limitEnabled := opts.LimitEnabled()
+	limitMbps := opts.LimitMbps()
+	limitCheckEvery := int64(opts.LimitCheckEvery())
+	result := &rpc.NodePersistRateLimitResult_{
+		LimitEnabled:    limitEnabled,
+		LimitMbps:       limitMbps,
+		LimitCheckEvery: limitCheckEvery,
+	}
+	return result, nil
+}
+
+func (s *service) SetPersistRateLimit(
+	ctx thrift.Context,
+	req *rpc.NodeSetPersistRateLimitRequest,
+) (*rpc.NodePersistRateLimitResult_, error) {
+	persistManager := s.db.Options().PersistManager()
+
+	opts := persistManager.RateLimitOptions()
+	if req.LimitEnabled != nil {
+		opts = opts.SetLimitEnabled(*req.LimitEnabled)
+	}
+	if req.LimitMbps != nil {
+		opts = opts.SetLimitMbps(*req.LimitMbps)
+	}
+	if req.LimitCheckEvery != nil {
+		opts = opts.SetLimitCheckEvery(int(*req.LimitCheckEvery))
+	}
+
+	persistManager.SetRateLimitOptions(opts)
+
+	return s.GetPersistRateLimit(ctx)
+}
+
 func (s *service) newID(ctx context.Context, id []byte) ts.ID {
 	checkedBytes := s.checkedBytesPool.Get().(checked.Bytes)
 	checkedBytes.IncRef()

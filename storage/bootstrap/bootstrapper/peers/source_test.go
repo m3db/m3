@@ -206,10 +206,11 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
-	mockPersistManager := persist.NewMockManager(ctrl)
+	mockFlush := persist.NewMockFlush(ctrl)
+	mockFlush.EXPECT().Done()
 	persists := make(map[string]int)
 	closes := make(map[string]int)
-	mockPersistManager.EXPECT().
+	mockFlush.EXPECT().
 		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(0), start).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
@@ -224,7 +225,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	mockPersistManager.EXPECT().
+	mockFlush.EXPECT().
 		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(0), start.Add(ropts.BlockSize())).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
@@ -239,7 +240,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	mockPersistManager.EXPECT().
+	mockFlush.EXPECT().
 		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(1), start).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
@@ -254,7 +255,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	mockPersistManager.EXPECT().
+	mockFlush.EXPECT().
 		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(1), start.Add(ropts.BlockSize())).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
@@ -267,9 +268,10 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			},
 		}, nil)
 
-	opts = opts.SetNewPersistManagerFn(func() persist.Manager {
-		return mockPersistManager
-	})
+	mockPersistManager := persist.NewMockManager(ctrl)
+	mockPersistManager.EXPECT().StartFlush().Return(mockFlush, nil)
+
+	opts = opts.SetPersistManager(mockPersistManager)
 
 	src := newPeersSource(opts)
 
@@ -386,10 +388,11 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 
 	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
-	mockPersistManager := persist.NewMockManager(ctrl)
+	mockFlush := persist.NewMockFlush(ctrl)
+	mockFlush.EXPECT().Done()
 	persists := make(map[string]int)
 	closes := make(map[string]int)
-	mockPersistManager.EXPECT().
+	mockFlush.EXPECT().
 		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(0), start).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
@@ -401,7 +404,7 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	mockPersistManager.EXPECT().
+	mockFlush.EXPECT().
 		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(1), start).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
@@ -413,7 +416,7 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	mockPersistManager.EXPECT().
+	mockFlush.EXPECT().
 		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(2), start).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
@@ -425,7 +428,7 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	mockPersistManager.EXPECT().
+	mockFlush.EXPECT().
 		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(3), start).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
@@ -438,9 +441,10 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 			},
 		}, nil)
 
-	opts = opts.SetNewPersistManagerFn(func() persist.Manager {
-		return mockPersistManager
-	})
+	mockPersistManager := persist.NewMockManager(ctrl)
+	mockPersistManager.EXPECT().StartFlush().Return(mockFlush, nil)
+
+	opts = opts.SetPersistManager(mockPersistManager)
 
 	src := newPeersSource(opts)
 

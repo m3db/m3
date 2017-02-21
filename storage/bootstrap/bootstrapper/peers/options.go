@@ -25,7 +25,7 @@ import (
 	"runtime"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
@@ -42,7 +42,7 @@ type options struct {
 	defaultShardConcurrency        int
 	incrementalShardConcurrency    int
 	incrementalPersistMaxQueueSize int
-	newPersistManagerFn            storage.NewPersistManagerFn
+	persistManager                 persist.Manager
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 }
 
@@ -106,14 +106,14 @@ func (o *options) IncrementalPersistMaxQueueSize() int {
 	return o.incrementalPersistMaxQueueSize
 }
 
-func (o *options) SetNewPersistManagerFn(value storage.NewPersistManagerFn) Options {
+func (o *options) SetPersistManager(value persist.Manager) Options {
 	opts := *o
-	opts.newPersistManagerFn = value
+	opts.persistManager = value
 	return &opts
 }
 
-func (o *options) NewPersistManagerFn() storage.NewPersistManagerFn {
-	return o.newPersistManagerFn
+func (o *options) PersistManager() persist.Manager {
+	return o.persistManager
 }
 
 func (o *options) SetDatabaseBlockRetrieverManager(

@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/fake"
-	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/services/m3dbnode/server"
@@ -194,9 +193,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	storageOpts = storageOpts.SetCommitLogOptions(storageOpts.CommitLogOptions().SetFilesystemOptions(fsOpts))
 
 	// Set up persistence manager
-	storageOpts = storageOpts.SetNewPersistManagerFn(func() persist.Manager {
-		return fs.NewPersistManager(fsOpts)
-	})
+	storageOpts = storageOpts.SetPersistManager(fs.NewPersistManager(fsOpts))
 
 	// Set up repair options
 	adminClient := mc.(client.AdminClient)

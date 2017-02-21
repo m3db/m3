@@ -42,9 +42,11 @@ exception WriteBatchRawErrors {
 }
 
 service Node {
+	// Friendly not highly performant read/write endpoints
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
 
+	// Performant read/write endpoints
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawResult fetchBlocksMetadataRaw(1: FetchBlocksMetadataRawRequest req) throws (1: Error err)
@@ -52,7 +54,10 @@ service Node {
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 
+	// Management endpoints
 	NodeHealthResult health() throws (1: Error err)
+	NodePersistRateLimitResult getPersistRateLimit() throws (1: Error err)
+	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
 }
 
 struct FetchRequest {
@@ -190,6 +195,18 @@ struct NodeHealthResult {
 	1: required bool ok
 	2: required string status
 	3: required bool bootstrapped
+}
+
+struct NodePersistRateLimitResult {
+	1: required bool limitEnabled
+	2: required double limitMbps
+	3: required i64 limitCheckEvery
+}
+
+struct NodeSetPersistRateLimitRequest {
+	1: optional bool limitEnabled
+	2: optional double limitMbps
+	3: optional i64 limitCheckEvery
 }
 
 service Cluster {

@@ -157,6 +157,17 @@ func (_mr *_MockTChanNodeRecorder) FetchBlocksRaw(arg0, arg1 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksRaw", arg0, arg1)
 }
 
+func (_m *MockTChanNode) GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error) {
+	ret := _m.ctrl.Call(_m, "GetPersistRateLimit", ctx)
+	ret0, _ := ret[0].(*NodePersistRateLimitResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) GetPersistRateLimit(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetPersistRateLimit", arg0)
+}
+
 func (_m *MockTChanNode) Health(ctx thrift.Context) (*NodeHealthResult_, error) {
 	ret := _m.ctrl.Call(_m, "Health", ctx)
 	ret0, _ := ret[0].(*NodeHealthResult_)
@@ -176,6 +187,17 @@ func (_m *MockTChanNode) Repair(ctx thrift.Context) error {
 
 func (_mr *_MockTChanNodeRecorder) Repair(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0)
+}
+
+func (_m *MockTChanNode) SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error) {
+	ret := _m.ctrl.Call(_m, "SetPersistRateLimit", ctx, req)
+	ret0, _ := ret[0].(*NodePersistRateLimitResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) SetPersistRateLimit(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPersistRateLimit", arg0, arg1)
 }
 
 func (_m *MockTChanNode) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {

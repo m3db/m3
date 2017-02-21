@@ -71,11 +71,6 @@ var (
 		return bootstrap.NewNoOpBootstrapProcess()
 	}
 
-	// defaultNewPersistManagerFn is the default function for creating a new persist manager
-	defaultNewPersistManagerFn = func() persist.Manager {
-		return fs.NewPersistManager(fs.NewOptions())
-	}
-
 	timeZero time.Time
 )
 
@@ -104,7 +99,7 @@ type options struct {
 	newEncoderFn                   encoding.NewEncoderFn
 	newDecoderFn                   encoding.NewDecoderFn
 	newBootstrapFn                 NewBootstrapFn
-	newPersistManagerFn            NewPersistManagerFn
+	persistManager                 persist.Manager
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	shardCloseDeadline             time.Duration
@@ -138,7 +133,7 @@ func NewOptions() Options {
 		repairOpts:                     repair.NewOptions(),
 		fileOpOpts:                     NewFileOpOptions(),
 		newBootstrapFn:                 defaultNewBootstrapFn,
-		newPersistManagerFn:            defaultNewPersistManagerFn,
+		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
 		maxFlushRetries:                defaultMaxFlushRetries,
 		shardCloseDeadline:             defaultShardCloseDeadline,
 		contextPool:                    context.NewPool(nil, nil),
@@ -332,14 +327,14 @@ func (o *options) NewBootstrapFn() NewBootstrapFn {
 	return o.newBootstrapFn
 }
 
-func (o *options) SetNewPersistManagerFn(value NewPersistManagerFn) Options {
+func (o *options) SetPersistManager(value persist.Manager) Options {
 	opts := *o
-	opts.newPersistManagerFn = value
+	opts.persistManager = value
 	return &opts
 }
 
-func (o *options) NewPersistManagerFn() NewPersistManagerFn {
-	return o.newPersistManagerFn
+func (o *options) PersistManager() persist.Manager {
+	return o.persistManager
 }
 
 func (o *options) SetMaxFlushRetries(value int) Options {

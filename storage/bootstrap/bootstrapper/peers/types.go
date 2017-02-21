@@ -22,7 +22,7 @@ package peers
 
 import (
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
@@ -67,13 +67,13 @@ type Options interface {
 	// the concurrent shard fetchers.
 	IncrementalPersistMaxQueueSize() int
 
-	// SetNewPersistManagerFn sets the function for creating a new persistence manager
-	// used to flush blocks when performing an incremental bootstrap run.
-	SetNewPersistManagerFn(value storage.NewPersistManagerFn) Options
+	// SetPersistManager sets the persistence manager used to flush blocks
+	// when performing an incremental bootstrap run.
+	SetPersistManager(value persist.Manager) Options
 
-	// NewPersistManagerFn returns the function for creating a new persistence manager
-	// used to flush blocks when performing an incremental bootstrap run.
-	NewPersistManagerFn() storage.NewPersistManagerFn
+	// PersistManager returns the persistence manager used to flush blocks
+	// when performing an incremental bootstrap run.
+	PersistManager() persist.Manager
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// pass to newly flushed blocks when performing an incremental bootstrap run.

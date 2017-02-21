@@ -197,7 +197,7 @@ type databaseNamespace interface {
 	) error
 
 	// Flush flushes in-memory data
-	Flush(blockStart time.Time, pm persist.Manager) error
+	Flush(blockStart time.Time, flush persist.Flush) error
 
 	// NeedsFlush returns true if the namespace needs a flush for a block start.
 	NeedsFlush(blockStart time.Time) bool
@@ -273,7 +273,7 @@ type databaseShard interface {
 	Flush(
 		namespace ts.ID,
 		blockStart time.Time,
-		pm persist.Manager,
+		flush persist.Flush,
 	) error
 
 	// FlushState returns the flush state for this shard at block start.
@@ -450,9 +450,6 @@ type databaseMediator interface {
 // NewBootstrapFn creates a new bootstrap
 type NewBootstrapFn func() bootstrap.Bootstrap
 
-// NewPersistManagerFn creates a new persist manager
-type NewPersistManagerFn func() persist.Manager
-
 // Options represents the options for storage
 type Options interface {
 	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
@@ -512,11 +509,11 @@ type Options interface {
 	// NewBootstrapFn returns the newBootstrapFn
 	NewBootstrapFn() NewBootstrapFn
 
-	// SetNewPersistManagerFn sets the function for creating a new persistence manager
-	SetNewPersistManagerFn(value NewPersistManagerFn) Options
+	// SetPersistManager sets the persistence manager
+	SetPersistManager(value persist.Manager) Options
 
-	// NewPersistManagerFn returns the function for creating a new persistence manager
-	NewPersistManagerFn() NewPersistManagerFn
+	// PersistManager returns the persistence manager
+	PersistManager() persist.Manager
 
 	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails
 	SetMaxFlushRetries(value int) Options

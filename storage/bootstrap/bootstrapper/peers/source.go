@@ -43,7 +43,6 @@ type peersSource struct {
 
 type incrementalFlush struct {
 	namespace         ts.ID
-	persistManager    persist.Manager
 	shard             uint32
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 	shardResult       result.ShardResult
@@ -91,13 +90,13 @@ func (s *peersSource) Read(
 	var (
 		blockRetriever    block.DatabaseBlockRetriever
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
-		persistManager    persist.Manager
+		persistFlush      persist.Flush
 		incremental       = false
 	)
 	if opts.Incremental() {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
-		newPersistMgrFn := s.opts.NewPersistManagerFn()
-		if retrieverMgr != nil && newPersistMgrFn != nil {
+		persistManager := s.opts.PersistManager()
+		if retrieverMgr != nil && persistManager != nil {
 			s.log.WithFields(
 				xlog.NewLogField("namespace", namespace.String()),
 			).Infof("peers bootstrapper resolving block retriever")
@@ -107,10 +106,17 @@ func (s *peersSource) Read(
 				return nil, err
 			}
 
+			flush, err := persistManager.StartFlush()
+			if err != nil {
+				return nil, err
+			}
+
+			defer flush.Done()
+
 			incremental = true
 			blockRetriever = r
 			shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
-			persistManager = newPersistMgrFn()
+			persistFlush = flush
 		}
 	}
 
@@ -149,7 +155,7 @@ func (s *peersSource) Read(
 			defer incrementalWg.Done()
 
 			for flush := range incrementalQueue {
-				err := s.incrementalFlush(flush.namespace, flush.persistManager,
+				err := s.incrementalFlush(persistFlush, flush.namespace,
 					flush.shard, flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 				if err != nil {
 					s.log.WithFields(
@@ -178,7 +184,6 @@ func (s *peersSource) Read(
 				if err == nil && incremental {
 					incrementalQueue <- incrementalFlush{
 						namespace:         namespace,
-						persistManager:    persistManager,
 						shard:             shard,
 						shardRetrieverMgr: shardRetrieverMgr,
 						shardResult:       shardResult,
@@ -218,8 +223,8 @@ func (s *peersSource) Read(
 }
 
 func (s *peersSource) incrementalFlush(
+	flush persist.Flush,
 	namespace ts.ID,
-	persistManager persist.Manager,
 	shard uint32,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	shardResult result.ShardResult,
@@ -232,7 +237,7 @@ func (s *peersSource) incrementalFlush(
 		tmpCtx         = context.NewContext()
 	)
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
-		prepared, err := persistManager.Prepare(namespace, shard, start)
+		prepared, err := flush.Prepare(namespace, shard, start)
 		if err != nil {
 			return err
 		}

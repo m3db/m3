@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
 	xclose "github.com/m3db/m3x/close"
-	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -151,6 +151,9 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 }
 
 func TestConnectionPoolHealthChecks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	// Scenario:
 	// 1. Fill 2 connections
 	// 2. Round 1, fail conn 0 health checks
@@ -168,8 +171,8 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		connectRounds  int32
 		healthRounds   int32
 		invokeFail     int32
-		client1        = rpc.TChanNode(&nullNodeClient{index: 0})
-		client2        = rpc.TChanNode(&nullNodeClient{index: 1})
+		client1        = rpc.TChanNode(rpc.NewMockTChanNode(ctrl))
+		client2        = rpc.TChanNode(rpc.NewMockTChanNode(ctrl))
 		overrides      = []healthCheckFn{}
 		overridesMut   sync.RWMutex
 		pushOverride   = func(fn healthCheckFn, count int) {
@@ -317,43 +320,3 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 type nullChannel struct{}
 
 func (*nullChannel) Close() {}
-
-type nullNodeClient struct {
-	index int // To differentiate the clients
-}
-
-func (*nullNodeClient) Fetch(ctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	return nil, nil
-}
-
-func (*nullNodeClient) FetchBatchRaw(ctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
-	return nil, nil
-}
-
-func (*nullNodeClient) FetchBlocksRaw(ctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
-	return nil, nil
-}
-
-func (*nullNodeClient) FetchBlocksMetadataRaw(ctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
-	return nil, nil
-}
-
-func (*nullNodeClient) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
-	return nil, nil
-}
-
-func (*nullNodeClient) Write(ctx thrift.Context, req *rpc.WriteRequest) error {
-	return nil
-}
-
-func (*nullNodeClient) WriteBatchRaw(ctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
-	return nil
-}
-
-func (*nullNodeClient) Repair(ctx thrift.Context) error {
-	return nil
-}
-
-func (*nullNodeClient) Truncate(ctx thrift.Context, req *rpc.TruncateRequest) (*rpc.TruncateResult_, error) {
-	return nil, nil
-}

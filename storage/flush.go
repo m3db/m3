@@ -53,15 +53,12 @@ type flushManager struct {
 
 func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
 	opts := database.Options()
-	blockSize := opts.RetentionOptions().BlockSize()
-	pm := opts.NewPersistManagerFn()()
-
 	return &flushManager{
 		database:  database,
 		opts:      opts,
 		nowFn:     opts.ClockOptions().NowFn(),
-		blockSize: blockSize,
-		pm:        pm,
+		blockSize: opts.RetentionOptions().BlockSize(),
+		pm:        opts.PersistManager(),
 		status:    scope.Gauge("flush"),
 	}
 }
@@ -90,6 +87,13 @@ func (m *flushManager) Flush(curr time.Time) error {
 		return nil
 	}
 
+	flush, err := m.pm.StartFlush()
+	if err != nil {
+		return err
+	}
+
+	defer flush.Done()
+
 	m.Lock()
 	if m.flushInProgress {
 		m.Unlock()
@@ -106,7 +110,7 @@ func (m *flushManager) Flush(curr time.Time) error {
 
 	multiErr := xerrors.NewMultiError()
 	for _, flushTime := range timesToFlush {
-		if err := m.flushWithTime(flushTime); err != nil {
+		if err := m.flushWithTime(flushTime, flush); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -132,8 +136,6 @@ func (m *flushManager) Report() {
 	} else {
 		m.status.Update(0)
 	}
-
-	m.pm.Report()
 }
 
 func (m *flushManager) flushTimes(curr time.Time) []time.Time {
@@ -152,13 +154,13 @@ func (m *flushManager) flushTimes(curr time.Time) []time.Time {
 
 // flushWithTime flushes in-memory data across all namespaces for a given
 // time, returning any error encountered during flushing
-func (m *flushManager) flushWithTime(t time.Time) error {
+func (m *flushManager) flushWithTime(t time.Time, flush persist.Flush) error {
 	multiErr := xerrors.NewMultiError()
 	namespaces := m.database.getOwnedNamespaces()
 	for _, n := range namespaces {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := n.Flush(t, m.pm); err != nil {
+		if err := n.Flush(t, flush); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
 				n.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)

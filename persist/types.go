@@ -27,32 +27,39 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-// Fn is a function that persists a m3db segment for a given ID
+// Fn is a function that persists a m3db segment for a given ID.
 type Fn func(id ts.ID, segment ts.Segment, checksum uint32) error
 
 // Closer is a function that performs cleanup after persisting the data
-// blocks for a (shard, blockStart) combination
+// blocks for a (shard, blockStart) combination.
 type Closer func() error
 
-// PreparedPersist is an object that wraps holds a persist function and a closer
+// PreparedPersist is an object that wraps holds a persist function and a closer.
 type PreparedPersist struct {
 	Persist Fn
 	Close   Closer
 }
 
-// Manager manages the internals of persisting data onto storage layer
+// Manager manages the internals of persisting data onto storage layer.
 type Manager interface {
+	// StartFlush begins a flush for a set of shards.
+	StartFlush() (Flush, error)
+
+	// SetRateLimitOptions sets the rate limit options.
+	SetRateLimitOptions(value ratelimit.Options)
+
+	// RateLimitOptions returns the rate limit options.
+	RateLimitOptions() ratelimit.Options
+}
+
+// Flush is a persist flush cycle, each shard and block start permutation needs
+// to explicility be prepared.
+type Flush interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
 	Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error)
 
-	// SetRateLimitOptions sets the rate limit options
-	SetRateLimitOptions(value ratelimit.Options)
-
-	// RateLimitOptions returns the rate limit options
-	RateLimitOptions() ratelimit.Options
-
-	// Report reports runtime information
-	Report()
+	// Done marks the flush as complete.
+	Done() error
 }
