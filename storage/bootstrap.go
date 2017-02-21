@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
+
 	"github.com/uber-go/tally"
 )
 
@@ -166,7 +167,6 @@ func (m *bootstrapManager) Report() {
 	} else {
 		m.status.Update(0)
 	}
-
 }
 
 func (m *bootstrapManager) targetRanges(at time.Time) []bootstrap.TargetRange {
