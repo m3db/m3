@@ -873,14 +873,13 @@ func (s *session) fetchAllAttempt(
 		}
 	}()
 
-	// NB(r): We must take a ref to the fetch batch op array array pool as it
-	// can change midflight through a fetch request and returning the result
-	// to the new pool can cause the new pool to stall initialization if it
-	// is in progress. This is due to it it enqueueing a fixed number of entries
-	// into the backing channel for the pool and will forever stall on the last
-	// few puts if any unexpected entries find their way there while it is filling.
-	fetchBatchOpArrayArrayPool := s.fetchBatchOpArrayArrayPool
-	fetchBatchOpsByHostIdx = fetchBatchOpArrayArrayPool.Get()
+	// NB(r): We must take and return pooled items in the session read lock for the
+	// pools that change during a topology update.
+	// This is due to when a queue is re-initialized it enqueues a fixed number
+	// of entries into the backing channel for the pool and will forever stall
+	// on the last few puts if any unexpected entries find their way there
+	// while it is filling.
+	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
 
 	majority = atomic.LoadInt32(&s.majority)
 
@@ -985,20 +984,6 @@ func (s *session) fetchAllAttempt(
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
 				s.iteratorArrayPool.Put(results)
 			}
-
-			allRemaining := atomic.AddInt32(&allPending, -1)
-			if allRemaining == 0 {
-				// Return fetch ops to pool
-				for _, ops := range fetchBatchOpsByHostIdx {
-					for _, op := range ops {
-						s.fetchBatchOpPool.Put(op)
-					}
-				}
-
-				// Return fetch ops array array to pool, making sure to use the
-				// pool we fetch the ops array array from
-				fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
-			}
 		}
 
 		tsID := ts.StringID(ids[idx])
@@ -1019,7 +1004,11 @@ func (s *session) fetchAllAttempt(
 			}
 			if f == nil || f.Size() >= s.fetchBatchSize {
 				// If no current fetch op or existing one is at batch capacity add one
+				// NB(r): Note that we defer to the host queue to take ownership
+				// of these ops and for returning the ops to the pool when done as
+				// they know when their use is complete.
 				f = s.fetchBatchOpPool.Get()
+				f.IncRef()
 				fetchBatchOpsByHostIdx[hostIdx] = append(fetchBatchOpsByHostIdx[hostIdx], f)
 				f.request.RangeStart = rangeStart
 				f.request.RangeEnd = rangeEnd
@@ -1046,6 +1035,8 @@ func (s *session) fetchAllAttempt(
 	// Enqueue fetch ops
 	for idx := range fetchBatchOpsByHostIdx {
 		for _, f := range fetchBatchOpsByHostIdx[idx] {
+			// Passing ownership of the op itself to the host queue
+			f.DecRef()
 			if err := s.queues[idx].Enqueue(f); err != nil && enqueueErr == nil {
 				enqueueErr = err
 				break
@@ -1055,6 +1046,7 @@ func (s *session) fetchAllAttempt(
 			break
 		}
 	}
+	s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
 	s.RUnlock()
 
 	if enqueueErr != nil {

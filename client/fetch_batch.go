@@ -22,15 +22,19 @@ package client
 
 import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 )
 
 type fetchBatchOp struct {
+	checked.RefCount
 	request       rpc.FetchBatchRawRequest
 	completionFns []completionFn
+	finalizer     fetchBatchOpFinalizer
 }
 
 func (f *fetchBatchOp) reset() {
+	f.IncWrites()
 	f.request.RangeStart = 0
 	f.request.RangeEnd = 0
 	f.request.NameSpace = nil
@@ -42,16 +46,22 @@ func (f *fetchBatchOp) reset() {
 		f.completionFns[i] = nil
 	}
 	f.completionFns = f.completionFns[:0]
+	f.DecWrites()
 }
 
 func (f *fetchBatchOp) append(namespace, id []byte, completionFn completionFn) {
+	f.IncWrites()
 	f.request.NameSpace = namespace
 	f.request.Ids = append(f.request.Ids, id)
 	f.completionFns = append(f.completionFns, completionFn)
+	f.DecWrites()
 }
 
 func (f *fetchBatchOp) Size() int {
-	return len(f.request.Ids)
+	f.IncReads()
+	value := len(f.request.Ids)
+	f.DecReads()
+	return value
 }
 
 func (f *fetchBatchOp) CompletionFn() completionFn {
@@ -65,7 +75,19 @@ func (f *fetchBatchOp) completeAll(result interface{}, err error) {
 }
 
 func (f *fetchBatchOp) complete(idx int, result interface{}, err error) {
-	f.completionFns[idx](result, err)
+	f.IncReads()
+	fn := f.completionFns[idx]
+	f.DecReads()
+	fn(result, err)
+}
+
+type fetchBatchOpFinalizer struct {
+	ref  *fetchBatchOp
+	pool *fetchBatchOpPool
+}
+
+func (f fetchBatchOpFinalizer) Finalize() {
+	f.pool.Put(f.ref)
 }
 
 type fetchBatchOpPool struct {
@@ -83,7 +105,13 @@ func (p *fetchBatchOpPool) Init() {
 		f := &fetchBatchOp{}
 		f.request.Ids = make([][]byte, 0, p.capacity)
 		f.completionFns = make([]completionFn, 0, p.capacity)
+		f.finalizer.ref = f
+		f.finalizer.pool = p
+		f.SetFinalizer(&f.finalizer)
+
+		f.IncRef()
 		f.reset()
+		f.DecRef()
 		return f
 	})
 }
@@ -93,10 +121,12 @@ func (p *fetchBatchOpPool) Get() *fetchBatchOp {
 }
 
 func (p *fetchBatchOpPool) Put(f *fetchBatchOp) {
+	f.IncRef()
 	if cap(f.request.Ids) != p.capacity || cap(f.completionFns) != p.capacity {
 		// Grew outside capacity, do not return to pool
 		return
 	}
 	f.reset()
+	f.DecRef()
 	p.pool.Put(f)
 }
