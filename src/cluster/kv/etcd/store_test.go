@@ -649,9 +649,7 @@ func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
 
 	opts := NewOptions().
 		SetWatchChanCheckInterval(10 * time.Millisecond).
-		SetKeyFn(func(key string) string {
-			return fmt.Sprintf("test/%s", key)
-		})
+		SetPrefix("test/")
 
 	return ec, opts, closer
 }
