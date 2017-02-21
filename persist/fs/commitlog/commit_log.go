@@ -35,8 +35,11 @@ import (
 )
 
 var (
-	errCommitLogClosed    = errors.New("commit log is closed")
-	errCommitLogQueueFull = errors.New("commit log queue is full")
+	// ErrCommitLogQueueFull is raised when trying to write to the commit log
+	// when the queue is full
+	ErrCommitLogQueueFull = errors.New("commit log queue is full")
+
+	errCommitLogClosed = errors.New("commit log is closed")
 
 	timeZero = time.Time{}
 )
@@ -352,7 +355,7 @@ func (l *commitLog) Write(
 	l.RUnlock()
 
 	if !enqueued {
-		return errCommitLogQueueFull
+		return ErrCommitLogQueueFull
 	}
 
 	wg.Wait()
@@ -390,7 +393,7 @@ func (l *commitLog) WriteBehind(
 	l.RUnlock()
 
 	if !enqueued {
-		return errCommitLogQueueFull
+		return ErrCommitLogQueueFull
 	}
 
 	return nil

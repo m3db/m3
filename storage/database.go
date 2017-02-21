@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
@@ -57,6 +58,9 @@ var (
 
 	// errCommitLogStrategyUnknown raised when trying to use an unknown commit log strategy
 	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
+
+	// errDatabaseIsOverloaded raised when trying to process a request while the database is overloaded
+	errDatabaseIsOverloaded = errors.New("database is overloaded")
 )
 
 type databaseState int
@@ -99,6 +103,10 @@ type db struct {
 
 	scope   tally.Scope
 	metrics databaseMetrics
+
+	errors       xcounter.FrequencyCounter
+	errWindow    time.Duration
+	errThreshold int64
 }
 
 type databaseMetrics struct {
@@ -106,6 +114,7 @@ type databaseMetrics struct {
 	read                instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
+	overloaded          tally.Counter
 }
 
 func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics {
@@ -114,6 +123,7 @@ func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics
 		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
+		overloaded:          scope.Counter("overloaded"),
 	}
 }
 
@@ -132,6 +142,9 @@ func NewDatabase(
 		tickDeadline: opts.RetentionOptions().BufferDrain(),
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
+		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:    opts.ErrorWindowForLoad(),
+		errThreshold: opts.ErrorThresholdForLoad(),
 	}
 
 	d.commitLog = commitlog.NewCommitLog(opts.CommitLogOptions())
@@ -261,6 +274,9 @@ func (d *db) Write(
 	}
 
 	err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	if err == commitlog.ErrCommitLogQueueFull {
+		d.errors.Record(1)
+	}
 	d.metrics.write.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
 	return err
 }
@@ -292,8 +308,13 @@ func (d *db) FetchBlocks(
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := d.nowFn()
-	n, err := d.namespaceFor(namespace)
+	if d.isOverloaded() {
+		d.metrics.overloaded.Inc(1)
+		d.metrics.fetchBlocks.ReportError(d.nowFn().Sub(callStart))
+		return nil, errDatabaseIsOverloaded
+	}
 
+	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		res := xerrors.NewInvalidParamsError(err)
 		d.metrics.fetchBlocks.ReportError(d.nowFn().Sub(callStart))
@@ -316,6 +337,12 @@ func (d *db) FetchBlocksMetadata(
 	includeChecksums bool,
 ) (block.FetchBlocksMetadataResults, *int64, error) {
 	callStart := d.nowFn()
+	if d.isOverloaded() {
+		d.metrics.overloaded.Inc(1)
+		d.metrics.fetchBlocksMetadata.ReportError(d.nowFn().Sub(callStart))
+		return nil, nil, errDatabaseIsOverloaded
+	}
+
 	n, err := d.namespaceFor(namespace)
 
 	if err != nil {
@@ -350,6 +377,10 @@ func (d *db) Truncate(namespace ts.ID) (int64, error) {
 		return 0, err
 	}
 	return n.Truncate()
+}
+
+func (d *db) isOverloaded() bool {
+	return d.errors.Count(d.errWindow) > d.errThreshold
 }
 
 func (d *db) namespaceFor(namespace ts.ID) (databaseNamespace, error) {

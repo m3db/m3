@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -484,6 +485,24 @@ type Options interface {
 
 	// CommitLogOptions returns the commit log options
 	CommitLogOptions() commitlog.Options
+
+	// SetErrorCounterOptions sets the error counter options
+	SetErrorCounterOptions(value xcounter.Options) Options
+
+	// ErrorCounterOptions returns the error counter options
+	ErrorCounterOptions() xcounter.Options
+
+	// SetErrorWindowForLoad sets the error window for load
+	SetErrorWindowForLoad(value time.Duration) Options
+
+	// ErrorWindowForLoad returns the error window for load
+	ErrorWindowForLoad() time.Duration
+
+	// SetErrorThresholdForLoad sets the error threshold for load
+	SetErrorThresholdForLoad(value int64) Options
+
+	// ErrorThresholdForLoad returns the error threshold for load
+	ErrorThresholdForLoad() int64
 
 	// SetRepairEnabled sets whether or not to enable the repair
 	SetRepairEnabled(b bool) Options

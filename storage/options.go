@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -63,6 +64,12 @@ const (
 
 	// defaultRepairEnabled enables repair by default
 	defaultRepairEnabled = true
+
+	// defaultErrorWindowForLoad is the default error window for evaluating server load
+	defaultErrorWindowForLoad = 10 * time.Second
+
+	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
+	defaultErrorThresholdForLoad = 100
 )
 
 var (
@@ -93,6 +100,9 @@ type options struct {
 	retentionOpts                  retention.Options
 	blockOpts                      block.Options
 	commitLogOpts                  commitlog.Options
+	errCounterOpts                 xcounter.Options
+	errWindowForLoad               time.Duration
+	errThresholdForLoad            int64
 	repairEnabled                  bool
 	repairOpts                     repair.Options
 	fileOpOpts                     FileOpOptions
@@ -129,6 +139,9 @@ func NewOptions() Options {
 		retentionOpts:                  retention.NewOptions(),
 		blockOpts:                      block.NewOptions(),
 		commitLogOpts:                  commitlog.NewOptions(),
+		errCounterOpts:                 xcounter.NewOptions(),
+		errWindowForLoad:               defaultErrorWindowForLoad,
+		errThresholdForLoad:            defaultErrorThresholdForLoad,
 		repairEnabled:                  defaultRepairEnabled,
 		repairOpts:                     repair.NewOptions(),
 		fileOpOpts:                     NewFileOpOptions(),
@@ -205,6 +218,36 @@ func (o *options) SetCommitLogOptions(value commitlog.Options) Options {
 
 func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
+}
+
+func (o *options) SetErrorCounterOptions(value xcounter.Options) Options {
+	opts := *o
+	opts.errCounterOpts = value
+	return &opts
+}
+
+func (o *options) ErrorCounterOptions() xcounter.Options {
+	return o.errCounterOpts
+}
+
+func (o *options) SetErrorWindowForLoad(value time.Duration) Options {
+	opts := *o
+	opts.errWindowForLoad = value
+	return &opts
+}
+
+func (o *options) ErrorWindowForLoad() time.Duration {
+	return o.errWindowForLoad
+}
+
+func (o *options) SetErrorThresholdForLoad(value int64) Options {
+	opts := *o
+	opts.errThresholdForLoad = value
+	return &opts
+}
+
+func (o *options) ErrorThresholdForLoad() int64 {
+	return o.errThresholdForLoad
 }
 
 func (o *options) SetRepairEnabled(b bool) Options {
