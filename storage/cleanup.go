@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
 )
@@ -53,7 +52,7 @@ type cleanupManager struct {
 	commitLogFilesForTimeFn commitLogFilesForTimeFn
 	deleteFilesFn           deleteFilesFn
 	cleanupInProgress       bool
-	metrics                 instrument.MethodMetrics
+	status                  tally.Gauge
 }
 
 func newCleanupManager(database database, fm databaseFlushManager, scope tally.Scope) databaseCleanupManager {
@@ -73,21 +72,11 @@ func newCleanupManager(database database, fm databaseFlushManager, scope tally.S
 		commitLogFilesBeforeFn:  fs.CommitLogFilesBefore,
 		commitLogFilesForTimeFn: fs.CommitLogFilesForTime,
 		deleteFilesFn:           fs.DeleteFiles,
-		metrics:                 instrument.NewMethodMetrics(scope, "cleanup", 1.0),
+		status:                  scope.Gauge("cleanup"),
 	}
 }
 
-func (m *cleanupManager) IsCleaningUp() bool {
-	m.RLock()
-	cleanupInProgress := m.cleanupInProgress
-	m.RUnlock()
-
-	return cleanupInProgress
-}
-
 func (m *cleanupManager) Cleanup(t time.Time) error {
-	callStart := m.nowFn()
-
 	m.Lock()
 	m.cleanupInProgress = true
 	m.Unlock()
@@ -110,14 +99,19 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 		multiErr = multiErr.Add(detailedErr)
 	}
 
-	d := m.nowFn().Sub(callStart)
-	if err := multiErr.FinalError(); err != nil {
-		m.metrics.ReportError(d)
-		return err
-	}
-	m.metrics.ReportSuccess(d)
+	return multiErr.FinalError()
+}
 
-	return nil
+func (m *cleanupManager) Report() {
+	m.RLock()
+	cleanupInProgress := m.cleanupInProgress
+	m.RUnlock()
+
+	if cleanupInProgress {
+		m.status.Update(1)
+	} else {
+		m.status.Update(0)
+	}
 }
 
 func (m *cleanupManager) cleanupFilesetFiles(earliestToRetain time.Time) error {

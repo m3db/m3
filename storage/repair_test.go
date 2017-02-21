@@ -55,7 +55,7 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 	mockDatabase := newMockDatabase()
 	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
 
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
@@ -119,7 +119,7 @@ func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
 		SetClockOptions(clockOpts.SetNowFn(nowFn)).
 		SetRepairOptions(repairOpts)
 
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
@@ -174,7 +174,7 @@ func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
 		SetClockOptions(clockOpts.SetNowFn(nowFn)).
 		SetRepairOptions(repairOpts)
 
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
@@ -202,7 +202,7 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	mockDatabase := newMockDatabase()
 	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
 
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase)
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
@@ -341,7 +341,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 		{time.Unix(36000, 0), repairState{repairNotStarted, 0}},
 		{time.Unix(43200, 0), repairState{repairSuccess, 1}},
 	}
-	repairer, err := newDatabaseRepairer(database)
+	repairer, err := newDatabaseRepairer(database, database.opts)
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer)
 	for _, input := range inputTimes {
@@ -362,7 +362,7 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	repairTimeRange := xtime.Range{Start: time.Unix(7200, 0), End: time.Unix(14400, 0)}
 	database := newMockDatabase()
 	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
-	repairer, err := newDatabaseRepairer(database)
+	repairer, err := newDatabaseRepairer(database, database.opts)
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer)
 

@@ -156,6 +156,11 @@ func (m *fileSystemManager) Run(t time.Time, runType runType, forceType forceTyp
 	return true
 }
 
+func (m *fileSystemManager) Report() {
+	m.databaseCleanupManager.Report()
+	m.databaseFlushManager.Report()
+}
+
 func (m *fileSystemManager) shouldRunWithLock() bool {
 	return m.enabled && m.status != fileOpInProgress && m.database.IsBootstrapped()
 }

@@ -52,4 +52,7 @@ type Manager interface {
 
 	// RateLimitOptions returns the rate limit options
 	RateLimitOptions() ratelimit.Options
+
+	// Report reports runtime information
+	Report()
 }

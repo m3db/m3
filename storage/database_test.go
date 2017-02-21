@@ -114,7 +114,7 @@ func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 	require.NoError(t, err)
 	d := database.(*db)
 	m := d.mediator.(*mediator)
-	bsm := newBootstrapManager(d, m).(*bootstrapManager)
+	bsm := newBootstrapManager(d, m, opts).(*bootstrapManager)
 	bsm.state = bs
 	m.databaseBootstrapManager = bsm
 	return d

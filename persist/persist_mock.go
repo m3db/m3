@@ -79,3 +79,11 @@ func (_m *MockManager) RateLimitOptions() ratelimit.Options {
 func (_mr *_MockManagerRecorder) RateLimitOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RateLimitOptions")
 }
+
+func (_m *MockManager) Report() {
+	_m.ctrl.Call(_m, "Report")
+}
+
+func (_mr *_MockManagerRecorder) Report() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Report")
+}
