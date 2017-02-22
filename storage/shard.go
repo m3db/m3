@@ -305,7 +305,7 @@ func (s *dbShard) Close() error {
 	// GC is not placed all at one time.  If the deadline is too low and still
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
-	s.tickAndExpire(context.NewNoOpCanncellable(), s.opts.ShardCloseDeadline(), tickPolicyForceExpiry)
+	s.tickAndExpire(context.NewNoOpCanncellable(), s.opts.RetentionOptions().BufferDrain(), tickPolicyForceExpiry)
 
 	return nil
 }

@@ -560,14 +560,6 @@ type Options interface {
 	// containing data.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 
-	// SetShardCloseDeadline sets the deadline to close shards, increase from
-	// default to avoid high GC pressure during resharding
-	SetShardCloseDeadline(value time.Duration) Options
-
-	// ShardCloseDeadline returns the deadline to close shards, increase from
-	// default to avoid high GC pressure during resharding
-	ShardCloseDeadline() time.Duration
-
 	// SetContextPool sets the contextPool
 	SetContextPool(value context.Pool) Options
 
