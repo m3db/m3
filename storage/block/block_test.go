@@ -147,7 +147,7 @@ func TestDatabaseBlockResetNormalWithDependentContext(t *testing.T) {
 }
 
 func TestDatabaseBlockCloseNormalWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { go block.Close() }
+	f := func(block *dbBlock) { block.Close() }
 	af := func(t *testing.T, block *dbBlock) { require.True(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, af)
 }

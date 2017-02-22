@@ -265,7 +265,7 @@ func (b *dbBlock) Close() {
 	}
 
 	b.closed = true
-	b.ctx.BlockingClose()
+	b.ctx.Close()
 	b.resetMergeTargetWithLock()
 
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
