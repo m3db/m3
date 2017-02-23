@@ -68,15 +68,15 @@ var (
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database       database
-	mediator       databaseMediator
-	opts           Options
-	log            xlog.Logger
-	nowFn          clock.NowFn
-	newBootstrapFn NewBootstrapFn
-	state          bootstrapState
-	hasPending     bool
-	status         tally.Gauge
+	database   database
+	mediator   databaseMediator
+	opts       Options
+	log        xlog.Logger
+	nowFn      clock.NowFn
+	process    bootstrap.Process
+	state      bootstrapState
+	hasPending bool
+	status     tally.Gauge
 }
 
 func newBootstrapManager(
@@ -86,13 +86,13 @@ func newBootstrapManager(
 ) databaseBootstrapManager {
 	scope := opts.InstrumentOptions().MetricsScope()
 	return &bootstrapManager{
-		database:       database,
-		mediator:       mediator,
-		opts:           opts,
-		log:            opts.InstrumentOptions().Logger(),
-		nowFn:          opts.ClockOptions().NowFn(),
-		newBootstrapFn: opts.NewBootstrapFn(),
-		status:         scope.Gauge("bootstrapped"),
+		database: database,
+		mediator: mediator,
+		opts:     opts,
+		log:      opts.InstrumentOptions().Logger(),
+		nowFn:    opts.ClockOptions().NowFn(),
+		process:  opts.BootstrapProcess(),
+		status:   scope.Gauge("bootstrapped"),
 	}
 }
 
@@ -207,10 +207,9 @@ func (m *bootstrapManager) bootstrap() error {
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
 
-	bs := m.newBootstrapFn()
 	for _, namespace := range m.database.getOwnedNamespaces() {
 		start := m.nowFn()
-		if err := namespace.Bootstrap(bs, targetRanges); err != nil {
+		if err := namespace.Bootstrap(m.process, targetRanges); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 		end := m.nowFn()

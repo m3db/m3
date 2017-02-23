@@ -22,6 +22,7 @@ package bootstrap
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
@@ -35,16 +36,17 @@ var (
 
 // bootstrapProcess represents the bootstrapping process.
 type bootstrapProcess struct {
+	sync.RWMutex
 	opts         result.Options
 	log          xlog.Logger
 	bootstrapper Bootstrapper
 }
 
-// NewBootstrapProcess creates a new bootstrap process.
-func NewBootstrapProcess(
-	opts result.Options,
+// NewProcess creates a new bootstrap process.
+func NewProcess(
 	bootstrapper Bootstrapper,
-) Bootstrap {
+	opts result.Options,
+) Process {
 	return &bootstrapProcess{
 		opts:         opts,
 		log:          opts.InstrumentOptions().Logger(),
@@ -52,11 +54,27 @@ func NewBootstrapProcess(
 	}
 }
 
+func (b *bootstrapProcess) SetBootstrapper(bootstrapper Bootstrapper) {
+	b.Lock()
+	defer b.Unlock()
+	b.bootstrapper = bootstrapper
+}
+
+func (b *bootstrapProcess) Bootstrapper() Bootstrapper {
+	b.RLock()
+	defer b.RUnlock()
+	return b.bootstrapper
+}
+
 func (b *bootstrapProcess) Run(
 	namespace ts.ID,
 	shards []uint32,
 	targetRanges []TargetRange,
 ) (result.BootstrapResult, error) {
+	b.RLock()
+	bootstrapper := b.bootstrapper
+	b.RUnlock()
+
 	bootstrapResult := result.NewBootstrapResult()
 	for _, target := range targetRanges {
 		shardsTimeRanges := make(result.ShardTimeRanges, len(shards))
@@ -85,7 +103,8 @@ func (b *bootstrapProcess) Run(
 		if opts == nil {
 			opts = NewRunOptions()
 		}
-		res, err := b.bootstrapper.Bootstrap(namespace, shardsTimeRanges, opts)
+
+		res, err := bootstrapper.Bootstrap(namespace, shardsTimeRanges, opts)
 
 		logFields = append(logFields, xlog.NewLogField("took", nowFn().Sub(begin).String()))
 		if err != nil {

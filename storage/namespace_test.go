@@ -278,7 +278,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 
 	ns := newTestNamespace(t)
 	errs := []error{nil, errors.New("foo")}
-	bs := bootstrap.NewMockBootstrap(ctrl)
+	bs := bootstrap.NewMockProcess(ctrl)
 	bs.EXPECT().
 		Run(ns.ID(), sharding.IDs(testShardIDs), ranges).
 		Return(result.NewBootstrapResult(), nil)
@@ -323,7 +323,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	require.True(t, len(alreadyBootstrapped) > 0)
 
 	ns := newTestNamespace(t)
-	bs := bootstrap.NewMockBootstrap(ctrl)
+	bs := bootstrap.NewMockProcess(ctrl)
 	bs.EXPECT().
 		Run(ns.ID(), sharding.IDs(needsBootstrap), ranges).
 		Return(result.NewBootstrapResult(), nil)

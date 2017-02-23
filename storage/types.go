@@ -196,7 +196,7 @@ type databaseNamespace interface {
 
 	// Bootstrap performs bootstrapping
 	Bootstrap(
-		bs bootstrap.Bootstrap,
+		process bootstrap.Process,
 		targetRanges []bootstrap.TargetRange,
 	) error
 
@@ -451,9 +451,6 @@ type databaseMediator interface {
 	Report()
 }
 
-// NewBootstrapFn creates a new bootstrap
-type NewBootstrapFn func() bootstrap.Bootstrap
-
 // Options represents the options for storage
 type Options interface {
 	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
@@ -525,11 +522,11 @@ type Options interface {
 	// FileOpOptions returns the repair options
 	FileOpOptions() FileOpOptions
 
-	// SetNewBootstrapFn sets the newBootstrapFn
-	SetNewBootstrapFn(value NewBootstrapFn) Options
+	// SetBootstrapProcess sets the bootstrap process for the database
+	SetBootstrapProcess(value bootstrap.Process) Options
 
-	// NewBootstrapFn returns the newBootstrapFn
-	NewBootstrapFn() NewBootstrapFn
+	// BootstrapProcess returns the bootstrap process for the database
+	BootstrapProcess() bootstrap.Process
 
 	// SetPersistManager sets the persistence manager
 	SetPersistManager(value persist.Manager) Options

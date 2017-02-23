@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
@@ -39,11 +38,11 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	now := time.Now()
-	opts = opts.SetNewBootstrapFn(func() bootstrap.Bootstrap {
-		return nil
-	}).SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return now
-	}))
+	opts = opts.
+		SetBootstrapProcess(nil).
+		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+			return now
+		}))
 
 	namespace := NewMockdatabaseNamespace(ctrl)
 	namespace.EXPECT().Bootstrap(nil, gomock.Any()).Return(fmt.Errorf("an error"))
@@ -77,11 +76,11 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 		SetRetentionPeriod(2 * 24 * time.Hour))
 	ropts := opts.RetentionOptions()
 	now := time.Now().Truncate(ropts.BlockSize()).Add(8 * time.Minute)
-	opts = opts.SetNewBootstrapFn(func() bootstrap.Bootstrap {
-		return nil
-	}).SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return now
-	}))
+	opts = opts.
+		SetBootstrapProcess(nil).
+		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+			return now
+		}))
 
 	db := &mockDatabase{opts: opts}
 	bsm := newBootstrapManager(db, nil, opts).(*bootstrapManager)

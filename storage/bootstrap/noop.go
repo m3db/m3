@@ -27,9 +27,16 @@ import (
 
 type noOpBootstrapProcess struct{}
 
-// NewNoOpBootstrapProcess creates a no-op bootstrap process.
-func NewNoOpBootstrapProcess() Bootstrap {
+// NewNoOpProcess creates a no-op bootstrap process.
+func NewNoOpProcess() Process {
 	return &noOpBootstrapProcess{}
+}
+
+func (b *noOpBootstrapProcess) SetBootstrapper(bootstrapper Bootstrapper) {
+}
+
+func (b *noOpBootstrapProcess) Bootstrapper() Bootstrapper {
+	return nil
 }
 
 func (b *noOpBootstrapProcess) Run(
