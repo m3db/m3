@@ -29,35 +29,53 @@ import (
 	ts "github.com/m3db/m3db/ts"
 )
 
-// Mock of Bootstrap interface
-type MockBootstrap struct {
+// Mock of Process interface
+type MockProcess struct {
 	ctrl     *gomock.Controller
-	recorder *_MockBootstrapRecorder
+	recorder *_MockProcessRecorder
 }
 
-// Recorder for MockBootstrap (not exported)
-type _MockBootstrapRecorder struct {
-	mock *MockBootstrap
+// Recorder for MockProcess (not exported)
+type _MockProcessRecorder struct {
+	mock *MockProcess
 }
 
-func NewMockBootstrap(ctrl *gomock.Controller) *MockBootstrap {
-	mock := &MockBootstrap{ctrl: ctrl}
-	mock.recorder = &_MockBootstrapRecorder{mock}
+func NewMockProcess(ctrl *gomock.Controller) *MockProcess {
+	mock := &MockProcess{ctrl: ctrl}
+	mock.recorder = &_MockProcessRecorder{mock}
 	return mock
 }
 
-func (_m *MockBootstrap) EXPECT() *_MockBootstrapRecorder {
+func (_m *MockProcess) EXPECT() *_MockProcessRecorder {
 	return _m.recorder
 }
 
-func (_m *MockBootstrap) Run(namespace ts.ID, shards []uint32, targetRanges []TargetRange) (result.BootstrapResult, error) {
+func (_m *MockProcess) SetBootstrapper(bootstrapper Bootstrapper) {
+	_m.ctrl.Call(_m, "SetBootstrapper", bootstrapper)
+}
+
+func (_mr *_MockProcessRecorder) SetBootstrapper(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBootstrapper", arg0)
+}
+
+func (_m *MockProcess) Bootstrapper() Bootstrapper {
+	ret := _m.ctrl.Call(_m, "Bootstrapper")
+	ret0, _ := ret[0].(Bootstrapper)
+	return ret0
+}
+
+func (_mr *_MockProcessRecorder) Bootstrapper() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrapper")
+}
+
+func (_m *MockProcess) Run(namespace ts.ID, shards []uint32, targetRanges []TargetRange) (result.BootstrapResult, error) {
 	ret := _m.ctrl.Call(_m, "Run", namespace, shards, targetRanges)
 	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockBootstrapRecorder) Run(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (_mr *_MockProcessRecorder) Run(arg0, arg1, arg2 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1, arg2)
 }
 

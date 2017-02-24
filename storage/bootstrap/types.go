@@ -26,11 +26,16 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// NewBootstrapFn creates a new bootstrap processor.
-type NewBootstrapFn func() Bootstrap
+// Process represents the bootstrap process. Note that a bootstrap process can and will
+// be resused so it is important to not rely on state stored in the bootstrap itself
+// with the mindset that it will always be set to default values from the constructor.
+type Process interface {
+	// SetBootstrapper sets the bootstrapper to use when running the process.
+	SetBootstrapper(bootstrapper Bootstrapper)
 
-// Bootstrap represents the bootstrap process.
-type Bootstrap interface {
+	// Bootstrapper returns the current bootstrapper to use when running the process.
+	Bootstrapper() Bootstrapper
+
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
 	Run(
 		namespace ts.ID,
@@ -69,7 +74,9 @@ const (
 	BootstrapParallel
 )
 
-// Bootstrapper is the interface for different bootstrapping mechanisms.
+// Bootstrapper is the interface for different bootstrapping mechanisms.  Note that a bootstrapper
+// can and will be resused so it is important to not rely on state stored in the bootstrapper itself
+// with the mindset that it will always be set to default values from the constructor.
 type Bootstrapper interface {
 	// String returns the name of the bootstrapper
 	String() string
@@ -88,7 +95,9 @@ type Bootstrapper interface {
 	) (result.BootstrapResult, error)
 }
 
-// Source represents a bootstrap source.
+// Source represents a bootstrap source. Note that a source can and will be resused so
+// it is important to not rely on state stored in the source itself with the mindset
+// that it will always be set to default values from the constructor.
 type Source interface {
 	// Can returns whether a specific bootstrapper strategy can be applied.
 	Can(strategy Strategy) bool

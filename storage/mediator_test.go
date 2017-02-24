@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/storage/bootstrap"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
@@ -33,11 +31,11 @@ import (
 func TestDatabaseMediatorOpenClose(t *testing.T) {
 	opts := testDatabaseOptions().SetRepairEnabled(false)
 	now := time.Now()
-	opts = opts.SetNewBootstrapFn(func() bootstrap.Bootstrap {
-		return nil
-	}).SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return now
-	}))
+	opts = opts.
+		SetBootstrapProcess(nil).
+		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+			return now
+		}))
 
 	db := &mockDatabase{opts: opts}
 	m, err := newMediator(db, opts)
@@ -58,11 +56,11 @@ func TestDatabaseMediatorDisableFileOps(t *testing.T) {
 
 	opts := testDatabaseOptions().SetRepairEnabled(false)
 	now := time.Now()
-	opts = opts.SetNewBootstrapFn(func() bootstrap.Bootstrap {
-		return nil
-	}).SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return now
-	}))
+	opts = opts.
+		SetBootstrapProcess(nil).
+		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+			return now
+		}))
 
 	db := &mockDatabase{opts: opts}
 	med, err := newMediator(db, opts)

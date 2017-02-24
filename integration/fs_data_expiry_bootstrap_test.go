@@ -51,15 +51,8 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 		opts   = newTestOptions().
 			SetNamespaces([]namespace.Metadata{namesp})
 		setup *testSetup
+		err   error
 	)
-
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBlockSize(2 * time.Hour).
-		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(3 * time.Second).
-		SetBlockDataExpiry(true)
 
 	retrieverOpts := fs.NewBlockRetrieverOptions()
 
@@ -74,20 +67,33 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 
 	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 
-	setup = newBootstrappableTestSetup(t, opts, retentionOpts, func() bootstrap.Bootstrap {
-		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix := fsOpts.FilePathPrefix()
-		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-		bsOpts := result.NewOptions().
-			SetRetentionOptions(setup.storageOpts.RetentionOptions())
-		bfsOpts := bfs.NewOptions().
-			SetResultOptions(bsOpts).
-			SetFilesystemOptions(fsOpts).
-			SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
-		bs := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-		return bootstrap.NewBootstrapProcess(bsOpts, bs)
-	})
+	setup, err = newTestSetup(opts)
+	require.NoError(t, err)
 	defer setup.close()
+
+	retentionOpts := retention.NewOptions().
+		SetRetentionPeriod(6 * time.Hour).
+		SetBlockSize(2 * time.Hour).
+		SetBufferPast(10 * time.Minute).
+		SetBufferFuture(2 * time.Minute).
+		SetBufferDrain(3 * time.Second).
+		SetBlockDataExpiry(true)
+
+	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	filePathPrefix := fsOpts.FilePathPrefix()
+	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	bsOpts := result.NewOptions().
+		SetRetentionOptions(setup.storageOpts.RetentionOptions())
+	bfsOpts := bfs.NewOptions().
+		SetResultOptions(bsOpts).
+		SetFilesystemOptions(fsOpts).
+		SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
+	bs := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+	process := bootstrap.NewProcess(bs, bsOpts)
+
+	setup.storageOpts = setup.storageOpts.
+		SetRetentionOptions(retentionOpts).
+		SetBootstrapProcess(process)
 
 	// Write test data
 	now := setup.getNowFn()

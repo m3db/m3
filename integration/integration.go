@@ -140,21 +140,6 @@ func newMultiAddrAdminClient(
 	return adminClient
 }
 
-func newBootstrappableTestSetup(
-	t *testing.T,
-	opts testOptions,
-	retentionOpts retention.Options,
-	newBootstrapFn storage.NewBootstrapFn,
-) *testSetup {
-	setup, err := newTestSetup(opts)
-	require.NoError(t, err)
-
-	setup.storageOpts = setup.storageOpts.
-		SetRetentionOptions(retentionOpts).
-		SetNewBootstrapFn(newBootstrapFn)
-	return setup
-}
-
 type bootstrappableTestSetupOptions struct {
 	disablePeersBootstrapper   bool
 	bootstrapBlocksBatchSize   int
@@ -202,53 +187,60 @@ func newDefaultBootstrappableTestSetups(
 			topologyInitializer        = setupOpts[i].topologyInitializer
 			testStatsReporter          = setupOpts[i].testStatsReporter
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
-			setup                      *testSetup
 		)
+
 		if topologyInitializer != nil {
 			instanceOpts = instanceOpts.
 				SetClusterDatabaseTopologyInitializer(topologyInitializer)
 		}
-		setup = newBootstrappableTestSetup(t, instanceOpts, retentionOpts, func() bootstrap.Bootstrap {
-			instrumentOpts := setup.storageOpts.InstrumentOptions()
 
-			bsOpts := newDefaulTestResultOptions(setup.storageOpts, instrumentOpts)
-			noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+		setup, err := newTestSetup(instanceOpts)
+		require.NoError(t, err)
 
-			var adminClient client.AdminClient
-			if usingPeersBoostrapper {
-				adminOpts := client.NewAdminOptions()
-				if bootstrapBlocksBatchSize > 0 {
-					adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
-				}
-				if bootstrapBlocksConcurrency > 0 {
-					adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
-				}
-				adminClient = newMultiAddrAdminClient(
-					t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
+		setup.storageOpts = setup.storageOpts.
+			SetRetentionOptions(retentionOpts)
+
+		instrumentOpts := setup.storageOpts.InstrumentOptions()
+
+		bsOpts := newDefaulTestResultOptions(setup.storageOpts, instrumentOpts)
+		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+
+		var adminClient client.AdminClient
+		if usingPeersBoostrapper {
+			adminOpts := client.NewAdminOptions()
+			if bootstrapBlocksBatchSize > 0 {
+				adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
 			}
-
-			peersOpts := peers.NewOptions().
-				SetResultOptions(bsOpts).
-				SetAdminClient(adminClient)
-
-			peersBootstrapper := peers.NewPeersBootstrapper(peersOpts, noOpAll)
-
-			fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-			filePathPrefix := fsOpts.FilePathPrefix()
-
-			bfsOpts := bfs.NewOptions().
-				SetResultOptions(bsOpts).
-				SetFilesystemOptions(fsOpts)
-
-			var fsBootstrapper bootstrap.Bootstrapper
-			if usingPeersBoostrapper {
-				fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
-			} else {
-				fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+			if bootstrapBlocksConcurrency > 0 {
+				adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 			}
+			adminClient = newMultiAddrAdminClient(
+				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
+		}
 
-			return bootstrap.NewBootstrapProcess(bsOpts, fsBootstrapper)
-		})
+		peersOpts := peers.NewOptions().
+			SetResultOptions(bsOpts).
+			SetAdminClient(adminClient)
+
+		peersBootstrapper := peers.NewPeersBootstrapper(peersOpts, noOpAll)
+
+		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix := fsOpts.FilePathPrefix()
+
+		bfsOpts := bfs.NewOptions().
+			SetResultOptions(bsOpts).
+			SetFilesystemOptions(fsOpts)
+
+		var fsBootstrapper bootstrap.Bootstrapper
+		if usingPeersBoostrapper {
+			fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
+		} else {
+			fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+		}
+
+		setup.storageOpts = setup.storageOpts.
+			SetBootstrapProcess(bootstrap.NewProcess(fsBootstrapper, bsOpts))
+
 		logger := setup.storageOpts.InstrumentOptions().Logger()
 		logger = logger.WithFields(xlog.NewLogField("instance", instance))
 		iopts := setup.storageOpts.InstrumentOptions().SetLogger(logger)

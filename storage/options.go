@@ -67,10 +67,8 @@ const (
 )
 
 var (
-	// defaultNewBootstrapFn is the default function for creating a new bootstrap
-	defaultNewBootstrapFn = func() bootstrap.Bootstrap {
-		return bootstrap.NewNoOpBootstrapProcess()
-	}
+	// defaultBootstrapProcess is the default bootstrap for the database
+	defaultBootstrapProcess = bootstrap.NewNoOpProcess()
 
 	timeZero time.Time
 )
@@ -102,7 +100,7 @@ type options struct {
 	fileOpOpts                     FileOpOptions
 	newEncoderFn                   encoding.NewEncoderFn
 	newDecoderFn                   encoding.NewDecoderFn
-	newBootstrapFn                 NewBootstrapFn
+	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
@@ -138,7 +136,7 @@ func NewOptions() Options {
 		repairEnabled:                  defaultRepairEnabled,
 		repairOpts:                     repair.NewOptions(),
 		fileOpOpts:                     NewFileOpOptions(),
-		newBootstrapFn:                 defaultNewBootstrapFn,
+		bootstrapProcess:               defaultBootstrapProcess,
 		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
 		maxFlushRetries:                defaultMaxFlushRetries,
 		contextPool:                    context.NewPool(nil, nil),
@@ -352,14 +350,14 @@ func (o *options) NewDecoderFn() encoding.NewDecoderFn {
 	return o.newDecoderFn
 }
 
-func (o *options) SetNewBootstrapFn(value NewBootstrapFn) Options {
+func (o *options) SetBootstrapProcess(value bootstrap.Process) Options {
 	opts := *o
-	opts.newBootstrapFn = value
+	opts.bootstrapProcess = value
 	return &opts
 }
 
-func (o *options) NewBootstrapFn() NewBootstrapFn {
-	return o.newBootstrapFn
+func (o *options) BootstrapProcess() bootstrap.Process {
+	return o.bootstrapProcess
 }
 
 func (o *options) SetPersistManager(value persist.Manager) Options {

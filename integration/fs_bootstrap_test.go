@@ -39,27 +39,32 @@ func TestFilesystemBootstrap(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
+
 	// Test setup
-	var (
-		opts  = newTestOptions()
-		setup *testSetup
-	)
+	opts := newTestOptions()
+
+	setup, err := newTestSetup(opts)
+	require.NoError(t, err)
+	defer setup.close()
+
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(2 * time.Hour).
 		SetBufferDrain(3 * time.Second)
-	setup = newBootstrappableTestSetup(t, opts, retentionOpts, func() bootstrap.Bootstrap {
-		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix := fsOpts.FilePathPrefix()
-		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-		bsOpts := result.NewOptions().
-			SetRetentionOptions(setup.storageOpts.RetentionOptions())
-		bfsOpts := fs.NewOptions().
-			SetResultOptions(bsOpts).
-			SetFilesystemOptions(fsOpts)
-		bs := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-		return bootstrap.NewBootstrapProcess(bsOpts, bs)
-	})
-	defer setup.close()
+
+	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	filePathPrefix := fsOpts.FilePathPrefix()
+	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	bsOpts := result.NewOptions().
+		SetRetentionOptions(setup.storageOpts.RetentionOptions())
+	bfsOpts := fs.NewOptions().
+		SetResultOptions(bsOpts).
+		SetFilesystemOptions(fsOpts)
+	bs := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+	process := bootstrap.NewProcess(bs, bsOpts)
+
+	setup.storageOpts = setup.storageOpts.
+		SetRetentionOptions(retentionOpts).
+		SetBootstrapProcess(process)
 
 	// Write test data
 	now := setup.getNowFn()
