@@ -194,7 +194,7 @@ func newDefaultBootstrappableTestSetups(
 				SetClusterDatabaseTopologyInitializer(topologyInitializer)
 		}
 
-		setup, err := newTestSetup(opts)
+		setup, err := newTestSetup(instanceOpts)
 		require.NoError(t, err)
 
 		setup.storageOpts = setup.storageOpts.
