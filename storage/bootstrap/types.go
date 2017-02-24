@@ -27,7 +27,7 @@ import (
 )
 
 // Process represents the bootstrap process. Note that a bootstrap process can and will
-// be resused so it is important to not rely on state stored in the bootstrap itself
+// be reused so it is important to not rely on state stored in the bootstrap itself
 // with the mindset that it will always be set to default values from the constructor.
 type Process interface {
 	// SetBootstrapper sets the bootstrapper to use when running the process.
@@ -75,7 +75,7 @@ const (
 )
 
 // Bootstrapper is the interface for different bootstrapping mechanisms.  Note that a bootstrapper
-// can and will be resused so it is important to not rely on state stored in the bootstrapper itself
+// can and will be reused so it is important to not rely on state stored in the bootstrapper itself
 // with the mindset that it will always be set to default values from the constructor.
 type Bootstrapper interface {
 	// String returns the name of the bootstrapper
@@ -95,7 +95,7 @@ type Bootstrapper interface {
 	) (result.BootstrapResult, error)
 }
 
-// Source represents a bootstrap source. Note that a source can and will be resused so
+// Source represents a bootstrap source. Note that a source can and will be reused so
 // it is important to not rely on state stored in the source itself with the mindset
 // that it will always be set to default values from the constructor.
 type Source interface {
