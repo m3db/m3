@@ -265,9 +265,18 @@ func (b *dbBlock) Close() {
 	}
 
 	b.closed = true
-	b.ctx.Close()
-	b.resetMergeTargetWithLock()
 
+	// NB(xichen): we use the worker pool to close the context instead doing
+	// an asychronous context close to explicitly control the context closing
+	// concurrency. This is particularly important during a node removal because
+	// all the shards are removed at once, causing a goroutine explosion without
+	// limiting the concurrency. We also cannot do a blocking close here because
+	// the block may be closed before the underlying context is closed, which
+	// causes a deadlock if the block and the underlying context are closed
+	// from within the same goroutine.
+	b.opts.CloseContextWorkers().Go(b.ctx.BlockingClose)
+
+	b.resetMergeTargetWithLock()
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
 		pool.Put(b)
 	}

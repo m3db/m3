@@ -29,6 +29,7 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/sync"
 )
 
 const (
@@ -36,11 +37,16 @@ const (
 	// database block, this should match the size of expected encoded values per
 	// block size.
 	defaultDatabaseBlockAllocSize = 1024
+
+	// defaultCloseContextConcurrency is the default concurrency for closing
+	// the context the block depends on
+	defaultCloseContextConcurrency = 4096
 )
 
 type options struct {
 	clockOpts               clock.Options
 	databaseBlockAllocSize  int
+	closeContextWorkers     xsync.WorkerPool
 	databaseBlockPool       DatabaseBlockPool
 	contextPool             context.Pool
 	encoderPool             encoding.EncoderPool
@@ -55,6 +61,7 @@ func NewOptions() Options {
 	o := &options{
 		clockOpts:               clock.NewOptions(),
 		databaseBlockAllocSize:  defaultDatabaseBlockAllocSize,
+		closeContextWorkers:     xsync.NewWorkerPool(defaultCloseContextConcurrency),
 		databaseBlockPool:       NewDatabaseBlockPool(nil),
 		contextPool:             context.NewPool(nil, nil),
 		encoderPool:             encoding.NewEncoderPool(nil),
@@ -65,6 +72,7 @@ func NewOptions() Options {
 			return pool.NewBytesPool(s, nil)
 		}),
 	}
+	o.closeContextWorkers.Init()
 	o.databaseBlockPool.Init(func() DatabaseBlock {
 		return NewDatabaseBlock(timeZero, ts.Segment{}, o)
 	})
@@ -104,6 +112,16 @@ func (o *options) SetDatabaseBlockAllocSize(value int) Options {
 
 func (o *options) DatabaseBlockAllocSize() int {
 	return o.databaseBlockAllocSize
+}
+
+func (o *options) SetCloseContextWorkers(value xsync.WorkerPool) Options {
+	opts := *o
+	opts.closeContextWorkers = value
+	return &opts
+}
+
+func (o *options) CloseContextWorkers() xsync.WorkerPool {
+	return o.closeContextWorkers
 }
 
 func (o *options) SetDatabaseBlockPool(value DatabaseBlockPool) Options {
