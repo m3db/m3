@@ -351,6 +351,33 @@ func TestReturnInitShardToSource_SourceIsLeaving(t *testing.T) {
 	assert.Equal(t, 0, i3.Shards().NumShards())
 }
 
+func TestGeneratePlacement(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
+	))
+	i2 := placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
+	))
+	i3 := placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(1).SetShards(shard.NewShards(
+		[]shard.Shard{},
+	))
+
+	ph := NewPlacementHelper(
+		placement.NewPlacement().
+			SetInstances([]services.PlacementInstance{i1, i2, i3}).
+			SetReplicaFactor(1).
+			SetShards([]uint32{0}).
+			SetIsSharded(true),
+		placement.NewOptions(),
+	)
+
+	p := ph.generatePlacement(includeEmpty)
+	assert.Equal(t, 3, p.NumInstances())
+
+	p = ph.generatePlacement(nonEmptyOnly)
+	assert.Equal(t, 2, p.NumInstances())
+}
+
 func TestReturnInitShardToSource_RackConflict(t *testing.T) {
 	i1 := placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
 		[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},

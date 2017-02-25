@@ -963,6 +963,67 @@ func TestReplaceInstance(t *testing.T) {
 	}
 }
 
+func TestReplaceInstance_Backout(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "", "e1", 1)
+	i1.Shards().Add(shard.NewShard(0).SetState(shard.Available))
+
+	i2 := placement.NewEmptyInstance("i2", "r2", "", "e2", 1)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	instances := []services.PlacementInstance{i1, i2}
+
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{0, 1}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+
+	a := newShardedAlgorithm(placement.NewOptions())
+	i3 := placement.NewEmptyInstance("i3", "r3", "", "e3", 1)
+	p, err := a.ReplaceInstance(p, i2.ID(), []services.PlacementInstance{i3})
+	assert.NoError(t, err)
+	i1, _ = p.Instance("i1")
+	i2, _ = p.Instance("i2")
+	i3, _ = p.Instance("i3")
+	assert.Equal(t, 1, loadOnInstance(i1))
+	assert.Equal(t, 1, i1.Shards().NumShards())
+	assert.Equal(t, "e1", i1.Endpoint())
+	assert.Equal(t, 0, loadOnInstance(i2))
+	assert.Equal(t, 1, i2.Shards().NumShards())
+	assert.Equal(t, "e2", i2.Endpoint())
+	assert.Equal(t, 1, loadOnInstance(i3))
+	assert.Equal(t, 1, i3.Shards().NumShards())
+	assert.Equal(t, "e3", i3.Endpoint())
+	for _, s := range i1.Shards().All() {
+		assert.Equal(t, shard.Available, s.State())
+		assert.Equal(t, "", s.SourceID())
+	}
+	for _, s := range i2.Shards().All() {
+		assert.Equal(t, shard.Leaving, s.State())
+		assert.Equal(t, "", s.SourceID())
+	}
+	for _, s := range i3.Shards().All() {
+		assert.Equal(t, shard.Initializing, s.State())
+		assert.Equal(t, "i2", s.SourceID())
+	}
+
+	p, err = a.AddInstance(p, i2)
+	assert.NoError(t, err)
+	_, ok := p.Instance("i3")
+	assert.False(t, ok)
+
+	i1, _ = p.Instance("i1")
+	i2, _ = p.Instance("i2")
+	assert.Equal(t, 1, loadOnInstance(i1))
+	assert.Equal(t, 1, i1.Shards().NumShards())
+	assert.Equal(t, 1, i1.Shards().NumShardsForState(shard.Available))
+	assert.Equal(t, "e1", i1.Endpoint())
+	assert.Equal(t, 1, loadOnInstance(i2))
+	assert.Equal(t, 1, i2.Shards().NumShards())
+	assert.Equal(t, 1, i2.Shards().NumShardsForState(shard.Available))
+	assert.Equal(t, "e2", i2.Endpoint())
+}
+
 func TestShardedAlgoOnNonShardedPlacement(t *testing.T) {
 	i1 := placement.NewInstance().SetID("i1").SetEndpoint("e1")
 	i2 := placement.NewInstance().SetID("i2").SetEndpoint("e2")
