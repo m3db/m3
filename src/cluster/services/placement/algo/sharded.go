@@ -51,7 +51,7 @@ func (a rackAwarePlacementAlgorithm) InitialPlacement(instances []services.Place
 	if err := ph.PlaceShards(newShards(shards), nil); err != nil {
 		return nil, err
 	}
-	return ph.GeneratePlacement(), nil
+	return ph.generatePlacement(nonEmptyOnly), nil
 }
 
 func (a rackAwarePlacementAlgorithm) AddReplica(p services.ServicePlacement) (services.ServicePlacement, error) {
@@ -64,7 +64,7 @@ func (a rackAwarePlacementAlgorithm) AddReplica(p services.ServicePlacement) (se
 	if err := ph.PlaceShards(newShards(p.Shards()), nil); err != nil {
 		return nil, err
 	}
-	return ph.GeneratePlacement(), nil
+	return ph.generatePlacement(nonEmptyOnly), nil
 }
 
 func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.ServicePlacement, instanceID string) (services.ServicePlacement, error) {
@@ -82,7 +82,7 @@ func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.ServicePlacement,
 		return nil, err
 	}
 
-	result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, false)
+	result, _, err := addInstanceToPlacement(ph.generatePlacement(nonEmptyOnly), leavingInstance, false)
 	return result, err
 }
 
@@ -125,7 +125,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 	}
 
 	if loadOnInstance(leavingInstance) == 0 {
-		result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, false)
+		result, _, err := addInstanceToPlacement(ph.generatePlacement(nonEmptyOnly), leavingInstance, false)
 		return result, err
 	}
 
@@ -141,7 +141,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 		return nil, err
 	}
 	// fill up to the target load for added instances if have not already done so
-	newPlacement := ph.GeneratePlacement()
+	newPlacement := ph.generatePlacement(includeEmpty)
 	for _, addingInstance := range addingInstances {
 		newPlacement, addingInstance, err = removeInstanceFromPlacement(newPlacement, addingInstance.ID())
 		if err != nil {
@@ -180,7 +180,7 @@ func (a rackAwarePlacementAlgorithm) addInstance(p services.ServicePlacement, ad
 		}
 	}
 
-	return ph.GeneratePlacement(), nil
+	return ph.generatePlacement(nonEmptyOnly), nil
 }
 
 func (a rackAwarePlacementAlgorithm) moveLeavingShardsBack(p services.ServicePlacement, source services.PlacementInstance) services.ServicePlacement {
@@ -200,5 +200,5 @@ func (a rackAwarePlacementAlgorithm) moveLeavingShardsBack(p services.ServicePla
 		}
 	}
 
-	return ph.GeneratePlacement()
+	return ph.generatePlacement(nonEmptyOnly)
 }

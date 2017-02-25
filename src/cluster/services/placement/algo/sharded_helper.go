@@ -30,13 +30,17 @@ import (
 	"github.com/m3db/m3cluster/shard"
 )
 
+type includeInstanceType int
+
+const (
+	includeEmpty includeInstanceType = iota
+	nonEmptyOnly
+)
+
 // PlacementHelper helps the algorithm to place shards
 type PlacementHelper interface {
 	// PlaceShards distributes shards to the instances in the helper, with aware of where are the shards coming from
 	PlaceShards(shards []shard.Shard, from services.PlacementInstance) error
-
-	// GeneratePlacement generates a placement
-	GeneratePlacement() services.ServicePlacement
 
 	// TargetLoadForInstance returns the targe load for a instance
 	TargetLoadForInstance(id string) int
@@ -52,6 +56,9 @@ type PlacementHelper interface {
 
 	// BuildInstanceHeap returns heap of instances sorted by available capacity
 	BuildInstanceHeap(instances []services.PlacementInstance, availableCapacityAscending bool) heap.Interface
+
+	// generatePlacement generates a placement
+	generatePlacement(t includeInstanceType) services.ServicePlacement
 }
 
 type placementHelper struct {
@@ -134,15 +141,23 @@ func (ph *placementHelper) BuildInstanceHeap(instances []services.PlacementInsta
 	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.rackToWeightMap)
 }
 
-func (ph *placementHelper) GeneratePlacement() services.ServicePlacement {
-	instancesWithLoad := make([]services.PlacementInstance, 0, len(ph.instances))
-	for _, instance := range ph.instances {
-		if loadOnInstance(instance) > 0 {
-			instancesWithLoad = append(instancesWithLoad, instance)
+func (ph *placementHelper) generatePlacement(t includeInstanceType) services.ServicePlacement {
+	var instances []services.PlacementInstance
+
+	switch t {
+	case includeEmpty:
+		instances = ph.instanceList()
+	case nonEmptyOnly:
+		instances = make([]services.PlacementInstance, 0, len(ph.instances))
+		for _, instance := range ph.instances {
+			if instance.Shards().NumShards() > 0 {
+				instances = append(instances, instance)
+			}
 		}
 	}
+
 	return placement.NewPlacement().
-		SetInstances(ph.instanceList()).
+		SetInstances(instances).
 		SetShards(ph.uniqueShards).
 		SetReplicaFactor(ph.rf).
 		SetIsSharded(true)
