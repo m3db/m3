@@ -330,7 +330,10 @@ func (m *seekerManager) openCloseLoop() {
 		}
 
 		for _, byTime := range m.seekersByShardIdx {
-			if !byTime.accessed {
+			byTime.RLock()
+			accessed := byTime.accessed
+			byTime.RUnlock()
+			if !accessed {
 				continue
 			}
 			shouldTryOpen = append(shouldTryOpen, byTime)
