@@ -249,12 +249,17 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 	}
 
 	// prepare the watch of placement outside of lock
-	placementWatch, err := initPlacementWatch(kvm.kv, sid, c.opts.InitTimeout())
+	placementWatch, err := kvm.kv.Watch(placementKey(sid))
 	if err != nil {
 		return nil, err
 	}
 
-	initService, err := getServiceFromValue(placementWatch.Get(), sid)
+	initValue, err := waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout())
+	if err != nil {
+		return nil, fmt.Errorf("could not get init value within timeout, err: %v", err)
+	}
+
+	initService, err := getServiceFromValue(initValue, sid)
 	if err != nil {
 		placementWatch.Close()
 		return nil, err
@@ -285,10 +290,10 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 			return nil, err
 		}
 		watchable.Update(filterInstancesWithWatch(initService, heartbeatWatch))
-		go c.watchPlacementAndHeartbeat(watchable, placementWatch, heartbeatWatch, sid, initService, sdm.serviceUnmalshalErr)
+		go c.watchPlacementAndHeartbeat(watchable, placementWatch, heartbeatWatch, initValue, sid, initService, sdm.serviceUnmalshalErr)
 	} else {
 		watchable.Update(initService)
-		go c.watchPlacement(watchable, placementWatch, sid, sdm.serviceUnmalshalErr)
+		go c.watchPlacement(watchable, placementWatch, initValue, sid, sdm.serviceUnmalshalErr)
 	}
 
 	kvm.serviceWatchables[key] = watchable
@@ -355,29 +360,19 @@ func (c *client) getKVManager(zone string) (*kvManager, error) {
 func (c *client) watchPlacement(
 	w xwatch.Watchable,
 	vw kv.ValueWatch,
+	initValue kv.Value,
 	sid services.ServiceID,
 	errCounter tally.Counter,
 ) {
 	for {
 		select {
 		case <-vw.C():
-			value := vw.Get()
-			if value == nil {
-				// NB(cw) this can only happen when the placement has been deleted
-				// it is safer to let the user keep using the old topology
-				c.logger.Infof("received placement update with nil value")
+			newService := c.serviceFromUpdate(vw.Get(), initValue, sid, errCounter)
+			if newService == nil {
 				continue
 			}
 
-			service, err := getServiceFromValue(value, sid)
-			if err != nil {
-				c.logger.Errorf("could not unmarshal update from kv store for placement on version %d, %v", value.Version(), err)
-				errCounter.Inc(1)
-				continue
-			}
-			c.logger.Infof("successfully parsed placement on version %d", value.Version())
-
-			w.Update(service)
+			w.Update(newService)
 		}
 	}
 }
@@ -386,6 +381,7 @@ func (c *client) watchPlacementAndHeartbeat(
 	w xwatch.Watchable,
 	vw kv.ValueWatch,
 	heartbeatWatch xwatch.Watch,
+	initValue kv.Value,
 	sid services.ServiceID,
 	service services.Service,
 	errCounter tally.Counter,
@@ -393,28 +389,49 @@ func (c *client) watchPlacementAndHeartbeat(
 	for {
 		select {
 		case <-vw.C():
-			value := vw.Get()
-			if value == nil {
-				// NB(cw) this can only happen when the placement has been deleted
-				// it is safer to let the user keep using the old topology
-				c.logger.Infof("received placement update with nil value")
+			newService := c.serviceFromUpdate(vw.Get(), initValue, sid, errCounter)
+			if newService == nil {
 				continue
 			}
 
-			newService, err := getServiceFromValue(value, sid)
-			if err != nil {
-				c.logger.Errorf("could not unmarshal update from kv store for placement on version %d, %v", value.Version(), err)
-				errCounter.Inc(1)
-				continue
-			}
-
-			c.logger.Infof("successfully parsed placement on version %d", value.Version())
 			service = newService
 		case <-heartbeatWatch.C():
 			c.logger.Infof("received heartbeat update")
 		}
 		w.Update(filterInstancesWithWatch(service, heartbeatWatch))
 	}
+}
+
+func (c *client) serviceFromUpdate(
+	value kv.Value,
+	initValue kv.Value,
+	sid services.ServiceID,
+	errCounter tally.Counter,
+) services.Service {
+	if value == nil {
+		// NB(cw) this can only happen when the placement has been deleted
+		// it is safer to let the user keep using the old topology
+		c.logger.Info("received placement update with nil value")
+		return nil
+	}
+
+	if initValue != nil && !value.IsNewer(initValue) {
+		// NB(cw) this can only happen when the init wait called a Get() itself
+		// so the init value did not come from the watch, when the watch gets created
+		// the first update from it may from the same version.
+		c.logger.Infof("received stale placement update on version %d, skip", value.Version())
+		return nil
+	}
+
+	newService, err := getServiceFromValue(value, sid)
+	if err != nil {
+		c.logger.Errorf("could not unmarshal update from kv store for placement on version %d, %v", value.Version(), err)
+		errCounter.Inc(1)
+		return nil
+	}
+
+	c.logger.Infof("successfully parsed placement on version %d", value.Version())
+	return newService
 }
 
 func (c *client) serviceTaggedScope(sid services.ServiceID) tally.Scope {
@@ -475,20 +492,13 @@ func getServiceFromValue(value kv.Value, sid services.ServiceID) (services.Servi
 	return serviceFromProto(placement, sid)
 }
 
-func initPlacementWatch(kv kv.Store, sid services.ServiceID, timeoutDur time.Duration) (kv.ValueWatch, error) {
-	valueWatch, err := kv.Watch(placementKey(sid))
-	if err != nil {
-		valueWatch.Close()
-		return nil, err
+func waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid services.ServiceID, timeoutDur time.Duration) (kv.Value, error) {
+	err := wait(w, timeoutDur)
+	if err == nil {
+		return w.Get(), nil
 	}
 
-	err = wait(valueWatch, timeoutDur)
-	if err != nil {
-		valueWatch.Close()
-		return nil, err
-	}
-
-	return valueWatch, nil
+	return kvStore.Get(placementKey(sid))
 }
 
 func wait(vw kv.ValueWatch, timeout time.Duration) error {

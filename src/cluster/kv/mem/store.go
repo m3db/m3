@@ -60,6 +60,7 @@ type value struct {
 
 func (v value) Version() int                      { return v.version }
 func (v value) Unmarshal(msg proto.Message) error { return proto.Unmarshal(v.data, msg) }
+func (v value) IsNewer(other kv.Value) bool       { return v.version > other.Version() }
 
 type store struct {
 	sync.RWMutex

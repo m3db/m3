@@ -31,6 +31,7 @@ import (
 	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
 	"github.com/m3db/m3cluster/kv"
 	etcdKV "github.com/m3db/m3cluster/kv/etcd"
+	"github.com/m3db/m3cluster/mocks"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/heartbeat"
 	"github.com/m3db/m3cluster/services/placement"
@@ -350,7 +351,6 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	sid = sid.SetName("m3db").SetZone("zone1")
 	_, err = sd.Watch(sid, qopts)
 	require.Error(t, err)
-	require.Equal(t, errWatchInitTimeout, err)
 
 	sd, err = NewServices(opts.SetInitTimeout(defaultInitTimeout))
 	require.NoError(t, err)
@@ -483,7 +483,6 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 
 	_, err = sd.Watch(sid, qopts)
 	require.Error(t, err)
-	require.Equal(t, errWatchInitTimeout, err)
 
 	sd, err = NewServices(opts.SetInitTimeout(defaultInitTimeout))
 	require.NoError(t, err)
@@ -688,6 +687,112 @@ func TestMultipleWatches(t *testing.T) {
 	w2.Close()
 }
 
+func TestWatch_GetAfterTimeout(t *testing.T) {
+	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
+	ec := ecluster.RandClient()
+
+	closer := func() {
+		ecluster.Terminate(t)
+	}
+
+	kvGen := func(zone string) (kv.Store, error) {
+		return etcdKV.NewStore(
+			ec,
+			mocks.NewBlackholeWatcher(ec, 2, func() { time.Sleep(time.Minute) }),
+			etcdKV.NewOptions().
+				SetWatchChanInitTimeout(200*time.Millisecond).
+				SetWatchChanResetInterval(200*time.Millisecond).
+				SetPrefix(fmt.Sprintf("%s/", zone)),
+		)
+	}
+
+	m := &mockHBGen{
+		hbs: map[string]*mockHBStore{},
+	}
+	hbGen := func(zone string) (heartbeat.Store, error) {
+		return m.genMockStore(zone)
+	}
+
+	opts := NewOptions().
+		SetKVGen(kvGen).
+		SetHeartbeatGen(hbGen).
+		SetInitTimeout(1 * time.Millisecond).
+		SetInstrumentsOptions(instrument.NewOptions())
+
+	defer closer()
+
+	sd, err := NewServices(opts)
+	require.NoError(t, err)
+
+	qopts := services.NewQueryOptions().SetIncludeUnhealthy(true)
+	sid := services.NewServiceID().SetName("m3db").SetZone("zone1")
+	_, err = sd.Watch(sid, qopts)
+	require.Error(t, err)
+
+	sd, err = NewServices(opts.SetInitTimeout(defaultInitTimeout))
+	require.NoError(t, err)
+
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint("e1").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			placement.NewInstance().
+				SetID("i2").
+				SetEndpoint("e2").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+		}).
+		SetShards([]uint32{1}).
+		SetReplicaFactor(2).
+		SetIsSharded(true)
+
+	ps, err := sd.PlacementService(sid, placement.NewOptions())
+	require.NoError(t, err)
+	err = ps.SetPlacement(p)
+	require.NoError(t, err)
+
+	sd, err = NewServices(opts)
+	require.NoError(t, err)
+
+	w, err := sd.Watch(sid, qopts)
+	require.NoError(t, err)
+	<-w.C()
+	s := w.Get().(services.Service)
+	require.Equal(t, 2, len(s.Instances()))
+	require.Equal(t, 1, s.Sharding().NumShards())
+	require.Equal(t, 2, s.Replication().Replicas())
+
+	// up the version to 2 and delete it and set a new placement
+	// to verify the watch can still receive update on the new placement
+	err = ps.SetPlacement(p)
+	require.NoError(t, err)
+
+	err = ps.Delete()
+	require.NoError(t, err)
+
+	p = placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint("e1").
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0)})),
+		}).
+		SetShards([]uint32{0}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+
+	err = ps.SetPlacement(p)
+	require.NoError(t, err)
+
+	for range w.C() {
+		s = w.Get().(services.Service)
+		if s.Replication().Replicas() == 1 {
+			break
+		}
+	}
+}
+
 func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
@@ -698,6 +803,7 @@ func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 
 	kvGen := func(zone string) (kv.Store, error) {
 		return etcdKV.NewStore(
+			ec,
 			ec,
 			etcdKV.NewOptions().
 				SetWatchChanCheckInterval(100*time.Millisecond).

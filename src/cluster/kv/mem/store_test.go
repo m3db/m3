@@ -29,6 +29,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestValue(t *testing.T) {
+	v1 := NewValue(1, &kvtest.Foo{
+		Msg: "1",
+	})
+
+	v2 := NewValue(2, &kvtest.Foo{
+		Msg: "2",
+	})
+
+	require.True(t, v2.IsNewer(v1))
+}
+
 func TestStore(t *testing.T) {
 	s := NewStore()
 
