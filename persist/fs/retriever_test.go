@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,10 +115,14 @@ type streamResult struct {
 
 func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	fetchConcurrency := 4
-	seekConcurrency := 2 * fetchConcurrency
+	seekConcurrency := 4 * fetchConcurrency
 	opts := testBlockRetrieverOptions{
 		retrieverOpts: NewBlockRetrieverOptions().
-			SetFetchConcurrency(fetchConcurrency),
+			SetFetchConcurrency(fetchConcurrency).
+			SetRequestPoolOptions(pool.NewObjectPoolOptions().
+				// NB(r): Try to make sure same req structs are reused frequently
+				// to surface any race issues that might occur with pooling.
+				SetSize(fetchConcurrency / 2)),
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
@@ -126,11 +131,11 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	ropts := fsopts.RetentionOptions()
 
 	now := time.Now().Truncate(ropts.BlockSize())
-	min, max := now.Add(-24*ropts.BlockSize()), now.Add(-ropts.BlockSize())
+	min, max := now.Add(-6*ropts.BlockSize()), now.Add(-ropts.BlockSize())
 
 	var (
-		shards         = 16
-		idsPerShard    = 8
+		shards         = 2
+		idsPerShard    = 16
 		shardIDs       = make(map[uint32][]ts.ID)
 		dataBytesPerID = 32
 		shardData      = make(map[uint32]map[ts.Hash]map[time.Time]checked.Bytes)
@@ -166,47 +171,10 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	}
 
 	var (
-		startWg, readyWg, verifyWg sync.WaitGroup
-		verifiers                  = 2
-		verifierCh                 = make(chan streamResult, 128)
-		verifiedLock               sync.Mutex
-		verified                   = make(map[uint32]map[ts.Hash]map[time.Time]int)
-		seeksPerID                 = 4
-		seeksEach                  = shards * idsPerShard * seeksPerID
-		seekPauseEvery             = 8
-		seekPauseFor               = time.Millisecond
+		startWg, readyWg sync.WaitGroup
+		seeksPerID       = 48
+		seeksEach        = shards * idsPerShard * seeksPerID
 	)
-	for i := 0; i < verifiers; i++ {
-		verifyWg.Add(1)
-		go func() {
-			defer verifyWg.Done()
-			compare := ts.Segment{}
-			for r := range verifierCh {
-				seg, err := r.stream.Segment()
-				if err != nil {
-					fmt.Printf("\nstream seg err: %v\n", err)
-					fmt.Printf("id: %s\n", r.id.String())
-					fmt.Printf("shard: %d\n", r.shard)
-					fmt.Printf("start: %v\n", r.blockStart.String())
-				}
-
-				require.NoError(t, err)
-				compare.Head = shardData[r.shard][r.id.Hash()][r.blockStart]
-				assert.True(t, seg.Equal(&compare))
-
-				verifiedLock.Lock()
-				if _, ok := verified[r.shard]; !ok {
-					verified[r.shard] = make(map[ts.Hash]map[time.Time]int)
-				}
-				if _, ok := verified[r.shard][r.id.Hash()]; !ok {
-					verified[r.shard][r.id.Hash()] = make(map[time.Time]int)
-				}
-				verified[r.shard][r.id.Hash()][r.blockStart] =
-					verified[r.shard][r.id.Hash()][r.blockStart] + 1
-				verifiedLock.Unlock()
-			}
-		}()
-	}
 
 	var enqueueWg sync.WaitGroup
 	startWg.Add(1)
@@ -219,23 +187,39 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 			readyWg.Done()
 			startWg.Wait()
 
+			shardOffset := i
+			idOffset := i % seekConcurrency / 4
+			results := make([]streamResult, 0, len(blockStarts))
+			compare := ts.Segment{}
 			for j := 0; j < seeksEach; j++ {
-				shard := uint32((i + j) % shards)
-				idIdx := uint32((i + j) % len(shardIDs[shard]))
+				shard := uint32((j + shardOffset) % shards)
+				idIdx := uint32((j + idOffset) % len(shardIDs[shard]))
 				id := shardIDs[shard][idIdx]
-				blockStart := blockStarts[(i+j)%len(blockStarts)]
 
-				stream, err := retriever.Stream(shard, id, blockStart, nil)
-				require.NoError(t, err)
-				verifierCh <- streamResult{
-					shard:      shard,
-					id:         id,
-					blockStart: blockStart,
-					stream:     stream,
+				for k := 0; k < len(blockStarts); k++ {
+					stream, err := retriever.Stream(shard, id, blockStarts[k], nil)
+					require.NoError(t, err)
+					results = append(results, streamResult{
+						shard:      shard,
+						id:         id,
+						blockStart: blockStarts[k],
+						stream:     stream,
+					})
 				}
-				if j+1%seekPauseEvery == 0 {
-					time.Sleep(seekPauseFor)
+				for _, r := range results {
+					seg, err := r.stream.Segment()
+					if err != nil {
+						fmt.Printf("\nstream seg err: %v\n", err)
+						fmt.Printf("id: %s\n", r.id.String())
+						fmt.Printf("shard: %d\n", r.shard)
+						fmt.Printf("start: %v\n", r.blockStart.String())
+					}
+
+					require.NoError(t, err)
+					compare.Head = shardData[r.shard][r.id.Hash()][r.blockStart]
+					assert.True(t, seg.Equal(&compare))
 				}
+				results = results[:0]
 			}
 		}()
 	}
@@ -244,18 +228,6 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	readyWg.Wait()
 	startWg.Done()
 
-	// Enqueue then close verifierCh
+	// Wait until done
 	enqueueWg.Wait()
-	close(verifierCh)
-
-	// Wait for verification
-	verifyWg.Wait()
-
-	uniqueVerified := 0
-	for shard := range verified {
-		for idHash := range verified[shard] {
-			uniqueVerified += len(verified[shard][idHash])
-		}
-	}
-	assert.True(t, uniqueVerified > (shards*idsPerShard)/4)
 }
