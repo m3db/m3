@@ -47,6 +47,9 @@ type Value interface {
 
 	// Version returns the current version of the value
 	Version() int
+
+	// IsNewer returns if this Value is newer than the other Value
+	IsNewer(other Value) bool
 }
 
 // ValueWatch provides updates to a Value

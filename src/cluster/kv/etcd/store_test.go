@@ -36,11 +36,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestValue(t *testing.T) {
+	v1 := newValue(nil, 2, 100)
+	require.Equal(t, 2, v1.Version())
+
+	v2 := newValue(nil, 1, 200)
+	require.Equal(t, 1, v2.Version())
+
+	require.True(t, v2.IsNewer(v1))
+	require.False(t, v1.IsNewer(v1))
+	require.False(t, v1.IsNewer(v2))
+}
+
 func TestGetAndSet(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	value, err := store.Get("foo")
@@ -68,7 +80,7 @@ func TestGetAndSet(t *testing.T) {
 func TestNoCache(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
 
@@ -91,7 +103,7 @@ func TestNoCache(t *testing.T) {
 	verifyValue(t, value, "bar1", 1)
 
 	// new store but no cache file set
-	store, err = NewStore(ec, opts)
+	store, err = NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", genProto("bar1"))
@@ -110,7 +122,7 @@ func TestCache(t *testing.T) {
 
 	opts = opts.SetCacheFilePath(f.Name())
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
 
@@ -136,7 +148,7 @@ func TestCache(t *testing.T) {
 	require.Equal(t, 0, len(store.(*client).cacheUpdatedCh))
 
 	// new store but with cache file
-	store, err = NewStore(ec, opts)
+	store, err = NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("key", genProto("bar1"))
@@ -156,7 +168,7 @@ func TestSetIfNotExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	version, err := store.SetIfNotExists("foo", genProto("bar"))
@@ -176,7 +188,7 @@ func TestCheckAndSet(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	version, err := store.CheckAndSet("foo", 1, genProto("bar"))
@@ -204,7 +216,7 @@ func TestWatchClose(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", genProto("bar1"))
@@ -252,7 +264,7 @@ func TestWatchLastVersion(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	w, err := store.Watch("foo")
@@ -283,7 +295,7 @@ func TestWatchFromExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", genProto("bar1"))
@@ -320,7 +332,7 @@ func TestWatchFromNotExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	w, err := store.Watch("foo")
@@ -349,7 +361,7 @@ func TestMultipleWatchesFromExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", genProto("bar1"))
@@ -399,7 +411,7 @@ func TestMultipleWatchesFromNotExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 	w1, err := store.Watch("foo")
 	require.NoError(t, err)
@@ -443,7 +455,7 @@ func TestWatchNonBlocking(t *testing.T) {
 
 	opts = opts.SetWatchChanResetInterval(200 * time.Millisecond).SetWatchChanInitTimeout(200 * time.Millisecond)
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 	c := store.(*client)
 
@@ -471,7 +483,7 @@ func TestHistory(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	res, err := store.History("k1", 10, 5)
 	assert.Error(t, err)
 
@@ -527,7 +539,7 @@ func TestDelete(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	v, err := store.Delete("foo")
@@ -567,7 +579,7 @@ func TestDelete_UpdateCache(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	c, err := NewStore(ec, opts)
+	c, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	store := c.(*client)
@@ -596,7 +608,7 @@ func TestDelete_TriggerWatch(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	store, err := NewStore(ec, opts)
+	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
 	vw, err := store.Watch("foo")

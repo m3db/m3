@@ -47,13 +47,13 @@ var (
 )
 
 // NewStore creates a kv store based on etcd
-func NewStore(c *clientv3.Client, opts Options) (kv.Store, error) {
+func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (kv.Store, error) {
 	scope := opts.InstrumentsOptions().MetricsScope()
 
 	store := &client{
 		opts:           opts,
-		kv:             c.KV,
-		watcher:        c.Watcher,
+		kv:             etcdKV,
+		watcher:        etcdWatcher,
 		watchables:     map[string]kv.ValueWatchable{},
 		retrier:        xretry.NewRetrier(opts.RetryOptions()),
 		logger:         opts.InstrumentsOptions().Logger(),
@@ -69,7 +69,7 @@ func NewStore(c *clientv3.Client, opts Options) (kv.Store, error) {
 		},
 	}
 	wOpts := watchmanager.NewOptions().
-		SetWatcher(c.Watcher).
+		SetWatcher(etcdWatcher).
 		SetUpdateFn(store.update).
 		SetTickAndStopFn(store.tickAndStop).
 		SetWatchOptions([]clientv3.OpOption{
@@ -287,7 +287,7 @@ func (c *client) update(key string) error {
 	}
 
 	// now both curValue and newValue are valid, compare version
-	if newValue.(*value).isNewer(curValue.(*value)) {
+	if newValue.IsNewer(curValue) {
 		return w.Update(newValue)
 	}
 
@@ -427,7 +427,7 @@ func (c *client) mergeCache(key string, v *value) {
 	c.cache.Lock()
 
 	cur, ok := c.cache.Values[key]
-	if !ok || v.isNewer(cur) {
+	if !ok || v.IsNewer(cur) {
 		c.cache.Values[key] = v
 		c.notifyCacheUpdate()
 	}
@@ -522,8 +522,13 @@ func newValue(val []byte, ver, rev int64) *value {
 	}
 }
 
-func (c *value) isNewer(other *value) bool {
-	return c.Rev > other.Rev
+func (c *value) IsNewer(other kv.Value) bool {
+	othervalue, ok := other.(*value)
+	if ok {
+		return c.Rev > othervalue.Rev
+	}
+
+	return c.Version() > other.Version()
 }
 
 func (c *value) Unmarshal(v proto.Message) error {
