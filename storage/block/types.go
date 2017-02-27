@@ -30,6 +30,7 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/sync"
 )
 
 // Metadata captures block metadata
@@ -321,6 +322,12 @@ type Options interface {
 
 	// DatabaseBlockAllocSize returns the databaseBlockAllocSize
 	DatabaseBlockAllocSize() int
+
+	// SetCloseContextWorkers sets the workers for closing contexts
+	SetCloseContextWorkers(value xsync.WorkerPool) Options
+
+	// CloseContextWorkers returns the workers for closing contexts
+	CloseContextWorkers() xsync.WorkerPool
 
 	// SetDatabaseBlockPool sets the databaseBlockPool
 	SetDatabaseBlockPool(value DatabaseBlockPool) Options
