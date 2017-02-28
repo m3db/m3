@@ -932,6 +932,57 @@ func TestRackLenSort(t *testing.T) {
 	}
 }
 
+func TestFilterZones(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetZone("z1")
+	i2 := placement.NewInstance().SetID("i2").SetZone("z1")
+	i3 := placement.NewInstance().SetID("i2").SetZone("z1")
+	i4 := placement.NewInstance().SetID("i3").SetZone("z2")
+
+	_, _ = i2, i3
+
+	tests := map[*struct {
+		p          services.ServicePlacement
+		candidates []services.PlacementInstance
+		opts       services.PlacementOptions
+	}][]services.PlacementInstance{
+		{
+			p:          placement.NewPlacement().SetInstances([]services.PlacementInstance{i1}),
+			candidates: []services.PlacementInstance{},
+			opts:       nil,
+		}: []services.PlacementInstance{},
+		{
+			p:          placement.NewPlacement().SetInstances([]services.PlacementInstance{i1}),
+			candidates: []services.PlacementInstance{i2},
+			opts:       nil,
+		}: []services.PlacementInstance{i2},
+		{
+			p:          placement.NewPlacement().SetInstances([]services.PlacementInstance{i1}),
+			candidates: []services.PlacementInstance{i2, i4},
+			opts:       nil,
+		}: []services.PlacementInstance{i2},
+		{
+			p:          placement.NewPlacement().SetInstances([]services.PlacementInstance{i1}),
+			candidates: []services.PlacementInstance{i2, i3},
+			opts:       nil,
+		}: []services.PlacementInstance{i2, i3},
+		{
+			p:          placement.NewPlacement(),
+			candidates: []services.PlacementInstance{i2},
+			opts:       nil,
+		}: []services.PlacementInstance{},
+		{
+			p:          placement.NewPlacement(),
+			candidates: []services.PlacementInstance{i2},
+			opts:       placement.NewOptions().SetValidZone("z1"),
+		}: []services.PlacementInstance{i2},
+	}
+
+	for args, exp := range tests {
+		res := filterZones(args.p, args.candidates, args.opts)
+		assert.Equal(t, exp, res)
+	}
+}
+
 type errorAlgorithm struct{}
 
 func (errorAlgorithm) InitialPlacement(instances []services.PlacementInstance, ids []uint32) (services.ServicePlacement, error) {

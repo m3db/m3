@@ -65,6 +65,7 @@ type options struct {
 	sharded             bool
 	dryrun              bool
 	iopts               instrument.Options
+	validZone           string
 }
 
 func (o options) LooseRackCheck() bool {
@@ -109,5 +110,14 @@ func (o options) InstrumentOptions() instrument.Options {
 
 func (o options) SetInstrumentOptions(iopts instrument.Options) services.PlacementOptions {
 	o.iopts = iopts
+	return o
+}
+
+func (o options) ValidZone() string {
+	return o.validZone
+}
+
+func (o options) SetValidZone(z string) services.PlacementOptions {
+	o.validZone = z
 	return o
 }
