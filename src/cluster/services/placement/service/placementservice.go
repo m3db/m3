@@ -439,12 +439,16 @@ func filterZones(
 	candidates []services.PlacementInstance,
 	opts services.PlacementOptions,
 ) []services.PlacementInstance {
+	if len(candidates) == 0 {
+		return []services.PlacementInstance{}
+	}
+
 	var validZone string
-	for _, instance := range p.Instances() {
-		if validZone == "" {
-			validZone = instance.Zone()
-			break
-		}
+	if opts != nil {
+		validZone = opts.ValidZone()
+	}
+	if validZone == "" && len(p.Instances()) > 0 {
+		validZone = p.Instances()[0].Zone()
 	}
 
 	validInstances := make([]services.PlacementInstance, 0, len(candidates))

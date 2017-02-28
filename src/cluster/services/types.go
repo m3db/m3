@@ -229,6 +229,17 @@ type PlacementOptions interface {
 	// InstrumentOptions is the options for instrument
 	InstrumentOptions() instrument.Options
 	SetInstrumentOptions(iopts instrument.Options) PlacementOptions
+
+	// ValidZone returns the zone that added instances must be in in order
+	// to be added to a placement.
+	ValidZone() string
+
+	// SetValidZone sets the zone that added instances must be in in order to
+	// be added to a placement. By default the valid zone will be the zone of
+	// instances already in a placement, however if a placement is empty then
+	// it is necessary to specify the valid zone when adding the first
+	// instance.
+	SetValidZone(z string) PlacementOptions
 }
 
 // ServicePlacement describes how instances are placed in a service
