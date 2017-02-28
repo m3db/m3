@@ -69,6 +69,16 @@ func (_mr *_MockValueRecorder) Version() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Version")
 }
 
+func (_m *MockValue) IsNewer(other Value) bool {
+	ret := _m.ctrl.Call(_m, "IsNewer", other)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockValueRecorder) IsNewer(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsNewer", arg0)
+}
+
 // Mock of ValueWatch interface
 type MockValueWatch struct {
 	ctrl     *gomock.Controller

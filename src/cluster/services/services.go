@@ -105,20 +105,20 @@ func (i *serviceInstance) SetServiceID(service ServiceID) ServiceInstance {
 func NewAdvertisement() Advertisement { return new(advertisement) }
 
 type advertisement struct {
-	id       string
+	instance PlacementInstance
 	service  ServiceID
-	endpoint string
 	health   func() error
 }
 
-func (a *advertisement) InstanceID() string                     { return a.id }
 func (a *advertisement) ServiceID() ServiceID                   { return a.service }
-func (a *advertisement) Endpoint() string                       { return a.endpoint }
 func (a *advertisement) Health() func() error                   { return a.health }
-func (a *advertisement) SetInstanceID(id string) Advertisement  { a.id = id; return a }
+func (a *advertisement) PlacementInstance() PlacementInstance   { return a.instance }
 func (a *advertisement) SetServiceID(s ServiceID) Advertisement { a.service = s; return a }
-func (a *advertisement) SetEndpoint(e string) Advertisement     { a.endpoint = e; return a }
 func (a *advertisement) SetHealth(h func() error) Advertisement { a.health = h; return a }
+func (a *advertisement) SetPlacementInstance(p PlacementInstance) Advertisement {
+	a.instance = p
+	return a
+}
 
 // NewServiceID creates new ServiceID
 func NewServiceID() ServiceID { return new(serviceID) }

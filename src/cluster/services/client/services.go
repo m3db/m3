@@ -29,8 +29,8 @@ import (
 	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
 	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/heartbeat"
 	"github.com/m3db/m3cluster/services/placement/service"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/watch"
@@ -38,10 +38,11 @@ import (
 )
 
 var (
-	errWatchInitTimeout = errors.New("service watch init time out")
-	errNoServiceName    = errors.New("no service specified")
-	errNoServiceID      = errors.New("no service id specified")
-	errNoInstanceID     = errors.New("no instance id specified")
+	errWatchInitTimeout   = errors.New("service watch init time out")
+	errNoServiceName      = errors.New("no service specified")
+	errNoServiceID        = errors.New("no service id specified")
+	errNoInstanceID       = errors.New("no instance id specified")
+	errAdPlacementMissing = errors.New("advertisement is missing placement instance")
 )
 
 // NewServices returns a client of Services
@@ -52,7 +53,7 @@ func NewServices(opts Options) (services.Services, error) {
 
 	return &client{
 		kvManagers: make(map[string]*kvManager),
-		hbStores:   make(map[string]heartbeat.Store),
+		hbStores:   make(map[string]services.HeartbeatService),
 		adDoneChs:  make(map[string]chan struct{}),
 		opts:       opts,
 		logger:     opts.InstrumentsOptions().Logger(),
@@ -65,7 +66,7 @@ type client struct {
 
 	opts       Options
 	kvManagers map[string]*kvManager
-	hbStores   map[string]heartbeat.Store
+	hbStores   map[string]services.HeartbeatService
 	adDoneChs  map[string]chan struct{}
 	logger     xlog.Logger
 	m          tally.Scope
@@ -91,7 +92,7 @@ func (c *client) Metadata(sid services.ServiceID) (services.Metadata, error) {
 		return nil, err
 	}
 
-	return metadataFromProto(mp), nil
+	return util.MetadataFromProto(mp), nil
 }
 
 func (c *client) SetMetadata(sid services.ServiceID, meta services.Metadata) error {
@@ -104,7 +105,7 @@ func (c *client) SetMetadata(sid services.ServiceID, meta services.Metadata) err
 		return err
 	}
 
-	mp := metadataToProto(meta)
+	mp := util.MetadataToProto(meta)
 	_, err = m.kv.Set(metadataKey(sid), &mp)
 	return err
 }
@@ -118,7 +119,12 @@ func (c *client) PlacementService(sid services.ServiceID, opts services.Placemen
 }
 
 func (c *client) Advertise(ad services.Advertisement) error {
-	if err := validateAdvertisement(ad.ServiceID(), ad.InstanceID()); err != nil {
+	pi := ad.PlacementInstance()
+	if pi == nil {
+		return errAdPlacementMissing
+	}
+
+	if err := validateAdvertisement(ad.ServiceID(), pi.ID()); err != nil {
 		return err
 	}
 
@@ -127,17 +133,17 @@ func (c *client) Advertise(ad services.Advertisement) error {
 		return err
 	}
 
-	hb, err := c.getHeartbeatStore(ad.ServiceID().Zone())
+	hb, err := c.getHeartbeatService(ad.ServiceID())
 	if err != nil {
 		return err
 	}
 
-	key := adKey(ad.ServiceID(), ad.InstanceID())
+	key := adKey(ad.ServiceID(), pi.ID())
 	c.Lock()
 	ch, ok := c.adDoneChs[key]
 	if ok {
 		c.Unlock()
-		return fmt.Errorf("service %s, instance %s is already being advertised", ad.ServiceID(), ad.InstanceID())
+		return fmt.Errorf("service %s, instance %s is already being advertised", ad.ServiceID(), pi.ID())
 	}
 	ch = make(chan struct{})
 	c.adDoneChs[key] = ch
@@ -152,7 +158,7 @@ func (c *client) Advertise(ad services.Advertisement) error {
 			select {
 			case <-ticker:
 				if isHealthy(ad) {
-					if err := hb.Heartbeat(serviceKey(sid), ad.InstanceID(), m.LivenessInterval()); err != nil {
+					if err := hb.Heartbeat(pi, m.LivenessInterval()); err != nil {
 						c.logger.Errorf("could not heartbeat service %s, %v", sid.String(), err)
 						errCounter.Inc(1)
 					}
@@ -180,12 +186,12 @@ func (c *client) Unadvertise(sid services.ServiceID, id string) error {
 	}
 	c.Unlock()
 
-	hbStore, err := c.getHeartbeatStore(sid.Zone())
+	hbStore, err := c.getHeartbeatService(sid)
 	if err != nil {
 		return err
 	}
 
-	return hbStore.Delete(serviceKey(sid), id)
+	return hbStore.Delete(id)
 }
 
 func (c *client) Query(sid services.ServiceID, opts services.QueryOptions) (services.Service, error) {
@@ -204,12 +210,12 @@ func (c *client) Query(sid services.ServiceID, opts services.QueryOptions) (serv
 	}
 
 	if !opts.IncludeUnhealthy() {
-		hbStore, err := c.getHeartbeatStore(sid.Zone())
+		hbStore, err := c.getHeartbeatService(sid)
 		if err != nil {
 			return nil, err
 		}
 
-		ids, err := hbStore.Get(serviceKey(sid))
+		ids, err := hbStore.Get()
 		if err != nil {
 			return nil, err
 		}
@@ -238,10 +244,8 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 		return nil, err
 	}
 
-	key := serviceKey(sid)
-
 	kvm.RLock()
-	watchable, exist := kvm.serviceWatchables[key]
+	watchable, exist := kvm.serviceWatchables[sid.String()]
 	kvm.RUnlock()
 	if exist {
 		_, w, err := watchable.Watch()
@@ -267,7 +271,7 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 
 	kvm.Lock()
 	defer kvm.Unlock()
-	watchable, exist = kvm.serviceWatchables[key]
+	watchable, exist = kvm.serviceWatchables[sid.String()]
 	if exist {
 		// if a watchable already exist now, we need to clean up the placement watch we just created
 		placementWatch.Close()
@@ -279,12 +283,12 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 	sdm := newServiceDiscoveryMetrics(c.serviceTaggedScope(sid))
 
 	if !opts.IncludeUnhealthy() {
-		hbStore, err := c.getHeartbeatStore(sid.Zone())
+		hbStore, err := c.getHeartbeatService(sid)
 		if err != nil {
 			placementWatch.Close()
 			return nil, err
 		}
-		heartbeatWatch, err := hbStore.Watch(serviceKey(sid))
+		heartbeatWatch, err := hbStore.Watch()
 		if err != nil {
 			placementWatch.Close()
 			return nil, err
@@ -296,12 +300,20 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 		go c.watchPlacement(watchable, placementWatch, initValue, sid, sdm.serviceUnmalshalErr)
 	}
 
-	kvm.serviceWatchables[key] = watchable
+	kvm.serviceWatchables[sid.String()] = watchable
 
 	go updateVersionGauge(placementWatch, sdm.versionGauge)
 
 	_, w, err := watchable.Watch()
 	return w, err
+}
+
+func (c *client) HeartbeatService(sid services.ServiceID) (services.HeartbeatService, error) {
+	if err := validateServiceID(sid); err != nil {
+		return nil, err
+	}
+
+	return c.getHeartbeatService(sid)
 }
 
 func (c *client) getPlacementValue(sid services.ServiceID) (kv.Value, error) {
@@ -318,20 +330,20 @@ func (c *client) getPlacementValue(sid services.ServiceID) (kv.Value, error) {
 	return v, nil
 }
 
-func (c *client) getHeartbeatStore(zone string) (heartbeat.Store, error) {
+func (c *client) getHeartbeatService(sid services.ServiceID) (services.HeartbeatService, error) {
 	c.Lock()
 	defer c.Unlock()
-	hb, ok := c.hbStores[zone]
+	hb, ok := c.hbStores[sid.String()]
 	if ok {
 		return hb, nil
 	}
 
-	hb, err := c.opts.HeartbeatGen()(zone)
+	hb, err := c.opts.HeartbeatGen()(sid)
 	if err != nil {
 		return nil, err
 	}
 
-	c.hbStores[zone] = hb
+	c.hbStores[sid.String()] = hb
 	return hb, nil
 }
 
@@ -489,7 +501,7 @@ func getServiceFromValue(value kv.Value, sid services.ServiceID) (services.Servi
 		return nil, err
 	}
 
-	return serviceFromProto(placement, sid)
+	return util.ServiceFromProto(placement, sid)
 }
 
 func waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid services.ServiceID, timeoutDur time.Duration) (kv.Value, error) {
