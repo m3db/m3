@@ -55,7 +55,9 @@ func TestETCDClientGen(t *testing.T) {
 	assert.Equal(t, c1, c1Again)
 }
 
-func TestKVAndHeartbeatStoreSharingETCDClient(t *testing.T) {
+func TestKVAndHeartbeatServiceSharingETCDClient(t *testing.T) {
+	sid := services.NewServiceID().SetName("s1")
+
 	cs, err := NewConfigServiceClient(testOptions().SetZone("zone1"))
 	assert.NoError(t, err)
 
@@ -65,15 +67,15 @@ func TestKVAndHeartbeatStoreSharingETCDClient(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(c.clis))
 
-	_, err = c.heartbeatGen()("zone1")
+	_, err = c.heartbeatGen()(sid.SetZone("zone1"))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(c.clis))
 
-	_, err = c.heartbeatGen()("zone2")
+	_, err = c.heartbeatGen()(sid.SetZone("zone2"))
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(c.clis))
 
-	_, err = c.heartbeatGen()("zone3")
+	_, err = c.heartbeatGen()(sid.SetZone("zone3"))
 	assert.Error(t, err)
 	assert.Equal(t, 2, len(c.clis))
 }

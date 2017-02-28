@@ -24,6 +24,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 )
@@ -69,6 +70,12 @@ type Options interface {
 	// SetWatchChanInitTimeout sets the WatchChanInitTimeout
 	SetWatchChanInitTimeout(t time.Duration) Options
 
+	// ServiceID returns the service the heartbeat store is managing heartbeats for.
+	ServiceID() services.ServiceID
+
+	// SetServiceID sets the service the heartbeat store is managing heartbeats for.
+	SetServiceID(sid services.ServiceID) Options
+
 	// Validate validates the Options
 	Validate() error
 }
@@ -80,6 +87,7 @@ type options struct {
 	watchChanCheckInterval time.Duration
 	watchChanResetInterval time.Duration
 	watchChanInitTimeout   time.Duration
+	sid                    services.ServiceID
 }
 
 // NewOptions creates a sane default Option
@@ -160,5 +168,14 @@ func (o options) WatchChanInitTimeout() time.Duration {
 
 func (o options) SetWatchChanInitTimeout(t time.Duration) Options {
 	o.watchChanInitTimeout = t
+	return o
+}
+
+func (o options) ServiceID() services.ServiceID {
+	return o.sid
+}
+
+func (o options) SetServiceID(sid services.ServiceID) Options {
+	o.sid = sid
 	return o
 }

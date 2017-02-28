@@ -33,11 +33,11 @@ import (
 	etcdKV "github.com/m3db/m3cluster/kv/etcd"
 	"github.com/m3db/m3cluster/mocks"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/heartbeat"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/watch"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,7 +50,7 @@ func TestOptions(t *testing.T) {
 	})
 	require.Equal(t, errNoHeartbeatGen, opts.Validate())
 
-	opts = opts.SetHeartbeatGen(func(zone string) (heartbeat.Store, error) {
+	opts = opts.SetHeartbeatGen(func(sid services.ServiceID) (services.HeartbeatService, error) {
 		return nil, nil
 	})
 	require.NoError(t, opts.Validate())
@@ -98,6 +98,12 @@ func TestAdvertiseErrors(t *testing.T) {
 	ad := services.NewAdvertisement()
 	err = sd.Advertise(ad)
 	require.Error(t, err)
+	require.Equal(t, errAdPlacementMissing, err)
+
+	ad = services.NewAdvertisement().
+		SetPlacementInstance(placement.NewInstance())
+	err = sd.Advertise(ad)
+	require.Error(t, err)
 	require.Equal(t, errNoServiceID, err)
 
 	sid := services.NewServiceID()
@@ -106,7 +112,9 @@ func TestAdvertiseErrors(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, errNoInstanceID, err)
 
-	ad = ad.SetInstanceID("i1")
+	i1 := placement.NewInstance().SetID("i1")
+
+	ad = ad.SetPlacementInstance(i1)
 	err = sd.Advertise(ad)
 	require.Error(t, err)
 	require.Equal(t, errNoServiceName, err)
@@ -166,10 +174,12 @@ func TestUnadvertise(t *testing.T) {
 	err = sd.Unadvertise(sid, "i1")
 	require.Error(t, err)
 
-	s, ok := m.getMockStore("zone1")
+	s, ok := m.getMockStore(sid)
 	require.True(t, ok)
 
-	err = s.Heartbeat(serviceKey(sid), "i1", time.Hour)
+	i1 := placement.NewInstance().SetID("i1")
+
+	err = s.Heartbeat(i1, time.Hour)
 	require.NoError(t, err)
 
 	err = sd.Unadvertise(sid, "i1")
@@ -196,35 +206,37 @@ func TestAdvertiseUnadvertise(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ad := services.NewAdvertisement().SetServiceID(sid).SetInstanceID("i1")
+	ad := services.NewAdvertisement().
+		SetServiceID(sid).
+		SetPlacementInstance(placement.NewInstance().SetID("i1"))
 
 	require.NoError(t, sd.Advertise(ad))
-	s, ok := m.getMockStore("zone1")
+	s, ok := m.getMockStore(sid)
 	require.True(t, ok)
 
 	// wait for one heartbeat
 	for {
-		ids, _ := s.Get(serviceKey(sid))
+		ids, _ := s.Get()
 		if len(ids) == 1 {
 			break
 		}
 	}
 
 	require.NoError(t, sd.Unadvertise(sid, "i1"))
-	ids, err := s.Get(serviceKey(sid))
+	ids, err := s.Get()
 	require.NoError(t, err)
 	require.Equal(t, 0, len(ids))
 
 	// give enough time for another heartbeat
 	time.Sleep(hbInterval)
-	ids, err = s.Get(serviceKey(sid))
+	ids, err = s.Get()
 	require.NoError(t, err)
 	require.Equal(t, 0, len(ids))
 
 	// resume heartbeat
 	require.NoError(t, sd.Advertise(ad))
 	for {
-		ids, err = s.Get(serviceKey(sid))
+		ids, err = s.Get()
 		if len(ids) == 1 {
 			break
 		}
@@ -319,10 +331,12 @@ func TestQueryNotIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	hb, err := opts.HeartbeatGen()("zone1")
+	hb, err := opts.HeartbeatGen()(sid)
 	require.NoError(t, err)
 
-	err = hb.Heartbeat("m3db", "i1", time.Second)
+	i1 := placement.NewInstance().SetID("i1")
+
+	err = hb.Heartbeat(i1, time.Second)
 	require.NoError(t, err)
 
 	s, err = sd.Query(sid, qopts)
@@ -516,7 +530,7 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 1, s.Sharding().NumShards())
 	require.Equal(t, 2, s.Replication().Replicas())
 
-	mockHB, ok := m.getMockStore("zone1")
+	mockHB, ok := m.getMockStore(sid)
 	require.True(t, ok)
 
 	hbWatchable, ok := mockHB.getWatchable(serviceKey(sid))
@@ -688,6 +702,7 @@ func TestMultipleWatches(t *testing.T) {
 }
 
 func TestWatch_GetAfterTimeout(t *testing.T) {
+	sid := services.NewServiceID().SetName("m3db").SetZone("zone1")
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 
@@ -709,8 +724,9 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 	m := &mockHBGen{
 		hbs: map[string]*mockHBStore{},
 	}
-	hbGen := func(zone string) (heartbeat.Store, error) {
-		return m.genMockStore(zone)
+
+	hbGen := func(sid services.ServiceID) (services.HeartbeatService, error) {
+		return m.genMockStore(sid)
 	}
 
 	opts := NewOptions().
@@ -725,7 +741,6 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 	require.NoError(t, err)
 
 	qopts := services.NewQueryOptions().SetIncludeUnhealthy(true)
-	sid := services.NewServiceID().SetName("m3db").SetZone("zone1")
 	_, err = sd.Watch(sid, qopts)
 	require.Error(t, err)
 
@@ -792,6 +807,91 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 		}
 	}
 }
+func TestHeartbeatService(t *testing.T) {
+	opts, closer, _ := testSetup(t)
+	defer closer()
+
+	sd, err := NewServices(opts)
+	require.NoError(t, err)
+
+	sid := services.NewServiceID()
+
+	_, err = sd.HeartbeatService(sid)
+	assert.Equal(t, errNoServiceName, err)
+
+	sid = sid.SetName("m3db").SetZone("z1")
+
+	hb, err := sd.HeartbeatService(sid)
+	assert.NoError(t, err)
+	assert.NotNil(t, hb)
+}
+
+func TestCacheCollisions_Heartbeat(t *testing.T) {
+	opts, closer, _ := testSetup(t)
+	defer closer()
+
+	sid := func() services.ServiceID {
+		return services.NewServiceID().SetName("svc")
+	}
+
+	sd, err := NewServices(opts)
+	require.NoError(t, err)
+	c := sd.(*client)
+
+	for _, id := range []services.ServiceID{
+		sid().SetEnvironment("e1").SetZone("z1"),
+		sid().SetEnvironment("e1").SetZone("z2"),
+		sid().SetEnvironment("e2").SetZone("z1"),
+		sid().SetEnvironment("e2").SetZone("z2"),
+	} {
+		_, err := sd.HeartbeatService(id)
+		assert.NoError(t, err)
+	}
+
+	assert.Equal(t, 4, len(c.hbStores), "cached hb stores should have 4 unique entries")
+}
+
+func TestCacheCollisions_Watchables(t *testing.T) {
+	opts, closer, _ := testSetup(t)
+	defer closer()
+
+	sd, err := NewServices(opts.SetInitTimeout(defaultInitTimeout))
+	require.NoError(t, err)
+
+	sid := func() services.ServiceID {
+		return services.NewServiceID().SetName("svc")
+	}
+
+	qopts := services.NewQueryOptions().SetIncludeUnhealthy(true)
+
+	for _, id := range []services.ServiceID{
+		sid().SetEnvironment("e1").SetZone("z1"),
+		sid().SetEnvironment("e1").SetZone("z2"),
+		sid().SetEnvironment("e2").SetZone("z1"),
+		sid().SetEnvironment("e2").SetZone("z2"),
+	} {
+		_, err := sd.HeartbeatService(id)
+		assert.NoError(t, err)
+
+		ps, err := sd.PlacementService(id, placement.NewOptions())
+		require.NoError(t, err)
+
+		p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
+			placement.NewInstance().SetID("i1").SetEndpoint("i:p"),
+		})
+		err = ps.SetPlacement(p)
+		assert.NoError(t, err)
+
+		_, err = sd.Watch(id, qopts)
+		assert.NoError(t, err)
+	}
+
+	for _, z := range []string{"z1", "z2"} {
+		kvm, err := sd.(*client).getKVManager(z)
+		require.NoError(t, err)
+		assert.Equal(t, 2, len(kvm.serviceWatchables), "each zone should have 2 unique watchable entries")
+	}
+}
 
 func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
@@ -814,8 +914,8 @@ func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 	m := &mockHBGen{
 		hbs: map[string]*mockHBStore{},
 	}
-	hbGen := func(zone string) (heartbeat.Store, error) {
-		return m.genMockStore(zone)
+	hbGen := func(sid services.ServiceID) (services.HeartbeatService, error) {
+		return m.genMockStore(sid)
 	}
 
 	return NewOptions().
@@ -831,56 +931,60 @@ type mockHBGen struct {
 	hbs map[string]*mockHBStore
 }
 
-func (m *mockHBGen) genMockStore(zone string) (*mockHBStore, error) {
+func (m *mockHBGen) genMockStore(sid services.ServiceID) (*mockHBStore, error) {
+	k := serviceKey(sid)
+
 	m.Lock()
 	defer m.Unlock()
 
-	s, ok := m.hbs[zone]
+	s, ok := m.hbs[k]
 	if ok {
 		return s, nil
 	}
 	s = &mockHBStore{
 		hbs:        map[string]map[string]time.Time{},
 		watchables: map[string]xwatch.Watchable{},
+		sid:        sid,
 	}
 
-	m.hbs[zone] = s
+	m.hbs[k] = s
 	return s, nil
 }
 
-func (m *mockHBGen) getMockStore(zone string) (*mockHBStore, bool) {
+func (m *mockHBGen) getMockStore(sid services.ServiceID) (*mockHBStore, bool) {
 	m.Lock()
 	defer m.Unlock()
 
-	s, ok := m.hbs[zone]
+	s, ok := m.hbs[serviceKey(sid)]
 	return s, ok
 }
 
 type mockHBStore struct {
 	sync.Mutex
 
+	sid        services.ServiceID
 	hbs        map[string]map[string]time.Time
 	watchables map[string]xwatch.Watchable
 }
 
-func (hb *mockHBStore) Heartbeat(s string, id string, ttl time.Duration) error {
+func (hb *mockHBStore) Heartbeat(instance services.PlacementInstance, ttl time.Duration) error {
 	hb.Lock()
 	defer hb.Unlock()
-	hbMap, ok := hb.hbs[s]
+	hbMap, ok := hb.hbs[serviceKey(hb.sid)]
 	if !ok {
 		hbMap = map[string]time.Time{}
-		hb.hbs[s] = hbMap
+		hb.hbs[serviceKey(hb.sid)] = hbMap
 	}
-	hbMap[id] = time.Now()
+	hbMap[instance.ID()] = time.Now()
 	return nil
 }
 
-func (hb *mockHBStore) Get(s string) ([]string, error) {
+func (hb *mockHBStore) Get() ([]string, error) {
 	hb.Lock()
 	defer hb.Unlock()
 
 	var r []string
-	hbMap, ok := hb.hbs[s]
+	hbMap, ok := hb.hbs[serviceKey(hb.sid)]
 	if !ok {
 		return r, nil
 	}
@@ -892,18 +996,35 @@ func (hb *mockHBStore) Get(s string) ([]string, error) {
 	return r, nil
 }
 
-func (hb *mockHBStore) Watch(s string) (xwatch.Watch, error) {
+func (hb *mockHBStore) GetInstances() ([]services.PlacementInstance, error) {
 	hb.Lock()
 	defer hb.Unlock()
 
-	watchable, ok := hb.watchables[s]
+	var r []services.PlacementInstance
+	hbMap, ok := hb.hbs[serviceKey(hb.sid)]
+	if !ok {
+		return r, nil
+	}
+
+	r = make([]services.PlacementInstance, 0, len(hbMap))
+	for k := range hbMap {
+		r = append(r, placement.NewInstance().SetID(k))
+	}
+	return r, nil
+}
+
+func (hb *mockHBStore) Watch() (xwatch.Watch, error) {
+	hb.Lock()
+	defer hb.Unlock()
+
+	watchable, ok := hb.watchables[serviceKey(hb.sid)]
 	if ok {
 		_, w, err := watchable.Watch()
 		return w, err
 	}
 
 	watchable = xwatch.NewWatchable()
-	hb.watchables[s] = watchable
+	hb.watchables[serviceKey(hb.sid)] = watchable
 
 	_, w, err := watchable.Watch()
 	return w, err
@@ -917,11 +1038,11 @@ func (hb *mockHBStore) getWatchable(s string) (xwatch.Watchable, bool) {
 	return w, ok
 }
 
-func (hb *mockHBStore) Delete(s, id string) error {
+func (hb *mockHBStore) Delete(id string) error {
 	hb.Lock()
 	defer hb.Unlock()
 
-	hbMap, ok := hb.hbs[s]
+	hbMap, ok := hb.hbs[serviceKey(hb.sid)]
 	if !ok {
 		return errors.New("no hb found")
 	}

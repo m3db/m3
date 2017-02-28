@@ -22,6 +22,7 @@ package client
 
 import (
 	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 )
@@ -43,7 +44,7 @@ func (s *client) CheckAndSet(sid services.ServiceID, p services.ServicePlacement
 		return err
 	}
 
-	placementProto, err := PlacementToProto(p)
+	placementProto, err := util.PlacementToProto(p)
 	if err != nil {
 		return err
 	}
@@ -66,7 +67,7 @@ func (s *client) SetIfNotExist(sid services.ServiceID, p services.ServicePlaceme
 		return err
 	}
 
-	placementProto, err := PlacementToProto(p)
+	placementProto, err := util.PlacementToProto(p)
 	if err != nil {
 		return err
 	}
@@ -112,7 +113,7 @@ func (s *client) Placement(sid services.ServiceID) (services.ServicePlacement, i
 		return nil, 0, err
 	}
 
-	p, err := PlacementFromProto(placementProto)
+	p, err := util.PlacementFromProto(placementProto)
 	if p != nil {
 		p.SetVersion(v.Version())
 	}

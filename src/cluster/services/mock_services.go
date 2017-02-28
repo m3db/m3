@@ -126,6 +126,17 @@ func (_mr *_MockServicesRecorder) PlacementService(arg0, arg1 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementService", arg0, arg1)
 }
 
+func (_m *MockServices) HeartbeatService(service ServiceID) (HeartbeatService, error) {
+	ret := _m.ctrl.Call(_m, "HeartbeatService", service)
+	ret0, _ := ret[0].(HeartbeatService)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockServicesRecorder) HeartbeatService(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HeartbeatService", arg0)
+}
+
 // Mock of Service interface
 type MockService struct {
 	ctrl     *gomock.Controller
@@ -442,26 +453,6 @@ func (_m *MockAdvertisement) EXPECT() *_MockAdvertisementRecorder {
 	return _m.recorder
 }
 
-func (_m *MockAdvertisement) InstanceID() string {
-	ret := _m.ctrl.Call(_m, "InstanceID")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-func (_mr *_MockAdvertisementRecorder) InstanceID() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstanceID")
-}
-
-func (_m *MockAdvertisement) SetInstanceID(id string) Advertisement {
-	ret := _m.ctrl.Call(_m, "SetInstanceID", id)
-	ret0, _ := ret[0].(Advertisement)
-	return ret0
-}
-
-func (_mr *_MockAdvertisementRecorder) SetInstanceID(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstanceID", arg0)
-}
-
 func (_m *MockAdvertisement) ServiceID() ServiceID {
 	ret := _m.ctrl.Call(_m, "ServiceID")
 	ret0, _ := ret[0].(ServiceID)
@@ -502,24 +493,24 @@ func (_mr *_MockAdvertisementRecorder) SetHealth(arg0 interface{}) *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHealth", arg0)
 }
 
-func (_m *MockAdvertisement) Endpoint() string {
-	ret := _m.ctrl.Call(_m, "Endpoint")
-	ret0, _ := ret[0].(string)
+func (_m *MockAdvertisement) PlacementInstance() PlacementInstance {
+	ret := _m.ctrl.Call(_m, "PlacementInstance")
+	ret0, _ := ret[0].(PlacementInstance)
 	return ret0
 }
 
-func (_mr *_MockAdvertisementRecorder) Endpoint() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Endpoint")
+func (_mr *_MockAdvertisementRecorder) PlacementInstance() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementInstance")
 }
 
-func (_m *MockAdvertisement) SetEndpoint(e string) Advertisement {
-	ret := _m.ctrl.Call(_m, "SetEndpoint", e)
+func (_m *MockAdvertisement) SetPlacementInstance(p PlacementInstance) Advertisement {
+	ret := _m.ctrl.Call(_m, "SetPlacementInstance", p)
 	ret0, _ := ret[0].(Advertisement)
 	return ret0
 }
 
-func (_mr *_MockAdvertisementRecorder) SetEndpoint(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEndpoint", arg0)
+func (_mr *_MockAdvertisementRecorder) SetPlacementInstance(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacementInstance", arg0)
 }
 
 // Mock of ServiceID interface
@@ -1305,4 +1296,78 @@ func (_m *MockPlacementInstance) SetShards(s shard.Shards) PlacementInstance {
 
 func (_mr *_MockPlacementInstanceRecorder) SetShards(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShards", arg0)
+}
+
+// Mock of HeartbeatService interface
+type MockHeartbeatService struct {
+	ctrl     *gomock.Controller
+	recorder *_MockHeartbeatServiceRecorder
+}
+
+// Recorder for MockHeartbeatService (not exported)
+type _MockHeartbeatServiceRecorder struct {
+	mock *MockHeartbeatService
+}
+
+func NewMockHeartbeatService(ctrl *gomock.Controller) *MockHeartbeatService {
+	mock := &MockHeartbeatService{ctrl: ctrl}
+	mock.recorder = &_MockHeartbeatServiceRecorder{mock}
+	return mock
+}
+
+func (_m *MockHeartbeatService) EXPECT() *_MockHeartbeatServiceRecorder {
+	return _m.recorder
+}
+
+func (_m *MockHeartbeatService) Heartbeat(instance PlacementInstance, ttl time.Duration) error {
+	ret := _m.ctrl.Call(_m, "Heartbeat", instance, ttl)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockHeartbeatServiceRecorder) Heartbeat(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Heartbeat", arg0, arg1)
+}
+
+func (_m *MockHeartbeatService) Get() ([]string, error) {
+	ret := _m.ctrl.Call(_m, "Get")
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockHeartbeatServiceRecorder) Get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get")
+}
+
+func (_m *MockHeartbeatService) GetInstances() ([]PlacementInstance, error) {
+	ret := _m.ctrl.Call(_m, "GetInstances")
+	ret0, _ := ret[0].([]PlacementInstance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockHeartbeatServiceRecorder) GetInstances() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetInstances")
+}
+
+func (_m *MockHeartbeatService) Delete(instance string) error {
+	ret := _m.ctrl.Call(_m, "Delete", instance)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockHeartbeatServiceRecorder) Delete(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete", arg0)
+}
+
+func (_m *MockHeartbeatService) Watch() (watch.Watch, error) {
+	ret := _m.ctrl.Call(_m, "Watch")
+	ret0, _ := ret[0].(watch.Watch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockHeartbeatServiceRecorder) Watch() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Watch")
 }

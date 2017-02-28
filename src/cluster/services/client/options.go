@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services/heartbeat"
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -48,7 +48,7 @@ var (
 type KVGen func(zone string) (kv.Store, error)
 
 // HeartbeatGen generates a heartbeat store for a given zone
-type HeartbeatGen func(zone string) (heartbeat.Store, error)
+type HeartbeatGen func(sid services.ServiceID) (services.HeartbeatService, error)
 
 // Options are options for the client of Services
 type Options interface {
