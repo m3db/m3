@@ -39,6 +39,22 @@ func newPlacementStorage(opts Options) (placement.Storage, error) {
 	}, nil
 }
 
+func (s *client) Set(sid services.ServiceID, p services.ServicePlacement) error {
+	if err := validateServiceID(sid); err != nil {
+		return err
+	}
+	placementProto, err := util.PlacementToProto(p)
+	if err != nil {
+		return err
+	}
+	kvm, err := s.getKVManager(sid.Zone())
+	if err != nil {
+		return err
+	}
+	_, err = kvm.kv.Set(placementKey(sid), &placementProto)
+	return err
+}
+
 func (s *client) CheckAndSet(sid services.ServiceID, p services.ServicePlacement, version int) error {
 	if err := validateServiceID(sid); err != nil {
 		return err

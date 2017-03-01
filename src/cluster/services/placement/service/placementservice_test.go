@@ -1017,6 +1017,16 @@ func NewMockStorage() placement.Storage {
 	return &mockStorage{m: map[string]services.ServicePlacement{}}
 }
 
+func (ms *mockStorage) Set(service services.ServiceID, p services.ServicePlacement) error {
+	ms.Lock()
+	defer ms.Unlock()
+
+	ms.m[service.Name()] = p
+	ms.version++
+
+	return nil
+}
+
 func (ms *mockStorage) CheckAndSet(service services.ServiceID, p services.ServicePlacement, v int) error {
 	ms.Lock()
 	defer ms.Unlock()
@@ -1052,6 +1062,7 @@ func (ms *mockStorage) Delete(service services.ServiceID) error {
 	}
 
 	delete(ms.m, service.Name())
+	ms.version = 0
 	return nil
 }
 
