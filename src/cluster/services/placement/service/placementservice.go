@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/services/placement/algo"
@@ -294,16 +293,7 @@ func (ps placementService) SetPlacement(p services.ServicePlacement) error {
 		return nil
 	}
 
-	_, v, err := ps.ss.Placement(ps.service)
-	if err == kv.ErrNotFound {
-		return ps.ss.SetIfNotExist(ps.service, p)
-	}
-
-	if err != nil {
-		return err
-	}
-
-	return ps.ss.CheckAndSet(ps.service, p, v)
+	return ps.ss.Set(ps.service, p)
 }
 
 func (ps placementService) Delete() error {
