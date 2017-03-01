@@ -88,6 +88,7 @@ type dbShard struct {
 	increasingIndex       increasingIndex
 	seriesPool            series.DatabaseSeriesPool
 	writeCommitLogFn      writeCommitLogFn
+	insertQueue           *dbShardInsertQueue
 	lookup                map[ts.Hash]*list.Element
 	list                  *list.List
 	bs                    bootstrapState
@@ -181,6 +182,9 @@ func newDatabaseShard(
 		flushState:            newShardFlushState(),
 		metrics:               newDbShardMetrics(scope),
 	}
+	d.insertQueue = newDbShardInsertQueue(d.insertSeriesBatch, opts)
+	d.insertQueue.Start()
+
 	if !needsBootstrap {
 		d.bs = bootstrapped
 		d.newSeriesBootstrapped = true
@@ -293,6 +297,8 @@ func (s *dbShard) Close() error {
 	}
 	s.state = dbShardStateClosing
 	s.Unlock()
+
+	s.insertQueue.Stop()
 
 	s.metrics.closeStart.Inc(1)
 	stopwatch := s.metrics.closeLatency.Start()
@@ -493,52 +499,57 @@ func (s *dbShard) lookupEntryWithLock(id ts.ID) (*dbShardEntry, *list.Element, e
 }
 
 func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
-	s.RLock()
-	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
-		entry.incrementWriterCount()
+	for {
+		s.RLock()
+		if entry, _, err := s.lookupEntryWithLock(id); err == nil {
+			entry.incrementWriterCount()
+			s.RUnlock()
+			return entry, nil
+		} else if err != errShardEntryNotFound {
+			s.RUnlock()
+			return nil, err
+		}
 		s.RUnlock()
-		return entry, nil
-	} else if err != errShardEntryNotFound {
-		s.RUnlock()
-		return nil, err
+
+		// Not inserted, attempt an insert
+		wg, err := s.insertQueue.Insert(id)
+		if err != nil {
+			return nil, err
+		}
+
+		// Wait for the insert attempt
+		wg.Wait()
 	}
-	s.RUnlock()
+}
 
-	// Retrieve the entry out of any locks to avoid any possible expensive
-	// allocations during any unpooled gets blocking other writers
-	series := s.seriesPool.Get()
-	seriesID := s.identifierPool.Clone(id)
-
-	entry := &dbShardEntry{
-		series:     series,
-		curWriters: 1,
-	}
-
+func (s *dbShard) insertSeriesBatch(ids []ts.ID) error {
 	s.Lock()
-	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
-		// During Rlock -> Wlock promotion the entry was inserted
-		entry.incrementWriterCount()
-		s.Unlock()
-		series.Close()
-		return entry, nil
-	} else if err != errShardEntryNotFound {
-		s.Unlock()
-		series.Close()
-		return nil, err
+
+	for _, id := range ids {
+		if _, _, err := s.lookupEntryWithLock(id); err == nil {
+			// Already inserted
+			continue
+		} else if err != errShardEntryNotFound {
+			// Shard is not taking inserts
+			s.Unlock()
+			return err
+		}
+
+		series := s.seriesPool.Get()
+		seriesID := s.identifierPool.Clone(id)
+		series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
+
+		entry := &dbShardEntry{
+			series: series,
+			index:  s.increasingIndex.nextIndex(),
+		}
+
+		s.lookup[id.Hash()] = s.list.PushBack(entry)
 	}
 
-	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
-
-	// Must set the index inside the write lock to ensure ID indexes are ascending in order
-	entry.index = s.increasingIndex.nextIndex()
-	entry.incrementWriterCount()
-
-	elem := s.list.PushBack(entry)
-
-	s.lookup[id.Hash()] = elem
 	s.Unlock()
 
-	return entry, nil
+	return nil
 }
 
 func (s *dbShard) FetchBlocks(

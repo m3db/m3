@@ -64,6 +64,9 @@ const (
 
 	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
 	defaultErrorThresholdForLoad = 1000
+
+	// defaultShardInsertBatchBackoff is the default backoff when inserting batches very frequently
+	defaultShardInsertBatchBackoff = time.Millisecond
 )
 
 var (
@@ -103,6 +106,7 @@ type options struct {
 	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
 	maxFlushRetries                int
+	shardInsertBatchBackoff        time.Duration
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	contextPool                    context.Pool
 	seriesPool                     series.DatabaseSeriesPool
@@ -139,6 +143,7 @@ func NewOptions() Options {
 		bootstrapProcess:               defaultBootstrapProcess,
 		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
 		maxFlushRetries:                defaultMaxFlushRetries,
+		shardInsertBatchBackoff:        defaultShardInsertBatchBackoff,
 		contextPool:                    context.NewPool(nil, nil),
 		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
 		bytesPool:                      bytesPool,
@@ -378,6 +383,16 @@ func (o *options) SetMaxFlushRetries(value int) Options {
 
 func (o *options) MaxFlushRetries() int {
 	return o.maxFlushRetries
+}
+
+func (o *options) SetShardInsertBatchBackoff(value time.Duration) Options {
+	opts := *o
+	opts.shardInsertBatchBackoff = value
+	return &opts
+}
+
+func (o *options) ShardInsertBatchBackoff() time.Duration {
+	return o.shardInsertBatchBackoff
 }
 
 func (o *options) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {

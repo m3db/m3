@@ -1,0 +1,162 @@
+// Copyright (c) 2017 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package storage
+
+import (
+	"errors"
+	"sync"
+	"time"
+
+	"github.com/m3db/m3db/ts"
+)
+
+var (
+	errShardInsertQueueNotOpen             = errors.New("shard insert queue is not open")
+	errShardInsertQueueAlreadyOpenOrClosed = errors.New("shard insert queue already open or is closed")
+)
+
+type dbShardInsertQueueState int
+
+const (
+	dbShardInsertQueueStateNotOpen dbShardInsertQueueState = iota
+	dbShardInsertQueueStateOpen
+	dbShardInsertQueueStateClosed
+)
+
+type dbShardInsertQueue struct {
+	sync.RWMutex
+
+	state              dbShardInsertQueueState
+	insertBatchFn      dbShardInsertBatchFn
+	insertBatchBackoff time.Duration
+
+	currBatch    *dbShardInsertBatch
+	notifyInsert chan struct{}
+	sleepFn      func(d time.Duration)
+}
+
+type dbShardInsertBatch struct {
+	wg  *sync.WaitGroup
+	ids []ts.ID
+}
+
+func (b *dbShardInsertBatch) reset() {
+	b.wg = &sync.WaitGroup{}
+	// We always expect to be waiting for an insert
+	b.wg.Add(1)
+	for i := range b.ids {
+		b.ids[i] = nil
+	}
+	b.ids = b.ids[:0]
+}
+
+type dbShardInsertBatchFn func(ids []ts.ID) error
+
+func newDbShardInsertQueue(insertBatchFn dbShardInsertBatchFn, opts Options) *dbShardInsertQueue {
+	q := &dbShardInsertQueue{
+		insertBatchFn:      insertBatchFn,
+		insertBatchBackoff: opts.ShardInsertBatchBackoff(),
+		currBatch:          &dbShardInsertBatch{},
+		notifyInsert:       make(chan struct{}, 1),
+		sleepFn:            time.Sleep,
+	}
+	q.currBatch.reset()
+	return q
+}
+
+func (q *dbShardInsertQueue) Start() error {
+	q.Lock()
+	defer q.Unlock()
+
+	if q.state != dbShardInsertQueueStateNotOpen {
+		return errShardInsertQueueAlreadyOpenOrClosed
+	}
+
+	q.state = dbShardInsertQueueStateOpen
+	go q.insertLoop()
+	return nil
+}
+
+func (q *dbShardInsertQueue) Stop() error {
+	q.Lock()
+	defer q.Unlock()
+
+	if q.state != dbShardInsertQueueStateOpen {
+		return errShardInsertQueueNotOpen
+	}
+
+	q.state = dbShardInsertQueueStateClosed
+
+	// Final flush
+	q.notifyInsert <- struct{}{}
+	close(q.notifyInsert)
+
+	return nil
+}
+
+func (q *dbShardInsertQueue) insertLoop() {
+	freeBatch := &dbShardInsertBatch{}
+	freeBatch.reset()
+	for _ = range q.notifyInsert {
+		// Rotate batches
+		q.Lock()
+		batch := q.currBatch
+		q.currBatch = freeBatch
+		q.Unlock()
+
+		q.insertBatchFn(batch.ids)
+		batch.wg.Done()
+
+		// Set the free batch
+		batch.reset()
+		freeBatch = batch
+
+		// See if we have more work to do
+		q.RLock()
+		hasMore := len(q.currBatch.ids) > 0
+		q.RUnlock()
+
+		// Backoff if we have more work to do immediately again
+		if hasMore {
+			q.sleepFn(q.insertBatchBackoff)
+		}
+	}
+}
+
+func (q *dbShardInsertQueue) Insert(id ts.ID) (*sync.WaitGroup, error) {
+	q.Lock()
+	if q.state != dbShardInsertQueueStateOpen {
+		q.Unlock()
+		return nil, errShardInsertQueueNotOpen
+	}
+	q.currBatch.ids = append(q.currBatch.ids, id)
+	wg := q.currBatch.wg
+	q.Unlock()
+
+	// Notify insert loop
+	select {
+	case q.notifyInsert <- struct{}{}:
+	default:
+		// Loop busy, already ready to consume notification
+	}
+
+	return wg, nil
+}
