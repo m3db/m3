@@ -182,7 +182,7 @@ func newDatabaseShard(
 		flushState:            newShardFlushState(),
 		metrics:               newDbShardMetrics(scope),
 	}
-	d.insertQueue = newDbShardInsertQueue(d.insertSeriesBatch, opts)
+	d.insertQueue = newDbShardInsertQueue(d.insertSeriesEntries, opts)
 	d.insertQueue.Start()
 
 	if !needsBootstrap {
@@ -512,7 +512,14 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 		s.RUnlock()
 
 		// Not inserted, attempt an insert
-		wg, err := s.insertQueue.Insert(id)
+		series := s.seriesPool.Get()
+		seriesID := s.identifierPool.Clone(id)
+		series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
+
+		wg, err := s.insertQueue.Insert(&dbShardEntry{
+			series: series,
+			index:  s.increasingIndex.nextIndex(),
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -522,11 +529,11 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	}
 }
 
-func (s *dbShard) insertSeriesBatch(ids []ts.ID) error {
+func (s *dbShard) insertSeriesEntries(entries []*dbShardEntry) error {
 	s.Lock()
 
-	for _, id := range ids {
-		if _, _, err := s.lookupEntryWithLock(id); err == nil {
+	for _, entry := range entries {
+		if _, _, err := s.lookupEntryWithLock(entry.series.ID()); err == nil {
 			// Already inserted
 			continue
 		} else if err != errShardEntryNotFound {
@@ -535,16 +542,7 @@ func (s *dbShard) insertSeriesBatch(ids []ts.ID) error {
 			return err
 		}
 
-		series := s.seriesPool.Get()
-		seriesID := s.identifierPool.Clone(id)
-		series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
-
-		entry := &dbShardEntry{
-			series: series,
-			index:  s.increasingIndex.nextIndex(),
-		}
-
-		s.lookup[id.Hash()] = s.list.PushBack(entry)
+		s.lookup[entry.series.ID().Hash()] = s.list.PushBack(entry)
 	}
 
 	s.Unlock()

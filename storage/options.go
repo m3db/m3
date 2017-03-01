@@ -66,7 +66,7 @@ const (
 	defaultErrorThresholdForLoad = 1000
 
 	// defaultShardInsertBatchBackoff is the default backoff when inserting batches very frequently
-	defaultShardInsertBatchBackoff = time.Millisecond
+	defaultShardInsertBatchBackoff = time.Duration(0)
 )
 
 var (

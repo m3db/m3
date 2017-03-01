@@ -24,8 +24,6 @@ import (
 	"errors"
 	"sync"
 	"time"
-
-	"github.com/m3db/m3db/ts"
 )
 
 var (
@@ -45,7 +43,7 @@ type dbShardInsertQueue struct {
 	sync.RWMutex
 
 	state              dbShardInsertQueueState
-	insertBatchFn      dbShardInsertBatchFn
+	insertEntryBatchFn dbShardInsertEntryBatchFn
 	insertBatchBackoff time.Duration
 
 	currBatch    *dbShardInsertBatch
@@ -54,25 +52,28 @@ type dbShardInsertQueue struct {
 }
 
 type dbShardInsertBatch struct {
-	wg  *sync.WaitGroup
-	ids []ts.ID
+	wg      *sync.WaitGroup
+	entries []*dbShardEntry
 }
 
 func (b *dbShardInsertBatch) reset() {
 	b.wg = &sync.WaitGroup{}
 	// We always expect to be waiting for an insert
 	b.wg.Add(1)
-	for i := range b.ids {
-		b.ids[i] = nil
+	for i := range b.entries {
+		b.entries[i] = nil
 	}
-	b.ids = b.ids[:0]
+	b.entries = b.entries[:0]
 }
 
-type dbShardInsertBatchFn func(ids []ts.ID) error
+type dbShardInsertEntryBatchFn func(entries []*dbShardEntry) error
 
-func newDbShardInsertQueue(insertBatchFn dbShardInsertBatchFn, opts Options) *dbShardInsertQueue {
+func newDbShardInsertQueue(
+	insertEntryBatchFn dbShardInsertEntryBatchFn,
+	opts Options,
+) *dbShardInsertQueue {
 	q := &dbShardInsertQueue{
-		insertBatchFn:      insertBatchFn,
+		insertEntryBatchFn: insertEntryBatchFn,
 		insertBatchBackoff: opts.ShardInsertBatchBackoff(),
 		currBatch:          &dbShardInsertBatch{},
 		notifyInsert:       make(chan struct{}, 1),
@@ -122,7 +123,7 @@ func (q *dbShardInsertQueue) insertLoop() {
 		q.currBatch = freeBatch
 		q.Unlock()
 
-		q.insertBatchFn(batch.ids)
+		q.insertEntryBatchFn(batch.entries)
 		batch.wg.Done()
 
 		// Set the free batch
@@ -131,23 +132,23 @@ func (q *dbShardInsertQueue) insertLoop() {
 
 		// See if we have more work to do
 		q.RLock()
-		hasMore := len(q.currBatch.ids) > 0
+		hasMore := len(q.currBatch.entries) > 0
 		q.RUnlock()
 
 		// Backoff if we have more work to do immediately again
-		if hasMore {
+		if hasMore && q.insertBatchBackoff > 0 {
 			q.sleepFn(q.insertBatchBackoff)
 		}
 	}
 }
 
-func (q *dbShardInsertQueue) Insert(id ts.ID) (*sync.WaitGroup, error) {
+func (q *dbShardInsertQueue) Insert(entry *dbShardEntry) (*sync.WaitGroup, error) {
 	q.Lock()
 	if q.state != dbShardInsertQueueStateOpen {
 		q.Unlock()
 		return nil, errShardInsertQueueNotOpen
 	}
-	q.currBatch.ids = append(q.currBatch.ids, id)
+	q.currBatch.entries = append(q.currBatch.entries, entry)
 	wg := q.currBatch.wg
 	q.Unlock()
 
