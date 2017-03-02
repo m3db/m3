@@ -98,7 +98,7 @@ func newDbShardInsertQueue(
 func (q *dbShardInsertQueue) insertLoop() {
 	freeBatch := &dbShardInsertBatch{}
 	freeBatch.reset()
-	for _ = range q.notifyInsert {
+	for range q.notifyInsert {
 		// Rotate batches
 		q.Lock()
 		batch := q.currBatch
@@ -138,7 +138,11 @@ func (q *dbShardInsertQueue) Stop() error {
 	q.state = dbShardInsertQueueStateClosed
 
 	// Final flush
-	q.notifyInsert <- struct{}{}
+	select {
+	case q.notifyInsert <- struct{}{}:
+	default:
+		// Loop busy, already ready to consume notification
+	}
 	close(q.notifyInsert)
 
 	return nil
