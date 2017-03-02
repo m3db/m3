@@ -87,16 +87,22 @@ func (d *mockDatabase) FetchBlocksMetadata(context.Context, ts.ID, uint32, time.
 	return nil, nil, nil
 }
 
+var defaultTestDatabaseOptions = NewOptions().
+	SetMaxFlushRetries(3).
+	SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
+	SetRetentionOptions(retention.NewOptions().
+		SetBufferFuture(10 * time.Minute).
+		SetBufferPast(10 * time.Minute).
+		SetBufferDrain(10 * time.Minute).
+		SetBlockSize(2 * time.Hour).
+		SetRetentionPeriod(2 * 24 * time.Hour))
+
 func testDatabaseOptions() Options {
-	return NewOptions().
-		SetMaxFlushRetries(3).
-		SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
-		SetRetentionOptions(retention.NewOptions().
-			SetBufferFuture(10 * time.Minute).
-			SetBufferPast(10 * time.Minute).
-			SetBufferDrain(10 * time.Minute).
-			SetBlockSize(2 * time.Hour).
-			SetRetentionPeriod(2 * 24 * time.Hour))
+	// NB(r): We don't need to recreate the options multiple
+	// times as they are immutable - we save considerable
+	// memory by doing this avoiding creating default pools
+	// several times.
+	return defaultTestDatabaseOptions
 }
 
 func newTestDatabase(t *testing.T, bs bootstrapState) *db {

@@ -540,12 +540,6 @@ type Options interface {
 	// MaxFlushRetries returns the maximum number of retries when data flushing fails
 	MaxFlushRetries() int
 
-	// SetShardInsertBatchBackoff sets the duration to back off when large amounts of inserts are occurring
-	SetShardInsertBatchBackoff(value time.Duration) Options
-
-	// ShardInsertBatchBackoff returns the duration to back off when large amounts of inserts are occurring
-	ShardInsertBatchBackoff() time.Duration
-
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks
 	// containing data.

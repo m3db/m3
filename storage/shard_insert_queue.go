@@ -48,7 +48,6 @@ type dbShardInsertQueue struct {
 
 	currBatch    *dbShardInsertBatch
 	notifyInsert chan struct{}
-	sleepFn      func(d time.Duration)
 }
 
 type dbShardInsertBatch struct {
@@ -68,19 +67,51 @@ func (b *dbShardInsertBatch) reset() {
 
 type dbShardInsertEntryBatchFn func(entries []*dbShardEntry) error
 
+// newDbShardInsertQueue creates a new shard insert queue. The shard
+// insert queue is used to batch inserts into the shard series map without
+// sacrificing delays to insert the series.
+//
+// This is important as during floods of new IDs we want to avoid acquiring
+// the lock to insert each individual series and insert as many as possible
+// all together acquiring the lock once.
+//
+// It was experimented also sleeping for a very short duration, i.e. 1ms,
+// during the insert loop and it actually added so much latency even just
+// 1ms that it hurt it more than just acquiring the lock for each series.
+//
+// The batching as it is without any sleep and just relying on a notification
+// trigger and hot looping when being flooded improved by a factor of roughly
+// 4x during floods of new series.
 func newDbShardInsertQueue(
 	insertEntryBatchFn dbShardInsertEntryBatchFn,
 	opts Options,
 ) *dbShardInsertQueue {
-	q := &dbShardInsertQueue{
+	currBatch := &dbShardInsertBatch{}
+	currBatch.reset()
+	return &dbShardInsertQueue{
 		insertEntryBatchFn: insertEntryBatchFn,
-		insertBatchBackoff: opts.ShardInsertBatchBackoff(),
-		currBatch:          &dbShardInsertBatch{},
+		currBatch:          currBatch,
 		notifyInsert:       make(chan struct{}, 1),
-		sleepFn:            time.Sleep,
 	}
-	q.currBatch.reset()
-	return q
+}
+
+func (q *dbShardInsertQueue) insertLoop() {
+	freeBatch := &dbShardInsertBatch{}
+	freeBatch.reset()
+	for _ = range q.notifyInsert {
+		// Rotate batches
+		q.Lock()
+		batch := q.currBatch
+		q.currBatch = freeBatch
+		q.Unlock()
+
+		q.insertEntryBatchFn(batch.entries)
+		batch.wg.Done()
+
+		// Set the free batch
+		batch.reset()
+		freeBatch = batch
+	}
 }
 
 func (q *dbShardInsertQueue) Start() error {
@@ -111,35 +142,6 @@ func (q *dbShardInsertQueue) Stop() error {
 	close(q.notifyInsert)
 
 	return nil
-}
-
-func (q *dbShardInsertQueue) insertLoop() {
-	freeBatch := &dbShardInsertBatch{}
-	freeBatch.reset()
-	for _ = range q.notifyInsert {
-		// Rotate batches
-		q.Lock()
-		batch := q.currBatch
-		q.currBatch = freeBatch
-		q.Unlock()
-
-		q.insertEntryBatchFn(batch.entries)
-		batch.wg.Done()
-
-		// Set the free batch
-		batch.reset()
-		freeBatch = batch
-
-		// See if we have more work to do
-		q.RLock()
-		hasMore := len(q.currBatch.entries) > 0
-		q.RUnlock()
-
-		// Backoff if we have more work to do immediately again
-		if hasMore && q.insertBatchBackoff > 0 {
-			q.sleepFn(q.insertBatchBackoff)
-		}
-	}
 }
 
 func (q *dbShardInsertQueue) Insert(entry *dbShardEntry) (*sync.WaitGroup, error) {
