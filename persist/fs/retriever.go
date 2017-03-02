@@ -70,7 +70,6 @@ type blockRetriever struct {
 	reqsByShardIdx []*shardRetrieveRequests
 	seekerMgrs     []FileSetSeekerManager
 	notifyFetch    chan struct{}
-	sleepFn        func(time.Duration)
 }
 
 type notifyRetrieval struct {
@@ -97,7 +96,6 @@ func NewBlockRetriever(
 		bytesPool:      opts.BytesPool(),
 		status:         blockRetrieverNotOpen,
 		notifyFetch:    make(chan struct{}, 1),
-		sleepFn:        time.Sleep,
 	}
 }
 
