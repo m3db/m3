@@ -243,6 +243,12 @@ func TestDelete(t *testing.T) {
 		Msg: "bar1",
 	})
 
+	w, err := s.Watch("foo")
+	require.NoError(t, err)
+
+	<-w.C()
+	require.Equal(t, 1, w.Get().Version())
+
 	val, err := s.Delete("foo")
 	require.NoError(t, err)
 	require.Equal(t, 1, val.Version())
@@ -250,4 +256,7 @@ func TestDelete(t *testing.T) {
 	var read kvtest.Foo
 	require.NoError(t, val.Unmarshal(&read))
 	require.Equal(t, "bar1", read.Msg)
+
+	<-w.C()
+	require.Nil(t, w.Get())
 }
