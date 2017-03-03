@@ -193,7 +193,7 @@ func (s *store) Delete(key string) (kv.Value, error) {
 	}
 
 	prev := val[len(val)-1]
-
+	s.updateWatchable(key, nil)
 	return prev, nil
 }
 
