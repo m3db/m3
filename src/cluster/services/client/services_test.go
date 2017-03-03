@@ -141,6 +141,70 @@ func TestAdvertiseErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestAdvertise_NoDelay(t *testing.T) {
+	opts, closer, hbGen := testSetup(t)
+	defer closer()
+
+	sd, err := NewServices(opts)
+	require.NoError(t, err)
+
+	ad := services.NewAdvertisement()
+	err = sd.Advertise(ad)
+	require.Error(t, err)
+	require.Equal(t, errAdPlacementMissing, err)
+
+	ad = services.NewAdvertisement().
+		SetPlacementInstance(placement.NewInstance())
+	err = sd.Advertise(ad)
+	require.Error(t, err)
+	require.Equal(t, errNoServiceID, err)
+
+	sid := services.NewServiceID()
+	ad = ad.SetServiceID(sid)
+	err = sd.Advertise(ad)
+	require.Error(t, err)
+	require.Equal(t, errNoInstanceID, err)
+
+	i1 := placement.NewInstance().SetID("i1")
+
+	ad = ad.SetPlacementInstance(i1)
+	err = sd.Advertise(ad)
+	require.Error(t, err)
+	require.Equal(t, errNoServiceName, err)
+
+	sid = sid.SetName("m3db")
+	ad = ad.SetServiceID(sid)
+	err = sd.Advertise(ad)
+	require.Error(t, err)
+	require.Equal(t, kv.ErrNotFound, err)
+
+	err = sd.SetMetadata(
+		sid,
+		services.NewMetadata().
+			SetLivenessInterval(time.Hour).
+			SetHeartbeatInterval(30*time.Minute),
+	)
+	require.NoError(t, err)
+
+	err = sd.Advertise(ad)
+	require.NoError(t, err)
+
+	hbGen.Lock()
+	hb := hbGen.hbs[serviceKey(sid)]
+	hbGen.Unlock()
+
+	// hb store should show advertisement (almost) immediately
+	var insts []string
+	for {
+		insts, err = hb.Get()
+		if len(insts) == 1 || err != nil {
+			break
+		}
+	}
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"i1"}, insts)
+}
+
 func TestUnadvertiseErrors(t *testing.T) {
 	opts, closer, _ := testSetup(t)
 	defer closer()
