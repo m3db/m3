@@ -153,16 +153,22 @@ func (c *client) Advertise(ad services.Advertisement) error {
 		sid := ad.ServiceID()
 		errCounter := c.serviceTaggedScope(sid).Counter("heartbeat.error")
 
+		tickFn := func() {
+			if isHealthy(ad) {
+				if err := hb.Heartbeat(pi, m.LivenessInterval()); err != nil {
+					c.logger.Errorf("could not heartbeat service %s, %v", sid.String(), err)
+					errCounter.Inc(1)
+				}
+			}
+		}
+
+		tickFn()
+
 		ticker := time.Tick(m.HeartbeatInterval())
 		for {
 			select {
 			case <-ticker:
-				if isHealthy(ad) {
-					if err := hb.Heartbeat(pi, m.LivenessInterval()); err != nil {
-						c.logger.Errorf("could not heartbeat service %s, %v", sid.String(), err)
-						errCounter.Inc(1)
-					}
-				}
+				tickFn()
 			case <-ch:
 				return
 			}
