@@ -142,12 +142,13 @@ func (enc *unaggregatedEncoder) encodeGauge(g unaggregated.Gauge) {
 }
 
 func (enc *unaggregatedEncoder) encodeVersionedPolicies(vp policy.VersionedPolicies) {
-	// NB(xichen): if this is a default policy, we only encode the policy version
-	// and not the actual policies to optimize for the common case where the policies
-	// are the default ones
-	if vp.Version == policy.DefaultPolicyVersion {
+	// NB(xichen): if this is a default policy, we do not encode the actual policies
+	// to optimize for the common case
+	if vp.IsDefault() {
 		enc.encodeNumObjectFields(numFieldsForType(defaultVersionedPoliciesType))
 		enc.encodeObjectType(defaultVersionedPoliciesType)
+		enc.encodeVersion(vp.Version)
+		enc.encodeTime(vp.Cutover)
 		return
 	}
 	// Otherwise fallback to encoding the entire object
@@ -155,8 +156,9 @@ func (enc *unaggregatedEncoder) encodeVersionedPolicies(vp policy.VersionedPolic
 	enc.encodeObjectType(customVersionedPoliciesType)
 	enc.encodeVersion(vp.Version)
 	enc.encodeTime(vp.Cutover)
-	enc.encodeArrayLen(len(vp.Policies))
-	for _, policy := range vp.Policies {
+	policies := vp.Policies()
+	enc.encodeArrayLen(len(policies))
+	for _, policy := range policies {
 		enc.encodePolicy(policy)
 	}
 }

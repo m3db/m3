@@ -121,20 +121,23 @@ func expectedResultsForUnaggregatedMetricWithPolicies(t *testing.T, m unaggregat
 		require.Fail(t, fmt.Sprintf("unrecognized metric type %v", m.Type))
 	}
 
-	if p.Version == policy.DefaultPolicyVersion {
+	if p.IsDefault() {
 		results = append(results, []interface{}{
 			numFieldsForType(defaultVersionedPoliciesType),
 			int64(defaultVersionedPoliciesType),
+			int64(p.Version),
+			p.Cutover,
 		}...)
 	} else {
+		policies := p.Policies()
 		results = append(results, []interface{}{
 			numFieldsForType(customVersionedPoliciesType),
 			int64(customVersionedPoliciesType),
 			int64(p.Version),
 			p.Cutover,
-			len(p.Policies),
+			len(policies),
 		}...)
-		for _, p := range p.Policies {
+		for _, p := range policies {
 			results = append(results, expectedResultsForPolicy(t, p)...)
 		}
 	}
@@ -143,7 +146,7 @@ func expectedResultsForUnaggregatedMetricWithPolicies(t *testing.T, m unaggregat
 }
 
 func TestUnaggregatedEncodeCounterWithDefaultPolicies(t *testing.T) {
-	policies := policy.DefaultVersionedPolicies
+	policies := testDefaultVersionedPolicies
 	encoder, results := testCapturingUnaggregatedEncoder(t)
 	require.NoError(t, testUnaggregatedEncode(t, encoder, testCounter, policies))
 	expected := expectedResultsForUnaggregatedMetricWithPolicies(t, testCounter, policies)
@@ -151,7 +154,7 @@ func TestUnaggregatedEncodeCounterWithDefaultPolicies(t *testing.T) {
 }
 
 func TestUnaggregatedEncodeBatchTimerWithDefaultPolicies(t *testing.T) {
-	policies := policy.DefaultVersionedPolicies
+	policies := testDefaultVersionedPolicies
 	encoder, results := testCapturingUnaggregatedEncoder(t)
 	require.NoError(t, testUnaggregatedEncode(t, encoder, testBatchTimer, policies))
 	expected := expectedResultsForUnaggregatedMetricWithPolicies(t, testBatchTimer, policies)
@@ -159,7 +162,7 @@ func TestUnaggregatedEncodeBatchTimerWithDefaultPolicies(t *testing.T) {
 }
 
 func TestUnaggregatedEncodeGaugeWithDefaultPolicies(t *testing.T) {
-	policies := policy.DefaultVersionedPolicies
+	policies := testDefaultVersionedPolicies
 	encoder, results := testCapturingUnaggregatedEncoder(t)
 	require.NoError(t, testUnaggregatedEncode(t, encoder, testGauge, policies))
 	expected := expectedResultsForUnaggregatedMetricWithPolicies(t, testGauge, policies)
@@ -190,7 +193,7 @@ func TestUnaggregatedEncodeAllTypesWithCustomPolicies(t *testing.T) {
 
 func TestUnaggregatedEncodeVarintError(t *testing.T) {
 	counter := testCounter
-	policies := policy.DefaultVersionedPolicies
+	policies := testDefaultVersionedPolicies
 
 	// Intentionally return an error when encoding varint
 	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
@@ -208,7 +211,7 @@ func TestUnaggregatedEncodeVarintError(t *testing.T) {
 
 func TestUnaggregatedEncodeFloat64Error(t *testing.T) {
 	gauge := testGauge
-	policies := policy.DefaultVersionedPolicies
+	policies := testDefaultVersionedPolicies
 
 	// Intentionally return an error when encoding float64
 	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
@@ -226,7 +229,7 @@ func TestUnaggregatedEncodeFloat64Error(t *testing.T) {
 
 func TestUnaggregatedEncodeBytesError(t *testing.T) {
 	timer := testBatchTimer
-	policies := policy.DefaultVersionedPolicies
+	policies := testDefaultVersionedPolicies
 
 	// Intentionally return an error when encoding array length
 	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
@@ -244,16 +247,16 @@ func TestUnaggregatedEncodeBytesError(t *testing.T) {
 
 func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 	gauge := testGauge
-	policies := policy.VersionedPolicies{
-		Version: 1,
-		Cutover: time.Now(),
-		Policies: []policy.Policy{
+	policies := policy.CustomVersionedPolicies(
+		1,
+		time.Now(),
+		[]policy.Policy{
 			{
 				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 				Retention:  policy.Retention(time.Hour),
 			},
 		},
-	}
+	)
 
 	// Intentionally return an error when encoding array length
 	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
@@ -271,7 +274,7 @@ func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 
 func TestUnaggregatedEncoderReset(t *testing.T) {
 	metric := testCounter
-	policies := policy.DefaultVersionedPolicies
+	policies := testDefaultVersionedPolicies
 
 	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	baseEncoder := encoder.encoderBase.(*baseEncoder)

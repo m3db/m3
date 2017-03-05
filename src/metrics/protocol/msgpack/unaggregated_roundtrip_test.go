@@ -54,29 +54,34 @@ var (
 		GaugeVal: 123.456,
 	}
 
-	testVersionedPoliciesWithInvalidTimeUnit = policy.VersionedPolicies{
-		Version: 1,
-		Cutover: time.Now(),
-		Policies: []policy.Policy{
+	testDefaultVersionedPolicies = policy.DefaultVersionedPolicies(
+		policy.DefaultPolicyVersion,
+		time.Now(),
+	)
+
+	testVersionedPoliciesWithInvalidTimeUnit = policy.CustomVersionedPolicies(
+		1,
+		time.Now(),
+		[]policy.Policy{
 			{
 				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Unit(100)},
 				Retention:  policy.Retention(time.Hour),
 			},
 		},
-	}
+	)
 
 	testInputWithAllTypesAndDefaultPolicies = []metricWithPolicies{
 		{
 			metric:            testCounter,
-			versionedPolicies: policy.DefaultVersionedPolicies,
+			versionedPolicies: testDefaultVersionedPolicies,
 		},
 		{
 			metric:            testBatchTimer,
-			versionedPolicies: policy.DefaultVersionedPolicies,
+			versionedPolicies: testDefaultVersionedPolicies,
 		},
 		{
 			metric:            testGauge,
-			versionedPolicies: policy.DefaultVersionedPolicies,
+			versionedPolicies: testDefaultVersionedPolicies,
 		},
 	}
 
@@ -84,25 +89,25 @@ var (
 		// Retain this metric at 1 second resolution for 1 hour
 		{
 			metric: testCounter,
-			versionedPolicies: policy.VersionedPolicies{
-				Version: 1,
-				Cutover: time.Now(),
-				Policies: []policy.Policy{
+			versionedPolicies: policy.CustomVersionedPolicies(
+				1,
+				time.Now(),
+				[]policy.Policy{
 					{
 						Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 						Retention:  policy.Retention(time.Hour),
 					},
 				},
-			},
+			),
 		},
 		// Retain this metric at 20 second resolution for 6 hours,
 		// then 1 minute for 2 days, then 10 minutes for 25 days
 		{
 			metric: testBatchTimer,
-			versionedPolicies: policy.VersionedPolicies{
-				Version: 2,
-				Cutover: time.Now(),
-				Policies: []policy.Policy{
+			versionedPolicies: policy.CustomVersionedPolicies(
+				2,
+				time.Now(),
+				[]policy.Policy{
 					{
 						Resolution: policy.Resolution{Window: 20 * time.Second, Precision: xtime.Second},
 						Retention:  policy.Retention(6 * time.Hour),
@@ -116,21 +121,21 @@ var (
 						Retention:  policy.Retention(25 * 24 * time.Hour),
 					},
 				},
-			},
+			),
 		},
 		// Retain this metric at 10 minute resolution for 45 days
 		{
 			metric: testGauge,
-			versionedPolicies: policy.VersionedPolicies{
-				Version: 2,
-				Cutover: time.Now(),
-				Policies: []policy.Policy{
+			versionedPolicies: policy.CustomVersionedPolicies(
+				2,
+				time.Now(),
+				[]policy.Policy{
 					{
 						Resolution: policy.Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
 						Retention:  policy.Retention(45 * 24 * time.Hour),
 					},
 				},
-			},
+			),
 		},
 	}
 )
@@ -254,21 +259,21 @@ func validateUnaggregatedRoundtripWithEncoderAndIterator(
 func TestUnaggregatedEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
 	validateUnaggregatedRoundtrip(t, metricWithPolicies{
 		metric:            testCounter,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	})
 }
 
 func TestUnaggregatedEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
 	validateUnaggregatedRoundtrip(t, metricWithPolicies{
 		metric:            testBatchTimer,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	})
 }
 
 func TestUnaggregatedEncodeDecodeGaugeWithDefaultPolicies(t *testing.T) {
 	validateUnaggregatedRoundtrip(t, metricWithPolicies{
 		metric:            testGauge,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	})
 }
 
@@ -285,11 +290,11 @@ func TestUnaggregatedEncodeDecodeStress(t *testing.T) {
 	numMetrics := 10000
 	allMetrics := []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge}
 	allPolicies := []policy.VersionedPolicies{
-		policy.DefaultVersionedPolicies,
-		{
-			Version: 2,
-			Cutover: time.Now(),
-			Policies: []policy.Policy{
+		testDefaultVersionedPolicies,
+		policy.CustomVersionedPolicies(
+			2,
+			time.Now(),
+			[]policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(6 * time.Hour),
@@ -299,7 +304,7 @@ func TestUnaggregatedEncodeDecodeStress(t *testing.T) {
 					Retention:  policy.Retention(2 * 24 * time.Hour),
 				},
 			},
-		},
+		),
 	}
 
 	encoder := testUnaggregatedEncoder(t)
