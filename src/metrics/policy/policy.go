@@ -41,18 +41,16 @@ var (
 	emptyPolicy            Policy
 	emptyVersionedPolicies VersionedPolicies
 
-	// DefaultVersionedPolicies are the default versioned policies
-	DefaultVersionedPolicies = VersionedPolicies{
-		Version: DefaultPolicyVersion,
-		Policies: []Policy{
-			{
-				Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-				Retention:  Retention(2 * 24 * time.Hour),
-			},
-			{
-				Resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
-				Retention:  Retention(30 * 24 * time.Hour),
-			},
+	// defaultPolicies are the default policies
+	// TODO(xichen): possibly make this dynamically configurable in the future
+	defaultPolicies = []Policy{
+		{
+			Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+			Retention:  Retention(2 * 24 * time.Hour),
+		},
+		{
+			Resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
+			Retention:  Retention(30 * 24 * time.Hour),
 		},
 	}
 )
@@ -135,17 +133,31 @@ type VersionedPolicies struct {
 	// Cutover is when the policies take effect
 	Cutover time.Time
 
-	// Policies represent the list of policies
-	Policies []Policy
+	// isDefault determines whether the policies are the default policies
+	isDefault bool
+
+	// policies represent the list of policies
+	policies []Policy
+}
+
+// IsDefault determines whether the policies are the default policies
+func (vp VersionedPolicies) IsDefault() bool { return vp.isDefault }
+
+// Policies returns the policies
+func (vp VersionedPolicies) Policies() []Policy {
+	if vp.isDefault {
+		return defaultPolicies
+	}
+	return vp.policies
 }
 
 // String is the representation of versioned policies
 func (vp VersionedPolicies) String() string {
 	var buf bytes.Buffer
-	buf.WriteString(fmt.Sprintf("{version:%d,cutover:%s,policies:[", vp.Version, vp.Cutover.String()))
-	for i := range vp.Policies {
-		buf.WriteString(vp.Policies[i].String())
-		if i < len(vp.Policies)-1 {
+	buf.WriteString(fmt.Sprintf("{version:%d,cutover:%s,isDefault:%v,policies:[", vp.Version, vp.Cutover.String(), vp.isDefault))
+	for i := range vp.policies {
+		buf.WriteString(vp.policies[i].String())
+		if i < len(vp.policies)-1 {
 			buf.WriteString(",")
 		}
 	}
@@ -156,4 +168,23 @@ func (vp VersionedPolicies) String() string {
 // Reset resets the versioned policies
 func (vp *VersionedPolicies) Reset() {
 	*vp = emptyVersionedPolicies
+}
+
+// DefaultVersionedPolicies creates a new default versioned policies
+func DefaultVersionedPolicies(version int, cutover time.Time) VersionedPolicies {
+	return VersionedPolicies{
+		Version:   version,
+		Cutover:   cutover,
+		isDefault: true,
+	}
+}
+
+// CustomVersionedPolicies creates a new custom versioned policies
+func CustomVersionedPolicies(version int, cutover time.Time, policies []Policy) VersionedPolicies {
+	return VersionedPolicies{
+		Version:   version,
+		Cutover:   cutover,
+		isDefault: false,
+		policies:  policies,
+	}
 }

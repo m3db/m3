@@ -77,7 +77,7 @@ const (
 	numUnknownResolutionFields      = 3
 	numKnownRetentionFields         = 2
 	numUnknownRetentionFields       = 2
-	numDefaultVersionedPolicyFields = 1
+	numDefaultVersionedPolicyFields = 3
 	numCustomVersionedPolicyFields  = 4
 )
 

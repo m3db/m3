@@ -55,7 +55,7 @@ func validateUnaggregatedDecodeResults(
 func TestUnaggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	}
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
@@ -84,7 +84,7 @@ func TestUnaggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 func TestUnaggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	}
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
@@ -107,7 +107,7 @@ func TestUnaggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T
 func TestUnaggregatedIteratorDecodeCounterWithPoliciesMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	}
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
@@ -130,7 +130,7 @@ func TestUnaggregatedIteratorDecodeCounterWithPoliciesMoreFieldsThanExpected(t *
 func TestUnaggregatedIteratorDecodeCounterMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	}
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
@@ -152,7 +152,7 @@ func TestUnaggregatedIteratorDecodeCounterMoreFieldsThanExpected(t *testing.T) {
 func TestUnaggregatedIteratorDecodeBatchTimerMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testBatchTimer,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	}
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
@@ -177,7 +177,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerMoreFieldsThanExpected(t *testing.T
 func TestUnaggregatedIteratorDecodeGaugeMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testGauge,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	}
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
@@ -199,16 +199,16 @@ func TestUnaggregatedIteratorDecodeGaugeMoreFieldsThanExpected(t *testing.T) {
 func TestUnaggregatedIteratorDecodePolicyWithCustomResolution(t *testing.T) {
 	input := metricWithPolicies{
 		metric: testGauge,
-		versionedPolicies: policy.VersionedPolicies{
-			Version: 1,
-			Cutover: time.Now(),
-			Policies: []policy.Policy{
+		versionedPolicies: policy.CustomVersionedPolicies(
+			1,
+			time.Now(),
+			[]policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: 3 * time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(time.Hour),
 				},
 			},
-		},
+		),
 	}
 	enc := testUnaggregatedEncoder(t)
 	require.NoError(t, testUnaggregatedEncode(t, enc, input.metric, input.versionedPolicies))
@@ -222,16 +222,16 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomResolution(t *testing.T) {
 func TestUnaggregatedIteratorDecodePolicyWithCustomRetention(t *testing.T) {
 	input := metricWithPolicies{
 		metric: testGauge,
-		versionedPolicies: policy.VersionedPolicies{
-			Version: 1,
-			Cutover: time.Now(),
-			Policies: []policy.Policy{
+		versionedPolicies: policy.CustomVersionedPolicies(
+			1,
+			time.Now(),
+			[]policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(289 * time.Hour),
 				},
 			},
-		},
+		),
 	}
 	enc := testUnaggregatedEncoder(t)
 	require.NoError(t, testUnaggregatedEncode(t, enc, input.metric, input.versionedPolicies))
@@ -245,16 +245,16 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomRetention(t *testing.T) {
 func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric: testGauge,
-		versionedPolicies: policy.VersionedPolicies{
-			Version: 1,
-			Cutover: time.Now(),
-			Policies: []policy.Policy{
+		versionedPolicies: policy.CustomVersionedPolicies(
+			1,
+			time.Now(),
+			[]policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(time.Hour),
 				},
 			},
-		},
+		),
 	}
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	baseEncoder := enc.encoderBase.(*baseEncoder)
@@ -277,16 +277,16 @@ func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric: testGauge,
-		versionedPolicies: policy.VersionedPolicies{
-			Version: 1,
-			Cutover: time.Now(),
-			Policies: []policy.Policy{
+		versionedPolicies: policy.CustomVersionedPolicies(
+			1,
+			time.Now(),
+			[]policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 					Retention:  policy.Retention(time.Hour),
 				},
 			},
-		},
+		),
 	}
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
@@ -296,8 +296,9 @@ func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *te
 		enc.encodeObjectType(customVersionedPoliciesType)
 		enc.encodeVersion(vp.Version)
 		enc.encodeTime(vp.Cutover)
-		enc.encodeArrayLen(len(vp.Policies))
-		for _, policy := range vp.Policies {
+		policies := vp.Policies()
+		enc.encodeArrayLen(len(policies))
+		for _, policy := range policies {
 			enc.encodePolicy(policy)
 		}
 		enc.encodeVarint(0)
@@ -313,7 +314,7 @@ func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *te
 func TestUnaggregatedIteratorDecodeCounterFewerFieldsThanExpected(t *testing.T) {
 	input := metricWithPolicies{
 		metric:            testCounter,
-		versionedPolicies: policy.DefaultVersionedPolicies,
+		versionedPolicies: testDefaultVersionedPolicies,
 	}
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 
