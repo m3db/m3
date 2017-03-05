@@ -11,6 +11,11 @@ message Retention {
 }
 
 message Policy {
-	Resolution resolution = 1;
-	Retention retention = 2;
+	int32 id = 1;
+	Resolution resolution = 2;
+	Retention retention = 3;
+}
+
+message Policies {
+	repeated Policy policies = 1;
 }

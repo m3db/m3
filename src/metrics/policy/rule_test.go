@@ -384,7 +384,7 @@ func TestRuleSetMatchMappingRules(t *testing.T) {
 	}
 }
 
-func TestRuleSetRollupRules(t *testing.T) {
+func TestRuleSetMatchRollupRules(t *testing.T) {
 	ruleSetConfig := &schema.RuleSet{
 		RollupRules: testRollupRulesConfig(),
 	}
@@ -445,4 +445,17 @@ func TestRuleSetRollupRules(t *testing.T) {
 		res := ruleSet.Match(input.id)
 		require.Equal(t, input.result, res.Rollups)
 	}
+}
+
+func TestTombstonedRuleSetMatch(t *testing.T) {
+	ruleSetConfig := &schema.RuleSet{
+		Tombstoned:   true,
+		MappingRules: testMappingRulesConfig(),
+		RollupRules:  testRollupRulesConfig(),
+	}
+	ruleSet, err := NewRuleSet(ruleSetConfig, newTestSortedTagIterator)
+	require.NoError(t, err)
+
+	id := "rtagName1=rtagValue1"
+	require.Equal(t, defaultMatchResult, ruleSet.Match(id))
 }
