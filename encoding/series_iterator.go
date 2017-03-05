@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"container/heap"
 	"time"
 
 	"github.com/m3db/m3db/ts"
@@ -32,7 +31,7 @@ type seriesIterator struct {
 	id        string
 	start     time.Time
 	end       time.Time
-	iters     IteratorHeap
+	iters     iterators
 	err       error
 	firstNext bool
 	closed    bool
@@ -75,7 +74,7 @@ func (it *seriesIterator) Next() bool {
 }
 
 func (it *seriesIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	return it.iters[0].Current()
+	return it.iters.current()
 }
 
 func (it *seriesIterator) Err() error {
@@ -87,11 +86,7 @@ func (it *seriesIterator) Close() {
 		return
 	}
 	it.closed = true
-	for i := range it.iters {
-		it.iters[i].Close()
-		it.iters[i] = nil
-	}
-	it.iters = it.iters[:0]
+	it.iters.reset()
 	if it.pool != nil {
 		it.pool.Put(it)
 	}
@@ -101,17 +96,15 @@ func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Tim
 	it.id = id
 	it.start = startInclusive
 	it.end = endExclusive
-	it.iters = it.iters[:0]
+	it.iters.reset()
+	it.iters.setFilter(startInclusive, endExclusive)
 	it.err = nil
 	it.firstNext = true
 	it.closed = false
-	heap.Init(&it.iters)
 	for _, replica := range replicas {
-		if !it.moveIteratorToValidNext(replica, true) {
-			// No values within range
-			continue
+		if !replica.Next() || !it.iters.push(replica) {
+			replica.Close()
 		}
-		heap.Push(&it.iters, replica)
 	}
 }
 
@@ -124,7 +117,7 @@ func (it *seriesIterator) isClosed() bool {
 }
 
 func (it *seriesIterator) hasMore() bool {
-	return it.iters.Len() > 0
+	return it.iters.len() > 0
 }
 
 func (it *seriesIterator) hasNext() bool {
@@ -132,57 +125,22 @@ func (it *seriesIterator) hasNext() bool {
 }
 
 func (it *seriesIterator) moveToNext() {
-	iter := heap.Pop(&it.iters).(Iterator)
-	prev, _, _ := iter.Current()
-
-	if it.moveIteratorToValidNext(iter, false) {
-		heap.Push(&it.iters, iter)
-	}
-
-	if it.iters.Len() == 0 {
-		return
-	}
-
-	curr, _, _ := it.Current()
-	if curr.Timestamp.Equal(prev.Timestamp) {
-		// Dedupe
-		it.moveToNext()
-	}
-}
-
-func (it *seriesIterator) moveIteratorToValidNext(iter Iterator, first bool) bool {
-	var prevT time.Time
-	if !first {
-		prev, _, _ := iter.Current()
-		prevT = prev.Timestamp
-	}
-	for iter.Next() {
-		curr, _, _ := iter.Current()
-		t := curr.Timestamp
-		if t.Before(prevT) {
-			// Out of order datapoint
-			if it.err == nil {
-				it.err = errOutOfOrderIterator
-			}
-			iter.Close()
-			return false
+	for {
+		prev := it.iters.at()
+		next, err := it.iters.moveToValidNext()
+		if err != nil {
+			it.err = err
+			return
 		}
-		if t.Before(it.start) {
-			// Continue past
-			prevT = t
-			continue
+		if !next {
+			return
 		}
-		if !t.Before(it.end) {
-			// Past end
-			break
-		}
-		return true
-	}
 
-	err := iter.Err()
-	iter.Close()
-	if it.err == nil && err != nil {
-		it.err = err
+		curr := it.iters.at()
+		if !curr.Equal(prev) {
+			return
+		}
+
+		// Dedupe by continuing
 	}
-	return false
 }

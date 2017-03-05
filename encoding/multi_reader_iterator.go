@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"container/heap"
 	"errors"
 	"io"
 
@@ -37,7 +36,7 @@ var (
 // multiReaderIterator is an iterator that iterates in order over a list of sets of
 // internally ordered but not collectively in order readers, it also deduplicates datapoints.
 type multiReaderIterator struct {
-	iters            IteratorHeap
+	iters            iterators
 	slicesIter       xio.ReaderSliceOfSlicesIterator
 	iteratorAlloc    ReaderIteratorAllocate
 	singleSlicesIter singleSlicesOfSlicesIterator
@@ -70,7 +69,7 @@ func (it *multiReaderIterator) Next() bool {
 }
 
 func (it *multiReaderIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	return it.iters[0].Current()
+	return it.iters.current()
 }
 
 func (it *multiReaderIterator) hasError() bool {
@@ -82,7 +81,7 @@ func (it *multiReaderIterator) isClosed() bool {
 }
 
 func (it *multiReaderIterator) hasMore() bool {
-	return it.iters.Len() > 0 || it.slicesIter != nil
+	return it.iters.len() > 0 || it.slicesIter != nil
 }
 
 func (it *multiReaderIterator) hasNext() bool {
@@ -90,10 +89,10 @@ func (it *multiReaderIterator) hasNext() bool {
 }
 
 func (it *multiReaderIterator) moveToNext() {
-	if it.iters.Len() > 0 {
+	if it.iters.len() > 0 {
 		it.moveIteratorsToNext()
 	}
-	if it.iters.Len() > 0 || it.hasError() {
+	if it.iters.len() > 0 || it.hasError() {
 		// Still have valid iters or has error
 		return
 	}
@@ -115,7 +114,7 @@ func (it *multiReaderIterator) moveToNext() {
 		)
 		if iter.Next() {
 			// Only insert it if it has values
-			heap.Push(&it.iters, iter)
+			it.iters.push(iter)
 		} else {
 			err := iter.Err()
 			iter.Close()
@@ -125,54 +124,31 @@ func (it *multiReaderIterator) moveToNext() {
 		}
 	}
 
-	if it.iters.Len() == 0 && !it.hasError() {
+	if it.iters.len() == 0 && !it.hasError() {
 		// No iterators were added, move to next
 		it.moveToNext()
 	}
 }
 
 func (it *multiReaderIterator) moveIteratorsToNext() {
-	iter := heap.Pop(&it.iters).(ReaderIterator)
-	prev, _, _ := iter.Current()
-
-	if it.moveIteratorToValidNext(iter) {
-		heap.Push(&it.iters, iter)
-	} else {
-		iter.Close()
-	}
-
-	if it.iters.Len() == 0 {
-		return
-	}
-
-	curr, _, _ := it.Current()
-	if curr.Timestamp.Equal(prev.Timestamp) {
-		// Dedupe
-		it.moveIteratorsToNext()
-	}
-}
-
-func (it *multiReaderIterator) moveIteratorToValidNext(iter Iterator) bool {
-	prev, _, _ := iter.Current()
-	prevT := prev.Timestamp
-	if iter.Next() {
-		curr, _, _ := iter.Current()
-		t := curr.Timestamp
-		if t.Before(prevT) {
-			// Out of order datapoint
-			if it.err == nil {
-				it.err = errOutOfOrderIterator
-			}
-			return false
+	for {
+		prev := it.iters.at()
+		next, err := it.iters.moveToValidNext()
+		if err != nil {
+			it.err = err
+			return
 		}
-		return true
-	}
+		if !next {
+			return
+		}
 
-	err := iter.Err()
-	if it.err == nil && err != nil {
-		it.err = err
+		curr := it.iters.at()
+		if !curr.Equal(prev) {
+			return
+		}
+
+		// Dedupe by continuing
 	}
-	return false
 }
 
 func (it *multiReaderIterator) Err() error {
@@ -187,12 +163,11 @@ func (it *multiReaderIterator) Reset(readers []io.Reader) {
 }
 
 func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter xio.ReaderSliceOfSlicesIterator) {
-	it.iters = it.iters[:0]
+	it.iters.reset()
 	it.slicesIter = slicesIter
 	it.err = nil
 	it.firstNext = true
 	it.closed = false
-	heap.Init(&it.iters)
 	// Try moveToNext to load values for calls to Current before Next
 	it.moveToNext()
 }
@@ -202,11 +177,7 @@ func (it *multiReaderIterator) Close() {
 		return
 	}
 	it.closed = true
-	for i := range it.iters {
-		it.iters[i].Close()
-		it.iters[i] = nil
-	}
-	it.iters = it.iters[:0]
+	it.iters.reset()
 	if it.slicesIter != nil {
 		it.slicesIter.Close()
 	}

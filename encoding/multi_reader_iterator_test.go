@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testMultiReader struct {
@@ -68,6 +69,32 @@ func TestMultiReaderIteratorMergesMulti(t *testing.T) {
 			[]testMultiReaderEntries{{values: values[0]}, {values: values[1]}},
 		},
 		expected: append(values[0], values[1]...),
+	}
+
+	assertTestMultiReaderIterator(t, test)
+}
+
+func TestMultiReaderIteratorMergesEmpty(t *testing.T) {
+	values := [][]testValue{
+		[]testValue{},
+		[]testValue{},
+	}
+
+	test := testMultiReader{
+		input: [][]testMultiReaderEntries{
+			[]testMultiReaderEntries{{values: values[0]}},
+			[]testMultiReaderEntries{{values: values[1]}},
+		},
+		expected: values[0],
+	}
+
+	assertTestMultiReaderIterator(t, test)
+
+	test = testMultiReader{
+		input: [][]testMultiReaderEntries{
+			[]testMultiReaderEntries{{values: values[0]}, {values: values[1]}},
+		},
+		expected: values[0],
 	}
 
 	assertTestMultiReaderIterator(t, test)
@@ -324,13 +351,13 @@ func assertTestMultiReaderIterator(
 			assert.Equal(t, false, next)
 			break
 		}
-		assert.Equal(t, true, next, "expected next for idx %d", i)
+		require.Equal(t, true, next, "expected next for idx %d", i)
 		dp, unit, annotation := iter.Current()
 		expected := test.expected[i]
-		assert.Equal(t, expected.value, dp.Value)
-		assert.Equal(t, expected.t, dp.Timestamp)
-		assert.Equal(t, expected.unit, unit)
-		assert.Equal(t, expected.annotation, []byte(annotation))
+		require.Equal(t, expected.value, dp.Value, fmt.Sprintf("mismatch for idx %d", i))
+		require.Equal(t, expected.t, dp.Timestamp, fmt.Sprintf("mismatch for idx %d", i))
+		require.Equal(t, expected.unit, unit, fmt.Sprintf("mismatch for idx %d", i))
+		require.Equal(t, expected.annotation, []byte(annotation), fmt.Sprintf("mismatch for idx %d", i))
 	}
 
 	// Ensure further calls to next false
