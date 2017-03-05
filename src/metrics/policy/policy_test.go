@@ -65,3 +65,37 @@ func TestPoliciesByResolutionAsc(t *testing.T) {
 	sort.Sort(ByResolutionAsc(inputs))
 	require.Equal(t, expected, inputs)
 }
+
+func TestDefaultVersionedPolicies(t *testing.T) {
+	var (
+		version = 2
+		cutover = time.Now()
+	)
+	vp := DefaultVersionedPolicies(version, cutover)
+	require.Equal(t, version, vp.Version)
+	require.Equal(t, cutover, vp.Cutover)
+	require.True(t, vp.IsDefault())
+	require.Equal(t, defaultPolicies, vp.Policies())
+}
+
+func TestCustomVersionedPolicies(t *testing.T) {
+	var (
+		version  = 2
+		cutover  = time.Now()
+		policies = []Policy{
+			{
+				Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+				Retention:  Retention(6 * time.Hour),
+			},
+			{
+				Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+				Retention:  Retention(2 * time.Hour),
+			},
+		}
+	)
+	vp := CustomVersionedPolicies(version, cutover, policies)
+	require.Equal(t, version, vp.Version)
+	require.Equal(t, cutover, vp.Cutover)
+	require.False(t, vp.IsDefault())
+	require.Equal(t, policies, vp.Policies())
+}
