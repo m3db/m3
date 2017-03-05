@@ -13,6 +13,7 @@ test_log := test.log
 lint_check := .ci/lint.sh
 gopath_prefix := $(GOPATH)/src
 vendor_prefix := vendor
+m3metrics_package := github.com/m3db/m3metrics
 license_dir := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 auto_gen := .ci/auto-gen.sh
@@ -38,7 +39,7 @@ install-proto-bin: install-vendor
 
 proto-gen: install-proto-bin install-license-bin
 	@echo Generating protobuf files
-	$(auto_gen) $(proto_output_dir) $(proto_rules_dir)
+	PACKAGE=$(m3metrics_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
 all-gen: proto-gen
 

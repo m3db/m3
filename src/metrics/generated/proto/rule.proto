@@ -4,8 +4,9 @@ package schema;
 import "policy.proto";
 
 message MappingRule {
-  map<string,string> tag_filters = 1;
-  repeated Policy policies = 2;
+  string name = 1;
+  map<string,string> tag_filters = 2;
+  repeated Policy policies = 3;
 }
 
 message RollupTarget {
@@ -15,16 +16,22 @@ message RollupTarget {
 }
 
 message RollupRule {
-  map<string,string> tag_filters = 1;
-  repeated RollupTarget targets = 2;
+  string name = 1;
+  map<string,string> tag_filters = 2;
+  repeated RollupTarget targets = 3;
 }
 
 message RuleSet {
   string namespace = 1;
   int64 created_at = 2;
   int64 last_updated_at = 3;
-  int32 version = 4;
-  int64 cutover = 5;
-  repeated MappingRule mapping_rules = 6;
-  repeated RollupRule rollup_rules = 7;
+  bool tombstoned = 4;
+  int32 version = 5;
+  int64 cutover = 6;
+  repeated MappingRule mapping_rules = 7;
+  repeated RollupRule rollup_rules = 8;
+}
+
+message Namespaces {
+  repeated string namespaces = 1;
 }
