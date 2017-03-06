@@ -37,7 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalQuorum(t *testing.T) {
+func TestNormalQuorumOnlyOneUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -48,7 +48,6 @@ func TestNormalQuorum(t *testing.T) {
 		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
 		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
 	})
-
 	defer closeFn()
 
 	// Writes succeed to one node
@@ -56,21 +55,52 @@ func TestNormalQuorum(t *testing.T) {
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+}
+
+func TestNormalQuorumOnlyTwoUp(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// nodes = m3db nodes
+	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
+	})
+	defer closeFn()
 
 	// Writes succeed to two nodes
+	require.NoError(t, nodes[0].startServer())
 	require.NoError(t, nodes[1].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+}
+
+func TestNormalQuorumAllUp(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// nodes = m3db nodes
+	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
+	})
+	defer closeFn()
 
 	// Writes succeed to all nodes
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[1].startServer())
 	require.NoError(t, nodes[2].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelAll))
 }
 
-func TestAddNodeQuorum(t *testing.T) {
+func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -82,7 +112,6 @@ func TestAddNodeQuorum(t *testing.T) {
 		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
 		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
 	})
-
 	defer closeFn()
 
 	// No writes succeed to available nodes
@@ -91,15 +120,50 @@ func TestAddNodeQuorum(t *testing.T) {
 	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+}
+
+func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// nodes = m3db nodes
+	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
+		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
+	})
+	defer closeFn()
 
 	// Writes succeed to one available node
+	require.NoError(t, nodes[0].startServer())
 	require.NoError(t, nodes[1].startServer())
+	require.NoError(t, nodes[3].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+}
+
+func TestAddNodeQuorumAllUp(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// nodes = m3db nodes
+	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
+		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
+		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
+	})
+	defer closeFn()
 
 	// Writes succeed to two available nodes
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[1].startServer())
 	require.NoError(t, nodes[2].startServer())
+	require.NoError(t, nodes[3].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -107,8 +171,10 @@ func TestAddNodeQuorum(t *testing.T) {
 
 type testWriteFn func(topology.ConsistencyLevel) error
 
-func makeTestWrite(t *testing.T, instances []services.ServiceInstance) (testSetups,
-	closeFn, testWriteFn) {
+func makeTestWrite(
+	t *testing.T,
+	instances []services.ServiceInstance,
+) (testSetups, closeFn, testWriteFn) {
 
 	nspaces := []namespace.Metadata{
 		namespace.NewMetadata(testNamespaces[0], namespace.NewOptions()),
@@ -118,15 +184,14 @@ func makeTestWrite(t *testing.T, instances []services.ServiceInstance) (testSetu
 
 	now := nodes[0].getNowFn()
 
-	testWrite := func(cLevel topology.ConsistencyLevel) error {
-		opts := client.NewOptions().
-			SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelNone).
-			SetClusterConnectTimeout(2 * time.Second).
-			SetWriteRequestTimeout(2 * time.Second).
-			SetTopologyInitializer(topoInit).
-			SetWriteConsistencyLevel(cLevel)
+	clientopts := client.NewOptions().
+		SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelNone).
+		SetClusterConnectTimeout(2 * time.Second).
+		SetWriteRequestTimeout(2 * time.Second).
+		SetTopologyInitializer(topoInit)
 
-		c, err := client.NewClient(opts)
+	testWrite := func(cLevel topology.ConsistencyLevel) error {
+		c, err := client.NewClient(clientopts.SetWriteConsistencyLevel(cLevel))
 		require.NoError(t, err)
 
 		s, err := c.NewSession()
