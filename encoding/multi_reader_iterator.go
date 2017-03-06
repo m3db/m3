@@ -134,11 +134,11 @@ func (it *multiReaderIterator) moveIteratorsToNext() {
 	for {
 		prev := it.iters.at()
 		next, err := it.iters.moveToValidNext()
-		if err != nil {
+		if it.err == nil && err != nil {
 			it.err = err
 			return
 		}
-		if !next {
+		if err != nil || !next {
 			return
 		}
 

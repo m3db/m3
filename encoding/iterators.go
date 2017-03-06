@@ -28,6 +28,10 @@ import (
 )
 
 var (
+	// time is stored as an int64 plus an int32 nanosecond value, but if you
+	// use max int64 for the seconds component only then integer overflow
+	// will occur when performing comparisons like time.Before() and they
+	// will not work correctly.
 	timeMax = time.Unix(1<<63-62135596801, 999999999)
 )
 
