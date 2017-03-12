@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
 )
@@ -48,7 +47,6 @@ func newProcessorMetrics(scope tally.Scope, samplingRate float64) processorMetri
 type Processor struct {
 	queue      *Queue
 	aggregator aggregator.Aggregator
-	workers    xsync.WorkerPool
 	wgWorkers  sync.WaitGroup
 	nowFn      clock.NowFn
 	log        xlog.Logger
@@ -75,10 +73,8 @@ func NewProcessor(
 
 	// Start the workers to drain the queue
 	p.wgWorkers.Add(numWorkers)
-	p.workers = xsync.NewWorkerPool(numWorkers)
-	p.workers.Init()
 	for i := 0; i < numWorkers; i++ {
-		p.workers.Go(p.drain)
+		go p.drain()
 	}
 
 	return p
@@ -87,8 +83,7 @@ func NewProcessor(
 // Close closes the processor. It's safe to call close more than once.
 // All but the first call are no-ops.
 func (p *Processor) Close() {
-	// Wait for all workers to finish dequeuing existing
-	// packets in the queue
+	// Wait for all workers to finish dequeuing existing packets in the queue
 	p.wgWorkers.Wait()
 }
 

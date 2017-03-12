@@ -32,8 +32,7 @@ import (
 )
 
 var (
-	errAggregatorClosed  = errors.New("aggregator is closed")
-	errInvalidMetricType = errors.New("invalid metric type")
+	errAggregatorClosed = errors.New("aggregator is closed")
 )
 
 type addMetricWithPoliciesFn func(
@@ -52,7 +51,6 @@ type aggregator struct {
 	closed                  int32
 	doneCh                  chan struct{}
 	wgTick                  sync.WaitGroup
-	lists                   *MetricLists
 	metrics                 *metricMap
 	addMetricWithPoliciesFn addMetricWithPoliciesFn
 	waitForFn               waitForFn
@@ -61,15 +59,13 @@ type aggregator struct {
 // NewAggregator creates a new aggregator
 // TODO(xichen): add metrics
 func NewAggregator(opts Options) Aggregator {
-	lists := newMetricLists(opts)
 	doneCh := make(chan struct{})
 	agg := &aggregator{
 		opts:          opts,
 		nowFn:         opts.ClockOptions().NowFn(),
 		checkInterval: opts.EntryCheckInterval(),
 		doneCh:        doneCh,
-		lists:         lists,
-		metrics:       newMetricMap(lists, doneCh, opts),
+		metrics:       newMetricMap(opts),
 	}
 	agg.addMetricWithPoliciesFn = agg.metrics.AddMetricWithPolicies
 	agg.waitForFn = time.After
@@ -89,12 +85,7 @@ func (agg *aggregator) AddMetricWithPolicies(
 	if atomic.LoadInt32(&agg.closed) == 1 {
 		return errAggregatorClosed
 	}
-	switch mu.Type {
-	case unaggregated.CounterType, unaggregated.BatchTimerType, unaggregated.GaugeType:
-		return agg.addMetricWithPoliciesFn(mu, policies)
-	default:
-		return errInvalidMetricType
-	}
+	return agg.addMetricWithPoliciesFn(mu, policies)
 }
 
 func (agg *aggregator) Close() {
@@ -107,7 +98,7 @@ func (agg *aggregator) Close() {
 	agg.wgTick.Wait()
 
 	// Closing metric lists
-	agg.lists.Close()
+	agg.metrics.Close()
 }
 
 func (agg *aggregator) tick() {

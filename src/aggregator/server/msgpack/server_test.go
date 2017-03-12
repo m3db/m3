@@ -138,7 +138,7 @@ func TestServerListenAndClose(t *testing.T) {
 	)
 
 	// Start server
-	closer, err := s.ListenAndServe()
+	err := s.ListenAndServe()
 	require.NoError(t, err)
 
 	// Now establish multiple connections and send data to the server
@@ -172,7 +172,7 @@ func TestServerListenAndClose(t *testing.T) {
 	}
 
 	// Close the server
-	closer.Close()
+	s.Close()
 
 	// Assert the number of connections match expectations
 	require.Equal(t, int32(numClients), atomic.LoadInt32(numAdded))

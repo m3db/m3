@@ -40,6 +40,7 @@ var (
 	emptyTimedTimer   timedTimer
 	emptyTimedGauge   timedGauge
 
+	errInvalidMetricType = errors.New("invalid metric type")
 	errCounterElemClosed = errors.New("counter element is closed")
 	errTimerElemClosed   = errors.New("timer element is closed")
 	errGaugeElemClosed   = errors.New("gauge element is closed")
@@ -154,6 +155,9 @@ func NewCounterElem(id metric.ID, policy policy.Policy, opts Options) *CounterEl
 
 // AddMetric adds a new counter value
 func (e *CounterElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
+	if mu.Type != unaggregated.CounterType {
+		return errInvalidMetricType
+	}
 	alignedStart := timestamp.Truncate(e.policy.Resolution.Window).UnixNano()
 	e.Lock()
 	if e.closed {
@@ -264,6 +268,9 @@ func NewTimerElem(id metric.ID, policy policy.Policy, opts Options) *TimerElem {
 
 // AddMetric adds a new batch of timer values
 func (e *TimerElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
+	if mu.Type != unaggregated.BatchTimerType {
+		return errInvalidMetricType
+	}
 	alignedStart := timestamp.Truncate(e.policy.Resolution.Window).UnixNano()
 	e.Lock()
 	if e.closed {
@@ -411,6 +418,9 @@ func NewGaugeElem(id metric.ID, policy policy.Policy, opts Options) *GaugeElem {
 
 // AddMetric adds a new gauge value
 func (e *GaugeElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
+	if mu.Type != unaggregated.GaugeType {
+		return errInvalidMetricType
+	}
 	alignedStart := timestamp.Truncate(e.policy.Resolution.Window).UnixNano()
 	e.Lock()
 	if e.closed {

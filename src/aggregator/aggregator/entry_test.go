@@ -76,7 +76,7 @@ type testEntryData struct {
 	fn testElemValidateFn
 }
 
-func testEntry() (*Entry, *MetricLists, time.Time) {
+func testEntry() (*Entry, *metricLists, time.Time) {
 	now := time.Now()
 	clockOpts := clock.NewOptions().SetNowFn(func() time.Time {
 		return now
@@ -87,7 +87,7 @@ func testEntry() (*Entry, *MetricLists, time.Time) {
 
 	lists := newMetricLists(opts)
 	// This effectively disable flushing
-	lists.newMetricListFn = func(res time.Duration, opts Options) *MetricList {
+	lists.newMetricListFn = func(res time.Duration, opts Options) *metricList {
 		return newMetricList(0, opts)
 	}
 
@@ -255,7 +255,7 @@ func testEntryAddMetricWithPolicies(
 }
 
 func TestEntryAddMetricWithPoliciesNoPolicyUpdate(t *testing.T) {
-	var lists *MetricLists
+	var lists *metricLists
 	preAddFn := func(e *Entry) { lists = e.lists }
 	postAddFn := func(t *testing.T) {
 		require.Equal(t, 3, len(lists.lists))
@@ -270,7 +270,7 @@ func TestEntryAddMetricWithPoliciesNoPolicyUpdate(t *testing.T) {
 }
 
 func TestEntryAddMetricWithPoliciesWithPolicyUpdate(t *testing.T) {
-	var lists *MetricLists
+	var lists *metricLists
 	deletedPolicies := make(map[policy.Policy]struct{})
 	deletedPolicies[testPolicies[1]] = struct{}{}
 	deletedPolicies[testPolicies[2]] = struct{}{}
@@ -341,7 +341,7 @@ func TestEntryMaybeExpireNoExpiry(t *testing.T) {
 }
 
 func TestEntryMaybeExpireWithExpiry(t *testing.T) {
-	e, _, _ := testEntry()
+	e, _, now := testEntry()
 	populateTestAggregations(t, e, unaggregated.CounterType)
 
 	var elems []*CounterElem
@@ -349,8 +349,12 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 		elems = append(elems, elem.Value.(*CounterElem))
 	}
 
-	// Expire this entry
-	e.Expire()
+	// Try expiring this entry and assert it's not expired
+	require.False(t, e.TryExpire(now))
+
+	// Try expiring the entry with time in the future and
+	// assert it's expired
+	require.True(t, e.TryExpire(now.Add(e.opts.EntryTTL()).Add(time.Second)))
 
 	// Assert elements have been tombstoned
 	require.Equal(t, 0, len(e.aggregations))

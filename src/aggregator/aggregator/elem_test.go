@@ -271,6 +271,9 @@ func TestElemBaseMarkAsTombStoned(t *testing.T) {
 func TestCounterElemAddMetric(t *testing.T) {
 	e := NewCounterElem(testID, testPolicy, testOptions())
 
+	// Add an invalid metric
+	require.Equal(t, errInvalidMetricType, e.AddMetric(testTimestamps[0], testInvalidMetric))
+
 	// Add a counter metric
 	require.NoError(t, e.AddMetric(testTimestamps[0], testCounter))
 	require.Equal(t, 1, len(e.values))
@@ -371,6 +374,9 @@ func TestCounterFindOrInsert(t *testing.T) {
 
 func TestTimerElemAddMetric(t *testing.T) {
 	e := NewTimerElem(testID, testPolicy, testOptions())
+
+	// Add an invalid metric
+	require.Equal(t, errInvalidMetricType, e.AddMetric(testTimestamps[0], testInvalidMetric))
 
 	// Add a timer metric
 	require.NoError(t, e.AddMetric(testTimestamps[0], testBatchTimer))
@@ -506,6 +512,9 @@ func TestTimerFindOrInsert(t *testing.T) {
 
 func TestGaugeElemAddMetric(t *testing.T) {
 	e := NewGaugeElem(testID, testPolicy, testOptions())
+
+	// Add an invalid metric
+	require.Equal(t, errInvalidMetricType, e.AddMetric(testTimestamps[0], testInvalidMetric))
 
 	// Add a gauge metric
 	require.NoError(t, e.AddMetric(testTimestamps[0], testGauge))
