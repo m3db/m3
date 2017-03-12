@@ -51,22 +51,21 @@ type metricMap struct {
 	nowFn        clock.NowFn
 	entryPool    EntryPool
 	batchPercent float64
-	doneCh       <-chan struct{}
 
-	metricLists *MetricLists
+	metricLists *metricLists
 	entries     map[id.Hash]*list.Element
 	entryList   *list.List
 	waitForFn   waitForFn
 }
 
-func newMetricMap(lists *MetricLists, doneCh <-chan struct{}, opts Options) *metricMap {
+func newMetricMap(opts Options) *metricMap {
+	metricLists := newMetricLists(opts)
 	return &metricMap{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		entryPool:    opts.EntryPool(),
 		batchPercent: opts.EntryCheckBatchPercent(),
-		doneCh:       doneCh,
-		metricLists:  lists,
+		metricLists:  metricLists,
 		entries:      make(map[id.Hash]*list.Element),
 		entryList:    list.New(),
 		waitForFn:    time.After,
@@ -140,6 +139,10 @@ func (m *metricMap) DeleteExpired(target time.Duration) {
 	}
 }
 
+func (m *metricMap) Close() {
+	m.metricLists.Close()
+}
+
 func (m *metricMap) findOrCreate(mid metric.ID) *Entry {
 	idHash := id.HashFn(mid)
 	m.RLock()
@@ -183,8 +186,7 @@ func (m *metricMap) purgeExpired(now time.Time, entries []hashedEntry) {
 	}
 	m.Lock()
 	for i := range entries {
-		if entries[i].entry.ShouldExpire(now) {
-			entries[i].entry.Expire()
+		if entries[i].entry.TryExpire(now) {
 			elem := m.entries[entries[i].idHash]
 			delete(m.entries, entries[i].idHash)
 			elem.Value = nil

@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator"
 	networkserver "github.com/m3db/m3aggregator/server"
-	"github.com/m3db/m3x/close"
 )
 
 // server is an http server receiving incoming metrics traffic
@@ -46,10 +45,10 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) n
 	}
 }
 
-func (s *server) ListenAndServe() (xclose.SimpleCloser, error) {
+func (s *server) ListenAndServe() error {
 	mux := http.NewServeMux()
 	if err := registerHandlers(mux, s.aggregator); err != nil {
-		return nil, err
+		return err
 	}
 	server := http.Server{
 		Handler:      mux,
@@ -59,7 +58,7 @@ func (s *server) ListenAndServe() (xclose.SimpleCloser, error) {
 
 	listener, err := net.Listen("tcp", s.address)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	s.listener = listener
 
@@ -67,7 +66,7 @@ func (s *server) ListenAndServe() (xclose.SimpleCloser, error) {
 		server.Serve(listener)
 	}()
 
-	return s, nil
+	return nil
 }
 
 func (s *server) Close() {

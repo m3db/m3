@@ -32,7 +32,6 @@ import (
 	networkserver "github.com/m3db/m3aggregator/server"
 	"github.com/m3db/m3aggregator/server/packet"
 	"github.com/m3db/m3metrics/protocol/msgpack"
-	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/net"
 
@@ -111,14 +110,14 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) n
 	return s
 }
 
-func (s *server) ListenAndServe() (xclose.SimpleCloser, error) {
+func (s *server) ListenAndServe() error {
 	listener, err := net.Listen("tcp", s.address)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	s.listener = listener
 	go s.serve()
-	return s, nil
+	return nil
 }
 
 func (s *server) serve() error {

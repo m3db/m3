@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/errors"
 )
 
 var (
@@ -45,7 +46,7 @@ type Entry struct {
 	sync.RWMutex
 
 	opts           Options                         // options
-	lists          *MetricLists                    // metric lists
+	lists          *metricLists                    // metric lists
 	version        int                             // current policy version
 	numWriters     int32                           // number of writers writing to this entry
 	lastAccessInNs int64                           // last access time
@@ -54,7 +55,7 @@ type Entry struct {
 }
 
 // NewEntry creates a new entry
-func NewEntry(lists *MetricLists, opts Options) *Entry {
+func NewEntry(lists *metricLists, opts Options) *Entry {
 	e := &Entry{
 		opts:         opts,
 		aggregations: make(map[policy.Policy]*list.Element),
@@ -70,7 +71,7 @@ func (e *Entry) IncWriter() { atomic.AddInt32(&e.numWriters, 1) }
 func (e *Entry) DecWriter() { atomic.AddInt32(&e.numWriters, -1) }
 
 // ResetSetData resets the entry and sets initial data
-func (e *Entry) ResetSetData(lists *MetricLists) {
+func (e *Entry) ResetSetData(lists *metricLists) {
 	e.closed = false
 	e.lists = lists
 	e.version = policy.InitPolicyVersion
@@ -83,35 +84,37 @@ func (e *Entry) AddMetricWithPolicies(
 	mu unaggregated.MetricUnion,
 	policies policy.VersionedPolicies,
 ) error {
+	timeLock := e.opts.TimeLock()
+	timeLock.RLock()
+
 	// NB(xichen): it is important that we determine the current time
 	// within the time lock. This ensures time ordering by wrapping
 	// actions that need to happen before a given time within a read lock,
 	// so it is guaranteed that actions before when a write lock is acquired
 	// must have all completed. This is used to ensure we never write metrics
 	// for times that have already been flushed.
-	timeLock := e.opts.TimeLock()
-	timeLock.RLock()
-	defer timeLock.RUnlock()
+	currTime := e.opts.ClockOptions().NowFn()()
+	e.recordLastAccessed(currTime)
 
 	e.RLock()
 	if e.closed {
 		e.RUnlock()
+		timeLock.RUnlock()
 		return errEntryClosed
 	}
 
-	currTime := e.opts.ClockOptions().NowFn()()
-	e.recordLastAccessed(currTime)
-
 	if !e.shouldUpdatePoliciesWithLock(currTime, policies.Version, policies.Cutover) {
-		e.addMetricWithLock(currTime, mu)
+		err := e.addMetricWithLock(currTime, mu)
 		e.RUnlock()
-		return nil
+		timeLock.RUnlock()
+		return err
 	}
 	e.RUnlock()
 
 	e.Lock()
 	if e.closed {
 		e.Unlock()
+		timeLock.RUnlock()
 		return errEntryClosed
 	}
 
@@ -120,14 +123,16 @@ func (e *Entry) AddMetricWithPolicies(
 			// NB(xichen): if an error occurred during policy update, the policies
 			// will remain as they are, i.e., there are no half-updated policies
 			e.Unlock()
+			timeLock.RUnlock()
 			return err
 		}
 	}
 
-	e.addMetricWithLock(currTime, mu)
+	err := e.addMetricWithLock(currTime, mu)
 	e.Unlock()
+	timeLock.RUnlock()
 
-	return nil
+	return err
 }
 
 // ShouldExpire returns whether the entry should expire
@@ -137,19 +142,22 @@ func (e *Entry) ShouldExpire(now time.Time) bool {
 		e.RUnlock()
 		return false
 	}
-	// Only expire the entry if there are no active writers
-	// and it has reached its ttl since last accessed
-	shouldExpire := e.writerCount() == 0 && now.After(e.lastAccessed().Add(e.opts.EntryTTL()))
 	e.RUnlock()
-	return shouldExpire
+
+	return e.shouldExpire(now)
 }
 
-// Expire expires the entry
-func (e *Entry) Expire() {
+// TryExpire attempts to expire the entry, returning true
+// if the entry is expired, and false otherwise
+func (e *Entry) TryExpire(now time.Time) bool {
 	e.Lock()
 	if e.closed {
 		e.Unlock()
-		return
+		return false
+	}
+	if !e.shouldExpire(now) {
+		e.Unlock()
+		return false
 	}
 	e.closed = true
 	for p, agg := range e.aggregations {
@@ -161,6 +169,7 @@ func (e *Entry) Expire() {
 	e.Unlock()
 
 	pool.Put(e)
+	return true
 }
 
 func (e *Entry) writerCount() int        { return int(atomic.LoadInt32(&e.numWriters)) }
@@ -170,10 +179,20 @@ func (e *Entry) recordLastAccessed(currTime time.Time) {
 	atomic.StoreInt64(&e.lastAccessInNs, currTime.UnixNano())
 }
 
-func (e *Entry) addMetricWithLock(timestamp time.Time, mu unaggregated.MetricUnion) {
+func (e *Entry) shouldExpire(now time.Time) bool {
+	// Only expire the entry if there are no active writers
+	// and it has reached its ttl since last accessed
+	return e.writerCount() == 0 && now.After(e.lastAccessed().Add(e.opts.EntryTTL()))
+}
+
+func (e *Entry) addMetricWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
+	multiErr := xerrors.NewMultiError()
 	for _, elem := range e.aggregations {
-		elem.Value.(metricElem).AddMetric(timestamp, mu)
+		if err := elem.Value.(metricElem).AddMetric(timestamp, mu); err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
+	return multiErr.FinalError()
 }
 
 // If the current version is older than the incoming version,

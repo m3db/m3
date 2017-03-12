@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/sync"
 )
 
 var (
@@ -47,7 +46,6 @@ type AggregatedMetricProcessor struct {
 
 	closed    bool
 	queue     chan msgpack.BufferedEncoder
-	workers   xsync.WorkerPool
 	wgWorkers sync.WaitGroup
 	fn        MetricWithPolicyFn
 	log       xlog.Logger
@@ -64,10 +62,8 @@ func NewAggregatedMetricProcessor(opts Options) *AggregatedMetricProcessor {
 	}
 	numWorkers := opts.NumWorkers()
 	p.wgWorkers.Add(numWorkers)
-	p.workers = xsync.NewWorkerPool(numWorkers)
-	p.workers.Init()
 	for i := 0; i < numWorkers; i++ {
-		p.workers.Go(p.drain)
+		go p.drain()
 	}
 	return p
 }
@@ -91,13 +87,12 @@ func (p *AggregatedMetricProcessor) Add(encoder msgpack.BufferedEncoder) error {
 // Close closes the processor
 func (p *AggregatedMetricProcessor) Close() {
 	p.Lock()
+	defer p.Unlock()
+
 	if p.closed {
-		p.Unlock()
 		return
 	}
 	p.closed = true
-	p.Unlock()
-
 	close(p.queue)
 	p.wgWorkers.Wait()
 }
@@ -108,13 +103,7 @@ func (p *AggregatedMetricProcessor) drain() {
 	iter := msgpack.NewAggregatedIterator(nil, p.iterOpts)
 	defer iter.Close()
 
-	for {
-		encoder, ok := <-p.queue
-		if !ok {
-			return
-		}
-		defer encoder.Close()
-
+	for encoder := range p.queue {
 		iter.Reset(encoder.Buffer)
 		for iter.Next() {
 			rawMetric, policy := iter.Value()
@@ -137,5 +126,6 @@ func (p *AggregatedMetricProcessor) drain() {
 		if err := iter.Err(); err != nil && err != io.EOF {
 			p.log.Errorf("draining iterator error: %v", err)
 		}
+		encoder.Close()
 	}
 }

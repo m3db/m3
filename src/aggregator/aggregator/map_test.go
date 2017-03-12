@@ -44,8 +44,7 @@ var (
 
 func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 	opts := testOptions()
-	lists := newMetricLists(opts)
-	m := newMetricMap(lists, make(chan struct{}), opts)
+	m := newMetricMap(opts)
 	policies := policy.DefaultVersionedPolicies
 
 	// Add a counter metric and assert there is one entry afterwards
@@ -58,7 +57,7 @@ func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 	entry := elem.Value.(hashedEntry)
 	require.Equal(t, int32(0), atomic.LoadInt32(&entry.entry.numWriters))
 	require.Equal(t, idHash, entry.idHash)
-	require.Equal(t, 2, lists.Len())
+	require.Equal(t, 2, m.metricLists.Len())
 
 	// Add the same counter and assert there is still one entry
 	require.NoError(t, m.AddMetricWithPolicies(testCounter, policies))
@@ -69,7 +68,7 @@ func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 	entry2 := elem2.Value.(hashedEntry)
 	require.Equal(t, entry, entry2)
 	require.Equal(t, int32(0), atomic.LoadInt32(&entry2.entry.numWriters))
-	require.Equal(t, 2, lists.Len())
+	require.Equal(t, 2, m.metricLists.Len())
 
 	// Add a different metric and assert there are now two entries
 	require.NoError(t, m.AddMetricWithPolicies(
@@ -82,7 +81,7 @@ func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 	))
 	require.Equal(t, 2, len(m.entries))
 	require.Equal(t, 2, m.entryList.Len())
-	require.Equal(t, 3, lists.Len())
+	require.Equal(t, 3, m.metricLists.Len())
 }
 
 func TestMetricMapDeleteExpired(t *testing.T) {
@@ -107,8 +106,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 		SetClockOptions(expiredClockOpt).
 		SetEntryTTL(ttl)
 
-	lists := newMetricLists(opts)
-	m := newMetricMap(lists, make(chan struct{}), opts)
+	m := newMetricMap(opts)
 	var waitIntervals []time.Duration
 	m.waitForFn = func(d time.Duration) <-chan time.Time {
 		waitIntervals = append(waitIntervals, d)
@@ -124,12 +122,12 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 		if i%2 == 0 {
 			m.entries[idHash] = m.entryList.PushBack(hashedEntry{
 				idHash: idHash,
-				entry:  NewEntry(lists, liveEntryOpts),
+				entry:  NewEntry(m.metricLists, liveEntryOpts),
 			})
 		} else {
 			m.entries[idHash] = m.entryList.PushBack(hashedEntry{
 				idHash: idHash,
-				entry:  NewEntry(lists, expiredEntryOpts),
+				entry:  NewEntry(m.metricLists, expiredEntryOpts),
 			})
 		}
 	}

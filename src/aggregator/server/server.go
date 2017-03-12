@@ -20,16 +20,12 @@
 
 package server
 
-import (
-	"github.com/m3db/m3x/close"
-)
-
 // Server is a server capable of listening to incoming traffic and closing itself
 // when it's shut down
 type Server interface {
 	// ListenAndServe starts listening to new incoming connections and
 	// handles data from those connections
-	ListenAndServe() (xclose.SimpleCloser, error)
+	ListenAndServe() error
 
 	// Close closes the server
 	Close()

@@ -40,18 +40,18 @@ func Serve(
 	log := msgpackServerOpts.InstrumentOptions().Logger()
 	defer aggregator.Close()
 
-	msgpackClose, err := msgpackserver.NewServer(msgpackAddr, aggregator, msgpackServerOpts).ListenAndServe()
-	if err != nil {
+	msgpackServer := msgpackserver.NewServer(msgpackAddr, aggregator, msgpackServerOpts)
+	if err := msgpackServer.ListenAndServe(); err != nil {
 		return fmt.Errorf("could not start msgpack server at %s: %v", msgpackAddr, err)
 	}
-	defer msgpackClose.Close()
+	defer msgpackServer.Close()
 	log.Infof("msgpack server: listening on %s", msgpackAddr)
 
-	httpClose, err := httpserver.NewServer(httpAddr, aggregator, httpServerOpts).ListenAndServe()
-	if err != nil {
+	httpServer := httpserver.NewServer(httpAddr, aggregator, httpServerOpts)
+	if err := httpServer.ListenAndServe(); err != nil {
 		return fmt.Errorf("could not start http server at %s: %v", httpAddr, err)
 	}
-	defer httpClose.Close()
+	defer httpServer.Close()
 	log.Infof("http server: listening on %s", httpAddr)
 
 	// Wait for exit signal

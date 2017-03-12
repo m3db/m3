@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"container/list"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -43,10 +42,10 @@ var (
 
 type encodeFn func(mp aggregated.ChunkedMetricWithPolicy) error
 
-// MetricList stores aggregated metrics at a given resolution
+// metricList stores aggregated metrics at a given resolution
 // and flushes aggregations periodically
 // TODO(xichen): add metrics
-type MetricList struct {
+type metricList struct {
 	sync.RWMutex
 
 	opts         Options
@@ -72,7 +71,7 @@ type MetricList struct {
 	waitForFn     waitForFn
 }
 
-func newMetricList(resolution time.Duration, opts Options) *MetricList {
+func newMetricList(resolution time.Duration, opts Options) *metricList {
 	// NB(xichen): by default the flush interval is the same as metric
 	// resolution, unless the resolution is smaller than the minimum flush
 	// interval, in which case we use the min flush interval to avoid excessing
@@ -83,7 +82,7 @@ func newMetricList(resolution time.Duration, opts Options) *MetricList {
 	}
 
 	encoderPool := opts.BufferedEncoderPool()
-	l := &MetricList{
+	l := &metricList{
 		opts:          opts,
 		nowFn:         opts.ClockOptions().NowFn(),
 		log:           opts.InstrumentOptions().Logger(),
@@ -112,7 +111,7 @@ func newMetricList(resolution time.Duration, opts Options) *MetricList {
 }
 
 // Close closes the list
-func (l *MetricList) Close() {
+func (l *metricList) Close() {
 	l.Lock()
 	if l.closed {
 		l.Unlock()
@@ -131,7 +130,7 @@ func (l *MetricList) Close() {
 // insert a list element, therefore making it impossible to pool the
 // elements and manage their lifetimes. If this becomes an issue,
 // need to switch to a custom type-specific list implementation.
-func (l *MetricList) PushBack(value interface{}) (*list.Element, error) {
+func (l *metricList) PushBack(value interface{}) (*list.Element, error) {
 	l.Lock()
 	if l.closed {
 		l.Unlock()
@@ -143,7 +142,7 @@ func (l *MetricList) PushBack(value interface{}) (*list.Element, error) {
 }
 
 // tick performs periodic maintenance tasks (e.g., flushing out aggregated metrics)
-func (l *MetricList) tick() {
+func (l *metricList) tick() {
 	defer l.wgTick.Done()
 
 	for {
@@ -156,7 +155,7 @@ func (l *MetricList) tick() {
 	}
 }
 
-func (l *MetricList) tickInternal() {
+func (l *metricList) tickInternal() {
 	// NB(xichen): it is important to determine ticking start time within the time lock
 	// because this ensures all the actions before `start` have completed if those actions
 	// are protected by the same read lock
@@ -174,17 +173,13 @@ func (l *MetricList) tickInternal() {
 	// is held for too long
 	l.RLock()
 	for e := l.aggregations.Front(); e != nil; e = e.Next() {
-		switch elem := e.Value.(type) {
-		case metricElem:
-			// If the element is eligible for collection after the values are
-			// processed, close it and reset the value to nil
-			if elem.Consume(alignedStart, l.aggMetricFn) {
-				elem.Close()
-				e.Value = nil
-				l.toCollect = append(l.toCollect, e)
-			}
-		default:
-			panic(fmt.Errorf("unknown metric element type: %T", elem))
+		// If the element is eligible for collection after the values are
+		// processed, close it and reset the value to nil
+		elem := e.Value.(metricElem)
+		if elem.Consume(alignedStart, l.aggMetricFn) {
+			elem.Close()
+			e.Value = nil
+			l.toCollect = append(l.toCollect, e)
 		}
 	}
 	l.RUnlock()
@@ -216,7 +211,7 @@ func (l *MetricList) tickInternal() {
 	}
 }
 
-func (l *MetricList) processAggregatedMetric(
+func (l *metricList) processAggregatedMetric(
 	idPrefix []byte,
 	id metric.ID,
 	idSuffix []byte,
@@ -270,28 +265,28 @@ func (l *MetricList) processAggregatedMetric(
 	}
 }
 
-type newMetricListFn func(resolution time.Duration, opts Options) *MetricList
+type newMetricListFn func(resolution time.Duration, opts Options) *metricList
 
-// MetricLists contains all the metric lists
-type MetricLists struct {
+// metricLists contains all the metric lists
+type metricLists struct {
 	sync.RWMutex
 
 	opts            Options
 	newMetricListFn newMetricListFn
 	closed          bool
-	lists           map[time.Duration]*MetricList
+	lists           map[time.Duration]*metricList
 }
 
-func newMetricLists(opts Options) *MetricLists {
-	return &MetricLists{
+func newMetricLists(opts Options) *metricLists {
+	return &metricLists{
 		opts:            opts,
 		newMetricListFn: newMetricList,
-		lists:           make(map[time.Duration]*MetricList),
+		lists:           make(map[time.Duration]*metricList),
 	}
 }
 
 // Len returns the number of lists
-func (l *MetricLists) Len() int {
+func (l *metricLists) Len() int {
 	l.RLock()
 	numLists := len(l.lists)
 	l.RUnlock()
@@ -299,7 +294,7 @@ func (l *MetricLists) Len() int {
 }
 
 // Close closes the metric lists
-func (l *MetricLists) Close() {
+func (l *metricLists) Close() {
 	l.Lock()
 	if l.closed {
 		l.Unlock()
@@ -314,7 +309,7 @@ func (l *MetricLists) Close() {
 
 // FindOrCreate looks up a metric list based on a resolution,
 // and if not found, creates one
-func (l *MetricLists) FindOrCreate(resolution time.Duration) (*MetricList, error) {
+func (l *metricLists) FindOrCreate(resolution time.Duration) (*metricList, error) {
 	l.RLock()
 	if l.closed {
 		l.RUnlock()
