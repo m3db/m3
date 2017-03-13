@@ -181,7 +181,7 @@ func (s *stream) insert() {
 		sample := s.samplePool.Get()
 		sample.reset()
 		sample.setData(s.bufMore.Pop(), 1, 0)
-		s.samples.Pushback(sample)
+		s.samples.PushBack(sample)
 		s.numValues++
 		s.insertCursor = s.samples.Front()
 		return
@@ -215,7 +215,7 @@ func (s *stream) insert() {
 		sample := s.samplePool.Get()
 		sample.reset()
 		sample.setData(s.bufMore.Pop(), 1, 0)
-		s.samples.Pushback(sample)
+		s.samples.PushBack(sample)
 		s.numValues++
 	}
 
