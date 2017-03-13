@@ -33,9 +33,18 @@ func validateList(t *testing.T, l *sampleList, expected []float64) {
 		require.Equal(t, expected[i], sample.value)
 		i++
 	}
+	if len(expected) == 0 {
+		require.Nil(t, l.head)
+		require.Nil(t, l.tail)
+	} else {
+		require.Equal(t, l.Front(), l.head)
+		require.Nil(t, l.head.prev)
+		require.Equal(t, l.Back(), l.tail)
+		require.Nil(t, l.tail.next)
+	}
 }
 
-func TestSampleListPushback(t *testing.T) {
+func TestSampleListPushBack(t *testing.T) {
 	var (
 		l      sampleList
 		iter   = 10
@@ -43,7 +52,7 @@ func TestSampleListPushback(t *testing.T) {
 	)
 	for i := 0; i < iter; i++ {
 		inputs[i] = float64(i)
-		l.Pushback(&Sample{value: float64(i)})
+		l.PushBack(&Sample{value: float64(i)})
 	}
 	validateList(t, &l, inputs)
 }
@@ -59,7 +68,7 @@ func TestSampleListInsertBefore(t *testing.T) {
 		inputs[i] = float64(i)
 		sample := &Sample{value: float64(i)}
 		if i == iter-1 {
-			l.Pushback(sample)
+			l.PushBack(sample)
 		} else {
 			l.InsertBefore(sample, prev)
 		}
@@ -76,10 +85,13 @@ func TestSampleListRemove(t *testing.T) {
 	)
 	for i := 0; i < iter; i++ {
 		inputs[i] = float64(i)
-		l.Pushback(&Sample{value: float64(i)})
+		l.PushBack(&Sample{value: float64(i)})
 	}
 	for i := 0; i < iter; i++ {
-		l.Remove(l.Front())
+		elem := l.Front()
+		l.Remove(elem)
+		require.Nil(t, elem.prev)
+		require.Nil(t, elem.next)
 		validateList(t, &l, inputs[i+1:])
 	}
 }
