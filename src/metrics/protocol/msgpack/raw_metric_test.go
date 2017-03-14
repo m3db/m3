@@ -54,7 +54,7 @@ type mockBaseIterator struct {
 func (it *mockBaseIterator) reset(reader io.Reader)       {}
 func (it *mockBaseIterator) err() error                   { return it.itErr }
 func (it *mockBaseIterator) setErr(err error)             { it.itErr = err }
-func (it *mockBaseIterator) decodePolicy() policy.Policy  { return policy.Policy{} }
+func (it *mockBaseIterator) decodePolicy() policy.Policy  { return policy.EmptyPolicy }
 func (it *mockBaseIterator) decodeVersion() int           { return it.decodeVersionFn() }
 func (it *mockBaseIterator) decodeObjectType() objectType { return unknownType }
 func (it *mockBaseIterator) decodeNumObjectFields() int   { return 0 }

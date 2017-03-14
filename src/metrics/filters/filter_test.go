@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,71 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package filters
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	testTagPairSeparator  = ","
-	testTagValueSeparator = "="
-)
-
-type testFilterData struct {
-	id    string
-	match bool
-}
-
-type testTagPair struct {
-	name  string
-	value string
-}
-
-type testSortedTagIterator struct {
-	idx   int
-	err   error
-	pairs []testTagPair
-}
-
-func idToTestTagPairs(id string) []testTagPair {
-	tagPairs := strings.Split(id, testTagPairSeparator)
-	var pairs []testTagPair
-	for _, pair := range tagPairs {
-		p := strings.Split(pair, testTagValueSeparator)
-		pairs = append(pairs, testTagPair{name: p[0], value: p[1]})
-	}
-	return pairs
-}
-
-func newTestSortedTagIterator(id string) SortedTagIterator {
-	pairs := idToTestTagPairs(id)
-	return &testSortedTagIterator{idx: -1, pairs: pairs}
-}
-
-func (it *testSortedTagIterator) Next() bool {
-	if it.err != nil || it.idx >= len(it.pairs) {
-		return false
-	}
-	it.idx++
-	return it.err == nil && it.idx < len(it.pairs)
-}
-
-func (it *testSortedTagIterator) Current() (string, string) {
-	return it.pairs[it.idx].name, it.pairs[it.idx].value
-}
-
-func (it *testSortedTagIterator) Err() error {
-	return it.err
-}
-
-func (it *testSortedTagIterator) Close() {}
-
 func TestEqualityFilter(t *testing.T) {
-	inputs := []testFilterData{
+	inputs := []mockFilterData{
 		{id: "foo", match: true},
 		{id: "fo", match: false},
 		{id: "foob", match: false},
@@ -94,7 +39,7 @@ func TestEqualityFilter(t *testing.T) {
 }
 
 func TestEmptyTagsFilterMatches(t *testing.T) {
-	f := newTagsFilter(nil, newTestSortedTagIterator)
+	f := NewTagsFilter(nil, NewMockSortedTagIterator)
 	require.True(t, f.Matches("foo"))
 }
 
@@ -103,8 +48,8 @@ func TestTagsFilterMatches(t *testing.T) {
 		"tagName1": "tagValue1",
 		"tagName2": "tagValue2",
 	}
-	f := newTagsFilter(filters, newTestSortedTagIterator)
-	inputs := []testFilterData{
+	f := NewTagsFilter(filters, NewMockSortedTagIterator)
+	inputs := []mockFilterData{
 		{id: "tagName1=tagValue1,tagName2=tagValue2", match: true},
 		{id: "tagName0=tagValue0,tagName1=tagValue1,tagName2=tagValue2,tagName3=tagValue3", match: true},
 		{id: "tagName1=tagValue1", match: false},
@@ -121,6 +66,6 @@ func TestTagsFilterString(t *testing.T) {
 		"tagName1": "tagValue1",
 		"tagName2": "tagValue2",
 	}
-	f := newTagsFilter(filters, newTestSortedTagIterator)
+	f := NewTagsFilter(filters, NewMockSortedTagIterator)
 	require.Equal(t, `tagName1:Equals("tagValue1") && tagName2:Equals("tagValue2")`, f.String())
 }

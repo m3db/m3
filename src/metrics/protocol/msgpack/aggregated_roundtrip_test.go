@@ -55,10 +55,7 @@ var (
 		Timestamp: time.Now(),
 		Value:     678.90,
 	}
-	testPolicy = policy.Policy{
-		Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
-		Retention:  policy.Retention(time.Hour),
-	}
+	testPolicy = policy.NewPolicy(time.Second, xtime.Second, time.Hour)
 )
 
 type metricWithPolicy struct {

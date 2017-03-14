@@ -38,63 +38,94 @@ const (
 )
 
 var (
-	emptyPolicy            Policy
-	emptyVersionedPolicies VersionedPolicies
+	// EmptyPolicy represents an empty policy
+	EmptyPolicy Policy
 
-	// defaultPolicies are the default policies
+	// EmptyVersionedPolicies represents an empty VersionPolicies
+	EmptyVersionedPolicies VersionedPolicies
+
+	// DefaultPolicies are the default policies
 	// TODO(xichen): possibly make this dynamically configurable in the future
-	defaultPolicies = []Policy{
-		{
-			Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-			Retention:  Retention(2 * 24 * time.Hour),
+	DefaultPolicies = []Policy{
+		&policy{
+			resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+			retention:  Retention(2 * 24 * time.Hour),
 		},
-		{
-			Resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
-			Retention:  Retention(30 * 24 * time.Hour),
+		&policy{
+			resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
+			retention:  Retention(30 * 24 * time.Hour),
 		},
 	}
 )
 
 // Policy represents the resolution and retention period metric datapoints
 // are stored at
-type Policy struct {
+type Policy interface {
+	fmt.Stringer
+
 	// Resolution is the resolution datapoints are stored at
-	Resolution Resolution
+	Resolution() Resolution
 
 	// Retention is the period datatpoints are retained for
-	Retention Retention
+	Retention() Retention
 }
 
-// String is the string representation of a policy
-func (p Policy) String() string {
-	return fmt.Sprintf("{resolution:%s,retention:%s}", p.Resolution.String(), p.Retention.String())
+type policy struct {
+	resolution Resolution
+	retention  Retention
 }
 
-func newPolicy(p *schema.Policy) (Policy, error) {
+// NewPolicy creates a new policy given a resolution window size and retention
+func NewPolicy(window time.Duration, precision xtime.Unit, retention time.Duration) Policy {
+	return &policy{
+		resolution: Resolution{
+			Window:    window,
+			Precision: precision,
+		},
+		retention: Retention(retention),
+	}
+}
+
+// NewPolicyFromSchema creates a new policy from a schema policy
+func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 	precision := time.Duration(p.Resolution.Precision)
 	unit, err := xtime.UnitFromDuration(precision)
 	if err != nil {
-		return emptyPolicy, err
+		return EmptyPolicy, err
 	}
-	return Policy{
-		Resolution: Resolution{
+	return &policy{
+		resolution: Resolution{
 			Window:    time.Duration(p.Resolution.WindowSize),
 			Precision: unit,
 		},
-		Retention: Retention(p.Retention.Period),
+		retention: Retention(p.Retention.Period),
 	}, nil
 }
 
-func newPolicies(policies []*schema.Policy) ([]Policy, error) {
+// NewPoliciesFromSchema creates multiple new policues from given schema policies
+func NewPoliciesFromSchema(policies []*schema.Policy) ([]Policy, error) {
 	res := make([]Policy, 0, len(policies))
 	for _, p := range policies {
-		policy, err := newPolicy(p)
+		policy, err := NewPolicyFromSchema(p)
 		if err != nil {
 			return nil, err
 		}
 		res = append(res, policy)
 	}
 	return res, nil
+}
+
+// String is the string representation of a policy
+func (p *policy) String() string {
+	return fmt.Sprintf("{resolution:%s,retention:%s}", p.resolution.String(), p.retention.String())
+}
+
+func (p *policy) Resolution() Resolution {
+	return p.resolution
+}
+
+func (p *policy) Retention() Retention {
+	return p.retention
 }
 
 // ByResolutionAsc implements the sort.Sort interface to sort
@@ -107,14 +138,14 @@ func (pr ByResolutionAsc) Len() int      { return len(pr) }
 func (pr ByResolutionAsc) Swap(i, j int) { pr[i], pr[j] = pr[j], pr[i] }
 
 func (pr ByResolutionAsc) Less(i, j int) bool {
-	w1, w2 := pr[i].Resolution.Window, pr[j].Resolution.Window
+	w1, w2 := pr[i].Resolution().Window, pr[j].Resolution().Window
 	if w1 < w2 {
 		return true
 	}
 	if w1 > w2 {
 		return false
 	}
-	r1, r2 := pr[i].Retention, pr[j].Retention
+	r1, r2 := pr[i].Retention(), pr[j].Retention()
 	if r1 > r2 {
 		return true
 	}
@@ -122,7 +153,7 @@ func (pr ByResolutionAsc) Less(i, j int) bool {
 		return false
 	}
 	// NB(xichen): compare precision to ensure a deterministic ordering
-	return pr[i].Resolution.Precision < pr[i].Resolution.Precision
+	return pr[i].Resolution().Precision < pr[i].Resolution().Precision
 }
 
 // VersionedPolicies represent a list of policies at a specified version
@@ -146,7 +177,7 @@ func (vp VersionedPolicies) IsDefault() bool { return vp.isDefault }
 // Policies returns the policies
 func (vp VersionedPolicies) Policies() []Policy {
 	if vp.isDefault {
-		return defaultPolicies
+		return DefaultPolicies
 	}
 	return vp.policies
 }
@@ -167,7 +198,7 @@ func (vp VersionedPolicies) String() string {
 
 // Reset resets the versioned policies
 func (vp *VersionedPolicies) Reset() {
-	*vp = emptyVersionedPolicies
+	*vp = EmptyVersionedPolicies
 }
 
 // DefaultVersionedPolicies creates a new default versioned policies

@@ -63,11 +63,11 @@ func (it *baseIterator) setErr(err error) { it.decodeErr = err }
 func (it *baseIterator) decodePolicy() policy.Policy {
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(policyType)
 	if !ok {
-		return policy.Policy{}
+		return policy.EmptyPolicy
 	}
 	resolution := it.decodeResolution()
 	retention := it.decodeRetention()
-	p := policy.Policy{Resolution: resolution, Retention: retention}
+	p := policy.NewPolicy(resolution.Window, resolution.Precision, time.Duration(retention))
 	it.skip(numActualFields - numExpectedFields)
 	return p
 }

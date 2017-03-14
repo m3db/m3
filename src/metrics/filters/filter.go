@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package filters
 
 import (
 	"bytes"
@@ -35,8 +35,8 @@ const (
 	disjunction logicalOp = "||"
 )
 
-// idFilter matches an id against certain conditions
-type idFilter interface {
+// IDFilter matches an id against certain conditions
+type IDFilter interface {
 	fmt.Stringer
 
 	// Matches returns true if the conditions are met
@@ -48,7 +48,7 @@ type equalityFilter struct {
 	pattern string
 }
 
-func newEqualityFilter(pattern string) idFilter {
+func newEqualityFilter(pattern string) IDFilter {
 	return equalityFilter{pattern: pattern}
 }
 
@@ -82,7 +82,7 @@ type NewSortedTagIteratorFn func(id string) SortedTagIterator
 // tagFilter is a filter associated with a given tag
 type tagFilter struct {
 	name   string
-	filter idFilter
+	filter IDFilter
 }
 
 func (f tagFilter) String() string {
@@ -101,8 +101,8 @@ type tagsFilter struct {
 	iterFn  NewSortedTagIteratorFn
 }
 
-// newTagsFilter create a new tags filter
-func newTagsFilter(tagFilters map[string]string, iterFn NewSortedTagIteratorFn) idFilter {
+// NewTagsFilter create a new tags filter
+func NewTagsFilter(tagFilters map[string]string, iterFn NewSortedTagIteratorFn) IDFilter {
 	filters := make([]tagFilter, 0, len(tagFilters))
 	for name, value := range tagFilters {
 		filters = append(filters, tagFilter{
@@ -159,6 +159,6 @@ func (f tagsFilter) Matches(id string) bool {
 // TODO(xichen): add support for
 // * more sophisticated pattern-based filters (e.g., starts-with, any, contains, not, etc.)
 // * combined filters (e.g., and filters, or filters, etc.)
-func newFilter(id string) idFilter {
+func newFilter(id string) IDFilter {
 	return newEqualityFilter(id)
 }

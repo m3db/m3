@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,13 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package rules
 
 import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/policy"
 )
 
 var (
@@ -37,13 +39,13 @@ var (
 // target will be grouped and rolled up across the provided set of tags, named
 // with the provided name, and aggregated and retained under the provided policies
 type RollupTarget struct {
-	Name     string   // name of the rollup metric
-	Tags     []string // a set of sorted tags rollups are performed on
-	Policies []Policy // defines how the rollup metric is aggregated and retained
+	Name     string          // name of the rollup metric
+	Tags     []string        // a set of sorted tags rollups are performed on
+	Policies []policy.Policy // defines how the rollup metric is aggregated and retained
 }
 
 func newRollupTarget(target *schema.RollupTarget) (RollupTarget, error) {
-	policies, err := newPolicies(target.Policies)
+	policies, err := policy.NewPoliciesFromSchema(target.Policies)
 	if err != nil {
 		return emptyRollupTarget, err
 	}
@@ -79,7 +81,7 @@ func (t RollupTarget) sameTransform(other RollupTarget) bool {
 func (t RollupTarget) clone() RollupTarget {
 	Tags := make([]string, len(t.Tags))
 	copy(Tags, t.Tags)
-	policies := make([]Policy, len(t.Policies))
+	policies := make([]policy.Policy, len(t.Policies))
 	copy(policies, t.Policies)
 	return RollupTarget{
 		Name:     t.Name,
@@ -92,7 +94,7 @@ var defaultMatchResult MatchResult
 
 // MatchResult contains the list of mapping policies and rollup results applicable to a metric
 type MatchResult struct {
-	Mappings []Policy
+	Mappings []policy.Policy
 	Rollups  []RollupTarget
 }
 
@@ -118,17 +120,17 @@ type RuleSet interface {
 // mappingRule defines a rule such that if a metric matches the provided filters,
 // it is aggregated and retained under the provided set of policies
 type mappingRule struct {
-	filter   idFilter // used to select matching metrics
-	policies []Policy // defines how the metrics should be aggregated and retained
+	filter   filters.IDFilter // used to select matching metrics
+	policies []policy.Policy  // defines how the metrics should be aggregated and retained
 }
 
-func newMappingRule(r *schema.MappingRule, iterfn NewSortedTagIteratorFn) (mappingRule, error) {
-	policies, err := newPolicies(r.Policies)
+func newMappingRule(r *schema.MappingRule, iterfn filters.NewSortedTagIteratorFn) (mappingRule, error) {
+	policies, err := policy.NewPoliciesFromSchema(r.Policies)
 	if err != nil {
 		return emptyMappingRule, err
 	}
 	return mappingRule{
-		filter:   newTagsFilter(r.TagFilters, iterfn),
+		filter:   filters.NewTagsFilter(r.TagFilters, iterfn),
 		policies: policies,
 	}, nil
 }
@@ -136,11 +138,11 @@ func newMappingRule(r *schema.MappingRule, iterfn NewSortedTagIteratorFn) (mappi
 // rollupRule defines a rule such that if a metric matches the provided filters,
 // it is rolled up using the provided list of rollup targets
 type rollupRule struct {
-	filter  idFilter       // used to select matching metrics
-	targets []RollupTarget // dictates how metrics should be rolled up
+	filter  filters.IDFilter // used to select matching metrics
+	targets []RollupTarget   // dictates how metrics should be rolled up
 }
 
-func newRollupRule(r *schema.RollupRule, iterfn NewSortedTagIteratorFn) (rollupRule, error) {
+func newRollupRule(r *schema.RollupRule, iterfn filters.NewSortedTagIteratorFn) (rollupRule, error) {
 	targets := make([]RollupTarget, 0, len(r.Targets))
 	for _, t := range r.Targets {
 		target, err := newRollupTarget(t)
@@ -150,7 +152,7 @@ func newRollupRule(r *schema.RollupRule, iterfn NewSortedTagIteratorFn) (rollupR
 		targets = append(targets, target)
 	}
 	return rollupRule{
-		filter:  newTagsFilter(r.TagFilters, iterfn),
+		filter:  filters.NewTagsFilter(r.TagFilters, iterfn),
 		targets: targets,
 	}, nil
 }
@@ -167,7 +169,7 @@ type ruleSet struct {
 }
 
 // NewRuleSet creates a new ruleset
-func NewRuleSet(rs *schema.RuleSet, iterFn NewSortedTagIteratorFn) (RuleSet, error) {
+func NewRuleSet(rs *schema.RuleSet, iterFn filters.NewSortedTagIteratorFn) (RuleSet, error) {
 	mappingRules := make([]mappingRule, 0, len(rs.MappingRules))
 	for _, rule := range rs.MappingRules {
 		mrule, err := newMappingRule(rule, iterFn)
@@ -212,8 +214,8 @@ func (rs *ruleSet) Match(id string) MatchResult {
 	}
 }
 
-func (rs *ruleSet) mappingPolicies(id string) []Policy {
-	var policies []Policy
+func (rs *ruleSet) mappingPolicies(id string) []policy.Policy {
+	var policies []policy.Policy
 	for _, rule := range rs.mappingRules {
 		if rule.filter.Matches(id) {
 			policies = append(policies, rule.policies...)
@@ -260,24 +262,24 @@ func (rs *ruleSet) rollupTargets(id string) []RollupTarget {
 // resolution is chosen
 // * If a policy has lower resolution and shorter retention than another policy, the policy
 // is superseded by the other policy and therefore ignored
-func resolvePolicies(policies []Policy) []Policy {
+func resolvePolicies(policies []policy.Policy) []policy.Policy {
 	if len(policies) == 0 {
 		return policies
 	}
-	sort.Sort(ByResolutionAsc(policies))
+	sort.Sort(policy.ByResolutionAsc(policies))
 	// curr is the index of the last policy kept so far
 	curr := 0
 	for i := 1; i < len(policies); i++ {
 		// If the policy has the same resolution, it must have either the same or shorter retention
 		// period due to sorting, so we keep the one with longer retention period and ignore this
 		// policy
-		if policies[curr].Resolution.Window == policies[i].Resolution.Window {
+		if policies[curr].Resolution().Window == policies[i].Resolution().Window {
 			continue
 		}
 		// Otherwise the policy has lower resolution, so if it has shorter or the same retention
 		// period, we keep the one with higher resolution and longer retention period and ignore
 		// this policy
-		if policies[curr].Retention >= policies[i].Retention {
+		if policies[curr].Retention() >= policies[i].Retention() {
 			continue
 		}
 		// Now we are guaranteed the policy has lower resolution and higher retention than the

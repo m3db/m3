@@ -91,8 +91,8 @@ func (enc *baseEncoder) encodeChunkedID(id metric.ChunkedID) {
 
 func (enc *baseEncoder) encodePolicyInternal(p policy.Policy) {
 	enc.encodeNumObjectFields(numFieldsForType(policyType))
-	enc.encodeResolution(p.Resolution)
-	enc.encodeRetention(p.Retention)
+	enc.encodeResolution(p.Resolution())
+	enc.encodeRetention(p.Retention())
 }
 
 func (enc *baseEncoder) encodeResolution(resolution policy.Resolution) {

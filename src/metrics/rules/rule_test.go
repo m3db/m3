@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,13 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package rules
 
 import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -37,7 +39,7 @@ type testRollupTargetData struct {
 
 type testMappingsData struct {
 	id     string
-	result []Policy
+	result []policy.Policy
 }
 
 type testRollupsData struct {
@@ -46,11 +48,8 @@ type testRollupsData struct {
 }
 
 func TestRollupTargetSameTransform(t *testing.T) {
-	policies := []Policy{
-		{
-			Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-			Retention:  Retention(2 * 24 * time.Hour),
-		},
+	policies := []policy.Policy{
+		policy.NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 	}
 	target := RollupTarget{Name: "foo", Tags: []string{"bar1", "bar2"}}
 	inputs := []testRollupTargetData{
@@ -73,11 +72,8 @@ func TestRollupTargetSameTransform(t *testing.T) {
 }
 
 func TestRollupTargetClone(t *testing.T) {
-	policies := []Policy{
-		{
-			Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-			Retention:  Retention(2 * 24 * time.Hour),
-		},
+	policies := []policy.Policy{
+		policy.NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 	}
 	target := RollupTarget{Name: "foo", Tags: []string{"bar1", "bar2"}, Policies: policies}
 	cloned := target.clone()
@@ -87,7 +83,7 @@ func TestRollupTargetClone(t *testing.T) {
 
 	// Change references in the cloned object should not mutate the original object
 	cloned.Tags[0] = "bar3"
-	cloned.Policies[0] = emptyPolicy
+	cloned.Policies[0] = policy.EmptyPolicy
 	require.Equal(t, target.Tags, []string{"bar1", "bar2"})
 	require.Equal(t, target.Policies, policies)
 }
@@ -347,34 +343,22 @@ func TestRuleSetMatchMappingRules(t *testing.T) {
 	ruleSetConfig := &schema.RuleSet{
 		MappingRules: testMappingRulesConfig(),
 	}
-	ruleSet, err := NewRuleSet(ruleSetConfig, newTestSortedTagIterator)
+	ruleSet, err := NewRuleSet(ruleSetConfig, filters.NewMockSortedTagIterator)
 	require.NoError(t, err)
 
 	inputs := []testMappingsData{
 		{
 			id: "mtagName1=mtagValue1",
-			result: []Policy{
-				{
-					Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-					Retention:  Retention(12 * time.Hour),
-				},
-				{
-					Resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
-					Retention:  Retention(24 * time.Hour),
-				},
-				{
-					Resolution: Resolution{Window: 5 * time.Minute, Precision: xtime.Minute},
-					Retention:  Retention(48 * time.Hour),
-				},
+			result: []policy.Policy{
+				policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+				policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+				policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 			},
 		},
 		{
 			id: "mtagName1=mtagValue2",
-			result: []Policy{
-				{
-					Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-					Retention:  Retention(24 * time.Hour),
-				},
+			result: []policy.Policy{
+				policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
 			},
 		},
 	}
@@ -388,7 +372,7 @@ func TestRuleSetMatchRollupRules(t *testing.T) {
 	ruleSetConfig := &schema.RuleSet{
 		RollupRules: testRollupRulesConfig(),
 	}
-	ruleSet, err := NewRuleSet(ruleSetConfig, newTestSortedTagIterator)
+	ruleSet, err := NewRuleSet(ruleSetConfig, filters.NewMockSortedTagIterator)
 	require.NoError(t, err)
 
 	inputs := []testRollupsData{
@@ -398,29 +382,17 @@ func TestRuleSetMatchRollupRules(t *testing.T) {
 				{
 					Name: "rName1",
 					Tags: []string{"rtag1", "rtag2"},
-					Policies: []Policy{
-						{
-							Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-							Retention:  Retention(12 * time.Hour),
-						},
-						{
-							Resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
-							Retention:  Retention(24 * time.Hour),
-						},
-						{
-							Resolution: Resolution{Window: 5 * time.Minute, Precision: xtime.Minute},
-							Retention:  Retention(48 * time.Hour),
-						},
+					Policies: []policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 					},
 				},
 				{
 					Name: "rName2",
 					Tags: []string{"rtag1"},
-					Policies: []Policy{
-						{
-							Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-							Retention:  Retention(24 * time.Hour),
-						},
+					Policies: []policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
 					},
 				},
 			},
@@ -431,11 +403,8 @@ func TestRuleSetMatchRollupRules(t *testing.T) {
 				{
 					Name: "rName3",
 					Tags: []string{"rtag1", "rtag2"},
-					Policies: []Policy{
-						{
-							Resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
-							Retention:  Retention(time.Hour),
-						},
+					Policies: []policy.Policy{
+						policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
 					},
 				},
 			},
@@ -453,7 +422,7 @@ func TestTombstonedRuleSetMatch(t *testing.T) {
 		MappingRules: testMappingRulesConfig(),
 		RollupRules:  testRollupRulesConfig(),
 	}
-	ruleSet, err := NewRuleSet(ruleSetConfig, newTestSortedTagIterator)
+	ruleSet, err := NewRuleSet(ruleSetConfig, filters.NewMockSortedTagIterator)
 	require.NoError(t, err)
 
 	id := "rtagName1=rtagValue1"

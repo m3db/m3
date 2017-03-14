@@ -203,10 +203,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomResolution(t *testing.T) {
 			1,
 			time.Now(),
 			[]policy.Policy{
-				{
-					Resolution: policy.Resolution{Window: 3 * time.Second, Precision: xtime.Second},
-					Retention:  policy.Retention(time.Hour),
-				},
+				policy.NewPolicy(3*time.Second, xtime.Second, time.Hour),
 			},
 		),
 	}
@@ -226,10 +223,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomRetention(t *testing.T) {
 			1,
 			time.Now(),
 			[]policy.Policy{
-				{
-					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
-					Retention:  policy.Retention(289 * time.Hour),
-				},
+				policy.NewPolicy(time.Second, xtime.Second, 289*time.Hour),
 			},
 		),
 	}
@@ -249,10 +243,7 @@ func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 			1,
 			time.Now(),
 			[]policy.Policy{
-				{
-					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
-					Retention:  policy.Retention(time.Hour),
-				},
+				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
 			},
 		),
 	}
@@ -262,8 +253,8 @@ func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 	// Pretend we added an extra int field to the policy object
 	baseEncoder.encodePolicyFn = func(p policy.Policy) {
 		baseEncoder.encodeNumObjectFields(numFieldsForType(policyType) + 1)
-		baseEncoder.encodeResolution(p.Resolution)
-		baseEncoder.encodeRetention(p.Retention)
+		baseEncoder.encodeResolution(p.Resolution())
+		baseEncoder.encodeRetention(p.Retention())
 		baseEncoder.encodeVarint(0)
 	}
 	require.NoError(t, testUnaggregatedEncode(t, enc, input.metric, input.versionedPolicies))
@@ -281,10 +272,7 @@ func TestUnaggregatedIteratorDecodeVersionedPoliciesMoreFieldsThanExpected(t *te
 			1,
 			time.Now(),
 			[]policy.Policy{
-				{
-					Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
-					Retention:  policy.Retention(time.Hour),
-				},
+				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
 			},
 		),
 	}

@@ -49,7 +49,7 @@ func testCapturingUnaggregatedEncoder(t *testing.T) (UnaggregatedEncoder, *[]int
 func expectedResultsForPolicy(t *testing.T, p policy.Policy) []interface{} {
 	results := []interface{}{numFieldsForType(policyType)}
 
-	resolutionValue, err := policy.ValueFromResolution(p.Resolution)
+	resolutionValue, err := policy.ValueFromResolution(p.Resolution())
 	if err == nil {
 		results = append(results, []interface{}{
 			numFieldsForType(knownResolutionType),
@@ -60,12 +60,12 @@ func expectedResultsForPolicy(t *testing.T, p policy.Policy) []interface{} {
 		results = append(results, []interface{}{
 			numFieldsForType(unknownResolutionType),
 			int64(unknownResolutionType),
-			int64(p.Resolution.Window),
-			int64(p.Resolution.Precision),
+			int64(p.Resolution().Window),
+			int64(p.Resolution().Precision),
 		}...)
 	}
 
-	retentionValue, err := policy.ValueFromRetention(p.Retention)
+	retentionValue, err := policy.ValueFromRetention(p.Retention())
 	if err == nil {
 		results = append(results, []interface{}{
 			numFieldsForType(knownRetentionType),
@@ -76,7 +76,7 @@ func expectedResultsForPolicy(t *testing.T, p policy.Policy) []interface{} {
 		results = append(results, []interface{}{
 			numFieldsForType(unknownRetentionType),
 			int64(unknownRetentionType),
-			int64(p.Retention),
+			int64(p.Retention()),
 		}...)
 	}
 
@@ -251,10 +251,7 @@ func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 		1,
 		time.Now(),
 		[]policy.Policy{
-			{
-				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
-				Retention:  policy.Retention(time.Hour),
-			},
+			policy.NewPolicy(time.Second, xtime.Second, time.Hour),
 		},
 	)
 
