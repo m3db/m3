@@ -29,7 +29,7 @@ import (
 type bufferedEncoder struct {
 	*msgpack.Encoder
 
-	buf    *bytes.Buffer
+	buf    bytes.Buffer
 	closed bool
 	pool   BufferedEncoderPool
 }
@@ -41,16 +41,13 @@ func NewBufferedEncoder() BufferedEncoder {
 
 // NewPooledBufferedEncoder creates a new pooled buffered encoder
 func NewPooledBufferedEncoder(p BufferedEncoderPool) BufferedEncoder {
-	buf := bytes.NewBuffer(nil)
-	return &bufferedEncoder{
-		Encoder: msgpack.NewEncoder(buf),
-		buf:     buf,
-		closed:  false,
-		pool:    p,
-	}
+	var enc bufferedEncoder
+	enc.Encoder = msgpack.NewEncoder(&enc.buf)
+	enc.pool = p
+	return &enc
 }
 
-func (enc *bufferedEncoder) Buffer() *bytes.Buffer { return enc.buf }
+func (enc *bufferedEncoder) Buffer() *bytes.Buffer { return &enc.buf }
 
 func (enc *bufferedEncoder) Bytes() []byte { return enc.buf.Bytes() }
 
