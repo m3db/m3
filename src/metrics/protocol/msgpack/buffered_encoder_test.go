@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testBufferedEncoder() BufferedEncoder {
-	return NewBufferedEncoder()
+func testBufferedEncoder() *bufferedEncoder {
+	return NewBufferedEncoder().(*bufferedEncoder)
 }
 
 func TestBufferedEncoderReset(t *testing.T) {

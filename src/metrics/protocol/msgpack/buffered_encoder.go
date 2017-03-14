@@ -26,6 +26,14 @@ import (
 	msgpack "gopkg.in/vmihailenco/msgpack.v2"
 )
 
+type bufferedEncoder struct {
+	*msgpack.Encoder
+
+	buf    *bytes.Buffer
+	closed bool
+	pool   BufferedEncoderPool
+}
+
 // NewBufferedEncoder creates a new buffered encoder
 func NewBufferedEncoder() BufferedEncoder {
 	return NewPooledBufferedEncoder(nil)
@@ -33,31 +41,30 @@ func NewBufferedEncoder() BufferedEncoder {
 
 // NewPooledBufferedEncoder creates a new pooled buffered encoder
 func NewPooledBufferedEncoder(p BufferedEncoderPool) BufferedEncoder {
-	buffer := bytes.NewBuffer(nil)
-
-	return BufferedEncoder{
-		Encoder: msgpack.NewEncoder(buffer),
-		Buffer:  buffer,
+	buf := bytes.NewBuffer(nil)
+	return &bufferedEncoder{
+		Encoder: msgpack.NewEncoder(buf),
+		buf:     buf,
+		closed:  false,
 		pool:    p,
 	}
 }
 
-// Bytes returns the buffer data
-func (enc BufferedEncoder) Bytes() []byte { return enc.Buffer.Bytes() }
+func (enc *bufferedEncoder) Buffer() *bytes.Buffer { return enc.buf }
 
-// Reset resets the buffered encoder
-func (enc *BufferedEncoder) Reset() {
+func (enc *bufferedEncoder) Bytes() []byte { return enc.buf.Bytes() }
+
+func (enc *bufferedEncoder) Reset() {
 	enc.closed = false
-	enc.Buffer.Truncate(0)
+	enc.buf.Truncate(0)
 }
 
-// Close returns the buffered encoder to the pool if possible
-func (enc *BufferedEncoder) Close() {
+func (enc *bufferedEncoder) Close() {
 	if enc.closed {
 		return
 	}
 	enc.closed = true
 	if enc.pool != nil {
-		enc.pool.Put(*enc)
+		enc.pool.Put(enc)
 	}
 }

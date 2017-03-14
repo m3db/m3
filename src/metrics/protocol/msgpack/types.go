@@ -31,17 +31,48 @@ import (
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/pool"
 	xpool "github.com/m3db/m3x/pool"
-
-	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
-// BufferedEncoder is an messagePack-based encoder backed by byte buffers
-type BufferedEncoder struct {
-	*msgpack.Encoder
+// Buffer is a byte buffer
+type Buffer interface {
+	// Buffer returns the bytes buffer
+	Buffer() *bytes.Buffer
 
-	Buffer *bytes.Buffer
-	closed bool
-	pool   BufferedEncoderPool
+	// Bytes returns the buffered bytes
+	Bytes() []byte
+
+	// Reset resets the buffer
+	Reset()
+
+	// Close closes the buffer
+	Close()
+}
+
+// Encoder is an encoder
+type Encoder interface {
+	// EncodeTime encodes a time value
+	EncodeTime(value time.Time) error
+
+	// EncodeInt64 encodes an int64 value
+	EncodeInt64(value int64) error
+
+	// EncodeFloat64 encodes a float64 value
+	EncodeFloat64(value float64) error
+
+	// EncodeBytes encodes a byte slice
+	EncodeBytes(value []byte) error
+
+	// EncodeBytesLen encodes the length of a byte slice
+	EncodeBytesLen(value int) error
+
+	// EncodeArrayLen encodes the length of an array
+	EncodeArrayLen(value int) error
+}
+
+// BufferedEncoder is an encoder backed by byte buffers
+type BufferedEncoder interface {
+	Buffer
+	Encoder
 }
 
 // BufferedEncoderAlloc allocates a bufferer encoder
