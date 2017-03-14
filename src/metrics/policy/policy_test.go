@@ -32,33 +32,33 @@ import (
 
 func TestPoliciesByResolutionAsc(t *testing.T) {
 	inputs := []Policy{
-		{
-			Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-			Retention:  Retention(6 * time.Hour),
+		&policy{
+			resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+			retention:  Retention(6 * time.Hour),
 		},
-		{
-			Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-			Retention:  Retention(2 * time.Hour),
+		&policy{
+			resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+			retention:  Retention(2 * time.Hour),
 		},
-		{
-			Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-			Retention:  Retention(12 * time.Hour),
+		&policy{
+			resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+			retention:  Retention(12 * time.Hour),
 		},
-		{
-			Resolution: Resolution{Window: 5 * time.Minute, Precision: xtime.Minute},
-			Retention:  Retention(48 * time.Hour),
+		&policy{
+			resolution: Resolution{Window: 5 * time.Minute, Precision: xtime.Minute},
+			retention:  Retention(48 * time.Hour),
 		},
-		{
-			Resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
-			Retention:  Retention(time.Hour),
+		&policy{
+			resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
+			retention:  Retention(time.Hour),
 		},
-		{
-			Resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
-			Retention:  Retention(24 * time.Hour),
+		&policy{
+			resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
+			retention:  Retention(24 * time.Hour),
 		},
-		{
-			Resolution: Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
-			Retention:  Retention(48 * time.Hour),
+		&policy{
+			resolution: Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
+			retention:  Retention(48 * time.Hour),
 		},
 	}
 	expected := []Policy{inputs[2], inputs[0], inputs[1], inputs[5], inputs[4], inputs[3], inputs[6]}
@@ -75,7 +75,7 @@ func TestDefaultVersionedPolicies(t *testing.T) {
 	require.Equal(t, version, vp.Version)
 	require.Equal(t, cutover, vp.Cutover)
 	require.True(t, vp.IsDefault())
-	require.Equal(t, defaultPolicies, vp.Policies())
+	require.Equal(t, DefaultPolicies, vp.Policies())
 }
 
 func TestCustomVersionedPolicies(t *testing.T) {
@@ -83,13 +83,13 @@ func TestCustomVersionedPolicies(t *testing.T) {
 		version  = 2
 		cutover  = time.Now()
 		policies = []Policy{
-			{
-				Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-				Retention:  Retention(6 * time.Hour),
+			&policy{
+				resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+				retention:  Retention(6 * time.Hour),
 			},
-			{
-				Resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-				Retention:  Retention(2 * time.Hour),
+			&policy{
+				resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+				retention:  Retention(2 * time.Hour),
 			},
 		}
 	)
