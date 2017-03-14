@@ -181,5 +181,5 @@ func (enc *baseEncoder) writeRaw(buf []byte) {
 	if enc.encodeErr != nil {
 		return
 	}
-	_, enc.encodeErr = enc.bufEncoder.Buffer.Write(buf)
+	_, enc.encodeErr = enc.bufEncoder.Buffer().Write(buf)
 }

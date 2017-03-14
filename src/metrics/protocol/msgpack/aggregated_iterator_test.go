@@ -69,7 +69,7 @@ func TestAggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	enc.encodeRootObjectFn = enc.encodeRootObject
 	require.NoError(t, testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy))
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer)
+	it := testAggregatedIterator(t, enc.Encoder().Buffer())
 	it.(*aggregatedIterator).ignoreHigherVersion = true
 
 	// Check that we skipped the first metric and successfully decoded the second metric
@@ -93,7 +93,7 @@ func TestAggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T) 
 	enc.encodeVarint(0)
 	require.NoError(t, enc.err())
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer)
+	it := testAggregatedIterator(t, enc.Encoder().Buffer())
 
 	// Check that we successfully decoded the metric
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
@@ -116,7 +116,7 @@ func TestAggregatedIteratorDecodeRawMetricMoreFieldsThanExpected(t *testing.T) {
 	enc.encodeVarint(0)
 	require.NoError(t, enc.err())
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer)
+	it := testAggregatedIterator(t, enc.Encoder().Buffer())
 
 	// Check that we successfully decoded the metric
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
@@ -138,7 +138,7 @@ func TestAggregatedIteratorDecodeMetricHigherVersionThanSupported(t *testing.T) 
 	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
 	require.NoError(t, enc.err())
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer)
+	it := testAggregatedIterator(t, enc.Encoder().Buffer())
 	require.True(t, it.Next())
 	rawMetric, _ := it.Value()
 	_, err := rawMetric.Value()
@@ -161,7 +161,7 @@ func TestAggregatedIteratorDecodeMetricMoreFieldsThanExpected(t *testing.T) {
 	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
 	require.NoError(t, enc.err())
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer)
+	it := testAggregatedIterator(t, enc.Encoder().Buffer())
 
 	// Check that we successfully decoded the metric
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
