@@ -23,6 +23,7 @@ package mock
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
@@ -51,13 +52,17 @@ var (
 		Type: unaggregated.UnknownType,
 		ID:   metric.ID("invalid"),
 	}
+	testDefaultVersionedPolicies = policy.DefaultVersionedPolicies(
+		1,
+		time.Now(),
+	)
 )
 
 func TestMockAggregator(t *testing.T) {
 	agg := NewAggregator()
 
 	// Adding an invalid metric should result in an error
-	policies := policy.DefaultVersionedPolicies
+	policies := testDefaultVersionedPolicies
 	require.Error(t, agg.AddMetricWithPolicies(testInvalid, policies))
 
 	// Add valid metrics with policies

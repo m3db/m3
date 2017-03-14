@@ -31,11 +31,8 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
-	"github.com/m3db/m3aggregator/services/m3aggregator/processor"
+	"github.com/m3db/m3aggregator/services/m3aggregator/handler"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3x/log"
 )
 
 const (
@@ -55,21 +52,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Creating the downstream processor
-	processorOpts := processor.NewOptions()
-	log := processorOpts.InstrumentOptions().Logger()
-	metricWithPolicyfn := func(metric aggregated.Metric, policy policy.Policy) error {
-		log.WithFields(
-			xlog.NewLogField("metric", metric.String()),
-			xlog.NewLogField("policy", policy.String()),
-		).Info("aggregated metric")
-		return nil
-	}
-	processorOpts = processorOpts.SetMetricWithPolicyFn(metricWithPolicyfn)
-	processor := processor.NewAggregatedMetricProcessor(processorOpts)
+	// Creating the handler
+	handler := handler.NewDefaultHandler()
 
 	// Creating the aggregator
-	aggregatorOpts := aggregator.NewOptions().SetFlushFn(processor.Add)
+	aggregatorOpts := aggregator.NewOptions().SetFlushFn(handler.Handle)
 	aggregator := aggregator.NewAggregator(aggregatorOpts)
 
 	// Creating the mgspack server options
@@ -79,6 +66,7 @@ func main() {
 	httpServerOpts := httpserver.NewOptions()
 
 	// Start listening
+	log := aggregatorOpts.InstrumentOptions().Logger()
 	doneCh := make(chan struct{})
 	closedCh := make(chan struct{})
 	go func() {
@@ -93,8 +81,6 @@ func main() {
 			log.Fatalf("could not start serving traffic: %v", err)
 		}
 		log.Debug("server closed")
-		processor.Close()
-		log.Debug("processor closed")
 		close(closedCh)
 	}()
 

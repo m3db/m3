@@ -22,19 +22,12 @@ package msgpack
 
 import (
 	"github.com/m3db/m3metrics/protocol/msgpack"
-	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 )
 
 // Options provide a set of server options
 type Options interface {
-	// SetClockOptions sets the clock options
-	SetClockOptions(value clock.Options) Options
-
-	// ClockOptions returns the clock options
-	ClockOptions() clock.Options
-
 	// SetInstrumentOptions sets the instrument options
 	SetInstrumentOptions(value instrument.Options) Options
 
@@ -52,16 +45,4 @@ type Options interface {
 
 	// IteratorPool returns the iterator pool
 	IteratorPool() msgpack.UnaggregatedIteratorPool
-
-	// SetPacketQueueSize sets the packet queue size
-	SetPacketQueueSize(value int) Options
-
-	// PacketQueueSize returns the packet queue size
-	PacketQueueSize() int
-
-	// SetWorkerPoolSize sets the worker pool size
-	SetWorkerPoolSize(value int) Options
-
-	// WorkerPoolSize returns the worker pool size
-	WorkerPoolSize() int
 }

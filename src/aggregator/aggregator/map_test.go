@@ -35,17 +35,21 @@ import (
 )
 
 var (
-	testVersionedPolicies = policy.VersionedPolicies{
-		Version:  1,
-		Cutover:  time.Now(),
-		Policies: testPolicies,
-	}
+	testDefaultVersionedPolicies = policy.DefaultVersionedPolicies(
+		1,
+		time.Now(),
+	)
+	testCustomVersionedPolicies = policy.CustomVersionedPolicies(
+		1,
+		time.Now(),
+		testPolicies,
+	)
 )
 
 func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 	opts := testOptions()
 	m := newMetricMap(opts)
-	policies := policy.DefaultVersionedPolicies
+	policies := testDefaultVersionedPolicies
 
 	// Add a counter metric and assert there is one entry afterwards
 	require.NoError(t, m.AddMetricWithPolicies(testCounter, policies))
@@ -77,7 +81,7 @@ func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 			ID:       []byte("bar"),
 			GaugeVal: 123.456,
 		},
-		testVersionedPolicies,
+		testCustomVersionedPolicies,
 	))
 	require.Equal(t, 2, len(m.entries))
 	require.Equal(t, 2, m.entryList.Len())

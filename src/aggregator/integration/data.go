@@ -40,9 +40,10 @@ var (
 	testCounterVal        = int64(123)
 	testBatchTimerVals    = []float64{1.5, 2.5, 3.5, 4.5, 5.5}
 	testGaugeVal          = 456.789
-	testVersionedPolicies = policy.VersionedPolicies{
-		Version: 1,
-		Policies: []policy.Policy{
+	testVersionedPolicies = policy.CustomVersionedPolicies(
+		1,
+		time.Unix(0, 0),
+		[]policy.Policy{
 			{
 				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 				Retention:  policy.Retention(time.Hour),
@@ -52,10 +53,11 @@ var (
 				Retention:  policy.Retention(6 * time.Hour),
 			},
 		},
-	}
-	testUpdatedVersionedPolicies = policy.VersionedPolicies{
-		Version: 2,
-		Policies: []policy.Policy{
+	)
+	testUpdatedVersionedPolicies = policy.CustomVersionedPolicies(
+		2,
+		time.Unix(0, 0),
+		[]policy.Policy{
 			{
 				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
 				Retention:  policy.Retention(time.Hour),
@@ -65,7 +67,7 @@ var (
 				Retention:  policy.Retention(24 * time.Hour),
 			},
 		},
-	}
+	)
 )
 
 type byTimeIDPolicyAscending []aggregated.MetricWithPolicy
@@ -187,7 +189,7 @@ func toExpectedResults(
 	opts aggregator.Options,
 ) []aggregated.MetricWithPolicy {
 	byPolicy := make(metricsByPolicy)
-	for _, p := range dsp.policies.Policies {
+	for _, p := range dsp.policies.Policies() {
 		byPolicy[p] = make(datapointsByID)
 	}
 

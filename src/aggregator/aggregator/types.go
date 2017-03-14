@@ -104,8 +104,8 @@ type Aggregator interface {
 // QuantileSuffixFn returns the byte-slice suffix for a quantile value
 type QuantileSuffixFn func(quantile float64) []byte
 
-// FlushFn flushes a buffered encoder
-type FlushFn func(buffer msgpack.BufferedEncoder) error
+// FlushFn flushes an encoded buffer
+type FlushFn func(buffer msgpack.Buffer) error
 
 // Options provide a set of base and derived options for the aggregator
 type Options interface {

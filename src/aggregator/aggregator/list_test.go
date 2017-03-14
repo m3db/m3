@@ -45,12 +45,12 @@ type testElemPair struct {
 func validateBuffers(
 	t *testing.T,
 	expected []testAggMetric,
-	buffers []msgpack.BufferedEncoder,
+	buffers []msgpack.Buffer,
 ) {
 	var decoded []aggregated.MetricWithPolicy
 	it := msgpack.NewAggregatedIterator(nil, nil)
 	for _, b := range buffers {
-		it.Reset(b.Buffer)
+		it.Reset(b.Buffer())
 		for it.Next() {
 			rm, p := it.Value()
 			m, err := rm.Metric()
@@ -113,9 +113,9 @@ func TestMetricListClose(t *testing.T) {
 func TestMetricListTick(t *testing.T) {
 	var (
 		bufferLock sync.Mutex
-		buffers    []msgpack.BufferedEncoder
+		buffers    []msgpack.Buffer
 	)
-	flushFn := func(buffer msgpack.BufferedEncoder) error {
+	flushFn := func(buffer msgpack.Buffer) error {
 		bufferLock.Lock()
 		buffers = append(buffers, buffer)
 		bufferLock.Unlock()

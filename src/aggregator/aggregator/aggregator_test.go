@@ -53,9 +53,9 @@ func TestAggregator(t *testing.T) {
 	}
 
 	// Add a counter metric
-	require.NoError(t, agg.AddMetricWithPolicies(testCounter, testVersionedPolicies))
+	require.NoError(t, agg.AddMetricWithPolicies(testCounter, testCustomVersionedPolicies))
 	require.Equal(t, testCounter, resultMu)
-	require.Equal(t, testVersionedPolicies, resultPolicies)
+	require.Equal(t, testCustomVersionedPolicies, resultPolicies)
 
 	// Force a tick
 	agg.tickInternal()
@@ -67,7 +67,7 @@ func TestAggregator(t *testing.T) {
 	agg.Close()
 
 	// Adding a metric to a closed aggregator should result in an error
-	err := agg.AddMetricWithPolicies(testCounter, testVersionedPolicies)
+	err := agg.AddMetricWithPolicies(testCounter, testCustomVersionedPolicies)
 	require.Equal(t, errAggregatorClosed, err)
 
 	// Assert the aggregator is closed

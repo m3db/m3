@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator"
 	networkserver "github.com/m3db/m3aggregator/server"
-	"github.com/m3db/m3aggregator/server/packet"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/net"
@@ -40,16 +39,14 @@ import (
 
 type serverMetrics struct {
 	openConnections tally.Gauge
-	queueSize       tally.Gauge
-	enqueueErrors   tally.Counter
+	addMetricErrors tally.Counter
 	decodeErrors    tally.Counter
 }
 
 func newServerMetrics(scope tally.Scope) serverMetrics {
 	return serverMetrics{
 		openConnections: scope.Gauge("open-connections"),
-		queueSize:       scope.Gauge("queue-size"),
-		enqueueErrors:   scope.Counter("enqueue-errors"),
+		addMetricErrors: scope.Counter("add-metric-errors"),
 		decodeErrors:    scope.Counter("decode-errors"),
 	}
 }
@@ -64,18 +61,17 @@ type server struct {
 	sync.Mutex
 
 	address      string
+	aggregator   aggregator.Aggregator
 	listener     net.Listener
 	opts         Options
 	log          xlog.Logger
 	iteratorPool msgpack.UnaggregatedIteratorPool
 
-	closed    int32
-	numConns  int32
-	conns     []net.Conn
-	wgConns   sync.WaitGroup
-	queue     *packet.Queue
-	processor *packet.Processor
-	metrics   serverMetrics
+	closed   int32
+	numConns int32
+	conns    []net.Conn
+	wgConns  sync.WaitGroup
+	metrics  serverMetrics
 
 	addConnectionFn    addConnectionFn
 	removeConnectionFn removeConnectionFn
@@ -84,18 +80,14 @@ type server struct {
 
 // NewServer creates a new msgpack server
 func NewServer(address string, aggregator aggregator.Aggregator, opts Options) networkserver.Server {
-	clockOpts := opts.ClockOptions()
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("server")
-	queue := packet.NewQueue(opts.PacketQueueSize(), clockOpts, instrumentOpts.SetMetricsScope(scope))
-	processor := packet.NewProcessor(queue, aggregator, opts.WorkerPoolSize(), clockOpts, instrumentOpts)
 	s := &server{
 		address:      address,
+		aggregator:   aggregator,
 		opts:         opts,
 		log:          instrumentOpts.Logger(),
 		iteratorPool: opts.IteratorPool(),
-		queue:        queue,
-		processor:    processor,
 		metrics:      newServerMetrics(scope),
 	}
 
@@ -156,12 +148,6 @@ func (s *server) Close() {
 
 	// Wait for all connection handlers to finish
 	s.wgConns.Wait()
-
-	// Close the packet queue
-	s.queue.Close()
-
-	// Close the packet processor
-	s.processor.Close()
 }
 
 func (s *server) addConnection(conn net.Conn) bool {
@@ -206,13 +192,13 @@ func (s *server) handleConnection(conn net.Conn) {
 	// Iterate over the incoming metrics stream and queue up metrics
 	for it.Next() {
 		metric, policies := it.Value()
-		if err := s.queue.Enqueue(packet.Packet{Metric: metric, Policies: policies}); err != nil {
+		if err := s.aggregator.AddMetricWithPolicies(metric, policies); err != nil {
 			s.log.WithFields(
 				xlog.NewLogField("metric", metric.String()),
 				xlog.NewLogField("policies", policies.String()),
 				xlog.NewLogErrField(err),
-			).Errorf("server enqueue error")
-			s.metrics.enqueueErrors.Inc(1)
+			).Errorf("error adding metric with policies")
+			s.metrics.addMetricErrors.Inc(1)
 		}
 	}
 
@@ -234,6 +220,5 @@ func (s *server) reportMetrics() {
 			return
 		}
 		s.metrics.openConnections.Update(int64(atomic.LoadInt32(&s.numConns)))
-		s.metrics.queueSize.Update(int64(s.queue.Len()))
 	}
 }

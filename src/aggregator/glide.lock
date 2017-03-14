@@ -1,5 +1,5 @@
-hash: b139dd3f70969e44737ed9b78da4850f2557512b67973ad472d8a4cf7051442c
-updated: 2017-02-03T16:47:34.822373326-05:00
+hash: cdd14675173992bbcde99beb7660fdfcae62f9137a5ddac1a4f082b096563e5c
+updated: 2017-03-14T14:55:00.985363579-04:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
@@ -8,12 +8,13 @@ imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/golang/protobuf
-  version: bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
+  version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
   subpackages:
   - proto
 - name: github.com/m3db/m3metrics
-  version: c0bd40ffc7bf6d5a5c7b9360203d0ab0c7422ae9
+  version: 622fad952b35e8897af7ccefcdecea6fffc62253
   subpackages:
+  - generated/proto/schema
   - metric
   - metric/aggregated
   - metric/unaggregated
@@ -25,7 +26,6 @@ imports:
   subpackages:
   - checked
   - clock
-  - close
   - errors
   - instrument
   - log
@@ -46,7 +46,7 @@ imports:
 - name: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
 - name: golang.org/x/net
-  version: 007e530097ad7f954752df63046b4036f98ba6a6
+  version: 3b993948b6f0e651ffb58ba135d8538a68b1cddf
   subpackages:
   - context
 - name: google.golang.org/appengine

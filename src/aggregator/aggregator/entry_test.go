@@ -234,11 +234,11 @@ func testEntryAddMetricWithPolicies(
 
 		require.NoError(t, e.AddMetricWithPolicies(
 			input.mu,
-			policy.VersionedPolicies{
-				Version:  newPoliciesVersion,
-				Cutover:  now.Add(-time.Second),
-				Policies: expectedPolicies,
-			},
+			policy.CustomVersionedPolicies(
+				newPoliciesVersion,
+				now.Add(-time.Second),
+				expectedPolicies,
+			),
 		))
 
 		require.Equal(t, now.UnixNano(), e.lastAccessInNs)
@@ -296,11 +296,11 @@ func TestEntryAddMetricWithPoliciesWithPolicyUpdate(t *testing.T) {
 func TestEntryAddMetricsWithPolicyError(t *testing.T) {
 	e, lists, now := testEntry()
 	e.version = testPoliciesVersion
-	versionedPolicies := policy.VersionedPolicies{
-		Version:  testPoliciesVersion + 1,
-		Cutover:  now.Add(-time.Second),
-		Policies: testNewPolicies,
-	}
+	versionedPolicies := policy.CustomVersionedPolicies(
+		testPoliciesVersion+1,
+		now.Add(-time.Second),
+		testNewPolicies,
+	)
 
 	// Add an invalid metric should result in an error
 	require.Error(t, e.AddMetricWithPolicies(
