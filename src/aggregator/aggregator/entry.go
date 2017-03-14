@@ -119,7 +119,7 @@ func (e *Entry) AddMetricWithPolicies(
 	}
 
 	if e.shouldUpdatePoliciesWithLock(currTime, policies.Version, policies.Cutover) {
-		if err := e.updatePoliciesWithLock(mu.Type, mu.ID, policies.Version, policies.Policies); err != nil {
+		if err := e.updatePoliciesWithLock(mu.Type, mu.ID, policies.Version, policies.Policies()); err != nil {
 			// NB(xichen): if an error occurred during policy update, the policies
 			// will remain as they are, i.e., there are no half-updated policies
 			e.Unlock()

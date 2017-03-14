@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
-	"github.com/m3db/m3aggregator/services/m3aggregator/processor"
+	"github.com/m3db/m3aggregator/services/m3aggregator/handler"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -56,8 +56,7 @@ type testSetup struct {
 	httpServerOpts    httpserver.Options
 	aggregator        aggregator.Aggregator
 	aggregatorOpts    aggregator.Options
-	processor         *processor.AggregatedMetricProcessor
-	processorOpts     processor.Options
+	handler           handler.Handler
 	getNowFn          clock.NowFn
 	setNowFn          nowSetterFn
 	workerPool        xsync.WorkerPool
@@ -124,7 +123,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		results    []aggregated.MetricWithPolicy
 		resultLock sync.Mutex
 	)
-	metricWithPolicyFn := func(metric aggregated.Metric, policy policy.Policy) error {
+	handleFn := func(metric aggregated.Metric, policy policy.Policy) error {
 		resultLock.Lock()
 		results = append(results, aggregated.MetricWithPolicy{
 			Metric: metric,
@@ -133,7 +132,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		resultLock.Unlock()
 		return nil
 	}
-	processorOpts := processor.NewOptions().SetMetricWithPolicyFn(metricWithPolicyFn)
+	handler := handler.NewHandler(handleFn)
 
 	return &testSetup{
 		opts:              opts,
@@ -142,7 +141,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		msgpackServerOpts: msgpackServerOpts,
 		httpServerOpts:    httpServerOpts,
 		aggregatorOpts:    aggregatorOpts,
-		processorOpts:     processorOpts,
+		handler:           handler,
 		getNowFn:          getNowFn,
 		setNowFn:          setNowFn,
 		workerPool:        workerPool,
@@ -171,11 +170,8 @@ func (ts *testSetup) waitUntilServerIsUp() error {
 func (ts *testSetup) startServer() error {
 	errCh := make(chan error, 1)
 
-	// Creating the processor
-	ts.processor = processor.NewAggregatedMetricProcessor(ts.processorOpts)
-
 	// Creating the aggregator
-	ts.aggregatorOpts = ts.aggregatorOpts.SetFlushFn(ts.processor.Add)
+	ts.aggregatorOpts = ts.aggregatorOpts.SetFlushFn(ts.handler.Handle)
 	ts.aggregator = aggregator.NewAggregator(ts.aggregatorOpts)
 
 	go func() {
@@ -192,7 +188,6 @@ func (ts *testSetup) startServer() error {
 			default:
 			}
 		}
-		ts.processor.Close()
 		close(ts.closedCh)
 	}()
 

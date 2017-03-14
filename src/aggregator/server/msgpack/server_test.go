@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
-	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/time"
 
@@ -58,26 +57,30 @@ var (
 		ID:       []byte("baz"),
 		GaugeVal: 456.780,
 	}
+	testDefaultVersionedPolices = policy.DefaultVersionedPolicies(
+		1,
+		time.Now(),
+	)
 	testCounterWithPolicies = unaggregated.CounterWithPolicies{
 		Counter:           testCounter.Counter(),
-		VersionedPolicies: policy.DefaultVersionedPolicies,
+		VersionedPolicies: testDefaultVersionedPolices,
 	}
 	testBatchTimerWithPolicies = unaggregated.BatchTimerWithPolicies{
 		BatchTimer: testBatchTimer.BatchTimer(),
-		VersionedPolicies: policy.VersionedPolicies{
-			Version: 1,
-			Cutover: time.Now(),
-			Policies: []policy.Policy{
+		VersionedPolicies: policy.CustomVersionedPolicies(
+			1,
+			time.Now(),
+			[]policy.Policy{
 				{
 					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
 					Retention:  policy.Retention(time.Hour),
 				},
 			},
-		},
+		),
 	}
 	testGaugeWithPolicies = unaggregated.GaugeWithPolicies{
 		Gauge:             testGauge.Gauge(),
-		VersionedPolicies: policy.DefaultVersionedPolicies,
+		VersionedPolicies: testDefaultVersionedPolices,
 	}
 )
 
@@ -90,11 +93,8 @@ func testServerOptions() Options {
 
 	opts := NewOptions()
 	return opts.
-		SetPacketQueueSize(1024).
-		SetWorkerPoolSize(2).
 		SetIteratorPool(iteratorPool).
 		SetRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(2))).
-		SetClockOptions(clock.NewOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
 }
 

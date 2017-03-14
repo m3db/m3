@@ -66,7 +66,7 @@ func (c *client) testConnection() bool {
 
 func (c *client) write(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
 	encoder := c.encoder.Encoder()
-	sizeBefore := encoder.Buffer.Len()
+	sizeBefore := encoder.Buffer().Len()
 	var err error
 	switch mu.Type {
 	case unaggregated.CounterType:
@@ -88,11 +88,11 @@ func (c *client) write(mu unaggregated.MetricUnion, vp policy.VersionedPolicies)
 		err = fmt.Errorf("unrecognized metric type %v", mu.Type)
 	}
 	if err != nil {
-		encoder.Buffer.Truncate(sizeBefore)
+		encoder.Buffer().Truncate(sizeBefore)
 		c.encoder.Reset(encoder)
 		return err
 	}
-	sizeAfter := encoder.Buffer.Len()
+	sizeAfter := encoder.Buffer().Len()
 	// If the buffer size is not big enough, do nothing
 	if sizeAfter < c.batchSize {
 		return nil
@@ -102,9 +102,9 @@ func (c *client) write(mu unaggregated.MetricUnion, vp policy.VersionedPolicies)
 	// the old buffer
 	encoder2 := msgpack.NewPooledBufferedEncoder(nil)
 	data := encoder.Bytes()
-	encoder2.Buffer.Write(data[sizeBefore:sizeAfter])
+	encoder2.Buffer().Write(data[sizeBefore:sizeAfter])
 	c.encoder.Reset(encoder2)
-	encoder.Buffer.Truncate(sizeBefore)
+	encoder.Buffer().Truncate(sizeBefore)
 	_, err = c.conn.Write(encoder.Bytes())
 	encoder.Close()
 	return err

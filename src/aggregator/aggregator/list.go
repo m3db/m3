@@ -220,7 +220,8 @@ func (l *metricList) processAggregatedMetric(
 	policy policy.Policy,
 ) {
 	encoder := l.encoder.Encoder()
-	sizeBefore := encoder.Buffer.Len()
+	buffer := encoder.Buffer()
+	sizeBefore := buffer.Len()
 	if err := l.encodeFn(aggregated.ChunkedMetricWithPolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: metric.ChunkedID{
@@ -242,12 +243,12 @@ func (l *metricList) processAggregatedMetric(
 			xlog.NewLogField("value", value),
 			xlog.NewLogField("policy", policy.String()),
 		).Error("encode metric with policy error")
-		encoder.Buffer.Truncate(sizeBefore)
+		buffer.Truncate(sizeBefore)
 		// Clear out the encoder error
 		l.encoder.Reset(encoder)
 		return
 	}
-	sizeAfter := encoder.Buffer.Len()
+	sizeAfter := buffer.Len()
 	// If the buffer size is not big enough, do nothing
 	if sizeAfter < l.maxFlushSize {
 		return
@@ -257,9 +258,9 @@ func (l *metricList) processAggregatedMetric(
 	// the old buffer
 	encoder2 := l.encoderPool.Get()
 	data := encoder.Bytes()
-	encoder2.Buffer.Write(data[sizeBefore:sizeAfter])
+	encoder2.Buffer().Write(data[sizeBefore:sizeAfter])
 	l.encoder.Reset(encoder2)
-	encoder.Buffer.Truncate(sizeBefore)
+	buffer.Truncate(sizeBefore)
 	if err := l.flushFn(encoder); err != nil {
 		l.log.Errorf("flushing metrics error: %v", err)
 	}
