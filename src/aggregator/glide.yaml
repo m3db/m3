@@ -10,6 +10,12 @@ import:
 - package: github.com/uber-go/tally
   version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
 
+- package: github.com/golang/protobuf
+  version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
+
+- package: golang.org/x/net
+  version: 3b993948b6f0e651ffb58ba135d8538a68b1cddf
+
 - package: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:

@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"bytes"
 	"container/list"
 	"errors"
 	"sync"
@@ -60,7 +59,6 @@ type metricList struct {
 	flushInterval time.Duration
 	aggregations  *list.List
 	timer         *time.Timer
-	idBuf         bytes.Buffer
 	encoder       msgpack.AggregatedEncoder
 	toCollect     []*list.Element
 	closed        bool
@@ -166,7 +164,6 @@ func (l *metricList) tickInternal() {
 	alignedStart := start.Truncate(resolution)
 
 	// Reset states reused across ticks
-	l.idBuf.Reset()
 	l.toCollect = l.toCollect[:0]
 
 	// Flush out aggregations, may need to do it in batches if the read lock
