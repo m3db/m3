@@ -1,0 +1,37 @@
+package: github.com/m3db/m3nsch
+import:
+- package: github.com/gavv/monotime
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+  - ptypes/timestamp
+- package: github.com/m3db/m3db
+  subpackages:
+  - client
+- package: github.com/m3db/m3x
+  subpackages:
+  - errors
+  - instrument
+  - log
+  - time
+- package: github.com/pborman/getopt
+- package: github.com/spf13/cobra
+- package: github.com/spf13/pflag
+- package: github.com/spf13/viper
+- package: github.com/uber-go/tally
+  subpackages:
+  - m3
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  subpackages:
+  - codes
+- package: gopkg.in/validator.v2
+- package: github.com/stretchr/testify
+  subpackages:
+  - require
+- package: github.com/golang/mock
+  subpackages:
+  - gomock
+testImport:
