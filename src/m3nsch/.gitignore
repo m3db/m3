@@ -1,5 +1,8 @@
 ### https://raw.github.com/github/gitignore/35c010258fc790ad769033e9ccfb1021178f2925/Go.gitignore
 
+# Glide vendor-ed deps
+vendor/
+
 # Binaries for programs and plugins
 *.exe
 *.dll
@@ -53,5 +56,4 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
-
 
