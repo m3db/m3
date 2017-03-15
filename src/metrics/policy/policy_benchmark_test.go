@@ -26,28 +26,28 @@ import (
 )
 
 func BenchmarkVersionedPoliciesAsStruct(b *testing.B) {
-	vp := CustomVersionedPolicies(InitPolicyVersion, time.Now(), DefaultPolicies)
+	vp := CustomVersionedPolicies(InitPolicyVersion, time.Now(), defaultPolicies)
 	for n := 0; n < b.N; n++ {
 		validatePolicyByValue(b, vp)
 	}
 }
 
 func BenchmarkVersionedPoliciesAsPointer(b *testing.B) {
-	vp := CustomVersionedPolicies(InitPolicyVersion, time.Now(), DefaultPolicies)
+	vp := CustomVersionedPolicies(InitPolicyVersion, time.Now(), defaultPolicies)
 	for n := 0; n < b.N; n++ {
 		validatePolicyByPointer(b, &vp)
 	}
 }
 
 func BenchmarkVersionedPoliciesAsInterface(b *testing.B) {
-	vp := &testVersionedPolicies{version: InitPolicyVersion, cutover: time.Now(), policies: DefaultPolicies}
+	vp := &testVersionedPolicies{version: InitPolicyVersion, cutover: time.Now(), policies: defaultPolicies}
 	for n := 0; n < b.N; n++ {
 		validatePolicyByInterface(b, vp)
 	}
 }
 
 func BenchmarkVersionedPoliciesAsStructExported(b *testing.B) {
-	vp := testVersionedPolicies{version: InitPolicyVersion, cutover: time.Now(), policies: DefaultPolicies}
+	vp := testVersionedPolicies{version: InitPolicyVersion, cutover: time.Now(), policies: defaultPolicies}
 	for n := 0; n < b.N; n++ {
 		validatePolicyByStructExported(b, vp)
 	}
