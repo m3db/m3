@@ -54,7 +54,7 @@ func TestDefaultVersionedPolicies(t *testing.T) {
 	require.Equal(t, version, vp.Version)
 	require.Equal(t, cutover, vp.Cutover)
 	require.True(t, vp.IsDefault())
-	require.Equal(t, DefaultPolicies, vp.Policies())
+	require.Equal(t, defaultPolicies, vp.Policies())
 }
 
 func TestCustomVersionedPolicies(t *testing.T) {

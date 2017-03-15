@@ -44,9 +44,9 @@ var (
 	// EmptyVersionedPolicies represents an empty VersionPolicies
 	EmptyVersionedPolicies VersionedPolicies
 
-	// DefaultPolicies are the default policies
+	// defaultPolicies are the default policies
 	// TODO(xichen): possibly make this dynamically configurable in the future
-	DefaultPolicies = []Policy{
+	defaultPolicies = []Policy{
 		NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 		NewPolicy(time.Minute, xtime.Minute, 30*24*time.Hour),
 	}
@@ -163,7 +163,7 @@ func (vp VersionedPolicies) IsDefault() bool { return vp.isDefault }
 // Policies returns the policies
 func (vp VersionedPolicies) Policies() []Policy {
 	if vp.isDefault {
-		return DefaultPolicies
+		return defaultPolicies
 	}
 	return vp.policies
 }
