@@ -1,3 +1,6 @@
+SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include $(SELF_DIR)/.ci/common.mk
+
 SHELL=/bin/bash -o pipefail
 
 html_report := coverage.html
