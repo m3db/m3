@@ -1,0 +1,69 @@
+hash: 111bdf9797d23d4b9f8833a9780e382dd53153af70ad286f99815cea4c2fdf4b
+updated: 2016-08-05T18:02:17.171302481-04:00
+imports:
+- name: github.com/apache/thrift
+  version: 0e9fed1e12ed066865e46c6903782b2ef95f4650
+  subpackages:
+  - lib/go/thrift
+- name: github.com/bmizerany/perks
+  version: d9a9656a3a4b1c2864fdb44db2ef8619772d92aa
+  subpackages:
+  - quantile
+- name: github.com/cactus/go-statsd-client
+  version: 91c326c3f7bd20f0226d3d1c289dd9f8ce28d33d
+  subpackages:
+  - statsd
+- name: github.com/crossdock/crossdock-go
+  version: 228792ab861c86f8900b2db0439577feef9ec9d8
+  subpackages:
+  - assert
+  - require
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
+- name: github.com/jessevdk/go-flags
+  version: f2785f5820ec967043de79c8be97edfc464ca745
+- name: github.com/opentracing/opentracing-go
+  version: 855519783f479520497c6b3445611b05fc42f009
+  subpackages:
+  - ext
+  - mocktracer
+- name: github.com/pmezard/go-difflib
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  subpackages:
+  - difflib
+- name: github.com/prashantv/protectmem
+  version: d0cabd7ce64237b84414449086fa42810ae01a92
+- name: github.com/samuel/go-thrift
+  version: e9042807f4f5bf47563df6992d3ea0857313e2be
+  subpackages:
+  - parser
+- name: github.com/streadway/quantile
+  version: b0c588724d25ae13f5afb3d90efec0edc636432b
+- name: github.com/stretchr/objx
+  version: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
+- name: github.com/stretchr/testify
+  version: d77da356e56a7428ad25149ca77381849a6a5232
+  subpackages:
+  - assert
+  - mock
+  - require
+- name: github.com/uber-go/atomic
+  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+- name: github.com/uber/jaeger-client-go
+  version: 9342cec8070f1d9bbf56f8df1d7a885ed8cb015d
+  subpackages:
+  - thrift-gen/sampling
+  - thrift-gen/zipkincore
+  - transport
+  - utils
+  - thrift-gen/agent
+- name: golang.org/x/net
+  version: b400c2eff1badec7022a8c8f5bea058b6315eed7
+  subpackages:
+  - context
+  - context/ctxhttp
+- name: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
+devImports: []

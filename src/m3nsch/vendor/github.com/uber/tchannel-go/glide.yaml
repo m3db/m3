@@ -1,0 +1,49 @@
+package: github.com/uber/tchannel-go
+import:
+- package: github.com/apache/thrift
+  version: master
+  subpackages:
+  - lib/go/thrift
+- package: github.com/cactus/go-statsd-client
+  version: master
+  subpackages:
+  - statsd
+- package: github.com/davecgh/go-spew
+  version: master
+  subpackages:
+  - spew
+- package: github.com/jessevdk/go-flags
+  version: master
+- package: github.com/pmezard/go-difflib
+  version: master
+  subpackages:
+  - difflib
+- package: github.com/samuel/go-thrift
+  version: master
+  subpackages:
+  - parser
+- package: github.com/streadway/quantile
+  version: master
+- package: github.com/stretchr/objx
+  version: master
+- package: github.com/stretchr/testify
+  version: master
+  subpackages:
+  - assert
+  - mock
+  - require
+- package: golang.org/x/net
+  version: master
+  subpackages:
+  - context
+- package: gopkg.in/yaml.v2
+  version: master
+- package: github.com/bmizerany/perks
+  version: master
+  subpackages:
+  - quantile
+- package: github.com/uber-go/atomic
+- package: github.com/prashantv/protectmem
+- package: github.com/opentracing/opentracing-go
+- package: github.com/uber/jaeger-client-go
+- package: github.com/crossdock/crossdock-go

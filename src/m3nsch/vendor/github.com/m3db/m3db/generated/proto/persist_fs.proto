@@ -1,0 +1,16 @@
+syntax = "proto3";
+package schema;
+
+message IndexInfo {
+	int64 start = 1;
+	int64 blockSize = 2;
+	int64 entries = 3;
+}
+
+message IndexEntry {
+	int64 index = 1;
+	bytes id = 2;
+	int64 size = 3;
+	int64 offset = 4;
+	int64 checksum = 5;
+}
