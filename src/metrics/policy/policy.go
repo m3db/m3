@@ -47,37 +47,21 @@ var (
 	// DefaultPolicies are the default policies
 	// TODO(xichen): possibly make this dynamically configurable in the future
 	DefaultPolicies = []Policy{
-		&policy{
-			resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-			retention:  Retention(2 * 24 * time.Hour),
-		},
-		&policy{
-			resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
-			retention:  Retention(30 * 24 * time.Hour),
-		},
+		NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
+		NewPolicy(time.Minute, xtime.Minute, 30*24*time.Hour),
 	}
 )
 
 // Policy represents the resolution and retention period metric datapoints
 // are stored at
-type Policy interface {
-	fmt.Stringer
-
-	// Resolution is the resolution datapoints are stored at
-	Resolution() Resolution
-
-	// Retention is the period datatpoints are retained for
-	Retention() Retention
-}
-
-type policy struct {
+type Policy struct {
 	resolution Resolution
 	retention  Retention
 }
 
 // NewPolicy creates a new policy given a resolution window size and retention
 func NewPolicy(window time.Duration, precision xtime.Unit, retention time.Duration) Policy {
-	return &policy{
+	return Policy{
 		resolution: Resolution{
 			Window:    window,
 			Precision: precision,
@@ -93,7 +77,7 @@ func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 	if err != nil {
 		return EmptyPolicy, err
 	}
-	return &policy{
+	return Policy{
 		resolution: Resolution{
 			Window:    time.Duration(p.Resolution.WindowSize),
 			Precision: unit,
@@ -116,15 +100,17 @@ func NewPoliciesFromSchema(policies []*schema.Policy) ([]Policy, error) {
 }
 
 // String is the string representation of a policy
-func (p *policy) String() string {
+func (p Policy) String() string {
 	return fmt.Sprintf("{resolution:%s,retention:%s}", p.resolution.String(), p.retention.String())
 }
 
-func (p *policy) Resolution() Resolution {
+// Resolution returns the resolution of the policy
+func (p Policy) Resolution() Resolution {
 	return p.resolution
 }
 
-func (p *policy) Retention() Retention {
+// Retention return the retention of the policy
+func (p Policy) Retention() Retention {
 	return p.retention
 }
 
