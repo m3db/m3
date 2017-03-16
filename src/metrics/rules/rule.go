@@ -120,8 +120,8 @@ type RuleSet interface {
 // mappingRule defines a rule such that if a metric matches the provided filters,
 // it is aggregated and retained under the provided set of policies
 type mappingRule struct {
-	filter   filters.IDFilter // used to select matching metrics
-	policies []policy.Policy  // defines how the metrics should be aggregated and retained
+	filter   filters.Filter  // used to select matching metrics
+	policies []policy.Policy // defines how the metrics should be aggregated and retained
 }
 
 func newMappingRule(r *schema.MappingRule, iterfn filters.NewSortedTagIteratorFn) (mappingRule, error) {
@@ -129,8 +129,14 @@ func newMappingRule(r *schema.MappingRule, iterfn filters.NewSortedTagIteratorFn
 	if err != nil {
 		return emptyMappingRule, err
 	}
+
+	filter, err := filters.NewTagsFilter(r.TagFilters, iterfn, filters.Conjunction)
+	if err != nil {
+		return emptyMappingRule, err
+	}
+
 	return mappingRule{
-		filter:   filters.NewTagsFilter(r.TagFilters, iterfn),
+		filter:   filter,
 		policies: policies,
 	}, nil
 }
@@ -138,8 +144,8 @@ func newMappingRule(r *schema.MappingRule, iterfn filters.NewSortedTagIteratorFn
 // rollupRule defines a rule such that if a metric matches the provided filters,
 // it is rolled up using the provided list of rollup targets
 type rollupRule struct {
-	filter  filters.IDFilter // used to select matching metrics
-	targets []RollupTarget   // dictates how metrics should be rolled up
+	filter  filters.Filter // used to select matching metrics
+	targets []RollupTarget // dictates how metrics should be rolled up
 }
 
 func newRollupRule(r *schema.RollupRule, iterfn filters.NewSortedTagIteratorFn) (rollupRule, error) {
@@ -151,8 +157,14 @@ func newRollupRule(r *schema.RollupRule, iterfn filters.NewSortedTagIteratorFn) 
 		}
 		targets = append(targets, target)
 	}
+
+	filter, err := filters.NewTagsFilter(r.TagFilters, iterfn, filters.Conjunction)
+	if err != nil {
+		return emptyRollupRule, err
+	}
+
 	return rollupRule{
-		filter:  filters.NewTagsFilter(r.TagFilters, iterfn),
+		filter:  filter,
 		targets: targets,
 	}, nil
 }
