@@ -30,7 +30,7 @@ const (
 )
 
 type mockFilterData struct {
-	id    string
+	val   string
 	match bool
 }
 

@@ -21,6 +21,7 @@
 package filters
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,44 +29,84 @@ import (
 
 func TestEqualityFilter(t *testing.T) {
 	inputs := []mockFilterData{
-		{id: "foo", match: true},
-		{id: "fo", match: false},
-		{id: "foob", match: false},
+		{val: "foo", match: true},
+		{val: "fo", match: false},
+		{val: "foob", match: false},
 	}
 	f := newEqualityFilter("foo")
 	for _, input := range inputs {
-		require.Equal(t, input.match, f.Matches(input.id))
+		require.Equal(t, input.match, f.Matches(input.val))
 	}
 }
 
-func TestEmptyTagsFilterMatches(t *testing.T) {
-	f := NewTagsFilter(nil, NewMockSortedTagIterator)
-	require.True(t, f.Matches("foo"))
-}
+func TestWildcardFilters(t *testing.T) {
+	filters := genAndValidateFilters(t, []testPattern{
+		testPattern{pattern: "foo", expectedStr: "Equals(\"foo\")"},
+		testPattern{pattern: "*bar", expectedStr: "EndsWith(\"bar\")"},
+		testPattern{pattern: "baz*", expectedStr: "StartsWith(\"baz\")"},
+		testPattern{pattern: "*cat*", expectedStr: "Contains(\"cat\")"},
+		testPattern{pattern: "foo*bar", expectedStr: "StartsWith(\"foo\") && EndsWith(\"bar\")"},
+		testPattern{pattern: "*", expectedStr: "All"},
+	})
 
-func TestTagsFilterMatches(t *testing.T) {
-	filters := map[string]string{
-		"tagName1": "tagValue1",
-		"tagName2": "tagValue2",
+	inputs := []testInput{
+		newTestInput("foo", true, false, false, false, false, true),
+		newTestInput("foobar", false, true, false, false, true, true),
+		newTestInput("foozapbar", false, true, false, false, true, true),
+		newTestInput("bazbar", false, true, true, false, false, true),
+		newTestInput("bazzzbar", false, true, true, false, false, true),
+		newTestInput("cat", false, false, false, true, false, true),
+		newTestInput("catbar", false, true, false, true, false, true),
+		newTestInput("baztestcat", false, false, true, true, false, true),
+		newTestInput("foocatbar", false, true, false, true, true, true),
+		newTestInput("footestcatbar", false, true, false, true, true, true),
 	}
-	f := NewTagsFilter(filters, NewMockSortedTagIterator)
-	inputs := []mockFilterData{
-		{id: "tagName1=tagValue1,tagName2=tagValue2", match: true},
-		{id: "tagName0=tagValue0,tagName1=tagValue1,tagName2=tagValue2,tagName3=tagValue3", match: true},
-		{id: "tagName1=tagValue1", match: false},
-		{id: "tagName2=tagValue2", match: false},
-		{id: "tagName1=tagValue2,tagName2=tagValue1", match: false},
-	}
+
 	for _, input := range inputs {
-		require.Equal(t, input.match, f.Matches(input.id))
+		for i, expectedMatch := range input.matches {
+			require.Equal(t, expectedMatch, filters[i].Matches(input.val),
+				fmt.Sprintf("input: %s, pattern: %s", input.val, filters[i].String()))
+		}
 	}
 }
 
-func TestTagsFilterString(t *testing.T) {
-	filters := map[string]string{
-		"tagName1": "tagValue1",
-		"tagName2": "tagValue2",
+func TestBadPatterns(t *testing.T) {
+	patterns := []string{
+		"**",
+		"*too*many*",
+		"*too**many",
+		"to*o*many",
+		"to*o*ma*ny",
 	}
-	f := NewTagsFilter(filters, NewMockSortedTagIterator)
-	require.Equal(t, `tagName1:Equals("tagValue1") && tagName2:Equals("tagValue2")`, f.String())
+
+	for _, pattern := range patterns {
+		_, err := NewFilter(pattern)
+		require.Error(t, err)
+	}
+}
+
+type testPattern struct {
+	pattern     string
+	expectedStr string
+}
+
+type testInput struct {
+	val     string
+	matches []bool
+}
+
+func newTestInput(val string, matches ...bool) testInput {
+	return testInput{val: val, matches: matches}
+}
+
+func genAndValidateFilters(t *testing.T, patterns []testPattern) []Filter {
+	var err error
+	filters := make([]Filter, len(patterns))
+	for i, pattern := range patterns {
+		filters[i], err = NewFilter(pattern.pattern)
+		require.NoError(t, err, fmt.Sprintf("No error expected, but got: %v for pattern: %s", err, pattern.pattern))
+		require.Equal(t, pattern.expectedStr, filters[i].String())
+	}
+
+	return filters
 }
