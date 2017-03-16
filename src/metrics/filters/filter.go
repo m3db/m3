@@ -22,103 +22,171 @@ package filters
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"sort"
+	"strings"
 )
 
-// logicalOp is a logical operator
-type logicalOp string
+var (
+	errInvalidFilterPattern = errors.New("invalid filter pattern defined")
+)
+
+// LogicalOp is a logical operator
+type LogicalOp string
 
 // A list of supported logical operators
 const (
-	conjunction logicalOp = "&&"
-	disjunction logicalOp = "||"
+	// Conjunction is logical AND
+	Conjunction LogicalOp = "&&"
+	// Disjunction is logical OR
+	Disjunction LogicalOp = "||"
+	// WildcardChar is the wildcard character
+	WildcardChar = "*"
 )
 
-// IDFilter matches an id against certain conditions
-type IDFilter interface {
+// Filter matches a string against certain conditions
+type Filter interface {
 	fmt.Stringer
 
 	// Matches returns true if the conditions are met
-	Matches(id string) bool
+	Matches(val string) bool
 }
 
-// equalityFilter is a filter that matches metrics whose id matches pattern exactly
+// NewFilter supports startsWith, endsWith, contains and a single wildcard
+// TODO(martinm): add rest of glob matching support and negation
+func NewFilter(pattern string) (Filter, error) {
+	idx := strings.Index(pattern, WildcardChar)
+
+	if idx == -1 {
+		// No wildcards
+		return newEqualityFilter(pattern), nil
+	}
+
+	if len(pattern) == 1 {
+		// Whole thing is wildcard
+		return newAllowFilter(), nil
+	}
+
+	if idx == len(pattern)-1 {
+		// Wildcard at end
+		return newStartsWithFilter(pattern[:len(pattern)-1]), nil
+	}
+
+	secondIdx := strings.Index(pattern[idx+1:], WildcardChar)
+	if secondIdx == -1 {
+		if idx == 0 {
+			return newEndsWithFilter(pattern[1:]), nil
+		}
+
+		return newMultiFilter([]Filter{
+			newStartsWithFilter(pattern[:idx]),
+			newEndsWithFilter(pattern[idx+1:]),
+		}, Conjunction), nil
+	}
+
+	if idx != 0 || secondIdx != len(pattern)-2 || secondIdx == 0 {
+		return nil, errInvalidFilterPattern
+	}
+
+	return newContainsFilter(pattern[1 : len(pattern)-1]), nil
+}
+
+// allowFilter is a filter that allows all
+type allowFilter struct {
+}
+
+func newAllowFilter() Filter {
+	return &allowFilter{}
+}
+
+func (f *allowFilter) String() string {
+	return "All"
+}
+
+func (f *allowFilter) Matches(val string) bool {
+	return true
+}
+
+// equalityFilter is a filter that matches exact values
 type equalityFilter struct {
 	pattern string
 }
 
-func newEqualityFilter(pattern string) IDFilter {
-	return equalityFilter{pattern: pattern}
+func newEqualityFilter(pattern string) Filter {
+	return &equalityFilter{pattern: pattern}
 }
 
-func (f equalityFilter) String() string {
-	return fmt.Sprintf("Equals(%q)", f.pattern)
+func (f *equalityFilter) String() string {
+	return "Equals(\"" + f.pattern + "\")"
 }
 
-func (f equalityFilter) Matches(id string) bool {
-	return f.pattern == id
+func (f *equalityFilter) Matches(val string) bool {
+	return f.pattern == val
 }
 
-// SortedTagIterator iterates over a set of tag names and values
-// sorted by tag names in ascending order
-type SortedTagIterator interface {
-	// Next returns true if there are more tag names and values
-	Next() bool
-
-	// Current returns the current tag name and value
-	Current() (string, string)
-
-	// Err returns any errors encountered
-	Err() error
-
-	// Close closes the iterator
-	Close()
+// startsWithFilter is a filter that performs prefix matches
+type startsWithFilter struct {
+	pattern string
 }
 
-// NewSortedTagIteratorFn creates a tag iterator given an id
-type NewSortedTagIteratorFn func(id string) SortedTagIterator
-
-// tagFilter is a filter associated with a given tag
-type tagFilter struct {
-	name   string
-	filter IDFilter
+func newStartsWithFilter(pattern string) Filter {
+	return &startsWithFilter{pattern: pattern}
 }
 
-func (f tagFilter) String() string {
-	return fmt.Sprintf("%s:%s", f.name, f.filter.String())
+func (f *startsWithFilter) String() string {
+	return "StartsWith(\"" + f.pattern + "\")"
 }
 
-type tagFiltersByNameAsc []tagFilter
-
-func (tn tagFiltersByNameAsc) Len() int           { return len(tn) }
-func (tn tagFiltersByNameAsc) Swap(i, j int)      { tn[i], tn[j] = tn[j], tn[i] }
-func (tn tagFiltersByNameAsc) Less(i, j int) bool { return tn[i].name < tn[j].name }
-
-// tagsFilter contains a list of tag filters.
-type tagsFilter struct {
-	filters []tagFilter
-	iterFn  NewSortedTagIteratorFn
+func (f *startsWithFilter) Matches(val string) bool {
+	return strings.HasPrefix(val, f.pattern)
 }
 
-// NewTagsFilter create a new tags filter
-func NewTagsFilter(tagFilters map[string]string, iterFn NewSortedTagIteratorFn) IDFilter {
-	filters := make([]tagFilter, 0, len(tagFilters))
-	for name, value := range tagFilters {
-		filters = append(filters, tagFilter{
-			name:   name,
-			filter: newFilter(value),
-		})
-	}
-	sort.Sort(tagFiltersByNameAsc(filters))
-	return tagsFilter{
-		filters: filters,
-		iterFn:  iterFn,
-	}
+// endsWithFilter is a filter that performs suffix matches
+type endsWithFilter struct {
+	pattern string
 }
 
-func (f tagsFilter) String() string {
-	separator := " " + string(conjunction) + " "
+func newEndsWithFilter(pattern string) Filter {
+	return &endsWithFilter{pattern: pattern}
+}
+
+func (f *endsWithFilter) String() string {
+	return "EndsWith(\"" + f.pattern + "\")"
+}
+
+func (f *endsWithFilter) Matches(val string) bool {
+	return strings.HasSuffix(val, f.pattern)
+}
+
+// containsFilter is a filter that performs contains matches
+type containsFilter struct {
+	pattern string
+}
+
+func newContainsFilter(pattern string) Filter {
+	return &containsFilter{pattern: pattern}
+}
+
+func (f *containsFilter) String() string {
+	return "Contains(\"" + f.pattern + "\")"
+}
+
+func (f *containsFilter) Matches(val string) bool {
+	return strings.Contains(val, f.pattern)
+}
+
+// multiFilter chains multiple filters together with a logicalOp
+type multiFilter struct {
+	filters []Filter
+	op      LogicalOp
+}
+
+func newMultiFilter(filters []Filter, op LogicalOp) Filter {
+	return &multiFilter{filters: filters, op: op}
+}
+
+func (f *multiFilter) String() string {
+	separator := " " + string(f.op) + " "
 	var buf bytes.Buffer
 	numFilters := len(f.filters)
 	for i := 0; i < numFilters; i++ {
@@ -130,35 +198,17 @@ func (f tagsFilter) String() string {
 	return buf.String()
 }
 
-func (f tagsFilter) Matches(id string) bool {
-	if len(f.filters) == 0 {
-		return true
-	}
-	iter := f.iterFn(id)
-	defer iter.Close()
-
-	currIdx := 0
-	for iter.Next() && currIdx < len(f.filters) {
-		name, value := iter.Current()
-		if name < f.filters[currIdx].name {
-			continue
-		}
-		// If the current filter tag doesn't exist, bail immediately
-		if name > f.filters[currIdx].name {
+func (f *multiFilter) Matches(val string) bool {
+	for _, filter := range f.filters {
+		match := filter.Matches(val)
+		if f.op == Conjunction && match == false {
 			return false
 		}
-		// If the current filter value doesn't match provided value, bail immediately
-		if !f.filters[currIdx].filter.Matches(value) {
-			return false
-		}
-		currIdx++
-	}
-	return iter.Err() == nil && currIdx == len(f.filters)
-}
 
-// TODO(xichen): add support for
-// * more sophisticated pattern-based filters (e.g., starts-with, any, contains, not, etc.)
-// * combined filters (e.g., and filters, or filters, etc.)
-func newFilter(id string) IDFilter {
-	return newEqualityFilter(id)
+		if f.op == Disjunction && match == true {
+			return true
+		}
+	}
+
+	return f.op == Conjunction
 }
