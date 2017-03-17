@@ -60,6 +60,7 @@ func TestTagsFilterMatches(t *testing.T) {
 		{val: "tagName1=tagValue2,tagName2=tagValue1", match: false},
 		{val: "tagName3=tagValue3", match: false},
 		{val: "tagName2=tagValue1", match: false},
+		{val: "tagName15=tagValue2,tagName3=tagValue2", match: false},
 	}
 	require.NoError(t, err)
 	for _, input := range inputs {

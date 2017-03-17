@@ -70,9 +70,35 @@ func TestWildcardFilters(t *testing.T) {
 	}
 }
 
+func TestMultiFilter(t *testing.T) {
+	filters := []Filter{
+		newMultiFilter([]Filter{}, Conjunction),
+		newMultiFilter([]Filter{}, Disjunction),
+		newMultiFilter([]Filter{newEqualityFilter("foo")}, Conjunction),
+		newMultiFilter([]Filter{newEqualityFilter("foo")}, Disjunction),
+		newMultiFilter([]Filter{newEqualityFilter("foo"), newEndsWithFilter("bar")}, Conjunction),
+		newMultiFilter([]Filter{newEqualityFilter("foo"), newEndsWithFilter("bar")}, Disjunction),
+	}
+
+	inputs := []testInput{
+		newTestInput("cat", true, true, false, false, false, false),
+		newTestInput("foo", true, true, true, true, false, true),
+		newTestInput("foobar", true, true, false, false, false, true),
+		newTestInput("bar", true, true, false, false, false, true),
+	}
+
+	for _, input := range inputs {
+		for i, expectedMatch := range input.matches {
+			require.Equal(t, expectedMatch, filters[i].Matches(input.val),
+				fmt.Sprintf("input: %s, pattern: %s", input.val, filters[i].String()))
+		}
+	}
+}
+
 func TestBadPatterns(t *testing.T) {
 	patterns := []string{
 		"**",
+		"***",
 		"*too*many*",
 		"*too**many",
 		"to*o*many",
