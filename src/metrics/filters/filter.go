@@ -28,7 +28,8 @@ import (
 )
 
 var (
-	errInvalidFilterPattern = errors.New("invalid filter pattern defined")
+	errInvalidFilterPattern        = errors.New("invalid filter pattern defined")
+	allowAllFilter          Filter = allowFilter{}
 )
 
 // LogicalOp is a logical operator
@@ -42,6 +43,8 @@ const (
 	Disjunction LogicalOp = "||"
 	// WildcardChar is the wildcard character
 	WildcardChar = "*"
+
+	allowFilterStr = "All"
 )
 
 // Filter matches a string against certain conditions
@@ -84,28 +87,19 @@ func NewFilter(pattern string) (Filter, error) {
 		}, Conjunction), nil
 	}
 
-	if idx != 0 || secondIdx != len(pattern)-2 || secondIdx == 0 {
-		return nil, errInvalidFilterPattern
+	if idx == 0 && secondIdx == len(pattern)-2 && len(pattern) > 2 {
+		return newContainsFilter(pattern[1 : len(pattern)-1]), nil
 	}
 
-	return newContainsFilter(pattern[1 : len(pattern)-1]), nil
+	return nil, errInvalidFilterPattern
 }
 
 // allowFilter is a filter that allows all
-type allowFilter struct {
-}
+type allowFilter struct{}
 
-func newAllowFilter() Filter {
-	return &allowFilter{}
-}
-
-func (f *allowFilter) String() string {
-	return "All"
-}
-
-func (f *allowFilter) Matches(val string) bool {
-	return true
-}
+func newAllowFilter() Filter                  { return allowAllFilter }
+func (f allowFilter) String() string          { return allowFilterStr }
+func (f allowFilter) Matches(val string) bool { return true }
 
 // equalityFilter is a filter that matches exact values
 type equalityFilter struct {
@@ -199,13 +193,17 @@ func (f *multiFilter) String() string {
 }
 
 func (f *multiFilter) Matches(val string) bool {
+	if len(f.filters) == 0 {
+		return true
+	}
+
 	for _, filter := range f.filters {
 		match := filter.Matches(val)
-		if f.op == Conjunction && match == false {
+		if f.op == Conjunction && !match {
 			return false
 		}
 
-		if f.op == Disjunction && match == true {
+		if f.op == Disjunction && match {
 			return true
 		}
 	}

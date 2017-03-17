@@ -133,6 +133,10 @@ func (f *tagsFilter) Matches(id string) bool {
 				// Past all filters
 				return false
 			}
+
+			if name < f.filters[currIdx].name {
+				continue
+			}
 		}
 
 		match := f.filters[currIdx].valueFilter.Matches(value)
@@ -147,13 +151,9 @@ func (f *tagsFilter) Matches(id string) bool {
 		currIdx++
 	}
 
-	if iter.Err() != nil {
+	if iter.Err() != nil || f.op == Disjunction {
 		return false
 	}
 
-	if f.op == Conjunction {
-		return currIdx == len(f.filters)
-	}
-
-	return false
+	return currIdx == len(f.filters)
 }
