@@ -65,6 +65,11 @@ func NewFilter(pattern string) (Filter, error) {
 		return newFilter(pattern)
 	}
 
+	if len(pattern) == 1 {
+		// only negation symbol
+		return nil, errInvalidFilterPattern
+	}
+
 	filter, err := newFilter(pattern[1:])
 	if err != nil {
 		return nil, err

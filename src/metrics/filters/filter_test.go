@@ -135,6 +135,7 @@ func TestNegationFilter(t *testing.T) {
 
 func TestBadPatterns(t *testing.T) {
 	patterns := []string{
+		"!", // negation of nothing is everything, so user should use *
 		"**",
 		"***",
 		"*too*many*",
