@@ -95,6 +95,36 @@ func TestMultiFilter(t *testing.T) {
 	}
 }
 
+func TestNegationFilter(t *testing.T) {
+	filters := genAndValidateFilters(t, []testPattern{
+		testPattern{pattern: "!foo", expectedStr: "Not(Equals(\"foo\"))"},
+		testPattern{pattern: "!*bar", expectedStr: "Not(EndsWith(\"bar\"))"},
+		testPattern{pattern: "!baz*", expectedStr: "Not(StartsWith(\"baz\"))"},
+		testPattern{pattern: "!*cat*", expectedStr: "Not(Contains(\"cat\"))"},
+		testPattern{pattern: "!foo*bar", expectedStr: "Not(StartsWith(\"foo\") && EndsWith(\"bar\"))"},
+		testPattern{pattern: "foo!", expectedStr: "Equals(\"foo!\")"},
+	})
+
+	inputs := []testInput{
+		newTestInput("foo", false, true, true, true, true, false),
+		newTestInput("foo!", true, true, true, true, true, true),
+		newTestInput("foobar", true, false, true, true, false, false),
+		newTestInput("bazbar", true, false, false, true, true, false),
+		newTestInput("cat", true, true, true, false, true, false),
+		newTestInput("catbar", true, false, true, false, true, false),
+		newTestInput("baztestcat", true, true, false, false, true, false),
+		newTestInput("foocatbar", true, false, true, false, false, false),
+		newTestInput("footestcatbar", true, false, true, false, false, false),
+	}
+
+	for _, input := range inputs {
+		for i, expectedMatch := range input.matches {
+			require.Equal(t, expectedMatch, filters[i].Matches(input.val),
+				fmt.Sprintf("input: %s, pattern: %s", input.val, filters[i].String()))
+		}
+	}
+}
+
 func TestBadPatterns(t *testing.T) {
 	patterns := []string{
 		"**",
