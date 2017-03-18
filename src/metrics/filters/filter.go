@@ -59,10 +59,6 @@ type Filter interface {
 // along with negation
 // TODO(martinm): add rest of glob matching support
 func NewFilter(pattern string) (Filter, error) {
-	if len(pattern) == 0 {
-		return nil, errInvalidFilterPattern
-	}
-
 	nIdx := strings.Index(pattern, negationChar)
 	if nIdx != 0 {
 		// No negation found

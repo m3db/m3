@@ -39,6 +39,14 @@ func TestEqualityFilter(t *testing.T) {
 	}
 }
 
+func TestEmptyFilter(t *testing.T) {
+	f, err := NewFilter("")
+	require.NoError(t, err)
+	require.True(t, f.Matches(""))
+	require.False(t, f.Matches(" "))
+	require.False(t, f.Matches("foo"))
+}
+
 func TestWildcardFilters(t *testing.T) {
 	filters := genAndValidateFilters(t, []testPattern{
 		testPattern{pattern: "foo", expectedStr: "Equals(\"foo\")"},
