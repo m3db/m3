@@ -43,7 +43,7 @@ const (
 	Disjunction LogicalOp = "||"
 
 	wildcardChar   = "*"
-	negationChar   = "!"
+	negationChar   = '!'
 	allowFilterStr = "All"
 )
 
@@ -59,9 +59,7 @@ type Filter interface {
 // along with negation
 // TODO(martinm): add rest of glob matching support
 func NewFilter(pattern string) (Filter, error) {
-	nIdx := strings.Index(pattern, negationChar)
-	if nIdx != 0 {
-		// No negation found
+	if len(pattern) == 0 || pattern[0] != negationChar {
 		return newFilter(pattern)
 	}
 
@@ -102,7 +100,7 @@ func newFilter(pattern string) (Filter, error) {
 			return newEndsWithFilter(pattern[1:]), nil
 		}
 
-		return newMultiFilter([]Filter{
+		return NewMultiFilter([]Filter{
 			newStartsWithFilter(pattern[:wIdx]),
 			newEndsWithFilter(pattern[wIdx+1:]),
 		}, Conjunction), nil
@@ -213,7 +211,9 @@ type multiFilter struct {
 	op      LogicalOp
 }
 
-func newMultiFilter(filters []Filter, op LogicalOp) Filter {
+// NewMultiFilter returns a filter that chains multiple filters together
+// using a LogicalOp
+func NewMultiFilter(filters []Filter, op LogicalOp) Filter {
 	return &multiFilter{filters: filters, op: op}
 }
 

@@ -80,12 +80,12 @@ func TestWildcardFilters(t *testing.T) {
 
 func TestMultiFilter(t *testing.T) {
 	filters := []Filter{
-		newMultiFilter([]Filter{}, Conjunction),
-		newMultiFilter([]Filter{}, Disjunction),
-		newMultiFilter([]Filter{newEqualityFilter("foo")}, Conjunction),
-		newMultiFilter([]Filter{newEqualityFilter("foo")}, Disjunction),
-		newMultiFilter([]Filter{newEqualityFilter("foo"), newEndsWithFilter("bar")}, Conjunction),
-		newMultiFilter([]Filter{newEqualityFilter("foo"), newEndsWithFilter("bar")}, Disjunction),
+		NewMultiFilter([]Filter{}, Conjunction),
+		NewMultiFilter([]Filter{}, Disjunction),
+		NewMultiFilter([]Filter{newEqualityFilter("foo")}, Conjunction),
+		NewMultiFilter([]Filter{newEqualityFilter("foo")}, Disjunction),
+		NewMultiFilter([]Filter{newEqualityFilter("foo"), newEndsWithFilter("bar")}, Conjunction),
+		NewMultiFilter([]Filter{newEqualityFilter("foo"), newEndsWithFilter("bar")}, Disjunction),
 	}
 
 	inputs := []testInput{
