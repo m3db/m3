@@ -75,6 +75,65 @@ func BenchmarkMapTagsFilterThree(b *testing.B) {
 	benchTagsFilter(b, testFlatID, newTestMapTagsFilter(testTagsFilterMapThree, NewMockSortedTagIterator))
 }
 
+func BenchmarkRangeFilterStructsMatchRange(b *testing.B) {
+	benchRangeFilterStructs(b, "a-z", "p", true)
+}
+
+func BenchmarkRangeFilterRangeMatchRange(b *testing.B) {
+	benchRangeFilterRange(b, "a-z", "p", true)
+}
+
+func BenchmarkRangeFilterStructsNotMatchRange(b *testing.B) {
+	benchRangeFilterStructs(b, "a-z", "P", false)
+}
+
+func BenchmarkRangeFilterRangeNotMatchRange(b *testing.B) {
+	benchRangeFilterRange(b, "a-z", "P", false)
+}
+
+func BenchmarkRangeFilterStructsMatch(b *testing.B) {
+	benchRangeFilterStructs(b, "02468", "6", true)
+}
+
+func BenchmarkRangeFilterRangeMatch(b *testing.B) {
+	benchRangeFilterRange(b, "02468", "6", true)
+}
+
+func BenchmarkRangeFilterStructsNotMatch(b *testing.B) {
+	benchRangeFilterStructs(b, "13579", "6", false)
+}
+
+func BenchmarkRangeFilterRangeNotMatch(b *testing.B) {
+	benchRangeFilterRange(b, "13579", "6", false)
+}
+
+func BenchmarkRangeFilterStructsMatchNegation(b *testing.B) {
+	benchRangeFilterStructs(b, "!a-z", "p", false)
+}
+
+func BenchmarkRangeFilterRangeMatchNegation(b *testing.B) {
+	benchRangeFilterRange(b, "!a-z", "p", false)
+}
+
+func benchRangeFilterStructs(b *testing.B, pattern string, val string, expectedMatch bool) {
+	f, _ := newSingleRangeFilter(pattern, false)
+	for n := 0; n < b.N; n++ {
+		match, _ := f.matches(val)
+		if match != expectedMatch {
+			b.FailNow()
+		}
+	}
+}
+
+func benchRangeFilterRange(b *testing.B, pattern string, val string, expectedMatch bool) {
+	for n := 0; n < b.N; n++ {
+		match, _ := validateRangeByScan(pattern, val)
+		if match != expectedMatch {
+			b.FailNow()
+		}
+	}
+}
+
 func benchTagsFilter(b *testing.B, id string, tagsFilter Filter) {
 	for n := 0; n < b.N; n++ {
 		tagsFilter.Matches(id)
@@ -155,4 +214,46 @@ func (f *testMapTagsFilter) Matches(id string) bool {
 	}
 
 	return iter.Err() == nil && matches == len(f.filters)
+}
+
+func validateRangeByScan(pattern string, val string) (bool, error) {
+	if len(pattern) == 0 {
+		return false, errInvalidFilterPattern
+	}
+
+	negate := false
+	if pattern[0] == negationChar {
+		pattern = pattern[1:]
+		if len(pattern) == 0 {
+			return false, errInvalidFilterPattern
+		}
+		negate = true
+	}
+
+	if len(pattern) == 3 && pattern[1] == rangeChar {
+		if pattern[0] >= pattern[2] {
+			return false, errInvalidFilterPattern
+		}
+
+		match := val[0] >= pattern[0] && val[0] <= pattern[2]
+		if negate {
+			match = !match
+		}
+
+		return match, nil
+	}
+
+	match := false
+	for i := 0; i < len(pattern); i++ {
+		if val[0] == pattern[i] {
+			match = true
+			break
+		}
+	}
+
+	if negate {
+		match = !match
+	}
+
+	return match, nil
 }
