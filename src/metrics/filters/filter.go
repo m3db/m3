@@ -53,11 +53,11 @@ const (
 
 	allowFilterStr       = "All"
 	anyCharStr           = "AnyChar"
-	wildcardChar         = "*"
+	wildcardChar         = '*'
 	negationChar         = '!'
 	singleAnyChar        = '?'
 	singleRangeStartChar = '['
-	singleRangeEndStr    = "]"
+	singleRangeEndChar   = ']'
 	rangeChar            = '-'
 	invalidNestedChars   = "?["
 )
@@ -98,7 +98,7 @@ func NewFilter(pattern string) (Filter, error) {
 // newWildcardFilter creates a filter that segments the pattern based
 // on wildcards, creating a rangeFilter for each segment
 func newWildcardFilter(pattern string) (Filter, error) {
-	wIdx := strings.Index(pattern, wildcardChar)
+	wIdx := strings.IndexRune(pattern, wildcardChar)
 
 	if wIdx == -1 {
 		// No wildcards
@@ -115,7 +115,7 @@ func newWildcardFilter(pattern string) (Filter, error) {
 		return newRangeFilter(pattern[:len(pattern)-1], false, start)
 	}
 
-	secondWIdx := strings.Index(pattern[wIdx+1:], wildcardChar)
+	secondWIdx := strings.IndexRune(pattern[wIdx+1:], wildcardChar)
 	if secondWIdx == -1 {
 		if wIdx == 0 {
 			// Single wildcard at start
@@ -151,24 +151,28 @@ func newRangeFilter(pattern string, backwards bool, seg chainSegment) (Filter, e
 	eqIdx := -1
 	for i := 0; i < len(pattern); i++ {
 		if pattern[i] == singleRangeStartChar {
+			// Found '[', create an equality filter for the chars before this one if any
+			// and use vals before next ']' as input for a singleRangeFilter
 			if eqIdx != -1 {
 				filters = append(filters, newEqualityChainFilter(pattern[eqIdx:i], backwards))
 				eqIdx = -1
 			}
 
-			endIdx := strings.Index(pattern[i:], singleRangeEndStr)
+			endIdx := strings.IndexRune(pattern[i+1:], singleRangeEndChar)
 			if endIdx == -1 {
 				return nil, errInvalidFilterPattern
 			}
 
-			f, err := newSingleRangeFilter(pattern[i+1:i+endIdx], backwards)
+			f, err := newSingleRangeFilter(pattern[i+1:i+1+endIdx], backwards)
 			if err != nil {
 				return nil, errInvalidFilterPattern
 			}
 
 			filters = append(filters, f)
-			i += endIdx
+			i += endIdx + 1
 		} else if pattern[i] == singleAnyChar {
+			// Found '?', create equality filter for chars before this one if any and then
+			// attach singleAnyCharFilter to chain
 			if eqIdx != -1 {
 				filters = append(filters, newEqualityChainFilter(pattern[eqIdx:i], backwards))
 				eqIdx = -1
@@ -176,6 +180,7 @@ func newRangeFilter(pattern string, backwards bool, seg chainSegment) (Filter, e
 
 			filters = append(filters, newSingleAnyCharFilter(backwards))
 		} else if eqIdx == -1 {
+			// Normal char, need to mark index to start next equality filter
 			eqIdx = i
 		}
 	}
@@ -298,7 +303,7 @@ func (f *multiFilter) Matches(val string) bool {
 type chainFilter interface {
 	fmt.Stringer
 
-	matches(val string) (bool, string)
+	matches(val string) (string, bool)
 }
 
 // equalityChainFilter is a filter that performs equality string matches
@@ -316,16 +321,16 @@ func (f *equalityChainFilter) String() string {
 	return "Equals(\"" + f.pattern + "\")"
 }
 
-func (f *equalityChainFilter) matches(val string) (bool, string) {
+func (f *equalityChainFilter) matches(val string) (string, bool) {
 	if f.backwards && strings.HasSuffix(val, f.pattern) {
-		return true, val[:len(val)-len(f.pattern)]
+		return val[:len(val)-len(f.pattern)], true
 	}
 
 	if !f.backwards && strings.HasPrefix(val, f.pattern) {
-		return true, val[len(f.pattern):]
+		return val[len(f.pattern):], true
 	}
 
-	return false, ""
+	return "", false
 }
 
 // singleAnyCharFilter is a filter that allows any one char
@@ -343,16 +348,16 @@ func newSingleAnyCharFilter(backwards bool) chainFilter {
 
 func (f *singleAnyCharFilter) String() string { return anyCharStr }
 
-func (f *singleAnyCharFilter) matches(val string) (bool, string) {
+func (f *singleAnyCharFilter) matches(val string) (string, bool) {
 	if len(val) == 0 {
-		return false, ""
+		return "", false
 	}
 
 	if f.backwards {
-		return true, val[:len(val)-1]
+		return val[:len(val)-1], true
 	}
 
-	return true, val[1:]
+	return val[1:], true
 }
 
 // newSingleRangeFilter creates a filter that performs range matching
@@ -376,7 +381,7 @@ func newSingleRangeFilter(pattern string, backwards bool) (chainFilter, error) {
 		return &singleRangeFilter{pattern: pattern, backwards: backwards, negate: negate}, nil
 	}
 
-	return &singleRangeFilterAny{pattern: pattern, backwards: backwards, negate: negate}, nil
+	return &singleCharSetFilter{pattern: pattern, backwards: backwards, negate: negate}, nil
 }
 
 func genSingleRangeFilterStr(pattern string, negate bool) string {
@@ -401,43 +406,41 @@ func (f *singleRangeFilter) String() string {
 	return genSingleRangeFilterStr(f.pattern, f.negate)
 }
 
-func (f *singleRangeFilter) matches(val string) (bool, string) {
+func (f *singleRangeFilter) matches(val string) (string, bool) {
 	if len(val) == 0 {
-		return false, ""
+		return "", false
 	}
 
+	idx := 0
+	remainder := val[1:]
 	if f.backwards {
-		match := val[len(val)-1] >= f.pattern[0] && val[len(val)-1] <= f.pattern[2]
-		if f.negate {
-			match = !match
-		}
-
-		return match, val[:len(val)-1]
+		idx = len(val) - 1
+		remainder = val[:idx]
 	}
 
-	match := val[0] >= f.pattern[0] && val[0] <= f.pattern[2]
+	match := val[idx] >= f.pattern[0] && val[idx] <= f.pattern[2]
 	if f.negate {
 		match = !match
 	}
 
-	return match, val[1:]
+	return remainder, match
 }
 
-// singleRangeFilter is a filter that performs a single character match against
-// a range of chars given explicity eg. [abcdefg]
-type singleRangeFilterAny struct {
+// singleCharSetFilter is a filter that performs a single character match against
+// a set of chars given explicity eg. [abcdefg]
+type singleCharSetFilter struct {
 	pattern   string
 	backwards bool
 	negate    bool
 }
 
-func (f *singleRangeFilterAny) String() string {
+func (f *singleCharSetFilter) String() string {
 	return genSingleRangeFilterStr(f.pattern, f.negate)
 }
 
-func (f *singleRangeFilterAny) matches(val string) (bool, string) {
+func (f *singleCharSetFilter) matches(val string) (string, bool) {
 	if len(val) == 0 {
-		return false, ""
+		return "", false
 	}
 
 	match := false
@@ -458,10 +461,10 @@ func (f *singleRangeFilterAny) matches(val string) (bool, string) {
 	}
 
 	if f.backwards {
-		return match, val[:len(val)-1]
+		return val[:len(val)-1], match
 	}
 
-	return match, val[1:]
+	return val[1:], match
 }
 
 // multiChainFilter chains multiple chainFilters together with &&
@@ -511,14 +514,14 @@ func (f *multiChainFilter) Matches(val string) bool {
 
 	if f.backwards {
 		for i := len(f.filters) - 1; i >= 0; i-- {
-			match, val = f.filters[i].matches(val)
+			val, match = f.filters[i].matches(val)
 			if !match {
 				return false
 			}
 		}
 	} else {
 		for i := 0; i < len(f.filters); i++ {
-			match, val = f.filters[i].matches(val)
+			val, match = f.filters[i].matches(val)
 			if !match {
 				return false
 			}
