@@ -51,8 +51,6 @@ const (
 	start
 	end
 
-	allowFilterStr       = "All"
-	anyCharStr           = "AnyChar"
 	wildcardChar         = '*'
 	negationChar         = '!'
 	singleAnyChar        = '?'
@@ -196,7 +194,7 @@ func newRangeFilter(pattern string, backwards bool, seg chainSegment) (Filter, e
 type allowFilter struct{}
 
 func newAllowFilter() Filter                  { return allowAllFilter }
-func (f allowFilter) String() string          { return allowFilterStr }
+func (f allowFilter) String() string          { return "All" }
 func (f allowFilter) Matches(val string) bool { return true }
 
 // equalityFilter is a filter that matches exact values
@@ -346,7 +344,7 @@ func newSingleAnyCharFilter(backwards bool) chainFilter {
 	return singleAnyCharFilterForwards
 }
 
-func (f *singleAnyCharFilter) String() string { return anyCharStr }
+func (f *singleAnyCharFilter) String() string { return "AnyChar" }
 
 func (f *singleAnyCharFilter) matches(val string) (string, bool) {
 	if len(val) == 0 {
