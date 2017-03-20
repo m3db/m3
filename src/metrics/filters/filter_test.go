@@ -31,7 +31,7 @@ func TestFilters(t *testing.T) {
 	filters := genAndValidateFilters(t, []testPattern{
 		testPattern{pattern: "f[A-z]?*", expectedStr: "StartsWith(Equals(\"f\") then Range(\"A-z\") then AnyChar)"},
 		testPattern{pattern: "*ba[a-z]", expectedStr: "EndsWith(Equals(\"ba\") then Range(\"a-z\"))"},
-		testPattern{pattern: "fo?*ba[!0-9][0-9]9", expectedStr: "StartsWith(Equals(\"fo\") then AnyChar) && EndsWith(Equals(\"ba\") then Not(Range(\"0-9\")) then Range(\"0-9\") then Equals(\"9\"))"},
+		testPattern{pattern: "fo*?ba[!0-9][0-9]9", expectedStr: "StartsWith(Equals(\"fo\")) && EndsWith(AnyChar then Equals(\"ba\") then Not(Range(\"0-9\")) then Range(\"0-9\") then Equals(\"9\"))"},
 	})
 
 	inputs := []testInput{
