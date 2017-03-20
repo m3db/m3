@@ -118,7 +118,7 @@ func BenchmarkRangeFilterRangeMatchNegation(b *testing.B) {
 func benchRangeFilterStructs(b *testing.B, pattern string, val string, expectedMatch bool) {
 	f, _ := newSingleRangeFilter(pattern, false)
 	for n := 0; n < b.N; n++ {
-		match, _ := f.matches(val)
+		_, match := f.matches(val)
 		if match != expectedMatch {
 			b.FailNow()
 		}
