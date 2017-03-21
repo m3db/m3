@@ -22,6 +22,7 @@ package filters
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -115,7 +116,58 @@ func BenchmarkRangeFilterRangeMatchNegation(b *testing.B) {
 	benchRangeFilterRange(b, "!a-z", "p", false)
 }
 
-func benchRangeFilterStructs(b *testing.B, pattern string, val string, expectedMatch bool) {
+func BenchmarkMultiRangeFilterTwo(b *testing.B) {
+	benchMultiRangeFilter(b, "test_1,test_2", false, []string{"test_1", "fake_1"})
+}
+
+func BenchmarkMultiRangeFilterSelectTwo(b *testing.B) {
+	benchMultiRangeFilterSelect(b, "test_1,test_2", false, []string{"test_1", "fake_1"})
+}
+
+func BenchmarkMultiRangeFilterTrieTwo(b *testing.B) {
+	benchMultiRangeFilterTrie(b, "test_1,test_2", false, []string{"test_1", "fake_1"})
+}
+
+func BenchmarkMultiRangeFilterSix(b *testing.B) {
+	benchMultiRangeFilter(b, "test_1,test_2,staging_1,staging_2,prod_1,prod_2", false, []string{"prod_1", "staging_3"})
+}
+
+func BenchmarkMultiRangeFilterSelectSix(b *testing.B) {
+	benchMultiRangeFilterSelect(b, "test_1,test_2,staging_1,staging_2,prod_1,prod_2", false, []string{"prod_1", "staging_3"})
+}
+
+func BenchmarkMultiRangeFilterTrieSix(b *testing.B) {
+	benchMultiRangeFilterTrie(b, "test_1,test_2,staging_1,staging_2,prod_1,prod_2", false, []string{"prod_1", "staging_3"})
+}
+
+func benchMultiRangeFilter(b *testing.B, patterns string, backwards bool, vals []string) {
+	f, _ := newMultiCharRangeFilter(patterns, backwards)
+	for n := 0; n < b.N; n++ {
+		for _, val := range vals {
+			f.matches(val)
+		}
+	}
+}
+
+func benchMultiRangeFilterSelect(b *testing.B, patterns string, backwards bool, vals []string) {
+	f, _ := newTestMultiCharRangeSelectFilter(patterns, backwards)
+	for n := 0; n < b.N; n++ {
+		for _, val := range vals {
+			f.matches(val)
+		}
+	}
+}
+
+func benchMultiRangeFilterTrie(b *testing.B, patterns string, backwards bool, vals []string) {
+	f, _ := newTestMultiCharRangeTrieFilter(patterns, backwards)
+	for n := 0; n < b.N; n++ {
+		for _, val := range vals {
+			f.matches(val)
+		}
+	}
+}
+
+func benchRangeFilterStructs(b *testing.B, pattern, val string, expectedMatch bool) {
 	f, _ := newSingleRangeFilter(pattern, false)
 	for n := 0; n < b.N; n++ {
 		_, match := f.matches(val)
@@ -216,6 +268,54 @@ func (f *testMapTagsFilter) Matches(id string) bool {
 	return iter.Err() == nil && matches == len(f.filters)
 }
 
+func newTestMultiCharRangeSelectFilter(pattern string, backwards bool) (chainFilter, error) {
+	if len(pattern) == 0 {
+		return nil, errInvalidFilterPattern
+	}
+
+	patterns := strings.Split(pattern, multiRangeSplit)
+	filters := make([]chainFilter, len(patterns))
+	for i, p := range patterns {
+		f, _ := newMultiCharRangeFilter(p, backwards)
+		filters[i] = f
+	}
+
+	return &testSelectChainFilter{
+		filters: filters,
+	}, nil
+}
+
+type testMultiCharRangeTrieFilter struct {
+	b         *byteTrie
+	backwards bool
+}
+
+func newTestMultiCharRangeTrieFilter(patterns string, backwards bool) (chainFilter, error) {
+	if len(patterns) == 0 {
+		return nil, errInvalidFilterPattern
+	}
+
+	b := &byteTrie{}
+	for _, p := range strings.Split(patterns, multiRangeSplit) {
+		b.insert(p, backwards)
+	}
+
+	return &testMultiCharRangeTrieFilter{
+		b:         b,
+		backwards: backwards,
+	}, nil
+}
+
+func (f *testMultiCharRangeTrieFilter) String() string {
+	results := &traverseResults{}
+	f.b.listTraverse(nil, results, f.backwards)
+	return "Range(\"" + strings.Join(results.vals, multiRangeSplit) + "\")"
+}
+
+func (f *testMultiCharRangeTrieFilter) matches(val string) (string, bool) {
+	return f.b.lookup(val, f.backwards)
+}
+
 func validateRangeByScan(pattern string, val string) (bool, error) {
 	if len(pattern) == 0 {
 		return false, errInvalidFilterPattern
@@ -256,4 +356,118 @@ func validateRangeByScan(pattern string, val string) (bool, error) {
 	}
 
 	return match, nil
+}
+
+// testSelectChainFilter selects one of multiple filters with ||
+type testSelectChainFilter struct {
+	filters []chainFilter
+}
+
+func (f *testSelectChainFilter) String() string {
+	return ""
+}
+
+func (f *testSelectChainFilter) matches(val string) (string, bool) {
+	if len(f.filters) == 0 {
+		return val, true
+	}
+
+	for _, filter := range f.filters {
+		remainder, match := filter.matches(val)
+		if match {
+			return remainder, match
+		}
+	}
+
+	return "", false
+}
+
+// byteTrie is a trie for bytes that provides multi-direction inserts and lookups with
+// early exit lookups for variable length input.
+// It is not designed to take reads and writes concurrently
+type byteTrie struct {
+	b        byte
+	leaf     bool
+	children []*byteTrie
+}
+
+func (t *byteTrie) insert(val string, backwards bool) {
+	if len(val) == 0 {
+		return
+	}
+
+	idx := 0
+	remainder := val[1:]
+	if backwards {
+		idx = len(val) - 1
+		remainder = val[:idx]
+	}
+
+	var child *byteTrie
+	for _, c := range t.children {
+		if c.b == val[idx] {
+			child = c
+			break
+		}
+	}
+
+	if child == nil {
+		child = &byteTrie{b: val[idx]}
+		t.children = append(t.children, child)
+	}
+
+	if len(remainder) == 0 {
+		child.leaf = true
+		return
+	}
+
+	child.insert(remainder, backwards)
+}
+
+func (t *byteTrie) lookup(val string, backwards bool) (string, bool) {
+	if len(val) == 0 {
+		return "", false
+	}
+
+	idx := 0
+	remainder := val[1:]
+	if backwards {
+		idx = len(val) - 1
+		remainder = val[:idx]
+	}
+
+	for _, c := range t.children {
+		if c.b == val[idx] {
+			if c.leaf {
+				return remainder, true
+			}
+
+			return c.lookup(remainder, backwards)
+		}
+	}
+
+	return "", false
+}
+
+type traverseResults struct {
+	vals []string
+}
+
+func (t *byteTrie) listTraverse(val []byte, results *traverseResults, backwards bool) {
+	for _, c := range t.children {
+		newVal := make([]byte, len(val)+1)
+		if backwards {
+			newVal[0] = c.b
+			copy(newVal[1:], val)
+		} else {
+			copy(newVal, val)
+			newVal[len(val)] = c.b
+		}
+
+		if c.leaf {
+			results.vals = append(results.vals, string(newVal))
+		}
+
+		c.listTraverse(newVal, results, backwards)
+	}
 }

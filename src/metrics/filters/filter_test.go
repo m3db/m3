@@ -31,7 +31,7 @@ func TestFilters(t *testing.T) {
 	filters := genAndValidateFilters(t, []testPattern{
 		testPattern{pattern: "f[A-z]?*", expectedStr: "StartsWith(Equals(\"f\") then Range(\"A-z\") then AnyChar)"},
 		testPattern{pattern: "*ba[a-z]", expectedStr: "EndsWith(Equals(\"ba\") then Range(\"a-z\"))"},
-		testPattern{pattern: "fo*?ba[!0-9][0-9]9", expectedStr: "StartsWith(Equals(\"fo\")) && EndsWith(AnyChar then Equals(\"ba\") then Not(Range(\"0-9\")) then Range(\"0-9\") then Equals(\"9\"))"},
+		testPattern{pattern: "fo*?ba[!0-9][0-9]{8,9}", expectedStr: "StartsWith(Equals(\"fo\")) && EndsWith(AnyChar then Equals(\"ba\") then Not(Range(\"0-9\")) then Range(\"0-9\") then Range(\"8,9\"))"},
 	})
 
 	inputs := []testInput{
@@ -39,7 +39,7 @@ func TestFilters(t *testing.T) {
 		newTestInput("test", false, false, false),
 		newTestInput("bar", false, true, false),
 		newTestInput("foobar", true, true, false),
-		newTestInput("foobar09", true, false, true),
+		newTestInput("foobar08", true, false, true),
 		newTestInput("footybar09", true, false, true),
 	}
 
@@ -104,25 +104,29 @@ func TestWildcardFilters(t *testing.T) {
 
 func TestRangeFilters(t *testing.T) {
 	filters := genAndValidateFilters(t, []testPattern{
-		testPattern{pattern: "fo[a-z]", expectedStr: "Equals(\"fo\") then Range(\"a-z\")"},
-		testPattern{pattern: "f[a-z]?", expectedStr: "Equals(\"f\") then Range(\"a-z\") then AnyChar"},
+		testPattern{pattern: "fo[a-zA-Z0-9]", expectedStr: "Equals(\"fo\") then Range(\"a-z || A-Z || 0-9\")"},
+		testPattern{pattern: "f[o-o]?", expectedStr: "Equals(\"f\") then Range(\"o-o\") then AnyChar"},
 		testPattern{pattern: "???", expectedStr: "AnyChar then AnyChar then AnyChar"},
 		testPattern{pattern: "ba?", expectedStr: "Equals(\"ba\") then AnyChar"},
 		testPattern{pattern: "[!cC]ar", expectedStr: "Not(Range(\"cC\")) then Equals(\"ar\")"},
 		testPattern{pattern: "ba?[0-9][!a-z]9", expectedStr: "Equals(\"ba\") then AnyChar then Range(\"0-9\") then Not(Range(\"a-z\")) then Equals(\"9\")"},
+		testPattern{pattern: "{ba,fo,car}*", expectedStr: "StartsWith(Range(\"ba,fo,car\"))"},
+		testPattern{pattern: "ba{r,t}*[!a-zA-Z]", expectedStr: "StartsWith(Equals(\"ba\") then Range(\"r,t\")) && EndsWith(Not(Range(\"a-z || A-Z\")))"},
+		testPattern{pattern: "*{9}", expectedStr: "EndsWith(Range(\"9\"))"},
 	})
 
 	inputs := []testInput{
-		newTestInput("foo", true, true, true, false, false, false),
-		newTestInput("boo", false, false, true, false, false, false),
-		newTestInput("bar", false, false, true, true, true, false),
-		newTestInput("Bar", false, false, true, false, true, false),
-		newTestInput("car", false, false, true, false, false, false),
-		newTestInput("bar9", false, false, false, false, false, false),
-		newTestInput("bar990", false, false, false, false, false, false),
-		newTestInput("bar959", false, false, false, false, false, true),
-		newTestInput("bar009", false, false, false, false, false, true),
-		newTestInput("bat449", false, false, false, false, false, true),
+		newTestInput("foo", true, true, true, false, false, false, true, false, false),
+		newTestInput("fo!", false, true, true, false, false, false, true, false, false),
+		newTestInput("boo", false, false, true, false, false, false, false, false, false),
+		newTestInput("bar", false, false, true, true, true, false, true, false, false),
+		newTestInput("Bar", false, false, true, false, true, false, false, false, false),
+		newTestInput("car", false, false, true, false, false, false, true, false, false),
+		newTestInput("bar9", false, false, false, false, false, false, true, true, true),
+		newTestInput("bar990", false, false, false, false, false, false, true, true, false),
+		newTestInput("bar959", false, false, false, false, false, true, true, true, true),
+		newTestInput("bar009", false, false, false, false, false, true, true, true, true),
+		newTestInput("bat449", false, false, false, false, false, true, true, true, true),
 	}
 
 	for _, input := range inputs {
@@ -203,12 +207,54 @@ func TestBadPatterns(t *testing.T) {
 		"abc[z-a]",
 		"*con[tT]ains*",
 		"*con?ains*",
+		"abc[a-zA-Z0-]",
+		"abc[a-zA-Z0]",
+		"abc[a-zZ-A]",
+		"ab}c{sdf",
+		"ab{}sdf",
+		"ab[]sdf",
 	}
 
 	for _, pattern := range patterns {
 		_, err := NewFilter(pattern)
 		require.Error(t, err, fmt.Sprintf("pattern: %s", pattern))
 	}
+}
+
+func TestMultiCharRangeFilter(t *testing.T) {
+	f, err := newMultiCharRangeFilter("", false)
+	require.Error(t, err)
+
+	f, err = newMultiCharRangeFilter("test2,test,tent,book", false)
+	validateLookup(t, f, "", false, "")
+	validateLookup(t, f, "t", false, "")
+	validateLookup(t, f, "tes", false, "")
+	validateLookup(t, f, "tset", false, "")
+
+	validateLookup(t, f, "test", true, "")
+	validateLookup(t, f, "tent", true, "")
+	validateLookup(t, f, "test3", true, "3")
+	validateLookup(t, f, "test2", true, "")
+	validateLookup(t, f, "book123", true, "123")
+
+	f, err = newMultiCharRangeFilter("test2,test,tent,book", true)
+	validateLookup(t, f, "", false, "")
+	validateLookup(t, f, "t", false, "")
+	validateLookup(t, f, "tes", false, "")
+	validateLookup(t, f, "test3", false, "")
+
+	validateLookup(t, f, "test", true, "")
+	validateLookup(t, f, "tent", true, "")
+	validateLookup(t, f, "test2", true, "")
+	validateLookup(t, f, "12test", true, "12")
+	validateLookup(t, f, "12test2", true, "12")
+	validateLookup(t, f, "123book", true, "123")
+}
+
+func validateLookup(t *testing.T, f chainFilter, val string, expectedMatch bool, expectedRemainder string) {
+	remainder, match := f.matches(val)
+	require.Equal(t, expectedMatch, match)
+	require.Equal(t, expectedRemainder, remainder)
 }
 
 type testPattern struct {
