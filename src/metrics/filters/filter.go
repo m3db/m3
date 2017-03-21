@@ -184,7 +184,7 @@ func newRangeFilter(pattern string, backwards bool, seg chainSegment) (Filter, e
 				return nil, errInvalidFilterPattern
 			}
 
-			f, err := newMultiCharRangeFilter(pattern[i+1:i+1+endIdx], backwards)
+			f, err := newMultiCharSequenceFilter(pattern[i+1:i+1+endIdx], backwards)
 			if err != nil {
 				return nil, errInvalidFilterPattern
 			}
@@ -395,11 +395,13 @@ func newSingleRangeFilter(pattern string, backwards bool) (chainFilter, error) {
 	}
 
 	if len(pattern) > 1 && pattern[1] == rangeChar {
+		// If there is a '-' char at position 2, look for repeated instances
+		// of a-z
 		if len(pattern)%3 != 0 {
 			return nil, errInvalidFilterPattern
 		}
 
-		var patterns []string
+		patterns := make([]string, 0, len(pattern)%3)
 		for i := 0; i < len(pattern); i += 3 {
 			if pattern[i+1] != rangeChar || pattern[i] > pattern[i+2] {
 				return nil, errInvalidFilterPattern
@@ -508,27 +510,27 @@ func (f *singleCharSetFilter) matches(val string) (string, bool) {
 
 // multiCharRangeFilter is a filter that performs matches against multiple sets of chars
 // eg. {abc,defg}
-type multiCharRangeFilter struct {
+type multiCharSequenceFilter struct {
 	patterns  []string
 	backwards bool
 }
 
-func newMultiCharRangeFilter(patterns string, backwards bool) (chainFilter, error) {
+func newMultiCharSequenceFilter(patterns string, backwards bool) (chainFilter, error) {
 	if len(patterns) == 0 {
 		return nil, errInvalidFilterPattern
 	}
 
-	return &multiCharRangeFilter{
+	return &multiCharSequenceFilter{
 		patterns:  strings.Split(patterns, multiRangeSplit),
 		backwards: backwards,
 	}, nil
 }
 
-func (f *multiCharRangeFilter) String() string {
+func (f *multiCharSequenceFilter) String() string {
 	return "Range(\"" + strings.Join(f.patterns, multiRangeSplit) + "\")"
 }
 
-func (f *multiCharRangeFilter) matches(val string) (string, bool) {
+func (f *multiCharSequenceFilter) matches(val string) (string, bool) {
 	if len(val) == 0 {
 		return "", false
 	}

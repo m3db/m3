@@ -141,7 +141,7 @@ func BenchmarkMultiRangeFilterTrieSix(b *testing.B) {
 }
 
 func benchMultiRangeFilter(b *testing.B, patterns string, backwards bool, vals []string) {
-	f, _ := newMultiCharRangeFilter(patterns, backwards)
+	f, _ := newMultiCharSequenceFilter(patterns, backwards)
 	for n := 0; n < b.N; n++ {
 		for _, val := range vals {
 			f.matches(val)
@@ -276,7 +276,7 @@ func newTestMultiCharRangeSelectFilter(pattern string, backwards bool) (chainFil
 	patterns := strings.Split(pattern, multiRangeSplit)
 	filters := make([]chainFilter, len(patterns))
 	for i, p := range patterns {
-		f, _ := newMultiCharRangeFilter(p, backwards)
+		f, _ := newMultiCharSequenceFilter(p, backwards)
 		filters[i] = f
 	}
 

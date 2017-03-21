@@ -222,11 +222,11 @@ func TestBadPatterns(t *testing.T) {
 	}
 }
 
-func TestMultiCharRangeFilter(t *testing.T) {
-	f, err := newMultiCharRangeFilter("", false)
+func TestMultiCharSequenceFilter(t *testing.T) {
+	f, err := newMultiCharSequenceFilter("", false)
 	require.Error(t, err)
 
-	f, err = newMultiCharRangeFilter("test2,test,tent,book", false)
+	f, err = newMultiCharSequenceFilter("test2,test,tent,book", false)
 	validateLookup(t, f, "", false, "")
 	validateLookup(t, f, "t", false, "")
 	validateLookup(t, f, "tes", false, "")
@@ -238,7 +238,7 @@ func TestMultiCharRangeFilter(t *testing.T) {
 	validateLookup(t, f, "test2", true, "")
 	validateLookup(t, f, "book123", true, "123")
 
-	f, err = newMultiCharRangeFilter("test2,test,tent,book", true)
+	f, err = newMultiCharSequenceFilter("test2,test,tent,book", true)
 	validateLookup(t, f, "", false, "")
 	validateLookup(t, f, "t", false, "")
 	validateLookup(t, f, "tes", false, "")
