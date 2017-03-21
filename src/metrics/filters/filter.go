@@ -59,7 +59,7 @@ const (
 	rangeChar            = '-'
 	multiRangeStartChar  = '{'
 	multiRangeEndChar    = '}'
-	invalidNestedChars   = "?["
+	invalidNestedChars   = "?[{"
 	multiRangeSplit      = ","
 )
 
