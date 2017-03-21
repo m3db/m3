@@ -206,6 +206,7 @@ func TestBadPatterns(t *testing.T) {
 		"ab]c[sdf",
 		"abc[z-a]",
 		"*con[tT]ains*",
+		"*con{tT}ains*",
 		"*con?ains*",
 		"abc[a-zA-Z0-]",
 		"abc[a-zA-Z0]",
