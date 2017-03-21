@@ -57,7 +57,10 @@ const (
 	singleRangeStartChar = '['
 	singleRangeEndChar   = ']'
 	rangeChar            = '-'
+	multiRangeStartChar  = '{'
+	multiRangeEndChar    = '}'
 	invalidNestedChars   = "?["
+	multiRangeSplit      = ","
 )
 
 // Filter matches a string against certain conditions
@@ -70,7 +73,7 @@ type Filter interface {
 
 // NewFilter supports startsWith, endsWith, contains and a single wildcard
 // along with negation and glob matching support
-// TODO(martinm): Add variable length glob ranges
+// TODO(martinm): Provide more detailed error messages
 func NewFilter(pattern string) (Filter, error) {
 	if len(pattern) == 0 {
 		return newEqualityFilter(pattern), nil
@@ -162,6 +165,26 @@ func newRangeFilter(pattern string, backwards bool, seg chainSegment) (Filter, e
 			}
 
 			f, err := newSingleRangeFilter(pattern[i+1:i+1+endIdx], backwards)
+			if err != nil {
+				return nil, errInvalidFilterPattern
+			}
+
+			filters = append(filters, f)
+			i += endIdx + 1
+		} else if pattern[i] == multiRangeStartChar {
+			// Found '{', create equality filter for chars before this if any and then
+			// use vals before next '}' to create multiCharRange filter
+			if eqIdx != -1 {
+				filters = append(filters, newEqualityChainFilter(pattern[eqIdx:i], backwards))
+				eqIdx = -1
+			}
+
+			endIdx := strings.IndexRune(pattern[i+1:], multiRangeEndChar)
+			if endIdx == -1 {
+				return nil, errInvalidFilterPattern
+			}
+
+			f, err := newMultiCharRangeFilter(pattern[i+1:i+1+endIdx], backwards)
 			if err != nil {
 				return nil, errInvalidFilterPattern
 			}
@@ -371,37 +394,42 @@ func newSingleRangeFilter(pattern string, backwards bool) (chainFilter, error) {
 		pattern = pattern[1:]
 	}
 
-	if len(pattern) == 3 && pattern[1] == rangeChar {
-		if pattern[0] >= pattern[2] {
+	if len(pattern) > 1 && pattern[1] == rangeChar {
+		if len(pattern)%3 != 0 {
 			return nil, errInvalidFilterPattern
 		}
 
-		return &singleRangeFilter{pattern: pattern, backwards: backwards, negate: negate}, nil
+		var patterns []string
+		for i := 0; i < len(pattern); i += 3 {
+			if pattern[i+1] != rangeChar || pattern[i] > pattern[i+2] {
+				return nil, errInvalidFilterPattern
+			}
+
+			patterns = append(patterns, pattern[i:i+3])
+		}
+
+		return &singleRangeFilter{patterns: patterns, backwards: backwards, negate: negate}, nil
 	}
 
 	return &singleCharSetFilter{pattern: pattern, backwards: backwards, negate: negate}, nil
 }
 
-func genSingleRangeFilterStr(pattern string, negate bool) string {
-	var negatePrefix, negateSuffix string
-	if negate {
-		negatePrefix = "Not("
-		negateSuffix = ")"
-	}
-
-	return negatePrefix + "Range(\"" + pattern + "\")" + negateSuffix
-}
-
 // singleRangeFilter is a filter that performs a single character match against
 // a range of chars given in a range format eg. [a-z]
 type singleRangeFilter struct {
-	pattern   string
+	patterns  []string
 	backwards bool
 	negate    bool
 }
 
 func (f *singleRangeFilter) String() string {
-	return genSingleRangeFilterStr(f.pattern, f.negate)
+	var negatePrefix, negateSuffix string
+	if f.negate {
+		negatePrefix = "Not("
+		negateSuffix = ")"
+	}
+
+	return negatePrefix + "Range(\"" + strings.Join(f.patterns, " "+string(Disjunction)+" ") + "\")" + negateSuffix
 }
 
 func (f *singleRangeFilter) matches(val string) (string, bool) {
@@ -409,6 +437,7 @@ func (f *singleRangeFilter) matches(val string) (string, bool) {
 		return "", false
 	}
 
+	match := false
 	idx := 0
 	remainder := val[1:]
 	if f.backwards {
@@ -416,7 +445,13 @@ func (f *singleRangeFilter) matches(val string) (string, bool) {
 		remainder = val[:idx]
 	}
 
-	match := val[idx] >= f.pattern[0] && val[idx] <= f.pattern[2]
+	for _, pattern := range f.patterns {
+		if val[idx] >= pattern[0] && val[idx] <= pattern[2] {
+			match = true
+			break
+		}
+	}
+
 	if f.negate {
 		match = !match
 	}
@@ -433,7 +468,13 @@ type singleCharSetFilter struct {
 }
 
 func (f *singleCharSetFilter) String() string {
-	return genSingleRangeFilterStr(f.pattern, f.negate)
+	var negatePrefix, negateSuffix string
+	if f.negate {
+		negatePrefix = "Not("
+		negateSuffix = ")"
+	}
+
+	return negatePrefix + "Range(\"" + f.pattern + "\")" + negateSuffix
 }
 
 func (f *singleCharSetFilter) matches(val string) (string, bool) {
@@ -463,6 +504,46 @@ func (f *singleCharSetFilter) matches(val string) (string, bool) {
 	}
 
 	return val[1:], match
+}
+
+// multiCharRangeFilter is a filter that performs matches against multiple sets of chars
+// eg. {abc,defg}
+type multiCharRangeFilter struct {
+	patterns  []string
+	backwards bool
+}
+
+func newMultiCharRangeFilter(patterns string, backwards bool) (chainFilter, error) {
+	if len(patterns) == 0 {
+		return nil, errInvalidFilterPattern
+	}
+
+	return &multiCharRangeFilter{
+		patterns:  strings.Split(patterns, multiRangeSplit),
+		backwards: backwards,
+	}, nil
+}
+
+func (f *multiCharRangeFilter) String() string {
+	return "Range(\"" + strings.Join(f.patterns, multiRangeSplit) + "\")"
+}
+
+func (f *multiCharRangeFilter) matches(val string) (string, bool) {
+	if len(val) == 0 {
+		return "", false
+	}
+
+	for _, pattern := range f.patterns {
+		if f.backwards && strings.HasSuffix(val, pattern) {
+			return val[:len(val)-len(pattern)], true
+		}
+
+		if !f.backwards && strings.HasPrefix(val, pattern) {
+			return val[len(pattern):], true
+		}
+	}
+
+	return "", false
 }
 
 // multiChainFilter chains multiple chainFilters together with &&
