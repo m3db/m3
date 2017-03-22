@@ -307,28 +307,3 @@ func resolvePolicies(policies []policy.Policy) []policy.Policy {
 	}
 	return policies[:curr+1]
 }
-
-// Namespaces capture the list of namespaces for which rules are defined
-type Namespaces struct {
-	namespaces     []string
-	ruleSetCutover time.Time
-	version        int
-}
-
-// NewNamespaces creates new namespaces
-func NewNamespaces(nss *schema.Namespaces) Namespaces {
-	return Namespaces{
-		namespaces:     nss.Namespaces,
-		ruleSetCutover: time.Unix(0, nss.RulesetCutover),
-		version:        int(nss.Version),
-	}
-}
-
-// Namespaces returns the list of namespaces
-func (nss Namespaces) Namespaces() []string { return nss.namespaces }
-
-// RuleSetCutover returns the ruleset cutover time
-func (nss Namespaces) RuleSetCutover() time.Time { return nss.ruleSetCutover }
-
-// Version returns the namespaces version
-func (nss Namespaces) Version() int { return nss.version }
