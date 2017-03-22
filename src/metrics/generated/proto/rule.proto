@@ -35,4 +35,5 @@ message RuleSet {
 message Namespaces {
   repeated string namespaces = 1;
   int64 ruleset_cutover = 2;
+  int32 version = 3;
 }

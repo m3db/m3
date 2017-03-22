@@ -341,6 +341,8 @@ func testRollupRulesConfig() []*schema.RollupRule {
 
 func TestRuleSetMatchMappingRules(t *testing.T) {
 	ruleSetConfig := &schema.RuleSet{
+		Version:      1,
+		Cutover:      time.Now().UnixNano(),
 		MappingRules: testMappingRulesConfig(),
 	}
 	ruleSet, err := NewRuleSet(ruleSetConfig, filters.NewMockSortedTagIterator)
@@ -364,6 +366,8 @@ func TestRuleSetMatchMappingRules(t *testing.T) {
 	}
 	for _, input := range inputs {
 		res := ruleSet.Match(input.id)
+		require.Equal(t, ruleSet.Version(), res.Version)
+		require.Equal(t, ruleSet.Cutover(), res.Cutover)
 		require.Equal(t, input.result, res.Mappings)
 	}
 }
@@ -412,12 +416,16 @@ func TestRuleSetMatchRollupRules(t *testing.T) {
 	}
 	for _, input := range inputs {
 		res := ruleSet.Match(input.id)
+		require.Equal(t, ruleSet.Version(), res.Version)
+		require.Equal(t, ruleSet.Cutover(), res.Cutover)
 		require.Equal(t, input.result, res.Rollups)
 	}
 }
 
 func TestTombstonedRuleSetMatch(t *testing.T) {
 	ruleSetConfig := &schema.RuleSet{
+		Version:      1,
+		Cutover:      time.Now().UnixNano(),
 		Tombstoned:   true,
 		MappingRules: testMappingRulesConfig(),
 		RollupRules:  testRollupRulesConfig(),
@@ -425,6 +433,10 @@ func TestTombstonedRuleSetMatch(t *testing.T) {
 	ruleSet, err := NewRuleSet(ruleSetConfig, filters.NewMockSortedTagIterator)
 	require.NoError(t, err)
 
+	expected := MatchResult{
+		Version: ruleSet.Version(),
+		Cutover: ruleSet.Cutover(),
+	}
 	id := "rtagName1=rtagValue1"
-	require.Equal(t, defaultMatchResult, ruleSet.Match(id))
+	require.Equal(t, expected, ruleSet.Match(id))
 }
