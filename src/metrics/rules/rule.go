@@ -90,12 +90,63 @@ func (t RollupTarget) clone() RollupTarget {
 	}
 }
 
+// TagPair contains a tag name and a tag value
+type TagPair struct {
+	Name  string
+	Value string
+}
+
+// RollupResult contains the rollup metric id and the associated policies
+type RollupResult struct {
+	ID       string
+	Policies []policy.Policy
+}
+
 // MatchResult represents a match result
 type MatchResult struct {
-	Version  int
-	Cutover  time.Time
-	Mappings []policy.Policy
-	Rollups  []RollupTarget
+	version  int
+	cutover  time.Time
+	mappings []policy.Policy
+	rollups  []RollupResult
+}
+
+// NewMatchResult creates a new match result
+func NewMatchResult(version int, cutover time.Time, mappings []policy.Policy, rollups []RollupResult) MatchResult {
+	return MatchResult{
+		version:  version,
+		cutover:  cutover,
+		mappings: mappings,
+		rollups:  rollups,
+	}
+}
+
+// Version returns the version of the match result
+func (r *MatchResult) Version() int { return r.version }
+
+// Cutover returns the cutover time of the match result
+func (r *MatchResult) Cutover() time.Time { return r.cutover }
+
+// NumRollups returns the number of rollup result associated with the given id
+func (r *MatchResult) NumRollups() int { return len(r.rollups) }
+
+// Mappings returns the mapping policies for the given id
+func (r *MatchResult) Mappings() policy.VersionedPolicies {
+	return r.versionedPolicies(r.mappings)
+}
+
+// Rollups returns the rollup metric id and corresponding policies at a given index
+func (r *MatchResult) Rollups(idx int) (string, policy.VersionedPolicies) {
+	rollup := r.rollups[idx]
+	return rollup.ID, r.versionedPolicies(rollup.Policies)
+}
+
+func (r *MatchResult) versionedPolicies(policies []policy.Policy) policy.VersionedPolicies {
+	// NB(xichen): if there are no policies for this id, we fall
+	// back to the default mapping policies
+	if len(policies) == 0 {
+		return policy.DefaultVersionedPolicies(r.version, r.cutover)
+	}
+	return policy.CustomVersionedPolicies(r.version, r.cutover, policies)
 }
 
 // RuleSet is a set of rules associated with a namespace
@@ -176,12 +227,15 @@ type ruleSet struct {
 	tombStoned    bool
 	version       int
 	cutover       time.Time
+	iterFn        filters.NewSortedTagIteratorFn
+	newIDFn       NewIDFn
 	mappingRules  []mappingRule
 	rollupRules   []rollupRule
 }
 
 // NewRuleSet creates a new ruleset
-func NewRuleSet(rs *schema.RuleSet, iterFn filters.NewSortedTagIteratorFn) (RuleSet, error) {
+func NewRuleSet(rs *schema.RuleSet, opts Options) (RuleSet, error) {
+	iterFn := opts.NewSortedTagIteratorFn()
 	mappingRules := make([]mappingRule, 0, len(rs.MappingRules))
 	for _, rule := range rs.MappingRules {
 		mrule, err := newMappingRule(rule, iterFn)
@@ -207,6 +261,8 @@ func NewRuleSet(rs *schema.RuleSet, iterFn filters.NewSortedTagIteratorFn) (Rule
 		tombStoned:    rs.Tombstoned,
 		version:       int(rs.Version),
 		cutover:       time.Unix(0, rs.Cutover),
+		iterFn:        iterFn,
+		newIDFn:       opts.NewIDFn(),
 		mappingRules:  mappingRules,
 		rollupRules:   rollupRules,
 	}, nil
@@ -218,21 +274,19 @@ func (rs *ruleSet) Cutover() time.Time { return rs.cutover }
 func (rs *ruleSet) TombStoned() bool   { return rs.tombStoned }
 
 func (rs *ruleSet) Match(id string) MatchResult {
-	if rs.tombStoned {
-		return MatchResult{
-			Version: rs.version,
-			Cutover: rs.cutover,
-		}
+	var (
+		mappings []policy.Policy
+		rollups  []RollupResult
+	)
+	if !rs.tombStoned {
+		mappings = rs.mappingPolicies(id)
+		rollups = rs.rollupResults(id)
 	}
-	return MatchResult{
-		Version:  rs.version,
-		Cutover:  rs.cutover,
-		Mappings: rs.mappingPolicies(id),
-		Rollups:  rs.rollupTargets(id),
-	}
+	return NewMatchResult(rs.version, rs.cutover, mappings, rollups)
 }
 
 func (rs *ruleSet) mappingPolicies(id string) []policy.Policy {
+	// TODO(xichen): pool the policies
 	var policies []policy.Policy
 	for _, rule := range rs.mappingRules {
 		if rule.filter.Matches(id) {
@@ -242,7 +296,8 @@ func (rs *ruleSet) mappingPolicies(id string) []policy.Policy {
 	return resolvePolicies(policies)
 }
 
-func (rs *ruleSet) rollupTargets(id string) []RollupTarget {
+func (rs *ruleSet) rollupResults(id string) []RollupResult {
+	// TODO(xichen): pool the rollup targets
 	var rollups []RollupTarget
 	for _, rule := range rs.rollupRules {
 		if !rule.filter.Matches(id) {
@@ -270,6 +325,65 @@ func (rs *ruleSet) rollupTargets(id string) []RollupTarget {
 	for i := range rollups {
 		rollups[i].Policies = resolvePolicies(rollups[i].Policies)
 	}
+
+	return rs.toRollupResults(id, rollups)
+}
+
+type matchedValue struct {
+	value   string
+	matched bool
+}
+
+func (rs *ruleSet) toRollupResults(id string, targets []RollupTarget) []RollupResult {
+	// Put all the tags in one map so we only need to scan the id once to get all tag values
+	numTags := 0
+	for _, t := range targets {
+		numTags += len(t.Tags)
+	}
+	allTags := make(map[string]matchedValue, numTags)
+	for _, target := range targets {
+		for _, tag := range target.Tags {
+			_, exists := allTags[tag]
+			if !exists {
+				allTags[tag] = matchedValue{}
+			}
+		}
+	}
+
+	// Find all the tag values associated with the tags in the rollup targets
+	iter := rs.iterFn(id)
+	defer iter.Close()
+	for iter.Next() {
+		name, value := iter.Current()
+		matched, exists := allTags[name]
+		if !exists {
+			continue
+		}
+		matched.value = value
+		matched.matched = true
+		allTags[name] = matched
+	}
+
+	// Encode rollup target name and values into ids for each rollup target
+	// TODO(xichen): pool tag pairs and rollup results
+	var tagPairs []TagPair
+	rollups := make([]RollupResult, 0, len(targets))
+	for _, target := range targets {
+		tagPairs = tagPairs[:0]
+		for _, tag := range target.Tags {
+			value := allTags[tag]
+			if !value.matched {
+				continue
+			}
+			tagPairs = append(tagPairs, TagPair{Name: tag, Value: value.value})
+		}
+		result := RollupResult{
+			ID:       rs.newIDFn(target.Name, tagPairs),
+			Policies: target.Policies,
+		}
+		rollups = append(rollups, result)
+	}
+
 	return rollups
 }
 
