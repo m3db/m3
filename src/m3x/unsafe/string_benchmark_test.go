@@ -30,7 +30,7 @@ func BenchmarkToBytesSmallString(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		_ = ToBytes(str)
+		_ = toBytes(str)
 	}
 }
 
@@ -43,6 +43,6 @@ func BenchmarkToBytesLargeString(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		_ = ToBytes(str)
+		_ = toBytes(str)
 	}
 }
