@@ -28,11 +28,33 @@ import (
 // ImmutableBytes represents an immutable byte slice.
 type ImmutableBytes []byte
 
-// ToBytes converts a string to a byte slice with zero heap memory allocations.
-// The returned byte slice shares the same memory space as the string passed in.
-// It is the caller's responsibility to make sure the returned byte slice is not
-// modified in any way until end of life.
-func ToBytes(s string) ImmutableBytes {
+// BytesFn processes a byte slice
+type BytesFn func(ImmutableBytes)
+
+// BytesAndArgFn takes an argument alongside the byte slice
+type BytesAndArgFn func(ImmutableBytes, interface{})
+
+// WithBytes converts a string to a byte slice with zero heap memory allocations,
+// and calls a function to process the byte slice. It is the caller's responsibility
+// to make sure the callback function passed in does not modify the byte slice
+// in any way, and holds no reference to the byte slice after the function returns.
+func WithBytes(s string, fn BytesFn) {
+	// NB(xichen): regardless of whether the backing array is allocated on the heap
+	// or on the stack, it should still be valid before the string goes out of scope
+	// so it's safe to call the function on the underlying byte slice.
+	fn(toBytes(s))
+}
+
+// WithBytesAndArg converts a string to a byte slice with zero heap memory allocations,
+// and calls a function to process the byte slice alongside one argument. It is the
+// caller's responsibility to make sure the callback function passed in does not modify
+// the byte slice in any way, and holds no reference to the byte slice after the function
+// returns.
+func WithBytesAndArg(s string, arg interface{}, fn BytesAndArgFn) {
+	fn(toBytes(s), arg)
+}
+
+func toBytes(s string) ImmutableBytes {
 	if len(s) == 0 {
 		return nil
 	}
@@ -57,5 +79,6 @@ func ToBytes(s string) ImmutableBytes {
 	l := len(s)
 	byteHeader.Len = l
 	byteHeader.Cap = l
+
 	return b
 }
