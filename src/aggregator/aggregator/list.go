@@ -183,7 +183,9 @@ func (l *metricList) tickInternal() {
 
 	// Flush remaining bytes in the buffer
 	if encoder := l.encoder.Encoder(); len(encoder.Bytes()) > 0 {
-		l.encoder.Reset(l.encoderPool.Get())
+		newEncoder := l.encoderPool.Get()
+		newEncoder.Reset()
+		l.encoder.Reset(newEncoder)
 		if err := l.flushFn(encoder); err != nil {
 			l.log.Errorf("flushing metrics error: %v", err)
 		}
@@ -255,6 +257,7 @@ func (l *metricList) processAggregatedMetric(
 	// flush size to it, swap the new buffer with the old one, and flush out
 	// the old buffer
 	encoder2 := l.encoderPool.Get()
+	encoder2.Reset()
 	data := encoder.Bytes()
 	encoder2.Buffer().Write(data[sizeBefore:sizeAfter])
 	l.encoder.Reset(encoder2)
