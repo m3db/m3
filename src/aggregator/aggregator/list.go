@@ -239,6 +239,7 @@ func (l *metricList) processAggregatedMetric(
 			xlog.NewLogField("timestamp", timestamp.String()),
 			xlog.NewLogField("value", value),
 			xlog.NewLogField("policy", policy.String()),
+			xlog.NewLogErrField(err),
 		).Error("encode metric with policy error")
 		buffer.Truncate(sizeBefore)
 		// Clear out the encoder error
