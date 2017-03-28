@@ -35,8 +35,8 @@ type mockFilterData struct {
 }
 
 type mockTagPair struct {
-	name  string
-	value string
+	name  []byte
+	value []byte
 }
 
 type mockSortedTagIterator struct {
@@ -45,18 +45,18 @@ type mockSortedTagIterator struct {
 	pairs []mockTagPair
 }
 
-func idToMockTagPairs(id string) []mockTagPair {
-	tagPairs := strings.Split(id, mockTagPairSeparator)
+func idToMockTagPairs(id []byte) []mockTagPair {
+	tagPairs := strings.Split(string(id), mockTagPairSeparator)
 	var pairs []mockTagPair
 	for _, pair := range tagPairs {
 		p := strings.Split(pair, mockTagValueSeparator)
-		pairs = append(pairs, mockTagPair{name: p[0], value: p[1]})
+		pairs = append(pairs, mockTagPair{name: []byte(p[0]), value: []byte(p[1])})
 	}
 	return pairs
 }
 
 // NewMockSortedTagIterator creates a mock SortedTagIterator based on given ID
-func NewMockSortedTagIterator(id string) SortedTagIterator {
+func NewMockSortedTagIterator(id []byte) SortedTagIterator {
 	pairs := idToMockTagPairs(id)
 	return &mockSortedTagIterator{idx: -1, pairs: pairs}
 }
@@ -69,7 +69,7 @@ func (it *mockSortedTagIterator) Next() bool {
 	return it.err == nil && it.idx < len(it.pairs)
 }
 
-func (it *mockSortedTagIterator) Current() (string, string) {
+func (it *mockSortedTagIterator) Current() ([]byte, []byte) {
 	return it.pairs[it.idx].name, it.pairs[it.idx].value
 }
 

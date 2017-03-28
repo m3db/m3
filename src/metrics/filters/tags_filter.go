@@ -33,7 +33,7 @@ type SortedTagIterator interface {
 	Next() bool
 
 	// Current returns the current tag name and value
-	Current() (string, string)
+	Current() ([]byte, []byte)
 
 	// Err returns any errors encountered
 	Err() error
@@ -43,23 +43,23 @@ type SortedTagIterator interface {
 }
 
 // NewSortedTagIteratorFn creates a tag iterator given an id
-type NewSortedTagIteratorFn func(id string) SortedTagIterator
+type NewSortedTagIteratorFn func(id []byte) SortedTagIterator
 
 // tagFilter is a filter associated with a given tag
 type tagFilter struct {
-	name        string
+	name        []byte
 	valueFilter Filter
 }
 
 func (f *tagFilter) String() string {
-	return fmt.Sprintf("%s:%s", f.name, f.valueFilter.String())
+	return fmt.Sprintf("%s:%s", string(f.name), f.valueFilter.String())
 }
 
 type tagFiltersByNameAsc []tagFilter
 
 func (tn tagFiltersByNameAsc) Len() int           { return len(tn) }
 func (tn tagFiltersByNameAsc) Swap(i, j int)      { tn[i], tn[j] = tn[j], tn[i] }
-func (tn tagFiltersByNameAsc) Less(i, j int) bool { return tn[i].name < tn[j].name }
+func (tn tagFiltersByNameAsc) Less(i, j int) bool { return bytes.Compare(tn[i].name, tn[j].name) < 0 }
 
 // tagsFilter contains a list of tag filters.
 type tagsFilter struct {
@@ -72,13 +72,13 @@ type tagsFilter struct {
 func NewTagsFilter(tagFilters map[string]string, iterFn NewSortedTagIteratorFn, op LogicalOp) (Filter, error) {
 	filters := make([]tagFilter, 0, len(tagFilters))
 	for name, value := range tagFilters {
-		valFilter, err := NewFilter(value)
+		valFilter, err := NewFilter([]byte(value))
 		if err != nil {
 			return nil, err
 		}
 
 		filters = append(filters, tagFilter{
-			name:        name,
+			name:        []byte(name),
 			valueFilter: valFilter,
 		})
 	}
@@ -103,7 +103,7 @@ func (f *tagsFilter) String() string {
 	return buf.String()
 }
 
-func (f *tagsFilter) Matches(id string) bool {
+func (f *tagsFilter) Matches(id []byte) bool {
 	if len(f.filters) == 0 {
 		return true
 	}
@@ -113,11 +113,13 @@ func (f *tagsFilter) Matches(id string) bool {
 	currIdx := 0
 	for iter.Next() && currIdx < len(f.filters) {
 		name, value := iter.Current()
-		if name < f.filters[currIdx].name {
+
+		comparison := bytes.Compare(name, f.filters[currIdx].name)
+		if comparison < 0 {
 			continue
 		}
 
-		if name > f.filters[currIdx].name {
+		if comparison > 0 {
 			if f.op == Conjunction {
 				// For AND, if the current filter tag doesn't exist, bail immediately
 				return false
@@ -125,7 +127,7 @@ func (f *tagsFilter) Matches(id string) bool {
 
 			// Iterate filters for the OR case
 			currIdx++
-			for currIdx < len(f.filters) && name > f.filters[currIdx].name {
+			for currIdx < len(f.filters) && bytes.Compare(name, f.filters[currIdx].name) > 0 {
 				currIdx++
 			}
 
@@ -134,7 +136,7 @@ func (f *tagsFilter) Matches(id string) bool {
 				return false
 			}
 
-			if name < f.filters[currIdx].name {
+			if bytes.Compare(name, f.filters[currIdx].name) < 0 {
 				continue
 			}
 		}

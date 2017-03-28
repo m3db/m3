@@ -23,7 +23,7 @@ package rules
 import "github.com/m3db/m3metrics/filters"
 
 // NewIDFn creates a new metric ID based on the metric name and metric tag pairs
-type NewIDFn func(name string, tags []TagPair) string
+type NewIDFn func(name []byte, tags []TagPair) []byte
 
 // Options provide a set of options for rule matching
 type Options interface {

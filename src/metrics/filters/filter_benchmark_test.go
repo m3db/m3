@@ -21,13 +21,16 @@
 package filters
 
 import (
+	"bytes"
 	"fmt"
-	"strings"
 	"testing"
 )
 
 var (
-	testFlatID           = "tagname1=tagvalue1,tagname3=tagvalue3,tagname4=tagvalue4,tagname2=tagvalue2,tagname6=tagvalue6,tagname5=tagvalue5,name=my.test.metric.name,tagname7=tagvalue7"
+	testFlatID = []byte("tagname1=tagvalue1,tagname3=tagvalue3," +
+		"tagname4=tagvalue4,tagname2=tagvalue2,tagname6=tagvalue6," +
+		"tagname5=tagvalue5,name=my.test.metric.name,tagname7=tagvalue7")
+
 	testTagsFilterMapOne = map[string]string{
 		"tagname1": "tagvalue1",
 	}
@@ -41,20 +44,22 @@ var (
 )
 
 func BenchmarkEquityFilter(b *testing.B) {
-	f1 := newEqualityFilter("test")
-	f2 := newEqualityFilter("test2")
+	f1 := newEqualityFilter([]byte("test"))
+	f2 := newEqualityFilter([]byte("test2"))
 
+	val := []byte("test")
 	for n := 0; n < b.N; n++ {
-		testUnionFilter("test", []Filter{f1, f2})
+		testUnionFilter(val, []Filter{f1, f2})
 	}
 }
 
 func BenchmarkEquityFilterByValue(b *testing.B) {
-	f1 := newTestEqualityFilter("test")
-	f2 := newTestEqualityFilter("test2")
+	f1 := newTestEqualityFilter([]byte("test"))
+	f2 := newTestEqualityFilter([]byte("test2"))
 
+	val := []byte("test")
 	for n := 0; n < b.N; n++ {
-		testUnionFilter("test", []Filter{f1, f2})
+		testUnionFilter(val, []Filter{f1, f2})
 	}
 }
 
@@ -77,70 +82,70 @@ func BenchmarkMapTagsFilterThree(b *testing.B) {
 }
 
 func BenchmarkRangeFilterStructsMatchRange(b *testing.B) {
-	benchRangeFilterStructs(b, "a-z", "p", true)
+	benchRangeFilterStructs(b, []byte("a-z"), []byte("p"), true)
 }
 
 func BenchmarkRangeFilterRangeMatchRange(b *testing.B) {
-	benchRangeFilterRange(b, "a-z", "p", true)
+	benchRangeFilterRange(b, []byte("a-z"), []byte("p"), true)
 }
 
 func BenchmarkRangeFilterStructsNotMatchRange(b *testing.B) {
-	benchRangeFilterStructs(b, "a-z", "P", false)
+	benchRangeFilterStructs(b, []byte("a-z"), []byte("P"), false)
 }
 
 func BenchmarkRangeFilterRangeNotMatchRange(b *testing.B) {
-	benchRangeFilterRange(b, "a-z", "P", false)
+	benchRangeFilterRange(b, []byte("a-z"), []byte("P"), false)
 }
 
 func BenchmarkRangeFilterStructsMatch(b *testing.B) {
-	benchRangeFilterStructs(b, "02468", "6", true)
+	benchRangeFilterStructs(b, []byte("02468"), []byte("6"), true)
 }
 
 func BenchmarkRangeFilterRangeMatch(b *testing.B) {
-	benchRangeFilterRange(b, "02468", "6", true)
+	benchRangeFilterRange(b, []byte("02468"), []byte("6"), true)
 }
 
 func BenchmarkRangeFilterStructsNotMatch(b *testing.B) {
-	benchRangeFilterStructs(b, "13579", "6", false)
+	benchRangeFilterStructs(b, []byte("13579"), []byte("6"), false)
 }
 
 func BenchmarkRangeFilterRangeNotMatch(b *testing.B) {
-	benchRangeFilterRange(b, "13579", "6", false)
+	benchRangeFilterRange(b, []byte("13579"), []byte("6"), false)
 }
 
 func BenchmarkRangeFilterStructsMatchNegation(b *testing.B) {
-	benchRangeFilterStructs(b, "!a-z", "p", false)
+	benchRangeFilterStructs(b, []byte("!a-z"), []byte("p"), false)
 }
 
 func BenchmarkRangeFilterRangeMatchNegation(b *testing.B) {
-	benchRangeFilterRange(b, "!a-z", "p", false)
+	benchRangeFilterRange(b, []byte("!a-z"), []byte("p"), false)
 }
 
 func BenchmarkMultiRangeFilterTwo(b *testing.B) {
-	benchMultiRangeFilter(b, "test_1,test_2", false, []string{"test_1", "fake_1"})
+	benchMultiRangeFilter(b, []byte("test_1,test_2"), false, [][]byte{[]byte("test_1"), []byte("fake_1")})
 }
 
 func BenchmarkMultiRangeFilterSelectTwo(b *testing.B) {
-	benchMultiRangeFilterSelect(b, "test_1,test_2", false, []string{"test_1", "fake_1"})
+	benchMultiRangeFilterSelect(b, []byte("test_1,test_2"), false, [][]byte{[]byte("test_1"), []byte("fake_1")})
 }
 
 func BenchmarkMultiRangeFilterTrieTwo(b *testing.B) {
-	benchMultiRangeFilterTrie(b, "test_1,test_2", false, []string{"test_1", "fake_1"})
+	benchMultiRangeFilterTrie(b, []byte("test_1,test_2"), false, [][]byte{[]byte("test_1"), []byte("fake_1")})
 }
 
 func BenchmarkMultiRangeFilterSix(b *testing.B) {
-	benchMultiRangeFilter(b, "test_1,test_2,staging_1,staging_2,prod_1,prod_2", false, []string{"prod_1", "staging_3"})
+	benchMultiRangeFilter(b, []byte("test_1,test_2,staging_1,staging_2,prod_1,prod_2"), false, [][]byte{[]byte("prod_1"), []byte("staging_3")})
 }
 
 func BenchmarkMultiRangeFilterSelectSix(b *testing.B) {
-	benchMultiRangeFilterSelect(b, "test_1,test_2,staging_1,staging_2,prod_1,prod_2", false, []string{"prod_1", "staging_3"})
+	benchMultiRangeFilterSelect(b, []byte("test_1,test_2,staging_1,staging_2,prod_1,prod_2"), false, [][]byte{[]byte("prod_1"), []byte("staging_3")})
 }
 
 func BenchmarkMultiRangeFilterTrieSix(b *testing.B) {
-	benchMultiRangeFilterTrie(b, "test_1,test_2,staging_1,staging_2,prod_1,prod_2", false, []string{"prod_1", "staging_3"})
+	benchMultiRangeFilterTrie(b, []byte("test_1,test_2,staging_1,staging_2,prod_1,prod_2"), false, [][]byte{[]byte("prod_1"), []byte("staging_3")})
 }
 
-func benchMultiRangeFilter(b *testing.B, patterns string, backwards bool, vals []string) {
+func benchMultiRangeFilter(b *testing.B, patterns []byte, backwards bool, vals [][]byte) {
 	f, _ := newMultiCharSequenceFilter(patterns, backwards)
 	for n := 0; n < b.N; n++ {
 		for _, val := range vals {
@@ -149,7 +154,7 @@ func benchMultiRangeFilter(b *testing.B, patterns string, backwards bool, vals [
 	}
 }
 
-func benchMultiRangeFilterSelect(b *testing.B, patterns string, backwards bool, vals []string) {
+func benchMultiRangeFilterSelect(b *testing.B, patterns []byte, backwards bool, vals [][]byte) {
 	f, _ := newTestMultiCharRangeSelectFilter(patterns, backwards)
 	for n := 0; n < b.N; n++ {
 		for _, val := range vals {
@@ -158,7 +163,7 @@ func benchMultiRangeFilterSelect(b *testing.B, patterns string, backwards bool, 
 	}
 }
 
-func benchMultiRangeFilterTrie(b *testing.B, patterns string, backwards bool, vals []string) {
+func benchMultiRangeFilterTrie(b *testing.B, patterns []byte, backwards bool, vals [][]byte) {
 	f, _ := newTestMultiCharRangeTrieFilter(patterns, backwards)
 	for n := 0; n < b.N; n++ {
 		for _, val := range vals {
@@ -167,7 +172,7 @@ func benchMultiRangeFilterTrie(b *testing.B, patterns string, backwards bool, va
 	}
 }
 
-func benchRangeFilterStructs(b *testing.B, pattern, val string, expectedMatch bool) {
+func benchRangeFilterStructs(b *testing.B, pattern, val []byte, expectedMatch bool) {
 	f, _ := newSingleRangeFilter(pattern, false)
 	for n := 0; n < b.N; n++ {
 		_, match := f.matches(val)
@@ -177,7 +182,7 @@ func benchRangeFilterStructs(b *testing.B, pattern, val string, expectedMatch bo
 	}
 }
 
-func benchRangeFilterRange(b *testing.B, pattern string, val string, expectedMatch bool) {
+func benchRangeFilterRange(b *testing.B, pattern, val []byte, expectedMatch bool) {
 	for n := 0; n < b.N; n++ {
 		match, _ := validateRangeByScan(pattern, val)
 		if match != expectedMatch {
@@ -186,13 +191,13 @@ func benchRangeFilterRange(b *testing.B, pattern string, val string, expectedMat
 	}
 }
 
-func benchTagsFilter(b *testing.B, id string, tagsFilter Filter) {
+func benchTagsFilter(b *testing.B, id []byte, tagsFilter Filter) {
 	for n := 0; n < b.N; n++ {
 		tagsFilter.Matches(id)
 	}
 }
 
-func testUnionFilter(val string, filters []Filter) bool {
+func testUnionFilter(val []byte, filters []Filter) bool {
 	for _, filter := range filters {
 		if !filter.Matches(val) {
 			return false
@@ -203,10 +208,10 @@ func testUnionFilter(val string, filters []Filter) bool {
 }
 
 type testEqualityFilter struct {
-	pattern string
+	pattern []byte
 }
 
-func newTestEqualityFilter(pattern string) Filter {
+func newTestEqualityFilter(pattern []byte) Filter {
 	return testEqualityFilter{pattern: pattern}
 }
 
@@ -214,8 +219,8 @@ func (f testEqualityFilter) String() string {
 	return fmt.Sprintf("Equals(%q)", f.pattern)
 }
 
-func (f testEqualityFilter) Matches(id string) bool {
-	return f.pattern == id
+func (f testEqualityFilter) Matches(id []byte) bool {
+	return bytes.Equal(f.pattern, id)
 }
 
 type testMapTagsFilter struct {
@@ -226,7 +231,7 @@ type testMapTagsFilter struct {
 func newTestMapTagsFilter(tagFilters map[string]string, iterFn NewSortedTagIteratorFn) Filter {
 	filters := make(map[string]Filter, len(tagFilters))
 	for name, value := range tagFilters {
-		filter, _ := NewFilter(value)
+		filter, _ := NewFilter([]byte(value))
 		filters[name] = filter
 	}
 
@@ -240,7 +245,7 @@ func (f *testMapTagsFilter) String() string {
 	return ""
 }
 
-func (f *testMapTagsFilter) Matches(id string) bool {
+func (f *testMapTagsFilter) Matches(id []byte) bool {
 	if len(f.filters) == 0 {
 		return true
 	}
@@ -252,13 +257,17 @@ func (f *testMapTagsFilter) Matches(id string) bool {
 	for iter.Next() {
 		name, value := iter.Current()
 
-		if filter, exists := f.filters[name]; exists {
+		for n, filter := range f.filters {
+			if !bytes.Equal([]byte(n), name) {
+				continue
+			}
+
 			if filter.Matches(value) {
 				matches++
 				if matches == len(f.filters) {
 					return true
 				}
-				continue
+				break
 			}
 
 			return false
@@ -268,12 +277,12 @@ func (f *testMapTagsFilter) Matches(id string) bool {
 	return iter.Err() == nil && matches == len(f.filters)
 }
 
-func newTestMultiCharRangeSelectFilter(pattern string, backwards bool) (chainFilter, error) {
+func newTestMultiCharRangeSelectFilter(pattern []byte, backwards bool) (chainFilter, error) {
 	if len(pattern) == 0 {
 		return nil, errInvalidFilterPattern
 	}
 
-	patterns := strings.Split(pattern, multiRangeSplit)
+	patterns := bytes.Split(pattern, multiRangeSplit)
 	filters := make([]chainFilter, len(patterns))
 	for i, p := range patterns {
 		f, _ := newMultiCharSequenceFilter(p, backwards)
@@ -290,13 +299,13 @@ type testMultiCharRangeTrieFilter struct {
 	backwards bool
 }
 
-func newTestMultiCharRangeTrieFilter(patterns string, backwards bool) (chainFilter, error) {
+func newTestMultiCharRangeTrieFilter(patterns []byte, backwards bool) (chainFilter, error) {
 	if len(patterns) == 0 {
 		return nil, errInvalidFilterPattern
 	}
 
 	b := &byteTrie{}
-	for _, p := range strings.Split(patterns, multiRangeSplit) {
+	for _, p := range bytes.Split(patterns, multiRangeSplit) {
 		b.insert(p, backwards)
 	}
 
@@ -309,17 +318,19 @@ func newTestMultiCharRangeTrieFilter(patterns string, backwards bool) (chainFilt
 func (f *testMultiCharRangeTrieFilter) String() string {
 	results := &traverseResults{}
 	f.b.listTraverse(nil, results, f.backwards)
-	return "Range(\"" + strings.Join(results.vals, multiRangeSplit) + "\")"
+	return "Range(\"" + string(bytes.Join(results.vals, multiRangeSplit)) + "\")"
 }
 
-func (f *testMultiCharRangeTrieFilter) matches(val string) (string, bool) {
+func (f *testMultiCharRangeTrieFilter) matches(val []byte) ([]byte, bool) {
 	return f.b.lookup(val, f.backwards)
 }
 
-func validateRangeByScan(pattern string, val string) (bool, error) {
+func validateRangeByScan(pattern, val []byte) (bool, error) {
 	if len(pattern) == 0 {
 		return false, errInvalidFilterPattern
 	}
+
+	// TODO(r): utf8 decode to ensure slicing is valid
 
 	negate := false
 	if pattern[0] == negationChar {
@@ -367,7 +378,7 @@ func (f *testSelectChainFilter) String() string {
 	return ""
 }
 
-func (f *testSelectChainFilter) matches(val string) (string, bool) {
+func (f *testSelectChainFilter) matches(val []byte) ([]byte, bool) {
 	if len(f.filters) == 0 {
 		return val, true
 	}
@@ -379,7 +390,7 @@ func (f *testSelectChainFilter) matches(val string) (string, bool) {
 		}
 	}
 
-	return "", false
+	return nil, false
 }
 
 // byteTrie is a trie for bytes that provides multi-direction inserts and lookups with
@@ -391,7 +402,7 @@ type byteTrie struct {
 	children []*byteTrie
 }
 
-func (t *byteTrie) insert(val string, backwards bool) {
+func (t *byteTrie) insert(val []byte, backwards bool) {
 	if len(val) == 0 {
 		return
 	}
@@ -424,9 +435,9 @@ func (t *byteTrie) insert(val string, backwards bool) {
 	child.insert(remainder, backwards)
 }
 
-func (t *byteTrie) lookup(val string, backwards bool) (string, bool) {
+func (t *byteTrie) lookup(val []byte, backwards bool) ([]byte, bool) {
 	if len(val) == 0 {
-		return "", false
+		return nil, false
 	}
 
 	idx := 0
@@ -446,11 +457,11 @@ func (t *byteTrie) lookup(val string, backwards bool) (string, bool) {
 		}
 	}
 
-	return "", false
+	return nil, false
 }
 
 type traverseResults struct {
-	vals []string
+	vals [][]byte
 }
 
 func (t *byteTrie) listTraverse(val []byte, results *traverseResults, backwards bool) {
@@ -465,7 +476,7 @@ func (t *byteTrie) listTraverse(val []byte, results *traverseResults, backwards 
 		}
 
 		if c.leaf {
-			results.vals = append(results.vals, string(newVal))
+			results.vals = append(results.vals, newVal)
 		}
 
 		c.listTraverse(newVal, results, backwards)
