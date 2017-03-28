@@ -22,7 +22,6 @@ package rules
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 	"time"
 
@@ -34,22 +33,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func b(v string) []byte {
+	return []byte(v)
+}
+
+func bs(v ...string) [][]byte {
+	result := make([][]byte, len(v))
+	for i, str := range v {
+		result[i] = []byte(str)
+	}
+	return result
+}
+
 func TestRollupTargetSameTransform(t *testing.T) {
 	policies := []policy.Policy{
 		policy.NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 	}
-	target := RollupTarget{Name: "foo", Tags: []string{"bar1", "bar2"}}
+	target := RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2")}
 	inputs := []testRollupTargetData{
 		{
-			target: RollupTarget{Name: "foo", Tags: []string{"bar1", "bar2"}, Policies: policies},
+			target: RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies},
 			result: true,
 		},
 		{
-			target: RollupTarget{Name: "baz", Tags: []string{"bar1", "bar2"}},
+			target: RollupTarget{Name: b("baz"), Tags: bs("bar1", "bar2")},
 			result: false,
 		},
 		{
-			target: RollupTarget{Name: "foo", Tags: []string{"bar1", "bar3"}},
+			target: RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar3")},
 			result: false,
 		},
 	}
@@ -62,16 +73,16 @@ func TestRollupTargetClone(t *testing.T) {
 	policies := []policy.Policy{
 		policy.NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 	}
-	target := RollupTarget{Name: "foo", Tags: []string{"bar1", "bar2"}, Policies: policies}
+	target := RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies}
 	cloned := target.clone()
 
 	// Cloned object should look exactly the same as the original one
 	require.Equal(t, target, cloned)
 
 	// Change references in the cloned object should not mutate the original object
-	cloned.Tags[0] = "bar3"
+	cloned.Tags[0] = b("bar3")
 	cloned.Policies[0] = policy.EmptyPolicy
-	require.Equal(t, target.Tags, []string{"bar1", "bar2"})
+	require.Equal(t, target.Tags, bs("bar1", "bar2"))
 	require.Equal(t, target.Policies, policies)
 }
 
@@ -101,7 +112,7 @@ func TestRuleSetMatchMappingRules(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		res := ruleSet.Match(input.id)
+		res := ruleSet.Match(b(input.id))
 		require.Equal(t, ruleSet.Version(), res.Version())
 		require.Equal(t, ruleSet.Cutover(), res.Cutover())
 		require.Equal(t, input.result, res.Mappings().Policies())
@@ -120,7 +131,7 @@ func TestRuleSetMatchRollupRules(t *testing.T) {
 			id: "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 			result: []RollupResult{
 				{
-					ID: "rName1|rtagName1=rtagValue1,rtagName2=rtagValue2",
+					ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
 					Policies: []policy.Policy{
 						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
 						policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
@@ -128,7 +139,7 @@ func TestRuleSetMatchRollupRules(t *testing.T) {
 					},
 				},
 				{
-					ID: "rName2|rtagName1=rtagValue1",
+					ID: b("rName2|rtagName1=rtagValue1"),
 					Policies: []policy.Policy{
 						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
 					},
@@ -139,7 +150,7 @@ func TestRuleSetMatchRollupRules(t *testing.T) {
 			id: "rtagName1=rtagValue2",
 			result: []RollupResult{
 				{
-					ID: "rName3|rtagName1=rtagValue2",
+					ID: b("rName3|rtagName1=rtagValue2"),
 					Policies: []policy.Policy{
 						policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
 					},
@@ -152,7 +163,7 @@ func TestRuleSetMatchRollupRules(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		res := ruleSet.Match(input.id)
+		res := ruleSet.Match(b(input.id))
 		require.Equal(t, ruleSet.Version(), res.Version())
 		require.Equal(t, ruleSet.Cutover(), res.Cutover())
 		require.Equal(t, len(input.result), res.NumRollups())
@@ -177,7 +188,7 @@ func TestTombstonedRuleSetMatch(t *testing.T) {
 
 	expected := NewMatchResult(ruleSet.Version(), ruleSet.Cutover(), nil, nil)
 	id := "rtagName1=rtagValue1"
-	require.Equal(t, expected, ruleSet.Match(id))
+	require.Equal(t, expected, ruleSet.Match(b(id)))
 }
 
 type testRollupTargetData struct {
@@ -201,24 +212,24 @@ func testRuleSetOptions() Options {
 		SetNewIDFn(mockNewID)
 }
 
-func mockNewID(name string, tags []TagPair) string {
+func mockNewID(name []byte, tags []TagPair) []byte {
 	if len(tags) == 0 {
 		return name
 	}
 	var buf bytes.Buffer
-	buf.WriteString(fmt.Sprintf("%s", name))
+	buf.Write(name)
 	if len(tags) > 0 {
 		buf.WriteString("|")
 		for idx, p := range tags {
-			buf.WriteString(p.Name)
+			buf.Write(p.Name)
 			buf.WriteString("=")
-			buf.WriteString(p.Value)
+			buf.Write(p.Value)
 			if idx < len(tags)-1 {
 				buf.WriteString(",")
 			}
 		}
 	}
-	return buf.String()
+	return buf.Bytes()
 }
 
 func testMappingRulesConfig() []*schema.MappingRule {

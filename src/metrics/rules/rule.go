@@ -21,6 +21,7 @@
 package rules
 
 import (
+	"bytes"
 	"sort"
 	"time"
 
@@ -39,8 +40,8 @@ var (
 // target will be grouped and rolled up across the provided set of tags, named
 // with the provided name, and aggregated and retained under the provided policies
 type RollupTarget struct {
-	Name     string          // name of the rollup metric
-	Tags     []string        // a set of sorted tags rollups are performed on
+	Name     []byte          // name of the rollup metric
+	Tags     [][]byte        // a set of sorted tags rollups are performed on
 	Policies []policy.Policy // defines how the rollup metric is aggregated and retained
 }
 
@@ -55,22 +56,22 @@ func newRollupTarget(target *schema.RollupTarget) (RollupTarget, error) {
 	sort.Strings(tags)
 
 	return RollupTarget{
-		Name:     target.Name,
-		Tags:     tags,
+		Name:     []byte(target.Name),
+		Tags:     bytesArrayFromStringArray(tags),
 		Policies: policies,
 	}, nil
 }
 
 // sameTransform determines whether two targets have the same transformation
 func (t RollupTarget) sameTransform(other RollupTarget) bool {
-	if t.Name != other.Name {
+	if !bytes.Equal(t.Name, other.Name) {
 		return false
 	}
 	if len(t.Tags) != len(other.Tags) {
 		return false
 	}
 	for i := 0; i < len(t.Tags); i++ {
-		if t.Tags[i] != other.Tags[i] {
+		if !bytes.Equal(t.Tags[i], other.Tags[i]) {
 			return false
 		}
 	}
@@ -79,26 +80,41 @@ func (t RollupTarget) sameTransform(other RollupTarget) bool {
 
 // clone clones a rollup target
 func (t RollupTarget) clone() RollupTarget {
-	Tags := make([]string, len(t.Tags))
-	copy(Tags, t.Tags)
 	policies := make([]policy.Policy, len(t.Policies))
 	copy(policies, t.Policies)
 	return RollupTarget{
 		Name:     t.Name,
-		Tags:     Tags,
+		Tags:     bytesArrayCopy(t.Tags),
 		Policies: policies,
 	}
 }
 
+func bytesArrayFromStringArray(values []string) [][]byte {
+	result := make([][]byte, len(values))
+	for i, str := range values {
+		result[i] = []byte(str)
+	}
+	return result
+}
+
+func bytesArrayCopy(values [][]byte) [][]byte {
+	result := make([][]byte, len(values))
+	for i, b := range values {
+		result[i] = make([]byte, len(b))
+		copy(result[i], b)
+	}
+	return result
+}
+
 // TagPair contains a tag name and a tag value
 type TagPair struct {
-	Name  string
-	Value string
+	Name  []byte
+	Value []byte
 }
 
 // RollupResult contains the rollup metric id and the associated policies
 type RollupResult struct {
-	ID       string
+	ID       []byte
 	Policies []policy.Policy
 }
 
@@ -135,7 +151,7 @@ func (r *MatchResult) Mappings() policy.VersionedPolicies {
 }
 
 // Rollups returns the rollup metric id and corresponding policies at a given index
-func (r *MatchResult) Rollups(idx int) (string, policy.VersionedPolicies) {
+func (r *MatchResult) Rollups(idx int) ([]byte, policy.VersionedPolicies) {
 	rollup := r.rollups[idx]
 	return rollup.ID, r.versionedPolicies(rollup.Policies)
 }
@@ -165,7 +181,7 @@ type RuleSet interface {
 
 	// Match matches the set of rules against a metric id, returning
 	// the applicable mapping policies and rollup policies
-	Match(id string) MatchResult
+	Match(id []byte) MatchResult
 }
 
 // mappingRule defines a rule such that if a metric matches the provided filters,
@@ -273,7 +289,7 @@ func (rs *ruleSet) Version() int       { return rs.version }
 func (rs *ruleSet) Cutover() time.Time { return rs.cutover }
 func (rs *ruleSet) TombStoned() bool   { return rs.tombStoned }
 
-func (rs *ruleSet) Match(id string) MatchResult {
+func (rs *ruleSet) Match(id []byte) MatchResult {
 	var (
 		mappings []policy.Policy
 		rollups  []RollupResult
@@ -285,7 +301,7 @@ func (rs *ruleSet) Match(id string) MatchResult {
 	return NewMatchResult(rs.version, rs.cutover, mappings, rollups)
 }
 
-func (rs *ruleSet) mappingPolicies(id string) []policy.Policy {
+func (rs *ruleSet) mappingPolicies(id []byte) []policy.Policy {
 	// TODO(xichen): pool the policies
 	var policies []policy.Policy
 	for _, rule := range rs.mappingRules {
@@ -296,7 +312,7 @@ func (rs *ruleSet) mappingPolicies(id string) []policy.Policy {
 	return resolvePolicies(policies)
 }
 
-func (rs *ruleSet) rollupResults(id string) []RollupResult {
+func (rs *ruleSet) rollupResults(id []byte) []RollupResult {
 	// TODO(xichen): pool the rollup targets
 	var rollups []RollupTarget
 	for _, rule := range rs.rollupRules {
@@ -329,53 +345,30 @@ func (rs *ruleSet) rollupResults(id string) []RollupResult {
 	return rs.toRollupResults(id, rollups)
 }
 
-type matchedValue struct {
-	value   string
-	matched bool
-}
+// toRollupResults encodes rollup target name and values into ids for each rollup target
+func (rs *ruleSet) toRollupResults(id []byte, targets []RollupTarget) []RollupResult {
+	// NB(r): This is n^2 however this should be quite fast still as
+	// long as there is not an absurdly high number of rollup
+	// targets for any given ID and that iterfn is alloc free.
+	//
+	// Even with a very high number of rules its still predicted that
+	// any given ID would match a relatively low number of rollups.
 
-func (rs *ruleSet) toRollupResults(id string, targets []RollupTarget) []RollupResult {
-	// Put all the tags in one map so we only need to scan the id once to get all tag values
-	numTags := 0
-	for _, t := range targets {
-		numTags += len(t.Tags)
-	}
-	allTags := make(map[string]matchedValue, numTags)
-	for _, target := range targets {
-		for _, tag := range target.Tags {
-			_, exists := allTags[tag]
-			if !exists {
-				allTags[tag] = matchedValue{}
-			}
-		}
-	}
-
-	// Find all the tag values associated with the tags in the rollup targets
-	iter := rs.iterFn(id)
-	defer iter.Close()
-	for iter.Next() {
-		name, value := iter.Current()
-		matched, exists := allTags[name]
-		if !exists {
-			continue
-		}
-		matched.value = value
-		matched.matched = true
-		allTags[name] = matched
-	}
-
-	// Encode rollup target name and values into ids for each rollup target
 	// TODO(xichen): pool tag pairs and rollup results
 	var tagPairs []TagPair
 	rollups := make([]RollupResult, 0, len(targets))
 	for _, target := range targets {
 		tagPairs = tagPairs[:0]
 		for _, tag := range target.Tags {
-			value := allTags[tag]
-			if !value.matched {
-				continue
+			iter := rs.iterFn(id)
+			for iter.Next() {
+				name, value := iter.Current()
+				if bytes.Equal(name, tag) {
+					tagPairs = append(tagPairs, TagPair{Name: tag, Value: value})
+					break
+				}
 			}
-			tagPairs = append(tagPairs, TagPair{Name: tag, Value: value.value})
+			iter.Close()
 		}
 		result := RollupResult{
 			ID:       rs.newIDFn(target.Name, tagPairs),

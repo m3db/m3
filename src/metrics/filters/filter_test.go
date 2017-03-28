@@ -57,18 +57,18 @@ func TestEqualityFilter(t *testing.T) {
 		{val: "fo", match: false},
 		{val: "foob", match: false},
 	}
-	f := newEqualityFilter("foo")
+	f := newEqualityFilter([]byte("foo"))
 	for _, input := range inputs {
-		require.Equal(t, input.match, f.Matches(input.val))
+		require.Equal(t, input.match, f.Matches([]byte(input.val)))
 	}
 }
 
 func TestEmptyFilter(t *testing.T) {
-	f, err := NewFilter("")
+	f, err := NewFilter(nil)
 	require.NoError(t, err)
-	require.True(t, f.Matches(""))
-	require.False(t, f.Matches(" "))
-	require.False(t, f.Matches("foo"))
+	require.True(t, f.Matches([]byte("")))
+	require.False(t, f.Matches([]byte(" ")))
+	require.False(t, f.Matches([]byte("foo")))
 }
 
 func TestWildcardFilters(t *testing.T) {
@@ -138,14 +138,14 @@ func TestRangeFilters(t *testing.T) {
 }
 
 func TestMultiFilter(t *testing.T) {
-	cf, _ := newContainsFilter("bar")
+	cf, _ := newContainsFilter([]byte("bar"))
 	filters := []Filter{
 		NewMultiFilter([]Filter{}, Conjunction),
 		NewMultiFilter([]Filter{}, Disjunction),
-		NewMultiFilter([]Filter{newEqualityFilter("foo")}, Conjunction),
-		NewMultiFilter([]Filter{newEqualityFilter("foo")}, Disjunction),
-		NewMultiFilter([]Filter{newEqualityFilter("foo"), cf}, Conjunction),
-		NewMultiFilter([]Filter{newEqualityFilter("foo"), cf}, Disjunction),
+		NewMultiFilter([]Filter{newEqualityFilter([]byte("foo"))}, Conjunction),
+		NewMultiFilter([]Filter{newEqualityFilter([]byte("foo"))}, Disjunction),
+		NewMultiFilter([]Filter{newEqualityFilter([]byte("foo")), cf}, Conjunction),
+		NewMultiFilter([]Filter{newEqualityFilter([]byte("foo")), cf}, Disjunction),
 	}
 
 	inputs := []testInput{
@@ -217,16 +217,16 @@ func TestBadPatterns(t *testing.T) {
 	}
 
 	for _, pattern := range patterns {
-		_, err := NewFilter(pattern)
+		_, err := NewFilter([]byte(pattern))
 		require.Error(t, err, fmt.Sprintf("pattern: %s", pattern))
 	}
 }
 
 func TestMultiCharSequenceFilter(t *testing.T) {
-	f, err := newMultiCharSequenceFilter("", false)
+	f, err := newMultiCharSequenceFilter([]byte(""), false)
 	require.Error(t, err)
 
-	f, err = newMultiCharSequenceFilter("test2,test,tent,book", false)
+	f, err = newMultiCharSequenceFilter([]byte("test2,test,tent,book"), false)
 	validateLookup(t, f, "", false, "")
 	validateLookup(t, f, "t", false, "")
 	validateLookup(t, f, "tes", false, "")
@@ -238,7 +238,7 @@ func TestMultiCharSequenceFilter(t *testing.T) {
 	validateLookup(t, f, "test2", true, "")
 	validateLookup(t, f, "book123", true, "123")
 
-	f, err = newMultiCharSequenceFilter("test2,test,tent,book", true)
+	f, err = newMultiCharSequenceFilter([]byte("test2,test,tent,book"), true)
 	validateLookup(t, f, "", false, "")
 	validateLookup(t, f, "t", false, "")
 	validateLookup(t, f, "tes", false, "")
@@ -253,9 +253,9 @@ func TestMultiCharSequenceFilter(t *testing.T) {
 }
 
 func validateLookup(t *testing.T, f chainFilter, val string, expectedMatch bool, expectedRemainder string) {
-	remainder, match := f.matches(val)
+	remainder, match := f.matches([]byte(val))
 	require.Equal(t, expectedMatch, match)
-	require.Equal(t, expectedRemainder, remainder)
+	require.Equal(t, expectedRemainder, string(remainder))
 }
 
 type testPattern struct {
@@ -264,19 +264,19 @@ type testPattern struct {
 }
 
 type testInput struct {
-	val     string
+	val     []byte
 	matches []bool
 }
 
 func newTestInput(val string, matches ...bool) testInput {
-	return testInput{val: val, matches: matches}
+	return testInput{val: []byte(val), matches: matches}
 }
 
 func genAndValidateFilters(t *testing.T, patterns []testPattern) []Filter {
 	var err error
 	filters := make([]Filter, len(patterns))
 	for i, pattern := range patterns {
-		filters[i], err = NewFilter(pattern.pattern)
+		filters[i], err = NewFilter([]byte(pattern.pattern))
 		require.NoError(t, err, fmt.Sprintf("No error expected, but got: %v for pattern: %s", err, pattern.pattern))
 		require.Equal(t, pattern.expectedStr, filters[i].String())
 	}

@@ -29,7 +29,7 @@ import (
 func TestEmptyTagsFilterMatches(t *testing.T) {
 	f, err := NewTagsFilter(nil, NewMockSortedTagIterator, Conjunction)
 	require.NoError(t, err)
-	require.True(t, f.Matches("foo"))
+	require.True(t, f.Matches([]byte("foo")))
 }
 
 func TestTagsFilterMatches(t *testing.T) {
@@ -47,7 +47,7 @@ func TestTagsFilterMatches(t *testing.T) {
 	}
 	require.NoError(t, err)
 	for _, input := range inputs {
-		require.Equal(t, input.match, f.Matches(input.val))
+		require.Equal(t, input.match, f.Matches([]byte(input.val)))
 	}
 
 	f, err = NewTagsFilter(filters, NewMockSortedTagIterator, Disjunction)
@@ -64,7 +64,7 @@ func TestTagsFilterMatches(t *testing.T) {
 	}
 	require.NoError(t, err)
 	for _, input := range inputs {
-		require.Equal(t, input.match, f.Matches(input.val), "val:", input.val)
+		require.Equal(t, input.match, f.Matches([]byte(input.val)), "val:", input.val)
 	}
 }
 
