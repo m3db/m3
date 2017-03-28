@@ -102,8 +102,12 @@ type databaseNamespaceTickMetrics struct {
 	activeSeries           tally.Gauge
 	expiredSeries          tally.Counter
 	activeBlocks           tally.Gauge
-	resetRetrievableBlocks tally.Counter
-	expiredBlocks          tally.Counter
+	openBlocks             tally.Gauge
+	wiredBlocks            tally.Gauge
+	unwiredBlocks          tally.Gauge
+	madeUnwiredBlocks      tally.Counter
+	madeExpiredBlocks      tally.Counter
+	mergedOutOfOrderBlocks tally.Counter
 	errors                 tally.Counter
 }
 
@@ -125,8 +129,12 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			activeSeries:           tickScope.Gauge("active-series"),
 			expiredSeries:          tickScope.Counter("expired-series"),
 			activeBlocks:           tickScope.Gauge("active-blocks"),
-			resetRetrievableBlocks: tickScope.Counter("reset-retrievable-blocks"),
-			expiredBlocks:          tickScope.Counter("expired-blocks"),
+			openBlocks:             tickScope.Gauge("open-blocks"),
+			wiredBlocks:            tickScope.Gauge("wired-blocks"),
+			unwiredBlocks:          tickScope.Gauge("unwired-blocks"),
+			madeUnwiredBlocks:      tickScope.Counter("made-unwired-blocks"),
+			madeExpiredBlocks:      tickScope.Counter("made-expired-blocks"),
+			mergedOutOfOrderBlocks: tickScope.Counter("merged-out-of-order-blocks"),
 			errors:                 tickScope.Counter("errors"),
 		},
 	}
@@ -298,8 +306,12 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
 	n.metrics.tick.activeBlocks.Update(float64(r.activeBlocks))
-	n.metrics.tick.resetRetrievableBlocks.Inc(int64(r.resetRetrievableBlocks))
-	n.metrics.tick.expiredBlocks.Inc(int64(r.expiredBlocks))
+	n.metrics.tick.openBlocks.Update(float64(r.openBlocks))
+	n.metrics.tick.wiredBlocks.Update(float64(r.wiredBlocks))
+	n.metrics.tick.unwiredBlocks.Update(float64(r.unwiredBlocks))
+	n.metrics.tick.madeExpiredBlocks.Inc(int64(r.madeExpiredBlocks))
+	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
+	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))
 	n.metrics.tick.errors.Inc(int64(r.errors))
 }
 

@@ -381,8 +381,12 @@ func (s *dbShard) tickAndExpire(
 			}
 		}
 		r.activeBlocks += result.ActiveBlocks
-		r.resetRetrievableBlocks += result.ResetRetrievableBlocks
-		r.expiredBlocks += result.ExpiredBlocks
+		r.openBlocks += result.OpenBlocks
+		r.wiredBlocks += result.WiredBlocks
+		r.unwiredBlocks += result.UnwiredBlocks
+		r.madeExpiredBlocks += result.MadeExpiredBlocks
+		r.madeUnwiredBlocks += result.MadeUnwiredBlocks
+		r.mergedOutOfOrderBlocks += result.MergedOutOfOrderBlocks
 		i++
 		// Continue
 		return true
