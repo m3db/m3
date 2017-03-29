@@ -309,7 +309,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	// Explicitly merge
 	var mergedResults [][]xio.SegmentReader
 	for i := range buffer.buckets {
-		block := buffer.buckets[i].discardMerged()
+		block := buffer.buckets[i].discardMerged().block
 		require.NotNil(t, block)
 
 		if block.Len() > 0 {
@@ -376,7 +376,7 @@ func newTestBufferBucketWithData(t *testing.T) (*dbBufferBucket, Options, []valu
 func TestBufferBucketMerge(t *testing.T) {
 	b, opts, expected := newTestBufferBucketWithData(t)
 
-	bl := b.discardMerged()
+	bl := b.discardMerged().block
 	require.NotNil(t, bl)
 
 	assert.Equal(t, 0, len(b.encoders))
@@ -440,7 +440,7 @@ func TestBufferBucketWriteDuplicate(t *testing.T) {
 	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
 
-	bl := b.discardMerged()
+	bl := b.discardMerged().block
 	require.NotNil(t, bl)
 
 	ctx := context.NewContext()

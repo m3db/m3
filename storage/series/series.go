@@ -131,6 +131,9 @@ func (s *dbSeries) Tick() (TickResult, error) {
 
 	s.Unlock()
 
+	if update.ActiveBlocks == 0 {
+		return r, ErrSeriesAllDatapointsExpired
+	}
 	return r, nil
 }
 

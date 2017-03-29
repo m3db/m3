@@ -228,7 +228,7 @@ func TestSeriesTickEmptySeries(t *testing.T) {
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
 }
 
-func TestSeriesTickNeedsDrain(t *testing.T) {
+func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -237,11 +237,14 @@ func TestSeriesTickNeedsDrain(t *testing.T) {
 	assert.NoError(t, series.Bootstrap(nil))
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().IsEmpty().Return(false)
-	buffer.EXPECT().NeedsDrain().Return(true)
-	buffer.EXPECT().DrainAndReset()
-	_, err := series.Tick()
+	buffer.EXPECT().DrainAndReset().Return(drainAndResetResult{})
+	buffer.EXPECT().Stats().Return(bufferStats{openBlocks: 1, wiredBlocks: 1})
+	r, err := series.Tick()
 	require.NoError(t, err)
+	assert.Equal(t, 1, r.ActiveBlocks)
+	assert.Equal(t, 1, r.WiredBlocks)
+	assert.Equal(t, 0, r.UnwiredBlocks)
+	assert.Equal(t, 1, r.OpenBlocks)
 }
 
 func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
@@ -259,21 +262,25 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().Close()
 	series.blocks.AddBlock(b)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	series.blocks.AddBlock(b)
 	require.Equal(t, blockStart, series.blocks.MinTime())
 	require.Equal(t, 2, series.blocks.Len())
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
-	buffer.EXPECT().IsEmpty().Return(true)
-	buffer.EXPECT().NeedsDrain().Return(false)
+	buffer.EXPECT().DrainAndReset().Return(drainAndResetResult{})
+	buffer.EXPECT().Stats().Return(bufferStats{openBlocks: 1, wiredBlocks: 1})
 	r, err := series.Tick()
 	require.NoError(t, err)
-	require.Equal(t, 1, r.ActiveBlocks)
-	require.Equal(t, 1, r.ExpiredBlocks)
+	require.Equal(t, 2, r.ActiveBlocks)
+	require.Equal(t, 2, r.WiredBlocks)
+	require.Equal(t, 1, r.OpenBlocks)
+	require.Equal(t, 1, r.MadeExpiredBlocks)
 	require.Equal(t, 1, series.blocks.Len())
 	require.Equal(t, curr, series.blocks.MinTime())
 	_, exists := series.blocks.AllBlocks()[curr]
@@ -324,40 +331,6 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	require.Equal(t, str, err.Error())
 	require.Equal(t, bootstrapped, series.bs)
 	require.Equal(t, 1, series.blocks.Len())
-}
-
-func TestShouldExpire(t *testing.T) {
-	opts := newSeriesTestOptions()
-	ropts := opts.RetentionOptions()
-	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
-	assert.NoError(t, series.Bootstrap(nil))
-	now := time.Now()
-	require.False(t,
-		series.shouldExpireBlockAt(
-			now,
-			now))
-	require.True(t,
-		series.shouldExpireBlockAt(
-			now,
-			now.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())))
-
-	expiryPeriod := 10 * time.Minute
-	ropts = ropts.SetShortExpiry(true).SetShortExpiryPeriod(expiryPeriod)
-	opts = opts.SetRetentionOptions(ropts)
-	series = NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
-	assert.NoError(t, series.Bootstrap(nil))
-	require.False(t,
-		series.shouldExpireBlockAt(
-			now,
-			now))
-	require.True(t,
-		series.shouldExpireBlockAt(
-			now,
-			now.Add(-2*expiryPeriod)))
-	require.True(t,
-		series.shouldExpireBlockAt(
-			now,
-			now.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())))
 }
 
 func TestSeriesFetchBlocks(t *testing.T) {

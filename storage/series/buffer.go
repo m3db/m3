@@ -193,7 +193,7 @@ func (b *dbBuffer) IsEmpty() bool {
 	for i := range b.buckets {
 		canReadAny = canReadAny || b.buckets[i].canRead()
 	}
-	return canReadAny
+	return !canReadAny
 }
 
 func (b *dbBuffer) Stats() bufferStats {

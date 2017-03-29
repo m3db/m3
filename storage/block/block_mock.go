@@ -31,6 +31,7 @@ import (
 	io "github.com/m3db/m3db/x/io"
 	clock "github.com/m3db/m3x/clock"
 	pool "github.com/m3db/m3x/pool"
+	sync "github.com/m3db/m3x/sync"
 	time "time"
 )
 
@@ -841,6 +842,26 @@ func (_m *MockOptions) DatabaseBlockAllocSize() int {
 
 func (_mr *_MockOptionsRecorder) DatabaseBlockAllocSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseBlockAllocSize")
+}
+
+func (_m *MockOptions) SetCloseContextWorkers(value sync.WorkerPool) Options {
+	ret := _m.ctrl.Call(_m, "SetCloseContextWorkers", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetCloseContextWorkers(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetCloseContextWorkers", arg0)
+}
+
+func (_m *MockOptions) CloseContextWorkers() sync.WorkerPool {
+	ret := _m.ctrl.Call(_m, "CloseContextWorkers")
+	ret0, _ := ret[0].(sync.WorkerPool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) CloseContextWorkers() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CloseContextWorkers")
 }
 
 func (_m *MockOptions) SetDatabaseBlockPool(value DatabaseBlockPool) Options {
