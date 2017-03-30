@@ -276,7 +276,7 @@ func NewRuleSet(rs *schema.RuleSet, opts Options) (RuleSet, error) {
 		lastUpdatedAt: time.Unix(0, rs.LastUpdatedAt),
 		tombStoned:    rs.Tombstoned,
 		version:       int(rs.Version),
-		cutover:       time.Unix(0, rs.Cutover),
+		cutover:       time.Unix(0, rs.CutoverTime),
 		iterFn:        iterFn,
 		newIDFn:       opts.NewIDFn(),
 		mappingRules:  mappingRules,

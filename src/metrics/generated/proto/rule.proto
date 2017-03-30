@@ -27,13 +27,13 @@ message RuleSet {
   int64 last_updated_at = 3;
   bool tombstoned = 4;
   int32 version = 5;
-  int64 cutover = 6;
+  int64 cutover_time = 6;
   repeated MappingRule mapping_rules = 7;
   repeated RollupRule rollup_rules = 8;
 }
 
 message Namespaces {
   repeated string namespaces = 1;
-  int64 ruleset_cutover = 2;
+  int64 ruleset_cutover_time = 2;
   int32 version = 3;
 }
