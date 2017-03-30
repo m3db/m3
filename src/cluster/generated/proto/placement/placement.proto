@@ -26,6 +26,7 @@ message placement {
   uint32 replica_factor = 2;
   uint32 num_shards = 3;
   bool is_sharded = 4;
+  int64 cutover_time = 5;
 }
 
 message instance {
