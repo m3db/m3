@@ -102,11 +102,27 @@ type QueryableBlockRetriever interface {
 	IsBlockRetrievable(blockStart time.Time) bool
 }
 
+// TickStatus is the status of a series for a given tick
+type TickStatus struct {
+	// ActiveBlocks is the number of total active blocks
+	ActiveBlocks int
+	// OpenBlocks is the number of blocks actively mutable can be written to
+	OpenBlocks int
+	// WiredBlocks is the number of blocks wired in memory (all data kept)
+	WiredBlocks int
+	// UnwiredBlocks is the number of blocks unwired (data kept on disk)
+	UnwiredBlocks int
+}
+
 // TickResult is a set of results from a tick
 type TickResult struct {
-	ActiveBlocks           int
-	ExpiredBlocks          int
-	ResetRetrievableBlocks int
+	TickStatus
+	// MadeExpiredBlocks is count of blocks just expired
+	MadeExpiredBlocks int
+	// MadeUnwiredBlocks is count of blocks just unwired from memory
+	MadeUnwiredBlocks int
+	// MergedOutOfOrderBlocks is count of blocks merged from out of order streams
+	MergedOutOfOrderBlocks int
 }
 
 // DatabaseSeriesAllocate allocates a database series for a pool

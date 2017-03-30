@@ -40,9 +40,6 @@ const (
 	// defaultBufferDrain is the default buffer drain
 	defaultBufferDrain = 2 * time.Minute
 
-	// defaultShortExpiry is the default bool for whether short expiry is on
-	defaultShortExpiry = false
-
 	// defaultDataExpiry is the default bool for whether data expiry is on
 	defaultDataExpiry = true
 
@@ -51,15 +48,11 @@ const (
 )
 
 type options struct {
-	retentionPeriod time.Duration
-	blockSize       time.Duration
-	bufferFuture    time.Duration
-	bufferPast      time.Duration
-	bufferDrain     time.Duration
-
-	shortExpiry       bool
-	shortExpiryPeriod time.Duration
-
+	retentionPeriod                  time.Duration
+	blockSize                        time.Duration
+	bufferFuture                     time.Duration
+	bufferPast                       time.Duration
+	bufferDrain                      time.Duration
 	dataExpiry                       bool
 	dataExpiryAfterNotAccessedPeriod time.Duration
 }
@@ -72,7 +65,6 @@ func NewOptions() Options {
 		bufferFuture:                     defaultBufferFuture,
 		bufferPast:                       defaultBufferPast,
 		bufferDrain:                      defaultBufferDrain,
-		shortExpiry:                      defaultShortExpiry,
 		dataExpiry:                       defaultDataExpiry,
 		dataExpiryAfterNotAccessedPeriod: defaultDataExpiryAfterNotAccessedPeriod,
 	}
@@ -126,26 +118,6 @@ func (o *options) SetBufferDrain(value time.Duration) Options {
 
 func (o *options) BufferDrain() time.Duration {
 	return o.bufferDrain
-}
-
-func (o *options) SetShortExpiry(value bool) Options {
-	opts := *o
-	opts.shortExpiry = value
-	return &opts
-}
-
-func (o *options) ShortExpiry() bool {
-	return o.shortExpiry
-}
-
-func (o *options) SetShortExpiryPeriod(period time.Duration) Options {
-	opts := *o
-	opts.shortExpiryPeriod = period
-	return &opts
-}
-
-func (o *options) ShortExpiryPeriod() time.Duration {
-	return o.shortExpiryPeriod
 }
 
 func (o *options) SetBlockDataExpiry(value bool) Options {

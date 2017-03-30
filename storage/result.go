@@ -24,8 +24,12 @@ type tickResult struct {
 	activeSeries           int
 	expiredSeries          int
 	activeBlocks           int
-	resetRetrievableBlocks int
-	expiredBlocks          int
+	openBlocks             int
+	wiredBlocks            int
+	unwiredBlocks          int
+	madeExpiredBlocks      int
+	madeUnwiredBlocks      int
+	mergedOutOfOrderBlocks int
 	errors                 int
 }
 
@@ -34,8 +38,12 @@ func (r tickResult) merge(other tickResult) tickResult {
 		activeSeries:           r.activeSeries + other.activeSeries,
 		expiredSeries:          r.expiredSeries + other.expiredSeries,
 		activeBlocks:           r.activeBlocks + other.activeBlocks,
-		resetRetrievableBlocks: r.resetRetrievableBlocks + other.resetRetrievableBlocks,
-		expiredBlocks:          r.expiredBlocks + other.expiredBlocks,
+		openBlocks:             r.openBlocks + other.openBlocks,
+		wiredBlocks:            r.wiredBlocks + other.wiredBlocks,
+		unwiredBlocks:          r.unwiredBlocks + other.unwiredBlocks,
+		madeExpiredBlocks:      r.madeExpiredBlocks + other.madeExpiredBlocks,
+		madeUnwiredBlocks:      r.madeUnwiredBlocks + other.madeUnwiredBlocks,
+		mergedOutOfOrderBlocks: r.mergedOutOfOrderBlocks + other.mergedOutOfOrderBlocks,
 		errors:                 r.errors + other.errors,
 	}
 }

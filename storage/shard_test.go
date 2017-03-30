@@ -314,7 +314,9 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 func addTestSeries(shard *dbShard, id ts.ID) series.DatabaseSeries {
 	series := series.NewDatabaseSeries(id, NewSeriesOptionsFromOptions(shard.opts))
 	series.Bootstrap(nil)
+	shard.Lock()
 	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series})
+	shard.Unlock()
 	return series
 }
 
@@ -384,9 +386,14 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(opts)
 	defer shard.Close()
+
 	addTestSeries(shard, ts.StringID("foo"))
+
 	shard.Tick(context.NewNoOpCanncellable(), 0)
+
+	shard.RLock()
 	require.Equal(t, 0, len(shard.lookup))
+	shard.RUnlock()
 }
 
 // This tests the scenario where a non-empty series is not expired.

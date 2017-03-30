@@ -86,15 +86,26 @@ type databaseBuffer interface {
 
 	IsEmpty() bool
 
+	Stats() bufferStats
+
 	MinMax() (time.Time, time.Time)
 
 	NeedsDrain() bool
 
-	DrainAndReset()
+	DrainAndReset() drainAndResetResult
 
 	Bootstrap(bl block.DatabaseBlock) error
 
 	Reset()
+}
+
+type bufferStats struct {
+	openBlocks  int
+	wiredBlocks int
+}
+
+type drainAndResetResult struct {
+	mergedOutOfOrderBlocks int
 }
 
 type dbBuffer struct {
@@ -124,23 +135,26 @@ func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuff
 }
 
 func (b *dbBuffer) Reset() {
-	idx := computeAndResetBucketIdx
-	b.computedForEachBucketAsc(b.nowFn(), idx, func(bucket *dbBufferBucket, t time.Time) {
-		bucket.opts = b.opts
-		bucket.resetTo(t)
-	})
+	// Avoid capturing any variables with callback
+	b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketResetStart)
+}
+
+func bucketResetStart(now time.Time, b *dbBuffer, idx int, start time.Time) int {
+	b.buckets[idx].opts = b.opts
+	b.buckets[idx].resetTo(start)
+	return 1
 }
 
 func (b *dbBuffer) MinMax() (time.Time, time.Time) {
 	var min, max time.Time
-	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
-		if min.IsZero() || bucket.start.Before(min) {
-			min = bucket.start
+	for i := range b.buckets {
+		if min.IsZero() || b.buckets[i].start.Before(min) {
+			min = b.buckets[i].start
 		}
-		if max.IsZero() || bucket.start.After(max) {
-			max = bucket.start
+		if max.IsZero() || b.buckets[i].start.After(max) {
+			max = b.buckets[i].start
 		}
-	})
+	}
 	return min, max
 }
 
@@ -162,68 +176,98 @@ func (b *dbBuffer) Write(
 	}
 
 	bucketStart := timestamp.Truncate(b.blockSize)
-	bucketIdx := (timestamp.UnixNano() / int64(b.blockSize)) % bucketsLen
-
-	bucket := &b.buckets[bucketIdx]
-	if bucket.needsReset(bucketStart) {
+	idx := b.writableBucketIdx(timestamp)
+	if b.buckets[idx].needsReset(bucketStart) {
 		// Needs reset
 		b.DrainAndReset()
 	}
 
-	return bucket.write(timestamp, value, unit, annotation)
+	return b.buckets[idx].write(timestamp, value, unit, annotation)
+}
+
+func (b *dbBuffer) writableBucketIdx(t time.Time) int {
+	return int((t.UnixNano() / int64(b.blockSize)) % bucketsLen)
 }
 
 func (b *dbBuffer) IsEmpty() bool {
 	canReadAny := false
-	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
-		canReadAny = canReadAny || bucket.canRead()
-	})
+	for i := range b.buckets {
+		canReadAny = canReadAny || b.buckets[i].canRead()
+	}
 	return !canReadAny
 }
 
-func (b *dbBuffer) NeedsDrain() bool {
-	now := b.nowFn()
-	idx := computeBucketIdx
-	needsDrainAny := false
-	b.computedForEachBucketAsc(now, idx, func(bucket *dbBufferBucket, current time.Time) {
-		needsDrainAny = needsDrainAny || bucket.needsDrain(now, current)
-	})
-	return needsDrainAny
+func (b *dbBuffer) Stats() bufferStats {
+	var stats bufferStats
+	writableIdx := b.writableBucketIdx(b.nowFn())
+	for i := range b.buckets {
+		if !b.buckets[i].canRead() {
+			continue
+		}
+		if i == writableIdx {
+			stats.openBlocks++
+		}
+		stats.wiredBlocks++
+	}
+	return stats
 }
 
-func (b *dbBuffer) DrainAndReset() {
-	now := b.nowFn()
-	idx := computeAndResetBucketIdx
-	b.computedForEachBucketAsc(now, idx, func(bucket *dbBufferBucket, current time.Time) {
-		if bucket.needsDrain(now, current) {
-			mergedBlock := bucket.discardMerged()
-			if mergedBlock.Len() > 0 {
-				b.drainFn(mergedBlock)
-			} else {
-				log := b.opts.InstrumentOptions().Logger()
-				log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
-					current.String())
-			}
+func (b *dbBuffer) NeedsDrain() bool {
+	// Avoid capturing any variables with callback
+	return b.computedForEachBucketAsc(computeBucketIdx, bucketNeedsDrain) > 0
+}
 
-			bucket.drained = true
+func bucketNeedsDrain(now time.Time, b *dbBuffer, idx int, start time.Time) int {
+	if b.buckets[idx].needsDrain(now, start) {
+		return 1
+	}
+	return 0
+}
+
+func (b *dbBuffer) DrainAndReset() drainAndResetResult {
+	// Avoid capturing any variables with callback
+	mergedOutOfOrder := b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketDrainAndReset)
+	return drainAndResetResult{
+		mergedOutOfOrderBlocks: mergedOutOfOrder,
+	}
+}
+
+func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int, start time.Time) int {
+	mergedOutOfOrderBlocks := 0
+	if b.buckets[idx].needsDrain(now, start) {
+		merged := b.buckets[idx].discardMerged()
+		if merged.merges > 0 {
+			mergedOutOfOrderBlocks = 1
+		}
+		if merged.block.Len() > 0 {
+			b.drainFn(merged.block)
+		} else {
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
+				start.String())
 		}
 
-		if bucket.needsReset(current) {
-			// Reset bucket
-			bucket.resetTo(current)
-		}
-	})
+		b.buckets[idx].drained = true
+	}
+
+	if b.buckets[idx].needsReset(start) {
+		// Reset bucket
+		b.buckets[idx].resetTo(start)
+	}
+
+	return mergedOutOfOrderBlocks
 }
 
 func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 	blockStart := bl.StartTime()
 	bootstrapped := false
-	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
-		if bucket.start.Equal(blockStart) {
-			bucket.bootstrap(bl)
+	for i := range b.buckets {
+		if b.buckets[i].start.Equal(blockStart) {
+			b.buckets[i].bootstrap(bl)
 			bootstrapped = true
+			break
 		}
-	})
+	}
 	if !bootstrapped {
 		return fmt.Errorf("block at %s not contained by buffer", blockStart.String())
 	}
@@ -239,21 +283,25 @@ func (b *dbBuffer) forEachBucketAsc(fn func(*dbBufferBucket)) {
 	}
 }
 
-// computedForEachBucketAsc performs computation on the buckets in time ascending order
+// computedForEachBucketAsc performs a fn on the buckets in time ascending order
+// and returns the sum of the number returned by each fn
 func (b *dbBuffer) computedForEachBucketAsc(
-	now time.Time,
 	op computeBucketIdxOp,
-	fn func(*dbBufferBucket, time.Time),
-) {
+	fn func(now time.Time, b *dbBuffer, idx int, bucketStart time.Time) int,
+) int {
+	now := b.nowFn()
 	pastMostBucketStart := now.Truncate(b.blockSize).Add(-1 * b.blockSize)
 	bucketNum := (pastMostBucketStart.UnixNano() / int64(b.blockSize)) % bucketsLen
+	result := 0
 	for i := int64(0); i < bucketsLen; i++ {
 		idx := int((bucketNum + i) % bucketsLen)
-		fn(&b.buckets[idx], pastMostBucketStart.Add(time.Duration(i)*b.blockSize))
+		curr := pastMostBucketStart.Add(time.Duration(i) * b.blockSize)
+		result += fn(now, b, idx, curr)
 	}
 	if op == computeAndResetBucketIdx {
 		b.pastMostBucketIdx = int(bucketNum)
 	}
+	return result
 }
 
 func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.SegmentReader {
@@ -515,7 +563,12 @@ func (b *dbBufferBucket) resetBootstrapped() {
 	b.bootstrapped = nil
 }
 
-func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
+type discardMergedResult struct {
+	block  block.DatabaseBlock
+	merges int
+}
+
+func (b *dbBufferBucket) discardMerged() discardMergedResult {
 	defer func() {
 		b.resetEncoders()
 		b.resetBootstrapped()
@@ -528,7 +581,7 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		newBlock.Reset(b.start, encoder.Discard())
 		b.encoders = b.encoders[:0]
-		return newBlock
+		return discardMergedResult{newBlock, 0}
 	}
 
 	if (len(b.encoders) == 0 ||
@@ -538,7 +591,7 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 		// Already merged just a single bootstrapped block
 		existingBlock := b.bootstrapped[0]
 		b.bootstrapped = b.bootstrapped[:0]
-		return existingBlock
+		return discardMergedResult{existingBlock, 0}
 	}
 
 	// If we have to merge bootstrapped from disk during a block rotation
@@ -556,6 +609,7 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 		}
 	}
 
+	merges := 0
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
@@ -563,6 +617,7 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
 	for i := range b.encoders {
 		if stream := b.encoders[i].encoder.Stream(); stream != nil {
+			merges++
 			readers = append(readers, stream)
 			defer stream.Finalize()
 		}
@@ -571,6 +626,7 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 	for i := range b.bootstrapped {
 		stream, err := b.bootstrapped[i].Stream(b.ctx)
 		if err == nil && stream != nil {
+			merges++
 			readers = append(readers, stream)
 		}
 	}
@@ -590,5 +646,5 @@ func (b *dbBufferBucket) discardMerged() block.DatabaseBlock {
 	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	newBlock.Reset(b.start, encoder.Discard())
 
-	return newBlock
+	return discardMergedResult{newBlock, merges}
 }
