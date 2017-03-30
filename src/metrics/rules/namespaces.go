@@ -37,7 +37,7 @@ type Namespaces struct {
 func NewNamespaces(nss *schema.Namespaces) Namespaces {
 	return Namespaces{
 		namespaces:     nss.Namespaces,
-		ruleSetCutover: time.Unix(0, nss.RulesetCutover),
+		ruleSetCutover: time.Unix(0, nss.RulesetCutoverTime),
 		version:        int(nss.Version),
 	}
 }

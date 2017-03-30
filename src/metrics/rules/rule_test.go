@@ -89,7 +89,7 @@ func TestRollupTargetClone(t *testing.T) {
 func TestRuleSetMatchMappingRules(t *testing.T) {
 	ruleSetConfig := &schema.RuleSet{
 		Version:      1,
-		Cutover:      time.Now().UnixNano(),
+		CutoverTime:  time.Now().UnixNano(),
 		MappingRules: testMappingRulesConfig(),
 	}
 	ruleSet, err := NewRuleSet(ruleSetConfig, testRuleSetOptions())
@@ -178,7 +178,7 @@ func TestRuleSetMatchRollupRules(t *testing.T) {
 func TestTombstonedRuleSetMatch(t *testing.T) {
 	ruleSetConfig := &schema.RuleSet{
 		Version:      1,
-		Cutover:      time.Now().UnixNano(),
+		CutoverTime:  time.Now().UnixNano(),
 		Tombstoned:   true,
 		MappingRules: testMappingRulesConfig(),
 		RollupRules:  testRollupRulesConfig(),
