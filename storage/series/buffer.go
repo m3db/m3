@@ -138,6 +138,7 @@ func (b *dbBuffer) Reset() {
 	// Avoid capturing any variables with callback
 	b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketResetStart)
 }
+
 func bucketResetStart(now time.Time, b *dbBuffer, idx int, start time.Time) int {
 	b.buckets[idx].opts = b.opts
 	b.buckets[idx].resetTo(start)
@@ -215,6 +216,7 @@ func (b *dbBuffer) NeedsDrain() bool {
 	// Avoid capturing any variables with callback
 	return b.computedForEachBucketAsc(computeBucketIdx, bucketNeedsDrain) > 0
 }
+
 func bucketNeedsDrain(now time.Time, b *dbBuffer, idx int, start time.Time) int {
 	if b.buckets[idx].needsDrain(now, start) {
 		return 1
@@ -229,6 +231,7 @@ func (b *dbBuffer) DrainAndReset() drainAndResetResult {
 		mergedOutOfOrderBlocks: mergedOutOfOrder,
 	}
 }
+
 func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int, start time.Time) int {
 	mergedOutOfOrderBlocks := 0
 	if b.buckets[idx].needsDrain(now, start) {
@@ -280,7 +283,7 @@ func (b *dbBuffer) forEachBucketAsc(fn func(*dbBufferBucket)) {
 	}
 }
 
-// computedForEachBucketAscAny performs a fn on the buckets in time ascending order
+// computedForEachBucketAsc performs a fn on the buckets in time ascending order
 // and returns the sum of the number returned by each fn
 func (b *dbBuffer) computedForEachBucketAsc(
 	op computeBucketIdxOp,
