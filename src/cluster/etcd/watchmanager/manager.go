@@ -69,10 +69,12 @@ type metrics struct {
 func (w *manager) watchChanWithTimeout(key string) (clientv3.WatchChan, error) {
 	doneCh := make(chan struct{})
 
+	ctx, cancelFn := context.WithCancel(clientv3.WithRequireLeader(context.Background()))
+
 	var watchChan clientv3.WatchChan
 	go func() {
 		watchChan = w.opts.Watcher().Watch(
-			clientv3.WithRequireLeader(context.Background()),
+			ctx,
 			key,
 			w.opts.WatchOptions()...,
 		)
@@ -84,6 +86,7 @@ func (w *manager) watchChanWithTimeout(key string) (clientv3.WatchChan, error) {
 	case <-doneCh:
 		return watchChan, nil
 	case <-time.After(timeout):
+		cancelFn()
 		return nil, fmt.Errorf("etcd watch create timed out after %s for key: %s", timeout.String(), key)
 	}
 }
