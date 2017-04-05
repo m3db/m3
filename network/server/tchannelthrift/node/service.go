@@ -611,6 +611,24 @@ func (s *service) SetPersistRateLimit(
 	return s.GetPersistRateLimit(ctx)
 }
 
+func (s *service) GetWriteNewSeriesAsyncResult(
+	ctx thrift.Context,
+) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
+	value := s.db.RuntimeOptionsManager().Get().WriteNewSeriesAsync()
+	return &rpc.NodeWriteNewSeriesAsyncResult_{
+		WriteNewSeriesAsync: value,
+	}, nil
+}
+
+func (s *service) SetWriteNewSeriesAsyncResult(
+	ctx thrift.Context,
+	req *rpc.NodeSetWriteNewSeriesAsyncRequest,
+) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
+	set := s.db.RuntimeOptionsManager().Get().SetWriteNewSeriesAsync(req.WriteNewSeriesAsync)
+	s.db.RuntimeOptionsManager().Update(set)
+	return s.GetWriteNewSeriesAsyncResult(ctx)
+}
+
 func (s *service) isOverloaded() bool {
 	// NB(xichen): for now we only use the database load to determine
 	// whether the server is overloaded. In the future we may also take

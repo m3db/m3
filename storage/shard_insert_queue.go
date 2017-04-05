@@ -24,6 +24,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	xtime "github.com/m3db/m3x/time"
 )
 
 var (
@@ -52,20 +54,34 @@ type dbShardInsertQueue struct {
 
 type dbShardInsertBatch struct {
 	wg      *sync.WaitGroup
-	entries []*dbShardEntry
+	inserts []dbShardInsert
+}
+
+type dbShardInsert struct {
+	entry           *dbShardEntry
+	hasPendingWrite bool
+	pendingWrite    dbShardPendingWrite
+}
+
+type dbShardPendingWrite struct {
+	timestamp  time.Time
+	value      float64
+	unit       xtime.Unit
+	annotation []byte
 }
 
 func (b *dbShardInsertBatch) reset() {
 	b.wg = &sync.WaitGroup{}
 	// We always expect to be waiting for an insert
 	b.wg.Add(1)
-	for i := range b.entries {
-		b.entries[i] = nil
+	insertZeroed := dbShardInsert{pendingWrite: dbShardPendingWrite{}}
+	for i := range b.inserts {
+		b.inserts[i] = insertZeroed
 	}
-	b.entries = b.entries[:0]
+	b.inserts = b.inserts[:0]
 }
 
-type dbShardInsertEntryBatchFn func(entries []*dbShardEntry) error
+type dbShardInsertEntryBatchFn func(inserts []dbShardInsert) error
 
 // newDbShardInsertQueue creates a new shard insert queue. The shard
 // insert queue is used to batch inserts into the shard series map without
@@ -105,7 +121,7 @@ func (q *dbShardInsertQueue) insertLoop() {
 		q.currBatch = freeBatch
 		q.Unlock()
 
-		q.insertEntryBatchFn(batch.entries)
+		q.insertEntryBatchFn(batch.inserts)
 		batch.wg.Done()
 
 		// Set the free batch
@@ -148,13 +164,13 @@ func (q *dbShardInsertQueue) Stop() error {
 	return nil
 }
 
-func (q *dbShardInsertQueue) Insert(entry *dbShardEntry) (*sync.WaitGroup, error) {
+func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, error) {
 	q.Lock()
 	if q.state != dbShardInsertQueueStateOpen {
 		q.Unlock()
 		return nil, errShardInsertQueueNotOpen
 	}
-	q.currBatch.entries = append(q.currBatch.entries, entry)
+	q.currBatch.inserts = append(q.currBatch.inserts, insert)
 	wg := q.currBatch.wg
 	q.Unlock()
 

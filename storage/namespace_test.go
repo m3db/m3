@@ -56,7 +56,7 @@ func newTestNamespace(t *testing.T) *dbNamespace {
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
 	dopts := testDatabaseOptions()
-	return newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	return newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts).(*dbNamespace)
 }
 
 func TestNamespaceName(t *testing.T) {
@@ -509,7 +509,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 
 	dopts = dopts.SetInstrumentOptions(dopts.InstrumentOptions().
 		SetMetricsScope(scope))
-	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts).(*dbNamespace)
 
 	prevMockShards := make(map[uint32]*MockdatabaseShard)
 	for _, testShard := range prevAssignment.All() {
@@ -578,7 +578,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts).(*dbNamespace)
 	for _, s := range shards {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
@@ -615,7 +615,7 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts).(*dbNamespace)
 	for _, s := range shards {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
@@ -662,7 +662,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts).(*dbNamespace)
 	for _, s := range shards {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
@@ -707,7 +707,7 @@ func TestNamespaceNeedsFlushInProgress(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts).(*dbNamespace)
 	for _, s := range shards {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()

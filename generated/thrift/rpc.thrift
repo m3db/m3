@@ -58,6 +58,8 @@ service Node {
 	NodeHealthResult health() throws (1: Error err)
 	NodePersistRateLimitResult getPersistRateLimit() throws (1: Error err)
 	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
+	NodeWriteNewSeriesAsyncResult getWriteNewSeriesAsyncResult() throws (1: Error err)
+	NodeWriteNewSeriesAsyncResult setWriteNewSeriesAsyncResult(1: NodeSetWriteNewSeriesAsyncRequest req) throws (1: Error err)
 }
 
 struct FetchRequest {
@@ -207,6 +209,14 @@ struct NodeSetPersistRateLimitRequest {
 	1: optional bool limitEnabled
 	2: optional double limitMbps
 	3: optional i64 limitCheckEvery
+}
+
+struct NodeWriteNewSeriesAsyncResult {
+	1: required bool writeNewSeriesAsync
+}
+
+struct NodeSetWriteNewSeriesAsyncRequest {
+	1: required bool writeNewSeriesAsync
 }
 
 service Cluster {

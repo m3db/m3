@@ -64,6 +64,7 @@ type dbNamespace struct {
 	shardSet       sharding.ShardSet
 	blockRetriever block.DatabaseBlockRetriever
 	opts           Options
+	runtimeOptsMgr RuntimeOptionsManager
 	nopts          namespace.Options
 	nowFn          clock.NowFn
 	log            xlog.Logger
@@ -146,6 +147,7 @@ func newDatabaseNamespace(
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
+	runtimeOptsMgr RuntimeOptionsManager,
 	opts Options,
 ) databaseNamespace {
 	id := metadata.ID()
@@ -170,6 +172,7 @@ func newDatabaseNamespace(
 		shardSet:               shardSet,
 		blockRetriever:         blockRetriever,
 		opts:                   opts,
+		runtimeOptsMgr:         runtimeOptsMgr,
 		nopts:                  nopts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		log:                    opts.InstrumentOptions().Logger(),
@@ -236,7 +239,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			needsBootstrap := n.nopts.NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n.id, shard, n.blockRetriever,
-				n.increasingIndex, n.writeCommitLogFn, needsBootstrap, n.opts)
+				n.increasingIndex, n.writeCommitLogFn, needsBootstrap, n.runtimeOptsMgr, n.opts)
 			n.metrics.shards.add.Inc(1)
 		}
 	}
@@ -741,8 +744,8 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	shards := n.shardSet.AllIDs()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
-		dbShards[shard] = newDatabaseShard(n.id, shard, n.blockRetriever,
-			n.increasingIndex, n.writeCommitLogFn, needBootstrap, n.opts)
+		dbShards[shard] = newDatabaseShard(n.id, shard, n.blockRetriever, n.increasingIndex,
+			n.writeCommitLogFn, needBootstrap, n.runtimeOptsMgr, n.opts)
 	}
 	n.shards = dbShards
 	n.Unlock()

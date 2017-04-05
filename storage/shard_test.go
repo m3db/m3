@@ -54,7 +54,7 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 
 func testDatabaseShard(opts Options) *dbShard {
 	return newDatabaseShard(ts.StringID("namespace"), 0, nil,
-		&testIncreasingIndex{}, commitLogWriteNoOp, true, opts).(*dbShard)
+		&testIncreasingIndex{}, commitLogWriteNoOp, true, nil, opts).(*dbShard)
 }
 
 func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID, index uint64) *series.MockDatabaseSeries {
@@ -68,7 +68,7 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID, index uint
 func TestShardDontNeedBootstrap(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := newDatabaseShard(ts.StringID("namespace"), 0, nil,
-		&testIncreasingIndex{}, commitLogWriteNoOp, false, opts).(*dbShard)
+		&testIncreasingIndex{}, commitLogWriteNoOp, false, nil, opts).(*dbShard)
 	defer shard.Close()
 
 	require.Equal(t, bootstrapped, shard.bs)

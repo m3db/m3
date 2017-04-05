@@ -51,17 +51,18 @@ type mockDatabase struct {
 
 func newMockDatabase() *mockDatabase { return &mockDatabase{opts: testDatabaseOptions()} }
 
-func (d *mockDatabase) Options() Options                          { return d.opts }
-func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
-func (d *mockDatabase) Namespaces() []Namespace                   { return nil }
-func (d *mockDatabase) Open() error                               { return nil }
-func (d *mockDatabase) Close() error                              { return nil }
-func (d *mockDatabase) Bootstrap() error                          { return nil }
-func (d *mockDatabase) IsBootstrapped() bool                      { return d.bs == bootstrapped }
-func (d *mockDatabase) IsOverloaded() bool                        { return false }
-func (d *mockDatabase) Repair() error                             { return nil }
-func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error)   { return 0, nil }
-func (d *mockDatabase) flush(t time.Time, async bool)             {}
+func (d *mockDatabase) Options() Options                             { return d.opts }
+func (d *mockDatabase) RuntimeOptionsManager() RuntimeOptionsManager { return nil }
+func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet)    {}
+func (d *mockDatabase) Namespaces() []Namespace                      { return nil }
+func (d *mockDatabase) Open() error                                  { return nil }
+func (d *mockDatabase) Close() error                                 { return nil }
+func (d *mockDatabase) Bootstrap() error                             { return nil }
+func (d *mockDatabase) IsBootstrapped() bool                         { return d.bs == bootstrapped }
+func (d *mockDatabase) IsOverloaded() bool                           { return false }
+func (d *mockDatabase) Repair() error                                { return nil }
+func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error)      { return 0, nil }
+func (d *mockDatabase) flush(t time.Time, async bool)                {}
 
 func (d *mockDatabase) getOwnedNamespaces() []databaseNamespace {
 	namespaces := make([]databaseNamespace, 0, len(d.namespaces))

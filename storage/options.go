@@ -114,6 +114,7 @@ type options struct {
 	identifierPool                 ts.IdentifierPool
 	fetchBlockMetadataResultsPool  block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
+	defaultRuntimeOptions          RuntimeOptions
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -149,6 +150,7 @@ func NewOptions() Options {
 		identifierPool:                 ts.NewIdentifierPool(bytesPool, nil),
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(nil, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(nil, 0),
+		defaultRuntimeOptions:          NewRuntimeOptions(),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -488,4 +490,14 @@ func (o *options) SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetad
 
 func (o *options) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool {
 	return o.fetchBlocksMetadataResultsPool
+}
+
+func (o *options) SetDefaultRuntimeOptions(value RuntimeOptions) Options {
+	opts := *o
+	opts.defaultRuntimeOptions = value
+	return &opts
+}
+
+func (o *options) DefaultRuntimeOptions() RuntimeOptions {
+	return o.defaultRuntimeOptions
 }
