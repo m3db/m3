@@ -494,17 +494,17 @@ func knapsack(instances []services.PlacementInstance, targetWeight int) ([]servi
 		return instances[:], targetWeight - totalWeight
 	}
 	// totalWeight > targetWeight, there is a combination of instances to meet targetWeight for sure
-	// we do dp until totalWeight rather than targetWeight here because we need to cover the targetWeight
-	// which is a little bit different than the knapsack problem that goes
+	// we do dp until totalWeight rather than targetWeight here because we need to
+	// at least cover the targetWeight, which is a little bit different than the knapsack problem
 	weights := make([]int, totalWeight+1)
 	combination := make([][]services.PlacementInstance, totalWeight+1)
 
 	// dp: weights[i][j] = max(weights[i-1][j], weights[i-1][j-instance.Weight] + instance.Weight)
 	// when there are multiple combination to reach a target weight, we prefer the one with less instances
 	for i := range instances {
-		// this loop needs to go from len to 1 because updating weights[] is being updated in place
+		weight := int(instances[i].Weight())
+		// this loop needs to go from len to 1 because weights is being updated in place
 		for j := totalWeight; j >= 1; j-- {
-			weight := int(instances[i].Weight())
 			if j-weight < 0 {
 				continue
 			}
