@@ -26,6 +26,7 @@ import (
 	"time"
 
 	xtime "github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -50,6 +51,28 @@ type dbShardInsertQueue struct {
 
 	currBatch    *dbShardInsertBatch
 	notifyInsert chan struct{}
+
+	metrics dbShardInsertQueueMetrics
+}
+
+type dbShardInsertQueueMetrics struct {
+	insertsNoPendingWrite tally.Counter
+	insertsPendingWrite   tally.Counter
+}
+
+func newDBShardInsertQueueMetrics(
+	scope tally.Scope,
+) dbShardInsertQueueMetrics {
+	insertName := "inserts"
+	insertPendingWriteTagName := "pending-write"
+	return dbShardInsertQueueMetrics{
+		insertsNoPendingWrite: scope.Tagged(map[string]string{
+			insertPendingWriteTagName: "no",
+		}).Counter(insertName),
+		insertsPendingWrite: scope.Tagged(map[string]string{
+			insertPendingWriteTagName: "yes",
+		}).Counter(insertName),
+	}
 }
 
 type dbShardInsertBatch struct {
@@ -100,14 +123,16 @@ type dbShardInsertEntryBatchFn func(inserts []dbShardInsert) error
 // 4x during floods of new series.
 func newDbShardInsertQueue(
 	insertEntryBatchFn dbShardInsertEntryBatchFn,
-	opts Options,
+	scope tally.Scope,
 ) *dbShardInsertQueue {
+
 	currBatch := &dbShardInsertBatch{}
 	currBatch.reset()
 	return &dbShardInsertQueue{
 		insertEntryBatchFn: insertEntryBatchFn,
 		currBatch:          currBatch,
 		notifyInsert:       make(chan struct{}, 1),
+		metrics:            newDBShardInsertQueueMetrics(scope.SubScope("insert-queue")),
 	}
 }
 
@@ -179,6 +204,12 @@ func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, erro
 	case q.notifyInsert <- struct{}{}:
 	default:
 		// Loop busy, already ready to consume notification
+	}
+
+	if insert.hasPendingWrite {
+		q.metrics.insertsPendingWrite.Inc(1)
+	} else {
+		q.metrics.insertsNoPendingWrite.Inc(1)
 	}
 
 	return wg, nil

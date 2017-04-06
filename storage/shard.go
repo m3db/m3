@@ -190,7 +190,7 @@ func newDatabaseShard(
 		flushState:            newShardFlushState(),
 		metrics:               newDbShardMetrics(scope),
 	}
-	d.insertQueue = newDbShardInsertQueue(d.insertSeriesEntries, opts)
+	d.insertQueue = newDbShardInsertQueue(d.insertSeriesEntries, scope)
 	d.insertQueue.Start()
 
 	if runtimeOptsMgr != nil {
