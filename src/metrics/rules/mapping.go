@@ -117,10 +117,9 @@ func (mc *mappingRule) ActiveRule(timeNs int64) *mappingRule {
 }
 
 func (mc *mappingRule) activeIndex(timeNs int64) int {
-	idx := 0
-	for idx < len(mc.snapshots) && mc.snapshots[idx].cutoverNs <= timeNs {
-		idx++
+	idx := len(mc.snapshots) - 1
+	for idx >= 0 && mc.snapshots[idx].cutoverNs > timeNs {
+		idx--
 	}
-	idx--
 	return idx
 }
