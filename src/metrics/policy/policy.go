@@ -22,6 +22,7 @@ package policy
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"time"
 
@@ -43,6 +44,8 @@ var (
 
 	// EmptyVersionedPolicies represents an empty VersionPolicies
 	EmptyVersionedPolicies VersionedPolicies
+
+	errNilPolicySchema = errors.New("nil policy schema")
 
 	// defaultPolicies are the default policies
 	// TODO(xichen): possibly make this dynamically configurable in the future
@@ -72,6 +75,9 @@ func NewPolicy(window time.Duration, precision xtime.Unit, retention time.Durati
 
 // NewPolicyFromSchema creates a new policy from a schema policy
 func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
+	if p == nil {
+		return EmptyPolicy, errNilPolicySchema
+	}
 	precision := time.Duration(p.Resolution.Precision)
 	unit, err := xtime.UnitFromDuration(precision)
 	if err != nil {
