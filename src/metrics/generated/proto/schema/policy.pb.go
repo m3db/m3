@@ -34,10 +34,13 @@ It has these top-level messages:
 	Retention
 	Policy
 	Policies
+	MappingRuleSnapshot
 	MappingRule
 	RollupTarget
+	RollupRuleSnapshot
 	RollupRule
 	RuleSet
+	Namespace
 	Namespaces
 */
 package schema

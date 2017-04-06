@@ -3,10 +3,17 @@ package schema;
 
 import "policy.proto";
 
-message MappingRule {
+message MappingRuleSnapshot {
   string name = 1;
-  map<string,string> tag_filters = 2;
-  repeated Policy policies = 3;
+  bool tombstoned = 2;
+  int64 cutover_time = 3;
+  map<string,string> tag_filters = 4;
+  repeated Policy policies = 5;
+}
+
+message MappingRule {
+  string uuid = 1;
+  repeated MappingRuleSnapshot snapshots = 2;
 }
 
 message RollupTarget {
@@ -15,25 +22,36 @@ message RollupTarget {
   repeated Policy policies = 3;
 }
 
-message RollupRule {
+message RollupRuleSnapshot {
   string name = 1;
-  map<string,string> tag_filters = 2;
-  repeated RollupTarget targets = 3;
+  bool tombstoned = 2;
+  int64 cutover_time = 3;
+  map<string,string> tag_filters = 4;
+  repeated RollupTarget targets = 5;
+}
+
+message RollupRule {
+  string uuid = 1;
+  repeated RollupRuleSnapshot snapshots = 2;
 }
 
 message RuleSet {
-  string namespace = 1;
-  int64 created_at = 2;
-  int64 last_updated_at = 3;
-  bool tombstoned = 4;
-  int32 version = 5;
+  string uuid = 1;
+  string namespace = 2;
+  int64 created_at = 3;
+  int64 last_updated_at = 4;
+  bool tombstoned = 5;
   int64 cutover_time = 6;
   repeated MappingRule mapping_rules = 7;
   repeated RollupRule rollup_rules = 8;
 }
 
+message Namespace {
+  string name = 1;
+  bool tombstoned = 2;
+  int64 expire_at = 3;
+}
+
 message Namespaces {
-  repeated string namespaces = 1;
-  int64 ruleset_cutover_time = 2;
-  int32 version = 3;
+  repeated Namespace namespaces = 1;
 }
