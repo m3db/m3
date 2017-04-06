@@ -140,10 +140,16 @@ func TestMappingRuleActiveSnapshotNotFound(t *testing.T) {
 	require.Nil(t, mr.ActiveSnapshot(0))
 }
 
-func TestMappingRuleActiveSnapshotFound(t *testing.T) {
+func TestMappingRuleActiveSnapshotFound_Second(t *testing.T) {
 	mr, err := newMappingRule(testMappingRuleSchema, nil)
 	require.NoError(t, err)
 	require.Equal(t, mr.snapshots[1], mr.ActiveSnapshot(100000))
+}
+
+func TestMappingRuleActiveSnapshotFound_First(t *testing.T) {
+	mr, err := newMappingRule(testMappingRuleSchema, nil)
+	require.NoError(t, err)
+	require.Equal(t, mr.snapshots[0], mr.ActiveSnapshot(20000))
 }
 
 func TestMappingRuleActiveRuleNotFound(t *testing.T) {
@@ -152,7 +158,7 @@ func TestMappingRuleActiveRuleNotFound(t *testing.T) {
 	require.Equal(t, mr, mr.ActiveRule(0))
 }
 
-func TestMappingRuleActiveRuleFound(t *testing.T) {
+func TestMappingRuleActiveRuleFound_Second(t *testing.T) {
 	mr, err := newMappingRule(testMappingRuleSchema, nil)
 	require.NoError(t, err)
 	expected := &mappingRule{
@@ -160,4 +166,10 @@ func TestMappingRuleActiveRuleFound(t *testing.T) {
 		snapshots: mr.snapshots[1:],
 	}
 	require.Equal(t, expected, mr.ActiveRule(100000))
+}
+
+func TestMappingRuleActiveRuleFound_First(t *testing.T) {
+	mr, err := newMappingRule(testMappingRuleSchema, nil)
+	require.NoError(t, err)
+	require.Equal(t, mr, mr.ActiveRule(20000))
 }
