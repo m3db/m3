@@ -180,11 +180,10 @@ func (rc *rollupRule) ActiveRule(timeNs int64) *rollupRule {
 }
 
 func (rc *rollupRule) activeIndex(timeNs int64) int {
-	idx := 0
-	for idx < len(rc.snapshots) && rc.snapshots[idx].cutoverNs <= timeNs {
-		idx++
+	idx := len(rc.snapshots) - 1
+	for idx >= 0 && rc.snapshots[idx].cutoverNs > timeNs {
+		idx--
 	}
-	idx--
 	return idx
 }
 
