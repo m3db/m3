@@ -26,8 +26,13 @@ import (
 	"github.com/m3db/m3metrics/policy"
 )
 
-// rollupResult contains the rollup metric id and the associated policies.
-type rollupResult struct {
+var (
+	// EmptyMatchResult is the result when no matches were found.
+	EmptyMatchResult = NewMatchResult(0, 0, timeNsMax, nil, nil)
+)
+
+// RollupResult contains the rollup metric id and the associated policies.
+type RollupResult struct {
 	ID       []byte
 	Policies []policy.Policy
 }
@@ -38,16 +43,16 @@ type MatchResult struct {
 	cutoverNs  int64
 	expireAtNs int64
 	mappings   []policy.Policy
-	rollups    []rollupResult
+	rollups    []RollupResult
 }
 
-// newMatchResult creates a new match result.
-func newMatchResult(
+// NewMatchResult creates a new match result.
+func NewMatchResult(
 	version int,
 	cutoverNs int64,
 	expireAtNs int64,
 	mappings []policy.Policy,
-	rollups []rollupResult,
+	rollups []RollupResult,
 ) MatchResult {
 	return MatchResult{
 		version:    version,

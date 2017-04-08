@@ -102,7 +102,7 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 			matchAt:    time.Unix(0, 25000),
 			cutoverNs:  22000,
 			expireAtNs: 30000,
-			result: []rollupResult{
+			result: []RollupResult{
 				{
 					ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
 					Policies: []policy.Policy{
@@ -124,7 +124,7 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 			matchAt:    time.Unix(0, 25000),
 			cutoverNs:  24000,
 			expireAtNs: 30000,
-			result: []rollupResult{
+			result: []RollupResult{
 				{
 					ID: b("rName3|rtagName1=rtagValue2"),
 					Policies: []policy.Policy{
@@ -138,7 +138,7 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 			matchAt:    time.Unix(0, 25000),
 			cutoverNs:  0,
 			expireAtNs: 30000,
-			result:     []rollupResult{},
+			result:     []RollupResult{},
 		},
 	}
 
@@ -252,7 +252,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					matchAt:    time.Unix(0, 25000),
 					cutoverNs:  22000,
 					expireAtNs: 30000,
-					result: []rollupResult{
+					result: []RollupResult{
 						{
 							ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
 							Policies: []policy.Policy{
@@ -274,7 +274,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					matchAt:    time.Unix(0, 25000),
 					cutoverNs:  24000,
 					expireAtNs: 30000,
-					result: []rollupResult{
+					result: []RollupResult{
 						{
 							ID: b("rName3|rtagName1=rtagValue2"),
 							Policies: []policy.Policy{
@@ -288,7 +288,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					matchAt:    time.Unix(0, 25000),
 					cutoverNs:  0,
 					expireAtNs: 30000,
-					result:     []rollupResult{},
+					result:     []RollupResult{},
 				},
 			},
 		},
@@ -329,7 +329,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					matchAt:    time.Unix(0, 35000),
 					cutoverNs:  35000,
 					expireAtNs: 100000,
-					result: []rollupResult{
+					result: []RollupResult{
 						{
 							ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
 							Policies: []policy.Policy{
@@ -345,7 +345,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					matchAt:    time.Unix(0, 35000),
 					cutoverNs:  24000,
 					expireAtNs: 100000,
-					result: []rollupResult{
+					result: []RollupResult{
 						{
 							ID: b("rName3|rtagName1=rtagValue2"),
 							Policies: []policy.Policy{
@@ -359,7 +359,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					matchAt:    time.Unix(0, 35000),
 					cutoverNs:  0,
 					expireAtNs: 100000,
-					result:     []rollupResult{},
+					result:     []RollupResult{},
 				},
 			},
 		},
@@ -399,7 +399,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					matchAt:    time.Unix(0, 250000),
 					cutoverNs:  100000,
 					expireAtNs: timeNsMax,
-					result: []rollupResult{
+					result: []RollupResult{
 						{
 							ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
 							Policies: []policy.Policy{
@@ -421,7 +421,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					matchAt:    time.Unix(0, 250000),
 					cutoverNs:  24000,
 					expireAtNs: timeNsMax,
-					result: []rollupResult{
+					result: []RollupResult{
 						{
 							ID: b("rName3|rtagName1=rtagValue2"),
 							Policies: []policy.Policy{
@@ -435,7 +435,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					matchAt:    time.Unix(0, 250000),
 					cutoverNs:  0,
 					expireAtNs: timeNsMax,
-					result:     []rollupResult{},
+					result:     []RollupResult{},
 				},
 			},
 		},
@@ -1474,7 +1474,7 @@ type testRollupResultsData struct {
 	matchAt    time.Time
 	cutoverNs  int64
 	expireAtNs int64
-	result     []rollupResult
+	result     []RollupResult
 }
 
 func b(v string) []byte {

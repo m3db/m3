@@ -108,7 +108,7 @@ func (as *activeRuleSet) Match(id []byte, t time.Time) MatchResult {
 	// The result expires when it reaches the first cutover time after t among all
 	// active rules because the metric may then be matched against a different set of rules.
 	expireAtNs := as.nextCutover(timeNs)
-	return newMatchResult(as.version, cutoverNs, expireAtNs, mappingPolicies, rollupResults)
+	return NewMatchResult(as.version, cutoverNs, expireAtNs, mappingPolicies, rollupResults)
 }
 
 func (as *activeRuleSet) matchMappings(id []byte, timeNs int64) (int64, []policy.Policy) {
@@ -133,7 +133,7 @@ func (as *activeRuleSet) matchMappings(id []byte, timeNs int64) (int64, []policy
 	return cutoverNs, resolvePolicies(policies)
 }
 
-func (as *activeRuleSet) matchRollups(id []byte, timeNs int64) (int64, []rollupResult) {
+func (as *activeRuleSet) matchRollups(id []byte, timeNs int64) (int64, []RollupResult) {
 	// TODO(xichen): pool the rollup targets.
 	var (
 		cutoverNs int64
@@ -177,7 +177,7 @@ func (as *activeRuleSet) matchRollups(id []byte, timeNs int64) (int64, []rollupR
 }
 
 // toRollupResults encodes rollup target name and values into ids for each rollup target.
-func (as *activeRuleSet) toRollupResults(id []byte, targets []rollupTarget) []rollupResult {
+func (as *activeRuleSet) toRollupResults(id []byte, targets []rollupTarget) []RollupResult {
 	// NB(r): This is n^2 however this should be quite fast still as
 	// long as there is not an absurdly high number of rollup
 	// targets for any given ID and that iterfn is alloc free.
@@ -187,7 +187,7 @@ func (as *activeRuleSet) toRollupResults(id []byte, targets []rollupTarget) []ro
 
 	// TODO(xichen): pool tag pairs and rollup results.
 	var tagPairs []TagPair
-	rollups := make([]rollupResult, 0, len(targets))
+	rollups := make([]RollupResult, 0, len(targets))
 	for _, target := range targets {
 		tagPairs = tagPairs[:0]
 		for _, tag := range target.Tags {
@@ -201,7 +201,7 @@ func (as *activeRuleSet) toRollupResults(id []byte, targets []rollupTarget) []ro
 			}
 			iter.Close()
 		}
-		result := rollupResult{
+		result := RollupResult{
 			ID:       as.newIDFn(target.Name, tagPairs),
 			Policies: target.Policies,
 		}

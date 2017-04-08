@@ -40,7 +40,7 @@ func TestMatchResult(t *testing.T) {
 			policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
 			policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 		}
-		rollups = []rollupResult{
+		rollups = []RollupResult{
 			{
 				ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
 				Policies: []policy.Policy{
@@ -56,7 +56,7 @@ func TestMatchResult(t *testing.T) {
 		}
 	)
 
-	res := newMatchResult(version, cutoverNs, expireAtNs, mappings, rollups)
+	res := NewMatchResult(version, cutoverNs, expireAtNs, mappings, rollups)
 	require.False(t, res.HasExpired(time.Unix(0, 0)))
 	require.True(t, res.HasExpired(time.Unix(0, 100000)))
 
