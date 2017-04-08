@@ -27,18 +27,41 @@ import (
 )
 
 var (
-	emptyNamespace  Namespace
-	emptyNamespaces Namespaces
+	emptyNamespaceSnapshot NamespaceSnapshot
+	emptyNamespace         Namespace
+	emptyNamespaces        Namespaces
 
-	errNilNamespaceSchema  = errors.New("nil namespace schema")
-	errNilNamespacesSchema = errors.New("nil namespaces schema")
+	errNilNamespaceSnapshotSchema = errors.New("nil namespace snapshot schema")
+	errNilNamespaceSchema         = errors.New("nil namespace schema")
+	errNilNamespacesSchema        = errors.New("nil namespaces schema")
 )
 
-// Namespace is a logical isolation unit for which rules are defined.
+// NamespaceSnapshot defines a namespace snapshot for which rules are defined.
+type NamespaceSnapshot struct {
+	forRuleSetVersion int
+	tombstoned        bool
+}
+
+func newNamespaceSnapshot(snapshot *schema.NamespaceSnapshot) (NamespaceSnapshot, error) {
+	if snapshot == nil {
+		return emptyNamespaceSnapshot, errNilNamespaceSnapshotSchema
+	}
+	return NamespaceSnapshot{
+		forRuleSetVersion: int(snapshot.ForRulesetVersion),
+		tombstoned:        snapshot.Tombstoned,
+	}, nil
+}
+
+// ForRuleSetVersion is the ruleset version this namespace change is related to.
+func (s NamespaceSnapshot) ForRuleSetVersion() int { return s.forRuleSetVersion }
+
+// Tombstoned determines whether the namespace has been tombstoned.
+func (s NamespaceSnapshot) Tombstoned() bool { return s.tombstoned }
+
+// Namespace stores namespace snapshots.
 type Namespace struct {
-	name       []byte
-	tombstoned bool
-	expireAtNs int64
+	name      []byte
+	snapshots []NamespaceSnapshot
 }
 
 // newNameSpace creates a new namespace.
@@ -46,21 +69,25 @@ func newNameSpace(namespace *schema.Namespace) (Namespace, error) {
 	if namespace == nil {
 		return emptyNamespace, errNilNamespaceSchema
 	}
+	snapshots := make([]NamespaceSnapshot, 0, len(namespace.Snapshots))
+	for _, snapshot := range namespace.Snapshots {
+		s, err := newNamespaceSnapshot(snapshot)
+		if err != nil {
+			return emptyNamespace, err
+		}
+		snapshots = append(snapshots, s)
+	}
 	return Namespace{
-		name:       []byte(namespace.Name),
-		tombstoned: namespace.Tombstoned,
-		expireAtNs: namespace.ExpireAt,
+		name:      []byte(namespace.Name),
+		snapshots: snapshots,
 	}, nil
 }
 
 // Name is the name of the namespace.
-func (n *Namespace) Name() []byte { return n.name }
+func (n Namespace) Name() []byte { return n.name }
 
-// Tombstoned determines whether the namespace has been tombstoned.
-func (n *Namespace) Tombstoned() bool { return n.tombstoned }
-
-// ExpireAtNs determines when the namespace will be expired.
-func (n *Namespace) ExpireAtNs() int64 { return n.expireAtNs }
+// Snapshots return the namespace snapshots.
+func (n Namespace) Snapshots() []NamespaceSnapshot { return n.snapshots }
 
 // Namespaces store the list of namespaces for which rules are defined.
 type Namespaces struct {

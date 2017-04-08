@@ -21,21 +21,16 @@
 syntax = "proto3";
 package schema;
 
-message Resolution {
-	int64 window_size = 1;
-	int64 precision = 2;
+message NamespaceSnapshot {
+  int32 for_ruleset_version = 1;
+  bool tombstoned = 2;
 }
 
-message Retention {
-	int64 period = 1;
+message Namespace {
+  string name = 1;
+  repeated NamespaceSnapshot snapshots = 2;
 }
 
-message Policy {
-	int32 id = 1;
-	Resolution resolution = 2;
-	Retention retention = 3;
-}
-
-message Policies {
-	repeated Policy policies = 1;
+message Namespaces {
+  repeated Namespace namespaces = 1;
 }

@@ -28,6 +28,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNewNamespaceSnapshotNilSchema(t *testing.T) {
+	_, err := newNamespaceSnapshot(nil)
+	require.Equal(t, err, errNilNamespaceSnapshotSchema)
+}
+
+func TestNewNamespaceSnapshotValidSchema(t *testing.T) {
+	snapshot, err := newNamespaceSnapshot(&schema.NamespaceSnapshot{
+		ForRulesetVersion: 123,
+		Tombstoned:        true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 123, snapshot.ForRuleSetVersion())
+	require.Equal(t, true, snapshot.Tombstoned())
+}
+
 func TestNewNamespaceNilSchema(t *testing.T) {
 	_, err := newNameSpace(nil)
 	require.Equal(t, err, errNilNamespaceSchema)
@@ -35,14 +50,25 @@ func TestNewNamespaceNilSchema(t *testing.T) {
 
 func TestNewNamespaceValidSchema(t *testing.T) {
 	ns, err := newNameSpace(&schema.Namespace{
-		Name:       "foo",
-		Tombstoned: false,
-		ExpireAt:   12345,
+		Name: "foo",
+		Snapshots: []*schema.NamespaceSnapshot{
+			&schema.NamespaceSnapshot{
+				ForRulesetVersion: 123,
+				Tombstoned:        false,
+			},
+			&schema.NamespaceSnapshot{
+				ForRulesetVersion: 456,
+				Tombstoned:        true,
+			},
+		},
 	})
+	expected := []NamespaceSnapshot{
+		{forRuleSetVersion: 123, tombstoned: false},
+		{forRuleSetVersion: 456, tombstoned: true},
+	}
 	require.NoError(t, err)
 	require.Equal(t, []byte("foo"), ns.Name())
-	require.Equal(t, false, ns.Tombstoned())
-	require.Equal(t, int64(12345), ns.ExpireAtNs())
+	require.Equal(t, expected, ns.Snapshots())
 }
 
 func TestNewNamespacesNilSchema(t *testing.T) {
@@ -54,14 +80,30 @@ func TestNewNamespacesValidSchema(t *testing.T) {
 	ns, err := NewNamespaces(1, &schema.Namespaces{
 		Namespaces: []*schema.Namespace{
 			&schema.Namespace{
-				Name:       "foo",
-				Tombstoned: false,
-				ExpireAt:   12345,
+				Name: "foo",
+				Snapshots: []*schema.NamespaceSnapshot{
+					&schema.NamespaceSnapshot{
+						ForRulesetVersion: 123,
+						Tombstoned:        false,
+					},
+					&schema.NamespaceSnapshot{
+						ForRulesetVersion: 456,
+						Tombstoned:        true,
+					},
+				},
 			},
 			&schema.Namespace{
-				Name:       "bar",
-				Tombstoned: true,
-				ExpireAt:   67890,
+				Name: "bar",
+				Snapshots: []*schema.NamespaceSnapshot{
+					&schema.NamespaceSnapshot{
+						ForRulesetVersion: 789,
+						Tombstoned:        false,
+					},
+					&schema.NamespaceSnapshot{
+						ForRulesetVersion: 1000,
+						Tombstoned:        true,
+					},
+				},
 			},
 		},
 	})
@@ -69,14 +111,18 @@ func TestNewNamespacesValidSchema(t *testing.T) {
 	require.Equal(t, 1, ns.Version())
 	expected := []Namespace{
 		{
-			name:       b("foo"),
-			tombstoned: false,
-			expireAtNs: 12345,
+			name: b("foo"),
+			snapshots: []NamespaceSnapshot{
+				{forRuleSetVersion: 123, tombstoned: false},
+				{forRuleSetVersion: 456, tombstoned: true},
+			},
 		},
 		{
-			name:       b("bar"),
-			tombstoned: true,
-			expireAtNs: 67890,
+			name: b("bar"),
+			snapshots: []NamespaceSnapshot{
+				{forRuleSetVersion: 789, tombstoned: false},
+				{forRuleSetVersion: 1000, tombstoned: true},
+			},
 		},
 	}
 	require.Equal(t, expected, ns.Namespaces())

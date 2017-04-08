@@ -22,27 +22,6 @@
 // source: policy.proto
 // DO NOT EDIT!
 
-/*
-Package schema is a generated protocol buffer package.
-
-It is generated from these files:
-	policy.proto
-	rule.proto
-
-It has these top-level messages:
-	Resolution
-	Retention
-	Policy
-	Policies
-	MappingRuleSnapshot
-	MappingRule
-	RollupTarget
-	RollupRuleSnapshot
-	RollupRule
-	RuleSet
-	Namespace
-	Namespaces
-*/
 package schema
 
 import proto "github.com/golang/protobuf/proto"
@@ -54,12 +33,6 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the proto package it is being compiled against.
-// A compilation error at this line likely means your copy of the
-// proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
-
 type Resolution struct {
 	WindowSize int64 `protobuf:"varint,1,opt,name=window_size,json=windowSize" json:"window_size,omitempty"`
 	Precision  int64 `protobuf:"varint,2,opt,name=precision" json:"precision,omitempty"`
@@ -68,7 +41,7 @@ type Resolution struct {
 func (m *Resolution) Reset()                    { *m = Resolution{} }
 func (m *Resolution) String() string            { return proto.CompactTextString(m) }
 func (*Resolution) ProtoMessage()               {}
-func (*Resolution) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+func (*Resolution) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{0} }
 
 type Retention struct {
 	Period int64 `protobuf:"varint,1,opt,name=period" json:"period,omitempty"`
@@ -77,7 +50,7 @@ type Retention struct {
 func (m *Retention) Reset()                    { *m = Retention{} }
 func (m *Retention) String() string            { return proto.CompactTextString(m) }
 func (*Retention) ProtoMessage()               {}
-func (*Retention) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (*Retention) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{1} }
 
 type Policy struct {
 	Id         int32       `protobuf:"varint,1,opt,name=id" json:"id,omitempty"`
@@ -88,7 +61,7 @@ type Policy struct {
 func (m *Policy) Reset()                    { *m = Policy{} }
 func (m *Policy) String() string            { return proto.CompactTextString(m) }
 func (*Policy) ProtoMessage()               {}
-func (*Policy) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (*Policy) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{2} }
 
 func (m *Policy) GetResolution() *Resolution {
 	if m != nil {
@@ -111,7 +84,7 @@ type Policies struct {
 func (m *Policies) Reset()                    { *m = Policies{} }
 func (m *Policies) String() string            { return proto.CompactTextString(m) }
 func (*Policies) ProtoMessage()               {}
-func (*Policies) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+func (*Policies) Descriptor() ([]byte, []int) { return fileDescriptor1, []int{3} }
 
 func (m *Policies) GetPolicies() []*Policy {
 	if m != nil {
@@ -127,9 +100,9 @@ func init() {
 	proto.RegisterType((*Policies)(nil), "schema.Policies")
 }
 
-func init() { proto.RegisterFile("policy.proto", fileDescriptor0) }
+func init() { proto.RegisterFile("policy.proto", fileDescriptor1) }
 
-var fileDescriptor0 = []byte{
+var fileDescriptor1 = []byte{
 	// 221 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x4c, 0x90, 0x41, 0x4b, 0xc4, 0x30,
 	0x10, 0x85, 0x69, 0x8b, 0x65, 0x3b, 0x95, 0x05, 0xe7, 0x20, 0x39, 0x08, 0x2e, 0xf1, 0xb2, 0x78,
