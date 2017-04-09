@@ -47,11 +47,11 @@ type TChanNode interface {
 	FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchBlocksMetadataRawRequest) (*FetchBlocksMetadataRawResult_, error)
 	FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error)
 	GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error)
-	GetWriteNewSeriesAsyncResult(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error)
+	GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error)
 	Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	Repair(ctx thrift.Context) error
 	SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error)
-	SetWriteNewSeriesAsyncResult(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error)
+	SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error)
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRequest) error
@@ -376,10 +376,10 @@ func (c *tchanNodeClient) GetPersistRateLimit(ctx thrift.Context) (*NodePersistR
 	return resp.GetSuccess(), err
 }
 
-func (c *tchanNodeClient) GetWriteNewSeriesAsyncResult(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error) {
-	var resp NodeGetWriteNewSeriesAsyncResultResult
-	args := NodeGetWriteNewSeriesAsyncResultArgs{}
-	success, err := c.client.Call(ctx, c.thriftService, "getWriteNewSeriesAsyncResult", &args, &resp)
+func (c *tchanNodeClient) GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error) {
+	var resp NodeGetWriteNewSeriesAsyncResult
+	args := NodeGetWriteNewSeriesAsyncArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "getWriteNewSeriesAsync", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
@@ -430,12 +430,12 @@ func (c *tchanNodeClient) SetPersistRateLimit(ctx thrift.Context, req *NodeSetPe
 	return resp.GetSuccess(), err
 }
 
-func (c *tchanNodeClient) SetWriteNewSeriesAsyncResult(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error) {
-	var resp NodeSetWriteNewSeriesAsyncResultResult
-	args := NodeSetWriteNewSeriesAsyncResultArgs{
+func (c *tchanNodeClient) SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error) {
+	var resp NodeSetWriteNewSeriesAsyncResult
+	args := NodeSetWriteNewSeriesAsyncArgs{
 		Req: req,
 	}
-	success, err := c.client.Call(ctx, c.thriftService, "setWriteNewSeriesAsyncResult", &args, &resp)
+	success, err := c.client.Call(ctx, c.thriftService, "setWriteNewSeriesAsync", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
@@ -513,11 +513,11 @@ func (s *tchanNodeServer) Methods() []string {
 		"fetchBlocksMetadataRaw",
 		"fetchBlocksRaw",
 		"getPersistRateLimit",
-		"getWriteNewSeriesAsyncResult",
+		"getWriteNewSeriesAsync",
 		"health",
 		"repair",
 		"setPersistRateLimit",
-		"setWriteNewSeriesAsyncResult",
+		"setWriteNewSeriesAsync",
 		"truncate",
 		"write",
 		"writeBatchRaw",
@@ -536,16 +536,16 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleFetchBlocksRaw(ctx, protocol)
 	case "getPersistRateLimit":
 		return s.handleGetPersistRateLimit(ctx, protocol)
-	case "getWriteNewSeriesAsyncResult":
-		return s.handleGetWriteNewSeriesAsyncResult(ctx, protocol)
+	case "getWriteNewSeriesAsync":
+		return s.handleGetWriteNewSeriesAsync(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
 	case "repair":
 		return s.handleRepair(ctx, protocol)
 	case "setPersistRateLimit":
 		return s.handleSetPersistRateLimit(ctx, protocol)
-	case "setWriteNewSeriesAsyncResult":
-		return s.handleSetWriteNewSeriesAsyncResult(ctx, protocol)
+	case "setWriteNewSeriesAsync":
+		return s.handleSetWriteNewSeriesAsync(ctx, protocol)
 	case "truncate":
 		return s.handleTruncate(ctx, protocol)
 	case "write":
@@ -698,16 +698,16 @@ func (s *tchanNodeServer) handleGetPersistRateLimit(ctx thrift.Context, protocol
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleGetWriteNewSeriesAsyncResult(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req NodeGetWriteNewSeriesAsyncResultArgs
-	var res NodeGetWriteNewSeriesAsyncResultResult
+func (s *tchanNodeServer) handleGetWriteNewSeriesAsync(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeGetWriteNewSeriesAsyncArgs
+	var res NodeGetWriteNewSeriesAsyncResult
 
 	if err := req.Read(protocol); err != nil {
 		return false, nil, err
 	}
 
 	r, err :=
-		s.handler.GetWriteNewSeriesAsyncResult(ctx)
+		s.handler.GetWriteNewSeriesAsync(ctx)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -809,16 +809,16 @@ func (s *tchanNodeServer) handleSetPersistRateLimit(ctx thrift.Context, protocol
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleSetWriteNewSeriesAsyncResult(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req NodeSetWriteNewSeriesAsyncResultArgs
-	var res NodeSetWriteNewSeriesAsyncResultResult
+func (s *tchanNodeServer) handleSetWriteNewSeriesAsync(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeSetWriteNewSeriesAsyncArgs
+	var res NodeSetWriteNewSeriesAsyncResult
 
 	if err := req.Read(protocol); err != nil {
 		return false, nil, err
 	}
 
 	r, err :=
-		s.handler.SetWriteNewSeriesAsyncResult(ctx, req.Req)
+		s.handler.SetWriteNewSeriesAsync(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {

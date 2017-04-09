@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist"
-	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/errors"
 
@@ -116,14 +115,6 @@ func (m *flushManager) Flush(curr time.Time) error {
 	}
 
 	return multiErr.FinalError()
-}
-
-func (m *flushManager) SetRateLimitOptions(value ratelimit.Options) {
-	m.pm.SetRateLimitOptions(value)
-}
-
-func (m *flushManager) RateLimitOptions() ratelimit.Options {
-	return m.pm.RateLimitOptions()
 }
 
 func (m *flushManager) Report() {

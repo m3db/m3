@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -49,9 +49,6 @@ import (
 type Database interface {
 	// Options returns the database options
 	Options() Options
-
-	// RuntimeOptionsManager returns the database runtime options manager
-	RuntimeOptionsManager() RuntimeOptionsManager
 
 	// AssignShardSet sets the shard set assignment and returns immediately
 	AssignShardSet(shardSet sharding.ShardSet)
@@ -324,12 +321,6 @@ type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
 
-	// SetRateLimitOptions sets the rate limit options
-	SetRateLimitOptions(value ratelimit.Options)
-
-	// RateLimitOptions returns the rate limit options
-	RateLimitOptions() ratelimit.Options
-
 	// Report reports runtime information
 	Report()
 }
@@ -489,6 +480,12 @@ type Options interface {
 	// CommitLogOptions returns the commit log options
 	CommitLogOptions() commitlog.Options
 
+	// SetRuntimeOptionsManager sets the runtime options manager
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManager returns the runtime options manager
+	RuntimeOptionsManager() runtime.OptionsManager
+
 	// SetErrorCounterOptions sets the error counter options
 	SetErrorCounterOptions(value xcounter.Options) Options
 
@@ -619,43 +616,4 @@ type Options interface {
 
 	// FetchBlocksMetadataResultsPool returns the fetchBlocksMetadataResultsPool
 	FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool
-
-	// SetDefaultRuntimeOptions sets whether to write new series asynchronously or not
-	SetDefaultRuntimeOptions(value RuntimeOptions) Options
-
-	// DefaultRuntimeOptions returns whether to write new series asynchronously or not
-	DefaultRuntimeOptions() RuntimeOptions
-}
-
-// RuntimeOptions is a set of runtime options
-type RuntimeOptions interface {
-	// SetWriteNewSeriesAsync sets whether to write new series asynchronously or not
-	SetWriteNewSeriesAsync(value bool) RuntimeOptions
-
-	// WriteNewSeriesAsync returns whether to write new series asynchronously or not
-	WriteNewSeriesAsync() bool
-}
-
-// RuntimeOptionsManager updates and supplies runtime options
-type RuntimeOptionsManager interface {
-	// Update updates the current runtime options
-	Update(value RuntimeOptions)
-
-	// Get returns the current values
-	Get() RuntimeOptions
-
-	// GetAndWatch begins a new watch also returning the current values,
-	// the returned watch will not notify on the channel until a new update
-	// is available
-	GetAndWatch() (RuntimeOptions, RuntimeOptionsWatch)
-
-	// Close closes the watcher and all descendent watches
-	Close()
-}
-
-// RuntimeOptionsWatch is a runtime options watch
-type RuntimeOptionsWatch interface {
-	C() <-chan struct{}
-	Get() RuntimeOptions
-	Close()
 }

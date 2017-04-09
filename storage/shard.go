@@ -35,12 +35,14 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	xclose "github.com/m3db/m3x/close"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
@@ -79,29 +81,30 @@ const (
 type dbShard struct {
 	sync.RWMutex
 	block.DatabaseBlockRetriever
-	opts                  Options
-	nowFn                 clock.NowFn
-	state                 dbShardState
-	namespace             ts.ID
-	seriesBlockRetriever  series.QueryableBlockRetriever
-	shard                 uint32
-	increasingIndex       increasingIndex
-	seriesPool            series.DatabaseSeriesPool
-	writeCommitLogFn      writeCommitLogFn
-	insertQueue           *dbShardInsertQueue
-	lookup                map[ts.Hash]*list.Element
-	list                  *list.List
-	bs                    bootstrapState
-	newSeriesBootstrapped bool
-	filesetBeforeFn       filesetBeforeFn
-	deleteFilesFn         deleteFilesFn
-	tickSleepIfAheadEvery int
-	sleepFn               func(time.Duration)
-	identifierPool        ts.IdentifierPool
-	contextPool           context.Pool
-	flushState            shardFlushState
-	currRuntimeOptions    dbShardRuntimeOptions
-	metrics               dbShardMetrics
+	opts                    Options
+	nowFn                   clock.NowFn
+	state                   dbShardState
+	namespace               ts.ID
+	seriesBlockRetriever    series.QueryableBlockRetriever
+	shard                   uint32
+	increasingIndex         increasingIndex
+	seriesPool              series.DatabaseSeriesPool
+	writeCommitLogFn        writeCommitLogFn
+	insertQueue             *dbShardInsertQueue
+	lookup                  map[ts.Hash]*list.Element
+	list                    *list.List
+	bs                      bootstrapState
+	newSeriesBootstrapped   bool
+	filesetBeforeFn         filesetBeforeFn
+	deleteFilesFn           deleteFilesFn
+	tickSleepIfAheadEvery   int
+	sleepFn                 func(time.Duration)
+	identifierPool          ts.IdentifierPool
+	contextPool             context.Pool
+	flushState              shardFlushState
+	runtimeOptsListenCloser xclose.SimpleCloser
+	currRuntimeOptions      dbShardRuntimeOptions
+	metrics                 dbShardMetrics
 }
 
 type dbShardRuntimeOptions struct {
@@ -164,7 +167,6 @@ func newDatabaseShard(
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
 	needsBootstrap bool,
-	runtimeOptsMgr RuntimeOptionsManager,
 	opts Options,
 ) databaseShard {
 	scope := opts.InstrumentOptions().MetricsScope().
@@ -193,37 +195,26 @@ func newDatabaseShard(
 	d.insertQueue = newDbShardInsertQueue(d.insertSeriesEntries, scope)
 	d.insertQueue.Start()
 
-	if runtimeOptsMgr != nil {
-		// NB(r): When running with tests and other integration
-		// scenarios the runtime options manager isn't always active
-		d.initRuntimeOptions(runtimeOptsMgr)
-	}
+	d.runtimeOptsListenCloser = opts.RuntimeOptionsManager().RegisterListener(d)
 
 	if !needsBootstrap {
 		d.bs = bootstrapped
 		d.newSeriesBootstrapped = true
 	}
+
 	if blockRetriever != nil {
 		// If passing the block retriever then set the block retriever
 		// and set the series block retriever as the shard itself
 		d.DatabaseBlockRetriever = blockRetriever
 		d.seriesBlockRetriever = d
 	}
+
 	d.metrics.create.Inc(1)
+
 	return d
 }
 
-func (s *dbShard) initRuntimeOptions(mgr RuntimeOptionsManager) {
-	curr, watch := mgr.GetAndWatch()
-	s.setRuntimeOptions(curr)
-	go func() {
-		for range watch.C() {
-			s.setRuntimeOptions(watch.Get())
-		}
-	}()
-}
-
-func (s *dbShard) setRuntimeOptions(value RuntimeOptions) {
+func (s *dbShard) SetRuntimeOptions(value runtime.Options) {
 	s.Lock()
 	s.currRuntimeOptions = dbShardRuntimeOptions{
 		writeNewSeriesAsync: value.WriteNewSeriesAsync(),
@@ -331,6 +322,10 @@ func (s *dbShard) Close() error {
 	s.Unlock()
 
 	s.insertQueue.Stop()
+
+	if closer := s.runtimeOptsListenCloser; closer != nil {
+		closer.Close()
+	}
 
 	s.metrics.closeStart.Inc(1)
 	stopwatch := s.metrics.closeLatency.Start()
@@ -508,6 +503,10 @@ func (s *dbShard) Write(
 		err = entry.series.Write(ctx, timestamp, value, unit, annotation)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
+		// NB(r): We explicitly do not place the series ID back into a
+		// pool as high frequency users of series IDs such
+		// as the commit log need to use the reference without the
+		// overhead of ownership tracking. This makes taking a ref here safe.
 		commitLogSeriesID = entry.series.ID()
 		commitLogSeriesUniqueIndex = entry.index
 		entry.decrementWriterCount()
@@ -528,6 +527,11 @@ func (s *dbShard) Write(
 		if err != nil {
 			return err
 		}
+		// NB(r): Make sure to use the copied ID which will eventually
+		// be set to the newly series inserted ID.
+		// The `id` var here is volatile after the context is closed
+		// and adding ownership tracking to use it in the commit log
+		// (i.e. registering a dependency on the context) is too expensive.
 		commitLogSeriesID = result.copiedID
 		commitLogSeriesUniqueIndex = result.uniqueIndex
 	}

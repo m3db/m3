@@ -18,59 +18,57 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package runtime
 
 import (
+	"github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/watch"
 )
 
-type runtimeOptionsManager struct {
+type optionsManager struct {
 	watchable xwatch.Watchable
 }
 
-// NewRuntimeOptionsManager creates a new runtime options manager
-func NewRuntimeOptionsManager(initialValue RuntimeOptions) RuntimeOptionsManager {
+// NewOptionsManager creates a new runtime options manager
+func NewOptionsManager(initialValue Options) OptionsManager {
 	watchable := xwatch.NewWatchable()
 	watchable.Update(initialValue)
-	return &runtimeOptionsManager{
+	return &optionsManager{
 		watchable: watchable,
 	}
 }
 
-func (w *runtimeOptionsManager) Update(value RuntimeOptions) {
+func (w *optionsManager) Update(value Options) {
 	w.watchable.Update(value)
 }
 
-func (w *runtimeOptionsManager) Get() RuntimeOptions {
-	return w.watchable.Get().(RuntimeOptions)
+func (w *optionsManager) Get() Options {
+	return w.watchable.Get().(Options)
 }
 
-func (w *runtimeOptionsManager) GetAndWatch() (RuntimeOptions, RuntimeOptionsWatch) {
+func (w *optionsManager) RegisterListener(
+	listener OptionsListener,
+) xclose.SimpleCloser {
 	_, watch, _ := w.watchable.Watch()
+
 	// We always initialize the watchable so always read
 	// the first notification value
 	<-watch.C()
 
-	result := &runtimeOptionsWatch{watch: watch}
-	return result.Get(), result
+	// Deliver the current runtime options
+	listener.SetRuntimeOptions(watch.Get().(Options))
+
+	// Spawn a new goroutine that will terminate when the
+	// watchable terminates on the close of the runtime options manager
+	go func() {
+		for range watch.C() {
+			listener.SetRuntimeOptions(watch.Get().(Options))
+		}
+	}()
+
+	return watch
 }
 
-func (w *runtimeOptionsManager) Close() {
+func (w *optionsManager) Close() {
 	w.watchable.Close()
-}
-
-type runtimeOptionsWatch struct {
-	watch xwatch.Watch
-}
-
-func (w *runtimeOptionsWatch) C() <-chan struct{} {
-	return w.watch.C()
-}
-
-func (w *runtimeOptionsWatch) Get() RuntimeOptions {
-	return w.watch.Get().(RuntimeOptions)
-}
-
-func (w *runtimeOptionsWatch) Close() {
-	w.watch.Close()
 }

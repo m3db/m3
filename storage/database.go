@@ -84,9 +84,8 @@ type writeCommitLogFn func(
 
 type db struct {
 	sync.RWMutex
-	opts           Options
-	runtimeOptsMgr RuntimeOptionsManager
-	nowFn          clock.NowFn
+	opts  Options
+	nowFn clock.NowFn
 
 	namespaces       map[ts.Hash]databaseNamespace
 	commitLog        commitlog.CommitLog
@@ -133,15 +132,14 @@ func NewDatabase(
 	scope := iopts.MetricsScope().SubScope("database")
 
 	d := &db{
-		opts:           opts,
-		runtimeOptsMgr: NewRuntimeOptionsManager(opts.DefaultRuntimeOptions()),
-		nowFn:          opts.ClockOptions().NowFn(),
-		tickDeadline:   opts.RetentionOptions().BufferDrain(),
-		scope:          scope,
-		metrics:        newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
-		errors:         xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
-		errWindow:      opts.ErrorWindowForLoad(),
-		errThreshold:   opts.ErrorThresholdForLoad(),
+		opts:         opts,
+		nowFn:        opts.ClockOptions().NowFn(),
+		tickDeadline: opts.RetentionOptions().BufferDrain(),
+		scope:        scope,
+		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
+		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:    opts.ErrorWindowForLoad(),
+		errThreshold: opts.ErrorThresholdForLoad(),
 	}
 
 	d.commitLog = commitlog.NewCommitLog(opts.CommitLogOptions())
@@ -176,11 +174,12 @@ func NewDatabase(
 			}
 		}
 		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet, blockRetriever,
-			d, d.writeCommitLogFn, d.runtimeOptsMgr, d.opts)
+			d, d.writeCommitLogFn, d.opts)
 	}
 	d.namespaces = ns
 
-	mediator, err := newMediator(d, opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
+	mediator, err := newMediator(d,
+		opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
 	if err != nil {
 		return nil, err
 	}
@@ -192,10 +191,6 @@ func NewDatabase(
 func (d *db) Options() Options {
 	// Options are immutable safe to pass the current reference
 	return d.opts
-}
-
-func (d *db) RuntimeOptionsManager() RuntimeOptionsManager {
-	return d.runtimeOptsMgr
 }
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
@@ -251,9 +246,6 @@ func (d *db) Close() error {
 	if err := d.mediator.Close(); err != nil {
 		return err
 	}
-
-	// Expire all watches on runtime options
-	d.runtimeOptsMgr.Close()
 
 	// Finally close the commit log
 	return d.commitLog.Close()

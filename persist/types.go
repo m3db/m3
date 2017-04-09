@@ -23,7 +23,6 @@ package persist
 import (
 	"time"
 
-	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/ts"
 )
 
@@ -44,12 +43,6 @@ type PreparedPersist struct {
 type Manager interface {
 	// StartFlush begins a flush for a set of shards.
 	StartFlush() (Flush, error)
-
-	// SetRateLimitOptions sets the rate limit options.
-	SetRateLimitOptions(value ratelimit.Options)
-
-	// RateLimitOptions returns the rate limit options.
-	RateLimitOptions() ratelimit.Options
 }
 
 // Flush is a persist flush cycle, each shard and block start permutation needs

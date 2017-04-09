@@ -26,8 +26,8 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
-	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -55,7 +55,7 @@ type options struct {
 	clockOpts        clock.Options
 	instrumentOpts   instrument.Options
 	retentionOpts    retention.Options
-	rateLimitOpts    ratelimit.Options
+	runtimeOptsMgr   runtime.OptionsManager
 	decodingOpts     msgpack.DecodingOptions
 	filePathPrefix   string
 	newFileMode      os.FileMode
@@ -70,7 +70,7 @@ func NewOptions() Options {
 		clockOpts:        clock.NewOptions(),
 		instrumentOpts:   instrument.NewOptions(),
 		retentionOpts:    retention.NewOptions(),
-		rateLimitOpts:    ratelimit.NewOptions(),
+		runtimeOptsMgr:   runtime.NewOptionsManager(runtime.NewOptions()),
 		decodingOpts:     msgpack.NewDecodingOptions(),
 		filePathPrefix:   defaultFilePathPrefix,
 		newFileMode:      defaultNewFileMode,
@@ -110,14 +110,14 @@ func (o *options) RetentionOptions() retention.Options {
 	return o.retentionOpts
 }
 
-func (o *options) SetRateLimitOptions(value ratelimit.Options) Options {
+func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
 	opts := *o
-	opts.rateLimitOpts = value
+	opts.runtimeOptsMgr = value
 	return &opts
 }
 
-func (o *options) RateLimitOptions() ratelimit.Options {
-	return o.rateLimitOpts
+func (o *options) RuntimeOptionsManager() runtime.OptionsManager {
+	return o.runtimeOptsMgr
 }
 
 func (o *options) SetDecodingOptions(value msgpack.DecodingOptions) Options {

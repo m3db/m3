@@ -18,29 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package runtime
 
-const (
-	defaultWriteNewSeriesAsync = false
+import (
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type runtimeOptions struct {
-	writeNewSeriesAsync bool
+type mockListener struct {
+	sync.RWMutex
+	value Options
 }
 
-// NewRuntimeOptions creates a new set of runtime options with defaults
-func NewRuntimeOptions() RuntimeOptions {
-	return &runtimeOptions{
-		writeNewSeriesAsync: defaultWriteNewSeriesAsync,
+func (l *mockListener) SetRuntimeOptions(value Options) {
+	l.Lock()
+	defer l.Unlock()
+	l.value = value
+}
+
+func (l *mockListener) runtimeOptions() Options {
+	l.RLock()
+	defer l.RUnlock()
+	return l.value
+}
+
+func TestRuntimeOptionsManagerUpdate(t *testing.T) {
+	opts := NewOptions().SetWriteNewSeriesAsync(false)
+	mgr := NewOptionsManager(opts)
+
+	assert.Equal(t, false, mgr.Get().WriteNewSeriesAsync())
+
+	l := &mockListener{}
+	assert.Nil(t, l.value)
+
+	// Ensure immediately sets the value
+	mgr.RegisterListener(l)
+	assert.Equal(t, opts, l.runtimeOptions())
+
+	// Update and verify
+	mgr.Update(opts.SetWriteNewSeriesAsync(true))
+
+	// Verify listener receives update
+	for func() bool {
+		return !l.runtimeOptions().WriteNewSeriesAsync()
+	}() {
+		time.Sleep(10 * time.Millisecond)
 	}
-}
-
-func (o *runtimeOptions) SetWriteNewSeriesAsync(value bool) RuntimeOptions {
-	opts := *o
-	opts.writeNewSeriesAsync = value
-	return &opts
-}
-
-func (o *runtimeOptions) WriteNewSeriesAsync() bool {
-	return o.writeNewSeriesAsync
+	assert.Equal(t, true, l.runtimeOptions().WriteNewSeriesAsync())
 }

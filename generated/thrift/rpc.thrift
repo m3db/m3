@@ -58,8 +58,8 @@ service Node {
 	NodeHealthResult health() throws (1: Error err)
 	NodePersistRateLimitResult getPersistRateLimit() throws (1: Error err)
 	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
-	NodeWriteNewSeriesAsyncResult getWriteNewSeriesAsyncResult() throws (1: Error err)
-	NodeWriteNewSeriesAsyncResult setWriteNewSeriesAsyncResult(1: NodeSetWriteNewSeriesAsyncRequest req) throws (1: Error err)
+	NodeWriteNewSeriesAsyncResult getWriteNewSeriesAsync() throws (1: Error err)
+	NodeWriteNewSeriesAsyncResult setWriteNewSeriesAsync(1: NodeSetWriteNewSeriesAsyncRequest req) throws (1: Error err)
 }
 
 struct FetchRequest {

@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ratelimit"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 
@@ -102,17 +103,18 @@ func NewPersistManager(opts Options) persist.Manager {
 	newDirectoryMode := opts.NewDirectoryMode()
 	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("persist")
-	return &persistManager{
-		opts:              opts,
-		filePathPrefix:    filePathPrefix,
-		nowFn:             opts.ClockOptions().NowFn(),
-		sleepFn:           time.Sleep,
-		writer:            writer,
-		segmentHolder:     make([]checked.Bytes, 2),
-		status:            persistManagerIdle,
-		currRateLimitOpts: opts.RateLimitOptions(),
-		metrics:           newPersistManagerMetrics(scope),
+	pm := &persistManager{
+		opts:           opts,
+		filePathPrefix: filePathPrefix,
+		nowFn:          opts.ClockOptions().NowFn(),
+		sleepFn:        time.Sleep,
+		writer:         writer,
+		segmentHolder:  make([]checked.Bytes, 2),
+		status:         persistManagerIdle,
+		metrics:        newPersistManagerMetrics(scope),
 	}
+	opts.RuntimeOptionsManager().RegisterListener(pm)
+	return pm
 }
 
 func (pm *persistManager) persist(
@@ -229,15 +231,8 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 	return prepared, nil
 }
 
-func (pm *persistManager) SetRateLimitOptions(value ratelimit.Options) {
+func (pm *persistManager) SetRuntimeOptions(value runtime.Options) {
 	pm.Lock()
-	pm.currRateLimitOpts = value
+	pm.currRateLimitOpts = value.PersistRateLimitOptions()
 	pm.Unlock()
-}
-
-func (pm *persistManager) RateLimitOptions() ratelimit.Options {
-	pm.RLock()
-	opts := pm.currRateLimitOpts
-	pm.RUnlock()
-	return opts
 }

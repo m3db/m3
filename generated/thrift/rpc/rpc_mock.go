@@ -168,15 +168,15 @@ func (_mr *_MockTChanNodeRecorder) GetPersistRateLimit(arg0 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetPersistRateLimit", arg0)
 }
 
-func (_m *MockTChanNode) GetWriteNewSeriesAsyncResult(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error) {
-	ret := _m.ctrl.Call(_m, "GetWriteNewSeriesAsyncResult", ctx)
+func (_m *MockTChanNode) GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error) {
+	ret := _m.ctrl.Call(_m, "GetWriteNewSeriesAsync", ctx)
 	ret0, _ := ret[0].(*NodeWriteNewSeriesAsyncResult_)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockTChanNodeRecorder) GetWriteNewSeriesAsyncResult(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteNewSeriesAsyncResult", arg0)
+func (_mr *_MockTChanNodeRecorder) GetWriteNewSeriesAsync(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteNewSeriesAsync", arg0)
 }
 
 func (_m *MockTChanNode) Health(ctx thrift.Context) (*NodeHealthResult_, error) {
@@ -211,15 +211,15 @@ func (_mr *_MockTChanNodeRecorder) SetPersistRateLimit(arg0, arg1 interface{}) *
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPersistRateLimit", arg0, arg1)
 }
 
-func (_m *MockTChanNode) SetWriteNewSeriesAsyncResult(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error) {
-	ret := _m.ctrl.Call(_m, "SetWriteNewSeriesAsyncResult", ctx, req)
+func (_m *MockTChanNode) SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error) {
+	ret := _m.ctrl.Call(_m, "SetWriteNewSeriesAsync", ctx, req)
 	ret0, _ := ret[0].(*NodeWriteNewSeriesAsyncResult_)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockTChanNodeRecorder) SetWriteNewSeriesAsyncResult(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteNewSeriesAsyncResult", arg0, arg1)
+func (_mr *_MockTChanNodeRecorder) SetWriteNewSeriesAsync(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteNewSeriesAsync", arg0, arg1)
 }
 
 func (_m *MockTChanNode) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {

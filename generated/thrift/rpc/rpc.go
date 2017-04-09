@@ -5552,10 +5552,10 @@ type Node interface {
 	// Parameters:
 	//  - Req
 	SetPersistRateLimit(req *NodeSetPersistRateLimitRequest) (r *NodePersistRateLimitResult_, err error)
-	GetWriteNewSeriesAsyncResult_() (r *NodeWriteNewSeriesAsyncResult_, err error)
+	GetWriteNewSeriesAsync() (r *NodeWriteNewSeriesAsyncResult_, err error)
 	// Parameters:
 	//  - Req
-	SetWriteNewSeriesAsyncResult_(req *NodeSetWriteNewSeriesAsyncRequest) (r *NodeWriteNewSeriesAsyncResult_, err error)
+	SetWriteNewSeriesAsync(req *NodeSetWriteNewSeriesAsyncRequest) (r *NodeWriteNewSeriesAsyncResult_, err error)
 }
 
 type NodeClient struct {
@@ -6460,24 +6460,24 @@ func (p *NodeClient) recvSetPersistRateLimit() (value *NodePersistRateLimitResul
 	return
 }
 
-func (p *NodeClient) GetWriteNewSeriesAsyncResult_() (r *NodeWriteNewSeriesAsyncResult_, err error) {
-	if err = p.sendGetWriteNewSeriesAsyncResult_(); err != nil {
+func (p *NodeClient) GetWriteNewSeriesAsync() (r *NodeWriteNewSeriesAsyncResult_, err error) {
+	if err = p.sendGetWriteNewSeriesAsync(); err != nil {
 		return
 	}
-	return p.recvGetWriteNewSeriesAsyncResult_()
+	return p.recvGetWriteNewSeriesAsync()
 }
 
-func (p *NodeClient) sendGetWriteNewSeriesAsyncResult_() (err error) {
+func (p *NodeClient) sendGetWriteNewSeriesAsync() (err error) {
 	oprot := p.OutputProtocol
 	if oprot == nil {
 		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
 		p.OutputProtocol = oprot
 	}
 	p.SeqId++
-	if err = oprot.WriteMessageBegin("getWriteNewSeriesAsyncResult", thrift.CALL, p.SeqId); err != nil {
+	if err = oprot.WriteMessageBegin("getWriteNewSeriesAsync", thrift.CALL, p.SeqId); err != nil {
 		return
 	}
-	args := NodeGetWriteNewSeriesAsyncResultArgs{}
+	args := NodeGetWriteNewSeriesAsyncArgs{}
 	if err = args.Write(oprot); err != nil {
 		return
 	}
@@ -6487,7 +6487,7 @@ func (p *NodeClient) sendGetWriteNewSeriesAsyncResult_() (err error) {
 	return oprot.Flush()
 }
 
-func (p *NodeClient) recvGetWriteNewSeriesAsyncResult_() (value *NodeWriteNewSeriesAsyncResult_, err error) {
+func (p *NodeClient) recvGetWriteNewSeriesAsync() (value *NodeWriteNewSeriesAsyncResult_, err error) {
 	iprot := p.InputProtocol
 	if iprot == nil {
 		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
@@ -6497,12 +6497,12 @@ func (p *NodeClient) recvGetWriteNewSeriesAsyncResult_() (value *NodeWriteNewSer
 	if err != nil {
 		return
 	}
-	if method != "getWriteNewSeriesAsyncResult" {
-		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "getWriteNewSeriesAsyncResult failed: wrong method name")
+	if method != "getWriteNewSeriesAsync" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "getWriteNewSeriesAsync failed: wrong method name")
 		return
 	}
 	if p.SeqId != seqId {
-		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "getWriteNewSeriesAsyncResult failed: out of sequence response")
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "getWriteNewSeriesAsync failed: out of sequence response")
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
@@ -6519,10 +6519,10 @@ func (p *NodeClient) recvGetWriteNewSeriesAsyncResult_() (value *NodeWriteNewSer
 		return
 	}
 	if mTypeId != thrift.REPLY {
-		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "getWriteNewSeriesAsyncResult failed: invalid message type")
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "getWriteNewSeriesAsync failed: invalid message type")
 		return
 	}
-	result := NodeGetWriteNewSeriesAsyncResultResult{}
+	result := NodeGetWriteNewSeriesAsyncResult{}
 	if err = result.Read(iprot); err != nil {
 		return
 	}
@@ -6539,24 +6539,24 @@ func (p *NodeClient) recvGetWriteNewSeriesAsyncResult_() (value *NodeWriteNewSer
 
 // Parameters:
 //  - Req
-func (p *NodeClient) SetWriteNewSeriesAsyncResult_(req *NodeSetWriteNewSeriesAsyncRequest) (r *NodeWriteNewSeriesAsyncResult_, err error) {
-	if err = p.sendSetWriteNewSeriesAsyncResult_(req); err != nil {
+func (p *NodeClient) SetWriteNewSeriesAsync(req *NodeSetWriteNewSeriesAsyncRequest) (r *NodeWriteNewSeriesAsyncResult_, err error) {
+	if err = p.sendSetWriteNewSeriesAsync(req); err != nil {
 		return
 	}
-	return p.recvSetWriteNewSeriesAsyncResult_()
+	return p.recvSetWriteNewSeriesAsync()
 }
 
-func (p *NodeClient) sendSetWriteNewSeriesAsyncResult_(req *NodeSetWriteNewSeriesAsyncRequest) (err error) {
+func (p *NodeClient) sendSetWriteNewSeriesAsync(req *NodeSetWriteNewSeriesAsyncRequest) (err error) {
 	oprot := p.OutputProtocol
 	if oprot == nil {
 		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
 		p.OutputProtocol = oprot
 	}
 	p.SeqId++
-	if err = oprot.WriteMessageBegin("setWriteNewSeriesAsyncResult", thrift.CALL, p.SeqId); err != nil {
+	if err = oprot.WriteMessageBegin("setWriteNewSeriesAsync", thrift.CALL, p.SeqId); err != nil {
 		return
 	}
-	args := NodeSetWriteNewSeriesAsyncResultArgs{
+	args := NodeSetWriteNewSeriesAsyncArgs{
 		Req: req,
 	}
 	if err = args.Write(oprot); err != nil {
@@ -6568,7 +6568,7 @@ func (p *NodeClient) sendSetWriteNewSeriesAsyncResult_(req *NodeSetWriteNewSerie
 	return oprot.Flush()
 }
 
-func (p *NodeClient) recvSetWriteNewSeriesAsyncResult_() (value *NodeWriteNewSeriesAsyncResult_, err error) {
+func (p *NodeClient) recvSetWriteNewSeriesAsync() (value *NodeWriteNewSeriesAsyncResult_, err error) {
 	iprot := p.InputProtocol
 	if iprot == nil {
 		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
@@ -6578,12 +6578,12 @@ func (p *NodeClient) recvSetWriteNewSeriesAsyncResult_() (value *NodeWriteNewSer
 	if err != nil {
 		return
 	}
-	if method != "setWriteNewSeriesAsyncResult" {
-		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "setWriteNewSeriesAsyncResult failed: wrong method name")
+	if method != "setWriteNewSeriesAsync" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "setWriteNewSeriesAsync failed: wrong method name")
 		return
 	}
 	if p.SeqId != seqId {
-		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "setWriteNewSeriesAsyncResult failed: out of sequence response")
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "setWriteNewSeriesAsync failed: out of sequence response")
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
@@ -6600,10 +6600,10 @@ func (p *NodeClient) recvSetWriteNewSeriesAsyncResult_() (value *NodeWriteNewSer
 		return
 	}
 	if mTypeId != thrift.REPLY {
-		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "setWriteNewSeriesAsyncResult failed: invalid message type")
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "setWriteNewSeriesAsync failed: invalid message type")
 		return
 	}
-	result := NodeSetWriteNewSeriesAsyncResultResult{}
+	result := NodeSetWriteNewSeriesAsyncResult{}
 	if err = result.Read(iprot); err != nil {
 		return
 	}
@@ -6650,8 +6650,8 @@ func NewNodeProcessor(handler Node) *NodeProcessor {
 	self39.processorMap["health"] = &nodeProcessorHealth{handler: handler}
 	self39.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
 	self39.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
-	self39.processorMap["getWriteNewSeriesAsyncResult"] = &nodeProcessorGetWriteNewSeriesAsyncResult_{handler: handler}
-	self39.processorMap["setWriteNewSeriesAsyncResult"] = &nodeProcessorSetWriteNewSeriesAsyncResult_{handler: handler}
+	self39.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
+	self39.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
 	return self39
 }
 
@@ -7248,16 +7248,16 @@ func (p *nodeProcessorSetPersistRateLimit) Process(seqId int32, iprot, oprot thr
 	return true, err
 }
 
-type nodeProcessorGetWriteNewSeriesAsyncResult_ struct {
+type nodeProcessorGetWriteNewSeriesAsync struct {
 	handler Node
 }
 
-func (p *nodeProcessorGetWriteNewSeriesAsyncResult_) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := NodeGetWriteNewSeriesAsyncResultArgs{}
+func (p *nodeProcessorGetWriteNewSeriesAsync) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeGetWriteNewSeriesAsyncArgs{}
 	if err = args.Read(iprot); err != nil {
 		iprot.ReadMessageEnd()
 		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("getWriteNewSeriesAsyncResult", thrift.EXCEPTION, seqId)
+		oprot.WriteMessageBegin("getWriteNewSeriesAsync", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush()
@@ -7265,16 +7265,16 @@ func (p *nodeProcessorGetWriteNewSeriesAsyncResult_) Process(seqId int32, iprot,
 	}
 
 	iprot.ReadMessageEnd()
-	result := NodeGetWriteNewSeriesAsyncResultResult{}
+	result := NodeGetWriteNewSeriesAsyncResult{}
 	var retval *NodeWriteNewSeriesAsyncResult_
 	var err2 error
-	if retval, err2 = p.handler.GetWriteNewSeriesAsyncResult_(); err2 != nil {
+	if retval, err2 = p.handler.GetWriteNewSeriesAsync(); err2 != nil {
 		switch v := err2.(type) {
 		case *Error:
 			result.Err = v
 		default:
-			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing getWriteNewSeriesAsyncResult: "+err2.Error())
-			oprot.WriteMessageBegin("getWriteNewSeriesAsyncResult", thrift.EXCEPTION, seqId)
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing getWriteNewSeriesAsync: "+err2.Error())
+			oprot.WriteMessageBegin("getWriteNewSeriesAsync", thrift.EXCEPTION, seqId)
 			x.Write(oprot)
 			oprot.WriteMessageEnd()
 			oprot.Flush()
@@ -7283,7 +7283,7 @@ func (p *nodeProcessorGetWriteNewSeriesAsyncResult_) Process(seqId int32, iprot,
 	} else {
 		result.Success = retval
 	}
-	if err2 = oprot.WriteMessageBegin("getWriteNewSeriesAsyncResult", thrift.REPLY, seqId); err2 != nil {
+	if err2 = oprot.WriteMessageBegin("getWriteNewSeriesAsync", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -7301,16 +7301,16 @@ func (p *nodeProcessorGetWriteNewSeriesAsyncResult_) Process(seqId int32, iprot,
 	return true, err
 }
 
-type nodeProcessorSetWriteNewSeriesAsyncResult_ struct {
+type nodeProcessorSetWriteNewSeriesAsync struct {
 	handler Node
 }
 
-func (p *nodeProcessorSetWriteNewSeriesAsyncResult_) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := NodeSetWriteNewSeriesAsyncResultArgs{}
+func (p *nodeProcessorSetWriteNewSeriesAsync) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeSetWriteNewSeriesAsyncArgs{}
 	if err = args.Read(iprot); err != nil {
 		iprot.ReadMessageEnd()
 		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("setWriteNewSeriesAsyncResult", thrift.EXCEPTION, seqId)
+		oprot.WriteMessageBegin("setWriteNewSeriesAsync", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush()
@@ -7318,16 +7318,16 @@ func (p *nodeProcessorSetWriteNewSeriesAsyncResult_) Process(seqId int32, iprot,
 	}
 
 	iprot.ReadMessageEnd()
-	result := NodeSetWriteNewSeriesAsyncResultResult{}
+	result := NodeSetWriteNewSeriesAsyncResult{}
 	var retval *NodeWriteNewSeriesAsyncResult_
 	var err2 error
-	if retval, err2 = p.handler.SetWriteNewSeriesAsyncResult_(args.Req); err2 != nil {
+	if retval, err2 = p.handler.SetWriteNewSeriesAsync(args.Req); err2 != nil {
 		switch v := err2.(type) {
 		case *Error:
 			result.Err = v
 		default:
-			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing setWriteNewSeriesAsyncResult: "+err2.Error())
-			oprot.WriteMessageBegin("setWriteNewSeriesAsyncResult", thrift.EXCEPTION, seqId)
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing setWriteNewSeriesAsync: "+err2.Error())
+			oprot.WriteMessageBegin("setWriteNewSeriesAsync", thrift.EXCEPTION, seqId)
 			x.Write(oprot)
 			oprot.WriteMessageEnd()
 			oprot.Flush()
@@ -7336,7 +7336,7 @@ func (p *nodeProcessorSetWriteNewSeriesAsyncResult_) Process(seqId int32, iprot,
 	} else {
 		result.Success = retval
 	}
-	if err2 = oprot.WriteMessageBegin("setWriteNewSeriesAsyncResult", thrift.REPLY, seqId); err2 != nil {
+	if err2 = oprot.WriteMessageBegin("setWriteNewSeriesAsync", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -9848,14 +9848,14 @@ func (p *NodeSetPersistRateLimitResult) String() string {
 	return fmt.Sprintf("NodeSetPersistRateLimitResult(%+v)", *p)
 }
 
-type NodeGetWriteNewSeriesAsyncResultArgs struct {
+type NodeGetWriteNewSeriesAsyncArgs struct {
 }
 
-func NewNodeGetWriteNewSeriesAsyncResultArgs() *NodeGetWriteNewSeriesAsyncResultArgs {
-	return &NodeGetWriteNewSeriesAsyncResultArgs{}
+func NewNodeGetWriteNewSeriesAsyncArgs() *NodeGetWriteNewSeriesAsyncArgs {
+	return &NodeGetWriteNewSeriesAsyncArgs{}
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultArgs) Read(iprot thrift.TProtocol) error {
+func (p *NodeGetWriteNewSeriesAsyncArgs) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
@@ -9881,8 +9881,8 @@ func (p *NodeGetWriteNewSeriesAsyncResultArgs) Read(iprot thrift.TProtocol) erro
 	return nil
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultArgs) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("getWriteNewSeriesAsyncResult_args"); err != nil {
+func (p *NodeGetWriteNewSeriesAsyncArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getWriteNewSeriesAsync_args"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
 	}
 	if p != nil {
@@ -9896,51 +9896,51 @@ func (p *NodeGetWriteNewSeriesAsyncResultArgs) Write(oprot thrift.TProtocol) err
 	return nil
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultArgs) String() string {
+func (p *NodeGetWriteNewSeriesAsyncArgs) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("NodeGetWriteNewSeriesAsyncResultArgs(%+v)", *p)
+	return fmt.Sprintf("NodeGetWriteNewSeriesAsyncArgs(%+v)", *p)
 }
 
 // Attributes:
 //  - Success
 //  - Err
-type NodeGetWriteNewSeriesAsyncResultResult struct {
+type NodeGetWriteNewSeriesAsyncResult struct {
 	Success *NodeWriteNewSeriesAsyncResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                          `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
 
-func NewNodeGetWriteNewSeriesAsyncResultResult() *NodeGetWriteNewSeriesAsyncResultResult {
-	return &NodeGetWriteNewSeriesAsyncResultResult{}
+func NewNodeGetWriteNewSeriesAsyncResult() *NodeGetWriteNewSeriesAsyncResult {
+	return &NodeGetWriteNewSeriesAsyncResult{}
 }
 
-var NodeGetWriteNewSeriesAsyncResultResult_Success_DEFAULT *NodeWriteNewSeriesAsyncResult_
+var NodeGetWriteNewSeriesAsyncResult_Success_DEFAULT *NodeWriteNewSeriesAsyncResult_
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) GetSuccess() *NodeWriteNewSeriesAsyncResult_ {
+func (p *NodeGetWriteNewSeriesAsyncResult) GetSuccess() *NodeWriteNewSeriesAsyncResult_ {
 	if !p.IsSetSuccess() {
-		return NodeGetWriteNewSeriesAsyncResultResult_Success_DEFAULT
+		return NodeGetWriteNewSeriesAsyncResult_Success_DEFAULT
 	}
 	return p.Success
 }
 
-var NodeGetWriteNewSeriesAsyncResultResult_Err_DEFAULT *Error
+var NodeGetWriteNewSeriesAsyncResult_Err_DEFAULT *Error
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) GetErr() *Error {
+func (p *NodeGetWriteNewSeriesAsyncResult) GetErr() *Error {
 	if !p.IsSetErr() {
-		return NodeGetWriteNewSeriesAsyncResultResult_Err_DEFAULT
+		return NodeGetWriteNewSeriesAsyncResult_Err_DEFAULT
 	}
 	return p.Err
 }
-func (p *NodeGetWriteNewSeriesAsyncResultResult) IsSetSuccess() bool {
+func (p *NodeGetWriteNewSeriesAsyncResult) IsSetSuccess() bool {
 	return p.Success != nil
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) IsSetErr() bool {
+func (p *NodeGetWriteNewSeriesAsyncResult) IsSetErr() bool {
 	return p.Err != nil
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) Read(iprot thrift.TProtocol) error {
+func (p *NodeGetWriteNewSeriesAsyncResult) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
@@ -9977,7 +9977,7 @@ func (p *NodeGetWriteNewSeriesAsyncResultResult) Read(iprot thrift.TProtocol) er
 	return nil
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) ReadField0(iprot thrift.TProtocol) error {
+func (p *NodeGetWriteNewSeriesAsyncResult) ReadField0(iprot thrift.TProtocol) error {
 	p.Success = &NodeWriteNewSeriesAsyncResult_{}
 	if err := p.Success.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
@@ -9985,7 +9985,7 @@ func (p *NodeGetWriteNewSeriesAsyncResultResult) ReadField0(iprot thrift.TProtoc
 	return nil
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) ReadField1(iprot thrift.TProtocol) error {
+func (p *NodeGetWriteNewSeriesAsyncResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
 	}
@@ -9995,8 +9995,8 @@ func (p *NodeGetWriteNewSeriesAsyncResultResult) ReadField1(iprot thrift.TProtoc
 	return nil
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("getWriteNewSeriesAsyncResult_result"); err != nil {
+func (p *NodeGetWriteNewSeriesAsyncResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getWriteNewSeriesAsync_result"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
 	}
 	if p != nil {
@@ -10016,7 +10016,7 @@ func (p *NodeGetWriteNewSeriesAsyncResultResult) Write(oprot thrift.TProtocol) e
 	return nil
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) writeField0(oprot thrift.TProtocol) (err error) {
+func (p *NodeGetWriteNewSeriesAsyncResult) writeField0(oprot thrift.TProtocol) (err error) {
 	if p.IsSetSuccess() {
 		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
@@ -10031,7 +10031,7 @@ func (p *NodeGetWriteNewSeriesAsyncResultResult) writeField0(oprot thrift.TProto
 	return err
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *NodeGetWriteNewSeriesAsyncResult) writeField1(oprot thrift.TProtocol) (err error) {
 	if p.IsSetErr() {
 		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
@@ -10046,36 +10046,36 @@ func (p *NodeGetWriteNewSeriesAsyncResultResult) writeField1(oprot thrift.TProto
 	return err
 }
 
-func (p *NodeGetWriteNewSeriesAsyncResultResult) String() string {
+func (p *NodeGetWriteNewSeriesAsyncResult) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("NodeGetWriteNewSeriesAsyncResultResult(%+v)", *p)
+	return fmt.Sprintf("NodeGetWriteNewSeriesAsyncResult(%+v)", *p)
 }
 
 // Attributes:
 //  - Req
-type NodeSetWriteNewSeriesAsyncResultArgs struct {
+type NodeSetWriteNewSeriesAsyncArgs struct {
 	Req *NodeSetWriteNewSeriesAsyncRequest `thrift:"req,1" db:"req" json:"req"`
 }
 
-func NewNodeSetWriteNewSeriesAsyncResultArgs() *NodeSetWriteNewSeriesAsyncResultArgs {
-	return &NodeSetWriteNewSeriesAsyncResultArgs{}
+func NewNodeSetWriteNewSeriesAsyncArgs() *NodeSetWriteNewSeriesAsyncArgs {
+	return &NodeSetWriteNewSeriesAsyncArgs{}
 }
 
-var NodeSetWriteNewSeriesAsyncResultArgs_Req_DEFAULT *NodeSetWriteNewSeriesAsyncRequest
+var NodeSetWriteNewSeriesAsyncArgs_Req_DEFAULT *NodeSetWriteNewSeriesAsyncRequest
 
-func (p *NodeSetWriteNewSeriesAsyncResultArgs) GetReq() *NodeSetWriteNewSeriesAsyncRequest {
+func (p *NodeSetWriteNewSeriesAsyncArgs) GetReq() *NodeSetWriteNewSeriesAsyncRequest {
 	if !p.IsSetReq() {
-		return NodeSetWriteNewSeriesAsyncResultArgs_Req_DEFAULT
+		return NodeSetWriteNewSeriesAsyncArgs_Req_DEFAULT
 	}
 	return p.Req
 }
-func (p *NodeSetWriteNewSeriesAsyncResultArgs) IsSetReq() bool {
+func (p *NodeSetWriteNewSeriesAsyncArgs) IsSetReq() bool {
 	return p.Req != nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultArgs) Read(iprot thrift.TProtocol) error {
+func (p *NodeSetWriteNewSeriesAsyncArgs) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
@@ -10108,7 +10108,7 @@ func (p *NodeSetWriteNewSeriesAsyncResultArgs) Read(iprot thrift.TProtocol) erro
 	return nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultArgs) ReadField1(iprot thrift.TProtocol) error {
+func (p *NodeSetWriteNewSeriesAsyncArgs) ReadField1(iprot thrift.TProtocol) error {
 	p.Req = &NodeSetWriteNewSeriesAsyncRequest{}
 	if err := p.Req.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
@@ -10116,8 +10116,8 @@ func (p *NodeSetWriteNewSeriesAsyncResultArgs) ReadField1(iprot thrift.TProtocol
 	return nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultArgs) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("setWriteNewSeriesAsyncResult_args"); err != nil {
+func (p *NodeSetWriteNewSeriesAsyncArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setWriteNewSeriesAsync_args"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
 	}
 	if p != nil {
@@ -10134,7 +10134,7 @@ func (p *NodeSetWriteNewSeriesAsyncResultArgs) Write(oprot thrift.TProtocol) err
 	return nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultArgs) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *NodeSetWriteNewSeriesAsyncArgs) writeField1(oprot thrift.TProtocol) (err error) {
 	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
 	}
@@ -10147,51 +10147,51 @@ func (p *NodeSetWriteNewSeriesAsyncResultArgs) writeField1(oprot thrift.TProtoco
 	return err
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultArgs) String() string {
+func (p *NodeSetWriteNewSeriesAsyncArgs) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("NodeSetWriteNewSeriesAsyncResultArgs(%+v)", *p)
+	return fmt.Sprintf("NodeSetWriteNewSeriesAsyncArgs(%+v)", *p)
 }
 
 // Attributes:
 //  - Success
 //  - Err
-type NodeSetWriteNewSeriesAsyncResultResult struct {
+type NodeSetWriteNewSeriesAsyncResult struct {
 	Success *NodeWriteNewSeriesAsyncResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
 	Err     *Error                          `thrift:"err,1" db:"err" json:"err,omitempty"`
 }
 
-func NewNodeSetWriteNewSeriesAsyncResultResult() *NodeSetWriteNewSeriesAsyncResultResult {
-	return &NodeSetWriteNewSeriesAsyncResultResult{}
+func NewNodeSetWriteNewSeriesAsyncResult() *NodeSetWriteNewSeriesAsyncResult {
+	return &NodeSetWriteNewSeriesAsyncResult{}
 }
 
-var NodeSetWriteNewSeriesAsyncResultResult_Success_DEFAULT *NodeWriteNewSeriesAsyncResult_
+var NodeSetWriteNewSeriesAsyncResult_Success_DEFAULT *NodeWriteNewSeriesAsyncResult_
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) GetSuccess() *NodeWriteNewSeriesAsyncResult_ {
+func (p *NodeSetWriteNewSeriesAsyncResult) GetSuccess() *NodeWriteNewSeriesAsyncResult_ {
 	if !p.IsSetSuccess() {
-		return NodeSetWriteNewSeriesAsyncResultResult_Success_DEFAULT
+		return NodeSetWriteNewSeriesAsyncResult_Success_DEFAULT
 	}
 	return p.Success
 }
 
-var NodeSetWriteNewSeriesAsyncResultResult_Err_DEFAULT *Error
+var NodeSetWriteNewSeriesAsyncResult_Err_DEFAULT *Error
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) GetErr() *Error {
+func (p *NodeSetWriteNewSeriesAsyncResult) GetErr() *Error {
 	if !p.IsSetErr() {
-		return NodeSetWriteNewSeriesAsyncResultResult_Err_DEFAULT
+		return NodeSetWriteNewSeriesAsyncResult_Err_DEFAULT
 	}
 	return p.Err
 }
-func (p *NodeSetWriteNewSeriesAsyncResultResult) IsSetSuccess() bool {
+func (p *NodeSetWriteNewSeriesAsyncResult) IsSetSuccess() bool {
 	return p.Success != nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) IsSetErr() bool {
+func (p *NodeSetWriteNewSeriesAsyncResult) IsSetErr() bool {
 	return p.Err != nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) Read(iprot thrift.TProtocol) error {
+func (p *NodeSetWriteNewSeriesAsyncResult) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
@@ -10228,7 +10228,7 @@ func (p *NodeSetWriteNewSeriesAsyncResultResult) Read(iprot thrift.TProtocol) er
 	return nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) ReadField0(iprot thrift.TProtocol) error {
+func (p *NodeSetWriteNewSeriesAsyncResult) ReadField0(iprot thrift.TProtocol) error {
 	p.Success = &NodeWriteNewSeriesAsyncResult_{}
 	if err := p.Success.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
@@ -10236,7 +10236,7 @@ func (p *NodeSetWriteNewSeriesAsyncResultResult) ReadField0(iprot thrift.TProtoc
 	return nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) ReadField1(iprot thrift.TProtocol) error {
+func (p *NodeSetWriteNewSeriesAsyncResult) ReadField1(iprot thrift.TProtocol) error {
 	p.Err = &Error{
 		Type: 0,
 	}
@@ -10246,8 +10246,8 @@ func (p *NodeSetWriteNewSeriesAsyncResultResult) ReadField1(iprot thrift.TProtoc
 	return nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("setWriteNewSeriesAsyncResult_result"); err != nil {
+func (p *NodeSetWriteNewSeriesAsyncResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setWriteNewSeriesAsync_result"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
 	}
 	if p != nil {
@@ -10267,7 +10267,7 @@ func (p *NodeSetWriteNewSeriesAsyncResultResult) Write(oprot thrift.TProtocol) e
 	return nil
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) writeField0(oprot thrift.TProtocol) (err error) {
+func (p *NodeSetWriteNewSeriesAsyncResult) writeField0(oprot thrift.TProtocol) (err error) {
 	if p.IsSetSuccess() {
 		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
@@ -10282,7 +10282,7 @@ func (p *NodeSetWriteNewSeriesAsyncResultResult) writeField0(oprot thrift.TProto
 	return err
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *NodeSetWriteNewSeriesAsyncResult) writeField1(oprot thrift.TProtocol) (err error) {
 	if p.IsSetErr() {
 		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
@@ -10297,11 +10297,11 @@ func (p *NodeSetWriteNewSeriesAsyncResultResult) writeField1(oprot thrift.TProto
 	return err
 }
 
-func (p *NodeSetWriteNewSeriesAsyncResultResult) String() string {
+func (p *NodeSetWriteNewSeriesAsyncResult) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("NodeSetWriteNewSeriesAsyncResultResult(%+v)", *p)
+	return fmt.Sprintf("NodeSetWriteNewSeriesAsyncResult(%+v)", *p)
 }
 
 type Cluster interface {

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	xtime "github.com/m3db/m3x/time"
+
 	"github.com/uber-go/tally"
 )
 
@@ -86,6 +87,8 @@ type dbShardInsert struct {
 	pendingWrite    dbShardPendingWrite
 }
 
+var dbShardInsertZeroed = dbShardInsert{}
+
 type dbShardPendingWrite struct {
 	timestamp  time.Time
 	value      float64
@@ -97,9 +100,8 @@ func (b *dbShardInsertBatch) reset() {
 	b.wg = &sync.WaitGroup{}
 	// We always expect to be waiting for an insert
 	b.wg.Add(1)
-	insertZeroed := dbShardInsert{pendingWrite: dbShardPendingWrite{}}
 	for i := range b.inserts {
-		b.inserts[i] = insertZeroed
+		b.inserts[i] = dbShardInsertZeroed
 	}
 	b.inserts = b.inserts[:0]
 }
@@ -125,14 +127,14 @@ func newDbShardInsertQueue(
 	insertEntryBatchFn dbShardInsertEntryBatchFn,
 	scope tally.Scope,
 ) *dbShardInsertQueue {
-
 	currBatch := &dbShardInsertBatch{}
 	currBatch.reset()
+	subscope := scope.SubScope("insert-queue")
 	return &dbShardInsertQueue{
 		insertEntryBatchFn: insertEntryBatchFn,
 		currBatch:          currBatch,
 		notifyInsert:       make(chan struct{}, 1),
-		metrics:            newDBShardInsertQueueMetrics(scope.SubScope("insert-queue")),
+		metrics:            newDBShardInsertQueueMetrics(subscope),
 	}
 }
 
