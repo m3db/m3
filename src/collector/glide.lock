@@ -1,0 +1,52 @@
+hash: 09107f536c433e4cc7fec0df7e71e17c722a6598a4a1a648a617de3222e49c37
+updated: 2017-04-08T11:21:07.934650167-04:00
+imports:
+- name: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/golang/mock
+  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  subpackages:
+  - gomock
+  - mockgen
+- name: github.com/golang/protobuf
+  version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
+  subpackages:
+  - proto
+- name: github.com/m3db/m3cluster
+  version: 98981a220f3525b4fa9908aa59fb6a54ba7ae325
+  subpackages:
+  - kv
+  - kv/mem
+- name: github.com/m3db/m3metrics
+  version: eb7b08f53a2be881e7fa61b5c0bd8389a6153efa
+  subpackages:
+  - filters
+  - generated/proto/schema
+  - policy
+  - rules
+- name: github.com/m3db/m3x
+  version: 47d20dcef699f77d5560b364cd3f636cc4e42f74
+  subpackages:
+  - clock
+  - close
+  - id
+  - instrument
+  - log
+  - time
+  - watch
+- name: github.com/uber-go/tally
+  version: 08e86c3c1eb55364d563bd6beb982040225f4bb7
+testImports:
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/stretchr/testify
+  version: d77da356e56a7428ad25149ca77381849a6a5232
+  subpackages:
+  - assert
+  - require
