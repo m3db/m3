@@ -1,4 +1,4 @@
-m3nsch
+m3nsch [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
 ======
 m3nsch (pronounced `mensch`) is a load testing tool for M3DB. It has two components:
   - `m3nsch_server`: long lived process which does the load generation
@@ -6,6 +6,13 @@ m3nsch (pronounced `mensch`) is a load testing tool for M3DB. It has two compone
 
 A typical deploy will have multiple hosts, each running a single `m3nsch_server` instance,
 and a single `m3nsch_client` used to control them.
+
+[doc-img]: https://godoc.org/github.com/m3db/m3nsch?status.svg
+[doc]: https://godoc.org/github.com/m3db/m3nsch
+[ci-img]: https://travis-ci.org/m3db/m3nsch.svg?branch=master
+[ci]: https://travis-ci.org/m3db/m3nsch
+[cov-img]: https://coveralls.io/repos/m3db/m3nsch/badge.svg?branch=master&service=github
+[cov]: https://coveralls.io/github/m3db/m3nsch?branch=master
 
 ### Build
 ```
