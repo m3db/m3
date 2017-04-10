@@ -577,7 +577,8 @@ func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rp
 func (s *service) GetPersistRateLimit(
 	ctx thrift.Context,
 ) (*rpc.NodePersistRateLimitResult_, error) {
-	opts := s.db.Options().PersistManager().RateLimitOptions()
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	opts := runtimeOptsMgr.Get().PersistRateLimitOptions()
 	limitEnabled := opts.LimitEnabled()
 	limitMbps := opts.LimitMbps()
 	limitCheckEvery := int64(opts.LimitCheckEvery())
@@ -593,9 +594,9 @@ func (s *service) SetPersistRateLimit(
 	ctx thrift.Context,
 	req *rpc.NodeSetPersistRateLimitRequest,
 ) (*rpc.NodePersistRateLimitResult_, error) {
-	persistManager := s.db.Options().PersistManager()
-
-	opts := persistManager.RateLimitOptions()
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	runopts := runtimeOptsMgr.Get()
+	opts := runopts.PersistRateLimitOptions()
 	if req.LimitEnabled != nil {
 		opts = opts.SetLimitEnabled(*req.LimitEnabled)
 	}
@@ -606,9 +607,29 @@ func (s *service) SetPersistRateLimit(
 		opts = opts.SetLimitCheckEvery(int(*req.LimitCheckEvery))
 	}
 
-	persistManager.SetRateLimitOptions(opts)
+	runtimeOptsMgr.Update(runopts.SetPersistRateLimitOptions(opts))
 
 	return s.GetPersistRateLimit(ctx)
+}
+
+func (s *service) GetWriteNewSeriesAsync(
+	ctx thrift.Context,
+) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	value := runtimeOptsMgr.Get().WriteNewSeriesAsync()
+	return &rpc.NodeWriteNewSeriesAsyncResult_{
+		WriteNewSeriesAsync: value,
+	}, nil
+}
+
+func (s *service) SetWriteNewSeriesAsync(
+	ctx thrift.Context,
+	req *rpc.NodeSetWriteNewSeriesAsyncRequest,
+) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	set := runtimeOptsMgr.Get().SetWriteNewSeriesAsync(req.WriteNewSeriesAsync)
+	runtimeOptsMgr.Update(set)
+	return s.GetWriteNewSeriesAsync(ctx)
 }
 
 func (s *service) isOverloaded() bool {

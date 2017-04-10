@@ -43,7 +43,10 @@ func createShardDir(t *testing.T, prefix string, namespace ts.ID, shard uint32) 
 	return shardDirPath
 }
 
-func testManager(t *testing.T, ctrl *gomock.Controller) (*persistManager, *MockFileSetWriter) {
+func testManager(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (*persistManager, *MockFileSetWriter, Options) {
 	dir := createTempDir(t)
 
 	opts := NewOptions().
@@ -58,14 +61,14 @@ func testManager(t *testing.T, ctrl *gomock.Controller) (*persistManager, *MockF
 	manager := NewPersistManager(opts).(*persistManager)
 	manager.writer = writer
 
-	return manager, writer
+	return manager, writer, opts
 }
 
 func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, _ := testManager(t, ctrl)
+	pm, _, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -93,7 +96,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer := testManager(t, ctrl)
+	pm, writer, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -118,7 +121,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer := testManager(t, ctrl)
+	pm, writer, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -163,7 +166,7 @@ func TestPersistenceManagerClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer := testManager(t, ctrl)
+	pm, writer, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	writer.EXPECT().Close()
@@ -174,7 +177,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer := testManager(t, ctrl)
+	pm, writer, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	var (
@@ -191,9 +194,6 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).Times(2)
-
-	// Disable rate limiting
-	pm.SetRateLimitOptions(pm.RateLimitOptions().SetLimitEnabled(false))
 
 	flush, err := pm.StartFlush()
 	require.NoError(t, err)
@@ -219,7 +219,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer := testManager(t, ctrl)
+	pm, writer, opts := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	var (
@@ -240,10 +240,22 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	writer.EXPECT().Close().Times(iter)
 
 	// Enable rate limiting
-	pm.SetRateLimitOptions(pm.RateLimitOptions().
-		SetLimitEnabled(true).
-		SetLimitCheckEvery(2).
-		SetLimitMbps(16.0))
+	runtimeOpts := opts.RuntimeOptionsManager().Get()
+	opts.RuntimeOptionsManager().Update(
+		runtimeOpts.SetPersistRateLimitOptions(
+			runtimeOpts.PersistRateLimitOptions().
+				SetLimitEnabled(true).
+				SetLimitCheckEvery(2).
+				SetLimitMbps(16.0)))
+
+	// Wait until enabled
+	for func() bool {
+		pm.Lock()
+		defer pm.Unlock()
+		return !pm.currRateLimitOpts.LimitEnabled()
+	}() {
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	for i := 0; i < iter; i++ {
 		// Reset

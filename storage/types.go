@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -321,12 +321,6 @@ type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
 
-	// SetRateLimitOptions sets the rate limit options
-	SetRateLimitOptions(value ratelimit.Options)
-
-	// RateLimitOptions returns the rate limit options
-	RateLimitOptions() ratelimit.Options
-
 	// Report reports runtime information
 	Report()
 }
@@ -485,6 +479,12 @@ type Options interface {
 
 	// CommitLogOptions returns the commit log options
 	CommitLogOptions() commitlog.Options
+
+	// SetRuntimeOptionsManager sets the runtime options manager
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManager returns the runtime options manager
+	RuntimeOptionsManager() runtime.OptionsManager
 
 	// SetErrorCounterOptions sets the error counter options
 	SetErrorCounterOptions(value xcounter.Options) Options

@@ -24,6 +24,10 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	xtime "github.com/m3db/m3x/time"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -48,24 +52,61 @@ type dbShardInsertQueue struct {
 
 	currBatch    *dbShardInsertBatch
 	notifyInsert chan struct{}
+
+	metrics dbShardInsertQueueMetrics
+}
+
+type dbShardInsertQueueMetrics struct {
+	insertsNoPendingWrite tally.Counter
+	insertsPendingWrite   tally.Counter
+}
+
+func newDBShardInsertQueueMetrics(
+	scope tally.Scope,
+) dbShardInsertQueueMetrics {
+	insertName := "inserts"
+	insertPendingWriteTagName := "pending-write"
+	return dbShardInsertQueueMetrics{
+		insertsNoPendingWrite: scope.Tagged(map[string]string{
+			insertPendingWriteTagName: "no",
+		}).Counter(insertName),
+		insertsPendingWrite: scope.Tagged(map[string]string{
+			insertPendingWriteTagName: "yes",
+		}).Counter(insertName),
+	}
 }
 
 type dbShardInsertBatch struct {
 	wg      *sync.WaitGroup
-	entries []*dbShardEntry
+	inserts []dbShardInsert
+}
+
+type dbShardInsert struct {
+	entry           *dbShardEntry
+	hasPendingWrite bool
+	pendingWrite    dbShardPendingWrite
+}
+
+var dbShardInsertZeroed = dbShardInsert{}
+
+type dbShardPendingWrite struct {
+	timestamp  time.Time
+	value      float64
+	unit       xtime.Unit
+	annotation []byte
 }
 
 func (b *dbShardInsertBatch) reset() {
 	b.wg = &sync.WaitGroup{}
 	// We always expect to be waiting for an insert
 	b.wg.Add(1)
-	for i := range b.entries {
-		b.entries[i] = nil
+	for i := range b.inserts {
+		b.inserts[i] = dbShardInsertZeroed
 	}
-	b.entries = b.entries[:0]
+	b.inserts = b.inserts[:0]
 }
 
-type dbShardInsertEntryBatchFn func(entries []*dbShardEntry) error
+type dbShardInsertEntryBatchFn func(inserts []dbShardInsert) error
 
 // newDbShardInsertQueue creates a new shard insert queue. The shard
 // insert queue is used to batch inserts into the shard series map without
@@ -84,14 +125,16 @@ type dbShardInsertEntryBatchFn func(entries []*dbShardEntry) error
 // 4x during floods of new series.
 func newDbShardInsertQueue(
 	insertEntryBatchFn dbShardInsertEntryBatchFn,
-	opts Options,
+	scope tally.Scope,
 ) *dbShardInsertQueue {
 	currBatch := &dbShardInsertBatch{}
 	currBatch.reset()
+	subscope := scope.SubScope("insert-queue")
 	return &dbShardInsertQueue{
 		insertEntryBatchFn: insertEntryBatchFn,
 		currBatch:          currBatch,
 		notifyInsert:       make(chan struct{}, 1),
+		metrics:            newDBShardInsertQueueMetrics(subscope),
 	}
 }
 
@@ -105,7 +148,7 @@ func (q *dbShardInsertQueue) insertLoop() {
 		q.currBatch = freeBatch
 		q.Unlock()
 
-		q.insertEntryBatchFn(batch.entries)
+		q.insertEntryBatchFn(batch.inserts)
 		batch.wg.Done()
 
 		// Set the free batch
@@ -148,13 +191,13 @@ func (q *dbShardInsertQueue) Stop() error {
 	return nil
 }
 
-func (q *dbShardInsertQueue) Insert(entry *dbShardEntry) (*sync.WaitGroup, error) {
+func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, error) {
 	q.Lock()
 	if q.state != dbShardInsertQueueStateOpen {
 		q.Unlock()
 		return nil, errShardInsertQueueNotOpen
 	}
-	q.currBatch.entries = append(q.currBatch.entries, entry)
+	q.currBatch.inserts = append(q.currBatch.inserts, insert)
 	wg := q.currBatch.wg
 	q.Unlock()
 
@@ -163,6 +206,12 @@ func (q *dbShardInsertQueue) Insert(entry *dbShardEntry) (*sync.WaitGroup, error
 	case q.notifyInsert <- struct{}{}:
 	default:
 		// Loop busy, already ready to consume notification
+	}
+
+	if insert.hasPendingWrite {
+		q.metrics.insertsPendingWrite.Inc(1)
+	} else {
+		q.metrics.insertsNoPendingWrite.Inc(1)
 	}
 
 	return wg, nil

@@ -173,12 +173,13 @@ func NewDatabase(
 				return nil, newRetrieverErr
 			}
 		}
-		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet,
-			blockRetriever, d, d.writeCommitLogFn, d.opts)
+		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet, blockRetriever,
+			d, d.writeCommitLogFn, d.opts)
 	}
 	d.namespaces = ns
 
-	mediator, err := newMediator(d, opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
+	mediator, err := newMediator(d,
+		opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
 	if err != nil {
 		return nil, err
 	}
@@ -188,6 +189,7 @@ func NewDatabase(
 }
 
 func (d *db) Options() Options {
+	// Options are immutable safe to pass the current reference
 	return d.opts
 }
 

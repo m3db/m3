@@ -30,8 +30,8 @@ import (
 	encoding "github.com/m3db/m3db/encoding"
 	persist "github.com/m3db/m3db/persist"
 	commitlog "github.com/m3db/m3db/persist/fs/commitlog"
-	ratelimit "github.com/m3db/m3db/ratelimit"
 	retention "github.com/m3db/m3db/retention"
+	runtime "github.com/m3db/m3db/runtime"
 	sharding "github.com/m3db/m3db/sharding"
 	block "github.com/m3db/m3db/storage/block"
 	bootstrap "github.com/m3db/m3db/storage/bootstrap"
@@ -934,24 +934,6 @@ func (_mr *_MockdatabaseFlushManagerRecorder) Flush(arg0 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0)
 }
 
-func (_m *MockdatabaseFlushManager) SetRateLimitOptions(value ratelimit.Options) {
-	_m.ctrl.Call(_m, "SetRateLimitOptions", value)
-}
-
-func (_mr *_MockdatabaseFlushManagerRecorder) SetRateLimitOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRateLimitOptions", arg0)
-}
-
-func (_m *MockdatabaseFlushManager) RateLimitOptions() ratelimit.Options {
-	ret := _m.ctrl.Call(_m, "RateLimitOptions")
-	ret0, _ := ret[0].(ratelimit.Options)
-	return ret0
-}
-
-func (_mr *_MockdatabaseFlushManagerRecorder) RateLimitOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RateLimitOptions")
-}
-
 func (_m *MockdatabaseFlushManager) Report() {
 	_m.ctrl.Call(_m, "Report")
 }
@@ -1521,6 +1503,26 @@ func (_m *MockOptions) CommitLogOptions() commitlog.Options {
 
 func (_mr *_MockOptionsRecorder) CommitLogOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CommitLogOptions")
+}
+
+func (_m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	ret := _m.ctrl.Call(_m, "SetRuntimeOptionsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetRuntimeOptionsManager(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRuntimeOptionsManager", arg0)
+}
+
+func (_m *MockOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	ret := _m.ctrl.Call(_m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) RuntimeOptionsManager() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RuntimeOptionsManager")
 }
 
 func (_m *MockOptions) SetErrorCounterOptions(value counter.Options) Options {

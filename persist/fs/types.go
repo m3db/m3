@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
-	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -156,11 +156,11 @@ type Options interface {
 	// RetentionOptions returns the retention options
 	RetentionOptions() retention.Options
 
-	// SetRateLimitOptions sets the rate limit options
-	SetRateLimitOptions(value ratelimit.Options) Options
+	// SetRuntimeOptionsManager sets the runtime options manager
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
-	// RateLimitOptions returns the rate limit options
-	RateLimitOptions() ratelimit.Options
+	// RuntimeOptionsManager returns the runtime options manager
+	RuntimeOptionsManager() runtime.OptionsManager
 
 	// SetDecodingOptions sets the decoding options
 	SetDecodingOptions(value msgpack.DecodingOptions) Options

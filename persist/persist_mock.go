@@ -25,7 +25,6 @@ package persist
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	ratelimit "github.com/m3db/m3db/ratelimit"
 	ts "github.com/m3db/m3db/ts"
 	time "time"
 )
@@ -60,24 +59,6 @@ func (_m *MockManager) StartFlush() (Flush, error) {
 
 func (_mr *_MockManagerRecorder) StartFlush() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "StartFlush")
-}
-
-func (_m *MockManager) SetRateLimitOptions(value ratelimit.Options) {
-	_m.ctrl.Call(_m, "SetRateLimitOptions", value)
-}
-
-func (_mr *_MockManagerRecorder) SetRateLimitOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRateLimitOptions", arg0)
-}
-
-func (_m *MockManager) RateLimitOptions() ratelimit.Options {
-	ret := _m.ctrl.Call(_m, "RateLimitOptions")
-	ret0, _ := ret[0].(ratelimit.Options)
-	return ret0
-}
-
-func (_mr *_MockManagerRecorder) RateLimitOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RateLimitOptions")
 }
 
 // Mock of Flush interface

@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
@@ -555,4 +556,67 @@ func TestServiceTruncate(t *testing.T) {
 	r, err := service.Truncate(tctx, &rpc.TruncateRequest{NameSpace: []byte(nsID)})
 	require.NoError(t, err)
 	assert.Equal(t, truncated, r.NumSeries)
+}
+
+func TestServiceSetPersistRateLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	runtimeOpts := runtime.NewOptions()
+	runtimeOpts = runtimeOpts.SetPersistRateLimitOptions(
+		runtimeOpts.PersistRateLimitOptions().
+			SetLimitEnabled(false))
+	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(opts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	getResp, err := service.GetPersistRateLimit(tctx)
+	require.NoError(t, err)
+	assert.Equal(t, false, getResp.LimitEnabled)
+
+	enable := true
+	req := &rpc.NodeSetPersistRateLimitRequest{
+		LimitEnabled: &enable,
+	}
+	setResp, err := service.SetPersistRateLimit(tctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, true, setResp.LimitEnabled)
+}
+
+func TestServiceSetWriteNewSeriesAsync(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	runtimeOpts := runtime.NewOptions().
+		SetWriteNewSeriesAsync(false)
+	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(opts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	getResp, err := service.GetWriteNewSeriesAsync(tctx)
+	require.NoError(t, err)
+	assert.Equal(t, false, getResp.WriteNewSeriesAsync)
+
+	req := &rpc.NodeSetWriteNewSeriesAsyncRequest{
+		WriteNewSeriesAsync: true,
+	}
+	setResp, err := service.SetWriteNewSeriesAsync(tctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, true, setResp.WriteNewSeriesAsync)
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
+	m3dbruntime "github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -64,6 +65,7 @@ type dbNamespace struct {
 	shardSet       sharding.ShardSet
 	blockRetriever block.DatabaseBlockRetriever
 	opts           Options
+	runtimeOptsMgr m3dbruntime.OptionsManager
 	nopts          namespace.Options
 	nowFn          clock.NowFn
 	log            xlog.Logger

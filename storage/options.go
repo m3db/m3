@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/repair"
@@ -92,6 +93,7 @@ type options struct {
 	retentionOpts                  retention.Options
 	blockOpts                      block.Options
 	commitLogOpts                  commitlog.Options
+	runtimeOptsMgr                 runtime.OptionsManager
 	errCounterOpts                 xcounter.Options
 	errWindowForLoad               time.Duration
 	errThresholdForLoad            int64
@@ -130,6 +132,7 @@ func NewOptions() Options {
 		retentionOpts:                  retention.NewOptions(),
 		blockOpts:                      block.NewOptions(),
 		commitLogOpts:                  commitlog.NewOptions(),
+		runtimeOptsMgr:                 runtime.NewOptionsManager(runtime.NewOptions()),
 		errCounterOpts:                 xcounter.NewOptions(),
 		errWindowForLoad:               defaultErrorWindowForLoad,
 		errThresholdForLoad:            defaultErrorThresholdForLoad,
@@ -208,6 +211,16 @@ func (o *options) SetCommitLogOptions(value commitlog.Options) Options {
 
 func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
+}
+
+func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	opts := *o
+	opts.runtimeOptsMgr = value
+	return &opts
+}
+
+func (o *options) RuntimeOptionsManager() runtime.OptionsManager {
+	return o.runtimeOptsMgr
 }
 
 func (o *options) SetErrorCounterOptions(value xcounter.Options) Options {
