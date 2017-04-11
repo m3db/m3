@@ -49,3 +49,7 @@ enum shard_state {
   Available = 1;
   Leaving = 2;
 }
+
+message placementSnapshots {
+  repeated placement snapshots = 1;
+}
