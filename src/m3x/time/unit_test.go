@@ -90,6 +90,29 @@ func TestUnitFromDurationError(t *testing.T) {
 	require.Equal(t, errConvertDurationToUnit, err)
 }
 
+func TestDurationFromUnit(t *testing.T) {
+	inputs := []struct {
+		u        Unit
+		expected time.Duration
+	}{
+		{Second, time.Second},
+		{Millisecond, time.Millisecond},
+		{Microsecond, time.Microsecond},
+		{Nanosecond, time.Nanosecond},
+		{Minute, time.Minute},
+	}
+	for _, input := range inputs {
+		d, err := DurationFromUnit(input.u)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, d)
+	}
+}
+
+func TestDurationFromUnitError(t *testing.T) {
+	_, err := DurationFromUnit(None)
+	require.Equal(t, errConvertUnitToDuration, err)
+}
+
 func TestUnitString(t *testing.T) {
 	tests := []struct {
 		u Unit
