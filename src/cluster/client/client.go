@@ -33,4 +33,7 @@ type Client interface {
 
 	// KV returns access to the distributed configuration store
 	KV() (kv.Store, error)
+
+	// Txn returns access to the transaction store
+	Txn() (kv.TxnStore, error)
 }

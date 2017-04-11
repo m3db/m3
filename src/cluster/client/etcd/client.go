@@ -84,69 +84,74 @@ type csclient struct {
 	sdErr  error
 
 	kvOnce sync.Once
-	kv     kv.Store
+	kv     kv.TxnStore
 	kvErr  error
 }
 
 func (c *csclient) Services() (services.Services, error) {
-	c.sdOnce.Do(func() {
-		c.sd, c.sdErr = c.newServices()
-	})
+	c.createServices()
 
 	return c.sd, c.sdErr
 }
 
 func (c *csclient) KV() (kv.Store, error) {
-	c.kvOnce.Do(func() {
-		c.kv, c.kvErr = c.newKVStore()
-	})
+	c.createTxnStore()
 
 	return c.kv, c.kvErr
 }
 
-func (c *csclient) newServices() (services.Services, error) {
-	return sdClient.NewServices(sdClient.NewOptions().
-		SetInitTimeout(c.opts.ServiceInitTimeout()).
-		SetHeartbeatGen(c.heartbeatGen()).
-		SetKVGen(c.kvGen(etcdKV.NewOptions().
-			SetInstrumentsOptions(instrument.NewOptions().
-				SetLogger(c.logger).
-				SetMetricsScope(c.kvScope),
-			)),
-		).
-		SetInstrumentsOptions(instrument.NewOptions().
-			SetLogger(c.logger).
-			SetMetricsScope(c.sdScope),
-		),
-	)
+func (c *csclient) Txn() (kv.TxnStore, error) {
+	c.createTxnStore()
+
+	return c.kv, c.kvErr
 }
 
-func (c *csclient) newKVStore() (kv.Store, error) {
-	env := c.opts.Env()
-	kvGen := c.kvGen(etcdKV.NewOptions().
-		SetInstrumentsOptions(instrument.NewOptions().
-			SetLogger(c.logger).
-			SetMetricsScope(c.kvScope),
-		).
-		SetPrefix(prefix(env)),
-	)
-	return kvGen(c.opts.Zone())
+func (c *csclient) createServices() {
+	c.sdOnce.Do(func() {
+		c.sd, c.sdErr = sdClient.NewServices(sdClient.NewOptions().
+			SetInitTimeout(c.opts.ServiceInitTimeout()).
+			SetHeartbeatGen(c.heartbeatGen()).
+			SetKVGen(c.kvGen(etcdKV.NewOptions().
+				SetInstrumentsOptions(instrument.NewOptions().
+					SetLogger(c.logger).
+					SetMetricsScope(c.kvScope),
+				)),
+			).
+			SetInstrumentsOptions(instrument.NewOptions().
+				SetLogger(c.logger).
+				SetMetricsScope(c.sdScope),
+			),
+		)
+	})
+}
+
+func (c *csclient) createTxnStore() {
+	c.kvOnce.Do(func() {
+		opts := etcdKV.NewOptions().
+			SetInstrumentsOptions(instrument.NewOptions().
+				SetLogger(c.logger).
+				SetMetricsScope(c.kvScope)).
+			SetPrefix(prefix(c.opts.Env()))
+		c.kv, c.kvErr = c.txnGen(opts, c.opts.Zone())
+	})
 }
 
 func (c *csclient) kvGen(kvOpts etcdKV.Options) sdClient.KVGen {
-	return sdClient.KVGen(
-		func(zone string) (kv.Store, error) {
-			cli, err := c.etcdClientGen(zone)
-			if err != nil {
-				return nil, err
-			}
+	return sdClient.KVGen(func(zone string) (kv.Store, error) {
+		return c.txnGen(kvOpts, zone)
+	})
+}
 
-			return etcdKV.NewStore(
-				cli.KV,
-				cli.Watcher,
-				kvOpts.SetCacheFilePath(cacheFileForZone(c.opts.CacheDir(), kvOpts.ApplyPrefix(c.opts.AppID()), zone)),
-			)
-		},
+func (c *csclient) txnGen(kvOpts etcdKV.Options, zone string) (kv.TxnStore, error) {
+	cli, err := c.etcdClientGen(zone)
+	if err != nil {
+		return nil, err
+	}
+
+	return etcdKV.NewStore(
+		cli.KV,
+		cli.Watcher,
+		kvOpts.SetCacheFilePath(cacheFileForZone(c.opts.CacheDir(), kvOpts.ApplyPrefix(c.opts.AppID()), zone)),
 	)
 }
 
@@ -159,11 +164,10 @@ func (c *csclient) heartbeatGen() sdClient.HeartbeatGen {
 			}
 
 			opts := etcdHeartbeat.NewOptions().
-				SetInstrumentsOptions(
-					instrument.NewOptions().
-						SetLogger(c.logger).
-						SetMetricsScope(c.hbScope),
-				).SetServiceID(sid)
+				SetInstrumentsOptions(instrument.NewOptions().
+					SetLogger(c.logger).
+					SetMetricsScope(c.hbScope)).
+				SetServiceID(sid)
 			return etcdHeartbeat.NewStore(cli, opts)
 		},
 	)

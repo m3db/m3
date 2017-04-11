@@ -28,8 +28,10 @@ import (
 	"github.com/m3db/m3cluster/kv"
 )
 
+var errConditionCheckFailed = errors.New("condition check failed")
+
 // NewStore returns a new in-process store that can be used for testing
-func NewStore() kv.Store {
+func NewStore() kv.TxnStore {
 	return &store{
 		values:     make(map[string][]*value),
 		watchables: make(map[string]kv.ValueWatchable),
@@ -72,6 +74,10 @@ func (s *store) Get(key string) (kv.Value, error) {
 	s.RLock()
 	defer s.RUnlock()
 
+	return s.getWithLock(key)
+}
+
+func (s *store) getWithLock(key string) (kv.Value, error) {
 	val, ok := s.values[key]
 	if !ok {
 		return nil, kv.ErrNotFound
@@ -104,13 +110,17 @@ func (s *store) Watch(key string) (kv.ValueWatch, error) {
 }
 
 func (s *store) Set(key string, val proto.Message) (int, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.setWithLock(key, val)
+}
+
+func (s *store) setWithLock(key string, val proto.Message) (int, error) {
 	data, err := proto.Marshal(val)
 	if err != nil {
 		return 0, err
 	}
-
-	s.Lock()
-	defer s.Unlock()
 
 	lastVersion := 0
 	vals := s.values[key]
@@ -228,6 +238,48 @@ func (s *store) History(key string, from, to int) ([]kv.Value, error) {
 	}
 
 	return res, nil
+}
+
+// NB(cw) When there is an error in one of the ops, the finished ops will not be rolled back
+func (s *store) Commit(conditions []kv.Condition, ops []kv.Op) (kv.Response, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	for _, condition := range conditions {
+		if condition.CompareType() != kv.CompareEqual || condition.TargetType() != kv.TargetVersion {
+			return nil, errors.New("invalid condition")
+		}
+
+		v, err := s.getWithLock(condition.Key())
+		expectedVersion := condition.Value().(int)
+		if err != nil {
+			if err == kv.ErrNotFound && expectedVersion == 0 {
+				continue
+			}
+			return nil, err
+		}
+
+		if expectedVersion != v.Version() {
+			return nil, errConditionCheckFailed
+		}
+	}
+
+	oprs := make([]kv.OpResponse, len(ops))
+	for i, op := range ops {
+		if op.Type() != kv.OpSet {
+			return nil, errors.New("invalid op")
+		}
+		opSet := op.(kv.SetOp)
+
+		v, err := s.setWithLock(opSet.Key(), opSet.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		oprs[i] = kv.NewOpResponse(op).SetValue(v)
+	}
+
+	return kv.NewResponse().SetResponses(oprs), nil
 }
 
 // updateWatchable updates all subscriptions for the given key. It assumes

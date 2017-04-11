@@ -276,7 +276,7 @@ func (c *client) processOp(op kv.Op) (clientv3.Op, error) {
 	}
 }
 
-func (c *client) Txn(conditions []kv.Condition, ops []kv.Op) (kv.Response, error) {
+func (c *client) Commit(conditions []kv.Condition, ops []kv.Op) (kv.Response, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
