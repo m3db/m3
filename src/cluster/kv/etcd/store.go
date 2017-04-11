@@ -41,13 +41,15 @@ import (
 const etcdVersionZero = 0
 
 var (
-	noopCancel func()
-
+	noopCancel               func()
+	emptyCmp                 clientv3.Cmp
+	emptyOp                  clientv3.Op
 	errInvalidHistoryVersion = errors.New("invalid version range")
+	errNilPutResponse        = errors.New("nil put response from etcd")
 )
 
 // NewStore creates a kv store based on etcd
-func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (kv.Store, error) {
+func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (kv.TxnStore, error) {
 	scope := opts.InstrumentsOptions().MetricsScope()
 
 	store := &client{
@@ -234,6 +236,109 @@ func (c *client) History(key string, from, to int) ([]kv.Value, error) {
 	return res, nil
 }
 
+func (c *client) processCondition(condition kv.Condition) (clientv3.Cmp, error) {
+	var cmp clientv3.Cmp
+	switch condition.TargetType() {
+	case kv.TargetVersion:
+		cmp = clientv3.Version(c.opts.ApplyPrefix(condition.Key()))
+	default:
+		return emptyCmp, kv.ErrUnknownTargetType
+	}
+
+	var compareStr string
+	switch condition.CompareType() {
+	case kv.CompareEqual:
+		compareStr = condition.CompareType().String()
+	default:
+		return emptyCmp, kv.ErrUnknownCompareType
+	}
+
+	return clientv3.Compare(cmp, compareStr, condition.Value()), nil
+}
+
+func (c *client) processOp(op kv.Op) (clientv3.Op, error) {
+	switch op.Type() {
+	case kv.OpSet:
+		opSet := op.(kv.SetOp)
+
+		value, err := proto.Marshal(opSet.Value)
+		if err != nil {
+			return emptyOp, err
+		}
+
+		return clientv3.OpPut(
+			c.opts.ApplyPrefix(opSet.Key()),
+			string(value),
+			clientv3.WithPrevKV(),
+		), nil
+	default:
+		return emptyOp, kv.ErrUnknownOpType
+	}
+}
+
+func (c *client) Txn(conditions []kv.Condition, ops []kv.Op) (kv.Response, error) {
+	ctx, cancel := c.context()
+	defer cancel()
+
+	txn := c.kv.Txn(ctx)
+
+	cmps := make([]clientv3.Cmp, len(conditions))
+	for i, condition := range conditions {
+		cmp, err := c.processCondition(condition)
+		if err != nil {
+			return nil, err
+		}
+
+		cmps[i] = cmp
+	}
+
+	txn = txn.If(cmps...)
+
+	etcdOps := make([]clientv3.Op, len(ops))
+	opResponses := make([]kv.OpResponse, len(ops))
+	for i, op := range ops {
+		etcdOp, err := c.processOp(op)
+		if err != nil {
+			return nil, err
+		}
+
+		etcdOps[i] = etcdOp
+		opResponses[i] = kv.NewOpResponse(op)
+	}
+
+	txn = txn.Then(etcdOps...)
+
+	r, err := txn.Commit()
+	if err != nil {
+		c.m.etcdTnxError.Inc(1)
+		return nil, err
+	}
+	if !r.Succeeded {
+		return nil, kv.ErrConditionCheckFailed
+	}
+
+	for i := range r.Responses {
+		opr := opResponses[i]
+		switch opr.Type() {
+		case kv.OpSet:
+			res := r.Responses[i].GetResponsePut()
+			if res == nil {
+				return nil, errNilPutResponse
+			}
+
+			if res.PrevKv != nil {
+				opr = opr.SetValue(int(res.PrevKv.Version + 1))
+			} else {
+				opr = opr.SetValue(etcdVersionZero + 1)
+			}
+		}
+
+		opResponses[i] = opr
+	}
+
+	return kv.NewResponse().SetResponses(opResponses), nil
+}
+
 func (c *client) Watch(key string) (kv.ValueWatch, error) {
 	newKey := c.opts.ApplyPrefix(key)
 	c.Lock()
@@ -370,7 +475,7 @@ func (c *client) CheckAndSet(key string, version int, v proto.Message) (int, err
 
 	key = c.opts.ApplyPrefix(key)
 	r, err := c.kv.Txn(ctx).
-		If(clientv3.Compare(clientv3.Version(key), "=", version)).
+		If(clientv3.Compare(clientv3.Version(key), kv.CompareEqual.String(), version)).
 		Then(clientv3.OpPut(key, string(value))).
 		Commit()
 	if err != nil {

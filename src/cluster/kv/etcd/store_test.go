@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3cluster/generated/proto/kvtest"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/mocks"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -305,7 +304,7 @@ func TestWatchFromExist(t *testing.T) {
 	verifyValue(t, value, "bar1", 1)
 
 	w, err := store.Watch("foo")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	<-w.C()
 	require.Equal(t, 0, len(w.C()))
@@ -485,13 +484,13 @@ func TestHistory(t *testing.T) {
 
 	store, err := NewStore(ec, ec, opts)
 	res, err := store.History("k1", 10, 5)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	res, err = store.History("k1", 0, 5)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	res, err = store.History("k1", -5, 0)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	totalVersion := 10
 	for i := 1; i <= totalVersion; i++ {
@@ -500,16 +499,16 @@ func TestHistory(t *testing.T) {
 	}
 
 	res, err = store.History("k1", 5, 5)
-	assert.NoError(t, err)
-	assert.Equal(t, 0, len(res))
+	require.NoError(t, err)
+	require.Equal(t, 0, len(res))
 
 	res, err = store.History("k1", 15, 20)
-	assert.NoError(t, err)
-	assert.Equal(t, 0, len(res))
+	require.NoError(t, err)
+	require.Equal(t, 0, len(res))
 
 	res, err = store.History("k1", 6, 10)
-	assert.NoError(t, err)
-	assert.Equal(t, 4, len(res))
+	require.NoError(t, err)
+	require.Equal(t, 4, len(res))
 	for i := 0; i < len(res); i++ {
 		version := i + 6
 		value := res[i]
@@ -517,8 +516,8 @@ func TestHistory(t *testing.T) {
 	}
 
 	res, err = store.History("k1", 3, 7)
-	assert.NoError(t, err)
-	assert.Equal(t, 4, len(res))
+	require.NoError(t, err)
+	require.Equal(t, 4, len(res))
 	for i := 0; i < len(res); i++ {
 		version := i + 3
 		value := res[i]
@@ -526,8 +525,8 @@ func TestHistory(t *testing.T) {
 	}
 
 	res, err = store.History("k1", 5, 15)
-	assert.NoError(t, err)
-	assert.Equal(t, totalVersion-5+1, len(res))
+	require.NoError(t, err)
+	require.Equal(t, totalVersion-5+1, len(res))
 	for i := 0; i < len(res); i++ {
 		version := i + 5
 		value := res[i]
@@ -637,6 +636,135 @@ func TestDelete_TriggerWatch(t *testing.T) {
 
 	<-vw.C()
 	verifyValue(t, vw.Get(), "bar3", 1)
+}
+
+func TestTxn(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store, err := NewStore(ec, ec, opts)
+	require.NoError(t, err)
+
+	r, err := store.Txn(
+		[]kv.Condition{
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("foo").
+				SetValue(0),
+		},
+		[]kv.Op{kv.NewSetOp("foo", genProto("bar1"))},
+	)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(r.Responses()))
+	require.Equal(t, "foo", r.Responses()[0].Key())
+	require.Equal(t, kv.OpSet, r.Responses()[0].Type())
+	require.Equal(t, 1, r.Responses()[0].Value())
+
+	v, err := store.Set("key", genProto("bar1"))
+	require.NoError(t, err)
+	require.Equal(t, 1, v)
+
+	r, err = store.Txn(
+		[]kv.Condition{
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("key").
+				SetValue(1),
+		},
+		[]kv.Op{kv.NewSetOp("foo", genProto("bar1"))},
+	)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(r.Responses()))
+	require.Equal(t, "foo", r.Responses()[0].Key())
+	require.Equal(t, kv.OpSet, r.Responses()[0].Type())
+	require.Equal(t, 2, r.Responses()[0].Value())
+
+	r, err = store.Txn(
+		[]kv.Condition{
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("foo").
+				SetValue(2),
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("key").
+				SetValue(1),
+		},
+		[]kv.Op{
+			kv.NewSetOp("key", genProto("bar1")),
+			kv.NewSetOp("foo", genProto("bar2")),
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(r.Responses()))
+	require.Equal(t, "key", r.Responses()[0].Key())
+	require.Equal(t, kv.OpSet, r.Responses()[0].Type())
+	require.Equal(t, 2, r.Responses()[0].Value())
+	require.Equal(t, "foo", r.Responses()[1].Key())
+	require.Equal(t, kv.OpSet, r.Responses()[1].Type())
+	require.Equal(t, 3, r.Responses()[1].Value())
+}
+
+func TestTxn_ConditionFail(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store, err := NewStore(ec, ec, opts)
+	require.NoError(t, err)
+
+	_, err = store.Txn(
+		[]kv.Condition{
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("foo").
+				SetValue(1),
+		},
+		[]kv.Op{kv.NewSetOp("foo", genProto("bar1"))},
+	)
+	require.Error(t, err)
+
+	store.Set("key1", genProto("v1"))
+	store.Set("key2", genProto("v2"))
+	_, err = store.Txn(
+		[]kv.Condition{
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("key1").
+				SetValue(1),
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("key2").
+				SetValue(2),
+		},
+		[]kv.Op{kv.NewSetOp("foo", genProto("bar1"))},
+	)
+	require.Error(t, err)
+}
+
+func TestTxn_UnknownType(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	store, err := NewStore(ec, ec, opts)
+	require.NoError(t, err)
+
+	_, err = store.Txn(
+		[]kv.Condition{
+			kv.NewCondition().
+				SetTargetType(kv.TargetVersion).
+				SetKey("foo").
+				SetValue(1),
+		},
+		[]kv.Op{kv.NewSetOp("foo", genProto("bar1"))},
+	)
+	require.Equal(t, kv.ErrUnknownCompareType, err)
 }
 
 func verifyValue(t *testing.T, v kv.Value, value string, version int) {
