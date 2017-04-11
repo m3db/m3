@@ -27,7 +27,8 @@ import (
 
 // Different time units that are supported.
 const (
-	// None is a place holder for time units, it doesn't represent an actual time unit.
+	// None is a place holder for time units, it doesn't represent an actual time unit. The ordering
+	// here is used for comparisons betweens units and should not be changed.
 	None Unit = iota
 	Second
 	Millisecond
@@ -39,6 +40,7 @@ const (
 var (
 	errUnrecognizedTimeUnit  = errors.New("unrecognized time unit")
 	errConvertDurationToUnit = errors.New("unable to convert from duration to time unit")
+	errConvertUnitToDuration = errors.New("unable to convert from time unit to duration")
 )
 
 // Unit represents a time unit.
@@ -74,6 +76,15 @@ func UnitFromDuration(d time.Duration) (Unit, error) {
 	}
 
 	return None, errConvertDurationToUnit
+}
+
+// DurationFromUnit creates a time duration from a time unit.
+func DurationFromUnit(u Unit) (time.Duration, error) {
+	if duration, found := unitsToDuration[u]; found {
+		return duration, nil
+	}
+
+	return 0, errConvertUnitToDuration
 }
 
 var (
