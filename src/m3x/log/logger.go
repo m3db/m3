@@ -142,9 +142,15 @@ func (nullLogger) Debug(msg string)                       {}
 func (l nullLogger) Fields() LogFields                    { return l.fields }
 
 func (l nullLogger) WithFields(newFields ...LogField) Logger {
+	existingLen := 0
+
 	existingFields := l.Fields()
-	fields := make([]LogField, 0, existingFields.Len()+len(newFields))
-	for i := 0; i < existingFields.Len(); i++ {
+	if existingFields != nil {
+		existingLen = existingFields.Len()
+	}
+
+	fields := make([]LogField, 0, existingLen+len(newFields))
+	for i := 0; i < existingLen; i++ {
 		fields = append(fields, existingFields.ValueAt(i))
 	}
 	fields = append(fields, newFields...)
