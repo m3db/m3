@@ -1,5 +1,5 @@
-hash: 3c2ee5c081e420baefcc8ab227d5f0adfa7ec0d5405e6dd5f1c1d2f017b7bd6f
-updated: 2017-02-14T18:19:35.996878285-05:00
+hash: 7fd19a2a7d67b078c78c9456fd49a547882fa393a32f2a4d6a76fd5f3c701c5f
+updated: 2017-04-11T17:47:42.052136905-04:00
 imports:
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
@@ -112,7 +112,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3x
-  version: 3a8328d65b7880b034b8515177921023b41e4399
+  version: 4b174309dad151d89861a81e70f6aa5c0fb1e777
   subpackages:
   - close
   - errors
