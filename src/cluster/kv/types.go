@@ -38,6 +38,18 @@ var (
 	// ErrNotFound is returned when attempting a Get but no value is found for
 	// the given key
 	ErrNotFound = errors.New("key not found")
+
+	// ErrUnknownTargetType is returned when an unknown TargetType is requested
+	ErrUnknownTargetType = errors.New("unknown target type")
+
+	// ErrUnknownCompareType is returned when an unknown CompareType is requested
+	ErrUnknownCompareType = errors.New("unknown compare type")
+
+	// ErrUnknownOpType is returned when an unknown OpType is requested
+	ErrUnknownOpType = errors.New("unknown op type")
+
+	// ErrConditionCheckFailed is returned when condition check failed
+	ErrConditionCheckFailed = errors.New("condition check failed")
 )
 
 // A Value provides access to a versioned value in the configuration store
@@ -114,12 +126,29 @@ const (
 	TargetVersion TargetType = iota
 )
 
+// CompareType is the type of the comparison in the condition
+type CompareType string
+
+func (t CompareType) String() string {
+	return string(t)
+}
+
+// list of supported CompareType
+const (
+	CompareEqual CompareType = "="
+)
+
 // Condition defines the prerequisite for a transaction
 type Condition interface {
-	// Type returns the type of the comparison target
-	Type() TargetType
-	// SetType sets the type of the comparison target
-	SetType(t TargetType) Condition
+	// TargetType returns the type of the TargetType
+	TargetType() TargetType
+	// SetTargetType sets the type of the TargetType
+	SetTargetType(t TargetType) Condition
+
+	// CompareType returns the type of the CompareType
+	CompareType() CompareType
+	// SetCompareType sets the type of the CompareType
+	SetCompareType(t CompareType) Condition
 
 	// Key returns the key in the condition
 	Key() string
@@ -137,7 +166,7 @@ type OpType int
 
 // list of supported OpTypes
 const (
-	Set OpType = iota
+	OpSet OpType = iota
 )
 
 // Op is the operation to be performed in a transaction
@@ -158,11 +187,14 @@ type OpResponse interface {
 	Op
 
 	Value() interface{}
+	SetValue(v interface{}) OpResponse
 }
 
 // Response captures the response of the transaction
 type Response interface {
+	// Responses return
 	Responses() []OpResponse
+	SetResponses(oprs []OpResponse) Response
 }
 
 // TxnStore supports transactions on top of Store interface
