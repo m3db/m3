@@ -645,7 +645,7 @@ func TestTxn(t *testing.T) {
 	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
-	r, err := store.Txn(
+	r, err := store.Commit(
 		[]kv.Condition{
 			kv.NewCondition().
 				SetCompareType(kv.CompareEqual).
@@ -665,7 +665,7 @@ func TestTxn(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 
-	r, err = store.Txn(
+	r, err = store.Commit(
 		[]kv.Condition{
 			kv.NewCondition().
 				SetCompareType(kv.CompareEqual).
@@ -681,7 +681,7 @@ func TestTxn(t *testing.T) {
 	require.Equal(t, kv.OpSet, r.Responses()[0].Type())
 	require.Equal(t, 2, r.Responses()[0].Value())
 
-	r, err = store.Txn(
+	r, err = store.Commit(
 		[]kv.Condition{
 			kv.NewCondition().
 				SetCompareType(kv.CompareEqual).
@@ -716,7 +716,7 @@ func TestTxn_ConditionFail(t *testing.T) {
 	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
-	_, err = store.Txn(
+	_, err = store.Commit(
 		[]kv.Condition{
 			kv.NewCondition().
 				SetCompareType(kv.CompareEqual).
@@ -730,7 +730,7 @@ func TestTxn_ConditionFail(t *testing.T) {
 
 	store.Set("key1", genProto("v1"))
 	store.Set("key2", genProto("v2"))
-	_, err = store.Txn(
+	_, err = store.Commit(
 		[]kv.Condition{
 			kv.NewCondition().
 				SetCompareType(kv.CompareEqual).
@@ -755,7 +755,7 @@ func TestTxn_UnknownType(t *testing.T) {
 	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
-	_, err = store.Txn(
+	_, err = store.Commit(
 		[]kv.Condition{
 			kv.NewCondition().
 				SetTargetType(kv.TargetVersion).

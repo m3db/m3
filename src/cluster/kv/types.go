@@ -201,5 +201,5 @@ type Response interface {
 type TxnStore interface {
 	Store
 
-	Txn([]Condition, []Op) (Response, error)
+	Commit([]Condition, []Op) (Response, error)
 }

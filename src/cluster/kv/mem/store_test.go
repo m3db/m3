@@ -260,3 +260,55 @@ func TestDelete(t *testing.T) {
 	<-w.C()
 	require.Nil(t, w.Get())
 }
+
+func TestTxn(t *testing.T) {
+	store := NewStore()
+
+	r, err := store.Commit(
+		[]kv.Condition{
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("foo").
+				SetValue(0),
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("key").
+				SetValue(0),
+		},
+		[]kv.Op{
+			kv.NewSetOp("key", &kvtest.Foo{Msg: "1"}),
+			kv.NewSetOp("foo", &kvtest.Foo{Msg: "1"}),
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(r.Responses()))
+	require.Equal(t, "key", r.Responses()[0].Key())
+	require.Equal(t, kv.OpSet, r.Responses()[0].Type())
+	require.Equal(t, 1, r.Responses()[0].Value())
+	require.Equal(t, "foo", r.Responses()[1].Key())
+	require.Equal(t, kv.OpSet, r.Responses()[1].Type())
+	require.Equal(t, 1, r.Responses()[1].Value())
+
+	_, err = store.Commit(
+		[]kv.Condition{
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("foo").
+				SetValue(1),
+			kv.NewCondition().
+				SetCompareType(kv.CompareEqual).
+				SetTargetType(kv.TargetVersion).
+				SetKey("key").
+				SetValue(0),
+		},
+		[]kv.Op{
+			kv.NewSetOp("key", &kvtest.Foo{Msg: "1"}),
+			kv.NewSetOp("foo", &kvtest.Foo{Msg: "1"}),
+		},
+	)
+	require.Error(t, err)
+	require.Equal(t, errConditionCheckFailed, err)
+}
