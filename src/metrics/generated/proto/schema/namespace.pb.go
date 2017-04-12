@@ -37,7 +37,6 @@ It has these top-level messages:
 	Resolution
 	Retention
 	Policy
-	Policies
 	MappingRuleSnapshot
 	MappingRule
 	RollupTarget
