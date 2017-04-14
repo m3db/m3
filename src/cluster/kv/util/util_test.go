@@ -25,9 +25,10 @@ func TestWatchAndUpdateBool(t *testing.T) {
 
 	store := mem.NewStore()
 
-	WatchAndUpdateBool(store, "foo", &testConfig.v, &testConfig.RWMutex, true, nil)
+	w, err := WatchAndUpdateBool(store, "foo", &testConfig.v, &testConfig.RWMutex, true, nil)
+	require.NoError(t, err)
 
-	_, err := store.Set("foo", &commonpb.BoolProto{Value: true})
+	_, err = store.Set("foo", &commonpb.BoolProto{Value: true})
 	require.NoError(t, err)
 	for {
 		if valueFn() == true {
@@ -66,6 +67,15 @@ func TestWatchAndUpdateBool(t *testing.T) {
 			break
 		}
 	}
+
+	w.Close()
+
+	_, err = store.Set("foo", &commonpb.BoolProto{Value: false})
+	require.NoError(t, err)
+
+	// no longer receives update
+	time.Sleep(100 * time.Millisecond)
+	require.True(t, valueFn())
 }
 
 func TestWatchAndUpdateFloat64(t *testing.T) {
@@ -83,9 +93,10 @@ func TestWatchAndUpdateFloat64(t *testing.T) {
 
 	store := mem.NewStore()
 
-	WatchAndUpdateFloat64(store, "foo", &testConfig.v, &testConfig.RWMutex, 12.3, nil)
+	w, err := WatchAndUpdateFloat64(store, "foo", &testConfig.v, &testConfig.RWMutex, 12.3, nil)
+	require.NoError(t, err)
 
-	_, err := store.Set("foo", &commonpb.Int64Proto{Value: 1})
+	_, err = store.Set("foo", &commonpb.Int64Proto{Value: 1})
 	require.NoError(t, err)
 	for {
 		if valueFn() == 12.3 {
@@ -108,6 +119,15 @@ func TestWatchAndUpdateFloat64(t *testing.T) {
 			break
 		}
 	}
+
+	w.Close()
+
+	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 1.2})
+	require.NoError(t, err)
+
+	// no longer receives update
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, 12.3, valueFn())
 }
 func TestWatchAndUpdateInt64(t *testing.T) {
 	testConfig := struct {
@@ -124,9 +144,10 @@ func TestWatchAndUpdateInt64(t *testing.T) {
 
 	store := mem.NewStore()
 
-	WatchAndUpdateInt64(store, "foo", &testConfig.v, &testConfig.RWMutex, 12, nil)
+	w, err := WatchAndUpdateInt64(store, "foo", &testConfig.v, &testConfig.RWMutex, 12, nil)
+	require.NoError(t, err)
 
-	_, err := store.Set("foo", &commonpb.Float64Proto{Value: 100})
+	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 100})
 	require.NoError(t, err)
 	for {
 		if valueFn() == 12 {
@@ -149,6 +170,15 @@ func TestWatchAndUpdateInt64(t *testing.T) {
 			break
 		}
 	}
+
+	w.Close()
+
+	_, err = store.Set("foo", &commonpb.Int64Proto{Value: 1})
+	require.NoError(t, err)
+
+	// no longer receives update
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, int64(12), valueFn())
 }
 
 func TestWatchAndUpdateTime(t *testing.T) {
@@ -168,9 +198,10 @@ func TestWatchAndUpdateTime(t *testing.T) {
 	now := time.Now()
 	defaultTime := now.Add(time.Hour)
 
-	WatchAndUpdateTime(store, "foo", &testConfig.v, &testConfig.RWMutex, defaultTime, nil)
+	w, err := WatchAndUpdateTime(store, "foo", &testConfig.v, &testConfig.RWMutex, defaultTime, nil)
+	require.NoError(t, err)
 
-	_, err := store.Set("foo", &commonpb.Float64Proto{Value: 100})
+	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 100})
 	require.NoError(t, err)
 	for {
 		if valueFn() == defaultTime {
@@ -193,6 +224,15 @@ func TestWatchAndUpdateTime(t *testing.T) {
 			break
 		}
 	}
+
+	w.Close()
+
+	_, err = store.Set("foo", &commonpb.Int64Proto{Value: now.Unix()})
+	require.NoError(t, err)
+
+	// no longer receives update
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, defaultTime, valueFn())
 }
 
 func TestBoolFromValue(t *testing.T) {
