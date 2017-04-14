@@ -28,7 +28,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3collector/runtime"
+	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
