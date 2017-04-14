@@ -17,7 +17,7 @@ type updateFn func(interface{})
 
 // WatchAndUpdateBool sets up a watch for a bool property.
 func WatchAndUpdateBool(store kv.Store, key string, property *bool, lock sync.Locker,
-	defaultValue bool, logger xlog.Logger) error {
+	defaultValue bool, logger xlog.Logger) (kv.ValueWatch, error) {
 	updateFn := lockedUpdate(func(i interface{}) { *property = i.(bool) }, lock)
 
 	return watchAndUpdate(store, key, getBool, updateFn, defaultValue, logger)
@@ -25,7 +25,7 @@ func WatchAndUpdateBool(store kv.Store, key string, property *bool, lock sync.Lo
 
 // WatchAndUpdateFloat64 sets up a watch for an float64 property.
 func WatchAndUpdateFloat64(store kv.Store, key string, property *float64, lock sync.Locker,
-	defaultValue float64, logger xlog.Logger) error {
+	defaultValue float64, logger xlog.Logger) (kv.ValueWatch, error) {
 	updateFn := lockedUpdate(func(i interface{}) { *property = i.(float64) }, lock)
 
 	return watchAndUpdate(store, key, getFloat64, updateFn, defaultValue, logger)
@@ -33,7 +33,7 @@ func WatchAndUpdateFloat64(store kv.Store, key string, property *float64, lock s
 
 // WatchAndUpdateInt64 sets up a watch for an int64 property.
 func WatchAndUpdateInt64(store kv.Store, key string, property *int64, lock sync.Locker,
-	defaultValue int64, logger xlog.Logger) error {
+	defaultValue int64, logger xlog.Logger) (kv.ValueWatch, error) {
 	updateFn := lockedUpdate(func(i interface{}) { *property = i.(int64) }, lock)
 
 	return watchAndUpdate(store, key, getInt64, updateFn, defaultValue, logger)
@@ -41,7 +41,7 @@ func WatchAndUpdateInt64(store kv.Store, key string, property *int64, lock sync.
 
 // WatchAndUpdateTime sets up a watch for a time property.
 func WatchAndUpdateTime(store kv.Store, key string, property *time.Time, lock sync.Locker,
-	defaultValue time.Time, logger xlog.Logger) error {
+	defaultValue time.Time, logger xlog.Logger) (kv.ValueWatch, error) {
 	updateFn := lockedUpdate(func(i interface{}) { *property = i.(time.Time) }, lock)
 
 	return watchAndUpdate(store, key, getTime, updateFn, defaultValue, logger)
@@ -141,23 +141,27 @@ func getTime(v kv.Value) (interface{}, error) {
 }
 
 func watchAndUpdate(store kv.Store, key string, getValue getValueFn, update updateFn,
-	defaultValue interface{}, logger xlog.Logger) error {
+	defaultValue interface{}, logger xlog.Logger) (kv.ValueWatch, error) {
 	if store == nil {
-		return errNilStore
+		return nil, errNilStore
 	}
 
 	watch, err := store.Watch(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	go func() {
-		for range watch.C() {
+		for {
+			_, ok := <-watch.C()
+			if !ok {
+				return
+			}
 			updateWithKV(getValue, update, key, watch.Get(), defaultValue, logger)
 		}
 	}()
 
-	return nil
+	return watch, err
 }
 
 func updateWithKV(getValue getValueFn, update updateFn, key string, v kv.Value,
