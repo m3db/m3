@@ -11,4 +11,8 @@ import:
   - require
 - package: github.com/uber-go/tally
   version: 1.0.0
+- package: gopkg.in/validator.v2
+  version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+- package: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 

@@ -1,5 +1,5 @@
-hash: 47820ec085cb6e8f220e409620d653661f6c617b8b5ed23434010915bcff2954
-updated: 2017-02-04T18:21:55.569443011-05:00
+hash: 9248400de3fc8b0e26b60a49a43e98d84b889c180b14ee49fde5806b92d3f9dd
+updated: 2017-04-13T15:38:23.167290985-04:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
@@ -12,6 +12,10 @@ imports:
   - require
 - name: github.com/uber-go/tally
   version: 08e86c3c1eb55364d563bd6beb982040225f4bb7
+- name: gopkg.in/validator.v2
+  version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+- name: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
