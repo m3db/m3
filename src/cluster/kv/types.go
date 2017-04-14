@@ -26,6 +26,11 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
+const (
+	// UninitializedVersion is the version of an uninitialized kv value.
+	UninitializedVersion = 0
+)
+
 var (
 	// ErrVersionMismatch is returned when attempting a CheckAndSet and the
 	// key is not at the provided version
