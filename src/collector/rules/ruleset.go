@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3collector/runtime"
+	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
@@ -66,7 +66,7 @@ func newRuleSet(
 		nowFn:       opts.ClockOptions().NowFn(),
 		ruleSetOpts: opts.RuleSetOptions(),
 		proto:       &schema.RuleSet{},
-		version:     runtime.DefaultVersion,
+		version:     kv.UninitializedVersion,
 	}
 	valueOpts := runtime.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).

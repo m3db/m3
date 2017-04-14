@@ -1,7 +1,7 @@
 package: github.com/m3db/m3collector
 import:
 - package: github.com/m3db/m3cluster
-  version: 98981a220f3525b4fa9908aa59fb6a54ba7ae325
+  version: 6454dd6f014591e5728764d46c2a01bac56d1323
   subpackages:
   - kv
 - package: github.com/m3db/m3metrics

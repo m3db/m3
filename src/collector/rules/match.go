@@ -21,8 +21,8 @@
 package rules
 
 import (
+	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3collector/metric"
-	"github.com/m3db/m3collector/runtime"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/log"
 )

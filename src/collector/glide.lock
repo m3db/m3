@@ -1,5 +1,5 @@
-hash: 09107f536c433e4cc7fec0df7e71e17c722a6598a4a1a648a617de3222e49c37
-updated: 2017-04-08T11:21:07.934650167-04:00
+hash: 4a2b5da2ccc2d179a18ee34b27c74e9c6173b41776cd000cd7508d657700cdc3
+updated: 2017-04-14T14:42:27.136027413-04:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
@@ -13,10 +13,11 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 98981a220f3525b4fa9908aa59fb6a54ba7ae325
+  version: 6454dd6f014591e5728764d46c2a01bac56d1323
   subpackages:
   - kv
   - kv/mem
+  - kv/util/runtime
 - name: github.com/m3db/m3metrics
   version: eb7b08f53a2be881e7fa61b5c0bd8389a6153efa
   subpackages:
