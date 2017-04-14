@@ -95,9 +95,9 @@ func TestHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 	store := c.(*client)
 
-	err = store.Heartbeat(i1, 1*time.Second)
+	err = store.Heartbeat(i1, 2*time.Second)
 	require.NoError(t, err)
-	err = store.Heartbeat(i2, 2*time.Second)
+	err = store.Heartbeat(i2, time.Minute)
 	require.NoError(t, err)
 
 	ids, err := store.Get()
@@ -116,28 +116,24 @@ func TestHeartbeat(t *testing.T) {
 
 	for {
 		ids, err = store.Get()
+		require.NoError(t, err)
 		instances, err2 := store.GetInstances()
 		require.NoError(t, err)
 		require.NoError(t, err2)
 		if len(ids) == 1 && len(instances) == 1 {
 			break
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 	require.Equal(t, 1, len(ids))
 	require.NotContains(t, ids, "i1")
 	require.Contains(t, ids, "i2")
 
-	for {
-		ids, err = store.Get()
-		instances, err2 := store.GetInstances()
-		require.NoError(t, err)
-		require.NoError(t, err2)
-		if len(ids) == 0 && len(instances) == 0 {
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
+	err = store.Delete(i2.ID())
+	require.NoError(t, err)
+
+	ids, err = store.Get()
+	require.NoError(t, err)
 	require.Equal(t, 0, len(ids))
 	require.NotContains(t, ids, "i1")
 	require.NotContains(t, ids, "i2")
