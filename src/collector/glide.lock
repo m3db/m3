@@ -1,5 +1,5 @@
-hash: 4a2b5da2ccc2d179a18ee34b27c74e9c6173b41776cd000cd7508d657700cdc3
-updated: 2017-04-14T14:42:27.136027413-04:00
+hash: 9f84add4c79198d202898e343d3806e12795ce550617c213516d0cc30481aecf
+updated: 2017-04-15T22:30:53.105479908-04:00
 imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
@@ -15,6 +15,7 @@ imports:
 - name: github.com/m3db/m3cluster
   version: 6454dd6f014591e5728764d46c2a01bac56d1323
   subpackages:
+  - generated/proto/placement
   - kv
   - kv/mem
   - kv/util/runtime
@@ -23,20 +24,49 @@ imports:
   subpackages:
   - filters
   - generated/proto/schema
+  - metric
+  - metric/aggregated
+  - metric/unaggregated
   - policy
+  - pool
+  - protocol/msgpack
   - rules
 - name: github.com/m3db/m3x
   version: 47d20dcef699f77d5560b364cd3f636cc4e42f74
   subpackages:
+  - checked
   - clock
   - close
+  - errors
   - id
   - instrument
   - log
+  - pool
   - time
   - watch
+- name: github.com/spaolacci/murmur3
+  version: 0d12bf811670bf6a1a63828dfbd003eded177fce
 - name: github.com/uber-go/tally
   version: 08e86c3c1eb55364d563bd6beb982040225f4bb7
+- name: golang.org/x/net
+  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  subpackages:
+  - context
+- name: google.golang.org/appengine
+  version: 8758a385849434ba5eac8aeedcf5192c5a0f5f10
+  subpackages:
+  - datastore
+  - internal
+  - internal/app_identity
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/modules
+  - internal/remote_api
+- name: gopkg.in/vmihailenco/msgpack.v2
+  version: a1382b1ce0c749733b814157c245e02cc1f41076
+  subpackages:
+  - codes
 testImports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
