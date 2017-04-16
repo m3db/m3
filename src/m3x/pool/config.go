@@ -20,39 +20,39 @@
 
 package pool
 
-// ObjectPoolConfig contains configuration for object pools.
-type ObjectPoolConfig struct {
+// ObjectPoolConfiguration contains configuration for object pools.
+type ObjectPoolConfiguration struct {
 	// The size of the pool.
 	Size int `yaml:"size"`
 
-	// The watermark setting.
-	WaterMark WaterMarkConfig `yaml:"waterMark"`
+	// The watermark configuration.
+	WaterMark WaterMarkConfiguration `yaml:"waterMark"`
 }
 
-// CapacityPoolConfig contains configuration for pools containing objects
+// CapacityPoolConfiguration contains configuration for pools containing objects
 // with capacity attributes (e.g., slices).
-type CapacityPoolConfig struct {
+type CapacityPoolConfiguration struct {
 	// The size of the pool.
 	Size int `yaml:"size"`
 
 	// The capacity of items in the pool.
 	Capacity int `yaml:"capacity"`
 
-	// The watermark setting.
-	WaterMark WaterMarkConfig `yaml:"waterMark"`
+	// The watermark configuration.
+	WaterMark WaterMarkConfiguration `yaml:"waterMark"`
 }
 
-// BucketizedPoolConfig contains configuration for bucketized pools.
-type BucketizedPoolConfig struct {
+// BucketizedPoolConfiguration contains configuration for bucketized pools.
+type BucketizedPoolConfiguration struct {
 	// The pool bucket configuration.
-	Buckets []BucketConfig `yaml:"buckets"`
+	Buckets []BucketConfiguration `yaml:"buckets"`
 
-	// The watermark setting.
-	WaterMark WaterMarkConfig `yaml:"waterMark"`
+	// The watermark configuration.
+	WaterMark WaterMarkConfiguration `yaml:"waterMark"`
 }
 
-// BucketConfig contains configuration for a pool bucket.
-type BucketConfig struct {
+// BucketConfiguration contains configuration for a pool bucket.
+type BucketConfiguration struct {
 	// The count of the items in the bucket.
 	Count int `yaml:"count"`
 
@@ -60,8 +60,8 @@ type BucketConfig struct {
 	Capacity int `yaml:"capacity"`
 }
 
-// WaterMarkConfig contains watermark configuration for pools.
-type WaterMarkConfig struct {
+// WaterMarkConfiguration contains watermark configuration for pools.
+type WaterMarkConfiguration struct {
 	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
