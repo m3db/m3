@@ -20,6 +20,8 @@
 
 package pool
 
+import "github.com/m3db/m3x/instrument"
+
 // ObjectPoolConfiguration contains configuration for object pools.
 type ObjectPoolConfiguration struct {
 	// The size of the pool.
@@ -29,17 +31,19 @@ type ObjectPoolConfiguration struct {
 	WaterMark WaterMarkConfiguration `yaml:"waterMark"`
 }
 
-// CapacityPoolConfiguration contains configuration for pools containing objects
-// with capacity attributes (e.g., slices).
-type CapacityPoolConfiguration struct {
-	// The size of the pool.
-	Size int `yaml:"size"`
-
-	// The capacity of items in the pool.
-	Capacity int `yaml:"capacity"`
-
-	// The watermark configuration.
-	WaterMark WaterMarkConfiguration `yaml:"waterMark"`
+// NewObjectPoolOptions creates a new set of object pool options.
+func (c *ObjectPoolConfiguration) NewObjectPoolOptions(
+	instrumentOpts instrument.Options,
+) ObjectPoolOptions {
+	size := defaultSize
+	if c.Size != 0 {
+		size = c.Size
+	}
+	return NewObjectPoolOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetSize(size).
+		SetRefillLowWatermark(c.WaterMark.RefillLowWaterMark).
+		SetRefillHighWatermark(c.WaterMark.RefillHighWaterMark)
 }
 
 // BucketizedPoolConfiguration contains configuration for bucketized pools.
@@ -51,6 +55,26 @@ type BucketizedPoolConfiguration struct {
 	WaterMark WaterMarkConfiguration `yaml:"waterMark"`
 }
 
+// NewObjectPoolOptions creates a new set of object pool options.
+func (c *BucketizedPoolConfiguration) NewObjectPoolOptions(
+	instrumentOpts instrument.Options,
+) ObjectPoolOptions {
+	return NewObjectPoolOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetRefillLowWatermark(c.WaterMark.RefillLowWaterMark).
+		SetRefillHighWatermark(c.WaterMark.RefillHighWaterMark)
+}
+
+// NewBuckets create a new list of buckets.
+func (c *BucketizedPoolConfiguration) NewBuckets() []Bucket {
+	buckets := make([]Bucket, 0, len(c.Buckets))
+	for _, bconfig := range c.Buckets {
+		bucket := bconfig.NewBucket()
+		buckets = append(buckets, bucket)
+	}
+	return buckets
+}
+
 // BucketConfiguration contains configuration for a pool bucket.
 type BucketConfiguration struct {
 	// The count of the items in the bucket.
@@ -58,6 +82,14 @@ type BucketConfiguration struct {
 
 	// The capacity of each item in the bucket.
 	Capacity int `yaml:"capacity"`
+}
+
+// NewBucket creates a new bucket.
+func (c *BucketConfiguration) NewBucket() Bucket {
+	return Bucket{
+		Capacity: c.Capacity,
+		Count:    c.Count,
+	}
 }
 
 // WaterMarkConfiguration contains watermark configuration for pools.

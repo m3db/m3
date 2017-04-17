@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	defaultSamplingRate   = 1.0
-	defaultReportInterval = time.Second
+	defaultSamplingRate      = 1.0
+	defaultReportingInterval = time.Second
 )
 
 type options struct {
@@ -47,7 +47,7 @@ func NewOptions() Options {
 		logger:         logger,
 		scope:          tally.NoopScope,
 		samplingRate:   defaultSamplingRate,
-		reportInterval: defaultReportInterval,
+		reportInterval: defaultReportingInterval,
 	}
 }
 

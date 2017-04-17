@@ -23,8 +23,9 @@ package pool
 import "github.com/m3db/m3x/instrument"
 
 const (
-	defaultSize               = 4096
-	defaultRefillLowWatermark = 0
+	defaultSize                = 4096
+	defaultRefillLowWatermark  = 0.0
+	defaultRefillHighWatermark = 0.0
 )
 
 type objectPoolOptions struct {
@@ -40,6 +41,7 @@ func NewObjectPoolOptions() ObjectPoolOptions {
 	return &objectPoolOptions{
 		size:                defaultSize,
 		refillLowWatermark:  defaultRefillLowWatermark,
+		refillHighWatermark: defaultRefillHighWatermark,
 		instrumentOpts:      instrument.NewOptions(),
 		onPoolAccessErrorFn: func(err error) { panic(err) },
 	}
