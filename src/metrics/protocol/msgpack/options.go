@@ -21,7 +21,7 @@
 package msgpack
 
 import (
-	"github.com/m3db/m3metrics/pool"
+	"github.com/m3db/m3metrics/policy"
 	xpool "github.com/m3db/m3x/pool"
 )
 
@@ -38,7 +38,7 @@ const (
 type unaggregatedIteratorOptions struct {
 	ignoreHigherVersion bool
 	floatsPool          xpool.FloatsPool
-	policiesPool        pool.PoliciesPool
+	policiesPool        policy.PoliciesPool
 	iteratorPool        UnaggregatedIteratorPool
 }
 
@@ -47,7 +47,7 @@ func NewUnaggregatedIteratorOptions() UnaggregatedIteratorOptions {
 	floatsPool := xpool.NewFloatsPool(nil, nil)
 	floatsPool.Init()
 
-	policiesPool := pool.NewPoliciesPool(nil, nil)
+	policiesPool := policy.NewPoliciesPool(nil, nil)
 	policiesPool.Init()
 
 	return unaggregatedIteratorOptions{
@@ -77,13 +77,13 @@ func (o unaggregatedIteratorOptions) FloatsPool() xpool.FloatsPool {
 	return o.floatsPool
 }
 
-func (o unaggregatedIteratorOptions) SetPoliciesPool(value pool.PoliciesPool) UnaggregatedIteratorOptions {
+func (o unaggregatedIteratorOptions) SetPoliciesPool(value policy.PoliciesPool) UnaggregatedIteratorOptions {
 	opts := o
 	opts.policiesPool = value
 	return opts
 }
 
-func (o unaggregatedIteratorOptions) PoliciesPool() pool.PoliciesPool {
+func (o unaggregatedIteratorOptions) PoliciesPool() policy.PoliciesPool {
 	return o.policiesPool
 }
 

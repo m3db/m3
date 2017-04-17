@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/pool"
 	xpool "github.com/m3db/m3x/pool"
 )
 
@@ -250,10 +249,10 @@ type UnaggregatedIteratorOptions interface {
 	FloatsPool() xpool.FloatsPool
 
 	// SetPoliciesPool sets the policies pool
-	SetPoliciesPool(value pool.PoliciesPool) UnaggregatedIteratorOptions
+	SetPoliciesPool(value policy.PoliciesPool) UnaggregatedIteratorOptions
 
 	// PoliciesPool returns the policies pool
-	PoliciesPool() pool.PoliciesPool
+	PoliciesPool() policy.PoliciesPool
 
 	// SetIteratorPool sets the unaggregated iterator pool
 	SetIteratorPool(value UnaggregatedIteratorPool) UnaggregatedIteratorOptions
