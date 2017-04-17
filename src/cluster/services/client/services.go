@@ -510,24 +510,15 @@ func getServiceFromValue(value kv.Value, sid services.ServiceID) (services.Servi
 	return util.ServiceFromProto(placement, sid)
 }
 
-func waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid services.ServiceID, timeoutDur time.Duration) (kv.Value, error) {
-	err := wait(w, timeoutDur)
-	if err == nil {
-		return w.Get(), nil
-	}
-
-	return kvStore.Get(placementKey(sid))
-}
-
-func wait(vw kv.ValueWatch, timeout time.Duration) error {
+func waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid services.ServiceID, timeout time.Duration) (kv.Value, error) {
 	if timeout <= 0 {
-		return nil
+		timeout = defaultInitTimeout
 	}
 	select {
-	case <-vw.C():
-		return nil
+	case <-w.C():
+		return w.Get(), nil
 	case <-time.After(timeout):
-		return errWatchInitTimeout
+		return kvStore.Get(placementKey(sid))
 	}
 }
 

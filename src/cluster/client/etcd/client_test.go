@@ -162,7 +162,7 @@ func testOptions() Options {
 	return NewOptions().SetClusters([]Cluster{
 		NewCluster().SetZone("zone1").SetEndpoints([]string{"i1"}),
 		NewCluster().SetZone("zone2").SetEndpoints([]string{"i2"}),
-	}).SetServiceInitTimeout(time.Second).SetAppID("test_app")
+	}).SetServiceInitTimeout(time.Second).SetService("test_app")
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {

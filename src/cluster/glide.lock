@@ -1,5 +1,5 @@
-hash: 7fd19a2a7d67b078c78c9456fd49a547882fa393a32f2a4d6a76fd5f3c701c5f
-updated: 2017-04-11T17:47:42.052136905-04:00
+hash: d9cb6ee29dac603de41eb9300dcf470b753c369d325f2118f5f954bbd66dc76a
+updated: 2017-04-17T11:58:28.32863138-04:00
 imports:
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
@@ -112,9 +112,10 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3x
-  version: 4b174309dad151d89861a81e70f6aa5c0fb1e777
+  version: 84544f6528903a3213e5f6cb2500fa4b4499f715
   subpackages:
   - close
+  - config
   - errors
   - instrument
   - log
@@ -187,8 +188,10 @@ imports:
   - naming
   - peer
   - transport
+- name: gopkg.in/validator.v2
+  version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2
-  version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
