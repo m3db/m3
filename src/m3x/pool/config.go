@@ -95,8 +95,8 @@ func (c *BucketConfiguration) NewBucket() Bucket {
 // WatermarkConfiguration contains watermark configuration for pools.
 type WatermarkConfiguration struct {
 	// The low watermark to start refilling the pool, if zero none.
-	RefillLowWatermark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
+	RefillLowWatermark float64 `yaml:"low" validate:"min=0.0,max=1.0"`
 
 	// The high watermark to stop refilling the pool, if zero none.
-	RefillHighWatermark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
+	RefillHighWatermark float64 `yaml:"high" validate:"min=0.0,max=1.0"`
 }
