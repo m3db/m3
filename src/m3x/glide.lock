@@ -1,6 +1,10 @@
-hash: 9248400de3fc8b0e26b60a49a43e98d84b889c180b14ee49fde5806b92d3f9dd
-updated: 2017-04-13T15:38:23.167290985-04:00
+hash: fdb267e7d15df0b298df5ee4b12e5b8eb9bcef67e9881df6dd01b63abd2d7779
+updated: 2017-04-16T14:41:26.367919915-04:00
 imports:
+- name: github.com/apache/thrift
+  version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
+  subpackages:
+  - lib/go/thrift
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/golang/mock
@@ -10,8 +14,15 @@ imports:
   subpackages:
   - assert
   - require
+- name: github.com/uber-go/atomic
+  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 08e86c3c1eb55364d563bd6beb982040225f4bb7
+  version: 4b9d9de43ffcb0b7efe67dab2a92c2d58dbf16ab
+  subpackages:
+  - m3
+  - m3/customtransports
+  - m3/thrift
+  - m3/thriftudp
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2
