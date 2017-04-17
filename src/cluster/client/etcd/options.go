@@ -35,14 +35,14 @@ type Options interface {
 	Zone() string
 	SetZone(z string) Options
 
-	ServiceInitTimeout() time.Duration
-	SetServiceInitTimeout(timeout time.Duration) Options
+	Service() string
+	SetService(id string) Options
 
 	CacheDir() string
 	SetCacheDir(dir string) Options
 
-	AppID() string
-	SetAppID(id string) Options
+	ServiceInitTimeout() time.Duration
+	SetServiceInitTimeout(timeout time.Duration) Options
 
 	Clusters() []Cluster
 	SetClusters(clusters []Cluster) Options
@@ -71,16 +71,16 @@ func NewOptions() Options {
 type options struct {
 	env                string
 	zone               string
-	serviceInitTimeout time.Duration
+	service            string
 	cacheDir           string
-	appID              string
+	serviceInitTimeout time.Duration
 	clusters           map[string]Cluster
 	iopts              instrument.Options
 }
 
 func (o options) Validate() error {
-	if o.appID == "" {
-		return errors.New("invalid options, no appID set")
+	if o.service == "" {
+		return errors.New("invalid options, no service name set")
 	}
 
 	if len(o.clusters) == 0 {
@@ -130,12 +130,12 @@ func (o options) SetCacheDir(dir string) Options {
 	return o
 }
 
-func (o options) AppID() string {
-	return o.appID
+func (o options) Service() string {
+	return o.service
 }
 
-func (o options) SetAppID(id string) Options {
-	o.appID = id
+func (o options) SetService(id string) Options {
+	o.service = id
 	return o
 }
 

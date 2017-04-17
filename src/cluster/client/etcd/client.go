@@ -55,7 +55,7 @@ func NewConfigServiceClient(opts Options) (client.Client, error) {
 
 	scope := opts.InstrumentOptions().
 		MetricsScope().
-		Tagged(map[string]string{"app_id": opts.AppID()})
+		Tagged(map[string]string{"service": opts.Service()})
 
 	return &csclient{
 		opts:    opts,
@@ -151,7 +151,7 @@ func (c *csclient) txnGen(kvOpts etcdKV.Options, zone string) (kv.TxnStore, erro
 	return etcdKV.NewStore(
 		cli.KV,
 		cli.Watcher,
-		kvOpts.SetCacheFilePath(cacheFileForZone(c.opts.CacheDir(), kvOpts.ApplyPrefix(c.opts.AppID()), zone)),
+		kvOpts.SetCacheFilePath(cacheFileForZone(c.opts.CacheDir(), kvOpts.ApplyPrefix(c.opts.Service()), zone)),
 	)
 }
 
@@ -200,15 +200,15 @@ func newClient(endpoints []string) (*clientv3.Client, error) {
 	return clientv3.New(clientv3.Config{Endpoints: endpoints})
 }
 
-func cacheFileForZone(cacheDir, appID, zone string) string {
-	if cacheDir == "" || appID == "" || zone == "" {
+func cacheFileForZone(cacheDir, service, zone string) string {
+	if cacheDir == "" || service == "" || zone == "" {
 		return ""
 	}
-	return filepath.Join(cacheDir, fileName(appID, zone))
+	return filepath.Join(cacheDir, fileName(service, zone))
 }
 
-func fileName(appID, zone string) string {
-	cacheFileName := fmt.Sprintf(cacheFileFormat, appID, zone)
+func fileName(service, zone string) string {
+	cacheFileName := fmt.Sprintf(cacheFileFormat, service, zone)
 
 	return strings.Replace(cacheFileName, string(os.PathSeparator), "_", -1)
 }

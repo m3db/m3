@@ -103,16 +103,16 @@ func TestWatchSimple(t *testing.T) {
 	require.Equal(t, int32(2), atomic.LoadInt32(updateCalled))
 }
 
-func TestWatchRecreateWatch(t *testing.T) {
+func TestWatchRecreate(t *testing.T) {
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
 
-	failTotal := 3
+	failTotal := 2
 	mw := mocks.NewBlackholeWatcher(ec, failTotal, func() { time.Sleep(time.Minute) })
 	wh.opts = wh.opts.
 		SetWatcher(mw).
-		SetWatchChanInitTimeout(100 * time.Millisecond).
-		SetWatchChanResetInterval(300 * time.Millisecond)
+		SetWatchChanInitTimeout(200 * time.Millisecond).
+		SetWatchChanResetInterval(100 * time.Millisecond)
 
 	go wh.Watch("foo")
 
@@ -121,7 +121,7 @@ func TestWatchRecreateWatch(t *testing.T) {
 		if atomic.LoadInt32(updateCalled) == int32(failTotal) {
 			break
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// now we have retried failTotal times, give enough time for reset to happen
@@ -135,6 +135,7 @@ func TestWatchRecreateWatch(t *testing.T) {
 		if atomic.LoadInt32(updateCalled) == int32(failTotal+1) {
 			break
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// clean up the background go routine

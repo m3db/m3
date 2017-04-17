@@ -1,5 +1,10 @@
 package: github.com/m3db/m3cluster
 import:
+- package: github.com/coreos/etcd
+  version: 8ba2897a21e4fc51b298ca553d251318425f93ae #release-3.1
+  subpackages:
+  - clientv3
+  - integration
 - package: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
   subpackages:
@@ -10,14 +15,11 @@ import:
   subpackages:
   - proto
 - package: github.com/m3db/m3x
-  version: 4b174309dad151d89861a81e70f6aa5c0fb1e777
+  version: 84544f6528903a3213e5f6cb2500fa4b4499f715
 - package: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
   - assert
   - require
-- package: github.com/coreos/etcd
-  version: 8ba2897a21e4fc51b298ca553d251318425f93ae #release-3.1
-  subpackages:
-  - clientv3
-  - integration
+- package: github.com/prometheus/client_model
+  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6

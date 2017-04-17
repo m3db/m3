@@ -30,11 +30,7 @@ import (
 )
 
 const (
-	// the kv store uses a default timeout of 10 seconds for etcd calls, when the
-	// etcd call times out, it would return the value in the local cache. So the
-	// defaultInitTimeout needs to be longer than the default timeout in kv store
-	// to make use of the cache
-	defaultInitTimeout   = 15 * time.Second
+	defaultInitTimeout   = 5 * time.Second
 	defaultGaugeInterval = 10 * time.Second
 )
 
