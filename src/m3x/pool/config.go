@@ -28,7 +28,7 @@ type ObjectPoolConfiguration struct {
 	Size int `yaml:"size"`
 
 	// The watermark configuration.
-	WaterMark WaterMarkConfiguration `yaml:"waterMark"`
+	Watermark WatermarkConfiguration `yaml:"watermark"`
 }
 
 // NewObjectPoolOptions creates a new set of object pool options.
@@ -42,8 +42,8 @@ func (c *ObjectPoolConfiguration) NewObjectPoolOptions(
 	return NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetSize(size).
-		SetRefillLowWatermark(c.WaterMark.RefillLowWaterMark).
-		SetRefillHighWatermark(c.WaterMark.RefillHighWaterMark)
+		SetRefillLowWatermark(c.Watermark.RefillLowWatermark).
+		SetRefillHighWatermark(c.Watermark.RefillHighWatermark)
 }
 
 // BucketizedPoolConfiguration contains configuration for bucketized pools.
@@ -52,7 +52,7 @@ type BucketizedPoolConfiguration struct {
 	Buckets []BucketConfiguration `yaml:"buckets"`
 
 	// The watermark configuration.
-	WaterMark WaterMarkConfiguration `yaml:"waterMark"`
+	Watermark WatermarkConfiguration `yaml:"watermark"`
 }
 
 // NewObjectPoolOptions creates a new set of object pool options.
@@ -61,8 +61,8 @@ func (c *BucketizedPoolConfiguration) NewObjectPoolOptions(
 ) ObjectPoolOptions {
 	return NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts).
-		SetRefillLowWatermark(c.WaterMark.RefillLowWaterMark).
-		SetRefillHighWatermark(c.WaterMark.RefillHighWaterMark)
+		SetRefillLowWatermark(c.Watermark.RefillLowWatermark).
+		SetRefillHighWatermark(c.Watermark.RefillHighWatermark)
 }
 
 // NewBuckets create a new list of buckets.
@@ -92,11 +92,11 @@ func (c *BucketConfiguration) NewBucket() Bucket {
 	}
 }
 
-// WaterMarkConfiguration contains watermark configuration for pools.
-type WaterMarkConfiguration struct {
+// WatermarkConfiguration contains watermark configuration for pools.
+type WatermarkConfiguration struct {
 	// The low watermark to start refilling the pool, if zero none.
-	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
+	RefillLowWatermark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
 	// The high watermark to stop refilling the pool, if zero none.
-	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
+	RefillHighWatermark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 }

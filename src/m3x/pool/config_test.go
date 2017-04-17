@@ -31,9 +31,9 @@ import (
 func TestObjectPoolConfiguration(t *testing.T) {
 	cfg := ObjectPoolConfiguration{
 		Size: 1,
-		WaterMark: WaterMarkConfiguration{
-			RefillLowWaterMark:  0.1,
-			RefillHighWaterMark: 0.5,
+		Watermark: WatermarkConfiguration{
+			RefillLowWatermark:  0.1,
+			RefillHighWatermark: 0.5,
 		},
 	}
 	opts := cfg.NewObjectPoolOptions(instrument.NewOptions()).(*objectPoolOptions)
@@ -48,9 +48,9 @@ func TestBucketizedPoolConfiguration(t *testing.T) {
 			{Count: 1, Capacity: 10},
 			{Count: 2, Capacity: 20},
 		},
-		WaterMark: WaterMarkConfiguration{
-			RefillLowWaterMark:  0.1,
-			RefillHighWaterMark: 0.5,
+		Watermark: WatermarkConfiguration{
+			RefillLowWatermark:  0.1,
+			RefillHighWatermark: 0.5,
 		},
 	}
 	expectedBuckets := []Bucket{
