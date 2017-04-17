@@ -18,20 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package pool
+package policy
 
-import (
-	"github.com/m3db/m3metrics/policy"
-)
+import "github.com/m3db/m3x/pool"
 
-// PoliciesPool provides a pool for variable-sized policy slices
+// PoliciesPool provides a pool for variable-sized policy slices.
 type PoliciesPool interface {
-	// Init initializes the pool
+	// Init initializes the pool.
 	Init()
 
-	// Get provides an float64 slice from the pool
-	Get(capacity int) []policy.Policy
+	// Get provides a policy slice from the pool.
+	Get(capacity int) []Policy
 
-	// Put returns an float64 slice to the pool
-	Put(value []policy.Policy)
+	// Put returns a policy slice to the pool.
+	Put(value []Policy)
+}
+
+type policiesPool struct {
+	pool pool.BucketizedObjectPool
+}
+
+// NewPoliciesPool creates a new policies pool.
+func NewPoliciesPool(sizes []pool.Bucket, opts pool.ObjectPoolOptions) PoliciesPool {
+	return &policiesPool{pool: pool.NewBucketizedObjectPool(sizes, opts)}
+}
+
+func (p *policiesPool) Init() {
+	p.pool.Init(func(capacity int) interface{} {
+		return make([]Policy, 0, capacity)
+	})
+}
+
+func (p *policiesPool) Get(capacity int) []Policy {
+	return p.pool.Get(capacity).([]Policy)
+}
+
+func (p *policiesPool) Put(value []Policy) {
+	value = value[:0]
+	p.pool.Put(value, cap(value))
 }

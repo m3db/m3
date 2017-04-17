@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/pool"
 	xpool "github.com/m3db/m3x/pool"
 )
 
@@ -37,7 +36,7 @@ type unaggregatedIterator struct {
 
 	ignoreHigherVersion bool                     // whether we ignore messages with a higher-than-supported version
 	floatsPool          xpool.FloatsPool         // pool for float slices
-	policiesPool        pool.PoliciesPool        // pool for policies
+	policiesPool        policy.PoliciesPool      // pool for policies
 	iteratorPool        UnaggregatedIteratorPool // pool for unaggregated iterators
 	closed              bool                     // whether the iterator is closed
 	metric              unaggregated.MetricUnion // current metric
