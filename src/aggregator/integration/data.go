@@ -44,28 +44,16 @@ var (
 		1,
 		time.Unix(0, 0),
 		[]policy.Policy{
-			{
-				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
-				Retention:  policy.Retention(time.Hour),
-			},
-			{
-				Resolution: policy.Resolution{Window: 2 * time.Second, Precision: xtime.Second},
-				Retention:  policy.Retention(6 * time.Hour),
-			},
+			policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+			policy.NewPolicy(2*time.Second, xtime.Second, 6*time.Hour),
 		},
 	)
 	testUpdatedVersionedPolicies = policy.CustomVersionedPolicies(
 		2,
 		time.Unix(0, 0),
 		[]policy.Policy{
-			{
-				Resolution: policy.Resolution{Window: time.Second, Precision: xtime.Second},
-				Retention:  policy.Retention(time.Hour),
-			},
-			{
-				Resolution: policy.Resolution{Window: 3 * time.Second, Precision: xtime.Second},
-				Retention:  policy.Retention(24 * time.Hour),
-			},
+			policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+			policy.NewPolicy(3*time.Second, xtime.Second, 24*time.Hour),
 		},
 	)
 )
@@ -82,11 +70,11 @@ func (a byTimeIDPolicyAscending) Less(i, j int) bool {
 	if id1 != id2 {
 		return id1 < id2
 	}
-	resolution1, resolution2 := a[i].Policy.Resolution.Window, a[j].Policy.Resolution.Window
+	resolution1, resolution2 := a[i].Policy.Resolution().Window, a[j].Policy.Resolution().Window
 	if resolution1 != resolution2 {
 		return resolution1 < resolution2
 	}
-	retention1, retention2 := a[i].Policy.Retention, a[j].Policy.Retention
+	retention1, retention2 := a[i].Policy.Retention(), a[j].Policy.Retention()
 	return retention1 < retention2
 }
 
@@ -202,7 +190,7 @@ func toExpectedResults(
 					datapoints = make(valuesByTime)
 					metrics[string(mu.ID)] = datapoints
 				}
-				alignedStart := dataValues.timestamp.Truncate(policy.Resolution.Window)
+				alignedStart := dataValues.timestamp.Truncate(policy.Resolution().Window)
 				values, exists := datapoints[alignedStart]
 				if !exists {
 					switch mu.Type {
@@ -240,10 +228,10 @@ func toExpectedResults(
 	// Convert metrics by policy to sorted aggregated metrics slice
 	var expected []aggregated.MetricWithPolicy
 	for policy, metrics := range byPolicy {
-		alignedCutoff := now.Truncate(policy.Resolution.Window)
+		alignedCutoff := now.Truncate(policy.Resolution().Window)
 		for id, datapoints := range metrics {
 			for time, values := range datapoints {
-				endAt := time.Add(policy.Resolution.Window)
+				endAt := time.Add(policy.Resolution().Window)
 				// The end time must be no later than the aligned cutoff time
 				// for the data to be flushed
 				if !endAt.After(alignedCutoff) {

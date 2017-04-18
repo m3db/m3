@@ -1,14 +1,17 @@
 package: github.com/m3db/m3aggregator
 
 import:
+- package: github.com/apache/thrift
+  version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
+
 - package: github.com/m3db/m3metrics
-  version: 622fad952b35e8897af7ccefcdecea6fffc62253
+  version: 27d28ef612e44438df96be220a466877797e9cc4
 
 - package: github.com/m3db/m3x
-  version: fcb5878c2ad11ab932afc2d30810da4a23986d0e
+  version: 0983ae8a74b716e37edd2675638dff80bf723e88
 
 - package: github.com/uber-go/tally
-  version: 1f0f7171f312a8cff5f697fe5f4d45dbaec8c3ac
+  version: 3.0.0
 
 - package: github.com/golang/protobuf
   version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
@@ -18,6 +21,21 @@ import:
 
 - package: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
-  subpackages:
-  - assert
-  - require
+
+- package: github.com/prometheus/common
+  version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
+
+- package: github.com/Sirupsen/logrus
+  version: cd7d1bbe41066b6c1f19780f895901052150a575
+
+- package: github.com/uber-go/atomic
+  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+
+- package: golang.org/x/sys
+  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+
+- package: gopkg.in/validator.v2
+  version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+
+- package: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4

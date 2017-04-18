@@ -71,10 +71,7 @@ var (
 			1,
 			time.Now(),
 			[]policy.Policy{
-				{
-					Resolution: policy.Resolution{Window: time.Duration(1), Precision: xtime.Second},
-					Retention:  policy.Retention(time.Hour),
-				},
+				policy.NewPolicy(time.Duration(1), xtime.Second, time.Hour),
 			},
 		),
 	}

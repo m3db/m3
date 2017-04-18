@@ -132,7 +132,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		resultLock.Unlock()
 		return nil
 	}
-	handler := handler.NewHandler(handleFn)
+	handler := handler.NewDecodingHandler(handleFn)
 
 	return &testSetup{
 		opts:              opts,

@@ -133,7 +133,7 @@ func TestMetricListTick(t *testing.T) {
 		SetMaxFlushSize(100).
 		SetFlushFn(flushFn)
 	l := newMetricList(0, opts)
-	l.resolution = testPolicy.Resolution.Window
+	l.resolution = testPolicy.Resolution().Window
 	l.waitForFn = func(time.Duration) <-chan time.Time {
 		c := make(chan time.Time)
 		close(c)
@@ -166,7 +166,7 @@ func TestMetricListTick(t *testing.T) {
 	}
 	for _, ep := range elemPairs {
 		require.NoError(t, ep.elem.AddMetric(nowTs, ep.metric))
-		require.NoError(t, ep.elem.AddMetric(nowTs.Add(testPolicy.Resolution.Window), ep.metric))
+		require.NoError(t, ep.elem.AddMetric(nowTs.Add(testPolicy.Resolution().Window), ep.metric))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}
@@ -181,14 +181,14 @@ func TestMetricListTick(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		// Move the time forward by one aggregation interval
-		nowTs = nowTs.Add(testPolicy.Resolution.Window)
+		nowTs = nowTs.Add(testPolicy.Resolution().Window)
 		atomic.StoreInt64(&now, nowTs.UnixNano())
 
 		// Force a tick
 		l.tickInternal()
 
 		var expected []testAggMetric
-		alignedStart := nowTs.Truncate(testPolicy.Resolution.Window)
+		alignedStart := nowTs.Truncate(testPolicy.Resolution().Window)
 		expected = append(expected, expectedAggMetricsForCounter(alignedStart, testPolicy)...)
 		expected = append(expected, expectedAggMetricsForTimer(alignedStart, testPolicy)...)
 		expected = append(expected, expectedAggMetricsForGauge(alignedStart, testPolicy)...)
@@ -207,7 +207,7 @@ func TestMetricListTick(t *testing.T) {
 	}
 
 	// Move the time forward by one aggregation interval
-	nowTs = nowTs.Add(testPolicy.Resolution.Window)
+	nowTs = nowTs.Add(testPolicy.Resolution().Window)
 	atomic.StoreInt64(&now, nowTs.UnixNano())
 
 	// Force a tick

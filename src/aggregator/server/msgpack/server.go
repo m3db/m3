@@ -219,6 +219,6 @@ func (s *server) reportMetrics() {
 		if atomic.LoadInt32(&s.closed) == 1 {
 			return
 		}
-		s.metrics.openConnections.Update(int64(atomic.LoadInt32(&s.numConns)))
+		s.metrics.openConnections.Update(float64(atomic.LoadInt32(&s.numConns)))
 	}
 }

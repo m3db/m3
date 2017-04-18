@@ -23,16 +23,20 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	httpserver "github.com/m3db/m3aggregator/server/http"
-	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
-	"github.com/m3db/m3aggregator/services/m3aggregator/handler"
+	"github.com/m3db/m3aggregator/services/m3aggregator/config"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
+	"github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pprof"
+	"github.com/prometheus/common/log"
 )
 
 const (
@@ -40,33 +44,63 @@ const (
 )
 
 var (
-	msgpackAddrArg = flag.String("msgpackAddr", "0.0.0.0:6000", "msgpack server address")
-	httpAddrArg    = flag.String("httpAddr", "0.0.0.0:6001", "http server address")
+	configFile = flag.String("f", "", "configuration file")
+	logger     = xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LogLevelInfo)
 )
 
 func main() {
 	flag.Parse()
 
-	if *msgpackAddrArg == "" || *httpAddrArg == "" {
+	if len(*configFile) == 0 {
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	// Creating the handler
-	handler := handler.NewDefaultHandler()
+	var cfg config.Configuration
+	if err := xconfig.LoadFile(&cfg, *configFile); err != nil {
+		logger.Fatalf("error loading config file: %v", err)
+	}
 
-	// Creating the aggregator
-	aggregatorOpts := aggregator.NewOptions().SetFlushFn(handler.Handle)
+	// Create metrics scope.
+	scope, closer, err := cfg.Metrics.NewRootScope()
+	if err != nil {
+		logger.Fatalf("error creating metrics root scope: %v", err)
+	}
+	defer closer.Close()
+	instrumentOpts := instrument.NewOptions().
+		SetMetricsScope(scope).
+		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+		SetReportInterval(cfg.Metrics.ReportInterval())
+
+	// Create the aggregator.
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("aggregator"))
+	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(iOpts)
+	if err != nil {
+		logger.Fatalf("error creating aggregator options: %v", err)
+	}
 	aggregator := aggregator.NewAggregator(aggregatorOpts)
 
-	// Creating the mgspack server options
-	msgpackAddr := *msgpackAddrArg
-	msgpackServerOpts := msgpackserver.NewOptions()
-	httpAddr := *httpAddrArg
-	httpServerOpts := httpserver.NewOptions()
+	// Create the msgpack server options.
+	msgpackAddr := cfg.Msgpack.ListenAddress
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("msgpack-server"))
+	msgpackServerOpts := cfg.Msgpack.NewMsgpackServerOptions(iOpts)
 
-	// Start listening
-	log := aggregatorOpts.InstrumentOptions().Logger()
+	// Create the http server options.
+	httpAddr := cfg.HTTP.ListenAddress
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("http-server"))
+	httpServerOpts := cfg.HTTP.NewHTTPServerOptions(iOpts)
+
+	// Start up the pprof goroutine.
+	if cfg.HTTP.DebugListenAddress != "" {
+		go func() {
+			mux := http.NewServeMux()
+			xpprof.RegisterHandler(mux)
+			if err := http.ListenAndServe(cfg.HTTP.DebugListenAddress, mux); err != nil {
+				logger.Errorf("debug server could not listen on %s: %v", cfg.HTTP.DebugListenAddress, err)
+			}
+		}()
+	}
+
 	doneCh := make(chan struct{})
 	closedCh := make(chan struct{})
 	go func() {
@@ -78,22 +112,22 @@ func main() {
 			aggregator,
 			doneCh,
 		); err != nil {
-			log.Fatalf("could not start serving traffic: %v", err)
+			logger.Fatalf("could not start serving traffic: %v", err)
 		}
-		log.Debug("server closed")
+		logger.Debug("server closed")
 		close(closedCh)
 	}()
 
-	// Handle interrupts
+	// Handle interrupts.
 	log.Warnf("interrupt: %v", interrupt())
 
 	close(doneCh)
 
 	select {
 	case <-closedCh:
-		log.Info("server closed clean")
+		logger.Info("server closed clean")
 	case <-time.After(gracefulShutdownTimeout):
-		log.Infof("server closed due to %s timeout", gracefulShutdownTimeout.String())
+		logger.Infof("server closed due to %s timeout", gracefulShutdownTimeout.String())
 	}
 }
 
