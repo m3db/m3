@@ -36,11 +36,8 @@ import (
 )
 
 var (
-	testID     = metric.ID("foo")
-	testPolicy = policy.Policy{
-		Resolution: policy.Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-		Retention:  policy.Retention(6 * time.Hour),
-	}
+	testID         = metric.ID("foo")
+	testPolicy     = policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour)
 	testTimestamps = []time.Time{
 		time.Unix(216, 0), time.Unix(217, 0), time.Unix(221, 0),
 	}

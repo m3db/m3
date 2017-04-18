@@ -229,7 +229,7 @@ func (e *Entry) updatePoliciesWithLock(
 				return fmt.Errorf("unrecognized element type:%v", typ)
 			}
 			newElem.ResetSetData(id, policy)
-			list, err := e.lists.FindOrCreate(policy.Resolution.Window)
+			list, err := e.lists.FindOrCreate(policy.Resolution().Window)
 			if err != nil {
 				return err
 			}

@@ -158,7 +158,7 @@ func (e *CounterElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion
 	if mu.Type != unaggregated.CounterType {
 		return errInvalidMetricType
 	}
-	alignedStart := timestamp.Truncate(e.policy.Resolution.Window).UnixNano()
+	alignedStart := timestamp.Truncate(e.policy.Resolution().Window).UnixNano()
 	e.Lock()
 	if e.closed {
 		e.Unlock()
@@ -186,7 +186,7 @@ func (e *CounterElem) Consume(earlierThan time.Time, fn aggMetricFn) bool {
 		if e.values[idx].timeNs >= earlierThanNs {
 			break
 		}
-		endAt := time.Unix(0, e.values[idx].timeNs).Add(e.policy.Resolution.Window)
+		endAt := time.Unix(0, e.values[idx].timeNs).Add(e.policy.Resolution().Window)
 		e.processValue(endAt, e.values[idx].counter, fn)
 		idx++
 	}
@@ -271,7 +271,7 @@ func (e *TimerElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 	if mu.Type != unaggregated.BatchTimerType {
 		return errInvalidMetricType
 	}
-	alignedStart := timestamp.Truncate(e.policy.Resolution.Window).UnixNano()
+	alignedStart := timestamp.Truncate(e.policy.Resolution().Window).UnixNano()
 	e.Lock()
 	if e.closed {
 		e.Unlock()
@@ -299,7 +299,7 @@ func (e *TimerElem) Consume(earlierThan time.Time, fn aggMetricFn) bool {
 		if e.values[idx].timeNs >= earlierThanNs {
 			break
 		}
-		endAt := time.Unix(0, e.values[idx].timeNs).Add(e.policy.Resolution.Window)
+		endAt := time.Unix(0, e.values[idx].timeNs).Add(e.policy.Resolution().Window)
 		e.processValue(endAt, e.values[idx].timer, fn)
 		// Close the timer after it's processed
 		e.values[idx].timer.Close()
@@ -421,7 +421,7 @@ func (e *GaugeElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 	if mu.Type != unaggregated.GaugeType {
 		return errInvalidMetricType
 	}
-	alignedStart := timestamp.Truncate(e.policy.Resolution.Window).UnixNano()
+	alignedStart := timestamp.Truncate(e.policy.Resolution().Window).UnixNano()
 	e.Lock()
 	if e.closed {
 		e.Unlock()
@@ -449,7 +449,7 @@ func (e *GaugeElem) Consume(earlierThan time.Time, fn aggMetricFn) bool {
 		if e.values[idx].timeNs >= earlierThanNs {
 			break
 		}
-		endAt := time.Unix(0, e.values[idx].timeNs).Add(e.policy.Resolution.Window)
+		endAt := time.Unix(0, e.values[idx].timeNs).Add(e.policy.Resolution().Window)
 		e.processValue(endAt, e.values[idx].gauge, fn)
 		idx++
 	}

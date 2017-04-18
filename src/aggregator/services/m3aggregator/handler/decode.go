@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,39 +26,21 @@ import (
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
-	"github.com/m3db/m3x/log"
 )
 
-var log = xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LogLevelInfo)
-
-// Handler handles encoded streams containing aggregated metrics alongside their policies
-type Handler interface {
-	// Handle processes aggregated metrics and policies encoded in the buffer
-	Handle(buffer msgpack.Buffer) error
-}
-
-// HandleFunc handles an aggregated metric alongside the policy
+// HandleFunc handles an aggregated metric alongside the policy.
 type HandleFunc func(metric aggregated.Metric, policy policy.Policy) error
 
-func defaultHandle(metric aggregated.Metric, policy policy.Policy) error {
-	log.WithFields(
-		xlog.NewLogField("metric", metric.String()),
-		xlog.NewLogField("policy", policy.String()),
-	).Info("aggregated metric")
-	return nil
-}
-
-type handler struct {
+type decodingHandler struct {
 	handle HandleFunc
 }
 
-// NewDefaultHandler creates the default handler
-func NewDefaultHandler() Handler { return NewHandler(defaultHandle) }
+// NewDecodingHandler creates a new decoding handler with a custom handle function.
+func NewDecodingHandler(handle HandleFunc) Handler { return decodingHandler{handle: handle} }
 
-// NewHandler creates a new handler with a custom handle function
-func NewHandler(handle HandleFunc) Handler { return handler{handle: handle} }
+func (h decodingHandler) Handle(buffer msgpack.Buffer) error {
+	defer buffer.Close()
 
-func (h handler) Handle(buffer msgpack.Buffer) error {
 	iter := msgpack.NewAggregatedIterator(buffer.Buffer(), msgpack.NewAggregatedIteratorOptions())
 	defer iter.Close()
 

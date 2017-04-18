@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -59,8 +60,7 @@ func defaultTimerQuantileSuffixFn(quantile float64) []byte {
 
 // By default we print out the buffer size
 func defaultFlushFn(buffer msgpack.Buffer) error {
-	fmt.Printf("buffer size=%d\n", len(buffer.Bytes()))
-	return nil
+	return errors.New("not implemented")
 }
 
 type options struct {

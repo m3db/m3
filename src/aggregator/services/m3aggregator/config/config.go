@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cm
+package config
 
-import (
-	"github.com/m3db/m3x/pool"
-)
+import "github.com/m3db/m3x/instrument"
 
-type floatsPool struct {
-	pool pool.BucketizedObjectPool
-}
+// Configuration contains top-level configuration.
+type Configuration struct {
+	// Metrics configuration.
+	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
-// NewFloatsPool creates a new floats pool
-func NewFloatsPool(sizes []pool.Bucket, opts pool.ObjectPoolOptions) FloatsPool {
-	return &floatsPool{pool: pool.NewBucketizedObjectPool(sizes, opts)}
-}
+	// Aggregator configuration.
+	Aggregator AggregatorConfiguration `yaml:"aggregator"`
 
-func (p *floatsPool) Init() {
-	p.pool.Init(func(capacity int) interface{} {
-		return make([]float64, 0, capacity)
-	})
-}
+	// Msgpack server configuration.
+	Msgpack MsgpackServerConfiguration `yaml:"msgpack"`
 
-func (p *floatsPool) Get(capacity int) []float64 {
-	return p.pool.Get(capacity).([]float64)
-}
-
-func (p *floatsPool) Put(value []float64) {
-	value = value[:0]
-	p.pool.Put(value, cap(value))
+	// HTTP server configuration.
+	HTTP HTTPServerConfiguration `yaml:"http"`
 }

@@ -55,7 +55,7 @@ type options struct {
 	capacity   int
 	streamPool StreamPool
 	samplePool SamplePool
-	floatsPool FloatsPool
+	floatsPool pool.FloatsPool
 }
 
 // NewOptions creates a new options
@@ -120,13 +120,13 @@ func (o *options) SamplePool() SamplePool {
 	return o.samplePool
 }
 
-func (o *options) SetFloatsPool(value FloatsPool) Options {
+func (o *options) SetFloatsPool(value pool.FloatsPool) Options {
 	opts := *o
 	opts.floatsPool = value
 	return &opts
 }
 
-func (o *options) FloatsPool() FloatsPool {
+func (o *options) FloatsPool() pool.FloatsPool {
 	return o.floatsPool
 }
 
@@ -158,7 +158,7 @@ func (o *options) initPools() {
 	o.samplePool = NewSamplePool(nil)
 	o.samplePool.Init()
 
-	o.floatsPool = NewFloatsPool(defaultBuckets, nil)
+	o.floatsPool = pool.NewFloatsPool(defaultBuckets, nil)
 	o.floatsPool.Init()
 
 	o.streamPool = NewStreamPool(nil)

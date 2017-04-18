@@ -38,32 +38,14 @@ import (
 var (
 	testPoliciesVersion = 2
 	testPolicies        = []policy.Policy{
-		{
-			Resolution: policy.Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-			Retention:  policy.Retention(6 * time.Hour),
-		},
-		{
-			Resolution: policy.Resolution{Window: time.Minute, Precision: xtime.Minute},
-			Retention:  policy.Retention(2 * 24 * time.Hour),
-		},
-		{
-			Resolution: policy.Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
-			Retention:  policy.Retention(30 * 24 * time.Hour),
-		},
+		policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+		policy.NewPolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour),
 	}
 	testNewPolicies = []policy.Policy{
-		{
-			Resolution: policy.Resolution{Window: 10 * time.Second, Precision: xtime.Second},
-			Retention:  policy.Retention(6 * time.Hour),
-		},
-		{
-			Resolution: policy.Resolution{Window: time.Minute, Precision: xtime.Minute},
-			Retention:  policy.Retention(7 * 24 * time.Hour),
-		},
-		{
-			Resolution: policy.Resolution{Window: 5 * time.Minute, Precision: xtime.Minute},
-			Retention:  policy.Retention(7 * 24 * time.Hour),
-		},
+		policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		policy.NewPolicy(time.Minute, xtime.Minute, 7*24*time.Hour),
+		policy.NewPolicy(5*time.Minute, xtime.Minute, 7*24*time.Hour),
 	}
 )
 
@@ -86,7 +68,7 @@ func testEntry() (*Entry, *metricLists, time.Time) {
 		SetMinFlushInterval(0)
 
 	lists := newMetricLists(opts)
-	// This effectively disable flushing
+	// This effectively disable flushing.
 	lists.newMetricListFn = func(res time.Duration, opts Options) *metricList {
 		return newMetricList(0, opts)
 	}
@@ -115,7 +97,7 @@ func populateTestAggregations(
 			require.Fail(t, fmt.Sprintf("unrecognized metric type: %v", typ))
 		}
 		newElem.ResetSetData(testID, policy)
-		list, err := e.lists.FindOrCreate(policy.Resolution.Window)
+		list, err := e.lists.FindOrCreate(policy.Resolution().Window)
 		require.NoError(t, err)
 		newListElem, err := list.PushBack(newElem)
 		require.NoError(t, err)
@@ -246,7 +228,7 @@ func testEntryAddMetricWithPolicies(
 		for _, p := range expectedPolicies {
 			elem, exists := e.aggregations[p]
 			require.True(t, exists)
-			input.fn(t, elem, now.Truncate(p.Resolution.Window))
+			input.fn(t, elem, now.Truncate(p.Resolution().Window))
 		}
 		require.Equal(t, newPoliciesVersion, e.version)
 
@@ -260,7 +242,7 @@ func TestEntryAddMetricWithPoliciesNoPolicyUpdate(t *testing.T) {
 	postAddFn := func(t *testing.T) {
 		require.Equal(t, 3, len(lists.lists))
 		for _, p := range testPolicies {
-			list, exists := lists.lists[p.Resolution.Window]
+			list, exists := lists.lists[p.Resolution().Window]
 			require.True(t, exists)
 			require.Equal(t, 1, list.aggregations.Len())
 			checkElemTombstoned(t, list.aggregations.Front().Value.(metricElem), nil)
@@ -281,7 +263,7 @@ func TestEntryAddMetricWithPoliciesWithPolicyUpdate(t *testing.T) {
 		expectedLengths := []int{1, 2, 1}
 		for _, policies := range [][]policy.Policy{testPolicies, testNewPolicies} {
 			for i := range policies {
-				list, exists := lists.lists[policies[i].Resolution.Window]
+				list, exists := lists.lists[policies[i].Resolution().Window]
 				require.True(t, exists)
 				require.Equal(t, expectedLengths[i], list.aggregations.Len())
 				for elem := list.aggregations.Front(); elem != nil; elem = elem.Next() {

@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3x/pool"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -184,7 +185,7 @@ func TestStreamClose(t *testing.T) {
 }
 
 func TestStreamAddToMinHeap(t *testing.T) {
-	floatsPool := NewFloatsPool(
+	floatsPool := pool.NewFloatsPool(
 		[]pool.Bucket{
 			{Capacity: 1, Count: 1},
 			{Capacity: 2, Count: 1},
