@@ -13,7 +13,7 @@ junit_xml := junit.xml
 test_log := test.log
 lint_check := .ci/lint.sh
 
-BUILD := $(abspath ./out)
+BUILD := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 VENDOR_ENV := GO15VENDOREXPERIMENT=1
 
@@ -30,16 +30,19 @@ $(SERVICE): setup
 	@echo Building $(SERVICE)
 	$(VENDOR_ENV) go build -o $(BUILD)/$(SERVICE) ./$(SERVICE)/.
 
-prod-$(SERVICE):
+$(SERVICE)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(SERVICE)
 
 endef
 
 services: $(SERVICES)
-prod-services:
+services-linux-amd64:
 	$(LINUX_AMD64_ENV) make services
 
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
+
+all: lint test-ci-unit m3nsch_client m3nsch_server
+	@echo "Making all"
 
 lint:
 	@which golint > /dev/null || go get -u github.com/golang/lint/golint
@@ -77,4 +80,4 @@ clean:
 	echo
 
 .DEFAULT_GOAL := test
-.PHONY: test test-xml test-internal testhtml clean
+.PHONY: test test-xml test-internal testhtml clean all

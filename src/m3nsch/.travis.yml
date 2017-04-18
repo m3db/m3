@@ -8,8 +8,5 @@ env:
 sudo: required
 dist: trusty
 script:
- - make lint
- - make test-ci-unit
- - make m3nsch_client
- - make m3nsch_server
-
+ - make all
+ 
