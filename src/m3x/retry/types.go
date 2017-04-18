@@ -85,6 +85,14 @@ type Options interface {
 	// Max gets the maximum retry attempts
 	MaxRetries() int
 
+	// SetForever sets whether to retry forever until either the attempt succeeds,
+	// or the retry condition becomes false.
+	SetForever(value bool) Options
+
+	// Forever returns whether to retry forever until either the attempt succeeds,
+	// or the retry condition becomes false.
+	Forever() bool
+
 	// SetJitter sets whether to jitter between the current backoff and the next
 	// backoff when moving to next attempt
 	SetJitter(value bool) Options

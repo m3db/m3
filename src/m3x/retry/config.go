@@ -40,6 +40,10 @@ type Configuration struct {
 	// Maximum number of retry attempts.
 	MaxRetries int `yaml:"maxRetries"`
 
+	// Whether to retry forever until either the attempt succeeds,
+	// or the retry condition becomes false.
+	Forever bool `yaml:"forever"`
+
 	// Whether jittering is applied during retries.
 	Jitter bool `yaml:"jitter"`
 }
@@ -70,6 +74,7 @@ func (c Configuration) NewRetrier(scope tally.Scope) Retrier {
 		SetBackoffFactor(backoffFactor).
 		SetMaxBackoff(maxBackoff).
 		SetMaxRetries(maxRetries).
+		SetForever(c.Forever).
 		SetJitter(c.Jitter)
 	return NewRetrier(retryOpts)
 }

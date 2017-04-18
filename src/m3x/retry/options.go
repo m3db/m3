@@ -32,6 +32,7 @@ const (
 	defaultBackoffFactor  = 2.0
 	defaultMaxBackoff     = time.Duration(math.MaxInt64)
 	defaultMaxRetries     = 2
+	defaultForever        = false
 	defaultJitter         = true
 )
 
@@ -41,6 +42,7 @@ type options struct {
 	backoffFactor  float64
 	maxBackoff     time.Duration
 	maxRetries     int
+	forever        bool
 	jitter         bool
 }
 
@@ -52,6 +54,7 @@ func NewOptions() Options {
 		backoffFactor:  defaultBackoffFactor,
 		maxBackoff:     defaultMaxBackoff,
 		maxRetries:     defaultMaxRetries,
+		forever:        defaultForever,
 		jitter:         defaultJitter,
 	}
 }
@@ -104,6 +107,16 @@ func (o *options) SetMaxRetries(value int) Options {
 
 func (o *options) MaxRetries() int {
 	return o.maxRetries
+}
+
+func (o *options) SetForever(value bool) Options {
+	opts := *o
+	opts.forever = value
+	return &opts
+}
+
+func (o *options) Forever() bool {
+	return o.forever
 }
 
 func (o *options) SetJitter(value bool) Options {

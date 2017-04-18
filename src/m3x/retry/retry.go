@@ -22,7 +22,6 @@ package xretry
 
 import (
 	"errors"
-	"math"
 	"math/rand"
 	"time"
 
@@ -41,6 +40,7 @@ type retrier struct {
 	backoffFactor  float64
 	maxBackoff     time.Duration
 	maxRetries     int
+	forever        bool
 	jitter         bool
 	sleepFn        func(t time.Duration)
 	metrics        retrierMetrics
@@ -75,6 +75,7 @@ func NewRetrier(opts Options) Retrier {
 		backoffFactor:  opts.BackoffFactor(),
 		maxBackoff:     opts.MaxBackoff(),
 		maxRetries:     opts.MaxRetries(),
+		forever:        opts.Forever(),
 		jitter:         opts.Jitter(),
 		sleepFn:        time.Sleep,
 		metrics: retrierMetrics{
@@ -120,8 +121,8 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 	}
 	r.metrics.errors.Inc(1)
 
-	for i := 0; i < r.maxRetries; i++ {
-		curr := r.initialBackoff.Nanoseconds() * int64(math.Pow(r.backoffFactor, float64(i)))
+	curr := r.initialBackoff.Nanoseconds()
+	for i := 0; r.forever || i < r.maxRetries; i++ {
 		if r.jitter {
 			half := curr / 2
 			curr = half + int64(rand.Float64()*float64(half))
@@ -151,6 +152,7 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 			return err
 		}
 		r.metrics.errors.Inc(1)
+		curr = int64(float64(curr) * r.backoffFactor)
 	}
 	r.metrics.errorsFinal.Inc(1)
 
