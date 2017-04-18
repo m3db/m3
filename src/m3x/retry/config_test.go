@@ -34,6 +34,7 @@ func TestRetryConfig(t *testing.T) {
 		BackoffFactor:  2.0,
 		MaxBackoff:     time.Minute,
 		MaxRetries:     3,
+		Forever:        true,
 		Jitter:         true,
 	}
 	retrier := cfg.NewRetrier(tally.NoopScope).(*retrier)
@@ -41,5 +42,6 @@ func TestRetryConfig(t *testing.T) {
 	require.Equal(t, 2.0, retrier.backoffFactor)
 	require.Equal(t, time.Minute, retrier.maxBackoff)
 	require.Equal(t, 3, retrier.maxRetries)
+	require.True(t, retrier.forever)
 	require.True(t, retrier.jitter)
 }
