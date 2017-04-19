@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -53,16 +52,6 @@ var (
 	defaultEntryCheckBatchPercent = 0.01
 )
 
-// By default we use e.g. ".p50", ".p95", ".p99" for the 50th/95th/99th percentile
-func defaultTimerQuantileSuffixFn(quantile float64) []byte {
-	return []byte(fmt.Sprintf(".p%0.0f", quantile*100))
-}
-
-// By default we print out the buffer size
-func defaultFlushFn(buffer msgpack.Buffer) error {
-	return errors.New("not implemented")
-}
-
 type options struct {
 	// Base options
 	metricPrefix           []byte
@@ -84,7 +73,7 @@ type options struct {
 	timeLock               *sync.RWMutex
 	minFlushInterval       time.Duration
 	maxFlushSize           int
-	flushFn                FlushFn
+	flushHandler           Handler
 	entryTTL               time.Duration
 	entryCheckInterval     time.Duration
 	entryCheckBatchPercent float64
@@ -124,7 +113,6 @@ func NewOptions() Options {
 		timeLock:               &sync.RWMutex{},
 		minFlushInterval:       defaultMinFlushInterval,
 		maxFlushSize:           defaultMaxFlushSize,
-		flushFn:                defaultFlushFn,
 		entryTTL:               defaultEntryTTL,
 		entryCheckInterval:     defaultEntryCheckInterval,
 		entryCheckBatchPercent: defaultEntryCheckBatchPercent,
@@ -335,14 +323,14 @@ func (o *options) MaxFlushSize() int {
 	return o.maxFlushSize
 }
 
-func (o *options) SetFlushFn(value FlushFn) Options {
+func (o *options) SetFlushHandler(value Handler) Options {
 	opts := *o
-	opts.flushFn = value
+	opts.flushHandler = value
 	return &opts
 }
 
-func (o *options) FlushFn() FlushFn {
-	return o.flushFn
+func (o *options) FlushHandler() Handler {
+	return o.flushHandler
 }
 
 func (o *options) SetEntryTTL(value time.Duration) Options {
@@ -512,4 +500,9 @@ func (o *options) computeFullGaugePrefix() {
 	n := copy(fullGaugePrefix, o.metricPrefix)
 	copy(fullGaugePrefix[n:], o.gaugePrefix)
 	o.fullGaugePrefix = fullGaugePrefix
+}
+
+// By default we use e.g. ".p50", ".p95", ".p99" for the 50th/95th/99th percentile
+func defaultTimerQuantileSuffixFn(quantile float64) []byte {
+	return []byte(fmt.Sprintf(".p%0.0f", quantile*100))
 }

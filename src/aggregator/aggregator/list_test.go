@@ -121,6 +121,7 @@ func TestMetricListTick(t *testing.T) {
 		bufferLock.Unlock()
 		return nil
 	}
+	handler := &mockHandler{handleFn: flushFn}
 
 	var now = time.Unix(216, 0).UnixNano()
 	nowTs := time.Unix(0, now)
@@ -131,7 +132,7 @@ func TestMetricListTick(t *testing.T) {
 		SetClockOptions(clockOpts).
 		SetMinFlushInterval(0).
 		SetMaxFlushSize(100).
-		SetFlushFn(flushFn)
+		SetFlushHandler(handler)
 	l := newMetricList(0, opts)
 	l.resolution = testPolicy.Resolution().Window
 	l.waitForFn = func(time.Duration) <-chan time.Time {
@@ -257,3 +258,12 @@ func TestMetricLists(t *testing.T) {
 	lists.Close()
 	require.True(t, lists.closed)
 }
+
+type handleFn func(buffer msgpack.Buffer) error
+
+type mockHandler struct {
+	handleFn handleFn
+}
+
+func (h *mockHandler) Handle(buffer msgpack.Buffer) error { return h.handleFn(buffer) }
+func (h *mockHandler) Close()                             {}

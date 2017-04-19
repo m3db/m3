@@ -27,18 +27,19 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/services/m3aggregator/handler"
+	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/retry"
 )
 
 var (
-	errUnknownQuantileSuffixFnType = errors.New("unknown quantile suffix function type")
-	errUnknownFlushFnType          = errors.New("unknown flush function type")
-	errNoForwardFlushConfiguration = errors.New("no forward flush configuration")
-	emptyPolicy                    policy.Policy
+	errUnknownQuantileSuffixFnType   = errors.New("unknown quantile suffix function type")
+	errUnknownFlushHandlerType       = errors.New("unknown flush handler type")
+	errNoForwardHandlerConfiguration = errors.New("no forward flush configuration")
+	emptyPolicy                      policy.Policy
 )
 
 // AggregatorConfiguration contains aggregator configuration.
@@ -91,8 +92,8 @@ type AggregatorConfiguration struct {
 	// Maximum flush size in bytes.
 	MaxFlushSize int `yaml:"maxFlushSize"`
 
-	// Flushing configuration.
-	Flush flushConfiguration `yaml:"flush"`
+	// Flushing handler configuration.
+	Flush flushHandlerConfiguration `yaml:"flush"`
 
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
@@ -123,6 +124,7 @@ type AggregatorConfiguration struct {
 func (c *AggregatorConfiguration) NewAggregatorOptions(
 	instrumentOpts instrument.Options,
 ) (aggregator.Options, error) {
+	scope := instrumentOpts.MetricsScope()
 	opts := aggregator.NewOptions().SetInstrumentOptions(instrumentOpts)
 
 	// Set the prefix and suffix for metrics aggregations.
@@ -147,7 +149,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetTimerQuantileSuffixFn(quantileSuffixFn)
 
 	// Set stream options.
-	iOpts := instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("stream"))
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("stream"))
 	streamOpts, err := c.Stream.NewStreamOptions(iOpts)
 	if err != nil {
 		return nil, err
@@ -161,11 +163,12 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if c.MaxFlushSize != 0 {
 		opts = opts.SetMaxFlushSize(c.MaxFlushSize)
 	}
-	flushFn, err := c.Flush.NewFlushFn()
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush"))
+	flushHandler, err := c.Flush.NewHandler(iOpts)
 	if err != nil {
 		return nil, err
 	}
-	opts = opts.SetFlushFn(flushFn)
+	opts = opts.SetFlushHandler(flushHandler)
 
 	// Set entry options.
 	if c.EntryTTL != 0 {
@@ -179,35 +182,35 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 
 	// Set entry pool.
-	iOpts = instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("entry-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("entry-pool"))
 	entryPoolOpts := c.EntryPool.NewObjectPoolOptions(iOpts)
 	entryPool := aggregator.NewEntryPool(entryPoolOpts)
 	opts = opts.SetEntryPool(entryPool)
 	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, opts) })
 
 	// Set counter elem pool.
-	iOpts = instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("counter-elem-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("counter-elem-pool"))
 	counterElemPoolOpts := c.CounterElemPool.NewObjectPoolOptions(iOpts)
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem { return aggregator.NewCounterElem(nil, emptyPolicy, opts) })
 
 	// Set timer elem pool.
-	iOpts = instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("timer-elem-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("timer-elem-pool"))
 	timerElemPoolOpts := c.TimerElemPool.NewObjectPoolOptions(iOpts)
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem { return aggregator.NewTimerElem(nil, emptyPolicy, opts) })
 
 	// Set gauge eleme pool.
-	iOpts = instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("gauge-elem-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("gauge-elem-pool"))
 	gaugeElemPoolOpts := c.GaugeElemPool.NewObjectPoolOptions(iOpts)
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem { return aggregator.NewGaugeElem(nil, emptyPolicy, opts) })
 
 	// Set buffered encoder pool.
-	iOpts = instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("buffered-encoder-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("buffered-encoder-pool"))
 	bufferedEncoderPoolOpts := c.BufferedEncoderPool.NewObjectPoolOptions(iOpts)
 	bufferedEncoderPool := msgpack.NewBufferedEncoderPool(bufferedEncoderPoolOpts)
 	opts = opts.SetBufferedEncoderPool(bufferedEncoderPool)
@@ -252,24 +255,25 @@ type streamConfiguration struct {
 }
 
 func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options) (cm.Options, error) {
+	scope := instrumentOpts.MetricsScope()
 	opts := cm.NewOptions().
 		SetEps(c.Eps).
 		SetQuantiles(c.Quantiles).
 		SetCapacity(c.Capacity)
 
-	iOpts := instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("sample-pool"))
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("sample-pool"))
 	samplePoolOpts := c.SamplePool.NewObjectPoolOptions(iOpts)
 	samplePool := cm.NewSamplePool(samplePoolOpts)
 	opts = opts.SetSamplePool(samplePool)
 	samplePool.Init()
 
-	iOpts = instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("floats-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("floats-pool"))
 	floatsPoolOpts := c.FloatsPool.NewObjectPoolOptions(iOpts)
 	floatsPool := pool.NewFloatsPool(c.FloatsPool.NewBuckets(), floatsPoolOpts)
 	opts = opts.SetFloatsPool(floatsPool)
 	floatsPool.Init()
 
-	iOpts = instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("stream-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("stream-pool"))
 	streamPoolOpts := c.StreamPool.NewObjectPoolOptions(iOpts)
 	streamPool := cm.NewStreamPool(streamPoolOpts)
 	opts = opts.SetStreamPool(streamPool)
@@ -281,40 +285,70 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 	return opts, nil
 }
 
-// flushConfiguration contains configuration for flushing metrics.
-type flushConfiguration struct {
-	// Flushing function type.
+// flushHandlerConfiguration contains configuration for flushing metrics.
+type flushHandlerConfiguration struct {
+	// Flushing handler type.
 	Type string `yaml:"type" validate:"regexp=(^blackhole$|^logging$|^forward$)"`
 
-	// Forward flush configuration.
-	Forward *forwardFlushConfiguration `yaml:"forward"`
+	// Forward handler configuration.
+	Forward *forwardHandlerConfiguration `yaml:"forward"`
 }
 
-func (c *flushConfiguration) NewFlushFn() (aggregator.FlushFn, error) {
-	switch flushFnType(c.Type) {
-	case blackholeFlushFnType:
-		return handler.NewBlackholeHandler().Handle, nil
-	case loggingFlushFnType:
-		return handler.NewLoggingHandler().Handle, nil
-	case forwardFlushFnType:
+func (c *flushHandlerConfiguration) NewHandler(
+	instrumentOpts instrument.Options,
+) (aggregator.Handler, error) {
+	switch handler.Type(c.Type) {
+	case handler.BlackholeHandler:
+		return handler.NewBlackholeHandler(), nil
+	case handler.LoggingHandler:
+		return handler.NewLoggingHandler(), nil
+	case handler.ForwardHandler:
 		if c.Forward == nil {
-			return nil, errNoForwardFlushConfiguration
+			return nil, errNoForwardHandlerConfiguration
 		}
-		return c.Forward.NewFlushFn(), nil
+		return c.Forward.NewHandler(instrumentOpts)
 	default:
-		return nil, errUnknownFlushFnType
+		return nil, errUnknownFlushHandlerType
 	}
 }
 
-// forwardFlushConfiguration contains configuration for forward flushing function.
-type forwardFlushConfiguration struct {
+// forwardHandlerConfiguration contains configuration for forward handler.
+type forwardHandlerConfiguration struct {
 	// Server address list.
 	Servers []string `yaml:"servers"`
+
+	// Buffer queue size.
+	QueueSize int `yaml:"queueSize"`
+
+	// Connection timeout.
+	ConnectTimeout time.Duration `yaml:"connectTimeout"`
+
+	// Connection keep alive.
+	ConnectionKeepAlive bool `yaml:"connectionKeepAlive"`
+
+	// Reconnect retrier.
+	ReconnectRetrier xretry.Configuration `yaml:"reconnect"`
 }
 
-// TODO(xichen): implement this.
-func (c *forwardFlushConfiguration) NewFlushFn() aggregator.FlushFn {
-	return nil
+func (c *forwardHandlerConfiguration) NewHandler(
+	instrumentOpts instrument.Options,
+) (aggregator.Handler, error) {
+	opts := handler.NewForwardHandlerOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetConnectionKeepAlive(c.ConnectionKeepAlive)
+
+	if c.QueueSize != 0 {
+		opts = opts.SetQueueSize(c.QueueSize)
+	}
+	if c.ConnectTimeout != 0 {
+		opts = opts.SetConnectTimeout(c.ConnectTimeout)
+	}
+
+	scope := instrumentOpts.MetricsScope().SubScope("reconnect")
+	retrier := c.ReconnectRetrier.NewRetrier(scope)
+	opts = opts.SetReconnectRetrier(retrier)
+
+	return handler.NewForwardHandler(c.Servers, opts)
 }
 
 // timerQuantileSuffixFnType is the timer quantile suffix function type.
@@ -328,16 +362,6 @@ const (
 func defaultTimerQuantileSuffixFn(quantile float64) []byte {
 	return []byte(fmt.Sprintf(".p%0.0f", quantile*100))
 }
-
-// flushFnType is the flushing function type.
-type flushFnType string
-
-// A list of supported flushing function types.
-const (
-	blackholeFlushFnType flushFnType = "blackhole"
-	loggingFlushFnType   flushFnType = "logging"
-	forwardFlushFnType   flushFnType = "forward"
-)
 
 type metricPrefixOrSuffixSetter func(prefixOrSuffix []byte) aggregator.Options
 

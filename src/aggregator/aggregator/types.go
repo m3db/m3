@@ -104,8 +104,14 @@ type Aggregator interface {
 // QuantileSuffixFn returns the byte-slice suffix for a quantile value
 type QuantileSuffixFn func(quantile float64) []byte
 
-// FlushFn flushes an encoded buffer
-type FlushFn func(buffer msgpack.Buffer) error
+// Handler handles encoded streams containing aggregated metrics alongside their policies.
+type Handler interface {
+	// Handle processes aggregated metrics and policies encoded in the buffer.
+	Handle(buffer msgpack.Buffer) error
+
+	// Close closes the handler.
+	Close()
+}
 
 // Options provide a set of base and derived options for the aggregator
 type Options interface {
@@ -225,11 +231,11 @@ type Options interface {
 	// MaxFlushSize returns the maximum buffer size to trigger a flush
 	MaxFlushSize() int
 
-	// SetFlushFn sets the function that flushes buffered encoders
-	SetFlushFn(value FlushFn) Options
+	// SetFlushHandler sets the handler that flushes buffered encoders
+	SetFlushHandler(value Handler) Options
 
-	// FlushFn returns the function that flushes buffered encoders
-	FlushFn() FlushFn
+	// FlushHandler returns the handler that flushes buffered encoders
+	FlushHandler() Handler
 
 	// SetEntryTTL sets the ttl for expiring stale entries
 	SetEntryTTL(value time.Duration) Options

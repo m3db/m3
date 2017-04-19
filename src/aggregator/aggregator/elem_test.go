@@ -126,10 +126,6 @@ func testStreamOptions(t *testing.T, size int) (cm.Options, cm.StreamPool, *int)
 	return streamOpts, p, &numAlloc
 }
 
-func testOptions() Options {
-	return NewOptions()
-}
-
 func testCounterElem() *CounterElem {
 	e := NewCounterElem(testID, testPolicy, testOptions())
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {

@@ -20,23 +20,12 @@
 
 package handler
 
-import (
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3x/log"
+// Type is the handler type.
+type Type string
+
+// A list of supported handler types.
+const (
+	BlackholeHandler Type = "blackhole"
+	LoggingHandler   Type = "logging"
+	ForwardHandler   Type = "forward"
 )
-
-var logger = xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LogLevelInfo)
-
-func loggingHandler(metric aggregated.Metric, policy policy.Policy) error {
-	logger.WithFields(
-		xlog.NewLogField("metric", metric.String()),
-		xlog.NewLogField("policy", policy.String()),
-	).Info("aggregated metric")
-	return nil
-}
-
-// NewLoggingHandler creates a new logging handler.
-func NewLoggingHandler() Handler {
-	return NewDecodingHandler(loggingHandler)
-}

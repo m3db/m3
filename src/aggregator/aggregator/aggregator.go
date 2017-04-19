@@ -93,11 +93,11 @@ func (agg *aggregator) Close() {
 		return
 	}
 
-	// Waiting for the ticking goroutine to return
+	// Waiting for the ticking goroutine to return.
 	close(agg.doneCh)
 	agg.wgTick.Wait()
 
-	// Closing metric lists
+	// Closing metric map.
 	agg.metrics.Close()
 }
 

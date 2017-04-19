@@ -52,7 +52,7 @@ type metricList struct {
 	log          xlog.Logger
 	timeLock     *sync.RWMutex
 	maxFlushSize int
-	flushFn      FlushFn
+	flushHandler Handler
 	encoderPool  msgpack.BufferedEncoderPool
 
 	resolution    time.Duration
@@ -86,7 +86,7 @@ func newMetricList(resolution time.Duration, opts Options) *metricList {
 		log:           opts.InstrumentOptions().Logger(),
 		timeLock:      opts.TimeLock(),
 		maxFlushSize:  opts.MaxFlushSize(),
-		flushFn:       opts.FlushFn(),
+		flushHandler:  opts.FlushHandler(),
 		encoderPool:   encoderPool,
 		resolution:    resolution,
 		flushInterval: flushInterval,
@@ -186,7 +186,7 @@ func (l *metricList) tickInternal() {
 		newEncoder := l.encoderPool.Get()
 		newEncoder.Reset()
 		l.encoder.Reset(newEncoder)
-		if err := l.flushFn(encoder); err != nil {
+		if err := l.flushHandler.Handle(encoder); err != nil {
 			l.log.Errorf("flushing metrics error: %v", err)
 		}
 	}
@@ -262,7 +262,7 @@ func (l *metricList) processAggregatedMetric(
 	encoder2.Buffer().Write(data[sizeBefore:sizeAfter])
 	l.encoder.Reset(encoder2)
 	buffer.Truncate(sizeBefore)
-	if err := l.flushFn(encoder); err != nil {
+	if err := l.flushHandler.Handle(encoder); err != nil {
 		l.log.Errorf("flushing metrics error: %v", err)
 	}
 }
@@ -274,6 +274,7 @@ type metricLists struct {
 	sync.RWMutex
 
 	opts            Options
+	handler         Handler
 	newMetricListFn newMetricListFn
 	closed          bool
 	lists           map[time.Duration]*metricList
@@ -282,6 +283,7 @@ type metricLists struct {
 func newMetricLists(opts Options) *metricLists {
 	return &metricLists{
 		opts:            opts,
+		handler:         opts.FlushHandler(),
 		newMetricListFn: newMetricList,
 		lists:           make(map[time.Duration]*metricList),
 	}
@@ -306,6 +308,7 @@ func (l *metricLists) Close() {
 	for _, list := range l.lists {
 		list.Close()
 	}
+	l.handler.Close()
 	l.Unlock()
 }
 

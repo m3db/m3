@@ -20,11 +20,24 @@
 
 package handler
 
-// TODO(xichen)
-type forwardHandler struct {
+import (
+	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/log"
+)
+
+var logger = xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LogLevelInfo)
+
+func loggingHandler(metric aggregated.Metric, policy policy.Policy) error {
+	logger.WithFields(
+		xlog.NewLogField("metric", metric.String()),
+		xlog.NewLogField("policy", policy.String()),
+	).Info("aggregated metric")
+	return nil
 }
 
-// NewForwardHandler creates a new forwarding handler.
-func NewForwardHandler() Handler {
-	return nil
+// NewLoggingHandler creates a new logging handler.
+func NewLoggingHandler() aggregator.Handler {
+	return NewDecodingHandler(loggingHandler)
 }

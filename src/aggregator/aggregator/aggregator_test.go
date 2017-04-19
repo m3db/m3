@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/protocol/msgpack"
 
 	"github.com/stretchr/testify/require"
 )
@@ -72,4 +73,10 @@ func TestAggregator(t *testing.T) {
 
 	// Assert the aggregator is closed
 	require.Equal(t, int32(1), atomic.LoadInt32(&agg.closed))
+}
+
+func testOptions() Options {
+	return NewOptions().SetFlushHandler(&mockHandler{
+		handleFn: func(msgpack.Buffer) error { return nil },
+	})
 }
