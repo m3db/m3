@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3aggregator/aggregator/handler"
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
-	"github.com/m3db/m3aggregator/services/m3aggregator/handler"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -56,7 +56,7 @@ type testSetup struct {
 	httpServerOpts    httpserver.Options
 	aggregator        aggregator.Aggregator
 	aggregatorOpts    aggregator.Options
-	handler           handler.Handler
+	handler           aggregator.Handler
 	getNowFn          clock.NowFn
 	setNowFn          nowSetterFn
 	workerPool        xsync.WorkerPool
@@ -171,7 +171,7 @@ func (ts *testSetup) startServer() error {
 	errCh := make(chan error, 1)
 
 	// Creating the aggregator
-	ts.aggregatorOpts = ts.aggregatorOpts.SetFlushFn(ts.handler.Handle)
+	ts.aggregatorOpts = ts.aggregatorOpts.SetFlushHandler(ts.handler)
 	ts.aggregator = aggregator.NewAggregator(ts.aggregatorOpts)
 
 	go func() {

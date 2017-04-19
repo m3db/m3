@@ -78,7 +78,6 @@ func TestOptionsValidateDefault(t *testing.T) {
 	require.Equal(t, defaultEntryCheckInterval, o.EntryCheckInterval())
 	require.Equal(t, defaultEntryCheckBatchPercent, o.EntryCheckBatchPercent())
 	require.NotNil(t, o.TimerQuantileSuffixFn())
-	require.NotNil(t, o.FlushFn())
 	require.NotNil(t, o.ClockOptions())
 	require.NotNil(t, o.InstrumentOptions())
 	require.NotNil(t, o.TimeLock())
@@ -218,15 +217,16 @@ func TestSetMaxFlushSize(t *testing.T) {
 	require.Equal(t, value, o.MaxFlushSize())
 }
 
-func TestSetFlushFn(t *testing.T) {
+func TestSetFlushHandler(t *testing.T) {
 	var b *bytes.Buffer
 	buf := msgpack.NewPooledBufferedEncoder(nil)
-	value := func(buf msgpack.Buffer) error {
+	fn := func(buf msgpack.Buffer) error {
 		b = buf.Buffer()
 		return nil
 	}
-	o := NewOptions().SetFlushFn(value)
-	require.NoError(t, o.FlushFn()(buf))
+	value := &mockHandler{handleFn: fn}
+	o := NewOptions().SetFlushHandler(value)
+	require.NoError(t, o.FlushHandler().Handle(buf))
 	require.Equal(t, b, buf.Buffer())
 }
 

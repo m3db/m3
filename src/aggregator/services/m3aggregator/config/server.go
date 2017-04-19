@@ -79,25 +79,26 @@ type unaggregatedIteratorConfiguration struct {
 func (c *unaggregatedIteratorConfiguration) NewUnaggregatedIteratorPool(
 	instrumentOpts instrument.Options,
 ) msgpackp.UnaggregatedIteratorPool {
+	scope := instrumentOpts.MetricsScope()
 	opts := msgpackp.NewUnaggregatedIteratorOptions().SetIgnoreHigherVersion(c.IgnoreHigherVersion)
 
 	// NB(xichen): intentionally not using the same floats pool used for computing
 	// timer quantiles to accommodate different usage patterns and reduce contention.
-	iOpts := instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("floats-pool"))
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("floats-pool"))
 	floatsPoolOpts := c.FloatsPool.NewObjectPoolOptions(iOpts)
 	floatsPool := pool.NewFloatsPool(c.FloatsPool.NewBuckets(), floatsPoolOpts)
 	opts = opts.SetFloatsPool(floatsPool)
 	floatsPool.Init()
 
 	// Set policies pool.
-	iOpts = instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("policies-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("policies-pool"))
 	policiesPoolOpts := c.PoliciesPool.NewObjectPoolOptions(iOpts)
 	policiesPool := policy.NewPoliciesPool(c.FloatsPool.NewBuckets(), policiesPoolOpts)
 	opts = opts.SetPoliciesPool(policiesPool)
 	policiesPool.Init()
 
 	// Set iterator pool.
-	iOpts = instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().SubScope("unaggreagted-iterator-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("unaggreagted-iterator-pool"))
 	iteratorPoolOpts := c.IteratorPool.NewObjectPoolOptions(iOpts)
 	iteratorPool := msgpackp.NewUnaggregatedIteratorPool(iteratorPoolOpts)
 	opts = opts.SetIteratorPool(iteratorPool)

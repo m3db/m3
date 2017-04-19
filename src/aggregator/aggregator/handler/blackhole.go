@@ -20,10 +20,19 @@
 
 package handler
 
-import "github.com/m3db/m3metrics/protocol/msgpack"
+import (
+	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3metrics/protocol/msgpack"
+)
 
-// Handler handles encoded streams containing aggregated metrics alongside their policies.
-type Handler interface {
-	// Handle processes aggregated metrics and policies encoded in the buffer.
-	Handle(buffer msgpack.Buffer) error
+type blackholeHandler struct{}
+
+// NewBlackholeHandler creates a new blackhole handler.
+func NewBlackholeHandler() aggregator.Handler { return blackholeHandler{} }
+
+func (h blackholeHandler) Handle(buffer msgpack.Buffer) error {
+	buffer.Close()
+	return nil
 }
+
+func (h blackholeHandler) Close() {}
