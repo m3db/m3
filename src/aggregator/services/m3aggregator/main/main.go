@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 	"github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
 )
 
 const (
@@ -42,7 +41,6 @@ const (
 
 var (
 	configFile = flag.String("f", "", "configuration file")
-	logger     = xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LogLevelInfo)
 )
 
 func main() {
@@ -55,16 +53,23 @@ func main() {
 
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, *configFile); err != nil {
-		logger.Fatalf("error loading config file: %v", err)
+		fmt.Printf("error loading config file: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Create metrics scope.
+	// Create logger and metrics scope.
+	logger, err := cfg.Logging.BuildLogger()
+	if err != nil {
+		fmt.Printf("error creating logger: %v\n", err)
+		os.Exit(1)
+	}
 	scope, closer, err := cfg.Metrics.NewRootScope()
 	if err != nil {
 		logger.Fatalf("error creating metrics root scope: %v", err)
 	}
 	defer closer.Close()
 	instrumentOpts := instrument.NewOptions().
+		SetLogger(logger).
 		SetMetricsScope(scope).
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())

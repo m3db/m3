@@ -24,12 +24,15 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 )
 
-var logger = xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LogLevelInfo)
-
-func loggingHandler(metric aggregated.Metric, policy policy.Policy) error {
+func logMetricAndPolicy(
+	logger xlog.Logger,
+	metric aggregated.Metric,
+	policy policy.Policy,
+) error {
 	logger.WithFields(
 		xlog.NewLogField("metric", metric.String()),
 		xlog.NewLogField("policy", policy.String()),
@@ -37,7 +40,14 @@ func loggingHandler(metric aggregated.Metric, policy policy.Policy) error {
 	return nil
 }
 
+func loggingHandler(logger xlog.Logger) HandleFunc {
+	return func(metric aggregated.Metric, policy policy.Policy) error {
+		return logMetricAndPolicy(logger, metric, policy)
+	}
+}
+
 // NewLoggingHandler creates a new logging handler.
-func NewLoggingHandler() aggregator.Handler {
-	return NewDecodingHandler(loggingHandler)
+func NewLoggingHandler(instrumentOpts instrument.Options) aggregator.Handler {
+	handler := loggingHandler(instrumentOpts.Logger())
+	return NewDecodingHandler(handler)
 }

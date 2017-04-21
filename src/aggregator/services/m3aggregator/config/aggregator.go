@@ -301,7 +301,7 @@ func (c *flushHandlerConfiguration) NewHandler(
 	case handler.BlackholeHandler:
 		return handler.NewBlackholeHandler(), nil
 	case handler.LoggingHandler:
-		return handler.NewLoggingHandler(), nil
+		return handler.NewLoggingHandler(instrumentOpts), nil
 	case handler.ForwardHandler:
 		if c.Forward == nil {
 			return nil, errNoForwardHandlerConfiguration
