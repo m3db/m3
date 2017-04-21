@@ -49,6 +49,7 @@ const (
 	dropOldestInQueue
 )
 
+type tryConnectFn func(addr string) (*net.TCPConn, error)
 type dialWithTimeoutFn func(protocol string, addr string, timeout time.Duration) (net.Conn, error)
 type writeToConnFn func(conn *net.TCPConn, data []byte) (int, error)
 
@@ -62,6 +63,7 @@ type forwardHandler struct {
 	reconnectRetrier    xretry.Retrier
 
 	bufCh             chan msgpack.Buffer
+	tryConnectFn      tryConnectFn
 	dialWithTimeoutFn dialWithTimeoutFn
 	writeToConnFn     writeToConnFn
 	wg                sync.WaitGroup
@@ -74,35 +76,12 @@ func NewForwardHandler(
 	servers []string,
 	opts ForwardHandlerOptions,
 ) (aggregator.Handler, error) {
-	numServers := len(servers)
-	if numServers == 0 {
-		return nil, errEmptyServerList
+	h, err := newForwardHandler(servers, opts)
+	if err != nil {
+		return nil, err
 	}
 
-	h := &forwardHandler{
-		servers:             servers,
-		log:                 opts.InstrumentOptions().Logger(),
-		connectTimeout:      opts.ConnectTimeout(),
-		connectionKeepAlive: opts.ConnectionKeepAlive(),
-		reconnectRetrier:    opts.ReconnectRetrier(),
-		bufCh:               make(chan msgpack.Buffer, opts.QueueSize()),
-		dialWithTimeoutFn:   net.DialTimeout,
-		writeToConnFn:       writeToConn,
-	}
-
-	// Initiate the connections.
-	h.wg.Add(numServers)
-	for _, addr := range servers {
-		conn, err := h.tryConnect(addr)
-		if err != nil {
-			h.log.WithFields(
-				xlog.NewLogField("address", addr),
-				xlog.NewLogErrField(err),
-			).Error("error connecting to server")
-		}
-		go h.forwardToConn(addr, conn)
-	}
-
+	h.initConnections(servers)
 	return h, nil
 }
 
@@ -124,6 +103,20 @@ func (h *forwardHandler) Close() {
 
 	// Wait for the queue to be drained.
 	h.wg.Wait()
+}
+
+func (h *forwardHandler) initConnections(servers []string) {
+	h.wg.Add(len(servers))
+	for _, addr := range servers {
+		conn, err := h.tryConnectFn(addr)
+		if err != nil {
+			h.log.WithFields(
+				xlog.NewLogField("address", addr),
+				xlog.NewLogErrField(err),
+			).Error("error connecting to server")
+		}
+		go h.forwardToConn(addr, conn)
+	}
 }
 
 func (h *forwardHandler) tryConnect(addr string) (*net.TCPConn, error) {
@@ -179,7 +172,7 @@ func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
 		return !closed
 	}
 	connectFn := func() error {
-		conn, err = h.tryConnect(addr)
+		conn, err = h.tryConnectFn(addr)
 		return err
 	}
 
@@ -224,6 +217,25 @@ func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
 			break
 		}
 	}
+}
+
+func newForwardHandler(servers []string, opts ForwardHandlerOptions) (*forwardHandler, error) {
+	if len(servers) == 0 {
+		return nil, errEmptyServerList
+	}
+
+	h := &forwardHandler{
+		servers:             servers,
+		log:                 opts.InstrumentOptions().Logger(),
+		connectTimeout:      opts.ConnectTimeout(),
+		connectionKeepAlive: opts.ConnectionKeepAlive(),
+		reconnectRetrier:    opts.ReconnectRetrier(),
+		bufCh:               make(chan msgpack.Buffer, opts.QueueSize()),
+		dialWithTimeoutFn:   net.DialTimeout,
+		writeToConnFn:       writeToConn,
+	}
+	h.tryConnectFn = h.tryConnect
+	return h, nil
 }
 
 func writeToConn(conn *net.TCPConn, data []byte) (int, error) {

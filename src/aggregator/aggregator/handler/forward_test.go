@@ -23,7 +23,6 @@ package handler
 import (
 	"errors"
 	"net"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -35,8 +34,7 @@ import (
 )
 
 const (
-	testFakeServerAddr  = "nonexistent"
-	testLocalServerAddr = "127.0.0.1:0"
+	testFakeServerAddr = "nonexistent"
 )
 
 func TestNewForwardHandlerEmptyServerList(t *testing.T) {
@@ -74,7 +72,6 @@ func TestForwardHandlerForwardToConnNoConnectionClosed(t *testing.T) {
 	opts := testForwardHandlerOptions().SetQueueSize(3)
 	h, err := NewForwardHandler([]string{testFakeServerAddr}, opts)
 	require.NoError(t, err)
-
 	// Queue up a nil buffer and close the handler.
 	handler := h.(*forwardHandler)
 	handler.bufCh <- nil
@@ -82,46 +79,31 @@ func TestForwardHandlerForwardToConnNoConnectionClosed(t *testing.T) {
 }
 
 func TestForwardHandlerForwardToConnWithConnectionClosed(t *testing.T) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	l, err := net.Listen(tcpProtocol, testLocalServerAddr)
+	opts := testForwardHandlerOptions().SetQueueSize(10)
+	servers := []string{testFakeServerAddr}
+	h, err := newForwardHandler(servers, opts)
 	require.NoError(t, err)
-	serverAddr := l.Addr().String()
 
 	var (
-		accepted int32
-		stop     int32
-		res      [][]byte
-		expected [][]byte
+		res         [][]byte
+		expected    [][]byte
+		numConnects int32
+		errConnect  = errors.New("error connecting")
 	)
-
-	// Start tcp server.
-	go func() {
-		defer wg.Done()
-
-		conn, err := l.Accept()
-		require.NoError(t, err)
-		atomic.StoreInt32(&accepted, 1)
-		for atomic.LoadInt32(&stop) == 1 {
+	h.tryConnectFn = func(addr string) (*net.TCPConn, error) {
+		if atomic.AddInt32(&numConnects, 1) == 1 {
+			return nil, errConnect
 		}
-		conn.Close()
-	}()
-
-	// Set up mock functions.
-	opts := testForwardHandlerOptions().SetQueueSize(10)
-	h, err := NewForwardHandler([]string{serverAddr}, opts)
-	require.NoError(t, err)
-	handler := h.(*forwardHandler)
-	handler.Lock()
-	handler.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
+		return &net.TCPConn{}, nil
+	}
+	h.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
 		res = append(res, data)
 		return 0, nil
 	}
-	handler.Unlock()
+	h.initConnections(servers)
 
 	// Wait for the mock functions to take effect.
-	for atomic.LoadInt32(&accepted) != 1 {
+	for atomic.LoadInt32(&numConnects) <= 1 {
 	}
 
 	// Enqueue some buffers.
@@ -137,54 +119,38 @@ func TestForwardHandlerForwardToConnWithConnectionClosed(t *testing.T) {
 	// Expect all the buffers to be processed.
 	h.Close()
 	require.Equal(t, expected, res)
-	atomic.StoreInt32(&stop, 1)
-	wg.Wait()
 }
 
 func TestForwardHandlerForwardToConnReenqueueSuccess(t *testing.T) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	l, err := net.Listen(tcpProtocol, testLocalServerAddr)
-	require.NoError(t, err)
-	serverAddr := l.Addr().String()
-
-	// Set up mock functions.
-	var (
-		accepted int32
-		stop     int32
-		res      [][]byte
-		count    int32
-		errWrite = errors.New("write error")
-	)
 	opts := testForwardHandlerOptions().SetQueueSize(10)
-	h, err := NewForwardHandler([]string{serverAddr}, opts)
+	servers := []string{testFakeServerAddr}
+	h, err := newForwardHandler(servers, opts)
 	require.NoError(t, err)
-	handler := h.(*forwardHandler)
-	handler.Lock()
-	handler.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
-		if atomic.AddInt32(&count, 1) == 1 {
+
+	var (
+		res         [][]byte
+		numConnects int32
+		numWrites   int32
+		errConnect  = errors.New("error connecting")
+		errWrite    = errors.New("write error")
+	)
+	h.tryConnectFn = func(addr string) (*net.TCPConn, error) {
+		if atomic.AddInt32(&numConnects, 1) == 1 {
+			return nil, errConnect
+		}
+		return &net.TCPConn{}, nil
+	}
+	h.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
+		if atomic.AddInt32(&numWrites, 1) == 1 {
 			return 0, errWrite
 		}
 		res = append(res, data)
 		return 0, nil
 	}
-	handler.Unlock()
-
-	// Start tcp server.
-	go func() {
-		defer wg.Done()
-
-		conn, err := l.Accept()
-		require.NoError(t, err)
-		atomic.StoreInt32(&accepted, 1)
-		for atomic.LoadInt32(&stop) == 1 {
-		}
-		conn.Close()
-	}()
+	h.initConnections(servers)
 
 	// Wait for the mock functions to take effect.
-	for atomic.LoadInt32(&accepted) != 1 {
+	for atomic.LoadInt32(&numConnects) <= 1 {
 	}
 
 	// Enqueue some buffers.
@@ -194,65 +160,50 @@ func TestForwardHandlerForwardToConnReenqueueSuccess(t *testing.T) {
 	require.NoError(t, h.Handle(buf))
 
 	// Wait for buffer to be re-enqueued.
-	for atomic.LoadInt32(&count) < 2 {
+	for atomic.LoadInt32(&numWrites) <= 1 {
 	}
 
 	// Expect all the buffers to be processed.
 	h.Close()
 	require.Equal(t, [][]byte{[]byte{0x3, 0x4, 0x5}}, res)
-	atomic.StoreInt32(&stop, 1)
-	wg.Wait()
 }
 
 func TestForwardHandlerForwardToConnReenqueueQueueFull(t *testing.T) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	l, err := net.Listen(tcpProtocol, testLocalServerAddr)
-	require.NoError(t, err)
-	serverAddr := l.Addr().String()
-
-	// Set up mock functions.
-	var (
-		accepted int32
-		stop     int32
-		res      [][]byte
-		count    int32
-		errWrite = errors.New("write error")
-	)
 	opts := testForwardHandlerOptions().SetQueueSize(1)
-	h, err := NewForwardHandler([]string{serverAddr}, opts)
+
+	servers := []string{testFakeServerAddr}
+	h, err := newForwardHandler(servers, opts)
 	require.NoError(t, err)
-	handler := h.(*forwardHandler)
-	handler.Lock()
-	handler.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
-		if atomic.AddInt32(&count, 1) == 1 {
+
+	var (
+		res         [][]byte
+		numConnects int32
+		numWrites   int32
+		errConnect  = errors.New("error connecting")
+		errWrite    = errors.New("write error")
+	)
+	h.tryConnectFn = func(addr string) (*net.TCPConn, error) {
+		if atomic.AddInt32(&numConnects, 1) == 1 {
+			return nil, errConnect
+		}
+		return &net.TCPConn{}, nil
+	}
+	h.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
+		if atomic.AddInt32(&numWrites, 1) == 1 {
 			// Fill up the queue.
 			buf := msgpack.NewBufferedEncoder()
 			_, err = buf.Buffer().Write([]byte{0x1, 0x2})
 			require.NoError(t, err)
-			handler.bufCh <- buf
+			h.bufCh <- buf
 			return 0, errWrite
 		}
 		res = append(res, data)
 		return 0, nil
 	}
-	handler.Unlock()
-
-	// Start tcp server.
-	go func() {
-		defer wg.Done()
-
-		conn, err := l.Accept()
-		require.NoError(t, err)
-		atomic.StoreInt32(&accepted, 1)
-		for atomic.LoadInt32(&stop) == 1 {
-		}
-		conn.Close()
-	}()
+	h.initConnections(servers)
 
 	// Wait for the mock functions to take effect.
-	for atomic.LoadInt32(&accepted) != 1 {
+	for atomic.LoadInt32(&numConnects) <= 1 {
 	}
 
 	// Enqueue some buffers.
@@ -262,14 +213,12 @@ func TestForwardHandlerForwardToConnReenqueueQueueFull(t *testing.T) {
 	require.NoError(t, h.Handle(buf))
 
 	// Wait for buffer to be re-enqueued.
-	for atomic.LoadInt32(&count) < 2 {
+	for atomic.LoadInt32(&numWrites) <= 1 {
 	}
 
 	// Expect the first buffer to be dropped.
 	h.Close()
 	require.Equal(t, [][]byte{[]byte{0x1, 0x2}}, res)
-	atomic.StoreInt32(&stop, 1)
-	wg.Wait()
 }
 
 func TestForwardHandlerClose(t *testing.T) {

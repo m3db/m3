@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	testListenAddress = "127.0.0.1:6000"
+	testListenAddress = "127.0.0.1:0"
 )
 
 var (
@@ -107,19 +107,19 @@ func testServer(addr string) (*server, mock.Aggregator, *int32, *int32, *int32) 
 	s := NewServer(addr, agg, opts).(*server)
 
 	s.addConnectionFn = func(conn net.Conn) bool {
-		ret := s.addConnection(conn)
 		atomic.AddInt32(&numAdded, 1)
+		ret := s.addConnection(conn)
 		return ret
 	}
 
 	s.removeConnectionFn = func(conn net.Conn) {
-		s.removeConnection(conn)
 		atomic.AddInt32(&numRemoved, 1)
+		s.removeConnection(conn)
 	}
 
 	s.handleConnectionFn = func(conn net.Conn) {
-		s.handleConnection(conn)
 		atomic.AddInt32(&numHandled, 1)
+		s.handleConnection(conn)
 	}
 
 	return s, agg, &numAdded, &numRemoved, &numHandled
@@ -137,6 +137,7 @@ func TestServerListenAndClose(t *testing.T) {
 	// Start server
 	err := s.ListenAndServe()
 	require.NoError(t, err)
+	listenAddr := s.listener.Addr().String()
 
 	// Now establish multiple connections and send data to the server
 	for i := 0; i < numClients; i++ {
@@ -150,7 +151,7 @@ func TestServerListenAndClose(t *testing.T) {
 		go func() {
 			defer wgClient.Done()
 
-			conn, err := net.Dial("tcp", testListenAddress)
+			conn, err := net.Dial("tcp", listenAddr)
 			require.NoError(t, err)
 
 			encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
