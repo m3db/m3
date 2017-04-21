@@ -20,12 +20,18 @@
 
 package config
 
-import "github.com/m3db/m3x/instrument"
+import (
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/log"
+)
 
 // Configuration contains top-level configuration.
 type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+
+	// Logging configuration.
+	Logging xlog.Configuration `yaml:"logging"`
 
 	// Aggregator configuration.
 	Aggregator AggregatorConfiguration `yaml:"aggregator"`
