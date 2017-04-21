@@ -109,11 +109,8 @@ func (c *unaggregatedIteratorConfiguration) NewUnaggregatedIteratorPool(
 
 // HTTPServerConfiguration contains http server configuration.
 type HTTPServerConfiguration struct {
-	// HTTP server listending address.
+	// HTTP server listening address.
 	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// HTTP server debug listening address.
-	DebugListenAddress string `yaml:"debugListenAddress"`
 
 	// HTTP server read timeout.
 	ReadTimeout time.Duration `yaml:"readTimeout"`

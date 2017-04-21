@@ -23,7 +23,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,8 +34,6 @@ import (
 	"github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pprof"
-	"github.com/prometheus/common/log"
 )
 
 const (
@@ -90,17 +87,6 @@ func main() {
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("http-server"))
 	httpServerOpts := cfg.HTTP.NewHTTPServerOptions(iOpts)
 
-	// Start up the pprof goroutine.
-	if cfg.HTTP.DebugListenAddress != "" {
-		go func() {
-			mux := http.NewServeMux()
-			xpprof.RegisterHandler(mux)
-			if err := http.ListenAndServe(cfg.HTTP.DebugListenAddress, mux); err != nil {
-				logger.Errorf("debug server could not listen on %s: %v", cfg.HTTP.DebugListenAddress, err)
-			}
-		}()
-	}
-
 	doneCh := make(chan struct{})
 	closedCh := make(chan struct{})
 	go func() {
@@ -119,7 +105,7 @@ func main() {
 	}()
 
 	// Handle interrupts.
-	log.Warnf("interrupt: %v", interrupt())
+	logger.Warnf("interrupt: %v", interrupt())
 
 	close(doneCh)
 

@@ -94,6 +94,5 @@ msgpack:
 
 http:
   listenAddress: 0.0.0.0:6001
-  debugListenAddress: 0.0.0.0:16000
-  readTimeout: 10s
-  writeTimeout: 10s
+  readTimeout: 45s
+  writeTimeout: 45s
