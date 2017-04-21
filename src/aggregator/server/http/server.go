@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator"
 	networkserver "github.com/m3db/m3aggregator/server"
+	"github.com/m3db/m3x/pprof"
 )
 
 // server is an http server receiving incoming metrics traffic
@@ -50,6 +51,7 @@ func (s *server) ListenAndServe() error {
 	if err := registerHandlers(mux, s.aggregator); err != nil {
 		return err
 	}
+	xpprof.RegisterHandler(mux)
 	server := http.Server{
 		Handler:      mux,
 		ReadTimeout:  s.opts.ReadTimeout(),
