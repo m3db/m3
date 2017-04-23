@@ -26,15 +26,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testBufferedEncoder() *bufferedEncoder {
-	return NewBufferedEncoder().(*bufferedEncoder)
-}
-
 func TestBufferedEncoderReset(t *testing.T) {
 	encoder := testBufferedEncoder()
 	inputs := []interface{}{1, 2.0, "foo", byte(8)}
 
-	// Encode for the first time
+	// Encode for the first time.
 	for _, input := range inputs {
 		encoder.Encode(input)
 	}
@@ -42,10 +38,10 @@ func TestBufferedEncoderReset(t *testing.T) {
 	results := make([]byte, len(encoded))
 	copy(results, encoded)
 
-	// Reset the encoder
+	// Reset the encoder.
 	encoder.Reset()
 
-	// Encode for the second time
+	// Encode for the second time.
 	for _, input := range inputs {
 		encoder.Encode(input)
 	}
@@ -60,11 +56,15 @@ func TestBufferedEncoderClose(t *testing.T) {
 	encoder := testBufferedEncoder()
 	require.False(t, encoder.closed)
 
-	// Close the encoder should set the flag
+	// Close the encoder should set the flag.
 	encoder.Close()
 	require.True(t, encoder.closed)
 
-	// Close the encoder again should be a no-op
+	// Close the encoder again should be a no-op.
 	encoder.Close()
 	require.True(t, encoder.closed)
+}
+
+func testBufferedEncoder() *bufferedEncoder {
+	return NewBufferedEncoder().(*bufferedEncoder)
 }

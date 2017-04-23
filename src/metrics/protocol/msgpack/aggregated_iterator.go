@@ -28,26 +28,27 @@ import (
 	"github.com/m3db/m3metrics/policy"
 )
 
-// aggregatedIterator is an iterator for decoding aggregated metrics
+// aggregatedIterator is an iterator for decoding aggregated metrics.
 type aggregatedIterator struct {
 	iteratorBase
 
-	ignoreHigherVersion bool                   // whether we ignore messages with a higher-than-supported version
-	iteratorPool        AggregatedIteratorPool // pool for aggregated iterators
-	closed              bool                   // whether the iterator is closed
-	metric              aggregated.RawMetric   // current raw metric
-	policy              policy.Policy          // current policy
+	ignoreHigherVersion bool
+	iteratorPool        AggregatedIteratorPool
+	closed              bool
+	metric              aggregated.RawMetric
+	policy              policy.Policy
 }
 
-// NewAggregatedIterator creates a new aggregated iterator
+// NewAggregatedIterator creates a new aggregated iterator.
 func NewAggregatedIterator(reader io.Reader, opts AggregatedIteratorOptions) AggregatedIterator {
 	if opts == nil {
 		opts = NewAggregatedIteratorOptions()
 	}
+	readerBufferSize := opts.ReaderBufferSize()
 	return &aggregatedIterator{
 		ignoreHigherVersion: opts.IgnoreHigherVersion(),
-		iteratorBase:        newBaseIterator(reader),
-		metric:              NewRawMetric(nil),
+		iteratorBase:        newBaseIterator(reader, readerBufferSize),
+		metric:              NewRawMetric(nil, readerBufferSize),
 		iteratorPool:        opts.IteratorPool(),
 	}
 }
@@ -88,7 +89,7 @@ func (it *aggregatedIterator) decodeRootObject() bool {
 		return false
 	}
 	// If the actual version is higher than supported version, we skip
-	// the data for this metric and continue to the next
+	// the data for this metric and continue to the next.
 	if version > aggregatedVersion {
 		if it.ignoreHigherVersion {
 			it.skip(it.decodeNumObjectFields())
@@ -97,7 +98,7 @@ func (it *aggregatedIterator) decodeRootObject() bool {
 		it.setErr(fmt.Errorf("received version %d is higher than supported version %d", version, aggregatedVersion))
 		return false
 	}
-	// Otherwise we proceed to decoding normally
+	// Otherwise we proceed to decoding normally.
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(rootObjectType)
 	if !ok {
 		return false

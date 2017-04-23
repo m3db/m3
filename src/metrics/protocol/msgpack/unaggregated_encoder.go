@@ -25,7 +25,7 @@ import (
 	"github.com/m3db/m3metrics/policy"
 )
 
-// Various object-level encoding functions to facilitate testing
+// Various object-level encoding functions to facilitate testing.
 type encodeRootObjectFn func(objType objectType)
 type encodeCounterWithPoliciesFn func(cp unaggregated.CounterWithPolicies)
 type encodeBatchTimerWithPoliciesFn func(btp unaggregated.BatchTimerWithPolicies)
@@ -50,7 +50,7 @@ type unaggregatedEncoder struct {
 	encodeVersionedPoliciesFn      encodeVersionedPoliciesFn      // versioned policies encoding function
 }
 
-// NewUnaggregatedEncoder creates a new unaggregated encoder
+// NewUnaggregatedEncoder creates a new unaggregated encoder.
 func NewUnaggregatedEncoder(encoder BufferedEncoder) UnaggregatedEncoder {
 	enc := &unaggregatedEncoder{encoderBase: newBaseEncoder(encoder)}
 
@@ -143,7 +143,7 @@ func (enc *unaggregatedEncoder) encodeGauge(g unaggregated.Gauge) {
 
 func (enc *unaggregatedEncoder) encodeVersionedPolicies(vp policy.VersionedPolicies) {
 	// NB(xichen): if this is a default policy, we do not encode the actual policies
-	// to optimize for the common case
+	// to optimize for the common case.
 	if vp.IsDefault() {
 		enc.encodeNumObjectFields(numFieldsForType(defaultVersionedPoliciesType))
 		enc.encodeObjectType(defaultVersionedPoliciesType)
@@ -151,7 +151,7 @@ func (enc *unaggregatedEncoder) encodeVersionedPolicies(vp policy.VersionedPolic
 		enc.encodeTime(vp.Cutover)
 		return
 	}
-	// Otherwise fallback to encoding the entire object
+	// Otherwise fallback to encoding the entire object.
 	enc.encodeNumObjectFields(numFieldsForType(customVersionedPoliciesType))
 	enc.encodeObjectType(customVersionedPoliciesType)
 	enc.encodeVersion(vp.Version)

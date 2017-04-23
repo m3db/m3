@@ -21,6 +21,7 @@
 package msgpack
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"testing"
@@ -37,58 +38,6 @@ var (
 	testRawMetricData      = []byte("foodg")
 	errTestDecodeRawMetric = errors.New("foo")
 )
-
-type decodeVersionFn func() int
-type decodeBytesLenFn func() int
-type decodeTimeFn func() time.Time
-type decodeFloat64Fn func() float64
-
-type mockBaseIterator struct {
-	itErr            error
-	decodeVersionFn  decodeVersionFn
-	decodeBytesLenFn decodeBytesLenFn
-	decodeTimeFn     decodeTimeFn
-	decodeFloat64Fn  decodeFloat64Fn
-}
-
-func (it *mockBaseIterator) reset(reader io.Reader)       {}
-func (it *mockBaseIterator) err() error                   { return it.itErr }
-func (it *mockBaseIterator) setErr(err error)             { it.itErr = err }
-func (it *mockBaseIterator) decodePolicy() policy.Policy  { return policy.EmptyPolicy }
-func (it *mockBaseIterator) decodeVersion() int           { return it.decodeVersionFn() }
-func (it *mockBaseIterator) decodeObjectType() objectType { return unknownType }
-func (it *mockBaseIterator) decodeNumObjectFields() int   { return 0 }
-func (it *mockBaseIterator) decodeID() metric.ID          { return nil }
-func (it *mockBaseIterator) decodeTime() time.Time        { return it.decodeTimeFn() }
-func (it *mockBaseIterator) decodeVarint() int64          { return 0 }
-func (it *mockBaseIterator) decodeFloat64() float64       { return it.decodeFloat64Fn() }
-func (it *mockBaseIterator) decodeBytes() []byte          { return nil }
-func (it *mockBaseIterator) decodeBytesLen() int          { return it.decodeBytesLenFn() }
-func (it *mockBaseIterator) decodeArrayLen() int          { return 0 }
-func (it *mockBaseIterator) skip(numFields int)           {}
-
-func (it *mockBaseIterator) checkNumFieldsForType(objType objectType) (int, int, bool) {
-	return 0, 0, true
-}
-
-func (it *mockBaseIterator) checkNumFieldsForTypeWithActual(
-	objType objectType,
-	numActualFields int,
-) (int, int, bool) {
-	return 0, 0, true
-}
-
-func testRawMetric() *rawMetric {
-	mockIt := &mockBaseIterator{}
-	mockIt.decodeVersionFn = func() int { return metricVersion }
-	mockIt.decodeBytesLenFn = func() int { return len(testMetric.ID) }
-	mockIt.decodeTimeFn = func() time.Time { return testMetric.Timestamp }
-	mockIt.decodeFloat64Fn = func() float64 { return testMetric.Value }
-
-	m := NewRawMetric(testRawMetricData).(*rawMetric)
-	m.it = mockIt
-	return m
-}
 
 func TestRawMetricDecodeIDExistingError(t *testing.T) {
 	m := testRawMetric()
@@ -228,7 +177,7 @@ func TestRawMetricBytes(t *testing.T) {
 }
 
 func TestRawMetricNilID(t *testing.T) {
-	r := NewRawMetric(nil)
+	r := NewRawMetric(nil, 16)
 	r.Reset(toRawMetric(t, emptyMetric).Bytes())
 	decoded, err := r.ID()
 	require.NoError(t, err)
@@ -242,7 +191,7 @@ func TestRawMetricReset(t *testing.T) {
 		{ID: metric.ID("bar"), Timestamp: testMetric.Timestamp, Value: 2.3},
 		{ID: metric.ID("baz"), Timestamp: testMetric.Timestamp, Value: 4234.234},
 	}
-	rawMetric := NewRawMetric(nil)
+	rawMetric := NewRawMetric(nil, 16)
 	for i := 0; i < len(metrics); i++ {
 		rawMetric.Reset(toRawMetric(t, metrics[i]).Bytes())
 		decoded, err := rawMetric.Metric()
@@ -271,4 +220,60 @@ func TestRawMetricRoundtripStress(t *testing.T) {
 		results = append(results, decoded)
 	}
 	require.Equal(t, inputs, results)
+}
+
+type decodeVersionFn func() int
+type decodeBytesLenFn func() int
+type decodeTimeFn func() time.Time
+type decodeFloat64Fn func() float64
+
+type mockBaseIterator struct {
+	bufReader        bufReader
+	itErr            error
+	decodeVersionFn  decodeVersionFn
+	decodeBytesLenFn decodeBytesLenFn
+	decodeTimeFn     decodeTimeFn
+	decodeFloat64Fn  decodeFloat64Fn
+}
+
+func (it *mockBaseIterator) reset(reader io.Reader)       {}
+func (it *mockBaseIterator) err() error                   { return it.itErr }
+func (it *mockBaseIterator) setErr(err error)             { it.itErr = err }
+func (it *mockBaseIterator) reader() bufReader            { return it.bufReader }
+func (it *mockBaseIterator) decodePolicy() policy.Policy  { return policy.EmptyPolicy }
+func (it *mockBaseIterator) decodeVersion() int           { return it.decodeVersionFn() }
+func (it *mockBaseIterator) decodeObjectType() objectType { return unknownType }
+func (it *mockBaseIterator) decodeNumObjectFields() int   { return 0 }
+func (it *mockBaseIterator) decodeID() metric.ID          { return nil }
+func (it *mockBaseIterator) decodeTime() time.Time        { return it.decodeTimeFn() }
+func (it *mockBaseIterator) decodeVarint() int64          { return 0 }
+func (it *mockBaseIterator) decodeFloat64() float64       { return it.decodeFloat64Fn() }
+func (it *mockBaseIterator) decodeBytes() []byte          { return nil }
+func (it *mockBaseIterator) decodeBytesLen() int          { return it.decodeBytesLenFn() }
+func (it *mockBaseIterator) decodeArrayLen() int          { return 0 }
+func (it *mockBaseIterator) skip(numFields int)           {}
+
+func (it *mockBaseIterator) checkNumFieldsForType(objType objectType) (int, int, bool) {
+	return 0, 0, true
+}
+
+func (it *mockBaseIterator) checkNumFieldsForTypeWithActual(
+	objType objectType,
+	numActualFields int,
+) (int, int, bool) {
+	return 0, 0, true
+}
+
+func testRawMetric() *rawMetric {
+	mockIt := &mockBaseIterator{}
+	mockIt.decodeVersionFn = func() int { return metricVersion }
+	mockIt.decodeBytesLenFn = func() int { return len(testMetric.ID) }
+	mockIt.decodeTimeFn = func() time.Time { return testMetric.Timestamp }
+	mockIt.decodeFloat64Fn = func() float64 { return testMetric.Value }
+	mockIt.bufReader = bytes.NewReader(testRawMetricData)
+
+	m := NewRawMetric(testRawMetricData, 16).(*rawMetric)
+	m.it = mockIt
+
+	return m
 }

@@ -21,6 +21,7 @@
 package msgpack
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -39,26 +40,35 @@ var (
 
 // baseIterator is the base iterator that provides common decoding APIs
 type baseIterator struct {
-	decoder   *msgpack.Decoder // internal decoder that does the actual decoding
-	decodeErr error            // error encountered during decoding
+	readerBufferSize int
+	bufReader        bufReader
+	decoder          *msgpack.Decoder // internal decoder that does the actual decoding
+	decodeErr        error            // error encountered during decoding
 }
 
-func newBaseIterator(reader io.Reader) iteratorBase {
+func newBaseIterator(reader io.Reader, readerBufferSize int) iteratorBase {
+	// NB(xichen): if reader is not a bufReader, the underlying msgpack decoder
+	// creates a bufio.Reader wrapping the reader. By converting the reader to a
+	// bufReader, it is guaranteed that the reader passed to the decoder is the one
+	// used for reading and buffering the underlying data.
+	bufReader := toBufReader(reader, readerBufferSize)
 	return &baseIterator{
-		decoder: msgpack.NewDecoder(reader),
+		readerBufferSize: readerBufferSize,
+		bufReader:        bufReader,
+		decoder:          msgpack.NewDecoder(bufReader),
 	}
 }
 
-// NB(xichen): if reader is not a bufio.Reader, a bytes.Reader,
-// or a bytes.Buffer, the underlying msgpack decoder creates a
-// bufio.Reader wrapping the reader every time Reset() is called
 func (it *baseIterator) reset(reader io.Reader) {
-	it.decoder.Reset(reader)
+	bufReader := toBufReader(reader, it.readerBufferSize)
+	it.bufReader = bufReader
+	it.decoder.Reset(bufReader)
 	it.decodeErr = nil
 }
 
-func (it *baseIterator) err() error       { return it.decodeErr }
-func (it *baseIterator) setErr(err error) { it.decodeErr = err }
+func (it *baseIterator) err() error        { return it.decodeErr }
+func (it *baseIterator) setErr(err error)  { it.decodeErr = err }
+func (it *baseIterator) reader() bufReader { return it.bufReader }
 
 func (it *baseIterator) decodePolicy() policy.Policy {
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(policyType)
@@ -257,4 +267,20 @@ func (it *baseIterator) checkNumFieldsForTypeWithActual(
 		return 0, 0, false
 	}
 	return numExpectedFields, numActualFields, true
+}
+
+// bufReader is a buffered reader.
+type bufReader interface {
+	io.Reader
+
+	ReadByte() (byte, error)
+	UnreadByte() error
+}
+
+func toBufReader(reader io.Reader, readerBufferSize int) bufReader {
+	bufReader, ok := reader.(bufReader)
+	if ok {
+		return bufReader
+	}
+	return bufio.NewReaderSize(reader, readerBufferSize)
 }
