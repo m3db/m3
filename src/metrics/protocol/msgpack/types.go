@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
-	xpool "github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/pool"
 )
 
 // Buffer is a byte buffer
@@ -151,6 +151,9 @@ type iteratorBase interface {
 	// setErr sets the iterator error
 	setErr(err error)
 
+	// reader returns the buffered reader.
+	reader() bufReader
+
 	// decodePolicy decodes a policy
 	decodePolicy() policy.Policy
 
@@ -214,50 +217,59 @@ type UnaggregatedEncoder interface {
 	Reset(encoder BufferedEncoder)
 }
 
-// UnaggregatedIterator is an iterator for decoding different types of unaggregated metrics
+// UnaggregatedIterator is an iterator for decoding different types of unaggregated metrics.
 type UnaggregatedIterator interface {
-	// Next returns true if there are more items to decode
+	// Next returns true if there are more items to decode.
 	Next() bool
 
-	// Value returns the current metric and applicable policies
+	// Value returns the current metric and applicable policies.
+	// The returned value remains valid until the next Next() call.
 	Value() (unaggregated.MetricUnion, policy.VersionedPolicies)
 
-	// Err returns the error encountered during decoding, if any
+	// Err returns the error encountered during decoding, if any.
 	Err() error
 
-	// Reset resets the iterator
+	// Reset resets the iterator.
 	Reset(reader io.Reader)
 
-	// Close closes the iterator
+	// Close closes the iterator.
 	Close()
 }
 
-// UnaggregatedIteratorOptions provide options for unaggregated iterators
+// UnaggregatedIteratorOptions provide options for unaggregated iterators.
 type UnaggregatedIteratorOptions interface {
 	// SetIgnoreHigherVersion determines whether the iterator ignores messages
-	// with higher-than-supported version
+	// with higher-than-supported version.
 	SetIgnoreHigherVersion(value bool) UnaggregatedIteratorOptions
 
 	// IgnoreHigherVersion returns whether the iterator ignores messages with
-	// higher-than-supported version
+	// higher-than-supported version.
 	IgnoreHigherVersion() bool
 
-	// SetFloatsPool sets the floats pool
-	SetFloatsPool(value xpool.FloatsPool) UnaggregatedIteratorOptions
+	// SetReaderBufferSize sets the reader buffer size.
+	SetReaderBufferSize(value int) UnaggregatedIteratorOptions
 
-	// FloatsPool returns the floats pool
-	FloatsPool() xpool.FloatsPool
+	// ReaderBufferSize returns the reader buffer size.
+	ReaderBufferSize() int
 
-	// SetPoliciesPool sets the policies pool
-	SetPoliciesPool(value policy.PoliciesPool) UnaggregatedIteratorOptions
+	// SetLargeFloatsSize determines whether a float slice is considered a "large"
+	// slice and therefore resort to the pool for allocating that slice.
+	SetLargeFloatsSize(value int) UnaggregatedIteratorOptions
 
-	// PoliciesPool returns the policies pool
-	PoliciesPool() policy.PoliciesPool
+	// LargeFloatsSize returns whether a float slice is considered a "large"
+	// slice and therefore resort to the pool for allocating that slice.
+	LargeFloatsSize() int
 
-	// SetIteratorPool sets the unaggregated iterator pool
+	// SetLargeFloatsPool sets the large floats pool.
+	SetLargeFloatsPool(value pool.FloatsPool) UnaggregatedIteratorOptions
+
+	// LargeFloatsPool returns the large floats pool.
+	LargeFloatsPool() pool.FloatsPool
+
+	// SetIteratorPool sets the unaggregated iterator pool.
 	SetIteratorPool(value UnaggregatedIteratorPool) UnaggregatedIteratorOptions
 
-	// IteratorPool returns the unaggregated iterator pool
+	// IteratorPool returns the unaggregated iterator pool.
 	IteratorPool() UnaggregatedIteratorPool
 }
 
@@ -312,20 +324,26 @@ type AggregatedIterator interface {
 	Close()
 }
 
-// AggregatedIteratorOptions provide options for aggregated iterators
+// AggregatedIteratorOptions provide options for aggregated iterators.
 type AggregatedIteratorOptions interface {
 	// SetIgnoreHigherVersion determines whether the iterator ignores messages
-	// with higher-than-supported version
+	// with higher-than-supported version.
 	SetIgnoreHigherVersion(value bool) AggregatedIteratorOptions
 
 	// IgnoreHigherVersion returns whether the iterator ignores messages with
-	// higher-than-supported version
+	// higher-than-supported version.
 	IgnoreHigherVersion() bool
 
-	// SetIteratorPool sets the aggregated iterator pool
+	// SetReaderBufferSize sets the reader buffer size.
+	SetReaderBufferSize(value int) AggregatedIteratorOptions
+
+	// ReaderBufferSize returns the reader buffer size.
+	ReaderBufferSize() int
+
+	// SetIteratorPool sets the aggregated iterator pool.
 	SetIteratorPool(value AggregatedIteratorPool) AggregatedIteratorOptions
 
-	// IteratorPool returns the aggregated iterator pool
+	// IteratorPool returns the aggregated iterator pool.
 	IteratorPool() AggregatedIteratorPool
 }
 

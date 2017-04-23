@@ -40,111 +40,6 @@ var (
 	errTestArrayLen = errors.New("test array len error")
 )
 
-func testCapturingUnaggregatedEncoder(t *testing.T) (UnaggregatedEncoder, *[]interface{}) {
-	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
-	result := testCapturingBaseEncoder(encoder.encoderBase)
-	return encoder, result
-}
-
-func expectedResultsForPolicy(t *testing.T, p policy.Policy) []interface{} {
-	results := []interface{}{numFieldsForType(policyType)}
-
-	resolutionValue, err := policy.ValueFromResolution(p.Resolution())
-	if err == nil {
-		results = append(results, []interface{}{
-			numFieldsForType(knownResolutionType),
-			int64(knownResolutionType),
-			int64(resolutionValue),
-		}...)
-	} else {
-		results = append(results, []interface{}{
-			numFieldsForType(unknownResolutionType),
-			int64(unknownResolutionType),
-			int64(p.Resolution().Window),
-			int64(p.Resolution().Precision),
-		}...)
-	}
-
-	retentionValue, err := policy.ValueFromRetention(p.Retention())
-	if err == nil {
-		results = append(results, []interface{}{
-			numFieldsForType(knownRetentionType),
-			int64(knownRetentionType),
-			int64(retentionValue),
-		}...)
-	} else {
-		results = append(results, []interface{}{
-			numFieldsForType(unknownRetentionType),
-			int64(unknownRetentionType),
-			int64(p.Retention()),
-		}...)
-	}
-
-	return results
-}
-
-func expectedResultsForUnaggregatedMetricWithPolicies(t *testing.T, m unaggregated.MetricUnion, p policy.VersionedPolicies) []interface{} {
-	results := []interface{}{
-		int64(unaggregatedVersion),
-		numFieldsForType(rootObjectType),
-	}
-
-	switch m.Type {
-	case unaggregated.CounterType:
-		results = append(results, []interface{}{
-			int64(counterWithPoliciesType),
-			numFieldsForType(counterWithPoliciesType),
-			numFieldsForType(counterType),
-			[]byte(m.ID),
-			m.CounterVal,
-		}...)
-	case unaggregated.BatchTimerType:
-		results = append(results, []interface{}{
-			int64(batchTimerWithPoliciesType),
-			numFieldsForType(batchTimerWithPoliciesType),
-			numFieldsForType(batchTimerType),
-			[]byte(m.ID),
-			len(m.BatchTimerVal),
-		}...)
-		for _, v := range m.BatchTimerVal {
-			results = append(results, v)
-		}
-	case unaggregated.GaugeType:
-		results = append(results, []interface{}{
-			int64(gaugeWithPoliciesType),
-			numFieldsForType(gaugeWithPoliciesType),
-			numFieldsForType(gaugeType),
-			[]byte(m.ID),
-			m.GaugeVal,
-		}...)
-	default:
-		require.Fail(t, fmt.Sprintf("unrecognized metric type %v", m.Type))
-	}
-
-	if p.IsDefault() {
-		results = append(results, []interface{}{
-			numFieldsForType(defaultVersionedPoliciesType),
-			int64(defaultVersionedPoliciesType),
-			int64(p.Version),
-			p.Cutover,
-		}...)
-	} else {
-		policies := p.Policies()
-		results = append(results, []interface{}{
-			numFieldsForType(customVersionedPoliciesType),
-			int64(customVersionedPoliciesType),
-			int64(p.Version),
-			p.Cutover,
-			len(policies),
-		}...)
-		for _, p := range policies {
-			results = append(results, expectedResultsForPolicy(t, p)...)
-		}
-	}
-
-	return results
-}
-
 func TestUnaggregatedEncodeCounterWithDefaultPolicies(t *testing.T) {
 	policies := testDefaultVersionedPolicies
 	encoder, results := testCapturingUnaggregatedEncoder(t)
@@ -195,17 +90,17 @@ func TestUnaggregatedEncodeVarintError(t *testing.T) {
 	counter := testCounter
 	policies := testDefaultVersionedPolicies
 
-	// Intentionally return an error when encoding varint
+	// Intentionally return an error when encoding varint.
 	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	baseEncoder := encoder.encoderBase.(*baseEncoder)
 	baseEncoder.encodeVarintFn = func(value int64) {
 		baseEncoder.encodeErr = errTestVarint
 	}
 
-	// Assert the error is expected
+	// Assert the error is expected.
 	require.Equal(t, errTestVarint, testUnaggregatedEncode(t, encoder, counter, policies))
 
-	// Assert re-encoding doesn't change the error
+	// Assert re-encoding doesn't change the error.
 	require.Equal(t, errTestVarint, testUnaggregatedEncode(t, encoder, counter, policies))
 }
 
@@ -213,17 +108,17 @@ func TestUnaggregatedEncodeFloat64Error(t *testing.T) {
 	gauge := testGauge
 	policies := testDefaultVersionedPolicies
 
-	// Intentionally return an error when encoding float64
+	// Intentionally return an error when encoding float64.
 	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	baseEncoder := encoder.encoderBase.(*baseEncoder)
 	baseEncoder.encodeFloat64Fn = func(value float64) {
 		baseEncoder.encodeErr = errTestFloat64
 	}
 
-	// Assert the error is expected
+	// Assert the error is expected.
 	require.Equal(t, errTestFloat64, testUnaggregatedEncode(t, encoder, gauge, policies))
 
-	// Assert re-encoding doesn't change the error
+	// Assert re-encoding doesn't change the error.
 	require.Equal(t, errTestFloat64, testUnaggregatedEncode(t, encoder, gauge, policies))
 }
 
@@ -231,17 +126,17 @@ func TestUnaggregatedEncodeBytesError(t *testing.T) {
 	timer := testBatchTimer
 	policies := testDefaultVersionedPolicies
 
-	// Intentionally return an error when encoding array length
+	// Intentionally return an error when encoding array length.
 	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	baseEncoder := encoder.encoderBase.(*baseEncoder)
 	baseEncoder.encodeBytesFn = func(value []byte) {
 		baseEncoder.encodeErr = errTestBytes
 	}
 
-	// Assert the error is expected
+	// Assert the error is expected.
 	require.Equal(t, errTestBytes, testUnaggregatedEncode(t, encoder, timer, policies))
 
-	// Assert re-encoding doesn't change the error
+	// Assert re-encoding doesn't change the error.
 	require.Equal(t, errTestBytes, testUnaggregatedEncode(t, encoder, timer, policies))
 }
 
@@ -255,17 +150,17 @@ func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 		},
 	)
 
-	// Intentionally return an error when encoding array length
+	// Intentionally return an error when encoding array length.
 	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	baseEncoder := encoder.encoderBase.(*baseEncoder)
 	baseEncoder.encodeArrayLenFn = func(value int) {
 		baseEncoder.encodeErr = errTestArrayLen
 	}
 
-	// Assert the error is expected
+	// Assert the error is expected.
 	require.Equal(t, errTestArrayLen, testUnaggregatedEncode(t, encoder, gauge, policies))
 
-	// Assert re-encoding doesn't change the error
+	// Assert re-encoding doesn't change the error.
 	require.Equal(t, errTestArrayLen, testUnaggregatedEncode(t, encoder, gauge, policies))
 }
 
@@ -280,4 +175,118 @@ func TestUnaggregatedEncoderReset(t *testing.T) {
 
 	encoder.Reset(NewBufferedEncoder())
 	require.NoError(t, testUnaggregatedEncode(t, encoder, metric, policies))
+}
+
+func testCapturingUnaggregatedEncoder(t *testing.T) (UnaggregatedEncoder, *[]interface{}) {
+	encoder := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
+	result := testCapturingBaseEncoder(encoder.encoderBase)
+	return encoder, result
+}
+
+func expectedResultsForPolicy(t *testing.T, p policy.Policy) []interface{} {
+	results := []interface{}{numFieldsForType(policyType)}
+
+	resolutionValue, err := policy.ValueFromResolution(p.Resolution())
+	if err == nil {
+		results = append(results, []interface{}{
+			numFieldsForType(knownResolutionType),
+			int64(knownResolutionType),
+			int64(resolutionValue),
+		}...)
+	} else {
+		results = append(results, []interface{}{
+			numFieldsForType(unknownResolutionType),
+			int64(unknownResolutionType),
+			int64(p.Resolution().Window),
+			int64(p.Resolution().Precision),
+		}...)
+	}
+
+	retentionValue, err := policy.ValueFromRetention(p.Retention())
+	if err == nil {
+		results = append(results, []interface{}{
+			numFieldsForType(knownRetentionType),
+			int64(knownRetentionType),
+			int64(retentionValue),
+		}...)
+	} else {
+		results = append(results, []interface{}{
+			numFieldsForType(unknownRetentionType),
+			int64(unknownRetentionType),
+			int64(p.Retention()),
+		}...)
+	}
+
+	return results
+}
+
+func expectedResultsForVersionedPolicies(t *testing.T, vp policy.VersionedPolicies) []interface{} {
+	if vp.IsDefault() {
+		return []interface{}{
+			numFieldsForType(defaultVersionedPoliciesType),
+			int64(defaultVersionedPoliciesType),
+			int64(vp.Version),
+			vp.Cutover,
+		}
+	}
+	policies := vp.Policies()
+	results := []interface{}{
+		numFieldsForType(customVersionedPoliciesType),
+		int64(customVersionedPoliciesType),
+		int64(vp.Version),
+		vp.Cutover,
+		len(policies),
+	}
+	for _, p := range policies {
+		results = append(results, expectedResultsForPolicy(t, p)...)
+	}
+	return results
+}
+
+func expectedResultsForUnaggregatedMetricWithPolicies(
+	t *testing.T,
+	m unaggregated.MetricUnion,
+	vp policy.VersionedPolicies,
+) []interface{} {
+	results := []interface{}{
+		int64(unaggregatedVersion),
+		numFieldsForType(rootObjectType),
+	}
+
+	switch m.Type {
+	case unaggregated.CounterType:
+		results = append(results, []interface{}{
+			int64(counterWithPoliciesType),
+			numFieldsForType(counterWithPoliciesType),
+			numFieldsForType(counterType),
+			[]byte(m.ID),
+			m.CounterVal,
+		}...)
+	case unaggregated.BatchTimerType:
+		results = append(results, []interface{}{
+			int64(batchTimerWithPoliciesType),
+			numFieldsForType(batchTimerWithPoliciesType),
+			numFieldsForType(batchTimerType),
+			[]byte(m.ID),
+			len(m.BatchTimerVal),
+		}...)
+		for _, v := range m.BatchTimerVal {
+			results = append(results, v)
+		}
+	case unaggregated.GaugeType:
+		results = append(results, []interface{}{
+			int64(gaugeWithPoliciesType),
+			numFieldsForType(gaugeWithPoliciesType),
+			numFieldsForType(gaugeType),
+			[]byte(m.ID),
+			m.GaugeVal,
+		}...)
+	default:
+		require.Fail(t, fmt.Sprintf("unrecognized metric type %v", m.Type))
+	}
+
+	vpRes := expectedResultsForVersionedPolicies(t, vp)
+	results = append(results, vpRes...)
+
+	return results
 }

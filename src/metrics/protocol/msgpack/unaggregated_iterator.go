@@ -23,10 +23,16 @@ package msgpack
 import (
 	"fmt"
 	"io"
+	"math"
 
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
-	xpool "github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/pool"
+)
+
+const (
+	defaultInitTimerValuesCapacity = 16
 )
 
 // unaggregatedIterator uses MessagePack to decode different types of unaggregated metrics.
@@ -34,33 +40,40 @@ import (
 type unaggregatedIterator struct {
 	iteratorBase
 
-	ignoreHigherVersion bool                     // whether we ignore messages with a higher-than-supported version
-	floatsPool          xpool.FloatsPool         // pool for float slices
-	policiesPool        policy.PoliciesPool      // pool for policies
-	iteratorPool        UnaggregatedIteratorPool // pool for unaggregated iterators
-	closed              bool                     // whether the iterator is closed
-	metric              unaggregated.MetricUnion // current metric
-	versionedPolicies   policy.VersionedPolicies // current policies
+	ignoreHigherVersion bool
+	largeFloatsSize     int
+	largeFloatsPool     pool.FloatsPool
+	iteratorPool        UnaggregatedIteratorPool
+
+	closed            bool
+	metric            unaggregated.MetricUnion
+	versionedPolicies policy.VersionedPolicies
+	id                metric.ID
+	policies          []policy.Policy
+	timerValues       []float64
 }
 
-// NewUnaggregatedIterator creates a new unaggregated iterator
+// NewUnaggregatedIterator creates a new unaggregated iterator.
 func NewUnaggregatedIterator(reader io.Reader, opts UnaggregatedIteratorOptions) UnaggregatedIterator {
 	if opts == nil {
 		opts = NewUnaggregatedIteratorOptions()
 	}
-	return &unaggregatedIterator{
-		iteratorBase:        newBaseIterator(reader),
+	it := &unaggregatedIterator{
+		iteratorBase:        newBaseIterator(reader, opts.ReaderBufferSize()),
 		ignoreHigherVersion: opts.IgnoreHigherVersion(),
-		floatsPool:          opts.FloatsPool(),
-		policiesPool:        opts.PoliciesPool(),
+		largeFloatsSize:     opts.LargeFloatsSize(),
+		largeFloatsPool:     opts.LargeFloatsPool(),
 		iteratorPool:        opts.IteratorPool(),
+		timerValues:         make([]float64, 0, defaultInitTimerValuesCapacity),
 	}
+	return it
 }
 
 func (it *unaggregatedIterator) Err() error { return it.err() }
 
 func (it *unaggregatedIterator) Reset(reader io.Reader) {
 	it.closed = false
+	it.metric.Reset()
 	it.reset(reader)
 }
 
@@ -73,9 +86,9 @@ func (it *unaggregatedIterator) Next() bool {
 		return false
 	}
 
-	// Resetting the metric to avoid holding onto the float64 slices
-	// in the metric field even though they may not be used
-	it.metric.Reset()
+	// Reset the pointers in metric union to reduce GC sweep overhead.
+	it.metric.BatchTimerVal = nil
+	it.metric.TimerValPool = nil
 
 	return it.decodeRootObject()
 }
@@ -99,7 +112,7 @@ func (it *unaggregatedIterator) decodeRootObject() bool {
 		return false
 	}
 	// If the actual version is higher than supported version, we skip
-	// the data for this metric and continue to the next
+	// the data for this metric and continue to the next.
 	if version > unaggregatedVersion {
 		if it.ignoreHigherVersion {
 			it.skip(it.decodeNumObjectFields())
@@ -108,7 +121,7 @@ func (it *unaggregatedIterator) decodeRootObject() bool {
 		it.setErr(fmt.Errorf("received version %d is higher than supported version %d", version, unaggregatedVersion))
 		return false
 	}
-	// Otherwise we proceed to decoding normally
+	// Otherwise we proceed to decoding normally.
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(rootObjectType)
 	if !ok {
 		return false
@@ -166,12 +179,32 @@ func (it *unaggregatedIterator) decodeBatchTimer() {
 	}
 	it.metric.Type = unaggregated.BatchTimerType
 	it.metric.ID = it.decodeID()
-	numValues := it.decodeArrayLen()
-	values := it.floatsPool.Get(numValues)
-	for i := 0; i < numValues; i++ {
-		values = append(values, it.decodeFloat64())
+	var (
+		timerValues []float64
+		poolAlloc   = false
+		numValues   = it.decodeArrayLen()
+	)
+	if cap(it.timerValues) >= numValues {
+		it.timerValues = it.timerValues[:0]
+		timerValues = it.timerValues
+	} else if numValues <= it.largeFloatsSize {
+		newCapcity := int(math.Max(float64(numValues), float64(cap(it.timerValues)*2)))
+		if newCapcity > it.largeFloatsSize {
+			newCapcity = it.largeFloatsSize
+		}
+		it.timerValues = make([]float64, 0, newCapcity)
+		timerValues = it.timerValues
+	} else {
+		timerValues = it.largeFloatsPool.Get(numValues)
+		poolAlloc = true
 	}
-	it.metric.BatchTimerVal = values
+	for i := 0; i < numValues; i++ {
+		timerValues = append(timerValues, it.decodeFloat64())
+	}
+	it.metric.BatchTimerVal = timerValues
+	if poolAlloc {
+		it.metric.TimerValPool = it.largeFloatsPool
+	}
 	it.skip(numActualFields - numExpectedFields)
 }
 
@@ -204,13 +237,39 @@ func (it *unaggregatedIterator) decodeVersionedPolicies() {
 		it.skip(numActualFields - numExpectedFields)
 	case customVersionedPoliciesType:
 		numPolicies := it.decodeArrayLen()
-		policies := it.policiesPool.Get(numPolicies)
-		for i := 0; i < numPolicies; i++ {
-			policies = append(policies, it.decodePolicy())
+		if cap(it.policies) < numPolicies {
+			it.policies = make([]policy.Policy, 0, numPolicies)
+		} else {
+			it.policies = it.policies[:0]
 		}
-		it.versionedPolicies = policy.CustomVersionedPolicies(version, cutover, policies)
+		for i := 0; i < numPolicies; i++ {
+			it.policies = append(it.policies, it.decodePolicy())
+		}
+		it.versionedPolicies = policy.CustomVersionedPolicies(version, cutover, it.policies)
 		it.skip(numActualFields - numExpectedFields)
 	default:
 		it.setErr(fmt.Errorf("unrecognized versioned policies type: %v", versionedPoliciesType))
 	}
+}
+
+func (it *unaggregatedIterator) decodeID() metric.ID {
+	idLen := it.decodeBytesLen()
+	if it.err() != nil {
+		return nil
+	}
+	// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil.
+	if idLen == -1 {
+		it.id = it.id[:0]
+		return metric.ID(it.id)
+	}
+	if cap(it.id) < idLen {
+		it.id = make([]byte, idLen)
+	} else {
+		it.id = it.id[:idLen]
+	}
+	if _, err := io.ReadFull(it.reader(), it.id); err != nil {
+		it.setErr(err)
+		return nil
+	}
+	return it.id
 }

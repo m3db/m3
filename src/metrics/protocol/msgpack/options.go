@@ -20,111 +20,139 @@
 
 package msgpack
 
-import (
-	"github.com/m3db/m3metrics/policy"
-	xpool "github.com/m3db/m3x/pool"
-)
+import xpool "github.com/m3db/m3x/pool"
 
 const (
 	// Whether the iterator should ignore higher-than-supported version
-	// by default for unaggregated metrics
+	// by default for unaggregated iterator.
 	defaultUnaggregatedIgnoreHigherVersion = false
 
+	// Default reader buffer size for the unaggregated iterator.
+	defaultUnaggregatedReaderBufferSize = 1440
+
+	// Whether a float slice is considered a "large" slice and therefore
+	// resort to the pool for allocating that slice.
+	defaultLargeFloatsSize = 1024
+
 	// Whether the iterator should ignore higher-than-supported version
-	// by default for aggregated metrics
+	// by default for aggregated iterator.
 	defaultAggregatedIgnoreHigherVersion = false
+
+	// Default reader buffer size for the aggregated iterator.
+	defaultAggregatedReaderBufferSize = 1440
 )
 
 type unaggregatedIteratorOptions struct {
 	ignoreHigherVersion bool
-	floatsPool          xpool.FloatsPool
-	policiesPool        policy.PoliciesPool
+	readerBufferSize    int
+	largeFloatsSize     int
+	largeFloatsPool     xpool.FloatsPool
 	iteratorPool        UnaggregatedIteratorPool
 }
 
 // NewUnaggregatedIteratorOptions creates a new set of unaggregated iterator options
 func NewUnaggregatedIteratorOptions() UnaggregatedIteratorOptions {
-	floatsPool := xpool.NewFloatsPool(nil, nil)
-	floatsPool.Init()
+	largeFloatsPool := xpool.NewFloatsPool(nil, nil)
+	largeFloatsPool.Init()
 
-	policiesPool := policy.NewPoliciesPool(nil, nil)
-	policiesPool.Init()
-
-	return unaggregatedIteratorOptions{
+	return &unaggregatedIteratorOptions{
 		ignoreHigherVersion: defaultUnaggregatedIgnoreHigherVersion,
-		floatsPool:          floatsPool,
-		policiesPool:        policiesPool,
+		readerBufferSize:    defaultUnaggregatedReaderBufferSize,
+		largeFloatsSize:     defaultLargeFloatsSize,
+		largeFloatsPool:     largeFloatsPool,
 	}
 }
 
-func (o unaggregatedIteratorOptions) SetIgnoreHigherVersion(value bool) UnaggregatedIteratorOptions {
-	opts := o
+func (o *unaggregatedIteratorOptions) SetIgnoreHigherVersion(value bool) UnaggregatedIteratorOptions {
+	opts := *o
 	opts.ignoreHigherVersion = value
-	return opts
+	return &opts
 }
 
-func (o unaggregatedIteratorOptions) IgnoreHigherVersion() bool {
+func (o *unaggregatedIteratorOptions) IgnoreHigherVersion() bool {
 	return o.ignoreHigherVersion
 }
 
-func (o unaggregatedIteratorOptions) SetFloatsPool(value xpool.FloatsPool) UnaggregatedIteratorOptions {
-	opts := o
-	opts.floatsPool = value
-	return opts
+func (o *unaggregatedIteratorOptions) SetReaderBufferSize(value int) UnaggregatedIteratorOptions {
+	opts := *o
+	opts.readerBufferSize = value
+	return &opts
 }
 
-func (o unaggregatedIteratorOptions) FloatsPool() xpool.FloatsPool {
-	return o.floatsPool
+func (o *unaggregatedIteratorOptions) ReaderBufferSize() int {
+	return o.readerBufferSize
 }
 
-func (o unaggregatedIteratorOptions) SetPoliciesPool(value policy.PoliciesPool) UnaggregatedIteratorOptions {
-	opts := o
-	opts.policiesPool = value
-	return opts
+func (o *unaggregatedIteratorOptions) SetLargeFloatsSize(value int) UnaggregatedIteratorOptions {
+	opts := *o
+	opts.largeFloatsSize = value
+	return &opts
 }
 
-func (o unaggregatedIteratorOptions) PoliciesPool() policy.PoliciesPool {
-	return o.policiesPool
+func (o *unaggregatedIteratorOptions) LargeFloatsSize() int {
+	return o.largeFloatsSize
 }
 
-func (o unaggregatedIteratorOptions) SetIteratorPool(value UnaggregatedIteratorPool) UnaggregatedIteratorOptions {
-	opts := o
+func (o *unaggregatedIteratorOptions) SetLargeFloatsPool(value xpool.FloatsPool) UnaggregatedIteratorOptions {
+	opts := *o
+	opts.largeFloatsPool = value
+	return &opts
+}
+
+func (o *unaggregatedIteratorOptions) LargeFloatsPool() xpool.FloatsPool {
+	return o.largeFloatsPool
+}
+
+func (o *unaggregatedIteratorOptions) SetIteratorPool(value UnaggregatedIteratorPool) UnaggregatedIteratorOptions {
+	opts := *o
 	opts.iteratorPool = value
-	return opts
+	return &opts
 }
 
-func (o unaggregatedIteratorOptions) IteratorPool() UnaggregatedIteratorPool {
+func (o *unaggregatedIteratorOptions) IteratorPool() UnaggregatedIteratorPool {
 	return o.iteratorPool
 }
 
 type aggregatedIteratorOptions struct {
 	ignoreHigherVersion bool
+	readerBufferSize    int
 	iteratorPool        AggregatedIteratorPool
 }
 
 // NewAggregatedIteratorOptions creates a new set of aggregated iterator options
 func NewAggregatedIteratorOptions() AggregatedIteratorOptions {
-	return aggregatedIteratorOptions{
+	return &aggregatedIteratorOptions{
 		ignoreHigherVersion: defaultAggregatedIgnoreHigherVersion,
+		readerBufferSize:    defaultAggregatedReaderBufferSize,
 	}
 }
 
-func (o aggregatedIteratorOptions) SetIgnoreHigherVersion(value bool) AggregatedIteratorOptions {
-	opts := o
+func (o *aggregatedIteratorOptions) SetIgnoreHigherVersion(value bool) AggregatedIteratorOptions {
+	opts := *o
 	opts.ignoreHigherVersion = value
-	return opts
+	return &opts
 }
 
-func (o aggregatedIteratorOptions) IgnoreHigherVersion() bool {
+func (o *aggregatedIteratorOptions) IgnoreHigherVersion() bool {
 	return o.ignoreHigherVersion
 }
 
-func (o aggregatedIteratorOptions) SetIteratorPool(value AggregatedIteratorPool) AggregatedIteratorOptions {
-	opts := o
-	opts.iteratorPool = value
-	return opts
+func (o *aggregatedIteratorOptions) SetReaderBufferSize(value int) AggregatedIteratorOptions {
+	opts := *o
+	opts.readerBufferSize = value
+	return &opts
 }
 
-func (o aggregatedIteratorOptions) IteratorPool() AggregatedIteratorPool {
+func (o *aggregatedIteratorOptions) ReaderBufferSize() int {
+	return o.readerBufferSize
+}
+
+func (o *aggregatedIteratorOptions) SetIteratorPool(value AggregatedIteratorPool) AggregatedIteratorOptions {
+	opts := *o
+	opts.iteratorPool = value
+	return &opts
+}
+
+func (o *aggregatedIteratorOptions) IteratorPool() AggregatedIteratorPool {
 	return o.iteratorPool
 }

@@ -105,7 +105,7 @@ func toRawMetric(t *testing.T, m interface{}) aggregated.RawMetric {
 		require.Fail(t, "unrecognized metric type %T", m)
 	}
 	require.NoError(t, encoder.err())
-	return NewRawMetric(data)
+	return NewRawMetric(data, 16)
 }
 
 func validateAggregatedRoundtrip(t *testing.T, inputs ...metricWithPolicy) {

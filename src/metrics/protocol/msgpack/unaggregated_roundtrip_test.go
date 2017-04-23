@@ -59,6 +59,16 @@ var (
 		time.Now(),
 	)
 
+	testCustomVersionedPolicies = policy.CustomVersionedPolicies(
+		2,
+		time.Now(),
+		[]policy.Policy{
+			policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
+			policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+			policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+		},
+	)
+
 	testVersionedPoliciesWithInvalidTimeUnit = policy.CustomVersionedPolicies(
 		1,
 		time.Now(),
@@ -83,19 +93,8 @@ var (
 	}
 
 	testInputWithAllTypesAndCustomPolicies = []metricWithPolicies{
-		// Retain this metric at 1 second resolution for 1 hour
-		{
-			metric: testCounter,
-			versionedPolicies: policy.CustomVersionedPolicies(
-				1,
-				time.Now(),
-				[]policy.Policy{
-					policy.NewPolicy(time.Second, xtime.Second, time.Hour),
-				},
-			),
-		},
 		// Retain this metric at 20 second resolution for 6 hours,
-		// then 1 minute for 2 days, then 10 minutes for 25 days
+		// then 1 minute for 2 days, then 10 minutes for 25 days.
 		{
 			metric: testBatchTimer,
 			versionedPolicies: policy.CustomVersionedPolicies(
@@ -108,7 +107,18 @@ var (
 				},
 			),
 		},
-		// Retain this metric at 10 minute resolution for 45 days
+		// Retain this metric at 1 second resolution for 1 hour.
+		{
+			metric: testCounter,
+			versionedPolicies: policy.CustomVersionedPolicies(
+				1,
+				time.Now(),
+				[]policy.Policy{
+					policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+				},
+			),
+		},
+		// Retain this metric at 10 minute resolution for 45 days.
 		{
 			metric: testGauge,
 			versionedPolicies: policy.CustomVersionedPolicies(
@@ -121,6 +131,64 @@ var (
 		},
 	}
 )
+
+func TestUnaggregatedEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, metricWithPolicies{
+		metric:            testCounter,
+		versionedPolicies: testDefaultVersionedPolicies,
+	})
+}
+
+func TestUnaggregatedEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, metricWithPolicies{
+		metric:            testBatchTimer,
+		versionedPolicies: testDefaultVersionedPolicies,
+	})
+}
+
+func TestUnaggregatedEncodeDecodeGaugeWithDefaultPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, metricWithPolicies{
+		metric:            testGauge,
+		versionedPolicies: testDefaultVersionedPolicies,
+	})
+}
+
+func TestUnaggregatedEncodeDecodeAllTypesWithDefaultPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, testInputWithAllTypesAndDefaultPolicies...)
+}
+
+func TestUnaggregatedEncodeDecodeAllTypesWithCustomPolicies(t *testing.T) {
+	validateUnaggregatedRoundtrip(t, testInputWithAllTypesAndCustomPolicies...)
+}
+
+func TestUnaggregatedEncodeDecodeStress(t *testing.T) {
+	numIter := 10
+	numMetrics := 10000
+	allMetrics := []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge}
+	allPolicies := []policy.VersionedPolicies{
+		testDefaultVersionedPolicies,
+		policy.CustomVersionedPolicies(
+			2,
+			time.Now(),
+			[]policy.Policy{
+				policy.NewPolicy(time.Second, xtime.Second, 6*time.Hour),
+				policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+			},
+		),
+	}
+
+	encoder := testUnaggregatedEncoder(t)
+	iterator := testUnaggregatedIterator(t, nil)
+	for i := 0; i < numIter; i++ {
+		var inputs []metricWithPolicies
+		for j := 0; j < numMetrics; j++ {
+			m := allMetrics[rand.Int63n(int64(len(allMetrics)))]
+			p := allPolicies[rand.Int63n(int64(len(allPolicies)))]
+			inputs = append(inputs, metricWithPolicies{metric: m, versionedPolicies: p})
+		}
+		validateUnaggregatedRoundtripWithEncoderAndIterator(t, encoder, iterator, inputs...)
+	}
+}
 
 type metricWithPolicies struct {
 	metric            unaggregated.MetricUnion
@@ -212,25 +280,34 @@ func validateUnaggregatedRoundtripWithEncoderAndIterator(
 ) {
 	var results []metricWithPolicies
 
-	// Encode the batch of metrics
+	// Encode the batch of metrics.
 	encoder.Reset(NewBufferedEncoder())
 	for _, input := range inputs {
 		testUnaggregatedEncode(t, encoder, input.metric, input.versionedPolicies)
 	}
 
-	// Decode the batch of metrics
+	// Decode the batch of metrics.
 	byteStream := bytes.NewBuffer(encoder.Encoder().Bytes())
 	it.Reset(byteStream)
 	for it.Next() {
 		m, p := it.Value()
+
+		// Make a copy of cached policies because it becomes invalid
+		// on the next Next() call.
+		p = toVersionedPolicies(t, p)
+
 		results = append(results, metricWithPolicies{
 			metric:            m,
 			versionedPolicies: p,
 		})
 	}
 
-	// Assert the results match expectations
+	// Assert the results match expectations.
 	require.Equal(t, io.EOF, it.Err())
+	validateMetricsWithPolicies(t, inputs, results)
+}
+
+func validateMetricsWithPolicies(t *testing.T, inputs, results []metricWithPolicies) {
 	require.Equal(t, len(inputs), len(results))
 	for i := 0; i < len(inputs); i++ {
 		compareUnaggregatedMetric(t, inputs[i].metric, results[i].metric)
@@ -238,60 +315,19 @@ func validateUnaggregatedRoundtripWithEncoderAndIterator(
 	}
 }
 
-func TestUnaggregatedEncodeDecodeCounterWithDefaultPolicies(t *testing.T) {
-	validateUnaggregatedRoundtrip(t, metricWithPolicies{
-		metric:            testCounter,
-		versionedPolicies: testDefaultVersionedPolicies,
-	})
-}
-
-func TestUnaggregatedEncodeDecodeBatchTimerWithDefaultPolicies(t *testing.T) {
-	validateUnaggregatedRoundtrip(t, metricWithPolicies{
-		metric:            testBatchTimer,
-		versionedPolicies: testDefaultVersionedPolicies,
-	})
-}
-
-func TestUnaggregatedEncodeDecodeGaugeWithDefaultPolicies(t *testing.T) {
-	validateUnaggregatedRoundtrip(t, metricWithPolicies{
-		metric:            testGauge,
-		versionedPolicies: testDefaultVersionedPolicies,
-	})
-}
-
-func TestUnaggregatedEncodeDecodeAllTypesWithDefaultPolicies(t *testing.T) {
-	validateUnaggregatedRoundtrip(t, testInputWithAllTypesAndDefaultPolicies...)
-}
-
-func TestUnaggregatedEncodeDecodeAllTypesWithCustomPolicies(t *testing.T) {
-	validateUnaggregatedRoundtrip(t, testInputWithAllTypesAndCustomPolicies...)
-}
-
-func TestUnaggregatedEncodeDecodeStress(t *testing.T) {
-	numIter := 10
-	numMetrics := 10000
-	allMetrics := []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge}
-	allPolicies := []policy.VersionedPolicies{
-		testDefaultVersionedPolicies,
-		policy.CustomVersionedPolicies(
-			2,
-			time.Now(),
-			[]policy.Policy{
-				policy.NewPolicy(time.Second, xtime.Second, 6*time.Hour),
-				policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-			},
-		),
+func toVersionedPolicies(t *testing.T, p policy.VersionedPolicies) policy.VersionedPolicies {
+	var (
+		policies          []policy.Policy
+		versionedPolicies policy.VersionedPolicies
+	)
+	versionedPolicies = p
+	if versionedPolicies.IsDefault() {
+		return versionedPolicies
 	}
-
-	encoder := testUnaggregatedEncoder(t)
-	iterator := testUnaggregatedIterator(t, nil)
-	for i := 0; i < numIter; i++ {
-		var inputs []metricWithPolicies
-		for j := 0; j < numMetrics; j++ {
-			m := allMetrics[rand.Int63n(int64(len(allMetrics)))]
-			p := allPolicies[rand.Int63n(int64(len(allPolicies)))]
-			inputs = append(inputs, metricWithPolicies{metric: m, versionedPolicies: p})
-		}
-		validateUnaggregatedRoundtripWithEncoderAndIterator(t, encoder, iterator, inputs...)
+	policies = make([]policy.Policy, len(p.Policies()))
+	for i, policy := range p.Policies() {
+		policies[i] = policy
 	}
+	versionedPolicies = policy.CustomVersionedPolicies(p.Version, p.Cutover, policies)
+	return versionedPolicies
 }

@@ -39,7 +39,6 @@ type readBytesFn func(start int, n int) []byte
 // rawMetric is a raw metric
 type rawMetric struct {
 	data             []byte            // raw data containing encoded metric
-	reader           *bytes.Reader     // intermediate buffer
 	it               iteratorBase      // base iterator for lazily decoding metric fields
 	metric           aggregated.Metric // current metric
 	idDecoded        bool              // whether id has been decoded
@@ -49,16 +48,13 @@ type rawMetric struct {
 }
 
 // NewRawMetric creates a new raw metric
-func NewRawMetric(data []byte) aggregated.RawMetric {
+func NewRawMetric(data []byte, readerBufferSize int) aggregated.RawMetric {
 	reader := bytes.NewReader(data)
 	m := &rawMetric{
-		data:   data,
-		reader: reader,
-		it:     newBaseIterator(reader),
+		data: data,
+		it:   newBaseIterator(reader, readerBufferSize),
 	}
-
 	m.readBytesFn = m.readBytes
-
 	return m
 }
 
@@ -109,8 +105,8 @@ func (m *rawMetric) Reset(data []byte) {
 	m.timestampDecoded = false
 	m.valueDecoded = false
 	m.data = data
-	m.reader.Reset(data)
-	m.it.reset(m.reader)
+	m.reader().Reset(data)
+	m.it.reset(m.reader())
 }
 
 // NB(xichen): decodeID decodes the ID without making a copy
@@ -134,17 +130,17 @@ func (m *rawMetric) decodeID() {
 	if !ok {
 		return
 	}
-	// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil
 	idLen := m.it.decodeBytesLen()
 	if m.it.err() != nil {
 		return
 	}
+	// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil.
 	if idLen == -1 {
 		m.metric.ID = nil
 		m.idDecoded = true
 		return
 	}
-	numRead := len(m.data) - m.reader.Len()
+	numRead := len(m.data) - m.reader().Len()
 	m.metric.ID = m.readBytesFn(numRead, idLen)
 	if m.it.err() != nil {
 		return
@@ -176,6 +172,10 @@ func (m *rawMetric) decodeValue() {
 	m.valueDecoded = true
 }
 
+func (m *rawMetric) reader() *bytes.Reader {
+	return m.it.reader().(*bytes.Reader)
+}
+
 func (m *rawMetric) readBytes(start int, n int) []byte {
 	numBytes := len(m.data)
 	if n < 0 || start < 0 || start+n > numBytes {
@@ -184,7 +184,7 @@ func (m *rawMetric) readBytes(start int, n int) []byte {
 		return nil
 	}
 	// Advance the internal buffer index
-	_, err := m.reader.Seek(int64(n), io.SeekCurrent)
+	_, err := m.reader().Seek(int64(n), io.SeekCurrent)
 	if err != nil {
 		m.it.setErr(err)
 		return nil

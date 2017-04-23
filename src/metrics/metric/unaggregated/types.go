@@ -25,12 +25,13 @@ import (
 
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/pool"
 )
 
-// Type is a metric type
+// Type is a metric type.
 type Type int8
 
-// List of supported metric types
+// List of supported metric types.
 const (
 	UnknownType Type = iota
 	CounterType
@@ -51,37 +52,37 @@ func (t Type) String() string {
 	}
 }
 
-// Counter is a counter containing the counter ID and the counter value
+// Counter is a counter containing the counter ID and the counter value.
 type Counter struct {
 	ID    metric.ID
 	Value int64
 }
 
-// BatchTimer is a timer containing the timer ID and a list of timer values
+// BatchTimer is a timer containing the timer ID and a list of timer values.
 type BatchTimer struct {
 	ID     metric.ID
 	Values []float64
 }
 
-// Gauge is a gauge containing the gauge ID and the value at certain time
+// Gauge is a gauge containing the gauge ID and the value at certain time.
 type Gauge struct {
 	ID    metric.ID
 	Value float64
 }
 
-// CounterWithPolicies is a counter with applicable policies
+// CounterWithPolicies is a counter with applicable policies.
 type CounterWithPolicies struct {
 	Counter
 	policy.VersionedPolicies
 }
 
-// BatchTimerWithPolicies is a batch timer with applicable policies
+// BatchTimerWithPolicies is a batch timer with applicable policies.
 type BatchTimerWithPolicies struct {
 	BatchTimer
 	policy.VersionedPolicies
 }
 
-// GaugeWithPolicies is a gauge with applicable policies
+// GaugeWithPolicies is a gauge with applicable policies.
 type GaugeWithPolicies struct {
 	Gauge
 	policy.VersionedPolicies
@@ -89,20 +90,23 @@ type GaugeWithPolicies struct {
 
 // MetricUnion is a union of different types of metrics, only one of which is valid
 // at any given time. The actual type of the metric depends on the type field,
-// which determines which value field is valid. We intentionally do not use value
-// pointers and nil checks to determine which type is valid in order to avoid the GC
-// overhead of marking and sweeping the metrics.
+// which determines which value field is valid. Note that if the timer values are
+// allocated from a pool, the TimerValPool should be set to the originating pool,
+// and the caller is responsible for returning the timer values to the pool.
+// NB(xichen): possibly use refcounting to replace explicit ownership tracking.
 type MetricUnion struct {
 	Type          Type
 	ID            metric.ID
 	CounterVal    int64
 	BatchTimerVal []float64
 	GaugeVal      float64
+	OwnsID        bool
+	TimerValPool  pool.FloatsPool
 }
 
 var emptyMetricUnion MetricUnion
 
-// String is the string representation of a metric union
+// String is the string representation of a metric union.
 func (m *MetricUnion) String() string {
 	switch m.Type {
 	case CounterType:
@@ -119,14 +123,14 @@ func (m *MetricUnion) String() string {
 	}
 }
 
-// Reset resets the metric union
+// Reset resets the metric union.
 func (m *MetricUnion) Reset() { *m = emptyMetricUnion }
 
-// Counter returns the counter metric
+// Counter returns the counter metric.
 func (m *MetricUnion) Counter() Counter { return Counter{ID: m.ID, Value: m.CounterVal} }
 
-// BatchTimer returns the batch timer metric
+// BatchTimer returns the batch timer metric.
 func (m *MetricUnion) BatchTimer() BatchTimer { return BatchTimer{ID: m.ID, Values: m.BatchTimerVal} }
 
-// Gauge returns the gauge metric
+// Gauge returns the gauge metric.
 func (m *MetricUnion) Gauge() Gauge { return Gauge{ID: m.ID, Value: m.GaugeVal} }
