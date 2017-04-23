@@ -26,7 +26,7 @@ type aggregatedIteratorPool struct {
 	pool pool.ObjectPool
 }
 
-// NewAggregatedIteratorPool creates a new pool for aggregated iterators
+// NewAggregatedIteratorPool creates a new pool for aggregated iterators.
 func NewAggregatedIteratorPool(opts pool.ObjectPoolOptions) AggregatedIteratorPool {
 	return &aggregatedIteratorPool{pool: pool.NewObjectPool(opts)}
 }

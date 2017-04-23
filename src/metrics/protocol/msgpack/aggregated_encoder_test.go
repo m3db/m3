@@ -102,17 +102,17 @@ func TestAggregatedEncodeRawMetricWithPolicy(t *testing.T) {
 }
 
 func TestAggregatedEncodeError(t *testing.T) {
-	// Intentionally return an error when encoding varint
+	// Intentionally return an error when encoding varint.
 	encoder := testAggregatedEncoder(t).(*aggregatedEncoder)
 	baseEncoder := encoder.encoderBase.(*baseEncoder)
 	baseEncoder.encodeVarintFn = func(value int64) {
 		baseEncoder.encodeErr = errTestVarint
 	}
 
-	// Assert the error is expected
+	// Assert the error is expected.
 	require.Equal(t, errTestVarint, testAggregatedEncode(t, encoder, testMetric, testPolicy))
 
-	// Assert re-encoding doesn't change the error
+	// Assert re-encoding doesn't change the error.
 	require.Equal(t, errTestVarint, testAggregatedEncode(t, encoder, testMetric, testPolicy))
 }
 

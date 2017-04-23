@@ -125,7 +125,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 		results  []metricWithPolicy
 	)
 
-	// Encode the batch of metrics
+	// Encode the batch of metrics.
 	encoder.Reset(NewBufferedEncoder())
 	for _, input := range inputs {
 		switch inputMetric := input.metric.(type) {
@@ -162,7 +162,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 		}
 	}
 
-	// Decode the batch of metrics
+	// Decode the batch of metrics.
 	encodedBytes := bytes.NewBuffer(encoder.Encoder().Bytes())
 	it.Reset(encodedBytes)
 	for it.Next() {
@@ -175,7 +175,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 		})
 	}
 
-	// Assert the results match expectations
+	// Assert the results match expectations.
 	require.Equal(t, io.EOF, it.Err())
 	require.Equal(t, expected, results)
 }

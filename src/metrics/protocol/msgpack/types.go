@@ -32,188 +32,188 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// Buffer is a byte buffer
+// Buffer is a byte buffer.
 type Buffer interface {
-	// Buffer returns the bytes buffer
+	// Buffer returns the bytes buffer.
 	Buffer() *bytes.Buffer
 
-	// Bytes returns the buffered bytes
+	// Bytes returns the buffered bytes.
 	Bytes() []byte
 
-	// Reset resets the buffer
+	// Reset resets the buffer.
 	Reset()
 
-	// Close closes the buffer
+	// Close closes the buffer.
 	Close()
 }
 
-// Encoder is an encoder
+// Encoder is an encoder.
 type Encoder interface {
-	// EncodeTime encodes a time value
+	// EncodeTime encodes a time value.
 	EncodeTime(value time.Time) error
 
-	// EncodeInt64 encodes an int64 value
+	// EncodeInt64 encodes an int64 value.
 	EncodeInt64(value int64) error
 
-	// EncodeFloat64 encodes a float64 value
+	// EncodeFloat64 encodes a float64 value.
 	EncodeFloat64(value float64) error
 
-	// EncodeBytes encodes a byte slice
+	// EncodeBytes encodes a byte slice.
 	EncodeBytes(value []byte) error
 
-	// EncodeBytesLen encodes the length of a byte slice
+	// EncodeBytesLen encodes the length of a byte slice.
 	EncodeBytesLen(value int) error
 
-	// EncodeArrayLen encodes the length of an array
+	// EncodeArrayLen encodes the length of an array.
 	EncodeArrayLen(value int) error
 }
 
-// BufferedEncoder is an encoder backed by byte buffers
+// BufferedEncoder is an encoder backed by byte buffers.
 type BufferedEncoder interface {
 	Buffer
 	Encoder
 }
 
-// BufferedEncoderAlloc allocates a bufferer encoder
+// BufferedEncoderAlloc allocates a bufferer encoder.
 type BufferedEncoderAlloc func() BufferedEncoder
 
-// BufferedEncoderPool is a pool of buffered encoders
+// BufferedEncoderPool is a pool of buffered encoders.
 type BufferedEncoderPool interface {
-	// Init initializes the buffered encoder pool
+	// Init initializes the buffered encoder pool.
 	Init(alloc BufferedEncoderAlloc)
 
-	// Get returns a buffered encoder from the pool
+	// Get returns a buffered encoder from the pool.
 	Get() BufferedEncoder
 
-	// Put puts a buffered encoder into the pool
+	// Put puts a buffered encoder into the pool.
 	Put(enc BufferedEncoder)
 }
 
-// encoderBase is the base encoder interface
+// encoderBase is the base encoder interface.
 type encoderBase interface {
-	// Encoder returns the encoder
+	// Encoder returns the encoder.
 	encoder() BufferedEncoder
 
-	// err returns the error encountered during encoding, if any
+	// err returns the error encountered during encoding, if any.
 	err() error
 
-	// reset resets the encoder
+	// reset resets the encoder.
 	reset(encoder BufferedEncoder)
 
-	// resetData resets the encoder data
+	// resetData resets the encoder data.
 	resetData()
 
-	// encodePolicy encodes a policy
+	// encodePolicy encodes a policy.
 	encodePolicy(p policy.Policy)
 
-	// encodeVersion encodes a version
+	// encodeVersion encodes a version.
 	encodeVersion(version int)
 
-	// encodeObjectType encodes an object type
+	// encodeObjectType encodes an object type.
 	encodeObjectType(objType objectType)
 
-	// encodeNumObjectFields encodes the number of object fields
+	// encodeNumObjectFields encodes the number of object fields.
 	encodeNumObjectFields(numFields int)
 
-	// encodeID encodes an ID
+	// encodeID encodes an ID.
 	encodeID(id metric.ID)
 
-	// encodeChunkedID encodes a chunked ID
+	// encodeChunkedID encodes a chunked ID.
 	encodeChunkedID(id metric.ChunkedID)
 
-	// encodeTime encodes a time
+	// encodeTime encodes a time.
 	encodeTime(t time.Time)
 
-	// encodeVarint encodes an integer value as varint
+	// encodeVarint encodes an integer value as varint.
 	encodeVarint(value int64)
 
-	// encodeFloat64 encodes a float64 value
+	// encodeFloat64 encodes a float64 value.
 	encodeFloat64(value float64)
 
-	// encodeBytes encodes a byte slice
+	// encodeBytes encodes a byte slice.
 	encodeBytes(value []byte)
 
-	// encodeBytesLen encodes the length of a byte slice
+	// encodeBytesLen encodes the length of a byte slice.
 	encodeBytesLen(value int)
 
-	// encodeArrayLen encodes the length of an array
+	// encodeArrayLen encodes the length of an array.
 	encodeArrayLen(value int)
 }
 
-// iteratorBase is the base iterator interface
+// iteratorBase is the base iterator interface.
 type iteratorBase interface {
-	// Reset resets the iterator
+	// Reset resets the iterator.
 	reset(reader io.Reader)
 
-	// err returns the error encountered during decoding, if any
+	// err returns the error encountered during decoding, if any.
 	err() error
 
-	// setErr sets the iterator error
+	// setErr sets the iterator error.
 	setErr(err error)
 
 	// reader returns the buffered reader.
 	reader() bufReader
 
-	// decodePolicy decodes a policy
+	// decodePolicy decodes a policy.
 	decodePolicy() policy.Policy
 
-	// decodeVersion decodes a version
+	// decodeVersion decodes a version.
 	decodeVersion() int
 
-	// decodeObjectType decodes an object type
+	// decodeObjectType decodes an object type.
 	decodeObjectType() objectType
 
-	// decodeNumObjectFields decodes the number of object fields
+	// decodeNumObjectFields decodes the number of object fields.
 	decodeNumObjectFields() int
 
-	// decodeID decodes an ID
+	// decodeID decodes an ID.
 	decodeID() metric.ID
 
-	// decodeTime decodes a time
+	// decodeTime decodes a time.
 	decodeTime() time.Time
 
-	// decodeVarint decodes a variable-width integer value
+	// decodeVarint decodes a variable-width integer value.
 	decodeVarint() int64
 
-	// decodeFloat64 decodes a float64 value
+	// decodeFloat64 decodes a float64 value.
 	decodeFloat64() float64
 
-	// decodeBytes decodes a byte slice
+	// decodeBytes decodes a byte slice.
 	decodeBytes() []byte
 
-	// decodeBytesLen decodes the length of a byte slice
+	// decodeBytesLen decodes the length of a byte slice.
 	decodeBytesLen() int
 
-	// decodeArrayLen decodes the length of an array
+	// decodeArrayLen decodes the length of an array.
 	decodeArrayLen() int
 
-	// skip skips given number of fields if applicable
+	// skip skips given number of fields if applicable.
 	skip(numFields int)
 
 	// checkNumFieldsForType decodes and compares the number of actual fields with
-	// the number of expected fields for a given object type
+	// the number of expected fields for a given object type.
 	checkNumFieldsForType(objType objectType) (int, int, bool)
 
 	// checkNumFieldsForTypeWithActual compares the given number of actual fields with
-	// the number of expected fields for a given object type
+	// the number of expected fields for a given object type.
 	checkNumFieldsForTypeWithActual(objType objectType, numActualFields int) (int, int, bool)
 }
 
-// UnaggregatedEncoder is an encoder for encoding different types of unaggregated metrics
+// UnaggregatedEncoder is an encoder for encoding different types of unaggregated metrics.
 type UnaggregatedEncoder interface {
-	// EncodeCounterWithPolicies encodes a counter with applicable policies
+	// EncodeCounterWithPolicies encodes a counter with applicable policies.
 	EncodeCounterWithPolicies(cp unaggregated.CounterWithPolicies) error
 
-	// EncodeBatchTimerWithPolicies encodes a batched timer with applicable policies
+	// EncodeBatchTimerWithPolicies encodes a batched timer with applicable policies.
 	EncodeBatchTimerWithPolicies(btp unaggregated.BatchTimerWithPolicies) error
 
-	// EncodeGaugeWithPolicies encodes a gauge with applicable policies
+	// EncodeGaugeWithPolicies encodes a gauge with applicable policies.
 	EncodeGaugeWithPolicies(gp unaggregated.GaugeWithPolicies) error
 
-	// Encoder returns the encoder
+	// Encoder returns the encoder.
 	Encoder() BufferedEncoder
 
-	// Reset resets the encoder
+	// Reset resets the encoder.
 	Reset(encoder BufferedEncoder)
 }
 
@@ -273,54 +273,54 @@ type UnaggregatedIteratorOptions interface {
 	IteratorPool() UnaggregatedIteratorPool
 }
 
-// UnaggregatedIteratorAlloc allocates an unaggregated iterator
+// UnaggregatedIteratorAlloc allocates an unaggregated iterator.
 type UnaggregatedIteratorAlloc func() UnaggregatedIterator
 
-// UnaggregatedIteratorPool is a pool of unaggregated iterators
+// UnaggregatedIteratorPool is a pool of unaggregated iterators.
 type UnaggregatedIteratorPool interface {
-	// Init initializes the unaggregated iterator pool
+	// Init initializes the unaggregated iterator pool.
 	Init(alloc UnaggregatedIteratorAlloc)
 
-	// Get returns an unaggregated iterator from the pool
+	// Get returns an unaggregated iterator from the pool.
 	Get() UnaggregatedIterator
 
-	// Put puts an unaggregated iterator into the pool
+	// Put puts an unaggregated iterator into the pool.
 	Put(it UnaggregatedIterator)
 }
 
-// AggregatedEncoder is an encoder for encoding aggregated metrics
+// AggregatedEncoder is an encoder for encoding aggregated metrics.
 type AggregatedEncoder interface {
-	// EncodeMetricWithPolicy encodes a metric with an applicable policy
+	// EncodeMetricWithPolicy encodes a metric with an applicable policy.
 	EncodeMetricWithPolicy(mp aggregated.MetricWithPolicy) error
 
-	// EncodeChunkedMetricWithPolicy encodes a chunked metric with an applicable policy
+	// EncodeChunkedMetricWithPolicy encodes a chunked metric with an applicable policy.
 	EncodeChunkedMetricWithPolicy(cmp aggregated.ChunkedMetricWithPolicy) error
 
-	// EncodeRawMetricWithPolicy encodes a raw metric with an applicable policy
+	// EncodeRawMetricWithPolicy encodes a raw metric with an applicable policy.
 	EncodeRawMetricWithPolicy(rp aggregated.RawMetricWithPolicy) error
 
-	// Encoder returns the encoder
+	// Encoder returns the encoder.
 	Encoder() BufferedEncoder
 
-	// Reset resets the encoder
+	// Reset resets the encoder.
 	Reset(encoder BufferedEncoder)
 }
 
-// AggregatedIterator is an iterator for decoding aggregated metrics
+// AggregatedIterator is an iterator for decoding aggregated metrics.
 type AggregatedIterator interface {
-	// Next returns true if there are more metrics to decode
+	// Next returns true if there are more metrics to decode.
 	Next() bool
 
-	// Value returns the current raw metric and the applicable policy
+	// Value returns the current raw metric and the applicable policy.
 	Value() (aggregated.RawMetric, policy.Policy)
 
-	// Err returns the error encountered during decoding, if any
+	// Err returns the error encountered during decoding, if any.
 	Err() error
 
-	// Reset resets the iterator
+	// Reset resets the iterator.
 	Reset(reader io.Reader)
 
-	// Close closes the iterator
+	// Close closes the iterator.
 	Close()
 }
 
@@ -347,17 +347,17 @@ type AggregatedIteratorOptions interface {
 	IteratorPool() AggregatedIteratorPool
 }
 
-// AggregatedIteratorAlloc allocates an aggregated iterator
+// AggregatedIteratorAlloc allocates an aggregated iterator.
 type AggregatedIteratorAlloc func() AggregatedIterator
 
-// AggregatedIteratorPool is a pool of aggregated iterators
+// AggregatedIteratorPool is a pool of aggregated iterators.
 type AggregatedIteratorPool interface {
-	// Init initializes the aggregated iterator pool
+	// Init initializes the aggregated iterator pool.
 	Init(alloc AggregatedIteratorAlloc)
 
-	// Get returns an aggregated iterator from the pool
+	// Get returns an aggregated iterator from the pool.
 	Get() AggregatedIterator
 
-	// Put puts an aggregated iterator into the pool
+	// Put puts an aggregated iterator into the pool.
 	Put(it AggregatedIterator)
 }

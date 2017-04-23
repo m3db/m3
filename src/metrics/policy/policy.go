@@ -31,24 +31,24 @@ import (
 )
 
 const (
-	// InitPolicyVersion is the version of an uninitialized policy
+	// InitPolicyVersion is the version of an uninitialized policy.
 	InitPolicyVersion = -1
 
-	// DefaultPolicyVersion is the version for the default policy
+	// DefaultPolicyVersion is the version for the default policy.
 	DefaultPolicyVersion = 0
 )
 
 var (
-	// EmptyPolicy represents an empty policy
+	// EmptyPolicy represents an empty policy.
 	EmptyPolicy Policy
 
-	// EmptyVersionedPolicies represents an empty VersionPolicies
+	// EmptyVersionedPolicies represents an empty VersionPolicies.
 	EmptyVersionedPolicies VersionedPolicies
 
 	errNilPolicySchema = errors.New("nil policy schema")
 
-	// defaultPolicies are the default policies
-	// TODO(xichen): possibly make this dynamically configurable in the future
+	// defaultPolicies are the default policies.
+	// TODO(xichen): possibly make this dynamically configurable in the future.
 	defaultPolicies = []Policy{
 		NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 		NewPolicy(time.Minute, xtime.Minute, 30*24*time.Hour),
@@ -56,13 +56,13 @@ var (
 )
 
 // Policy represents the resolution and retention period metric datapoints
-// are stored at
+// are stored at.
 type Policy struct {
 	resolution Resolution
 	retention  Retention
 }
 
-// NewPolicy creates a new policy given a resolution window size and retention
+// NewPolicy creates a new policy given a resolution window size and retention.
 func NewPolicy(window time.Duration, precision xtime.Unit, retention time.Duration) Policy {
 	return Policy{
 		resolution: Resolution{
@@ -73,7 +73,7 @@ func NewPolicy(window time.Duration, precision xtime.Unit, retention time.Durati
 	}
 }
 
-// NewPolicyFromSchema creates a new policy from a schema policy
+// NewPolicyFromSchema creates a new policy from a schema policy.
 func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 	if p == nil {
 		return EmptyPolicy, errNilPolicySchema
@@ -92,7 +92,7 @@ func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 	}, nil
 }
 
-// NewPoliciesFromSchema creates multiple new policues from given schema policies
+// NewPoliciesFromSchema creates multiple new policues from given schema policies.
 func NewPoliciesFromSchema(policies []*schema.Policy) ([]Policy, error) {
 	res := make([]Policy, 0, len(policies))
 	for _, p := range policies {
@@ -105,17 +105,17 @@ func NewPoliciesFromSchema(policies []*schema.Policy) ([]Policy, error) {
 	return res, nil
 }
 
-// String is the string representation of a policy
+// String is the string representation of a policy.
 func (p Policy) String() string {
 	return fmt.Sprintf("{resolution:%s,retention:%s}", p.resolution.String(), p.retention.String())
 }
 
-// Resolution returns the resolution of the policy
+// Resolution returns the resolution of the policy.
 func (p Policy) Resolution() Resolution {
 	return p.resolution
 }
 
-// Retention return the retention of the policy
+// Retention return the retention of the policy.
 func (p Policy) Retention() Retention {
 	return p.retention
 }
@@ -144,29 +144,29 @@ func (pr ByResolutionAsc) Less(i, j int) bool {
 	if r1 < r2 {
 		return false
 	}
-	// NB(xichen): compare precision to ensure a deterministic ordering
+	// NB(xichen): compare precision to ensure a deterministic ordering.
 	return pr[i].Resolution().Precision < pr[i].Resolution().Precision
 }
 
-// VersionedPolicies represent a list of policies at a specified version
+// VersionedPolicies represent a list of policies at a specified version.
 type VersionedPolicies struct {
-	// Version is the version of the policies
+	// Version is the version of the policies.
 	Version int
 
-	// Cutover is when the policies take effect
+	// Cutover is when the policies take effect.
 	Cutover time.Time
 
-	// isDefault determines whether the policies are the default policies
+	// isDefault determines whether the policies are the default policies.
 	isDefault bool
 
-	// policies represent the list of policies
+	// policies represent the list of policies.
 	policies []Policy
 }
 
-// IsDefault determines whether the policies are the default policies
+// IsDefault determines whether the policies are the default policies.
 func (vp VersionedPolicies) IsDefault() bool { return vp.isDefault }
 
-// Policies returns the policies
+// Policies returns the policies.
 func (vp VersionedPolicies) Policies() []Policy {
 	if vp.isDefault {
 		return defaultPolicies
@@ -174,7 +174,7 @@ func (vp VersionedPolicies) Policies() []Policy {
 	return vp.policies
 }
 
-// String is the representation of versioned policies
+// String is the representation of versioned policies.
 func (vp VersionedPolicies) String() string {
 	var buf bytes.Buffer
 	buf.WriteString(fmt.Sprintf("{version:%d,cutover:%s,isDefault:%v,policies:[", vp.Version, vp.Cutover.String(), vp.isDefault))
@@ -188,12 +188,12 @@ func (vp VersionedPolicies) String() string {
 	return buf.String()
 }
 
-// Reset resets the versioned policies
+// Reset resets the versioned policies.
 func (vp *VersionedPolicies) Reset() {
 	*vp = EmptyVersionedPolicies
 }
 
-// DefaultVersionedPolicies creates a new default versioned policies
+// DefaultVersionedPolicies creates a new default versioned policies.
 func DefaultVersionedPolicies(version int, cutover time.Time) VersionedPolicies {
 	return VersionedPolicies{
 		Version:   version,
@@ -202,7 +202,7 @@ func DefaultVersionedPolicies(version int, cutover time.Time) VersionedPolicies 
 	}
 }
 
-// CustomVersionedPolicies creates a new custom versioned policies
+// CustomVersionedPolicies creates a new custom versioned policies.
 func CustomVersionedPolicies(version int, cutover time.Time, policies []Policy) VersionedPolicies {
 	return VersionedPolicies{
 		Version:   version,

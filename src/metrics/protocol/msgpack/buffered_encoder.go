@@ -34,12 +34,12 @@ type bufferedEncoder struct {
 	pool   BufferedEncoderPool
 }
 
-// NewBufferedEncoder creates a new buffered encoder
+// NewBufferedEncoder creates a new buffered encoder.
 func NewBufferedEncoder() BufferedEncoder {
 	return NewPooledBufferedEncoder(nil)
 }
 
-// NewPooledBufferedEncoder creates a new pooled buffered encoder
+// NewPooledBufferedEncoder creates a new pooled buffered encoder.
 func NewPooledBufferedEncoder(p BufferedEncoderPool) BufferedEncoder {
 	var enc bufferedEncoder
 	enc.Encoder = msgpack.NewEncoder(&enc.buf)

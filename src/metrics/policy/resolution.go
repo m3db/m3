@@ -28,24 +28,24 @@ import (
 	"github.com/m3db/m3x/time"
 )
 
-// Resolution is the sampling resolution for datapoints
+// Resolution is the sampling resolution for datapoints.
 type Resolution struct {
-	// Window is the bucket size represented by the resolution
+	// Window is the bucket size represented by the resolution.
 	Window time.Duration
 
-	// Precision is the precision of datapoints stored at this resoluion
+	// Precision is the precision of datapoints stored at this resoluion.
 	Precision xtime.Unit
 }
 
-// String is the string representation of a resolution
+// String is the string representation of a resolution.
 func (r Resolution) String() string {
 	return fmt.Sprintf("%s@1%s", r.Window.String(), r.Precision.String())
 }
 
-// ResolutionValue is the resolution value
+// ResolutionValue is the resolution value.
 type ResolutionValue int
 
-// List of known resolution values
+// List of known resolution values.
 const (
 	UnknownResolutionValue ResolutionValue = iota
 	OneSecond
@@ -59,11 +59,11 @@ var (
 	errUnknownResolution      = errors.New("unknown resolution")
 	errUnknownResolutionValue = errors.New("unknown resolution value")
 
-	// EmptyResolution is an empty resolution
+	// EmptyResolution is an empty resolution.
 	EmptyResolution Resolution
 )
 
-// Resolution returns the resolution associated with a value
+// Resolution returns the resolution associated with a value.
 func (v ResolutionValue) Resolution() (Resolution, error) {
 	resolution, exists := valuesToResolution[v]
 	if !exists {
@@ -72,13 +72,13 @@ func (v ResolutionValue) Resolution() (Resolution, error) {
 	return resolution, nil
 }
 
-// IsValid returns whether the resolution value is valid
+// IsValid returns whether the resolution value is valid.
 func (v ResolutionValue) IsValid() bool {
 	_, valid := valuesToResolution[v]
 	return valid
 }
 
-// ValueFromResolution returns the value given a resolution
+// ValueFromResolution returns the value given a resolution.
 func ValueFromResolution(resolution Resolution) (ResolutionValue, error) {
 	value, exists := resolutionToValues[resolution]
 	if exists {

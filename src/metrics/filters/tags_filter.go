@@ -27,25 +27,25 @@ import (
 )
 
 // SortedTagIterator iterates over a set of tag names and values
-// sorted by tag names in ascending order
+// sorted by tag names in ascending order.
 type SortedTagIterator interface {
-	// Next returns true if there are more tag names and values
+	// Next returns true if there are more tag names and values.
 	Next() bool
 
-	// Current returns the current tag name and value
+	// Current returns the current tag name and value.
 	Current() ([]byte, []byte)
 
-	// Err returns any errors encountered
+	// Err returns any errors encountered.
 	Err() error
 
-	// Close closes the iterator
+	// Close closes the iterator.
 	Close()
 }
 
-// NewSortedTagIteratorFn creates a tag iterator given an id
+// NewSortedTagIteratorFn creates a tag iterator given an id.
 type NewSortedTagIteratorFn func(id []byte) SortedTagIterator
 
-// tagFilter is a filter associated with a given tag
+// tagFilter is a filter associated with a given tag.
 type tagFilter struct {
 	name        []byte
 	valueFilter Filter
@@ -68,7 +68,7 @@ type tagsFilter struct {
 	op      LogicalOp
 }
 
-// NewTagsFilter create a new tags filter
+// NewTagsFilter create a new tags filter.
 func NewTagsFilter(tagFilters map[string]string, iterFn NewSortedTagIteratorFn, op LogicalOp) (Filter, error) {
 	filters := make([]tagFilter, 0, len(tagFilters))
 	for name, value := range tagFilters {
@@ -121,18 +121,18 @@ func (f *tagsFilter) Matches(id []byte) bool {
 
 		if comparison > 0 {
 			if f.op == Conjunction {
-				// For AND, if the current filter tag doesn't exist, bail immediately
+				// For AND, if the current filter tag doesn't exist, bail immediately.
 				return false
 			}
 
-			// Iterate filters for the OR case
+			// Iterate filters for the OR case.
 			currIdx++
 			for currIdx < len(f.filters) && bytes.Compare(name, f.filters[currIdx].name) > 0 {
 				currIdx++
 			}
 
 			if currIdx == len(f.filters) {
-				// Past all filters
+				// Past all filters.
 				return false
 			}
 

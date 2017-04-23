@@ -330,7 +330,7 @@ func validateRangeByScan(pattern, val []byte) (bool, error) {
 		return false, errInvalidFilterPattern
 	}
 
-	// TODO(r): utf8 decode to ensure slicing is valid
+	// TODO(r): utf8 decode to ensure slicing is valid.
 
 	negate := false
 	if pattern[0] == negationChar {
@@ -369,7 +369,7 @@ func validateRangeByScan(pattern, val []byte) (bool, error) {
 	return match, nil
 }
 
-// testSelectChainFilter selects one of multiple filters with ||
+// testSelectChainFilter selects one of multiple filters with ||.
 type testSelectChainFilter struct {
 	filters []chainFilter
 }
@@ -395,7 +395,7 @@ func (f *testSelectChainFilter) matches(val []byte) ([]byte, bool) {
 
 // byteTrie is a trie for bytes that provides multi-direction inserts and lookups with
 // early exit lookups for variable length input.
-// It is not designed to take reads and writes concurrently
+// It is not designed to take reads and writes concurrently.
 type byteTrie struct {
 	b        byte
 	leaf     bool

@@ -57,18 +57,18 @@ type testVersionedPoliciesInt interface {
 	Version() int
 }
 
-// VersionedPolicies represent a list of policies at a specified version
+// VersionedPolicies represent a list of policies at a specified version.
 type testVersionedPolicies struct {
-	// Version is the version of the policies
+	// Version is the version of the policies.
 	version int
 
-	// Cutover is when the policies take effect
+	// Cutover is when the policies take effect.
 	cutover time.Time
 
-	// isDefault determines whether the policies are the default policies
+	// isDefault determines whether the policies are the default policies.
 	isDefault bool
 
-	// policies represent the list of policies
+	// policies represent the list of policies.
 	policies []Policy
 }
 

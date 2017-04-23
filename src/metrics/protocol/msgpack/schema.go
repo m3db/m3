@@ -23,29 +23,29 @@ package msgpack
 type objectType int
 
 const (
-	// Current version for encoding unaggregated metrics
+	// Current version for encoding unaggregated metrics.
 	unaggregatedVersion int = 1
 
-	// Current version for encoding aggregated metrics
+	// Current version for encoding aggregated metrics.
 	aggregatedVersion int = 1
 
-	// Current metric version
+	// Current metric version.
 	metricVersion int = 1
 )
 
 const (
 	unknownType objectType = iota
 
-	// Root object type
+	// Root object type.
 	rootObjectType
 
-	// Object types exposed to the encoder interface
+	// Object types exposed to the encoder interface.
 	counterWithPoliciesType
 	batchTimerWithPoliciesType
 	gaugeWithPoliciesType
 	rawMetricWithPolicyType
 
-	// Object types not exposed to the encoder interface
+	// Object types not exposed to the encoder interface.
 	counterType
 	batchTimerType
 	gaugeType
@@ -58,7 +58,7 @@ const (
 	defaultVersionedPoliciesType
 	customVersionedPoliciesType
 
-	// Total number of object types
+	// Total number of object types.
 	numObjectTypes = iota
 )
 
@@ -81,7 +81,7 @@ const (
 	numCustomVersionedPolicyFields  = 4
 )
 
-// NB(xichen): use a slice instead of a map to avoid lookup overhead
+// NB(xichen): use a slice instead of a map to avoid lookup overhead.
 var numObjectFields []int
 
 func numFieldsForType(objType objectType) int {

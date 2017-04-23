@@ -50,7 +50,7 @@ type unaggregatedIteratorOptions struct {
 	iteratorPool        UnaggregatedIteratorPool
 }
 
-// NewUnaggregatedIteratorOptions creates a new set of unaggregated iterator options
+// NewUnaggregatedIteratorOptions creates a new set of unaggregated iterator options.
 func NewUnaggregatedIteratorOptions() UnaggregatedIteratorOptions {
 	largeFloatsPool := xpool.NewFloatsPool(nil, nil)
 	largeFloatsPool.Init()
@@ -119,7 +119,7 @@ type aggregatedIteratorOptions struct {
 	iteratorPool        AggregatedIteratorPool
 }
 
-// NewAggregatedIteratorOptions creates a new set of aggregated iterator options
+// NewAggregatedIteratorOptions creates a new set of aggregated iterator options.
 func NewAggregatedIteratorOptions() AggregatedIteratorOptions {
 	return &aggregatedIteratorOptions{
 		ignoreHigherVersion: defaultAggregatedIgnoreHigherVersion,

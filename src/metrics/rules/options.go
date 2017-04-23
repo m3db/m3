@@ -22,21 +22,21 @@ package rules
 
 import "github.com/m3db/m3metrics/filters"
 
-// NewIDFn creates a new metric ID based on the metric name and metric tag pairs
+// NewIDFn creates a new metric ID based on the metric name and metric tag pairs.
 type NewIDFn func(name []byte, tags []TagPair) []byte
 
-// Options provide a set of options for rule matching
+// Options provide a set of options for rule matching.
 type Options interface {
-	// SetNewSortedTagIteratorFn sets the new sorted tag iterator function
+	// SetNewSortedTagIteratorFn sets the new sorted tag iterator function.
 	SetNewSortedTagIteratorFn(value filters.NewSortedTagIteratorFn) Options
 
-	// NewSortedTagIteratorFn returns the new sorted tag iterator function
+	// NewSortedTagIteratorFn returns the new sorted tag iterator function.
 	NewSortedTagIteratorFn() filters.NewSortedTagIteratorFn
 
-	// SetNewIDFn sets the new id function
+	// SetNewIDFn sets the new id function.
 	SetNewIDFn(value NewIDFn) Options
 
-	// NewIDFn returns the new id function
+	// NewIDFn returns the new id function.
 	NewIDFn() NewIDFn
 }
 
@@ -45,7 +45,7 @@ type options struct {
 	newIDFn NewIDFn
 }
 
-// NewOptions creates a new set of options
+// NewOptions creates a new set of options.
 func NewOptions() Options {
 	return &options{}
 }

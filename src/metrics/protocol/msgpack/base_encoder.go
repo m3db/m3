@@ -35,17 +35,17 @@ type encodeBytesFn func(value []byte)
 type encodeBytesLenFn func(value int)
 type encodeArrayLenFn func(value int)
 
-// baseEncoder is the base encoder that provides common encoding APIs
+// baseEncoder is the base encoder that provides common encoding APIs.
 type baseEncoder struct {
-	bufEncoder       BufferedEncoder  // internal encoder that performs the actual encoding
-	encodeErr        error            // error encountered during encoding
-	encodePolicyFn   encodePolicyFn   // policy encoding function
-	encodeTimeFn     encodeTimeFn     // time encoding function
-	encodeVarintFn   encodeVarintFn   // varint encoding function
-	encodeFloat64Fn  encodeFloat64Fn  // float64 encoding function
-	encodeBytesFn    encodeBytesFn    // byte slice encoding function
-	encodeBytesLenFn encodeBytesLenFn // byte slice length encoding function
-	encodeArrayLenFn encodeArrayLenFn // array length encoding function
+	bufEncoder       BufferedEncoder
+	encodeErr        error
+	encodePolicyFn   encodePolicyFn
+	encodeTimeFn     encodeTimeFn
+	encodeVarintFn   encodeVarintFn
+	encodeFloat64Fn  encodeFloat64Fn
+	encodeBytesFn    encodeBytesFn
+	encodeBytesLenFn encodeBytesLenFn
+	encodeArrayLenFn encodeArrayLenFn
 }
 
 func newBaseEncoder(encoder BufferedEncoder) encoderBase {
@@ -99,15 +99,15 @@ func (enc *baseEncoder) encodeResolution(resolution policy.Resolution) {
 	if enc.encodeErr != nil {
 		return
 	}
-	// If this is a known resolution, only encode its corresponding value
+	// If this is a known resolution, only encode its corresponding value.
 	if resolutionValue, err := policy.ValueFromResolution(resolution); err == nil {
 		enc.encodeNumObjectFields(numFieldsForType(knownResolutionType))
 		enc.encodeObjectType(knownResolutionType)
 		enc.encodeVarintFn(int64(resolutionValue))
 		return
 	}
-	// Otherwise encode the entire resolution object
-	// TODO(xichen): validate the resolution before putting it on the wire
+	// Otherwise encode the entire resolution object.
+	// TODO(xichen): validate the resolution before putting it on the wire.
 	enc.encodeNumObjectFields(numFieldsForType(unknownResolutionType))
 	enc.encodeObjectType(unknownResolutionType)
 	enc.encodeVarintFn(int64(resolution.Window))
@@ -118,15 +118,15 @@ func (enc *baseEncoder) encodeRetention(retention policy.Retention) {
 	if enc.encodeErr != nil {
 		return
 	}
-	// If this is a known retention, only encode its corresponding value
+	// If this is a known retention, only encode its corresponding value.
 	if retentionValue, err := policy.ValueFromRetention(retention); err == nil {
 		enc.encodeNumObjectFields(numFieldsForType(knownRetentionType))
 		enc.encodeObjectType(knownRetentionType)
 		enc.encodeVarintFn(int64(retentionValue))
 		return
 	}
-	// Otherwise encode the entire retention object
-	// TODO(xichen): validate the retention before putting it on the wire
+	// Otherwise encode the entire retention object.
+	// TODO(xichen): validate the retention before putting it on the wire.
 	enc.encodeNumObjectFields(numFieldsForType(unknownRetentionType))
 	enc.encodeObjectType(unknownRetentionType)
 	enc.encodeVarintFn(int64(retention))
@@ -141,7 +141,7 @@ func (enc *baseEncoder) encodeTimeInternal(value time.Time) {
 
 // NB(xichen): the underlying msgpack encoder implementation
 // always cast an integer value to an int64 and encodes integer
-// values as varints, regardless of the actual integer type
+// values as varints, regardless of the actual integer type.
 func (enc *baseEncoder) encodeVarintInternal(value int64) {
 	if enc.encodeErr != nil {
 		return
