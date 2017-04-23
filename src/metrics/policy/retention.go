@@ -25,18 +25,18 @@ import (
 	"time"
 )
 
-// Retention is the retention period for datapoints
+// Retention is the retention period for datapoints.
 type Retention time.Duration
 
-// String is the string representation of a retention period
+// String is the string representation of a retention period.
 func (r Retention) String() string {
 	return time.Duration(r).String()
 }
 
-// RetentionValue is the retention value
+// RetentionValue is the retention value.
 type RetentionValue int
 
-// List of known retention values
+// List of known retention values.
 const (
 	UnknownRetentionValue RetentionValue = iota
 	OneHour
@@ -54,11 +54,11 @@ var (
 	errUnknownRetention      = errors.New("unknown retention")
 	errUnknownRetentionValue = errors.New("unknown retention value")
 
-	// EmptyRetention is an empty retention
+	// EmptyRetention is an empty retention.
 	EmptyRetention Retention
 )
 
-// Retention returns the retention associated with a value
+// Retention returns the retention associated with a value.
 func (v RetentionValue) Retention() (Retention, error) {
 	retention, exists := valuesToRetention[v]
 	if !exists {
@@ -67,13 +67,13 @@ func (v RetentionValue) Retention() (Retention, error) {
 	return retention, nil
 }
 
-// IsValid returns whether the retention value is valid
+// IsValid returns whether the retention value is valid.
 func (v RetentionValue) IsValid() bool {
 	_, valid := valuesToRetention[v]
 	return valid
 }
 
-// ValueFromRetention returns the value given a retention
+// ValueFromRetention returns the value given a retention.
 func ValueFromRetention(retention Retention) (RetentionValue, error) {
 	value, exists := retentionToValues[retention]
 	if exists {

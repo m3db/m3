@@ -36,19 +36,19 @@ func TestAggregatedIteratorPool(t *testing.T) {
 		return NewAggregatedIterator(nil, itOpts)
 	})
 
-	// Retrieve an iterator from the pool
+	// Retrieve an iterator from the pool.
 	it := p.Get()
 	it.Reset(bytes.NewBuffer([]byte{0x1, 0x2}))
 
-	// Closing the iterator should put it back to the pool
+	// Closing the iterator should put it back to the pool.
 	it.Close()
 	require.True(t, it.(*aggregatedIterator).closed)
 
-	// Retrieve the iterator and assert it's the same iterator
+	// Retrieve the iterator and assert it's the same iterator.
 	it = p.Get()
 	require.True(t, it.(*aggregatedIterator).closed)
 
-	// Reset the iterator and assert it's been reset
+	// Reset the iterator and assert it's been reset.
 	it.Reset(nil)
 	require.False(t, it.(*aggregatedIterator).closed)
 }

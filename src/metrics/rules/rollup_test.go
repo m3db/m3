@@ -143,10 +143,10 @@ func TestRollupTargetClone(t *testing.T) {
 	target := rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies}
 	cloned := target.clone()
 
-	// Cloned object should look exactly the same as the original one
+	// Cloned object should look exactly the same as the original one.
 	require.Equal(t, target, cloned)
 
-	// Change references in the cloned object should not mutate the original object
+	// Change references in the cloned object should not mutate the original object.
 	cloned.Tags[0] = b("bar3")
 	cloned.Policies[0] = policy.EmptyPolicy
 	require.Equal(t, target.Tags, bs("bar1", "bar2"))

@@ -57,7 +57,7 @@ func TestAggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	}
 	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
 
-	// Version encoded is higher than supported version
+	// Version encoded is higher than supported version.
 	enc.encodeRootObjectFn = func(objType objectType) {
 		enc.encodeVersion(aggregatedVersion + 1)
 		enc.encodeNumObjectFields(numFieldsForType(rootObjectType))
@@ -65,14 +65,14 @@ func TestAggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 	}
 	require.NoError(t, testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy))
 
-	// Now restore the encode top-level function and encode another metric
+	// Now restore the encode top-level function and encode another metric.
 	enc.encodeRootObjectFn = enc.encodeRootObject
 	require.NoError(t, testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy))
 
 	it := testAggregatedIterator(t, enc.Encoder().Buffer())
 	it.(*aggregatedIterator).ignoreHigherVersion = true
 
-	// Check that we skipped the first metric and successfully decoded the second metric
+	// Check that we skipped the first metric and successfully decoded the second metric.
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
 }
 
@@ -83,7 +83,7 @@ func TestAggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T) 
 	}
 	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
 
-	// Pretend we added an extra int field to the root object
+	// Pretend we added an extra int field to the root object.
 	enc.encodeRootObjectFn = func(objType objectType) {
 		enc.encodeVersion(unaggregatedVersion)
 		enc.encodeNumObjectFields(numFieldsForType(rootObjectType) + 1)
@@ -95,7 +95,7 @@ func TestAggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T) 
 
 	it := testAggregatedIterator(t, enc.Encoder().Buffer())
 
-	// Check that we successfully decoded the metric
+	// Check that we successfully decoded the metric.
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
 }
 
@@ -106,7 +106,7 @@ func TestAggregatedIteratorDecodeRawMetricMoreFieldsThanExpected(t *testing.T) {
 	}
 	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
 
-	// Pretend we added an extra int field to the raw metric with policy object
+	// Pretend we added an extra int field to the raw metric with policy object.
 	enc.encodeRawMetricWithPolicyFn = func(data []byte, p policy.Policy) {
 		enc.encodeNumObjectFields(numFieldsForType(rawMetricWithPolicyType) + 1)
 		enc.encodeRawMetricFn(data)
@@ -118,7 +118,7 @@ func TestAggregatedIteratorDecodeRawMetricMoreFieldsThanExpected(t *testing.T) {
 
 	it := testAggregatedIterator(t, enc.Encoder().Buffer())
 
-	// Check that we successfully decoded the metric
+	// Check that we successfully decoded the metric.
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
 }
 
@@ -129,7 +129,7 @@ func TestAggregatedIteratorDecodeMetricHigherVersionThanSupported(t *testing.T) 
 	}
 	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
 
-	// Pretend we added an extra int field to the raw metric object
+	// Pretend we added an extra int field to the raw metric object.
 	enc.encodeMetricAsRawFn = func(m aggregated.Metric) []byte {
 		enc.buf.resetData()
 		enc.buf.encodeVersion(metricVersion + 1)
@@ -152,7 +152,7 @@ func TestAggregatedIteratorDecodeMetricMoreFieldsThanExpected(t *testing.T) {
 	}
 	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
 
-	// Pretend we added an extra int field to the raw metric object
+	// Pretend we added an extra int field to the raw metric object.
 	enc.encodeMetricAsRawFn = func(m aggregated.Metric) []byte {
 		enc.encodeMetricAsRaw(m)
 		enc.buf.encodeVarint(0)
@@ -163,7 +163,7 @@ func TestAggregatedIteratorDecodeMetricMoreFieldsThanExpected(t *testing.T) {
 
 	it := testAggregatedIterator(t, enc.Encoder().Buffer())
 
-	// Check that we successfully decoded the metric
+	// Check that we successfully decoded the metric.
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
 }
 

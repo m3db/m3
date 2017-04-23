@@ -36,18 +36,18 @@ var (
 
 type readBytesFn func(start int, n int) []byte
 
-// rawMetric is a raw metric
+// rawMetric is a raw metric.
 type rawMetric struct {
-	data             []byte            // raw data containing encoded metric
-	it               iteratorBase      // base iterator for lazily decoding metric fields
-	metric           aggregated.Metric // current metric
-	idDecoded        bool              // whether id has been decoded
-	timestampDecoded bool              // whether timestamp has been decoded
-	valueDecoded     bool              // whether value has been decoded
-	readBytesFn      readBytesFn       // reading bytes function
+	data             []byte            // raw data containing encoded metric.
+	it               iteratorBase      // base iterator for lazily decoding metric fields.
+	metric           aggregated.Metric // current metric.
+	idDecoded        bool              // whether id has been decoded.
+	timestampDecoded bool              // whether timestamp has been decoded.
+	valueDecoded     bool              // whether value has been decoded.
+	readBytesFn      readBytesFn       // reading bytes function.
 }
 
-// NewRawMetric creates a new raw metric
+// NewRawMetric creates a new raw metric.
 func NewRawMetric(data []byte, readerBufferSize int) aggregated.RawMetric {
 	reader := bytes.NewReader(data)
 	m := &rawMetric{
@@ -183,7 +183,7 @@ func (m *rawMetric) readBytes(start int, n int) []byte {
 		m.it.setErr(err)
 		return nil
 	}
-	// Advance the internal buffer index
+	// Advance the internal buffer index.
 	_, err := m.reader().Seek(int64(n), io.SeekCurrent)
 	if err != nil {
 		m.it.setErr(err)

@@ -26,7 +26,7 @@ type bufferedEncoderPool struct {
 	pool pool.ObjectPool
 }
 
-// NewBufferedEncoderPool creates a new pool for buffered encoders
+// NewBufferedEncoderPool creates a new pool for buffered encoders.
 func NewBufferedEncoderPool(opts pool.ObjectPoolOptions) BufferedEncoderPool {
 	return &bufferedEncoderPool{pool: pool.NewObjectPool(opts)}
 }

@@ -112,7 +112,7 @@ func (as *activeRuleSet) Match(id []byte, t time.Time) MatchResult {
 }
 
 func (as *activeRuleSet) matchMappings(id []byte, timeNs int64) (int64, []policy.Policy) {
-	// TODO(xichen): pool the policies
+	// TODO(xichen): pool the policies.
 	var (
 		cutoverNs int64
 		policies  []policy.Policy
@@ -261,7 +261,7 @@ type ruleSet struct {
 	rollupRules     []*rollupRule
 }
 
-// NewRuleSet creates a new ruleset
+// NewRuleSet creates a new ruleset.
 func NewRuleSet(version int, rs *schema.RuleSet, opts Options) (RuleSet, error) {
 	if rs == nil {
 		return nil, errNilRuleSetSchema
@@ -320,9 +320,9 @@ func (rs *ruleSet) ActiveSet(t time.Time) Matcher {
 
 // resolvePolicies resolves the conflicts among policies if any, following the rules below:
 // * If two policies have the same resolution but different retention, the one with longer
-// retention period is chosen
+// retention period is chosen.
 // * If two policies have the same retention but different resolution, the policy with higher
-// resolution is chosen
+// resolution is chosen.
 // * If a policy has lower resolution and shorter retention than another policy, the policy
 // is superseded by the other policy and therefore ignored.
 func resolvePolicies(policies []policy.Policy) []policy.Policy {

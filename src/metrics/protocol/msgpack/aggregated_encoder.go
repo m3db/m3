@@ -35,15 +35,15 @@ type encodeChunkedMetricAsRawFn func(m aggregated.ChunkedMetric) []byte
 type aggregatedEncoder struct {
 	encoderBase
 
-	buf                         encoderBase                 // buffer for encoding metrics
-	encodeRootObjectFn          encodeRootObjectFn          // root object encoding function
-	encodeRawMetricWithPolicyFn encodeRawMetricWithPolicyFn // raw metric with policy encoding function
-	encodeRawMetricFn           encodeRawMetricFn           // raw metric encoding function
-	encodeMetricAsRawFn         encodeMetricAsRawFn         // metric to raw metric conversion function
-	encodeChunkedMetricAsRawFn  encodeChunkedMetricAsRawFn  // chunked metric to raw metric conversion function
+	buf                         encoderBase
+	encodeRootObjectFn          encodeRootObjectFn
+	encodeRawMetricWithPolicyFn encodeRawMetricWithPolicyFn
+	encodeRawMetricFn           encodeRawMetricFn
+	encodeMetricAsRawFn         encodeMetricAsRawFn
+	encodeChunkedMetricAsRawFn  encodeChunkedMetricAsRawFn
 }
 
-// NewAggregatedEncoder creates an aggregated encoder
+// NewAggregatedEncoder creates an aggregated encoder.
 func NewAggregatedEncoder(encoder BufferedEncoder) AggregatedEncoder {
 	enc := &aggregatedEncoder{
 		encoderBase: newBaseEncoder(encoder),
@@ -63,7 +63,7 @@ func (enc *aggregatedEncoder) Encoder() BufferedEncoder      { return enc.encode
 func (enc *aggregatedEncoder) Reset(encoder BufferedEncoder) { enc.reset(encoder) }
 
 // NB(xichen): we encode metric as a raw metric so the decoder can inspect the encoded byte stream
-// and apply filters to the encode bytes as needed without fully decoding the entire payload
+// and apply filters to the encode bytes as needed without fully decoding the entire payload.
 func (enc *aggregatedEncoder) EncodeMetricWithPolicy(mp aggregated.MetricWithPolicy) error {
 	if err := enc.err(); err != nil {
 		return err

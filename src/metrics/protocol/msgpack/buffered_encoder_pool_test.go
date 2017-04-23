@@ -34,19 +34,19 @@ func TestBufferedEncoderPool(t *testing.T) {
 		return NewPooledBufferedEncoder(p)
 	})
 
-	// Retrieve an encoder from the pool
+	// Retrieve an encoder from the pool.
 	encoder := p.Get()
 	encoder.Buffer().Write([]byte{1, 2, 3})
 	require.Equal(t, 3, encoder.Buffer().Len())
 
-	// Closing the encoder should put it back to the pool
+	// Closing the encoder should put it back to the pool.
 	encoder.Close()
 
-	// Retrieve the encoder and assert it's the same encoder
+	// Retrieve the encoder and assert it's the same encoder.
 	encoder = p.Get()
 	require.Equal(t, 3, encoder.Buffer().Len())
 
-	// Reset the encoder and assert it's been reset
+	// Reset the encoder and assert it's been reset.
 	encoder.Reset()
 	require.Equal(t, 0, encoder.Buffer().Len())
 }

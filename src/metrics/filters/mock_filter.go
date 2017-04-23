@@ -55,7 +55,7 @@ func idToMockTagPairs(id []byte) []mockTagPair {
 	return pairs
 }
 
-// NewMockSortedTagIterator creates a mock SortedTagIterator based on given ID
+// NewMockSortedTagIterator creates a mock SortedTagIterator based on given ID.
 func NewMockSortedTagIterator(id []byte) SortedTagIterator {
 	pairs := idToMockTagPairs(id)
 	return &mockSortedTagIterator{idx: -1, pairs: pairs}

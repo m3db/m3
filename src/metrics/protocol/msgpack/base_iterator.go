@@ -38,12 +38,12 @@ var (
 	emptyReader *bytes.Buffer
 )
 
-// baseIterator is the base iterator that provides common decoding APIs
+// baseIterator is the base iterator that provides common decoding APIs.
 type baseIterator struct {
 	readerBufferSize int
 	bufReader        bufReader
-	decoder          *msgpack.Decoder // internal decoder that does the actual decoding
-	decodeErr        error            // error encountered during decoding
+	decoder          *msgpack.Decoder
+	decodeErr        error
 }
 
 func newBaseIterator(reader io.Reader, readerBufferSize int) iteratorBase {
@@ -186,7 +186,7 @@ func (it *baseIterator) decodeTime() time.Time {
 // NB(xichen): the underlying msgpack decoder implementation
 // always decodes an int64 and looks at the actual decoded
 // value to determine the width of the integer (a.k.a. varint
-// decoding)
+// decoding).
 func (it *baseIterator) decodeVarint() int64 {
 	if it.decodeErr != nil {
 		return 0
@@ -240,7 +240,7 @@ func (it *baseIterator) skip(numFields int) {
 		it.decodeErr = fmt.Errorf("number of fields to skip is %d", numFields)
 		return
 	}
-	// Otherwise we skip any unexpected extra fields
+	// Otherwise we skip any unexpected extra fields.
 	for i := 0; i < numFields; i++ {
 		if err := it.decoder.Skip(); err != nil {
 			it.decodeErr = err

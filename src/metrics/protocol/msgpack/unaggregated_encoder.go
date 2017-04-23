@@ -40,14 +40,14 @@ type encodeVersionedPoliciesFn func(vp policy.VersionedPolicies)
 type unaggregatedEncoder struct {
 	encoderBase
 
-	encodeRootObjectFn             encodeRootObjectFn             // root object encoding function
-	encodeCounterWithPoliciesFn    encodeCounterWithPoliciesFn    // counter with policies encoding function
-	encodeBatchTimerWithPoliciesFn encodeBatchTimerWithPoliciesFn // batch timer with policies encoding function
-	encodeGaugeWithPoliciesFn      encodeGaugeWithPoliciesFn      // gauge with policies encoding function
-	encodeCounterFn                encodeCounterFn                // counter encoding function
-	encodeBatchTimerFn             encodeBatchTimerFn             // batch timer encoding function
-	encodeGaugeFn                  encodeGaugeFn                  // gauge encoding function
-	encodeVersionedPoliciesFn      encodeVersionedPoliciesFn      // versioned policies encoding function
+	encodeRootObjectFn             encodeRootObjectFn
+	encodeCounterWithPoliciesFn    encodeCounterWithPoliciesFn
+	encodeBatchTimerWithPoliciesFn encodeBatchTimerWithPoliciesFn
+	encodeGaugeWithPoliciesFn      encodeGaugeWithPoliciesFn
+	encodeCounterFn                encodeCounterFn
+	encodeBatchTimerFn             encodeBatchTimerFn
+	encodeGaugeFn                  encodeGaugeFn
+	encodeVersionedPoliciesFn      encodeVersionedPoliciesFn
 }
 
 // NewUnaggregatedEncoder creates a new unaggregated encoder.

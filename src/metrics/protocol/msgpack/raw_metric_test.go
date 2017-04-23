@@ -86,7 +86,7 @@ func TestRawMetricDecodeIDSuccess(t *testing.T) {
 	require.Equal(t, testMetric.ID, id)
 	require.True(t, m.idDecoded)
 
-	// Get ID again to make sure we don't re-decode the ID
+	// Get ID again to make sure we don't re-decode the ID.
 	id, err = m.ID()
 	require.NoError(t, err)
 	require.Equal(t, testMetric.ID, id)
@@ -116,7 +116,7 @@ func TestRawMetricDecodeTimestampSuccess(t *testing.T) {
 	require.Equal(t, testMetric.Timestamp, timestamp)
 	require.True(t, m.timestampDecoded)
 
-	// Get timestamp again to make sure we don't re-decode the timestamp
+	// Get timestamp again to make sure we don't re-decode the timestamp.
 	require.NoError(t, err)
 	require.Equal(t, testMetric.Timestamp, timestamp)
 }
@@ -166,7 +166,7 @@ func TestRawMetricDecodeMetricSuccess(t *testing.T) {
 	require.True(t, m.timestampDecoded)
 	require.True(t, m.valueDecoded)
 
-	// Get metric again to make sure we don't re-decode the metric
+	// Get metric again to make sure we don't re-decode the metric.
 	require.NoError(t, err)
 	require.Equal(t, testMetric, metric)
 }
