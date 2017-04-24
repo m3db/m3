@@ -34,16 +34,16 @@ func TestEntryPool(t *testing.T) {
 		return NewEntry(nil, testOptions())
 	})
 
-	// Retrieve an entry from the pool
+	// Retrieve an entry from the pool.
 	entry := p.Get()
 	lists := &metricLists{}
 	entry.ResetSetData(&metricLists{})
 	require.Equal(t, lists, entry.lists)
 
-	// Put the entry back to pool
+	// Put the entry back to pool.
 	p.Put(entry)
 
-	// Retrieve the entry and assert it's the same entry
+	// Retrieve the entry and assert it's the same entry.
 	entry = p.Get()
 	require.Equal(t, lists, entry.lists)
 }

@@ -41,7 +41,7 @@ var (
 // Entry stores metadata about current policies and aggregations
 // for a metric. Note since the metric namespace is part of the
 // metric ID, we only need to keep track of the policy version
-// to detect policy changes
+// to detect policy changes.
 type Entry struct {
 	sync.RWMutex
 
@@ -64,13 +64,13 @@ func NewEntry(lists *metricLists, opts Options) *Entry {
 	return e
 }
 
-// IncWriter increases the writer count
+// IncWriter increases the writer count.
 func (e *Entry) IncWriter() { atomic.AddInt32(&e.numWriters, 1) }
 
-// DecWriter decreases the writer count
+// DecWriter decreases the writer count.
 func (e *Entry) DecWriter() { atomic.AddInt32(&e.numWriters, -1) }
 
-// ResetSetData resets the entry and sets initial data
+// ResetSetData resets the entry and sets initial data.
 func (e *Entry) ResetSetData(lists *metricLists) {
 	e.closed = false
 	e.lists = lists
@@ -79,7 +79,7 @@ func (e *Entry) ResetSetData(lists *metricLists) {
 	e.recordLastAccessed(e.opts.ClockOptions().NowFn()())
 }
 
-// AddMetricWithPolicies adds a metric along with applicable policies
+// AddMetricWithPolicies adds a metric along with applicable policies.
 func (e *Entry) AddMetricWithPolicies(
 	mu unaggregated.MetricUnion,
 	policies policy.VersionedPolicies,
@@ -119,9 +119,9 @@ func (e *Entry) AddMetricWithPolicies(
 	}
 
 	if e.shouldUpdatePoliciesWithLock(currTime, policies.Version, policies.Cutover) {
-		if err := e.updatePoliciesWithLock(mu.Type, mu.ID, policies.Version, policies.Policies()); err != nil {
+		if err := e.updatePoliciesWithLock(mu.Type, mu.ID, mu.OwnsID, policies.Version, policies.Policies()); err != nil {
 			// NB(xichen): if an error occurred during policy update, the policies
-			// will remain as they are, i.e., there are no half-updated policies
+			// will remain as they are, i.e., there are no half-updated policies.
 			e.Unlock()
 			timeLock.RUnlock()
 			return err
@@ -135,7 +135,7 @@ func (e *Entry) AddMetricWithPolicies(
 	return err
 }
 
-// ShouldExpire returns whether the entry should expire
+// ShouldExpire returns whether the entry should expire.
 func (e *Entry) ShouldExpire(now time.Time) bool {
 	e.RLock()
 	if e.closed {
@@ -148,7 +148,7 @@ func (e *Entry) ShouldExpire(now time.Time) bool {
 }
 
 // TryExpire attempts to expire the entry, returning true
-// if the entry is expired, and false otherwise
+// if the entry is expired, and false otherwise.
 func (e *Entry) TryExpire(now time.Time) bool {
 	e.Lock()
 	if e.closed {
@@ -181,7 +181,7 @@ func (e *Entry) recordLastAccessed(currTime time.Time) {
 
 func (e *Entry) shouldExpire(now time.Time) bool {
 	// Only expire the entry if there are no active writers
-	// and it has reached its ttl since last accessed
+	// and it has reached its ttl since last accessed.
 	return e.writerCount() == 0 && now.After(e.lastAccessed().Add(e.opts.EntryTTL()))
 }
 
@@ -192,11 +192,15 @@ func (e *Entry) addMetricWithLock(timestamp time.Time, mu unaggregated.MetricUni
 			multiErr = multiErr.Add(err)
 		}
 	}
+	// If the timer values were allocated from a pool, return them to the pool.
+	if mu.Type == unaggregated.BatchTimerType && mu.BatchTimerVal != nil && mu.TimerValPool != nil {
+		mu.TimerValPool.Put(mu.BatchTimerVal)
+	}
 	return multiErr.FinalError()
 }
 
 // If the current version is older than the incoming version,
-// and we've surpassed the cutover, we should update the policies
+// and we've surpassed the cutover, we should update the policies.
 func (e *Entry) shouldUpdatePoliciesWithLock(
 	currTime time.Time,
 	version int,
@@ -208,10 +212,34 @@ func (e *Entry) shouldUpdatePoliciesWithLock(
 func (e *Entry) updatePoliciesWithLock(
 	typ unaggregated.Type,
 	id metric.ID,
+	ownsID bool,
 	newVersion int,
 	policies []policy.Policy,
 ) error {
-	// We should update the policies first
+	// Fast path to exit in case the policies didn't change.
+	if !e.hasPolicyChangesWithLock(policies) {
+		e.version = newVersion
+		return nil
+	}
+
+	elemID := id
+	if !ownsID {
+		if len(e.aggregations) > 0 {
+			// If there are existing elements for this id, try reusing
+			// the id from the elements because those are owned by us.
+			for _, elem := range e.aggregations {
+				elemID = elem.Value.(metricElem).ID()
+				break
+			}
+		} else {
+			// Otherwise this is a new id so it is necessary to make a
+			// copy because it's not owned by us.
+			elemID = make(metric.ID, len(id))
+			copy(elemID, id)
+		}
+	}
+
+	// We should update the policies first.
 	newAggregations := make(map[policy.Policy]*list.Element, len(policies))
 	for _, policy := range policies {
 		if elem, exists := e.aggregations[policy]; exists {
@@ -228,7 +256,7 @@ func (e *Entry) updatePoliciesWithLock(
 			default:
 				return fmt.Errorf("unrecognized element type:%v", typ)
 			}
-			newElem.ResetSetData(id, policy)
+			newElem.ResetSetData(elemID, policy)
 			list, err := e.lists.FindOrCreate(policy.Resolution().Window)
 			if err != nil {
 				return err
@@ -241,16 +269,28 @@ func (e *Entry) updatePoliciesWithLock(
 		}
 	}
 
-	// Mark the outdated elements as tombstoned
+	// Mark the outdated elements as tombstoned.
 	for policy, elem := range e.aggregations {
 		if _, exists := newAggregations[policy]; !exists {
 			elem.Value.(metricElem).MarkAsTombstoned()
 		}
 	}
 
-	// Replace the existing aggregations with new aggregations
+	// Replace the existing aggregations with new aggregations.
 	e.aggregations = newAggregations
 	e.version = newVersion
 
 	return nil
+}
+
+func (e *Entry) hasPolicyChangesWithLock(newPolicies []policy.Policy) bool {
+	if len(e.aggregations) != len(newPolicies) {
+		return true
+	}
+	for _, policy := range newPolicies {
+		if _, exists := e.aggregations[policy]; !exists {
+			return true
+		}
+	}
+	return false
 }

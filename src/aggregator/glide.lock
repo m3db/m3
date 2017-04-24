@@ -1,5 +1,5 @@
-hash: 0fa87d980a617b0a4ac56ba5f9d880721b03e22e372c68b4029515216b7f6326
-updated: 2017-04-17T22:07:47.457248347-04:00
+hash: bef683ad41184b52605dfa3332b984ef902a1b44a833a79c8caf9c9f2eba1f08
+updated: 2017-04-23T19:14:33.40297527-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -16,7 +16,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3metrics
-  version: 27d28ef612e44438df96be220a466877797e9cc4
+  version: 053503305e8d1c46ea828d758bcde4b8b165558a
   subpackages:
   - generated/proto/schema
   - metric
@@ -45,8 +45,6 @@ imports:
   - difflib
 - name: github.com/prometheus/common
   version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
-  subpackages:
-  - log
 - name: github.com/Sirupsen/logrus
   version: cd7d1bbe41066b6c1f19780f895901052150a575
 - name: github.com/stretchr/testify
@@ -69,11 +67,6 @@ imports:
   - context
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
-  subpackages:
-  - unix
-  - windows
-  - windows/registry
-  - windows/svc/eventlog
 - name: google.golang.org/appengine
   version: 8758a385849434ba5eac8aeedcf5192c5a0f5f10
   subpackages:

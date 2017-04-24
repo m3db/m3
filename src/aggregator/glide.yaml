@@ -5,7 +5,7 @@ import:
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
 
 - package: github.com/m3db/m3metrics
-  version: 27d28ef612e44438df96be220a466877797e9cc4
+  version: 053503305e8d1c46ea828d758bcde4b8b165558a
 
 - package: github.com/m3db/m3x
   version: 0983ae8a74b716e37edd2675638dff80bf723e88

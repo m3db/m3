@@ -59,6 +59,9 @@ type newMetricElemFn func() metricElem
 
 // metricElem is the common interface for metric elements
 type metricElem interface {
+	// ID returns the metric id.
+	ID() metric.ID
+
 	// ResetSetData resets the counter and sets data
 	ResetSetData(id metric.ID, policy policy.Policy)
 
@@ -125,7 +128,7 @@ type GaugeElem struct {
 	values []timedGauge // aggregated gauges sorted by time in ascending order
 }
 
-// ResetSetData resets the counter and sets data
+// ResetSetData resets the counter and sets data.
 func (e *elemBase) ResetSetData(id metric.ID, policy policy.Policy) {
 	e.id = id
 	e.policy = policy
@@ -133,8 +136,16 @@ func (e *elemBase) ResetSetData(id metric.ID, policy policy.Policy) {
 	e.closed = false
 }
 
+// ID returns the metric id.
+func (e *elemBase) ID() metric.ID {
+	e.Lock()
+	id := e.id
+	e.Unlock()
+	return id
+}
+
 // MarkAsTombstoned marks an element as tombstoned, which means this element
-// will be deleted once its aggregated values have been flushed
+// will be deleted once its aggregated values have been flushed.
 func (e *elemBase) MarkAsTombstoned() {
 	e.Lock()
 	if e.closed {
