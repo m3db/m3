@@ -21,7 +21,6 @@
 package msgpack
 
 import (
-	"bufio"
 	"io"
 	"net"
 	"sync"
@@ -186,7 +185,7 @@ func (s *server) handleConnection(conn net.Conn) {
 	}()
 
 	it := s.iteratorPool.Get()
-	it.Reset(bufio.NewReader(conn))
+	it.Reset(conn)
 	defer it.Close()
 
 	// Iterate over the incoming metrics stream and queue up metrics

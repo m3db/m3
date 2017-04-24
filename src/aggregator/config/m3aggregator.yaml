@@ -73,22 +73,22 @@ msgpack:
     jitter: true
   iterator:
     ignoreHigherVersion: false
-    floatsPool:
+    readerBufferSize: 1440
+    largeFloatsSize: 1024
+    largeFloatsPool:
       buckets:
-        - count: 4096
-          capacity: 16
-        - count: 2048
-          capacity: 32
         - count: 1024
-          capacity: 16
-    policiesPool:
-      buckets:
-        - count: 8192
-          capacity: 2
-        - count: 4096
-          capacity: 4
-        - count: 1024
-          capacity: 8
+          capacity: 2048
+        - count: 512
+          capacity: 4096
+        - count: 256
+          capacity: 8192
+        - count: 128
+          capacity: 16384
+        - count: 64
+          capacity: 32768
+        - count: 32
+          capacity: 65536
     iteratorPool:
       size: 4096
 

@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3aggregator/server/http"
 	"github.com/m3db/m3aggregator/server/msgpack"
-	"github.com/m3db/m3metrics/policy"
 	msgpackp "github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -66,11 +65,15 @@ type unaggregatedIteratorConfiguration struct {
 	// Whether to ignore encoded data streams whose version is higher than the current known version.
 	IgnoreHigherVersion bool `yaml:"ignoreHigherVersion"`
 
-	// Pool of float slices.
-	FloatsPool pool.BucketizedPoolConfiguration `yaml:"floatsPool"`
+	// Reader buffer size.
+	ReaderBufferSize int `yaml:"readerBufferSize"`
 
-	// Pool of policies.
-	PoliciesPool pool.BucketizedPoolConfiguration `yaml:"policiesPool"`
+	// Whether a float slice is considered a "large" slice and therefore resort to
+	// the large floats pool for allocating that slice.
+	LargeFloatsSize int `yaml:"largeFloatsSize"`
+
+	// Pool of large float slices.
+	LargeFloatsPool pool.BucketizedPoolConfiguration `yaml:"largeFloatsPool"`
 
 	// Pool of unaggregated iterators.
 	IteratorPool pool.ObjectPoolConfiguration `yaml:"iteratorPool"`
@@ -82,20 +85,20 @@ func (c *unaggregatedIteratorConfiguration) NewUnaggregatedIteratorPool(
 	scope := instrumentOpts.MetricsScope()
 	opts := msgpackp.NewUnaggregatedIteratorOptions().SetIgnoreHigherVersion(c.IgnoreHigherVersion)
 
+	if c.ReaderBufferSize != 0 {
+		opts = opts.SetReaderBufferSize(c.ReaderBufferSize)
+	}
+	if c.LargeFloatsSize != 0 {
+		opts = opts.SetLargeFloatsSize(c.LargeFloatsSize)
+	}
+
 	// NB(xichen): intentionally not using the same floats pool used for computing
 	// timer quantiles to accommodate different usage patterns and reduce contention.
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("floats-pool"))
-	floatsPoolOpts := c.FloatsPool.NewObjectPoolOptions(iOpts)
-	floatsPool := pool.NewFloatsPool(c.FloatsPool.NewBuckets(), floatsPoolOpts)
-	opts = opts.SetFloatsPool(floatsPool)
-	floatsPool.Init()
-
-	// Set policies pool.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("policies-pool"))
-	policiesPoolOpts := c.PoliciesPool.NewObjectPoolOptions(iOpts)
-	policiesPool := policy.NewPoliciesPool(c.FloatsPool.NewBuckets(), policiesPoolOpts)
-	opts = opts.SetPoliciesPool(policiesPool)
-	policiesPool.Init()
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("large-floats-pool"))
+	largeFloatsPoolOpts := c.LargeFloatsPool.NewObjectPoolOptions(iOpts)
+	largeFloatsPool := pool.NewFloatsPool(c.LargeFloatsPool.NewBuckets(), largeFloatsPoolOpts)
+	opts = opts.SetLargeFloatsPool(largeFloatsPool)
+	largeFloatsPool.Init()
 
 	// Set iterator pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("unaggreagted-iterator-pool"))

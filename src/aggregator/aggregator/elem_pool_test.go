@@ -35,18 +35,18 @@ func TestCounterElemPool(t *testing.T) {
 		return NewCounterElem(nil, policy.Policy{}, testOptions())
 	})
 
-	// Retrieve an element from the pool
+	// Retrieve an element from the pool.
 	element := p.Get()
-	element.ResetSetData(testID, testPolicy)
-	require.Equal(t, testID, element.id)
+	element.ResetSetData(testCounterID, testPolicy)
+	require.Equal(t, testCounterID, element.id)
 	require.Equal(t, testPolicy, element.policy)
 
-	// Put the element back to pool
+	// Put the element back to pool.
 	p.Put(element)
 
-	// Retrieve the element and assert it's the same element
+	// Retrieve the element and assert it's the same element.
 	element = p.Get()
-	require.Equal(t, testID, element.id)
+	require.Equal(t, testCounterID, element.id)
 	require.Equal(t, testPolicy, element.policy)
 }
 
@@ -56,18 +56,18 @@ func TestTimerElemPool(t *testing.T) {
 		return NewTimerElem(nil, policy.Policy{}, testOptions())
 	})
 
-	// Retrieve an element from the pool
+	// Retrieve an element from the pool.
 	element := p.Get()
-	element.ResetSetData(testID, testPolicy)
-	require.Equal(t, testID, element.id)
+	element.ResetSetData(testBatchTimerID, testPolicy)
+	require.Equal(t, testBatchTimerID, element.id)
 	require.Equal(t, testPolicy, element.policy)
 
-	// Put the element back to pool
+	// Put the element back to pool.
 	p.Put(element)
 
-	// Retrieve the element and assert it's the same element
+	// Retrieve the element and assert it's the same element.
 	element = p.Get()
-	require.Equal(t, testID, element.id)
+	require.Equal(t, testBatchTimerID, element.id)
 	require.Equal(t, testPolicy, element.policy)
 }
 
@@ -77,17 +77,17 @@ func TestGaugeElemPool(t *testing.T) {
 		return NewGaugeElem(nil, policy.Policy{}, testOptions())
 	})
 
-	// Retrieve an element from the pool
+	// Retrieve an element from the pool.
 	element := p.Get()
-	element.ResetSetData(testID, testPolicy)
-	require.Equal(t, testID, element.id)
+	element.ResetSetData(testGaugeID, testPolicy)
+	require.Equal(t, testGaugeID, element.id)
 	require.Equal(t, testPolicy, element.policy)
 
-	// Put the element back to pool
+	// Put the element back to pool.
 	p.Put(element)
 
-	// Retrieve the element and assert it's the same element
+	// Retrieve the element and assert it's the same element.
 	element = p.Get()
-	require.Equal(t, testID, element.id)
+	require.Equal(t, testGaugeID, element.id)
 	require.Equal(t, testPolicy, element.policy)
 }

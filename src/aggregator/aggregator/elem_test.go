@@ -36,9 +36,12 @@ import (
 )
 
 var (
-	testID         = metric.ID("foo")
-	testPolicy     = policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour)
-	testTimestamps = []time.Time{
+	testCounterID    = metric.ID("testCounter")
+	testBatchTimerID = metric.ID("testBatchTimer")
+	testGaugeID      = metric.ID("testGauge")
+	testInvalidID    = metric.ID("testInvalid")
+	testPolicy       = policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour)
+	testTimestamps   = []time.Time{
 		time.Unix(216, 0), time.Unix(217, 0), time.Unix(221, 0),
 	}
 	testAlignedStarts = []time.Time{
@@ -46,202 +49,35 @@ var (
 	}
 	testCounter = unaggregated.MetricUnion{
 		Type:       unaggregated.CounterType,
-		ID:         testID,
+		ID:         testCounterID,
 		CounterVal: 1234,
 	}
 	testBatchTimer = unaggregated.MetricUnion{
 		Type:          unaggregated.BatchTimerType,
-		ID:            testID,
+		ID:            testBatchTimerID,
 		BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
 	}
 	testGauge = unaggregated.MetricUnion{
 		Type:     unaggregated.GaugeType,
-		ID:       testID,
+		ID:       testGaugeID,
 		GaugeVal: 123.456,
 	}
 	testInvalidMetric = unaggregated.MetricUnion{
 		Type: unaggregated.UnknownType,
-		ID:   testID,
+		ID:   testInvalidID,
 	}
 )
 
-type testIndexData struct {
-	index int
-	data  []int64
-}
-
-type testSuffixAndValue struct {
-	suffix []byte
-	value  float64
-}
-
-type testAggMetric struct {
-	idPrefix  []byte
-	id        metric.ID
-	idSuffix  []byte
-	timestamp time.Time
-	value     float64
-	policy    policy.Policy
-}
-
-type testAggMetricsByTimeAscending []testAggMetric
-
-func (m testAggMetricsByTimeAscending) Len() int      { return len(m) }
-func (m testAggMetricsByTimeAscending) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
-
-func (m testAggMetricsByTimeAscending) Less(i, j int) bool {
-	return m[i].timestamp.Before(m[j].timestamp)
-}
-
-func testAggMetricFn() (aggMetricFn, *[]testAggMetric) {
-	var result []testAggMetric
-	return func(
-		idPrefix []byte,
-		id metric.ID,
-		idSuffix []byte,
-		timestamp time.Time,
-		value float64,
-		policy policy.Policy,
-	) {
-		result = append(result, testAggMetric{
-			idPrefix:  idPrefix,
-			id:        id,
-			idSuffix:  idSuffix,
-			timestamp: timestamp,
-			value:     value,
-			policy:    policy,
-		})
-	}, &result
-}
-
-func testStreamOptions(t *testing.T, size int) (cm.Options, cm.StreamPool, *int) {
-	var numAlloc int
-	p := cm.NewStreamPool(pool.NewObjectPoolOptions().SetSize(size))
-	streamOpts := cm.NewOptions().SetStreamPool(p)
-	p.Init(func() cm.Stream {
-		numAlloc++
-		return cm.NewStream(streamOpts)
-	})
-	require.Equal(t, numAlloc, len(testAlignedStarts)-1)
-	return streamOpts, p, &numAlloc
-}
-
-func testCounterElem() *CounterElem {
-	e := NewCounterElem(testID, testPolicy, testOptions())
-	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		counter := aggregation.NewCounter()
-		counter.Add(testCounter.CounterVal)
-		e.values = append(e.values, timedCounter{
-			timeNs:  aligned.UnixNano(),
-			counter: counter,
-		})
-	}
-	return e
-}
-
-func testTimerElem(opts Options) *TimerElem {
-	e := NewTimerElem(testID, testPolicy, opts)
-	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		timer := aggregation.NewTimer(opts.StreamOptions())
-		timer.AddBatch(testBatchTimer.BatchTimerVal)
-		e.values = append(e.values, timedTimer{
-			timeNs: aligned.UnixNano(),
-			timer:  timer,
-		})
-	}
-	return e
-}
-
-func testGaugeElem() *GaugeElem {
-	e := NewGaugeElem(testID, testPolicy, testOptions())
-	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		gauge := aggregation.NewGauge()
-		gauge.Set(testGauge.GaugeVal)
-		e.values = append(e.values, timedGauge{
-			timeNs: aligned.UnixNano(),
-			gauge:  gauge,
-		})
-	}
-	return e
-}
-
-func expectedAggMetricsForCounter(
-	timestamp time.Time,
-	policy policy.Policy,
-) []testAggMetric {
-	return []testAggMetric{
-		{
-			idPrefix:  []byte("stats.counts."),
-			id:        testID,
-			idSuffix:  nil,
-			timestamp: timestamp,
-			value:     float64(testCounter.CounterVal),
-			policy:    policy,
-		},
-	}
-}
-
-func expectedAggMetricsForTimer(
-	timestamp time.Time,
-	policy policy.Policy,
-) []testAggMetric {
-	data := []testSuffixAndValue{
-		{[]byte(".sum"), 18.0},
-		{[]byte(".sum_sq"), 83.38},
-		{[]byte(".mean"), 3.6},
-		{[]byte(".lower"), 1.0},
-		{[]byte(".upper"), 6.5},
-		{[]byte(".count"), 5.0},
-		{[]byte(".stdev"), 2.15522620622523},
-		{[]byte(".median"), 3.5},
-		{[]byte(".p50"), 3.5},
-		{[]byte(".p95"), 6.5},
-		{[]byte(".p99"), 6.5},
-	}
-	var expected []testAggMetric
-	for _, d := range data {
-		expected = append(expected, testAggMetric{
-			idPrefix:  []byte("stats.timers."),
-			id:        testID,
-			idSuffix:  d.suffix,
-			timestamp: timestamp,
-			value:     d.value,
-			policy:    policy,
-		})
-	}
-	return expected
-}
-
-func expectedAggMetricsForGauge(
-	timestamp time.Time,
-	policy policy.Policy,
-) []testAggMetric {
-	return []testAggMetric{
-		{
-			idPrefix:  []byte("stats.gauges."),
-			id:        testID,
-			idSuffix:  nil,
-			timestamp: timestamp,
-			value:     float64(testGauge.GaugeVal),
-			policy:    policy,
-		},
-	}
-}
-
-func verifyStreamPoolSize(t *testing.T, p cm.StreamPool, expected int, numAlloc *int) {
-	*numAlloc = 0
-	for i := 0; i < expected; i++ {
-		p.Get()
-	}
-	require.Equal(t, 0, *numAlloc)
-	p.Get()
-	require.Equal(t, 1, *numAlloc)
+func TestElemBaseID(t *testing.T) {
+	e := &elemBase{}
+	e.ResetSetData(testCounterID, testPolicy)
+	require.Equal(t, testCounterID, e.ID())
 }
 
 func TestElemBaseResetSetData(t *testing.T) {
 	e := &elemBase{}
-	e.ResetSetData(testID, testPolicy)
-	require.Equal(t, testID, e.id)
+	e.ResetSetData(testCounterID, testPolicy)
+	require.Equal(t, testCounterID, e.id)
 	require.Equal(t, testPolicy, e.policy)
 	require.False(t, e.tombstoned)
 	require.False(t, e.closed)
@@ -262,7 +98,7 @@ func TestElemBaseMarkAsTombStoned(t *testing.T) {
 }
 
 func TestCounterElemAddMetric(t *testing.T) {
-	e := NewCounterElem(testID, testPolicy, testOptions())
+	e := NewCounterElem(testCounterID, testPolicy, testOptions())
 
 	// Add an invalid metric
 	require.Equal(t, errInvalidMetricType, e.AddMetric(testTimestamps[0], testInvalidMetric))
@@ -345,7 +181,7 @@ func TestCounterElemClose(t *testing.T) {
 }
 
 func TestCounterFindOrInsert(t *testing.T) {
-	e := NewCounterElem(testID, testPolicy, testOptions())
+	e := NewCounterElem(testCounterID, testPolicy, testOptions())
 	inputs := []int64{10, 10, 20, 10, 15}
 	expected := []testIndexData{
 		{index: 0, data: []int64{10}},
@@ -366,7 +202,7 @@ func TestCounterFindOrInsert(t *testing.T) {
 }
 
 func TestTimerElemAddMetric(t *testing.T) {
-	e := NewTimerElem(testID, testPolicy, testOptions())
+	e := NewTimerElem(testBatchTimerID, testPolicy, testOptions())
 
 	// Add an invalid metric
 	require.Equal(t, errInvalidMetricType, e.AddMetric(testTimestamps[0], testInvalidMetric))
@@ -483,7 +319,7 @@ func TestTimerElemClose(t *testing.T) {
 }
 
 func TestTimerFindOrInsert(t *testing.T) {
-	e := NewTimerElem(testID, testPolicy, testOptions())
+	e := NewTimerElem(testBatchTimerID, testPolicy, testOptions())
 	inputs := []int64{10, 10, 20, 10, 15}
 	expected := []testIndexData{
 		{index: 0, data: []int64{10}},
@@ -504,7 +340,7 @@ func TestTimerFindOrInsert(t *testing.T) {
 }
 
 func TestGaugeElemAddMetric(t *testing.T) {
-	e := NewGaugeElem(testID, testPolicy, testOptions())
+	e := NewGaugeElem(testGaugeID, testPolicy, testOptions())
 
 	// Add an invalid metric
 	require.Equal(t, errInvalidMetricType, e.AddMetric(testTimestamps[0], testInvalidMetric))
@@ -588,7 +424,7 @@ func TestGaugeElemClose(t *testing.T) {
 }
 
 func TestGaugeFindOrInsert(t *testing.T) {
-	e := NewGaugeElem(testID, testPolicy, testOptions())
+	e := NewGaugeElem(testGaugeID, testPolicy, testOptions())
 	inputs := []int64{10, 10, 20, 10, 15}
 	expected := []testIndexData{
 		{index: 0, data: []int64{10}},
@@ -606,4 +442,177 @@ func TestGaugeFindOrInsert(t *testing.T) {
 		require.Equal(t, expected[idx].index, res)
 		require.Equal(t, expected[idx].data, times)
 	}
+}
+
+type testIndexData struct {
+	index int
+	data  []int64
+}
+
+type testSuffixAndValue struct {
+	suffix []byte
+	value  float64
+}
+
+type testAggMetric struct {
+	idPrefix  []byte
+	id        metric.ID
+	idSuffix  []byte
+	timestamp time.Time
+	value     float64
+	policy    policy.Policy
+}
+
+type testAggMetricsByTimeAscending []testAggMetric
+
+func (m testAggMetricsByTimeAscending) Len() int      { return len(m) }
+func (m testAggMetricsByTimeAscending) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
+
+func (m testAggMetricsByTimeAscending) Less(i, j int) bool {
+	return m[i].timestamp.Before(m[j].timestamp)
+}
+
+func testAggMetricFn() (aggMetricFn, *[]testAggMetric) {
+	var result []testAggMetric
+	return func(
+		idPrefix []byte,
+		id metric.ID,
+		idSuffix []byte,
+		timestamp time.Time,
+		value float64,
+		policy policy.Policy,
+	) {
+		result = append(result, testAggMetric{
+			idPrefix:  idPrefix,
+			id:        id,
+			idSuffix:  idSuffix,
+			timestamp: timestamp,
+			value:     value,
+			policy:    policy,
+		})
+	}, &result
+}
+
+func testStreamOptions(t *testing.T, size int) (cm.Options, cm.StreamPool, *int) {
+	var numAlloc int
+	p := cm.NewStreamPool(pool.NewObjectPoolOptions().SetSize(size))
+	streamOpts := cm.NewOptions().SetStreamPool(p)
+	p.Init(func() cm.Stream {
+		numAlloc++
+		return cm.NewStream(streamOpts)
+	})
+	require.Equal(t, numAlloc, len(testAlignedStarts)-1)
+	return streamOpts, p, &numAlloc
+}
+
+func testCounterElem() *CounterElem {
+	e := NewCounterElem(testCounterID, testPolicy, testOptions())
+	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
+		counter := aggregation.NewCounter()
+		counter.Add(testCounter.CounterVal)
+		e.values = append(e.values, timedCounter{
+			timeNs:  aligned.UnixNano(),
+			counter: counter,
+		})
+	}
+	return e
+}
+
+func testTimerElem(opts Options) *TimerElem {
+	e := NewTimerElem(testBatchTimerID, testPolicy, opts)
+	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
+		timer := aggregation.NewTimer(opts.StreamOptions())
+		timer.AddBatch(testBatchTimer.BatchTimerVal)
+		e.values = append(e.values, timedTimer{
+			timeNs: aligned.UnixNano(),
+			timer:  timer,
+		})
+	}
+	return e
+}
+
+func testGaugeElem() *GaugeElem {
+	e := NewGaugeElem(testGaugeID, testPolicy, testOptions())
+	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
+		gauge := aggregation.NewGauge()
+		gauge.Set(testGauge.GaugeVal)
+		e.values = append(e.values, timedGauge{
+			timeNs: aligned.UnixNano(),
+			gauge:  gauge,
+		})
+	}
+	return e
+}
+
+func expectedAggMetricsForCounter(
+	timestamp time.Time,
+	policy policy.Policy,
+) []testAggMetric {
+	return []testAggMetric{
+		{
+			idPrefix:  []byte("stats.counts."),
+			id:        testCounterID,
+			idSuffix:  nil,
+			timestamp: timestamp,
+			value:     float64(testCounter.CounterVal),
+			policy:    policy,
+		},
+	}
+}
+
+func expectedAggMetricsForTimer(
+	timestamp time.Time,
+	policy policy.Policy,
+) []testAggMetric {
+	data := []testSuffixAndValue{
+		{[]byte(".sum"), 18.0},
+		{[]byte(".sum_sq"), 83.38},
+		{[]byte(".mean"), 3.6},
+		{[]byte(".lower"), 1.0},
+		{[]byte(".upper"), 6.5},
+		{[]byte(".count"), 5.0},
+		{[]byte(".stdev"), 2.15522620622523},
+		{[]byte(".median"), 3.5},
+		{[]byte(".p50"), 3.5},
+		{[]byte(".p95"), 6.5},
+		{[]byte(".p99"), 6.5},
+	}
+	var expected []testAggMetric
+	for _, d := range data {
+		expected = append(expected, testAggMetric{
+			idPrefix:  []byte("stats.timers."),
+			id:        testBatchTimerID,
+			idSuffix:  d.suffix,
+			timestamp: timestamp,
+			value:     d.value,
+			policy:    policy,
+		})
+	}
+	return expected
+}
+
+func expectedAggMetricsForGauge(
+	timestamp time.Time,
+	policy policy.Policy,
+) []testAggMetric {
+	return []testAggMetric{
+		{
+			idPrefix:  []byte("stats.gauges."),
+			id:        testGaugeID,
+			idSuffix:  nil,
+			timestamp: timestamp,
+			value:     float64(testGauge.GaugeVal),
+			policy:    policy,
+		},
+	}
+}
+
+func verifyStreamPoolSize(t *testing.T, p cm.StreamPool, expected int, numAlloc *int) {
+	*numAlloc = 0
+	for i := 0; i < expected; i++ {
+		p.Get()
+	}
+	require.Equal(t, 0, *numAlloc)
+	p.Get()
+	require.Equal(t, 1, *numAlloc)
 }

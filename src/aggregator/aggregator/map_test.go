@@ -51,11 +51,11 @@ func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 	m := newMetricMap(opts)
 	policies := testDefaultVersionedPolicies
 
-	// Add a counter metric and assert there is one entry afterwards
+	// Add a counter metric and assert there is one entry afterwards.
 	require.NoError(t, m.AddMetricWithPolicies(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
 	require.Equal(t, 1, m.entryList.Len())
-	idHash := id.HashFn(testID)
+	idHash := id.HashFn(testCounterID)
 	elem, exists := m.entries[idHash]
 	require.True(t, exists)
 	entry := elem.Value.(hashedEntry)
@@ -63,7 +63,7 @@ func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 	require.Equal(t, idHash, entry.idHash)
 	require.Equal(t, 2, m.metricLists.Len())
 
-	// Add the same counter and assert there is still one entry
+	// Add the same counter and assert there is still one entry.
 	require.NoError(t, m.AddMetricWithPolicies(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
 	require.Equal(t, 1, m.entryList.Len())
@@ -74,7 +74,7 @@ func TestMetricMapAddMetricWithPolicies(t *testing.T) {
 	require.Equal(t, int32(0), atomic.LoadInt32(&entry2.entry.numWriters))
 	require.Equal(t, 2, m.metricLists.Len())
 
-	// Add a different metric and assert there are now two entries
+	// Add a different metric and assert there are now two entries.
 	require.NoError(t, m.AddMetricWithPolicies(
 		unaggregated.MetricUnion{
 			Type:     unaggregated.GaugeType,
@@ -119,7 +119,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 		return c
 	}
 
-	// Insert some live entries and some expired entries
+	// Insert some live entries and some expired entries.
 	numEntries := 100
 	for i := 0; i < numEntries; i++ {
 		idHash := id.HashFn([]byte(fmt.Sprintf("%d", i)))
@@ -136,10 +136,10 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 		}
 	}
 
-	// Delete expired entries
+	// Delete expired entries.
 	m.DeleteExpired(opts.EntryCheckInterval())
 
-	// Assert there should be only half of the entries left
+	// Assert there should be only half of the entries left.
 	require.Equal(t, numEntries/2, len(m.entries))
 	require.Equal(t, numEntries/2, m.entryList.Len())
 	require.True(t, len(waitIntervals) > 0)

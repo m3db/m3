@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 )
@@ -49,6 +50,10 @@ func (agg *mockAggregator) AddMetricWithPolicies(
 	mu unaggregated.MetricUnion,
 	policies policy.VersionedPolicies,
 ) error {
+	// Clone the metric and policies to ensure it cannot be mutated externally.
+	mu = cloneMetric(mu)
+	policies = clonePolicies(policies)
+
 	agg.Lock()
 
 	switch mu.Type {
@@ -106,4 +111,31 @@ func (agg *mockAggregator) Snapshot() SnapshotResult {
 	agg.Unlock()
 
 	return result
+}
+
+func cloneMetric(m unaggregated.MetricUnion) unaggregated.MetricUnion {
+	mu := m
+	if !m.OwnsID {
+		clonedID := make(metric.ID, len(m.ID))
+		copy(clonedID, m.ID)
+		mu.ID = clonedID
+		mu.OwnsID = true
+	}
+	if m.Type == unaggregated.BatchTimerType {
+		clonedTimerVal := make([]float64, len(m.BatchTimerVal))
+		copy(clonedTimerVal, m.BatchTimerVal)
+		mu.BatchTimerVal = clonedTimerVal
+	}
+	return mu
+}
+
+func clonePolicies(p policy.VersionedPolicies) policy.VersionedPolicies {
+	if p.IsDefault() {
+		return p
+	}
+	policies := make([]policy.Policy, len(p.Policies()))
+	for i, policy := range p.Policies() {
+		policies[i] = policy
+	}
+	return policy.CustomVersionedPolicies(p.Version, p.Cutover, policies)
 }
