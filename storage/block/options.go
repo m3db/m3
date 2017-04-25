@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/sync"
 )
@@ -45,7 +46,9 @@ const (
 
 type options struct {
 	clockOpts               clock.Options
+	instrumentOpts          instrument.Options
 	databaseBlockAllocSize  int
+	wiredList               *WiredList
 	closeContextWorkers     xsync.WorkerPool
 	databaseBlockPool       DatabaseBlockPool
 	contextPool             context.Pool
@@ -58,8 +61,11 @@ type options struct {
 
 // NewOptions creates new database block options
 func NewOptions() Options {
+	iopts := instrument.NewOptions()
 	o := &options{
 		clockOpts:               clock.NewOptions(),
+		instrumentOpts:          iopts,
+		wiredList:               NewWiredList(0, iopts),
 		databaseBlockAllocSize:  defaultDatabaseBlockAllocSize,
 		closeContextWorkers:     xsync.NewWorkerPool(defaultCloseContextConcurrency),
 		databaseBlockPool:       NewDatabaseBlockPool(nil),
@@ -94,6 +100,16 @@ func NewOptions() Options {
 	return o
 }
 
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
+	opts := *o
+	opts.instrumentOpts = value
+	return &opts
+}
+
+func (o *options) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
+}
+
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
@@ -102,6 +118,16 @@ func (o *options) SetClockOptions(value clock.Options) Options {
 
 func (o *options) ClockOptions() clock.Options {
 	return o.clockOpts
+}
+
+func (o *options) SetWiredList(value *WiredList) Options {
+	opts := *o
+	opts.wiredList = value
+	return &opts
+}
+
+func (o *options) WiredList() *WiredList {
+	return o.wiredList
 }
 
 func (o *options) SetDatabaseBlockAllocSize(value int) Options {

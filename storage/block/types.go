@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 )
@@ -147,11 +148,8 @@ type DatabaseBlock interface {
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)
 
-	// Merge will merge the current block with the specified block
-	// when this block is read. Note: calling this twice
-	// will simply overwrite the target for the block to merge with
-	// rather than merging three blocks together.
-	Merge(other DatabaseBlock)
+	// Merge will merge the current block with the specified block.
+	Merge(other DatabaseBlock) error
 
 	// IsRetrieved returns whether the block is already retrieved.
 	IsRetrieved() bool
@@ -317,11 +315,23 @@ type Options interface {
 	// ClockOptions returns the clock options
 	ClockOptions() clock.Options
 
-	// SetDatabaseBlockAllocSize sets the databaseBlockAllocSize
+	// SetInstrumentOptions sets the instrument options
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrument options
+	InstrumentOptions() instrument.Options
+
+	// SetDatabaseBlockAllocSize sets the database block alloc size
 	SetDatabaseBlockAllocSize(value int) Options
 
-	// DatabaseBlockAllocSize returns the databaseBlockAllocSize
+	// DatabaseBlockAllocSize returns the database block alloc size
 	DatabaseBlockAllocSize() int
+
+	// SetWiredList sets the database block wired list
+	SetWiredList(value *WiredList) Options
+
+	// WiredList returns the database block wired list
+	WiredList() *WiredList
 
 	// SetCloseContextWorkers sets the workers for closing contexts
 	SetCloseContextWorkers(value xsync.WorkerPool) Options

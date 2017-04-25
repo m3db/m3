@@ -399,9 +399,11 @@ func (s *dbSeries) mergeBlock(
 		return
 	}
 
-	// We are performing this in a lock, cannot wait for the existing
-	// block potentially to be retrieved from disk, lazily merge the stream.
-	newBlock.Merge(existingBlock)
+	if err := newBlock.Merge(existingBlock); err != nil {
+		s.log().Errorf("series buffer drain merge error: %v", err)
+		return
+	}
+
 	blocks.AddBlock(newBlock)
 }
 
@@ -461,7 +463,7 @@ func (s *dbSeries) newBootstrapBlockError(
 	b block.DatabaseBlock,
 	err error,
 ) error {
-	msgFmt := "bootstrap series error occurred for %s block at %s: %v"
+	msgFmt := "series bootstrap error occurred for %s block at %s: %v"
 	renamed := fmt.Errorf(msgFmt, s.id.String(), b.StartTime().String(), err)
 	return xerrors.NewRenamedError(err, renamed)
 }
