@@ -78,6 +78,7 @@ func NewOptions() Options {
 			return pool.NewBytesPool(s, nil)
 		}),
 	}
+	o.wiredList.Start()
 	o.closeContextWorkers.Init()
 	o.databaseBlockPool.Init(func() DatabaseBlock {
 		return NewDatabaseBlock(timeZero, ts.Segment{}, o)
