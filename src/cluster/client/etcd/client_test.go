@@ -22,7 +22,6 @@ package etcd
 
 import (
 	"testing"
-	"time"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
@@ -162,7 +161,7 @@ func testOptions() Options {
 	return NewOptions().SetClusters([]Cluster{
 		NewCluster().SetZone("zone1").SetEndpoints([]string{"i1"}),
 		NewCluster().SetZone("zone2").SetEndpoints([]string{"i2"}),
-	}).SetServiceInitTimeout(time.Second).SetService("test_app")
+	}).SetService("test_app")
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {

@@ -30,10 +30,10 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
-	etcdKV "github.com/m3db/m3cluster/kv/etcd"
+	etcdkv "github.com/m3db/m3cluster/kv/etcd"
 	"github.com/m3db/m3cluster/services"
-	sdClient "github.com/m3db/m3cluster/services/client"
-	etcdHeartbeat "github.com/m3db/m3cluster/services/heartbeat/etcd"
+	sdclient "github.com/m3db/m3cluster/services/client"
+	etcdheartbeat "github.com/m3db/m3cluster/services/heartbeat/etcd"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	"github.com/uber-go/tally"
@@ -108,10 +108,9 @@ func (c *csclient) Txn() (kv.TxnStore, error) {
 
 func (c *csclient) createServices() {
 	c.sdOnce.Do(func() {
-		c.sd, c.sdErr = sdClient.NewServices(sdClient.NewOptions().
-			SetInitTimeout(c.opts.ServiceInitTimeout()).
+		c.sd, c.sdErr = sdclient.NewServices(c.opts.ServiceDiscoveryConfig().NewOptions().
 			SetHeartbeatGen(c.heartbeatGen()).
-			SetKVGen(c.kvGen(etcdKV.NewOptions().
+			SetKVGen(c.kvGen(etcdkv.NewOptions().
 				SetInstrumentsOptions(instrument.NewOptions().
 					SetLogger(c.logger).
 					SetMetricsScope(c.kvScope),
@@ -127,7 +126,7 @@ func (c *csclient) createServices() {
 
 func (c *csclient) createTxnStore() {
 	c.kvOnce.Do(func() {
-		opts := etcdKV.NewOptions().
+		opts := etcdkv.NewOptions().
 			SetInstrumentsOptions(instrument.NewOptions().
 				SetLogger(c.logger).
 				SetMetricsScope(c.kvScope)).
@@ -136,39 +135,39 @@ func (c *csclient) createTxnStore() {
 	})
 }
 
-func (c *csclient) kvGen(kvOpts etcdKV.Options) sdClient.KVGen {
-	return sdClient.KVGen(func(zone string) (kv.Store, error) {
+func (c *csclient) kvGen(kvOpts etcdkv.Options) sdclient.KVGen {
+	return sdclient.KVGen(func(zone string) (kv.Store, error) {
 		return c.txnGen(kvOpts, zone)
 	})
 }
 
-func (c *csclient) txnGen(kvOpts etcdKV.Options, zone string) (kv.TxnStore, error) {
+func (c *csclient) txnGen(kvOpts etcdkv.Options, zone string) (kv.TxnStore, error) {
 	cli, err := c.etcdClientGen(zone)
 	if err != nil {
 		return nil, err
 	}
 
-	return etcdKV.NewStore(
+	return etcdkv.NewStore(
 		cli.KV,
 		cli.Watcher,
 		kvOpts.SetCacheFilePath(cacheFileForZone(c.opts.CacheDir(), kvOpts.ApplyPrefix(c.opts.Service()), zone)),
 	)
 }
 
-func (c *csclient) heartbeatGen() sdClient.HeartbeatGen {
-	return sdClient.HeartbeatGen(
+func (c *csclient) heartbeatGen() sdclient.HeartbeatGen {
+	return sdclient.HeartbeatGen(
 		func(sid services.ServiceID) (services.HeartbeatService, error) {
 			cli, err := c.etcdClientGen(sid.Zone())
 			if err != nil {
 				return nil, err
 			}
 
-			opts := etcdHeartbeat.NewOptions().
+			opts := etcdheartbeat.NewOptions().
 				SetInstrumentsOptions(instrument.NewOptions().
 					SetLogger(c.logger).
 					SetMetricsScope(c.hbScope)).
 				SetServiceID(sid)
-			return etcdHeartbeat.NewStore(cli, opts)
+			return etcdheartbeat.NewStore(cli, opts)
 		},
 	)
 }
