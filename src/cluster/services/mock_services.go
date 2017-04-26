@@ -779,11 +779,12 @@ func (_mr *_MockPlacementServiceRecorder) AddReplica() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddReplica")
 }
 
-func (_m *MockPlacementService) AddInstance(candidates []PlacementInstance) (ServicePlacement, error) {
+func (_m *MockPlacementService) AddInstance(candidates []PlacementInstance) (ServicePlacement, PlacementInstance, error) {
 	ret := _m.ctrl.Call(_m, "AddInstance", candidates)
 	ret0, _ := ret[0].(ServicePlacement)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(PlacementInstance)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 func (_mr *_MockPlacementServiceRecorder) AddInstance(arg0 interface{}) *gomock.Call {
@@ -801,11 +802,12 @@ func (_mr *_MockPlacementServiceRecorder) RemoveInstance(arg0 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveInstance", arg0)
 }
 
-func (_m *MockPlacementService) ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (ServicePlacement, error) {
+func (_m *MockPlacementService) ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (ServicePlacement, []PlacementInstance, error) {
 	ret := _m.ctrl.Call(_m, "ReplaceInstance", leavingInstanceID, candidates)
 	ret0, _ := ret[0].(ServicePlacement)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].([]PlacementInstance)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 func (_mr *_MockPlacementServiceRecorder) ReplaceInstance(arg0, arg1 interface{}) *gomock.Call {
@@ -983,6 +985,26 @@ func (_m *MockPlacementOptions) SetInstrumentOptions(iopts instrument.Options) P
 
 func (_mr *_MockPlacementOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
+}
+
+func (_m *MockPlacementOptions) ValidZone() string {
+	ret := _m.ctrl.Call(_m, "ValidZone")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) ValidZone() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ValidZone")
+}
+
+func (_m *MockPlacementOptions) SetValidZone(z string) PlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetValidZone", z)
+	ret0, _ := ret[0].(PlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) SetValidZone(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetValidZone", arg0)
 }
 
 // Mock of ServicePlacement interface

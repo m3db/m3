@@ -147,30 +147,35 @@ func (ps placementService) AddReplica() (services.ServicePlacement, error) {
 
 func (ps placementService) AddInstance(
 	candidates []services.PlacementInstance,
-) (services.ServicePlacement, error) {
+) (services.ServicePlacement, services.PlacementInstance, error) {
 	p, v, err := ps.ss.Placement(ps.service)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var addingInstance services.PlacementInstance
 	if addingInstance, err = ps.findAddingInstance(p, candidates, ps.opts); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if p, err = ps.algo.AddInstance(p, addingInstance); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := placement.Validate(p); err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	addingInstance, ok := p.Instance(addingInstance.ID())
+	if !ok {
+		return nil, nil, fmt.Errorf("unable to find added instance [%s] in new placement", addingInstance.ID())
 	}
 
 	if ps.opts.Dryrun() {
 		ps.logger.Info("this is a dryrun, the operation is not persisted")
-		return p, err
+		return p, addingInstance, err
 	}
 
-	return p, ps.ss.CheckAndSet(ps.service, p, v)
+	return p, addingInstance, ps.ss.CheckAndSet(ps.service, p, v)
 }
 
 func (ps placementService) RemoveInstance(instanceID string) (services.ServicePlacement, error) {
@@ -202,36 +207,45 @@ func (ps placementService) RemoveInstance(instanceID string) (services.ServicePl
 func (ps placementService) ReplaceInstance(
 	leavingInstanceID string,
 	candidates []services.PlacementInstance,
-) (services.ServicePlacement, error) {
+) (services.ServicePlacement, []services.PlacementInstance, error) {
 	p, v, err := ps.ss.Placement(ps.service)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	leavingInstance, exist := p.Instance(leavingInstanceID)
 	if !exist {
-		return nil, errInstanceAbsent
+		return nil, nil, errInstanceAbsent
 	}
 
 	addingInstances, err := ps.findReplaceInstance(p, candidates, leavingInstance)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if p, err = ps.algo.ReplaceInstance(p, leavingInstanceID, addingInstances); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := placement.Validate(p); err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	addedInstances := make([]services.PlacementInstance, 0, len(addingInstances))
+	for _, inst := range addingInstances {
+		addedInstance, ok := p.Instance(inst.ID())
+		if !ok {
+			return nil, nil, fmt.Errorf("unable to find added instance [%+v] in new placement [%+v]", inst, p)
+		}
+		addedInstances = append(addedInstances, addedInstance)
 	}
 
 	if ps.opts.Dryrun() {
 		ps.logger.Info("this is a dryrun, the operation is not persisted")
-		return p, err
+		return p, addedInstances, err
 	}
 
-	return p, ps.ss.CheckAndSet(ps.service, p, v)
+	return p, addedInstances, ps.ss.CheckAndSet(ps.service, p, v)
 }
 
 func (ps placementService) MarkShardAvailable(instanceID string, shardID uint32) error {

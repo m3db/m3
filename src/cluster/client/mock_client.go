@@ -71,3 +71,14 @@ func (_m *MockClient) Services() (services.Services, error) {
 func (_mr *_MockClientRecorder) Services() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Services")
 }
+
+func (_m *MockClient) Txn() (kv.TxnStore, error) {
+	ret := _m.ctrl.Call(_m, "Txn")
+	ret0, _ := ret[0].(kv.TxnStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockClientRecorder) Txn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Txn")
+}
