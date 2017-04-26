@@ -181,13 +181,14 @@ type PlacementService interface {
 	AddReplica() (ServicePlacement, error)
 
 	// AddInstance picks an instance from the candidate list to the placement
-	AddInstance(candidates []PlacementInstance) (ServicePlacement, error)
+	AddInstance(candidates []PlacementInstance) (newPlacement ServicePlacement, usedInstance PlacementInstance, err error)
 
 	// RemoveInstance removes an instance from the placement
 	RemoveInstance(leavingInstanceID string) (ServicePlacement, error)
 
 	// ReplaceInstance picks instances from the candidate list to replace an instance in current placement
-	ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (ServicePlacement, error)
+	ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (
+		newPlacement ServicePlacement, usedInstances []PlacementInstance, err error)
 
 	// MarkShardAvailable marks the state of a shard as available
 	MarkShardAvailable(instanceID string, shardID uint32) error

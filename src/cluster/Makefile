@@ -31,6 +31,9 @@ VENDOR_ENV := GO15VENDOREXPERIMENT=1
 setup:
 	mkdir -p $(BUILD)
 
+all: lint test-ci-unit
+	@echo make all successfully finished
+
 lint:
 	@which golint > /dev/null || go get -u github.com/golang/lint/golint
 	$(VENDOR_ENV) $(lint_check)
@@ -83,4 +86,4 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .DEFAULT_GOAL := test
-.PHONY: test test-xml test-internal testhtml clean
+.PHONY: test test-xml test-internal testhtml clean all
