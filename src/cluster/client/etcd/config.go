@@ -21,16 +21,10 @@
 package etcd
 
 import (
-	"time"
-
 	"github.com/m3db/m3cluster/client"
+	sdclient "github.com/m3db/m3cluster/services/client"
 	"github.com/m3db/m3x/instrument"
 )
-
-// M3SDConfiguration is the config for service discovery
-type M3SDConfiguration struct {
-	InitTimeout time.Duration `yaml:"initTimeout"`
-}
 
 // ClusterConfig is the config for a zoned etcd cluster
 type ClusterConfig struct {
@@ -40,12 +34,12 @@ type ClusterConfig struct {
 
 // Configuration is for config service client
 type Configuration struct {
-	Zone         string            `yaml:"zone"`
-	Env          string            `yaml:"env"`
-	Service      string            `yaml:"service" validate:"nonzero"`
-	CacheDir     string            `yaml:"cacheDir"`
-	ETCDClusters []ClusterConfig   `yaml:"etcdClusters"`
-	M3SD         M3SDConfiguration `yaml:"m3sd"`
+	Zone         string                 `yaml:"zone"`
+	Env          string                 `yaml:"env"`
+	Service      string                 `yaml:"service" validate:"nonzero"`
+	CacheDir     string                 `yaml:"cacheDir"`
+	ETCDClusters []ClusterConfig        `yaml:"etcdClusters"`
+	SDConfig     sdclient.Configuration `yaml:"m3sd"`
 }
 
 // NewClient creates a new config service client
@@ -60,8 +54,8 @@ func (cfg Configuration) NewOptions() Options {
 		SetEnv(cfg.Env).
 		SetService(cfg.Service).
 		SetCacheDir(cfg.CacheDir).
-		SetServiceInitTimeout(cfg.M3SD.InitTimeout).
-		SetClusters(cfg.etcdClusters())
+		SetClusters(cfg.etcdClusters()).
+		SetServiceDiscoveryConfig(cfg.SDConfig)
 }
 
 func (cfg Configuration) etcdClusters() []Cluster {

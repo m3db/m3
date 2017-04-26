@@ -63,7 +63,7 @@ func TestConfig(t *testing.T) {
 		ClusterConfig{"z1", []string{"etcd1:2379", "etcd2:2379"}},
 		ClusterConfig{"z2", []string{"etcd3:2379", "etcd4:2379"}},
 	}, cfg.ETCDClusters)
-	require.Equal(t, 10*time.Second, cfg.M3SD.InitTimeout)
+	require.Equal(t, 10*time.Second, cfg.SDConfig.InitTimeout)
 }
 
 func writeFile(t *testing.T, contents string) string {

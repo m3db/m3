@@ -22,8 +22,8 @@ package etcd
 
 import (
 	"errors"
-	"time"
 
+	sdclient "github.com/m3db/m3cluster/services/client"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -41,8 +41,8 @@ type Options interface {
 	CacheDir() string
 	SetCacheDir(dir string) Options
 
-	ServiceInitTimeout() time.Duration
-	SetServiceInitTimeout(timeout time.Duration) Options
+	ServiceDiscoveryConfig() sdclient.Configuration
+	SetServiceDiscoveryConfig(cfg sdclient.Configuration) Options
 
 	Clusters() []Cluster
 	SetClusters(clusters []Cluster) Options
@@ -69,13 +69,13 @@ func NewOptions() Options {
 }
 
 type options struct {
-	env                string
-	zone               string
-	service            string
-	cacheDir           string
-	serviceInitTimeout time.Duration
-	clusters           map[string]Cluster
-	iopts              instrument.Options
+	env      string
+	zone     string
+	service  string
+	cacheDir string
+	sdConfig sdclient.Configuration
+	clusters map[string]Cluster
+	iopts    instrument.Options
 }
 
 func (o options) Validate() error {
@@ -112,12 +112,12 @@ func (o options) SetZone(z string) Options {
 	return o
 }
 
-func (o options) ServiceInitTimeout() time.Duration {
-	return o.serviceInitTimeout
+func (o options) ServiceDiscoveryConfig() sdclient.Configuration {
+	return o.sdConfig
 }
 
-func (o options) SetServiceInitTimeout(timeout time.Duration) Options {
-	o.serviceInitTimeout = timeout
+func (o options) SetServiceDiscoveryConfig(cfg sdclient.Configuration) Options {
+	o.sdConfig = cfg
 	return o
 }
 
