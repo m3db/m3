@@ -31,6 +31,8 @@ import (
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -42,8 +44,18 @@ type hashedEntry struct {
 	entry  *Entry
 }
 
+type metricMapMetrics struct {
+	numEntries tally.Gauge
+}
+
+func newMetricMapMetrics(scope tally.Scope) metricMapMetrics {
+	return metricMapMetrics{
+		numEntries: scope.Gauge("num-entries"),
+	}
+}
+
 // NB(xichen): use a type-specific list for hashedEntry if the conversion
-// overhead between interface{} and hashedEntry becomes a problem
+// overhead between interface{} and hashedEntry becomes a problem.
 type metricMap struct {
 	sync.RWMutex
 
@@ -56,10 +68,13 @@ type metricMap struct {
 	entries     map[id.Hash]*list.Element
 	entryList   *list.List
 	waitForFn   waitForFn
+	metrics     metricMapMetrics
 }
 
 func newMetricMap(opts Options) *metricMap {
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("map")
 	metricLists := newMetricLists(opts)
+
 	return &metricMap{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
@@ -69,6 +84,7 @@ func newMetricMap(opts Options) *metricMap {
 		entries:      make(map[id.Hash]*list.Element),
 		entryList:    list.New(),
 		waitForFn:    time.After,
+		metrics:      newMetricMapMetrics(scope),
 	}
 }
 
@@ -82,16 +98,16 @@ func (m *metricMap) AddMetricWithPolicies(
 	return err
 }
 
-func (m *metricMap) DeleteExpired(target time.Duration) {
+func (m *metricMap) DeleteExpired(target time.Duration) int64 {
 	now := m.nowFn()
 
-	// Determine batch size
+	// Determine batch size.
 	m.RLock()
 	elemsLen := m.entryList.Len()
 	if elemsLen == 0 {
-		// If the list is empty, nothing to do
+		// If the list is empty, nothing to do.
 		m.RUnlock()
-		return
+		return 0
 	}
 	batchSize := int(math.Max(1.0, math.Ceil(m.batchPercent*float64(elemsLen))))
 	numBatches := int(math.Ceil(float64(elemsLen) / float64(batchSize)))
@@ -100,9 +116,12 @@ func (m *metricMap) DeleteExpired(target time.Duration) {
 	m.RUnlock()
 
 	// NB(xichen): if this runs frequently enough, stash the expired buffer
-	// in the map object and reuse the buffer
-	expired := make([]hashedEntry, 0, batchSize)
-	batchIdx := 0
+	// in the map object and reuse the buffer.
+	var (
+		numExpired int64
+		expired    = make([]hashedEntry, 0, batchSize)
+		batchIdx   int
+	)
 	for currElem != nil {
 		m.RLock()
 		for numChecked := 0; numChecked < batchSize && currElem != nil; numChecked++ {
@@ -115,9 +134,9 @@ func (m *metricMap) DeleteExpired(target time.Duration) {
 		}
 		m.RUnlock()
 
-		// Actually purging the expired entries
+		// Actually purging the expired entries.
 		if len(expired) >= batchSize {
-			m.purgeExpired(now, expired)
+			numExpired += m.purgeExpired(now, expired)
 			for i := range expired {
 				expired[i] = emptyHashedEntry
 			}
@@ -132,11 +151,12 @@ func (m *metricMap) DeleteExpired(target time.Duration) {
 		}
 	}
 
-	// Purge if there are remaining expired entries
-	m.purgeExpired(now, expired)
+	// Purge if there are remaining expired entries.
+	numExpired += m.purgeExpired(now, expired)
 	for i := range expired {
 		expired[i] = emptyHashedEntry
 	}
+	return numExpired
 }
 
 func (m *metricMap) Close() {
@@ -149,7 +169,7 @@ func (m *metricMap) findOrCreate(mid metric.ID) *Entry {
 	if entry, found := m.lookupEntryWithLock(idHash); found {
 		// NB(xichen): it is important to increase number of writers
 		// within a lock so we can account for active writers
-		// when deleting expired entries
+		// when deleting expired entries.
 		entry.IncWriter()
 		m.RUnlock()
 		return entry
@@ -180,10 +200,11 @@ func (m *metricMap) lookupEntryWithLock(hash id.Hash) (*Entry, bool) {
 	return elem.Value.(hashedEntry).entry, true
 }
 
-func (m *metricMap) purgeExpired(now time.Time, entries []hashedEntry) {
+func (m *metricMap) purgeExpired(now time.Time, entries []hashedEntry) int64 {
 	if len(entries) == 0 {
-		return
+		return 0
 	}
+	var numExpired int64
 	m.Lock()
 	for i := range entries {
 		if entries[i].entry.TryExpire(now) {
@@ -191,7 +212,18 @@ func (m *metricMap) purgeExpired(now time.Time, entries []hashedEntry) {
 			delete(m.entries, entries[i].idHash)
 			elem.Value = nil
 			m.entryList.Remove(elem)
+			numExpired++
 		}
 	}
 	m.Unlock()
+	return numExpired
+}
+
+func (m *metricMap) reportMetrics() {
+	m.RLock()
+	numEntries := m.entryList.Len()
+	m.RUnlock()
+
+	m.metrics.numEntries.Update(float64(numEntries))
+	m.metricLists.reportMetrics()
 }

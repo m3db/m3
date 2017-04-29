@@ -132,8 +132,8 @@ func TestMetricListTick(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Force a tick.
-	l.tickInternal()
+	// Force a flush.
+	l.flushInternal()
 
 	// Assert nothing has been collected.
 	bufferLock.Lock()
@@ -145,8 +145,8 @@ func TestMetricListTick(t *testing.T) {
 		nowTs = nowTs.Add(testPolicy.Resolution().Window)
 		atomic.StoreInt64(&now, nowTs.UnixNano())
 
-		// Force a tick.
-		l.tickInternal()
+		// Force a flush.
+		l.flushInternal()
 
 		var expected []testAggMetric
 		alignedStart := nowTs.Truncate(testPolicy.Resolution().Window)
@@ -171,8 +171,8 @@ func TestMetricListTick(t *testing.T) {
 	nowTs = nowTs.Add(testPolicy.Resolution().Window)
 	atomic.StoreInt64(&now, nowTs.UnixNano())
 
-	// Force a tick.
-	l.tickInternal()
+	// Force a flush.
+	l.flushInternal()
 
 	// Assert nothing has been collected.
 	bufferLock.Lock()
@@ -185,8 +185,8 @@ func TestMetricListTick(t *testing.T) {
 		e.Value.(metricElem).MarkAsTombstoned()
 	}
 
-	// Force a tick.
-	l.tickInternal()
+	// Force a flush.
+	l.flushInternal()
 
 	// Assert all elements have been collected.
 	require.Equal(t, 0, l.aggregations.Len())

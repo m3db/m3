@@ -29,11 +29,29 @@ import (
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/instrument"
+
+	"github.com/uber-go/tally"
 )
 
 var (
 	errAggregatorClosed = errors.New("aggregator is closed")
 )
+
+type aggregatorMetrics struct {
+	addMetricWithPolicies instrument.MethodMetrics
+	tickDuration          tally.Timer
+	tickExpired           tally.Counter
+}
+
+func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
+	tickScope := scope.SubScope("tick")
+	return aggregatorMetrics{
+		addMetricWithPolicies: instrument.NewMethodMetrics(scope, "addMetricsWithPolicies", samplingRate),
+		tickDuration:          tickScope.Timer("duration"),
+		tickExpired:           tickScope.Counter("expired"),
+	}
+}
 
 type addMetricWithPoliciesFn func(
 	mu unaggregated.MetricUnion,
@@ -43,37 +61,42 @@ type addMetricWithPoliciesFn func(
 type waitForFn func(d time.Duration) <-chan time.Time
 
 // aggregator stores aggregations of different types of metrics (e.g., counter,
-// timer, gauges) and periodically flushes them out
+// timer, gauges) and periodically flushes them out.
 type aggregator struct {
 	opts                    Options
 	nowFn                   clock.NowFn
 	checkInterval           time.Duration
 	closed                  int32
 	doneCh                  chan struct{}
-	wgTick                  sync.WaitGroup
-	metrics                 *metricMap
+	wg                      sync.WaitGroup
+	metricMap               *metricMap
 	addMetricWithPoliciesFn addMetricWithPoliciesFn
 	waitForFn               waitForFn
+	metrics                 aggregatorMetrics
 }
 
-// NewAggregator creates a new aggregator
-// TODO(xichen): add metrics
+// NewAggregator creates a new aggregator.
 func NewAggregator(opts Options) Aggregator {
 	doneCh := make(chan struct{})
+	iOpts := opts.InstrumentOptions()
 	agg := &aggregator{
 		opts:          opts,
 		nowFn:         opts.ClockOptions().NowFn(),
 		checkInterval: opts.EntryCheckInterval(),
 		doneCh:        doneCh,
-		metrics:       newMetricMap(opts),
+		metricMap:     newMetricMap(opts),
+		metrics:       newAggregatorMetrics(iOpts.MetricsScope(), iOpts.MetricsSamplingRate()),
 	}
-	agg.addMetricWithPoliciesFn = agg.metrics.AddMetricWithPolicies
+	agg.addMetricWithPoliciesFn = agg.metricMap.AddMetricWithPolicies
 	agg.waitForFn = time.After
 
 	if agg.checkInterval > 0 {
-		agg.wgTick.Add(1)
+		agg.wg.Add(1)
 		go agg.tick()
 	}
+
+	agg.wg.Add(1)
+	go agg.reportMetrics()
 
 	return agg
 }
@@ -82,10 +105,14 @@ func (agg *aggregator) AddMetricWithPolicies(
 	mu unaggregated.MetricUnion,
 	policies policy.VersionedPolicies,
 ) error {
+	callStart := agg.nowFn()
 	if atomic.LoadInt32(&agg.closed) == 1 {
+		agg.metrics.addMetricWithPolicies.ReportError(agg.nowFn().Sub(callStart))
 		return errAggregatorClosed
 	}
-	return agg.addMetricWithPoliciesFn(mu, policies)
+	err := agg.addMetricWithPoliciesFn(mu, policies)
+	agg.metrics.addMetricWithPolicies.ReportSuccessOrError(err, agg.nowFn().Sub(callStart))
+	return err
 }
 
 func (agg *aggregator) Close() {
@@ -95,14 +122,14 @@ func (agg *aggregator) Close() {
 
 	// Waiting for the ticking goroutine to return.
 	close(agg.doneCh)
-	agg.wgTick.Wait()
+	agg.wg.Wait()
 
 	// Closing metric map.
-	agg.metrics.Close()
+	agg.metricMap.Close()
 }
 
 func (agg *aggregator) tick() {
-	defer agg.wgTick.Done()
+	defer agg.wg.Done()
 
 	for {
 		select {
@@ -116,15 +143,33 @@ func (agg *aggregator) tick() {
 
 func (agg *aggregator) tickInternal() {
 	start := agg.nowFn()
-	agg.metrics.DeleteExpired(agg.checkInterval)
+	tickExpired := agg.metricMap.DeleteExpired(agg.checkInterval)
 	tickDuration := agg.nowFn().Sub(start)
-	// TODO(xichen): add metrics
+	agg.metrics.tickExpired.Inc(tickExpired)
+	agg.metrics.tickDuration.Record(tickDuration)
 	if tickDuration < agg.checkInterval {
 		// NB(xichen): use a channel here instead of sleeping in case
-		// server needs to close and we don't tick frequently enough
+		// server needs to close and we don't tick frequently enough.
 		select {
 		case <-agg.waitForFn(agg.checkInterval - tickDuration):
 		case <-agg.doneCh:
+		}
+	}
+}
+
+func (agg *aggregator) reportMetrics() {
+	defer agg.wg.Done()
+
+	reportInterval := agg.opts.InstrumentOptions().ReportInterval()
+	t := time.NewTicker(reportInterval)
+
+	for {
+		select {
+		case <-t.C:
+			agg.metricMap.reportMetrics()
+		case <-agg.doneCh:
+			t.Stop()
+			return
 		}
 	}
 }

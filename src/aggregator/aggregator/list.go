@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -39,11 +41,31 @@ var (
 	errListsClosed = errors.New("metric lists are closed")
 )
 
+type metricListMetrics struct {
+	numElems       tally.Gauge
+	encodeErrors   tally.Counter
+	flushCollected tally.Counter
+	flushSuccess   tally.Counter
+	flushErrors    tally.Counter
+	flushDuration  tally.Timer
+}
+
+func newMetricListMetrics(scope tally.Scope) metricListMetrics {
+	flushScope := scope.SubScope("flush")
+	return metricListMetrics{
+		numElems:       scope.Gauge("num-elems"),
+		encodeErrors:   scope.Counter("encode-errors"),
+		flushCollected: flushScope.Counter("collected"),
+		flushSuccess:   flushScope.Counter("success"),
+		flushErrors:    flushScope.Counter("errors"),
+		flushDuration:  flushScope.Timer("duration"),
+	}
+}
+
 type encodeFn func(mp aggregated.ChunkedMetricWithPolicy) error
 
 // metricList stores aggregated metrics at a given resolution
-// and flushes aggregations periodically
-// TODO(xichen): add metrics
+// and flushes aggregations periodically.
 type metricList struct {
 	sync.RWMutex
 
@@ -63,22 +85,25 @@ type metricList struct {
 	toCollect     []*list.Element
 	closed        bool
 	doneCh        chan struct{}
-	wgTick        sync.WaitGroup
+	wgFlush       sync.WaitGroup
 	encodeFn      encodeFn
 	aggMetricFn   aggMetricFn
 	waitForFn     waitForFn
+	metrics       metricListMetrics
 }
 
 func newMetricList(resolution time.Duration, opts Options) *metricList {
 	// NB(xichen): by default the flush interval is the same as metric
 	// resolution, unless the resolution is smaller than the minimum flush
 	// interval, in which case we use the min flush interval to avoid excessing
-	// CPU overhead due to flushing
+	// CPU overhead due to flushing.
 	flushInterval := resolution
 	if minFlushInterval := opts.MinFlushInterval(); flushInterval < minFlushInterval {
 		flushInterval = minFlushInterval
 	}
-
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("list").Tagged(
+		map[string]string{"resolution": resolution.String()},
+	)
 	encoderPool := opts.BufferedEncoderPool()
 	l := &metricList{
 		opts:          opts,
@@ -94,21 +119,22 @@ func newMetricList(resolution time.Duration, opts Options) *metricList {
 		timer:         time.NewTimer(0),
 		encoder:       msgpack.NewAggregatedEncoder(encoderPool.Get()),
 		doneCh:        make(chan struct{}),
+		metrics:       newMetricListMetrics(scope),
 	}
 	l.encodeFn = l.encoder.EncodeChunkedMetricWithPolicy
 	l.aggMetricFn = l.processAggregatedMetric
 	l.waitForFn = time.After
 
-	// Start ticking
+	// Start flushing periodically.
 	if l.flushInterval > 0 {
-		l.wgTick.Add(1)
-		go l.tick()
+		l.wgFlush.Add(1)
+		go l.flush()
 	}
 
 	return l
 }
 
-// Close closes the list
+// Close closes the list.
 func (l *metricList) Close() {
 	l.Lock()
 	if l.closed {
@@ -118,12 +144,12 @@ func (l *metricList) Close() {
 	l.closed = true
 	l.Unlock()
 
-	// Waiting for the ticking goroutine to finish
+	// Waiting for the ticking goroutine to finish.
 	close(l.doneCh)
-	l.wgTick.Wait()
+	l.wgFlush.Wait()
 }
 
-// PushBack adds an element to the list
+// PushBack adds an element to the list.
 // NB(xichen): the container list doesn't provide an API to directly
 // insert a list element, therefore making it impossible to pool the
 // elements and manage their lifetimes. If this becomes an issue,
@@ -139,39 +165,39 @@ func (l *metricList) PushBack(value interface{}) (*list.Element, error) {
 	return elem, nil
 }
 
-// tick performs periodic maintenance tasks (e.g., flushing out aggregated metrics)
-func (l *metricList) tick() {
-	defer l.wgTick.Done()
+// flush flushes out aggregated metrics.
+func (l *metricList) flush() {
+	defer l.wgFlush.Done()
 
 	for {
 		select {
 		case <-l.doneCh:
 			return
 		default:
-			l.tickInternal()
+			l.flushInternal()
 		}
 	}
 }
 
-func (l *metricList) tickInternal() {
+func (l *metricList) flushInternal() {
 	// NB(xichen): it is important to determine ticking start time within the time lock
 	// because this ensures all the actions before `start` have completed if those actions
-	// are protected by the same read lock
+	// are protected by the same read lock.
 	l.timeLock.Lock()
 	start := l.nowFn()
 	resolution := l.resolution
 	l.timeLock.Unlock()
 	alignedStart := start.Truncate(resolution)
 
-	// Reset states reused across ticks
+	// Reset states reused across ticks.
 	l.toCollect = l.toCollect[:0]
 
 	// Flush out aggregations, may need to do it in batches if the read lock
-	// is held for too long
+	// is held for too long.
 	l.RLock()
 	for e := l.aggregations.Front(); e != nil; e = e.Next() {
 		// If the element is eligible for collection after the values are
-		// processed, close it and reset the value to nil
+		// processed, close it and reset the value to nil.
 		elem := e.Value.(metricElem)
 		if elem.Consume(alignedStart, l.aggMetricFn) {
 			elem.Close()
@@ -181,30 +207,35 @@ func (l *metricList) tickInternal() {
 	}
 	l.RUnlock()
 
-	// Flush remaining bytes in the buffer
+	// Flush remaining bytes in the buffer.
 	if encoder := l.encoder.Encoder(); len(encoder.Bytes()) > 0 {
 		newEncoder := l.encoderPool.Get()
 		newEncoder.Reset()
 		l.encoder.Reset(newEncoder)
 		if err := l.flushHandler.Handle(encoder); err != nil {
 			l.log.Errorf("flushing metrics error: %v", err)
+			l.metrics.flushErrors.Inc(1)
+		} else {
+			l.metrics.flushSuccess.Inc(1)
 		}
 	}
 
-	// Collect tombstoned elements
+	// Collect tombstoned elements.
 	l.Lock()
 	for _, e := range l.toCollect {
 		l.aggregations.Remove(e)
 	}
+	numCollected := len(l.toCollect)
 	l.Unlock()
 
-	// TODO(xichen): add metrics
-	tickDuration := l.nowFn().Sub(start)
-	if tickDuration < l.flushInterval {
+	l.metrics.flushCollected.Inc(int64(numCollected))
+	flushDuration := l.nowFn().Sub(start)
+	l.metrics.flushDuration.Record(flushDuration)
+	if flushDuration < l.flushInterval {
 		// NB(xichen): use a channel here instead of sleeping in case
-		// server needs to close and we don't tick frequently enough
+		// server needs to close and we don't tick frequently enough.
 		select {
-		case <-l.waitForFn(l.flushInterval - tickDuration):
+		case <-l.waitForFn(l.flushInterval - flushDuration):
 		case <-l.doneCh:
 		}
 	}
@@ -233,7 +264,6 @@ func (l *metricList) processAggregatedMetric(
 		},
 		Policy: policy,
 	}); err != nil {
-		// TODO(xichen): add metrics
 		l.log.WithFields(
 			xlog.NewLogField("idPrefix", string(idPrefix)),
 			xlog.NewLogField("id", id.String()),
@@ -243,19 +273,20 @@ func (l *metricList) processAggregatedMetric(
 			xlog.NewLogField("policy", policy.String()),
 			xlog.NewLogErrField(err),
 		).Error("encode metric with policy error")
+		l.metrics.encodeErrors.Inc(1)
 		buffer.Truncate(sizeBefore)
-		// Clear out the encoder error
+		// Clear out the encoder error.
 		l.encoder.Reset(encoder)
 		return
 	}
 	sizeAfter := buffer.Len()
-	// If the buffer size is not big enough, do nothing
+	// If the buffer size is not big enough, do nothing.
 	if sizeAfter < l.maxFlushSize {
 		return
 	}
 	// Otherwise we get a new buffer and copy the bytes exceeding the max
 	// flush size to it, swap the new buffer with the old one, and flush out
-	// the old buffer
+	// the old buffer.
 	encoder2 := l.encoderPool.Get()
 	encoder2.Reset()
 	data := encoder.Bytes()
@@ -264,12 +295,27 @@ func (l *metricList) processAggregatedMetric(
 	buffer.Truncate(sizeBefore)
 	if err := l.flushHandler.Handle(encoder); err != nil {
 		l.log.Errorf("flushing metrics error: %v", err)
+		l.metrics.flushErrors.Inc(1)
+	} else {
+		l.metrics.flushSuccess.Inc(1)
 	}
+}
+
+func (l *metricList) reportMetrics() {
+	l.RLock()
+	if l.closed {
+		l.RUnlock()
+		return
+	}
+	numElems := l.aggregations.Len()
+	l.RUnlock()
+
+	l.metrics.numElems.Update(float64(numElems))
 }
 
 type newMetricListFn func(resolution time.Duration, opts Options) *metricList
 
-// metricLists contains all the metric lists
+// metricLists contains all the metric lists.
 type metricLists struct {
 	sync.RWMutex
 
@@ -313,7 +359,7 @@ func (l *metricLists) Close() {
 }
 
 // FindOrCreate looks up a metric list based on a resolution,
-// and if not found, creates one
+// and if not found, creates one.
 func (l *metricLists) FindOrCreate(resolution time.Duration) (*metricList, error) {
 	l.RLock()
 	if l.closed {
@@ -340,4 +386,16 @@ func (l *metricLists) FindOrCreate(resolution time.Duration) (*metricList, error
 	l.Unlock()
 
 	return list, nil
+}
+
+func (l *metricLists) reportMetrics() {
+	l.RLock()
+	if l.closed {
+		l.RUnlock()
+		return
+	}
+	for _, list := range l.lists {
+		list.reportMetrics()
+	}
+	l.RUnlock()
 }
