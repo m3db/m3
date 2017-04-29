@@ -55,6 +55,9 @@ type MetricsConfiguration struct {
 
 	// Metrics sampling rate.
 	SamplingRate float64 `yaml:"samplingRate" validate:"nonzero,min=0.0,max=1.0"`
+
+	// Whether to disable reporting extended metrics.
+	DisableExtendedMetrics bool `yaml:"disableExtendedMetrics"`
 }
 
 // NewRootScope creates a new tally.Scope based on a tally.CachedStatsReporter
@@ -67,8 +70,7 @@ func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	s, c := mc.NewRootScopeReporter(r)
-	return s, c, nil
+	return mc.NewRootScopeReporter(r)
 }
 
 // NewRootScopeReporter creates a new tally.Scope based on a given tally.CachedStatsReporter
@@ -76,7 +78,7 @@ func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
 // as hooking into the reporter to manually flush it.
 func (mc *MetricsConfiguration) NewRootScopeReporter(
 	r tally.CachedStatsReporter,
-) (tally.Scope, io.Closer) {
+) (tally.Scope, io.Closer, error) {
 	var (
 		prefix string
 		tags   map[string]string
@@ -96,7 +98,16 @@ func (mc *MetricsConfiguration) NewRootScopeReporter(
 		Prefix:         prefix,
 		CachedReporter: r,
 	}
-	return tally.NewRootScope(scopeOpts, mc.ReportInterval())
+	reportInterval := mc.ReportInterval()
+	scope, closer := tally.NewRootScope(scopeOpts, reportInterval)
+
+	if mc.DisableExtendedMetrics {
+		return scope, closer, nil
+	}
+	if _, err := StartReportingExtendedMetrics(scope, reportInterval); err != nil {
+		return nil, nil, err
+	}
+	return scope, closer, nil
 }
 
 // SampleRate returns the metrics sampling rate.
