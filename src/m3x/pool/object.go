@@ -100,6 +100,8 @@ func (p *objectPool) Init(alloc Allocator) {
 	for i := 0; i < cap(p.values); i++ {
 		p.values <- p.alloc()
 	}
+
+	p.setGauges()
 }
 
 func (p *objectPool) Get() interface{} {
