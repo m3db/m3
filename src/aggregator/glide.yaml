@@ -11,7 +11,7 @@ import:
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 
 - package: github.com/m3db/m3x
-  version: 4bad614fe5fe189fd32018a6d3225a11b191f24c
+  version: 1d5e58270a2083a8517e8ebf894feebcaaf4d823
 
 - package: github.com/uber-go/tally
   version: 3.0.0
