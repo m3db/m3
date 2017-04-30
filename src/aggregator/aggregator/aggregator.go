@@ -47,7 +47,7 @@ type aggregatorMetrics struct {
 func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
 	tickScope := scope.SubScope("tick")
 	return aggregatorMetrics{
-		addMetricWithPolicies: instrument.NewMethodMetrics(scope, "addMetricsWithPolicies", samplingRate),
+		addMetricWithPolicies: instrument.NewMethodMetrics(scope, "addMetricWithPolicies", samplingRate),
 		tickDuration:          tickScope.Timer("duration"),
 		tickExpired:           tickScope.Counter("expired"),
 	}
