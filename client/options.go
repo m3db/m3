@@ -99,13 +99,13 @@ const (
 	defaultBackgroundConnectInterval = 4 * time.Second
 
 	// defaultBackgroundConnectStutter is the default background connect stutter
-	defaultBackgroundConnectStutter = 1 * time.Second
+	defaultBackgroundConnectStutter = 2 * time.Second
 
 	// defaultBackgroundHealthCheckInterval is the default background health check interval
-	defaultBackgroundHealthCheckInterval = 1 * time.Second
+	defaultBackgroundHealthCheckInterval = 4 * time.Second
 
 	// defaultBackgroundHealthCheckStutter is the default background health check stutter
-	defaultBackgroundHealthCheckStutter = 1 * time.Second
+	defaultBackgroundHealthCheckStutter = 2 * time.Second
 
 	// defaultBackgroundHealthCheckFailLimit is the default background health failure
 	// limit before connection is deemed unhealth
