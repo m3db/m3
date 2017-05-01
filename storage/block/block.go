@@ -64,6 +64,11 @@ type dbBlock struct {
 	prev                      *dbBlock
 	nextPrevUpdatedAtUnixNano int64
 
+	// onStreamDoneFinalizer allows the on stream done completion fn
+	// to be passed to the context register finalizer method without
+	// a binding allocation as we do the binding allocation at creation
+	onStreamDoneFinalizer context.Finalizer
+
 	closed bool
 }
 
@@ -79,6 +84,7 @@ func NewWiredDatabaseBlock(
 		startUnixNano: start.UnixNano(),
 		closed:        false,
 	}
+	b.onStreamDoneFinalizer = context.FinalizerFn(b.updateWiredList)
 	if segment.Len() > 0 {
 		b.resetSegmentWithLock(segment)
 	}
@@ -98,6 +104,7 @@ func NewUnwiredDatabaseBlock(
 		startUnixNano: start.UnixNano(),
 		closed:        false,
 	}
+	b.onStreamDoneFinalizer = context.FinalizerFn(b.updateWiredList)
 	b.resetRetrievableWithLock(retriever, metadata)
 	return b
 }
@@ -212,8 +219,9 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	// Register the finalizer for the stream
 	blocker.RegisterFinalizer(reader)
 
-	// Asynchronously update the wired list LRU
-	b.updateWiredList()
+	// Asynchronously update the wired list LRU at the end
+	// of a read to avoid lock contention on read
+	blocker.RegisterFinalizer(b.onStreamDoneFinalizer)
 
 	return reader, nil
 }
