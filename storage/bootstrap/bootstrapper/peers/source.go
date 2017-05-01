@@ -301,7 +301,7 @@ func (s *peersSource) incrementalFlush(
 				Length:   bl.Len(),
 				Checksum: bl.Checksum(),
 			}
-			bl.ResetRetrievable(start, shardRetriever, metadata)
+			bl.ResetUnwired(start, shardRetriever, metadata)
 		}
 	}
 
