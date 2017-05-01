@@ -157,6 +157,17 @@ func (_mr *_MockTChanNodeRecorder) FetchBlocksRaw(arg0, arg1 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksRaw", arg0, arg1)
 }
 
+func (_m *MockTChanNode) GetMaxWiredBlocks(ctx thrift.Context) (*NodeMaxWiredBlocksResult_, error) {
+	ret := _m.ctrl.Call(_m, "GetMaxWiredBlocks", ctx)
+	ret0, _ := ret[0].(*NodeMaxWiredBlocksResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) GetMaxWiredBlocks(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetMaxWiredBlocks", arg0)
+}
+
 func (_m *MockTChanNode) GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error) {
 	ret := _m.ctrl.Call(_m, "GetPersistRateLimit", ctx)
 	ret0, _ := ret[0].(*NodePersistRateLimitResult_)
@@ -166,6 +177,17 @@ func (_m *MockTChanNode) GetPersistRateLimit(ctx thrift.Context) (*NodePersistRa
 
 func (_mr *_MockTChanNodeRecorder) GetPersistRateLimit(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetPersistRateLimit", arg0)
+}
+
+func (_m *MockTChanNode) GetWiredBlockExpiryAfterNotAccessedPeriod(ctx thrift.Context) (*NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error) {
+	ret := _m.ctrl.Call(_m, "GetWiredBlockExpiryAfterNotAccessedPeriod", ctx)
+	ret0, _ := ret[0].(*NodeWiredBlockExpiryAfterNotAccessedPeriodResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) GetWiredBlockExpiryAfterNotAccessedPeriod(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWiredBlockExpiryAfterNotAccessedPeriod", arg0)
 }
 
 func (_m *MockTChanNode) GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error) {
@@ -200,6 +222,17 @@ func (_mr *_MockTChanNodeRecorder) Repair(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0)
 }
 
+func (_m *MockTChanNode) SetMaxWiredBlocks(ctx thrift.Context, req *NodeSetMaxWiredBlocksRequest) (*NodeMaxWiredBlocksResult_, error) {
+	ret := _m.ctrl.Call(_m, "SetMaxWiredBlocks", ctx, req)
+	ret0, _ := ret[0].(*NodeMaxWiredBlocksResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) SetMaxWiredBlocks(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMaxWiredBlocks", arg0, arg1)
+}
+
 func (_m *MockTChanNode) SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error) {
 	ret := _m.ctrl.Call(_m, "SetPersistRateLimit", ctx, req)
 	ret0, _ := ret[0].(*NodePersistRateLimitResult_)
@@ -209,6 +242,17 @@ func (_m *MockTChanNode) SetPersistRateLimit(ctx thrift.Context, req *NodeSetPer
 
 func (_mr *_MockTChanNodeRecorder) SetPersistRateLimit(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPersistRateLimit", arg0, arg1)
+}
+
+func (_m *MockTChanNode) SetWiredBlockExpiryAfterNotAccessedPeriod(ctx thrift.Context, req *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) (*NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error) {
+	ret := _m.ctrl.Call(_m, "SetWiredBlockExpiryAfterNotAccessedPeriod", ctx, req)
+	ret0, _ := ret[0].(*NodeWiredBlockExpiryAfterNotAccessedPeriodResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) SetWiredBlockExpiryAfterNotAccessedPeriod(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWiredBlockExpiryAfterNotAccessedPeriod", arg0, arg1)
 }
 
 func (_m *MockTChanNode) SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error) {

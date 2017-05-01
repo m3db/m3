@@ -20,22 +20,40 @@
 
 package runtime
 
-import "github.com/m3db/m3db/ratelimit"
+import (
+	"time"
+
+	"github.com/m3db/m3db/ratelimit"
+)
 
 const (
+	// defaultWriteNewSeriesAsync is false by default to give consistent
+	// writes by default
 	defaultWriteNewSeriesAsync = false
+
+	// defaultMaxWiredBlocks is 2MM by default which if using 2hr block sizes
+	// and writing every 10s at 1.4 point/byte (m3tsz) should use roughly 4gb:
+	// 1.4 * 6 * 120 * (2^21) = ~2gb
+	defaultMaxWiredBlocks = 2097152
+
+	// defaultWiredBlockExpiryAfterNotAccessedPeriod is disabled by default
+	defaultWiredBlockExpiryAfterNotAccessedPeriod = 0
 )
 
 type options struct {
-	persistRateLimitOpts ratelimit.Options
-	writeNewSeriesAsync  bool
+	persistRateLimitOpts                   ratelimit.Options
+	writeNewSeriesAsync                    bool
+	maxWiredBlocks                         int
+	wiredBlockExpiryAfterNotAccessedPeriod time.Duration
 }
 
 // NewOptions creates a new set of runtime options with defaults
 func NewOptions() Options {
 	return &options{
-		persistRateLimitOpts: ratelimit.NewOptions(),
-		writeNewSeriesAsync:  defaultWriteNewSeriesAsync,
+		persistRateLimitOpts:                   ratelimit.NewOptions(),
+		writeNewSeriesAsync:                    defaultWriteNewSeriesAsync,
+		maxWiredBlocks:                         defaultMaxWiredBlocks,
+		wiredBlockExpiryAfterNotAccessedPeriod: defaultWiredBlockExpiryAfterNotAccessedPeriod,
 	}
 }
 
@@ -57,4 +75,24 @@ func (o *options) SetWriteNewSeriesAsync(value bool) Options {
 
 func (o *options) WriteNewSeriesAsync() bool {
 	return o.writeNewSeriesAsync
+}
+
+func (o *options) SetMaxWiredBlocks(value int) Options {
+	opts := *o
+	opts.maxWiredBlocks = value
+	return &opts
+}
+
+func (o *options) MaxWiredBlocks() int {
+	return o.maxWiredBlocks
+}
+
+func (o *options) SetWiredBlockExpiryAfterNotAccessedPeriod(value time.Duration) Options {
+	opts := *o
+	opts.wiredBlockExpiryAfterNotAccessedPeriod = value
+	return &opts
+}
+
+func (o *options) WiredBlockExpiryAfterNotAccessedPeriod() time.Duration {
+	return o.wiredBlockExpiryAfterNotAccessedPeriod
 }

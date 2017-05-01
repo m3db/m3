@@ -21,6 +21,8 @@
 package runtime
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3x/close"
 )
@@ -46,6 +48,30 @@ type Options interface {
 	// due to inserts into the shard map being buffered. The write is however written
 	// to the commit log before completing so it is considered durable.
 	WriteNewSeriesAsync() bool
+
+	// SetMaxWiredBlocks sets the max blocks to keep wired, zero is used
+	// to specify no limit. Wired blocks that are in the buffer, hence are
+	// being written, to cannot be unwired however which means this limit
+	// is best effort.
+	SetMaxWiredBlocks(value int) Options
+
+	// MaxWiredBlocks returns the max blocks to keep wired, zero is used
+	// to specify no limit. Wired blocks that are in the buffer, hence are
+	// being written, to cannot be unwired however which means this limit
+	// is best effort.
+	MaxWiredBlocks() int
+
+	// SetWiredBlockExpiryAfterNotAccessedPeriod returns the period that wired
+	// blocks should be expired after not being accessed for a given duration,
+	// zero specifies that wired blocks do not expire according when they are not
+	// accessed for a given duration.
+	SetWiredBlockExpiryAfterNotAccessedPeriod(period time.Duration) Options
+
+	// WiredBlockExpiryAfterNotAccessedPeriod returns the period that wired
+	// blocks should be expired after not being accessed for a given duration,
+	// zero specifies that wired blocks do not expire according when they are not
+	// accessed for a given duration.
+	WiredBlockExpiryAfterNotAccessedPeriod() time.Duration
 }
 
 // OptionsManager updates and supplies runtime options

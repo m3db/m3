@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 )
@@ -151,14 +150,29 @@ type DatabaseBlock interface {
 	// Merge will merge the current block with the specified block.
 	Merge(other DatabaseBlock) error
 
-	// IsRetrieved returns whether the block is already retrieved.
-	IsRetrieved() bool
+	// IsWired returns whether the block is wired in memory and
+	// doesn't require to be retrieved when asked to read the contents.
+	IsWired() bool
 
-	// Reset resets the block start time and the segment.
-	Reset(startTime time.Time, segment ts.Segment)
+	// IsRetrievable returns whether the block is retrievable, regardless
+	// of whether it is currently wired or unwired.
+	IsRetrievable() bool
 
-	// ResetRetrievable resets the block to become retrievable.
-	ResetRetrievable(
+	// SetRetrievable sets the block retriever and metadata to use
+	// when retrieving this block.
+	SetRetrievable(
+		retriever DatabaseShardBlockRetriever,
+		retrieveID ts.ID,
+	)
+
+	// ResetWired resets the block as wired with the contents in the segment.
+	ResetWired(
+		startTime time.Time,
+		segment ts.Segment,
+	)
+
+	// ResetUnwired resets the block as unwired and able to be retrieved.
+	ResetUnwired(
 		startTime time.Time,
 		retriever DatabaseShardBlockRetriever,
 		metadata RetrievableBlockMetadata,
@@ -314,12 +328,6 @@ type Options interface {
 
 	// ClockOptions returns the clock options
 	ClockOptions() clock.Options
-
-	// SetInstrumentOptions sets the instrument options
-	SetInstrumentOptions(value instrument.Options) Options
-
-	// InstrumentOptions returns the instrument options
-	InstrumentOptions() instrument.Options
 
 	// SetDatabaseBlockAllocSize sets the database block alloc size
 	SetDatabaseBlockAllocSize(value int) Options

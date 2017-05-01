@@ -39,34 +39,24 @@ const (
 
 	// defaultBufferDrain is the default buffer drain
 	defaultBufferDrain = 2 * time.Minute
-
-	// defaultDataExpiry is the default bool for whether data expiry is on
-	defaultDataExpiry = true
-
-	// defaultDataExpiryAfterNotAccessedPeriod is the default data expiry after not accessed period
-	defaultDataExpiryAfterNotAccessedPeriod = 5 * time.Minute
 )
 
 type options struct {
-	retentionPeriod                  time.Duration
-	blockSize                        time.Duration
-	bufferFuture                     time.Duration
-	bufferPast                       time.Duration
-	bufferDrain                      time.Duration
-	dataExpiry                       bool
-	dataExpiryAfterNotAccessedPeriod time.Duration
+	retentionPeriod time.Duration
+	blockSize       time.Duration
+	bufferFuture    time.Duration
+	bufferPast      time.Duration
+	bufferDrain     time.Duration
 }
 
 // NewOptions creates new retention options
 func NewOptions() Options {
 	return &options{
-		retentionPeriod:                  defaultRetentionPeriod,
-		blockSize:                        defaultBlockSize,
-		bufferFuture:                     defaultBufferFuture,
-		bufferPast:                       defaultBufferPast,
-		bufferDrain:                      defaultBufferDrain,
-		dataExpiry:                       defaultDataExpiry,
-		dataExpiryAfterNotAccessedPeriod: defaultDataExpiryAfterNotAccessedPeriod,
+		retentionPeriod: defaultRetentionPeriod,
+		blockSize:       defaultBlockSize,
+		bufferFuture:    defaultBufferFuture,
+		bufferPast:      defaultBufferPast,
+		bufferDrain:     defaultBufferDrain,
 	}
 }
 
@@ -118,24 +108,4 @@ func (o *options) SetBufferDrain(value time.Duration) Options {
 
 func (o *options) BufferDrain() time.Duration {
 	return o.bufferDrain
-}
-
-func (o *options) SetBlockDataExpiry(value bool) Options {
-	opts := *o
-	opts.dataExpiry = value
-	return &opts
-}
-
-func (o *options) BlockDataExpiry() bool {
-	return o.dataExpiry
-}
-
-func (o *options) SetBlockDataExpiryAfterNotAccessedPeriod(value time.Duration) Options {
-	opts := *o
-	opts.dataExpiryAfterNotAccessedPeriod = value
-	return &opts
-}
-
-func (o *options) BlockDataExpiryAfterNotAccessedPeriod() time.Duration {
-	return o.dataExpiryAfterNotAccessedPeriod
 }

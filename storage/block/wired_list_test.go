@@ -26,40 +26,69 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/instrument"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 )
 
 // The tests in this file use Start and Stop a lot to ensure
 // access to the fields of the list is safe and not-concurrent.
 
-var (
-	// To avoid recreating many many options during testing
-	testOptions = NewOptions()
-)
+// avoid creating a ton of new test options
+var testOptions = NewOptions()
 
-func newTestWiredBlock(name string, opts Options) *dbBlock {
+func newTestWiredList(
+	overrideRuntimeOpts runtime.Options,
+	overrideMetricsScope tally.Scope,
+) (*WiredList, runtime.OptionsManager) {
+	runopts := runtime.NewOptions()
+	if overrideRuntimeOpts != nil {
+		runopts = overrideRuntimeOpts
+	}
+	runtimeOptsMgr := runtime.NewOptionsManager(runopts)
+	iopts := instrument.NewOptions()
+	if overrideMetricsScope != nil {
+		iopts = iopts.SetMetricsScope(overrideMetricsScope)
+	}
+	return NewWiredList(runtimeOptsMgr, iopts), runtimeOptsMgr
+}
+
+func newTestUnwireableBlock(
+	ctrl *gomock.Controller,
+	name string,
+	opts Options,
+) *dbBlock {
 	segment := ts.Segment{
 		Head: checked.NewBytes([]byte(name), nil),
 	}
 	segment.Head.IncRef()
 
-	return NewDatabaseBlock(time.Time{}, segment, opts).(*dbBlock)
+	bl := NewWiredDatabaseBlock(time.Time{}, segment, opts).(*dbBlock)
+	bl.retriever = NewMockDatabaseShardBlockRetriever(ctrl)
+	bl.retrieveID = ts.StringID(name)
+
+	return bl
 }
 
 func TestWiredListInsertsAndUpdatesWiredBlocks(t *testing.T) {
-	opts := testOptions
-	l := NewWiredList(100, opts.InstrumentOptions())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	opts = opts.SetWiredList(l)
+	l, _ := newTestWiredList(nil, nil)
+
+	opts := testOptions.SetWiredList(l)
 
 	l.Start()
 
 	var blocks []*dbBlock
 	for i := 0; i < 3; i++ {
-		blocks = append(blocks, newTestWiredBlock(fmt.Sprintf("foo.%d", i), opts))
+		bl := newTestUnwireableBlock(ctrl, fmt.Sprintf("foo.%d", i), opts)
+		blocks = append(blocks, bl)
 	}
 
 	l.update(blocks[0])
@@ -82,16 +111,19 @@ func TestWiredListInsertsAndUpdatesWiredBlocks(t *testing.T) {
 }
 
 func TestWiredListRemovesUnwiredBlocks(t *testing.T) {
-	opts := testOptions
-	l := NewWiredList(100, opts.InstrumentOptions())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	opts = opts.SetWiredList(l)
+	l, _ := newTestWiredList(nil, nil)
+
+	opts := testOptions.SetWiredList(l)
 
 	l.Start()
 
 	var blocks []*dbBlock
 	for i := 0; i < 2; i++ {
-		blocks = append(blocks, newTestWiredBlock(fmt.Sprintf("foo.%d", i), opts))
+		bl := newTestUnwireableBlock(ctrl, fmt.Sprintf("foo.%d", i), opts)
+		blocks = append(blocks, bl)
 	}
 
 	l.update(blocks[0])

@@ -60,6 +60,10 @@ service Node {
 	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
 	NodeWriteNewSeriesAsyncResult getWriteNewSeriesAsync() throws (1: Error err)
 	NodeWriteNewSeriesAsyncResult setWriteNewSeriesAsync(1: NodeSetWriteNewSeriesAsyncRequest req) throws (1: Error err)
+	NodeMaxWiredBlocksResult getMaxWiredBlocks() throws (1: Error err)
+	NodeMaxWiredBlocksResult setMaxWiredBlocks(1: NodeSetMaxWiredBlocksRequest req) throws (1: Error err)
+	NodeWiredBlockExpiryAfterNotAccessedPeriodResult getWiredBlockExpiryAfterNotAccessedPeriod() throws (1: Error err)
+	NodeWiredBlockExpiryAfterNotAccessedPeriodResult setWiredBlockExpiryAfterNotAccessedPeriod(1: NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest req) throws (1: Error err)
 }
 
 struct FetchRequest {
@@ -217,6 +221,22 @@ struct NodeWriteNewSeriesAsyncResult {
 
 struct NodeSetWriteNewSeriesAsyncRequest {
 	1: required bool writeNewSeriesAsync
+}
+
+struct NodeMaxWiredBlocksResult {
+	1: required i64 maxWiredBlocks
+}
+
+struct NodeSetMaxWiredBlocksRequest {
+	1: required i64 maxWiredBlocks
+}
+
+struct NodeWiredBlockExpiryAfterNotAccessedPeriodResult {
+	1: required i64 expiryMilliseconds
+}
+
+struct NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest {
+	1: required i64 expiryMilliseconds
 }
 
 service Cluster {

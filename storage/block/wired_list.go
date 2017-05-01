@@ -22,8 +22,12 @@ package block
 
 import (
 	"sync"
+	"sync/atomic"
+	"time"
 
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3x/instrument"
+
 	"github.com/uber-go/tally"
 )
 
@@ -36,7 +40,9 @@ const (
 type WiredList struct {
 	sync.RWMutex
 
-	maxWired  int
+	// Max wired blocks, must use atomic store and load to access.
+	maxWired int64
+
 	root      dbBlock
 	len       int
 	updatesCh chan *dbBlock
@@ -46,29 +52,37 @@ type WiredList struct {
 }
 
 type wiredListMetrics struct {
-	wired   tally.Gauge
-	max     tally.Gauge
-	evicted tally.Counter
+	unwireable           tally.Gauge
+	limit                tally.Gauge
+	evicted              tally.Counter
+	evictedAfterDuration tally.Timer
 }
 
 // NewWiredList returns a new database block wired list.
 func NewWiredList(
-	maxWiredBlocks int,
+	runtimeOptsMgr runtime.OptionsManager,
 	iopts instrument.Options,
 ) *WiredList {
 	scope := iopts.MetricsScope().
 		SubScope("wired-list")
 	l := &WiredList{
-		maxWired: maxWiredBlocks,
 		metrics: wiredListMetrics{
-			wired:   scope.Gauge("wired"),
-			max:     scope.Gauge("max"),
-			evicted: scope.Counter("evicted"),
+			unwireable:           scope.Gauge("unwireable"),
+			limit:                scope.Gauge("limit"),
+			evicted:              scope.Counter("evicted"),
+			evictedAfterDuration: scope.Timer("evicted-after-duration"),
 		},
 	}
 	l.root.next = &l.root
 	l.root.prev = &l.root
+	runtimeOptsMgr.RegisterListener(l)
 	return l
+}
+
+// SetRuntimeOptions sets the current runtime options to
+// be consumed by the wired list
+func (l *WiredList) SetRuntimeOptions(value runtime.Options) {
+	atomic.StoreInt64(&l.maxWired, int64(value.MaxWiredBlocks()))
 }
 
 // Start starts processing the wired list
@@ -86,8 +100,8 @@ func (l *WiredList) Start() {
 		for v := range l.updatesCh {
 			l.processUpdateBlock(v)
 			if i%wiredListSampleGaugesEvery == 0 {
-				l.metrics.wired.Update(float64(l.len))
-				l.metrics.max.Update(float64(l.maxWired))
+				l.metrics.unwireable.Update(float64(l.len))
+				l.metrics.limit.Update(float64(atomic.LoadInt64(&l.maxWired)))
 			}
 			i++
 		}
@@ -104,6 +118,7 @@ func (l *WiredList) Stop() {
 	defer l.Unlock()
 	l.updatesCh = nil
 	close(l.doneCh)
+	l.doneCh = nil
 }
 
 func (l *WiredList) update(v *dbBlock) {
@@ -114,21 +129,25 @@ func (l *WiredList) update(v *dbBlock) {
 func (l *WiredList) processUpdateBlock(v *dbBlock) {
 	entry := v.wiredListEntry()
 
+	unwireable := entry.wired &&
+		entry.retriever != nil &&
+		entry.retrieveID != nil
+
 	// If already in list
 	if l.exists(v) {
-		// Push to back if already wired
-		if entry.wired {
+		// Push to back if wired and can unwire
+		if unwireable {
 			l.pushBack(v)
 			return
 		}
 
-		// Otherwise remove from the list as not wired any longer
+		// Otherwise remove from the list as not able to unwire anymore
 		l.remove(v)
 		return
 	}
 
-	// Not in the list, if wired add it
-	if entry.wired {
+	// Not in the list, if wired and can unwire add it
+	if unwireable {
 		l.pushBack(v)
 	}
 }
@@ -138,22 +157,27 @@ func (l *WiredList) insert(v, at *dbBlock) {
 	at.next = v
 	v.prev = at
 	v.next = n
+	v.nextPrevUpdatedAtUnixNano = time.Now().UnixNano()
 	n.prev = v
 	l.len++
 
-	if l.maxWired <= 0 {
+	maxWired := int(atomic.LoadInt64(&l.maxWired))
+	if maxWired <= 0 {
 		// Not enforcing max wired blocks
 		return
 	}
 
 	// Try to unwire all blocks possible
-	for bl := l.root.next; l.len > l.maxWired && bl != &l.root; bl = bl.next {
+	for bl := l.root.next; l.len > maxWired && bl != &l.root; bl = bl.next {
 		if bl.unwire() {
 			// Successfully unwired the block
 			l.remove(bl)
+
 			l.metrics.evicted.Inc(1)
+
+			lastUpdatedAt := time.Unix(0, bl.nextPrevUpdatedAtUnixNano)
+			l.metrics.evictedAfterDuration.Record(time.Since(lastUpdatedAt))
 		}
-		bl = bl.next
 	}
 }
 
@@ -175,7 +199,6 @@ func (l *WiredList) pushBack(v *dbBlock) {
 		l.moveToBack(v)
 		return
 	}
-
 	l.insert(v, l.root.prev)
 }
 

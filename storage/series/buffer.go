@@ -579,7 +579,7 @@ func (b *dbBufferBucket) discardMerged() discardMergedResult {
 		// Already merged as a single encoder
 		encoder := b.encoders[0].encoder
 		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		newBlock.Reset(b.start, encoder.Discard())
+		newBlock.ResetWired(b.start, encoder.Discard())
 		b.encoders = b.encoders[:0]
 		return discardMergedResult{newBlock, 0}
 	}
@@ -599,7 +599,7 @@ func (b *dbBufferBucket) discardMerged() discardMergedResult {
 	if len(b.bootstrapped) > 0 {
 		unretrieved := 0
 		for i := range b.bootstrapped {
-			if !b.bootstrapped[i].IsRetrieved() {
+			if !b.bootstrapped[i].IsWired() {
 				unretrieved++
 			}
 		}
@@ -644,7 +644,7 @@ func (b *dbBufferBucket) discardMerged() discardMergedResult {
 	iter.Close()
 
 	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	newBlock.Reset(b.start, encoder.Discard())
+	newBlock.ResetWired(b.start, encoder.Discard())
 
 	return discardMergedResult{newBlock, merges}
 }

@@ -365,6 +365,7 @@ func (s *dbShard) tickAndExpire(
 		perEntrySoftDeadline = softDeadline / time.Duration(size)
 	}
 	start := s.nowFn()
+	runopts := s.opts.RuntimeOptionsManager().Get()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
 			// NB(xichen): if the tick is cancelled, we bail out immediately.
@@ -385,7 +386,7 @@ func (s *dbShard) tickAndExpire(
 		)
 		switch policy {
 		case tickPolicyRegular:
-			result, err = entry.series.Tick()
+			result, err = entry.series.Tick(runopts)
 		case tickPolicyForceExpiry:
 			err = series.ErrSeriesAllDatapointsExpired
 		}

@@ -632,6 +632,47 @@ func (s *service) SetWriteNewSeriesAsync(
 	return s.GetWriteNewSeriesAsync(ctx)
 }
 
+func (s *service) GetMaxWiredBlocks(
+	ctx thrift.Context,
+) (*rpc.NodeMaxWiredBlocksResult_, error) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	value := runtimeOptsMgr.Get().MaxWiredBlocks()
+	return &rpc.NodeMaxWiredBlocksResult_{
+		MaxWiredBlocks: int64(value),
+	}, nil
+}
+
+func (s *service) SetMaxWiredBlocks(
+	ctx thrift.Context,
+	req *rpc.NodeSetMaxWiredBlocksRequest,
+) (*rpc.NodeMaxWiredBlocksResult_, error) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	set := runtimeOptsMgr.Get().SetMaxWiredBlocks(int(req.MaxWiredBlocks))
+	runtimeOptsMgr.Update(set)
+	return s.GetMaxWiredBlocks(ctx)
+}
+
+func (s *service) GetWiredBlockExpiryAfterNotAccessedPeriod(
+	ctx thrift.Context,
+) (*rpc.NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	value := runtimeOptsMgr.Get().WiredBlockExpiryAfterNotAccessedPeriod()
+	return &rpc.NodeWiredBlockExpiryAfterNotAccessedPeriodResult_{
+		ExpiryMilliseconds: int64(value / time.Millisecond),
+	}, nil
+}
+
+func (s *service) SetWiredBlockExpiryAfterNotAccessedPeriod(
+	ctx thrift.Context,
+	req *rpc.NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest,
+) (*rpc.NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	v := time.Duration(req.ExpiryMilliseconds) * time.Millisecond
+	set := runtimeOptsMgr.Get().SetWiredBlockExpiryAfterNotAccessedPeriod(v)
+	runtimeOptsMgr.Update(set)
+	return s.GetWiredBlockExpiryAfterNotAccessedPeriod(ctx)
+}
+
 func (s *service) isOverloaded() bool {
 	// NB(xichen): for now we only use the database load to determine
 	// whether the server is overloaded. In the future we may also take

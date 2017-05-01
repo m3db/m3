@@ -293,17 +293,17 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
 	require.True(t, ok)
 	assert.Equal(t, fooBlock, block)
-	assert.False(t, fooBlock.IsRetrieved())
+	assert.False(t, fooBlock.IsWired())
 
 	block, ok = r.ShardResults()[0].BlockAt(ts.StringID("bar"), start.Add(ropts.BlockSize()))
 	require.True(t, ok)
 	assert.Equal(t, barBlock, block)
-	assert.False(t, barBlock.IsRetrieved())
+	assert.False(t, barBlock.IsWired())
 
 	block, ok = r.ShardResults()[1].BlockAt(ts.StringID("baz"), start)
 	require.True(t, ok)
 	assert.Equal(t, bazBlock, block)
-	assert.False(t, bazBlock.IsRetrieved())
+	assert.False(t, bazBlock.IsWired())
 
 	assert.Equal(t, map[string]int{
 		"foo": 1, "bar": 1, "baz": 1,

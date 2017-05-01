@@ -35,7 +35,7 @@ import (
 
 func testDatabaseBlock(ctrl *gomock.Controller) *dbBlock {
 	opts := NewOptions()
-	b := NewDatabaseBlock(time.Now(), ts.Segment{}, opts).(*dbBlock)
+	b := NewWiredDatabaseBlock(time.Now(), ts.Segment{}, opts).(*dbBlock)
 	return b
 }
 
@@ -49,7 +49,7 @@ func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks 
 	blocks := testDatabaseSeriesBlocks()
 	for _, timestamp := range times {
 		block := opts.DatabaseBlockPool().Get()
-		block.Reset(timestamp, ts.Segment{})
+		block.ResetWired(timestamp, ts.Segment{})
 		blocks.AddBlock(block)
 	}
 	return blocks
@@ -141,7 +141,7 @@ func testDatabaseBlockWithDependentContext(
 }
 
 func TestDatabaseBlockResetNormalWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.Reset(time.Now(), ts.Segment{}) }
+	f := func(block *dbBlock) { block.ResetWired(time.Now(), ts.Segment{}) }
 	af := func(t *testing.T, block *dbBlock) { require.False(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, af)
 }

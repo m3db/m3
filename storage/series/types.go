@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -41,7 +42,7 @@ type DatabaseSeries interface {
 	ID() ts.ID
 
 	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc
-	Tick() (TickResult, error)
+	Tick(runopts runtime.Options) (TickResult, error)
 
 	// Write writes a new value
 	Write(
