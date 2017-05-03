@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -110,7 +111,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 	assert.Equal(t, true, series.buffer.NeedsDrain())
 
 	// Tick the series which should cause a drain
-	_, err := series.Tick()
+	_, err := series.Tick(runtime.NewOptions())
 	assert.NoError(t, err)
 
 	assert.Equal(t, false, series.buffer.NeedsDrain())
@@ -207,7 +208,7 @@ func TestSeriesFlush(t *testing.T) {
 	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
 
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(flushTime, ts.NewSegment(head, tail, ts.FinalizeNone))
+	block.ResetWired(flushTime, ts.NewSegment(head, tail, ts.FinalizeNone))
 	series.blocks.AddBlock(block)
 
 	inputs := []error{errors.New("some error"), nil}
@@ -224,7 +225,7 @@ func TestSeriesTickEmptySeries(t *testing.T) {
 	opts := newSeriesTestOptions()
 	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
-	_, err := series.Tick()
+	_, err := series.Tick(runtime.NewOptions())
 	require.Equal(t, ErrSeriesAllDatapointsExpired, err)
 }
 
@@ -239,7 +240,7 @@ func TestSeriesTickDrainAndResetBuffer(t *testing.T) {
 	series.buffer = buffer
 	buffer.EXPECT().DrainAndReset().Return(drainAndResetResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{openBlocks: 1, wiredBlocks: 1})
-	r, err := series.Tick()
+	r, err := series.Tick(runtime.NewOptions())
 	require.NoError(t, err)
 	assert.Equal(t, 1, r.ActiveBlocks)
 	assert.Equal(t, 1, r.WiredBlocks)
@@ -275,7 +276,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	series.buffer = buffer
 	buffer.EXPECT().DrainAndReset().Return(drainAndResetResult{})
 	buffer.EXPECT().Stats().Return(bufferStats{openBlocks: 1, wiredBlocks: 1})
-	r, err := series.Tick()
+	r, err := series.Tick(runtime.NewOptions())
 	require.NoError(t, err)
 	require.Equal(t, 2, r.ActiveBlocks)
 	require.Equal(t, 2, r.WiredBlocks)
@@ -326,7 +327,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	err := series.Bootstrap(blocks)
 	require.NotNil(t, err)
 
-	str := fmt.Sprintf("bootstrap series error occurred for %s block at %s: %s",
+	str := fmt.Sprintf("series bootstrap error occurred for %s block at %s: %s",
 		series.ID().String(), errBlockStart.String(), "bar")
 	require.Equal(t, str, err.Error())
 	require.Equal(t, bootstrapped, series.bs)

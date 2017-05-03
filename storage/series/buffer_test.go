@@ -411,7 +411,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	require.NoError(t, err)
 
 	blopts := opts.DatabaseBlockOptions()
-	newBlock := block.NewDatabaseBlock(curr, encoder.Discard(), blopts)
+	newBlock := block.NewWiredDatabaseBlock(curr, encoder.Discard(), blopts)
 	b.bootstrapped = append(b.bootstrapped, newBlock)
 	ctx := opts.ContextPool().Get()
 	stream, err := b.bootstrapped[0].Stream(ctx)
