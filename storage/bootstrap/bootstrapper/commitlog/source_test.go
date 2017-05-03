@@ -303,7 +303,7 @@ func requireShardResults(
 	for _, r := range allResults {
 		for start, blockResult := range r.blocks {
 			enc := blockResult.encoder
-			bl := block.NewDatabaseBlock(start, enc.Discard(), blopts)
+			bl := block.NewWiredDatabaseBlock(start, enc.Discard(), blopts)
 			r.result.AddBlock(bl)
 		}
 	}
