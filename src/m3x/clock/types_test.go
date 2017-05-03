@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,27 @@
 package clock
 
 import (
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-// NowFn is the function supplied to determine "now"
-type NowFn func() time.Time
-
-// Options represents the options for the clock
-type Options interface {
-	// SetNowFn sets the nowFn
-	SetNowFn(value NowFn) Options
-
-	// NowFn returns the nowFn
-	NowFn() NowFn
+func TestAlwaysFalseConditionFn(t *testing.T) {
+	falseConditionFn := func() bool { return false }
+	require.False(t, WaitUntil(falseConditionFn, time.Second))
 }
 
-// ConditionFn specifies a predicate to check
-type ConditionFn func() bool
+func TestAlwaysTrueConditionFn(t *testing.T) {
+	trueConditionFn := func() bool { return true }
+	require.True(t, WaitUntil(trueConditionFn, time.Second))
+}
 
-// WaitUntil returns true if the condition specified evaluated to
-// true before the timeout, false otherwise
-func WaitUntil(fn ConditionFn, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return true
-		}
-		time.Sleep(100 * time.Millisecond)
+func TestDeadlineExpiredConditionFn(t *testing.T) {
+	count := 0
+	delayedConditionFn := func() bool {
+		count++
+		return count > 4
 	}
-	return false
+	require.True(t, WaitUntil(delayedConditionFn, time.Second))
 }
