@@ -67,7 +67,7 @@ func ToDuration(duration int64, durationType rpc.DurationType) (time.Duration, e
 	case rpc.DurationType_MICROSECONDS:
 		return time.Duration(duration) * time.Microsecond, nil
 	case rpc.DurationType_NANOSECONDS:
-		return time.Duration(duration) * time.Microsecond, nil
+		return time.Duration(duration) * time.Nanosecond, nil
 	}
 	return 0, errUnknownDurationType
 }
