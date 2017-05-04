@@ -147,7 +147,7 @@ func TestWiredListRemovesUnwiredBlocks(t *testing.T) {
 	l.update(blocks[1])
 	l.Stop()
 
-	assert.Equal(t, 1, l.len)
+	assert.Equal(t, 1, l.length)
 	assert.Equal(t, blocks[0], l.root.next)
 	assert.Equal(t, &l.root, l.root.next.next)
 
@@ -158,7 +158,7 @@ func TestWiredListRemovesUnwiredBlocks(t *testing.T) {
 	l.update(blocks[0])
 	l.Stop()
 
-	assert.Equal(t, 0, l.len)
+	assert.Equal(t, 0, l.length)
 	assert.Equal(t, &l.root, l.root.next)
 	assert.Equal(t, &l.root, l.root.prev)
 }

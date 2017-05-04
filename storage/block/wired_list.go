@@ -39,7 +39,7 @@ const (
 
 // WiredList is a database block wired list.
 type WiredList struct {
-	sync.RWMutex
+	sync.Mutex
 
 	nowFn clock.NowFn
 
@@ -47,7 +47,7 @@ type WiredList struct {
 	maxWired int64
 
 	root      dbBlock
-	len       int
+	length    int
 	updatesCh chan *dbBlock
 	doneCh    chan struct{}
 
@@ -105,7 +105,7 @@ func (l *WiredList) Start() {
 		for v := range l.updatesCh {
 			l.processUpdateBlock(v)
 			if i%wiredListSampleGaugesEvery == 0 {
-				l.metrics.unwireable.Update(float64(l.len))
+				l.metrics.unwireable.Update(float64(l.length))
 				l.metrics.limit.Update(float64(atomic.LoadInt64(&l.maxWired)))
 			}
 			i++
@@ -138,23 +138,14 @@ func (l *WiredList) processUpdateBlock(v *dbBlock) {
 		entry.retriever != nil &&
 		entry.retrieveID != nil
 
-	// If already in list
-	if l.exists(v) {
-		// Push to back if wired and can unwire
-		if unwireable {
-			l.pushBack(v)
-			return
-		}
-
-		// Otherwise remove from the list as not able to unwire anymore
-		l.remove(v)
+	if unwireable {
+		// Always push to back if unwireable
+		l.pushBack(v)
 		return
 	}
 
-	// Not in the list, if wired and can unwire add it
-	if unwireable {
-		l.pushBack(v)
-	}
+	// Otherwise remove from this as not a candidate any longer
+	l.remove(v)
 }
 
 func (l *WiredList) insertAfter(v, at *dbBlock) {
@@ -166,7 +157,7 @@ func (l *WiredList) insertAfter(v, at *dbBlock) {
 	v.next = n
 	v.nextPrevUpdatedAtUnixNano = now.UnixNano()
 	n.prev = v
-	l.len++
+	l.length++
 
 	maxWired := int(atomic.LoadInt64(&l.maxWired))
 	if maxWired <= 0 {
@@ -175,7 +166,7 @@ func (l *WiredList) insertAfter(v, at *dbBlock) {
 	}
 
 	// Try to unwire all blocks possible
-	for bl := l.root.next; l.len > maxWired && bl != &l.root; bl = bl.next {
+	for bl := l.root.next; l.length > maxWired && bl != &l.root; bl = bl.next {
 		if bl.unwire() {
 			// Successfully unwired the block
 			l.remove(bl)
@@ -197,7 +188,7 @@ func (l *WiredList) remove(v *dbBlock) {
 	v.next.prev = v.prev
 	v.next = nil // avoid memory leaks
 	v.prev = nil // avoid memory leaks
-	l.len--
+	l.length--
 	return
 }
 
