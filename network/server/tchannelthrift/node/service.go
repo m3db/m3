@@ -658,7 +658,8 @@ func (s *service) GetWiredBlockExpiryAfterNotAccessedPeriod(
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	value := runtimeOptsMgr.Get().WiredBlockExpiryAfterNotAccessedPeriod()
 	return &rpc.NodeWiredBlockExpiryAfterNotAccessedPeriodResult_{
-		ExpiryMilliseconds: int64(value / time.Millisecond),
+		Duration:     int64(value / time.Second),
+		DurationType: rpc.DurationType_SECONDS,
 	}, nil
 }
 
@@ -666,9 +667,13 @@ func (s *service) SetWiredBlockExpiryAfterNotAccessedPeriod(
 	ctx thrift.Context,
 	req *rpc.NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest,
 ) (*rpc.NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error) {
+	value, err := convert.ToDuration(req.Duration, req.DurationType)
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
-	v := time.Duration(req.ExpiryMilliseconds) * time.Millisecond
-	set := runtimeOptsMgr.Get().SetWiredBlockExpiryAfterNotAccessedPeriod(v)
+	set := runtimeOptsMgr.Get().SetWiredBlockExpiryAfterNotAccessedPeriod(value)
 	runtimeOptsMgr.Update(set)
 	return s.GetWiredBlockExpiryAfterNotAccessedPeriod(ctx)
 }

@@ -104,6 +104,74 @@ func (p *TimeType) Value() (driver.Value, error) {
 	return int64(*p), nil
 }
 
+type DurationType int64
+
+const (
+	DurationType_SECONDS      DurationType = 0
+	DurationType_MICROSECONDS DurationType = 1
+	DurationType_MILLISECONDS DurationType = 2
+	DurationType_NANOSECONDS  DurationType = 3
+)
+
+func (p DurationType) String() string {
+	switch p {
+	case DurationType_SECONDS:
+		return "SECONDS"
+	case DurationType_MICROSECONDS:
+		return "MICROSECONDS"
+	case DurationType_MILLISECONDS:
+		return "MILLISECONDS"
+	case DurationType_NANOSECONDS:
+		return "NANOSECONDS"
+	}
+	return "<UNSET>"
+}
+
+func DurationTypeFromString(s string) (DurationType, error) {
+	switch s {
+	case "SECONDS":
+		return DurationType_SECONDS, nil
+	case "MICROSECONDS":
+		return DurationType_MICROSECONDS, nil
+	case "MILLISECONDS":
+		return DurationType_MILLISECONDS, nil
+	case "NANOSECONDS":
+		return DurationType_NANOSECONDS, nil
+	}
+	return DurationType(0), fmt.Errorf("not a valid DurationType string")
+}
+
+func DurationTypePtr(v DurationType) *DurationType { return &v }
+
+func (p DurationType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *DurationType) UnmarshalText(text []byte) error {
+	q, err := DurationTypeFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
+func (p *DurationType) Scan(value interface{}) error {
+	v, ok := value.(int64)
+	if !ok {
+		return errors.New("Scan value is not int64")
+	}
+	*p = DurationType(v)
+	return nil
+}
+
+func (p *DurationType) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return int64(*p), nil
+}
+
 type ErrorType int64
 
 const (
@@ -5584,24 +5652,31 @@ func (p *NodeSetMaxWiredBlocksRequest) String() string {
 }
 
 // Attributes:
-//  - ExpiryMilliseconds
+//  - Duration
+//  - DurationType
 type NodeWiredBlockExpiryAfterNotAccessedPeriodResult_ struct {
-	ExpiryMilliseconds int64 `thrift:"expiryMilliseconds,1,required" db:"expiryMilliseconds" json:"expiryMilliseconds"`
+	Duration     int64        `thrift:"duration,1,required" db:"duration" json:"duration"`
+	DurationType DurationType `thrift:"durationType,2,required" db:"durationType" json:"durationType"`
 }
 
 func NewNodeWiredBlockExpiryAfterNotAccessedPeriodResult_() *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_ {
 	return &NodeWiredBlockExpiryAfterNotAccessedPeriodResult_{}
 }
 
-func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) GetExpiryMilliseconds() int64 {
-	return p.ExpiryMilliseconds
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) GetDuration() int64 {
+	return p.Duration
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) GetDurationType() DurationType {
+	return p.DurationType
 }
 func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
-	var issetExpiryMilliseconds bool = false
+	var issetDuration bool = false
+	var issetDurationType bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -5616,7 +5691,12 @@ func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) Read(iprot thrift.TP
 			if err := p.ReadField1(iprot); err != nil {
 				return err
 			}
-			issetExpiryMilliseconds = true
+			issetDuration = true
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+			issetDurationType = true
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -5629,8 +5709,11 @@ func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) Read(iprot thrift.TP
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 	}
-	if !issetExpiryMilliseconds {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field ExpiryMilliseconds is not set"))
+	if !issetDuration {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Duration is not set"))
+	}
+	if !issetDurationType {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field DurationType is not set"))
 	}
 	return nil
 }
@@ -5639,7 +5722,17 @@ func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) ReadField1(iprot thr
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
-		p.ExpiryMilliseconds = v
+		p.Duration = v
+	}
+	return nil
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		temp := DurationType(v)
+		p.DurationType = temp
 	}
 	return nil
 }
@@ -5650,6 +5743,9 @@ func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) Write(oprot thrift.T
 	}
 	if p != nil {
 		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
 			return err
 		}
 	}
@@ -5663,14 +5759,27 @@ func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) Write(oprot thrift.T
 }
 
 func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("expiryMilliseconds", thrift.I64, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:expiryMilliseconds: ", p), err)
+	if err := oprot.WriteFieldBegin("duration", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:duration: ", p), err)
 	}
-	if err := oprot.WriteI64(int64(p.ExpiryMilliseconds)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.expiryMilliseconds (1) field write error: ", p), err)
+	if err := oprot.WriteI64(int64(p.Duration)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.duration (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:expiryMilliseconds: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:duration: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) writeField2(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("durationType", thrift.I32, 2); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:durationType: ", p), err)
+	}
+	if err := oprot.WriteI32(int32(p.DurationType)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.durationType (2) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:durationType: ", p), err)
 	}
 	return err
 }
@@ -5683,24 +5792,38 @@ func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) String() string {
 }
 
 // Attributes:
-//  - ExpiryMilliseconds
+//  - Duration
+//  - DurationType
 type NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest struct {
-	ExpiryMilliseconds int64 `thrift:"expiryMilliseconds,1,required" db:"expiryMilliseconds" json:"expiryMilliseconds"`
+	Duration     int64        `thrift:"duration,1,required" db:"duration" json:"duration"`
+	DurationType DurationType `thrift:"durationType,2" db:"durationType" json:"durationType,omitempty"`
 }
 
 func NewNodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest() *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest {
-	return &NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest{}
+	return &NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest{
+		DurationType: 0,
+	}
 }
 
-func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) GetExpiryMilliseconds() int64 {
-	return p.ExpiryMilliseconds
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) GetDuration() int64 {
+	return p.Duration
 }
+
+var NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest_DurationType_DEFAULT DurationType = 0
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) GetDurationType() DurationType {
+	return p.DurationType
+}
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) IsSetDurationType() bool {
+	return p.DurationType != NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest_DurationType_DEFAULT
+}
+
 func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
-	var issetExpiryMilliseconds bool = false
+	var issetDuration bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -5715,7 +5838,11 @@ func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) Read(iprot thrift
 			if err := p.ReadField1(iprot); err != nil {
 				return err
 			}
-			issetExpiryMilliseconds = true
+			issetDuration = true
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -5728,8 +5855,8 @@ func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) Read(iprot thrift
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 	}
-	if !issetExpiryMilliseconds {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field ExpiryMilliseconds is not set"))
+	if !issetDuration {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Duration is not set"))
 	}
 	return nil
 }
@@ -5738,7 +5865,17 @@ func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) ReadField1(iprot 
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
-		p.ExpiryMilliseconds = v
+		p.Duration = v
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		temp := DurationType(v)
+		p.DurationType = temp
 	}
 	return nil
 }
@@ -5749,6 +5886,9 @@ func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) Write(oprot thrif
 	}
 	if p != nil {
 		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
 			return err
 		}
 	}
@@ -5762,14 +5902,29 @@ func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) Write(oprot thrif
 }
 
 func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("expiryMilliseconds", thrift.I64, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:expiryMilliseconds: ", p), err)
+	if err := oprot.WriteFieldBegin("duration", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:duration: ", p), err)
 	}
-	if err := oprot.WriteI64(int64(p.ExpiryMilliseconds)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.expiryMilliseconds (1) field write error: ", p), err)
+	if err := oprot.WriteI64(int64(p.Duration)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.duration (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:expiryMilliseconds: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:duration: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDurationType() {
+		if err := oprot.WriteFieldBegin("durationType", thrift.I32, 2); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:durationType: ", p), err)
+		}
+		if err := oprot.WriteI32(int32(p.DurationType)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.durationType (2) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:durationType: ", p), err)
+		}
 	}
 	return err
 }
@@ -11957,7 +12112,9 @@ func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs) Read(iprot thrift.TP
 }
 
 func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs) ReadField1(iprot thrift.TProtocol) error {
-	p.Req = &NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest{}
+	p.Req = &NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest{
+		DurationType: 0,
+	}
 	if err := p.Req.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -55,7 +56,8 @@ func newTestWiredList(
 	if overrideMetricsScope != nil {
 		iopts = iopts.SetMetricsScope(overrideMetricsScope)
 	}
-	return NewWiredList(runtimeOptsMgr, iopts), runtimeOptsMgr
+	copts := clock.NewOptions()
+	return NewWiredList(runtimeOptsMgr, iopts, copts), runtimeOptsMgr
 }
 
 func newTestUnwireableBlock(

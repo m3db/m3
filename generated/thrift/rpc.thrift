@@ -27,6 +27,13 @@ enum TimeType {
 	UNIX_NANOSECONDS
 }
 
+enum DurationType {
+	SECONDS,
+	MICROSECONDS,
+	MILLISECONDS,
+	NANOSECONDS
+}
+
 enum ErrorType {
 	INTERNAL_ERROR,
 	BAD_REQUEST
@@ -232,11 +239,13 @@ struct NodeSetMaxWiredBlocksRequest {
 }
 
 struct NodeWiredBlockExpiryAfterNotAccessedPeriodResult {
-	1: required i64 expiryMilliseconds
+	1: required i64 duration
+	2: required DurationType durationType
 }
 
 struct NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest {
-	1: required i64 expiryMilliseconds
+	1: required i64 duration
+	2: optional DurationType durationType = DurationType.SECONDS
 }
 
 service Cluster {

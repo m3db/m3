@@ -671,12 +671,15 @@ func TestServiceSetWiredBlockExpiryAfterNotAccessedPeriod(t *testing.T) {
 
 	getResp, err := service.GetWiredBlockExpiryAfterNotAccessedPeriod(tctx)
 	require.NoError(t, err)
-	assert.Equal(t, int64(0), getResp.ExpiryMilliseconds)
+	assert.Equal(t, int64(0), getResp.Duration)
+	assert.Equal(t, rpc.DurationType_SECONDS, getResp.DurationType)
 
 	req := &rpc.NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest{
-		ExpiryMilliseconds: int64((5 * time.Minute) / time.Millisecond),
+		Duration:     int64((5 * time.Minute) / time.Second),
+		DurationType: rpc.DurationType_SECONDS,
 	}
 	setResp, err := service.SetWiredBlockExpiryAfterNotAccessedPeriod(tctx, req)
 	require.NoError(t, err)
-	assert.Equal(t, int64(300000), setResp.ExpiryMilliseconds)
+	assert.Equal(t, int64(300), setResp.Duration)
+	assert.Equal(t, rpc.DurationType_SECONDS, setResp.DurationType)
 }

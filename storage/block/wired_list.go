@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
@@ -39,6 +40,8 @@ const (
 // WiredList is a database block wired list.
 type WiredList struct {
 	sync.RWMutex
+
+	nowFn clock.NowFn
 
 	// Max wired blocks, must use atomic store and load to access.
 	maxWired int64
@@ -62,10 +65,12 @@ type wiredListMetrics struct {
 func NewWiredList(
 	runtimeOptsMgr runtime.OptionsManager,
 	iopts instrument.Options,
+	copts clock.Options,
 ) *WiredList {
 	scope := iopts.MetricsScope().
 		SubScope("wired-list")
 	l := &WiredList{
+		nowFn: copts.NowFn(),
 		metrics: wiredListMetrics{
 			unwireable:           scope.Gauge("unwireable"),
 			limit:                scope.Gauge("limit"),
@@ -152,12 +157,14 @@ func (l *WiredList) processUpdateBlock(v *dbBlock) {
 	}
 }
 
-func (l *WiredList) insert(v, at *dbBlock) {
+func (l *WiredList) insertAfter(v, at *dbBlock) {
+	now := l.nowFn()
+
 	n := at.next
 	at.next = v
 	v.prev = at
 	v.next = n
-	v.nextPrevUpdatedAtUnixNano = time.Now().UnixNano()
+	v.nextPrevUpdatedAtUnixNano = now.UnixNano()
 	n.prev = v
 	l.len++
 
@@ -176,7 +183,7 @@ func (l *WiredList) insert(v, at *dbBlock) {
 			l.metrics.evicted.Inc(1)
 
 			lastUpdatedAt := time.Unix(0, bl.nextPrevUpdatedAtUnixNano)
-			l.metrics.evictedAfterDuration.Record(time.Since(lastUpdatedAt))
+			l.metrics.evictedAfterDuration.Record(now.Sub(lastUpdatedAt))
 		}
 	}
 }
@@ -199,7 +206,7 @@ func (l *WiredList) pushBack(v *dbBlock) {
 		l.moveToBack(v)
 		return
 	}
-	l.insert(v, l.root.prev)
+	l.insertAfter(v, l.root.prev)
 }
 
 func (l *WiredList) moveToBack(v *dbBlock) {
@@ -207,7 +214,7 @@ func (l *WiredList) moveToBack(v *dbBlock) {
 		return
 	}
 	l.remove(v)
-	l.insert(v, l.root.prev)
+	l.insertAfter(v, l.root.prev)
 }
 
 func (l *WiredList) exists(v *dbBlock) bool {
