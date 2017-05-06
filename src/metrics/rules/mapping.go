@@ -36,11 +36,11 @@ var (
 // mappingRuleSnapshot defines a rule snapshot such that if a metric matches the
 // provided filters, it is aggregated and retained under the provided set of policies.
 type mappingRuleSnapshot struct {
-	name       string
-	tombstoned bool
-	cutoverNs  int64
-	filter     filters.Filter
-	policies   []policy.Policy
+	name         string
+	tombstoned   bool
+	cutoverNanos int64
+	filter       filters.Filter
+	policies     []policy.Policy
 }
 
 func newMappingRuleSnapshot(
@@ -59,11 +59,11 @@ func newMappingRuleSnapshot(
 		return nil, err
 	}
 	return &mappingRuleSnapshot{
-		name:       r.Name,
-		tombstoned: r.Tombstoned,
-		cutoverNs:  r.CutoverTime,
-		filter:     filter,
-		policies:   policies,
+		name:         r.Name,
+		tombstoned:   r.Tombstoned,
+		cutoverNanos: r.CutoverTime,
+		filter:       filter,
+		policies:     policies,
 	}, nil
 }
 
@@ -95,19 +95,19 @@ func newMappingRule(
 }
 
 // ActiveSnapshot returns the latest snapshot whose cutover time is earlier than or
-// equal to timeNs, or nil if not found.
-func (mc *mappingRule) ActiveSnapshot(timeNs int64) *mappingRuleSnapshot {
-	idx := mc.activeIndex(timeNs)
+// equal to timeNanos, or nil if not found.
+func (mc *mappingRule) ActiveSnapshot(timeNanos int64) *mappingRuleSnapshot {
+	idx := mc.activeIndex(timeNanos)
 	if idx < 0 {
 		return nil
 	}
 	return mc.snapshots[idx]
 }
 
-// ActiveRule returns the rule containing snapshots that's in effect at time timeNs
-// and all future snapshots after time timeNs.
-func (mc *mappingRule) ActiveRule(timeNs int64) *mappingRule {
-	idx := mc.activeIndex(timeNs)
+// ActiveRule returns the rule containing snapshots that's in effect at time timeNanos
+// and all future snapshots after time timeNanos.
+func (mc *mappingRule) ActiveRule(timeNanos int64) *mappingRule {
+	idx := mc.activeIndex(timeNanos)
 	// If there are no snapshots that are currently in effect, it means either all
 	// snapshots are in the future, or there are no snapshots.
 	if idx < 0 {
@@ -116,9 +116,9 @@ func (mc *mappingRule) ActiveRule(timeNs int64) *mappingRule {
 	return &mappingRule{uuid: mc.uuid, snapshots: mc.snapshots[idx:]}
 }
 
-func (mc *mappingRule) activeIndex(timeNs int64) int {
+func (mc *mappingRule) activeIndex(timeNanos int64) int {
 	idx := len(mc.snapshots) - 1
-	for idx >= 0 && mc.snapshots[idx].cutoverNs > timeNs {
+	for idx >= 0 && mc.snapshots[idx].cutoverNanos > timeNanos {
 		idx--
 	}
 	return idx

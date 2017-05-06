@@ -70,22 +70,22 @@ type Gauge struct {
 	Value float64
 }
 
-// CounterWithPolicies is a counter with applicable policies.
-type CounterWithPolicies struct {
+// CounterWithPoliciesList is a counter with applicable policies list.
+type CounterWithPoliciesList struct {
 	Counter
-	policy.VersionedPolicies
+	policy.PoliciesList
 }
 
-// BatchTimerWithPolicies is a batch timer with applicable policies.
-type BatchTimerWithPolicies struct {
+// BatchTimerWithPoliciesList is a batch timer with applicable policies list.
+type BatchTimerWithPoliciesList struct {
 	BatchTimer
-	policy.VersionedPolicies
+	policy.PoliciesList
 }
 
-// GaugeWithPolicies is a gauge with applicable policies.
-type GaugeWithPolicies struct {
+// GaugeWithPoliciesList is a gauge with applicable policies list.
+type GaugeWithPoliciesList struct {
 	Gauge
-	policy.VersionedPolicies
+	policy.PoliciesList
 }
 
 // MetricUnion is a union of different types of metrics, only one of which is valid

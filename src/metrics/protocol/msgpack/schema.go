@@ -40,9 +40,9 @@ const (
 	rootObjectType
 
 	// Object types exposed to the encoder interface.
-	counterWithPoliciesType
-	batchTimerWithPoliciesType
-	gaugeWithPoliciesType
+	counterWithPoliciesListType
+	batchTimerWithPoliciesListType
+	gaugeWithPoliciesListType
 	rawMetricWithPolicyType
 
 	// Object types not exposed to the encoder interface.
@@ -50,35 +50,37 @@ const (
 	batchTimerType
 	gaugeType
 	metricType
+	defaultPoliciesListType
+	customPoliciesListType
+	stagedPoliciesType
 	policyType
 	knownResolutionType
 	unknownResolutionType
 	knownRetentionType
 	unknownRetentionType
-	defaultVersionedPoliciesType
-	customVersionedPoliciesType
 
 	// Total number of object types.
 	numObjectTypes = iota
 )
 
 const (
-	numRootObjectFields             = 2
-	numCounterWithPoliciesFields    = 2
-	numBatchTimerWithPoliciesFields = 2
-	numGaugeWithPoliciesFields      = 2
-	numRawMetricWithPolicyFields    = 2
-	numCounterFields                = 2
-	numBatchTimerFields             = 2
-	numGaugeFields                  = 2
-	numMetricFields                 = 3
-	numPolicyFields                 = 2
-	numKnownResolutionFields        = 2
-	numUnknownResolutionFields      = 3
-	numKnownRetentionFields         = 2
-	numUnknownRetentionFields       = 2
-	numDefaultVersionedPolicyFields = 3
-	numCustomVersionedPolicyFields  = 4
+	numRootObjectFields                 = 2
+	numCounterWithPoliciesListFields    = 2
+	numBatchTimerWithPoliciesListFields = 2
+	numGaugeWithPoliciesListFields      = 2
+	numRawMetricWithPolicyFields        = 2
+	numCounterFields                    = 2
+	numBatchTimerFields                 = 2
+	numGaugeFields                      = 2
+	numMetricFields                     = 3
+	numDefaultStagedPoliciesListFields  = 1
+	numCustomStagedPoliciesListFields   = 2
+	numStagedPoliciesFields             = 3
+	numPolicyFields                     = 2
+	numKnownResolutionFields            = 2
+	numUnknownResolutionFields          = 3
+	numKnownRetentionFields             = 2
+	numUnknownRetentionFields           = 2
 )
 
 // NB(xichen): use a slice instead of a map to avoid lookup overhead.
@@ -96,19 +98,20 @@ func init() {
 	numObjectFields = make([]int, int(numObjectTypes))
 
 	setNumFieldsForType(rootObjectType, numRootObjectFields)
-	setNumFieldsForType(counterWithPoliciesType, numCounterWithPoliciesFields)
-	setNumFieldsForType(batchTimerWithPoliciesType, numBatchTimerWithPoliciesFields)
-	setNumFieldsForType(gaugeWithPoliciesType, numGaugeWithPoliciesFields)
+	setNumFieldsForType(counterWithPoliciesListType, numCounterWithPoliciesListFields)
+	setNumFieldsForType(batchTimerWithPoliciesListType, numBatchTimerWithPoliciesListFields)
+	setNumFieldsForType(gaugeWithPoliciesListType, numGaugeWithPoliciesListFields)
 	setNumFieldsForType(rawMetricWithPolicyType, numRawMetricWithPolicyFields)
 	setNumFieldsForType(counterType, numCounterFields)
 	setNumFieldsForType(batchTimerType, numBatchTimerFields)
 	setNumFieldsForType(gaugeType, numGaugeFields)
 	setNumFieldsForType(metricType, numMetricFields)
+	setNumFieldsForType(defaultPoliciesListType, numDefaultStagedPoliciesListFields)
+	setNumFieldsForType(customPoliciesListType, numCustomStagedPoliciesListFields)
+	setNumFieldsForType(stagedPoliciesType, numStagedPoliciesFields)
 	setNumFieldsForType(policyType, numPolicyFields)
 	setNumFieldsForType(knownResolutionType, numKnownResolutionFields)
 	setNumFieldsForType(unknownResolutionType, numUnknownResolutionFields)
 	setNumFieldsForType(knownRetentionType, numKnownRetentionFields)
 	setNumFieldsForType(unknownRetentionType, numKnownRetentionFields)
-	setNumFieldsForType(defaultVersionedPoliciesType, numDefaultVersionedPolicyFields)
-	setNumFieldsForType(customVersionedPoliciesType, numCustomVersionedPolicyFields)
 }

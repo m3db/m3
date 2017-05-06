@@ -103,23 +103,23 @@ func TestNewMappingRule(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "12669817-13ae-40e6-ba2f-33087b262c68", mr.uuid)
 	expectedSnapshots := []struct {
-		name       string
-		tombstoned bool
-		cutoverNs  int64
-		policies   []policy.Policy
+		name         string
+		tombstoned   bool
+		cutoverNanos int64
+		policies     []policy.Policy
 	}{
 		{
-			name:       "foo",
-			tombstoned: false,
-			cutoverNs:  12345,
+			name:         "foo",
+			tombstoned:   false,
+			cutoverNanos: 12345,
 			policies: []policy.Policy{
 				policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
 			},
 		},
 		{
-			name:       "bar",
-			tombstoned: true,
-			cutoverNs:  67890,
+			name:         "bar",
+			tombstoned:   true,
+			cutoverNanos: 67890,
 			policies: []policy.Policy{
 				policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
 				policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
@@ -129,7 +129,7 @@ func TestNewMappingRule(t *testing.T) {
 	for i, snapshot := range expectedSnapshots {
 		require.Equal(t, snapshot.name, mr.snapshots[i].name)
 		require.Equal(t, snapshot.tombstoned, mr.snapshots[i].tombstoned)
-		require.Equal(t, snapshot.cutoverNs, mr.snapshots[i].cutoverNs)
+		require.Equal(t, snapshot.cutoverNanos, mr.snapshots[i].cutoverNanos)
 		require.Equal(t, snapshot.policies, mr.snapshots[i].policies)
 	}
 }

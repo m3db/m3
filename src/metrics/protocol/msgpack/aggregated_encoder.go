@@ -103,7 +103,7 @@ func (enc *aggregatedEncoder) encodeMetricAsRaw(m aggregated.Metric) []byte {
 	enc.buf.resetData()
 	enc.encodeMetricProlog()
 	enc.buf.encodeID(m.ID)
-	enc.buf.encodeTime(m.Timestamp)
+	enc.buf.encodeVarint(m.TimeNanos)
 	enc.buf.encodeFloat64(m.Value)
 	return enc.buf.encoder().Bytes()
 }
@@ -112,7 +112,7 @@ func (enc *aggregatedEncoder) encodeChunkedMetricAsRaw(m aggregated.ChunkedMetri
 	enc.buf.resetData()
 	enc.encodeMetricProlog()
 	enc.buf.encodeChunkedID(m.ChunkedID)
-	enc.buf.encodeTime(m.Timestamp)
+	enc.buf.encodeVarint(m.TimeNanos)
 	enc.buf.encodeFloat64(m.Value)
 	return enc.buf.encoder().Bytes()
 }

@@ -45,12 +45,13 @@ type unaggregatedIterator struct {
 	largeFloatsPool     pool.FloatsPool
 	iteratorPool        UnaggregatedIteratorPool
 
-	closed            bool
-	metric            unaggregated.MetricUnion
-	versionedPolicies policy.VersionedPolicies
-	id                metric.ID
-	policies          []policy.Policy
-	timerValues       []float64
+	closed             bool
+	metric             unaggregated.MetricUnion
+	policiesList       policy.PoliciesList
+	id                 metric.ID
+	timerValues        []float64
+	cachedPolicies     [][]policy.Policy
+	cachedPoliciesList policy.PoliciesList
 }
 
 // NewUnaggregatedIterator creates a new unaggregated iterator.
@@ -77,8 +78,8 @@ func (it *unaggregatedIterator) Reset(reader io.Reader) {
 	it.reset(reader)
 }
 
-func (it *unaggregatedIterator) Value() (unaggregated.MetricUnion, policy.VersionedPolicies) {
-	return it.metric, it.versionedPolicies
+func (it *unaggregatedIterator) Value() (unaggregated.MetricUnion, policy.PoliciesList) {
+	return it.metric, it.policiesList
 }
 
 func (it *unaggregatedIterator) Next() bool {
@@ -100,7 +101,9 @@ func (it *unaggregatedIterator) Close() {
 	it.closed = true
 	it.reset(emptyReader)
 	it.metric.Reset()
-	it.versionedPolicies.Reset()
+	it.policiesList = nil
+	it.cachedPolicies = nil
+	it.cachedPoliciesList = nil
 	if it.iteratorPool != nil {
 		it.iteratorPool.Put(it)
 	}
@@ -131,8 +134,8 @@ func (it *unaggregatedIterator) decodeRootObject() bool {
 		return false
 	}
 	switch objType {
-	case counterWithPoliciesType, batchTimerWithPoliciesType, gaugeWithPoliciesType:
-		it.decodeMetricWithPolicies(objType)
+	case counterWithPoliciesListType, batchTimerWithPoliciesListType, gaugeWithPoliciesListType:
+		it.decodeMetricWithPoliciesList(objType)
 	default:
 		it.setErr(fmt.Errorf("unrecognized object type %v", objType))
 	}
@@ -141,23 +144,23 @@ func (it *unaggregatedIterator) decodeRootObject() bool {
 	return it.err() == nil
 }
 
-func (it *unaggregatedIterator) decodeMetricWithPolicies(objType objectType) {
+func (it *unaggregatedIterator) decodeMetricWithPoliciesList(objType objectType) {
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(objType)
 	if !ok {
 		return
 	}
 	switch objType {
-	case counterWithPoliciesType:
+	case counterWithPoliciesListType:
 		it.decodeCounter()
-	case batchTimerWithPoliciesType:
+	case batchTimerWithPoliciesListType:
 		it.decodeBatchTimer()
-	case gaugeWithPoliciesType:
+	case gaugeWithPoliciesListType:
 		it.decodeGauge()
 	default:
 		it.setErr(fmt.Errorf("unrecognized metric with policies type %v", objType))
 		return
 	}
-	it.decodeVersionedPolicies()
+	it.decodePoliciesList()
 	it.skip(numActualFields - numExpectedFields)
 }
 
@@ -219,37 +222,65 @@ func (it *unaggregatedIterator) decodeGauge() {
 	it.skip(numActualFields - numExpectedFields)
 }
 
-func (it *unaggregatedIterator) decodeVersionedPolicies() {
+func (it *unaggregatedIterator) decodePoliciesList() {
 	numActualFields := it.decodeNumObjectFields()
-	versionedPoliciesType := it.decodeObjectType()
-	numExpectedFields, numActualFields, ok := it.checkNumFieldsForTypeWithActual(
-		versionedPoliciesType,
+	policiesListType := it.decodeObjectType()
+	numExpectedFields, ok := it.checkExpectedNumFieldsForType(
+		policiesListType,
 		numActualFields,
 	)
 	if !ok {
 		return
 	}
-	version := it.decodeVersion()
-	cutover := it.decodeTime()
-	switch versionedPoliciesType {
-	case defaultVersionedPoliciesType:
-		it.versionedPolicies = policy.DefaultVersionedPolicies(version, cutover)
-		it.skip(numActualFields - numExpectedFields)
-	case customVersionedPoliciesType:
-		numPolicies := it.decodeArrayLen()
-		if cap(it.policies) < numPolicies {
-			it.policies = make([]policy.Policy, 0, numPolicies)
+	switch policiesListType {
+	case defaultPoliciesListType:
+		it.policiesList = policy.DefaultPoliciesList
+	case customPoliciesListType:
+		numStagedPolicies := it.decodeArrayLen()
+		if cap(it.cachedPoliciesList) < numStagedPolicies {
+			it.cachedPoliciesList = make(policy.PoliciesList, 0, numStagedPolicies)
 		} else {
-			it.policies = it.policies[:0]
+			for i := 0; i < len(it.cachedPoliciesList); i++ {
+				it.cachedPoliciesList[i].Reset()
+			}
+			it.cachedPoliciesList = it.cachedPoliciesList[:0]
 		}
-		for i := 0; i < numPolicies; i++ {
-			it.policies = append(it.policies, it.decodePolicy())
+		if len(it.cachedPolicies) < numStagedPolicies {
+			it.cachedPolicies = make([][]policy.Policy, numStagedPolicies)
 		}
-		it.versionedPolicies = policy.CustomVersionedPolicies(version, cutover, it.policies)
-		it.skip(numActualFields - numExpectedFields)
+		for policyIdx := 0; policyIdx < numStagedPolicies; policyIdx++ {
+			decodedStagedPolicies := it.decodeStagedPolicies(policyIdx)
+			it.cachedPoliciesList = append(it.cachedPoliciesList, decodedStagedPolicies)
+		}
+		it.policiesList = it.cachedPoliciesList
 	default:
-		it.setErr(fmt.Errorf("unrecognized versioned policies type: %v", versionedPoliciesType))
+		it.setErr(fmt.Errorf("unrecognized policies list type: %v", policiesListType))
 	}
+	it.skip(numActualFields - numExpectedFields)
+}
+
+// decodeStagedPolicies decodes a staged policies using the cached policies
+// to avoid memory reallocations and returns the decoded staged policies.
+// If an error is encountered during decoding, it is stored in the iterator.
+func (it *unaggregatedIterator) decodeStagedPolicies(policyIdx int) policy.StagedPolicies {
+	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(stagedPoliciesType)
+	if !ok {
+		return policy.DefaultStagedPolicies
+	}
+	cutoverNanos := it.decodeVarint()
+	tombstoned := it.decodeBool()
+	numPolicies := it.decodeArrayLen()
+	if cap(it.cachedPolicies[policyIdx]) < numPolicies {
+		it.cachedPolicies[policyIdx] = make([]policy.Policy, 0, numPolicies)
+	} else {
+		it.cachedPolicies[policyIdx] = it.cachedPolicies[policyIdx][:0]
+	}
+	for i := 0; i < numPolicies; i++ {
+		it.cachedPolicies[policyIdx] = append(it.cachedPolicies[policyIdx], it.decodePolicy())
+	}
+	stagedPolicies := policy.NewStagedPolicies(cutoverNanos, tombstoned, it.cachedPolicies[policyIdx])
+	it.skip(numActualFields - numExpectedFields)
+	return stagedPolicies
 }
 
 func (it *unaggregatedIterator) decodeID() metric.ID {

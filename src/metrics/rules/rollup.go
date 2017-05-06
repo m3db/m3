@@ -97,11 +97,11 @@ func (t *rollupTarget) clone() rollupTarget {
 // rollupRuleSnapshot defines a rule snapshot such that if a metric matches the
 // provided filters, it is rolled up using the provided list of rollup targets.
 type rollupRuleSnapshot struct {
-	name       string
-	tombstoned bool
-	cutoverNs  int64
-	filter     filters.Filter
-	targets    []rollupTarget
+	name         string
+	tombstoned   bool
+	cutoverNanos int64
+	filter       filters.Filter
+	targets      []rollupTarget
 }
 
 func newRollupRuleSnapshot(
@@ -124,11 +124,11 @@ func newRollupRuleSnapshot(
 		return nil, err
 	}
 	return &rollupRuleSnapshot{
-		name:       r.Name,
-		tombstoned: r.Tombstoned,
-		cutoverNs:  r.CutoverTime,
-		filter:     filter,
-		targets:    targets,
+		name:         r.Name,
+		tombstoned:   r.Tombstoned,
+		cutoverNanos: r.CutoverTime,
+		filter:       filter,
+		targets:      targets,
 	}, nil
 }
 
@@ -160,28 +160,28 @@ func newRollupRule(
 }
 
 // ActiveSnapshot returns the latest rule snapshot whose cutover time is earlier
-// than or equal to timeNs, or nil if not found.
-func (rc *rollupRule) ActiveSnapshot(timeNs int64) *rollupRuleSnapshot {
-	idx := rc.activeIndex(timeNs)
+// than or equal to timeNanos, or nil if not found.
+func (rc *rollupRule) ActiveSnapshot(timeNanos int64) *rollupRuleSnapshot {
+	idx := rc.activeIndex(timeNanos)
 	if idx < 0 {
 		return nil
 	}
 	return rc.snapshots[idx]
 }
 
-// ActiveRule returns the rule containing snapshots that's in effect at time timeNs
-// and all future rules after time timeNs.
-func (rc *rollupRule) ActiveRule(timeNs int64) *rollupRule {
-	idx := rc.activeIndex(timeNs)
+// ActiveRule returns the rule containing snapshots that's in effect at time timeNanos
+// and all future rules after time timeNanos.
+func (rc *rollupRule) ActiveRule(timeNanos int64) *rollupRule {
+	idx := rc.activeIndex(timeNanos)
 	if idx < 0 {
 		return rc
 	}
 	return &rollupRule{uuid: rc.uuid, snapshots: rc.snapshots[idx:]}
 }
 
-func (rc *rollupRule) activeIndex(timeNs int64) int {
+func (rc *rollupRule) activeIndex(timeNanos int64) int {
 	idx := len(rc.snapshots) - 1
-	for idx >= 0 && rc.snapshots[idx].cutoverNs > timeNs {
+	for idx >= 0 && rc.snapshots[idx].cutoverNanos > timeNanos {
 		idx--
 	}
 	return idx

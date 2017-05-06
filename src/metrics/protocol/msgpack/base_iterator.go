@@ -85,7 +85,7 @@ func (it *baseIterator) decodePolicy() policy.Policy {
 func (it *baseIterator) decodeResolution() policy.Resolution {
 	numActualFields := it.decodeNumObjectFields()
 	resolutionType := it.decodeObjectType()
-	numExpectedFields, numActualFields, ok := it.checkNumFieldsForTypeWithActual(
+	numExpectedFields, ok := it.checkExpectedNumFieldsForType(
 		resolutionType,
 		numActualFields,
 	)
@@ -127,7 +127,7 @@ func (it *baseIterator) decodeResolution() policy.Resolution {
 func (it *baseIterator) decodeRetention() policy.Retention {
 	numActualFields := it.decodeNumObjectFields()
 	retentionType := it.decodeObjectType()
-	numExpectedFields, numActualFields, ok := it.checkNumFieldsForTypeWithActual(
+	numExpectedFields, ok := it.checkExpectedNumFieldsForType(
 		retentionType,
 		numActualFields,
 	)
@@ -174,15 +174,6 @@ func (it *baseIterator) decodeID() metric.ID {
 	return metric.ID(it.decodeBytes())
 }
 
-func (it *baseIterator) decodeTime() time.Time {
-	if it.decodeErr != nil {
-		return time.Time{}
-	}
-	value, err := it.decoder.DecodeTime()
-	it.decodeErr = err
-	return value
-}
-
 // NB(xichen): the underlying msgpack decoder implementation
 // always decodes an int64 and looks at the actual decoded
 // value to determine the width of the integer (a.k.a. varint
@@ -192,6 +183,15 @@ func (it *baseIterator) decodeVarint() int64 {
 		return 0
 	}
 	value, err := it.decoder.DecodeInt64()
+	it.decodeErr = err
+	return value
+}
+
+func (it *baseIterator) decodeBool() bool {
+	if it.decodeErr != nil {
+		return false
+	}
+	value, err := it.decoder.DecodeBool()
 	it.decodeErr = err
 	return value
 }
@@ -251,22 +251,23 @@ func (it *baseIterator) skip(numFields int) {
 
 func (it *baseIterator) checkNumFieldsForType(objType objectType) (int, int, bool) {
 	numActualFields := it.decodeNumObjectFields()
-	return it.checkNumFieldsForTypeWithActual(objType, numActualFields)
+	numExpectedFields, ok := it.checkExpectedNumFieldsForType(objType, numActualFields)
+	return numExpectedFields, numActualFields, ok
 }
 
-func (it *baseIterator) checkNumFieldsForTypeWithActual(
+func (it *baseIterator) checkExpectedNumFieldsForType(
 	objType objectType,
 	numActualFields int,
-) (int, int, bool) {
+) (int, bool) {
 	if it.decodeErr != nil {
-		return 0, 0, false
+		return 0, false
 	}
 	numExpectedFields := numFieldsForType(objType)
 	if numExpectedFields > numActualFields {
 		it.decodeErr = fmt.Errorf("number of fields mismatch: expected %d actual %d", numExpectedFields, numActualFields)
-		return 0, 0, false
+		return 0, false
 	}
-	return numExpectedFields, numActualFields, true
+	return numExpectedFields, true
 }
 
 // bufReader is a buffered reader.
