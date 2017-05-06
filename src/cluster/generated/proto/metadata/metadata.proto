@@ -21,7 +21,7 @@ syntax = "proto3";
 
 package metadata;
 
-message metadata {
+message Metadata {
   uint32 port = 1;
   int64 liveness_interval = 2;
   int64 heartbeat_interval = 3;

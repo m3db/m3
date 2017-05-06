@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,35 +21,35 @@ syntax = "proto3";
 
 package placement;
 
-message placement {
-  map<string, instance> instances = 1;
+message Placement {
+  map<string, Instance> instances = 1;
   uint32 replica_factor = 2;
   uint32 num_shards = 3;
   bool is_sharded = 4;
   int64 cutover_time = 5;
 }
 
-message instance {
+message Instance {
   string id = 1;
   string rack = 2;
   string zone = 3;
   uint32 weight = 4;
   string endpoint = 5;
-  repeated shard shards = 6;
+  repeated Shard shards = 6;
 }
 
-message shard {
+message Shard {
   uint32 id = 1;
-  shard_state state = 2;
+  ShardState state = 2;
   string source_id = 3;
 }
 
-enum shard_state {
-  Initializing = 0;
-  Available = 1;
-  Leaving = 2;
+enum ShardState {
+  INITIALIZING = 0;
+  AVAILABLE = 1;
+  LEAVING = 2;
 }
 
-message placementSnapshots {
-  repeated placement snapshots = 1;
+message PlacementSnapshots {
+  repeated Placement snapshots = 1;
 }

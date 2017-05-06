@@ -144,11 +144,11 @@ func shardFromProto(s *placementproto.Shard) (shard.Shard, error) {
 
 func shardStateFromProto(s placementproto.ShardState) (shard.State, error) {
 	switch s {
-	case placementproto.ShardState_Initializing:
+	case placementproto.ShardState_INITIALIZING:
 		return shard.Initializing, nil
-	case placementproto.ShardState_Available:
+	case placementproto.ShardState_AVAILABLE:
 		return shard.Available, nil
-	case placementproto.ShardState_Leaving:
+	case placementproto.ShardState_LEAVING:
 		return shard.Leaving, nil
 	default:
 		var defaultShard shard.State
@@ -159,11 +159,11 @@ func shardStateFromProto(s placementproto.ShardState) (shard.State, error) {
 func shardStateToProto(s shard.State) (placementproto.ShardState, error) {
 	switch s {
 	case shard.Initializing:
-		return placementproto.ShardState_Initializing, nil
+		return placementproto.ShardState_INITIALIZING, nil
 	case shard.Available:
-		return placementproto.ShardState_Available, nil
+		return placementproto.ShardState_AVAILABLE, nil
 	case shard.Leaving:
-		return placementproto.ShardState_Leaving, nil
+		return placementproto.ShardState_LEAVING, nil
 	default:
 		var defaultShard placementproto.ShardState
 		return defaultShard, fmt.Errorf("could not parse shard state %v to placement proto", s)

@@ -217,7 +217,7 @@ func getProtoShards(ids []uint32) []*placementproto.Shard {
 	for i, id := range ids {
 		r[i] = &placementproto.Shard{
 			Id:    id,
-			State: placementproto.ShardState_Available,
+			State: placementproto.ShardState_AVAILABLE,
 		}
 	}
 	return r
