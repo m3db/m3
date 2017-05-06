@@ -25,7 +25,9 @@ import (
 )
 
 type options struct {
-	nowFn NowFn
+	nowFn           NowFn
+	maxPositiveSkew time.Duration
+	maxNegativeSkew time.Duration
 }
 
 // NewOptions creates new clock options
@@ -43,4 +45,24 @@ func (o *options) SetNowFn(value NowFn) Options {
 
 func (o *options) NowFn() NowFn {
 	return o.nowFn
+}
+
+func (o *options) SetMaxPositiveSkew(value time.Duration) Options {
+	opts := *o
+	opts.maxPositiveSkew = value
+	return &opts
+}
+
+func (o *options) MaxPositiveSkew() time.Duration {
+	return o.maxPositiveSkew
+}
+
+func (o *options) SetMaxNegativeSkew(value time.Duration) Options {
+	opts := *o
+	opts.maxNegativeSkew = value
+	return &opts
+}
+
+func (o *options) MaxNegativeSkew() time.Duration {
+	return o.maxNegativeSkew
 }

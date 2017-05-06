@@ -34,6 +34,22 @@ type Options interface {
 
 	// NowFn returns the nowFn
 	NowFn() NowFn
+
+	// SetMaxPositiveSkew sets the maximum positive clock skew
+	// with regard to a reference clock.
+	SetMaxPositiveSkew(value time.Duration) Options
+
+	// MaxPositiveSkew returns the maximum positive clock skew
+	// with regard to a reference clock.
+	MaxPositiveSkew() time.Duration
+
+	// SetMaxNegativeSkew sets the maximum negative clock skew
+	// with regard to a reference clock.
+	SetMaxNegativeSkew(value time.Duration) Options
+
+	// MaxNegativeSkew returns the maximum negative clock skew
+	// with regard to a reference clock.
+	MaxNegativeSkew() time.Duration
 }
 
 // ConditionFn specifies a predicate to check
