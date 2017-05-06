@@ -27,27 +27,27 @@ import (
 
 // Various object-level encoding functions to facilitate testing.
 type encodeRootObjectFn func(objType objectType)
-type encodeCounterWithPoliciesFn func(cp unaggregated.CounterWithPolicies)
-type encodeBatchTimerWithPoliciesFn func(btp unaggregated.BatchTimerWithPolicies)
-type encodeGaugeWithPoliciesFn func(gp unaggregated.GaugeWithPolicies)
+type encodeCounterWithPoliciesListFn func(cp unaggregated.CounterWithPoliciesList)
+type encodeBatchTimerWithPoliciesListFn func(btp unaggregated.BatchTimerWithPoliciesList)
+type encodeGaugeWithPoliciesListFn func(gp unaggregated.GaugeWithPoliciesList)
 type encodeCounterFn func(c unaggregated.Counter)
 type encodeBatchTimerFn func(bt unaggregated.BatchTimer)
 type encodeGaugeFn func(g unaggregated.Gauge)
-type encodeVersionedPoliciesFn func(vp policy.VersionedPolicies)
+type encodePoliciesListFn func(spl policy.PoliciesList)
 
 // unaggregatedEncoder uses MessagePack for encoding different types of unaggregated metrics.
 // It is not thread-safe.
 type unaggregatedEncoder struct {
 	encoderBase
 
-	encodeRootObjectFn             encodeRootObjectFn
-	encodeCounterWithPoliciesFn    encodeCounterWithPoliciesFn
-	encodeBatchTimerWithPoliciesFn encodeBatchTimerWithPoliciesFn
-	encodeGaugeWithPoliciesFn      encodeGaugeWithPoliciesFn
-	encodeCounterFn                encodeCounterFn
-	encodeBatchTimerFn             encodeBatchTimerFn
-	encodeGaugeFn                  encodeGaugeFn
-	encodeVersionedPoliciesFn      encodeVersionedPoliciesFn
+	encodeRootObjectFn                 encodeRootObjectFn
+	encodeCounterWithPoliciesListFn    encodeCounterWithPoliciesListFn
+	encodeBatchTimerWithPoliciesListFn encodeBatchTimerWithPoliciesListFn
+	encodeGaugeWithPoliciesListFn      encodeGaugeWithPoliciesListFn
+	encodeCounterFn                    encodeCounterFn
+	encodeBatchTimerFn                 encodeBatchTimerFn
+	encodeGaugeFn                      encodeGaugeFn
+	encodePoliciesListFn               encodePoliciesListFn
 }
 
 // NewUnaggregatedEncoder creates a new unaggregated encoder.
@@ -55,13 +55,13 @@ func NewUnaggregatedEncoder(encoder BufferedEncoder) UnaggregatedEncoder {
 	enc := &unaggregatedEncoder{encoderBase: newBaseEncoder(encoder)}
 
 	enc.encodeRootObjectFn = enc.encodeRootObject
-	enc.encodeCounterWithPoliciesFn = enc.encodeCounterWithPolicies
-	enc.encodeBatchTimerWithPoliciesFn = enc.encodeBatchTimerWithPolicies
-	enc.encodeGaugeWithPoliciesFn = enc.encodeGaugeWithPolicies
+	enc.encodeCounterWithPoliciesListFn = enc.encodeCounterWithPoliciesList
+	enc.encodeBatchTimerWithPoliciesListFn = enc.encodeBatchTimerWithPoliciesList
+	enc.encodeGaugeWithPoliciesListFn = enc.encodeGaugeWithPoliciesList
 	enc.encodeCounterFn = enc.encodeCounter
 	enc.encodeBatchTimerFn = enc.encodeBatchTimer
 	enc.encodeGaugeFn = enc.encodeGauge
-	enc.encodeVersionedPoliciesFn = enc.encodeVersionedPolicies
+	enc.encodePoliciesListFn = enc.encodePoliciesList
 
 	return enc
 }
@@ -69,30 +69,30 @@ func NewUnaggregatedEncoder(encoder BufferedEncoder) UnaggregatedEncoder {
 func (enc *unaggregatedEncoder) Encoder() BufferedEncoder      { return enc.encoder() }
 func (enc *unaggregatedEncoder) Reset(encoder BufferedEncoder) { enc.reset(encoder) }
 
-func (enc *unaggregatedEncoder) EncodeCounterWithPolicies(cp unaggregated.CounterWithPolicies) error {
+func (enc *unaggregatedEncoder) EncodeCounterWithPoliciesList(cp unaggregated.CounterWithPoliciesList) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
-	enc.encodeRootObjectFn(counterWithPoliciesType)
-	enc.encodeCounterWithPoliciesFn(cp)
+	enc.encodeRootObjectFn(counterWithPoliciesListType)
+	enc.encodeCounterWithPoliciesListFn(cp)
 	return enc.err()
 }
 
-func (enc *unaggregatedEncoder) EncodeBatchTimerWithPolicies(btp unaggregated.BatchTimerWithPolicies) error {
+func (enc *unaggregatedEncoder) EncodeBatchTimerWithPoliciesList(btp unaggregated.BatchTimerWithPoliciesList) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
-	enc.encodeRootObjectFn(batchTimerWithPoliciesType)
-	enc.encodeBatchTimerWithPoliciesFn(btp)
+	enc.encodeRootObjectFn(batchTimerWithPoliciesListType)
+	enc.encodeBatchTimerWithPoliciesListFn(btp)
 	return enc.err()
 }
 
-func (enc *unaggregatedEncoder) EncodeGaugeWithPolicies(gp unaggregated.GaugeWithPolicies) error {
+func (enc *unaggregatedEncoder) EncodeGaugeWithPoliciesList(gp unaggregated.GaugeWithPoliciesList) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
-	enc.encodeRootObjectFn(gaugeWithPoliciesType)
-	enc.encodeGaugeWithPoliciesFn(gp)
+	enc.encodeRootObjectFn(gaugeWithPoliciesListType)
+	enc.encodeGaugeWithPoliciesListFn(gp)
 	return enc.err()
 }
 
@@ -102,22 +102,22 @@ func (enc *unaggregatedEncoder) encodeRootObject(objType objectType) {
 	enc.encodeObjectType(objType)
 }
 
-func (enc *unaggregatedEncoder) encodeCounterWithPolicies(cp unaggregated.CounterWithPolicies) {
-	enc.encodeNumObjectFields(numFieldsForType(counterWithPoliciesType))
+func (enc *unaggregatedEncoder) encodeCounterWithPoliciesList(cp unaggregated.CounterWithPoliciesList) {
+	enc.encodeNumObjectFields(numFieldsForType(counterWithPoliciesListType))
 	enc.encodeCounterFn(cp.Counter)
-	enc.encodeVersionedPoliciesFn(cp.VersionedPolicies)
+	enc.encodePoliciesListFn(cp.PoliciesList)
 }
 
-func (enc *unaggregatedEncoder) encodeBatchTimerWithPolicies(btp unaggregated.BatchTimerWithPolicies) {
-	enc.encodeNumObjectFields(numFieldsForType(batchTimerWithPoliciesType))
+func (enc *unaggregatedEncoder) encodeBatchTimerWithPoliciesList(btp unaggregated.BatchTimerWithPoliciesList) {
+	enc.encodeNumObjectFields(numFieldsForType(batchTimerWithPoliciesListType))
 	enc.encodeBatchTimerFn(btp.BatchTimer)
-	enc.encodeVersionedPoliciesFn(btp.VersionedPolicies)
+	enc.encodePoliciesListFn(btp.PoliciesList)
 }
 
-func (enc *unaggregatedEncoder) encodeGaugeWithPolicies(gp unaggregated.GaugeWithPolicies) {
-	enc.encodeNumObjectFields(numFieldsForType(gaugeWithPoliciesType))
+func (enc *unaggregatedEncoder) encodeGaugeWithPoliciesList(gp unaggregated.GaugeWithPoliciesList) {
+	enc.encodeNumObjectFields(numFieldsForType(gaugeWithPoliciesListType))
 	enc.encodeGaugeFn(gp.Gauge)
-	enc.encodeVersionedPoliciesFn(gp.VersionedPolicies)
+	enc.encodePoliciesListFn(gp.PoliciesList)
 }
 
 func (enc *unaggregatedEncoder) encodeCounter(c unaggregated.Counter) {
@@ -141,22 +141,26 @@ func (enc *unaggregatedEncoder) encodeGauge(g unaggregated.Gauge) {
 	enc.encodeFloat64(g.Value)
 }
 
-func (enc *unaggregatedEncoder) encodeVersionedPolicies(vp policy.VersionedPolicies) {
-	// NB(xichen): if this is a default policy, we do not encode the actual policies
-	// to optimize for the common case.
-	if vp.IsDefault() {
-		enc.encodeNumObjectFields(numFieldsForType(defaultVersionedPoliciesType))
-		enc.encodeObjectType(defaultVersionedPoliciesType)
-		enc.encodeVersion(vp.Version)
-		enc.encodeTime(vp.Cutover)
+func (enc *unaggregatedEncoder) encodePoliciesList(pl policy.PoliciesList) {
+	if pl.IsDefault() {
+		enc.encodeNumObjectFields(numFieldsForType(defaultPoliciesListType))
+		enc.encodeObjectType(defaultPoliciesListType)
 		return
 	}
-	// Otherwise fallback to encoding the entire object.
-	enc.encodeNumObjectFields(numFieldsForType(customVersionedPoliciesType))
-	enc.encodeObjectType(customVersionedPoliciesType)
-	enc.encodeVersion(vp.Version)
-	enc.encodeTime(vp.Cutover)
-	policies := vp.Policies()
+	enc.encodeNumObjectFields(numFieldsForType(customPoliciesListType))
+	enc.encodeObjectType(customPoliciesListType)
+	numPolicies := len(pl)
+	enc.encodeArrayLen(numPolicies)
+	for i := 0; i < numPolicies; i++ {
+		enc.encodeStagedPolicies(pl[i])
+	}
+}
+
+func (enc *unaggregatedEncoder) encodeStagedPolicies(sp policy.StagedPolicies) {
+	enc.encodeNumObjectFields(numFieldsForType(stagedPoliciesType))
+	enc.encodeVarint(sp.CutoverNanos)
+	enc.encodeBool(sp.Tombstoned)
+	policies, _ := sp.Policies()
 	enc.encodeArrayLen(len(policies))
 	for _, policy := range policies {
 		enc.encodePolicy(policy)

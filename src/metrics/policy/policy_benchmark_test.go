@@ -23,83 +23,85 @@ package policy
 import (
 	"testing"
 	"time"
+
+	"github.com/m3db/m3x/time"
 )
 
-func BenchmarkVersionedPoliciesAsStruct(b *testing.B) {
-	vp := CustomVersionedPolicies(InitPolicyVersion, time.Now(), defaultPolicies)
+var (
+	testNowNanos = time.Now().UnixNano()
+	testPolicies = []Policy{
+		NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
+		NewPolicy(time.Minute, xtime.Minute, 30*24*time.Hour),
+	}
+)
+
+func BenchmarkStagedPoliciesAsStruct(b *testing.B) {
+	sp := NewStagedPolicies(testNowNanos, false, testPolicies)
 	for n := 0; n < b.N; n++ {
-		validatePolicyByValue(b, vp)
+		validatePolicyByValue(b, sp)
 	}
 }
 
-func BenchmarkVersionedPoliciesAsPointer(b *testing.B) {
-	vp := CustomVersionedPolicies(InitPolicyVersion, time.Now(), defaultPolicies)
+func BenchmarkStagedPoliciesAsPointer(b *testing.B) {
+	sp := NewStagedPolicies(testNowNanos, false, testPolicies)
 	for n := 0; n < b.N; n++ {
-		validatePolicyByPointer(b, &vp)
+		validatePolicyByPointer(b, &sp)
 	}
 }
 
-func BenchmarkVersionedPoliciesAsInterface(b *testing.B) {
-	vp := &testVersionedPolicies{version: InitPolicyVersion, cutover: time.Now(), policies: defaultPolicies}
+func BenchmarkStagedPoliciesAsInterface(b *testing.B) {
+	sp := &testStagedPolicies{cutoverNanos: testNowNanos, policies: testPolicies}
 	for n := 0; n < b.N; n++ {
-		validatePolicyByInterface(b, vp)
+		validatePolicyByInterface(b, sp)
 	}
 }
 
-func BenchmarkVersionedPoliciesAsStructExported(b *testing.B) {
-	vp := testVersionedPolicies{version: InitPolicyVersion, cutover: time.Now(), policies: defaultPolicies}
+func BenchmarkStagedPoliciesAsStructExported(b *testing.B) {
+	sp := testStagedPolicies{cutoverNanos: testNowNanos, policies: testPolicies}
 	for n := 0; n < b.N; n++ {
-		validatePolicyByStructExported(b, vp)
+		validatePolicyByStructExported(b, sp)
 	}
 }
 
-type testVersionedPoliciesInt interface {
-	Version() int
+type testStagedPoliciesInt64 interface {
+	CutoverNanos() int64
 }
 
-// VersionedPolicies represent a list of policies at a specified version.
-type testVersionedPolicies struct {
-	// Version is the version of the policies.
-	version int
-
-	// Cutover is when the policies take effect.
-	cutover time.Time
-
-	// isDefault determines whether the policies are the default policies.
-	isDefault bool
-
-	// policies represent the list of policies.
-	policies []Policy
+// StagedPolicies represent a list of policies at a specified version.
+type testStagedPolicies struct {
+	cutoverNanos int64
+	tombstoned   bool
+	policies     []Policy
 }
 
-func (v testVersionedPolicies) ValVersion() int {
-	return v.version
+func (v testStagedPolicies) ValCutoverNanos() int64 {
+	return v.cutoverNanos
 }
 
-func (v *testVersionedPolicies) Version() int {
-	return v.version
+func (v *testStagedPolicies) CutoverNanos() int64 {
+	return v.cutoverNanos
 }
 
-func validatePolicyByValue(b *testing.B, vps VersionedPolicies) {
-	if vps.Version != InitPolicyVersion {
+func validatePolicyByValue(b *testing.B, sp StagedPolicies) {
+	if sp.CutoverNanos != testNowNanos {
 		b.FailNow()
 	}
 }
 
-func validatePolicyByPointer(b *testing.B, vps *VersionedPolicies) {
-	if vps.Version != InitPolicyVersion {
+func validatePolicyByPointer(b *testing.B, sp *StagedPolicies) {
+	if sp.CutoverNanos != testNowNanos {
 		b.FailNow()
 	}
 }
 
-func validatePolicyByInterface(b *testing.B, vps testVersionedPoliciesInt) {
-	if vps.Version() != InitPolicyVersion {
+func validatePolicyByInterface(b *testing.B, sp testStagedPoliciesInt64) {
+	if sp.CutoverNanos() != testNowNanos {
 		b.FailNow()
 	}
 }
 
-func validatePolicyByStructExported(b *testing.B, vps testVersionedPolicies) {
-	if vps.ValVersion() != InitPolicyVersion {
+func validatePolicyByStructExported(b *testing.B, sp testStagedPolicies) {
+	if sp.ValCutoverNanos() != testNowNanos {
 		b.FailNow()
 	}
 }

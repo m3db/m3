@@ -36,49 +36,120 @@ import (
 func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 	inputs := []testMappingsData{
 		{
-			id:         "mtagName1=mtagValue1",
-			matchAt:    time.Unix(0, 25000),
-			cutoverNs:  22000,
-			expireAtNs: 30000,
-			result: []policy.Policy{
-				policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-				policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-				policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+			id:            "mtagName1=mtagValue1",
+			matchFrom:     time.Unix(0, 25000),
+			matchTo:       time.Unix(0, 25001),
+			expireAtNanos: 30000,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					22000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					},
+				),
 			},
 		},
 		{
-			id:         "mtagName1=mtagValue1",
-			matchAt:    time.Unix(0, 35000),
-			cutoverNs:  35000,
-			expireAtNs: 100000,
-			result: []policy.Policy{
-				policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-				policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
-				policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
+			id:            "mtagName1=mtagValue1",
+			matchFrom:     time.Unix(0, 35000),
+			matchTo:       time.Unix(0, 35001),
+			expireAtNanos: 100000,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					35000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
+						policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+					},
+				),
 			},
 		},
 		{
-			id:         "mtagName1=mtagValue2",
-			matchAt:    time.Unix(0, 25000),
-			cutoverNs:  24000,
-			expireAtNs: 30000,
-			result: []policy.Policy{
-				policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+			id:            "mtagName1=mtagValue2",
+			matchFrom:     time.Unix(0, 25000),
+			matchTo:       time.Unix(0, 25001),
+			expireAtNanos: 30000,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					24000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					},
+				),
 			},
 		},
 		{
-			id:         "mtagName1=mtagValue3",
-			matchAt:    time.Unix(0, 25000),
-			cutoverNs:  0,
-			expireAtNs: 30000,
-			result:     policy.DefaultVersionedPolicies(1, time.Unix(0, 25000)).Policies(),
+			id:            "mtagName1=mtagValue3",
+			matchFrom:     time.Unix(0, 25000),
+			matchTo:       time.Unix(0, 25001),
+			expireAtNanos: 30000,
+			result:        policy.DefaultPoliciesList,
+		},
+		{
+			id:            "mtagName1=mtagValue1",
+			matchFrom:     time.Unix(0, 10000),
+			matchTo:       time.Unix(0, 40000),
+			expireAtNanos: 100000,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					10000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					},
+				),
+				policy.NewStagedPolicies(
+					20000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					},
+				),
+				policy.NewStagedPolicies(
+					22000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					},
+				),
+				policy.NewStagedPolicies(
+					34000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
+						policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+					},
+				),
+			},
+		},
+		{
+			id:            "mtagName1=mtagValue2",
+			matchFrom:     time.Unix(0, 10000),
+			matchTo:       time.Unix(0, 40000),
+			expireAtNanos: 100000,
+			result: policy.PoliciesList{
+				policy.DefaultStagedPolicies,
+				policy.NewStagedPolicies(
+					24000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					},
+				),
+			},
 		},
 	}
 
-	version := 1
 	mappingRules := testMappingRules(t)
 	as := newActiveRuleSet(
-		version,
 		filters.NewMockSortedTagIterator,
 		mockNewID,
 		mappingRules,
@@ -87,82 +158,174 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 	for _, input := range inputs {
-		res := as.Match(b(input.id), input.matchAt)
-		require.Equal(t, 1, res.version)
-		require.Equal(t, input.cutoverNs, res.cutoverNs)
-		require.Equal(t, input.expireAtNs, res.expireAtNs)
-		require.Equal(t, input.result, res.Mappings().Policies())
+		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
+		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
+		require.Equal(t, input.result, res.MappingsAt(time.Unix(0, 0)))
 	}
 }
 
 func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 	inputs := []testRollupResultsData{
 		{
-			id:         "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
-			matchAt:    time.Unix(0, 25000),
-			cutoverNs:  22000,
-			expireAtNs: 30000,
+			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
+			matchFrom:     time.Unix(0, 25000),
+			matchTo:       time.Unix(0, 25001),
+			expireAtNanos: 30000,
 			result: []RollupResult{
 				{
 					ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
-					Policies: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-						policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					PoliciesList: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							22000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+								policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+								policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+							},
+						),
 					},
 				},
 				{
 					ID: b("rName2|rtagName1=rtagValue1"),
-					Policies: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					PoliciesList: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							22000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							},
+						),
 					},
 				},
 			},
 		},
 		{
-			id:         "rtagName1=rtagValue2",
-			matchAt:    time.Unix(0, 25000),
-			cutoverNs:  24000,
-			expireAtNs: 30000,
+			id:            "rtagName1=rtagValue2",
+			matchFrom:     time.Unix(0, 25000),
+			matchTo:       time.Unix(0, 25001),
+			expireAtNanos: 30000,
 			result: []RollupResult{
 				{
 					ID: b("rName3|rtagName1=rtagValue2"),
-					Policies: []policy.Policy{
-						policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+					PoliciesList: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							24000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+							},
+						),
 					},
 				},
 			},
 		},
 		{
-			id:         "rtagName5=rtagValue5",
-			matchAt:    time.Unix(0, 25000),
-			cutoverNs:  0,
-			expireAtNs: 30000,
-			result:     []RollupResult{},
+			id:            "rtagName5=rtagValue5",
+			matchFrom:     time.Unix(0, 25000),
+			matchTo:       time.Unix(0, 25001),
+			expireAtNanos: 30000,
+			result:        []RollupResult{},
+		},
+		{
+			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
+			matchFrom:     time.Unix(0, 10000),
+			matchTo:       time.Unix(0, 40000),
+			expireAtNanos: 100000,
+			result: []RollupResult{
+				{
+					ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
+					PoliciesList: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							10000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							},
+						),
+						policy.NewStagedPolicies(
+							20000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+								policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+							},
+						),
+						policy.NewStagedPolicies(
+							22000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+								policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+								policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+							},
+						),
+						policy.NewStagedPolicies(
+							34000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
+								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+							},
+						),
+						policy.NewStagedPolicies(
+							35000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
+								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
+							},
+						),
+						policy.NewStagedPolicies(
+							38000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
+							},
+						),
+					},
+				},
+				{
+					ID: b("rName2|rtagName1=rtagValue1"),
+					PoliciesList: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							22000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							},
+						),
+						policy.NewStagedPolicies(
+							34000,
+							true,
+							nil,
+						),
+					},
+				},
+			},
 		},
 	}
 
-	version := 1
 	rollupRules := testRollupRules(t)
 	as := newActiveRuleSet(
-		version,
 		filters.NewMockSortedTagIterator,
 		mockNewID,
 		nil,
 		rollupRules,
 	)
-	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
+	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 	for _, input := range inputs {
-		res := as.Match(b(input.id), input.matchAt)
-		require.Equal(t, 1, res.version)
-		require.Equal(t, input.cutoverNs, res.cutoverNs)
-		require.Equal(t, input.expireAtNs, res.expireAtNs)
+		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
+		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, len(input.result), res.NumRollups())
 		for i := 0; i < len(input.result); i++ {
-			id, policies := res.Rollups(i)
+			rollup := res.RollupsAt(i, time.Unix(0, 0))
+			id, policies := rollup.ID, rollup.PoliciesList
 			require.Equal(t, input.result[i].ID, id)
-			require.Equal(t, input.result[i].Policies, policies.Policies())
+			require.Equal(t, input.result[i].PoliciesList, policies)
 		}
 	}
 }
@@ -185,7 +348,7 @@ func TestRuleSetProperties(t *testing.T) {
 	require.Equal(t, "ruleset", ruleSet.uuid)
 	require.Equal(t, []byte("namespace"), ruleSet.Namespace())
 	require.Equal(t, 1, ruleSet.Version())
-	require.Equal(t, int64(34923), ruleSet.CutoverNs())
+	require.Equal(t, int64(34923), ruleSet.CutoverNanos())
 	require.Equal(t, false, ruleSet.TombStoned())
 }
 
@@ -208,87 +371,122 @@ func TestRuleSetActiveSet(t *testing.T) {
 			activeSetTime: time.Unix(0, 0),
 			mappingInputs: []testMappingsData{
 				{
-					id:         "mtagName1=mtagValue1",
-					matchAt:    time.Unix(0, 25000),
-					cutoverNs:  22000,
-					expireAtNs: 30000,
-					result: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-						policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
-					},
-				},
-				{
-					id:         "mtagName1=mtagValue1",
-					matchAt:    time.Unix(0, 35000),
-					cutoverNs:  35000,
-					expireAtNs: 100000,
-					result: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-						policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
-						policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
-					},
-				},
-				{
-					id:         "mtagName1=mtagValue2",
-					matchAt:    time.Unix(0, 25000),
-					cutoverNs:  24000,
-					expireAtNs: 30000,
-					result: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
-					},
-				},
-				{
-					id:         "mtagName1=mtagValue3",
-					matchAt:    time.Unix(0, 25000),
-					cutoverNs:  0,
-					expireAtNs: 30000,
-					result:     policy.DefaultVersionedPolicies(1, time.Unix(0, 25000)).Policies(),
-				},
-			},
-			rollupInputs: []testRollupResultsData{
-				{
-					id:         "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
-					matchAt:    time.Unix(0, 25000),
-					cutoverNs:  22000,
-					expireAtNs: 30000,
-					result: []RollupResult{
-						{
-							ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
-							Policies: []policy.Policy{
+					id:            "mtagName1=mtagValue1",
+					matchFrom:     time.Unix(0, 25000),
+					matchTo:       time.Unix(0, 25001),
+					expireAtNanos: 30000,
+					result: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							22000,
+							false,
+							[]policy.Policy{
 								policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
 								policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
 								policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 							},
+						),
+					},
+				},
+				{
+					id:            "mtagName1=mtagValue1",
+					matchFrom:     time.Unix(0, 35000),
+					matchTo:       time.Unix(0, 35001),
+					expireAtNanos: 100000,
+					result: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							35000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
+								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+							},
+						),
+					},
+				},
+				{
+					id:            "mtagName1=mtagValue2",
+					matchFrom:     time.Unix(0, 25000),
+					matchTo:       time.Unix(0, 25001),
+					expireAtNanos: 30000,
+					result: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							24000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							},
+						),
+					},
+				},
+				{
+					id:            "mtagName1=mtagValue3",
+					matchFrom:     time.Unix(0, 25000),
+					matchTo:       time.Unix(0, 25001),
+					expireAtNanos: 30000,
+					result:        policy.DefaultPoliciesList,
+				},
+			},
+			rollupInputs: []testRollupResultsData{
+				{
+					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
+					matchFrom:     time.Unix(0, 25000),
+					matchTo:       time.Unix(0, 25001),
+					expireAtNanos: 30000,
+					result: []RollupResult{
+						{
+							ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
+							PoliciesList: policy.PoliciesList{
+								policy.NewStagedPolicies(
+									22000,
+									false,
+									[]policy.Policy{
+										policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+										policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+										policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+									},
+								),
+							},
 						},
 						{
 							ID: b("rName2|rtagName1=rtagValue1"),
-							Policies: []policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							PoliciesList: policy.PoliciesList{
+								policy.NewStagedPolicies(
+									22000,
+									false,
+									[]policy.Policy{
+										policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+									},
+								),
 							},
 						},
 					},
 				},
 				{
-					id:         "rtagName1=rtagValue2",
-					matchAt:    time.Unix(0, 25000),
-					cutoverNs:  24000,
-					expireAtNs: 30000,
+					id:            "rtagName1=rtagValue2",
+					matchFrom:     time.Unix(0, 25000),
+					matchTo:       time.Unix(0, 25001),
+					expireAtNanos: 30000,
 					result: []RollupResult{
 						{
 							ID: b("rName3|rtagName1=rtagValue2"),
-							Policies: []policy.Policy{
-								policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+							PoliciesList: policy.PoliciesList{
+								policy.NewStagedPolicies(
+									24000,
+									false,
+									[]policy.Policy{
+										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+									},
+								),
 							},
 						},
 					},
 				},
 				{
-					id:         "rtagName5=rtagValue5",
-					matchAt:    time.Unix(0, 25000),
-					cutoverNs:  0,
-					expireAtNs: 30000,
-					result:     []RollupResult{},
+					id:            "rtagName5=rtagValue5",
+					matchFrom:     time.Unix(0, 25000),
+					matchTo:       time.Unix(0, 25001),
+					expireAtNanos: 30000,
+					result:        []RollupResult{},
 				},
 			},
 		},
@@ -296,70 +494,92 @@ func TestRuleSetActiveSet(t *testing.T) {
 			activeSetTime: time.Unix(0, 30000),
 			mappingInputs: []testMappingsData{
 				{
-					id:         "mtagName1=mtagValue1",
-					matchAt:    time.Unix(0, 35000),
-					cutoverNs:  35000,
-					expireAtNs: 100000,
-					result: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-						policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
-						policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
+					id:            "mtagName1=mtagValue1",
+					matchFrom:     time.Unix(0, 35000),
+					matchTo:       time.Unix(0, 35001),
+					expireAtNanos: 100000,
+					result: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							35000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
+								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+							},
+						),
 					},
 				},
 				{
-					id:         "mtagName1=mtagValue2",
-					matchAt:    time.Unix(0, 35000),
-					cutoverNs:  24000,
-					expireAtNs: 100000,
-					result: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					id:            "mtagName1=mtagValue2",
+					matchFrom:     time.Unix(0, 35000),
+					matchTo:       time.Unix(0, 35001),
+					expireAtNanos: 100000,
+					result: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							35000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							},
+						),
 					},
 				},
 				{
-					id:         "mtagName1=mtagValue3",
-					matchAt:    time.Unix(0, 35000),
-					cutoverNs:  0,
-					expireAtNs: 100000,
-					result:     policy.DefaultVersionedPolicies(1, time.Unix(0, 35000)).Policies(),
+					id:            "mtagName1=mtagValue3",
+					matchFrom:     time.Unix(0, 35000),
+					matchTo:       time.Unix(0, 35001),
+					expireAtNanos: 100000,
+					result:        policy.DefaultPoliciesList,
 				},
 			},
 			rollupInputs: []testRollupResultsData{
 				{
-					id:         "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
-					matchAt:    time.Unix(0, 35000),
-					cutoverNs:  35000,
-					expireAtNs: 100000,
+					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
+					matchFrom:     time.Unix(0, 35000),
+					matchTo:       time.Unix(0, 35001),
+					expireAtNanos: 100000,
 					result: []RollupResult{
 						{
 							ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
-							Policies: []policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
-								policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
+							PoliciesList: policy.PoliciesList{
+								policy.NewStagedPolicies(
+									35000,
+									false,
+									[]policy.Policy{
+										policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
+										policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+									},
+								),
 							},
 						},
 					},
 				},
 				{
-					id:         "rtagName1=rtagValue2",
-					matchAt:    time.Unix(0, 35000),
-					cutoverNs:  24000,
-					expireAtNs: 100000,
+					id:            "rtagName1=rtagValue2",
+					matchFrom:     time.Unix(0, 35000),
+					matchTo:       time.Unix(0, 35001),
+					expireAtNanos: 100000,
 					result: []RollupResult{
 						{
 							ID: b("rName3|rtagName1=rtagValue2"),
-							Policies: []policy.Policy{
-								policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+							PoliciesList: policy.PoliciesList{
+								policy.NewStagedPolicies(
+									35000,
+									false,
+									[]policy.Policy{
+										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+									},
+								),
 							},
 						},
 					},
 				},
 				{
-					id:         "rtagName5=rtagValue5",
-					matchAt:    time.Unix(0, 35000),
-					cutoverNs:  0,
-					expireAtNs: 100000,
-					result:     []RollupResult{},
+					id:            "rtagName5=rtagValue5",
+					matchFrom:     time.Unix(0, 35000),
+					matchTo:       time.Unix(0, 35001),
+					expireAtNanos: 100000,
+					result:        []RollupResult{},
 				},
 			},
 		},
@@ -367,75 +587,103 @@ func TestRuleSetActiveSet(t *testing.T) {
 			activeSetTime: time.Unix(0, 200000),
 			mappingInputs: []testMappingsData{
 				{
-					id:         "mtagName1=mtagValue1",
-					matchAt:    time.Unix(0, 250000),
-					cutoverNs:  100000,
-					expireAtNs: timeNsMax,
-					result: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					id:            "mtagName1=mtagValue1",
+					matchFrom:     time.Unix(0, 250000),
+					matchTo:       time.Unix(0, 250001),
+					expireAtNanos: timeNanosMax,
+					result: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							100000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							},
+						),
 					},
 				},
 				{
-					id:         "mtagName1=mtagValue2",
-					matchAt:    time.Unix(0, 250000),
-					cutoverNs:  24000,
-					expireAtNs: timeNsMax,
-					result: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					id:            "mtagName1=mtagValue2",
+					matchFrom:     time.Unix(0, 250000),
+					matchTo:       time.Unix(0, 250001),
+					expireAtNanos: timeNanosMax,
+					result: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							35000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							},
+						),
 					},
 				},
 				{
-					id:         "mtagName1=mtagValue3",
-					matchAt:    time.Unix(0, 250000),
-					cutoverNs:  0,
-					expireAtNs: timeNsMax,
-					result:     policy.DefaultVersionedPolicies(1, time.Unix(0, 250000)).Policies(),
+					id:            "mtagName1=mtagValue3",
+					matchFrom:     time.Unix(0, 250000),
+					matchTo:       time.Unix(0, 250001),
+					expireAtNanos: timeNanosMax,
+					result:        policy.DefaultPoliciesList,
 				},
 			},
-
 			rollupInputs: []testRollupResultsData{
 				{
-					id:         "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
-					matchAt:    time.Unix(0, 250000),
-					cutoverNs:  100000,
-					expireAtNs: timeNsMax,
+					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
+					matchFrom:     time.Unix(0, 250000),
+					matchTo:       time.Unix(0, 250001),
+					expireAtNanos: timeNanosMax,
 					result: []RollupResult{
 						{
 							ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
-							Policies: []policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
-								policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
+							PoliciesList: policy.PoliciesList{
+								policy.NewStagedPolicies(
+									100000,
+									false,
+									[]policy.Policy{
+										policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
+										policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+									},
+								),
 							},
 						},
 						{
 							ID: b("rName3|rtagName1=rtagValue1,rtagName2=rtagValue2"),
-							Policies: []policy.Policy{
-								policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+							PoliciesList: policy.PoliciesList{
+								policy.NewStagedPolicies(
+									100000,
+									false,
+									[]policy.Policy{
+										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+									},
+								),
 							},
 						},
 					},
 				},
 				{
-					id:         "rtagName1=rtagValue2",
-					matchAt:    time.Unix(0, 250000),
-					cutoverNs:  24000,
-					expireAtNs: timeNsMax,
+					id:            "rtagName1=rtagValue2",
+					matchFrom:     time.Unix(0, 250000),
+					matchTo:       time.Unix(0, 250001),
+					expireAtNanos: timeNanosMax,
 					result: []RollupResult{
 						{
 							ID: b("rName3|rtagName1=rtagValue2"),
-							Policies: []policy.Policy{
-								policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+							PoliciesList: policy.PoliciesList{
+								policy.NewStagedPolicies(
+									35000,
+									false,
+									[]policy.Policy{
+										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+									},
+								),
 							},
 						},
 					},
 				},
 				{
-					id:         "rtagName5=rtagValue5",
-					matchAt:    time.Unix(0, 250000),
-					cutoverNs:  0,
-					expireAtNs: timeNsMax,
-					result:     []RollupResult{},
+					id:            "rtagName5=rtagValue5",
+					matchFrom:     time.Unix(0, 250000),
+					matchTo:       time.Unix(0, 250001),
+					expireAtNanos: timeNanosMax,
+					result:        []RollupResult{},
 				},
 			},
 		},
@@ -444,22 +692,19 @@ func TestRuleSetActiveSet(t *testing.T) {
 	for _, inputs := range allInputs {
 		as := newRuleSet.ActiveSet(inputs.activeSetTime)
 		for _, input := range inputs.mappingInputs {
-			res := as.Match(b(input.id), input.matchAt)
-			require.Equal(t, 1, res.version)
-			require.Equal(t, input.cutoverNs, res.cutoverNs)
-			require.Equal(t, input.expireAtNs, res.expireAtNs)
-			require.Equal(t, input.result, res.Mappings().Policies())
+			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
+			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
+			require.Equal(t, input.result, res.MappingsAt(time.Unix(0, 0)))
 		}
 		for _, input := range inputs.rollupInputs {
-			res := as.Match(b(input.id), input.matchAt)
-			require.Equal(t, 1, res.version)
-			require.Equal(t, input.cutoverNs, res.cutoverNs)
-			require.Equal(t, input.expireAtNs, res.expireAtNs)
+			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
+			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.Equal(t, len(input.result), res.NumRollups())
 			for i := 0; i < len(input.result); i++ {
-				id, policies := res.Rollups(i)
+				rollup := res.RollupsAt(i, time.Unix(0, 0))
+				id, policies := rollup.ID, rollup.PoliciesList
 				require.Equal(t, input.result[i].ID, id)
-				require.Equal(t, input.result[i].Policies, policies.Policies())
+				require.Equal(t, input.result[i].PoliciesList, policies)
 			}
 		}
 	}
@@ -483,19 +728,19 @@ func testMappingRules(t *testing.T) []*mappingRule {
 		uuid: "mappingRule1",
 		snapshots: []*mappingRuleSnapshot{
 			&mappingRuleSnapshot{
-				name:       "mappingRule1.snapshot1",
-				tombstoned: false,
-				cutoverNs:  10000,
-				filter:     filter1,
+				name:         "mappingRule1.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 10000,
+				filter:       filter1,
 				policies: []policy.Policy{
 					policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
 				},
 			},
 			&mappingRuleSnapshot{
-				name:       "mappingRule1.snapshot2",
-				tombstoned: false,
-				cutoverNs:  20000,
-				filter:     filter1,
+				name:         "mappingRule1.snapshot2",
+				tombstoned:   false,
+				cutoverNanos: 20000,
+				filter:       filter1,
 				policies: []policy.Policy{
 					policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
 					policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
@@ -503,10 +748,10 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				},
 			},
 			&mappingRuleSnapshot{
-				name:       "mappingRule1.snapshot3",
-				tombstoned: false,
-				cutoverNs:  30000,
-				filter:     filter1,
+				name:         "mappingRule1.snapshot3",
+				tombstoned:   false,
+				cutoverNanos: 30000,
+				filter:       filter1,
 				policies: []policy.Policy{
 					policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
 				},
@@ -518,32 +763,30 @@ func testMappingRules(t *testing.T) []*mappingRule {
 		uuid: "mappingRule2",
 		snapshots: []*mappingRuleSnapshot{
 			&mappingRuleSnapshot{
-				name:       "mappingRule2.snapshot1",
-				tombstoned: false,
-				cutoverNs:  15000,
-				filter:     filter1,
+				name:         "mappingRule2.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 15000,
+				filter:       filter1,
 				policies: []policy.Policy{
 					policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
 				},
 			},
 			&mappingRuleSnapshot{
-				name:       "mappingRule2.snapshot2",
-				tombstoned: false,
-				cutoverNs:  22000,
-				filter:     filter1,
+				name:         "mappingRule2.snapshot2",
+				tombstoned:   false,
+				cutoverNanos: 22000,
+				filter:       filter1,
 				policies: []policy.Policy{
 					policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
 					policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
 				},
 			},
 			&mappingRuleSnapshot{
-				name:       "mappingRule2.snapshot3",
-				tombstoned: true,
-				cutoverNs:  35000,
-				filter:     filter1,
-				policies: []policy.Policy{
-					policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
-				},
+				name:         "mappingRule2.snapshot3",
+				tombstoned:   true,
+				cutoverNanos: 35000,
+				filter:       filter1,
+				policies:     []policy.Policy{},
 			},
 		},
 	}
@@ -552,10 +795,10 @@ func testMappingRules(t *testing.T) []*mappingRule {
 		uuid: "mappingRule3",
 		snapshots: []*mappingRuleSnapshot{
 			&mappingRuleSnapshot{
-				name:       "mappingRule3.snapshot1",
-				tombstoned: false,
-				cutoverNs:  22000,
-				filter:     filter1,
+				name:         "mappingRule3.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 22000,
+				filter:       filter1,
 				policies: []policy.Policy{
 					policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
 					policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
@@ -563,10 +806,10 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				},
 			},
 			&mappingRuleSnapshot{
-				name:       "mappingRule3.snapshot2",
-				tombstoned: false,
-				cutoverNs:  34000,
-				filter:     filter1,
+				name:         "mappingRule3.snapshot2",
+				tombstoned:   false,
+				cutoverNanos: 34000,
+				filter:       filter1,
 				policies: []policy.Policy{
 					policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
 					policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
@@ -579,10 +822,10 @@ func testMappingRules(t *testing.T) []*mappingRule {
 		uuid: "mappingRule4",
 		snapshots: []*mappingRuleSnapshot{
 			&mappingRuleSnapshot{
-				name:       "mappingRule4.snapshot1",
-				tombstoned: false,
-				cutoverNs:  24000,
-				filter:     filter2,
+				name:         "mappingRule4.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 24000,
+				filter:       filter2,
 				policies: []policy.Policy{
 					policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
 				},
@@ -594,10 +837,10 @@ func testMappingRules(t *testing.T) []*mappingRule {
 		uuid: "mappingRule5",
 		snapshots: []*mappingRuleSnapshot{
 			&mappingRuleSnapshot{
-				name:       "mappingRule5.snapshot1",
-				tombstoned: false,
-				cutoverNs:  100000,
-				filter:     filter1,
+				name:         "mappingRule5.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 100000,
+				filter:       filter1,
 				policies: []policy.Policy{
 					policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
 				},
@@ -631,10 +874,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		uuid: "rollupRule1",
 		snapshots: []*rollupRuleSnapshot{
 			&rollupRuleSnapshot{
-				name:       "rollupRule1.snapshot1",
-				tombstoned: false,
-				cutoverNs:  10000,
-				filter:     filter1,
+				name:         "rollupRule1.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 10000,
+				filter:       filter1,
 				targets: []rollupTarget{
 					{
 						Name: b("rName1"),
@@ -646,10 +889,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 				},
 			},
 			&rollupRuleSnapshot{
-				name:       "rollupRule1.snapshot2",
-				tombstoned: false,
-				cutoverNs:  20000,
-				filter:     filter1,
+				name:         "rollupRule1.snapshot2",
+				tombstoned:   false,
+				cutoverNanos: 20000,
+				filter:       filter1,
 				targets: []rollupTarget{
 					{
 						Name: b("rName1"),
@@ -663,10 +906,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 				},
 			},
 			&rollupRuleSnapshot{
-				name:       "rollupRule1.snapshot3",
-				tombstoned: false,
-				cutoverNs:  30000,
-				filter:     filter1,
+				name:         "rollupRule1.snapshot3",
+				tombstoned:   false,
+				cutoverNanos: 30000,
+				filter:       filter1,
 				targets: []rollupTarget{
 					{
 						Name: b("rName1"),
@@ -684,10 +927,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		uuid: "rollupRule2",
 		snapshots: []*rollupRuleSnapshot{
 			&rollupRuleSnapshot{
-				name:       "rollupRule2.snapshot1",
-				tombstoned: false,
-				cutoverNs:  15000,
-				filter:     filter1,
+				name:         "rollupRule2.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 15000,
+				filter:       filter1,
 				targets: []rollupTarget{
 					{
 						Name: b("rName1"),
@@ -699,10 +942,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 				},
 			},
 			&rollupRuleSnapshot{
-				name:       "rollupRule2.snapshot2",
-				tombstoned: false,
-				cutoverNs:  22000,
-				filter:     filter1,
+				name:         "rollupRule2.snapshot2",
+				tombstoned:   false,
+				cutoverNanos: 22000,
+				filter:       filter1,
 				targets: []rollupTarget{
 					{
 						Name: b("rName1"),
@@ -715,10 +958,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 				},
 			},
 			&rollupRuleSnapshot{
-				name:       "rollupRule2.snapshot3",
-				tombstoned: false,
-				cutoverNs:  35000,
-				filter:     filter1,
+				name:         "rollupRule2.snapshot3",
+				tombstoned:   false,
+				cutoverNanos: 35000,
+				filter:       filter1,
 				targets: []rollupTarget{
 					{
 						Name: b("rName1"),
@@ -736,10 +979,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		uuid: "rollupRule3",
 		snapshots: []*rollupRuleSnapshot{
 			&rollupRuleSnapshot{
-				name:       "rollupRule3.snapshot1",
-				tombstoned: false,
-				cutoverNs:  22000,
-				filter:     filter1,
+				name:         "rollupRule3.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 22000,
+				filter:       filter1,
 				targets: []rollupTarget{
 					{
 						Name: b("rName1"),
@@ -760,10 +1003,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 				},
 			},
 			&rollupRuleSnapshot{
-				name:       "rollupRule3.snapshot2",
-				tombstoned: false,
-				cutoverNs:  34000,
-				filter:     filter1,
+				name:         "rollupRule3.snapshot2",
+				tombstoned:   false,
+				cutoverNanos: 34000,
+				filter:       filter1,
 				targets: []rollupTarget{
 					{
 						Name: b("rName1"),
@@ -775,6 +1018,13 @@ func testRollupRules(t *testing.T) []*rollupRule {
 					},
 				},
 			},
+			&rollupRuleSnapshot{
+				name:         "rollupRule3.snapshot3",
+				tombstoned:   true,
+				cutoverNanos: 38000,
+				filter:       filter1,
+				targets:      []rollupTarget{},
+			},
 		},
 	}
 
@@ -782,10 +1032,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		uuid: "rollupRule4",
 		snapshots: []*rollupRuleSnapshot{
 			&rollupRuleSnapshot{
-				name:       "rollupRule4.snapshot1",
-				tombstoned: false,
-				cutoverNs:  24000,
-				filter:     filter2,
+				name:         "rollupRule4.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 24000,
+				filter:       filter2,
 				targets: []rollupTarget{
 					{
 						Name: b("rName3"),
@@ -803,10 +1053,10 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		uuid: "rollupRule5",
 		snapshots: []*rollupRuleSnapshot{
 			&rollupRuleSnapshot{
-				name:       "rollupRule5.snapshot1",
-				tombstoned: false,
-				cutoverNs:  100000,
-				filter:     filter1,
+				name:         "rollupRule5.snapshot1",
+				tombstoned:   false,
+				cutoverNanos: 100000,
+				filter:       filter1,
 				targets: []rollupTarget{
 					{
 						Name: b("rName3"),
@@ -1462,19 +1712,19 @@ func testRollupRulesConfig() []*schema.RollupRule {
 }
 
 type testMappingsData struct {
-	id         string
-	matchAt    time.Time
-	cutoverNs  int64
-	expireAtNs int64
-	result     []policy.Policy
+	id            string
+	matchFrom     time.Time
+	matchTo       time.Time
+	expireAtNanos int64
+	result        policy.PoliciesList
 }
 
 type testRollupResultsData struct {
-	id         string
-	matchAt    time.Time
-	cutoverNs  int64
-	expireAtNs int64
-	result     []RollupResult
+	id            string
+	matchFrom     time.Time
+	matchTo       time.Time
+	expireAtNanos int64
+	result        []RollupResult
 }
 
 func b(v string) []byte {

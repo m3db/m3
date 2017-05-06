@@ -25,7 +25,6 @@ import (
 	"errors"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -95,30 +94,30 @@ func TestRawMetricDecodeIDSuccess(t *testing.T) {
 func TestRawMetricDecodeTimestampExistingError(t *testing.T) {
 	m := testRawMetric()
 	m.it.setErr(errTestDecodeRawMetric)
-	_, err := m.Timestamp()
+	_, err := m.TimeNanos()
 	require.Equal(t, errTestDecodeRawMetric, err)
 }
 
 func TestRawMetricDecodeTimestampDecodeError(t *testing.T) {
 	m := testRawMetric()
-	m.it.(*mockBaseIterator).decodeTimeFn = func() time.Time {
+	m.it.(*mockBaseIterator).decodeVarintFn = func() int64 {
 		m.it.setErr(errTestDecodeRawMetric)
-		return time.Time{}
+		return 0
 	}
-	_, err := m.Timestamp()
+	_, err := m.TimeNanos()
 	require.Equal(t, errTestDecodeRawMetric, err)
 }
 
 func TestRawMetricDecodeTimestampSuccess(t *testing.T) {
 	m := testRawMetric()
-	timestamp, err := m.Timestamp()
+	timeNanos, err := m.TimeNanos()
 	require.NoError(t, err)
-	require.Equal(t, testMetric.Timestamp, timestamp)
-	require.True(t, m.timestampDecoded)
+	require.Equal(t, testMetric.TimeNanos, timeNanos)
+	require.True(t, m.timeDecoded)
 
 	// Get timestamp again to make sure we don't re-decode the timestamp.
 	require.NoError(t, err)
-	require.Equal(t, testMetric.Timestamp, timestamp)
+	require.Equal(t, testMetric.TimeNanos, timeNanos)
 }
 
 func TestRawMetricDecodeValueExistingError(t *testing.T) {
@@ -163,7 +162,7 @@ func TestRawMetricDecodeMetricSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testMetric, metric)
 	require.True(t, m.idDecoded)
-	require.True(t, m.timestampDecoded)
+	require.True(t, m.timeDecoded)
 	require.True(t, m.valueDecoded)
 
 	// Get metric again to make sure we don't re-decode the metric.
@@ -187,9 +186,9 @@ func TestRawMetricNilID(t *testing.T) {
 
 func TestRawMetricReset(t *testing.T) {
 	metrics := []aggregated.Metric{
-		{ID: metric.ID("foo"), Timestamp: testMetric.Timestamp, Value: 1.0},
-		{ID: metric.ID("bar"), Timestamp: testMetric.Timestamp, Value: 2.3},
-		{ID: metric.ID("baz"), Timestamp: testMetric.Timestamp, Value: 4234.234},
+		{ID: metric.ID("foo"), TimeNanos: testMetric.TimeNanos, Value: 1.0},
+		{ID: metric.ID("bar"), TimeNanos: testMetric.TimeNanos, Value: 2.3},
+		{ID: metric.ID("baz"), TimeNanos: testMetric.TimeNanos, Value: 4234.234},
 	}
 	rawMetric := NewRawMetric(nil, 16)
 	for i := 0; i < len(metrics); i++ {
@@ -202,9 +201,9 @@ func TestRawMetricReset(t *testing.T) {
 
 func TestRawMetricRoundtripStress(t *testing.T) {
 	metrics := []aggregated.Metric{
-		{ID: metric.ID("foo"), Timestamp: testMetric.Timestamp, Value: 1.0},
-		{ID: metric.ID("bar"), Timestamp: testMetric.Timestamp, Value: 2.3},
-		{ID: metric.ID("baz"), Timestamp: testMetric.Timestamp, Value: 4234.234},
+		{ID: metric.ID("foo"), TimeNanos: testMetric.TimeNanos, Value: 1.0},
+		{ID: metric.ID("bar"), TimeNanos: testMetric.TimeNanos, Value: 2.3},
+		{ID: metric.ID("baz"), TimeNanos: testMetric.TimeNanos, Value: 4234.234},
 	}
 	var (
 		inputs  []aggregated.Metric
@@ -224,7 +223,7 @@ func TestRawMetricRoundtripStress(t *testing.T) {
 
 type decodeVersionFn func() int
 type decodeBytesLenFn func() int
-type decodeTimeFn func() time.Time
+type decodeVarintFn func() int64
 type decodeFloat64Fn func() float64
 
 type mockBaseIterator struct {
@@ -232,7 +231,7 @@ type mockBaseIterator struct {
 	itErr            error
 	decodeVersionFn  decodeVersionFn
 	decodeBytesLenFn decodeBytesLenFn
-	decodeTimeFn     decodeTimeFn
+	decodeVarintFn   decodeVarintFn
 	decodeFloat64Fn  decodeFloat64Fn
 }
 
@@ -245,8 +244,8 @@ func (it *mockBaseIterator) decodeVersion() int           { return it.decodeVers
 func (it *mockBaseIterator) decodeObjectType() objectType { return unknownType }
 func (it *mockBaseIterator) decodeNumObjectFields() int   { return 0 }
 func (it *mockBaseIterator) decodeID() metric.ID          { return nil }
-func (it *mockBaseIterator) decodeTime() time.Time        { return it.decodeTimeFn() }
-func (it *mockBaseIterator) decodeVarint() int64          { return 0 }
+func (it *mockBaseIterator) decodeVarint() int64          { return it.decodeVarintFn() }
+func (it *mockBaseIterator) decodeBool() bool             { return false }
 func (it *mockBaseIterator) decodeFloat64() float64       { return it.decodeFloat64Fn() }
 func (it *mockBaseIterator) decodeBytes() []byte          { return nil }
 func (it *mockBaseIterator) decodeBytesLen() int          { return it.decodeBytesLenFn() }
@@ -257,18 +256,18 @@ func (it *mockBaseIterator) checkNumFieldsForType(objType objectType) (int, int,
 	return 0, 0, true
 }
 
-func (it *mockBaseIterator) checkNumFieldsForTypeWithActual(
+func (it *mockBaseIterator) checkExpectedNumFieldsForType(
 	objType objectType,
 	numActualFields int,
-) (int, int, bool) {
-	return 0, 0, true
+) (int, bool) {
+	return 0, true
 }
 
 func testRawMetric() *rawMetric {
 	mockIt := &mockBaseIterator{}
 	mockIt.decodeVersionFn = func() int { return metricVersion }
 	mockIt.decodeBytesLenFn = func() int { return len(testMetric.ID) }
-	mockIt.decodeTimeFn = func() time.Time { return testMetric.Timestamp }
+	mockIt.decodeVarintFn = func() int64 { return testMetric.TimeNanos }
 	mockIt.decodeFloat64Fn = func() float64 { return testMetric.Value }
 	mockIt.bufReader = bytes.NewReader(testRawMetricData)
 

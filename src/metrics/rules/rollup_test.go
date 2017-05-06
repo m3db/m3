@@ -169,15 +169,15 @@ func TestRollupRuleValidSchema(t *testing.T) {
 	require.Equal(t, "12669817-13ae-40e6-ba2f-33087b262c68", rr.uuid)
 
 	expectedSnapshots := []struct {
-		name       string
-		tombstoned bool
-		cutoverNs  int64
-		targets    []rollupTarget
+		name         string
+		tombstoned   bool
+		cutoverNanos int64
+		targets      []rollupTarget
 	}{
 		{
-			name:       "foo",
-			tombstoned: false,
-			cutoverNs:  12345,
+			name:         "foo",
+			tombstoned:   false,
+			cutoverNanos: 12345,
 			targets: []rollupTarget{
 				{
 					Name: b("rName1"),
@@ -189,9 +189,9 @@ func TestRollupRuleValidSchema(t *testing.T) {
 			},
 		},
 		{
-			name:       "bar",
-			tombstoned: true,
-			cutoverNs:  67890,
+			name:         "bar",
+			tombstoned:   true,
+			cutoverNanos: 67890,
 			targets: []rollupTarget{
 				{
 					Name: b("rName1"),
@@ -207,7 +207,7 @@ func TestRollupRuleValidSchema(t *testing.T) {
 	for i, snapshot := range expectedSnapshots {
 		require.Equal(t, snapshot.name, rr.snapshots[i].name)
 		require.Equal(t, snapshot.tombstoned, rr.snapshots[i].tombstoned)
-		require.Equal(t, snapshot.cutoverNs, rr.snapshots[i].cutoverNs)
+		require.Equal(t, snapshot.cutoverNanos, rr.snapshots[i].cutoverNanos)
 		require.Equal(t, snapshot.targets, rr.snapshots[i].targets)
 	}
 }

@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -38,13 +37,13 @@ type readBytesFn func(start int, n int) []byte
 
 // rawMetric is a raw metric.
 type rawMetric struct {
-	data             []byte            // raw data containing encoded metric.
-	it               iteratorBase      // base iterator for lazily decoding metric fields.
-	metric           aggregated.Metric // current metric.
-	idDecoded        bool              // whether id has been decoded.
-	timestampDecoded bool              // whether timestamp has been decoded.
-	valueDecoded     bool              // whether value has been decoded.
-	readBytesFn      readBytesFn       // reading bytes function.
+	data         []byte            // raw data containing encoded metric.
+	it           iteratorBase      // base iterator for lazily decoding metric fields.
+	metric       aggregated.Metric // current metric.
+	idDecoded    bool              // whether id has been decoded.
+	timeDecoded  bool              // whether time has been decoded.
+	valueDecoded bool              // whether value has been decoded.
+	readBytesFn  readBytesFn       // reading bytes function.
 }
 
 // NewRawMetric creates a new raw metric.
@@ -66,18 +65,18 @@ func (m *rawMetric) ID() (metric.ID, error) {
 	return m.metric.ID, nil
 }
 
-func (m *rawMetric) Timestamp() (time.Time, error) {
+func (m *rawMetric) TimeNanos() (int64, error) {
 	m.decodeID()
-	m.decodeTimestamp()
+	m.decodeTime()
 	if err := m.it.err(); err != nil {
-		return time.Time{}, err
+		return 0, err
 	}
-	return m.metric.Timestamp, nil
+	return m.metric.TimeNanos, nil
 }
 
 func (m *rawMetric) Value() (float64, error) {
 	m.decodeID()
-	m.decodeTimestamp()
+	m.decodeTime()
 	m.decodeValue()
 	if err := m.it.err(); err != nil {
 		return 0.0, err
@@ -87,7 +86,7 @@ func (m *rawMetric) Value() (float64, error) {
 
 func (m *rawMetric) Metric() (aggregated.Metric, error) {
 	m.decodeID()
-	m.decodeTimestamp()
+	m.decodeTime()
 	m.decodeValue()
 	if err := m.it.err(); err != nil {
 		return emptyMetric, err
@@ -102,7 +101,7 @@ func (m *rawMetric) Bytes() []byte {
 func (m *rawMetric) Reset(data []byte) {
 	m.metric = emptyMetric
 	m.idDecoded = false
-	m.timestampDecoded = false
+	m.timeDecoded = false
 	m.valueDecoded = false
 	m.data = data
 	m.reader().Reset(data)
@@ -148,16 +147,16 @@ func (m *rawMetric) decodeID() {
 	m.idDecoded = true
 }
 
-func (m *rawMetric) decodeTimestamp() {
-	if m.it.err() != nil || m.timestampDecoded {
+func (m *rawMetric) decodeTime() {
+	if m.it.err() != nil || m.timeDecoded {
 		return
 	}
-	t := m.it.decodeTime()
+	timeNanos := m.it.decodeVarint()
 	if m.it.err() != nil {
 		return
 	}
-	m.metric.Timestamp = t
-	m.timestampDecoded = true
+	m.metric.TimeNanos = timeNanos
+	m.timeDecoded = true
 }
 
 func (m *rawMetric) decodeValue() {

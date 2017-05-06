@@ -5,24 +5,24 @@
   * Number of root object fields
   * Root object type
   * Root object (can be one of the following):
-    * CounterWithPolicies
-    * BatchTimerWithPolicies
-    * GaugeWithPolicies
+    * CounterWithPoliciesList
+    * BatchTimerWithPoliciesList
+    * GaugeWithPoliciesList
 
-* CounterWithPolicies object
-  * Number of CounterWithPolicies fields
+* CounterWithPoliciesList object
+  * Number of CounterWithPoliciesList fields
   * Counter object
-  * VersionedPolicies object
+  * PoliciesList object
 
-* BatchTimerWithPolicies object
-  * Number of BatchTimerWithPolicies fields
+* BatchTimerWithPoliciesList object
+  * Number of BatchTimerWithPoliciesList fields
   * BatchTimer object
-  * VersionedPolicies object
+  * PoliciesList object
 
-* GaugeWithPolicies object
-  * Number of GaugeWithPolicies fields
+* GaugeWithPoliciesList object
+  * Number of GaugeWithPoliciesList fields
   * Gauge object
-  * VersionedPolicies object
+  * PoliciesList object
 
 * Counter object
   * Number of Counter fields
@@ -39,16 +39,20 @@
   * Gauge ID
   * Gauge value
 
-* VersionedPolicies object
-  * Number of VersionedPolicies fields
-  * Versioned Policies (can be one of the following)
-    * DefaultVersionedPolicies
-      * Versioned Policies type
-    * CustomVersionedPolicies
-      * Versioned Policies type
-      * Version
-      * Cutover
-      * List of Policy objects
+* PoliciesList object
+  * Number of PoliciesList fields
+  * PoliciesList (can be one of the following)
+    * DefaultPoliciesList
+      * PoliciesList type
+    * CustomPoliciesList
+      * PoliciesList type
+      * List of StagedPolicies objects
+
+* StagedPolicies object
+  * Number of StagedPolicies fields
+  * Cutover
+  * Tombstoned
+  * List of Policy objects
 
 * Policy object
   * Number of Policy fields

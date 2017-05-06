@@ -21,6 +21,7 @@
 package rules
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/m3db/m3metrics/policy"
@@ -28,64 +29,70 @@ import (
 
 var (
 	// EmptyMatchResult is the result when no matches were found.
-	EmptyMatchResult = NewMatchResult(0, 0, timeNsMax, nil, nil)
+	EmptyMatchResult = NewMatchResult(timeNanosMax, policy.DefaultPoliciesList, nil)
 )
 
-// RollupResult contains the rollup metric id and the associated policies.
+// RollupResult contains the rollup metric id and the associated policies list.
 type RollupResult struct {
-	ID       []byte
-	Policies []policy.Policy
+	ID           []byte
+	PoliciesList policy.PoliciesList
 }
+
+// RollupResultsByIDAsc sorts rollup results by id in ascending order.
+type RollupResultsByIDAsc []RollupResult
+
+func (a RollupResultsByIDAsc) Len() int           { return len(a) }
+func (a RollupResultsByIDAsc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a RollupResultsByIDAsc) Less(i, j int) bool { return bytes.Compare(a[i].ID, a[j].ID) < 0 }
 
 // MatchResult represents a match result.
 type MatchResult struct {
-	version    int
-	cutoverNs  int64
-	expireAtNs int64
-	mappings   []policy.Policy
-	rollups    []RollupResult
+	expireAtNanos int64
+	mappings      policy.PoliciesList
+	rollups       []RollupResult
 }
 
 // NewMatchResult creates a new match result.
 func NewMatchResult(
-	version int,
-	cutoverNs int64,
-	expireAtNs int64,
-	mappings []policy.Policy,
+	expireAtNanos int64,
+	mappings policy.PoliciesList,
 	rollups []RollupResult,
 ) MatchResult {
 	return MatchResult{
-		version:    version,
-		cutoverNs:  cutoverNs,
-		expireAtNs: expireAtNs,
-		mappings:   mappings,
-		rollups:    rollups,
+		expireAtNanos: expireAtNanos,
+		mappings:      mappings,
+		rollups:       rollups,
 	}
 }
 
 // HasExpired returns whether the match result has expired for a given time.
-func (r *MatchResult) HasExpired(t time.Time) bool { return r.expireAtNs <= t.UnixNano() }
+func (r *MatchResult) HasExpired(t time.Time) bool { return r.expireAtNanos <= t.UnixNano() }
 
-// NumRollups returns the number of rollup result associated with the given id.
+// NumRollups returns the number of rollup metrics.
 func (r *MatchResult) NumRollups() int { return len(r.rollups) }
 
-// Mappings returns the mapping policies for the given id.
-func (r *MatchResult) Mappings() policy.VersionedPolicies {
-	return r.versionedPolicies(r.mappings)
+// MappingsAt returns the active mapping policies at a given time.
+func (r *MatchResult) MappingsAt(t time.Time) policy.PoliciesList {
+	return activePoliciesAt(r.mappings, t)
 }
 
-// Rollups returns the rollup metric id and corresponding policies at a given index.
-func (r *MatchResult) Rollups(idx int) ([]byte, policy.VersionedPolicies) {
+// RollupsAt returns the rollup metric id and corresponding policies at a given index and time.
+func (r *MatchResult) RollupsAt(idx int, t time.Time) RollupResult {
 	rollup := r.rollups[idx]
-	return rollup.ID, r.versionedPolicies(rollup.Policies)
+	return RollupResult{
+		ID:           rollup.ID,
+		PoliciesList: activePoliciesAt(rollup.PoliciesList, t),
+	}
 }
 
-// TODO(xichen): change versioned policies to use int64 instead.
-func (r *MatchResult) versionedPolicies(policies []policy.Policy) policy.VersionedPolicies {
-	// NB(xichen): if there are no policies for this id, we fall
-	// back to the default mapping policies.
-	if len(policies) == 0 {
-		return policy.DefaultVersionedPolicies(r.version, time.Unix(0, r.cutoverNs))
+// activePolicies returns the active policies at a given time, assuming
+// the input policies are sorted by cutover time in ascending order.
+func activePoliciesAt(policies policy.PoliciesList, t time.Time) policy.PoliciesList {
+	timeNanos := t.UnixNano()
+	for idx := len(policies) - 1; idx >= 0; idx-- {
+		if policies[idx].CutoverNanos <= timeNanos {
+			return policies[idx:]
+		}
 	}
-	return policy.CustomVersionedPolicies(r.version, time.Unix(0, r.cutoverNs), policies)
+	return policies
 }

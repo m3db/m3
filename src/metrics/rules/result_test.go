@@ -30,65 +30,119 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMatchResultHasExpired(t *testing.T) {
+	r := NewMatchResult(1000, nil, nil)
+	require.False(t, r.HasExpired(time.Unix(0, 0)))
+	require.True(t, r.HasExpired(time.Unix(0, 1000)))
+}
+
 func TestMatchResult(t *testing.T) {
 	var (
-		version    = 1
-		cutoverNs  = int64(12345)
-		expireAtNs = int64(67890)
-		mappings   = []policy.Policy{
-			policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-			policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-			policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
-		}
-		rollups = []RollupResult{
-			{
-				ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
-				Policies: []policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-					policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-					policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
-				},
-			},
-			{
-				ID:       b("rName2|rtagName1=rtagValue1"),
-				Policies: []policy.Policy{},
-			},
-		}
-	)
-
-	res := NewMatchResult(version, cutoverNs, expireAtNs, mappings, rollups)
-	require.False(t, res.HasExpired(time.Unix(0, 0)))
-	require.True(t, res.HasExpired(time.Unix(0, 100000)))
-
-	expectedMappings := policy.CustomVersionedPolicies(version, time.Unix(0, 12345), mappings)
-	require.Equal(t, expectedMappings, res.Mappings())
-
-	var (
-		expectedRollupIDs = [][]byte{
-			b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
-			b("rName2|rtagName1=rtagValue1"),
-		}
-		expectedRollupPolicies = []policy.VersionedPolicies{
-			policy.CustomVersionedPolicies(
-				1,
-				time.Unix(0, 12345),
+		testExpireAtNanos  = int64(67890)
+		testResultMappings = policy.PoliciesList{
+			policy.NewStagedPolicies(
+				12345,
+				false,
 				[]policy.Policy{
 					policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
 					policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
 					policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 				},
 			),
-			policy.DefaultVersionedPolicies(1, time.Unix(0, 12345)),
+			policy.NewStagedPolicies(
+				23456,
+				true,
+				[]policy.Policy{
+					policy.NewPolicy(30*time.Second, xtime.Second, 10*time.Hour),
+					policy.NewPolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			),
 		}
-		rollupIDs      [][]byte
-		rollupPolicies []policy.VersionedPolicies
+		testResultRollups = []RollupResult{
+			{
+				ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
+				PoliciesList: policy.PoliciesList{
+					policy.NewStagedPolicies(
+						12345,
+						false,
+						[]policy.Policy{
+							policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+							policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+							policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+						},
+					),
+					policy.NewStagedPolicies(
+						23456,
+						false,
+						[]policy.Policy{
+							policy.NewPolicy(30*time.Second, xtime.Second, 10*time.Hour),
+							policy.NewPolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+						},
+					),
+				},
+			},
+			{
+				ID:           b("rName2|rtagName1=rtagValue1"),
+				PoliciesList: policy.PoliciesList{policy.NewStagedPolicies(12345, false, nil)},
+			},
+		}
 	)
-	require.Equal(t, 2, res.NumRollups())
-	for i := 0; i < 2; i++ {
-		id, policies := res.Rollups(i)
-		rollupIDs = append(rollupIDs, id)
-		rollupPolicies = append(rollupPolicies, policies)
+
+	inputs := []struct {
+		matchAt          time.Time
+		expectedMappings policy.PoliciesList
+		expectedRollups  []RollupResult
+	}{
+		{
+			matchAt:          time.Unix(0, 0),
+			expectedMappings: testResultMappings,
+			expectedRollups:  testResultRollups,
+		},
+		{
+			matchAt:          time.Unix(0, 20000),
+			expectedMappings: testResultMappings,
+			expectedRollups:  testResultRollups,
+		},
+		{
+			matchAt: time.Unix(0, 30000),
+			expectedMappings: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					23456,
+					true,
+					[]policy.Policy{
+						policy.NewPolicy(30*time.Second, xtime.Second, 10*time.Hour),
+						policy.NewPolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+					},
+				),
+			},
+			expectedRollups: []RollupResult{
+				{
+					ID: b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
+					PoliciesList: policy.PoliciesList{
+						policy.NewStagedPolicies(
+							23456,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(30*time.Second, xtime.Second, 10*time.Hour),
+								policy.NewPolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+							},
+						),
+					},
+				},
+				{
+					ID:           b("rName2|rtagName1=rtagValue1"),
+					PoliciesList: policy.PoliciesList{policy.NewStagedPolicies(12345, false, nil)},
+				},
+			},
+		},
 	}
-	require.Equal(t, expectedRollupIDs, rollupIDs)
-	require.Equal(t, expectedRollupPolicies, rollupPolicies)
+
+	res := NewMatchResult(testExpireAtNanos, testResultMappings, testResultRollups)
+	for _, input := range inputs {
+		require.Equal(t, input.expectedMappings, res.MappingsAt(input.matchAt))
+		require.Equal(t, len(input.expectedRollups), res.NumRollups())
+		for i := 0; i < len(input.expectedRollups); i++ {
+			require.Equal(t, input.expectedRollups[i], res.RollupsAt(i, input.matchAt))
+		}
+	}
 }

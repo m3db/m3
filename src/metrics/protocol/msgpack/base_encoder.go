@@ -21,15 +21,13 @@
 package msgpack
 
 import (
-	"time"
-
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 )
 
 type encodePolicyFn func(p policy.Policy)
-type encodeTimeFn func(t time.Time)
 type encodeVarintFn func(value int64)
+type encodeBoolFn func(value bool)
 type encodeFloat64Fn func(value float64)
 type encodeBytesFn func(value []byte)
 type encodeBytesLenFn func(value int)
@@ -40,8 +38,8 @@ type baseEncoder struct {
 	bufEncoder       BufferedEncoder
 	encodeErr        error
 	encodePolicyFn   encodePolicyFn
-	encodeTimeFn     encodeTimeFn
 	encodeVarintFn   encodeVarintFn
+	encodeBoolFn     encodeBoolFn
 	encodeFloat64Fn  encodeFloat64Fn
 	encodeBytesFn    encodeBytesFn
 	encodeBytesLenFn encodeBytesLenFn
@@ -52,8 +50,8 @@ func newBaseEncoder(encoder BufferedEncoder) encoderBase {
 	enc := &baseEncoder{bufEncoder: encoder}
 
 	enc.encodePolicyFn = enc.encodePolicyInternal
-	enc.encodeTimeFn = enc.encodeTimeInternal
 	enc.encodeVarintFn = enc.encodeVarintInternal
+	enc.encodeBoolFn = enc.encodeBoolInternal
 	enc.encodeFloat64Fn = enc.encodeFloat64Internal
 	enc.encodeBytesFn = enc.encodeBytesInternal
 	enc.encodeBytesLenFn = enc.encodeBytesLenInternal
@@ -70,8 +68,8 @@ func (enc *baseEncoder) encodeVersion(version int)           { enc.encodeVarint(
 func (enc *baseEncoder) encodeObjectType(objType objectType) { enc.encodeVarint(int64(objType)) }
 func (enc *baseEncoder) encodeNumObjectFields(numFields int) { enc.encodeArrayLen(numFields) }
 func (enc *baseEncoder) encodeID(id metric.ID)               { enc.encodeBytes([]byte(id)) }
-func (enc *baseEncoder) encodeTime(t time.Time)              { enc.encodeTimeFn(t) }
 func (enc *baseEncoder) encodeVarint(value int64)            { enc.encodeVarintFn(value) }
+func (enc *baseEncoder) encodeBool(value bool)               { enc.encodeBoolFn(value) }
 func (enc *baseEncoder) encodeFloat64(value float64)         { enc.encodeFloat64Fn(value) }
 func (enc *baseEncoder) encodeBytes(value []byte)            { enc.encodeBytesFn(value) }
 func (enc *baseEncoder) encodeBytesLen(value int)            { enc.encodeBytesLenFn(value) }
@@ -132,13 +130,6 @@ func (enc *baseEncoder) encodeRetention(retention policy.Retention) {
 	enc.encodeVarintFn(int64(retention))
 }
 
-func (enc *baseEncoder) encodeTimeInternal(value time.Time) {
-	if enc.encodeErr != nil {
-		return
-	}
-	enc.encodeErr = enc.bufEncoder.EncodeTime(value)
-}
-
 // NB(xichen): the underlying msgpack encoder implementation
 // always cast an integer value to an int64 and encodes integer
 // values as varints, regardless of the actual integer type.
@@ -147,6 +138,13 @@ func (enc *baseEncoder) encodeVarintInternal(value int64) {
 		return
 	}
 	enc.encodeErr = enc.bufEncoder.EncodeInt64(value)
+}
+
+func (enc *baseEncoder) encodeBoolInternal(value bool) {
+	if enc.encodeErr != nil {
+		return
+	}
+	enc.encodeErr = enc.bufEncoder.EncodeBool(value)
 }
 
 func (enc *baseEncoder) encodeFloat64Internal(value float64) {

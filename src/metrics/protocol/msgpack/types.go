@@ -23,7 +23,6 @@ package msgpack
 import (
 	"bytes"
 	"io"
-	"time"
 
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -49,11 +48,11 @@ type Buffer interface {
 
 // Encoder is an encoder.
 type Encoder interface {
-	// EncodeTime encodes a time value.
-	EncodeTime(value time.Time) error
-
 	// EncodeInt64 encodes an int64 value.
 	EncodeInt64(value int64) error
+
+	// EncodeBool encodes a boolean value.
+	EncodeBool(value bool) error
 
 	// EncodeFloat64 encodes a float64 value.
 	EncodeFloat64(value float64) error
@@ -121,11 +120,11 @@ type encoderBase interface {
 	// encodeChunkedID encodes a chunked ID.
 	encodeChunkedID(id metric.ChunkedID)
 
-	// encodeTime encodes a time.
-	encodeTime(t time.Time)
-
 	// encodeVarint encodes an integer value as varint.
 	encodeVarint(value int64)
+
+	// encodeBool encodes a boolean value.
+	encodeBool(value bool)
 
 	// encodeFloat64 encodes a float64 value.
 	encodeFloat64(value float64)
@@ -169,11 +168,11 @@ type iteratorBase interface {
 	// decodeID decodes an ID.
 	decodeID() metric.ID
 
-	// decodeTime decodes a time.
-	decodeTime() time.Time
-
 	// decodeVarint decodes a variable-width integer value.
 	decodeVarint() int64
+
+	// decodeBool decodes a boolean value.
+	decodeBool() bool
 
 	// decodeFloat64 decodes a float64 value.
 	decodeFloat64() float64
@@ -194,21 +193,21 @@ type iteratorBase interface {
 	// the number of expected fields for a given object type.
 	checkNumFieldsForType(objType objectType) (int, int, bool)
 
-	// checkNumFieldsForTypeWithActual compares the given number of actual fields with
+	// checkExpectedNumFieldsForType compares the given number of actual fields with
 	// the number of expected fields for a given object type.
-	checkNumFieldsForTypeWithActual(objType objectType, numActualFields int) (int, int, bool)
+	checkExpectedNumFieldsForType(objType objectType, numActualFields int) (int, bool)
 }
 
 // UnaggregatedEncoder is an encoder for encoding different types of unaggregated metrics.
 type UnaggregatedEncoder interface {
-	// EncodeCounterWithPolicies encodes a counter with applicable policies.
-	EncodeCounterWithPolicies(cp unaggregated.CounterWithPolicies) error
+	// EncodeCounterWithPoliciesList encodes a counter with applicable policies list.
+	EncodeCounterWithPoliciesList(cp unaggregated.CounterWithPoliciesList) error
 
-	// EncodeBatchTimerWithPolicies encodes a batched timer with applicable policies.
-	EncodeBatchTimerWithPolicies(btp unaggregated.BatchTimerWithPolicies) error
+	// EncodeBatchTimerWithPoliciesList encodes a batched timer with applicable policies list.
+	EncodeBatchTimerWithPoliciesList(btp unaggregated.BatchTimerWithPoliciesList) error
 
-	// EncodeGaugeWithPolicies encodes a gauge with applicable policies.
-	EncodeGaugeWithPolicies(gp unaggregated.GaugeWithPolicies) error
+	// EncodeGaugeWithPoliciesList encodes a gauge with applicable policies list.
+	EncodeGaugeWithPoliciesList(gp unaggregated.GaugeWithPoliciesList) error
 
 	// Encoder returns the encoder.
 	Encoder() BufferedEncoder
@@ -222,9 +221,9 @@ type UnaggregatedIterator interface {
 	// Next returns true if there are more items to decode.
 	Next() bool
 
-	// Value returns the current metric and applicable policies.
+	// Value returns the current metric and applicable policies list.
 	// The returned value remains valid until the next Next() call.
-	Value() (unaggregated.MetricUnion, policy.VersionedPolicies)
+	Value() (unaggregated.MetricUnion, policy.PoliciesList)
 
 	// Err returns the error encountered during decoding, if any.
 	Err() error
