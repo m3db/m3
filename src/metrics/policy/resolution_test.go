@@ -96,3 +96,63 @@ func TestInvalidResolution(t *testing.T) {
 		require.Equal(t, errUnknownResolution, err)
 	}
 }
+
+func TestParseResolution(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected Resolution
+	}{
+		{
+			str:      "10s",
+			expected: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+		},
+		{
+			str:      "120m",
+			expected: Resolution{Window: 2 * time.Hour, Precision: xtime.Hour},
+		},
+		{
+			str:      "130m",
+			expected: Resolution{Window: 130 * time.Minute, Precision: xtime.Minute},
+		},
+		{
+			str:      "3ms",
+			expected: Resolution{Window: 3 * time.Millisecond, Precision: xtime.Millisecond},
+		},
+		{
+			str:      "10s@1s",
+			expected: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+		},
+		{
+			str:      "120m@1m",
+			expected: Resolution{Window: 2 * time.Hour, Precision: xtime.Minute},
+		},
+		{
+			str:      "130m@1m",
+			expected: Resolution{Window: 130 * time.Minute, Precision: xtime.Minute},
+		},
+		{
+			str:      "3ms@1ms",
+			expected: Resolution{Window: 3 * time.Millisecond, Precision: xtime.Millisecond},
+		},
+	}
+	for _, input := range inputs {
+		res, err := ParseResolution(input.str)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, res)
+	}
+}
+
+func TestParseResolutionNoPrecisionErrors(t *testing.T) {
+	inputs := []string{
+		"10seconds",
+		"0s",
+		"0.1s",
+		"10seconds@1s",
+		"10s@2s",
+		"10s@",
+	}
+	for _, input := range inputs {
+		_, err := ParseResolution(input)
+		require.Error(t, err)
+	}
+}
