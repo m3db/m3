@@ -22,7 +22,6 @@ package client
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -781,7 +780,7 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 			etcdKV.NewOptions().
 				SetWatchChanInitTimeout(200*time.Millisecond).
 				SetWatchChanResetInterval(200*time.Millisecond).
-				SetPrefix(fmt.Sprintf("%s/", zone)),
+				SetPrefix(zone),
 		)
 	}
 
@@ -971,7 +970,7 @@ func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 			ec,
 			etcdKV.NewOptions().
 				SetWatchChanCheckInterval(100*time.Millisecond).
-				SetPrefix(fmt.Sprintf("%s/", zone)),
+				SetPrefix(zone),
 		)
 	}
 

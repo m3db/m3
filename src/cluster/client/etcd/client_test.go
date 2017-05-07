@@ -23,72 +23,73 @@ package etcd
 import (
 	"testing"
 
+	"github.com/m3db/m3cluster/services"
+
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
-	"github.com/m3db/m3cluster/services"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestETCDClientGen(t *testing.T) {
 	cs, err := NewConfigServiceClient(testOptions())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	c := cs.(*csclient)
-	// zone3 does not exist
-	_, err = c.etcdClientGen("zone3")
-	assert.Error(t, err)
-	assert.Equal(t, 0, len(c.clis))
+	// a zone that does not exist
+	_, err = c.etcdClientGen("not_exist")
+	require.Error(t, err)
+	require.Equal(t, 0, len(c.clis))
 
 	c1, err := c.etcdClientGen("zone1")
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(c.clis))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(c.clis))
 
 	c2, err := c.etcdClientGen("zone2")
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(c.clis))
-	assert.NotEqual(t, c1, c2)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(c.clis))
+	require.NotEqual(t, c1, c2)
 
 	c1Again, err := c.etcdClientGen("zone1")
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(c.clis))
-	assert.Equal(t, c1, c1Again)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(c.clis))
+	require.Equal(t, c1, c1Again)
 }
 
 func TestKVAndHeartbeatServiceSharingETCDClient(t *testing.T) {
 	sid := services.NewServiceID().SetName("s1")
 
 	cs, err := NewConfigServiceClient(testOptions().SetZone("zone1"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	c := cs.(*csclient)
 
 	_, err = c.KV()
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(c.clis))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(c.clis))
 
 	_, err = c.heartbeatGen()(sid.SetZone("zone1"))
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(c.clis))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(c.clis))
 
 	_, err = c.heartbeatGen()(sid.SetZone("zone2"))
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(c.clis))
+	require.NoError(t, err)
+	require.Equal(t, 2, len(c.clis))
 
-	_, err = c.heartbeatGen()(sid.SetZone("zone3"))
-	assert.Error(t, err)
-	assert.Equal(t, 2, len(c.clis))
+	_, err = c.heartbeatGen()(sid.SetZone("not_exist"))
+	require.Error(t, err)
+	require.Equal(t, 2, len(c.clis))
 }
 
 func TestClient(t *testing.T) {
 	_, err := NewConfigServiceClient(NewOptions())
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	cs, err := NewConfigServiceClient(testOptions())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = cs.KV()
-	assert.Error(t, err)
+	require.NoError(t, err)
 
-	cs, err = NewConfigServiceClient(testOptions().SetZone("zone1"))
+	cs, err = NewConfigServiceClient(testOptions())
 	c := cs.(*csclient)
 
 	fn, closer := testNewETCDFn(t)
@@ -96,72 +97,75 @@ func TestClient(t *testing.T) {
 	c.newFn = fn
 
 	txn, err := c.Txn()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	kv1, err := c.KV()
-	assert.NoError(t, err)
-	assert.Equal(t, kv1, txn)
+	require.NoError(t, err)
+	require.Equal(t, kv1, txn)
 
 	kv2, err := c.KV()
-	assert.NoError(t, err)
-	assert.Equal(t, kv1, kv2)
+	require.NoError(t, err)
+	require.Equal(t, kv1, kv2)
 	// KV store will create an etcd cli for local zone only
-	assert.Equal(t, 1, len(c.clis))
+	require.Equal(t, 1, len(c.clis))
 	_, ok := c.clis["zone1"]
-	assert.True(t, ok)
+	require.True(t, ok)
 
 	sd1, err := c.Services()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	sd2, err := c.Services()
-	assert.NoError(t, err)
-	assert.Equal(t, sd1, sd2)
-
-	err = sd1.SetMetadata(
-		services.NewServiceID().SetName("service").SetZone("zone1"),
-		services.NewMetadata(),
-	)
-	assert.NoError(t, err)
-	// etcd cli for zone1 will be reused
-	assert.Equal(t, 1, len(c.clis))
+	require.NoError(t, err)
+	require.Equal(t, sd1, sd2)
 
 	err = sd1.SetMetadata(
 		services.NewServiceID().SetName("service").SetZone("zone2"),
 		services.NewMetadata(),
 	)
-	assert.NoError(t, err)
-	// etcd cli for zone2 will be created since the request is going to zone2
-	assert.Equal(t, 2, len(c.clis))
+	require.NoError(t, err)
+	// etcd cli for zone1 will be reused
+	require.Equal(t, 2, len(c.clis))
 	_, ok = c.clis["zone2"]
-	assert.True(t, ok)
+	require.True(t, ok)
 
 	err = sd1.SetMetadata(
 		services.NewServiceID().SetName("service").SetZone("zone3"),
 		services.NewMetadata(),
 	)
-	// does not have etcd cluster for zone3
-	assert.Error(t, err)
-	assert.Equal(t, 2, len(c.clis))
+	require.NoError(t, err)
+	// etcd cli for zone2 will be created since the request is going to zone2
+	require.Equal(t, 3, len(c.clis))
+	_, ok = c.clis["zone3"]
+	require.True(t, ok)
 }
 
 func TestCacheFileForZone(t *testing.T) {
-	assert.Equal(t, "", cacheFileForZone("", "app", "zone"))
-	assert.Equal(t, "", cacheFileForZone("/dir", "", "zone"))
-	assert.Equal(t, "", cacheFileForZone("/dir", "app", ""))
-	assert.Equal(t, "/dir/app-zone.json", cacheFileForZone("/dir", "app", "zone"))
-	assert.Equal(t, "/dir/a_b-c_d.json", cacheFileForZone("/dir", "a/b", "c/d"))
-}
+	c, err := NewConfigServiceClient(testOptions())
+	require.NoError(t, err)
+	cs := c.(*csclient)
 
-func TestPrefix(t *testing.T) {
-	assert.Equal(t, "_kv/test/", prefix("test"))
-	assert.Equal(t, "_kv/", prefix(""))
+	kvOpts := cs.newkvOptions("z1", "namespace")
+	require.Equal(t, "", kvOpts.CacheFileFn()(kvOpts.Prefix()))
+
+	cs.opts = cs.opts.SetCacheDir("/cacheDir")
+	kvOpts = cs.newkvOptions("z1")
+	require.Equal(t, "/cacheDir/test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
+	kvOpts = cs.newkvOptions("z1", "namespace")
+	require.Equal(t, "/cacheDir/namespace_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
+
+	kvOpts = cs.newkvOptions("z1", "namespace", "")
+	require.Equal(t, "/cacheDir/namespace_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
+
+	kvOpts = cs.newkvOptions("z1", "namespace", "env")
+	require.Equal(t, "/cacheDir/namespace_env_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 }
 
 func testOptions() Options {
 	return NewOptions().SetClusters([]Cluster{
 		NewCluster().SetZone("zone1").SetEndpoints([]string{"i1"}),
 		NewCluster().SetZone("zone2").SetEndpoints([]string{"i2"}),
-	}).SetService("test_app")
+		NewCluster().SetZone("zone3").SetEndpoints([]string{"i3"}),
+	}).SetService("test_app").SetZone("zone1")
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {

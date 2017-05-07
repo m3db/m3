@@ -21,13 +21,13 @@
 package etcd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"github.com/coreos/etcd/clientv3"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	etcdkv "github.com/m3db/m3cluster/kv/etcd"
@@ -36,14 +36,20 @@ import (
 	etcdheartbeat "github.com/m3db/m3cluster/services/heartbeat/etcd"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
+
+	"github.com/coreos/etcd/clientv3"
 	"github.com/uber-go/tally"
 )
 
 const (
-	keySeparator    = "/"
-	cacheFileFormat = "%s-%s.json"
-	kvPrefix        = "_kv/"
+	internalPrefix     = "_"
+	cacheFileSeparator = "_"
+	cacheFileSuffix    = ".json"
+	// TODO deprecate this once all keys are migrated to per service namespace
+	kvPrefix = "_kv"
 )
+
+var errInvalidNamespace = errors.New("invalid namespace")
 
 type newClientFn func(endpoints []string) (*clientv3.Client, error)
 
@@ -83,9 +89,9 @@ type csclient struct {
 	sd     services.Services
 	sdErr  error
 
-	kvOnce sync.Once
-	kv     kv.TxnStore
-	kvErr  error
+	txnOnce sync.Once
+	txn     kv.TxnStore
+	txnErr  error
 }
 
 func (c *csclient) Services() (services.Services, error) {
@@ -95,27 +101,31 @@ func (c *csclient) Services() (services.Services, error) {
 }
 
 func (c *csclient) KV() (kv.Store, error) {
-	c.createTxnStore()
-
-	return c.kv, c.kvErr
+	return c.createTxnStore(kvPrefix)
 }
 
 func (c *csclient) Txn() (kv.TxnStore, error) {
-	c.createTxnStore()
+	return c.createTxnStore(kvPrefix)
 
-	return c.kv, c.kvErr
+}
+
+func (c *csclient) TxnStore(namespace string) (kv.TxnStore, error) {
+	if err := validateTopLevelNamespace(namespace); err != nil {
+		return nil, err
+	}
+
+	return c.createTxnStore(namespace)
+}
+
+func (c *csclient) Store(namespace string) (kv.Store, error) {
+	return c.TxnStore(namespace)
 }
 
 func (c *csclient) createServices() {
 	c.sdOnce.Do(func() {
 		c.sd, c.sdErr = sdclient.NewServices(c.opts.ServiceDiscoveryConfig().NewOptions().
 			SetHeartbeatGen(c.heartbeatGen()).
-			SetKVGen(c.kvGen(etcdkv.NewOptions().
-				SetInstrumentsOptions(instrument.NewOptions().
-					SetLogger(c.logger).
-					SetMetricsScope(c.kvScope),
-				)),
-			).
+			SetKVGen(c.kvGen()).
 			SetInstrumentsOptions(instrument.NewOptions().
 				SetLogger(c.logger).
 				SetMetricsScope(c.sdScope),
@@ -124,24 +134,36 @@ func (c *csclient) createServices() {
 	})
 }
 
-func (c *csclient) createTxnStore() {
-	c.kvOnce.Do(func() {
-		opts := etcdkv.NewOptions().
-			SetInstrumentsOptions(instrument.NewOptions().
-				SetLogger(c.logger).
-				SetMetricsScope(c.kvScope)).
-			SetPrefix(prefix(c.opts.Env()))
-		c.kv, c.kvErr = c.txnGen(opts, c.opts.Zone())
+func (c *csclient) createTxnStore(namespace string) (kv.TxnStore, error) {
+	c.txnOnce.Do(func() {
+		c.txn, c.txnErr = c.txnGen(c.opts.Zone(), namespace, c.opts.Env())
 	})
+	return c.txn, c.txnErr
 }
 
-func (c *csclient) kvGen(kvOpts etcdkv.Options) sdclient.KVGen {
+func (c *csclient) kvGen() sdclient.KVGen {
 	return sdclient.KVGen(func(zone string) (kv.Store, error) {
-		return c.txnGen(kvOpts, zone)
+		return c.txnGen(zone)
 	})
 }
 
-func (c *csclient) txnGen(kvOpts etcdkv.Options, zone string) (kv.TxnStore, error) {
+func (c *csclient) newkvOptions(zone string, namespaces ...string) etcdkv.Options {
+	opts := etcdkv.NewOptions().
+		SetInstrumentsOptions(instrument.NewOptions().
+			SetLogger(c.logger).
+			SetMetricsScope(c.kvScope)).
+		SetCacheFileFn(c.cacheFileFn(zone))
+
+	for _, namespace := range namespaces {
+		if namespace == "" {
+			continue
+		}
+		opts = opts.SetPrefix(opts.ApplyPrefix(namespace))
+	}
+	return opts
+}
+
+func (c *csclient) txnGen(zone string, namespaces ...string) (kv.TxnStore, error) {
 	cli, err := c.etcdClientGen(zone)
 	if err != nil {
 		return nil, err
@@ -150,7 +172,7 @@ func (c *csclient) txnGen(kvOpts etcdkv.Options, zone string) (kv.TxnStore, erro
 	return etcdkv.NewStore(
 		cli.KV,
 		cli.Watcher,
-		kvOpts.SetCacheFilePath(cacheFileForZone(c.opts.CacheDir(), kvOpts.ApplyPrefix(c.opts.Service()), zone)),
+		c.newkvOptions(zone, namespaces...),
 	)
 }
 
@@ -199,27 +221,35 @@ func newClient(endpoints []string) (*clientv3.Client, error) {
 	return clientv3.New(clientv3.Config{Endpoints: endpoints})
 }
 
-func cacheFileForZone(cacheDir, service, zone string) string {
-	if cacheDir == "" || service == "" || zone == "" {
-		return ""
+func (c *csclient) cacheFileFn(zone string) etcdkv.CacheFileFn {
+	return etcdkv.CacheFileFn(func(namespace string) string {
+		if c.opts.CacheDir() == "" {
+			return ""
+		}
+		return filepath.Join(c.opts.CacheDir(), fileName(namespace, c.opts.Service(), zone))
+	})
+}
+
+func fileName(parts ...string) string {
+	// get non-empty parts
+	idx := 0
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		if i != idx {
+			parts[idx] = part
+		}
+		idx++
 	}
-	return filepath.Join(cacheDir, fileName(service, zone))
+	parts = parts[:idx]
+	s := strings.Join(parts, cacheFileSeparator)
+	return strings.Replace(s, string(os.PathSeparator), cacheFileSeparator, -1) + cacheFileSuffix
 }
 
-func fileName(service, zone string) string {
-	cacheFileName := fmt.Sprintf(cacheFileFormat, service, zone)
-
-	return strings.Replace(cacheFileName, string(os.PathSeparator), "_", -1)
-}
-
-func prefix(env string) string {
-	res := kvPrefix
-	if env != "" {
-		res = concat(res, concat(env, keySeparator))
+func validateTopLevelNamespace(namespace string) error {
+	if strings.HasPrefix(namespace, internalPrefix) {
+		return errInvalidNamespace
 	}
-	return res
-}
-
-func concat(a, b string) string {
-	return fmt.Sprintf("%s%s", a, b)
+	return nil
 }

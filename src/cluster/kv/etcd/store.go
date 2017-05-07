@@ -59,7 +59,7 @@ func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (k
 		watchables:     map[string]kv.ValueWatchable{},
 		retrier:        xretry.NewRetrier(opts.RetryOptions()),
 		logger:         opts.InstrumentsOptions().Logger(),
-		cacheFile:      opts.CacheFilePath(),
+		cacheFile:      opts.CacheFileFn()(opts.Prefix()),
 		cache:          newCache(),
 		cacheUpdatedCh: make(chan struct{}, 1),
 		m: clientMetrics{
@@ -576,7 +576,7 @@ func (c *client) writeCacheToFile() error {
 }
 
 func (c *client) initCache() error {
-	file, err := os.Open(c.opts.CacheFilePath())
+	file, err := os.Open(c.cacheFile)
 	if err != nil {
 		c.m.diskReadError.Inc(1)
 		return fmt.Errorf("error opening cache file %s: %v", c.cacheFile, err)
