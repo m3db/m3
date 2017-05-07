@@ -35,12 +35,14 @@ const (
 	Microsecond
 	Nanosecond
 	Minute
+	Hour
 )
 
 var (
 	errUnrecognizedTimeUnit  = errors.New("unrecognized time unit")
 	errConvertDurationToUnit = errors.New("unable to convert from duration to time unit")
 	errConvertUnitToDuration = errors.New("unable to convert from time unit to duration")
+	errMaxUnitForDuration    = errors.New("unable to determine the maximum unit for duration")
 )
 
 // Unit represents a time unit.
@@ -87,6 +89,35 @@ func DurationFromUnit(u Unit) (time.Duration, error) {
 	return 0, errConvertUnitToDuration
 }
 
+// MaxUnitForDuration determines the maximum unit for which
+// the input duration is a multiple of.
+func MaxUnitForDuration(d time.Duration) (int64, Unit, error) {
+	var (
+		currDuration time.Duration
+		currMultiple int64
+		currUnit     Unit
+		dUnixNanos   = int64(d)
+	)
+	for unit, duration := range unitsToDuration {
+		if d < duration || currDuration >= duration {
+			continue
+		}
+		durationUnixNanos := int64(duration)
+		quotient := dUnixNanos / durationUnixNanos
+		remainder := dUnixNanos - quotient*durationUnixNanos
+		if remainder != 0 {
+			continue
+		}
+		currDuration = duration
+		currMultiple = quotient
+		currUnit = unit
+	}
+	if currUnit == None {
+		return 0, None, errMaxUnitForDuration
+	}
+	return currMultiple, currUnit, nil
+}
+
 var (
 	unitStrings = map[Unit]string{
 		Second:      "s",
@@ -94,6 +125,7 @@ var (
 		Nanosecond:  "ns",
 		Microsecond: "us",
 		Minute:      "m",
+		Hour:        "h",
 	}
 
 	durationsToUnit = make(map[time.Duration]Unit)
@@ -103,6 +135,7 @@ var (
 		Nanosecond:  time.Nanosecond,
 		Microsecond: time.Microsecond,
 		Minute:      time.Minute,
+		Hour:        time.Hour,
 	}
 )
 
