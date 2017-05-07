@@ -22,10 +22,18 @@ package policy
 
 import (
 	"errors"
-	"fmt"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3x/time"
+)
+
+const (
+	windowPrecisionSeparator = "@"
+)
+
+var (
+	emptyResolution Resolution
 )
 
 // Resolution is the sampling resolution for datapoints.
@@ -39,7 +47,41 @@ type Resolution struct {
 
 // String is the string representation of a resolution.
 func (r Resolution) String() string {
-	return fmt.Sprintf("%s@1%s", r.Window.String(), r.Precision.String())
+	return r.Window.String() + windowPrecisionSeparator + r.Precision.String()
+}
+
+// ParseResolution parses a resolution.
+func ParseResolution(str string) (Resolution, error) {
+	separatorIdx := strings.Index(str, windowPrecisionSeparator)
+
+	// If there is no separator, the precision unit is the maximum time unit
+	// for which the window size is a multiple of.
+	if separatorIdx == -1 {
+		windowSize, err := xtime.ParseExtendedDuration(str)
+		if err != nil {
+			return emptyResolution, err
+		}
+		_, precision, err := xtime.MaxUnitForDuration(windowSize)
+		if err != nil {
+			return emptyResolution, err
+		}
+		return Resolution{Window: windowSize, Precision: precision}, nil
+	}
+
+	// Otherwise the window and the precision are determined by the input.
+	windowSize, err := xtime.ParseExtendedDuration(str[:separatorIdx])
+	if err != nil {
+		return emptyResolution, err
+	}
+	precisionDuration, err := xtime.ParseExtendedDuration(str[separatorIdx+1:])
+	if err != nil {
+		return emptyResolution, err
+	}
+	precision, err := xtime.UnitFromDuration(precisionDuration)
+	if err != nil {
+		return emptyResolution, err
+	}
+	return Resolution{Window: windowSize, Precision: precision}, nil
 }
 
 // ResolutionValue is the resolution value.

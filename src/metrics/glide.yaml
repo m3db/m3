@@ -1,7 +1,7 @@
 package: github.com/m3db/m3metrics
 import:
 - package: github.com/m3db/m3x
-  version: f3a6ac01acd3c7080ae24826ba92dcd02dd364b9
+  version: 2a4b2eeb25be253ed5c57255e1c72bde13257d34
   subpackages:
   - pool
   - time
@@ -51,6 +51,8 @@ import:
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
+- package: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImport:
 - package: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232

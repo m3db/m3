@@ -1,5 +1,5 @@
-hash: 31b30aee6fb8928efbe811e4b15347e553eee3a95d5ad913a6077e0dce8676ed
-updated: 2017-05-03T22:34:58.591568953-04:00
+hash: 1da188c97d69803d7b0bb67a6e66b738eab076612e2d5a2f38c3b8f5c70421b8
+updated: 2017-05-07T19:11:45.678596443-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -16,7 +16,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3x
-  version: f3a6ac01acd3c7080ae24826ba92dcd02dd364b9
+  version: 2a4b2eeb25be253ed5c57255e1c72bde13257d34
   subpackages:
   - checked
   - instrument
@@ -68,6 +68,8 @@ imports:
   version: a1382b1ce0c749733b814157c245e02cc1f41076
   subpackages:
   - codes
+- name: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d

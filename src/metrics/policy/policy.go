@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3metrics/generated/proto/schema"
@@ -36,6 +37,8 @@ const (
 
 	// DefaultPolicyVersion is the version for the default policy.
 	DefaultPolicyVersion = 0
+
+	resolutionRetentionSeparator = ":"
 )
 
 var (
@@ -48,7 +51,8 @@ var (
 	// DefaultPoliciesList represents a default policies list.
 	DefaultPoliciesList = PoliciesList{DefaultStagedPolicies}
 
-	errNilPolicySchema = errors.New("nil policy schema")
+	errNilPolicySchema     = errors.New("nil policy schema")
+	errInvalidPolicyString = errors.New("invalid policy string")
 )
 
 // Policy represents the resolution and retention period metric datapoints
@@ -88,6 +92,53 @@ func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 	}, nil
 }
 
+// String is the string representation of a policy.
+func (p Policy) String() string {
+	return p.resolution.String() + resolutionRetentionSeparator + p.retention.String()
+}
+
+// Resolution returns the resolution of the policy.
+func (p Policy) Resolution() Resolution {
+	return p.resolution
+}
+
+// Retention return the retention of the policy.
+func (p Policy) Retention() Retention {
+	return p.retention
+}
+
+// UnmarshalYAML unmarshals a policy value from a string.
+func (p *Policy) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	parsed, err := ParsePolicy(str)
+	if err != nil {
+		return err
+	}
+	*p = parsed
+	return nil
+}
+
+// ParsePolicy parses a policy in the form of resolution:retention.
+func ParsePolicy(str string) (Policy, error) {
+	parts := strings.Split(str, resolutionRetentionSeparator)
+	if len(parts) != 2 {
+		return EmptyPolicy, errInvalidPolicyString
+	}
+	resolution, err := ParseResolution(parts[0])
+	if err != nil {
+		return EmptyPolicy, err
+	}
+	retentionDuration, err := xtime.ParseExtendedDuration(parts[1])
+	if err != nil {
+		return EmptyPolicy, err
+	}
+	retention := Retention(retentionDuration)
+	return Policy{resolution: resolution, retention: retention}, nil
+}
+
 // NewPoliciesFromSchema creates multiple new policues from given schema policies.
 func NewPoliciesFromSchema(policies []*schema.Policy) ([]Policy, error) {
 	res := make([]Policy, 0, len(policies))
@@ -99,21 +150,6 @@ func NewPoliciesFromSchema(policies []*schema.Policy) ([]Policy, error) {
 		res = append(res, policy)
 	}
 	return res, nil
-}
-
-// String is the string representation of a policy.
-func (p Policy) String() string {
-	return fmt.Sprintf("{resolution:%s,retention:%s}", p.resolution.String(), p.retention.String())
-}
-
-// Resolution returns the resolution of the policy.
-func (p Policy) Resolution() Resolution {
-	return p.resolution
-}
-
-// Retention return the retention of the policy.
-func (p Policy) Retention() Retention {
-	return p.retention
 }
 
 // ByResolutionAsc implements the sort.Sort interface to sort

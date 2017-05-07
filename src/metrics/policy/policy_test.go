@@ -28,7 +28,130 @@ import (
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
+
+func TestParsePolicy(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected Policy
+	}{
+		{
+			str:      "1s:1h",
+			expected: NewPolicy(time.Second, xtime.Second, time.Hour),
+		},
+		{
+			str:      "10s:1d",
+			expected: NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		},
+		{
+			str:      "60s:24h",
+			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+		{
+			str:      "1m:1d",
+			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+		{
+			str:      "1s@1s:1h",
+			expected: NewPolicy(time.Second, xtime.Second, time.Hour),
+		},
+		{
+			str:      "10s@1s:1d",
+			expected: NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		},
+		{
+			str:      "60s@1s:24h",
+			expected: NewPolicy(time.Minute, xtime.Second, 24*time.Hour),
+		},
+		{
+			str:      "1m@1m:1d",
+			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+	}
+	for _, input := range inputs {
+		res, err := ParsePolicy(input.str)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, res)
+	}
+}
+
+func TestParsePolicyErrors(t *testing.T) {
+	inputs := []string{
+		"1s:1s:1s",
+		"0s:1d",
+		"10seconds:1s",
+		"10seconds@1s:1d",
+		"10s@2s:1d",
+		"0.1s@1s:1d",
+		"10s@2minutes:2d",
+	}
+	for _, input := range inputs {
+		_, err := ParsePolicy(input)
+		require.Error(t, err)
+	}
+}
+
+func TestPolicyUnmarshalYAML(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected Policy
+	}{
+		{
+			str:      "1s:1h",
+			expected: NewPolicy(time.Second, xtime.Second, time.Hour),
+		},
+		{
+			str:      "10s:1d",
+			expected: NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		},
+		{
+			str:      "60s:24h",
+			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+		{
+			str:      "1m:1d",
+			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+		{
+			str:      "1s@1s:1h",
+			expected: NewPolicy(time.Second, xtime.Second, time.Hour),
+		},
+		{
+			str:      "10s@1s:1d",
+			expected: NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		},
+		{
+			str:      "60s@1s:24h",
+			expected: NewPolicy(time.Minute, xtime.Second, 24*time.Hour),
+		},
+		{
+			str:      "1m@1m:1d",
+			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+	}
+	for _, input := range inputs {
+		var p Policy
+		require.NoError(t, yaml.Unmarshal([]byte(input.str), &p))
+		require.Equal(t, input.expected, p)
+	}
+}
+
+func TestPolicyUnmarshalYAMLErrors(t *testing.T) {
+	inputs := []string{
+		"1s:1s:1s",
+		"0s:1d",
+		"10seconds:1s",
+		"10seconds@1s:1d",
+		"10s@2s:1d",
+		"0.1s@1s:1d",
+		"10s@2minutes:2d",
+	}
+	for _, input := range inputs {
+		var p Policy
+		require.Error(t, yaml.Unmarshal([]byte(input), &p))
+	}
+}
 
 func TestPoliciesByResolutionAsc(t *testing.T) {
 	inputs := []Policy{
