@@ -35,7 +35,11 @@ var (
 	defaultWatchChanResetInterval = 10 * time.Second
 	defaultWatchChanInitTimeout   = 10 * time.Second
 	defaultRetryOptions           = xretry.NewOptions().SetMaxRetries(5)
+	defaultCacheFileFn            = func(string) string { return "" }
 )
+
+// CacheFileFn is a function to generate cache file path
+type CacheFileFn func(namespace string) string
 
 // Options are options for the client of the kv store
 type Options interface {
@@ -70,18 +74,17 @@ type Options interface {
 	// SetWatchChanInitTimeout sets the WatchChanInitTimeout
 	SetWatchChanInitTimeout(t time.Duration) Options
 
-	// CacheFilePath is the file path to persist in-memory cache.
-	// If not provided, not file persisting will happen
-	CacheFilePath() string
-	// SetCacheFilePath sets the CacheFilePath
-	SetCacheFilePath(c string) Options
-
 	// Prefix is the prefix for each key
 	Prefix() string
 	// SetPrefix sets the prefix
 	SetPrefix(s string) Options
 	// ApplyPrefix applies the prefix to the key
 	ApplyPrefix(key string) string
+
+	// CacheFileDir is the dir for cache.
+	CacheFileFn() CacheFileFn
+	// SetCacheFileDir sets the CacheFileDir
+	SetCacheFileFn(fn CacheFileFn) Options
 
 	// Validate validates the Options
 	Validate() error
@@ -95,7 +98,7 @@ type options struct {
 	watchChanCheckInterval time.Duration
 	watchChanResetInterval time.Duration
 	watchChanInitTimeout   time.Duration
-	cacheFilePath          string
+	cacheFileFn            CacheFileFn
 }
 
 // NewOptions creates a sane default Option
@@ -106,7 +109,8 @@ func NewOptions() Options {
 		SetRetryOptions(defaultRetryOptions).
 		SetWatchChanCheckInterval(defaultWatchChanCheckInterval).
 		SetWatchChanResetInterval(defaultWatchChanResetInterval).
-		SetWatchChanInitTimeout(defaultWatchChanInitTimeout)
+		SetWatchChanInitTimeout(defaultWatchChanInitTimeout).
+		SetCacheFileFn(defaultCacheFileFn)
 }
 
 func (o options) Validate() error {
@@ -179,12 +183,12 @@ func (o options) SetWatchChanInitTimeout(t time.Duration) Options {
 	return o
 }
 
-func (o options) CacheFilePath() string {
-	return o.cacheFilePath
+func (o options) CacheFileFn() CacheFileFn {
+	return o.cacheFileFn
 }
 
-func (o options) SetCacheFilePath(c string) Options {
-	o.cacheFilePath = c
+func (o options) SetCacheFileFn(fn CacheFileFn) Options {
+	o.cacheFileFn = fn
 	return o
 }
 
@@ -198,5 +202,8 @@ func (o options) SetPrefix(prefix string) Options {
 }
 
 func (o options) ApplyPrefix(key string) string {
-	return fmt.Sprintf("%s%s", o.prefix, key)
+	if o.prefix == "" {
+		return key
+	}
+	return fmt.Sprintf("%s/%s", o.prefix, key)
 }

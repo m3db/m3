@@ -26,14 +26,22 @@ import (
 )
 
 // Client is the base interface into the cluster management system, providing
-// access to cluster services
+// access to cluster services.
 type Client interface {
-	// Services returns access to the set of services
+	// Services returns access to the set of services.
 	Services() (services.Services, error)
 
-	// KV returns access to the distributed configuration store
+	// KV returns access to the distributed configuration store.
+	// To be deprecated.
 	KV() (kv.Store, error)
 
-	// Txn returns access to the transaction store
+	// Txn returns access to the transaction store.
+	// To be deprecated.
 	Txn() (kv.TxnStore, error)
+
+	// Store returns access to the distributed configuration store with a namespace.
+	Store(namespace string) (kv.Store, error)
+
+	// TxnStore returns access to the transaction store with a namespace.
+	TxnStore(namespace string) (kv.TxnStore, error)
 }

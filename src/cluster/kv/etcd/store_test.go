@@ -119,7 +119,9 @@ func TestCache(t *testing.T) {
 	f, err := ioutil.TempFile("", "")
 	require.NoError(t, err)
 
-	opts = opts.SetCacheFilePath(f.Name())
+	opts = opts.SetCacheFileFn(func(string) string {
+		return f.Name()
+	})
 
 	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
@@ -789,7 +791,7 @@ func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
 
 	opts := NewOptions().
 		SetWatchChanCheckInterval(10 * time.Millisecond).
-		SetPrefix("test/")
+		SetPrefix("test")
 
 	return ec, opts, closer
 }
