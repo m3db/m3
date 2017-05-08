@@ -69,6 +69,33 @@ func NewUnaggregatedEncoder(encoder BufferedEncoder) UnaggregatedEncoder {
 func (enc *unaggregatedEncoder) Encoder() BufferedEncoder      { return enc.encoder() }
 func (enc *unaggregatedEncoder) Reset(encoder BufferedEncoder) { enc.reset(encoder) }
 
+func (enc *unaggregatedEncoder) EncodeCounter(c unaggregated.Counter) error {
+	if err := enc.err(); err != nil {
+		return err
+	}
+	enc.encodeRootObjectFn(counterType)
+	enc.encodeCounterFn(c)
+	return enc.err()
+}
+
+func (enc *unaggregatedEncoder) EncodeBatchTimer(bt unaggregated.BatchTimer) error {
+	if err := enc.err(); err != nil {
+		return err
+	}
+	enc.encodeRootObjectFn(batchTimerType)
+	enc.encodeBatchTimerFn(bt)
+	return enc.err()
+}
+
+func (enc *unaggregatedEncoder) EncodeGauge(g unaggregated.Gauge) error {
+	if err := enc.err(); err != nil {
+		return err
+	}
+	enc.encodeRootObjectFn(gaugeType)
+	enc.encodeGaugeFn(g)
+	return enc.err()
+}
+
 func (enc *unaggregatedEncoder) EncodeCounterWithPoliciesList(cp unaggregated.CounterWithPoliciesList) error {
 	if err := enc.err(); err != nil {
 		return err
