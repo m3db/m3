@@ -94,7 +94,7 @@ func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 
 // String is the string representation of a policy.
 func (p Policy) String() string {
-	return p.resolution.String() + resolutionRetentionSeparator + p.retention.String()
+	return fmt.Sprintf("%s%s%s", p.resolution.String(), resolutionRetentionSeparator, p.retention.String())
 }
 
 // Resolution returns the resolution of the policy.

@@ -31,6 +31,19 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+func TestPolicyString(t *testing.T) {
+	inputs := []struct {
+		p        Policy
+		expected string
+	}{
+		{p: NewPolicy(10*time.Second, xtime.Second, time.Hour), expected: "10s@1s:1h0m0s"},
+		{p: NewPolicy(time.Minute, xtime.Minute, 12*time.Hour), expected: "1m0s@1m:12h0m0s"},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, input.p.String())
+	}
+}
+
 func TestParsePolicy(t *testing.T) {
 	inputs := []struct {
 		str      string

@@ -22,6 +22,7 @@ package policy
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ type Resolution struct {
 
 // String is the string representation of a resolution.
 func (r Resolution) String() string {
-	return r.Window.String() + windowPrecisionSeparator + r.Precision.String()
+	return fmt.Sprintf("%s%s1%s", r.Window.String(), windowPrecisionSeparator, r.Precision.String())
 }
 
 // ParseResolution parses a resolution.
