@@ -200,6 +200,15 @@ type iteratorBase interface {
 
 // UnaggregatedEncoder is an encoder for encoding different types of unaggregated metrics.
 type UnaggregatedEncoder interface {
+	// EncodeCounter encodes a counter.
+	EncodeCounter(c unaggregated.Counter) error
+
+	// EncodeBatchTimer encodes a batch timer.
+	EncodeBatchTimer(bt unaggregated.BatchTimer) error
+
+	// EncodeGauge encodes a gauge.
+	EncodeGauge(g unaggregated.Gauge) error
+
 	// EncodeCounterWithPoliciesList encodes a counter with applicable policies list.
 	EncodeCounterWithPoliciesList(cp unaggregated.CounterWithPoliciesList) error
 
@@ -221,9 +230,13 @@ type UnaggregatedIterator interface {
 	// Next returns true if there are more items to decode.
 	Next() bool
 
-	// Value returns the current metric and applicable policies list.
+	// Metric returns the current metric.
 	// The returned value remains valid until the next Next() call.
-	Value() (unaggregated.MetricUnion, policy.PoliciesList)
+	Metric() unaggregated.MetricUnion
+
+	// PoliciesList returns the current applicable policies list.
+	// The returned value remains valid until the next Next() call.
+	PoliciesList() policy.PoliciesList
 
 	// Err returns the error encountered during decoding, if any.
 	Err() error
