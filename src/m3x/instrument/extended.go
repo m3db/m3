@@ -21,26 +21,99 @@
 package instrument
 
 import (
+	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/shirou/gopsutil/process"
+	"github.com/m3db/m3x/process"
+
 	"github.com/uber-go/tally"
 )
+
+// ExtendedMetricsType is a type of extended metrics to report.
+type ExtendedMetricsType int
+
+const (
+	// NoExtendedMetrics describes no extended metrics.
+	NoExtendedMetrics ExtendedMetricsType = iota
+
+	// SimpleExtendedMetrics describes just a simple level of extended metrics:
+	// - number of active goroutines
+	// - number of configured gomaxprocs
+	// - number of file descriptors
+	SimpleExtendedMetrics
+
+	// DetailedExtendedMetrics describes a detailed level of extended metrics:
+	// - number of active goroutines
+	// - number of configured gomaxprocs
+	// - number of file descriptors
+	// - memory allocated running count
+	// - memory used by heap
+	// - memory used by heap that is idle
+	// - memory used by heap that is in use
+	// - memory used by stack
+	// - number of garbage collections
+	// - GC pause times
+	DetailedExtendedMetrics
+
+	// DefaultExtendedMetricsType is the default extended metrics level.
+	DefaultExtendedMetricsType = DetailedExtendedMetrics
+)
+
+var (
+	validExtendedMetricsTypes = []ExtendedMetricsType{
+		NoExtendedMetrics,
+		SimpleExtendedMetrics,
+		DetailedExtendedMetrics,
+	}
+)
+
+func (t ExtendedMetricsType) String() string {
+	switch t {
+	case NoExtendedMetrics:
+		return "none"
+	case SimpleExtendedMetrics:
+		return "simple"
+	case DetailedExtendedMetrics:
+		return "detailed"
+	}
+	return "unknown"
+}
+
+// UnmarshalYAML unmarshals an ExtendedMetricsType into a valid type from string.
+func (t *ExtendedMetricsType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		*t = DefaultExtendedMetricsType
+		return nil
+	}
+	strs := make([]string, len(validExtendedMetricsTypes))
+	for _, valid := range validExtendedMetricsTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+		strs = append(strs, "'"+valid.String()+"'")
+	}
+	return fmt.Errorf("invalid ExtendedMetricsType '%s' valid types are: %s",
+		str, strings.Join(strs, ", "))
+}
 
 // StartReportingExtendedMetrics starts reporting extended metrics.
 func StartReportingExtendedMetrics(
 	scope tally.Scope,
 	reportInterval time.Duration,
-) (*ExtendedMetricsReporter, error) {
-	reporter, err := NewExtendedMetricsReporter(scope, reportInterval)
-	if err != nil {
-		return nil, err
-	}
+	metricsType ExtendedMetricsType,
+) *ExtendedMetricsReporter {
+	reporter := NewExtendedMetricsReporter(scope, reportInterval, metricsType)
 	reporter.Start()
-	return reporter, nil
+	return reporter
 }
 
 type runtimeMetrics struct {
@@ -57,15 +130,16 @@ type runtimeMetrics struct {
 }
 
 type processMetrics struct {
-	NumFds      tally.Gauge
-	NumFdErrors tally.Counter
-	process     *process.Process
+	NumFDs      tally.Gauge
+	NumFDErrors tally.Counter
+	pid         int
 }
 
 // ExtendedMetricsReporter reports an extended set of metrics.
 // The reporter is not thread-safe.
 type ExtendedMetricsReporter struct {
 	reportInterval time.Duration
+	metricsType    ExtendedMetricsType
 	runtime        runtimeMetrics
 	process        processMetrics
 	started        bool
@@ -76,42 +150,41 @@ type ExtendedMetricsReporter struct {
 func NewExtendedMetricsReporter(
 	scope tally.Scope,
 	reportInterval time.Duration,
-) (*ExtendedMetricsReporter, error) {
-	pid := os.Getpid()
-	process, err := process.NewProcess(int32(pid))
-	if err != nil {
-		return nil, err
+	metricsType ExtendedMetricsType,
+) *ExtendedMetricsReporter {
+	r := &ExtendedMetricsReporter{
+		reportInterval: reportInterval,
+		metricsType:    metricsType,
+		started:        false,
+		quit:           make(chan struct{}),
+	}
+	if r.metricsType == NoExtendedMetrics {
+		return r
+	}
+
+	runtimeScope := scope.SubScope("runtime")
+	processScope := scope.SubScope("process")
+	r.runtime.NumGoRoutines = runtimeScope.Gauge("num-goroutines")
+	r.runtime.GoMaxProcs = runtimeScope.Gauge("gomaxprocs")
+	r.process.NumFDs = processScope.Gauge("num-fds")
+	r.process.NumFDErrors = processScope.Counter("num-fd-errors")
+	r.process.pid = os.Getpid()
+	if r.metricsType == SimpleExtendedMetrics {
+		return r
 	}
 
 	var memstats runtime.MemStats
 	runtime.ReadMemStats(&memstats)
-
-	runtimeScope := scope.SubScope("runtime")
 	memoryScope := runtimeScope.SubScope("memory")
-	processScope := scope.SubScope("process")
-
-	return &ExtendedMetricsReporter{
-		reportInterval: reportInterval,
-		runtime: runtimeMetrics{
-			NumGoRoutines:   runtimeScope.Gauge("num-goroutines"),
-			GoMaxProcs:      runtimeScope.Gauge("gomaxprocs"),
-			MemoryAllocated: memoryScope.Gauge("allocated"),
-			MemoryHeap:      memoryScope.Gauge("heap"),
-			MemoryHeapIdle:  memoryScope.Gauge("heapidle"),
-			MemoryHeapInuse: memoryScope.Gauge("heapinuse"),
-			MemoryStack:     memoryScope.Gauge("stack"),
-			NumGC:           memoryScope.Counter("num-gc"),
-			GcPauseMs:       memoryScope.Timer("gc-pause-ms"),
-			lastNumGC:       memstats.NumGC,
-		},
-		process: processMetrics{
-			NumFds:      processScope.Gauge("num-fds"),
-			NumFdErrors: processScope.Counter("num-fd-errors"),
-			process:     process,
-		},
-		started: false,
-		quit:    make(chan struct{}),
-	}, nil
+	r.runtime.MemoryAllocated = memoryScope.Gauge("allocated")
+	r.runtime.MemoryHeap = memoryScope.Gauge("heap")
+	r.runtime.MemoryHeapIdle = memoryScope.Gauge("heapidle")
+	r.runtime.MemoryHeapInuse = memoryScope.Gauge("heapinuse")
+	r.runtime.MemoryStack = memoryScope.Gauge("stack")
+	r.runtime.NumGC = memoryScope.Counter("num-gc")
+	r.runtime.GcPauseMs = memoryScope.Timer("gc-pause-ms")
+	r.runtime.lastNumGC = memstats.NumGC
+	return r
 }
 
 // Start starts the reporter thread that periodically emits metrics.
@@ -146,11 +219,18 @@ func (r *ExtendedMetricsReporter) report() {
 }
 
 func (r *ExtendedMetricsReporter) reportRuntimeMetrics() {
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
+	if r.metricsType == NoExtendedMetrics {
+		return
+	}
 
 	r.runtime.NumGoRoutines.Update(float64(runtime.NumGoroutine()))
 	r.runtime.GoMaxProcs.Update(float64(runtime.GOMAXPROCS(0)))
+	if r.metricsType == SimpleExtendedMetrics {
+		return
+	}
+
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
 	r.runtime.MemoryAllocated.Update(float64(memStats.Alloc))
 	r.runtime.MemoryHeap.Update(float64(memStats.HeapAlloc))
 	r.runtime.MemoryHeapIdle.Update(float64(memStats.HeapIdle))
@@ -174,10 +254,13 @@ func (r *ExtendedMetricsReporter) reportRuntimeMetrics() {
 }
 
 func (r *ExtendedMetricsReporter) reportProcessMetrics() {
-	numFds, err := r.process.process.NumFDs()
-	if err != nil {
-		r.process.NumFdErrors.Inc(1)
+	if r.metricsType == NoExtendedMetrics {
 		return
 	}
-	r.process.NumFds.Update(float64(numFds))
+	numFDs, err := process.NumFDs(r.process.pid)
+	if err == nil {
+		r.process.NumFDs.Update(float64(numFDs))
+	} else {
+		r.process.NumFDErrors.Inc(1)
+	}
 }
