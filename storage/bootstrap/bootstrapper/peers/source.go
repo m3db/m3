@@ -23,13 +23,13 @@ package peers
 import (
 	"sync"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"

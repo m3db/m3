@@ -32,12 +32,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
