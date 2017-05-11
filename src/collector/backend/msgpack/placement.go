@@ -42,8 +42,8 @@ var (
 
 // placement stores placement information.
 type placement interface {
-	// Route routes a metric alongside its policies.
-	Route(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error
+	// Route routes a metric alongside its policies list.
+	Route(mu unaggregated.MetricUnion, pl policy.PoliciesList) error
 
 	// Close closes the topology.
 	Close() error
@@ -71,7 +71,7 @@ func newActivePlacement(snapshots []*placementSnapshot, opts placementOptions) p
 	}
 }
 
-func (p *activePlacement) Route(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
+func (p *activePlacement) Route(mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
 	p.RLock()
 	snapshot, err := p.activeSnapshotWithLock(p.nowFn())
 	if err != nil {
@@ -80,7 +80,7 @@ func (p *activePlacement) Route(mu unaggregated.MetricUnion, vp policy.Versioned
 	}
 	shard := snapshot.Shard(mu.ID)
 	instances := snapshot.InstancesForShard(shard)
-	err = p.writerMgr.WriteTo(instances, shard, mu, vp)
+	err = p.writerMgr.WriteTo(instances, shard, mu, pl)
 	p.RUnlock()
 	return err
 }
@@ -119,9 +119,9 @@ func (p *activePlacement) activeSnapshotWithLock(t time.Time) (*placementSnapsho
 // later than t (a.k.a. the active snapshot). The cutover times of the snapshots are
 // sorted in ascending order (i.e., earliest time first).
 func (p *activePlacement) activeIndexWithLock(t time.Time) int {
-	timeNs := t.UnixNano()
+	timeNanos := t.UnixNano()
 	idx := 0
-	for idx < len(p.snapshots) && p.snapshots[idx].cutoverNs <= timeNs {
+	for idx < len(p.snapshots) && p.snapshots[idx].cutoverNanos <= timeNanos {
 		idx++
 	}
 	idx--
@@ -185,9 +185,9 @@ func newPlacementSnapshots(
 }
 
 func (pss *placementSnapshots) ActivePlacement(t time.Time) placement {
-	timeNs := t.UnixNano()
+	timeNanos := t.UnixNano()
 	idx := len(pss.snapshots) - 1
-	for idx >= 0 && pss.snapshots[idx].cutoverNs > timeNs {
+	for idx >= 0 && pss.snapshots[idx].cutoverNanos > timeNanos {
 		idx--
 	}
 	if idx < 0 {
@@ -199,7 +199,7 @@ func (pss *placementSnapshots) ActivePlacement(t time.Time) placement {
 type placementSnapshot struct {
 	numShards        int
 	hashFn           HashFn
-	cutoverNs        int64
+	cutoverNanos     int64
 	instancesByShard map[uint32][]instance
 	instances        []instance
 }
@@ -229,14 +229,14 @@ func newPlacementSnapshot(p *schema.Placement, opts placementOptions) (*placemen
 	return &placementSnapshot{
 		numShards:        numShards,
 		hashFn:           hashGenFn(numShards),
-		cutoverNs:        p.CutoverTime,
+		cutoverNanos:     p.CutoverTime,
 		instancesByShard: instancesByShard,
 		instances:        instances,
 	}, nil
 }
 
 func (p *placementSnapshot) NumShards() int         { return p.numShards }
-func (p *placementSnapshot) CutoverNs() int64       { return p.cutoverNs }
+func (p *placementSnapshot) CutoverNanos() int64    { return p.cutoverNanos }
 func (p *placementSnapshot) Shard(id []byte) uint32 { return p.hashFn(id) }
 func (p *placementSnapshot) Instances() []instance  { return p.instances }
 

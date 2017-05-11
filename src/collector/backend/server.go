@@ -29,14 +29,14 @@ type Server interface {
 	// Open opens the server.
 	Open() error
 
-	// WriteCounterWithPolicies writes a counter along with policies.
-	WriteCounterWithPolicies(id []byte, val int64, vp policy.VersionedPolicies) error
+	// WriteCounterWithPoliciesList writes a counter along with policies list.
+	WriteCounterWithPoliciesList(id []byte, val int64, pl policy.PoliciesList) error
 
-	// WriteBatchTimerWithPolicies writes a batch timer along with policies.
-	WriteBatchTimerWithPolicies(id []byte, val []float64, vp policy.VersionedPolicies) error
+	// WriteBatchTimerWithPoliciesList writes a batch timer along with policies list.
+	WriteBatchTimerWithPoliciesList(id []byte, val []float64, pl policy.PoliciesList) error
 
-	// WriteGaugeWithPolicies writes a gauge along with policies.
-	WriteGaugeWithPolicies(id []byte, val float64, vp policy.VersionedPolicies) error
+	// WriteGaugeWithPoliciesList writes a gauge along with policies list.
+	WriteGaugeWithPoliciesList(id []byte, val float64, pl policy.PoliciesList) error
 
 	// Flush flushes any remaining data buffered by the server.
 	Flush() error

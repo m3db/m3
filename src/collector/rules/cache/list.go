@@ -31,21 +31,24 @@ import (
 
 // element is a list element
 type element struct {
-	nsHash   xid.Hash
-	idHash   xid.Hash
-	result   rules.MatchResult
-	deleted  bool
-	expiryNs int64
-	prev     *element
-	next     *element
+	nsHash      xid.Hash
+	idHash      xid.Hash
+	result      rules.MatchResult
+	deleted     bool
+	expiryNanos int64
+	prev        *element
+	next        *element
 }
 
-func (e *element) ShouldExpire(now time.Time) bool {
-	return atomic.LoadInt64(&e.expiryNs) <= now.UnixNano()
+// ShouldPromote determines whether the previous promotion has expired
+// and we should perform a new promotion.
+func (e *element) ShouldPromote(now time.Time) bool {
+	return atomic.LoadInt64(&e.expiryNanos) <= now.UnixNano()
 }
 
-func (e *element) SetExpiry(t time.Time) {
-	atomic.StoreInt64(&e.expiryNs, t.UnixNano())
+// SetPromotionExpiry sets the expiry time of the current promotion.
+func (e *element) SetPromotionExpiry(t time.Time) {
+	atomic.StoreInt64(&e.expiryNanos, t.UnixNano())
 }
 
 // list is a type-specific implementation of doubly linked lists consisting

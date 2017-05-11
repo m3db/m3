@@ -45,29 +45,36 @@ func TestRuleSetProperties(t *testing.T) {
 	_, _, rs, _ := testRuleSet()
 	rs.namespace = testNamespace
 	rs.version = 2
-	rs.cutoverNs = 12345
+	rs.cutoverNanos = 12345
 	rs.tombstoned = true
 
 	require.Equal(t, testNamespace, rs.Namespace())
 	require.Equal(t, 2, rs.Version())
-	require.Equal(t, int64(12345), rs.CutoverNs())
+	require.Equal(t, int64(12345), rs.CutoverNanos())
 	require.Equal(t, true, rs.Tombstoned())
 }
 
 func TestRuleSetMatchNoMatcher(t *testing.T) {
 	_, _, rs, _ := testRuleSet()
-	require.Equal(t, rules.EmptyMatchResult, rs.Match([]byte("foo"), rs.nowFn()))
+	now := rs.nowFn()
+	require.Equal(t, rules.EmptyMatchResult, rs.Match([]byte("foo"), now, now))
 }
 
 func TestRuleSetMatchWithMatcher(t *testing.T) {
 	_, _, rs, _ := testRuleSet()
-	mockMatcher := &mockMatcher{}
+	mockMatcher := &mockMatcher{res: rules.EmptyMatchResult}
 	rs.matcher = mockMatcher
 
-	now := rs.nowFn()
-	rs.Match([]byte("foo"), now)
+	var (
+		now  = rs.nowFn()
+		from = now.Add(-time.Second)
+		to   = now.Add(time.Second)
+	)
+
+	require.Equal(t, mockMatcher.res, rs.Match([]byte("foo"), from, to))
 	require.Equal(t, []byte("foo"), mockMatcher.id)
-	require.Equal(t, now, mockMatcher.t)
+	require.Equal(t, from, mockMatcher.from)
+	require.Equal(t, to, mockMatcher.to)
 }
 
 func TestToRuleSetNilValue(t *testing.T) {
@@ -98,18 +105,18 @@ func TestToRuleSetSuccess(t *testing.T) {
 	actual := res.(rules.RuleSet)
 	require.Equal(t, testNamespace, actual.Namespace())
 	require.Equal(t, 1, actual.Version())
-	require.Equal(t, int64(123456), actual.CutoverNs())
+	require.Equal(t, int64(123456), actual.CutoverNanos())
 	require.Equal(t, false, actual.TombStoned())
 }
 
 func TestRuleSetProcess(t *testing.T) {
 	var (
 		inputs = []rules.RuleSet{
-			mockRuleSet{namespace: "ns1", version: 1, cutoverNs: 1234, tombstoned: false, matcher: &mockMatcher{}},
-			mockRuleSet{namespace: "ns2", version: 2, cutoverNs: 1235, tombstoned: true, matcher: &mockMatcher{}},
-			mockRuleSet{namespace: "ns3", version: 3, cutoverNs: 1236, tombstoned: false, matcher: &mockMatcher{}},
-			mockRuleSet{namespace: "ns4", version: 4, cutoverNs: 1237, tombstoned: true, matcher: &mockMatcher{}},
-			mockRuleSet{namespace: "ns5", version: 5, cutoverNs: 1238, tombstoned: false, matcher: &mockMatcher{}},
+			mockRuleSet{namespace: "ns1", version: 1, cutoverNanos: 1234, tombstoned: false, matcher: &mockMatcher{}},
+			mockRuleSet{namespace: "ns2", version: 2, cutoverNanos: 1235, tombstoned: true, matcher: &mockMatcher{}},
+			mockRuleSet{namespace: "ns3", version: 3, cutoverNanos: 1236, tombstoned: false, matcher: &mockMatcher{}},
+			mockRuleSet{namespace: "ns4", version: 4, cutoverNanos: 1237, tombstoned: true, matcher: &mockMatcher{}},
+			mockRuleSet{namespace: "ns5", version: 5, cutoverNanos: 1238, tombstoned: false, matcher: &mockMatcher{}},
 		}
 	)
 
@@ -120,7 +127,7 @@ func TestRuleSetProcess(t *testing.T) {
 	}
 
 	require.Equal(t, 5, rs.Version())
-	require.Equal(t, int64(1238), rs.CutoverNs())
+	require.Equal(t, int64(1238), rs.CutoverNanos())
 	require.Equal(t, false, rs.Tombstoned())
 	require.NotNil(t, 5, rs.matcher)
 	require.Equal(t, 1, len(memCache.namespaces))
@@ -129,27 +136,30 @@ func TestRuleSetProcess(t *testing.T) {
 }
 
 type mockMatcher struct {
-	id []byte
-	t  time.Time
+	id   []byte
+	from time.Time
+	to   time.Time
+	res  rules.MatchResult
 }
 
-func (mm *mockMatcher) Match(id []byte, t time.Time) rules.MatchResult {
+func (mm *mockMatcher) MatchAll(id []byte, from time.Time, to time.Time) rules.MatchResult {
 	mm.id = id
-	mm.t = t
-	return rules.EmptyMatchResult
+	mm.from = from
+	mm.to = to
+	return mm.res
 }
 
 type mockRuleSet struct {
-	namespace  string
-	version    int
-	cutoverNs  int64
-	tombstoned bool
-	matcher    *mockMatcher
+	namespace    string
+	version      int
+	cutoverNanos int64
+	tombstoned   bool
+	matcher      *mockMatcher
 }
 
 func (r mockRuleSet) Namespace() []byte                   { return []byte(r.namespace) }
 func (r mockRuleSet) Version() int                        { return r.version }
-func (r mockRuleSet) CutoverNs() int64                    { return r.cutoverNs }
+func (r mockRuleSet) CutoverNanos() int64                 { return r.cutoverNanos }
 func (r mockRuleSet) TombStoned() bool                    { return r.tombstoned }
 func (r mockRuleSet) ActiveSet(t time.Time) rules.Matcher { return r.matcher }
 

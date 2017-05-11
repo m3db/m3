@@ -34,7 +34,7 @@ import (
 func TestWriterWriteClosed(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, testServerOptions()).(*writer)
 	w.closed = true
-	require.Equal(t, errInstanceWriterClosed, w.Write(0, testCounter, testVersionedPolicies))
+	require.Equal(t, errInstanceWriterClosed, w.Write(0, testCounter, testPoliciesList))
 }
 
 func TestWriterWriteEncodeError(t *testing.T) {
@@ -45,13 +45,13 @@ func TestWriterWriteEncodeError(t *testing.T) {
 		return &lockedEncoder{
 			UnaggregatedEncoder: &mockEncoder{
 				encoder: msgpack.NewBufferedEncoder(),
-				counterFn: func(cp unaggregated.CounterWithPolicies) error {
+				counterWithPoliciesListFn: func(cp unaggregated.CounterWithPoliciesList) error {
 					return errTestEncodeMetric
 				},
 			},
 		}
 	}
-	require.Equal(t, errTestEncodeMetric, w.Write(0, testCounter, testVersionedPolicies))
+	require.Equal(t, errTestEncodeMetric, w.Write(0, testCounter, testPoliciesList))
 }
 
 func TestWriteEncoderExists(t *testing.T) {
@@ -61,13 +61,13 @@ func TestWriteEncoderExists(t *testing.T) {
 	w.encodersByShard[0] = &lockedEncoder{
 		UnaggregatedEncoder: &mockEncoder{
 			encoder: tmpEncoder,
-			counterFn: func(cp unaggregated.CounterWithPolicies) error {
+			counterWithPoliciesListFn: func(cp unaggregated.CounterWithPoliciesList) error {
 				tmpEncoder.Buffer().Write([]byte{0x4, 0x5, 0x6, 0x7})
 				return nil
 			},
 		},
 	}
-	require.NoError(t, w.Write(0, testCounter, testVersionedPolicies))
+	require.NoError(t, w.Write(0, testCounter, testPoliciesList))
 	require.Equal(t, []byte{0x4, 0x5, 0x6, 0x7}, tmpEncoder.Buffer().Bytes())
 	require.Equal(t, 1, len(w.encodersByShard))
 }
@@ -75,7 +75,7 @@ func TestWriteEncoderExists(t *testing.T) {
 func TestWriterWriteEncodeSuccessNoFlushing(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, testServerOptions()).(*writer)
 	w.closed = false
-	require.NoError(t, w.Write(0, testCounter, testVersionedPolicies))
+	require.NoError(t, w.Write(0, testCounter, testPoliciesList))
 	require.Equal(t, 1, len(w.encodersByShard))
 	_, exists := w.encodersByShard[0]
 	require.True(t, exists)
@@ -98,89 +98,89 @@ func TestWriterWriteEncodeSuccessWithFlushing(t *testing.T) {
 		return &lockedEncoder{
 			UnaggregatedEncoder: &mockEncoder{
 				encoder: tmpEncoder,
-				counterFn: func(cp unaggregated.CounterWithPolicies) error {
+				counterWithPoliciesListFn: func(cp unaggregated.CounterWithPoliciesList) error {
 					tmpEncoder.Buffer().Write([]byte{0x4, 0x5, 0x6, 0x7})
 					return nil
 				},
 			},
 		}
 	}
-	require.NoError(t, w.Write(0, testCounter, testVersionedPolicies))
+	require.NoError(t, w.Write(0, testCounter, testPoliciesList))
 	require.Equal(t, []byte{0x4, 0x5, 0x6, 0x7}, w.encodersByShard[0].Encoder().Bytes())
 	require.Equal(t, []byte{0x1, 0x2, 0x3}, bufRes.Bytes())
 	require.Equal(t, 1, len(w.encodersByShard))
 }
 
-func TestWriterWriteCounterWithPolicies(t *testing.T) {
+func TestWriterWriteCounterWithPoliciesList(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, testServerOptions()).(*writer)
 	w.closed = false
 	var (
 		muRes unaggregated.Counter
-		vpRes policy.VersionedPolicies
+		plRes policy.PoliciesList
 	)
 	w.newLockedEncoderFn = func(msgpack.BufferedEncoderPool) *lockedEncoder {
 		return &lockedEncoder{
 			UnaggregatedEncoder: &mockEncoder{
 				encoder: msgpack.NewBufferedEncoder(),
-				counterFn: func(cp unaggregated.CounterWithPolicies) error {
+				counterWithPoliciesListFn: func(cp unaggregated.CounterWithPoliciesList) error {
 					muRes = cp.Counter
-					vpRes = cp.VersionedPolicies
+					plRes = cp.PoliciesList
 					return nil
 				},
 			},
 		}
 	}
-	require.NoError(t, w.Write(0, testCounter, testVersionedPolicies))
+	require.NoError(t, w.Write(0, testCounter, testPoliciesList))
 	require.Equal(t, testCounter.Counter(), muRes)
-	require.Equal(t, testVersionedPolicies, vpRes)
+	require.Equal(t, testPoliciesList, plRes)
 }
 
-func TestWriterWriteBatchTimerWithPolicies(t *testing.T) {
+func TestWriterWriteBatchTimerWithPoliciesList(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, testServerOptions()).(*writer)
 	w.closed = false
 	var (
 		muRes unaggregated.BatchTimer
-		vpRes policy.VersionedPolicies
+		plRes policy.PoliciesList
 	)
 	w.newLockedEncoderFn = func(msgpack.BufferedEncoderPool) *lockedEncoder {
 		return &lockedEncoder{
 			UnaggregatedEncoder: &mockEncoder{
 				encoder: msgpack.NewBufferedEncoder(),
-				batchTimerFn: func(btp unaggregated.BatchTimerWithPolicies) error {
+				batchTimerWithPoliciesListFn: func(btp unaggregated.BatchTimerWithPoliciesList) error {
 					muRes = btp.BatchTimer
-					vpRes = btp.VersionedPolicies
+					plRes = btp.PoliciesList
 					return nil
 				},
 			},
 		}
 	}
-	require.NoError(t, w.Write(0, testBatchTimer, testVersionedPolicies))
+	require.NoError(t, w.Write(0, testBatchTimer, testPoliciesList))
 	require.Equal(t, testBatchTimer.BatchTimer(), muRes)
-	require.Equal(t, testVersionedPolicies, vpRes)
+	require.Equal(t, testPoliciesList, plRes)
 }
 
-func TestWriterWriteGaugeWithPolicies(t *testing.T) {
+func TestWriterWriteGaugeWithPoliciesList(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, testServerOptions()).(*writer)
 	w.closed = false
 	var (
 		muRes unaggregated.Gauge
-		vpRes policy.VersionedPolicies
+		plRes policy.PoliciesList
 	)
 	w.newLockedEncoderFn = func(msgpack.BufferedEncoderPool) *lockedEncoder {
 		return &lockedEncoder{
 			UnaggregatedEncoder: &mockEncoder{
 				encoder: msgpack.NewBufferedEncoder(),
-				gaugeFn: func(gp unaggregated.GaugeWithPolicies) error {
+				gaugeWithPoliciesListFn: func(gp unaggregated.GaugeWithPoliciesList) error {
 					muRes = gp.Gauge
-					vpRes = gp.VersionedPolicies
+					plRes = gp.PoliciesList
 					return nil
 				},
 			},
 		}
 	}
-	require.NoError(t, w.Write(0, testGauge, testVersionedPolicies))
+	require.NoError(t, w.Write(0, testGauge, testPoliciesList))
 	require.Equal(t, testGauge.Gauge(), muRes)
-	require.Equal(t, testVersionedPolicies, vpRes)
+	require.Equal(t, testPoliciesList, plRes)
 }
 
 func TestWriterFlushClosed(t *testing.T) {
@@ -239,27 +239,31 @@ func TestRefCountedWriter(t *testing.T) {
 	require.True(t, w.instanceWriter.(*writer).closed)
 }
 
-type encodeCounterWithPoliciesFn func(cp unaggregated.CounterWithPolicies) error
-type encodeBatchTimerWithPoliciesFn func(cp unaggregated.BatchTimerWithPolicies) error
-type encodeGaugeWithPoliciesFn func(cp unaggregated.GaugeWithPolicies) error
+type encodeCounterWithPoliciesListFn func(cp unaggregated.CounterWithPoliciesList) error
+type encodeBatchTimerWithPoliciesListFn func(cp unaggregated.BatchTimerWithPoliciesList) error
+type encodeGaugeWithPoliciesListFn func(cp unaggregated.GaugeWithPoliciesList) error
 
 type mockEncoder struct {
-	encoder      msgpack.BufferedEncoder
-	counterFn    encodeCounterWithPoliciesFn
-	batchTimerFn encodeBatchTimerWithPoliciesFn
-	gaugeFn      encodeGaugeWithPoliciesFn
+	encoder                      msgpack.BufferedEncoder
+	counterWithPoliciesListFn    encodeCounterWithPoliciesListFn
+	batchTimerWithPoliciesListFn encodeBatchTimerWithPoliciesListFn
+	gaugeWithPoliciesListFn      encodeGaugeWithPoliciesListFn
 }
 
-func (me *mockEncoder) EncodeCounterWithPolicies(cp unaggregated.CounterWithPolicies) error {
-	return me.counterFn(cp)
+func (me *mockEncoder) EncodeCounter(c unaggregated.Counter) error       { return nil }
+func (me *mockEncoder) EncodeBatchTimer(c unaggregated.BatchTimer) error { return nil }
+func (me *mockEncoder) EncodeGauge(c unaggregated.Gauge) error           { return nil }
+
+func (me *mockEncoder) EncodeCounterWithPoliciesList(cp unaggregated.CounterWithPoliciesList) error {
+	return me.counterWithPoliciesListFn(cp)
 }
 
-func (me *mockEncoder) EncodeBatchTimerWithPolicies(btp unaggregated.BatchTimerWithPolicies) error {
-	return me.batchTimerFn(btp)
+func (me *mockEncoder) EncodeBatchTimerWithPoliciesList(btp unaggregated.BatchTimerWithPoliciesList) error {
+	return me.batchTimerWithPoliciesListFn(btp)
 }
 
-func (me *mockEncoder) EncodeGaugeWithPolicies(gp unaggregated.GaugeWithPolicies) error {
-	return me.gaugeFn(gp)
+func (me *mockEncoder) EncodeGaugeWithPoliciesList(gp unaggregated.GaugeWithPoliciesList) error {
+	return me.gaugeWithPoliciesListFn(gp)
 }
 
 func (me *mockEncoder) Encoder() msgpack.BufferedEncoder {

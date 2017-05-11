@@ -26,37 +26,62 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3collector/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testMappingPolicies = []policy.Policy{
-		policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
-		policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-		policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
-	}
-	testRollupPolicies = []policy.Policy{policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour)}
-	testMatchResult    = rules.NewMatchResult(
-		2,
-		0,
-		math.MaxInt64,
-		testMappingPolicies,
-		[]rules.RollupResult{
-			{
-				ID:       []byte("foo"),
-				Policies: []policy.Policy{},
+	testMappingPoliciesList = policy.PoliciesList{
+		policy.NewStagedPolicies(
+			100,
+			false,
+			[]policy.Policy{
+				policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
+				policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+				policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
 			},
-			{
-				ID:       []byte("bar"),
-				Policies: testRollupPolicies,
+		),
+		policy.NewStagedPolicies(
+			200,
+			true,
+			[]policy.Policy{
+				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+			},
+		),
+	}
+	testRollupResults = []rules.RollupResult{
+		{
+			ID:           []byte("foo"),
+			PoliciesList: policy.DefaultPoliciesList,
+		},
+		{
+			ID: []byte("bar"),
+			PoliciesList: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					100,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
+						policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+						policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+					},
+				),
+				policy.NewStagedPolicies(
+					200,
+					true,
+					[]policy.Policy{
+						policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+					},
+				),
 			},
 		},
-	)
+	}
+	testMatchResult                    = rules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	errTestWriteCounterWithPolicies    = errors.New("error writing counter with policies")
 	errTestWriteBatchTimerWithPolicies = errors.New("error writing batch timer with policies")
 	errTestWriteGaugeWithPolicies      = errors.New("error writing gauge with policies")
@@ -64,102 +89,105 @@ var (
 
 func TestReporterReportCounterPartialError(t *testing.T) {
 	var (
-		ids      []string
-		vals     []int64
-		policies []policy.VersionedPolicies
+		ids          []string
+		vals         []int64
+		policiesList policy.PoliciesList
 	)
 	reporter := NewReporter(
 		&mockMatcher{
-			matchFn: func(metric.ID) rules.MatchResult { return testMatchResult },
+			matchFn: func(id.ID) rules.MatchResult { return testMatchResult },
 		},
 		&mockServer{
-			writeCounterWithPoliciesFn: func(id []byte, val int64, vp policy.VersionedPolicies) error {
+			writeCounterWithPoliciesListFn: func(id []byte, val int64, pl policy.PoliciesList) error {
 				ids = append(ids, string(id))
 				vals = append(vals, val)
-				policies = append(policies, vp)
+				policiesList = append(policiesList, pl...)
 				return errTestWriteCounterWithPolicies
 			},
 		},
+		clock.NewOptions(),
 	)
 	require.Error(t, reporter.ReportCounter(mockID("counter"), 1234))
 	require.Equal(t, []string{"counter", "foo", "bar"}, ids)
 	require.Equal(t, []int64{1234, 1234, 1234}, vals)
-	require.Equal(t, []policy.VersionedPolicies{
-		policy.CustomVersionedPolicies(2, time.Unix(0, 0), testMappingPolicies),
-		policy.DefaultVersionedPolicies(2, time.Unix(0, 0)),
-		policy.CustomVersionedPolicies(2, time.Unix(0, 0), testRollupPolicies),
-	}, policies)
+	require.Equal(t, policy.PoliciesList{
+		testMappingPoliciesList[1],
+		testRollupResults[0].PoliciesList[0],
+		testRollupResults[1].PoliciesList[1],
+	}, policiesList)
 }
 
 func TestReporterReportBatchTimerPartialError(t *testing.T) {
 	var (
-		ids      []string
-		vals     [][]float64
-		policies []policy.VersionedPolicies
+		ids          []string
+		vals         [][]float64
+		policiesList policy.PoliciesList
 	)
 	reporter := NewReporter(
 		&mockMatcher{
-			matchFn: func(metric.ID) rules.MatchResult { return testMatchResult },
+			matchFn: func(id.ID) rules.MatchResult { return testMatchResult },
 		},
 		&mockServer{
-			writeBatchTimerWithPoliciesFn: func(id []byte, val []float64, vp policy.VersionedPolicies) error {
+			writeBatchTimerWithPoliciesListFn: func(id []byte, val []float64, pl policy.PoliciesList) error {
 				ids = append(ids, string(id))
 				vals = append(vals, val)
-				policies = append(policies, vp)
+				policiesList = append(policiesList, pl...)
 				return errTestWriteBatchTimerWithPolicies
 			},
 		},
+		clock.NewOptions(),
 	)
 	require.Error(t, reporter.ReportBatchTimer(mockID("batchTimer"), []float64{1.3, 2.4}))
 	require.Equal(t, []string{"batchTimer", "foo", "bar"}, ids)
 	require.Equal(t, [][]float64{{1.3, 2.4}, {1.3, 2.4}, {1.3, 2.4}}, vals)
-	require.Equal(t, []policy.VersionedPolicies{
-		policy.CustomVersionedPolicies(2, time.Unix(0, 0), testMappingPolicies),
-		policy.DefaultVersionedPolicies(2, time.Unix(0, 0)),
-		policy.CustomVersionedPolicies(2, time.Unix(0, 0), testRollupPolicies),
-	}, policies)
+	require.Equal(t, policy.PoliciesList{
+		testMappingPoliciesList[1],
+		testRollupResults[0].PoliciesList[0],
+		testRollupResults[1].PoliciesList[1],
+	}, policiesList)
 }
 
 func TestReporterReportGaugePartialError(t *testing.T) {
 	var (
-		ids      []string
-		vals     []float64
-		policies []policy.VersionedPolicies
+		ids          []string
+		vals         []float64
+		policiesList policy.PoliciesList
 	)
 	reporter := NewReporter(
 		&mockMatcher{
-			matchFn: func(metric.ID) rules.MatchResult { return testMatchResult },
+			matchFn: func(id.ID) rules.MatchResult { return testMatchResult },
 		},
 		&mockServer{
-			writeGaugeWithPoliciesFn: func(id []byte, val float64, vp policy.VersionedPolicies) error {
+			writeGaugeWithPoliciesListFn: func(id []byte, val float64, pl policy.PoliciesList) error {
 				ids = append(ids, string(id))
 				vals = append(vals, val)
-				policies = append(policies, vp)
+				policiesList = append(policiesList, pl...)
 				return errTestWriteGaugeWithPolicies
 			},
 		},
+		clock.NewOptions(),
 	)
 	require.Error(t, reporter.ReportGauge(mockID("gauge"), 1.8))
 	require.Equal(t, []string{"gauge", "foo", "bar"}, ids)
 	require.Equal(t, []float64{1.8, 1.8, 1.8}, vals)
-	require.Equal(t, []policy.VersionedPolicies{
-		policy.CustomVersionedPolicies(2, time.Unix(0, 0), testMappingPolicies),
-		policy.DefaultVersionedPolicies(2, time.Unix(0, 0)),
-		policy.CustomVersionedPolicies(2, time.Unix(0, 0), testRollupPolicies),
-	}, policies)
+	require.Equal(t, policy.PoliciesList{
+		testMappingPoliciesList[1],
+		testRollupResults[0].PoliciesList[0],
+		testRollupResults[1].PoliciesList[1],
+	}, policiesList)
 }
 
 func TestReporterFlush(t *testing.T) {
 	var numFlushes int
 	reporter := NewReporter(&mockMatcher{}, &mockServer{
 		flushFn: func() error { numFlushes++; return nil },
-	})
+	}, clock.NewOptions())
 	require.NoError(t, reporter.Flush())
 	require.Equal(t, 1, numFlushes)
 }
 
 func TestReporterClose(t *testing.T) {
-	reporter := NewReporter(&mockMatcher{}, &mockServer{})
+	reporter := NewReporter(&mockMatcher{}, &mockServer{}, clock.NewOptions())
 	require.Error(t, reporter.Close())
 }
 
@@ -168,39 +196,39 @@ type mockID []byte
 func (mid mockID) Bytes() []byte                          { return mid }
 func (mid mockID) TagValue(tagName []byte) ([]byte, bool) { return nil, false }
 
-type matchFn func(id metric.ID) rules.MatchResult
+type matchFn func(id id.ID) rules.MatchResult
 
 type mockMatcher struct {
 	matchFn matchFn
 }
 
-func (mm *mockMatcher) Match(id metric.ID) rules.MatchResult { return mm.matchFn(id) }
-func (mm *mockMatcher) Close() error                         { return errors.New("error closing matcher") }
+func (mm *mockMatcher) Match(id id.ID) rules.MatchResult { return mm.matchFn(id) }
+func (mm *mockMatcher) Close() error                     { return errors.New("error closing matcher") }
 
-type writeCounterWithPoliciesFn func(id []byte, val int64, vp policy.VersionedPolicies) error
-type writeBatchTimerWithPoliciesFn func(id []byte, val []float64, vp policy.VersionedPolicies) error
-type writeGaugeWithPoliciesFn func(id []byte, val float64, vp policy.VersionedPolicies) error
+type writeCounterWithPoliciesListFn func(id []byte, val int64, pl policy.PoliciesList) error
+type writeBatchTimerWithPoliciesListFn func(id []byte, val []float64, pl policy.PoliciesList) error
+type writeGaugeWithPoliciesListFn func(id []byte, val float64, pl policy.PoliciesList) error
 type flushFn func() error
 
 type mockServer struct {
-	writeCounterWithPoliciesFn    writeCounterWithPoliciesFn
-	writeBatchTimerWithPoliciesFn writeBatchTimerWithPoliciesFn
-	writeGaugeWithPoliciesFn      writeGaugeWithPoliciesFn
-	flushFn                       flushFn
+	writeCounterWithPoliciesListFn    writeCounterWithPoliciesListFn
+	writeBatchTimerWithPoliciesListFn writeBatchTimerWithPoliciesListFn
+	writeGaugeWithPoliciesListFn      writeGaugeWithPoliciesListFn
+	flushFn                           flushFn
 }
 
 func (ms *mockServer) Open() error  { return nil }
 func (ms *mockServer) Flush() error { return ms.flushFn() }
 func (ms *mockServer) Close() error { return errors.New("error closing server") }
 
-func (ms *mockServer) WriteCounterWithPolicies(id []byte, val int64, vp policy.VersionedPolicies) error {
-	return ms.writeCounterWithPoliciesFn(id, val, vp)
+func (ms *mockServer) WriteCounterWithPoliciesList(id []byte, val int64, pl policy.PoliciesList) error {
+	return ms.writeCounterWithPoliciesListFn(id, val, pl)
 }
 
-func (ms *mockServer) WriteBatchTimerWithPolicies(id []byte, val []float64, vp policy.VersionedPolicies) error {
-	return ms.writeBatchTimerWithPoliciesFn(id, val, vp)
+func (ms *mockServer) WriteBatchTimerWithPoliciesList(id []byte, val []float64, pl policy.PoliciesList) error {
+	return ms.writeBatchTimerWithPoliciesListFn(id, val, pl)
 }
 
-func (ms *mockServer) WriteGaugeWithPolicies(id []byte, val float64, vp policy.VersionedPolicies) error {
-	return ms.writeGaugeWithPoliciesFn(id, val, vp)
+func (ms *mockServer) WriteGaugeWithPoliciesList(id []byte, val float64, pl policy.PoliciesList) error {
+	return ms.writeGaugeWithPoliciesListFn(id, val, pl)
 }

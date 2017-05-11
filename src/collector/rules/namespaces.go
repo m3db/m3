@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/id"
 	"github.com/m3db/m3x/log"
 )
@@ -38,36 +39,37 @@ var (
 	errNilValue     = errors.New("nil value received")
 )
 
-type nowFn func() time.Time
-
 // namespaces contains the list of namespace users have defined rules for.
 type namespaces struct {
 	sync.RWMutex
 	runtime.Value
 
-	key          string
-	store        kv.Store
-	cache        Cache
-	opts         Options
-	log          xlog.Logger
-	ruleSetKeyFn RuleSetKeyFn
-	nowFn        nowFn
+	key             string
+	store           kv.Store
+	cache           Cache
+	opts            Options
+	log             xlog.Logger
+	ruleSetKeyFn    RuleSetKeyFn
+	nowFn           clock.NowFn
+	maxNegativeSkew time.Duration
 
 	proto *schema.Namespaces
 	rules map[xid.Hash]*ruleSet
 }
 
 func newNamespaces(key string, cache Cache, opts Options) *namespaces {
+	clockOpts := opts.ClockOptions()
 	n := &namespaces{
-		key:          key,
-		store:        opts.KVStore(),
-		cache:        cache,
-		opts:         opts,
-		log:          opts.InstrumentOptions().Logger(),
-		ruleSetKeyFn: opts.RuleSetKeyFn(),
-		proto:        &schema.Namespaces{},
-		rules:        make(map[xid.Hash]*ruleSet),
-		nowFn:        time.Now,
+		key:             key,
+		store:           opts.KVStore(),
+		cache:           cache,
+		opts:            opts,
+		log:             opts.InstrumentOptions().Logger(),
+		ruleSetKeyFn:    opts.RuleSetKeyFn(),
+		proto:           &schema.Namespaces{},
+		rules:           make(map[xid.Hash]*ruleSet),
+		nowFn:           clockOpts.NowFn(),
+		maxNegativeSkew: clockOpts.MaxNegativeSkew(),
 	}
 	valueOpts := runtime.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
@@ -165,7 +167,8 @@ func (n *namespaces) process(value interface{}) error {
 			continue
 		}
 		// Process the namespaces not in the incoming update.
-		if ruleSet.Tombstoned() && ruleSet.CutoverNs() <= n.nowFn().UnixNano() {
+		earliest := n.nowFn().Add(-n.maxNegativeSkew)
+		if ruleSet.Tombstoned() && ruleSet.CutoverNanos() <= earliest.UnixNano() {
 			n.cache.Unregister(ruleSet.Namespace())
 			delete(n.rules, nsHash)
 			ruleSet.Unwatch()

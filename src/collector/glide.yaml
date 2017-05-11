@@ -5,16 +5,34 @@ import:
   subpackages:
   - kv
 - package: github.com/m3db/m3metrics
-  version: eb7b08f53a2be881e7fa61b5c0bd8389a6153efa
+  version: 5a4ec9a107763207c0e077c04a56e73119208408
   subpackages:
   - policy
 - package: github.com/m3db/m3x
-  version: 47d20dcef699f77d5560b364cd3f636cc4e42f74
+  version: bd6be18ffb184691512eb442561b16a59c15d797
   subpackages:
   - clock
   - instrument
   - log
 - package: github.com/uber-go/tally
-  version: 1.0.0
+  version: 3.0.0
 - package: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+- package: github.com/apache/thrift
+  version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
+- package: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- package: github.com/go-ole/go-ole
+  version: de8695c8edbf8236f30d6e1376e20b198a028d42
+- package: github.com/shirou/gopsutil
+  version: b62e301a8b9958eebb7299683eb57fab229a9501
+- package: github.com/shirou/w32
+  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+- package: github.com/spaolacci/murmur3
+  version: 0d12bf811670bf6a1a63828dfbd003eded177fce
+- package: github.com/StackExchange/wmi
+  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+- package: github.com/uber-go/atomic
+  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+- package: google.golang.org/appengine
+  version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599

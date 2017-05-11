@@ -42,12 +42,12 @@ type instanceWriterManager interface {
 	// RemoveInstances removes instancess.
 	RemoveInstances(instances []instance) error
 
-	// WriteTo writes a metric alongside its policies to target instances.
+	// WriteTo writes a metric alongside its policies list to target instances.
 	WriteTo(
 		instances []instance,
 		shard uint32,
 		mu unaggregated.MetricUnion,
-		vp policy.VersionedPolicies,
+		pl policy.PoliciesList,
 	) error
 
 	// Flush flushes buffered metrics.
@@ -115,7 +115,7 @@ func (mgr *writerManager) WriteTo(
 	instances []instance,
 	shard uint32,
 	mu unaggregated.MetricUnion,
-	vp policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
 	mgr.RLock()
 	if mgr.closed {
@@ -131,7 +131,7 @@ func (mgr *writerManager) WriteTo(
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		if err := writer.Write(shard, mu, vp); err != nil {
+		if err := writer.Write(shard, mu, pl); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}

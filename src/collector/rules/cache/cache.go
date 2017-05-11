@@ -67,12 +67,14 @@ type cache struct {
 
 	capacity          int
 	nowFn             clock.NowFn
-	sleepFn           sleepFn
+	maxPositiveSkew   time.Duration
+	maxNegativeSkew   time.Duration
 	freshDuration     time.Duration
 	stutterDuration   time.Duration
 	evictionBatchSize int
 	deletionBatchSize int
 	invalidationMode  InvalidationMode
+	sleepFn           sleepFn
 
 	namespaces map[xid.Hash]results
 	list       lockedList
@@ -86,15 +88,18 @@ type cache struct {
 
 // NewCache creates a new cache.
 func NewCache(opts Options) rules.Cache {
+	clockOpts := opts.ClockOptions()
 	c := &cache{
 		capacity:          opts.Capacity(),
-		nowFn:             opts.ClockOptions().NowFn(),
-		sleepFn:           time.Sleep,
+		nowFn:             clockOpts.NowFn(),
+		maxPositiveSkew:   clockOpts.MaxPositiveSkew(),
+		maxNegativeSkew:   clockOpts.MaxNegativeSkew(),
 		freshDuration:     opts.FreshDuration(),
 		stutterDuration:   opts.StutterDuration(),
 		evictionBatchSize: opts.EvictionBatchSize(),
 		deletionBatchSize: opts.DeletionBatchSize(),
 		invalidationMode:  opts.InvalidationMode(),
+		sleepFn:           time.Sleep,
 		namespaces:        make(map[xid.Hash]results),
 		evictCh:           make(chan struct{}, 1),
 		deleteCh:          make(chan struct{}, 1),
@@ -188,7 +193,12 @@ func (c *cache) tryGetWithLock(
 	if exists {
 		now := c.nowFn()
 		res = elem.result
-		if !res.HasExpired(now) {
+		latest := now.Add(c.maxPositiveSkew)
+		// NB(xichen): the cached match result expires when a new rule takes effect.
+		// Because we handle clock skews by matching all policies within
+		// [now - max_negative_skew, now + max_positive_skew), the cached result expires
+		// as soon as now + max_positive_skew reaches the cutover time of the next rule.
+		if !res.HasExpired(latest) {
 			// NB(xichen): in order to avoid the overhead acquiring an exclusive
 			// lock to perform a promotion to move the element to the front of the
 			// list, we set an expiry time for each promotion and do not perform
@@ -197,7 +207,7 @@ func (c *cache) tryGetWithLock(
 			// accessed items should be still near the front of the list. Additionally,
 			// we can still achieve the exact LRU semantics by setting fresh duration
 			// and stutter duration to 0.
-			if elem.ShouldExpire(now) {
+			if elem.ShouldPromote(now) {
 				c.promote(now, elem)
 			}
 			return res, true
@@ -224,9 +234,12 @@ func (c *cache) setWithLock(
 	if invalidate {
 		results = c.invalidateWithLock(nsHash, idHash, results)
 	}
-	res := results.source.Match(id, c.nowFn())
+	now := c.nowFn()
+	earliest := now.Add(-c.maxNegativeSkew)
+	latest := now.Add(c.maxPositiveSkew)
+	res := results.source.Match(id, earliest, latest)
 	newElem := &element{nsHash: nsHash, idHash: idHash, result: res}
-	newElem.SetExpiry(c.newExpiry(c.nowFn()))
+	newElem.SetPromotionExpiry(c.newPromotionExpiry(now))
 	results.elems[idHash] = newElem
 	// NB(xichen): we don't evict until the number of cached items goes
 	// above the capacity by at least the eviction batch size to amortize
@@ -248,12 +261,12 @@ func (c *cache) add(elem *element) int {
 func (c *cache) promote(now time.Time, elem *element) {
 	c.list.Lock()
 	// Bail if someone else got ahead of us and promoted this element.
-	if !elem.ShouldExpire(now) {
+	if !elem.ShouldPromote(now) {
 		c.list.Unlock()
 		return
 	}
 	// Otherwise proceed with promotion.
-	elem.SetExpiry(c.newExpiry(now))
+	elem.SetPromotionExpiry(c.newPromotionExpiry(now))
 	c.list.MoveToFront(elem)
 	c.list.Unlock()
 }
@@ -367,7 +380,7 @@ func (c *cache) notifyDeletion() {
 	}
 }
 
-func (c *cache) newExpiry(now time.Time) time.Time {
+func (c *cache) newPromotionExpiry(now time.Time) time.Time {
 	expiry := now.Add(c.freshDuration)
 	if c.stutterDuration > 0 {
 		expiry = expiry.Add(time.Duration(rand.Int63n(int64(c.stutterDuration))))
