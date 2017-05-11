@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	metricID "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 )
 
@@ -40,12 +41,6 @@ var (
 	errNilRuleSetSchema = errors.New("nil rule set schema")
 )
 
-// TagPair contains a tag name and a tag value.
-type TagPair struct {
-	Name  []byte
-	Value []byte
-}
-
 // Matcher matches metrics against rules to determine applicable policies.
 type Matcher interface {
 	// MatchAll returns all applicable policies given a metric id between [from, to).
@@ -53,18 +48,18 @@ type Matcher interface {
 }
 
 type activeRuleSet struct {
-	iterFn          filters.NewSortedTagIteratorFn
-	newIDFn         NewIDFn
 	mappingRules    []*mappingRule
 	rollupRules     []*rollupRule
 	cutoverTimesAsc []int64
+	tagFilterOpts   filters.TagsFilterOptions
+	newRollupIDFn   metricID.NewIDFn
 }
 
 func newActiveRuleSet(
-	iterFn filters.NewSortedTagIteratorFn,
-	newIDFn NewIDFn,
 	mappingRules []*mappingRule,
 	rollupRules []*rollupRule,
+	tagFilterOpts filters.TagsFilterOptions,
+	newRollupIDFn metricID.NewIDFn,
 ) *activeRuleSet {
 	uniqueCutoverTimes := make(map[int64]struct{})
 	for _, mappingRule := range mappingRules {
@@ -85,11 +80,11 @@ func newActiveRuleSet(
 	sort.Sort(int64Asc(cutoverTimesAsc))
 
 	return &activeRuleSet{
-		iterFn:          iterFn,
-		newIDFn:         newIDFn,
 		mappingRules:    mappingRules,
 		rollupRules:     rollupRules,
 		cutoverTimesAsc: cutoverTimesAsc,
+		tagFilterOpts:   tagFilterOpts,
+		newRollupIDFn:   newRollupIDFn,
 	}
 }
 
@@ -221,23 +216,45 @@ func (as *activeRuleSet) toRollupResults(id []byte, cutoverNanos int64, targets 
 	if len(targets) == 0 {
 		return nil
 	}
-	var tagPairs []TagPair
+
+	// If we cannot extract tags from the id, this is likely an invalid
+	// metric and we bail early.
+	_, tags, err := as.tagFilterOpts.NameAndTagsFn(id)
+	if err != nil {
+		return nil
+	}
+
+	var tagPairs []metricID.TagPair
 	rollups := make([]RollupResult, 0, len(targets))
 	for _, target := range targets {
 		tagPairs = tagPairs[:0]
-		for _, tag := range target.Tags {
-			iter := as.iterFn(id)
-			for iter.Next() {
-				name, value := iter.Current()
-				if bytes.Equal(name, tag) {
-					tagPairs = append(tagPairs, TagPair{Name: tag, Value: value})
-					break
-				}
+
+		// NB(xichen): this takes advantage of the fact that the tags in each rollup
+		// target is sorted in ascending order.
+		var (
+			tagIter      = as.tagFilterOpts.SortedTagIteratorFn(tags)
+			hasMoreTags  = tagIter.Next()
+			targetTagIdx = 0
+		)
+		for hasMoreTags && targetTagIdx < len(target.Tags) {
+			tagName, tagVal := tagIter.Current()
+			res := bytes.Compare(tagName, target.Tags[targetTagIdx])
+			if res == 0 {
+				tagPairs = append(tagPairs, metricID.TagPair{Name: tagName, Value: tagVal})
+				targetTagIdx++
+				hasMoreTags = tagIter.Next()
+				continue
 			}
-			iter.Close()
+			if res > 0 {
+				targetTagIdx++
+				continue
+			}
+			hasMoreTags = tagIter.Next()
 		}
+		tagIter.Close()
+
 		result := RollupResult{
-			ID:           as.newIDFn(target.Name, tagPairs),
+			ID:           as.newRollupIDFn(target.Name, tagPairs),
 			PoliciesList: policy.PoliciesList{policy.NewStagedPolicies(cutoverNanos, false, target.Policies)},
 		}
 		rollups = append(rollups, result)
@@ -296,10 +313,10 @@ type ruleSet struct {
 	lastUpdatedAtNanos int64
 	tombstoned         bool
 	cutoverNanos       int64
-	iterFn             filters.NewSortedTagIteratorFn
-	newIDFn            NewIDFn
 	mappingRules       []*mappingRule
 	rollupRules        []*rollupRule
+	tagsFilterOpts     filters.TagsFilterOptions
+	newRollupIDFn      metricID.NewIDFn
 }
 
 // NewRuleSet creates a new ruleset.
@@ -307,10 +324,10 @@ func NewRuleSet(version int, rs *schema.RuleSet, opts Options) (RuleSet, error) 
 	if rs == nil {
 		return nil, errNilRuleSetSchema
 	}
-	iterFn := opts.NewSortedTagIteratorFn()
+	tagsFilterOpts := opts.TagsFilterOptions()
 	mappingRules := make([]*mappingRule, 0, len(rs.MappingRules))
-	for _, rollupRule := range rs.MappingRules {
-		mc, err := newMappingRule(rollupRule, iterFn)
+	for _, mappingRule := range rs.MappingRules {
+		mc, err := newMappingRule(mappingRule, tagsFilterOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -318,7 +335,7 @@ func NewRuleSet(version int, rs *schema.RuleSet, opts Options) (RuleSet, error) 
 	}
 	rollupRules := make([]*rollupRule, 0, len(rs.RollupRules))
 	for _, rollupRule := range rs.RollupRules {
-		rc, err := newRollupRule(rollupRule, iterFn)
+		rc, err := newRollupRule(rollupRule, tagsFilterOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -332,10 +349,10 @@ func NewRuleSet(version int, rs *schema.RuleSet, opts Options) (RuleSet, error) 
 		lastUpdatedAtNanos: rs.LastUpdatedAt,
 		tombstoned:         rs.Tombstoned,
 		cutoverNanos:       rs.CutoverTime,
-		iterFn:             iterFn,
-		newIDFn:            opts.NewIDFn(),
 		mappingRules:       mappingRules,
 		rollupRules:        rollupRules,
+		tagsFilterOpts:     tagsFilterOpts,
+		newRollupIDFn:      opts.NewRollupIDFn(),
 	}, nil
 }
 
@@ -356,7 +373,12 @@ func (rs *ruleSet) ActiveSet(t time.Time) Matcher {
 		activeRule := rollupRule.ActiveRule(timeNanos)
 		rollupRules = append(rollupRules, activeRule)
 	}
-	return newActiveRuleSet(rs.iterFn, rs.newIDFn, mappingRules, rollupRules)
+	return newActiveRuleSet(
+		mappingRules,
+		rollupRules,
+		rs.tagsFilterOpts,
+		rs.newRollupIDFn,
+	)
 }
 
 // resolvePolicies resolves the conflicts among policies if any, following the rules below:

@@ -154,17 +154,17 @@ func TestRollupTargetClone(t *testing.T) {
 }
 
 func TestRollupRuleSnapshotNilSchema(t *testing.T) {
-	_, err := newRollupRuleSnapshot(nil, nil)
+	_, err := newRollupRuleSnapshot(nil, testTagsFilterOptions())
 	require.Equal(t, errNilRollupRuleSnapshotSchema, err)
 }
 
 func TestRollupRuleNilSchema(t *testing.T) {
-	_, err := newRollupRule(nil, nil)
+	_, err := newRollupRule(nil, testTagsFilterOptions())
 	require.Equal(t, errNilRollupRuleSchema, err)
 }
 
 func TestRollupRuleValidSchema(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, nil)
+	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, "12669817-13ae-40e6-ba2f-33087b262c68", rr.uuid)
 
@@ -213,25 +213,25 @@ func TestRollupRuleValidSchema(t *testing.T) {
 }
 
 func TestRollupRuleActiveSnapshotNotFound(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, nil)
+	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Nil(t, rr.ActiveSnapshot(0))
 }
 
 func TestRollupRuleActiveSnapshotFound(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, nil)
+	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, rr.snapshots[1], rr.ActiveSnapshot(100000))
 }
 
 func TestRollupRuleActiveRuleNotFound(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, nil)
+	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, rr, rr.ActiveRule(0))
 }
 
 func TestRollupRuleActiveRuleFound(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, nil)
+	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	expected := &rollupRule{
 		uuid:      rr.uuid,

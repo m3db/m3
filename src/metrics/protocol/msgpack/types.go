@@ -24,8 +24,8 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/pool"
@@ -114,11 +114,11 @@ type encoderBase interface {
 	// encodeNumObjectFields encodes the number of object fields.
 	encodeNumObjectFields(numFields int)
 
-	// encodeID encodes an ID.
-	encodeID(id metric.ID)
+	// encodeRawID encodes a raw ID.
+	encodeRawID(id id.RawID)
 
 	// encodeChunkedID encodes a chunked ID.
-	encodeChunkedID(id metric.ChunkedID)
+	encodeChunkedID(id id.ChunkedID)
 
 	// encodeVarint encodes an integer value as varint.
 	encodeVarint(value int64)
@@ -165,8 +165,8 @@ type iteratorBase interface {
 	// decodeNumObjectFields decodes the number of object fields.
 	decodeNumObjectFields() int
 
-	// decodeID decodes an ID.
-	decodeID() metric.ID
+	// decodeRawID decodes a raw ID.
+	decodeRawID() id.RawID
 
 	// decodeVarint decodes a variable-width integer value.
 	decodeVarint() int64

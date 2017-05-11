@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
 
@@ -150,10 +151,10 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 
 	mappingRules := testMappingRules(t)
 	as := newActiveRuleSet(
-		filters.NewMockSortedTagIterator,
-		mockNewID,
 		mappingRules,
 		nil,
+		testTagsFilterOptions(),
+		mockNewID,
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -310,10 +311,10 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 
 	rollupRules := testRollupRules(t)
 	as := newActiveRuleSet(
-		filters.NewMockSortedTagIterator,
-		mockNewID,
 		nil,
 		rollupRules,
+		testTagsFilterOptions(),
+		mockNewID,
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -713,14 +714,14 @@ func TestRuleSetActiveSet(t *testing.T) {
 func testMappingRules(t *testing.T) []*mappingRule {
 	filter1, err := filters.NewTagsFilter(
 		map[string]string{"mtagName1": "mtagValue1"},
-		filters.NewMockSortedTagIterator,
 		filters.Conjunction,
+		testTagsFilterOptions(),
 	)
 	require.NoError(t, err)
 	filter2, err := filters.NewTagsFilter(
 		map[string]string{"mtagName1": "mtagValue2"},
-		filters.NewMockSortedTagIterator,
 		filters.Conjunction,
+		testTagsFilterOptions(),
 	)
 	require.NoError(t, err)
 
@@ -857,16 +858,16 @@ func testRollupRules(t *testing.T) []*rollupRule {
 			"rtagName1": "rtagValue1",
 			"rtagName2": "rtagValue2",
 		},
-		filters.NewMockSortedTagIterator,
 		filters.Conjunction,
+		testTagsFilterOptions(),
 	)
 	require.NoError(t, err)
 	filter2, err := filters.NewTagsFilter(
 		map[string]string{
 			"rtagName1": "rtagValue2",
 		},
-		filters.NewMockSortedTagIterator,
 		filters.Conjunction,
+		testTagsFilterOptions(),
 	)
 	require.NoError(t, err)
 
@@ -1075,11 +1076,11 @@ func testRollupRules(t *testing.T) []*rollupRule {
 
 func testRuleSetOptions() Options {
 	return NewOptions().
-		SetNewSortedTagIteratorFn(filters.NewMockSortedTagIterator).
-		SetNewIDFn(mockNewID)
+		SetTagsFilterOptions(testTagsFilterOptions()).
+		SetNewRollupIDFn(mockNewID)
 }
 
-func mockNewID(name []byte, tags []TagPair) []byte {
+func mockNewID(name []byte, tags []id.TagPair) []byte {
 	if len(tags) == 0 {
 		return name
 	}
@@ -1708,6 +1709,14 @@ func testRollupRulesConfig() []*schema.RollupRule {
 				},
 			},
 		},
+	}
+}
+
+func testTagsFilterOptions() filters.TagsFilterOptions {
+	return filters.TagsFilterOptions{
+		NameTagKey:          []byte("name"),
+		NameAndTagsFn:       func(b []byte) ([]byte, []byte, error) { return nil, b, nil },
+		SortedTagIteratorFn: filters.NewMockSortedTagIterator,
 	}
 }
 

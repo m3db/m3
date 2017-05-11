@@ -89,17 +89,17 @@ var (
 )
 
 func TestMappingRuleSnapshotNilSchema(t *testing.T) {
-	_, err := newMappingRuleSnapshot(nil, nil)
+	_, err := newMappingRuleSnapshot(nil, testTagsFilterOptions())
 	require.Equal(t, err, errNilMappingRuleSnapshotSchema)
 }
 
 func TestNewMappingRuleNilSchema(t *testing.T) {
-	_, err := newMappingRule(nil, nil)
+	_, err := newMappingRule(nil, testTagsFilterOptions())
 	require.Equal(t, err, errNilMappingRuleSchema)
 }
 
 func TestNewMappingRule(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, nil)
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, "12669817-13ae-40e6-ba2f-33087b262c68", mr.uuid)
 	expectedSnapshots := []struct {
@@ -135,31 +135,31 @@ func TestNewMappingRule(t *testing.T) {
 }
 
 func TestMappingRuleActiveSnapshotNotFound(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, nil)
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Nil(t, mr.ActiveSnapshot(0))
 }
 
 func TestMappingRuleActiveSnapshotFound_Second(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, nil)
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr.snapshots[1], mr.ActiveSnapshot(100000))
 }
 
 func TestMappingRuleActiveSnapshotFound_First(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, nil)
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr.snapshots[0], mr.ActiveSnapshot(20000))
 }
 
 func TestMappingRuleActiveRuleNotFound(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, nil)
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr, mr.ActiveRule(0))
 }
 
 func TestMappingRuleActiveRuleFound_Second(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, nil)
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	expected := &mappingRule{
 		uuid:      mr.uuid,
@@ -169,7 +169,7 @@ func TestMappingRuleActiveRuleFound_Second(t *testing.T) {
 }
 
 func TestMappingRuleActiveRuleFound_First(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, nil)
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr, mr.ActiveRule(20000))
 }

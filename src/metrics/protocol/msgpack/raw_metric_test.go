@@ -26,8 +26,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 
 	"github.com/stretchr/testify/require"
@@ -186,9 +186,9 @@ func TestRawMetricNilID(t *testing.T) {
 
 func TestRawMetricReset(t *testing.T) {
 	metrics := []aggregated.Metric{
-		{ID: metric.ID("foo"), TimeNanos: testMetric.TimeNanos, Value: 1.0},
-		{ID: metric.ID("bar"), TimeNanos: testMetric.TimeNanos, Value: 2.3},
-		{ID: metric.ID("baz"), TimeNanos: testMetric.TimeNanos, Value: 4234.234},
+		{ID: id.RawID("foo"), TimeNanos: testMetric.TimeNanos, Value: 1.0},
+		{ID: id.RawID("bar"), TimeNanos: testMetric.TimeNanos, Value: 2.3},
+		{ID: id.RawID("baz"), TimeNanos: testMetric.TimeNanos, Value: 4234.234},
 	}
 	rawMetric := NewRawMetric(nil, 16)
 	for i := 0; i < len(metrics); i++ {
@@ -201,9 +201,9 @@ func TestRawMetricReset(t *testing.T) {
 
 func TestRawMetricRoundtripStress(t *testing.T) {
 	metrics := []aggregated.Metric{
-		{ID: metric.ID("foo"), TimeNanos: testMetric.TimeNanos, Value: 1.0},
-		{ID: metric.ID("bar"), TimeNanos: testMetric.TimeNanos, Value: 2.3},
-		{ID: metric.ID("baz"), TimeNanos: testMetric.TimeNanos, Value: 4234.234},
+		{ID: id.RawID("foo"), TimeNanos: testMetric.TimeNanos, Value: 1.0},
+		{ID: id.RawID("bar"), TimeNanos: testMetric.TimeNanos, Value: 2.3},
+		{ID: id.RawID("baz"), TimeNanos: testMetric.TimeNanos, Value: 4234.234},
 	}
 	var (
 		inputs  []aggregated.Metric
@@ -243,7 +243,7 @@ func (it *mockBaseIterator) decodePolicy() policy.Policy  { return policy.EmptyP
 func (it *mockBaseIterator) decodeVersion() int           { return it.decodeVersionFn() }
 func (it *mockBaseIterator) decodeObjectType() objectType { return unknownType }
 func (it *mockBaseIterator) decodeNumObjectFields() int   { return 0 }
-func (it *mockBaseIterator) decodeID() metric.ID          { return nil }
+func (it *mockBaseIterator) decodeRawID() id.RawID        { return nil }
 func (it *mockBaseIterator) decodeVarint() int64          { return it.decodeVarintFn() }
 func (it *mockBaseIterator) decodeBool() bool             { return false }
 func (it *mockBaseIterator) decodeFloat64() float64       { return it.decodeFloat64Fn() }

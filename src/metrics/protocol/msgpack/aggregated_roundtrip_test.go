@@ -27,8 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
 
@@ -37,12 +37,12 @@ import (
 
 var (
 	testMetric = aggregated.Metric{
-		ID:        metric.ID("foo"),
+		ID:        id.RawID("foo"),
 		TimeNanos: time.Now().UnixNano(),
 		Value:     123.45,
 	}
 	testChunkedMetric = aggregated.ChunkedMetric{
-		ChunkedID: metric.ChunkedID{
+		ChunkedID: id.ChunkedID{
 			Prefix: []byte("foo."),
 			Data:   []byte("bar"),
 			Suffix: []byte(".baz"),
@@ -51,7 +51,7 @@ var (
 		Value:     123.45,
 	}
 	testMetric2 = aggregated.Metric{
-		ID:        metric.ID("bar"),
+		ID:        id.RawID("bar"),
 		TimeNanos: time.Now().UnixNano(),
 		Value:     678.90,
 	}
@@ -136,7 +136,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 			})
 			require.NoError(t, testAggregatedEncode(t, encoder, inputMetric, input.policy))
 		case aggregated.ChunkedMetric:
-			var id metric.ID
+			var id id.RawID
 			id = append(id, inputMetric.ChunkedID.Prefix...)
 			id = append(id, inputMetric.ChunkedID.Data...)
 			id = append(id, inputMetric.ChunkedID.Suffix...)

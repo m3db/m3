@@ -25,7 +25,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/pool"
@@ -48,7 +48,7 @@ type unaggregatedIterator struct {
 	closed             bool
 	metric             unaggregated.MetricUnion
 	policiesList       policy.PoliciesList
-	id                 metric.ID
+	id                 id.RawID
 	timerValues        []float64
 	cachedPolicies     [][]policy.Policy
 	cachedPoliciesList policy.PoliciesList
@@ -302,7 +302,7 @@ func (it *unaggregatedIterator) decodeStagedPolicies(policyIdx int) policy.Stage
 	return stagedPolicies
 }
 
-func (it *unaggregatedIterator) decodeID() metric.ID {
+func (it *unaggregatedIterator) decodeID() id.RawID {
 	idLen := it.decodeBytesLen()
 	if it.err() != nil {
 		return nil
@@ -310,7 +310,7 @@ func (it *unaggregatedIterator) decodeID() metric.ID {
 	// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil.
 	if idLen == -1 {
 		it.id = it.id[:0]
-		return metric.ID(it.id)
+		return id.RawID(it.id)
 	}
 	if cap(it.id) < idLen {
 		it.id = make([]byte, idLen)

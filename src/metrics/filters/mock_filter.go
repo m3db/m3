@@ -22,6 +22,8 @@ package filters
 
 import (
 	"strings"
+
+	"github.com/m3db/m3metrics/metric/id"
 )
 
 const (
@@ -45,8 +47,8 @@ type mockSortedTagIterator struct {
 	pairs []mockTagPair
 }
 
-func idToMockTagPairs(id []byte) []mockTagPair {
-	tagPairs := strings.Split(string(id), mockTagPairSeparator)
+func tagsToPairs(tags []byte) []mockTagPair {
+	tagPairs := strings.Split(string(tags), mockTagPairSeparator)
 	var pairs []mockTagPair
 	for _, pair := range tagPairs {
 		p := strings.Split(pair, mockTagValueSeparator)
@@ -56,9 +58,15 @@ func idToMockTagPairs(id []byte) []mockTagPair {
 }
 
 // NewMockSortedTagIterator creates a mock SortedTagIterator based on given ID.
-func NewMockSortedTagIterator(id []byte) SortedTagIterator {
-	pairs := idToMockTagPairs(id)
+func NewMockSortedTagIterator(tags []byte) id.SortedTagIterator {
+	pairs := tagsToPairs(tags)
 	return &mockSortedTagIterator{idx: -1, pairs: pairs}
+}
+
+func (it *mockSortedTagIterator) Reset(tags []byte) {
+	it.idx = -1
+	it.err = nil
+	it.pairs = tagsToPairs(tags)
 }
 
 func (it *mockSortedTagIterator) Next() bool {

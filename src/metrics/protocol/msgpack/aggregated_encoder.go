@@ -102,7 +102,7 @@ func (enc *aggregatedEncoder) encodeRootObject(objType objectType) {
 func (enc *aggregatedEncoder) encodeMetricAsRaw(m aggregated.Metric) []byte {
 	enc.buf.resetData()
 	enc.encodeMetricProlog()
-	enc.buf.encodeID(m.ID)
+	enc.buf.encodeRawID(m.ID)
 	enc.buf.encodeVarint(m.TimeNanos)
 	enc.buf.encodeFloat64(m.Value)
 	return enc.buf.encoder().Bytes()

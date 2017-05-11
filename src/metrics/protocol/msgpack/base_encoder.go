@@ -21,7 +21,7 @@
 package msgpack
 
 import (
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 )
 
@@ -67,7 +67,7 @@ func (enc *baseEncoder) encodePolicy(p policy.Policy)        { enc.encodePolicyF
 func (enc *baseEncoder) encodeVersion(version int)           { enc.encodeVarint(int64(version)) }
 func (enc *baseEncoder) encodeObjectType(objType objectType) { enc.encodeVarint(int64(objType)) }
 func (enc *baseEncoder) encodeNumObjectFields(numFields int) { enc.encodeArrayLen(numFields) }
-func (enc *baseEncoder) encodeID(id metric.ID)               { enc.encodeBytes([]byte(id)) }
+func (enc *baseEncoder) encodeRawID(id id.RawID)             { enc.encodeBytes([]byte(id)) }
 func (enc *baseEncoder) encodeVarint(value int64)            { enc.encodeVarintFn(value) }
 func (enc *baseEncoder) encodeBool(value bool)               { enc.encodeBoolFn(value) }
 func (enc *baseEncoder) encodeFloat64(value float64)         { enc.encodeFloat64Fn(value) }
@@ -80,7 +80,7 @@ func (enc *baseEncoder) reset(encoder BufferedEncoder) {
 	enc.encodeErr = nil
 }
 
-func (enc *baseEncoder) encodeChunkedID(id metric.ChunkedID) {
+func (enc *baseEncoder) encodeChunkedID(id id.ChunkedID) {
 	enc.encodeBytesLen(len(id.Prefix) + len(id.Data) + len(id.Suffix))
 	enc.writeRaw(id.Prefix)
 	enc.writeRaw(id.Data)

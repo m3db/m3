@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
@@ -134,7 +134,7 @@ func TestUnaggregatedIteratorDecodeIDWithAlloc(t *testing.T) {
 	enc.encodeBytes(data)
 	require.NoError(t, enc.err())
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer()).(*unaggregatedIterator)
-	require.Equal(t, metric.ID(data), it.decodeID())
+	require.Equal(t, id.RawID(data), it.decodeID())
 	require.NoError(t, it.Err())
 }
 
@@ -145,7 +145,7 @@ func TestUnaggregatedIteratorDecodeIDNoAlloc(t *testing.T) {
 	require.NoError(t, enc.err())
 	it := testUnaggregatedIterator(t, enc.Encoder().Buffer()).(*unaggregatedIterator)
 	it.id = make([]byte, len(data)*3)
-	require.Equal(t, metric.ID(data), it.decodeID())
+	require.Equal(t, id.RawID(data), it.decodeID())
 	require.NoError(t, it.Err())
 }
 
@@ -173,7 +173,7 @@ func TestUnaggregatedIteratorDecodeIDReadSuccess(t *testing.T) {
 
 	it := testUnaggregatedIterator(t, reader).(*unaggregatedIterator)
 	it.id = make([]byte, len(data)/2)
-	require.Equal(t, metric.ID(data), it.decodeID())
+	require.Equal(t, id.RawID(data), it.decodeID())
 	require.NoError(t, it.Err())
 }
 
@@ -201,7 +201,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerNoValues(t *testing.T) {
 	require.NoError(t, it.Err())
 	mu := it.Metric()
 	require.Equal(t, unaggregated.BatchTimerType, mu.Type)
-	require.Equal(t, metric.ID("foo"), mu.ID)
+	require.Equal(t, id.RawID("foo"), mu.ID)
 	require.Equal(t, 0, len(mu.BatchTimerVal))
 	require.False(t, mu.OwnsID)
 	require.Nil(t, mu.TimerValPool)
@@ -211,7 +211,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerDecodeFloat64Error(t *testing.T) {
 	enc := testUnaggregatedEncoder(t).(*unaggregatedEncoder)
 	enc.encodeBatchTimerFn = func(bt unaggregated.BatchTimer) {
 		enc.encodeNumObjectFields(numFieldsForType(batchTimerType))
-		enc.encodeID(bt.ID)
+		enc.encodeRawID(bt.ID)
 		enc.encodeArrayLen(len(bt.Values))
 		enc.encodeBytes([]byte("foo"))
 	}
@@ -240,7 +240,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerNoAlloc(t *testing.T) {
 	require.NoError(t, it.Err())
 	mu := it.Metric()
 	require.Equal(t, unaggregated.BatchTimerType, mu.Type)
-	require.Equal(t, metric.ID("foo"), mu.ID)
+	require.Equal(t, id.RawID("foo"), mu.ID)
 	require.Equal(t, bt.Values, mu.BatchTimerVal)
 	require.Equal(t, cap(it.timerValues), cap(mu.BatchTimerVal))
 	require.False(t, mu.OwnsID)
@@ -263,7 +263,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithAllocNonPoolAlloc(t *testing.T)
 	require.NoError(t, it.Err())
 	mu := it.Metric()
 	require.Equal(t, unaggregated.BatchTimerType, mu.Type)
-	require.Equal(t, metric.ID("foo"), mu.ID)
+	require.Equal(t, id.RawID("foo"), mu.ID)
 	require.Equal(t, bt.Values, mu.BatchTimerVal)
 	require.Equal(t, cap(it.timerValues), cap(mu.BatchTimerVal))
 	require.False(t, mu.OwnsID)
@@ -288,7 +288,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithAllocPoolAlloc(t *testing.T) {
 	require.NoError(t, it.Err())
 	mu := it.Metric()
 	require.Equal(t, unaggregated.BatchTimerType, mu.Type)
-	require.Equal(t, metric.ID("foo"), mu.ID)
+	require.Equal(t, id.RawID("foo"), mu.ID)
 	require.Equal(t, bt.Values, mu.BatchTimerVal)
 	require.True(t, cap(mu.BatchTimerVal) >= len(bt.Values))
 	require.Nil(t, it.timerValues)
@@ -382,7 +382,7 @@ func TestUnaggregatedIteratorDecodeCounterMoreFieldsThanExpected(t *testing.T) {
 	// Pretend we added an extra int field to the counter object.
 	enc.encodeCounterFn = func(c unaggregated.Counter) {
 		enc.encodeNumObjectFields(numFieldsForType(counterType) + 1)
-		enc.encodeID(c.ID)
+		enc.encodeRawID(c.ID)
 		enc.encodeVarint(int64(c.Value))
 		enc.encodeVarint(0)
 	}
@@ -404,7 +404,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerMoreFieldsThanExpected(t *testing.T
 	// Pretend we added an extra int field to the batch timer object.
 	enc.encodeBatchTimerFn = func(bt unaggregated.BatchTimer) {
 		enc.encodeNumObjectFields(numFieldsForType(batchTimerType) + 1)
-		enc.encodeID(bt.ID)
+		enc.encodeRawID(bt.ID)
 		enc.encodeArrayLen(len(bt.Values))
 		for _, v := range bt.Values {
 			enc.encodeFloat64(v)
@@ -429,7 +429,7 @@ func TestUnaggregatedIteratorDecodeGaugeMoreFieldsThanExpected(t *testing.T) {
 	// Pretend we added an extra int field to the gauge object.
 	enc.encodeGaugeFn = func(g unaggregated.Gauge) {
 		enc.encodeNumObjectFields(numFieldsForType(gaugeType) + 1)
-		enc.encodeID(g.ID)
+		enc.encodeRawID(g.ID)
 		enc.encodeFloat64(g.Value)
 		enc.encodeVarint(0)
 	}
@@ -551,7 +551,7 @@ func TestUnaggregatedIteratorDecodeCounterFewerFieldsThanExpected(t *testing.T) 
 	// Pretend we added an extra int field to the counter object.
 	enc.encodeCounterFn = func(c unaggregated.Counter) {
 		enc.encodeNumObjectFields(numFieldsForType(counterType) - 1)
-		enc.encodeID(c.ID)
+		enc.encodeRawID(c.ID)
 	}
 	require.NoError(t, testUnaggregatedEncodeMetricWithPoliciesList(t, enc, input.metric, input.policiesList))
 

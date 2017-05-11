@@ -149,13 +149,13 @@ func (enc *unaggregatedEncoder) encodeGaugeWithPoliciesList(gp unaggregated.Gaug
 
 func (enc *unaggregatedEncoder) encodeCounter(c unaggregated.Counter) {
 	enc.encodeNumObjectFields(numFieldsForType(counterType))
-	enc.encodeID(c.ID)
+	enc.encodeRawID(c.ID)
 	enc.encodeVarint(int64(c.Value))
 }
 
 func (enc *unaggregatedEncoder) encodeBatchTimer(bt unaggregated.BatchTimer) {
 	enc.encodeNumObjectFields(numFieldsForType(batchTimerType))
-	enc.encodeID(bt.ID)
+	enc.encodeRawID(bt.ID)
 	enc.encodeArrayLen(len(bt.Values))
 	for _, v := range bt.Values {
 		enc.encodeFloat64(v)
@@ -164,7 +164,7 @@ func (enc *unaggregatedEncoder) encodeBatchTimer(bt unaggregated.BatchTimer) {
 
 func (enc *unaggregatedEncoder) encodeGauge(g unaggregated.Gauge) {
 	enc.encodeNumObjectFields(numFieldsForType(gaugeType))
-	enc.encodeID(g.ID)
+	enc.encodeRawID(g.ID)
 	enc.encodeFloat64(g.Value)
 }
 

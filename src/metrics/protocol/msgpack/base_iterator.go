@@ -27,7 +27,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
 
@@ -170,8 +170,8 @@ func (it *baseIterator) decodeNumObjectFields() int {
 	return int(it.decodeArrayLen())
 }
 
-func (it *baseIterator) decodeID() metric.ID {
-	return metric.ID(it.decodeBytes())
+func (it *baseIterator) decodeRawID() id.RawID {
+	return id.RawID(it.decodeBytes())
 }
 
 // NB(xichen): the underlying msgpack decoder implementation

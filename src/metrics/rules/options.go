@@ -20,29 +20,29 @@
 
 package rules
 
-import "github.com/m3db/m3metrics/filters"
-
-// NewIDFn creates a new metric ID based on the metric name and metric tag pairs.
-type NewIDFn func(name []byte, tags []TagPair) []byte
+import (
+	"github.com/m3db/m3metrics/filters"
+	"github.com/m3db/m3metrics/metric/id"
+)
 
 // Options provide a set of options for rule matching.
 type Options interface {
-	// SetNewSortedTagIteratorFn sets the new sorted tag iterator function.
-	SetNewSortedTagIteratorFn(value filters.NewSortedTagIteratorFn) Options
+	// SetTagsFilterOptions sets the tags filter options.
+	SetTagsFilterOptions(value filters.TagsFilterOptions) Options
 
-	// NewSortedTagIteratorFn returns the new sorted tag iterator function.
-	NewSortedTagIteratorFn() filters.NewSortedTagIteratorFn
+	// TagsFilterOptions returns the tags filter options.
+	TagsFilterOptions() filters.TagsFilterOptions
 
-	// SetNewIDFn sets the new id function.
-	SetNewIDFn(value NewIDFn) Options
+	// SetNewRollupIDFn sets the new rollup id function.
+	SetNewRollupIDFn(value id.NewIDFn) Options
 
-	// NewIDFn returns the new id function.
-	NewIDFn() NewIDFn
+	// NewRollupIDFn returns the new rollup id function.
+	NewRollupIDFn() id.NewIDFn
 }
 
 type options struct {
-	iterFn  filters.NewSortedTagIteratorFn
-	newIDFn NewIDFn
+	tagsFilterOpts filters.TagsFilterOptions
+	newRollupIDFn  id.NewIDFn
 }
 
 // NewOptions creates a new set of options.
@@ -50,22 +50,22 @@ func NewOptions() Options {
 	return &options{}
 }
 
-func (o *options) SetNewSortedTagIteratorFn(value filters.NewSortedTagIteratorFn) Options {
-	opts := o
-	opts.iterFn = value
-	return opts
+func (o *options) SetTagsFilterOptions(value filters.TagsFilterOptions) Options {
+	opts := *o
+	opts.tagsFilterOpts = value
+	return &opts
 }
 
-func (o *options) NewSortedTagIteratorFn() filters.NewSortedTagIteratorFn {
-	return o.iterFn
+func (o *options) TagsFilterOptions() filters.TagsFilterOptions {
+	return o.tagsFilterOpts
 }
 
-func (o *options) SetNewIDFn(value NewIDFn) Options {
-	opts := o
-	opts.newIDFn = value
-	return opts
+func (o *options) SetNewRollupIDFn(value id.NewIDFn) Options {
+	opts := *o
+	opts.newRollupIDFn = value
+	return &opts
 }
 
-func (o *options) NewIDFn() NewIDFn {
-	return o.newIDFn
+func (o *options) NewRollupIDFn() id.NewIDFn {
+	return o.newRollupIDFn
 }

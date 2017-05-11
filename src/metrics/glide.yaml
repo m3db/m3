@@ -1,7 +1,7 @@
 package: github.com/m3db/m3metrics
 import:
 - package: github.com/m3db/m3x
-  version: 2a4b2eeb25be253ed5c57255e1c72bde13257d34
+  version: bd6be18ffb184691512eb442561b16a59c15d797
   subpackages:
   - pool
   - time
