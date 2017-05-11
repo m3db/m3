@@ -23,42 +23,70 @@ package aggregator
 import (
 	"container/list"
 	"errors"
-	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3metrics/metric"
+	metricID "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/errors"
+
+	"github.com/uber-go/tally"
+)
+
+const (
+	uninitializedCutoverNanos = math.MinInt64
 )
 
 var (
-	errEntryClosed = errors.New("entry is closed")
+	errEmptyPoliciesList = errors.New("empty policies list")
+	errEntryClosed       = errors.New("entry is closed")
 )
 
-// Entry stores metadata about current policies and aggregations
-// for a metric. Note since the metric namespace is part of the
-// metric ID, we only need to keep track of the policy version
-// to detect policy changes.
+type entryMetrics struct {
+	emptyPoliciesList tally.Counter
+	stalePolicy       tally.Counter
+	futurePolicy      tally.Counter
+	tombstonedPolicy  tally.Counter
+	policyUpdates     tally.Counter
+}
+
+func newEntryMetrics(scope tally.Scope) entryMetrics {
+	return entryMetrics{
+		emptyPoliciesList: scope.Counter("empty-policies-list"),
+		stalePolicy:       scope.Counter("stale-policy"),
+		futurePolicy:      scope.Counter("future-policy"),
+		tombstonedPolicy:  scope.Counter("tombstoned-policy"),
+		policyUpdates:     scope.Counter("policy-updates"),
+	}
+}
+
+// Entry stores metadata about current policies and aggregations for a metric.
 type Entry struct {
 	sync.RWMutex
 
-	opts           Options                         // options
-	lists          *metricLists                    // metric lists
-	version        int                             // current policy version
-	numWriters     int32                           // number of writers writing to this entry
-	lastAccessInNs int64                           // last access time
-	aggregations   map[policy.Policy]*list.Element // aggregations at different resolutions
-	closed         bool                            // whether the entry is closed
+	opts                   Options
+	hasDefaultPoliciesList bool
+	useDefaultPolicies     bool
+	cutoverNanos           int64
+	tombstoned             bool
+	lists                  *metricLists
+	numWriters             int32
+	lastAccessNanos        int64
+	aggregations           map[policy.Policy]*list.Element
+	closed                 bool
+	metrics                entryMetrics
 }
 
-// NewEntry creates a new entry
+// NewEntry creates a new entry.
 func NewEntry(lists *metricLists, opts Options) *Entry {
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("entry")
 	e := &Entry{
 		opts:         opts,
 		aggregations: make(map[policy.Policy]*list.Element),
+		metrics:      newEntryMetrics(scope),
 	}
 	e.ResetSetData(lists)
 	return e
@@ -73,16 +101,19 @@ func (e *Entry) DecWriter() { atomic.AddInt32(&e.numWriters, -1) }
 // ResetSetData resets the entry and sets initial data.
 func (e *Entry) ResetSetData(lists *metricLists) {
 	e.closed = false
+	e.hasDefaultPoliciesList = false
+	e.useDefaultPolicies = false
+	e.cutoverNanos = uninitializedCutoverNanos
+	e.tombstoned = false
 	e.lists = lists
-	e.version = policy.InitPolicyVersion
 	e.numWriters = 0
 	e.recordLastAccessed(e.opts.ClockOptions().NowFn()())
 }
 
-// AddMetricWithPolicies adds a metric along with applicable policies.
-func (e *Entry) AddMetricWithPolicies(
+// AddMetricWithPoliciesList adds a metric along with applicable policies list.
+func (e *Entry) AddMetricWithPoliciesList(
 	mu unaggregated.MetricUnion,
-	policies policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
 	timeLock := e.opts.TimeLock()
 	timeLock.RLock()
@@ -103,7 +134,29 @@ func (e *Entry) AddMetricWithPolicies(
 		return errEntryClosed
 	}
 
-	if !e.shouldUpdatePoliciesWithLock(currTime, policies.Version, policies.Cutover) {
+	// Fast exit path for the common case.
+	hasDefaultPoliciesList := pl.IsDefault()
+	if e.hasDefaultPoliciesList && hasDefaultPoliciesList {
+		err := e.addMetricWithLock(currTime, mu)
+		e.RUnlock()
+		timeLock.RUnlock()
+		return err
+	}
+
+	sp, err := e.activeStagedPoliciesWithLock(pl, currTime)
+	if err != nil {
+		e.RUnlock()
+		timeLock.RUnlock()
+		return err
+	}
+
+	if !e.shouldUpdatePoliciesWithLock(currTime, sp) {
+		if e.tombstoned {
+			e.RUnlock()
+			timeLock.RUnlock()
+			e.metrics.tombstonedPolicy.Inc(1)
+			return nil
+		}
 		err := e.addMetricWithLock(currTime, mu)
 		e.RUnlock()
 		timeLock.RUnlock()
@@ -118,8 +171,8 @@ func (e *Entry) AddMetricWithPolicies(
 		return errEntryClosed
 	}
 
-	if e.shouldUpdatePoliciesWithLock(currTime, policies.Version, policies.Cutover) {
-		if err := e.updatePoliciesWithLock(mu.Type, mu.ID, mu.OwnsID, policies.Version, policies.Policies()); err != nil {
+	if e.shouldUpdatePoliciesWithLock(currTime, sp) {
+		if err := e.updatePoliciesWithLock(mu.Type, mu.ID, mu.OwnsID, hasDefaultPoliciesList, sp); err != nil {
 			// NB(xichen): if an error occurred during policy update, the policies
 			// will remain as they are, i.e., there are no half-updated policies.
 			e.Unlock()
@@ -128,7 +181,14 @@ func (e *Entry) AddMetricWithPolicies(
 		}
 	}
 
-	err := e.addMetricWithLock(currTime, mu)
+	if e.tombstoned {
+		e.Unlock()
+		timeLock.RUnlock()
+		e.metrics.tombstonedPolicy.Inc(1)
+		return nil
+	}
+
+	err = e.addMetricWithLock(currTime, mu)
 	e.Unlock()
 	timeLock.RUnlock()
 
@@ -173,52 +233,102 @@ func (e *Entry) TryExpire(now time.Time) bool {
 }
 
 func (e *Entry) writerCount() int        { return int(atomic.LoadInt32(&e.numWriters)) }
-func (e *Entry) lastAccessed() time.Time { return time.Unix(0, atomic.LoadInt64(&e.lastAccessInNs)) }
+func (e *Entry) lastAccessed() time.Time { return time.Unix(0, atomic.LoadInt64(&e.lastAccessNanos)) }
 
 func (e *Entry) recordLastAccessed(currTime time.Time) {
-	atomic.StoreInt64(&e.lastAccessInNs, currTime.UnixNano())
+	atomic.StoreInt64(&e.lastAccessNanos, currTime.UnixNano())
 }
 
-func (e *Entry) shouldExpire(now time.Time) bool {
-	// Only expire the entry if there are no active writers
-	// and it has reached its ttl since last accessed.
-	return e.writerCount() == 0 && now.After(e.lastAccessed().Add(e.opts.EntryTTL()))
-}
-
-func (e *Entry) addMetricWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
-	multiErr := xerrors.NewMultiError()
-	for _, elem := range e.aggregations {
-		if err := elem.Value.(metricElem).AddMetric(timestamp, mu); err != nil {
-			multiErr = multiErr.Add(err)
+// NB(xichen): we assume the policies are sorted by their cutover times
+// in ascending order.
+func (e *Entry) activeStagedPoliciesWithLock(
+	pl policy.PoliciesList,
+	t time.Time,
+) (policy.StagedPolicies, error) {
+	// If we have no policy to apply, simply bail.
+	if len(pl) == 0 {
+		e.metrics.emptyPoliciesList.Inc(1)
+		return policy.DefaultStagedPolicies, errEmptyPoliciesList
+	}
+	timeNanos := t.UnixNano()
+	for idx := len(pl) - 1; idx >= 0; idx-- {
+		if pl[idx].CutoverNanos <= timeNanos {
+			return pl[idx], nil
 		}
 	}
-	// If the timer values were allocated from a pool, return them to the pool.
-	if mu.Type == unaggregated.BatchTimerType && mu.BatchTimerVal != nil && mu.TimerValPool != nil {
-		mu.TimerValPool.Put(mu.BatchTimerVal)
-	}
-	return multiErr.FinalError()
+	return pl[0], nil
 }
 
-// If the current version is older than the incoming version,
-// and we've surpassed the cutover, we should update the policies.
-func (e *Entry) shouldUpdatePoliciesWithLock(
-	currTime time.Time,
-	version int,
-	cutover time.Time,
-) bool {
-	return e.version == policy.InitPolicyVersion || (e.version < version && !currTime.Before(cutover))
+func (e *Entry) shouldUpdatePoliciesWithLock(currTime time.Time, sp policy.StagedPolicies) bool {
+	if e.cutoverNanos == uninitializedCutoverNanos {
+		return true
+	}
+	// If this is a future policy, we don't update the existing policy
+	// and instead use the cached policy.
+	if currTime.UnixNano() < sp.CutoverNanos {
+		e.metrics.futurePolicy.Inc(1)
+		return false
+	}
+	// If this is a stale policy, we don't update the existing policy
+	// and instead use the cached policy.
+	if sp.CutoverNanos < e.cutoverNanos {
+		e.metrics.stalePolicy.Inc(1)
+		return false
+	}
+	if e.tombstoned != sp.Tombstoned || e.cutoverNanos != sp.CutoverNanos {
+		return true
+	}
+	// If the policies have been tombstoned, there is no need to compare the actual policies.
+	if e.tombstoned {
+		return false
+	}
+	policies, useDefaultPolicies := sp.Policies()
+	if e.useDefaultPolicies && useDefaultPolicies {
+		return false
+	}
+	if useDefaultPolicies {
+		policies = e.opts.DefaultPolicies()
+	}
+	return e.hasPolicyChangesWithLock(policies)
+}
+
+func (e *Entry) hasPolicyChangesWithLock(newPolicies []policy.Policy) bool {
+	if len(e.aggregations) != len(newPolicies) {
+		return true
+	}
+	for _, policy := range newPolicies {
+		if _, exists := e.aggregations[policy]; !exists {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Entry) updatePoliciesWithLock(
 	typ unaggregated.Type,
-	id metric.ID,
+	id metricID.RawID,
 	ownsID bool,
-	newVersion int,
-	policies []policy.Policy,
+	hasDefaultPoliciesList bool,
+	sp policy.StagedPolicies,
 ) error {
+	var (
+		policies           []policy.Policy
+		useDefaultPolicies bool
+	)
+	if !sp.Tombstoned {
+		policies, useDefaultPolicies = sp.Policies()
+		if useDefaultPolicies {
+			policies = e.opts.DefaultPolicies()
+		}
+	}
+
 	// Fast path to exit in case the policies didn't change.
 	if !e.hasPolicyChangesWithLock(policies) {
-		e.version = newVersion
+		e.hasDefaultPoliciesList = hasDefaultPoliciesList
+		e.useDefaultPolicies = useDefaultPolicies
+		e.cutoverNanos = sp.CutoverNanos
+		e.tombstoned = sp.Tombstoned
+		e.metrics.policyUpdates.Inc(1)
 		return nil
 	}
 
@@ -234,7 +344,7 @@ func (e *Entry) updatePoliciesWithLock(
 		} else {
 			// Otherwise this is a new id so it is necessary to make a
 			// copy because it's not owned by us.
-			elemID = make(metric.ID, len(id))
+			elemID = make(metricID.RawID, len(id))
 			copy(elemID, id)
 		}
 	}
@@ -254,7 +364,7 @@ func (e *Entry) updatePoliciesWithLock(
 			case unaggregated.GaugeType:
 				newElem = e.opts.GaugeElemPool().Get()
 			default:
-				return fmt.Errorf("unrecognized element type:%v", typ)
+				return errInvalidMetricType
 			}
 			newElem.ResetSetData(elemID, policy)
 			list, err := e.lists.FindOrCreate(policy.Resolution().Window)
@@ -278,19 +388,31 @@ func (e *Entry) updatePoliciesWithLock(
 
 	// Replace the existing aggregations with new aggregations.
 	e.aggregations = newAggregations
-	e.version = newVersion
+	e.hasDefaultPoliciesList = hasDefaultPoliciesList
+	e.useDefaultPolicies = useDefaultPolicies
+	e.cutoverNanos = sp.CutoverNanos
+	e.tombstoned = sp.Tombstoned
+	e.metrics.policyUpdates.Inc(1)
 
 	return nil
 }
 
-func (e *Entry) hasPolicyChangesWithLock(newPolicies []policy.Policy) bool {
-	if len(e.aggregations) != len(newPolicies) {
-		return true
-	}
-	for _, policy := range newPolicies {
-		if _, exists := e.aggregations[policy]; !exists {
-			return true
+func (e *Entry) addMetricWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
+	multiErr := xerrors.NewMultiError()
+	for _, elem := range e.aggregations {
+		if err := elem.Value.(metricElem).AddMetric(timestamp, mu); err != nil {
+			multiErr = multiErr.Add(err)
 		}
 	}
-	return false
+	// If the timer values were allocated from a pool, return them to the pool.
+	if mu.Type == unaggregated.BatchTimerType && mu.BatchTimerVal != nil && mu.TimerValPool != nil {
+		mu.TimerValPool.Put(mu.BatchTimerVal)
+	}
+	return multiErr.FinalError()
+}
+
+func (e *Entry) shouldExpire(now time.Time) bool {
+	// Only expire the entry if there are no active writers
+	// and it has reached its ttl since last accessed.
+	return e.writerCount() == 0 && now.After(e.lastAccessed().Add(e.opts.EntryTTL()))
 }

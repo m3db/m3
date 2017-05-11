@@ -149,7 +149,7 @@ func TestMetricListTick(t *testing.T) {
 		l.flushInternal()
 
 		var expected []testAggMetric
-		alignedStart := nowTs.Truncate(testPolicy.Resolution().Window)
+		alignedStart := nowTs.Truncate(testPolicy.Resolution().Window).UnixNano()
 		expected = append(expected, expectedAggMetricsForCounter(alignedStart, testPolicy)...)
 		expected = append(expected, expectedAggMetricsForTimer(alignedStart, testPolicy)...)
 		expected = append(expected, expectedAggMetricsForGauge(alignedStart, testPolicy)...)
@@ -253,7 +253,7 @@ func validateBuffers(
 		n += copy(expectedID[n:], expected[i].id)
 		copy(expectedID[n:], expected[i].idSuffix)
 		require.Equal(t, expectedID, []byte(decoded[i].ID))
-		require.Equal(t, expected[i].timestamp, decoded[i].Timestamp)
+		require.Equal(t, expected[i].timeNanos, decoded[i].TimeNanos)
 		require.Equal(t, expected[i].value, decoded[i].Value)
 		require.Equal(t, expected[i].policy, decoded[i].Policy)
 	}

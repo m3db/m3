@@ -64,25 +64,25 @@ func (c *client) testConnection() bool {
 	return true
 }
 
-func (c *client) write(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
+func (c *client) write(mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
 	encoder := c.encoder.Encoder()
 	sizeBefore := encoder.Buffer().Len()
 	var err error
 	switch mu.Type {
 	case unaggregated.CounterType:
-		err = c.encoder.EncodeCounterWithPolicies(unaggregated.CounterWithPolicies{
-			Counter:           mu.Counter(),
-			VersionedPolicies: vp,
+		err = c.encoder.EncodeCounterWithPoliciesList(unaggregated.CounterWithPoliciesList{
+			Counter:      mu.Counter(),
+			PoliciesList: pl,
 		})
 	case unaggregated.BatchTimerType:
-		err = c.encoder.EncodeBatchTimerWithPolicies(unaggregated.BatchTimerWithPolicies{
-			BatchTimer:        mu.BatchTimer(),
-			VersionedPolicies: vp,
+		err = c.encoder.EncodeBatchTimerWithPoliciesList(unaggregated.BatchTimerWithPoliciesList{
+			BatchTimer:   mu.BatchTimer(),
+			PoliciesList: pl,
 		})
 	case unaggregated.GaugeType:
-		err = c.encoder.EncodeGaugeWithPolicies(unaggregated.GaugeWithPolicies{
-			Gauge:             mu.Gauge(),
-			VersionedPolicies: vp,
+		err = c.encoder.EncodeGaugeWithPoliciesList(unaggregated.GaugeWithPoliciesList{
+			Gauge:        mu.Gauge(),
+			PoliciesList: pl,
 		})
 	default:
 		err = fmt.Errorf("unrecognized metric type %v", mu.Type)

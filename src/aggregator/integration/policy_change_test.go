@@ -63,13 +63,13 @@ func TestPolicyChange(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input1 := generateTestData(t, start, middle, interval, ids, roundRobinMetricTypeFn, testVersionedPolicies)
-	input2 := generateTestData(t, middle, end, interval, ids, roundRobinMetricTypeFn, testUpdatedVersionedPolicies)
-	for _, input := range []testDatasetWithPolicies{input1, input2} {
+	input1 := generateTestData(t, start, middle, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
+	input2 := generateTestData(t, middle, end, interval, ids, roundRobinMetricTypeFn, testUpdatedPoliciesList)
+	for _, input := range []testDatasetWithPoliciesList{input1, input2} {
 		for _, data := range input.dataset {
 			testSetup.setNowFn(data.timestamp)
 			for _, mu := range data.metrics {
-				require.NoError(t, client.write(mu, input.policies))
+				require.NoError(t, client.write(mu, input.policiesList))
 			}
 			require.NoError(t, client.flush())
 

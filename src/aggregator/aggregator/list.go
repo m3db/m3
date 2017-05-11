@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
+	metricID "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
@@ -187,7 +187,7 @@ func (l *metricList) flushInternal() {
 	start := l.nowFn()
 	resolution := l.resolution
 	l.timeLock.Unlock()
-	alignedStart := start.Truncate(resolution)
+	alignedStartNanos := start.Truncate(resolution).UnixNano()
 
 	// Reset states reused across ticks.
 	l.toCollect = l.toCollect[:0]
@@ -199,7 +199,7 @@ func (l *metricList) flushInternal() {
 		// If the element is eligible for collection after the values are
 		// processed, close it and reset the value to nil.
 		elem := e.Value.(metricElem)
-		if elem.Consume(alignedStart, l.aggMetricFn) {
+		if elem.Consume(alignedStartNanos, l.aggMetricFn) {
 			elem.Close()
 			e.Value = nil
 			l.toCollect = append(l.toCollect, e)
@@ -243,9 +243,9 @@ func (l *metricList) flushInternal() {
 
 func (l *metricList) processAggregatedMetric(
 	idPrefix []byte,
-	id metric.ID,
+	id metricID.RawID,
 	idSuffix []byte,
-	timestamp time.Time,
+	timeNanos int64,
 	value float64,
 	policy policy.Policy,
 ) {
@@ -254,12 +254,12 @@ func (l *metricList) processAggregatedMetric(
 	sizeBefore := buffer.Len()
 	if err := l.encodeFn(aggregated.ChunkedMetricWithPolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
-			ChunkedID: metric.ChunkedID{
+			ChunkedID: metricID.ChunkedID{
 				Prefix: idPrefix,
 				Data:   []byte(id),
 				Suffix: idSuffix,
 			},
-			Timestamp: timestamp,
+			TimeNanos: timeNanos,
 			Value:     value,
 		},
 		Policy: policy,
@@ -268,7 +268,7 @@ func (l *metricList) processAggregatedMetric(
 			xlog.NewLogField("idPrefix", string(idPrefix)),
 			xlog.NewLogField("id", id.String()),
 			xlog.NewLogField("idSuffix", string(idSuffix)),
-			xlog.NewLogField("timestamp", timestamp.String()),
+			xlog.NewLogField("timestamp", time.Unix(0, timeNanos).String()),
 			xlog.NewLogField("value", value),
 			xlog.NewLogField("policy", policy.String()),
 			xlog.NewLogErrField(err),

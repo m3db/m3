@@ -26,11 +26,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3aggregator/id"
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
+	xid "github.com/m3db/m3x/id"
 
 	"github.com/uber-go/tally"
 )
@@ -40,7 +40,7 @@ var (
 )
 
 type hashedEntry struct {
-	idHash id.Hash
+	idHash xid.Hash
 	entry  *Entry
 }
 
@@ -65,7 +65,7 @@ type metricMap struct {
 	batchPercent float64
 
 	metricLists *metricLists
-	entries     map[id.Hash]*list.Element
+	entries     map[xid.Hash]*list.Element
 	entryList   *list.List
 	waitForFn   waitForFn
 	metrics     metricMapMetrics
@@ -81,19 +81,19 @@ func newMetricMap(opts Options) *metricMap {
 		entryPool:    opts.EntryPool(),
 		batchPercent: opts.EntryCheckBatchPercent(),
 		metricLists:  metricLists,
-		entries:      make(map[id.Hash]*list.Element),
+		entries:      make(map[xid.Hash]*list.Element),
 		entryList:    list.New(),
 		waitForFn:    time.After,
 		metrics:      newMetricMapMetrics(scope),
 	}
 }
 
-func (m *metricMap) AddMetricWithPolicies(
+func (m *metricMap) AddMetricWithPoliciesList(
 	mu unaggregated.MetricUnion,
-	policies policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
 	e := m.findOrCreate(mu.ID)
-	err := e.AddMetricWithPolicies(mu, policies)
+	err := e.AddMetricWithPoliciesList(mu, pl)
 	e.DecWriter()
 	return err
 }
@@ -163,8 +163,8 @@ func (m *metricMap) Close() {
 	m.metricLists.Close()
 }
 
-func (m *metricMap) findOrCreate(mid metric.ID) *Entry {
-	idHash := id.HashFn(mid)
+func (m *metricMap) findOrCreate(mid id.RawID) *Entry {
+	idHash := xid.HashFn(mid)
 	m.RLock()
 	if entry, found := m.lookupEntryWithLock(idHash); found {
 		// NB(xichen): it is important to increase number of writers
@@ -192,7 +192,7 @@ func (m *metricMap) findOrCreate(mid metric.ID) *Entry {
 	return entry
 }
 
-func (m *metricMap) lookupEntryWithLock(hash id.Hash) (*Entry, bool) {
+func (m *metricMap) lookupEntryWithLock(hash xid.Hash) (*Entry, bool) {
 	elem, exists := m.entries[hash]
 	if !exists {
 		return nil, false

@@ -36,15 +36,15 @@ func TestAggregator(t *testing.T) {
 	agg := NewAggregator(testOptions().SetEntryCheckInterval(0)).(*aggregator)
 
 	var (
-		resultMu       unaggregated.MetricUnion
-		resultPolicies policy.VersionedPolicies
+		resultMu           unaggregated.MetricUnion
+		resultPoliciesList policy.PoliciesList
 	)
-	agg.addMetricWithPoliciesFn = func(
+	agg.addMetricWithPoliciesListFn = func(
 		mu unaggregated.MetricUnion,
-		policies policy.VersionedPolicies,
+		pl policy.PoliciesList,
 	) error {
 		resultMu = mu
-		resultPolicies = policies
+		resultPoliciesList = pl
 		return nil
 	}
 	agg.waitForFn = func(time.Duration) <-chan time.Time {
@@ -54,9 +54,9 @@ func TestAggregator(t *testing.T) {
 	}
 
 	// Add a counter metric
-	require.NoError(t, agg.AddMetricWithPolicies(testCounter, testCustomVersionedPolicies))
+	require.NoError(t, agg.AddMetricWithPoliciesList(testCounter, testCustomPoliciesList))
 	require.Equal(t, testCounter, resultMu)
-	require.Equal(t, testCustomVersionedPolicies, resultPolicies)
+	require.Equal(t, testCustomPoliciesList, resultPoliciesList)
 
 	// Force a tick
 	agg.tickInternal()
@@ -68,7 +68,7 @@ func TestAggregator(t *testing.T) {
 	agg.Close()
 
 	// Adding a metric to a closed aggregator should result in an error
-	err := agg.AddMetricWithPolicies(testCounter, testCustomVersionedPolicies)
+	err := agg.AddMetricWithPoliciesList(testCounter, testCustomPoliciesList)
 	require.Equal(t, errAggregatorClosed, err)
 
 	// Assert the aggregator is closed

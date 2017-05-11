@@ -92,12 +92,15 @@ type EntryPool interface {
 	Put(value *Entry)
 }
 
-// Aggregator aggregates different types of metrics
+// Aggregator aggregates different types of metrics.
 type Aggregator interface {
-	// AddMetricWithPolicies adds a metric with policies for aggregation
-	AddMetricWithPolicies(mu unaggregated.MetricUnion, policies policy.VersionedPolicies) error
+	// AddMetricWithPoliciesList adds a metric with policies list for aggregation.
+	AddMetricWithPoliciesList(
+		mu unaggregated.MetricUnion,
+		pl policy.PoliciesList,
+	) error
 
-	// Close closes the aggregator
+	// Close closes the aggregator.
 	Close()
 }
 
@@ -254,6 +257,12 @@ type Options interface {
 
 	// EntryCheckBatchPercent returns the batch percentage for checking expired entries
 	EntryCheckBatchPercent() float64
+
+	// SetDefaultPolicies sets the default policies
+	SetDefaultPolicies(value []policy.Policy) Options
+
+	// DefaultPolicies returns the default policies
+	DefaultPolicies() []policy.Policy
 
 	// SetEntryPool sets the entry pool
 	SetEntryPool(value EntryPool) Options

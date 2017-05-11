@@ -25,21 +25,21 @@ import (
 	"github.com/m3db/m3metrics/metric/unaggregated"
 )
 
-// Aggregator provide an aggregator for testing purposes
+// Aggregator provide an aggregator for testing purposes.
 type Aggregator interface {
 	aggregator.Aggregator
 
-	// NumMetricsAdded returns the number of metrics added
+	// NumMetricsAdded returns the number of metrics added.
 	NumMetricsAdded() int
 
 	// Snapshot returns a copy of the aggregated data, resets
-	// aggregations and number of metrics added
+	// aggregations and number of metrics added.
 	Snapshot() SnapshotResult
 }
 
-// SnapshotResult is the snapshot result
+// SnapshotResult is the snapshot result.
 type SnapshotResult struct {
-	CountersWithPolicies    []unaggregated.CounterWithPolicies
-	BatchTimersWithPolicies []unaggregated.BatchTimerWithPolicies
-	GaugesWithPolicies      []unaggregated.GaugeWithPolicies
+	CountersWithPoliciesList    []unaggregated.CounterWithPoliciesList
+	BatchTimersWithPoliciesList []unaggregated.BatchTimerWithPoliciesList
+	GaugesWithPoliciesList      []unaggregated.GaugeWithPoliciesList
 }

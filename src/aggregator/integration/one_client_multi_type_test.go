@@ -62,11 +62,11 @@ func TestOneClientMultiType(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input := generateTestData(t, start, stop, interval, ids, roundRobinMetricTypeFn, testVersionedPolicies)
+	input := generateTestData(t, start, stop, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
 	for _, data := range input.dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {
-			require.NoError(t, client.write(mu, input.policies))
+			require.NoError(t, client.write(mu, input.policiesList))
 		}
 		require.NoError(t, client.flush())
 

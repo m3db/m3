@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/time"
 )
 
 var (
@@ -50,6 +51,10 @@ var (
 	defaultEntryTTL               = 24 * time.Hour
 	defaultEntryCheckInterval     = time.Hour
 	defaultEntryCheckBatchPercent = 0.01
+	defaultDefaultPolicies        = []policy.Policy{
+		policy.NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
+		policy.NewPolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
+	}
 )
 
 type options struct {
@@ -77,6 +82,7 @@ type options struct {
 	entryTTL               time.Duration
 	entryCheckInterval     time.Duration
 	entryCheckBatchPercent float64
+	defaultPolicies        []policy.Policy
 	entryPool              EntryPool
 	counterElemPool        CounterElemPool
 	timerElemPool          TimerElemPool
@@ -116,6 +122,7 @@ func NewOptions() Options {
 		entryTTL:               defaultEntryTTL,
 		entryCheckInterval:     defaultEntryCheckInterval,
 		entryCheckBatchPercent: defaultEntryCheckBatchPercent,
+		defaultPolicies:        defaultDefaultPolicies,
 	}
 
 	// Initialize pools
@@ -411,6 +418,16 @@ func (o *options) SetBufferedEncoderPool(value msgpack.BufferedEncoderPool) Opti
 
 func (o *options) BufferedEncoderPool() msgpack.BufferedEncoderPool {
 	return o.bufferedEncoderPool
+}
+
+func (o *options) SetDefaultPolicies(value []policy.Policy) Options {
+	opts := *o
+	opts.defaultPolicies = value
+	return &opts
+}
+
+func (o *options) DefaultPolicies() []policy.Policy {
+	return o.defaultPolicies
 }
 
 func (o *options) FullCounterPrefix() []byte {

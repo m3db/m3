@@ -45,10 +45,10 @@ type respError struct {
 	Error string `json:"error"`
 }
 
-// metricUnionWithPolicies contains a metric union along with applicable policies
-type metricUnionWithPolicies struct {
-	Metric   unaggregated.MetricUnion `json:"metric"`
-	Policies policy.VersionedPolicies `json:"policies"`
+// metricUnionWithPoliciesList contains a metric union along with applicable policies list.
+type metricUnionWithPoliciesList struct {
+	Metric       unaggregated.MetricUnion `json:"metric"`
+	PoliciesList policy.PoliciesList      `json:"policiesList"`
 }
 
 func registerHandlers(mux *http.ServeMux, aggregator aggregator.Aggregator) error {
@@ -72,7 +72,7 @@ func registerHandlers(mux *http.ServeMux, aggregator aggregator.Aggregator) erro
 			continue
 		}
 		policies := method.Type.In(2)
-		if policies != reflect.TypeOf(policy.VersionedPolicies{}) {
+		if policies != reflect.TypeOf(policy.PoliciesList{}) {
 			continue
 		}
 		resultErr := method.Type.Out(0)
@@ -90,7 +90,7 @@ func registerHandlers(mux *http.ServeMux, aggregator aggregator.Aggregator) erro
 				return
 			}
 
-			var payload metricUnionWithPolicies
+			var payload metricUnionWithPoliciesList
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 				writeError(w, errInvalidRequestBody)
 				return
@@ -99,7 +99,7 @@ func registerHandlers(mux *http.ServeMux, aggregator aggregator.Aggregator) erro
 			var (
 				agg = reflect.ValueOf(aggregator)
 				mu  = reflect.ValueOf(payload.Metric)
-				vp  = reflect.ValueOf(payload.Policies)
+				vp  = reflect.ValueOf(payload.PoliciesList)
 			)
 			ret := method.Func.Call([]reflect.Value{agg, mu, vp})
 			if !ret[0].IsNil() {
