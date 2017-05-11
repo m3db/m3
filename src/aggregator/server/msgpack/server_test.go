@@ -57,27 +57,29 @@ var (
 		ID:       []byte("baz"),
 		GaugeVal: 456.780,
 	}
-	testDefaultVersionedPolices = policy.DefaultVersionedPolicies(
-		1,
-		time.Now(),
-	)
-	testCounterWithPolicies = unaggregated.CounterWithPolicies{
-		Counter:           testCounter.Counter(),
-		VersionedPolicies: testDefaultVersionedPolices,
-	}
-	testBatchTimerWithPolicies = unaggregated.BatchTimerWithPolicies{
-		BatchTimer: testBatchTimer.BatchTimer(),
-		VersionedPolicies: policy.CustomVersionedPolicies(
-			1,
-			time.Now(),
+	testDefaultPoliciesList = policy.DefaultPoliciesList
+	testCustomPoliciesList  = policy.PoliciesList{
+		policy.NewStagedPolicies(
+			time.Now().UnixNano(),
+			false,
 			[]policy.Policy{
-				policy.NewPolicy(time.Duration(1), xtime.Second, time.Hour),
+				policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
+				policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+				policy.NewPolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour),
 			},
 		),
 	}
-	testGaugeWithPolicies = unaggregated.GaugeWithPolicies{
-		Gauge:             testGauge.Gauge(),
-		VersionedPolicies: testDefaultVersionedPolices,
+	testCounterWithPoliciesList = unaggregated.CounterWithPoliciesList{
+		Counter:      testCounter.Counter(),
+		PoliciesList: testDefaultPoliciesList,
+	}
+	testBatchTimerWithPoliciesList = unaggregated.BatchTimerWithPoliciesList{
+		BatchTimer:   testBatchTimer.BatchTimer(),
+		PoliciesList: testCustomPoliciesList,
+	}
+	testGaugeWithPoliciesList = unaggregated.GaugeWithPoliciesList{
+		Gauge:        testGauge.Gauge(),
+		PoliciesList: testDefaultPoliciesList,
 	}
 )
 
@@ -144,9 +146,9 @@ func TestServerListenAndClose(t *testing.T) {
 		wgClient.Add(1)
 
 		// Add test metrics to expected result
-		expectedResult.CountersWithPolicies = append(expectedResult.CountersWithPolicies, testCounterWithPolicies)
-		expectedResult.BatchTimersWithPolicies = append(expectedResult.BatchTimersWithPolicies, testBatchTimerWithPolicies)
-		expectedResult.GaugesWithPolicies = append(expectedResult.GaugesWithPolicies, testGaugeWithPolicies)
+		expectedResult.CountersWithPoliciesList = append(expectedResult.CountersWithPoliciesList, testCounterWithPoliciesList)
+		expectedResult.BatchTimersWithPoliciesList = append(expectedResult.BatchTimersWithPoliciesList, testBatchTimerWithPoliciesList)
+		expectedResult.GaugesWithPoliciesList = append(expectedResult.GaugesWithPoliciesList, testGaugeWithPoliciesList)
 
 		go func() {
 			defer wgClient.Done()
@@ -155,9 +157,9 @@ func TestServerListenAndClose(t *testing.T) {
 			require.NoError(t, err)
 
 			encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
-			encoder.EncodeCounterWithPolicies(testCounterWithPolicies)
-			encoder.EncodeBatchTimerWithPolicies(testBatchTimerWithPolicies)
-			encoder.EncodeGaugeWithPolicies(testGaugeWithPolicies)
+			encoder.EncodeCounterWithPoliciesList(testCounterWithPoliciesList)
+			encoder.EncodeBatchTimerWithPoliciesList(testBatchTimerWithPoliciesList)
+			encoder.EncodeGaugeWithPoliciesList(testGaugeWithPoliciesList)
 
 			_, err = conn.Write(encoder.Encoder().Bytes())
 			require.NoError(t, err)

@@ -23,6 +23,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
@@ -104,6 +105,9 @@ type AggregatorConfiguration struct {
 	// EntryCheckBatchPercent determines the percentage of entries checked in a batch.
 	EntryCheckBatchPercent float64 `yaml:"entryCheckBatchPercent" validate:"min=0.0,max=1.0"`
 
+	// Default policies.
+	DefaultPolicies []policy.Policy `yaml:"defaultPolicies" validate:"nonzero"`
+
 	// Pool of entries.
 	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
 
@@ -180,6 +184,12 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if c.EntryCheckBatchPercent != 0.0 {
 		opts = opts.SetEntryCheckBatchPercent(c.EntryCheckBatchPercent)
 	}
+
+	// Set default policies.
+	policies := make([]policy.Policy, len(c.DefaultPolicies))
+	copy(policies, c.DefaultPolicies)
+	sort.Sort(policy.ByResolutionAsc(policies))
+	opts = opts.SetDefaultPolicies(policies)
 
 	// Set entry pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("entry-pool"))

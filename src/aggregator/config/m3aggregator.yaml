@@ -52,6 +52,9 @@ aggregator:
     type: logging
   entryTTL: 24h
   entryCheckInterval: 1h
+  defaultPolicies:
+    - 10s:2d
+    - 1m:40d
   entryPool:
     size: 4096
   counterElemPool:

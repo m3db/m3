@@ -69,13 +69,13 @@ func TestMultiClientOneType(t *testing.T) {
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	typeFn := constantMetryTypeFnFactory(unaggregated.CounterType)
-	input := generateTestData(t, start, stop, interval, ids, typeFn, testVersionedPolicies)
+	input := generateTestData(t, start, stop, interval, ids, typeFn, testPoliciesList)
 	for _, data := range input.dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {
 			// Randomly pick one client to write the metric
 			client := clients[rand.Int63n(int64(numClients))]
-			require.NoError(t, client.write(mu, input.policies))
+			require.NoError(t, client.write(mu, input.policiesList))
 		}
 		for _, client := range clients {
 			require.NoError(t, client.flush())

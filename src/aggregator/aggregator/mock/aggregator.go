@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 )
@@ -35,10 +35,10 @@ import (
 type mockAggregator struct {
 	sync.RWMutex
 
-	numMetricsAdded         int
-	countersWithPolicies    []unaggregated.CounterWithPolicies
-	batchTimersWithPolicies []unaggregated.BatchTimerWithPolicies
-	gaugesWithPolicies      []unaggregated.GaugeWithPolicies
+	numMetricsAdded             int
+	countersWithPoliciesList    []unaggregated.CounterWithPoliciesList
+	batchTimersWithPoliciesList []unaggregated.BatchTimerWithPoliciesList
+	gaugesWithPoliciesList      []unaggregated.GaugeWithPoliciesList
 }
 
 // NewAggregator creates a new mock aggregator
@@ -46,35 +46,35 @@ func NewAggregator() Aggregator {
 	return &mockAggregator{}
 }
 
-func (agg *mockAggregator) AddMetricWithPolicies(
+func (agg *mockAggregator) AddMetricWithPoliciesList(
 	mu unaggregated.MetricUnion,
-	policies policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
 	// Clone the metric and policies to ensure it cannot be mutated externally.
 	mu = cloneMetric(mu)
-	policies = clonePolicies(policies)
+	pl = clonePoliciesList(pl)
 
 	agg.Lock()
 
 	switch mu.Type {
 	case unaggregated.CounterType:
-		cp := unaggregated.CounterWithPolicies{
-			Counter:           mu.Counter(),
-			VersionedPolicies: policies,
+		cp := unaggregated.CounterWithPoliciesList{
+			Counter:      mu.Counter(),
+			PoliciesList: pl,
 		}
-		agg.countersWithPolicies = append(agg.countersWithPolicies, cp)
+		agg.countersWithPoliciesList = append(agg.countersWithPoliciesList, cp)
 	case unaggregated.BatchTimerType:
-		btp := unaggregated.BatchTimerWithPolicies{
-			BatchTimer:        mu.BatchTimer(),
-			VersionedPolicies: policies,
+		btp := unaggregated.BatchTimerWithPoliciesList{
+			BatchTimer:   mu.BatchTimer(),
+			PoliciesList: pl,
 		}
-		agg.batchTimersWithPolicies = append(agg.batchTimersWithPolicies, btp)
+		agg.batchTimersWithPoliciesList = append(agg.batchTimersWithPoliciesList, btp)
 	case unaggregated.GaugeType:
-		gp := unaggregated.GaugeWithPolicies{
-			Gauge:             mu.Gauge(),
-			VersionedPolicies: policies,
+		gp := unaggregated.GaugeWithPoliciesList{
+			Gauge:        mu.Gauge(),
+			PoliciesList: pl,
 		}
-		agg.gaugesWithPolicies = append(agg.gaugesWithPolicies, gp)
+		agg.gaugesWithPoliciesList = append(agg.gaugesWithPoliciesList, gp)
 	default:
 		agg.Unlock()
 		return fmt.Errorf("unrecognized metric type %v", mu.Type)
@@ -99,13 +99,13 @@ func (agg *mockAggregator) Snapshot() SnapshotResult {
 	agg.Lock()
 
 	result := SnapshotResult{
-		CountersWithPolicies:    agg.countersWithPolicies,
-		BatchTimersWithPolicies: agg.batchTimersWithPolicies,
-		GaugesWithPolicies:      agg.gaugesWithPolicies,
+		CountersWithPoliciesList:    agg.countersWithPoliciesList,
+		BatchTimersWithPoliciesList: agg.batchTimersWithPoliciesList,
+		GaugesWithPoliciesList:      agg.gaugesWithPoliciesList,
 	}
-	agg.countersWithPolicies = nil
-	agg.batchTimersWithPolicies = nil
-	agg.gaugesWithPolicies = nil
+	agg.countersWithPoliciesList = nil
+	agg.batchTimersWithPoliciesList = nil
+	agg.gaugesWithPoliciesList = nil
 	agg.numMetricsAdded = 0
 
 	agg.Unlock()
@@ -116,7 +116,7 @@ func (agg *mockAggregator) Snapshot() SnapshotResult {
 func cloneMetric(m unaggregated.MetricUnion) unaggregated.MetricUnion {
 	mu := m
 	if !m.OwnsID {
-		clonedID := make(metric.ID, len(m.ID))
+		clonedID := make(id.RawID, len(m.ID))
 		copy(clonedID, m.ID)
 		mu.ID = clonedID
 		mu.OwnsID = true
@@ -129,13 +129,25 @@ func cloneMetric(m unaggregated.MetricUnion) unaggregated.MetricUnion {
 	return mu
 }
 
-func clonePolicies(p policy.VersionedPolicies) policy.VersionedPolicies {
-	if p.IsDefault() {
-		return p
+func cloneStagedPolicies(sp policy.StagedPolicies) policy.StagedPolicies {
+	if sp.IsDefault() {
+		return sp
 	}
-	policies := make([]policy.Policy, len(p.Policies()))
-	for i, policy := range p.Policies() {
-		policies[i] = policy
+	policies, _ := sp.Policies()
+	cloned := make([]policy.Policy, len(policies))
+	for i, policy := range policies {
+		cloned[i] = policy
 	}
-	return policy.CustomVersionedPolicies(p.Version, p.Cutover, policies)
+	return policy.NewStagedPolicies(sp.CutoverNanos, sp.Tombstoned, cloned)
+}
+
+func clonePoliciesList(pl policy.PoliciesList) policy.PoliciesList {
+	if pl.IsDefault() {
+		return pl
+	}
+	cloned := make(policy.PoliciesList, len(pl))
+	for i := 0; i < len(pl); i++ {
+		cloned[i] = cloneStagedPolicies(pl[i])
+	}
+	return cloned
 }

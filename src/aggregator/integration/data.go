@@ -28,34 +28,39 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregation"
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
+	metricID "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/time"
+
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testCounterVal        = int64(123)
-	testBatchTimerVals    = []float64{1.5, 2.5, 3.5, 4.5, 5.5}
-	testGaugeVal          = 456.789
-	testVersionedPolicies = policy.CustomVersionedPolicies(
-		1,
-		time.Unix(0, 0),
-		[]policy.Policy{
-			policy.NewPolicy(time.Second, xtime.Second, time.Hour),
-			policy.NewPolicy(2*time.Second, xtime.Second, 6*time.Hour),
-		},
-	)
-	testUpdatedVersionedPolicies = policy.CustomVersionedPolicies(
-		2,
-		time.Unix(0, 0),
-		[]policy.Policy{
-			policy.NewPolicy(time.Second, xtime.Second, time.Hour),
-			policy.NewPolicy(3*time.Second, xtime.Second, 24*time.Hour),
-		},
-	)
+	testCounterVal     = int64(123)
+	testBatchTimerVals = []float64{1.5, 2.5, 3.5, 4.5, 5.5}
+	testGaugeVal       = 456.789
+	testPoliciesList   = policy.PoliciesList{
+		policy.NewStagedPolicies(
+			0,
+			false,
+			[]policy.Policy{
+				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+				policy.NewPolicy(2*time.Second, xtime.Second, 6*time.Hour),
+			},
+		),
+	}
+	testUpdatedPoliciesList = policy.PoliciesList{
+		policy.NewStagedPolicies(
+			0,
+			false,
+			[]policy.Policy{
+				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+				policy.NewPolicy(3*time.Second, xtime.Second, 24*time.Hour),
+			},
+		),
+	}
 )
 
 type byTimeIDPolicyAscending []aggregated.MetricWithPolicy
@@ -63,8 +68,8 @@ type byTimeIDPolicyAscending []aggregated.MetricWithPolicy
 func (a byTimeIDPolicyAscending) Len() int      { return len(a) }
 func (a byTimeIDPolicyAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a byTimeIDPolicyAscending) Less(i, j int) bool {
-	if a[i].Timestamp != a[j].Timestamp {
-		return a[i].Timestamp.Before(a[j].Timestamp)
+	if a[i].TimeNanos != a[j].TimeNanos {
+		return a[i].TimeNanos < a[j].TimeNanos
 	}
 	id1, id2 := string(a[i].ID), string(a[j].ID)
 	if id1 != id2 {
@@ -78,7 +83,7 @@ func (a byTimeIDPolicyAscending) Less(i, j int) bool {
 	return retention1 < retention2
 }
 
-type valuesByTime map[time.Time]interface{}
+type valuesByTime map[int64]interface{}
 type datapointsByID map[string]valuesByTime
 type metricsByPolicy map[policy.Policy]datapointsByID
 
@@ -89,9 +94,9 @@ type testData struct {
 	metrics   []unaggregated.MetricUnion
 }
 
-type testDatasetWithPolicies struct {
-	dataset  []testData
-	policies policy.VersionedPolicies
+type testDatasetWithPoliciesList struct {
+	dataset      []testData
+	policiesList policy.PoliciesList
 }
 
 func roundRobinMetricTypeFn(idx int) unaggregated.Type {
@@ -123,8 +128,8 @@ func generateTestData(
 	interval time.Duration,
 	ids []string,
 	typeFn metricTypeFn,
-	policies policy.VersionedPolicies,
-) testDatasetWithPolicies {
+	policiesList policy.PoliciesList,
+) testDatasetWithPoliciesList {
 	var (
 		testDataset []testData
 		intervalIdx int
@@ -139,7 +144,7 @@ func generateTestData(
 			case unaggregated.CounterType:
 				mu = unaggregated.MetricUnion{
 					Type:       metricType,
-					ID:         metric.ID(ids[i]),
+					ID:         metricID.RawID(ids[i]),
 					CounterVal: testCounterVal + int64(intervalIdx),
 				}
 			case unaggregated.BatchTimerType:
@@ -149,13 +154,13 @@ func generateTestData(
 				}
 				mu = unaggregated.MetricUnion{
 					Type:          metricType,
-					ID:            metric.ID(ids[i]),
+					ID:            metricID.RawID(ids[i]),
 					BatchTimerVal: vals,
 				}
 			case unaggregated.GaugeType:
 				mu = unaggregated.MetricUnion{
 					Type:     metricType,
-					ID:       metric.ID(ids[i]),
+					ID:       metricID.RawID(ids[i]),
 					GaugeVal: testGaugeVal + float64(intervalIdx),
 				}
 			}
@@ -167,17 +172,42 @@ func generateTestData(
 		})
 		intervalIdx++
 	}
-	return testDatasetWithPolicies{dataset: testDataset, policies: policies}
+	return testDatasetWithPoliciesList{
+		dataset:      testDataset,
+		policiesList: policiesList,
+	}
 }
 
 func toExpectedResults(
 	t *testing.T,
 	now time.Time,
-	dsp testDatasetWithPolicies,
+	dsp testDatasetWithPoliciesList,
 	opts aggregator.Options,
 ) []aggregated.MetricWithPolicy {
+	var (
+		nowNanos       = now.UnixNano()
+		policiesList   = dsp.policiesList
+		activePolicies policy.StagedPolicies
+		found          bool
+	)
+
+	require.True(t, len(policiesList) > 0)
+	for i := len(policiesList) - 1; i >= 0; i-- {
+		if policiesList[i].CutoverNanos <= nowNanos {
+			found = true
+			activePolicies = policiesList[i]
+			break
+		}
+	}
+	require.True(t, found)
+
+	policies, useDefault := activePolicies.Policies()
+	if useDefault {
+		policies = opts.DefaultPolicies()
+	}
+
 	byPolicy := make(metricsByPolicy)
-	for _, p := range dsp.policies.Policies() {
+	for _, p := range policies {
 		byPolicy[p] = make(datapointsByID)
 	}
 
@@ -190,8 +220,8 @@ func toExpectedResults(
 					datapoints = make(valuesByTime)
 					metrics[string(mu.ID)] = datapoints
 				}
-				alignedStart := dataValues.timestamp.Truncate(policy.Resolution().Window)
-				values, exists := datapoints[alignedStart]
+				alignedStartNanos := dataValues.timestamp.Truncate(policy.Resolution().Window).UnixNano()
+				values, exists := datapoints[alignedStartNanos]
 				if !exists {
 					switch mu.Type {
 					case unaggregated.CounterType:
@@ -209,15 +239,15 @@ func toExpectedResults(
 				case unaggregated.CounterType:
 					v := values.(aggregation.Counter)
 					v.Add(mu.CounterVal)
-					datapoints[alignedStart] = v
+					datapoints[alignedStartNanos] = v
 				case unaggregated.BatchTimerType:
 					v := values.(aggregation.Timer)
 					v.AddBatch(mu.BatchTimerVal)
-					datapoints[alignedStart] = v
+					datapoints[alignedStartNanos] = v
 				case unaggregated.GaugeType:
 					v := values.(aggregation.Gauge)
 					v.Set(mu.GaugeVal)
-					datapoints[alignedStart] = v
+					datapoints[alignedStartNanos] = v
 				default:
 					require.Fail(t, fmt.Sprintf("unrecognized metric type %v", mu.Type))
 				}
@@ -228,14 +258,14 @@ func toExpectedResults(
 	// Convert metrics by policy to sorted aggregated metrics slice
 	var expected []aggregated.MetricWithPolicy
 	for policy, metrics := range byPolicy {
-		alignedCutoff := now.Truncate(policy.Resolution().Window)
+		alignedCutoffNanos := now.Truncate(policy.Resolution().Window).UnixNano()
 		for id, datapoints := range metrics {
-			for time, values := range datapoints {
-				endAt := time.Add(policy.Resolution().Window)
+			for timeNanos, values := range datapoints {
+				endAtNanos := timeNanos + int64(policy.Resolution().Window)
 				// The end time must be no later than the aligned cutoff time
 				// for the data to be flushed
-				if !endAt.After(alignedCutoff) {
-					expected = append(expected, toAggregatedMetrics(t, id, endAt, values, policy, opts)...)
+				if endAtNanos <= alignedCutoffNanos {
+					expected = append(expected, toAggregatedMetrics(t, id, endAtNanos, values, policy, opts)...)
 				}
 			}
 		}
@@ -250,17 +280,17 @@ func toExpectedResults(
 func toAggregatedMetrics(
 	t *testing.T,
 	id string,
-	timestamp time.Time,
+	timeNanos int64,
 	values interface{},
 	p policy.Policy,
 	opts aggregator.Options,
 ) []aggregated.MetricWithPolicy {
 	var result []aggregated.MetricWithPolicy
-	fn := func(prefix []byte, id string, suffix []byte, timestamp time.Time, value float64, p policy.Policy) {
+	fn := func(prefix []byte, id string, suffix []byte, timeNanos int64, value float64, p policy.Policy) {
 		result = append(result, aggregated.MetricWithPolicy{
 			Metric: aggregated.Metric{
-				ID:        metric.ID(string(prefix) + id + string(suffix)),
-				Timestamp: timestamp,
+				ID:        metricID.RawID(string(prefix) + id + string(suffix)),
+				TimeNanos: timeNanos,
 				Value:     value,
 			},
 			Policy: p,
@@ -269,7 +299,7 @@ func toAggregatedMetrics(
 
 	switch values := values.(type) {
 	case aggregation.Counter:
-		fn(opts.FullCounterPrefix(), id, nil, timestamp, float64(values.Sum()), p)
+		fn(opts.FullCounterPrefix(), id, nil, timeNanos, float64(values.Sum()), p)
 	case aggregation.Timer:
 		var (
 			fullTimerPrefix   = opts.FullTimerPrefix()
@@ -284,22 +314,22 @@ func toAggregatedMetrics(
 			quantiles         = opts.TimerQuantiles()
 			quantileSuffixes  = opts.TimerQuantileSuffixes()
 		)
-		fn(fullTimerPrefix, id, timerSumSuffix, timestamp, values.Sum(), p)
-		fn(fullTimerPrefix, id, timerSumSqSuffix, timestamp, values.SumSq(), p)
-		fn(fullTimerPrefix, id, timerMeanSuffix, timestamp, values.Mean(), p)
-		fn(fullTimerPrefix, id, timerLowerSuffix, timestamp, values.Min(), p)
-		fn(fullTimerPrefix, id, timerUpperSuffix, timestamp, values.Max(), p)
-		fn(fullTimerPrefix, id, timerCountSuffix, timestamp, float64(values.Count()), p)
-		fn(fullTimerPrefix, id, timerStdevSuffix, timestamp, values.Stdev(), p)
+		fn(fullTimerPrefix, id, timerSumSuffix, timeNanos, values.Sum(), p)
+		fn(fullTimerPrefix, id, timerSumSqSuffix, timeNanos, values.SumSq(), p)
+		fn(fullTimerPrefix, id, timerMeanSuffix, timeNanos, values.Mean(), p)
+		fn(fullTimerPrefix, id, timerLowerSuffix, timeNanos, values.Min(), p)
+		fn(fullTimerPrefix, id, timerUpperSuffix, timeNanos, values.Max(), p)
+		fn(fullTimerPrefix, id, timerCountSuffix, timeNanos, float64(values.Count()), p)
+		fn(fullTimerPrefix, id, timerStdevSuffix, timeNanos, values.Stdev(), p)
 		for idx, q := range quantiles {
 			v := values.Quantile(q)
 			if q == 0.5 {
-				fn(fullTimerPrefix, id, timerMedianSuffix, timestamp, v, p)
+				fn(fullTimerPrefix, id, timerMedianSuffix, timeNanos, v, p)
 			}
-			fn(fullTimerPrefix, id, quantileSuffixes[idx], timestamp, v, p)
+			fn(fullTimerPrefix, id, quantileSuffixes[idx], timeNanos, v, p)
 		}
 	case aggregation.Gauge:
-		fn(opts.FullGaugePrefix(), id, nil, timestamp, values.Value(), p)
+		fn(opts.FullGaugePrefix(), id, nil, timeNanos, values.Value(), p)
 	default:
 		require.Fail(t, fmt.Sprintf("unrecognized aggregation type %T", values))
 	}

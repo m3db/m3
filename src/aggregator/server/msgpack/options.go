@@ -27,11 +27,9 @@ import (
 )
 
 type options struct {
-	instrumentOpts  instrument.Options
-	retrier         xretry.Retrier
-	iteratorPool    msgpack.UnaggregatedIteratorPool
-	packetQueueSize int
-	workerPoolSize  int
+	instrumentOpts instrument.Options
+	retrier        xretry.Retrier
+	iteratorPool   msgpack.UnaggregatedIteratorPool
 }
 
 // NewOptions creates a new set of server options
