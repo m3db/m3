@@ -37,8 +37,8 @@ var (
 )
 
 type instanceWriter interface {
-	// Write writes a metric alongside its policies for a given shard.
-	Write(shard uint32, mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error
+	// Write writes a metric alongside its policies list for a given shard.
+	Write(shard uint32, mu unaggregated.MetricUnion, pl policy.PoliciesList) error
 
 	// Flush flushes any buffered metrics.
 	Flush() error
@@ -77,7 +77,7 @@ func newInstanceWriter(instance instance, opts ServerOptions) instanceWriter {
 func (w *writer) Write(
 	shard uint32,
 	mu unaggregated.MetricUnion,
-	vp policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
 	w.RLock()
 	if w.closed {
@@ -86,7 +86,7 @@ func (w *writer) Write(
 	}
 	encoder, exists := w.encodersByShard[shard]
 	if exists {
-		err := w.encodeWithLock(encoder, mu, vp)
+		err := w.encodeWithLock(encoder, mu, pl)
 		w.RUnlock()
 		return err
 	}
@@ -99,13 +99,13 @@ func (w *writer) Write(
 	}
 	encoder, exists = w.encodersByShard[shard]
 	if exists {
-		err := w.encodeWithLock(encoder, mu, vp)
+		err := w.encodeWithLock(encoder, mu, pl)
 		w.Unlock()
 		return err
 	}
 	encoder = w.newLockedEncoderFn(w.encoderPool)
 	w.encodersByShard[shard] = encoder
-	err := w.encodeWithLock(encoder, mu, vp)
+	err := w.encodeWithLock(encoder, mu, pl)
 	w.Unlock()
 
 	return err
@@ -158,7 +158,7 @@ func (w *writer) flushWithLock() error {
 func (w *writer) encodeWithLock(
 	encoder *lockedEncoder,
 	mu unaggregated.MetricUnion,
-	vp policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
 	encoder.Lock()
 
@@ -170,23 +170,23 @@ func (w *writer) encodeWithLock(
 	)
 	switch mu.Type {
 	case unaggregated.CounterType:
-		cp := unaggregated.CounterWithPolicies{
-			Counter:           mu.Counter(),
-			VersionedPolicies: vp,
+		cp := unaggregated.CounterWithPoliciesList{
+			Counter:      mu.Counter(),
+			PoliciesList: pl,
 		}
-		err = encoder.EncodeCounterWithPolicies(cp)
+		err = encoder.EncodeCounterWithPoliciesList(cp)
 	case unaggregated.BatchTimerType:
-		btp := unaggregated.BatchTimerWithPolicies{
-			BatchTimer:        mu.BatchTimer(),
-			VersionedPolicies: vp,
+		btp := unaggregated.BatchTimerWithPoliciesList{
+			BatchTimer:   mu.BatchTimer(),
+			PoliciesList: pl,
 		}
-		err = encoder.EncodeBatchTimerWithPolicies(btp)
+		err = encoder.EncodeBatchTimerWithPoliciesList(btp)
 	case unaggregated.GaugeType:
-		gp := unaggregated.GaugeWithPolicies{
-			Gauge:             mu.Gauge(),
-			VersionedPolicies: vp,
+		gp := unaggregated.GaugeWithPoliciesList{
+			Gauge:        mu.Gauge(),
+			PoliciesList: pl,
 		}
-		err = encoder.EncodeGaugeWithPolicies(gp)
+		err = encoder.EncodeGaugeWithPoliciesList(gp)
 	default:
 		err = errUnrecognizedMetricType
 	}
@@ -194,7 +194,7 @@ func (w *writer) encodeWithLock(
 	if err != nil {
 		w.log.WithFields(
 			xlog.NewLogField("metric", mu),
-			xlog.NewLogField("policies", vp.String()),
+			xlog.NewLogField("policies", pl),
 			xlog.NewLogErrField(err),
 		).Error("encode metric with policies error")
 		// Rewind buffer and clear out the encoder error.

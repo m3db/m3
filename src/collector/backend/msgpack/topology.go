@@ -52,8 +52,8 @@ type topology interface {
 	// Open opens the topology.
 	Open() error
 
-	// Route routes a metric alongside its policies.
-	Route(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error
+	// Route routes a metric alongside its policies list.
+	Route(mu unaggregated.MetricUnion, pl policy.PoliciesList) error
 
 	// Close closes the topology.
 	Close() error
@@ -109,13 +109,13 @@ func (t *topo) Open() error {
 	return t.Watch()
 }
 
-func (t *topo) Route(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
+func (t *topo) Route(mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
 	t.RLock()
 	if t.state != topologyOpen {
 		t.RUnlock()
 		return errTopologyIsNotOpenOrClosed
 	}
-	err := t.placement.Route(mu, vp)
+	err := t.placement.Route(mu, pl)
 	t.RUnlock()
 	return err
 }

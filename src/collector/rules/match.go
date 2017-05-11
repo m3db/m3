@@ -22,7 +22,7 @@ package rules
 
 import (
 	"github.com/m3db/m3cluster/kv/util/runtime"
-	"github.com/m3db/m3collector/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/log"
 )
@@ -30,7 +30,7 @@ import (
 // Matcher matches rules against metric IDs.
 type Matcher interface {
 	// Match matches rules against metric ID and returns the match result.
-	Match(id metric.ID) rules.MatchResult
+	Match(id id.ID) rules.MatchResult
 
 	// Close closes the matcher.
 	Close() error
@@ -73,7 +73,7 @@ func NewMatcher(cache Cache, opts Options) (Matcher, error) {
 	}, nil
 }
 
-func (m *matcher) Match(id metric.ID) rules.MatchResult {
+func (m *matcher) Match(id id.ID) rules.MatchResult {
 	ns, found := id.TagValue(m.namespaceTag)
 	if !found {
 		ns = m.defaultNamespace

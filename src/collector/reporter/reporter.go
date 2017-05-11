@@ -22,21 +22,22 @@ package reporter
 
 import (
 	"github.com/m3db/m3collector/backend"
-	"github.com/m3db/m3collector/metric"
 	"github.com/m3db/m3collector/rules"
+	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/errors"
 )
 
 // Reporter reports aggregated metrics.
 type Reporter interface {
 	// ReportCounter reports a counter metric.
-	ReportCounter(id metric.ID, value int64) error
+	ReportCounter(id id.ID, value int64) error
 
 	// ReportBatchTimer reports a batched timer metric.
-	ReportBatchTimer(id metric.ID, value []float64) error
+	ReportBatchTimer(id id.ID, value []float64) error
 
 	// ReportGauge reports a gauge metric.
-	ReportGauge(id metric.ID, value float64) error
+	ReportGauge(id id.ID, value float64) error
 
 	// Flush flushes any buffered metrics.
 	Flush() error
@@ -48,55 +49,64 @@ type Reporter interface {
 type reporter struct {
 	matcher rules.Matcher
 	server  backend.Server
+	nowFn   clock.NowFn
 }
 
 // NewReporter creates a new reporter.
-func NewReporter(matcher rules.Matcher, server backend.Server) Reporter {
+func NewReporter(
+	matcher rules.Matcher,
+	server backend.Server,
+	clockOpts clock.Options,
+) Reporter {
 	return &reporter{
 		matcher: matcher,
 		server:  server,
+		nowFn:   clockOpts.NowFn(),
 	}
 }
 
-func (r *reporter) ReportCounter(id metric.ID, value int64) error {
+func (r *reporter) ReportCounter(id id.ID, value int64) error {
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
-	if err := r.server.WriteCounterWithPolicies(id.Bytes(), value, matchRes.Mappings()); err != nil {
+	now := r.nowFn()
+	if err := r.server.WriteCounterWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(now)); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	for idx := 0; idx < matchRes.NumRollups(); idx++ {
-		rollupID, rollupPolicies := matchRes.Rollups(idx)
-		if err := r.server.WriteCounterWithPolicies(rollupID, value, rollupPolicies); err != nil {
+		rollup := matchRes.RollupsAt(idx, now)
+		if err := r.server.WriteCounterWithPoliciesList(rollup.ID, value, rollup.PoliciesList); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
 	return multiErr.FinalError()
 }
 
-func (r *reporter) ReportBatchTimer(id metric.ID, value []float64) error {
+func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
-	if err := r.server.WriteBatchTimerWithPolicies(id.Bytes(), value, matchRes.Mappings()); err != nil {
+	now := r.nowFn()
+	if err := r.server.WriteBatchTimerWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(now)); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	for idx := 0; idx < matchRes.NumRollups(); idx++ {
-		rollupID, rollupPolicies := matchRes.Rollups(idx)
-		if err := r.server.WriteBatchTimerWithPolicies(rollupID, value, rollupPolicies); err != nil {
+		rollup := matchRes.RollupsAt(idx, now)
+		if err := r.server.WriteBatchTimerWithPoliciesList(rollup.ID, value, rollup.PoliciesList); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
 	return multiErr.FinalError()
 }
 
-func (r *reporter) ReportGauge(id metric.ID, value float64) error {
+func (r *reporter) ReportGauge(id id.ID, value float64) error {
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
-	if err := r.server.WriteGaugeWithPolicies(id.Bytes(), value, matchRes.Mappings()); err != nil {
+	now := r.nowFn()
+	if err := r.server.WriteGaugeWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(now)); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	for idx := 0; idx < matchRes.NumRollups(); idx++ {
-		rollupID, rollupPolicies := matchRes.Rollups(idx)
-		if err := r.server.WriteGaugeWithPolicies(rollupID, value, rollupPolicies); err != nil {
+		rollup := matchRes.RollupsAt(idx, now)
+		if err := r.server.WriteGaugeWithPoliciesList(rollup.ID, value, rollup.PoliciesList); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}

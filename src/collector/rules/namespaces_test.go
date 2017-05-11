@@ -242,7 +242,7 @@ func (c *memCache) Match(namespace []byte, id []byte) rules.MatchResult {
 	c.RLock()
 	defer c.RUnlock()
 	if results, exists := c.namespaces[string(namespace)]; exists {
-			return results.results[string(id)]
+		return results.results[string(id)]
 	}
 	return rules.EmptyMatchResult
 }

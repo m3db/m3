@@ -35,34 +35,58 @@ import (
 )
 
 var (
-	testMappingPolicies = []policy.Policy{
-		policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
-		policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-		policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+	testMappingPoliciesList = policy.PoliciesList{
+		policy.NewStagedPolicies(
+			0,
+			false,
+			[]policy.Policy{
+				policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
+				policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+				policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+			},
+		),
+		policy.NewStagedPolicies(
+			0,
+			true,
+			[]policy.Policy{
+				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+			},
+		),
 	}
 	testRollupResults = []rules.RollupResult{
 		{
-			ID: []byte("rID1"),
-			Policies: []policy.Policy{
-				policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-				policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-				policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
-			},
+			ID:           []byte("rID1"),
+			PoliciesList: policy.DefaultPoliciesList,
 		},
 		{
 			ID: []byte("rID2"),
-			Policies: []policy.Policy{
-				policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+			PoliciesList: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					0,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
+						policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+						policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+					},
+				),
+				policy.NewStagedPolicies(
+					0,
+					true,
+					[]policy.Policy{
+						policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+					},
+				),
 			},
 		},
 	}
 	testValidResults = []rules.MatchResult{
-		rules.NewMatchResult(1, 0, math.MaxInt64, nil, nil),
-		rules.NewMatchResult(2, 0, math.MaxInt64, testMappingPolicies, testRollupResults),
+		rules.NewMatchResult(math.MaxInt64, nil, nil),
+		rules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults),
 	}
 	testExpiredResults = []rules.MatchResult{
-		rules.NewMatchResult(1, 0, 0, nil, nil),
-		rules.NewMatchResult(2, 0, 0, testMappingPolicies, testRollupResults),
+		rules.NewMatchResult(0, nil, nil),
+		rules.NewMatchResult(0, testMappingPoliciesList, testRollupResults),
 	}
 )
 
@@ -70,15 +94,15 @@ func TestElementShouldExpire(t *testing.T) {
 	now := time.Unix(0, 1234)
 	e := &element{}
 	for _, input := range []struct {
-		expiryNs int64
-		expected bool
+		expiryNanos int64
+		expected    bool
 	}{
-		{expiryNs: 1233, expected: true},
-		{expiryNs: 1234, expected: true},
-		{expiryNs: 1235, expected: false},
+		{expiryNanos: 1233, expected: true},
+		{expiryNanos: 1234, expected: true},
+		{expiryNanos: 1235, expected: false},
 	} {
-		e.expiryNs = input.expiryNs
-		require.Equal(t, input.expected, e.ShouldExpire(now))
+		e.expiryNanos = input.expiryNanos
+		require.Equal(t, input.expected, e.ShouldPromote(now))
 	}
 }
 

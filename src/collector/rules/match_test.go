@@ -82,7 +82,7 @@ func TestMatcherMatchExists(t *testing.T) {
 			id:         []byte("foo"),
 			tagValueFn: func(tagName []byte) ([]byte, bool) { return []byte(ns), true },
 		}
-		res    = rules.NewMatchResult(1, 0, math.MaxInt64, nil, nil)
+		res    = rules.NewMatchResult(math.MaxInt64, nil, nil)
 		memRes = memResults{results: map[string]rules.MatchResult{"foo": res}}
 	)
 	cache, matcher := testMatcher(t)

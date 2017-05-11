@@ -95,9 +95,9 @@ var (
 	}
 	testPlacementSnapshots = []*placementSnapshot{
 		&placementSnapshot{
-			numShards: 4,
-			hashFn:    defaultHashGen(4),
-			cutoverNs: 12345,
+			numShards:    4,
+			hashFn:       defaultHashGen(4),
+			cutoverNanos: 12345,
 			instancesByShard: map[uint32][]instance{
 				0: []instance{
 					newInstance("instance1", "instance1_endpoint"),
@@ -124,9 +124,9 @@ var (
 			},
 		},
 		&placementSnapshot{
-			numShards: 4,
-			hashFn:    defaultHashGen(4),
-			cutoverNs: 67890,
+			numShards:    4,
+			hashFn:       defaultHashGen(4),
+			cutoverNanos: 67890,
 			instancesByShard: map[uint32][]instance{
 				0: []instance{
 					newInstance("instance1", "instance1_endpoint"),
@@ -172,7 +172,7 @@ func TestActivePlacementRoutePlacementClosed(t *testing.T) {
 		nowFn:     time.Now,
 		closed:    true,
 	}
-	err := p.Route(testCounter, testVersionedPolicies)
+	err := p.Route(testCounter, testPoliciesList)
 	require.Equal(t, errPlacementClosed, err)
 }
 
@@ -181,17 +181,17 @@ func TestActivePlacementRouteNoPlacementFound(t *testing.T) {
 		snapshots: append([]*placementSnapshot{}, testPlacementSnapshots...),
 		nowFn:     func() time.Time { return time.Unix(0, 0) },
 	}
-	err := p.Route(testCounter, testVersionedPolicies)
+	err := p.Route(testCounter, testPoliciesList)
 	require.Equal(t, errNoApplicablePlacementSnapshot, err)
 }
 
 func TestActivePlacementRoutePlacementFoundWithExpiry(t *testing.T) {
 	var (
-		removedInstances         [][]instance
-		writeToInstances         [][]instance
-		writeToShard             uint32
-		writeToMetricUnion       unaggregated.MetricUnion
-		writeToVersionedPolicies policy.VersionedPolicies
+		removedInstances    [][]instance
+		writeToInstances    [][]instance
+		writeToShard        uint32
+		writeToMetricUnion  unaggregated.MetricUnion
+		writeToPoliciesList policy.PoliciesList
 	)
 	p := &activePlacement{
 		writerMgr: &mockInstanceWriterManager{
@@ -203,25 +203,25 @@ func TestActivePlacementRoutePlacementFoundWithExpiry(t *testing.T) {
 				instances []instance,
 				shard uint32,
 				mu unaggregated.MetricUnion,
-				vp policy.VersionedPolicies,
+				pl policy.PoliciesList,
 			) error {
 				writeToInstances = append(writeToInstances, instances)
 				writeToShard = shard
 				writeToMetricUnion = mu
-				writeToVersionedPolicies = vp
+				writeToPoliciesList = pl
 				return nil
 			},
 		},
 		snapshots: append([]*placementSnapshot{}, testPlacementSnapshots...),
 		nowFn:     func() time.Time { return time.Unix(0, 99999) },
 	}
-	err := p.Route(testCounter, testVersionedPolicies)
+	err := p.Route(testCounter, testPoliciesList)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(writeToInstances))
 	require.Equal(t, testPlacementSnapshots[1].instancesByShard[0], writeToInstances[0])
 	require.Equal(t, uint32(0), writeToShard)
 	require.Equal(t, testCounter, writeToMetricUnion)
-	require.Equal(t, testVersionedPolicies, writeToVersionedPolicies)
+	require.Equal(t, testPoliciesList, writeToPoliciesList)
 
 	for {
 		p.RLock()
@@ -377,7 +377,7 @@ func TestPlacementSnapshotValidSchema(t *testing.T) {
 }
 
 func validateSnapshot(t *testing.T, expected *placementSnapshot, actual *placementSnapshot) {
-	require.Equal(t, expected.cutoverNs, actual.CutoverNs())
+	require.Equal(t, expected.cutoverNanos, actual.CutoverNanos())
 	require.Equal(t, expected.numShards, actual.NumShards())
 	require.Equal(t, expected.hashFn([]byte("foo")), actual.Shard([]byte("foo")))
 	require.Equal(t, expected.instances, actual.Instances())
@@ -388,7 +388,7 @@ func validateSnapshot(t *testing.T, expected *placementSnapshot, actual *placeme
 
 type addInstancesFn func(instances []instance) error
 type removeInstancesFn func(instances []instance) error
-type writeToFn func([]instance, uint32, unaggregated.MetricUnion, policy.VersionedPolicies) error
+type writeToFn func([]instance, uint32, unaggregated.MetricUnion, policy.PoliciesList) error
 
 type mockInstanceWriterManager struct {
 	addInstancesFn    addInstancesFn
@@ -409,9 +409,9 @@ func (mgr *mockInstanceWriterManager) WriteTo(
 	instances []instance,
 	shard uint32,
 	mu unaggregated.MetricUnion,
-	vp policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
-	return mgr.writeToFn(instances, shard, mu, vp)
+	return mgr.writeToFn(instances, shard, mu, pl)
 }
 
 func (mgr *mockInstanceWriterManager) Flush() error { return mgr.flushFn() }

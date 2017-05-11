@@ -28,8 +28,8 @@ import (
 
 // Source is a datasource providing match results.
 type Source interface {
-	// Match returns the match result for an given id.
-	Match(id []byte, t time.Time) rules.MatchResult
+	// Match returns the match result for an given id within time range [from, to).
+	Match(id []byte, from time.Time, to time.Time) rules.MatchResult
 }
 
 // Cache caches the rule matching result associated with metrics.

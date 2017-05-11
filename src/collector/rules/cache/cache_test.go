@@ -84,6 +84,53 @@ func TestCacheMatchIDCachedValidWithPromotion(t *testing.T) {
 	validateCache(t, c, expected)
 }
 
+func TestCacheMatchIDCachedInvalidWithClockSkewSourceValidInvalidateAll(t *testing.T) {
+	opts := testCacheOptions()
+	c := NewCache(opts).(*cache)
+	now := time.Now()
+	c.nowFn = func() time.Time { return now }
+	c.maxPositiveSkew = time.Minute
+	source := newMockSource()
+	input := []testValue{
+		{namespace: testValues[1].namespace, id: testValues[0].id, result: testValues[0].result},
+		{namespace: testValues[1].namespace, id: testValues[1].id, result: mrules.NewMatchResult(now.Add(time.Second).UnixNano(), nil, nil)},
+	}
+	populateCache(c, input, now, source, populateBoth)
+	require.Equal(t, 2, len(c.namespaces[testValues[1].nsHash()].elems))
+
+	var (
+		ns         = testValues[1].namespace
+		nsHash     = xid.HashFn(ns)
+		id         = testValues[1].id
+		idHash     = testValues[1].idHash()
+		newVersion = 3
+	)
+	result := mrules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults)
+	source.setVersion(newVersion)
+	source.setResult(id, result)
+
+	require.Equal(t, 2, len(c.namespaces[nsHash].elems))
+	res := c.Match(ns, id)
+	require.Equal(t, result, res)
+
+	// Wait for deletion to happen
+	conditionFn := func() bool {
+		c.list.Lock()
+		len := c.list.Len()
+		c.list.Unlock()
+		return len == 1
+	}
+	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
+
+	expected := []testValue{{namespace: ns, id: id, result: result}}
+	require.Equal(t, 1, len(c.namespaces))
+	require.Equal(t, 1, len(c.namespaces[nsHash].elems))
+	elem, exists := c.namespaces[nsHash].elems[idHash]
+	require.True(t, exists)
+	require.Equal(t, elem, c.list.Front())
+	validateCache(t, c, expected)
+}
+
 func TestCacheMatchIDCachedInvalidSourceValidInvalidateAllNoEviction(t *testing.T) {
 	opts := testCacheOptions()
 	c := NewCache(opts).(*cache)
@@ -104,7 +151,7 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAllNoEviction(t *testing.
 		idHash     = testValues[1].idHash()
 		newVersion = 3
 	)
-	result := mrules.NewMatchResult(newVersion, 0, math.MaxInt64, testMappingPolicies, testRollupResults)
+	result := mrules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
@@ -149,7 +196,7 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateOneNoEviction(t *testing.
 		idHash     = testValues[1].idHash()
 		newVersion = 3
 	)
-	result := mrules.NewMatchResult(newVersion, 0, math.MaxInt64, testMappingPolicies, testRollupResults)
+	result := mrules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
@@ -193,7 +240,7 @@ func TestCacheMatchIDCachedInvalidSourceValidWithEviction(t *testing.T) {
 	populateCache(c, input, now, source, populateBoth)
 
 	newVersion := 3
-	newResult := mrules.NewMatchResult(newVersion, 0, math.MaxInt64, testMappingPolicies, testRollupResults)
+	newResult := mrules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	for _, id := range []string{"foo", "bar", "baz", "cat", "lol"} {
 		source.setResult([]byte(id), newResult)
@@ -290,8 +337,8 @@ func TestCacheMatchParallel(t *testing.T) {
 	populateCache(c, input, now, source, populateBoth)
 
 	newVersion := 3
-	nowNs := time.Now().UnixNano()
-	newResult := mrules.NewMatchResult(newVersion, nowNs, nowNs, testMappingPolicies, testRollupResults)
+	nowNanos := time.Now().UnixNano()
+	newResult := mrules.NewMatchResult(nowNanos, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	for _, id := range []string{"foo", "baz"} {
 		source.setResult([]byte(id), newResult)
@@ -426,10 +473,10 @@ func TestCacheDeleteBatching(t *testing.T) {
 		m := make(elemMap)
 		for i := 0; i < 37; i++ {
 			elem := &element{
-				nsHash:   value.nsHash(),
-				idHash:   xid.HashFn([]byte(fmt.Sprintf("%s%d", value.id, i))),
-				result:   value.result,
-				expiryNs: now.UnixNano(),
+				nsHash:      value.nsHash(),
+				idHash:      xid.HashFn([]byte(fmt.Sprintf("%s%d", value.id, i))),
+				result:      value.result,
+				expiryNanos: now.UnixNano(),
 			}
 			m[elem.idHash] = elem
 			c.list.PushBack(elem)
@@ -511,7 +558,7 @@ func (s *mockSource) IsValid(version int) bool {
 	return version >= currVersion
 }
 
-func (s *mockSource) Match(id []byte, t time.Time) mrules.MatchResult {
+func (s *mockSource) Match(id []byte, from time.Time, to time.Time) mrules.MatchResult {
 	s.Lock()
 	defer s.Unlock()
 	if res, exists := s.idMap[string(id)]; exists {
@@ -576,10 +623,10 @@ func populateCache(
 		}
 		if (mode & populateMap) > 0 {
 			elem := &element{
-				nsHash:   value.nsHash(),
-				idHash:   value.idHash(),
-				result:   value.result,
-				expiryNs: expiry.UnixNano(),
+				nsHash:      value.nsHash(),
+				idHash:      value.idHash(),
+				result:      value.result,
+				expiryNanos: expiry.UnixNano(),
 			}
 			results.elems[elem.idHash] = elem
 			c.list.PushBack(elem)

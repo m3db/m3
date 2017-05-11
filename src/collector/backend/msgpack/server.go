@@ -74,10 +74,10 @@ func (s *server) Open() error {
 	return s.topology.Open()
 }
 
-func (s *server) WriteCounterWithPolicies(
+func (s *server) WriteCounterWithPoliciesList(
 	id []byte,
 	val int64,
-	vp policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
 	mu := unaggregated.MetricUnion{
 		Type:       unaggregated.CounterType,
@@ -89,15 +89,15 @@ func (s *server) WriteCounterWithPolicies(
 		s.RUnlock()
 		return errServerIsNotOpenOrClosed
 	}
-	err := s.topology.Route(mu, vp)
+	err := s.topology.Route(mu, pl)
 	s.RUnlock()
 	return err
 }
 
-func (s *server) WriteBatchTimerWithPolicies(
+func (s *server) WriteBatchTimerWithPoliciesList(
 	id []byte,
 	val []float64,
-	vp policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
 	mu := unaggregated.MetricUnion{
 		Type:          unaggregated.BatchTimerType,
@@ -109,15 +109,15 @@ func (s *server) WriteBatchTimerWithPolicies(
 		s.RUnlock()
 		return errServerIsNotOpenOrClosed
 	}
-	err := s.topology.Route(mu, vp)
+	err := s.topology.Route(mu, pl)
 	s.RUnlock()
 	return err
 }
 
-func (s *server) WriteGaugeWithPolicies(
+func (s *server) WriteGaugeWithPoliciesList(
 	id []byte,
 	val float64,
-	vp policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
 	mu := unaggregated.MetricUnion{
 		Type:     unaggregated.GaugeType,
@@ -129,7 +129,7 @@ func (s *server) WriteGaugeWithPolicies(
 		s.RUnlock()
 		return errServerIsNotOpenOrClosed
 	}
-	err := s.topology.Route(mu, vp)
+	err := s.topology.Route(mu, pl)
 	s.RUnlock()
 	return err
 }

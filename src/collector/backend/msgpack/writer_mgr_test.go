@@ -81,14 +81,14 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 func TestWriterManagerWriteToClosed(t *testing.T) {
 	mgr := newInstanceWriterManager(testServerOptions()).(*writerManager)
 	mgr.closed = true
-	err := mgr.WriteTo([]instance{testPlacementInstance}, 0, testCounter, testVersionedPolicies)
+	err := mgr.WriteTo([]instance{testPlacementInstance}, 0, testCounter, testPoliciesList)
 	require.Equal(t, errInstanceWriterManagerClosed, err)
 }
 
 func TestWriterManagerWriteToNoInstances(t *testing.T) {
 	mgr := newInstanceWriterManager(testServerOptions()).(*writerManager)
 	mgr.closed = false
-	err := mgr.WriteTo([]instance{testPlacementInstance}, 0, testCounter, testVersionedPolicies)
+	err := mgr.WriteTo([]instance{testPlacementInstance}, 0, testCounter, testPoliciesList)
 	require.Error(t, err)
 }
 
@@ -100,16 +100,16 @@ func TestWriterManagerWriteToSuccess(t *testing.T) {
 		}
 		shardRes uint32
 		muRes    unaggregated.MetricUnion
-		vpRes    policy.VersionedPolicies
+		plRes    policy.PoliciesList
 	)
 	mgr := newInstanceWriterManager(testServerOptions()).(*writerManager)
 	mgr.writers[instances[0].ID()] = &refCountedWriter{
 		refCount: refCount{n: 1},
 		instanceWriter: &mockInstanceWriter{
-			writeFn: func(shard uint32, mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
+			writeFn: func(shard uint32, mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
 				shardRes = shard
 				muRes = mu
-				vpRes = vp
+				plRes = pl
 				return nil
 			},
 		},
@@ -117,17 +117,17 @@ func TestWriterManagerWriteToSuccess(t *testing.T) {
 	mgr.writers[instances[1].ID()] = &refCountedWriter{
 		refCount: refCount{n: 1},
 		instanceWriter: &mockInstanceWriter{
-			writeFn: func(shard uint32, mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
+			writeFn: func(shard uint32, mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
 				return errors.New("write error")
 			},
 		},
 	}
 
-	require.Error(t, mgr.WriteTo(instances, 0, testCounter, testVersionedPolicies))
+	require.Error(t, mgr.WriteTo(instances, 0, testCounter, testPoliciesList))
 	require.Equal(t, 2, len(mgr.writers))
 	require.Equal(t, uint32(0), shardRes)
 	require.Equal(t, testCounter, muRes)
-	require.Equal(t, testVersionedPolicies, vpRes)
+	require.Equal(t, testPoliciesList, plRes)
 }
 
 func TestWriterManagerFlushClosed(t *testing.T) {
@@ -180,7 +180,7 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 	}
 }
 
-type mockWriteFn func(shard uint32, mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error
+type mockWriteFn func(shard uint32, mu unaggregated.MetricUnion, pl policy.PoliciesList) error
 type mockFlushFn func() error
 
 type mockInstanceWriter struct {
@@ -191,9 +191,9 @@ type mockInstanceWriter struct {
 func (mw *mockInstanceWriter) Write(
 	shard uint32,
 	mu unaggregated.MetricUnion,
-	vp policy.VersionedPolicies,
+	pl policy.PoliciesList,
 ) error {
-	return mw.writeFn(shard, mu, vp)
+	return mw.writeFn(shard, mu, pl)
 }
 
 func (mw *mockInstanceWriter) Flush() error { return mw.flushFn() }

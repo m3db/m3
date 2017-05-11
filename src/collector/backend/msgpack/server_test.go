@@ -50,15 +50,24 @@ var (
 		ID:       []byte("foo"),
 		GaugeVal: 123.456,
 	}
-	testVersionedPolicies = policy.CustomVersionedPolicies(
-		2,
-		time.Now(),
-		[]policy.Policy{
-			policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
-			policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-			policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
-		},
-	)
+	testPoliciesList = policy.PoliciesList{
+		policy.NewStagedPolicies(
+			100,
+			false,
+			[]policy.Policy{
+				policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
+				policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+				policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+			},
+		),
+		policy.NewStagedPolicies(
+			200,
+			true,
+			[]policy.Policy{
+				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+			},
+		),
+	}
 )
 
 func TestServerOpenNotOpenOrClosed(t *testing.T) {
@@ -89,103 +98,103 @@ func TestServerOpenSuccess(t *testing.T) {
 	require.Equal(t, serverOpen, s.state)
 }
 
-func TestServerWriteCounterWithPoliciesClosed(t *testing.T) {
+func TestServerWriteCounterWithPoliciesListClosed(t *testing.T) {
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverNotOpen
-	require.Equal(t, errServerIsNotOpenOrClosed, s.WriteCounterWithPolicies(
+	require.Equal(t, errServerIsNotOpenOrClosed, s.WriteCounterWithPoliciesList(
 		testCounter.ID,
 		testCounter.CounterVal,
-		testVersionedPolicies,
+		testPoliciesList,
 	))
 }
 
-func TestServerWriteCounterWithPoliciesSuccess(t *testing.T) {
+func TestServerWriteCounterWithPoliciesListSuccess(t *testing.T) {
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverOpen
 	var (
 		muRes unaggregated.MetricUnion
-		vpRes policy.VersionedPolicies
+		plRes policy.PoliciesList
 	)
 	s.topology = &mockTopology{
-		routeFn: func(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
+		routeFn: func(mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
 			muRes = mu
-			vpRes = vp
+			plRes = pl
 			return nil
 		},
 	}
-	require.NoError(t, s.WriteCounterWithPolicies(
+	require.NoError(t, s.WriteCounterWithPoliciesList(
 		testCounter.ID,
 		testCounter.CounterVal,
-		testVersionedPolicies,
+		testPoliciesList,
 	))
 	require.Equal(t, testCounter, muRes)
-	require.Equal(t, testVersionedPolicies, vpRes)
+	require.Equal(t, testPoliciesList, plRes)
 }
 
-func TestServerWriteBatchTimerWithPoliciesClosed(t *testing.T) {
+func TestServerWriteBatchTimerWithPoliciesListClosed(t *testing.T) {
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverNotOpen
-	require.Equal(t, errServerIsNotOpenOrClosed, s.WriteBatchTimerWithPolicies(
+	require.Equal(t, errServerIsNotOpenOrClosed, s.WriteBatchTimerWithPoliciesList(
 		testBatchTimer.ID,
 		testBatchTimer.BatchTimerVal,
-		testVersionedPolicies,
+		testPoliciesList,
 	))
 }
 
-func TestServerWriteBatchTimerWithPoliciesSuccess(t *testing.T) {
+func TestServerWriteBatchTimerWithPoliciesListSuccess(t *testing.T) {
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverOpen
 	var (
 		muRes unaggregated.MetricUnion
-		vpRes policy.VersionedPolicies
+		plRes policy.PoliciesList
 	)
 	s.topology = &mockTopology{
-		routeFn: func(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
+		routeFn: func(mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
 			muRes = mu
-			vpRes = vp
+			plRes = pl
 			return nil
 		},
 	}
-	require.NoError(t, s.WriteBatchTimerWithPolicies(
+	require.NoError(t, s.WriteBatchTimerWithPoliciesList(
 		testBatchTimer.ID,
 		testBatchTimer.BatchTimerVal,
-		testVersionedPolicies,
+		testPoliciesList,
 	))
 	require.Equal(t, testBatchTimer, muRes)
-	require.Equal(t, testVersionedPolicies, vpRes)
+	require.Equal(t, testPoliciesList, plRes)
 }
 
-func TestServerWriteGaugeWithPoliciesClosed(t *testing.T) {
+func TestServerWriteGaugeWithPoliciesListClosed(t *testing.T) {
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverNotOpen
-	require.Equal(t, errServerIsNotOpenOrClosed, s.WriteGaugeWithPolicies(
+	require.Equal(t, errServerIsNotOpenOrClosed, s.WriteGaugeWithPoliciesList(
 		testGauge.ID,
 		testGauge.GaugeVal,
-		testVersionedPolicies,
+		testPoliciesList,
 	))
 }
 
-func TestServerWriteGaugeWithPoliciesSuccess(t *testing.T) {
+func TestServerWriteGaugeWithPoliciesListSuccess(t *testing.T) {
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverOpen
 	var (
 		muRes unaggregated.MetricUnion
-		vpRes policy.VersionedPolicies
+		plRes policy.PoliciesList
 	)
 	s.topology = &mockTopology{
-		routeFn: func(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
+		routeFn: func(mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
 			muRes = mu
-			vpRes = vp
+			plRes = pl
 			return nil
 		},
 	}
-	require.NoError(t, s.WriteGaugeWithPolicies(
+	require.NoError(t, s.WriteGaugeWithPoliciesList(
 		testGauge.ID,
 		testGauge.GaugeVal,
-		testVersionedPolicies,
+		testPoliciesList,
 	))
 	require.Equal(t, testGauge, muRes)
-	require.Equal(t, testVersionedPolicies, vpRes)
+	require.Equal(t, testPoliciesList, plRes)
 }
 
 func TestServerFlushClosed(t *testing.T) {
@@ -249,8 +258,8 @@ type mockTopology struct {
 
 func (mt *mockTopology) Open() error { return mt.openFn() }
 
-func (mt *mockTopology) Route(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
-	return mt.routeFn(mu, vp)
+func (mt *mockTopology) Route(mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
+	return mt.routeFn(mu, pl)
 }
 
 func (mt *mockTopology) Close() error { return nil }

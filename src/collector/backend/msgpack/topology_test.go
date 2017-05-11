@@ -54,7 +54,7 @@ func TestTopologyRouteClosed(t *testing.T) {
 	topo := testTopology(t)
 	topo.state = topologyClosed
 
-	err := topo.Route(testCounter, testVersionedPolicies)
+	err := topo.Route(testCounter, testPoliciesList)
 	require.Equal(t, errTopologyIsNotOpenOrClosed, err)
 }
 
@@ -63,9 +63,9 @@ func TestTopologyRoutePlacementError(t *testing.T) {
 	topo.state = topologyOpen
 	errTestRoute := errors.New("test route error")
 	topo.placement = &mockPlacement{
-		routeFn: func(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error { return errTestRoute },
+		routeFn: func(mu unaggregated.MetricUnion, pl policy.PoliciesList) error { return errTestRoute },
 	}
-	err := topo.Route(testCounter, testVersionedPolicies)
+	err := topo.Route(testCounter, testPoliciesList)
 	require.Equal(t, errTestRoute, err)
 }
 
@@ -73,9 +73,9 @@ func TestTopologyRouteSuccess(t *testing.T) {
 	topo := testTopology(t)
 	topo.state = topologyOpen
 	topo.placement = &mockPlacement{
-		routeFn: func(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error { return nil },
+		routeFn: func(mu unaggregated.MetricUnion, pl policy.PoliciesList) error { return nil },
 	}
-	err := topo.Route(testCounter, testVersionedPolicies)
+	err := topo.Route(testCounter, testPoliciesList)
 	require.NoError(t, err)
 }
 
@@ -184,7 +184,7 @@ func testTopologyOptions() TopologyOptions {
 		SetTopologyKey(testTopologyKey)
 }
 
-type routeFn func(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error
+type routeFn func(mu unaggregated.MetricUnion, pl policy.PoliciesList) error
 type closeFn func() error
 
 type mockPlacement struct {
@@ -192,8 +192,8 @@ type mockPlacement struct {
 	closeFn closeFn
 }
 
-func (mp *mockPlacement) Route(mu unaggregated.MetricUnion, vp policy.VersionedPolicies) error {
-	return mp.routeFn(mu, vp)
+func (mp *mockPlacement) Route(mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
+	return mp.routeFn(mu, pl)
 }
 
 func (mp *mockPlacement) Close() error { return mp.closeFn() }

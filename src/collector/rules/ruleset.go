@@ -36,19 +36,20 @@ type ruleSet struct {
 	sync.RWMutex
 	runtime.Value
 
-	namespace   []byte
-	key         string
-	cache       Cache
-	store       kv.Store
-	opts        Options
-	nowFn       clock.NowFn
-	ruleSetOpts rules.Options
+	namespace       []byte
+	key             string
+	cache           Cache
+	store           kv.Store
+	opts            Options
+	nowFn           clock.NowFn
+	maxNegativeSkew time.Duration
+	ruleSetOpts     rules.Options
 
-	proto      *schema.RuleSet
-	version    int
-	cutoverNs  int64
-	tombstoned bool
-	matcher    rules.Matcher
+	proto        *schema.RuleSet
+	version      int
+	cutoverNanos int64
+	tombstoned   bool
+	matcher      rules.Matcher
 }
 
 func newRuleSet(
@@ -57,16 +58,18 @@ func newRuleSet(
 	cache Cache,
 	opts Options,
 ) *ruleSet {
+	clockOpts := opts.ClockOptions()
 	r := &ruleSet{
-		namespace:   namespace,
-		key:         key,
-		cache:       cache,
-		store:       opts.KVStore(),
-		opts:        opts,
-		nowFn:       opts.ClockOptions().NowFn(),
-		ruleSetOpts: opts.RuleSetOptions(),
-		proto:       &schema.RuleSet{},
-		version:     kv.UninitializedVersion,
+		namespace:       namespace,
+		key:             key,
+		cache:           cache,
+		store:           opts.KVStore(),
+		opts:            opts,
+		nowFn:           clockOpts.NowFn(),
+		maxNegativeSkew: clockOpts.MaxNegativeSkew(),
+		ruleSetOpts:     opts.RuleSetOptions(),
+		proto:           &schema.RuleSet{},
+		version:         kv.UninitializedVersion,
 	}
 	valueOpts := runtime.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
@@ -92,11 +95,11 @@ func (r *ruleSet) Version() int {
 	return version
 }
 
-func (r *ruleSet) CutoverNs() int64 {
+func (r *ruleSet) CutoverNanos() int64 {
 	r.RLock()
-	cutoverNs := r.cutoverNs
+	cutoverNanos := r.cutoverNanos
 	r.RUnlock()
-	return cutoverNs
+	return cutoverNanos
 }
 
 func (r *ruleSet) Tombstoned() bool {
@@ -106,14 +109,14 @@ func (r *ruleSet) Tombstoned() bool {
 	return tombstoned
 }
 
-func (r *ruleSet) Match(id []byte, t time.Time) rules.MatchResult {
+func (r *ruleSet) Match(id []byte, from time.Time, to time.Time) rules.MatchResult {
 	r.RLock()
 	defer r.RUnlock()
 
 	if r.matcher == nil {
 		return rules.EmptyMatchResult
 	}
-	return r.matcher.Match(id, t)
+	return r.matcher.MatchAll(id, from, to)
 }
 
 func (r *ruleSet) toRuleSet(value kv.Value) (interface{}, error) {
@@ -137,9 +140,9 @@ func (r *ruleSet) process(value interface{}) error {
 
 	ruleSet := value.(rules.RuleSet)
 	r.version = ruleSet.Version()
-	r.cutoverNs = ruleSet.CutoverNs()
+	r.cutoverNanos = ruleSet.CutoverNanos()
 	r.tombstoned = ruleSet.TombStoned()
-	r.matcher = ruleSet.ActiveSet(r.nowFn())
+	r.matcher = ruleSet.ActiveSet(r.nowFn().Add(-r.maxNegativeSkew))
 	r.cache.Register(r.namespace, r)
 	return nil
 }
