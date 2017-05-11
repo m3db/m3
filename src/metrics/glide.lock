@@ -1,5 +1,5 @@
-hash: 1da188c97d69803d7b0bb67a6e66b738eab076612e2d5a2f38c3b8f5c70421b8
-updated: 2017-05-07T19:11:45.678596443-04:00
+hash: 07a1a24c24370b50b8cb4f21bdd6fd9b1b787f00c87b1f3f95715f93d84594f2
+updated: 2017-05-09T23:04:21.133965573-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -16,12 +16,13 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3x
-  version: 2a4b2eeb25be253ed5c57255e1c72bde13257d34
+  version: bd6be18ffb184691512eb442561b16a59c15d797
   subpackages:
   - checked
   - instrument
   - log
   - pool
+  - process
   - time
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d

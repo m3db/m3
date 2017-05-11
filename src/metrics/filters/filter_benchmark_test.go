@@ -24,6 +24,8 @@ import (
 	"bytes"
 	"fmt"
 	"testing"
+
+	"github.com/m3db/m3metrics/metric/id"
 )
 
 var (
@@ -64,7 +66,7 @@ func BenchmarkEquityFilterByValue(b *testing.B) {
 }
 
 func BenchmarkTagsFilterOne(b *testing.B) {
-	filter, _ := NewTagsFilter(testTagsFilterMapOne, NewMockSortedTagIterator, Conjunction)
+	filter, _ := NewTagsFilter(testTagsFilterMapOne, Conjunction, testTagsFilterOptions())
 	benchTagsFilter(b, testFlatID, filter)
 }
 
@@ -73,7 +75,7 @@ func BenchmarkMapTagsFilterOne(b *testing.B) {
 }
 
 func BenchmarkTagsFilterThree(b *testing.B) {
-	filter, _ := NewTagsFilter(testTagsFilterMapThree, NewMockSortedTagIterator, Conjunction)
+	filter, _ := NewTagsFilter(testTagsFilterMapThree, Conjunction, testTagsFilterOptions())
 	benchTagsFilter(b, testFlatID, filter)
 }
 
@@ -225,10 +227,10 @@ func (f testEqualityFilter) Matches(id []byte) bool {
 
 type testMapTagsFilter struct {
 	filters map[string]Filter
-	iterFn  NewSortedTagIteratorFn
+	iterFn  id.SortedTagIteratorFn
 }
 
-func newTestMapTagsFilter(tagFilters map[string]string, iterFn NewSortedTagIteratorFn) Filter {
+func newTestMapTagsFilter(tagFilters map[string]string, iterFn id.SortedTagIteratorFn) Filter {
 	filters := make(map[string]Filter, len(tagFilters))
 	for name, value := range tagFilters {
 		filter, _ := NewFilter([]byte(value))

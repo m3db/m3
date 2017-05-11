@@ -23,7 +23,7 @@ package unaggregated
 import (
 	"fmt"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/pool"
 )
@@ -54,19 +54,19 @@ func (t Type) String() string {
 
 // Counter is a counter containing the counter ID and the counter value.
 type Counter struct {
-	ID    metric.ID
+	ID    id.RawID
 	Value int64
 }
 
 // BatchTimer is a timer containing the timer ID and a list of timer values.
 type BatchTimer struct {
-	ID     metric.ID
+	ID     id.RawID
 	Values []float64
 }
 
 // Gauge is a gauge containing the gauge ID and the value at certain time.
 type Gauge struct {
-	ID    metric.ID
+	ID    id.RawID
 	Value float64
 }
 
@@ -96,7 +96,7 @@ type GaugeWithPoliciesList struct {
 // NB(xichen): possibly use refcounting to replace explicit ownership tracking.
 type MetricUnion struct {
 	Type          Type
-	ID            metric.ID
+	ID            id.RawID
 	CounterVal    int64
 	BatchTimerVal []float64
 	GaugeVal      float64

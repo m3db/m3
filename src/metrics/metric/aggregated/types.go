@@ -24,13 +24,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 )
 
 // Metric is a metric, which is essentially a named value at certain time.
 type Metric struct {
-	metric.ID
+	ID        id.RawID
 	TimeNanos int64
 	Value     float64
 }
@@ -47,7 +47,7 @@ func (m Metric) String() string {
 
 // ChunkedMetric is a metric with a chunked ID.
 type ChunkedMetric struct {
-	metric.ChunkedID
+	id.ChunkedID
 	TimeNanos int64
 	Value     float64
 }
@@ -56,7 +56,7 @@ type ChunkedMetric struct {
 // a metric object).
 type RawMetric interface {
 	// ID is the metric identifier.
-	ID() (metric.ID, error)
+	ID() (id.RawID, error)
 
 	// TimeNanos is the metric timestamp in nanoseconds.
 	TimeNanos() (int64, error)

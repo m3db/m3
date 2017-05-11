@@ -106,7 +106,7 @@ type rollupRuleSnapshot struct {
 
 func newRollupRuleSnapshot(
 	r *schema.RollupRuleSnapshot,
-	iterFn filters.NewSortedTagIteratorFn,
+	opts filters.TagsFilterOptions,
 ) (*rollupRuleSnapshot, error) {
 	if r == nil {
 		return nil, errNilRollupRuleSnapshotSchema
@@ -119,7 +119,7 @@ func newRollupRuleSnapshot(
 		}
 		targets = append(targets, target)
 	}
-	filter, err := filters.NewTagsFilter(r.TagFilters, iterFn, filters.Conjunction)
+	filter, err := filters.NewTagsFilter(r.TagFilters, filters.Conjunction, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -140,14 +140,14 @@ type rollupRule struct {
 
 func newRollupRule(
 	mc *schema.RollupRule,
-	iterFn filters.NewSortedTagIteratorFn,
+	opts filters.TagsFilterOptions,
 ) (*rollupRule, error) {
 	if mc == nil {
 		return nil, errNilRollupRuleSchema
 	}
 	snapshots := make([]*rollupRuleSnapshot, 0, len(mc.Snapshots))
 	for i := 0; i < len(mc.Snapshots); i++ {
-		mr, err := newRollupRuleSnapshot(mc.Snapshots[i], iterFn)
+		mr, err := newRollupRuleSnapshot(mc.Snapshots[i], opts)
 		if err != nil {
 			return nil, err
 		}

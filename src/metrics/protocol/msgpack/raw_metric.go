@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/metric/id"
 )
 
 var (
@@ -57,7 +57,7 @@ func NewRawMetric(data []byte, readerBufferSize int) aggregated.RawMetric {
 	return m
 }
 
-func (m *rawMetric) ID() (metric.ID, error) {
+func (m *rawMetric) ID() (id.RawID, error) {
 	m.decodeID()
 	if err := m.it.err(); err != nil {
 		return nil, err

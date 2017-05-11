@@ -45,7 +45,7 @@ type mappingRuleSnapshot struct {
 
 func newMappingRuleSnapshot(
 	r *schema.MappingRuleSnapshot,
-	iterFn filters.NewSortedTagIteratorFn,
+	opts filters.TagsFilterOptions,
 ) (*mappingRuleSnapshot, error) {
 	if r == nil {
 		return nil, errNilMappingRuleSnapshotSchema
@@ -54,7 +54,7 @@ func newMappingRuleSnapshot(
 	if err != nil {
 		return nil, err
 	}
-	filter, err := filters.NewTagsFilter(r.TagFilters, iterFn, filters.Conjunction)
+	filter, err := filters.NewTagsFilter(r.TagFilters, filters.Conjunction, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -75,14 +75,14 @@ type mappingRule struct {
 
 func newMappingRule(
 	mc *schema.MappingRule,
-	iterFn filters.NewSortedTagIteratorFn,
+	opts filters.TagsFilterOptions,
 ) (*mappingRule, error) {
 	if mc == nil {
 		return nil, errNilMappingRuleSchema
 	}
 	snapshots := make([]*mappingRuleSnapshot, 0, len(mc.Snapshots))
 	for i := 0; i < len(mc.Snapshots); i++ {
-		mr, err := newMappingRuleSnapshot(mc.Snapshots[i], iterFn)
+		mr, err := newMappingRuleSnapshot(mc.Snapshots[i], opts)
 		if err != nil {
 			return nil, err
 		}

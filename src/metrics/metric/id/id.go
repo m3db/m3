@@ -18,17 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package metric
+package id
 
 import "fmt"
 
-// ID is the metric id.
-// TODO(xichen): make ID a union of numeric ID and bytes-backed IDs
-// so we can compress IDs on a per-connection basis.
-type ID []byte
+// ID is a metric id.
+type ID interface {
+	// Bytes returns the raw bytes for this id.
+	Bytes() []byte
 
-// String is the string representation of an id.
-func (id ID) String() string { return string(id) }
+	// TagValue looks up the tag value for a tag name.
+	TagValue(tagName []byte) ([]byte, bool)
+}
+
+// NameAndTagsFn returns the name and the tag pairs given an id.
+type NameAndTagsFn func(id []byte) (name []byte, tags []byte, err error)
+
+// NewIDFn creates a new metric ID based on the metric name and metric tag pairs.
+type NewIDFn func(name []byte, tags []TagPair) []byte
+
+// RawID is the raw metric id.
+type RawID []byte
+
+// String is the string representation of a raw id.
+func (rid RawID) String() string { return string(rid) }
 
 // ChunkedID is a three-part id.
 type ChunkedID struct {
