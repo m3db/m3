@@ -42,6 +42,7 @@ import (
 )
 
 const (
+	hierarchySeparator = "/"
 	internalPrefix     = "_"
 	cacheFileSeparator = "_"
 	cacheFileSuffix    = ".json"
@@ -101,16 +102,20 @@ func (c *csclient) Services() (services.Services, error) {
 }
 
 func (c *csclient) KV() (kv.Store, error) {
-	return c.createTxnStore(kvPrefix)
+	return c.Txn()
 }
 
 func (c *csclient) Txn() (kv.TxnStore, error) {
-	return c.createTxnStore(kvPrefix)
+	c.txnOnce.Do(func() {
+		c.txn, c.txnErr = c.createTxnStore(kvPrefix)
+	})
 
+	return c.txn, c.txnErr
 }
 
 func (c *csclient) TxnStore(namespace string) (kv.TxnStore, error) {
-	if err := validateTopLevelNamespace(namespace); err != nil {
+	namespace, err := validateTopLevelNamespace(namespace)
+	if err != nil {
 		return nil, err
 	}
 
@@ -135,10 +140,7 @@ func (c *csclient) createServices() {
 }
 
 func (c *csclient) createTxnStore(namespace string) (kv.TxnStore, error) {
-	c.txnOnce.Do(func() {
-		c.txn, c.txnErr = c.txnGen(c.opts.Zone(), namespace, c.opts.Env())
-	})
-	return c.txn, c.txnErr
+	return c.txnGen(c.opts.Zone(), namespace, c.opts.Env())
 }
 
 func (c *csclient) kvGen() sdclient.KVGen {
@@ -247,9 +249,19 @@ func fileName(parts ...string) string {
 	return strings.Replace(s, string(os.PathSeparator), cacheFileSeparator, -1) + cacheFileSuffix
 }
 
-func validateTopLevelNamespace(namespace string) error {
-	if strings.HasPrefix(namespace, internalPrefix) {
-		return errInvalidNamespace
+func validateTopLevelNamespace(namespace string) (string, error) {
+	if namespace == "" || namespace == hierarchySeparator {
+		return "", errInvalidNamespace
 	}
-	return nil
+	if strings.HasPrefix(namespace, internalPrefix) {
+		// start with _
+		return "", errInvalidNamespace
+	}
+	if strings.HasPrefix(namespace, hierarchySeparator) {
+		if internalPrefix == string(namespace[1]) {
+			return "", errInvalidNamespace
+		}
+		return namespace, nil
+	}
+	return hierarchySeparator + namespace, nil
 }

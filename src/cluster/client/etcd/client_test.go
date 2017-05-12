@@ -106,6 +106,11 @@ func TestClient(t *testing.T) {
 	kv2, err := c.KV()
 	require.NoError(t, err)
 	require.Equal(t, kv1, kv2)
+
+	kv3, err := c.Store("ns")
+	require.NoError(t, err)
+	require.NotEqual(t, kv1, kv3)
+
 	// KV store will create an etcd cli for local zone only
 	require.Equal(t, 1, len(c.clis))
 	_, ok := c.clis["zone1"]
@@ -158,6 +163,64 @@ func TestCacheFileForZone(t *testing.T) {
 
 	kvOpts = cs.newkvOptions("z1", "namespace", "env")
 	require.Equal(t, "/cacheDir/namespace_env_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
+}
+
+func TestValidateNamespace(t *testing.T) {
+	inputs := []struct {
+		ns        string
+		result    string
+		expectErr bool
+	}{
+		{
+			ns:        "ns",
+			result:    "/ns",
+			expectErr: false,
+		},
+		{
+			ns:        "/ns",
+			result:    "/ns",
+			expectErr: false,
+		},
+		{
+			ns:        "/ns/ab",
+			result:    "/ns/ab",
+			expectErr: false,
+		},
+		{
+			ns:        "ns/ab",
+			result:    "/ns/ab",
+			expectErr: false,
+		},
+		{
+			ns:        "_ns",
+			result:    "",
+			expectErr: true,
+		},
+		{
+			ns:        "/_ns",
+			result:    "",
+			expectErr: true,
+		},
+		{
+			ns:        "",
+			result:    "",
+			expectErr: true,
+		},
+		{
+			ns:        "/",
+			result:    "",
+			expectErr: true,
+		},
+	}
+
+	for _, input := range inputs {
+		rs, err := validateTopLevelNamespace(input.ns)
+		if input.expectErr {
+			require.Error(t, err)
+			continue
+		}
+		require.Equal(t, input.result, rs)
+	}
 }
 
 func testOptions() Options {
