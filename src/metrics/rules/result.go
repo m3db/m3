@@ -22,14 +22,14 @@ package rules
 
 import (
 	"bytes"
-	"time"
 
 	"github.com/m3db/m3metrics/policy"
 )
 
 var (
 	// EmptyMatchResult is the result when no matches were found.
-	EmptyMatchResult = NewMatchResult(timeNanosMax, policy.DefaultPoliciesList, nil)
+	EmptyMatchResult  = NewMatchResult(timeNanosMax, policy.DefaultPoliciesList, nil)
+	emptyRollupResult RollupResult
 )
 
 // RollupResult contains the rollup metric id and the associated policies list.
@@ -66,29 +66,37 @@ func NewMatchResult(
 }
 
 // HasExpired returns whether the match result has expired for a given time.
-func (r *MatchResult) HasExpired(t time.Time) bool { return r.expireAtNanos <= t.UnixNano() }
+func (r *MatchResult) HasExpired(timeNanos int64) bool { return r.expireAtNanos <= timeNanos }
 
 // NumRollups returns the number of rollup metrics.
 func (r *MatchResult) NumRollups() int { return len(r.rollups) }
 
 // MappingsAt returns the active mapping policies at a given time.
-func (r *MatchResult) MappingsAt(t time.Time) policy.PoliciesList {
-	return activePoliciesAt(r.mappings, t)
+func (r *MatchResult) MappingsAt(timeNanos int64) policy.PoliciesList {
+	return activePoliciesAt(r.mappings, timeNanos)
 }
 
-// RollupsAt returns the rollup metric id and corresponding policies at a given index and time.
-func (r *MatchResult) RollupsAt(idx int, t time.Time) RollupResult {
+// RollupsAt returns the rollup result at a given index and time, along with a boolean
+// flag that indicates whether the rollup metric has been tombstoned.
+func (r *MatchResult) RollupsAt(idx int, timeNanos int64) (RollupResult, bool) {
 	rollup := r.rollups[idx]
+	policiesList := activePoliciesAt(rollup.PoliciesList, timeNanos)
+	numPolicies := len(policiesList)
+	if numPolicies > 0 {
+		lastStagedPolicies := policiesList[numPolicies-1]
+		if lastStagedPolicies.Tombstoned && lastStagedPolicies.CutoverNanos <= timeNanos {
+			return emptyRollupResult, true
+		}
+	}
 	return RollupResult{
 		ID:           rollup.ID,
-		PoliciesList: activePoliciesAt(rollup.PoliciesList, t),
-	}
+		PoliciesList: policiesList,
+	}, false
 }
 
 // activePolicies returns the active policies at a given time, assuming
 // the input policies are sorted by cutover time in ascending order.
-func activePoliciesAt(policies policy.PoliciesList, t time.Time) policy.PoliciesList {
-	timeNanos := t.UnixNano()
+func activePoliciesAt(policies policy.PoliciesList, timeNanos int64) policy.PoliciesList {
 	for idx := len(policies) - 1; idx >= 0; idx-- {
 		if policies[idx].CutoverNanos <= timeNanos {
 			return policies[idx:]
