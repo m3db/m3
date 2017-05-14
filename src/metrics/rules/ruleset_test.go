@@ -161,7 +161,7 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 	for _, input := range inputs {
 		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
-		require.Equal(t, input.result, res.MappingsAt(time.Unix(0, 0)))
+		require.Equal(t, input.result, res.MappingsAt(0))
 	}
 }
 
@@ -323,8 +323,9 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, len(input.result), res.NumRollups())
 		for i := 0; i < len(input.result); i++ {
-			rollup := res.RollupsAt(i, time.Unix(0, 0))
+			rollup, tombstoned := res.RollupsAt(i, 0)
 			id, policies := rollup.ID, rollup.PoliciesList
+			require.False(t, tombstoned)
 			require.Equal(t, input.result[i].ID, id)
 			require.Equal(t, input.result[i].PoliciesList, policies)
 		}
@@ -695,15 +696,16 @@ func TestRuleSetActiveSet(t *testing.T) {
 		for _, input := range inputs.mappingInputs {
 			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
-			require.Equal(t, input.result, res.MappingsAt(time.Unix(0, 0)))
+			require.Equal(t, input.result, res.MappingsAt(0))
 		}
 		for _, input := range inputs.rollupInputs {
 			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.Equal(t, len(input.result), res.NumRollups())
 			for i := 0; i < len(input.result); i++ {
-				rollup := res.RollupsAt(i, time.Unix(0, 0))
+				rollup, tombstoned := res.RollupsAt(i, 0)
 				id, policies := rollup.ID, rollup.PoliciesList
+				require.False(t, tombstoned)
 				require.Equal(t, input.result[i].ID, id)
 				require.Equal(t, input.result[i].PoliciesList, policies)
 			}

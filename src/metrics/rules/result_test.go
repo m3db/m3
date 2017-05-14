@@ -32,8 +32,8 @@ import (
 
 func TestMatchResultHasExpired(t *testing.T) {
 	r := NewMatchResult(1000, nil, nil)
-	require.False(t, r.HasExpired(time.Unix(0, 0)))
-	require.True(t, r.HasExpired(time.Unix(0, 1000)))
+	require.False(t, r.HasExpired(0))
+	require.True(t, r.HasExpired(1000))
 }
 
 func TestMatchResult(t *testing.T) {
@@ -85,26 +85,36 @@ func TestMatchResult(t *testing.T) {
 				ID:           b("rName2|rtagName1=rtagValue1"),
 				PoliciesList: policy.PoliciesList{policy.NewStagedPolicies(12345, false, nil)},
 			},
+			{
+				ID: b("rName3|rtagName1=rtagValue2"),
+				PoliciesList: policy.PoliciesList{
+					policy.NewStagedPolicies(12345, false, nil),
+					policy.NewStagedPolicies(27000, true, nil),
+				},
+			},
 		}
 	)
 
 	inputs := []struct {
-		matchAt          time.Time
-		expectedMappings policy.PoliciesList
-		expectedRollups  []RollupResult
+		matchAtNanos       int64
+		expectedMappings   policy.PoliciesList
+		expectedRollups    []RollupResult
+		expectedTombstoned []bool
 	}{
 		{
-			matchAt:          time.Unix(0, 0),
-			expectedMappings: testResultMappings,
-			expectedRollups:  testResultRollups,
+			matchAtNanos:       0,
+			expectedMappings:   testResultMappings,
+			expectedRollups:    testResultRollups,
+			expectedTombstoned: []bool{false, false, false},
 		},
 		{
-			matchAt:          time.Unix(0, 20000),
-			expectedMappings: testResultMappings,
-			expectedRollups:  testResultRollups,
+			matchAtNanos:       20000,
+			expectedMappings:   testResultMappings,
+			expectedRollups:    testResultRollups,
+			expectedTombstoned: []bool{false, false, false},
 		},
 		{
-			matchAt: time.Unix(0, 30000),
+			matchAtNanos: 30000,
 			expectedMappings: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					23456,
@@ -133,16 +143,20 @@ func TestMatchResult(t *testing.T) {
 					ID:           b("rName2|rtagName1=rtagValue1"),
 					PoliciesList: policy.PoliciesList{policy.NewStagedPolicies(12345, false, nil)},
 				},
+				emptyRollupResult,
 			},
+			expectedTombstoned: []bool{false, false, true},
 		},
 	}
 
 	res := NewMatchResult(testExpireAtNanos, testResultMappings, testResultRollups)
 	for _, input := range inputs {
-		require.Equal(t, input.expectedMappings, res.MappingsAt(input.matchAt))
+		require.Equal(t, input.expectedMappings, res.MappingsAt(input.matchAtNanos))
 		require.Equal(t, len(input.expectedRollups), res.NumRollups())
 		for i := 0; i < len(input.expectedRollups); i++ {
-			require.Equal(t, input.expectedRollups[i], res.RollupsAt(i, input.matchAt))
+			rollupRes, tombstoned := res.RollupsAt(i, input.matchAtNanos)
+			require.Equal(t, input.expectedRollups[i], rollupRes)
+			require.Equal(t, input.expectedTombstoned[i], tombstoned)
 		}
 	}
 }
