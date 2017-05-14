@@ -129,6 +129,7 @@ func TestWatchAndUpdateFloat64(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	require.Equal(t, 12.3, valueFn())
 }
+
 func TestWatchAndUpdateInt64(t *testing.T) {
 	testConfig := struct {
 		sync.RWMutex
@@ -179,6 +180,58 @@ func TestWatchAndUpdateInt64(t *testing.T) {
 	// no longer receives update
 	time.Sleep(100 * time.Millisecond)
 	require.Equal(t, int64(12), valueFn())
+}
+
+func TestWatchAndUpdateString(t *testing.T) {
+	testConfig := struct {
+		sync.RWMutex
+		v string
+	}{}
+
+	valueFn := func() string {
+		testConfig.RLock()
+		defer testConfig.RUnlock()
+
+		return testConfig.v
+	}
+
+	store := mem.NewStore()
+
+	w, err := WatchAndUpdateString(store, "foo", &testConfig.v, &testConfig.RWMutex, "bar", nil)
+	require.NoError(t, err)
+
+	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 100})
+	require.NoError(t, err)
+	for {
+		if valueFn() == "bar" {
+			break
+		}
+	}
+
+	_, err = store.Set("foo", &commonpb.StringProto{Value: "baz"})
+	require.NoError(t, err)
+	for {
+		if valueFn() == "baz" {
+			break
+		}
+	}
+
+	_, err = store.Delete("foo")
+	require.NoError(t, err)
+	for {
+		if valueFn() == "bar" {
+			break
+		}
+	}
+
+	w.Close()
+
+	_, err = store.Set("foo", &commonpb.StringProto{Value: "lol"})
+	require.NoError(t, err)
+
+	// no longer receives update
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, "bar", valueFn())
 }
 
 func TestWatchAndUpdateTime(t *testing.T) {
