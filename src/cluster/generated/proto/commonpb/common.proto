@@ -36,3 +36,8 @@ message Int64Proto {
 message StringArrayProto {
 	repeated string values = 1;
 }
+
+message StringProto {
+	string value = 1;
+}
+

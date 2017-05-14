@@ -39,6 +39,14 @@ func WatchAndUpdateInt64(store kv.Store, key string, property *int64, lock sync.
 	return watchAndUpdate(store, key, getInt64, updateFn, defaultValue, logger)
 }
 
+// WatchAndUpdateString sets up a watch for an string property.
+func WatchAndUpdateString(store kv.Store, key string, property *string, lock sync.Locker,
+	defaultValue string, logger xlog.Logger) (kv.ValueWatch, error) {
+	updateFn := lockedUpdate(func(i interface{}) { *property = i.(string) }, lock)
+
+	return watchAndUpdate(store, key, getString, updateFn, defaultValue, logger)
+}
+
 // WatchAndUpdateTime sets up a watch for a time property.
 func WatchAndUpdateTime(store kv.Store, key string, property *time.Time, lock sync.Locker,
 	defaultValue time.Time, logger xlog.Logger) (kv.ValueWatch, error) {
@@ -73,6 +81,16 @@ func Int64FromValue(v kv.Value, key string, defaultValue int64, logger xlog.Logg
 	updateFn := func(i interface{}) { res = i.(int64) }
 
 	updateWithKV(getInt64, updateFn, key, v, defaultValue, logger)
+
+	return res
+}
+
+// StringFromValue gets an string from kv.Value
+func StringFromValue(v kv.Value, key string, defaultValue string, logger xlog.Logger) string {
+	var res string
+	updateFn := func(i interface{}) { res = i.(string) }
+
+	updateWithKV(getString, updateFn, key, v, defaultValue, logger)
 
 	return res
 }
@@ -120,6 +138,15 @@ func getInt64(v kv.Value) (interface{}, error) {
 	}
 
 	return int64Proto.Value, nil
+}
+
+func getString(v kv.Value) (interface{}, error) {
+	var stringProto commonpb.StringProto
+	if err := v.Unmarshal(&stringProto); err != nil {
+		return 0, err
+	}
+
+	return stringProto.Value, nil
 }
 
 func getStringArray(v kv.Value) (interface{}, error) {
