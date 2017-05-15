@@ -97,8 +97,7 @@ func (ph *placementHelper) MoveShard(candidateShard shard.Shard, from, to servic
 		return false
 	}
 
-	newShard := shard.NewShard(candidateShard.ID())
-	newShard.SetState(shard.Initializing)
+	newShard := shard.NewShard(candidateShard.ID()).SetState(shard.Initializing)
 
 	if from != nil {
 		if candidateShard.State() == shard.Initializing {

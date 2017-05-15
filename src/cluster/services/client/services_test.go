@@ -335,10 +335,10 @@ func TestQueryIncludeUnhealthy(t *testing.T) {
 	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i1").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 		placement.NewInstance().
 			SetID("i2").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
 	ps, err := newPlacementStorage(opts)
@@ -376,10 +376,10 @@ func TestQueryNotIncludeUnhealthy(t *testing.T) {
 	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i1").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 		placement.NewInstance().
 			SetID("i2").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
 	ps, err := newPlacementStorage(opts)
@@ -437,11 +437,11 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 			placement.NewInstance().
 				SetID("i2").
 				SetEndpoint("e2").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 		}).
 		SetShards([]uint32{1}).
 		SetReplicaFactor(2).
@@ -465,11 +465,11 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 			placement.NewInstance().
 				SetID("i2").
 				SetEndpoint("e2").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(2)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(2).SetState(shard.Initializing)})),
 		}).
 		SetShards([]uint32{1, 2}).
 		SetReplicaFactor(1).
@@ -528,7 +528,7 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0).SetState(shard.Initializing)})),
 		}).
 		SetShards([]uint32{0}).
 		SetReplicaFactor(1).
@@ -569,11 +569,11 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 			placement.NewInstance().
 				SetID("i2").
 				SetEndpoint("e2").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 		}).
 		SetShards([]uint32{1}).
 		SetReplicaFactor(2).
@@ -699,7 +699,7 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0).SetState(shard.Initializing)})),
 		}).
 		SetShards([]uint32{0}).
 		SetReplicaFactor(1).
@@ -727,10 +727,10 @@ func TestMultipleWatches(t *testing.T) {
 	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i1").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 		placement.NewInstance().
 			SetID("i2").
-			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
 	ps, err := newPlacementStorage(opts)
@@ -815,11 +815,11 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 			placement.NewInstance().
 				SetID("i2").
 				SetEndpoint("e2").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 		}).
 		SetShards([]uint32{1}).
 		SetReplicaFactor(2).
@@ -854,7 +854,7 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
-				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0)})),
+				SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0).SetState(shard.Initializing)})),
 		}).
 		SetShards([]uint32{0}).
 		SetReplicaFactor(1).

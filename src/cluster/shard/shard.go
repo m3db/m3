@@ -30,8 +30,10 @@ import (
 type State int
 
 const (
+	// Unknown represents a shard in unknown state
+	Unknown State = iota
 	// Initializing represents a shard newly assigned to an instance
-	Initializing State = iota
+	Initializing
 	// Available represents a shard bootstraped and ready to serve
 	Available
 	// Leaving represents a shard that is intending to be removed
@@ -45,19 +47,6 @@ func States() []State {
 		Available,
 		Leaving,
 	}
-}
-
-// String returns the string representation of the state
-func (s State) String() string {
-	switch s {
-	case Initializing:
-		return "Initializing"
-	case Available:
-		return "Available"
-	case Leaving:
-		return "Leaving"
-	}
-	return "Unknown"
 }
 
 // A Shard represents a piece of data owned by the service
@@ -79,7 +68,7 @@ type Shard interface {
 }
 
 // NewShard returns a new Shard
-func NewShard(id uint32) Shard { return &shard{id: id, state: Initializing} }
+func NewShard(id uint32) Shard { return &shard{id: id, state: Unknown} }
 
 type shard struct {
 	id       uint32
