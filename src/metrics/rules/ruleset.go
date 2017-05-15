@@ -125,17 +125,6 @@ func (as *activeRuleSet) matchMappings(id []byte, timeNanos int64) policy.Staged
 		if snapshot == nil {
 			continue
 		}
-		// NB(xichen): if the snapshot is tombstoned, we don't perform id matching with it.
-		// However, because it may affect the final resolved policies for this id, we need
-		// to update the cutover time. This is okay even though the tombstoned snapshot doesn't
-		// match the id because the cutover time of the result policies only needs to be best effort
-		// as long as it is before the time passed in.
-		if snapshot.tombstoned {
-			if cutoverNanos < snapshot.cutoverNanos {
-				cutoverNanos = snapshot.cutoverNanos
-			}
-			continue
-		}
 		if !snapshot.filter.Matches(id) {
 			continue
 		}
@@ -144,7 +133,7 @@ func (as *activeRuleSet) matchMappings(id []byte, timeNanos int64) policy.Staged
 		}
 		policies = append(policies, snapshot.policies...)
 	}
-	if len(policies) == 0 {
+	if cutoverNanos == 0 && len(policies) == 0 {
 		return policy.DefaultStagedPolicies
 	}
 	resolved := resolvePolicies(policies)
@@ -160,12 +149,6 @@ func (as *activeRuleSet) matchRollups(id []byte, timeNanos int64) []RollupResult
 	for _, rollupRule := range as.rollupRules {
 		snapshot := rollupRule.ActiveSnapshot(timeNanos)
 		if snapshot == nil {
-			continue
-		}
-		if snapshot.tombstoned {
-			if cutoverNanos < snapshot.cutoverNanos {
-				cutoverNanos = snapshot.cutoverNanos
-			}
 			continue
 		}
 		if !snapshot.filter.Matches(id) {
