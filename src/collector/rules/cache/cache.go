@@ -193,12 +193,12 @@ func (c *cache) tryGetWithLock(
 	if exists {
 		now := c.nowFn()
 		res = elem.result
-		latest := now.Add(c.maxPositiveSkew)
+		latestNanos := now.Add(c.maxPositiveSkew).UnixNano()
 		// NB(xichen): the cached match result expires when a new rule takes effect.
 		// Because we handle clock skews by matching all policies within
 		// [now - max_negative_skew, now + max_positive_skew), the cached result expires
 		// as soon as now + max_positive_skew reaches the cutover time of the next rule.
-		if !res.HasExpired(latest) {
+		if !res.HasExpired(latestNanos) {
 			// NB(xichen): in order to avoid the overhead acquiring an exclusive
 			// lock to perform a promotion to move the element to the front of the
 			// list, we set an expiry time for each promotion and do not perform
