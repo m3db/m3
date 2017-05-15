@@ -518,7 +518,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
-							35000,
+							24000,
 							false,
 							[]policy.Policy{
 								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
@@ -566,7 +566,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 							ID: b("rName3|rtagName1=rtagValue2"),
 							PoliciesList: policy.PoliciesList{
 								policy.NewStagedPolicies(
-									35000,
+									24000,
 									false,
 									[]policy.Policy{
 										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
@@ -610,7 +610,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					expireAtNanos: timeNanosMax,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
-							35000,
+							24000,
 							false,
 							[]policy.Policy{
 								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
@@ -670,7 +670,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 							ID: b("rName3|rtagName1=rtagValue2"),
 							PoliciesList: policy.PoliciesList{
 								policy.NewStagedPolicies(
-									35000,
+									24000,
 									false,
 									[]policy.Policy{
 										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
@@ -1229,17 +1229,7 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					Tombstoned:  true,
 					CutoverTime: 35000,
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
-					Policies: []*schema.Policy{
-						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(45 * time.Second),
-								Precision:  int64(time.Second),
-							},
-							Retention: &schema.Retention{
-								Period: int64(12 * time.Hour),
-							},
-						},
-					},
+					Policies:    nil,
 				},
 			},
 		},
@@ -1531,23 +1521,7 @@ func testRollupRulesConfig() []*schema.RollupRule {
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
 					},
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
-							Name: "rName1",
-							Tags: []string{"rtagName1", "rtagName2"},
-							Policies: []*schema.Policy{
-								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(45 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(12 * time.Hour),
-									},
-								},
-							},
-						},
-					},
+					Targets: nil,
 				},
 			},
 		},
