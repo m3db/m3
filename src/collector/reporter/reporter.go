@@ -21,6 +21,8 @@
 package reporter
 
 import (
+	"time"
+
 	"github.com/m3db/m3collector/backend"
 	"github.com/m3db/m3collector/rules"
 	"github.com/m3db/m3metrics/metric/id"
@@ -47,9 +49,10 @@ type Reporter interface {
 }
 
 type reporter struct {
-	matcher rules.Matcher
-	server  backend.Server
-	nowFn   clock.NowFn
+	matcher         rules.Matcher
+	server          backend.Server
+	nowFn           clock.NowFn
+	maxNegativeSkew time.Duration
 }
 
 // NewReporter creates a new reporter.
@@ -59,21 +62,25 @@ func NewReporter(
 	clockOpts clock.Options,
 ) Reporter {
 	return &reporter{
-		matcher: matcher,
-		server:  server,
-		nowFn:   clockOpts.NowFn(),
+		matcher:         matcher,
+		server:          server,
+		nowFn:           clockOpts.NowFn(),
+		maxNegativeSkew: clockOpts.MaxNegativeSkew(),
 	}
 }
 
 func (r *reporter) ReportCounter(id id.ID, value int64) error {
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
-	now := r.nowFn()
-	if err := r.server.WriteCounterWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(now)); err != nil {
+	earliestNanos := r.nowFn().Add(-r.maxNegativeSkew).UnixNano()
+	if err := r.server.WriteCounterWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(earliestNanos)); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	for idx := 0; idx < matchRes.NumRollups(); idx++ {
-		rollup := matchRes.RollupsAt(idx, now)
+		rollup, tombstoned := matchRes.RollupsAt(idx, earliestNanos)
+		if tombstoned {
+			continue
+		}
 		if err := r.server.WriteCounterWithPoliciesList(rollup.ID, value, rollup.PoliciesList); err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -84,12 +91,15 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
-	now := r.nowFn()
-	if err := r.server.WriteBatchTimerWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(now)); err != nil {
+	earliestNanos := r.nowFn().Add(-r.maxNegativeSkew).UnixNano()
+	if err := r.server.WriteBatchTimerWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(earliestNanos)); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	for idx := 0; idx < matchRes.NumRollups(); idx++ {
-		rollup := matchRes.RollupsAt(idx, now)
+		rollup, tombstoned := matchRes.RollupsAt(idx, earliestNanos)
+		if tombstoned {
+			continue
+		}
 		if err := r.server.WriteBatchTimerWithPoliciesList(rollup.ID, value, rollup.PoliciesList); err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -100,12 +110,15 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 func (r *reporter) ReportGauge(id id.ID, value float64) error {
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
-	now := r.nowFn()
-	if err := r.server.WriteGaugeWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(now)); err != nil {
+	earliestNanos := r.nowFn().Add(-r.maxNegativeSkew).UnixNano()
+	if err := r.server.WriteGaugeWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(earliestNanos)); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	for idx := 0; idx < matchRes.NumRollups(); idx++ {
-		rollup := matchRes.RollupsAt(idx, now)
+		rollup, tombstoned := matchRes.RollupsAt(idx, earliestNanos)
+		if tombstoned {
+			continue
+		}
 		if err := r.server.WriteGaugeWithPoliciesList(rollup.ID, value, rollup.PoliciesList); err != nil {
 			multiErr = multiErr.Add(err)
 		}

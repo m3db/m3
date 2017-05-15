@@ -108,12 +108,11 @@ func TestReporterReportCounterPartialError(t *testing.T) {
 		clock.NewOptions(),
 	)
 	require.Error(t, reporter.ReportCounter(mockID("counter"), 1234))
-	require.Equal(t, []string{"counter", "foo", "bar"}, ids)
-	require.Equal(t, []int64{1234, 1234, 1234}, vals)
+	require.Equal(t, []string{"counter", "foo"}, ids)
+	require.Equal(t, []int64{1234, 1234}, vals)
 	require.Equal(t, policy.PoliciesList{
 		testMappingPoliciesList[1],
 		testRollupResults[0].PoliciesList[0],
-		testRollupResults[1].PoliciesList[1],
 	}, policiesList)
 }
 
@@ -138,12 +137,11 @@ func TestReporterReportBatchTimerPartialError(t *testing.T) {
 		clock.NewOptions(),
 	)
 	require.Error(t, reporter.ReportBatchTimer(mockID("batchTimer"), []float64{1.3, 2.4}))
-	require.Equal(t, []string{"batchTimer", "foo", "bar"}, ids)
-	require.Equal(t, [][]float64{{1.3, 2.4}, {1.3, 2.4}, {1.3, 2.4}}, vals)
+	require.Equal(t, []string{"batchTimer", "foo"}, ids)
+	require.Equal(t, [][]float64{{1.3, 2.4}, {1.3, 2.4}}, vals)
 	require.Equal(t, policy.PoliciesList{
 		testMappingPoliciesList[1],
 		testRollupResults[0].PoliciesList[0],
-		testRollupResults[1].PoliciesList[1],
 	}, policiesList)
 }
 
@@ -168,12 +166,11 @@ func TestReporterReportGaugePartialError(t *testing.T) {
 		clock.NewOptions(),
 	)
 	require.Error(t, reporter.ReportGauge(mockID("gauge"), 1.8))
-	require.Equal(t, []string{"gauge", "foo", "bar"}, ids)
-	require.Equal(t, []float64{1.8, 1.8, 1.8}, vals)
+	require.Equal(t, []string{"gauge", "foo"}, ids)
+	require.Equal(t, []float64{1.8, 1.8}, vals)
 	require.Equal(t, policy.PoliciesList{
 		testMappingPoliciesList[1],
 		testRollupResults[0].PoliciesList[0],
-		testRollupResults[1].PoliciesList[1],
 	}, policiesList)
 }
 
