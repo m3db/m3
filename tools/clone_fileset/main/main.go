@@ -8,14 +8,12 @@ import (
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/checked"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
 const (
-	defaultBufferReadSize  = 10
 	defaultBufferSize      = 4096
 	defaultBufferCapacity  = 256
 	defaultBufferPoolCount = 3145728
@@ -51,7 +49,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	checked.EnableLeakDetection()
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: defaultBufferCapacity,
 		Count:    defaultBufferPoolCount,
@@ -60,11 +57,13 @@ func main() {
 	})
 	bytesPool.Init()
 
+	log.Infof("source: [ path-prefix = %s, namespace = %s, shard-id = %d, block-start = %d ]", *optSrcPathPrefix, *optSrcNamespace, *optSrcShard, *optSrcBlockstart)
 	reader := fs.NewReader(*optSrcPathPrefix, defaultBufferSize, bytesPool, msgpack.NewDecodingOptions())
 	if err := reader.Open(ts.StringID(*optSrcNamespace), uint32(*optSrcShard), xtime.FromNanoseconds(*optSrcBlockstart)); err != nil {
 		log.Fatalf("unable to read source fileset: %v", err)
 	}
 
+	log.Infof("destination: [ path-prefix = %s, namespace = %s, shard-id = %d, block-start = %d ]", *optDestPathPrefix, *optDestNamespace, *optDestShard, *optDestBlockstart)
 	writer := fs.NewWriter(*optDestBlockSize, *optDestPathPrefix, defaultBufferSize, targetFileMode, targetDirMode)
 	if err := writer.Open(ts.StringID(*optDestNamespace), uint32(*optDestShard), xtime.FromNanoseconds(*optDestBlockstart)); err != nil {
 		log.Fatalf("unable to open fileset writer: %v", err)
@@ -74,7 +73,6 @@ func main() {
 		id, data, checksum, err := reader.Read()
 		if err != nil {
 			if err == io.EOF {
-				log.Infof("successfully finished iterating file contents")
 				break
 			}
 			log.Fatalf("unexpected error while reading data: %v", err)
@@ -96,4 +94,5 @@ func main() {
 		log.Fatalf("unable to finalize reader: %v", err)
 	}
 
+	log.Infof("successfully cloned data")
 }
