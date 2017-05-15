@@ -8,8 +8,17 @@ import (
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
+	xtime "github.com/m3db/m3x/time"
+)
+
+const (
+	defaultBufferReadSize  = 10
+	defaultBufferSize      = 4096
+	defaultBufferCapacity  = 256
+	defaultBufferPoolCount = 3145728
 )
 
 var (
@@ -22,16 +31,12 @@ var (
 	optDestShard      = flag.Uint("dest-shard-id", 0, "Destination Shard ID")
 	optDestBlockstart = flag.Int64("dest-block-start", 0, "Destination Block Start Time [in nsec]")
 	optDestBlockSize  = flag.Duration("dest-block-size", 0, "Destination Block Size")
-	targetFileMode    = os.FileMode(0666)
-	targetDirMode     = os.ModeDir | os.FileMode(0755)
-	log               = xlog.NewLogger(os.Stderr)
 )
 
-const (
-	defaultBufferReadSize  = 10
-	defaultBufferSize      = 4096
-	defaultBufferCapacity  = 1024 * 1024 * 1024
-	defaultBufferPoolCount = 10
+var (
+	targetFileMode = os.FileMode(0666)
+	targetDirMode  = os.ModeDir | os.FileMode(0755)
+	log            = xlog.NewLogger(os.Stderr)
 )
 
 func main() {
@@ -46,6 +51,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	checked.EnableLeakDetection()
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: defaultBufferCapacity,
 		Count:    defaultBufferPoolCount,
@@ -74,9 +80,12 @@ func main() {
 			log.Fatalf("unexpected error while reading data: %v", err)
 		}
 
+		data.IncRef()
 		if err := writer.Write(id, data, checksum); err != nil {
 			log.Fatalf("unexpected error while writing data: %v", err)
 		}
+		data.DecRef()
+		data.Finalize()
 	}
 
 	if err := writer.Close(); err != nil {
