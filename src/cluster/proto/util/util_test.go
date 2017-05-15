@@ -212,6 +212,12 @@ func TestPlacementInstanceToProto(t *testing.T) {
 	assert.Equal(t, expInstance, instanceProto)
 }
 
+func TestShardStateToProtoError(t *testing.T) {
+	s, err := shardStateToProto(shard.Unknown)
+	assert.Error(t, err)
+	assert.Equal(t, placementproto.ShardState_INITIALIZING, s)
+}
+
 func getProtoShards(ids []uint32) []*placementproto.Shard {
 	r := make([]*placementproto.Shard, len(ids))
 	for i, id := range ids {
