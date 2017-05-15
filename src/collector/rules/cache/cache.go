@@ -30,6 +30,8 @@ import (
 	mrules "github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/id"
+
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -61,6 +63,30 @@ func newResults(source rules.Source) results {
 	return results{elems: make(elemMap), source: source}
 }
 
+type cacheMetrics struct {
+	hits        tally.Counter
+	misses      tally.Counter
+	expires     tally.Counter
+	registers   tally.Counter
+	unregisters tally.Counter
+	promotions  tally.Counter
+	evictions   tally.Counter
+	deletions   tally.Counter
+}
+
+func newCacheMetrics(scope tally.Scope) cacheMetrics {
+	return cacheMetrics{
+		hits:        scope.Counter("hits"),
+		misses:      scope.Counter("misses"),
+		expires:     scope.Counter("expires"),
+		registers:   scope.Counter("registers"),
+		unregisters: scope.Counter("unregisters"),
+		promotions:  scope.Counter("promotions"),
+		evictions:   scope.Counter("evictions"),
+		deletions:   scope.Counter("deletions"),
+	}
+}
+
 // cache is an LRU-based read-through cache.
 type cache struct {
 	sync.RWMutex
@@ -84,11 +110,13 @@ type cache struct {
 	wgWorker   sync.WaitGroup
 	closed     bool
 	closedCh   chan struct{}
+	metrics    cacheMetrics
 }
 
 // NewCache creates a new cache.
 func NewCache(opts Options) rules.Cache {
 	clockOpts := opts.ClockOptions()
+	instrumentOpts := opts.InstrumentOptions()
 	c := &cache{
 		capacity:          opts.Capacity(),
 		nowFn:             clockOpts.NowFn(),
@@ -104,6 +132,7 @@ func NewCache(opts Options) rules.Cache {
 		evictCh:           make(chan struct{}, 1),
 		deleteCh:          make(chan struct{}, 1),
 		closedCh:          make(chan struct{}),
+		metrics:           newCacheMetrics(instrumentOpts.MetricsScope()),
 	}
 
 	c.wgWorker.Add(numOngoingTasks)
@@ -143,6 +172,7 @@ func (c *cache) Register(namespace []byte, source rules.Source) {
 	}
 	c.namespaces[nsHash] = results
 	c.Unlock()
+	c.metrics.registers.Inc(1)
 }
 
 func (c *cache) Unregister(namespace []byte) {
@@ -158,6 +188,7 @@ func (c *cache) Unregister(namespace []byte) {
 	c.Unlock()
 
 	c.notifyDeletion()
+	c.metrics.unregisters.Inc(1)
 }
 
 func (c *cache) Close() error {
@@ -186,6 +217,7 @@ func (c *cache) tryGetWithLock(
 	nsHash := xid.HashFn(namespace)
 	results, exists := c.namespaces[nsHash]
 	if !exists {
+		c.metrics.hits.Inc(1)
 		return res, true
 	}
 	idHash := xid.HashFn(id)
@@ -210,8 +242,10 @@ func (c *cache) tryGetWithLock(
 			if elem.ShouldPromote(now) {
 				c.promote(now, elem)
 			}
+			c.metrics.hits.Inc(1)
 			return res, true
 		}
+		c.metrics.expires.Inc(1)
 	}
 	if setType == dontSetIfNotFound {
 		return res, false
@@ -247,6 +281,7 @@ func (c *cache) setWithLock(
 	if newSize := c.add(newElem); newSize > c.capacity+c.evictionBatchSize {
 		c.notifyEviction()
 	}
+	c.metrics.misses.Inc(1)
 	return res
 }
 
@@ -269,6 +304,7 @@ func (c *cache) promote(now time.Time, elem *element) {
 	elem.SetPromotionExpiry(c.newPromotionExpiry(now))
 	c.list.MoveToFront(elem)
 	c.list.Unlock()
+	c.metrics.promotions.Inc(1)
 }
 
 func (c *cache) invalidateWithLock(nsHash xid.Hash, idHash xid.Hash, results results) results {
@@ -303,9 +339,11 @@ func (c *cache) evict() {
 func (c *cache) doEvict() {
 	c.Lock()
 	c.list.Lock()
+	numEvicted := 0
 	for c.list.Len() > c.capacity {
 		elem := c.list.Back()
 		c.list.Remove(elem)
+		numEvicted++
 		// NB(xichen): the namespace owning this element may have been deleted,
 		// in which case we simply continue. This is okay because the deleted element
 		// will be marked as deleted so when the deletion goroutine sees and tries to
@@ -319,6 +357,7 @@ func (c *cache) doEvict() {
 	}
 	c.list.Unlock()
 	c.Unlock()
+	c.metrics.evictions.Inc(int64(numEvicted))
 }
 
 func (c *cache) delete() {
@@ -346,11 +385,13 @@ func (c *cache) doDelete() {
 	c.toDelete = nil
 	c.Unlock()
 
+	allDeleted := 0
 	deleted := 0
 	c.list.Lock()
 	for _, elems := range toDelete {
 		for _, elem := range elems {
 			c.list.Remove(elem)
+			allDeleted++
 			deleted++
 			// If we have deleted enough elements, release the lock
 			// and give other goroutines a chance to acquire the lock
@@ -364,6 +405,7 @@ func (c *cache) doDelete() {
 		}
 	}
 	c.list.Unlock()
+	c.metrics.deletions.Inc(int64(allDeleted))
 }
 
 func (c *cache) notifyEviction() {

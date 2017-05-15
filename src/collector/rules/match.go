@@ -47,17 +47,20 @@ type matcher struct {
 
 // NewMatcher creates a new rule matcher.
 func NewMatcher(cache Cache, opts Options) (Matcher, error) {
+	scope := opts.InstrumentOptions().MetricsScope()
 	key := opts.NamespacesKey()
 	namespaces := newNamespaces(key, cache, opts)
 	if err := namespaces.Watch(); err != nil {
 		errCreateWatch, ok := err.(runtime.CreateWatchError)
 		if ok {
+			scope.Counter("create-watch-errors").Inc(1)
 			return nil, errCreateWatch
 		}
 		// NB(xichen): we managed to watch the key but weren't able
 		// to initialize the value. In this case, log the error instead
 		// to be more resilient to error conditions preventing process
 		// from starting up.
+		scope.Counter("init-watch-errors").Inc(1)
 		log := opts.InstrumentOptions().Logger()
 		log.WithFields(
 			xlog.NewLogField("key", key),
