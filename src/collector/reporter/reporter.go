@@ -28,6 +28,9 @@ import (
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
+
+	"github.com/uber-go/tally"
 )
 
 // Reporter reports aggregated metrics.
@@ -48,28 +51,49 @@ type Reporter interface {
 	Close() error
 }
 
+type reporterMetrics struct {
+	reportCounter    instrument.MethodMetrics
+	reportBatchTimer instrument.MethodMetrics
+	reportGauge      instrument.MethodMetrics
+	flush            instrument.MethodMetrics
+}
+
+func newReporterMetrics(scope tally.Scope, samplingRate float64) reporterMetrics {
+	return reporterMetrics{
+		reportCounter:    instrument.NewMethodMetrics(scope, "report-counter", samplingRate),
+		reportBatchTimer: instrument.NewMethodMetrics(scope, "report-batch-timer", samplingRate),
+		reportGauge:      instrument.NewMethodMetrics(scope, "report-gauge", samplingRate),
+		flush:            instrument.NewMethodMetrics(scope, "flush", samplingRate),
+	}
+}
+
 type reporter struct {
 	matcher         rules.Matcher
 	server          backend.Server
 	nowFn           clock.NowFn
 	maxNegativeSkew time.Duration
+	metrics         reporterMetrics
 }
 
 // NewReporter creates a new reporter.
 func NewReporter(
 	matcher rules.Matcher,
 	server backend.Server,
-	clockOpts clock.Options,
+	opts Options,
 ) Reporter {
+	clockOpts := opts.ClockOptions()
+	instrumentOpts := opts.InstrumentOptions()
 	return &reporter{
 		matcher:         matcher,
 		server:          server,
 		nowFn:           clockOpts.NowFn(),
 		maxNegativeSkew: clockOpts.MaxNegativeSkew(),
+		metrics:         newReporterMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
 	}
 }
 
 func (r *reporter) ReportCounter(id id.ID, value int64) error {
+	callStart := r.nowFn()
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
 	earliestNanos := r.nowFn().Add(-r.maxNegativeSkew).UnixNano()
@@ -85,10 +109,13 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 			multiErr = multiErr.Add(err)
 		}
 	}
-	return multiErr.FinalError()
+	err := multiErr.FinalError()
+	r.metrics.reportCounter.ReportSuccessOrError(err, r.nowFn().Sub(callStart))
+	return err
 }
 
 func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
+	callStart := r.nowFn()
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
 	earliestNanos := r.nowFn().Add(-r.maxNegativeSkew).UnixNano()
@@ -104,10 +131,13 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 			multiErr = multiErr.Add(err)
 		}
 	}
-	return multiErr.FinalError()
+	err := multiErr.FinalError()
+	r.metrics.reportBatchTimer.ReportSuccessOrError(err, r.nowFn().Sub(callStart))
+	return err
 }
 
 func (r *reporter) ReportGauge(id id.ID, value float64) error {
+	callStart := r.nowFn()
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
 	earliestNanos := r.nowFn().Add(-r.maxNegativeSkew).UnixNano()
@@ -123,11 +153,16 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 			multiErr = multiErr.Add(err)
 		}
 	}
-	return multiErr.FinalError()
+	err := multiErr.FinalError()
+	r.metrics.reportGauge.ReportSuccessOrError(err, r.nowFn().Sub(callStart))
+	return err
 }
 
 func (r *reporter) Flush() error {
-	return r.server.Flush()
+	callStart := r.nowFn()
+	err := r.server.Flush()
+	r.metrics.flush.ReportSuccessOrError(err, r.nowFn().Sub(callStart))
+	return err
 }
 
 func (r *reporter) Close() error {

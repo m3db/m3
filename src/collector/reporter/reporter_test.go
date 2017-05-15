@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -105,7 +104,7 @@ func TestReporterReportCounterPartialError(t *testing.T) {
 				return errTestWriteCounterWithPolicies
 			},
 		},
-		clock.NewOptions(),
+		testReporterOptions(),
 	)
 	require.Error(t, reporter.ReportCounter(mockID("counter"), 1234))
 	require.Equal(t, []string{"counter", "foo"}, ids)
@@ -134,7 +133,7 @@ func TestReporterReportBatchTimerPartialError(t *testing.T) {
 				return errTestWriteBatchTimerWithPolicies
 			},
 		},
-		clock.NewOptions(),
+		testReporterOptions(),
 	)
 	require.Error(t, reporter.ReportBatchTimer(mockID("batchTimer"), []float64{1.3, 2.4}))
 	require.Equal(t, []string{"batchTimer", "foo"}, ids)
@@ -163,7 +162,7 @@ func TestReporterReportGaugePartialError(t *testing.T) {
 				return errTestWriteGaugeWithPolicies
 			},
 		},
-		clock.NewOptions(),
+		testReporterOptions(),
 	)
 	require.Error(t, reporter.ReportGauge(mockID("gauge"), 1.8))
 	require.Equal(t, []string{"gauge", "foo"}, ids)
@@ -178,14 +177,18 @@ func TestReporterFlush(t *testing.T) {
 	var numFlushes int
 	reporter := NewReporter(&mockMatcher{}, &mockServer{
 		flushFn: func() error { numFlushes++; return nil },
-	}, clock.NewOptions())
+	}, testReporterOptions())
 	require.NoError(t, reporter.Flush())
 	require.Equal(t, 1, numFlushes)
 }
 
 func TestReporterClose(t *testing.T) {
-	reporter := NewReporter(&mockMatcher{}, &mockServer{}, clock.NewOptions())
+	reporter := NewReporter(&mockMatcher{}, &mockServer{}, testReporterOptions())
 	require.Error(t, reporter.Close())
+}
+
+func testReporterOptions() Options {
+	return NewOptions()
 }
 
 type mockID []byte

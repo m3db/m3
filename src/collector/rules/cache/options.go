@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/instrument"
 )
 
 // InvalidationMode is the invalidation mode.
@@ -53,6 +54,12 @@ type Options interface {
 
 	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
 
 	// SetCapacity sets the cache capacity.
 	SetCapacity(value int) Options
@@ -93,6 +100,7 @@ type Options interface {
 
 type options struct {
 	clockOpts         clock.Options
+	instrumentOpts    instrument.Options
 	capacity          int
 	freshDuration     time.Duration
 	stutterDuration   time.Duration
@@ -105,6 +113,7 @@ type options struct {
 func NewOptions() Options {
 	return &options{
 		clockOpts:         clock.NewOptions(),
+		instrumentOpts:    instrument.NewOptions(),
 		capacity:          defaultCapacity,
 		freshDuration:     defaultFreshDuration,
 		stutterDuration:   defaultStutterDuration,
@@ -122,6 +131,16 @@ func (o *options) SetClockOptions(value clock.Options) Options {
 
 func (o *options) ClockOptions() clock.Options {
 	return o.clockOpts
+}
+
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
+	opts := *o
+	opts.instrumentOpts = value
+	return &opts
+}
+
+func (o *options) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
 }
 
 func (o *options) SetCapacity(value int) Options {
