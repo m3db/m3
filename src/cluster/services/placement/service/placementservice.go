@@ -396,7 +396,7 @@ func (ps placementService) findReplaceInstance(
 	for rack, instancesInRack := range rackMap {
 		conflicts := 0
 		for _, s := range leaving.Shards().All() {
-			if !ph.HasNoRackConflict(s.ID(), leaving, rack) {
+			if ph.HasRackConflict(s.ID(), leaving, rack) {
 				conflicts++
 			}
 		}

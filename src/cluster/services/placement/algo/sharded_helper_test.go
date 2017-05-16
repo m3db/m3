@@ -47,14 +47,14 @@ func TestMoveInitializingShard(t *testing.T) {
 	// move an Initializing shard
 	s3, ok := i3.Shards().Shard(3)
 	assert.True(t, ok)
-	assert.True(t, ph.MoveShard(s3, i3, i2))
+	assert.True(t, ph.moveShard(s3, i3, i2))
 	_, ok = i3.Shards().Shard(3)
 	assert.False(t, ok)
 	// i2 now owns it
 	s3, ok = i2.Shards().Shard(3)
 	assert.True(t, ok)
 	assert.Equal(t, "i1", s3.SourceID())
-	assert.Equal(t, shard.Initializing, s3.State())
+	assert.Equal(t, shard.Unknown, s3.State())
 }
 
 func TestMoveInitializingShardBackToSource(t *testing.T) {
@@ -70,7 +70,7 @@ func TestMoveInitializingShardBackToSource(t *testing.T) {
 
 	s1, ok := i2.Shards().Shard(1)
 	assert.True(t, ok)
-	assert.True(t, ph.MoveShard(s1, i2, i1))
+	assert.True(t, ph.moveShard(s1, i2, i1))
 	_, ok = i2.Shards().Shard(1)
 	assert.False(t, ok)
 	// i1 now owns it
@@ -98,7 +98,7 @@ func TestMoveLeavingShard(t *testing.T) {
 	// make sure Leaving shard could not be moved
 	s3, ok := i1.Shards().Shard(3)
 	assert.True(t, ok)
-	assert.False(t, ph.MoveShard(s3, i1, i2))
+	assert.False(t, ph.moveShard(s3, i1, i2))
 }
 
 func TestMoveAvailableShard(t *testing.T) {
@@ -117,12 +117,12 @@ func TestMoveAvailableShard(t *testing.T) {
 
 	s3, ok := i3.Shards().Shard(3)
 	assert.True(t, ok)
-	assert.True(t, ph.MoveShard(s3, i3, i2))
+	assert.True(t, ph.moveShard(s3, i3, i2))
 	assert.Equal(t, shard.Leaving, s3.State())
 	assert.Equal(t, "", s3.SourceID())
 	s3, ok = i2.Shards().Shard(3)
 	assert.True(t, ok)
-	assert.Equal(t, shard.Initializing, s3.State())
+	assert.Equal(t, shard.Unknown, s3.State())
 	assert.Equal(t, "i3", s3.SourceID())
 }
 
@@ -307,8 +307,7 @@ func TestReturnInitShardToSource(t *testing.T) {
 		placement.NewOptions(),
 	).(*placementHelper)
 
-	err := ph.returnInitializingShardsToSource(getShardMap(i1.Shards().All()), i1)
-	assert.NoError(t, err)
+	ph.returnInitializingShardsToSource(getShardMap(i1.Shards().All()), i1, ph.Instances())
 
 	// Only the Initializing shards are moved
 	assert.Equal(t, 1, i1.Shards().NumShards())
@@ -341,8 +340,7 @@ func TestReturnInitShardToSource_SourceIsLeaving(t *testing.T) {
 		placement.NewOptions(),
 	).(*placementHelper)
 
-	err := ph.returnInitializingShardsToSource(getShardMap(i1.Shards().All()), i1)
-	assert.NoError(t, err)
+	ph.returnInitializingShardsToSource(getShardMap(i1.Shards().All()), i1, ph.Instances())
 
 	assert.Equal(t, 1, i1.Shards().NumShards())
 	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")}, i1.Shards().All())
@@ -371,10 +369,10 @@ func TestGeneratePlacement(t *testing.T) {
 		placement.NewOptions(),
 	)
 
-	p := ph.generatePlacement(includeEmpty)
+	p := ph.GeneratePlacement(includeEmpty)
 	assert.Equal(t, 3, p.NumInstances())
 
-	p = ph.generatePlacement(nonEmptyOnly)
+	p = ph.GeneratePlacement(nonEmptyOnly)
 	assert.Equal(t, 2, p.NumInstances())
 }
 
@@ -401,8 +399,7 @@ func TestReturnInitShardToSource_RackConflict(t *testing.T) {
 		placement.NewOptions(),
 	).(*placementHelper)
 
-	err := ph.returnInitializingShardsToSource(getShardMap(i1.Shards().All()), i1)
-	assert.NoError(t, err)
+	ph.returnInitializingShardsToSource(getShardMap(i1.Shards().All()), i1, ph.Instances())
 
 	// the Initializing shard will not be returned to i2
 	// because another replica of shard 0 is owned by i4, which is also on r2
@@ -437,13 +434,13 @@ func TestReturnInitShardToSource_RackConflict(t *testing.T) {
 		placement.NewOptions(),
 	).(*placementHelper)
 
-	err = ph.PlaceShards(i1.Shards().All(), i1)
+	err := ph.PlaceShards(i1.Shards().All(), i1, ph.Instances())
 	assert.NoError(t, err)
 	assert.Equal(t, 0, i1.Shards().NumShards())
 	assert.Equal(t, 1, i2.Shards().NumShards())
 	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Leaving)}, i2.Shards().All())
 	assert.Equal(t, 1, i3.Shards().NumShards())
-	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")}, i3.Shards().All())
+	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetSourceID("i2")}, i3.Shards().All())
 	assert.Equal(t, 1, i4.Shards().NumShards())
 	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Available)}, i4.Shards().All())
 }

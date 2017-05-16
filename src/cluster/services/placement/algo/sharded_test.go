@@ -31,6 +31,34 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestMinorWeightDifference(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint1", 262136)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint2", 262144)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint3", 262144)
+	i4 := placement.NewEmptyInstance("i4", "r4", "z1", "endpoint4", 262144)
+	i5 := placement.NewEmptyInstance("i5", "r5", "z1", "endpoint5", 262144)
+	i6 := placement.NewEmptyInstance("i6", "r4", "z1", "endpoint6", 262144)
+
+	numShards := 1024
+	ids := make([]uint32, numShards)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	a := newShardedAlgorithm(placement.NewOptions())
+	p, err := a.InitialPlacement([]services.PlacementInstance{i1, i2, i3, i4, i5, i6}, ids)
+	assert.NoError(t, err)
+	validateDistribution(t, p, 1.01, "TestMinorWeightDifference replica 1")
+
+	p, err = a.AddReplica(p)
+	assert.NoError(t, err)
+	validateDistribution(t, p, 1.01, "TestMinorWeightDifference replica 2")
+
+	p, err = a.AddReplica(p)
+	assert.NoError(t, err)
+	validateDistribution(t, p, 1.01, "TestMinorWeightDifference replica 3")
+}
+
 func TestGoodCase(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
@@ -183,7 +211,6 @@ func TestGoodCaseWithWeight(t *testing.T) {
 	validateDistribution(t, p, 1.01, "TestGoodCaseWithWeight add 2")
 
 	h13 := placement.NewEmptyInstance("h13", "r5", "z1", "endpoint", 10)
-
 	p, err = a.ReplaceInstance(p, h11.ID(), []services.PlacementInstance{h13})
 	assert.NoError(t, err)
 	p = markAllShardsAsAvailable(t, p)
@@ -515,30 +542,30 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids)
 	assert.NoError(t, err)
-	markAllShardsAsAvailable(t, p)
+	p = markAllShardsAsAvailable(t, p)
 	assert.NoError(t, placement.Validate(p))
 
 	p, err = a.AddReplica(p)
 	assert.NoError(t, err)
-	markAllShardsAsAvailable(t, p)
+	p = markAllShardsAsAvailable(t, p)
 	assert.NoError(t, placement.Validate(p))
 
 	p1, err := a.AddReplica(p)
 	assert.Equal(t, errNotEnoughRacks, err)
 	assert.Nil(t, p1)
-	markAllShardsAsAvailable(t, p)
+	p = markAllShardsAsAvailable(t, p)
 	assert.NoError(t, placement.Validate(p))
 
 	i4 := placement.NewEmptyInstance("i4", "r2", "z1", "endpoint", 1)
 	p, err = a.AddInstance(p, i4)
 	assert.NoError(t, err)
-	markAllShardsAsAvailable(t, p)
+	p = markAllShardsAsAvailable(t, p)
 	assert.NoError(t, placement.Validate(p))
 
 	p1, err = a.AddReplica(p)
 	assert.Equal(t, errNotEnoughRacks, err)
 	assert.Nil(t, p1)
-	markAllShardsAsAvailable(t, p)
+	p = markAllShardsAsAvailable(t, p)
 	assert.NoError(t, placement.Validate(p))
 
 	b := newShardedAlgorithm(placement.NewOptions().SetLooseRackCheck(true))
@@ -553,12 +580,12 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 	assert.Nil(t, p1)
 	assert.NoError(t, placement.Validate(p))
 
-	markAllShardsAsAvailable(t, p)
+	p = markAllShardsAsAvailable(t, p)
 	p, err = b.RemoveInstance(p, i3.ID())
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p))
 
-	markAllShardsAsAvailable(t, p)
+	p = markAllShardsAsAvailable(t, p)
 	i5 := placement.NewEmptyInstance("i5", "r3", "z1", "endpoint", 1)
 	p, err = b.AddInstance(p, i5)
 	assert.NoError(t, err)
@@ -566,31 +593,8 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 
 	p, err = b.AddReplica(p)
 	assert.NoError(t, err)
-	markAllShardsAsAvailable(t, p)
+	p = markAllShardsAsAvailable(t, p)
 	assert.NoError(t, placement.Validate(p))
-}
-
-func TestAddInstancesCouldNotReachTargetLoad(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
-
-	ids := make([]uint32, 1024)
-	for i := 0; i < len(ids); i++ {
-		ids[i] = uint32(i)
-	}
-
-	p := placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{}).
-		SetShards(ids).
-		SetReplicaFactor(1).
-		SetIsSharded(true)
-
-	a := newShardedAlgorithm(placement.NewOptions())
-
-	p1, err := a.AddInstance(p, i1)
-	// errCouldNotReachTargetLoad should only happen when trying to add a instance to
-	// an invalid placement that does not have enough shards for the rf it thought it has
-	assert.Equal(t, errCouldNotReachTargetLoad, err)
-	assert.Nil(t, p1)
 }
 
 func TestRemoveAbsentInstance(t *testing.T) {
@@ -1078,7 +1082,7 @@ func validateDistribution(t *testing.T, p services.ServicePlacement, expectPeakO
 				testCase, i.ID(), instanceOverAvg, expectPeakOverAvg, load, avgLoad))
 		}
 
-		targetLoad := ph.TargetLoadForInstance(i.ID())
+		targetLoad := ph.targetLoadForInstance(i.ID())
 		if targetLoad == 0 {
 			continue
 		}

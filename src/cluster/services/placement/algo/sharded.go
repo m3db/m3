@@ -21,13 +21,11 @@
 package algo
 
 import (
-	"container/heap"
 	"errors"
 	"fmt"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
-	"github.com/m3db/m3cluster/shard"
 )
 
 var (
@@ -48,10 +46,10 @@ func newShardedAlgorithm(opts services.PlacementOptions) placement.Algorithm {
 func (a rackAwarePlacementAlgorithm) InitialPlacement(instances []services.PlacementInstance, shards []uint32) (services.ServicePlacement, error) {
 	ph := newInitHelper(cloneInstances(instances), shards, a.opts)
 
-	if err := ph.PlaceShards(newShards(shards), nil); err != nil {
+	if err := ph.PlaceShards(newShards(shards), nil, ph.Instances()); err != nil {
 		return nil, err
 	}
-	return ph.generatePlacement(nonEmptyOnly), nil
+	return ph.GeneratePlacement(nonEmptyOnly), nil
 }
 
 func (a rackAwarePlacementAlgorithm) AddReplica(p services.ServicePlacement) (services.ServicePlacement, error) {
@@ -61,10 +59,13 @@ func (a rackAwarePlacementAlgorithm) AddReplica(p services.ServicePlacement) (se
 
 	p = clonePlacement(p)
 	ph := newAddReplicaHelper(p, a.opts)
-	if err := ph.PlaceShards(newShards(p.Shards()), nil); err != nil {
+	if err := ph.PlaceShards(newShards(p.Shards()), nil, ph.Instances()); err != nil {
 		return nil, err
 	}
-	return ph.generatePlacement(nonEmptyOnly), nil
+
+	ph.Optimize(safe)
+
+	return ph.GeneratePlacement(nonEmptyOnly), nil
 }
 
 func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.ServicePlacement, instanceID string) (services.ServicePlacement, error) {
@@ -78,23 +79,36 @@ func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.ServicePlacement,
 		return nil, err
 	}
 	// place the shards from the leaving instance to the rest of the cluster
-	if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance); err != nil {
+	if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
 		return nil, err
 	}
 
-	result, _, err := addInstanceToPlacement(ph.generatePlacement(nonEmptyOnly), leavingInstance, false)
+	result, _, err := addInstanceToPlacement(ph.GeneratePlacement(nonEmptyOnly), leavingInstance, false)
 	return result, err
 }
 
 func (a rackAwarePlacementAlgorithm) AddInstance(
 	p services.ServicePlacement,
-	i services.PlacementInstance,
+	addingInstance services.PlacementInstance,
 ) (services.ServicePlacement, error) {
 	if !p.IsSharded() {
 		return nil, errShardedAlgoOnNotShardedPlacement
 	}
 
-	return a.addInstance(clonePlacement(p), cloneInstance(i))
+	p, addingInstance = clonePlacement(p), cloneInstance(addingInstance)
+	instance, exist := p.Instance(addingInstance.ID())
+	if exist {
+		if !placement.IsInstanceLeaving(instance) {
+			return nil, errAddingInstanceAlreadyExist
+		}
+		addingInstance = instance
+	}
+
+	ph := newAddInstanceHelper(p, addingInstance, a.opts)
+
+	ph.AddInstance(addingInstance)
+
+	return ph.GeneratePlacement(nonEmptyOnly), nil
 }
 
 func (a rackAwarePlacementAlgorithm) ReplaceInstance(
@@ -112,20 +126,13 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 		return nil, err
 	}
 
-	// move shards from leaving instance to adding instance
-	instanceHeap := ph.BuildInstanceHeap(addingInstances, true)
-	for loadOnInstance(leavingInstance) > 0 {
-		if instanceHeap.Len() == 0 {
-			break
-		}
-		tryInstance := heap.Pop(instanceHeap).(services.PlacementInstance)
-		if moved := ph.MoveOneShard(leavingInstance, tryInstance); moved {
-			heap.Push(instanceHeap, tryInstance)
-		}
+	err = ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, addingInstances)
+	if err != nil && err != errNotEnoughRacks {
+		return nil, err
 	}
 
 	if loadOnInstance(leavingInstance) == 0 {
-		result, _, err := addInstanceToPlacement(ph.generatePlacement(nonEmptyOnly), leavingInstance, false)
+		result, _, err := addInstanceToPlacement(ph.GeneratePlacement(nonEmptyOnly), leavingInstance, false)
 		return result, err
 	}
 
@@ -137,68 +144,13 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 	if err := ph.PlaceShards(
 		leavingInstance.Shards().All(),
 		leavingInstance,
+		ph.Instances(),
 	); err != nil {
 		return nil, err
 	}
-	// fill up to the target load for added instances if have not already done so
-	newPlacement := ph.generatePlacement(includeEmpty)
-	for _, addingInstance := range addingInstances {
-		newPlacement, addingInstance, err = removeInstanceFromPlacement(newPlacement, addingInstance.ID())
-		if err != nil {
-			return nil, err
-		}
-		newPlacement, err = a.addInstance(newPlacement, addingInstance)
-		if err != nil {
-			return nil, err
-		}
-	}
 
-	result, _, err := addInstanceToPlacement(newPlacement, leavingInstance, false)
+	ph.Optimize(unsafe)
+
+	result, _, err := addInstanceToPlacement(ph.GeneratePlacement(includeEmpty), leavingInstance, false)
 	return result, err
-}
-
-func (a rackAwarePlacementAlgorithm) addInstance(p services.ServicePlacement, addingInstance services.PlacementInstance) (services.ServicePlacement, error) {
-	if instance, exist := p.Instance(addingInstance.ID()); exist {
-		if !placement.IsInstanceLeaving(instance) {
-			return nil, errAddingInstanceAlreadyExist
-		}
-		p = a.moveLeavingShardsBack(p, instance)
-		addingInstance = instance
-	}
-
-	ph := newAddInstanceHelper(p, addingInstance, a.opts)
-	targetLoad := ph.TargetLoadForInstance(addingInstance.ID())
-	// try to take shards from the most loaded instances until the adding instance reaches target load
-	hh := ph.BuildInstanceHeap(nonLeavingInstances(p.Instances()), false)
-	for addingInstance.Shards().NumShards() < targetLoad {
-		if hh.Len() == 0 {
-			return nil, errCouldNotReachTargetLoad
-		}
-		tryInstance := heap.Pop(hh).(services.PlacementInstance)
-		if moved := ph.MoveOneShard(tryInstance, addingInstance); moved {
-			heap.Push(hh, tryInstance)
-		}
-	}
-
-	return ph.generatePlacement(nonEmptyOnly), nil
-}
-
-func (a rackAwarePlacementAlgorithm) moveLeavingShardsBack(p services.ServicePlacement, source services.PlacementInstance) services.ServicePlacement {
-	ph := newAddInstanceHelper(p, source, a.opts)
-	instanceID := source.ID()
-	// since the instance does not know where did its shards go, we need to iterate the whole placement to find them
-	for _, other := range p.Instances() {
-		if other.ID() == instanceID {
-			continue
-		}
-		for _, s := range other.Shards().ShardsForState(shard.Initializing) {
-			if s.SourceID() == instanceID {
-				// NB(cw) in very rare case, the leaving shards could not be taken back
-				// but it's fine, the algo will fil up those load with other shards from the cluster
-				ph.MoveShard(s, other, source)
-			}
-		}
-	}
-
-	return ph.generatePlacement(nonEmptyOnly)
 }
