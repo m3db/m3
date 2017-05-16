@@ -9,14 +9,11 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
 const (
-	defaultBufferSize      = 4096
-	defaultBufferCapacity  = 256
-	defaultBufferPoolCount = 3145728
+	defaultBufferSize = 4096
 )
 
 var (
@@ -49,16 +46,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
-		Capacity: defaultBufferCapacity,
-		Count:    defaultBufferPoolCount,
-	}}, nil, func(buckets []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(buckets, nil)
-	})
-	bytesPool.Init()
-
 	log.Infof("source: [ path-prefix = %s, namespace = %s, shard-id = %d, block-start = %d ]", *optSrcPathPrefix, *optSrcNamespace, *optSrcShard, *optSrcBlockstart)
-	reader := fs.NewReader(*optSrcPathPrefix, defaultBufferSize, bytesPool, msgpack.NewDecodingOptions())
+	reader := fs.NewReader(*optSrcPathPrefix, defaultBufferSize, nil, msgpack.NewDecodingOptions())
 	if err := reader.Open(ts.StringID(*optSrcNamespace), uint32(*optSrcShard), xtime.FromNanoseconds(*optSrcBlockstart)); err != nil {
 		log.Fatalf("unable to read source fileset: %v", err)
 	}
