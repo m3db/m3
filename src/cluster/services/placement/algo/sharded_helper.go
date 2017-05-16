@@ -73,6 +73,143 @@ type placementHelper struct {
 	opts               services.PlacementOptions
 }
 
+// NewPlacementHelper returns a placement helper
+func NewPlacementHelper(p services.ServicePlacement, opts services.PlacementOptions) PlacementHelper {
+	return newHelper(p, p.ReplicaFactor(), opts)
+}
+
+func newInitHelper(instances []services.PlacementInstance, ids []uint32, opts services.PlacementOptions) PlacementHelper {
+	emptyPlacement := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards(ids).
+		SetReplicaFactor(0).
+		SetIsSharded(true)
+	return newHelper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts)
+}
+
+func newAddReplicaHelper(p services.ServicePlacement, opts services.PlacementOptions) PlacementHelper {
+	return newHelper(p, p.ReplicaFactor()+1, opts)
+}
+
+func newAddInstanceHelper(p services.ServicePlacement, i services.PlacementInstance, opts services.PlacementOptions) PlacementHelper {
+	p = placement.NewPlacement().
+		SetInstances(append(p.Instances(), i)).
+		SetShards(p.Shards()).
+		SetReplicaFactor(p.ReplicaFactor()).
+		SetIsSharded(p.IsSharded())
+	return newHelper(p, p.ReplicaFactor(), opts)
+}
+
+func newRemoveInstanceHelper(
+	p services.ServicePlacement,
+	instanceID string,
+	opts services.PlacementOptions,
+) (PlacementHelper, services.PlacementInstance, error) {
+	p, leavingInstance, err := removeInstanceFromPlacement(p, instanceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return newHelper(p, p.ReplicaFactor(), opts), leavingInstance, nil
+}
+
+func newReplaceInstanceHelper(
+	p services.ServicePlacement,
+	instanceID string,
+	addingInstances []services.PlacementInstance,
+	opts services.PlacementOptions,
+) (PlacementHelper, services.PlacementInstance, []services.PlacementInstance, error) {
+	p, leavingInstance, err := removeInstanceFromPlacement(p, instanceID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	newAddingInstances := make([]services.PlacementInstance, len(addingInstances))
+	for i, instance := range addingInstances {
+		p, newAddingInstances[i], err = addInstanceToPlacement(p, instance, true)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	return newHelper(p, p.ReplicaFactor(), opts), leavingInstance, newAddingInstances, nil
+}
+
+func newHelper(p services.ServicePlacement, targetRF int, opts services.PlacementOptions) PlacementHelper {
+	ph := &placementHelper{
+		rf:           targetRF,
+		instances:    make(map[string]services.PlacementInstance, p.NumInstances()),
+		uniqueShards: p.Shards(),
+		opts:         opts,
+	}
+
+	for _, instance := range p.Instances() {
+		ph.instances[instance.ID()] = instance
+	}
+
+	ph.scanCurrentLoad()
+	ph.buildTargetLoad()
+	return ph
+}
+
+func (ph *placementHelper) scanCurrentLoad() {
+	ph.shardToInstanceMap = make(map[uint32]map[services.PlacementInstance]struct{}, len(ph.uniqueShards))
+	ph.rackToInstancesMap = make(map[string]map[services.PlacementInstance]struct{})
+	ph.rackToWeightMap = make(map[string]uint32)
+	totalWeight := uint32(0)
+	for _, instance := range ph.instances {
+		if _, exist := ph.rackToInstancesMap[instance.Rack()]; !exist {
+			ph.rackToInstancesMap[instance.Rack()] = make(map[services.PlacementInstance]struct{})
+		}
+		ph.rackToInstancesMap[instance.Rack()][instance] = struct{}{}
+
+		ph.rackToWeightMap[instance.Rack()] = ph.rackToWeightMap[instance.Rack()] + instance.Weight()
+		totalWeight += instance.Weight()
+
+		for _, s := range instance.Shards().All() {
+			if s.State() == shard.Leaving {
+				continue
+			}
+			ph.assignShardToInstance(s, instance)
+		}
+	}
+	ph.totalWeight = totalWeight
+}
+
+func (ph *placementHelper) buildTargetLoad() {
+	overWeightedRack := 0
+	overWeight := uint32(0)
+	for _, weight := range ph.rackToWeightMap {
+		if isRackOverWeight(weight, ph.totalWeight, ph.rf) {
+			overWeightedRack++
+			overWeight += weight
+		}
+	}
+
+	targetLoad := make(map[string]int)
+	for _, instance := range ph.instances {
+		rackWeight := ph.rackToWeightMap[instance.Rack()]
+		if isRackOverWeight(rackWeight, ph.totalWeight, ph.rf) {
+			// if the instance is on a over-sized rack, the target load is topped at shardLen / rackSize
+			targetLoad[instance.ID()] = int(math.Ceil(float64(ph.getShardLen()) * float64(instance.Weight()) / float64(rackWeight)))
+		} else {
+			// if the instance is on a normal rack, get the target load with aware of other over-sized rack
+			targetLoad[instance.ID()] = ph.getShardLen() * (ph.rf - overWeightedRack) * int(instance.Weight()) / int(ph.totalWeight-overWeight)
+		}
+	}
+	ph.targetLoad = targetLoad
+}
+
+func (ph *placementHelper) instanceList() []services.PlacementInstance {
+	res := make([]services.PlacementInstance, 0, len(ph.instances))
+	for _, instance := range ph.instances {
+		res = append(res, instance)
+	}
+	return res
+}
+
+func (ph *placementHelper) getShardLen() int {
+	return len(ph.uniqueShards)
+}
+
 func (ph *placementHelper) TargetLoadForInstance(id string) int {
 	return ph.targetLoad[id]
 }
@@ -265,147 +402,6 @@ func (ph *placementHelper) placeToRacksOtherThanOrigin(shardsSet map[uint32]shar
 	}
 }
 
-// NewPlacementHelper returns a placement helper
-func NewPlacementHelper(p services.ServicePlacement, opts services.PlacementOptions) PlacementHelper {
-	return newHelper(p, p.ReplicaFactor(), opts)
-}
-
-func newInitHelper(instances []services.PlacementInstance, ids []uint32, opts services.PlacementOptions) PlacementHelper {
-	emptyPlacement := placement.NewPlacement().
-		SetInstances(instances).
-		SetShards(ids).
-		SetReplicaFactor(0).
-		SetIsSharded(true)
-	return newHelper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts)
-}
-
-func newAddReplicaHelper(p services.ServicePlacement, opts services.PlacementOptions) PlacementHelper {
-	return newHelper(p, p.ReplicaFactor()+1, opts)
-}
-
-func newAddInstanceHelper(p services.ServicePlacement, i services.PlacementInstance, opts services.PlacementOptions) PlacementHelper {
-	p = placement.NewPlacement().
-		SetInstances(append(p.Instances(), i)).
-		SetShards(p.Shards()).
-		SetReplicaFactor(p.ReplicaFactor()).
-		SetIsSharded(p.IsSharded())
-	return newHelper(p, p.ReplicaFactor(), opts)
-}
-
-func newRemoveInstanceHelper(
-	p services.ServicePlacement,
-	instanceID string,
-	opts services.PlacementOptions,
-) (PlacementHelper, services.PlacementInstance, error) {
-	p, leavingInstance, err := removeInstanceFromPlacement(p, instanceID)
-	if err != nil {
-		return nil, nil, err
-	}
-	return newHelper(p, p.ReplicaFactor(), opts), leavingInstance, nil
-}
-
-func newReplaceInstanceHelper(
-	p services.ServicePlacement,
-	instanceID string,
-	addingInstances []services.PlacementInstance,
-	opts services.PlacementOptions,
-) (PlacementHelper, services.PlacementInstance, []services.PlacementInstance, error) {
-	p, leavingInstance, err := removeInstanceFromPlacement(p, instanceID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	newAddingInstances := make([]services.PlacementInstance, len(addingInstances))
-	for i, instance := range addingInstances {
-		p, newAddingInstances[i], err = addInstanceToPlacement(p, instance, true)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-	}
-	return newHelper(p, p.ReplicaFactor(), opts), leavingInstance, newAddingInstances, nil
-}
-
-func newHelper(p services.ServicePlacement, targetRF int, opts services.PlacementOptions) PlacementHelper {
-	ph := &placementHelper{
-		rf:           targetRF,
-		instances:    make(map[string]services.PlacementInstance, p.NumInstances()),
-		uniqueShards: p.Shards(),
-		opts:         opts,
-	}
-
-	for _, instance := range p.Instances() {
-		ph.instances[instance.ID()] = instance
-	}
-
-	ph.scanCurrentLoad()
-	ph.buildTargetLoad()
-	return ph
-}
-
-func (ph *placementHelper) scanCurrentLoad() {
-	ph.shardToInstanceMap = make(map[uint32]map[services.PlacementInstance]struct{}, len(ph.uniqueShards))
-	ph.rackToInstancesMap = make(map[string]map[services.PlacementInstance]struct{})
-	ph.rackToWeightMap = make(map[string]uint32)
-	totalWeight := uint32(0)
-	for _, instance := range ph.instances {
-		if _, exist := ph.rackToInstancesMap[instance.Rack()]; !exist {
-			ph.rackToInstancesMap[instance.Rack()] = make(map[services.PlacementInstance]struct{})
-		}
-		ph.rackToInstancesMap[instance.Rack()][instance] = struct{}{}
-
-		ph.rackToWeightMap[instance.Rack()] = ph.rackToWeightMap[instance.Rack()] + instance.Weight()
-		totalWeight += instance.Weight()
-
-		for _, s := range instance.Shards().All() {
-			if s.State() == shard.Leaving {
-				continue
-			}
-			ph.assignShardToInstance(s, instance)
-		}
-	}
-	ph.totalWeight = totalWeight
-}
-
-func (ph *placementHelper) buildTargetLoad() {
-	overWeightedRack := 0
-	overWeight := uint32(0)
-	for _, weight := range ph.rackToWeightMap {
-		if isRackOverWeight(weight, ph.totalWeight, ph.rf) {
-			overWeightedRack++
-			overWeight += weight
-		}
-	}
-
-	targetLoad := make(map[string]int)
-	for _, instance := range ph.instances {
-		rackWeight := ph.rackToWeightMap[instance.Rack()]
-		if isRackOverWeight(rackWeight, ph.totalWeight, ph.rf) {
-			// if the instance is on a over-sized rack, the target load is topped at shardLen / rackSize
-			targetLoad[instance.ID()] = int(math.Ceil(float64(ph.getShardLen()) * float64(instance.Weight()) / float64(rackWeight)))
-		} else {
-			// if the instance is on a normal rack, get the target load with aware of other over-sized rack
-			targetLoad[instance.ID()] = ph.getShardLen() * (ph.rf - overWeightedRack) * int(instance.Weight()) / int(ph.totalWeight-overWeight)
-		}
-	}
-	ph.targetLoad = targetLoad
-}
-
-func isRackOverWeight(rackWeight, totalWeight uint32, rf int) bool {
-	return float64(rackWeight)/float64(totalWeight) >= 1.0/float64(rf)
-}
-
-func (ph *placementHelper) instanceList() []services.PlacementInstance {
-	res := make([]services.PlacementInstance, 0, len(ph.instances))
-	for _, instance := range ph.instances {
-		res = append(res, instance)
-	}
-	return res
-}
-
-func (ph *placementHelper) getShardLen() int {
-	return len(ph.uniqueShards)
-}
-
 func (ph *placementHelper) canAssignInstance(shardID uint32, from, to services.PlacementInstance) bool {
 	s, ok := to.Shards().Shard(shardID)
 	if ok && s.State() != shard.Leaving {
@@ -544,6 +540,10 @@ func MarkShardAvailable(p services.ServicePlacement, instanceID string, shardID 
 			SetIsSharded(p.IsSharded()), nil
 	}
 	return p, nil
+}
+
+func isRackOverWeight(rackWeight, totalWeight uint32, rf int) bool {
+	return float64(rackWeight)/float64(totalWeight) >= 1.0/float64(rf)
 }
 
 func removeInstance(list []services.PlacementInstance, instanceID string) []services.PlacementInstance {
