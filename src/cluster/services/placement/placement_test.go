@@ -104,6 +104,18 @@ func TestValidateGood(t *testing.T) {
 	assert.NoError(t, Validate(p))
 }
 
+func TestUnknownShardState(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(0))
+
+	// unknown shard state
+	p := NewPlacement().SetInstances([]services.PlacementInstance{i1, i2}).SetShards([]uint32{0, 1}).SetReplicaFactor(1).SetIsSharded(true)
+	assert.Error(t, Validate(p))
+}
+
 func TestMismatchShards(t *testing.T) {
 	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))

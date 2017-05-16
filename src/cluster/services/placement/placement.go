@@ -150,19 +150,20 @@ func Validate(p services.ServicePlacement) error {
 			if !exist {
 				return errUnexpectedShards
 			}
-			if s.State() == shard.Available {
+			switch s.State() {
+			case shard.Available:
 				shardCountMap[s.ID()] = count + 1
 				totalCapacity++
-			} else if s.State() == shard.Initializing {
+			case shard.Initializing:
 				totalInit++
 				shardCountMap[s.ID()] = count + 1
 				totalCapacity++
 				if s.SourceID() != "" {
 					totalInitWithSourceID++
 				}
-			} else if s.State() == shard.Leaving {
+			case shard.Leaving:
 				totalLeaving++
-			} else {
+			default:
 				return fmt.Errorf("invalid shard state %v for shard %d", s.State(), s.ID())
 			}
 		}
