@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultBufferSize = 4096
+	defaultBufferSize = 65536
 )
 
 var (
