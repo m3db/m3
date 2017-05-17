@@ -91,7 +91,7 @@ func (ps placementService) BuildInitialPlacement(
 
 	// NB(r): All new placements should appear as available for
 	// proper client semantics when calculating consistency results
-	p, err = markAllShardsAsAvailable(p)
+	p, err = placement.MarkAllShardsAsAvailable(p)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +254,7 @@ func (ps placementService) MarkShardAvailable(instanceID string, shardID uint32)
 		return err
 	}
 
-	p, err = algo.MarkShardAvailable(p, instanceID, shardID)
+	p, err = placement.MarkShardAvailable(p, instanceID, shardID)
 	if err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func (ps placementService) MarkInstanceAvailable(instanceID string) error {
 		if s.State() != shard.Initializing {
 			continue
 		}
-		p, err = algo.MarkShardAvailable(p, instanceID, s.ID())
+		p, err = placement.MarkShardAvailable(p, instanceID, s.ID())
 		if err != nil {
 			return err
 		}
@@ -571,19 +571,4 @@ func (things sortableThings) Less(i, j int) bool {
 
 func (things sortableThings) Swap(i, j int) {
 	things[i], things[j] = things[j], things[i]
-}
-
-func markAllShardsAsAvailable(p services.ServicePlacement) (services.ServicePlacement, error) {
-	var err error
-	for _, instance := range p.Instances() {
-		for _, s := range instance.Shards().All() {
-			if s.State() == shard.Initializing {
-				p, err = algo.MarkShardAvailable(p, instance.ID(), s.ID())
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-	}
-	return p, nil
 }

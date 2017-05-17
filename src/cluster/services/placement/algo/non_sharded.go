@@ -48,7 +48,7 @@ func (a nonShardedAlgorithm) InitialPlacement(
 	}
 
 	return placement.NewPlacement().
-		SetInstances(cloneInstances(instances)).
+		SetInstances(placement.CloneInstances(instances)).
 		SetShards(shards).
 		SetReplicaFactor(1).
 		SetIsSharded(false), nil
@@ -58,7 +58,7 @@ func (a nonShardedAlgorithm) AddReplica(p services.ServicePlacement) (services.S
 	if p.IsSharded() {
 		return nil, errNonShardedAlgoOnShardedPlacement
 	}
-	p = clonePlacement(p)
+	p = placement.ClonePlacement(p)
 	return placement.NewPlacement().
 		SetInstances(p.Instances()).
 		SetShards(p.Shards()).
@@ -70,7 +70,7 @@ func (a nonShardedAlgorithm) RemoveInstance(p services.ServicePlacement, instanc
 	if p.IsSharded() {
 		return nil, errNonShardedAlgoOnShardedPlacement
 	}
-	p = clonePlacement(p)
+	p = placement.ClonePlacement(p)
 	instances := p.Instances()
 	for i, instance := range instances {
 		if instance.ID() == instanceID {
@@ -93,7 +93,7 @@ func (a nonShardedAlgorithm) AddInstance(
 	if p.IsSharded() {
 		return nil, errNonShardedAlgoOnShardedPlacement
 	}
-	p = clonePlacement(p)
+	p = placement.ClonePlacement(p)
 	instances := p.Instances()
 	for _, instance := range instances {
 		if instance.ID() == i.ID() {

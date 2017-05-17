@@ -368,9 +368,9 @@ func TestRemoveInitializingInstance(t *testing.T) {
 	p, err := a.InitialPlacement([]services.PlacementInstance{i1}, []uint32{1, 2})
 	assert.NoError(t, err)
 
-	p, err = MarkShardAvailable(p, "i1", 1)
+	p, err = placement.MarkShardAvailable(p, "i1", 1)
 	assert.NoError(t, err)
-	p, err = MarkShardAvailable(p, "i1", 2)
+	p, err = placement.MarkShardAvailable(p, "i1", 2)
 	assert.NoError(t, err)
 
 	instance1, ok := p.Instance("i1")
@@ -1056,15 +1056,8 @@ func TestShardedAlgoOnNonShardedPlacement(t *testing.T) {
 }
 
 func markAllShardsAsAvailable(t *testing.T, p services.ServicePlacement) services.ServicePlacement {
-	var err error
-	for _, instance := range p.Instances() {
-		for _, s := range instance.Shards().All() {
-			if s.State() == shard.Initializing {
-				p, err = MarkShardAvailable(p, instance.ID(), s.ID())
-				assert.NoError(t, err)
-			}
-		}
-	}
+	p, err := placement.MarkAllShardsAsAvailable(p)
+	assert.NoError(t, err)
 	return p
 }
 

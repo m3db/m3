@@ -659,74 +659,15 @@ func (h *instanceHeap) Pop() interface{} {
 	return instance
 }
 
-// MarkShardAvailable marks the state of a shard to available
-func MarkShardAvailable(p services.ServicePlacement, instanceID string, shardID uint32) (services.ServicePlacement, error) {
-	p = clonePlacement(p)
-	instance, exist := p.Instance(instanceID)
-	if !exist {
-		return nil, fmt.Errorf("instance %s does not exist in placement", instanceID)
-	}
-
-	s, exist := instance.Shards().Shard(shardID)
-	if !exist {
-		return nil, fmt.Errorf("shard %d does not exist in instance %s", shardID, instanceID)
-	}
-
-	if s.State() != shard.Initializing {
-		return nil, fmt.Errorf("could not mark shard %d as available, it's not in Initializing state", s.ID())
-	}
-
-	sourceID := s.SourceID()
-	s.SetState(shard.Available).SetSourceID("")
-
-	// there could be no source for cases like initial placement
-	if sourceID == "" {
-		return p, nil
-	}
-
-	sourceInstance, exist := p.Instance(sourceID)
-	if !exist {
-		return nil, fmt.Errorf("source instance %s for shard %d does not exist in placement", sourceID, shardID)
-	}
-
-	sourceShard, exist := sourceInstance.Shards().Shard(shardID)
-	if !exist {
-		return nil, fmt.Errorf("shard %d does not exist in source instance %s", shardID, sourceID)
-	}
-
-	if sourceShard.State() != shard.Leaving {
-		return nil, fmt.Errorf("shard %d is not leaving instance %s", shardID, sourceID)
-	}
-
-	sourceInstance.Shards().Remove(shardID)
-	if sourceInstance.Shards().NumShards() == 0 {
-		return placement.NewPlacement().
-			SetInstances(removeInstance(p.Instances(), sourceInstance.ID())).
-			SetShards(p.Shards()).
-			SetReplicaFactor(p.ReplicaFactor()).
-			SetIsSharded(p.IsSharded()), nil
-	}
-	return p, nil
-}
-
 func isRackOverWeight(rackWeight, totalWeight uint32, rf int) bool {
 	return float64(rackWeight)/float64(totalWeight) >= 1.0/float64(rf)
-}
-
-func removeInstance(list []services.PlacementInstance, instanceID string) []services.PlacementInstance {
-	for i, instance := range list {
-		if instance.ID() == instanceID {
-			return append(list[:i], list[i+1:]...)
-		}
-	}
-	return list
 }
 
 func addInstanceToPlacement(p services.ServicePlacement, i services.PlacementInstance, allowEmpty bool) (services.ServicePlacement, services.PlacementInstance, error) {
 	if _, exist := p.Instance(i.ID()); exist {
 		return nil, nil, errAddingInstanceAlreadyExist
 	}
-	instance := cloneInstance(i)
+	instance := placement.CloneInstance(i)
 
 	if allowEmpty || instance.Shards().NumShards() > 0 {
 		p = placement.NewPlacement().
@@ -745,45 +686,10 @@ func removeInstanceFromPlacement(p services.ServicePlacement, id string) (servic
 	}
 
 	return placement.NewPlacement().
-		SetInstances(removeInstance(p.Instances(), id)).
+		SetInstances(placement.RemoveInstance(p.Instances(), id)).
 		SetShards(p.Shards()).
 		SetReplicaFactor(p.ReplicaFactor()).
 		SetIsSharded(p.IsSharded()), leavingInstance, nil
-}
-
-func clonePlacement(p services.ServicePlacement) services.ServicePlacement {
-	return placement.NewPlacement().
-		SetInstances(cloneInstances(p.Instances())).
-		SetShards(p.Shards()).
-		SetReplicaFactor(p.ReplicaFactor()).
-		SetIsSharded(p.IsSharded())
-}
-
-func cloneInstances(instances []services.PlacementInstance) []services.PlacementInstance {
-	copied := make([]services.PlacementInstance, len(instances))
-	for i, instance := range instances {
-		copied[i] = cloneInstance(instance)
-	}
-	return copied
-}
-
-func cloneInstance(instance services.PlacementInstance) services.PlacementInstance {
-	return placement.NewInstance().
-		SetID(instance.ID()).
-		SetRack(instance.Rack()).
-		SetZone(instance.Zone()).
-		SetWeight(instance.Weight()).
-		SetEndpoint(instance.Endpoint()).
-		SetShards(cloneShards(instance.Shards()))
-}
-
-func cloneShards(shards shard.Shards) shard.Shards {
-	newShards := make([]shard.Shard, shards.NumShards())
-	for i, s := range shards.All() {
-		newShards[i] = shard.NewShard(s.ID()).SetState(s.State()).SetSourceID(s.SourceID())
-	}
-
-	return shard.NewShards(newShards)
 }
 
 func getShardMap(shards []shard.Shard) map[uint32]shard.Shard {
