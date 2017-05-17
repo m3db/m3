@@ -55,6 +55,7 @@ const (
 
 var (
 	maxInt               = float64(math.MaxInt64)
+	minInt               = float64(math.MinInt64)
 	maxOptInt            = math.Pow(10.0, 13) // Max int for int optimization
 	multipliers          = createMultipliers()
 	errInvalidMultiplier = errors.New("supplied multiplier is invalid")

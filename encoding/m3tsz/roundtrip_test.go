@@ -21,6 +21,7 @@
 package m3tsz
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -94,6 +95,10 @@ func TestMixedRoundTrip(t *testing.T) {
 	for i := 0; i < numIterations; i++ {
 		testRoundTrip(t, generateMixedDatapoints(numPoints, timeUnit))
 	}
+}
+
+func TestIntOverflow(t *testing.T) {
+	testRoundTrip(t, generateOverflowDatapoints())
 }
 
 func testRoundTrip(t *testing.T, input []ts.Datapoint) {
@@ -218,5 +223,22 @@ func generateMixedDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoi
 		}
 		res = append(res, ts.Datapoint{Timestamp: currentTime, Value: currentValue})
 	}
+	return res
+}
+
+func generateOverflowDatapoints() []ts.Datapoint {
+	var startTime int64 = 1427162462
+	currentTime := time.Unix(startTime, 0)
+	largeInt := float64(math.MaxInt64 - 1)
+	largeNegInt := float64(math.MinInt64 + 1)
+
+	vals := []float64{largeInt, 10, largeNegInt, 10, largeNegInt, largeInt, -12, largeInt, 14.5, largeInt, largeNegInt, 12.34858499392, largeInt}
+	res := make([]ts.Datapoint, len(vals))
+
+	for i, val := range vals {
+		res[i] = ts.Datapoint{Timestamp: currentTime, Value: val}
+		currentTime = currentTime.Add(time.Second)
+	}
+
 	return res
 }

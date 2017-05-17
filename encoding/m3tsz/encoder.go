@@ -307,12 +307,17 @@ func (enc *encoder) writeNextValue(v float64) error {
 		return err
 	}
 
-	if isFloat {
+	var valDiff float64
+	if !isFloat {
+		valDiff = enc.intVal - val
+	}
+
+	if isFloat || valDiff >= maxInt || valDiff <= minInt {
 		enc.writeFloatVal(math.Float64bits(val), mult)
 		return nil
 	}
 
-	enc.writeIntVal(val, mult, isFloat)
+	enc.writeIntVal(val, mult, isFloat, valDiff)
 	return nil
 }
 
@@ -379,8 +384,7 @@ func (enc *encoder) writeXOR(prevXOR, curXOR uint64) {
 }
 
 // writeIntVal writes the val as a diff of ints
-func (enc *encoder) writeIntVal(val float64, mult uint8, isFloat bool) {
-	valDiff := enc.intVal - val
+func (enc *encoder) writeIntVal(val float64, mult uint8, isFloat bool, valDiff float64) {
 	if valDiff == 0 && isFloat == enc.isFloat && mult == enc.maxMult {
 		// Value is repeated
 		enc.os.WriteBit(opcodeUpdate)
