@@ -390,3 +390,96 @@ func TestOptions(t *testing.T) {
 	dopts = dopts.SetMaxStepSize(5)
 	assert.Equal(t, 5, dopts.MaxStepSize())
 }
+
+func TestMarkShardSuccess(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "", "", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Initializing))
+
+	i2 := NewEmptyInstance("i2", "", "", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(2)
+
+	_, err := MarkShardAvailable(p, "i1", 1)
+	assert.NoError(t, err)
+}
+
+func TestMarkShardFailure(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "", "", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "", "", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i3"))
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
+	i2.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
+
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(2)
+
+	_, err := MarkShardAvailable(p, "i3", 1)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist in placement")
+
+	_, err = MarkShardAvailable(p, "i1", 3)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist in instance")
+
+	_, err = MarkShardAvailable(p, "i1", 1)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not in Initializing state")
+
+	_, err = MarkShardAvailable(p, "i2", 1)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist in placement")
+
+	_, err = MarkShardAvailable(p, "i2", 3)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist in source instance")
+
+	_, err = MarkShardAvailable(p, "i2", 2)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not leaving instance")
+}
+
+func TestRemoveInstanceFromArray(t *testing.T) {
+	instances := []services.PlacementInstance{
+		NewEmptyInstance("i1", "", "", "endpoint", 1),
+		NewEmptyInstance("i2", "", "", "endpoint", 1),
+	}
+
+	assert.Equal(t, instances, RemoveInstance(instances, "not_exist"))
+	assert.Equal(t, []services.PlacementInstance{NewEmptyInstance("i2", "", "", "endpoint", 1)}, RemoveInstance(instances, "i1"))
+}
+
+func TestMarkAllAsAvailable(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "", "", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Initializing))
+
+	i2 := NewEmptyInstance("i2", "", "", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing))
+
+	p := NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(2)
+
+	p, err := MarkAllShardsAsAvailable(p)
+	assert.NoError(t, err)
+
+	i2.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i3"))
+	p = NewPlacement().
+		SetInstances([]services.PlacementInstance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(2)
+	_, err = MarkAllShardsAsAvailable(p)
+	assert.Contains(t, err.Error(), "does not exist in placement")
+}

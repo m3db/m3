@@ -44,7 +44,7 @@ func newShardedAlgorithm(opts services.PlacementOptions) placement.Algorithm {
 }
 
 func (a rackAwarePlacementAlgorithm) InitialPlacement(instances []services.PlacementInstance, shards []uint32) (services.ServicePlacement, error) {
-	ph := newInitHelper(cloneInstances(instances), shards, a.opts)
+	ph := newInitHelper(placement.CloneInstances(instances), shards, a.opts)
 
 	if err := ph.PlaceShards(newShards(shards), nil, ph.Instances()); err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (a rackAwarePlacementAlgorithm) AddReplica(p services.ServicePlacement) (se
 		return nil, errShardedAlgoOnNotShardedPlacement
 	}
 
-	p = clonePlacement(p)
+	p = placement.ClonePlacement(p)
 	ph := newAddReplicaHelper(p, a.opts)
 	if err := ph.PlaceShards(newShards(p.Shards()), nil, ph.Instances()); err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.ServicePlacement,
 		return nil, errShardedAlgoOnNotShardedPlacement
 	}
 
-	p = clonePlacement(p)
+	p = placement.ClonePlacement(p)
 	ph, leavingInstance, err := newRemoveInstanceHelper(p, instanceID, a.opts)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (a rackAwarePlacementAlgorithm) AddInstance(
 		return nil, errShardedAlgoOnNotShardedPlacement
 	}
 
-	p, addingInstance = clonePlacement(p), cloneInstance(addingInstance)
+	p, addingInstance = placement.ClonePlacement(p), placement.CloneInstance(addingInstance)
 	instance, exist := p.Instance(addingInstance.ID())
 	if exist {
 		if !placement.IsInstanceLeaving(instance) {
@@ -120,7 +120,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 		return nil, errShardedAlgoOnNotShardedPlacement
 	}
 
-	p = clonePlacement(p)
+	p = placement.ClonePlacement(p)
 	ph, leavingInstance, addingInstances, err := newReplaceInstanceHelper(p, instanceID, addingInstances, a.opts)
 	if err != nil {
 		return nil, err

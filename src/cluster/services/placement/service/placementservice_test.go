@@ -47,6 +47,19 @@ func TestGoodWorkflow(t *testing.T) {
 	testGoodWorkflow(t, p)
 }
 
+func TestManyShards(t *testing.T) {
+	p := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 2)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 2)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 2)
+	i4 := placement.NewEmptyInstance("i4", "r1", "z1", "endpoint", 2)
+	i5 := placement.NewEmptyInstance("i5", "r2", "z1", "endpoint", 2)
+	i6 := placement.NewEmptyInstance("i6", "r3", "z1", "endpoint", 2)
+	_, err := p.BuildInitialPlacement([]services.PlacementInstance{i1, i2, i3, i4, i5, i6}, 8192, 1)
+
+	assert.NoError(t, err)
+}
+
 func assertPlacementInstanceEqualExceptShards(
 	t *testing.T,
 	expected services.PlacementInstance,

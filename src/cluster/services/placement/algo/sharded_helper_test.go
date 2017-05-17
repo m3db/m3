@@ -191,56 +191,6 @@ func TestNonLeavingInstances(t *testing.T) {
 	assert.Equal(t, "i2", r[1].ID())
 }
 
-func TestMarkShard(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "", "", "endpoint", 1)
-	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-
-	i2 := placement.NewEmptyInstance("i2", "", "", "endpoint", 1)
-	i2.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i3"))
-	i2.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
-	i2.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i1"))
-
-	p := placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{i1, i2}).
-		SetShards([]uint32{1, 2}).
-		SetReplicaFactor(2)
-
-	_, err := MarkShardAvailable(p, "i3", 1)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "does not exist in placement")
-
-	_, err = MarkShardAvailable(p, "i1", 3)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "does not exist in instance")
-
-	_, err = MarkShardAvailable(p, "i1", 1)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not in Initializing state")
-
-	_, err = MarkShardAvailable(p, "i2", 1)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "does not exist in placement")
-
-	_, err = MarkShardAvailable(p, "i2", 3)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "does not exist in source instance")
-
-	_, err = MarkShardAvailable(p, "i2", 2)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not leaving instance")
-}
-
-func TestRemoveInstanceFromArray(t *testing.T) {
-	instances := []services.PlacementInstance{
-		placement.NewEmptyInstance("i1", "", "", "endpoint", 1),
-		placement.NewEmptyInstance("i2", "", "", "endpoint", 1),
-	}
-
-	assert.Equal(t, instances, removeInstance(instances, "not_exist"))
-	assert.Equal(t, []services.PlacementInstance{placement.NewEmptyInstance("i2", "", "", "endpoint", 1)}, removeInstance(instances, "i1"))
-}
-
 func TestCopy(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
@@ -256,7 +206,7 @@ func TestCopy(t *testing.T) {
 
 	ids := []uint32{1, 2, 3, 4, 5, 6}
 	s := placement.NewPlacement().SetInstances(instances).SetShards(ids).SetReplicaFactor(1)
-	copy := clonePlacement(s)
+	copy := placement.ClonePlacement(s)
 	assert.Equal(t, s.NumInstances(), copy.NumInstances())
 	assert.Equal(t, s.Shards(), copy.Shards())
 	assert.Equal(t, s.ReplicaFactor(), copy.ReplicaFactor())
